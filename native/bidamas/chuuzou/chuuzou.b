@@ -73,7 +73,7 @@ def cz_tokens(text)
     elsif member?(c, cz_delims)
       f = cz_flush(st)
       assoc(f, :toks, append(get(f, :toks), [c]))
-    elsif c == " " or c == "\n" or c == "\t"
+    elsif c == " " or c == line_break or c == "\t"
       cz_flush(st)
     else
       assoc(st, :cur, concat(get(st, :cur), c))
@@ -110,7 +110,7 @@ def cz_unescape(cs)
     fn(acc, c)
       if get(acc, :esc)
         ch = if c == "n"
-          "\n"
+          line_break
         elsif c == "t"
           "\t"
         else
@@ -641,7 +641,12 @@ def cz_emit(path, board_name)
   checked = cz_capture([blue, "check", path])
   if get(checked, :status) != 0
     cz_refuse(
-      "#{path} does not check:\n#{get(checked, :stdout)}#{get(checked, :stderr)}"
+      join_lines(
+        [
+          "#{path} does not check:",
+          "#{get(checked, :stdout)}#{get(checked, :stderr)}"
+        ]
+      )
     )
   end
   tree = cz_capture([blue, "ast", "--resolved", path])
@@ -680,7 +685,7 @@ def cz_link_script(board)
     "__stack_top = ORIGIN(ram) + LENGTH(ram);",
     ""
   ]
-  join(lines, "\n")
+  join(lines, line_break)
 end
 
 # The rustc flags every crate of an image shares: the board's target, size
@@ -703,7 +708,7 @@ end
 def cz_run(args, what)
   r = cz_capture(args)
   if get(r, :status) != 0
-    cz_refuse("#{what} failed:\n#{get(r, :stderr)}")
+    cz_refuse(join_lines(["#{what} failed:", get(r, :stderr)]))
   end
   r
 end
@@ -804,7 +809,10 @@ end
 # One section's size from `llvm-size -A` output, read by name (0 when the
 # image has no such section).
 def cz_section(size_text, section)
-  row = find(split(size_text, "\n"), (l) -> starts_with?(l, "#{section} "))
+  row = find(
+    split(size_text, line_break),
+    (l) -> starts_with?(l, "#{section} ")
+  )
   if row.nil?
     0
   else
@@ -817,7 +825,7 @@ end
 def cz_measure(elf)
   sized = get(cz_run(["llvm-size", "-A", elf], "llvm-size"), :stdout)
   syms = get(cz_run(["llvm-nm", "-C", elf], "llvm-nm"), :stdout)
-  fmt = filter((l) -> contains?(l, "core::fmt"), split(syms, "\n"))
+  fmt = filter((l) -> contains?(l, "core::fmt"), split(syms, line_break))
   {
     text: cz_section(sized, ".text"),
     rodata: cz_section(sized, ".rodata"),
@@ -845,13 +853,13 @@ def cz_size_tsv(program, board_name, m)
     ],
     "\t"
   )
-  "#{head}\n#{row}\n"
+  unlines([head, row])
 end
 
 # ── Tests ─────────────────────────────────────────────────────────────────
 
 test "the reader reads the resolved tree's atoms and nesting"
-  forms = cz_read("(define %root/X 5)\n(f \"a b\" :k (g))")
+  forms = cz_read(join_lines(["(define %root/X 5)", "(f \"a b\" :k (g))"]))
   assert count(forms) == 2
   assert first(forms) == [{sym: "define"}, {sym: "%root/X"}, 5]
   assert second(forms) == [{sym: "f"}, {str: "a b"}, {kw: "k"}, [{sym: "g"}]]
@@ -908,7 +916,14 @@ test "the linker script comes from the board's ram region"
 end
 
 test "a section's size is read by name"
-  out = "x.elf  :\nsection   size   addr\n.text       64   2147483648\n.comment   153   0\n"
+  out = unlines(
+    [
+      "x.elf  :",
+      "section   size   addr",
+      ".text       64   2147483648",
+      ".comment   153   0"
+    ]
+  )
   assert cz_section(out, ".text") == 64
   assert cz_section(out, ".data") == 0
 end

@@ -47,7 +47,7 @@ def table(head, rows)
     ["| #{join(head, " | ")} |", "|#{rule}|"],
     map((cells) -> "| #{join(cells, " | ")} |", rows)
   )
-  join(lines, "\n")
+  join(lines, line_break)
 end
 
 def forms(data)
@@ -138,7 +138,13 @@ def topic_section(topic, names, redefined)
     end,
     mine
   )
-  "### #{text(topic, "title")}\n\n#{table(["name", "call", "arity", "meaning"], rows)}"
+  join_lines(
+    [
+      "### #{text(topic, "title")}",
+      "",
+      table(["name", "call", "arity", "meaning"], rows)
+    ]
+  )
 end
 
 def names_section(data)
@@ -149,13 +155,19 @@ def names_section(data)
     field(data, "topics")
   )
   intro = "#{to_s(size(names))} names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further #{text(data, "uncallable")} bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above."
-  "#{intro}\n\n#{join(sections, "\n\n")}"
+  join_lines([intro, "", join(sections, unlines(["", ""]))])
 end
 
 def nullary(names)
   bare = filter((n) -> text(n, "arity") == "0", names)
   rows = map((n) -> [code(text(n, "name")), md_cell(text(n, "doc"))], bare)
-  "A function that takes no parameters is CALLED where its name is written: `now_ms` is a number, `now_ms()` is the same call in a spelling the check stage refuses in a file (B0023; `blue fmt --write` rewrites it), and `fn() now_ms end` is the function itself as a value. A local or a parameter of the same name is its value, never a call. These #{to_s(size(bare))} built-in names therefore run, with their effects, wherever they are written bare:\n\n#{table(["name", "meaning"], rows)}"
+  join_lines(
+    [
+      "A function that takes no parameters is CALLED where its name is written: `now_ms` is a number, `now_ms()` is the same call in a spelling the check stage refuses in a file (B0023; `blue fmt --write` rewrites it), and `fn() now_ms end` is the function itself as a value. A local or a parameter of the same name is its value, never a call. These #{to_s(size(bare))} built-in names therefore run, with their effects, wherever they are written bare:",
+      "",
+      table(["name", "meaning"], rows)
+    ]
+  )
 end
 
 def rules(data)
@@ -170,7 +182,13 @@ def rules(data)
     end,
     field(data, "rules")
   )
-  "Every rule blue holds, from the registry the check stage runs (`blue explain CODE` prints the reasoning). blue has one way to write each thing: a spelling a rule names is still read, and `blue fmt --write` and `blue check --fix` rewrite it where the fix is `autofix`; `blue test` and `blue check` never write, and name that command. The inventory, with the reason for each choice, is [`CANONICAL-FORMS.md`](CANONICAL-FORMS.md).\n\n#{table(["code", "rule", "law", "fix"], rows)}"
+  join_lines(
+    [
+      "Every rule blue holds, from the registry the check stage runs (`blue explain CODE` prints the reasoning). blue has one way to write each thing: a spelling a rule names is still read, and `blue fmt --write` and `blue check --fix` rewrite it where the fix is `autofix`; `blue test` and `blue check` never write, and name that command. The inventory, with the reason for each choice, is [`CANONICAL-FORMS.md`](CANONICAL-FORMS.md).",
+      "",
+      table(["code", "rule", "law", "fix"], rows)
+    ]
+  )
 end
 
 def render(data)
@@ -195,7 +213,7 @@ def render(data)
     "## Rules",
     rules(data)
   ]
-  "#{join(parts, "\n\n")}\n"
+  unlines([join(parts, unlines(["", ""]))])
 end
 
 write_file(getenv("GEN_OUT", "docs/REFERENCE.md"), render(reference_json))

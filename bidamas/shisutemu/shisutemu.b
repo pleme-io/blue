@@ -309,10 +309,10 @@ test "file_age_ms answers nil for a missing file and a small age for a real one"
 end
 
 test "last_nonempty_line ignores trailing blank lines and invents none"
-  assert last_nonempty_line("a\n\nb\n") == "b"
-  assert last_nonempty_line("a\nb") == "b"
+  assert last_nonempty_line(unlines(["a", "", "b"])) == "b"
+  assert last_nonempty_line(join_lines(["a", "b"])) == "b"
   assert last_nonempty_line("only") == "only"
-  assert last_nonempty_line("\n\n") == ""
+  assert last_nonempty_line(unlines(["", ""])) == ""
   assert last_nonempty_line("") == ""
 end
 

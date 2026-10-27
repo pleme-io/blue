@@ -903,13 +903,13 @@ def manual_md(a)
     "| Step | Where | What |",
     "|---|---|---|"
   ]
-  "#{join(append(head, rows), "\n")}\n"
+  unlines([join(append(head, rows), line_break)])
 end
 
 def refused_md(a)
   rows = map((r) -> "| #{first(r)} | #{nth(1, r)} |", judge(a).refused)
   head = ["| Refused | Why |", "|---|---|"]
-  "#{join(append(head, rows), "\n")}\n"
+  unlines([join(append(head, rows), line_break)])
 end
 
 def write_outputs(a, dir)
@@ -1191,7 +1191,7 @@ test "manual steps follow the order table and name each pending value"
   assert first(s).what == "Register acme.example"
   assert nth(4, s).what ==
     "Replace PENDING-google-dkim in the TXT row google._domainkey.acme.example with the value the provider shows for acme.example"
-  assert size(split(manual_md(example), "\n")) == 6 + 8 + 1
+  assert size(split(manual_md(example), line_break)) == 6 + 8 + 1
   assert registrar("x.com.br") == "Registro.br"
 end
 

@@ -4,7 +4,7 @@ def record(i)
 end
 
 def json_text(n)
-  "[#{join(map(record, range(n)), ",\n")}]\n"
+  unlines(["[#{join(map(record, range(n)), unlines([","]))}]"])
 end
 
 def vocabulary()
@@ -22,7 +22,7 @@ end
 def write_data(dir)
   mkdir_p(dir)
   write_file(path_join(dir, "records.json"), json_text(17000))
-  write_file(path_join(dir, "words.txt"), "#{text(vocabulary, 800_000)}\n")
+  write_file(path_join(dir, "words.txt"), unlines([text(vocabulary, 800_000)]))
 end
 
 def workloads()
@@ -100,7 +100,11 @@ def language_row(langs, w, work, runs)
   b = nth(0, timed)
   py = nth(1, timed)
   rb = nth(2, timed)
-  "| #{name} | #{cell(b)} | #{cell(py)} | #{cell(rb)} | #{ratio(b, py)}× | #{ratio(b, rb)}× |\n"
+  unlines(
+    [
+      "| #{name} | #{cell(b)} | #{cell(py)} | #{cell(rb)} | #{ratio(b, py)}× | #{ratio(b, rb)}× |"
+    ]
+  )
 end
 
 def copy_workloads(src, work, names)
@@ -123,7 +127,7 @@ end
 def tooling_rows(blue, work)
   files = filter(
     (f) -> f != "",
-    split(stdout_of(exec_capture("git", "ls-files", "*.b")), "\n")
+    split(stdout_of(exec_capture("git", "ls-files", "*.b")), line_break)
   )
   large = "bidamas/kueri/kueri.b"
   one = measure(
@@ -141,9 +145,15 @@ def tooling_rows(blue, work)
   checked = now_ms - started
   join(
     [
-      "| `fmt --check` #{large} | #{cell(one)} |\n",
-      "| `fmt --check` all #{length(files)} tracked files | #{cell(all)} |\n",
-      "| `check`, one process per file, #{length(files)} files | #{checked} (one run) |\n"
+      unlines(["| `fmt --check` #{large} | #{cell(one)} |"]),
+      unlines(
+        ["| `fmt --check` all #{length(files)} tracked files | #{cell(all)} |"]
+      ),
+      unlines(
+        [
+          "| `check`, one process per file, #{length(files)} files | #{checked} (one run) |"
+        ]
+      )
     ],
     ""
   )
@@ -187,14 +197,16 @@ def compile_row(target, profile)
   touched("crates/blue-lang-runtime/src/lib.rs")
   runtime = timed_build(target, profile)
   rm_rf(target)
-  "| #{profile} | #{clean} | #{leaf} | #{runtime} |\n"
+  unlines(["| #{profile} | #{clean} | #{leaf} | #{runtime} |"])
 end
 
 def compile_rows(target)
   join(
     [
-      "| profile | clean s | leaf crate touched s | blue-lang-runtime touched s |\n",
-      "|---|---|---|---|\n",
+      unlines(
+        ["| profile | clean s | leaf crate touched s | blue-lang-runtime touched s |"]
+      ),
+      unlines(["|---|---|---|---|"]),
       compile_row(target, "dev"),
       compile_row(target, "release")
     ],
@@ -206,10 +218,14 @@ def scripts(blue, langs, work, runs)
   names = map((w) -> nth(0, w), workloads)
   write_data(path_join(work, "data"))
   copy_workloads("bench/workloads", work, names)
-  write_stdout("| workload | blue ms | python ms | ruby ms | blue/python | blue/ruby |\n")
-  write_stdout("|---|---|---|---|---|---|\n")
+  write_stdout(
+    unlines(
+      ["| workload | blue ms | python ms | ruby ms | blue/python | blue/ruby |"]
+    )
+  )
+  write_stdout(unlines(["|---|---|---|---|---|---|"]))
   map((w) -> write_stdout(language_row(langs, w, work, runs)), workloads)
-  write_stdout("\n| tooling | ms |\n|---|---|\n")
+  write_stdout(unlines(["", "| tooling | ms |", "|---|---|"]))
   write_stdout(tooling_rows(blue, work))
 end
 

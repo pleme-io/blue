@@ -222,11 +222,8 @@ pub fn load(dir: &Path) -> (Vec<Row>, Vec<String>) {
     (rows, refusals)
 }
 
-fn str_of(s: &Sexp) -> Option<&str> {
-    match s {
-        Sexp::Atom(Atom::Str(x)) => Some(x),
-        _ => None,
-    }
+fn str_of(s: &Sexp) -> Option<String> {
+    blue_lang_syntax::constant_text(s)
 }
 
 fn head_of(s: &Sexp) -> Option<(&str, &[Sexp])> {
@@ -245,10 +242,10 @@ fn strings_of(s: &Sexp) -> Option<Vec<String>> {
     if head != "list" {
         return None;
     }
-    items.iter().map(|i| str_of(i).map(str::to_owned)).collect()
+    items.iter().map(str_of).collect()
 }
 
-fn one_str<'a>(what: &str, args: &'a [Sexp]) -> Result<&'a str, String> {
+fn one_str(what: &str, args: &[Sexp]) -> Result<String, String> {
     match args {
         [s] => str_of(s).ok_or_else(|| format!("{what}(…) takes one string")),
         _ => Err(format!("{what}(…) takes one string")),
@@ -368,7 +365,7 @@ fn row_of(file: &str, form: &Sexp) -> Result<Row, String> {
                     Some(e) => {
                         let e =
                             str_of(e).ok_or_else(|| label("the evaluator is a string".into()))?;
-                        Some(Ev::parse(e).ok_or_else(|| {
+                        Some(Ev::parse(&e).ok_or_else(|| {
                             label(format!(
                                 "`{e}` is not an evaluator: walker, vm, wasm, cli, static"
                             ))
@@ -379,7 +376,7 @@ fn row_of(file: &str, form: &Sexp) -> Result<Row, String> {
             }
             "position" => {
                 let p = one_str("position", args).map_err(label)?;
-                if !RUNGS.contains(&p) {
+                if !RUNGS.contains(&p.as_str()) {
                     return Err(label(format!(
                         "position(\"{p}\"): the rung is one of {}",
                         RUNGS.join(", ")

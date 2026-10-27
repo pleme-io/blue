@@ -134,7 +134,7 @@ end
 def matrix_rows(text)
   filter(
     (l) -> not is_empty(blue::trim(l)) and not starts_with?(l, "corp\t"),
-    split(text, "\n")
+    split(text, line_break)
   )
 end
 
@@ -144,10 +144,16 @@ def matrix_row(line)
 end
 
 def matrix_text(states)
-  header = "#{join(map((a) -> to_s(a), axis_names), "\t")}\toutcome\n"
+  header = unlines(["#{join(map((a) -> to_s(a), axis_names), "\t")}\toutcome"])
   concat(
     header,
-    join(map((s) -> "#{row_key(s)}\t#{outcome_label(decide(s))}\n", states), "")
+    join(
+      map(
+        (s) -> unlines(["#{row_key(s)}\t#{outcome_label(decide(s))}"]),
+        states
+      ),
+      ""
+    )
   )
 end
 
@@ -334,7 +340,7 @@ def octet?(p)
 end
 
 def parse_netstat(text)
-  ls = split(text, "\n")
+  ls = split(text, line_break)
   hdr = filter((l) -> starts_with?(l, "Destination"), ls)
   if is_empty(hdr)
     bad("netstat: no Destination header")
@@ -369,7 +375,7 @@ end
 def parse_ip_route(text)
   rows = map(
     (l) -> ip_route_row(fields(l)),
-    filter((l) -> not is_empty(blue::trim(l)), split(text, "\n"))
+    filter((l) -> not is_empty(blue::trim(l)), split(text, line_break))
   )
   if not is_empty(filter((r) -> r.nil?, rows))
     bad("ip route: a line with no dev")
@@ -423,7 +429,7 @@ def parse_ip_rules(text)
     unique(
       filter(
         (h) -> h != nil,
-        map((l) -> rule_host(fields(l)), split(text, "\n"))
+        map((l) -> rule_host(fields(l)), split(text, line_break))
       )
     )
   )
@@ -572,7 +578,7 @@ def parse_dscacheutil(text)
       ipv4?,
       map(
         (l) -> blue::trim(replace(l, "ip_address:", "")),
-        filter((l) -> starts_with?(l, "ip_address:"), split(text, "\n"))
+        filter((l) -> starts_with?(l, "ip_address:"), split(text, line_break))
       )
     )
   )
@@ -589,7 +595,7 @@ def parse_getent(text)
       ipv4?,
       map(
         (l) -> first(fields(l)),
-        filter((l) -> not is_empty(blue::trim(l)), split(text, "\n"))
+        filter((l) -> not is_empty(blue::trim(l)), split(text, line_break))
       )
     )
   )
@@ -863,7 +869,11 @@ def run(cfg)
   write_file(tmp, json_stringify(record))
   rename_file(tmp, get(cfg2, :state_path))
   write_stdout(
-    "#{outcome_label(o)} #{row_key(s)} planned=#{to_s(size(argvs))} failed=#{to_s(size(failed))}\n"
+    unlines(
+      [
+        "#{outcome_label(o)} #{row_key(s)} planned=#{to_s(size(argvs))} failed=#{to_s(size(failed))}"
+      ]
+    )
   )
   record
 end
@@ -928,11 +938,11 @@ test "the matrix gate goes red on a missing row, a stray row and a wrong decisio
   states = every_state
   text = fixture("matrix.tsv")
   ls = matrix_rows(text)
-  short = join(rest(ls), "\n")
+  short = join(rest(ls), line_break)
   assert first(first(matrix_findings(short, states))) == :missing_row
   stray = concat(
     text,
-    "full\tpermissive\trelay\tpresent\tresolved\tsolaris\tbypass\n"
+    unlines(["full\tpermissive\trelay\tpresent\tresolved\tsolaris\tbypass"])
   )
   assert first(first(matrix_findings(stray, states))) == :row_without_variant
   flipped = replace(
@@ -1037,12 +1047,19 @@ test "control plane resolution and status"
   r = parse_dscacheutil(fixture("dscacheutil.txt"))
   assert size(get(r, :value)) == 8
   assert member?("192.200.0.110", get(r, :value)) == true
-  assert get(parse_dscacheutil("name: x\n"), :ok) == false
+  assert get(parse_dscacheutil(unlines(["name: x"])), :ok) == false
   assert get(parse_backend_state(fixture("status-stopped.json")), :value) ==
     "Stopped"
   assert get(parse_backend_state("{}"), :ok) == false
   assert get(
-    parse_getent("192.200.0.102   STREAM controlplane.tailscale.com\n192.200.0.102   DGRAM\n"),
+    parse_getent(
+      unlines(
+        [
+          "192.200.0.102   STREAM controlplane.tailscale.com",
+          "192.200.0.102   DGRAM"
+        ]
+      )
+    ),
     :value
   ) == ["192.200.0.102"]
 end
@@ -1124,17 +1141,33 @@ test "an unreadable observation is blind, naming what could not be read"
 end
 
 test "nixos is policy routing: a table route and a rule per host"
-  text = "0.0.0.0/1 dev ppp0 scope link\n128.0.0.0/1 dev ppp0 scope link\ndefault via 192.168.1.1 dev eth0 proto dhcp\n100.64.0.0/10 dev tailscale0\n"
+  text = unlines(
+    [
+      "0.0.0.0/1 dev ppp0 scope link",
+      "128.0.0.0/1 dev ppp0 scope link",
+      "default via 192.168.1.1 dev eth0 proto dhcp",
+      "100.64.0.0/10 dev tailscale0"
+    ]
+  )
   rs = get(parse_ip_route(text), :value)
   assert corp_of(rs, "ppp") == :full
   assert get(gateway_of(rs, "ppp"), :iface) == "eth0"
   assert get(
-    parse_ip_rules("5200:\tfrom all to 192.200.0.102/32 lookup 5280\n5210:\tfrom all fwmark 0x80000/0xff0000 lookup main\n"),
+    parse_ip_rules(
+      unlines(
+        [
+          "5200:\tfrom all to 192.200.0.102/32 lookup 5280",
+          "5210:\tfrom all fwmark 0x80000/0xff0000 lookup main"
+        ]
+      )
+    ),
     :value
   ) == ["192.200.0.102"]
   obs = {
     routes: parse_ip_route(text),
-    rules: parse_ip_rules("5200:\tfrom all to 192.200.0.102/32 lookup 5280\n"),
+    rules: parse_ip_rules(
+      unlines(["5200:\tfrom all to 192.200.0.102/32 lookup 5280"])
+    ),
     status: ok("Running"),
     netcheck: ok(:relay),
     derp: ok(["199.38.181.93"]),
@@ -1184,7 +1217,7 @@ test "dry-run plans and runs nothing; a real capture keeps status and stdout apa
     argv: ["/sbin/x"],
     started: true,
     status: 0,
-    stdout: "Destination\n",
+    stdout: unlines(["Destination"]),
     stderr: "warn"
   }
   assert get(from_capture(ok_cap, parse_netstat), :ok) == true

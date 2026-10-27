@@ -3124,7 +3124,7 @@ nisshi (日誌) — an event log: append-only JSON Lines, hash-chained, optional
 | `nisshi::from_text(text, path, bytes, label, d)` | `el_from_text` (old) |  |  | from_text: The log a stream's text reads as: el_read's work after the file is read. |
 | `nisshi::decode_at(names, i, line, is_torn)` | `el_decode_at` (old) |  |  |  |
 | `nisshi::lines(text)` | `el_lines` (old) |  |  | lines: A stream's lines: its text split on newlines, without the empty piece after |
-| `nisshi::unlines(lines)` | `el_unlines` (old) |  |  | unlines: Lines back into a stream's text, each ended by a newline. |
+| `nisshi::unlines(lines)` | `el_unlines` (old) | yes |  | unlines: Lines back into a stream's text, each ended by a newline. |
 | `nisshi::open(path, label, d, public_hex)` | `el_open` (old) |  |  | open: The writer's door: read the stream, verify it (signatures too, given a |
 | `nisshi::el_append(log, entity, event, links)` | `nisshi::append` | yes | `B0013` | el_append: Append `event` (an lc_ev) for `entity`, with `links` ([kind, id] pairs, [] |
 | `nisshi::observe(log, entity, event, links)` | `el_observe` (old) |  |  | observe: Append an event a device OBSERVED: it happened, whatever the guard said. A |

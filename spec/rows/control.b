@@ -3,30 +3,59 @@
 
 row(
   "control.if",
-  "if 1 < 2\n  :yes\nelse\n  :no\nend",
+  join_lines(["if 1 < 2", "  :yes", "else", "  :no", "end"]),
   value(":yes"),
   covers("keyword:if", "keyword:else", "keyword:end")
 )
 
-row("control.if.no_else_is_nil", "if false\n  1\nend", value("nil"))
+row(
+  "control.if.no_else_is_nil",
+  join_lines(["if false", "  1", "end"]),
+  value("nil")
+)
 
 row(
   "control.elsif",
-  "x = 5\nif x < 3\n  :small\nelsif x < 10\n  :medium\nelse\n  :large\nend",
+  join_lines(
+    [
+      "x = 5",
+      "if x < 3",
+      "  :small",
+      "elsif x < 10",
+      "  :medium",
+      "else",
+      "  :large",
+      "end"
+    ]
+  ),
   value(":medium"),
   covers("keyword:elsif")
 )
 
 row(
   "control.unless",
-  "unless false\n  :ran\nend",
+  join_lines(["unless false", "  :ran", "end"]),
   value(":ran"),
   covers("keyword:unless")
 )
 
 row(
   "control.truthiness",
-  "[if 0\n  :t\nend, if \"\"\n  :t\nend, if []\n  :t\nend, if nil\n  :t\nelse\n  :f\nend]",
+  join_lines(
+    [
+      "[if 0",
+      "  :t",
+      "end, if \"\"",
+      "  :t",
+      "end, if []",
+      "  :t",
+      "end, if nil",
+      "  :t",
+      "else",
+      "  :f",
+      "end]"
+    ]
+  ),
   value("[:t, :t, :t, :f]"),
   covers("keyword:if")
 )
@@ -40,26 +69,37 @@ row(
 
 row(
   "control.case",
-  "case 2\nwhen 1\n  :one\nwhen 2\n  :two\nelse\n  :other\nend",
+  join_lines(
+    [
+      "case 2",
+      "when 1",
+      "  :one",
+      "when 2",
+      "  :two",
+      "else",
+      "  :other",
+      "end"
+    ]
+  ),
   value(":two"),
   covers("keyword:case")
 )
 
 row(
   "control.case.else",
-  "case 9\nwhen 1\n  :one\nelse\n  :other\nend",
+  join_lines(["case 9", "when 1", "  :one", "else", "  :other", "end"]),
   value(":other")
 )
 
 row(
   "control.case.uses_eq",
-  "case 2.0\nwhen 2\n  :matched\nelse\n  :no\nend",
+  join_lines(["case 2.0", "when 2", "  :matched", "else", "  :no", "end"]),
   value(":matched")
 )
 
 row(
   "control.case.destructure",
-  "case [1, 2]\nwhen [a, b]\n  a + b\nend",
+  join_lines(["case [1, 2]", "when [a, b]", "  a + b", "end"]),
   value("3"),
   pending("G13")
 )
@@ -71,7 +111,12 @@ row(
   covers("op:and")
 )
 
-row("control.and.short_circuit", "x = false && 1 / 0\nx", value("false"))
+row(
+  "control.and.short_circuit",
+  join_lines(["x = false && 1 / 0", "x"]),
+  value("false")
+)
+
 row("control.or", "[nil or 3, 1 or 1 / 0]", value("[3, 1]"), covers("op:or"))
 row("control.and.symbol", "[true && 2, nil || 3]", value("[2, 3]"))
 row("control.and.builtin", "and(1, 2, 3)", value("3"))
@@ -95,7 +140,7 @@ row("control.begin", "begin(1, 2, 3)", value("3"), covers("keyword:begin"))
 
 row(
   "control.while",
-  "i = 0\nwhile(i < 3, set!(i, i + 1))\ni",
+  join_lines(["i = 0", "while(i < 3, set!(i, i + 1))", "i"]),
   value("3"),
   covers("builtin:while", "builtin:set!")
 )

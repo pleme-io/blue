@@ -261,7 +261,7 @@ def law_empty_list_is_brackets()
 end
 
 def law_split_keeps_every_field()
-  seps = [",", "|", "\n", "ab"]
+  seps = [",", "|", line_break, "ab"]
   words = ["", "a", "x y", "日本", "a,b", "|", "abab"]
   cases = map(
     fn(i)
@@ -301,7 +301,7 @@ def chain_values()
     " 12 ",
     "日本",
     "\"q\"",
-    "a\nb",
+    join_lines(["a", "b"]),
     "ẞ",
     "İ",
     "x y",
@@ -606,11 +606,22 @@ end
 # declares it generated, so a stale card is a red build).
 
 def card_line(d)
-  "- **#{get(d, :id)}** #{get(d, :rule)}\n"
+  unlines(["- **#{get(d, :id)}** #{get(d, :rule)}"])
 end
 
 def card()
-  head = "# Blue's rules\n\nGenerated from `bidamas/okite/okite.b` by `rules.b`: do not edit.\nEvery rule is enforced by laws in okite; a rule without a passing law fails\nthe build.\n\n**Blue values behave like Ruby's, except where a rule below says otherwise.**\n\n"
+  head = unlines(
+    [
+      "# Blue's rules",
+      "",
+      "Generated from `bidamas/okite/okite.b` by `rules.b`: do not edit.",
+      "Every rule is enforced by laws in okite; a rule without a passing law fails",
+      "the build.",
+      "",
+      "**Blue values behave like Ruby's, except where a rule below says otherwise.**",
+      ""
+    ]
+  )
   concat(head, join(map(card_line, decisions), ""))
 end
 

@@ -2539,13 +2539,13 @@ def permit_payload(p, subject)
   ]
   counts = map((c) -> "count.#{text(first(c))}=#{to_s(nth(1, c))}", nth(5, p))
   lines = flatten1([head, counts, ["basis=#{to_s(nth(6, p))}"]])
-  if is_empty(filter((l) -> contains?(l, "\n"), lines)) == false
+  if is_empty(filter((l) -> contains?(l, line_break), lines)) == false
     raise(
       :raifusaikuru_use,
       "a permit's names must not contain a newline: the payload is one key=value per line"
     )
   end
-  join(lines, "\n")
+  join(lines, line_break)
 end
 
 @doc """
@@ -2727,7 +2727,18 @@ test "a worked lifecycle, checked by hand"
   assert permit_basis(p) == 5
   assert permit_not_after(permit_for(d, s, :use, 12000)) == 15400
   assert permit_payload(p, "device-7") ==
-    "raifusaikuru-permit/1\nlifecycle=consumable\nsubject=device-7\ncapability=use\nissued_at=3000\nnot_after=10200\ncount.uses=37\nbasis=5"
+    join_lines(
+      [
+        "raifusaikuru-permit/1",
+        "lifecycle=consumable",
+        "subject=device-7",
+        "capability=use",
+        "issued_at=3000",
+        "not_after=10200",
+        "count.uses=37",
+        "basis=5"
+      ]
+    )
   v = allowed(d, s, :use, 15400)
   assert refused_rule(v) == :reading_fresh
   assert map(task_name, verdict_tasks(v)) == [:take_reading]

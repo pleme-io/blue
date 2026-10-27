@@ -1334,6 +1334,24 @@ local bound to such a path, is reported with the suggestion `write_program`.
 `# waive B0064: reason` keeps a line that writes a malformed program on
 purpose, such as a fixture for a layout rule. docs/SAFETY.md, row 18.",
     }
+    B0065 {
+        slug: "newline-escape",
+        severity: Error,
+        fix: Machine,
+        law: "text of several lines is written as its lines: `join_lines([a, b])`, `unlines([a, b])` when it ends in a newline, `line_break` alone; never a `\\n` escape in a string",
+        witness: "\"a\\nb\"\n",
+        waivable: false,
+        explanation: "\
+A `\\n` inside a string hides a line break in one line of source, and the
+text it builds is read by counting escapes. blue reads the escape and writes
+the lines: `\"#{message}\\n#{help}\"` is `join_lines([message, help])`,
+`\"done\\n\"` is `unlines([\"done\"])`, and `\"\\n\"` alone is `line_break`.
+`join_lines` renders each element as interpolation does, so a line that is
+one interpolation is the expression itself, and the text built is the same.
+
+A string inside `quote` is data and keeps its escape. Other escapes (`\\t`,
+`\\\"`, `\\u{1b}`) stay as written (B0033).",
+    }
 }
 
 impl Code {

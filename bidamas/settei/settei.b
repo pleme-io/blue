@@ -531,7 +531,7 @@ test "a YAML file and a JSON file resolve to the same settings"
   dir = defaults_dir
   y = path_join(dir, "app.yaml")
   j = path_join(dir, "app.json")
-  write_file(y, "greeting: oi\nflags:\n  shout: true\n")
+  write_file(y, unlines(["greeting: oi", "flags:", "  shout: true"]))
   write_file(j, "{\"greeting\": \"oi\", \"flags\": {\"shout\": true}}")
   d = {"greeting" => "hello", "port" => 8080, "flags" => {"shout" => false}}
   want = {"greeting" => "oi", "port" => 8080, "flags" => {"shout" => true}}

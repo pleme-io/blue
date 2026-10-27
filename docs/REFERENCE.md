@@ -102,7 +102,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-294 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 185 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+297 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 185 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -166,6 +166,8 @@ Higher binding power binds tighter.
 | `downcase` | `downcase(s)` | 1 | The string in lower case. Raises on nil. |
 | `ends_with?` | `ends_with?(s, suffix)` | 2 | Whether s ends with suffix. |
 | `join` | `join(xs, sep)` | 2 | The elements' text with sep between. The LIST comes first here, and the string first in split. Also defined by `tsuushin` (`tsuushin::join`): a file that lists it gets that one. |
+| `join_lines` | `join_lines(xs)` | 1 | The elements' text, one per line, with no newline after the last: what a string with a \n escape is written as (B0065). |
+| `line_break` | `line_break` | 0 | The one-character line-break string, "\n" (B0065). `newline` prints one. |
 | `replace` | `replace(s, from, to)` | 3 | Every occurrence of from replaced by to. |
 | `split` | `split(s, sep)` | 2 | The fields between separators, empty ones kept (okite D0012): split("a,b,", ",") is ["a", "b", ""]. An empty sep splits into characters. |
 | `starts_with?` | `starts_with?(s, prefix)` | 2 | Whether s begins with prefix. |
@@ -175,6 +177,7 @@ Higher binding power binds tighter.
 | `text_last_index` | `text_last_index(s, sub, from)` | 3 | The character index of the last sub in s starting at or before from, or -1. One linear pass. |
 | `to_s` | `to_s(x)` | 1 | Text for any value (okite D0005, D0006): nil is "", 1.0 is "1.0", a list or map its blue literal, a keyword its name. |
 | `trim` | `trim(s[, opts])` | 1..2 | The string without leading and trailing whitespace. opts: side: :both (default), :start or :end; chars: the characters to cut instead of whitespace. An unknown option raises :bad_option. Also defined by `moji` (`moji::trim`): a file that lists it gets that one. |
+| `unlines` | `unlines(xs)` | 1 | The elements' text, each followed by a newline: text that ends in a line break (B0065). Also defined by `nisshi` (`nisshi::unlines`): a file that lists it gets that one. |
 | `upcase` | `upcase(s)` | 1 | The string in upper case. Raises on nil. |
 
 ### Lists
@@ -510,7 +513,7 @@ Higher binding power binds tighter.
 
 ### Called where written bare
 
-A function that takes no parameters is CALLED where its name is written: `now_ms` is a number, `now_ms()` is the same call in a spelling the check stage refuses in a file (B0023; `blue fmt --write` rewrites it), and `fn() now_ms end` is the function itself as a value. A local or a parameter of the same name is its value, never a call. These 11 built-in names therefore run, with their effects, wherever they are written bare:
+A function that takes no parameters is CALLED where its name is written: `now_ms` is a number, `now_ms()` is the same call in a spelling the check stage refuses in a file (B0023; `blue fmt --write` rewrites it), and `fn() now_ms end` is the function itself as a value. A local or a parameter of the same name is its value, never a call. These 12 built-in names therefore run, with their effects, wherever they are written bare:
 
 | name | meaning |
 |---|---|
@@ -518,6 +521,7 @@ A function that takes no parameters is CALLED where its name is written: `now_ms
 | `builtin_names` | Every name this reference documents, as strings: what a bare name falls to when no definition or import has it. A catalogue reads it to say which definitions share a builtin's name. |
 | `chain_rules` | Every conversion-chain rewrite the check stage, the formatter and the evaluator share, as [id, slug, outer, soundness, cases] rows; a case is [label, kind or nil, lhs, rhs] with lhs and rhs one-parameter lambda forms for eval. okite's laws evaluate both sides. |
 | `cwd` | The current directory. |
+| `line_break` | The one-character line-break string, "\n" (B0065). `newline` prints one. |
 | `newline` | Print a newline. |
 | `now` | Unix time in seconds. |
 | `now_ms` | Unix time in milliseconds. |
@@ -618,3 +622,4 @@ Every rule blue holds, from the registry the check stage runs (`blue explain COD
 | `B0062` | argument-kind | a value whose kind is known is never passed where a builtin, or the parameter it flows to, takes another kind | suggested |
 | `B0063` | nullary-as-function | a zero-argument definition passed where a function is taken is written `() -> name`; a bare zero-argument name is a call | suggested |
 | `B0064` | unformatted-producer | a program that writes a `.b` file writes it with `write_program`, which formats it; a producer owns the form of what it emits | suggested |
+| `B0065` | newline-escape | text of several lines is written as its lines: `join_lines([a, b])`, `unlines([a, b])` when it ends in a newline, `line_break` alone; never a `\n` escape in a string | autofix |

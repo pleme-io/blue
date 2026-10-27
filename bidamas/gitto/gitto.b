@@ -247,7 +247,7 @@ def list(repo, opts?)
       worktree_of,
       filter(
         (b) -> b != "",
-        split(raw(repo, ["worktree", "list", "--porcelain"]), "\n\n")
+        split(raw(repo, ["worktree", "list", "--porcelain"]), unlines(["", ""]))
       )
     )
   else
@@ -500,8 +500,8 @@ verb_for("gitto", "delete", delete)
 
 test "a repository is read as commits, refs and files"
   r = fixture("read")
-  first_commit = save(r, "a.txt", "one\n", "first")
-  second = save(r, "a.txt", "two\n", "second")
+  first_commit = save(r, "a.txt", unlines(["one"]), "first")
+  second = save(r, "a.txt", unlines(["two"]), "second")
   assert first_commit.subject == "first"
   assert first_commit.parents == []
   assert second.parents == [first_commit.oid]
@@ -512,8 +512,8 @@ test "a repository is read as commits, refs and files"
   assert get(r, "HEAD~1", {}).oid == first_commit.oid
   assert ancestor?(r, first_commit.oid, second.oid) == true
   assert ancestor?(r, second.oid, first_commit.oid) == false
-  assert read(r, "a.txt", {}) == "two\n"
-  assert read(r, "a.txt", {at: first_commit.oid}) == "one\n"
+  assert read(r, "a.txt", {}) == unlines(["two"])
+  assert read(r, "a.txt", {at: first_commit.oid}) == unlines(["one"])
   assert raised(() -> read(r, "gone.txt", {})) != nil
   assert gitto::list(r, {of: :commits, limit: 1}) == [second]
   assert map((c) -> c.subject, gitto::list(r, {of: :commits})) ==
@@ -525,14 +525,14 @@ end
 
 test "info reports the branch, the head and the working tree"
   r = fixture("info")
-  c = save(r, "a.txt", "one\n", "first")
+  c = save(r, "a.txt", unlines(["one"]), "first")
   i = info(r)
   assert i.branch == "main"
   assert i.head == c.oid
   assert i.ahead == 0
   assert i.behind == 0
   assert i.clean? == true
-  write_file("#{r}/b.txt", "new\n")
+  write_file("#{r}/b.txt", unlines(["new"]))
   j = info(r)
   assert j.clean? == false
   assert j.changes == [{path: "b.txt", state: "??"}]
@@ -541,7 +541,7 @@ end
 
 test "branches and tags are created once and deleted idempotently"
   r = fixture("refs")
-  c = save(r, "a.txt", "one\n", "first")
+  c = save(r, "a.txt", unlines(["one"]), "first")
   assert create(r, "topic", c.oid, {}) == c.oid
   assert create(r, "v1", c.oid, {kind: :tag}) == c.oid
   assert map((b) -> b.name, gitto::list(r, {of: :branches})) ==
@@ -559,7 +559,7 @@ end
 
 test "an unknown option or list kind is refused by name"
   r = fixture("options")
-  save(r, "a.txt", "one\n", "first")
+  save(r, "a.txt", unlines(["one"]), "first")
   assert raised(() -> gitto::list(r, {of: :commits, limt: 2})) == :bad_option
   assert raised(() -> gitto::list(r, {of: :stashes})) == :bad_option
   assert raised(() -> fetch(r, {force: true})) == :bad_option
@@ -567,9 +567,9 @@ end
 
 test "commit refuses an empty index and takes an author"
   r = fixture("commit")
-  save(r, "a.txt", "one\n", "first")
+  save(r, "a.txt", unlines(["one"]), "first")
   assert raised(() -> commit(r, "nothing", {})) == :empty
-  write_file("#{r}/b.txt", "two\n")
+  write_file("#{r}/b.txt", unlines(["two"]))
   c = commit(
     r,
     "all of it",
@@ -581,7 +581,7 @@ end
 
 test "clone, fetch, merge and push follow the house rule"
   origin = fixture("origin")
-  base = save(origin, "a.txt", "one\n", "first")
+  base = save(origin, "a.txt", unlines(["one"]), "first")
   out(origin, ["config", "receive.denyCurrentBranch", "ignore"])
   work = "#{scratch}-gitto-work"
   rm_rf(work)
@@ -590,11 +590,11 @@ test "clone, fetch, merge and push follow the house rule"
   out(work, ["config", "user.email", "tester@example.invalid"])
   assert map((x) -> x.name, gitto::list(work, {of: :remotes})) == ["origin"]
   assert info(work).head == base.oid
-  ahead = save(origin, "a.txt", "two\n", "second")
+  ahead = save(origin, "a.txt", unlines(["two"]), "second")
   assert fetch(work, {}).nil?
   assert info(work).behind == 1
   assert merge(work, "origin/main", {}).oid == ahead.oid
-  local = save(work, "b.txt", "local\n", "third")
+  local = save(work, "b.txt", unlines(["local"]), "third")
   assert info(work).ahead == 1
   assert push(work, {}).nil?
   assert get(origin, "main", {}).oid == local.oid
@@ -604,15 +604,15 @@ end
 
 test "a diverged push rebases once and a diverged merge is refused"
   origin = fixture("diverge-origin")
-  save(origin, "a.txt", "one\n", "first")
+  save(origin, "a.txt", unlines(["one"]), "first")
   out(origin, ["config", "receive.denyCurrentBranch", "ignore"])
   work = "#{scratch}-gitto-diverge-work"
   rm_rf(work)
   clone(origin, work, {})
   out(work, ["config", "user.name", "Tester"])
   out(work, ["config", "user.email", "tester@example.invalid"])
-  save(origin, "a.txt", "two\n", "remote")
-  save(work, "b.txt", "mine\n", "local")
+  save(origin, "a.txt", unlines(["two"]), "remote")
+  save(work, "b.txt", unlines(["mine"]), "local")
   fetch(work, {})
   assert raised(() -> merge(work, "origin/main", {})) == :conflict
   assert raised(() -> push(work, {rebase: false})) == :diverged
@@ -624,8 +624,8 @@ end
 test "get returns one commit by ref or oid and nil when absent"
   r = fixture("get")
   assert get(r, "HEAD", {}).nil?
-  first_commit = save(r, "a.txt", "one\n", "first")
-  second = save(r, "a.txt", "two\n", "second")
+  first_commit = save(r, "a.txt", unlines(["one"]), "first")
+  second = save(r, "a.txt", unlines(["two"]), "second")
   assert get(r, "HEAD", {}) == second
   assert get(r, "main", {}) == second
   assert get(r, first_commit.oid, {}) == first_commit
@@ -637,15 +637,15 @@ end
 
 test "get refuses an option it does not take"
   r = fixture("get-option")
-  save(r, "a.txt", "one\n", "first")
+  save(r, "a.txt", unlines(["one"]), "first")
   assert raised(() -> get(r, "HEAD", {at: "main"})) == :bad_option
 end
 
 test "list defaults to every commit, newest first, and takes of, limit and ref"
   r = fixture("list-commits")
-  first_commit = save(r, "a.txt", "one\n", "first")
-  save(r, "a.txt", "two\n", "second")
-  third = save(r, "a.txt", "three\n", "third")
+  first_commit = save(r, "a.txt", unlines(["one"]), "first")
+  save(r, "a.txt", unlines(["two"]), "second")
+  third = save(r, "a.txt", unlines(["three"]), "third")
   assert map((c) -> c.subject, gitto::list(r, {})) ==
     ["third", "second", "first"]
   assert gitto::list(r, {}) == gitto::list(r, {of: :commits})
@@ -659,14 +659,14 @@ end
 
 test "list reads every commit past the old default page of fifty"
   r = fixture("list-many")
-  map((i) -> save(r, "a.txt", "#{i}\n", "c#{i}"), range(0, 55))
+  map((i) -> save(r, "a.txt", unlines([i]), "c#{i}"), range(0, 55))
   assert length(gitto::list(r, {})) == 55
   assert length(gitto::list(r, {limit: 7})) == 7
 end
 
 test "list reads branches, tags, remotes and worktrees by of"
   r = fixture("list-refs")
-  head = save(r, "a.txt", "one\n", "first")
+  head = save(r, "a.txt", unlines(["one"]), "first")
   out(r, ["branch", "topic"])
   out(r, ["tag", "v1"])
   assert map((b) -> b.name, gitto::list(r, {of: :branches})) ==
@@ -689,15 +689,15 @@ end
 
 test "list refuses an unknown of and an unknown option"
   r = fixture("list-bad")
-  save(r, "a.txt", "one\n", "first")
+  save(r, "a.txt", unlines(["one"]), "first")
   assert raised(() -> gitto::list(r, {of: :stashes})) == :bad_option
   assert raised(() -> gitto::list(r, {limt: 2})) == :bad_option
 end
 
 test "each verb runs with its options left out as it runs with an empty record"
   r = fixture("optional")
-  first_commit = save(r, "a.txt", "one\n", "first")
-  second = save(r, "a.txt", "two\n", "second")
+  first_commit = save(r, "a.txt", unlines(["one"]), "first")
+  second = save(r, "a.txt", unlines(["two"]), "second")
   assert get(r, "HEAD") == second
   assert get(r, "HEAD") == get(r, "HEAD", {})
   assert get(r, "HEAD", nil) == second
@@ -705,8 +705,8 @@ test "each verb runs with its options left out as it runs with an empty record"
   assert gitto::list(r) == gitto::list(r, {})
   assert gitto::list(r, nil) == gitto::list(r, {})
   assert map((c) -> c.subject, gitto::list(r)) == ["second", "first"]
-  assert read(r, "a.txt") == "two\n"
-  assert read(r, "a.txt", nil) == "two\n"
+  assert read(r, "a.txt") == unlines(["two"])
+  assert read(r, "a.txt", nil) == unlines(["two"])
   assert diff(r, first_commit.oid, second.oid) ==
     [{path: "a.txt", state: :modified}]
   assert diff(r, first_commit.oid, second.oid, nil) ==
@@ -720,7 +720,7 @@ end
 
 test "an option given to a verb with options left out is still checked"
   r = fixture("optional-bad")
-  save(r, "a.txt", "one\n", "first")
+  save(r, "a.txt", unlines(["one"]), "first")
   assert raised(() -> get(r, "HEAD", {at: "main"})) == :bad_option
   assert raised(() -> read(r, "a.txt", {when: 1})) == :bad_option
   assert raised(() -> fetch(r, {force: true})) == :bad_option
@@ -729,7 +729,7 @@ end
 
 test "clone, fetch, merge and push run with their options left out"
   origin = fixture("optional-origin")
-  base = save(origin, "a.txt", "one\n", "first")
+  base = save(origin, "a.txt", unlines(["one"]), "first")
   out(origin, ["config", "receive.denyCurrentBranch", "ignore"])
   work = "#{scratch}-gitto-optional-work"
   rm_rf(work)
@@ -737,18 +737,18 @@ test "clone, fetch, merge and push run with their options left out"
   out(work, ["config", "user.name", "Tester"])
   out(work, ["config", "user.email", "tester@example.invalid"])
   assert info(work).head == base.oid
-  ahead = save(origin, "a.txt", "two\n", "second")
+  ahead = save(origin, "a.txt", unlines(["two"]), "second")
   assert fetch(work).nil?
   assert merge(work, "origin/main").oid == ahead.oid
-  local = save(work, "b.txt", "local\n", "third")
+  local = save(work, "b.txt", unlines(["local"]), "third")
   assert push(work).nil?
   assert get(origin, "main").oid == local.oid
 end
 
 test "the master verbs reach gitto for a subject tagged with its space"
   r = fixture("dispatch")
-  c = save(r, "a.txt", "one\n", "first")
-  d = save(r, "a.txt", "two\n", "second")
+  c = save(r, "a.txt", unlines(["one"]), "first")
+  d = save(r, "a.txt", unlines(["two"]), "second")
   s = in_space("gitto", r)
   assert blue::info(s) == info(r)
   assert blue::exists?(s, c.oid) == true
@@ -764,7 +764,7 @@ end
 
 test "a master verb on a gitto subject raises what gitto raises"
   r = fixture("dispatch-raise")
-  c = save(r, "a.txt", "one\n", "first")
+  c = save(r, "a.txt", unlines(["one"]), "first")
   s = in_space("gitto", r)
   assert raised(() -> blue::create(s, "other", "no-such-ref", {})) == :not_found
   assert blue::create(s, "topic", c.oid, {}) == c.oid

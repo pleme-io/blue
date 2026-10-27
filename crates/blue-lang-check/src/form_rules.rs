@@ -253,7 +253,7 @@ fn swallowed(form: &Spanned, top: usize, out: &mut Vec<Diagnostic>) {
 
 const VALUE_ONLY: &[&str] = &[
     "append", "assoc", "concat", "cons", "dissoc", "distinct", "downcase", "drop", "flatten",
-    "join", "range", "remove", "replace", "reverse", "split", "string", "take", "to_float",
+    "join", "join_lines", "range", "remove", "replace", "reverse", "split", "string", "take", "to_float",
     "to_int", "to_s", "trim", "upcase", "zip",
 ];
 

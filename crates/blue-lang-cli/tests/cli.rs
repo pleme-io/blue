@@ -114,7 +114,7 @@ fn run_passes_the_programs_arguments_to_argv() {
 fn write_stdout_prints_plain_text() {
     let f = write(
         "wstdout",
-        "write_stdout(\"a b\\n\")\nwrite_stdout(\"c\")\nwrite_stderr(\"e\")\n0",
+        "write_stdout(unlines([\"a b\"]))\nwrite_stdout(\"c\")\nwrite_stderr(\"e\")\n0",
     );
     let o = run(&["run", f.to_str().unwrap()]);
     assert!(o.status.success(), "stderr: {}", stderr(&o));

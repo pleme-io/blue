@@ -6,4 +6,4 @@ ranked = sort_keyed(
   map((w) -> [w, get(counts, w)], distinct(words))
 )
 
-write_stdout("#{take(3, ranked)}\n")
+write_stdout(unlines([take(3, ranked)]))

@@ -4,7 +4,17 @@
 
 row(
   "macros.expand",
-  "defmacro double(x)\n  quote\n    unquote(x) + unquote(x)\n  end\nend\n\ndouble(21)",
+  join_lines(
+    [
+      "defmacro double(x)",
+      "  quote",
+      "    unquote(x) + unquote(x)",
+      "  end",
+      "end",
+      "",
+      "double(21)"
+    ]
+  ),
   value("42"),
   covers("keyword:defmacro", "keyword:quote", "keyword:unquote"),
   covers("builtin:quasiquote")
@@ -12,42 +22,103 @@ row(
 
 row(
   "macros.operates_on_the_form",
-  "defmacro square(e)\n  quote\n    unquote(e) * unquote(e)\n  end\nend\n\nsquare(2 + 3)",
+  join_lines(
+    [
+      "defmacro square(e)",
+      "  quote",
+      "    unquote(e) * unquote(e)",
+      "  end",
+      "end",
+      "",
+      "square(2 + 3)"
+    ]
+  ),
   value("25")
 )
 
 row(
   "macros.compose",
-  "defmacro double(x)\n  quote\n    unquote(x) + unquote(x)\n  end\nend\n\ndouble(double(5))",
+  join_lines(
+    [
+      "defmacro double(x)",
+      "  quote",
+      "    unquote(x) + unquote(x)",
+      "  end",
+      "end",
+      "",
+      "double(double(5))"
+    ]
+  ),
   value("20")
 )
 
 row(
   "macros.splice",
-  "defmacro sum_of(xs)\n  quote\n    length([unquote_splice(xs)])\n  end\nend\n\nsum_of([1, 2, 3])",
+  join_lines(
+    [
+      "defmacro sum_of(xs)",
+      "  quote",
+      "    length([unquote_splice(xs)])",
+      "  end",
+      "end",
+      "",
+      "sum_of([1, 2, 3])"
+    ]
+  ),
   value("4"),
   covers("keyword:unquote_splice")
 )
 
-row("macros.quote_is_data", "quote\n  f(1)\nend", value("[f, 1]"))
+row(
+  "macros.quote_is_data",
+  join_lines(["quote", "  f(1)", "end"]),
+  value("[f, 1]")
+)
 
 row(
   "macros.macroexpand",
-  "defmacro twice(x)\n  quote\n    unquote(x) + unquote(x)\n  end\nend\n\nmacroexpand(quote\n  twice(1)\nend)",
+  join_lines(
+    [
+      "defmacro twice(x)",
+      "  quote",
+      "    unquote(x) + unquote(x)",
+      "  end",
+      "end",
+      "",
+      "macroexpand(quote",
+      "  twice(1)",
+      "end)"
+    ]
+  ),
   value("[+, 1, 1]"),
   covers("builtin:macroexpand")
 )
 
 row(
   "macros.hygiene",
-  "defmacro twice(e)\n  quote\n    x = unquote(e)\n    x + x\n  end\nend\n\nx = 10\ny = twice(x + 1)\nx",
+  join_lines(
+    [
+      "defmacro twice(e)",
+      "  quote",
+      "    x = unquote(e)",
+      "    x + x",
+      "  end",
+      "end",
+      "",
+      "x = 10",
+      "y = twice(x + 1)",
+      "x"
+    ]
+  ),
   value("10"),
   pending("G3")
 )
 
 row(
   "macros.no_host_at_expansion",
-  "defmacro peek()\n  read_file(\"/etc/hosts\")\nend\n\npeek()",
+  join_lines(
+    ["defmacro peek()", "  read_file(\"/etc/hosts\")", "end", "", "peek()"]
+  ),
   fails(:eval, "capability"),
   pending("G3"),
   host()
@@ -55,7 +126,20 @@ row(
 
 row(
   "macros.generated_names_are_seen",
-  "defmacro field(name, i)\n  quote\n    def unquote(name)(xs)\n      nth(unquote(i), xs)\n    end\n  end\nend\n\nfield(px, 0)\npx([7, 8])",
+  join_lines(
+    [
+      "defmacro field(name, i)",
+      "  quote",
+      "    def unquote(name)(xs)",
+      "      nth(unquote(i), xs)",
+      "    end",
+      "  end",
+      "end",
+      "",
+      "field(px, 0)",
+      "px([7, 8])"
+    ]
+  ),
   value("7"),
   pending("G3")
 )

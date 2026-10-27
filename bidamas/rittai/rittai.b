@@ -976,12 +976,22 @@ stl: ASCII STL: one facet per face, its normal included.
 """
 def stl(m, name)
   facets = map((f) -> stl_facet(m, f), faces(m))
-  "solid #{name}\n#{join(facets, "")}endsolid #{name}\n"
+  unlines(["solid #{name}", "#{join(facets, "")}endsolid #{name}"])
 end
 
 def stl_facet(m, f)
   pts = face_points(m, f)
-  "facet normal #{point_text(face_normal(m, f))}\n outer loop\n  vertex #{point_text(nth(0, pts))}\n  vertex #{point_text(nth(1, pts))}\n  vertex #{point_text(nth(2, pts))}\n endloop\nendfacet\n"
+  unlines(
+    [
+      "facet normal #{point_text(face_normal(m, f))}",
+      " outer loop",
+      "  vertex #{point_text(nth(0, pts))}",
+      "  vertex #{point_text(nth(1, pts))}",
+      "  vertex #{point_text(nth(2, pts))}",
+      " endloop",
+      "endfacet"
+    ]
+  )
 end
 
 # ── tests ────────────────────────────────────────────────────────────
@@ -1127,10 +1137,11 @@ end
 
 test "STL: one facet per face, with outward normals"
   s = stl(box(1, 1, 1), "cube")
-  assert starts_with?(s, "solid cube\n") == true
-  assert ends_with?(s, "endsolid cube\n") == true
-  assert size(filter((l) -> starts_with?(l, "facet normal"), split(s, "\n"))) ==
-    12
+  assert starts_with?(s, unlines(["solid cube"])) == true
+  assert ends_with?(s, unlines(["endsolid cube"])) == true
+  assert size(
+    filter((l) -> starts_with?(l, "facet normal"), split(s, line_break))
+  ) == 12
 end
 
 def square_points()

@@ -163,7 +163,7 @@ chain_genesis: The first hash of a chain, from a label that names the log.
 """
 def chain_genesis(label)
   if string?(label)
-    hash_message("blue-chain/v1/genesis\n#{label}")
+    hash_message(join_lines(["blue-chain/v1/genesis", label]))
   else
     raise(:chain, "a chain label must be a string")
   end
@@ -176,7 +176,7 @@ Raises when `prev` is not a hash or `payload` is not a string.
 def chain_link(prev, payload)
   chain_require_hash(prev, "the previous hash")
   if string?(payload)
-    hash_message("blue-chain/v1/link\n#{prev}\n#{payload}")
+    hash_message(join_lines(["blue-chain/v1/link", prev, payload]))
   else
     raise(:chain, "a chain payload must be a string; serialize it first")
   end
@@ -278,7 +278,7 @@ merkle_leaf: The leaf hash of a payload (a string).
 """
 def merkle_leaf(payload)
   if string?(payload)
-    hash_message("blue-merkle/v1/leaf\n#{payload}")
+    hash_message(join_lines(["blue-merkle/v1/leaf", payload]))
   else
     raise(:merkle, "a merkle payload must be a string; serialize it first")
   end
@@ -290,7 +290,7 @@ merkle_node: The node hash over two child hashes, left then right.
 def merkle_node(left, right)
   chain_require_hash(left, "the left hash")
   chain_require_hash(right, "the right hash")
-  hash_message("blue-merkle/v1/node\n#{left}\n#{right}")
+  hash_message(join_lines(["blue-merkle/v1/node", left, right]))
 end
 
 @doc """

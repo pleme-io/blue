@@ -548,7 +548,7 @@ def unreachable_md()
     "| Concern | Why | What would have to exist |",
     "|---|---|---|"
   ]
-  "#{join(append(head, rows), "\n")}\n"
+  unlines([join(append(head, rows), line_break)])
 end
 
 def write_outputs(root)
@@ -708,5 +708,5 @@ end
 
 test "the generated documents carry every row"
   assert size(get(permissions_doc, :permissions)) == 13
-  assert size(split(unreachable_md, "\n")) == size(unreachable) + 7
+  assert size(split(unreachable_md, line_break)) == size(unreachable) + 7
 end

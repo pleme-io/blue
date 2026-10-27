@@ -212,6 +212,9 @@ pub const NAMES: &[NameDoc] = names! {
     Text: "trim" "trim(s[, opts])" "The string without leading and trailing whitespace. opts: side: :both (default), :start or :end; chars: the characters to cut instead of whitespace. An unknown option raises :bad_option.";
     Text: "split" "split(s, sep)" "The fields between separators, empty ones kept (okite D0012): split(\"a,b,\", \",\") is [\"a\", \"b\", \"\"]. An empty sep splits into characters.";
     Text: "join" "join(xs, sep)" "The elements' text with sep between. The LIST comes first here, and the string first in split.";
+    Text: "join_lines" "join_lines(xs)" "The elements' text, one per line, with no newline after the last: what a string with a \\n escape is written as (B0065).";
+    Text: "unlines" "unlines(xs)" "The elements' text, each followed by a newline: text that ends in a line break (B0065).";
+    Text: "line_break" "line_break" "The one-character line-break string, \"\\n\" (B0065). `newline` prints one.";
     Text: "replace" "replace(s, from, to)" "Every occurrence of from replaced by to.";
     Text: "chars" "chars(s)" "The characters as one-character strings.";
     Text: "starts_with?" "starts_with?(s, prefix)" "Whether s begins with prefix.";

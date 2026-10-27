@@ -1547,7 +1547,7 @@ def tracked(root)
   if status_of(cap) != 0
     nil
   else
-    filter((l) -> l != "", split(stdout_of(cap), "\n"))
+    filter((l) -> l != "", split(stdout_of(cap), line_break))
   end
 end
 
@@ -1660,11 +1660,23 @@ def flags(args, acc)
 end
 
 def rule_line(r)
-  "#{get(r, :id)}\t#{to_s(get(r, :plane))}\t#{to_s(get(r, :tier))}\t#{join(get(r, :scope), " ")}\n  why: #{get(r, :why)}\n  fix: #{get(r, :fix)}\n"
+  unlines(
+    [
+      "#{get(r, :id)}\t#{to_s(get(r, :plane))}\t#{to_s(get(r, :tier))}\t#{join(get(r, :scope), " ")}",
+      "  why: #{get(r, :why)}",
+      "  fix: #{get(r, :fix)}"
+    ]
+  )
 end
 
 def rules_text(cfg)
-  "#{get(cfg, :standard)} v#{to_s(get(cfg, :version))}: #{to_s(size(rules))} rules\n\n#{join(map(rule_line, rules), "\n")}"
+  join_lines(
+    [
+      "#{get(cfg, :standard)} v#{to_s(get(cfg, :version))}: #{to_s(size(rules))} rules",
+      "",
+      join(map(rule_line, rules), line_break)
+    ]
+  )
 end
 
 def finding_line(x)
@@ -1673,7 +1685,7 @@ def finding_line(x)
   else
     get(x, :file)
   end
-  "#{where}: #{get(x, :rule)}: #{get(x, :message)}\n"
+  unlines(["#{where}: #{get(x, :rule)}: #{get(x, :message)}"])
 end
 
 def counts(xs)
@@ -1750,48 +1762,66 @@ def timing_line(result, timing)
     ),
     ", "
   )
-  "wall #{to_s(get(timing, :wall))} ms: #{ps}\n"
+  unlines(["wall #{to_s(get(timing, :wall))} ms: #{ps}"])
 end
 
 def report_text(cfg, result, verdict, timing)
-  head = "kijun #{get(cfg, :standard)} v#{to_s(get(cfg, :version))}: #{to_s(size(get(result, :gates)))} gate findings, #{to_s(size(get(result, :advice)))} advice, #{to_s(size(get(result, :waived)))} waived\n"
+  head = unlines(
+    [
+      "kijun #{get(cfg, :standard)} v#{to_s(get(cfg, :version))}: #{to_s(size(get(result, :gates)))} gate findings, #{to_s(size(get(result, :advice)))} advice, #{to_s(size(get(result, :waived)))} waived"
+    ]
+  )
   per = join(
     map(
-      (c) -> "  #{first(c)} #{to_s(tier_of(first(c)))} #{to_s(nth(1, c))}\n",
+      fn(c)
+        unlines(["  #{first(c)} #{to_s(tier_of(first(c)))} #{to_s(nth(1, c))}"])
+      end,
       counts(get(result, :findings))
     ),
     ""
   )
   fresh = if is_empty(get(verdict, :new))
-    "no gate finding outside the baseline\n"
+    unlines(["no gate finding outside the baseline"])
   else
-    "#{to_s(size(get(verdict, :new)))} gate findings outside the baseline:\n#{join(map(finding_line, get(verdict, :new)), "")}"
+    join_lines(
+      [
+        "#{to_s(size(get(verdict, :new)))} gate findings outside the baseline:",
+        join(map(finding_line, get(verdict, :new)), "")
+      ]
+    )
   end
   shrink = if is_empty(get(verdict, :orphans)) and
       is_empty(get(verdict, :shrunk))
     ""
   else
-    "the baseline can shrink (run kijun baseline): #{to_s(size(get(verdict, :orphans)))} gone, #{to_s(size(get(verdict, :shrunk)))} smaller\n"
+    unlines(
+      [
+        "the baseline can shrink (run kijun baseline): #{to_s(size(get(verdict, :orphans)))} gone, #{to_s(size(get(verdict, :shrunk)))} smaller"
+      ]
+    )
   end
   refused = join(
-    map((r) -> "refused: #{kyohi::why(r)}\n", get(result, :refusals)),
+    map((r) -> unlines(["refused: #{kyohi::why(r)}"]), get(result, :refusals)),
     ""
   )
   off = join(
     map(
-      (d) -> "disabled: #{get(d, :rule)}: #{get(d, :reason)}\n",
+      (d) -> unlines(["disabled: #{get(d, :rule)}: #{get(d, :reason)}"]),
       get(cfg, :disabled)
     ),
     ""
   )
-  blind = join(map((e) -> "tree blind: #{e}\n", get(result, :tree_errors)), "")
+  blind = join(
+    map((e) -> unlines(["tree blind: #{e}"]), get(result, :tree_errors)),
+    ""
+  )
   "#{head}#{per}#{refused}#{off}#{blind}#{shrink}#{fresh}#{timing_line(result, timing)}"
 end
 
 def run(cfg, args)
   a = parse_args(args)
   if get(a, :error) != nil
-    write_stderr("kijun: #{get(a, :error)}\n")
+    write_stderr(unlines(["kijun: #{get(a, :error)}"]))
     raise(:kijun_usage, get(a, :error))
   elsif get(a, :command) == "rules"
     write_stdout(rules_text(cfg))
@@ -1801,7 +1831,7 @@ def run(cfg, args)
     root = get(a, :root)
     files = tracked(root)
     if files.nil?
-      write_stderr("kijun: #{root} is not a git work tree\n")
+      write_stderr(unlines(["kijun: #{root} is not a git work tree"]))
       raise(:kijun_usage, "not a git work tree")
     end
     before_tree = now_ms
@@ -1825,7 +1855,11 @@ def run(cfg, args)
     if get(a, :command) == "baseline"
       write_file(base, baseline_with(get(result, :gates), nth(1, rows)))
       write_stdout(
-        "kijun: wrote #{to_s(size(get(result, :gates)))} gate findings to #{base}\n"
+        unlines(
+          [
+            "kijun: wrote #{to_s(size(get(result, :gates)))} gate findings to #{base}"
+          ]
+        )
       )
       nil
     else
@@ -1836,7 +1870,7 @@ def run(cfg, args)
         planes: assoc(ms, :tree, get(ms, :tree) + tree_ms)
       }
       if get(a, :json)
-        write_stdout("#{report_json(cfg, result, verdict, timing)}\n")
+        write_stdout(unlines([report_json(cfg, result, verdict, timing)]))
       else
         write_stdout(report_text(cfg, result, verdict, timing))
       end
@@ -1920,14 +1954,36 @@ def example(sources, trees)
 end
 
 def module_with(body)
-  "{ config, lib, pkgs, ... }:\n{\n#{body}\n}\n"
+  unlines(["{ config, lib, pkgs, ... }:", "{", body, "}"])
 end
 
 def concept_sources(declared)
   shared = if declared
-    "{ inputs, ... }:\nlet\n  t = inputs.substrate.moduleTrio;\n  r = import ../../../lib/r.nix;\nin\n{\n  imports = [\n    (t.mkModuleTrio { kind = \"registry\"; name = \"x\"; entries.default = r; }).module\n    (t.mkModuleTrio { kind = \"package\"; name = \"tools\"; packageAttr = \"p\"; }).module\n    (t.mkModuleTrio { kind = \"service\"; name = \"o\"; }).module\n  ];\n}\n"
+    unlines(
+      [
+        "{ inputs, ... }:",
+        "let",
+        "  t = inputs.substrate.moduleTrio;",
+        "  r = import ../../../lib/r.nix;",
+        "in",
+        "{",
+        "  imports = [",
+        "    (t.mkModuleTrio { kind = \"registry\"; name = \"x\"; entries.default = r; }).module",
+        "    (t.mkModuleTrio { kind = \"package\"; name = \"tools\"; packageAttr = \"p\"; }).module",
+        "    (t.mkModuleTrio { kind = \"service\"; name = \"o\"; }).module",
+        "  ];",
+        "}"
+      ]
+    )
   else
-    "{ lib, ... }:\n{\n  options.pleme.x.enable = lib.mkEnableOption \"x\";\n}\n"
+    unlines(
+      [
+        "{ lib, ... }:",
+        "{",
+        "  options.pleme.x.enable = lib.mkEnableOption \"x\";",
+        "}"
+      ]
+    )
   end
   [
     ["modules/pleme/shared/x.nix", shared],
@@ -1940,7 +1996,9 @@ def concept_sources(declared)
     ["lib/unread.nix", "{ b = 2; }"],
     [
       "modules/pleme/nixos/use.nix",
-      "{ ... }:\nlet\n  r = import ../../../lib/r.nix;\nin\n{ }\n"
+      unlines(
+        ["{ ... }:", "let", "  r = import ../../../lib/r.nix;", "in", "{ }"]
+      )
     ]
   ]
 end
@@ -1953,14 +2011,21 @@ def trio_source(name, kind_of)
   end
   [
     "modules/pleme/shared/#{name}.nix",
-    "{ inputs, ... }:\n{\n  imports = [ (inputs.substrate.moduleTrio.mkModuleTrio { #{k}name = \"#{name}\"; }).module ];\n}\n"
+    unlines(
+      [
+        "{ inputs, ... }:",
+        "{",
+        "  imports = [ (inputs.substrate.moduleTrio.mkModuleTrio { #{k}name = \"#{name}\"; }).module ];",
+        "}"
+      ]
+    )
   ]
 end
 
 def fixtures()
   registry = [
     "lib/nodes.nix",
-    "{ plo = mkNode { name = \"plo\"; nodeDir = ../nodes/plo; }; }\n"
+    unlines(["{ plo = mkNode { name = \"plo\"; nodeDir = ../nodes/plo; }; }"])
   ]
   [
     {
@@ -2021,7 +2086,7 @@ def fixtures()
       bad: example(
         [
           ["modules/pleme/shared/x.nix", "{ }"],
-          ["profiles/p/default.nix", "{ # shared/x.nix\n}"]
+          ["profiles/p/default.nix", join_lines(["{ # shared/x.nix", "}"])]
         ],
         []
       ),
@@ -2073,7 +2138,17 @@ def fixtures()
         [
           [
             "profiles/p/default.nix",
-            module_with("  networking.hostName = \"plo\";\n  networking.hostId = \"8425e349\";\n  fileSystems.\"/\".device = \"/dev/disk/by-uuid/abc\";\n  sops.secrets.k.sopsFile = ../../nodes/plo/secrets.yaml;\n  sops.secrets.f.sopsFile = ../../secrets.yaml;")
+            module_with(
+              join_lines(
+                [
+                  "  networking.hostName = \"plo\";",
+                  "  networking.hostId = \"8425e349\";",
+                  "  fileSystems.\"/\".device = \"/dev/disk/by-uuid/abc\";",
+                  "  sops.secrets.k.sopsFile = ../../nodes/plo/secrets.yaml;",
+                  "  sops.secrets.f.sopsFile = ../../secrets.yaml;"
+                ]
+              )
+            )
           ]
         ],
         []
@@ -2082,7 +2157,14 @@ def fixtures()
         [
           [
             "profiles/p/default.nix",
-            module_with("  networking.firewall.enable = true;\n  fileSystems.\"/\".fsType = \"ext4\";")
+            module_with(
+              join_lines(
+                [
+                  "  networking.firewall.enable = true;",
+                  "  fileSystems.\"/\".fsType = \"ext4\";"
+                ]
+              )
+            )
           ]
         ],
         []
@@ -2107,7 +2189,14 @@ def fixtures()
         [
           [
             "modules/pleme/shared/x.nix",
-            module_with("  options.pleme.x.enable = lib.mkEnableOption \"x\";\n  config = lib.mkIf config.pleme.x.enable { systemd.services.x = { }; };")
+            module_with(
+              join_lines(
+                [
+                  "  options.pleme.x.enable = lib.mkEnableOption \"x\";",
+                  "  config = lib.mkIf config.pleme.x.enable { systemd.services.x = { }; };"
+                ]
+              )
+            )
           ]
         ],
         []
@@ -2116,7 +2205,14 @@ def fixtures()
         [
           [
             "modules/pleme/shared/x.nix",
-            module_with("  options.pleme.x.enable = lib.mkEnableOption \"x\";\n  config = lib.mkIf config.pleme.x.enable { pleme.y = 1; };")
+            module_with(
+              join_lines(
+                [
+                  "  options.pleme.x.enable = lib.mkEnableOption \"x\";",
+                  "  config = lib.mkIf config.pleme.x.enable { pleme.y = 1; };"
+                ]
+              )
+            )
           ]
         ],
         []
@@ -2166,7 +2262,12 @@ def fixtures()
       fires: 1,
       bad: example([["lib/a.nix", "import <nixpkgs> { }"]], []),
       good: example(
-        [["lib/a.nix", "# <nixpkgs>\nimport ./x.nix { s = \"<nixpkgs>\"; }"]],
+        [
+          [
+            "lib/a.nix",
+            join_lines(["# <nixpkgs>", "import ./x.nix { s = \"<nixpkgs>\"; }"])
+          ]
+        ],
         []
       )
     },
@@ -2203,7 +2304,16 @@ def fixtures()
         [
           [
             "pkgs/a.nix",
-            "pkgs.writeShellScript \"a\" ''\n  one\n  two\n  three\n  four\n''"
+            join_lines(
+              [
+                "pkgs.writeShellScript \"a\" ''",
+                "  one",
+                "  two",
+                "  three",
+                "  four",
+                "''"
+              ]
+            )
           ]
         ],
         []
@@ -2212,7 +2322,15 @@ def fixtures()
         [
           [
             "pkgs/a.nix",
-            "pkgs.writeShellScript \"a\" ''\n  one\n  two\n  three\n''"
+            join_lines(
+              [
+                "pkgs.writeShellScript \"a\" ''",
+                "  one",
+                "  two",
+                "  three",
+                "''"
+              ]
+            )
           ]
         ],
         []
@@ -2347,11 +2465,19 @@ test "a trio file renders itself, and the factory proves every kind but a regist
 end
 
 test "an uncatchable failure is located at its option's tag, and the error is its last line"
-  err = "error:\n       … while evaluating the attribute 'definitions'\n       … kijun-option pleme.fleet.nixRepo\n       … while evaluating the attribute 'default'\n       error: attribute 'darwinUser' missing\n"
+  err = unlines(
+    [
+      "error:",
+      "       … while evaluating the attribute 'definitions'",
+      "       … kijun-option pleme.fleet.nixRepo",
+      "       … while evaluating the attribute 'default'",
+      "       error: attribute 'darwinUser' missing"
+    ]
+  )
   assert failing_option(err) == "pleme.fleet.nixRepo"
   assert last_error(err) == "attribute 'darwinUser' missing"
-  assert failing_option("error: flake has no attribute\n").nil?
-  assert last_error("error: flake has no attribute\n") ==
+  assert failing_option(unlines(["error: flake has no attribute"])).nil?
+  assert last_error(unlines(["error: flake has no attribute"])) ==
     "flake has no attribute"
   assert nix_string("a\"b${c}\\") == "\"a\\\"b\\${c}\\\\\""
   assert contains?(
@@ -2415,7 +2541,10 @@ test "the same declaration seen from two configurations is one finding"
 end
 
 test "a finding names its file and line"
-  c = example([["lib/a.nix", "{\n  x = import <nixpkgs> { };\n}\n"]], [])
+  c = example(
+    [["lib/a.nix", unlines(["{", "  x = import <nixpkgs> { };", "}"])]],
+    []
+  )
   x = first(fired(fleet_repo(1), c, "expr/no-angle-paths"))
   assert get(x, :file) == "lib/a.nix"
   assert get(x, :line) == 2
@@ -2488,7 +2617,8 @@ test "the ratchet: a recorded finding holds, a new one fails, a fixed one shrink
   a = finding("expr/no-angle-paths", "lib/a.nix", 1, "<nixpkgs>", "m")
   b = finding("expr/no-angle-paths", "lib/b.nix", 1, "<nixpkgs>", "m")
   rows = hadome::parse(baseline_text([a]))
-  assert baseline_text([a]) == "expr/no-angle-paths: lib/a.nix::<nixpkgs> 1\n"
+  assert baseline_text([a]) ==
+    unlines(["expr/no-angle-paths: lib/a.nix::<nixpkgs> 1"])
   assert get(judge([a], rows), :new) == []
   assert map((x) -> get(x, :file), get(judge([a, b], rows), :new)) ==
     ["lib/b.nix"]

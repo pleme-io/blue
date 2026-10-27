@@ -18,7 +18,7 @@ end
 
 def handle(s, req)
   if get(req, :path) == "/"
-    kyuuji::text(200, "#{greeting(s, req)}\n")
+    kyuuji::text(200, unlines([greeting(s, req)]))
   else
     kyuuji::not_found(req)
   end

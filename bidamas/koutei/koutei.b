@@ -81,7 +81,7 @@ def lines_of(text)
   if text.nil?
     []
   else
-    filter((l) -> l != "", map((l) -> trim(l), split(text, "\n")))
+    filter((l) -> l != "", map((l) -> trim(l), split(text, line_break)))
   end
 end
 
@@ -124,7 +124,7 @@ output_record: the GITHUB_OUTPUT record for one output, safe for any text.
 def output_record(key, value)
   text = to_s(value)
   d = delimiter_for(text)
-  "#{key}<<#{d}\n#{text}\n#{d}\n"
+  unlines(["#{key}<<#{d}", text, d])
 end
 
 @doc """
@@ -167,7 +167,7 @@ summary_record: one summary block, ending in a newline.
     summary_record("a") #=> "a\n"
 """
 def summary_record(markdown)
-  "#{markdown}\n"
+  unlines([markdown])
 end
 
 @doc """
@@ -189,7 +189,11 @@ escape_data: an annotation message, with %, CR and LF escaped as GitHub reads th
     escape_data("50%") #=> "50%25"
 """
 def escape_data(text)
-  replace(replace(replace(to_s(text), "%", "%25"), "\r", "%0D"), "\n", "%0A")
+  replace(
+    replace(replace(to_s(text), "%", "%25"), "\r", "%0D"),
+    line_break,
+    "%0A"
+  )
 end
 
 @doc """
@@ -239,7 +243,7 @@ annotate: raise one annotation on the step.
     annotation("warning", "w", [["file", "a.b"]]) #=> "::warning file=a.b::w"
 """
 def annotate(level, message, props)
-  write_stdout("#{annotation(level, message, props)}\n")
+  write_stdout(unlines([annotation(level, message, props)]))
   nil
 end
 
@@ -291,7 +295,7 @@ def diagnostic_annotation(json_line)
   text = if help.nil?
     message
   else
-    "#{message}\n#{help}"
+    join_lines([message, help])
   end
   annotation(
     level_of(json_at(d, "severity")),
@@ -314,7 +318,7 @@ end
 
 test "absent and blank inputs read as nil, and a fallback fills them"
   assert present(nil).nil?
-  assert present(" \n").nil?
+  assert present(unlines([" "])).nil?
   assert present(" a ") == " a "
   assert input("koutei-no-such-input").nil?
   assert input_or("koutei-no-such-input", "d") == "d"
@@ -329,33 +333,33 @@ test "only yes words are true"
 end
 
 test "a list input keeps its non-blank lines, trimmed"
-  assert lines_of("a\n\n  b \n") == ["a", "b"]
+  assert lines_of(unlines(["a", "", "  b "])) == ["a", "b"]
   assert lines_of(nil) == []
   assert input_lines("koutei-no-such-input") == []
 end
 
 test "an output record survives a value that holds the delimiter"
-  assert output_record("n", 3) == "n<<KOUTEI_EOF\n3\nKOUTEI_EOF\n"
-  tricky = "a\nKOUTEI_EOF\nb"
+  assert output_record("n", 3) == unlines(["n<<KOUTEI_EOF", "3", "KOUTEI_EOF"])
+  tricky = join_lines(["a", "KOUTEI_EOF", "b"])
   assert delimiter_for(tricky) == "KOUTEI_EOF_"
   assert widen("KOUTEI_EOF_ KOUTEI_EOF", "KOUTEI_EOF") == "KOUTEI_EOF__"
   assert output_record("v", tricky) ==
-    "v<<KOUTEI_EOF_\n#{tricky}\nKOUTEI_EOF_\n"
+    unlines(["v<<KOUTEI_EOF_", tricky, "KOUTEI_EOF_"])
 end
 
 test "with no GITHUB_ files set, writers print and return nil"
   assert append_to("KOUTEI_NO_SUCH_FILE_VAR", "").nil?
-  assert summary_record("s") == "s\n"
+  assert summary_record("s") == unlines(["s"])
   assert mark(true) == "✅"
   assert mark(false) == "❌"
 end
 
 test "annotation text and properties are escaped as GitHub reads them"
-  assert escape_data("a%b\nc\r") == "a%25b%0Ac%0D"
+  assert escape_data(join_lines(["a%b", "c\r"])) == "a%25b%0Ac%0D"
   assert escape_property("x:y,z") == "x%3Ay%2Cz"
   assert annotation(
     "error",
-    "two\nlines",
+    join_lines(["two", "lines"]),
     [["file", "a.b"], ["line", 3], ["col", nil]]
   ) == "::error file=a.b,line=3::two%0Alines"
   assert annotation("notice", "n", []) == "::notice::n"

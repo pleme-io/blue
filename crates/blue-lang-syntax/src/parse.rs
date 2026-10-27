@@ -201,6 +201,38 @@ thread_local! {
     static RECENT: std::cell::RefCell<Recent> = const { std::cell::RefCell::new(Vec::new()) };
 }
 
+/// The text a constant string form spells, for a reader that takes text from
+/// a tree without evaluating it: a string, `line_break`, or `join_lines([…])` /
+/// `unlines([…])` over constant texts, which is how the parser reads a string
+/// holding a line break (B0065). `None` for anything computed.
+#[must_use]
+pub fn constant_text(s: &Sexp) -> Option<String> {
+    match s {
+        Sexp::Atom(Atom::Str(x)) => Some(x.to_string()),
+        Sexp::Atom(Atom::Symbol(h)) if h.as_str() == "line_break" => Some("\n".to_string()),
+        Sexp::List(items) => match items.as_slice() {
+            [Sexp::Atom(Atom::Symbol(h)), Sexp::List(list)]
+                if h.as_str() == "join_lines" || h.as_str() == "unlines" =>
+            {
+                let (Sexp::Atom(Atom::Symbol(l)), elems) = list.split_first()? else {
+                    return None;
+                };
+                if l.as_str() != "list" {
+                    return None;
+                }
+                let texts = elems.iter().map(constant_text).collect::<Option<Vec<_>>>()?;
+                Some(if h.as_str() == "join_lines" {
+                    texts.join("\n")
+                } else {
+                    texts.iter().map(|t| format!("{t}\n")).collect()
+                })
+            }
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
 pub fn spelling_notes(src: &str) -> Result<Vec<Note>, ParseError> {
     let mut p = Parser::over(
         src,
@@ -544,7 +576,8 @@ pub const LOWERED_ATTEMPTED: &str = "blue-attempted";
 pub const LOWERED_FAILED: &str = "blue-failed";
 
 pub const LOWERED_HEADS: &[&str] = &[
-    "list", "concat", "not", "apply", "equal?", "not=", "and", "or", "mod",
+    "list", "concat", "not", "apply", "equal?", "not=", "and", "or", "mod", "join_lines", "unlines",
+    "line_break",
 ];
 
 pub const RESCUED: &str = "rescued-error";
@@ -731,6 +764,9 @@ struct Parser {
     src: String,
     comment_spans: Vec<Span>,
     notes: Vec<Note>,
+    /// How many `quote` bodies enclose the parser: a string inside one is
+    /// data, so its `\n` is kept as written rather than lowered (B0065).
+    quoting: usize,
 }
 
 /// Maximum expression nesting before the parser refuses.
@@ -777,6 +813,7 @@ impl Parser {
             src: src.to_string(),
             comment_spans,
             notes: Vec::new(),
+            quoting: 0,
         }
     }
 
@@ -1349,6 +1386,72 @@ impl Parser {
         Ok(acc)
     }
 
+    /// A string literal holding a `\n` is read as the lines it spells
+    /// (B0065): `"a\nb"` is `join_lines(["a", "b"])`, text ending in a newline
+    /// is `unlines([…])` without the empty last line, and `"\n"` alone is
+    /// `line_break`. A line that is one interpolation, `#{x}`, is `x` itself:
+    /// `join_lines` renders each element as interpolation does. So the escape
+    /// and the call are one tree, and `blue fmt` writes the call.
+    fn lines_literal(
+        &mut self,
+        span: Span,
+        parts: Vec<String>,
+        exprs: Vec<String>,
+    ) -> Result<Spanned, Fail> {
+        let mut lines: Vec<(Vec<String>, Vec<String>)> = vec![(vec![String::new()], Vec::new())];
+        for (i, part) in parts.iter().enumerate() {
+            let mut pieces = part.split('\n');
+            if let Some(head) = pieces.next() {
+                if let Some(last) = lines.last_mut().and_then(|l| l.0.last_mut()) {
+                    last.push_str(head);
+                }
+            }
+            for piece in pieces {
+                lines.push((vec![piece.to_string()], Vec::new()));
+            }
+            if let Some(raw) = exprs.get(i) {
+                if let Some(line) = lines.last_mut() {
+                    line.1.push(raw.clone());
+                    line.0.push(String::new());
+                }
+            }
+        }
+        let empty = |l: &(Vec<String>, Vec<String>)| l.1.is_empty() && l.0 == [""];
+        if lines.len() == 2 && lines.iter().all(empty) {
+            self.note(Spelling::NewlineEscape, span, "\"\\n\"", "line_break");
+            return Ok(sym_at(span, "line_break"));
+        }
+        let trailing = lines.last().is_some_and(empty);
+        if trailing {
+            lines.pop();
+        }
+        let head = if trailing { "unlines" } else { "join_lines" };
+        let mut items = vec![sym_at(span, "list")];
+        for (lits, raws) in &lines {
+            let item = if raws.is_empty() {
+                atom_at(span, Atom::Str(lits[0].clone()))
+            } else if raws.len() == 1 && lits.iter().all(String::is_empty) {
+                let inner = parse_expr(&raws[0]).map_err(|e| {
+                    fail(
+                        format!("in interpolation `#{{{}}}`: {}", raws[0], e.message),
+                        span,
+                    )
+                })?;
+                Spanned::from_sexp_at(&inner, span)
+            } else {
+                Self::interpolation(span, lits, raws)?
+            };
+            items.push(item);
+        }
+        self.note(
+            Spelling::NewlineEscape,
+            span,
+            "\"…\\n…\"",
+            &format!("{head}([…])"),
+        );
+        Ok(list_at(span, vec![sym_at(span, head), list_at(span, items)]))
+    }
+
     #[inline(never)]
     fn not_prefix(&mut self, span: Span) -> Result<Spanned, Fail> {
         if self.at(&TokenKind::LParen) && self.touches_previous() {
@@ -1396,6 +1499,9 @@ impl Parser {
         match self.bump() {
             TokenKind::Int(v) => Ok(atom_at(span, Atom::Int(v))),
             TokenKind::Float(v) => Ok(atom_at(span, Atom::Float(v))),
+            TokenKind::Str(s) if self.quoting == 0 && s.contains('\n') => {
+                self.lines_literal(span, vec![s], Vec::new())
+            }
             TokenKind::Str(s) => Ok(atom_at(span, Atom::Str(s))),
             TokenKind::Doc { module, .. } => Err(fail(
                 format!(
@@ -1416,6 +1522,11 @@ impl Parser {
             // The expression source is parsed HERE with the ordinary parser
             // rather than lexed inside the string, so an interpolation can hold
             // anything an expression can and the two can never drift.
+            TokenKind::InterpolatedStr { parts, exprs }
+                if self.quoting == 0 && parts.iter().any(|p| p.contains('\n')) =>
+            {
+                self.lines_literal(span, parts, exprs)
+            }
             TokenKind::InterpolatedStr { parts, exprs } => Self::interpolation(span, &parts, &exprs),
             TokenKind::Sym(s) => Ok(atom_at(span, Atom::Keyword(s))),
             TokenKind::True => Ok(atom_at(span, Atom::Bool(true))),
@@ -2467,7 +2578,10 @@ impl Parser {
     /// splice its arguments in would be useless — this is Elixir's `quote do`,
     /// which is likewise a template and not inert data.
     fn quote_form(&mut self, head: Span) -> Result<Spanned, Fail> {
-        let body = self.body(&["end"])?;
+        self.quoting += 1;
+        let body = self.body(&["end"]);
+        self.quoting -= 1;
+        let body = body?;
         self.expect_ident("end")?;
         // `Sexp::Quasiquote`, NOT `(quasiquote body)` as a list.
         //
@@ -3166,6 +3280,36 @@ mod tests {
     #[test]
     fn a_string_key_has_no_shorthand() {
         assert_eq!(q(r#"{"k" => 1}"#), r#"(hash-map "k" 1)"#);
+    }
+
+    #[test]
+    fn a_newline_escape_and_its_lines_are_one_tree() {
+        for (escaped, lines) in [
+            (r#""a\nb""#, r#"join_lines(["a", "b"])"#),
+            (r##""#{m}\n#{h}""##, "join_lines([m, h])"),
+            (r##""n=#{n}\ndone\n""##, r##"unlines(["n=#{n}", "done"])"##),
+            (r#""\n""#, "line_break"),
+            (r#""a\n\n\tb\n""#, r#"unlines(["a", "", "\tb"])"#),
+            (r#""\na""#, r#"join_lines(["", "a"])"#),
+            (r#""\n\n""#, r#"unlines(["", ""])"#),
+        ] {
+            assert_eq!(q(escaped), q(lines), "{escaped}");
+        }
+        assert_eq!(q(r#""a\tb""#), q(r#""a\tb""#));
+        assert!(!q(r#""a\tb""#).contains("join_lines"));
+    }
+
+    #[test]
+    fn a_newline_escape_is_noted_and_a_quoted_one_is_data() {
+        let notes = spelling_notes(r#""a\nb""#).unwrap();
+        assert_eq!(notes.len(), 1);
+        assert_eq!(notes[0].spelling, Spelling::NewlineEscape);
+        assert!(spelling_notes(r#""a\tb""#).unwrap().is_empty());
+        let quoted = q("def f()\n  quote\n    \"x\\ny\"\n  end\nend\n");
+        assert!(!quoted.contains("join_lines"), "{quoted}");
+        assert!(spelling_notes("def f()\n  quote\n    \"x\\ny\"\n  end\nend\n")
+            .unwrap()
+            .is_empty());
     }
 
     #[test]

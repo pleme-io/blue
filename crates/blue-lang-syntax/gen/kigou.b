@@ -151,6 +151,6 @@ if is_empty(bad)
 else
   write_file(
     getenv("GEN_OUT", "crates/blue-lang-syntax/src/kigou/tables.rs"),
-    "compile_error!(\"invalid Rust identifiers in gen/kigou.b\");\n"
+    unlines(["compile_error!(\"invalid Rust identifiers in gen/kigou.b\");"])
   )
 end

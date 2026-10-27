@@ -340,11 +340,21 @@ def table_sql_in(schema, t)
     end,
     cols
   )
-  create = "CREATE TABLE IF NOT EXISTS #{name} (\n  \"id\" bigserial PRIMARY KEY#{join(map((d) -> ",\n#{d}", defs), "")}\n);\n"
+  create = unlines(
+    [
+      "CREATE TABLE IF NOT EXISTS #{name} (",
+      "  \"id\" bigserial PRIMARY KEY#{join(map((d) -> join_lines([",", d]), defs), "")}",
+      ");"
+    ]
+  )
   adds = join(
     map(
       fn(c)
-        "ALTER TABLE #{name} ADD COLUMN IF NOT EXISTS #{quoted(first(c))} #{first(column_sql(second(c)))};\n"
+        unlines(
+          [
+            "ALTER TABLE #{name} ADD COLUMN IF NOT EXISTS #{quoted(first(c))} #{first(column_sql(second(c)))};"
+          ]
+        )
       end,
       cols
     ),
@@ -359,11 +369,17 @@ ddl: database schema statements from declared tables.
     ddl({"port" => 1}) #=> ""
 """
 def ddl(svc)
-  join(map(table_sql, tables(svc)), "\n")
+  join(map(table_sql, tables(svc)), line_break)
 end
 
 def ddl_in(schema, svc)
-  "CREATE SCHEMA IF NOT EXISTS #{quoted(schema)};\n\n#{join(map((t) -> table_sql_in(schema, t), tables(svc)), "\n")}"
+  join_lines(
+    [
+      "CREATE SCHEMA IF NOT EXISTS #{quoted(schema)};",
+      "",
+      join(map((t) -> table_sql_in(schema, t), tables(svc)), line_break)
+    ]
+  )
 end
 
 def row_refusals(svc, table, row)
@@ -406,11 +422,15 @@ def insert_sql(svc, table, row)
     raise(first(first(rs)), join(map((r) -> second(r), rs), "; "))
   end
   es = map_entries(row)
-  "INSERT INTO #{quoted(table)} (#{join(map((e) -> quoted(first(e)), es), ", ")}) VALUES (#{join(map((e) -> literal(second(e)), es), ", ")});\n"
+  unlines(
+    [
+      "INSERT INTO #{quoted(table)} (#{join(map((e) -> quoted(first(e)), es), ", ")}) VALUES (#{join(map((e) -> literal(second(e)), es), ", ")});"
+    ]
+  )
 end
 
 def lines(xs)
-  "#{join(xs, "\n")}\n"
+  unlines([join(xs, line_break)])
 end
 
 def chart_yaml(name, version, mode)
@@ -734,7 +754,12 @@ end
 def slo_rules(name, svc)
   r = shihyou::rules(name, svc)
   m = assoc(get(r, "metadata"), "namespace", "{{ .Release.Namespace }}")
-  "{{- if .Values.slo.rules }}\n#{yaml(assoc(r, "metadata", m))}{{- end }}\n"
+  unlines(
+    [
+      "{{- if .Values.slo.rules }}",
+      "#{yaml(assoc(r, "metadata", m))}{{- end }}"
+    ]
+  )
 end
 
 def dashboard_map(name)
@@ -786,11 +811,11 @@ def files_with(name, version, svc, mode)
     [
       [
         "chart/templates/serviceaccount.yaml",
-        "{{- include \"pleme-lib.serviceaccount\" . }}\n"
+        unlines(["{{- include \"pleme-lib.serviceaccount\" . }}"])
       ],
       [
         "chart/templates/service.yaml",
-        "{{- include \"pleme-lib.service\" . }}\n"
+        unlines(["{{- include \"pleme-lib.service\" . }}"])
       ]
     ]
   end
@@ -893,7 +918,15 @@ test "the DDL is additive, keyed by id, with nullable columns marked"
   sql = ddl(sample)
   assert contains?(
     sql,
-    "CREATE TABLE IF NOT EXISTS \"greetings\" (\n  \"id\" bigserial PRIMARY KEY,\n  \"note\" text,\n  \"text\" text NOT NULL\n);"
+    join_lines(
+      [
+        "CREATE TABLE IF NOT EXISTS \"greetings\" (",
+        "  \"id\" bigserial PRIMARY KEY,",
+        "  \"note\" text,",
+        "  \"text\" text NOT NULL",
+        ");"
+      ]
+    )
   ) == true
   assert contains?(
     sql,
@@ -912,7 +945,7 @@ end
 
 test "a row is checked against its table before it becomes SQL"
   assert insert_sql(sample, "greetings", {"text" => "it's"}) ==
-    "INSERT INTO \"greetings\" (\"text\") VALUES ('it''s');\n"
+    unlines(["INSERT INTO \"greetings\" (\"text\") VALUES ('it''s');"])
   assert row_refusals(sample, "greetings", {"note" => "x"}) ==
     [[:missing_column, "greetings.text is required"]]
   assert row_refusals(sample, "nope", {}) ==
@@ -1023,7 +1056,7 @@ test "the chart carries the service's SLO rules, its dashboard and a scrape anno
   rules = second(
     first(filter((f) -> first(f) == "chart/templates/slo-rules.yaml", fs))
   )
-  assert starts_with?(rules, "{{- if .Values.slo.rules }}\n") == true
+  assert starts_with?(rules, unlines(["{{- if .Values.slo.rules }}"])) == true
   assert contains?(rules, "kind: \"PrometheusRule\"") == true
   assert contains?(rules, "SloLatencyBurn3d") == true
   assert contains?(rules, ".Release.Namespace") == true

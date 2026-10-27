@@ -6,7 +6,7 @@ row("strings.unicode_escape", "\"\\u{41}\"", value("\"A\""))
 
 row(
   "strings.interpolation",
-  "n = 3\n\"n = #\u{7b}n}!\"",
+  join_lines(["n = 3", "\"n = #\u{7b}n}!\""]),
   value("\"n = 3!\""),
   covers("form:\"n = #\u{7b}n}!\"")
 )
@@ -64,6 +64,27 @@ row(
   "join([\"a\", \"b\"], \", \")",
   value("\"a, b\""),
   covers("builtin:join")
+)
+
+row(
+  "strings.join_lines",
+  "join_lines([\"a\", 1, nil, [2]])",
+  value("\"a\\n1\\n\\n[2]\""),
+  covers("builtin:join_lines")
+)
+
+row(
+  "strings.unlines",
+  "unlines([\"a\", \"b\"])",
+  value("\"a\\nb\\n\""),
+  covers("builtin:unlines")
+)
+
+row(
+  "strings.line_break",
+  "line_break",
+  value("\"\\n\""),
+  covers("builtin:line_break")
 )
 
 row(

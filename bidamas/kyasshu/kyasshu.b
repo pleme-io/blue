@@ -725,7 +725,16 @@ def request(target, input, opts?)
 end
 
 def sdl()
-  "type Query { post(id: ID!): Post posts: [Post!]! }\ntype Mutation { rename(id: ID!, name: String!): User }\ntype Post { id: ID! title: String! author: User comments: [Comment!]! }\ntype Comment { id: ID! body: String! author: User }\ntype User { id: ID! name: String! }\ntype Note { text: String }"
+  join_lines(
+    [
+      "type Query { post(id: ID!): Post posts: [Post!]! }",
+      "type Mutation { rename(id: ID!, name: String!): User }",
+      "type Post { id: ID! title: String! author: User comments: [Comment!]! }",
+      "type Comment { id: ID! body: String! author: User }",
+      "type User { id: ID! name: String! }",
+      "type Note { text: String }"
+    ]
+  )
 end
 
 def user_card()
@@ -873,7 +882,23 @@ def posts_query()
 end
 
 def server_text()
-  "dir = argv_get(0)\nl = http_listen(\"127.0.0.1:0\")\nwrite_file(path_join(dir, \"port\"), to_s(http_listener_port(l)))\nreq = http_next_request(l, 20000)\nhttp_respond(\n  req,\n  200,\n  {\"content-type\" => \"application/json\"},\n  read_file(path_join(dir, \"reply.json\"))\n)\nwrite_file(path_join(dir, \"seen.json\"), get(req, :body))\nmore = http_next_request(l, 300)\nwrite_file(path_join(dir, \"more\"), to_s(more != nil))\n"
+  unlines(
+    [
+      "dir = argv_get(0)",
+      "l = http_listen(\"127.0.0.1:0\")",
+      "write_file(path_join(dir, \"port\"), to_s(http_listener_port(l)))",
+      "req = http_next_request(l, 20000)",
+      "http_respond(",
+      "  req,",
+      "  200,",
+      "  {\"content-type\" => \"application/json\"},",
+      "  read_file(path_join(dir, \"reply.json\"))",
+      ")",
+      "write_file(path_join(dir, \"seen.json\"), get(req, :body))",
+      "more = http_next_request(l, 300)",
+      "write_file(path_join(dir, \"more\"), to_s(more != nil))"
+    ]
+  )
 end
 
 def waited(path, tries)
@@ -1032,7 +1057,8 @@ test "schema keys every object type with an id, and the generated table is kensa
     is_file?,
     map((r) -> path_join(r, "kyasshu/keys/kensa.json"), roots)
   )
-  assert read_file(generated) == "#{json_stringify(schema(second(kensa)))}\n"
+  assert read_file(generated) ==
+    unlines([json_stringify(schema(second(kensa)))])
   assert get(json_read(read_file(generated)), "separator") == ":"
 end
 

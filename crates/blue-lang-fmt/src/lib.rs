@@ -2425,7 +2425,17 @@ mod tests {
 
     #[test]
     fn strings_are_re_escaped() {
-        assert_eq!(f(r#""a\nb""#).trim(), r#""a\nb""#);
+        assert_eq!(f(r#""a\tb""#).trim(), r#""a\tb""#);
+        assert_eq!(render_literal(&Atom::Str("a\nb".into())), r#""a\nb""#);
+    }
+
+    #[test]
+    fn a_line_break_in_a_string_is_written_as_its_lines() {
+        assert_eq!(f(r#""a\nb""#).trim(), r#"join_lines(["a", "b"])"#);
+        assert_eq!(f(r#""a\n""#).trim(), r#"unlines(["a"])"#);
+        assert_eq!(f(r#""\n""#).trim(), "line_break");
+        let once = f(r#""a\nb""#);
+        assert_eq!(f(&once), once);
     }
 
     // ---- the one layout (2026-09-27) --------------------------------

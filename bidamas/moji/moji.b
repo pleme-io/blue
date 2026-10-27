@@ -570,7 +570,10 @@ def lines(s)
   if length(s) == 0
     []
   else
-    split(strip_suffix(replace(s, "\r\n", "\n"), "\n"), "\n")
+    split(
+      strip_suffix(replace(s, unlines(["\r"]), line_break), line_break),
+      line_break
+    )
   end
 end
 
@@ -860,7 +863,7 @@ test "trim cuts whitespace with or without options, and agrees with the builtin"
   assert trim("  a  ", {side: :end}) == "  a"
   assert trim("--a--", {chars: "-"}) == "a"
   assert trim("--a--", {chars: "-", side: :end}) == "--a"
-  assert trim("\t a b \n") == blue::trim("\t a b \n")
+  assert trim(unlines(["\t a b "])) == blue::trim(unlines(["\t a b "]))
   assert map(trim, [" a", "b "]) == ["a", "b"]
 end
 
@@ -1129,7 +1132,7 @@ end
 test "is_space delegates to trim, so it knows every whitespace character"
   assert is_space(" ") == true
   assert is_space("\t") == true
-  assert is_space("\n") == true
+  assert is_space(line_break) == true
   assert is_space("   ") == true
   assert is_space("a") == false
   assert is_space("a b") == false
@@ -1140,7 +1143,7 @@ end
 
 test "is_blank covers the empty string that is_space deliberately does not"
   assert is_blank("") == true
-  assert is_blank("  \t\n ") == true
+  assert is_blank(join_lines(["  \t", " "])) == true
   assert is_blank("a") == false
   assert is_blank("  a  ") == false
   # The two predicates differ on exactly one input, which is why both exist.
@@ -1154,7 +1157,7 @@ test "words splits on RUNS of any whitespace"
   assert words("a  b") == ["a", "b"]
   assert words("  a  b  ") == ["a", "b"]
   # A tab is not a literal space, so a split on " " would not separate here.
-  assert words("a\tb\nc") == ["a", "b", "c"]
+  assert words(join_lines(["a\tb", "c"])) == ["a", "b", "c"]
   assert words("") == []
   assert words("   ") == []
   assert words("word") == ["word"]
@@ -1170,16 +1173,16 @@ test "squish is words put back together"
 end
 
 test "lines invents no trailing line and eats no \\r"
-  assert lines("a\nb") == ["a", "b"]
+  assert lines(join_lines(["a", "b"])) == ["a", "b"]
   # THE case: split("a\n", "\n") is ["a", ""] — a line nobody wrote.
-  assert lines("a\n") == ["a"]
-  assert lines("a\nb\n") == ["a", "b"]
+  assert lines(unlines(["a"])) == ["a"]
+  assert lines(unlines(["a", "b"])) == ["a", "b"]
   # Windows endings must not leave a "\r" glued to each line.
-  assert lines("a\r\nb") == ["a", "b"]
-  assert lines("a\r\nb\r\n") == ["a", "b"]
+  assert lines(join_lines(["a\r", "b"])) == ["a", "b"]
+  assert lines(unlines(["a\r", "b\r"])) == ["a", "b"]
   # A genuinely blank line is real and must survive.
-  assert lines("a\n\nb") == ["a", "", "b"]
-  assert lines("\n") == [""]
+  assert lines(join_lines(["a", "", "b"])) == ["a", "", "b"]
+  assert lines(line_break) == [""]
   # No text at all is no lines at all.
   assert lines("") == []
 end

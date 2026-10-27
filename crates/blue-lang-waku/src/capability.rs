@@ -178,7 +178,12 @@ const CORE_FORM_NAMES: &[&str] = &[
     "define", "defmacro", "lambda", "let", "begin", "if", "cond", "else", "not",
 ];
 const COLLECTION_NAMES: &[&str] = &["list", blue_lang_syntax::LOWERED_MAP];
-const INTERPOLATION_NAMES: &[&str] = &[blue_lang_syntax::LOWERED_CONCAT];
+const INTERPOLATION_NAMES: &[&str] = &[
+    blue_lang_syntax::LOWERED_CONCAT,
+    "join_lines",
+    "unlines",
+    "line_break",
+];
 const ASSERTION_NAMES: &[&str] = &[blue_lang_syntax::LOWERED_ASSERT];
 /// The Bluefile vocabulary. `blue_lang_pkg::bluefile`'s word table records
 /// each of these, and `the_word_table_is_the_manifest_capability` there fails

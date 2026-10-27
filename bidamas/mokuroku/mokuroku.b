@@ -162,7 +162,7 @@ def entries_of_text(text)
       end
     end,
     [[], [], [], nil],
-    joined_header_lines(split(text, "\n"))
+    joined_header_lines(split(text, line_break))
   )
   nth(2, state)
 end
@@ -184,7 +184,7 @@ prefix: its line is not two strings.
 def legacy_prefix_of_text(text)
   line = find_first(
     (l) -> starts_with?(l, "legacy_names(") and size(split(l, "\"")) == 5,
-    split(text, "\n")
+    split(text, line_break)
   )
   if line.nil?
     nil
@@ -228,7 +228,7 @@ end
 def gloss_of_text(text)
   after = drop_while(
     (l) -> not starts_with?(l, "@moduledoc "),
-    split(text, "\n")
+    split(text, line_break)
   )
   if size(after) < 2 or nth(1, after) == "\"\"\""
     ""
@@ -259,13 +259,13 @@ def test_blocks_of_text(text)
       end
     end,
     [nil, []],
-    split(text, "\n")
+    split(text, line_break)
   )
   last(state)
 end
 
 def tests_in_text(text)
-  count_where((l) -> starts_with?(l, "test \""), split(text, "\n"))
+  count_where((l) -> starts_with?(l, "test \""), split(text, line_break))
 end
 
 # ── reading a root ─────────────────────────────────────────────────────────
@@ -296,7 +296,7 @@ def package_text(dir)
         walk_dir(dir)
       )
     ),
-    "\n"
+    line_break
   )
 end
 
@@ -544,7 +544,7 @@ def package_section(r)
       ],
       rows
     ),
-    "\n"
+    line_break
   )
 end
 
@@ -558,7 +558,15 @@ def render_markdown(records)
     "|---|---|---|---|---|---|"
   ]
   body = map(package_section, records)
-  "#{join(concat_lists(header, map(pkg_summary_row, records)), "\n")}\n\n#{join(body, "\n\n")}\n\n#{shared_names_section(records)}\n"
+  unlines(
+    [
+      join(concat_lists(header, map(pkg_summary_row, records)), line_break),
+      "",
+      join(body, unlines(["", ""])),
+      "",
+      shared_names_section(records)
+    ]
+  )
 end
 
 @doc """
@@ -583,7 +591,7 @@ def shared_names_section(records)
       ],
       rows
     ),
-    "\n"
+    line_break
   )
 end
 
@@ -600,7 +608,7 @@ end
 # ── the verb graph ──────────────────────────────────────────────────────────
 
 def row_space?(c)
-  c == " " or c == "\n" or c == "\t"
+  c == " " or c == line_break or c == "\t"
 end
 
 def row_digit?(c)
@@ -640,7 +648,7 @@ def row_text(cs, from, to)
 end
 
 def row_fail(cs, i, why)
-  line = 1 + count_where((c) -> c == "\n", take(i, cs))
+  line = 1 + count_where((c) -> c == line_break, take(i, cs))
   raise(:row_syntax, "line #{to_s(line)}: #{why}")
 end
 
@@ -674,7 +682,7 @@ def row_string(cs, i, n, from, acc)
       else
         row_fail(cs, i, "a string holds the escapes \\\" and \\\\ only")
       end
-    elsif c == "\n"
+    elsif c == line_break
       row_fail(cs, i, "a string holds no line break")
     else
       row_string(cs, i + 1, n, from, push(acc, c))
@@ -1731,9 +1739,9 @@ end
 def probe_source(g)
   rows = exists_rows(g)
   spaces = sort_keyed((s) -> s, distinct(map((r) -> get(r, :space), rows)))
-  uses = join(map((s) -> "use(\"#{s}\")\n", spaces), "")
+  uses = join(map((s) -> unlines(["use(\"#{s}\")"]), spaces), "")
   names = join(map(row_node, rows), ", ")
-  "#{uses}\ndef probe()\n  [#{names}]\nend\n"
+  unlines([uses, "def probe()", "  [#{names}]", "end"])
 end
 
 def unbound_names(output)
@@ -1742,7 +1750,7 @@ def unbound_names(output)
       parts = split(l, "`")
       "#{nth(1, parts)}::#{nth(3, parts)}"
     end,
-    filter((l) -> contains?(l, "error[B0011]"), split(output, "\n"))
+    filter((l) -> contains?(l, "error[B0011]"), split(output, line_break))
   )
 end
 
@@ -1789,7 +1797,7 @@ def token_gaps()
     "@",
     "$",
     "\t",
-    "\n",
+    line_break,
     "\r"
   ]
 end
@@ -1821,7 +1829,7 @@ end
 
 def test_tokens(text)
   lines = flat_map(test_blocks_of_text(text), (b) -> last(b))
-  code_tokens(join(map(uncommented, lines), "\n"))
+  code_tokens(join(map(uncommented, lines), line_break))
 end
 
 def qualified_token(space, verb)
@@ -2008,7 +2016,7 @@ def graph_shrunk(findings, baseline_text)
 end
 
 def tsv_lines(text)
-  reject((l) -> l == "", split(text, "\n"))
+  reject((l) -> l == "", split(text, line_break))
 end
 
 def tsv_fields(line)
@@ -2025,7 +2033,9 @@ end
 
 def text_safe?(s)
   not (
-    contains?(s, "\n") or contains?(s, "\t") or contains?(s, concat("#", "{"))
+    contains?(s, line_break) or
+    contains?(s, "\t") or
+    contains?(s, concat("#", "{"))
   )
 end
 
@@ -2238,7 +2248,7 @@ def tsv_join(fields)
 end
 
 def tsv_text(header, rows)
-  join(map((r) -> "#{tsv_join(r)}\n", concat_lists([header], rows)), "")
+  join(map((r) -> unlines([tsv_join(r)]), concat_lists([header], rows)), "")
 end
 
 def verbs_tsv(g)
@@ -2444,7 +2454,7 @@ def space_file_text(g, space)
   s = first(filter((r) -> get(r, :name) == space, get(g, :spaces)))
   join(
     map(
-      (r) -> "#{row_source(r)}\n",
+      (r) -> unlines([row_source(r)]),
       concat_lists([s], concat_lists(verbs, edges))
     ),
     ""
@@ -2459,7 +2469,7 @@ def graph_writes(g)
           "vocab.b",
           join(
             map(
-              (r) -> "#{row_source(r)}\n",
+              (r) -> unlines([row_source(r)]),
               sort_keyed((v) -> get(v, :verb), get(g, :vocab))
             ),
             ""
@@ -2474,7 +2484,7 @@ def graph_writes(g)
             "laterals.b",
             join(
               map(
-                (r) -> "#{row_source(r)}\n",
+                (r) -> unlines([row_source(r)]),
                 sort_keyed((l) -> get(l, :name), get(g, :laterals))
               ),
               ""
@@ -2514,30 +2524,82 @@ end
 # ── tests ──────────────────────────────────────────────────────────────────
 
 test "a def header broken over lines is catalogued as one signature"
-  src = "@doc \"\"\"\nlong_one does it.\n\"\"\"\ndef long_one(\n  alpha,\n  beta\n) -> Int\n  1\nend\n"
+  src = unlines(
+    [
+      "@doc \"\"\"",
+      "long_one does it.",
+      "\"\"\"",
+      "def long_one(",
+      "  alpha,",
+      "  beta",
+      ") -> Int",
+      "  1",
+      "end"
+    ]
+  )
   assert entries_of_text(src) ==
     [["long_one", "long_one(alpha, beta) -> Int", ["long_one does it."], []]]
 end
 
 test "a definition with no parameters is catalogued bare"
-  src = "def alphabet()\n  1\nend\n\ndef typed() -> Int\n  1\nend\n\ndef inc(x)\n  x\nend\n"
+  src = unlines(
+    [
+      "def alphabet()",
+      "  1",
+      "end",
+      "",
+      "def typed() -> Int",
+      "  1",
+      "end",
+      "",
+      "def inc(x)",
+      "  x",
+      "end"
+    ]
+  )
   assert map((e) -> nth(1, e), entries_of_text(src)) ==
     ["alphabet", "typed -> Int", "inc(x)"]
 end
 
 test "a manifest yields its name, version and needs"
-  m = parse_manifest("package(\"kazu\", \"0.1.0\")\nneeds(\"retsu\", \"^0.1\")\nneeds(\"moji\", \"^0.1\")\n")
+  m = parse_manifest(
+    unlines(
+      [
+        "package(\"kazu\", \"0.1.0\")",
+        "needs(\"retsu\", \"^0.1\")",
+        "needs(\"moji\", \"^0.1\")"
+      ]
+    )
+  )
   assert m == ["kazu", "0.1.0", ["retsu", "moji"]]
 end
 
 test "a manifest with no needs has an empty needs list"
-  m = parse_manifest("package(\"deeta\", \"0.1.0\")\n")
+  m = parse_manifest(unlines(["package(\"deeta\", \"0.1.0\")"]))
   assert is_empty(nth(2, m)) == true
   assert nth(0, m) == "deeta"
 end
 
 test "a def's doc is its @doc; a comment documents nothing"
-  text = "# ── section ──\n\n@doc \"\"\"\ninc adds one.\n\n    inc(1) #=> 2\n\"\"\"\ndef inc(x)\n  x + 1\nend\n\n# Bare.\ndef bare(y)\n  y\nend\n"
+  text = unlines(
+    [
+      "# ── section ──",
+      "",
+      "@doc \"\"\"",
+      "inc adds one.",
+      "",
+      "    inc(1) #=> 2",
+      "\"\"\"",
+      "def inc(x)",
+      "  x + 1",
+      "end",
+      "",
+      "# Bare.",
+      "def bare(y)",
+      "  y",
+      "end"
+    ]
+  )
   es = entries_of_text(text)
   assert size(es) == 2
   assert first(es) ==
@@ -2546,14 +2608,27 @@ test "a def's doc is its @doc; a comment documents nothing"
 end
 
 test "the gloss is the first line of the @moduledoc"
-  assert gloss_of_text("@moduledoc \"\"\"\nkazu (数): numbers.\nmore\n\"\"\"\n\nuse(\"retsu\")\n") ==
-    "kazu (数): numbers."
-  assert gloss_of_text("# kazu: a comment.\ndef f()\n  1\nend\n") == ""
+  assert gloss_of_text(
+    unlines(
+      [
+        "@moduledoc \"\"\"",
+        "kazu (数): numbers.",
+        "more",
+        "\"\"\"",
+        "",
+        "use(\"retsu\")"
+      ]
+    )
+  ) == "kazu (数): numbers."
+  assert gloss_of_text(
+    unlines(["# kazu: a comment.", "def f()", "  1", "end"])
+  ) == ""
 end
 
 test "tests are counted by their opening line"
-  assert tests_in_text("test \"a\"\n  assert 1 == 1\nend\ntest \"b\"\nend\n") ==
-    2
+  assert tests_in_text(
+    unlines(["test \"a\"", "  assert 1 == 1", "end", "test \"b\"", "end"])
+  ) == 2
 end
 
 test "two packages defining one name is a collision; distinct names are not"
@@ -2610,7 +2685,26 @@ test "the rendered catalogue names every package and counts its definitions"
 end
 
 test "a waiver is recorded, not documented; a legacy prefix names the other spelling"
-  text = "legacy_names(\"0.1.1\", \"q\")\n\n# waive B0013: count is a builtin\n@doc \"\"\"\nq_count counts.\n\"\"\"\ndef q_count(xs)\n  0\nend\n\n@doc \"\"\"\njoin_all joins.\n\"\"\"\ndef join_all(xs)\n  xs\nend\n"
+  text = unlines(
+    [
+      "legacy_names(\"0.1.1\", \"q\")",
+      "",
+      "# waive B0013: count is a builtin",
+      "@doc \"\"\"",
+      "q_count counts.",
+      "\"\"\"",
+      "def q_count(xs)",
+      "  0",
+      "end",
+      "",
+      "@doc \"\"\"",
+      "join_all joins.",
+      "\"\"\"",
+      "def join_all(xs)",
+      "  xs",
+      "end"
+    ]
+  )
   es = entries_of_text(text)
   assert first(es) == ["q_count", "q_count(xs)", ["q_count counts."], ["B0013"]]
   assert legacy_prefix_of_text(text) == "q"
@@ -2620,7 +2714,21 @@ test "a waiver is recorded, not documented; a legacy prefix names the other spel
 end
 
 test "test blocks are read with their titles and bodies; other lines are not"
-  text = "def f(x)\n  x\nend\n\ntest \"f is identity\"\n  assert f(1) == 1\n  assert f(2) == 2\nend\n\ntest \"empty\"\nend\n"
+  text = unlines(
+    [
+      "def f(x)",
+      "  x",
+      "end",
+      "",
+      "test \"f is identity\"",
+      "  assert f(1) == 1",
+      "  assert f(2) == 2",
+      "end",
+      "",
+      "test \"empty\"",
+      "end"
+    ]
+  )
   assert test_blocks_of_text(text) ==
     [
       ["f is identity", ["  assert f(1) == 1", "  assert f(2) == 2"]],
@@ -2680,7 +2788,7 @@ def fx_kinds(g)
 end
 
 test "a catalogue keeps the packages the ledger names and skips the rest"
-  ledger = "| `alpha` | a |\n| `beta` | b |\n"
+  ledger = unlines(["| `alpha` | a |", "| `beta` | b |"])
   records = [["alpha", "0.1.0"], ["gamma", "0.1.0"], ["beta", "0.2.0"]]
   assert registered_only(ledger, records) ==
     [["alpha", "0.1.0"], ["beta", "0.2.0"]]
@@ -2688,7 +2796,7 @@ test "a catalogue keeps the packages the ledger names and skips the rest"
 end
 
 test "a name that only appears inside another row's text is not registered"
-  ledger = "| `alpha` | gamma and `gamma` are mentioned here |\n"
+  ledger = unlines(["| `alpha` | gamma and `gamma` are mentioned here |"])
   assert registered_only(ledger, [["gamma", "0.1.0"]]) == []
 end
 
@@ -2858,14 +2966,16 @@ test "the ratchet: recorded debt holds or shrinks, and a new or grown count is a
   )
   found = graph_findings(g)
   base = graph_baseline(found)
-  assert base == "g2-vocab: a 2\ng2-vocab: b 1\n"
+  assert base == unlines(["g2-vocab: a 2", "g2-vocab: b 1"])
   assert graph_verdict(found, base) == []
-  assert graph_verdict(found, "g2-vocab: a 3\ng2-vocab: b 1\n") == []
-  assert graph_shrunk(found, "g2-vocab: a 3\ng2-vocab: b 1\n") ==
+  assert graph_verdict(found, unlines(["g2-vocab: a 3", "g2-vocab: b 1"])) == []
+  assert graph_shrunk(found, unlines(["g2-vocab: a 3", "g2-vocab: b 1"])) ==
     ["g2-vocab: a"]
-  assert kinds(graph_verdict(found, "g2-vocab: a 1\ng2-vocab: b 1\n")) ==
-    [:grew]
-  assert kinds(graph_verdict(found, "g2-vocab: a 2\n")) == [:unrecorded]
+  assert kinds(
+    graph_verdict(found, unlines(["g2-vocab: a 1", "g2-vocab: b 1"]))
+  ) == [:grew]
+  assert kinds(graph_verdict(found, unlines(["g2-vocab: a 2"]))) ==
+    [:unrecorded]
 end
 
 test "a row file reads its own writing, for every word"
@@ -2881,12 +2991,15 @@ test "a row file reads its own writing, for every word"
     gloss: "files \"and\" paths"
   }
   rows = concat_lists([space], concat_lists(get(g, :verbs), get(g, :edges)))
-  parsed = file_graph("a.b", join(map((r) -> "#{row_source(r)}\n", rows), ""))
+  parsed = file_graph(
+    "a.b",
+    join(map((r) -> unlines([row_source(r)]), rows), "")
+  )
   assert get(parsed, :refusals) == []
   assert get(parsed, :rows) == rows
   voc = file_graph(
     "vocab.b",
-    join(map((r) -> "#{row_source(r)}\n", get(g, :vocab)), "")
+    join(map((r) -> unlines([row_source(r)]), get(g, :vocab)), "")
   )
   assert get(voc, :refusals) == []
   assert get(voc, :rows) == get(g, :vocab)
@@ -2896,7 +3009,7 @@ end
 test "a row file is data: a word that is not a row word is refused, never run"
   r = file_graph(
     "a.b",
-    "space(\"a\", {status: :ratified})\nwrite_file(\"x\", \"y\")\n"
+    unlines(["space(\"a\", {status: :ratified})", "write_file(\"x\", \"y\")"])
   )
   assert kinds(get(r, :refusals)) == [:unknown_word]
   assert size(get(r, :rows)) == 1
@@ -2904,23 +3017,35 @@ end
 
 test "a row file holds only literals: a name, a call or an operator in a value is a syntax refusal"
   assert kinds(
-    get(file_graph("a.b", "space(\"a\", {status: ratified})\n"), :refusals)
+    get(
+      file_graph("a.b", unlines(["space(\"a\", {status: ratified})"])),
+      :refusals
+    )
   ) == [:row_syntax]
   assert kinds(
-    get(file_graph("a.b", "space(\"a\", {status: 1 + 2})\n"), :refusals)
+    get(
+      file_graph("a.b", unlines(["space(\"a\", {status: 1 + 2})"])),
+      :refusals
+    )
   ) == [:row_syntax]
   assert kinds(
-    get(file_graph("a.b", "space(\"a\", {status: f(1)})\n"), :refusals)
+    get(file_graph("a.b", unlines(["space(\"a\", {status: f(1)})"])), :refusals)
   ) == [:row_syntax]
   assert kinds(
-    get(file_graph("a.b", "space(\"a\", {status: \"x\n"), :refusals)
+    get(file_graph("a.b", unlines(["space(\"a\", {status: \"x"])), :refusals)
   ) == [:row_syntax]
 end
 
 test "a bad row is refused alone: its siblings load"
   r = file_graph(
     "a.b",
-    "space(\"a\", {status: :ratified})\nspace(\"b\", {status: :nope})\nspace(\"c\", {status: :provisional, color: 1})\n"
+    unlines(
+      [
+        "space(\"a\", {status: :ratified})",
+        "space(\"b\", {status: :nope})",
+        "space(\"c\", {status: :provisional, color: 1})"
+      ]
+    )
   )
   assert size(get(r, :rows)) == 1
   assert kinds(get(r, :refusals)) == [:bad_row, :bad_row]
@@ -2929,7 +3054,13 @@ end
 test "a file holds the rows of its own space only, and the edges that start there"
   r = file_graph(
     "a.b",
-    "space(\"a\", {status: :ratified})\nedge(\"b::x\", :pairs, \"a::y\", \"w\")\nvocab(\"v\", {subject: \"s\", args: [], opts: false, returns: \"r\", raises: [], kind: :pure, meaning: \"m\", ref: nil, status: :open})\n"
+    unlines(
+      [
+        "space(\"a\", {status: :ratified})",
+        "edge(\"b::x\", :pairs, \"a::y\", \"w\")",
+        "vocab(\"v\", {subject: \"s\", args: [], opts: false, returns: \"r\", raises: [], kind: :pure, meaning: \"m\", ref: nil, status: :open})"
+      ]
+    )
   )
   assert kinds(get(r, :refusals)) == [:misplaced, :misplaced]
 end
@@ -2985,7 +3116,7 @@ test "a TSV that disagrees with its derived columns is refused, row by row"
     [["p", "s", "x", "no", "v", "", "pure", "m", "-", "decided"]]
   )
   g = graph_from_tsv(
-    "#{head}#{tsv_join(row)}\n",
+    unlines(["#{head}#{tsv_join(row)}"]),
     tsv_text(edge_header, []),
     voc
   )
@@ -3121,7 +3252,7 @@ end
 
 test "the probe names every exists row of a named space, once, and nothing else"
   src = probe_source(ux_graph(ux_rows))
-  assert contains?(src, "use(\"kazu\")\nuse(\"moji\")\n")
+  assert contains?(src, unlines(["use(\"kazu\")", "use(\"moji\")"]))
   assert contains?(src, "kazu::abs")
   assert contains?(src, "moji::lower")
   assert not contains?(src, "ghost")
@@ -3132,14 +3263,24 @@ end
 
 test "the probe of a graph with no exists row is an empty list"
   src = probe_source(ux_graph([["moji", "ghost", "partial:moji", "two"]]))
-  assert src == "\ndef probe()\n  []\nend\n"
+  assert src == unlines(["", "def probe()", "  []", "end"])
 end
 
 test "unbound_names reads the B0011 lines and nothing else"
-  out = "typed declarations: 0\nnames resolved:     9\n/p/probe.b:3:4: error[B0011]: bidama `moji` defines no `nothere`\n  help: nothing in `moji` is close to `nothere`\n/p/probe.b:3:9: error[B0011]: bidama `retsu` defines no `zzz`\n/p/probe.b:1:1: error[B0015]: `use(\"kijun\")` is out of order\n/p/probe.b:3:2: error[B0010]: `retsu::first` is qualified by `retsu`, which this file does not `use`\n"
+  out = unlines(
+    [
+      "typed declarations: 0",
+      "names resolved:     9",
+      "/p/probe.b:3:4: error[B0011]: bidama `moji` defines no `nothere`",
+      "  help: nothing in `moji` is close to `nothere`",
+      "/p/probe.b:3:9: error[B0011]: bidama `retsu` defines no `zzz`",
+      "/p/probe.b:1:1: error[B0015]: `use(\"kijun\")` is out of order",
+      "/p/probe.b:3:2: error[B0010]: `retsu::first` is qualified by `retsu`, which this file does not `use`"
+    ]
+  )
   assert unbound_names(out) == ["moji::nothere", "retsu::zzz"]
   assert unbound_names("") == []
-  assert unbound_names("names resolved:     9\n") == []
+  assert unbound_names(unlines(["names resolved:     9"])) == []
 end
 
 test "finds_unbound reports an exists row once and ignores any other row"
@@ -3169,7 +3310,20 @@ test "g10-unbound is a kind the baseline measures"
 end
 
 def ut_package(name, body)
-  [name, "package(\"#{name}\", \"0.1.0\")\n\ndef lower(s)\n  s\nend\n\n#{body}"]
+  [
+    name,
+    join_lines(
+      [
+        "package(\"#{name}\", \"0.1.0\")",
+        "",
+        "def lower(s)",
+        "  s",
+        "end",
+        "",
+        body
+      ]
+    )
+  ]
 end
 
 def ut_corpus()
@@ -3177,11 +3331,27 @@ def ut_corpus()
     [
       ut_package(
         "moji",
-        "test \"lower folds\"\n  assert lower(\"A\") == \"a\"\nend\n\ntest \"upper is named only in text\"\n  assert \"upper(x)\" == \"upper(x)\"\nend\n"
+        unlines(
+          [
+            "test \"lower folds\"",
+            "  assert lower(\"A\") == \"a\"",
+            "end",
+            "",
+            "test \"upper is named only in text\"",
+            "  assert \"upper(x)\" == \"upper(x)\"",
+            "end"
+          ]
+        )
       ),
       ut_package(
         "kazu",
-        "test \"abs reaches across\"\n  assert moji::lower(\"A\") == \"a\"\nend\n"
+        unlines(
+          [
+            "test \"abs reaches across\"",
+            "  assert moji::lower(\"A\") == \"a\"",
+            "end"
+          ]
+        )
       )
     ]
   )
@@ -3220,9 +3390,19 @@ test "an unmatched quote leaves the text after it as code"
 end
 
 test "test_tokens reads test blocks only, and no string inside them"
-  text = "def helper()\n  secret(1)\nend\n\ntest \"t\"\n  assert shown(\"hidden(1)\") == 1\nend\n"
+  text = unlines(
+    [
+      "def helper()",
+      "  secret(1)",
+      "end",
+      "",
+      "test \"t\"",
+      "  assert shown(\"hidden(1)\") == 1",
+      "end"
+    ]
+  )
   assert test_tokens(text) == ["assert", "shown", "1"]
-  assert test_tokens("def only()\n  1\nend\n") == []
+  assert test_tokens(unlines(["def only()", "  1", "end"])) == []
   assert test_tokens("") == []
 end
 
@@ -3273,10 +3453,23 @@ test "corpus_packages reads each package's name and text from a root, and the pr
   root = path_join(getenv("TMPDIR", "/tmp"), "mokuroku-ut-#{blake3_hex("g11")}")
   rm_rf(root)
   mkdir_p(path_join(root, "zed"))
-  write_file(path_join(root, "zed/Bluefile"), "package(\"zed\", \"0.1.0\")\n")
+  write_file(
+    path_join(root, "zed/Bluefile"),
+    unlines(["package(\"zed\", \"0.1.0\")"])
+  )
   write_program(
     path_join(root, "zed/zed.b"),
-    "def go(x)\n  x\nend\n\ntest \"go\"\n  assert go(1) == 1\nend\n"
+    unlines(
+      [
+        "def go(x)",
+        "  x",
+        "end",
+        "",
+        "test \"go\"",
+        "  assert go(1) == 1",
+        "end"
+      ]
+    )
   )
   pkgs = corpus_packages([root])
   assert map(first, pkgs) == ["zed"]
@@ -3295,7 +3488,7 @@ test "a comment after code, or alone on a line, names no token"
   assert code_tokens(uncommented("# only(this)")) == []
   assert code_tokens(uncommented("f(\"#\", x)")) == ["f", "x"]
   assert code_tokens(uncommented("")) == []
-  text = "test \"t\"\n  # hidden(1)\n  shown(2) # also(3)\nend\n"
+  text = unlines(["test \"t\"", "  # hidden(1)", "  shown(2) # also(3)", "end"])
   assert test_tokens(text) == ["shown", "2"]
 end
 
@@ -3304,13 +3497,33 @@ def ut_prefixed()
     [
       [
         "wen",
-        "legacy_names(\"0.1.1\", \"wn\")\n\ndef wn_put(s)\n  s\nend\n\ntest \"put\"\n  assert wn_put(1) == 1\nend\n"
+        unlines(
+          [
+            "legacy_names(\"0.1.1\", \"wn\")",
+            "",
+            "def wn_put(s)",
+            "  s",
+            "end",
+            "",
+            "test \"put\"",
+            "  assert wn_put(1) == 1",
+            "end"
+          ]
+        )
       ],
       [
         "pla",
-        "legacy_names(\"0.1.1\", [[\"old\", \"pla::new\"]])\n\ntest \"t\"\n  assert pla_put(1) == 1\nend\n"
+        unlines(
+          [
+            "legacy_names(\"0.1.1\", [[\"old\", \"pla::new\"]])",
+            "",
+            "test \"t\"",
+            "  assert pla_put(1) == 1",
+            "end"
+          ]
+        )
       ],
-      ["bar", "test \"t\"\n  assert wn_put(1) == 1\nend\n"]
+      ["bar", unlines(["test \"t\"", "  assert wn_put(1) == 1", "end"])]
     ]
   )
 end

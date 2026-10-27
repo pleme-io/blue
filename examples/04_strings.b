@@ -13,7 +13,7 @@ end
 
 def report(rows)
   body = map((r) -> row(first(r), last(r)), rows)
-  join(concat_lists(["name     count", "-------------"], body), "\n")
+  join(concat_lists(["name     count", "-------------"], body), line_break)
 end
 
 test "interpolation renders any value"
@@ -24,7 +24,9 @@ end
 
 test "a padded table, built as lines and joined once"
   assert report([["apples", 3], ["pears", 12]]) ==
-    "name     count\n-------------\napples     3\npears     12"
+    join_lines(
+      ["name     count", "-------------", "apples     3", "pears     12"]
+    )
 end
 
 test "split keeps empty fields, and join undoes it"

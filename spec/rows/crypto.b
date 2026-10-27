@@ -9,7 +9,15 @@ row(
 
 row(
   "crypto.ed25519",
-  "k = ed25519_keypair(\"0101010101010101010101010101010101010101010101010101010101010101\")\nsec = nth(0, k)\npub = nth(1, k)\nsig = ed25519_sign(sec, \"m\")\n[ed25519_verify(pub, \"m\", sig), ed25519_verify(pub, \"n\", sig)]",
+  join_lines(
+    [
+      "k = ed25519_keypair(\"0101010101010101010101010101010101010101010101010101010101010101\")",
+      "sec = nth(0, k)",
+      "pub = nth(1, k)",
+      "sig = ed25519_sign(sec, \"m\")",
+      "[ed25519_verify(pub, \"m\", sig), ed25519_verify(pub, \"n\", sig)]"
+    ]
+  ),
   value("[true, false]"),
   covers(
     "builtin:ed25519_keypair",

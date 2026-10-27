@@ -5,66 +5,124 @@
 
 row(
   "shift.spec_file",
-  "def shifted(n: Int) -> Int\n  n * 2\nend\n\ndef loose(n)\n  n * 3\nend",
+  join_lines(
+    [
+      "def shifted(n: Int) -> Int",
+      "  n * 2",
+      "end",
+      "",
+      "def loose(n)",
+      "  n * 3",
+      "end"
+    ]
+  ),
   shifts("annotated", ["loose"]),
   position("annotated")
 )
 
 row(
   "shift.spec_file.same_answer",
-  "def shifted(n: Int) -> Int\n  n * 2\nend\n\ndef loose(n)\n  n * 3\nend\n\n[shifted(2), loose(2), shifted(5) == loose(5) - 5]",
+  join_lines(
+    [
+      "def shifted(n: Int) -> Int",
+      "  n * 2",
+      "end",
+      "",
+      "def loose(n)",
+      "  n * 3",
+      "end",
+      "",
+      "[shifted(2), loose(2), shifted(5) == loose(5) - 5]"
+    ]
+  ),
   value("[4, 6, true]"),
   position("annotated")
 )
 
 row(
   "shift.dynamic",
-  "def add(a, b)\n  a + b\nend",
+  join_lines(["def add(a, b)", "  a + b", "end"]),
   shifts("dynamic", ["add"]),
   position("dynamic")
 )
 
 row(
   "shift.checked",
-  "def add(a: Int, b: Int) -> Int\n  a + b\nend",
+  join_lines(["def add(a: Int, b: Int) -> Int", "  a + b", "end"]),
   shifts("checked", []),
   position("checked")
 )
 
 row(
   "shift.restricted",
-  "definput(\"schema\", \"b3:abc\")\n\ndef add(a: Int, b: Int) -> Int\n  a + b\nend",
+  join_lines(
+    [
+      "definput(\"schema\", \"b3:abc\")",
+      "",
+      "def add(a: Int, b: Int) -> Int",
+      "  a + b",
+      "end"
+    ]
+  ),
   shifts("restricted", []),
   position("restricted")
 )
 
 row(
   "shift.capability_does_not_rescue",
-  "definput(\"schema\", \"b3:abc\")\n\ndef add(a, b)\n  a + b\nend",
+  join_lines(
+    ["definput(\"schema\", \"b3:abc\")", "", "def add(a, b)", "  a + b", "end"]
+  ),
   shifts("dynamic", ["add"]),
   position("dynamic")
 )
 
 row(
   "shift.lowest_wins",
-  "def a(n: Int) -> Int\n  n\nend\n\ndef b(n)\n  n\nend\n\ndef c(n)\n  n\nend",
+  join_lines(
+    [
+      "def a(n: Int) -> Int",
+      "  n",
+      "end",
+      "",
+      "def b(n)",
+      "  n",
+      "end",
+      "",
+      "def c(n)",
+      "  n",
+      "end"
+    ]
+  ),
   shifts("annotated", ["b", "c"]),
   position("annotated")
 )
 
 row("shift.no_declarations", "1 + 1", shifts("none", []))
-row("shift.unparseable", "def f(\n", shifts("none", []))
+row("shift.unparseable", unlines(["def f("]), shifts("none", []))
 
 row(
   "shift.wrong_arg.dynamic",
-  "def f(n)\n  n + 1\nend\n\nf(\"a\")",
+  join_lines(["def f(n)", "  n + 1", "end", "", "f(\"a\")"]),
   fails(:eval, "expected number"),
   position("dynamic")
 )
 
 row(
   "shift.wrong_arg.annotated",
-  "def f(n: Int) -> Int\n  n + 1\nend\n\ndef g(x)\n  f(x)\nend\n\ng(\"a\")",
+  join_lines(
+    [
+      "def f(n: Int) -> Int",
+      "  n + 1",
+      "end",
+      "",
+      "def g(x)",
+      "  f(x)",
+      "end",
+      "",
+      "g(\"a\")"
+    ]
+  ),
   fails(:eval, "argument 1 expects Int"),
   position("annotated"),
   pending("G8")
@@ -72,28 +130,50 @@ row(
 
 row(
   "shift.wrong_arg.checked",
-  "def f(n: Int) -> Int\n  n + 1\nend\n\ndef g() -> Int\n  f(\"a\")\nend\n\ng",
+  join_lines(
+    [
+      "def f(n: Int) -> Int",
+      "  n + 1",
+      "end",
+      "",
+      "def g() -> Int",
+      "  f(\"a\")",
+      "end",
+      "",
+      "g"
+    ]
+  ),
   fails(:check, "B0005"),
   position("checked")
 )
 
 row(
   "shift.runs.dynamic",
-  "def f(n)\n  n * 2\nend\n\nf(21)",
+  join_lines(["def f(n)", "  n * 2", "end", "", "f(21)"]),
   value("42"),
   position("dynamic")
 )
 
 row(
   "shift.runs.checked",
-  "def f(n: Int) -> Int\n  n * 2\nend\n\nf(21)",
+  join_lines(["def f(n: Int) -> Int", "  n * 2", "end", "", "f(21)"]),
   value("42"),
   position("checked")
 )
 
 row(
   "shift.runs.restricted",
-  "definput(\"schema\", \"b3:abc\")\n\ndef f(n: Int) -> Int\n  n * 2\nend\n\nf(21)",
+  join_lines(
+    [
+      "definput(\"schema\", \"b3:abc\")",
+      "",
+      "def f(n: Int) -> Int",
+      "  n * 2",
+      "end",
+      "",
+      "f(21)"
+    ]
+  ),
   value("42"),
   position("restricted")
 )

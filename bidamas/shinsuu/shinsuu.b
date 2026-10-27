@@ -1281,7 +1281,7 @@ def bytes_hex(bytes)
 end
 
 def hex_bytes(text)
-  cs = filter((c) -> c != " " and c != "\n", chars(downcase(text)))
+  cs = filter((c) -> c != " " and c != line_break, chars(downcase(text)))
   if size(cs) % 2 != 0 or not all_digits_in_base(cs, 16)
     nil
   else
@@ -1294,7 +1294,7 @@ end
 
 test "hex dumps read back as the bytes they print"
   assert hex_bytes("") == []
-  assert hex_bytes("8286 8441\n0f") == [130, 134, 132, 65, 15]
+  assert hex_bytes(join_lines(["8286 8441", "0f"])) == [130, 134, 132, 65, 15]
   assert hex_bytes("FF00") == [255, 0]
   assert bytes_hex([0, 15, 255]) == "000fff"
   assert hex_bytes(bytes_hex([1, 2, 254])) == [1, 2, 254]

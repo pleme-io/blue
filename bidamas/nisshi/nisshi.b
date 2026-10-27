@@ -339,7 +339,7 @@ def genesis(label)
       "a stream label is a string, not #{raifusaikuru::show(label)}"
     )
   end
-  chain_genesis("#{format}\n#{label}")
+  chain_genesis(join_lines([format, label]))
 end
 
 @doc """
@@ -1353,7 +1353,7 @@ Pure. A last line without its newline is a torn write, and a bad line.
 def from_text(text, path, bytes, label, d)
   lines = nisshi::lines(text)
   n = size(lines)
-  torn = text != "" and ends_with?(text, "\n") == false
+  torn = text != "" and ends_with?(text, line_break) == false
   names = nisshi::names(d)
   records = map(
     (i) -> decode_at(names, i, nth(i, lines), torn and i == n - 1),
@@ -1379,10 +1379,10 @@ the final one.
 def lines(text)
   if text == ""
     []
-  elsif ends_with?(text, "\n")
-    all_but_last(split(text, "\n"))
+  elsif ends_with?(text, line_break)
+    all_but_last(split(text, line_break))
   else
-    split(text, "\n")
+    split(text, line_break)
   end
 end
 
@@ -1390,7 +1390,7 @@ end
 unlines: Lines back into a stream's text, each ended by a newline.
 """
 def unlines(lines)
-  join(map((l) -> "#{l}\n", lines), "")
+  join(map((l) -> unlines([l]), lines), "")
 end
 
 @doc """
@@ -1479,7 +1479,7 @@ def write(log, entity, event, links, observed)
   line = line_text(texts, prev, hash, sign(signer(log), hash))
   r = decode_named(names, el_count(log), line)
   require_round_trip(r, line, ev)
-  append_file(path, "#{line}\n")
+  append_file(path, unlines([line]))
   absorb_record(
     update_at(update_at(log, 10, nil), 6, bytes_on_disk(path)),
     r,
@@ -2135,7 +2135,7 @@ def control_rows(lines, head, k, other)
   unsigned = replace(line3, "\"sig\":\"#{rec_sig(r3)}\"", "\"sig\":null")
   [
     [:unparseable, unlines(update_at(lines, 2, "not json")), pub, nil, 2],
-    [:unparseable, join(lines, "\n"), pub, nil, 4],
+    [:unparseable, join(lines, line_break), pub, nil, 4],
     [
       :hash,
       unlines(
@@ -2354,7 +2354,7 @@ test "a stale log value cannot write, a written-through value keeps no records, 
   )
   l2 = el_append(l1, "item-1", raifusaikuru::ev(:use, 1100, []), [])
   assert el_count(l2) == 2
-  append_file(p, "not a record\n")
+  append_file(p, unlines(["not a record"]))
   broken = read(p, "nisshi-test", d)
   assert fault(broken) == 2
   assert error?(
@@ -2437,7 +2437,7 @@ test "canonical JSON: sorted keys, no spaces, the runtime's shapes, and serde wr
   assert canon([]) == "[]"
   assert canon_object([]) == "{}"
   assert canon([[:z, [["y", 2], ["x", 1]]]]) == "{\"z\":{\"x\":1,\"y\":2}}"
-  assert canon("é \"q\"\n") == "\"é \\\"q\\\"\\n\""
+  assert canon(unlines(["é \"q\""])) == "\"é \\\"q\\\"\\n\""
   assert canon([nil]) == "[null]"
   assert error?(
     begin
@@ -2463,7 +2463,7 @@ test "canonical JSON: sorted keys, no spaces, the runtime's shapes, and serde wr
       1000,
       [
         [:value, 10],
-        ["note", "óleo \"novo\"\n"],
+        ["note", unlines(["óleo \"novo\""])],
         ["tags", [["b", 2], ["a", [1.25, false]]]]
       ]
     ),

@@ -31,7 +31,7 @@ test "with no arguments it says how to call it"
   assert shout([]) == "usage: 00_script.b WORD..."
 end
 
-write_stdout("#{shout(argv)}\n")
+write_stdout(unlines([shout(argv)]))
 ```
 
 ## Reading and writing files
@@ -54,14 +54,14 @@ end
 
 # Append one line per entry, then read the file back as a list of lines.
 def log_lines(path, entries)
-  map((e) -> append_file(path, "#{e}\n"), entries)
+  map((e) -> append_file(path, unlines([e])), entries)
   lines(read_file(path))
 end
 
 test "a file written, appended to and read back"
   dir = scratch_dir("files")
   path = path_join(dir, "notes.txt")
-  write_file(path, "first\n")
+  write_file(path, unlines(["first"]))
   assert log_lines(path, ["second", "third"]) == ["first", "second", "third"]
   assert is_file?(path)
   assert size(ls(dir)) == 1
@@ -115,7 +115,7 @@ def total_qty(orders)
   sum(map((o) -> get(o, :qty), orders))
 end
 
-csv = "id,item,qty\na1,apple,3\na2,pear,x\na3,apple,4\n"
+csv = unlines(["id,item,qty", "a1,apple,3", "a2,pear,x", "a3,apple,4"])
 
 test "text becomes records"
   orders = orders_of(csv)
@@ -143,7 +143,7 @@ test "JSON in and out"
 end
 
 test "no rows is an empty list, not nil"
-  assert orders_of("id,item,qty\n") == []
+  assert orders_of(unlines(["id,item,qty"])) == []
 end
 ```
 
@@ -222,7 +222,7 @@ end
 
 def report(rows)
   body = map((r) -> row(first(r), last(r)), rows)
-  join(concat_lists(["name     count", "-------------"], body), "\n")
+  join(concat_lists(["name     count", "-------------"], body), line_break)
 end
 
 test "interpolation renders any value"
@@ -233,7 +233,9 @@ end
 
 test "a padded table, built as lines and joined once"
   assert report([["apples", 3], ["pears", 12]]) ==
-    "name     count\n-------------\napples     3\npears     12"
+    join_lines(
+      ["name     count", "-------------", "apples     3", "pears     12"]
+    )
 end
 
 test "split keeps empty fields, and join undoes it"

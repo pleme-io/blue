@@ -32,7 +32,19 @@ row(
 
 row(
   "host.write_program",
-  "d = path_join(getenv(\"TMPDIR\", \"/tmp\"), \"blue-spec-wp\")\nrm_rf(d)\nmkdir_p(d)\nf = path_join(d, \"a.b\")\nwrite_program(f, \"x=1\")\nr = read_file(f)\nbad = write_program(f, \"def (\") rescue :refused\nrm_rf(d)\n[r, bad]",
+  join_lines(
+    [
+      "d = path_join(getenv(\"TMPDIR\", \"/tmp\"), \"blue-spec-wp\")",
+      "rm_rf(d)",
+      "mkdir_p(d)",
+      "f = path_join(d, \"a.b\")",
+      "write_program(f, \"x=1\")",
+      "r = read_file(f)",
+      "bad = write_program(f, \"def (\") rescue :refused",
+      "rm_rf(d)",
+      "[r, bad]"
+    ]
+  ),
   value("[\"x = 1\\n\", :refused]"),
   covers("builtin:write_program"),
   host()
@@ -40,7 +52,19 @@ row(
 
 row(
   "host.write_read",
-  "d = path_join(getenv(\"TMPDIR\", \"/tmp\"), \"blue-spec-rw\")\nrm_rf(d)\nmkdir_p(d)\nf = path_join(d, \"a.txt\")\nwrite_file(f, \"one\")\nappend_file(f, \" two\")\nr = read_file(f)\nrm_rf(d)\nr",
+  join_lines(
+    [
+      "d = path_join(getenv(\"TMPDIR\", \"/tmp\"), \"blue-spec-rw\")",
+      "rm_rf(d)",
+      "mkdir_p(d)",
+      "f = path_join(d, \"a.txt\")",
+      "write_file(f, \"one\")",
+      "append_file(f, \" two\")",
+      "r = read_file(f)",
+      "rm_rf(d)",
+      "r"
+    ]
+  ),
   value("\"one two\""),
   covers(
     "builtin:write_file",
@@ -55,7 +79,18 @@ row(
 
 row(
   "host.exists",
-  "d = path_join(getenv(\"TMPDIR\", \"/tmp\"), \"blue-spec-ex\")\nrm_rf(d)\nmkdir_p(d)\nf = path_join(d, \"a\")\nwrite_file(f, \"\")\nr = [path_exists(f), is_file?(f), is_dir?(d), is_file?(d)]\nrm_rf(d)\nr",
+  join_lines(
+    [
+      "d = path_join(getenv(\"TMPDIR\", \"/tmp\"), \"blue-spec-ex\")",
+      "rm_rf(d)",
+      "mkdir_p(d)",
+      "f = path_join(d, \"a\")",
+      "write_file(f, \"\")",
+      "r = [path_exists(f), is_file?(f), is_dir?(d), is_file?(d)]",
+      "rm_rf(d)",
+      "r"
+    ]
+  ),
   value("[true, true, true, false]"),
   covers("builtin:path_exists", "builtin:is_file?", "builtin:is_dir?"),
   host()
@@ -63,7 +98,18 @@ row(
 
 row(
   "host.size_mtime",
-  "d = path_join(getenv(\"TMPDIR\", \"/tmp\"), \"blue-spec-sz\")\nrm_rf(d)\nmkdir_p(d)\nf = path_join(d, \"a\")\nwrite_file(f, \"abc\")\nr = [file_size(f), integer?(file_mtime_ms(f))]\nrm_rf(d)\nr",
+  join_lines(
+    [
+      "d = path_join(getenv(\"TMPDIR\", \"/tmp\"), \"blue-spec-sz\")",
+      "rm_rf(d)",
+      "mkdir_p(d)",
+      "f = path_join(d, \"a\")",
+      "write_file(f, \"abc\")",
+      "r = [file_size(f), integer?(file_mtime_ms(f))]",
+      "rm_rf(d)",
+      "r"
+    ]
+  ),
   value("[3, true]"),
   covers("builtin:file_size", "builtin:file_mtime_ms"),
   host()
@@ -71,7 +117,18 @@ row(
 
 row(
   "host.ls",
-  "d = path_join(getenv(\"TMPDIR\", \"/tmp\"), \"blue-spec-ls\")\nrm_rf(d)\nmkdir_p(d)\nwrite_file(path_join(d, \"b\"), \"\")\nwrite_file(path_join(d, \"a\"), \"\")\nr = map(fn(p) path_basename(p) end, ls(d))\nrm_rf(d)\nr",
+  join_lines(
+    [
+      "d = path_join(getenv(\"TMPDIR\", \"/tmp\"), \"blue-spec-ls\")",
+      "rm_rf(d)",
+      "mkdir_p(d)",
+      "write_file(path_join(d, \"b\"), \"\")",
+      "write_file(path_join(d, \"a\"), \"\")",
+      "r = map(fn(p) path_basename(p) end, ls(d))",
+      "rm_rf(d)",
+      "r"
+    ]
+  ),
   value("[\"a\", \"b\"]"),
   covers("builtin:ls"),
   host()
@@ -79,7 +136,17 @@ row(
 
 row(
   "host.glob",
-  "d = path_join(getenv(\"TMPDIR\", \"/tmp\"), \"blue-spec-gl\")\nrm_rf(d)\nmkdir_p(d)\nwrite_program(path_join(d, \"x.b\"), \"\")\nr = length(glob(path_join(d, \"*.b\")))\nrm_rf(d)\nr",
+  join_lines(
+    [
+      "d = path_join(getenv(\"TMPDIR\", \"/tmp\"), \"blue-spec-gl\")",
+      "rm_rf(d)",
+      "mkdir_p(d)",
+      "write_program(path_join(d, \"x.b\"), \"\")",
+      "r = length(glob(path_join(d, \"*.b\")))",
+      "rm_rf(d)",
+      "r"
+    ]
+  ),
   value("0"),
   covers("builtin:glob"),
   host()
@@ -87,7 +154,18 @@ row(
 
 row(
   "host.walk_dir",
-  "d = path_join(getenv(\"TMPDIR\", \"/tmp\"), \"blue-spec-wd\")\nrm_rf(d)\nmkdir_p(d)\nmkdir(path_join(d, \"s\"))\nwrite_file(path_join(d, \"s/f\"), \"\")\nr = length(walk_dir(d))\nrm_rf(d)\nr",
+  join_lines(
+    [
+      "d = path_join(getenv(\"TMPDIR\", \"/tmp\"), \"blue-spec-wd\")",
+      "rm_rf(d)",
+      "mkdir_p(d)",
+      "mkdir(path_join(d, \"s\"))",
+      "write_file(path_join(d, \"s/f\"), \"\")",
+      "r = length(walk_dir(d))",
+      "rm_rf(d)",
+      "r"
+    ]
+  ),
   value("1"),
   covers("builtin:walk_dir", "builtin:mkdir"),
   host()
@@ -95,7 +173,22 @@ row(
 
 row(
   "host.rename_rm",
-  "d = path_join(getenv(\"TMPDIR\", \"/tmp\"), \"blue-spec-rn\")\nrm_rf(d)\nmkdir_p(d)\na = path_join(d, \"a\")\nb = path_join(d, \"b\")\nwrite_file(a, \"x\")\nrename_file(a, b)\nr = [path_exists(a), path_exists(b)]\nrm(b)\nr2 = path_exists(b)\nrm_rf(d)\nappend(r, [r2])",
+  join_lines(
+    [
+      "d = path_join(getenv(\"TMPDIR\", \"/tmp\"), \"blue-spec-rn\")",
+      "rm_rf(d)",
+      "mkdir_p(d)",
+      "a = path_join(d, \"a\")",
+      "b = path_join(d, \"b\")",
+      "write_file(a, \"x\")",
+      "rename_file(a, b)",
+      "r = [path_exists(a), path_exists(b)]",
+      "rm(b)",
+      "r2 = path_exists(b)",
+      "rm_rf(d)",
+      "append(r, [r2])"
+    ]
+  ),
   value("[false, true, false]"),
   covers("builtin:rename_file", "builtin:rm"),
   host()
@@ -252,7 +345,12 @@ row(
 
 row(
   "host.random_bytes",
-  "a = random_bytes(16)\n[length(a), length(random_bytes(0)), a == random_bytes(16), every?(fn(b) b >= 0 and b <= 255 end, a)]",
+  join_lines(
+    [
+      "a = random_bytes(16)",
+      "[length(a), length(random_bytes(0)), a == random_bytes(16), every?(fn(b) b >= 0 and b <= 255 end, a)]"
+    ]
+  ),
   value("[16, 0, false, true]"),
   covers("builtin:random_bytes"),
   host()

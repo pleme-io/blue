@@ -224,18 +224,28 @@ end
 
 def report_text(r)
   if get(r, :control) != 0
-    "control FAILED: the unmutated tests exit #{to_s(get(r, :control))}; no mutation was run\n"
+    unlines(
+      [
+        "control FAILED: the unmutated tests exit #{to_s(get(r, :control))}; no mutation was run"
+      ]
+    )
   else
     rows = join(
       map(
-        (x) -> "#{to_s(get(x, :verdict))}  #{get(x, :name)}#{detail(x)}\n",
+        fn(x)
+          unlines(["#{to_s(get(x, :verdict))}  #{get(x, :name)}#{detail(x)}"])
+        end,
         get(r, :results)
       ),
       ""
     )
     concat(
       rows,
-      "#{to_s(get(r, :caught))} caught, #{to_s(get(r, :survived))} survived, #{to_s(get(r, :refused))} refused, #{to_s(get(r, :blind))} blind\n"
+      unlines(
+        [
+          "#{to_s(get(r, :caught))} caught, #{to_s(get(r, :survived))} survived, #{to_s(get(r, :refused))} refused, #{to_s(get(r, :blind))} blind"
+        ]
+      )
     )
   end
 end
@@ -301,7 +311,7 @@ end
 def main()
   a = parse(argv)
   if get(a, :error) != nil
-    write_stderr("#{get(a, :error)}\n")
+    write_stderr(unlines([get(a, :error)]))
     raise(:heni_usage, get(a, :error))
   end
   r = run(
@@ -377,10 +387,27 @@ def end_to_end()
   tmp = path_join(getenv("TMPDIR", "/tmp"), "heni-self-#{to_s(now_ms)}")
   pkg = path_join(tmp, "hnprobe")
   mkdir_p(pkg)
-  write_file(path_join(pkg, "Bluefile"), "package(\"hnprobe\", \"0.1.0\")\n")
+  write_file(
+    path_join(pkg, "Bluefile"),
+    unlines(["package(\"hnprobe\", \"0.1.0\")"])
+  )
   write_program(
     path_join(pkg, "hnprobe.b"),
-    "def hp_double(x)\n  x * 2\nend\n\ndef hp_unused()\n  7\nend\n\ntest \"double\"\n  assert hp_double(3) == 6\nend\n"
+    unlines(
+      [
+        "def hp_double(x)",
+        "  x * 2",
+        "end",
+        "",
+        "def hp_unused()",
+        "  7",
+        "end",
+        "",
+        "test \"double\"",
+        "  assert hp_double(3) == 6",
+        "end"
+      ]
+    )
   )
   muts = [
     {
@@ -392,8 +419,8 @@ def end_to_end()
     {
       name: "an unchecked constant",
       file: "hnprobe.b",
-      find: "  7\n",
-      replace: "  8\n"
+      find: unlines(["  7"]),
+      replace: unlines(["  8"])
     },
     {name: "not there", file: "hnprobe.b", find: "nowhere", replace: "x"}
   ]
@@ -409,7 +436,7 @@ def end_to_end()
   # Control: a package whose own tests fail stops the run before any mutation.
   write_program(
     path_join(pkg, "hnprobe.b"),
-    "test \"broken\"\n  assert 1 == 2\nend\n"
+    unlines(["test \"broken\"", "  assert 1 == 2", "end"])
   )
   bad = run({package: pkg, mutations: muts, blue: self_exe, test: nil, tmp:})
   assert get(bad, :control) != 0

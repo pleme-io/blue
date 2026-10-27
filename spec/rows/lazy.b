@@ -3,14 +3,22 @@
 
 row(
   "lazy.delay_force",
-  "p = delay(1 + 1)\nforce(p)",
+  join_lines(["p = delay(1 + 1)", "force(p)"]),
   value("2"),
   covers("builtin:force")
 )
 
 row(
   "lazy.once",
-  "n = 0\np = delay(begin(set!(n, n + 1), n))\nforce(p)\nforce(p)\nn",
+  join_lines(
+    [
+      "n = 0",
+      "p = delay(begin(set!(n, n + 1), n))",
+      "force(p)",
+      "force(p)",
+      "n"
+    ]
+  ),
   value("1")
 )
 
@@ -26,7 +34,7 @@ row("chan.make", "chan?(chan(2))", value("true"))
 
 row(
   "chan.close",
-  "ch = chan(1)\nclose!(ch)",
+  join_lines(["ch = chan(1)", "close!(ch)"]),
   value("nil"),
   covers("builtin:close!")
 )
@@ -43,7 +51,7 @@ row("chan.go", "go?(go(fn() 1 end))", value("true"), covers("builtin:go"))
 
 row(
   "chan.put_take",
-  "ch = chan(1)\nput(ch, 1)\ntake_from(ch)",
+  join_lines(["ch = chan(1)", "put(ch, 1)", "take_from(ch)"]),
   value("1"),
   pending("G11")
 )

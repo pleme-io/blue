@@ -146,7 +146,10 @@ render: measurements as a baseline file, stable order.
 def render(kind, measurements)
   sorted = sort_keyed((m) -> get(m, :key), measurements)
   join(
-    map((m) -> "#{kind}: #{get(m, :key)} #{to_s(get(m, :size))}\n", sorted),
+    map(
+      (m) -> unlines(["#{kind}: #{get(m, :key)} #{to_s(get(m, :size))}"]),
+      sorted
+    ),
     ""
   )
 end
@@ -197,17 +200,28 @@ test "a row covers only its own kind"
 end
 
 test "parse keeps keys containing spaces"
-  rows = parse("entry: docs/CLAUDE.md::The Tendril Method 4139\n")
+  rows = parse(unlines(["entry: docs/CLAUDE.md::The Tendril Method 4139"]))
   assert rows == [row("entry", "docs/CLAUDE.md::The Tendril Method", 4139)]
 end
 
 test "a malformed line covers nothing rather than weakening the gate"
-  assert parse("# a comment\n\nentry: no-size-here\nnocolon 12\nentry: bad-size xyz\nentry: negative -3\n") ==
-    []
+  assert parse(
+    unlines(
+      [
+        "# a comment",
+        "",
+        "entry: no-size-here",
+        "nocolon 12",
+        "entry: bad-size xyz",
+        "entry: negative -3"
+      ]
+    )
+  ) == []
 end
 
 test "a later row for the same key wins, as a map insert does"
-  assert recorded(parse("entry: k 5\nentry: k 9\n"), "entry", "k") == 9
+  assert recorded(parse(unlines(["entry: k 5", "entry: k 9"])), "entry", "k") ==
+    9
 end
 
 test "a row whose subject is gone is an orphan"
@@ -258,7 +272,7 @@ end
 test "render is sorted, so a baseline diffs stably, and parses back"
   a = render("rust", [measurement("zebra", 1), measurement("alpha", 2)])
   b = render("rust", [measurement("alpha", 2), measurement("zebra", 1)])
-  assert a == "rust: alpha 2\nrust: zebra 1\n"
+  assert a == unlines(["rust: alpha 2", "rust: zebra 1"])
   assert a == b
   assert parse(a) == [row("rust", "alpha", 2), row("rust", "zebra", 1)]
   assert render("rust", []) == ""

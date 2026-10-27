@@ -495,7 +495,15 @@ def load_and_cores()
 end
 
 def usage()
-  "usage: shinchoku progress --window S [--every S --count N -- CMD ARGS | --samples FILE]\n       shinchoku gh-budget\n       shinchoku agents-allowed [--running N]\n       shinchoku job-from-cronjob CRONJOB.json NAME\n       shinchoku reconcile-liveness [NS/]NAME [--window S]\n"
+  unlines(
+    [
+      "usage: shinchoku progress --window S [--every S --count N -- CMD ARGS | --samples FILE]",
+      "       shinchoku gh-budget",
+      "       shinchoku agents-allowed [--running N]",
+      "       shinchoku job-from-cronjob CRONJOB.json NAME",
+      "       shinchoku reconcile-liveness [NS/]NAME [--window S]"
+    ]
+  )
 end
 
 def command(args)
@@ -555,7 +563,7 @@ def main()
     write_stderr(usage)
     exit_with(2)
   end
-  write_stdout("#{json_stringify(out)}\n")
+  write_stdout(unlines([json_stringify(out)]))
   out
 end
 

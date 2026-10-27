@@ -6,4 +6,4 @@ def fib(n)
   end
 end
 
-write_stdout("#{fib(27)}\n")
+write_stdout(unlines([fib(27)]))

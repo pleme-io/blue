@@ -49,20 +49,20 @@ row(
 
 row(
   "lists.car",
-  "# waive B0036: the row covers this name itself\ncar([1, 2])",
+  join_lines(["# waive B0036: the row covers this name itself", "car([1, 2])"]),
   value("1"),
   covers("builtin:car")
 )
 
 row(
   "lists.car.empty",
-  "# waive B0036: the row covers this name itself\ncar([])",
+  join_lines(["# waive B0036: the row covers this name itself", "car([])"]),
   fails(:eval, "car of empty list")
 )
 
 row(
   "lists.cdr",
-  "# waive B0036: the row covers this name itself\ncdr([1])",
+  join_lines(["# waive B0036: the row covers this name itself", "cdr([1])"]),
   value("[]"),
   covers("builtin:cdr")
 )
@@ -144,7 +144,7 @@ row(
 
 row(
   "lists.next",
-  "# waive B0036: the row covers this name itself\nnext([1])",
+  join_lines(["# waive B0036: the row covers this name itself", "next([1])"]),
   value("[]"),
   covers("builtin:next")
 )

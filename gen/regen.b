@@ -125,4 +125,4 @@ else
   )
 end
 
-write_file("/dev/stderr", "regen: rewrote #{join(written, ", ")}\n")
+write_file("/dev/stderr", unlines(["regen: rewrote #{join(written, ", ")}"]))

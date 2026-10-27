@@ -347,16 +347,19 @@ def pretty_at(v, pad)
           end,
           es
         ),
-        ",\n"
+        unlines([","])
       )
-      "{\n#{body}\n#{pad}}"
+      join_lines(["{", body, "#{pad}}"])
     end
   elsif collection?(v)
     if v == []
       "[]"
     else
-      body = join(map((x) -> "#{inner}#{pretty_at(x, inner)}", v), ",\n")
-      "[\n#{body}\n#{pad}]"
+      body = join(
+        map((x) -> "#{inner}#{pretty_at(x, inner)}", v),
+        unlines([","])
+      )
+      join_lines(["[", body, "#{pad}]"])
     end
   else
     scalar_text(v)
@@ -364,7 +367,7 @@ def pretty_at(v, pad)
 end
 
 def pretty(v)
-  "#{pretty_at(v, "")}\n"
+  unlines([pretty_at(v, "")])
 end
 
 def yaml_key(k)
@@ -426,31 +429,42 @@ end
 
 def yaml(v)
   if collection?(v) and not empty_collection?(v)
-    "#{join(yaml_lines(v, ""), "\n")}\n"
+    unlines([join(yaml_lines(v, ""), line_break)])
   else
-    "#{yaml_inline(v)}\n"
+    unlines([yaml_inline(v)])
   end
 end
 
 test "pretty prints maps sorted, lists in order, scalars as JSON"
-  assert pretty({}) == "{}\n"
-  assert pretty([]) == "[]\n"
-  assert pretty(nil) == "null\n"
+  assert pretty({}) == unlines(["{}"])
+  assert pretty([]) == unlines(["[]"])
+  assert pretty(nil) == unlines(["null"])
   assert pretty({"b" => [1, true], "a" => "x\"y"}) ==
-    "{\n  \"a\": \"x\\\"y\",\n  \"b\": [\n    1,\n    true\n  ]\n}\n"
+    unlines(
+      [
+        "{",
+        "  \"a\": \"x\\\"y\",",
+        "  \"b\": [",
+        "    1,",
+        "    true",
+        "  ]",
+        "}"
+      ]
+    )
   assert json_read(pretty({"k" => {"n" => 1.5, "z" => nil}})) ==
     {"k" => {"n" => 1.5, "z" => nil}}
 end
 
 test "yaml writes block maps and lists, quoting every string"
-  assert yaml({}) == "{}\n"
-  assert yaml([]) == "[]\n"
-  assert yaml("a") == "\"a\"\n"
-  assert yaml({"a" => 1, "b" => {"c" => "d"}}) == "a: 1\nb:\n  c: \"d\"\n"
+  assert yaml({}) == unlines(["{}"])
+  assert yaml([]) == unlines(["[]"])
+  assert yaml("a") == unlines(["\"a\""])
+  assert yaml({"a" => 1, "b" => {"c" => "d"}}) ==
+    unlines(["a: 1", "b:", "  c: \"d\""])
   assert yaml({"l" => [1, {"x" => true, "z" => []}], "e" => {}}) ==
-    "e: {}\nl:\n  - 1\n  - x: true\n    z: []\n"
+    unlines(["e: {}", "l:", "  - 1", "  - x: true", "    z: []"])
   assert yaml({"has space" => nil, "true" => false}) ==
-    "\"has space\": null\n\"true\": false\n"
+    unlines(["\"has space\": null", "\"true\": false"])
 end
 
 test "a key is plain only when YAML cannot read it as something else"
@@ -509,13 +523,13 @@ def yaml_documents(text)
 end
 
 def text_rows(text)
-  t = replace(replace(text, "\r\n", "\n"), "\r", "\n")
+  t = replace(replace(text, unlines(["\r"]), line_break), "\r", line_break)
   u = if starts_with?(t, "\u{feff}")
     join(drop(1, chars(t)), "")
   else
     t
   end
-  ls = split(u, "\n")
+  ls = split(u, line_break)
   kept = if last(ls) == ""
     butlast(ls)
   else
@@ -534,7 +548,7 @@ def at_char(y, r, c)
   if row.nil?
     nil
   elsif c >= count(row)
-    "\n"
+    line_break
   else
     nth(c, row)
   end
@@ -545,7 +559,7 @@ def blank_char?(ch)
 end
 
 def line_end?(ch)
-  ch.nil? or ch == "\n"
+  ch.nil? or ch == line_break
 end
 
 def separator?(ch)
@@ -573,7 +587,7 @@ def next_content(y, r, c)
   ch = at_char(y, r, k)
   if ch.nil?
     [get(y, :nr), 0]
-  elsif ch == "\n" or comment_at?(y, r, k)
+  elsif ch == line_break or comment_at?(y, r, k)
     next_content(y, r + 1, 0)
   else
     [r, k]
@@ -1029,7 +1043,7 @@ def plain_trim(y, r, c, j)
 end
 
 def line_breaks(k)
-  join(map((_) -> "\n", range(k)), "")
+  join(map((_) -> line_break, range(k)), "")
 end
 
 def next_text_line(y, r, empties)
@@ -1037,7 +1051,7 @@ def next_text_line(y, r, empties)
     {r:, c: 0, empties:}
   else
     k = skip_blanks(y, r, 0)
-    if at_char(y, r, k) == "\n"
+    if at_char(y, r, k) == line_break
       next_text_line(y, r + 1, empties + 1)
     else
       {r:, c: k, empties:}
@@ -1122,7 +1136,7 @@ def quoted_run(y, r, c, out, ws, double, qn)
       {text: "#{out}#{ws}", r:, c: c + 1}
     end
   elsif double and ch == "\\"
-    if at_char(y, r, c + 1) == "\n"
+    if at_char(y, r, c + 1) == line_break
       nl = quoted_break(y, r + 1, qn)
       quoted_run(
         y,
@@ -1147,7 +1161,7 @@ def quoted_run(y, r, c, out, ws, double, qn)
     end
   elsif blank_char?(ch)
     quoted_run(y, r, c + 1, out, "#{ws}#{ch}", double, qn)
-  elsif ch == "\n"
+  elsif ch == line_break
     nl = quoted_break(y, r + 1, qn)
     joint = if get(nl, :empties) == 0
       " "
@@ -1168,7 +1182,7 @@ def simple_escapes()
     "b" => code_point_text(8),
     "t" => "\t",
     "\t" => "\t",
-    "n" => "\n",
+    "n" => line_break,
     "v" => code_point_text(11),
     "f" => code_point_text(12),
     "r" => code_point_text(13),
@@ -1424,7 +1438,7 @@ def auto_indent(y, r, n, widest)
     n + 1
   else
     sp = leading_spaces(y, r, 0)
-    if at_char(y, r, sp) == "\n"
+    if at_char(y, r, sp) == line_break
       auto_indent(y, r + 1, n, max(widest, sp))
     elsif at_char(y, r, sp) == "\t" and sp <= n
       yaml_fail(r, sp, "a tab cannot indent a block scalar")
@@ -1488,7 +1502,7 @@ def folded_text(body)
         elsif prev.nil?
           ["#{out}#{line_breaks(k)}#{l}", l, 0]
         elsif indented_line?(prev) or indented_line?(l)
-          ["#{out}\n#{line_breaks(k)}#{l}", l, 0]
+          [join_lines([out, "#{line_breaks(k)}#{l}"]), l, 0]
         elsif k == 0
           ["#{out} #{l}", l, 0]
         else
@@ -1505,11 +1519,11 @@ def chomped(text, has_body, trailing, chomp)
   if chomp == :strip
     text
   elsif chomp == :keep and has_body
-    "#{text}\n#{line_breaks(trailing)}"
+    join_lines([text, line_breaks(trailing)])
   elsif chomp == :keep
     line_breaks(trailing)
   elsif has_body
-    "#{text}\n"
+    unlines([text])
   else
     ""
   end
@@ -1533,7 +1547,7 @@ def block_scalar(y, r, c, n, props)
   text = if at_char(y, r, c) == ">"
     folded_text(body)
   else
-    join(map((l) -> to_s(l), body), "\n")
+    join(map((l) -> to_s(l), body), line_break)
   end
   {
     node: scalar_node(
@@ -1851,13 +1865,16 @@ rescue e
 end
 
 test "parse :yaml reads block maps, sequences and plain scalars by the core schema"
-  assert parse("a: 1\nb:\n  - x\n  - 2.5\n  - true\n  - ~\nc: 0x1f\n", :yaml) ==
-    {"a" => 1, "b" => ["x", 2.5, true, nil], "c" => 31}
-  assert parse("key:\n- a\n- b\nnext: yes\n", :yaml) ==
+  assert parse(
+    unlines(["a: 1", "b:", "  - x", "  - 2.5", "  - true", "  - ~", "c: 0x1f"]),
+    :yaml
+  ) == {"a" => 1, "b" => ["x", 2.5, true, nil], "c" => 31}
+  assert parse(unlines(["key:", "- a", "- b", "next: yes"]), :yaml) ==
     {"key" => ["a", "b"], "next" => "yes"}
-  assert parse("- a: 1\n  b: 2\n- - c\n", :yaml) ==
+  assert parse(unlines(["- a: 1", "  b: 2", "- - c"]), :yaml) ==
     [{"a" => 1, "b" => 2}, ["c"]]
-  assert parse("plain\n  folded\n\n  text\n", :yaml) == "plain folded\ntext"
+  assert parse(unlines(["plain", "  folded", "", "  text"]), :yaml) ==
+    join_lines(["plain folded", "text"])
   assert parse("[0o17, 0x1F, -12, +3, 1e3, .5, -.inf, 0o8]", :yaml) ==
     [15, 31, -12, 3, 1000.0, 0.5, to_float("-inf"), "0o8"]
 end
@@ -1866,53 +1883,61 @@ test "parse :yaml reads flow collections and quoted scalars with their escapes"
   assert parse("{a: [1, 'it''s'], \"b\": {c: d}, e: [x: y]}", :yaml) ==
     {"a" => [1, "it's"], "b" => {"c" => "d"}, "e" => [{"x" => "y"}]}
   assert parse("\"tab\\there \\u00e9 \\x41\"", :yaml) == "tab\there é A"
-  assert parse("'one\n\n  two '", :yaml) == "one\ntwo "
+  assert parse(join_lines(["'one", "", "  two '"]), :yaml) ==
+    join_lines(["one", "two "])
   assert parse("[\"a \", 'b ']", :yaml) == ["a ", "b "]
-  assert refused_kind("[ a\n  : b ]") == :parse_error
+  assert refused_kind(join_lines(["[ a", "  : b ]"])) == :parse_error
 end
 
 test "parse :yaml reads literal and folded block scalars under each chomping"
   assert parse(
-    "a: |\n  one\n  two\n\nb: >-\n  one\n  two\n\n  three\n",
+    unlines(
+      ["a: |", "  one", "  two", "", "b: >-", "  one", "  two", "", "  three"]
+    ),
     :yaml
-  ) == {"a" => "one\ntwo\n", "b" => "one two\nthree"}
-  assert parse("- |+\n  kept\n\n- |2-\n    indented\n", :yaml) ==
-    ["kept\n\n", "  indented"]
+  ) == {"a" => unlines(["one", "two"]), "b" => join_lines(["one two", "three"])}
+  assert parse(
+    unlines(["- |+", "  kept", "", "- |2-", "    indented"]),
+    :yaml
+  ) == [unlines(["kept", ""]), "  indented"]
 end
 
 test "parse :yaml composes anchors, aliases and tags"
   assert parse(
-    "base: &b {x: 1}\nuse: *b\nn: !!str 12\nf: !!float 3\n",
+    unlines(["base: &b {x: 1}", "use: *b", "n: !!str 12", "f: !!float 3"]),
     :yaml
   ) == {"base" => {"x" => 1}, "use" => {"x" => 1}, "n" => "12", "f" => 3.0}
-  assert refused_kind("a: *nowhere\n") == :parse_error
-  assert refused_kind("a: !!int twelve\n") == :bad_value
+  assert refused_kind(unlines(["a: *nowhere"])) == :parse_error
+  assert refused_kind(unlines(["a: !!int twelve"])) == :bad_value
 end
 
 test "parse :yaml reads one document, every document when asked, and nil for none"
   assert parse("", :yaml).nil?
-  assert parse("# only a comment\n", :yaml).nil?
-  assert parse("--- first\n--- second\n...\n", :yaml, {documents: :all}) ==
-    ["first", "second"]
+  assert parse(unlines(["# only a comment"]), :yaml).nil?
+  assert parse(
+    unlines(["--- first", "--- second", "..."]),
+    :yaml,
+    {documents: :all}
+  ) == ["first", "second"]
   assert parse("", :yaml, {documents: :all}) == []
-  assert refused_kind("--- a\n--- b\n") == :parse_error
+  assert refused_kind(unlines(["--- a", "--- b"])) == :parse_error
 end
 
 test "parse :yaml refuses a broken stream with its line and column"
   r = begin
-    parse("a: 1\n  b: 2\n", :yaml)
+    parse(unlines(["a: 1", "  b: 2"]), :yaml)
   rescue e
     e.message
   end
   assert starts_with?(r, "2:")
-  assert refused_kind("a: b: c\n") == :parse_error
-  assert refused_kind("[a, b\n") == :parse_error
-  assert refused_kind("\"open\n") == :parse_error
+  assert refused_kind(unlines(["a: b: c"])) == :parse_error
+  assert refused_kind(unlines(["[a, b"])) == :parse_error
+  assert refused_kind(unlines(["\"open"])) == :parse_error
 end
 
 test "parse refuses a collection key, a repeated key and an unknown format"
-  assert refused_kind("? [a]\n: b\n") == :complex_key
-  assert refused_kind("a: 1\na: 2\n") == :duplicate_key
+  assert refused_kind(unlines(["? [a]", ": b"])) == :complex_key
+  assert refused_kind(unlines(["a: 1", "a: 2"])) == :duplicate_key
   assert (parse("a", :toml) rescue :refused) == :refused
   assert (parse("a", :yaml, {document: 1}) rescue :refused) == :refused
 end

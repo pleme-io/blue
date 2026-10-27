@@ -32,7 +32,7 @@ def total_qty(orders)
   sum(map((o) -> get(o, :qty), orders))
 end
 
-csv = "id,item,qty\na1,apple,3\na2,pear,x\na3,apple,4\n"
+csv = unlines(["id,item,qty", "a1,apple,3", "a2,pear,x", "a3,apple,4"])
 
 test "text becomes records"
   orders = orders_of(csv)
@@ -60,5 +60,5 @@ test "JSON in and out"
 end
 
 test "no rows is an empty list, not nil"
-  assert orders_of("id,item,qty\n") == []
+  assert orders_of(unlines(["id,item,qty"])) == []
 end

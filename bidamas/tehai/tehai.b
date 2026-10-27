@@ -83,7 +83,7 @@ end
 parse: declared remote builders from the machines file.
 """
 def parse(text)
-  map(machine, filter(meaningful?, split(text, "\n")))
+  map(machine, filter(meaningful?, split(text, line_break)))
 end
 
 # ── the check ────────────────────────────────────────────────────────
@@ -147,7 +147,7 @@ live_text: The live machines file: each live machine's declared line, unchanged.
 def live_text(checked)
   join(
     map(
-      (c) -> concat(get(c, :line), "\n"),
+      (c) -> concat(get(c, :line), line_break),
       filter((c) -> get(c, :up), checked)
     ),
     ""
@@ -287,7 +287,15 @@ end
 # ── tests ────────────────────────────────────────────────────────────
 
 def sample()
-  "# declared by nix-darwin\nssh-ng://builder@quero-builder-ssm aarch64-linux /Users/x/.ssh/key 8 1 kvm,big-parallel - -\n\nssh://root@plo x86_64-linux - 8 8 - - -\nnot-a-uri x86_64-linux\n"
+  unlines(
+    [
+      "# declared by nix-darwin",
+      "ssh-ng://builder@quero-builder-ssm aarch64-linux /Users/x/.ssh/key 8 1 kvm,big-parallel - -",
+      "",
+      "ssh://root@plo x86_64-linux - 8 8 - - -",
+      "not-a-uri x86_64-linux"
+    ]
+  )
 end
 
 test "the machines format: comments and blanks skipped, fields read, a bad line refused alone"
@@ -323,7 +331,8 @@ test "only live machines are written, each line exactly as declared"
     tehai::checked(nth(0, ms), [false, "Connection timed out"]),
     tehai::checked(nth(1, ms), [true, "nix-store (Nix) 2.31.5"])
   ]
-  assert live_text(checked) == "ssh://root@plo x86_64-linux - 8 8 - - -\n"
+  assert live_text(checked) ==
+    unlines(["ssh://root@plo x86_64-linux - 8 8 - - -"])
   # None live: an empty file, so nix builds locally rather than timing out.
   assert live_text([tehai::checked(nth(0, ms), [false, "down"])]) == ""
 end
@@ -347,7 +356,7 @@ test "a run end to end, with a machine that cannot answer"
   # A port nothing listens on, on this host: a fast, certain "down".
   write_file(
     declared,
-    "ssh://root@127.0.0.1 x86_64-linux - 1 1 - - -\nbroken\n"
+    unlines(["ssh://root@127.0.0.1 x86_64-linux - 1 1 - - -", "broken"])
   )
   r = run(
     declared,
@@ -379,7 +388,10 @@ test "a missing ssh binary is named, and the state records which ssh ran"
   dir = path_join(getenv("TMPDIR", "/tmp"), "tehai-ssh-test-#{to_s(now_ms)}")
   mkdir_p(dir)
   declared = path_join(dir, "machines")
-  write_file(declared, "ssh://root@127.0.0.1 x86_64-linux - 1 1 - - -\n")
+  write_file(
+    declared,
+    unlines(["ssh://root@127.0.0.1 x86_64-linux - 1 1 - - -"])
+  )
   r = run(
     declared,
     path_join(dir, "live"),
@@ -410,7 +422,7 @@ end
 
 def fake_ssh(dir, name, body)
   path = path_join(dir, name)
-  write_file(path, "#!/bin/sh\n#{body}\n")
+  write_file(path, unlines(["#!/bin/sh", body]))
   exec_check("chmod", "+x", path)
   path
 end

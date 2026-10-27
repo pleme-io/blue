@@ -368,7 +368,7 @@ end
 # ── tree-sitter: grammar.js ────────────────────────────────────────────────
 
 def js_string(s)
-  "'#{replace(replace(replace(s, "\\", "\\\\"), "'", "\\'"), "\n", "\\n")}'"
+  "'#{replace(replace(replace(s, "\\", "\\\\"), "'", "\\'"), line_break, "\\n")}'"
 end
 
 def js(e)
@@ -436,7 +436,7 @@ def tree_sitter_js(grammar)
     concat_lists(conflict_lines(get(g, :conflicts)), ["  rules: {"])
   )
   lines = concat_lists(lines, concat_lists(rules, ["  },", "});", ""]))
-  join(lines, "\n")
+  join(lines, line_break)
 end
 
 def tree_sitter_json(g)
@@ -470,7 +470,7 @@ end
 def query_lines(header, body)
   join(
     concat_lists([generated_by(";"), header], concat_lists(body, [""])),
-    "\n"
+    line_break
   )
 end
 
@@ -598,12 +598,12 @@ artifacts: Every artifact, by the file name it is written to.
 def artifacts(g)
   [
     ["grammar.js", () -> tree_sitter_js(g)],
-    ["tree-sitter.json", () -> "#{tree_sitter_json(g)}\n"],
+    ["tree-sitter.json", () -> unlines([tree_sitter_json(g)])],
     ["highlights.scm", () -> highlights(g)],
     ["folds.scm", () -> folds(g)],
     ["indents.scm", () -> indents(g)],
     ["locals.scm", () -> locals(g)],
-    ["#{get(g, :name)}.kiwari.json", () -> "#{spec_json(g)}\n"]
+    ["#{get(g, :name)}.kiwari.json", () -> unlines([spec_json(g)])]
   ]
 end
 
@@ -1043,11 +1043,11 @@ def blue()
       [":", ""],
       ["#", ""],
       ["\"", ""],
-      ["\n", ""]
+      [line_break, ""]
     ],
     rules: [
       rule("source_file", opt(block(ref("_statement"))), ["named"]),
-      rule("_newline", lit("\n"), nil),
+      rule("_newline", lit(line_break), nil),
       with(
         rule("comment", token(seq([lit("#"), pat("[^\\n]*")])), nil),
         :role,
@@ -1953,7 +1953,7 @@ end
 test "a grammar with no rules renders the frame and nothing in it"
   js = tree_sitter_js(tiny([], []))
   assert contains?(js, "module.exports = grammar({")
-  assert contains?(js, "  rules: {\n  },")
+  assert contains?(js, join_lines(["  rules: {", "  },"]))
   assert unpainted(tiny([], [])) == []
 end
 

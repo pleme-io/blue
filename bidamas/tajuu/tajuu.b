@@ -690,7 +690,7 @@ test "the connection preface is the 24 octets of §3.4, read in pieces"
   assert read_preface([]) == ok({rest: nil, need: 24})
   assert read_preface(slice(preface, 0, 23)) == ok({rest: nil, need: 1})
   assert read_preface(preface) == ok({rest: []})
-  r = read_preface(text_bytes("GET / HTTP/1.1\r\n"))
+  r = read_preface(text_bytes(unlines(["GET / HTTP/1.1\r"])))
   assert first(refusal_of(r)) == :protocol_error
   assert scope_of(r) == :connection
 end

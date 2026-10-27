@@ -10,14 +10,16 @@ def off?()
     true
   else
     write_stderr(
-      "prepush: BLUE_PREPUSH_OFF is \"#{v}\"; the one value it takes is 1\n"
+      unlines(
+        ["prepush: BLUE_PREPUSH_OFF is \"#{v}\"; the one value it takes is 1"]
+      )
     )
     exit_with(2)
   end
 end
 
 def lines_of(text)
-  reject((l) -> l == "", split(text, "\n"))
+  reject((l) -> l == "", split(text, line_break))
 end
 
 def git(args)
@@ -94,7 +96,13 @@ def test_targets()
   if red == []
     [:green, ""]
   else
-    [:red, join(map((r) -> "#{first(r)}:\n#{stderr_of(last(r))}", red), "\n")]
+    [
+      :red,
+      join(
+        map((r) -> join_lines(["#{first(r)}:", stderr_of(last(r))]), red),
+        line_break
+      )
+    ]
   end
 end
 
@@ -120,14 +128,19 @@ def regen(bin, root, dir)
     if missing == []
       [:red, stderr_of(run)]
     else
-      [:blind, "needs #{join(missing, ", ")}, which is not on PATH\n"]
+      [:blind, unlines(["needs #{join(missing, ", ")}, which is not on PATH"])]
     end
   elsif before == changed
     [:green, ""]
   else
     [
       :red,
-      "regen rewrote stale generated files; commit them:\n#{join(reject((l) -> member?(l, was), now), "\n")}\n"
+      unlines(
+        [
+          "regen rewrote stale generated files; commit them:",
+          join(reject((l) -> member?(l, was), now), line_break)
+        ]
+      )
     ]
   end
 end
@@ -140,9 +153,12 @@ def gen_pin()
     "github:pleme-io/substrate#genPin.version"
   )
   if not exec_ok?("which", "gen")
-    [:blind, "gen is not on PATH\n"]
+    [:blind, unlines(["gen is not on PATH"])]
   elsif status_of(pin) != 0
-    [:blind, "could not read substrate's gen pin:\n#{stderr_of(pin)}"]
+    [
+      :blind,
+      join_lines(["could not read substrate's gen pin:", stderr_of(pin)])
+    ]
   else
     installed = blue::trim(stdout_of(exec_capture("gen", "--version")))
     if installed == "gen #{stdout_of(pin)}"
@@ -150,7 +166,13 @@ def gen_pin()
     else
       [
         :red,
-        "#{installed} is installed; substrate pins gen #{stdout_of(pin)}. Run:\n  nix flake update substrate --flake ~/code/github/pleme-io/nix\n  nix run ~/code/github/pleme-io/nix#rebuild\n"
+        unlines(
+          [
+            "#{installed} is installed; substrate pins gen #{stdout_of(pin)}. Run:",
+            "  nix flake update substrate --flake ~/code/github/pleme-io/nix",
+            "  nix run ~/code/github/pleme-io/nix#rebuild"
+          ]
+        )
       ]
     end
   end
@@ -158,7 +180,7 @@ end
 
 def gen_tie()
   if not exec_ok?("which", "gen")
-    [:blind, "gen is not on PATH\n"]
+    [:blind, unlines(["gen is not on PATH"])]
   elsif status_of(exec_capture("gen", "confirm")) == 0
     [:green, ""]
   else
@@ -170,14 +192,19 @@ def gen_tie()
     else
       [
         :red,
-        "Cargo.gen.lock was not tied to Cargo.lock and the manifests; gen build rewrote it. Commit:\n#{join(reject((l) -> member?(l, was), now), "\n")}\n"
+        unlines(
+          [
+            "Cargo.gen.lock was not tied to Cargo.lock and the manifests; gen build rewrote it. Commit:",
+            join(reject((l) -> member?(l, was), now), line_break)
+          ]
+        )
       ]
     end
   end
 end
 
 if off?
-  write_stderr("prepush: off (BLUE_PREPUSH_OFF=1); nothing checked\n")
+  write_stderr(unlines(["prepush: off (BLUE_PREPUSH_OFF=1); nothing checked"]))
   exit_with(0)
 end
 
@@ -186,7 +213,11 @@ dirty = lines_of(git(["status", "--porcelain", "--untracked-files=no"]))
 
 if dirty != []
   write_stderr(
-    "⚠️ prepush reads the working tree, and #{to_s(count(dirty))} tracked files differ from HEAD\n"
+    unlines(
+      [
+        "⚠️ prepush reads the working tree, and #{to_s(count(dirty))} tracked files differ from HEAD"
+      ]
+    )
   )
 end
 
@@ -291,7 +322,11 @@ gates = append(
 total = count(gates)
 
 write_stderr(
-  "prepush: #{to_s(total)} gates, a few minutes; ctrl-c stops it, BLUE_PREPUSH_OFF=1 git push skips it\n"
+  unlines(
+    [
+      "prepush: #{to_s(total)} gates, a few minutes; ctrl-c stops it, BLUE_PREPUSH_OFF=1 git push skips it"
+    ]
+  )
 )
 
 started = now_ms
@@ -299,10 +334,16 @@ results = map((p) -> run_gate(last(p), first(p), total), enumerate(gates))
 red = map(first, filter((r) -> last(r) == :red, results))
 
 if red == []
-  write_stderr("🟢 prepush: no gate red (#{duration_text(now_ms - started)})\n")
+  write_stderr(
+    unlines(["🟢 prepush: no gate red (#{duration_text(now_ms - started)})"])
+  )
 else
   write_stderr(
-    "🔴 prepush: #{to_s(count(red))} red: #{join(red, "; ")}. Fix it, or skip once with BLUE_PREPUSH_OFF=1 git push\n"
+    unlines(
+      [
+        "🔴 prepush: #{to_s(count(red))} red: #{join(red, "; ")}. Fix it, or skip once with BLUE_PREPUSH_OFF=1 git push"
+      ]
+    )
   )
   exit_with(1)
 end

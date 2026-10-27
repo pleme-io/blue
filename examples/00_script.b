@@ -28,4 +28,4 @@ test "with no arguments it says how to call it"
   assert shout([]) == "usage: 00_script.b WORD..."
 end
 
-write_stdout("#{shout(argv)}\n")
+write_stdout(unlines([shout(argv)]))

@@ -9,5 +9,5 @@ sdl = read_file(
 
 write_file(
   getenv("GEN_OUT", "bidamas/kyasshu/keys/kensa.json"),
-  "#{json_stringify(schema(sdl))}\n"
+  unlines([json_stringify(schema(sdl))])
 )

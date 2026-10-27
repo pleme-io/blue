@@ -1,1 +1,1 @@
-write_stdout("hello, world\n")
+write_stdout(unlines(["hello, world"]))

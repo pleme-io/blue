@@ -121,7 +121,7 @@ end
 # The file's text with its `use` lines replaced by `block`, written where the
 # first `use` was (or above the first form, with a blank line after).
 def rewrite(text, doc, block)
-  lines = split(text, "\n")
+  lines = split(text, line_break)
   existing = json_get(doc, "imports")
   dropped = append(
     *map(
@@ -154,7 +154,7 @@ def rewrite(text, doc, block)
       inserted,
       map((nl) -> nth(1, nl), after)
     ),
-    "\n"
+    line_break
   )
 end
 
@@ -356,7 +356,7 @@ end
 # Apply [[line, col, end_col, old, new], …] to `text`: one rewrite per span,
 # right to left within a line, so earlier columns stay valid.
 def apply_edits(text, edits)
-  lines = split(text, "\n")
+  lines = split(text, line_break)
   numbered = zip(range(1, length(lines) + 1), lines)
   out = map(
     fn(nl)
@@ -384,13 +384,13 @@ def apply_edits(text, edits)
     end,
     numbered
   )
-  join(out, "\n")
+  join(out, line_break)
 end
 
 # Insert `new_lines` before line `at` (1-based).
 def insert_lines(text, at, new_lines)
-  lines = split(text, "\n")
-  join(append(take(at - 1, lines), new_lines, drop(at - 1, lines)), "\n")
+  lines = split(text, line_break)
+  join(append(take(at - 1, lines), new_lines, drop(at - 1, lines)), line_break)
 end
 
 # The rename map over a resolved tree: every key `pkg/old` becomes
@@ -665,7 +665,7 @@ def relist(text, doc, package, dropped)
     u = first(mine)
     left = filter((n) -> not member?(n, dropped), json_get(u, "names"))
     line = json_get(u, "line")
-    lines = split(text, "\n")
+    lines = split(text, line_break)
     numbered = zip(range(1, length(lines) + 1), lines)
     kept = filter(
       (nl) -> first(nl) < line or first(nl) > json_get(u, "end_line"),
@@ -679,7 +679,7 @@ def relist(text, doc, package, dropped)
         [render_use([package, left])],
         map((nl) -> nth(1, nl), after)
       ),
-      "\n"
+      line_break
     )
   end
 end
@@ -751,12 +751,15 @@ def strip(prefix, file, callers)
     "stripped #{pkg}: #{length(renames)} renamed, #{nth(4, plan)} kept with a second name, #{length(callers)} caller(s) rewritten"
   else
     restore()
-    raise(:migrate, "refused the strip of #{pkg}, restored: #{join(bad, "\n")}")
+    raise(
+      :migrate,
+      "refused the strip of #{pkg}, restored: #{join(bad, line_break)}"
+    )
   end
 end
 
 def blank_char?(c)
-  member?(c, [" ", "\n", "\t", "\r"])
+  member?(c, [" ", line_break, "\t", "\r"])
 end
 
 def leading_blanks(cs)
@@ -1084,7 +1087,7 @@ def swap_file(file, keys)
   else
     text = read_file(file)
     cs = chars(text)
-    starts = starts_of(split(text, "\n"))
+    starts = starts_of(split(text, line_break))
     plans = map((r) -> site_plan(cs, starts, r), sites)
     flags = map((p) -> nth(1, p), filter((p) -> first(p) == "flag", plans))
     if not empty?(flags)
@@ -1114,12 +1117,12 @@ args = argv
 
 if not empty?(args) and first(args) == "--swap"
   results = map((f) -> swap_file(f, split(nth(1, args), ",")), drop(2, args))
-  map((r) -> write_stdout("#{nth(1, r)}\n"), results)
+  map((r) -> write_stdout(unlines([nth(1, r)])), results)
   if any?((r) -> not first(r), results)
     exit_with(1)
   end
 elsif not empty?(args) and first(args) == "--strip"
-  write_stdout("#{strip(nth(1, args), nth(2, args), drop(3, args))}\n")
+  write_stdout(unlines([strip(nth(1, args), nth(2, args), drop(3, args))]))
 else
-  map((f) -> write_stdout("#{migrate(f)}\n"), args)
+  map((f) -> write_stdout(unlines([migrate(f)])), args)
 end

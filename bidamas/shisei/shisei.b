@@ -160,7 +160,7 @@ def veto(mode_default)
               sink,
               :veto,
               "#{get(req, :path)} is vetoed",
-              {status: 403, headers: {}, body: "vetoed\n"},
+              {status: 403, headers: {}, body: unlines(["vetoed"])},
               () -> handler(req)
             )
           else

@@ -18,7 +18,7 @@ def read(source)
     errors: get(t, :errors),
     line_starts: cons(
       0,
-      running_sum(map((l) -> length(l) + 1, split(source, "\n")))
+      running_sum(map((l) -> length(l) + 1, split(source, line_break)))
     )
   }
 end
@@ -81,7 +81,7 @@ def line_of(doc, offset)
 end
 
 def line_count(n)
-  size(split(text(n), "\n"))
+  size(split(text(n), line_break))
 end
 
 def nodes_where(f, n)
@@ -360,7 +360,19 @@ def module_function?(n)
 end
 
 def sample()
-  "{ config, lib, ... }:\nlet cfg = config.pleme.x; in {\n  options.pleme.x.enable = lib.mkEnableOption \"x\";\n  config = lib.mkIf cfg.enable {\n    systemd.services.x = { };\n    environment.etc.\"a b\".text = \"hi\";\n    inherit (cfg) port;\n  };\n}\n"
+  unlines(
+    [
+      "{ config, lib, ... }:",
+      "let cfg = config.pleme.x; in {",
+      "  options.pleme.x.enable = lib.mkEnableOption \"x\";",
+      "  config = lib.mkIf cfg.enable {",
+      "    systemd.services.x = { };",
+      "    environment.etc.\"a b\".text = \"hi\";",
+      "    inherit (cfg) port;",
+      "  };",
+      "}"
+    ]
+  )
 end
 
 def dotted_of(doc)
@@ -424,7 +436,11 @@ test "calls: a curried call is one call with its head and every argument"
 end
 
 test "with scopes and angle paths are found, and comments never are"
-  d = read("# with pkgs; <nixpkgs>\nwith pkgs; [ (import <nixpkgs> { }) ]")
+  d = read(
+    join_lines(
+      ["# with pkgs; <nixpkgs>", "with pkgs; [ (import <nixpkgs> { }) ]"]
+    )
+  )
   assert map((w) -> get(w, :namespace), withs(get(d, :root))) == ["pkgs"]
   assert map((p) -> get(p, :path), angle_paths(get(d, :root))) == ["<nixpkgs>"]
   assert withs(get(read("{ a = 1; }"), :root)) == []
@@ -452,7 +468,7 @@ test "attr reads one attribute of a set literal, and module_function? a module"
 end
 
 test "string_content and line_count read a string's body"
-  d = read("''\n  a\n  b\n''")
+  d = read(join_lines(["''", "  a", "  b", "''"]))
   s = first(nodes_of(get(d, :root)))
   assert line_count(s) == 4
   assert string_content(first(nodes_of(get(read("\"x${y}z\""), :root)))) ==

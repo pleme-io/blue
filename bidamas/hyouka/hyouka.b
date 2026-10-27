@@ -227,7 +227,15 @@ def resolve(link)
 end
 
 def sample_dry_run()
-  "this derivation will be built:\n  /nix/store/79318l15inqy72wqdqp9hixn762vlfza-kirikae-probe.drv\nthese 2 paths will be fetched (0.01 MiB download, 0.08 MiB unpacked):\n  /nix/store/002bc1h837ifc9vsv6vcf1ah5psckn1h-capnp-grammar-0.0.0+rev=7b0883c\n  /nix/store/f97whj20l07gbd9ir1m3kd6lizx2mc1h-darwin-system-25.11.ebec37a\n"
+  unlines(
+    [
+      "this derivation will be built:",
+      "  /nix/store/79318l15inqy72wqdqp9hixn762vlfza-kirikae-probe.drv",
+      "these 2 paths will be fetched (0.01 MiB download, 0.08 MiB unpacked):",
+      "  /nix/store/002bc1h837ifc9vsv6vcf1ah5psckn1h-capnp-grammar-0.0.0+rev=7b0883c",
+      "  /nix/store/f97whj20l07gbd9ir1m3kd6lizx2mc1h-darwin-system-25.11.ebec37a"
+    ]
+  )
 end
 
 def sample_targets()
@@ -267,11 +275,20 @@ test "nothing to do is empty work, not an error"
   assert get(w, :fetch) == []
   assert targets("[]") == []
   assert first_out({targets: []}).nil?
-  assert work("warning: Git tree is dirty\n") == {build: [], fetch: []}
+  assert work(unlines(["warning: Git tree is dirty"])) == {build: [], fetch: []}
 end
 
 test "a failure is classified by what nix said, with the last line as its why"
-  f = failure_of("error:\n       … while evaluating the attribute 'optionalValue.value'\n\n       error: iroha gate (kata-fleet-pleme): FAILED — 48/49 passed\n")
+  f = failure_of(
+    unlines(
+      [
+        "error:",
+        "       … while evaluating the attribute 'optionalValue.value'",
+        "",
+        "       error: iroha gate (kata-fleet-pleme): FAILED — 48/49 passed"
+      ]
+    )
+  )
   assert first(f) == :eval
   assert nth(1, f) ==
     "error: iroha gate (kata-fleet-pleme): FAILED — 48/49 passed"
@@ -282,7 +299,8 @@ test "a failure is classified by what nix said, with the last line as its why"
   assert failure_class("error: builder for '/nix/store/x.drv' failed with exit code 1") ==
     :builder
   assert failure_class("run timed out after 5400s") == :timeout
-  assert failure_class("Failed assertions:\n- nope") == :assertion
+  assert failure_class(join_lines(["Failed assertions:", "- nope"])) ==
+    :assertion
   assert failure_class("") == :unknown
 end
 

@@ -267,7 +267,7 @@ def entry_text(e)
       )
     end
   )
-  join(lines, "\n")
+  join(lines, line_break)
 end
 
 def package_entry(r)
@@ -311,12 +311,12 @@ def package_text_view(p)
       if get(d, :doc) == ""
         signature
       else
-        "#{signature}\n      #{get(d, :doc)}"
+        join_lines([signature, "      #{get(d, :doc)}"])
       end
     end,
     get(p, :definitions)
   )
-  join(append(head, defs), "\n")
+  join(append(head, defs), line_break)
 end
 
 # What the doc says, written to stdout; true when something was found. The
@@ -335,9 +335,9 @@ def main(args)
   if not contains?(name, "::") and not empty?(packages)
     p = package_entry(first(packages))
     if json?
-      write_stdout("#{json_stringify(p)}\n")
+      write_stdout(unlines([json_stringify(p)]))
     else
-      write_stdout("#{package_text_view(p)}\n")
+      write_stdout(unlines([package_text_view(p)]))
     end
     true
   else
@@ -348,13 +348,13 @@ def main(args)
       else
         "the builtins and #{to_s(length(records))} bidamas on BLUE_PATH"
       end
-      write_stderr("blue doc: no `#{name}` in #{where}\n")
+      write_stderr(unlines(["blue doc: no `#{name}` in #{where}"]))
       false
     elsif json?
-      map((e) -> write_stdout("#{json_stringify(e)}\n"), found)
+      map((e) -> write_stdout(unlines([json_stringify(e)])), found)
       true
     else
-      write_stdout("#{join(map(entry_text, found), "\n\n")}\n")
+      write_stdout(unlines([join(map(entry_text, found), unlines(["", ""]))]))
       true
     end
   end

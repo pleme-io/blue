@@ -39,7 +39,7 @@ if url != nil
 end
 
 test "a request on hello.<name> is answered with the greeting and the name"
-  assert reply("Hello\n", "hello.ana") == "Hello, ana!"
+  assert reply(unlines(["Hello"]), "hello.ana") == "Hello, ana!"
 end
 
 test "the name is the subject's last token"

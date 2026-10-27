@@ -532,12 +532,12 @@ def lex_from(x, i, line, ls, cur, done)
     append(*append(done, [cur]))
   else
     c = at(x, i)
-    if c == "\n"
+    if c == line_break
       lex_from(x, i + 1, line + 1, i + 1, cur, done)
     elsif get(get(x, :blank), c)
       lex_from(x, i + 1, line, ls, cur, done)
     elsif c == "#"
-      j = text_index(get(x, :text), "\n", i)
+      j = text_index(get(x, :text), line_break, i)
       lex_from(
         x,
         if j < 0
@@ -702,7 +702,7 @@ end
 def string_at(x, i, line, col)
   k = string_end(x, i + 1, line, col)
   raw = slice(x, i + 1, k)
-  if contains?(raw, "\n") or contains?(raw, "\r")
+  if contains?(raw, line_break) or contains?(raw, "\r")
     lex_error(line, col, "unterminated string")
   end
   simple(:string, unescape(raw, line, col), k + 1)
@@ -784,8 +784,8 @@ end
 def block_at(x, i, line, col)
   k = block_end(x, i + 3, line, col)
   raw = slice(x, i + 3, k)
-  nl = length(split(raw, "\n")) - 1
-  last_nl = text_last_index(raw, "\n", length(raw))
+  nl = length(split(raw, line_break)) - 1
+  last_nl = text_last_index(raw, line_break, length(raw))
   {
     kind: :string,
     value: block_value(replace(raw, "\\\"\"\"", "\"\"\"")),
@@ -817,7 +817,10 @@ def blank?(line)
 end
 
 def block_value(raw)
-  lines = split(replace(replace(raw, "\r\n", "\n"), "\r", "\n"), "\n")
+  lines = split(
+    replace(replace(raw, unlines(["\r"]), line_break), "\r", line_break),
+    line_break
+  )
   indents = map(indent_of, filter((x) -> not blank?(x), rest(lines)))
   common = if is_empty(indents)
     0
@@ -828,7 +831,7 @@ def block_value(raw)
     first(lines),
     map((x) -> join(drop(common, chars(x)), ""), rest(lines))
   )
-  join(trim_blank(dedented), "\n")
+  join(trim_blank(dedented), line_break)
 end
 
 def trim_blank(lines)
@@ -1540,7 +1543,7 @@ def nl(ind, space)
       ""
     end
   else
-    "\n#{pad(ind)}"
+    join_lines(["", pad(ind)])
   end
 end
 
@@ -1578,7 +1581,12 @@ end
 
 def quoted(text)
   escaped = replace(replace(text, "\\", "\\\\"), "\"", "\\\"")
-  named = [["\n", "\\n"], ["\r", "\\r"], ["\u{8}", "\\b"], ["\u{c}", "\\f"]]
+  named = [
+    [line_break, "\\n"],
+    ["\r", "\\r"],
+    ["\u{8}", "\\b"],
+    ["\u{c}", "\\f"]
+  ]
   escaped = reduce(
     (acc, e) -> replace(acc, first(e), second(e)),
     escaped,
@@ -1617,7 +1625,7 @@ def byte_length(text)
 end
 
 def block_able?(text)
-  lines = split(text, "\n")
+  lines = split(text, line_break)
   if contains?(text, "\r")
     false
   elsif blank?(first(lines))
@@ -1631,7 +1639,7 @@ def block_able?(text)
 end
 
 def block(ind, text)
-  multi = contains?(text, "\n") or
+  multi = contains?(text, line_break) or
     byte_length(text) > 70 or
     ends_with?(text, "\"") or
     ends_with?(text, "\\")
@@ -1642,19 +1650,21 @@ def block(ind, text)
     lines = map(
       fn(line)
         if line == ""
-          "\n"
+          line_break
         else
           "#{nl(ind, false)}#{esc(line)}"
         end
       end,
-      split(text, "\n")
+      split(text, line_break)
     )
     "\"\"\"#{join(lines, "")}#{nl(ind, false)}\"\"\""
   end
 end
 
 def string_text(ind, described, text)
-  if ind != nil and (described or contains?(text, "\n")) and block_able?(text)
+  if ind != nil and
+      (described or contains?(text, line_break)) and
+      block_able?(text)
     block(ind, text)
   else
     quoted(text)
@@ -1902,7 +1912,7 @@ def document_text(ind, doc)
   elsif is_empty(texts)
     ""
   else
-    "#{join(texts, "\n\n")}\n"
+    unlines([join(texts, unlines(["", ""]))])
   end
 end
 
@@ -1959,7 +1969,7 @@ def builtin_sdl()
       "type __Directive { name: String! description: String locations: [__DirectiveLocation!]! args(includeDeprecated: Boolean = false): [__InputValue!]! isRepeatable: Boolean! }",
       "enum __DirectiveLocation { #{join(directive_locations, " ")} }"
     ],
-    "\n"
+    line_break
   )
 end
 
@@ -3646,13 +3656,24 @@ def table_entries(m)
       (e) -> "    \"#{first(e)}\" => #{to_s(second(e))}",
       sort_keyed(first, map_entries(m))
     ),
-    ",\n"
+    unlines([","])
   )
 end
 
 def table_text(document)
   t = schema_table(document)
-  "{\n  types: {\n#{table_entries(get(t, :types))}\n  },\n  enums: {\n#{table_entries(get(t, :enums))}\n  }\n}\n"
+  unlines(
+    [
+      "{",
+      "  types: {",
+      table_entries(get(t, :types)),
+      "  },",
+      "  enums: {",
+      table_entries(get(t, :enums)),
+      "  }",
+      "}"
+    ]
+  )
 end
 
 def fixtures(dir)
@@ -3798,7 +3819,7 @@ test "parse refuses malformed text with its line and column"
   assert raises?(:parse_error, () -> parse("query ($v: Int = $w) { a }"))
   assert raises?(:parse_error, () -> parse("\"described\" query { a }"))
   e = begin
-    parse("{\n  a\n  b(: 1)\n}")
+    parse(join_lines(["{", "  a", "  b(: 1)", "}"]))
   rescue err
     err
   end
@@ -3815,9 +3836,20 @@ test "strings decode escapes and block strings lose their common indent"
     ),
     :value
   )
-  assert v == "café 😀 \"q\" \\ \n"
-  assert block_value("\n    Hello,\n      World!\n\n    Yours,\n      GraphQL.\n  ") ==
-    "Hello,\n  World!\n\nYours,\n  GraphQL."
+  assert v == unlines(["café 😀 \"q\" \\ "])
+  assert block_value(
+    join_lines(
+      [
+        "",
+        "    Hello,",
+        "      World!",
+        "",
+        "    Yours,",
+        "      GraphQL.",
+        "  "
+      ]
+    )
+  ) == join_lines(["Hello,", "  World!", "", "Yours,", "  GraphQL."])
   assert block_value("") == ""
   assert block_value("  one line  ") == "  one line  "
 end
@@ -3825,16 +3857,33 @@ end
 test "render prints apollo-compiler's canonical layout"
   doc = parse("query Q($a: Int = 1, $b: [String!]!) { x: f(a: $a, b: [\"p\", \"q\"]) @skip(if: false) { ...F ... on T { g } } }  fragment F on T { h }")
   assert render(doc) ==
-    "query Q($a: Int = 1, $b: [String!]!) {\n  x: f(a: $a, b: [\"p\", \"q\"]) @skip(if: false) {\n    ...F\n    ... on T {\n      g\n    }\n  }\n}\n\nfragment F on T {\n  h\n}\n"
+    unlines(
+      [
+        "query Q($a: Int = 1, $b: [String!]!) {",
+        "  x: f(a: $a, b: [\"p\", \"q\"]) @skip(if: false) {",
+        "    ...F",
+        "    ... on T {",
+        "      g",
+        "    }",
+        "  }",
+        "}",
+        "",
+        "fragment F on T {",
+        "  h",
+        "}"
+      ]
+    )
   assert render(doc, :compact) ==
     "query Q($a: Int = 1, $b: [String!]!) { x: f(a: $a, b: [\"p\", \"q\"]) @skip(if: false) { ...F ... on T { g } } } fragment F on T { h }"
-  assert render(parse("{ a }")) == "{\n  a\n}\n"
-  assert render(parse("\"\"\"  two\nlines\"\"\" scalar S")) ==
-    "\"\"\"\n  two\nlines\n\"\"\"\nscalar S\n"
-  assert render(parse("\"  \\nx\" scalar S")) == "\"  \\nx\"\nscalar S\n"
-  assert render(parse("\"short\" scalar S")) == "\"\"\"short\"\"\"\nscalar S\n"
+  assert render(parse("{ a }")) == unlines(["{", "  a", "}"])
+  assert render(parse(join_lines(["\"\"\"  two", "lines\"\"\" scalar S"]))) ==
+    unlines(["\"\"\"", "  two", "lines", "\"\"\"", "scalar S"])
+  assert render(parse("\"  \\nx\" scalar S")) ==
+    unlines(["\"  \\nx\"", "scalar S"])
+  assert render(parse("\"short\" scalar S")) ==
+    unlines(["\"\"\"short\"\"\"", "scalar S"])
   assert render(parse("{ a(s: \"one\\ntwo\") }")) ==
-    "{\n  a(s: \"one\\ntwo\")\n}\n"
+    unlines(["{", "  a(s: \"one\\ntwo\")", "}"])
   assert raises?(:bad_option, () -> render(doc, :json))
 end
 
@@ -3884,7 +3933,13 @@ end
 
 test "check carries the position of a finding when the document has spans"
   s = hand_schema
-  found = check(parse("query {\n  hero {\n    mass\n  }\n}", {spans: true}), s)
+  found = check(
+    parse(
+      join_lines(["query {", "  hero {", "    mass", "  }", "}"]),
+      {spans: true}
+    ),
+    s
+  )
   assert map((f) -> get(f, :at), found) == [[3, 5]]
   assert map((f) -> get(f, :at), check(parse("query { hero { mass } }"), s)) ==
     [nil]
@@ -4030,7 +4085,8 @@ end
 test "hash is the sha256 of the canonical text, as shasum computes it"
   assert hash(parse("query Q { a }")) ==
     "ebe140cc901fd22769c2396de48f111460ff16619c348023409bbc47fa4a19e1"
-  assert hash(parse("query   Q {\n\n a }")) == hash(parse("query Q { a }"))
+  assert hash(parse(join_lines(["query   Q {", "", " a }"]))) ==
+    hash(parse("query Q { a }"))
   assert hash("{ hero { name } }") ==
     "acc088d6d5fdba669a03cf99c1564e10730ec3ccda96ad7943bd57c7237b2aef"
   assert hash(parse("query Q { a }"), :blake3) != hash(parse("query Q { a }"))
@@ -4053,7 +4109,22 @@ def kinds_in(x)
 end
 
 test "every record kind the parser makes is a kind a grammar rule lowers to"
-  doc = parse("query Q($v: [Int!] = [1]) { a(x: {y: null, z: ENUM}, w: 1.5, s: \"t\", b: true, v: $v) ...F ... on T { b } }\nfragment F on T { c }\nscalar S\ntype T { c: Int }\ninterface I { c: Int }\nunion U = T\nenum E { A }\ninput In { a: Int }\ndirective @d on FIELD\nschema { query: T }")
+  doc = parse(
+    join_lines(
+      [
+        "query Q($v: [Int!] = [1]) { a(x: {y: null, z: ENUM}, w: 1.5, s: \"t\", b: true, v: $v) ...F ... on T { b } }",
+        "fragment F on T { c }",
+        "scalar S",
+        "type T { c: Int }",
+        "interface I { c: Int }",
+        "union U = T",
+        "enum E { A }",
+        "input In { a: Int }",
+        "directive @d on FIELD",
+        "schema { query: T }"
+      ]
+    )
+  )
   seen = distinct(kinds_in(doc))
   assert filter((k) -> not member?(k, kinds), seen) == []
   assert filter((k) -> not member?(k, seen), kinds) == []
@@ -4061,7 +4132,15 @@ test "every record kind the parser makes is a kind a grammar rule lowers to"
 end
 
 test "the schema table is every composite type's fields and every enum's values"
-  sdl = "type Query { me: User }\ntype User { id: ID! tags: [Tone!]! friends: [User] }\nenum Tone { WARM COOL }\nunion Any = User\nscalar Day"
+  sdl = join_lines(
+    [
+      "type Query { me: User }",
+      "type User { id: ID! tags: [Tone!]! friends: [User] }",
+      "enum Tone { WARM COOL }",
+      "union Any = User",
+      "scalar Day"
+    ]
+  )
   t = schema_table(sdl)
   assert get(get(t, :types), "User") ==
     {"id" => "ID", "tags" => "Tone", "friends" => "User"}
@@ -4074,11 +4153,31 @@ end
 
 test "render as a table is blue text that reads back as the table"
   text = render(
-    parse("type Query { me: User }\ntype User { id: ID! }\nenum Tone { A B }"),
+    parse(
+      join_lines(
+        [
+          "type Query { me: User }",
+          "type User { id: ID! }",
+          "enum Tone { A B }"
+        ]
+      )
+    ),
     :table
   )
   assert text ==
-    "{\n  types: {\n    \"Query\" => {\"me\" => \"User\"},\n    \"User\" => {\"id\" => \"ID\"}\n  },\n  enums: {\n    \"Tone\" => [\"A\", \"B\"]\n  }\n}\n"
+    unlines(
+      [
+        "{",
+        "  types: {",
+        "    \"Query\" => {\"me\" => \"User\"},",
+        "    \"User\" => {\"id\" => \"ID\"}",
+        "  },",
+        "  enums: {",
+        "    \"Tone\" => [\"A\", \"B\"]",
+        "  }",
+        "}"
+      ]
+    )
 end
 
 test "check finds nothing in a sound schema or document"

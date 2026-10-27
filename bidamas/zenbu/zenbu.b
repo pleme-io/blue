@@ -147,7 +147,7 @@ test "every bidama in the distribution answers through this one import"
   assert manhattan([0, 0], [3, 4]) == 7
   assert near(kinji::trapz([0, 1, 3], [0, 2, 6]), 9) == true
   assert kiwari::unpainted(kiwari::blue) == []
-  assert danpen::render(danpen::parse("{a}")) == "{\n  a\n}\n"
+  assert danpen::render(danpen::parse("{a}")) == unlines(["{", "  a", "}"])
   assert kousei::name_of(kousei::entry(:plane, "edge", {})) == "edge"
   assert kueri::ident("order") == "\"order\""
   assert kyasshu::key(["User", 7]) == "User:7"
@@ -188,7 +188,11 @@ test "every bidama in the distribution answers through this one import"
   assert blue::get(souji::parse(["nix"]), :days) == 14
   assert blue::get(decide({corp: :absent}), :kind) == :noop
   assert size(relay_env("socks5h://r:1")) == 6
-  assert hadome::recorded(hadome::parse("entry: k 5\n"), "entry", "k") == 5
+  assert hadome::recorded(
+    hadome::parse(unlines(["entry: k 5"])),
+    "entry",
+    "k"
+  ) == 5
   assert chokkan::margin([["a", 0.75], ["b", 0.25]]) == 0.5
   assert jitaku::to_json([]) == "{\"enable\":true}"
   assert kinko::interval_s("families", 16) == 2765

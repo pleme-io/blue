@@ -83,7 +83,7 @@ end
 
 def emit(lvl, message, fields)
   if enabled?(lvl)
-    write_stderr("#{line(lvl, message, fields)}\n")
+    write_stderr(unlines([line(lvl, message, fields)]))
   end
   nil
 end
@@ -134,14 +134,14 @@ def probe(env, body)
   dir = path_join(getenv("TMPDIR", "/tmp"), "rogu-#{to_s(now_ns)}")
   mkdir_p(dir)
   prog = path_join(dir, "probe.b")
-  write_program(prog, "use(\"rogu\")\n#{body}\n")
+  write_program(prog, unlines(["use(\"rogu\")", body]))
   cap = exec_with_env(env, self_exe, "run", "--quiet", prog)
   rm_rf(dir)
   cap
 end
 
 def written(cap)
-  map(json_read, filter((l) -> l != "", split(stderr_of(cap), "\n")))
+  map(json_read, filter((l) -> l != "", split(stderr_of(cap), line_break)))
 end
 
 test "levels are ordered and an unknown level is refused"
@@ -203,7 +203,7 @@ test "a line is one JSON object: at, level, message, then the fields"
   assert get(rec, "free") == 3
   assert get(rec, "host") == "a"
   assert is_empty(get(rec, "at")) == false
-  assert contains?(line(:info, "x", {}), "\n") == false
+  assert contains?(line(:info, "x", {}), line_break) == false
 end
 
 test "fields cannot overwrite at, level or message"
@@ -265,7 +265,14 @@ test "each verb writes its own level when everything is on"
   if self_exe != nil
     cap = probe(
       [["BLUE_LOG", "debug"]],
-      "rogu::debug(\"a\", {})\nrogu::info(\"b\", {})\nrogu::warn(\"c\", {})\nrogu::error(\"d\", {})"
+      join_lines(
+        [
+          "rogu::debug(\"a\", {})",
+          "rogu::info(\"b\", {})",
+          "rogu::warn(\"c\", {})",
+          "rogu::error(\"d\", {})"
+        ]
+      )
     )
     assert map((r) -> get(r, "level"), written(cap)) ==
       ["debug", "info", "warn", "error"]
@@ -275,7 +282,14 @@ end
 
 test "BLUE_LOG filters: warn drops debug and info, error keeps only error"
   if self_exe != nil
-    body = "rogu::debug(\"a\", {})\nrogu::info(\"b\", {})\nrogu::warn(\"c\", {})\nrogu::error(\"d\", {})"
+    body = join_lines(
+      [
+        "rogu::debug(\"a\", {})",
+        "rogu::info(\"b\", {})",
+        "rogu::warn(\"c\", {})",
+        "rogu::error(\"d\", {})"
+      ]
+    )
     warn_run = probe([["BLUE_LOG", "warn"]], body)
     assert map((r) -> get(r, "level"), written(warn_run)) == ["warn", "error"]
     error_run = probe([["BLUE_LOG", "error"]], body)
@@ -285,7 +299,7 @@ end
 
 test "with BLUE_LOG unset or empty the default is info"
   if self_exe != nil
-    body = "rogu::debug(\"a\", {})\nrogu::info(\"b\", {})"
+    body = join_lines(["rogu::debug(\"a\", {})", "rogu::info(\"b\", {})"])
     cap = probe([["BLUE_LOG", ""]], body)
     assert map((r) -> get(r, "message"), written(cap)) == ["b"]
   end
@@ -314,7 +328,14 @@ end
 
 test "with carries base fields on every line, and a call's own fields win"
   if self_exe != nil
-    body = "l = rogu::with({svc: \"api\", n: 1})\nget(l, :info)(\"up\", {n: 2, extra: true})\nget(l, :debug)(\"hidden\", {})\nget(l, :error)(\"down\", nil)"
+    body = join_lines(
+      [
+        "l = rogu::with({svc: \"api\", n: 1})",
+        "get(l, :info)(\"up\", {n: 2, extra: true})",
+        "get(l, :debug)(\"hidden\", {})",
+        "get(l, :error)(\"down\", nil)"
+      ]
+    )
     rows = written(probe([["BLUE_LOG", "info"]], body))
     assert map((r) -> get(r, "message"), rows) == ["up", "down"]
     assert get(first(rows), "svc") == "api"

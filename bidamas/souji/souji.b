@@ -125,7 +125,10 @@ def targets(root, depth)
   )
   filter(
     (d) -> path_exists(path_join(path_dirname(d), "Cargo.toml")),
-    filter((l) -> is_empty(blue::trim(l)) == false, split(stdout_of(cap), "\n"))
+    filter(
+      (l) -> is_empty(blue::trim(l)) == false,
+      split(stdout_of(cap), line_break)
+    )
   )
 end
 
@@ -237,7 +240,7 @@ def rust_report(r, dry)
         "rust: #{verb} #{to_s(size(get(r, :removed)))} of #{to_s(size(get(r, :rows)))} target/ dirs, #{gib(get(r, :kib))}"
       ]
     ),
-    "\n"
+    line_break
   )
 end
 
@@ -258,17 +261,24 @@ def main()
   opts = parse(argv)
   if get(opts, :error) != nil
     write_stderr(
-      "souji: #{get(opts, :error)}\nusage: souji rust|nix|all [--dry-run] [--min-age-hours N] [--older-than-days N] [ROOT...]\n"
+      unlines(
+        [
+          "souji: #{get(opts, :error)}",
+          "usage: souji rust|nix|all [--dry-run] [--min-age-hours N] [--older-than-days N] [ROOT...]"
+        ]
+      )
     )
     raise(:souji_usage, get(opts, :error))
   else
     cmd = get(opts, :command)
     if cmd == "rust" or cmd == "all"
-      write_stdout(concat(rust_report(rust(opts), get(opts, :dry_run)), "\n"))
+      write_stdout(
+        concat(rust_report(rust(opts), get(opts, :dry_run)), line_break)
+      )
     end
     if cmd == "nix" or cmd == "all"
       n = nix(opts)
-      write_stdout("nix: #{get(n, :summary)}\n")
+      write_stdout(unlines(["nix: #{get(n, :summary)}"]))
     end
     nil
   end
@@ -304,7 +314,7 @@ test "rust: only a target/ beside a Cargo.toml, only when idle, dry run deletes 
   base = path_join(getenv("TMPDIR", "/tmp"), "souji-test-#{to_s(now_ms)}")
   crate = path_join(base, "crate")
   mkdir_p(path_join(crate, "target/debug"))
-  write_file(path_join(crate, "Cargo.toml"), "[package]\n")
+  write_file(path_join(crate, "Cargo.toml"), unlines(["[package]"]))
   write_file(path_join(crate, "target/debug/x"), "bytes")
   # A target/ with no Cargo.toml beside it is not a Rust target.
   mkdir_p(path_join(base, "other/target"))

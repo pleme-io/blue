@@ -16,7 +16,7 @@ def shells()
 end
 
 def closure(file)
-  filter((p) -> p != "", split(read_file(file), "\n"))
+  filter((p) -> p != "", split(read_file(file), line_break))
 end
 
 def shells_in(path)
@@ -58,9 +58,14 @@ def gate(file, tier)
   end
   found = findings(paths, tier)
   if found != []
-    raise(:gate, "the image is not #{tier}:\n#{join(found, "\n")}")
+    raise(
+      :gate,
+      join_lines(["the image is not #{tier}:", join(found, line_break)])
+    )
   end
-  write_stdout("tier #{tier}: #{to_s(count(paths))} store paths, no finding\n")
+  write_stdout(
+    unlines(["tier #{tier}: #{to_s(count(paths))} store paths, no finding"])
+  )
 end
 
 gate(nth(0, argv), nth(1, argv))

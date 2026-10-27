@@ -11,24 +11,28 @@ row(
 
 row(
   "maps.pun",
-  "a = 1\nb = 2\n{a:, b:}",
+  join_lines(["a = 1", "b = 2", "{a:, b:}"]),
   value("{a: 1, b: 2}"),
   covers("form:{a:, b:}")
 )
 
 row(
   "maps.pun.mixed",
-  "a = 1\n{a:, n: 3, \"k\" => a}",
+  join_lines(["a = 1", "{a:, n: 3, \"k\" => a}"]),
   value("{\"k\" => 1, a: 1, n: 3}")
 )
 
 row(
   "maps.pun.multiline",
-  "a = 1\nb = 2\n{\n  a:,\n  b:\n}",
+  join_lines(["a = 1", "b = 2", "{", "  a:,", "  b:", "}"]),
   value("{a: 1, b: 2}")
 )
 
-row("maps.pun.predicate", "ok? = true\n{ok?:}", value("{ok?: true}"))
+row(
+  "maps.pun.predicate",
+  join_lines(["ok? = true", "{ok?:}"]),
+  value("{ok?: true}")
+)
 
 row("maps.pun.unbound", "{missing:}", fails(:check, "B0001"))
 
@@ -105,26 +109,41 @@ row(
 
 row(
   "maps.dig",
-  "m = {a: {b: [10, 20, {c: 3}]}}\n[dig(m, :a, :b, 2, :c), dig(m, :a, :b, -1, :c), dig(m)]",
+  join_lines(
+    [
+      "m = {a: {b: [10, 20, {c: 3}]}}",
+      "[dig(m, :a, :b, 2, :c), dig(m, :a, :b, -1, :c), dig(m)]"
+    ]
+  ),
   value("[3, 3, {a: {b: [10, 20, {c: 3}]}}]"),
   covers("builtin:dig")
 )
 
 row(
   "maps.dig.total",
-  "m = {a: {b: [10]}}\n[dig(m, :a, :q, :c), dig(m, :a, :b, 9), dig(m, :a, :b, 0, :x), dig(nil, :a), dig(5, :a)]",
+  join_lines(
+    [
+      "m = {a: {b: [10]}}",
+      "[dig(m, :a, :q, :c), dig(m, :a, :b, 9), dig(m, :a, :b, 0, :x), dig(nil, :a), dig(5, :a)]"
+    ]
+  ),
   value("[nil, nil, nil, nil, nil]")
 )
 
 row(
   "maps.dig.keys_are_data",
-  "m = {\"app.kubernetes.io/name\" => {1 => :one}}\n[dig(m, \"app.kubernetes.io/name\", 1), dig(m, :app)]",
+  join_lines(
+    [
+      "m = {\"app.kubernetes.io/name\" => {1 => :one}}",
+      "[dig(m, \"app.kubernetes.io/name\", 1), dig(m, :app)]"
+    ]
+  ),
   value("[:one, nil]")
 )
 
 row(
   "maps.dig.splatted",
-  "path = [:a, :b]\ndig(*cons({a: {b: 1}}, path))",
+  join_lines(["path = [:a, :b]", "dig(*cons({a: {b: 1}}, path))"]),
   value("1")
 )
 
@@ -137,13 +156,18 @@ row(
 
 row(
   "maps.bury.returns_a_new_tree",
-  "m = {a: {b: 1}}\nn = bury(m, :a, :c, 2)\n[m, n]",
+  join_lines(["m = {a: {b: 1}}", "n = bury(m, :a, :c, 2)", "[m, n]"]),
   value("[{a: {b: 1}}, {a: {b: 1, c: 2}}]")
 )
 
 row(
   "maps.bury.lists",
-  "m = {a: [1, 2]}\n[bury(m, :a, 0, 9), bury(m, :a, 2, 3), bury(m, :a, -1, 7)]",
+  join_lines(
+    [
+      "m = {a: [1, 2]}",
+      "[bury(m, :a, 0, 9), bury(m, :a, 2, 3), bury(m, :a, -1, 7)]"
+    ]
+  ),
   value("[{a: [9, 2]}, {a: [1, 2, 3]}, {a: [1, 7]}]")
 )
 
@@ -167,26 +191,37 @@ row(
 
 row(
   "maps.dig_bury_round_trip",
-  "facts = [[[:a, :b], 1], [[:a, :c], 2], [[:d], 3]]\nt = reduce((acc, f) -> bury(*append([acc], first(f), [last(f)])), {}, facts)\n[t, map((f) -> dig(*cons(t, first(f))) == last(f), facts)]",
+  join_lines(
+    [
+      "facts = [[[:a, :b], 1], [[:a, :c], 2], [[:d], 3]]",
+      "t = reduce((acc, f) -> bury(*append([acc], first(f), [last(f)])), {}, facts)",
+      "[t, map((f) -> dig(*cons(t, first(f))) == last(f), facts)]"
+    ]
+  ),
   value("[{a: {b: 1, c: 2}, d: 3}, [true, true, true]]")
 )
 
 row(
   "maps.spread",
-  "ctx = {x: 1, y: 2}\n{**ctx, y: 3}",
+  join_lines(["ctx = {x: 1, y: 2}", "{**ctx, y: 3}"]),
   value("{x: 1, y: 3}"),
   covers("form:{**a, b: 1}")
 )
 
 row(
   "maps.spread.later_wins",
-  "ctx = {x: 1, y: 2}\ny = 9\n[{y:, **ctx}, {**ctx, y:}]",
+  join_lines(["ctx = {x: 1, y: 2}", "y = 9", "[{y:, **ctx}, {**ctx, y:}]"]),
   value("[{x: 1, y: 2}, {x: 1, y: 9}]")
 )
 
 row(
   "maps.spread.nil_and_literals",
-  "ctx = {x: 1}\n[{**nil}, {**ctx, **{z: 1}, \"k\" => 2}, {a: 1, **ctx, b: 2}]",
+  join_lines(
+    [
+      "ctx = {x: 1}",
+      "[{**nil}, {**ctx, **{z: 1}, \"k\" => 2}, {a: 1, **ctx, b: 2}]"
+    ]
+  ),
   value("[{}, {\"k\" => 2, x: 1, z: 1}, {a: 1, b: 2, x: 1}]")
 )
 
@@ -198,7 +233,16 @@ row(
 
 row(
   "maps.spread.call",
-  "def show(a, opts)\n  [a, opts]\nend\n\nctx = {x: 1, y: 2}\n[show(1, **ctx, y: 5), show(0, **ctx)]",
+  join_lines(
+    [
+      "def show(a, opts)",
+      "  [a, opts]",
+      "end",
+      "",
+      "ctx = {x: 1, y: 2}",
+      "[show(1, **ctx, y: 5), show(0, **ctx)]"
+    ]
+  ),
   value("[[1, {x: 1, y: 5}], [0, {x: 1, y: 2}]]"),
   covers("form:f(x, **a, b: 1)")
 )
@@ -211,12 +255,12 @@ row(
 
 row(
   "fmt.spread",
-  "a = {x: 1}\n{**a,b: 1,**a}",
-  formats("a = {x: 1}\n{**a, b: 1, **a}\n")
+  join_lines(["a = {x: 1}", "{**a,b: 1,**a}"]),
+  formats(unlines(["a = {x: 1}", "{**a, b: 1, **a}"]))
 )
 
 row(
   "fmt.spread.call",
-  "a = {x: 1}\nf(1,**a,b: 2)",
-  formats("a = {x: 1}\nf(1, **a, b: 2)\n")
+  join_lines(["a = {x: 1}", "f(1,**a,b: 2)"]),
+  formats(unlines(["a = {x: 1}", "f(1, **a, b: 2)"]))
 )

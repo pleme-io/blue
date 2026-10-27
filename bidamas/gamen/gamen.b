@@ -266,7 +266,7 @@ def show(node, opts)
   if get(opts, :newline) == false
     write(text)
   else
-    write("#{text}\n")
+    write(unlines([text]))
   end
   nil
 end
@@ -1719,23 +1719,23 @@ test "styled refuses a node that is neither text, a list nor a record with text"
 end
 
 test "show writes the styled text and a newline to the sink, and returns nil"
-  assert collect({color: true}, "hello") == "hello\n"
+  assert collect({color: true}, "hello") == unlines(["hello"])
   assert collect({color: true}, {text: "x", bold: true}) ==
-    "#{esc_char}[1mx#{esc_char}[0m\n"
-  assert collect({color: false}, {text: "x", bold: true}) == "x\n"
+    unlines(["#{esc_char}[1mx#{esc_char}[0m"])
+  assert collect({color: false}, {text: "x", bold: true}) == unlines(["x"])
   assert show("a", {sink: (_t) -> nil}).nil?
 end
 
 test "show without a newline writes the text as it is"
   assert collect({color: false, newline: false}, "ab") == "ab"
-  assert collect({color: false, newline: true}, "ab") == "ab\n"
+  assert collect({color: false, newline: true}, "ab") == unlines(["ab"])
   assert collect({color: false, newline: false}, []) == ""
 end
 
 test "show takes its tokens from the theme option"
   t = theme({ok: "#a3be8c"}, :light)
   assert collect({color: true, theme: t}, {text: "ok", fg: :ok}) ==
-    "#{esc_char}[38;2;163;190;140mok#{esc_char}[0m\n"
+    unlines(["#{esc_char}[38;2;163;190;140mok#{esc_char}[0m"])
   assert raises?(
     :bad_option,
     () -> collect({color: true}, {text: "ok", fg: :ok})
@@ -1749,9 +1749,9 @@ end
 
 test "show leaves color to NO_COLOR when color is not given"
   expected = if color_default
-    "#{esc_char}[1mx#{esc_char}[0m\n"
+    unlines(["#{esc_char}[1mx#{esc_char}[0m"])
   else
-    "x\n"
+    unlines(["x"])
   end
   assert collect({}, {text: "x", bold: true}) == expected
 end
@@ -1801,12 +1801,18 @@ test "show writes stdout by default and stderr on request, each to its own strea
     prog = path_join(dir, "probe.b")
     write_program(
       prog,
-      "use(\"gamen\")\ngamen::show(\"out\", {color: false})\ngamen::show(\"err\", {to: :stderr, newline: false})\n"
+      unlines(
+        [
+          "use(\"gamen\")",
+          "gamen::show(\"out\", {color: false})",
+          "gamen::show(\"err\", {to: :stderr, newline: false})"
+        ]
+      )
     )
     cap = exec_with_env([], self_exe, "run", "--quiet", prog)
     rm_rf(dir)
     assert status_of(cap) == 0
-    assert stdout_of(cap) == "out\n"
+    assert stdout_of(cap) == unlines(["out"])
     assert stderr_of(cap) == "err"
   end
 end
@@ -2492,6 +2498,6 @@ test "show_step writes one line through the sink and keeps colour off when told"
     {state: :done, at: 1, of: 2, name: "x", ms: 1500},
     {sink:, color: false}
   ).nil?
-  assert first(seen) == "✅ [1/2] x (1.5s)\n"
+  assert first(seen) == unlines(["✅ [1/2] x (1.5s)"])
   assert terminal?(9) == false
 end

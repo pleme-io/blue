@@ -98,14 +98,16 @@ row("numbers.mod.builtin", "mod(-7, 3)", value("2"), covers("builtin:mod"))
 
 row(
   "numbers.modulo",
-  "# waive B0036: the row covers this name itself\nmodulo(-7, 3)",
+  join_lines(
+    ["# waive B0036: the row covers this name itself", "modulo(-7, 3)"]
+  ),
   value("2"),
   covers("builtin:modulo")
 )
 
 row(
   "numbers.rem",
-  "# waive B0036: the row covers this name itself\nrem(-7, 3)",
+  join_lines(["# waive B0036: the row covers this name itself", "rem(-7, 3)"]),
   value("2"),
   covers("builtin:rem")
 )

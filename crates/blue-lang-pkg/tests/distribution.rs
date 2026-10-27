@@ -529,7 +529,7 @@ fn exact_duplicate_shapes_only_fall() {
 }
 
 const NEAR: blue_lang_check::shape::Near = blue_lang_check::shape::Near::DEFAULT;
-const NEAR_SHAPE_DEFINITIONS: usize = 257;
+const NEAR_SHAPE_DEFINITIONS: usize = 255;
 
 #[test]
 fn near_duplicate_shapes_only_fall() {

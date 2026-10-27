@@ -56,7 +56,7 @@ test "the proxy reaches the child and never this process"
     dir = path_join(getenv("TMPDIR", "/tmp"), "keiyu-#{to_s(now_ns)}")
     mkdir_p(dir)
     prog = path_join(dir, "child.b")
-    write_program(prog, "use(\"keiyu\", [:main])\nmain()\n")
+    write_program(prog, unlines(["use(\"keiyu\", [:main])", "main()"]))
     cap = exec_with_env(
       [["KEIYU_RELAY", "socks5h://relay.test:11080"]],
       self_exe,
@@ -69,7 +69,7 @@ test "the proxy reaches the child and never this process"
     )
     rm_rf(dir)
     assert status_of(cap) == 0
-    assert stdout_of(cap) == "socks5h://relay.test:11080\n"
+    assert stdout_of(cap) == unlines(["socks5h://relay.test:11080"])
   end
   assert getenv("ALL_PROXY") == before
 end

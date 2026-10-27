@@ -65,14 +65,16 @@ end
 
 def show_refusals(refusals)
   map(
-    (r) -> write_stderr("blue verbs: #{to_s(first(r))}: #{nth(1, r)}\n"),
+    fn(r)
+      write_stderr(unlines(["blue verbs: #{to_s(first(r))}: #{nth(1, r)}"]))
+    end,
     refusals
   )
   nil
 end
 
 def table_kind(text)
-  head = first(split(text, "\n"))
+  head = first(split(text, line_break))
   cols = split(head, "\t")
   if first(cols) == "region"
     :verbs
@@ -84,14 +86,17 @@ def table_kind(text)
 end
 
 def merged_tables(texts)
-  head = first(split(first(texts), "\n"))
-  if every?((t) -> first(split(t, "\n")) == head, texts)
+  head = first(split(first(texts), line_break))
+  if every?((t) -> first(split(t, line_break)) == head, texts)
     join(
       concat_lists(
         [first(texts)],
-        map((t) -> join(drop(1, split(t, "\n")), "\n"), drop(1, texts))
+        map(
+          (t) -> join(drop(1, split(t, line_break)), line_break),
+          drop(1, texts)
+        )
       ),
-      "\n"
+      line_break
     )
   end
 end
@@ -151,7 +156,9 @@ def do_import(args)
     if not is_empty(refusals)
       show_refusals(refusals)
       write_stderr(
-        "blue verbs: nothing written: #{to_s(size(refusals))} refusals\n"
+        unlines(
+          ["blue verbs: nothing written: #{to_s(size(refusals))} refusals"]
+        )
       )
       false
     else
@@ -166,7 +173,11 @@ def do_import(args)
       )
       format_files(written)
       write_stdout(
-        "imported #{to_s(size(get(g, :verbs)))} verbs, #{to_s(size(get(g, :edges)))} edges and #{to_s(size(get(g, :vocab)))} vocab rows into #{to_s(size(written))} files in #{dir}\n"
+        unlines(
+          [
+            "imported #{to_s(size(get(g, :verbs)))} verbs, #{to_s(size(get(g, :edges)))} edges and #{to_s(size(get(g, :vocab)))} vocab rows into #{to_s(size(written))} files in #{dir}"
+          ]
+        )
       )
       true
     end
@@ -189,14 +200,18 @@ def do_export(args)
     write_file(path_join(out, "edges.tsv"), edges_tsv(g))
     write_file(path_join(out, "contracts.tsv"), vocab_tsv(g))
     write_stdout(
-      "exported #{to_s(size(get(g, :verbs)))} verbs, #{to_s(size(get(g, :edges)))} edges and #{to_s(size(get(g, :vocab)))} vocab rows to #{out}\n"
+      unlines(
+        [
+          "exported #{to_s(size(get(g, :verbs)))} verbs, #{to_s(size(get(g, :edges)))} edges and #{to_s(size(get(g, :vocab)))} vocab rows to #{out}"
+        ]
+      )
     )
     true
   end
 end
 
 def finding_line(f)
-  "#{get(f, :kind)}\t#{get(f, :subject)}\n"
+  unlines(["#{get(f, :kind)}\t#{get(f, :subject)}"])
 end
 
 def do_findings(args)
@@ -257,7 +272,9 @@ def do_check(args)
     findings = graph_findings_live(g, self_exe)
     if has_flag(args, "--record")
       write_file(baseline, graph_baseline(findings))
-      write_stdout("recorded #{to_s(size(findings))} findings in #{baseline}\n")
+      write_stdout(
+        unlines(["recorded #{to_s(size(findings))} findings in #{baseline}"])
+      )
       true
     else
       text = if path_exists(baseline)
@@ -268,11 +285,19 @@ def do_check(args)
       failures = graph_verdict(findings, text)
       shrunk = graph_shrunk(findings, text)
       write_stdout(
-        "#{to_s(size(get(g, :verbs)))} verbs, #{to_s(size(get(g, :edges)))} edges, #{to_s(size(get(g, :vocab)))} vocab rows; #{to_s(size(findings))} findings against the baseline\n"
+        unlines(
+          [
+            "#{to_s(size(get(g, :verbs)))} verbs, #{to_s(size(get(g, :edges)))} edges, #{to_s(size(get(g, :vocab)))} vocab rows; #{to_s(size(findings))} findings against the baseline"
+          ]
+        )
       )
       if not is_empty(shrunk)
         write_stdout(
-          "the baseline can shrink (blue verbs check --record): #{join(shrunk, ", ")}\n"
+          unlines(
+            [
+              "the baseline can shrink (blue verbs check --record): #{join(shrunk, ", ")}"
+            ]
+          )
         )
       end
       if is_empty(failures)

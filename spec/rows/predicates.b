@@ -15,7 +15,7 @@ row("eq.nil_only_nil", "[nil == false, nil == nil]", value("[false, true]"))
 
 row(
   "eq.functions_by_identity",
-  "f = fn(x) x end\ng = fn(x) x end\n[f == f, f == g]",
+  join_lines(["f = fn(x) x end", "g = fn(x) x end", "[f == f, f == g]"]),
   value("[true, false]"),
   pending("G18", "vm")
 )
@@ -25,7 +25,12 @@ row("eq.eq_p", "eq?(:a, :a)", value("true"), covers("builtin:eq?"))
 
 row(
   "pred.one_kind",
-  "# waive B0036: the row covers this name itself\n[first(map(nil?, [nil])), bool?(true), integer?(1), float?(1.0), string?(\"s\"), keyword?(:k), list?([]), map?({})]",
+  join_lines(
+    [
+      "# waive B0036: the row covers this name itself",
+      "[first(map(nil?, [nil])), bool?(true), integer?(1), float?(1.0), string?(\"s\"), keyword?(:k), list?([]), map?({})]"
+    ]
+  ),
   value("[true, true, true, true, true, true, true, true]"),
   covers(
     "builtin:nil?",
@@ -116,7 +121,9 @@ row(
 
 row(
   "pred.some",
-  "# waive B0036: the row covers this name itself\n[some?(nil), some?(0)]",
+  join_lines(
+    ["# waive B0036: the row covers this name itself", "[some?(nil), some?(0)]"]
+  ),
   value("[false, true]"),
   covers("builtin:some?")
 )

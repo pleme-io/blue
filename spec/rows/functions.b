@@ -3,31 +3,61 @@
 
 row(
   "bind.statement",
-  "x = 5\nx + 1",
+  join_lines(["x = 5", "x + 1"]),
   value("6"),
   covers("form:x = 5"),
   covers("builtin:define")
 )
 
-row("bind.rebind", "x = 1\nx = 2\nx", value("2"))
-row("bind.define", "define(y, 3)\ny", value("3"))
-row("bind.set", "x = 1\nset!(x, 5)\nx", value("5"))
+row("bind.rebind", join_lines(["x = 1", "x = 2", "x"]), value("2"))
+row("bind.define", join_lines(["define(y, 3)", "y"]), value("3"))
+row("bind.set", join_lines(["x = 1", "set!(x, 5)", "x"]), value("5"))
 
 row(
   "bind.local.callee_keeps_its_own",
-  "def inner()\n  k = 2\n  k\nend\n\ndef outer()\n  k = 1\n  inner\n  k\nend\n\nouter",
+  join_lines(
+    [
+      "def inner()",
+      "  k = 2",
+      "  k",
+      "end",
+      "",
+      "def outer()",
+      "  k = 1",
+      "  inner",
+      "  k",
+      "end",
+      "",
+      "outer"
+    ]
+  ),
   value("1")
 )
 
 row(
   "bind.local.recursion_keeps_each_frame",
-  "def walk(n)\n  k = n\n  if n == 0\n    [k]\n  else\n    append(walk(n - 1), [k])\n  end\nend\n\nwalk(3)",
+  join_lines(
+    [
+      "def walk(n)",
+      "  k = n",
+      "  if n == 0",
+      "    [k]",
+      "  else",
+      "    append(walk(n - 1), [k])",
+      "  end",
+      "end",
+      "",
+      "walk(3)"
+    ]
+  ),
   value("[0, 1, 2, 3]")
 )
 
 row(
   "bind.local.top_level_unchanged",
-  "k = :top\n\ndef f()\n  k = 1\n  k\nend\n\n[f, k]",
+  join_lines(
+    ["k = :top", "", "def f()", "  k = 1", "  k", "end", "", "[f, k]"]
+  ),
   value("[1, :top]")
 )
 
@@ -40,123 +70,169 @@ row(
 
 row(
   "fn.def",
-  "def double(n)\n  n * 2\nend\n\ndouble(21)",
+  join_lines(["def double(n)", "  n * 2", "end", "", "double(21)"]),
   value("42"),
   covers("keyword:def", "form:f(x, y)")
 )
 
 row(
   "fn.rest",
-  "def pack(a, *rest)\n  [a, rest]\nend\n\n[pack(1), pack(1, 2, 3), pack(*[1, 2])]",
+  join_lines(
+    [
+      "def pack(a, *rest)",
+      "  [a, rest]",
+      "end",
+      "",
+      "[pack(1), pack(1, 2, 3), pack(*[1, 2])]"
+    ]
+  ),
   value("[[1, []], [1, [2, 3]], [1, [2]]]"),
   covers("form:(a, *rest) -> rest")
 )
 
 row(
   "fn.rest.only",
-  "def all(*xs)\n  xs\nend\n\n[all(), all(1, 2)]",
+  join_lines(["def all(*xs)", "  xs", "end", "", "[all(), all(1, 2)]"]),
   value("[[], [1, 2]]")
 )
 
 row(
   "fn.rest.lambda",
-  "f = (h, *t) -> [h, t]\ng = fn(*xs)\n  xs\nend\n[f(1, 2, 3), g(4, 5)]",
+  join_lines(
+    [
+      "f = (h, *t) -> [h, t]",
+      "g = fn(*xs)",
+      "  xs",
+      "end",
+      "[f(1, 2, 3), g(4, 5)]"
+    ]
+  ),
   value("[[1, [2, 3]], [4, 5]]")
 )
 
 row(
   "fn.rest.typed",
-  "def typed(a: Int, *rest) -> dyn\n  [a, rest]\nend\n\ntyped(1, 2)",
+  join_lines(
+    ["def typed(a: Int, *rest) -> dyn", "  [a, rest]", "end", "", "typed(1, 2)"]
+  ),
   value("[1, [2]]")
 )
 
 row(
   "fn.rest.too_few",
-  "def pack(a, b, *rest)\n  rest\nend\n\npack(1)",
+  join_lines(["def pack(a, b, *rest)", "  rest", "end", "", "pack(1)"]),
   fails(:eval, "expects at least 2 arguments, got 1"),
   pending("G19", "vm")
 )
 
 row(
   "fn.rest.not_last",
-  "def pack(*rest, a)\n  rest\nend",
+  join_lines(["def pack(*rest, a)", "  rest", "end"]),
   fails(:parse, "a rest parameter `*name` comes last")
 )
 
 row(
   "fmt.rest",
-  "def pack(a,*rest)\n  rest\nend",
-  formats("def pack(a, *rest)\n  rest\nend\n")
+  join_lines(["def pack(a,*rest)", "  rest", "end"]),
+  formats(unlines(["def pack(a, *rest)", "  rest", "end"]))
 )
 
 row(
   "fn.optional",
-  "def pick(a, b?, c?)\n  [a, b, c]\nend\n\n[pick(1), pick(1, 2), pick(1, 2, 3)]",
+  join_lines(
+    [
+      "def pick(a, b?, c?)",
+      "  [a, b, c]",
+      "end",
+      "",
+      "[pick(1), pick(1, 2), pick(1, 2, 3)]"
+    ]
+  ),
   value("[[1, nil, nil], [1, 2, nil], [1, 2, 3]]"),
   covers("form:def f(a, b?) b end")
 )
 
 row(
   "fn.optional.typed",
-  "def pick(a: Int, b?: Int) -> Int\n  a + (b or 10)\nend\n\n[pick(1), pick(1, 5)]",
+  join_lines(
+    [
+      "def pick(a: Int, b?: Int) -> Int",
+      "  a + (b or 10)",
+      "end",
+      "",
+      "[pick(1), pick(1, 5)]"
+    ]
+  ),
   value("[11, 6]")
 )
 
 row(
   "fn.optional.too_many",
-  "def pick(a, b?)\n  [a, b]\nend\n\npick(1, 2, 3)",
+  join_lines(["def pick(a, b?)", "  [a, b]", "end", "", "pick(1, 2, 3)"]),
   fails(:eval, "takes 1 to 2 arguments, got 3")
 )
 
 row(
   "fn.optional.required_after",
-  "def pick(a?, b)\n  a\nend",
+  join_lines(["def pick(a?, b)", "  a", "end"]),
   fails(:parse, "cannot follow an optional one")
 )
 
 row(
   "fn.optional.rest_after",
-  "def pick(a, b?, *rest)\n  a\nend",
+  join_lines(["def pick(a, b?, *rest)", "  a", "end"]),
   fails(:parse, "a rest parameter cannot follow an optional one")
 )
 
 row(
   "fmt.optional",
-  "def pick(a,b?)\n  [a, b]\nend",
-  formats("def pick(a, b?)\n  [a, b]\nend\n")
+  join_lines(["def pick(a,b?)", "  [a, b]", "end"]),
+  formats(unlines(["def pick(a, b?)", "  [a, b]", "end"]))
 )
 
-row("fn.def.bare_call", "def f()\n  41\nend\n\nf + 1", value("42"))
+row(
+  "fn.def.bare_call",
+  join_lines(["def f()", "  41", "end", "", "f + 1"]),
+  value("42")
+)
 
 row(
   "fn.def.bare_call.condition",
-  "def no()\n  false\nend\n\nif no\n  1\nelse\n  2\nend",
+  join_lines(
+    ["def no()", "  false", "end", "", "if no", "  1", "else", "  2", "end"]
+  ),
   value("2")
 )
 
 row(
   "fn.def.bare_call.local_is_its_value",
-  "def f()\n  1\nend\n\ndef g(f)\n  f + 10\nend\n\ng(5)",
+  join_lines(
+    ["def f()", "  1", "end", "", "def g(f)", "  f + 10", "end", "", "g(5)"]
+  ),
   value("15")
 )
 
 row(
   "fn.def.bare_call.value_form",
-  "def f()\n  2\nend\n\napply(fn() f end, [])",
+  join_lines(["def f()", "  2", "end", "", "apply(fn() f end, [])"]),
   value("2")
 )
 
 row(
   "fn.def.bare_call.arguments_stay_values",
-  "def inc(x)\n  x + 1\nend\n\nmap(inc, [1, 2])",
+  join_lines(["def inc(x)", "  x + 1", "end", "", "map(inc, [1, 2])"]),
   value("[2, 3]")
 )
 
-row("fn.def.last_expression", "def f()\n  1\n  2\nend\n\nf", value("2"))
+row(
+  "fn.def.last_expression",
+  join_lines(["def f()", "  1", "  2", "end", "", "f"]),
+  value("2")
+)
 
 row(
   "fn.anonymous",
-  "f = fn(x) x * 2 end\nf(4)",
+  join_lines(["f = fn(x) x * 2 end", "f(4)"]),
   value("8"),
   covers("keyword:fn"),
   covers("builtin:lambda")
@@ -171,38 +247,95 @@ row(
 
 row(
   "fn.closure",
-  "def adder(n)\n  fn(x) x + n end\nend\n\nadd2 = adder(2)\nadd2(5)",
+  join_lines(
+    [
+      "def adder(n)",
+      "  fn(x) x + n end",
+      "end",
+      "",
+      "add2 = adder(2)",
+      "add2(5)"
+    ]
+  ),
   value("7")
 )
 
 row(
   "fn.closure.captures_value",
-  "n = 1\nf = fn() n end\nn = 2\nf()",
+  join_lines(["n = 1", "f = fn() n end", "n = 2", "f()"]),
   value("2")
 )
 
 row(
   "fn.recursion",
-  "def fact(n)\n  if n < 2\n    1\n  else\n    n * fact(n - 1)\n  end\nend\n\nfact(10)",
+  join_lines(
+    [
+      "def fact(n)",
+      "  if n < 2",
+      "    1",
+      "  else",
+      "    n * fact(n - 1)",
+      "  end",
+      "end",
+      "",
+      "fact(10)"
+    ]
+  ),
   value("3628800")
 )
 
 row(
   "fn.tail_calls",
-  "def spin(n, acc)\n  if n == 0\n    acc\n  else\n    spin(n - 1, acc + 1)\n  end\nend\n\nspin(100000, 0)",
+  join_lines(
+    [
+      "def spin(n, acc)",
+      "  if n == 0",
+      "    acc",
+      "  else",
+      "    spin(n - 1, acc + 1)",
+      "  end",
+      "end",
+      "",
+      "spin(100000, 0)"
+    ]
+  ),
   value("100000")
 )
 
 row(
   "fn.deep_recursion",
-  "def depth(n)\n  if n == 0\n    0\n  else\n    1 + depth(n - 1)\n  end\nend\n\ndepth(100000)",
+  join_lines(
+    [
+      "def depth(n)",
+      "  if n == 0",
+      "    0",
+      "  else",
+      "    1 + depth(n - 1)",
+      "  end",
+      "end",
+      "",
+      "depth(100000)"
+    ]
+  ),
   fails(:eval, "depth"),
   isolate()
 )
 
 row(
   "fn.deep_recursion.catchable",
-  "def depth(n)\n  if n == 0\n    0\n  else\n    1 + depth(n - 1)\n  end\nend\n\ntry(depth(100000), catch(_e(), :caught))",
+  join_lines(
+    [
+      "def depth(n)",
+      "  if n == 0",
+      "    0",
+      "  else",
+      "    1 + depth(n - 1)",
+      "  end",
+      "end",
+      "",
+      "try(depth(100000), catch(_e(), :caught))"
+    ]
+  ),
   value(":caught"),
   isolate()
 )
@@ -211,14 +344,14 @@ row(
 # behaviour), and the suite runs every column under `ROW_STEPS` (the VM's 50M).
 row(
   "fn.runaway_is_bounded",
-  "def spin(n)\n  spin(n + 1)\nend\n\nspin(0)",
+  join_lines(["def spin(n)", "  spin(n + 1)", "end", "", "spin(0)"]),
   fails(:eval, "budget"),
   isolate()
 )
 
 row(
   "fn.arity",
-  "def f(a, b)\n  a\nend\n\nf(1)",
+  join_lines(["def f(a, b)", "  a", "end", "", "f(1)"]),
   fails(:eval, "f"),
   pending("G19", "vm")
 )
@@ -247,7 +380,7 @@ row("fn.no_blocks", "xs.map { |x| x }", fails(:parse, "fn(x)"))
 
 row(
   "fn.no_do",
-  "each(xs) do |x|\n  x\nend",
+  join_lines(["each(xs) do |x|", "  x", "end"]),
   fails(:parse, "`do`"),
   covers("keyword:do")
 )
@@ -268,7 +401,12 @@ row(
 
 row(
   "fn.comp",
-  "# waive B0036: the row covers this name itself\ncomp(fn(x) x + 1 end, fn(x) x * 2 end)(5)",
+  join_lines(
+    [
+      "# waive B0036: the row covers this name itself",
+      "comp(fn(x) x + 1 end, fn(x) x * 2 end)(5)"
+    ]
+  ),
   value("11"),
   covers("builtin:comp")
 )
@@ -320,7 +458,12 @@ row("fn.find.nil_is_empty", "find(nil, fn(_x) true end)", value("nil"))
 
 row(
   "fn.find.function_first_is_bridged",
-  "# waive B0062: the tatara-lisp callers pass the function first\nfind(fn(x) x > 1 end, [1, 2, 3])",
+  join_lines(
+    [
+      "# waive B0062: the tatara-lisp callers pass the function first",
+      "find(fn(x) x > 1 end, [1, 2, 3])"
+    ]
+  ),
   value("2")
 )
 
@@ -335,7 +478,9 @@ row(
 
 row(
   "fn.flat_map.nil_result_adds_nothing",
-  "flat_map([1, 2], fn(x) if x == 1\n  nil\nelse\n  [x]\nend end)",
+  join_lines(
+    ["flat_map([1, 2], fn(x) if x == 1", "  nil", "else", "  [x]", "end end)"]
+  ),
   value("[2]")
 )
 
@@ -383,7 +528,12 @@ row(
 
 row(
   "fn.foldl",
-  "# waive B0036: the row covers this name itself\nfoldl(fn(acc, x) acc - x end, 10, [1, 2])",
+  join_lines(
+    [
+      "# waive B0036: the row covers this name itself",
+      "foldl(fn(acc, x) acc - x end, 10, [1, 2])"
+    ]
+  ),
   value("7"),
   covers("builtin:foldl")
 )
@@ -412,7 +562,7 @@ row(
 
 row(
   "fn.memoize",
-  "f = memoize(fn(x) x * x end)\n[f(3), f(3)]",
+  join_lines(["f = memoize(fn(x) x * x end)", "[f(3), f(3)]"]),
   value("[9, 9]"),
   covers("builtin:memoize")
 )
@@ -467,7 +617,12 @@ row(
   covers("builtin:visit")
 )
 
-row("fn.eval", "eval(quote\n  1 + 2\nend)", value("3"), covers("builtin:eval"))
+row(
+  "fn.eval",
+  join_lines(["eval(quote", "  1 + 2", "end)"]),
+  value("3"),
+  covers("builtin:eval")
+)
 
 row(
   "fn.gensym",
@@ -478,6 +633,6 @@ row(
 
 row(
   "fn.rest_params",
-  "def f(a, *rest)\n  rest\nend\n\nf(1, 2, 3)",
+  join_lines(["def f(a, *rest)", "  rest", "end", "", "f(1, 2, 3)"]),
   value("[2, 3]")
 )

@@ -23,7 +23,52 @@ end
 # 2026-10-24. A row may shrink or hold, never grow; a package with no row
 # holds at zero.
 def recorded()
-  "untested: bougyo 1\nuntested: danpen 1\nuntested: deeta 3\nuntested: empresa 2\nuntested: gitto 1\nuntested: gyouretsu 1\nuntested: haibi 1\nuntested: heni 2\nuntested: hyouka 9\nuntested: jitaku 11\nuntested: kakou 2\nuntested: keisoku 6\nuntested: keiyu 1\nuntested: kijun 9\nuntested: kikagaku 1\nuntested: kinji 2\nuntested: kinko 5\nuntested: kirikae 16\nuntested: kiwari 14\nuntested: kousei 1\nuntested: kueri 7\nuntested: kyuuji 2\nuntested: mokuroku 8\nuntested: nikkusu 1\nuntested: okite 1\nuntested: outou 11\nuntested: raifusaikuru 25\nuntested: retsu 2\nuntested: rittai 6\nuntested: rogu 5\nuntested: ryouiki 1\nuntested: sabi 2\nuntested: settei 5\nuntested: shinchoku 14\nuntested: shinsuu 1\nuntested: souji 5\nuntested: teeburu 3\nuntested: tehai 1\nuntested: touroku 3\nuntested: tsuushin 1\nuntested: ukai 16\nuntested: zumen 1\n"
+  unlines(
+    [
+      "untested: bougyo 1",
+      "untested: danpen 1",
+      "untested: deeta 3",
+      "untested: empresa 2",
+      "untested: gitto 1",
+      "untested: gyouretsu 1",
+      "untested: haibi 1",
+      "untested: heni 2",
+      "untested: hyouka 9",
+      "untested: jitaku 11",
+      "untested: kakou 2",
+      "untested: keisoku 6",
+      "untested: keiyu 1",
+      "untested: kijun 9",
+      "untested: kikagaku 1",
+      "untested: kinji 2",
+      "untested: kinko 5",
+      "untested: kirikae 16",
+      "untested: kiwari 14",
+      "untested: kousei 1",
+      "untested: kueri 7",
+      "untested: kyuuji 2",
+      "untested: mokuroku 8",
+      "untested: nikkusu 1",
+      "untested: okite 1",
+      "untested: outou 11",
+      "untested: raifusaikuru 25",
+      "untested: retsu 2",
+      "untested: rittai 6",
+      "untested: rogu 5",
+      "untested: ryouiki 1",
+      "untested: sabi 2",
+      "untested: settei 5",
+      "untested: shinchoku 14",
+      "untested: shinsuu 1",
+      "untested: souji 5",
+      "untested: teeburu 3",
+      "untested: tehai 1",
+      "untested: touroku 3",
+      "untested: tsuushin 1",
+      "untested: ukai 16",
+      "untested: zumen 1"
+    ]
+  )
 end
 
 def today()
@@ -45,7 +90,7 @@ end
 def records_of(text)
   map(
     json_read,
-    filter((l) -> starts_with?(l, "{\"covered\""), split(text, "\n"))
+    filter((l) -> starts_with?(l, "{\"covered\""), split(text, line_break))
   )
 end
 
@@ -142,9 +187,17 @@ def report(r, baseline)
   hint = if down == []
     ""
   else
-    "debt shrank; record it in gen/test-beside.b:\n#{render("untested", filter((m) -> get(m, :size) > 0, get(r, :measurements)))}"
+    join_lines(
+      [
+        "debt shrank; record it in gen/test-beside.b:",
+        render(
+          "untested",
+          filter((m) -> get(m, :size) > 0, get(r, :measurements))
+        )
+      ]
+    )
   end
-  "#{join(lines, "\n")}\n#{hint}"
+  join_lines([join(lines, line_break), hint])
 end
 
 def zed_root(source)
@@ -154,13 +207,18 @@ def zed_root(source)
   )
   rm_rf(root)
   mkdir_p(path_join(root, "zed"))
-  write_file(path_join(root, "zed/Bluefile"), "package(\"zed\", \"0.1.0\")\n")
+  write_file(
+    path_join(root, "zed/Bluefile"),
+    unlines(["package(\"zed\", \"0.1.0\")"])
+  )
   write_program(path_join(root, "zed/zed.b"), source)
   root
 end
 
 def zed(tests)
-  "def lower(s)\n  s\nend\n\ndef upper(s)\n  s\nend\n\n#{tests}"
+  join_lines(
+    ["def lower(s)", "  s", "end", "", "def upper(s)", "  s", "end", "", tests]
+  )
 end
 
 def zed_judged(entries, baseline, tests)
@@ -171,11 +229,18 @@ def zed_judged(entries, baseline, tests)
 end
 
 def lower_only()
-  "test \"lower\"\n  assert lower(\"A\") == \"A\"\nend\n"
+  unlines(["test \"lower\"", "  assert lower(\"A\") == \"A\"", "end"])
 end
 
 def both()
-  "test \"both\"\n  assert lower(\"A\") == \"A\"\n  assert upper(\"a\") == \"a\"\nend\n"
+  unlines(
+    [
+      "test \"both\"",
+      "  assert lower(\"A\") == \"A\"",
+      "  assert upper(\"a\") == \"a\"",
+      "end"
+    ]
+  )
 end
 
 test "an untested definition with no recorded debt is red, and its test beside it turns it green"
@@ -187,11 +252,11 @@ test "an untested definition with no recorded debt is red, and its test beside i
 end
 
 test "recorded debt holds, and growth past it is red"
-  assert not red?(zed_judged(entries, "untested: zed 1\n", lower_only))
+  assert not red?(zed_judged(entries, unlines(["untested: zed 1"]), lower_only))
   grew = zed_judged(
     entries,
-    "untested: zed 1\n",
-    "test \"none\"\n  assert 1 == 1\nend\n"
+    unlines(["untested: zed 1"]),
+    unlines(["test \"none\"", "  assert 1 == 1", "end"])
   )
   assert map((v) -> get(v, :why), get(grew, :red)) ==
     ["2 untested beyond the recorded debt: zed::lower, zed::upper"]
@@ -230,7 +295,7 @@ test "a package whose tests fail is blind, never green"
   r = zed_judged(
     entries,
     "",
-    "test \"no\"\n  assert lower(\"A\") == \"B\"\nend\n"
+    unlines(["test \"no\"", "  assert lower(\"A\") == \"B\"", "end"])
   )
   assert map((v) -> get(v, :why), get(r, :red)) ==
     ["its tests did not run green"]

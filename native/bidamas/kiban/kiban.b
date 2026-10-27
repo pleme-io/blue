@@ -84,7 +84,7 @@ end
 # other byte is refused rather than guessed at.
 def kb_char(c)
   if c == 10
-    "\n"
+    line_break
   elsif c >= 32 and c < 127
     nth(c - 32, chars(kb_ascii))
   else
@@ -138,7 +138,7 @@ test "the UART model prints ASCII and newline, and refuses other bytes"
   assert kb_char(104) == "h"
   assert kb_char(126) == "~"
   assert kb_char(32) == " "
-  assert kb_char(10) == "\n"
+  assert kb_char(10) == line_break
   assert (kb_char(7) rescue :refused) == :refused
 end
 

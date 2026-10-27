@@ -5,84 +5,145 @@
 
 row(
   "dispatch.tagged.read",
-  "verb_for(\"s\", \"read\", (x) -> x + 1)\nread(in_space(\"s\", 1))",
+  join_lines(
+    ["verb_for(\"s\", \"read\", (x) -> x + 1)", "read(in_space(\"s\", 1))"]
+  ),
   value("2"),
   covers("builtin:verb_for", "builtin:in_space", "builtin:read")
 )
 
 row(
   "dispatch.extra_arguments_follow_the_subject",
-  "verb_for(\"s\", \"diff\", (s, a, b) -> a - b)\ndiff(in_space(\"s\", 0), 5, 3)",
+  join_lines(
+    [
+      "verb_for(\"s\", \"diff\", (s, a, b) -> a - b)",
+      "diff(in_space(\"s\", 0), 5, 3)"
+    ]
+  ),
   value("2"),
   covers("builtin:diff")
 )
 
 row(
   "dispatch.kind.put",
-  "space_for(:map, \"m\")\nverb_for(\"m\", \"put\", (m, k, v) -> assoc(m, k, v))\nput({}, :a, 1)",
+  join_lines(
+    [
+      "space_for(:map, \"m\")",
+      "verb_for(\"m\", \"put\", (m, k, v) -> assoc(m, k, v))",
+      "put({}, :a, 1)"
+    ]
+  ),
   value("{a: 1}"),
   covers("builtin:space_for", "builtin:put")
 )
 
 row(
   "dispatch.kind.need",
-  "space_for(:map, \"m\")\nverb_for(\"m\", \"need\", (m, k) -> get(m, k))\nneed({a: 7}, :a)",
+  join_lines(
+    [
+      "space_for(:map, \"m\")",
+      "verb_for(\"m\", \"need\", (m, k) -> get(m, k))",
+      "need({a: 7}, :a)"
+    ]
+  ),
   value("7"),
   covers("builtin:need")
 )
 
 row(
   "dispatch.kind.has",
-  "space_for(:map, \"m\")\nverb_for(\"m\", \"has?\", (m, k) -> get(m, k) != nil)\n[has?({a: 1}, :a), has?({}, :a)]",
+  join_lines(
+    [
+      "space_for(:map, \"m\")",
+      "verb_for(\"m\", \"has?\", (m, k) -> get(m, k) != nil)",
+      "[has?({a: 1}, :a), has?({}, :a)]"
+    ]
+  ),
   value("[true, false]"),
   covers("builtin:has?")
 )
 
 row(
   "dispatch.kind.update",
-  "space_for(:map, \"m\")\nverb_for(\"m\", \"update\", (m, k, f) -> assoc(m, k, f(get(m, k))))\nupdate({n: 1}, :n, (x) -> x + 1)",
+  join_lines(
+    [
+      "space_for(:map, \"m\")",
+      "verb_for(\"m\", \"update\", (m, k, f) -> assoc(m, k, f(get(m, k))))",
+      "update({n: 1}, :n, (x) -> x + 1)"
+    ]
+  ),
   value("{n: 2}"),
   covers("builtin:update")
 )
 
 row(
   "dispatch.kind.delete",
-  "space_for(:map, \"m\")\nverb_for(\"m\", \"delete\", (m, k) -> dissoc(m, k))\n[delete({a: 1}, :a), delete({}, :a)]",
+  join_lines(
+    [
+      "space_for(:map, \"m\")",
+      "verb_for(\"m\", \"delete\", (m, k) -> dissoc(m, k))",
+      "[delete({a: 1}, :a), delete({}, :a)]"
+    ]
+  ),
   value("[{}, {}]"),
   covers("builtin:delete")
 )
 
 row(
   "dispatch.tagged.create",
-  "verb_for(\"s\", \"create\", (s, k, v) -> [s, k, v])\ncreate(in_space(\"s\", 1), 2, 3)",
+  join_lines(
+    [
+      "verb_for(\"s\", \"create\", (s, k, v) -> [s, k, v])",
+      "create(in_space(\"s\", 1), 2, 3)"
+    ]
+  ),
   value("[1, 2, 3]"),
   covers("builtin:create")
 )
 
 row(
   "dispatch.tagged.info",
-  "verb_for(\"s\", \"info\", (s) -> {of: s})\ninfo(in_space(\"s\", 9))",
+  join_lines(
+    ["verb_for(\"s\", \"info\", (s) -> {of: s})", "info(in_space(\"s\", 9))"]
+  ),
   value("{of: 9}"),
   covers("builtin:info")
 )
 
 row(
   "dispatch.tagged.exists",
-  "verb_for(\"s\", \"exists?\", (s, ref) -> s == ref)\n[exists?(in_space(\"s\", 1), 1), exists?(in_space(\"s\", 1), 2)]",
+  join_lines(
+    [
+      "verb_for(\"s\", \"exists?\", (s, ref) -> s == ref)",
+      "[exists?(in_space(\"s\", 1), 1), exists?(in_space(\"s\", 1), 2)]"
+    ]
+  ),
   value("[true, false]"),
   covers("builtin:exists?")
 )
 
 row(
   "dispatch.space_of",
-  "space_for(:map, \"m\")\n[space_of({}), space_of(in_space(\"t\", 1)), space_of(1), space_of(nil)]",
+  join_lines(
+    [
+      "space_for(:map, \"m\")",
+      "[space_of({}), space_of(in_space(\"t\", 1)), space_of(1), space_of(nil)]"
+    ]
+  ),
   value("[\"m\", \"t\", nil, nil]"),
   covers("builtin:space_of")
 )
 
 row(
   "dispatch.tag_wins_over_kind",
-  "space_for(:map, \"m\")\nverb_for(\"m\", \"read\", (x) -> :kind)\nverb_for(\"t\", \"read\", (x) -> :tag)\n[read({}), read(in_space(\"t\", {}))]",
+  join_lines(
+    [
+      "space_for(:map, \"m\")",
+      "verb_for(\"m\", \"read\", (x) -> :kind)",
+      "verb_for(\"t\", \"read\", (x) -> :tag)",
+      "[read({}), read(in_space(\"t\", {}))]"
+    ]
+  ),
   value("[:kind, :tag]")
 )
 
@@ -94,7 +155,9 @@ row(
 
 row(
   "dispatch.no_handler",
-  "verb_for(\"s\", \"read\", (x) -> x)\ndelete(in_space(\"s\", 1), 1)",
+  join_lines(
+    ["verb_for(\"s\", \"read\", (x) -> x)", "delete(in_space(\"s\", 1), 1)"]
+  ),
   fails(:eval, "space s has no handler")
 )
 
@@ -112,7 +175,7 @@ row(
 
 row(
   "dispatch.kind_has_one_owner",
-  "space_for(:map, \"a\")\nspace_for(:map, \"b\")",
+  join_lines(["space_for(:map, \"a\")", "space_for(:map, \"b\")"]),
   fails(:eval, "kind map already belongs to space a")
 )
 

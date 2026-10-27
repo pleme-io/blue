@@ -415,7 +415,7 @@ end
 # VERTEXes and SEQEND, R12's only polyline.
 
 def dxf_pairs(pairs)
-  join(map((p) -> "#{to_s(nth(0, p))}\n#{to_s(nth(1, p))}\n", pairs), "")
+  join(map((p) -> unlines([to_s(nth(0, p)), to_s(nth(1, p))]), pairs), "")
 end
 
 def dxf(entities)
@@ -576,8 +576,15 @@ def svg(entities, margin)
   y1 = py(nth(1, bb)) + margin
   w = px(nth(1, bb)) - px(nth(0, bb)) + 2 * margin
   h = py(nth(1, bb)) - py(nth(0, bb)) + 2 * margin
-  body = join(map((e) -> svg_entity(e, x0, y1), entities), "\n")
-  "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"#{num(w)}mm\" height=\"#{num(h)}mm\" viewBox=\"0 0 #{num(w)} #{num(h)}\">\n<rect width=\"100%\" height=\"100%\" fill=\"#ffffff\"/>\n#{body}\n</svg>\n"
+  body = join(map((e) -> svg_entity(e, x0, y1), entities), line_break)
+  unlines(
+    [
+      "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"#{num(w)}mm\" height=\"#{num(h)}mm\" viewBox=\"0 0 #{num(w)} #{num(h)}\">",
+      "<rect width=\"100%\" height=\"100%\" fill=\"#ffffff\"/>",
+      body,
+      "</svg>"
+    ]
+  )
 end
 
 def sx(p, x0)
@@ -634,7 +641,7 @@ record, so this counts records of that kind and not the same word used as a
 layer name or a value.
 """
 def zu_count(text, kind)
-  ls = split(text, "\n")
+  ls = split(text, line_break)
   size(
     filter(
       (i) -> nth(i, ls) == "0" and nth(i + 1, ls) == kind,
@@ -656,8 +663,8 @@ end
 
 test "an empty drawing is still a whole DXF"
   d = dxf([])
-  assert starts_with?(d, "0\nSECTION\n2\nHEADER\n") == true
-  assert ends_with?(d, "0\nEOF\n") == true
+  assert starts_with?(d, unlines(["0", "SECTION", "2", "HEADER"])) == true
+  assert ends_with?(d, unlines(["0", "EOF"])) == true
   assert zu_count(d, "ENDSEC") == 3
   assert zu_count(d, "LAYER") == size(layers)
 end

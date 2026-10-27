@@ -1778,7 +1778,7 @@ def braced_lines(lines)
   if is_empty(lines)
     ""
   else
-    " {\n#{join(lines, "\n")}\n}"
+    join_lines([" {", join(lines, line_break), "}"])
   end
 end
 
@@ -1816,12 +1816,21 @@ def roots_sdl(sc)
       ["subscription", sc.subscription]
     ]
   )
-  "schema {\n#{join(map((r) -> "  #{first(r)}: #{nth(1, r)}", roots), "\n")}\n}"
+  join_lines(
+    [
+      "schema {",
+      join(map((r) -> "  #{first(r)}: #{nth(1, r)}", roots), line_break),
+      "}"
+    ]
+  )
 end
 
 def sdl(sc)
   types = filter(user_type?, map((e) -> nth(1, e), map_entries(sc.types)))
-  join(append([roots_sdl(sc)], map((t) -> type_sdl(sc, t), types)), "\n\n")
+  join(
+    append([roots_sdl(sc)], map((t) -> type_sdl(sc, t), types)),
+    unlines(["", ""])
+  )
 end
 
 def findings(doc, sc)
@@ -2728,7 +2737,7 @@ test "a valid document has no findings, and a bad one is refused with its locati
     parse("query Q($e: Episode, $u: Unit = FOOT) { hero(episode: $e) { name ...F ... on Droid { primaryFunction } } human(id: \"1\") { height(unit: $u) } } fragment F on Character { id friends { name } }")
   )
   assert findings(ok_doc, sc) == []
-  bad = findings(value(parse("{\n  hero { nope } }")), sc)
+  bad = findings(value(parse(join_lines(["{", "  hero { nope } }"]))), sc)
   assert size(bad) == 1
   assert first(bad).locations == [{line: 2, column: 10}]
   assert kyohi::kind(refusal_of(validate(value(parse("{ nope }")), sc))) ==

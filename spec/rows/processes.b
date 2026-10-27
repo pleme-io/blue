@@ -5,14 +5,24 @@
 
 row(
   "processes.spawn.runs_a_function",
-  "me = self\nspawn(fn() send(me, 42) end)\nreceive()",
+  join_lines(["me = self", "spawn(fn() send(me, 42) end)", "receive()"]),
   value("42"),
   covers("builtin:spawn", "builtin:self", "builtin:send", "builtin:receive")
 )
 
 row(
   "processes.spawn.brings_helpers_and_copies_captures",
-  "def double(x)\n  x * 2\nend\nme = self\nk = 20\nspawn(fn() send(me, [:r, double(k + 1)]) end)\nreceive()",
+  join_lines(
+    [
+      "def double(x)",
+      "  x * 2",
+      "end",
+      "me = self",
+      "k = 20",
+      "spawn(fn() send(me, [:r, double(k + 1)]) end)",
+      "receive()"
+    ]
+  ),
   value("[:r, 42]")
 )
 
@@ -24,7 +34,14 @@ row(
 
 row(
   "processes.receive.selective",
-  "me = self\nsend(me, :noise)\nsend(me, [:reply, 1])\n[receive([:reply, :_]), receive()]",
+  join_lines(
+    [
+      "me = self",
+      "send(me, :noise)",
+      "send(me, [:reply, 1])",
+      "[receive([:reply, :_]), receive()]"
+    ]
+  ),
   value("[[:reply, 1], :noise]")
 )
 
@@ -38,63 +55,141 @@ row(
 
 row(
   "processes.alive_and_exit",
-  "p = spawn(fn() receive() end)\na = alive?(p)\nexit(p, :kill)\n[a, alive?(p)]",
+  join_lines(
+    [
+      "p = spawn(fn() receive() end)",
+      "a = alive?(p)",
+      "exit(p, :kill)",
+      "[a, alive?(p)]"
+    ]
+  ),
   value("[true, false]"),
   covers("builtin:alive?", "builtin:exit")
 )
 
 row(
   "processes.spawn_link.crash_reaches_the_program",
-  "spawn_link(fn() raise(:x, \"boom\") end)\nreceive()",
+  join_lines(["spawn_link(fn() raise(:x, \"boom\") end)", "receive()"]),
   fails(:eval, "linked process 1 exited"),
   covers("builtin:spawn_link")
 )
 
 row(
   "processes.link_and_unlink",
-  "p = spawn(fn() receive() end)\n[link(p), unlink(p), link(999)]",
+  join_lines(
+    ["p = spawn(fn() receive() end)", "[link(p), unlink(p), link(999)]"]
+  ),
   value("[true, true, false]"),
   covers("builtin:link", "builtin:unlink")
 )
 
 row(
   "processes.trap_exit",
-  "trap_exit(true)\nspawn_link(fn() raise(:x, \"boom\") end)\nm = receive()\n[nth(0, m), nth(1, m)]",
+  join_lines(
+    [
+      "trap_exit(true)",
+      "spawn_link(fn() raise(:x, \"boom\") end)",
+      "m = receive()",
+      "[nth(0, m), nth(1, m)]"
+    ]
+  ),
   value("[:exit, 1]"),
   covers("builtin:trap_exit")
 )
 
 row(
   "processes.monitor",
-  "p = spawn(fn() 1 end)\nm = monitor(p)\nreceive()",
+  join_lines(["p = spawn(fn() 1 end)", "m = monitor(p)", "receive()"]),
   value("[:down, 1, 1, :normal]"),
   covers("builtin:monitor")
 )
 
 row(
   "processes.demonitor",
-  "p = spawn(fn() receive() end)\nm = monitor(p)\ndemonitor(m)\nexit(p, :kill)\nreceive(:_, 10, :quiet)",
+  join_lines(
+    [
+      "p = spawn(fn() receive() end)",
+      "m = monitor(p)",
+      "demonitor(m)",
+      "exit(p, :kill)",
+      "receive(:_, 10, :quiet)"
+    ]
+  ),
   value(":quiet"),
   covers("builtin:demonitor")
 )
 
 row(
   "processes.supervisor.restarts_a_crashed_child",
-  "def child(parent)\n  send(parent, :up)\n  if receive() == :crash\n    raise(:asked, \"crash\")\n  end\nend\nme = self\nsup = supervisor(:one_for_one, [[child, [me]]], 3)\nc = nth(0, children(sup))\nreceive(:up)\nsend(c, :crash)\nreceive(:up)",
+  join_lines(
+    [
+      "def child(parent)",
+      "  send(parent, :up)",
+      "  if receive() == :crash",
+      "    raise(:asked, \"crash\")",
+      "  end",
+      "end",
+      "me = self",
+      "sup = supervisor(:one_for_one, [[child, [me]]], 3)",
+      "c = nth(0, children(sup))",
+      "receive(:up)",
+      "send(c, :crash)",
+      "receive(:up)"
+    ]
+  ),
   value(":up"),
   covers("builtin:supervisor", "builtin:children")
 )
 
 row(
   "processes.spawn_server",
-  "def h(msg, n)\n  if list?(msg)\n    send(nth(1, msg), n)\n    n\n  else\n    n + msg\n  end\nend\ns = spawn_server(h, 1)\nsend(s, 2)\nsend(s, [:get, self])\nreceive()",
+  join_lines(
+    [
+      "def h(msg, n)",
+      "  if list?(msg)",
+      "    send(nth(1, msg), n)",
+      "    n",
+      "  else",
+      "    n + msg",
+      "  end",
+      "end",
+      "s = spawn_server(h, 1)",
+      "send(s, 2)",
+      "send(s, [:get, self])",
+      "receive()"
+    ]
+  ),
   value("3"),
   covers("builtin:spawn_server")
 )
 
 row(
   "processes.defmigrate.keeps_the_mailbox_and_migrates_state",
-  "def h(msg, n)\n  if list?(msg)\n    send(nth(1, msg), n)\n    n\n  else\n    n + msg\n  end\nend\ndef h2(msg, n)\n  if list?(msg)\n    send(nth(1, msg), [:v2, n])\n    n\n  else\n    n + 2 * msg\n  end\nend\ns = spawn_server(h, 1)\nsend(s, 2)\nr = defmigrate(h, h2, fn(n) n * 10 end)\nsend(s, [:get, self])\n[r, receive()]",
+  join_lines(
+    [
+      "def h(msg, n)",
+      "  if list?(msg)",
+      "    send(nth(1, msg), n)",
+      "    n",
+      "  else",
+      "    n + msg",
+      "  end",
+      "end",
+      "def h2(msg, n)",
+      "  if list?(msg)",
+      "    send(nth(1, msg), [:v2, n])",
+      "    n",
+      "  else",
+      "    n + 2 * msg",
+      "  end",
+      "end",
+      "s = spawn_server(h, 1)",
+      "send(s, 2)",
+      "r = defmigrate(h, h2, fn(n) n * 10 end)",
+      "send(s, [:get, self])",
+      "[r, receive()]"
+    ]
+  ),
   value("[[[1, :ok]], [:v2, 14]]"),
   covers("builtin:defmigrate")
 )

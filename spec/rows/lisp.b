@@ -75,7 +75,7 @@ row(
 
 row(
   "lisp.defflow",
-  "defflow(flow, fn(x) x + 1 end, fn(x) x * 2 end)\nflow(3)",
+  join_lines(["defflow(flow, fn(x) x + 1 end, fn(x) x * 2 end)", "flow(3)"]),
   value("8"),
   covers("builtin:defflow")
 )

@@ -34,7 +34,7 @@ end
 not_found: The 404 response for a request.
 """
 def not_found(req)
-  text(404, "no route for #{get(req, :method)} #{get(req, :path)}\n")
+  text(404, unlines(["no route for #{get(req, :method)} #{get(req, :path)}"]))
 end
 
 def query_params(req)
@@ -67,17 +67,17 @@ end
 
 def answer(req, health, handler)
   if get(req, :path) == health
-    text(200, "ok\n")
+    text(200, unlines(["ok"]))
   else
     resp = begin
       dispatch(handler, req)
     rescue e
-      text(500, "#{e.message}\n")
+      text(500, unlines([e.message]))
     end
     if well_formed?(resp)
       resp
     else
-      text(500, "the handler answered #{to_s(resp)}, not a response\n")
+      text(500, unlines(["the handler answered #{to_s(resp)}, not a response"]))
     end
   end
 end
@@ -93,7 +93,11 @@ def serve_once(l, health, handler, wait_ms)
     resp = wire(answer(req, health, handler))
     http_respond(req, get(resp, :status), get(resp, :headers), get(resp, :body))
     write_stderr(
-      "kyuuji: #{get(req, :method)} #{get(req, :path)} #{to_s(get(resp, :status))}\n"
+      unlines(
+        [
+          "kyuuji: #{get(req, :method)} #{get(req, :path)} #{to_s(get(resp, :status))}"
+        ]
+      )
     )
     get(resp, :status)
   end
@@ -186,7 +190,33 @@ def exposition(m, service)
     end,
     blue::zip(latency_bounds, get(m, "buckets"))
   )
-  "#{join(append(["# HELP http_requests_total Requests answered, by status class.", "# TYPE http_requests_total counter"], requests, ["# HELP http_request_errors_total Requests answered with a 5xx status.", "# TYPE http_request_errors_total counter", "http_request_errors_total{#{l}} #{to_s(get(m, "errors"))}", "# HELP http_request_duration_seconds Time from a request to its answer.", "# TYPE http_request_duration_seconds histogram"], buckets, ["http_request_duration_seconds_bucket{#{l},le=\"+Inf\"} #{to_s(get(m, "count"))}", "http_request_duration_seconds_sum{#{l}} #{to_s(get(m, "sum"))}", "http_request_duration_seconds_count{#{l}} #{to_s(get(m, "count"))}"]), "\n")}\n"
+  unlines(
+    [
+      join(
+        append(
+          [
+            "# HELP http_requests_total Requests answered, by status class.",
+            "# TYPE http_requests_total counter"
+          ],
+          requests,
+          [
+            "# HELP http_request_errors_total Requests answered with a 5xx status.",
+            "# TYPE http_request_errors_total counter",
+            "http_request_errors_total{#{l}} #{to_s(get(m, "errors"))}",
+            "# HELP http_request_duration_seconds Time from a request to its answer.",
+            "# TYPE http_request_duration_seconds histogram"
+          ],
+          buckets,
+          [
+            "http_request_duration_seconds_bucket{#{l},le=\"+Inf\"} #{to_s(get(m, "count"))}",
+            "http_request_duration_seconds_sum{#{l}} #{to_s(get(m, "sum"))}",
+            "http_request_duration_seconds_count{#{l}} #{to_s(get(m, "count"))}"
+          ]
+        ),
+        line_break
+      )
+    ]
+  )
 end
 
 def metrics_response(m, service)
@@ -224,7 +254,11 @@ def serve_metered_once(l, health, handler, wait_ms, m, service)
     resp = wire(first(out))
     http_respond(req, get(resp, :status), get(resp, :headers), get(resp, :body))
     write_stderr(
-      "kyuuji: #{get(req, :method)} #{get(req, :path)} #{to_s(get(resp, :status))}\n"
+      unlines(
+        [
+          "kyuuji: #{get(req, :method)} #{get(req, :path)} #{to_s(get(resp, :status))}"
+        ]
+      )
     )
     second(out)
   end
@@ -233,7 +267,11 @@ end
 def serve_metered(addr, health, handler, service)
   l = http_listen(addr)
   write_stderr(
-    "kyuuji: listening on #{addr}, health #{health}, metrics #{metrics_path}\n"
+    unlines(
+      [
+        "kyuuji: listening on #{addr}, health #{health}, metrics #{metrics_path}"
+      ]
+    )
   )
   m = metrics_empty
   while(true, set!(m, serve_metered_once(l, health, handler, 1000, m, service)))
@@ -271,7 +309,7 @@ test "the health path is answered before the handler"
     (_) -> raise(:x, "unreached")
   )
   assert get(r, :status) == 200
-  assert get(r, :body) == "ok\n"
+  assert get(r, :body) == unlines(["ok"])
 end
 
 test "a route answers, an unknown path is 404, a raise is 500"
@@ -283,7 +321,7 @@ test "a route answers, an unknown path is 404, a raise is 500"
     404
   r = answer(request("GET", "/boom", ""), "/healthz", hello)
   assert get(r, :status) == 500
-  assert get(r, :body) == "it broke\n"
+  assert get(r, :body) == unlines(["it broke"])
   assert get(answer(request("GET", "/nil", ""), "/healthz", hello), :status) ==
     500
 end
@@ -311,16 +349,22 @@ test "an empty registry exposes every series at zero"
   text = exposition(metrics_empty, "svc")
   assert contains?(
     text,
-    "http_requests_total{service=\"svc\",code=\"5xx\"} 0\n"
+    unlines(["http_requests_total{service=\"svc\",code=\"5xx\"} 0"])
   ) == true
-  assert contains?(text, "http_request_errors_total{service=\"svc\"} 0\n") ==
-    true
   assert contains?(
     text,
-    "http_request_duration_seconds_bucket{service=\"svc\",le=\"+Inf\"} 0\n"
+    unlines(["http_request_errors_total{service=\"svc\"} 0"])
   ) == true
-  assert contains?(text, "# TYPE http_request_duration_seconds histogram\n") ==
-    true
+  assert contains?(
+    text,
+    unlines(
+      ["http_request_duration_seconds_bucket{service=\"svc\",le=\"+Inf\"} 0"]
+    )
+  ) == true
+  assert contains?(
+    text,
+    unlines(["# TYPE http_request_duration_seconds histogram"])
+  ) == true
 end
 
 test "an observation lands in its class, its buckets and the sum"
@@ -338,7 +382,7 @@ test "the metrics path answers the exposition and is not itself counted"
   m = observe(metrics_empty, 200, 0.001)
   out = metered(request("GET", "/metrics", ""), "/healthz", hello, m, "svc")
   assert get(first(out), :status) == 200
-  assert contains?(get(first(out), :body), "code=\"2xx\"} 1\n") == true
+  assert contains?(get(first(out), :body), unlines(["code=\"2xx\"} 1"])) == true
   assert second(out) == m
   h = metered(request("GET", "/healthz", ""), "/healthz", hello, m, "svc")
   assert second(h) == m
@@ -381,9 +425,10 @@ end
 test "not_found is a 404 plain text naming the method and the path"
   r = not_found(request("POST", "/a/b", ""))
   assert get(r, :status) == 404
-  assert get(r, :body) == "no route for POST /a/b\n"
+  assert get(r, :body) == unlines(["no route for POST /a/b"])
   assert get(get(r, :headers), "Content-Type") == "text/plain; charset=utf-8"
-  assert get(not_found(request("GET", "", "")), :body) == "no route for GET \n"
+  assert get(not_found(request("GET", "", "")), :body) ==
+    unlines(["no route for GET "])
 end
 
 test "serve_once returns nil when no request arrives in the time given"
@@ -709,7 +754,7 @@ def routed(app, req)
     else
       r = text(
         405,
-        "#{get(req, :method)} is not allowed on #{get(req, :path)}\n"
+        unlines(["#{get(req, :method)} is not allowed on #{get(req, :path)}"])
       )
       assoc(r, :headers, assoc(get(r, :headers), "Allow", join(allow, ", ")))
     end
@@ -802,7 +847,7 @@ def guard(handler, check)
     if verdict.nil? or verdict == true
       dispatch(handler, req)
     elsif verdict == false
-      text(403, "forbidden\n")
+      text(403, unlines(["forbidden"]))
     elsif well_formed?(verdict)
       verdict
     else
@@ -893,9 +938,9 @@ end
 def recovered(kind, message)
   code = get(recover_statuses, kind)
   if code.nil?
-    text(500, "internal error\n")
+    text(500, unlines(["internal error"]))
   else
-    text(code, "#{message}\n")
+    text(code, unlines([message]))
   end
 end
 
@@ -913,7 +958,7 @@ def timeout(handler, ms)
     started = now_ms
     resp = dispatch(handler, req)
     if now_ms - started > ms
-      text(503, "the handler ran past its #{to_s(ms)} ms deadline\n")
+      text(503, unlines(["the handler ran past its #{to_s(ms)} ms deadline"]))
     else
       resp
     end
@@ -1037,11 +1082,11 @@ file: A response serving a file with validators and ranges.
 def file(path, opts?)
   o = opts or {}
   if member?("..", split(path, "/"))
-    text(403, "a path with .. is refused\n")
+    text(403, unlines(["a path with .. is refused"]))
   else
     content = read_file(path) rescue nil
     if content.nil?
-      text(404, "no such file\n")
+      text(404, unlines(["no such file"]))
     else
       file_response(path, content, o)
     end
@@ -1152,7 +1197,7 @@ def cors(handler, policy)
           body: ""
         }
       else
-        text(403, "cross-origin request refused\n")
+        text(403, unlines(["cross-origin request refused"]))
       end
     else
       resp = dispatch(handler, req)
@@ -1190,9 +1235,9 @@ def upgrade(req, f)
       key.nil? or
       count(chars(key)) != 24 or
       not ends_with?(key, "==")
-    text(400, "not a websocket handshake\n")
+    text(400, unlines(["not a websocket handshake"]))
   elsif header(req, "sec-websocket-version") != "13"
-    r = text(426, "websocket version 13 is the one spoken\n")
+    r = text(426, unlines(["websocket version 13 is the one spoken"]))
     assoc(r, :headers, assoc(get(r, :headers), "Sec-WebSocket-Version", "13"))
   else
     {
@@ -1210,7 +1255,10 @@ end
 
 def wire(resp)
   if get(resp, :socket) != nil
-    text(501, "the websocket hand-off needs a host socket seam, not built\n")
+    text(
+      501,
+      unlines(["the websocket hand-off needs a host socket seam, not built"])
+    )
   else
     resp
   end
@@ -1361,7 +1409,10 @@ test "redirect answers a 3xx with a safe location and refuses anything else"
   assert raises?(:bad_option, () -> redirect(200, "/"))
   assert raises?(:bad_option, () -> redirect(302, "//evil.example/"))
   assert raises?(:bad_option, () -> redirect(302, "javascript:alert(1)"))
-  assert raises?(:bad_option, () -> redirect(302, "/a\r\nSet-Cookie: x"))
+  assert raises?(
+    :bad_option,
+    () -> redirect(302, join_lines(["/a\r", "Set-Cookie: x"]))
+  )
 end
 
 test "guard lets nil and true through, answers 403 for false, and passes a refusal response on"
@@ -1400,14 +1451,14 @@ test "recover turns a raised kind into its status and hides an unknown fault"
   boom = (kind) -> recover((_req) -> raise(kind, "said #{to_s(kind)}"))
   req = request("GET", "/", "")
   assert get(boom(:bad_request)(req), :status) == 400
-  assert get(boom(:bad_request)(req), :body) == "said bad_request\n"
+  assert get(boom(:bad_request)(req), :body) == unlines(["said bad_request"])
   assert get(boom(:forbidden)(req), :status) == 403
   assert get(boom(:not_found)(req), :status) == 404
   assert get(boom(:unsupported)(req), :status) == 415
   assert get(boom(:timeout)(req), :status) == 503
   hidden = boom(:secret_detail)(req)
   assert get(hidden, :status) == 500
-  assert get(hidden, :body) == "internal error\n"
+  assert get(hidden, :body) == unlines(["internal error"])
   assert get(recover((_r) -> text(200, "fine"))(req), :body) == "fine"
   assert get(recover(site)(request("GET", "/u/4", "")), :body) == "user 4"
 end
@@ -1420,7 +1471,8 @@ test "timeout answers 503 past its deadline and passes a fast answer through"
   end
   late = timeout(slow, 20)(req)
   assert get(late, :status) == 503
-  assert get(late, :body) == "the handler ran past its 20 ms deadline\n"
+  assert get(late, :body) ==
+    unlines(["the handler ran past its 20 ms deadline"])
   assert get(timeout((_r) -> text(200, "quick"), 1000)(req), :body) == "quick"
   assert raises?(:bad_option, () -> timeout(slow, 0))
   assert raises?(:bad_option, () -> timeout(slow, 1.5))

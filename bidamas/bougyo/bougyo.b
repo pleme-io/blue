@@ -195,7 +195,7 @@ end
 # --- limits ---------------------------------------------------------------
 
 def refusal_response(status, why)
-  {status:, headers: {}, body: "#{why}\n"}
+  {status:, headers: {}, body: unlines([why])}
 end
 
 @doc """
@@ -380,8 +380,10 @@ test "a safe inbound request id is echoed and an unsafe one is replaced"
   h = get(defended([], quiet, ok), :handler)
   echoed = h(get_req("/", [["x-request-id", "abc-123_X.9"]], ""))
   assert hdr(echoed, "X-Request-Id") == "abc-123_X.9"
-  forged = h(get_req("/", [["x-request-id", "a\r\nSet-Cookie: x=1"]], ""))
-  assert hdr(forged, "X-Request-Id") != "a\r\nSet-Cookie: x=1"
+  forged = h(
+    get_req("/", [["x-request-id", join_lines(["a\r", "Set-Cookie: x=1"])]], "")
+  )
+  assert hdr(forged, "X-Request-Id") != join_lines(["a\r", "Set-Cookie: x=1"])
   assert starts_with?(hdr(forged, "X-Request-Id"), "req-")
   long = h(
     get_req(

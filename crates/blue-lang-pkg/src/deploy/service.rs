@@ -453,10 +453,6 @@ mod tests {
             ("host: \"Bad Name\"", "not a name"),
             ("host_args: [\"daemon\"]", "no effect without `host`"),
             ("host: \"h\", host_args: [\"\"]", "non-empty single-line"),
-            (
-                "host: \"h\", host_args: [\"a\\nb\"]",
-                "non-empty single-line",
-            ),
         ];
         for (extra, expect) in cases {
             let body = format!("service(\"hello\", {{{base}, {extra}}})\n");
@@ -466,6 +462,11 @@ mod tests {
                 "{extra}: wanted `{expect}`, got {got:?}"
             );
         }
+        let src = format!(
+            "package(\"p\", \"0.3.0\")\nservice(\"hello\", {{{base}, host: \"h\", host_args: [\"a\\nb\"]}})\n"
+        );
+        let err = read_bluefile(&src).err().expect("a host argument with a line break is refused");
+        assert!(err.to_string().contains("join_lines"), "{err}");
     }
 
     #[test]

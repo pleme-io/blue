@@ -14,8 +14,17 @@ row(
   fails(:parse, "blue's `if` has no `then`")
 )
 
-row("parse.semicolon", "x = 1\ny = 2; z = 3", fails(:parse, "new line"))
-row("parse.unterminated", "if a\n  1", fails(:parse, "unterminated"))
+row(
+  "parse.semicolon",
+  join_lines(["x = 1", "y = 2; z = 3"]),
+  fails(:parse, "new line")
+)
+
+row(
+  "parse.unterminated",
+  join_lines(["if a", "  1"]),
+  fails(:parse, "unterminated")
+)
 
 row(
   "parse.brace_block",
@@ -42,7 +51,9 @@ row("parse.keyword_literal", ":done", value(":done"), covers("form::done"))
 
 row(
   "parse.test_blocks_ignored_by_run",
-  "test \"never runs here\"\n  assert 1 == 2\nend\n\n:ran",
+  join_lines(
+    ["test \"never runs here\"", "  assert 1 == 2", "end", "", ":ran"]
+  ),
   value(":ran"),
   covers("keyword:test", "keyword:assert")
 )

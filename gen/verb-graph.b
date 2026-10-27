@@ -116,10 +116,29 @@ def zed_root(tested)
   )
   rm_rf(root)
   mkdir_p(path_join(root, "zed"))
-  write_file(path_join(root, "zed/Bluefile"), "package(\"zed\", \"0.1.0\")\n")
+  write_file(
+    path_join(root, "zed/Bluefile"),
+    unlines(["package(\"zed\", \"0.1.0\")"])
+  )
   write_program(
     path_join(root, "zed/zed.b"),
-    "def lower(s)\n  s\nend\n\ndef upper(s)\n  s\nend\n\ndef title(s)\n  s\nend\n\n#{tested}"
+    join_lines(
+      [
+        "def lower(s)",
+        "  s",
+        "end",
+        "",
+        "def upper(s)",
+        "  s",
+        "end",
+        "",
+        "def title(s)",
+        "  s",
+        "end",
+        "",
+        tested
+      ]
+    )
   )
   root
 end
@@ -132,28 +151,45 @@ def untested_lines(tested)
 end
 
 test "one exists row with no unit test is named by the test probe, and no other row is"
-  assert untested_lines("test \"lower\"\n  assert lower(\"A\") == \"a\"\nend\n") ==
-    ["g11-untested\tzed::upper"]
+  assert untested_lines(
+    unlines(["test \"lower\"", "  assert lower(\"A\") == \"a\"", "end"])
+  ) == ["g11-untested\tzed::upper"]
   assert untested_lines("") ==
     ["g11-untested\tzed::lower", "g11-untested\tzed::upper"]
 end
 
 test "the same package with a test for each exists row breaks no gate"
-  assert untested_lines("test \"both\"\n  assert lower(\"A\") == \"a\"\n  assert upper(\"a\") == \"A\"\nend\n") ==
-    []
+  assert untested_lines(
+    unlines(
+      [
+        "test \"both\"",
+        "  assert lower(\"A\") == \"a\"",
+        "  assert upper(\"a\") == \"A\"",
+        "end"
+      ]
+    )
+  ) == []
 end
 
 test "a verb named only in a string, a comment or a def body is not tested"
-  assert untested_lines("test \"words\"\n  # lower(x)\n  assert \"lower(x) upper(x)\" == \"lower(x) upper(x)\" # upper(y)\nend\n") ==
-    ["g11-untested\tzed::lower", "g11-untested\tzed::upper"]
+  assert untested_lines(
+    unlines(
+      [
+        "test \"words\"",
+        "  # lower(x)",
+        "  assert \"lower(x) upper(x)\" == \"lower(x) upper(x)\" # upper(y)",
+        "end"
+      ]
+    )
+  ) == ["g11-untested\tzed::lower", "g11-untested\tzed::upper"]
 end
 
 test "an untested exists row is debt the baseline holds and never lets grow"
   found = untested_probe(fixture("untested"), [zed_root("")])
   assert size(found) == 2
   assert size(graph_verdict(found, "")) > 0
-  assert graph_verdict(found, "g11-untested: zed 2\n") == []
-  assert size(graph_verdict(found, "g11-untested: zed 1\n")) > 0
+  assert graph_verdict(found, unlines(["g11-untested: zed 2"])) == []
+  assert size(graph_verdict(found, unlines(["g11-untested: zed 1"]))) > 0
 end
 
 test "every exists row of the committed graph is tested, beyond the debt recorded"

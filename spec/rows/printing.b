@@ -11,8 +11,8 @@ row(
 
 row(
   "output.write_stdout.no_newline",
-  "write_stdout(\"a\")\nwrite_stdout(\"b\\n\")",
-  prints("ab\n")
+  join_lines(["write_stdout(\"a\")", "write_stdout(\"b\\n\")"]),
+  prints(unlines(["ab"]))
 )
 
 row(
@@ -25,13 +25,30 @@ row(
 row(
   "output.println",
   "println(\"a\", 1)",
-  prints("\"a\" 1\n"),
+  prints(unlines(["\"a\" 1"])),
   covers("builtin:println")
 )
 
-row("output.println.float", "println(1.0)", prints("1.0\n"), pending("G12"))
-row("output.println.map", "println({a: 1})", prints("{a: 1}\n"), pending("G12"))
-row("output.println.nil", "println(nil)", prints("nil\n"), pending("G12"))
+row(
+  "output.println.float",
+  "println(1.0)",
+  prints(unlines(["1.0"])),
+  pending("G12")
+)
+
+row(
+  "output.println.map",
+  "println({a: 1})",
+  prints(unlines(["{a: 1}"])),
+  pending("G12")
+)
+
+row(
+  "output.println.nil",
+  "println(nil)",
+  prints(unlines(["nil"])),
+  pending("G12")
+)
 
 row(
   "output.display",
@@ -41,6 +58,12 @@ row(
   pending("G12")
 )
 
-row("output.print", "print(\"x\")", prints("\"x\"\n"), covers("builtin:print"))
-row("output.newline", "newline", prints("\n"), covers("builtin:newline"))
+row(
+  "output.print",
+  "print(\"x\")",
+  prints(unlines(["\"x\""])),
+  covers("builtin:print")
+)
+
+row("output.newline", "newline", prints(line_break), covers("builtin:newline"))
 row("output.quiet_drops_value", "42", prints(""))

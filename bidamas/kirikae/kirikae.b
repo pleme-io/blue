@@ -185,7 +185,7 @@ def record(path, e)
   kept = keep_last(concat_lists(history(path), [e]), 200)
   mkdir_p(path_dirname(path))
   tmp = "#{path}.kirikae-tmp"
-  write_file(tmp, concat(join(map(entry_line, kept), "\n"), "\n"))
+  write_file(tmp, concat(join(map(entry_line, kept), line_break), line_break))
   rename_file(tmp, path)
   e
 end
@@ -354,7 +354,11 @@ def fast_forward(dir, c)
       ) != nil and
       git_out(dir, ["merge", "-q", "--ff-only", get(c, :remote)]) != nil
     write_stderr(
-      "kirikae: fast-forwarded the checkout #{take_chars(get(c, :head), 8)} → #{take_chars(get(c, :remote), 8)} (origin's #{get(c, :branch)}); KIRIKAE_FAST_FORWARD=0 turns this off\n"
+      unlines(
+        [
+          "kirikae: fast-forwarded the checkout #{take_chars(get(c, :head), 8)} → #{take_chars(get(c, :remote), 8)} (origin's #{get(c, :branch)}); KIRIKAE_FAST_FORWARD=0 turns this off"
+        ]
+      )
     )
     checkout_of(dir, get(c, :branch))
   else
@@ -914,7 +918,7 @@ def summary(p)
   else
     "; fix: #{get(p, :fix)}"
   end
-  "kirikae: #{to_s(get(p, :action))} — #{get(p, :why)}#{work}#{fix}\n"
+  unlines(["kirikae: #{to_s(get(p, :action))} — #{get(p, :why)}#{work}#{fix}"])
 end
 
 def node_step(acc, a)
@@ -1191,11 +1195,13 @@ def log_event(path, keep, ev)
     )
     mkdir_p(path_dirname(path))
     tmp = "#{path}.kirikae-tmp"
-    write_file(tmp, concat(join(kept, "\n"), "\n"))
+    write_file(tmp, concat(join(kept, line_break), line_break))
     rename_file(tmp, path)
   rescue e
     write_stderr(
-      "kirikae: the event log #{path} could not be written: #{to_s(e)}\n"
+      unlines(
+        ["kirikae: the event log #{path} could not be written: #{to_s(e)}"]
+      )
     )
   end
   nil
@@ -1203,7 +1209,9 @@ end
 
 def settle(s, p, status, v, ran)
   if v != nil and get(s, :narrate) == :brief
-    write_stderr("kirikae: #{to_s(get(v, :verdict))} — #{get(v, :why)}\n")
+    write_stderr(
+      unlines(["kirikae: #{to_s(get(v, :verdict))} — #{get(v, :why)}"])
+    )
   end
   if v != nil and get(v, :verdict) == :not_switched
     record(
@@ -1478,7 +1486,11 @@ def closing(text, status, ms, fix, log)
   told = if fix.nil?
     []
   else
-    ["\n   ", {text: "fix", bold: true, ink: :yellow}, " #{fix}"]
+    [
+      join_lines(["", "   "]),
+      {text: "fix", bold: true, ink: :yellow},
+      " #{fix}"
+    ]
   end
   concat_lists(
     concat_lists(
@@ -1490,7 +1502,7 @@ def closing(text, status, ms, fix, log)
       ],
       told
     ),
-    ["\n   ", {text: "log", ink: :bright_black}, " #{log}"]
+    [join_lines(["", "   "]), {text: "log", ink: :bright_black}, " #{log}"]
   )
 end
 
@@ -1557,7 +1569,7 @@ end
 
 def main()
   a = answer(argv)
-  write_stdout("#{text_of(a)}\n")
+  write_stdout(unlines([text_of(a)]))
   if exit_status_of(a) != 0
     exit_with(exit_status_of(a))
   end
@@ -1599,7 +1611,7 @@ def answer(args)
           end
         )
       ),
-      "\n"
+      line_break
     )
   elsif verb == "run"
     if size(args) < 2
@@ -1828,7 +1840,7 @@ test "the history file round-trips and keeps only its tail"
   assert size(h) == 2
   assert get(last(h), :why) == "second"
   assert get(streak(h, b), :n) == 2
-  write_file(p, "not json\n#{entry_line(entry(a, "activated", 5, ""))}\n")
+  write_file(p, unlines(["not json", entry_line(entry(a, "activated", 5, ""))]))
   assert size(history(p)) == 1
   assert size(keep_last([1, 2, 3, 4], 2)) == 2
   assert keep_last([1, 2], 5) == [1, 2]
@@ -1898,25 +1910,40 @@ test "only a clean checkout at origin's rev is planned"
 end
 
 test "a running evaluation or rebuild of this machine refuses the plan; others do not"
-  ps = "/usr/sbin/cron\n/run/current-system/sw/bin/darwin-rebuild build --flake github:pleme-io/nix/abc#ryn -L\nnix build --no-link .#checks.aarch64-darwin.promotion-gate\n"
+  ps = unlines(
+    [
+      "/usr/sbin/cron",
+      "/run/current-system/sw/bin/darwin-rebuild build --flake github:pleme-io/nix/abc#ryn -L",
+      "nix build --no-link .#checks.aarch64-darwin.promotion-gate"
+    ]
+  )
   assert size(writers(ps, "ryn")) == 1
   assert first(busy_refusal(writers(ps, "ryn"))) == :busy
   assert writers(
-    "nix build --dry-run --json .#nixosConfigurations.rio.config.system.build.toplevel\n",
+    unlines(
+      ["nix build --dry-run --json .#nixosConfigurations.rio.config.system.build.toplevel"]
+    ),
     "rio"
   ) != []
   assert writers(
-    "nix build --dry-run --json .#nixosConfigurations.rio.config.system.build.toplevel\n",
+    unlines(
+      ["nix build --dry-run --json .#nixosConfigurations.rio.config.system.build.toplevel"]
+    ),
     "plo"
   ) == []
-  assert writers("blue run kirikae plan darwin-rebuild switch\n", "ryn") == []
   assert writers(
-    "zsh -c pgrep -lf 'darwin-rebuild ' ; nix build #ryn\n",
+    unlines(["blue run kirikae plan darwin-rebuild switch"]),
+    "ryn"
+  ) == []
+  assert writers(
+    unlines(["zsh -c pgrep -lf 'darwin-rebuild ' ; nix build #ryn"]),
     "ryn"
   ) == []
   assert size(
     writers(
-      "/nix/store/x-nix-2.31.5/bin/nix build --no-link github:o/r/abc#ryn\n",
+      unlines(
+        ["/nix/store/x-nix-2.31.5/bin/nix build --no-link github:o/r/abc#ryn"]
+      ),
       "ryn"
     )
   ) == 1
@@ -1955,10 +1982,11 @@ test "a loop that already runs the checkout's rev answers the plan without evalu
 end
 
 test "a plan that evaluated nothing says so without empty counts"
-  assert summary({action: :hold, why: "busy"}) == "kirikae: hold — busy\n"
+  assert summary({action: :hold, why: "busy"}) ==
+    unlines(["kirikae: hold — busy"])
   assert ends_with?(
     summary({action: :noop, why: "same", plan_ms: 5, build: 0, fetch: 0}),
-    "0 to fetch)\n"
+    unlines(["0 to fetch)"])
   ) == true
 end
 
@@ -2111,7 +2139,12 @@ test "the demo renders every phase in order, plain when colour is off"
   assert nth(7, plain) ==
     "✅ [3/5] plan — switch to 8i7qwqja-darwin-system-25.11.ebec37a: 12 to build, 340 to fetch (9m 08s)"
   assert last(plain) ==
-    "🟢 kirikae: activated 8i7qwqja-darwin-system-25.11.ebec37a (17m 26s)\n   log ~/.local/state/kirikae/events.jsonl"
+    join_lines(
+      [
+        "🟢 kirikae: activated 8i7qwqja-darwin-system-25.11.ebec37a (17m 26s)",
+        "   log ~/.local/state/kirikae/events.jsonl"
+      ]
+    )
   assert map((l) -> take_chars(l, 1), take_n(rest(plain), 11)) ==
     ["⏳", "⚠", "⏳", "⏳", "✅", "⏳", "✅", "⏳", "✅", "⏳", "✅"]
 end
@@ -2173,7 +2206,13 @@ test "following a gitops build tells its new log lines and stops on the deploy"
   log = path_join(dir, "stdout.log")
   write_file(
     log,
-    "t0  INFO sentinela: deployed rev=\"b548e3a\" generation=1\nt1  INFO sentinela_core::fsm: build started rev=\"b548e3a\"\nt2  INFO sentinela: deployed rev=\"b548e3a\" generation=2\n"
+    unlines(
+      [
+        "t0  INFO sentinela: deployed rev=\"b548e3a\" generation=1",
+        "t1  INFO sentinela_core::fsm: build started rev=\"b548e3a\"",
+        "t2  INFO sentinela: deployed rev=\"b548e3a\" generation=2"
+      ]
+    )
   )
   s = {narrate: :off, gitops_log: log, heartbeat: "/nonexistent", poll_s: 0}
   r = following(s, rev, 1, now_ms + 60000, now_ms, now_ms)
@@ -2210,7 +2249,10 @@ test "every refusal and hold names its fix, and a switch or no-op has none"
   )
   assert fix_for({action: :switch}, {}).nil?
   assert fix_for({action: :noop}, {}).nil?
-  assert ends_with?(summary({action: :hold, why: "w", fix: "f"}), "; fix: f\n")
+  assert ends_with?(
+    summary({action: :hold, why: "w", fix: "f"}),
+    unlines(["; fix: f"])
+  )
 end
 
 test "the event log appends one line per decision and keeps only the newest"

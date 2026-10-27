@@ -56,6 +56,25 @@ schema, config and migration into `deploy/<service>/`; the chart gains:
 | values schema | generated, closed (`additionalProperties: false`) | the same |
 | Flux | a `HelmRelease` and `Kustomization` per `placement`, rendered in the GitOps repo from the pinned service flake (`SERVICE-ACCESS.md` §5) | the same |
 
+### 3.1 The vocabulary, and how it lowers (all nix-native)
+
+The Bluefile describes everything; nothing below it is written by hand. Each word
+lowers through `blue.lib.project` to substrate's nix (`lib/service/helm-build.nix`).
+
+| Bluefile word or field | Describes | Lowers to |
+|---|---|---|
+| `service(name, {...})` | the program, port, probes, config | haibi's chart (values plus pleme-lib `include`s) |
+| `access: {effects, egress, reads, writes, listen, exec}` | what it may touch (`SERVICE-ACCESS.md` §3) | pleme-lib access network policy and volumes; the engine posture; unit sandbox |
+| `platform: :wasm` / `:distroless, because: "..."` | the artifact rung (§2) | the wasm component or `mkHardenedImageSet` image; the chart's workload kind |
+| `schema: {...}` / `model(...)` | its data | DDL and the shinka migration |
+| `cache: {...}`, `secrets: [...]` | bindings | pleme-cache values; pleme-lib typed secret refs |
+| `supervision: {...}` | the OTP tree (§5.1) | the service runtime's supervisor; probes |
+| `placement(name, {node: "plo"})` / `placement(name, {cluster: "...", namespace: "..."})` | where it runs, with per-place values | `mkHelmRender` with those values → engenho manifests (node) or a Flux HelmRelease/Kustomization (cluster) |
+| `chart_library("pleme-lib", from: :helmworks)` | a library chart the chart uses | `mkHelmChart` vendoring it from the flake input; the dependency names a vendored path |
+
+A word not in this table is a request for a new word, made in blue's Bluefile
+vocabulary (`blue_lang_pkg::bluefile::WORDS`), never a hand-written nix or YAML file.
+
 A node that runs no Kubernetes (a NixOS host) still runs the chart: engenho
 renders it into its manifests directory (`pleme.engenho.helm.releases`). So one
 artifact serves a cluster, a single node and a developer's tailnet alike.

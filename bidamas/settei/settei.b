@@ -1,9 +1,10 @@
 use("deeta")
 use("kyohi", [:enforce, :refusal])
+use("moji", [:env_key])
 use("retsu", [:first])
 
 def env_prefix(app)
-  "#{upcase(replace(app, "-", "_"))}_"
+  env_key([app, ""])
 end
 
 def env_name(app, path)

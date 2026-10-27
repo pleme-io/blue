@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:b2b60f74e4968679f2d8b703945153ad7aee79cd82041c0e08ce010a17022920",
+  "bluefile_b3": "b3:e4aef1ec43527fb8a600ed4c6938939160a658ea14cf2a7887307087d423c556",
   "manifest": {
     "schema": 1,
     "name": "settei",
@@ -8,6 +8,7 @@
     "needs": {
       "deeta": "^0.1.0",
       "kyohi": "^0.1.0",
+      "moji": "^0.1.0",
       "retsu": "^0.1.0"
     },
     "when": "anytime",

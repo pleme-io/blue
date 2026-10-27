@@ -779,6 +779,38 @@ def sort_strings(xs)
   end
 end
 
+@doc """
+upper_snake: a name written with hyphens or spaces, as one upper-case word joined
+by underscores: the shape of an environment variable.
+
+    upper_snake("cache-url") #=> "CACHE_URL"
+"""
+def upper_snake(name)
+  upcase(replace(replace(name, "-", "_"), " ", "_"))
+end
+
+@doc """
+env_key: an environment variable name from its parts, each upper-snaked and
+joined by underscores; an empty last part leaves a trailing underscore, a prefix.
+
+    env_key(["input", "cache-url"]) #=> "INPUT_CACHE_URL"
+"""
+def env_key(parts)
+  upper_snake(join(parts, "-"))
+end
+
+test "env_key builds a variable name or a prefix from parts"
+  assert env_key(["input", "blue-only"]) == "INPUT_BLUE_ONLY"
+  assert env_key(["kensa", ""]) == "KENSA_"
+  assert env_key(["x"]) == "X"
+end
+
+test "upper_snake joins a kebab or spaced name into one upper-case word"
+  assert upper_snake("cache-url") == "CACHE_URL"
+  assert upper_snake("blue only") == "BLUE_ONLY"
+  assert upper_snake("x") == "X"
+end
+
 test "empty and present are exact opposites"
   assert empty("") == true
   assert empty("a") == false

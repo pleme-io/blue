@@ -359,7 +359,14 @@ enum Cmd {
     Banner,
     /// Report the blueshift: how far this program is shifted, and what is
     /// shifting it.
-    Shift { file: PathBuf },
+    Shift {
+        file: PathBuf,
+        /// One JSON object: `rung` (or null with no declarations), `typed`,
+        /// `total`, `analysed_nodes`, and `holding_back` with each factor's
+        /// `kind`, `subject`, 1-based `line` and `detail`.
+        #[arg(long)]
+        json: bool,
+    },
     /// The morphology: what each posture grants, what it forfeits, which pairs
     /// are genuinely exclusive, and which language each shape corresponds to.
     Morph,
@@ -1203,8 +1210,33 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             Ok(ExitCode::SUCCESS)
         }
 
-        Cmd::Shift { file } => {
+        Cmd::Shift { file, json } => {
             let reading = blue_lang_lsp::shift_of(&read(&file)?);
+            if json {
+                let holding: Vec<serde_json::Value> = reading
+                    .holding_back()
+                    .iter()
+                    .map(|f| {
+                        serde_json::json!({
+                            "kind": f.kind.label(),
+                            "subject": f.subject,
+                            "line": f.range.start.line + 1,
+                            "detail": f.detail,
+                        })
+                    })
+                    .collect();
+                println!(
+                    "{}",
+                    serde_json::json!({
+                        "rung": reading.rung.map(blue_lang_lsp::Rung::label),
+                        "typed": reading.typed_declarations,
+                        "total": reading.total_declarations,
+                        "analysed_nodes": reading.analysed_nodes,
+                        "holding_back": holding,
+                    })
+                );
+                return Ok(ExitCode::SUCCESS);
+            }
             println!("{}", reading.summary());
             if let Some(rung) = reading.rung {
                 println!("{}", rung.meaning());

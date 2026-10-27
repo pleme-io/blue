@@ -32,6 +32,8 @@ like any other assurance.
 | Push: a post-build hook on darwin; CI `cache-push` defaults to `false` | `nix/modules/pleme/darwin/post-build-hook.nix:96`; `substrate/.github/workflows/nix-fleet.yml:68` | exists, off by default |
 | Build times | `rg -i 'build time\|s CPU\|wall.clock'` over `blue/docs`, `theory/BLUE*` | never measured |
 | kensa: 5 Rust workspace members, 624 crates in `Cargo.lock`, 208 `.rs` against 2 `.b` | `kensa/flake.nix:13,23` | not blue-only; a `host` service (FUEKI H1) |
+| Measured plan, `kensa#packages.aarch64-darwin.default` on ryn, 2026-10-27 (`pleme-io/actions` `blue-build-plan`) | 545 derivations to build, 56 paths fetched, 445 of the builds Rust | the cache served 9% of the plan |
+| A dead substituter costs seconds per lookup: ryn's nix lists the `cid` sui origin, offline 9 h (tailscale status, ICMP, TCP: three probes); each narinfo lookup waits a 5 s connect timeout and retries | `nix build --dry-run` on ryn, 2026-10-27 | a fast negative is not configured: no `connect-timeout`, no health-gated substituter list |
 
 ## 2a. Why typing is build speed
 
@@ -119,6 +121,14 @@ pass/fail line, because it varies by machine.
 | Push, developer | the post-build hook pushes blue toolchain and bidama outputs to the node's own `sui` | the hook's `enable` |
 | Push, CI | `nix-fleet.yml` pushes every built output for a repo whose root has a Bluefile | `cache-push: false` in that repo's workflow call |
 
+A substituter that does not answer must cost milliseconds, not seconds. The
+global `connect-timeout` stays at 15 s: flake tarball fetches have no
+fallback, and a 2 s value once failed whole rebuilds
+(`nix/modules/shared/nix-performance.nix:307`). So the fix is the list, not the
+timeout: only an always-on node is a fleet origin. cid, a laptop that is
+online only sometimes, was configured off as an origin on 2026-10-27 (§2);
+rio (x86_64-linux) is the build node and origin, plo the dev host.
+
 Two changes in the nix repo turn the fleet on: the `sui` pull entries default
 to enabled for the node's own system, and the builder node gains the fleet
 caches beside cache.nixos.org. Both are `enable` flips on entries that exist.
@@ -138,7 +148,8 @@ caches beside cache.nixos.org. Both are `enable` flips on entries that exist.
 
 | Step | Work | Gate | Tier |
 |---|---|---|---|
-| B0 | measure: derivation counts and wall clock for blue's examples, ola-mundo and kensa, cold and warm | numbers recorded here | design |
+| B0 | measure: derivation counts and wall clock for blue's examples, ola-mundo and kensa, cold and warm | numbers recorded here | kensa measured (§2); the rest design |
+| A | the actions: `blue-setup`, `blue-check`, `blue-test`, `blue-shift`, `blue-build-plan` (`pleme-io/actions`, logic in `run.b` on the `koutei` bidama) and the reusable `substrate/.github/workflows/blue-project.yml` | each run locally against kensa and a broken fixture | built 2026-10-27 |
 | B1 | caches: `sui` pull on by default per system; builder node gains fleet caches; CI push on for Bluefile repos | a fresh runner builds ola-mundo with zero local Rust | design |
 | B2 | `nixConfig` rendered by `blue.lib.project` | a new blue project's flake carries the substituters | design |
 | B3 | `shift(rung)` word and the per-file gate in `mkBidama`; kind defaults | a service file at `annotated` fails the build | design |

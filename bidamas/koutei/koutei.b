@@ -376,5 +376,6 @@ test "a blue diagnostic becomes an annotation at its span"
   assert level_of("warning") == "warning"
   assert level_of("hint") == "notice"
   assert diagnostic?(line)
-  assert not diagnostic?("{\"kind\":\"override\",\"name\":\"first\",\"tier\":\"imported\"}")
+  override = "{\"kind\":\"override\",\"name\":\"first\",\"tier\":\"imported\"}"
+  assert not diagnostic?(override)
 end

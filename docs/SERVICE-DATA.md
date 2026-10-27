@@ -48,11 +48,34 @@ gets a database, migrations, a cache for its entities and observability;
 | Field | Default | Choices |
 |---|---|---|
 | `database.provider` | `:cnpg` on a cluster, `:node_socket` on a NixOS host (plo's native Postgres, peer auth) | `:cnpg`, `:node_socket`, `:external` |
-| `database.migrator` | `:seaorm` (kensa's `PgStore` already uses it) | `:seaorm`, `:keifu`, `:sqlx`, `:refinery`, `:diesel` (shinka's set, `shinka/src/migrator/types.rs:15`) |
+| `database.engine` | `:postgres` | `:postgres` (primary), `:mysql` (keifu-core's other engine), more as each gets a native renderer (§2a) |
+| `database.migrator` | `:keifu` (shinka applies it in process) | `:keifu` and every tool in shinka's set (`shinka/src/migrator/types.rs:15`), each a rendering of the same blue model (§2a) |
 | `cache.provider` | `:pleme_cache` | `:pleme_cache`, `:external`, `:off` |
 | `events.cdc` | `:outbox` | `:outbox`, `:escuta` (once escuta has a Postgres source) |
 | `observe.*` | every signal on | each turned off alone |
 | `migration.gate` | `:kenshi` | `:kenshi`, `:none` (typed reason) |
+
+## 2a. Models evolve in pure blue (operator, 2026-10-27)
+
+A data model and every change to it are written in blue and nowhere else.
+SQL files, changelogs and ORM entities are renderings, made for whatever the
+chosen migrator reads. Nobody writes a migration by hand.
+
+| Part | Answer | Rejected |
+|---|---|---|
+| The model | `model(...)` is a blue value with a `version`. The Bluefile lock pins each version's hash | a schema file next to the code |
+| A change | the diff of two model versions, computed in blue (`teeburu::evolve(from, to)`), as typed steps: `add_entity`, `add_field`, `rename`, `retype`, `add_index`, `split`, `merge`, `drop` | hand-written `ALTER` |
+| Intent the diff cannot see | a rename or split is declared on the new version (`renamed_from: :old`); without it the judge refuses the drop-and-add pair, so no data is lost silently | guessing a rename from shape |
+| Data backfill | a blue expression over kueri's typed SQL AST (`backfill: {total: sum(:lines, :amount)}`), lowered to SQL beside the DDL | row-by-row host code |
+| Destructive steps | `drop` and narrowing `retype` need `allow: :destructive` on that one step; everything else in the version still applies | a global unsafe flag |
+| Rendering | one blue renderer per migrator, chosen by `database.migrator`. The default is `:keifu`: a keifu changelog that shinka applies in process, with its ledger, checksums and witness. `:sqlx`, `:refinery`, `:diesel`, `:goose`, `:golang_migrate`, `:atlas`, `:dbmate`, `:flyway` and `:liquibase` each get their own directory or file form | a single SQL dialect for every tool |
+| Native per backend | each typed step lowers to the backend's own fastest safe form, never a lowest-common-denominator SQL. Postgres is the primary target: transactional DDL, `CREATE INDEX CONCURRENTLY` (outside the transaction), constraints added `NOT VALID` and then `VALIDATE`d, `ADD COLUMN` with a constant default (no table rewrite), batched keyset backfills, and `lock_timeout` on every step. MySQL renders to online `ALGORITHM=INSTANT` or `INPLACE` forms. A step a backend cannot do natively is refused for that backend by name | one portable SQL for every engine |
+| Valkey | no schema, so no migrations. Every cache key carries the hash of the model version it encodes (`orders:v<hash>:order:<id>`), so a model change reads new keys and the old ones expire by TTL. No flush, no migration step | a cache migration job |
+| Accessors | typed blue accessors are rendered from the same version (`orders::order::find`, `insert`, `update`) | ORM entities written by hand |
+| Gate | `blue check` rejects a model change that has no version bump, a version with no lowering for the chosen migrator, or a lowering that changes once it has shipped (the checksum is pinned in the lock) | a review comment |
+
+A transform that kueri's AST cannot express is a gap in kueri. Grow kueri
+to cover it. Do not escape to raw SQL or Rust.
 
 ## 3. How each lowers
 
@@ -68,7 +91,8 @@ gets a database, migrations, a cache for its entities and observability;
 | Step | Work | Serves (of 2 services) |
 |---|---|---|
 | S1 | haibi renders on pleme-lib's `shinkaDatabaseMigration`, wait init container, `observabilityBundle` and `jetstream`, and emits the kenshi labels (with H3 in `helmworks/docs/BLUE-SERVICES.md`) | 2 |
-| S2 | `model(...)`: versioned DDL diffs for shinka's migrator, typed accessors | 2 |
+| S2 | `model(...)` with versions, `teeburu::evolve`, the §2a judge and gate, the keifu renderer, typed accessors | 2 |
+| S2b | one renderer per remaining shinka migrator, each tested by applying it to a real Postgres | services that pin a tool |
 | S3 | telemetry export: `rogu` → Vector, `tsuiseki` → OTLP, `/metrics` from `keisoku` | 2 |
 | S4 | the RESP client and model-rendered cache keys; a hardened Valkey image | 1 now, 2 by default |
 | S5 | JetStream in the NATS client, the outbox, the subscription word | the gate for every event-driven service |

@@ -344,12 +344,23 @@ fn the_surface_file_round_trips_through_the_check_stage_reader() {
 fn a_posture_binds_every_refused_effect_so_a_program_naming_one_loads_and_the_call_raises() {
     let src = "def pure()\n  1 + 1\nend\n\ndef writes()\n  write_file(\"/tmp/x\", \"y\")\nend\n";
     let mut host = Ledger::default();
-    let without = Program::<Ledger>::builder(Entry::anonymous(src))
+    let installed = |interp: &mut blue_lang_host::Interpreter<Ledger>| {
+        interp.register_fn(
+            "write_file",
+            Arity::Exact(2),
+            |_: &[Value], _: &mut Ledger, _| Ok(Value::Str("written".into())),
+        );
+    };
+    let mut open = Program::<Ledger>::builder(Entry::anonymous(src))
         .loader(&NoLoader)
-        .load(&mut host);
-    assert!(matches!(without, Err(Error::Load(_))));
+        .extend(installed)
+        .load(&mut host)
+        .expect("a host that installs write_file loads it");
+    let written: String = open.call("writes", Vec::<Value>::new(), &mut host).unwrap();
+    assert_eq!(written, "written");
     let mut p = Program::<Ledger>::builder(Entry::anonymous(src))
         .loader(&NoLoader)
+        .extend(installed)
         .posture(&[])
         .load(&mut host)
         .expect("a posture binds write_file as a refusal");

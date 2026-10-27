@@ -9,7 +9,12 @@ writes, why, which layer of the compiler holds it, and the rule that names it.
 1. **Readability first.** The canonical spelling is the one a person reading the
    line cold understands fastest: words over symbols where blue offers both,
    the descriptive name over the terse one, no clever shorthand. This decided
-   every row marked *readability* below.
+   every row marked *readability* below. **Amended 2026-10-27
+   (`OPERATORS.md` §2):** universal notation is the readable spelling, so a
+   symbol wins for indexing, ranges, membership and a science's own operators,
+   when the corpus ranks the shape in its top tier or a discipline blue serves
+   spells it that way. A rewrite whose safety needs a type fires only at a
+   blueshift rung that knows the type; below it the long form stays canonical.
 2. **One tree.** Two spellings of one meaning lower to one AST, so every tool
    (the evaluator, the VM, `def_hash`, the checker, the formatter, the LSP)
    sees one shape. Where two spellings built different trees with the same

@@ -44,8 +44,8 @@
   {
     "name": "a flow sequence key may end on the next line",
     "file": "deeta.b",
-    "find": "r2 == get(k, :r)",
-    "replace": "true"
+    "find": "  same_line = explicit or not in_seq or r2 == k[:r]\n",
+    "replace": "  same_line = explicit or not in_seq or true\n"
   },
   {
     "name": "an octal integer reads as text",

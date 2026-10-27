@@ -14,20 +14,20 @@
   {
     "name": "a registry never sets visibility",
     "file": "touroku.b",
-    "find": "elsif get(spec, \"visibility\") != nil",
-    "replace": "elsif false"
+    "find": "  elsif spec[\"visibility\"] != nil\n",
+    "replace": "  elsif false\n"
   },
   {
     "name": "private on FlakeHub needs a paid plan",
     "file": "touroku.b",
-    "find": "get(spec, \"plan\") != \"paid\"",
-    "replace": "false"
+    "find": "  if backend == \"flakehub\" and\n      visibility == \"private\" and\n      spec[\"plan\"] != \"paid\"\n",
+    "replace": "  if backend == \"flakehub\" and visibility == \"private\" and false\n"
   },
   {
     "name": "a yanked version is refused",
     "file": "touroku.b",
-    "find": "elsif get(doc, \"yanked_at\") != nil",
-    "replace": "elsif false"
+    "find": "  elsif doc[\"yanked_at\"] != nil\n",
+    "replace": "  elsif false\n"
   },
   {
     "name": "a revision is 40 hex",
@@ -50,7 +50,7 @@
   {
     "name": "semver publishes on tags",
     "file": "touroku.b",
-    "find": "semver = get(spec, \"tag\") == \"semver\"",
-    "replace": "semver = false"
+    "find": "  semver = spec[\"tag\"] == \"semver\"\n",
+    "replace": "  semver = false\n"
   }
 ]

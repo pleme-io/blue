@@ -1,8 +1,3 @@
----
-kind: explanation
-summary: the merged verb graph: repairs and decisions
----
-
 # Merged graph: repairs and decisions (H0a)
 
 Tier: DESIGN data. Rebuild with `duckdb < docs/verbs/queries/repair.sql` from the repo root.

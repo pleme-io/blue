@@ -1,8 +1,3 @@
----
-kind: explanation
-summary: the API as a versioned rendering of one model (design)
----
-
 # API-EVOLUTION — the API is a versioned rendering of the one model
 
 Status: DESIGN, 2026-10-23. Nothing below is built unless the tier ledger

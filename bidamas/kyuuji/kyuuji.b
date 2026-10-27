@@ -34,11 +34,11 @@ end
 not_found: The 404 response for a request.
 """
 def not_found(req)
-  text(404, unlines(["no route for #{get(req, :method)} #{get(req, :path)}"]))
+  text(404, unlines(["no route for #{req[:method]} #{req[:path]}"]))
 end
 
 def query_params(req)
-  q = get(req, :query)
+  q = req[:query]
   if q.nil? or q == ""
     {}
   else
@@ -62,11 +62,11 @@ def query_param(req, name)
 end
 
 def well_formed?(resp)
-  resp != nil and map?(resp) and integer?(get(resp, :status))
+  resp != nil and map?(resp) and integer?(resp[:status])
 end
 
 def answer(req, health, handler)
-  if get(req, :path) == health
+  if req[:path] == health
     text(200, unlines(["ok"]))
   else
     resp = begin
@@ -91,15 +91,11 @@ def serve_once(l, health, handler, wait_ms)
     nil
   else
     resp = wire(answer(req, health, handler))
-    http_respond(req, get(resp, :status), get(resp, :headers), get(resp, :body))
+    http_respond(req, resp[:status], resp[:headers], resp[:body])
     write_stderr(
-      unlines(
-        [
-          "kyuuji: #{get(req, :method)} #{get(req, :path)} #{to_s(get(resp, :status))}"
-        ]
-      )
+      unlines(["kyuuji: #{req[:method]} #{req[:path]} #{to_s(resp[:status])}"])
     )
-    get(resp, :status)
+    resp[:status]
   end
 end
 
@@ -140,7 +136,7 @@ end
 observe: Count one request in the metrics.
 """
 def observe(m, status, seconds)
-  codes = get(m, "codes")
+  codes = m["codes"]
   c = status_class(status)
   seen = get(codes, c)
   {
@@ -153,7 +149,7 @@ def observe(m, status, seconds)
         seen + 1
       end
     ),
-    "errors" => get(m, "errors") +
+    "errors" => m["errors"] +
       if status >= 500
         1
       else
@@ -167,10 +163,10 @@ def observe(m, status, seconds)
           second(pair)
         end
       end,
-      blue::zip(latency_bounds, get(m, "buckets"))
+      blue::zip(latency_bounds, m["buckets"])
     ),
-    "sum" => get(m, "sum") + seconds,
-    "count" => get(m, "count") + 1
+    "sum" => m["sum"] + seconds,
+    "count" => m["count"] + 1
   }
 end
 
@@ -179,7 +175,7 @@ exposition: Metrics rendered in Prometheus text form.
 """
 def exposition(m, service)
   l = "service=\"#{service}\""
-  codes = get(m, "codes")
+  codes = m["codes"]
   requests = map(
     (c) -> "http_requests_total{#{l},code=\"#{c}\"} #{to_s(get(codes, c))}",
     status_classes
@@ -188,7 +184,7 @@ def exposition(m, service)
     fn(pair)
       "http_request_duration_seconds_bucket{#{l},le=\"#{to_s(first(pair))}\"} #{to_s(second(pair))}"
     end,
-    blue::zip(latency_bounds, get(m, "buckets"))
+    blue::zip(latency_bounds, m["buckets"])
   )
   unlines(
     [
@@ -202,15 +198,15 @@ def exposition(m, service)
           [
             "# HELP http_request_errors_total Requests answered with a 5xx status.",
             "# TYPE http_request_errors_total counter",
-            "http_request_errors_total{#{l}} #{to_s(get(m, "errors"))}",
+            "http_request_errors_total{#{l}} #{to_s(m["errors"])}",
             "# HELP http_request_duration_seconds Time from a request to its answer.",
             "# TYPE http_request_duration_seconds histogram"
           ],
           buckets,
           [
-            "http_request_duration_seconds_bucket{#{l},le=\"+Inf\"} #{to_s(get(m, "count"))}",
-            "http_request_duration_seconds_sum{#{l}} #{to_s(get(m, "sum"))}",
-            "http_request_duration_seconds_count{#{l}} #{to_s(get(m, "count"))}"
+            "http_request_duration_seconds_bucket{#{l},le=\"+Inf\"} #{to_s(m["count"])}",
+            "http_request_duration_seconds_sum{#{l}} #{to_s(m["sum"])}",
+            "http_request_duration_seconds_count{#{l}} #{to_s(m["count"])}"
           ]
         ),
         line_break
@@ -231,7 +227,7 @@ end
 metered: answer a request and record its status and latency.
 """
 def metered(req, health, handler, m, service)
-  path = get(req, :path)
+  path = req[:path]
   if path == metrics_path
     [metrics_response(m, service), m]
   else
@@ -240,7 +236,7 @@ def metered(req, health, handler, m, service)
     if path == health
       [resp, m]
     else
-      [resp, observe(m, get(resp, :status), (now_ms - started) / 1000)]
+      [resp, observe(m, resp[:status], (now_ms - started) / 1000)]
     end
   end
 end
@@ -252,13 +248,9 @@ def serve_metered_once(l, health, handler, wait_ms, m, service)
   else
     out = metered(req, health, handler, m, service)
     resp = wire(first(out))
-    http_respond(req, get(resp, :status), get(resp, :headers), get(resp, :body))
+    http_respond(req, resp[:status], resp[:headers], resp[:body])
     write_stderr(
-      unlines(
-        [
-          "kyuuji: #{get(req, :method)} #{get(req, :path)} #{to_s(get(resp, :status))}"
-        ]
-      )
+      unlines(["kyuuji: #{req[:method]} #{req[:path]} #{to_s(resp[:status])}"])
     )
     second(out)
   end
@@ -278,12 +270,12 @@ def serve_metered(addr, health, handler, service)
 end
 
 def address(settings)
-  listen = get(settings, "listen")
-  "#{get(listen, "host")}:#{to_s(get(listen, "port"))}"
+  listen = settings["listen"]
+  "#{listen["host"]}:#{to_s(listen["port"])}"
 end
 
 def serve_settings(settings, handler)
-  serve(address(settings), get(settings, "health"), handler)
+  serve(address(settings), settings["health"], handler)
 end
 
 def request(method, path, query)
@@ -291,11 +283,11 @@ def request(method, path, query)
 end
 
 def hello(req)
-  if get(req, :path) == "/"
+  if req[:path] == "/"
     text(200, "hi #{query_param(req, "who")}")
-  elsif get(req, :path) == "/boom"
+  elsif req[:path] == "/boom"
     raise(:boom, "it broke")
-  elsif get(req, :path) == "/nil"
+  elsif req[:path] == "/nil"
     nil
   else
     not_found(req)
@@ -308,22 +300,18 @@ test "the health path is answered before the handler"
     "/healthz",
     (_) -> raise(:x, "unreached")
   )
-  assert get(r, :status) == 200
-  assert get(r, :body) == unlines(["ok"])
+  assert r[:status] == 200
+  assert r[:body] == unlines(["ok"])
 end
 
 test "a route answers, an unknown path is 404, a raise is 500"
-  assert get(
-    answer(request("GET", "/", "who=blue"), "/healthz", hello),
-    :body
-  ) == "hi blue"
-  assert get(answer(request("GET", "/x", ""), "/healthz", hello), :status) ==
-    404
+  assert answer(request("GET", "/", "who=blue"), "/healthz", hello)[:body] ==
+    "hi blue"
+  assert answer(request("GET", "/x", ""), "/healthz", hello)[:status] == 404
   r = answer(request("GET", "/boom", ""), "/healthz", hello)
-  assert get(r, :status) == 500
-  assert get(r, :body) == unlines(["it broke"])
-  assert get(answer(request("GET", "/nil", ""), "/healthz", hello), :status) ==
-    500
+  assert r[:status] == 500
+  assert r[:body] == unlines(["it broke"])
+  assert answer(request("GET", "/nil", ""), "/healthz", hello)[:status] == 500
 end
 
 test "query parameters are split once on = and empty ones dropped"
@@ -335,9 +323,9 @@ end
 
 test "a json response carries its content type"
   r = json(201, {"ok" => true})
-  assert get(r, :status) == 201
-  assert get(r, :body) == "{\"ok\":true}"
-  assert get(get(r, :headers), "Content-Type") == "application/json"
+  assert r[:status] == 201
+  assert r[:body] == "{\"ok\":true}"
+  assert r[:headers]["Content-Type"] == "application/json"
 end
 
 test "settings name the address and the health path"
@@ -369,26 +357,26 @@ end
 
 test "an observation lands in its class, its buckets and the sum"
   m = observe(observe(metrics_empty, 200, 0.02), 503, 2)
-  assert get(get(m, "codes"), "2xx") == 1
-  assert get(get(m, "codes"), "5xx") == 1
-  assert get(m, "errors") == 1
-  assert get(m, "count") == 2
-  assert get(m, "sum") == 2.02
-  assert get(m, "buckets") == [0, 0, 1, 1, 1, 1, 1, 1, 2, 2, 2]
+  assert m["codes"]["2xx"] == 1
+  assert m["codes"]["5xx"] == 1
+  assert m["errors"] == 1
+  assert m["count"] == 2
+  assert m["sum"] == 2.02
+  assert m["buckets"] == [0, 0, 1, 1, 1, 1, 1, 1, 2, 2, 2]
   assert status_class(404) == "4xx"
 end
 
 test "the metrics path answers the exposition and is not itself counted"
   m = observe(metrics_empty, 200, 0.001)
   out = metered(request("GET", "/metrics", ""), "/healthz", hello, m, "svc")
-  assert get(first(out), :status) == 200
-  assert contains?(get(first(out), :body), unlines(["code=\"2xx\"} 1"])) == true
+  assert first(out)[:status] == 200
+  assert contains?(first(out)[:body], unlines(["code=\"2xx\"} 1"])) == true
   assert second(out) == m
   h = metered(request("GET", "/healthz", ""), "/healthz", hello, m, "svc")
   assert second(h) == m
   b = metered(request("GET", "/boom", ""), "/healthz", hello, m, "svc")
-  assert get(first(b), :status) == 500
-  assert get(second(b), "errors") == 1
+  assert first(b)[:status] == 500
+  assert second(b)["errors"] == 1
 end
 
 def served(path, health, handler)
@@ -424,10 +412,10 @@ end
 
 test "not_found is a 404 plain text naming the method and the path"
   r = not_found(request("POST", "/a/b", ""))
-  assert get(r, :status) == 404
-  assert get(r, :body) == unlines(["no route for POST /a/b"])
-  assert get(get(r, :headers), "Content-Type") == "text/plain; charset=utf-8"
-  assert get(not_found(request("GET", "", "")), :body) ==
+  assert r[:status] == 404
+  assert r[:body] == unlines(["no route for POST /a/b"])
+  assert r[:headers]["Content-Type"] == "text/plain; charset=utf-8"
+  assert not_found(request("GET", "", ""))[:body] ==
     unlines(["no route for GET "])
 end
 
@@ -462,7 +450,7 @@ header: One request header.
 """
 def header(req, name)
   n = downcase(name)
-  hs = get(req, :headers)
+  hs = req[:headers]
   pairs = if map?(hs)
     map_entries(hs)
   else
@@ -521,25 +509,25 @@ def segment(part)
 end
 
 def bound_name(s)
-  get(s, :param) or get(s, :rest)
+  s[:param] or s[:rest]
 end
 
 def route_fault(r)
-  pattern = get(r, :pattern)
-  if not member?(get(r, :method), route_methods)
-    "method #{to_s(get(r, :method))} is not one of #{join(route_methods, ", ")}"
+  pattern = r[:pattern]
+  if not member?(r[:method], route_methods)
+    "method #{to_s(r[:method])} is not one of #{join(route_methods, ", ")}"
   elsif not string?(pattern) or not starts_with?(pattern, "/")
     "pattern #{to_s(pattern)} does not start with /"
-  elsif get(r, :handler).nil?
+  elsif r[:handler].nil?
     "#{pattern} has no handler"
   else
-    segs = get(r, :segments)
+    segs = r[:segments]
     names = filter((n) -> n != nil, map(bound_name, segs))
-    if any?((s) -> get(s, :literal) == "", segs)
+    if any?((s) -> s[:literal] == "", segs)
       "#{pattern} has an empty segment"
     elsif member?("", names)
       "#{pattern} has a parameter with no name"
-    elsif any?((s) -> get(s, :rest) != nil, drop_last(segs))
+    elsif any?((s) -> s[:rest] != nil, drop_last(segs))
       "#{pattern} has a * segment before its last"
     elsif count(names) != count(distinct(names))
       "#{pattern} names a parameter twice"
@@ -564,7 +552,7 @@ def route(method, pattern, handler)
 end
 
 def splat?(xs)
-  not is_empty(xs) and get(first(xs), :rest) != nil
+  not is_empty(xs) and first(xs)[:rest] != nil
 end
 
 def overlapping?(xs, ys)
@@ -575,8 +563,8 @@ def overlapping?(xs, ys)
   elsif is_empty(xs) or is_empty(ys)
     false
   else
-    a = get(first(xs), :literal)
-    b = get(first(ys), :literal)
+    a = first(xs)[:literal]
+    b = first(ys)[:literal]
     if a != nil and b != nil and a != b
       false
     else
@@ -588,10 +576,7 @@ end
 def clash(kept, r)
   find(
     kept,
-    fn(k)
-      get(k, :method) == get(r, :method) and
-        overlapping?(get(k, :segments), get(r, :segments))
-    end
+    (k) -> k[:method] == r[:method] and overlapping?(k[:segments], r[:segments])
   )
 end
 
@@ -614,30 +599,26 @@ def router(routes, opts?)
     fn(acc, r)
       why = route_fault(r)
       other = if why.nil?
-        clash(get(acc, :routes), r)
+        clash(acc[:routes], r)
       end
       if why != nil
-        assoc(
-          acc,
-          :refusals,
-          append(get(acc, :refusals), [refusal(:route, why)])
-        )
+        assoc(acc, :refusals, append(acc[:refusals], [refusal(:route, why)]))
       elsif other != nil
         assoc(
           acc,
           :refusals,
           append(
-            get(acc, :refusals),
+            acc[:refusals],
             [
               refusal(
                 :overlap,
-                "#{get(r, :method)} #{get(r, :pattern)} overlaps #{get(other, :pattern)}"
+                "#{r[:method]} #{r[:pattern]} overlaps #{other[:pattern]}"
               )
             ]
           )
         )
       else
-        assoc(acc, :routes, append(get(acc, :routes), [r]))
+        assoc(acc, :routes, append(acc[:routes], [r]))
       end
     end,
     {routes: [], refusals: []},
@@ -647,7 +628,7 @@ def router(routes, opts?)
 end
 
 def app?(x)
-  map?(x) and get(x, :routes) != nil
+  map?(x) and x[:routes] != nil
 end
 
 def bind(segs, parts, params)
@@ -659,17 +640,17 @@ def bind(segs, parts, params)
     nil
   else
     s = first(segs)
-    if get(s, :rest) != nil
-      assoc(params, get(s, :rest), join(map(decoded, parts), "/"))
-    elsif get(s, :param) != nil
+    if s[:rest] != nil
+      assoc(params, s[:rest], join(map(decoded, parts), "/"))
+    elsif s[:param] != nil
       if first(parts) != ""
         bind(
           rest(segs),
           rest(parts),
-          assoc(params, get(s, :param), decoded(first(parts)))
+          assoc(params, s[:param], decoded(first(parts)))
         )
       end
-    elsif get(s, :literal) == first(parts)
+    elsif s[:literal] == first(parts)
       bind(rest(segs), rest(parts), params)
     end
   end
@@ -679,8 +660,8 @@ def bound(routes, method, parts)
   find(
     map(
       fn(r)
-        params = if get(r, :method) == method
-          bind(get(r, :segments), parts, {})
+        params = if r[:method] == method
+          bind(r[:segments], parts, {})
         end
         if params != nil
           {route: r, params:}
@@ -696,10 +677,10 @@ end
 resolve: Find the route that serves a request.
 """
 def resolve(app, req)
-  parts = segments(get(req, :path))
-  hit = bound(get(app, :routes), get(req, :method), parts)
-  if hit.nil? and get(req, :method) == "HEAD"
-    bound(get(app, :routes), "GET", parts)
+  parts = segments(req[:path])
+  hit = bound(app[:routes], req[:method], parts)
+  if hit.nil? and req[:method] == "HEAD"
+    bound(app[:routes], "GET", parts)
   else
     hit
   end
@@ -709,23 +690,20 @@ def allowed(app, path)
   parts = segments(path)
   distinct(
     map(
-      (r) -> get(r, :method),
-      filter(
-        (r) -> bind(get(r, :segments), parts, {}) != nil,
-        get(app, :routes)
-      )
+      (r) -> r[:method],
+      filter((r) -> bind(r[:segments], parts, {}) != nil, app[:routes])
     )
   )
 end
 
 def param(req, name)
-  get(get(req, :params) or {}, name) or query_param(req, name)
+  get(req[:params] or {}, name) or query_param(req, name)
 end
 
 def page_response(app, tree)
-  o = get(app, :opts)
-  theme = get(o, :theme)
-  hydrate = get(o, :hydrate)
+  o = app[:opts]
+  theme = o[:theme]
+  hydrate = o[:hydrate]
   {
     status: 200,
     headers: {"Content-Type" => "text/html; charset=utf-8"},
@@ -748,27 +726,24 @@ end
 def routed(app, req)
   hit = resolve(app, req)
   if hit.nil?
-    allow = allowed(app, get(req, :path))
+    allow = allowed(app, req[:path])
     if is_empty(allow)
       not_found(req)
     else
       r = text(
         405,
-        unlines(["#{get(req, :method)} is not allowed on #{get(req, :path)}"])
+        unlines(["#{req[:method]} is not allowed on #{req[:path]}"])
       )
-      assoc(r, :headers, assoc(get(r, :headers), "Allow", join(allow, ", ")))
+      assoc(r, :headers, assoc(r[:headers], "Allow", join(allow, ", ")))
     end
   else
-    out = get(
-      get(hit, :route),
-      :handler
-    )(assoc(req, :params, get(hit, :params)))
+    out = hit[:route][:handler](assoc(req, :params, hit[:params]))
     resp = if element?(out)
       page_response(app, out)
     else
       out
     end
-    if get(req, :method) == "HEAD" and well_formed?(resp)
+    if req[:method] == "HEAD" and well_formed?(resp)
       assoc(resp, :body, "")
     else
       resp
@@ -794,27 +769,27 @@ def mount(app, prefix, sub)
       app,
       :refusals,
       append(
-        get(app, :refusals),
+        app[:refusals],
         [refusal(:mount, "prefix #{to_s(prefix)}: #{why or "is the root"}")]
       )
     )
   else
     moved = map(
       fn(r)
-        p = if get(r, :pattern) == "/"
+        p = if r[:pattern] == "/"
           prefix
         else
-          "#{prefix}#{get(r, :pattern)}"
+          "#{prefix}#{r[:pattern]}"
         end
-        route(get(r, :method), p, get(r, :handler))
+        route(r[:method], p, r[:handler])
       end,
-      get(sub, :routes)
+      sub[:routes]
     )
-    joined = router(append(get(app, :routes), moved), get(app, :opts))
+    joined = router(append(app[:routes], moved), app[:opts])
     assoc(
       joined,
       :refusals,
-      append(get(app, :refusals), get(sub, :refusals), get(joined, :refusals))
+      append(app[:refusals], sub[:refusals], joined[:refusals])
     )
   end
 end
@@ -865,7 +840,7 @@ body: Parse the request body into a value.
     body(request("POST", "/", ""), :form) #=> {}
 """
 def body(req, format)
-  raw = get(req, :body) or ""
+  raw = req[:body] or ""
   kind = if format == :auto
     t = downcase(header(req, "content-type") or "")
     if starts_with?(t, "application/json")
@@ -974,9 +949,9 @@ def stream(_req, f, opts?)
   f((chunk) -> set!(chunks, [append(first(chunks), [to_s(chunk)])]))
   cs = first(chunks)
   {
-    status: get(o, :status) or 200,
+    status: o[:status] or 200,
     headers: {
-      "Content-Type" => get(o, :content_type) or "text/plain; charset=utf-8"
+      "Content-Type" => o[:content_type] or "text/plain; charset=utf-8"
     },
     body: join(cs, ""),
     chunks: cs
@@ -1094,10 +1069,10 @@ def file(path, opts?)
 end
 
 def file_response(path, content, o)
-  req = get(o, :request) or {headers: []}
+  req = o[:request] or {headers: []}
   tag = "\"#{join(take(32, chars(digest_hex(:sha256, content))), "")}\""
   base = {
-    "Content-Type" => get(o, :content_type) or content_type_of(path),
+    "Content-Type" => o[:content_type] or content_type_of(path),
     "ETag" => tag,
     "Accept-Ranges" => "bytes"
   }
@@ -1142,9 +1117,7 @@ def cors_policy(policy)
   else
     cors_defaults
   end
-  all = if is_empty(whys) and
-      get(p, :credentials) and
-      member?("*", get(p, :origins))
+  all = if is_empty(whys) and p[:credentials] and member?("*", p[:origins])
     ["a wildcard origin cannot carry credentials"]
   else
     whys
@@ -1156,7 +1129,7 @@ def cors_policy(policy)
 end
 
 def cors_headers(p, origin)
-  wild = member?("*", get(p, :origins)) and not get(p, :credentials)
+  wild = member?("*", p[:origins]) and not p[:credentials]
   base = {
     "Access-Control-Allow-Origin" => if wild
       "*"
@@ -1165,7 +1138,7 @@ def cors_headers(p, origin)
     end,
     "Vary" => "Origin"
   }
-  if get(p, :credentials)
+  if p[:credentials]
     assoc(base, "Access-Control-Allow-Credentials", "true")
   else
     base
@@ -1180,18 +1153,18 @@ def cors(handler, policy)
   fn(req)
     origin = header(req, "origin")
     allowed = origin != nil and
-      (member?("*", get(p, :origins)) or member?(origin, get(p, :origins)))
+      (member?("*", p[:origins]) or member?(origin, p[:origins]))
     asked = header(req, "access-control-request-method")
-    if get(req, :method) == "OPTIONS" and asked != nil and origin != nil
-      if allowed and member?(asked, get(p, :methods))
+    if req[:method] == "OPTIONS" and asked != nil and origin != nil
+      if allowed and member?(asked, p[:methods])
         {
           status: 204,
           headers: overlay(
             cors_headers(p, origin),
             {
-              "Access-Control-Allow-Methods" => join(get(p, :methods), ", "),
-              "Access-Control-Allow-Headers" => join(get(p, :headers), ", "),
-              "Access-Control-Max-Age" => to_s(get(p, :max_age))
+              "Access-Control-Allow-Methods" => join(p[:methods], ", "),
+              "Access-Control-Allow-Headers" => join(p[:headers], ", "),
+              "Access-Control-Max-Age" => to_s(p[:max_age])
             }
           ),
           body: ""
@@ -1205,7 +1178,7 @@ def cors(handler, policy)
         assoc(
           resp,
           :headers,
-          overlay(get(resp, :headers) or {}, cors_headers(p, origin))
+          overlay(resp[:headers] or {}, cors_headers(p, origin))
         )
       else
         resp
@@ -1229,7 +1202,7 @@ def upgrade(req, f)
   key = header(req, "sec-websocket-key")
   up = downcase(header(req, "upgrade") or "")
   conn = downcase(header(req, "connection") or "")
-  if get(req, :method) != "GET" or
+  if req[:method] != "GET" or
       up != "websocket" or
       not contains?(conn, "upgrade") or
       key.nil? or
@@ -1238,7 +1211,7 @@ def upgrade(req, f)
     text(400, unlines(["not a websocket handshake"]))
   elsif header(req, "sec-websocket-version") != "13"
     r = text(426, unlines(["websocket version 13 is the one spoken"]))
-    assoc(r, :headers, assoc(get(r, :headers), "Sec-WebSocket-Version", "13"))
+    assoc(r, :headers, assoc(r[:headers], "Sec-WebSocket-Version", "13"))
   else
     {
       status: 101,
@@ -1254,7 +1227,7 @@ def upgrade(req, f)
 end
 
 def wire(resp)
-  if get(resp, :socket) != nil
+  if resp[:socket] != nil
     text(
       501,
       unlines(["the websocket hand-off needs a host socket seam, not built"])
@@ -1311,66 +1284,60 @@ test "a router keeps sound routes and refuses each bad or overlapping one alone"
       route("GET", "/z", (_req) -> text(200, "z"))
     ]
   )
-  assert map((r) -> get(r, :pattern), get(app, :routes)) ==
-    ["/a/:id", "/a/new", "/z"]
-  assert map(first, get(app, :refusals)) ==
+  assert map((r) -> r[:pattern], app[:routes]) == ["/a/:id", "/a/new", "/z"]
+  assert map(first, app[:refusals]) ==
     [:overlap, :route, :route, :route, :route, :route]
-  assert second(first(get(app, :refusals))) == "GET /a/new overlaps /a/:id"
-  assert get(router([]), :routes) == []
-  assert get(router([]), :refusals) == []
+  assert second(first(app[:refusals])) == "GET /a/new overlaps /a/:id"
+  assert router([])[:routes] == []
+  assert router([])[:refusals] == []
   assert raises?(:bad_option, () -> router([], {colour: 1}))
 end
 
 test "resolve binds path parameters, decodes them, and takes a tail with *"
   app = site
   hit = resolve(app, request("GET", "/u/a%20b", ""))
-  assert get(get(hit, :route), :pattern) == "/u/:id"
-  assert get(hit, :params) == {"id" => "a b"}
-  assert get(resolve(app, request("GET", "/files/a/b.css", "")), :params) ==
+  assert hit[:route][:pattern] == "/u/:id"
+  assert hit[:params] == {"id" => "a b"}
+  assert resolve(app, request("GET", "/files/a/b.css", ""))[:params] ==
     {"path" => "a/b.css"}
   assert resolve(app, request("GET", "/files", "")).nil?
   assert resolve(app, request("GET", "/u/", "")).nil?
   assert resolve(app, request("GET", "/u/1/x", "")).nil?
-  assert get(get(resolve(app, request("POST", "/u/1", "")), :route), :method) ==
-    "POST"
-  assert get(get(resolve(app, request("HEAD", "/u/1", "")), :route), :method) ==
-    "GET"
-  assert get(resolve(app, request("GET", "/", "")), :params) == {}
+  assert resolve(app, request("POST", "/u/1", ""))[:route][:method] == "POST"
+  assert resolve(app, request("HEAD", "/u/1", ""))[:route][:method] == "GET"
+  assert resolve(app, request("GET", "/", ""))[:params] == {}
   assert resolve(router([]), request("GET", "/", "")).nil?
 end
 
 test "an app answers its routes, 404 for no path, 405 with Allow for a wrong method"
   app = site
-  assert get(answer(request("GET", "/u/7", ""), "/healthz", app), :body) ==
-    "user 7"
-  assert get(answer(request("POST", "/u/7", ""), "/healthz", app), :status) ==
-    201
+  assert answer(request("GET", "/u/7", ""), "/healthz", app)[:body] == "user 7"
+  assert answer(request("POST", "/u/7", ""), "/healthz", app)[:status] == 201
   missing = answer(request("GET", "/nope", ""), "/healthz", app)
-  assert get(missing, :status) == 404
+  assert missing[:status] == 404
   wrong = answer(request("DELETE", "/u/7", ""), "/healthz", app)
-  assert get(wrong, :status) == 405
-  assert get(get(wrong, :headers), "Allow") == "GET, POST"
+  assert wrong[:status] == 405
+  assert wrong[:headers]["Allow"] == "GET, POST"
   head = answer(request("HEAD", "/u/7", ""), "/healthz", app)
-  assert get(head, :status) == 200
-  assert get(head, :body) == ""
+  assert head[:status] == 200
+  assert head[:body] == ""
   assert param(request("GET", "/u/7", "id=9"), "id") == "9"
 end
 
 test "a view route answers html rendered by gamen, its text escaped"
   r = answer(request("GET", "/page", ""), "/healthz", site)
-  assert get(r, :status) == 200
-  assert get(get(r, :headers), "Content-Type") == "text/html; charset=utf-8"
-  assert get(r, :body) == "<p>&lt;hi&gt;</p>"
-  assert get(r, :inline) == {styles: [], scripts: []}
+  assert r[:status] == 200
+  assert r[:headers]["Content-Type"] == "text/html; charset=utf-8"
+  assert r[:body] == "<p>&lt;hi&gt;</p>"
+  assert r[:inline] == {styles: [], scripts: []}
   t = gamen::theme({text: "#2e3440"}, :light)
   themed = router(
     [route("GET", "/", (_req) -> gamen::page({title: "x", body: []}))],
     {theme: t, hydrate: "import('/app.js')"}
   )
   page = answer(request("GET", "/", ""), "/healthz", themed)
-  assert contains?(get(page, :body), "<style>#{css(t)}</style>")
-  assert get(page, :inline) ==
-    {styles: [css(t)], scripts: ["import('/app.js')"]}
+  assert contains?(page[:body], "<style>#{css(t)}</style>")
+  assert page[:inline] == {styles: [css(t)], scripts: ["import('/app.js')"]}
 end
 
 test "mount places a sub-app under a prefix and refuses a bad prefix alone"
@@ -1381,31 +1348,28 @@ test "mount places a sub-app under a prefix and refuses a bad prefix alone"
     ]
   )
   app = mount(site, "/api", api)
-  assert get(answer(request("GET", "/api", ""), "/healthz", app), :body) ==
+  assert answer(request("GET", "/api", ""), "/healthz", app)[:body] ==
     "api root"
-  assert get(answer(request("GET", "/api/v/2", ""), "/healthz", app), :body) ==
-    "v2"
-  assert get(answer(request("GET", "/u/1", ""), "/healthz", app), :body) ==
-    "user 1"
+  assert answer(request("GET", "/api/v/2", ""), "/healthz", app)[:body] == "v2"
+  assert answer(request("GET", "/u/1", ""), "/healthz", app)[:body] == "user 1"
   bad = mount(site, "api/", api)
-  assert map(first, get(bad, :refusals)) == [:mount]
-  assert get(answer(request("GET", "/u/1", ""), "/healthz", bad), :status) ==
-    200
-  assert map(first, get(mount(site, "/", api), :refusals)) == [:mount]
+  assert map(first, bad[:refusals]) == [:mount]
+  assert answer(request("GET", "/u/1", ""), "/healthz", bad)[:status] == 200
+  assert map(first, mount(site, "/", api)[:refusals]) == [:mount]
   clash = mount(
     site,
     "/u",
     router([route("GET", "/:x", (_req) -> text(200, "x"))])
   )
-  assert map(first, get(clash, :refusals)) == [:overlap]
+  assert map(first, clash[:refusals]) == [:overlap]
 end
 
 test "redirect answers a 3xx with a safe location and refuses anything else"
   r = redirect(303, "/done?x=1")
-  assert get(r, :status) == 303
-  assert get(get(r, :headers), "Location") == "/done?x=1"
-  assert get(r, :body) == ""
-  assert get(redirect(301, "https://blue.example/"), :status) == 301
+  assert r[:status] == 303
+  assert r[:headers]["Location"] == "/done?x=1"
+  assert r[:body] == ""
+  assert redirect(301, "https://blue.example/")[:status] == 301
   assert raises?(:bad_option, () -> redirect(200, "/"))
   assert raises?(:bad_option, () -> redirect(302, "//evil.example/"))
   assert raises?(:bad_option, () -> redirect(302, "javascript:alert(1)"))
@@ -1418,13 +1382,12 @@ end
 test "guard lets nil and true through, answers 403 for false, and passes a refusal response on"
   ok = (_req) -> text(200, "in")
   req = request("GET", "/", "")
-  assert get(guard(ok, (_r) -> nil)(req), :body) == "in"
-  assert get(guard(ok, (_r) -> true)(req), :body) == "in"
-  assert get(guard(ok, (_r) -> false)(req), :status) == 403
-  assert get(guard(ok, (_r) -> text(401, "who"))(req), :status) == 401
+  assert guard(ok, (_r) -> nil)(req)[:body] == "in"
+  assert guard(ok, (_r) -> true)(req)[:body] == "in"
+  assert guard(ok, (_r) -> false)(req)[:status] == 403
+  assert guard(ok, (_r) -> text(401, "who"))(req)[:status] == 401
   assert raises?(:bad_option, () -> guard(ok, (_r) -> 7)(req))
-  assert get(guard(site, (_r) -> nil)(request("GET", "/u/3", "")), :body) ==
-    "user 3"
+  assert guard(site, (_r) -> nil)(request("GET", "/u/3", ""))[:body] == "user 3"
 end
 
 test "body reads text, json and a form, by name or by Content-Type"
@@ -1450,17 +1413,17 @@ end
 test "recover turns a raised kind into its status and hides an unknown fault"
   boom = (kind) -> recover((_req) -> raise(kind, "said #{to_s(kind)}"))
   req = request("GET", "/", "")
-  assert get(boom(:bad_request)(req), :status) == 400
-  assert get(boom(:bad_request)(req), :body) == unlines(["said bad_request"])
-  assert get(boom(:forbidden)(req), :status) == 403
-  assert get(boom(:not_found)(req), :status) == 404
-  assert get(boom(:unsupported)(req), :status) == 415
-  assert get(boom(:timeout)(req), :status) == 503
+  assert boom(:bad_request)(req)[:status] == 400
+  assert boom(:bad_request)(req)[:body] == unlines(["said bad_request"])
+  assert boom(:forbidden)(req)[:status] == 403
+  assert boom(:not_found)(req)[:status] == 404
+  assert boom(:unsupported)(req)[:status] == 415
+  assert boom(:timeout)(req)[:status] == 503
   hidden = boom(:secret_detail)(req)
-  assert get(hidden, :status) == 500
-  assert get(hidden, :body) == unlines(["internal error"])
-  assert get(recover((_r) -> text(200, "fine"))(req), :body) == "fine"
-  assert get(recover(site)(request("GET", "/u/4", "")), :body) == "user 4"
+  assert hidden[:status] == 500
+  assert hidden[:body] == unlines(["internal error"])
+  assert recover((_r) -> text(200, "fine"))(req)[:body] == "fine"
+  assert recover(site)(request("GET", "/u/4", ""))[:body] == "user 4"
 end
 
 test "timeout answers 503 past its deadline and passes a fast answer through"
@@ -1470,10 +1433,9 @@ test "timeout answers 503 past its deadline and passes a fast answer through"
     text(200, "late")
   end
   late = timeout(slow, 20)(req)
-  assert get(late, :status) == 503
-  assert get(late, :body) ==
-    unlines(["the handler ran past its 20 ms deadline"])
-  assert get(timeout((_r) -> text(200, "quick"), 1000)(req), :body) == "quick"
+  assert late[:status] == 503
+  assert late[:body] == unlines(["the handler ran past its 20 ms deadline"])
+  assert timeout((_r) -> text(200, "quick"), 1000)(req)[:body] == "quick"
   assert raises?(:bad_option, () -> timeout(slow, 0))
   assert raises?(:bad_option, () -> timeout(slow, 1.5))
 end
@@ -1488,13 +1450,13 @@ test "stream keeps each chunk in order and the body is their join"
     end,
     {content_type: "text/event-stream"}
   )
-  assert get(r, :chunks) == ["a", "b", "3"]
-  assert get(r, :body) == "ab3"
-  assert get(get(r, :headers), "Content-Type") == "text/event-stream"
+  assert r[:chunks] == ["a", "b", "3"]
+  assert r[:body] == "ab3"
+  assert r[:headers]["Content-Type"] == "text/event-stream"
   empty = stream(request("GET", "/", ""), (_emit) -> nil)
-  assert get(empty, :chunks) == []
-  assert get(empty, :body) == ""
-  assert get(empty, :status) == 200
+  assert empty[:chunks] == []
+  assert empty[:body] == ""
+  assert empty[:status] == 200
 end
 
 test "file serves a file with its type and validator, 304 on a match, ranges by byte"
@@ -1502,25 +1464,25 @@ test "file serves a file with its type and validator, 304 on a match, ranges by 
   path = "#{dir}/kyuuji-file-test.css"
   write_file(path, "body{color:red}")
   r = file(path)
-  assert get(r, :status) == 200
-  assert get(r, :body) == "body{color:red}"
-  assert get(get(r, :headers), "Content-Type") == "text/css; charset=utf-8"
-  tag = get(get(r, :headers), "ETag")
+  assert r[:status] == 200
+  assert r[:body] == "body{color:red}"
+  assert r[:headers]["Content-Type"] == "text/css; charset=utf-8"
+  tag = r[:headers]["ETag"]
   assert tag ==
     "\"#{join(take(32, chars(digest_hex(:sha256, "body{color:red}"))), "")}\""
   again = with_headers(request("GET", "/", ""), [["if-none-match", tag]])
-  assert get(file(path, {request: again}), :status) == 304
+  assert file(path, {request: again})[:status] == 304
   part = with_headers(request("GET", "/", ""), [["range", "bytes=5-9"]])
   p = file(path, {request: part})
-  assert get(p, :status) == 206
-  assert get(p, :body) == "color"
-  assert get(get(p, :headers), "Content-Range") == "bytes 5-9/15"
+  assert p[:status] == 206
+  assert p[:body] == "color"
+  assert p[:headers]["Content-Range"] == "bytes 5-9/15"
   tail = with_headers(request("GET", "/", ""), [["range", "bytes=-4"]])
-  assert get(file(path, {request: tail}), :body) == "red}"
+  assert file(path, {request: tail})[:body] == "red}"
   past = with_headers(request("GET", "/", ""), [["range", "bytes=99-"]])
-  assert get(file(path, {request: past}), :status) == 416
-  assert get(file("#{dir}/kyuuji-no-such-file"), :status) == 404
-  assert get(file("#{dir}/../etc/passwd"), :status) == 403
+  assert file(path, {request: past})[:status] == 416
+  assert file("#{dir}/kyuuji-no-such-file")[:status] == 404
+  assert file("#{dir}/../etc/passwd")[:status] == 403
   assert content_type_of("a/b") == "application/octet-stream"
   assert content_type_of("a/INDEX.HTML") == "text/html; charset=utf-8"
 end
@@ -1537,11 +1499,10 @@ test "cors answers an allowed preflight, marks allowed answers, and refuses a ba
       ]
     )
   )
-  assert get(pre, :status) == 204
-  assert get(get(pre, :headers), "Access-Control-Allow-Origin") ==
-    "https://app.example"
-  assert get(get(pre, :headers), "Access-Control-Allow-Methods") == "GET, POST"
-  assert get(get(pre, :headers), "Vary") == "Origin"
+  assert pre[:status] == 204
+  assert pre[:headers]["Access-Control-Allow-Origin"] == "https://app.example"
+  assert pre[:headers]["Access-Control-Allow-Methods"] == "GET, POST"
+  assert pre[:headers]["Vary"] == "Origin"
   stranger = h(
     with_headers(
       request("OPTIONS", "/", ""),
@@ -1551,7 +1512,7 @@ test "cors answers an allowed preflight, marks allowed answers, and refuses a ba
       ]
     )
   )
-  assert get(stranger, :status) == 403
+  assert stranger[:status] == 403
   verb = h(
     with_headers(
       request("OPTIONS", "/", ""),
@@ -1561,18 +1522,18 @@ test "cors answers an allowed preflight, marks allowed answers, and refuses a ba
       ]
     )
   )
-  assert get(verb, :status) == 403
+  assert verb[:status] == 403
   simple = h(
     with_headers(request("GET", "/", ""), [["origin", "https://app.example"]])
   )
-  assert get(get(simple, :headers), "Access-Control-Allow-Origin") ==
+  assert simple[:headers]["Access-Control-Allow-Origin"] ==
     "https://app.example"
   other = h(
     with_headers(request("GET", "/", ""), [["origin", "https://evil.example"]])
   )
-  assert get(get(other, :headers), "Access-Control-Allow-Origin").nil?
+  assert other[:headers]["Access-Control-Allow-Origin"].nil?
   bare = h(request("GET", "/", ""))
-  assert get(bare, :headers) == {"Content-Type" => "text/plain; charset=utf-8"}
+  assert bare[:headers] == {"Content-Type" => "text/plain; charset=utf-8"}
   any = cors((_r) -> text(200, "x"), {origins: ["*"]})
   assert get(
     get(
@@ -1603,11 +1564,10 @@ test "upgrade answers the RFC 6455 handshake and the wire refuses a hand-off it 
     ]
   )
   r = upgrade(req, (_socket) -> nil)
-  assert get(r, :status) == 101
-  assert get(get(r, :headers), "Sec-WebSocket-Accept") ==
-    "s3pPLMBiTxaQ9kYGzzhZRbK+xOo="
-  assert get(get(r, :headers), "Upgrade") == "websocket"
-  assert get(wire(r), :status) == 501
+  assert r[:status] == 101
+  assert r[:headers]["Sec-WebSocket-Accept"] == "s3pPLMBiTxaQ9kYGzzhZRbK+xOo="
+  assert r[:headers]["Upgrade"] == "websocket"
+  assert wire(r)[:status] == 501
   old = with_headers(
     req,
     [
@@ -1617,9 +1577,9 @@ test "upgrade answers the RFC 6455 handshake and the wire refuses a hand-off it 
       ["sec-websocket-version", "8"]
     ]
   )
-  assert get(upgrade(old, (_s) -> nil), :status) == 426
-  assert get(upgrade(request("GET", "/ws", ""), (_s) -> nil), :status) == 400
-  assert get(wire(text(200, "x")), :status) == 200
+  assert upgrade(old, (_s) -> nil)[:status] == 426
+  assert upgrade(request("GET", "/ws", ""), (_s) -> nil)[:status] == 400
+  assert wire(text(200, "x"))[:status] == 200
 end
 
 test "serve_once answers a router app over a socket, view routes included"

@@ -36,16 +36,16 @@ def fixture(name)
 end
 
 def lines_of(g)
-  map((f) -> "#{get(f, :kind)}\t#{get(f, :subject)}", graph_findings(g))
+  map((f) -> "#{f[:kind]}\t#{f[:subject]}", graph_findings(g))
 end
 
 test "the committed graph loads without one refusal"
   g = graph_load(graph_home)
-  assert get(g, :refusals) == []
-  assert size(get(g, :verbs)) > 2000
-  assert size(get(g, :edges)) > 4000
-  assert size(get(g, :spaces)) > 100
-  assert size(get(g, :vocab)) > 300
+  assert g[:refusals] == []
+  assert size(g[:verbs]) > 2000
+  assert size(g[:edges]) > 4000
+  assert size(g[:spaces]) > 100
+  assert size(g[:vocab]) > 300
 end
 
 test "the committed graph breaks no gate beyond the debt it recorded"
@@ -72,14 +72,11 @@ end
 
 test "the same fixture with its bad rows removed breaks no gate"
   assert lines_of(fixture("green")) == []
-  assert get(fixture("green"), :refusals) == []
+  assert fixture("green")[:refusals] == []
 end
 
 def live_lines_of(g)
-  map(
-    (f) -> "#{get(f, :kind)}\t#{get(f, :subject)}",
-    graph_findings_live(g, self_exe)
-  )
+  map((f) -> "#{f[:kind]}\t#{f[:subject]}", graph_findings_live(g, self_exe))
 end
 
 test "every exists row of the committed graph resolves in a live interpreter"
@@ -94,11 +91,7 @@ end
 
 test "the same fixture with its unbound row removed breaks no gate"
   g = fixture("unbound")
-  kept = assoc(
-    g,
-    :verbs,
-    reject((r) -> get(r, :verb) == "nothere", get(g, :verbs))
-  )
+  kept = assoc(g, :verbs, reject((r) -> r[:verb] == "nothere", g[:verbs]))
   assert live_lines_of(kept) == []
 end
 
@@ -147,7 +140,7 @@ def untested_lines(tested)
   root = zed_root(tested)
   found = untested_probe(fixture("untested"), [root])
   rm_rf(root)
-  map((f) -> "#{get(f, :kind)}\t#{get(f, :subject)}", found)
+  map((f) -> "#{f[:kind]}\t#{f[:subject]}", found)
 end
 
 test "one exists row with no unit test is named by the test probe, and no other row is"

@@ -22,7 +22,7 @@ def hex_channels(text)
       count_where(number?, values) != 3
     raise(:bad_option, "#{text} is not #rgb or #rrggbb")
   end
-  {r: nth(0, values), g: nth(1, values), b: nth(2, values)}
+  {r: values[0], g: values[1], b: values[2]}
 end
 
 def rgb(color)
@@ -36,7 +36,7 @@ def rgb(color)
     if count_where((v) -> number?(v) and v >= 0 and v <= 255, parts) != 3
       raise(:bad_option, "a color record takes r, g and b from 0 to 255")
     end
-    {r: get(color, :r), g: get(color, :g), b: get(color, :b)}
+    {r: color[:r], g: color[:g], b: color[:b]}
   else
     raise(:bad_option, "a color is #rgb, #rrggbb or a record with r, g and b")
   end
@@ -46,9 +46,9 @@ def hex(color)
   c = rgb(color)
   concat(
     "#",
-    to_hex_width(round(get(c, :r)), 2),
-    to_hex_width(round(get(c, :g)), 2),
-    to_hex_width(round(get(c, :b)), 2)
+    to_hex_width(round(c[:r]), 2),
+    to_hex_width(round(c[:g]), 2),
+    to_hex_width(round(c[:b]), 2)
   )
 end
 
@@ -63,9 +63,7 @@ end
 
 def luminance(color)
   c = rgb(color)
-  0.2126 * linear(get(c, :r)) +
-    0.7152 * linear(get(c, :g)) +
-    0.0722 * linear(get(c, :b))
+  0.2126 * linear(c[:r]) + 0.7152 * linear(c[:g]) + 0.0722 * linear(c[:b])
 end
 
 @doc """
@@ -106,7 +104,7 @@ def theme(tokens, mode)
   {
     mode:,
     tokens: reduce(
-      (acc, e) -> assoc(acc, first(e), token_color(first(e), nth(1, e), mode)),
+      (acc, e) -> assoc(acc, first(e), token_color(first(e), e[1], mode)),
       {},
       map_entries(tokens)
     )
@@ -117,7 +115,7 @@ def token_for(theme, name)
   found = if theme.nil?
     nil
   else
-    get(get(theme, :tokens), name)
+    get(theme[:tokens], name)
   end
   if found.nil?
     raise(:bad_option, "no theme token #{to_s(name)}")
@@ -135,7 +133,7 @@ end
 
 def sequence(prefix, value, theme)
   c = paint(value, theme)
-  "#{prefix};2;#{to_s(round(get(c, :r)))};#{to_s(round(get(c, :g)))};#{to_s(round(get(c, :b)))}"
+  "#{prefix};2;#{to_s(round(c[:r]))};#{to_s(round(c[:g]))};#{to_s(round(c[:b]))}"
 end
 
 @doc """
@@ -188,24 +186,24 @@ def codes(node, theme)
   colors = filter(
     (x) -> x != nil,
     [
-      if get(node, :ink).nil?
+      if node[:ink].nil?
         nil
       else
-        ink_code(get(node, :ink))
+        ink_code(node[:ink])
       end,
-      if get(node, :fg).nil?
+      if node[:fg].nil?
         nil
       else
-        sequence("38", get(node, :fg), theme)
+        sequence("38", node[:fg], theme)
       end,
-      if get(node, :bg).nil?
+      if node[:bg].nil?
         nil
       else
-        sequence("48", get(node, :bg), theme)
+        sequence("48", node[:bg], theme)
       end
     ]
   )
-  append(map((p) -> nth(1, p), flags), colors)
+  append(map((p) -> p[1], flags), colors)
 end
 
 def styled(node, ctx)
@@ -213,12 +211,12 @@ def styled(node, ctx)
     node
   elsif list?(node)
     join(map((n) -> styled(n, ctx), node), "")
-  elsif map?(node) and string?(get(node, :text))
-    on = codes(node, get(ctx, :theme))
-    if is_empty(on) or not get(ctx, :color)
-      get(node, :text)
+  elsif map?(node) and string?(node[:text])
+    on = codes(node, ctx[:theme])
+    if is_empty(on) or not ctx[:color]
+      node[:text]
     else
-      "#{esc_char}[#{join(on, ";")}m#{get(node, :text)}#{esc_char}[0m"
+      "#{esc_char}[#{join(on, ";")}m#{node[:text]}#{esc_char}[0m"
     end
   else
     raise(:bad_option, "a node is text, a list of nodes, or a record with text")
@@ -234,8 +232,8 @@ def color_default()
 end
 
 def writer(opts)
-  sink = get(opts, :sink)
-  to = get(opts, :to) or :stdout
+  sink = opts[:sink]
+  to = opts[:to] or :stdout
   if sink != nil
     sink
   elsif to == :stdout
@@ -253,17 +251,17 @@ show: put a node on the terminal as styled output.
 def show(node, opts)
   checked(opts, [:theme, :color, :sink, :to, :newline])
   write = writer(opts)
-  on = get(opts, :color)
+  on = opts[:color]
   ctx = {
     color: if on.nil?
       color_default
     else
       on
     end,
-    theme: get(opts, :theme)
+    theme: opts[:theme]
   }
   text = styled(node, ctx)
-  if get(opts, :newline) == false
+  if opts[:newline] == false
     write(text)
   else
     write(unlines([text]))
@@ -316,7 +314,7 @@ step: one step of a run as a node: the state's mark, its place as [at/of], its n
 """
 def step(s)
   checked(s, [:state, :at, :of, :name, :note, :ms])
-  state = get(s, :state)
+  state = s[:state]
   mark = get(step_marks, state)
   if mark.nil?
     raise(
@@ -329,17 +327,17 @@ def step(s)
     state
   )
   name = if tone.nil?
-    {text: get(s, :name), bold: true}
+    {text: s[:name], bold: true}
   else
-    {text: get(s, :name), bold: true, ink: tone}
+    {text: s[:name], bold: true, ink: tone}
   end
-  note = if get(s, :note).nil?
+  note = if s[:note].nil?
     []
   else
-    [{text: " — ", ink: :bright_black}, get(s, :note)]
+    [{text: " — ", ink: :bright_black}, s[:note]]
   end
-  tail = if get(s, :ms) != nil
-    [{text: " (#{duration_text(get(s, :ms))})", ink: :bright_black}]
+  tail = if s[:ms] != nil
+    [{text: " (#{duration_text(s[:ms])})", ink: :bright_black}]
   elsif state == :running
     [{text: " …", ink: :bright_black}]
   else
@@ -348,7 +346,7 @@ def step(s)
   append(
     [
       "#{mark} ",
-      {text: "[#{to_s(get(s, :at))}/#{to_s(get(s, :of))}]", ink: :bright_black},
+      {text: "[#{to_s(s[:at])}/#{to_s(s[:of])}]", ink: :bright_black},
       " ",
       name
     ],
@@ -363,8 +361,8 @@ show_step: write one step line, to stderr unless told otherwise, painted only wh
     show_step({state: :skipped, at: 1, of: 1, name: "x"}, {sink: (_t) -> nil}) #=> nil
 """
 def show_step(s, opts)
-  to = get(opts, :to) or :stderr
-  color = if get(opts, :color).nil?
+  to = opts[:to] or :stderr
+  color = if opts[:color].nil?
     color_default and
       terminal?(
         if to == :stdout
@@ -374,7 +372,7 @@ def show_step(s, opts)
         end
       )
   else
-    get(opts, :color)
+    opts[:color]
   end
   show(step(s), assoc(assoc(opts, :to, to), :color, color))
 end
@@ -621,15 +619,15 @@ def roles()
 end
 
 def tag_of(tag)
-  find_first((r) -> get(r, :tag) == tag, tags)
+  find_first((r) -> r[:tag] == tag, tags)
 end
 
 def attr_of(key)
-  find_first((r) -> get(r, :key) == key, attributes)
+  find_first((r) -> r[:key] == key, attributes)
 end
 
 def style_of(key)
-  find_first((r) -> get(r, :key) == key, style_props)
+  find_first((r) -> r[:key] == key, style_props)
 end
 
 def scale_value(scale, key)
@@ -637,14 +635,14 @@ def scale_value(scale, key)
   if found.nil?
     nil
   else
-    nth(1, found)
+    found[1]
   end
 end
 
 def allowed?(tag, key)
   a = attr_of(key)
   t = tag_of(tag)
-  a != nil and t != nil and (get(a, :global) or member?(key, get(t, :attrs)))
+  a != nil and t != nil and (a[:global] or member?(key, t[:attrs]))
 end
 
 def escape(text)
@@ -709,7 +707,7 @@ def text_node?(node)
 end
 
 def props_of(node)
-  p = get(node, :props)
+  p = node[:props]
   if map?(p)
     p
   else
@@ -722,7 +720,7 @@ def prop(node, key)
 end
 
 def kids(node)
-  c = get(node, :children)
+  c = node[:children]
   if list?(c)
     filter((x) -> x != nil, flatten(c))
   else
@@ -738,12 +736,12 @@ def style_faults(value)
       map_entries(value),
       fn(e)
         k = first(e)
-        v = nth(1, e)
+        v = e[1]
         row = style_of(k)
         kind = if row.nil?
           nil
         else
-          get(row, :kind)
+          row[:kind]
         end
         if row.nil?
           [refusal(:unknown_style, "style #{to_s(k)} is not in the table")]
@@ -779,8 +777,8 @@ def style_faults(value)
 end
 
 def value_faults(row, value)
-  kind = get(row, :kind)
-  name = get(row, :name)
+  kind = row[:kind]
+  name = row[:name]
   if value.nil?
     []
   elsif kind == :text and
@@ -804,7 +802,7 @@ end
 def prop_faults(tag, entry)
   key = first(entry)
   if allowed?(tag, key)
-    value_faults(attr_of(key), nth(1, entry))
+    value_faults(attr_of(key), entry[1])
   else
     [
       refusal(
@@ -816,10 +814,10 @@ def prop_faults(tag, entry)
 end
 
 def node_faults(node)
-  if not element?(node) or not keyword?(get(node, :tag))
+  if not element?(node) or not keyword?(node[:tag])
     [refusal(:bad_node, "a node is text, a list, or a record with a tag")]
   else
-    tag = get(node, :tag)
+    tag = node[:tag]
     row = tag_of(tag)
     extra = filter(
       (e) -> not member?(first(e), [:tag, :props, :children, :events]),
@@ -833,12 +831,12 @@ def node_faults(node)
         else
           refusal(:bad_node, "a node has only tag, props, children and events")
         end,
-        if get(node, :props).nil? or map?(get(node, :props))
+        if node[:props].nil? or map?(node[:props])
           nil
         else
           refusal(:bad_node, "props is a record")
         end,
-        if get(node, :children).nil? or list?(get(node, :children))
+        if node[:children].nil? or list?(node[:children])
           nil
         else
           refusal(:bad_node, "children is a list")
@@ -849,7 +847,7 @@ def node_faults(node)
       [refusal(:unknown_tag, "tag #{to_s(tag)} is not in the table")]
     elsif not is_empty(shape)
       shape
-    elsif get(row, :void) and not is_empty(kids(node))
+    elsif row[:void] and not is_empty(kids(node))
       [refusal(:bad_node, "#{to_s(tag)} takes no children")]
     else
       flat_map(map_entries(props_of(node)), (e) -> prop_faults(tag, e))
@@ -864,7 +862,7 @@ def entries(node, path, ancestors)
     xs = filter((x) -> x != nil, flatten(node))
     flat_map(
       range(0, size(xs)),
-      (i) -> entries(nth(i, xs), append(path, [i]), ancestors)
+      (i) -> entries(xs[i], append(path, [i]), ancestors)
     )
   elsif element?(node) and is_empty(node_faults(node))
     cs = kids(node)
@@ -872,7 +870,7 @@ def entries(node, path, ancestors)
       [{path:, node:, ancestors:}],
       flat_map(
         range(0, size(cs)),
-        (i) -> entries(nth(i, cs), append(path, [i]), append(ancestors, [node]))
+        (i) -> entries(cs[i], append(path, [i]), append(ancestors, [node]))
       )
     )
   else
@@ -885,36 +883,33 @@ def elements(tree)
 end
 
 def at(entry, r)
-  label = if element?(get(entry, :node))
-    " <#{to_s(get(get(entry, :node), :tag))}>"
+  label = if element?(entry[:node])
+    " <#{to_s(entry[:node][:tag])}>"
   else
     ""
   end
-  refusal(kind(r), "at #{where(get(entry, :path))}#{label}: #{why(r)}")
+  refusal(kind(r), "at #{where(entry[:path])}#{label}: #{why(r)}")
 end
 
 def refusals(tree)
-  flat_map(
-    elements(tree),
-    (e) -> map((r) -> at(e, r), node_faults(get(e, :node)))
-  )
+  flat_map(elements(tree), (e) -> map((r) -> at(e, r), node_faults(e[:node])))
 end
 
 def declarations(value)
   flat_map(
     style_props,
     fn(row)
-      k = get(row, :key)
+      k = row[:key]
       v = get(value, k)
-      kind = get(row, :kind)
+      kind = row[:kind]
       if v.nil?
         []
       elsif kind == :layout
         [scale_value(layouts, v)]
       elsif kind == :columns
-        ["#{get(row, :name)}:repeat(#{to_s(v)},minmax(0,1fr))"]
+        ["#{row[:name]}:repeat(#{to_s(v)},minmax(0,1fr))"]
       elsif kind == :align
-        ["#{get(row, :name)}:#{to_s(v)}"]
+        ["#{row[:name]}:#{to_s(v)}"]
       else
         prefix = if kind == :color
           "color"
@@ -923,7 +918,7 @@ def declarations(value)
         else
           "size"
         end
-        ["#{get(row, :name)}:var(--#{prefix}-#{replace(to_s(v), "_", "-")})"]
+        ["#{row[:name]}:var(--#{prefix}-#{replace(to_s(v), "_", "-")})"]
       end
     end
   )
@@ -931,9 +926,9 @@ end
 
 def attr_text(entry)
   row = attr_of(first(entry))
-  v = nth(1, entry)
-  name = get(row, :name)
-  kind = get(row, :kind)
+  v = entry[1]
+  name = row[:name]
+  kind = row[:kind]
   if v.nil? or kind == :bool and v == false
     nil
   elsif kind == :bool
@@ -947,7 +942,7 @@ end
 
 def open_tag(node)
   attrs = filter((x) -> x != nil, map(attr_text, map_entries(props_of(node))))
-  "<#{to_s(get(node, :tag))}#{join(attrs, "")}>"
+  "<#{to_s(node[:tag])}#{join(attrs, "")}>"
 end
 
 def html_of(node, path, ctx)
@@ -958,10 +953,7 @@ def html_of(node, path, ctx)
   elsif list?(node)
     xs = filter((x) -> x != nil, flatten(node))
     join(
-      map(
-        (i) -> html_of(nth(i, xs), append(path, [i]), ctx),
-        range(0, size(xs))
-      ),
+      map((i) -> html_of(xs[i], append(path, [i]), ctx), range(0, size(xs))),
       ""
     )
   else
@@ -969,18 +961,15 @@ def html_of(node, path, ctx)
     if not is_empty(faults)
       "<!--gamen:refused #{join(map(to_s, distinct(kinds(faults))), ",")} at #{where(path)}-->"
     else
-      tag = get(node, :tag)
+      tag = node[:tag]
       row = tag_of(tag)
       cs = kids(node)
       inner = join(
-        map(
-          (i) -> html_of(nth(i, cs), append(path, [i]), ctx),
-          range(0, size(cs))
-        ),
+        map((i) -> html_of(cs[i], append(path, [i]), ctx), range(0, size(cs))),
         ""
       )
-      head = if tag == :head and get(ctx, :theme) != nil
-        "<style>#{css(get(ctx, :theme))}</style>"
+      head = if tag == :head and ctx[:theme] != nil
+        "<style>#{css(ctx[:theme])}</style>"
       else
         ""
       end
@@ -989,7 +978,7 @@ def html_of(node, path, ctx)
       else
         ""
       end
-      if get(row, :void)
+      if row[:void]
         "#{doctype}#{open_tag(node)}"
       else
         "#{doctype}#{open_tag(node)}#{inner}#{head}</#{to_s(tag)}>"
@@ -999,7 +988,7 @@ def html_of(node, path, ctx)
 end
 
 def css(theme)
-  pairs = map_entries(get(theme, :tokens))
+  pairs = map_entries(theme[:tokens])
   strays = filter((e) -> not member?(first(e), color_roles), pairs)
   if not is_empty(strays)
     raise(
@@ -1009,11 +998,11 @@ def css(theme)
   end
   vars = append(
     map(
-      (e) -> "--color-#{replace(to_s(first(e)), "_", "-")}:#{hex(nth(1, e))}",
+      (e) -> "--color-#{replace(to_s(first(e)), "_", "-")}:#{hex(e[1])}",
       pairs
     ),
-    map((e) -> "--space-#{to_s(first(e))}:#{nth(1, e)}", space_scale),
-    map((e) -> "--size-#{to_s(first(e))}:#{nth(1, e)}", size_scale)
+    map((e) -> "--space-#{to_s(first(e))}:#{e[1]}", space_scale),
+    map((e) -> "--size-#{to_s(first(e))}:#{e[1]}", size_scale)
   )
   ":root{#{join(vars, ";")}}"
 end
@@ -1026,7 +1015,7 @@ render: tree to html, ansi, svg or widget spec text.
 def render(tree, target, opts?)
   o = opts or {}
   checked(o, [:theme, :refuse])
-  refuse = get(o, :refuse) or :node
+  refuse = o[:refuse] or :node
   if target != :html
     raise(
       :bad_option,
@@ -1040,7 +1029,7 @@ def render(tree, target, opts?)
   if refuse == :page and not is_empty(found)
     raise(:render_error, join(map(why, found), "; "), {data: found})
   end
-  html_of(tree, [], {theme: get(o, :theme)})
+  html_of(tree, [], {theme: o[:theme]})
 end
 
 def event_key?(key)
@@ -1051,7 +1040,7 @@ def element(tag, props, children)
   if tag_of(tag).nil?
     raise(:bad_option, "tag #{to_s(tag)} is not in the table")
   end
-  events = get(props, :on)
+  events = props[:on]
   attrs = dissoc(props, :on)
   map(
     fn(e)
@@ -1123,12 +1112,12 @@ component: declare a reusable view: props, state, events.
 """
 def component(name, spec)
   checked(spec, [:props, :slots, :variants, :events, :a11y, :view])
-  props = get(spec, :props) or {}
-  slots = get(spec, :slots) or [:default]
-  variants = get(spec, :variants) or {}
-  events = get(spec, :events) or []
-  a11y = get(spec, :a11y) or {}
-  body = get(spec, :view)
+  props = spec[:props] or {}
+  slots = spec[:slots] or [:default]
+  variants = spec[:variants] or {}
+  events = spec[:events] or []
+  a11y = spec[:a11y] or {}
+  body = spec[:view]
   if not keyword?(name)
     raise(:bad_option, "a component name is a keyword")
   end
@@ -1139,21 +1128,21 @@ def component(name, spec)
     )
   end
   checked(a11y, [:role, :label])
-  if get(a11y, :role) != nil and not member?(get(a11y, :role), roles)
+  if a11y[:role] != nil and not member?(a11y[:role], roles)
     raise(
       :bad_option,
-      "component #{to_s(name)}: role #{to_s(get(a11y, :role))} is not in the role table"
+      "component #{to_s(name)}: role #{to_s(a11y[:role])} is not in the role table"
     )
   end
-  if get(a11y, :label) != nil and not jisho::has?(props, get(a11y, :label))
+  if a11y[:label] != nil and not jisho::has?(props, a11y[:label])
     raise(
       :bad_option,
-      "component #{to_s(name)}: a11y label names prop #{to_s(get(a11y, :label))}, which it does not declare"
+      "component #{to_s(name)}: a11y label names prop #{to_s(a11y[:label])}, which it does not declare"
     )
   end
   map(
     fn(e)
-      if not list?(nth(1, e)) or is_empty(nth(1, e))
+      if not list?(e[1]) or is_empty(e[1])
         raise(
           :bad_option,
           "component #{to_s(name)}: variant #{to_s(first(e))} lists its values"
@@ -1167,19 +1156,19 @@ def component(name, spec)
 end
 
 def filled(c, given)
-  name = to_s(get(c, :component))
-  declared = get(c, :props)
-  variants = get(c, :variants)
+  name = to_s(c[:component])
+  declared = c[:props]
+  variants = c[:variants]
   map(
     fn(e)
       k = first(e)
       if not jisho::has?(declared, k) and not jisho::has?(variants, k)
         raise(:bad_option, "component #{name} has no prop #{to_s(k)}")
       end
-      if jisho::has?(variants, k) and not member?(nth(1, e), get(variants, k))
+      if jisho::has?(variants, k) and not member?(e[1], get(variants, k))
         raise(
           :bad_option,
-          "component #{name}: #{to_s(nth(1, e))} is not a #{to_s(k)} variant"
+          "component #{name}: #{to_s(e[1])} is not a #{to_s(k)} variant"
         )
       end
       nil
@@ -1189,7 +1178,7 @@ def filled(c, given)
   with_props = reduce(
     fn(acc, e)
       k = first(e)
-      d = nth(1, e)
+      d = e[1]
       v = get(given, k)
       if v != nil
         assoc(acc, k, v)
@@ -1205,15 +1194,15 @@ def filled(c, given)
     map_entries(declared)
   )
   reduce(
-    (acc, e) -> assoc(acc, first(e), get(given, first(e)) or first(nth(1, e))),
+    (acc, e) -> assoc(acc, first(e), get(given, first(e)) or first(e[1])),
     with_props,
     map_entries(variants)
   )
 end
 
 def slotted(c, children)
-  name = to_s(get(c, :component))
-  declared = get(c, :slots)
+  name = to_s(c[:component])
+  declared = c[:slots]
   given = if map?(children)
     children
   elsif is_empty(children)
@@ -1234,11 +1223,11 @@ def slotted(c, children)
 end
 
 def instance(c, given, children)
-  name = to_s(get(c, :component))
-  handlers = get(given, :on) or {}
+  name = to_s(c[:component])
+  handlers = given[:on] or {}
   map(
     fn(e)
-      if not member?(first(e), get(c, :events))
+      if not member?(first(e), c[:events])
         raise(
           :bad_option,
           "component #{name} declares no event #{to_s(first(e))}"
@@ -1249,27 +1238,27 @@ def instance(c, given, children)
     map_entries(handlers)
   )
   props = filled(c, dissoc(given, :on))
-  tree = get(c, :view)(props, slotted(c, children))
+  tree = c[:view](props, slotted(c, children))
   if not element?(tree)
     raise(:bad_option, "component #{name} must return one element")
   end
-  a11y = get(c, :a11y)
-  role = get(a11y, :role)
-  label = if get(a11y, :label).nil?
+  a11y = c[:a11y]
+  role = a11y[:role]
+  label = if a11y[:label].nil?
     nil
   else
-    get(props, get(a11y, :label))
+    get(props, a11y[:label])
   end
-  extra = filter((e) -> nth(1, e) != nil, [[:role, role], [:aria_label, label]])
+  extra = filter((e) -> e[1] != nil, [[:role, role], [:aria_label, label]])
   root = assoc(
     tree,
     :props,
-    reduce((acc, e) -> assoc(acc, first(e), nth(1, e)), props_of(tree), extra)
+    reduce((acc, e) -> assoc(acc, first(e), e[1]), props_of(tree), extra)
   )
   if is_empty(map_entries(handlers))
     root
   else
-    assoc(root, :events, jisho::merge(get(root, :events) or {}, handlers))
+    assoc(root, :events, jisho::merge(root[:events] or {}, handlers))
   end
 end
 
@@ -1284,7 +1273,7 @@ def labels(set, entries)
   end
   map(
     fn(e)
-      if not string?(nth(1, e))
+      if not string?(e[1])
         raise(
           :bad_option,
           "labels: the label of #{to_s(first(e))} is display text, a string"
@@ -1297,7 +1286,7 @@ def labels(set, entries)
   {
     labels: set,
     entries: reduce(
-      (m, e) -> assoc(m, to_s(first(e)), nth(1, e)),
+      (m, e) -> assoc(m, to_s(first(e)), e[1]),
       {},
       map_entries(entries)
     )
@@ -1315,7 +1304,7 @@ def layout(kind, children, opts?)
   if scale_value(layouts, kind).nil?
     raise(:bad_option, "a layout is :stack, :row or :grid, got #{to_s(kind)}")
   end
-  if get(o, :columns) != nil and kind != :grid
+  if o[:columns] != nil and kind != :grid
     raise(:bad_option, "columns is for a grid")
   end
   s = reduce(
@@ -1329,11 +1318,11 @@ def layout(kind, children, opts?)
     {layout: kind},
     [:gap, :columns, :align]
   )
-  view(get(o, :tag) or :div, assoc(get(o, :props) or {}, :style, s), children)
+  view(o[:tag] or :div, assoc(o[:props] or {}, :style, s), children)
 end
 
 def resolved(theme, row, v)
-  kind = get(row, :kind)
+  kind = row[:kind]
   if kind == :color
     token_for(theme, v)
   elsif kind == :space
@@ -1359,7 +1348,7 @@ def style(node, theme)
     end
     out = reduce(
       fn(acc, e)
-        assoc(acc, first(e), resolved(theme, style_of(first(e)), nth(1, e)))
+        assoc(acc, first(e), resolved(theme, style_of(first(e)), e[1]))
       end,
       {},
       map_entries(s)
@@ -1372,7 +1361,7 @@ def page(spec)
   checked(spec, [:title, :lang, :body])
   view(
     :html,
-    {lang: get(spec, :lang) or "en"},
+    {lang: spec[:lang] or "en"},
     [
       view(
         :head,
@@ -1383,10 +1372,10 @@ def page(spec)
             :meta,
             {name: "viewport", content: "width=device-width, initial-scale=1"}
           ),
-          view(:title, {}, [get(spec, :title)])
+          view(:title, {}, [spec[:title]])
         ]
       ),
-      view(:body, {}, get(spec, :body))
+      view(:body, {}, spec[:body])
     ]
   )
 end
@@ -1416,8 +1405,8 @@ def alt_rule(tree)
   flat_map(
     elements(tree),
     fn(e)
-      n = get(e, :node)
-      if element?(n) and get(n, :tag) == :img and prop(n, :alt).nil?
+      n = e[:node]
+      if element?(n) and n[:tag] == :img and prop(n, :alt).nil?
         [
           finding(
             e,
@@ -1436,9 +1425,9 @@ def label_targets(tree)
   filter(
     (x) -> x != nil,
     map(
-      (e) -> prop(get(e, :node), :for),
+      (e) -> prop(e[:node], :for),
       filter(
-        (e) -> element?(get(e, :node)) and get(get(e, :node), :tag) == :label,
+        (e) -> element?(e[:node]) and e[:node][:tag] == :label,
         elements(tree)
       )
     )
@@ -1450,13 +1439,13 @@ def label_rule(tree)
   flat_map(
     elements(tree),
     fn(e)
-      n = get(e, :node)
+      n = e[:node]
       tag = if element?(n)
-        get(n, :tag)
+        n[:tag]
       end
       exempt = tag == :input and
         member?(prop(n, :type), ["hidden", "submit", "button", "reset"])
-      wrapped = any?((a) -> get(a, :tag) == :label, get(e, :ancestors))
+      wrapped = any?((a) -> a[:tag] == :label, e[:ancestors])
       by_for = prop(n, :id) != nil and member?(prop(n, :id), targets)
       if member?(tag, [:input, :textarea, :select]) and
           not exempt and
@@ -1469,10 +1458,10 @@ def label_rule(tree)
           trim(text_content(n)) == "" and
           not any?(
             fn(x)
-              element?(get(x, :node)) and
-                get(get(x, :node), :tag) == :img and
-                string?(prop(get(x, :node), :alt)) and
-                trim(prop(get(x, :node), :alt)) != ""
+              element?(x[:node]) and
+                x[:node][:tag] == :img and
+                string?(prop(x[:node], :alt)) and
+                trim(prop(x[:node], :alt)) != ""
             end,
             elements(kids(n))
           )
@@ -1498,12 +1487,12 @@ def role_rule(tree)
   flat_map(
     elements(tree),
     fn(e)
-      n = get(e, :node)
+      n = e[:node]
       role = if element?(n)
         prop(n, :role)
       end
       events = if element?(n)
-        get(n, :events)
+        n[:events]
       end
       if role != nil and
           not member?(role, roles) and
@@ -1511,7 +1500,7 @@ def role_rule(tree)
         [finding(e, :bad_role, "role #{to_s(role)} is not in the role table")]
       elsif map?(events) and
           not is_empty(map_entries(events)) and
-          not member?(get(n, :tag), interactive) and
+          not member?(n[:tag], interactive) and
           role.nil?
         [
           finding(
@@ -1528,7 +1517,7 @@ def role_rule(tree)
 end
 
 def focusable?(n)
-  tag = get(n, :tag)
+  tag = n[:tag]
   t = prop(n, :tabindex)
   member?(tag, [:button, :input, :select, :textarea]) or
     tag == :a and prop(n, :href) != nil or
@@ -1539,7 +1528,7 @@ def focus_rule(tree)
   flat_map(
     elements(tree),
     fn(e)
-      n = get(e, :node)
+      n = e[:node]
       t = if element?(n)
         prop(n, :tabindex)
       end
@@ -1577,380 +1566,6 @@ check: find accessibility and layout faults in a tree.
 """
 def check(tree, rules?)
   kyohi::check(tree, rules or append([refusals], a11y_rules))
-end
-
-@doc """
-role_inks: the ANSI slot each semantic role paints in, kazari's sixteen-colour line, so a Nord terminal shows ishou's palette and blue carries no hex.
-
-    get(role_inks, :success) #=> :green
-"""
-def role_inks()
-  {
-    primary: :cyan,
-    text: :bright_white,
-    text_muted: :white,
-    text_dim: :bright_black,
-    border: :bright_black,
-    error: :red,
-    warning: :yellow,
-    pending: :bright_yellow,
-    success: :green,
-    info: :blue,
-    ident: :magenta
-  }
-end
-
-@doc """
-tone: text as a node painted in a semantic role's ink.
-
-    tone("ok", :success) #=> {text: "ok", ink: :green}
-"""
-def tone(text, role)
-  ink = get(role_inks, role)
-  if ink.nil?
-    raise(
-      :bad_option,
-      "no role #{to_s(role)}; a role is one of #{join(map((e) -> to_s(first(e)), map_entries(role_inks)), ", ")}"
-    )
-  end
-  {text:, ink:}
-end
-
-@doc """
-verdict_marks: the coloured circle each overall verdict shows: green when it holds, yellow when it is partial, red when it fails.
-
-    get(verdict_marks, :partial) #=> "🟡"
-"""
-def verdict_marks()
-  {pass: "🟢", partial: "🟡", fail: "🔴"}
-end
-
-@doc """
-mark: the symbol of a step state or a verdict, refusing a state that has none.
-
-    mark(:failed) #=> "❌"
-"""
-def mark(state)
-  found = get(step_marks, state) or get(verdict_marks, state)
-  if found.nil?
-    raise(
-      :bad_option,
-      "no mark for #{to_s(state)}; a state is running, done, failed, skipped, warn, pass, partial or fail"
-    )
-  end
-  found
-end
-
-@doc """
-code_point: the Unicode code point of one character, read from its UTF-8 bytes.
-
-    code_point("✅") #=> 9989
-"""
-def code_point(c)
-  b = text_bytes(c)
-  n = size(b)
-  if n == 1
-    first(b)
-  elsif n == 2
-    (first(b) - 192) * 64 + (nth(1, b) - 128)
-  elsif n == 3
-    (first(b) - 224) * 4096 + (nth(1, b) - 128) * 64 + (nth(2, b) - 128)
-  else
-    (first(b) - 240) * 262_144 +
-      (nth(1, b) - 128) * 4096 +
-      (nth(2, b) - 128) * 64 +
-      (nth(3, b) - 128)
-  end
-end
-
-@doc """
-wide_ranges: the code point ranges below the astral planes a terminal draws two cells wide: East Asian wide letters and the emoji presentation symbols.
-
-    first(wide_ranges) #=> [4352, 4447]
-"""
-def wide_ranges()
-  [
-    [4352, 4447],
-    [8986, 8987],
-    [9193, 9196],
-    [9200, 9200],
-    [9203, 9203],
-    [9725, 9726],
-    [9748, 9749],
-    [9800, 9811],
-    [9855, 9855],
-    [9875, 9875],
-    [9889, 9889],
-    [9898, 9899],
-    [9917, 9918],
-    [9924, 9925],
-    [9934, 9934],
-    [9940, 9940],
-    [9962, 9962],
-    [9970, 9971],
-    [9973, 9973],
-    [9978, 9978],
-    [9981, 9981],
-    [9989, 9989],
-    [9994, 9995],
-    [10024, 10024],
-    [10060, 10060],
-    [10062, 10062],
-    [10067, 10069],
-    [10071, 10071],
-    [10133, 10135],
-    [10160, 10160],
-    [10175, 10175],
-    [11035, 11036],
-    [11088, 11088],
-    [11093, 11093],
-    [11904, 12350],
-    [12353, 13311],
-    [13312, 19903],
-    [19968, 40959],
-    [40960, 42191],
-    [44032, 55203],
-    [63744, 64255],
-    [65072, 65103],
-    [65280, 65376],
-    [65504, 65510]
-  ]
-end
-
-@doc """
-char_cells: the terminal cells one character takes: two for a wide letter or emoji, none for a joiner or a combining mark, one more for the emoji selector that widens the symbol before it.
-
-    char_cells("🟢") #=> 2
-"""
-def char_cells(c)
-  cp = code_point(c)
-  if cp == 65039
-    1
-  elsif cp == 8205 or cp >= 768 and cp <= 879 or cp >= 65024 and cp <= 65038
-    0
-  elsif cp >= 65536
-    2
-  elsif find_first((r) -> cp >= first(r) and cp <= nth(1, r), wide_ranges) !=
-      nil
-    2
-  else
-    1
-  end
-end
-
-@doc """
-cells: the terminal columns a text takes, the width tables and trees align by.
-
-    cells("⚠️ ok") #=> 5
-"""
-def cells(text)
-  reduce((n, c) -> n + char_cells(c), 0, chars(text))
-end
-
-@doc """
-plain: a node's text with every style dropped.
-
-    plain([{text: "a", bold: true}, "b"]) #=> "ab"
-"""
-def plain(node)
-  styled(node, {color: false, theme: nil})
-end
-
-@doc """
-padded: a node followed by spaces to fill a column of the given cells, or led by them when aligned right.
-
-    padded("ab", 4, :left) #=> ["ab", "  "]
-"""
-def padded(node, width, align)
-  gap = moji::repeated(" ", blue::max(0, width - cells(plain(node))))
-  if align == :right
-    [gap, node]
-  else
-    [node, gap]
-  end
-end
-
-@doc """
-table: rows of records laid out as aligned columns under a bold header and a rule, each cell text or a styled node, widths measured in terminal cells.
-
-    plain(table([{name: "a", n: 1}], {columns: [:name, :n]})) #=> join_lines(["name  n", "────  ─", "a     1"])
-"""
-def table(rows, opts)
-  checked(opts, [:columns, :headers, :align])
-  cols = get(opts, :columns)
-  if not list?(cols) or is_empty(cols)
-    raise(:bad_option, "a table needs columns: a list of the keys to show")
-  end
-  heads = map((k) -> get(get(opts, :headers) or {}, k) or to_s(k), cols)
-  body = map(
-    fn(r)
-      map(
-        fn(k)
-          if get(r, k).nil?
-            ""
-          elsif string?(get(r, k)) or map?(get(r, k)) or list?(get(r, k))
-            get(r, k)
-          else
-            to_s(get(r, k))
-          end
-        end,
-        cols
-      )
-    end,
-    rows
-  )
-  widths = map(
-    fn(i)
-      reduce(
-        (w, line) -> blue::max(w, cells(plain(nth(i, line)))),
-        cells(nth(i, heads)),
-        body
-      )
-    end,
-    range(0, size(cols))
-  )
-  aligns = map((k) -> get(get(opts, :align) or {}, k) or :left, cols)
-  row_node = (line) -> row(line, widths, aligns)
-  head = row_node(map((h) -> {text: h, bold: true}, heads))
-  rule = {
-    text: join(map((w) -> moji::repeated("─", w), widths), "  "),
-    ink: get(role_inks, :border)
-  }
-  intersperse(line_break, append([head, rule], map(row_node, body)))
-end
-
-@doc """
-row: one table line: its cells up to the last that holds text, each padded to its column and joined by two spaces, the last left-aligned cell left unpadded so no line ends in spaces.
-
-    plain(row(["a", "b", ""], [3, 3, 3], [:left, :left, :left])) #=> "a    b"
-"""
-def row(line, widths, aligns)
-  kept = blue::max(
-    1,
-    reduce(
-      fn(n, i)
-        if plain(nth(i, line)) == ""
-          n
-        else
-          i + 1
-        end
-      end,
-      0,
-      range(0, size(line))
-    )
-  )
-  intersperse(
-    "  ",
-    map(
-      fn(i)
-        if i == kept - 1 and nth(i, aligns) != :right
-          nth(i, line)
-        else
-          padded(nth(i, line), nth(i, widths), nth(i, aligns))
-        end
-      end,
-      range(0, kept)
-    )
-  )
-end
-
-@doc """
-tree: a record of label and children drawn as an indented tree with branch lines.
-
-    plain(tree({label: "a", children: [{label: "b"}]})) #=> join_lines(["a", "└── b"])
-"""
-def tree(node)
-  intersperse(
-    line_break,
-    append([get(node, :label)], branches(get(node, :children) or [], ""))
-  )
-end
-
-@doc """
-branches: the lines of a tree's children under a prefix, each led by its branch glyph.
-
-    plain(intersperse(line_break, branches([{label: "x"}, {label: "y"}], ""))) #=> join_lines(["├── x", "└── y"])
-"""
-def branches(children, prefix)
-  n = size(children)
-  flat_map(range(0, n), (i) -> branch(nth(i, children), i == n - 1, prefix))
-end
-
-@doc """
-branch: one child of a tree as its own line under a prefix, then its children's lines.
-
-    plain(first(branch({label: "x"}, true, ""))) #=> "└── x"
-"""
-def branch(child, is_last, prefix)
-  glyph = if is_last
-    "└── "
-  else
-    "├── "
-  end
-  below = if is_last
-    "    "
-  else
-    "│   "
-  end
-  append(
-    [
-      [
-        {text: "#{prefix}#{glyph}", ink: get(role_inks, :border)},
-        get(child, :label)
-      ]
-    ],
-    branches(get(child, :children) or [], "#{prefix}#{below}")
-  )
-end
-
-@doc """
-meter: a fraction from 0 to 1 drawn as a bar of eighth blocks on a track, a given number of cells wide.
-
-    meter(0.5, 4) #=> {text: "██──", ink: :cyan}
-"""
-def meter(fraction, width)
-  f = blue::min(1, blue::max(0, fraction))
-  eighths = round(f * width * 8)
-  full = floor(eighths / 8)
-  part = eighths - full * 8
-  partial = if part == 0
-    ""
-  else
-    nth(part - 1, ["▏", "▎", "▍", "▌", "▋", "▊", "▉"])
-  end
-  used = full +
-    if part == 0
-      0
-    else
-      1
-    end
-  {
-    text: concat(
-      moji::repeated("█", full),
-      partial,
-      moji::repeated("─", width - used)
-    ),
-    ink: get(role_inks, :primary)
-  }
-end
-
-@doc """
-spinner: the frame a busy indicator shows at a tick, braille by default and plain text when asked.
-
-    spinner(1, :ascii) #=> "/"
-"""
-def spinner(tick, style)
-  frames = if style == :ascii
-    ["|", "/", "-", "\\"]
-  elsif style == :braille
-    ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
-  else
-    raise(
-      :bad_option,
-      "a spinner style is braille or ascii, got #{to_s(style)}"
-    )
-  end
-  nth(tick % size(frames), frames)
 end
 
 test "rgb reads long and short hex, any case, and a record"
@@ -2010,17 +1625,17 @@ test "theme picks the mode of a light and dark pair and keeps a single color"
     accent: "#88c0d0"
   }
   light = theme(tokens, :light)
-  assert get(light, :mode) == :light
-  assert get(light, :tokens) ==
+  assert light[:mode] == :light
+  assert light[:tokens] ==
     {accent: "#88c0d0", background: "#eceff4", text: "#2e3440"}
   dark = theme(tokens, :dark)
-  assert get(get(dark, :tokens), :background) == "#2e3440"
-  assert get(get(dark, :tokens), :accent) == "#88c0d0"
+  assert dark[:tokens][:background] == "#2e3440"
+  assert dark[:tokens][:accent] == "#88c0d0"
 end
 
 test "theme normalizes records and short hex to six digit text, and may be empty"
   t = theme({a: "#F80", b: {r: 1, g: 2, b: 3}}, :dark)
-  assert get(t, :tokens) == {a: "#ff8800", b: "#010203"}
+  assert t[:tokens] == {a: "#ff8800", b: "#010203"}
   assert theme({}, :light) == {mode: :light, tokens: {}}
 end
 
@@ -2032,7 +1647,7 @@ test "theme refuses a mode it does not know and names the token that is no color
     :bad_option,
     () -> theme({a: {light: "#fff", dark: "bad"}}, :dark)
   )
-  assert get(theme({a: {light: "#fff", dark: "bad"}}, :light), :tokens) ==
+  assert theme({a: {light: "#fff", dark: "bad"}}, :light)[:tokens] ==
     {a: "#ffffff"}
   message = begin
     theme({link: "nope"}, :light)
@@ -2199,8 +1814,8 @@ test "view builds a plain record of tag, props and children"
   assert view(:ul, {}, [[view(:li, {}, ["a"])], nil]) ==
     {tag: :ul, props: {}, children: [{tag: :li, props: {}, children: ["a"]}]}
   b = view(:button, {on: {press: (_e) -> nil}, type: "button"}, ["Go"])
-  assert get(b, :props) == {type: "button"}
-  assert map(first, map_entries(get(b, :events))) == [:press]
+  assert b[:props] == {type: "button"}
+  assert map(first, map_entries(b[:events])) == [:press]
   assert render(b, :html) == "<button type=\"button\">Go</button>"
 end
 
@@ -2225,25 +1840,24 @@ end
 
 test "the table is closed: no script, style or frame tag and no on attribute"
   banned = [:script, :style, :iframe, :object, :embed, :link, :base, :frame]
-  assert every?((r) -> not member?(get(r, :tag), banned), tags)
-  assert every?((r) -> not starts_with?(get(r, :name), "on"), attributes)
-  assert size(distinct(map((r) -> get(r, :tag), tags))) == size(tags)
-  assert size(distinct(map((r) -> get(r, :key), attributes))) ==
-    size(attributes)
-  assert every?((r) -> every?((k) -> attr_of(k) != nil, get(r, :attrs)), tags)
+  assert every?((r) -> not member?(r[:tag], banned), tags)
+  assert every?((r) -> not starts_with?(r[:name], "on"), attributes)
+  assert size(distinct(map((r) -> r[:tag], tags))) == size(tags)
+  assert size(distinct(map((r) -> r[:key], attributes))) == size(attributes)
+  assert every?((r) -> every?((k) -> attr_of(k) != nil, r[:attrs]), tags)
 end
 
 test "every tag row renders as its own element"
-  shown = map((r) -> render(view(get(r, :tag)), :html), tags)
+  shown = map((r) -> render(view(r[:tag]), :html), tags)
   want = map(
     fn(r)
-      t = to_s(get(r, :tag))
-      lead = if get(r, :tag) == :html
+      t = to_s(r[:tag])
+      lead = if r[:tag] == :html
         "<!doctype html>"
       else
         ""
       end
-      if get(r, :void)
+      if r[:void]
         "#{lead}<#{t}>"
       else
         "#{lead}<#{t}></#{t}>"
@@ -2267,21 +1881,15 @@ test "every attribute row renders on a tag that takes it"
     style: {gap: :sm}
   }
   home = fn(row)
-    if get(row, :global)
+    if row[:global]
       :div
     else
-      get(
-        find_first((t) -> member?(get(row, :key), get(t, :attrs)), tags),
-        :tag
-      )
+      find_first((t) -> member?(row[:key], t[:attrs]), tags)[:tag]
     end
   end
   shown = map(
     fn(row)
-      render(
-        view(home(row), {get(row, :key) => get(sample, get(row, :kind))}),
-        :html
-      )
+      render(view(home(row), {row[:key] => get(sample, row[:kind])}), :html)
     end,
     attributes
   )
@@ -2560,8 +2168,8 @@ test "a component fills defaults and variants, takes slots, and sets its a11y ro
       view: fn(p, _s)
         view(
           :button,
-          {type: get(p, :kind), class: "btn #{to_s(get(p, :tone))}"},
-          [get(p, :label)]
+          {type: p[:kind], class: "btn #{to_s(p[:tone])}"},
+          [p[:label]]
         )
       end
     }
@@ -2579,7 +2187,7 @@ test "a component fills defaults and variants, takes slots, and sets its a11y ro
       children: ["Drop"]
     }
   pressed = view(button, {label: "Go", on: {press: (_e) -> nil}})
-  assert map(first, map_entries(get(pressed, :events))) == [:press]
+  assert map(first, map_entries(pressed[:events])) == [:press]
   card = component(
     :card,
     {
@@ -2591,9 +2199,9 @@ test "a component fills defaults and variants, takes slots, and sets its a11y ro
           :section,
           {},
           [
-            view(:h2, {}, [get(p, :title)]),
-            get(s, :default),
-            view(:footer, {}, [get(s, :footer)])
+            view(:h2, {}, [p[:title]]),
+            s[:default],
+            view(:footer, {}, [s[:footer]])
           ]
         )
       end
@@ -2633,8 +2241,8 @@ test "a component fills defaults and variants, takes slots, and sets its a11y ro
               :ul,
               {},
               map(
-                (l) -> view(:li, {}, [view(:a, {href: nth(1, l)}, [first(l)])]),
-                get(p, :links)
+                (l) -> view(:li, {}, [view(:a, {href: l[1]}, [first(l)])]),
+                p[:links]
               )
             )
           ]
@@ -2669,7 +2277,7 @@ test "a component refuses an unknown prop, a missing one, a bad variant, slot or
       props: {label: :required},
       variants: {size: [:sm, :lg]},
       events: [:press],
-      view: (p, _s) -> view(:span, {}, [get(p, :label)])
+      view: (p, _s) -> view(:span, {}, [p[:label]])
     }
   )
   assert raises?(:bad_option, () -> view(c, {}))
@@ -2680,7 +2288,7 @@ test "a component refuses an unknown prop, a missing one, a bad variant, slot or
     :bad_option,
     () -> view(c, {label: "x", on: {hover: (_e) -> nil}})
   )
-  assert get(view(c, {label: "x", size: :lg}), :children) == ["x"]
+  assert view(c, {label: "x", size: :lg})[:children] == ["x"]
   assert raises?(:bad_option, () -> component("tag", {view: (_p, _s) -> nil}))
   assert raises?(:bad_option, () -> component(:tag, {}))
   assert raises?(
@@ -2769,7 +2377,7 @@ test "a static page of components renders to one html document"
         view(
           :article,
           {style: {padding: :md, background: :surface}},
-          [view(:h2, {}, [get(p, :title)]), get(s, :default)]
+          [view(:h2, {}, [p[:title]]), s[:default]]
         )
       end
     }
@@ -2809,7 +2417,7 @@ end
 test "labels keys display text by each value of a closed set"
   t = labels(:Tone, {WARM: "Warm", COOL: "Cool"})
   assert t == {labels: :Tone, entries: {"WARM" => "Warm", "COOL" => "Cool"}}
-  assert get(t.entries, "WARM") == "Warm"
+  assert t.entries["WARM"] == "Warm"
   assert raises?(:bad_option, () -> labels("Tone", {WARM: "Warm"}))
   assert raises?(:bad_option, () -> labels(:Tone, {}))
   assert raises?(:bad_option, () -> labels(:Tone, {WARM: 1}))
@@ -2874,91 +2482,4 @@ test "show_step writes one line through the sink and keeps colour off when told"
   ).nil?
   assert first(seen) == unlines(["✅ [1/2] x (1.5s)"])
   assert terminal?(9) == false
-end
-
-test "a role paints in its kazari ink, and an unknown role is refused"
-  assert tone("x", :error) == {text: "x", ink: :red}
-  assert tone("x", :text_dim) == {text: "x", ink: :bright_black}
-  assert raises?(:bad_option, () -> tone("x", :loud))
-  assert styled(tone("ok", :success), {color: true, theme: nil}) ==
-    "#{esc_char}[32mok#{esc_char}[0m"
-end
-
-test "marks give the house symbols for steps and the circles for verdicts"
-  assert map(mark, [:done, :failed, :warn, :skipped]) == ["✅", "❌", "⚠️", "➖"]
-  assert map(mark, [:pass, :partial, :fail]) == ["🟢", "🟡", "🔴"]
-  assert raises?(:bad_option, () -> mark(:great))
-end
-
-test "cells counts the columns a terminal draws, wide symbols as two"
-  assert cells("") == 0
-  assert cells("abc") == 3
-  assert map(cells, ["✅", "❌", "➖", "⚠️", "🟢", "🔴"]) == [2, 2, 2, 2, 2, 2]
-  assert cells("⚠") == 1
-  assert cells("日本") == 4
-  assert cells("é") == 1
-  assert cells("é") == 1
-  assert code_point("a") == 97
-  assert code_point("é") == 233
-  assert code_point("🟢") == 128_994
-end
-
-test "a table aligns by cells, right-aligns on request, styles cells and ends no line in spaces"
-  rows = [
-    {check: "fmt", state: mark(:done), ms: 12},
-    {check: "census", state: mark(:failed), ms: 1520},
-    {check: "lock", state: tone("held", :warning)}
-  ]
-  t = table(
-    rows,
-    {columns: [:check, :state, :ms], headers: {ms: "time"}, align: {ms: :right}}
-  )
-  assert plain(t) ==
-    join_lines(
-      [
-        "check   state  time",
-        "──────  ─────  ────",
-        "fmt     ✅       12",
-        "census  ❌     1520",
-        "lock    held"
-      ]
-    )
-  painted = styled(t, {color: true, theme: nil})
-  assert contains?(painted, "#{esc_char}[1mcheck#{esc_char}[0m") == true
-  assert contains?(painted, "#{esc_char}[33mheld#{esc_char}[0m") == true
-  assert raises?(:bad_option, () -> table(rows, {}))
-  assert raises?(:bad_option, () -> table(rows, {columns: [:check], width: 3}))
-end
-
-test "a tree draws branches and keeps the rail beside a middle child"
-  t = {
-    label: "blue",
-    children: [
-      {label: "bidamas", children: [{label: "gamen"}, {label: "hikisuu"}]},
-      {label: "docs"}
-    ]
-  }
-  assert plain(tree(t)) ==
-    join_lines(
-      ["blue", "├── bidamas", "│   ├── gamen", "│   └── hikisuu", "└── docs"]
-    )
-  assert plain(tree({label: "leaf"})) == "leaf"
-end
-
-test "a meter fills by eighths, clamps outside 0 to 1, and keeps its width"
-  assert get(meter(0, 4), :text) == "────"
-  assert get(meter(1, 4), :text) == "████"
-  assert get(meter(2, 4), :text) == "████"
-  assert get(meter(-1, 3), :text) == "───"
-  assert get(meter(0.5, 3), :text) == "█▌─"
-  assert get(meter(1 / 32, 4), :text) == "▏───"
-  assert cells(get(meter(0.37, 10), :text)) == 10
-end
-
-test "a spinner cycles its frames and refuses an unknown style"
-  assert spinner(0, :braille) == "⠋"
-  assert spinner(10, :braille) == "⠋"
-  assert map((i) -> spinner(i, :ascii), [0, 1, 2, 3, 4]) ==
-    ["|", "/", "-", "\\", "|"]
-  assert raises?(:bad_option, () -> spinner(0, :dots))
 end

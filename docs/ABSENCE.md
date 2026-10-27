@@ -1,8 +1,3 @@
----
-kind: explanation
-summary: no undeclared nil: how blue makes absence a declared, checked state
----
-
 # ABSENCE — no undeclared nil
 
 Parent: [`SAFETY.md`](SAFETY.md), the matrix that maps each Rust safety

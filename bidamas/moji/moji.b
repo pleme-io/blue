@@ -95,7 +95,7 @@ def char_at(s, i)
   if i < 0 or i >= length(cs)
     ""
   else
-    nth(i, cs)
+    cs[i]
   end
 end
 
@@ -454,7 +454,7 @@ truncate: cut text to a width with an ellipsis.
     truncate("hello", 5) #=> "hello"
 """
 def truncate(text, width, opts?)
-  marker = get(checked(opts, [:marker]), :marker) or "..."
+  marker = checked(opts, [:marker])[:marker] or "..."
   if length(text) <= width
     text
   elsif width <= length(marker)
@@ -1012,9 +1012,7 @@ test "includes agrees with char_index"
     ["_x9", "_"]
   ]
   assert map(
-    fn(c)
-      includes(first(c), nth(1, c)) == (char_index(first(c), nth(1, c)) >= 0)
-    end,
+    (c) -> includes(first(c), c[1]) == (char_index(first(c), c[1]) >= 0),
     cases
   ) == repeat(true, length(cases))
 end

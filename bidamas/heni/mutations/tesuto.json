@@ -32,8 +32,8 @@
   {
     "name": "update flag ignored",
     "file": "tesuto.b",
-    "find": "if get(opts, :update) == true",
-    "replace": "if false"
+    "find": "  if opts[:update] == true\n",
+    "replace": "  if false\n"
   },
   {
     "name": "missing passes",

@@ -58,15 +58,15 @@ def ty_tuple(items)
 end
 
 def render_ty(t)
-  k = get(t, :kind)
+  k = t[:kind]
   if k == :ty_name
-    get(t, :name)
+    t[:name]
   elsif k == :ty_ref
-    "&#{render_ty(get(t, :inner))}"
+    "&#{render_ty(t[:inner])}"
   elsif k == :ty_slice
-    "[#{render_ty(get(t, :inner))}]"
+    "[#{render_ty(t[:inner])}]"
   else
-    "(#{join(map(render_ty, get(t, :items)), ", ")})"
+    "(#{join(map(render_ty, t[:items]), ", ")})"
   end
 end
 
@@ -159,39 +159,39 @@ render_expr: An expression at an indentation level (the level of the line it sta
     render_expr(char("'"), 0) #=> "'\\''"
 """
 def render_expr(e, level)
-  k = get(e, :kind)
+  k = e[:kind]
   if k == :str
-    "\"#{escape_str(get(e, :value))}\""
+    "\"#{escape_str(e[:value])}\""
   elsif k == :char
-    "'#{escape_char(get(e, :value))}'"
+    "'#{escape_char(e[:value])}'"
   elsif k == :int
-    to_s(get(e, :value))
+    to_s(e[:value])
   elsif k == :bool
-    if get(e, :value)
+    if e[:value]
       "true"
     else
       "false"
     end
   elsif k == :tuple
-    "(#{join(map((i) -> render_expr(i, level), get(e, :items)), ", ")})"
+    "(#{join(map((i) -> render_expr(i, level), e[:items]), ", ")})"
   elsif k == :path
-    join(get(e, :segments), "::")
+    join(e[:segments], "::")
   elsif k == :slice
     rows = map(
       (i) -> "#{pad(level + 1)}#{render_expr(i, level + 1)},",
-      get(e, :items)
+      e[:items]
     )
     join_lines(["&[", join(rows, line_break), "#{pad(level)}]"])
   else
     arms = map(
       fn(a)
-        "#{pad(level + 1)}#{render_expr(get(a, :pattern), level + 1)} => #{render_expr(get(a, :expr), level + 1)},"
+        "#{pad(level + 1)}#{render_expr(a[:pattern], level + 1)} => #{render_expr(a[:expr], level + 1)},"
       end,
-      get(e, :arms)
+      e[:arms]
     )
     join_lines(
       [
-        "match #{render_expr(get(e, :scrutinee), level)} {",
+        "match #{render_expr(e[:scrutinee], level)} {",
         join(arms, line_break),
         "#{pad(level)}}"
       ]
@@ -263,19 +263,19 @@ def derive_line(derives, level)
 end
 
 def render_param(p)
-  if get(p, :kind) == :self_param
+  if p[:kind] == :self_param
     "&self"
   else
-    "#{get(p, :name)}: #{render_ty(get(p, :ty))}"
+    "#{p[:name]}: #{render_ty(p[:ty])}"
   end
 end
 
 def render_fn(f, level)
-  sig = "#{pad(level)}pub fn #{get(f, :name)}(#{join(map(render_param, get(f, :params)), ", ")}) -> #{render_ty(get(f, :ret))} {"
-  body = "#{pad(level + 1)}#{render_expr(get(f, :body), level + 1)}"
+  sig = "#{pad(level)}pub fn #{f[:name]}(#{join(map(render_param, f[:params]), ", ")}) -> #{render_ty(f[:ret])} {"
+  body = "#{pad(level + 1)}#{render_expr(f[:body], level + 1)}"
   join(
     concat_lists(
-      doc_lines(get(f, :doc), level, "///"),
+      doc_lines(f[:doc], level, "///"),
       [sig, body, "#{pad(level)}}"]
     ),
     line_break
@@ -283,33 +283,28 @@ def render_fn(f, level)
 end
 
 def render_item(item)
-  k = get(item, :kind)
+  k = item[:kind]
   doc = doc_lines(get_or_empty(item, :doc), 0, "///")
   if k == :const
     join(
       concat_lists(
         doc,
         [
-          "pub const #{get(item, :name)}: #{render_ty(get(item, :ty))} = #{render_expr(get(item, :value), 0)};"
+          "pub const #{item[:name]}: #{render_ty(item[:ty])} = #{render_expr(item[:value], 0)};"
         ]
       ),
       line_break
     )
   elsif k == :enum
     variants = flat_map(
-      get(item, :variants),
-      fn(v)
-        concat_lists(
-          doc_lines(get(v, :doc), 1, "///"),
-          ["    #{get(v, :name)},"]
-        )
-      end
+      item[:variants],
+      (v) -> concat_lists(doc_lines(v[:doc], 1, "///"), ["    #{v[:name]},"])
     )
     join(
       concat_lists(
-        concat_lists(doc, derive_line(get(item, :derives), 0)),
+        concat_lists(doc, derive_line(item[:derives], 0)),
         concat_lists(
-          ["pub enum #{get(item, :name)} {"],
+          ["pub enum #{item[:name]} {"],
           concat_lists(variants, ["}"])
         )
       ),
@@ -317,29 +312,29 @@ def render_item(item)
     )
   elsif k == :struct
     fields = flat_map(
-      get(item, :fields),
+      item[:fields],
       fn(f)
         concat_lists(
-          doc_lines(get(f, :doc), 1, "///"),
-          ["    pub #{get(f, :name)}: #{render_ty(get(f, :ty))},"]
+          doc_lines(f[:doc], 1, "///"),
+          ["    pub #{f[:name]}: #{render_ty(f[:ty])},"]
         )
       end
     )
     join(
       concat_lists(
-        concat_lists(doc, derive_line(get(item, :derives), 0)),
+        concat_lists(doc, derive_line(item[:derives], 0)),
         concat_lists(
-          ["pub struct #{get(item, :name)} {"],
+          ["pub struct #{item[:name]} {"],
           concat_lists(fields, ["}"])
         )
       ),
       line_break
     )
   else
-    fns = map((f) -> render_fn(f, 1), get(item, :fns))
+    fns = map((f) -> render_fn(f, 1), item[:fns])
     join(
       concat_lists(
-        ["impl #{get(item, :name)} {"],
+        ["impl #{item[:name]} {"],
         concat_lists([join(fns, unlines(["", ""]))], ["}"])
       ),
       line_break
@@ -431,15 +426,15 @@ end
 item_names: Every name an item declares.
 """
 def item_names(item)
-  k = get(item, :kind)
+  k = item[:kind]
   if k == :enum
-    cons(get(item, :name), map((v) -> get(v, :name), get(item, :variants)))
+    cons(item[:name], map((v) -> v[:name], item[:variants]))
   elsif k == :struct
-    cons(get(item, :name), map((f) -> get(f, :name), get(item, :fields)))
+    cons(item[:name], map((f) -> f[:name], item[:fields]))
   elsif k == :impl
-    cons(get(item, :name), map((f) -> get(f, :name), get(item, :fns)))
+    cons(item[:name], map((f) -> f[:name], item[:fns]))
   else
-    [get(item, :name)]
+    [item[:name]]
   end
 end
 
@@ -447,10 +442,7 @@ end
 invalid_names: The names in a file that are not valid Rust identifiers. Empty when clean.
 """
 def invalid_names(file)
-  filter(
-    (n) -> valid_ident?(n) == false,
-    flat_map(get(file, :items), item_names)
-  )
+  filter((n) -> valid_ident?(n) == false, flat_map(file[:items], item_names))
 end
 
 # ── files ──────────────────────────────────────────────────────────────────
@@ -463,10 +455,8 @@ def file(source, items)
 end
 
 def render_rust(file)
-  header = "// @generated by #{get(file, :source)} (sabi). Do not edit: regenerate from the source."
-  unlines(
-    [header, "", join(map(render_item, get(file, :items)), unlines(["", ""]))]
-  )
+  header = "// @generated by #{file[:source]} (sabi). Do not edit: regenerate from the source."
+  unlines([header, "", join(map(render_item, file[:items]), unlines(["", ""]))])
 end
 
 # ── tests ──────────────────────────────────────────────────────────────────

@@ -606,7 +606,8 @@ impl Client {
         timeout: Duration,
     ) -> Result<Msg, NatsError> {
         check_subject(subject, false)?;
-        let inbox = self.new_inbox();
+        self.next_inbox += 1;
+        let inbox = format!("_INBOX.{}.{}", self.inbox_prefix, self.next_inbox);
         let sid = self.subscribe(&inbox, None)?;
         let outcome = self
             .write(&encode_unsub(sid, Some(1)))
@@ -622,11 +623,6 @@ impl Client {
                 timeout.as_millis()
             ))),
         }
-    }
-
-    pub fn new_inbox(&mut self) -> String {
-        self.next_inbox += 1;
-        format!("_INBOX.{}.{}", self.inbox_prefix, self.next_inbox)
     }
 
     pub fn close(&mut self) {

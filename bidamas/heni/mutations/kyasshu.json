@@ -8,8 +8,8 @@
   {
     "name": "an entity type needs a uuid, not an id",
     "file": "kyasshu.b",
-    "find": "get(f, :name) == \"id\"",
-    "replace": "get(f, :name) == \"uuid\""
+    "find": "    any?((f) -> f[:name] == \"id\", d[:fields] or [])\n",
+    "replace": "    any?((f) -> f[:name] == \"uuid\", d[:fields] or [])\n"
   },
   {
     "name": "a normalized entity forgets its type",
@@ -20,8 +20,8 @@
   {
     "name": "merge keeps the old entities",
     "file": "kyasshu.b",
-    "find": "entities: entities_merged(get(a, :entities), get(b, :entities))",
-    "replace": "entities: get(a, :entities)"
+    "find": "      entities: entities_merged(a[:entities], b[:entities]),\n",
+    "replace": "      entities: a[:entities],\n"
   },
   {
     "name": "a list is normalized in reverse",

@@ -153,9 +153,7 @@ def multinomial(ks)
   nth(
     1,
     reduce(
-      fn(acc, k)
-        [nth(0, acc) + k, nth(1, acc) * combinations(nth(0, acc) + k, k)]
-      end,
+      (acc, k) -> [acc[0] + k, acc[1] * combinations(acc[0] + k, k)],
       [0, 1],
       ks
     )
@@ -882,10 +880,7 @@ test "coprime, including the two cases people argue about"
   assert coprime(0, 0) == false
   # A reduced ratio is by definition a coprime pair — the two functions agree
   # or one of them is wrong.
-  assert coprime(
-    nth(0, simplify_ratio(24, 36)),
-    nth(1, simplify_ratio(24, 36))
-  ) == true
+  assert coprime(simplify_ratio(24, 36)[0], simplify_ratio(24, 36)[1]) == true
 end
 
 test "pascal triangle rows, and the recurrence between them"
@@ -893,8 +888,7 @@ test "pascal triangle rows, and the recurrence between them"
   assert pascal_triangle(3) == [[1], [1, 1], [1, 2, 1], [1, 3, 3, 1]]
   # Each row is built from the formula, never from its predecessor — so the
   # additive law is a genuine check on the triangle rather than a restatement.
-  assert nth(2, nth(5, pascal_triangle(5))) ==
-    nth(1, pascal_row(4)) + nth(2, pascal_row(4))
+  assert pascal_triangle(5)[5][2] == pascal_row(4)[1] + pascal_row(4)[2]
   # The hockey-stick identity: a diagonal sums to the entry below its end.
   assert combinations(2, 2) + combinations(3, 2) + combinations(4, 2) ==
     combinations(5, 3)

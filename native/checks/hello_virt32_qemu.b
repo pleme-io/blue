@@ -11,13 +11,13 @@
 use("kiban", [:kb_board])
 
 def boot(elf)
-  q = get(kb_board("qemu-virt32"), :qemu)
+  q = kb_board("qemu-virt32")[:qemu]
   r = exec_capture(
     "timeout",
     "60",
-    get(q, :system),
+    q[:system],
     "-machine",
-    get(q, :machine),
+    q[:machine],
     "-bios",
     "none",
     "-nographic",

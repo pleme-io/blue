@@ -5,9 +5,7 @@ debug, info, warn and error each take a message and a record of fields and
 write {at, level, message, ...fields} as one JSON object per line, when the
 level is on. The level comes from BLUE_LOG (debug, info, warn or error;
 info when unset); `enabled?` asks it, `level` reads it. `with` binds base
-fields to a logger whose calls carry them on every line; `exporting` is the
-same logger that also POSTs each line to a Vector HTTP source (observe's
-vector_endpoint or VECTOR_ENDPOINT), on unless observe sets logs: :off.
+fields to a logger whose calls carry them on every line.
 
     level_of("") #=> :info
 """
@@ -64,7 +62,7 @@ def plain(fields)
   if fields.nil?
     {}
   else
-    e = get(fields, :error)
+    e = fields[:error]
     if error?(e)
       assoc(fields, :error, {kind: e.kind, message: e.message})
     else
@@ -119,106 +117,17 @@ def error(message, fields)
 end
 
 @doc """
-on?: whether an observe record leaves a signal on; every signal is on unless set to :off.
-
-    on?({logs: :off}, :traces) #=> true
-"""
-def on?(observe, signal)
-  v = get(observe or {}, signal)
-  v != :off and v != false
-end
-
-@doc """
-given: a value that is neither nil nor empty text, else nil.
-
-    given("") #=> nil
-"""
-def given(v)
-  if v != nil and v != ""
-    v
-  end
-end
-
-@doc """
-vector_endpoint: where logs ship: observe's vector_endpoint, else VECTOR_ENDPOINT, else nil.
-
-    vector_endpoint({logs: :off, vector_endpoint: "http://v/"}) #=> nil
-"""
-def vector_endpoint(observe)
-  if on?(observe, :logs)
-    given(get(observe or {}, :vector_endpoint)) or
-      given(getenv("VECTOR_ENDPOINT"))
-  end
-end
-
-@doc """
-ship: POST one JSON line to a Vector HTTP source; a failure is written to stderr, never raised.
-
-    ship("http://127.0.0.1:1/", "{}", 100) #=> false
-"""
-def ship(url, text, wait_ms)
-  http_request(
-    "POST",
-    url,
-    {"Content-Type" => "application/json"},
-    text,
-    wait_ms
-  )
-  true
-rescue e
-  write_stderr(
-    unlines([line(:warn, "log export failed", {error: e, endpoint: url})])
-  )
-  false
-end
-
-@doc """
-emit_to: write one line at a level when it is on, and ship it when a url is given.
-
-    emit_to(:debug, "m", {}, nil) #=> nil
-"""
-def emit_to(lvl, message, fields, url)
-  if enabled?(lvl)
-    text = line(lvl, message, fields)
-    write_stderr(unlines([text]))
-    if url != nil
-      ship(url, text, 1000)
-    end
-  end
-  nil
-end
-
-@doc """
-logger: the logger record `with` and `exporting` build.
-
-    get(logger({}, nil), :endpoint) #=> nil
-"""
-def logger(base, url)
-  carry = (fields) -> merge(plain(base), plain(fields))
-  {
-    debug: (m, f) -> emit_to(:debug, m, carry(f), url),
-    info: (m, f) -> emit_to(:info, m, carry(f), url),
-    warn: (m, f) -> emit_to(:warn, m, carry(f), url),
-    error: (m, f) -> emit_to(:error, m, carry(f), url),
-    enabled: enabled?,
-    endpoint: url
-  }
-end
-
-@doc """
 with: a logger that adds fields to every line.
 """
 def with(base)
-  logger(base, nil)
-end
-
-@doc """
-exporting: a logger that adds fields to every line and ships each line to Vector, unless observe turns logs off.
-
-    get(exporting({logs: :off}, {}), :endpoint) #=> nil
-"""
-def exporting(observe, base)
-  logger(base, vector_endpoint(observe))
+  carry = (fields) -> merge(plain(base), plain(fields))
+  {
+    debug: (m, f) -> debug(m, carry(f)),
+    info: (m, f) -> info(m, carry(f)),
+    warn: (m, f) -> warn(m, carry(f)),
+    error: (m, f) -> error(m, carry(f)),
+    enabled: enabled?
+  }
 end
 
 def probe(env, body)
@@ -289,11 +198,11 @@ end
 
 test "a line is one JSON object: at, level, message, then the fields"
   rec = json_read(line(:warn, "disk low", {free: 3, host: "a"}))
-  assert get(rec, "level") == "warn"
-  assert get(rec, "message") == "disk low"
-  assert get(rec, "free") == 3
-  assert get(rec, "host") == "a"
-  assert is_empty(get(rec, "at")) == false
+  assert rec["level"] == "warn"
+  assert rec["message"] == "disk low"
+  assert rec["free"] == 3
+  assert rec["host"] == "a"
+  assert is_empty(rec["at"]) == false
   assert contains?(line(:info, "x", {}), line_break) == false
 end
 
@@ -301,15 +210,15 @@ test "fields cannot overwrite at, level or message"
   rec = json_read(
     line(:info, "real", {level: "fake", message: "fake", at: "never"})
   )
-  assert get(rec, "level") == "info"
-  assert get(rec, "message") == "real"
-  assert get(rec, "at") != "never"
+  assert rec["level"] == "info"
+  assert rec["message"] == "real"
+  assert rec["at"] != "never"
 end
 
 test "nil fields and an empty record both log the bare line, and a non-text message is shown as text"
   assert size(map_entries(json_read(line(:info, "m", nil)))) == 3
   assert size(map_entries(json_read(line(:info, "m", {})))) == 3
-  assert get(json_read(line(:info, 42, {})), "message") == "42"
+  assert json_read(line(:info, 42, {}))["message"] == "42"
 end
 
 test "an error value in the fields is carried as its kind and message"
@@ -319,9 +228,9 @@ test "an error value in the fields is carried as its kind and message"
     e
   end
   rec = json_read(line(:error, "failed", {error: caught, op: "pull"}))
-  assert get(get(rec, "error"), "kind") == "timeout"
-  assert get(get(rec, "error"), "message") == "slow"
-  assert get(rec, "op") == "pull"
+  assert rec["error"]["kind"] == "timeout"
+  assert rec["error"]["message"] == "slow"
+  assert rec["op"] == "pull"
 end
 
 test "a line at an unknown level is refused before anything is written"
@@ -344,11 +253,11 @@ test "stderr gets one JSON line per call and stdout gets nothing"
     rows = written(cap)
     assert size(rows) == 1
     row = first(rows)
-    assert get(row, "level") == "info"
-    assert get(row, "message") == "pinned"
-    assert get(row, "rev") == "abc"
-    assert get(row, "n") == 2
-    assert is_empty(get(row, "at")) == false
+    assert row["level"] == "info"
+    assert row["message"] == "pinned"
+    assert row["rev"] == "abc"
+    assert row["n"] == 2
+    assert is_empty(row["at"]) == false
   end
 end
 
@@ -365,9 +274,9 @@ test "each verb writes its own level when everything is on"
         ]
       )
     )
-    assert map((r) -> get(r, "level"), written(cap)) ==
+    assert map((r) -> r["level"], written(cap)) ==
       ["debug", "info", "warn", "error"]
-    assert map((r) -> get(r, "message"), written(cap)) == ["a", "b", "c", "d"]
+    assert map((r) -> r["message"], written(cap)) == ["a", "b", "c", "d"]
   end
 end
 
@@ -382,9 +291,9 @@ test "BLUE_LOG filters: warn drops debug and info, error keeps only error"
       ]
     )
     warn_run = probe([["BLUE_LOG", "warn"]], body)
-    assert map((r) -> get(r, "level"), written(warn_run)) == ["warn", "error"]
+    assert map((r) -> r["level"], written(warn_run)) == ["warn", "error"]
     error_run = probe([["BLUE_LOG", "error"]], body)
-    assert map((r) -> get(r, "level"), written(error_run)) == ["error"]
+    assert map((r) -> r["level"], written(error_run)) == ["error"]
   end
 end
 
@@ -392,7 +301,7 @@ test "with BLUE_LOG unset or empty the default is info"
   if self_exe != nil
     body = join_lines(["rogu::debug(\"a\", {})", "rogu::info(\"b\", {})"])
     cap = probe([["BLUE_LOG", ""]], body)
-    assert map((r) -> get(r, "message"), written(cap)) == ["b"]
+    assert map((r) -> r["message"], written(cap)) == ["b"]
   end
 end
 
@@ -428,61 +337,17 @@ test "with carries base fields on every line, and a call's own fields win"
       ]
     )
     rows = written(probe([["BLUE_LOG", "info"]], body))
-    assert map((r) -> get(r, "message"), rows) == ["up", "down"]
-    assert get(first(rows), "svc") == "api"
-    assert get(first(rows), "n") == 2
-    assert get(first(rows), "extra") == true
-    assert get(nth(1, rows), "svc") == "api"
-    assert get(nth(1, rows), "n") == 1
+    assert map((r) -> r["message"], rows) == ["up", "down"]
+    assert first(rows)["svc"] == "api"
+    assert first(rows)["n"] == 2
+    assert first(rows)["extra"] == true
+    assert rows[1]["svc"] == "api"
+    assert rows[1]["n"] == 1
   end
 end
 
 test "with carries fields in-process too: the logger's enabled follows the level"
   l = with({svc: "api"})
-  assert get(l, :enabled)(:error) == true
-  assert get(with(nil), :enabled)(level) == true
-end
-
-test "a signal is on unless observe sets it to :off"
-  assert on?(nil, :logs) == true
-  assert on?({}, :logs) == true
-  assert on?({logs: :vector}, :logs) == true
-  assert on?({logs: :off}, :logs) == false
-  assert on?({logs: :off}, :traces) == true
-end
-
-test "logs off leaves no endpoint even when one is named"
-  assert vector_endpoint({logs: :off, vector_endpoint: "http://v/"}).nil?
-  assert vector_endpoint({vector_endpoint: "http://v/"}) == "http://v/"
-  assert get(
-    exporting({logs: :off, vector_endpoint: "http://v/"}, {}),
-    :endpoint
-  ).nil?
-end
-
-test "an exporting logger POSTs each line to Vector, and with logs off sends nothing"
-  captured = fn(observe, body)
-    l = http_listen("127.0.0.1:0")
-    url = "http://127.0.0.1:#{to_s(http_listener_port(l))}/"
-    me = self
-    spawn(
-      fn()
-        body(exporting(assoc(observe, :vector_endpoint, url), {svc: "api"}))
-        send(me, :done)
-      end
-    )
-    receive(:_, 2000, :none)
-    http_next_request(l, 500)
-  end
-  req = captured({}, (log) -> get(log, :error)("down", {n: 1}))
-  assert get(req, :method) == "POST"
-  rec = json_read(get(req, :body))
-  assert get(rec, "message") == "down"
-  assert get(rec, "svc") == "api"
-  assert get(rec, "n") == 1
-  assert captured({logs: :off}, (log) -> get(log, :error)("down", {})).nil?
-end
-
-test "a failed export is reported, not raised"
-  assert ship("http://127.0.0.1:1/", "{}", 200) == false
+  assert l[:enabled](:error) == true
+  assert with(nil)[:enabled](level) == true
 end

@@ -84,7 +84,7 @@ end
 
 def name_of(code, names)
   if code >= 0 and code < size(names)
-    nth(code, names)
+    names[code]
   else
     code
   end
@@ -104,7 +104,7 @@ end
 
 def setting_name(id)
   if id >= 1 and id <= size(setting_names)
-    nth(id - 1, setting_names)
+    setting_names[id - 1]
   else
     id
   end
@@ -115,7 +115,7 @@ def fault(scope, code, stream, why)
 end
 
 def scope_of(r)
-  get(r, :scope)
+  r[:scope]
 end
 
 def flag(on, bit)
@@ -143,102 +143,97 @@ def padded(pad, body)
 end
 
 def priority_bytes(p)
-  dep = get(p, :depends_on) + flag(get(p, :exclusive), 2_147_483_648)
-  append(be_bytes(dep, 4), [get(p, :weight) - 1])
+  dep = p[:depends_on] + flag(p[:exclusive], 2_147_483_648)
+  append(be_bytes(dep, 4), [p[:weight] - 1])
 end
 
 def settings_bytes(pairs)
   flatten(
     map(
-      fn(kv)
-        append(be_bytes(setting_id(first(kv)), 2), be_bytes(nth(1, kv), 4))
-      end,
+      (kv) -> append(be_bytes(setting_id(first(kv)), 2), be_bytes(kv[1], 4)),
       pairs
     )
   )
 end
 
 def headers_payload(f)
-  p = get(f, :priority)
+  p = f[:priority]
   lead = if p.nil?
     []
   else
     priority_bytes(p)
   end
-  padded(get(f, :pad), append(lead, get(f, :block)))
+  padded(f[:pad], append(lead, f[:block]))
 end
 
 def headers_flags(f)
-  flag(get(f, :end_stream), 1) +
-    flag(get(f, :end_headers), 4) +
-    flag(not get(f, :pad).nil?, 8) +
-    flag(not get(f, :priority).nil?, 32)
+  flag(f[:end_stream], 1) +
+    flag(f[:end_headers], 4) +
+    flag(not f[:pad].nil?, 8) +
+    flag(not f[:priority].nil?, 32)
 end
 
 def wire(f)
-  t = get(f, :type)
+  t = f[:type]
   case t
   when :data
     [
       0,
-      flag(get(f, :end_stream), 1) + flag(not get(f, :pad).nil?, 8),
-      padded(get(f, :pad), get(f, :data))
+      flag(f[:end_stream], 1) + flag(not f[:pad].nil?, 8),
+      padded(f[:pad], f[:data])
     ]
   when :headers
     [1, headers_flags(f), headers_payload(f)]
   when :priority
-    [2, 0, priority_bytes(get(f, :priority))]
+    [2, 0, priority_bytes(f[:priority])]
   when :rst_stream
-    [3, 0, be_bytes(error_code(get(f, :code)), 4)]
+    [3, 0, be_bytes(error_code(f[:code]), 4)]
   when :settings
-    [4, flag(get(f, :ack), 1), append([], settings_bytes(get(f, :settings)))]
+    [4, flag(f[:ack], 1), append([], settings_bytes(f[:settings]))]
   when :push_promise
     [
       5,
-      flag(get(f, :end_headers), 4) + flag(not get(f, :pad).nil?, 8),
-      padded(
-        get(f, :pad),
-        append(be_bytes(get(f, :promised), 4), get(f, :block))
-      )
+      flag(f[:end_headers], 4) + flag(not f[:pad].nil?, 8),
+      padded(f[:pad], append(be_bytes(f[:promised], 4), f[:block]))
     ]
   when :ping
-    [6, flag(get(f, :ack), 1), get(f, :data)]
+    [6, flag(f[:ack], 1), f[:data]]
   when :goaway
     [
       7,
       0,
       append(
-        be_bytes(get(f, :last_stream), 4),
-        be_bytes(error_code(get(f, :code)), 4),
-        get(f, :debug)
+        be_bytes(f[:last_stream], 4),
+        be_bytes(error_code(f[:code]), 4),
+        f[:debug]
       )
     ]
   when :window_update
-    [8, 0, be_bytes(get(f, :increment), 4)]
+    [8, 0, be_bytes(f[:increment], 4)]
   when :continuation
-    [9, flag(get(f, :end_headers), 4), get(f, :block)]
+    [9, flag(f[:end_headers], 4), f[:block]]
   when :unknown
-    [get(f, :code), get(f, :flags), get(f, :payload)]
+    [f[:code], f[:flags], f[:payload]]
   else
     raise(:usage, "no frame type #{t}")
   end
 end
 
 def stream_of(f)
-  if member?(get(f, :type), [:settings, :ping, :goaway])
+  if member?(f[:type], [:settings, :ping, :goaway])
     0
   else
-    get(f, :stream)
+    f[:stream]
   end
 end
 
 def encode(f)
   w = wire(f)
-  body = nth(2, w)
-  bytes = append(header(size(body), first(w), nth(1, w), stream_of(f)), body)
+  body = w[2]
+  bytes = append(header(size(body), first(w), w[1], stream_of(f)), body)
   back = decode(bytes, 16_777_215)
   if not ok?(back)
-    raise(:usage, "this frame may not be sent: #{nth(1, refusal_of(back))}")
+    raise(:usage, "this frame may not be sent: #{refusal_of(back)[1]}")
   end
   bytes
 end
@@ -268,7 +263,7 @@ def read_priority(bytes, pos)
   {
     exclusive: dep >= 2_147_483_648,
     depends_on: dep % 2_147_483_648,
-    weight: nth(pos + 4, bytes) + 1
+    weight: bytes[pos + 4] + 1
   }
 end
 
@@ -285,7 +280,7 @@ def data_frame(payload, flags, stream)
         stream:,
         end_stream: bit_at(flags, 0) == 1,
         pad: first(value(u)),
-        data: nth(1, value(u))
+        data: value(u)[1]
       }
     )
   end
@@ -294,7 +289,7 @@ end
 def headers_frame(payload, flags, stream)
   u = unpad(payload, stream, flags, :connection)
   prio = bit_at(flags, 5) == 1
-  body = nth(1, value(u))
+  body = value(u)[1]
   if stream == 0
     conn(:protocol_error, "HEADERS on stream 0")
   elsif not ok?(u)
@@ -353,7 +348,7 @@ end
 
 def bad_setting(kv)
   k = first(kv)
-  v = nth(1, kv)
+  v = kv[1]
   if k == :enable_push and v > 1
     conn(:protocol_error, "ENABLE_PUSH of #{v}")
   elsif k == :initial_window_size and v > 2_147_483_647
@@ -387,7 +382,7 @@ end
 
 def push_frame(payload, flags, stream)
   u = unpad(payload, stream, flags, :connection)
-  body = nth(1, value(u))
+  body = value(u)[1]
   if stream == 0
     conn(:protocol_error, "PUSH_PROMISE on stream 0")
   elsif not ok?(u)
@@ -507,7 +502,7 @@ def decode(bytes, max_frame_size)
   len = if have >= 9
     be_value(bytes, 0, 3)
   end
-  type = nth(3, bytes)
+  type = bytes[3]
   stream = if have >= 9
     be_value(bytes, 5, 4) % 2_147_483_648
   end
@@ -523,7 +518,7 @@ def decode(bytes, max_frame_size)
   elsif have < 9 + len
     ok({frame: nil, need: 9 + len - have})
   else
-    r = frame_of(type, nth(4, bytes), stream, slice(bytes, 9, len))
+    r = frame_of(type, bytes[4], stream, slice(bytes, 9, len))
     if ok?(r)
       ok({frame: value(r), rest: slice(bytes, 9 + len, have - 9 - len)})
     else
@@ -771,10 +766,10 @@ test "the bytes of known frames, checked by hand against §4.1 and §6"
   assert bytes_hex(
     encode({type: :rst_stream, stream: 3, code: :refused_stream})
   ) == "00000403000000000300000007"
-  h = get(value(decode(hex_bytes("000002010500000001 8286"), 16384)), :frame)
-  assert get(h, :end_stream) and get(h, :end_headers)
-  assert get(h, :block) == [130, 134]
-  assert get(h, :priority).nil?
+  h = value(decode(hex_bytes("000002010500000001 8286"), 16384))[:frame]
+  assert h[:end_stream] and h[:end_headers]
+  assert h[:block] == [130, 134]
+  assert h[:priority].nil?
 end
 
 test "decode waits for a whole frame, ignores the reserved bit, and keeps what follows"
@@ -783,12 +778,12 @@ test "decode waits for a whole frame, ignores the reserved bit, and keeps what f
   assert decode(slice(ping, 0, 5), 16384) == ok({frame: nil, need: 4})
   assert decode(slice(ping, 0, 12), 16384) == ok({frame: nil, need: 5})
   two = value(decode(append(ping, ping), 16384))
-  assert get(two, :rest) == ping
+  assert two[:rest] == ping
   wu = hex_bytes("0000040800000000018000000a")
-  assert get(value(decode(wu, 16384)), :frame) ==
+  assert value(decode(wu, 16384))[:frame] ==
     {type: :window_update, stream: 1, increment: 10}
   hi = hex_bytes("000004080080000001 0000000a")
-  assert get(get(value(decode(hi, 16384)), :frame), :stream) == 1
+  assert value(decode(hi, 16384))[:frame][:stream] == 1
 end
 
 test "malformed frames are refused with the code and scope RFC 9113 names"
@@ -829,11 +824,8 @@ test "malformed frames are refused with the code and scope RFC 9113 names"
     end,
     cases
   )
-  assert seen == map((c) -> [nth(1, c), nth(2, c)], cases)
-  assert get(
-    decode(hex_bytes("000004080000000003 80000000"), 16384),
-    :stream
-  ) == 3
+  assert seen == map((c) -> [c[1], c[2]], cases)
+  assert decode(hex_bytes("000004080000000003 80000000"), 16384)[:stream] == 3
 end
 
 test "a frame over SETTINGS_MAX_FRAME_SIZE is refused, on the connection when it could change it"
@@ -916,13 +908,8 @@ test "every edge of the stream state diagram, Figure 2 of §5.1"
     [:closed_after_reset, :recv, :data, false, :closed_after_reset],
     [:closed_after_reset, :recv, :headers, true, :closed_after_reset]
   ]
-  seen = map(
-    fn(e)
-      get(value(step(nth(0, e), nth(1, e), nth(2, e), nth(3, e), 1)), :state)
-    end,
-    edges
-  )
-  assert seen == map((e) -> nth(4, e), edges)
+  seen = map((e) -> value(step(e[0], e[1], e[2], e[3], 1))[:state], edges)
+  assert seen == map((e) -> e[4], edges)
 end
 
 test "an illegal transition is refused with the error §5.1 and §6 name for it"
@@ -948,13 +935,13 @@ test "an illegal transition is refused with the error §5.1 and §6 name for it"
   ]
   seen = map(
     fn(c)
-      r = step(nth(0, c), nth(1, c), nth(2, c), false, 7)
+      r = step(c[0], c[1], c[2], false, 7)
       [scope_of(r), first(refusal_of(r))]
     end,
     cases
   )
-  assert seen == map((c) -> [nth(3, c), nth(4, c)], cases)
-  assert get(step(:half_closed_remote, :recv, :data, false, 7), :stream) == 7
+  assert seen == map((c) -> [c[3], c[4]], cases)
+  assert step(:half_closed_remote, :recv, :data, false, 7)[:stream] == 7
 end
 
 test "frames that arrive after this end reset a stream are discarded, not refused"

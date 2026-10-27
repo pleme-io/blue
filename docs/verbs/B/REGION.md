@@ -1,8 +1,3 @@
----
-kind: explanation
-summary: verb graph region B: storage and state
----
-
 # Region B: storage and state (2026-10-22)
 
 458 verbs in 20 spaces, 706 edges (1.54 per verb). Above the 6-14 aim on purpose: the region names 20 separate domains and no space passes 41 verbs. Drawn from: Python pathlib/shutil/tarfile, Go os/io/fs and database/sql, Elixir File/Ecto/GenStage/Broadway, Erlang/OTP (ETS, mnesia), Rust std::fs/sqlx/tantivy/redb, Java JDBC/NIO, Swift FileManager/CoreData, Redis and etcd command sets, S3/GCS APIs, Kafka/Pulsar log semantics, SQS visibility timeouts, Temporal/Cadence/Step Functions, git plumbing, IPFS/CAR, RFC 6962 (merkle), CRDT literature (Shapiro et al.), restic/borg.

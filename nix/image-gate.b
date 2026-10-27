@@ -68,4 +68,4 @@ def gate(file, tier)
   )
 end
 
-gate(nth(0, argv), nth(1, argv))
+gate(argv[0], argv[1])

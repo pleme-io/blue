@@ -25,16 +25,16 @@ legacy_names("0.1.1", [["request_header", "kyuuji::header"]])
 has_header?: Whether the response already sets a header, whatever the case of its name.
 """
 def has_header?(headers, name)
-  any?((p) -> lower(nth(0, p)) == lower(name), map_entries(headers))
+  any?((p) -> lower(p[0]) == lower(name), map_entries(headers))
 end
 
 def with_missing(headers, additions)
   reduce(
     fn(acc, p)
-      if has_header?(acc, nth(0, p))
+      if has_header?(acc, p[0])
         acc
       else
-        assoc(acc, nth(0, p), nth(1, p))
+        assoc(acc, p[0], p[1])
       end
     end,
     headers,
@@ -93,8 +93,8 @@ def page_policy(base, inline)
   join(
     append(
       [base],
-      hashed("style-src-elem", get(inline, :styles) or []),
-      hashed("script-src", get(inline, :scripts) or [])
+      hashed("style-src-elem", inline[:styles] or []),
+      hashed("script-src", inline[:scripts] or [])
     ),
     "; "
   )
@@ -106,21 +106,21 @@ end
 
 def policy_for(s, r)
   if page?(r)
-    page_policy(get(s, :page_security_policy), get(r, :inline) or {})
+    page_policy(s[:page_security_policy], r[:inline] or {})
   else
-    get(s, :content_security_policy)
+    s[:content_security_policy]
   end
 end
 
 def header_pairs(s, r)
   [
-    ["X-Content-Type-Options", get(s, :content_type_options)],
-    ["X-Frame-Options", get(s, :frame_options)],
-    ["Referrer-Policy", get(s, :referrer_policy)],
+    ["X-Content-Type-Options", s[:content_type_options]],
+    ["X-Frame-Options", s[:frame_options]],
+    ["Referrer-Policy", s[:referrer_policy]],
     ["Content-Security-Policy", policy_for(s, r)],
-    ["Strict-Transport-Security", get(s, :strict_transport_security)],
-    ["Cache-Control", get(s, :cache_control)],
-    ["Cross-Origin-Resource-Policy", get(s, :cross_origin_resource_policy)]
+    ["Strict-Transport-Security", s[:strict_transport_security]],
+    ["Cache-Control", s[:cache_control]],
+    ["Cross-Origin-Resource-Policy", s[:cross_origin_resource_policy]]
   ]
 end
 
@@ -136,7 +136,7 @@ def headers_posture()
           assoc(
             r,
             :headers,
-            with_missing(get(r, :headers), header_pairs(settings, r))
+            with_missing(r[:headers], header_pairs(settings, r))
           )
         end
       end
@@ -173,19 +173,15 @@ def request_id_posture()
       counter = [0]
       fn(handler)
         fn(req)
-          inbound = header(req, get(settings, :header))
-          id = if safe_id?(inbound, get(settings, :max_length))
+          inbound = header(req, settings[:header])
+          id = if safe_id?(inbound, settings[:max_length])
             inbound
           else
             set!(counter, [first(counter) + 1])
             "req-#{now_ms}-#{first(counter)}"
           end
           r = handler(assoc(req, :request_id, id))
-          assoc(
-            r,
-            :headers,
-            assoc(get(r, :headers), get(settings, :header), id)
-          )
+          assoc(r, :headers, assoc(r[:headers], settings[:header], id))
         end
       end
     end
@@ -202,15 +198,15 @@ end
 broken_limit: The first limit a request breaks, as [status, why], or nil.
 """
 def broken_limit(settings, req)
-  body = get(req, :body)
-  if not contains(get(settings, :methods), get(req, :method))
-    [405, "#{get(req, :method)} is not an allowed method"]
-  elsif length(get(req, :path)) > get(settings, :max_path)
-    [414, "the path is longer than #{get(settings, :max_path)}"]
-  elsif size(get(req, :headers)) > get(settings, :max_headers)
-    [431, "more than #{get(settings, :max_headers)} request headers"]
-  elsif string?(body) and length(body) > get(settings, :max_body)
-    [413, "the body is longer than #{get(settings, :max_body)}"]
+  body = req[:body]
+  if not contains(settings[:methods], req[:method])
+    [405, "#{req[:method]} is not an allowed method"]
+  elsif length(req[:path]) > settings[:max_path]
+    [414, "the path is longer than #{settings[:max_path]}"]
+  elsif size(req[:headers]) > settings[:max_headers]
+    [431, "more than #{settings[:max_headers]} request headers"]
+  elsif string?(body) and length(body) > settings[:max_body]
+    [413, "the body is longer than #{settings[:max_body]}"]
   end
 end
 
@@ -239,11 +235,11 @@ def limits_posture()
             handler(req)
           else
             gated(
-              get(settings, :mode),
+              settings[:mode],
               sink,
               :limits,
-              nth(1, hit),
-              refusal_response(nth(0, hit), nth(1, hit)),
+              hit[1],
+              refusal_response(hit[0], hit[1]),
               () -> handler(req)
             )
           end
@@ -275,20 +271,20 @@ def quiet(_name, _why)
 end
 
 def hdr(resp, name)
-  get(get(resp, :headers), name)
+  get(resp[:headers], name)
 end
 
 test "a bare service gets the seven security headers and keeps its own"
   d = defended([], quiet, ok)
-  assert get(d, :refusals) == []
-  r = get(d, :handler)(get_req("/", [], ""))
+  assert d[:refusals] == []
+  r = d[:handler](get_req("/", [], ""))
   assert hdr(r, "X-Content-Type-Options") == "nosniff"
   assert hdr(r, "X-Frame-Options") == "DENY"
   assert hdr(r, "Referrer-Policy") == "no-referrer"
   assert hdr(r, "Cache-Control") == "no-store"
   assert hdr(r, "Cross-Origin-Resource-Policy") == "same-origin"
   assert contains(
-    map((p) -> nth(0, p), map_entries(get(r, :headers))),
+    map((p) -> p[0], map_entries(r[:headers])),
     "Strict-Transport-Security"
   )
   assert hdr(r, "Content-Type") == "text/plain"
@@ -299,7 +295,7 @@ test "a bare service gets the seven security headers and keeps its own"
       {status: 200, headers: {"cache-control" => "max-age=60"}, body: ""}
     end
   )
-  r2 = get(own, :handler)(get_req("/", [], ""))
+  r2 = own[:handler](get_req("/", [], ""))
   assert hdr(r2, "cache-control") == "max-age=60"
   assert hdr(r2, "Cache-Control").nil?
 end
@@ -313,17 +309,17 @@ test "an html page gets the page policy: its inline style and module allowed by 
       inline: {styles: ["a"], scripts: ["abc"]}
     }
   end
-  r = get(defended([], quiet, page), :handler)(get_req("/", [], ""))
+  r = defended([], quiet, page)[:handler](get_req("/", [], ""))
   assert hdr(r, "Content-Security-Policy") ==
     "#{page_policy_default}; style-src-elem 'sha256-ypeBEsobvcr6wjGzmiPcTaeG7/gUfE5yuYB3ha/uSLs='; script-src 'sha256-ungWv48Bz+pBQUDeXa4iI7ADYaOWF3qctBD/YfIAFa0='"
   bare = fn(_req)
     {status: 200, headers: {"content-type" => "TEXT/HTML"}, body: ""}
   end
-  b = get(defended([], quiet, bare), :handler)(get_req("/", [], ""))
+  b = defended([], quiet, bare)[:handler](get_req("/", [], ""))
   assert hdr(b, "Content-Security-Policy") == page_policy_default
   assert not contains?(page_policy_default, "script-src")
   assert hdr(
-    get(defended([], quiet, ok), :handler)(get_req("/", [], "")),
+    defended([], quiet, ok)[:handler](get_req("/", [], "")),
     "Content-Security-Policy"
   ) == "default-src 'none'; frame-ancestors 'none'"
   tuned = defended(
@@ -332,7 +328,7 @@ test "an html page gets the page policy: its inline style and module allowed by 
     bare
   )
   assert hdr(
-    get(tuned, :handler)(get_req("/", [], "")),
+    tuned[:handler](get_req("/", [], "")),
     "Content-Security-Policy"
   ) == "default-src 'self'"
 end
@@ -349,18 +345,18 @@ test "a kyuuji view route served through bougyo carries the hash of its theme's 
     ],
     {theme: t}
   )
-  h = get(defended([], quiet, (req) -> kyuuji::dispatch(app, req)), :handler)
+  h = defended([], quiet, (req) -> kyuuji::dispatch(app, req))[:handler]
   r = h(get_req("/", [], ""))
-  assert get(r, :status) == 200
-  assert contains?(get(r, :body), "<p>hi</p>")
+  assert r[:status] == 200
+  assert contains?(r[:body], "<p>hi</p>")
   assert hdr(r, "Content-Security-Policy") ==
     "#{page_policy_default}; style-src-elem #{hash_source(gamen::css(t))}"
 end
 
 test "the headers posture can be configured off or tuned, and a bad tune is refused alone"
   off_d = defended([off(:headers, "default")], quiet, ok)
-  assert size(get(off_d, :off)) == 1
-  r = get(off_d, :handler)(get_req("/", [], ""))
+  assert size(off_d[:off]) == 1
+  r = off_d[:handler](get_req("/", [], ""))
   assert hdr(r, "X-Frame-Options").nil?
   assert hdr(r, "X-Request-Id") != nil
   tuned = defended(
@@ -368,16 +364,15 @@ test "the headers posture can be configured off or tuned, and a bad tune is refu
     quiet,
     ok
   )
-  assert hdr(get(tuned, :handler)(get_req("/", [], "")), "X-Frame-Options") ==
+  assert hdr(tuned[:handler](get_req("/", [], "")), "X-Frame-Options") ==
     "SAMEORIGIN"
   bad = defended([tune(:headers, "default", {frame_options: 7})], quiet, ok)
-  assert size(get(bad, :refusals)) == 1
-  assert hdr(get(bad, :handler)(get_req("/", [], "")), "X-Frame-Options") ==
-    "DENY"
+  assert size(bad[:refusals]) == 1
+  assert hdr(bad[:handler](get_req("/", [], "")), "X-Frame-Options") == "DENY"
 end
 
 test "a safe inbound request id is echoed and an unsafe one is replaced"
-  h = get(defended([], quiet, ok), :handler)
+  h = defended([], quiet, ok)[:handler]
   echoed = h(get_req("/", [["x-request-id", "abc-123_X.9"]], ""))
   assert hdr(echoed, "X-Request-Id") == "abc-123_X.9"
   forged = h(
@@ -403,22 +398,22 @@ test "the request id reaches the handler"
   seen = defended(
     [],
     quiet,
-    (req) -> {status: 200, headers: {}, body: get(req, :request_id)}
+    (req) -> {status: 200, headers: {}, body: req[:request_id]}
   )
-  r = get(seen, :handler)(get_req("/", [["x-request-id", "trace-7"]], ""))
-  assert get(r, :body) == "trace-7"
+  r = seen[:handler](get_req("/", [["x-request-id", "trace-7"]], ""))
+  assert r[:body] == "trace-7"
 end
 
 test "limits in audit record the violation and let the request through"
   hits = [[]]
   note = (name, why) -> set!(hits, [append(first(hits), [[name, why]])])
   d = defended([tune(:limits, "default", {max_body: 5})], note, ok)
-  r = get(d, :handler)(get_req("/", [], "0123456789"))
-  assert get(r, :status) == 200
+  r = d[:handler](get_req("/", [], "0123456789"))
+  assert r[:status] == 200
   assert size(first(hits)) == 1
-  assert nth(0, nth(0, first(hits))) == :limits
-  fine = get(d, :handler)(get_req("/", [], "0123"))
-  assert get(fine, :status) == 200
+  assert first(hits)[0][0] == :limits
+  fine = d[:handler](get_req("/", [], "0123"))
+  assert fine[:status] == 200
   assert size(first(hits)) == 1
 end
 
@@ -426,30 +421,30 @@ test "limits in enforce refuse with the status that names the limit"
   enforce = fn(fields)
     tune(:limits, "default", assoc(fields, :mode, "enforce"))
   end
-  body = get(defended([enforce({max_body: 5})], quiet, ok), :handler)
-  assert get(body(get_req("/", [], "0123456789")), :status) == 413
-  assert get(body(get_req("/", [], "0123")), :status) == 200
-  path = get(defended([enforce({max_path: 4})], quiet, ok), :handler)
-  assert get(path(get_req("/toolong", [], "")), :status) == 414
-  heads = get(defended([enforce({max_headers: 1})], quiet, ok), :handler)
-  assert get(heads(get_req("/", [["a", "1"], ["b", "2"]], "")), :status) == 431
-  verbs = get(defended([enforce({methods: ["GET"]})], quiet, ok), :handler)
+  body = defended([enforce({max_body: 5})], quiet, ok)[:handler]
+  assert body(get_req("/", [], "0123456789"))[:status] == 413
+  assert body(get_req("/", [], "0123"))[:status] == 200
+  path = defended([enforce({max_path: 4})], quiet, ok)[:handler]
+  assert path(get_req("/toolong", [], ""))[:status] == 414
+  heads = defended([enforce({max_headers: 1})], quiet, ok)[:handler]
+  assert heads(get_req("/", [["a", "1"], ["b", "2"]], ""))[:status] == 431
+  verbs = defended([enforce({methods: ["GET"]})], quiet, ok)[:handler]
   post = {method: "POST", path: "/", query: "", headers: [], body: ""}
-  assert get(verbs(post), :status) == 405
-  assert get(verbs(get_req("/", [], "")), :status) == 200
+  assert verbs(post)[:status] == 405
+  assert verbs(get_req("/", [], ""))[:status] == 200
 end
 
 test "a refused request still carries no stale state and the defaults stand when a limit is malformed"
   bad = defended([tune(:limits, "default", {max_body: -1})], quiet, ok)
-  assert size(get(bad, :refusals)) == 1
-  r = get(bad, :handler)(get_req("/", [], "x"))
-  assert get(r, :status) == 200
+  assert size(bad[:refusals]) == 1
+  r = bad[:handler](get_req("/", [], "x"))
+  assert r[:status] == 200
   worse = defended(
     [tune(:limits, "default", {methods: ["GET", "TRACE"]})],
     quiet,
     ok
   )
-  assert size(get(worse, :refusals)) == 1
+  assert size(worse[:refusals]) == 1
 end
 
 test "with every posture off the handler is untouched"
@@ -462,7 +457,7 @@ test "with every posture off the handler is untouched"
     quiet,
     ok
   )
-  assert get(d, :refusals) == []
-  assert size(get(d, :off)) == 3
-  assert get(d, :handler)(get_req("/", [], "")) == ok(nil)
+  assert d[:refusals] == []
+  assert size(d[:off]) == 3
+  assert d[:handler](get_req("/", [], "")) == ok(nil)
 end

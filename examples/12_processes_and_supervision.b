@@ -17,7 +17,7 @@ end
 
 def ask(worker, n)
   send(worker, n)
-  nth(2, receive([:square, n, :_]))
+  receive([:square, n, :_])[2]
 end
 
 test "a worker answers by message"
@@ -27,7 +27,7 @@ end
 
 test "a supervised worker survives a bad job"
   sup = supervisor(:one_for_one, [[squarer, [self]]], 3)
-  w = nth(0, children(sup))
+  w = children(sup)[0]
   send(w, -1)
   receive(:never, 50)
   assert ask(w, 3) == 9

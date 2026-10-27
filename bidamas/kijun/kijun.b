@@ -99,22 +99,22 @@ def fleet_repo(version)
 end
 
 def allow_top(cfg, entries)
-  assoc(cfg, :top, append(get(cfg, :top), entries))
+  assoc(cfg, :top, append(cfg[:top], entries))
 end
 
 def configurations(cfg, names)
-  assoc(cfg, :configurations, append(get(cfg, :configurations), names))
+  assoc(cfg, :configurations, append(cfg[:configurations], names))
 end
 
 @doc """
 waive: exempt one path from one rule with a reason.
 """
 def waive(cfg, rule, glob, reason)
-  assoc(cfg, :waivers, append(get(cfg, :waivers), [{rule:, glob:, reason:}]))
+  assoc(cfg, :waivers, append(cfg[:waivers], [{rule:, glob:, reason:}]))
 end
 
 def disable(cfg, rule, reason)
-  assoc(cfg, :disabled, append(get(cfg, :disabled), [{rule:, reason:}]))
+  assoc(cfg, :disabled, append(cfg[:disabled], [{rule:, reason:}]))
 end
 
 def finding(rule, file, line, subject, message)
@@ -122,7 +122,7 @@ def finding(rule, file, line, subject, message)
 end
 
 def at(f, doc, rule, start, subject, message)
-  finding(rule, get(f, :path), line_of(doc, start), subject, message)
+  finding(rule, f[:path], line_of(doc, start), subject, message)
 end
 
 def segments(path)
@@ -151,7 +151,7 @@ def allowed_top?(cfg, entry)
   else
     entry
   end
-  not is_empty(filter((g) -> glob_match?(g, name), get(cfg, :top)))
+  not is_empty(filter((g) -> glob_match?(g, name), cfg[:top]))
 end
 
 def check_top(repo)
@@ -165,17 +165,14 @@ def check_top(repo)
         "#{e} is not an entry the standard allows at the top level"
       )
     end,
-    filter(
-      (e) -> not allowed_top?(get(repo, :config), e),
-      top_entries(get(repo, :files))
-    )
+    filter((e) -> not allowed_top?(repo[:config], e), top_entries(repo[:files]))
   )
 end
 
 def node_dirs(files)
   unique(
     map(
-      (p) -> nth(1, segments(p)),
+      (p) -> segments(p)[1],
       filter(
         (p) -> first(segments(p)) == "nodes" and size(segments(p)) > 2,
         files
@@ -191,15 +188,15 @@ def node_dir_of(text)
 end
 
 def declared_nodes(repo)
-  cfg = get(repo, :config)
-  path = get(cfg, :registry)
-  if member?(path, get(repo, :files))
+  cfg = repo[:config]
+  path = cfg[:registry]
+  if member?(path, repo[:files])
     doc = nikkusu::read(source_of(repo, path))
     filter(
       (d) -> d != nil,
       map(
         fn(c)
-          a = first(args_of(get(c, :node)))
+          a = first(args_of(c[:node]))
           if a != nil and kind(a) == "NODE_ATTR_SET"
             v = attr(a, "nodeDir")
             if v.nil?
@@ -209,7 +206,7 @@ def declared_nodes(repo)
             end
           end
         end,
-        calls_named(get(doc, :root), [get(cfg, :node_constructor)])
+        calls_named(doc[:root], [cfg[:node_constructor]])
       )
     )
   else
@@ -218,7 +215,7 @@ def declared_nodes(repo)
 end
 
 def check_nodes(repo)
-  files = get(repo, :files)
+  files = repo[:files]
   declared = declared_nodes(repo)
   flat_map(
     node_dirs(files),
@@ -271,13 +268,13 @@ end
 
 def trio_calls(repo, path)
   named(
-    calls(get(nikkusu::read(source_of(repo, path)), :root)),
-    get(get(repo, :config), :trio_factory)
+    calls(nikkusu::read(source_of(repo, path))[:root]),
+    repo[:config][:trio_factory]
   )
 end
 
 def spec_kind(c)
-  a = last(get(c, :args))
+  a = last(c[:args])
   v = if a != nil and kind(a) == "NODE_ATTR_SET"
     attr(a, "kind")
   end
@@ -306,7 +303,7 @@ def factory_proven?(repo, m)
 end
 
 def check_proof(repo)
-  files = get(repo, :files)
+  files = repo[:files]
   map(
     fn(m)
       finding(
@@ -327,14 +324,11 @@ def check_proof(repo)
 end
 
 def route_files(repo)
-  files = get(repo, :files)
+  files = repo[:files]
   filter(
     fn(p)
       not is_empty(
-        filter(
-          (g) -> glob_match?(g, p),
-          get(get(repo, :config), :import_routes)
-        )
+        filter((g) -> glob_match?(g, p), repo[:config][:import_routes])
       )
     end,
     files
@@ -342,9 +336,9 @@ def route_files(repo)
 end
 
 def check_reachable(repo)
-  files = get(repo, :files)
+  files = repo[:files]
   routes = map(
-    (p) -> code(get(nikkusu::read(source_of(repo, p)), :root)),
+    (p) -> code(nikkusu::read(source_of(repo, p))[:root]),
     route_files(repo)
   )
   map(
@@ -370,11 +364,11 @@ def check_reachable(repo)
 end
 
 def binding_finding(rule, f, b, message)
-  at(f, get(f, :doc), rule, get(b, :start), get(b, :dotted), message)
+  at(f, f[:doc], rule, b[:start], b[:dotted], message)
 end
 
 def module_bindings(f)
-  filter((b) -> get(b, :scope) == :attrs, get(f, :bindings))
+  filter((b) -> b[:scope] == :attrs, f[:bindings])
 end
 
 def starts?(path, prefix)
@@ -383,10 +377,7 @@ end
 
 def check_system_calls(f, repo)
   if not is_empty(
-    filter(
-      (g) -> glob_match?(g, get(f, :path)),
-      get(get(repo, :config), :engine)
-    )
+    filter((g) -> glob_match?(g, f[:path]), repo[:config][:engine])
   )
     []
   else
@@ -394,21 +385,21 @@ def check_system_calls(f, repo)
       fn(c)
         at(
           f,
-          get(f, :doc),
+          f[:doc],
           "expr/node-system-only-via-mkNode",
-          get(c, :start),
-          get(c, :head),
-          "#{get(c, :head)} builds a system outside the node engine; declare the node through the registry"
+          c[:start],
+          c[:head],
+          "#{c[:head]} builds a system outside the node engine; declare the node through the registry"
         )
       end,
-      named(get(f, :calls), ["nixosSystem", "darwinSystem"])
+      named(f[:calls], ["nixosSystem", "darwinSystem"])
     )
   end
 end
 
 def identity?(b)
   p = module_path(b)
-  v = get(b, :value)
+  v = b[:value]
   if p == ["networking", "hostName"] or p == ["networking", "hostId"]
     true
   elsif size(p) >= 3 and first(p) == "fileSystems" and last(p) == "device"
@@ -427,7 +418,7 @@ def check_profile_identity(f, _repo)
         "expr/profile-no-identity",
         f,
         b,
-        "a profile sets #{get(b, :dotted)}, which is a node's identity; set it in the node"
+        "a profile sets #{b[:dotted]}, which is a node's identity; set it in the node"
       )
     end,
     filter(identity?, module_bindings(f))
@@ -439,14 +430,14 @@ def declaration_findings(rule, f, where)
     fn(d)
       at(
         f,
-        get(f, :doc),
+        f[:doc],
         rule,
-        get(d, :start),
-        get(d, :at),
-        "#{where} declares an option (#{get(d, :at)})"
+        d[:start],
+        d[:at],
+        "#{where} declares an option (#{d[:at]})"
       )
     end,
-    option_declarations(get(f, :root))
+    option_declarations(f[:root])
   )
 end
 
@@ -455,14 +446,14 @@ def check_lib_data(f, _repo)
     fn(l)
       at(
         f,
-        get(f, :doc),
+        f[:doc],
         "expr/lib-is-data",
-        get(l, :start),
+        l[:start],
         "module function",
         "a module function (a lambda taking config) lives in lib/, which holds data"
       )
     end,
-    nodes_where((n) -> module_function?(n), get(f, :root))
+    nodes_where((n) -> module_function?(n), f[:root])
   )
   append(declaration_findings("expr/lib-is-data", f, "lib/"), modules)
 end
@@ -489,8 +480,8 @@ def platform_path?(path)
 end
 
 def emits_platform?(b)
-  o = get(b, :outer)
-  platform_path?(get(b, :path)) and (o.nil? or not platform_path?(o))
+  o = b[:outer]
+  platform_path?(b[:path]) and (o.nil? or not platform_path?(o))
 end
 
 def check_shared_emission(f, _repo)
@@ -512,9 +503,9 @@ def check_shared_platform_question(f, _repo)
     fn(n)
       at(
         f,
-        get(f, :doc),
+        f[:doc],
         "expr/shared-asks-no-platform",
-        get(n, :start),
+        n[:start],
         code(n),
         "a shared module asks #{code(n)}, a rendering decision"
       )
@@ -524,7 +515,7 @@ def check_shared_platform_question(f, _repo)
         kind(n) == "NODE_SELECT" and
           member?(last(split(code(n), ".")), ["isDarwin", "isLinux"])
       end,
-      get(f, :root)
+      f[:root]
     )
   )
 end
@@ -538,14 +529,14 @@ def check_angle(f, _repo)
     fn(p)
       at(
         f,
-        get(f, :doc),
+        f[:doc],
         "expr/no-angle-paths",
-        get(p, :start),
-        get(p, :path),
-        "#{get(p, :path)} resolves through NIX_PATH, which a flake does not pin"
+        p[:start],
+        p[:path],
+        "#{p[:path]} resolves through NIX_PATH, which a flake does not pin"
       )
     end,
-    angle_paths(get(f, :root))
+    angle_paths(f[:root])
   )
 end
 
@@ -567,7 +558,7 @@ def pin_attrs()
 end
 
 def unpinned?(c)
-  a = first(get(c, :args))
+  a = first(c[:args])
   if a.nil?
     false
   elsif kind(a) == "NODE_ATTR_SET"
@@ -582,20 +573,20 @@ def check_fetch(f, _repo)
     fn(c)
       at(
         f,
-        get(f, :doc),
+        f[:doc],
         "expr/no-unpinned-fetch",
-        get(c, :start),
-        get(c, :head),
-        "#{get(c, :head)} with no hash fetches whatever the server serves today"
+        c[:start],
+        c[:head],
+        "#{c[:head]} with no hash fetches whatever the server serves today"
       )
     end,
-    filter(unpinned?, named(get(f, :calls), fetchers))
+    filter(unpinned?, named(f[:calls], fetchers))
   )
 end
 
 def script_body(c)
   n = head_name(c)
-  args = get(c, :args)
+  args = c[:args]
   if n == "writeShellApplication"
     if first(args) != nil and kind(first(args)) == "NODE_ATTR_SET"
       attr(first(args), "text")
@@ -604,9 +595,9 @@ def script_body(c)
     n,
     ["runCommand", "runCommandLocal", "runCommandNoCC", "runCommandCC"]
   )
-    nth(2, args)
+    args[2]
   else
-    nth(1, args)
+    args[1]
   end
 end
 
@@ -637,17 +628,14 @@ def check_shell(f, _repo)
     fn(c)
       at(
         f,
-        get(f, :doc),
+        f[:doc],
         "expr/no-shell",
-        get(c, :start),
-        get(c, :head),
-        "#{get(c, :head)} carries #{to_s(script_lines(script_body(c)))} lines of shell; past 3 lines it is a typed tool"
+        c[:start],
+        c[:head],
+        "#{c[:head]} carries #{to_s(script_lines(script_body(c)))} lines of shell; past 3 lines it is a typed tool"
       )
     end,
-    filter(
-      (c) -> script_lines(script_body(c)) > 3,
-      named(get(f, :calls), scripts)
-    )
+    filter((c) -> script_lines(script_body(c)) > 3, named(f[:calls], scripts))
   )
 end
 
@@ -656,28 +644,28 @@ def check_parses(f, _repo)
     fn(e)
       at(
         f,
-        get(f, :doc),
+        f[:doc],
         "expr/parses",
-        get(e, :start),
+        e[:start],
         "parse",
-        "does not parse: #{get(e, :message)}"
+        "does not parse: #{e[:message]}"
       )
     end,
-    take_n(get(get(f, :doc), :errors), 1)
+    take_n(f[:doc][:errors], 1)
   )
 end
 
 def own_file(tree, file)
-  own = get(tree, :own)
+  own = tree[:own]
   if own != nil and own != "" and starts_with?(file, "#{own}/")
     after_first(file, "#{own}/")
   end
 end
 
 def check_pleme_declarations(tree, repo)
-  declarers = get(get(repo, :config), :declarers)
+  declarers = repo[:config][:declarers]
   flat_map(
-    get(tree, :pleme),
+    tree[:pleme],
     fn(o)
       map(
         fn(d)
@@ -695,8 +683,8 @@ def check_pleme_declarations(tree, repo)
               rel
             end,
             0,
-            get(o, :path),
-            "#{get(o, :path)} is declared in #{where}, not under modules/pleme/{shared,<platform>}"
+            o[:path],
+            "#{o[:path]} is declared in #{where}, not under modules/pleme/{shared,<platform>}"
           )
         end,
         filter(
@@ -704,7 +692,7 @@ def check_pleme_declarations(tree, repo)
             rel = own_file(tree, d)
             rel.nil? or is_empty(filter((g) -> glob_match?(g, rel), declarers))
           end,
-          get(o, :declarations)
+          o[:declarations]
         )
       )
     end
@@ -713,7 +701,7 @@ end
 
 def check_hostname(tree, _repo)
   flat_map(
-    get(tree, :hostname),
+    tree[:hostname],
     fn(o)
       map(
         fn(d)
@@ -732,8 +720,8 @@ def check_hostname(tree, _repo)
             "tree/hostname-from-node",
             file,
             0,
-            "#{get(tree, :configuration)} networking.hostName",
-            "networking.hostName of #{get(tree, :configuration)} is defined in #{shown}, not under nodes/"
+            "#{tree[:configuration]} networking.hostName",
+            "networking.hostName of #{tree[:configuration]} is defined in #{shown}, not under nodes/"
           )
         end,
         filter(
@@ -741,7 +729,7 @@ def check_hostname(tree, _repo)
             rel = own_file(tree, d)
             rel.nil? or not glob_match?("nodes/**", rel)
           end,
-          get(o, :definitions)
+          o[:definitions]
         )
       )
     end
@@ -749,13 +737,10 @@ def check_hostname(tree, _repo)
 end
 
 def declared_at(tree, option)
-  hit = filter(
-    (o) -> get(o, :path) == option,
-    append(get(tree, :pleme), get(tree, :hostname))
-  )
+  hit = filter((o) -> o[:path] == option, append(tree[:pleme], tree[:hostname]))
   rels = filter(
     (r) -> r != nil,
-    map((d) -> own_file(tree, d), flat_map(hit, (o) -> get(o, :declarations)))
+    map((d) -> own_file(tree, d), flat_map(hit, (o) -> o[:declarations]))
   )
   if is_empty(rels)
     "(external)"
@@ -769,13 +754,13 @@ def check_option_evaluates(tree, _repo)
     fn(b)
       finding(
         "tree/option-evaluates",
-        declared_at(tree, get(b, :option)),
+        declared_at(tree, b[:option]),
         0,
-        "#{get(tree, :configuration)} #{get(b, :option)}",
-        "#{get(b, :option)} does not evaluate on #{get(tree, :configuration)} (#{get(b, :error)}), so no tree rule sees its definitions there"
+        "#{tree[:configuration]} #{b[:option]}",
+        "#{b[:option]} does not evaluate on #{tree[:configuration]} (#{b[:error]}), so no tree rule sees its definitions there"
       )
     end,
-    or_list(get(tree, :blind))
+    or_list(tree[:blind])
   )
 end
 
@@ -795,7 +780,7 @@ def dir_units(files, root, kind_of, skip, pool)
   depth = size(segments(root))
   under = filter((p) -> starts_with?(p, "#{root}/"), pool)
   singles = map(
-    (p) -> unit(kind_of, before_first(nth(depth, segments(p)), ".nix"), p, [p]),
+    (p) -> unit(kind_of, before_first(segments(p)[depth], ".nix"), p, [p]),
     filter(
       fn(p)
         size(segments(p)) == depth + 1 and
@@ -807,7 +792,7 @@ def dir_units(files, root, kind_of, skip, pool)
   )
   dirs = unique(
     map(
-      (p) -> nth(depth, segments(p)),
+      (p) -> segments(p)[depth],
       filter((p) -> size(segments(p)) > depth + 1, under)
     )
   )
@@ -843,10 +828,10 @@ def overlay_units(repo)
           p != "overlays/default.nix" and
           ends_with?(p, ".nix")
       end,
-      nix_under(get(repo, :files), "overlays/")
+      nix_under(repo[:files], "overlays/")
     ),
     fn(p)
-      set = returned_set(get(nikkusu::read(source_of(repo, p)), :root))
+      set = returned_set(nikkusu::read(source_of(repo, p))[:root])
       if set.nil?
         []
       else
@@ -854,9 +839,9 @@ def overlay_units(repo)
           (a) -> unit(:overlay, a, p, [p]),
           unique(
             map(
-              (b) -> first(get(b, :path)),
+              (b) -> first(b[:path]),
               filter(
-                (b) -> get(b, :scope) == :attrs and get(b, :outer).nil?,
+                (b) -> b[:scope] == :attrs and b[:outer].nil?,
                 bindings(set)
               )
             )
@@ -896,19 +881,18 @@ end
 
 def imported_files(f)
   map(
-    (c) -> relative_to(get(f, :path), code(first(get(c, :args)))),
+    (c) -> relative_to(f[:path], code(first(c[:args]))),
     filter(
       fn(c)
-        first(get(c, :args)) != nil and
-          kind(first(get(c, :args))) == "NODE_PATH_REL"
+        first(c[:args]) != nil and kind(first(c[:args])) == "NODE_PATH_REL"
       end,
-      named(get(f, :calls), ["import"])
+      named(f[:calls], ["import"])
     )
   )
 end
 
 def spec_names(c)
-  a = last(get(c, :args))
+  a = last(c[:args])
   if a.nil? or kind(a) != "NODE_ATTR_SET"
     []
   else
@@ -928,8 +912,8 @@ def spec_names(c)
 end
 
 def concept_facts(repo)
-  cfg = get(repo, :config)
-  files = get(repo, :files)
+  cfg = repo[:config]
+  files = repo[:files]
   wanted = filter(
     fn(p)
       ends_with?(p, ".nix") and
@@ -945,28 +929,23 @@ def concept_facts(repo)
   )
   facts = map((p) -> file_facts(p, source_of(repo, p)), wanted)
   trio = filter(
-    (f) -> not is_empty(named(get(f, :calls), get(cfg, :trio_factory))),
+    (f) -> not is_empty(named(f[:calls], cfg[:trio_factory])),
     facts
   )
   consumers = filter(
     fn(f)
       not is_empty(
-        filter(
-          (g) -> glob_match?(g, get(f, :path)),
-          get(cfg, :concept_consumers)
-        )
+        filter((g) -> glob_match?(g, f[:path]), cfg[:concept_consumers])
       )
     end,
     facts
   )
   {
-    trio_files: map((f) -> get(f, :path), trio),
+    trio_files: map((f) -> f[:path], trio),
     names: unique(
       flat_map(
         trio,
-        fn(f)
-          flat_map(named(get(f, :calls), get(cfg, :trio_factory)), spec_names)
-        end
+        (f) -> flat_map(named(f[:calls], cfg[:trio_factory]), spec_names)
       )
     ),
     trio_imports: unique(flat_map(trio, imported_files)),
@@ -976,13 +955,13 @@ end
 
 def registry_units(files, facts)
   map(
-    (p) -> unit(:registry, before_first(nth(1, segments(p)), ".nix"), p, [p]),
+    (p) -> unit(:registry, before_first(segments(p)[1], ".nix"), p, [p]),
     filter(
       fn(p)
         size(segments(p)) == 2 and
           starts_with?(p, "lib/") and
           ends_with?(p, ".nix") and
-          member?(p, get(facts, :consumed))
+          member?(p, facts[:consumed])
       end,
       files
     )
@@ -990,7 +969,7 @@ def registry_units(files, facts)
 end
 
 def concept_units(repo, facts)
-  files = get(repo, :files)
+  files = repo[:files]
   append(
     append(
       dir_units(
@@ -1007,15 +986,9 @@ def concept_units(repo, facts)
 end
 
 def covered?(u, facts)
-  not is_empty(
-    filter((p) -> member?(p, get(facts, :trio_files)), get(u, :files))
-  ) or
-    member?(
-      get(u, :name),
-      get(facts, :names)
-    ) or
-    get(u, :kind) == :registry and
-      member?(get(u, :file), get(facts, :trio_imports))
+  not is_empty(filter((p) -> member?(p, facts[:trio_files]), u[:files])) or
+    member?(u[:name], facts[:names]) or
+    u[:kind] == :registry and member?(u[:file], facts[:trio_imports])
 end
 
 def check_concepts(repo)
@@ -1024,10 +997,10 @@ def check_concepts(repo)
     fn(u)
       finding(
         "trio/every-concept",
-        get(u, :file),
+        u[:file],
         0,
-        "#{to_s(get(u, :kind))} #{get(u, :name)}",
-        "the #{to_s(get(u, :kind))} concept #{get(u, :name)} is not declared through the module-trio factory; declare it with mkModuleTrio { kind = ...; } so it has one type-known interface on every arm"
+        "#{to_s(u[:kind])} #{u[:name]}",
+        "the #{to_s(u[:kind])} concept #{u[:name]} is not declared through the module-trio factory; declare it with mkModuleTrio { kind = ...; } so it has one type-known interface on every arm"
       )
     end,
     filter((u) -> not covered?(u, facts), concept_units(repo, facts))
@@ -1206,20 +1179,18 @@ def rules()
 end
 
 def disabled_ids(cfg)
-  map((d) -> get(d, :rule), get(cfg, :disabled))
+  map((d) -> d[:rule], cfg[:disabled])
 end
 
 def active(cfg, plane)
   filter(
-    fn(r)
-      get(r, :plane) == plane and not member?(get(r, :id), disabled_ids(cfg))
-    end,
+    (r) -> r[:plane] == plane and not member?(r[:id], disabled_ids(cfg)),
     rules
   )
 end
 
 def in_scope?(r, path)
-  not is_empty(filter((g) -> glob_match?(g, path), get(r, :scope)))
+  not is_empty(filter((g) -> glob_match?(g, path), r[:scope]))
 end
 
 def file_facts(path, source)
@@ -1227,64 +1198,62 @@ def file_facts(path, source)
   {
     path:,
     doc:,
-    root: get(doc, :root),
-    bindings: bindings(get(doc, :root)),
-    calls: calls(get(doc, :root))
+    root: doc[:root],
+    bindings: bindings(doc[:root]),
+    calls: calls(doc[:root])
   }
 end
 
 def expression_findings(repo)
-  rs = active(get(repo, :config), :expression)
+  rs = active(repo[:config], :expression)
   flat_map(
-    filter((p) -> ends_with?(p, ".nix"), get(repo, :files)),
+    filter((p) -> ends_with?(p, ".nix"), repo[:files]),
     fn(p)
       mine = filter((r) -> in_scope?(r, p), rs)
       if is_empty(mine)
         []
       else
         f = file_facts(p, source_of(repo, p))
-        flat_map(mine, (r) -> get(r, :check)(f, repo))
+        flat_map(mine, (r) -> r[:check](f, repo))
       end
     end
   )
 end
 
 def layout_findings(repo)
-  flat_map(active(get(repo, :config), :layout), (r) -> get(r, :check)(repo))
+  flat_map(active(repo[:config], :layout), (r) -> r[:check](repo))
 end
 
 def tree_findings(repo, trees)
-  rs = active(get(repo, :config), :tree)
-  flat_map(trees, (t) -> flat_map(rs, (r) -> get(r, :check)(t, repo)))
+  rs = active(repo[:config], :tree)
+  flat_map(trees, (t) -> flat_map(rs, (r) -> r[:check](t, repo)))
 end
 
 def waiver_refusal(w)
-  prefix = "skip-#{get(w, :rule)}: "
-  reason = get(w, :reason)
+  prefix = "skip-#{w[:rule]}: "
+  reason = w[:reason]
   if not starts_with?(reason, prefix) or trim(after_first(reason, prefix)) == ""
     refusal(
       :waiver,
-      "the waiver of #{get(w, :rule)} for #{get(w, :glob)} must read \"#{prefix}<typed reason>\""
+      "the waiver of #{w[:rule]} for #{w[:glob]} must read \"#{prefix}<typed reason>\""
     )
-  elsif is_empty(filter((r) -> get(r, :id) == get(w, :rule), rules))
-    refusal(:waiver, "#{get(w, :rule)} is not a rule of the standard")
+  elsif is_empty(filter((r) -> r[:id] == w[:rule], rules))
+    refusal(:waiver, "#{w[:rule]} is not a rule of the standard")
   end
 end
 
 def valid_waivers(cfg)
-  filter((w) -> waiver_refusal(w).nil?, get(cfg, :waivers))
+  filter((w) -> waiver_refusal(w).nil?, cfg[:waivers])
 end
 
 def config_refusals(cfg)
   append(
-    filter((x) -> x != nil, map(waiver_refusal, get(cfg, :waivers))),
+    filter((x) -> x != nil, map(waiver_refusal, cfg[:waivers])),
     map(
-      fn(d)
-        refusal(:disable, "#{get(d, :rule)} is not a rule of the standard")
-      end,
+      (d) -> refusal(:disable, "#{d[:rule]} is not a rule of the standard"),
       filter(
-        (d) -> is_empty(filter((r) -> get(r, :id) == get(d, :rule), rules)),
-        get(cfg, :disabled)
+        (d) -> is_empty(filter((r) -> r[:id] == d[:rule], rules)),
+        cfg[:disabled]
       )
     )
   )
@@ -1292,33 +1261,24 @@ end
 
 def waived?(ws, x)
   not is_empty(
-    filter(
-      fn(w)
-        get(w, :rule) == get(x, :rule) and
-          glob_match?(get(w, :glob), get(x, :file))
-      end,
-      ws
-    )
+    filter((w) -> w[:rule] == x[:rule] and glob_match?(w[:glob], x[:file]), ws)
   )
 end
 
 def tier_of(id)
-  get(first(filter((r) -> get(r, :id) == id, rules)), :tier)
+  first(filter((r) -> r[:id] == id, rules))[:tier]
 end
 
 def key_of(x)
-  "#{get(x, :file)}::#{get(x, :subject)}"
+  "#{x[:file]}::#{x[:subject]}"
 end
 
 def measurements(xs)
-  map(
-    (p) -> hadome::measurement(first(p), nth(1, p)),
-    frequencies(map(key_of, xs))
-  )
+  map((p) -> hadome::measurement(first(p), p[1]), frequencies(map(key_of, xs)))
 end
 
 def rule_ids(xs)
-  unique(map((x) -> get(x, :rule), xs))
+  unique(map((x) -> x[:rule], xs))
 end
 
 def baseline_text(gates)
@@ -1327,7 +1287,7 @@ end
 
 def baseline_with(gates, kept)
   own = map(
-    (id) -> [id, measurements(filter((x) -> get(x, :rule) == id, gates))],
+    (id) -> [id, measurements(filter((x) -> x[:rule] == id, gates))],
     rule_ids(gates)
   )
   held = map(
@@ -1335,16 +1295,16 @@ def baseline_with(gates, kept)
       [
         id,
         map(
-          (r) -> hadome::measurement(get(r, :key), get(r, :size)),
-          filter((r) -> get(r, :kind) == id, kept)
+          (r) -> hadome::measurement(r[:key], r[:size]),
+          filter((r) -> r[:kind] == id, kept)
         )
       ]
     end,
-    unique(map((r) -> get(r, :kind), kept))
+    unique(map((r) -> r[:kind], kept))
   )
   join(
     map(
-      (p) -> hadome::render(first(p), nth(1, p)),
+      (p) -> hadome::render(first(p), p[1]),
       sort_keyed((p) -> first(p), append(own, held))
     ),
     ""
@@ -1357,30 +1317,27 @@ def ran_ids(cfg, tree)
   else
     [:layout, :expression]
   end
-  map((r) -> get(r, :id), flat_map(planes, (p) -> active(cfg, p)))
+  map((r) -> r[:id], flat_map(planes, (p) -> active(cfg, p)))
 end
 
 def split_rows(rows, ids)
   [
-    filter((r) -> member?(get(r, :kind), ids), rows),
-    filter((r) -> not member?(get(r, :kind), ids), rows)
+    filter((r) -> member?(r[:kind], ids), rows),
+    filter((r) -> not member?(r[:kind], ids), rows)
   ]
 end
 
 def judge(gates, rows)
-  ids = unique(append(rule_ids(gates), map((r) -> get(r, :kind), rows)))
+  ids = unique(append(rule_ids(gates), map((r) -> r[:kind], rows)))
   per = map(
     fn(id)
-      mine = filter((x) -> get(x, :rule) == id, gates)
+      mine = filter((x) -> x[:rule] == id, gates)
       ms = measurements(mine)
       fresh = hadome::failures(rows, id, ms)
       bad_keys = map(
-        (m) -> get(m, :key),
+        (m) -> m[:key],
         filter(
-          fn(m)
-            hadome::judge(rows, id, get(m, :key), get(m, :size)) !=
-              {verdict: :held}
-          end,
+          (m) -> hadome::judge(rows, id, m[:key], m[:size]) != {verdict: :held},
           ms
         )
       )
@@ -1388,27 +1345,19 @@ def judge(gates, rows)
         rule: id,
         failures: fresh,
         new: filter((x) -> member?(key_of(x), bad_keys), mine),
-        orphans: hadome::orphans(rows, id, map((m) -> get(m, :key), ms)),
+        orphans: hadome::orphans(rows, id, map((m) -> m[:key], ms)),
         shrunk: hadome::shrunk(rows, id, ms)
       }
     end,
     ids
   )
   {
-    new: flat_map(per, (p) -> get(p, :new)),
-    failures: flat_map(per, (p) -> get(p, :failures)),
-    orphans: flat_map(
-      per,
-      (p) -> map((k) -> "#{get(p, :rule)}: #{k}", get(p, :orphans))
-    ),
+    new: flat_map(per, (p) -> p[:new]),
+    failures: flat_map(per, (p) -> p[:failures]),
+    orphans: flat_map(per, (p) -> map((k) -> "#{p[:rule]}: #{k}", p[:orphans])),
     shrunk: flat_map(
       per,
-      fn(p)
-        map(
-          (m) -> "#{get(p, :rule)}: #{get(m, :key)} #{to_s(get(m, :size))}",
-          get(p, :shrunk)
-        )
-      end
+      (p) -> map((m) -> "#{p[:rule]}: #{m[:key]} #{to_s(m[:size])}", p[:shrunk])
     )
   }
 end
@@ -1496,12 +1445,12 @@ def probe(root, own, configuration, blind)
     "false",
     "#{root}##{configuration}",
     "--apply",
-    tree_expr(map((b) -> get(b, :option), blind))
+    tree_expr(map((b) -> b[:option], blind))
   )
   if status_of(cap) != 0
     err = stderr_of(cap)
     o = failing_option(err)
-    if o != nil and is_empty(filter((b) -> get(b, :option) == o, blind))
+    if o != nil and is_empty(filter((b) -> b[:option] == o, blind))
       probe(
         root,
         own,
@@ -1524,12 +1473,9 @@ def probe(root, own, configuration, blind)
     hostname = entries(as_json(doc, "hostname"))
     threw = map(
       fn(x)
-        {
-          option: get(x, :path),
-          error: "threw while its definitions were evaluated"
-        }
+        {option: x[:path], error: "threw while its definitions were evaluated"}
       end,
-      filter((x) -> get(x, :threw), append(pleme, hostname))
+      filter((x) -> x[:threw], append(pleme, hostname))
     )
     {
       configuration:,
@@ -1552,7 +1498,7 @@ def tracked(root)
 end
 
 def source_of(repo, path)
-  get(repo, :read)(path)
+  repo[:read](path)
 end
 
 def on_disk(root, files)
@@ -1568,7 +1514,7 @@ def in_memory(sources)
       if is_empty(hit)
         ""
       else
-        nth(1, first(hit))
+        first(hit)[1]
       end
     end
   }
@@ -1592,8 +1538,8 @@ def evaluate_timed(cfg, source, trees, clock)
   live = filter((x) -> not waived?(ws, x), all)
   {
     findings: live,
-    gates: filter((x) -> tier_of(get(x, :rule)) == :gate, live),
-    advice: filter((x) -> tier_of(get(x, :rule)) == :advise, live),
+    gates: filter((x) -> tier_of(x[:rule]) == :gate, live),
+    advice: filter((x) -> tier_of(x[:rule]) == :advise, live),
     waived: filter((x) -> waived?(ws, x), all),
     refusals: config_refusals(cfg),
     ms: {layout: t1 - t0, expression: t2 - t1, tree: t3 - t2},
@@ -1601,10 +1547,10 @@ def evaluate_timed(cfg, source, trees, clock)
       (e) -> e != nil,
       map(
         fn(t)
-          if get(t, :error).nil?
+          if t[:error].nil?
             nil
           else
-            "#{get(t, :configuration)}: #{get(t, :error)}"
+            "#{t[:configuration]}: #{t[:error]}"
           end
         end,
         trees
@@ -1634,7 +1580,7 @@ def parse_args(args)
 end
 
 def flags(args, acc)
-  if is_empty(args) or get(acc, :error) != nil
+  if is_empty(args) or acc[:error] != nil
     acc
   else
     a = first(args)
@@ -1651,7 +1597,7 @@ def flags(args, acc)
         else
           :baseline
         end
-        flags(drop(2, args), assoc(acc, key, nth(1, args)))
+        flags(drop(2, args), assoc(acc, key, args[1]))
       end
     else
       assoc(acc, :error, "unknown flag #{a}")
@@ -1662,9 +1608,9 @@ end
 def rule_line(r)
   unlines(
     [
-      "#{get(r, :id)}\t#{to_s(get(r, :plane))}\t#{to_s(get(r, :tier))}\t#{join(get(r, :scope), " ")}",
-      "  why: #{get(r, :why)}",
-      "  fix: #{get(r, :fix)}"
+      "#{r[:id]}\t#{to_s(r[:plane])}\t#{to_s(r[:tier])}\t#{join(r[:scope], " ")}",
+      "  why: #{r[:why]}",
+      "  fix: #{r[:fix]}"
     ]
   )
 end
@@ -1672,7 +1618,7 @@ end
 def rules_text(cfg)
   join_lines(
     [
-      "#{get(cfg, :standard)} v#{to_s(get(cfg, :version))}: #{to_s(size(rules))} rules",
+      "#{cfg[:standard]} v#{to_s(cfg[:version])}: #{to_s(size(rules))} rules",
       "",
       join(map(rule_line, rules), line_break)
     ]
@@ -1680,48 +1626,46 @@ def rules_text(cfg)
 end
 
 def finding_line(x)
-  where = if get(x, :line) > 0
-    "#{get(x, :file)}:#{to_s(get(x, :line))}"
+  where = if x[:line] > 0
+    "#{x[:file]}:#{to_s(x[:line])}"
   else
-    get(x, :file)
+    x[:file]
   end
-  unlines(["#{where}: #{get(x, :rule)}: #{get(x, :message)}"])
+  unlines(["#{where}: #{x[:rule]}: #{x[:message]}"])
 end
 
 def counts(xs)
   map(
-    (id) -> [id, size(filter((x) -> get(x, :rule) == id, xs))],
+    (id) -> [id, size(filter((x) -> x[:rule] == id, xs))],
     sort_keyed((id) -> id, rule_ids(xs))
   )
 end
 
 def plain(x)
   {
-    rule: get(x, :rule),
-    file: get(x, :file),
-    line: get(x, :line),
-    subject: get(x, :subject),
-    message: get(x, :message)
+    rule: x[:rule],
+    file: x[:file],
+    line: x[:line],
+    subject: x[:subject],
+    message: x[:message]
   }
 end
 
 def plane_of(id)
-  get(first(filter((r) -> get(r, :id) == id, rules)), :plane)
+  first(filter((r) -> r[:id] == id, rules))[:plane]
 end
 
 def plane_counts(result, timing)
   map(
     fn(p)
-      mine = fn(k)
-        size(filter((x) -> plane_of(get(x, :rule)) == p, get(result, k)))
-      end
+      mine = (k) -> size(filter((x) -> plane_of(x[:rule]) == p, get(result, k)))
       {
         plane: p,
         findings: mine(:findings),
         gates: mine(:gates),
         advice: mine(:advice),
         waived: mine(:waived),
-        ms: get(get(timing, :planes), p)
+        ms: get(timing[:planes], p)
       }
     end,
     [:layout, :expression, :tree]
@@ -1731,23 +1675,23 @@ end
 def report_json(cfg, result, verdict, timing)
   json_stringify(
     {
-      wall_ms: get(timing, :wall),
+      wall_ms: timing[:wall],
       planes: plane_counts(result, timing),
-      standard: get(cfg, :standard),
-      version: get(cfg, :version),
-      ok: is_empty(get(verdict, :new)),
-      new: map(plain, get(verdict, :new)),
-      findings: map(plain, get(result, :findings)),
+      standard: cfg[:standard],
+      version: cfg[:version],
+      ok: is_empty(verdict[:new]),
+      new: map(plain, verdict[:new]),
+      findings: map(plain, result[:findings]),
       counts: map(
-        (c) -> {rule: first(c), count: nth(1, c)},
-        counts(get(result, :findings))
+        (c) -> {rule: first(c), count: c[1]},
+        counts(result[:findings])
       ),
-      waived: size(get(result, :waived)),
-      orphans: get(verdict, :orphans),
-      shrunk: get(verdict, :shrunk),
-      refusals: map((r) -> kyohi::why(r), get(result, :refusals)),
-      disabled: get(cfg, :disabled),
-      tree_errors: get(result, :tree_errors)
+      waived: size(result[:waived]),
+      orphans: verdict[:orphans],
+      shrunk: verdict[:shrunk],
+      refusals: map((r) -> kyohi::why(r), result[:refusals]),
+      disabled: cfg[:disabled],
+      tree_errors: result[:tree_errors]
     }
   )
 end
@@ -1756,63 +1700,62 @@ def timing_line(result, timing)
   ps = join(
     map(
       fn(p)
-        "#{to_s(get(p, :plane))} #{to_s(get(p, :findings))} findings #{to_s(get(p, :ms))} ms"
+        "#{to_s(p[:plane])} #{to_s(p[:findings])} findings #{to_s(p[:ms])} ms"
       end,
       plane_counts(result, timing)
     ),
     ", "
   )
-  unlines(["wall #{to_s(get(timing, :wall))} ms: #{ps}"])
+  unlines(["wall #{to_s(timing[:wall])} ms: #{ps}"])
 end
 
 def report_text(cfg, result, verdict, timing)
   head = unlines(
     [
-      "kijun #{get(cfg, :standard)} v#{to_s(get(cfg, :version))}: #{to_s(size(get(result, :gates)))} gate findings, #{to_s(size(get(result, :advice)))} advice, #{to_s(size(get(result, :waived)))} waived"
+      "kijun #{cfg[:standard]} v#{to_s(cfg[:version])}: #{to_s(size(result[:gates]))} gate findings, #{to_s(size(result[:advice]))} advice, #{to_s(size(result[:waived]))} waived"
     ]
   )
   per = join(
     map(
       fn(c)
-        unlines(["  #{first(c)} #{to_s(tier_of(first(c)))} #{to_s(nth(1, c))}"])
+        unlines(["  #{first(c)} #{to_s(tier_of(first(c)))} #{to_s(c[1])}"])
       end,
-      counts(get(result, :findings))
+      counts(result[:findings])
     ),
     ""
   )
-  fresh = if is_empty(get(verdict, :new))
+  fresh = if is_empty(verdict[:new])
     unlines(["no gate finding outside the baseline"])
   else
     join_lines(
       [
-        "#{to_s(size(get(verdict, :new)))} gate findings outside the baseline:",
-        join(map(finding_line, get(verdict, :new)), "")
+        "#{to_s(size(verdict[:new]))} gate findings outside the baseline:",
+        join(map(finding_line, verdict[:new]), "")
       ]
     )
   end
-  shrink = if is_empty(get(verdict, :orphans)) and
-      is_empty(get(verdict, :shrunk))
+  shrink = if is_empty(verdict[:orphans]) and is_empty(verdict[:shrunk])
     ""
   else
     unlines(
       [
-        "the baseline can shrink (run kijun baseline): #{to_s(size(get(verdict, :orphans)))} gone, #{to_s(size(get(verdict, :shrunk)))} smaller"
+        "the baseline can shrink (run kijun baseline): #{to_s(size(verdict[:orphans]))} gone, #{to_s(size(verdict[:shrunk]))} smaller"
       ]
     )
   end
   refused = join(
-    map((r) -> unlines(["refused: #{kyohi::why(r)}"]), get(result, :refusals)),
+    map((r) -> unlines(["refused: #{kyohi::why(r)}"]), result[:refusals]),
     ""
   )
   off = join(
     map(
-      (d) -> unlines(["disabled: #{get(d, :rule)}: #{get(d, :reason)}"]),
-      get(cfg, :disabled)
+      (d) -> unlines(["disabled: #{d[:rule]}: #{d[:reason]}"]),
+      cfg[:disabled]
     ),
     ""
   )
   blind = join(
-    map((e) -> unlines(["tree blind: #{e}"]), get(result, :tree_errors)),
+    map((e) -> unlines(["tree blind: #{e}"]), result[:tree_errors]),
     ""
   )
   "#{head}#{per}#{refused}#{off}#{blind}#{shrink}#{fresh}#{timing_line(result, timing)}"
@@ -1820,61 +1763,58 @@ end
 
 def run(cfg, args)
   a = parse_args(args)
-  if get(a, :error) != nil
-    write_stderr(unlines(["kijun: #{get(a, :error)}"]))
-    raise(:kijun_usage, get(a, :error))
-  elsif get(a, :command) == "rules"
+  if a[:error] != nil
+    write_stderr(unlines(["kijun: #{a[:error]}"]))
+    raise(:kijun_usage, a[:error])
+  elsif a[:command] == "rules"
     write_stdout(rules_text(cfg))
     nil
   else
     started = now_ms
-    root = get(a, :root)
+    root = a[:root]
     files = tracked(root)
     if files.nil?
       write_stderr(unlines(["kijun: #{root} is not a git work tree"]))
       raise(:kijun_usage, "not a git work tree")
     end
     before_tree = now_ms
-    trees = if get(a, :tree)
+    trees = if a[:tree]
       own = own_source(root)
-      map((c) -> tree_of(root, own, c), get(cfg, :configurations))
+      map((c) -> tree_of(root, own, c), cfg[:configurations])
     else
       []
     end
     tree_ms = now_ms - before_tree
     result = evaluate_timed(cfg, on_disk(root, files), trees, () -> now_ms)
-    base = if get(a, :baseline).nil?
-      path_join(root, get(cfg, :baseline))
+    base = if a[:baseline].nil?
+      path_join(root, cfg[:baseline])
     else
-      get(a, :baseline)
+      a[:baseline]
     end
-    rows = split_rows(
-      hadome::parse(read_or(base, "")),
-      ran_ids(cfg, get(a, :tree))
-    )
-    if get(a, :command) == "baseline"
-      write_file(base, baseline_with(get(result, :gates), nth(1, rows)))
+    rows = split_rows(hadome::parse(read_or(base, "")), ran_ids(cfg, a[:tree]))
+    if a[:command] == "baseline"
+      write_file(base, baseline_with(result[:gates], rows[1]))
       write_stdout(
         unlines(
           [
-            "kijun: wrote #{to_s(size(get(result, :gates)))} gate findings to #{base}"
+            "kijun: wrote #{to_s(size(result[:gates]))} gate findings to #{base}"
           ]
         )
       )
       nil
     else
-      verdict = judge(get(result, :gates), first(rows))
-      ms = get(result, :ms)
+      verdict = judge(result[:gates], first(rows))
+      ms = result[:ms]
       timing = {
         wall: now_ms - started,
-        planes: assoc(ms, :tree, get(ms, :tree) + tree_ms)
+        planes: assoc(ms, :tree, ms[:tree] + tree_ms)
       }
-      if get(a, :json)
+      if a[:json]
         write_stdout(unlines([report_json(cfg, result, verdict, timing)]))
       else
         write_stdout(report_text(cfg, result, verdict, timing))
       end
-      if not is_empty(get(verdict, :new))
+      if not is_empty(verdict[:new])
         raise(:kijun_failed, "gate findings outside the baseline")
       end
       nil
@@ -1884,7 +1824,7 @@ end
 
 def main()
   args = argv
-  root = get(flags(drop(1, args), {root: ".", error: nil}), :root)
+  root = flags(drop(1, args), {root: ".", error: nil})[:root]
   local = path_join(root, "kijun.b")
   if read_or(local, "") != ""
     status = exec_check(*append(["blue", "run", "--quiet", local, "--"], args))
@@ -2359,44 +2299,38 @@ end
 
 def fired(cfg, c, id)
   filter(
-    (x) -> get(x, :rule) == id,
-    get(evaluate(cfg, in_memory(get(c, :sources)), get(c, :trees)), :findings)
+    (x) -> x[:rule] == id,
+    evaluate(cfg, in_memory(c[:sources]), c[:trees])[:findings]
   )
 end
 
 test "every rule has a violating and a clean fixture, so a rule cannot land without both"
-  ids = map((r) -> get(r, :id), rules)
-  covered = filter(
-    (f) -> get(f, :bad) != nil and get(f, :good) != nil,
-    fixtures
-  )
+  ids = map((r) -> r[:id], rules)
+  covered = filter((f) -> f[:bad] != nil and f[:good] != nil, fixtures)
   assert filter(
-    (id) -> is_empty(filter((f) -> get(f, :rule) == id, covered)),
+    (id) -> is_empty(filter((f) -> f[:rule] == id, covered)),
     ids
   ) == []
-  assert filter((f) -> not member?(get(f, :rule), ids), fixtures) == []
+  assert filter((f) -> not member?(f[:rule], ids), fixtures) == []
   assert size(ids) == size(unique(ids))
 end
 
 test "each rule fires exactly as often as its violating fixture says, and never on its clean one"
   cfg = fleet_repo(1)
   quiet = filter(
-    (f) -> size(fired(cfg, get(f, :bad), get(f, :rule))) != get(f, :fires),
+    (f) -> size(fired(cfg, f[:bad], f[:rule])) != f[:fires],
     fixtures
   )
-  noisy = filter(
-    (f) -> not is_empty(fired(cfg, get(f, :good), get(f, :rule))),
-    fixtures
-  )
-  assert map((f) -> get(f, :rule), quiet) == []
-  assert map((f) -> get(f, :rule), noisy) == []
+  noisy = filter((f) -> not is_empty(fired(cfg, f[:good], f[:rule])), fixtures)
+  assert map((f) -> f[:rule], quiet) == []
+  assert map((f) -> f[:rule], noisy) == []
 end
 
 test "trio/every-concept names every unit kind once and is silent when each is a trio"
   cfg = fleet_repo(1)
   subjects = fn(declared)
     map(
-      (x) -> get(x, :subject),
+      (x) -> x[:subject],
       fired(cfg, example(concept_sources(declared), []), "trio/every-concept")
     )
   end
@@ -2417,7 +2351,7 @@ test "a registry is a concept only when a configuration layer imports it"
     example(concept_sources(false), []),
     "trio/every-concept"
   )
-  assert filter((x) -> get(x, :file) == "lib/unread.nix", xs) == []
+  assert filter((x) -> x[:file] == "lib/unread.nix", xs) == []
   assert relative_to("modules/pleme/nixos/a.nix", "../../../lib/r.nix") ==
     "lib/r.nix"
   assert relative_to("nodes/plo/default.nix", "./hw.nix") == "nodes/plo/hw.nix"
@@ -2426,7 +2360,7 @@ end
 test "a package directory with no nix of its own is still a concept, covered by a spec naming it"
   rust = [["pkgs/q/Cargo.toml", ""], ["pkgs/q/src/main.rs", "fn main() {}"]]
   assert map(
-    (x) -> get(x, :subject),
+    (x) -> x[:subject],
     fired(fleet_repo(1), example(rust, []), "trio/every-concept")
   ) == ["package q"]
   named_q = append(
@@ -2452,16 +2386,12 @@ test "a trio file renders itself, and the factory proves every kind but a regist
     []
   )
   subjects = fn(id)
-    sort_keyed(
-      (t) -> t,
-      map((x) -> get(x, :subject), fired(fleet_repo(1), c, id))
-    )
+    sort_keyed((t) -> t, map((x) -> x[:subject], fired(fleet_repo(1), c, id)))
   end
   assert subjects("layout/shared-reachable") == ["x"]
   assert subjects("layout/shared-has-proof") == ["r", "x"]
-  assert spec_kind(
-    first(calls(get(nikkusu::read("f { kind = k; }"), :root)))
-  ) == "computed"
+  assert spec_kind(first(calls(nikkusu::read("f { kind = k; }")[:root]))) ==
+    "computed"
 end
 
 test "an uncatchable failure is located at its option's tag, and the error is its last line"
@@ -2500,42 +2430,40 @@ test "a blind option is one advice finding at its declaration, and the plane kee
     ]
   )
   r = evaluate(fleet_repo(1), in_memory([]), [both])
-  assert map((x) -> [get(x, :rule), get(x, :file)], get(r, :findings)) ==
+  assert map((x) -> [x[:rule], x[:file]], r[:findings]) ==
     [
       ["tree/hostname-from-node", "profiles/p/default.nix"],
       ["tree/option-evaluates", "modules/pleme/shared/x.nix"]
     ]
-  assert map((x) -> get(x, :rule), get(r, :advice)) == ["tree/option-evaluates"]
+  assert map((x) -> x[:rule], r[:advice]) == ["tree/option-evaluates"]
 end
 
 test "check --json carries the wall time and one count per plane"
   c = example([["lib/a.nix", "import <nixpkgs> { }"]], [])
-  r = evaluate(fleet_repo(1), in_memory(get(c, :sources)), [])
+  r = evaluate(fleet_repo(1), in_memory(c[:sources]), [])
   timing = {wall: 7, planes: {layout: 1, expression: 2, tree: 3}}
-  doc = json_parse(
-    report_json(fleet_repo(1), r, judge(get(r, :gates), []), timing)
-  )
+  doc = json_parse(report_json(fleet_repo(1), r, judge(r[:gates], []), timing))
   assert json_get(doc, "wall_ms") == 7
   assert map(
     (p) -> [json_get(p, "plane"), json_get(p, "findings"), json_get(p, "ms")],
     json_get(doc, "planes")
   ) == [["layout", 0, 1], ["expression", 1, 2], ["tree", 0, 3]]
   assert contains?(
-    report_text(fleet_repo(1), r, judge(get(r, :gates), []), timing),
+    report_text(fleet_repo(1), r, judge(r[:gates], []), timing),
     "wall 7 ms"
   ) == true
 end
 
 test "trio/every-concept is the first rule the standard lists"
-  assert get(first(rules), :id) == "trio/every-concept"
+  assert first(rules)[:id] == "trio/every-concept"
 end
 
 test "the same declaration seen from two configurations is one finding"
   t = tree_case("lib/x.nix", :declaration)
   two = [t, assoc(t, :configuration, "nixosConfigurations.b")]
   xs = filter(
-    (x) -> get(x, :rule) == "tree/pleme-options-declared-in-shared",
-    get(evaluate(fleet_repo(1), in_memory([]), two), :findings)
+    (x) -> x[:rule] == "tree/pleme-options-declared-in-shared",
+    evaluate(fleet_repo(1), in_memory([]), two)[:findings]
   )
   assert size(xs) == 1
 end
@@ -2546,15 +2474,15 @@ test "a finding names its file and line"
     []
   )
   x = first(fired(fleet_repo(1), c, "expr/no-angle-paths"))
-  assert get(x, :file) == "lib/a.nix"
-  assert get(x, :line) == 2
-  assert get(x, :subject) == "<nixpkgs>"
+  assert x[:file] == "lib/a.nix"
+  assert x[:line] == 2
+  assert x[:subject] == "<nixpkgs>"
 end
 
 test "node-shape names both a missing default.nix and a NixOS node's missing layers.nix"
-  f = first(filter((f) -> get(f, :rule) == "layout/node-shape", fixtures))
-  xs = fired(fleet_repo(1), get(f, :bad), "layout/node-shape")
-  assert sort_keyed((t) -> t, map((x) -> get(x, :subject), xs)) ==
+  f = first(filter((f) -> f[:rule] == "layout/node-shape", fixtures))
+  xs = fired(fleet_repo(1), f[:bad], "layout/node-shape")
+  assert sort_keyed((t) -> t, map((x) -> x[:subject], xs)) ==
     ["default.nix", "layers.nix"]
 end
 
@@ -2572,26 +2500,22 @@ test "a waiver is scoped to its rule and glob, and its siblings keep going"
     "lib/a.nix",
     "skip-expr/no-angle-paths: bootstrap before inputs exist"
   )
-  r = evaluate(cfg, in_memory(get(c, :sources)), [])
-  angle = filter(
-    (x) -> get(x, :rule) == "expr/no-angle-paths",
-    get(r, :findings)
-  )
-  assert map((x) -> get(x, :file), angle) == ["lib/b.nix"]
-  assert size(get(r, :waived)) == 1
-  assert get(r, :refusals) == []
+  r = evaluate(cfg, in_memory(c[:sources]), [])
+  angle = filter((x) -> x[:rule] == "expr/no-angle-paths", r[:findings])
+  assert map((x) -> x[:file], angle) == ["lib/b.nix"]
+  assert size(r[:waived]) == 1
+  assert r[:refusals] == []
 end
 
 test "a waiver without its typed skip reason is refused and covers nothing"
   c = example([["lib/a.nix", "import <nixpkgs> { }"]], [])
   cfg = waive(fleet_repo(1), "expr/no-angle-paths", "lib/**", "because")
-  r = evaluate(cfg, in_memory(get(c, :sources)), [])
-  assert size(get(r, :refusals)) == 1
-  assert size(
-    filter((x) -> get(x, :rule) == "expr/no-angle-paths", get(r, :findings))
-  ) == 1
+  r = evaluate(cfg, in_memory(c[:sources]), [])
+  assert size(r[:refusals]) == 1
+  assert size(filter((x) -> x[:rule] == "expr/no-angle-paths", r[:findings])) ==
+    1
   bogus = waive(fleet_repo(1), "expr/nope", "**", "skip-expr/nope: x")
-  assert size(get(evaluate(bogus, in_memory([]), []), :refusals)) == 1
+  assert size(evaluate(bogus, in_memory([]), [])[:refusals]) == 1
 end
 
 test "a disabled rule runs nowhere, and an unknown one is refused"
@@ -2600,10 +2524,7 @@ test "a disabled rule runs nowhere, and an unknown one is refused"
   assert fired(cfg, c, "expr/no-angle-paths") == []
   assert size(fired(fleet_repo(1), c, "expr/no-angle-paths")) == 1
   assert size(
-    get(
-      evaluate(disable(fleet_repo(1), "x/y", "r"), in_memory([]), []),
-      :refusals
-    )
+    evaluate(disable(fleet_repo(1), "x/y", "r"), in_memory([]), [])[:refusals]
   ) == 1
 end
 
@@ -2619,14 +2540,13 @@ test "the ratchet: a recorded finding holds, a new one fails, a fixed one shrink
   rows = hadome::parse(baseline_text([a]))
   assert baseline_text([a]) ==
     unlines(["expr/no-angle-paths: lib/a.nix::<nixpkgs> 1"])
-  assert get(judge([a], rows), :new) == []
-  assert map((x) -> get(x, :file), get(judge([a, b], rows), :new)) ==
-    ["lib/b.nix"]
+  assert judge([a], rows)[:new] == []
+  assert map((x) -> x[:file], judge([a, b], rows)[:new]) == ["lib/b.nix"]
   gone = judge([], rows)
-  assert get(gone, :new) == []
-  assert get(gone, :orphans) == ["expr/no-angle-paths: lib/a.nix::<nixpkgs>"]
-  assert size(get(judge([a, a], rows), :new)) == 2
-  assert get(judge([], []), :new) == []
+  assert gone[:new] == []
+  assert gone[:orphans] == ["expr/no-angle-paths: lib/a.nix::<nixpkgs>"]
+  assert size(judge([a, a], rows)[:new]) == 2
+  assert judge([], [])[:new] == []
 end
 
 test "a plane that did not run neither judges nor drops its baseline rows"
@@ -2640,22 +2560,22 @@ test "a plane that did not run neither judges nor drops its baseline rows"
   e = finding("expr/no-angle-paths", "lib/a.nix", 1, "<nixpkgs>", "m")
   rows = hadome::parse(baseline_text([t, e]))
   parts = split_rows(rows, ran_ids(fleet_repo(1), false))
-  assert map((r) -> get(r, :kind), first(parts)) == ["expr/no-angle-paths"]
-  assert get(judge([e], first(parts)), :orphans) == []
-  assert baseline_with([e], nth(1, parts)) == baseline_text([t, e])
+  assert map((r) -> r[:kind], first(parts)) == ["expr/no-angle-paths"]
+  assert judge([e], first(parts))[:orphans] == []
+  assert baseline_with([e], parts[1]) == baseline_text([t, e])
   assert size(first(split_rows(rows, ran_ids(fleet_repo(1), true)))) == 2
 end
 
 test "the rules listing is the standard: every rule, with why and fix"
   t = rules_text(fleet_repo(1))
-  assert size(filter((r) -> contains?(t, get(r, :id)), rules)) == size(rules)
+  assert size(filter((r) -> contains?(t, r[:id]), rules)) == size(rules)
   assert contains?(t, "fleet-repo v1") == true
 end
 
 test "arguments: a command is required and flags are read"
-  assert get(parse_args([]), :error) != nil
-  assert get(parse_args(["lint"]), :error) != nil
+  assert parse_args([])[:error] != nil
+  assert parse_args(["lint"])[:error] != nil
   a = parse_args(["check", "--json", "--root", "/r", "--tree"])
-  assert [get(a, :json), get(a, :root), get(a, :tree)] == [true, "/r", true]
-  assert get(parse_args(["check", "--root"]), :error) != nil
+  assert [a[:json], a[:root], a[:tree]] == [true, "/r", true]
+  assert parse_args(["check", "--root"])[:error] != nil
 end

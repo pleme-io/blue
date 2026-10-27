@@ -3,7 +3,7 @@
 # A call to `loud(x)` at the top of a definition's body: write `quiet(x)`.
 def loud_call(form)
   body = if list?(form) and length(form) > 2
-    nth(2, form)
+    form[2]
   end
   if list?(body) and
       body != nil and
@@ -14,7 +14,7 @@ def loud_call(form)
         at: [2],
         message: "loud(x) is quiet(x)",
         fix: quote
-          quiet(unquote(nth(1, body)))
+          quiet(unquote(body[1]))
         end
       }
     ]

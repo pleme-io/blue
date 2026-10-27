@@ -177,11 +177,11 @@ end
 
 def sheet_part(spec)
   {
-    name: get(spec, :name),
+    name: spec[:name],
     material: get_or(spec, :material, :ss316l),
-    thickness: get(spec, :thickness),
-    width: get(spec, :width),
-    depth: get(spec, :depth),
+    thickness: spec[:thickness],
+    width: spec[:width],
+    depth: spec[:depth],
     flanges: get_or(spec, :flanges, []),
     holes: get_or(spec, :holes, []),
     k: get_or(spec, :k, 0.44),
@@ -194,7 +194,7 @@ def sides()
 end
 
 def flange_on(part, side)
-  find_first((f) -> get(f, :side) == side, get(part, :flanges))
+  find_first((f) -> f[:side] == side, part[:flanges])
 end
 
 @doc """
@@ -205,7 +205,7 @@ def side_setback(part, side)
   if f.nil?
     0
   else
-    outside_setback(get(f, :angle), get(f, :radius), get(part, :thickness))
+    outside_setback(f[:angle], f[:radius], part[:thickness])
   end
 end
 
@@ -218,12 +218,8 @@ def side_extension(part, side)
   if f.nil?
     0
   else
-    bend_allowance(
-      get(f, :angle),
-      get(f, :radius),
-      get(part, :thickness),
-      get(part, :k)
-    ) + flange_run(part, f)
+    bend_allowance(f[:angle], f[:radius], part[:thickness], part[:k]) +
+      flange_run(part, f)
   end
 end
 
@@ -231,8 +227,7 @@ end
 flange_run: The flange's straight run past its bend.
 """
 def flange_run(part, f)
-  get(f, :length) -
-    outside_setback(get(f, :angle), get(f, :radius), get(part, :thickness))
+  f[:length] - outside_setback(f[:angle], f[:radius], part[:thickness])
 end
 
 @doc """
@@ -243,8 +238,8 @@ def flat_base(part)
   [
     side_setback(part, :west),
     side_setback(part, :south),
-    get(part, :width) - side_setback(part, :east),
-    get(part, :depth) - side_setback(part, :north)
+    part[:width] - side_setback(part, :east),
+    part[:depth] - side_setback(part, :north)
   ]
 end
 
@@ -254,10 +249,10 @@ strip, the corners notched where two strips meet.
 """
 def blank_outline(part)
   b = flat_base(part)
-  x0 = nth(0, b)
-  y0 = nth(1, b)
-  x1 = nth(2, b)
-  y1 = nth(3, b)
+  x0 = b[0]
+  y0 = b[1]
+  x1 = b[2]
+  y1 = b[3]
   es = side_extension(part, :south)
   ee = side_extension(part, :east)
   en = side_extension(part, :north)
@@ -290,20 +285,15 @@ centre line, the angle, the radius and the direction.
 """
 def flat_pattern(part)
   {
-    blank: region(blank_outline(part), get(part, :holes)),
-    bends: map((f) -> bend_line(part, f), get(part, :flanges))
+    blank: region(blank_outline(part), part[:holes]),
+    bends: map((f) -> bend_line(part, f), part[:flanges])
   }
 end
 
 def bend_line(part, f)
   b = flat_base(part)
-  ba = bend_allowance(
-    get(f, :angle),
-    get(f, :radius),
-    get(part, :thickness),
-    get(part, :k)
-  )
-  side = get(f, :side)
+  ba = bend_allowance(f[:angle], f[:radius], part[:thickness], part[:k])
+  side = f[:side]
   seg = base_edge(b, side)
   out = side_out(side)
   {
@@ -311,8 +301,8 @@ def bend_line(part, f)
     start: seg,
     finish: map((p) -> vadd(p, scale(ba, out)), seg),
     centre: map((p) -> vadd(p, scale(ba / 2, out)), seg),
-    angle: get(f, :angle),
-    radius: get(f, :radius),
+    angle: f[:angle],
+    radius: f[:radius],
     direction: :up,
     allowance: ba
   }
@@ -322,10 +312,10 @@ end
 base_edge: A side's edge of the flat base, as two 2-D points, and its outward normal.
 """
 def base_edge(b, side)
-  x0 = nth(0, b)
-  y0 = nth(1, b)
-  x1 = nth(2, b)
-  y1 = nth(3, b)
+  x0 = b[0]
+  y0 = b[1]
+  x1 = b[2]
+  y1 = b[3]
   if side == :south
     [[x0, y0], [x1, y0]]
   elsif side == :east
@@ -351,7 +341,7 @@ end
 
 def blank_size(part)
   bb = bounding_box(blank_outline(part))
-  [px(nth(1, bb)) - px(nth(0, bb)), py(nth(1, bb)) - py(nth(0, bb))]
+  [px(bb[1]) - px(bb[0]), py(bb[1]) - py(bb[0])]
 end
 
 @doc """
@@ -359,9 +349,9 @@ sheet_mass_g: Mass from the blank: its area times the thickness is the part's vo
 exactly for the flat and to within the neutral-axis shift at each bend.
 """
 def sheet_mass_g(part)
-  region_area(get(flat_pattern(part), :blank)) *
-    get(part, :thickness) *
-    density(get(part, :material)) /
+  region_area(flat_pattern(part)[:blank]) *
+    part[:thickness] *
+    density(part[:material]) /
     1000
 end
 
@@ -373,11 +363,11 @@ end
 
 def blank_entities(part, text_h)
   fp = flat_pattern(part)
-  blank = get(fp, :blank)
-  bends = flat_map(get(fp, :bends), (b) -> bend_entities(b, text_h))
+  blank = fp[:blank]
+  bends = flat_map(fp[:bends], (b) -> bend_entities(b, text_h))
   bb = bounding_box(region_outline(blank))
-  lo = nth(0, bb)
-  hi = nth(1, bb)
+  lo = bb[0]
+  hi = bb[1]
   dims = concat_lists(
     zumen::dim([px(lo), py(lo)], [px(hi), py(lo)], -(3 * text_h), text_h),
     zumen::dim([px(hi), py(lo)], [px(hi), py(hi)], -(3 * text_h), text_h)
@@ -386,12 +376,12 @@ def blank_entities(part, text_h)
 end
 
 def bend_entities(b, text_h)
-  c = get(b, :centre)
-  label = "#{upcase(to_s(get(b, :direction)))} #{zumen::num(get(b, :angle))} DEG R#{zumen::num(get(b, :radius))}"
+  c = b[:centre]
+  label = "#{upcase(to_s(b[:direction]))} #{zumen::num(b[:angle])} DEG R#{zumen::num(b[:radius])}"
   [
-    zumen::line(nth(0, c), nth(1, c), "BEND"),
+    zumen::line(c[0], c[1], "BEND"),
     zumen::text(
-      vadd(midpoint(nth(0, c), nth(1, c)), [text_h * 0.5, text_h * 0.5]),
+      vadd(midpoint(c[0], c[1]), [text_h * 0.5, text_h * 0.5]),
       text_h * 0.8,
       label,
       "BEND"
@@ -416,38 +406,28 @@ slicer or a physics engine misreads.
 """
 def folded_mesh(part)
   b = flat_base(part)
-  t = get(part, :thickness)
+  t = part[:thickness]
   base_region = region(
-    rect_polygon(
-      nth(0, b),
-      nth(1, b),
-      nth(2, b) - nth(0, b),
-      nth(3, b) - nth(1, b)
-    ),
-    get(part, :holes)
+    rect_polygon(b[0], b[1], b[2] - b[0], b[3] - b[1]),
+    part[:holes]
   )
   walls = flat_map(
-    get(part, :flanges),
-    fn(f)
-      rittai::extrude_wall_faces(base_region, 0, index_of(sides, get(f, :side)))
-    end
+    part[:flanges],
+    (f) -> rittai::extrude_wall_faces(base_region, 0, index_of(sides, f[:side]))
   )
   base = rittai::drop_faces(rittai::extrude(base_region, t), walls)
   rittai::weld(
     rittai::merge(
-      concat_lists(
-        [base],
-        map((f) -> flange_mesh(part, b, f), get(part, :flanges))
-      )
+      concat_lists([base], map((f) -> flange_mesh(part, b, f), part[:flanges]))
     )
   )
 end
 
 def flange_section(part, f)
-  t = get(part, :thickness)
-  r = get(f, :radius)
-  n = get(part, :arc_segments)
-  a_end = rad(get(f, :angle)) - pi / 2
+  t = part[:thickness]
+  r = f[:radius]
+  n = part[:arc_segments]
+  a_end = rad(f[:angle]) - pi / 2
   inner = arc_points([0, t + r], r, -(pi / 2), a_end, n)
   outer = arc_points([0, t + r], r + t, -(pi / 2), a_end, n)
   run = flange_run(part, f)
@@ -458,21 +438,19 @@ def flange_section(part, f)
 end
 
 def flange_mesh(part, b, f)
-  side = get(f, :side)
+  side = f[:side]
   seg = base_edge(b, side)
   out2 = side_out(side)
   out = [px(out2), py(out2), 0]
   up = [0, 0, 1]
   along = cross_product(out, up)
-  start = if dot(
-      along,
-      [px(nth(1, seg)) - px(nth(0, seg)), py(nth(1, seg)) - py(nth(0, seg)), 0]
-    ) > 0
-    nth(0, seg)
+  start = if dot(along, [px(seg[1]) - px(seg[0]), py(seg[1]) - py(seg[0]), 0]) >
+      0
+    seg[0]
   else
-    nth(1, seg)
+    seg[1]
   end
-  len = distance(nth(0, seg), nth(1, seg))
+  len = distance(seg[0], seg[1])
   rot = transpose([out, up, along])
   section = region(flange_section(part, f), [])
   rittai::transform(
@@ -494,8 +472,7 @@ def seam_edge(section)
   first(
     filter(
       fn(e)
-        abs(px(nth(e, pts))) < 0.000001 and
-          abs(px(nth((e + 1) % n, pts))) < 0.000001
+        abs(px(pts[e])) < 0.000001 and abs(px(pts[(e + 1) % n])) < 0.000001
       end,
       range(0, n)
     )
@@ -505,8 +482,8 @@ end
 # ── what a shop cannot make ──────────────────────────────────────────
 
 def sheet_refusals(part, rules)
-  t = get(part, :thickness)
-  fl = get(part, :flanges)
+  t = part[:thickness]
+  fl = part[:flanges]
   shape = shape_refusals(part)
   if is_empty(shape) == false
     shape
@@ -515,19 +492,16 @@ def sheet_refusals(part, rules)
       fn(f)
         [
           :kakou_radius,
-          "#{to_s(get(part, :name))} #{to_s(get(f, :side))}: inside radius #{to_s(get(f, :radius))} is under #{to_s(rule(rules, :min_radius_t))} T = #{to_s(rule(rules, :min_radius_t) * t)}"
+          "#{to_s(part[:name])} #{to_s(f[:side])}: inside radius #{to_s(f[:radius])} is under #{to_s(rule(rules, :min_radius_t))} T = #{to_s(rule(rules, :min_radius_t) * t)}"
         ]
       end,
-      filter(
-        (f) -> get(f, :radius) < rule(rules, :min_radius_t) * t - 0.000001,
-        fl
-      )
+      filter((f) -> f[:radius] < rule(rules, :min_radius_t) * t - 0.000001, fl)
     )
     flange = map(
       fn(f)
         [
           :kakou_flange,
-          "#{to_s(get(part, :name))} #{to_s(get(f, :side))}: the straight run #{to_s(flange_run(part, f))} is under #{to_s(rule(rules, :min_flange_t))} T = #{to_s(rule(rules, :min_flange_t) * t)}, too short to hold in the brake"
+          "#{to_s(part[:name])} #{to_s(f[:side])}: the straight run #{to_s(flange_run(part, f))} is under #{to_s(rule(rules, :min_flange_t))} T = #{to_s(rule(rules, :min_flange_t) * t)}, too short to hold in the brake"
         ]
       end,
       filter((f) -> flange_run(part, f) < rule(rules, :min_flange_t) * t, fl)
@@ -546,11 +520,11 @@ def sheet_refusals(part, rules)
 end
 
 def shape_refusals(part)
-  fl = get(part, :flanges)
-  sides = map((f) -> get(f, :side), fl)
+  fl = part[:flanges]
+  sides = map((f) -> f[:side], fl)
   unknown = filter((s) -> contains(kakou::sides, s) == false, sides)
   twice = filter((s) -> count_of(sides, s) > 1, kakou::sides)
-  angles = filter((f) -> get(f, :angle) <= 0 or get(f, :angle) >= 180, fl)
+  angles = filter((f) -> f[:angle] <= 0 or f[:angle] >= 180, fl)
   concat_lists(
     map(
       fn(s)
@@ -575,7 +549,7 @@ def shape_refusals(part)
         fn(f)
           [
             :kakou_unsupported,
-            "a #{to_s(get(f, :angle))} degree bend on #{to_s(get(f, :side))}: only 0 < angle < 180 is supported; hems are not yet"
+            "a #{to_s(f[:angle])} degree bend on #{to_s(f[:side])}: only 0 < angle < 180 is supported; hems are not yet"
           ]
         end,
         angles
@@ -589,27 +563,22 @@ hole_refusals: Holes must sit inside the flat base, clear of each bend by hole_b
 plus the radius, and clear of each plain edge by hole_edge_t T.
 """
 def hole_refusals(part, rules)
-  _t = get(part, :thickness)
+  _t = part[:thickness]
   b = flat_base(part)
-  base = rect_polygon(
-    nth(0, b),
-    nth(1, b),
-    nth(2, b) - nth(0, b),
-    nth(3, b) - nth(1, b)
-  )
+  base = rect_polygon(b[0], b[1], b[2] - b[0], b[3] - b[1])
   flat_map(
-    indexes(get(part, :holes)),
-    (i) -> one_hole_refusals(part, rules, b, base, i, nth(i, get(part, :holes)))
+    indexes(part[:holes]),
+    (i) -> one_hole_refusals(part, rules, b, base, i, part[:holes][i])
   )
 end
 
 def one_hole_refusals(part, rules, b, base, i, hole)
-  _t = get(part, :thickness)
+  _t = part[:thickness]
   if polygon_inside(hole, base) == false
     [
       [
         :kakou_hole,
-        "#{to_s(get(part, :name))} hole #{to_s(i)} is not inside the flat base"
+        "#{to_s(part[:name])} hole #{to_s(i)} is not inside the flat base"
       ]
     ]
   else
@@ -618,7 +587,7 @@ def one_hole_refusals(part, rules, b, base, i, hole)
 end
 
 def hole_side_refusals(part, rules, b, i, hole, side)
-  t = get(part, :thickness)
+  t = part[:thickness]
   gap = boundary_gap(hole, base_edge(b, side))
   f = flange_on(part, side)
   if f.nil?
@@ -627,19 +596,19 @@ def hole_side_refusals(part, rules, b, i, hole, side)
       [
         [
           :kakou_hole_edge,
-          "#{to_s(get(part, :name))} hole #{to_s(i)} is #{to_s(gap)} from the #{to_s(side)} edge; the least is #{to_s(need)}"
+          "#{to_s(part[:name])} hole #{to_s(i)} is #{to_s(gap)} from the #{to_s(side)} edge; the least is #{to_s(need)}"
         ]
       ]
     else
       []
     end
   else
-    need = rule(rules, :hole_bend_t) * t + get(f, :radius)
+    need = rule(rules, :hole_bend_t) * t + f[:radius]
     if gap < need
       [
         [
           :kakou_hole_bend,
-          "#{to_s(get(part, :name))} hole #{to_s(i)} is #{to_s(gap)} from the #{to_s(side)} bend; the least is #{to_s(need)}, or the hole distorts"
+          "#{to_s(part[:name])} hole #{to_s(i)} is #{to_s(gap)} from the #{to_s(side)} bend; the least is #{to_s(need)}, or the hole distorts"
         ]
       ]
     else
@@ -657,7 +626,7 @@ def sheet_size_refusals(part, rules)
     [
       [
         :kakou_sheet,
-        "#{to_s(get(part, :name))}: the blank #{to_s(px(s))} x #{to_s(py(s))} fits none of the sheets"
+        "#{to_s(part[:name])}: the blank #{to_s(px(s))} x #{to_s(py(s))} fits none of the sheets"
       ]
     ]
   end
@@ -704,13 +673,13 @@ def round_bar(d)
 end
 
 def stock_name(stock)
-  k = get(stock, :kind)
+  k = stock[:kind]
   if k == :square_tube
-    "tube #{to_s(get(stock, :side))}x#{to_s(get(stock, :side))}x#{to_s(get(stock, :wall))}"
+    "tube #{to_s(stock[:side])}x#{to_s(stock[:side])}x#{to_s(stock[:wall])}"
   elsif k == :round_tube
-    "tube OD#{to_s(get(stock, :od))}x#{to_s(get(stock, :wall))}"
+    "tube OD#{to_s(stock[:od])}x#{to_s(stock[:wall])}"
   else
-    "bar D#{to_s(get(stock, :od))}"
+    "bar D#{to_s(stock[:od])}"
   end
 end
 
@@ -718,21 +687,21 @@ end
 section: The stock's cross-section as a kikagaku region, centred on the origin.
 """
 def section(stock, n)
-  k = get(stock, :kind)
+  k = stock[:kind]
   if k == :square_tube
-    s = get(stock, :side)
-    w = get(stock, :wall)
+    s = stock[:side]
+    w = stock[:wall]
     region(
       rect_polygon(-(s / 2), -(s / 2), s, s),
       [rect_polygon(w - s / 2, w - s / 2, s - 2 * w, s - 2 * w)]
     )
   elsif k == :round_tube
     region(
-      circle_polygon([0, 0], get(stock, :od) / 2, n),
-      [circle_polygon([0, 0], get(stock, :od) / 2 - get(stock, :wall), n)]
+      circle_polygon([0, 0], stock[:od] / 2, n),
+      [circle_polygon([0, 0], stock[:od] / 2 - stock[:wall], n)]
     )
   else
-    region(circle_polygon([0, 0], get(stock, :od) / 2, n), [])
+    region(circle_polygon([0, 0], stock[:od] / 2, n), [])
   end
 end
 
@@ -749,13 +718,13 @@ def tube_member(name, stock, a, b, cut_a_deg, cut_b_deg)
 end
 
 def member_length(m)
-  vdistance(get(m, :from), get(m, :to))
+  vdistance(m[:from], m[:to])
 end
 
 def member_mesh(m, n)
   rittai::transform(
-    rittai::pose_along(get(m, :from), get(m, :to)),
-    rittai::extrude(section(get(m, :stock), n), member_length(m))
+    rittai::pose_along(m[:from], m[:to]),
+    rittai::extrude(section(m[:stock], n), member_length(m))
   )
 end
 
@@ -764,9 +733,9 @@ member_mass_g: The section's area is exact for the square tube; a round tube's i
 tessellation's, so its mass comes out a hair under the true one.
 """
 def member_mass_g(m, n)
-  region_area(section(get(m, :stock), n)) *
+  region_area(section(m[:stock], n)) *
     member_length(m) *
-    density(get(m, :material)) /
+    density(m[:material]) /
     1000
 end
 
@@ -777,11 +746,11 @@ def cut_list(members)
   map(
     fn(m)
       {
-        name: get(m, :name),
-        stock: stock_name(get(m, :stock)),
+        name: m[:name],
+        stock: stock_name(m[:stock]),
         length: member_length(m),
-        cut_a: get(m, :cut_a),
-        cut_b: get(m, :cut_b)
+        cut_a: m[:cut_a],
+        cut_b: m[:cut_b]
       }
     end,
     members
@@ -799,35 +768,29 @@ def wire(name, d, path, bend_radius)
 end
 
 def turn(path, i)
-  angle_between(
-    vsub(nth(i, path), nth(i - 1, path)),
-    vsub(nth(i + 1, path), nth(i, path))
-  )
+  angle_between(vsub(path[i], path[i - 1]), vsub(path[i + 1], path[i]))
 end
 
 def wire_length(w)
-  path = get(w, :path)
-  r = get(w, :radius)
+  path = w[:path]
+  r = w[:radius]
   straight = sum(
-    map(
-      (i) -> vdistance(nth(i, path), nth(i + 1, path)),
-      range(0, size(path) - 1)
-    )
+    map((i) -> vdistance(path[i], path[i + 1]), range(0, size(path) - 1))
   )
   corners = map((i) -> turn(path, i), range(1, size(path) - 1))
   straight - sum(map((th) -> 2 * r * tan(th / 2) - r * th, corners))
 end
 
 def wire_mesh(w, n)
-  rittai::sweep(circle_polygon([0, 0], get(w, :d) / 2, n), get(w, :path))
+  rittai::sweep(circle_polygon([0, 0], w[:d] / 2, n), w[:path])
 end
 
 def wire_refusals(w)
-  if get(w, :radius) < get(w, :d)
+  if w[:radius] < w[:d]
     [
       [
         :kakou_radius,
-        "#{to_s(get(w, :name))}: a bend radius #{to_s(get(w, :radius))} under the wire's diameter #{to_s(get(w, :d))} cracks or kinks it"
+        "#{to_s(w[:name])}: a bend radius #{to_s(w[:radius])} under the wire's diameter #{to_s(w[:d])} cracks or kinks it"
       ]
     ]
   else
@@ -904,8 +867,8 @@ test "a tray's folded solid is closed, and its volume adds up by parts"
   # the polygonal annular sector (n/2) sin(A/n) ((R+T)^2 - R^2) plus its
   # straight run times T, over the bend line's length.
   b = flat_base(tray)
-  bw = nth(2, b) - nth(0, b)
-  bd = nth(3, b) - nth(1, b)
+  bw = b[2] - b[0]
+  bd = b[3] - b[1]
   base_v = (bw * bd - regular_polygon_area(10, 24)) * 1.5
   sector = 12 / 2.0 * sin(pi / 2 / 12) * (square(3.0) - square(1.5))
   run = 40 - 3
@@ -914,23 +877,23 @@ test "a tray's folded solid is closed, and its volume adds up by parts"
   # The folded part stands 40 high and 300 x 200 outside: its bounding box
   # is the outside dimensions.
   bb = rittai::bounds(m)
-  assert vector_near(vsub(nth(1, bb), nth(0, bb)), [300, 200, 40]) == true
+  assert vector_near(vsub(bb[1], bb[0]), [300, 200, 40]) == true
 end
 
 test "a flat pattern: the blank's outline, its bend lines, and its mass"
   tray = kakou::tray
   fp = flat_pattern(tray)
-  assert size(get(fp, :bends)) == 4
-  assert is_empty(region_refusals(get(fp, :blank))) == true
+  assert size(fp[:bends]) == 4
+  assert is_empty(region_refusals(fp[:blank])) == true
   # 316L at 7.99 g/cm^3: the blank's area times 1.5 mm.
   assert near(
     sheet_mass_g(tray),
-    region_area(get(fp, :blank)) * 1.5 * 7.99 / 1000
+    region_area(fp[:blank]) * 1.5 * 7.99 / 1000
   ) == true
   # Each bend's zone is one bend allowance wide.
-  bl = first(get(fp, :bends))
+  bl = first(fp[:bends])
   assert near(
-    vdistance(first(get(bl, :start)), first(get(bl, :finish))),
+    vdistance(first(bl[:start]), first(bl[:finish])),
     bend_allowance(90, 1.5, 1.5, 0.44)
   ) == true
 end
@@ -945,13 +908,13 @@ test "a blank's drawing: outline, holes, one labelled bend line per flange, two 
   )
   assert size(bend_lines) == 4
   assert contains(
-    map((e) -> get(e, :s), filter((e) -> zumen::kind(e) == :text, es)),
+    map((e) -> e[:s], filter((e) -> zumen::kind(e) == :text, es)),
     "UP 90 DEG R1.5"
   ) == true
   # The dimensions read the blank's size, to one decimal.
   s = blank_size(tray)
   texts = map(
-    (e) -> get(e, :s),
+    (e) -> e[:s],
     filter((e) -> zumen::layer(e) == "DIM" and zumen::kind(e) == :text, es)
   )
   assert texts ==
@@ -970,7 +933,7 @@ test "the shop's limits refuse, each naming its rule"
       flanges: [flange(:south, 40, 90, 0.5)]
     }
   )
-  assert map((r) -> nth(0, r), sheet_refusals(tight, rules)) == [:kakou_radius]
+  assert map((r) -> r[0], sheet_refusals(tight, rules)) == [:kakou_radius]
   stub = sheet_part(
     {
       name: "stub",
@@ -980,7 +943,7 @@ test "the shop's limits refuse, each naming its rule"
       flanges: [flange(:south, 6, 90, 1.5)]
     }
   )
-  assert map((r) -> nth(0, r), sheet_refusals(stub, rules)) == [:kakou_flange]
+  assert map((r) -> r[0], sheet_refusals(stub, rules)) == [:kakou_flange]
   near_bend = sheet_part(
     {
       name: "nb",
@@ -991,7 +954,7 @@ test "the shop's limits refuse, each naming its rule"
       holes: [circle_polygon([50, 8], 3, 16)]
     }
   )
-  assert map((r) -> nth(0, r), sheet_refusals(near_bend, rules)) ==
+  assert map((r) -> r[0], sheet_refusals(near_bend, rules)) ==
     [:kakou_hole_bend]
   near_edge = sheet_part(
     {
@@ -1002,10 +965,10 @@ test "the shop's limits refuse, each naming its rule"
       holes: [circle_polygon([50, 4], 3, 16)]
     }
   )
-  assert map((r) -> nth(0, r), sheet_refusals(near_edge, rules)) ==
+  assert map((r) -> r[0], sheet_refusals(near_edge, rules)) ==
     [:kakou_hole_edge]
   huge = sheet_part({name: "huge", thickness: 1.5, width: 1400, depth: 2500})
-  assert map((r) -> nth(0, r), sheet_refusals(huge, rules)) == [:kakou_sheet]
+  assert map((r) -> r[0], sheet_refusals(huge, rules)) == [:kakou_sheet]
   hem = sheet_part(
     {
       name: "hem",
@@ -1015,8 +978,7 @@ test "the shop's limits refuse, each naming its rule"
       flanges: [flange(:north, 10, 180, 1.0)]
     }
   )
-  assert map((r) -> nth(0, r), sheet_refusals(hem, rules)) ==
-    [:kakou_unsupported]
+  assert map((r) -> r[0], sheet_refusals(hem, rules)) == [:kakou_unsupported]
 end
 
 test "nesting counts blanks per sheet in the better orientation"
@@ -1028,8 +990,8 @@ test "a tube member: its cut list, its solid, its mass"
   st = square_tube(30, 1.2)
   m = tube_member("post", st, [0, 0, 0], [0, 0, 600], 0, 45)
   row = first(cut_list([m]))
-  assert get(row, :stock) == "tube 30x30x1.2"
-  assert near(get(row, :length), 600) == true
+  assert row[:stock] == "tube 30x30x1.2"
+  assert near(row[:length], 600) == true
   mesh = member_mesh(m, 16)
   assert is_empty(rittai::mesh_refusals(mesh)) == true
   # Section 30^2 - 27.6^2 = 138.24 mm^2, times 600, is 82944 mm^3.
@@ -1046,7 +1008,7 @@ test "a bent wire: its developed length by hand, and a refused radius"
     true
   assert is_empty(rittai::mesh_refusals(wire_mesh(w, 12))) == true
   assert map(
-    (r) -> nth(0, r),
+    (r) -> r[0],
     wire_refusals(wire("kink", 3, [[0, 0, 0], [0, 0, 10], [10, 0, 10]], 1))
   ) == [:kakou_radius]
 end

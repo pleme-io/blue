@@ -1,8 +1,3 @@
----
-kind: explanation
-summary: one root holding many bidamas and many crates (design)
----
-
 # WORKSPACES — one root, many bidamas and many crates
 
 Status: DESIGN, 2026-10-23. Operator: *"bidama should have the concept of a

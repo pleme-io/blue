@@ -1,8 +1,3 @@
----
-kind: explanation
-summary: a bidama definition stays in its bidama: the rule as built and its gates
----
-
 # Namespaces: a bidama definition stays in its bidama
 
 The design is `theory/BLUE-NAMESPACES.md` (pleme-io/theory). This page

@@ -32,14 +32,14 @@ test "the total list words accept the empty list"
 end
 
 test "nth takes the index first, and answers nil past the end"
-  assert nth(1, [:a, :b, :c]) == :b
-  assert nth(9, [:a]).nil?
+  assert [:a, :b, :c][1] == :b
+  assert [:a][9].nil?
 end
 
 test "a map built up and read back"
   m = tally(["a", "b", "a"])
-  assert get(m, "a") == 2
-  assert get(m, "z").nil?
+  assert m["a"] == 2
+  assert m["z"].nil?
   assert dissoc(m, "b") == {"a" => 2}
   assert {a: 1, b: 2} == {b: 2, a: 1}
 end
@@ -52,6 +52,5 @@ end
 
 test "sorting by a key"
   people = [{name: "ana", age: 41}, {name: "bo", age: 29}]
-  assert map((p) -> get(p, :name), sort_by((p) -> get(p, :age), people)) ==
-    ["bo", "ana"]
+  assert map((p) -> p[:name], sort_by((p) -> p[:age], people)) == ["bo", "ana"]
 end

@@ -32,14 +32,14 @@
   {
     "name": "help default",
     "file": "keisoku.b",
-    "find": "help: get(opts, :help) or \"\"",
-    "replace": "help: get(opts, :help) or \"-\""
+    "find": "    help: opts[:help] or \"\",\n",
+    "replace": "    help: opts[:help] or \"-\",\n"
   },
   {
     "name": "strictly increasing",
     "file": "keisoku.b",
-    "find": "nth(0, xs) < nth(1, xs) and",
-    "replace": "nth(0, xs) <= nth(1, xs) and"
+    "find": "  retsu::size(xs) < 2 or xs[0] < xs[1] and increasing?(drop(1, xs))\n",
+    "replace": "  retsu::size(xs) < 2 or xs[0] <= xs[1] and increasing?(drop(1, xs))\n"
   },
   {
     "name": "bounds numbers",
@@ -62,8 +62,8 @@
   {
     "name": "label value text",
     "file": "keisoku.b",
-    "find": "to_s(nth(1, e))",
-    "replace": "nth(1, e)"
+    "find": "  reduce(\n    (acc, e) -> assoc(acc, to_s(first(e)), to_s(e[1])),\n    {},\n    map_entries(given)\n  )\n",
+    "replace": "  reduce((acc, e) -> assoc(acc, to_s(first(e)), e[1]), {}, map_entries(given))\n"
   },
   {
     "name": "bucket edge",
@@ -74,32 +74,32 @@
   {
     "name": "bump",
     "file": "keisoku.b",
-    "find": "nth(1, p) + 1",
-    "replace": "nth(1, p) + 2"
+    "find": "        p[1] + 1\n",
+    "replace": "        p[1] + 2\n"
   },
   {
     "name": "add",
     "file": "keisoku.b",
-    "find": "assoc(entry, :value, get(entry, :value) + nth(3, msg))",
-    "replace": "assoc(entry, :value, nth(3, msg))"
+    "find": "    assoc(entry, :value, entry[:value] + msg[3])\n",
+    "replace": "    assoc(entry, :value, msg[3])\n"
   },
   {
     "name": "set",
     "file": "keisoku.b",
-    "find": "  elsif op == :set\n    assoc(entry, :value, nth(3, msg))",
-    "replace": "  elsif op == :set\n    assoc(entry, :value, get(entry, :value) + nth(3, msg))"
+    "find": "    assoc(entry, :value, msg[3])\n",
+    "replace": "    assoc(entry, :value, entry[:value] + msg[3])\n"
   },
   {
     "name": "sum",
     "file": "keisoku.b",
-    "find": "sum: get(entry, :sum) + value",
-    "replace": "sum: get(entry, :sum)"
+    "find": "      sum: entry[:sum] + value,\n",
+    "replace": "      sum: entry[:sum],\n"
   },
   {
     "name": "count",
     "file": "keisoku.b",
-    "find": "count: get(entry, :count) + 1",
-    "replace": "count: get(entry, :count)"
+    "find": "      count: entry[:count] + 1\n",
+    "replace": "      count: entry[:count]\n"
   },
   {
     "name": "series keyed by labels",
@@ -110,7 +110,7 @@
   {
     "name": "kind check",
     "file": "keisoku.b",
-    "find": "  if get(i, :kind) != kind\n",
+    "find": "  if i[:kind] != kind\n",
     "replace": "  if false\n"
   },
   {
@@ -152,20 +152,20 @@
   {
     "name": "measure reraise",
     "file": "keisoku.b",
-    "find": "  if first(outcome) == :raised\n    raise(nth(1, outcome))\n  end\n",
+    "find": "  if first(outcome) == :raised\n    raise(outcome[1])\n  end\n",
     "replace": ""
   },
   {
     "name": "measure labels",
     "file": "keisoku.b",
-    "find": "get(opts, :labels))\n  if first(outcome)",
-    "replace": "nil)\n  if first(outcome)"
+    "find": "  observe(h, (tick(opts) - started) / 1000, opts[:labels])\n",
+    "replace": "  observe(h, (tick(opts) - started) / 1000, nil)\n"
   },
   {
     "name": "cumulative",
     "file": "keisoku.b",
-    "find": "(acc, c) -> [first(acc) + c, append(nth(1, acc), [first(acc) + c])]",
-    "replace": "(acc, c) -> [first(acc) + c, append(nth(1, acc), [c])]"
+    "find": "  nth(\n    1,\n    reduce(\n      (acc, c) -> [first(acc) + c, append(acc[1], [first(acc) + c])],\n      [0, []],\n      counts\n    )\n  )\n",
+    "replace": "  reduce((acc, c) -> [first(acc) + c, append(acc[1], [c])], [0, []], counts)[1]\n"
   },
   {
     "name": "inf bucket",
@@ -176,8 +176,8 @@
   {
     "name": "read filter",
     "file": "keisoku.b",
-    "find": "get(labels, first(e)) == nth(1, e)",
-    "replace": "true"
+    "find": "  count_where((e) -> get(labels, first(e)) == e[1], map_entries(want)) ==\n    retsu::size(map_entries(want))\n",
+    "replace": "  count_where((e) -> true, map_entries(want)) == retsu::size(map_entries(want))\n"
   },
   {
     "name": "read checked",
@@ -212,7 +212,7 @@
   {
     "name": "wait option",
     "file": "keisoku.b",
-    "find": "get(opts, :wait_ms) or 5000",
-    "replace": "5000"
+    "find": "  rows = filter(\n    (r) -> wanted?(r[:labels], want),\n    jisho::values(fetch(i, opts[:wait_ms] or 5000))\n  )\n",
+    "replace": "  rows = filter((r) -> wanted?(r[:labels], want), jisho::values(fetch(i, 5000)))\n"
   }
 ]

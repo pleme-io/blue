@@ -1,8 +1,3 @@
----
-kind: explanation
-summary: the standard library's design as one verb vocabulary (design)
----
-
 # STDLIB: blue's batteries, as one verb vocabulary
 
 **Status: DESIGN (2026-10-19).** Nothing here is built. It is written against the forms the

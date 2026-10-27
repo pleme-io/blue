@@ -21,7 +21,7 @@ def defaults(svc)
   with_listen = assoc(
     base,
     "listen",
-    {"host" => "0.0.0.0", "port" => get(svc, "port")}
+    {"host" => "0.0.0.0", "port" => svc["port"]}
   )
   with_health = assoc(with_listen, "health", get_or(svc, "probe", "/healthz"))
   assoc(
@@ -106,11 +106,11 @@ def resources_of(svc)
   requests = from_entries(
     filter(
       (e) -> second(e) != nil,
-      [["cpu", get(r, "cpu")], ["memory", get(r, "memory")]]
+      [["cpu", r["cpu"]], ["memory", r["memory"]]]
     )
   )
   limits = from_entries(
-    filter((e) -> second(e) != nil, [["memory", get(r, "memory_limit")]])
+    filter((e) -> second(e) != nil, [["memory", r["memory_limit"]]])
   )
   from_entries(
     filter(
@@ -121,7 +121,7 @@ def resources_of(svc)
 end
 
 def cache?(svc)
-  get(svc, "cache") != nil
+  svc["cache"] != nil
 end
 
 def cache_values(svc)
@@ -145,14 +145,14 @@ end
 
 def service_values(svc, mode)
   if mode == :self
-    {"type" => "ClusterIP", "port" => get(svc, "port")}
+    {"type" => "ClusterIP", "port" => svc["port"]}
   else
     {
       "type" => "ClusterIP",
       "ports" => [
         {
           "name" => "http",
-          "port" => get(svc, "port"),
+          "port" => svc["port"],
           "targetPort" => "http",
           "protocol" => "TCP"
         }
@@ -166,21 +166,21 @@ def values_with(svc, mode)
   base = {
     "replicaCount" => get_or(svc, "replicas", 1),
     "image" => {
-      "repository" => get(svc, "repository"),
+      "repository" => svc["repository"],
       "tag" => "",
       "pullPolicy" => "IfNotPresent"
     },
     "command" => [],
     "args" => get_or(svc, "host_args", []),
     "service" => service_values(svc, mode),
-    "listen" => get(d, "listen"),
-    "health" => get(d, "health"),
+    "listen" => d["listen"],
+    "health" => d["health"],
     "config" => from_entries(entries_of(get_or(svc, "config", {}))),
-    "flags" => get(d, "flags"),
+    "flags" => d["flags"],
     "resources" => resources_of(svc),
     "podAnnotations" => {
       "prometheus.io/scrape" => "true",
-      "prometheus.io/port" => to_s(get(svc, "port")),
+      "prometheus.io/port" => to_s(svc["port"]),
       "prometheus.io/path" => kyuuji::metrics_path
     },
     "slo" => {"rules" => true, "dashboard" => true},
@@ -236,7 +236,7 @@ end
 def values_schema_with(name, svc, mode)
   v = values_with(svc, mode)
   closed = schema_of(v)
-  props = get(closed, "properties")
+  props = closed["properties"]
   string_map = open_object({"type" => "string"})
   kube_object = {"type" => "object"}
   quantity = {"type" => "string"}
@@ -257,7 +257,7 @@ def values_schema_with(name, svc, mode)
     }
   }
   command = {"type" => "array", "items" => {"type" => "string"}}
-  replicas = assoc(get(props, "replicaCount"), "minimum", 0)
+  replicas = assoc(props["replicaCount"], "minimum", 0)
   open = assoc(
     assoc(
       assoc(
@@ -753,7 +753,7 @@ end
 
 def slo_rules(name, svc)
   r = shihyou::rules(name, svc)
-  m = assoc(get(r, "metadata"), "namespace", "{{ .Release.Namespace }}")
+  m = assoc(r["metadata"], "namespace", "{{ .Release.Namespace }}")
   unlines(
     [
       "{{- if .Values.slo.rules }}",
@@ -888,30 +888,23 @@ end
 
 test "a schema is closed and typed from the values it describes"
   s = schema_of({"a" => 1, "b" => {"c" => true}, "l" => ["x"]})
-  assert get(s, "additionalProperties") == false
-  assert get(get(get(s, "properties"), "a"), "type") == "integer"
-  assert get(
-    get(get(get(get(s, "properties"), "b"), "properties"), "c"),
-    "type"
-  ) == "boolean"
-  assert get(get(get(get(s, "properties"), "l"), "items"), "type") == "string"
+  assert s["additionalProperties"] == false
+  assert s["properties"]["a"]["type"] == "integer"
+  assert s["properties"]["b"]["properties"]["c"]["type"] == "boolean"
+  assert s["properties"]["l"]["items"]["type"] == "string"
   assert schema_of([]) == {"type" => "array"}
 end
 
 test "the values schema closes what blue owns and opens what Kubernetes owns"
-  vs = get(values_schema("hello", sample), "properties")
-  assert get(get(vs, "config"), "additionalProperties") == false
-  assert get(get(get(get(vs, "flags"), "properties"), "shout"), "type") ==
-    "boolean"
-  assert get(get(vs, "podSecurityContext"), "type") == "object"
-  assert get(get(vs, "podSecurityContext"), "additionalProperties").nil?
-  assert get(get(vs, "replicaCount"), "minimum") == 0
-  assert get(
-    get(get(get(vs, "database"), "properties"), "enabled"),
-    "default"
-  ) == false
+  vs = values_schema("hello", sample)["properties"]
+  assert vs["config"]["additionalProperties"] == false
+  assert vs["flags"]["properties"]["shout"]["type"] == "boolean"
+  assert vs["podSecurityContext"]["type"] == "object"
+  assert vs["podSecurityContext"]["additionalProperties"].nil?
+  assert vs["replicaCount"]["minimum"] == 0
+  assert vs["database"]["properties"]["enabled"]["default"] == false
   bare = values_schema("hello", {"port" => 1, "repository" => "r/x"})
-  assert get(get(bare, "properties"), "database").nil?
+  assert bare["properties"]["database"].nil?
 end
 
 test "the DDL is additive, keyed by id, with nullable columns marked"
@@ -1007,8 +1000,8 @@ end
 
 test "a service with tables names its schema and a database setting"
   d = service_defaults("ola-mundo", sample)
-  assert get(d, "database") == {"url" => "", "schema" => "ola_mundo"}
-  assert get(service_defaults("x", {"port" => 1}), "database").nil?
+  assert d["database"] == {"url" => "", "schema" => "ola_mundo"}
+  assert service_defaults("x", {"port" => 1})["database"].nil?
   sql = ddl_in("ola_mundo", sample)
   assert starts_with?(sql, "CREATE SCHEMA IF NOT EXISTS \"ola_mundo\";") == true
   assert contains?(
@@ -1028,7 +1021,7 @@ end
 test "a service with a cache mounts its password Secret as a file and names it in the environment"
   svc = assoc(sample, "cache", {})
   v = values_with(svc, :pleme_lib)
-  assert get(v, "cache") ==
+  assert v["cache"] ==
     {
       "enabled" => false,
       "host" => "",
@@ -1036,7 +1029,7 @@ test "a service with a cache mounts its password Secret as a file and names it i
       "passwordSecret" => "",
       "passwordKey" => "password"
     }
-  assert get(values_with(sample, :pleme_lib), "cache").nil?
+  assert values_with(sample, :pleme_lib)["cache"].nil?
   d = deployment_with("ola-mundo", "pleme-lib", svc)
   assert contains?(d, "OLA_MUNDO_CACHE__PASSWORD_FILE") == true
   assert contains?(d, "value: /var/run/secrets/ola-mundo-valkey/password") ==
@@ -1047,8 +1040,7 @@ test "a service with a cache mounts its password Secret as a file and names it i
   assert contains?(plain, "valkey") == false
   assert contains?(plain, "volumes:") == false
   schema = values_schema("ola-mundo", svc)
-  assert get(get(get(schema, "properties"), "cache"), "additionalProperties") ==
-    false
+  assert schema["properties"]["cache"]["additionalProperties"] == false
 end
 
 test "the chart carries the service's SLO rules, its dashboard and a scrape annotation"
@@ -1061,18 +1053,17 @@ test "the chart carries the service's SLO rules, its dashboard and a scrape anno
   assert contains?(rules, "SloLatencyBurn3d") == true
   assert contains?(rules, ".Release.Namespace") == true
   v = values(sample)
-  assert get(get(v, "podAnnotations"), "prometheus.io/port") == "8080"
-  assert get(v, "slo") == {"rules" => true, "dashboard" => true}
-  vs = get(values_schema("hello", sample), "properties")
-  assert get(get(get(get(vs, "slo"), "properties"), "rules"), "type") ==
-    "boolean"
-  assert get(catalog_entry("hello", "0.1.0", sample), "owner") == "pleme-io"
+  assert v["podAnnotations"]["prometheus.io/port"] == "8080"
+  assert v["slo"] == {"rules" => true, "dashboard" => true}
+  vs = values_schema("hello", sample)["properties"]
+  assert vs["slo"]["properties"]["rules"]["type"] == "boolean"
+  assert catalog_entry("hello", "0.1.0", sample)["owner"] == "pleme-io"
 end
 
 test "a host service's arguments become the chart's args, and a blue service has none"
   hosted = assoc(sample, "host_args", ["daemon", "--declaration"])
-  assert get(values(hosted), "args") == ["daemon", "--declaration"]
-  assert get(values(sample), "args") == []
-  vs = get(values_schema("hello", hosted), "properties")
-  assert get(get(vs, "args"), "type") == "array"
+  assert values(hosted)["args"] == ["daemon", "--declaration"]
+  assert values(sample)["args"] == []
+  vs = values_schema("hello", hosted)["properties"]
+  assert vs["args"]["type"] == "array"
 end

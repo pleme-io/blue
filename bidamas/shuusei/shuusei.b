@@ -54,7 +54,7 @@ def replace_at(xs, i, v)
       if j == i
         v
       else
-        nth(j, xs)
+        xs[j]
       end
     end,
     range(0, size(xs))
@@ -62,7 +62,7 @@ def replace_at(xs, i, v)
 end
 
 def without_index(xs, i)
-  map((j) -> nth(j, xs), filter((j) -> j != i, range(0, size(xs))))
+  map((j) -> xs[j], filter((j) -> j != i, range(0, size(xs))))
 end
 
 def in_range?(xs, i)
@@ -77,7 +77,7 @@ def put_keys(v, keys, value)
     i = index_of_segment(k)
     if list?(v) and i != nil
       if in_range?(v, i)
-        replace_at(v, i, put_keys(nth(i, v), rest(keys), value))
+        replace_at(v, i, put_keys(v[i], rest(keys), value))
       else
         raise(:path, "list index #{k} is out of range")
       end
@@ -145,9 +145,7 @@ deep_merge: Maps merge key by key and everything else is replaced by `b`.
 def deep_merge(a, b)
   if map?(a) and map?(b)
     reduce(
-      fn(acc, p)
-        assoc(acc, nth(0, p), deep_merge(get(acc, nth(0, p)), nth(1, p)))
-      end,
+      (acc, p) -> assoc(acc, p[0], deep_merge(get(acc, p[0]), p[1])),
       a,
       map_entries(b)
     )
@@ -164,10 +162,7 @@ def merge(doc, path, patch)
 end
 
 def position_of(xs, key, item)
-  hits = filter(
-    (j) -> get(nth(j, xs), key) == get(item, key),
-    range(0, size(xs))
-  )
+  hits = filter((j) -> get(xs[j], key) == get(item, key), range(0, size(xs)))
   if size(hits) == 0
     nil
   else
@@ -238,15 +233,15 @@ def patch_schema()
 end
 
 def target_of(v)
-  ns = get(v, :namespace)
+  ns = v[:namespace]
   [
-    get(v, :kind),
+    v[:kind],
     if ns.nil?
       ""
     else
       ns
     end,
-    get(v, :name)
+    v[:name]
   ]
 end
 
@@ -254,12 +249,12 @@ end
 shape_whys: What the field table cannot say: the ops that need a value or a key.
 """
 def shape_whys(v)
-  op = get(v, :op)
-  if (op == "set" or op == "merge" or op == "upsert") and get(v, :value).nil?
+  op = v[:op]
+  if (op == "set" or op == "merge" or op == "upsert") and v[:value].nil?
     ["#{op} needs a value"]
-  elsif op == "upsert" and get(v, :key).nil?
+  elsif op == "upsert" and v[:key].nil?
     ["upsert needs a key"]
-  elsif op == "merge" and not map?(get(v, :value))
+  elsif op == "merge" and not map?(v[:value])
     ["merge needs a map value"]
   else
     []
@@ -267,24 +262,24 @@ def shape_whys(v)
 end
 
 def apply_op(obj, v)
-  op = get(v, :op)
+  op = v[:op]
   if op == "set"
-    put(obj, get(v, :path), get(v, :value))
+    put(obj, v[:path], v[:value])
   elsif op == "delete"
-    delete(obj, get(v, :path))
+    delete(obj, v[:path])
   elsif op == "merge"
-    merge(obj, get(v, :path), get(v, :value))
+    merge(obj, v[:path], v[:value])
   else
-    upsert(obj, get(v, :path), get(v, :key), get(v, :value))
+    upsert(obj, v[:path], v[:key], v[:value])
   end
 end
 
 def claim_of(v)
-  [target_of(v), get(v, :path)]
+  [target_of(v), v[:path]]
 end
 
 def position_of_object(objects, keyer, tkey)
-  hits = filter((j) -> keyer(nth(j, objects)) == tkey, range(0, size(objects)))
+  hits = filter((j) -> keyer(objects[j]) == tkey, range(0, size(objects)))
   if size(hits) == 0
     nil
   else
@@ -294,10 +289,10 @@ end
 
 def one_step(keyer, state, e)
   v = value_of(e)
-  objects = get(state, :objects)
+  objects = state[:objects]
   at = position_of_object(objects, keyer, target_of(v))
   shape = shape_whys(v)
-  claimed = get(state, :claims)
+  claimed = state[:claims]
   if size(shape) > 0
     refused_step(state, refuse(:invalid, e, first(shape)))
   elsif at.nil?
@@ -311,12 +306,12 @@ def one_step(keyer, state, e)
       refuse(
         :collision,
         e,
-        "#{get(v, :path)} on #{target_of(v)} is already amended; the first stands"
+        "#{v[:path]} on #{target_of(v)} is already amended; the first stands"
       )
     )
   else
     done = begin
-      apply_op(nth(at, objects), v)
+      apply_op(objects[at], v)
     rescue :path as bad
       bad
     end
@@ -324,8 +319,8 @@ def one_step(keyer, state, e)
       {
         objects: replace_at(objects, at, done),
         claims: append(claimed, [claim_of(v)]),
-        refusals: get(state, :refusals),
-        applied: get(state, :applied) + 1
+        refusals: state[:refusals],
+        applied: state[:applied] + 1
       }
     else
       refused_step(state, refuse(:path, e, "#{done}"))
@@ -334,7 +329,7 @@ def one_step(keyer, state, e)
 end
 
 def refused_step(state, r)
-  assoc(state, :refusals, append(get(state, :refusals), [r]))
+  assoc(state, :refusals, append(state[:refusals], [r]))
 end
 
 def contains_claim?(claims, claim)
@@ -353,13 +348,13 @@ def amend(objects, keyer, entries)
   end_state = reduce(
     (state, e) -> one_step(keyer, state, e),
     start,
-    get(judged, :accepted)
+    judged[:accepted]
   )
   {
-    objects: get(end_state, :objects),
-    applied: get(end_state, :applied),
-    off: get(judged, :off),
-    refusals: append(get(judged, :refusals), get(end_state, :refusals))
+    objects: end_state[:objects],
+    applied: end_state[:applied],
+    off: judged[:off],
+    refusals: append(judged[:refusals], end_state[:refusals])
   }
 end
 
@@ -375,9 +370,9 @@ changed: Which objects were added, removed or changed, as [key, change] pairs so
 def changed(before, after, keyer)
   b = index_by(keyer, before)
   a = index_by(keyer, after)
-  names = map((p) -> nth(0, p), map_entries(overlay(b, a)))
+  names = map((p) -> p[0], map_entries(overlay(b, a)))
   filter(
-    (r) -> nth(1, r) != nil,
+    (r) -> r[1] != nil,
     map(
       fn(k)
         if get(b, k).nil?
@@ -565,13 +560,13 @@ test "amend applies the patches that stand, in order, and leaves every other obj
       )
     ]
   )
-  assert get(r, :refusals) == []
-  assert get(r, :applied) == 3
-  w = nth(0, get(r, :objects))
+  assert r[:refusals] == []
+  assert r[:applied] == 3
+  w = r[:objects][0]
   assert json_at(w, "spec.replicas") == 3
   assert json_at(w, "metadata.labels.tier") == "front"
   assert json_at(w, "spec.template.spec.containers.0.image") == "web:2"
-  assert nth(1, get(r, :objects)) == svc
+  assert r[:objects][1] == svc
   assert amend([web, svc], object_key, []) ==
     {objects: [web, svc], applied: 0, off: [], refusals: []}
 end
@@ -611,11 +606,11 @@ test "a bad patch is refused alone by name and its siblings still apply"
       )
     ]
   )
-  assert get(r, :applied) == 1
-  assert json_at(nth(0, get(r, :objects)), "spec.replicas") == 3
-  assert kinds(get(r, :refusals)) ==
+  assert r[:applied] == 1
+  assert json_at(r[:objects][0], "spec.replicas") == 3
+  assert kinds(r[:refusals]) ==
     [:invalid, :invalid, :invalid, :invalid, :unknown_target, :path]
-  assert json_at(nth(0, get(r, :objects)), "spec.paused").nil?
+  assert json_at(r[:objects][0], "spec.paused").nil?
 end
 
 test "two patches to one path collide and the first stands"
@@ -628,30 +623,30 @@ test "two patches to one path collide and the first stands"
       on_web("other", {op: "set", path: "spec.paused", value: true})
     ]
   )
-  assert json_at(nth(0, get(r, :objects)), "spec.replicas") == 2
-  assert json_at(nth(0, get(r, :objects)), "spec.paused") == true
-  assert kinds(get(r, :refusals)) == [:collision]
-  assert get(r, :applied) == 2
+  assert json_at(r[:objects][0], "spec.replicas") == 2
+  assert json_at(r[:objects][0], "spec.paused") == true
+  assert kinds(r[:refusals]) == [:collision]
+  assert r[:applied] == 2
 end
 
 test "a patch configured off is kept and does nothing, and a tune changes its fields"
   entries = [on_web("scale", {op: "set", path: "spec.replicas", value: 3})]
   off_r = amend([web], object_key, append(entries, [off(:patch, "scale")]))
-  assert size(get(off_r, :off)) == 1
-  assert json_at(nth(0, get(off_r, :objects)), "spec.replicas") == 1
+  assert size(off_r[:off]) == 1
+  assert json_at(off_r[:objects][0], "spec.replicas") == 1
   tuned = amend(
     [web],
     object_key,
     append(entries, [tune(:patch, "scale", {value: 5})])
   )
-  assert json_at(nth(0, get(tuned, :objects)), "spec.replicas") == 5
+  assert json_at(tuned[:objects][0], "spec.replicas") == 5
   retuned = amend(
     [web],
     object_key,
     append(entries, [tune(:patch, "scale", {op: "nope"})])
   )
-  assert size(get(retuned, :refusals)) == 1
-  assert json_at(nth(0, get(retuned, :objects)), "spec.replicas") == 3
+  assert size(retuned[:refusals]) == 1
+  assert json_at(retuned[:objects][0], "spec.replicas") == 3
 end
 
 test "changed names the objects that were added, removed or changed, and nothing else"

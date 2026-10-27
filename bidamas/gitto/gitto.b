@@ -54,11 +54,11 @@ end
 def commit_of(line)
   f = split(line, "\u{1f}")
   {
-    oid: nth(0, f),
-    parents: filter((p) -> p != "", split(nth(1, f), " ")),
-    author: nth(2, f),
-    date: nth(3, f),
-    subject: nth(4, f)
+    oid: f[0],
+    parents: filter((p) -> p != "", split(f[1], " ")),
+    author: f[2],
+    date: f[3],
+    subject: f[4]
   }
 end
 
@@ -88,7 +88,7 @@ def get(repo, ref, opts?)
 end
 
 def head_of(repo)
-  get(repo, "HEAD")
+  repo["HEAD"]
 end
 
 def ancestor?(repo, a, b)
@@ -111,7 +111,7 @@ def counts(repo)
   cap = run(repo, ["rev-list", "--left-right", "--count", "@{u}...HEAD"])
   if shisutemu::status_of(cap) == 0
     p = split(trim(shisutemu::stdout_of(cap)), "\t")
-    {behind: to_int(nth(0, p)), ahead: to_int(nth(1, p))}
+    {behind: to_int(p[0]), ahead: to_int(p[1])}
   else
     {behind: 0, ahead: 0}
   end
@@ -147,17 +147,17 @@ end
 
 def branch_of(line)
   f = split(line, "\t")
-  {name: nth(0, f), oid: nth(1, f), current: nth(2, f) == "*"}
+  {name: f[0], oid: f[1], current: f[2] == "*"}
 end
 
 def tag_of(line)
   f = split(line, "\t")
-  {name: nth(0, f), oid: nth(1, f)}
+  {name: f[0], oid: f[1]}
 end
 
 def remote_of(line)
   f = split(line, "\t")
-  {name: nth(0, f), url: first(split(nth(1, f), " "))}
+  {name: f[0], url: first(split(f[1], " "))}
 end
 
 def worktree_of(block)
@@ -285,7 +285,7 @@ end
 
 def change_line(line)
   f = split(line, "\t")
-  {path: nth(1, f), state: state_of(nth(0, f))}
+  {path: f[1], state: state_of(f[0])}
 end
 
 @doc """
@@ -698,10 +698,10 @@ test "each verb runs with its options left out as it runs with an empty record"
   r = fixture("optional")
   first_commit = save(r, "a.txt", unlines(["one"]), "first")
   second = save(r, "a.txt", unlines(["two"]), "second")
-  assert get(r, "HEAD") == second
-  assert get(r, "HEAD") == get(r, "HEAD", {})
+  assert r["HEAD"] == second
+  assert r["HEAD"] == get(r, "HEAD", {})
   assert get(r, "HEAD", nil) == second
-  assert get(r, "nope").nil?
+  assert r["nope"].nil?
   assert gitto::list(r) == gitto::list(r, {})
   assert gitto::list(r, nil) == gitto::list(r, {})
   assert map((c) -> c.subject, gitto::list(r)) == ["second", "first"]
@@ -742,7 +742,7 @@ test "clone, fetch, merge and push run with their options left out"
   assert merge(work, "origin/main").oid == ahead.oid
   local = save(work, "b.txt", unlines(["local"]), "third")
   assert push(work).nil?
-  assert get(origin, "main").oid == local.oid
+  assert origin["main"].oid == local.oid
 end
 
 test "the master verbs reach gitto for a subject tagged with its space"

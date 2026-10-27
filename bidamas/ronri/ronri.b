@@ -293,7 +293,7 @@ end
 indexes_where: Every index whose element satisfies p; find_index_by is its first entry.
 """
 def indexes_where(p, xs)
-  filter((i) -> p(nth(i, xs)), indexes(xs))
+  filter((i) -> p(xs[i]), indexes(xs))
 end
 
 test "the vacuous cases, which is where predicate libraries go wrong"
@@ -463,8 +463,8 @@ test "partition_by keeps both halves in order and loses nothing"
   assert partition_by(even_p, [4, 2, 3]) == [[4, 2], [3]]
   # Nothing is dropped and nothing is duplicated: the halves reassemble.
   parts = partition_by(even_p, [1, 2, 3, 4, 5])
-  assert size(nth(0, parts)) + size(nth(1, parts)) == 5
-  assert append(nth(0, parts), nth(1, parts)) == [2, 4, 1, 3, 5]
+  assert size(parts[0]) + size(parts[1]) == 5
+  assert append(parts[0], parts[1]) == [2, 4, 1, 3, 5]
   assert partition_by(even_p, []) == [[], []]
 end
 
@@ -523,7 +523,7 @@ test "find_index_by reports the first hit, or 0 - 1"
   assert find_index_by(even_p, []) == -1
   # Whatever index comes back really does satisfy the predicate.
   xs = [1, 3, 8, 5]
-  assert even_p(nth(find_index_by(even_p, xs), xs)) == true
+  assert even_p(xs[find_index_by(even_p, xs)]) == true
 end
 
 test "find_by returns the element, and nil for a miss"

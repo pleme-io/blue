@@ -228,8 +228,8 @@ def annotation(level, message, props)
       "#{level} is not an annotation level; the levels are #{join(levels, ", ")}"
     )
   end
-  kept = filter((p) -> not nth(1, p).nil?, props)
-  shown = map((p) -> "#{nth(0, p)}=#{escape_property(nth(1, p))}", kept)
+  kept = filter((p) -> not p[1].nil?, props)
+  shown = map((p) -> "#{p[0]}=#{escape_property(p[1])}", kept)
   if shown == []
     "::#{level}::#{escape_data(message)}"
   else

@@ -5,12 +5,9 @@ The two things that fill a developer node's disk (measured 2026-09-27: 29 GB
 of target/ directories, and a nix store every one of whose paths was still
 referenced). Both cleanings reclaim only what can be rebuilt or re-fetched.
 
-  souji rust [--dry-run] [--min-age-hours N] [ROOTS...]  default ROOTS ~/code
+  souji rust [--dry-run] [--min-age-hours N] [ROOT...]   default ROOT ~/code
   souji nix  [--dry-run] [--older-than-days N]           default 14
   souji all  [--dry-run]                                 both, rust first
-
-The command line is `cli`, read by hikisuu: `souji --help` prints it and
-`souji __complete` answers shell completion.
 
 A target/ directory counts only beside a Cargo.toml, and only when nothing
 inside it changed in the last N hours (default 6): a build writing there,
@@ -21,11 +18,23 @@ every store path left unreferenced; run it as root to include the system's.
 Every tool it runs is at a process boundary (find, du, nix-collect-garbage);
 the logic is blue.
 
-    nix_argv({older_than_days: 14, dry_run: false}) #=> ["nix-collect-garbage", "--delete-older-than", "14d"]
+    nix_argv({days: 14, dry_run: false}) #=> ["nix-collect-garbage", "--delete-older-than", "14d"]
 """
 
-use("hikisuu")
-use("retsu", [:concat_lists, :first, :flat_map, :is_empty, :size])
+use(
+  "retsu",
+  [
+    :concat_lists,
+    :contains,
+    :drop_n,
+    :first,
+    :flat_map,
+    :is_empty,
+    :push,
+    :rest,
+    :size
+  ]
+)
 
 use("shisutemu", [:last_nonempty_line, :status_of, :stderr_of, :stdout_of])
 
@@ -34,49 +43,65 @@ legacy_names("0.1.1", "sj")
 # ── arguments ────────────────────────────────────────────────────────
 
 @doc """
-cli: souji's command line: three commands, a dry run, the two age floors and the roots to search.
-
-    get(hikisuu::parse(["nix"], cli), :older_than_days) #=> 14
+parse: {command, dry_run, hours, days, roots} from argv, or {error: why}.
 """
-def cli()
-  {
-    name: "souji",
-    about: "clean a node: idle Rust target/ directories and unreferenced nix store paths",
-    commands: [
-      {
-        name: :rust,
-        about: "remove target/ directories nothing wrote to lately"
-      },
-      {
-        name: :nix,
-        about: "delete old generations, then unreferenced store paths"
-      },
-      {name: :all, about: "both, rust first"}
-    ],
-    flags: {
-      dry_run: {default: false, about: "say what would go; delete nothing"},
-      min_age_hours: {
-        default: 6,
-        min: 0,
-        about: "keep a target/ written to within this many hours"
-      },
-      older_than_days: {
-        default: 14,
-        min: 0,
-        about: "delete profile generations older than this many days"
-      }
-    },
-    positional: [
-      {name: :roots, many: true, about: "where to look; ~/code when none"}
-    ]
-  }
+def parse(args)
+  if is_empty(args)
+    {error: "a command: rust, nix or all"}
+  else
+    cmd = first(args)
+    if contains(["rust", "nix", "all"], cmd) == false
+      {error: "unknown command #{cmd}: rust, nix or all"}
+    else
+      parse_flags(
+        rest(args),
+        {
+          command: cmd,
+          dry_run: false,
+          hours: 6,
+          days: 14,
+          roots: [],
+          error: nil
+        }
+      )
+    end
+  end
+end
+
+def parse_flags(args, acc)
+  if is_empty(args) or acc[:error] != nil
+    acc
+  else
+    a = first(args)
+    if a == "--dry-run"
+      parse_flags(rest(args), assoc(acc, :dry_run, true))
+    elsif a == "--min-age-hours" or a == "--older-than-days"
+      v = if size(args) > 1
+        to_int(args[1])
+      end
+      if v.nil? or v < 0
+        assoc(acc, :error, "#{a} needs a whole number of 0 or more")
+      else
+        key = if a == "--min-age-hours"
+          :hours
+        else
+          :days
+        end
+        parse_flags(drop_n(args, 2), assoc(acc, key, v))
+      end
+    elsif starts_with?(a, "--")
+      assoc(acc, :error, "unknown flag #{a}")
+    else
+      parse_flags(rest(args), assoc(acc, :roots, push(acc[:roots], a)))
+    end
+  end
 end
 
 def roots(opts)
-  if is_empty(get(opts, :roots))
+  if is_empty(opts[:roots])
     [path_join(getenv("HOME", "/"), "code")]
   else
-    get(opts, :roots)
+    opts[:roots]
   end
 end
 
@@ -151,12 +176,12 @@ def rust_survey(roots, hours)
 end
 
 def rust(opts)
-  rows = rust_survey(roots(opts), get(opts, :min_age_hours))
-  gone = filter((r) -> get(r, :active) == false, rows)
-  if get(opts, :dry_run) == false
-    map((r) -> rm_rf(get(r, :path)), gone)
+  rows = rust_survey(roots(opts), opts[:hours])
+  gone = filter((r) -> r[:active] == false, rows)
+  if opts[:dry_run] == false
+    map((r) -> rm_rf(r[:path]), gone)
   end
-  {rows:, removed: gone, kib: sum(map((r) -> get(r, :kib), gone))}
+  {rows:, removed: gone, kib: sum(map((r) -> r[:kib], gone))}
 end
 
 def sum(xs)
@@ -167,12 +192,8 @@ end
 
 def nix_argv(opts)
   concat_lists(
-    [
-      "nix-collect-garbage",
-      "--delete-older-than",
-      "#{to_s(get(opts, :older_than_days))}d"
-    ],
-    if get(opts, :dry_run)
+    ["nix-collect-garbage", "--delete-older-than", "#{to_s(opts[:days])}d"],
+    if opts[:dry_run]
       ["--dry-run"]
     else
       []
@@ -203,16 +224,14 @@ def rust_report(r, dry)
     "removed"
   end
   lines = map(
-    fn(row)
-      "  #{verdict(row, verb)}  #{gib(get(row, :kib))}  #{get(row, :path)}"
-    end,
-    get(r, :rows)
+    (row) -> "  #{verdict(row, verb)}  #{gib(row[:kib])}  #{row[:path]}",
+    r[:rows]
   )
   join(
     concat_lists(
       lines,
       [
-        "rust: #{verb} #{to_s(size(get(r, :removed)))} of #{to_s(size(get(r, :rows)))} target/ dirs, #{gib(get(r, :kib))}"
+        "rust: #{verb} #{to_s(size(r[:removed]))} of #{to_s(size(r[:rows]))} target/ dirs, #{gib(r[:kib])}"
       ]
     ),
     line_break
@@ -220,7 +239,7 @@ def rust_report(r, dry)
 end
 
 def verdict(row, verb)
-  if get(row, :active)
+  if row[:active]
     "kept (active)"
   else
     verb
@@ -228,66 +247,58 @@ def verdict(row, verb)
 end
 
 @doc """
-main: the command's entry point: argv read by souji's cli through hikisuu, which answers help and completion and refuses a bad line with exit 64.
-
-    get(hikisuu::outcome(["sweep"], cli), :status) #=> 64
+main: The command's entry point. blue has no exit(), so a usage error is printed
+to stderr and then thrown, which exits the process non-zero; a run that
+completes returns nil.
 """
 def main()
-  hikisuu::command(cli, perform)
-end
-
-@doc """
-perform: one run of a parsed command line: the rust cleaning, the nix cleaning or both, each reported on stdout.
-
-    procedure?(perform) #=> true
-"""
-def perform(opts)
-  cmd = get(opts, :command)
-  if cmd == :rust or cmd == :all
-    write_stdout(
-      concat(rust_report(rust(opts), get(opts, :dry_run)), line_break)
+  opts = parse(argv)
+  if opts[:error] != nil
+    write_stderr(
+      unlines(
+        [
+          "souji: #{opts[:error]}",
+          "usage: souji rust|nix|all [--dry-run] [--min-age-hours N] [--older-than-days N] [ROOT...]"
+        ]
+      )
     )
+    raise(:souji_usage, opts[:error])
+  else
+    cmd = opts[:command]
+    if cmd == "rust" or cmd == "all"
+      write_stdout(concat(rust_report(rust(opts), opts[:dry_run]), line_break))
+    end
+    if cmd == "nix" or cmd == "all"
+      n = nix(opts)
+      write_stdout(unlines(["nix: #{n[:summary]}"]))
+    end
+    nil
   end
-  if cmd == :nix or cmd == :all
-    n = nix(opts)
-    write_stdout(unlines(["nix: #{get(n, :summary)}"]))
-  end
-  nil
 end
 
 # ── tests ────────────────────────────────────────────────────────────
 
 test "arguments: commands, flags, roots, and refusals"
-  o = hikisuu::parse(
-    ["rust", "--dry-run", "--min-age-hours", "12", "/a", "/b"],
-    cli
-  )
-  assert get(o, :command) == :rust
-  assert get(o, :dry_run) == true
-  assert get(o, :min_age_hours) == 12
-  assert get(o, :roots) == ["/a", "/b"]
-  d = hikisuu::parse(["nix"], cli)
-  assert get(d, :older_than_days) == 14
-  assert get(d, :dry_run) == false
-  kind_of = fn(args)
-    begin
-      hikisuu::parse(args, cli)
-      nil
-    rescue e
-      e.kind
-    end
-  end
-  assert kind_of([]) == :usage
-  assert kind_of(["sweep"]) == :usage
-  assert kind_of(["rust", "--min-age-hours", "x"]) == :usage
-  assert kind_of(["rust", "--everything"]) == :usage
-  assert kind_of(["nix", "--older-than-days", "-1"]) == :usage
+  o = parse(["rust", "--dry-run", "--min-age-hours", "12", "/a", "/b"])
+  assert o[:command] == "rust"
+  assert o[:dry_run] == true
+  assert o[:hours] == 12
+  assert o[:roots] == ["/a", "/b"]
+  # Defaults.
+  d = parse(["nix"])
+  assert d[:days] == 14
+  assert d[:dry_run] == false
+  # The controls: no command, an unknown one, a bad number, an unknown flag.
+  assert parse([])[:error] != nil
+  assert parse(["sweep"])[:error] != nil
+  assert parse(["rust", "--min-age-hours", "x"])[:error] != nil
+  assert parse(["rust", "--everything"])[:error] != nil
 end
 
 test "the nix command line: generations older than N days, dry-run passed through"
-  assert nix_argv({older_than_days: 7, dry_run: true}) ==
+  assert nix_argv({days: 7, dry_run: true}) ==
     ["nix-collect-garbage", "--delete-older-than", "7d", "--dry-run"]
-  assert nix_argv({older_than_days: 14, dry_run: false}) ==
+  assert nix_argv({days: 14, dry_run: false}) ==
     ["nix-collect-garbage", "--delete-older-than", "14d"]
 end
 
@@ -300,16 +311,16 @@ test "rust: only a target/ beside a Cargo.toml, only when idle, dry run deletes 
   # A target/ with no Cargo.toml beside it is not a Rust target.
   mkdir_p(path_join(base, "other/target"))
   # Just written, so active at 6 h: kept.
-  r = rust({roots: [base], min_age_hours: 6, dry_run: false})
-  assert size(get(r, :rows)) == 1
-  assert size(get(r, :removed)) == 0
+  r = rust({roots: [base], hours: 6, dry_run: false})
+  assert size(r[:rows]) == 1
+  assert size(r[:removed]) == 0
   assert path_exists(path_join(crate, "target")) == true
   # With no age guard it is eligible; a dry run still removes nothing.
-  dry = rust({roots: [base], min_age_hours: 0, dry_run: true})
-  assert size(get(dry, :removed)) == 1
+  dry = rust({roots: [base], hours: 0, dry_run: true})
+  assert size(dry[:removed]) == 1
   assert path_exists(path_join(crate, "target")) == true
   # For real.
-  _wet = rust({roots: [base], min_age_hours: 0, dry_run: false})
+  _wet = rust({roots: [base], hours: 0, dry_run: false})
   assert path_exists(path_join(crate, "target")) == false
   assert path_exists(path_join(base, "other/target")) == true
   rm_rf(base)

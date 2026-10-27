@@ -50,8 +50,8 @@
   {
     "name": "hex pad",
     "file": "gamen.b",
-    "find": "to_hex_width(round(get(c, :g)), 2)",
-    "replace": "to_hex(round(get(c, :g)))"
+    "find": "    to_hex_width(round(c[:g]), 2),\n",
+    "replace": "    to_hex(round(c[:g])),\n"
   },
   {
     "name": "linear threshold",
@@ -134,14 +134,14 @@
   {
     "name": "sgr fg",
     "file": "gamen.b",
-    "find": "sequence(\"38\", get(node, :fg), theme)",
-    "replace": "sequence(\"48\", get(node, :fg), theme)"
+    "find": "        sequence(\"38\", node[:fg], theme)\n",
+    "replace": "        sequence(\"48\", node[:fg], theme)\n"
   },
   {
     "name": "sgr bg",
     "file": "gamen.b",
-    "find": "sequence(\"48\", get(node, :bg), theme)",
-    "replace": "sequence(\"38\", get(node, :bg), theme)"
+    "find": "        sequence(\"48\", node[:bg], theme)\n",
+    "replace": "        sequence(\"38\", node[:bg], theme)\n"
   },
   {
     "name": "sgr bold",
@@ -170,20 +170,20 @@
   {
     "name": "reset",
     "file": "gamen.b",
-    "find": "#{get(node, :text)}#{esc_char}[0m",
-    "replace": "#{get(node, :text)}#{esc_char}[m"
+    "find": "      \"#{esc_char}[#{join(on, \";\")}m#{node[:text]}#{esc_char}[0m\"\n",
+    "replace": "      \"#{esc_char}[#{join(on, \";\")}m#{node[:text]}#{esc_char}[m\"\n"
   },
   {
     "name": "color off",
     "file": "gamen.b",
-    "find": "if is_empty(on) or not get(ctx, :color)",
-    "replace": "if is_empty(on)"
+    "find": "    if is_empty(on) or not ctx[:color]\n",
+    "replace": "    if is_empty(on)\n"
   },
   {
     "name": "plain map",
     "file": "gamen.b",
-    "find": "if is_empty(on) or not get(ctx, :color)",
-    "replace": "if not get(ctx, :color)"
+    "find": "    if is_empty(on) or not ctx[:color]\n",
+    "replace": "    if not ctx[:color]\n"
   },
   {
     "name": "list join",
@@ -194,8 +194,8 @@
   {
     "name": "node text",
     "file": "gamen.b",
-    "find": "elsif map?(node) and string?(get(node, :text))",
-    "replace": "elsif map?(node)"
+    "find": "  elsif map?(node) and string?(node[:text])\n",
+    "replace": "  elsif map?(node)\n"
   },
   {
     "name": "no color env",
@@ -224,8 +224,8 @@
   {
     "name": "show newline",
     "file": "gamen.b",
-    "find": "if get(opts, :newline) == false",
-    "replace": "if get(opts, :newline) != false"
+    "find": "  if opts[:newline] == false\n",
+    "replace": "  if opts[:newline] != false\n"
   },
   {
     "name": "show returns",
@@ -236,8 +236,8 @@
   {
     "name": "show theme",
     "file": "gamen.b",
-    "find": "theme: get(opts, :theme)",
-    "replace": "theme: nil"
+    "find": "    theme: opts[:theme]\n",
+    "replace": "    theme: nil\n"
   },
   {
     "name": "stderr writer",
@@ -278,8 +278,8 @@
   {
     "name": "refusal scoped to the page by default",
     "file": "gamen.b",
-    "find": "refuse = get(o, :refuse) or :node",
-    "replace": "refuse = get(o, :refuse) or :page"
+    "find": "  refuse = o[:refuse] or :node\n",
+    "replace": "  refuse = o[:refuse] or :page\n"
   },
   {
     "name": "page refusal off",
@@ -338,8 +338,8 @@
   {
     "name": "variant values unchecked",
     "file": "gamen.b",
-    "find": "not member?(nth(1, e), get(variants, k))",
-    "replace": "false"
+    "find": "      if jisho::has?(variants, k) and not member?(e[1], get(variants, k))\n",
+    "replace": "      if jisho::has?(variants, k) and false\n"
   },
   {
     "name": "required prop unchecked",
@@ -350,8 +350,8 @@
   {
     "name": "component events unchecked",
     "file": "gamen.b",
-    "find": "if not member?(first(e), get(c, :events))",
-    "replace": "if false"
+    "find": "      if not member?(first(e), c[:events])\n",
+    "replace": "      if false\n"
   },
   {
     "name": "a11y label dropped",
@@ -362,8 +362,8 @@
   {
     "name": "missing alt unchecked",
     "file": "gamen.b",
-    "find": "get(n, :tag) == :img and prop(n, :alt).nil?",
-    "replace": "get(n, :tag) == :img and false"
+    "find": "      if element?(n) and n[:tag] == :img and prop(n, :alt).nil?\n",
+    "replace": "      if element?(n) and n[:tag] == :img and false\n"
   },
   {
     "name": "wrapping label ignored",
@@ -388,59 +388,5 @@
     "file": "gamen.b",
     "find": "append([refusals], a11y_rules)",
     "replace": "a11y_rules"
-  },
-  {
-    "name": "cells counts every astral char as one",
-    "file": "gamen.b",
-    "find": "  elsif cp >= 65536\n    2\n",
-    "replace": "  elsif cp >= 65536\n    1\n"
-  },
-  {
-    "name": "the emoji selector adds nothing",
-    "file": "gamen.b",
-    "find": "  if cp == 65039\n    1\n",
-    "replace": "  if cp == 65039\n    0\n"
-  },
-  {
-    "name": "the four-byte code point drops a place",
-    "file": "gamen.b",
-    "find": "(nth(1, b) - 128) * 4096",
-    "replace": "(nth(1, b) - 128) * 64"
-  },
-  {
-    "name": "a right-aligned cell pads after",
-    "file": "gamen.b",
-    "find": "  if align == :right\n    [gap, node]",
-    "replace": "  if align == :left\n    [gap, node]"
-  },
-  {
-    "name": "the last cell is padded",
-    "file": "gamen.b",
-    "find": "if i == kept - 1 and nth(i, aligns) != :right",
-    "replace": "if false"
-  },
-  {
-    "name": "the tree rail is blank",
-    "file": "gamen.b",
-    "find": "    \"│   \"\n",
-    "replace": "    \"    \"\n"
-  },
-  {
-    "name": "the meter skips the partial block",
-    "file": "gamen.b",
-    "find": "  partial = if part == 0\n",
-    "replace": "  partial = if true\n"
-  },
-  {
-    "name": "the meter does not clamp",
-    "file": "gamen.b",
-    "find": "f = blue::min(1, blue::max(0, fraction))",
-    "replace": "f = fraction"
-  },
-  {
-    "name": "success paints red",
-    "file": "gamen.b",
-    "find": "    success: :green,\n",
-    "replace": "    success: :red,\n"
   }
 ]

@@ -14,8 +14,8 @@
   {
     "name": "steps floor to round",
     "file": "ugoki.b",
-    "find": "floor(u * get(c, :count))",
-    "replace": "round(u * get(c, :count))"
+    "find": "    floor(u * c[:count]) / c[:count]\n",
+    "replace": "    round(u * c[:count]) / c[:count]\n"
   },
   {
     "name": "bezier branch inverted",
@@ -164,37 +164,37 @@
   {
     "name": "settled tween",
     "file": "ugoki.b",
-    "find": "    t >= get(m, :seconds)",
-    "replace": "    t > get(m, :seconds)"
+    "find": "    t >= m[:seconds]\n",
+    "replace": "    t > m[:seconds]\n"
   },
   {
     "name": "settled velocity",
     "file": "ugoki.b",
-    "find": "abs(first(at) - 1) < 0.001 and abs(nth(1, at)) < 0.001",
-    "replace": "abs(first(at) - 1) < 0.001"
+    "find": "    abs(first(at) - 1) < 0.001 and abs(at[1]) < 0.001\n",
+    "replace": "    abs(first(at) - 1) < 0.001\n"
   },
   {
     "name": "settled position",
     "file": "ugoki.b",
-    "find": "abs(first(at) - 1) < 0.001 and abs(nth(1, at)) < 0.001",
-    "replace": "abs(nth(1, at)) < 0.001"
+    "find": "    abs(first(at) - 1) < 0.001 and abs(at[1]) < 0.001\n",
+    "replace": "    abs(at[1]) < 0.001\n"
   },
   {
     "name": "bezier x2 range",
     "file": "ugoki.b",
-    "find": "nth(2, points) > 1",
-    "replace": "nth(2, points) > 5"
+    "find": "  if points[0] < 0 or points[0] > 1 or points[2] < 0 or points[2] > 1\n",
+    "replace": "  if points[0] < 0 or points[0] > 1 or points[2] < 0 or points[2] > 5\n"
   },
   {
     "name": "bezier x1 range",
     "file": "ugoki.b",
-    "find": "nth(0, points) > 1 or",
-    "replace": "nth(0, points) > 5 or"
+    "find": "  if points[0] < 0 or points[0] > 1 or points[2] < 0 or points[2] > 1\n",
+    "replace": "  if points[0] < 0 or points[0] > 5 or points[2] < 0 or points[2] > 1\n"
   },
   {
     "name": "steps count read",
     "file": "ugoki.b",
-    "find": "floor(u * get(c, :count)) / get(c, :count)",
-    "replace": "floor(u * get(c, :count)) / (get(c, :count) + 1)"
+    "find": "    floor(u * c[:count]) / c[:count]\n",
+    "replace": "    floor(u * c[:count]) / (c[:count] + 1)\n"
   }
 ]

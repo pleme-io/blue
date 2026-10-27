@@ -232,7 +232,7 @@ const FILESYSTEM_NAMES: &[&str] = &[
 ];
 /// `blue_lang_runtime::sys::install_env`, 2026-08-13.
 const ENVIRONMENT_NAMES: &[&str] = &["getenv", "env_required", "argv", "argv_get", "self_exe"];
-/// `blue_lang_runtime::net::install_net`, 2026-10-27.
+/// `blue_lang_runtime::net::install_net`, 2026-10-10.
 const NETWORK_NAMES: &[&str] = &[
     "nats_connect",
     "nats_publish",
@@ -241,7 +241,6 @@ const NETWORK_NAMES: &[&str] = &[
     "nats_next_message",
     "nats_unsubscribe",
     "nats_close",
-    "nats_inbox",
     "http_request",
     "tcp_connect_ms",
     "http_listen",
@@ -252,11 +251,6 @@ const NETWORK_NAMES: &[&str] = &[
     "pg_query",
     "pg_execute",
     "pg_close",
-    "resp_connect",
-    "resp_command",
-    "resp_pipeline",
-    "resp_next",
-    "resp_close",
 ];
 const ENTROPY_NAMES: &[&str] = &["random_bytes"];
 /// `blue_lang_runtime::sys::install_clock`, 2026-08-13.

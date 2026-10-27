@@ -72,7 +72,7 @@ end
 
 def handler()
   app = site
-  get(defended([], silent, (req) -> dispatch(app, req)), :handler)
+  defended([], silent, (req) -> dispatch(app, req))[:handler]
 end
 
 def visit(method, path)
@@ -87,28 +87,28 @@ end
 
 test "each route answers a page of its own"
   home = visit("GET", "/")
-  assert get(home, :status) == 200
-  assert contains?(get(home, :body), "<h1>blue</h1>")
-  assert contains?(get(visit("GET", "/about"), :body), "<h1>about</h1>")
-  assert contains?(get(visit("GET", "/u/ana"), :body), "<h1>hello ana</h1>")
+  assert home[:status] == 200
+  assert contains?(home[:body], "<h1>blue</h1>")
+  assert contains?(visit("GET", "/about")[:body], "<h1>about</h1>")
+  assert contains?(visit("GET", "/u/ana")[:body], "<h1>hello ana</h1>")
   assert contains?(
-    get(visit("GET", "/u/%3Cb%3E"), :body),
+    visit("GET", "/u/%3Cb%3E")[:body],
     "<h1>hello &lt;b&gt;</h1>"
   )
 end
 
 test "a page carries the security headers and a policy with no inline script"
-  csp = get(get(visit("GET", "/"), :headers), "Content-Security-Policy")
+  csp = visit("GET", "/")[:headers]["Content-Security-Policy"]
   assert contains?(csp, "default-src 'none'")
   assert contains?(csp, "style-src-elem 'sha256-")
   assert not contains?(csp, "script-src")
-  assert get(get(visit("GET", "/"), :headers), "X-Frame-Options") == "DENY"
+  assert visit("GET", "/")[:headers]["X-Frame-Options"] == "DENY"
 end
 
 test "a moved path redirects, a missing one is 404, a wrong method 405"
   moved = visit("GET", "/home")
-  assert get(moved, :status) == 301
-  assert get(get(moved, :headers), "Location") == "/"
-  assert get(visit("GET", "/nope"), :status) == 404
-  assert get(visit("POST", "/about"), :status) == 405
+  assert moved[:status] == 301
+  assert moved[:headers]["Location"] == "/"
+  assert visit("GET", "/nope")[:status] == 404
+  assert visit("POST", "/about")[:status] == 405
 end

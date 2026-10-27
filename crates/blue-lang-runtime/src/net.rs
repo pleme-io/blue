@@ -6,8 +6,7 @@
 //!
 //! ```text
 //! nats_connect(url[, timeout_ms])             → connection
-//! nats_publish(conn, subject, payload[, reply]) → nil
-//! nats_inbox(conn)                            → a fresh reply subject
+//! nats_publish(conn, subject, payload)        → nil
 //! nats_request(conn, subject, payload, ms)    → the reply's payload
 //! nats_subscribe(conn, subject[, queue])      → subscription
 //! nats_next_message(sub, ms)                  → {subject:, payload:, reply:} or nil
@@ -23,11 +22,6 @@
 //! pg_query(conn, sql, params)                 → {columns:, rows:, command:}
 //! pg_execute(conn, sql)                       → [command tag, …]
 //! pg_close(conn)                              → nil
-//! resp_connect(host, port, password, tls[, ms]) → connection
-//! resp_command(conn, args)                    → the reply
-//! resp_pipeline(conn, commands)               → [reply, …]
-//! resp_next(conn, ms)                         → the next pushed reply or nil
-//! resp_close(conn)                            → nil
 //! ```
 //!
 //! A connection and a subscription are opaque `Value::Foreign` handles. Every
@@ -37,7 +31,6 @@
 pub mod http;
 pub mod nats;
 pub mod pg;
-pub mod resp;
 pub mod serve;
 
 use std::net::{TcpStream, ToSocketAddrs};
@@ -319,7 +312,6 @@ pub fn install_net<H: 'static>(interp: &mut Interpreter<H>) {
     install_tcp(interp);
     install_serve(interp);
     install_pg(interp);
-    install_resp(interp);
 }
 
 fn install_nats<H: 'static>(interp: &mut Interpreter<H>) {
@@ -340,17 +332,13 @@ fn install_nats<H: 'static>(interp: &mut Interpreter<H>) {
 
     interp.register_fn(
         "nats_publish",
-        Arity::Range(3, 4),
+        Arity::Exact(3),
         |args: &[Value], _h: &mut H, span| {
             let conn = connection(&args[0], "nats_publish", span)?;
             let subject = arg_str(&args[1], "nats_publish", span)?;
             let payload = arg_str(&args[2], "nats_publish", span)?;
-            let reply = match args.get(3) {
-                None | Some(Value::Nil) => None,
-                Some(v) => Some(arg_str(v, "nats_publish", span)?),
-            };
             with_client(&conn, "nats_publish", span, |c| {
-                c.publish(&subject, reply.as_deref(), payload.as_bytes())
+                c.publish(&subject, None, payload.as_bytes())
             })?;
             Ok(Value::Nil)
         },
@@ -398,31 +386,15 @@ fn install_nats<H: 'static>(interp: &mut Interpreter<H>) {
                 c.next_message(sub.sid, timeout)
             })?;
             Ok(next.map_or(Value::Nil, |m| {
-                let status = m.status();
                 record(vec![
                     ("subject", Value::Str(Arc::from(m.subject))),
                     ("payload", text(&m.payload)),
-                    (
-                        "status",
-                        status.map_or(Value::Nil, |n| Value::Int(i64::from(n))),
-                    ),
-                    ("headers", m.headers.as_deref().map_or(Value::Nil, text)),
                     (
                         "reply",
                         m.reply.map_or(Value::Nil, |r| Value::Str(Arc::from(r))),
                     ),
                 ])
             }))
-        },
-    );
-
-    interp.register_fn(
-        "nats_inbox",
-        Arity::Exact(1),
-        |args: &[Value], _h: &mut H, span| {
-            let conn = connection(&args[0], "nats_inbox", span)?;
-            let inbox = with_client(&conn, "nats_inbox", span, |c| Ok(c.new_inbox()))?;
-            Ok(Value::Str(Arc::from(inbox)))
         },
     );
 
@@ -830,213 +802,6 @@ fn install_pg<H: 'static>(interp: &mut Interpreter<H>) {
             if let Some(mut c) = guard.take() {
                 c.close();
             }
-            Ok(Value::Nil)
-        },
-    );
-}
-
-struct RespConnection {
-    client: Mutex<resp::Client>,
-    timeout: Duration,
-}
-
-fn resp_conn(v: &Value, fname: &'static str, span: Span) -> Result<Arc<RespConnection>, EvalError> {
-    if let Value::Foreign(any) = v {
-        if let Ok(c) = Arc::downcast::<RespConnection>(any.clone()) {
-            return Ok(c);
-        }
-    }
-    Err(EvalError::native_fn(
-        fname,
-        format!(
-            "expected a RESP connection from resp_connect, got {}",
-            v.type_name()
-        ),
-        span,
-    ))
-}
-
-fn with_resp<T>(
-    conn: &RespConnection,
-    fname: &'static str,
-    span: Span,
-    f: impl FnOnce(&mut resp::Client, Duration) -> Result<T, resp::RespError>,
-) -> Result<T, EvalError> {
-    let mut client = conn
-        .client
-        .lock()
-        .map_err(|_| EvalError::native_fn(fname, "the connection's lock is poisoned", span))?;
-    f(&mut client, conn.timeout).map_err(|e| EvalError::native_fn(fname, e.to_string(), span))
-}
-
-fn resp_args(v: &Value, fname: &'static str, span: Span) -> Result<Vec<Vec<u8>>, EvalError> {
-    let Value::List(items) = v else {
-        return Err(EvalError::native_fn(
-            fname,
-            format!("a command is a list of words, got {}", v.type_name()),
-            span,
-        ));
-    };
-    if items.is_empty() {
-        return Err(EvalError::native_fn(
-            fname,
-            "a command names at least its verb",
-            span,
-        ));
-    }
-    items
-        .iter()
-        .map(|a| match a {
-            Value::Str(s) | Value::Keyword(s) => Ok(s.as_bytes().to_vec()),
-            Value::Int(n) => Ok(n.to_string().into_bytes()),
-            Value::Float(x) => Ok(x.to_string().into_bytes()),
-            other => Err(EvalError::native_fn(
-                fname,
-                format!(
-                    "a command word is text or a number, got {}",
-                    other.type_name()
-                ),
-                span,
-            )),
-        })
-        .collect()
-}
-
-fn resp_value(r: resp::Reply, fname: &'static str, span: Span) -> Result<Value, EvalError> {
-    Ok(match r {
-        resp::Reply::Simple(s) => Value::Str(Arc::from(s)),
-        resp::Reply::Bulk(b) => text(&b),
-        resp::Reply::Int(n) => Value::Int(n),
-        resp::Reply::Nil => Value::Nil,
-        resp::Reply::Error(e) => {
-            return Err(EvalError::native_fn(
-                fname,
-                format!("server error: {e}"),
-                span,
-            ))
-        }
-        resp::Reply::Array(items) => Value::list(
-            items
-                .into_iter()
-                .map(|i| resp_value(i, fname, span))
-                .collect::<Result<Vec<_>, _>>()?,
-        ),
-    })
-}
-
-fn install_resp<H: 'static>(interp: &mut Interpreter<H>) {
-    interp.register_fn(
-        "resp_connect",
-        Arity::Range(4, 5),
-        |args: &[Value], _h: &mut H, span| {
-            let host = arg_str(&args[0], "resp_connect", span)?;
-            let port = arg_int(&args[1], "resp_connect", span)?;
-            let port = u16::try_from(port)
-                .ok()
-                .filter(|p| *p != 0)
-                .ok_or_else(|| {
-                    EvalError::native_fn(
-                        "resp_connect",
-                        format!("port must be 1..=65535, got {port}"),
-                        span,
-                    )
-                })?;
-            let password = match &args[2] {
-                Value::Nil => None,
-                other => Some(arg_str(other, "resp_connect", span)?.to_string()),
-            };
-            let tls = match &args[3] {
-                Value::Bool(b) => *b,
-                other => {
-                    return Err(EvalError::native_fn(
-                        "resp_connect",
-                        format!("tls is true or false, got {}", other.type_name()),
-                        span,
-                    ))
-                }
-            };
-            let timeout = match args.get(4) {
-                Some(v) => arg_ms(v, "resp_connect", span, false)?,
-                None => Duration::from_millis(DEFAULT_CONNECT_MS as u64),
-            };
-            let target = resp::Target {
-                host: host.to_string(),
-                port,
-                password,
-                tls,
-            };
-            let client = resp::Client::connect(&target, timeout).map_err(|e| {
-                EvalError::native_fn("resp_connect", format!("{host}:{port}: {e}"), span)
-            })?;
-            Ok(Value::Foreign(Arc::new(RespConnection {
-                client: Mutex::new(client),
-                timeout,
-            })))
-        },
-    );
-
-    interp.register_fn(
-        "resp_command",
-        Arity::Exact(2),
-        |args: &[Value], _h: &mut H, span| {
-            let conn = resp_conn(&args[0], "resp_command", span)?;
-            let words = resp_args(&args[1], "resp_command", span)?;
-            let reply = with_resp(&conn, "resp_command", span, |c, t| c.command(&words, t))?;
-            resp_value(reply, "resp_command", span)
-        },
-    );
-
-    interp.register_fn(
-        "resp_pipeline",
-        Arity::Exact(2),
-        |args: &[Value], _h: &mut H, span| {
-            let conn = resp_conn(&args[0], "resp_pipeline", span)?;
-            let Value::List(cmds) = &args[1] else {
-                return Err(EvalError::native_fn(
-                    "resp_pipeline",
-                    format!(
-                        "commands are a list of commands, got {}",
-                        args[1].type_name()
-                    ),
-                    span,
-                ));
-            };
-            let cmds = cmds
-                .iter()
-                .map(|c| resp_args(c, "resp_pipeline", span))
-                .collect::<Result<Vec<_>, _>>()?;
-            let replies = with_resp(&conn, "resp_pipeline", span, |c, t| c.pipeline(&cmds, t))?;
-            Ok(Value::list(
-                replies
-                    .into_iter()
-                    .map(|r| resp_value(r, "resp_pipeline", span))
-                    .collect::<Result<Vec<_>, _>>()?,
-            ))
-        },
-    );
-
-    interp.register_fn(
-        "resp_next",
-        Arity::Exact(2),
-        |args: &[Value], _h: &mut H, span| {
-            let conn = resp_conn(&args[0], "resp_next", span)?;
-            let timeout = arg_ms(&args[1], "resp_next", span, true)?;
-            match with_resp(&conn, "resp_next", span, |c, _| c.next(timeout))? {
-                Some(r) => resp_value(r, "resp_next", span),
-                None => Ok(Value::Nil),
-            }
-        },
-    );
-
-    interp.register_fn(
-        "resp_close",
-        Arity::Exact(1),
-        |args: &[Value], _h: &mut H, span| {
-            let conn = resp_conn(&args[0], "resp_close", span)?;
-            with_resp(&conn, "resp_close", span, |c, _| {
-                c.close();
-                Ok(())
-            })?;
             Ok(Value::Nil)
         },
     );

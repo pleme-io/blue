@@ -5,7 +5,7 @@
 
 def name_of(subject)
   parts = split(subject, ".")
-  nth(count(parts) - 1, parts)
+  parts[count(parts) - 1]
 end
 
 def reply(template, subject)
@@ -15,8 +15,8 @@ end
 # One message: answered when the sender asked for an answer, else dropped.
 def serve_once(conn, sub, template)
   m = nats_next_message(sub, 1000)
-  if m != nil and get(m, :reply) != nil
-    nats_publish(conn, get(m, :reply), reply(template, get(m, :subject)))
+  if m != nil and m[:reply] != nil
+    nats_publish(conn, m[:reply], reply(template, m[:subject]))
   end
 end
 

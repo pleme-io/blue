@@ -219,10 +219,10 @@ def formats()
 end
 
 def file_format(app, opts)
-  chosen = if opts.nil? or get(opts, :format).nil?
+  chosen = if opts.nil? or opts[:format].nil?
     getenv("#{env_prefix(app)}CONFIG_FORMAT")
   else
-    get(opts, :format)
+    opts[:format]
   end
   format = if chosen.nil?
     :yaml
@@ -322,7 +322,7 @@ def current()
 end
 
 def flag(settings, name)
-  flags = get(settings, "flags")
+  flags = settings["flags"]
   v = if flags.nil?
     nil
   else
@@ -469,9 +469,9 @@ test "prescribed reads the file as JSON settings"
   p = path_join(dir, "defaults.json")
   write_file(p, "{\"port\":8080,\"name\":\"x\",\"nested\":{\"on\":true}}")
   s = prescribed("zz-app", p)
-  assert get(s, "port") == 8080
-  assert get(s, "name") == "x"
-  assert get(get(s, "nested"), "on") == true
+  assert s["port"] == 8080
+  assert s["name"] == "x"
+  assert s["nested"]["on"] == true
   write_file(p, "{}")
   assert prescribed("zz-app", p) == {}
   rm_rf(dir)

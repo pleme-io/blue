@@ -2,14 +2,14 @@
   {
     "name": "page style hash",
     "file": "bougyo.b",
-    "find": "hashed(\"style-src-elem\", get(inline, :styles) or [])",
-    "replace": "[]"
+    "find": "  join(\n    append(\n      [base],\n      hashed(\"style-src-elem\", inline[:styles] or []),\n      hashed(\"script-src\", inline[:scripts] or [])\n    ),\n    \"; \"\n  )\n",
+    "replace": "  join(append([base], [], hashed(\"script-src\", inline[:scripts] or [])), \"; \")\n"
   },
   {
     "name": "page module hash",
     "file": "bougyo.b",
-    "find": "hashed(\"script-src\", get(inline, :scripts) or [])",
-    "replace": "[]"
+    "find": "    append(\n      [base],\n      hashed(\"style-src-elem\", inline[:styles] or []),\n      hashed(\"script-src\", inline[:scripts] or [])\n    ),\n",
+    "replace": "    append([base], hashed(\"style-src-elem\", inline[:styles] or []), []),\n"
   },
   {
     "name": "html is a page",
@@ -20,13 +20,13 @@
   {
     "name": "page policy is tunable",
     "file": "bougyo.b",
-    "find": "page_policy(get(s, :page_security_policy),",
-    "replace": "page_policy(page_policy_default,"
+    "find": "    page_policy(s[:page_security_policy], r[:inline] or {})\n",
+    "replace": "    page_policy(page_policy_default, r[:inline] or {})\n"
   },
   {
     "name": "request id read through kyuuji header",
     "file": "bougyo.b",
-    "find": "inbound = header(req, get(settings, :header))",
-    "replace": "inbound = nil"
+    "find": "          inbound = header(req, settings[:header])\n",
+    "replace": "          inbound = nil\n"
   }
 ]

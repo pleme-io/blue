@@ -471,9 +471,7 @@ def graphql_rules()
 end
 
 def kinds()
-  distinct(
-    filter((k) -> k != nil, map((x) -> get(x, :lower), get(graphql, :rules)))
-  )
+  distinct(filter((k) -> k != nil, map((x) -> x[:lower], graphql[:rules])))
 end
 
 def table(keys)
@@ -507,11 +505,11 @@ def lexer(text)
 end
 
 def at(x, i)
-  nth(i, get(x, :cs))
+  x[:cs][i]
 end
 
 def slice(x, i, j)
-  join(map((k) -> nth(k, get(x, :cs)), range(i, j)), "")
+  join(map((k) -> x[:cs][k], range(i, j)), "")
 end
 
 def lex_error(line, col, message)
@@ -528,20 +526,20 @@ def tokens(text)
 end
 
 def lex_from(x, i, line, ls, cur, done)
-  if i >= get(x, :n)
+  if i >= x[:n]
     append(*append(done, [cur]))
   else
     c = at(x, i)
     if c == line_break
       lex_from(x, i + 1, line + 1, i + 1, cur, done)
-    elsif get(get(x, :blank), c)
+    elsif get(x[:blank], c)
       lex_from(x, i + 1, line, ls, cur, done)
     elsif c == "#"
-      j = text_index(get(x, :text), line_break, i)
+      j = text_index(x[:text], line_break, i)
       lex_from(
         x,
         if j < 0
-          get(x, :n)
+          x[:n]
         else
           j
         end,
@@ -552,17 +550,17 @@ def lex_from(x, i, line, ls, cur, done)
       )
     else
       t = token_at(x, i, c, line, i - ls + 1)
-      next_ls = if get(t, :lines) > 0
-        get(t, :ls)
+      next_ls = if t[:lines] > 0
+        t[:ls]
       else
         ls
       end
-      tok = {kind: get(t, :kind), value: get(t, :value), line:, col: i - ls + 1}
+      tok = {kind: t[:kind], value: t[:value], line:, col: i - ls + 1}
       if length(cur) >= 256
         lex_from(
           x,
-          get(t, :end),
-          line + get(t, :lines),
+          t[:end],
+          line + t[:lines],
           next_ls,
           [tok],
           append(done, [cur])
@@ -570,8 +568,8 @@ def lex_from(x, i, line, ls, cur, done)
       else
         lex_from(
           x,
-          get(t, :end),
-          line + get(t, :lines),
+          t[:end],
+          line + t[:lines],
           next_ls,
           append(cur, [tok]),
           done
@@ -586,7 +584,7 @@ def simple(kind, value, stop)
 end
 
 def token_at(x, i, c, line, col)
-  if get(get(x, :punct), c)
+  if get(x[:punct], c)
     simple(:punct, c, i + 1)
   elsif c == "."
     if at(x, i + 1) == "." and at(x, i + 2) == "."
@@ -594,10 +592,10 @@ def token_at(x, i, c, line, col)
     else
       lex_error(line, col, "expected \"...\", found \".\"")
     end
-  elsif get(get(x, :start), c)
+  elsif get(x[:start], c)
     j = name_end(x, i + 1)
     simple(:name, slice(x, i, j), j)
-  elsif c == "-" or get(get(x, :digit), c)
+  elsif c == "-" or get(x[:digit], c)
     number_at(x, i, line, col)
   elsif c == "\""
     if at(x, i + 1) == "\"" and at(x, i + 2) == "\""
@@ -611,7 +609,7 @@ def token_at(x, i, c, line, col)
 end
 
 def name_end(x, i)
-  if i < get(x, :n) and get(get(x, :part), at(x, i))
+  if i < x[:n] and get(x[:part], at(x, i))
     name_end(x, i + 1)
   else
     i
@@ -619,7 +617,7 @@ def name_end(x, i)
 end
 
 def digits_end(x, i)
-  if i < get(x, :n) and get(get(x, :digit), at(x, i))
+  if i < x[:n] and get(x[:digit], at(x, i))
     digits_end(x, i + 1)
   else
     i
@@ -662,7 +660,7 @@ def number_at(x, i, line, col)
     frac
   end
   after = at(x, stop)
-  if after == "." or get(get(x, :start), after)
+  if after == "." or get(x[:start], after)
     lex_error(
       line,
       col,
@@ -681,7 +679,7 @@ def number_at(x, i, line, col)
 end
 
 def string_end(x, j, line, col)
-  k = text_index(get(x, :text), "\"", j)
+  k = text_index(x[:text], "\"", j)
   if k < 0
     lex_error(line, col, "unterminated string")
   elsif odd?(backslashes(x, k - 1, 0))
@@ -728,9 +726,9 @@ def braced_escapes(raw, line, col)
       lex_error(line, col, "unterminated \\u{ escape")
     end
     cs = chars(raw)
-    hex = join(map((k) -> nth(k, cs), range(i + 3, j)), "")
-    head = join(map((k) -> nth(k, cs), range(0, i)), "")
-    tail = join(map((k) -> nth(k, cs), range(j + 1, length(cs))), "")
+    hex = join(map((k) -> cs[k], range(i + 3, j)), "")
+    head = join(map((k) -> cs[k], range(0, i)), "")
+    tail = join(map((k) -> cs[k], range(j + 1, length(cs))), "")
     "#{head}#{utf16_escape(hex, line, col)}#{braced_escapes(tail, line, col)}"
   end
 end
@@ -755,7 +753,7 @@ end
 
 def hex4(n)
   ds = chars("0123456789ABCDEF")
-  join(map((k) -> nth(floor(n / expt(16, k)) % 16, ds), [3, 2, 1, 0]), "")
+  join(map((k) -> ds[floor(n / expt(16, k)) % 16], [3, 2, 1, 0]), "")
 end
 
 def utf16_escape(hex, line, col)
@@ -771,7 +769,7 @@ def utf16_escape(hex, line, col)
 end
 
 def block_end(x, j, line, col)
-  k = text_index(get(x, :text), "\"\"\"", j)
+  k = text_index(x[:text], "\"\"\"", j)
   if k < 0
     lex_error(line, col, "unterminated block string")
   elsif at(x, k - 1) == "\\"
@@ -854,49 +852,41 @@ def eof()
 end
 
 def tok(p, i)
-  if i < get(p, :n)
-    nth(i, get(p, :toks))
+  if i < p[:n]
+    p[:toks][i]
   else
-    last_tok = if get(p, :n) > 0
-      nth(get(p, :n) - 1, get(p, :toks))
+    last_tok = if p[:n] > 0
+      p[:toks][p[:n] - 1]
     else
       {line: 1, col: 0}
     end
-    assoc(
-      assoc(eof, :line, get(last_tok, :line)),
-      :col,
-      get(last_tok, :col) + 1
-    )
+    assoc(assoc(eof, :line, last_tok[:line]), :col, last_tok[:col] + 1)
   end
 end
 
 def shown(t)
-  if get(t, :kind) == :eof
+  if t[:kind] == :eof
     "end of input"
-  elsif get(t, :kind) == :string
+  elsif t[:kind] == :string
     "a string"
   else
-    json_stringify(get(t, :value))
+    json_stringify(t[:value])
   end
 end
 
 def fail(p, i, wanted)
   t = tok(p, i)
-  lex_error(
-    get(t, :line),
-    get(t, :col),
-    "expected #{wanted}, found #{shown(t)}"
-  )
+  lex_error(t[:line], t[:col], "expected #{wanted}, found #{shown(t)}")
 end
 
 def punct?(p, i, v)
   t = tok(p, i)
-  get(t, :kind) == :punct and get(t, :value) == v
+  t[:kind] == :punct and t[:value] == v
 end
 
 def word?(p, i, v)
   t = tok(p, i)
-  get(t, :kind) == :name and get(t, :value) == v
+  t[:kind] == :name and t[:value] == v
 end
 
 def expect(p, i, v)
@@ -917,17 +907,17 @@ end
 
 def name_at(p, i)
   t = tok(p, i)
-  if get(t, :kind) == :name
-    get(t, :value)
+  if t[:kind] == :name
+    t[:value]
   else
     fail(p, i, "a name")
   end
 end
 
 def mark(p, i, node)
-  if get(p, :spans)
+  if p[:spans]
     t = tok(p, i)
-    assoc(node, :at, [get(t, :line), get(t, :col)])
+    assoc(node, :at, [t[:line], t[:col]])
   else
     node
   end
@@ -936,7 +926,7 @@ end
 def many(p, i, item, close, acc)
   if punct?(p, i, close)
     [acc, i + 1]
-  elsif get(tok(p, i), :kind) == :eof
+  elsif tok(p, i)[:kind] == :eof
     fail(p, i, json_stringify(close))
   else
     got = item(p, i)
@@ -961,7 +951,7 @@ def optional_list(p, i, open, item, close)
 end
 
 def document_of(p, i, acc)
-  if i >= get(p, :n)
+  if i >= p[:n]
     if is_empty(acc)
       fail(p, i, "a definition")
     end
@@ -974,12 +964,12 @@ end
 
 def definition(p, i)
   t = tok(p, i)
-  v = get(t, :value)
+  v = t[:value]
   if punct?(p, i, "{")
     operation(p, i)
-  elsif get(t, :kind) == :string
+  elsif t[:kind] == :string
     type_system(p, i + 1, v)
-  elsif get(t, :kind) != :name
+  elsif t[:kind] != :name
     fail(p, i, "a definition")
   elsif member?(v, ["query", "mutation", "subscription"])
     operation(p, i)
@@ -1011,10 +1001,10 @@ def operation(p, i)
       second(sel)
     ]
   else
-    op = keyword_of(get(tok(p, i), :value))
+    op = keyword_of(tok(p, i)[:value])
     j = i + 1
-    name = if get(tok(p, j), :kind) == :name
-      get(tok(p, j), :value)
+    name = if tok(p, j)[:kind] == :name
+      tok(p, j)[:value]
     end
     j = if name.nil?
       j
@@ -1124,8 +1114,8 @@ end
 
 def value(p, i, constant)
   t = tok(p, i)
-  k = get(t, :kind)
-  v = get(t, :value)
+  k = t[:kind]
+  v = t[:value]
   if k == :int
     [{kind: :int, text: v}, i + 1]
   elsif k == :float
@@ -1271,12 +1261,12 @@ def fragment_definition(p, i)
 end
 
 def type_system(p, i, description)
-  v = get(tok(p, i), :value)
-  if get(tok(p, i), :kind) != :name
+  v = tok(p, i)[:value]
+  if tok(p, i)[:kind] != :name
     fail(p, i, "a type system definition")
   end
   got = type_body(p, i, v)
-  if v == "schema" and is_empty(get(first(got), :operations))
+  if v == "schema" and is_empty(first(got)[:operations])
     fail(p, second(got), "\"{\"")
   end
   [
@@ -1290,8 +1280,8 @@ def type_system(p, i, description)
 end
 
 def extension(p, i)
-  v = get(tok(p, i), :value)
-  if v == "directive" or get(tok(p, i), :kind) != :name
+  v = tok(p, i)[:value]
+  if v == "directive" or tok(p, i)[:kind] != :name
     fail(p, i, "a type system extension")
   end
   got = type_body(p, i, v)
@@ -1350,8 +1340,8 @@ def schema_definition(p, i)
 end
 
 def root_operation(p, i)
-  v = get(tok(p, i), :value)
-  if get(tok(p, i), :kind) != :name or keyword_of(v).nil?
+  v = tok(p, i)[:value]
+  if tok(p, i)[:kind] != :name or keyword_of(v).nil?
     fail(p, i, "query, mutation or subscription")
   end
   j = expect(p, i + 1, ":")
@@ -1426,8 +1416,8 @@ end
 
 def description_at(p, i)
   t = tok(p, i)
-  if get(t, :kind) == :string
-    [get(t, :value), i + 1]
+  if t[:kind] == :string
+    [t[:value], i + 1]
   else
     [nil, i]
   end
@@ -1680,43 +1670,43 @@ def description_text(ind, d)
 end
 
 def type_text(t)
-  k = get(t, :kind)
+  k = t[:kind]
   if k == :named
-    get(t, :name)
+    t[:name]
   elsif k == :list_of
-    "[#{type_text(get(t, :of))}]"
+    "[#{type_text(t[:of])}]"
   else
-    "#{type_text(get(t, :of))}!"
+    "#{type_text(t[:of])}!"
   end
 end
 
 def value_text(ind, v)
-  k = get(v, :kind)
+  k = v[:kind]
   if k == :null
     "null"
   elsif k == :boolean
-    if get(v, :value)
+    if v[:value]
       "true"
     else
       "false"
     end
   elsif k == :enum
-    get(v, :name)
+    v[:name]
   elsif k == :var
-    "$#{get(v, :name)}"
+    "$#{v[:name]}"
   elsif k == :int or k == :float
-    get(v, :text)
+    v[:text]
   elsif k == :string
-    string_text(ind, false, get(v, :value))
+    string_text(ind, false, v[:value])
   elsif k == :list
-    commas(ind, "[", "]", get(v, :items), value_text)
+    commas(ind, "[", "]", v[:items], value_text)
   else
     commas(
       ind,
       "{",
       "}",
-      get(v, :fields),
-      (i, f) -> "#{get(f, :name)}: #{value_text(i, get(f, :value))}"
+      v[:fields],
+      (i, f) -> "#{f[:name]}: #{value_text(i, f[:value])}"
     )
   end
 end
@@ -1730,16 +1720,13 @@ def arguments_text(args)
       "(",
       ")",
       args,
-      (i, a) -> "#{get(a, :name)}: #{value_text(i, get(a, :value))}"
+      (i, a) -> "#{a[:name]}: #{value_text(i, a[:value])}"
     )
   end
 end
 
 def directives_text(dirs)
-  join(
-    map((d) -> " @#{get(d, :name)}#{arguments_text(get(d, :arguments))}", dirs),
-    ""
-  )
+  join(map((d) -> " @#{d[:name]}#{arguments_text(d[:arguments])}", dirs), "")
 end
 
 def default_text(ind, dv)
@@ -1760,21 +1747,21 @@ def variables_text(vars)
       ")",
       vars,
       fn(i, x)
-        "$#{get(x, :name)}: #{type_text(get(x, :type))}#{default_text(i, get(x, :default))}#{directives_text(get(x, :directives))}"
+        "$#{x[:name]}: #{type_text(x[:type])}#{default_text(i, x[:default])}#{directives_text(x[:directives])}"
       end
     )
   end
 end
 
 def input_value_text(ind, x)
-  "#{description_text(ind, get(x, :description))}#{get(x, :name)}: #{type_text(get(x, :type))}#{default_text(ind, get(x, :default))}#{directives_text(get(x, :directives))}"
+  "#{description_text(ind, x[:description])}#{x[:name]}: #{type_text(x[:type])}#{default_text(ind, x[:default])}#{directives_text(x[:directives])}"
 end
 
 def arguments_definition_text(ind, args)
   if is_empty(args)
     ""
   elsif any?(
-    (a) -> get(a, :description) != nil or not is_empty(get(a, :directives)),
+    (a) -> a[:description] != nil or not is_empty(a[:directives]),
     args
   )
     commas(ind, "(", ")", args, input_value_text)
@@ -1784,31 +1771,31 @@ def arguments_definition_text(ind, args)
 end
 
 def field_definition_text(ind, f)
-  "#{description_text(ind, get(f, :description))}#{get(f, :name)}#{arguments_definition_text(ind, get(f, :arguments))}: #{type_text(get(f, :type))}#{directives_text(get(f, :directives))}"
+  "#{description_text(ind, f[:description])}#{f[:name]}#{arguments_definition_text(ind, f[:arguments])}: #{type_text(f[:type])}#{directives_text(f[:directives])}"
 end
 
 def enum_value_text(ind, v)
-  "#{description_text(ind, get(v, :description))}#{get(v, :name)}#{directives_text(get(v, :directives))}"
+  "#{description_text(ind, v[:description])}#{v[:name]}#{directives_text(v[:directives])}"
 end
 
 def selection_text(ind, sel)
-  k = get(sel, :kind)
+  k = sel[:kind]
   if k == :field
-    head = if get(sel, :alias).nil?
+    head = if sel[:alias].nil?
       ""
     else
-      "#{get(sel, :alias)}: "
+      "#{sel[:alias]}: "
     end
-    "#{head}#{get(sel, :name)}#{arguments_text(get(sel, :arguments))}#{directives_text(get(sel, :directives))}#{selections_suffix(ind, get(sel, :selections))}"
+    "#{head}#{sel[:name]}#{arguments_text(sel[:arguments])}#{directives_text(sel[:directives])}#{selections_suffix(ind, sel[:selections])}"
   elsif k == :spread
-    "...#{get(sel, :name)}#{directives_text(get(sel, :directives))}"
+    "...#{sel[:name]}#{directives_text(sel[:directives])}"
   else
-    head = if get(sel, :on).nil?
+    head = if sel[:on].nil?
       "..."
     else
-      "... on #{get(sel, :on)}"
+      "... on #{sel[:on]}"
     end
-    "#{head}#{directives_text(get(sel, :directives))} #{curly(ind, get(sel, :selections), selection_text)}"
+    "#{head}#{directives_text(sel[:directives])} #{curly(ind, sel[:selections], selection_text)}"
   end
 end
 
@@ -1829,84 +1816,81 @@ def block_suffix(ind, items, f)
 end
 
 def extend_prefix(ind, d)
-  if get(d, :extend)
+  if d[:extend]
     "extend "
   else
-    description_text(ind, get(d, :description))
+    description_text(ind, d[:description])
   end
 end
 
 def definition_text(ind, d, leading)
-  k = get(d, :kind)
-  dirs = directives_text(get(d, :directives))
+  k = d[:kind]
+  dirs = directives_text(d[:directives])
   if k == :operation
     shorthand = leading and
-      get(d, :operation) == :query and
-      get(d, :name).nil? and
-      is_empty(get(d, :variables)) and
-      is_empty(get(d, :directives))
-    body = curly(ind, get(d, :selections), selection_text)
+      d[:operation] == :query and
+      d[:name].nil? and
+      is_empty(d[:variables]) and
+      is_empty(d[:directives])
+    body = curly(ind, d[:selections], selection_text)
     if shorthand
       body
     else
-      named = if get(d, :name).nil?
+      named = if d[:name].nil?
         ""
       else
-        " #{get(d, :name)}"
+        " #{d[:name]}"
       end
-      "#{get(d, :operation)}#{named}#{variables_text(get(d, :variables))}#{dirs} #{body}"
+      "#{d[:operation]}#{named}#{variables_text(d[:variables])}#{dirs} #{body}"
     end
   elsif k == :fragment
-    "fragment #{get(d, :name)} on #{get(d, :on)}#{dirs} #{curly(ind, get(d, :selections), selection_text)}"
+    "fragment #{d[:name]} on #{d[:on]}#{dirs} #{curly(ind, d[:selections], selection_text)}"
   elsif k == :directive
-    rep = if get(d, :repeatable)
+    rep = if d[:repeatable]
       " repeatable"
     else
       ""
     end
-    "#{description_text(ind, get(d, :description))}directive @#{get(d, :name)}#{arguments_definition_text(ind, get(d, :arguments))}#{rep} on #{join(get(d, :locations), " | ")}"
+    "#{description_text(ind, d[:description])}directive @#{d[:name]}#{arguments_definition_text(ind, d[:arguments])}#{rep} on #{join(d[:locations], " | ")}"
   elsif k == :schema
-    ops = get(d, :operations)
-    body = if get(d, :extend) and is_empty(ops)
+    ops = d[:operations]
+    body = if d[:extend] and is_empty(ops)
       ""
     else
-      " #{curly(ind, ops, (_i, o) -> "#{get(o, :operation)}: #{get(o, :type)}")}"
+      " #{curly(ind, ops, (_i, o) -> "#{o[:operation]}: #{o[:type]}")}"
     end
     "#{extend_prefix(ind, d)}schema#{dirs}#{body}"
   elsif k == :scalar
-    "#{extend_prefix(ind, d)}scalar #{get(d, :name)}#{dirs}"
+    "#{extend_prefix(ind, d)}scalar #{d[:name]}#{dirs}"
   elsif k == :object or k == :interface
     word = if k == :object
       "type"
     else
       "interface"
     end
-    ifaces = if is_empty(get(d, :interfaces))
+    ifaces = if is_empty(d[:interfaces])
       ""
     else
-      " implements #{join(get(d, :interfaces), " & ")}"
+      " implements #{join(d[:interfaces], " & ")}"
     end
-    "#{extend_prefix(ind, d)}#{word} #{get(d, :name)}#{ifaces}#{dirs}#{block_suffix(ind, get(d, :fields), field_definition_text)}"
+    "#{extend_prefix(ind, d)}#{word} #{d[:name]}#{ifaces}#{dirs}#{block_suffix(ind, d[:fields], field_definition_text)}"
   elsif k == :union
-    members = if is_empty(get(d, :members))
+    members = if is_empty(d[:members])
       ""
     else
-      " = #{join(get(d, :members), " | ")}"
+      " = #{join(d[:members], " | ")}"
     end
-    "#{extend_prefix(ind, d)}union #{get(d, :name)}#{dirs}#{members}"
+    "#{extend_prefix(ind, d)}union #{d[:name]}#{dirs}#{members}"
   elsif k == :enum
-    "#{extend_prefix(ind, d)}enum #{get(d, :name)}#{dirs}#{block_suffix(ind, get(d, :values), enum_value_text)}"
+    "#{extend_prefix(ind, d)}enum #{d[:name]}#{dirs}#{block_suffix(ind, d[:values], enum_value_text)}"
   else
-    "#{extend_prefix(ind, d)}input #{get(d, :name)}#{dirs}#{block_suffix(ind, get(d, :fields), input_value_text)}"
+    "#{extend_prefix(ind, d)}input #{d[:name]}#{dirs}#{block_suffix(ind, d[:fields], input_value_text)}"
   end
 end
 
 def document_text(ind, doc)
-  defs = get(doc, :definitions)
-  texts = map(
-    (i) -> definition_text(ind, nth(i, defs), i == 0),
-    range(length(defs))
-  )
+  defs = doc[:definitions]
+  texts = map((i) -> definition_text(ind, defs[i], i == 0), range(length(defs)))
   if ind.nil?
     join(texts, " ")
   elsif is_empty(texts)
@@ -1974,7 +1958,7 @@ def builtin_sdl()
 end
 
 def finding(rule, message, node)
-  {rule:, message:, at: get(node, :at)}
+  {rule:, message:, at: node[:at]}
 end
 
 def type_kinds()
@@ -1985,7 +1969,7 @@ def definitions_of(schema)
   if schema.nil?
     []
   else
-    get(schema, :definitions)
+    schema[:definitions]
   end
 end
 
@@ -2001,11 +1985,11 @@ def merged(base, ext)
 end
 
 def add_definition(state, d)
-  k = get(d, :kind)
-  name = get(d, :name)
+  k = d[:kind]
+  name = d[:name]
   if k == :directive
-    previous = get(get(state, :directives), name)
-    if previous != nil and not get(previous, :builtin)
+    previous = get(state[:directives], name)
+    if previous != nil and not previous[:builtin]
       note(
         state,
         finding(
@@ -2015,10 +1999,10 @@ def add_definition(state, d)
         )
       )
     else
-      assoc(state, :directives, assoc(get(state, :directives), name, d))
+      assoc(state, :directives, assoc(state[:directives], name, d))
     end
   elsif k == :schema
-    if get(state, :schema) != nil
+    if state[:schema] != nil
       note(
         state,
         finding("schema-unique", "the schema is defined more than once", d)
@@ -2027,9 +2011,9 @@ def add_definition(state, d)
       assoc(state, :schema, d)
     end
   else
-    previous = get(get(state, :types), name)
+    previous = get(state[:types], name)
     if previous.nil?
-      assoc(state, :types, assoc(get(state, :types), name, d))
+      assoc(state, :types, assoc(state[:types], name, d))
     else
       note(
         state,
@@ -2040,16 +2024,16 @@ def add_definition(state, d)
 end
 
 def add_extension(state, d)
-  k = get(d, :kind)
+  k = d[:kind]
   if k == :schema
-    if get(state, :schema).nil?
-      assoc(state, :schema_ext, append(get(state, :schema_ext), [d]))
+    if state[:schema].nil?
+      assoc(state, :schema_ext, append(state[:schema_ext], [d]))
     else
-      assoc(state, :schema, merged(get(state, :schema), d))
+      assoc(state, :schema, merged(state[:schema], d))
     end
   else
-    name = get(d, :name)
-    base = get(get(state, :types), name)
+    name = d[:name]
+    base = get(state[:types], name)
     if base.nil?
       note(
         state,
@@ -2059,32 +2043,32 @@ def add_extension(state, d)
           d
         )
       )
-    elsif get(base, :kind) != k
+    elsif base[:kind] != k
       note(
         state,
         finding(
           "extension-kind",
-          "#{name} is a #{get(base, :kind)}, extended as a #{k}",
+          "#{name} is a #{base[:kind]}, extended as a #{k}",
           d
         )
       )
     else
-      assoc(state, :types, assoc(get(state, :types), name, merged(base, d)))
+      assoc(state, :types, assoc(state[:types], name, merged(base, d)))
     end
   end
 end
 
 def note(state, f)
-  assoc(state, :problems, append(get(state, :problems), [f]))
+  assoc(state, :problems, append(state[:problems], [f]))
 end
 
 def builtins()
-  map((d) -> assoc(d, :builtin, true), get(parse(builtin_sdl), :definitions))
+  map((d) -> assoc(d, :builtin, true), parse(builtin_sdl)[:definitions])
 end
 
 def implicit_roots(types)
   filter(
-    (o) -> get(o, :type) != nil,
+    (o) -> o[:type] != nil,
     map(
       fn(op)
         name = get(
@@ -2104,20 +2088,13 @@ end
 
 def schema_index(schema)
   defs = definitions_of(schema)
-  user = filter(
-    (d) -> get(d, :kind) != :operation and get(d, :kind) != :fragment,
-    defs
-  )
+  user = filter((d) -> d[:kind] != :operation and d[:kind] != :fragment, defs)
   state = {types: {}, directives: {}, schema: nil, schema_ext: [], problems: []}
   state = reduce(add_definition, state, builtins)
-  state = reduce(
-    add_definition,
-    state,
-    filter((d) -> not get(d, :extend), user)
-  )
-  state = reduce(add_extension, state, filter((d) -> get(d, :extend), user))
+  state = reduce(add_definition, state, filter((d) -> not d[:extend], user))
+  state = reduce(add_extension, state, filter((d) -> d[:extend], user))
   executable = filter(
-    (d) -> get(d, :kind) == :operation or get(d, :kind) == :fragment,
+    (d) -> d[:kind] == :operation or d[:kind] == :fragment,
     defs
   )
   state = reduce(
@@ -2126,7 +2103,7 @@ def schema_index(schema)
         st,
         finding(
           "type-system-only",
-          "a schema holds no #{get(d, :kind)} definition",
+          "a schema holds no #{d[:kind]} definition",
           d
         )
       )
@@ -2134,7 +2111,7 @@ def schema_index(schema)
     state,
     executable
   )
-  state = if get(state, :schema).nil? and not is_empty(get(state, :schema_ext))
+  state = if state[:schema].nil? and not is_empty(state[:schema_ext])
     reduce(
       fn(st, d)
         note(
@@ -2147,21 +2124,21 @@ def schema_index(schema)
         )
       end,
       state,
-      get(state, :schema_ext)
+      state[:schema_ext]
     )
   else
     state
   end
-  roots = if get(state, :schema).nil?
-    implicit_roots(get(state, :types))
+  roots = if state[:schema].nil?
+    implicit_roots(state[:types])
   else
-    get(get(state, :schema), :operations)
+    state[:schema][:operations]
   end
   assoc(
     assoc(
       state,
       :roots,
-      reduce((m, o) -> assoc(m, get(o, :operation), get(o, :type)), {}, roots)
+      reduce((m, o) -> assoc(m, o[:operation], o[:type]), {}, roots)
     ),
     :user,
     user
@@ -2169,14 +2146,14 @@ def schema_index(schema)
 end
 
 def type_named(s, name)
-  get(get(s, :types), name)
+  get(s[:types], name)
 end
 
 def base_name(t)
-  if get(t, :kind) == :named
-    get(t, :name)
+  if t[:kind] == :named
+    t[:name]
   else
-    base_name(get(t, :of))
+    base_name(t[:of])
   end
 end
 
@@ -2185,7 +2162,7 @@ def kind_of(s, name)
   if t.nil?
     nil
   else
-    get(t, :kind)
+    t[:kind]
   end
 end
 
@@ -2202,7 +2179,7 @@ def composite?(k)
 end
 
 def by_name(xs, name)
-  find(xs, (x) -> get(x, :name) == name)
+  find(xs, (x) -> x[:name] == name)
 end
 
 def duplicates(names)
@@ -2210,9 +2187,9 @@ def duplicates(names)
 end
 
 def schema_problems(s)
-  user = get(s, :user)
+  user = s[:user]
   append(
-    get(s, :problems),
+    s[:problems],
     retsu::flat_map(user, (d) -> definition_problems(s, d)),
     root_problems(s)
   )
@@ -2220,7 +2197,7 @@ end
 
 def root_problems(s)
   retsu::flat_map(
-    map_entries(get(s, :roots)),
+    map_entries(s[:roots]),
     fn(e)
       name = second(e)
       if name.nil?
@@ -2250,7 +2227,7 @@ def known_type_problems(s, t, node, what)
 end
 
 def location_of(d)
-  case get(d, :kind)
+  case d[:kind]
   when :schema
     "SCHEMA"
   when :scalar
@@ -2269,31 +2246,26 @@ def location_of(d)
 end
 
 def definition_problems(s, d)
-  k = get(d, :kind)
+  k = d[:kind]
   if k == :directive
     retsu::flat_map(
-      get(d, :arguments),
-      fn(a)
-        input_value_problems(s, a, "ARGUMENT_DEFINITION", "@#{get(d, :name)}")
-      end
+      d[:arguments],
+      (a) -> input_value_problems(s, a, "ARGUMENT_DEFINITION", "@#{d[:name]}")
     )
   else
-    own = directive_problems(s, get(d, :directives), location_of(d), {}, nil)
+    own = directive_problems(s, d[:directives], location_of(d), {}, nil)
     append(own, member_problems(s, d))
   end
 end
 
 def member_problems(s, d)
-  k = get(d, :kind)
-  name = get(d, :name)
+  k = d[:kind]
+  name = d[:name]
   if k == :object or k == :interface
     append(
+      retsu::flat_map(d[:fields], (f) -> field_definition_problems(s, f, name)),
       retsu::flat_map(
-        get(d, :fields),
-        (f) -> field_definition_problems(s, f, name)
-      ),
-      retsu::flat_map(
-        get(d, :interfaces),
+        d[:interfaces],
         fn(i)
           if kind_of(s, i) != :interface
             [
@@ -2311,7 +2283,7 @@ def member_problems(s, d)
     )
   elsif k == :union
     retsu::flat_map(
-      get(d, :members),
+      d[:members],
       fn(m)
         if kind_of(s, m) != :object
           [
@@ -2328,12 +2300,12 @@ def member_problems(s, d)
     )
   elsif k == :enum
     retsu::flat_map(
-      get(d, :values),
-      (v) -> directive_problems(s, get(v, :directives), "ENUM_VALUE", {}, nil)
+      d[:values],
+      (v) -> directive_problems(s, v[:directives], "ENUM_VALUE", {}, nil)
     )
   elsif k == :input
     retsu::flat_map(
-      get(d, :fields),
+      d[:fields],
       (f) -> input_value_problems(s, f, "INPUT_FIELD_DEFINITION", name)
     )
   else
@@ -2342,16 +2314,15 @@ def member_problems(s, d)
 end
 
 def field_definition_problems(s, f, owner)
-  where = "#{owner}.#{get(f, :name)}"
-  known = known_type_problems(s, get(f, :type), f, where)
+  where = "#{owner}.#{f[:name]}"
+  known = known_type_problems(s, f[:type], f, where)
   kind = append(
     known,
-    if is_empty(known) and
-        not output_kind?(kind_of(s, base_name(get(f, :type))))
+    if is_empty(known) and not output_kind?(kind_of(s, base_name(f[:type])))
       [
         finding(
           "output-type",
-          "#{where} has the input type #{base_name(get(f, :type))}",
+          "#{where} has the input type #{base_name(f[:type])}",
           f
         )
       ]
@@ -2361,24 +2332,24 @@ def field_definition_problems(s, f, owner)
   )
   append(
     kind,
-    directive_problems(s, get(f, :directives), "FIELD_DEFINITION", {}, nil),
+    directive_problems(s, f[:directives], "FIELD_DEFINITION", {}, nil),
     retsu::flat_map(
-      get(f, :arguments),
+      f[:arguments],
       (a) -> input_value_problems(s, a, "ARGUMENT_DEFINITION", where)
     )
   )
 end
 
 def input_value_problems(s, a, location, owner)
-  where = "#{owner}(#{get(a, :name)})"
-  known = known_type_problems(s, get(a, :type), a, where)
+  where = "#{owner}(#{a[:name]})"
+  known = known_type_problems(s, a[:type], a, where)
   kind = append(
     known,
-    if is_empty(known) and not input_kind?(kind_of(s, base_name(get(a, :type))))
+    if is_empty(known) and not input_kind?(kind_of(s, base_name(a[:type])))
       [
         finding(
           "input-type",
-          "#{where} has the output type #{base_name(get(a, :type))}",
+          "#{where} has the output type #{base_name(a[:type])}",
           a
         )
       ]
@@ -2386,15 +2357,15 @@ def input_value_problems(s, a, location, owner)
       []
     end
   )
-  defaults = if get(s, :defaults) and get(a, :default) != nil and is_empty(kind)
-    value_problems(s, get(a, :default), get(a, :type), a, where, {})
+  defaults = if s[:defaults] and a[:default] != nil and is_empty(kind)
+    value_problems(s, a[:default], a[:type], a, where, {})
   else
     []
   end
   append(
     kind,
     defaults,
-    directive_problems(s, get(a, :directives), location, {}, nil)
+    directive_problems(s, a[:directives], location, {}, nil)
   )
 end
 
@@ -2404,33 +2375,33 @@ def int32?(text)
 end
 
 def value_problems(s, v, t, node, where, vars)
-  k = get(v, :kind)
+  k = v[:kind]
   if k == :var
     []
-  elsif get(t, :kind) == :non_null
+  elsif t[:kind] == :non_null
     if k == :null
       [finding("value-type", "#{where} cannot be null", node)]
     else
-      value_problems(s, v, get(t, :of), node, where, vars)
+      value_problems(s, v, t[:of], node, where, vars)
     end
   elsif k == :null
     []
-  elsif get(t, :kind) == :list_of
+  elsif t[:kind] == :list_of
     if k == :list
       retsu::flat_map(
-        get(v, :items),
-        (x) -> value_problems(s, x, get(t, :of), node, where, vars)
+        v[:items],
+        (x) -> value_problems(s, x, t[:of], node, where, vars)
       )
     else
-      value_problems(s, v, get(t, :of), node, where, vars)
+      value_problems(s, v, t[:of], node, where, vars)
     end
   else
-    named_value_problems(s, v, get(t, :name), node, where, vars)
+    named_value_problems(s, v, t[:name], node, where, vars)
   end
 end
 
 def named_value_problems(s, v, name, node, where, vars)
-  k = get(v, :kind)
+  k = v[:kind]
   d = type_named(s, name)
   bad = [
     finding(
@@ -2442,7 +2413,7 @@ def named_value_problems(s, v, name, node, where, vars)
   if d.nil?
     []
   elsif name == "Int"
-    if k == :int and int32?(get(v, :text))
+    if k == :int and int32?(v[:text])
       []
     else
       bad
@@ -2471,19 +2442,19 @@ def named_value_problems(s, v, name, node, where, vars)
     else
       bad
     end
-  elsif get(d, :kind) == :enum
-    if k == :enum and by_name(get(d, :values), get(v, :name)) != nil
+  elsif d[:kind] == :enum
+    if k == :enum and by_name(d[:values], v[:name]) != nil
       []
     else
       bad
     end
-  elsif get(d, :kind) == :input
+  elsif d[:kind] == :input
     if k != :object
       bad
     else
       object_problems(s, v, d, node, where, vars)
     end
-  elsif get(d, :kind) == :scalar
+  elsif d[:kind] == :scalar
     []
   else
     bad
@@ -2495,42 +2466,42 @@ def render_value(v)
 end
 
 def object_problems(s, v, d, node, where, vars)
-  given = get(v, :fields)
-  names = map((f) -> get(f, :name), given)
+  given = v[:fields]
+  names = map((f) -> f[:name], given)
   unknown = retsu::flat_map(
     given,
     fn(f)
-      def_field = by_name(get(d, :fields), get(f, :name))
+      def_field = by_name(d[:fields], f[:name])
       if def_field.nil?
         [
           finding(
             "value-type",
-            "#{where} has no input field #{get(f, :name)} on #{get(d, :name)}",
+            "#{where} has no input field #{f[:name]} on #{d[:name]}",
             node
           )
         ]
       else
         value_problems(
           s,
-          get(f, :value),
-          get(def_field, :type),
+          f[:value],
+          def_field[:type],
           node,
-          "#{where}.#{get(f, :name)}",
+          "#{where}.#{f[:name]}",
           vars
         )
       end
     end
   )
   missing = retsu::flat_map(
-    get(d, :fields),
+    d[:fields],
     fn(f)
-      if get(get(f, :type), :kind) == :non_null and
-          get(f, :default).nil? and
-          not member?(get(f, :name), names)
+      if f[:type][:kind] == :non_null and
+          f[:default].nil? and
+          not member?(f[:name], names)
         [
           finding(
             "value-type",
-            "#{where} is missing the required input field #{get(f, :name)}",
+            "#{where} is missing the required input field #{f[:name]}",
             node
           )
         ]
@@ -2553,43 +2524,28 @@ def object_problems(s, v, d, node, where, vars)
 end
 
 def argument_problems(s, args, defs, node, where, vars)
-  names = map((a) -> get(a, :name), args)
+  names = map((a) -> a[:name], args)
   given = retsu::flat_map(
     args,
     fn(a)
-      d = by_name(defs, get(a, :name))
+      d = by_name(defs, a[:name])
       if d.nil?
-        [
-          finding(
-            "argument-exists",
-            "#{where} has no argument #{get(a, :name)}",
-            a
-          )
-        ]
+        [finding("argument-exists", "#{where} has no argument #{a[:name]}", a)]
       else
-        value_problems(
-          s,
-          get(a, :value),
-          get(d, :type),
-          a,
-          "#{where}(#{get(a, :name)})",
-          vars
-        )
+        value_problems(s, a[:value], d[:type], a, "#{where}(#{a[:name]})", vars)
       end
     end
   )
   missing = retsu::flat_map(
     defs,
     fn(d)
-      supplied = by_name(args, get(d, :name))
-      required = get(get(d, :type), :kind) == :non_null and
-        get(d, :default).nil?
-      if required and
-          (supplied.nil? or get(get(supplied, :value), :kind) == :null)
+      supplied = by_name(args, d[:name])
+      required = d[:type][:kind] == :non_null and d[:default].nil?
+      if required and (supplied.nil? or supplied[:value][:kind] == :null)
         [
           finding(
             "argument-required",
-            "#{where} needs the argument #{get(d, :name)}",
+            "#{where} needs the argument #{d[:name]}",
             node
           )
         ]
@@ -2608,34 +2564,34 @@ def argument_problems(s, args, defs, node, where, vars)
 end
 
 def directive_problems(s, dirs, location, vars, _ctx)
-  names = map((d) -> get(d, :name), dirs)
+  names = map((d) -> d[:name], dirs)
   each = retsu::flat_map(
     dirs,
     fn(d)
-      def_dir = get(get(s, :directives), get(d, :name))
+      def_dir = get(s[:directives], d[:name])
       if def_dir.nil?
         [
           finding(
             "directive-known",
-            "the directive @#{get(d, :name)} is not defined",
+            "the directive @#{d[:name]} is not defined",
             d
           )
         ]
-      elsif not member?(location, get(def_dir, :locations))
+      elsif not member?(location, def_dir[:locations])
         [
           finding(
             "directive-location",
-            "@#{get(d, :name)} cannot be used on #{location}",
+            "@#{d[:name]} cannot be used on #{location}",
             d
           )
         ]
       else
         argument_problems(
           s,
-          get(d, :arguments),
-          get(def_dir, :arguments),
+          d[:arguments],
+          def_dir[:arguments],
           d,
-          "@#{get(d, :name)}",
+          "@#{d[:name]}",
           vars
         )
       end
@@ -2644,8 +2600,8 @@ def directive_problems(s, dirs, location, vars, _ctx)
   repeated = retsu::flat_map(
     duplicates(names),
     fn(n)
-      def_dir = get(get(s, :directives), n)
-      if def_dir != nil and not get(def_dir, :repeatable)
+      def_dir = get(s[:directives], n)
+      if def_dir != nil and not def_dir[:repeatable]
         [
           finding(
             "directive-repeat",
@@ -2683,28 +2639,26 @@ def field_def(s, parent, name, is_root)
       ],
       type: {kind: :named, name: "__Type"}
     }
-  elsif d.nil? or get(d, :fields).nil?
+  elsif d.nil? or d[:fields].nil?
     nil
   else
-    by_name(get(d, :fields), name)
+    by_name(d[:fields], name)
   end
 end
 
 def possible_types(s, name)
   d = type_named(s, name)
-  k = get(d, :kind)
+  k = d[:kind]
   if k == :object
     [name]
   elsif k == :union
-    get(d, :members)
+    d[:members]
   elsif k == :interface
     map(
-      (t) -> get(t, :name),
+      (t) -> t[:name],
       filter(
-        fn(t)
-          get(t, :kind) == :object and member?(name, get(t, :interfaces) or [])
-        end,
-        map((e) -> second(e), map_entries(get(s, :types)))
+        (t) -> t[:kind] == :object and member?(name, t[:interfaces] or []),
+        map((e) -> second(e), map_entries(s[:types]))
       )
     )
   else
@@ -2722,38 +2676,32 @@ def selection_problems(ex, sels, parent, where)
 end
 
 def one_selection_problems(ex, sel, parent, where)
-  s = get(ex, :s)
-  k = get(sel, :kind)
+  s = ex[:s]
+  k = sel[:kind]
   if k == :field
     field_problems(ex, sel, parent, where)
   elsif k == :spread
-    frag = get(get(ex, :frags), get(sel, :name))
-    dirs = directive_problems(
-      s,
-      get(sel, :directives),
-      "FRAGMENT_SPREAD",
-      {},
-      nil
-    )
+    frag = get(ex[:frags], sel[:name])
+    dirs = directive_problems(s, sel[:directives], "FRAGMENT_SPREAD", {}, nil)
     if frag.nil?
       append(
         [
           finding(
             "fragment-known",
-            "the fragment #{get(sel, :name)} is not defined",
+            "the fragment #{sel[:name]} is not defined",
             sel
           )
         ],
         dirs
       )
-    elsif type_named(s, get(frag, :on)) != nil and
-        composite?(kind_of(s, get(frag, :on))) and
-        not overlap?(s, parent, get(frag, :on))
+    elsif type_named(s, frag[:on]) != nil and
+        composite?(kind_of(s, frag[:on])) and
+        not overlap?(s, parent, frag[:on])
       append(
         [
           finding(
             "fragment-spread-possible",
-            "...#{get(sel, :name)} on #{get(frag, :on)} can never apply to #{parent}",
+            "...#{sel[:name]} on #{frag[:on]} can never apply to #{parent}",
             sel
           )
         ],
@@ -2763,14 +2711,8 @@ def one_selection_problems(ex, sel, parent, where)
       dirs
     end
   else
-    on = get(sel, :on) or parent
-    dirs = directive_problems(
-      s,
-      get(sel, :directives),
-      "INLINE_FRAGMENT",
-      {},
-      nil
-    )
+    on = sel[:on] or parent
+    dirs = directive_problems(s, sel[:directives], "INLINE_FRAGMENT", {}, nil)
     if type_named(s, on).nil?
       append(
         [
@@ -2805,31 +2747,24 @@ def one_selection_problems(ex, sel, parent, where)
         dirs
       )
     else
-      append(dirs, selection_problems(ex, get(sel, :selections), on, where))
+      append(dirs, selection_problems(ex, sel[:selections], on, where))
     end
   end
 end
 
 def field_problems(ex, sel, parent, where)
-  s = get(ex, :s)
-  name = get(sel, :name)
+  s = ex[:s]
+  name = sel[:name]
   path = "#{where}.#{name}"
-  d = field_def(s, parent, name, parent == get(ex, :root))
+  d = field_def(s, parent, name, parent == ex[:root])
   if d.nil?
     [finding("field-exists", "#{parent} has no field #{name}", sel)]
   else
-    base = base_name(get(d, :type))
+    base = base_name(d[:type])
     k = kind_of(s, base)
-    args = argument_problems(
-      s,
-      get(sel, :arguments),
-      get(d, :arguments),
-      sel,
-      path,
-      {}
-    )
-    dirs = directive_problems(s, get(sel, :directives), "FIELD", {}, nil)
-    leaf = if composite?(k) and is_empty(get(sel, :selections))
+    args = argument_problems(s, sel[:arguments], d[:arguments], sel, path, {})
+    dirs = directive_problems(s, sel[:directives], "FIELD", {}, nil)
+    leaf = if composite?(k) and is_empty(sel[:selections])
       [
         finding(
           "leaf-selection",
@@ -2837,7 +2772,7 @@ def field_problems(ex, sel, parent, where)
           sel
         )
       ]
-    elsif not composite?(k) and not is_empty(get(sel, :selections))
+    elsif not composite?(k) and not is_empty(sel[:selections])
       [
         finding(
           "leaf-selection",
@@ -2849,7 +2784,7 @@ def field_problems(ex, sel, parent, where)
       []
     end
     inner = if composite?(k)
-      selection_problems(ex, get(sel, :selections), base, path)
+      selection_problems(ex, sel[:selections], base, path)
     else
       []
     end
@@ -2861,11 +2796,11 @@ def spreads_in(sels)
   retsu::flat_map(
     sels,
     fn(sel)
-      k = get(sel, :kind)
+      k = sel[:kind]
       if k == :spread
-        [get(sel, :name)]
+        [sel[:name]]
       else
-        spreads_in(get(sel, :selections))
+        spreads_in(sel[:selections])
       end
     end
   )
@@ -2878,42 +2813,33 @@ def reachable(frags, names, seen)
   if is_empty(fresh)
     seen
   else
-    more = retsu::flat_map(
-      fresh,
-      (n) -> spreads_in(get(get(frags, n), :selections))
-    )
+    more = retsu::flat_map(fresh, (n) -> spreads_in(get(frags, n)[:selections]))
     reachable(frags, more, append(seen, fresh))
   end
 end
 
 def cyclic?(frags, name)
-  member?(
-    name,
-    reachable(frags, spreads_in(get(get(frags, name), :selections)), [])
-  )
+  member?(name, reachable(frags, spreads_in(get(frags, name)[:selections]), []))
 end
 
 def usages_in_value(v, t, default_present)
-  k = get(v, :kind)
+  k = v[:kind]
   inner = if t.nil?
     nil
-  elsif get(t, :kind) == :non_null
-    get(t, :of)
+  elsif t[:kind] == :non_null
+    t[:of]
   else
     t
   end
   if k == :var
-    [{name: get(v, :name), type: t, default: default_present}]
+    [{name: v[:name], type: t, default: default_present}]
   elsif k == :list
-    item = if inner != nil and get(inner, :kind) == :list_of
-      get(inner, :of)
+    item = if inner != nil and inner[:kind] == :list_of
+      inner[:of]
     end
-    retsu::flat_map(get(v, :items), (x) -> usages_in_value(x, item, false))
+    retsu::flat_map(v[:items], (x) -> usages_in_value(x, item, false))
   elsif k == :object
-    retsu::flat_map(
-      get(v, :fields),
-      (f) -> usages_in_value(get(f, :value), nil, false)
-    )
+    retsu::flat_map(v[:fields], (f) -> usages_in_value(f[:value], nil, false))
   else
     []
   end
@@ -2926,14 +2852,14 @@ def usages_in_arguments(args, defs)
       d = if defs.nil?
         nil
       else
-        by_name(defs, get(a, :name))
+        by_name(defs, a[:name])
       end
       t = if d.nil?
         nil
       else
-        get(d, :type)
+        d[:type]
       end
-      usages_in_value(get(a, :value), t, d != nil and get(d, :default) != nil)
+      usages_in_value(a[:value], t, d != nil and d[:default] != nil)
     end
   )
 end
@@ -2942,13 +2868,13 @@ def usages_in_directives(s, dirs)
   retsu::flat_map(
     dirs,
     fn(d)
-      def_dir = get(get(s, :directives), get(d, :name))
+      def_dir = get(s[:directives], d[:name])
       usages_in_arguments(
-        get(d, :arguments),
+        d[:arguments],
         if def_dir.nil?
           nil
         else
-          get(def_dir, :arguments)
+          def_dir[:arguments]
         end
       )
     end
@@ -2956,97 +2882,86 @@ def usages_in_directives(s, dirs)
 end
 
 def usages(ex, sels, parent, seen)
-  s = get(ex, :s)
+  s = ex[:s]
   retsu::flat_map(
     sels,
     fn(sel)
-      k = get(sel, :kind)
-      own = usages_in_directives(s, get(sel, :directives))
+      k = sel[:kind]
+      own = usages_in_directives(s, sel[:directives])
       if k == :field
         d = if parent.nil?
           nil
         else
-          field_def(s, parent, get(sel, :name), parent == get(ex, :root))
+          field_def(s, parent, sel[:name], parent == ex[:root])
         end
         args = usages_in_arguments(
-          get(sel, :arguments),
+          sel[:arguments],
           if d.nil?
             nil
           else
-            get(d, :arguments)
+            d[:arguments]
           end
         )
         next_parent = if d.nil?
           nil
         else
-          base_name(get(d, :type))
+          base_name(d[:type])
         end
-        append(own, args, usages(ex, get(sel, :selections), next_parent, seen))
+        append(own, args, usages(ex, sel[:selections], next_parent, seen))
       elsif k == :spread
-        frag = get(get(ex, :frags), get(sel, :name))
-        if frag.nil? or member?(get(sel, :name), seen)
+        frag = get(ex[:frags], sel[:name])
+        if frag.nil? or member?(sel[:name], seen)
           own
         else
           append(
             own,
-            usages_in_directives(s, get(frag, :directives)),
-            usages(
-              ex,
-              get(frag, :selections),
-              get(frag, :on),
-              append(seen, [get(sel, :name)])
-            )
+            usages_in_directives(s, frag[:directives]),
+            usages(ex, frag[:selections], frag[:on], append(seen, [sel[:name]]))
           )
         end
       else
-        append(
-          own,
-          usages(ex, get(sel, :selections), get(sel, :on) or parent, seen)
-        )
+        append(own, usages(ex, sel[:selections], sel[:on] or parent, seen))
       end
     end
   )
 end
 
 def compatible?(var_type, loc_type)
-  if get(loc_type, :kind) == :non_null
-    get(var_type, :kind) == :non_null and
-      compatible?(get(var_type, :of), get(loc_type, :of))
-  elsif get(var_type, :kind) == :non_null
-    compatible?(get(var_type, :of), loc_type)
-  elsif get(loc_type, :kind) == :list_of
-    get(var_type, :kind) == :list_of and
-      compatible?(get(var_type, :of), get(loc_type, :of))
-  elsif get(var_type, :kind) == :list_of
+  if loc_type[:kind] == :non_null
+    var_type[:kind] == :non_null and compatible?(var_type[:of], loc_type[:of])
+  elsif var_type[:kind] == :non_null
+    compatible?(var_type[:of], loc_type)
+  elsif loc_type[:kind] == :list_of
+    var_type[:kind] == :list_of and compatible?(var_type[:of], loc_type[:of])
+  elsif var_type[:kind] == :list_of
     false
   else
-    get(var_type, :name) == get(loc_type, :name)
+    var_type[:name] == loc_type[:name]
   end
 end
 
 def position_ok?(var_def, use)
-  vt = get(var_def, :type)
-  lt = get(use, :type)
+  vt = var_def[:type]
+  lt = use[:type]
   if lt.nil?
     true
-  elsif get(lt, :kind) == :non_null and get(vt, :kind) != :non_null
-    has_default = get(var_def, :default) != nil and
-      get(get(var_def, :default), :kind) != :null
-    (has_default or get(use, :default)) and compatible?(vt, get(lt, :of))
+  elsif lt[:kind] == :non_null and vt[:kind] != :non_null
+    has_default = var_def[:default] != nil and var_def[:default][:kind] != :null
+    (has_default or use[:default]) and compatible?(vt, lt[:of])
   else
     compatible?(vt, lt)
   end
 end
 
 def variable_problems(ex, op, where)
-  s = get(ex, :s)
-  vars = get(op, :variables)
-  names = map((v) -> get(v, :name), vars)
+  s = ex[:s]
+  vars = op[:variables]
+  names = map((v) -> v[:name], vars)
   defs = retsu::flat_map(
     vars,
     fn(v)
-      vname = "$#{get(v, :name)}"
-      base = base_name(get(v, :type))
+      vname = "$#{v[:name]}"
+      base = base_name(v[:type])
       ty = if type_named(s, base).nil?
         [finding("type-known", "#{vname} names the undefined type #{base}", v)]
       elsif not input_kind?(kind_of(s, base))
@@ -3057,20 +2972,14 @@ def variable_problems(ex, op, where)
             v
           )
         ]
-      elsif get(v, :default) != nil
-        value_problems(s, get(v, :default), get(v, :type), v, vname, {})
+      elsif v[:default] != nil
+        value_problems(s, v[:default], v[:type], v, vname, {})
       else
         []
       end
       append(
         ty,
-        directive_problems(
-          s,
-          get(v, :directives),
-          "VARIABLE_DEFINITION",
-          {},
-          nil
-        )
+        directive_problems(s, v[:directives], "VARIABLE_DEFINITION", {}, nil)
       )
     end
   )
@@ -3081,10 +2990,10 @@ def variable_problems(ex, op, where)
     duplicates(names)
   )
   used = append(
-    usages_in_directives(s, get(op, :directives)),
-    usages(ex, get(op, :selections), get(ex, :root), [])
+    usages_in_directives(s, op[:directives]),
+    usages(ex, op[:selections], ex[:root], [])
   )
-  used_names = distinct(map((u) -> get(u, :name), used))
+  used_names = distinct(map((u) -> u[:name], used))
   undefined = map(
     fn(n)
       finding(
@@ -3099,23 +3008,23 @@ def variable_problems(ex, op, where)
     fn(v)
       finding(
         "variable-unused",
-        "#{where} defines $#{get(v, :name)} and never uses it",
+        "#{where} defines $#{v[:name]} and never uses it",
         v
       )
     end,
-    filter((v) -> not member?(get(v, :name), used_names), vars)
+    filter((v) -> not member?(v[:name], used_names), vars)
   )
   positions = retsu::flat_map(
     used,
     fn(u)
-      v = by_name(vars, get(u, :name))
+      v = by_name(vars, u[:name])
       if v != nil and
-          type_named(s, base_name(get(v, :type))) != nil and
+          type_named(s, base_name(v[:type])) != nil and
           not position_ok?(v, u)
         [
           finding(
             "variable-position",
-            "$#{get(u, :name)} of type #{type_text(get(v, :type))} is used where #{type_text(get(u, :type))} is expected",
+            "$#{u[:name]} of type #{type_text(v[:type])} is used where #{type_text(u[:type])} is expected",
             v
           )
         ]
@@ -3131,39 +3040,29 @@ def root_fields(ex, sels, seen)
   retsu::flat_map(
     sels,
     fn(sel)
-      k = get(sel, :kind)
+      k = sel[:kind]
       if k == :field
-        [get(sel, :alias) or get(sel, :name)]
+        [sel[:alias] or sel[:name]]
       elsif k == :spread
-        frag = get(get(ex, :frags), get(sel, :name))
-        if frag.nil? or member?(get(sel, :name), seen)
+        frag = get(ex[:frags], sel[:name])
+        if frag.nil? or member?(sel[:name], seen)
           []
         else
-          root_fields(
-            ex,
-            get(frag, :selections),
-            append(seen, [get(sel, :name)])
-          )
+          root_fields(ex, frag[:selections], append(seen, [sel[:name]]))
         end
       else
-        root_fields(ex, get(sel, :selections), seen)
+        root_fields(ex, sel[:selections], seen)
       end
     end
   )
 end
 
 def operation_problems(ex, op)
-  s = get(ex, :s)
-  kind = get(op, :operation)
-  where = get(op, :name) or "the anonymous #{kind}"
-  root = get(get(s, :roots), kind)
-  dirs = directive_problems(
-    s,
-    get(op, :directives),
-    upcase(to_s(kind)),
-    {},
-    nil
-  )
+  s = ex[:s]
+  kind = op[:operation]
+  where = op[:name] or "the anonymous #{kind}"
+  root = get(s[:roots], kind)
+  dirs = directive_problems(s, op[:directives], upcase(to_s(kind)), {}, nil)
   if root.nil?
     append(
       [finding("root-operation", "the schema has no #{kind} root", op)],
@@ -3172,7 +3071,7 @@ def operation_problems(ex, op)
   else
     rx = assoc(ex, :root, root)
     single = if kind == :subscription
-      fields = distinct(root_fields(rx, get(op, :selections), []))
+      fields = distinct(root_fields(rx, op[:selections], []))
       if length(fields) != 1
         [
           finding(
@@ -3199,18 +3098,18 @@ def operation_problems(ex, op)
       dirs,
       single,
       variable_problems(rx, op, where),
-      selection_problems(rx, get(op, :selections), root, where)
+      selection_problems(rx, op[:selections], root, where)
     )
   end
 end
 
 def fragment_problems(ex, frag)
-  s = get(ex, :s)
-  on = get(frag, :on)
-  name = get(frag, :name)
+  s = ex[:s]
+  on = frag[:on]
+  name = frag[:name]
   dirs = directive_problems(
     s,
-    get(frag, :directives),
+    frag[:directives],
     "FRAGMENT_DEFINITION",
     {},
     nil
@@ -3234,15 +3133,15 @@ def fragment_problems(ex, frag)
   else
     []
   end
-  cycle = if cyclic?(get(ex, :frags), name)
+  cycle = if cyclic?(ex[:frags], name)
     [finding("fragment-cycle", "the fragment #{name} spreads itself", frag)]
   else
     []
   end
   body = if is_empty(head) and is_empty(cycle)
     selection_problems(
-      assoc(ex, :root, get(get(s, :roots), :query)),
-      get(frag, :selections),
+      assoc(ex, :root, s[:roots][:query]),
+      frag[:selections],
       on,
       name
     )
@@ -3253,25 +3152,22 @@ def fragment_problems(ex, frag)
 end
 
 def executable_problems(s, doc)
-  defs = get(doc, :definitions)
-  ops = filter((d) -> get(d, :kind) == :operation, defs)
-  frag_list = filter((d) -> get(d, :kind) == :fragment, defs)
-  frags = reduce((m, f) -> assoc(m, get(f, :name), f), {}, frag_list)
+  defs = doc[:definitions]
+  ops = filter((d) -> d[:kind] == :operation, defs)
+  frag_list = filter((d) -> d[:kind] == :fragment, defs)
+  frags = reduce((m, f) -> assoc(m, f[:name], f), {}, frag_list)
   ex = {s:, frags:, root: nil}
   type_defs = map(
     fn(d)
       finding(
         "executable-definition",
-        "an executable document holds no #{get(d, :kind)} definition",
+        "an executable document holds no #{d[:kind]} definition",
         d
       )
     end,
-    filter(
-      (d) -> get(d, :kind) != :operation and get(d, :kind) != :fragment,
-      defs
-    )
+    filter((d) -> d[:kind] != :operation and d[:kind] != :fragment, defs)
   )
-  named = filter((n) -> n != nil, map((o) -> get(o, :name), ops))
+  named = filter((n) -> n != nil, map((o) -> o[:name], ops))
   op_dups = map(
     fn(n)
       finding(
@@ -3282,7 +3178,7 @@ def executable_problems(s, doc)
     end,
     duplicates(named)
   )
-  lone = if length(ops) > 1 and any?((o) -> get(o, :name).nil?, ops)
+  lone = if length(ops) > 1 and any?((o) -> o[:name].nil?, ops)
     [
       finding(
         "lone-anonymous",
@@ -3301,22 +3197,18 @@ def executable_problems(s, doc)
         {}
       )
     end,
-    duplicates(map((f) -> get(f, :name), frag_list))
+    duplicates(map((f) -> f[:name], frag_list))
   )
   used = reachable(
     frags,
-    retsu::flat_map(ops, (o) -> spreads_in(get(o, :selections))),
+    retsu::flat_map(ops, (o) -> spreads_in(o[:selections])),
     []
   )
   unused = map(
     fn(f)
-      finding(
-        "fragment-unused",
-        "the fragment #{get(f, :name)} is never used",
-        f
-      )
+      finding("fragment-unused", "the fragment #{f[:name]} is never used", f)
     end,
-    filter((f) -> not member?(get(f, :name), used), frag_list)
+    filter((f) -> not member?(f[:name], used), frag_list)
   )
   append(
     type_defs,
@@ -3332,7 +3224,7 @@ end
 def as_document(x)
   if string?(x)
     parse(x)
-  elsif get(x, :kind) == :document
+  elsif x[:kind] == :document
     x
   else
     {kind: :document, definitions: [x]}
@@ -3341,7 +3233,7 @@ end
 
 def schema_of(schema, opts?)
   opts = checked(opts, [:defaults])
-  if not string?(schema) and get(schema, :kind) == :schema_of
+  if not string?(schema) and schema[:kind] == :schema_of
     schema
   else
     s = assoc(
@@ -3360,13 +3252,13 @@ def check(subject, rules?, opts?)
   opts = checked(opts, [:defaults])
   doc = as_document(subject)
   if rules.nil?
-    get(schema_of(doc, opts), :findings)
+    schema_of(doc, opts)[:findings]
   else
     s = schema_of(rules, opts)
-    if is_empty(get(s, :findings))
+    if is_empty(s[:findings])
       executable_problems(s, doc)
     else
-      get(s, :findings)
+      s[:findings]
     end
   end
 end
@@ -3380,7 +3272,7 @@ def validate(document, schema?, opts?)
     as_document(document)
   else
     shown = join(
-      map((f) -> "#{get(f, :rule)}: #{get(f, :message)}", take(3, found)),
+      map((f) -> "#{f[:rule]}: #{f[:message]}", take(3, found)),
       "; "
     )
     raise(:invalid, "#{length(found)} finding(s): #{shown}", {data: found})
@@ -3440,8 +3332,8 @@ fragment: declare a named field selection on one schema type.
 """
 def fragment(name, spec)
   spec = checked(spec, [:on, :fields])
-  on = get(spec, :on)
-  fields = get(spec, :fields)
+  on = spec[:on]
+  fields = spec[:fields]
   if not string?(on) or on == ""
     raise(:bad_option, "fragment: on: names the type, as a string")
   elsif not list?(fields) or is_empty(fields)
@@ -3460,7 +3352,7 @@ def fragments_of(x)
   if list?(x)
     x
   else
-    filter((d) -> get(d, :kind) == :fragment, get(as_document(x), :definitions))
+    filter((d) -> d[:kind] == :fragment, as_document(x)[:definitions])
   end
 end
 
@@ -3471,21 +3363,21 @@ def operation_of(frag)
       "Mutation" => :mutation,
       "Subscription" => :subscription
     },
-    get(frag, :on)
+    frag[:on]
   )
   if op.nil?
     raise(
       :bad_option,
-      "compose: fragment #{get(frag, :name)} is on #{get(frag, :on)}, not a root type"
+      "compose: fragment #{frag[:name]} is on #{frag[:on]}, not a root type"
     )
   end
   {
     kind: :operation,
     operation: op,
-    name: join(map(capitalize, split(get(frag, :name), "_")), ""),
+    name: join(map(capitalize, split(frag[:name], "_")), ""),
     variables: [],
     directives: [],
-    selections: [{kind: :spread, name: get(frag, :name), directives: []}]
+    selections: [{kind: :spread, name: frag[:name], directives: []}]
   }
 end
 
@@ -3493,34 +3385,29 @@ end
 compose: one operation from the union of the fragments a view uses.
 """
 def compose(first, second)
-  doc = if map?(first) and get(first, :kind) == :fragment
+  doc = if map?(first) and first[:kind] == :fragment
     {kind: :document, definitions: [operation_of(first), first]}
   else
     as_document(first)
   end
-  ops = filter((d) -> get(d, :kind) == :operation, get(doc, :definitions))
+  ops = filter((d) -> d[:kind] == :operation, doc[:definitions])
   pool = append(
-    filter((d) -> get(d, :kind) == :fragment, get(doc, :definitions)),
+    filter((d) -> d[:kind] == :fragment, doc[:definitions]),
     fragments_of(second)
   )
-  frags = reduce((m, f) -> assoc(m, get(f, :name), f), {}, reverse(pool))
+  frags = reduce((m, f) -> assoc(m, f[:name], f), {}, reverse(pool))
   names = reachable(
     frags,
-    retsu::flat_map(ops, (o) -> spreads_in(get(o, :selections))),
+    retsu::flat_map(ops, (o) -> spreads_in(o[:selections])),
     []
   )
-  wanted = distinct(
-    retsu::flat_map(ops, (o) -> spreads_in(get(o, :selections)))
-  )
+  wanted = distinct(retsu::flat_map(ops, (o) -> spreads_in(o[:selections])))
   missing = filter(
     (n) -> get(frags, n).nil?,
     distinct(
       append(
         wanted,
-        retsu::flat_map(
-          names,
-          (n) -> spreads_in(get(get(frags, n), :selections))
-        )
+        retsu::flat_map(names, (n) -> spreads_in(get(frags, n)[:selections]))
       )
     )
   )
@@ -3541,7 +3428,7 @@ def compose(first, second)
 end
 
 def response_key(sel)
-  get(sel, :alias) or get(sel, :name)
+  sel[:alias] or sel[:name]
 end
 
 def plain_hooks()
@@ -3550,7 +3437,7 @@ end
 
 def select_into(value, sels, hooks?)
   h = hooks or plain_hooks
-  v = get(h, :resolve)(value)
+  v = h[:resolve](value)
   if v.nil?
     nil
   elsif list?(v)
@@ -3560,7 +3447,7 @@ def select_into(value, sels, hooks?)
   else
     reduce(
       fn(acc, sel)
-        k = get(sel, :kind)
+        k = sel[:kind]
         if k == :field
           key = response_key(sel)
           if member?(key, map((e) -> first(e), map_entries(v)))
@@ -3568,19 +3455,19 @@ def select_into(value, sels, hooks?)
             assoc(
               acc,
               key,
-              if is_empty(get(sel, :selections))
+              if is_empty(sel[:selections])
                 fv
               else
-                select_into(fv, get(sel, :selections), h)
+                select_into(fv, sel[:selections], h)
               end
             )
           else
-            get(h, :absent)(acc, key)
+            h[:absent](acc, key)
           end
         elsif k == :inline
-          typename = get(v, "__typename")
-          if get(sel, :on).nil? or typename.nil? or typename == get(sel, :on)
-            {**acc, **select_into(v, get(sel, :selections), h)}
+          typename = v["__typename"]
+          if sel[:on].nil? or typename.nil? or typename == sel[:on]
+            {**acc, **select_into(v, sel[:selections], h)}
           else
             acc
           end
@@ -3588,7 +3475,7 @@ def select_into(value, sels, hooks?)
           acc
         end
       end,
-      get(h, :start)(v),
+      h[:start](v),
       sels
     )
   end
@@ -3598,7 +3485,7 @@ end
 select: only the fields a fragment declares, read from a value.
 """
 def select(value, fragment)
-  select_into(value, get(fragment, :selections))
+  select_into(value, fragment[:selections])
 end
 
 @doc """
@@ -3612,40 +3499,38 @@ end
 
 def schema_table(sdl)
   s = schema_of(as_document(sdl))
-  found = get(s, :findings)
+  found = s[:findings]
   if not is_empty(found)
     raise(
       :invalid,
-      "the schema has #{length(found)} finding(s): #{get(first(found), :message)}",
+      "the schema has #{length(found)} finding(s): #{first(found)[:message]}",
       {data: found}
     )
   end
   user = filter(
-    (d) -> not get(d, :builtin),
-    map((e) -> second(e), map_entries(get(s, :types)))
+    (d) -> not d[:builtin],
+    map((e) -> second(e), map_entries(s[:types]))
   )
   {
     types: reduce(
       fn(m, d)
         assoc(
           m,
-          get(d, :name),
+          d[:name],
           reduce(
-            (fm, f) -> assoc(fm, get(f, :name), base_name(get(f, :type))),
+            (fm, f) -> assoc(fm, f[:name], base_name(f[:type])),
             {},
-            get(d, :fields) or []
+            d[:fields] or []
           )
         )
       end,
       {},
-      filter((d) -> composite?(get(d, :kind)), user)
+      filter((d) -> composite?(d[:kind]), user)
     ),
     enums: reduce(
-      fn(m, d)
-        assoc(m, get(d, :name), map((v) -> get(v, :name), get(d, :values)))
-      end,
+      (m, d) -> assoc(m, d[:name], map((v) -> v[:name], d[:values])),
       {},
-      filter((d) -> get(d, :kind) == :enum, user)
+      filter((d) -> d[:kind] == :enum, user)
     )
   }
 end
@@ -3666,10 +3551,10 @@ def table_text(document)
     [
       "{",
       "  types: {",
-      table_entries(get(t, :types)),
+      table_entries(t[:types]),
       "  },",
       "  enums: {",
-      table_entries(get(t, :enums)),
+      table_entries(t[:enums]),
       "  }",
       "}"
     ]
@@ -3750,7 +3635,7 @@ def rule_names()
 end
 
 def rules_found(text, schema)
-  map((f) -> get(f, :rule), check(parse(text), schema))
+  map((f) -> f[:rule], check(parse(text), schema))
 rescue e
   if e.kind == :parse_error
     ["parse"]
@@ -3797,17 +3682,16 @@ end
 
 test "parse reads an operation into records"
   doc = parse("query Hero($e: Episode = JEDI) @cached { h: hero(episode: $e) { name } }")
-  op = first(get(doc, :definitions))
-  assert get(op, :kind) == :operation
-  assert get(op, :operation) == :query
-  assert get(op, :name) == "Hero"
-  assert get(first(get(op, :variables)), :default) ==
-    {kind: :enum, name: "JEDI"}
-  f = first(get(op, :selections))
-  assert get(f, :alias) == "h"
-  assert get(f, :name) == "hero"
-  assert get(first(get(f, :arguments)), :value) == {kind: :var, name: "e"}
-  assert get(first(get(op, :directives)), :name) == "cached"
+  op = first(doc[:definitions])
+  assert op[:kind] == :operation
+  assert op[:operation] == :query
+  assert op[:name] == "Hero"
+  assert first(op[:variables])[:default] == {kind: :enum, name: "JEDI"}
+  f = first(op[:selections])
+  assert f[:alias] == "h"
+  assert f[:name] == "hero"
+  assert first(f[:arguments])[:value] == {kind: :var, name: "e"}
+  assert first(op[:directives])[:name] == "cached"
 end
 
 test "parse refuses malformed text with its line and column"
@@ -3823,17 +3707,14 @@ test "parse refuses malformed text with its line and column"
   rescue err
     err
   end
-  assert get(e.data, :line) == 3
-  assert get(e.data, :column) == 5
+  assert e.data[:line] == 3
+  assert e.data[:column] == 5
 end
 
 test "strings decode escapes and block strings lose their common indent"
   doc = parse("{ a(s: \"caf\\u00e9 \\u{1F600} \\\"q\\\" \\\\ \\n\") }")
   v = get(
-    get(
-      first(get(first(first(get(doc, :definitions)).selections), :arguments)),
-      :value
-    ),
+    first(first(first(doc[:definitions]).selections)[:arguments])[:value],
     :value
   )
   assert v == unlines(["café 😀 \"q\" \\ "])
@@ -3940,23 +3821,22 @@ test "check carries the position of a finding when the document has spans"
     ),
     s
   )
-  assert map((f) -> get(f, :at), found) == [[3, 5]]
-  assert map((f) -> get(f, :at), check(parse("query { hero { mass } }"), s)) ==
-    [nil]
+  assert map((f) -> f[:at], found) == [[3, 5]]
+  assert map((f) -> f[:at], check(parse("query { hero { mass } }"), s)) == [nil]
 end
 
 test "check reads its rules from SDL text as from a parsed schema"
   sdl = "type Query { hero: Hero } type Hero { name: String }"
   assert check(parse("{ hero { name } }"), sdl) == []
-  assert map((f) -> get(f, :rule), check(parse("{ hero { mass } }"), sdl)) ==
-    map((f) -> get(f, :rule), check(parse("{ hero { mass } }"), parse(sdl)))
+  assert map((f) -> f[:rule], check(parse("{ hero { mass } }"), sdl)) ==
+    map((f) -> f[:rule], check(parse("{ hero { mass } }"), parse(sdl)))
   assert is_empty(check(parse("{ hero { mass } }"), sdl)) == false
 end
 
 test "SDL default values are checked only when asked"
   doc = parse("type Query { a(n: Int = \"ten\"): Int }")
   assert check(doc) == []
-  assert map((f) -> get(f, :rule), check(doc, nil, {defaults: true})) ==
+  assert map((f) -> f[:rule], check(doc, nil, {defaults: true})) ==
     ["value-type"]
   assert raises?(:bad_option, () -> check(doc, nil, {strict: true}))
 end
@@ -3971,7 +3851,7 @@ test "validate answers the document or raises the findings"
     err
   end
   assert e.kind == :invalid
-  assert map((f) -> get(f, :rule), e.data) == ["field-exists"]
+  assert map((f) -> f[:rule], e.data) == ["field-exists"]
 end
 
 test "a fragment declared in blue is the fragment parse reads"
@@ -4003,13 +3883,12 @@ test "compose joins an operation with the fragments it reaches, by name"
     fragment(:Z, {on: "Character", fields: [:id]})
   ]
   doc = compose(op, frags)
-  assert map((d) -> get(d, :name), get(doc, :definitions)) ==
-    ["Hero", "A", "B", "C"]
+  assert map((d) -> d[:name], doc[:definitions]) == ["Hero", "A", "B", "C"]
   assert compose(op, reverse(frags)) == doc
   assert check(doc, hand_schema) == []
   assert raises?(:unknown_fragment, () -> compose(op, take(2, frags)))
-  assert get(compose(parse("{ hero { id } }"), frags), :definitions) ==
-    get(parse("{ hero { id } }"), :definitions)
+  assert compose(parse("{ hero { id } }"), frags)[:definitions] ==
+    parse("{ hero { id } }")[:definitions]
 end
 
 test "compose writes a view's operation from its root fragment"
@@ -4058,16 +3937,16 @@ test "select_into takes hooks that resolve a value, answer an absent field and s
   people = {"u1" => {"id" => "u1", "name" => "Ada"}}
   hooks = {
     resolve: fn(x)
-      if map?(x) and get(x, "ref") != nil
-        get(people, get(x, "ref"))
+      if map?(x) and x["ref"] != nil
+        get(people, x["ref"])
       else
         x
       end
     end,
     absent: (_acc, key) -> raise(:absent, key),
-    start: (x) -> {"seen" => get(x, "id")}
+    start: (x) -> {"seen" => x["id"]}
   }
-  sels = get(fragment(:f, {on: "Query", fields: [{who: [:name]}]}), :selections)
+  sels = fragment(:f, {on: "Query", fields: [{who: [:name]}]})[:selections]
   assert select_into({"who" => {"ref" => "u1"}}, sels, hooks) ==
     {"seen" => nil, "who" => {"seen" => "u1", "name" => "Ada"}}
   assert raises?(:absent, () -> select_into({}, sels, hooks))
@@ -4078,7 +3957,7 @@ end
 test "a schema given as text is read as a schema"
   sdl = "type Query { a: Int }"
   assert check("{ a }", sdl) == []
-  assert map((f) -> get(f, :rule), check("{ b }", sdl)) == ["field-exists"]
+  assert map((f) -> f[:rule], check("{ b }", sdl)) == ["field-exists"]
   assert validate("{ a }", sdl) == parse("{ a }")
 end
 
@@ -4095,8 +3974,8 @@ end
 
 def kinds_in(x)
   if map?(x)
-    own = if keyword?(get(x, :kind))
-      [to_s(get(x, :kind))]
+    own = if keyword?(x[:kind])
+      [to_s(x[:kind])]
     else
       []
     end
@@ -4142,12 +4021,12 @@ test "the schema table is every composite type's fields and every enum's values"
     ]
   )
   t = schema_table(sdl)
-  assert get(get(t, :types), "User") ==
+  assert t[:types]["User"] ==
     {"id" => "ID", "tags" => "Tone", "friends" => "User"}
-  assert get(get(t, :types), "Any") == {}
-  assert get(get(t, :types), "Day").nil?
-  assert get(get(t, :types), "String").nil?
-  assert get(get(t, :enums), "Tone") == ["WARM", "COOL"]
+  assert t[:types]["Any"] == {}
+  assert t[:types]["Day"].nil?
+  assert t[:types]["String"].nil?
+  assert t[:enums]["Tone"] == ["WARM", "COOL"]
   assert raises?(:invalid, () -> schema_table("type Q { a: Nope }"))
 end
 
@@ -4181,21 +4060,21 @@ test "render as a table is blue text that reads back as the table"
 end
 
 test "check finds nothing in a sound schema or document"
-  assert get(hand_schema, :findings) == []
-  assert get(schema_named("kensa"), :findings) == []
+  assert hand_schema[:findings] == []
+  assert schema_named("kensa")[:findings] == []
   sound = append(
     documents_named("valid-", ["hand", "tiny"]),
     documents_named("", ["kensa"])
   )
   assert length(sound) >= 10
-  noisy = filter((f) -> check(parse(nth(1, f)), nth(2, f)) != [], sound)
+  noisy = filter((f) -> check(parse(f[1]), f[2]) != [], sound)
   assert map((f) -> path_basename(first(f)), noisy) == []
 end
 
 test "each invalid document is found by the rule it is named for"
   docs = documents_named("invalid-", ["hand", "tiny"])
   missed = filter(
-    (f) -> not member?(rule_of(first(f)), rules_found(nth(1, f), nth(2, f))),
+    (f) -> not member?(rule_of(first(f)), rules_found(f[1], f[2])),
     docs
   )
   assert map((f) -> path_basename(first(f)), missed) == []

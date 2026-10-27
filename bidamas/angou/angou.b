@@ -209,7 +209,7 @@ def extended_gcd(a, b)
     [a, 1, 0]
   else
     r = extended_gcd(b, a % b)
-    [nth(0, r), nth(2, r), nth(1, r) - floor(a / b) * nth(2, r)]
+    [r[0], r[2], r[1] - floor(a / b) * r[2]]
   end
 end
 
@@ -226,10 +226,10 @@ def mod_inverse(a, m)
     -1
   else
     r = extended_gcd(a % m, m)
-    if nth(0, r) != 1
+    if r[0] != 1
       -1
     else
-      nth(1, r) % m
+      r[1] % m
     end
   end
 end
@@ -445,7 +445,7 @@ end
 def find_index_of(xs, v, i)
   if i >= size(xs)
     -1
-  elsif nth(i, xs) == v
+  elsif xs[i] == v
     i
   else
     find_index_of(xs, v, i + 1)
@@ -467,7 +467,7 @@ def shift_char(ch, n)
   if i < 0
     ch
   else
-    nth(((i + n) % 26 + 26) % 26, alphabet)
+    alphabet[((i + n) % 26 + 26) % 26]
   end
 end
 
@@ -520,7 +520,7 @@ def vigenere_chars(cs, ks, ki, dir)
       cons(ch, vigenere_chars(rest(cs), ks, ki, dir))
     else
       cons(
-        shift_char(ch, nth(ki % size(ks), ks) * dir),
+        shift_char(ch, ks[ki % size(ks)] * dir),
         vigenere_chars(rest(cs), ks, ki + 1, dir)
       )
     end
@@ -542,7 +542,7 @@ def atbash_char(ch)
   if i < 0
     ch
   else
-    nth(25 - i, alphabet)
+    alphabet[25 - i]
   end
 end
 
@@ -558,10 +558,7 @@ def rail_fence(text, rails)
   if rails < 2
     text
   else
-    join(
-      map((i) -> nth(i, chars(text)), rail_order(size(chars(text)), rails)),
-      ""
-    )
+    join(map((i) -> chars(text)[i], rail_order(size(chars(text)), rails)), "")
   end
 end
 
@@ -579,7 +576,7 @@ def rail_fence_decrypt(text, rails)
   else
     cs = chars(text)
     order = rail_order(size(cs), rails)
-    join(map((i) -> nth(index_of(order, i), cs), range(0, size(cs))), "")
+    join(map((i) -> cs[index_of(order, i)], range(0, size(cs))), "")
   end
 end
 
@@ -625,7 +622,7 @@ def letter_count(text, ch)
   if i < 0
     0
   else
-    nth(i, letter_counts(text))
+    letter_counts(text)[i]
   end
 end
 
@@ -641,7 +638,7 @@ def most_common_letter(text)
   if best == 0
     ""
   else
-    nth(index_of(cnt, best), alphabet)
+    alphabet[index_of(cnt, best)]
   end
 end
 
@@ -666,7 +663,7 @@ def substitute_char(ch, ks)
   if i < 0 or i >= size(ks)
     ch
   else
-    nth(i, ks)
+    ks[i]
   end
 end
 
@@ -685,13 +682,7 @@ def invert_key(key)
     ""
   else
     ks = chars(downcase(key))
-    join(
-      map(
-        (i) -> nth(index_of(ks, nth(i, alphabet)), alphabet),
-        indexes(alphabet)
-      ),
-      ""
-    )
+    join(map((i) -> alphabet[index_of(ks, alphabet[i])], indexes(alphabet)), "")
   end
 end
 
@@ -750,7 +741,7 @@ def english_score(text)
   reduce(
     (a, b) -> a + b,
     0,
-    map((i) -> nth(i, cnt) * nth(i, english_weights), indexes(alphabet))
+    map((i) -> cnt[i] * english_weights[i], indexes(alphabet))
   )
 end
 
@@ -861,14 +852,14 @@ end
 
 test "extended gcd returns a Bezout pair, not just the gcd"
   r = extended_gcd(240, 46)
-  assert nth(0, r) == 2
+  assert r[0] == 2
   # The coefficients are the point; check the identity rather than the
   # particular pair, since several pairs are correct.
-  assert 240 * nth(1, r) + 46 * nth(2, r) == 2
+  assert 240 * r[1] + 46 * r[2] == 2
   assert extended_gcd(5, 0) == [5, 1, 0]
   s = extended_gcd(0, 5)
-  assert nth(0, s) == 5
-  assert 0 * nth(1, s) + 5 * nth(2, s) == 5
+  assert s[0] == 5
+  assert 0 * s[1] + 5 * s[2] == 5
 end
 
 test "modular inverse, and the honest failure when there is none"
@@ -1009,8 +1000,8 @@ test "letter frequency"
   assert letter_count("hello", "z") == 0
   # Case-folded and non-letters ignored.
   assert letter_count("A a! a?", "a") == 3
-  assert nth(0, letter_counts("aab")) == 2
-  assert nth(1, letter_counts("aab")) == 1
+  assert letter_counts("aab")[0] == 2
+  assert letter_counts("aab")[1] == 1
   assert size(letter_counts("")) == 26
   assert reduce((a, b) -> a + b, 0, letter_counts("")) == 0
   assert most_common_letter("aab") == "a"
@@ -1063,8 +1054,8 @@ test "caesar falls to a frequency attack with no key at all"
   # The exhaustive list is the other half of the argument: 26 candidates,
   # and candidate 0 is the untouched input.
   assert size(caesar_candidates("abc")) == 26
-  assert nth(0, caesar_candidates("abc")) == "abc"
-  assert nth(1, caesar_candidates("abc")) == "zab"
+  assert caesar_candidates("abc")[0] == "abc"
+  assert caesar_candidates("abc")[1] == "zab"
 end
 
 @doc """
@@ -1133,9 +1124,9 @@ end
 test "frequency counts a to z and nothing else"
   f = frequency("aAb!")
   assert size(f) == 26
-  assert nth(0, f) == 2
-  assert nth(1, f) == 1
-  assert nth(2, f) == 0
+  assert f[0] == 2
+  assert f[1] == 1
+  assert f[2] == 0
   assert frequency("") == frequency("123")
-  assert nth(0, frequency("")) == 0
+  assert frequency("")[0] == 0
 end

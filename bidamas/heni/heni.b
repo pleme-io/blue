@@ -29,10 +29,12 @@ survives, is refused, or is blind (its tests could not be started).
 """
 
 use("deeta", [:get_str])
-use("hikisuu")
 use("moji", [:occurrences, :replace_first, :strip_prefix])
 
-use("retsu", [:count_where, :enumerate, :is_empty, :last])
+use(
+  "retsu",
+  [:contains, :count_where, :enumerate, :first, :is_empty, :last, :size]
+)
 
 use("shisutemu", [:read_or, :status_of])
 
@@ -63,7 +65,7 @@ that did not happen caught nothing.
     verdict({text: "t"}, 1) #=> :caught
 """
 def verdict(applied, status)
-  if get(applied, :error) != nil
+  if applied[:error] != nil
     :refused
   elsif status.nil?
     :blind
@@ -166,21 +168,21 @@ end
 run: spec: {package, mutations, blue, test, tmp}. Returns the report.
 """
 def run(spec)
-  pkg = get(spec, :package)
+  pkg = spec[:package]
   name = package_name(pkg)
-  test_file = if get(spec, :test).nil?
+  test_file = if spec[:test].nil?
     "#{name}.b"
   else
-    get(spec, :test)
+    spec[:test]
   end
-  blue = get(spec, :blue)
+  blue = spec[:blue]
   if blue.nil?
     raise(
       :heni_no_blue,
       "heni runs each mutation's tests with the blue CLI, and none is running this program (self_exe() is nil); run heni through blue, or pass --blue"
     )
   end
-  tmp = get(spec, :tmp)
+  tmp = spec[:tmp]
   control_root = fresh(pkg, tmp, "control")
   control = status(hn_test(blue, control_root, name, test_file))
   rm_rf(control_root)
@@ -188,52 +190,46 @@ def run(spec)
     {control:, results: [], caught: 0, survived: 0, refused: 0, blind: 0}
   else
     results = map(
-      (p) -> one(spec, name, test_file, nth(0, p), nth(1, p)),
-      enumerate(get(spec, :mutations))
+      (p) -> one(spec, name, test_file, p[0], p[1]),
+      enumerate(spec[:mutations])
     )
     {
       control: 0,
       results:,
-      caught: count_where((r) -> get(r, :verdict) == :caught, results),
-      survived: count_where((r) -> get(r, :verdict) == :survived, results),
-      refused: count_where((r) -> get(r, :verdict) == :refused, results),
-      blind: count_where((r) -> get(r, :verdict) == :blind, results)
+      caught: count_where((r) -> r[:verdict] == :caught, results),
+      survived: count_where((r) -> r[:verdict] == :survived, results),
+      refused: count_where((r) -> r[:verdict] == :refused, results),
+      blind: count_where((r) -> r[:verdict] == :blind, results)
     }
   end
 end
 
 def one(spec, name, test_file, i, m)
-  root = fresh(get(spec, :package), get(spec, :tmp), to_s(i))
-  file = path_join(path_join(root, name), get(m, :file))
-  applied = hn_apply(read_or(file, ""), get(m, :find), get(m, :replace))
-  status = if get(applied, :error).nil?
-    write_file(file, get(applied, :text))
-    heni::status(hn_test(get(spec, :blue), root, name, test_file))
+  root = fresh(spec[:package], spec[:tmp], to_s(i))
+  file = path_join(path_join(root, name), m[:file])
+  applied = hn_apply(read_or(file, ""), m[:find], m[:replace])
+  status = if applied[:error].nil?
+    write_file(file, applied[:text])
+    heni::status(hn_test(spec[:blue], root, name, test_file))
   end
   rm_rf(root)
-  {
-    name: get(m, :name),
-    verdict: verdict(applied, status),
-    detail: get(applied, :error)
-  }
+  {name: m[:name], verdict: verdict(applied, status), detail: applied[:error]}
 end
 
 # ── the command ──────────────────────────────────────────────────────
 
 def report_text(r)
-  if get(r, :control) != 0
+  if r[:control] != 0
     unlines(
       [
-        "control FAILED: the unmutated tests exit #{to_s(get(r, :control))}; no mutation was run"
+        "control FAILED: the unmutated tests exit #{to_s(r[:control])}; no mutation was run"
       ]
     )
   else
     rows = join(
       map(
-        fn(x)
-          unlines(["#{to_s(get(x, :verdict))}  #{get(x, :name)}#{detail(x)}"])
-        end,
-        get(r, :results)
+        (x) -> unlines(["#{to_s(x[:verdict])}  #{x[:name]}#{detail(x)}"]),
+        r[:results]
       ),
       ""
     )
@@ -241,7 +237,7 @@ def report_text(r)
       rows,
       unlines(
         [
-          "#{to_s(get(r, :caught))} caught, #{to_s(get(r, :survived))} survived, #{to_s(get(r, :refused))} refused, #{to_s(get(r, :blind))} blind"
+          "#{to_s(r[:caught])} caught, #{to_s(r[:survived])} survived, #{to_s(r[:refused])} refused, #{to_s(r[:blind])} blind"
         ]
       )
     )
@@ -249,10 +245,10 @@ def report_text(r)
 end
 
 def detail(x)
-  if get(x, :detail).nil?
+  if x[:detail].nil?
     ""
   else
-    "  (#{get(x, :detail)})"
+    "  (#{x[:detail]})"
   end
 end
 
@@ -262,63 +258,59 @@ ok?: whether every mutation was caught.
     ok?({control: 0, survived: 0, refused: 0, blind: 0}) #=> true
 """
 def ok?(r)
-  get(r, :control) == 0 and
-    get(r, :survived) == 0 and
-    get(r, :refused) == 0 and
-    get(r, :blind) == 0
+  r[:control] == 0 and r[:survived] == 0 and r[:refused] == 0 and r[:blind] == 0
 end
 
 @doc """
-cli: heni's command line: the package and its mutations file, and which blue and which test file to run.
-
-    get(hikisuu::parse(["p", "m.json"], cli), :mutations_file) #=> "m.json"
+parse: {package, mutations_file, blue, test} from argv, or {error}.
 """
-def cli()
-  {
-    name: "heni",
-    about: "mutation testing for a blue package",
-    flags: {
-      blue: {
-        kind: :text,
-        default: nil,
-        value: "BIN",
-        about: "the blue that runs the tests; the one running heni when unset"
-      },
-      test: {
-        kind: :text,
-        default: nil,
-        value: "FILE",
-        about: "the test file to run, relative to the package"
+def parse(args)
+  if size(args) < 2
+    {error: "usage: heni PACKAGE_DIR MUTATIONS.json [--blue BIN] [--test FILE]"}
+  else
+    parse_flags(
+      drop(2, args),
+      {
+        package: args[0],
+        mutations_file: args[1],
+        blue: self_exe,
+        test: nil,
+        error: nil
       }
-    },
-    positional: [
-      {name: :package, about: "the package directory"},
-      {name: :mutations_file, about: "the JSON list of mutations"}
-    ]
-  }
+    )
+  end
 end
 
-@doc """
-main: the command's entry point: argv read by heni's cli through hikisuu, which answers help and completion and refuses a bad line with exit 64.
+def parse_flags(args, acc)
+  if is_empty(args) or acc[:error] != nil
+    acc
+  else
+    flag = first(args)
+    if contains(["--blue", "--test"], flag) and size(args) >= 2
+      key = if flag == "--blue"
+        :blue
+      else
+        :test
+      end
+      parse_flags(drop(2, args), assoc(acc, key, args[1]))
+    else
+      assoc(acc, :error, "unknown argument #{flag}")
+    end
+  end
+end
 
-    get(hikisuu::outcome(["/p"], cli), :status) #=> 64
-"""
 def main()
-  hikisuu::command(cli, mutate)
-end
-
-@doc """
-mutate: one heni run from a parsed command line: every mutation run, the report on stdout, and an error when the run is not clean.
-
-    procedure?(mutate) #=> true
-"""
-def mutate(a)
+  a = parse(argv)
+  if a[:error] != nil
+    write_stderr(unlines([a[:error]]))
+    raise(:heni_usage, a[:error])
+  end
   r = run(
     {
-      package: get(a, :package),
-      mutations: mutations(json_parse(read_file(get(a, :mutations_file)))),
-      blue: get(a, :blue) or self_exe,
-      test: get(a, :test),
+      package: a[:package],
+      mutations: mutations(json_parse(read_file(a[:mutations_file]))),
+      blue: a[:blue],
+      test: a[:test],
       tmp: getenv("TMPDIR", "/tmp")
     }
   )
@@ -335,13 +327,10 @@ end
 # ── tests ────────────────────────────────────────────────────────────
 
 test "a mutation applies exactly once or is refused"
-  assert get(hn_apply("a == 1", "== 1", "== 2"), :text) == "a == 2"
-  assert get(hn_apply("x x", "x", "y"), :error) ==
-    "find occurs 2 times, not once"
-  assert get(hn_apply("abc", "z", "y"), :error) ==
-    "find occurs 0 times, not once"
-  assert get(hn_apply("abc", "", "y"), :error) ==
-    "an empty find matches everywhere"
+  assert hn_apply("a == 1", "== 1", "== 2")[:text] == "a == 2"
+  assert hn_apply("x x", "x", "y")[:error] == "find occurs 2 times, not once"
+  assert hn_apply("abc", "z", "y")[:error] == "find occurs 0 times, not once"
+  assert hn_apply("abc", "", "y")[:error] == "an empty find matches everywhere"
 end
 
 test "the verdicts: refused, survived, caught"
@@ -356,20 +345,12 @@ test "the verdicts: refused, survived, caught"
 end
 
 test "arguments"
-  a = hikisuu::parse(["/p/kazu", "m.json", "--blue", "/bin/blue"], cli)
-  assert get(a, :package) == "/p/kazu"
-  assert get(a, :blue) == "/bin/blue"
-  assert get(a, :test).nil?
-  refused = fn(args)
-    begin
-      hikisuu::parse(args, cli)
-      nil
-    rescue e
-      e.message
-    end
-  end
-  assert refused(["/p"]) == "missing MUTATIONS_FILE"
-  assert refused(["/p", "m", "--nope"]) == "unknown flag --nope"
+  a = parse(["/p/kazu", "m.json", "--blue", "/bin/blue"])
+  assert a[:package] == "/p/kazu"
+  assert a[:blue] == "/bin/blue"
+  assert a[:test].nil?
+  assert parse(["/p"])[:error] != nil
+  assert parse(["/p", "m", "--nope"])[:error] == "unknown argument --nope"
   assert package_name("/a/b/kazu/") == "kazu"
 end
 
@@ -432,9 +413,8 @@ def end_to_end()
     {name: "not there", file: "hnprobe.b", find: "nowhere", replace: "x"}
   ]
   r = run({package: pkg, mutations: muts, blue: self_exe, test: nil, tmp:})
-  assert get(r, :control) == 0
-  assert map((x) -> get(x, :verdict), get(r, :results)) ==
-    [:caught, :survived, :refused]
+  assert r[:control] == 0
+  assert map((x) -> x[:verdict], r[:results]) == [:caught, :survived, :refused]
   assert ok?(r) == false
   assert contains?(
     report_text(r),
@@ -446,8 +426,8 @@ def end_to_end()
     unlines(["test \"broken\"", "  assert 1 == 2", "end"])
   )
   bad = run({package: pkg, mutations: muts, blue: self_exe, test: nil, tmp:})
-  assert get(bad, :control) != 0
-  assert is_empty(get(bad, :results)) == true
+  assert bad[:control] != 0
+  assert is_empty(bad[:results]) == true
   rm_rf(tmp)
   true
 end

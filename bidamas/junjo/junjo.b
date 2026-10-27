@@ -71,7 +71,7 @@ end
 def is_sorted(xs)
   if size(xs) < 2
     true
-  elsif compare(first(xs), nth(1, xs)) <= 0
+  elsif compare(first(xs), xs[1]) <= 0
     is_sorted(rest(xs))
   else
     false
@@ -83,7 +83,7 @@ def bsearch(xs, target, lo, hi)
     -1
   else
     mid = floor((lo + hi) / 2)
-    v = nth(mid, xs)
+    v = xs[mid]
     if v == target
       mid
     elsif v < target
@@ -206,7 +206,7 @@ end
 def is_sorted_by(key, xs)
   if size(xs) < 2
     true
-  elsif compare(key(first(xs)), key(nth(1, xs))) <= 0
+  elsif compare(key(first(xs)), key(xs[1])) <= 0
     is_sorted_by(key, rest(xs))
   else
     false
@@ -300,7 +300,7 @@ def dedupe_sorted(xs)
     []
   elsif size(xs) < 2
     [first(xs)]
-  elsif first(xs) == nth(1, xs)
+  elsif first(xs) == xs[1]
     dedupe_sorted(rest(xs))
   else
     cons(first(xs), dedupe_sorted(rest(xs)))
@@ -312,7 +312,7 @@ def lower_bound_from(xs, target, lo, hi)
     lo
   else
     mid = floor((lo + hi) / 2)
-    if nth(mid, xs) < target
+    if xs[mid] < target
       lower_bound_from(xs, target, mid + 1, hi)
     else
       lower_bound_from(xs, target, lo, mid)
@@ -325,7 +325,7 @@ def upper_bound_from(xs, target, lo, hi)
     lo
   else
     mid = floor((lo + hi) / 2)
-    if nth(mid, xs) <= target
+    if xs[mid] <= target
       upper_bound_from(xs, target, mid + 1, hi)
     else
       upper_bound_from(xs, target, lo, mid)
@@ -392,7 +392,7 @@ def nth_smallest(n, xs)
   if n < 0 or n >= size(xs)
     nil
   else
-    nth(n, sort(xs))
+    sort(xs)[n]
   end
 end
 
@@ -400,7 +400,7 @@ def nth_largest(n, xs)
   if n < 0 or n >= size(xs)
     nil
   else
-    nth(n, sort_desc(xs))
+    sort_desc(xs)[n]
   end
 end
 
@@ -433,7 +433,7 @@ smallest element. Ties keep their input order, because sort_stable_by does.
     argsort([]) #=> []
 """
 def argsort(xs)
-  sort_stable_by((i) -> nth(i, xs), indexes(xs))
+  sort_stable_by((i) -> xs[i], indexes(xs))
 end
 
 @doc """
@@ -449,12 +449,7 @@ third" is a different function and is not this one.
 def rank(xs)
   ids = indexes(xs)
   map(
-    fn(i)
-      count_if(
-        (j) -> nth(j, xs) < nth(i, xs) or nth(j, xs) == nth(i, xs) and j < i,
-        ids
-      )
-    end,
+    (i) -> count_if((j) -> xs[j] < xs[i] or xs[j] == xs[i] and j < i, ids),
     ids
   )
 end
@@ -542,7 +537,7 @@ test "min_by and max_by"
   assert min_by((x) -> x, []).nil?
   assert max_by((x) -> x, []).nil?
   # A key that is not the value, which is the only reason these exist at all.
-  assert min_by((p) -> nth(1, p), [["a", 9], ["b", 2]]) == ["b", 2]
+  assert min_by((p) -> p[1], [["a", 9], ["b", 2]]) == ["b", 2]
 end
 
 test "compare_values answers all three cases, including the equal one"
@@ -580,7 +575,7 @@ test "merge_sorted merges without re-sorting"
 end
 
 test "merge_sorted_by merges on the key"
-  key = (p) -> nth(0, p)
+  key = (p) -> p[0]
   a = [[1, "a"], [3, "c"]]
   b = [[2, "b"], [4, "d"]]
   assert merge_sorted_by(key, a, b) == [[1, "a"], [2, "b"], [3, "c"], [4, "d"]]
@@ -603,12 +598,11 @@ end
 
 test "sort_desc_by orders by key, descending"
   assert sort_desc_by((x) -> x, [1, 3, 2]) == [3, 2, 1]
-  assert sort_desc_by((p) -> nth(1, p), [["a", 1], ["b", 9]]) ==
-    [["b", 9], ["a", 1]]
+  assert sort_desc_by((p) -> p[1], [["a", 1], ["b", 9]]) == [["b", 9], ["a", 1]]
 end
 
 test "insert_sorted_by puts a tie in FRONT of the ties already there"
-  key = (p) -> nth(0, p)
+  key = (p) -> p[0]
   ins = (x, xs) -> insert_sorted_by(key, x, xs)
   assert ins([2, "new"], [[1, "a"], [3, "c"]]) ==
     [[1, "a"], [2, "new"], [3, "c"]]
@@ -623,7 +617,7 @@ test "sort_stable_by keeps equal keys in input order"
   # key in the order they arrived, and any sort that reorders ties fails here.
   # The payload is what makes the tie observable at all — on bare numbers,
   # stability cannot be seen.
-  key = (p) -> nth(0, p)
+  key = (p) -> p[0]
   rs = [[2, "b1"], [1, "a1"], [2, "b2"], [1, "a2"], [2, "b3"]]
   assert sort_stable_by(key, rs) ==
     [[1, "a1"], [1, "a2"], [2, "b1"], [2, "b2"], [2, "b3"]]
@@ -712,7 +706,7 @@ test "median_of_three is the middle whatever the order"
   assert median_of_three(1, 5, 1) == 1
   assert median_of_three(7, 7, 7) == 7
   # Against the obvious-but-costlier oracle.
-  assert median_of_three(9, 2, 4) == nth(1, sort([9, 2, 4]))
+  assert median_of_three(9, 2, 4) == sort([9, 2, 4])[1]
 end
 
 test "nth_smallest and nth_largest are positional, and total"
@@ -753,7 +747,7 @@ test "argsort returns indices, and indexing by them sorts"
   # The identity that makes it argsort rather than a permutation that happens
   # to look right on one input.
   xs = [5, 3, 9, 1, 7]
-  assert map((i) -> nth(i, xs), argsort(xs)) == sort(xs)
+  assert map((i) -> xs[i], argsort(xs)) == sort(xs)
   # Ties keep input order: index 0 before index 2, both holding 5.
   assert argsort([5, 1, 5]) == [1, 0, 2]
 end
@@ -769,9 +763,9 @@ test "rank inverts argsort"
   assert sort(rank([7, 7, 7])) == [0, 1, 2]
   # The inverse-permutation identity, stated directly.
   xs = [5, 3, 9, 1, 7]
-  assert map((i) -> nth(i, rank(xs)), argsort(xs)) == range(0, size(xs))
+  assert map((i) -> rank(xs)[i], argsort(xs)) == range(0, size(xs))
   # And the round trip: the rank of an element indexes it in the sorted list.
-  assert map((i) -> nth(nth(i, rank(xs)), sort(xs)), indexes(xs)) == xs
+  assert map((i) -> sort(xs)[rank(xs)[i]], indexes(xs)) == xs
 end
 
 test "is_strictly_sorted rejects the duplicates is_sorted allows"

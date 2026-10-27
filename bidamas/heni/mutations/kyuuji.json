@@ -8,14 +8,14 @@
   {
     "name": "router refuses overlap",
     "file": "kyuuji.b",
-    "find": "overlapping?(get(k, :segments), get(r, :segments))",
-    "replace": "false"
+    "find": "  find(\n    kept,\n    (k) -> k[:method] == r[:method] and overlapping?(k[:segments], r[:segments])\n  )\n",
+    "replace": "  find(kept, (k) -> k[:method] == r[:method] and false)\n"
   },
   {
     "name": "route method table",
     "file": "kyuuji.b",
-    "find": "if not member?(get(r, :method), route_methods)",
-    "replace": "if false"
+    "find": "  if not member?(r[:method], route_methods)\n",
+    "replace": "  if false\n"
   },
   {
     "name": "route repeated parameter",
@@ -26,20 +26,20 @@
   {
     "name": "match decodes parameters",
     "file": "kyuuji.b",
-    "find": "assoc(params, get(s, :param), decoded(first(parts)))",
-    "replace": "assoc(params, get(s, :param), first(parts))"
+    "find": "        bind(\n          rest(segs),\n          rest(parts),\n          assoc(params, s[:param], decoded(first(parts)))\n        )\n",
+    "replace": "        bind(rest(segs), rest(parts), assoc(params, s[:param], first(parts)))\n"
   },
   {
     "name": "match takes a tail",
     "file": "kyuuji.b",
-    "find": "assoc(params, get(s, :rest), join(map(decoded, parts), \"/\"))",
-    "replace": "assoc(params, get(s, :rest), first(parts))"
+    "find": "      assoc(params, s[:rest], join(map(decoded, parts), \"/\"))\n",
+    "replace": "      assoc(params, s[:rest], first(parts))\n"
   },
   {
     "name": "head falls back to get",
     "file": "kyuuji.b",
-    "find": "if hit.nil? and get(req, :method) == \"HEAD\"",
-    "replace": "if false"
+    "find": "  if hit.nil? and req[:method] == \"HEAD\"\n",
+    "replace": "  if false\n"
   },
   {
     "name": "405 names the allowed methods",
@@ -56,14 +56,14 @@
   {
     "name": "path parameter before query",
     "file": "kyuuji.b",
-    "find": "get(get(req, :params) or {}, name) or query_param(req, name)",
-    "replace": "query_param(req, name)"
+    "find": "  get(req[:params] or {}, name) or query_param(req, name)\n",
+    "replace": "  query_param(req, name)\n"
   },
   {
     "name": "mount prefixes routes",
     "file": "kyuuji.b",
-    "find": "\"#{prefix}#{get(r, :pattern)}\"",
-    "replace": "get(r, :pattern)"
+    "find": "          \"#{prefix}#{r[:pattern]}\"\n",
+    "replace": "          r[:pattern]\n"
   },
   {
     "name": "mount refuses a bad prefix",
@@ -152,8 +152,8 @@
   {
     "name": "cors preflight method",
     "file": "kyuuji.b",
-    "find": "if allowed and member?(asked, get(p, :methods))",
-    "replace": "if allowed"
+    "find": "      if allowed and member?(asked, p[:methods])\n",
+    "replace": "      if allowed\n"
   },
   {
     "name": "cors marks only allowed origins",
@@ -176,7 +176,7 @@
   {
     "name": "wire refuses a socket hand-off",
     "file": "kyuuji.b",
-    "find": "if get(resp, :socket) != nil",
-    "replace": "if false"
+    "find": "  if resp[:socket] != nil\n",
+    "replace": "  if false\n"
   }
 ]

@@ -3,17 +3,17 @@ def quoted(ident)
 end
 
 def enabled?(settings)
-  db = get(settings, "database")
-  db != nil and get(db, "url") != nil and get(db, "url") != ""
+  db = settings["database"]
+  db != nil and db["url"] != nil and db["url"] != ""
 end
 
 def open(settings)
   if not enabled?(settings)
     raise(:no_database, "the settings name no database.url")
   end
-  db = get(settings, "database")
-  c = pg_connect(get(db, "url"))
-  pg_execute(c, "SET search_path TO #{quoted(get(db, "schema"))}")
+  db = settings["database"]
+  c = pg_connect(db["url"])
+  pg_execute(c, "SET search_path TO #{quoted(db["schema"])}")
   c
 end
 
@@ -29,11 +29,11 @@ end
 
 def insert(conn, table, row)
   st = insert_statement(table, row)
-  first(get(pg_query(conn, first(st), second(st)), :rows))
+  first(pg_query(conn, first(st), second(st))[:rows])
 end
 
 def rows(conn, sql, params)
-  get(pg_query(conn, sql, params), :rows)
+  pg_query(conn, sql, params)[:rows]
 end
 
 def latest_statement(table, n)

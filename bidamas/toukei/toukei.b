@@ -36,9 +36,9 @@ def median(xs)
   n = size(s)
   half = floor(n / 2)
   if n % 2 == 1
-    nth(half, s)
+    s[half]
   else
-    (nth(half - 1, s) + nth(half, s)) / 2
+    (s[half - 1] + s[half]) / 2
   end
 end
 
@@ -80,7 +80,7 @@ percentile: The value below which the given fraction of the data falls.
 def percentile(xs, frac)
   s = sort(xs)
   idx = floor(frac * (size(s) - 1))
-  nth(idx, s)
+  s[idx]
 end
 
 @doc """
@@ -351,8 +351,8 @@ which is the answer for well-behaved data and the case a threshold-off-by
 """
 def outliers(xs)
   f = fences(xs)
-  lo = nth(0, f)
-  hi = nth(1, f)
+  lo = f[0]
+  hi = f[1]
   filter((x) -> x < lo or x > hi, xs)
 end
 
@@ -741,8 +741,8 @@ end
 test "q2 IS the median, for both parities"
   # The identity that separates this convention from a nearest-rank one:
   # on [1,2,3,4] the nearest-rank quartile would answer 2, not 2.5.
-  assert nth(1, quartiles([1, 2, 3, 4])) == median([1, 2, 3, 4])
-  assert nth(1, quartiles([1, 2, 3, 4, 5])) == median([1, 2, 3, 4, 5])
+  assert quartiles([1, 2, 3, 4])[1] == median([1, 2, 3, 4])
+  assert quartiles([1, 2, 3, 4, 5])[1] == median([1, 2, 3, 4, 5])
   assert quartiles([1, 2, 3, 4]) == [1.5, 2.5, 3.5]
   # Odd length: the median is excluded from both halves.
   assert quartiles([1, 2, 3, 4, 5]) == [1.5, 3, 4.5]
@@ -846,7 +846,7 @@ test "rescale pins the extremes at 0 and 1"
   assert rescale([7, 7, 7]) == [0, 0, 0]
   assert rescale([]) == []
   # Rescaling is monotone: order is preserved.
-  assert nth(0, rescale([3, 17, 5])) < nth(1, rescale([3, 17, 5]))
+  assert rescale([3, 17, 5])[0] < rescale([3, 17, 5])[1]
 end
 
 test "cumulative_sum ends at the total"
@@ -923,7 +923,7 @@ test "frequency_table account for every element exactly once"
   assert frequency_table([]) == []
   # The identity: the counts must sum back to the size of the input.
   xs = [5, 3, 5, 5, 1, 3, 9]
-  assert total(map((p) -> nth(1, p), frequency_table(xs))) == size(xs)
+  assert total(map((p) -> p[1], frequency_table(xs))) == size(xs)
   assert size(frequency_table(xs)) == size(unique(xs))
 end
 
@@ -932,14 +932,14 @@ test "five_number_summary is the boxplot, in drawing order"
   # It must agree with the parts it is built from, on any data.
   xs = [8, 2, 9, 4, 1, 6, 3]
   s = five_number_summary(xs)
-  assert nth(0, s) == smallest(xs)
-  assert nth(2, s) == median(xs)
-  assert nth(4, s) == largest(xs)
+  assert s[0] == smallest(xs)
+  assert s[2] == median(xs)
+  assert s[4] == largest(xs)
   # Sorted ascending, always.
-  assert nth(0, s) <= nth(1, s)
-  assert nth(1, s) <= nth(2, s)
-  assert nth(2, s) <= nth(3, s)
-  assert nth(3, s) <= nth(4, s)
+  assert s[0] <= s[1]
+  assert s[1] <= s[2]
+  assert s[2] <= s[3]
+  assert s[3] <= s[4]
   # Empty in, empty out — never a list with nils hiding inside it.
   assert five_number_summary([]) == []
 end
@@ -972,6 +972,6 @@ test "zscore centres the list on zero"
   z = zscore([1, 2, 3])
   assert size(z) == 3
   assert abs(total(z)) < 0.000001
-  assert nth(1, z) == 0
+  assert z[1] == 0
   assert zscore([]) == []
 end

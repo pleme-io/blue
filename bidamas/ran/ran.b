@@ -80,7 +80,7 @@ choice: Pick an element by index. Returns the element, not the seed — callers 
 need to keep drawing advance the seed themselves.
 """
 def choice(seed, xs)
-  nth(next_int(seed, size(xs)), xs)
+  xs[next_int(seed, size(xs))]
 end
 
 @doc """
@@ -214,7 +214,7 @@ two-element list with `choice` alternates, and picking from an eight-element
 one cycles its low three bits, which is exactly how a shuffle stops shuffling.
 """
 def pick(seed, xs)
-  nth(next_uniform(seed, size(xs)), xs)
+  xs[next_uniform(seed, size(xs))]
 end
 
 @doc """
@@ -242,7 +242,7 @@ def shuffle(seed, xs)
     []
   else
     i = next_uniform(seed, size(xs))
-    cons(nth(i, xs), shuffle(next_seed(seed), remove_at(xs, i)))
+    cons(xs[i], shuffle(next_seed(seed), remove_at(xs, i)))
   end
 end
 

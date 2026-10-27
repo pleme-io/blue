@@ -62,16 +62,16 @@ end
 
 # The board named `name`, or nil.
 def kb_board(name)
-  find(kb_boards, (b) -> get(b, :name) == name)
+  find(kb_boards, (b) -> b[:name] == name)
 end
 
 # The base address of the board's device named `name`, or nil.
 def kb_device_base(board, name)
-  d = find(get(board, :devices), (x) -> get(x, :name) == name)
+  d = find(board[:devices], (x) -> x[:name] == name)
   if d.nil?
     nil
   else
-    get(d, :base)
+    d[:base]
   end
 end
 
@@ -86,7 +86,7 @@ def kb_char(c)
   if c == 10
     line_break
   elsif c >= 32 and c < 127
-    nth(c - 32, chars(kb_ascii))
+    chars(kb_ascii)[c - 32]
   else
     raise(:kiban, "the UART model prints ASCII only, got #{c}")
   end
@@ -105,7 +105,7 @@ def mmio_write(addr, width, value)
   elsif addr == kb_device_base(board, :finisher)
     nil
   else
-    raise(:kiban, "no device at #{addr} on #{get(board, :name)}")
+    raise(:kiban, "no device at #{addr} on #{board[:name]}")
   end
 end
 
@@ -122,8 +122,7 @@ test "wrapping_add wraps at the board word"
 end
 
 test "the virt32 board is found by name and an unknown one is nil"
-  assert get(kb_board("qemu-virt32"), :rust_target) ==
-    "riscv32imac-unknown-none-elf"
+  assert kb_board("qemu-virt32")[:rust_target] == "riscv32imac-unknown-none-elf"
   assert kb_board("no-such-board").nil?
 end
 

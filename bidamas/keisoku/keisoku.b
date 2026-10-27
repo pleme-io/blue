@@ -1,7 +1,6 @@
 use("jisho")
-use("moji", [:checked, :lines])
+use("moji", [:checked])
 use("retsu", [:count_where, :enumerate, :first, :is_empty, :rest, :zip])
-use("rogu")
 use("tesuto", [:raises?])
 
 def name_ok?(name)
@@ -9,7 +8,7 @@ def name_ok?(name)
 end
 
 def label_names(opts)
-  declared = get(opts, :labels)
+  declared = opts[:labels]
   if declared.nil?
     nil
   elsif list?(declared) and
@@ -29,7 +28,7 @@ def instrument(kind, name, bounds, opts)
   {
     kind:,
     name:,
-    help: get(opts, :help) or "",
+    help: opts[:help] or "",
     labels: label_names(opts),
     bounds:,
     pid: spawn_server(handle, state)
@@ -51,7 +50,7 @@ def gauge(name, opts)
 end
 
 def increasing?(xs)
-  retsu::size(xs) < 2 or nth(0, xs) < nth(1, xs) and increasing?(drop(1, xs))
+  retsu::size(xs) < 2 or xs[0] < xs[1] and increasing?(drop(1, xs))
 end
 
 @doc """
@@ -72,17 +71,14 @@ end
 
 def labels_of(i, labels)
   given = labels or {}
-  declared = get(i, :labels)
+  declared = i[:labels]
   names = map(to_s, jisho::keys(given))
   if declared != nil and
       count_where((n) -> member?(n, declared), names) != retsu::size(names)
-    raise(
-      :bad_option,
-      "#{get(i, :name)} takes the labels #{join(declared, ", ")}"
-    )
+    raise(:bad_option, "#{i[:name]} takes the labels #{join(declared, ", ")}")
   end
   reduce(
-    (acc, e) -> assoc(acc, to_s(first(e)), to_s(nth(1, e))),
+    (acc, e) -> assoc(acc, to_s(first(e)), to_s(e[1])),
     {},
     map_entries(given)
   )
@@ -96,9 +92,9 @@ def bump(counts, at)
   map(
     fn(p)
       if first(p) == at
-        nth(1, p) + 1
+        p[1] + 1
       else
-        nth(1, p)
+        p[1]
       end
     end,
     enumerate(counts)
@@ -106,8 +102,8 @@ def bump(counts, at)
 end
 
 def fresh(state)
-  if get(state, :kind) == :histogram
-    {counts: map((_b) -> 0, append(get(state, :bounds), [0])), sum: 0, count: 0}
+  if state[:kind] == :histogram
+    {counts: map((_b) -> 0, append(state[:bounds], [0])), sum: 0, count: 0}
   else
     {value: 0}
   end
@@ -116,48 +112,40 @@ end
 def apply_to(state, entry, msg)
   op = first(msg)
   if op == :add
-    assoc(entry, :value, get(entry, :value) + nth(3, msg))
+    assoc(entry, :value, entry[:value] + msg[3])
   elsif op == :set
-    assoc(entry, :value, nth(3, msg))
+    assoc(entry, :value, msg[3])
   else
-    value = nth(3, msg)
+    value = msg[3]
     {
-      counts: bump(get(entry, :counts), slot(get(state, :bounds), value)),
-      sum: get(entry, :sum) + value,
-      count: get(entry, :count) + 1
+      counts: bump(entry[:counts], slot(state[:bounds], value)),
+      sum: entry[:sum] + value,
+      count: entry[:count] + 1
     }
   end
 end
 
 def handle(msg, state)
   if first(msg) == :read
-    send(nth(1, msg), [:series, self, get(state, :series)])
+    send(msg[1], [:series, self, state[:series]])
     state
   else
-    key = nth(1, msg)
-    old = get(get(state, :series), key) or
-      {labels: nth(2, msg), entry: fresh(state)}
-    entry = apply_to(state, get(old, :entry), msg)
-    assoc(
-      state,
-      :series,
-      assoc(get(state, :series), key, {labels: nth(2, msg), entry:})
-    )
+    key = msg[1]
+    old = get(state[:series], key) or {labels: msg[2], entry: fresh(state)}
+    entry = apply_to(state, old[:entry], msg)
+    assoc(state, :series, assoc(state[:series], key, {labels: msg[2], entry:}))
   end
 end
 
 def send_to(i, op, labels, value)
   clean = labels_of(i, labels)
-  send(get(i, :pid), [op, to_s(clean), clean, value])
+  send(i[:pid], [op, to_s(clean), clean, value])
   nil
 end
 
 def need_kind(i, kind, verb)
-  if get(i, :kind) != kind
-    raise(
-      :bad_option,
-      "#{verb} takes a #{to_s(kind)}, got a #{to_s(get(i, :kind))}"
-    )
+  if i[:kind] != kind
+    raise(:bad_option, "#{verb} takes a #{to_s(kind)}, got a #{to_s(i[:kind])}")
   end
 end
 
@@ -201,7 +189,7 @@ def observe(h, value, labels)
 end
 
 def tick(opts)
-  clock = get(opts, :clock)
+  clock = opts[:clock]
   if clock.nil?
     now_ms
   else
@@ -223,21 +211,21 @@ def measure(h, f, opts)
   need_kind(h, :histogram, "measure")
   started = tick(opts)
   outcome = attempt(f)
-  observe(h, (tick(opts) - started) / 1000, get(opts, :labels))
+  observe(h, (tick(opts) - started) / 1000, opts[:labels])
   if first(outcome) == :raised
-    raise(nth(1, outcome))
+    raise(outcome[1])
   end
-  nth(1, outcome)
+  outcome[1]
 end
 
 def fetch(i, wait)
-  pid = get(i, :pid)
+  pid = i[:pid]
   send(pid, [:read, self])
   reply = receive([:series, pid, :_], wait, nil)
   if reply.nil?
-    raise(:timeout, "#{get(i, :name)} did not answer")
+    raise(:timeout, "#{i[:name]} did not answer")
   end
-  nth(2, reply)
+  reply[2]
 end
 
 def sample(name, labels, value)
@@ -248,7 +236,7 @@ def cumulative(counts)
   nth(
     1,
     reduce(
-      (acc, c) -> [first(acc) + c, append(nth(1, acc), [first(acc) + c])],
+      (acc, c) -> [first(acc) + c, append(acc[1], [first(acc) + c])],
       [0, []],
       counts
     )
@@ -256,33 +244,33 @@ def cumulative(counts)
 end
 
 def histogram_samples(i, labels, entry)
-  name = get(i, :name)
-  edges = append(map(to_s, get(i, :bounds)), ["+Inf"])
+  name = i[:name]
+  edges = append(map(to_s, i[:bounds]), ["+Inf"])
   buckets = map(
-    (p) -> sample("#{name}_bucket", assoc(labels, "le", first(p)), nth(1, p)),
-    zip(edges, cumulative(get(entry, :counts)))
+    (p) -> sample("#{name}_bucket", assoc(labels, "le", first(p)), p[1]),
+    zip(edges, cumulative(entry[:counts]))
   )
   append(
     buckets,
     [
-      sample("#{name}_sum", labels, get(entry, :sum)),
-      sample("#{name}_count", labels, get(entry, :count))
+      sample("#{name}_sum", labels, entry[:sum]),
+      sample("#{name}_count", labels, entry[:count])
     ]
   )
 end
 
 def series_samples(i, row)
-  labels = get(row, :labels)
-  entry = get(row, :entry)
-  if get(i, :kind) == :histogram
+  labels = row[:labels]
+  entry = row[:entry]
+  if i[:kind] == :histogram
     histogram_samples(i, labels, entry)
   else
-    [sample(get(i, :name), labels, get(entry, :value))]
+    [sample(i[:name], labels, entry[:value])]
   end
 end
 
 def wanted?(labels, want)
-  count_where((e) -> get(labels, first(e)) == nth(1, e), map_entries(want)) ==
+  count_where((e) -> get(labels, first(e)) == e[1], map_entries(want)) ==
     retsu::size(map_entries(want))
 end
 
@@ -291,102 +279,25 @@ read: scrape samples from an endpoint or exposition text.
 """
 def read(i, opts)
   checked(opts, [:labels, :wait_ms])
-  want = labels_of(i, get(opts, :labels))
+  want = labels_of(i, opts[:labels])
   rows = filter(
-    (r) -> wanted?(get(r, :labels), want),
-    jisho::values(fetch(i, get(opts, :wait_ms) or 5000))
+    (r) -> wanted?(r[:labels], want),
+    jisho::values(fetch(i, opts[:wait_ms] or 5000))
   )
   append(*map((r) -> series_samples(i, r), rows))
 end
 
-@doc """
-escaped: a label value with its backslashes, quotes and newlines escaped.
-
-    escaped("plain") #=> "plain"
-"""
-def escaped(v)
-  replace(
-    replace(replace(to_s(v), "\\", "\\\\"), "\"", "\\\""),
-    line_break,
-    "\\n"
-  )
-end
-
-@doc """
-label_text: a series' labels as Prometheus writes them.
-
-    label_text({"path" => "/a"}) #=> "{path=\"/a\"}"
-"""
-def label_text(labels)
-  es = map_entries(labels or {})
-  if is_empty(es)
-    ""
-  else
-    "{#{join(map((e) -> "#{to_s(first(e))}=\"#{escaped(nth(1, e))}\"", es), ",")}}"
-  end
-end
-
-@doc """
-sample_line: one sample as a Prometheus exposition line.
-
-    sample_line({name: "n", labels: {}, value: 1}) #=> "n 1"
-"""
-def sample_line(s)
-  "#{get(s, :name)}#{label_text(get(s, :labels))} #{to_s(get(s, :value))}"
-end
-
-@doc """
-instrument_lines: an instrument's HELP and TYPE lines and one line per series.
-
-    instrument_lines(counter("x_total", {})) #=> ["# HELP x_total ", "# TYPE x_total counter"]
-"""
-def instrument_lines(i)
-  append(
-    [
-      "# HELP #{get(i, :name)} #{get(i, :help)}",
-      "# TYPE #{get(i, :name)} #{to_s(get(i, :kind))}"
-    ],
-    map(sample_line, read(i, {}))
-  )
-end
-
-@doc """
-exposition: instruments in the Prometheus text format, as /metrics serves them.
-
-    exposition([]) #=> ""
-"""
-def exposition(instruments)
-  unlines(append(*map(instrument_lines, instruments)))
-end
-
-@doc """
-endpoint: a /metrics handler over instruments, or nil when observe turns metrics off.
-
-    endpoint({metrics: :off}, []) #=> nil
-"""
-def endpoint(observe, instruments)
-  if rogu::on?(observe, :metrics)
-    fn(_req)
-      {
-        status: 200,
-        headers: {"Content-Type" => "text/plain; version=0.0.4; charset=utf-8"},
-        body: exposition(instruments)
-      }
-    end
-  end
-end
-
 def values_of(samples)
-  map((s) -> get(s, :value), samples)
+  map((s) -> s[:value], samples)
 end
 
 test "counter declares an instrument and starts with no series"
   c = counter("requests_total", {help: "Requests."})
-  assert get(c, :kind) == :counter
-  assert get(c, :name) == "requests_total"
-  assert get(c, :help) == "Requests."
+  assert c[:kind] == :counter
+  assert c[:name] == "requests_total"
+  assert c[:help] == "Requests."
   assert read(c, {}) == []
-  assert get(counter("n", {}), :help) == ""
+  assert counter("n", {})[:help] == ""
 end
 
 test "counter refuses a bad name, an unknown option and bad labels"
@@ -480,7 +391,7 @@ test "read answers in label order whatever the order of writing"
   c = counter("hits", {})
   increase(c, 1, {k: "b"})
   increase(c, 1, {k: "a"})
-  assert map((s) -> get(get(s, :labels), "k"), read(c, {})) == ["a", "b"]
+  assert map((s) -> s[:labels]["k"], read(c, {})) == ["a", "b"]
 end
 
 test "two instruments keep their own series"
@@ -498,7 +409,7 @@ test "histogram refuses bounds that are not increasing numbers"
   assert raises?(:bad_option, () -> histogram("h", [2, 1], {}))
   assert raises?(:bad_option, () -> histogram("h", ["a"], {}))
   assert raises?(:bad_option, () -> histogram("h", nil, {}))
-  assert get(histogram("h", [1], {}), :bounds) == [1]
+  assert histogram("h", [1], {})[:bounds] == [1]
 end
 
 test "observe fills cumulative buckets, a sum and a count"
@@ -509,7 +420,7 @@ test "observe fills cumulative buckets, a sum and a count"
   observe(h, 0.3, {})
   observe(h, 7, {})
   samples = read(h, {})
-  assert map((s) -> get(s, :name), samples) ==
+  assert map((s) -> s[:name], samples) ==
     [
       "lat_bucket",
       "lat_bucket",
@@ -518,7 +429,7 @@ test "observe fills cumulative buckets, a sum and a count"
       "lat_sum",
       "lat_count"
     ]
-  assert map((s) -> get(get(s, :labels), "le"), take(4, samples)) ==
+  assert map((s) -> s[:labels]["le"], take(4, samples)) ==
     ["0.1", "0.5", "1", "+Inf"]
   assert values_of(samples) == [2, 3, 3, 4, 7.45, 4]
 end
@@ -546,7 +457,7 @@ end
 
 def ask_time(pid)
   send(pid, self)
-  nth(1, receive([:time, :_]))
+  receive([:time, :_])[1]
 end
 
 test "measure records the seconds f took and returns its value"
@@ -587,44 +498,4 @@ test "read raises a timeout when the instrument does not answer"
   assert raises?(:timeout, () -> read(dead, {wait_ms: 1}))
   assert now_ms - started < 3000
   assert read(c, {wait_ms: 5000}) == []
-end
-
-test "exposition writes help, type and one line per series"
-  c = counter("hits_total", {help: "Hits.", labels: [:path]})
-  increase(c, 2, {path: "/a"})
-  g = gauge("depth", {})
-  put(g, 3, {})
-  text = exposition([c, g])
-  assert lines(text) ==
-    [
-      "# HELP hits_total Hits.",
-      "# TYPE hits_total counter",
-      "hits_total{path=\"/a\"} 2",
-      "# HELP depth ",
-      "# TYPE depth gauge",
-      "depth 3"
-    ]
-end
-
-test "a histogram exposes its buckets, sum and count"
-  h = histogram("lat", [1, 5], {})
-  observe(h, 3, {})
-  text = exposition([h])
-  assert contains?(text, "lat_bucket{le=\"1\"} 0") == true
-  assert contains?(text, "lat_bucket{le=\"5\"} 1") == true
-  assert contains?(text, "lat_bucket{le=\"+Inf\"} 1") == true
-  assert contains?(text, "lat_count 1") == true
-end
-
-test "label values escape quotes, backslashes and newlines"
-  assert label_text({"a" => "x\"y"}) == "{a=\"x\\\"y\"}"
-  assert label_text({}) == ""
-end
-
-test "endpoint serves the exposition, and metrics off leaves no route"
-  c = counter("n_total", {})
-  r = endpoint({}, [c])(nil)
-  assert get(r, :status) == 200
-  assert contains?(get(r, :body), "# TYPE n_total counter") == true
-  assert endpoint({metrics: :off}, [c]).nil?
 end

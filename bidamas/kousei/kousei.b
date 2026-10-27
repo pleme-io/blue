@@ -66,7 +66,7 @@ def first_why(check, xs)
   if is_empty(whys)
     nil
   else
-    nth(0, whys)
+    whys[0]
   end
 end
 
@@ -90,22 +90,22 @@ def record_whys(table, m)
   if not map?(m)
     ["the value is not a record"]
   else
-    keys = map((f) -> get(f, :key), table)
+    keys = map((f) -> f[:key], table)
     known = map(
       fn(f)
-        v = get(m, get(f, :key))
+        v = get(m, f[:key])
         if v.nil?
-          verdict(not get(f, :required), "#{get(f, :key)} is required")
+          verdict(not f[:required], "#{f[:key]} is required")
         else
-          w = get(f, :check)(v)
-          verdict(w.nil?, "#{get(f, :key)}: #{w}")
+          w = f[:check](v)
+          verdict(w.nil?, "#{f[:key]}: #{w}")
         end
       end,
       table
     )
     extra = map(
-      (p) -> "#{nth(0, p)} is not a field",
-      filter((p) -> not contains(keys, nth(0, p)), map_entries(m))
+      (p) -> "#{p[0]} is not a field",
+      filter((p) -> not contains(keys, p[0]), map_entries(m))
     )
     filter((w) -> w != nil, append(known, extra))
   end
@@ -123,15 +123,15 @@ def entry(kind, name, value)
 end
 
 def kind_of(e)
-  get(e, :entry)
+  e[:entry]
 end
 
 def name_of(e)
-  get(e, :name)
+  e[:name]
 end
 
 def value_of(e)
-  get(e, :value)
+  e[:value]
 end
 
 @doc """
@@ -157,23 +157,19 @@ def refuse(fault, e, why)
 end
 
 def overlay(base, fields)
-  reduce(
-    (acc, p) -> assoc(acc, nth(0, p), nth(1, p)),
-    base,
-    map_entries(fields)
-  )
+  reduce((acc, p) -> assoc(acc, p[0], p[1]), base, map_entries(fields))
 end
 
 def targets?(t, e)
-  kind_of(e) == get(value_of(t), :target) and name_of(e) == name_of(t)
+  kind_of(e) == value_of(t)[:target] and name_of(e) == name_of(t)
 end
 
 def duplicate_marks(es)
   ids = map((e) -> [kind_of(e), name_of(e)], es)
   map(
     fn(i)
-      if index_of(ids, nth(i, ids)) < i
-        [refuse(:duplicate, nth(i, es), "declared twice; the first stands")]
+      if index_of(ids, ids[i]) < i
+        [refuse(:duplicate, es[i], "declared twice; the first stands")]
       else
         []
       end
@@ -197,13 +193,13 @@ def entry_marks(schema, es)
 end
 
 def tune_marks(schema, t, es)
-  table = get(schema, get(value_of(t), :target))
+  table = get(schema, value_of(t)[:target])
   if not any?((e) -> targets?(t, e), es)
     [refuse(:unknown_entry, t, "nothing declared to tune")]
   else
     map(
       (w) -> refuse(:invalid, t, w),
-      record_whys(loosened(table), get(value_of(t), :fields))
+      record_whys(loosened(table), value_of(t)[:fields])
     )
   end
 end
@@ -215,7 +211,7 @@ def tuned(e, tunes)
         entry(
           kind_of(acc),
           name_of(acc),
-          overlay(value_of(acc), get(value_of(t), :fields))
+          overlay(value_of(acc), value_of(t)[:fields])
         )
       else
         acc
@@ -227,7 +223,7 @@ def tuned(e, tunes)
 end
 
 def zipped(xs, ys)
-  map((i) -> append(nth(i, xs), nth(i, ys)), range(0, size(xs)))
+  map((i) -> append(xs[i], ys[i]), range(0, size(xs)))
 end
 
 @doc """
@@ -286,7 +282,7 @@ end
 of_kind: The accepted entries of one kind.
 """
 def of_kind(judged, kind)
-  filter((e) -> kind_of(e) == kind, get(judged, :accepted))
+  filter((e) -> kind_of(e) == kind, judged[:accepted])
 end
 
 def schema_fixture()
@@ -308,14 +304,14 @@ def fixture()
 end
 
 def faults(j)
-  map((r) -> nth(0, r), get(j, :refusals))
+  map((r) -> r[0], j[:refusals])
 end
 
 test "a clean declaration stands whole"
   j = judge(schema_fixture, fixture)
-  assert size(get(j, :accepted)) == 3
-  assert get(j, :refusals) == []
-  assert get(j, :off) == []
+  assert size(j[:accepted]) == 3
+  assert j[:refusals] == []
+  assert j[:off] == []
 end
 
 test "a bad entry is refused alone and its siblings stand"
@@ -331,18 +327,18 @@ test "a bad entry is refused alone and its siblings stand"
       ]
     )
   )
-  assert size(get(j, :accepted)) == 3
+  assert size(j[:accepted]) == 3
   assert faults(j) == [:invalid, :invalid, :invalid, :unknown_kind, :duplicate]
-  assert value_of(nth(2, get(j, :accepted))) == {enabled: true}
+  assert value_of(j[:accepted][2]) == {enabled: true}
 end
 
 test "off keeps the entry declared and out of what is accepted"
   j = judge(schema_fixture, append(fixture, [off(:plane, "internal")]))
-  assert map(name_of, get(j, :accepted)) == ["external", "segregation"]
-  assert map(name_of, get(j, :off)) == ["internal"]
+  assert map(name_of, j[:accepted]) == ["external", "segregation"]
+  assert map(name_of, j[:off]) == ["internal"]
   j2 = judge(schema_fixture, append(fixture, [off(:plane, "nowhere")]))
   assert faults(j2) == [:unknown_entry]
-  assert size(get(j2, :accepted)) == 3
+  assert size(j2[:accepted]) == 3
 end
 
 test "a tune lays fields over its entry, and a bad tune is refused alone"
@@ -357,16 +353,16 @@ test "a tune lays fields over its entry, and a bad tune is refused alone"
       ]
     )
   )
-  assert get(value_of(nth(0, of_kind(j, :plane))), :surfaces) == [:ingest, :ui]
-  assert get(value_of(nth(0, of_kind(j, :plane))), :listen) == "127.0.0.1:8443"
+  assert value_of(of_kind(j, :plane)[0])[:surfaces] == [:ingest, :ui]
+  assert value_of(of_kind(j, :plane)[0])[:listen] == "127.0.0.1:8443"
   assert faults(j) == [:invalid, :unknown_entry]
 end
 
 test "unknown fields and missing required fields are reasons, not crashes"
-  assert record_whys(get(schema_fixture, :plane), {surfaces: []}) ==
+  assert record_whys(schema_fixture[:plane], {surfaces: []}) ==
     ["listen is required"]
-  assert record_whys(get(schema_fixture, :plane), {listen: "a", port: 1}) ==
+  assert record_whys(schema_fixture[:plane], {listen: "a", port: 1}) ==
     ["port is not a field"]
-  assert record_whys(get(schema_fixture, :plane), "x") ==
+  assert record_whys(schema_fixture[:plane], "x") ==
     ["the value is not a record"]
 end

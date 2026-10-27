@@ -14,7 +14,7 @@
   {
     "name": "the default deadline is a minute",
     "file": "tsuushin.b",
-    "find": "get(o, :timeout_ms) or 10000",
-    "replace": "get(o, :timeout_ms) or 60000"
+    "find": "  transport(method, url, headers, body, o[:timeout_ms] or 10000)\n",
+    "replace": "  transport(method, url, headers, body, o[:timeout_ms] or 60000)\n"
   }
 ]

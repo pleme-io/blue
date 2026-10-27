@@ -1,18 +1,98 @@
 [
-  {"name": "variables never reach coercion", "file": "outou.b", "find": "get(opts, :variables)", "replace": "get(opts, :vars)"},
-  {"name": "resolvers lose their arguments", "file": "outou.b", "find": "ok(resolver(parent, args, env.ctx))", "replace": "ok(resolver(parent, {}, env.ctx))"},
-  {"name": "resolvers lose the context", "file": "outou.b", "find": "ctx: get(opts, :context)", "replace": "ctx: nil"},
-  {"name": "skip is ignored", "file": "outou.b", "find": "directive_value(env, dirs, \"skip\") != true", "replace": "true"},
-  {"name": "include is ignored", "file": "outou.b", "find": "directive_value(env, dirs, \"include\") != false", "replace": "true"},
-  {"name": "an alias is not the response key", "file": "outou.b", "find": "node.alias or node.name", "replace": "node.name"},
-  {"name": "operation name is ignored", "file": "outou.b", "find": "get(opts, :operation_name)", "replace": "nil"},
-  {"name": "a failed non-null field does not propagate", "file": "outou.b", "find": "{**resolved, bad: non_null?(fdef.type)}", "replace": "{**resolved, bad: false}"},
-  {"name": "a nullable field passes the null upward", "file": "outou.b", "find": "{value: nil, errs: r.errs, bad: false}", "replace": "{value: nil, errs: r.errs, bad: true}"},
-  {"name": "a null variable for a non-null type is accepted", "file": "outou.b", "find": "elsif non_null?(ref) and nth(1, e).nil?", "replace": "elsif false"},
-  {"name": "a variable default is ignored", "file": "outou.b", "find": "elsif not first(e) and vd.default != nil", "replace": "elsif false"},
-  {"name": "an argument default is ignored", "file": "outou.b", "find": "if d.has_default", "replace": "if false"},
-  {"name": "Int range is unbounded above", "file": "outou.b", "find": "v <= 2_147_483_647", "replace": "v <= 2_147_483_648"},
-  {"name": "list paths lose their index", "file": "outou.b", "find": "append(path, [first(e)])", "replace": "path"},
-  {"name": "validation findings carry their rule", "file": "outou.b", "find": "dissoc(f, :rule)", "replace": "f"},
-  {"name": "interfaces have no implementations", "file": "outou.b", "find": "nth(1, e).kind == \"OBJECT\" and contains(nth(1, e).interfaces, name)", "replace": "false"}
+  {
+    "name": "variables never reach coercion",
+    "file": "outou.b",
+    "find": "    cv = coerce_variables(sc, op, opts[:variables])\n",
+    "replace": "    cv = coerce_variables(sc, op, opts[:vars])\n"
+  },
+  {
+    "name": "resolvers lose their arguments",
+    "file": "outou.b",
+    "find": "ok(resolver(parent, args, env.ctx))",
+    "replace": "ok(resolver(parent, {}, env.ctx))"
+  },
+  {
+    "name": "resolvers lose the context",
+    "file": "outou.b",
+    "find": "  {sc:, frags: fragments_of(doc), vars: values, ctx: opts[:context]}\n",
+    "replace": "  {sc:, frags: fragments_of(doc), vars: values, ctx: nil}\n"
+  },
+  {
+    "name": "skip is ignored",
+    "file": "outou.b",
+    "find": "directive_value(env, dirs, \"skip\") != true",
+    "replace": "true"
+  },
+  {
+    "name": "include is ignored",
+    "file": "outou.b",
+    "find": "directive_value(env, dirs, \"include\") != false",
+    "replace": "true"
+  },
+  {
+    "name": "an alias is not the response key",
+    "file": "outou.b",
+    "find": "node.alias or node.name",
+    "replace": "node.name"
+  },
+  {
+    "name": "operation name is ignored",
+    "file": "outou.b",
+    "find": "  found = operation_of(doc, opts[:operation_name])\n",
+    "replace": "  found = operation_of(doc, nil)\n"
+  },
+  {
+    "name": "a failed non-null field does not propagate",
+    "file": "outou.b",
+    "find": "{**resolved, bad: non_null?(fdef.type)}",
+    "replace": "{**resolved, bad: false}"
+  },
+  {
+    "name": "a nullable field passes the null upward",
+    "file": "outou.b",
+    "find": "{value: nil, errs: r.errs, bad: false}",
+    "replace": "{value: nil, errs: r.errs, bad: true}"
+  },
+  {
+    "name": "a null variable for a non-null type is accepted",
+    "file": "outou.b",
+    "find": "      elsif non_null?(ref) and e[1].nil?\n",
+    "replace": "      elsif false\n"
+  },
+  {
+    "name": "a variable default is ignored",
+    "file": "outou.b",
+    "find": "elsif not first(e) and vd.default != nil",
+    "replace": "elsif false"
+  },
+  {
+    "name": "an argument default is ignored",
+    "file": "outou.b",
+    "find": "if d.has_default",
+    "replace": "if false"
+  },
+  {
+    "name": "Int range is unbounded above",
+    "file": "outou.b",
+    "find": "v <= 2_147_483_647",
+    "replace": "v <= 2_147_483_648"
+  },
+  {
+    "name": "list paths lose their index",
+    "file": "outou.b",
+    "find": "append(path, [first(e)])",
+    "replace": "path"
+  },
+  {
+    "name": "validation findings carry their rule",
+    "file": "outou.b",
+    "find": "dissoc(f, :rule)",
+    "replace": "f"
+  },
+  {
+    "name": "interfaces have no implementations",
+    "file": "outou.b",
+    "find": "    map(\n      (e) -> first(e),\n      filter(\n        (e) -> e[1].kind == \"OBJECT\" and contains(e[1].interfaces, name),\n        map_entries(sc.types)\n      )\n    )\n",
+    "replace": "    map((e) -> first(e), filter((e) -> false, map_entries(sc.types)))\n"
+  }
 ]

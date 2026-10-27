@@ -201,6 +201,13 @@ thread_local! {
     static RECENT: std::cell::RefCell<Recent> = const { std::cell::RefCell::new(Vec::new()) };
 }
 
+/// Whether `x[key]` reads `key` as a map key, `get(x, key)`: a keyword or
+/// string literal. Any other key indexes a list, `nth(key, x)` (B0066).
+#[must_use]
+pub fn is_index_key(key: &Spanned) -> bool {
+    key.as_keyword().is_some() || key.as_string().is_some()
+}
+
 /// The text a constant string form spells, for a reader that takes text from
 /// a tree without evaluating it: a string, `line_break`, or `join_lines([…])` /
 /// `unlines([…])` over constant texts, which is how the parser reads a string
@@ -1039,8 +1046,8 @@ impl Parser {
                 };
                 let list = prev_name.unwrap_or("xs");
                 format!(
-                    "blue has no `xs[i]` indexing: write `nth({index}, {list})` \
-                     (or `first({list})`, `last({list})`)"
+                    "an index touches what it indexes: write `{list}[{index}]`, with no space \
+                     before `[`"
                 )
             }
             (_, TokenKind::LBrace) => "blue has no brace blocks: pass a function as an \
@@ -1321,10 +1328,10 @@ impl Parser {
                     lhs = self.finish_send(start, lhs, dot)?;
                     continue;
                 }
-                TokenKind::LParen => {
-                    let (args, splat) = self.call_args()?;
-                    let call = self.call_node(self.span_since(start), vec![lhs], args, splat);
-                    lhs = self.call_spelling(call);
+                TokenKind::LParen | TokenKind::LBracket
+                    if self.at(&TokenKind::LParen) || self.touches_previous() =>
+                {
+                    lhs = self.applied(start, lhs)?;
                     continue;
                 }
                 _ => {}
@@ -1405,6 +1412,7 @@ impl Parser {
     /// `line_break`. A line that is one interpolation, `#{x}`, is `x` itself:
     /// `join_lines` renders each element as interpolation does. So the escape
     /// and the call are one tree, and `blue fmt` writes the call.
+    #[inline(never)]
     fn lines_literal(
         &mut self,
         span: Span,
@@ -1466,6 +1474,38 @@ impl Parser {
             span,
             vec![sym_at(span, head), list_at(span, items)],
         ))
+    }
+
+    /// `f(args)` or `x[k]` after `lhs`. One out-of-line step for both, so
+    /// `expr_inner`, whose frame the depth bound is measured against, holds
+    /// one result slot for them rather than one per form.
+    #[inline(never)]
+    fn applied(&mut self, start: usize, lhs: Spanned) -> Result<Spanned, Fail> {
+        if self.at(&TokenKind::LParen) {
+            let (args, splat) = self.call_args()?;
+            let call = self.call_node(self.span_since(start), vec![lhs], args, splat);
+            Ok(self.call_spelling(call))
+        } else {
+            self.index(start, lhs)
+        }
+    }
+
+    /// `x[k]`: `get(x, k)` for a keyword or string literal key, else
+    /// `nth(k, x)` (B0066).
+    #[inline(never)]
+    fn index(&mut self, start: usize, object: Spanned) -> Result<Spanned, Fail> {
+        let open = self.peek_span();
+        self.bump();
+        self.skip_newlines();
+        let key = self.expr(0)?;
+        self.skip_newlines();
+        self.expect(&TokenKind::RBracket, "`]` closing the index")?;
+        let span = self.span_since(start);
+        Ok(if is_index_key(&key) {
+            list_at(span, vec![sym_at(open, "get"), object, key])
+        } else {
+            list_at(span, vec![sym_at(open, "nth"), key, object])
+        })
     }
 
     #[inline(never)]
@@ -1717,6 +1757,14 @@ impl Parser {
             return call;
         };
         let argc = items.len() - 1;
+        if head == "get" && argc == 2 && is_index_key(&items[2]) {
+            self.note(Spelling::Index, call.span, "get(m, :k)", "m[:k]");
+            return call;
+        }
+        if head == "nth" && argc == 2 && !is_index_key(&items[1]) {
+            self.note(Spelling::Index, call.span, "nth(i, xs)", "xs[i]");
+            return call;
+        }
         if head == "equal?" && argc == 2 {
             let (op_span, start) = (items[0].span, call.span.start);
             if let Some(test) = self.nil_test(start, op_span, &items[1], &items[2]) {
@@ -3461,10 +3509,35 @@ mod tests {
     /// saw a list literal and started a new statement on the same line. The
     /// program ran and `y` was the whole list. Found by the 2026-09-29 audit.
     #[test]
-    fn postfix_indexing_is_refused_naming_nth() {
-        let e = parse_program("y = xs[0]").expect_err("must not split into two statements");
-        assert!(e.message.contains("`nth(0, xs)`"), "{}", e.message);
-        assert_eq!((e.line, e.col), (1, 7), "{e}");
+    fn a_spaced_index_is_refused_naming_the_touching_one() {
+        let e = parse_program("y = xs [0]").expect_err("must not split into two statements");
+        assert!(e.message.contains("`xs[0]`"), "{}", e.message);
+        assert_eq!((e.line, e.col), (1, 8), "{e}");
+    }
+
+    #[test]
+    fn an_index_is_the_tree_of_get_or_nth() {
+        for (short, long) in [
+            ("m[:k]", "get(m, :k)"),
+            (r#"m["k"]"#, r#"get(m, "k")"#),
+            ("xs[0]", "nth(0, xs)"),
+            ("xs[i + 1]", "nth(i + 1, xs)"),
+            ("f(x)[2]", "nth(2, f(x))"),
+            ("m[:a][:b]", "get(get(m, :a), :b)"),
+            ("xs[0][:k]", "get(nth(0, xs), :k)"),
+            ("[1, 2][1]", "nth(1, [1, 2])"),
+        ] {
+            assert_eq!(q(short), q(long), "{short}");
+        }
+        assert_eq!(q("get(m, k)"), "(get m k)");
+        let notes = spelling_notes("get(m, :k)\nnth(0, xs)\nget(m, k)\n").unwrap();
+        assert_eq!(
+            notes
+                .iter()
+                .filter(|n| n.spelling == Spelling::Index)
+                .count(),
+            2
+        );
     }
 
     /// `a = f x` — Ruby's command call — parsed as `a = f` and then `x`.
@@ -3479,7 +3552,7 @@ mod tests {
     #[test]
     fn two_statements_on_one_line_are_refused_in_a_body() {
         for src in [
-            "def f(xs)\n  xs[0]\nend",
+            "def f(xs)\n  xs [0]\nend",
             "if a\n  f x\nend",
             "fn(x) x 1 end",
             "test \"t\"\n  assert a b\nend",

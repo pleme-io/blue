@@ -211,6 +211,31 @@ row(
 row("canon.B0065", "\"a\\nb\"", diagnoses(["B0065"]), covers("rule:B0065"))
 
 row(
+  "canon.B0066",
+  join_lines(["m = {k: 1}", "get(m, :k)"]),
+  diagnoses(["B0066"]),
+  covers("rule:B0066")
+)
+
+row(
+  "canon.B0066.writes",
+  join_lines(["m = {k: 1}", "xs = [1]", "[get(m, :k), nth(0, xs)]"]),
+  formats(unlines(["m = {k: 1}", "xs = [1]", "[m[:k], xs[0]]"]))
+)
+
+row(
+  "canon.B0066.keeps",
+  join_lines(["m = {k: 1}", "k = :k", "get(m, k)"]),
+  formats(unlines(["m = {k: 1}", "k = :k", "get(m, k)"]))
+)
+
+row(
+  "canon.B0066.eval",
+  "[{k: 1}[:k], {k: 1}[:z], [1, 2][1], [1, 2][5], [[1, 2]][0][1]]",
+  value("[1, nil, 2, nil, 2]")
+)
+
+row(
   "canon.B0065.writes",
   "\"a\\nb\"",
   formats(unlines(["join_lines([\"a\", \"b\"])"]))

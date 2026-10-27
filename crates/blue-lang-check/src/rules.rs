@@ -1143,7 +1143,7 @@ that is there only for the error it may raise. docs/SAFETY.md, row 2.",
         fix: Machine,
         law: "a bidama's public definition has a `@doc` whose first sentence starts with its name",
         witness: "@moduledoc \"\"\"\nkagi holds one value.\n\n    kagi #=> 1\n\"\"\"\n\ndef kagi()\n  1\nend\n",
-        ratchet: 2842,
+        ratchet: 2845,
         package: "kagi",
         explanation: "\
 A reader of one bidama should be proficient in it, so every definition a `use`
@@ -1173,7 +1173,7 @@ the example. It writes nothing it cannot source; what stays is counted by
         fix: Machine,
         law: "a `@doc` holds at least one example, an indented `expr #=> value` line",
         witness: "@moduledoc \"\"\"\nkagi holds one value.\n\n    kagi #=> 1\n\"\"\"\n\n@doc \"\"\"\nkagi is one.\n\"\"\"\ndef kagi()\n  1\nend\n",
-        ratchet: 898,
+        ratchet: 901,
         package: "kagi",
         explanation: "\
 An example shows how a definition is called and what it answers, and blue
@@ -1238,7 +1238,7 @@ that drifts the day the code changes.
         severity: Error,
         fix: Suggested,
         law: "a function's option keys are a closed set: a call passes only keys the function reads, and a `checked(opts, [...])` list declares every key the function reads",
-        witness: "def prepared(opts)\n  get(opts, :vars)\nend\n\nprepared({variables: 1})\n",
+        witness: "def prepared(opts)\n  opts[:vars]\nend\n\nprepared({variables: 1})\n",
         waivable: true,
         explanation: "\
 A record parameter's keys are the keys its function reads: `get(opts, :k)`,
@@ -1263,7 +1263,7 @@ docs/SAFETY.md, row 18.",
         severity: Error,
         fix: Suggested,
         law: "a value whose kind is known is never passed where a builtin, or the parameter it flows to, takes another kind",
-        witness: "def kind_of(schema)\n  get(schema, :kind)\nend\n\nkind_of(\"type Query { a: Int }\")\n",
+        witness: "def kind_of(schema)\n  schema[:kind]\nend\n\nkind_of(\"type Query { a: Int }\")\n",
         waivable: true,
         fixes: "find((x) -> x > 1, [1, 2, 3])\n",
         explanation: "\
@@ -1351,6 +1351,25 @@ one interpolation is the expression itself, and the text built is the same.
 
 A string inside `quote` is data and keeps its escape. Other escapes (`\\t`,
 `\\\"`, `\\u{1b}`) stay as written (B0033).",
+    }
+    B0066 {
+        slug: "index",
+        severity: Error,
+        fix: Machine,
+        law: "a key or position is read with brackets: `m[:k]` for `get(m, :k)`, `xs[i]` for `nth(i, xs)`",
+        witness: "m = {k: 1}\nget(m, :k)\n",
+        waivable: false,
+        explanation: "\
+Indexing is notation every reader already knows (docs/OPERATORS.md). The
+bracket and the word are one tree: `x[:k]` and `x[\"k\"]`, a keyword or string
+literal key, read as `get(x, :k)`; any other key, `x[i]`, reads as
+`nth(i, x)`. So nothing about what runs changes: a missing key is nil, a
+position past either end is nil, as before.
+
+A map read with a computed key stays `get(m, k)`, because `m[k]` is
+`nth(k, m)`. `m.k` is not this: it raises when the record has no field `k`,
+where `get` answers nil. The bracket must touch what it indexes; `xs [0]` is
+two expressions.",
     }
 }
 

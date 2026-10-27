@@ -97,13 +97,7 @@ def tables()
         sabi::slice(
           map(
             fn(r)
-              sabi::tuple(
-                [
-                  sabi::char(nth(0, r)),
-                  sabi::str(nth(1, r)),
-                  sabi::str(nth(2, r))
-                ]
-              )
+              sabi::tuple([sabi::char(r[0]), sabi::str(r[1]), sabi::str(r[2])])
             end,
             operator_aliases
           )
@@ -123,10 +117,7 @@ def tables()
           sabi::ty_slice(sabi::ty_tuple([sabi::ty("char"), str_ref]))
         ),
         sabi::slice(
-          map(
-            (r) -> sabi::tuple([sabi::char(nth(0, r)), sabi::str(nth(1, r))]),
-            welcome
-          )
+          map((r) -> sabi::tuple([sabi::char(r[0]), sabi::str(r[1])]), welcome)
         ),
         [
           "The symbols blue explicitly welcomes inside identifiers.",

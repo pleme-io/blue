@@ -93,9 +93,9 @@ def run_nix(args)
 end
 
 def answer(out, read)
-  if get(out, :status) == 0
+  if out[:status] == 0
     parsed = begin
-      read(get(out, :stdout))
+      read(out[:stdout])
     rescue e
       e
     end
@@ -103,16 +103,16 @@ def answer(out, read)
       refused(
         refusal(
           :unreadable,
-          "nix answered text that does not parse: #{take_chars(get(out, :stdout), 200)}"
+          "nix answered text that does not parse: #{take_chars(out[:stdout], 200)}"
         )
       )
     else
       ok(parsed)
     end
-  elsif get(out, :status) == -1
-    refused(refusal(:unstartable, get(out, :stderr)))
+  elsif out[:status] == -1
+    refused(refusal(:unstartable, out[:stderr]))
   else
-    refused(failure_of(get(out, :stderr)))
+    refused(failure_of(out[:stderr]))
   end
 end
 
@@ -160,8 +160,8 @@ def work_step(acc, line)
   s = section_of(line)
   if s == :build or s == :fetch
     assoc(acc, :in, s)
-  elsif s == :member and get(acc, :in) != nil
-    k = get(acc, :in)
+  elsif s == :member and acc[:in] != nil
+    k = acc[:in]
     assoc(acc, k, concat_lists(get(acc, k), [trim(line)]))
   else
     assoc(acc, :in, nil)
@@ -170,7 +170,7 @@ end
 
 def work(text)
   r = reduce(work_step, {in: nil, build: [], fetch: []}, lines(text))
-  {build: get(r, :build), fetch: get(r, :fetch)}
+  {build: r[:build], fetch: r[:fetch]}
 end
 
 def plan_build(inst, extra)
@@ -179,25 +179,25 @@ def plan_build(inst, extra)
   )
   r = answer(out, targets)
   if ok?(r)
-    w = work(get(out, :stderr))
-    ok({targets: value(r), build: get(w, :build), fetch: get(w, :fetch)})
+    w = work(out[:stderr])
+    ok({targets: value(r), build: w[:build], fetch: w[:fetch]})
   else
     r
   end
 end
 
 def first_out(plan)
-  ts = get(plan, :targets)
+  ts = plan[:targets]
   if is_empty(ts)
     nil
   else
-    get(first(ts), :out)
+    first(ts)[:out]
   end
 end
 
 def info_pairs(parsed)
   if list?(parsed)
-    filter((p) -> list?(p) and size(p) == 2 and nth(1, p) != nil, parsed)
+    filter((p) -> list?(p) and size(p) == 2 and p[1] != nil, parsed)
   else
     []
   end
@@ -212,7 +212,7 @@ def path_info(paths, store)
   out = run_nix(
     concat_lists(concat_lists(["path-info", "--json"], where), paths)
   )
-  parsed = json_parse(get(out, :stdout)) rescue nil
+  parsed = json_parse(out[:stdout]) rescue nil
   present = map((p) -> first(p), info_pairs(parsed))
   {present:, missing: filter((p) -> member?(p, present) == false, paths)}
 end
@@ -257,22 +257,22 @@ end
 test "a dry run's targets and its work are read from nix's own output"
   ts = targets(sample_targets)
   assert size(ts) == 1
-  assert get(first(ts), :drv) ==
+  assert first(ts)[:drv] ==
     "/nix/store/79318l15inqy72wqdqp9hixn762vlfza-kirikae-probe.drv"
-  assert get(first(ts), :out) ==
+  assert first(ts)[:out] ==
     "/nix/store/jrbqf1qkyiiq0v3b66ngc9fbj2cj1737-kirikae-probe"
   w = work(sample_dry_run)
-  assert size(get(w, :build)) == 1
-  assert size(get(w, :fetch)) == 2
-  assert store_name(first(get(w, :build))) == "kirikae-probe.drv"
+  assert size(w[:build]) == 1
+  assert size(w[:fetch]) == 2
+  assert store_name(first(w[:build])) == "kirikae-probe.drv"
   assert first_out({targets: ts}) ==
     "/nix/store/jrbqf1qkyiiq0v3b66ngc9fbj2cj1737-kirikae-probe"
 end
 
 test "nothing to do is empty work, not an error"
   w = work("")
-  assert get(w, :build) == []
-  assert get(w, :fetch) == []
+  assert w[:build] == []
+  assert w[:fetch] == []
   assert targets("[]") == []
   assert first_out({targets: []}).nil?
   assert work(unlines(["warning: Git tree is dirty"])) == {build: [], fetch: []}
@@ -290,8 +290,7 @@ test "a failure is classified by what nix said, with the last line as its why"
     )
   )
   assert first(f) == :eval
-  assert nth(1, f) ==
-    "error: iroha gate (kata-fleet-pleme): FAILED — 48/49 passed"
+  assert f[1] == "error: iroha gate (kata-fleet-pleme): FAILED — 48/49 passed"
   assert failure_class("error: unable to download 'https://github.com/x': HTTP error 404") ==
     :credential
   assert failure_class("error: unable to download 'https://x': Couldn't resolve host name") ==

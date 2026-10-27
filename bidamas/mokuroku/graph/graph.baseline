@@ -5,10 +5,10 @@ g2-vocab: bajon? 4
 g2-vocab: bakkuappu? 5
 g2-vocab: birudo? 7
 g2-vocab: bougyo 13
-g2-vocab: bunmyaku? 8
+g2-vocab: bunmyaku? 9
 g2-vocab: bunpou? 5
 g2-vocab: bunri? 7
-g2-vocab: bunsho? 3
+g2-vocab: bunsho? 4
 g2-vocab: byouga? 9
 g2-vocab: chigai? 5
 g2-vocab: chiri? 11
@@ -110,7 +110,7 @@ g2-vocab: rirezu? 6
 g2-vocab: rittai 7
 g2-vocab: rogu 3
 g2-vocab: rokku? 7
-g2-vocab: ronri 10
+g2-vocab: ronri 11
 g2-vocab: ryuutsuu? 4
 g2-vocab: saishikou 1
 g2-vocab: saiten? 7
@@ -118,7 +118,7 @@ g2-vocab: sakuin 7
 g2-vocab: sanshou 1
 g2-vocab: seimitsu? 10
 g2-vocab: settei 1
-g2-vocab: shigoto 11
+g2-vocab: shigoto 12
 g2-vocab: shihyou 16
 g2-vocab: shikibetsu? 7
 g2-vocab: shinchoku 1
@@ -137,7 +137,7 @@ g2-vocab: teeburu 12
 g2-vocab: tegata 15
 g2-vocab: tenkai? 4
 g2-vocab: tesuto? 16
-g2-vocab: tokumei 25
+g2-vocab: tokumei 26
 g2-vocab: tougou? 8
 g2-vocab: toukei 18
 g2-vocab: toutatsu? 7

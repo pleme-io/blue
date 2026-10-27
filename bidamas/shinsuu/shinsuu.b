@@ -47,7 +47,7 @@ def to_base_digits(n, base)
   if n < 1
     []
   else
-    cons(nth(n % base, digits), to_base_digits(floor(n / base), base))
+    cons(digits[n % base], to_base_digits(floor(n / base), base))
   end
 end
 
@@ -70,7 +70,7 @@ end
 def value_index(xs, v, i)
   if i >= size(xs)
     -1
-  elsif nth(i, xs) == v
+  elsif xs[i] == v
     i
   else
     value_index(xs, v, i + 1)
@@ -110,11 +110,7 @@ luhn_valid: The Luhn checksum, which every credit-card number satisfies.
 """
 def luhn_valid(n)
   ds = reverse(digits_of(n))
-  total = reduce(
-    (acc, i) -> acc + luhn_digit(nth(i, ds), i),
-    0,
-    range(0, size(ds))
-  )
+  total = reduce((acc, i) -> acc + luhn_digit(ds[i], i), 0, range(0, size(ds)))
   total % 10 == 0
 end
 
@@ -228,7 +224,7 @@ def bits_zip(f, a, b)
   w = max(size(a), size(b))
   x = pad_digits(a, w)
   y = pad_digits(b, w)
-  map((i) -> f(nth(i, x), nth(i, y)), range(0, w))
+  map((i) -> f(x[i], y[i]), range(0, w))
 end
 
 def bits_and(a, b)
@@ -656,9 +652,9 @@ def to_roman_from(n, vs, ss, i)
   if n < 1 or i >= size(vs)
     ""
   else
-    v = nth(i, vs)
+    v = vs[i]
     if n >= v
-      join([nth(i, ss), to_roman_from(n - v, vs, ss, i)], "")
+      join([ss[i], to_roman_from(n - v, vs, ss, i)], "")
     else
       to_roman_from(n, vs, ss, i + 1)
     end
@@ -710,7 +706,7 @@ def from_roman_at(cs, i)
   if i >= size(cs)
     0
   else
-    v = roman_value_of(nth(i, cs))
+    v = roman_value_of(cs[i])
     if v < roman_next(cs, i + 1)
       from_roman_at(cs, i + 1) - v
     else
@@ -723,7 +719,7 @@ def roman_next(cs, i)
   if i >= size(cs)
     0
   else
-    roman_value_of(nth(i, cs))
+    roman_value_of(cs[i])
   end
 end
 
@@ -874,7 +870,7 @@ def to_base_n_digits(n, base)
   if n < 1
     []
   else
-    cons(nth(n % base, digits36), to_base_n_digits(floor(n / base), base))
+    cons(digits36[n % base], to_base_n_digits(floor(n / base), base))
   end
 end
 
@@ -1036,7 +1032,7 @@ produce a check digit that fails the checker it was computed for.
 def luhn_check_digit(n)
   ds = reverse(digits_of(n))
   total = reduce(
-    (acc, i) -> acc + luhn_digit(nth(i, ds), i + 1),
+    (acc, i) -> acc + luhn_digit(ds[i], i + 1),
     0,
     range(0, size(ds))
   )
@@ -1055,7 +1051,7 @@ def luhn_valid_digits(ds)
     false
   else
     rs = reverse(ds)
-    reduce((acc, i) -> acc + luhn_digit(nth(i, rs), i), 0, range(0, size(rs))) %
+    reduce((acc, i) -> acc + luhn_digit(rs[i], i), 0, range(0, size(rs))) %
       10 == 0
   end
 end
@@ -1102,7 +1098,7 @@ def isbn10_char_ok(ch, i)
 end
 
 def isbn10_ok_chars(cs)
-  is_empty(filter((i) -> not isbn10_char_ok(nth(i, cs), i), range(0, size(cs))))
+  is_empty(filter((i) -> not isbn10_char_ok(cs[i], i), range(0, size(cs))))
 end
 
 @doc """
@@ -1111,7 +1107,7 @@ nine-character prefix — which is what isbn10_check_char needs.
 """
 def isbn10_weighted(cs)
   reduce(
-    (acc, i) -> acc + (10 - i) * isbn10_char_value(nth(i, cs)),
+    (acc, i) -> acc + (10 - i) * isbn10_char_value(cs[i]),
     0,
     range(0, size(cs))
   )
@@ -1262,7 +1258,7 @@ def be_bytes(n, width)
 end
 
 def be_value(bytes, pos, width)
-  reduce((a, i) -> a * 256 + nth(pos + i, bytes), 0, range(0, width))
+  reduce((a, i) -> a * 256 + bytes[pos + i], 0, range(0, width))
 end
 
 test "big-endian integers of a fixed width"
@@ -1286,7 +1282,7 @@ def hex_bytes(text)
     nil
   else
     map(
-      (i) -> digit_value(nth(2 * i, cs)) * 16 + digit_value(nth(2 * i + 1, cs)),
+      (i) -> digit_value(cs[2 * i]) * 16 + digit_value(cs[2 * i + 1]),
       range(0, size(cs) / 2)
     )
   end
@@ -1313,17 +1309,13 @@ def bytes_base64(bytes)
       fn(g)
         i = 3 * g
         have = min(3, n - i)
-        v = reduce(
-          (acc, k) -> acc * 256 + (nth(i + k, bytes) or 0),
-          0,
-          range(0, 3)
-        )
+        v = reduce((acc, k) -> acc * 256 + (bytes[i + k] or 0), 0, range(0, 3))
         sextets = map((k) -> shift_right(v, 6 * (3 - k)) % 64, range(0, 4))
         join(
           map(
             fn(k)
               if k <= have
-                nth(nth(k, sextets), base64_alphabet)
+                base64_alphabet[sextets[k]]
               else
                 "="
               end

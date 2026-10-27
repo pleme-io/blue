@@ -86,8 +86,8 @@ def machine(line)
     else
       target
     end
-    key = if size(fs) > 2 and nth(2, fs) != "-"
-      nth(2, fs)
+    key = if size(fs) > 2 and fs[2] != "-"
+      fs[2]
     end
     {line: trim(line), ok: true, uri:, host:, user:, key:}
   end
@@ -119,15 +119,15 @@ to run, by absolute path when the caller has one (services.tehai passes
 /usr/bin/ssh on macOS, openssh on NixOS), so the state can name which ssh ran.
 """
 def probe_argv(m, timeout_s, ssh)
-  key = if get(m, :key).nil?
+  key = if m[:key].nil?
     []
   else
-    ["-i", get(m, :key)]
+    ["-i", m[:key]]
   end
-  dest = if get(m, :user).nil?
-    get(m, :host)
+  dest = if m[:user].nil?
+    m[:host]
   else
-    "#{get(m, :user)}@#{get(m, :host)}"
+    "#{m[:user]}@#{m[:host]}"
   end
   concat_lists(
     [
@@ -169,10 +169,7 @@ live_text: The live machines file: each live machine's declared line, unchanged.
 """
 def live_text(checked)
   join(
-    map(
-      (c) -> concat(get(c, :line), line_break),
-      filter((c) -> get(c, :up), checked)
-    ),
+    map((c) -> concat(c[:line], line_break), filter((c) -> c[:up], checked)),
     ""
   )
 end
@@ -181,26 +178,26 @@ end
 states: Each machine's state, carrying `since` forward while up/down is unchanged.
 """
 def states(checked, previous, now)
-  map((c) -> state(c, previous_of(previous, get(c, :line)), now), checked)
+  map((c) -> state(c, previous_of(previous, c[:line]), now), checked)
 end
 
 def previous_of(previous, line)
-  find_first((p) -> get(p, :line) == line, previous)
+  find_first((p) -> p[:line] == line, previous)
 end
 
 def state(c, prev, now)
-  since = if prev != nil and get(prev, :up) == get(c, :up)
-    get(prev, :since_ms)
+  since = if prev != nil and prev[:up] == c[:up]
+    prev[:since_ms]
   else
     now
   end
   {
-    line: get(c, :line),
-    host: get(c, :host),
-    up: get(c, :up),
+    line: c[:line],
+    host: c[:host],
+    up: c[:up],
     since_ms: since,
     checked_ms: now,
-    detail: get(c, :detail)
+    detail: c[:detail]
   }
 end
 
@@ -264,10 +261,10 @@ Returns the state record.
 def run(declared_path, live_path, state_path, timeout_s, ssh)
   now = now_ms
   machines = parse(read_or(declared_path, ""))
-  good = filter((m) -> get(m, :ok), machines)
+  good = filter((m) -> m[:ok], machines)
   refused = map(
-    (m) -> {line: get(m, :line), why: get(m, :why)},
-    filter((m) -> get(m, :ok) == false, machines)
+    (m) -> {line: m[:line], why: m[:why]},
+    filter((m) -> m[:ok] == false, machines)
   )
   checked = map((m) -> tehai::checked(m, probe(m, timeout_s, ssh)), good)
   states = tehai::states(checked, read_previous(state_path), now)
@@ -287,12 +284,7 @@ def run(declared_path, live_path, state_path, timeout_s, ssh)
 end
 
 def checked(m, result)
-  {
-    line: get(m, :line),
-    host: get(m, :host),
-    up: nth(0, result),
-    detail: nth(1, result)
-  }
+  {line: m[:line], host: m[:host], up: result[0], detail: result[1]}
 end
 
 # ── substituters ─────────────────────────────────────────────────────
@@ -344,7 +336,7 @@ def cache_info_argv(s, timeout_s, curl)
     to_s(timeout_s),
     "--max-time",
     to_s(timeout_s * 2),
-    "#{get(s, :base)}/nix-cache-info"
+    "#{s[:base]}/nix-cache-info"
   ]
 end
 
@@ -372,7 +364,7 @@ substituters_text: The nix.conf fragment for the live substituters: one
     substituters_text([]) #=> ""
 """
 def substituters_text(checked)
-  live = map((c) -> get(c, :line), filter((c) -> get(c, :up), checked))
+  live = map((c) -> c[:line], filter((c) -> c[:up], checked))
   if is_empty(live)
     ""
   else
@@ -387,10 +379,10 @@ fragment and the state. Returns the state record.
 def run_substituters(declared_path, live_path, state_path, timeout_s, curl)
   now = now_ms
   declared = parse_substituters(read_or(declared_path, ""))
-  good = filter((s) -> get(s, :ok), declared)
+  good = filter((s) -> s[:ok], declared)
   refused = map(
-    (s) -> {line: get(s, :line), why: get(s, :why)},
-    filter((s) -> get(s, :ok) == false, declared)
+    (s) -> {line: s[:line], why: s[:why]},
+    filter((s) -> s[:ok] == false, declared)
   )
   checked = map(
     (s) -> tehai::checked(s, probe_substituter(s, timeout_s, curl)),
@@ -455,16 +447,16 @@ end
 test "the machines format: comments and blanks skipped, fields read, a bad line refused alone"
   ms = parse(sample)
   assert size(ms) == 3
-  q = nth(0, ms)
-  assert get(q, :host) == "quero-builder-ssm"
-  assert get(q, :user) == "builder"
-  assert get(q, :key) == "/Users/x/.ssh/key"
+  q = ms[0]
+  assert q[:host] == "quero-builder-ssm"
+  assert q[:user] == "builder"
+  assert q[:key] == "/Users/x/.ssh/key"
   # "-" is an empty field: no key.
-  assert get(nth(1, ms), :key).nil?
-  assert get(nth(1, ms), :host) == "plo"
+  assert ms[1][:key].nil?
+  assert ms[1][:host] == "plo"
   # The control: one malformed line is refused, and its siblings are not.
-  assert get(nth(2, ms), :ok) == false
-  assert size(filter((m) -> get(m, :ok), ms)) == 2
+  assert ms[2][:ok] == false
+  assert size(filter((m) -> m[:ok], ms)) == 2
   # The empty case.
   assert is_empty(parse("")) == true
 end
@@ -480,27 +472,27 @@ test "the check is non-interactive, short, and asks nix, not just the port"
 end
 
 test "only live machines are written, each line exactly as declared"
-  ms = filter((m) -> get(m, :ok), parse(sample))
+  ms = filter((m) -> m[:ok], parse(sample))
   checked = [
-    tehai::checked(nth(0, ms), [false, "Connection timed out"]),
-    tehai::checked(nth(1, ms), [true, "nix-store (Nix) 2.31.5"])
+    tehai::checked(ms[0], [false, "Connection timed out"]),
+    tehai::checked(ms[1], [true, "nix-store (Nix) 2.31.5"])
   ]
   assert live_text(checked) ==
     unlines(["ssh://root@plo x86_64-linux - 8 8 - - -"])
   # None live: an empty file, so nix builds locally rather than timing out.
-  assert live_text([tehai::checked(nth(0, ms), [false, "down"])]) == ""
+  assert live_text([tehai::checked(ms[0], [false, "down"])]) == ""
 end
 
 test "since carries forward while a machine's state holds, and resets when it flips"
-  ms = filter((m) -> get(m, :ok), parse(sample))
-  c = checked(nth(1, ms), [true, "ok"])
+  ms = filter((m) -> m[:ok], parse(sample))
+  c = checked(ms[1], [true, "ok"])
   first_run = states([c], [], 1000)
-  assert get(first(first_run), :since_ms) == 1000
+  assert first(first_run)[:since_ms] == 1000
   again = states([c], first_run, 2000)
-  assert get(first(again), :since_ms) == 1000
-  assert get(first(again), :checked_ms) == 2000
-  flipped = states([checked(nth(1, ms), [false, "gone"])], again, 3000)
-  assert get(first(flipped), :since_ms) == 3000
+  assert first(again)[:since_ms] == 1000
+  assert first(again)[:checked_ms] == 2000
+  flipped = states([checked(ms[1], [false, "gone"])], again, 3000)
+  assert first(flipped)[:since_ms] == 3000
 end
 
 test "a run end to end, with a machine that cannot answer"
@@ -520,9 +512,9 @@ test "a run end to end, with a machine that cannot answer"
     "ssh"
   )
   assert read_file(path_join(dir, "live")) == ""
-  assert size(get(r, :machines)) == 1
-  assert get(first(get(r, :machines)), :up) == false
-  assert size(get(r, :refused)) == 1
+  assert size(r[:machines]) == 1
+  assert first(r[:machines])[:up] == false
+  assert size(r[:refused]) == 1
   # The state file is JSON that reads back, and the next run keeps `since`:
   # still down, so the second run's since is the first run's.
   assert size(read_previous(path_join(dir, "state.json"))) == 1
@@ -533,8 +525,7 @@ test "a run end to end, with a machine that cannot answer"
     1,
     "ssh"
   )
-  assert get(first(get(r2, :machines)), :since_ms) ==
-    get(first(get(r, :machines)), :since_ms)
+  assert first(r2[:machines])[:since_ms] == first(r[:machines])[:since_ms]
   rm_rf(dir)
 end
 
@@ -553,10 +544,10 @@ test "a missing ssh binary is named, and the state records which ssh ran"
     1,
     "/nonexistent/ssh"
   )
-  m = first(get(r, :machines))
-  assert get(m, :up) == false
-  assert get(m, :detail) == "ssh could not be started: /nonexistent/ssh"
-  assert get(r, :ssh) == "/nonexistent/ssh"
+  m = first(r[:machines])
+  assert m[:up] == false
+  assert m[:detail] == "ssh could not be started: /nonexistent/ssh"
+  assert r[:ssh] == "/nonexistent/ssh"
   assert contains?(
     read_file(path_join(dir, "state.json")),
     "\"ssh\":\"/nonexistent/ssh\""
@@ -569,8 +560,7 @@ test "a missing ssh binary is named, and the state records which ssh ran"
     1,
     "ssh"
   )
-  assert get(first(get(r2, :machines)), :detail) !=
-    "ssh could not be started: ssh"
+  assert first(r2[:machines])[:detail] != "ssh could not be started: ssh"
   rm_rf(dir)
 end
 
@@ -627,27 +617,25 @@ test "substituters: the URL is kept as written, the probe drops the query, a bad
     )
   )
   assert size(ss) == 3
-  assert get(nth(0, ss), :host) == "cid:5001"
-  assert get(nth(1, ss), :line) ==
-    "http://cid.buzios.pleme.internal:5001?priority=29"
-  assert get(nth(1, ss), :base) == "http://cid.buzios.pleme.internal:5001"
-  assert get(nth(2, ss), :ok) == false
-  assert last(cache_info_argv(nth(1, ss), 2, "/usr/bin/curl")) ==
+  assert ss[0][:host] == "cid:5001"
+  assert ss[1][:line] == "http://cid.buzios.pleme.internal:5001?priority=29"
+  assert ss[1][:base] == "http://cid.buzios.pleme.internal:5001"
+  assert ss[2][:ok] == false
+  assert last(cache_info_argv(ss[1], 2, "/usr/bin/curl")) ==
     "http://cid.buzios.pleme.internal:5001/nix-cache-info"
-  assert contains(cache_info_argv(nth(1, ss), 2, "c"), "--connect-timeout") ==
-    true
+  assert contains(cache_info_argv(ss[1], 2, "c"), "--connect-timeout") == true
 end
 
 test "substituters: only the live ones are written, as one extra-substituters line"
   ss = parse_substituters(unlines(["http://a:1", "http://b:2?priority=29"]))
   checked = [
-    tehai::checked(nth(0, ss), [false, "Connection timed out"]),
-    tehai::checked(nth(1, ss), [true, "StoreDir: /nix/store"])
+    tehai::checked(ss[0], [false, "Connection timed out"]),
+    tehai::checked(ss[1], [true, "StoreDir: /nix/store"])
   ]
   assert substituters_text(checked) ==
     unlines(["extra-substituters = http://b:2?priority=29"])
   # None live: an empty fragment, so nix lists no peer at all.
-  assert substituters_text([tehai::checked(nth(0, ss), [false, "down"])]) == ""
+  assert substituters_text([tehai::checked(ss[0], [false, "down"])]) == ""
 end
 
 test "probe_substituter is up only when the far side answers as a nix cache"
@@ -681,8 +669,8 @@ test "a substituter run end to end: a dead peer is left out and named in the sta
     "curl"
   )
   assert read_file(path_join(dir, "substituters.conf")) == ""
-  assert get(first(get(r, :machines)), :up) == false
-  assert size(get(r, :refused)) == 1
+  assert first(r[:machines])[:up] == false
+  assert size(r[:refused]) == 1
   assert size(read_previous(path_join(dir, "substituters.json"))) == 1
   rm_rf(dir)
 end
@@ -727,7 +715,7 @@ test "probe hands ssh the argv that probe_argv builds"
   ssh = fake_ssh(dir, "ssh", "echo \"nix-store $*\"")
   r = probe({host: "h", user: "u", key: "/k"}, 3, ssh)
   assert first(r) == true
-  assert contains?(nth(1, r), "ConnectTimeout=3")
-  assert contains?(nth(1, r), "-i /k u@h nix-store --version")
+  assert contains?(r[1], "ConnectTimeout=3")
+  assert contains?(r[1], "-i /k u@h nix-store --version")
   rm_rf(dir)
 end

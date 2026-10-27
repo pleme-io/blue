@@ -412,7 +412,7 @@ effects: Every effect of every row: [:set f k], [:put f v], [:add f n], [:add_ke
 k], [:stamp f].
 """
 def effects(d)
-  flat_map(raifusaikuru::d_edges(d), (e) -> nth(4, e))
+  flat_map(raifusaikuru::d_edges(d), (e) -> e[4])
 end
 
 @doc """
@@ -421,7 +421,7 @@ atoms: Every atomic predicate of every rule of every guard.
 def atoms(d)
   flat_map(
     raifusaikuru::d_guards(d),
-    (g) -> flat_map(nth(2, g), (r) -> raifusaikuru::atoms(nth(2, r)))
+    (g) -> flat_map(g[2], (r) -> raifusaikuru::atoms(r[2]))
   )
 end
 
@@ -429,13 +429,10 @@ end
 field_evidence: The types the definition's constants and clocks give field `f`.
 """
 def field_evidence(d, f)
-  effects = map(
-    effect_type,
-    filter((x) -> nth(1, x) == f, anaritikusu::effects(d))
-  )
+  effects = map(effect_type, filter((x) -> x[1] == f, anaritikusu::effects(d)))
   atoms = map(
     atom_type,
-    filter((a) -> first(a) != :in and nth(1, a) == f, anaritikusu::atoms(d))
+    filter((a) -> first(a) != :in and a[1] == f, anaritikusu::atoms(d))
   )
   cons(
     lit_type(lookup(raifusaikuru::d_fields(d), f)),
@@ -446,7 +443,7 @@ end
 def effect_type(x)
   op = first(x)
   if op == :put or op == :add
-    lit_type(nth(2, x))
+    lit_type(x[2])
   elsif op == :stamp
     :bigint
   end
@@ -455,7 +452,7 @@ end
 def atom_type(a)
   op = first(a)
   if op == :eq
-    lit_type(nth(2, a))
+    lit_type(a[2])
   elsif op == :age_lt
     :bigint
   end
@@ -466,11 +463,11 @@ needs_number?: Field `f` holds a number: compared, counted, or given a numeric c
 """
 def needs_number?(d, f)
   compared = count_where(
-    (a) -> contains([:lt, :le, :gt, :ge], first(a)) and nth(1, a) == f,
+    (a) -> contains([:lt, :le, :gt, :ge], first(a)) and a[1] == f,
     atoms(d)
   ) > 0
   counted = count_where(
-    (x) -> contains([:add, :add_key], first(x)) and nth(1, x) == f,
+    (x) -> contains([:add, :add_key], first(x)) and x[1] == f,
     effects(d)
   ) > 0
   compared or
@@ -485,7 +482,7 @@ def flows_of_key(d, k)
   filter(
     fn(x)
       (first(x) == :set or first(x) == :add_key) and
-        raifusaikuru::text(nth(2, x)) == raifusaikuru::text(k)
+        raifusaikuru::text(x[2]) == raifusaikuru::text(k)
     end,
     effects(d)
   )
@@ -496,10 +493,10 @@ permit_key_types: A logged permit's key types by text: subject is text, the limi
 numbers.
 """
 def permit_key_types(d)
-  logged = map((l) -> nth(1, l), raifusaikuru::d_permit_logs(d))
+  logged = map((l) -> l[1], raifusaikuru::d_permit_logs(d))
   keys = flat_map(
     filter((e) -> contains(logged, first(e)), raifusaikuru::d_events(d)),
-    (e) -> as_list(nth(1, e))
+    (e) -> as_list(e[1])
   )
   map((k) -> [raifusaikuru::text(k), permit_key_type(k)], keys)
 end
@@ -521,7 +518,7 @@ def key_type(d, k)
     fixed
   else
     flows = flows_of_key(d, k)
-    targets = unique(map((x) -> nth(1, x), flows))
+    targets = unique(map((x) -> x[1], flows))
     numeric = count_where((x) -> first(x) == :add_key, flows) > 0 or
       count_where((f) -> needs_number?(d, f), targets) > 0
     if numeric
@@ -545,9 +542,9 @@ field_type: A field's column type (see "Types, derived").
 """
 def field_type(d, f)
   keys = map(
-    (x) -> key_type(d, nth(2, x)),
+    (x) -> key_type(d, x[2]),
     filter(
-      (x) -> (first(x) == :set or first(x) == :add_key) and nth(1, x) == f,
+      (x) -> (first(x) == :set or first(x) == :add_key) and x[1] == f,
       effects(d)
     )
   )
@@ -571,7 +568,7 @@ first: the event table's columns after the record's.
 def keys(d)
   unique_by(
     (k) -> raifusaikuru::text(k),
-    flat_map(raifusaikuru::d_events(d), (e) -> as_list(nth(1, e)))
+    flat_map(raifusaikuru::d_events(d), (e) -> as_list(e[1]))
   )
 end
 
@@ -605,7 +602,7 @@ event_columns: The event table's columns, as q_col: the record's, then every pay
 """
 def event_columns(d)
   check_names(d)
-  keys = map((kt) -> kueri::col(first(kt), nth(1, kt)), key_types(d))
+  keys = map((kt) -> kueri::col(first(kt), kt[1]), key_types(d))
   concat_lists(
     concat_lists(
       [
@@ -634,7 +631,7 @@ and what the replay found (a breach, or a refusal of an admitted record).
 """
 def state_columns(d)
   check_names(d)
-  fields = map((ft) -> kueri::col(first(ft), nth(1, ft)), field_types(d))
+  fields = map((ft) -> kueri::col(first(ft), ft[1]), field_types(d))
   concat_lists(
     concat_lists(
       [
@@ -656,7 +653,7 @@ end
 columns_text: [column, type] pairs of a q_col list, types as SQL: what a reader checks.
 """
 def columns_text(cols)
-  map((c) -> [get(c, :name), kueri::type_sql(get(c, :type), :duckdb)], cols)
+  map((c) -> [c[:name], kueri::type_sql(c[:type], :duckdb)], cols)
 end
 
 @doc """
@@ -703,7 +700,7 @@ end
 
 # waive B0013: `def` is a reserved word, so the prefix stays; anaritikusu::def names it too
 def la_def(b)
-  get(b, :def)
+  b[:def]
 end
 
 # ── sources: what is loaded ────────────────────────────────────────────────
@@ -720,7 +717,7 @@ def records_source(d, path)
     [
       kueri::col(
         :payload,
-        kueri::struct_of(map((kt) -> kueri::col(first(kt), nth(1, kt)), keys))
+        kueri::struct_of(map((kt) -> kueri::col(first(kt), kt[1]), keys))
       )
     ]
   end
@@ -762,7 +759,7 @@ def history_source(d, path)
     [
       kueri::col(
         :fields,
-        kueri::struct_of(map((ft) -> kueri::col(first(ft), nth(1, ft)), fields))
+        kueri::struct_of(map((ft) -> kueri::col(first(ft), ft[1]), fields))
       )
     ]
   end
@@ -804,10 +801,10 @@ def edges_rel(d)
   rows = map(
     fn(e)
       [
-        raifusaikuru::text(nth(1, e)),
-        raifusaikuru::text(nth(2, e)),
-        raifusaikuru::text(nth(3, e)),
-        text_or_nil(nth(5, e))
+        raifusaikuru::text(e[1]),
+        raifusaikuru::text(e[2]),
+        raifusaikuru::text(e[3]),
+        text_or_nil(e[5])
       ]
     end,
     raifusaikuru::d_edges(d)
@@ -834,7 +831,7 @@ neither names one).
 def rules_rel(d)
   rows = flat_map(
     raifusaikuru::d_guards(d),
-    (g) -> map((r) -> rule_row(g, r), nth(2, g))
+    (g) -> map((r) -> rule_row(g, r), g[2])
   )
   kueri::values(
     {
@@ -852,7 +849,7 @@ def rules_rel(d)
 end
 
 def rule_row(g, r)
-  t = raifusaikuru::task_or(r, nth(3, g))
+  t = raifusaikuru::task_or(r, g[3])
   task = if t.nil?
     [nil, nil]
   else
@@ -863,9 +860,9 @@ def rule_row(g, r)
   end
   concat_lists(
     [
-      raifusaikuru::text(nth(1, g)),
-      raifusaikuru::text(nth(1, r)),
-      raifusaikuru::pred_text(nth(2, r))
+      raifusaikuru::text(g[1]),
+      raifusaikuru::text(r[1]),
+      raifusaikuru::pred_text(r[2])
     ],
     task
   )
@@ -877,9 +874,7 @@ task_evidence_rel: Every task any rule may ask for, one row per evidence kind th
 def task_evidence_rel(d)
   tasks = flat_map(
     raifusaikuru::d_guards(d),
-    fn(g)
-      filter((t) -> t != nil, cons(nth(3, g), map((r) -> nth(3, r), nth(2, g))))
-    end
+    (g) -> filter((t) -> t != nil, cons(g[3], map((r) -> r[3], g[2])))
   )
   rows = unique(
     flat_map(
@@ -1353,10 +1348,10 @@ end
 count_keys: The counted fields of a capability's permit, as their log keys.
 """
 def count_keys(d, capability)
-  pm = find_first((p) -> nth(1, p) == capability, raifusaikuru::d_permits(d))
+  pm = find_first((p) -> p[1] == capability, raifusaikuru::d_permits(d))
   map(
-    (t) -> raifusaikuru::permit_count_key(nth(1, t)),
-    filter((t) -> first(t) == :counted, as_list(nth(2, pm)))
+    (t) -> raifusaikuru::permit_count_key(t[1]),
+    filter((t) -> first(t) == :counted, as_list(pm[2]))
   )
 end
 
@@ -1375,7 +1370,7 @@ def permit_models(d, log, events, steps, gates)
     [
       q_filter(
         q_and(
-          kueri::eq(:type, raifusaikuru::text(nth(1, log))),
+          kueri::eq(:type, raifusaikuru::text(log[1])),
           kueri::eq(:status, "admitted")
         )
       ),
@@ -1504,7 +1499,7 @@ def unpermitted_models(d, log, events, steps, gates)
     [
       q_filter(
         q_and(
-          kueri::eq(:type, raifusaikuru::text(nth(1, log))),
+          kueri::eq(:type, raifusaikuru::text(log[1])),
           kueri::eq(:status, "admitted")
         )
       ),
@@ -1704,8 +1699,8 @@ lifecycle_models: Every model of one lifecycle, upstream first.
 def lifecycle_models(b, now)
   d = la_def(b)
   check_names(d)
-  records = records_source(d, get(b, :stream))
-  history = history_source(d, get(b, :history))
+  records = records_source(d, b[:stream])
+  history = history_source(d, b[:history])
   edges = edges_rel(d)
   rules = rules_rel(d)
   evidence = task_evidence_rel(d)
@@ -1785,7 +1780,7 @@ end
 la_find: A model of this set, by name.
 """
 def la_find(models, name)
-  hit = find_first((m) -> get(m, :name) == name, models)
+  hit = find_first((m) -> m[:name] == name, models)
   if hit.nil?
     raise(:anaritikusu_schema, "no generated relation is named #{name}")
   end
@@ -1916,7 +1911,7 @@ link_models: The four models of one declared link of A.
 def link_models(bindings, models, a, link)
   ad = la_def(a)
   role = first(link)
-  b = target(bindings, a, role, nth(1, link))
+  b = target(bindings, a, role, link[1])
   bd = la_def(b)
   rows = link_rows_model(ad, role, la_find(models, n(ad, "events")))
   state = link_state_model(ad, role, bd, la_find(models, n(bd, "steps")))
@@ -1930,14 +1925,9 @@ the A record's time, and C's state as of that B record.
 """
 def chain_models(bindings, models, a, l1, l2)
   ad = la_def(a)
-  bd = la_def(target(bindings, a, first(l1), nth(1, l1)))
+  bd = la_def(target(bindings, a, first(l1), l1[1]))
   cd = la_def(
-    target(
-      bindings,
-      target(bindings, a, first(l1), nth(1, l1)),
-      first(l2),
-      nth(1, l2)
-    )
+    target(bindings, target(bindings, a, first(l1), l1[1]), first(l2), l2[1])
   )
   r1 = raifusaikuru::text(first(l1))
   r2 = raifusaikuru::text(first(l2))
@@ -2043,7 +2033,7 @@ def source_names(d)
 end
 
 def chains_from(bindings, models, a, l1)
-  bd = la_def(target(bindings, a, first(l1), nth(1, l1)))
+  bd = la_def(target(bindings, a, first(l1), l1[1]))
   flat_map(
     raifusaikuru::d_links(bd),
     (l2) -> chain_models(bindings, models, a, l1, l2)
@@ -2056,7 +2046,7 @@ with one name would collapse into one in the database, since kueri
 identifies a node by its name.
 """
 def check_unique(models, sources)
-  names = concat_lists(map((m) -> get(m, :name), models), sources)
+  names = concat_lists(map((m) -> m[:name], models), sources)
   dup = unique(filter((n) -> count_of(names, n) > 1, names))
   if is_empty(dup) == false
     raise(
@@ -2122,7 +2112,7 @@ def history_line(r, s)
   fields = if is_empty(raifusaikuru::fields(s))
     ""
   else
-    ",\"fields\":#{nisshi::canon_object(map((kv) -> [raifusaikuru::text(first(kv)), json_value(nth(1, kv))], raifusaikuru::fields(s)))}"
+    ",\"fields\":#{nisshi::canon_object(map((kv) -> [raifusaikuru::text(first(kv)), json_value(kv[1])], raifusaikuru::fields(s)))}"
   end
   # The keys are fixed, so they are written in code-point order here rather
   # than sorted per line (the benchmark's hot path; el_canon_object still
@@ -2134,7 +2124,7 @@ end
 history_text: The history of a log value that was read: one line per record. Pure.
 """
 def history_text(log)
-  unlines(map((x) -> history_line(first(x), nth(1, x)), nisshi::history(log)))
+  unlines(map((x) -> history_line(first(x), x[1]), nisshi::history(log)))
 end
 
 @doc """
@@ -2163,11 +2153,11 @@ def bindings(dir, streams)
   map(
     fn(s)
       binding(
-        get(s, :def),
-        get(s, :path),
+        s[:def],
+        s[:path],
         path_join(
           dir,
-          "#{raifusaikuru::text(raifusaikuru::name(get(s, :def)))}.history.jsonl"
+          "#{raifusaikuru::text(raifusaikuru::name(s[:def]))}.history.jsonl"
         )
       )
     end,
@@ -2195,13 +2185,13 @@ def build(dir, streams, now)
 end
 
 def build_history(dir, s)
-  d = get(s, :def)
-  log = nisshi::read(get(s, :path), get(s, :label), d)
+  d = s[:def]
+  log = nisshi::read(s[:path], s[:label], d)
   rep = nisshi::verify(log, nil, nil)
   if nisshi::intact?(rep) == false
     raise(
       :anaritikusu_broken,
-      "#{get(s, :path)}: position #{to_s(nisshi::break_position(rep))}, #{to_s(nisshi::break_kind(rep))}: #{nisshi::break_why(rep)}"
+      "#{s[:path]}: position #{to_s(nisshi::break_position(rep))}, #{to_s(nisshi::break_kind(rep))}: #{nisshi::break_why(rep)}"
     )
   end
   write_history(
@@ -2218,7 +2208,7 @@ question of its own) runs its query there.
 """
 def read(db, model)
   cols = kueri::output(model)
-  query = if get(model, :materialize) == :view
+  query = if model[:materialize] == :view
     kueri::model({name: "la_read", from: model, pipeline: [kueri::sort(cols)]})
   else
     kueri::then(model, [kueri::sort(cols)])
@@ -2261,14 +2251,14 @@ end
 
 def example_tighten(c)
   if list?(c) and is_empty(c) == false and first(c) == :lc_guard
-    [:lc_guard, nth(1, c), map(example_tighten_rule, nth(2, c)), nth(3, c)]
+    [:lc_guard, c[1], map(example_tighten_rule, c[2]), c[3]]
   else
     c
   end
 end
 
 def example_tighten_rule(r)
-  if nth(1, r) == :uses_left
+  if r[1] == :uses_left
     raifusaikuru::rule(:uses_left, raifusaikuru::below(:uses, 3))
   else
     r
@@ -2483,8 +2473,8 @@ def example_streams(dir)
     fn(m, s)
       assoc(
         m,
-        raifusaikuru::text(raifusaikuru::name(get(s, :def))),
-        nisshi::read(get(s, :path), get(s, :label), get(s, :def))
+        raifusaikuru::text(raifusaikuru::name(s[:def])),
+        nisshi::read(s[:path], s[:label], s[:def])
       )
     end,
     {},
@@ -2497,8 +2487,8 @@ end
 def example_append(logs, x)
   kind = raifusaikuru::text(first(x))
   log = get(logs, kind)
-  ev = example_event(log, nth(1, x), nth(2, x))
-  assoc(logs, kind, el_append(log, nth(1, x), ev, nth(3, x)))
+  ev = example_event(log, x[1], x[2])
+  assoc(logs, kind, el_append(log, x[1], ev, x[3]))
 end
 
 def example_event(log, entity, ev)
@@ -2506,8 +2496,8 @@ def example_event(log, entity, ev)
     d = el_def(log)
     raifusaikuru::permit_event(
       d,
-      raifusaikuru::permit_for(d, nisshi::state(log, entity), :use, nth(1, ev)),
-      nth(2, ev)
+      raifusaikuru::permit_for(d, nisshi::state(log, entity), :use, ev[1]),
+      ev[2]
     )
   else
     ev
@@ -2599,7 +2589,7 @@ test "the telemetry schema is derived from the definition: the record's columns,
     ]
   )
   assert size(event_columns(bare)) == 11
-  assert map((c) -> get(c, :name), state_columns(bare)) ==
+  assert map((c) -> c[:name], state_columns(bare)) ==
     ["entity", "seq", "phase", "breach", "breach_capability", "replay_refusal"]
   # Unconstrained is text, never a guess.
   noted = lc_define(
@@ -2692,9 +2682,9 @@ test "the history is the fold's state after every record, and names what the rep
   # (quality_ok), written refused: the state after each use is the state
   # before it, and nothing is a breach.
   assert size(lines) == 4
-  assert nth(2, lines) ==
+  assert lines[2] ==
     "{\"breach\":null,\"breach_capability\":null,\"entity\":\"item-1\",\"fields\":{\"opened_at\":1000,\"quality\":26,\"read_at\":1100,\"uses\":0},\"phase\":\"open\",\"replay_refusal\":null,\"seq\":2}"
-  assert nth(3, lines) == replace(nth(2, lines), "\"seq\":2", "\"seq\":3")
+  assert lines[3] == replace(lines[2], "\"seq\":2", "\"seq\":3")
   # Read by a definition with no quality rule, the same stream's admitted
   # records fold the same; read by one where `use` has no row at all, an
   # admitted use would be refused on replay and says so. Here: a stream whose
@@ -3184,7 +3174,7 @@ test "observed breaches and uses no permit covered: each found, with the reason,
   dir = test_dir("observed")
   d = example_consumable
   s = stream(d, path_join(dir, "consumable.jsonl"), "anaritikusu-observed")
-  log0 = nisshi::read(get(s, :path), get(s, :label), d)
+  log0 = nisshi::read(s[:path], s[:label], d)
   # item-a, seq in brackets: [0] reading 10 at 1000, [1] open 1100, [2] a use
   # OBSERVED at 1200 before any permit (the guard holds, so no breach),
   # [3] a permit at 1300, [4] a use at 1400, [5] a reading of 26 at 1500,
@@ -3245,10 +3235,8 @@ test "observed breaches and uses no permit covered: each found, with the reason,
   # quality_ok refused one attempt and was breached twice; the three asks are
   # one `replace` task, opened at 1600, never closed (no later reading), open
   # 20000 - 1600 = 18400 s against 1200: overdue.
-  assert filter(
-    (r) -> nth(1, r) == "quality_ok",
-    view("consumable_rule_hits")
-  ) == norm_rows([["use", "quality_ok", "quality below 24", 1, 2]])
+  assert filter((r) -> r[1] == "quality_ok", view("consumable_rule_hits")) ==
+    norm_rows([["use", "quality_ok", "quality below 24", 1, 2]])
   assert view("consumable_tasks") ==
     norm_rows(
       [["item-a", "replace", "open", 6, 1600, nil, nil, 3, 18400, 1200, true]]
@@ -3262,7 +3250,7 @@ test "observed breaches and uses no permit covered: each found, with the reason,
   dir2 = test_dir("attempted")
   s2 = stream(d, path_join(dir2, "consumable.jsonl"), "anaritikusu-observed")
   m1 = nisshi::append_all(
-    nisshi::read(get(s2, :path), get(s2, :label), d),
+    nisshi::read(s2[:path], s2[:label], d),
     [
       ["item-a", raifusaikuru::ev(:reading, 1000, [[:value, 10]]), []],
       ["item-a", raifusaikuru::ev(:open, 1100, []), []],
@@ -3294,7 +3282,7 @@ test "observed breaches and uses no permit covered: each found, with the reason,
   assert norm_rows(read(db2, la_find(ms2, "consumable_unpermitted_use"))) ==
     norm_rows([["item-a", 2, 1200, nil, nil, nil, "no_permit"]])
   assert filter(
-    (r) -> nth(1, r) == "quality_ok",
+    (r) -> r[1] == "quality_ok",
     norm_rows(read(db2, la_find(ms2, "consumable_rule_hits")))
   ) == norm_rows([["use", "quality_ok", "quality below 24", 3, 0]])
   rm_rf(dir)
@@ -3305,7 +3293,7 @@ end
 example_differential: nisshi's replay and the database agree on every entity's phase and fields.
 """
 def example_differential(db, ms, s)
-  d = get(s, :def)
+  d = s[:def]
   nf = size(raifusaikuru::d_field_names(d))
   fold = map(
     fn(es)
@@ -3314,14 +3302,14 @@ def example_differential(db, ms, s)
           cons(
             first(es),
             cons(
-              raifusaikuru::text(raifusaikuru::phase(nth(1, es))),
-              map((kv) -> nth(1, kv), raifusaikuru::fields(nth(1, es)))
+              raifusaikuru::text(raifusaikuru::phase(es[1])),
+              map((kv) -> kv[1], raifusaikuru::fields(es[1]))
             )
           )
         ]
       )
     end,
-    nisshi::states(nisshi::read(get(s, :path), get(s, :label), d))
+    nisshi::states(nisshi::read(s[:path], s[:label], d))
   )
   sql = map(
     (r) -> take_n(r, 2 + nf),
@@ -3366,8 +3354,8 @@ test "a stricter reader: an applied event becomes a breach, and asks for its tas
 end
 
 def example_restrict(s)
-  if raifusaikuru::text(raifusaikuru::name(get(s, :def))) == "consumable"
-    stream(example_consumable_strict, get(s, :path), get(s, :label))
+  if raifusaikuru::text(raifusaikuru::name(s[:def])) == "consumable"
+    stream(example_consumable_strict, s[:path], s[:label])
   else
     s
   end
@@ -3432,7 +3420,7 @@ test "the set is refused where it cannot be generated, and a broken stream is re
   )
   # A stream with a changed line is not built on.
   streams = example_streams(dir)
-  path = get(first(streams), :path)
+  path = first(streams)[:path]
   write_file(path, replace(read_file(path), "\"time\":29300", "\"time\":29301"))
   assert error?(
     begin
@@ -3455,7 +3443,7 @@ test "as of, with two records of the linked entity in one second: the state afte
   # both see item-t after [3], two uses, whichever order the database keeps
   # the two 1200 records in.
   nisshi::append_all(
-    nisshi::read(get(sc, :path), get(sc, :label), d),
+    nisshi::read(sc[:path], sc[:label], d),
     [
       ["item-t", raifusaikuru::ev(:reading, 1000, [[:value, 10]]), []],
       ["item-t", raifusaikuru::ev(:open, 1100, []), []],
@@ -3464,7 +3452,7 @@ test "as of, with two records of the linked entity in one second: the state afte
     ]
   )
   nisshi::append_all(
-    nisshi::read(get(sp, :path), get(sp, :label), p),
+    nisshi::read(sp[:path], sp[:label], p),
     [
       [
         "p-t",
@@ -3481,7 +3469,7 @@ test "as of, with two records of the linked entity in one second: the state afte
   db = build(dir, [sc, sp], 5000)
   ms = models(bindings(dir, [sc, sp]), 5000)
   assert map(
-    (r) -> [first(r), nth(6, r), nth(8, r)],
+    (r) -> [first(r), r[6], r[8]],
     norm_rows(read(db, la_find(ms, "portion_item")))
   ) == norm_rows([["p-t", 3, 2], ["p-u", 3, 2]])
   rm_rf(dir)

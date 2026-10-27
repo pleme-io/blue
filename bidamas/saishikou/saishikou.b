@@ -17,7 +17,7 @@ retrying: call step again under a policy while it fails.
     retrying({times: 3, wait_ms: 0}, flaky(2)) #=> 3
 """
 def retrying(policy, step)
-  attempt(step, policy.times, get(policy, :wait_ms), get(policy, :on), 1)
+  attempt(step, policy.times, policy[:wait_ms], policy[:on], 1)
 end
 
 def attempt(step, times, wait_ms, kinds, n)

@@ -31,13 +31,13 @@ def objectives(svc)
       map_entries(given)
     end
   )
-  le = le_of(get(o, "latency_ms"))
+  le = le_of(o["latency_ms"])
   if member?(le, map((b) -> to_s(b), kyuuji::latency_bounds))
     o
   else
     raise(
       :latency_bound,
-      "slo latency_ms #{to_s(get(o, "latency_ms"))} is no histogram bound; the bounds are #{join(map((b) -> to_s(round(b * 1000)), kyuuji::latency_bounds), ", ")} ms"
+      "slo latency_ms #{to_s(o["latency_ms"])} is no histogram bound; the bounds are #{join(map((b) -> to_s(round(b * 1000)), kyuuji::latency_bounds), ", ")} ms"
     )
   end
 end
@@ -92,13 +92,13 @@ def indicators(name, o)
       "availability",
       "slo:error_ratio:rate",
       (w) -> error_ratio(name, w),
-      get(o, "availability")
+      o["availability"]
     ],
     [
       "latency",
       "slo:slow_ratio:rate",
-      (w) -> slow_ratio(name, le_of(get(o, "latency_ms")), w),
-      get(o, "latency")
+      (w) -> slow_ratio(name, le_of(o["latency_ms"]), w),
+      o["latency"]
     ]
   ]
 end
@@ -113,7 +113,7 @@ def recording(name, o)
           fn(w)
             {
               "record" => "#{second(ind)}#{w}",
-              "expr" => nth(2, ind)(w),
+              "expr" => ind[2](w),
               "labels" => {"service" => name}
             }
           end,
@@ -138,22 +138,22 @@ def alerts(name, o)
     [],
     map(
       fn(ind)
-        threshold = budget(nth(3, ind))
+        threshold = budget(ind[3])
         map(
           fn(w)
-            limit = "(#{to_s(get(w, "factor"))} * #{to_s(threshold)})"
+            limit = "(#{to_s(w["factor"])} * #{to_s(threshold)})"
             rec = second(ind)
             {
-              "alert" => "Slo#{capitalized(first(ind))}Burn#{capitalized(get(w, "long"))}",
-              "expr" => "#{rec}#{get(w, "long")}{#{selector(name)}} > #{limit} and #{rec}#{get(w, "short")}{#{selector(name)}} > #{limit}",
+              "alert" => "Slo#{capitalized(first(ind))}Burn#{capitalized(w["long"])}",
+              "expr" => "#{rec}#{w["long"]}{#{selector(name)}} > #{limit} and #{rec}#{w["short"]}{#{selector(name)}} > #{limit}",
               "labels" => {
-                "severity" => get(w, "severity"),
+                "severity" => w["severity"],
                 "service" => name,
                 "slo" => first(ind)
               },
               "annotations" => {
-                "summary" => "#{name} is spending its #{first(ind)} error budget #{to_s(get(w, "factor"))}x too fast over #{get(w, "long")} and #{get(w, "short")}",
-                "objective" => "#{to_s(nth(3, ind))}% over #{to_s(get(o, "window_days"))}d"
+                "summary" => "#{name} is spending its #{first(ind)} error budget #{to_s(w["factor"])}x too fast over #{w["long"]} and #{w["short"]}",
+                "objective" => "#{to_s(ind[3])}% over #{to_s(o["window_days"])}d"
               }
             }
           end,
@@ -216,7 +216,7 @@ dashboard: panels showing an objective, built from the same rules.
 def dashboard(name, svc)
   o = objectives(svc)
   s = selector(name)
-  window = "#{to_s(get(o, "window_days"))}d"
+  window = "#{to_s(o["window_days"])}d"
   {
     "uid" => "#{name}-slo",
     "title" => "#{name} service",
@@ -272,7 +272,7 @@ def dashboard(name, svc)
       ),
       panel(
         3,
-        "Availability over #{window} (objective #{to_s(get(o, "availability"))}%)",
+        "Availability over #{window} (objective #{to_s(o["availability"])}%)",
         "stat",
         0,
         8,
@@ -287,12 +287,12 @@ def dashboard(name, svc)
         8,
         [
           target(
-            "slo:error_ratio:rate1h{#{s}} / #{to_s(budget(get(o, "availability")))}",
+            "slo:error_ratio:rate1h{#{s}} / #{to_s(budget(o["availability"]))}",
             "availability"
           ),
           assoc(
             target(
-              "slo:slow_ratio:rate1h{#{s}} / #{to_s(budget(get(o, "latency")))}",
+              "slo:slow_ratio:rate1h{#{s}} / #{to_s(budget(o["latency"]))}",
               "latency"
             ),
             "refId",
@@ -306,21 +306,21 @@ def dashboard(name, svc)
 end
 
 def entry(name, version, svc)
-  repo = get(svc, "repository")
+  repo = svc["repository"]
   {
     "name" => name,
     "version" => version,
-    "owner" => get_or(svc, "owner", nth(1, split(repo, "/"))),
+    "owner" => get_or(svc, "owner", split(repo, "/")[1]),
     "endpoints" => [
-      {"name" => "http", "port" => get(svc, "port"), "path" => "/"},
+      {"name" => "http", "port" => svc["port"], "path" => "/"},
       {
         "name" => "health",
-        "port" => get(svc, "port"),
+        "port" => svc["port"],
         "path" => get_or(svc, "probe", "/healthz")
       },
       {
         "name" => "metrics",
-        "port" => get(svc, "port"),
+        "port" => svc["port"],
         "path" => kyuuji::metrics_path
       }
     ],
@@ -355,9 +355,9 @@ test "a declared objective overrides only itself"
   o = objectives(
     assoc(sample, "slo", {"availability" => 99.9, "latency_ms" => 1000})
   )
-  assert get(o, "availability") == 99.9
-  assert get(o, "latency_ms") == 1000
-  assert get(o, "latency") == 99
+  assert o["availability"] == 99.9
+  assert o["latency_ms"] == 1000
+  assert o["latency"] == 99
   assert le_of(1000) == "1"
 end
 
@@ -373,32 +373,30 @@ end
 
 test "the rules record both ratios per window and alert on each multi-window pair"
   r = rules("hello", sample)
-  groups = get(get(r, "spec"), "groups")
-  rec = get(first(groups), "rules")
-  al = get(second(groups), "rules")
+  groups = r["spec"]["groups"]
+  rec = first(groups)["rules"]
+  al = second(groups)["rules"]
   assert count(rec) == 14
   assert count(al) == 8
-  assert get(first(rec), "record") == "slo:error_ratio:rate5m"
-  assert get(first(al), "expr") ==
+  assert first(rec)["record"] == "slo:error_ratio:rate5m"
+  assert first(al)["expr"] ==
     "slo:error_ratio:rate1h{service=\"hello\"} > (14.4 * 0.005) and slo:error_ratio:rate5m{service=\"hello\"} > (14.4 * 0.005)"
-  assert get(first(al), "alert") == "SloAvailabilityBurn1h"
-  assert contains?(get(nth(7, rec), "expr"), "le=\"0.25\"") == true
+  assert first(al)["alert"] == "SloAvailabilityBurn1h"
+  assert contains?(rec[7]["expr"], "le=\"0.25\"") == true
 end
 
 test "the dashboard and the catalog entry read the same objectives"
   d = dashboard("hello", sample)
-  assert get(d, "uid") == "hello-slo"
-  assert count(get(d, "panels")) == 4
-  assert contains?(get(nth(2, get(d, "panels")), "title"), "99.5%") == true
+  assert d["uid"] == "hello-slo"
+  assert count(d["panels"]) == 4
+  assert contains?(d["panels"][2]["title"], "99.5%") == true
   e = entry("hello", "0.1.0", sample)
-  assert get(e, "owner") == "pleme-io"
-  assert get(e, "slo") == defaults
-  assert get(get(e, "image"), "tag") == "0.1.0"
-  assert get(nth(2, get(e, "endpoints")), "path") == "/metrics"
-  assert get(
-    entry("hello", "0.1.0", assoc(sample, "owner", "edge")),
-    "owner"
-  ) == "edge"
+  assert e["owner"] == "pleme-io"
+  assert e["slo"] == defaults
+  assert e["image"]["tag"] == "0.1.0"
+  assert e["endpoints"][2]["path"] == "/metrics"
+  assert entry("hello", "0.1.0", assoc(sample, "owner", "edge"))["owner"] ==
+    "edge"
 end
 
 test "budget is the share of requests an objective lets fail"
@@ -427,7 +425,7 @@ end
 test "alerts has a burn alert per window for each of the two indicators, in order"
   al = alerts("hello", objectives(sample))
   assert count(al) == 8
-  assert map((a) -> get(a, "alert"), al) ==
+  assert map((a) -> a["alert"], al) ==
     [
       "SloAvailabilityBurn1h",
       "SloAvailabilityBurn6h",
@@ -438,19 +436,19 @@ test "alerts has a burn alert per window for each of the two indicators, in orde
       "SloLatencyBurn1d",
       "SloLatencyBurn3d"
     ]
-  assert map((a) -> get(get(a, "labels"), "severity"), take(4, al)) ==
+  assert map((a) -> a["labels"]["severity"], take(4, al)) ==
     ["page", "page", "ticket", "ticket"]
 end
 
 test "alerts carry the service, the indicator and the objective they spend"
   al = alerts("hello", objectives(sample))
   a = first(al)
-  assert get(get(a, "labels"), "service") == "hello"
-  assert get(get(a, "labels"), "slo") == "availability"
-  assert get(get(a, "annotations"), "objective") == "99.5% over 30d"
-  assert get(get(nth(4, al), "annotations"), "objective") == "99% over 30d"
+  assert a["labels"]["service"] == "hello"
+  assert a["labels"]["slo"] == "availability"
+  assert a["annotations"]["objective"] == "99.5% over 30d"
+  assert al[4]["annotations"]["objective"] == "99% over 30d"
   assert contains?(
-    get(get(a, "annotations"), "summary"),
+    a["annotations"]["summary"],
     "hello is spending its availability error budget 14.4x too fast over 1h and 5m"
   )
 end
@@ -460,7 +458,7 @@ test "alerts threshold follows the declared objective and window"
     assoc(sample, "slo", {"availability" => 99, "window_days" => 7})
   )
   a = first(alerts("hello", o))
-  assert contains?(get(a, "expr"), "> (14.4 * 0.01)")
-  assert get(get(a, "annotations"), "objective") == "99% over 7d"
-  assert contains?(get(a, "expr"), "service=\"hello\"")
+  assert contains?(a["expr"], "> (14.4 * 0.01)")
+  assert a["annotations"]["objective"] == "99% over 7d"
+  assert contains?(a["expr"], "service=\"hello\"")
 end

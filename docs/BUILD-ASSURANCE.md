@@ -1,8 +1,3 @@
----
-kind: explanation
-summary: what a blue build proves, how fast, and from which cache (design)
----
-
 # BUILD-ASSURANCE — what a blue build proves, how fast, and from which cache
 
 Status: DESIGN, 2026-10-27. Nothing here is built unless the tier ledger (§9)

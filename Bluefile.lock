@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:b996d249d60c0ab9c7472d81d716737dd41adafd6554d4a41fd757787f939e1a",
+  "bluefile_b3": "b3:b9cb5bf08fc423ed8ac7a53b2e7261cd9c5d68afc0ed8dd739d04abd2136a985",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -19,12 +19,6 @@
       "curl"
     ],
     "checks": {
-      "docs": {
-        "file": "gen/docs.b",
-        "inputs": [
-          "docs"
-        ]
-      },
       "heni-mutations": {
         "file": "gen/heni-gate.b"
       },
@@ -33,12 +27,6 @@
       },
       "project-rules": {
         "file": "rules/conventions.b"
-      },
-      "regen-untracked": {
-        "file": "gen/regen_test.b",
-        "inputs": [
-          "gen/regen.b"
-        ]
       },
       "test-beside": {
         "file": "gen/test-beside.b"
@@ -50,31 +38,6 @@
     "apps": {},
     "catalog": "bidamas/CATALOG.md",
     "generated": {
-      "agents": {
-        "output": "AGENTS.md",
-        "program": "gen/hon/agents.b",
-        "inputs": [
-          "Bluefile.lock",
-          "docs"
-        ]
-      },
-      "book": {
-        "output": "docs/BOOK.md",
-        "program": "gen/hon/book.b",
-        "inputs": [
-          "Bluefile.lock",
-          "docs",
-          "bidamas"
-        ]
-      },
-      "claude": {
-        "output": "CLAUDE.md",
-        "program": "gen/hon/claude.b",
-        "inputs": [
-          "Bluefile.lock",
-          "docs"
-        ]
-      },
       "examples": {
         "output": "docs/EXAMPLES.md",
         "program": "gen/examples.b",
@@ -121,33 +84,9 @@
           "bidamas/danpen/fixtures/schema/kensa.graphql"
         ]
       },
-      "llms": {
-        "output": "llms.txt",
-        "program": "gen/hon/llms.b",
-        "inputs": [
-          "Bluefile.lock",
-          "docs"
-        ]
-      },
-      "llms-full": {
-        "output": "llms-full.txt",
-        "program": "gen/hon/llms-full.b",
-        "inputs": [
-          "Bluefile.lock",
-          "docs"
-        ]
-      },
       "okite-rules": {
         "output": "bidamas/okite/RULES.md",
         "program": "gen/okite-rules.b"
-      },
-      "readme": {
-        "output": "README.md",
-        "program": "gen/hon/readme.b",
-        "inputs": [
-          "Bluefile.lock",
-          "docs"
-        ]
       },
       "reference": {
         "output": "docs/REFERENCE.md",

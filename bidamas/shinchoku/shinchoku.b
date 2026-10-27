@@ -28,7 +28,7 @@ def settled(generation, phase)
 end
 
 def verdict(v)
-  get(v, :verdict)
+  v[:verdict]
 end
 
 def sample(at_ms, value)
@@ -40,16 +40,16 @@ def failed_sample(at_ms, why)
 end
 
 def failed?(s)
-  get(s, :error) != nil or number?(get(s, :value)) == false
+  s[:error] != nil or number?(s[:value]) == false
 end
 
 def trailing_since(samples)
-  last_value = get(last(samples), :value)
+  last_value = last(samples)[:value]
   reduce(
     fn(acc, s)
-      if get(s, :value) == last_value
+      if s[:value] == last_value
         if acc.nil?
-          get(s, :at_ms)
+          s[:at_ms]
         else
           acc
         end
@@ -62,9 +62,7 @@ end
 
 def travelled(samples)
   reduce(
-    fn(acc, pair)
-      acc + abs(get(second(pair), :value) - get(first(pair), :value))
-    end,
+    (acc, pair) -> acc + abs(second(pair)[:value] - first(pair)[:value]),
     0,
     zip(samples, rest(samples))
   )
@@ -78,13 +76,11 @@ def progress(samples, window_s)
     blind("#{size(samples)} sample(s); progress needs two or more")
   elsif any?(failed?, samples)
     s = first(filter(failed?, samples))
-    blind(
-      "the sample at #{to_s(get(s, :at_ms))} failed: #{to_s(get(s, :error))}"
-    )
+    blind("the sample at #{to_s(s[:at_ms])} failed: #{to_s(s[:error])}")
   else
-    span_ms = get(last(samples), :at_ms) - get(first(samples), :at_ms)
+    span_ms = last(samples)[:at_ms] - first(samples)[:at_ms]
     since = trailing_since(samples)
-    still_ms = get(last(samples), :at_ms) - since
+    still_ms = last(samples)[:at_ms] - since
     if span_ms <= 0
       blind("the samples span no time")
     elsif still_ms >= window_s * 1000
@@ -106,10 +102,10 @@ def bucket(resources, name)
   else
     {
       bucket: name,
-      limit: get(b, "limit"),
-      used: get(b, "used"),
-      remaining: get(b, "remaining"),
-      reset: get(b, "reset")
+      limit: b["limit"],
+      used: b["used"],
+      remaining: b["remaining"],
+      reset: b["reset"]
     }
   end
 end
@@ -117,7 +113,7 @@ end
 def budget_of(text)
   doc = json_read(text) rescue nil
   resources = if doc != nil and map?(doc)
-    get(doc, "resources")
+    doc["resources"]
   end
   if resources.nil?
     blind("gh api rate_limit answered no resources")
@@ -147,10 +143,10 @@ end
 
 def gh_budget()
   r = run_capture(["gh", "api", "rate_limit"])
-  if get(r, :ok)
-    budget_of(get(r, :stdout))
+  if r[:ok]
+    budget_of(r[:stdout])
   else
-    blind(get(r, :why))
+    blind(r[:why])
   end
 end
 
@@ -173,30 +169,28 @@ def admission(n, why)
 end
 
 def agents_allowed_with(s, load1, cores, gh_remaining, agents_running)
-  ceiling = get(s, "load_factor") * cores
+  ceiling = s["load_factor"] * cores
   if load1 > ceiling
     admission(
       0,
-      "load #{to_s(load1)} is above #{to_s(get(s, "load_factor"))}x #{to_s(cores)} cores"
+      "load #{to_s(load1)} is above #{to_s(s["load_factor"])}x #{to_s(cores)} cores"
     )
   elsif gh_remaining.nil?
     admission(0, "the GitHub budget could not be read")
-  elsif gh_remaining < get(s, "gh_floor")
+  elsif gh_remaining < s["gh_floor"]
     admission(
       0,
-      "#{to_s(gh_remaining)} GitHub calls left, under the floor of #{to_s(get(s, "gh_floor"))}"
+      "#{to_s(gh_remaining)} GitHub calls left, under the floor of #{to_s(s["gh_floor"])}"
     )
-  elsif agents_running >= get(s, "max_agents")
+  elsif agents_running >= s["max_agents"]
     admission(
       0,
-      "#{to_s(agents_running)} agents run, the most allowed is #{to_s(get(s, "max_agents"))}"
+      "#{to_s(agents_running)} agents run, the most allowed is #{to_s(s["max_agents"])}"
     )
   else
-    by_load = floor((ceiling - load1) / get(s, "load_per_agent"))
-    by_gh = floor(
-      (gh_remaining - get(s, "gh_floor")) / get(s, "gh_calls_per_agent")
-    )
-    by_count = get(s, "max_agents") - agents_running
+    by_load = floor((ceiling - load1) / s["load_per_agent"])
+    by_gh = floor((gh_remaining - s["gh_floor"]) / s["gh_calls_per_agent"])
+    by_count = s["max_agents"] - agents_running
     n = min(by_load, min(by_gh, by_count))
     why = if n == by_load
       "load headroom"
@@ -224,28 +218,28 @@ def job_from_cronjob(cronjob_json, name)
   cj = json_read(cronjob_json) rescue nil
   if cj.nil? or map?(cj) == false
     {ok: false, why: "not a JSON object"}
-  elsif get(cj, "kind") != "CronJob"
-    {ok: false, why: "kind is #{to_s(get(cj, "kind"))}, not CronJob"}
+  elsif cj["kind"] != "CronJob"
+    {ok: false, why: "kind is #{to_s(cj["kind"])}, not CronJob"}
   else
-    meta = get(cj, "metadata") or {}
-    tmpl = get(get(cj, "spec") or {}, "jobTemplate")
-    if tmpl.nil? or get(tmpl, "spec").nil?
+    meta = cj["metadata"] or {}
+    tmpl = (cj["spec"] or {})["jobTemplate"]
+    if tmpl.nil? or tmpl["spec"].nil?
       {ok: false, why: "the CronJob has no spec.jobTemplate.spec"}
     else
-      tmeta = get(tmpl, "metadata") or {}
+      tmeta = tmpl["metadata"] or {}
       owner = {
-        "apiVersion" => get(cj, "apiVersion") or "batch/v1",
+        "apiVersion" => cj["apiVersion"] or "batch/v1",
         "kind" => "CronJob",
-        "name" => get(meta, "name"),
-        "uid" => get(meta, "uid"),
+        "name" => meta["name"],
+        "uid" => meta["uid"],
         "controller" => true
       }
       job_meta = {
         "name" => name,
-        "namespace" => get(meta, "namespace") or "default",
-        "labels" => get(tmeta, "labels") or {},
+        "namespace" => meta["namespace"] or "default",
+        "labels" => tmeta["labels"] or {},
         "annotations" => assoc(
-          get(tmeta, "annotations") or {},
+          tmeta["annotations"] or {},
           "cronjob.kubernetes.io/instantiate",
           "manual"
         )
@@ -255,12 +249,12 @@ def job_from_cronjob(cronjob_json, name)
         job: {
           "apiVersion" => "batch/v1",
           "kind" => "Job",
-          "metadata" => if get(meta, "uid").nil?
+          "metadata" => if meta["uid"].nil?
             job_meta
           else
             assoc(job_meta, "ownerReferences", [owner])
           end,
-          "spec" => get(tmpl, "spec")
+          "spec" => tmpl["spec"]
         }
       }
     end
@@ -400,8 +394,8 @@ def read_template(ns, name)
   r = run_capture(
     ["k-ryn", "get", "infrastructuretemplate", name, "-n", ns, "-o", "json"]
   )
-  if get(r, :ok)
-    json_read(get(r, :stdout)) rescue nil
+  if r[:ok]
+    json_read(r[:stdout]) rescue nil
   end
 end
 
@@ -423,10 +417,10 @@ end
 
 def counter_sample(argv)
   r = run_capture(argv)
-  if get(r, :ok) == false
-    failed_sample(now_ms, get(r, :why))
+  if r[:ok] == false
+    failed_sample(now_ms, r[:why])
   else
-    v = to_float(blue::trim(get(r, :stdout))) rescue nil
+    v = to_float(blue::trim(r[:stdout])) rescue nil
     if v.nil?
       failed_sample(now_ms, "#{first(argv)} printed no number")
     else
@@ -451,10 +445,10 @@ end
 def samples_of(text)
   map(
     fn(s)
-      if get(s, "error") != nil
-        failed_sample(get(s, "at_ms"), get(s, "error"))
+      if s["error"] != nil
+        failed_sample(s["at_ms"], s["error"])
       else
-        sample(get(s, "at_ms"), get(s, "value"))
+        sample(s["at_ms"], s["value"])
       end
     end,
     json_read(text)
@@ -466,7 +460,7 @@ def flag(args, name, default)
   if i.nil?
     default
   else
-    nth(i + 1, args)
+    args[i + 1]
   end
 end
 
@@ -483,13 +477,13 @@ def load_and_cores()
     to_float(first(split(la, " ")))
   else
     r = run_capture(["sysctl", "-n", "vm.loadavg"])
-    if get(r, :ok)
-      to_float(nth(1, split(blue::trim(get(r, :stdout)), " ")))
+    if r[:ok]
+      to_float(split(blue::trim(r[:stdout]), " ")[1])
     end
   end
   c = run_capture(["getconf", "_NPROCESSORS_ONLN"])
-  cores = if get(c, :ok)
-    to_int(blue::trim(get(c, :stdout)))
+  cores = if c[:ok]
+    to_int(blue::trim(c[:stdout]))
   end
   [load1, cores]
 end
@@ -528,7 +522,7 @@ def command(args)
     lc = load_and_cores
     b = gh_budget
     remaining = if verdict(b) == "found"
-      get(get(b, :core), :remaining)
+      b[:core][:remaining]
     end
     a = agents_allowed_with(
       settings_from((n) -> getenv(n)),
@@ -544,10 +538,10 @@ def command(args)
     )
   elsif sub == "job-from-cronjob" and size(rest_args) >= 2
     r = job_from_cronjob(read_file(first(rest_args)), second(rest_args))
-    if get(r, :ok)
-      get(r, :job)
+    if r[:ok]
+      r[:job]
     else
-      blind(get(r, :why))
+      blind(r[:why])
     end
   elsif sub == "reconcile-liveness" and size(rest_args) >= 1
     reconcile_liveness_over(
@@ -579,7 +573,7 @@ test "progress: a failed sample is blind even when the others stand still"
     sample(90000, 12494)
   ]
   assert verdict(progress(s, 40)) == "blind"
-  assert contains?(get(progress(s, 40), :why), "gh exited 1")
+  assert contains?(progress(s, 40)[:why], "gh exited 1")
 end
 
 test "progress: an unchanged counter over the window is stalled since its first equal sample"
@@ -591,13 +585,13 @@ test "progress: an unchanged counter over the window is stalled since its first 
   ]
   p = progress(s, 40)
   assert verdict(p) == "stalled"
-  assert get(p, :since) == 10000
+  assert p[:since] == 10000
 end
 
 test "progress: a moving counter reports its rate, and a fall counts as movement"
   p = progress([sample(0, 2100), sample(40000, 2140)], 40)
   assert verdict(p) == "moving"
-  assert get(p, :rate) == 1
+  assert p[:rate] == 1
   assert verdict(progress([sample(0, 9), sample(10000, 3)], 60)) == "moving"
 end
 
@@ -608,40 +602,40 @@ end
 test "gh_budget: the core, Actions and GraphQL buckets read from rate_limit"
   b = budget_of("{\"resources\":{\"core\":{\"limit\":5000,\"used\":2408,\"remaining\":2592,\"reset\":1792613194},\"actions_runner_registration\":{\"limit\":10000,\"used\":0,\"remaining\":10000,\"reset\":1792616487}}}")
   assert verdict(b) == "found"
-  assert get(get(b, :core), :remaining) == 2592
-  assert get(get(b, :core), :limit) - get(get(b, :core), :used) == 2592
-  assert get(get(b, :actions), :remaining) == 10000
-  assert verdict(get(b, :graphql)) == "blind"
+  assert b[:core][:remaining] == 2592
+  assert b[:core][:limit] - b[:core][:used] == 2592
+  assert b[:actions][:remaining] == 10000
+  assert verdict(b[:graphql]) == "blind"
   assert verdict(budget_of("")) == "blind"
   assert verdict(budget_of("{}")) == "blind"
 end
 
 test "agents_allowed: load above twice the cores holds, with the reason"
   a = agents_allowed(29, 14, 4000, 0)
-  assert get(a, :allowed) == 0
-  assert contains?(get(a, :why), "above 2x 14 cores")
+  assert a[:allowed] == 0
+  assert contains?(a[:why], "above 2x 14 cores")
 end
 
 test "agents_allowed: under 500 GitHub calls holds, and an unread budget holds"
-  assert get(agents_allowed(1, 14, 499, 0), :allowed) == 0
+  assert agents_allowed(1, 14, 499, 0)[:allowed] == 0
   assert contains?(
-    get(agents_allowed(1, 14, 499, 0), :why),
+    agents_allowed(1, 14, 499, 0)[:why],
     "under the floor of 500"
   )
-  assert get(agents_allowed(1, 14, nil, 0), :allowed) == 0
+  assert agents_allowed(1, 14, nil, 0)[:allowed] == 0
 end
 
 test "agents_allowed: headroom is the tightest of load, budget and the ceiling"
-  assert get(agents_allowed(8, 14, 5000, 0), :allowed) == 8
-  assert get(agents_allowed(20, 14, 5000, 0), :allowed) == 4
-  assert get(agents_allowed(0, 14, 1000, 0), :allowed) == 2
-  assert get(agents_allowed(0, 14, 5000, 7), :allowed) == 1
-  assert get(agents_allowed(0, 14, 5000, 8), :allowed) == 0
+  assert agents_allowed(8, 14, 5000, 0)[:allowed] == 8
+  assert agents_allowed(20, 14, 5000, 0)[:allowed] == 4
+  assert agents_allowed(0, 14, 1000, 0)[:allowed] == 2
+  assert agents_allowed(0, 14, 5000, 7)[:allowed] == 1
+  assert agents_allowed(0, 14, 5000, 8)[:allowed] == 0
 end
 
 test "agents_allowed: the thresholds are settings, overridable by name"
   s = settings_from(env_of({"SHINCHOKU_GH_FLOOR" => "100"}))
-  assert get(agents_allowed_with(s, 1, 14, 499, 0), :allowed) == 1
+  assert agents_allowed_with(s, 1, 14, 499, 0)[:allowed] == 1
   assert settings_from(no_env) == defaults
 end
 
@@ -651,10 +645,10 @@ end
 
 test "job_from_cronjob: the Job carries the template spec unchanged and is owned by the CronJob"
   r = job_from_cronjob(cronjob_text, "vars-manual-1")
-  assert get(r, :ok)
-  j = get(r, :job)
-  assert get(j, "kind") == "Job"
-  assert get(j, "apiVersion") == "batch/v1"
+  assert r[:ok]
+  j = r[:job]
+  assert j["kind"] == "Job"
+  assert j["apiVersion"] == "batch/v1"
   assert at(j, ["metadata", "name"]) == "vars-manual-1"
   assert at(j, ["metadata", "namespace"]) == "pangea-system"
   assert at(j, ["metadata", "labels", "app"]) == "vars"
@@ -662,15 +656,15 @@ test "job_from_cronjob: the Job carries the template spec unchanged and is owned
     j,
     ["metadata", "annotations", "cronjob.kubernetes.io/instantiate"]
   ) == "manual"
-  assert get(j, "spec") ==
+  assert j["spec"] ==
     at(json_read(cronjob_text), ["spec", "jobTemplate", "spec"])
   assert at(first(at(j, ["metadata", "ownerReferences"])), ["uid"]) == "u-1"
   assert json_read(json_stringify(j)) == j
 end
 
 test "job_from_cronjob: anything but a CronJob with a jobTemplate is refused"
-  assert get(job_from_cronjob("", "x"), :ok) == false
-  assert get(job_from_cronjob("{\"kind\":\"Deployment\"}", "x"), :ok) == false
+  assert job_from_cronjob("", "x")[:ok] == false
+  assert job_from_cronjob("{\"kind\":\"Deployment\"}", "x")[:ok] == false
   assert get(
     job_from_cronjob(
       replace(cronjob_text, "\"CronJob\"", "\"Deployment\""),
@@ -678,10 +672,8 @@ test "job_from_cronjob: anything but a CronJob with a jobTemplate is refused"
     ),
     :ok
   ) == false
-  assert get(
-    job_from_cronjob("{\"kind\":\"CronJob\",\"spec\":{}}", "x"),
-    :ok
-  ) == false
+  assert job_from_cronjob("{\"kind\":\"CronJob\",\"spec\":{}}", "x")[:ok] ==
+    false
 end
 
 def tmpl(gen, observed, phase, entered, extra)
@@ -708,7 +700,7 @@ test "reconcile_liveness: an advancing apply cursor is moving"
   b = tmpl(21, 21, "Applying", "t1", {"applyCursorCount" => 40})
   v = liveness(a, b, 30)
   assert verdict(v) == "moving"
-  assert get(v, :rate) == 1.3
+  assert v[:rate] == 1.3
   assert get(
     liveness(a, tmpl(22, 21, "Applying", "t1", {"applyCursorCount" => 40}), 30),
     :queued_generation
@@ -726,7 +718,7 @@ test "reconcile_liveness: a still heartbeat in Planning is stalled since the lat
   a = tmpl(21, 20, "Planning", "2026-10-21T18:35:05Z", p)
   v = liveness(a, a, 60)
   assert verdict(v) == "stalled"
-  assert get(v, :since) == "2026-10-21T19:02:00Z"
+  assert v[:since] == "2026-10-21T19:02:00Z"
 end
 
 test "reconcile_liveness: Planning with no progress field is blind, never stalled"
@@ -745,8 +737,8 @@ test "reconcile_liveness: a settled pass with a newer generation is queued behin
   a = tmpl(21, 20, "Ready", "t", {})
   v = liveness(a, a, 60)
   assert verdict(v) == "queued-behind"
-  assert get(v, :generation) == 21
-  assert get(v, :observed) == 20
+  assert v[:generation] == 21
+  assert v[:observed] == 20
   assert verdict(
     liveness(tmpl(21, 21, "Ready", "t", {}), tmpl(21, 21, "Ready", "t", {}), 60)
   ) == "settled"
@@ -766,7 +758,7 @@ test "reconcile_liveness: the operator's own stalled pass is stalled, with its r
     60
   )
   assert verdict(v) == "stalled"
-  assert get(v, :reason) == "silent Planning"
+  assert v[:reason] == "silent Planning"
 end
 
 test "the command: an unknown subcommand is a usage error, a known one answers"

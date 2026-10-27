@@ -27,11 +27,11 @@ use(
 )
 
 def px(p)
-  nth(0, p)
+  p[0]
 end
 
 def py(p)
-  nth(1, p)
+  p[1]
 end
 
 def distance_squared(a, b)
@@ -77,10 +77,7 @@ def polygon_area(pts)
   s = reduce(
     fn(acc, i)
       acc +
-        (
-          px(nth(i, pts)) * py(nth((i + 1) % n, pts)) -
-          px(nth((i + 1) % n, pts)) * py(nth(i, pts))
-        )
+        (px(pts[i]) * py(pts[(i + 1) % n]) - px(pts[(i + 1) % n]) * py(pts[i]))
     end,
     0,
     range(0, n)
@@ -93,11 +90,7 @@ perimeter: length around a shape.
 """
 def perimeter(pts)
   n = size(pts)
-  reduce(
-    (acc, i) -> acc + distance(nth(i, pts), nth((i + 1) % n, pts)),
-    0,
-    range(0, n)
-  )
+  reduce((acc, i) -> acc + distance(pts[i], pts[(i + 1) % n]), 0, range(0, n))
 end
 
 def triangle_area(a, b, c)
@@ -154,10 +147,7 @@ def signed_area(pts)
   s = reduce(
     fn(acc, i)
       acc +
-        (
-          px(nth(i, pts)) * py(nth((i + 1) % n, pts)) -
-          px(nth((i + 1) % n, pts)) * py(nth(i, pts))
-        )
+        (px(pts[i]) * py(pts[(i + 1) % n]) - px(pts[(i + 1) % n]) * py(pts[i]))
     end,
     0,
     range(0, n)
@@ -205,7 +195,7 @@ end
 line_value: Ax + By + C at p: zero on the line, and its sign tells which side p is on.
 """
 def line_value(line, p)
-  nth(0, line) * px(p) + nth(1, line) * py(p) + nth(2, line)
+  line[0] * px(p) + line[1] * py(p) + line[2]
 end
 
 def on_line(line, p)
@@ -267,8 +257,8 @@ a hand-written rect is as likely to be [top-right, bottom-left] as not.
     point_in_rect([1, 1], [[2, 2], [0, 0]]) #=> true
 """
 def point_in_rect(p, rect)
-  a = nth(0, rect)
-  b = nth(1, rect)
+  a = rect[0]
+  b = rect[1]
   inx = px(p) >= min(px(a), px(b)) and px(p) <= max(px(a), px(b))
   iny = py(p) >= min(py(a), py(b)) and py(p) <= max(py(a), py(b))
   inx and iny
@@ -416,8 +406,8 @@ def vertex_centroid(pts)
 end
 
 def shoelace_term(pts, i)
-  p = nth(i, pts)
-  q = nth((i + 1) % size(pts), pts)
+  p = pts[i]
+  q = pts[(i + 1) % size(pts)]
   px(p) * py(q) - px(q) * py(p)
 end
 
@@ -440,16 +430,14 @@ def centroid(pts)
     n = size(pts)
     cx = reduce(
       fn(acc, i)
-        acc +
-          (px(nth(i, pts)) + px(nth((i + 1) % n, pts))) * shoelace_term(pts, i)
+        acc + (px(pts[i]) + px(pts[(i + 1) % n])) * shoelace_term(pts, i)
       end,
       0,
       range(0, n)
     )
     cy = reduce(
       fn(acc, i)
-        acc +
-          (py(nth(i, pts)) + py(nth((i + 1) % n, pts))) * shoelace_term(pts, i)
+        acc + (py(pts[i]) + py(pts[(i + 1) % n])) * shoelace_term(pts, i)
       end,
       0,
       range(0, n)
@@ -474,9 +462,7 @@ def is_convex(pts)
     turns = filter(
       (s) -> s != 0,
       map(
-        fn(i)
-          orientation(nth(i, pts), nth((i + 1) % n, pts), nth((i + 2) % n, pts))
-        end,
+        (i) -> orientation(pts[i], pts[(i + 1) % n], pts[(i + 2) % n]),
         range(0, n)
       )
     )
@@ -504,7 +490,7 @@ end
 def crossings_from(p, pts, i, n, inside)
   if i >= n
     inside
-  elsif crosses_ray(p, nth(i, pts), nth((i + 1) % n, pts))
+  elsif crosses_ray(p, pts[i], pts[(i + 1) % n])
     crossings_from(p, pts, i + 1, n, not inside)
   else
     crossings_from(p, pts, i + 1, n, inside)
@@ -529,9 +515,7 @@ def point_on_polygon(p, pts)
     false
   else
     hits = filter(
-      fn(i)
-        near(point_segment_distance(p, nth(i, pts), nth((i + 1) % n, pts)), 0)
-      end,
+      (i) -> near(point_segment_distance(p, pts[i], pts[(i + 1) % n]), 0),
       range(0, n)
     )
     size(hits) > 0
@@ -792,9 +776,7 @@ are still the right answer to a different question on a concave shape.
 def interior_angles(pts)
   n = size(pts)
   map(
-    fn(i)
-      angle_at(nth(i, pts), nth((i + n - 1) % n, pts), nth((i + 1) % n, pts))
-    end,
+    (i) -> angle_at(pts[i], pts[(i + n - 1) % n], pts[(i + 1) % n]),
     range(0, n)
   )
 end
@@ -866,7 +848,7 @@ polygon_edges: The edges of a closed polygon as [a, b] pairs, the closing edge i
 """
 def polygon_edges(pts)
   n = size(pts)
-  map((i) -> [nth(i, pts), nth((i + 1) % n, pts)], range(0, n))
+  map((i) -> [pts[i], pts[(i + 1) % n]], range(0, n))
 end
 
 @doc """
@@ -875,12 +857,7 @@ or outside. nearest_point measures to vertices, which is wrong for a point
 beside the middle of a long edge.
 """
 def polygon_edge_distance(p, pts)
-  min_of(
-    map(
-      (e) -> point_segment_distance(p, nth(0, e), nth(1, e)),
-      polygon_edges(pts)
-    )
-  )
+  min_of(map((e) -> point_segment_distance(p, e[0], e[1]), polygon_edges(pts)))
 end
 
 @doc """
@@ -890,9 +867,7 @@ def boundaries_cross(a, b)
   some(
     fn(ea)
       some(
-        fn(eb)
-          segments_intersect(nth(0, ea), nth(1, ea), nth(0, eb), nth(1, eb))
-        end,
+        (eb) -> segments_intersect(ea[0], ea[1], eb[0], eb[1]),
         polygon_edges(b)
       )
     end,
@@ -955,11 +930,11 @@ def region(outline, holes)
 end
 
 def region_outline(r)
-  nth(0, r)
+  r[0]
 end
 
 def region_holes(r)
-  nth(1, r)
+  r[1]
 end
 
 def region_area(r)
@@ -974,10 +949,10 @@ def region_centroid(r)
     [[polygon_area(region_outline(r)), centroid(region_outline(r))]],
     map((h) -> [-polygon_area(h), centroid(h)], region_holes(r))
   )
-  a = sum(map((p) -> nth(0, p), parts))
+  a = sum(map((p) -> p[0], parts))
   [
-    sum(map((p) -> nth(0, p) * px(nth(1, p)), parts)) / a,
-    sum(map((p) -> nth(0, p) * py(nth(1, p)), parts)) / a
+    sum(map((p) -> p[0] * px(p[1]), parts)) / a,
+    sum(map((p) -> p[0] * py(p[1]), parts)) / a
   ]
 end
 
@@ -1002,26 +977,17 @@ def region_refusals(r)
     fn(i)
       [:kikagaku_region, "hole #{to_s(i)} is not strictly inside the outline"]
     end,
-    filter(
-      (i) -> polygon_inside(nth(i, holes), outline) == false,
-      indexes(holes)
-    )
+    filter((i) -> polygon_inside(holes[i], outline) == false, indexes(holes))
   )
   pairs = filter(
-    (ij) -> nth(0, ij) < nth(1, ij),
+    (ij) -> ij[0] < ij[1],
     flat_map(indexes(holes), (i) -> map((j) -> [i, j], indexes(holes)))
   )
   overlapping = map(
     fn(ij)
-      [
-        :kikagaku_region,
-        "holes #{to_s(nth(0, ij))} and #{to_s(nth(1, ij))} overlap"
-      ]
+      [:kikagaku_region, "holes #{to_s(ij[0])} and #{to_s(ij[1])} overlap"]
     end,
-    filter(
-      (ij) -> polygons_overlap(nth(nth(0, ij), holes), nth(nth(1, ij), holes)),
-      pairs
-    )
+    filter((ij) -> polygons_overlap(holes[ij[0]], holes[ij[1]]), pairs)
   )
   concat_lists(small, concat_lists(outside, overlapping))
 end
@@ -1392,7 +1358,7 @@ test "interior angles sum to (n - 2) * pi on a convex polygon"
   square = [[0, 0], [2, 0], [2, 2], [0, 2]]
   angles = interior_angles(square)
   assert size(angles) == 4
-  assert near(nth(0, angles), pi / 2) == true
+  assert near(angles[0], pi / 2) == true
   assert near(sum(angles), 2 * pi) == true
   tri = [[0, 0], [4, 0], [1, 3]]
   assert near(sum(interior_angles(tri)), pi) == true
@@ -1458,7 +1424,7 @@ test "invalid regions are refused, naming the hole"
   # overlap, and a two-point outline.
   outline = rect_polygon(0, 0, 100, 50)
   across = region(outline, [circle_polygon([98, 25], 5, 16)])
-  assert map((r) -> nth(0, r), region_refusals(across)) == [:kikagaku_region]
+  assert map((r) -> r[0], region_refusals(across)) == [:kikagaku_region]
   away = region(outline, [circle_polygon([200, 25], 5, 16)])
   assert size(region_refusals(away)) == 1
   pair = region(

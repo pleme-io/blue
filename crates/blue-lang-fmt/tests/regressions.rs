@@ -595,7 +595,7 @@ const LAID_OUT: &[(&str, &str, &str)] = &[
     (
         "infix-orphan-rhs-after-broken-lhs",
         "def f(a)\n  x = contains(map(problem_kind, problems(:base, push(example_base, first(row)))), nth(1, row)) == false\nend\n",
-        "def f(a)\n  x = contains(\n    map(problem_kind, problems(:base, push(example_base, first(row)))),\n    nth(1, row)\n  ) == false\nend\n",
+        "def f(a)\n  x = contains(\n    map(problem_kind, problems(:base, push(example_base, first(row)))),\n    row[1]\n  ) == false\nend\n",
     ),
     (
         "infix-orphan-rhs-after-broken-lhs",

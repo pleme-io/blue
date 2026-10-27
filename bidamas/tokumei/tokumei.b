@@ -145,7 +145,7 @@ end
 test "forced response recovers the true share from answers that each mean nothing"
   truths = map((i) -> i < 180, range(0, 600))
   answers = map(
-    (i) -> forced_response(nth(i, truths), 0.5, stream_seed(11, i)),
+    (i) -> forced_response(truths[i], 0.5, stream_seed(11, i)),
     range(0, 600)
   )
   yes = size(filter((a) -> a, answers)) / 600

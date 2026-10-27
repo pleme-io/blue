@@ -127,7 +127,7 @@ D	bougyo	safe_id?	pure	safe_id?(text, max) -> Bool	validate	-	exists:bougyo	An i
 D	bougyo	tls	decl	tls(opts) -> posture	config,switch	-	absent	require TLS and send strict transport security	2		na
 D	bougyo	trusted_proxy	decl	trusted_proxy(opts) -> posture	config	-	absent	which forwarding hops to believe for client address	2		na
 F	bunmyaku?	actions	pure	actions(document, range) -> [action]	migrate	blue-lang-lsp	absent	fixes and refactors offered for a range	2		na
-F	bunmyaku?	complete	pure	complete(document, position) -> [item]	-	blue-lang-mondou	rust:blue-lang-mondou	names valid at a position	0	complete(document, position) -> [item]	yes
+F	bunmyaku?	complete	pure	complete(document, position) -> [item]	-	blue-lang-mondou	rust:blue-lang-mondou	names valid at a position	0		na
 F	bunmyaku?	definition	pure	definition(document, position) -> location or nil	-	blue-lang-mondou	rust:blue-lang-mondou	where the name at a position is defined	0		na
 F	bunmyaku?	describe	pure	describe(document, position) -> text	-	blue-lang-mondou	rust:blue-lang-mondou	signature, doc and type of the name at a position	1	describe(document, position) -> text	yes
 F	bunmyaku?	diagnostics	pure	diagnostics(document) -> [diagnostic]	error	blue-lang-check	rust:blue-lang-lsp	findings of the check stage with spans	0		na
@@ -182,7 +182,7 @@ G	bunsho?	read	effect	read(src, opts) -> doc	resource	mojiban	absent	a document 
 G	bunsho?	redact	pure	redact(doc, rules) -> doc	-	-	absent	a document with sensitive spans masked	1	redact(doc, rules) -> doc	yes
 G	bunsho?	render	pure	render(doc, format, opts) -> text or bytes	serialize	mojiban	absent	a document as html, ansi, markdown, pdf or docx	1	render(doc, format, opts) -> text or bytes	yes
 G	bunsho?	slide	decl	slide(layout, content) -> slide	validate	-	absent	declare one slide: layout, text, figures, notes	2		na
-G	bunsho?	table	decl	table(columns, rows) -> table	validate	caixa-csv	absent	declare rows under typed columns	1	table(columns, rows) -> table	yes
+G	bunsho?	table	decl	table(columns, rows) -> table	validate	caixa-csv	absent	declare rows under typed columns	1		na
 G	bunsho?	write	effect	write(doc, target, opts) -> nil	resource	-	absent	a document tree written to a file	1	write(doc, target, opts) -> nil	yes
 I	burauza	apply	effect	apply(app, patches) -> nil	capability,idempotent	-	absent	change the live page by a patch list	2	apply(app, patches) -> nil	yes
 I	burauza	install	effect	install(app, opts) -> registration	capability,config	-	absent	register the service worker and manifest so the app installs	2	install(app, opts) -> registration	yes
@@ -520,9 +520,7 @@ I	gamen?	island	decl	island(view, opts) -> node	switch	-	absent	mark a subtree t
 I	gamen?	labels	decl	labels(enum, entries) -> table	validate	lilitu	exists:gamen	display text keyed by each backend enum value	1	labels(enum, entries) -> table	yes
 G	gamen?	layout	pure	layout(kind, children, opts) -> tree	-	egaku	exists:gamen	place nodes in a size: stack, flex or grid	1		na
 G	gamen?	localize	pure	localize(value, locale, opts) -> text	-	pleme-i18n	absent	a number, date or money as a locale writes it	1		na
-G	gamen?	mark	pure	mark(state) -> text	-	kazari	exists:gamen	the symbol of a step state or a verdict, refusing a state that has none	0	mark(state) -> text	yes
 G	gamen?	measure	pure	measure(subject, space) -> size or number	-	garasu	absent	natural size of a node, or a level of a signal	1	measure(subject, space) -> size or number	yes
-G	gamen?	meter	pure	meter(fraction, width) -> node	-	kazari	exists:gamen	a fraction from 0 to 1 drawn as a bar of eighth blocks on a track, a given number of cells wide	0	meter(fraction, width) -> node	yes
 G	gamen?	notify	effect	notify(message, opts) -> nil	ratelimit	tsuuchi	absent	raise a desktop or phone notification	2		na
 G	gamen?	on	decl	on(node, event, handler) -> node	-	egaku	absent	bind a handler to an event of a node	1	on(node, event, handler) -> node	yes
 G	gamen?	order	pure	order(tree) -> ids	-	egaku	absent	tab order of the focusable nodes	1	order(tree) -> ids	yes
@@ -538,7 +536,6 @@ G	gamen?	start	effect	start(app, surface, opts) -> handle	process,resource	mador
 G	gamen?	state	decl	state(initial, opts) -> store	serialize	egaku	absent	declare the store that holds a view state	1		na
 G	gamen?	stop	effect	stop(handle, opts) -> nil	cancel,resource	madori	absent	end a running app and free its surface	2	stop(handle, opts) -> nil	yes
 G	gamen?	style	pure	style(node, theme) -> styled node	-	ishou	exists:gamen	resolve semantic tokens on a node to colors and sizes	1		na
-G	gamen?	table	pure	table(rows, opts) -> node	-	kazari	exists:gamen	rows of records laid out as aligned columns under a bold header and a rule, each cell text or a styled node, widths measured in terminal cells	0	table(rows, opts) -> node	no
 G	gamen?	theme	decl	theme(tokens, mode) -> theme	config	irodori	exists:gamen	declare a theme: Nord tokens for light and dark	0		na
 G	gamen?	translate	pure	translate(key, locale, args) -> text	-	pleme-i18n	absent	the message for a key in a locale	1	translate(key, locale, args) -> text	yes
 G	gamen?	update	effect	update(store, key, f) -> value	idempotent	egaku	absent	change a state value to f of the old value	1	update(store, key, f) -> value	yes
@@ -793,10 +790,6 @@ F	heni	ok?	pure	ok?(report) -> Bool	test	-	exists:heni	whether every mutation wa
 F	heni	run	effect	run(package, opts) -> report	process,test	-	exists:heni	spec: {package, mutations, blue, test, tmp}	0	run(package, opts) -> report	yes
 F	heni	score	pure	score(report) -> ratio	test	-	partial:heni	the share of mutations the tests caught	1	score(report) -> ratio	yes
 F	heni	survivors	pure	survivors(report) -> [mutation]	test	-	partial:heni	the mutations no test caught	0		na
-G	hikisuu	command	effect	command(spec, f) -> value	-	clap	exists:hikisuu	the program's door: argv read by the spec; help and completion printed, a bad line refused on stderr with exit 64, otherwise f called with the record	0	command(spec, f) -> value	yes
-G	hikisuu	complete	pure	complete(args, spec) -> [text]	-	clap	exists:hikisuu	the words that may follow a partial command line, for the last word as typed so far	0	complete(args, spec) -> [text]	yes
-G	hikisuu	parse	pure	parse(args, spec) -> record	-	clap	exists:hikisuu	a command line read by a spec into one record of every flag, positional and the command; every fault raised together as `:usage`	0	parse(args, spec) -> record	yes
-G	hikisuu	render	pure	render(spec, command) -> text	-	clap	exists:hikisuu	the help text of a spec, or of one of its commands	0	render(spec, command) -> text	yes
 D	himitsu	connect	effect	connect(backend, opts) -> vault	deadline,error,resource	akeyless-auth	absent	authenticate to a secret backend, gated on the user	2	connect(backend, opts) -> vault	yes
 B	himitsu	create	effect	create(store, key, secret, opts) -> nil	capability,error,idempotent	cofre	absent	add a secret only if the name is free	2	create(store, key, secret, opts) -> nil	yes
 B	himitsu	decrypt	pure	decrypt(bytes, key) -> secret	capability,error	blackmatter-secrets	absent	open sealed data into a secret	2		na
@@ -2074,7 +2067,7 @@ A	ronri	majority	pure	majority(list, f) -> Bool	-	-	exists:ronri	Strictly MORE t
 A	ronri	none	pure	none(list, f) -> Bool	-	-	exists:ronri	whether f holds for no item	0		na
 A	ronri	not	pure	not(f) -> function	-	-	partial:ronri	predicate that holds when f does not	0		na
 A	ronri	satisfiable?	pure	satisfiable?(formula) -> Bool	-	-	absent	whether some assignment makes a formula true	4		na
-A	ronri	table	pure	table(f, arity) -> [row]	-	-	absent	truth table of a predicate	3	table(f, arity) -> [row]	yes
+A	ronri	table	pure	table(f, arity) -> [row]	-	-	absent	truth table of a predicate	3		na
 A	ronri	xor	pure	xor(a, b) -> Bool	-	-	exists:ronri	The rest of the connectives, so a caller never has to spell one out by hand	0		na
 E	ryuutsuu?	channels	effect	channels(name) -> [channel]	error	-	absent	stable, beta and nightly pointers	3		na
 E	ryuutsuu?	fetch	effect	fetch(name, channel, opts) -> archive	cache,deadline,retry,validate	-	absent	download and verify a distributable	3	fetch(name, channel, opts) -> archive	yes
@@ -2171,7 +2164,7 @@ C	shigoto	budget	decl	budget(opts) -> budget	config,resource	shigoto-budget	abse
 C	shigoto	cancel	effect	cancel(run, reason) -> nil	cancel	-	absent	End a run and compensate completed steps.	3	cancel(run, reason) -> nil	yes
 C	shigoto	claim	effect	claim(queue, opts) -> job or nil	deadline,resource	shigoto	absent	Take the next job under a lease.	1	claim(queue, opts) -> job or nil	yes
 C	shigoto	compensate	effect	compensate(saga, from) -> nil	error,retry	-	absent	Run undos for completed steps in reverse order.	3		na
-C	shigoto	complete	effect	complete(job, result) -> nil	idempotent	shigoto	absent	Mark a claimed job finished.	1	complete(job, result) -> nil	yes
+C	shigoto	complete	effect	complete(job, result) -> nil	idempotent	shigoto	absent	Mark a claimed job finished.	1		na
 C	shigoto	dag	decl	dag(jobs, deps) -> graph	validate	shigoto-dag	absent	Declare jobs with dependencies; cycles are refused.	1		na
 C	shigoto	defer	effect	defer(job, duration) -> nil	time	-	absent	Hand a job back to run later.	2		na
 C	shigoto	enqueue	effect	enqueue(queue, job, opts) -> id	error,idempotent	shigoto	absent	Add a job to a queue; a duplicate key is one job.	1		na
@@ -2535,7 +2528,7 @@ D	tokumei	k_anonymous?	pure	k_anonymous?(rows, columns, k) -> Bool	validate	-	ab
 D	tokumei	laplace	pure	laplace(scale, seed) -> number	validate	-	exists:tokumei	one draw of Laplace noise	0		na
 D	tokumei	lapsed	pure	lapsed(records, retention, now) -> [record]	time	-	absent	records kept past their retention	2		na
 D	tokumei	locate	effect	locate(stores, kinds) -> [place]	resource	-	absent	where in the stores personal data lives	3		na
-D	tokumei	mark	pure	mark(value, kind) -> value	validate	-	absent	tag a value personal so it prints as a mark	2	mark(value, kind) -> value	no
+D	tokumei	mark	pure	mark(value, kind) -> value	validate	-	absent	tag a value personal so it prints as a mark	2		na
 D	tokumei	mask	pure	mask(text, keep) -> text	validate	-	absent	hide all but a few characters, such as the last four	1		na
 D	tokumei	permitted?	pure	permitted?(subject, purpose, consents, now) -> Bool	time,validate	-	absent	a consent covers this use right now	3		na
 G	tokumei	perturb	pure	perturb(value, epsilon, seed) -> number	-	-	partial:tokumei	add Laplace noise to a value	0		na

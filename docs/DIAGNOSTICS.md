@@ -1,8 +1,3 @@
----
-kind: reference
-summary: what the check stage reports, every rule code, and the machine-readable shape of a diagnostic
----
-
 # Diagnostics
 
 What blue's check stage reports, and the machine-readable shape of it.
@@ -81,6 +76,7 @@ it; `blue explain --list` lists them.
 | B0063 | nullary-as-function | error | a zero-argument definition passed where a function is taken is written `() -> name`; a bare zero-argument name is a call |
 | B0064 | unformatted-producer | error | a program that writes a `.b` file writes it with `write_program`, which formats it; a producer owns the form of what it emits |
 | B0065 | newline-escape | error | text of several lines is written as its lines: `join_lines([a, b])`, `unlines([a, b])` when it ends in a newline, `line_break` alone; never a `\n` escape in a string |
+| B0066 | index | error | a key or position is read with brackets: `m[:k]` for `get(m, :k)`, `xs[i]` for `nth(i, xs)` |
 
 The registry is the source of truth; a test fails if a code is missing here.
 

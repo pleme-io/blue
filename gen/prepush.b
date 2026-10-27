@@ -65,7 +65,7 @@ def run_gate(g, i, total)
 end
 
 def manifest(dir)
-  get(json_read(read_file("#{dir}/Bluefile.lock")), "manifest")
+  json_read(read_file("#{dir}/Bluefile.lock"))["manifest"]
 end
 
 def regenerates?(dir)
@@ -77,12 +77,12 @@ def regenerates?(dir)
 end
 
 def absent_tools(dir)
-  reject((t) -> exec_ok?("which", t), get(manifest(dir), "tools") or [])
+  reject((t) -> exec_ok?("which", t), manifest(dir)["tools"] or [])
 end
 
 def members()
   meta = exec_capture("cargo", "metadata", "--no-deps", "--format-version", "1")
-  map((p) -> get(p, "name"), get(json_read(stdout_of(meta)), "packages"))
+  map((p) -> p["name"], json_read(stdout_of(meta))["packages"])
 end
 
 def test_targets()

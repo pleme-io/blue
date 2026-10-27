@@ -70,14 +70,14 @@ legacy_names(
 # ── refusals ─────────────────────────────────────────────────────────
 
 def refusal_kinds(result)
-  map((r) -> kyohi::kind(r), get(result, :refusals))
+  map((r) -> kyohi::kind(r), result[:refusals])
 end
 
 @doc """
 value: A result's value, or a thrown error naming its refusals.
 """
 def value(result, key)
-  enforce(result, [(r) -> get(r, :refusals)], {kind: :first})
+  enforce(result, [(r) -> r[:refusals]], {kind: :first})
   get(result, key)
 end
 
@@ -100,7 +100,7 @@ combo: A weighted sum of vectors: sum of ws[i] * ks[i].
 """
 def combo(ks, ws)
   reduce(
-    (acc, i) -> vadd(acc, scale(nth(i, ws), nth(i, ks))),
+    (acc, i) -> vadd(acc, scale(ws[i], ks[i])),
     scale(0.0, first(ks)),
     indexes(ks)
   )
@@ -110,11 +110,11 @@ end
 # f(t, y) returns dy/dt as a list the size of y. A sample is [t, y].
 
 def sample_t(s)
-  nth(0, s)
+  s[0]
 end
 
 def sample_y(s)
-  nth(1, s)
+  s[1]
 end
 
 @doc """
@@ -135,22 +135,22 @@ being finite ends the run with :kinji_diverged.
 def rk4(f, t0, y0, h, n)
   start = {t: t0, y: y0, back: [[t0, y0]], refusals: []}
   fin = reduce((acc, _i) -> rk4_tick(f, h, acc), start, range(0, n))
-  {samples: reverse(get(fin, :back)), refusals: get(fin, :refusals)}
+  {samples: reverse(fin[:back]), refusals: fin[:refusals]}
 end
 
 def rk4_tick(f, h, acc)
-  if is_empty(get(acc, :refusals)) == false
+  if is_empty(acc[:refusals]) == false
     acc
   else
-    t = get(acc, :t) + h
-    y = rk4_step(f, get(acc, :t), get(acc, :y), h)
+    t = acc[:t] + h
+    y = rk4_step(f, acc[:t], acc[:y], h)
     if all_finite?(y)
-      {t:, y:, back: concat_lists([[t, y]], get(acc, :back)), refusals: []}
+      {t:, y:, back: concat_lists([[t, y]], acc[:back]), refusals: []}
     else
       {
         t:,
         y:,
-        back: get(acc, :back),
+        back: acc[:back],
         refusals: [
           refusal(
             :kinji_diverged,
@@ -240,10 +240,7 @@ error_norm: The scaled RMS error: at most 1 means the step met the tolerances.
 def error_norm(err, y, ynew, rtol, atol)
   s = reduce(
     fn(acc, i)
-      acc +
-        square(
-          nth(i, err) / (atol + rtol * max(abs(nth(i, y)), abs(nth(i, ynew))))
-        )
+      acc + square(err[i] / (atol + rtol * max(abs(y[i]), abs(ynew[i]))))
     end,
     0.0,
     indexes(y)
@@ -281,35 +278,35 @@ def ode(f, t0, y0, t1, opts)
       start,
       range(0, get_or(opts, :max_steps, 100_000))
     )
-    late = if get(fin, :done)
+    late = if fin[:done]
       []
     else
       [
         refusal(
           :kinji_steps,
-          "t1 = #{to_s(t1)} not reached in #{to_s(get(fin, :steps))} steps; stopped at t = #{to_s(get(fin, :t))}"
+          "t1 = #{to_s(t1)} not reached in #{to_s(fin[:steps])} steps; stopped at t = #{to_s(fin[:t])}"
         )
       ]
     end
     {
-      samples: reverse(get(fin, :back)),
-      steps: get(fin, :steps),
-      rejected: get(fin, :rejected),
-      refusals: concat_lists(get(fin, :refusals), late)
+      samples: reverse(fin[:back]),
+      steps: fin[:steps],
+      rejected: fin[:rejected],
+      refusals: concat_lists(fin[:refusals], late)
     }
   end
 end
 
 def ode_tick(f, t1, rtol, atol, hmin, acc)
-  if get(acc, :done)
+  if acc[:done]
     acc
   else
-    t = get(acc, :t)
-    y = get(acc, :y)
-    h = min(get(acc, :h), t1 - t)
+    t = acc[:t]
+    y = acc[:y]
+    h = min(acc[:h], t1 - t)
     r = dopri_step(f, t, y, h)
-    ynew = nth(0, r)
-    e = error_norm(nth(1, r), y, ynew, rtol, atol)
+    ynew = r[0]
+    e = error_norm(r[1], y, ynew, rtol, atol)
     if all_finite?(ynew) == false or finite?(e) == false
       ode_stop(
         acc,
@@ -325,9 +322,9 @@ def ode_tick(f, t1, rtol, atol, hmin, acc)
         t: tn,
         y: ynew,
         h: h * grow,
-        back: concat_lists([[tn, ynew]], get(acc, :back)),
-        steps: get(acc, :steps) + 1,
-        rejected: get(acc, :rejected),
+        back: concat_lists([[tn, ynew]], acc[:back]),
+        steps: acc[:steps] + 1,
+        rejected: acc[:rejected],
         done: tn >= t1 - abs(t1) * 0.000000000001,
         refusals: []
       }
@@ -346,9 +343,9 @@ def ode_tick(f, t1, rtol, atol, hmin, acc)
           t:,
           y:,
           h: hn,
-          back: get(acc, :back),
-          steps: get(acc, :steps),
-          rejected: get(acc, :rejected) + 1,
+          back: acc[:back],
+          steps: acc[:steps],
+          rejected: acc[:rejected] + 1,
           done: false,
           refusals: []
         }
@@ -359,12 +356,12 @@ end
 
 def ode_stop(acc, refusal)
   {
-    t: get(acc, :t),
-    y: get(acc, :y),
-    h: get(acc, :h),
-    back: get(acc, :back),
-    steps: get(acc, :steps),
-    rejected: get(acc, :rejected),
+    t: acc[:t],
+    y: acc[:y],
+    h: acc[:h],
+    back: acc[:back],
+    steps: acc[:steps],
+    rejected: acc[:rejected],
     done: true,
     refusals: [refusal]
   }
@@ -383,8 +380,8 @@ state_at: The state at time t, linearly interpolated between samples.
 def state_at(samples, t)
   ts = map(sample_t, samples)
   i = segment(ts, t)
-  a = nth(i, samples)
-  b = nth(i + 1, samples)
+  a = samples[i]
+  b = samples[i + 1]
   w = (t - sample_t(a)) / (sample_t(b) - sample_t(a))
   vadd(sample_y(a), scale(w, vsub(sample_y(b), sample_y(a))))
 end
@@ -421,28 +418,28 @@ def bisect(f, lo, hi, tol, max_iter)
       range(0, max_iter)
     )
     {
-      root: (get(fin, :lo) + get(fin, :hi)) / 2,
-      iterations: get(fin, :n),
-      refusals: iter_refusals(get(fin, :done), max_iter)
+      root: (fin[:lo] + fin[:hi]) / 2,
+      iterations: fin[:n],
+      refusals: iter_refusals(fin[:done], max_iter)
     }
   end
 end
 
 def bisect_tick(f, tol, acc)
-  if get(acc, :done)
+  if acc[:done]
     acc
   else
-    lo = get(acc, :lo)
-    hi = get(acc, :hi)
+    lo = acc[:lo]
+    hi = acc[:hi]
     if hi - lo < tol
-      {lo:, hi:, flo: get(acc, :flo), n: get(acc, :n), done: true}
+      {lo:, hi:, flo: acc[:flo], n: acc[:n], done: true}
     else
       mid = (lo + hi) / 2
       fm = f(mid)
-      if fm * get(acc, :flo) > 0
-        {lo: mid, hi:, flo: fm, n: get(acc, :n) + 1, done: false}
+      if fm * acc[:flo] > 0
+        {lo: mid, hi:, flo: fm, n: acc[:n] + 1, done: false}
       else
-        {lo:, hi: mid, flo: get(acc, :flo), n: get(acc, :n) + 1, done: false}
+        {lo:, hi: mid, flo: acc[:flo], n: acc[:n] + 1, done: false}
       end
     end
   end
@@ -493,9 +490,9 @@ def brent(f, lo, hi, tol, max_iter)
       range(0, max_iter)
     )
     {
-      root: get(fin, :b),
-      iterations: get(fin, :n),
-      refusals: iter_refusals(get(fin, :done), max_iter)
+      root: fin[:b],
+      iterations: fin[:n],
+      refusals: iter_refusals(fin[:done], max_iter)
     }
   end
 end
@@ -504,18 +501,18 @@ end
 brent_order: b is kept as the better of the two bracket ends.
 """
 def brent_order(s)
-  if abs(get(s, :fa)) < abs(get(s, :fb))
+  if abs(s[:fa]) < abs(s[:fb])
     {
-      a: get(s, :b),
-      fa: get(s, :fb),
-      b: get(s, :a),
-      fb: get(s, :fa),
-      c: get(s, :c),
-      fc: get(s, :fc),
-      d: get(s, :d),
-      mflag: get(s, :mflag),
-      n: get(s, :n),
-      done: get(s, :done)
+      a: s[:b],
+      fa: s[:fb],
+      b: s[:a],
+      fb: s[:fa],
+      c: s[:c],
+      fc: s[:fc],
+      d: s[:d],
+      mflag: s[:mflag],
+      n: s[:n],
+      done: s[:done]
     }
   else
     s
@@ -523,12 +520,12 @@ def brent_order(s)
 end
 
 def brent_candidate(s)
-  a = get(s, :a)
-  b = get(s, :b)
-  c = get(s, :c)
-  fa = get(s, :fa)
-  fb = get(s, :fb)
-  fc = get(s, :fc)
+  a = s[:a]
+  b = s[:b]
+  c = s[:c]
+  fa = s[:fa]
+  fb = s[:fb]
+  fc = s[:fc]
   if fa != fc and fb != fc
     a * fb * fc / ((fa - fb) * (fa - fc)) +
       b * fa * fc / ((fb - fa) * (fb - fc)) +
@@ -542,17 +539,17 @@ end
 brent_bisect?: Whether the interpolated candidate must give way to bisection.
 """
 def brent_bisect?(s, cand, tol)
-  a = get(s, :a)
-  b = get(s, :b)
-  c = get(s, :c)
-  d = get(s, :d)
+  a = s[:a]
+  b = s[:b]
+  c = s[:c]
+  d = s[:d]
   q = (3 * a + b) / 4
   outside = if q < b
     cand < q or cand > b
   else
     cand < b or cand > q
   end
-  if get(s, :mflag)
+  if s[:mflag]
     outside or abs(cand - b) >= abs(b - c) / 2 or abs(b - c) < tol
   else
     outside or abs(cand - b) >= abs(c - d) / 2 or abs(c - d) < tol
@@ -560,41 +557,41 @@ def brent_bisect?(s, cand, tol)
 end
 
 def brent_tick(f, tol, s)
-  if get(s, :done)
+  if s[:done]
     s
-  elsif get(s, :fb) == 0 or abs(get(s, :b) - get(s, :a)) < tol
+  elsif s[:fb] == 0 or abs(s[:b] - s[:a]) < tol
     {
-      a: get(s, :a),
-      fa: get(s, :fa),
-      b: get(s, :b),
-      fb: get(s, :fb),
-      c: get(s, :c),
-      fc: get(s, :fc),
-      d: get(s, :d),
-      mflag: get(s, :mflag),
-      n: get(s, :n),
+      a: s[:a],
+      fa: s[:fa],
+      b: s[:b],
+      fb: s[:fb],
+      c: s[:c],
+      fc: s[:fc],
+      d: s[:d],
+      mflag: s[:mflag],
+      n: s[:n],
       done: true
     }
   else
     cand = brent_candidate(s)
     bisect = brent_bisect?(s, cand, tol)
     x = if bisect
-      (get(s, :a) + get(s, :b)) / 2
+      (s[:a] + s[:b]) / 2
     else
       cand
     end
     fx = f(x)
-    n = get(s, :n) + 1
-    if get(s, :fa) * fx < 0
+    n = s[:n] + 1
+    if s[:fa] * fx < 0
       brent_order(
         {
-          a: get(s, :a),
-          fa: get(s, :fa),
+          a: s[:a],
+          fa: s[:fa],
           b: x,
           fb: fx,
-          c: get(s, :b),
-          fc: get(s, :fb),
-          d: get(s, :c),
+          c: s[:b],
+          fc: s[:fb],
+          d: s[:c],
           mflag: bisect,
           n:,
           done: false
@@ -605,11 +602,11 @@ def brent_tick(f, tol, s)
         {
           a: x,
           fa: fx,
-          b: get(s, :b),
-          fb: get(s, :fb),
-          c: get(s, :b),
-          fc: get(s, :fb),
-          d: get(s, :c),
+          b: s[:b],
+          fb: s[:fb],
+          c: s[:b],
+          fc: s[:fb],
+          d: s[:c],
           mflag: bisect,
           n:,
           done: false
@@ -630,30 +627,30 @@ def nm_vertex(x, fx)
 end
 
 def nm_x(v)
-  nth(0, v)
+  v[0]
 end
 
 def nm_f(v)
-  nth(1, v)
+  v[1]
 end
 
 def nelder_mead(f, x0, step, opts)
   ftol = get_or(opts, :ftol, 0.000000001)
   xtol = get_or(opts, :xtol, 0.000000001)
   max_iter = get_or(opts, :max_iter, 2000)
-  corners = map((i) -> update_at(x0, i, nth(i, x0) + step), indexes(x0))
+  corners = map((i) -> update_at(x0, i, x0[i] + step), indexes(x0))
   simplex = map((x) -> nm_vertex(x, f(x)), concat_lists([x0], corners))
   fin = reduce(
     (acc, _i) -> nm_tick(f, ftol, xtol, acc),
     {simplex: nm_sort(simplex), n: 0, done: false},
     range(0, max_iter)
   )
-  best = first(get(fin, :simplex))
+  best = first(fin[:simplex])
   {
     x: nm_x(best),
     fx: nm_f(best),
-    iterations: get(fin, :n),
-    refusals: iter_refusals(get(fin, :done), max_iter)
+    iterations: fin[:n],
+    refusals: iter_refusals(fin[:done], max_iter)
   }
 end
 
@@ -675,14 +672,14 @@ def nm_converged?(simplex, ftol, xtol)
 end
 
 def nm_tick(f, ftol, xtol, acc)
-  if get(acc, :done)
+  if acc[:done]
     acc
   else
-    simplex = get(acc, :simplex)
+    simplex = acc[:simplex]
     if nm_converged?(simplex, ftol, xtol)
-      {simplex:, n: get(acc, :n), done: true}
+      {simplex:, n: acc[:n], done: true}
     else
-      {simplex: nm_sort(nm_move(f, simplex)), n: get(acc, :n) + 1, done: false}
+      {simplex: nm_sort(nm_move(f, simplex)), n: acc[:n] + 1, done: false}
     end
   end
 end
@@ -771,15 +768,10 @@ fit_line: The straight line y = intercept + slope * x through (xs, ys), by least
 """
 def fit_line(xs, ys)
   r = least_squares(map((x) -> [1, x], xs), ys)
-  if is_empty(get(r, :refusals))
-    {
-      intercept: nth(0, get(r, :x)),
-      slope: nth(1, get(r, :x)),
-      sse: get(r, :sse),
-      refusals: []
-    }
+  if is_empty(r[:refusals])
+    {intercept: r[:x][0], slope: r[:x][1], sse: r[:sse], refusals: []}
   else
-    {intercept: nil, slope: nil, sse: nil, refusals: get(r, :refusals)}
+    {intercept: nil, slope: nil, sse: nil, refusals: r[:refusals]}
   end
 end
 
@@ -788,7 +780,7 @@ sse: The sum of squared errors of model(params, x) against (xs, ys).
 """
 def sse(model, params, xs, ys)
   reduce(
-    (acc, i) -> acc + square(model(params, nth(i, xs)) - nth(i, ys)),
+    (acc, i) -> acc + square(model(params, xs[i]) - ys[i]),
     0.0,
     indexes(xs)
   )
@@ -823,12 +815,12 @@ def fit(model, p0, xs, ys, opts)
       opts
     )
     {
-      params: get(r, :x),
-      sse: get(r, :fx),
-      rmse: sqrt(get(r, :fx) / size(xs)),
+      params: r[:x],
+      sse: r[:fx],
+      rmse: sqrt(r[:fx] / size(xs)),
       n: size(xs),
-      iterations: get(r, :iterations),
-      refusals: get(r, :refusals)
+      iterations: r[:iterations],
+      refusals: r[:refusals]
     }
   end
 end
@@ -865,11 +857,7 @@ interp: Linear interpolation; outside the data it throws rather than extrapolate
 def interp(xs, ys, x)
   enforce(x, [(v) -> interp_refusals(xs, ys, v)], {kind: :first})
   i = segment(xs, x)
-  lerp(
-    nth(i, ys),
-    nth(i + 1, ys),
-    (x - nth(i, xs)) / (nth(i + 1, xs) - nth(i, xs))
-  )
+  lerp(ys[i], ys[i + 1], (x - xs[i]) / (xs[i + 1] - xs[i]))
 end
 
 @doc """
@@ -922,9 +910,7 @@ trapz: The trapezoid rule over samples (xs ascending), for a measured curve.
 """
 def trapz(xs, ys)
   reduce(
-    fn(acc, i)
-      acc + (nth(i + 1, xs) - nth(i, xs)) * (nth(i, ys) + nth(i + 1, ys)) / 2
-    end,
+    (acc, i) -> acc + (xs[i + 1] - xs[i]) * (ys[i] + ys[i + 1]) / 2,
     0.0,
     range(0, size(xs) - 1)
   )
@@ -937,38 +923,31 @@ def decay(_t, y)
 end
 
 def oscillator(_t, y)
-  [nth(1, y), -nth(0, y)]
+  [y[1], -y[0]]
 end
 
 def blowup(_t, y)
-  [square(nth(0, y))]
+  [square(y[0])]
 end
 
 test "an ODE over no time is its start"
   r = ode(decay, 2.0, [1.0], 2.0, {})
   assert value(r, :samples) == [[2.0, [1.0]]]
-  assert get(r, :steps) == 0
+  assert r[:steps] == 0
 end
 
 test "decay matches exp(-t), by fixed and adaptive steps"
   # Independently checkable: y' = -y from y(0) = 1 is exp(-t).
   rk = rk4(decay, 0.0, [1.0], 0.01, 100)
   assert size(value(rk, :samples)) == 101
-  assert near_within(
-    nth(0, sample_y(last(get(rk, :samples)))),
-    exp(-1.0),
-    0.0000001
-  ) == true
+  assert near_within(sample_y(last(rk[:samples]))[0], exp(-1.0), 0.0000001) ==
+    true
   dp = ode(decay, 0.0, [1.0], 1.0, {rtol: 0.000000001, atol: 0.000000000001})
-  assert near_within(nth(0, final(dp)), exp(-1.0), 0.00000001) == true
+  assert near_within(final(dp)[0], exp(-1.0), 0.00000001) == true
   # The adaptive solver takes far fewer steps than the fixed one for this.
-  assert get(dp, :steps) < 100
+  assert dp[:steps] < 100
   # Samples interpolate: halfway in time lands near exp(-0.5).
-  assert near_within(
-    nth(0, state_at(get(dp, :samples), 0.5)),
-    exp(-0.5),
-    0.001
-  ) == true
+  assert near_within(state_at(dp[:samples], 0.5)[0], exp(-0.5), 0.001) == true
 end
 
 test "an oscillator keeps its energy"
@@ -982,15 +961,14 @@ test "an oscillator keeps its energy"
     {rtol: 0.0000000001, atol: 0.0000000001}
   )
   y = final(r)
-  assert near_within(square(nth(0, y)) + square(nth(1, y)), 1.0, 0.00000001) ==
-    true
+  assert near_within(square(y[0]) + square(y[1]), 1.0, 0.00000001) == true
   assert vector_near(y, [1.0, 0.0]) == true
 end
 
 test "an ODE that blows up is refused, not answered"
   # The control: y' = y^2 from y(0) = 1 is 1 / (1 - t), infinite at t = 1.
   r = ode(blowup, 0.0, [1.0], 2.0, {})
-  assert is_empty(get(r, :refusals)) == false
+  assert is_empty(r[:refusals]) == false
   assert error?(
     begin
       final(r)
@@ -1003,8 +981,8 @@ test "an ODE that blows up is refused, not answered"
   rescue e
     e
   end
-  assert blown.kind == kyohi::kind(first(get(r, :refusals)))
-  assert blown.message == join(map(kyohi::why, get(r, :refusals)), "; ")
+  assert blown.kind == kyohi::kind(first(r[:refusals]))
+  assert blown.message == join(map(kyohi::why, r[:refusals]), "; ")
   rk = rk4(blowup, 0.0, [1.0], 0.1, 30)
   assert refusal_kinds(rk) == [:kinji_diverged]
 end
@@ -1019,7 +997,7 @@ test "roots: sqrt(2), the Dottie number, and a refused bracket"
   bi = bisect((x) -> cos(x) - x, 0.0, 1.0, 0.000000000001, 100)
   assert near_within(value(bi, :root), 0.7390851332151607, 0.0000000001) == true
   # Brent's point: the same answer in fewer evaluations.
-  assert get(dottie, :iterations) < get(bi, :iterations)
+  assert dottie[:iterations] < bi[:iterations]
   # The controls: no sign change, and too few iterations.
   assert refusal_kinds(brent((x) -> x * x + 1, -1.0, 1.0, 0.000001, 100)) ==
     [:kinji_no_bracket]
@@ -1029,11 +1007,9 @@ test "roots: sqrt(2), the Dottie number, and a refused bracket"
 end
 
 test "Nelder–Mead finds the Rosenbrock minimum"
-  rosen = fn(p)
-    square(1 - nth(0, p)) + 100 * square(nth(1, p) - square(nth(0, p)))
-  end
+  rosen = (p) -> square(1 - p[0]) + 100 * square(p[1] - square(p[0]))
   r = nelder_mead(rosen, [-1.2, 1.0], 0.5, {max_iter: 5000})
-  assert is_empty(get(r, :refusals)) == true
+  assert is_empty(r[:refusals]) == true
   assert vector_near(value(r, :x), [1.0, 1.0]) == true
   # The control: three iterations are not enough, and it says so.
   assert refusal_kinds(nelder_mead(rosen, [-1.2, 1.0], 0.5, {max_iter: 3})) ==
@@ -1042,15 +1018,15 @@ end
 
 test "least squares: an exact line, a known fit, and a rank refusal"
   exact = fit_line([0, 1, 2, 3], [1, 3, 5, 7])
-  assert near(get(exact, :intercept), 1) == true
-  assert near(get(exact, :slope), 2) == true
-  assert near(get(exact, :sse), 0) == true
+  assert near(exact[:intercept], 1) == true
+  assert near(exact[:slope], 2) == true
+  assert near(exact[:sse], 0) == true
   # Hand-computed: the least-squares line through (0,0) (1,1) (2,1) is
   # y = 1/6 + x/2, with SSE 1/6.
   fit = fit_line([0, 1, 2], [0, 1, 1])
-  assert near(get(fit, :intercept), 1.0 / 6) == true
-  assert near(get(fit, :slope), 0.5) == true
-  assert near(get(fit, :sse), 1.0 / 6) == true
+  assert near(fit[:intercept], 1.0 / 6) == true
+  assert near(fit[:slope], 0.5) == true
+  assert near(fit[:sse], 1.0 / 6) == true
   # The control: every x equal leaves the slope undetermined.
   assert refusal_kinds(fit_line([2, 2, 2], [1, 2, 3])) == [:kinji_rank]
 end
@@ -1059,15 +1035,15 @@ test "kj_fit recovers a decay constant, with its error and point count"
   ts = [0, 1, 2, 3, 4, 5]
   ys = map((t) -> 80 * exp(-0.3 * t), ts)
   r = fit(
-    (p, t) -> nth(0, p) * exp(-(nth(1, p) * t)),
+    (p, t) -> p[0] * exp(-(p[1] * t)),
     [50.0, 0.1],
     ts,
     ys,
     {max_iter: 5000}
   )
   assert vector_near(value(r, :params), [80.0, 0.3]) == true
-  assert get(r, :n) == 6
-  assert get(r, :rmse) < 0.0001
+  assert r[:n] == 6
+  assert r[:rmse] < 0.0001
   assert refusal_kinds(fit((_p, t) -> t, [1.0], [1, 2], [1], {})) ==
     [:kinji_data]
 end

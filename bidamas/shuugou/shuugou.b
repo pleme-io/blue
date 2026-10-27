@@ -228,7 +228,7 @@ def lookup(ps, k)
   if is_empty(hit)
     nil
   else
-    nth(1, first(hit))
+    first(hit)[1]
   end
 end
 
@@ -250,7 +250,7 @@ def most_common(xs)
       0,
       reduce(
         fn(best, p)
-          if nth(1, p) > nth(1, best)
+          if p[1] > best[1]
             p
           else
             best
@@ -331,9 +331,7 @@ def pairs(xs)
   s = unique(xs)
   as_set(
     reduce(
-      fn(acc, i)
-        append(acc, map((j) -> [nth(i, s), nth(j, s)], range(i + 1, size(s))))
-      end,
+      (acc, i) -> append(acc, map((j) -> [s[i], s[j]], range(i + 1, size(s)))),
       [],
       range(0, size(s))
     )
@@ -467,14 +465,14 @@ test "group_by partitions, in first-seen key order"
   # A partition loses nothing and duplicates nothing: the group sizes sum
   # back to the input size.
   gs = group_by([1, 2, 3, 4, 5, 6, 7], (n) -> n % 3)
-  assert reduce((a, p) -> a + size(nth(1, p)), 0, gs) == 7
+  assert reduce((a, p) -> a + size(p[1]), 0, gs) == 7
 end
 
 test "frequencies counts, and the counts sum to the input size"
   assert frequencies([1, 1, 2]) == [[1, 2], [2, 1]]
   assert frequencies([]) == []
   fs = frequencies([1, 2, 2, 3, 3, 3])
-  assert reduce((a, p) -> a + nth(1, p), 0, fs) == 6
+  assert reduce((a, p) -> a + p[1], 0, fs) == 6
   # One pair per DISTINCT value.
   assert size(fs) == cardinality([1, 2, 2, 3, 3, 3])
 end

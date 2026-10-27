@@ -17,7 +17,7 @@ def greeting(s, req)
 end
 
 def handle(s, req)
-  if get(req, :path) == "/"
+  if req[:path] == "/"
     kyuuji::text(200, unlines([greeting(s, req)]))
   else
     kyuuji::not_found(req)
@@ -46,8 +46,6 @@ test "the shout flag turns the greeting up"
 end
 
 test "anything but the root is not found"
-  assert get(
-    handle(settings(false), kyuuji::request("GET", "/x", "")),
-    :status
-  ) == 404
+  assert handle(settings(false), kyuuji::request("GET", "/x", ""))[:status] ==
+    404
 end

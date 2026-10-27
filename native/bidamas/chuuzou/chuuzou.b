@@ -53,40 +53,40 @@ end
 def cz_tokens(text)
   start = {toks: [], cur: "", in_str: false, esc: false}
   step = fn(st, c)
-    if get(st, :in_str)
-      if get(st, :esc)
-        assoc(assoc(st, :cur, concat(get(st, :cur), c)), :esc, false)
+    if st[:in_str]
+      if st[:esc]
+        assoc(assoc(st, :cur, concat(st[:cur], c)), :esc, false)
       elsif c == "\\"
-        assoc(assoc(st, :cur, concat(get(st, :cur), c)), :esc, true)
+        assoc(assoc(st, :cur, concat(st[:cur], c)), :esc, true)
       elsif c == "\""
         {
-          toks: append(get(st, :toks), [concat(get(st, :cur), c)]),
+          toks: append(st[:toks], [concat(st[:cur], c)]),
           cur: "",
           in_str: false,
           esc: false
         }
       else
-        assoc(st, :cur, concat(get(st, :cur), c))
+        assoc(st, :cur, concat(st[:cur], c))
       end
     elsif c == "\""
       assoc(assoc(cz_flush(st), :cur, "\""), :in_str, true)
     elsif member?(c, cz_delims)
       f = cz_flush(st)
-      assoc(f, :toks, append(get(f, :toks), [c]))
+      assoc(f, :toks, append(f[:toks], [c]))
     elsif c == " " or c == line_break or c == "\t"
       cz_flush(st)
     else
-      assoc(st, :cur, concat(get(st, :cur), c))
+      assoc(st, :cur, concat(st[:cur], c))
     end
   end
-  get(cz_flush(reduce(step, start, chars(text))), :toks)
+  cz_flush(reduce(step, start, chars(text)))[:toks]
 end
 
 def cz_flush(st)
-  if get(st, :cur) == ""
+  if st[:cur] == ""
     st
   else
-    assoc(assoc(st, :toks, append(get(st, :toks), [get(st, :cur)])), :cur, "")
+    assoc(assoc(st, :toks, append(st[:toks], [st[:cur]])), :cur, "")
   end
 end
 
@@ -108,7 +108,7 @@ end
 def cz_unescape(cs)
   st = reduce(
     fn(acc, c)
-      if get(acc, :esc)
+      if acc[:esc]
         ch = if c == "n"
           line_break
         elsif c == "t"
@@ -116,17 +116,17 @@ def cz_unescape(cs)
         else
           c
         end
-        {out: concat(get(acc, :out), ch), esc: false}
+        {out: concat(acc[:out], ch), esc: false}
       elsif c == "\\"
         assoc(acc, :esc, true)
       else
-        assoc(acc, :out, concat(get(acc, :out), c))
+        assoc(acc, :out, concat(acc[:out], c))
       end
     end,
     {out: "", esc: false},
     cs
   )
-  get(st, :out)
+  st[:out]
 end
 
 # The forms in `text`. A stack of open lists, folded over the tokens; an
@@ -159,12 +159,12 @@ end
 # ── Node predicates ────────────────────────────────────────────────────────
 
 def cz_sym?(n)
-  map?(n) and get(n, :sym) != nil
+  map?(n) and n[:sym] != nil
 end
 
 def cz_sym(n)
   if cz_sym?(n)
-    get(n, :sym)
+    n[:sym]
   end
 end
 
@@ -326,9 +326,9 @@ def cz_expr(n, ctx)
     rs_u32(n)
   elsif cz_sym?(n)
     s = cz_sym(n)
-    if member?(s, get(ctx, :params))
+    if member?(s, ctx[:params])
       rs_path(cz_param_name(s))
-    elsif member?(s, get(ctx, :consts))
+    elsif member?(s, ctx[:consts])
       rs_path(cz_const_name(s))
     else
       cz_refuse("`#{s}` is not a parameter or a constant here")
@@ -398,8 +398,8 @@ def cz_call(n, ctx)
       "wrapping_add",
       [cz_expr(second(args), ctx)]
     )
-  elsif member?(h, get(ctx, :fns))
-    if h == get(ctx, :self)
+  elsif member?(h, ctx[:fns])
+    if h == ctx[:self]
       cz_refuse(
         "`#{cz_local(h)}` calls itself outside tail position; recursion needs a declared depth bound (BLUE-NATIVE.md §2.2), which N0 cannot express"
       )
@@ -462,8 +462,8 @@ end
 # leave: `return`, or the parameters rebound and `continue`.
 def cz_tail(n, ctx)
   h = cz_head(n)
-  if h == get(ctx, :self)
-    params = get(ctx, :params)
+  if h == ctx[:self]
+    params = ctx[:params]
     args = rest(n)
     if count(args) != count(params)
       cz_refuse(
@@ -471,7 +471,7 @@ def cz_tail(n, ctx)
       )
     end
     temps = map(
-      (i) -> {kind: "local", name: "t_#{i}", value: cz_expr(nth(i, args), ctx)},
+      (i) -> {kind: "local", name: "t_#{i}", value: cz_expr(args[i], ctx)},
       range(count(args))
     )
     rebinds = map(
@@ -479,7 +479,7 @@ def cz_tail(n, ctx)
         rs_semi(
           {
             kind: "assign",
-            target: cz_param_name(nth(i, params)),
+            target: cz_param_name(params[i]),
             value: rs_path("t_#{i}")
           }
         )
@@ -573,7 +573,7 @@ end
 
 # The one package a native program may use at N0 is its board's.
 def cz_check_use(form)
-  pkg = get(second(form), :str)
+  pkg = second(form)[:str]
   if pkg != "kiban"
     cz_refuse(
       "use(\"#{pkg}\"): at N0 a native program uses only its board's words (kiban)"
@@ -588,9 +588,9 @@ end
 
 # The lowered program: a typed Rust `File` (as data), for `board`.
 def cz_lower(forms, board)
-  if get(board, :word) != 32
+  if board[:word] != 32
     cz_refuse(
-      "N0 lowers to a 32-bit board word; #{get(board, :name)} has #{get(board, :word)}"
+      "N0 lowers to a 32-bit board word; #{board[:name]} has #{board[:word]}"
     )
   end
   kinds = map((f) -> [cz_kind(f), f], forms)
@@ -639,21 +639,18 @@ def cz_emit(path, board_name)
   end
   blue = self_exe
   checked = cz_capture([blue, "check", path])
-  if get(checked, :status) != 0
+  if checked[:status] != 0
     cz_refuse(
       join_lines(
-        [
-          "#{path} does not check:",
-          "#{get(checked, :stdout)}#{get(checked, :stderr)}"
-        ]
+        ["#{path} does not check:", "#{checked[:stdout]}#{checked[:stderr]}"]
       )
     )
   end
   tree = cz_capture([blue, "ast", "--resolved", path])
-  if get(tree, :status) != 0
-    cz_refuse("blue ast failed: #{get(tree, :stderr)}")
+  if tree[:status] != 0
+    cz_refuse("blue ast failed: #{tree[:stderr]}")
   end
-  file = cz_lower(cz_read(get(tree, :stdout)), board)
+  file = cz_lower(cz_read(tree[:stdout]), board)
   r = exec_with_stdin(json_stringify(file), "tatara-rust-emit")
   if second(first(r)) != 0
     cz_refuse("tatara-rust-emit refused the tree: #{second(third(r))}")
@@ -667,14 +664,14 @@ end
 # section in RAM, the stack at the top of RAM. Generated, never hand-written
 # (BLUE-NATIVE.md §1.6); a board with no `ram` region is refused.
 def cz_link_script(board)
-  ram = find(get(board, :memory), (r) -> get(r, :name) == :ram)
+  ram = find(board[:memory], (r) -> r[:name] == :ram)
   if ram.nil?
-    cz_refuse("#{get(board, :name)} declares no ram region")
+    cz_refuse("#{board[:name]} declares no ram region")
   end
   lines = [
     "OUTPUT_ARCH(riscv)",
     "ENTRY(_start)",
-    "MEMORY { ram : ORIGIN = #{get(ram, :origin)}, LENGTH = #{get(ram, :length)} }",
+    "MEMORY { ram : ORIGIN = #{ram[:origin]}, LENGTH = #{ram[:length]} }",
     "SECTIONS {",
     "  .text : { KEEP(*(.text.start)) *(.text .text.*) } > ram",
     "  .rodata : { *(.rodata .rodata.*) } > ram",
@@ -695,7 +692,7 @@ def cz_rustc_flags(board)
     "--edition",
     "2021",
     "--target",
-    get(board, :rust_target),
+    board[:rust_target],
     "-C",
     "opt-level=z",
     "-C",
@@ -707,8 +704,8 @@ end
 
 def cz_run(args, what)
   r = cz_capture(args)
-  if get(r, :status) != 0
-    cz_refuse(join_lines(["#{what} failed:", get(r, :stderr)]))
+  if r[:status] != 0
+    cz_refuse(join_lines(["#{what} failed:", r[:stderr]]))
   end
   r
 end
@@ -782,7 +779,7 @@ def cz_link(rs, board_name, seam, out, name)
         "link-arg=-T#{script}",
         "-o",
         elf,
-        path_join(seam, get(board, :name), "seam.rs")
+        path_join(seam, board[:name], "seam.rs")
       ]
     ),
     "rustc seam"
@@ -823,8 +820,8 @@ end
 # The image's size (text, data, bss) and whether any core::fmt symbol is in
 # it (BLUE-NATIVE.md, Review §4): one row of the size ledger.
 def cz_measure(elf)
-  sized = get(cz_run(["llvm-size", "-A", elf], "llvm-size"), :stdout)
-  syms = get(cz_run(["llvm-nm", "-C", elf], "llvm-nm"), :stdout)
+  sized = cz_run(["llvm-size", "-A", elf], "llvm-size")[:stdout]
+  syms = cz_run(["llvm-nm", "-C", elf], "llvm-nm")[:stdout]
   fmt = filter((l) -> contains?(l, "core::fmt"), split(syms, line_break))
   {
     text: cz_section(sized, ".text"),
@@ -845,11 +842,11 @@ def cz_size_tsv(program, board_name, m)
     [
       program,
       board_name,
-      get(m, :text),
-      get(m, :rodata),
-      get(m, :data),
-      get(m, :bss),
-      get(m, :fmt_symbols)
+      m[:text],
+      m[:rodata],
+      m[:data],
+      m[:bss],
+      m[:fmt_symbols]
     ],
     "\t"
   )
@@ -871,14 +868,14 @@ end
 test "arithmetic lowers checked, and wrapping only where asked"
   ctx = {self: nil, params: ["a", "b"], fns: [], consts: []}
   e = cz_expr(first(cz_read("(+ a b)")), ctx)
-  assert get(e, :func) == ["kiban_io", "checked"]
-  assert get(first(get(e, :args)), :method) == "checked_add"
+  assert e[:func] == ["kiban_io", "checked"]
+  assert first(e[:args])[:method] == "checked_add"
   w = cz_expr(first(cz_read("(kiban/wrapping_add a b)")), ctx)
-  assert get(w, :method) == "wrapping_add"
+  assert w[:method] == "wrapping_add"
 end
 
 test "a literal past the board word is a compile error"
-  assert get(rs_u32(4_294_967_295), :value) == 4_294_967_295
+  assert rs_u32(4_294_967_295)[:value] == 4_294_967_295
   assert (rs_u32(4_294_967_296) rescue :refused) == :refused
   assert (rs_u32(-1) rescue :refused) == :refused
 end
@@ -891,8 +888,8 @@ test "a tail self-call becomes a loop and any other self-call is refused"
     ["%root/down"],
     []
   )
-  stmts = get(get(get(looped, :item), :body), :stmts)
-  assert get(get(last(stmts), :expr), :kind) == "loop"
+  stmts = looped[:item][:body][:stmts]
+  assert last(stmts)[:expr][:kind] == "loop"
   deep = first(
     cz_read("(define-typed (%root/f (n Int)) Int (+ 1 (%root/f n)))")
   )

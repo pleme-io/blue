@@ -11,11 +11,7 @@ use("retsu", [:first, :rest, :size])
 
 def order_of(line)
   fields = split(line, ",")
-  {
-    id: nth(0, fields),
-    item: trim(nth(1, fields)),
-    qty: to_int(trim(nth(2, fields)))
-  }
+  {id: fields[0], item: trim(fields[1]), qty: to_int(trim(fields[2]))}
 end
 
 # Every order in a CSV text with a header line; blank lines are skipped.
@@ -25,11 +21,11 @@ def orders_of(text)
 end
 
 def bad_orders(orders)
-  filter((o) -> get(o, :qty).nil?, orders)
+  filter((o) -> o[:qty].nil?, orders)
 end
 
 def total_qty(orders)
-  sum(map((o) -> get(o, :qty), orders))
+  sum(map((o) -> o[:qty], orders))
 end
 
 csv = unlines(["id,item,qty", "a1,apple,3", "a2,pear,x", "a3,apple,4"])
@@ -42,11 +38,11 @@ end
 
 test "a field that is not a number is found, not read as zero"
   bad = bad_orders(orders_of(csv))
-  assert map((o) -> get(o, :id), bad) == ["a2"]
+  assert map((o) -> o[:id], bad) == ["a2"]
 end
 
 test "the good rows add up"
-  good = filter((o) -> get(o, :qty) != nil, orders_of(csv))
+  good = filter((o) -> o[:qty] != nil, orders_of(csv))
   assert total_qty(good) == 7
 end
 

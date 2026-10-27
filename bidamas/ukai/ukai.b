@@ -82,17 +82,17 @@ decide: noop, bypass, refused or blind, over a total state.
 def decide(s)
   if not is_empty(unread_axes(s))
     blind(unread_axes(s))
-  elsif get(s, :corp) == :absent
+  elsif s[:corp] == :absent
     noop(:no_corp_tunnel)
-  elsif get(s, :corp) == :split
+  elsif s[:corp] == :split
     noop(:split_tunnel_leaves_default)
-  elsif get(s, :overlay) == :down
+  elsif s[:overlay] == :down
     noop(:overlay_down)
-  elsif get(s, :gateway) == :absent
+  elsif s[:gateway] == :absent
     refused(:no_physical_gateway)
-  elsif get(s, :enforcement) == :routes_rewritten
+  elsif s[:enforcement] == :routes_rewritten
     refused(:enforcement_rewrites_routes)
-  elsif get(s, :enforcement) == :egress_blocked
+  elsif s[:enforcement] == :egress_blocked
     refused(:enforcement_blocks_egress)
   else
     {kind: :bypass, routes: route_set(s)}
@@ -100,15 +100,15 @@ def decide(s)
 end
 
 def route_set(s)
-  hosts = sorted(unique(as_set(get(s, :hosts))))
+  hosts = sorted(unique(as_set(s[:hosts])))
   {
-    backend: get(s, :platform),
-    gateway: get(s, :gateway_addr),
-    iface: get(s, :gateway_iface),
-    table: get(s, :table),
-    priority: get(s, :priority),
+    backend: s[:platform],
+    gateway: s[:gateway_addr],
+    iface: s[:gateway_iface],
+    table: s[:table],
+    priority: s[:priority],
     hosts:,
-    add: sorted(difference(hosts, as_set(get(s, :routed))))
+    add: sorted(difference(hosts, as_set(s[:routed])))
   }
 end
 
@@ -117,13 +117,13 @@ def sorted(xs)
 end
 
 def outcome_label(o)
-  k = get(o, :kind)
+  k = o[:kind]
   if k == :blind
-    "blind:#{join(map((a) -> to_s(a), get(o, :unread)), ",")}"
+    "blind:#{join(map((a) -> to_s(a), o[:unread]), ",")}"
   elsif k == :bypass
     "bypass"
   else
-    "#{to_s(k)}:#{to_s(get(o, :reason))}"
+    "#{to_s(k)}:#{to_s(o[:reason])}"
   end
 end
 
@@ -237,12 +237,12 @@ def bad(why)
 end
 
 def from_capture(c, parser)
-  if get(c, :status) != 0
+  if c[:status] != 0
     bad(
-      "#{first(get(c, :argv))} exited #{to_s(get(c, :status))}: #{blue::trim(get(c, :stderr))}"
+      "#{first(c[:argv])} exited #{to_s(c[:status])}: #{blue::trim(c[:stderr])}"
     )
   else
-    parser(get(c, :stdout))
+    parser(c[:stdout])
   end
 end
 
@@ -346,19 +346,7 @@ def parse_netstat(text)
     bad("netstat: no Destination header")
   else
     rows = filter((f) -> size(f) >= 4, map(fields, after_header(ls)))
-    ok(
-      map(
-        fn(f)
-          {
-            dest: nth(0, f),
-            gateway: nth(1, f),
-            flags: nth(2, f),
-            iface: nth(3, f)
-          }
-        end,
-        rows
-      )
-    )
+    ok(map((f) -> {dest: f[0], gateway: f[1], flags: f[2], iface: f[3]}, rows))
   end
 end
 
@@ -418,7 +406,7 @@ def after_word(fs, w)
   if size(fs) < 2
     nil
   elsif first(fs) == w
-    nth(1, fs)
+    fs[1]
   else
     after_word(rest(fs), w)
   end
@@ -456,12 +444,12 @@ def overlay_iface(routes)
   if r.nil?
     ""
   else
-    get(r, :iface)
+    r[:iface]
   end
 end
 
 def r_dest(r)
-  get(r, :dest)
+  r[:dest]
 end
 
 def half?(d)
@@ -470,7 +458,7 @@ end
 
 def corp_of(routes, pattern)
   ov = overlay_iface(routes)
-  mine = filter((r) -> corp_iface?(get(r, :iface), pattern, ov), routes)
+  mine = filter((r) -> corp_iface?(r[:iface], pattern, ov), routes)
   halves = filter((r) -> half?(r_dest(r)) or r_dest(r) == "default", mine)
   if is_empty(mine)
     :absent
@@ -488,9 +476,9 @@ def gateway_of(routes, pattern)
     filter(
       fn(r)
         r_dest(r) == "default" and
-          ipv4?(get(r, :gateway)) and
-          not corp_iface?(get(r, :iface), pattern, ov) and
-          get(r, :iface) != ov
+          ipv4?(r[:gateway]) and
+          not corp_iface?(r[:iface], pattern, ov) and
+          r[:iface] != ov
       end,
       routes
     )
@@ -503,9 +491,9 @@ def routed_via(routes, gateway)
       r_dest,
       filter(
         fn(r)
-          get(r, :gateway) == gateway and
+          r[:gateway] == gateway and
             ipv4?(r_dest(r)) and
-            contains?(get(r, :flags), "H")
+            contains?(r[:flags], "H")
         end,
         routes
       )
@@ -522,7 +510,7 @@ def parse_derp_map(text)
     ips = unique(
       filter(
         ipv4?,
-        reduce((acc, reg) -> append(acc, region_ips(nth(1, reg))), [], regions)
+        reduce((acc, reg) -> append(acc, region_ips(reg[1])), [], regions)
       )
     )
     if is_empty(ips)
@@ -621,69 +609,63 @@ def infer_enforcement(targets, routed, applied, overlay)
 end
 
 def overlay_of(status_r, netcheck_r)
-  if not get(status_r, :ok)
+  if not status_r[:ok]
     :unread
-  elsif get(status_r, :value) != "Running"
+  elsif status_r[:value] != "Running"
     :down
-  elsif not get(netcheck_r, :ok)
+  elsif not netcheck_r[:ok]
     :unread
   else
-    get(netcheck_r, :value)
+    netcheck_r[:value]
   end
 end
 
 def assemble(cfg, obs)
-  routes_r = get(obs, :routes)
-  pattern = get(cfg, :corp_pattern)
-  routes = if get(routes_r, :ok)
-    get(routes_r, :value)
+  routes_r = obs[:routes]
+  pattern = cfg[:corp_pattern]
+  routes = if routes_r[:ok]
+    routes_r[:value]
   else
     []
   end
-  overlay = overlay_of(get(obs, :status), get(obs, :netcheck))
+  overlay = overlay_of(obs[:status], obs[:netcheck])
   gw_row = gateway_of(routes, pattern)
-  gw_addr = if not is_empty(get(cfg, :gateway))
-    get(cfg, :gateway)
+  gw_addr = if not is_empty(cfg[:gateway])
+    cfg[:gateway]
   elsif gw_row != nil
-    get(gw_row, :gateway)
+    gw_row[:gateway]
   else
     ""
   end
-  gw_iface = if not is_empty(get(cfg, :gateway_iface))
-    get(cfg, :gateway_iface)
+  gw_iface = if not is_empty(cfg[:gateway_iface])
+    cfg[:gateway_iface]
   elsif gw_row != nil
-    get(gw_row, :iface)
+    gw_row[:iface]
   else
     ""
   end
-  derp_r = get(obs, :derp)
-  ctl_r = get(obs, :control)
-  targets_ok = get(derp_r, :ok) and get(ctl_r, :ok)
+  derp_r = obs[:derp]
+  ctl_r = obs[:control]
+  targets_ok = derp_r[:ok] and ctl_r[:ok]
   hosts = if targets_ok
     sorted(
-      unique(
-        append(
-          append(get(derp_r, :value), get(ctl_r, :value)),
-          get(cfg, :extra_hosts)
-        )
-      )
+      unique(append(append(derp_r[:value], ctl_r[:value]), cfg[:extra_hosts]))
     )
   else
     []
   end
-  routed = if get(cfg, :platform) == :nixos
-    as_set(get(get(obs, :rules), :value))
+  routed = if cfg[:platform] == :nixos
+    as_set(obs[:rules][:value])
   else
     routed_via(routes, gw_addr)
   end
-  routes_ok = get(routes_r, :ok) and
-    (get(cfg, :platform) == :darwin or get(get(obs, :rules), :ok))
-  corp = if get(routes_r, :ok)
+  routes_ok = routes_r[:ok] and (cfg[:platform] == :darwin or obs[:rules][:ok])
+  corp = if routes_r[:ok]
     corp_of(routes, pattern)
   else
     :unread
   end
-  gateway = if not get(routes_r, :ok) and is_empty(get(cfg, :gateway))
+  gateway = if not routes_r[:ok] and is_empty(cfg[:gateway])
     :unread
   elsif is_empty(gw_addr) or is_empty(gw_iface)
     :absent
@@ -693,7 +675,7 @@ def assemble(cfg, obs)
   enforcement = if not routes_ok or overlay == :unread or not targets_ok
     :unread
   else
-    infer_enforcement(hosts, routed, get(cfg, :applied), overlay)
+    infer_enforcement(hosts, routed, cfg[:applied], overlay)
   end
   state(
     {
@@ -706,15 +688,15 @@ def assemble(cfg, obs)
       else
         :unread
       end,
-      platform: get(cfg, :platform)
+      platform: cfg[:platform]
     },
     {
       gateway_addr: gw_addr,
       gateway_iface: gw_iface,
       hosts:,
       routed:,
-      table: get(cfg, :table),
-      priority: get(cfg, :priority)
+      table: cfg[:table],
+      priority: cfg[:priority]
     }
   )
 end
@@ -723,10 +705,10 @@ end
 observe: read routes and overlay status into one typed state.
 """
 def observe(cfg)
-  ts = get(cfg, :tailscale)
-  host = get(cfg, :control_host)
-  if get(cfg, :platform) == :nixos
-    ip = get(cfg, :ip)
+  ts = cfg[:tailscale]
+  host = cfg[:control_host]
+  if cfg[:platform] == :nixos
+    ip = cfg[:ip]
     {
       routes: from_capture(capture(ip_route_argv(ip)), parse_ip_route),
       rules: from_capture(capture(ip_rule_argv(ip)), parse_ip_rules),
@@ -734,7 +716,7 @@ def observe(cfg)
       netcheck: from_capture(capture(netcheck_argv(ts)), parse_netcheck),
       derp: from_capture(capture(derp_map_argv(ts)), parse_derp_map),
       control: from_capture(
-        capture(getent_argv(get(cfg, :getent), host)),
+        capture(getent_argv(cfg[:getent], host)),
         parse_getent
       )
     }
@@ -754,37 +736,32 @@ end
 plan: host routes or policy rules an outcome needs.
 """
 def plan(o, cfg)
-  if get(o, :kind) != :bypass
+  if o[:kind] != :bypass
     []
   else
-    rs = get(o, :routes)
-    if get(rs, :backend) == :nixos
+    rs = o[:routes]
+    if rs[:backend] == :nixos
       reduce(
         fn(acc, h)
           append(
             acc,
             [
               ip_route_add_argv(
-                get(cfg, :ip),
+                cfg[:ip],
                 h,
-                get(rs, :gateway),
-                get(rs, :iface),
-                get(rs, :table)
+                rs[:gateway],
+                rs[:iface],
+                rs[:table]
               ),
-              ip_rule_add_argv(
-                get(cfg, :ip),
-                h,
-                get(rs, :table),
-                get(rs, :priority)
-              )
+              ip_rule_add_argv(cfg[:ip], h, rs[:table], rs[:priority])
             ]
           )
         end,
         [],
-        get(rs, :add)
+        rs[:add]
       )
     else
-      map((h) -> route_add_argv(h, get(rs, :gateway)), get(rs, :add))
+      map((h) -> route_add_argv(h, rs[:gateway]), rs[:add])
     end
   end
 end
@@ -836,38 +813,33 @@ end
 
 def run(cfg)
   now = now_ms
-  cfg2 = assoc(cfg, :applied, read_applied(get(cfg, :state_path)))
+  cfg2 = assoc(cfg, :applied, read_applied(cfg[:state_path]))
   s = assemble(cfg2, observe(cfg2))
   o = decide(s)
   argvs = plan(o, cfg2)
-  results = act(argvs, get(cfg2, :dry_run))
-  failed = filter(
-    (r) -> get(r, :status) != 0 and get(r, :status) != nil,
-    results
-  )
-  applied = if get(cfg2, :dry_run) or
-      get(o, :kind) != :bypass or
-      not is_empty(failed)
-    get(cfg2, :applied)
+  results = act(argvs, cfg2[:dry_run])
+  failed = filter((r) -> r[:status] != 0 and r[:status] != nil, results)
+  applied = if cfg2[:dry_run] or o[:kind] != :bypass or not is_empty(failed)
+    cfg2[:applied]
   else
-    sorted(unique(append(get(cfg2, :applied), get(get(o, :routes), :hosts))))
+    sorted(unique(append(cfg2[:applied], o[:routes][:hosts])))
   end
   record = {
     checked_ms: now,
     outcome: outcome_label(o),
     state: row_key(s),
-    dry_run: get(cfg2, :dry_run),
+    dry_run: cfg2[:dry_run],
     planned: map((a) -> join(a, " "), argvs),
     failed: map(
-      (r) -> "#{join(get(r, :argv), " ")}: #{blue::trim(get(r, :stderr))}",
+      (r) -> "#{join(r[:argv], " ")}: #{blue::trim(r[:stderr])}",
       failed
     ),
     applied:
   }
-  mkdir_p(path_dirname(get(cfg2, :state_path)))
-  tmp = "#{get(cfg2, :state_path)}.tmp"
+  mkdir_p(path_dirname(cfg2[:state_path]))
+  tmp = "#{cfg2[:state_path]}.tmp"
   write_file(tmp, json_stringify(record))
-  rename_file(tmp, get(cfg2, :state_path))
+  rename_file(tmp, cfg2[:state_path])
   write_stdout(
     unlines(
       [
@@ -972,15 +944,12 @@ end
 
 test "blind is never noop: an unread axis wins over every other answer"
   s = fill(first(every_state))
-  assert get(decide(assoc(s, :corp, :unread)), :kind) == :blind
-  assert get(
-    decide(assoc(assoc(s, :corp, :absent), :targets, :unread)),
-    :unread
-  ) == [:targets]
-  assert get(decide(assoc(s, :corp, :absent)), :kind) == :noop
-  assert size(
-    filter((x) -> get(decide(fill(x)), :kind) == :blind, every_state)
-  ) == 1200 - 3 * 4 * 4 * 2 * 1 * 2
+  assert decide(assoc(s, :corp, :unread))[:kind] == :blind
+  assert decide(assoc(assoc(s, :corp, :absent), :targets, :unread))[:unread] ==
+    [:targets]
+  assert decide(assoc(s, :corp, :absent))[:kind] == :noop
+  assert size(filter((x) -> decide(fill(x))[:kind] == :blind, every_state)) ==
+    1200 - 3 * 4 * 4 * 2 * 1 * 2
 end
 
 test "a state with a value outside its axis is refused, not decided"
@@ -1000,18 +969,18 @@ test "a state with a value outside its axis is refused, not decided"
 end
 
 test "netstat: the measured full tunnel with no bypass yet"
-  rs = get(parse_netstat(fixture("netstat-full-no-bypass.txt")), :value)
+  rs = parse_netstat(fixture("netstat-full-no-bypass.txt"))[:value]
   assert corp_of(rs, "utun") == :full
   assert overlay_iface(rs) == "utun4"
   gw = gateway_of(rs, "utun")
-  assert get(gw, :gateway) == "192.168.60.1"
-  assert get(gw, :iface) == "en0"
+  assert gw[:gateway] == "192.168.60.1"
+  assert gw[:iface] == "en0"
   assert routed_via(rs, "192.168.60.1") == []
-  assert get(parse_netstat("garbage"), :ok) == false
+  assert parse_netstat("garbage")[:ok] == false
 end
 
 test "netstat: the measured bypass has the 8 control-plane and 88 DERP host routes"
-  rs = get(parse_netstat(fixture("netstat-full-bypassed.txt")), :value)
+  rs = parse_netstat(fixture("netstat-full-bypassed.txt"))[:value]
   assert corp_of(rs, "utun") == :full
   assert size(routed_via(rs, "192.168.60.1")) == 96
   assert corp_of(rs, "utun7") == :full
@@ -1020,37 +989,36 @@ end
 
 test "derp-map: the real map yields 88 IPv4 nodes, never 0"
   r = parse_derp_map(fixture("derp-map.json"))
-  assert get(r, :ok) == true
-  assert size(get(r, :value)) == 88
-  assert member?("199.38.181.93", get(r, :value)) == true
+  assert r[:ok] == true
+  assert size(r[:value]) == 88
+  assert member?("199.38.181.93", r[:value]) == true
   assert get(
     parse_derp_map("{\"Regions\": {\"1\": {\"Nodes\": [{\"IPv4\": \"\"}]}}}"),
     :ok
   ) == false
-  assert get(parse_derp_map("not json"), :ok) == false
-  assert get(parse_derp_map(""), :ok) == false
+  assert parse_derp_map("not json")[:ok] == false
+  assert parse_derp_map("")[:ok] == false
 end
 
 test "netcheck: blocked reads none, bypassed reads direct, a DERP-only reply reads relay"
-  assert get(parse_netcheck(fixture("netcheck-blocked.json")), :value) == :none
-  assert get(parse_netcheck(fixture("netcheck-bypassed.json")), :value) ==
-    :direct
+  assert parse_netcheck(fixture("netcheck-blocked.json"))[:value] == :none
+  assert parse_netcheck(fixture("netcheck-bypassed.json"))[:value] == :direct
   assert get(
     parse_netcheck("{\"UDP\": false, \"RegionLatency\": {\"1\": 5}}"),
     :value
   ) == :relay
-  assert get(parse_netcheck("{}"), :ok) == false
-  assert get(parse_netcheck("nope"), :ok) == false
+  assert parse_netcheck("{}")[:ok] == false
+  assert parse_netcheck("nope")[:ok] == false
 end
 
 test "control plane resolution and status"
   r = parse_dscacheutil(fixture("dscacheutil.txt"))
-  assert size(get(r, :value)) == 8
-  assert member?("192.200.0.110", get(r, :value)) == true
-  assert get(parse_dscacheutil(unlines(["name: x"])), :ok) == false
-  assert get(parse_backend_state(fixture("status-stopped.json")), :value) ==
+  assert size(r[:value]) == 8
+  assert member?("192.200.0.110", r[:value]) == true
+  assert parse_dscacheutil(unlines(["name: x"]))[:ok] == false
+  assert parse_backend_state(fixture("status-stopped.json"))[:value] ==
     "Stopped"
-  assert get(parse_backend_state("{}"), :ok) == false
+  assert parse_backend_state("{}")[:ok] == false
   assert get(
     parse_getent(
       unlines(
@@ -1072,8 +1040,8 @@ test "end to end over the measured state before the bypass: enforcement unknown,
   s = assemble(cfg_for(:darwin, []), obs)
   assert row_key(s) == "full\tunknown\tnone\tpresent\tresolved\tdarwin"
   o = decide(s)
-  assert get(o, :kind) == :bypass
-  assert size(get(get(o, :routes), :add)) == 96
+  assert o[:kind] == :bypass
+  assert size(o[:routes][:add]) == 96
   argvs = plan(o, cfg_for(:darwin, []))
   assert first(argvs) ==
     [
@@ -1081,7 +1049,7 @@ test "end to end over the measured state before the bypass: enforcement unknown,
       "-n",
       "add",
       "-host",
-      first(get(get(o, :routes), :add)),
+      first(o[:routes][:add]),
       "192.168.60.1"
     ]
 end
@@ -1094,8 +1062,8 @@ test "end to end over the measured state after the bypass: permissive, and only 
   s = assemble(cfg_for(:darwin, []), obs)
   assert row_key(s) == "full\tpermissive\tdirect\tpresent\tresolved\tdarwin"
   o = decide(s)
-  assert get(o, :kind) == :bypass
-  assert get(get(o, :routes), :add) ==
+  assert o[:kind] == :bypass
+  assert o[:routes][:add] ==
     [
       "192.200.0.103",
       "192.200.0.105",
@@ -1119,7 +1087,7 @@ test "enforcement: removed routes and blocked egress are told apart, and each re
     fixture("netcheck-blocked.json")
   )
   s = assemble(cfg_for(:darwin, ["199.38.181.93"]), obs)
-  assert get(s, :enforcement) == :routes_rewritten
+  assert s[:enforcement] == :routes_rewritten
   assert decide(s) == {kind: :refused, reason: :enforcement_rewrites_routes}
 end
 
@@ -1133,10 +1101,10 @@ test "an unreadable observation is blind, naming what could not be read"
     bad("tailscale exited 1")
   )
   o = decide(assemble(cfg_for(:darwin, []), obs))
-  assert get(o, :kind) == :blind
-  assert get(o, :unread) == [:enforcement, :targets]
+  assert o[:kind] == :blind
+  assert o[:unread] == [:enforcement, :targets]
   obs2 = assoc(obs, :routes, bad("netstat exited 1"))
-  assert get(decide(assemble(cfg_for(:darwin, []), obs2)), :unread) ==
+  assert decide(assemble(cfg_for(:darwin, []), obs2))[:unread] ==
     [:corp, :enforcement, :gateway, :targets]
 end
 
@@ -1149,9 +1117,9 @@ test "nixos is policy routing: a table route and a rule per host"
       "100.64.0.0/10 dev tailscale0"
     ]
   )
-  rs = get(parse_ip_route(text), :value)
+  rs = parse_ip_route(text)[:value]
   assert corp_of(rs, "ppp") == :full
-  assert get(gateway_of(rs, "ppp"), :iface) == "eth0"
+  assert gateway_of(rs, "ppp")[:iface] == "eth0"
   assert get(
     parse_ip_rules(
       unlines(
@@ -1175,7 +1143,7 @@ test "nixos is policy routing: a table route and a rule per host"
   }
   cfg = assoc(assoc(cfg_for(:nixos, []), :corp_pattern, "ppp"), :ip, "/bin/ip")
   o = decide(assemble(cfg, obs))
-  assert get(o, :kind) == :bypass
+  assert o[:kind] == :bypass
   assert plan(o, cfg) ==
     [
       [
@@ -1211,8 +1179,8 @@ test "dry-run plans and runs nothing; a real capture keeps status and stdout apa
     [["/sbin/route", "-n", "add", "-host", "192.0.2.9", "192.0.2.1"]],
     true
   )
-  assert get(first(rs), :stderr) == "dry-run"
-  assert get(first(rs), :status).nil?
+  assert first(rs)[:stderr] == "dry-run"
+  assert first(rs)[:status].nil?
   ok_cap = {
     argv: ["/sbin/x"],
     started: true,
@@ -1220,11 +1188,10 @@ test "dry-run plans and runs nothing; a real capture keeps status and stdout apa
     stdout: unlines(["Destination"]),
     stderr: "warn"
   }
-  assert get(from_capture(ok_cap, parse_netstat), :ok) == true
+  assert from_capture(ok_cap, parse_netstat)[:ok] == true
   bad_cap = assoc(ok_cap, :status, 3)
-  assert get(from_capture(bad_cap, parse_netstat), :why) ==
-    "/sbin/x exited 3: warn"
+  assert from_capture(bad_cap, parse_netstat)[:why] == "/sbin/x exited 3: warn"
   missing = capture(["/nonexistent/ukai-tool"])
-  assert get(missing, :started) == false
-  assert get(from_capture(missing, parse_netstat), :ok) == false
+  assert missing[:started] == false
+  assert from_capture(missing, parse_netstat)[:ok] == false
 end

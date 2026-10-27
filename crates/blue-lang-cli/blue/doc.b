@@ -42,19 +42,19 @@ end
 
 def captured(args)
   r = run_blue(args)
-  if nth(1, nth(0, r)) != 0
-    raise(:doc, "blue #{join(args, " ")}: #{nth(1, nth(2, r))}")
+  if r[0][1] != 0
+    raise(:doc, "blue #{join(args, " ")}: #{r[2][1]}")
   end
-  nth(1, nth(1, r))
+  r[1][1]
 end
 
 # The value after `flag` in the arguments, or nil.
 def flag_value(args, flag)
-  at = filter((i) -> nth(i, args) == flag, range(length(args)))
+  at = filter((i) -> args[i] == flag, range(length(args)))
   if empty?(at) or first(at) + 1 >= length(args)
     nil
   else
-    nth(first(at) + 1, args)
+    args[first(at) + 1]
   end
 end
 
@@ -103,7 +103,7 @@ def calls?(line, name)
     any?(
       fn(before)
         cs = chars(before)
-        empty?(cs) or not name_char?(nth(length(cs) - 1, cs))
+        empty?(cs) or not name_char?(cs[length(cs) - 1])
       end,
       take(length(parts) - 1, parts)
     )
@@ -139,8 +139,8 @@ def derived_of(pkg, name)
   r = run_blue(
     ["doc", name, "--file", "#{pkg_dir(pkg)}/#{pkg_name(pkg)}.b", "--derived"]
   )
-  if nth(1, nth(0, r)) == 0
-    json_parse(nth(1, nth(1, r)))
+  if r[0][1] == 0
+    json_parse(r[1][1])
   end
 end
 
@@ -161,8 +161,8 @@ def def_entry(pkg, e, text, tier)
     tier:,
     kind: "definition",
     topic: nil,
-    signature: "#{qualifier}#{nth(1, e)}",
-    doc: nth(2, e),
+    signature: "#{qualifier}#{e[1]}",
+    doc: e[2],
     example: test_example(text, name),
     derived: if pkg.nil?
       nil
@@ -241,18 +241,18 @@ end
 # ── rendering ──────────────────────────────────────────────────────────────
 
 def entry_text(e)
-  where = if get(e, :namespace) == "blue"
-    "builtin #{get(e, :kind)} · #{get(e, :topic)}"
-  elsif get(e, :namespace).nil?
+  where = if e[:namespace] == "blue"
+    "builtin #{e[:kind]} · #{e[:topic]}"
+  elsif e[:namespace].nil?
     "defined in the file"
   else
-    "bidama #{get(e, :namespace)}"
+    "bidama #{e[:namespace]}"
   end
-  example = get(e, :example)
-  derived = get(e, :derived)
+  example = e[:example]
+  derived = e[:derived]
   lines = append(
-    [get(e, :signature), "  #{where} · tier: #{get(e, :tier)}"],
-    map((l) -> "  #{l}", get(e, :doc)),
+    [e[:signature], "  #{where} · tier: #{e[:tier]}"],
+    map((l) -> "  #{l}", e[:doc]),
     if derived.nil?
       []
     else
@@ -262,8 +262,8 @@ def entry_text(e)
       []
     else
       append(
-        ["  example (#{get(example, :from)}):"],
-        map((l) -> "    #{l}", get(example, :code))
+        ["  example (#{example[:from]}):"],
+        map((l) -> "    #{l}", example[:code])
       )
     end
   )
@@ -281,11 +281,11 @@ def package_entry(r)
       fn(e)
         {
           name: first(e),
-          signature: nth(1, e),
-          doc: if empty?(nth(2, e))
+          signature: e[1],
+          doc: if empty?(e[2])
             ""
           else
-            first(nth(2, e))
+            first(e[2])
           end
         }
       end,
@@ -295,26 +295,26 @@ def package_entry(r)
 end
 
 def package_text_view(p)
-  needs = if empty?(get(p, :needs))
+  needs = if empty?(p[:needs])
     "—"
   else
-    join(get(p, :needs), ", ")
+    join(p[:needs], ", ")
   end
   head = [
-    "#{get(p, :package)} #{get(p, :version)} · needs: #{needs} · #{to_s(get(p, :tests))} tests",
-    "  #{get(p, :gloss)}",
+    "#{p[:package]} #{p[:version]} · needs: #{needs} · #{to_s(p[:tests])} tests",
+    "  #{p[:gloss]}",
     ""
   ]
   defs = map(
     fn(d)
-      signature = "  #{get(p, :package)}::#{get(d, :signature)}"
-      if get(d, :doc) == ""
+      signature = "  #{p[:package]}::#{d[:signature]}"
+      if d[:doc] == ""
         signature
       else
-        join_lines([signature, "      #{get(d, :doc)}"])
+        join_lines([signature, "      #{d[:doc]}"])
       end
     end,
-    get(p, :definitions)
+    p[:definitions]
   )
   join(append(head, defs), line_break)
 end

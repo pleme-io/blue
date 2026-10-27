@@ -112,7 +112,7 @@ def parse(text, format)
   no_query = before_first(no_fragment, "?")
   parts = split_authority(no_query)
   ui = split_userinfo(first(parts))
-  hp = split_host_port(nth(1, ui))
+  hp = split_host_port(ui[1])
   host = lower(first(hp))
   if host == ""
     raise(:parse_error, "tsuushin::parse: no host in #{text}")
@@ -121,8 +121,8 @@ def parse(text, format)
     "scheme" => scheme,
     "userinfo" => first(ui),
     "host" => host,
-    "port" => port_of(nth(1, hp)),
-    "path" => nth(1, parts),
+    "port" => port_of(hp[1]),
+    "path" => parts[1],
     "query" => query,
     "fragment" => fragment
   }
@@ -137,13 +137,13 @@ def marked(pre, s, post)
 end
 
 def authority_text(u)
-  port = get(u, "port")
-  shown = if port.nil? or port == default_port(get(u, "scheme"))
+  port = u["port"]
+  shown = if port.nil? or port == default_port(u["scheme"])
     ""
   else
     ":#{port}"
   end
-  "#{marked("", get(u, "userinfo"), "@")}#{get(u, "host")}#{shown}"
+  "#{marked("", u["userinfo"], "@")}#{u["host"]}#{shown}"
 end
 
 @doc """
@@ -155,7 +155,7 @@ def render(u, format)
   if format != :url
     raise(:render_error, "tsuushin::render: format #{format} is not :url")
   end
-  "#{get(u, "scheme")}://#{authority_text(u)}#{get(u, "path")}#{marked("?", get(u, "query"), "")}#{marked("#", get(u, "fragment"), "")}"
+  "#{u["scheme"]}://#{authority_text(u)}#{u["path"]}#{marked("?", u["query"], "")}#{marked("#", u["fragment"], "")}"
 end
 
 def settle(stack, seg)
@@ -217,7 +217,7 @@ end
 
 def query_or(b, ref, query)
   if char_index(ref, "?") < 0
-    get(b, "query")
+    b["query"]
   else
     query
   end
@@ -233,17 +233,17 @@ def join(base, path)
   if absolute_url?(path)
     render(parse(path, :url), :url)
   elsif starts_with(path, "//")
-    render(parse("#{get(b, "scheme")}:#{path}", :url), :url)
+    render(parse("#{b["scheme"]}:#{path}", :url), :url)
   else
     fragment = after_first(path, "#")
     no_fragment = before_first(path, "#")
     query = after_first(no_fragment, "?")
     ref_path = before_first(no_fragment, "?")
     if ref_path == "" and not present(path)
-      render(with_tail(b, get(b, "path"), get(b, "query"), ""), :url)
+      render(with_tail(b, b["path"], b["query"], ""), :url)
     elsif ref_path == ""
       render(
-        with_tail(b, get(b, "path"), query_or(b, no_fragment, query), fragment),
+        with_tail(b, b["path"], query_or(b, no_fragment, query), fragment),
         :url
       )
     elsif starts_with(ref_path, "/")
@@ -252,7 +252,7 @@ def join(base, path)
       render(
         with_tail(
           b,
-          remove_dots(merge_path(get(b, "path"), ref_path)),
+          remove_dots(merge_path(b["path"], ref_path)),
           query,
           fragment
         ),
@@ -289,12 +289,12 @@ def request(method, url, opts?)
     raise(:bad_option, "request: method #{to_s(method)} is not an HTTP method")
   end
   parse(url, :url)
-  json = get(o, :json)
-  if json != nil and get(o, :body) != nil
+  json = o[:json]
+  if json != nil and o[:body] != nil
     raise(:bad_option, "request: body: or json:, not both")
   end
   headers = append(
-    header_pairs(get(o, :headers)),
+    header_pairs(o[:headers]),
     if json.nil?
       []
     else
@@ -302,36 +302,36 @@ def request(method, url, opts?)
     end
   )
   body = if json.nil?
-    get(o, :body)
+    o[:body]
   else
     json_stringify(json)
   end
-  transport = get(o, :transport) or wire
-  transport(method, url, headers, body, get(o, :timeout_ms) or 10000)
+  transport = o[:transport] or wire
+  transport(method, url, headers, body, o[:timeout_ms] or 10000)
 end
 
 test "parse reads every part of a url and lowercases scheme and host"
   u = parse("HTTPS://User:pw@Example.COM:8443/a/b?x=1&y=2#top", :url)
-  assert get(u, "scheme") == "https"
-  assert get(u, "userinfo") == "User:pw"
-  assert get(u, "host") == "example.com"
-  assert get(u, "port") == 8443
-  assert get(u, "path") == "/a/b"
-  assert get(u, "query") == "x=1&y=2"
-  assert get(u, "fragment") == "top"
+  assert u["scheme"] == "https"
+  assert u["userinfo"] == "User:pw"
+  assert u["host"] == "example.com"
+  assert u["port"] == 8443
+  assert u["path"] == "/a/b"
+  assert u["query"] == "x=1&y=2"
+  assert u["fragment"] == "top"
 end
 
 test "parse of a bare host has an empty path and no port"
   u = parse("http://example.com", :url)
-  assert get(u, "path") == ""
-  assert get(u, "port").nil?
-  assert get(u, "query") == ""
+  assert u["path"] == ""
+  assert u["port"].nil?
+  assert u["query"] == ""
 end
 
 test "parse keeps an ipv6 host whole"
   u = parse("http://[::1]:80/x", :url)
-  assert get(u, "host") == "[::1]"
-  assert get(u, "port") == 80
+  assert u["host"] == "[::1]"
+  assert u["port"] == 80
 end
 
 test "parse refuses what is not an absolute url"
@@ -400,18 +400,18 @@ test "request sends a json body with its content type through the transport"
       transport: recorder
     }
   )
-  sent = get(r, :body)
-  assert get(r, :status) == 200
-  assert get(sent, :method) == "POST"
-  assert get(sent, :url) == "http://h.example/graphql"
-  assert get(sent, :body) == "{\"a\":1,\"b\":2}"
-  assert get(sent, :headers) ==
+  sent = r[:body]
+  assert r[:status] == 200
+  assert sent[:method] == "POST"
+  assert sent[:url] == "http://h.example/graphql"
+  assert sent[:body] == "{\"a\":1,\"b\":2}"
+  assert sent[:headers] ==
     [
       ["x-product", "kensa"],
       ["content-type", "application/json"],
       ["accept", "application/json"]
     ]
-  assert get(sent, :timeout_ms) == 10000
+  assert sent[:timeout_ms] == 10000
 end
 
 test "request passes a plain body and refuses what it cannot send"
@@ -420,10 +420,10 @@ test "request passes a plain body and refuses what it cannot send"
     "http://h.example/",
     {body: "x", timeout_ms: 5, transport: recorder}
   )
-  sent = get(r, :body)
-  assert get(sent, :body) == "x"
-  assert get(sent, :headers) == []
-  assert get(sent, :timeout_ms) == 5
+  sent = r[:body]
+  assert sent[:body] == "x"
+  assert sent[:headers] == []
+  assert sent[:timeout_ms] == 5
   assert raises?(
     :bad_option,
     () -> request("FETCH", "http://h.example/", {transport: recorder})

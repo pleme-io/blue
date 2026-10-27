@@ -86,7 +86,7 @@ def gen_list(s, n, depth, acc)
     [reverse(acc), s]
   else
     g = gen(s, depth)
-    gen_list(nth(1, g), n - 1, depth, cons(nth(0, g), acc))
+    gen_list(g[1], n - 1, depth, cons(g[0], acc))
   end
 end
 
@@ -96,7 +96,7 @@ def gen_map(s, n, depth, acc)
   else
     g = gen(next_seed(s), depth)
     key = pick(s, [:a, :b, :c, :d])
-    gen_map(nth(1, g), n - 1, depth, assoc(acc, key, nth(0, g)))
+    gen_map(g[1], n - 1, depth, assoc(acc, key, g[0]))
   end
 end
 
@@ -112,7 +112,7 @@ def values_from(s, n, acc)
     reverse(acc)
   else
     g = gen(s, 2)
-    values_from(nth(1, g), n - 1, cons(nth(0, g), acc))
+    values_from(g[1], n - 1, cons(g[0], acc))
   end
 end
 
@@ -121,7 +121,7 @@ pairs: Consecutive pairs of generated values, so pairs mix kinds.
 """
 def pairs(seed, n)
   vs = values(seed, n + 1)
-  map((i) -> [nth(i, vs), nth(i + 1, vs)], range(0, n))
+  map((i) -> [vs[i], vs[i + 1]], range(0, n))
 end
 
 def all(f, xs)
@@ -135,14 +135,14 @@ def law_equal_reflexive()
 end
 
 def law_equal_symmetric()
-  all((p) -> nth(0, p) == nth(1, p) == (nth(1, p) == nth(0, p)), pairs(12, 300))
+  all((p) -> p[0] == p[1] == (p[1] == p[0]), pairs(12, 300))
 end
 
 def law_not_equal_is_negation()
   all(
     fn(p)
-      same = nth(0, p) == nth(1, p)
-      nth(0, p) != nth(1, p) == (not same)
+      same = p[0] == p[1]
+      p[0] != p[1] == (not same)
     end,
     pairs(13, 300)
   )
@@ -172,10 +172,9 @@ end
 
 def law_membership_is_equality()
   pairs = okite::pairs(14, 200)
-  all(
-    (p) -> contains([nth(0, p)], nth(1, p)) == (nth(0, p) == nth(1, p)),
-    pairs
-  ) and contains([1], 1.0) and index_of([{a: 1}], {a: 1}) == 0
+  all((p) -> contains([p[0]], p[1]) == (p[0] == p[1]), pairs) and
+    contains([1], 1.0) and
+    index_of([{a: 1}], {a: 1}) == 0
 end
 
 def law_to_s_literals()
@@ -203,14 +202,11 @@ end
 def law_concat_any_arity()
   ss = ["", "a", "bc", "日本", "x y"]
   triples = map(
-    (i) -> [nth(i % 5, ss), nth((i + 1) % 5, ss), nth((i + 3) % 5, ss)],
+    (i) -> [ss[i % 5], ss[(i + 1) % 5], ss[(i + 3) % 5]],
     range(0, 25)
   )
   all(
-    fn(t)
-      concat(nth(0, t), nth(1, t), nth(2, t)) ==
-        concat(concat(nth(0, t), nth(1, t)), nth(2, t))
-    end,
+    (t) -> concat(t[0], t[1], t[2]) == concat(concat(t[0], t[1]), t[2]),
     triples
   ) and concat("a") == "a" and concat("a", "b", "c", "d") == "abcd"
 end
@@ -265,18 +261,12 @@ def law_split_keeps_every_field()
   words = ["", "a", "x y", "日本", "a,b", "|", "abab"]
   cases = map(
     fn(i)
-      [
-        nth(i % 4, seps),
-        [nth(i % 7, words), nth((i + 2) % 7, words), nth((i + 5) % 7, words)]
-      ]
+      [seps[i % 4], [words[i % 7], words[(i + 2) % 7], words[(i + 5) % 7]]]
     end,
     range(0, 56)
   )
   all(
-    fn(c)
-      join(split(join(nth(1, c), nth(0, c)), nth(0, c)), nth(0, c)) ==
-        join(nth(1, c), nth(0, c))
-    end,
+    (c) -> join(split(join(c[1], c[0]), c[0]), c[0]) == join(c[1], c[0]),
     cases
   ) and
     split("", ",") ==
@@ -356,11 +346,11 @@ def chain_same_result(x, y)
 end
 
 def chain_same(a, b)
-  nth(0, a) == nth(0, b) and chain_same_result(nth(1, a), nth(1, b))
+  a[0] == b[0] and chain_same_result(a[1], b[1])
 end
 
 def chain_case_values(c)
-  filter((v) -> chain_kind_matches(nth(1, c), v), chain_values)
+  filter((v) -> chain_kind_matches(c[1], v), chain_values)
 end
 
 def chain_check(label, kind, lhs, rhs)
@@ -377,15 +367,15 @@ def chain_check(label, kind, lhs, rhs)
 end
 
 def chain_case_counterexamples(c)
-  chain_check(nth(0, c), nth(1, c), eval(nth(2, c)), eval(nth(3, c)))
+  chain_check(c[0], c[1], eval(c[2]), eval(c[3]))
 end
 
 def chain_counterexamples(rule)
-  flat_map(nth(4, rule), chain_case_counterexamples)
+  flat_map(rule[4], chain_case_counterexamples)
 end
 
 def chain_covered(rule)
-  all((c) -> size(chain_case_values(c)) >= 10, nth(4, rule))
+  all((c) -> size(chain_case_values(c)) >= 10, rule[4])
 end
 
 def chain_rule_holds(rule)
@@ -394,7 +384,7 @@ end
 
 def chain_law(rule)
   [
-    "#{nth(0, rule)} #{nth(1, rule)}",
+    "#{rule[0]} #{rule[1]}",
     () -> chain_rule_holds(rule),
     () -> chain_counterexamples(rule)
   ]
@@ -579,20 +569,20 @@ def failures()
 end
 
 def decision_failures(d)
-  laws = get(d, :laws)
+  laws = d[:laws]
   if is_empty(laws)
-    ["#{get(d, :id)}: has no law"]
+    ["#{d[:id]}: has no law"]
   else
     map(
-      (l) -> "#{get(d, :id)}: #{nth(0, l)}#{law_why(l)}",
-      filter((l) -> not holds(nth(1, l)), laws)
+      (l) -> "#{d[:id]}: #{l[0]}#{law_why(l)}",
+      filter((l) -> not holds(l[1]), laws)
     )
   end
 end
 
 def law_why(l)
   if size(l) > 2
-    why = nth(2, l)
+    why = l[2]
     " (#{join(take(3, why(*[])), "; ")})"
   else
     ""
@@ -606,7 +596,7 @@ end
 # declares it generated, so a stale card is a red build).
 
 def card_line(d)
-  unlines(["- **#{get(d, :id)}** #{get(d, :rule)}"])
+  unlines(["- **#{d[:id]}** #{d[:rule]}"])
 end
 
 def card()
@@ -632,7 +622,7 @@ test "every decision is enforced, and every law holds"
 end
 
 test "decision ids are unique and in order"
-  ids = map((d) -> get(d, :id), decisions)
+  ids = map((d) -> d[:id], decisions)
   assert ids == distinct(ids)
   assert ids == sort(ids)
 end
@@ -640,7 +630,7 @@ end
 test "the card stays small: a rule is a line, and the card fits in 40"
   card = okite::card
   assert size(lines(card)) <= 40
-  assert all((d) -> length(get(d, :rule)) <= 160, decisions)
+  assert all((d) -> length(d[:rule]) <= 160, decisions)
 end
 
 test "the generator covers every kind (anti-vacuity)"
@@ -658,7 +648,7 @@ test "every row of the chain table has a law, and each law reaches values"
   assert size(laws) == size(chain_rules)
   assert size(chain_rules) >= 6
   assert all(chain_covered, chain_rules)
-  assert all((l) -> holds(nth(1, l)), laws)
+  assert all((l) -> holds(l[1]), laws)
 end
 
 test "the chain values cover every kind a conversion can see"

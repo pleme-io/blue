@@ -1,4 +1,3 @@
-use("hon", [:front_matter_text])
 use("mokuroku", [:catalog_of, :md_cell, :names_shadowing])
 use("retsu", [:concat_lists, :find_first, :first, :is_empty, :last, :size])
 use("shisutemu", [:status_of, :stderr_of, :stdout_of])
@@ -214,13 +213,7 @@ def render(data)
     "## Rules",
     rules(data)
   ]
-  concat(
-    front_matter_text(
-      :reference,
-      "syntax, operators, reserved words, every built-in name and the Bluefile words"
-    ),
-    unlines([join(parts, unlines(["", ""]))])
-  )
+  unlines([join(parts, unlines(["", ""]))])
 end
 
 write_file(getenv("GEN_OUT", "docs/REFERENCE.md"), render(reference_json))

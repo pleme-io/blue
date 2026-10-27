@@ -173,7 +173,7 @@ year_of: Named accessors, so a caller never has to remember that month is index 
     year_of([2024, 2, 29]) #=> 2024
 """
 def year_of(dt)
-  nth(0, dt)
+  dt[0]
 end
 
 @doc """
@@ -182,7 +182,7 @@ month_of: calendar month of a date.
     month_of([2024, 2, 29]) #=> 2
 """
 def month_of(dt)
-  nth(1, dt)
+  dt[1]
 end
 
 @doc """
@@ -191,7 +191,7 @@ day_of: day of the month of a date.
     day_of([2024, 2, 29]) #=> 29
 """
 def day_of(dt)
-  nth(2, dt)
+  dt[2]
 end
 
 @doc """

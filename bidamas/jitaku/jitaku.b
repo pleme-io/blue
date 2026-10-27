@@ -196,7 +196,7 @@ def records_field(key, json, table)
 end
 
 def key_text(f)
-  to_s(get(f, :key))
+  to_s(f[:key])
 end
 
 @doc """
@@ -208,11 +208,11 @@ def key_names(m)
 end
 
 def field_why(f, m)
-  v = get(m, get(f, :key))
+  v = get(m, f[:key])
   if v.nil?
-    verdict(not get(f, :required), "#{key_text(f)} is required")
+    verdict(not f[:required], "#{key_text(f)} is required")
   else
-    why = applied(get(f, :check), v)
+    why = applied(f[:check], v)
     if why.nil?
       nil
     else
@@ -254,11 +254,11 @@ def project(table, m)
 end
 
 def projected(acc, f, m)
-  v = get(m, get(f, :key))
-  if v.nil? or get(f, :json).nil?
+  v = get(m, f[:key])
+  if v.nil? or f[:json].nil?
     acc
   else
-    assoc(acc, get(f, :json), applied(get(f, :render), v))
+    assoc(acc, f[:json], applied(f[:render], v))
   end
 end
 
@@ -356,7 +356,7 @@ def device_row()
       list?(r) and
         (size(r) == 2 or size(r) == 3) and
         passes?(name_text, first(r)) and
-        passes?(text, nth(1, r)) and
+        passes?(text, r[1]) and
         (size(r) == 2 or passes?(int_in(1, 65535), last(r))),
       "#{r} is not [name, host] or [name, host, port]"
     )
@@ -369,9 +369,9 @@ end
 
 def device_of(r)
   if size(r) == 3
-    {"host" => nth(1, r), "port" => last(r)}
+    {"host" => r[1], "port" => last(r)}
   else
-    {"host" => nth(1, r)}
+    {"host" => r[1]}
   end
 end
 
@@ -662,7 +662,7 @@ mood_set: Moods under one dashboard heading; a mood that names its own group kee
 def mood_set(group, moods)
   map(
     fn(m)
-      if get(value_of(m), :group).nil?
+      if value_of(m)[:group].nil?
         with(m, :group, group)
       else
         m
@@ -772,9 +772,7 @@ def tone_refusals(e)
     whys_to_refusals(e, whys)
   else
     refused_if(
-      get(v, :frequency).nil? and
-        is_empty(get(v, :frequencies)) and
-        get(v, :noise).nil?,
+      v[:frequency].nil? and is_empty(v[:frequencies]) and v[:noise].nil?,
       :silent,
       e,
       "a tone needs a frequency, frequencies or a noise"
@@ -806,13 +804,13 @@ end
 def mood_refusals(e)
   v = value_of(e)
   whys = append(check_why(name_text, name_of(e)), record_whys(mood_table, v))
-  b = get(v, :breathing)
+  b = v[:breathing]
   if not is_empty(whys)
     whys_to_refusals(e, whys)
-  elsif b != nil and get(b, :low_pct) >= get(b, :high_pct)
+  elsif b != nil and b[:low_pct] >= b[:high_pct]
     [refuse_entry(:breath, e, "breathing needs low_pct below high_pct")]
   else
-    lights_conflicts(e, get(v, :lights))
+    lights_conflicts(e, v[:lights])
   end
 end
 
@@ -828,8 +826,8 @@ def component_refusals(e)
       )
     ]
   else
-    whys = record_whys(nth(2, row), v)
-    enabled = get(v, :enable) == true
+    whys = record_whys(row[2], v)
+    enabled = v[:enable] == true
     if not is_empty(whys)
       whys_to_refusals(e, whys)
     elsif enabled and last(row) != nil
@@ -840,7 +838,7 @@ def component_refusals(e)
           "it bridges a #{last(row)} radio, and jitaku declares no radios yet"
         )
       ]
-    elsif enabled and first(row) == :frigate and is_empty(get(v, :cameras))
+    elsif enabled and first(row) == :frigate and is_empty(v[:cameras])
       [refuse_entry(:no_cameras, e, "Frigate with no cameras records nothing")]
     else
       []
@@ -870,9 +868,9 @@ def duplicate_refusals(es)
   map(
     fn(i)
       refused_if(
-        index_of(ids, nth(i, ids)) < i,
+        index_of(ids, ids[i]) < i,
         :duplicate,
-        nth(i, es),
+        es[i],
         "declared twice; the first stands"
       )
     end,
@@ -891,10 +889,10 @@ end
 def overlay(table, base, fields)
   reduce(
     fn(acc, f)
-      if get(fields, get(f, :key)).nil?
+      if get(fields, f[:key]).nil?
         acc
       else
-        assoc(acc, get(f, :key), get(fields, get(f, :key)))
+        assoc(acc, f[:key], get(fields, f[:key]))
       end
     end,
     base,
@@ -903,11 +901,8 @@ def overlay(table, base, fields)
 end
 
 def tune_refusals(t, es)
-  table = fields_of(get(t, :target))
-  hits = filter(
-    (e) -> kind_of(e) == get(t, :target) and name_of(e) == get(t, :of),
-    es
-  )
+  table = fields_of(t[:target])
+  hits = filter((e) -> kind_of(e) == t[:target] and name_of(e) == t[:of], es)
   if table.nil?
     [refuse_entry(:invalid, t, "only a mood or a tone is tuned")]
   elsif is_empty(hits)
@@ -931,7 +926,7 @@ end
 def tuned(e, tunes)
   reduce(
     fn(acc, t)
-      if kind_of(acc) == get(t, :target) and name_of(acc) == get(t, :of)
+      if kind_of(acc) == t[:target] and name_of(acc) == t[:of]
         entry(
           kind_of(acc),
           name_of(acc),
@@ -955,15 +950,15 @@ def has_kind?(es, kind)
 end
 
 def active?(m)
-  kind_of(m) == :mood and get(value_of(m), :enable) != false
+  kind_of(m) == :mood and value_of(m)[:enable] != false
 end
 
 def phone?(m)
-  active?(m) and get(value_of(m), :phone_button) != false
+  active?(m) and value_of(m)[:phone_button] != false
 end
 
 def label_of(m)
-  l = get(value_of(m), :label)
+  l = value_of(m)[:label]
   if l.nil?
     name_of(m)
   else
@@ -989,15 +984,15 @@ mood_needs: What one standing mood still lacks among the entries that stand with
 """
 def mood_needs(m, es)
   v = value_of(m)
-  s = get(v, :sound)
-  l = get(v, :lights)
+  s = v[:sound]
+  l = v[:lights]
   active = filter((e) -> kind_of(e) == :mood and active?(e), es)
-  targets = map((h) -> get(h, :mood), get(v, :then) or [])
+  targets = map((h) -> h[:mood], v[:then] or [])
   lost = missing(targets, names_of_kind(active, :mood))
   phones = filter(phone?, es)
-  role = get(l or {}, :role)
-  tone_name = get(s or {}, :tone)
-  deaf = missing(get(s or {}, :speakers) or [], names_of_kind(es, :speaker))
+  role = (l or {})[:role]
+  tone_name = (s or {})[:tone]
+  deaf = missing((s or {})[:speakers] or [], names_of_kind(es, :speaker))
   flat_map(
     [
       refused_if(
@@ -1089,32 +1084,29 @@ entry is refused alone; its siblings stand.
 """
 def judge(entries)
   t = apply_tunes(flat(entries))
-  es = get(t, :entries)
+  es = t[:entries]
   own = map(local_refusals, es)
   dups = duplicate_refusals(es)
-  marks = map((i) -> append(nth(i, own), nth(i, dups)), range(0, size(es)))
+  marks = map((i) -> append(own[i], dups[i]), range(0, size(es)))
   first_pass = kyohi::standing(es, marks)
-  settled = settle(
-    first_pass,
-    append(get(t, :refusals), flat_map(marks, (r) -> r))
-  )
-  site_missing = if has_kind?(get(settled, :accepted), :site)
+  settled = settle(first_pass, append(t[:refusals], flat_map(marks, (r) -> r)))
+  site_missing = if has_kind?(settled[:accepted], :site)
     []
   else
     [refusal(:no_site, "a home needs a site")]
   end
   {
-    accepted: get(settled, :accepted),
-    refusals: append(get(settled, :refusals), site_missing)
+    accepted: settled[:accepted],
+    refusals: append(settled[:refusals], site_missing)
   }
 end
 
 def accepted(entries)
-  get(judge(entries), :accepted)
+  judge(entries)[:accepted]
 end
 
 def refusals(entries)
-  get(judge(entries), :refusals)
+  judge(entries)[:refusals]
 end
 
 # ── the projection: pleme.lareira's attribute set ──────────────────────────
@@ -1127,11 +1119,11 @@ end
 resolved: A role-addressed mood's lights become the role's lights.
 """
 def resolved(m, es)
-  l = get(value_of(m), :lights)
-  if l.nil? or get(l, :role).nil?
+  l = value_of(m)[:lights]
+  if l.nil? or l[:role].nil?
     value_of(m)
   else
-    assoc(value_of(m), :lights, assoc(l, :only, role_lights(es, get(l, :role))))
+    assoc(value_of(m), :lights, assoc(l, :only, role_lights(es, l[:role])))
   end
 end
 
@@ -1146,7 +1138,7 @@ def component_json(es)
 end
 
 def component_into(acc, row, settings)
-  assoc(acc, nth(1, row), project(nth(2, row), settings))
+  assoc(acc, row[1], project(row[2], settings))
 end
 
 @doc """
@@ -1159,7 +1151,7 @@ def slot(json, kind, render)
 end
 
 def filled(acc, es, slots)
-  reduce((m, s) -> slot_into(m, s, of_kind(es, nth(1, s))), acc, slots)
+  reduce((m, s) -> slot_into(m, s, of_kind(es, s[1])), acc, slots)
 end
 
 def slot_into(acc, s, hits)
@@ -1476,8 +1468,8 @@ test "a mood plays only where a base url and speakers stand"
     [media_base_url_from_host, speaker("k", "media_player.k")]
   )
   assert kinds(refusals(hosted)) == []
-  assert get(get(lareira(hosted), "homeAssistant"), "mediaBaseUrl").nil?
-  assert get(get(get(lareira(hosted), "homeAssistant"), "moods"), "m") != nil
+  assert lareira(hosted)["homeAssistant"]["mediaBaseUrl"].nil?
+  assert lareira(hosted)["homeAssistant"]["moods"]["m"] != nil
 end
 
 test "a field the table does not know is refused, never dropped"

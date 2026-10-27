@@ -23,10 +23,7 @@ def bezier_points(points)
       count_where(number?, points) != 4
     raise(:bad_option, "a bezier curve takes four numbers: x1, y1, x2, y2")
   end
-  if nth(0, points) < 0 or
-      nth(0, points) > 1 or
-      nth(2, points) < 0 or
-      nth(2, points) > 1
+  if points[0] < 0 or points[0] > 1 or points[2] < 0 or points[2] > 1
     raise(:bad_option, "a bezier curve keeps x1 and x2 within 0 and 1")
   end
   points
@@ -92,17 +89,17 @@ ease: progress from 0 to 1 along a curve at t.
 """
 def ease(c, t)
   u = clamp(t, 0, 1)
-  kind = get(c, :kind)
+  kind = c[:kind]
   if kind == :linear
     u
   elsif kind == :steps
-    floor(u * get(c, :count)) / get(c, :count)
+    floor(u * c[:count]) / c[:count]
   elsif u == 0 or u == 1
     u
   else
-    p = get(c, :points)
-    s = solve(nth(0, p), nth(2, p), u, 0.0, 1.0, 48)
-    bezier_at(nth(1, p), nth(3, p), s)
+    p = c[:points]
+    s = solve(p[0], p[2], u, 0.0, 1.0, 48)
+    bezier_at(p[1], p[3], s)
   end
 end
 
@@ -128,10 +125,7 @@ def mix_color(a, b, t)
 end
 
 def quaternion_dot(a, b)
-  get(a, :x) * get(b, :x) +
-    get(a, :y) * get(b, :y) +
-    get(a, :z) * get(b, :z) +
-    get(a, :w) * get(b, :w)
+  a[:x] * b[:x] + a[:y] * b[:y] + a[:z] * b[:z] + a[:w] * b[:w]
 end
 
 def quaternion_blend(a, b, wa, wb)
@@ -177,7 +171,7 @@ def mix(a, b, t)
   if number?(a) and number?(b)
     lerp(a, b, t)
   elsif list?(a) and list?(b) and retsu::size(a) == retsu::size(b)
-    map((pair) -> mix(first(pair), nth(1, pair), t), zip(a, b))
+    map((pair) -> mix(first(pair), pair[1], t), zip(a, b))
   elsif color?(a) and color?(b)
     mix_color(a, b, t)
   elsif rotation?(a) and rotation?(b)
@@ -188,7 +182,7 @@ def mix(a, b, t)
 end
 
 def positive_seconds(opts)
-  seconds = get(opts, :seconds)
+  seconds = opts[:seconds]
   if not number?(seconds) or seconds <= 0
     raise(:bad_option, "a tween takes seconds: a number above 0")
   end
@@ -201,7 +195,7 @@ tween: declare a change of value over a duration.
 def tween(from, to, opts)
   checked(opts, [:seconds, :curve])
   mix(from, to, 0)
-  c = get(opts, :curve) or curve(:linear, nil)
+  c = opts[:curve] or curve(:linear, nil)
   {kind: :tween, from:, to:, seconds: positive_seconds(opts), curve: c}
 end
 
@@ -222,9 +216,9 @@ def spring(stiffness, damping, mass)
 end
 
 def spring_at(m, t)
-  k = get(m, :stiffness)
-  w0 = sqrt(k / get(m, :mass))
-  zeta = get(m, :damping) / (2 * sqrt(k * get(m, :mass)))
+  k = m[:stiffness]
+  w0 = sqrt(k / m[:mass])
+  zeta = m[:damping] / (2 * sqrt(k * m[:mass]))
   if t <= 0
     [0, 0]
   elsif zeta < 1
@@ -253,15 +247,15 @@ duration: how long a motion runs; nil for a spring.
     duration(tween(0, 1, {seconds: 3})) #=> 3
 """
 def duration(m)
-  get(m, :seconds)
+  m[:seconds]
 end
 
 @doc """
 sample: the value of a motion at time t.
 """
 def sample(m, t)
-  if get(m, :kind) == :tween
-    mix(get(m, :from), get(m, :to), ease(get(m, :curve), t / get(m, :seconds)))
+  if m[:kind] == :tween
+    mix(m[:from], m[:to], ease(m[:curve], t / m[:seconds]))
   else
     first(spring_at(m, t))
   end
@@ -271,7 +265,7 @@ def elapsed(state)
   if state.nil?
     0
   else
-    get(state, :t)
+    state[:t]
   end
 end
 
@@ -280,7 +274,7 @@ advance: move a motion state forward by dt.
 """
 def advance(m, state, opts)
   checked(opts, [:seconds])
-  dt = get(opts, :seconds)
+  dt = opts[:seconds]
   if not number?(dt) or dt < 0
     raise(:bad_option, "advance takes seconds: a number of 0 or more")
   end
@@ -295,11 +289,11 @@ settled?: whether a motion has come to rest.
 """
 def settled?(m, state)
   t = elapsed(state)
-  if get(m, :kind) == :tween
-    t >= get(m, :seconds)
+  if m[:kind] == :tween
+    t >= m[:seconds]
   else
     at = spring_at(m, t)
-    abs(first(at) - 1) < 0.001 and abs(nth(1, at)) < 0.001
+    abs(first(at) - 1) < 0.001 and abs(at[1]) < 0.001
   end
 end
 
@@ -395,14 +389,14 @@ test "mix slerps rotations along the shortest arc"
     w: cos(0.7853981633974483)
   }
   half = mix(turn, quarter, 0.5)
-  assert close?(get(half, :z), sin(0.39269908169872414))
-  assert close?(get(half, :w), cos(0.39269908169872414))
-  assert close?(get(mix(turn, quarter, 0), :w), 1)
-  assert close?(get(mix(turn, quarter, 1), :z), get(quarter, :z))
-  flipped = {x: 0.0, y: 0.0, z: -get(quarter, :z), w: -get(quarter, :w)}
-  assert close?(get(mix(turn, flipped, 0.5), :z), sin(0.39269908169872414))
+  assert close?(half[:z], sin(0.39269908169872414))
+  assert close?(half[:w], cos(0.39269908169872414))
+  assert close?(mix(turn, quarter, 0)[:w], 1)
+  assert close?(mix(turn, quarter, 1)[:z], quarter[:z])
+  flipped = {x: 0.0, y: 0.0, z: -quarter[:z], w: -quarter[:w]}
+  assert close?(mix(turn, flipped, 0.5)[:z], sin(0.39269908169872414))
   same = mix(turn, turn, 0.5)
-  assert close?(get(same, :w), 1)
+  assert close?(same[:w], 1)
   assert close?(quaternion_dot(half, half), 1)
 end
 
@@ -418,11 +412,11 @@ end
 
 test "tween declares a change, defaults to linear, and refuses what cannot run"
   m = tween(0, 100, {seconds: 2})
-  assert get(m, :kind) == :tween
-  assert get(m, :curve) == {kind: :linear}
-  assert get(m, :seconds) == 2
+  assert m[:kind] == :tween
+  assert m[:curve] == {kind: :linear}
+  assert m[:seconds] == 2
   eased = tween(0, 1, {seconds: 1, curve: curve(:steps, 2)})
-  assert get(eased, :curve) == {kind: :steps, count: 2}
+  assert eased[:curve] == {kind: :steps, count: 2}
   assert raises?(:bad_option, () -> tween(0, 1, {}))
   assert raises?(:bad_option, () -> tween(0, 1, {seconds: 0}))
   assert raises?(:bad_option, () -> tween(0, 1, {seconds: -1}))
@@ -433,8 +427,8 @@ end
 
 test "spring declares a unit motion and refuses non-physical parameters"
   s = spring(100, 20, 1)
-  assert get(s, :kind) == :spring
-  assert get(s, :stiffness) == 100
+  assert s[:kind] == :spring
+  assert s[:stiffness] == 100
   assert spring(100, 0, 1) != nil
   assert raises?(:bad_option, () -> spring(0, 1, 1))
   assert raises?(:bad_option, () -> spring(100, -1, 1))
@@ -459,7 +453,7 @@ test "sample of a tween follows its curve, clamped to the ends"
   vector = tween([0, 0], [10, 20], {seconds: 1})
   assert sample(vector, 0.5) == [5, 10]
   hue = tween({r: 0, g: 0, b: 0}, {r: 100, g: 0, b: 0}, {seconds: 1})
-  assert get(sample(hue, 0.25), :r) == 25
+  assert sample(hue, 0.25)[:r] == 25
 end
 
 test "sample of a spring starts at 0, overshoots when underdamped, and rests at 1"
@@ -487,9 +481,9 @@ test "a spring at rest has no velocity and an underdamped one swings through it"
   at = spring_at(spring(100, 2, 1), 0)
   assert at == [0, 0]
   swing = spring_at(spring(100, 2, 1), 0.31)
-  assert nth(1, swing) != 0
+  assert swing[1] != 0
   assert close?(first(spring_at(spring(100, 20, 1), 30)), 1)
-  assert close?(nth(1, spring_at(spring(100, 20, 1), 30)), 0)
+  assert close?(spring_at(spring(100, 20, 1), 30)[1], 0)
 end
 
 test "advance moves a state forward by seconds and starts from nil"
@@ -499,7 +493,7 @@ test "advance moves a state forward by seconds and starts from nil"
   second = advance(m, first_step, {seconds: 2})
   assert second == {t: 3, value: 3}
   assert advance(m, second, {seconds: 0}) == second
-  assert get(advance(m, second, {seconds: 100}), :value) == 10
+  assert advance(m, second, {seconds: 100})[:value] == 10
   assert raises?(:bad_option, () -> advance(m, nil, {}))
   assert raises?(:bad_option, () -> advance(m, nil, {seconds: -1}))
   assert raises?(:bad_option, () -> advance(m, nil, {seconds: 1, speed: 1}))
@@ -508,8 +502,8 @@ end
 test "stepping a motion by small steps meets sampling it at the total"
   m = tween(0, 100, {seconds: 4, curve: curve(:named, :ease_in_out)})
   state = reduce((s, _i) -> advance(m, s, {seconds: 0.5}), nil, range(0, 6))
-  assert close?(get(state, :t), 3.0)
-  assert close?(get(state, :value), sample(m, 3.0))
+  assert close?(state[:t], 3.0)
+  assert close?(state[:value], sample(m, 3.0))
 end
 
 test "settled? holds from the end of a tween and when a spring has come to rest"
@@ -549,12 +543,9 @@ test "the spring velocity is the slope of its position in every damping regime"
     end,
     regimes
   )
-  speeds = map(
-    (m) -> map((t) -> nth(1, spring_at(m, t)), [0.05, 0.2, 0.7]),
-    regimes
-  )
+  speeds = map((m) -> map((t) -> spring_at(m, t)[1], [0.05, 0.2, 0.7]), regimes)
   assert count_where(
-    (p) -> blue::abs(first(p) - nth(1, p)) < 0.001,
+    (p) -> blue::abs(first(p) - p[1]) < 0.001,
     zip(append(*slopes), append(*speeds))
   ) == 9
 end

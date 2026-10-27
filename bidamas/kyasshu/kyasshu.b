@@ -38,21 +38,21 @@ def key(parts)
 end
 
 def table?(x)
-  map?(x) and get(x, :format) == key_format
+  map?(x) and x[:format] == key_format
 end
 
 def entity_type?(d)
-  get(d, :kind) == :object and
-    not starts_with?(get(d, :name), "__") and
-    any?((f) -> get(f, :name) == "id", get(d, :fields) or [])
+  d[:kind] == :object and
+    not starts_with?(d[:name], "__") and
+    any?((f) -> f[:name] == "id", d[:fields] or [])
 end
 
 def table_of(s)
   types = sort_keyed(
     (t) -> t,
     map(
-      (d) -> get(d, :name),
-      filter(entity_type?, map(second, map_entries(get(s, :types))))
+      (d) -> d[:name],
+      filter(entity_type?, map(second, map_entries(s[:types])))
     )
   )
   {
@@ -80,7 +80,7 @@ def context(schema)
 end
 
 def ref?(x)
-  map?(x) and get(x, "__ref") != nil and size(map_entries(x)) == 1
+  map?(x) and x["__ref"] != nil and size(map_entries(x)) == 1
 end
 
 def combined(x, y)
@@ -104,7 +104,7 @@ def entities_merged(a, b)
 end
 
 def field_type(ctx, parent, name)
-  s = get(ctx, :types)
+  s = ctx[:types]
   f = if s.nil? or parent.nil?
     nil
   else
@@ -113,12 +113,12 @@ def field_type(ctx, parent, name)
   if f.nil?
     nil
   else
-    danpen::base_name(get(f, :type))
+    danpen::base_name(f[:type])
   end
 end
 
 def entity_key(ctx, t, rec)
-  fields = get(get(get(ctx, :table), :key_fields), t)
+  fields = get(ctx[:table][:key_fields], t)
   if t.nil? or fields.nil?
     nil
   else
@@ -144,7 +144,7 @@ def walk(value, type, ctx)
       value
     )
   elsif map?(value)
-    t = get(value, "__typename") or type
+    t = value["__typename"] or type
     r = reduce(
       fn(acc, e)
         w = walk(second(e), field_type(ctx, t, first(e)), ctx)
@@ -171,8 +171,8 @@ def walk(value, type, ctx)
 end
 
 def payload(response)
-  if map?(response) and get(response, "data") != nil
-    get(response, "data")
+  if map?(response) and response["data"] != nil
+    response["data"]
   else
     response
   end
@@ -190,13 +190,13 @@ def normalize(response, schema, opts?)
   if not map?(data)
     raise(:bad_option, "normalize: a response is a record of root fields")
   end
-  root_type = if get(ctx, :types).nil?
+  root_type = if ctx[:types].nil?
     nil
   else
-    get(get(get(ctx, :types), :roots), :query)
+    ctx[:types][:roots][:query]
   end
   r = walk(data, root_type, ctx)
-  now = get(o, :now)
+  now = o[:now]
   stamps = if now.nil?
     {}
   else
@@ -219,61 +219,61 @@ def merge(a, b)
     a
   else
     {
-      root: combined(get(a, :root), get(b, :root)),
-      entities: entities_merged(get(a, :entities), get(b, :entities)),
-      stamps: {**get(a, :stamps), **get(b, :stamps)},
-      writes: append(get(a, :writes), get(b, :writes))
+      root: combined(a[:root], b[:root]),
+      entities: entities_merged(a[:entities], b[:entities]),
+      stamps: {**a[:stamps], **b[:stamps]},
+      writes: append(a[:writes], b[:writes])
     }
   end
 end
 
 def overlay(store)
   reduce(
-    (acc, w) -> merge(acc, get(w, :patch)),
+    (acc, w) -> merge(acc, w[:patch]),
     assoc(store, :writes, []),
-    get(store, :writes)
+    store[:writes]
   )
 end
 
 def hooks(v)
-  ents = get(v, :entities)
+  ents = v[:entities]
   {
     resolve: fn(x)
       if ref?(x)
-        e = get(ents, get(x, "__ref"))
+        e = get(ents, x["__ref"])
         if e.nil?
-          raise(:miss, "#{get(x, "__ref")} is not in the store")
+          raise(:miss, "#{x["__ref"]} is not in the store")
         end
-        assoc(e, "__ref", get(x, "__ref"))
+        assoc(e, "__ref", x["__ref"])
       else
         x
       end
     end,
     absent: (_acc, field) -> raise(:miss, "#{field} is not in the store"),
     start: fn(x)
-      if get(x, "__ref").nil?
+      if x["__ref"].nil?
         {}
       else
-        {"__ref" => get(x, "__ref")}
+        {"__ref" => x["__ref"]}
       end
     end
   }
 end
 
 def selections_of(f)
-  if not map?(f) or get(f, :selections).nil?
+  if not map?(f) or f[:selections].nil?
     raise(:bad_option, "fragment: a danpen fragment or operation")
   end
-  get(f, :selections)
+  f[:selections]
 end
 
 def start_value(v, at)
   if at.nil?
-    get(v, :root)
+    v[:root]
   elsif string?(at)
     {"__ref" => at}
-  elsif map?(at) and get(at, "__ref") != nil
-    {"__ref" => get(at, "__ref")}
+  elsif map?(at) and at["__ref"] != nil
+    {"__ref" => at["__ref"]}
   else
     raise(:bad_option, "at: an entity key, or a value read with one")
   end
@@ -288,8 +288,8 @@ def fetched(v, o)
     nil
   else
     danpen::select_into(
-      start_value(v, get(o, :at)),
-      selections_of(get(o, :fragment)),
+      start_value(v, o[:at]),
+      selections_of(o[:fragment]),
       hooks(v)
     )
   end
@@ -303,10 +303,10 @@ end
 
 def refs_in(x)
   if map?(x)
-    own = if get(x, "__ref").nil?
+    own = if x["__ref"].nil?
       []
     else
-      [get(x, "__ref")]
+      [x["__ref"]]
     end
     append(own, retsu::flat_map(map(second, map_entries(x)), refs_in))
   elsif list?(x) and x != nil
@@ -317,29 +317,29 @@ def refs_in(x)
 end
 
 def rules_for(o)
-  p = get(o, :policy)
+  p = o[:policy]
   if p.nil?
     {}
   else
-    get_or(get(p, :fragments), get(get(o, :fragment), :name), {})
+    get_or(p[:fragments], o[:fragment][:name], {})
   end
 end
 
 def aged?(v, data, o)
-  ttl = get(rules_for(o), :ttl)
+  ttl = rules_for(o)[:ttl]
   if ttl.nil?
     false
   else
-    now = get(o, :now)
+    now = o[:now]
     if now.nil?
       raise(:bad_option, "a fragment with a ttl is read with now:")
     end
-    keys = if get(o, :at).nil?
+    keys = if o[:at].nil?
       cons(root_key, refs_in(data))
     else
       refs_in(data)
     end
-    stamps = get(v, :stamps)
+    stamps = v[:stamps]
     any?(
       fn(k)
         t = get(stamps, k)
@@ -359,7 +359,7 @@ read: the masked fields of one fragment read from the store.
 """
 def read(store, opts)
   o = checked(opts, read_options)
-  if get(o, :fragment).nil?
+  if o[:fragment].nil?
     raise(:bad_option, "read: fragment: names what to read")
   end
   if store.nil?
@@ -369,7 +369,7 @@ def read(store, opts)
     data = fetched(v, o)
     if data.nil?
       nil
-    elsif aged?(v, data, o) and get(rules_for(o), :stale) != :revalidate
+    elsif aged?(v, data, o) and rules_for(o)[:stale] != :revalidate
       nil
     else
       data
@@ -382,7 +382,7 @@ stale?: whether a fragment read is older than its ttl.
 """
 def stale?(store, opts)
   o = checked(opts, read_options)
-  if store.nil? or get(o, :fragment).nil?
+  if store.nil? or o[:fragment].nil?
     false
   else
     v = overlay(store)
@@ -420,18 +420,15 @@ def policy(fragments, entries)
     raise(:bad_option, "policy: fragments is a list of danpen fragments")
   end
   j = kousei::judge(rule_kinds, entries)
-  names = map((f) -> get(f, :name), fragments)
-  known = filter((e) -> member?(kousei::name_of(e), names), get(j, :accepted))
-  stray = filter(
-    (e) -> not member?(kousei::name_of(e), names),
-    get(j, :accepted)
-  )
+  names = map((f) -> f[:name], fragments)
+  known = filter((e) -> member?(kousei::name_of(e), names), j[:accepted])
+  stray = filter((e) -> not member?(kousei::name_of(e), names), j[:accepted])
   base = reduce(
     fn(m, f)
       assoc(
         m,
-        get(f, :name),
-        {on: get(f, :on), ttl: nil, stale: nil, persist: nil, evict: nil}
+        f[:name],
+        {on: f[:on], ttl: nil, stale: nil, persist: nil, evict: nil}
       )
     end,
     {},
@@ -447,9 +444,9 @@ def policy(fragments, entries)
   )
   {
     fragments: table,
-    off: get(j, :off),
+    off: j[:off],
     refusals: append(
-      get(j, :refusals),
+      j[:refusals],
       map(
         fn(e)
           refusal(
@@ -470,7 +467,7 @@ def types_with(p, kind)
     reduce(
       fn(m, r)
         v = get(r, kind)
-        t = get(r, :on)
+        t = r[:on]
         if v.nil?
           m
         elsif get(m, t).nil? or v < get(m, t)
@@ -480,7 +477,7 @@ def types_with(p, kind)
         end
       end,
       {},
-      map(second, map_entries(get(p, :fragments)))
+      map(second, map_entries(p[:fragments]))
     )
   end
 end
@@ -488,12 +485,12 @@ end
 def kept(store, keeps)
   pairs = filter(
     (e) -> keeps(first(e), second(e)),
-    map_entries(get(store, :entities))
+    map_entries(store[:entities])
   )
   ents = reduce((m, e) -> assoc(m, first(e), second(e)), {}, pairs)
   stamps = filter(
     (e) -> first(e) == root_key or get(ents, first(e)) != nil,
-    map_entries(get(store, :stamps))
+    map_entries(store[:stamps])
   )
   {
     **store,
@@ -507,12 +504,12 @@ snapshot: the entities persisted fragments read, to keep across restarts.
 """
 def snapshot(store, opts?)
   o = checked(opts, [:policy])
-  types = types_with(get(o, :policy), :persist)
-  s = kept(store, (_k, e) -> get(types, get(e, "__typename")) != nil)
+  types = types_with(o[:policy], :persist)
+  s = kept(store, (_k, e) -> get(types, e["__typename"]) != nil)
   {
     root: {},
-    entities: get(s, :entities),
-    stamps: dissoc(get(s, :stamps), root_key),
+    entities: s[:entities],
+    stamps: dissoc(s[:stamps], root_key),
     writes: []
   }
 end
@@ -522,16 +519,16 @@ sweep: drop the entities older than their fragment evict limit.
 """
 def sweep(store, opts)
   o = checked(opts, [:now, :policy])
-  now = get(o, :now)
+  now = o[:now]
   if not number?(now)
     raise(:bad_option, "sweep: now: is the time to sweep at")
   end
-  after = types_with(get(o, :policy), :evict)
-  stamps = get(store, :stamps)
+  after = types_with(o[:policy], :evict)
+  stamps = store[:stamps]
   kept(
     store,
     fn(k, e)
-      limit = get(after, get(e, "__typename"))
+      limit = get(after, e["__typename"])
       t = get(stamps, k)
       limit.nil? or t != nil and now - t < limit
     end
@@ -543,7 +540,7 @@ declare a mutation and the entity types it touches.
 """
 def declare(name, spec)
   s = checked(spec, [:touches, :operation])
-  touches = get(s, :touches)
+  touches = s[:touches]
   if not list?(touches) or
       is_empty(touches) or
       any?((t) -> not string?(t), touches)
@@ -555,7 +552,7 @@ def declare(name, spec)
   {
     mutation: to_s(name),
     touches: sort_keyed((t) -> t, distinct(touches)),
-    operation: get(s, :operation)
+    operation: s[:operation]
   }
 end
 
@@ -563,10 +560,7 @@ def touched(patch)
   sort_keyed(
     (t) -> t,
     distinct(
-      map(
-        (e) -> get(second(e), "__typename"),
-        map_entries(get(patch, :entities) or {})
-      )
+      map((e) -> second(e)["__typename"], map_entries(patch[:entities] or {}))
     )
   )
 end
@@ -596,23 +590,23 @@ write: lay a pending optimistic write over the store.
 def write(store, change)
   c = checked(change, [:id, :mutation, :patch])
   s = store or blank
-  id = get(c, :id)
-  m = get(c, :mutation)
-  patch = get(c, :patch)
+  id = c[:id]
+  m = c[:mutation]
+  patch = c[:patch]
   if id.nil?
     raise(:bad_option, "write: id: names the pending write")
-  elsif not map?(m) or get(m, :mutation).nil?
+  elsif not map?(m) or m[:mutation].nil?
     raise(:bad_option, "write: mutation: is a declared mutation")
-  elsif not map?(patch) or get(patch, :entities).nil?
+  elsif not map?(patch) or patch[:entities].nil?
     raise(:bad_option, "write: patch: is a normalized response")
-  elsif find_first((w) -> get(w, :id) == id, get(s, :writes)) != nil
+  elsif find_first((w) -> w[:id] == id, s[:writes]) != nil
     raise(:conflict, "write: #{to_s(id)} is already pending")
   end
   assoc(
     s,
     :writes,
     push(
-      get(s, :writes),
+      s[:writes],
       {
         id:,
         mutation: m,
@@ -638,40 +632,40 @@ settle: end an optimistic write as confirmed or rolled back.
 """
 def settle(store, id, outcome)
   event = outcome_event(outcome)
-  writes = get(store or blank, :writes)
-  w = find_first((x) -> get(x, :id) == id, writes)
+  writes = (store or blank)[:writes]
+  w = find_first((x) -> x[:id] == id, writes)
   if w.nil?
     raise(:conflict, "settle: no pending write #{to_s(id)}")
   end
   step = raifusaikuru::admit_step(
     write_machine,
-    get(w, :state),
+    w[:state],
     raifusaikuru::ev(event, 0, [])
   )
   if not raifusaikuru::admitted?(first(step))
     raise(
       :conflict,
-      "settle: write #{to_s(id)} cannot #{to_s(event)} from #{to_s(raifusaikuru::phase(get(w, :state)))}"
+      "settle: write #{to_s(id)} cannot #{to_s(event)} from #{to_s(raifusaikuru::phase(w[:state]))}"
     )
   end
-  rest = filter((x) -> get(x, :id) != id, writes)
+  rest = filter((x) -> x[:id] != id, writes)
   if raifusaikuru::phase(second(step)) == :confirmed
-    assoc(merge(assoc(store, :writes, []), get(w, :patch)), :writes, rest)
+    assoc(merge(assoc(store, :writes, []), w[:patch]), :writes, rest)
   else
     assoc(store, :writes, rest)
   end
 end
 
 def persisted_body(doc, variables)
-  op = find_first((d) -> get(d, :kind) == :operation, get(doc, :definitions))
+  op = find_first((d) -> d[:kind] == :operation, doc[:definitions])
   body = {
     "extensions" => {
       "persistedQuery" => {"version" => 1, "sha256Hash" => danpen::hash(doc)}
     },
     "variables" => variables or {}
   }
-  if op != nil and get(op, :name) != nil
-    assoc(body, "operationName", get(op, :name))
+  if op != nil and op[:name] != nil
+    assoc(body, "operationName", op[:name])
   else
     body
   end
@@ -683,21 +677,21 @@ request: run an operation on a server by its persisted hash only.
 def request(target, input, opts?)
   i = checked(input, [:operation, :variables])
   o = checked(opts, [:headers, :timeout_ms, :transport])
-  if get(i, :operation).nil?
+  if i[:operation].nil?
     raise(:bad_option, "request: operation: is the document to run")
   end
-  doc = danpen::as_document(get(i, :operation))
+  doc = danpen::as_document(i[:operation])
   r = tsuushin::request(
     "POST",
     target,
     {
-      json: persisted_body(doc, get(i, :variables)),
-      headers: get(o, :headers),
-      timeout_ms: get(o, :timeout_ms),
-      transport: get(o, :transport)
+      json: persisted_body(doc, i[:variables]),
+      headers: o[:headers],
+      timeout_ms: o[:timeout_ms],
+      transport: o[:transport]
     }
   )
-  status = get(r, :status)
+  status = r[:status]
   if status < 200 or status >= 300
     raise(
       :request_error,
@@ -705,19 +699,19 @@ def request(target, input, opts?)
       {data: r}
     )
   end
-  reply = json_read(get(r, :body))
-  errors = get(reply, "errors") or []
-  if any?((e) -> get(e, "message") == "PersistedQueryNotFound", errors)
+  reply = json_read(r[:body])
+  errors = reply["errors"] or []
+  if any?((e) -> e["message"] == "PersistedQueryNotFound", errors)
     raise(
       :not_persisted,
       "request: #{target} holds no operation #{danpen::hash(doc)}, and no query text is sent",
       {data: danpen::hash(doc)}
     )
   end
-  if get(reply, "data").nil? and not is_empty(errors)
+  if reply["data"].nil? and not is_empty(errors)
     raise(
       :graphql,
-      blue::join(map((e) -> get(e, "message"), errors), "; "),
+      blue::join(map((e) -> e["message"], errors), "; "),
       {data: errors}
     )
   end
@@ -771,7 +765,7 @@ def page_query()
 end
 
 def operation_of(doc)
-  find_first((d) -> get(d, :kind) == :operation, get(doc, :definitions))
+  find_first((d) -> d[:kind] == :operation, doc[:definitions])
 end
 
 def ada()
@@ -810,7 +804,7 @@ def renamed(id, name)
 end
 
 def entity_keys(s)
-  sort_keyed((k) -> k, map(first, map_entries(get(s, :entities))))
+  sort_keyed((k) -> k, map(first, map_entries(s[:entities])))
 end
 
 def unref(x)
@@ -929,8 +923,8 @@ def user_view()
     {
       props: {store: :required, ref: :required},
       view: fn(p, _s)
-        u = read(get(p, :store), {fragment: user_card, at: get(p, :ref)})
-        gamen::view(:span, {}, [get(u, "name")])
+        u = read(p[:store], {fragment: user_card, at: p[:ref]})
+        gamen::view(:span, {}, [u["name"]])
       end
     }
   )
@@ -942,16 +936,13 @@ def comment_view()
     {
       props: {store: :required, ref: :required},
       view: fn(p, _s)
-        c = read(get(p, :store), {fragment: comment_item, at: get(p, :ref)})
+        c = read(p[:store], {fragment: comment_item, at: p[:ref]})
         gamen::view(
           :li,
           {},
           [
-            gamen::view(
-              user_view,
-              {store: get(p, :store), ref: get(c, "author")}
-            ),
-            ": #{get(c, "body")}"
+            gamen::view(user_view, {store: p[:store], ref: c["author"]}),
+            ": #{c["body"]}"
           ]
         )
       end
@@ -965,27 +956,24 @@ def post_view()
     {
       props: {store: :required, ref: :required},
       view: fn(p, _s)
-        s = get(p, :store)
-        post = read(s, {fragment: post_page, at: get(p, :ref)})
+        s = p[:store]
+        post = read(s, {fragment: post_page, at: p[:ref]})
         gamen::view(
           :article,
           {},
           [
-            gamen::view(:h1, {}, [get(post, "title")]),
+            gamen::view(:h1, {}, [post["title"]]),
             gamen::view(
               :p,
               {},
-              [
-                "by ",
-                gamen::view(user_view, {store: s, ref: get(post, "author")})
-              ]
+              ["by ", gamen::view(user_view, {store: s, ref: post["author"]})]
             ),
             gamen::view(
               :ul,
               {},
               map(
                 (c) -> gamen::view(comment_view, {store: s, ref: c}),
-                get(post, "comments")
+                post["comments"]
               )
             )
           ]
@@ -997,15 +985,15 @@ end
 
 def page_of(store)
   root = read(store, {fragment: operation_of(page_query)})
-  post = read(store, {fragment: post_page, at: get(root, "post")})
+  post = read(store, {fragment: post_page, at: root["post"]})
   gamen::page(
     {
-      title: get(post, "title"),
+      title: post["title"],
       body: [
         gamen::view(
           :main,
           {},
-          [gamen::view(post_view, {store:, ref: get(root, "post")})]
+          [gamen::view(post_view, {store:, ref: root["post"]})]
         )
       ]
     }
@@ -1039,11 +1027,11 @@ end
 
 test "schema keys every object type with an id, and the generated table is kensa's"
   t = schema(sdl)
-  assert get(t, :cached_types) == ["Comment", "Post", "User"]
-  assert get(t, :key_fields) ==
+  assert t[:cached_types] == ["Comment", "Post", "User"]
+  assert t[:key_fields] ==
     {"Comment" => ["id"], "Post" => ["id"], "User" => ["id"]}
-  assert get(t, :separator) == ":"
-  assert get(t, :format) == "kyasshu-keys/1"
+  assert t[:separator] == ":"
+  assert t[:format] == "kyasshu-keys/1"
   assert schema(danpen::parse(sdl)) == t
   kensa = find_first(
     (f) -> ends_with?(first(f), "/kensa.graphql"),
@@ -1059,15 +1047,15 @@ test "schema keys every object type with an id, and the generated table is kensa
   )
   assert read_file(generated) ==
     unlines([json_stringify(schema(second(kensa)))])
-  assert get(json_read(read_file(generated)), "separator") == ":"
+  assert json_read(read_file(generated))["separator"] == ":"
 end
 
 test "normalize splits a response into one entity per Type:id"
   s = normalize(response, sdl)
   assert entity_keys(s) ==
     ["Comment:c1", "Comment:c2", "Post:p1", "User:u7", "User:u8"]
-  assert get(s, :root) == {"post" => {"__ref" => "Post:p1"}}
-  assert get(get(s, :entities), "Post:p1") ==
+  assert s[:root] == {"post" => {"__ref" => "Post:p1"}}
+  assert s[:entities]["Post:p1"] ==
     {
       "__typename" => "Post",
       "id" => "p1",
@@ -1087,7 +1075,7 @@ test "normalize splits a response into one entity per Type:id"
   assert entity_keys(
     normalize({"n" => {"__typename" => "Note", "text" => "t"}}, sdl)
   ) == []
-  assert get(normalize(response, sdl, {now: 5}), :stamps) ==
+  assert normalize(response, sdl, {now: 5})[:stamps] ==
     {
       "ROOT" => 5,
       "Comment:c1" => 5,
@@ -1103,24 +1091,16 @@ test "two components share one entity copy"
   s = normalize(response, sdl)
   assert size(filter((k) -> starts_with?(k, "User:u7"), entity_keys(s))) == 1
   post = read(s, {fragment: post_page, at: "Post:p1"})
-  first_comment = read(
-    s,
-    {fragment: comment_item, at: first(get(post, "comments"))}
-  )
-  by_post = read(s, {fragment: user_card, at: get(post, "author")})
-  by_comment = read(s, {fragment: user_card, at: get(first_comment, "author")})
+  first_comment = read(s, {fragment: comment_item, at: first(post["comments"])})
+  by_post = read(s, {fragment: user_card, at: post["author"]})
+  by_comment = read(s, {fragment: user_card, at: first_comment["author"]})
   assert by_post == by_comment
   assert by_post == {"__ref" => "User:u7", "id" => "u7", "name" => "Ada"}
   s2 = merge(s, renamed("u7", "Ada L."))
-  assert get(
-    read(s2, {fragment: user_card, at: get(post, "author")}),
-    "name"
-  ) == "Ada L."
-  assert get(
-    read(s2, {fragment: user_card, at: get(first_comment, "author")}),
-    "name"
-  ) == "Ada L."
-  assert get(post, "author") == {"__ref" => "User:u7"}
+  assert read(s2, {fragment: user_card, at: post["author"]})["name"] == "Ada L."
+  assert read(s2, {fragment: user_card, at: first_comment["author"]})["name"] ==
+    "Ada L."
+  assert post["author"] == {"__ref" => "User:u7"}
   assert merge(s, s) == s
   assert merge(nil, s) == s
   assert merge(s, nil) == s
@@ -1132,14 +1112,14 @@ test "normalize then read gives back what the query selects, for any response"
     fn(seed)
       r = drawn_response(seed)
       unref(read(normalize(r, sdl), {fragment: q})) ==
-        danpen::select(get(r, "data"), q)
+        danpen::select(r["data"], q)
     end,
     range(0, 120)
   )
   assert filter((ok) -> not ok, checked) == []
   assert size(
     filter(
-      (seed) -> size(get(get(drawn_response(seed), "data"), "posts")) > 1,
+      (seed) -> size(drawn_response(seed)["data"]["posts"]) > 1,
       range(0, 120)
     )
   ) > 20
@@ -1172,12 +1152,12 @@ test "policy takes each rule as a kousei entry, configured off alone and refused
       kousei::off(:stale, "user_card")
     ]
   )
-  assert get(get(p, :fragments), "user_card") ==
+  assert p[:fragments]["user_card"] ==
     {on: "User", ttl: 60, stale: nil, persist: :indexeddb, evict: nil}
-  assert get(get(get(p, :fragments), "comment_item"), :evict) == 300
-  assert get(get(get(p, :fragments), "post_page"), :ttl).nil?
-  assert map(first, get(p, :refusals)) == [:invalid, :unknown_fragment]
-  assert map(kousei::kind_of, get(p, :off)) == [:stale]
+  assert p[:fragments]["comment_item"][:evict] == 300
+  assert p[:fragments]["post_page"][:ttl].nil?
+  assert map(first, p[:refusals]) == [:invalid, :unknown_fragment]
+  assert map(kousei::kind_of, p[:off]) == [:stale]
   assert raises?(:bad_option, () -> policy(user_card, []))
 end
 
@@ -1194,10 +1174,8 @@ test "ttl and stale revalidate decide what a read serves"
     [user_card],
     [ttl, kousei::entry(:stale, "user_card", {mode: :revalidate})]
   )
-  assert get(
-    read(s, {fragment: user_card, at:, now: 5000, policy: swr}),
-    "name"
-  ) == "Ada"
+  assert read(s, {fragment: user_card, at:, now: 5000, policy: swr})["name"] ==
+    "Ada"
   assert stale?(s, {fragment: user_card, at:, now: 5000, policy: swr}) == true
   off = policy([user_card], [ttl, kousei::off(:ttl, "user_card")])
   assert read(s, {fragment: user_card, at:, now: 99999, policy: off}) != nil
@@ -1224,8 +1202,8 @@ test "persist snapshots the entities persisted fragments read, never a pending w
   )
   snap = snapshot(s, {policy: p})
   assert entity_keys(snap) == ["User:u7", "User:u8"]
-  assert get(snap, :root) == {}
-  assert get(snap, :stamps) == {"User:u7" => 1000, "User:u8" => 1000}
+  assert snap[:root] == {}
+  assert snap[:stamps] == {"User:u7" => 1000, "User:u8" => 1000}
   pending = write(
     s,
     {
@@ -1255,7 +1233,7 @@ test "evict sweeps the entities older than their fragment's limit"
   assert sweep(s, {now: 1299, policy: p}) == s
   swept = sweep(s, {now: 1300, policy: p})
   assert entity_keys(swept) == ["Post:p1", "User:u7", "User:u8"]
-  assert get(get(swept, :stamps), "Comment:c1").nil?
+  assert swept[:stamps]["Comment:c1"].nil?
   assert read(swept, {fragment: post_page, at: "Post:p1"}).nil?
   assert read(swept, {fragment: user_card, at: "User:u7"}) != nil
   assert read(swept, {fragment: comment_item, at: "Comment:c1"}).nil?
@@ -1268,14 +1246,13 @@ test "an optimistic write is pending until settled, and a rollback restores the 
   rename = declare(:rename, {touches: ["User"]})
   patch = renamed("u7", "Ada L.")
   s1 = write(s0, {id: "w1", mutation: rename, patch:})
-  assert get(read(s1, {fragment: user_card, at: "User:u7"}), "name") == "Ada L."
-  assert get(read(s0, {fragment: user_card, at: "User:u7"}), "name") == "Ada"
-  assert get(get(s1, :entities), "User:u7") ==
-    get(get(s0, :entities), "User:u7")
+  assert read(s1, {fragment: user_card, at: "User:u7"})["name"] == "Ada L."
+  assert read(s0, {fragment: user_card, at: "User:u7"})["name"] == "Ada"
+  assert s1[:entities]["User:u7"] == s0[:entities]["User:u7"]
   assert settle(s1, "w1", :rolled_back) == s0
   kept_write = settle(s1, "w1", :confirmed)
-  assert get(kept_write, :writes) == []
-  assert get(get(get(kept_write, :entities), "User:u7"), "name") == "Ada L."
+  assert kept_write[:writes] == []
+  assert kept_write[:entities]["User:u7"]["name"] == "Ada L."
   assert raises?(:conflict, () -> settle(kept_write, "w1", :rolled_back))
   assert raises?(
     :conflict,
@@ -1285,7 +1262,7 @@ test "an optimistic write is pending until settled, and a rollback restores the 
   other = {id: "w2", mutation: rename, patch: renamed("u8", "Lin K.")}
   s2 = write(s1, other)
   assert settle(s2, "w1", :rolled_back) == write(s0, other)
-  assert get(read(s2, {fragment: user_card, at: "User:u8"}), "name") == "Lin K."
+  assert read(s2, {fragment: user_card, at: "User:u8"})["name"] == "Lin K."
 end
 
 test "the write machine has no way out of a settled state"
@@ -1325,7 +1302,7 @@ end
 test "declare names the types a mutation touches, and touched reads them off a patch"
   m = declare(:rename, {touches: ["User", "User"]})
   assert m == {mutation: "rename", touches: ["User"], operation: nil}
-  assert touched(renamed("u7", "x")) == get(m, :touches)
+  assert touched(renamed("u7", "x")) == m[:touches]
   assert touched(normalize(response, sdl)) == ["Comment", "Post", "User"]
   assert raises?(:bad_option, () -> declare(:rename, {touches: []}))
   assert raises?(:bad_option, () -> declare(:rename, {touches: [:User]}))
@@ -1338,13 +1315,13 @@ test "request posts the persisted hash and no query text through tsuushin"
     {operation: page_query, variables: {"id" => "p1"}},
     {transport: fake(200, {"ok" => true})}
   )
-  sent = get(r, "sent")
-  assert get(get(get(sent, "extensions"), "persistedQuery"), "sha256Hash") ==
+  sent = r["sent"]
+  assert sent["extensions"]["persistedQuery"]["sha256Hash"] ==
     danpen::hash(page_query)
-  assert get(get(get(sent, "extensions"), "persistedQuery"), "version") == 1
-  assert get(sent, "query").nil?
-  assert get(sent, "operationName") == "Post"
-  assert get(sent, "variables") == {"id" => "p1"}
+  assert sent["extensions"]["persistedQuery"]["version"] == 1
+  assert sent["query"].nil?
+  assert sent["operationName"] == "Post"
+  assert sent["variables"] == {"id" => "p1"}
   missing = {"errors" => [{"message" => "PersistedQueryNotFound"}]}
   assert raises?(
     :not_persisted,
@@ -1402,8 +1379,8 @@ def mailbox(acc)
 end
 
 def persisted?(body)
-  get(get(get(body, "extensions"), "persistedQuery"), "sha256Hash") ==
-    danpen::hash(page_query) and get(body, "query").nil?
+  body["extensions"]["persistedQuery"]["sha256Hash"] ==
+    danpen::hash(page_query) and body["query"].nil?
 end
 
 test "an SSR page with nested fragments renders from one request"

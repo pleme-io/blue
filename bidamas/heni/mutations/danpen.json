@@ -56,8 +56,8 @@
   {
     "name": "an extension of another kind merges",
     "file": "danpen.b",
-    "find": "elsif get(base, :kind) != k",
-    "replace": "elsif false"
+    "find": "    elsif base[:kind] != k\n",
+    "replace": "    elsif false\n"
   },
   {
     "name": "a rule is named that no fixture exercises",
@@ -68,14 +68,14 @@
   {
     "name": "spans are never recorded",
     "file": "danpen.b",
-    "find": "if get(p, :spans)",
-    "replace": "if false"
+    "find": "  if p[:spans]\n",
+    "replace": "  if false\n"
   },
   {
     "name": "SDL defaults are always checked",
     "file": "danpen.b",
-    "find": "if get(s, :defaults) and",
-    "replace": "if true and"
+    "find": "  defaults = if s[:defaults] and a[:default] != nil and is_empty(kind)\n",
+    "replace": "  defaults = if true and a[:default] != nil and is_empty(kind)\n"
   },
   {
     "name": "validate raises the wrong kind",
@@ -98,8 +98,8 @@
   {
     "name": "an inline fragment applies to the other type",
     "file": "danpen.b",
-    "find": "typename == get(sel, :on)",
-    "replace": "typename != get(sel, :on)"
+    "find": "          if sel[:on].nil? or typename.nil? or typename == sel[:on]\n",
+    "replace": "          if sel[:on].nil? or typename.nil? or typename != sel[:on]\n"
   },
   {
     "name": "the default digest is sha512",
@@ -110,13 +110,13 @@
   {
     "name": "an absent field is dropped whatever the hooks say",
     "file": "danpen.b",
-    "find": "get(h, :absent)(acc, key)",
-    "replace": "acc"
+    "find": "            h[:absent](acc, key)\n",
+    "replace": "            acc\n"
   },
   {
     "name": "SDL text is read as a built schema",
     "file": "danpen.b",
-    "find": "if not string?(schema) and get(schema, :kind) == :schema_of",
-    "replace": "if get(schema, :kind) == :schema_of"
+    "find": "  if not string?(schema) and schema[:kind] == :schema_of\n",
+    "replace": "  if schema[:kind] == :schema_of\n"
   }
 ]

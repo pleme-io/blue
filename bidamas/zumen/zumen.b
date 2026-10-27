@@ -118,11 +118,11 @@ def text(p, height, s, layer)
 end
 
 def kind(e)
-  get(e, :kind)
+  e[:kind]
 end
 
 def layer(e)
-  get(e, :layer)
+  e[:layer]
 end
 
 @doc """
@@ -192,21 +192,14 @@ def table(rows, columns, widths, origin, h)
   flat_map(
     indexes(lines),
     fn(i)
-      table_row(
-        nth(i, lines),
-        widths,
-        [px(origin), py(origin) - i * h * 1.8],
-        h
-      )
+      table_row(lines[i], widths, [px(origin), py(origin) - i * h * 1.8], h)
     end
   )
 end
 
 def table_row(cells, widths, p, h)
   map(
-    fn(j)
-      text([px(p) + sum(take_n(widths, j)), py(p)], h, nth(j, cells), "TEXT")
-    end,
+    (j) -> text([px(p) + sum(take_n(widths, j)), py(p)], h, cells[j], "TEXT"),
     indexes(cells)
   )
 end
@@ -230,18 +223,15 @@ end
 def entity_points(e)
   k = kind(e)
   if k == :line
-    [get(e, :a), get(e, :b)]
+    [e[:a], e[:b]]
   elsif k == :polyline
-    get(e, :pts)
+    e[:pts]
   elsif k == :circle or k == :arc
-    c = get(e, :c)
-    r = get(e, :r)
+    c = e[:c]
+    r = e[:r]
     [[px(c) - r, py(c) - r], [px(c) + r, py(c) + r]]
   else
-    [
-      get(e, :p),
-      vadd(get(e, :p), [get(e, :h) * 0.6 * length(get(e, :s)), get(e, :h)])
-    ]
+    [e[:p], vadd(e[:p], [e[:h] * 0.6 * length(e[:s]), e[:h]])]
   end
 end
 
@@ -267,7 +257,7 @@ def title_rows(title)
       (k) -> "#{upcase(to_s(k))}: #{to_s(get(title, k))}",
       filter((k) -> get(title, k) != nil, keys)
     ),
-    as_set(get(title, :notes))
+    as_set(title[:notes])
   )
 end
 
@@ -275,16 +265,16 @@ end
 sheet_entities: Every entity of the sheet, the frame and title block included.
 """
 def sheet_entities(sheet)
-  ents = get(sheet, :entities)
+  ents = sheet[:entities]
   bb = bounds(ents)
-  lo = nth(0, bb)
-  hi = nth(1, bb)
+  lo = bb[0]
+  hi = bb[1]
   w = max(px(hi) - px(lo), 100)
   h = 3.5
-  rows = title_rows(get(sheet, :title))
+  rows = title_rows(sheet[:title])
   top = py(lo) - 15
   texts = map(
-    (i) -> text([px(lo), top - i * h * 1.6], h, nth(i, rows), "TEXT"),
+    (i) -> text([px(lo), top - i * h * 1.6], h, rows[i], "TEXT"),
     indexes(rows)
   )
   bottom = top - size(rows) * h * 1.6 - 3
@@ -328,11 +318,7 @@ def view(mesh, view)
   vs = rittai::vertices(m)
   faces = rittai::faces(m)
   normals = map((f) -> rittai::face_normal(m, f), faces)
-  table = reduce(
-    (acc, i) -> edge_faces(acc, nth(i, faces), i),
-    {},
-    indexes(faces)
-  )
+  table = reduce((acc, i) -> edge_faces(acc, faces[i], i), {}, indexes(faces))
   keys = distinct_keys(faces)
   drawn = filter((k) -> feature?(get(table, k), normals), keys)
   map((k) -> edge_line(k, vs, view), drawn)
@@ -343,15 +329,11 @@ def edge_key(a, b)
 end
 
 def edges_of(f)
-  [[nth(0, f), nth(1, f)], [nth(1, f), nth(2, f)], [nth(2, f), nth(0, f)]]
+  [[f[0], f[1]], [f[1], f[2]], [f[2], f[0]]]
 end
 
 def edge_faces(acc, f, i)
-  reduce(
-    (t, e) -> add_face(t, edge_key(nth(0, e), nth(1, e)), i),
-    acc,
-    edges_of(f)
-  )
+  reduce((t, e) -> add_face(t, edge_key(e[0], e[1]), i), acc, edges_of(f))
 end
 
 def add_face(t, k, i)
@@ -367,11 +349,7 @@ def distinct_keys(faces)
   get(
     reduce(
       fn(acc, f)
-        reduce(
-          (a2, e) -> note_key(a2, edge_key(nth(0, e), nth(1, e))),
-          acc,
-          edges_of(f)
-        )
+        reduce((a2, e) -> note_key(a2, edge_key(e[0], e[1])), acc, edges_of(f))
       end,
       {seen: {}, keys: []},
       faces
@@ -381,11 +359,8 @@ def distinct_keys(faces)
 end
 
 def note_key(acc, k)
-  if get(get(acc, :seen), k).nil?
-    {
-      seen: assoc(get(acc, :seen), k, true),
-      keys: concat_lists([k], get(acc, :keys))
-    }
+  if get(acc[:seen], k).nil?
+    {seen: assoc(acc[:seen], k, true), keys: concat_lists([k], acc[:keys])}
   else
     acc
   end
@@ -395,17 +370,13 @@ def feature?(fs, normals)
   if size(fs) != 2
     true
   else
-    dot(nth(nth(0, fs), normals), nth(nth(1, fs), normals)) < 0.99996
+    dot(normals[fs[0]], normals[fs[1]]) < 0.99996
   end
 end
 
 def edge_line(k, vs, view)
   ij = map((s) -> to_int(s), split(k, "-"))
-  line(
-    project(nth(nth(0, ij), vs), view),
-    project(nth(nth(1, ij), vs), view),
-    "VIEW"
-  )
+  line(project(vs[ij[0]], view), project(vs[ij[1]], view), "VIEW")
 end
 
 # ── DXF R12 ──────────────────────────────────────────────────────────
@@ -415,7 +386,7 @@ end
 # VERTEXes and SEQEND, R12's only polyline.
 
 def dxf_pairs(pairs)
-  join(map((p) -> unlines([to_s(nth(0, p)), to_s(nth(1, p))]), pairs), "")
+  join(map((p) -> unlines([to_s(p[0]), to_s(p[1])]), pairs), "")
 end
 
 def dxf(entities)
@@ -430,11 +401,11 @@ def dxf(entities)
     [9, "$ACADVER"],
     [1, "AC1009"],
     [9, "$EXTMIN"],
-    [10, num(px(nth(0, bb)))],
-    [20, num(py(nth(0, bb)))],
+    [10, num(px(bb[0]))],
+    [20, num(py(bb[0]))],
     [9, "$EXTMAX"],
-    [10, num(px(nth(1, bb)))],
-    [20, num(py(nth(1, bb)))],
+    [10, num(px(bb[1]))],
+    [20, num(py(bb[1]))],
     [0, "ENDSEC"]
   ]
   ltypes = [
@@ -464,15 +435,7 @@ def dxf(entities)
     concat_lists(
       flat_map(
         zumen::layers,
-        fn(l)
-          [
-            [0, "LAYER"],
-            [2, nth(0, l)],
-            [70, 0],
-            [62, nth(1, l)],
-            [6, nth(2, l)]
-          ]
-        end
+        (l) -> [[0, "LAYER"], [2, l[0]], [70, 0], [62, l[1]], [6, l[2]]]
       ),
       [[0, "ENDTAB"]]
     )
@@ -496,25 +459,22 @@ def dxf_entity(e)
   k = kind(e)
   l = [8, layer(e)]
   if k == :line
-    concat_lists(
-      [[0, "LINE"], l],
-      concat_lists(xy(10, get(e, :a)), xy(11, get(e, :b)))
-    )
+    concat_lists([[0, "LINE"], l], concat_lists(xy(10, e[:a]), xy(11, e[:b])))
   elsif k == :circle
     concat_lists(
       [[0, "CIRCLE"], l],
-      concat_lists(xy(10, get(e, :c)), [[40, num(get(e, :r))]])
+      concat_lists(xy(10, e[:c]), [[40, num(e[:r])]])
     )
   elsif k == :arc
     concat_lists(
       [[0, "ARC"], l],
       concat_lists(
-        xy(10, get(e, :c)),
-        [[40, num(get(e, :r))], [50, num(get(e, :a0))], [51, num(get(e, :a1))]]
+        xy(10, e[:c]),
+        [[40, num(e[:r])], [50, num(e[:a0])], [51, num(e[:a1])]]
       )
     )
   elsif k == :polyline
-    flag = if get(e, :closed)
+    flag = if e[:closed]
       1
     else
       0
@@ -530,17 +490,14 @@ def dxf_entity(e)
         [30, "0"]
       ],
       concat_lists(
-        flat_map(
-          get(e, :pts),
-          (p) -> concat_lists([[0, "VERTEX"], l], xy(10, p))
-        ),
+        flat_map(e[:pts], (p) -> concat_lists([[0, "VERTEX"], l], xy(10, p))),
         [[0, "SEQEND"], l]
       )
     )
   else
     concat_lists(
       [[0, "TEXT"], l],
-      concat_lists(xy(10, get(e, :p)), [[40, num(get(e, :h))], [1, get(e, :s)]])
+      concat_lists(xy(10, e[:p]), [[40, num(e[:h])], [1, e[:s]]])
     )
   end
 end
@@ -572,10 +529,10 @@ end
 
 def svg(entities, margin)
   bb = bounds(entities)
-  x0 = px(nth(0, bb)) - margin
-  y1 = py(nth(1, bb)) + margin
-  w = px(nth(1, bb)) - px(nth(0, bb)) + 2 * margin
-  h = py(nth(1, bb)) - py(nth(0, bb)) + 2 * margin
+  x0 = px(bb[0]) - margin
+  y1 = py(bb[1]) + margin
+  w = px(bb[1]) - px(bb[0]) + 2 * margin
+  h = py(bb[1]) - py(bb[0]) + 2 * margin
   body = join(map((e) -> svg_entity(e, x0, y1), entities), line_break)
   unlines(
     [
@@ -599,31 +556,31 @@ def svg_entity(e, x0, y1)
   k = kind(e)
   st = svg_style(layer(e))
   if k == :line
-    "<line x1=\"#{sx(get(e, :a), x0)}\" y1=\"#{sy(get(e, :a), y1)}\" x2=\"#{sx(get(e, :b), x0)}\" y2=\"#{sy(get(e, :b), y1)}\" #{st}/>"
+    "<line x1=\"#{sx(e[:a], x0)}\" y1=\"#{sy(e[:a], y1)}\" x2=\"#{sx(e[:b], x0)}\" y2=\"#{sy(e[:b], y1)}\" #{st}/>"
   elsif k == :circle
-    "<circle cx=\"#{sx(get(e, :c), x0)}\" cy=\"#{sy(get(e, :c), y1)}\" r=\"#{num(get(e, :r))}\" #{st}/>"
+    "<circle cx=\"#{sx(e[:c], x0)}\" cy=\"#{sy(e[:c], y1)}\" r=\"#{num(e[:r])}\" #{st}/>"
   elsif k == :polyline
-    tag = if get(e, :closed)
+    tag = if e[:closed]
       "polygon"
     else
       "polyline"
     end
-    "<#{tag} points=\"#{join(map((p) -> "#{sx(p, x0)},#{sy(p, y1)}", get(e, :pts)), " ")}\" #{st}/>"
+    "<#{tag} points=\"#{join(map((p) -> "#{sx(p, x0)},#{sy(p, y1)}", e[:pts]), " ")}\" #{st}/>"
   elsif k == :arc
     svg_arc(e, x0, y1, st)
   else
-    "<text x=\"#{sx(get(e, :p), x0)}\" y=\"#{sy(get(e, :p), y1)}\" font-family=\"sans-serif\" font-size=\"#{num(get(e, :h))}\" fill=\"#1f2328\">#{svg_escape(get(e, :s))}</text>"
+    "<text x=\"#{sx(e[:p], x0)}\" y=\"#{sy(e[:p], y1)}\" font-family=\"sans-serif\" font-size=\"#{num(e[:h])}\" fill=\"#1f2328\">#{svg_escape(e[:s])}</text>"
   end
 end
 
 def svg_arc(e, x0, y1, st)
-  c = get(e, :c)
-  r = get(e, :r)
-  a0 = radians(get(e, :a0))
-  a1 = radians(get(e, :a1))
+  c = e[:c]
+  r = e[:r]
+  a0 = radians(e[:a0])
+  a1 = radians(e[:a1])
   p0 = [px(c) + r * cos(a0), py(c) + r * sin(a0)]
   p1 = [px(c) + r * cos(a1), py(c) + r * sin(a1)]
-  sweep = mod_positive(get(e, :a1) - get(e, :a0), 360)
+  sweep = mod_positive(e[:a1] - e[:a0], 360)
   large = if sweep > 180
     1
   else
@@ -644,7 +601,7 @@ def zu_count(text, kind)
   ls = split(text, line_break)
   size(
     filter(
-      (i) -> nth(i, ls) == "0" and nth(i + 1, ls) == kind,
+      (i) -> ls[i] == "0" and ls[i + 1] == kind,
       filter((i) -> i % 2 == 0, range(0, size(ls) - 1))
     )
   )
@@ -698,7 +655,7 @@ test "every entity is written once, of its own kind, on a declared layer"
   # Every layer named on an entity is declared in the table.
   assert every((e) -> contains(layer_names, layer(e)), ents) == true
   # The dimension reads the length it measures.
-  assert get(last(dim([0, 0], [100, 0], -8, 3.5)), :s) == "100"
+  assert last(dim([0, 0], [100, 0], -8, 3.5))[:s] == "100"
 end
 
 test "SVG: y is flipped, the scale is 1:1 in mm, text is escaped"
@@ -720,7 +677,7 @@ test "a view of a box draws its twelve edges and no diagonals"
   assert size(v) == 12
   assert every((e) -> layer(e) == "VIEW", v) == true
   bb = bounds(v)
-  assert vector_near(nth(1, bb), [20, 40]) == true
+  assert vector_near(bb[1], [20, 40]) == true
 end
 
 test "a table: a header, then one line per row, numbers to one decimal"
@@ -730,9 +687,9 @@ test "a table: a header, then one line per row, numbers to one decimal"
   ]
   t = table(rows, [:name, :length, :cut_a], [30, 25, 20], [0, 0], 3)
   assert size(t) == 9
-  assert map((e) -> get(e, :s), take_n(t, 3)) == ["NAME", "LENGTH", "CUT_A"]
-  assert get(nth(4, t), :s) == "450"
-  assert near(px(get(nth(5, t), :p)), 55) == true
+  assert map((e) -> e[:s], take_n(t, 3)) == ["NAME", "LENGTH", "CUT_A"]
+  assert t[4][:s] == "450"
+  assert near(px(t[5][:p]), 55) == true
   # The empty case: no rows is the header alone.
   assert size(table([], [:name], [30], [0, 0], 3)) == 1
 end

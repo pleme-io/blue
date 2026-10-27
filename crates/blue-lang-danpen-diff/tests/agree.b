@@ -12,7 +12,7 @@ rescue e
 end
 
 def shown(findings)
-  map((f) -> "#{get(f, :rule)}: #{get(f, :message)}", findings)
+  map((f) -> "#{f[:rule]}: #{f[:message]}", findings)
 end
 
 def schema_findings(text)

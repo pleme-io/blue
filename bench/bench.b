@@ -12,7 +12,7 @@ def vocabulary()
 end
 
 def word(words, i)
-  nth(i * 2_654_435_761 % 4_294_967_296 % length(words), words)
+  words[i * 2_654_435_761 % 4_294_967_296 % length(words)]
 end
 
 def text(words, n)
@@ -50,7 +50,7 @@ def hyperfine(command, runs, out)
     out,
     command
   )
-  nth(0, json_get(json_parse(read_file(out)), "results"))
+  json_get(json_parse(read_file(out)), "results")[0]
 end
 
 def ms(seconds)
@@ -83,23 +83,23 @@ def ratio(a, b)
 end
 
 def language_row(langs, w, work, runs)
-  name = nth(0, w)
-  arg = nth(1, w)
+  name = w[0]
+  arg = w[1]
   data = path_join(work, "data")
   timed = map(
     fn(l)
-      file = path_join(work, "#{name}.#{nth(0, l)}")
+      file = path_join(work, "#{name}.#{l[0]}")
       measure(
-        command(nth(1, l), file, arg, data),
+        command(l[1], file, arg, data),
         runs,
-        path_join(work, "#{name}-#{nth(0, l)}.json")
+        path_join(work, "#{name}-#{l[0]}.json")
       )
     end,
     langs
   )
-  b = nth(0, timed)
-  py = nth(1, timed)
-  rb = nth(2, timed)
+  b = timed[0]
+  py = timed[1]
+  rb = timed[2]
   unlines(
     [
       "| #{name} | #{cell(b)} | #{cell(py)} | #{cell(rb)} | #{ratio(b, py)}× | #{ratio(b, rb)}× |"
@@ -215,7 +215,7 @@ def compile_rows(target)
 end
 
 def scripts(blue, langs, work, runs)
-  names = map((w) -> nth(0, w), workloads)
+  names = map((w) -> w[0], workloads)
   write_data(path_join(work, "data"))
   copy_workloads("bench/workloads", work, names)
   write_stdout(
@@ -230,11 +230,11 @@ def scripts(blue, langs, work, runs)
 end
 
 def main()
-  if nth(0, argv) == "compile"
-    write_stdout(compile_rows(nth(1, argv)))
+  if argv[0] == "compile"
+    write_stdout(compile_rows(argv[1]))
   else
-    blue = nth(0, argv)
-    langs = [["b", blue], ["py", nth(1, argv)], ["rb", nth(2, argv)]]
-    scripts(blue, langs, nth(3, argv), to_int(nth(4, argv) rescue "10"))
+    blue = argv[0]
+    langs = [["b", blue], ["py", argv[1]], ["rb", argv[2]]]
+    scripts(blue, langs, argv[3], to_int(argv[4] rescue "10"))
   end
 end

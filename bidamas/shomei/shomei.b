@@ -87,7 +87,7 @@ end
 keypair_public: The public half of a keypair, in lowercase hex. This is what a verifier holds.
 """
 def keypair_public(kp)
-  nth(1, kp)
+  kp[1]
 end
 
 # ── signed messages ────────────────────────────────────────────────
@@ -243,7 +243,7 @@ compare position by position.
 """
 def chain_at(i, xs)
   if i < size(xs)
-    nth(i, xs)
+    xs[i]
   end
 end
 
@@ -351,9 +351,9 @@ merkle_pair: The parent of the pair starting at 2i, or the lone node when it has
 def merkle_pair(level, i)
   right = chain_at(2 * i + 1, level)
   if right.nil?
-    nth(2 * i, level)
+    level[2 * i]
   else
-    merkle_node(nth(2 * i, level), right)
+    merkle_node(level[2 * i], right)
   end
 end
 
@@ -377,7 +377,7 @@ merkle_step: The sibling of position `i` as a proof step, or nil when it has non
 """
 def merkle_step(level, i)
   if i % 2 == 1
-    ["L", nth(i - 1, level)]
+    ["L", level[i - 1]]
   else
     merkle_side("R", chain_at(i + 1, level))
   end
@@ -402,9 +402,9 @@ merkle_climb: One step up a proof: the running hash joined with the step's sibli
 """
 def merkle_climb(h, step)
   if first(step) == "L"
-    merkle_node(nth(1, step), h)
+    merkle_node(step[1], h)
   elsif first(step) == "R"
-    merkle_node(h, nth(1, step))
+    merkle_node(h, step[1])
   else
     raise(:merkle, "a proof step's side must be \"L\" or \"R\"")
   end
@@ -686,7 +686,7 @@ test "every proof of every tree from 1 to 9 leaves verifies"
   events = (n) -> map((i) -> "event-#{i}", range(0, n))
   proves = fn(xs)
     every?(
-      (i) -> merkle_verify(merkle_root(xs), nth(i, xs), merkle_proof(xs, i)),
+      (i) -> merkle_verify(merkle_root(xs), xs[i], merkle_proof(xs, i)),
       range(0, size(xs))
     )
   end
@@ -997,7 +997,7 @@ end
 
 test "public is the second half of the keypair"
   kp = signing_keypair("9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60")
-  assert public(kp) == nth(1, kp)
+  assert public(kp) == kp[1]
   assert public(kp) ==
     "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a"
 end

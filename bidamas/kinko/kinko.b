@@ -86,7 +86,7 @@ def bundles()
 end
 
 def bundle(name)
-  nth(1, first(filter((b) -> first(b) == name, bundles)))
+  first(filter((b) -> first(b) == name, bundles))[1]
 end
 
 def lookup(name)
@@ -139,8 +139,8 @@ def name_whys(have, n)
 end
 
 def bundle_whys(have, b)
-  inside = filter((m) -> contains(have, m), nth(1, b))
-  outside = missing(have, nth(1, b))
+  inside = filter((m) -> contains(have, m), b[1])
+  outside = missing(have, b[1])
   if is_empty(inside) or is_empty(outside)
     []
   else
@@ -152,7 +152,7 @@ end
 
 def teams_whys(ns)
   have = sorted(ns)
-  covered = flat_map(bundles, (b) -> nth(1, b))
+  covered = flat_map(bundles, (b) -> b[1])
   partial = flat_map(bundles, (b) -> bundle_whys(have, b))
   stray = map(
     (n) -> "\"#{n}\" is not part of any Teams bundle",
@@ -185,11 +185,11 @@ def tier_names()
 end
 
 def daily_limit(t)
-  nth(1, tier_row(t))
+  tier_row(t)[1]
 end
 
 def grants_allowed?(t)
-  nth(2, tier_row(t))
+  tier_row(t)[2]
 end
 
 def interval_s(t, reads)
@@ -266,37 +266,31 @@ end
 
 def vault_whys(v)
   append(
+    fault(not key?(v[:key]), ["#{v[:key]} is not a key of [a-z0-9_]"]),
     fault(
-      not key?(get(v, :key)),
-      ["#{get(v, :key)} is not a key of [a-z0-9_]"]
-    ),
-    fault(
-      not (string?(get(v, :title)) and length(get(v, :title)) > 0),
+      not (string?(v[:title]) and length(v[:title]) > 0),
       ["a vault needs a title"]
     ),
-    fault(not string?(get(v, :description)), ["a description is text"]),
+    fault(not string?(v[:description]), ["a description is text"]),
     fault(
-      not boolean?(get(v, :allow_admins_access)),
+      not boolean?(v[:allow_admins_access]),
       ["allow_admins_access is true or false"]
     ),
-    fault(
-      not boolean?(get(v, :force_destroy)),
-      ["force_destroy is true or false"]
-    )
+    fault(not boolean?(v[:force_destroy]), ["force_destroy is true or false"])
   )
 end
 
 def vault_refusals(vs)
   map(
     fn(i)
-      v = nth(i, vs)
-      earlier = map((w) -> get(w, :key), take(i, vs))
+      v = vs[i]
+      earlier = map((w) -> w[:key], take(i, vs))
       own = map(
-        (w) -> refusal(:bad_vault, "vault #{get(v, :key)}: #{w}"),
+        (w) -> refusal(:bad_vault, "vault #{v[:key]}: #{w}"),
         vault_whys(v)
       )
-      dup = if contains(earlier, get(v, :key))
-        [refusal(:duplicate_vault, "vault #{get(v, :key)} is declared twice")]
+      dup = if contains(earlier, v[:key])
+        [refusal(:duplicate_vault, "vault #{v[:key]} is declared twice")]
       else
         []
       end
@@ -307,16 +301,16 @@ def vault_refusals(vs)
 end
 
 def grant_name(g)
-  "#{get(g, :vault)}__#{get(g, :group)}"
+  "#{g[:vault]}__#{g[:group]}"
 end
 
 def grant_refusals(tier, keys, gs)
   map(
     fn(i)
-      g = nth(i, gs)
+      g = gs[i]
       at = "grant #{grant_name(g)}"
       earlier = map(grant_name, take(i, gs))
-      ns = get(g, :permissions)
+      ns = g[:permissions]
       append(
         fault(
           not grants_allowed?(tier),
@@ -328,17 +322,12 @@ def grant_refusals(tier, keys, gs)
           ]
         ),
         fault(
-          not contains(keys, get(g, :vault)),
-          [
-            refusal(
-              :unknown_vault,
-              "#{at}: no accepted vault #{get(g, :vault)}"
-            )
-          ]
+          not contains(keys, g[:vault]),
+          [refusal(:unknown_vault, "#{at}: no accepted vault #{g[:vault]}")]
         ),
         fault(
-          not group_id?(get(g, :group)),
-          [refusal(:bad_grant, "#{at}: #{get(g, :group)} is not a group id")]
+          not group_id?(g[:group]),
+          [refusal(:bad_grant, "#{at}: #{g[:group]} is not a group id")]
         ),
         fault(
           not list?(ns),
@@ -360,7 +349,7 @@ def grant_refusals(tier, keys, gs)
 end
 
 def judge(a)
-  tier = get(a, :tier)
+  tier = a[:tier]
   if not contains(tier_names, tier)
     {
       tier: nil,
@@ -374,11 +363,11 @@ def judge(a)
       ]
     }
   else
-    vs = get(a, :vaults) or []
+    vs = a[:vaults] or []
     vmarks = vault_refusals(vs)
     kept = standing(vs, vmarks)
-    gs = get(a, :grants) or []
-    gmarks = grant_refusals(tier, map((v) -> get(v, :key), kept), gs)
+    gs = a[:grants] or []
+    gmarks = grant_refusals(tier, map((v) -> v[:key], kept), gs)
     {
       tier:,
       vaults: kept,
@@ -390,37 +379,37 @@ end
 
 def accepted(a)
   j = judge(a)
-  {tier: get(j, :tier), vaults: get(j, :vaults), grants: get(j, :grants)}
+  {tier: j[:tier], vaults: j[:vaults], grants: j[:grants]}
 end
 
 def reads(a)
   j = judge(a)
-  size(get(j, :vaults)) + size(get(j, :grants)) + 1
+  size(j[:vaults]) + size(j[:grants]) + 1
 end
 
 def reconcile_interval_s(a)
   j = judge(a)
-  if get(j, :tier).nil?
+  if j[:tier].nil?
     nil
   else
-    interval_s(get(j, :tier), reads(a))
+    interval_s(j[:tier], reads(a))
   end
 end
 
 def vault_block(v)
   {
-    title: get(v, :title),
-    description: get(v, :description),
-    allow_admins_access: get(v, :allow_admins_access),
-    force_destroy: get(v, :force_destroy)
+    title: v[:title],
+    description: v[:description],
+    allow_admins_access: v[:allow_admins_access],
+    force_destroy: v[:force_destroy]
   }
 end
 
 def grant_block(g)
   {
-    vault_id: "${opadmin_vault.#{get(g, :vault)}.id}",
-    group_id: get(g, :group),
-    permissions: sorted(get(g, :permissions))
+    vault_id: "${opadmin_vault.#{g[:vault]}.id}",
+    group_id: g[:group],
+    permissions: sorted(g[:permissions])
   }
 end
 
@@ -430,22 +419,18 @@ end
 
 def resources(j)
   r = {}
-  r2 = if is_empty(get(j, :vaults))
+  r2 = if is_empty(j[:vaults])
     r
   else
-    assoc(
-      r,
-      :opadmin_vault,
-      keyed(get(j, :vaults), (v) -> get(v, :key), vault_block)
-    )
+    assoc(r, :opadmin_vault, keyed(j[:vaults], (v) -> v[:key], vault_block))
   end
-  if is_empty(get(j, :grants))
+  if is_empty(j[:grants])
     r2
   else
     assoc(
       r2,
       :opadmin_group_vault_access,
-      keyed(get(j, :grants), grant_name, grant_block)
+      keyed(j[:grants], grant_name, grant_block)
     )
   end
 end
@@ -536,10 +521,7 @@ def unreachable()
 end
 
 def unreachable_md()
-  rows = map(
-    (r) -> "| #{nth(0, r)} | #{nth(1, r)} | #{nth(2, r)} |",
-    unreachable
-  )
+  rows = map((r) -> "| #{r[0]} | #{r[1]} | #{r[2]} |", unreachable)
   head = [
     "# What opadmin cannot reach",
     "",
@@ -582,8 +564,8 @@ end
 test "an empty account on a known tier stands, empty, with only the providers"
   a = account("families", [], [])
   assert judge(a).refusals == []
-  assert get(accepted(a), :vaults) == []
-  assert get(terraform(a), :resource).nil?
+  assert accepted(a)[:vaults] == []
+  assert terraform(a)[:resource].nil?
   assert to_json(a) ==
     "{\"provider\":{\"onepassword\":{},\"opadmin\":{}},\"terraform\":{\"required_providers\":{\"onepassword\":{\"source\":\"1Password/onepassword\"},\"opadmin\":{\"source\":\"registry.opentofu.org/pleme-io/opadmin\"}}}}"
   assert kinds(judge(account("enterprise", [], [])).refusals) == [:unknown_tier]
@@ -657,8 +639,8 @@ test "a bad entry is refused alone and its valid siblings stand"
       :bad_permissions,
       :duplicate_grant
     ]
-  assert map((v) -> get(v, :key), get(accepted(a), :vaults)) == ["infra"]
-  assert map(grant_name, get(accepted(a), :grants)) == ["infra__ops"]
+  assert map((v) -> v[:key], accepted(a)[:vaults]) == ["infra"]
+  assert map(grant_name, accepted(a)[:grants]) == ["infra__ops"]
 end
 
 test "a tier without group access refuses every grant and keeps every vault"
@@ -668,7 +650,7 @@ test "a tier without group access refuses every grant and keeps every vault"
     [grant("home", "family", ["read_items"])]
   )
   assert kinds(judge(a).refusals) == [:tier_forbids_grants]
-  assert size(get(accepted(a), :vaults)) == 1
+  assert size(accepted(a)[:vaults]) == 1
   t = account(
     "teams",
     [vault("home", "Home")],
@@ -679,17 +661,14 @@ end
 
 test "the projection carries what stands, field for field"
   t = terraform(example)
-  assert get(get(get(t, :resource), :opadmin_vault), "ci") ==
+  assert t[:resource][:opadmin_vault]["ci"] ==
     {
       title: "CI",
       description: "CI secrets",
       allow_admins_access: true,
       force_destroy: false
     }
-  assert get(
-    get(get(t, :resource), :opadmin_group_vault_access),
-    "infra__ops"
-  ) ==
+  assert t[:resource][:opadmin_group_vault_access]["infra__ops"] ==
     {
       vault_id: "${opadmin_vault.infra.id}",
       group_id: "ops",
@@ -707,6 +686,6 @@ test "the reconcile interval follows the tier's daily quota with half in reserve
 end
 
 test "the generated documents carry every row"
-  assert size(get(permissions_doc, :permissions)) == 13
+  assert size(permissions_doc[:permissions]) == 13
   assert size(split(unreachable_md, line_break)) == size(unreachable) + 7
 end

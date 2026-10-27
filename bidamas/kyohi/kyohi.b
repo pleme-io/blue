@@ -47,7 +47,7 @@ end
 why: Why it was refused.
 """
 def why(r)
-  nth(1, r)
+  r[1]
 end
 
 @doc """
@@ -100,7 +100,7 @@ def ledger()
 end
 
 def ledger_entry(k)
-  e = find_first((r) -> get(r, :kind) == k, ledger)
+  e = find_first((r) -> r[:kind] == k, ledger)
   if e.nil?
     raise(:not_found, "no ledger kind #{k}")
   end
@@ -113,7 +113,7 @@ exit_status: exit status the ledger gives a kind.
     exit_status(:hold) #=> 75
 """
 def exit_status(k)
-  get(ledger_entry(k), :exit_status)
+  ledger_entry(k)[:exit_status]
 end
 
 @doc """
@@ -122,7 +122,7 @@ retryable?: the ledger marks the kind worth retrying.
     retryable?(:timeout) #=> true
 """
 def retryable?(k)
-  get(ledger_entry(k), :retryable)
+  ledger_entry(k)[:retryable]
 end
 
 @doc """
@@ -150,27 +150,12 @@ def enforce(subject, rules, opts?)
   found = check(subject, rules)
   if is_empty(found) == false
     raise(
-      raised_kind(get(opts, :kind), found),
+      raised_kind(opts[:kind], found),
       join(map(why, found), "; "),
       {data: found}
     )
   end
   nil
-end
-
-@doc """
-host_handle: a value a host handed in (a connection, a listener), else a :bad_option raise naming who wanted one.
-
-    (host_handle(nil, "w") rescue :refused) #=> :refused
-"""
-def host_handle(x, who)
-  if not foreign?(x)
-    raise(
-      :bad_option,
-      "#{who} takes a connection a host handed in, got #{to_s(x)}"
-    )
-  end
-  x
 end
 
 def ok(v)
@@ -182,12 +167,12 @@ def refused(r)
 end
 
 def ok?(result)
-  get(result, :ok) == true
+  result[:ok] == true
 end
 
 def value(result)
   if ok?(result)
-    get(result, :value)
+    result[:value]
   end
 end
 
@@ -195,13 +180,13 @@ def refusal_of(result)
   if ok?(result)
     nil
   else
-    get(result, :refusal)
+    result[:refusal]
   end
 end
 
 def and_then(result, f)
   if ok?(result)
-    f(get(result, :value))
+    f(result[:value])
   else
     result
   end
@@ -222,10 +207,7 @@ standing: entries not refused.
     standing([], []) #=> []
 """
 def standing(xs, marks)
-  map(
-    (i) -> nth(i, xs),
-    filter((i) -> is_empty(nth(i, marks)), range(0, size(xs)))
-  )
+  map((i) -> xs[i], filter((i) -> is_empty(marks[i]), range(0, size(xs))))
 end
 
 test "what stands is every entry refused for nothing, in order"
@@ -259,9 +241,9 @@ end
 
 test "the ledger is closed: one row per kind, each with a status and a retry mark"
   rows = ledger
-  assert size(rows) == size(kinds(map((r) -> [get(r, :kind), ""], rows)))
-  assert size(filter((r) -> get(r, :kind) == :refused, rows)) == 1
-  assert size(filter((r) -> is_empty(get(r, :meaning)), rows)) == 0
+  assert size(rows) == size(kinds(map((r) -> [r[:kind], ""], rows)))
+  assert size(filter((r) -> r[:kind] == :refused, rows)) == 1
+  assert size(filter((r) -> is_empty(r[:meaning]), rows)) == 0
   assert exit_status(:not_found) == 66
   assert exit_status(:usage) == 64
   assert exit_status(:hold) == 75

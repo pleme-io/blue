@@ -25,11 +25,11 @@ def literal(value)
 end
 
 def snapshot_path(opts)
-  name = get(opts, :name)
+  name = opts[:name]
   if not string?(name) or name == "" or contains?(name, "/")
     raise(:bad_option, "a snapshot takes name: text with no slash")
   end
-  path_join(get(opts, :dir) or "snapshots", "#{name}.b")
+  path_join(opts[:dir] or "snapshots", "#{name}.b")
 end
 
 @doc """
@@ -39,7 +39,7 @@ def snapshot(value, opts)
   checked(opts, [:name, :dir, :update])
   path = snapshot_path(opts)
   actual = unlines([literal(value)])
-  if get(opts, :update) == true
+  if opts[:update] == true
     mkdir_p(path_dirname(path))
     write_file(path, actual)
     nil
@@ -87,7 +87,7 @@ absent coverage is not full coverage.
 """
 def uncovered(coverage)
   names = if map?(coverage)
-    get(coverage, "uncovered")
+    coverage["uncovered"]
   end
   if not list?(names)
     raise(:coverage, "a coverage record carries no uncovered list")
@@ -136,7 +136,7 @@ def iso_date?(s)
   else
     []
   end
-  length(cs) == 10 and nth(4, cs) == "-" and nth(7, cs) == "-"
+  length(cs) == 10 and cs[4] == "-" and cs[7] == "-"
 end
 
 @doc """
@@ -146,7 +146,7 @@ before?: True when date string `a` sorts strictly before `b`.
     before?("2026-10-24", "2026-10-24") #=> false
 """
 def before?(a, b)
-  a != b and nth(0, sort_keyed((x) -> x, [a, b])) == a
+  a != b and sort_keyed((x) -> x, [a, b])[0] == a
 end
 
 @doc """
@@ -158,26 +158,25 @@ in (YYYY-MM-DD); nil skips the expiry judgement.
 """
 def entry_refusal(e, today)
   kind = if map?(e)
-    get(e, :entry)
+    e[:entry]
   end
   why = if map?(e)
-    get(e, :why)
+    e[:why]
   end
   if kind != :level and kind != :waive
     "is not a level or a waive entry"
   elsif not string?(why) or trim(why) == ""
     "gives no why"
-  elsif kind == :level and not string?(get(e, :scope))
+  elsif kind == :level and not string?(e[:scope])
     "names no scope"
-  elsif kind == :level and not member?(get(e, :level), levels)
+  elsif kind == :level and not member?(e[:level], levels)
     "names a level that is not off, audit or enforce"
-  elsif kind == :waive and
-      not (string?(get(e, :name)) and contains?(get(e, :name), "::"))
+  elsif kind == :waive and not (string?(e[:name]) and contains?(e[:name], "::"))
     "names no qualified definition"
-  elsif kind == :waive and not iso_date?(get(e, :until))
+  elsif kind == :waive and not iso_date?(e[:until])
     "gives no until date (YYYY-MM-DD)"
-  elsif kind == :waive and today != nil and before?(get(e, :until), today)
-    "expired on #{get(e, :until)}"
+  elsif kind == :waive and today != nil and before?(e[:until], today)
+    "expired on #{e[:until]}"
   end
 end
 
@@ -189,13 +188,13 @@ takes no effect, and its siblings stand.
 """
 def settle(entries, today)
   judged = map((e) -> [e, entry_refusal(e, today)], entries)
-  kept = map((j) -> nth(0, j), filter((j) -> nth(1, j).nil?, judged))
+  kept = map((j) -> j[0], filter((j) -> j[1].nil?, judged))
   {
-    levels: filter((e) -> get(e, :entry) == :level, kept),
-    waivers: filter((e) -> get(e, :entry) == :waive, kept),
+    levels: filter((e) -> e[:entry] == :level, kept),
+    waivers: filter((e) -> e[:entry] == :waive, kept),
     refused: map(
-      (j) -> {entry: nth(0, j), why: nth(1, j)},
-      filter((j) -> nth(1, j) != nil, judged)
+      (j) -> {entry: j[0], why: j[1]},
+      filter((j) -> j[1] != nil, judged)
     )
   }
 end
@@ -207,12 +206,12 @@ enforce. The last matching entry wins.
     level_of(settle([], nil), "q") #=> :enforce
 """
 def level_of(settled, package)
-  own = filter((e) -> get(e, :scope) == package, get(settled, :levels))
-  all = filter((e) -> get(e, :scope) == "*", get(settled, :levels))
+  own = filter((e) -> e[:scope] == package, settled[:levels])
+  all = filter((e) -> e[:scope] == "*", settled[:levels])
   if own != []
-    get(nth(length(own) - 1, own), :level)
+    own[length(own) - 1][:level]
   elsif all != []
-    get(nth(length(all) - 1, all), :level)
+    all[length(all) - 1][:level]
   else
     :enforce
   end
@@ -224,7 +223,7 @@ waived?: True when a standing waiver in `settled` names the qualified definition
     waived?(settle([waive("kazu::clamp", "in review", "2099-01-01")], nil), "kazu::clamp") #=> true
 """
 def waived?(settled, name)
-  member?(name, map((w) -> get(w, :name), get(settled, :waivers)))
+  member?(name, map((w) -> w[:name], settled[:waivers]))
 end
 
 @doc """
@@ -249,7 +248,7 @@ real gap, so it is a finding of its own.
     length(stale(settle([waive("kazu::clamp", "in review", "2099-01-01")], nil), [])) #=> 1
 """
 def stale(settled, names)
-  filter((w) -> not member?(get(w, :name), names), get(settled, :waivers))
+  filter((w) -> not member?(w[:name], names), settled[:waivers])
 end
 
 test "raises? is true for the kind raised and false for no error"
@@ -355,9 +354,9 @@ test "settle keeps good entries and refuses each bad one alone"
     ],
     "2026-10-24"
   )
-  assert map((e) -> get(e, :scope), get(s, :levels)) == ["*"]
-  assert map((e) -> get(e, :name), get(s, :waivers)) == ["p::b"]
-  assert map((r) -> get(r, :why), get(s, :refused)) ==
+  assert map((e) -> e[:scope], s[:levels]) == ["*"]
+  assert map((e) -> e[:name], s[:waivers]) == ["p::b"]
+  assert map((r) -> r[:why], s[:refused]) ==
     [
       "names a level that is not off, audit or enforce",
       "gives no why",
@@ -389,8 +388,8 @@ test "beside splits untested names from waived ones, and stale finds idle waiver
     "2026-10-24"
   )
   r = beside(s, "p", ["p::a", "p::b"])
-  assert get(r, :level) == :enforce
-  assert get(r, :untested) == ["p::a"]
-  assert get(r, :waived) == ["p::b"]
-  assert map((w) -> get(w, :name), stale(s, ["p::a", "p::b"])) == ["p::z"]
+  assert r[:level] == :enforce
+  assert r[:untested] == ["p::a"]
+  assert r[:waived] == ["p::b"]
+  assert map((w) -> w[:name], stale(s, ["p::a", "p::b"])) == ["p::z"]
 end

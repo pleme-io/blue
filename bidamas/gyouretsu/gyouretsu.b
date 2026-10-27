@@ -31,7 +31,7 @@ dot: inner product of two vectors.
     dot([1, 2, 3], [4, 5, 6]) #=> 32
 """
 def dot(a, b)
-  reduce((acc, i) -> acc + nth(i, a) * nth(i, b), 0, range(0, length(a)))
+  reduce((acc, i) -> acc + a[i] * b[i], 0, range(0, length(a)))
 end
 
 @doc """
@@ -44,11 +44,11 @@ def scale(k, v)
 end
 
 def vadd(a, b)
-  map((i) -> nth(i, a) + nth(i, b), range(0, length(a)))
+  map((i) -> a[i] + b[i], range(0, length(a)))
 end
 
 def vsub(a, b)
-  map((i) -> nth(i, a) - nth(i, b), range(0, length(a)))
+  map((i) -> a[i] - b[i], range(0, length(a)))
 end
 
 def magnitude(v)
@@ -79,7 +79,7 @@ vector against a written-out literal needs this, not `==`.
 """
 def vector_near(a, b)
   if size(a) == size(b)
-    reduce((acc, i) -> acc and near(nth(i, a), nth(i, b)), true, indexes(a))
+    reduce((acc, i) -> acc and near(a[i], b[i]), true, indexes(a))
   else
     false
   end
@@ -127,9 +127,9 @@ of the list rather than silently answering.
 """
 def cross_product(a, b)
   [
-    nth(1, a) * nth(2, b) - nth(2, a) * nth(1, b),
-    nth(2, a) * nth(0, b) - nth(0, a) * nth(2, b),
-    nth(0, a) * nth(1, b) - nth(1, a) * nth(0, b)
+    a[1] * b[2] - a[2] * b[1],
+    a[2] * b[0] - a[0] * b[2],
+    a[0] * b[1] - a[1] * b[0]
   ]
 end
 
@@ -196,7 +196,7 @@ def cols(m)
 end
 
 def col(m, j)
-  map((r) -> nth(j, r), m)
+  map((r) -> r[j], m)
 end
 
 @doc """
@@ -248,11 +248,11 @@ def shape(m)
 end
 
 def row(m, i)
-  nth(i, m)
+  m[i]
 end
 
 def is_square(m)
-  nth(0, shape(m)) == nth(1, shape(m))
+  shape(m)[0] == shape(m)[1]
 end
 
 # --- matrix comparison -------------------------------------------------------
@@ -269,7 +269,7 @@ def matrix_equal(a, b)
       fn(acc, i)
         acc and
           reduce(
-            (inner, j) -> inner and nth(j, row(a, i)) == nth(j, row(b, i)),
+            (inner, j) -> inner and row(a, i)[j] == row(b, i)[j],
             true,
             indexes(row(a, i))
           )
@@ -356,7 +356,7 @@ end
 
 def diagonal(m)
   s = shape(m)
-  map((i) -> nth(i, row(m, i)), range(0, min(nth(0, s), nth(1, s))))
+  map((i) -> row(m, i)[i], range(0, min(s[0], s[1])))
 end
 
 def trace(m)
@@ -371,9 +371,7 @@ would let the wrong one be reached for silently.
 """
 def hadamard(a, b)
   map(
-    fn(i)
-      map((j) -> nth(j, row(a, i)) * nth(j, row(b, i)), indexes(row(a, i)))
-    end,
+    (i) -> map((j) -> row(a, i)[j] * row(b, i)[j], indexes(row(a, i))),
     indexes(a)
   )
 end
@@ -393,7 +391,7 @@ end
 # --- determinants, minors, inverses ------------------------------------------
 
 def replace_col(m, j, v)
-  map((i) -> update_at(row(m, i), j, nth(i, v)), indexes(m))
+  map((i) -> update_at(row(m, i), j, v[i]), indexes(m))
 end
 
 @doc """
@@ -434,9 +432,7 @@ def determinant(m)
     sum(
       map(
         fn(j)
-          cofactor_sign(0, j) *
-            nth(j, first(m)) *
-            determinant(submatrix(m, 0, j))
+          cofactor_sign(0, j) * first(m)[j] * determinant(submatrix(m, 0, j))
         end,
         indexes(first(m))
       )
@@ -525,7 +521,7 @@ what makes elimination stable in floating point.
 """
 def solve_gauss(m, b)
   n = size(b)
-  aug = map((i) -> push(nth(i, m), nth(i, b)), range(0, n))
+  aug = map((i) -> push(m[i], b[i]), range(0, n))
   reduced = reduce((a, k) -> gauss_eliminate(a, k, n), aug, range(0, n))
   if is_empty(reduced)
     []
@@ -540,7 +536,7 @@ gauss_pivot_row: The row, from k down, whose entry in column k is largest in siz
 def gauss_pivot_row(a, k, n)
   reduce(
     fn(best, i)
-      if abs(nth(k, nth(i, a))) > abs(nth(k, nth(best, a)))
+      if abs(a[i][k]) > abs(a[best][k])
         i
       else
         best
@@ -560,20 +556,17 @@ def gauss_eliminate(a, k, n)
     []
   else
     p = gauss_pivot_row(a, k, n)
-    if abs(nth(k, nth(p, a))) < 0.000000000001
+    if abs(a[p][k]) < 0.000000000001
       []
     else
-      swapped = update_at(update_at(a, k, nth(p, a)), p, nth(k, a))
-      pivot = nth(k, swapped)
+      swapped = update_at(update_at(a, k, a[p]), p, a[k])
+      pivot = swapped[k]
       map(
         fn(i)
           if i <= k
-            nth(i, swapped)
+            swapped[i]
           else
-            vsub(
-              nth(i, swapped),
-              scale(nth(k, nth(i, swapped)) / nth(k, pivot), pivot)
-            )
+            vsub(swapped[i], scale(swapped[i][k] / pivot[k], pivot))
           end
         end,
         range(0, n)
@@ -590,13 +583,9 @@ def gauss_back_substitute(a, n)
 end
 
 def push_front_solution(a, n, i, xs)
-  row = nth(i, a)
-  known = reduce(
-    (acc, t) -> acc + nth(i + 1 + t, row) * nth(t, xs),
-    0,
-    indexes(xs)
-  )
-  concat_lists([(nth(n, row) - known) / nth(i, row)], xs)
+  row = a[i]
+  known = reduce((acc, t) -> acc + row[i + 1 + t] * xs[t], 0, indexes(xs))
+  concat_lists([(row[n] - known) / row[i]], xs)
 end
 
 test "dot product and magnitude"

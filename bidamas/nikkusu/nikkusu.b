@@ -14,8 +14,8 @@ def read(source)
   t = nix_parse(source)
   {
     source:,
-    root: get(t, :root),
-    errors: get(t, :errors),
+    root: t[:root],
+    errors: t[:errors],
     line_starts: cons(
       0,
       running_sum(map((l) -> length(l) + 1, split(source, line_break)))
@@ -27,16 +27,16 @@ def kind(n)
   if n.nil?
     nil
   else
-    get(n, :kind)
+    n[:kind]
   end
 end
 
 def token?(n)
-  get(n, :text) != nil
+  n[:text] != nil
 end
 
 def kids(n)
-  cs = get(n, :children)
+  cs = n[:children]
   if cs.nil?
     []
   else
@@ -45,7 +45,7 @@ def kids(n)
 end
 
 def nodes_of(n)
-  filter((c) -> get(c, :children) != nil, kids(n))
+  filter((c) -> c[:children] != nil, kids(n))
 end
 
 def trivia?(n)
@@ -58,7 +58,7 @@ end
 
 def text(n)
   if token?(n)
-    get(n, :text)
+    n[:text]
   else
     join(map(text, kids(n)), "")
   end
@@ -69,7 +69,7 @@ def code(n)
     if trivia?(n)
       ""
     else
-      get(n, :text)
+      n[:text]
     end
   else
     join(map(code, kids(n)), "")
@@ -77,7 +77,7 @@ def code(n)
 end
 
 def line_of(doc, offset)
-  upper_bound(get(doc, :line_starts), offset)
+  upper_bound(doc[:line_starts], offset)
 end
 
 def line_count(n)
@@ -159,7 +159,7 @@ def binding(n, path, scope, value, outer)
     value:,
     scope:,
     outer:,
-    start: get(n, :start)
+    start: n[:start]
   }
 end
 
@@ -172,7 +172,7 @@ def bindings_in(n, prefix, scope, outer)
   if k == "NODE_ATTRPATH_VALUE"
     parts = nodes_of(n)
     path = append(prefix, attrpath(first(parts)))
-    value = nth(1, parts)
+    value = parts[1]
     if value.nil?
       [binding(n, path, scope, nil, outer)]
     else
@@ -209,12 +209,12 @@ def bindings_in(n, prefix, scope, outer)
 end
 
 def under?(b, prefix)
-  p = get(b, :path)
+  p = b[:path]
   size(p) >= size(prefix) and take(size(prefix), p) == prefix
 end
 
 def module_path(b)
-  config_relative(get(b, :path))
+  config_relative(b[:path])
 end
 
 def config_relative(p)
@@ -236,7 +236,7 @@ end
 def args_of(n)
   if kind(n) == "NODE_APPLY"
     parts = nodes_of(n)
-    append(args_of(first(parts)), [nth(1, parts)])
+    append(args_of(first(parts)), [parts[1]])
   else
     []
   end
@@ -244,13 +244,7 @@ end
 
 def call(n)
   h = head_of(n)
-  {
-    head: code(h),
-    head_node: h,
-    args: args_of(n),
-    node: n,
-    start: get(n, :start)
-  }
+  {head: code(h), head_node: h, args: args_of(n), node: n, start: n[:start]}
 end
 
 def calls(root)
@@ -275,7 +269,7 @@ def calls_in(n, as_head)
 end
 
 def head_name(c)
-  last(split(get(c, :head), "."))
+  last(split(c[:head], "."))
 end
 
 def called?(c, names)
@@ -292,16 +286,14 @@ end
 
 def withs(root)
   map(
-    fn(w)
-      {namespace: code(first(nodes_of(w))), node: w, start: get(w, :start)}
-    end,
+    (w) -> {namespace: code(first(nodes_of(w))), node: w, start: w[:start]},
     of_kind("NODE_WITH", root)
   )
 end
 
 def angle_paths(root)
   map(
-    (p) -> {path: code(p), node: p, start: get(p, :start)},
+    (p) -> {path: code(p), node: p, start: p[:start]},
     of_kind("NODE_PATH_SEARCH", root)
   )
 end
@@ -313,11 +305,11 @@ end
 def options_roots(root)
   filter(
     fn(b)
-      o = get(b, :outer)
-      get(b, :scope) == :attrs and
-        first(get(b, :path)) == "options" and
+      o = b[:outer]
+      b[:scope] == :attrs and
+        first(b[:path]) == "options" and
         (o.nil? or first(o) != "options") and
-        (size(get(b, :path)) > 1 or kind(get(b, :value)) == "NODE_ATTR_SET")
+        (size(b[:path]) > 1 or kind(b[:value]) == "NODE_ATTR_SET")
     end,
     bindings(root)
   )
@@ -326,11 +318,11 @@ end
 def option_declarations(root)
   append(
     map(
-      (b) -> {at: get(b, :dotted), node: get(b, :node), start: get(b, :start)},
+      (b) -> {at: b[:dotted], node: b[:node], start: b[:start]},
       options_roots(root)
     ),
     map(
-      (c) -> {at: get(c, :head), node: get(c, :node), start: get(c, :start)},
+      (c) -> {at: c[:head], node: c[:node], start: c[:start]},
       calls_named(root, option_calls)
     )
   )
@@ -338,13 +330,13 @@ end
 
 def attr(set, name)
   hit = filter(
-    (b) -> get(b, :path) == [name],
+    (b) -> b[:path] == [name],
     flat_map(nodes_of(set), (c) -> bindings_in(c, [], :attrs, nil))
   )
   if is_empty(hit)
     nil
   else
-    get(first(hit), :value)
+    first(hit)[:value]
   end
 end
 
@@ -376,13 +368,13 @@ def sample()
 end
 
 def dotted_of(doc)
-  map((b) -> get(b, :dotted), bindings(get(doc, :root)))
+  map((b) -> b[:dotted], bindings(doc[:root]))
 end
 
 test "read: the tree is lossless, error-free, and lines count from one"
   d = read(sample)
-  assert text(get(d, :root)) == sample
-  assert get(d, :errors) == []
+  assert text(d[:root]) == sample
+  assert d[:errors] == []
   assert line_of(d, 0) == 1
   assert line_of(d, 22) == 2
   assert line_of(d, length(sample) - 1) == 9
@@ -391,10 +383,10 @@ end
 test "read on empty source is a root with one error and no bindings"
   assert kind(nil).nil?
   d = read("")
-  assert kind(get(d, :root)) == "NODE_ROOT"
-  assert size(get(d, :errors)) == 1
-  assert bindings(get(d, :root)) == []
-  assert calls(get(d, :root)) == []
+  assert kind(d[:root]) == "NODE_ROOT"
+  assert size(d[:errors]) == 1
+  assert bindings(d[:root]) == []
+  assert calls(d[:root]) == []
 end
 
 test "bindings: nested sets and wrappers give dotted paths, let and inherit are scoped"
@@ -404,18 +396,15 @@ test "bindings: nested sets and wrappers give dotted paths, let and inherit are 
   assert member?("config.systemd.services.x", ds) == true
   assert member?("config.environment.etc.a b.text", ds) == true
   assert member?("config.port", ds) == true
-  lets = filter((b) -> get(b, :scope) == :let, bindings(get(d, :root)))
-  assert map((b) -> get(b, :dotted), lets) == ["cfg"]
+  lets = filter((b) -> b[:scope] == :let, bindings(d[:root]))
+  assert map((b) -> b[:dotted], lets) == ["cfg"]
   assert member?("cfg", filter((x) -> x != "cfg", ds)) == false
 end
 
 test "module_path drops a leading config, and under? reads a prefix"
   d = read(sample)
   b = first(
-    filter(
-      (b) -> get(b, :dotted) == "config.systemd.services.x",
-      bindings(get(d, :root))
-    )
+    filter((b) -> b[:dotted] == "config.systemd.services.x", bindings(d[:root]))
   )
   assert module_path(b) == ["systemd", "services", "x"]
   assert under?(b, ["config", "systemd"]) == true
@@ -424,15 +413,15 @@ end
 
 test "calls: a curried call is one call with its head and every argument"
   d = read("lib.nixosSystem { system = \"x\"; } // f a (g b)")
-  cs = calls(get(d, :root))
-  assert map((c) -> get(c, :head), cs) == ["lib.nixosSystem", "f", "g"]
-  assert size(get(nth(1, cs), :args)) == 2
+  cs = calls(d[:root])
+  assert map((c) -> c[:head], cs) == ["lib.nixosSystem", "f", "g"]
+  assert size(cs[1][:args]) == 2
   assert head_name(first(cs)) == "nixosSystem"
   assert map(
-    (c) -> get(c, :head),
-    calls_named(get(d, :root), ["nixosSystem", "darwinSystem"])
+    (c) -> c[:head],
+    calls_named(d[:root], ["nixosSystem", "darwinSystem"])
   ) == ["lib.nixosSystem"]
-  assert calls_named(get(d, :root), ["darwinSystem"]) == []
+  assert calls_named(d[:root], ["darwinSystem"]) == []
 end
 
 test "with scopes and angle paths are found, and comments never are"
@@ -441,38 +430,35 @@ test "with scopes and angle paths are found, and comments never are"
       ["# with pkgs; <nixpkgs>", "with pkgs; [ (import <nixpkgs> { }) ]"]
     )
   )
-  assert map((w) -> get(w, :namespace), withs(get(d, :root))) == ["pkgs"]
-  assert map((p) -> get(p, :path), angle_paths(get(d, :root))) == ["<nixpkgs>"]
-  assert withs(get(read("{ a = 1; }"), :root)) == []
+  assert map((w) -> w[:namespace], withs(d[:root])) == ["pkgs"]
+  assert map((p) -> p[:path], angle_paths(d[:root])) == ["<nixpkgs>"]
+  assert withs(read("{ a = 1; }")[:root]) == []
 end
 
 test "option declarations come from options bindings and mkOption calls"
   d = read(sample)
-  os = option_declarations(get(d, :root))
-  assert map((o) -> get(o, :at), os) ==
+  os = option_declarations(d[:root])
+  assert map((o) -> o[:at], os) ==
     ["options.pleme.x.enable", "lib.mkEnableOption"]
-  assert option_declarations(get(read("{ a.options = 1; }"), :root)) == []
-  assert option_declarations(get(read("{ options = [ 1 ]; }"), :root)) == []
-  assert size(option_declarations(get(read("{ options = { }; }"), :root))) == 1
+  assert option_declarations(read("{ a.options = 1; }")[:root]) == []
+  assert option_declarations(read("{ options = [ 1 ]; }")[:root]) == []
+  assert size(option_declarations(read("{ options = { }; }")[:root])) == 1
 end
 
 test "attr reads one attribute of a set literal, and module_function? a module"
   d = read("{ url = \"u\"; sha256 = \"h\"; }")
-  set = first(nodes_of(get(d, :root)))
+  set = first(nodes_of(d[:root]))
   assert string_content(attr(set, "url")) == "u"
   assert attr(set, "hash").nil?
-  m = first(nodes_of(get(read(sample), :root)))
+  m = first(nodes_of(read(sample)[:root]))
   assert module_function?(m) == true
-  assert module_function?(first(nodes_of(get(read("{ lib }: { }"), :root)))) ==
-    false
+  assert module_function?(first(nodes_of(read("{ lib }: { }")[:root]))) == false
 end
 
 test "string_content and line_count read a string's body"
   d = read(join_lines(["''", "  a", "  b", "''"]))
-  s = first(nodes_of(get(d, :root)))
+  s = first(nodes_of(d[:root]))
   assert line_count(s) == 4
-  assert string_content(first(nodes_of(get(read("\"x${y}z\""), :root)))) ==
-    "x${y}z"
-  assert literal_string?(first(nodes_of(get(read("\"x${y}\""), :root)))) ==
-    false
+  assert string_content(first(nodes_of(read("\"x${y}z\"")[:root]))) == "x${y}z"
+  assert literal_string?(first(nodes_of(read("\"x${y}\"")[:root]))) == false
 end

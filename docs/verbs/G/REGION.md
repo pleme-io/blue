@@ -1,8 +1,3 @@
----
-kind: explanation
-summary: verb graph region G: interfaces, intelligence and the physical world
----
-
 # Region G: interfaces, intelligence and the physical world
 395 verb rows, 610 edges (1.54 per verb), 14 new provisional spaces and 22 existing ones extended.
 Drawn from: Elm/React/SwiftUI (gamen), WCAG/ICU (theme, plural), CSS springs and easing (ugoki), wgpu render graphs (byouga), ffmpeg/sox/Pillow (onsei, gazou),

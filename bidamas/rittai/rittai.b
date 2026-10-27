@@ -89,15 +89,15 @@ legacy_names("0.1.1", "rt")
 # ── points and directions ────────────────────────────────────────────
 
 def x(p)
-  nth(0, p)
+  p[0]
 end
 
 def y(p)
-  nth(1, p)
+  p[1]
 end
 
 def z(p)
-  nth(2, p)
+  p[2]
 end
 
 @doc """
@@ -173,11 +173,11 @@ def pose(rotation, translation)
 end
 
 def pose_rotation(p)
-  nth(0, p)
+  p[0]
 end
 
 def pose_translation(p)
-  nth(1, p)
+  p[1]
 end
 
 def identity_pose()
@@ -230,11 +230,11 @@ def mesh(vertices, faces)
 end
 
 def vertices(m)
-  nth(0, m)
+  m[0]
 end
 
 def faces(m)
-  nth(1, m)
+  m[1]
 end
 
 def empty_mesh()
@@ -268,7 +268,7 @@ def translate(m, d)
 end
 
 def face_points(m, f)
-  map((i) -> nth(i, vertices(m)), f)
+  map((i) -> vertices(m)[i], f)
 end
 
 @doc """
@@ -276,10 +276,7 @@ face_normal: The face's outward normal, unit length; zero for a degenerate face.
 """
 def face_normal(m, f)
   pts = face_points(m, f)
-  n = cross_product(
-    vsub(nth(1, pts), nth(0, pts)),
-    vsub(nth(2, pts), nth(0, pts))
-  )
+  n = cross_product(vsub(pts[1], pts[0]), vsub(pts[2], pts[0]))
   if is_zero_vector(n)
     [0, 0, 0]
   else
@@ -289,12 +286,7 @@ end
 
 def face_area(m, f)
   pts = face_points(m, f)
-  magnitude(
-    cross_product(
-      vsub(nth(1, pts), nth(0, pts)),
-      vsub(nth(2, pts), nth(0, pts))
-    )
-  ) / 2
+  magnitude(cross_product(vsub(pts[1], pts[0]), vsub(pts[2], pts[0]))) / 2
 end
 
 @doc """
@@ -310,7 +302,7 @@ end
 # solid's volume, and their volume-weighted centroids to its centroid.
 
 def tet_volume(pts)
-  dot(nth(0, pts), cross_product(nth(1, pts), nth(2, pts))) / 6
+  dot(pts[0], cross_product(pts[1], pts[2])) / 6
 end
 
 @doc """
@@ -336,13 +328,7 @@ end
 def centroid_term(acc, pts)
   # A tetrahedron's centroid is the mean of its four corners, one of them the
   # origin: (a + b + c) / 4.
-  vadd(
-    acc,
-    scale(
-      tet_volume(pts) / 4,
-      vadd(vadd(nth(0, pts), nth(1, pts)), nth(2, pts))
-    )
-  )
+  vadd(acc, scale(tet_volume(pts) / 4, vadd(vadd(pts[0], pts[1]), pts[2])))
 end
 
 @doc """
@@ -376,13 +362,7 @@ end
 def directed_edges(m)
   flat_map(
     faces(m),
-    fn(f)
-      [
-        edge_key(nth(0, f), nth(1, f)),
-        edge_key(nth(1, f), nth(2, f)),
-        edge_key(nth(2, f), nth(0, f))
-      ]
-    end
+    (f) -> [edge_key(f[0], f[1]), edge_key(f[1], f[2]), edge_key(f[2], f[0])]
   )
 end
 
@@ -414,12 +394,10 @@ def closed_refusals(m)
   directed = directed_edges(m)
   seen = count_keys(directed)
   present = key_set(seen)
-  doubled = size(filter((kv) -> nth(1, kv) > 1, seen))
-  unmatched = size(
-    filter((kv) -> get(present, reverse_key(nth(0, kv))).nil?, seen)
-  )
+  doubled = size(filter((kv) -> kv[1] > 1, seen))
+  unmatched = size(filter((kv) -> get(present, reverse_key(kv[0])).nil?, seen))
   crowded = size(
-    filter((kv) -> nth(1, kv) > 2, count_keys(map(undirected_key, directed)))
+    filter((kv) -> kv[1] > 2, count_keys(map(undirected_key, directed)))
   )
   out = concat_lists(
     if crowded > 0
@@ -471,7 +449,7 @@ end
 
 def reverse_key(k)
   parts = split(k, ">")
-  "#{nth(1, parts)}>#{nth(0, parts)}"
+  "#{parts[1]}>#{parts[0]}"
 end
 
 @doc """
@@ -479,7 +457,7 @@ undirected_key: The edge regardless of direction: its two indices, lower first.
 """
 def undirected_key(k)
   parts = map((s) -> to_int(s), split(k, ">"))
-  "#{to_s(min(nth(0, parts), nth(1, parts)))}-#{to_s(max(nth(0, parts), nth(1, parts)))}"
+  "#{to_s(min(parts[0], parts[1]))}-#{to_s(max(parts[0], parts[1]))}"
 end
 
 # ── welding and fusing ───────────────────────────────────────────────
@@ -501,30 +479,27 @@ shared by more than two faces (they only touch).
 def weld(m)
   vs = vertices(m)
   fin = reduce(weld_step, {index: {}, kept: [], count: 0, remap: []}, vs)
-  remap = reverse(get(fin, :remap))
-  mesh(
-    reverse(get(fin, :kept)),
-    map((f) -> map((i) -> nth(i, remap), f), faces(m))
-  )
+  remap = reverse(fin[:remap])
+  mesh(reverse(fin[:kept]), map((f) -> map((i) -> remap[i], f), faces(m)))
 end
 
 def weld_step(acc, p)
   k = position_key(p)
-  at = get(get(acc, :index), k)
+  at = get(acc[:index], k)
   if at.nil?
-    n = get(acc, :count)
+    n = acc[:count]
     {
-      index: assoc(get(acc, :index), k, n),
-      kept: concat_lists([p], get(acc, :kept)),
+      index: assoc(acc[:index], k, n),
+      kept: concat_lists([p], acc[:kept]),
       count: n + 1,
-      remap: concat_lists([n], get(acc, :remap))
+      remap: concat_lists([n], acc[:remap])
     }
   else
     {
-      index: get(acc, :index),
-      kept: get(acc, :kept),
-      count: get(acc, :count),
-      remap: concat_lists([at], get(acc, :remap))
+      index: acc[:index],
+      kept: acc[:kept],
+      count: acc[:count],
+      remap: concat_lists([at], acc[:remap])
     }
   end
 end
@@ -536,7 +511,7 @@ def drop_faces(m, drop)
   mesh(
     vertices(m),
     map(
-      (i) -> nth(i, faces(m)),
+      (i) -> faces(m)[i],
       filter((i) -> contains(drop, i) == false, indexes(faces(m)))
     )
   )
@@ -577,22 +552,19 @@ end
 
 # waive B0013: `distinct` is a builtin rittai also uses, so the prefix stays; rittai::distinct names it too
 def rt_distinct(keys, _table)
-  reverse(get(reduce(distinct_step, {seen: {}, out: []}, keys), :out))
+  reverse(reduce(distinct_step, {seen: {}, out: []}, keys)[:out])
 end
 
 def distinct_step(acc, k)
-  if get(get(acc, :seen), k).nil?
-    {
-      seen: assoc(get(acc, :seen), k, true),
-      out: concat_lists([k], get(acc, :out))
-    }
+  if get(acc[:seen], k).nil?
+    {seen: assoc(acc[:seen], k, true), out: concat_lists([k], acc[:out])}
   else
     acc
   end
 end
 
 def key_set(pairs)
-  reduce((acc, kv) -> assoc(acc, nth(0, kv), true), {}, pairs)
+  reduce((acc, kv) -> assoc(acc, kv[0], true), {}, pairs)
 end
 
 # ── triangulating a polygon with holes ───────────────────────────────
@@ -618,10 +590,7 @@ def region_loops(r)
     get(
       reduce(
         fn(acc, s)
-          {
-            next: get(acc, :next) + s,
-            out: concat_lists([get(acc, :next)], get(acc, :out))
-          }
+          {next: acc[:next] + s, out: concat_lists([acc[:next]], acc[:out])}
         end,
         {next: 0, out: []},
         sizes
@@ -629,10 +598,7 @@ def region_loops(r)
       :out
     )
   )
-  map(
-    (i) -> range(nth(i, starts), nth(i, starts) + nth(i, sizes)),
-    indexes(sizes)
-  )
+  map((i) -> range(starts[i], starts[i] + sizes[i]), indexes(sizes))
 end
 
 @doc """
@@ -641,7 +607,7 @@ triangulate: Triangles for a region, or a refusal. Each triangle is counter-cloc
 def triangulate(r)
   pts = region_points(r)
   loops = region_loops(r)
-  holes = sort_by((l) -> -max_of(map((i) -> px(nth(i, pts)), l)), rest(loops))
+  holes = sort_by((l) -> -max_of(map((i) -> px(pts[i]), l)), rest(loops))
   merged = reduce((poly, h) -> bridge(pts, poly, h, holes), first(loops), holes)
   ear_clip(pts, merged)
 end
@@ -653,7 +619,7 @@ segment reaches without crossing any edge.
 """
 def bridge(pts, poly, h, holes)
   m = rightmost(pts, h)
-  cands = sort_by((i) -> distance_squared(nth(i, pts), nth(m, pts)), poly)
+  cands = sort_by((i) -> distance_squared(pts[i], pts[m]), poly)
   edges = concat_lists(index_edges(poly), flat_map(holes, index_edges))
   p = find_first((i) -> visible(pts, m, i, edges), cands)
   at = index_of(poly, p)
@@ -668,7 +634,7 @@ end
 def rightmost(pts, loop)
   reduce(
     fn(best, i)
-      if px(nth(i, pts)) > px(nth(best, pts))
+      if px(pts[i]) > px(pts[best])
         i
       else
         best
@@ -681,25 +647,25 @@ end
 
 def index_edges(loop)
   n = size(loop)
-  map((j) -> [nth(j, loop), nth((j + 1) % n, loop)], range(0, n))
+  map((j) -> [loop[j], loop[(j + 1) % n]], range(0, n))
 end
 
 @doc """
 visible: The segment from vertex m to vertex p crosses no edge except at its ends.
 """
 def visible(pts, m, p, edges)
-  a = nth(m, pts)
-  b = nth(p, pts)
+  a = pts[m]
+  b = pts[p]
   some((e) -> blocks(pts, e, m, p, a, b), edges) != true
 end
 
 def blocks(pts, e, m, p, a, b)
-  i = nth(0, e)
-  j = nth(1, e)
+  i = e[0]
+  j = e[1]
   if i == m or j == m or i == p or j == p
     false
   else
-    segments_intersect(a, b, nth(i, pts), nth(j, pts))
+    segments_intersect(a, b, pts[i], pts[j])
   end
 end
 
@@ -710,47 +676,43 @@ def ear_clip(pts, poly)
     {poly:, tris: [], stuck: false},
     range(0, n)
   )
-  if get(fin, :stuck) or size(get(fin, :poly)) > 0
+  if fin[:stuck] or size(fin[:poly]) > 0
     {
-      triangles: reverse(get(fin, :tris)),
+      triangles: reverse(fin[:tris]),
       refusals: [
         [
           :rittai_triangulation,
-          "no ear left with #{to_s(size(get(fin, :poly)))} vertices remaining; the region is not simple"
+          "no ear left with #{to_s(size(fin[:poly]))} vertices remaining; the region is not simple"
         ]
       ]
     }
   else
-    {triangles: reverse(get(fin, :tris)), refusals: []}
+    {triangles: reverse(fin[:tris]), refusals: []}
   end
 end
 
 def clip_step(pts, acc)
-  poly = get(acc, :poly)
-  if get(acc, :stuck) or size(poly) == 0
+  poly = acc[:poly]
+  if acc[:stuck] or size(poly) == 0
     acc
   elsif size(poly) == 3
-    {poly: [], tris: concat_lists([poly], get(acc, :tris)), stuck: false}
+    {poly: [], tris: concat_lists([poly], acc[:tris]), stuck: false}
   else
     ears = filter((k) -> is_ear(pts, poly, k), indexes(poly))
     if is_empty(ears)
       flat = filter((k) -> turn(pts, poly, k) == 0, indexes(poly))
       if is_empty(flat)
-        {poly:, tris: get(acc, :tris), stuck: true}
+        {poly:, tris: acc[:tris], stuck: true}
       else
-        {
-          poly: remove_at(poly, first(flat)),
-          tris: get(acc, :tris),
-          stuck: false
-        }
+        {poly: remove_at(poly, first(flat)), tris: acc[:tris], stuck: false}
       end
     else
       k = first(ears)
       n = size(poly)
-      tri = [nth((k + n - 1) % n, poly), nth(k, poly), nth((k + 1) % n, poly)]
+      tri = [poly[(k + n - 1) % n], poly[k], poly[(k + 1) % n]]
       {
         poly: remove_at(poly, k),
-        tris: concat_lists([tri], get(acc, :tris)),
+        tris: concat_lists([tri], acc[:tris]),
         stuck: false
       }
     end
@@ -765,11 +727,7 @@ reflex, 0 straight.
 """
 def turn(pts, poly, k)
   n = size(poly)
-  c = cross(
-    nth(nth((k + n - 1) % n, poly), pts),
-    nth(nth(k, poly), pts),
-    nth(nth((k + 1) % n, poly), pts)
-  )
+  c = cross(pts[poly[(k + n - 1) % n]], pts[poly[k]], pts[poly[(k + 1) % n]])
   if c > 0.0000000001
     1
   elsif c < -0.0000000001
@@ -789,15 +747,15 @@ def is_ear(pts, poly, k)
     false
   else
     n = size(poly)
-    a = nth(nth((k + n - 1) % n, poly), pts)
-    b = nth(nth(k, poly), pts)
-    c = nth(nth((k + 1) % n, poly), pts)
+    a = pts[poly[(k + n - 1) % n]]
+    b = pts[poly[k]]
+    c = pts[poly[(k + 1) % n]]
     some((j) -> blocks_ear(pts, poly, j, a, b, c), indexes(poly)) != true
   end
 end
 
 def blocks_ear(pts, poly, j, a, b, c)
-  q = nth(nth(j, poly), pts)
+  q = pts[poly[j]]
   if near(distance_squared(q, a), 0) or
       near(distance_squared(q, b), 0) or
       near(distance_squared(q, c), 0)
@@ -817,14 +775,14 @@ def extrude(r, h)
   pts = region_points(r)
   n = size(pts)
   tri = triangulate(r)
-  if is_empty(get(tri, :refusals)) == false
-    raise(:rittai_triangulation, why_of(get(tri, :refusals)))
+  if is_empty(tri[:refusals]) == false
+    raise(:rittai_triangulation, why_of(tri[:refusals]))
   end
   bottom = map((p) -> lift(p, 0), pts)
   top = map((p) -> lift(p, h), pts)
   sides = flat_map(region_loops(r), (l) -> loop_sides(l, n))
-  caps_top = map((t) -> map((i) -> i + n, t), get(tri, :triangles))
-  caps_bottom = map((t) -> reverse(t), get(tri, :triangles))
+  caps_top = map((t) -> map((i) -> i + n, t), tri[:triangles])
+  caps_bottom = map((t) -> reverse(t), tri[:triangles])
   mesh(
     concat_lists(bottom, top),
     concat_lists(sides, concat_lists(caps_top, caps_bottom))
@@ -832,7 +790,7 @@ def extrude(r, h)
 end
 
 def why_of(refusals)
-  join(map((r) -> nth(1, r), refusals), "; ")
+  join(map((r) -> r[1], refusals), "; ")
 end
 
 @doc """
@@ -842,12 +800,7 @@ a, bottom b, top b, then bottom a, top b, top a.
 def loop_sides(loop, n)
   flat_map(
     index_edges(loop),
-    fn(e)
-      [
-        [nth(0, e), nth(1, e), nth(1, e) + n],
-        [nth(0, e), nth(1, e) + n, nth(0, e) + n]
-      ]
-    end
+    (e) -> [[e[0], e[1], e[1] + n], [e[0], e[1] + n, e[0] + n]]
   )
 end
 
@@ -877,13 +830,13 @@ def sweep(profile, path)
   walls = flat_map(range(0, size(path) - 1), (s) -> ring_walls(s, np))
   tri = triangulate(region(prof, []))
   last_base = (size(path) - 1) * np
-  start_cap = map((t) -> reverse(t), get(tri, :triangles))
-  end_cap = map((t) -> map((i) -> i + last_base, t), get(tri, :triangles))
+  start_cap = map((t) -> reverse(t), tri[:triangles])
+  end_cap = map((t) -> map((i) -> i + last_base, t), tri[:triangles])
   mesh(verts, concat_lists(walls, concat_lists(start_cap, end_cap)))
 end
 
 def segment_dir(path, i)
-  normalize(vsub(nth(i + 1, path), nth(i, path)))
+  normalize(vsub(path[i + 1], path[i]))
 end
 
 @doc """
@@ -906,7 +859,7 @@ end
 def transport(path, acc, i)
   prev = first(acc)
   r = rot_between(segment_dir(path, i - 1), segment_dir(path, i))
-  concat_lists([[mvmul(r, nth(0, prev)), mvmul(r, nth(1, prev))]], acc)
+  concat_lists([[mvmul(r, prev[0]), mvmul(r, prev[1])]], acc)
 end
 
 @doc """
@@ -917,14 +870,11 @@ joint, reached along the incoming direction.
 def ring(prof, path, frames, i)
   last_seg = size(path) - 2
   seg = min(i, last_seg)
-  frame = nth(seg, frames)
+  frame = frames[seg]
   if i == 0 or i == size(path) - 1
     map(
       fn(q)
-        vadd(
-          nth(i, path),
-          vadd(scale(px(q), nth(0, frame)), scale(py(q), nth(1, frame)))
-        )
+        vadd(path[i], vadd(scale(px(q), frame[0]), scale(py(q), frame[1])))
       end,
       prof
     )
@@ -932,12 +882,12 @@ def ring(prof, path, frames, i)
     tin = segment_dir(path, i - 1)
     tout = segment_dir(path, i)
     mitre = normalize(vadd(tin, tout))
-    fin = nth(i - 1, frames)
+    fin = frames[i - 1]
     map(
       fn(q)
         onto_mitre(
-          nth(i, path),
-          vadd(scale(px(q), nth(0, fin)), scale(py(q), nth(1, fin))),
+          path[i],
+          vadd(scale(px(q), fin[0]), scale(py(q), fin[1])),
           tin,
           mitre
         )
@@ -985,9 +935,9 @@ def stl_facet(m, f)
     [
       "facet normal #{point_text(face_normal(m, f))}",
       " outer loop",
-      "  vertex #{point_text(nth(0, pts))}",
-      "  vertex #{point_text(nth(1, pts))}",
-      "  vertex #{point_text(nth(2, pts))}",
+      "  vertex #{point_text(pts[0])}",
+      "  vertex #{point_text(pts[1])}",
+      "  vertex #{point_text(pts[2])}",
       " endloop",
       "endfacet"
     ]
@@ -1018,20 +968,14 @@ test "a drilled plate extrudes to its region's area times its thickness"
   assert near_within(volume(m), region_area(plate) * 1.5, 0.0001) == true
   # Ear clipping gives n + 2h - 2 triangles for n points and h holes.
   tri = triangulate(plate)
-  assert size(get(tri, :triangles)) == 4 + 32 + 24 + 2 * 2 - 2
+  assert size(tri[:triangles]) == 4 + 32 + 24 + 2 * 2 - 2
   # The triangles tile the region exactly.
   pts = region_points(plate)
   assert near_within(
     sum(
       map(
-        fn(t)
-          triangle_area(
-            nth(nth(0, t), pts),
-            nth(nth(1, t), pts),
-            nth(nth(2, t), pts)
-          )
-        end,
-        get(tri, :triangles)
+        (t) -> triangle_area(pts[t[0]], pts[t[1]], pts[t[2]]),
+        tri[:triangles]
       )
     ),
     region_area(plate),
@@ -1104,7 +1048,7 @@ test "broken meshes are refused, each for its own reason"
   )
   assert size(mesh_refusals(flipped)) >= 1
   inward = mesh(vertices(b), map((f) -> reverse(f), faces(b)))
-  assert map((r) -> nth(1, r), mesh_refusals(inward)) ==
+  assert map((r) -> r[1], mesh_refusals(inward)) ==
     ["the volume is not positive: the faces are wound inward"]
   assert size(mesh_refusals(mesh(vertices(b), [[0, 1, 99]]))) == 1
   assert size(mesh_refusals(empty_mesh)) == 1

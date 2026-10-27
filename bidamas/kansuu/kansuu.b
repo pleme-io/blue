@@ -394,7 +394,7 @@ test "fork combines what both_results would have paired"
   # both branches see the SAME input - not the first branch's output
   assert fork(sub, identity, identity)(9) == 0
   # spread of a list, without naming the list twice
-  span = fork(sub, (xs) -> nth(0, xs), (xs) -> nth(1, xs))
+  span = fork(sub, (xs) -> xs[0], (xs) -> xs[1])
   assert span([10, 4]) == 6
 end
 

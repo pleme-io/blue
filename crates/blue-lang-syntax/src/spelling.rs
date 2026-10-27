@@ -17,6 +17,7 @@ pub enum Spelling {
     MapPun,
     NilTest,
     NewlineEscape,
+    Index,
 }
 
 impl Spelling {
@@ -36,6 +37,7 @@ impl Spelling {
         Spelling::MapPun,
         Spelling::NilTest,
         Spelling::NewlineEscape,
+        Spelling::Index,
     ];
 }
 

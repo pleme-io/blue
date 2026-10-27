@@ -1,8 +1,3 @@
----
-kind: explanation
-summary: how a blue project is published and resolved: registries as renderings of the Bluefile
----
-
 # Registry
 
 A registry publishes a blue project and resolves it for other projects. In

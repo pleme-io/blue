@@ -15,7 +15,7 @@ def nodes(tree, path)
     here
   else
     children = map(
-      (i) -> nodes(nth(i, tree), append(path, [i])),
+      (i) -> nodes(tree[i], append(path, [i])),
       range(length(tree))
     )
     append(*cons(here, children))
@@ -41,7 +41,7 @@ def nil_predicate(form)
   hits = filter((p) -> call?(last(p), "nil?", 1), nodes(form, []))
   map(
     fn(p)
-      arg = nth(1, last(p))
+      arg = last(p)[1]
       {
         at: first(p),
         message: "write `x.nil?`, not `nil?(x)`",
@@ -64,14 +64,14 @@ test "a nil? call anywhere in a form is found, with its path"
     end
   end
   found = nil_predicate(form)
-  assert map((f) -> get(f, :at), found) == [[2, 1], [2, 2, 1]]
+  assert map((f) -> f[:at], found) == [[2, 1], [2, 2, 1]]
 end
 
 test "the fix is the same test written as the predicate"
   form = quote
     nil?(y)
   end
-  fix = get(first(nil_predicate(form)), :fix)
+  fix = first(nil_predicate(form))[:fix]
   assert fix ==
     quote
       y.nil?

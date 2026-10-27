@@ -1,8 +1,8 @@
-words = split(downcase(trim(read_file(nth(0, argv)))), " ")
+words = split(downcase(trim(read_file(argv[0]))), " ")
 counts = frequencies(words)
 
 ranked = sort_keyed(
-  (p) -> -nth(1, p),
+  (p) -> -p[1],
   map((w) -> [w, get(counts, w)], distinct(words))
 )
 

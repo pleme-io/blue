@@ -1320,6 +1320,7 @@ pub fn spelling_code(spelling: blue_lang_syntax::Spelling) -> blue_lang_check::C
         Spelling::MapPun => Code::B0046,
         Spelling::NilTest => Code::B0047,
         Spelling::NewlineEscape => Code::B0065,
+        Spelling::Index => Code::B0066,
     }
 }
 

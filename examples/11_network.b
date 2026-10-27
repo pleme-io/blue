@@ -19,19 +19,19 @@ def service_call(base, token, domain, service, entity)
 end
 
 def send(req)
-  r = http_request(nth(0, req), nth(1, req), nth(2, req), nth(3, req), 5000)
-  get(r, :status) < 300
+  r = http_request(req[0], req[1], req[2], req[3], 5000)
+  r[:status] < 300
 end
 
 # "home.light.kitchen" with payload "on" is light.turn_on for light.kitchen.
 def command_of(m)
-  parts = split(get(m, :subject), ".")
-  service = if get(m, :payload) == "on"
+  parts = split(m[:subject], ".")
+  service = if m[:payload] == "on"
     "turn_on"
   else
     "turn_off"
   end
-  [nth(1, parts), service, "#{nth(1, parts)}.#{nth(2, parts)}"]
+  [parts[1], service, "#{parts[1]}.#{parts[2]}"]
 end
 
 # One turn of the daemon's loop: the next message applied, or nil when quiet.
@@ -41,7 +41,7 @@ def serve_once(sub, base, token)
     nil
   else
     cmd = command_of(m)
-    send(service_call(base, token, nth(0, cmd), nth(1, cmd), nth(2, cmd)))
+    send(service_call(base, token, cmd[0], cmd[1], cmd[2]))
   end
 end
 
@@ -58,16 +58,16 @@ test "a service call is a POST with a bearer token and a JSON body"
     "turn_on",
     "light.kitchen"
   )
-  assert nth(0, req) == "POST"
-  assert nth(1, req) == "http://127.0.0.1:8123/api/services/light/turn_on"
-  assert json_get(nth(2, req), "Authorization") == "Bearer t0k"
-  assert json_get(json_parse(nth(3, req)), "entity_id") == "light.kitchen"
+  assert req[0] == "POST"
+  assert req[1] == "http://127.0.0.1:8123/api/services/light/turn_on"
+  assert json_get(req[2], "Authorization") == "Bearer t0k"
+  assert json_get(json_parse(req[3]), "entity_id") == "light.kitchen"
 end
 
 test "a bus message names its command"
   m = {subject: "home.light.kitchen", payload: "on", reply: nil}
   assert command_of(m) == ["light", "turn_on", "light.kitchen"]
-  assert nth(1, command_of(assoc(m, :payload, "off"))) == "turn_off"
+  assert command_of(assoc(m, :payload, "off"))[1] == "turn_off"
 end
 
 test "nothing listening is a raise, not a silent false"

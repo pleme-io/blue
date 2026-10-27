@@ -321,7 +321,7 @@ end
 
 def gated_row(capability, c)
   if first(c) == :lc_edge
-    [:lc_edge, nth(1, c), nth(2, c), nth(3, c), nth(4, c), capability]
+    [:lc_edge, c[1], c[2], c[3], c[4], capability]
   else
     [:lc_misgated, capability, first(c)]
   end
@@ -447,15 +447,15 @@ def task(name, evidence, escalate_after)
 end
 
 def task_name(t)
-  nth(1, t)
+  t[1]
 end
 
 def task_evidence(t)
-  nth(2, t)
+  t[2]
 end
 
 def task_escalate_after(t)
-  nth(3, t)
+  t[3]
 end
 
 @doc """
@@ -550,19 +550,19 @@ end
 span_name: A declared span's parts, as lc_d_spans returns them: [name, from, to, limit].
 """
 def span_name(s)
-  nth(0, s)
+  s[0]
 end
 
 def span_from(s)
-  nth(1, s)
+  s[1]
 end
 
 def span_to(s)
-  nth(2, s)
+  s[2]
 end
 
 def span_limit(s)
-  nth(3, s)
+  s[3]
 end
 
 # ── reading clauses ────────────────────────────────────────────────────────
@@ -617,30 +617,24 @@ validation, so they are checked like any the author wrote.
 """
 def parse(name, clauses)
   flat = raifusaikuru::flat(clauses)
-  states = flat_map(tagged(flat, :lc_states), (c) -> nth(1, c))
-  starts = map((c) -> nth(1, c), tagged(flat, :lc_start))
-  terminals = flat_map(tagged(flat, :lc_terminals), (c) -> nth(1, c))
-  rests = flat_map(tagged(flat, :lc_rests), (c) -> nth(1, c))
-  fields = map((c) -> [nth(1, c), nth(2, c)], tagged(flat, :lc_field))
+  states = flat_map(tagged(flat, :lc_states), (c) -> c[1])
+  starts = map((c) -> c[1], tagged(flat, :lc_start))
+  terminals = flat_map(tagged(flat, :lc_terminals), (c) -> c[1])
+  rests = flat_map(tagged(flat, :lc_rests), (c) -> c[1])
+  fields = map((c) -> [c[1], c[2]], tagged(flat, :lc_field))
   permits = tagged(flat, :lc_permit)
-  logs = map((c) -> [nth(1, c), nth(2, c)], tagged(flat, :lc_permit_log))
+  logs = map((c) -> [c[1], c[2]], tagged(flat, :lc_permit_log))
   open = filter((s) -> contains(terminals, s) == false, unique(states))
   events = concat_lists(
-    map((c) -> [nth(1, c), nth(2, c)], tagged(flat, :lc_event)),
-    map((l) -> [nth(1, l), permit_log_keys(permits, first(l))], logs)
+    map((c) -> [c[1], c[2]], tagged(flat, :lc_event)),
+    map((l) -> [l[1], permit_log_keys(permits, first(l))], logs)
   )
   edges = concat_lists(
     tagged(flat, :lc_edge),
-    flat_map(
-      logs,
-      (l) -> map((s) -> [:lc_edge, s, nth(1, l), s, [], nil], open)
-    )
+    flat_map(logs, (l) -> map((s) -> [:lc_edge, s, l[1], s, [], nil], open))
   )
-  links = map((c) -> [nth(1, c), nth(2, c)], tagged(flat, :lc_link))
-  spans = map(
-    (c) -> [nth(1, c), nth(2, c), nth(3, c), nth(4, c)],
-    tagged(flat, :lc_span)
-  )
+  links = map((c) -> [c[1], c[2]], tagged(flat, :lc_link))
+  spans = map((c) -> [c[1], c[2], c[3], c[4]], tagged(flat, :lc_span))
   [
     :lc_parsed,
     name,
@@ -665,90 +659,90 @@ permit_log_keys: The payload keys of a logged permit for `capability`: subject, 
 basis, and one per counted field of its lc_permit (none when it has none).
 """
 def permit_log_keys(permits, capability)
-  pm = find_first((p) -> nth(1, p) == capability, permits)
+  pm = find_first((p) -> p[1] == capability, permits)
   counted = if pm.nil?
     []
   else
     map(
-      (t) -> nth(1, t),
-      filter((t) -> list?(t) and first(t) == :counted, as_list(nth(2, pm)))
+      (t) -> t[1],
+      filter((t) -> list?(t) and first(t) == :counted, as_list(pm[2]))
     )
   end
   concat_lists([:subject, :not_after, :basis], map(permit_count_key, counted))
 end
 
 def d_name(d)
-  nth(1, d)
+  d[1]
 end
 
 def d_flat(d)
-  nth(2, d)
+  d[2]
 end
 
 def d_states(d)
-  nth(3, d)
+  d[3]
 end
 
 def d_starts(d)
-  nth(4, d)
+  d[4]
 end
 
 def d_start(d)
-  first(nth(4, d))
+  first(d[4])
 end
 
 def d_terminals(d)
-  nth(5, d)
+  d[5]
 end
 
 def d_rests(d)
-  nth(6, d)
+  d[6]
 end
 
 def d_fields(d)
-  nth(7, d)
+  d[7]
 end
 
 def d_field_names(d)
-  map((f) -> first(f), nth(7, d))
+  map((f) -> first(f), d[7])
 end
 
 def d_events(d)
-  nth(8, d)
+  d[8]
 end
 
 def d_event_names(d)
-  map((e) -> first(e), nth(8, d))
+  map((e) -> first(e), d[8])
 end
 
 def d_edges(d)
-  nth(9, d)
+  d[9]
 end
 
 def d_guards(d)
-  nth(10, d)
+  d[10]
 end
 
 def d_capabilities(d)
-  map((g) -> nth(1, g), nth(10, d))
+  map((g) -> g[1], d[10])
 end
 
 def d_permits(d)
-  nth(11, d)
+  d[11]
 end
 
 @doc """
 d_links: The declared links, [role, target], in declaration order.
 """
 def d_links(d)
-  nth(12, d)
+  d[12]
 end
 
 @doc """
 d_permit_logs: The permit logs, [capability, event], in declaration order.
 """
 def d_permit_logs(d)
-  nth(13, d)
+  d[13]
 end
 
 @doc """
@@ -757,7 +751,7 @@ d_spans: The declared spans, [name, from, to, limit], in declaration order.
     d_spans(example_consumable) #=> []
 """
 def d_spans(d)
-  nth(14, d)
+  d[14]
 end
 
 # ── validation: every finding, as data ─────────────────────────────────────
@@ -827,11 +821,11 @@ end
 problem_why: A problem's explanation, naming what is wrong and where.
 """
 def problem_why(p)
-  nth(1, p)
+  p[1]
 end
 
 def problem_text(p)
-  "#{to_s(first(p))}: #{nth(1, p)}"
+  "#{to_s(first(p))}: #{p[1]}"
 end
 
 @doc """
@@ -934,7 +928,7 @@ def pb_span(p, s)
     ]
   elsif contains(
       forward(
-        map((e) -> [nth(1, e), nth(3, e)], d_edges(p)),
+        map((e) -> [e[1], e[3]], d_edges(p)),
         [from],
         size(unique(states))
       ),
@@ -957,15 +951,15 @@ pb_permit_logs: A permit log names a capability that has an lc_permit, once.
 """
 def pb_permit_logs(p)
   logs = d_permit_logs(p)
-  caps = map((pm) -> nth(1, pm), d_permits(p))
+  caps = map((pm) -> pm[1], d_permits(p))
   bad = map(
     fn(l)
       problem(
         :bad_name,
-        "lc_permit_log(#{show(first(l))}, #{show(nth(1, l))}) takes a capability and an event, each a name"
+        "lc_permit_log(#{show(first(l))}, #{show(l[1])}) takes a capability and an event, each a name"
       )
     end,
-    filter((l) -> (name?(first(l)) and name?(nth(1, l))) == false, logs)
+    filter((l) -> (name?(first(l)) and name?(l[1])) == false, logs)
   )
   unknown = map(
     fn(l)
@@ -997,10 +991,10 @@ def pb_links(p)
     fn(l)
       problem(
         :bad_name,
-        "lc_link(#{show(first(l))}, #{show(nth(1, l))}) takes a role and a target lifecycle, each a name"
+        "lc_link(#{show(first(l))}, #{show(l[1])}) takes a role and a target lifecycle, each a name"
       )
     end,
-    filter((l) -> (name?(first(l)) and name?(nth(1, l))) == false, links)
+    filter((l) -> (name?(first(l)) and name?(l[1])) == false, links)
   )
   dup = map(
     fn(r)
@@ -1033,12 +1027,12 @@ def pb_clause(c)
   if first(c) == :lc_misgated
     problem(
       :bad_gate,
-      "lc_gate(#{show(nth(1, c))}, …) wraps a #{show(nth(2, c))} clause; only lc_on rows can be gated"
+      "lc_gate(#{show(c[1])}, …) wraps a #{show(c[2])} clause; only lc_on rows can be gated"
     )
   elsif first(c) == :lc_not_a_clause
     problem(
       :bad_clause,
-      "#{show(nth(1, c))} is not a clause; build clauses with lc_states, lc_on, lc_guard and the rest"
+      "#{show(c[1])} is not a clause; build clauses with lc_states, lc_on, lc_guard and the rest"
     )
   else
     problem(:bad_clause, "unknown clause #{show(first(c))}")
@@ -1063,9 +1057,7 @@ def pb_names(p)
     end,
     filter(
       (x) -> name?(x) == false,
-      flatten1(
-        [states, fields, events, flat_map(d_events(p), (e) -> nth(1, e))]
-      )
+      flatten1([states, fields, events, flat_map(d_events(p), (e) -> e[1])])
     )
   )
   reserved = map(
@@ -1105,7 +1097,7 @@ def pb_names(p)
             "event #{show(first(e))} lists payload key #{show(k)} twice"
           )
         end,
-        dupes(nth(1, e))
+        dupes(e[1])
       )
     end
   )
@@ -1146,18 +1138,18 @@ def pb_start(p)
 end
 
 def edge_where(e)
-  "the row #{show(nth(1, e))} --#{show(nth(2, e))}--> #{show(nth(3, e))}"
+  "the row #{show(e[1])} --#{show(e[2])}--> #{show(e[3])}"
 end
 
 def pb_edges(p)
   _states = d_states(p)
   edges = d_edges(p)
-  keys = map((e) -> [nth(1, e), nth(2, e)], edges)
+  keys = map((e) -> [e[1], e[2]], edges)
   dup = map(
     fn(k)
       problem(
         :duplicate_edge,
-        "two rows leave #{show(first(k))} on #{show(nth(1, k))}; the fold would be ambiguous"
+        "two rows leave #{show(first(k))} on #{show(k[1])}; the fold would be ambiguous"
       )
     end,
     dupes(keys)
@@ -1168,41 +1160,36 @@ end
 def pb_edge(p, e)
   where = edge_where(e)
   states = d_states(p)
-  from = if contains(states, nth(1, e))
+  from = if contains(states, e[1])
     []
   else
     [
       problem(
         :unknown_state,
-        "#{where}: a transition from #{show(nth(1, e))}, which is not a declared state"
+        "#{where}: a transition from #{show(e[1])}, which is not a declared state"
       )
     ]
   end
-  to = pb_state(nth(3, e), states, where)
-  declared = contains(d_event_names(p), nth(2, e))
+  to = pb_state(e[3], states, where)
+  declared = contains(d_event_names(p), e[2])
   ev = if declared
     []
   else
-    [
-      problem(
-        :unknown_event,
-        "#{where}: #{show(nth(2, e))} is not a declared event"
-      )
-    ]
+    [problem(:unknown_event, "#{where}: #{show(e[2])} is not a declared event")]
   end
   keys = if declared
-    lookup(d_events(p), nth(2, e))
+    lookup(d_events(p), e[2])
   else
     []
   end
-  effects = flat_map(nth(4, e), (f) -> pb_effect(p, f, keys, where))
-  gate = if nth(5, e).nil? or contains(d_capabilities(p), nth(5, e))
+  effects = flat_map(e[4], (f) -> pb_effect(p, f, keys, where))
+  gate = if e[5].nil? or contains(d_capabilities(p), e[5])
     []
   else
     [
       problem(
         :unknown_capability,
-        "#{where} is gated by #{show(nth(5, e))}, which no lc_guard declares"
+        "#{where} is gated by #{show(e[5])}, which no lc_guard declares"
       )
     ]
   end
@@ -1229,14 +1216,13 @@ def pb_effect(p, eff, keys, where)
     ]
   else
     op = first(eff)
-    f = nth(1, eff)
+    f = eff[1]
     known = pb_field(f, d_field_names(p), where)
-    key = if (op == :set or op == :add_key) and
-        contains(keys, nth(2, eff)) == false
+    key = if (op == :set or op == :add_key) and contains(keys, eff[2]) == false
       [
         problem(
           :unknown_payload,
-          "#{where}: reads payload key #{show(nth(2, eff))}, which the event does not declare"
+          "#{where}: reads payload key #{show(eff[2])}, which the event does not declare"
         )
       ]
     else
@@ -1254,11 +1240,11 @@ def pb_effect(p, eff, keys, where)
     else
       []
     end
-    amount = if op == :add and number?(nth(2, eff)) == false
+    amount = if op == :add and number?(eff[2]) == false
       [
         problem(
           :bad_effect,
-          "#{where}: lc_add takes a number, not #{show(nth(2, eff))}"
+          "#{where}: lc_add takes a number, not #{show(eff[2])}"
         )
       ]
     else
@@ -1276,7 +1262,7 @@ def forward(pairs, seeds, n)
     fn(acc, _i)
       union(
         acc,
-        map((pr) -> nth(1, pr), filter((pr) -> contains(acc, first(pr)), pairs))
+        map((pr) -> pr[1], filter((pr) -> contains(acc, first(pr)), pairs))
       )
     end,
     seeds,
@@ -1292,7 +1278,7 @@ def backward(pairs, goals, n)
     fn(acc, _i)
       union(
         acc,
-        map((pr) -> first(pr), filter((pr) -> contains(acc, nth(1, pr)), pairs))
+        map((pr) -> first(pr), filter((pr) -> contains(acc, pr[1]), pairs))
       )
     end,
     goals,
@@ -1314,11 +1300,11 @@ end
 def pb_graph_of(p, states)
   terminals = d_terminals(p)
   sound = filter(
-    (e) -> contains(states, nth(1, e)) and contains(states, nth(3, e)),
+    (e) -> contains(states, e[1]) and contains(states, e[3]),
     d_edges(p)
   )
-  pairs = map((e) -> [nth(1, e), nth(3, e)], sound)
-  exits = (s) -> filter((e) -> nth(1, e) == s, d_edges(p))
+  pairs = map((e) -> [e[1], e[3]], sound)
+  exits = (s) -> filter((e) -> e[1] == s, d_edges(p))
   leaky = map(
     fn(s)
       problem(
@@ -1386,43 +1372,43 @@ def pb_pred(pr, fields, states, where)
   else
     op = first(pr)
     if contains([:lt, :le, :gt, :ge], op)
-      if number?(nth(2, pr))
-        pb_field(nth(1, pr), fields, where)
+      if number?(pr[2])
+        pb_field(pr[1], fields, where)
       else
         concat_lists(
-          pb_field(nth(1, pr), fields, where),
+          pb_field(pr[1], fields, where),
           [
             problem(
               :bad_predicate,
-              "#{where}: compares #{show(nth(1, pr))} with #{show(nth(2, pr))}, which is not a number"
+              "#{where}: compares #{show(pr[1])} with #{show(pr[2])}, which is not a number"
             )
           ]
         )
       end
     elsif op == :eq or op == :present
-      pb_field(nth(1, pr), fields, where)
+      pb_field(pr[1], fields, where)
     elsif op == :age_lt
-      if positive_int?(nth(2, pr))
-        pb_field(nth(1, pr), fields, where)
+      if positive_int?(pr[2])
+        pb_field(pr[1], fields, where)
       else
         concat_lists(
-          pb_field(nth(1, pr), fields, where),
+          pb_field(pr[1], fields, where),
           [
             problem(
               :bad_predicate,
-              "#{where}: lc_fresh takes a positive whole duration, not #{show(nth(2, pr))}"
+              "#{where}: lc_fresh takes a positive whole duration, not #{show(pr[2])}"
             )
           ]
         )
       end
     elsif op == :in
-      if is_empty(nth(1, pr))
+      if is_empty(pr[1])
         [problem(:bad_predicate, "#{where}: lc_in_phase([]) holds of nothing")]
       else
-        flat_map(nth(1, pr), (s) -> pb_state(s, states, where))
+        flat_map(pr[1], (s) -> pb_state(s, states, where))
       end
     elsif op == :all or op == :any
-      if is_empty(nth(1, pr))
+      if is_empty(pr[1])
         [
           problem(
             :bad_predicate,
@@ -1430,10 +1416,10 @@ def pb_pred(pr, fields, states, where)
           )
         ]
       else
-        flat_map(nth(1, pr), (c) -> pb_pred(c, fields, states, where))
+        flat_map(pr[1], (c) -> pb_pred(c, fields, states, where))
       end
     elsif op == :not
-      pb_pred(nth(1, pr), fields, states, where)
+      pb_pred(pr[1], fields, states, where)
     else
       [problem(:bad_predicate, "#{where}: unknown predicate #{show(op)}")]
     end
@@ -1449,29 +1435,29 @@ def pb_task(t, where)
       )
     ]
   else
-    name = if name?(nth(1, t))
+    name = if name?(t[1])
       []
     else
       [problem(:bad_task, "#{where}: a task is named by a keyword or a string")]
     end
-    evidence = if is_empty(nth(2, t)) or
-        is_empty(filter((k) -> name?(k) == false, nth(2, t))) == false
+    evidence = if is_empty(t[2]) or
+        is_empty(filter((k) -> name?(k) == false, t[2])) == false
       [
         problem(
           :bad_task,
-          "#{where}: task #{show(nth(1, t))} needs at least one evidence kind, each a name; evidence is what closes a task"
+          "#{where}: task #{show(t[1])} needs at least one evidence kind, each a name; evidence is what closes a task"
         )
       ]
     else
       []
     end
-    escalate = if positive_int?(nth(3, t))
+    escalate = if positive_int?(t[3])
       []
     else
       [
         problem(
           :bad_task,
-          "#{where}: task #{show(nth(1, t))} escalates after a positive whole duration, not #{show(nth(3, t))}"
+          "#{where}: task #{show(t[1])} escalates after a positive whole duration, not #{show(t[3])}"
         )
       ]
     end
@@ -1498,9 +1484,9 @@ def pb_guards(p)
 end
 
 def pb_guard(p, g)
-  cap = nth(1, g)
+  cap = g[1]
   where = "guard #{show(cap)}"
-  rules = nth(2, g)
+  rules = g[2]
   named = if name?(cap)
     []
   else
@@ -1533,27 +1519,27 @@ def pb_guard(p, g)
   )
   dup = map(
     (n) -> problem(:duplicate_rule, "#{where}: two rules are named #{show(n)}"),
-    dupes(map((r) -> nth(1, r), shaped))
+    dupes(map((r) -> r[1], shaped))
   )
   preds = flat_map(
     shaped,
     fn(r)
       pb_pred(
-        nth(2, r),
+        r[2],
         d_field_names(p),
         d_states(p),
-        "#{where}, rule #{show(nth(1, r))}"
+        "#{where}, rule #{show(r[1])}"
       )
     end
   )
   tasks = flat_map(
-    filter((r) -> nth(3, r) != nil, shaped),
-    (r) -> pb_task(nth(3, r), "#{where}, rule #{show(nth(1, r))}")
+    filter((r) -> r[3] != nil, shaped),
+    (r) -> pb_task(r[3], "#{where}, rule #{show(r[1])}")
   )
-  default = if nth(3, g).nil?
+  default = if g[3].nil?
     []
   else
-    pb_task(nth(3, g), where)
+    pb_task(g[3], where)
   end
   flatten1([named, empty, malformed, dup, preds, tasks, default])
 end
@@ -1564,7 +1550,7 @@ inside lc_all, recursively. Only these may bound a permit.
 """
 def conjuncts(pr)
   if first(pr) == :all
-    flat_map(nth(1, pr), conjuncts)
+    flat_map(pr[1], conjuncts)
   else
     [pr]
   end
@@ -1573,9 +1559,9 @@ end
 def atoms(pr)
   op = first(pr)
   if op == :all or op == :any
-    flat_map(nth(1, pr), atoms)
+    flat_map(pr[1], atoms)
   elsif op == :not
-    atoms(nth(1, pr))
+    atoms(pr[1])
   else
     [pr]
   end
@@ -1587,7 +1573,7 @@ hidden_atoms: Every atom beneath an lc_any or an lc_not.
 def hidden_atoms(pr)
   op = first(pr)
   if op == :all
-    flat_map(nth(1, pr), hidden_atoms)
+    flat_map(pr[1], hidden_atoms)
   elsif op == :any or op == :not
     atoms(pr)
   else
@@ -1599,7 +1585,7 @@ end
 guard_pred: The guard as one predicate: the conjunction of its rules.
 """
 def guard_pred(g)
-  all(map((r) -> nth(2, r), nth(2, g)))
+  all(map((r) -> r[2], g[2]))
 end
 
 @doc """
@@ -1609,11 +1595,11 @@ comparison over a counted field (uses accumulate).
 def drifts?(atom, counted)
   first(atom) == :age_lt or
     contains([:lt, :le, :gt, :ge, :eq], first(atom)) and
-      contains(counted, nth(1, atom))
+      contains(counted, atom[1])
 end
 
 def pb_permits(p)
-  caps = map((pm) -> nth(1, pm), d_permits(p))
+  caps = map((pm) -> pm[1], d_permits(p))
   dup = map(
     fn(c)
       problem(
@@ -1627,9 +1613,9 @@ def pb_permits(p)
 end
 
 def pb_permit(p, pm)
-  cap = nth(1, pm)
+  cap = pm[1]
   where = "permit #{show(cap)}"
-  g = find_first((x) -> nth(1, x) == cap, d_guards(p))
+  g = find_first((x) -> x[1] == cap, d_guards(p))
   if g.nil?
     [
       problem(
@@ -1637,7 +1623,7 @@ def pb_permit(p, pm)
         "#{where}: no lc_guard declares #{show(cap)}, and a permit's limits come from its guard"
       )
     ]
-  elsif is_empty(nth(2, g)) == false and is_empty(pb_guard(p, g))
+  elsif is_empty(g[2]) == false and is_empty(pb_guard(p, g))
     pb_permit_terms(p, pm, g, where)
   else
     []
@@ -1645,9 +1631,9 @@ def pb_permit(p, pm)
 end
 
 def pb_permit_terms(p, pm, g, where)
-  terms = nth(2, pm)
+  terms = pm[2]
   counted = map(
-    (t) -> nth(1, t),
+    (t) -> t[1],
     filter((t) -> list?(t) and first(t) == :counted, terms)
   )
   bad = map(
@@ -1682,10 +1668,7 @@ def pb_permit_terms(p, pm, g, where)
     filter(
       fn(f)
         is_empty(
-          filter(
-            (a) -> contains([:lt, :le, :eq], first(a)) and nth(1, a) == f,
-            conj
-          )
+          filter((a) -> contains([:lt, :le, :eq], first(a)) and a[1] == f, conj)
         )
       end,
       counted
@@ -1706,9 +1689,9 @@ end
 
 def permit_term?(t, fields)
   if list?(t) and size(t) == 2 and first(t) == :valid_for
-    positive_int?(nth(1, t))
+    positive_int?(t[1])
   elsif list?(t) and size(t) == 2 and first(t) == :counted
-    contains(fields, nth(1, t))
+    contains(fields, t[1])
   else
     false
   end
@@ -1753,7 +1736,7 @@ def name(d)
 end
 
 def edge_for(d, phase, event)
-  find_first((e) -> nth(1, e) == phase and nth(2, e) == event, d_edges(d))
+  find_first((e) -> e[1] == phase and e[2] == event, d_edges(d))
 end
 
 @doc """
@@ -1761,20 +1744,15 @@ legal_events: The events accepted in a state, in declaration order: what an ille
 event's refusal names.
 """
 def legal_events(d, phase)
-  unique(
-    map(
-      (e) -> nth(2, e),
-      filter((e) -> nth(1, e) == phase, d_edges(lc_require(d)))
-    )
-  )
+  unique(map((e) -> e[2], filter((e) -> e[1] == phase, d_edges(lc_require(d)))))
 end
 
 def guard_for(d, capability)
-  find_first((g) -> nth(1, g) == capability, d_guards(d))
+  find_first((g) -> g[1] == capability, d_guards(d))
 end
 
 def permit_spec_for(d, capability)
-  find_first((pm) -> nth(1, pm) == capability, d_permits(d))
+  find_first((pm) -> pm[1] == capability, d_permits(d))
 end
 
 # ── events ─────────────────────────────────────────────────────────────────
@@ -1788,15 +1766,15 @@ def ev(type, time, payload)
 end
 
 def ev_type(ev)
-  nth(0, ev)
+  ev[0]
 end
 
 def ev_time(ev)
-  nth(1, ev)
+  ev[1]
 end
 
 def ev_payload(ev)
-  as_list(nth(2, ev))
+  as_list(ev[2])
 end
 
 @doc """
@@ -1826,14 +1804,14 @@ end
 phase: The state the entity is in.
 """
 def phase(s)
-  nth(1, s)
+  s[1]
 end
 
 @doc """
 fields: Every field as [name, value], in declaration order.
 """
 def fields(s)
-  nth(2, s)
+  s[2]
 end
 
 @doc """
@@ -1848,14 +1826,14 @@ seq: How many events the state has consumed, accepted or refused: the position
 the next event will have, and a permit's basis.
 """
 def seq(s)
-  nth(3, s)
+  s[3]
 end
 
 @doc """
 as_of: The time of the last applied event, or nil before any.
 """
 def as_of(s)
-  nth(4, s)
+  s[4]
 end
 
 @doc """
@@ -1865,23 +1843,23 @@ refused: Refused events, oldest first: [position, type, kind, detail]. kind is
 a number) or :bad_field (detail: the counter that holds no number).
 """
 def refused(s)
-  nth(5, s)
+  s[5]
 end
 
 def refusal_position(r)
-  nth(0, r)
+  r[0]
 end
 
 def refusal_type(r)
-  nth(1, r)
+  r[1]
 end
 
 def refusal_kind(r)
-  nth(2, r)
+  r[2]
 end
 
 def refusal_detail(r)
-  nth(3, r)
+  r[3]
 end
 
 @doc """
@@ -1890,23 +1868,23 @@ event that happened while its guard refused: it was applied, and this is the
 record of it.
 """
 def breaches(s)
-  nth(6, s)
+  s[6]
 end
 
 def breach_position(b)
-  nth(0, b)
+  b[0]
 end
 
 def breach_type(b)
-  nth(1, b)
+  b[1]
 end
 
 def breach_capability(b)
-  nth(2, b)
+  b[2]
 end
 
 def breach_rules(b)
-  nth(3, b)
+  b[3]
 end
 
 @doc """
@@ -1934,15 +1912,15 @@ def judge_row(d, s, ev, e)
     (k) -> ev_has?(ev, k) == false,
     as_list(lookup(d_events(d), ev_type(ev)))
   )
-  effects = nth(4, e)
+  effects = e[4]
   bad_keys = filter(
     (k) -> number?(ev_get(ev, k)) == false,
-    map((f) -> nth(2, f), filter((f) -> first(f) == :add_key, effects))
+    map((f) -> f[2], filter((f) -> first(f) == :add_key, effects))
   )
   bad_fields = filter(
     (f) -> number?(value(s, f)) == false,
     map(
-      (f) -> nth(1, f),
+      (f) -> f[1],
       filter((f) -> first(f) == :add or first(f) == :add_key, effects)
     )
   )
@@ -1952,10 +1930,10 @@ def judge_row(d, s, ev, e)
     [:refuse, :bad_payload, first(bad_keys)]
   elsif is_empty(bad_fields) == false
     [:refuse, :bad_field, first(bad_fields)]
-  elsif nth(5, e).nil?
+  elsif e[5].nil?
     [:ok, e]
   else
-    v = allowed(d, s, nth(5, e), ev_time(ev))
+    v = allowed(d, s, e[5], ev_time(ev))
     if is_allowed(v)
       [:ok, e]
     else
@@ -1978,15 +1956,15 @@ end
 
 def effect(fs, eff, ev)
   op = first(eff)
-  f = nth(1, eff)
+  f = eff[1]
   if op == :set
-    put_field(fs, f, ev_get(ev, nth(2, eff)))
+    put_field(fs, f, ev_get(ev, eff[2]))
   elsif op == :put
-    put_field(fs, f, nth(2, eff))
+    put_field(fs, f, eff[2])
   elsif op == :add
-    put_field(fs, f, lookup(fs, f) + nth(2, eff))
+    put_field(fs, f, lookup(fs, f) + eff[2])
   elsif op == :add_key
-    put_field(fs, f, lookup(fs, f) + ev_get(ev, nth(2, eff)))
+    put_field(fs, f, lookup(fs, f) + ev_get(ev, eff[2]))
   else
     put_field(fs, f, ev_time(ev))
   end
@@ -2015,25 +1993,25 @@ def lc_apply(_d, s, ev, j)
       raifusaikuru::fields(s),
       pos + 1,
       as_of(s),
-      push(refused(s), [pos, ev_type(ev), nth(1, j), nth(2, j)]),
+      push(refused(s), [pos, ev_type(ev), j[1], j[2]]),
       raifusaikuru::breaches(s)
     ]
   else
-    e = nth(1, j)
+    e = j[1]
     fields = reduce(
       (fs, eff) -> effect(fs, eff, ev),
       raifusaikuru::fields(s),
-      nth(4, e)
+      e[4]
     )
     breaches = if first(j) == :breach
       push(
         raifusaikuru::breaches(s),
-        [pos, ev_type(ev), nth(5, e), refused_rules(nth(2, j))]
+        [pos, ev_type(ev), e[5], refused_rules(j[2])]
       )
     else
       raifusaikuru::breaches(s)
     end
-    [:lc_state, nth(3, e), fields, pos + 1, ev_time(ev), refused(s), breaches]
+    [:lc_state, e[3], fields, pos + 1, ev_time(ev), refused(s), breaches]
   end
 end
 
@@ -2070,9 +2048,9 @@ def admission(j)
   if first(j) == :ok
     [:admit]
   elsif first(j) == :breach
-    [:reject, :guard, nth(2, j)]
+    [:reject, :guard, j[2]]
   else
-    [:reject, nth(1, j), nth(2, j)]
+    [:reject, j[1], j[2]]
   end
 end
 
@@ -2093,11 +2071,11 @@ def admitted?(a)
 end
 
 def reject_kind(a)
-  nth(1, a)
+  a[1]
 end
 
 def reject_detail(a)
-  nth(2, a)
+  a[2]
 end
 
 # ── guards ─────────────────────────────────────────────────────────────────
@@ -2161,44 +2139,44 @@ over an absent or non-numeric field is :unknown, never :yes or :no.
 def lc_eval(pr, s, now)
   op = first(pr)
   if contains([:lt, :le, :gt, :ge], op)
-    v = value(s, nth(1, pr))
+    v = value(s, pr[1])
     if number?(v)
-      k(lc_compare(op, v, nth(2, pr)))
+      k(lc_compare(op, v, pr[2]))
     else
       :unknown
     end
   elsif op == :eq
-    v = value(s, nth(1, pr))
+    v = value(s, pr[1])
     if v.nil?
       :unknown
     else
-      k(v == nth(2, pr))
+      k(v == pr[2])
     end
   elsif op == :present
-    k(value(s, nth(1, pr)) != nil)
+    k(value(s, pr[1]) != nil)
   elsif op == :age_lt
-    v = value(s, nth(1, pr))
+    v = value(s, pr[1])
     if number?(v) and number?(now)
-      k(now - v < nth(2, pr))
+      k(now - v < pr[2])
     else
       :unknown
     end
   elsif op == :in
-    k(contains(nth(1, pr), phase(s)))
+    k(contains(pr[1], phase(s)))
   elsif op == :all
-    k_and(map((c) -> lc_eval(c, s, now), nth(1, pr)))
+    k_and(map((c) -> lc_eval(c, s, now), pr[1]))
   elsif op == :any
-    k_or(map((c) -> lc_eval(c, s, now), nth(1, pr)))
+    k_or(map((c) -> lc_eval(c, s, now), pr[1]))
   else
-    k_not(lc_eval(nth(1, pr), s, now))
+    k_not(lc_eval(pr[1], s, now))
   end
 end
 
 def task_or(rule, default)
-  if nth(3, rule).nil?
+  if rule[3].nil?
     default
   else
-    nth(3, rule)
+    rule[3]
   end
 end
 
@@ -2222,18 +2200,18 @@ def allowed(d, s, capability, now)
       []
     ]
   else
-    judged = map((r) -> [r, lc_eval(nth(2, r), s, now)], nth(2, g))
-    bad = filter((rv) -> nth(1, rv) != :yes, judged)
+    judged = map((r) -> [r, lc_eval(r[2], s, now)], g[2])
+    bad = filter((rv) -> rv[1] != :yes, judged)
     if is_empty(bad)
       [:allowed, capability]
     else
       reasons = map(
         fn(rv)
           [
-            nth(1, first(rv)),
-            nth(1, rv),
-            nth(2, first(rv)),
-            observed(nth(2, first(rv)), s),
+            first(rv)[1],
+            rv[1],
+            first(rv)[2],
+            observed(first(rv)[2], s),
             now,
             phase(s)
           ]
@@ -2241,8 +2219,8 @@ def allowed(d, s, capability, now)
         bad
       )
       tasks = unique_by(
-        (t) -> nth(1, t),
-        filter((t) -> t != nil, map((rv) -> task_or(first(rv), nth(3, g)), bad))
+        (t) -> t[1],
+        filter((t) -> t != nil, map((rv) -> task_or(first(rv), g[3]), bad))
       )
       [:refused, capability, reasons, tasks]
     end
@@ -2254,7 +2232,7 @@ def is_allowed(v)
 end
 
 def verdict_capability(v)
-  nth(1, v)
+  v[1]
 end
 
 @doc """
@@ -2264,7 +2242,7 @@ def refused_rules(v)
   if is_allowed(v)
     []
   else
-    map((r) -> first(r), nth(2, v))
+    map((r) -> first(r), v[2])
   end
 end
 
@@ -2282,7 +2260,7 @@ def verdict_tasks(v)
   if is_allowed(v)
     []
   else
-    nth(3, v)
+    v[3]
   end
 end
 
@@ -2292,13 +2270,13 @@ pred_fields: The fields a predicate reads, once each, in first-seen order.
 def pred_fields(pr)
   op = first(pr)
   if op == :all or op == :any
-    unique(flat_map(nth(1, pr), pred_fields))
+    unique(flat_map(pr[1], pred_fields))
   elsif op == :not
-    pred_fields(nth(1, pr))
+    pred_fields(pr[1])
   elsif op == :in
     []
   else
-    [nth(1, pr)]
+    [pr[1]]
   end
 end
 
@@ -2316,54 +2294,54 @@ pred_text: A predicate as words: "quality below 24".
 def pred_text(pr)
   op = first(pr)
   if op == :lt
-    "#{text(nth(1, pr))} below #{show(nth(2, pr))}"
+    "#{text(pr[1])} below #{show(pr[2])}"
   elsif op == :le
-    "#{text(nth(1, pr))} at most #{show(nth(2, pr))}"
+    "#{text(pr[1])} at most #{show(pr[2])}"
   elsif op == :gt
-    "#{text(nth(1, pr))} above #{show(nth(2, pr))}"
+    "#{text(pr[1])} above #{show(pr[2])}"
   elsif op == :ge
-    "#{text(nth(1, pr))} at least #{show(nth(2, pr))}"
+    "#{text(pr[1])} at least #{show(pr[2])}"
   elsif op == :eq
-    "#{text(nth(1, pr))} equal to #{show(nth(2, pr))}"
+    "#{text(pr[1])} equal to #{show(pr[2])}"
   elsif op == :present
-    "#{text(nth(1, pr))} present"
+    "#{text(pr[1])} present"
   elsif op == :age_lt
-    "#{text(nth(1, pr))} less than #{to_s(nth(2, pr))} old"
+    "#{text(pr[1])} less than #{to_s(pr[2])} old"
   elsif op == :in
-    "phase in [#{join(map(show, nth(1, pr)), ", ")}]"
+    "phase in [#{join(map(show, pr[1]), ", ")}]"
   elsif op == :all
-    "all of (#{join(map(pred_text, nth(1, pr)), "; ")})"
+    "all of (#{join(map(pred_text, pr[1]), "; ")})"
   elsif op == :any
-    "any of (#{join(map(pred_text, nth(1, pr)), "; ")})"
+    "any of (#{join(map(pred_text, pr[1]), "; ")})"
   else
-    "not (#{pred_text(nth(1, pr))})"
+    "not (#{pred_text(pr[1])})"
   end
 end
 
 def observed_text(kv)
-  if nth(1, kv).nil?
+  if kv[1].nil?
     "#{text(first(kv))} is absent"
   else
-    "#{text(first(kv))} = #{show(nth(1, kv))}"
+    "#{text(first(kv))} = #{show(kv[1])}"
   end
 end
 
 def reason_text(r)
-  if nth(2, r).nil?
+  if r[2].nil?
     "#{text(first(r))}: no guard declares this capability"
   else
-    pr = nth(2, r)
+    pr = r[2]
     phase = if pred_has?(pr, :in)
-      ["phase = #{show(nth(5, r))}"]
+      ["phase = #{show(r[5])}"]
     else
       []
     end
     clock = if pred_has?(pr, :age_lt)
-      ["now = #{to_s(nth(4, r))}"]
+      ["now = #{to_s(r[4])}"]
     else
       []
     end
-    seen = flatten1([map(observed_text, nth(3, r)), phase, clock])
+    seen = flatten1([map(observed_text, r[3]), phase, clock])
     "#{text(first(r))}: needs #{pred_text(pr)}; #{join(seen, ", ")}"
   end
 end
@@ -2376,7 +2354,7 @@ def why(v)
   if is_allowed(v)
     []
   else
-    map(reason_text, nth(2, v))
+    map(reason_text, v[2])
   end
 end
 
@@ -2398,7 +2376,7 @@ no conjunct ages. Read only on an allowed state, where every conjunct holds.
 """
 def time_bound(g, s)
   ages = filter((a) -> first(a) == :age_lt, conjuncts(guard_pred(g)))
-  min_known(map((a) -> value(s, nth(1, a)) + nth(2, a), ages))
+  min_known(map((a) -> value(s, a[1]) + a[2], ages))
 end
 
 @doc """
@@ -2409,10 +2387,10 @@ allows 1. nil when nothing bounds it.
 def count_bound(g, s, field)
   v = value(s, field)
   atoms = filter(
-    (a) -> contains([:lt, :le, :eq], first(a)) and nth(1, a) == field,
+    (a) -> contains([:lt, :le, :eq], first(a)) and a[1] == field,
     conjuncts(guard_pred(g))
   )
-  min_known(map((a) -> uses_left(first(a), v, nth(2, a)), atoms))
+  min_known(map((a) -> uses_left(first(a), v, a[2]), atoms))
 end
 
 def uses_left(op, v, limit)
@@ -2450,19 +2428,16 @@ def permit_for(d, s, capability, now)
 end
 
 def permit_limits(d, s, spec, now)
-  capability = nth(1, spec)
+  capability = spec[1]
   g = guard_for(d, capability)
-  terms = nth(2, spec)
-  windows = map(
-    (t) -> now + nth(1, t),
-    filter((t) -> first(t) == :valid_for, terms)
-  )
+  terms = spec[2]
+  windows = map((t) -> now + t[1], filter((t) -> first(t) == :valid_for, terms))
   not_after = min_known(cons(time_bound(g, s), windows))
   counts = map(
-    (t) -> [nth(1, t), count_bound(g, s, nth(1, t))],
+    (t) -> [t[1], count_bound(g, s, t[1])],
     filter((t) -> first(t) == :counted, terms)
   )
-  unbounded = filter((c) -> nth(1, c).nil?, counts)
+  unbounded = filter((c) -> c[1].nil?, counts)
   if not_after.nil?
     [:no_permit, capability, :unbounded, nil]
   elsif is_empty(unbounded) == false
@@ -2477,34 +2452,34 @@ def has_permit?(p)
 end
 
 def permit_lifecycle(p)
-  nth(1, p)
+  p[1]
 end
 
 def permit_capability(p)
-  nth(2, p)
+  p[2]
 end
 
 def permit_issued_at(p)
-  nth(3, p)
+  p[3]
 end
 
 def permit_not_after(p)
-  nth(4, p)
+  p[4]
 end
 
 def permit_counts(p)
-  nth(5, p)
+  p[5]
 end
 
 @doc """
 permit_count: The remaining count of one counted field.
 """
 def permit_count(p, field)
-  lookup(nth(5, p), field)
+  lookup(p[5], field)
 end
 
 def permit_basis(p)
-  nth(6, p)
+  p[6]
 end
 
 @doc """
@@ -2512,11 +2487,11 @@ no_permit_why: Why there is no permit (:no_permit_declared, :refused, :unbounded
 :unbounded_count), and its detail.
 """
 def no_permit_why(p)
-  nth(2, p)
+  p[2]
 end
 
 def no_permit_detail(p)
-  nth(3, p)
+  p[3]
 end
 
 @doc """
@@ -2527,18 +2502,18 @@ to a crypto bidama; this engine depends on none.
 """
 def permit_payload(p, subject)
   if has_permit?(p) == false
-    raise(:raifusaikuru_use, "there is no permit to render: #{show(nth(2, p))}")
+    raise(:raifusaikuru_use, "there is no permit to render: #{show(p[2])}")
   end
   head = [
     "raifusaikuru-permit/1",
-    "lifecycle=#{text(nth(1, p))}",
+    "lifecycle=#{text(p[1])}",
     "subject=#{text(subject)}",
-    "capability=#{text(nth(2, p))}",
-    "issued_at=#{to_s(nth(3, p))}",
-    "not_after=#{to_s(nth(4, p))}"
+    "capability=#{text(p[2])}",
+    "issued_at=#{to_s(p[3])}",
+    "not_after=#{to_s(p[4])}"
   ]
-  counts = map((c) -> "count.#{text(first(c))}=#{to_s(nth(1, c))}", nth(5, p))
-  lines = flatten1([head, counts, ["basis=#{to_s(nth(6, p))}"]])
+  counts = map((c) -> "count.#{text(first(c))}=#{to_s(c[1])}", p[5])
+  lines = flatten1([head, counts, ["basis=#{to_s(p[6])}"]])
   if is_empty(filter((l) -> contains?(l, line_break), lines)) == false
     raise(
       :raifusaikuru_use,
@@ -2558,7 +2533,7 @@ capability's issuance is not logged.
 def permit_event(d, p, subject)
   lc_require(d)
   if has_permit?(p) == false
-    raise(:raifusaikuru_use, "there is no permit to log: #{show(nth(2, p))}")
+    raise(:raifusaikuru_use, "there is no permit to log: #{show(p[2])}")
   end
   log = find_first((l) -> first(l) == permit_capability(p), d_permit_logs(d))
   if log.nil?
@@ -2567,9 +2542,9 @@ def permit_event(d, p, subject)
       "capability #{show(permit_capability(p))} declares no lc_permit_log, so its permits are not logged"
     )
   end
-  counts = map((c) -> [permit_count_key(first(c)), nth(1, c)], permit_counts(p))
+  counts = map((c) -> [permit_count_key(first(c)), c[1]], permit_counts(p))
   ev(
-    nth(1, log),
+    log[1],
     permit_issued_at(p),
     concat_lists(
       [
@@ -2675,7 +2650,7 @@ test "the empty case: no events give the initial state, which may not be used"
   v = allowed(d, s, :use, 0)
   assert refused_rules(v) ==
     [:is_open, :reading_fresh, :quality_ok, :not_too_old]
-  assert map((r) -> nth(1, r), nth(2, v)) == [:no, :unknown, :unknown, :unknown]
+  assert map((r) -> r[1], v[2]) == [:no, :unknown, :unknown, :unknown]
   assert map(task_name, verdict_tasks(v)) ==
     [:open_one, :take_reading, :replace]
   assert no_permit_why(permit_for(d, s, :use, 0)) == :refused
@@ -2904,12 +2879,12 @@ test "every kind of bad definition is refused when built, one row per kind"
     fn(row)
       contains(
         map(problem_kind, problems(:base, push(example_base, first(row)))),
-        nth(1, row)
+        row[1]
       ) == false
     end,
     rows
   )
-  assert map((row) -> nth(1, row), missed) == []
+  assert map((row) -> row[1], missed) == []
   # The three that cannot be added to a sound base are checked on their own.
   assert contains(map(problem_kind, problems(7, example_base)), :bad_name)
   assert contains(map(problem_kind, problems(:x, [start(:a)])), :no_states)
@@ -2936,7 +2911,7 @@ test "every kind of bad definition is refused when built, one row per kind"
   # The closed list, all of it exercised: a new kind without a row fails here.
   covered = unique(
     concat_lists(
-      map((row) -> nth(1, row), rows),
+      map((row) -> row[1], rows),
       [:bad_name, :no_states, :no_start, :no_end]
     )
   )
@@ -2989,15 +2964,15 @@ test "lc_admit_step answers exactly as lc_admit and lc_step do, for admitted, re
   ]
   assert map(
     fn(c)
-      admit_step(d, first(c), nth(1, c)) ==
-        [admit(d, first(c), nth(1, c)), step(d, first(c), nth(1, c))]
+      admit_step(d, first(c), c[1]) ==
+        [admit(d, first(c), c[1]), step(d, first(c), c[1])]
     end,
     cases
   ) == repeat(true, size(cases))
   # The breach case is in the list: rejected by admission, applied by the step.
   b = admit_step(d, high, ev(:use, 4100, []))
   assert reject_kind(first(b)) == :guard
-  assert size(breaches(nth(1, b))) == 1
+  assert size(breaches(b[1])) == 1
 end
 
 test "a logged permit is an event: a no-op in every non-terminal state, refused in a terminal one, rendered from the permit"
@@ -3019,8 +2994,8 @@ test "a logged permit is an event: a no-op in every non-terminal state, refused 
   assert lookup(d_events(d), :permit) ==
     [:subject, :not_after, :basis, "uses_left"]
   assert map(
-    (e) -> [nth(1, e), nth(3, e), nth(4, e), nth(5, e)],
-    filter((e) -> nth(2, e) == :permit, d_edges(d))
+    (e) -> [e[1], e[3], e[4], e[5]],
+    filter((e) -> e[2] == :permit, d_edges(d))
   ) == [[:sealed, :sealed, [], nil], [:open, :open, [], nil]]
   # A value checked by hand: the worked log's permit at 3000 (not_after 10200,
   # 37 uses left, basis 5, as the worked-lifecycle test computes).
@@ -3154,8 +3129,8 @@ test "rule is a named predicate with no task, and rule_task carries its own task
   assert rule(:r, below(:n, 3)) == [:lc_rule, :r, below(:n, 3), nil]
   t = task(:fix, [:scan], 60)
   assert rule_task(:r, below(:n, 3), t) == [:lc_rule, :r, below(:n, 3), t]
-  assert nth(3, rule(:r, present(:n))).nil?
-  assert nth(1, rule(:other, present(:n))) == :other
+  assert rule(:r, present(:n))[3].nil?
+  assert rule(:other, present(:n))[1] == :other
 end
 
 test "gate lays a capability on every edge of its rows, flattening nested rows"

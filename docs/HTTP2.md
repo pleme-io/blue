@@ -1,8 +1,3 @@
----
-kind: explanation
-summary: blue speaks HTTP/2 and gRPC itself (design, phase 1 built)
----
-
 # HTTP2 — blue speaks HTTP/2 and gRPC itself
 
 Status: DESIGN, 2026-10-23, with phase 1 built (§13). Paths are under

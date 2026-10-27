@@ -1,8 +1,3 @@
----
-kind: explanation
-summary: one word per job, foundations below, a complete vocabulary across the bidamas (plan)
----
-
 # BIDAMA-COHESION — one word per job, foundations below, a complete vocabulary
 
 Status: PLAN, 2026-10-27, measured at `392aeda`: 78 bidamas (77 plus the `zenbu`

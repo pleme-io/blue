@@ -58,16 +58,8 @@ generate("reference", "docs/REFERENCE.md", "gen/reference.b", ["bidamas"])
 # The golden corpus as one file of examples, from examples/ (a blue project of
 # its own, run by `checks.examples`).
 generate("examples", "docs/EXAMPLES.md", "gen/examples.b", ["examples"])
-generate("readme", "README.md", "gen/hon/readme.b", ["Bluefile.lock", "docs"])
-generate("agents", "AGENTS.md", "gen/hon/agents.b", ["Bluefile.lock", "docs"])
-generate("claude", "CLAUDE.md", "gen/hon/claude.b", ["Bluefile.lock", "docs"])
-generate("llms", "llms.txt", "gen/hon/llms.b", ["Bluefile.lock", "docs"])
-generate("llms-full", "llms-full.txt", "gen/hon/llms-full.b", ["Bluefile.lock", "docs"])
-generate("book", "docs/BOOK.md", "gen/hon/book.b", ["Bluefile.lock", "docs", "bidamas"])
 generate("kyasshu-keys", "bidamas/kyasshu/keys/kensa.json", "gen/kyasshu-keys.b", ["bidamas/danpen/fixtures/schema/kensa.graphql"])
 check("okite-laws", "gen/okite-laws.b")
-check("regen-untracked", "gen/regen_test.b", ["gen/regen.b"])
-check("docs", "gen/docs.b", ["docs"])
 
 # The repository's own check rules, written in blue: `blue check` runs each
 # on every file under this directory, under a pure frame

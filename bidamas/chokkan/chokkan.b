@@ -45,8 +45,8 @@ end
 def question_problems(nq)
   name = first(nq)
   q = last(nq)
-  t = get(q, :type)
-  blank = if is_blank(to_s(get(q, :instructions)))
+  t = q[:type]
+  blank = if is_blank(to_s(q[:instructions]))
     [refusal(:empty_instructions, "#{name}: a question needs instructions")]
   else
     []
@@ -58,9 +58,9 @@ def shape_problems(name, t, q)
   if t == "noul"
     []
   elsif t == "choice"
-    option_problems(name, get(q, :options))
+    option_problems(name, q[:options])
   elsif t == "score"
-    level_problems(name, get(q, :levels))
+    level_problems(name, q[:levels])
   else
     [refusal(:unknown_type, "#{name}: no question type #{to_s(t)}")]
   end
@@ -114,17 +114,17 @@ def problems(questions)
 end
 
 def criteria_of(q)
-  t = get(q, :type)
+  t = q[:type]
   if t == "choice"
-    reduce((acc, o) -> assoc(acc, first(o), last(o)), {}, get(q, :options))
+    reduce((acc, o) -> assoc(acc, first(o), last(o)), {}, q[:options])
   elsif t == "score"
-    get(q, :levels)
+    q[:levels]
   end
 end
 
 def wire(q)
   c = criteria_of(q)
-  base = {type: get(q, :type), instructions: get(q, :instructions)}
+  base = {type: q[:type], instructions: q[:instructions]}
   if c.nil?
     base
   else
@@ -185,8 +185,8 @@ def read(status, body)
 end
 
 def answer(reading, name)
-  if get(reading, :kind) == :answered
-    as_json(get(reading, :answers), name)
+  if reading[:kind] == :answered
+    as_json(reading[:answers], name)
   end
 end
 
@@ -236,7 +236,7 @@ def margin(probs)
   elsif size(ps) == 1
     last(first(ps))
   else
-    last(first(ps)) - last(nth(1, ps))
+    last(first(ps)) - last(ps[1])
   end
 end
 
@@ -272,9 +272,9 @@ test "a request with nothing to ask is refused, and an empty answer is blind"
       e
     end
   ) == true
-  assert get(read(200, "{}"), :kind) == :blind
-  assert get(read(200, "not json"), :kind) == :blind
-  assert get(read(200, nil), :kind) == :blind
+  assert read(200, "{}")[:kind] == :blind
+  assert read(200, "not json")[:kind] == :blind
+  assert read(200, nil)[:kind] == :blind
 end
 
 test "a request carries every question's name, type and criteria"
@@ -326,8 +326,8 @@ end
 
 test "an answered body reads as typed answers"
   r = read(200, example_body)
-  assert get(r, :kind) == :answered
-  assert get(r, :model) == "jev-1.13.0"
+  assert r[:kind] == :answered
+  assert r[:model] == "jev-1.13.0"
   assert probability(r, "is_refund") == 0.99
   assert chosen(r, "route") == "cid"
   assert confidence(r, "route") == 0.85
@@ -349,12 +349,12 @@ test "values anyone can check: an expectation and a margin"
 end
 
 test "a refusal and a failure are told apart, and neither answers"
-  assert get(read(400, "{}"), :kind) == :refused
-  assert get(read(404, ""), :kind) == :refused
-  assert get(read(401, ""), :kind) == :blind
-  assert get(read(429, ""), :kind) == :blind
-  assert get(read(503, ""), :kind) == :blind
-  assert get(read(0, nil), :kind) == :blind
+  assert read(400, "{}")[:kind] == :refused
+  assert read(404, "")[:kind] == :refused
+  assert read(401, "")[:kind] == :blind
+  assert read(429, "")[:kind] == :blind
+  assert read(503, "")[:kind] == :blind
+  assert read(0, nil)[:kind] == :blind
   assert chosen(read(429, example_body), "route").nil?
   assert confident(read(429, example_body), "route", 0) == false
 end

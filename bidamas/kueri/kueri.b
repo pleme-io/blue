@@ -1502,7 +1502,7 @@ end
 
 def next_kind(stages, i)
   if i + 1 < size(stages)
-    blue::get(nth(i + 1, stages), :kind)
+    blue::get(stages[i + 1], :kind)
   end
 end
 
@@ -1706,7 +1706,7 @@ end
 def locked_limit(stages, i, stage)
   if blue::get(stage, :kind) != :limit
     []
-  elsif i > 0 and blue::get(nth(i - 1, stages), :kind) == :sort
+  elsif i > 0 and blue::get(stages[i - 1], :kind) == :sort
     []
   else
     [
@@ -2153,7 +2153,7 @@ def render_expr(e, dialect)
     "#{operand(first(blue::get(e, :args)), 4, true, dialect)} #{blue::get(e, :op)}"
   elsif k == :case
     args = blue::get(e, :args)
-    "CASE WHEN #{render_expr(nth(0, args), dialect)} THEN #{render_expr(nth(1, args), dialect)} ELSE #{render_expr(nth(2, args), dialect)} END"
+    "CASE WHEN #{render_expr(args[0], dialect)} THEN #{render_expr(args[1], dialect)} ELSE #{render_expr(args[2], dialect)} END"
   elsif k == :field
     duckdb_floor(dialect, "a struct field")
     "(#{render_expr(first(blue::get(e, :args)), dialect)}).#{ident(blue::get(e, :name))}"
@@ -4124,7 +4124,7 @@ test "a script builds a database file of views, upstream first, and q_rows never
   assert size(parts) == 3
   assert ends_with?(first(parts), render_load(example_steps, nil, :duckdb))
   assert starts_with?(
-    nth(1, parts),
+    parts[1],
     join_lines(["CREATE OR REPLACE VIEW intervals AS", "WITH step_1 AS ("])
   )
   assert last(parts) == ""

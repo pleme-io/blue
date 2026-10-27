@@ -44,7 +44,7 @@ def schema()
 end
 
 def visibility_of(manifest)
-  v = get(manifest, "visibility")
+  v = manifest["visibility"]
   if v.nil?
     "private"
   else
@@ -55,9 +55,9 @@ end
 def spec_whys(backend, spec)
   if not map?(spec)
     ["the spec is not a record"]
-  elsif get(spec, "visibility") != nil
+  elsif spec["visibility"] != nil
     ["visibility is the package's, declared once in package(name, version, visibility); a registry entry never sets it"]
-  elsif backend == "sui" and is_empty(get(spec, "outputs") or [])
+  elsif backend == "sui" and is_empty(spec["outputs"] or [])
     ["outputs is required: the flake packages whose closures sui serves"]
   else
     []
@@ -67,7 +67,7 @@ end
 def world_whys(backend, spec, visibility)
   if backend == "flakehub" and
       visibility == "private" and
-      get(spec, "plan") != "paid"
+      spec["plan"] != "paid"
     ["FlakeHub serves private flakes only on a paid org plan (a fact about FlakeHub, docs.determinate.systems/flakehub/concepts/visibility); declare plan: :paid once the org has one, or keep the private path, a git source"]
   else
     []
@@ -75,8 +75,8 @@ def world_whys(backend, spec, visibility)
 end
 
 def entries_of(manifest)
-  regs = get(manifest, "registries") or {}
-  map((p) -> [first(p), nth(1, p)], map_entries(regs))
+  regs = manifest["registries"] or {}
+  map((p) -> [first(p), p[1]], map_entries(regs))
 end
 
 def entry_refusals(backend, spec, visibility)
@@ -103,7 +103,7 @@ def entry_refusals(backend, spec, visibility)
     end
     shaped = if is_empty(whys)
       map(
-        (r) -> refusal(:invalid, "registry #{backend}: #{nth(1, r)}"),
+        (r) -> refusal(:invalid, "registry #{backend}: #{r[1]}"),
         get(
           judge(schema, [entry(get(backend_kinds, backend), backend, spec)]),
           :refusals
@@ -121,7 +121,7 @@ def entry_refusals(backend, spec, visibility)
 end
 
 def enabled?(spec)
-  get(spec, "enabled") != false
+  spec["enabled"] != false
 end
 
 def settle(manifest)
@@ -129,7 +129,7 @@ def settle(manifest)
   judged = map(
     fn(p)
       backend = first(p)
-      spec = nth(1, p)
+      spec = p[1]
       {backend:, spec:, refusals: entry_refusals(backend, spec, visibility)}
     end,
     entries_of(manifest)
@@ -137,21 +137,15 @@ def settle(manifest)
   {
     visibility:,
     standing: map(
-      fn(j)
-        {
-          backend: get(j, :backend),
-          spec: get(j, :spec),
-          on: enabled?(get(j, :spec))
-        }
-      end,
-      filter((j) -> is_empty(get(j, :refusals)), judged)
+      (j) -> {backend: j[:backend], spec: j[:spec], on: enabled?(j[:spec])},
+      filter((j) -> is_empty(j[:refusals]), judged)
     ),
-    refusals: reduce((acc, j) -> append(acc, get(j, :refusals)), [], judged)
+    refusals: reduce((acc, j) -> append(acc, j[:refusals]), [], judged)
   }
 end
 
 def output_of(entry)
-  get(get(entry, :spec), "output")
+  entry[:spec]["output"]
 end
 
 def flakehub_visibility(visibility)
@@ -163,8 +157,8 @@ def flakehub_visibility(visibility)
 end
 
 def sui_workflow(entry)
-  spec = get(entry, :spec)
-  gate = if get(entry, :on)
+  spec = entry[:spec]
+  gate = if entry[:on]
     "${{ vars.SUI_MODE == 'on' }}"
   else
     false
@@ -179,7 +173,7 @@ def sui_workflow(entry)
         "runs-on" => "${{ vars.PRIVATE_BUILDER_RUNNER || 'pleme-private' }}",
         "strategy" => {
           "fail-fast" => false,
-          "matrix" => {"output" => get(spec, "outputs")}
+          "matrix" => {"output" => spec["outputs"]}
         },
         "steps" => [
           {"uses" => "actions/checkout@v4"},
@@ -199,8 +193,8 @@ def sui_workflow(entry)
 end
 
 def flakehub_workflow(manifest, entry)
-  spec = get(entry, :spec)
-  semver = get(spec, "tag") == "semver"
+  spec = entry[:spec]
+  semver = spec["tag"] == "semver"
   trigger = if semver
     {"push" => {"tags" => ["v*"]}, "workflow_dispatch" => {}}
   else
@@ -211,7 +205,7 @@ def flakehub_workflow(manifest, entry)
     "with" => {
       "visibility" => flakehub_visibility(visibility_of(manifest)),
       "rolling" => not semver,
-      "directory" => get(spec, "directory") or "."
+      "directory" => spec["directory"] or "."
     }
   }
   {
@@ -219,7 +213,7 @@ def flakehub_workflow(manifest, entry)
     "on" => trigger,
     "permissions" => {"contents" => "read", "id-token" => "write"},
     "jobs" => {
-      "publish" => if get(entry, :on)
+      "publish" => if entry[:on]
         job
       else
         assoc(job, "if", false)
@@ -229,7 +223,7 @@ def flakehub_workflow(manifest, entry)
 end
 
 def workflow(manifest, entry)
-  if get(entry, :backend) == "sui"
+  if entry[:backend] == "sui"
     sui_workflow(entry)
   else
     flakehub_workflow(manifest, entry)
@@ -238,11 +232,11 @@ end
 
 def render(manifest, backend)
   s = settle(manifest)
-  hit = filter((e) -> get(e, :backend) == backend, get(s, :standing))
+  hit = filter((e) -> e[:backend] == backend, s[:standing])
   if is_empty(hit)
     mine = filter(
-      (r) -> starts_with?(nth(1, r), "registry #{backend}:"),
-      get(s, :refusals)
+      (r) -> starts_with?(r[1], "registry #{backend}:"),
+      s[:refusals]
     )
     {
       refusals: if is_empty(mine)
@@ -263,13 +257,13 @@ def render(manifest, backend)
 end
 
 def host_refusal(r)
-  {kind: to_s(nth(0, r)), why: nth(1, r)}
+  {kind: to_s(r[0]), why: r[1]}
 end
 
 def render_text(manifest_text, backend)
   r = render(json_read(manifest_text), backend)
-  if get(r, :refusals) != nil
-    {refusals: map(host_refusal, get(r, :refusals))}
+  if r[:refusals] != nil
+    {refusals: map(host_refusal, r[:refusals])}
   else
     r
   end
@@ -278,8 +272,8 @@ end
 def backends_text(manifest_text)
   s = settle(json_read(manifest_text))
   {
-    standing: map((e) -> get(e, :backend), get(s, :standing)),
-    refusals: map(host_refusal, get(s, :refusals))
+    standing: map((e) -> e[:backend], s[:standing]),
+    refusals: map(host_refusal, s[:refusals])
   }
 end
 
@@ -304,9 +298,9 @@ def flakehub_request(url)
       )
     }
   else
-    org = nth(0, parts)
-    project = nth(1, parts)
-    range = nth(2, parts)
+    org = parts[0]
+    project = parts[1]
+    range = parts[2]
     {
       org:,
       project:,
@@ -322,9 +316,9 @@ end
 
 def answered(name, req, body)
   doc = json_read(body)
-  revision = get(doc, "revision")
-  version = get(doc, "version")
-  fetch = get(doc, "pretty_download_url")
+  revision = doc["revision"]
+  version = doc["version"]
+  fetch = doc["pretty_download_url"]
   if not map?(doc)
     {
       refused: refusal(
@@ -332,7 +326,7 @@ def answered(name, req, body)
         "#{name}: the FlakeHub answer is not a record"
       )
     }
-  elsif get(doc, "yanked_at") != nil
+  elsif doc["yanked_at"] != nil
     {refused: refusal(:yanked, "#{name}: #{version} is yanked on FlakeHub")}
   elsif not revision?(revision)
     {
@@ -348,12 +342,11 @@ def answered(name, req, body)
         "#{name}: the FlakeHub answer has no version or download url"
       )
     }
-  elsif get(doc, "org") != get(req, :org) or
-      get(doc, "project") != get(req, :project)
+  elsif doc["org"] != req[:org] or doc["project"] != req[:project]
     {
       refused: refusal(
         :unreadable,
-        "#{name}: FlakeHub answered for #{get(doc, "org")}/#{get(doc, "project")}"
+        "#{name}: FlakeHub answered for #{doc["org"]}/#{doc["project"]}"
       )
     }
   else
@@ -371,7 +364,7 @@ end
 
 def flakehub_pin(name, url, status, body, credential)
   req = flakehub_request(url)
-  if get(req, :refused) != nil
+  if req[:refused] != nil
     req
   elsif status == 200
     answered(name, req, body)
@@ -386,7 +379,7 @@ def flakehub_pin(name, url, status, body, credential)
     {
       refused: refusal(
         :absent,
-        "#{name}: FlakeHub has no #{get(req, :org)}/#{get(req, :project)} matching #{get(req, :range)}, or it is private and #{credential_hint(credential)} does not reach it"
+        "#{name}: FlakeHub has no #{req[:org]}/#{req[:project]} matching #{req[:range]}, or it is private and #{credential_hint(credential)} does not reach it"
       )
     }
   else
@@ -447,20 +440,18 @@ end
 
 test "a range resolves to the recorded exact version and revision"
   p = flakehub_pin("checker", checker, 200, recorded_version, nil)
-  assert get(p, :version) == "0.1.20"
-  assert get(p, :revision) == "9ffd1b0af33ab1d18f1a1903d5f351af8ede16ea"
-  assert get(p, :fetch) ==
+  assert p[:version] == "0.1.20"
+  assert p[:revision] == "9ffd1b0af33ab1d18f1a1903d5f351af8ede16ea"
+  assert p[:fetch] ==
     "https://flakehub.com/f/DeterminateSystems/flake-checker/0.1.20.tar.gz"
 end
 
 test "the request names the version endpoint"
   r = flakehub_request(checker)
-  assert get(r, :api) ==
+  assert r[:api] ==
     "https://api.flakehub.com/version/DeterminateSystems/flake-checker/0.1.*"
-  assert kinds([get(flakehub_request("flakehub:a/b"), :refused)]) ==
-    [:malformed]
-  assert kinds([get(flakehub_request("github:a/b"), :refused)]) ==
-    [:not_flakehub]
+  assert kinds([flakehub_request("flakehub:a/b")[:refused]]) == [:malformed]
+  assert kinds([flakehub_request("github:a/b")[:refused]]) == [:not_flakehub]
 end
 
 test "absence, credentials and an outage are typed refusals of the one source"
@@ -470,25 +461,23 @@ test "absence, credentials and an outage are typed refusals of the one source"
       :refused
     )
   ) == :absent
-  assert first(
-    get(flakehub_pin("b", checker, 401, "", "/run/netrc"), :refused)
-  ) == :credentials
-  assert first(get(flakehub_pin("b", checker, 0, "", nil), :refused)) ==
-    :unavailable
-  assert first(get(flakehub_pin("b", checker, 503, "", nil), :refused)) ==
+  assert first(flakehub_pin("b", checker, 401, "", "/run/netrc")[:refused]) ==
+    :credentials
+  assert first(flakehub_pin("b", checker, 0, "", nil)[:refused]) == :unavailable
+  assert first(flakehub_pin("b", checker, 503, "", nil)[:refused]) ==
     :unavailable
 end
 
 test "a yanked, foreign or revisionless answer is refused, not pinned"
   doc = json_read(recorded_version)
   yanked = json_stringify(assoc(doc, "yanked_at", "2026-01-01T00:00:00Z"))
-  assert first(get(flakehub_pin("c", checker, 200, yanked, nil), :refused)) ==
+  assert first(flakehub_pin("c", checker, 200, yanked, nil)[:refused]) ==
     :yanked
   short = json_stringify(assoc(doc, "revision", "9ffd1b0"))
-  assert first(get(flakehub_pin("c", checker, 200, short, nil), :refused)) ==
+  assert first(flakehub_pin("c", checker, 200, short, nil)[:refused]) ==
     :unreadable
   other = json_stringify(assoc(doc, "project", "nix"))
-  assert first(get(flakehub_pin("c", checker, 200, other, nil), :refused)) ==
+  assert first(flakehub_pin("c", checker, 200, other, nil)[:refused]) ==
     :unreadable
 end
 
@@ -502,8 +491,8 @@ test "a private package never renders public, on any tag"
         ),
         "flakehub"
       )
-      assert contains?(get(r, :text), "visibility: \"private\"")
-      assert not contains?(get(r, :text), "\"public\"")
+      assert contains?(r[:text], "visibility: \"private\"")
+      assert not contains?(r[:text], "\"public\"")
     end,
     ["rolling", "semver"]
   )
@@ -512,16 +501,13 @@ end
 test "an undeclared visibility is private"
   assert visibility_of(manifest_with(nil, {})) == "private"
   r = render(manifest_with(nil, {"flakehub" => {"plan" => "paid"}}), "flakehub")
-  assert contains?(get(r, :text), "visibility: \"private\"")
+  assert contains?(r[:text], "visibility: \"private\"")
 end
 
 test "public and unlisted render as declared"
-  assert contains?(
-    get(render(fh({}), "flakehub"), :text),
-    "visibility: \"public\""
-  )
+  assert contains?(render(fh({}), "flakehub")[:text], "visibility: \"public\"")
   u = render(manifest_with("unlisted", {"flakehub" => {}}), "flakehub")
-  assert contains?(get(u, :text), "visibility: \"unlisted\"")
+  assert contains?(u[:text], "visibility: \"unlisted\"")
 end
 
 test "a registry entry that sets visibility is refused alone"
@@ -533,14 +519,14 @@ test "a registry entry that sets visibility is refused alone"
     }
   )
   s = settle(m)
-  assert kinds(get(s, :refusals)) == [:invalid]
-  assert map((e) -> get(e, :backend), get(s, :standing)) == ["sui"]
+  assert kinds(s[:refusals]) == [:invalid]
+  assert map((e) -> e[:backend], s[:standing]) == ["sui"]
 end
 
 test "private on FlakeHub without a paid plan is refused as a world fact"
   s = settle(manifest_with("private", {"flakehub" => {}}))
-  assert kinds(get(s, :refusals)) == [:world]
-  assert is_empty(get(s, :standing))
+  assert kinds(s[:refusals]) == [:world]
+  assert is_empty(s[:standing])
 end
 
 test "sui renders a gated publish of each output through sui-cache-push"
@@ -548,8 +534,8 @@ test "sui renders a gated publish of each output through sui-cache-push"
     manifest_with("private", {"sui" => {"outputs" => ["default", "blue"]}}),
     "sui"
   )
-  t = get(r, :text)
-  assert get(r, :output).nil?
+  t = r[:text]
+  assert r[:output].nil?
   o = render(
     manifest_with(
       "private",
@@ -557,7 +543,7 @@ test "sui renders a gated publish of each output through sui-cache-push"
     ),
     "sui"
   )
-  assert get(o, :output) == "ci/sui.yml"
+  assert o[:output] == "ci/sui.yml"
   assert contains?(t, "pleme-io/actions/sui-cache-push@main")
   assert contains?(t, "vars.SUI_MODE == 'on'")
   assert contains?(t, "- \"blue\"")
@@ -566,7 +552,7 @@ end
 
 test "sui needs its outputs"
   s = settle(manifest_with("public", {"sui" => {}}))
-  assert kinds(get(s, :refusals)) == [:invalid]
+  assert kinds(s[:refusals]) == [:invalid]
 end
 
 test "configured off renders the job with a false gate"
@@ -577,17 +563,17 @@ test "configured off renders the job with a false gate"
     ),
     "sui"
   )
-  assert contains?(get(r, :text), "if: false")
+  assert contains?(r[:text], "if: false")
   f = render(fh({"enabled" => false}), "flakehub")
-  assert contains?(get(f, :text), "if: false")
-  assert not contains?(get(render(fh({}), "flakehub"), :text), "if: false")
+  assert contains?(f[:text], "if: false")
+  assert not contains?(render(fh({}), "flakehub")[:text], "if: false")
 end
 
 test "semver publishes on tags, rolling on main"
-  s = get(render(fh({"tag" => "semver"}), "flakehub"), :text)
+  s = render(fh({"tag" => "semver"}), "flakehub")[:text]
   assert contains?(s, "rolling: false")
   assert contains?(s, "- \"v*\"")
-  r = get(render(fh({}), "flakehub"), :text)
+  r = render(fh({}), "flakehub")[:text]
   assert contains?(r, "rolling: true")
 end
 
@@ -598,18 +584,18 @@ test "planned and unknown backends are refused by kind"
       {"porto" => {}, "npm" => {}, "sui" => {"outputs" => ["x"]}}
     )
   )
-  assert kinds(get(s, :refusals)) == [:unknown_backend, :not_built]
-  assert size(get(s, :standing)) == 1
+  assert kinds(s[:refusals]) == [:unknown_backend, :not_built]
+  assert size(s[:standing]) == 1
 end
 
 test "rendering an undeclared backend names it"
-  assert kinds(get(render(manifest_with("public", {}), "sui"), :refusals)) ==
+  assert kinds(render(manifest_with("public", {}), "sui")[:refusals]) ==
     [:undeclared]
 end
 
 test "a sui probe never fails a build"
-  assert get(sui_verdict(nil, 0), :state) == :absent
-  assert get(sui_verdict("http://o:5000", 0), :state) == :warm
-  assert get(sui_verdict("http://o:5000", 1), :state) == :cold
-  assert get(sui_verdict("http://o:5000", 7), :state) == :absent
+  assert sui_verdict(nil, 0)[:state] == :absent
+  assert sui_verdict("http://o:5000", 0)[:state] == :warm
+  assert sui_verdict("http://o:5000", 1)[:state] == :cold
+  assert sui_verdict("http://o:5000", 7)[:state] == :absent
 end

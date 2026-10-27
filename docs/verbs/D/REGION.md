@@ -1,8 +1,3 @@
----
-kind: explanation
-summary: verb graph region D: security and trust
----
-
 # Region D: security and trust (2026-10-22)
 
 343 verbs, 548 edges (1.6 per verb), 20 spaces. Waves 0/1/2/3/4 = 74/77/128/55/9. 71 rows (21%) already exist in blue.

@@ -87,7 +87,7 @@ def last(xs)
   if is_empty(xs)
     nil
   else
-    nth(size(xs) - 1, xs)
+    xs[size(xs) - 1]
   end
 end
 
@@ -112,7 +112,7 @@ def indexes(xs)
 end
 
 def zip_with(f, a, b)
-  map((i) -> f(nth(i, a), nth(i, b)), range(0, min(size(a), size(b))))
+  map((i) -> f(a[i], b[i]), range(0, min(size(a), size(b))))
 end
 
 @doc """
@@ -414,7 +414,7 @@ def update_at(xs, i, v)
       if j == i
         v
       else
-        nth(j, xs)
+        xs[j]
       end
     end,
     indexes(xs)
@@ -663,7 +663,7 @@ unzip: The inverse of zip: a list of pairs back into [firsts, seconds].
     unzip([]) #=> [[], []]
 """
 def unzip(ps)
-  [map((p) -> nth(0, p), ps), map((p) -> nth(1, p), ps)]
+  [map((p) -> p[0], ps), map((p) -> p[1], ps)]
 end
 
 test "find_first returns the element, not its position"
@@ -857,9 +857,9 @@ at: item at an index; negative counts from the end.
 """
 def at(xs, index)
   if index < 0
-    nth(size(xs) + index, xs)
+    xs[size(xs) + index]
   else
-    nth(index, xs)
+    xs[index]
   end
 end
 

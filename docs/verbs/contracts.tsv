@@ -46,12 +46,10 @@ clear	store	store,prefix?	yes	count		effect	remove every entry, or those under a
 close	handle	handle	yes	nil		effect	release a handle; closing twice is done	-	decided
 closure	lock	lock	no	graph		pure	the dependency graph a lock implies	-	decided
 coalesce	ranges	ranges	no	[range]		pure	join overlapping ranges into disjoint ones	-	decided
-command	spec	spec,f	no	value		effect	run a program through its declared command line	-	decided
 commit	subject	subject,what?	yes	oid or nil		effect	make staged changes or a position durable	-	decided
 compact	store	store,policy?	yes	count		effect	reclaim space or fold old records	-	decided
 compare	a	a,b	yes	-1, 0 or 1		pure	order two values	-	decided
 compile	graph	graph	yes	compiled graph		pure	compile a graph; shapes proved before any run	-	decided
-complete	args	args,spec	no	[text]		pure	the words that may follow a partial input	-	decided
 compose	first	first,second?	no	function		pure	join two functions or parts into one	-	decided
 compress	data	data,algorithm?	yes	bytes		pure	bytes made smaller	-	decided
 connect	address	address	yes	conn	timeout	effect	open a connection to an address	-	decided
@@ -178,12 +176,10 @@ lock	project	project	yes	[changed pin]		effect	write the lock of a project from 
 log	repo	repo	yes	[commit]		effect	commits from a ref backward	-	decided
 logarithm	n	n,base?	no	number		pure	the logarithm of n in a base	-	decided
 map	xs	xs,f	yes	list		pure	a list of f applied to each item	§3.6	stdlib
-mark	state	state	no	text		pure	the symbol a state shows	-	decided
 matches?	subject	subject,pattern	no	Bool		pure	whether a subject matches a pattern	-	decided
 max_by	xs	xs,f	no	item or nil		pure	the item with the greatest f	§3.6	stdlib
 measure	subject	subject,metric?	yes	number		any	a size or a rate of a subject	-	decided
 merge	a	a,b	yes	value	conflict	any	combine b into a; one master verb for every space, gitto::merge refines it	§3.4	decided
-meter	fraction	fraction,width	no	node		pure	a fraction drawn as a bar	-	decided
 min_by	xs	xs,f	no	item or nil		pure	the item with the least f	§3.6	stdlib
 mirror	from	from,to	yes	report		effect	make a destination equal a source	-	decided
 mount	parent	parent,at,child	yes	parent		any	place a child under a parent at a named point	-	decided
@@ -316,7 +312,6 @@ subscribe	bus	bus,subject,f	yes	subscription		effect	call f for each message on 
 succeeds?	command	command,args?	yes	Bool	command_not_found	effect	whether the command exits with an ok status	§3.3	stdlib
 sum	xs	xs	no	number		pure	the total of the numbers	§3.6	stdlib
 sync	from	from,to?	yes	report		effect	make two places agree	-	decided
-table	rows	rows,opts	yes	node		pure	rows laid out as aligned columns	-	decided
 tag	subject	subject,name	yes	nil		effect	attach a name or label to a subject	-	decided
 take	xs	xs,n	no	list		pure	the first n items	§3.6	stdlib
 take_while	xs	xs,f	no	list		pure	the leading items where f holds	§3.6	stdlib

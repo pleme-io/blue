@@ -348,7 +348,7 @@ def code_key(code, len)
 end
 
 huffman_lookup = zipmap(
-  map((c) -> code_key(first(c), nth(1, c)), huffman_codes),
+  map((c) -> code_key(first(c), c[1]), huffman_codes),
   range(0, 257)
 )
 
@@ -389,15 +389,15 @@ def table(max)
 end
 
 def entries(t)
-  map((e) -> [first(e), nth(1, e)], get(t, :entries))
+  map((e) -> [first(e), e[1]], t[:entries])
 end
 
 def table_size(t)
-  get(t, :size)
+  t[:size]
 end
 
 def table_max(t)
-  get(t, :max)
+  t[:max]
 end
 
 def with_limit(t, limit)
@@ -405,49 +405,49 @@ def with_limit(t, limit)
 end
 
 def keep_step(acc, e, room)
-  total = nth(1, acc) + nth(2, e)
-  if nth(2, acc) and total <= room
+  total = acc[1] + e[2]
+  if acc[2] and total <= room
     [first(acc) + 1, total, true]
   else
-    [first(acc), nth(1, acc), false]
+    [first(acc), acc[1], false]
   end
 end
 
 def evict(t, room)
-  es = get(t, :entries)
+  es = t[:entries]
   r = reduce((acc, e) -> keep_step(acc, e, room), [0, 0, true], es)
-  assoc(assoc(t, :entries, slice(es, 0, first(r))), :size, nth(1, r))
+  assoc(assoc(t, :entries, slice(es, 0, first(r))), :size, r[1])
 end
 
 def insert(t, name, value)
   s = entry_size(name, value)
-  if s > get(t, :max)
+  if s > t[:max]
     assoc(assoc(t, :entries, []), :size, 0)
   else
-    e = evict(t, get(t, :max) - s)
+    e = evict(t, t[:max] - s)
     assoc(
-      assoc(e, :entries, cons([name, value, s], get(e, :entries))),
+      assoc(e, :entries, cons([name, value, s], e[:entries])),
       :size,
-      get(e, :size) + s
+      e[:size] + s
     )
   end
 end
 
 def resize(t, max)
-  if max > get(t, :limit) or max < 0
-    raise(:usage, "table size #{max} is outside 0..#{get(t, :limit)}")
+  if max > t[:limit] or max < 0
+    raise(:usage, "table size #{max} is outside 0..#{t[:limit]}")
   end
   e = evict(assoc(t, :max, max), max)
-  assoc(e, :updates, append(get(t, :updates), [max]))
+  assoc(e, :updates, append(t[:updates], [max]))
 end
 
 def lookup(t, index)
-  es = get(t, :entries)
+  es = t[:entries]
   if index >= 1 and index <= 61
-    nth(index - 1, static_entries)
+    static_entries[index - 1]
   elsif index >= 62 and index - 62 < size(es)
-    e = nth(index - 62, es)
-    [first(e), nth(1, e)]
+    e = es[index - 62]
+    [first(e), e[1]]
   end
 end
 
@@ -474,7 +474,7 @@ def continue_int(bytes, pos, acc, m)
   elsif pos >= size(bytes)
     broken("an integer runs past the end of the block")
   else
-    b = nth(pos, bytes)
+    b = bytes[pos]
     v = acc + shift_left(b % 128, m)
     if b < 128
       ok([v, pos + 1])
@@ -489,7 +489,7 @@ def decode_int(bytes, pos, prefix)
   if pos >= size(bytes)
     broken("an integer runs past the end of the block")
   else
-    v = nth(pos, bytes) % expt(2, prefix)
+    v = bytes[pos] % expt(2, prefix)
     if v < top
       ok([v, pos + 1])
     else
@@ -499,7 +499,7 @@ def decode_int(bytes, pos, prefix)
 end
 
 def huffman_size(data)
-  bits = reduce((a, b) -> a + nth(1, nth(b, huffman_codes)), 0, octets(data))
+  bits = reduce((a, b) -> a + huffman_codes[b][1], 0, octets(data))
   floor((bits + 7) / 8)
 end
 
@@ -507,9 +507,9 @@ def huffman_encode(data)
   st = [0, 0]
   out = map(
     fn(b)
-      c = nth(b, huffman_codes)
-      acc = shift_left(first(st), nth(1, c)) + first(c)
-      n = nth(1, st) + nth(1, c)
+      c = huffman_codes[b]
+      acc = shift_left(first(st), c[1]) + first(c)
+      n = st[1] + c[1]
       k = floor(n / 8)
       left = n - 8 * k
       set!(st, [acc % expt(2, left), left])
@@ -517,7 +517,7 @@ def huffman_encode(data)
     end,
     octets(data)
   )
-  pad = 8 - nth(1, st)
+  pad = 8 - st[1]
   if pad == 8
     append([], flatten(out))
   else
@@ -527,14 +527,14 @@ end
 
 def huffman_bit(s, bit)
   acc = first(s) * 2 + bit
-  len = nth(1, s) + 1
+  len = s[1] + 1
   sym = get(huffman_lookup, code_key(acc, len))
   if sym.nil?
-    [acc, len, nth(2, s) or len >= 30, nth(3, s)]
+    [acc, len, s[2] or len >= 30, s[3]]
   elsif sym == 256
-    [0, 0, true, nth(3, s)]
+    [0, 0, true, s[3]]
   else
-    [0, 0, nth(2, s), append(nth(3, s), [sym])]
+    [0, 0, s[2], append(s[3], [sym])]
   end
 end
 
@@ -544,16 +544,16 @@ def huffman_decode(bytes)
     fn(b)
       r = reduce(
         (s, i) -> huffman_bit(s, bit_at(b, i)),
-        [first(st), nth(1, st), nth(2, st), []],
+        [first(st), st[1], st[2], []],
         [7, 6, 5, 4, 3, 2, 1, 0]
       )
-      set!(st, [first(r), nth(1, r), nth(2, r)])
-      nth(3, r)
+      set!(st, [first(r), r[1], r[2]])
+      r[3]
     end,
     bytes
   )
-  len = nth(1, st)
-  if nth(2, st)
+  len = st[1]
+  if st[2]
     broken("a Huffman string holds EOS or a code longer than 30 bits")
   elsif len > 7
     broken("Huffman padding is longer than 7 bits")
@@ -589,25 +589,25 @@ def decode_string(bytes, pos)
   if pos >= size(bytes)
     broken("a string runs past the end of the block")
   else
-    huffman = nth(pos, bytes) >= 128
+    huffman = bytes[pos] >= 128
     and_then(
       decode_int(bytes, pos, 7),
-      (n) -> string_body(bytes, nth(1, n), first(n), huffman)
+      (n) -> string_body(bytes, n[1], first(n), huffman)
     )
   end
 end
 
 def add_field(st, f, next, sensitive)
-  n = size(get(st, :fields))
+  n = size(st[:fields])
   marked = if sensitive
-    append(get(st, :sensitive), [n])
+    append(st[:sensitive], [n])
   else
-    get(st, :sensitive)
+    st[:sensitive]
   end
   merge_state(
     st,
     {
-      fields: append(get(st, :fields), [f]),
+      fields: append(st[:fields], [f]),
       sensitive: marked,
       pos: next,
       open: false
@@ -616,11 +616,11 @@ def add_field(st, f, next, sensitive)
 end
 
 def merge_state(st, changes)
-  reduce((m, kv) -> assoc(m, first(kv), nth(1, kv)), st, map_entries(changes))
+  reduce((m, kv) -> assoc(m, first(kv), kv[1]), st, map_entries(changes))
 end
 
 def indexed_field(st, index, next)
-  f = lookup(get(st, :table), index)
+  f = lookup(st[:table], index)
   if index == 0
     broken("index 0 names no field")
   elsif f.nil?
@@ -633,7 +633,7 @@ end
 def literal_done(st, f, next, how)
   s = add_field(st, f, next, how == :never)
   if how == :incremental
-    ok(assoc(s, :table, insert(get(s, :table), first(f), nth(1, f))))
+    ok(assoc(s, :table, insert(s[:table], first(f), f[1])))
   else
     ok(s)
   end
@@ -642,16 +642,16 @@ end
 def literal_value(st, block, name, next, how)
   and_then(
     decode_string(block, next),
-    (v) -> literal_done(st, [name, first(v)], nth(1, v), how)
+    (v) -> literal_done(st, [name, first(v)], v[1], how)
   )
 end
 
 def literal_name(st, block, index, next, how)
-  f = lookup(get(st, :table), index)
+  f = lookup(st[:table], index)
   if index == 0
     and_then(
       decode_string(block, next),
-      (n) -> literal_value(st, block, first(n), nth(1, n), how)
+      (n) -> literal_value(st, block, first(n), n[1], how)
     )
   elsif f.nil?
     broken("index #{index} is outside both tables")
@@ -662,25 +662,25 @@ end
 
 def literal(st, block, prefix, how)
   and_then(
-    decode_int(block, get(st, :pos), prefix),
-    (iv) -> literal_name(st, block, first(iv), nth(1, iv), how)
+    decode_int(block, st[:pos], prefix),
+    (iv) -> literal_name(st, block, first(iv), iv[1], how)
   )
 end
 
 def apply_update(st, n, next)
-  t = get(st, :table)
-  if n > get(t, :limit)
-    broken("table size #{n} is over the limit #{get(t, :limit)}")
+  t = st[:table]
+  if n > t[:limit]
+    broken("table size #{n} is over the limit #{t[:limit]}")
   else
     ok(merge_state(st, {table: evict(assoc(t, :max, n), n), pos: next}))
   end
 end
 
 def size_update(st, block)
-  if get(st, :open)
+  if st[:open]
     and_then(
-      decode_int(block, get(st, :pos), 5),
-      (iv) -> apply_update(st, first(iv), nth(1, iv))
+      decode_int(block, st[:pos], 5),
+      (iv) -> apply_update(st, first(iv), iv[1])
     )
   else
     broken("a table size update follows a field")
@@ -688,12 +688,12 @@ def size_update(st, block)
 end
 
 def decode_one(st, block)
-  pos = get(st, :pos)
-  b = nth(pos, block)
+  pos = st[:pos]
+  b = block[pos]
   if b >= 128
     and_then(
       decode_int(block, pos, 7),
-      (iv) -> indexed_field(st, first(iv), nth(1, iv))
+      (iv) -> indexed_field(st, first(iv), iv[1])
     )
   elsif b >= 64
     literal(st, block, 6, :incremental)
@@ -709,19 +709,13 @@ end
 def decode(t, block)
   r = ok({pos: 0, fields: [], sensitive: [], table: t, open: true})
   while(
-    ok?(r) and get(value(r), :pos) < size(block),
+    ok?(r) and value(r)[:pos] < size(block),
     set!(r, decode_one(value(r), block))
   )
   and_then(
     r,
     fn(st)
-      ok(
-        {
-          fields: get(st, :fields),
-          sensitive: get(st, :sensitive),
-          table: get(st, :table)
-        }
-      )
+      ok({fields: st[:fields], sensitive: st[:sensitive], table: st[:table]})
     end
   )
 end
@@ -738,7 +732,7 @@ end
 
 def name_index(t, name)
   s = get(static_names, name)
-  d = position(name, map((e) -> first(e), get(t, :entries)))
+  d = position(name, map((e) -> first(e), t[:entries]))
   if s != nil
     s
   elsif d >= 0
@@ -757,7 +751,7 @@ end
 
 def encode_field(t, f, huffman, never, plain)
   name = first(f)
-  value = nth(1, f)
+  value = f[1]
   sensitive = member?(name, never)
   exact = if sensitive
     nil
@@ -777,32 +771,32 @@ def encode_field(t, f, huffman, never, plain)
 end
 
 def size_updates(t)
-  us = get(t, :updates)
-  low = reduce((a, b) -> blue::min(a, b), get(t, :max), us)
+  us = t[:updates]
+  low = reduce((a, b) -> blue::min(a, b), t[:max], us)
   if is_empty(us)
     []
-  elsif low < get(t, :max)
-    append(encode_int(low, 5, 32), encode_int(get(t, :max), 5, 32))
+  elsif low < t[:max]
+    append(encode_int(low, 5, 32), encode_int(t[:max], 5, 32))
   else
-    encode_int(get(t, :max), 5, 32)
+    encode_int(t[:max], 5, 32)
   end
 end
 
 def encode(t, fields, opts?)
   opts = opts or {}
-  huffman = if get(opts, :huffman).nil?
+  huffman = if opts[:huffman].nil?
     :shorter
   else
-    get(opts, :huffman)
+    opts[:huffman]
   end
-  never = get(opts, :never) or []
-  plain = get(opts, :plain) or []
+  never = opts[:never] or []
+  plain = opts[:plain] or []
   head = size_updates(t)
   cell = [assoc(t, :updates, [])]
   out = map(
     fn(f)
       r = encode_field(first(cell), f, huffman, never, plain)
-      set!(cell, [nth(1, r)])
+      set!(cell, [r[1]])
       first(r)
     end,
     fields
@@ -830,10 +824,10 @@ end
 
 test "the Huffman code is the complete prefix code of Appendix B"
   assert size(huffman_codes) == 257
-  assert reduce((a, c) -> a + expt(2, 30 - nth(1, c)), 0, huffman_codes) ==
+  assert reduce((a, c) -> a + expt(2, 30 - c[1]), 0, huffman_codes) ==
     expt(2, 30)
-  assert nth(48, huffman_codes) == [0, 5]
-  assert nth(256, huffman_codes) == [1_073_741_823, 30]
+  assert huffman_codes[48] == [0, 5]
+  assert huffman_codes[256] == [1_073_741_823, 30]
 end
 
 test "Huffman strings of RFC 7541 C.4 encode and decode"
@@ -859,9 +853,9 @@ test "Huffman decoding refuses long padding, padding that is not EOS, and EOS"
   whole = huffman_encode("aaaaaaaa")
   assert size(whole) == 5
   assert huffman_decode(whole) == ok(text_bytes("aaaaaaaa"))
-  assert nth(1, refusal_of(huffman_decode(append(whole, [255])))) ==
+  assert refusal_of(huffman_decode(append(whole, [255])))[1] ==
     "Huffman padding is longer than 7 bits"
-  assert nth(1, refusal_of(huffman_decode([24]))) ==
+  assert refusal_of(huffman_decode([24]))[1] ==
     "Huffman padding is not the start of EOS"
   assert first(refusal_of(huffman_decode([255, 255, 255, 255]))) ==
     :compression_error
@@ -876,8 +870,8 @@ test "the static table is Appendix A, indexed from 1"
   assert lookup(t, 61) == ["www-authenticate", ""]
   assert lookup(t, 0).nil?
   assert lookup(t, 62).nil?
-  assert get(static_names, ":method") == 2
-  assert get(static_names, ":status") == 8
+  assert static_names[":method"] == 2
+  assert static_names[":status"] == 8
 end
 
 test "the dynamic table counts octets plus 32, evicts the oldest, and empties for an entry too big"
@@ -900,31 +894,30 @@ end
 
 test "each representation of RFC 7541 C.2"
   a = encode(table(4096), [["custom-key", "custom-header"]], {huffman: false})
-  assert bytes_hex(get(a, :block)) ==
+  assert bytes_hex(a[:block]) ==
     "400a637573746f6d2d6b65790d637573746f6d2d686561646572"
-  assert table_size(get(a, :table)) == 55
+  assert table_size(a[:table]) == 55
   b = encode(
     table(4096),
     [[":path", "/sample/path"]],
     {huffman: false, plain: [":path"]}
   )
-  assert bytes_hex(get(b, :block)) == "040c2f73616d706c652f70617468"
-  assert table_size(get(b, :table)) == 0
+  assert bytes_hex(b[:block]) == "040c2f73616d706c652f70617468"
+  assert table_size(b[:table]) == 0
   c = encode(
     table(4096),
     [["password", "secret"]],
     {huffman: false, never: ["password"]}
   )
-  assert bytes_hex(get(c, :block)) == "100870617373776f726406736563726574"
-  assert bytes_hex(get(encode(table(4096), [[":method", "GET"]]), :block)) ==
-    "82"
-  d = value(decode(table(4096), get(c, :block)))
-  assert get(d, :fields) == [["password", "secret"]]
-  assert get(d, :sensitive) == [0]
-  assert table_size(get(d, :table)) == 0
-  e = value(decode(table(4096), get(a, :block)))
-  assert entries(get(e, :table)) == [["custom-key", "custom-header"]]
-  assert get(value(decode(table(4096), hex_bytes("82"))), :fields) ==
+  assert bytes_hex(c[:block]) == "100870617373776f726406736563726574"
+  assert bytes_hex(encode(table(4096), [[":method", "GET"]])[:block]) == "82"
+  d = value(decode(table(4096), c[:block]))
+  assert d[:fields] == [["password", "secret"]]
+  assert d[:sensitive] == [0]
+  assert table_size(d[:table]) == 0
+  e = value(decode(table(4096), a[:block]))
+  assert entries(e[:table]) == [["custom-key", "custom-header"]]
+  assert value(decode(table(4096), hex_bytes("82")))[:fields] ==
     [[":method", "GET"]]
 end
 
@@ -993,7 +986,7 @@ test "three responses evict through a 256-octet table, without Huffman (C.5) and
   assert exchange(256, [s1, s2, s3], plain, false) == [222, 222, 215]
   assert exchange(256, [s1, s2, s3], huffed, true) == [222, 222, 215]
   last_table = get(
-    encode(get(encode(get(encode(table(256), s1), :table), s2), :table), s3),
+    encode(encode(encode(table(256), s1)[:table], s2)[:table], s3),
     :table
   )
   assert map((e) -> first(e), entries(last_table)) ==
@@ -1002,39 +995,38 @@ end
 
 test "a decoder refuses what no encoder may send, and accepts the same bytes made legal"
   t = table(100)
-  assert nth(1, refusal_of(decode(t, [128]))) == "index 0 names no field"
-  assert nth(1, refusal_of(decode(t, [190]))) ==
-    "index 62 is outside both tables"
+  assert refusal_of(decode(t, [128]))[1] == "index 0 names no field"
+  assert refusal_of(decode(t, [190]))[1] == "index 62 is outside both tables"
   assert first(refusal_of(decode(t, encode_int(4096, 5, 32)))) ==
     :compression_error
-  assert nth(1, refusal_of(decode(t, [130, 32]))) ==
+  assert refusal_of(decode(t, [130, 32]))[1] ==
     "a table size update follows a field"
   assert first(refusal_of(decode(t, [64, 10, 97]))) == :compression_error
   assert first(refusal_of(decode(t, [64]))) == :compression_error
-  assert table_max(get(value(decode(t, [32, 130])), :table)) == 0
-  assert get(value(decode(t, [32, 130])), :fields) == [[":method", "GET"]]
+  assert table_max(value(decode(t, [32, 130]))[:table]) == 0
+  assert value(decode(t, [32, 130]))[:fields] == [[":method", "GET"]]
   assert table_max(
-    get(value(decode(with_limit(t, 4096), encode_int(4096, 5, 32))), :table)
+    value(decode(with_limit(t, 4096), encode_int(4096, 5, 32)))[:table]
   ) == 4096
-  assert get(value(decode(t, [])), :fields) == []
+  assert value(decode(t, []))[:fields] == []
 end
 
 test "an encoder signals a table resize first, the smallest size before the final one"
   t = resize(resize(table(4096), 0), 4096)
   out = encode(t, [[":method", "GET"]])
-  assert get(out, :block) == [32, 63, 225, 31, 130]
-  assert get(encode(get(out, :table), [[":method", "GET"]]), :block) == [130]
-  back = value(decode(table(4096), get(out, :block)))
-  assert table_max(get(back, :table)) == 4096
-  assert get(back, :fields) == [[":method", "GET"]]
-  assert get(encode(resize(table(4096), 100), []), :block) == [63, 69]
+  assert out[:block] == [32, 63, 225, 31, 130]
+  assert encode(out[:table], [[":method", "GET"]])[:block] == [130]
+  back = value(decode(table(4096), out[:block]))
+  assert table_max(back[:table]) == 4096
+  assert back[:fields] == [[":method", "GET"]]
+  assert encode(resize(table(4096), 100), [])[:block] == [63, 69]
 end
 
 test "a field whose octets are not UTF-8 survives as bytes, and Huffman is used only when shorter"
   out = encode(table(4096), [["x-raw", [255, 0]], ["x-text", "aaaaaaaa"]])
-  back = value(decode(table(4096), get(out, :block)))
-  assert get(back, :fields) == [["x-raw", [255, 0]], ["x-text", "aaaaaaaa"]]
-  assert entries(get(back, :table)) == entries(get(out, :table))
+  back = value(decode(table(4096), out[:block]))
+  assert back[:fields] == [["x-raw", [255, 0]], ["x-text", "aaaaaaaa"]]
+  assert entries(back[:table]) == entries(out[:table])
   assert encode_string("aaaaaaaa", :shorter) ==
     append([133], huffman_encode("aaaaaaaa"))
   assert encode_string([255, 0], :shorter) == [2, 255, 0]
@@ -1045,17 +1037,17 @@ def exchange(max, lists, hexes, huffman)
   cell = [table(max), table(max)]
   map(
     fn(i)
-      out = encode(first(cell), nth(i, lists), {huffman:})
-      back = value(decode(nth(1, cell), get(out, :block)))
-      set!(cell, [get(out, :table), get(back, :table)])
-      if bytes_hex(get(out, :block)) != bytes_hex(hex_bytes(nth(i, hexes)))
-        raise(:mismatch, "block #{i}: #{bytes_hex(get(out, :block))}")
+      out = encode(first(cell), lists[i], {huffman:})
+      back = value(decode(cell[1], out[:block]))
+      set!(cell, [out[:table], back[:table]])
+      if bytes_hex(out[:block]) != bytes_hex(hex_bytes(hexes[i]))
+        raise(:mismatch, "block #{i}: #{bytes_hex(out[:block])}")
       end
-      if get(back, :fields) != nth(i, lists) or
-          entries(get(back, :table)) != entries(get(out, :table))
+      if back[:fields] != lists[i] or
+          entries(back[:table]) != entries(out[:table])
         raise(:mismatch, "decode #{i}")
       end
-      table_size(get(out, :table))
+      table_size(out[:table])
     end,
     range(0, size(lists))
   )

@@ -91,11 +91,11 @@ def field(name, ref, opts?)
   {
     name:,
     type: as_ref(ref),
-    args: get(o, :args) or [],
-    resolve: get(o, :resolve),
-    subscribe: get(o, :subscribe),
-    deprecated: deprecation(get(o, :deprecated)),
-    description: get(o, :description)
+    args: o[:args] or [],
+    resolve: o[:resolve],
+    subscribe: o[:subscribe],
+    deprecated: deprecation(o[:deprecated]),
+    description: o[:description]
   }
 end
 
@@ -104,20 +104,16 @@ def arg(name, ref, opts?)
   {
     name:,
     type: as_ref(ref),
-    default: get(o, :default),
+    default: o[:default],
     has_default: has?(o, :default),
-    deprecated: deprecation(get(o, :deprecated)),
-    description: get(o, :description)
+    deprecated: deprecation(o[:deprecated]),
+    description: o[:description]
   }
 end
 
 def enum_value(name, opts?)
   o = opts or {}
-  {
-    name:,
-    deprecated: deprecation(get(o, :deprecated)),
-    description: get(o, :description)
-  }
+  {name:, deprecated: deprecation(o[:deprecated]), description: o[:description]}
 end
 
 def as_enum_value(v)
@@ -139,8 +135,8 @@ def object_type(name, fields, opts?)
     name:,
     fields:,
     field_index: indexed(fields),
-    interfaces: get(o, :interfaces) or [],
-    description: get(o, :description)
+    interfaces: o[:interfaces] or [],
+    description: o[:description]
   }
 end
 
@@ -151,9 +147,9 @@ def interface_type(name, fields, opts?)
     name:,
     fields:,
     field_index: indexed(fields),
-    interfaces: get(o, :interfaces) or [],
-    resolve_type: get(o, :resolve_type),
-    description: get(o, :description)
+    interfaces: o[:interfaces] or [],
+    resolve_type: o[:resolve_type],
+    description: o[:description]
   }
 end
 
@@ -163,8 +159,8 @@ def union_type(name, members, opts?)
     kind: "UNION",
     name:,
     members:,
-    resolve_type: get(o, :resolve_type),
-    description: get(o, :description)
+    resolve_type: o[:resolve_type],
+    description: o[:description]
   }
 end
 
@@ -174,7 +170,7 @@ def enum_type(name, values, opts?)
     kind: "ENUM",
     name:,
     values: map(as_enum_value, values),
-    description: get(o, :description)
+    description: o[:description]
   }
 end
 
@@ -185,7 +181,7 @@ def input_type(name, fields, opts?)
     name:,
     fields:,
     field_index: indexed(fields),
-    description: get(o, :description)
+    description: o[:description]
   }
 end
 
@@ -194,10 +190,10 @@ def scalar_type(name, opts?)
   {
     kind: "SCALAR",
     name:,
-    serialize: get(o, :serialize),
-    parse: get(o, :parse),
-    specified_by: get(o, :specified_by),
-    description: get(o, :description)
+    serialize: o[:serialize],
+    parse: o[:parse],
+    specified_by: o[:specified_by],
+    description: o[:description]
   }
 end
 
@@ -207,8 +203,8 @@ def directive(name, locations, args, opts?)
     name:,
     locations:,
     args:,
-    repeatable: get(o, :repeatable) == true,
-    description: get(o, :description)
+    repeatable: o[:repeatable] == true,
+    description: o[:description]
   }
 end
 
@@ -364,16 +360,13 @@ def root_or(spec_name, types, fallback)
 end
 
 def schema(spec)
-  all = append(builtin_scalars, introspection_types, get(spec, :types) or [])
+  all = append(builtin_scalars, introspection_types, spec[:types] or [])
   names = map((t) -> t.name, all)
-  dupes = filter(
-    (i) -> index_of(names, nth(i, names)) < i,
-    range(0, size(names))
-  )
+  dupes = filter((i) -> index_of(names, names[i]) < i, range(0, size(names)))
   types = zipmap(names, all)
-  query = root_or(get(spec, :query), types, "Query")
+  query = root_or(spec[:query], types, "Query")
   whys = append(
-    map((i) -> "the type #{nth(i, names)} is defined twice", dupes),
+    map((i) -> "the type #{names[i]} is defined twice", dupes),
     flat_map(all, (t) -> type_whys(types, t)),
     if kind_named(types, query) == "OBJECT"
       []
@@ -388,10 +381,10 @@ def schema(spec)
     kind: :schema,
     types:,
     query:,
-    mutation: root_or(get(spec, :mutation), types, "Mutation"),
-    subscription: root_or(get(spec, :subscription), types, "Subscription"),
-    directives: append(builtin_directives, get(spec, :directives) or []),
-    description: get(spec, :description)
+    mutation: root_or(spec[:mutation], types, "Mutation"),
+    subscription: root_or(spec[:subscription], types, "Subscription"),
+    directives: append(builtin_directives, spec[:directives] or []),
+    description: spec[:description]
   }
 end
 
@@ -421,9 +414,7 @@ def possible_types(sc, name)
     map(
       (e) -> first(e),
       filter(
-        fn(e)
-          nth(1, e).kind == "OBJECT" and contains(nth(1, e).interfaces, name)
-        end,
+        (e) -> e[1].kind == "OBJECT" and contains(e[1].interfaces, name),
         map_entries(sc.types)
       )
     )
@@ -458,13 +449,13 @@ def field_def(sc, tname, fname)
       "__Type",
       {
         args: [arg("name", "String!")],
-        resolve: (_p, a, _c) -> type_view_named(sc, get(a, "name"))
+        resolve: (_p, a, _c) -> type_view_named(sc, a["name"])
       }
     )
-  elsif t.nil? or get(t, :field_index).nil?
+  elsif t.nil? or t[:field_index].nil?
     nil
   else
-    get(get(t, :field_index), fname)
+    get(t[:field_index], fname)
   end
 end
 
@@ -641,7 +632,7 @@ def introspection_types()
           "[__Field!]",
           {
             args: include_arg,
-            resolve: (p, a, _c) -> view_fields(p, get(a, "includeDeprecated"))
+            resolve: (p, a, _c) -> view_fields(p, a["includeDeprecated"])
           }
         ),
         field(
@@ -659,9 +650,7 @@ def introspection_types()
           "[__EnumValue!]",
           {
             args: include_arg,
-            resolve: fn(p, a, _c)
-              view_enum_values(p, get(a, "includeDeprecated"))
-            end
+            resolve: (p, a, _c) -> view_enum_values(p, a["includeDeprecated"])
           }
         ),
         field(
@@ -821,7 +810,7 @@ def entry_of(m, name)
     if e.nil?
       [false, nil]
     else
-      [true, nth(1, e)]
+      [true, e[1]]
     end
   end
 end
@@ -942,7 +931,7 @@ def coerce_input_object(sc, t, v)
   end
   map(
     fn(e)
-      if get(get(t, :field_index), to_s(first(e))).nil?
+      if get(t[:field_index], to_s(first(e))).nil?
         raise(
           :coerce,
           "Field \"#{to_s(first(e))}\" is not defined by type \"#{t.name}\"."
@@ -955,7 +944,7 @@ def coerce_input_object(sc, t, v)
     fn(acc, f)
       e = entry_of(v, f.name)
       if first(e)
-        assoc(acc, f.name, coerce_input(sc, f.type, nth(1, e)))
+        assoc(acc, f.name, coerce_input(sc, f.type, e[1]))
       elsif f.has_default
         assoc(acc, f.name, f.default)
       elsif non_null?(f.type)
@@ -985,16 +974,16 @@ def ast_value(ast)
   when :enum
     ast.name
   else
-    get(ast, :value)
+    ast[:value]
   end
 end
 
 def loc_of(node)
-  at = get(node, :at)
+  at = node[:at]
   if at.nil?
     []
   else
-    [{line: first(at), column: nth(1, at)}]
+    [{line: first(at), column: at[1]}]
   end
 end
 
@@ -1053,7 +1042,7 @@ end
 def plain_value(ast, vars)
   case ast.kind
   when :var
-    nth(1, entry_of(vars, ast.name))
+    entry_of(vars, ast.name)[1]
   when :list
     map((x) -> plain_value(x, vars), ast.items)
   when :object
@@ -1070,7 +1059,7 @@ end
 
 def value_from_ast(sc, ref, ast, vars)
   if ast.kind == :var
-    v = nth(1, entry_of(vars, ast.name))
+    v = entry_of(vars, ast.name)[1]
     if v.nil? and non_null?(ref)
       raise(
         :coerce,
@@ -1126,7 +1115,7 @@ def object_from_ast(sc, t, ast, vars)
   end
   map(
     fn(f)
-      if get(get(t, :field_index), f.name).nil?
+      if get(t[:field_index], f.name).nil?
         raise(
           :coerce,
           "Field \"#{f.name}\" is not defined by type \"#{t.name}\"."
@@ -1177,7 +1166,7 @@ def render_value(sc, ref, v)
       to_s(v)
     elsif t.kind == "INPUT_OBJECT"
       shown = filter((f) -> first(entry_of(v, f.name)), t.fields)
-      "{#{join(map((f) -> "#{f.name}: #{render_value(sc, f.type, nth(1, entry_of(v, f.name)))}", shown), ", ")}}"
+      "{#{join(map((f) -> "#{f.name}: #{render_value(sc, f.type, entry_of(v, f.name)[1])}", shown), ", ")}}"
     elsif string?(v)
       json_stringify(v)
     else
@@ -1251,7 +1240,7 @@ def coerce_variables(sc, op, given)
         fault(
           "Variable \"$#{name}\" of required type \"#{danpen::type_text(ref)}\" was not provided."
         )
-      elsif non_null?(ref) and nth(1, e).nil?
+      elsif non_null?(ref) and e[1].nil?
         fault(
           "Variable \"$#{name}\" of non-null type \"#{danpen::type_text(ref)}\" must not be null."
         )
@@ -1259,13 +1248,10 @@ def coerce_variables(sc, op, given)
         acc
       else
         begin
-          {
-            **acc,
-            values: assoc(acc.values, name, coerce_input(sc, ref, nth(1, e)))
-          }
+          {**acc, values: assoc(acc.values, name, coerce_input(sc, ref, e[1]))}
         rescue :coerce as err
           fault(
-            "Variable \"$#{name}\" got invalid value #{shown_value(nth(1, e))}; #{err.message}"
+            "Variable \"$#{name}\" got invalid value #{shown_value(e[1])}; #{err.message}"
           )
         end
       end
@@ -1306,7 +1292,7 @@ def operation_of(doc, name)
       )
     end
   else
-    op = find_first((o) -> get(o, :name) == name, ops)
+    op = find_first((o) -> o[:name] == name, ops)
     if op.nil?
       request_error("Unknown operation named \"#{name}\".", [])
     else
@@ -1339,7 +1325,7 @@ def add_to_group(groups, key, node)
   if i < 0
     append(groups, [[key, [node]]])
   else
-    update_at(groups, i, [key, append(nth(1, nth(i, groups)), [node])])
+    update_at(groups, i, [key, append(groups[i][1], [node])])
   end
 end
 
@@ -1355,20 +1341,20 @@ def collect_one(env, tname, s, st)
   if not included?(env, s.directives)
     st
   elsif s.kind == :field
-    [add_to_group(first(st), response_key(s), s), nth(1, st)]
+    [add_to_group(first(st), response_key(s), s), st[1]]
   elsif s.kind == :spread
-    if contains(nth(1, st), s.name)
+    if contains(st[1], s.name)
       st
     else
       frag = get(env.frags, s.name)
-      seen = [first(st), append(nth(1, st), [s.name])]
+      seen = [first(st), append(st[1], [s.name])]
       if frag.nil? or not applies?(env.sc, tname, frag.on)
         seen
       else
         collect_into(env, tname, frag.selections, seen)
       end
     end
-  elsif get(s, :on) != nil and not applies?(env.sc, tname, get(s, :on))
+  elsif s[:on] != nil and not applies?(env.sc, tname, s[:on])
     st
   else
     collect_into(env, tname, s.selections, st)
@@ -1394,7 +1380,7 @@ end
 def exec_selection_set(env, tname, sels, parent, path)
   reduce(
     fn(acc, g)
-      r = exec_field(env, tname, parent, nth(1, g), append(path, [first(g)]))
+      r = exec_field(env, tname, parent, g[1], append(path, [first(g)]))
       if r.nil?
         acc
       else
@@ -1411,7 +1397,7 @@ def exec_selection_set(env, tname, sels, parent, path)
 end
 
 def default_resolve(parent, name)
-  nth(1, entry_of(parent, name))
+  entry_of(parent, name)[1]
 end
 
 def exec_field(env, tname, parent, nodes, path)
@@ -1488,14 +1474,7 @@ def complete_raw(env, ref, nodes, v, path, owner)
     else
       items = map(
         fn(e)
-          complete(
-            env,
-            ref.of,
-            nodes,
-            nth(1, e),
-            append(path, [first(e)]),
-            owner
-          )
+          complete(env, ref.of, nodes, e[1], append(path, [first(e)]), owner)
         end,
         enumerate(v)
       )
@@ -1552,7 +1531,7 @@ end
 
 def resolve_type(env, t, v)
   if t.resolve_type.nil?
-    nth(1, entry_of(v, "__typename"))
+    entry_of(v, "__typename")[1]
   else
     pick = t.resolve_type
     pick(v, env.ctx)
@@ -1631,16 +1610,16 @@ def serialize_other(t, v)
 end
 
 def env_for(sc, doc, values, opts)
-  {sc:, frags: fragments_of(doc), vars: values, ctx: get(opts, :context)}
+  {sc:, frags: fragments_of(doc), vars: values, ctx: opts[:context]}
 end
 
 def prepared(sc, doc, opts)
-  found = operation_of(doc, get(opts, :operation_name))
+  found = operation_of(doc, opts[:operation_name])
   if not ok?(found)
     found
   else
     op = value(found)
-    cv = coerce_variables(sc, op, get(opts, :variables))
+    cv = coerce_variables(sc, op, opts[:variables])
     if not is_empty(cv.errors)
       refused(refusal(:request, cv.errors))
     elsif root_name(sc, op.operation).nil?
@@ -1666,7 +1645,7 @@ def execute(sc, doc, opts?)
       env,
       root_name(sc, op.operation),
       op.selections,
-      get(o, :root),
+      o[:root],
       []
     )
     response(
@@ -1704,7 +1683,7 @@ def subscribe(sc, doc, opts?)
     env = value(p).env
     root = sc.subscription
     g = first(collect_fields(env, root, op.selections))
-    node = first(nth(1, g))
+    node = first(g[1])
     fdef = field_def(sc, root, node.name)
     begin
       args = coerce_arguments(sc, fdef.args, node.arguments, env.vars)
@@ -1809,7 +1788,7 @@ end
 
 def roots_sdl(sc)
   roots = filter(
-    (r) -> nth(1, r) != nil,
+    (r) -> r[1] != nil,
     [
       ["query", sc.query],
       ["mutation", sc.mutation],
@@ -1819,14 +1798,14 @@ def roots_sdl(sc)
   join_lines(
     [
       "schema {",
-      join(map((r) -> "  #{first(r)}: #{nth(1, r)}", roots), line_break),
+      join(map((r) -> "  #{first(r)}: #{r[1]}", roots), line_break),
       "}"
     ]
   )
 end
 
 def sdl(sc)
-  types = filter(user_type?, map((e) -> nth(1, e), map_entries(sc.types)))
+  types = filter(user_type?, map((e) -> e[1], map_entries(sc.types)))
   join(
     append([roots_sdl(sc)], map((t) -> type_sdl(sc, t), types)),
     unlines(["", ""])
@@ -1888,8 +1867,8 @@ def lower_first(s)
 end
 
 def model_field(e, f)
-  scalar = model_scalar(get(f, :type))
-  if get(f, :secret) == true or get(f, :public) == false
+  scalar = model_scalar(f[:type])
+  if f[:secret] == true or f[:public] == false
     [nil, []]
   elsif scalar.nil?
     [
@@ -1897,21 +1876,21 @@ def model_field(e, f)
       [
         refusal(
           :unknown_type,
-          "#{e.name}.#{get(f, :name)} has the type #{to_s(get(f, :type))}, which has no GraphQL scalar"
+          "#{e.name}.#{f[:name]} has the type #{to_s(f[:type])}, which has no GraphQL scalar"
         )
       ]
     ]
   else
-    ref = if get(f, :optional) == true
+    ref = if f[:optional] == true
       scalar
     else
       "#{scalar}!"
     end
     [
       field(
-        get(f, :name),
+        f[:name],
         ref,
-        {deprecated: get(f, :deprecated), description: get(f, :description)}
+        {deprecated: f[:deprecated], description: f[:description]}
       ),
       []
     ]
@@ -1919,29 +1898,29 @@ def model_field(e, f)
 end
 
 def model_relation(e, r, names)
-  if not contains(names, get(r, :entity))
+  if not contains(names, r[:entity])
     [
       nil,
       [
         refusal(
           :unknown_entity,
-          "#{e.name}.#{get(r, :name)} relates to #{get(r, :entity)}, which is not an entity of the model"
+          "#{e.name}.#{r[:name]} relates to #{r[:entity]}, which is not an entity of the model"
         )
       ]
     ]
   else
-    ref = if get(r, :many) == true
-      "[#{get(r, :entity)}!]!"
-    elsif get(r, :optional) == false
-      "#{get(r, :entity)}!"
+    ref = if r[:many] == true
+      "[#{r[:entity]}!]!"
+    elsif r[:optional] == false
+      "#{r[:entity]}!"
     else
-      get(r, :entity)
+      r[:entity]
     end
     [
       field(
-        get(r, :name),
+        r[:name],
         ref,
-        {deprecated: get(r, :deprecated), description: get(r, :description)}
+        {deprecated: r[:deprecated], description: r[:description]}
       ),
       []
     ]
@@ -1953,11 +1932,11 @@ def kept(pairs)
 end
 
 def plural_of(e)
-  get(e, :plural) or "#{lower_first(e.name)}s"
+  e[:plural] or "#{lower_first(e.name)}s"
 end
 
 def root_fields(e)
-  key = get(e, :key) or "id"
+  key = e[:key] or "id"
   [
     field(lower_first(e.name), e.name, {args: [arg(key, "ID!")]}),
     field(plural_of(e), "[#{e.name}!]!")
@@ -1965,27 +1944,25 @@ def root_fields(e)
 end
 
 def from_model(model)
-  ents = get(model, :entities) or []
+  ents = model[:entities] or []
   names = map((e) -> e.name, ents)
   parts = map(
     fn(e)
-      fs = map((f) -> model_field(e, f), get(e, :fields) or [])
-      rs = map((r) -> model_relation(e, r, names), get(e, :relations) or [])
+      fs = map((f) -> model_field(e, f), e[:fields] or [])
+      rs = map((r) -> model_relation(e, r, names), e[:relations] or [])
       [
         object_type(
           e.name,
           append(kept(fs), kept(rs)),
-          {description: get(e, :description)}
+          {description: e[:description]}
         ),
-        append(flat_map(fs, (x) -> nth(1, x)), flat_map(rs, (x) -> nth(1, x)))
+        append(flat_map(fs, (x) -> x[1]), flat_map(rs, (x) -> x[1]))
       ]
     end,
     ents
   )
   uses_time = count_where(
-    fn(e)
-      count_where((f) -> get(f, :type) == :time, get(e, :fields) or []) > 0
-    end,
+    (e) -> count_where((f) -> f[:type] == :time, e[:fields] or []) > 0,
     ents
   ) > 0
   {
@@ -2003,14 +1980,14 @@ def from_model(model)
         []
       end
     ),
-    refusals: flat_map(parts, (p) -> nth(1, p))
+    refusals: flat_map(parts, (p) -> p[1])
   }
 end
 
 def with_resolvers(types, table)
   map(
     fn(t)
-      if get(t, :field_index).nil? or t.kind == "INPUT_OBJECT"
+      if t[:field_index].nil? or t.kind == "INPUT_OBJECT"
         t
       else
         fs = map(
@@ -2160,7 +2137,7 @@ def fixture()
               {
                 args: [arg("episode", "Episode")],
                 resolve: fn(_p, a, _c)
-                  if get(a, "episode") == "EMPIRE"
+                  if a["episode"] == "EMPIRE"
                     person("1000")
                   else
                     person("2001")
@@ -2219,9 +2196,9 @@ def fixture()
                 ],
                 resolve: fn(_p, a, _c)
                   {
-                    episode: get(a, "episode"),
+                    episode: a["episode"],
                     stars: a.review.stars,
-                    commentary: get(a.review, "commentary")
+                    commentary: a.review["commentary"]
                   }
                 end
               }
@@ -2317,16 +2294,16 @@ test "a schema derives from a model's entities, pure, refusing a bad field alone
       "score: Float",
       "evidence: [Evidence!]!"
     ]
-  assert nth(2, c.fields).deprecated == "Use evidenceTime."
+  assert c.fields[2].deprecated == "Use evidenceTime."
   assert kyohi::kinds(d.refusals) == [:unknown_type, :unknown_entity]
-  assert map((f) -> f.name, nth(2, d.types).fields) ==
+  assert map((f) -> f.name, d.types[2].fields) ==
     [
       "control",
       "controls",
       "evidence_",
       "evidence"
     ] or
-    map((f) -> f.name, nth(2, d.types).fields) ==
+    map((f) -> f.name, d.types[2].fields) ==
       ["control", "controls", "evidence", "evidence"]
   assert from_model({entities: []}).types == [object_type("Query", [])]
 end
@@ -2518,7 +2495,7 @@ test "variables are coerced before execution and a bad one answers errors with n
   assert request(sc, stars, {variables: {"r" => {"stars" => 2_147_483_647}}}) ==
     {data: {"createReview" => {"stars" => 2_147_483_647}}}
   over = request(sc, stars, {variables: {"r" => {"stars" => 2_147_483_648}}})
-  assert get(over, :data).nil?
+  assert over[:data].nil?
   assert size(over.errors) == 1
   assert request(
     sc,
@@ -2571,33 +2548,30 @@ test "introspection reads the schema, its deprecations included on request"
       }
     }
   names = map(
-    (t) -> get(t, "name"),
-    get(
-      get(request(sc, "{ __schema { types { name } } }").data, "__schema"),
-      "types"
-    )
+    (t) -> t["name"],
+    request(sc, "{ __schema { types { name } } }").data["__schema"]["types"]
   )
   assert contains(names, "Human") and contains(names, "__TypeKind")
   d = request(
     sc,
     "{ __type(name: \"Droid\") { kind fields { name } all: fields(includeDeprecated: true) { name isDeprecated deprecationReason } interfaces { name } } }"
   )
-  t = get(d.data, "__type")
-  assert get(t, "kind") == "OBJECT"
-  assert map((f) -> get(f, "name"), get(t, "fields")) ==
+  t = d.data["__type"]
+  assert t["kind"] == "OBJECT"
+  assert map((f) -> f["name"], t["fields"]) ==
     ["id", "name", "friends", "primaryFunction"]
-  assert last(get(t, "all")) ==
+  assert last(t["all"]) ==
     {
       "name" => "legacyCode",
       "isDeprecated" => true,
       "deprecationReason" => "Use primaryFunction."
     }
-  assert get(t, "interfaces") == [{"name" => "Character"}]
+  assert t["interfaces"] == [{"name" => "Character"}]
   e = request(
     sc,
     "{ __type(name: \"Unit\") { enumValues(includeDeprecated: true) { name isDeprecated deprecationReason } } }"
   )
-  assert get(get(e.data, "__type"), "enumValues") ==
+  assert e.data["__type"]["enumValues"] ==
     [
       {"name" => "METER", "isDeprecated" => false, "deprecationReason" => nil},
       {
@@ -2611,10 +2585,10 @@ test "introspection reads the schema, its deprecations included on request"
     "{ __type(name: \"Query\") { fields { name type { kind name ofType { kind name ofType { kind name } } } } } }"
   )
   chars_field = find_first(
-    (f) -> get(f, "name") == "characters",
-    get(get(w.data, "__type"), "fields")
+    (f) -> f["name"] == "characters",
+    w.data["__type"]["fields"]
   )
-  assert get(chars_field, "type") ==
+  assert chars_field["type"] ==
     {
       "kind" => "NON_NULL",
       "name" => nil,
@@ -2630,23 +2604,18 @@ test "introspection reads the schema, its deprecations included on request"
     sc,
     "{ __type(name: \"Character\") { possibleTypes { name } } h: __type(name: \"Human\") { fields { name args { name defaultValue } } } }"
   )
-  assert get(get(p.data, "__type"), "possibleTypes") ==
+  assert p.data["__type"]["possibleTypes"] ==
     [{"name" => "Droid"}, {"name" => "Human"}]
-  height = find_first(
-    (f) -> get(f, "name") == "height",
-    get(get(p.data, "h"), "fields")
-  )
-  assert get(height, "args") == [{"name" => "unit", "defaultValue" => "METER"}]
+  height = find_first((f) -> f["name"] == "height", p.data["h"]["fields"])
+  assert height["args"] == [{"name" => "unit", "defaultValue" => "METER"}]
   dirs = request(sc, "{ __schema { directives { name locations } } }")
-  assert map(
-    (x) -> get(x, "name"),
-    get(get(dirs.data, "__schema"), "directives")
-  ) == ["skip", "include", "deprecated", "specifiedBy"]
+  assert map((x) -> x["name"], dirs.data["__schema"]["directives"]) ==
+    ["skip", "include", "deprecated", "specifiedBy"]
   reason = request(
     sc,
     "{ __schema { directives { args { name defaultValue } } } }"
   )
-  assert nth(2, get(get(reason.data, "__schema"), "directives")) ==
+  assert reason.data["__schema"]["directives"][2] ==
     {
       "args" => [
         {"name" => "reason", "defaultValue" => "\"No longer supported\""}

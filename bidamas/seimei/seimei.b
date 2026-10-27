@@ -46,9 +46,9 @@ def elementary_step(rule, row)
     fn(i)
       elementary_step_cell(
         rule,
-        nth(((i - 1) % n + n) % n, row),
-        nth(i, row),
-        nth((i + 1) % n, row)
+        row[((i - 1) % n + n) % n],
+        row[i],
+        row[(i + 1) % n]
       )
     end,
     range(0, n)
@@ -72,7 +72,7 @@ def cell_at(grid, r, c)
   elsif r >= size(grid) or c >= size(first(grid))
     0
   else
-    nth(c, nth(r, grid))
+    grid[r][c]
   end
 end
 
@@ -229,7 +229,7 @@ def live_coords(grid)
       map(
         fn(r)
           filter(
-            (rc) -> nth(1, rc) >= 0,
+            (rc) -> rc[1] >= 0,
             map(
               fn(c)
                 if cell_at(grid, r, c) == 1
@@ -725,7 +725,7 @@ this is not the way to ask "how many are not alive".
 def neighbours_equal(grid, r, c, v)
   reduce(
     fn(a, d)
-      if cell_at(grid, r + nth(0, d), c + nth(1, d)) == v
+      if cell_at(grid, r + d[0], c + d[1]) == v
         a + 1
       else
         a

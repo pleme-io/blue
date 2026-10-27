@@ -45,7 +45,7 @@ def posture(name, table, defaults, layer)
 end
 
 def table_of(p)
-  get(p, :table)
+  p[:table]
 end
 
 @doc """
@@ -61,7 +61,7 @@ defaults: One entry per posture, running its defaults: the stance of a bare serv
     defaults([]) #=> []
 """
 def defaults(postures)
-  map((p) -> entry(name_of(p), "default", get(p, :defaults)), postures)
+  map((p) -> entry(name_of(p), "default", p[:defaults]), postures)
 end
 
 @doc """
@@ -79,7 +79,7 @@ def layers(postures, accepted, sink)
     postures,
     fn(p)
       map(
-        (e) -> get(p, :layer)(value_of(e), sink),
+        (e) -> p[:layer](value_of(e), sink),
         filter((e) -> kind_of(e) == name_of(p), accepted)
       )
     end
@@ -99,9 +99,9 @@ serving: The whole composition: the stance, its refusals and the handler it make
 def serving(postures, declaration, sink, handler)
   s = stance(postures, declaration)
   {
-    handler: stack(layers(postures, get(s, :accepted), sink), handler),
-    off: get(s, :off),
-    refusals: get(s, :refusals)
+    handler: stack(layers(postures, s[:accepted], sink), handler),
+    off: s[:off],
+    refusals: s[:refusals]
   }
 end
 
@@ -135,11 +135,7 @@ def tag(key, value)
       fn(handler)
         fn(req)
           r = handler(req)
-          assoc(
-            r,
-            :headers,
-            assoc(get(r, :headers), key, get(settings, :value))
-          )
+          assoc(r, :headers, assoc(r[:headers], key, settings[:value]))
         end
       end
     end
@@ -154,12 +150,12 @@ def veto(mode_default)
     fn(settings, sink)
       fn(handler)
         fn(req)
-          if get(req, :path) == get(settings, :path)
+          if req[:path] == settings[:path]
             gated(
-              get(settings, :mode),
+              settings[:mode],
               sink,
               :veto,
-              "#{get(req, :path)} is vetoed",
+              "#{req[:path]} is vetoed",
               {status: 403, headers: {}, body: unlines(["vetoed"])},
               () -> handler(req)
             )
@@ -173,7 +169,7 @@ def veto(mode_default)
 end
 
 def echo(req)
-  {status: 200, headers: {}, body: "echo #{get(req, :path)}"}
+  {status: 200, headers: {}, body: "echo #{req[:path]}"}
 end
 
 def req_at(path)
@@ -182,9 +178,9 @@ end
 
 test "a bare service runs every posture it is given"
   s = stance([tag("X-A", "1"), veto("audit")], [])
-  assert size(get(s, :accepted)) == 2
-  assert get(s, :refusals) == []
-  assert get(s, :off) == []
+  assert size(s[:accepted]) == 2
+  assert s[:refusals] == []
+  assert s[:off] == []
 end
 
 test "a layer wraps the handler and the first layer is outermost"
@@ -198,7 +194,7 @@ test "a layer wraps the handler and the first layer is outermost"
     end
   end
   h = stack([mark("outer"), mark("inner")], echo)
-  assert get(h(req_at("/")), :status) == 200
+  assert h(req_at("/"))[:status] == 200
   assert first(order) == ["outer", "inner"]
   assert stack([], echo)(req_at("/a")) == echo(req_at("/a"))
 end
@@ -206,28 +202,28 @@ end
 test "a posture runs by default and the declaration can configure it off"
   postures = [tag("X-A", "1")]
   running = serving(postures, [], silent, echo)
-  assert get(get(get(running, :handler)(req_at("/")), :headers), "X-A") == "1"
+  assert running[:handler](req_at("/"))[:headers]["X-A"] == "1"
   disabled = serving(postures, [off(:tag, "default")], silent, echo)
-  assert get(disabled, :refusals) == []
-  assert size(get(disabled, :off)) == 1
-  assert get(get(get(disabled, :handler)(req_at("/")), :headers), "X-A").nil?
+  assert disabled[:refusals] == []
+  assert size(disabled[:off]) == 1
+  assert disabled[:handler](req_at("/"))[:headers]["X-A"].nil?
 end
 
 test "a tune lays fields over the default, and a bad tune is refused alone"
   postures = [tag("X-A", "1")]
   tuned = serving(postures, [tune(:tag, "default", {value: "2"})], silent, echo)
-  assert get(get(get(tuned, :handler)(req_at("/")), :headers), "X-A") == "2"
+  assert tuned[:handler](req_at("/"))[:headers]["X-A"] == "2"
   bad = serving(postures, [tune(:tag, "default", {value: 7})], silent, echo)
-  assert size(get(bad, :refusals)) == 1
-  assert get(get(get(bad, :handler)(req_at("/")), :headers), "X-A") == "1"
+  assert size(bad[:refusals]) == 1
+  assert bad[:handler](req_at("/"))[:headers]["X-A"] == "1"
 end
 
 test "audit records the violation and goes on, enforce refuses it"
   seen = [[]]
   note = (name, why) -> set!(seen, [append(first(seen), [[name, why]])])
   audit = serving([veto("audit")], [], note, echo)
-  r = get(audit, :handler)(req_at("/no"))
-  assert get(r, :status) == 200
+  r = audit[:handler](req_at("/no"))
+  assert r[:status] == 200
   assert first(seen) == [[:veto, "/no is vetoed"]]
   seen2 = [[]]
   note2 = (name, why) -> set!(seen2, [append(first(seen2), [[name, why]])])
@@ -237,10 +233,10 @@ test "audit records the violation and goes on, enforce refuses it"
     note2,
     echo
   )
-  r2 = get(enforce, :handler)(req_at("/no"))
-  assert get(r2, :status) == 403
+  r2 = enforce[:handler](req_at("/no"))
+  assert r2[:status] == 403
   assert first(seen2) == []
-  assert get(get(enforce, :handler)(req_at("/fine")), :status) == 200
+  assert enforce[:handler](req_at("/fine"))[:status] == 200
 end
 
 test "a bad entry is refused alone and the other postures still stand"
@@ -250,8 +246,8 @@ test "a bad entry is refused alone and the other postures still stand"
     silent,
     echo
   )
-  assert size(get(s, :refusals)) == 1
-  assert get(get(get(s, :handler)(req_at("/")), :headers), "X-A") == "1"
+  assert size(s[:refusals]) == 1
+  assert s[:handler](req_at("/"))[:headers]["X-A"] == "1"
 end
 
 test "redeclaring a default is refused as a duplicate and the default stands"
@@ -261,19 +257,19 @@ test "redeclaring a default is refused as a duplicate and the default stands"
     silent,
     echo
   )
-  assert kinds(get(s, :refusals)) == [:duplicate]
-  assert get(get(get(s, :handler)(req_at("/")), :headers), "X-A") == "1"
+  assert kinds(s[:refusals]) == [:duplicate]
+  assert s[:handler](req_at("/"))[:headers]["X-A"] == "1"
   extra = stance([tag("X-A", "1")], [entry(:tag, "second", {value: "2"})])
-  assert get(extra, :refusals) == []
-  assert size(get(extra, :accepted)) == 2
+  assert extra[:refusals] == []
+  assert size(extra[:accepted]) == 2
 end
 
 test "posture names its kind and carries its table, its defaults and its layer"
   p = tag("X-A", "1")
   assert name_of(p) == :tag
-  assert get(p, :defaults) == {value: "1"}
+  assert p[:defaults] == {value: "1"}
   assert size(table_of(p)) == 1
-  assert get(posture(:k, [], {}, :layer), :layer) == :layer
+  assert posture(:k, [], {}, :layer)[:layer] == :layer
   assert posture(:k, [], {}, nil) ==
     {name: :k, table: [], defaults: {}, layer: nil}
 end

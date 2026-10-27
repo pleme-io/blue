@@ -1,8 +1,3 @@
----
-kind: explanation
-summary: verb graph region F: observe, test, quality and process
----
-
 # Region F: OBSERVE, TEST, QUALITY AND THE ENGINEERING PROCESS
 
 Totals: 395 verb rows, 717 edges, 30 spaces (11 exist, 19 provisional). Waves 0/1/2/3/4 = 118/68/127/76/6.

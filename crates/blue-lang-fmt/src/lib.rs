@@ -882,6 +882,12 @@ impl<'s> Renderer<'s> {
                     return d;
                 }
             }
+            Some("get") if items.len() == 3 && blue_lang_syntax::is_index_key(&items[2]) => {
+                return self.index_or_call(s, items, &items[1], &items[2], true);
+            }
+            Some("nth") if items.len() == 3 && !blue_lang_syntax::is_index_key(&items[1]) => {
+                return self.index_or_call(s, items, &items[2], &items[1], false);
+            }
             Some("apply") if items.len() >= 3 => {
                 let head_ok = is_call_head(&items[1]);
                 let spellable = head_ok
@@ -1092,6 +1098,47 @@ impl<'s> Renderer<'s> {
         //
         // A hand-written `begin(a, b)` lands here too, and must: rendering it
         // as two statements outside a body would re-parse as two forms.
+        self.call_form(s, items)
+    }
+
+    /// `x[k]` when it fits on the line (B0066), else the call it is the tree
+    /// of, `get(x, k)` or `nth(k, x)`, which can break where the index cannot.
+    fn index_or_call(
+        &self,
+        s: &Spanned,
+        items: &[Spanned],
+        object: &Spanned,
+        key: &Spanned,
+        object_first: bool,
+    ) -> Doc {
+        let written_as_index = self.real(s.span) && self.src.as_bytes()[s.span.end - 1] == b']';
+        let commented = self.real(s.span) && self.has_comments(s.span.start, s.span.end);
+        if commented && !written_as_index {
+            return self.call_form(s, items);
+        }
+        let object_doc = self.expr(object, 12);
+        let key_doc = self.expr(key, 0);
+        let index = object_doc
+            .clone()
+            .concat(Doc::text("["))
+            .concat(key_doc.clone())
+            .concat(Doc::text("]"));
+        if commented {
+            return index;
+        }
+        let (spans, docs) = if object_first {
+            (vec![object.span, key.span], vec![object_doc, key_doc])
+        } else {
+            (vec![key.span, object.span], vec![key_doc, object_doc])
+        };
+        let units = self.units(s.span.end, s.span.end, &spans);
+        let call = self
+            .expr(&items[0], 12)
+            .concat(self.seq("(", ")", &units, docs));
+        Doc::choice(index, call)
+    }
+
+    fn call_form(&self, s: &Spanned, items: &[Spanned]) -> Doc {
         let callee = self.expr(&items[0], 12);
         let callee = if is_field_read(&items[0]) {
             Doc::text("(").concat(callee).concat(Doc::text(")"))

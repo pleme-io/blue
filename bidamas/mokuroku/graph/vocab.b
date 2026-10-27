@@ -704,21 +704,6 @@ vocab(
 )
 
 vocab(
-  "command",
-  {
-    subject: "spec",
-    args: ["spec", "f"],
-    opts: false,
-    returns: "value",
-    raises: [],
-    kind: :effect,
-    meaning: "run a program through its declared command line",
-    ref: nil,
-    status: :decided
-  }
-)
-
-vocab(
   "commit",
   {
     subject: "subject",
@@ -773,21 +758,6 @@ vocab(
     raises: [],
     kind: :pure,
     meaning: "compile a graph; shapes proved before any run",
-    ref: nil,
-    status: :decided
-  }
-)
-
-vocab(
-  "complete",
-  {
-    subject: "args",
-    args: ["args", "spec"],
-    opts: false,
-    returns: "[text]",
-    raises: [],
-    kind: :pure,
-    meaning: "the words that may follow a partial input",
     ref: nil,
     status: :decided
   }
@@ -2684,21 +2654,6 @@ vocab(
 )
 
 vocab(
-  "mark",
-  {
-    subject: "state",
-    args: ["state"],
-    opts: false,
-    returns: "text",
-    raises: [],
-    kind: :pure,
-    meaning: "the symbol a state shows",
-    ref: nil,
-    status: :decided
-  }
-)
-
-vocab(
   "matches?",
   {
     subject: "subject",
@@ -2754,21 +2709,6 @@ vocab(
     kind: :any,
     meaning: "combine b into a; one master verb for every space, gitto::merge refines it",
     ref: "§3.4",
-    status: :decided
-  }
-)
-
-vocab(
-  "meter",
-  {
-    subject: "fraction",
-    args: ["fraction", "width"],
-    opts: false,
-    returns: "node",
-    raises: [],
-    kind: :pure,
-    meaning: "a fraction drawn as a bar",
-    ref: nil,
     status: :decided
   }
 )
@@ -4748,21 +4688,6 @@ vocab(
     raises: [],
     kind: :effect,
     meaning: "make two places agree",
-    ref: nil,
-    status: :decided
-  }
-)
-
-vocab(
-  "table",
-  {
-    subject: "rows",
-    args: ["rows", "opts"],
-    opts: true,
-    returns: "node",
-    raises: [],
-    kind: :pure,
-    meaning: "rows laid out as aligned columns",
     ref: nil,
     status: :decided
   }

@@ -43,7 +43,7 @@ end
 def package_of(path)
   parts = split(path, "/")
   if count(parts) >= 3 and first(parts) == "bidamas"
-    nth(1, parts)
+    parts[1]
   end
 end
 
@@ -82,7 +82,7 @@ def main()
     "origin/main"
   end
   head = if count(argv) > 1
-    nth(1, argv)
+    argv[1]
   else
     "HEAD"
   end

@@ -5,7 +5,7 @@ def keys(m)
 end
 
 def values(m)
-  map((e) -> nth(1, e), map_entries(m))
+  map((e) -> e[1], map_entries(m))
 end
 
 def entries(m)
@@ -79,11 +79,11 @@ def select(m, wanted)
 end
 
 def from_entries(pairs)
-  zipmap(map(first, pairs), map((e) -> nth(1, e), pairs))
+  zipmap(map(first, pairs), map((e) -> e[1], pairs))
 end
 
 def merge(a, b)
-  reduce((acc, e) -> assoc(acc, first(e), nth(1, e)), a, map_entries(b))
+  reduce((acc, e) -> assoc(acc, first(e), e[1]), a, map_entries(b))
 end
 
 space_for(:map, "jisho")

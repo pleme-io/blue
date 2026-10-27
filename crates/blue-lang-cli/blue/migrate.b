@@ -26,15 +26,15 @@ def run_blue(args)
 end
 
 def status_of(r)
-  nth(1, nth(0, r))
+  r[0][1]
 end
 
 def stdout_of(r)
-  nth(1, nth(1, r))
+  r[1][1]
 end
 
 def stderr_of(r)
-  nth(1, nth(2, r))
+  r[2][1]
 end
 
 def resolved(file)
@@ -101,7 +101,7 @@ def uses_after(doc, want)
             filter((u) -> json_get(u, "package") == p, existing)
           )
         ),
-        map((w) -> nth(1, w), filter((w) -> first(w) == p, want))
+        map((w) -> w[1], filter((w) -> first(w) == p, want))
       )
       [p, sorted(listed)]
     end,
@@ -110,7 +110,7 @@ def uses_after(doc, want)
 end
 
 def render_use(u)
-  names = nth(1, u)
+  names = u[1]
   if empty?(names)
     "use(\"#{first(u)}\")"
   else
@@ -149,11 +149,7 @@ def rewrite(text, doc, block)
     numbered
   )
   join(
-    append(
-      map((nl) -> nth(1, nl), before),
-      inserted,
-      map((nl) -> nth(1, nl), after)
-    ),
+    append(map((nl) -> nl[1], before), inserted, map((nl) -> nl[1], after)),
     line_break
   )
 end
@@ -264,7 +260,7 @@ def replace_word(s, old, new)
   reduce(
     fn(acc, np)
       i = first(np)
-      piece = nth(1, np)
+      piece = np[1]
       if i == 0
         piece
       else
@@ -301,9 +297,9 @@ def replace_ident(s, old, new)
   # [segments, current, depth, previous char]; a segment is [code?, text].
   step = fn(st, c)
     segs = first(st)
-    cur = nth(1, st)
-    depth = nth(2, st)
-    prev = nth(3, st)
+    cur = st[1]
+    depth = st[2]
+    prev = st[3]
     if depth == 0 and prev == "#" and c == "{"
       [append(segs, [[false, cur]]), c, 1, c]
     elsif depth > 0 and c == "{"
@@ -317,14 +313,14 @@ def replace_ident(s, old, new)
     end
   end
   st = reduce(step, [[], "", 0, ""], chars(s))
-  segs = append(first(st), [[nth(2, st) > 0, nth(1, st)]])
+  segs = append(first(st), [[st[2] > 0, st[1]]])
   join(
     map(
       fn(seg)
         if first(seg)
-          replace_word(nth(1, seg), old, new)
+          replace_word(seg[1], old, new)
         else
-          nth(1, seg)
+          seg[1]
         end
       end,
       segs
@@ -341,9 +337,9 @@ def edit_at(line, col, end_col, renames)
   written = join(take(end_col - col, drop(col - 1, cs)), "")
   exact = filter((r) -> first(r) == written, renames)
   replacement = if not empty?(exact)
-    nth(1, first(exact))
+    first(exact)[1]
   elsif contains?(written, "#\u{7b}")
-    reduce((w, r) -> replace_ident(w, first(r), nth(1, r)), written, renames)
+    reduce((w, r) -> replace_ident(w, first(r), r[1]), written, renames)
   else
     raise(
       :migrate,
@@ -363,22 +359,19 @@ def apply_edits(text, edits)
       here = filter((e) -> first(e) == first(nl), edits)
       spans = sort_keyed(
         (sp) -> -first(sp),
-        distinct(map((e) -> [nth(1, e), nth(2, e)], here))
+        distinct(map((e) -> [e[1], e[2]], here))
       )
       reduce(
         fn(l, sp)
           renames = distinct(
             map(
-              (e) -> [nth(3, e), nth(4, e)],
-              filter(
-                (e) -> nth(1, e) == first(sp) and nth(2, e) == nth(1, sp),
-                here
-              )
+              (e) -> [e[3], e[4]],
+              filter((e) -> e[1] == first(sp) and e[2] == sp[1], here)
             )
           )
-          edit_at(l, first(sp), nth(1, sp), renames)
+          edit_at(l, first(sp), sp[1], renames)
         end,
-        nth(1, nl),
+        nl[1],
         spans
       )
     end,
@@ -404,7 +397,7 @@ def key_rewrite(tree, pkg, renames)
           replace(
             acc,
             "#{pkg}/#{first(r)}#{end_char}",
-            "#{pkg}/#{nth(1, r)}#{end_char}"
+            "#{pkg}/#{r[1]}#{end_char}"
           )
         end,
         t,
@@ -425,10 +418,10 @@ def unquoted(t)
   # [out chars (reversed), depth inside a datum, in string?, escaped?, prev]
   step = fn(st, c)
     out = first(st)
-    depth = nth(1, st)
-    str = nth(2, st)
-    esc = nth(3, st)
-    prev = nth(4, st)
+    depth = st[1]
+    str = st[2]
+    esc = st[3]
+    prev = st[4]
     if depth == 0
       if prev == "'" and c == "("
         [cons("…", out), 1, false, false, c]
@@ -470,7 +463,7 @@ end
 def surface(written)
   if contains?(written, "/")
     parts = split(written, "/")
-    "#{first(parts)}::#{nth(1, parts)}"
+    "#{first(parts)}::#{parts[1]}"
   else
     written
   end
@@ -513,7 +506,7 @@ def strip_bidama(prefix, file)
     filter((d) -> keep?(json_get(d, "name")), defs)
   )
   old_names = map((r) -> first(r), renames)
-  new_of = (n) -> nth(1, first(filter((r) -> first(r) == n, renames)))
+  new_of = (n) -> first(filter((r) -> first(r) == n, renames))[1]
   def_edits = map(
     fn(d)
       [
@@ -550,7 +543,7 @@ def strip_bidama(prefix, file)
   # A name another bidama lends it that a new name or a kept name's second
   # name now shadows (tier 2 over 3; zumen's zu_region becoming region over
   # kikagaku's): written qualified, and dropped from the list.
-  shadowing = append(kept, map((r) -> nth(1, r), renames))
+  shadowing = append(kept, map((r) -> r[1], renames))
   lent = filter(
     fn(r)
       ns = json_get(r, "ns")
@@ -675,9 +668,9 @@ def relist(text, doc, package, dropped)
     after = filter((nl) -> first(nl) > line, kept)
     join(
       append(
-        map((nl) -> nth(1, nl), before),
+        map((nl) -> nl[1], before),
         [render_use([package, left])],
-        map((nl) -> nth(1, nl), after)
+        map((nl) -> nl[1], after)
       ),
       line_break
     )
@@ -693,17 +686,17 @@ def strip(prefix, file, callers)
   pkg = json_get(before, "namespace")
   befores = map((c) -> [c, read_file(c), resolved(c)], callers)
   plan = strip_bidama(prefix, file)
-  renames = nth(1, plan)
+  renames = plan[1]
   dir = path_dirname(file)
   bluefile = path_join(dir, "Bluefile")
   old_bluefile = read_file(bluefile)
   restore = fn()
-    write_file(file, nth(2, plan))
+    write_file(file, plan[2])
     write_file(bluefile, old_bluefile)
     relock(dir)
-    map((b) -> write_file(first(b), nth(1, b)), befores)
+    map((b) -> write_file(first(b), b[1]), befores)
   end
-  write_file(file, nth(3, plan))
+  write_file(file, plan[3])
   bump_version(bluefile)
   relock(dir)
   run_blue(["fmt", "--write", file])
@@ -726,11 +719,11 @@ def strip(prefix, file, callers)
       )
       got = map(unquoted, settled_forms(now, "ns"))
       if got != want
-        pairs = filter((p) -> first(p) != nth(1, p), zip(want, got))
+        pairs = filter((p) -> first(p) != p[1], zip(want, got))
         if empty?(pairs)
           "#{f}: #{length(want)} forms expected, #{length(got)} found"
         else
-          "#{f}: expected #{first(first(pairs))}, found #{nth(1, first(pairs))}"
+          "#{f}: expected #{first(first(pairs))}, found #{first(pairs)[1]}"
         end
       else
         c = run_blue(["check", f])
@@ -743,12 +736,12 @@ def strip(prefix, file, callers)
   bad = filter(
     (why) -> why != nil,
     map(
-      (fd) -> proof(first(fd), nth(1, fd)),
-      cons([file, before], map((b) -> [first(b), nth(2, b)], befores))
+      (fd) -> proof(first(fd), fd[1]),
+      cons([file, before], map((b) -> [first(b), b[2]], befores))
     )
   )
   if empty?(bad)
-    "stripped #{pkg}: #{length(renames)} renamed, #{nth(4, plan)} kept with a second name, #{length(callers)} caller(s) rewritten"
+    "stripped #{pkg}: #{length(renames)} renamed, #{plan[4]} kept with a second name, #{length(callers)} caller(s) rewritten"
   else
     restore()
     raise(
@@ -766,7 +759,7 @@ def leading_blanks(cs)
   first(
     reduce(
       fn(st, c)
-        if nth(1, st) or not blank_char?(c)
+        if st[1] or not blank_char?(c)
           [first(st), true]
         else
           [first(st) + 1, false]
@@ -788,32 +781,32 @@ end
 def swap_args_at(cs, plan)
   open = first(plan)
   a = open + 1
-  b = open + nth(1, plan)
-  c = open + nth(2, plan)
+  b = open + plan[1]
+  c = open + plan[2]
   one = padded(take(b - a, drop(a, cs)))
   two = padded(take(c - b - 1, drop(b + 1, cs)))
   append(
     take(a, cs),
     first(one),
-    nth(1, two),
-    nth(2, one),
+    two[1],
+    one[2],
     [","],
     first(two),
-    nth(1, one),
-    nth(2, two),
+    one[1],
+    two[2],
     drop(c, cs)
   )
 end
 
 def scan_step(st, c)
   stack = first(st)
-  comma = nth(1, st)
-  commas = nth(2, st)
-  close = nth(3, st)
-  comment = nth(4, st)
-  esc = nth(5, st)
-  i = nth(6, st)
-  prev = nth(7, st)
+  comma = st[1]
+  commas = st[2]
+  close = st[3]
+  comment = st[4]
+  esc = st[5]
+  i = st[6]
+  prev = st[7]
   top = first(stack)
   if close != nil
     st
@@ -856,7 +849,7 @@ end
 
 def scan_call(window)
   st = reduce(scan_step, [["root"], nil, 0, nil, false, false, 0, ""], window)
-  [nth(1, st), nth(2, st), nth(3, st), nth(4, st)]
+  [st[1], st[2], st[3], st[4]]
 end
 
 def scan_at(cs, open)
@@ -866,7 +859,7 @@ def scan_at(cs, open)
         found
       else
         s = scan_call(take(width, drop(open, cs)))
-        if nth(2, s).nil?
+        if s[2].nil?
           nil
         else
           s
@@ -882,7 +875,7 @@ def starts_of(lines)
   reverse(
     first(
       reduce(
-        (st, l) -> [cons(nth(1, st), first(st)), nth(1, st) + length(l) + 1],
+        (st, l) -> [cons(st[1], first(st)), st[1] + length(l) + 1],
         [[], 0],
         lines
       )
@@ -891,7 +884,7 @@ def starts_of(lines)
 end
 
 def offset_of(starts, line, column)
-  nth(line - 1, starts) + column - 1
+  starts[line - 1] + column - 1
 end
 
 def flag(why)
@@ -914,20 +907,20 @@ def site_plan(cs, starts, r)
     flag("#{at}: called with #{json_get(r, "argc")} arguments")
   elsif join(take(end_at - begin_at, drop(begin_at, cs)), "") != name
     flag("#{at}: the source at its span does not read `#{name}`")
-  elsif nth(end_at, cs) != "("
+  elsif cs[end_at] != "("
     flag("#{at}: no `(` follows the name")
   else
     s = scan_at(cs, end_at)
     if s.nil?
       flag("#{at}: the call does not close")
-    elsif nth(3, s)
+    elsif s[3]
       flag("#{at}: a comment inside the call")
-    elsif nth(1, s) != 1
+    elsif s[1] != 1
       flag(
-        "#{at}: #{nth(1, s) + 1} arguments written (a pipe, method or splat form)"
+        "#{at}: #{s[1] + 1} arguments written (a pipe, method or splat form)"
       )
     else
-      ["plan", [end_at, first(s), nth(2, s)]]
+      ["plan", [end_at, first(s), s[2]]]
     end
   end
 end
@@ -951,12 +944,12 @@ end
 
 def sexp_step(st, c)
   i = first(st)
-  depth = nth(1, st)
-  str = nth(2, st)
-  esc = nth(3, st)
-  began = nth(4, st)
-  items = nth(5, st)
-  done = nth(6, st)
+  depth = st[1]
+  str = st[2]
+  esc = st[3]
+  began = st[4]
+  items = st[5]
+  done = st[6]
   if done
     st
   elsif str
@@ -1001,7 +994,7 @@ end
 
 def sexp_items(cs, at)
   st = reduce(sexp_step, [at, 0, false, false, nil, [], false], drop(at, cs))
-  reverse(nth(5, st))
+  reverse(st[5])
 end
 
 def swap_sexp_at(cs, at)
@@ -1009,14 +1002,14 @@ def swap_sexp_at(cs, at)
   if length(items) != 3
     nil
   else
-    one = nth(1, items)
-    two = nth(2, items)
+    one = items[1]
+    two = items[2]
     append(
       take(first(one), cs),
-      take(nth(1, two) - first(two), drop(first(two), cs)),
-      take(first(two) - nth(1, one), drop(nth(1, one), cs)),
-      take(nth(1, one) - first(one), drop(first(one), cs)),
-      drop(nth(1, two), cs)
+      take(two[1] - first(two), drop(first(two), cs)),
+      take(first(two) - one[1], drop(one[1], cs)),
+      take(one[1] - first(one), drop(first(one), cs)),
+      drop(two[1], cs)
     )
   end
 end
@@ -1034,9 +1027,9 @@ def swap_heads(form, key)
     fn(st, p)
       moved = swap_sexp_at(first(st), p)
       if moved.nil?
-        [first(st), nth(1, st) + 1_000_000]
+        [first(st), st[1] + 1_000_000]
       else
-        [moved, nth(1, st) + 1]
+        [moved, st[1] + 1]
       end
     end,
     [cs, 0],
@@ -1048,27 +1041,27 @@ def swap_form(form, keys)
   st = reduce(
     fn(acc, key)
       r = swap_heads(join(first(acc), ""), key)
-      [first(r), nth(1, acc) + nth(1, r)]
+      [first(r), acc[1] + r[1]]
     end,
     [chars(form), 0],
     keys
   )
-  [join(first(st), ""), nth(1, st)]
+  [join(first(st), ""), st[1]]
 end
 
 def swap_proof(before, after, keys, planned)
   moved = map((f) -> swap_form(unquoted(f), keys), settled_forms(before, "ns"))
   want = map((m) -> first(m), moved)
-  count = reduce((n, m) -> n + nth(1, m), 0, moved)
+  count = reduce((n, m) -> n + m[1], 0, moved)
   got = map(unquoted, settled_forms(after, "ns"))
   if count != planned
     "#{planned} call(s) rewritten but #{count} head(s) found in the resolved tree"
   elsif got != want
-    pairs = filter((p) -> first(p) != nth(1, p), zip(want, got))
+    pairs = filter((p) -> first(p) != p[1], zip(want, got))
     if empty?(pairs)
       "#{length(want)} forms expected, #{length(got)} found"
     else
-      "expected #{first(first(pairs))}, found #{nth(1, first(pairs))}"
+      "expected #{first(first(pairs))}, found #{first(pairs)[1]}"
     end
   end
 end
@@ -1089,11 +1082,11 @@ def swap_file(file, keys)
     cs = chars(text)
     starts = starts_of(split(text, line_break))
     plans = map((r) -> site_plan(cs, starts, r), sites)
-    flags = map((p) -> nth(1, p), filter((p) -> first(p) == "flag", plans))
+    flags = map((p) -> p[1], filter((p) -> first(p) == "flag", plans))
     if not empty?(flags)
       [false, "flagged #{file}: #{join(flags, "; ")}"]
     else
-      spots = distinct(map((p) -> nth(1, p), plans))
+      spots = distinct(map((p) -> p[1], plans))
       ordered = sort_keyed((p) -> -first(p), spots)
       write_file(file, join(reduce(swap_args_at, cs, ordered), ""))
       run_blue(["fmt", "--write", file])
@@ -1116,13 +1109,13 @@ end
 args = argv
 
 if not empty?(args) and first(args) == "--swap"
-  results = map((f) -> swap_file(f, split(nth(1, args), ",")), drop(2, args))
-  map((r) -> write_stdout(unlines([nth(1, r)])), results)
+  results = map((f) -> swap_file(f, split(args[1], ",")), drop(2, args))
+  map((r) -> write_stdout(unlines([r[1]])), results)
   if any?((r) -> not first(r), results)
     exit_with(1)
   end
 elsif not empty?(args) and first(args) == "--strip"
-  write_stdout(unlines([strip(nth(1, args), nth(2, args), drop(3, args))]))
+  write_stdout(unlines([strip(args[1], args[2], drop(3, args))]))
 else
   map((f) -> write_stdout(unlines([migrate(f)])), args)
 end

@@ -3,7 +3,7 @@ module.exports = grammar({
   name: 'blue',
   word: $ => $.identifier,
   extras: $ => [/[ \t\r]/u, $.comment, $.moduledoc],
-  conflicts: $ => [[$._primary, $._arrow_parameters], [$._arrow_parameters, $._plain_parameters], [$._arrow_parameters, $.parameters], [$.pun_pair, $.pair]],
+  conflicts: $ => [[$._primary, $._arrow_parameters], [$._arrow_parameters, $._plain_parameters], [$._arrow_parameters, $.parameters], [$.pun_pair, $.pair], [$.string, $._plain_string]],
   rules: {
     source_file: $ => optional(choice(seq(repeat1($._newline), optional(choice(seq(repeat1(seq($._statement, repeat1($._newline))), optional($._statement)), $._statement))), choice(seq(repeat1(seq($._statement, repeat1($._newline))), optional($._statement)), $._statement))),
     _newline: $ => '\n',
@@ -17,7 +17,8 @@ module.exports = grammar({
     _expression: $ => choice($.binary_expression, $.pipe_expression, $.rescue_expression, $._operand),
     rescue_expression: $ => prec.left(-1, seq(field('left', $._expression), 'rescue', repeat($._newline), field('right', $._expression))),
     _operand: $ => choice($.unary_expression, $._postfix),
-    _postfix: $ => choice($.call, $.send, $._primary),
+    _postfix: $ => choice($.call, $.send, $.index, $._primary),
+    index: $ => prec(11, seq(field('object', $._postfix), token.immediate('['), repeat($._newline), choice(field('key', prec(1, choice($.symbol, alias($._plain_string, $.string)))), field('position', $._expression)), repeat($._newline), ']')),
     _primary: $ => choice($.integer, $.float, $.string, $.symbol, $.true, $.false, $.nil, $.identifier, $.qualified_name, $.list, $.map, $.parenthesized_expression, $.if, $.begin, $.unless, $.def, $.defmacro, $.case, $.lambda, $.arrow_lambda, $.test, $.assert, $.quote, $.unquote, $.unquote_splice),
     binary_expression: $ => choice(prec.left(1, seq(field('left', $._expression), field('operator', choice('or', '||', '∨')), repeat($._newline), field('right', $._expression))), prec.left(3, seq(field('left', $._expression), field('operator', choice('and', '&&', '∧')), repeat($._newline), field('right', $._expression))), prec.left(5, seq(field('left', $._expression), field('operator', choice('==', '≡', '!=', '≠', '<', '<=', '≤', '>', '>=', '≥')), repeat($._newline), field('right', $._expression))), prec.left(7, seq(field('left', $._expression), field('operator', choice('+', '-', '−')), repeat($._newline), field('right', $._expression))), prec.left(9, seq(field('left', $._expression), field('operator', choice('*', '×', '/', '÷', '%')), repeat($._newline), field('right', $._expression)))),
     pipe_expression: $ => prec.left(0, seq(field('left', $._expression), '|>', repeat($._newline), field('right', $._expression))),

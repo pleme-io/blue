@@ -41,7 +41,7 @@ def box_around(points)
   else
     map(
       fn(j)
-        xs = map((p) -> nth(j, p), points)
+        xs = map((p) -> p[j], points)
         [smallest(xs), largest(xs)]
       end,
       range(0, size(first(points)))
@@ -52,21 +52,21 @@ end
 def in_box?(box, p)
   size(
     filter(
-      (j) -> nth(j, p) < first(nth(j, box)) or nth(j, p) > last(nth(j, box)),
+      (j) -> p[j] < first(box[j]) or p[j] > last(box[j]),
       range(0, size(box))
     )
   ) == 0
 end
 
 def inside_of(box, points)
-  filter((i) -> in_box?(box, nth(i, points)), range(0, size(points)))
+  filter((i) -> in_box?(box, points[i]), range(0, size(points)))
 end
 
 def mean_target(ids, ys)
   if is_empty(ids)
     0
   else
-    mean(map((i) -> nth(i, ys), ids))
+    mean(map((i) -> ys[i], ids))
   end
 end
 
@@ -84,14 +84,14 @@ def peeled_edge(values, side, alpha)
     if q > first(levels)
       smallest(filter((v) -> v >= q, levels))
     else
-      nth(1, levels)
+      levels[1]
     end
   else
     q = percentile(values, 1 - alpha)
     if q < last(levels)
       largest(filter((v) -> v <= q, levels))
     else
-      nth(size(levels) - 2, levels)
+      levels[size(levels) - 2]
     end
   end
 end
@@ -103,7 +103,7 @@ def peel_candidates(box, ids, points, ys, alpha)
   flat_map(
     range(0, size(box)),
     fn(j)
-      values = map((i) -> nth(j, nth(i, points)), ids)
+      values = map((i) -> points[i][j], ids)
       flat_map(
         [:lo, :hi],
         fn(side)
@@ -114,16 +114,16 @@ def peel_candidates(box, ids, points, ys, alpha)
             narrowed = map(
               fn(k)
                 if k != j
-                  nth(k, box)
+                  box[k]
                 elsif side == :lo
-                  [edge, last(nth(k, box))]
+                  [edge, last(box[k])]
                 else
-                  [first(nth(k, box)), edge]
+                  [first(box[k]), edge]
                 end
               end,
               range(0, size(box))
             )
-            kept = filter((i) -> in_box?(narrowed, nth(i, points)), ids)
+            kept = filter((i) -> in_box?(narrowed, points[i]), ids)
             if is_empty(kept) or size(kept) == size(ids)
               []
             else
@@ -154,7 +154,7 @@ def prim(points, ys, alpha, min_support)
         size(ids) / n,
         if_zero_total(
           total,
-          sum(map((i) -> nth(i, ys), ids)) / max(total, 0.000000001)
+          sum(map((i) -> ys[i], ids)) / max(total, 0.000000001)
         ),
         mean_target(ids, ys),
         box
@@ -167,18 +167,16 @@ def prim(points, ys, alpha, min_support)
       if is_empty(cands) or size(ids) / n <= min_support
         acc
       else
-        best = first(
-          sort_by((c) -> -nth(2, c) + size(nth(1, c)) * 0.000000001, cands)
-        )
-        if size(nth(1, best)) / n < min_support
+        best = first(sort_by((c) -> -c[2] + size(c[1]) * 0.000000001, cands))
+        if size(best[1]) / n < min_support
           acc
         else
           self(
             self,
             step + 1,
             first(best),
-            nth(1, best),
-            concat_lists(acc, [row(step + 1, first(best), nth(1, best))])
+            best[1],
+            concat_lists(acc, [row(step + 1, first(best), best[1])])
           )
         end
       end
@@ -200,11 +198,11 @@ prim_box: The box to report: the most coverage among steps at or above `density`
 or nil when no step reaches it.
 """
 def prim_box(trajectory, density)
-  ok = filter((r) -> nth(3, r) >= density, trajectory)
+  ok = filter((r) -> r[3] >= density, trajectory)
   if is_empty(ok)
     nil
   else
-    first(sort_by((r) -> -nth(2, r) + nth(0, r) * 0.000000001, ok))
+    first(sort_by((r) -> -r[2] + r[0] * 0.000000001, ok))
   end
 end
 
@@ -216,14 +214,14 @@ def box_text(names, box, full)
   parts = flat_map(
     range(0, size(box)),
     fn(j)
-      if nth(j, box) == nth(j, full)
+      if box[j] == full[j]
         []
       else
         [
           concat(
             concat(
-              concat(concat(nth(j, names), " in ["), to_s(first(nth(j, box)))),
-              concat(", ", to_s(last(nth(j, box))))
+              concat(concat(names[j], " in ["), to_s(first(box[j]))),
+              concat(", ", to_s(last(box[j])))
             ),
             "]"
           )
@@ -252,9 +250,9 @@ end
 test "an identity: when every point is the outcome, the first box is dense and full"
   pts = grid(5)
   traj = prim(pts, map((_p) -> 1, pts), 0.05, 0.05)
-  assert nth(3, first(traj)) == 1
-  assert nth(2, first(traj)) == 1
-  assert nth(4, prim_box(traj, 1)) == box_around(pts)
+  assert first(traj)[3] == 1
+  assert first(traj)[2] == 1
+  assert prim_box(traj, 1)[4] == box_around(pts)
 end
 
 test "a planted box is recovered exactly: x >= 5 and y <= 3 on a 10x10 grid"
@@ -270,9 +268,9 @@ test "a planted box is recovered exactly: x >= 5 and y <= 3 on a 10x10 grid"
     pts
   )
   b = prim_box(prim(pts, ys, 0.05, 0.02), 1)
-  assert nth(4, b) == [[5, 9], [0, 3]]
-  assert nth(2, b) == 1
-  assert box_text(["x", "y"], nth(4, b), box_around(pts)) ==
+  assert b[4] == [[5, 9], [0, 3]]
+  assert b[2] == 1
+  assert box_text(["x", "y"], b[4], box_around(pts)) ==
     "x in [5, 9], y in [0, 3]"
 end
 
@@ -289,5 +287,5 @@ test "a control: a target with no structure finds no dense box with real coverag
     range(0, size(pts))
   )
   b = prim_box(prim(pts, ys, 0.05, 0.1), 0.9)
-  assert b.nil? or nth(2, b) < 0.25
+  assert b.nil? or b[2] < 0.25
 end

@@ -63,9 +63,7 @@ use("haibi")
 use("heddaa")
 # waive B0016: zenbu is the facade, and depending on it means depending on heni
 use("heni")
-use("hikisuu")
 use("hizuke", [:is_leap])
-use("hon")
 use("hyouka")
 use("jisho")
 use("jitaku")
@@ -75,7 +73,6 @@ use("kansuu", [:identity])
 use("kazu", [:clamp, :near])
 use("keisoku")
 use("keiyu", [:relay_env])
-use("kiibariu")
 use("kijun")
 use("kikagaku", [:manhattan])
 use("kinji")
@@ -118,7 +115,6 @@ use("shomei", [:hash_message])
 use("shuugou")
 use("shuusei")
 use("souji")
-use("sutoriimu")
 use("tajuu")
 use("teeburu")
 use("tehai")
@@ -153,7 +149,6 @@ test "every bidama in the distribution answers through this one import"
   assert near(kinji::trapz([0, 1, 3], [0, 2, 6]), 9) == true
   assert kiwari::unpainted(kiwari::blue) == []
   assert koutei::input_key("cache-url") == "INPUT_CACHE_URL"
-  assert hon::heading_anchor("1. Install blue") == "1-install-blue"
   assert danpen::render(danpen::parse("{a}")) == unlines(["{", "  a", "}"])
   assert kousei::name_of(kousei::entry(:plane, "edge", {})) == "edge"
   assert kueri::ident("order") == "\"order\""
@@ -192,7 +187,7 @@ test "every bidama in the distribution answers through this one import"
     tehai::machine("ssh://root@plo x86_64-linux - 8 8 - - -"),
     :host
   ) == "plo"
-  assert blue::get(hikisuu::parse(["nix"], souji::cli), :older_than_days) == 14
+  assert blue::get(souji::parse(["nix"]), :days) == 14
   assert blue::get(decide({corp: :absent}), :kind) == :noop
   assert size(relay_env("socks5h://r:1")) == 6
   assert hadome::recorded(
@@ -226,8 +221,6 @@ test "every bidama in the distribution answers through this one import"
   assert outou::request(outou::fixture, "{ hero { id } }") ==
     {data: {"hero" => {"id" => "2001"}}}
   assert touroku::visibility_of({}) == "private"
-  assert kiibariu::versioned_key("o", "h", :order, 1) == "o:vh:order:1"
-  assert sutoriimu::api("s", "INFO") == "$JS.API.STREAM.INFO.s"
 end
 
 test "four packages compose without the consumer naming any of them"

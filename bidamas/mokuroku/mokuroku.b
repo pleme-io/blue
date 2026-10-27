@@ -75,8 +75,8 @@ def quoted_after(text, marker)
   if size(parts) < 2
     []
   else
-    fields = split(nth(1, parts), "\"")
-    [nth(0, fields), nth(2, fields)]
+    fields = split(parts[1], "\"")
+    [fields[0], fields[2]]
   end
 end
 
@@ -123,10 +123,10 @@ end
 def entries_of_text(text)
   state = reduce(
     fn(acc, line)
-      pending = nth(0, acc)
-      waivers = nth(1, acc)
-      found = nth(2, acc)
-      open = nth(3, acc)
+      pending = acc[0]
+      waivers = acc[1]
+      found = acc[2]
+      open = acc[3]
       if open != nil
         if blue::trim(line) == "\"\"\""
           [open, waivers, found, nil]
@@ -164,7 +164,7 @@ def entries_of_text(text)
     [[], [], [], nil],
     joined_header_lines(split(text, line_break))
   )
-  nth(2, state)
+  state[2]
 end
 
 def bare_signature(signature, name)
@@ -189,7 +189,7 @@ def legacy_prefix_of_text(text)
   if line.nil?
     nil
   else
-    nth(3, split(line, "\""))
+    split(line, "\"")[3]
   end
 end
 
@@ -230,10 +230,10 @@ def gloss_of_text(text)
     (l) -> not starts_with?(l, "@moduledoc "),
     split(text, line_break)
   )
-  if size(after) < 2 or nth(1, after) == "\"\"\""
+  if size(after) < 2 or after[1] == "\"\"\""
     ""
   else
-    nth(1, after)
+    after[1]
   end
 end
 
@@ -249,7 +249,7 @@ def test_blocks_of_text(text)
       open = first(acc)
       found = last(acc)
       if open.nil? and starts_with?(line, "test \"")
-        [[nth(1, split(line, "\"")), []], found]
+        [[split(line, "\"")[1], []], found]
       elsif open != nil and line == "end"
         [nil, push(found, open)]
       elsif open != nil
@@ -304,9 +304,9 @@ def package_record(dir)
   manifest = parse_manifest(read_file(concat(dir, "/Bluefile")))
   all_text = package_text(dir)
   [
-    nth(0, manifest),
-    nth(1, manifest),
-    nth(2, manifest),
+    manifest[0],
+    manifest[1],
+    manifest[2],
     gloss_of_text(all_text),
     entries_of_text(all_text),
     tests_in_text(all_text),
@@ -345,27 +345,27 @@ def registered_only(ledger, records)
 end
 
 def pkg_name(r)
-  nth(0, r)
+  r[0]
 end
 
 def pkg_version(r)
-  nth(1, r)
+  r[1]
 end
 
 def pkg_needs(r)
-  nth(2, r)
+  r[2]
 end
 
 def pkg_gloss(r)
-  nth(3, r)
+  r[3]
 end
 
 def pkg_entries(r)
-  nth(4, r)
+  r[4]
 end
 
 def pkg_tests(r)
-  nth(5, r)
+  r[5]
 end
 
 @doc """
@@ -373,7 +373,7 @@ pkg_legacy_prefix: The prefix the package's definitions once carried (`legacy_na
 """
 def pkg_legacy_prefix(r)
   if size(r) > 6
-    nth(6, r)
+    r[6]
   end
 end
 
@@ -382,7 +382,7 @@ pkg_dir: The directory the package was read from, or nil for a record built by h
 """
 def pkg_dir(r)
   if size(r) > 7
-    nth(7, r)
+    r[7]
   end
 end
 
@@ -506,7 +506,7 @@ end
 
 def entry_waivers(e)
   if size(e) > 3
-    join(map((c) -> "`#{c}`", nth(3, e)), " ")
+    join(map((c) -> "`#{c}`", e[3]), " ")
   else
     ""
   end
@@ -524,7 +524,7 @@ def def_row(r, builtins, e)
   else
     ""
   end
-  "| `#{pkg_name(r)}::#{md_cell(nth(1, e))}` | #{other_name(r, e)} | #{shares} | #{entry_waivers(e)} | #{md_cell(first_line_or_blank(nth(2, e)))} |"
+  "| `#{pkg_name(r)}::#{md_cell(e[1])}` | #{other_name(r, e)} | #{shares} | #{entry_waivers(e)} | #{md_cell(first_line_or_blank(e[2]))} |"
 end
 
 def package_section(r)
@@ -620,7 +620,7 @@ def row_ident_char?(c)
 end
 
 def row_skip(cs, i, n)
-  if i < n and row_space?(nth(i, cs))
+  if i < n and row_space?(cs[i])
     row_skip(cs, i + 1, n)
   else
     i
@@ -628,7 +628,7 @@ def row_skip(cs, i, n)
 end
 
 def row_ident_end(cs, i, n)
-  if i < n and row_ident_char?(nth(i, cs))
+  if i < n and row_ident_char?(cs[i])
     row_ident_end(cs, i + 1, n)
   else
     i
@@ -636,7 +636,7 @@ def row_ident_end(cs, i, n)
 end
 
 def row_digits_end(cs, i, n)
-  if i < n and row_digit?(nth(i, cs))
+  if i < n and row_digit?(cs[i])
     row_digits_end(cs, i + 1, n)
   else
     i
@@ -658,7 +658,7 @@ end
 
 def row_plain(v)
   if row_symbol?(v)
-    nth(1, v)
+    v[1]
   else
     v
   end
@@ -668,12 +668,12 @@ def row_string(cs, i, n, from, acc)
   if i >= n
     row_fail(cs, from, "a string is not closed")
   else
-    c = nth(i, cs)
+    c = cs[i]
     if c == "\""
       [join(acc, ""), i + 1]
     elsif c == "\\"
       d = if i + 1 < n
-        nth(i + 1, cs)
+        cs[i + 1]
       else
         ""
       end
@@ -691,7 +691,7 @@ def row_string(cs, i, n, from, acc)
 end
 
 def row_number(cs, i, n)
-  from = if nth(i, cs) == "-"
+  from = if cs[i] == "-"
     i + 1
   else
     i
@@ -724,15 +724,15 @@ end
 
 def row_items(cs, i, n, close, acc)
   j = row_skip(cs, i, n)
-  if j < n and nth(j, cs) == close
+  if j < n and cs[j] == close
     [acc, j + 1]
   else
     r = row_value(cs, j, n)
-    k = row_skip(cs, nth(1, r), n)
-    if k < n and nth(k, cs) == ","
-      row_items(cs, k + 1, n, close, push(acc, nth(0, r)))
-    elsif k < n and nth(k, cs) == close
-      [push(acc, nth(0, r)), k + 1]
+    k = row_skip(cs, r[1], n)
+    if k < n and cs[k] == ","
+      row_items(cs, k + 1, n, close, push(acc, r[0]))
+    elsif k < n and cs[k] == close
+      [push(acc, r[0]), k + 1]
     else
       row_fail(cs, k, "expected `,` or `#{close}`")
     end
@@ -741,11 +741,11 @@ end
 
 def row_entries(cs, i, n, acc)
   j = row_skip(cs, i, n)
-  if j < n and nth(j, cs) == "}"
+  if j < n and cs[j] == "}"
     [acc, j + 1]
   else
     e = row_ident_end(cs, j, n)
-    if e == j or e >= n or nth(e, cs) != ":"
+    if e == j or e >= n or cs[e] != ":"
       row_fail(cs, j, "a map entry is `name: value`")
     else
       key = row_text(cs, j, e)
@@ -753,11 +753,11 @@ def row_entries(cs, i, n, acc)
         row_fail(cs, j, "the key `#{key}` is written twice")
       else
         r = row_value(cs, e + 1, n)
-        k = row_skip(cs, nth(1, r), n)
-        grown = assoc(acc, key, nth(0, r))
-        if k < n and nth(k, cs) == ","
+        k = row_skip(cs, r[1], n)
+        grown = assoc(acc, key, r[0])
+        if k < n and cs[k] == ","
           row_entries(cs, k + 1, n, grown)
-        elsif k < n and nth(k, cs) == "}"
+        elsif k < n and cs[k] == "}"
           [grown, k + 1]
         else
           row_fail(cs, k, "expected `,` or `}`")
@@ -772,7 +772,7 @@ def row_value(cs, i, n)
   if j >= n
     row_fail(cs, j, "a value is missing")
   else
-    c = nth(j, cs)
+    c = cs[j]
     if c == "\""
       row_string(cs, j + 1, n, j + 1, [])
     elsif c == ":"
@@ -800,15 +800,15 @@ def row_forms_from(cs, i, n, acc)
     acc
   else
     e = row_ident_end(cs, j, n)
-    if e == j or e >= n or nth(e, cs) != "("
+    if e == j or e >= n or cs[e] != "("
       row_fail(cs, j, "a row is `word(arguments)`")
     else
       r = row_items(cs, e + 1, n, ")", [])
       row_forms_from(
         cs,
-        nth(1, r),
+        r[1],
         n,
-        push(acc, {word: row_text(cs, j, e), args: nth(0, r)})
+        push(acc, {word: row_text(cs, j, e), args: r[0]})
       )
     end
   end
@@ -899,7 +899,7 @@ def row_fits(type, v)
   elsif type == "strs"
     v != nil and list?(v) and every?(string?, v)
   elsif starts_with?(type, "sym:")
-    row_symbol?(v) and member?(nth(1, v), split(drop_chars_of(type, 4), ","))
+    row_symbol?(v) and member?(v[1], split(drop_chars_of(type, 4), ","))
   else
     false
   end
@@ -926,8 +926,8 @@ def row_type_name(type)
 end
 
 def row_problems(word, spec, args)
-  pos = get(spec, :pos)
-  fields = get(spec, :fields)
+  pos = spec[:pos]
+  fields = spec[:fields]
   want = if is_empty(fields)
     size(pos)
   else
@@ -939,20 +939,20 @@ def row_problems(word, spec, args)
     bad_pos = flat_map(
       range(0, size(pos)),
       fn(i)
-        p = nth(i, pos)
-        if row_fits(nth(1, p), nth(i, args))
+        p = pos[i]
+        if row_fits(p[1], args[i])
           []
         else
-          ["#{nth(0, p)} must be #{row_type_name(nth(1, p))}"]
+          ["#{p[0]} must be #{row_type_name(p[1])}"]
         end
       end
     )
     if is_empty(fields)
       bad_pos
-    elsif not map?(nth(size(pos), args))
+    elsif not map?(args[size(pos)])
       concat_lists(bad_pos, ["the last argument is a map"])
     else
-      m = nth(size(pos), args)
+      m = args[size(pos)]
       known = map(first, fields)
       stray = map(
         (k) -> "`#{k}` is no field of #{word}",
@@ -961,8 +961,8 @@ def row_problems(word, spec, args)
       absent = flat_map(
         fields,
         fn(f)
-          if nth(2, f) and not member?(nth(0, f), map(first, map_entries(m)))
-            ["`#{nth(0, f)}` is missing"]
+          if f[2] and not member?(f[0], map(first, map_entries(m)))
+            ["`#{f[0]}` is missing"]
           else
             []
           end
@@ -971,9 +971,9 @@ def row_problems(word, spec, args)
       wrong = flat_map(
         fields,
         fn(f)
-          present = member?(nth(0, f), map(first, map_entries(m)))
-          if present and not row_fits(nth(1, f), get(m, nth(0, f)))
-            ["`#{nth(0, f)}` must be #{row_type_name(nth(1, f))}"]
+          present = member?(f[0], map(first, map_entries(m)))
+          if present and not row_fits(f[1], get(m, f[0]))
+            ["`#{f[0]}` must be #{row_type_name(f[1])}"]
           else
             []
           end
@@ -985,23 +985,23 @@ def row_problems(word, spec, args)
 end
 
 def row_values(spec, args)
-  pos = get(spec, :pos)
-  fields = get(spec, :fields)
+  pos = spec[:pos]
+  fields = spec[:fields]
   named = reduce(
-    (acc, i) -> assoc(acc, nth(0, nth(i, pos)), row_plain(nth(i, args))),
+    (acc, i) -> assoc(acc, pos[i][0], row_plain(args[i])),
     {},
     range(0, size(pos))
   )
   if is_empty(fields)
     named
   else
-    m = nth(size(pos), args)
+    m = args[size(pos)]
     reduce(
       fn(acc, f)
-        if member?(nth(0, f), map(first, map_entries(m)))
-          assoc(acc, nth(0, f), row_plain(get(m, nth(0, f))))
+        if member?(f[0], map(first, map_entries(m)))
+          assoc(acc, f[0], row_plain(get(m, f[0])))
         else
-          assoc(acc, nth(0, f), nth(3, f))
+          assoc(acc, f[0], f[3])
         end
       end,
       named,
@@ -1012,58 +1012,47 @@ end
 
 def row_model(word, v)
   if word == "space"
-    {
-      word:,
-      name: get(v, "name"),
-      status: get(v, "status"),
-      gloss: get(v, "gloss")
-    }
+    {word:, name: v["name"], status: v["status"], gloss: v["gloss"]}
   elsif word == "verb"
     {
       word:,
-      space: get(v, "space"),
-      verb: get(v, "verb"),
-      kind: get(v, "kind"),
-      shape: get(v, "shape"),
-      laterals: get(v, "laterals"),
-      fleet: get(v, "fleet"),
-      today: get(v, "today"),
-      meaning: get(v, "meaning"),
-      wave: get(v, "wave"),
-      origin: get(v, "origin"),
-      contract: get(v, "contract"),
-      enabled: get(v, "enabled"),
-      replaced_by: get(v, "replaced_by")
+      space: v["space"],
+      verb: v["verb"],
+      kind: v["kind"],
+      shape: v["shape"],
+      laterals: v["laterals"],
+      fleet: v["fleet"],
+      today: v["today"],
+      meaning: v["meaning"],
+      wave: v["wave"],
+      origin: v["origin"],
+      contract: v["contract"],
+      enabled: v["enabled"],
+      replaced_by: v["replaced_by"]
     }
   elsif word == "edge"
-    {
-      word:,
-      from: get(v, "from"),
-      rel: get(v, "rel"),
-      to: get(v, "to"),
-      why: get(v, "why")
-    }
+    {word:, from: v["from"], rel: v["rel"], to: v["to"], why: v["why"]}
   elsif word == "vocab"
     {
       word:,
-      verb: get(v, "verb"),
-      subject: get(v, "subject"),
-      args: get(v, "args"),
-      opts: get(v, "opts"),
-      returns: get(v, "returns"),
-      raises: get(v, "raises"),
-      kind: get(v, "kind"),
-      meaning: get(v, "meaning"),
-      ref: get(v, "ref"),
-      status: get(v, "status")
+      verb: v["verb"],
+      subject: v["subject"],
+      args: v["args"],
+      opts: v["opts"],
+      returns: v["returns"],
+      raises: v["raises"],
+      kind: v["kind"],
+      meaning: v["meaning"],
+      ref: v["ref"],
+      status: v["status"]
     }
   else
-    {word:, name: get(v, "name"), battery: get(v, "battery")}
+    {word:, name: v["name"], battery: v["battery"]}
   end
 end
 
 def row_of(form)
-  word = get(form, :word)
+  word = form[:word]
   spec = get(row_specs, word)
   if spec.nil?
     [
@@ -1071,9 +1060,9 @@ def row_of(form)
       "`#{word}` is no row word: the words are #{join(map(first, map_entries(row_specs)), ", ")}"
     ]
   else
-    problems = row_problems(word, spec, get(form, :args))
+    problems = row_problems(word, spec, form[:args])
     if is_empty(problems)
-      row_model(word, row_values(spec, get(form, :args)))
+      row_model(word, row_values(spec, form[:args]))
     else
       [:bad_row, "#{word}: #{join(problems, "; ")}"]
     end
@@ -1085,8 +1074,8 @@ def row_refusal?(r)
 end
 
 def row_node(r)
-  if get(r, :word) == "verb"
-    "#{get(r, :space)}::#{get(r, :verb)}"
+  if r[:word] == "verb"
+    "#{r[:space]}::#{r[:verb]}"
   end
 end
 
@@ -1102,7 +1091,7 @@ end
 
 def file_refusals(name, rows)
   kind = file_kind(name)
-  words = map((r) -> get(r, :word), rows)
+  words = map((r) -> r[:word], rows)
   stray = map(
     fn(w)
       refusal(:misplaced, "#{name}: a `#{w}` row does not belong in this file")
@@ -1117,7 +1106,7 @@ def file_refusals(name, rows)
   if kind != "space"
     stray
   else
-    spaces = filter((r) -> get(r, :word) == "space", rows)
+    spaces = filter((r) -> r[:word] == "space", rows)
     if size(spaces) != 1
       concat_lists(
         stray,
@@ -1129,7 +1118,7 @@ def file_refusals(name, rows)
         ]
       )
     else
-      s = get(first(spaces), :name)
+      s = first(spaces)[:name]
       wrong_verbs = map(
         fn(r)
           refusal(
@@ -1137,20 +1126,17 @@ def file_refusals(name, rows)
             "#{name}: #{row_node(r)} is a verb of another space than #{s}"
           )
         end,
-        filter((r) -> get(r, :word) == "verb" and get(r, :space) != s, rows)
+        filter((r) -> r[:word] == "verb" and r[:space] != s, rows)
       )
       wrong_edges = map(
         fn(r)
           refusal(
             :misplaced,
-            "#{name}: the edge from #{get(r, :from)} belongs in the file of its `from` space, not #{s}"
+            "#{name}: the edge from #{r[:from]} belongs in the file of its `from` space, not #{s}"
           )
         end,
         filter(
-          fn(r)
-            get(r, :word) == "edge" and
-              not starts_with?(get(r, :from), "#{s}::")
-          end,
+          (r) -> r[:word] == "edge" and not starts_with?(r[:from], "#{s}::"),
           rows
         )
       )
@@ -1164,7 +1150,7 @@ def file_graph(name, text)
   made = map(row_of, forms)
   rows = reject(row_refusal?, made)
   bad = map(
-    (r) -> refusal(first(r), "#{name}: #{nth(1, r)}"),
+    (r) -> refusal(first(r), "#{name}: #{r[1]}"),
     filter(row_refusal?, made)
   )
   {rows:, refusals: concat_lists(bad, file_refusals(name, rows))}
@@ -1180,14 +1166,14 @@ def graph_files(dir)
 end
 
 def graph_assemble(parts)
-  rows = flat_map(parts, (p) -> get(p, :rows))
+  rows = flat_map(parts, (p) -> p[:rows])
   {
-    spaces: filter((r) -> get(r, :word) == "space", rows),
-    verbs: filter((r) -> get(r, :word) == "verb", rows),
-    edges: filter((r) -> get(r, :word) == "edge", rows),
-    vocab: filter((r) -> get(r, :word) == "vocab", rows),
-    laterals: filter((r) -> get(r, :word) == "lateral", rows),
-    refusals: flat_map(parts, (p) -> get(p, :refusals))
+    spaces: filter((r) -> r[:word] == "space", rows),
+    verbs: filter((r) -> r[:word] == "verb", rows),
+    edges: filter((r) -> r[:word] == "edge", rows),
+    vocab: filter((r) -> r[:word] == "vocab", rows),
+    laterals: filter((r) -> r[:word] == "lateral", rows),
+    refusals: flat_map(parts, (p) -> p[:refusals])
   }
 end
 
@@ -1205,7 +1191,7 @@ def graph_load(dir)
   else
     {}
   end
-  verbs = with_doc_meanings(get(g, :verbs), meanings)
+  verbs = with_doc_meanings(g[:verbs], meanings)
   missing = map(
     fn(v)
       refusal(
@@ -1213,13 +1199,9 @@ def graph_load(dir)
         "verb #{row_node(v)} has no meaning: a planned verb's row states it, an existing one's @doc does"
       )
     end,
-    filter((v) -> get(v, :meaning).nil?, verbs)
+    filter((v) -> v[:meaning].nil?, verbs)
   )
-  assoc(
-    assoc(g, :verbs, verbs),
-    :refusals,
-    concat_lists(get(g, :refusals), missing)
-  )
+  assoc(assoc(g, :verbs, verbs), :refusals, concat_lists(g[:refusals], missing))
 end
 
 @doc """
@@ -1259,14 +1241,10 @@ def verb_meanings(root)
     fn(acc, r)
       reduce(
         fn(m, e)
-          if is_empty(nth(2, e))
+          if is_empty(e[2])
             m
           else
-            assoc(
-              m,
-              "#{pkg_name(r)}::#{first(e)}",
-              doc_meaning(first(e), nth(2, e))
-            )
+            assoc(m, "#{pkg_name(r)}::#{first(e)}", doc_meaning(first(e), e[2]))
           end
         end,
         acc,
@@ -1286,8 +1264,8 @@ with_doc_meanings: each verb row whose verb exists in a bidama, its meaning that
 def with_doc_meanings(verbs, meanings)
   map(
     fn(v)
-      parts = split(get(v, :today), ":")
-      key = "#{last(parts)}::#{get(v, :verb)}"
+      parts = split(v[:today], ":")
+      key = "#{last(parts)}::#{v[:verb]}"
       if size(parts) == 2 and
           member?(first(parts), ["exists", "partial"]) and
           get(meanings, key) != nil
@@ -1308,24 +1286,18 @@ def graph_duplicates(g)
         (k) -> k,
         map(
           first,
-          filter((e) -> nth(1, e) > 1, map_entries(blue::frequencies(keys)))
+          filter((e) -> e[1] > 1, map_entries(blue::frequencies(keys)))
         )
       )
     )
   end
   concat_lists(
-    keyed("verb", map(row_node, get(g, :verbs))),
+    keyed("verb", map(row_node, g[:verbs])),
     concat_lists(
-      keyed("space", map((s) -> get(s, :name), get(g, :spaces))),
+      keyed("space", map((s) -> s[:name], g[:spaces])),
       concat_lists(
-        keyed("vocab", map((v) -> get(v, :verb), get(g, :vocab))),
-        keyed(
-          "edge",
-          map(
-            (e) -> "#{get(e, :from)} #{get(e, :rel)} #{get(e, :to)}",
-            get(g, :edges)
-          )
-        )
+        keyed("vocab", map((v) -> v[:verb], g[:vocab])),
+        keyed("edge", map((e) -> "#{e[:from]} #{e[:rel]} #{e[:to]}", g[:edges]))
       )
     )
   )
@@ -1388,18 +1360,18 @@ def shape_takes_opts?(shape)
 end
 
 def vocab_by_verb(g)
-  reduce((acc, v) -> assoc(acc, get(v, :verb), v), {}, get(g, :vocab))
+  reduce((acc, v) -> assoc(acc, v[:verb], v), {}, g[:vocab])
 end
 
 def vocab_least(v)
   count_where(
     (a) -> not (starts_with?(a, "~") or ends_with?(a, "?")),
-    reject((a) -> a == "", map(blue::trim, get(v, :args)))
+    reject((a) -> a == "", map(blue::trim, v[:args]))
   )
 end
 
 def vocab_most(v)
-  size(reject((a) -> a == "", map(blue::trim, get(v, :args))))
+  size(reject((a) -> a == "", map(blue::trim, v[:args])))
 end
 
 def verb_conforms(shape, v)
@@ -1409,7 +1381,7 @@ def verb_conforms(shape, v)
     n = shape_positionals(shape)
     if n >= vocab_least(v) and
         n <= vocab_most(v) and
-        (get(v, :opts) or not shape_takes_opts?(shape))
+        (v[:opts] or not shape_takes_opts?(shape))
       "yes"
     else
       "no"
@@ -1418,12 +1390,12 @@ def verb_conforms(shape, v)
 end
 
 def verb_contract_shape(row, v)
-  if get(row, :contract) != nil
-    get(row, :contract)
+  if row[:contract] != nil
+    row[:contract]
   elsif v.nil?
     ""
   else
-    get(row, :shape)
+    row[:shape]
   end
 end
 
@@ -1431,12 +1403,12 @@ def verb_contract_default(row, v)
   if v.nil?
     ""
   else
-    get(row, :shape)
+    row[:shape]
   end
 end
 
 def graph_nodes(g)
-  reduce((acc, r) -> assoc(acc, row_node(r), r), {}, get(g, :verbs))
+  reduce((acc, r) -> assoc(acc, row_node(r), r), {}, g[:verbs])
 end
 
 def meaning_stops()
@@ -1469,20 +1441,20 @@ def meaning_tokens(s)
   r = reduce(
     fn(acc, c)
       if contains?(letters, c)
-        [nth(0, acc), push(nth(1, acc), c)]
-      elsif is_empty(nth(1, acc))
+        [acc[0], push(acc[1], c)]
+      elsif is_empty(acc[1])
         acc
       else
-        [push(nth(0, acc), join(nth(1, acc), "")), []]
+        [push(acc[0], join(acc[1], "")), []]
       end
     end,
     [[], []],
     chars(downcase(s))
   )
-  all = if is_empty(nth(1, r))
-    nth(0, r)
+  all = if is_empty(r[1])
+    r[0]
   else
-    push(nth(0, r), join(nth(1, r), ""))
+    push(r[0], join(r[1], ""))
   end
   reject((t) -> member?(t, meaning_stops), all)
 end
@@ -1498,10 +1470,10 @@ end
 def graph_related(g, rels)
   reduce(
     fn(acc, e)
-      if member?(get(e, :rel), rels)
+      if member?(e[:rel], rels)
         assoc(
-          assoc(acc, "#{get(e, :from)} #{get(e, :to)}", true),
-          "#{get(e, :to)} #{get(e, :from)}",
+          assoc(acc, "#{e[:from]} #{e[:to]}", true),
+          "#{e[:to]} #{e[:from]}",
           true
         )
       else
@@ -1509,41 +1481,36 @@ def graph_related(g, rels)
       end
     end,
     {},
-    get(g, :edges)
+    g[:edges]
   )
 end
 
 def finds_meaning(g)
   related = graph_related(g, ["refines", "generalizes", "inverse"])
-  live = filter((r) -> get(r, :enabled), get(g, :verbs))
+  live = filter((r) -> r[:enabled], g[:verbs])
   keyed = map(
     fn(r)
-      [
-        "#{get(r, :space)} #{join(meaning_tokens(get(r, :meaning)), " ")}",
-        row_node(r)
-      ]
+      ["#{r[:space]} #{join(meaning_tokens(r[:meaning]), " ")}", row_node(r)]
     end,
-    filter((r) -> not is_empty(meaning_tokens(get(r, :meaning))), live)
+    filter((r) -> not is_empty(meaning_tokens(r[:meaning])), live)
   )
   groups = reduce(
-    fn(acc, k)
-      assoc(acc, nth(0, k), push(get_or(acc, nth(0, k), []), nth(1, k)))
-    end,
+    (acc, k) -> assoc(acc, k[0], push(get_or(acc, k[0], []), k[1])),
     {},
     keyed
   )
   flat_map(
-    filter((e) -> size(nth(1, e)) > 1, map_entries(groups)),
+    filter((e) -> size(e[1]) > 1, map_entries(groups)),
     fn(entry)
-      ids = sort_keyed((x) -> x, nth(1, entry))
+      ids = sort_keyed((x) -> x, entry[1])
       flat_map(
         range(0, size(ids)),
         fn(i)
           flat_map(
             range(i + 1, size(ids)),
             fn(j)
-              a = nth(i, ids)
-              b = nth(j, ids)
+              a = ids[i]
+              b = ids[j]
               if get(related, "#{a} #{b}") == true
                 []
               else
@@ -1560,27 +1527,18 @@ end
 def finds_vocab(g)
   known = vocab_by_verb(g)
   map(
-    (r) -> finding("g2-vocab", get(r, :space), row_node(r)),
-    filter(
-      (r) -> get(r, :enabled) and get(known, get(r, :verb)).nil?,
-      get(g, :verbs)
-    )
+    (r) -> finding("g2-vocab", r[:space], row_node(r)),
+    filter((r) -> r[:enabled] and get(known, r[:verb]).nil?, g[:verbs])
   )
 end
 
 def needs_edges(g)
-  filter((e) -> member?(get(e, :rel), ["composes", "requires"]), get(g, :edges))
+  filter((e) -> member?(e[:rel], ["composes", "requires"]), g[:edges])
 end
 
 def adjacency(edges)
   reduce(
-    fn(acc, e)
-      assoc(
-        acc,
-        get(e, :from),
-        push(get_or(acc, get(e, :from), []), get(e, :to))
-      )
-    end,
+    (acc, e) -> assoc(acc, e[:from], push(get_or(acc, e[:from], []), e[:to])),
     {},
     edges
   )
@@ -1588,11 +1546,11 @@ end
 
 def peeled(live, edges)
   kept = filter(
-    (e) -> get(live, get(e, :from)) == true and get(live, get(e, :to)) == true,
+    (e) -> get(live, e[:from]) == true and get(live, e[:to]) == true,
     edges
   )
-  heads = reduce((acc, e) -> assoc(acc, get(e, :from), true), {}, kept)
-  tails = reduce((acc, e) -> assoc(acc, get(e, :to), true), {}, kept)
+  heads = reduce((acc, e) -> assoc(acc, e[:from], true), {}, kept)
+  tails = reduce((acc, e) -> assoc(acc, e[:to], true), {}, kept)
   next_live = reduce(
     fn(acc, k)
       if get(heads, k) == true and get(tails, k) == true
@@ -1633,12 +1591,12 @@ end
 def finds_cycle(g)
   edges = needs_edges(g)
   nodes = reduce(
-    (acc, e) -> assoc(assoc(acc, get(e, :from), true), get(e, :to), true),
+    (acc, e) -> assoc(assoc(acc, e[:from], true), e[:to], true),
     {},
     edges
   )
   live = peeled(nodes, edges)
-  adj = adjacency(filter((e) -> get(live, get(e, :from)) == true, edges))
+  adj = adjacency(filter((e) -> get(live, e[:from]) == true, edges))
   on_cycle = filter(
     (k) -> get(reaches(adj, live, get_or(adj, k, []), {}), k) == true,
     sort_keyed((k) -> k, map(first, map_entries(live)))
@@ -1651,16 +1609,10 @@ def finds_wave(g)
   flat_map(
     needs_edges(g),
     fn(e)
-      f = get(nodes, get(e, :from))
-      t = get(nodes, get(e, :to))
-      if f != nil and t != nil and get(t, :wave) > get(f, :wave)
-        [
-          finding(
-            "g4-wave",
-            node_space(get(e, :from)),
-            "#{get(e, :from)} -> #{get(e, :to)}"
-          )
-        ]
+      f = get(nodes, e[:from])
+      t = get(nodes, e[:to])
+      if f != nil and t != nil and t[:wave] > f[:wave]
+        [finding("g4-wave", node_space(e[:from]), "#{e[:from]} -> #{e[:to]}")]
       else
         []
       end
@@ -1672,21 +1624,21 @@ def finds_inverse(g)
   pairs = distinct(
     map(
       fn(e)
-        a = get(e, :from)
-        b = get(e, :to)
+        a = e[:from]
+        b = e[:to]
         if compare(a, b) <= 0
           [a, b]
         else
           [b, a]
         end
       end,
-      filter((e) -> get(e, :rel) == "inverse", get(g, :edges))
+      filter((e) -> e[:rel] == "inverse", g[:edges])
     )
   )
   partners = reduce(
     fn(acc, p)
-      a = nth(0, p)
-      b = nth(1, p)
+      a = p[0]
+      b = p[1]
       assoc(
         assoc(acc, a, push(get_or(acc, a, []), b)),
         b,
@@ -1697,17 +1649,17 @@ def finds_inverse(g)
     pairs
   )
   map(
-    (e) -> finding("g7-inverse", node_space(nth(0, e)), nth(0, e)),
+    (e) -> finding("g7-inverse", node_space(e[0]), e[0]),
     sort_keyed(
-      (e) -> nth(0, e),
-      filter((e) -> size(distinct(nth(1, e))) > 1, map_entries(partners))
+      (e) -> e[0],
+      filter((e) -> size(distinct(e[1])) > 1, map_entries(partners))
     )
   )
 end
 
 def finds_edges(g)
   nodes = graph_nodes(g)
-  ends = distinct(flat_map(get(g, :edges), (e) -> [get(e, :from), get(e, :to)]))
+  ends = distinct(flat_map(g[:edges], (e) -> [e[:from], e[:to]]))
   dangling = map(
     (x) -> finding("g9-dangling", node_space(x), x),
     sort_keyed((x) -> x, filter((x) -> get(nodes, x).nil?, ends))
@@ -1716,11 +1668,11 @@ def finds_edges(g)
     fn(e)
       finding(
         "g9-relation",
-        node_space(get(e, :from)),
-        "#{get(e, :from)} #{get(e, :rel)} #{get(e, :to)}"
+        node_space(e[:from]),
+        "#{e[:from]} #{e[:rel]} #{e[:to]}"
       )
     end,
-    filter((e) -> not member?(get(e, :rel), graph_rels), get(g, :edges))
+    filter((e) -> not member?(e[:rel], graph_rels), g[:edges])
   )
   concat_lists(dangling, unknown)
 end
@@ -1728,17 +1680,17 @@ end
 def exists_rows(g)
   filter(
     fn(r)
-      get(r, :enabled) and
-        starts_with?(get(r, :today), "exists") and
-        not ends_with?(get(r, :space), "?")
+      r[:enabled] and
+        starts_with?(r[:today], "exists") and
+        not ends_with?(r[:space], "?")
     end,
-    get(g, :verbs)
+    g[:verbs]
   )
 end
 
 def probe_source(g)
   rows = exists_rows(g)
-  spaces = sort_keyed((s) -> s, distinct(map((r) -> get(r, :space), rows)))
+  spaces = sort_keyed((s) -> s, distinct(map((r) -> r[:space], rows)))
   uses = join(map((s) -> unlines(["use(\"#{s}\")"]), spaces), "")
   names = join(map(row_node, rows), ", ")
   unlines([uses, "def probe()", "  [#{names}]", "end"])
@@ -1748,7 +1700,7 @@ def unbound_names(output)
   map(
     fn(l)
       parts = split(l, "`")
-      "#{nth(1, parts)}::#{nth(3, parts)}"
+      "#{parts[1]}::#{parts[3]}"
     end,
     filter((l) -> contains?(l, "error[B0011]"), split(output, line_break))
   )
@@ -1811,7 +1763,7 @@ def unquoted(line)
   at_end = length(parts) - 1
   join(
     map(
-      (i) -> nth(i, parts),
+      (i) -> parts[i],
       filter((i) -> even?(i) or i == at_end, range(length(parts)))
     ),
     " "
@@ -1839,7 +1791,7 @@ end
 def legacy_prefixes(packages)
   reduce(
     fn(acc, p)
-      prefix = legacy_prefix_of_text(nth(1, p))
+      prefix = legacy_prefix_of_text(p[1])
       if string?(prefix)
         assoc(acc, first(p), prefix)
       else
@@ -1852,15 +1804,15 @@ def legacy_prefixes(packages)
 end
 
 def test_corpus(packages)
-  toks = map((p) -> [first(p), test_tokens(nth(1, p))], packages)
+  toks = map((p) -> [first(p), test_tokens(p[1])], packages)
   {
     own: reduce(
-      (acc, t) -> assoc(acc, first(t), blue::frequencies(nth(1, t))),
+      (acc, t) -> assoc(acc, first(t), blue::frequencies(t[1])),
       {},
       toks
     ),
     qualified: blue::frequencies(
-      filter((t) -> contains?(t, token_glue), flat_map(toks, (t) -> nth(1, t)))
+      filter((t) -> contains?(t, token_glue), flat_map(toks, (t) -> t[1]))
     ),
     prefixes: legacy_prefixes(packages)
   }
@@ -1871,22 +1823,19 @@ def counted?(counts, key)
 end
 
 def tested?(corpus, space, verb)
-  own = get(get(corpus, :own), space)
-  prefix = get(get(corpus, :prefixes), space)
+  own = get(corpus[:own], space)
+  prefix = get(corpus[:prefixes], space)
   counted?(own, verb) or
     string?(prefix) and counted?(own, concat(prefix, "_", verb)) or
-    counted?(get(corpus, :qualified), qualified_token(space, verb))
+    counted?(corpus[:qualified], qualified_token(space, verb))
 end
 
 def finds_untested(g, corpus)
   map(
-    (r) -> finding("g11-untested", get(r, :space), row_node(r)),
+    (r) -> finding("g11-untested", r[:space], row_node(r)),
     sort_by(
       row_node,
-      filter(
-        (r) -> not tested?(corpus, get(r, :space), get(r, :verb)),
-        exists_rows(g)
-      )
+      filter((r) -> not tested?(corpus, r[:space], r[:verb]), exists_rows(g))
     )
   )
 end
@@ -1940,7 +1889,7 @@ end
 
 def graph_findings(g)
   sort_keyed(
-    (f) -> "#{get(f, :kind)} #{get(f, :subject)}",
+    (f) -> "#{f[:kind]} #{f[:subject]}",
     concat_lists(
       concat_lists(finds_meaning(g), finds_vocab(g)),
       concat_lists(
@@ -1953,7 +1902,7 @@ end
 
 def graph_findings_live(g, exe)
   sort_keyed(
-    (f) -> "#{get(f, :kind)} #{get(f, :subject)}",
+    (f) -> "#{f[:kind]} #{f[:subject]}",
     concat_lists(
       concat_lists(graph_findings(g), finds_unbound(g, unbound_probe(g, exe))),
       untested_probe(g, blue_path_roots(getenv("BLUE_PATH", "")))
@@ -1977,13 +1926,13 @@ end
 
 def finding_measurements(findings, kind)
   counts = reduce(
-    (acc, f) -> assoc(acc, get(f, :scope), get_or(acc, get(f, :scope), 0) + 1),
+    (acc, f) -> assoc(acc, f[:scope], get_or(acc, f[:scope], 0) + 1),
     {},
-    filter((f) -> get(f, :kind) == kind, findings)
+    filter((f) -> f[:kind] == kind, findings)
   )
   map(
-    (e) -> measurement(nth(0, e), nth(1, e)),
-    sort_keyed((e) -> nth(0, e), map_entries(counts))
+    (e) -> measurement(e[0], e[1]),
+    sort_keyed((e) -> e[0], map_entries(counts))
   )
 end
 
@@ -2008,7 +1957,7 @@ def graph_shrunk(findings, baseline_text)
     finding_kinds,
     fn(k)
       map(
-        (m) -> "#{k}: #{get(m, :key)}",
+        (m) -> "#{k}: #{m[:key]}",
         shrunk(rows, k, finding_measurements(findings, k))
       )
     end
@@ -2058,7 +2007,7 @@ def tsv_table(label, text, header_sets)
     else
       made = map(
         fn(i)
-          fields = tsv_fields(nth(i, lines))
+          fields = tsv_fields(lines[i])
           if size(fields) != size(header)
             refusal(
               :tsv_shape,
@@ -2121,43 +2070,43 @@ def vocab_header()
 end
 
 def tsv_verb(label, c, vocab)
-  v = get(vocab, get(c, "verb"))
-  id = "#{get(c, "space")}::#{get(c, "verb")}"
-  wave = to_int(get(c, "wave"))
+  v = get(vocab, c["verb"])
+  id = "#{c["space"]}::#{c["verb"]}"
+  wave = to_int(c["wave"])
   row = {
     word: "verb",
-    space: get(c, "space"),
-    verb: get(c, "verb"),
-    kind: get(c, "kind"),
-    shape: get(c, "shape"),
-    laterals: tsv_list(get(c, "laterals")),
-    fleet: if get(c, "fleet") == "-"
+    space: c["space"],
+    verb: c["verb"],
+    kind: c["kind"],
+    shape: c["shape"],
+    laterals: tsv_list(c["laterals"]),
+    fleet: if c["fleet"] == "-"
       nil
     else
-      get(c, "fleet")
+      c["fleet"]
     end,
-    today: get(c, "blue_today"),
-    meaning: get(c, "meaning"),
+    today: c["blue_today"],
+    meaning: c["meaning"],
     wave:,
-    origin: get(c, "region"),
+    origin: c["region"],
     contract: nil,
     enabled: true,
     replaced_by: nil
   }
-  given = get(c, "contract_shape")
+  given = c["contract_shape"]
   if wave.nil?
     refusal(
       :tsv_value,
-      "#{label} #{id}: wave `#{get(c, "wave")}` is no whole number"
+      "#{label} #{id}: wave `#{c["wave"]}` is no whole number"
     )
-  elsif not member?(get(row, :kind), ["pure", "effect", "stream", "decl"])
-    refusal(:tsv_value, "#{label} #{id}: kind `#{get(row, :kind)}` is no kind")
+  elsif not member?(row[:kind], ["pure", "effect", "stream", "decl"])
+    refusal(:tsv_value, "#{label} #{id}: kind `#{row[:kind]}` is no kind")
   elsif given.nil?
     row
-  elsif get(c, "conforms") != verb_conforms(get(row, :shape), v)
+  elsif c["conforms"] != verb_conforms(row[:shape], v)
     refusal(
       :derived,
-      "#{label} #{id}: conforms is `#{get(c, "conforms")}` and the shape says `#{verb_conforms(get(row, :shape), v)}`"
+      "#{label} #{id}: conforms is `#{c["conforms"]}` and the shape says `#{verb_conforms(row[:shape], v)}`"
     )
   elsif given == verb_contract_default(row, v)
     row
@@ -2172,42 +2121,36 @@ def graph_from_tsv(verbs_text, edges_text, vocab_text)
     fn(c)
       {
         word: "vocab",
-        verb: get(c, "verb"),
-        subject: get(c, "subject"),
-        args: tsv_list(get(c, "args")),
-        opts: get(c, "opts") == "yes",
+        verb: c["verb"],
+        subject: c["subject"],
+        args: tsv_list(c["args"]),
+        opts: c["opts"] == "yes",
         returns: get_or(c, "returns", ""),
-        raises: tsv_list(get(c, "raises")),
-        kind: get(c, "kind"),
-        meaning: get(c, "meaning"),
-        ref: if get(c, "stdlib_ref") == "-"
+        raises: tsv_list(c["raises"]),
+        kind: c["kind"],
+        meaning: c["meaning"],
+        ref: if c["stdlib_ref"] == "-"
           nil
         else
-          get(c, "stdlib_ref")
+          c["stdlib_ref"]
         end,
-        status: get(c, "status")
+        status: c["status"]
       }
     end,
-    get(vt, :rows)
+    vt[:rows]
   )
-  by_verb = reduce((acc, v) -> assoc(acc, get(v, :verb), v), {}, vocab)
+  by_verb = reduce((acc, v) -> assoc(acc, v[:verb], v), {}, vocab)
   vr = tsv_table("verbs", verbs_text, [verb_header, verb_header_region])
-  verbs_made = map((c) -> tsv_verb("verbs", c, by_verb), get(vr, :rows))
+  verbs_made = map((c) -> tsv_verb("verbs", c, by_verb), vr[:rows])
   et = tsv_table("edges", edges_text, [edge_header])
   edges = map(
     fn(c)
-      {
-        word: "edge",
-        from: get(c, "from"),
-        rel: get(c, "rel"),
-        to: get(c, "to"),
-        why: get(c, "why")
-      }
+      {word: "edge", from: c["from"], rel: c["rel"], to: c["to"], why: c["why"]}
     end,
-    get(et, :rows)
+    et[:rows]
   )
   verbs = reject(row_refusal?, verbs_made)
-  names = distinct(sort_keyed((s) -> s, map((r) -> get(r, :space), verbs)))
+  names = distinct(sort_keyed((s) -> s, map((r) -> r[:space], verbs)))
   g = {
     spaces: map(
       fn(s)
@@ -2234,10 +2177,10 @@ def graph_from_tsv(verbs_text, edges_text, vocab_text)
     g,
     :refusals,
     concat_lists(
-      concat_lists(get(vt, :refusals), get(vr, :refusals)),
+      concat_lists(vt[:refusals], vr[:refusals]),
       concat_lists(
         filter(row_refusal?, verbs_made),
-        concat_lists(get(et, :refusals), graph_duplicates(g))
+        concat_lists(et[:refusals], graph_duplicates(g))
       )
     )
   )
@@ -2253,33 +2196,33 @@ end
 
 def verbs_tsv(g)
   by_verb = vocab_by_verb(g)
-  rows = sort_keyed(row_node, get(g, :verbs))
+  rows = sort_keyed(row_node, g[:verbs])
   tsv_text(
     verb_header,
     map(
       fn(r)
-        v = get(by_verb, get(r, :verb))
+        v = get(by_verb, r[:verb])
         [
-          get(r, :origin),
-          get(r, :space),
-          get(r, :verb),
-          get(r, :kind),
-          get(r, :shape),
-          if is_empty(get(r, :laterals))
+          r[:origin],
+          r[:space],
+          r[:verb],
+          r[:kind],
+          r[:shape],
+          if is_empty(r[:laterals])
             "-"
           else
-            join(get(r, :laterals), ",")
+            join(r[:laterals], ",")
           end,
-          if get(r, :fleet).nil?
+          if r[:fleet].nil?
             "-"
           else
-            get(r, :fleet)
+            r[:fleet]
           end,
-          get(r, :today),
-          get(r, :meaning),
-          to_s(get(r, :wave)),
+          r[:today],
+          r[:meaning],
+          to_s(r[:wave]),
           verb_contract_shape(r, v),
-          verb_conforms(get(r, :shape), v)
+          verb_conforms(r[:shape], v)
         ]
       end,
       rows
@@ -2291,11 +2234,8 @@ def edges_tsv(g)
   tsv_text(
     edge_header,
     map(
-      (e) -> [get(e, :from), get(e, :rel), get(e, :to), get(e, :why)],
-      sort_keyed(
-        (e) -> "#{get(e, :from)}\t#{get(e, :rel)}\t#{get(e, :to)}",
-        get(g, :edges)
-      )
+      (e) -> [e[:from], e[:rel], e[:to], e[:why]],
+      sort_keyed((e) -> "#{e[:from]}\t#{e[:rel]}\t#{e[:to]}", g[:edges])
     )
   )
 end
@@ -2306,27 +2246,27 @@ def vocab_tsv(g)
     map(
       fn(v)
         [
-          get(v, :verb),
-          get(v, :subject),
-          join(get(v, :args), ","),
-          if get(v, :opts)
+          v[:verb],
+          v[:subject],
+          join(v[:args], ","),
+          if v[:opts]
             "yes"
           else
             "no"
           end,
-          get(v, :returns),
-          join(get(v, :raises), ","),
-          get(v, :kind),
-          get(v, :meaning),
-          if get(v, :ref).nil?
+          v[:returns],
+          join(v[:raises], ","),
+          v[:kind],
+          v[:meaning],
+          if v[:ref].nil?
             "-"
           else
-            get(v, :ref)
+            v[:ref]
           end,
-          get(v, :status)
+          v[:status]
         ]
       end,
-      sort_keyed((v) -> get(v, :verb), get(g, :vocab))
+      sort_keyed((v) -> v[:verb], g[:vocab])
     )
   )
 end
@@ -2346,7 +2286,7 @@ def row_scalar(v)
 end
 
 def row_fields(pairs)
-  "{#{join(map((p) -> "#{nth(0, p)}: #{nth(1, p)}", pairs), ", ")}}"
+  "{#{join(map((p) -> "#{p[0]}: #{p[1]}", pairs), ", ")}}"
 end
 
 def optional_field(name, value)
@@ -2360,36 +2300,36 @@ end
 def verb_fields(r)
   concat_lists(
     [
-      ["kind", ":#{get(r, :kind)}"],
-      ["shape", scm_string(get(r, :shape))],
-      ["laterals", row_strings(get(r, :laterals))],
-      ["fleet", row_scalar(get(r, :fleet))],
-      ["today", scm_string(get(r, :today))],
-      ["meaning", scm_string(get(r, :meaning))],
-      ["wave", to_s(get(r, :wave))],
-      ["origin", scm_string(get(r, :origin))]
+      ["kind", ":#{r[:kind]}"],
+      ["shape", scm_string(r[:shape])],
+      ["laterals", row_strings(r[:laterals])],
+      ["fleet", row_scalar(r[:fleet])],
+      ["today", scm_string(r[:today])],
+      ["meaning", scm_string(r[:meaning])],
+      ["wave", to_s(r[:wave])],
+      ["origin", scm_string(r[:origin])]
     ],
     concat_lists(
       optional_field(
         "contract",
-        if get(r, :contract).nil?
+        if r[:contract].nil?
           nil
         else
-          scm_string(get(r, :contract))
+          scm_string(r[:contract])
         end
       ),
       concat_lists(
-        if get(r, :enabled)
+        if r[:enabled]
           []
         else
           [["enabled", "false"]]
         end,
         optional_field(
           "replaced_by",
-          if get(r, :replaced_by).nil?
+          if r[:replaced_by].nil?
             nil
           else
-            scm_string(get(r, :replaced_by))
+            scm_string(r[:replaced_by])
           end
         )
       )
@@ -2398,39 +2338,39 @@ def verb_fields(r)
 end
 
 def row_source(r)
-  w = get(r, :word)
+  w = r[:word]
   if w == "space"
     fields = concat_lists(
-      [["status", ":#{get(r, :status)}"]],
+      [["status", ":#{r[:status]}"]],
       optional_field(
         "gloss",
-        if get(r, :gloss).nil?
+        if r[:gloss].nil?
           nil
         else
-          scm_string(get(r, :gloss))
+          scm_string(r[:gloss])
         end
       )
     )
-    "space(#{scm_string(get(r, :name))}, #{row_fields(fields)})"
+    "space(#{scm_string(r[:name])}, #{row_fields(fields)})"
   elsif w == "verb"
-    "verb(#{scm_string(get(r, :space))}, #{scm_string(get(r, :verb))}, #{row_fields(verb_fields(r))})"
+    "verb(#{scm_string(r[:space])}, #{scm_string(r[:verb])}, #{row_fields(verb_fields(r))})"
   elsif w == "edge"
-    "edge(#{scm_string(get(r, :from))}, :#{get(r, :rel)}, #{scm_string(get(r, :to))}, #{scm_string(get(r, :why))})"
+    "edge(#{scm_string(r[:from])}, :#{r[:rel]}, #{scm_string(r[:to])}, #{scm_string(r[:why])})"
   elsif w == "vocab"
     fields = [
-      ["subject", scm_string(get(r, :subject))],
-      ["args", row_strings(get(r, :args))],
-      ["opts", row_scalar(get(r, :opts))],
-      ["returns", scm_string(get(r, :returns))],
-      ["raises", row_strings(get(r, :raises))],
-      ["kind", ":#{get(r, :kind)}"],
-      ["meaning", scm_string(get(r, :meaning))],
-      ["ref", row_scalar(get(r, :ref))],
-      ["status", ":#{get(r, :status)}"]
+      ["subject", scm_string(r[:subject])],
+      ["args", row_strings(r[:args])],
+      ["opts", row_scalar(r[:opts])],
+      ["returns", scm_string(r[:returns])],
+      ["raises", row_strings(r[:raises])],
+      ["kind", ":#{r[:kind]}"],
+      ["meaning", scm_string(r[:meaning])],
+      ["ref", row_scalar(r[:ref])],
+      ["status", ":#{r[:status]}"]
     ]
-    "vocab(#{scm_string(get(r, :verb))}, #{row_fields(fields)})"
+    "vocab(#{scm_string(r[:verb])}, #{row_fields(fields)})"
   else
-    "lateral(#{scm_string(get(r, :name))}, #{row_fields([["battery", row_scalar(get(r, :battery))]])})"
+    "lateral(#{scm_string(r[:name])}, #{row_fields([["battery", row_scalar(r[:battery])]])})"
   end
 end
 
@@ -2444,14 +2384,14 @@ end
 
 def space_file_text(g, space)
   verbs = sort_keyed(
-    (r) -> get(r, :verb),
-    filter((r) -> get(r, :space) == space, get(g, :verbs))
+    (r) -> r[:verb],
+    filter((r) -> r[:space] == space, g[:verbs])
   )
   edges = sort_keyed(
-    (e) -> "#{get(e, :rel)}\t#{get(e, :to)}\t#{get(e, :from)}",
-    filter((e) -> node_space(get(e, :from)) == space, get(g, :edges))
+    (e) -> "#{e[:rel]}\t#{e[:to]}\t#{e[:from]}",
+    filter((e) -> node_space(e[:from]) == space, g[:edges])
   )
-  s = first(filter((r) -> get(r, :name) == space, get(g, :spaces)))
+  s = first(filter((r) -> r[:name] == space, g[:spaces]))
   join(
     map(
       (r) -> unlines([row_source(r)]),
@@ -2470,13 +2410,13 @@ def graph_writes(g)
           join(
             map(
               (r) -> unlines([row_source(r)]),
-              sort_keyed((v) -> get(v, :verb), get(g, :vocab))
+              sort_keyed((v) -> v[:verb], g[:vocab])
             ),
             ""
           )
         ]
       ],
-      if is_empty(get(g, :laterals))
+      if is_empty(g[:laterals])
         []
       else
         [
@@ -2485,7 +2425,7 @@ def graph_writes(g)
             join(
               map(
                 (r) -> unlines([row_source(r)]),
-                sort_keyed((l) -> get(l, :name), get(g, :laterals))
+                sort_keyed((l) -> l[:name], g[:laterals])
               ),
               ""
             )
@@ -2494,29 +2434,24 @@ def graph_writes(g)
       end
     ),
     map(
-      fn(s)
-        [graph_file_name(get(s, :name)), space_file_text(g, get(s, :name))]
-      end,
-      sort_keyed((s) -> get(s, :name), get(g, :spaces))
+      (s) -> [graph_file_name(s[:name]), space_file_text(g, s[:name])],
+      sort_keyed((s) -> s[:name], g[:spaces])
     )
   )
 end
 
 def import_refusals(g)
-  spaces = map((s) -> get(s, :name), get(g, :spaces))
+  spaces = map((s) -> s[:name], g[:spaces])
   concat_lists(
-    get(g, :refusals),
+    g[:refusals],
     map(
       fn(e)
         refusal(
           :orphan_edge,
-          "#{get(e, :from)} #{get(e, :rel)} #{get(e, :to)}: the file of its `from` space does not exist"
+          "#{e[:from]} #{e[:rel]} #{e[:to]}: the file of its `from` space does not exist"
         )
       end,
-      filter(
-        (e) -> not member?(node_space(get(e, :from)), spaces),
-        get(g, :edges)
-      )
+      filter((e) -> not member?(node_space(e[:from]), spaces), g[:edges])
     )
   )
 end
@@ -2557,7 +2492,7 @@ test "a definition with no parameters is catalogued bare"
       "end"
     ]
   )
-  assert map((e) -> nth(1, e), entries_of_text(src)) ==
+  assert map((e) -> e[1], entries_of_text(src)) ==
     ["alphabet", "typed -> Int", "inc(x)"]
 end
 
@@ -2576,8 +2511,8 @@ end
 
 test "a manifest with no needs has an empty needs list"
   m = parse_manifest(unlines(["package(\"deeta\", \"0.1.0\")"]))
-  assert is_empty(nth(2, m)) == true
-  assert nth(0, m) == "deeta"
+  assert is_empty(m[2]) == true
+  assert m[0] == "deeta"
 end
 
 test "a def's doc is its @doc; a comment documents nothing"
@@ -2604,7 +2539,7 @@ test "a def's doc is its @doc; a comment documents nothing"
   assert size(es) == 2
   assert first(es) ==
     ["inc", "inc(x)", ["inc adds one.", "", "    inc(1) #=> 2"], []]
-  assert is_empty(nth(2, last(es))) == true
+  assert is_empty(last(es)[2]) == true
 end
 
 test "the gloss is the first line of the @moduledoc"
@@ -2745,15 +2680,15 @@ def fx_graph(verbs, edges, known)
         fn(v)
           [
             "T",
-            nth(0, v),
-            nth(1, v),
+            v[0],
+            v[1],
             "pure",
-            "#{nth(1, v)}(value) -> value",
+            "#{v[1]}(value) -> value",
             "-",
             "-",
             "absent",
-            nth(2, v),
-            to_s(nth(3, v))
+            v[2],
+            to_s(v[3])
           ]
         end,
         verbs
@@ -2784,7 +2719,7 @@ def fx_graph(verbs, edges, known)
 end
 
 def fx_kinds(g)
-  map((f) -> "#{get(f, :kind)} #{get(f, :subject)}", graph_findings(g))
+  map((f) -> "#{f[:kind]} #{f[:subject]}", graph_findings(g))
 end
 
 test "a catalogue keeps the packages the ledger names and skips the rest"
@@ -2809,7 +2744,7 @@ test "a graph that breaks no gate has no finding"
     [["a::write", "requires", "a::read", "needs it"]],
     ["read", "write"]
   )
-  assert get(g, :refusals) == []
+  assert g[:refusals] == []
   assert graph_findings(g) == []
 end
 
@@ -2946,13 +2881,13 @@ test "a retired verb keeps its row and is not held to g1 or g2"
     :verbs,
     map(
       fn(r)
-        if get(r, :verb) == "slurp"
+        if r[:verb] == "slurp"
           assoc(r, :enabled, false)
         else
           r
         end
       end,
-      get(g, :verbs)
+      g[:verbs]
     )
   )
   assert fx_kinds(off) == []
@@ -2990,20 +2925,20 @@ test "a row file reads its own writing, for every word"
     status: "ratified",
     gloss: "files \"and\" paths"
   }
-  rows = concat_lists([space], concat_lists(get(g, :verbs), get(g, :edges)))
+  rows = concat_lists([space], concat_lists(g[:verbs], g[:edges]))
   parsed = file_graph(
     "a.b",
     join(map((r) -> unlines([row_source(r)]), rows), "")
   )
-  assert get(parsed, :refusals) == []
-  assert get(parsed, :rows) == rows
+  assert parsed[:refusals] == []
+  assert parsed[:rows] == rows
   voc = file_graph(
     "vocab.b",
-    join(map((r) -> unlines([row_source(r)]), get(g, :vocab)), "")
+    join(map((r) -> unlines([row_source(r)]), g[:vocab]), "")
   )
-  assert get(voc, :refusals) == []
-  assert get(voc, :rows) == get(g, :vocab)
-  assert size(get(voc, :rows)) == 1
+  assert voc[:refusals] == []
+  assert voc[:rows] == g[:vocab]
+  assert size(voc[:rows]) == 1
 end
 
 test "a row file is data: a word that is not a row word is refused, never run"
@@ -3011,28 +2946,22 @@ test "a row file is data: a word that is not a row word is refused, never run"
     "a.b",
     unlines(["space(\"a\", {status: :ratified})", "write_file(\"x\", \"y\")"])
   )
-  assert kinds(get(r, :refusals)) == [:unknown_word]
-  assert size(get(r, :rows)) == 1
+  assert kinds(r[:refusals]) == [:unknown_word]
+  assert size(r[:rows]) == 1
 end
 
 test "a row file holds only literals: a name, a call or an operator in a value is a syntax refusal"
   assert kinds(
-    get(
-      file_graph("a.b", unlines(["space(\"a\", {status: ratified})"])),
-      :refusals
-    )
+    file_graph("a.b", unlines(["space(\"a\", {status: ratified})"]))[:refusals]
   ) == [:row_syntax]
   assert kinds(
-    get(
-      file_graph("a.b", unlines(["space(\"a\", {status: 1 + 2})"])),
-      :refusals
-    )
+    file_graph("a.b", unlines(["space(\"a\", {status: 1 + 2})"]))[:refusals]
   ) == [:row_syntax]
   assert kinds(
-    get(file_graph("a.b", unlines(["space(\"a\", {status: f(1)})"])), :refusals)
+    file_graph("a.b", unlines(["space(\"a\", {status: f(1)})"]))[:refusals]
   ) == [:row_syntax]
   assert kinds(
-    get(file_graph("a.b", unlines(["space(\"a\", {status: \"x"])), :refusals)
+    file_graph("a.b", unlines(["space(\"a\", {status: \"x"]))[:refusals]
   ) == [:row_syntax]
 end
 
@@ -3047,8 +2976,8 @@ test "a bad row is refused alone: its siblings load"
       ]
     )
   )
-  assert size(get(r, :rows)) == 1
-  assert kinds(get(r, :refusals)) == [:bad_row, :bad_row]
+  assert size(r[:rows]) == 1
+  assert kinds(r[:refusals]) == [:bad_row, :bad_row]
 end
 
 test "a file holds the rows of its own space only, and the edges that start there"
@@ -3062,7 +2991,7 @@ test "a file holds the rows of its own space only, and the edges that start ther
       ]
     )
   )
-  assert kinds(get(r, :refusals)) == [:misplaced, :misplaced]
+  assert kinds(r[:refusals]) == [:misplaced, :misplaced]
 end
 
 test "a duplicate verb, space, vocabulary row or edge is refused by name"
@@ -3071,7 +3000,7 @@ test "a duplicate verb, space, vocabulary row or edge is refused by name"
     [["a::p", "pairs", "a::p", "w"], ["a::p", "pairs", "a::p", "w"]],
     ["p", "p"]
   )
-  assert map(why, get(g, :refusals)) ==
+  assert map(why, g[:refusals]) ==
     [
       "verb a::p is declared twice",
       "vocab p is declared twice",
@@ -3120,8 +3049,8 @@ test "a TSV that disagrees with its derived columns is refused, row by row"
     tsv_text(edge_header, []),
     voc
   )
-  assert kinds(get(g, :refusals)) == [:derived]
-  assert get(g, :verbs) == []
+  assert kinds(g[:refusals]) == [:derived]
+  assert g[:verbs] == []
 end
 
 test "a TSV round trips through the graph: export of import is the sorted input"
@@ -3180,7 +3109,7 @@ test "a TSV round trips through the graph: export of import is the sorted input"
   et = tsv_text(edge_header, edges)
   ct = tsv_text(vocab_header, vocab)
   g = graph_from_tsv(vt, et, ct)
-  assert get(g, :refusals) == []
+  assert g[:refusals] == []
   assert verbs_tsv(g) == vt
   assert edges_tsv(g) == et
   assert vocab_tsv(g) == ct
@@ -3207,10 +3136,10 @@ test "a graph is written as one file per space, edges in the file of their from,
   )
   files = graph_writes(g)
   assert map(first, files) == ["vocab.b", "a.b", "b-provisional.b"]
-  b = file_graph("b-provisional.b", nth(1, nth(2, files)))
-  assert get(b, :refusals) == []
-  assert map((r) -> get(r, :word), get(b, :rows)) == ["space", "verb", "edge"]
-  assert get(first(get(b, :rows)), :status) == "provisional"
+  b = file_graph("b-provisional.b", files[2][1])
+  assert b[:refusals] == []
+  assert map((r) -> r[:word], b[:rows]) == ["space", "verb", "edge"]
+  assert first(b[:rows])[:status] == "provisional"
 end
 
 def ux_graph(rows)
@@ -3221,14 +3150,14 @@ def ux_graph(rows)
         fn(r)
           [
             "T",
-            nth(0, r),
-            nth(1, r),
+            r[0],
+            r[1],
             "pure",
-            "#{nth(1, r)}(value) -> value",
+            "#{r[1]}(value) -> value",
             "-",
             "-",
-            nth(2, r),
-            nth(3, r),
+            r[2],
+            r[3],
             "0"
           ]
         end,
@@ -3296,16 +3225,16 @@ test "finds_unbound reports an exists row once and ignores any other row"
       "zzz::none"
     ]
   )
-  assert map((f) -> get(f, :subject), found) == ["kazu::abs", "moji::lower"]
-  assert map((f) -> get(f, :kind), found) == ["g10-unbound", "g10-unbound"]
-  assert map((f) -> get(f, :scope), found) == ["kazu", "moji"]
+  assert map((f) -> f[:subject], found) == ["kazu::abs", "moji::lower"]
+  assert map((f) -> f[:kind], found) == ["g10-unbound", "g10-unbound"]
+  assert map((f) -> f[:scope], found) == ["kazu", "moji"]
   assert finds_unbound(g, []) == []
 end
 
 test "g10-unbound is a kind the baseline measures"
   assert member?("g10-unbound", finding_kinds)
   found = finds_unbound(ux_graph(ux_rows), ["moji::lower"])
-  assert map((m) -> get(m, :key), finding_measurements(found, "g10-unbound")) ==
+  assert map((m) -> m[:key], finding_measurements(found, "g10-unbound")) ==
     ["moji"]
 end
 
@@ -3423,11 +3352,11 @@ end
 
 test "g11 names every exists row with no test, once, sorted, and no other row"
   found = finds_untested(ut_graph, ut_corpus)
-  assert map((f) -> get(f, :subject), found) ==
+  assert map((f) -> f[:subject], found) ==
     ["kazu::abs", "kazu::neg", "moji::upper"]
-  assert map((f) -> get(f, :kind), found) ==
+  assert map((f) -> f[:kind], found) ==
     ["g11-untested", "g11-untested", "g11-untested"]
-  assert map((f) -> get(f, :scope), found) == ["kazu", "kazu", "moji"]
+  assert map((f) -> f[:scope], found) == ["kazu", "kazu", "moji"]
 end
 
 test "g11 is silent when every exists row has a test, and for an empty graph"
@@ -3439,14 +3368,10 @@ end
 test "g11-untested is a kind the baseline measures"
   assert member?("g11-untested", finding_kinds)
   found = finds_untested(ut_graph, ut_corpus)
-  assert map(
-    (m) -> get(m, :key),
-    finding_measurements(found, "g11-untested")
-  ) == ["kazu", "moji"]
-  assert map(
-    (m) -> get(m, :size),
-    finding_measurements(found, "g11-untested")
-  ) == [2, 1]
+  assert map((m) -> m[:key], finding_measurements(found, "g11-untested")) ==
+    ["kazu", "moji"]
+  assert map((m) -> m[:size], finding_measurements(found, "g11-untested")) ==
+    [2, 1]
 end
 
 test "corpus_packages reads each package's name and text from a root, and the probe refuses an empty root"
@@ -3476,8 +3401,7 @@ test "corpus_packages reads each package's name and text from a root, and the pr
   g = ux_graph(
     [["zed", "go", "exists:zed", "one"], ["zed", "stop", "exists:zed", "two"]]
   )
-  assert map((f) -> get(f, :subject), untested_probe(g, [root])) ==
-    ["zed::stop"]
+  assert map((f) -> f[:subject], untested_probe(g, [root])) == ["zed::stop"]
   rm_rf(root)
   r = untested_probe(g, []) rescue "caught"
   assert r == "caught"
@@ -3537,8 +3461,8 @@ test "a package's legacy prefix spells its verb in a test, and no other package'
 end
 
 test "legacy_prefixes reads the two-string form only"
-  assert get(get(ut_prefixed, :prefixes), "wen") == "wn"
-  assert is_empty(map_entries(get(ut_prefixed, :prefixes))) == false
-  assert size(map_entries(get(ut_prefixed, :prefixes))) == 1
+  assert ut_prefixed[:prefixes]["wen"] == "wn"
+  assert is_empty(map_entries(ut_prefixed[:prefixes])) == false
+  assert size(map_entries(ut_prefixed[:prefixes])) == 1
   assert legacy_prefixes([]) == {}
 end

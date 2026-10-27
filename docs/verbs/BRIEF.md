@@ -1,8 +1,3 @@
----
-kind: explanation
-summary: the shared brief behind the verb graph
----
-
 # Blue verb graph: shared brief (read fully first)
 
 ## Goal (operator, 2026-10-22, verbatim)

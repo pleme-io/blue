@@ -176,7 +176,7 @@ end
 def step_into(v, key)
   index = to_int(key)
   if index != nil and list?(v) and not is_doc_pair?(first(v))
-    nth(index, v)
+    v[index]
   elsif map?(v)
     get(v, key)
   else
@@ -496,7 +496,7 @@ def parse(text, format, opts?)
   if format == :json
     json_read(text)
   elsif format == :yaml
-    one_or_all(yaml_documents(text), get(options, :documents))
+    one_or_all(yaml_documents(text), options[:documents])
   else
     raise(:bad_option, "parse reads :json and :yaml, not #{to_s(format)}")
   end
@@ -544,13 +544,13 @@ def default_handles()
 end
 
 def at_char(y, r, c)
-  row = nth(r, get(y, :rows))
+  row = y[:rows][r]
   if row.nil?
     nil
   elsif c >= count(row)
     line_break
   else
-    nth(c, row)
+    row[c]
   end
 end
 
@@ -586,7 +586,7 @@ def next_content(y, r, c)
   k = skip_blanks(y, r, c)
   ch = at_char(y, r, k)
   if ch.nil?
-    [get(y, :nr), 0]
+    [y[:nr], 0]
   elsif ch == line_break or comment_at?(y, r, k)
     next_content(y, r + 1, 0)
   else
@@ -602,7 +602,7 @@ def marker_line?(y, r, ch)
 end
 
 def content_level(y, r, c)
-  if r >= get(y, :nr)
+  if r >= y[:nr]
     -1
   elsif c == 0 and (marker_line?(y, r, "-") or marker_line?(y, r, "."))
     -1
@@ -620,7 +620,7 @@ def yaml_fail(r, c, message)
 end
 
 def row_slice(y, r, a, b)
-  join(take(b - a, drop(a, nth(r, get(y, :rows)))), "")
+  join(take(b - a, drop(a, y[:rows][r])), "")
 end
 
 def leading_spaces(y, r, c)
@@ -666,7 +666,7 @@ def node_properties(y, r, c, props)
     e = word_end(y, r, c + 1)
     if e == c + 1
       yaml_fail(r, c, "an anchor needs a name")
-    elsif get(props, :anchor) != nil
+    elsif props[:anchor] != nil
       yaml_fail(r, c, "a node takes one anchor")
     end
     node_properties(
@@ -681,7 +681,7 @@ def node_properties(y, r, c, props)
     else
       word_end(y, r, c + 1)
     end
-    if get(props, :tag) != nil
+    if props[:tag] != nil
       yaml_fail(r, c, "a node takes one tag")
     end
     node_properties(
@@ -708,7 +708,7 @@ def expand_tag(y, r, c, raw)
     else
       "!"
     end
-    prefix = get(get(y, :handles), handle)
+    prefix = get(y[:handles], handle)
     if prefix.nil?
       yaml_fail(r, c, "the tag handle #{handle} is not declared")
     end
@@ -717,40 +717,34 @@ def expand_tag(y, r, c, raw)
 end
 
 def merged_properties(r, c, a, b)
-  if get(a, :anchor) != nil and get(b, :anchor) != nil or
-      get(a, :tag) != nil and get(b, :tag) != nil
+  if a[:anchor] != nil and b[:anchor] != nil or
+      a[:tag] != nil and b[:tag] != nil
     yaml_fail(r, c, "a node takes one anchor and one tag")
   end
   {
-    anchor: if get(b, :anchor).nil?
-      get(a, :anchor)
+    anchor: if b[:anchor].nil?
+      a[:anchor]
     else
-      get(b, :anchor)
+      b[:anchor]
     end,
-    tag: if get(b, :tag).nil?
-      get(a, :tag)
+    tag: if b[:tag].nil?
+      a[:tag]
     else
-      get(b, :tag)
+      b[:tag]
     end
   }
 end
 
 def bare?(props)
-  get(props, :anchor).nil? and get(props, :tag).nil?
+  props[:anchor].nil? and props[:tag].nil?
 end
 
 def scalar_node(text, plain, props)
-  {
-    kind: :scalar,
-    text:,
-    plain:,
-    tag: get(props, :tag),
-    anchor: get(props, :anchor)
-  }
+  {kind: :scalar, text:, plain:, tag: props[:tag], anchor: props[:anchor]}
 end
 
 def with_properties(node, props)
-  assoc(assoc(node, :tag, get(props, :tag)), :anchor, get(props, :anchor))
+  assoc(assoc(node, :tag, props[:tag]), :anchor, props[:anchor])
 end
 
 def block_indicator?(y, r, c, ch)
@@ -760,8 +754,8 @@ end
 def block_node(y, r, c, n, ctx, outer)
   c1 = skip_blanks(y, r, c)
   p = node_properties(y, r, c1, {})
-  line = get(p, :props)
-  c2 = get(p, :c)
+  line = p[:props]
+  c2 = p[:c]
   ch = at_char(y, r, c2)
   collection_here = member?(ctx, [:fresh, :fresh_map, :seq, :explicit])
   tabbed = member?("\t", chars(row_slice(y, r, c, c2)))
@@ -816,11 +810,7 @@ def block_node(y, r, c, n, ctx, outer)
       merged_properties(r, c1, outer, line),
       false
     )
-    {
-      node: get(v, :node),
-      r: get(v, :r),
-      c: rest_of_line(y, get(v, :r), get(v, :c))
-    }
+    {node: v[:node], r: v[:r], c: rest_of_line(y, v[:r], v[:c])}
   end
 end
 
@@ -856,16 +846,16 @@ end
 def block_sequence(y, r, m, props)
   s = sequence_items(y, r, m, [])
   {
-    node: with_properties({kind: :seq, items: get(s, :items)}, props),
-    r: get(s, :r),
-    c: get(s, :c)
+    node: with_properties({kind: :seq, items: s[:items]}, props),
+    r: s[:r],
+    c: s[:c]
   }
 end
 
 def sequence_items(y, r, m, items)
   item = block_node(y, r, m + 1, m, :seq, {})
-  all = append(items, [get(item, :node)])
-  at = next_content(y, get(item, :r), get(item, :c))
+  all = append(items, [item[:node]])
+  at = next_content(y, item[:r], item[:c])
   r2 = first(at)
   c2 = second(at)
   level = content_level(y, r2, c2)
@@ -881,16 +871,16 @@ end
 def block_mapping(y, r, m, props)
   s = mapping_entries(y, r, m, [])
   {
-    node: with_properties({kind: :map, pairs: get(s, :pairs)}, props),
-    r: get(s, :r),
-    c: get(s, :c)
+    node: with_properties({kind: :map, pairs: s[:pairs]}, props),
+    r: s[:r],
+    c: s[:c]
   }
 end
 
 def mapping_entries(y, r, m, pairs)
   e = mapping_entry(y, r, m)
-  all = append(pairs, [get(e, :pair)])
-  at = next_content(y, get(e, :r), get(e, :c))
+  all = append(pairs, [e[:pair]])
+  at = next_content(y, e[:r], e[:c])
   r2 = first(at)
   c2 = second(at)
   level = content_level(y, r2, c2)
@@ -906,34 +896,30 @@ end
 def mapping_entry(y, r, m)
   if block_indicator?(y, r, m, "?")
     k = block_node(y, r, m + 1, m, :explicit, {})
-    at = next_content(y, get(k, :r), get(k, :c))
+    at = next_content(y, k[:r], k[:c])
     r2 = first(at)
     c2 = second(at)
     if content_level(y, r2, c2) == m and block_indicator?(y, r2, c2, ":")
       v = block_node(y, r2, m + 1, m, :explicit, {})
-      {pair: [get(k, :node), get(v, :node)], r: get(v, :r), c: get(v, :c)}
+      {pair: [k[:node], v[:node]], r: v[:r], c: v[:c]}
     else
-      {
-        pair: [get(k, :node), scalar_node("", true, {})],
-        r: get(k, :r),
-        c: get(k, :c)
-      }
+      {pair: [k[:node], scalar_node("", true, {})], r: k[:r], c: k[:c]}
     end
   else
     p = node_properties(y, r, m, {})
-    kc = get(p, :c)
+    kc = p[:c]
     k = if block_indicator?(y, r, kc, ":")
-      {node: scalar_node("", true, get(p, :props)), r:, c: kc}
+      {node: scalar_node("", true, p[:props]), r:, c: kc}
     else
-      inline_node(y, r, kc, m, m, get(p, :props), true)
+      inline_node(y, r, kc, m, m, p[:props], true)
     end
-    if get(k, :r) != r
+    if k[:r] != r
       yaml_fail(r, kc, "a mapping key must sit on one line")
     end
-    c3 = skip_blanks(y, r, get(k, :c))
+    c3 = skip_blanks(y, r, k[:c])
     if block_indicator?(y, r, c3, ":")
       v = block_node(y, r, c3 + 1, m, :map, {})
-      {pair: [get(k, :node), get(v, :node)], r: get(v, :r), c: get(v, :c)}
+      {pair: [k[:node], v[:node]], r: v[:r], c: v[:c]}
     else
       yaml_fail(r, c3, "a mapping key needs \":\" after it")
     end
@@ -942,7 +928,7 @@ end
 
 def implicit_key?(y, r, c)
   k = inline_node(y, r, c, -1, -1, {}, true)
-  get(k, :r) == r and block_indicator?(y, r, skip_blanks(y, r, get(k, :c)), ":")
+  k[:r] == r and block_indicator?(y, r, skip_blanks(y, r, k[:c]), ":")
 rescue _
   false
 end
@@ -957,14 +943,10 @@ def inline_node(y, r, c, n, qn, props, single)
     {node: {kind: :alias, name: row_slice(y, r, c + 1, e)}, r:, c: e}
   elsif ch == "\"" or ch == "'"
     q = quoted_run(y, r, c + 1, "", "", ch == "\"", qn)
-    {
-      node: scalar_node(get(q, :text), false, props),
-      r: get(q, :r),
-      c: get(q, :c)
-    }
+    {node: scalar_node(q[:text], false, props), r: q[:r], c: q[:c]}
   elsif ch == "[" or ch == "{"
     f = flow_collection(y, r, c, n)
-    {node: with_properties(get(f, :node), props), r: get(f, :r), c: get(f, :c)}
+    {node: with_properties(f[:node], props), r: f[:r], c: f[:c]}
   elsif plain_start?(y, r, c, false)
     e = plain_end(y, r, c, false)
     p = if single
@@ -972,11 +954,7 @@ def inline_node(y, r, c, n, qn, props, single)
     else
       plain_continued(y, r, e, n, false, row_slice(y, r, c, e))
     end
-    {
-      node: scalar_node(get(p, :text), true, props),
-      r: get(p, :r),
-      c: get(p, :c)
-    }
+    {node: scalar_node(p[:text], true, props), r: p[:r], c: p[:c]}
   else
     yaml_fail(r, c, "#{json_stringify(to_s(ch))} cannot start a value")
   end
@@ -1047,7 +1025,7 @@ def line_breaks(k)
 end
 
 def next_text_line(y, r, empties)
-  if r >= get(y, :nr)
+  if r >= y[:nr]
     {r:, c: 0, empties:}
   else
     k = skip_blanks(y, r, 0)
@@ -1065,9 +1043,9 @@ def plain_continued(y, r, e, n, flow, text)
     done
   else
     nl = next_text_line(y, r + 1, 0)
-    r2 = get(nl, :r)
-    c2 = get(nl, :c)
-    if r2 >= get(y, :nr) or
+    r2 = nl[:r]
+    c2 = nl[:c]
+    if r2 >= y[:nr] or
         content_level(y, r2, c2) < 0 or
         leading_spaces(y, r2, 0) <= n or
         comment_at?(y, r2, c2)
@@ -1077,10 +1055,10 @@ def plain_continued(y, r, e, n, flow, text)
       if e2 == c2
         done
       else
-        joint = if get(nl, :empties) == 0
+        joint = if nl[:empties] == 0
           " "
         else
-          line_breaks(get(nl, :empties))
+          line_breaks(nl[:empties])
         end
         plain_continued(
           y,
@@ -1097,16 +1075,12 @@ end
 
 def quoted_break(y, r, qn)
   nl = next_text_line(y, r, 0)
-  inside = get(nl, :r) < get(y, :nr)
-  if inside and get(nl, :c) == 0 and content_level(y, get(nl, :r), 0) < 0
+  inside = nl[:r] < y[:nr]
+  if inside and nl[:c] == 0 and content_level(y, nl[:r], 0) < 0
+    yaml_fail(nl[:r], 0, "a document marker cannot sit inside a quoted scalar")
+  elsif inside and qn >= 0 and leading_spaces(y, nl[:r], 0) <= qn
     yaml_fail(
-      get(nl, :r),
-      0,
-      "a document marker cannot sit inside a quoted scalar"
-    )
-  elsif inside and qn >= 0 and leading_spaces(y, get(nl, :r), 0) <= qn
-    yaml_fail(
-      get(nl, :r),
+      nl[:r],
       0,
       "a quoted scalar's lines are indented deeper than its block"
     )
@@ -1140,35 +1114,27 @@ def quoted_run(y, r, c, out, ws, double, qn)
       nl = quoted_break(y, r + 1, qn)
       quoted_run(
         y,
-        get(nl, :r),
-        get(nl, :c),
-        "#{out}#{ws}#{line_breaks(get(nl, :empties))}",
+        nl[:r],
+        nl[:c],
+        "#{out}#{ws}#{line_breaks(nl[:empties])}",
         "",
         double,
         qn
       )
     else
       x = escape_at(y, r, c + 1)
-      quoted_run(
-        y,
-        r,
-        get(x, :c),
-        "#{out}#{ws}#{get(x, :text)}",
-        "",
-        double,
-        qn
-      )
+      quoted_run(y, r, x[:c], "#{out}#{ws}#{x[:text]}", "", double, qn)
     end
   elsif blank_char?(ch)
     quoted_run(y, r, c + 1, out, "#{ws}#{ch}", double, qn)
   elsif ch == line_break
     nl = quoted_break(y, r + 1, qn)
-    joint = if get(nl, :empties) == 0
+    joint = if nl[:empties] == 0
       " "
     else
-      line_breaks(get(nl, :empties))
+      line_breaks(nl[:empties])
     end
-    quoted_run(y, get(nl, :r), get(nl, :c), "#{out}#{joint}", "", double, qn)
+    quoted_run(y, nl[:r], nl[:c], "#{out}#{joint}", "", double, qn)
   else
     e = quoted_word_end(y, r, c + 1, double)
     quoted_run(y, r, e, "#{out}#{ws}#{row_slice(y, r, c, e)}", "", double, qn)
@@ -1267,7 +1233,7 @@ def flow_space(y, r, c, n)
   at = next_content(y, r, c)
   r2 = first(at)
   c2 = second(at)
-  if r2 >= get(y, :nr)
+  if r2 >= y[:nr]
     yaml_fail(r, c, "a flow collection is not closed")
   elsif r2 > r and content_level(y, r2, c2) < 0
     yaml_fail(r2, 0, "a document marker cannot sit inside a flow collection")
@@ -1296,8 +1262,8 @@ def flow_items(y, r, c, n, items, in_seq)
     yaml_fail(r1, c1, "a flow collection has no empty entries")
   else
     e = flow_entry(y, r1, c1, n, in_seq)
-    all = append(items, [get(e, :node)])
-    after = flow_space(y, get(e, :r), get(e, :c), n)
+    all = append(items, [e[:node]])
+    after = flow_space(y, e[:r], e[:c], n)
     r2 = first(after)
     c2 = second(after)
     ch = at_char(y, r2, c2)
@@ -1321,9 +1287,9 @@ def flow_done(items, in_seq, r, c)
 end
 
 def json_like?(node)
-  get(node, :kind) == :seq or
-    get(node, :kind) == :map or
-    get(node, :kind) == :scalar and not get(node, :plain)
+  node[:kind] == :seq or
+    node[:kind] == :map or
+    node[:kind] == :scalar and not node[:plain]
 end
 
 def flow_entry(y, r, c, n, in_seq)
@@ -1335,14 +1301,14 @@ def flow_entry(y, r, c, n, in_seq)
   else
     flow_node(y, r, c, n)
   end
-  at = flow_space(y, get(k, :r), get(k, :c), n)
+  at = flow_space(y, k[:r], k[:c], n)
   r2 = first(at)
   c2 = second(at)
   nx = at_char(y, r2, c2 + 1)
-  same_line = explicit or not in_seq or r2 == get(k, :r)
+  same_line = explicit or not in_seq or r2 == k[:r]
   if at_char(y, r2, c2) == ":" and
       same_line and
-      (separator?(nx) or flow_indicator?(nx) or json_like?(get(k, :node)))
+      (separator?(nx) or flow_indicator?(nx) or json_like?(k[:node]))
     after = flow_space(y, r2, c2 + 1, n)
     vch = at_char(y, first(after), second(after))
     v = if member?(vch, [",", "]", "}"])
@@ -1350,17 +1316,11 @@ def flow_entry(y, r, c, n, in_seq)
     else
       flow_node(y, first(after), second(after), n)
     end
-    flow_pair(get(k, :node), get(v, :node), in_seq, get(v, :r), get(v, :c))
+    flow_pair(k[:node], v[:node], in_seq, v[:r], v[:c])
   elsif in_seq and not explicit
     k
   else
-    flow_pair(
-      get(k, :node),
-      scalar_node("", true, {}),
-      in_seq,
-      get(k, :r),
-      get(k, :c)
-    )
+    flow_pair(k[:node], scalar_node("", true, {}), in_seq, k[:r], k[:c])
   end
 end
 
@@ -1375,11 +1335,11 @@ end
 
 def flow_node(y, r, c, n)
   p = node_properties(y, r, c, {})
-  props = get(p, :props)
-  at = if not bare?(props) and line_end?(at_char(y, r, get(p, :c)))
-    flow_space(y, r, get(p, :c), n)
+  props = p[:props]
+  at = if not bare?(props) and line_end?(at_char(y, r, p[:c]))
+    flow_space(y, r, p[:c], n)
   else
-    [r, get(p, :c)]
+    [r, p[:c]]
   end
   r1 = first(at)
   c1 = second(at)
@@ -1394,11 +1354,7 @@ def flow_node(y, r, c, n)
   elsif plain_start?(y, r1, c1, true)
     e = plain_end(y, r1, c1, true)
     t = plain_continued(y, r1, e, n, true, row_slice(y, r1, c1, e))
-    {
-      node: scalar_node(get(t, :text), true, props),
-      r: get(t, :r),
-      c: get(t, :c)
-    }
+    {node: scalar_node(t[:text], true, props), r: t[:r], c: t[:c]}
   else
     yaml_fail(r1, c1, "#{json_stringify(to_s(ch))} cannot start a value")
   end
@@ -1434,7 +1390,7 @@ def block_header(y, r, c, digit, chomp)
 end
 
 def auto_indent(y, r, n, widest)
-  if r >= get(y, :nr)
+  if r >= y[:nr]
     n + 1
   else
     sp = leading_spaces(y, r, 0)
@@ -1457,10 +1413,10 @@ def auto_indent(y, r, n, widest)
 end
 
 def block_lines(y, r, ind, acc, lead)
-  if r >= get(y, :nr) or ind == 0 and content_level(y, r, 0) < 0
+  if r >= y[:nr] or ind == 0 and content_level(y, r, 0) < 0
     {lines: acc, r:}
   else
-    width = count(nth(r, get(y, :rows)))
+    width = count(y[:rows][r])
     sp = leading_spaces(y, r, 0)
     if sp == width and (lead or width <= ind)
       block_lines(y, r + 1, ind, append(acc, [nil]), lead)
@@ -1494,9 +1450,9 @@ def folded_text(body)
   first(
     reduce(
       fn(acc, l)
-        out = nth(0, acc)
-        prev = nth(1, acc)
-        k = nth(2, acc)
+        out = acc[0]
+        prev = acc[1]
+        k = acc[2]
         if l.nil?
           [out, prev, k + 1]
         elsif prev.nil?
@@ -1531,17 +1487,17 @@ end
 
 def block_scalar(y, r, c, n, props)
   h = block_header(y, r, c + 1, nil, nil)
-  k = skip_blanks(y, r, get(h, :c))
+  k = skip_blanks(y, r, h[:c])
   if not (line_end?(at_char(y, r, k)) or comment_at?(y, r, k))
     yaml_fail(r, k, "a block scalar's header ends its line")
   end
-  ind = if get(h, :digit).nil?
+  ind = if h[:digit].nil?
     auto_indent(y, r + 1, n, 0)
   else
-    max(n, 0) + get(h, :digit)
+    max(n, 0) + h[:digit]
   end
-  b = block_lines(y, r + 1, ind, [], get(h, :digit).nil?)
-  ls = get(b, :lines)
+  b = block_lines(y, r + 1, ind, [], h[:digit].nil?)
+  ls = b[:lines]
   t = trailing_nils(ls, 0)
   body = take(count(ls) - t, ls)
   text = if at_char(y, r, c) == ">"
@@ -1550,25 +1506,18 @@ def block_scalar(y, r, c, n, props)
     join(map((l) -> to_s(l), body), line_break)
   end
   {
-    node: scalar_node(
-      chomped(text, body != [], t, get(h, :chomp)),
-      false,
-      props
-    ),
-    r: get(b, :r),
+    node: scalar_node(chomped(text, body != [], t, h[:chomp]), false, props),
+    r: b[:r],
     c: 0
   }
 end
 
 def compose_node(node, anchors)
-  kind = get(node, :kind)
+  kind = node[:kind]
   out = if kind == :alias
-    found = get(anchors, get(node, :name))
+    found = get(anchors, node[:name])
     if found.nil?
-      raise(
-        :parse_error,
-        "the alias *#{get(node, :name)} names no anchor before it"
-      )
+      raise(:parse_error, "the alias *#{node[:name]} names no anchor before it")
     end
     [first(found), anchors]
   elsif kind == :scalar
@@ -1580,12 +1529,12 @@ def compose_node(node, anchors)
         [append(first(acc), [first(c)]), second(c)]
       end,
       [[], anchors],
-      get(node, :items)
+      node[:items]
     )
   else
-    composed_pairs(get(node, :pairs), anchors)
+    composed_pairs(node[:pairs], anchors)
   end
-  name = get(node, :anchor)
+  name = node[:anchor]
   if name.nil?
     out
   else
@@ -1596,25 +1545,21 @@ end
 def composed_pairs(pairs, anchors)
   done = reduce(
     fn(acc, pair)
-      kc = compose_node(first(pair), nth(2, acc))
+      kc = compose_node(first(pair), acc[2])
       vc = compose_node(second(pair), second(kc))
       key = key_text(first(kc))
-      if get(nth(1, acc), key) != nil
+      if get(acc[1], key) != nil
         refuse_document(
           :duplicate_key,
           "the key #{json_stringify(key)} appears twice in one mapping"
         )
       end
-      [
-        assoc(nth(0, acc), key, first(vc)),
-        assoc(nth(1, acc), key, true),
-        second(vc)
-      ]
+      [assoc(acc[0], key, first(vc)), assoc(acc[1], key, true), second(vc)]
     end,
     [{}, {}, anchors],
     pairs
   )
-  [nth(0, done), nth(2, done)]
+  [done[0], done[2]]
 end
 
 def key_text(v)
@@ -1645,9 +1590,9 @@ def core_tag(name)
 end
 
 def resolve_scalar(node)
-  tag = get(node, :tag)
-  t = get(node, :text)
-  v = if tag.nil? and get(node, :plain)
+  tag = node[:tag]
+  t = node[:text]
+  v = if tag.nil? and node[:plain]
     core_value(t)
   elsif tag.nil? or tag == "!" or tag == core_tag("str")
     t
@@ -1773,11 +1718,11 @@ def stream_documents(y, r, docs)
   r1 = first(at)
   c1 = second(at)
   y0 = assoc(y, :handles, default_handles)
-  if r1 >= get(y, :nr)
+  if r1 >= y[:nr]
     docs
   elsif c1 == 0 and at_char(y, r1, 0) == "%"
     d = directives(y0, r1, default_handles, false)
-    explicit_document(assoc(y, :handles, get(d, :handles)), get(d, :r), docs)
+    explicit_document(assoc(y, :handles, d[:handles]), d[:r], docs)
   elsif c1 == 0 and marker_line?(y, r1, "-")
     explicit_document(y0, r1, docs)
   elsif c1 == 0 and marker_line?(y, r1, ".")
@@ -1793,11 +1738,11 @@ def explicit_document(y, r, docs)
 end
 
 def document_end(y, res, docs)
-  all = append(docs, [get(res, :node)])
-  at = next_content(y, get(res, :r), get(res, :c))
+  all = append(docs, [res[:node]])
+  at = next_content(y, res[:r], res[:c])
   r2 = first(at)
   c2 = second(at)
-  if r2 >= get(y, :nr)
+  if r2 >= y[:nr]
     all
   elsif c2 == 0 and marker_line?(y, r2, "-")
     stream_documents(y, r2, all)
@@ -1812,14 +1757,11 @@ end
 def directives(y, r, handles, seen)
   at = next_content(y, r, 0)
   r1 = first(at)
-  here = r1 < get(y, :nr) and second(at) == 0
+  here = r1 < y[:nr] and second(at) == 0
   if here and at_char(y, r1, 0) == "%"
     all_words = filter(
       (w) -> w != "",
-      split(
-        replace(row_slice(y, r1, 0, count(nth(r1, get(y, :rows)))), "\t", " "),
-        " "
-      )
+      split(replace(row_slice(y, r1, 0, count(y[:rows][r1])), "\t", " "), " ")
     )
     cut = position(true, map((w) -> starts_with?(w, "#"), all_words))
     words = if cut < 0

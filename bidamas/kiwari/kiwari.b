@@ -114,10 +114,10 @@ end
 painted_kinds: The kinds a field's role or definition applies to.
 """
 def painted_kinds(f)
-  if get(f, :kinds).nil?
-    kinds_of(get(f, :item))
+  if f[:kinds].nil?
+    kinds_of(f[:item])
   else
-    get(f, :kinds)
+    f[:kinds]
   end
 end
 
@@ -169,19 +169,19 @@ end
 # ── reading a grammar ──────────────────────────────────────────────────────
 
 def parts(e)
-  k = get(e, :kind)
+  k = e[:kind]
   if k == :seq or k == :choice
-    get(e, :items)
+    e[:items]
   elsif k == :lit or k == :pat or k == :ref
     []
   else
-    [get(e, :item)]
+    [e[:item]]
   end
 end
 
 def literals_of(e)
-  if get(e, :kind) == :lit
-    [get(e, :text)]
+  if e[:kind] == :lit
+    [e[:text]]
   else
     flat_map(parts(e), literals_of)
   end
@@ -193,11 +193,11 @@ literals: Every literal token the grammar's rules use, once each.
     literals({rules: []}) #=> []
 """
 def literals(g)
-  distinct(flat_map(get(g, :rules), (r) -> literals_of(get(r, :body))))
+  distinct(flat_map(g[:rules], (r) -> literals_of(r[:body])))
 end
 
 def fields_of(e)
-  here = if get(e, :kind) == :field
+  here = if e[:kind] == :field
     [e]
   else
     []
@@ -210,15 +210,15 @@ kinds_of: The named node kinds a field's item can be: a visible rule it refers t
 the name it is aliased to.
 """
 def kinds_of(e)
-  k = get(e, :kind)
+  k = e[:kind]
   if k == :ref
-    if hidden?(get(e, :name))
+    if hidden?(e[:name])
       []
     else
-      [get(e, :name)]
+      [e[:name]]
     end
   elsif k == :alias
-    [get(e, :name)]
+    [e[:name]]
   elsif k == :lit or k == :pat
     []
   else
@@ -227,8 +227,8 @@ def kinds_of(e)
 end
 
 def aliases_of(e)
-  here = if get(e, :kind) == :alias and get(get(e, :item), :kind) == :ref
-    [[get(get(e, :item), :name), get(e, :name)]]
+  here = if e[:kind] == :alias and e[:item][:kind] == :ref
+    [[e[:item][:name], e[:name]]]
   else
     []
   end
@@ -240,18 +240,18 @@ node_name: The name a rule's node carries in a tree: its own, or for a hidden ru
 name it is aliased to, or nil when it never appears as a node.
 """
 def node_name(g, r)
-  if hidden?(get(r, :name))
+  if hidden?(r[:name])
     found = filter(
-      (a) -> first(a) == get(r, :name),
-      flat_map(get(g, :rules), (x) -> aliases_of(get(x, :body)))
+      (a) -> first(a) == r[:name],
+      flat_map(g[:rules], (x) -> aliases_of(x[:body]))
     )
     if is_empty(found)
       nil
     else
-      nth(1, first(found))
+      first(found)[1]
     end
   else
-    get(r, :name)
+    r[:name]
   end
 end
 
@@ -261,14 +261,14 @@ field_patterns: One pattern per field with `key` set, over every rule its node c
 def field_patterns(g, key, line)
   distinct(
     flat_map(
-      get(g, :rules),
+      g[:rules],
       fn(r)
         name = node_name(g, r)
         if name.nil?
           []
         else
           flat_map(
-            filter((f) -> get(f, key) != "", fields_of(get(r, :body))),
+            filter((f) -> get(f, key) != "", fields_of(r[:body])),
             (f) -> map((kind) -> line(name, f, kind), painted_kinds(f))
           )
         end
@@ -281,17 +281,17 @@ end
 bare: The body with precedence wrappers taken off.
 """
 def bare(e)
-  if get(e, :kind) == :prec
-    bare(get(e, :item))
+  if e[:kind] == :prec
+    bare(e[:item])
   else
     e
   end
 end
 
 def first_lit(r)
-  b = bare(get(r, :body))
-  if get(b, :kind) == :seq and get(first(get(b, :items)), :kind) == :lit
-    get(first(get(b, :items)), :text)
+  b = bare(r[:body])
+  if b[:kind] == :seq and first(b[:items])[:kind] == :lit
+    first(b[:items])[:text]
   end
 end
 
@@ -300,17 +300,17 @@ closer: The literal that closes a rule, if its body opens with a literal and end
 one of `closers`.
 """
 def closer(g, r)
-  b = bare(get(r, :body))
-  if get(b, :kind) == :seq and get(first(get(b, :items)), :kind) == :lit
-    t = last(get(b, :items))
-    if get(t, :kind) == :lit and contains(get(g, :closers), get(t, :text))
-      get(t, :text)
+  b = bare(r[:body])
+  if b[:kind] == :seq and first(b[:items])[:kind] == :lit
+    t = last(b[:items])
+    if t[:kind] == :lit and contains(g[:closers], t[:text])
+      t[:text]
     end
   end
 end
 
 def visible(g)
-  filter((r) -> not hidden?(get(r, :name)), get(g, :rules))
+  filter((r) -> not hidden?(r[:name]), g[:rules])
 end
 
 @doc """
@@ -320,7 +320,7 @@ grammar that has one, so a new token cannot ship without a decision.
 """
 def literal_roles(g)
   concat_lists(
-    concat_lists(get(g, :keywords_painted), get(g, :punctuation)),
+    concat_lists(g[:keywords_painted], g[:punctuation]),
     map((op) -> [op, "operator"], operator_spellings(g))
   )
 end
@@ -328,10 +328,10 @@ end
 def operator_spellings(g)
   concat_lists(
     flat_map(
-      concat_lists(get(g, :infix), get(g, :unary)),
-      (row) -> concat_lists([get(row, :op)], get(row, :aliases))
+      concat_lists(g[:infix], g[:unary]),
+      (row) -> concat_lists([row[:op]], row[:aliases])
     ),
-    pipe_spellings(get(g, :pipe))
+    pipe_spellings(g[:pipe])
   )
 end
 
@@ -339,7 +339,7 @@ def pipe_spellings(pipe)
   if pipe.nil?
     []
   else
-    [get(pipe, :op)]
+    [pipe[:op]]
   end
 end
 
@@ -348,7 +348,7 @@ def role_of_literal(g, text)
   if is_empty(row)
     nil
   else
-    nth(1, first(row))
+    first(row)[1]
   end
 end
 
@@ -372,37 +372,37 @@ def js_string(s)
 end
 
 def js(e)
-  k = get(e, :kind)
+  k = e[:kind]
   if k == :seq
-    "seq(#{join(map(js, get(e, :items)), ", ")})"
+    "seq(#{join(map(js, e[:items]), ", ")})"
   elsif k == :choice
-    "choice(#{join(map(js, get(e, :items)), ", ")})"
+    "choice(#{join(map(js, e[:items]), ", ")})"
   elsif k == :rep
-    "repeat(#{js(get(e, :item))})"
+    "repeat(#{js(e[:item])})"
   elsif k == :rep1
-    "repeat1(#{js(get(e, :item))})"
+    "repeat1(#{js(e[:item])})"
   elsif k == :opt
-    "optional(#{js(get(e, :item))})"
+    "optional(#{js(e[:item])})"
   elsif k == :lit
-    js_string(get(e, :text))
+    js_string(e[:text])
   elsif k == :pat
-    "/#{replace(get(e, :source), "/", "\\/")}/u"
+    "/#{replace(e[:source], "/", "\\/")}/u"
   elsif k == :ref
-    "$.#{get(e, :name)}"
+    "$.#{e[:name]}"
   elsif k == :field
-    "field(#{js_string(get(e, :name))}, #{js(get(e, :item))})"
+    "field(#{js_string(e[:name])}, #{js(e[:item])})"
   elsif k == :alias
-    "alias(#{js(get(e, :item))}, $.#{get(e, :name)})"
+    "alias(#{js(e[:item])}, $.#{e[:name]})"
   elsif k == :token
-    "token(#{js(get(e, :item))})"
+    "token(#{js(e[:item])})"
   elsif k == :immediate
-    "token.immediate(#{js(get(e, :item))})"
-  elsif get(e, :assoc) == :left
-    "prec.left(#{to_s(get(e, :level))}, #{js(get(e, :item))})"
-  elsif get(e, :assoc) == :right
-    "prec.right(#{to_s(get(e, :level))}, #{js(get(e, :item))})"
+    "token.immediate(#{js(e[:item])})"
+  elsif e[:assoc] == :left
+    "prec.left(#{to_s(e[:level])}, #{js(e[:item])})"
+  elsif e[:assoc] == :right
+    "prec.right(#{to_s(e[:level])}, #{js(e[:item])})"
   else
-    "prec(#{to_s(get(e, :level))}, #{js(get(e, :item))})"
+    "prec(#{to_s(e[:level])}, #{js(e[:item])})"
   end
 end
 
@@ -421,19 +421,16 @@ end
 
 def tree_sitter_js(grammar)
   g = checked(grammar)
-  rules = map(
-    (r) -> "    #{get(r, :name)}: $ => #{js(get(r, :body))},",
-    get(g, :rules)
-  )
+  rules = map((r) -> "    #{r[:name]}: $ => #{js(r[:body])},", g[:rules])
   lines = concat_lists(
     [
       generated_by("//"),
       "module.exports = grammar({",
-      "  name: #{js_string(get(g, :name))},",
-      "  word: $ => $.#{get(g, :word)},",
-      "  extras: $ => [#{join(map(js, get(g, :extras)), ", ")}],"
+      "  name: #{js_string(g[:name])},",
+      "  word: $ => $.#{g[:word]},",
+      "  extras: $ => [#{join(map(js, g[:extras]), ", ")}],"
     ],
-    concat_lists(conflict_lines(get(g, :conflicts)), ["  rules: {"])
+    concat_lists(conflict_lines(g[:conflicts]), ["  rules: {"])
   )
   lines = concat_lists(lines, concat_lists(rules, ["  },", "});", ""]))
   join(lines, line_break)
@@ -444,18 +441,18 @@ def tree_sitter_json(g)
     {
       grammars: [
         {
-          name: get(g, :name),
-          camelcase: get(g, :camelcase),
-          scope: get(g, :scope),
+          name: g[:name],
+          camelcase: g[:camelcase],
+          scope: g[:scope],
           path: ".",
-          "file-types" => get(g, :file_types)
+          "file-types" => g[:file_types]
         }
       ],
       metadata: {
-        version: get(g, :version),
+        version: g[:version],
         license: "MIT",
-        description: get(g, :description),
-        links: {repository: get(g, :repository)}
+        description: g[:description],
+        links: {repository: g[:repository]}
       }
     }
   )
@@ -493,19 +490,19 @@ def literal_groups(g, roles)
 end
 
 def literal_role_names(g)
-  filter((r) -> r != "", distinct(map((row) -> nth(1, row), literal_roles(g))))
+  filter((r) -> r != "", distinct(map((row) -> row[1], literal_roles(g))))
 end
 
 def highlights(grammar)
   g = checked(grammar)
   whole = map(
-    (r) -> "(#{get(r, :name)}) @#{get(r, :role)}",
-    filter((r) -> get(r, :role) != "", get(g, :rules))
+    (r) -> "(#{r[:name]}) @#{r[:role]}",
+    filter((r) -> r[:role] != "", g[:rules])
   )
   fielded = field_patterns(
     g,
     :role,
-    (node, f, kind) -> "(#{node} #{get(f, :name)}: (#{kind}) @#{get(f, :role)})"
+    (node, f, kind) -> "(#{node} #{f[:name]}: (#{kind}) @#{f[:role]})"
   )
   query_lines(
     "; The general first: neovim lets the last matching pattern win.",
@@ -521,7 +518,7 @@ def closed_rules(g)
 end
 
 def node_list(rules)
-  "[#{join(map((r) -> "(#{get(r, :name)})", rules), " ")}]"
+  "[#{join(map((r) -> "(#{r[:name]})", rules), " ")}]"
 end
 
 def folds(grammar)
@@ -534,11 +531,8 @@ end
 
 def indents(grammar)
   g = checked(grammar)
-  closers = map(scm_string, get(g, :closers))
-  arms = map(
-    (r) -> scm_string(first_lit(r)),
-    filter((r) -> get(r, :arm), get(g, :rules))
-  )
+  closers = map(scm_string, g[:closers])
+  arms = map((r) -> scm_string(first_lit(r)), filter((r) -> r[:arm], g[:rules]))
   query_lines(
     "; A closed form indents its inside; its closer and its arms dedent.",
     [
@@ -553,19 +547,19 @@ end
 def locals(grammar)
   g = checked(grammar)
   scopes = map(
-    (r) -> "(#{get(r, :name)}) @local.scope",
-    filter((r) -> get(r, :scope), get(g, :rules))
+    (r) -> "(#{r[:name]}) @local.scope",
+    filter((r) -> r[:scope], g[:rules])
   )
   definitions = field_patterns(
     g,
     :defines,
     fn(node, f, kind)
-      "(#{node} #{get(f, :name)}: (#{kind}) @local.definition.#{get(f, :defines)})"
+      "(#{node} #{f[:name]}: (#{kind}) @local.definition.#{f[:defines]})"
     end
   )
   references = map(
-    (r) -> "(#{get(r, :name)}) @local.reference",
-    filter((r) -> get(r, :reference), get(g, :rules))
+    (r) -> "(#{r[:name]}) @local.reference",
+    filter((r) -> r[:reference], g[:rules])
   )
   query_lines(
     "; Scopes, the names they define, and the names that refer.",
@@ -579,14 +573,14 @@ def spec_json(grammar)
   g = checked(grammar)
   json_stringify(
     {
-      name: get(g, :name),
-      infix: get(g, :infix),
-      pipe: get(g, :pipe),
-      unary: get(g, :unary),
-      keywords: get(g, :reserved),
+      name: g[:name],
+      infix: g[:infix],
+      pipe: g[:pipe],
+      unary: g[:unary],
+      keywords: g[:reserved],
       lower: map(
-        (r) -> [get(r, :name), get(r, :lower)],
-        filter((r) -> get(r, :lower) != nil, get(g, :rules))
+        (r) -> [r[:name], r[:lower]],
+        filter((r) -> r[:lower] != nil, g[:rules])
       )
     }
   )
@@ -603,7 +597,7 @@ def artifacts(g)
     ["folds.scm", () -> folds(g)],
     ["indents.scm", () -> indents(g)],
     ["locals.scm", () -> locals(g)],
-    ["#{get(g, :name)}.kiwari.json", () -> unlines([spec_json(g)])]
+    ["#{g[:name]}.kiwari.json", () -> unlines([spec_json(g)])]
   ]
 end
 
@@ -618,7 +612,7 @@ def render(g, file)
       "kiwari renders #{join(map((a) -> first(a), artifacts(g)), ", ")}, not #{file}"
     )
   end
-  nth(1, first(row))()
+  first(row)[1]()
 end
 
 # ── blue ───────────────────────────────────────────────────────────────────
@@ -698,7 +692,7 @@ def unary_rows()
 end
 
 def spellings(row)
-  concat_lists([get(row, :op)], get(row, :aliases))
+  concat_lists([row[:op]], row[:aliases])
 end
 
 @doc """
@@ -706,11 +700,11 @@ binary_rule: One binary rule per binding power, left-associative when the right 
 the higher, so the table above is the only statement of precedence.
 """
 def binary_rule(rows)
-  powers = distinct(map((r) -> get(r, :power), rows))
+  powers = distinct(map((r) -> r[:power], rows))
   choice(
     map(
       fn(p)
-        ops = flat_map(filter((r) -> get(r, :power) == p, rows), spellings)
+        ops = flat_map(filter((r) -> r[:power] == p, rows), spellings)
         body = seq(
           [
             field("left", ref("_expression")),
@@ -719,7 +713,7 @@ def binary_rule(rows)
             field("right", ref("_expression"))
           ]
         )
-        if nth(1, p) > first(p)
+        if p[1] > first(p)
           prec_left(first(p), body)
         else
           prec_right(first(p), body)
@@ -944,11 +938,11 @@ end
 def blue()
   aliases = filter(
     (a) -> not member?(a, ["||", "&&", "!"]),
-    flat_map(concat_lists(infix_rows, unary_rows), (r) -> get(r, :aliases))
+    flat_map(concat_lists(infix_rows, unary_rows), (r) -> r[:aliases])
   )
   ident = ident_pattern(aliases)
-  powers = map((r) -> get(r, :power), infix_rows)
-  postfix = reduce((m, p) -> blue::max(m, nth(1, p)), 0, powers) + 1
+  powers = map((r) -> r[:power], infix_rows)
+  postfix = reduce((m, p) -> blue::max(m, p[1]), 0, powers) + 1
   unary = reduce((m, p) -> blue::min(m, first(p)), 0, powers) - 1
   pipe = {op: "|>", power: [0, 1]}
   {
@@ -965,7 +959,8 @@ def blue()
       ["_primary", "_arrow_parameters"],
       ["_arrow_parameters", "_plain_parameters"],
       ["_arrow_parameters", "parameters"],
-      ["pun_pair", "pair"]
+      ["pun_pair", "pair"],
+      ["string", "_plain_string"]
     ],
     infix: infix_rows,
     unary: unary_rows,
@@ -1152,8 +1147,45 @@ def blue()
       # innermost expression take `.name` and `(…)`.
       rule(
         "_postfix",
-        choice([ref("call"), ref("send"), ref("_primary")]),
+        choice([ref("call"), ref("send"), ref("index"), ref("_primary")]),
         nil
+      ),
+      # `x[k]` touches what it indexes (parse.rs `expr_inner`): a keyword or a
+      # plain string key is `get(x, k)`, any other key is `nth(k, x)` (B0066).
+      rule(
+        "index",
+        prec(
+          postfix,
+          seq(
+            [
+              field("object", ref("_postfix")),
+              immediate(lit("[")),
+              nl,
+              choice(
+                [
+                  field(
+                    "key",
+                    prec(
+                      1,
+                      choice(
+                        [ref("symbol"), alias(ref("_plain_string"), "string")]
+                      )
+                    )
+                  ),
+                  field("position", ref("_expression"))
+                ]
+              ),
+              nl,
+              lit("]")
+            ]
+          )
+        ),
+        [
+          "if_any",
+          [["key"]],
+          ["list", ["sym", "get"], ["field", "object"], ["field", "key"]],
+          ["list", ["sym", "nth"], ["field", "position"], ["field", "object"]]
+        ]
       ),
       rule(
         "_primary",
@@ -1199,11 +1231,11 @@ def blue()
       rule(
         "pipe_expression",
         prec_left(
-          first(get(pipe, :power)),
+          first(pipe[:power]),
           seq(
             [
               field("left", ref("_expression")),
-              lit(get(pipe, :op)),
+              lit(pipe[:op]),
               nl,
               field("right", ref("_expression"))
             ]
@@ -1618,12 +1650,12 @@ def blue()
       ),
       rule(
         "if",
-        seq(concat_lists(get(if_like("if"), :items), [lit("end")])),
+        seq(concat_lists(if_like("if")[:items], [lit("end")])),
         if_lowering(["field", "condition"])
       ),
       rule(
         "unless",
-        seq(concat_lists(get(if_like("unless"), :items), [lit("end")])),
+        seq(concat_lists(if_like("unless")[:items], [lit("end")])),
         if_lowering(["list", ["sym", "not"], ["field", "condition"]])
       ),
       with(
@@ -2006,7 +2038,7 @@ test "a rule renders as the tree-sitter call its constructor names"
     prec_left(2, seq([lit("a'\\"), opt(pat("x/y")), field("f", ref("_z"))])),
     nil
   )
-  assert js(get(r, :body)) ==
+  assert js(r[:body]) ==
     "prec.left(2, seq('a\\'\\\\', optional(/x\\/y/u), field('f', $._z)))"
 end
 
@@ -2020,10 +2052,7 @@ end
 
 test "every visible rule of blue's lowers, but the parts its parent reads"
   g = blue
-  parts = map(
-    (r) -> get(r, :name),
-    filter((r) -> get(r, :lower).nil?, visible(g))
-  )
+  parts = map((r) -> r[:name], filter((r) -> r[:lower].nil?, visible(g)))
   assert parts ==
     [
       "comment",

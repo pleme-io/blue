@@ -33,7 +33,7 @@ def note_names()
 end
 
 def note_name(pc)
-  nth((pc % 12 + 12) % 12, note_names)
+  note_names[(pc % 12 + 12) % 12]
 end
 
 def transpose_note(pc, semitones)
@@ -132,7 +132,7 @@ def note_names_flat()
 end
 
 def note_name_flat(pc)
-  nth(pitch_class(pc), note_names_flat)
+  note_names_flat[pitch_class(pc)]
 end
 
 def note_name_in(pc, use_flats)
@@ -181,7 +181,7 @@ end
 def pitch_class_of_crossing(name)
   i = index_of(crossing_names, name)
   if i >= 0
-    nth(i, [5, 4, 0, 11])
+    [5, 4, 0, 11][i]
   else
     -1
   end
@@ -314,7 +314,7 @@ def quality_of_shape(shape, shapes, names)
   if i < 0
     "unknown"
   else
-    nth(i, names)
+    names[i]
   end
 end
 
@@ -456,7 +456,7 @@ checked by something other than itself.
 """
 def mode_of_major(root, degree)
   d = (degree % 7 + 7) % 7
-  mode_scale(nth(d, major_scale(root)), nth(d, mode_names))
+  mode_scale(major_scale(root)[d], mode_names[d])
 end
 
 @doc """
@@ -556,7 +556,7 @@ def scale_note(scale, degree)
   if is_empty(tones)
     nil
   else
-    nth(wrap_index(degree, size(tones)), tones)
+    tones[wrap_index(degree, size(tones))]
   end
 end
 
@@ -813,8 +813,8 @@ test "C major has no sharps, which is the thing everyone knows"
 end
 
 test "minor differs from major exactly at the third"
-  assert nth(2, minor_scale(0)) == 3
-  assert nth(2, major_scale(0)) == 4
+  assert minor_scale(0)[2] == 3
+  assert major_scale(0)[2] == 4
 end
 
 test "triads and sevenths"
@@ -918,10 +918,10 @@ test "ionian is major and aeolian is minor, by construction not by table"
   assert mode_scale(9, "aeolian") == minor_scale(9)
   # Lydian sharpens the fourth, mixolydian flattens the seventh: one note each
   # away from major, and the note has to be the right one.
-  assert nth(3, mode_scale(0, "lydian")) == 6
-  assert nth(6, mode_scale(0, "mixolydian")) == 10
-  assert nth(1, mode_scale(0, "phrygian")) == 1
-  assert nth(4, mode_scale(0, "locrian")) == 6
+  assert mode_scale(0, "lydian")[3] == 6
+  assert mode_scale(0, "mixolydian")[6] == 10
+  assert mode_scale(0, "phrygian")[1] == 1
+  assert mode_scale(0, "locrian")[4] == 6
   assert mode_scale(0, "not a mode") == []
 end
 
@@ -942,11 +942,11 @@ test "harmonic and melodic minor differ from natural minor at named degrees"
   # seventh are the whole argument between them.
   assert take(5, harmonic_minor_scale(9)) == take(5, minor_scale(9))
   assert take(5, melodic_minor_scale(9)) == take(5, minor_scale(9))
-  assert nth(6, minor_scale(9)) == 7
-  assert nth(6, harmonic_minor_scale(9)) == 8
-  assert nth(5, harmonic_minor_scale(9)) == 5
-  assert nth(5, melodic_minor_scale(9)) == 6
-  assert nth(6, melodic_minor_scale(9)) == 8
+  assert minor_scale(9)[6] == 7
+  assert harmonic_minor_scale(9)[6] == 8
+  assert harmonic_minor_scale(9)[5] == 5
+  assert melodic_minor_scale(9)[5] == 6
+  assert melodic_minor_scale(9)[6] == 8
   # A harmonic minor is A B C D E F G#: the raised seventh is the only accidental.
   assert note_names_of(scale_tones(harmonic_minor_scale(9))) ==
     ["A", "B", "C", "D", "E", "F", "G#"]
@@ -1105,18 +1105,18 @@ test "harmonic minor is what puts a dominant seventh under a minor tonic"
   # Natural minor's chord on V is a MINOR seventh and cannot pull home;
   # harmonic minor's is a dominant seventh. That swap is the whole reason the
   # raised seventh exists, and it is the payoff test for both scales.
-  assert nth(4, scale_seventh_qualities(minor_scale(9))) == "minor seventh"
-  assert nth(4, scale_seventh_qualities(harmonic_minor_scale(9))) ==
+  assert scale_seventh_qualities(minor_scale(9))[4] == "minor seventh"
+  assert scale_seventh_qualities(harmonic_minor_scale(9))[4] ==
     "dominant seventh"
   # Natural minor does own one dominant seventh — on the subtonic VII, which
   # points at the relative major and not at the tonic. Asserting "none" here
   # would be the plausible-sounding wrong claim.
-  assert nth(6, scale_seventh_qualities(minor_scale(9))) == "dominant seventh"
-  assert nth(0, scale_seventh_qualities(harmonic_minor_scale(9))) ==
+  assert scale_seventh_qualities(minor_scale(9))[6] == "dominant seventh"
+  assert scale_seventh_qualities(harmonic_minor_scale(9))[0] ==
     "minor-major seventh"
-  assert nth(6, scale_seventh_qualities(harmonic_minor_scale(9))) ==
+  assert scale_seventh_qualities(harmonic_minor_scale(9))[6] ==
     "diminished seventh"
-  assert nth(2, scale_seventh_qualities(harmonic_minor_scale(9))) ==
+  assert scale_seventh_qualities(harmonic_minor_scale(9))[2] ==
     "augmented major seventh"
 end
 
@@ -1332,12 +1332,12 @@ canonical and two callers building the same interval two ways compare equal.
     just_ratio_parts(0) #=> [1, 1]
 """
 def just_ratio_parts(semitones)
-  base = nth(pitch_class(semitones), just_ratio_table)
+  base = just_ratio_table[pitch_class(semitones)]
   octaves = floor_div(semitones, 12)
   if octaves >= 0
-    reduce_ratio(nth(0, base) * expt(2, octaves), nth(1, base))
+    reduce_ratio(base[0] * expt(2, octaves), base[1])
   else
-    reduce_ratio(nth(0, base), nth(1, base) * expt(2, -octaves))
+    reduce_ratio(base[0], base[1] * expt(2, -octaves))
   end
 end
 
@@ -1348,7 +1348,7 @@ end
 
 def just_ratio(semitones)
   parts = just_ratio_parts(semitones)
-  nth(0, parts) / nth(1, parts)
+  parts[0] / parts[1]
 end
 
 def just_hz(base_hz, semitones)

@@ -60,11 +60,11 @@ def parse(text)
 end
 
 def recorded(rows, kind, key)
-  hit = filter((r) -> get(r, :kind) == kind and get(r, :key) == key, rows)
+  hit = filter((r) -> r[:kind] == kind and r[:key] == key, rows)
   if is_empty(hit)
     nil
   else
-    get(last(hit), :size)
+    last(hit)[:size]
   end
 end
 
@@ -85,10 +85,10 @@ def judge(rows, kind, key, measured)
 end
 
 def failure(rows, kind, m)
-  key = get(m, :key)
-  size = get(m, :size)
+  key = m[:key]
+  size = m[:size]
   j = judge(rows, kind, key, size)
-  v = get(j, :verdict)
+  v = j[:verdict]
   if v == :unrecorded
     refusal(
       :unrecorded,
@@ -97,7 +97,7 @@ def failure(rows, kind, m)
   elsif v == :grew
     refusal(
       :grew,
-      "#{kind}: #{key} measures #{to_s(size)}, past its recorded #{to_s(get(j, :recorded))} by #{to_s(get(j, :grew))}"
+      "#{kind}: #{key} measures #{to_s(size)}, past its recorded #{to_s(j[:recorded])} by #{to_s(j[:grew])}"
     )
   end
 end
@@ -112,7 +112,7 @@ def failures(rows, kind, measurements)
 end
 
 def keys_of(rows, kind)
-  ks = map((r) -> get(r, :key), filter((r) -> get(r, :kind) == kind, rows))
+  ks = map((r) -> r[:key], filter((r) -> r[:kind] == kind, rows))
   distinct(sort_keyed((k) -> k, ks))
 end
 
@@ -131,8 +131,8 @@ shrunk: keys that fell below their record and can be tightened.
 def shrunk(rows, kind, measurements)
   filter(
     fn(m)
-      recorded(rows, kind, get(m, :key)) != nil and
-        get(m, :size) < recorded(rows, kind, get(m, :key))
+      recorded(rows, kind, m[:key]) != nil and
+        m[:size] < recorded(rows, kind, m[:key])
     end,
     measurements
   )
@@ -144,12 +144,9 @@ render: measurements as a baseline file, stable order.
     render("rust", []) #=> ""
 """
 def render(kind, measurements)
-  sorted = sort_keyed((m) -> get(m, :key), measurements)
+  sorted = sort_keyed((m) -> m[:key], measurements)
   join(
-    map(
-      (m) -> unlines(["#{kind}: #{get(m, :key)} #{to_s(get(m, :size))}"]),
-      sorted
-    ),
+    map((m) -> unlines(["#{kind}: #{m[:key]} #{to_s(m[:size])}"]), sorted),
     ""
   )
 end

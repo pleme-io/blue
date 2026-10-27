@@ -1,8 +1,3 @@
----
-kind: explanation
-summary: short notation for what blue says most, keyed to the blueshift (design)
----
-
 # OPERATORS — short notation for what blue says most, keyed to the blueshift
 
 Status: DESIGN, 2026-10-27. Corpus measured at `71b4f65`: 336 files, 152,314

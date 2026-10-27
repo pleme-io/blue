@@ -61,10 +61,10 @@ def policy(base_s, cap_s)
 end
 
 def backoff_ms(failures, pol)
-  if failures < 1 or get(pol, :base_ms) < 1
+  if failures < 1 or pol[:base_ms] < 1
     0
   else
-    blue::min(get(pol, :cap_ms), get(pol, :base_ms) * expt(2, failures - 1))
+    blue::min(pol[:cap_ms], pol[:base_ms] * expt(2, failures - 1))
   end
 end
 
@@ -73,10 +73,10 @@ def entry(out, outcome, at_ms, why)
 end
 
 def streak_step(acc, e)
-  if get(e, :out) != get(acc, :out)
+  if e[:out] != acc[:out]
     acc
-  elsif get(e, :outcome) == "failed"
-    assoc(assoc(acc, :n, get(acc, :n) + 1), :last_ms, get(e, :at_ms))
+  elsif e[:outcome] == "failed"
+    assoc(assoc(acc, :n, acc[:n] + 1), :last_ms, e[:at_ms])
   else
     assoc(assoc(acc, :n, 0), :last_ms, nil)
   end
@@ -106,12 +106,12 @@ end
 
 def hold_for(key, history, now_ms, pol)
   s = streak(history, key)
-  wait = backoff_ms(get(s, :n), pol)
-  if wait > 0 and now_ms < get(s, :last_ms) + wait
+  wait = backoff_ms(s[:n], pol)
+  if wait > 0 and now_ms < s[:last_ms] + wait
     {
       action: :hold,
-      why: "#{to_s(get(s, :n))} failed attempt(s) of #{label(key)}; next try in #{to_s(floor((get(s, :last_ms) + wait - now_ms) / 1000))}s",
-      until_ms: get(s, :last_ms) + wait,
+      why: "#{to_s(s[:n])} failed attempt(s) of #{label(key)}; next try in #{to_s(floor((s[:last_ms] + wait - now_ms) / 1000))}s",
+      until_ms: s[:last_ms] + wait,
       key:
     }
   end
@@ -161,11 +161,11 @@ end
 def entry_line(e)
   json_stringify(
     {
-      out: get(e, :out),
-      outcome: get(e, :outcome),
-      at_ms: get(e, :at_ms),
-      why: get(e, :why),
-      plan_ms: get(e, :plan_ms) or 0
+      out: e[:out],
+      outcome: e[:outcome],
+      at_ms: e[:at_ms],
+      why: e[:why],
+      plan_ms: e[:plan_ms] or 0
     }
   )
 end
@@ -220,8 +220,8 @@ def evaluated(flake, inst, current_link, hist, now_ms, pol)
         [:key, desired],
         [:desired, desired],
         [:current, current],
-        [:build, size(get(p, :build))],
-        [:fetch, size(get(p, :fetch))],
+        [:build, size(p[:build])],
+        [:fetch, size(p[:fetch])],
         [:plan_ms, ms]
       ]
     )
@@ -239,7 +239,7 @@ def evaluated(flake, inst, current_link, hist, now_ms, pol)
 end
 
 def assoc_all(m, pairs)
-  reduce((acc, kv) -> assoc(acc, first(kv), nth(1, kv)), m, pairs)
+  reduce((acc, kv) -> assoc(acc, first(kv), kv[1]), m, pairs)
 end
 
 def settings()
@@ -332,11 +332,11 @@ fast_forwardable?: true when the checkout is clean, readable, and only behind or
 """
 def fast_forwardable?(c, flag)
   flag != "0" and
-    get(c, :head) != nil and
-    get(c, :dirty) == "" and
-    get(c, :remote) != nil and
-    get(c, :remote) != "" and
-    get(c, :head) != get(c, :remote)
+    c[:head] != nil and
+    c[:dirty] == "" and
+    c[:remote] != nil and
+    c[:remote] != "" and
+    c[:head] != c[:remote]
 end
 
 @doc """
@@ -347,39 +347,37 @@ fast_forward: bring a clean checkout that is only behind origin up to origin's r
 def fast_forward(dir, c)
   if not fast_forwardable?(c, getenv("KIRIKAE_FAST_FORWARD", "1"))
     c
-  elsif git_out(dir, ["fetch", "-q", "origin", get(c, :branch)]) != nil and
-      git_out(
-        dir,
-        ["merge-base", "--is-ancestor", get(c, :head), get(c, :remote)]
-      ) != nil and
-      git_out(dir, ["merge", "-q", "--ff-only", get(c, :remote)]) != nil
+  elsif git_out(dir, ["fetch", "-q", "origin", c[:branch]]) != nil and
+      git_out(dir, ["merge-base", "--is-ancestor", c[:head], c[:remote]]) !=
+        nil and
+      git_out(dir, ["merge", "-q", "--ff-only", c[:remote]]) != nil
     write_stderr(
       unlines(
         [
-          "kirikae: fast-forwarded the checkout #{take_chars(get(c, :head), 8)} → #{take_chars(get(c, :remote), 8)} (origin's #{get(c, :branch)}); KIRIKAE_FAST_FORWARD=0 turns this off"
+          "kirikae: fast-forwarded the checkout #{take_chars(c[:head], 8)} → #{take_chars(c[:remote], 8)} (origin's #{c[:branch]}); KIRIKAE_FAST_FORWARD=0 turns this off"
         ]
       )
     )
-    checkout_of(dir, get(c, :branch))
+    checkout_of(dir, c[:branch])
   else
     c
   end
 end
 
 def checkout_refusal(c)
-  if get(c, :head).nil?
+  if c[:head].nil?
     [:not_a_checkout, "the flake is not a git checkout kirikae can read"]
-  elsif get(c, :dirty) != nil and get(c, :dirty) != ""
+  elsif c[:dirty] != nil and c[:dirty] != ""
     [:dirty, "the checkout has uncommitted changes; plan a committed rev"]
-  elsif get(c, :remote).nil? or get(c, :remote) == ""
+  elsif c[:remote].nil? or c[:remote] == ""
     [
       :remote_unknown,
-      "origin's #{get(c, :branch)} could not be read, so the checkout cannot be shown to be the published rev"
+      "origin's #{c[:branch]} could not be read, so the checkout cannot be shown to be the published rev"
     ]
-  elsif get(c, :head) != get(c, :remote)
+  elsif c[:head] != c[:remote]
     [
       :unpublished,
-      "the checkout is at #{take_chars(get(c, :head), 8)} but origin's #{get(c, :branch)} is #{take_chars(get(c, :remote), 8)}; plan only the published rev"
+      "the checkout is at #{take_chars(c[:head], 8)} but origin's #{c[:branch]} is #{take_chars(c[:remote], 8)}; plan only the published rev"
     ]
   end
 end
@@ -475,17 +473,17 @@ gitops_handoff: the revision the gitops loop is building when it is the busy wri
     gitops_handoff({busy: nil}, {}, "") #=> nil
 """
 def gitops_handoff(f, s, hb_text)
-  rev = if get(f, :busy) != nil
-    nth(3, get(f, :busy))
+  rev = if f[:busy] != nil
+    f[:busy][3]
   end
   hb = json_parse(hb_text) rescue nil
-  c = get(f, :checkout)
+  c = f[:checkout]
   head = if c != nil
-    get(c, :head)
+    c[:head]
   else
-    first(filter(hex40?, split(first(split(get(s, :flake) or "", "#")), "/")))
+    first(filter(hex40?, split(first(split(s[:flake] or "", "#")), "/")))
   end
-  dir = checkout_path(get(s, :flake) or "")
+  dir = checkout_path(s[:flake] or "")
   building = hb != nil and
     get_str(hb, "outcome", "") == "building" and
     get_str(hb, "head_rev", "") == rev
@@ -519,11 +517,11 @@ def heartbeat_noop(hb_text, head, current)
 end
 
 def busy_hold(r, now)
-  {action: :hold, why: nth(1, r), refusal: r, until_ms: now + 60000, plan_ms: 0}
+  {action: :hold, why: r[1], refusal: r, until_ms: now + 60000, plan_ms: 0}
 end
 
 def refused_plan(r)
-  {action: :refuse, why: nth(1, r), refusal: r, plan_ms: 0}
+  {action: :refuse, why: r[1], refusal: r, plan_ms: 0}
 end
 
 @doc """
@@ -532,7 +530,7 @@ survey: the facts the guard judges: the checkout and its refusal, and a refusal 
     get(survey({flake: "github:pleme-io/nix/b548e3a24f88a08d1c673ad27ac494293ac5cac1", host: "kirikae-no-such-host"}), :checkout) #=> nil
 """
 def survey(s)
-  dir = checkout_path(get(s, :flake))
+  dir = checkout_path(s[:flake])
   c = if dir.nil?
     nil
   else
@@ -549,7 +547,7 @@ def survey(s)
     busy_refusal(
       writers(
         stdout_of(exec_capture(ps_bin, "-axww", "-o", "command=") rescue nil),
-        get(s, :host)
+        s[:host]
       )
     )
   end
@@ -562,11 +560,11 @@ guard_of: the guard's verdict on surveyed facts: a refusal, a busy hold, the loo
     guard_of({checkout: nil, stale: nil, busy: nil}, {}) #=> nil
 """
 def guard_of(f, s)
-  c = get(f, :checkout)
-  if get(f, :stale) != nil
-    refused_plan(get(f, :stale))
-  elsif get(f, :busy) != nil
-    busy_hold(get(f, :busy), now_ms)
+  c = f[:checkout]
+  if f[:stale] != nil
+    refused_plan(f[:stale])
+  elsif f[:busy] != nil
+    busy_hold(f[:busy], now_ms)
   elsif c != nil
     heartbeat_noop(
       read_or(
@@ -576,8 +574,8 @@ def guard_of(f, s)
         ),
         ""
       ),
-      get(c, :head),
-      resolve(get(s, :current))
+      c[:head],
+      resolve(s[:current])
     )
   end
 end
@@ -603,16 +601,16 @@ planned: guard, wait and plan, each told as a phase when the narration is full, 
 """
 def planned(s)
   d = {
-    host: get(s, :host),
-    poll_s: get(s, :poll_s),
-    wait_s: get(s, :wait_s),
-    current: get(s, :current)
+    host: s[:host],
+    poll_s: s[:poll_s],
+    wait_s: s[:wait_s],
+    current: s[:current]
   }
   gp = phase(s, :guard, d, () -> judged(s))
-  f = get(gp, :result)
-  g0 = get(f, :verdict)
+  f = gp[:result]
+  g0 = f[:verdict]
   busy = g0 != nil and busy_hold?(g0)
-  rev = if busy and get(s, :handoff)
+  rev = if busy and s[:handoff]
     gitops_handoff(f, s, read_or(heartbeat_path, ""))
   end
   wd = assoc(
@@ -620,46 +618,46 @@ def planned(s)
       d,
       :writer,
       if busy
-        nth(2, get(g0, :refusal))
+        g0[:refusal][2]
       end
     ),
     :rev,
     rev
   )
-  wp = if rev != nil and get(s, :follow)
+  wp = if rev != nil and s[:follow]
     phase(s, :wait, assoc(wd, :follow, true), () -> follow(s, rev))
   elsif rev != nil
-    tell(s, :skipped, :wait, handoff_note(rev, get(s, :host)), nil)
+    tell(s, :skipped, :wait, handoff_note(rev, s[:host]), nil)
     nil
   elsif busy
     phase(
       s,
       :wait,
       wd,
-      () -> await_writers(s, g0, now_ms + get(s, :wait_s) * 1000, nil, 0)
+      () -> await_writers(s, g0, now_ms + s[:wait_s] * 1000, nil, 0)
     )
   else
     tell(
       s,
       :skipped,
       :wait,
-      "no other writer of #{get(s, :host)} is running; nothing to wait for",
+      "no other writer of #{s[:host]} is running; nothing to wait for",
       nil
     )
     nil
   end
   g = if rev != nil and wp.nil?
-    {action: :handoff, why: handoff_note(rev, get(s, :host)), rev:, plan_ms: 0}
+    {action: :handoff, why: handoff_note(rev, s[:host]), rev:, plan_ms: 0}
   elsif wp.nil?
     g0
   else
-    get(wp, :result)
+    wp[:result]
   end
   pp = if g.nil?
     phase(
       s,
       :plan,
-      assoc(d, :expect, expected_plan(history(get(s, :history)))),
+      assoc(d, :expect, expected_plan(history(s[:history]))),
       () -> plan_unguarded(s)
     )
   else
@@ -667,7 +665,7 @@ def planned(s)
       s,
       :skipped,
       :plan,
-      "the guard decided before any evaluation: #{to_s(get(g, :action))}",
+      "the guard decided before any evaluation: #{to_s(g[:action])}",
       nil
     )
     nil
@@ -675,22 +673,22 @@ def planned(s)
   p = if pp.nil?
     g
   else
-    get(pp, :result)
+    pp[:result]
   end
   timed = assoc(
     p,
     :phase_ms,
     {
-      guard: get(gp, :ms),
+      guard: gp[:ms],
       wait: if wp.nil?
         0
       else
-        get(wp, :ms)
+        wp[:ms]
       end,
       plan: if pp.nil?
         0
       else
-        get(pp, :ms)
+        pp[:ms]
       end
     }
   )
@@ -739,12 +737,12 @@ fix_for: what to do about a plan that refuses or holds, as the command or settin
     fix_for({action: :refuse, refusal: [:not_a_checkout, "x"]}, {}) #=> "set KIRIKAE_FLAKE to a git checkout or a pinned github: flake, or run kirikae from the nix checkout"
 """
 def fix_for(p, s)
-  kind = if list?(get(p, :refusal))
-    first(get(p, :refusal))
+  kind = if list?(p[:refusal])
+    first(p[:refusal])
   end
-  dir = checkout_path(get(s, :flake) or ".") or "."
+  dir = checkout_path(s[:flake] or ".") or "."
   branch = getenv("KIRIKAE_BRANCH", "main")
-  a = get(p, :action)
+  a = p[:action]
   if kind == :dirty
     "commit the change and push it (git -C #{dir} status shows it), then run again"
   elsif kind == :unpublished
@@ -758,7 +756,7 @@ def fix_for(p, s)
   elsif a == :hold
     "clear the failure the history names, then KIRIKAE_FORCE=1 tries now; KIRIKAE_BACKOFF_BASE_S=0 turns the backoff off"
   elsif a == :refuse
-    "read the evaluation error: nix build --dry-run '#{get(p, :key) or installable(get(s, :flake) or ".", attr_for(get(s, :kind) or "darwin", get(s, :host)))}' --show-trace"
+    "read the evaluation error: nix build --dry-run '#{p[:key] or installable(s[:flake] or ".", attr_for(s[:kind] or "darwin", s[:host]))}' --show-trace"
   end
 end
 
@@ -811,15 +809,15 @@ follow: tell the gitops loop's log as it builds a revision, until the log says i
     get(follow({narrate: :off, gitops_log: "/nonexistent", heartbeat: "/nonexistent", wait_s: 0, poll_s: 0}, "b548e3a24f88a08d1c673ad27ac494293ac5cac1"), :action) #=> :handoff
 """
 def follow(s, rev)
-  ceiling = if get(s, :wait_s) > 0
-    get(s, :wait_s)
+  ceiling = if s[:wait_s] > 0
+    s[:wait_s]
   else
     5400
   end
   following(
     s,
     rev,
-    size(lines(read_or(get(s, :gitops_log), ""))),
+    size(lines(read_or(s[:gitops_log], ""))),
     now_ms + ceiling * 1000,
     now_ms,
     now_ms
@@ -832,7 +830,7 @@ following: one poll of a followed gitops build: tell the log lines after the fir
     get(following({narrate: :off, gitops_log: "/nonexistent", heartbeat: "/nonexistent", poll_s: 0}, "b548e3a24f88a08d1c673ad27ac494293ac5cac1", 0, 0, 0, 0), :followed) #=> :warn
 """
 def following(s, rev, seen, deadline_ms, started, said_ms)
-  all = lines(read_or(get(s, :gitops_log), ""))
+  all = lines(read_or(s[:gitops_log], ""))
   fresh = map(
     log_line,
     if size(all) < seen
@@ -860,7 +858,7 @@ def following(s, rev, seen, deadline_ms, started, said_ms)
     now_ms
   end
   v = gitops_verdict(fresh, rev)
-  hb = json_parse(read_or(get(s, :heartbeat) or heartbeat_path, "")) rescue nil
+  hb = json_parse(read_or(s[:heartbeat] or heartbeat_path, "")) rescue nil
   still = hb != nil and
     get_str(hb, "outcome", "") == "building" and
     get_str(hb, "head_rev", "") == rev
@@ -880,13 +878,13 @@ def following(s, rev, seen, deadline_ms, started, said_ms)
     end
     {
       action: :handoff,
-      why: nth(1, verdict),
+      why: verdict[1],
       followed: first(verdict),
       rev:,
       plan_ms: 0
     }
   else
-    sleep(get(s, :poll_s))
+    sleep(s[:poll_s])
     following(s, rev, size(all), deadline_ms, started, spoke)
   end
 end
@@ -897,34 +895,34 @@ end
 
 def plan_unguarded(s)
   plan(
-    get(s, :flake),
-    get(s, :host),
-    get(s, :kind),
-    get(s, :current),
-    history(get(s, :history)),
+    s[:flake],
+    s[:host],
+    s[:kind],
+    s[:current],
+    history(s[:history]),
     now_ms,
-    get(s, :policy)
+    s[:policy]
   )
 end
 
 def summary(p)
-  work = if get(p, :build).nil?
+  work = if p[:build].nil?
     ""
   else
-    " (planned in #{to_s(get(p, :plan_ms))} ms; #{to_s(get(p, :build))} to build, #{to_s(get(p, :fetch))} to fetch)"
+    " (planned in #{to_s(p[:plan_ms])} ms; #{to_s(p[:build])} to build, #{to_s(p[:fetch])} to fetch)"
   end
-  fix = if get(p, :fix).nil?
+  fix = if p[:fix].nil?
     ""
   else
-    "; fix: #{get(p, :fix)}"
+    "; fix: #{p[:fix]}"
   end
-  unlines(["kirikae: #{to_s(get(p, :action))} — #{get(p, :why)}#{work}#{fix}"])
+  unlines(["kirikae: #{to_s(p[:action])} — #{p[:why]}#{work}#{fix}"])
 end
 
 def node_step(acc, a)
-  if get(acc, :skip) > 0
-    assoc(acc, :skip, get(acc, :skip) - 1)
-  elsif get(acc, :node) != nil
+  if acc[:skip] > 0
+    assoc(acc, :skip, acc[:skip] - 1)
+  elsif acc[:node] != nil
     acc
   elsif a == "--nix-option"
     assoc(acc, :skip, 2)
@@ -937,7 +935,7 @@ end
 
 def node_arg(cmd)
   after = drop_while((a) -> a != "rebuild", cmd)
-  get(reduce(node_step, {skip: 0, node: nil}, rest(after)), :node)
+  reduce(node_step, {skip: 0, node: nil}, rest(after))[:node]
 end
 
 def settings_for(cmd)
@@ -959,7 +957,7 @@ def busy_hold?(p)
   if p.nil?
     false
   else
-    get(p, :action) == :hold and first(get(p, :refusal)) == :busy
+    p[:action] == :hold and first(p[:refusal]) == :busy
   end
 end
 
@@ -987,14 +985,14 @@ end
 
 def await_writers(s, p, deadline_ms, said, said_ms)
   if keep_waiting?(p, now_ms, deadline_ms)
-    spoke = said != nil and say_wait?(get(p, :why), said, now_ms, said_ms)
+    spoke = said != nil and say_wait?(p[:why], said, now_ms, said_ms)
     if spoke
       tell(
         s,
         :running,
         :wait,
-        waiting_note(nth(2, get(p, :refusal)), deadline_ms - now_ms),
-        now_ms - deadline_ms + get(s, :wait_s) * 1000
+        waiting_note(p[:refusal][2], deadline_ms - now_ms),
+        now_ms - deadline_ms + s[:wait_s] * 1000
       )
     end
     at = if spoke or said.nil?
@@ -1002,8 +1000,8 @@ def await_writers(s, p, deadline_ms, said, said_ms)
     else
       said_ms
     end
-    sleep(get(s, :poll_s))
-    await_writers(s, guard(s), deadline_ms, get(p, :why), at)
+    sleep(s[:poll_s])
+    await_writers(s, guard(s), deadline_ms, p[:why], at)
   else
     p
   end
@@ -1025,14 +1023,14 @@ def run(cmd)
   started = now_ms
   say(s, opening(s))
   p = planned(s)
-  if get(s, :narrate) == :brief
+  if s[:narrate] == :brief
     write_stderr(summary(p))
   end
-  a = get(p, :action)
+  a = p[:action]
   forced = getenv("KIRIKAE_FORCE", "") != ""
   out = if a == :handoff
     outcome_of(
-      if get(p, :followed) == :failed
+      if p[:followed] == :failed
         1
       else
         0
@@ -1044,22 +1042,22 @@ def run(cmd)
   elsif a == :hold and not forced
     outcome_of(exit_hold, "hold")
   elsif a == :refuse
-    if get(p, :key) != nil
+    if p[:key] != nil
       record(
-        get(s, :history),
+        s[:history],
         assoc(
-          entry(get(p, :key), "failed", now_ms, get(p, :why)),
+          entry(p[:key], "failed", now_ms, p[:why]),
           :plan_ms,
-          get(p, :plan_ms) or 0
+          p[:plan_ms] or 0
         )
       )
     end
     outcome_of(exit_refused, "refuse")
   end
   if out != nil
-    tell(s, :skipped, :switch, switch_skip(a, get(s, :host)), nil)
+    tell(s, :skipped, :switch, switch_skip(a, s[:host]), nil)
     tell(s, :skipped, :verify, "nothing was switched", nil)
-    finish(s, "run", p, out, "#{text_of(out)} — #{get(p, :why)}", started)
+    finish(s, "run", p, out, "#{text_of(out)} — #{p[:why]}", started)
   else
     switched(s, p, cmd, started)
   end
@@ -1072,21 +1070,16 @@ switched: hand the planned switch to the rebuild command, verify it, record the 
 """
 def switched(s, p, cmd, started)
   d = {
-    host: get(s, :host),
-    current: get(s, :current),
+    host: s[:host],
+    current: s[:current],
     ran: join(map(base_name, take_n(cmd, 2)), " "),
     plan: p,
-    target: label(get(p, :desired))
+    target: label(p[:desired])
   }
   sp = phase(s, :switch, d, () -> exec_check(*cmd))
-  status = get(sp, :result)
-  vp = if status == 0 and get(s, :verify)
-    phase(
-      s,
-      :verify,
-      d,
-      () -> verify_switch(get(p, :desired), resolve(get(s, :current)))
-    )
+  status = sp[:result]
+  vp = if status == 0 and s[:verify]
+    phase(s, :verify, d, () -> verify_switch(p[:desired], resolve(s[:current])))
   else
     tell(
       s,
@@ -1102,37 +1095,30 @@ def switched(s, p, cmd, started)
     nil
   end
   v = if vp != nil
-    get(vp, :result)
+    vp[:result]
   end
   out = settle(s, p, status, v, last(cmd))
   ms = assoc(
-    assoc(get(p, :phase_ms) or {}, :switch, get(sp, :ms)),
+    assoc(p[:phase_ms] or {}, :switch, sp[:ms]),
     :verify,
     if vp.nil?
       0
     else
-      get(vp, :ms)
+      vp[:ms]
     end
   )
   tried = assoc(
     assoc(p, :phase_ms, ms),
     :fix,
-    if get(out, :status) == 0
+    if out[:status] == 0
       nil
     elsif v != nil
-      "read the activation output above; #{get(s, :current) or "/run/current-system"} did not move to the built system"
+      "read the activation output above; #{s[:current] or "/run/current-system"} did not move to the built system"
     else
       "read #{last(cmd)}'s output above for the first error"
     end
   )
-  finish(
-    s,
-    "run",
-    tried,
-    out,
-    "#{text_of(out)} #{label(get(p, :desired))}",
-    started
-  )
+  finish(s, "run", tried, out, "#{text_of(out)} #{label(p[:desired])}", started)
 end
 
 @doc """
@@ -1143,11 +1129,11 @@ finish: close a plan or a run: append its event to the log, print the closing li
 def finish(s, verb, p, out, text, started)
   ms = now_ms - started
   log_event(
-    get(s, :events),
-    get(s, :events_keep),
-    event(s, verb, p, get(out, :text), get(out, :status), ms)
+    s[:events],
+    s[:events_keep],
+    event(s, verb, p, out[:text], out[:status], ms)
   )
-  say(s, closing(text, get(out, :status), ms, get(p, :fix), get(s, :events)))
+  say(s, closing(text, out[:status], ms, p[:fix], s[:events]))
   out
 end
 
@@ -1157,22 +1143,22 @@ event: one line of the event log: when, which verb and host, what was decided an
     get(event({host: "ryn"}, "plan", {action: :hold, refusal: [:busy, "x"]}, "hold", 75, 12), :refusal) #=> "busy"
 """
 def event(s, verb, p, outcome, status, ms)
-  r = get(p, :refusal)
+  r = p[:refusal]
   {
     at_ms: now_ms,
     verb:,
-    host: get(s, :host),
-    action: to_s(get(p, :action)),
+    host: s[:host],
+    action: to_s(p[:action]),
     refusal: if list?(r)
       to_s(first(r))
     end,
-    why: get(p, :why),
-    fix: get(p, :fix),
-    desired: get(p, :desired),
-    rev: get(p, :rev),
-    build: get(p, :build),
-    fetch: get(p, :fetch),
-    phase_ms: get(p, :phase_ms),
+    why: p[:why],
+    fix: p[:fix],
+    desired: p[:desired],
+    rev: p[:rev],
+    build: p[:build],
+    fetch: p[:fetch],
+    phase_ms: p[:phase_ms],
     outcome:,
     status:,
     ms:
@@ -1208,18 +1194,16 @@ def log_event(path, keep, ev)
 end
 
 def settle(s, p, status, v, ran)
-  if v != nil and get(s, :narrate) == :brief
-    write_stderr(
-      unlines(["kirikae: #{to_s(get(v, :verdict))} — #{get(v, :why)}"])
-    )
+  if v != nil and s[:narrate] == :brief
+    write_stderr(unlines(["kirikae: #{to_s(v[:verdict])} — #{v[:why]}"]))
   end
-  if v != nil and get(v, :verdict) == :not_switched
+  if v != nil and v[:verdict] == :not_switched
     record(
-      get(s, :history),
+      s[:history],
       assoc(
-        entry(get(p, :desired), "failed", now_ms, get(v, :why)),
+        entry(p[:desired], "failed", now_ms, v[:why]),
         :plan_ms,
-        get(p, :plan_ms) or 0
+        p[:plan_ms] or 0
       )
     )
     outcome_of(exit_not_switched, "not-switched")
@@ -1230,16 +1214,11 @@ def settle(s, p, status, v, ran)
       "failed"
     end
     record(
-      get(s, :history),
+      s[:history],
       assoc(
-        entry(
-          get(p, :desired),
-          outcome,
-          now_ms,
-          "#{ran} exited #{to_s(status)}"
-        ),
+        entry(p[:desired], outcome, now_ms, "#{ran} exited #{to_s(status)}"),
         :plan_ms,
-        get(p, :plan_ms) or 0
+        p[:plan_ms] or 0
       )
     )
     outcome_of(status, outcome)
@@ -1294,7 +1273,7 @@ tell: one phase line on stderr when the narration is full, and nothing otherwise
     tell({narrate: :off}, :done, :guard, "clean", 12) #=> nil
 """
 def tell(s, state, name, note, ms)
-  if get(s, :narrate) == :full
+  if s[:narrate] == :full
     show_step(phase_line(state, name, note, ms), {})
   end
   nil
@@ -1306,7 +1285,7 @@ say: a whole line on stderr when the narration is full, painted as the phase lin
     say({narrate: :off}, "x") #=> nil
 """
 def say(s, node)
-  if get(s, :narrate) == :full
+  if s[:narrate] == :full
     show(node, {to: :stderr, color: color_default and terminal?(2)})
   end
   nil
@@ -1318,15 +1297,15 @@ phase: run one phase between the line that says what it will do and the line tha
     get(phase({narrate: :off}, :switch, {ran: "x"}, () -> 0), :result) #=> 0
 """
 def phase(s, name, d, work)
-  if get(s, :narrate) == :full
+  if s[:narrate] == :full
     tell(s, :running, name, lesson(name, d), nil)
   end
   t = now_ms
   r = work()
   ms = now_ms - t
-  if get(s, :narrate) == :full
+  if s[:narrate] == :full
     f = finding(name, assoc(d, :result, r))
-    tell(s, first(f), name, nth(1, f), ms)
+    tell(s, first(f), name, f[1], ms)
   end
   {result: r, ms:}
 end
@@ -1338,17 +1317,14 @@ expected_plan: the median time of the last five timed plans in a history and how
 """
 def expected_plan(hist)
   timed = keep_last(
-    map(
-      (e) -> get(e, :plan_ms),
-      filter((e) -> (get(e, :plan_ms) or 0) > 0, hist)
-    ),
+    map((e) -> e[:plan_ms], filter((e) -> (e[:plan_ms] or 0) > 0, hist)),
     5
   )
   if is_empty(timed)
     nil
   else
     ms = sort_keyed((x) -> x, timed)
-    {ms: nth(floor(size(ms) / 2), ms), n: size(ms)}
+    {ms: ms[floor(size(ms) / 2)], n: size(ms)}
   end
 end
 
@@ -1358,33 +1334,33 @@ lesson: what a phase is about to do and why it matters, as one sentence for the 
     lesson(:verify, {current: "/run/current-system", target: "abc"}) #=> "/run/current-system must now resolve to abc; a switch that exits 0 but leaves the old system counts as a failure"
 """
 def lesson(name, d)
-  host = get(d, :host)
+  host = d[:host]
   if name == :guard
     "is the checkout clean and at origin's rev, and is anything else evaluating or rebuilding #{host}? kirikae builds only a published rev, one writer at a time"
   elsif name == :wait
-    if get(d, :follow)
-      "the gitops loop (sentinela) is building #{take_chars(get(d, :rev), 8)}, the published rev, and activates #{host} itself; kirikae follows its log until it deploys or fails"
+    if d[:follow]
+      "the gitops loop (sentinela) is building #{take_chars(d[:rev], 8)}, the published rev, and activates #{host} itself; kirikae follows its log until it deploys or fails"
     else
-      "#{get(d, :writer)} is writing #{host}; two writers race for one profile, so kirikae asks again every #{to_s(get(d, :poll_s))}s; #{duration_text(get(d, :wait_s) * 1000)} is a ceiling, and the wait ends the moment the writer exits"
+      "#{d[:writer]} is writing #{host}; two writers race for one profile, so kirikae asks again every #{to_s(d[:poll_s])}s; #{duration_text(d[:wait_s] * 1000)} is a ceiling, and the wait ends the moment the writer exits"
     end
   elsif name == :plan
-    e = get(d, :expect)
+    e = d[:expect]
     usual = if e.nil?
       "no past plan is recorded to time it by"
     else
-      "usually about #{duration_text(get(e, :ms))} (the median of the last #{to_s(get(e, :n))} timed plans)"
+      "usually about #{duration_text(e[:ms])} (the median of the last #{to_s(e[:n])} timed plans)"
     end
     "nix build --dry-run evaluates #{host}'s whole system: it reads every module to find the one store path to switch to, and which paths are built here or fetched from a cache; nothing prints until it ends, #{usual}"
   elsif name == :switch
-    p = get(d, :plan)
-    work = if get(p, :build).nil?
+    p = d[:plan]
+    work = if p[:build].nil?
       "what the plan names"
     else
-      "the #{to_s(get(p, :build))} planned path(s) and fetches #{to_s(get(p, :fetch))}"
+      "the #{to_s(p[:build])} planned path(s) and fetches #{to_s(p[:fetch])}"
     end
-    "#{get(d, :ran)} builds #{work}, then activates #{get(d, :target)}; its own output follows"
+    "#{d[:ran]} builds #{work}, then activates #{d[:target]}; its own output follows"
   else
-    "#{get(d, :current)} must now resolve to #{get(d, :target)}; a switch that exits 0 but leaves the old system counts as a failure"
+    "#{d[:current]} must now resolve to #{d[:target]}; a switch that exits 0 but leaves the old system counts as a failure"
   end
 end
 
@@ -1394,46 +1370,46 @@ finding: what a phase found, as the state its closing line shows and one sentenc
     finding(:switch, {ran: "darwin-rebuild", result: 0}) #=> [:done, "darwin-rebuild exited 0"]
 """
 def finding(name, d)
-  r = get(d, :result)
-  host = get(d, :host)
+  r = d[:result]
+  host = d[:host]
   if name == :guard
-    v = get(r, :verdict)
-    c = get(r, :checkout)
+    v = r[:verdict]
+    c = r[:checkout]
     if v.nil?
       at = if c.nil?
         "the flake is pinned"
       else
-        "#{take_chars(get(c, :head), 8)} is origin's #{get(c, :branch)}"
+        "#{take_chars(c[:head], 8)} is origin's #{c[:branch]}"
       end
       [:done, "#{at}; no other writer of #{host}"]
     elsif busy_hold?(v)
-      [:warn, "held by #{nth(2, get(v, :refusal))}"]
-    elsif get(v, :action) == :refuse
-      [:failed, get(v, :why)]
+      [:warn, "held by #{v[:refusal][2]}"]
+    elsif v[:action] == :refuse
+      [:failed, v[:why]]
     else
-      [:done, get(v, :why)]
+      [:done, v[:why]]
     end
   elsif name == :wait
-    if r != nil and get(r, :action) == :handoff
-      [get(r, :followed) or :done, get(r, :why)]
+    if r != nil and r[:action] == :handoff
+      [r[:followed] or :done, r[:why]]
     elsif r != nil and busy_hold?(r)
       [:warn, "still held; kirikae holds (exit 75) and changes nothing"]
     else
       [:done, "#{host} is free"]
     end
   elsif name == :plan
-    a = get(r, :action)
+    a = r[:action]
     if a == :switch
       [
         :done,
-        "switch to #{label(get(r, :desired))}: #{to_s(get(r, :build))} to build, #{to_s(get(r, :fetch))} to fetch"
+        "switch to #{label(r[:desired])}: #{to_s(r[:build])} to build, #{to_s(r[:fetch])} to fetch"
       ]
     elsif a == :noop
-      [:done, get(r, :why)]
+      [:done, r[:why]]
     elsif a == :hold
-      [:warn, get(r, :why)]
+      [:warn, r[:why]]
     else
-      [:failed, get(r, :why)]
+      [:failed, r[:why]]
     end
   elsif name == :switch
     [
@@ -1442,15 +1418,15 @@ def finding(name, d)
       else
         :failed
       end,
-      "#{get(d, :ran)} exited #{to_s(r)}"
+      "#{d[:ran]} exited #{to_s(r)}"
     ]
   else
     [
       get(
         {switched: :done, not_switched: :failed, unverified: :warn},
-        get(r, :verdict)
+        r[:verdict]
       ),
-      get(r, :why)
+      r[:why]
     ]
   end
 end
@@ -1464,8 +1440,8 @@ def opening(s)
   [
     {text: "kirikae", bold: true, ink: :bright_cyan},
     " · rebuilding ",
-    {text: get(s, :host), bold: true},
-    " (#{get(s, :kind)}) from #{get(s, :flake)}",
+    {text: s[:host], bold: true},
+    " (#{s[:kind]}) from #{s[:flake]}",
     {text: " — #{join(map(to_s, phases), ", ")}", ink: :bright_black}
   ]
 end
@@ -1553,7 +1529,7 @@ end
 
 def exit_status_of(answer)
   if map?(answer)
-    get(answer, :status)
+    answer[:status]
   else
     0
   end
@@ -1561,7 +1537,7 @@ end
 
 def text_of(answer)
   if map?(answer)
-    get(answer, :text)
+    answer[:text]
   else
     answer
   end
@@ -1590,13 +1566,13 @@ def answer(args)
     )
     started = now_ms
     p = planned(ps)
-    if get(ps, :narrate) == :brief
+    if ps[:narrate] == :brief
       write_stderr(summary(p))
     end
     log_event(
-      get(ps, :events),
-      get(ps, :events_keep),
-      event(ps, "plan", p, to_s(get(p, :action)), 0, now_ms - started)
+      ps[:events],
+      ps[:events_keep],
+      event(ps, "plan", p, to_s(p[:action]), 0, now_ms - started)
     )
     json_stringify(p)
   elsif verb == "demo"
@@ -1605,7 +1581,7 @@ def answer(args)
         (n) -> styled(n, {color: color_default and terminal?(1), theme: nil}),
         demo_lines(
           if size(args) > 1
-            nth(1, args)
+            args[1]
           else
             "switch"
           end
@@ -1624,13 +1600,13 @@ def answer(args)
     end
     json_stringify(
       record(
-        get(settings, :history),
+        settings[:history],
         entry(
-          nth(1, args),
-          nth(2, args),
+          args[1],
+          args[2],
           now_ms,
           if size(args) > 3
-            nth(3, args)
+            args[3]
           else
             ""
           end
@@ -1680,7 +1656,7 @@ def demo_lines(kind)
   }
   line = fn(name, result, ms)
     f = finding(name, assoc(d, :result, result))
-    step(phase_line(first(f), name, nth(1, f), ms))
+    step(phase_line(first(f), name, f[1], ms))
   end
   open = (name) -> step(phase_line(:running, name, lesson(name, d), nil))
   skip = (name, why) -> step(phase_line(:skipped, name, why, nil))
@@ -1732,11 +1708,11 @@ def demo_lines(kind)
             376_000
           )
         ),
-        step(phase_line(first(done), :wait, nth(1, done), 376_000))
+        step(phase_line(first(done), :wait, done[1], 376_000))
       ],
       concat_lists(
         rest_skipped,
-        [closing("handoff — #{nth(1, done)}", 0, 377_000, nil, log)]
+        [closing("handoff — #{done[1]}", 0, 377_000, nil, log)]
       )
     )
   elsif kind == "refuse"
@@ -1748,13 +1724,13 @@ def demo_lines(kind)
     [
       opening(s),
       open(:guard),
-      step(phase_line(:failed, :guard, nth(1, r), 640)),
+      step(phase_line(:failed, :guard, r[1], 640)),
       skip(:wait, "no other writer of #{host} is running; nothing to wait for"),
       skip(:plan, "the guard decided before any evaluation: refuse"),
       skip(:switch, switch_skip(:refuse, host)),
       skip(:verify, "nothing was switched"),
       closing(
-        "refuse — #{nth(1, r)}",
+        "refuse — #{r[1]}",
         exit_refused,
         650,
         fix_for(p, {flake: "/Users/you/code/github/pleme-io/nix"}),
@@ -1770,7 +1746,7 @@ def demo_lines(kind)
       step(phase_line(:running, :wait, waiting_note(writer, 1_740_000), 60000)),
       line(:wait, nil, 135_000),
       open(:plan),
-      line(:plan, get(d, :plan), 548_000),
+      line(:plan, d[:plan], 548_000),
       open(:switch),
       line(:switch, 0, 362_000),
       open(:verify),
@@ -1794,20 +1770,20 @@ end
 
 test "the same system is nothing to do, a different one is a switch"
   pol = policy(0, 0)
-  assert get(decide(a, a, [], 0, pol), :action) == :noop
-  assert get(decide(b, a, [], 0, pol), :action) == :switch
-  assert get(decide(b, nil, [], 0, pol), :action) == :switch
-  assert get(decide(nil, a, [], 0, pol), :action) == :refuse
-  assert get(decide("/run/current-system", a, [], 0, pol), :action) == :refuse
+  assert decide(a, a, [], 0, pol)[:action] == :noop
+  assert decide(b, a, [], 0, pol)[:action] == :switch
+  assert decide(b, nil, [], 0, pol)[:action] == :switch
+  assert decide(nil, a, [], 0, pol)[:action] == :refuse
+  assert decide("/run/current-system", a, [], 0, pol)[:action] == :refuse
 end
 
 test "an exact system that keeps failing waits longer each time, and only that system"
   pol = policy(300, 3600)
   h = [entry(b, "failed", 1000, "x"), entry(b, "failed", 2000, "x")]
   d = decide(b, a, h, 3000, pol)
-  assert get(d, :action) == :hold
-  assert get(d, :until_ms) == 2000 + 600_000
-  assert get(decide(b, a, h, 2000 + 600_000, pol), :action) == :switch
+  assert d[:action] == :hold
+  assert d[:until_ms] == 2000 + 600_000
+  assert decide(b, a, h, 2000 + 600_000, pol)[:action] == :switch
   assert get(
     decide(sys("00000000000000000000000000000000"), a, h, 3000, pol),
     :action
@@ -1820,14 +1796,12 @@ end
 test "a success clears the streak, and a zero base never holds"
   pol = policy(300, 3600)
   h = [entry(b, "failed", 1000, "x"), entry(b, "activated", 2000, "ok")]
-  assert get(streak(h, b), :n) == 0
-  assert get(decide(b, a, h, 2001, pol), :action) == :switch
+  assert streak(h, b)[:n] == 0
+  assert decide(b, a, h, 2001, pol)[:action] == :switch
   off = policy(0, 3600)
-  assert get(
-    decide(b, a, [entry(b, "failed", 1000, "x")], 1001, off),
-    :action
-  ) == :switch
-  assert get(streak([], b), :n) == 0
+  assert decide(b, a, [entry(b, "failed", 1000, "x")], 1001, off)[:action] ==
+    :switch
+  assert streak([], b)[:n] == 0
 end
 
 test "the history file round-trips and keeps only its tail"
@@ -1838,8 +1812,8 @@ test "the history file round-trips and keeps only its tail"
   record(p, entry(b, "failed", 2000, "second"))
   h = history(p)
   assert size(h) == 2
-  assert get(last(h), :why) == "second"
-  assert get(streak(h, b), :n) == 2
+  assert last(h)[:why] == "second"
+  assert streak(h, b)[:n] == 2
   write_file(p, unlines(["not json", entry_line(entry(a, "activated", 5, ""))]))
   assert size(history(p)) == 1
   assert size(keep_last([1, 2, 3, 4], 2)) == 2
@@ -1859,7 +1833,7 @@ end
 test "a switch names both systems by hash, since their names agree"
   d = decide(b, a, [], 0, policy(0, 0))
   assert label(b) == "8i7qwqja-darwin-system-25.11.ebec37a"
-  assert get(d, :why) ==
+  assert d[:why] ==
     "8i7qwqja-darwin-system-25.11.ebec37a differs from f97whj20-darwin-system-25.11.ebec37a"
   assert label(nil) == ""
 end
@@ -1875,9 +1849,9 @@ test "a refusal of a pinned revision holds before anything evaluates; a moving r
     true
   h = [entry(inst, "failed", 1000, "eval"), entry(inst, "failed", 2000, "eval")]
   d = plan(pin, "ryn", "darwin", "/run/current-system", h, 3000, pol)
-  assert get(d, :action) == :hold
-  assert get(d, :key) == inst
-  assert get(d, :plan_ms) == 0
+  assert d[:action] == :hold
+  assert d[:key] == inst
+  assert d[:plan_ms] == 0
   assert hold_for(inst, h, 2000 + 600_000, pol).nil?
   assert hold_for(inst, [], 3000, pol).nil?
 end
@@ -1949,8 +1923,8 @@ test "a running evaluation or rebuild of this machine refuses the plan; others d
   ) == 1
   assert busy_refusal([]).nil?
   h = busy_hold([:busy, "x"], 1000)
-  assert get(h, :action) == :hold
-  assert get(h, :until_ms) == 61000
+  assert h[:action] == :hold
+  assert h[:until_ms] == 61000
 end
 
 test "a run waits out another writer only while its wait lasts, and never a backoff hold"
@@ -1970,8 +1944,8 @@ test "a loop that already runs the checkout's rev answers the plan without evalu
   head = "b548e3a24f88a08d1c673ad27ac494293ac5cac1"
   hb = "{\"outcome\":\"unchanged\",\"head_rev\":\"#{head}\"}"
   n = heartbeat_noop(hb, head, a)
-  assert get(n, :action) == :noop
-  assert get(n, :desired) == a
+  assert n[:action] == :noop
+  assert n[:desired] == a
   assert heartbeat_noop(hb, "cb22456a00000000000000000000000000000000", a).nil?
   assert heartbeat_noop(
     "{\"outcome\":\"building\",\"head_rev\":\"#{head}\"}",
@@ -2017,14 +1991,14 @@ test "a command's answer is text it can print, and a wrong verb is a usage error
 end
 
 test "a switch is verified against the system it built, naming both on a mismatch"
-  assert get(verify_switch(b, b), :verdict) == :switched
+  assert verify_switch(b, b)[:verdict] == :switched
   miss = verify_switch(b, a)
-  assert get(miss, :verdict) == :not_switched
-  assert get(miss, :step) == :activation
-  assert includes(get(miss, :why), b) == true
-  assert includes(get(miss, :why), a) == true
-  assert get(verify_switch(b, nil), :verdict) == :not_switched
-  assert get(verify_switch(nil, a), :verdict) == :unverified
+  assert miss[:verdict] == :not_switched
+  assert miss[:step] == :activation
+  assert includes(miss[:why], b) == true
+  assert includes(miss[:why], a) == true
+  assert verify_switch(b, nil)[:verdict] == :not_switched
+  assert verify_switch(nil, a)[:verdict] == :unverified
 end
 
 test "a command that exits 0 without switching is a failure the history counts"
@@ -2034,10 +2008,10 @@ test "a command that exits 0 without switching is a failure the history counts"
   out = settle(s, p, 0, verify_switch(b, a), "rebuild")
   assert exit_status_of(out) == exit_not_switched
   assert text_of(out) == "not-switched"
-  assert get(streak(history(get(s, :history)), b), :n) == 1
+  assert streak(history(s[:history]), b)[:n] == 1
   ok = settle(s, p, 0, verify_switch(b, b), "rebuild")
   assert exit_status_of(ok) == 0
-  assert get(streak(history(get(s, :history)), b), :n) == 0
+  assert streak(history(s[:history]), b)[:n] == 0
   assert exit_status_of(settle(s, p, 0, nil, "rebuild")) == 0
   rm_rf(dir)
 end
@@ -2102,7 +2076,7 @@ test "a timed plan survives the history file"
   p = path_join(dir, "history.jsonl")
   record(p, assoc(entry(b, "activated", 1000, "ok"), :plan_ms, 551_000))
   record(p, entry(b, "activated", 2000, "ok"))
-  assert map((e) -> get(e, :plan_ms), history(p)) == [551_000, 0]
+  assert map((e) -> e[:plan_ms], history(p)) == [551_000, 0]
   assert expected_plan(history(p)) == {ms: 551_000, n: 1}
   rm_rf(dir)
 end
@@ -2133,10 +2107,10 @@ test "the demo renders every phase in order, plain when colour is off"
   )
   assert first(plain) ==
     "kirikae · rebuilding ryn (darwin) from . — guard, wait, plan, switch, verify"
-  assert nth(2, plain) ==
+  assert plain[2] ==
     "⚠️ [1/5] guard — held by darwin-rebuild build at b548e3a2 (0.4s)"
-  assert nth(5, plain) == "✅ [2/5] wait — ryn is free (2m 15s)"
-  assert nth(7, plain) ==
+  assert plain[5] == "✅ [2/5] wait — ryn is free (2m 15s)"
+  assert plain[7] ==
     "✅ [3/5] plan — switch to 8i7qwqja-darwin-system-25.11.ebec37a: 12 to build, 340 to fetch (9m 08s)"
   assert last(plain) ==
     join_lines(
@@ -2216,9 +2190,9 @@ test "following a gitops build tells its new log lines and stops on the deploy"
   )
   s = {narrate: :off, gitops_log: log, heartbeat: "/nonexistent", poll_s: 0}
   r = following(s, rev, 1, now_ms + 60000, now_ms, now_ms)
-  assert get(r, :action) == :handoff
-  assert get(r, :followed) == :done
-  assert get(r, :why) == "the gitops loop deployed b548e3a2"
+  assert r[:action] == :handoff
+  assert r[:followed] == :done
+  assert r[:why] == "the gitops loop deployed b548e3a2"
   rm_rf(dir)
 end
 

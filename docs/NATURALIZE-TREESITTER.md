@@ -1,8 +1,3 @@
----
-kind: explanation
-summary: tree-sitter naturalized: the grammar spec and what is emitted from it
----
-
 # naturalize(tree-sitter) — the destination, before the build
 
 **Status (2026-10-10): M0, M1 and M2 are built; M3 and M4 are design.** The

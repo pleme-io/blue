@@ -144,16 +144,13 @@ end
 
 def domain_whys(d)
   append(
+    fault(not domain?(d[:name]), ["#{d[:name]} is not a domain name"]),
     fault(
-      not domain?(get(d, :name)),
-      ["#{get(d, :name)} is not a domain name"]
-    ),
-    fault(
-      not contains(roles, get(d, :role)),
+      not contains(roles, d[:role]),
       ["role is one of #{join(map(to_s, roles), ", ")}"]
     ),
     fault(
-      not contains(dns_hosts, get(d, :dns_host)),
+      not contains(dns_hosts, d[:dns_host]),
       ["dns_host is one of #{join(map(to_s, dns_hosts), ", ")}"]
     )
   )
@@ -162,13 +159,13 @@ end
 def domain_refusals(ds)
   map(
     fn(i)
-      d = nth(i, ds)
-      at = "domain #{get(d, :name)}"
-      earlier = map((e) -> get(e, :name), take(i, ds))
+      d = ds[i]
+      at = "domain #{d[:name]}"
+      earlier = map((e) -> e[:name], take(i, ds))
       append(
         map((w) -> refusal(:bad_domain, "#{at}: #{w}"), domain_whys(d)),
         fault(
-          contains(earlier, get(d, :name)),
+          contains(earlier, d[:name]),
           [refusal(:duplicate_domain, "#{at} is declared twice")]
         )
       )
@@ -178,7 +175,7 @@ def domain_refusals(ds)
 end
 
 def domain_names(ds)
-  map((d) -> get(d, :name), ds)
+  map((d) -> d[:name], ds)
 end
 
 def zone_for(ds, host)
@@ -187,21 +184,21 @@ def zone_for(ds, host)
 end
 
 def site_whys(s)
-  prefix = get(s, :path_prefix) or ""
+  prefix = s[:path_prefix] or ""
   append(
-    fault(not slug?(get(s, :name)), ["name is not a slug"]),
-    fault(not list?(get(s, :hosts)), ["hosts is a list"]),
-    fault(not domain?(get(s, :origin_host)), ["origin_host is not a hostname"]),
+    fault(not slug?(s[:name]), ["name is not a slug"]),
+    fault(not list?(s[:hosts]), ["hosts is a list"]),
+    fault(not domain?(s[:origin_host]), ["origin_host is not a hostname"]),
     fault(
       not (prefix == "" or path_prefix?(prefix)),
       ["path_prefix is empty or a path starting with / and not ending with /"]
     ),
     fault(
-      not contains(gates, get(s, :gate)),
+      not contains(gates, s[:gate]),
       ["gate is one of #{join(map(to_s, gates), ", ")}"]
     ),
     fault(
-      not contains(kinds_of_site, get(s, :kind)),
+      not contains(kinds_of_site, s[:kind]),
       ["kind is one of #{join(map(to_s, kinds_of_site), ", ")}"]
     ),
     kind_whys(s)
@@ -220,28 +217,28 @@ def port?(v)
 end
 
 def kind_whys(s)
-  if get(s, :kind) == :service
+  if s[:kind] == :service
     append(
       fault(
-        get(s, :flake).nil?,
+        s[:flake].nil?,
         ["a service needs a flake (github:owner/repo#package)"]
       ),
       fault(
-        get(s, :flake) != nil and not flake?(get(s, :flake)),
+        s[:flake] != nil and not flake?(s[:flake]),
         ["flake is github:owner/repo#package"]
       ),
-      fault(get(s, :port).nil?, ["a service needs a port"]),
+      fault(s[:port].nil?, ["a service needs a port"]),
       fault(
-        get(s, :port) != nil and not port?(get(s, :port)),
+        s[:port] != nil and not port?(s[:port]),
         ["port is a number from 1 to 65535"]
       ),
       fault(
-        get(s, :health_path) != nil and not path_prefix?(get(s, :health_path)),
+        s[:health_path] != nil and not path_prefix?(s[:health_path]),
         ["health_path is a path starting with /"]
       )
     )
-  elsif get(s, :kind) == :static
-    fault(get(s, :flake) != nil, ["a static site carries no flake"])
+  elsif s[:kind] == :static
+    fault(s[:flake] != nil, ["a static site carries no flake"])
   else
     []
   end
@@ -250,13 +247,13 @@ end
 def site_refusals(ss)
   map(
     fn(i)
-      s = nth(i, ss)
-      at = "site #{get(s, :name)}"
-      earlier = map((e) -> get(e, :name), take(i, ss))
+      s = ss[i]
+      at = "site #{s[:name]}"
+      earlier = map((e) -> e[:name], take(i, ss))
       append(
         map((w) -> refusal(:bad_site, "#{at}: #{w}"), site_whys(s)),
         fault(
-          contains(earlier, get(s, :name)),
+          contains(earlier, s[:name]),
           [refusal(:duplicate_site, "#{at} is declared twice")]
         )
       )
@@ -292,11 +289,11 @@ def host_step(ds, at, st, h)
 end
 
 def site_fold(ds, st, s)
-  at = "site #{get(s, :name)}"
+  at = "site #{s[:name]}"
   hs = reduce(
     (h_st, h) -> host_step(ds, at, h_st, h),
     {claimed: st.claimed, good: [], refusals: []},
-    get(s, :hosts)
+    s[:hosts]
   )
   if is_empty(hs.good)
     {
@@ -325,25 +322,25 @@ end
 def mail_judge(ds, m)
   if m.nil?
     {kept: nil, refusals: []}
-  elsif get(m, :provider) == :undecided
+  elsif m[:provider] == :undecided
     {kept: m, refusals: []}
-  elsif not contains(preset_names, get(m, :provider))
+  elsif not contains(preset_names, m[:provider])
     {
       kept: nil,
       refusals: [
         refusal(
           :unknown_mail_preset,
-          "mail: #{get(m, :provider)} is not one of #{join(map(to_s, preset_names), ", ")} or undecided"
+          "mail: #{m[:provider]} is not one of #{join(map(to_s, preset_names), ", ")} or undecided"
         )
       ]
     }
-  elsif not contains(domain_names(ds), get(m, :domain))
+  elsif not contains(domain_names(ds), m[:domain])
     {
       kept: nil,
       refusals: [
         refusal(
           :mail_domain_undeclared,
-          "mail: #{get(m, :domain)} is not an accepted domain"
+          "mail: #{m[:domain]} is not an accepted domain"
         )
       ]
     }
@@ -354,25 +351,25 @@ end
 
 def repo_whys(r)
   append(
-    fault(not repo_name?(get(r, :name)), ["name is not a repository name"]),
+    fault(not repo_name?(r[:name]), ["name is not a repository name"]),
     fault(
-      not contains(visibilities, get(r, :visibility)),
+      not contains(visibilities, r[:visibility]),
       ["visibility is one of #{join(map(to_s, visibilities), ", ")}"]
     ),
-    fault(not string?(get(r, :description) or ""), ["description is text"])
+    fault(not string?(r[:description] or ""), ["description is text"])
   )
 end
 
 def repo_refusals(rs)
   map(
     fn(i)
-      r = nth(i, rs)
-      at = "repo #{get(r, :name)}"
-      earlier = map((e) -> repo_slug(to_s(get(e, :name))), take(i, rs))
+      r = rs[i]
+      at = "repo #{r[:name]}"
+      earlier = map((e) -> repo_slug(to_s(e[:name])), take(i, rs))
       append(
         map((w) -> refusal(:bad_repo, "#{at}: #{w}"), repo_whys(r)),
         fault(
-          contains(earlier, repo_slug(to_s(get(r, :name)))),
+          contains(earlier, repo_slug(to_s(r[:name]))),
           [refusal(:duplicate_repo, "#{at} is declared twice")]
         )
       )
@@ -382,11 +379,11 @@ def repo_refusals(rs)
 end
 
 def team_whys(t)
-  repos = get(t, :repos) or []
+  repos = t[:repos] or []
   append(
-    fault(not slug?(get(t, :name)), ["name is not a slug"]),
+    fault(not slug?(t[:name]), ["name is not a slug"]),
     fault(
-      not contains(map(first, permissions), get(t, :permission)),
+      not contains(map(first, permissions), t[:permission]),
       [
         "permission is one of #{join(map((p) -> to_s(first(p)), permissions), ", ")}"
       ]
@@ -401,13 +398,13 @@ end
 def team_refusals(ts)
   map(
     fn(i)
-      t = nth(i, ts)
-      at = "team #{get(t, :name)}"
-      earlier = map((e) -> get(e, :name), take(i, ts))
+      t = ts[i]
+      at = "team #{t[:name]}"
+      earlier = map((e) -> e[:name], take(i, ts))
       append(
         map((w) -> refusal(:bad_team, "#{at}: #{w}"), team_whys(t)),
         fault(
-          contains(earlier, get(t, :name)),
+          contains(earlier, t[:name]),
           [refusal(:duplicate_team, "#{at} is declared twice")]
         )
       )
@@ -417,7 +414,7 @@ def team_refusals(ts)
 end
 
 def team_repos(t)
-  get(t, :repos) or []
+  t[:repos] or []
 end
 
 def grant_refusals(names, t)
@@ -425,9 +422,7 @@ def grant_refusals(names, t)
     []
   else
     map(
-      fn(n)
-        refusal(:unknown_repo, "team #{get(t, :name)}: no accepted repo #{n}")
-      end,
+      (n) -> refusal(:unknown_repo, "team #{t[:name]}: no accepted repo #{n}"),
       filter((n) -> not contains(names, n), team_repos(t))
     )
   end
@@ -460,27 +455,27 @@ def org_refusals(org, repos, teams)
 end
 
 def judge(a)
-  company = get(a, :company)
-  org = get(a, :github_org)
-  doms = get(a, :domains) or []
+  company = a[:company]
+  org = a[:github_org]
+  doms = a[:domains] or []
   dmarks = domain_refusals(doms)
   ds = standing(doms, dmarks)
-  sites = get(a, :sites) or []
+  sites = a[:sites] or []
   smarks = site_refusals(sites)
   folded = reduce(
     (st, s) -> site_fold(ds, st, s),
     {claimed: [], sites: [], refusals: []},
     standing(sites, smarks)
   )
-  mj = mail_judge(ds, get(a, :mail))
-  repos = get(a, :repos) or []
-  teams = get(a, :teams) or []
+  mj = mail_judge(ds, a[:mail])
+  repos = a[:repos] or []
+  teams = a[:teams] or []
   org_marks = org_refusals(org, repos, teams)
   org_ok = is_empty(org_marks) and org != nil
   held_repos = if_ok(org_ok, repos, [])
   rmarks = repo_refusals(held_repos)
   rs = standing(held_repos, rmarks)
-  names = map((r) -> get(r, :name), rs)
+  names = map((r) -> r[:name], rs)
   held_teams = if_ok(org_ok, teams, [])
   tmarks = team_refusals(held_teams)
   ts = standing(held_teams, tmarks)
@@ -532,47 +527,47 @@ end
 def mx_rows(z, d, p)
   map(
     fn(i)
-      e = nth(i, get(p, :mx))
-      dns_row(z, "mx#{i + 1}", d, "MX", "#{first(e)} #{nth(1, e)}")
+      e = p[:mx][i]
+      dns_row(z, "mx#{i + 1}", d, "MX", "#{first(e)} #{e[1]}")
     end,
-    range(0, size(get(p, :mx)))
+    range(0, size(p[:mx]))
   )
 end
 
 def dkim_rows(z, d, p)
   map(
     fn(i)
-      e = nth(i, get(p, :dkim))
+      e = p[:dkim][i]
       dns_row(
         z,
         "dkim#{i + 1}",
         "#{first(e)}.#{d}",
-        nth(1, e),
-        replace(nth(2, e), "{domain}", d)
+        e[1],
+        replace(e[2], "{domain}", d)
       )
     end,
-    range(0, size(get(p, :dkim)))
+    range(0, size(p[:dkim]))
   )
 end
 
 def verify_rows(z, d, p)
-  if get(p, :verify) == ""
+  if p[:verify] == ""
     []
   else
-    [dns_row(z, "verify", d, "TXT", get(p, :verify))]
+    [dns_row(z, "verify", d, "TXT", p[:verify])]
   end
 end
 
 def mail_rows(m)
-  if m.nil? or get(m, :provider) == :undecided
+  if m.nil? or m[:provider] == :undecided
     []
   else
-    d = get(m, :domain)
+    d = m[:domain]
     z = zone_key(d)
-    p = get(presets, get(m, :provider))
+    p = get(presets, m[:provider])
     append(
       mx_rows(z, d, p),
-      [dns_row(z, "spf", d, "TXT", get(p, :spf))],
+      [dns_row(z, "spf", d, "TXT", p[:spf])],
       dkim_rows(z, d, p),
       verify_rows(z, d, p),
       [
@@ -597,11 +592,11 @@ def value_refusals(rows)
   flat_map(
     rows,
     fn(r)
-      if unsafe_value?(get(r, :value))
+      if unsafe_value?(r[:value])
         [
           refusal(
             :unsafe_dns_value,
-            "dns row #{get(r, :slug)}: a value holds | or a quote or a backslash"
+            "dns row #{r[:slug]}: a value holds | or a quote or a backslash"
           )
         ]
       else
@@ -612,10 +607,10 @@ def value_refusals(rows)
 end
 
 def dns_key(r)
-  if get(r, :pending) == "true"
-    "pending #{get(r, :slug)}"
+  if r[:pending] == "true"
+    "pending #{r[:slug]}"
   else
-    "#{get(r, :zone)} #{get(r, :name)} #{get(r, :type)}"
+    "#{r[:zone]} #{r[:name]} #{r[:type]}"
   end
 end
 
@@ -625,7 +620,7 @@ def fold_dns(acc, r)
     map(
       fn(x)
         if dns_key(x) == k
-          assoc(x, :value, "#{get(x, :value)}|#{get(r, :value)}")
+          assoc(x, :value, "#{x[:value]}|#{r[:value]}")
         else
           x
         end
@@ -641,17 +636,17 @@ def dns_projection(rows)
   map(
     fn(r)
       {
-        slug: get(r, :slug),
-        zone: get(r, :zone),
-        name: get(r, :name),
-        type: get(r, :type),
-        ttl: get(r, :ttl),
-        values: get(r, :value),
-        pending: get(r, :pending),
-        apply: flag(get(r, :pending) == "false")
+        slug: r[:slug],
+        zone: r[:zone],
+        name: r[:name],
+        type: r[:type],
+        ttl: r[:ttl],
+        values: r[:value],
+        pending: r[:pending],
+        apply: flag(r[:pending] == "false")
       }
     end,
-    reduce(fold_dns, [], filter((r) -> not unsafe_value?(get(r, :value)), rows))
+    reduce(fold_dns, [], filter((r) -> not unsafe_value?(r[:value]), rows))
   )
 end
 
@@ -659,10 +654,10 @@ def zone_rows(ds)
   map(
     fn(d)
       {
-        key: zone_key(get(d, :name)),
-        name: get(d, :name),
-        role: to_s(get(d, :role)),
-        dns_host: to_s(get(d, :dns_host))
+        key: zone_key(d[:name]),
+        name: d[:name],
+        role: to_s(d[:role]),
+        dns_host: to_s(d[:dns_host])
       }
     end,
     ds
@@ -679,46 +674,41 @@ def alias_rows(ds, ss)
     fn(s)
       map(
         fn(h)
-          {
-            slug: host_slug(h),
-            site: get(s, :name),
-            host: h,
-            zone: zone_for(ds, h)
-          }
+          {slug: host_slug(h), site: s[:name], host: h, zone: zone_for(ds, h)}
         end,
-        get(s, :hosts)
+        s[:hosts]
       )
     end
   )
 end
 
 def service?(s)
-  get(s, :kind) == :service
+  s[:kind] == :service
 end
 
 def edge_site_rows(ss)
   map(
     fn(s)
       {
-        site: get(s, :name),
-        origin_host: get(s, :origin_host),
-        origin_path: get(s, :path_prefix) or "",
-        hosts: join(get(s, :hosts), ","),
+        site: s[:name],
+        origin_host: s[:origin_host],
+        origin_path: s[:path_prefix] or "",
+        hosts: join(s[:hosts], ","),
         validation_fqdns: join(
           map(
             (h) -> "aws_route53_record.#{host_slug(h)}-validation.fqdn",
-            get(s, :hosts)
+            s[:hosts]
           ),
           ","
         ),
-        gate: to_s(get(s, :gate)),
-        kind: to_s(get(s, :kind)),
+        gate: to_s(s[:gate]),
+        kind: to_s(s[:kind]),
         cache: if_ok(service?(s), "disabled", "optimized"),
         all_methods: flag(service?(s)),
         origin_request: if_ok(service?(s), "all_viewer_except_host", "none"),
-        flake: get(s, :flake) or "",
-        port: to_s(get(s, :port) or ""),
-        health_path: get(s, :health_path) or ""
+        flake: s[:flake] or "",
+        port: to_s(s[:port] or ""),
+        health_path: s[:health_path] or ""
       }
     end,
     ss
@@ -726,12 +716,12 @@ def edge_site_rows(ss)
 end
 
 def repo_row(r)
-  public = get(r, :visibility) == :public
+  public = r[:visibility] == :public
   {
-    name: get(r, :name),
-    slug: repo_slug(get(r, :name)),
-    description: get(r, :description) or "",
-    visibility: to_s(get(r, :visibility)),
+    name: r[:name],
+    slug: repo_slug(r[:name]),
+    description: r[:description] or "",
+    visibility: to_s(r[:visibility]),
     archived: "false",
     default_branch: "main",
     has_issues: "true",
@@ -751,20 +741,15 @@ def repo_row(r)
 end
 
 def team_rows(ts)
-  map(
-    fn(t)
-      {slug: team_slug(get(t, :name)), name: get(t, :name), privacy: "closed"}
-    end,
-    ts
-  )
+  map((t) -> {slug: team_slug(t[:name]), name: t[:name], privacy: "closed"}, ts)
 end
 
 def permission_name(p)
-  nth(1, first(filter((e) -> first(e) == p, permissions)))
+  first(filter((e) -> first(e) == p, permissions))[1]
 end
 
 def grant_rows(rs, ts)
-  names = map((r) -> get(r, :name), rs)
+  names = map((r) -> r[:name], rs)
   flat_map(
     ts,
     fn(t)
@@ -776,11 +761,11 @@ def grant_rows(rs, ts)
       map(
         fn(n)
           {
-            key: "#{team_slug(get(t, :name))}__#{repo_slug(n)}",
-            team_slug: team_slug(get(t, :name)),
+            key: "#{team_slug(t[:name])}__#{repo_slug(n)}",
+            team_slug: team_slug(t[:name]),
             repo_slug: repo_slug(n),
             repo_name: n,
-            permission: permission_name(get(t, :permission))
+            permission: permission_name(t[:permission])
           }
         end,
         targets
@@ -792,16 +777,16 @@ end
 def variables(a)
   x = judge(a).accepted
   {
-    company: get(x, :company) or "",
-    owner: get(x, :github_org) or "",
-    repo_count: to_s(size(get(x, :repos))),
-    zones: zone_rows(get(x, :domains)),
-    dns_records: dns_projection(mail_rows(get(x, :mail))),
-    edge_aliases: alias_rows(get(x, :domains), get(x, :sites)),
-    edge_sites: edge_site_rows(get(x, :sites)),
-    repos: map(repo_row, get(x, :repos)),
-    teams: team_rows(get(x, :teams)),
-    team_repo_grants: grant_rows(get(x, :repos), get(x, :teams))
+    company: x[:company] or "",
+    owner: x[:github_org] or "",
+    repo_count: to_s(size(x[:repos])),
+    zones: zone_rows(x[:domains]),
+    dns_records: dns_projection(mail_rows(x[:mail])),
+    edge_aliases: alias_rows(x[:domains], x[:sites]),
+    edge_sites: edge_site_rows(x[:sites]),
+    repos: map(repo_row, x[:repos]),
+    teams: team_rows(x[:teams]),
+    team_repo_grants: grant_rows(x[:repos], x[:teams])
   }
 end
 
@@ -824,7 +809,7 @@ end
 def mail_steps(m, rows)
   if m.nil?
     []
-  elsif get(m, :provider) == :undecided
+  elsif m[:provider] == :undecided
     [
       step(
         "3",
@@ -838,17 +823,17 @@ def mail_steps(m, rows)
         fn(r)
           step(
             "3",
-            "#{get(m, :provider)} console",
-            "Replace #{get(r, :value)} in the #{get(r, :type)} row #{get(r, :name)} with the value the provider shows for #{get(m, :domain)}"
+            "#{m[:provider]} console",
+            "Replace #{r[:value]} in the #{r[:type]} row #{r[:name]} with the value the provider shows for #{m[:domain]}"
           )
         end,
-        filter((r) -> get(r, :pending) == "true", rows)
+        filter((r) -> r[:pending] == "true", rows)
       ),
       [
         step(
           "3a",
-          "#{get(m, :provider)} console",
-          "Create the mailboxes of #{get(m, :domain)}"
+          "#{m[:provider]} console",
+          "Create the mailboxes of #{m[:domain]}"
         )
       ]
     )
@@ -871,7 +856,7 @@ end
 
 def manual_steps(a)
   x = judge(a).accepted
-  names = domain_names(get(x, :domains))
+  names = domain_names(x[:domains])
   append(
     map((n) -> step("1", registrar(n), "Register #{n}"), names),
     map(
@@ -884,19 +869,19 @@ def manual_steps(a)
       end,
       names
     ),
-    mail_steps(get(x, :mail), mail_rows(get(x, :mail))),
-    github_steps(get(x, :github_org))
+    mail_steps(x[:mail], mail_rows(x[:mail])),
+    github_steps(x[:github_org])
   )
 end
 
 def manual_md(a)
   x = judge(a).accepted
   rows = map(
-    (s) -> "| #{get(s, :step)} | #{get(s, :where)} | #{get(s, :what)} |",
+    (s) -> "| #{s[:step]} | #{s[:where]} | #{s[:what]} |",
     manual_steps(a)
   )
   head = [
-    "# Manual steps: #{get(x, :company) or "company"}",
+    "# Manual steps: #{x[:company] or "company"}",
     "",
     "Generated by the empresa bidama from the declaration. Do not edit by hand.",
     "",
@@ -907,7 +892,7 @@ def manual_md(a)
 end
 
 def refused_md(a)
-  rows = map((r) -> "| #{first(r)} | #{nth(1, r)} |", judge(a).refused)
+  rows = map((r) -> "| #{first(r)} | #{r[1]} |", judge(a).refused)
   head = ["| Refused | Why |", "|---|---|"]
   unlines([join(append(head, rows), line_break)])
 end
@@ -990,7 +975,7 @@ test "a static site projects an optimized cache and a service a disabled one"
   assert web.origin_request == "none"
   assert web.flake == ""
   assert web.port == ""
-  svc = nth(1, rows)
+  svc = rows[1]
   assert svc.kind == "service"
   assert svc.cache == "disabled"
   assert svc.all_methods == "true"
@@ -1071,7 +1056,7 @@ test "edge rows carry the comma-joined hosts, a host slug and the zone name"
 end
 
 def all_strings?(rows)
-  every((r) -> every((e) -> string?(nth(1, e)), map_entries(r)), rows)
+  every((r) -> every((e) -> string?(e[1]), map_entries(r)), rows)
 end
 
 test "every projected field is a string, numeric-looking ones included"
@@ -1093,7 +1078,7 @@ test "every projected field is a string, numeric-looking ones included"
     "/healthz"
   )
   w = variables({company: "acme", domains: one_domain, sites: [api]})
-  assert nth(0, w.edge_sites).port == "8081"
+  assert w.edge_sites[0].port == "8081"
   assert first(v.dns_records).ttl == "3600"
   j = json_read(variables_json(example))
   assert string?(first(j.dns_records).ttl)
@@ -1145,7 +1130,7 @@ test "two domains, one site and a google preset give counted rows"
   assert size(manual_steps(example)) == 8
   assert size(distinct(map((r) -> r.slug, v.dns_records))) == 5
   assert first(v.edge_sites).origin_path == "/acme"
-  assert nth(1, v.zones).key == "acme-labs_example"
+  assert v.zones[1].key == "acme-labs_example"
 end
 
 test "email rows are expanded from the preset with documented values only"
@@ -1159,10 +1144,10 @@ test "email rows are expanded from the preset with documented values only"
   assert dmarc.values == "v=DMARC1; p=none; rua=mailto:dmarc@acme.example"
   assert map((r) -> r.pending, rows) ==
     ["false", "false", "true", "true", "false"]
-  assert nth(1, rows).values == "v=spf1 include:_spf.google.com ~all"
-  assert nth(2, rows).name == "google._domainkey.acme.example"
-  assert nth(2, rows).values == "PENDING-google-dkim"
-  assert nth(3, rows).values == "PENDING-google-verification"
+  assert rows[1].values == "v=spf1 include:_spf.google.com ~all"
+  assert rows[2].name == "google._domainkey.acme.example"
+  assert rows[2].values == "PENDING-google-dkim"
+  assert rows[3].values == "PENDING-google-verification"
 end
 
 test "a control: another preset changes the rows, undecided removes them"
@@ -1176,7 +1161,7 @@ test "a control: another preset changes the rows, undecided removes them"
     assoc(example, :mail, {provider: :fastmail, domain: "acme.example"})
   ).dns_records
   assert size(fast) == 6
-  assert nth(2, fast).values == "fm1.acme.example.dkim.fmhosted.com."
+  assert fast[2].values == "fm1.acme.example.dkim.fmhosted.com."
   assert filter((r) -> r.pending == "true", fast) == []
   none = assoc(example, :mail, {provider: :undecided})
   assert variables(none).dns_records == []
@@ -1189,7 +1174,7 @@ test "manual steps follow the order table and name each pending value"
   s = manual_steps(example)
   assert map((x) -> x.step, s) == ["1", "1", "2a", "2a", "3", "3", "3a", "4"]
   assert first(s).what == "Register acme.example"
-  assert nth(4, s).what ==
+  assert s[4].what ==
     "Replace PENDING-google-dkim in the TXT row google._domainkey.acme.example with the value the provider shows for acme.example"
   assert size(split(manual_md(example), line_break)) == 6 + 8 + 1
   assert registrar("x.com.br") == "Registro.br"
@@ -1314,7 +1299,7 @@ test "repo rows carry the full github-org-repos field set as strings"
   assert size(map_entries(r)) == 19
   assert r.slug == "audit_action"
   assert r.has_branch_protection == "true"
-  assert nth(1, rs).has_branch_protection == "false"
+  assert rs[1].has_branch_protection == "false"
   assert r.exists_on_github == "false"
 end
 
@@ -1335,7 +1320,7 @@ test "a bad or duplicate team is refused alone and an unknown repo falls only it
   assert kinds(j.refused) ==
     [:bad_team, :bad_team, :duplicate_team, :unknown_repo]
   assert map((t) -> t.name, j.accepted.teams) == ["core", "field"]
-  assert nth(1, j.accepted.teams).repos == ["audit-action"]
+  assert j.accepted.teams[1].repos == ["audit-action"]
 end
 
 test "grants map permissions to the provider's names"
@@ -1376,8 +1361,8 @@ test "values on one zone, name and type become one row, in order"
   assert map((r) -> r.slug, rows) ==
     ["acme_example__spf", "acme_example__www", "acme_example__mx1"]
   assert first(rows).values == "v=spf1 -all|site-verification=abc"
-  assert nth(1, rows).values == "192.0.2.1"
-  assert nth(2, rows).values == "10 a.example.|20 b.example."
+  assert rows[1].values == "192.0.2.1"
+  assert rows[2].values == "10 a.example.|20 b.example."
   assert every(string?, map((r) -> r.values, rows))
 end
 

@@ -128,28 +128,28 @@ end
 
 # Each package's verdict: off, green, red or blind, with the reason.
 def verdict(settled, rows, m)
-  pkg = get(m, :package)
-  if get(m, :blind)
+  pkg = m[:package]
+  if m[:blind]
     b = beside(settled, pkg, [])
-    if get(b, :level) == :off
+    if b[:level] == :off
       assoc(b, :verdict, :off)
-    elsif get(b, :level) == :enforce
+    elsif b[:level] == :enforce
       assoc(assoc(b, :verdict, :red), :why, "its tests did not run green")
     else
       assoc(assoc(b, :verdict, :blind), :why, "its tests did not run green")
     end
   else
-    b = beside(settled, pkg, get(m, :names))
-    n = size(get(b, :untested))
-    j = get(judge(rows, "untested", pkg, n), :verdict)
+    b = beside(settled, pkg, m[:names])
+    n = size(b[:untested])
+    j = judge(rows, "untested", pkg, n)[:verdict]
     grew = j == :grew or j == :unrecorded and n > 0
-    if get(b, :level) == :off
+    if b[:level] == :off
       assoc(b, :verdict, :off)
-    elsif grew and get(b, :level) == :enforce
+    elsif grew and b[:level] == :enforce
       assoc(
         assoc(b, :verdict, :red),
         :why,
-        "#{to_s(n)} untested beyond the recorded debt: #{join(get(b, :untested), ", ")}"
+        "#{to_s(n)} untested beyond the recorded debt: #{join(b[:untested], ", ")}"
       )
     else
       assoc(b, :verdict, :green)
@@ -164,48 +164,39 @@ def judge_all(entries, baseline, measured, day)
   settled = settle(entries, day)
   rows = parse(baseline)
   verdicts = map((m) -> verdict(settled, rows, m), measured)
-  every_name = flat_map(measured, (m) -> get(m, :names) or [])
+  every_name = flat_map(measured, (m) -> m[:names] or [])
   {
     verdicts:,
-    refused: get(settled, :refused),
+    refused: settled[:refused],
     stale: stale(settled, every_name),
-    red: filter((v) -> get(v, :verdict) == :red, verdicts),
+    red: filter((v) -> v[:verdict] == :red, verdicts),
     measurements: map(
-      (v) -> {key: get(v, :package), size: size(get(v, :untested))},
-      filter((v) -> get(v, :verdict) != :off, verdicts)
+      (v) -> {key: v[:package], size: size(v[:untested])},
+      filter((v) -> v[:verdict] != :off, verdicts)
     )
   }
 end
 
 def red?(r)
-  get(r, :red) != [] or get(r, :refused) != [] or get(r, :stale) != []
+  r[:red] != [] or r[:refused] != [] or r[:stale] != []
 end
 
 def report(r, baseline)
   lines = concat_lists(
     concat_lists(
-      map((v) -> "❌ #{get(v, :package)}: #{get(v, :why)}", get(r, :red)),
-      map(
-        (x) -> "❌ entry #{to_s(get(x, :entry))} #{get(x, :why)}",
-        get(r, :refused)
-      )
+      map((v) -> "❌ #{v[:package]}: #{v[:why]}", r[:red]),
+      map((x) -> "❌ entry #{to_s(x[:entry])} #{x[:why]}", r[:refused])
     ),
-    map(
-      (w) -> "❌ waiver #{get(w, :name)} covers nothing; remove it",
-      get(r, :stale)
-    )
+    map((w) -> "❌ waiver #{w[:name]} covers nothing; remove it", r[:stale])
   )
-  down = shrunk(parse(baseline), "untested", get(r, :measurements))
+  down = shrunk(parse(baseline), "untested", r[:measurements])
   hint = if down == []
     ""
   else
     join_lines(
       [
         "debt shrank; record it in gen/test-beside.b:",
-        render(
-          "untested",
-          filter((m) -> get(m, :size) > 0, get(r, :measurements))
-        )
+        render("untested", filter((m) -> m[:size] > 0, r[:measurements]))
       ]
     )
   end
@@ -258,7 +249,7 @@ end
 test "an untested definition with no recorded debt is red, and its test beside it turns it green"
   red = zed_judged(entries, "", lower_only)
   assert red?(red)
-  assert map((v) -> get(v, :why), get(red, :red)) ==
+  assert map((v) -> v[:why], red[:red]) ==
     ["1 untested beyond the recorded debt: zed::upper"]
   assert not red?(zed_judged(entries, "", both))
 end
@@ -270,7 +261,7 @@ test "recorded debt holds, and growth past it is red"
     unlines(["untested: zed 1"]),
     unlines(["test \"none\"", "  assert 1 == 1", "end"])
   )
-  assert map((v) -> get(v, :why), get(grew, :red)) ==
+  assert map((v) -> v[:why], grew[:red]) ==
     ["2 untested beyond the recorded debt: zed::lower, zed::upper"]
 end
 
@@ -282,25 +273,24 @@ test "a waiver with a why and a date covers its definition; without a why it is 
     "",
     lower_only
   )
-  assert size(get(bad, :refused)) == 1
-  assert size(get(bad, :red)) == 1
+  assert size(bad[:refused]) == 1
+  assert size(bad[:red]) == 1
 end
 
 test "a waiver that covers nothing is stale and red"
   w = [waive("zed::gone", "removed long ago", "2026-12-31")]
   r = zed_judged(concat_lists(entries, w), "", both)
-  assert map((x) -> get(x, :name), get(r, :stale)) == ["zed::gone"]
+  assert map((x) -> x[:name], r[:stale]) == ["zed::gone"]
   assert red?(r)
 end
 
 test "audit lists the gap without red, and off measures nothing"
   audit = zed_judged([level("*", :audit, "a trial")], "", lower_only)
   assert not red?(audit)
-  assert map((v) -> get(v, :untested), get(audit, :verdicts)) ==
-    [["zed::upper"]]
+  assert map((v) -> v[:untested], audit[:verdicts]) == [["zed::upper"]]
   off = zed_judged([level("zed", :off, "the fixture is off")], "", "")
   assert not red?(off)
-  assert get(off, :measurements) == []
+  assert off[:measurements] == []
 end
 
 test "a package whose tests fail is blind, never green"
@@ -309,8 +299,7 @@ test "a package whose tests fail is blind, never green"
     "",
     unlines(["test \"no\"", "  assert lower(\"A\") == \"B\"", "end"])
   )
-  assert map((v) -> get(v, :why), get(r, :red)) ==
-    ["its tests did not run green"]
+  assert map((v) -> v[:why], r[:red]) == ["its tests did not run green"]
 end
 
 test "every bidama is tested beside its definitions, beyond the debt recorded"
@@ -323,6 +312,6 @@ test "every bidama is tested beside its definitions, beyond the debt recorded"
   if red?(r)
     write_stderr(report(r, recorded))
   end
-  assert size(get(r, :verdicts)) > 50
+  assert size(r[:verdicts]) > 50
   assert not red?(r)
 end

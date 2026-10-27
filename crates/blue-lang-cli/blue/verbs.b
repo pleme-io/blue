@@ -30,11 +30,11 @@ def baseline_name()
 end
 
 def flag_value(args, flag)
-  at = filter((i) -> nth(i, args) == flag, range(length(args)))
+  at = filter((i) -> args[i] == flag, range(length(args)))
   if is_empty(at) or first(at) + 1 >= length(args)
     nil
   else
-    nth(first(at) + 1, args)
+    args[first(at) + 1]
   end
 end
 
@@ -54,20 +54,18 @@ def positional(args)
   value_flags = ["--dir", "--out", "--tsv", "--baseline"]
   keep = filter(
     fn(i)
-      a = nth(i, args)
+      a = args[i]
       not starts_with?(a, "--") and
-        (i == 0 or not member?(nth(i - 1, args), value_flags))
+        (i == 0 or not member?(args[i - 1], value_flags))
     end,
     range(length(args))
   )
-  map((i) -> nth(i, args), keep)
+  map((i) -> args[i], keep)
 end
 
 def show_refusals(refusals)
   map(
-    fn(r)
-      write_stderr(unlines(["blue verbs: #{to_s(first(r))}: #{nth(1, r)}"]))
-    end,
+    (r) -> write_stderr(unlines(["blue verbs: #{to_s(first(r))}: #{r[1]}"])),
     refusals
   )
   nil
@@ -80,7 +78,7 @@ def table_kind(text)
     :verbs
   elsif first(cols) == "from"
     :edges
-  elsif first(cols) == "verb" and nth(1, cols) == "subject"
+  elsif first(cols) == "verb" and cols[1] == "subject"
     :vocab
   end
 end
@@ -102,7 +100,7 @@ def merged_tables(texts)
 end
 
 def of_kind(tables, kind)
-  map((t) -> nth(1, t), filter((t) -> first(t) == kind, tables))
+  map((t) -> t[1], filter((t) -> first(t) == kind, tables))
 end
 
 def single(texts)
@@ -128,15 +126,12 @@ def do_import(args)
     raise(:usage, "usage: blue verbs import [--dir DIR] TSV...")
   end
   tables = map((p) -> [table_kind(read_file(p)), read_file(p)], files)
-  unknown = filter((i) -> first(nth(i, tables)).nil?, range(length(tables)))
+  unknown = filter((i) -> first(tables[i]).nil?, range(length(tables)))
   if not is_empty(unknown)
     show_refusals(
       map(
         fn(i)
-          [
-            :tsv_header,
-            "#{nth(i, files)} is no verbs, edges or contracts table"
-          ]
+          [:tsv_header, "#{files[i]} is no verbs, edges or contracts table"]
         end,
         unknown
       )
@@ -166,7 +161,7 @@ def do_import(args)
       written = map(
         fn(w)
           path = path_join(dir, first(w))
-          write_file(path, nth(1, w))
+          write_file(path, w[1])
           path
         end,
         graph_writes(g)
@@ -175,7 +170,7 @@ def do_import(args)
       write_stdout(
         unlines(
           [
-            "imported #{to_s(size(get(g, :verbs)))} verbs, #{to_s(size(get(g, :edges)))} edges and #{to_s(size(get(g, :vocab)))} vocab rows into #{to_s(size(written))} files in #{dir}"
+            "imported #{to_s(size(g[:verbs]))} verbs, #{to_s(size(g[:edges]))} edges and #{to_s(size(g[:vocab]))} vocab rows into #{to_s(size(written))} files in #{dir}"
           ]
         )
       )
@@ -191,8 +186,8 @@ def do_export(args)
     raise(:usage, "usage: blue verbs export [--dir DIR] --out DIR")
   end
   g = graph_load(dir)
-  if not is_empty(get(g, :refusals))
-    show_refusals(get(g, :refusals))
+  if not is_empty(g[:refusals])
+    show_refusals(g[:refusals])
     false
   else
     mkdir_p(out)
@@ -202,7 +197,7 @@ def do_export(args)
     write_stdout(
       unlines(
         [
-          "exported #{to_s(size(get(g, :verbs)))} verbs, #{to_s(size(get(g, :edges)))} edges and #{to_s(size(get(g, :vocab)))} vocab rows to #{out}"
+          "exported #{to_s(size(g[:verbs]))} verbs, #{to_s(size(g[:edges]))} edges and #{to_s(size(g[:vocab]))} vocab rows to #{out}"
         ]
       )
     )
@@ -211,7 +206,7 @@ def do_export(args)
 end
 
 def finding_line(f)
-  unlines(["#{get(f, :kind)}\t#{get(f, :subject)}"])
+  unlines(["#{f[:kind]}\t#{f[:subject]}"])
 end
 
 def do_findings(args)
@@ -224,8 +219,8 @@ def do_findings(args)
     read_file(path_join(tsv, "edges.tsv")),
     read_file(path_join(tsv, "contracts.tsv"))
   )
-  if not is_empty(get(g, :refusals))
-    show_refusals(get(g, :refusals))
+  if not is_empty(g[:refusals])
+    show_refusals(g[:refusals])
     false
   else
     write_stdout(join(map(finding_line, graph_findings(g)), ""))
@@ -236,8 +231,8 @@ end
 def do_untested(args)
   dir = or_else(flag_value(args, "--dir"), graph_dir_default)
   g = graph_load(dir)
-  if not is_empty(get(g, :refusals))
-    show_refusals(get(g, :refusals))
+  if not is_empty(g[:refusals])
+    show_refusals(g[:refusals])
     false
   else
     write_stdout(
@@ -265,8 +260,8 @@ def do_check(args)
     path_join(dir, baseline_name)
   )
   g = graph_load(dir)
-  if not is_empty(get(g, :refusals))
-    show_refusals(get(g, :refusals))
+  if not is_empty(g[:refusals])
+    show_refusals(g[:refusals])
     false
   else
     findings = graph_findings_live(g, self_exe)
@@ -287,7 +282,7 @@ def do_check(args)
       write_stdout(
         unlines(
           [
-            "#{to_s(size(get(g, :verbs)))} verbs, #{to_s(size(get(g, :edges)))} edges, #{to_s(size(get(g, :vocab)))} vocab rows; #{to_s(size(findings))} findings against the baseline"
+            "#{to_s(size(g[:verbs]))} verbs, #{to_s(size(g[:edges]))} edges, #{to_s(size(g[:vocab]))} vocab rows; #{to_s(size(findings))} findings against the baseline"
           ]
         )
       )

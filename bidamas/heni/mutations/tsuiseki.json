@@ -20,8 +20,8 @@
   {
     "name": "trace shared",
     "file": "tsuiseki.b",
-    "find": "    get(parent, :trace_id)",
-    "replace": "    take_chars(blake3_hex(name), 32)"
+    "find": "    parent[:trace_id]\n",
+    "replace": "    take_chars(blake3_hex(name), 32)\n"
   },
   {
     "name": "trace length",
@@ -38,8 +38,8 @@
   {
     "name": "parent id",
     "file": "tsuiseki.b",
-    "find": "    get(parent, :id)\n",
-    "replace": "    get(parent, :trace_id)\n"
+    "find": "    parent[:id]\n",
+    "replace": "    parent[:trace_id]\n"
   },
   {
     "name": "parent shape id",
@@ -80,8 +80,8 @@
   {
     "name": "duration",
     "file": "tsuiseki.b",
-    "find": "{duration_ns: elapsed_since(get(s, :started_ns))}",
-    "replace": "{duration_ns: -1}"
+    "find": "  base = merge(s, {duration_ns: elapsed_since(s[:started_ns])})\n",
+    "replace": "  base = merge(s, {duration_ns: -1})\n"
   },
   {
     "name": "sink used",
@@ -122,8 +122,8 @@
   {
     "name": "returns value",
     "file": "tsuiseki.b",
-    "find": "  nth(1, outcome)\nend",
-    "replace": "  nil\nend"
+    "find": "  end\n  outcome[1]\n",
+    "replace": "  end\n  nil\n"
   },
   {
     "name": "validate before run",

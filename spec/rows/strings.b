@@ -212,4 +212,4 @@ row(
 )
 
 row("strings.multibyte", "chars(\"日本\")", value("[\"日\", \"本\"]"))
-row("strings.no_index", "y = \"ab\"[0]", fails(:parse, "indexing"))
+row("strings.no_index", "y = \"ab\"[0]", fails(:check, "B0062"))

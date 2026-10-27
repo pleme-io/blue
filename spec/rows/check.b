@@ -330,7 +330,7 @@ row(
       "card = danpen::fragment(:user_card, {on: \"User\", fields: [:id, :name]})",
       "",
       "def user_card(user: UserCard)",
-      "  [user.id, get(user, :name), user.__typename]",
+      "  [user.id, user[:name], user.__typename]",
       "end"
     ]
   ),
@@ -519,7 +519,7 @@ row(
   join_lines(
     [
       "def prepared(opts)",
-      "  get(opts, :vars)",
+      "  opts[:vars]",
       "end",
       "",
       "prepared({variables: 1})"
@@ -539,7 +539,7 @@ row(
       "",
       "def prepared(opts)",
       "  opts = checked(opts, [:vars])",
-      "  [get(opts, :vars), opts.b]",
+      "  [opts[:vars], opts.b]",
       "end"
     ]
   ),
@@ -549,13 +549,7 @@ row(
 row(
   "safety.B0061.read_key",
   join_lines(
-    [
-      "def prepared(opts)",
-      "  get(opts, :vars)",
-      "end",
-      "",
-      "prepared({vars: 1})"
-    ]
+    ["def prepared(opts)", "  opts[:vars]", "end", "", "prepared({vars: 1})"]
   ),
   diagnoses([])
 )
@@ -565,7 +559,7 @@ row(
   join_lines(
     [
       "def kind_of(schema)",
-      "  get(schema, :kind)",
+      "  schema[:kind]",
       "end",
       "",
       "kind_of(\"type Query { a: Int }\")"
@@ -581,7 +575,7 @@ row(
     [
       "def kind_of(schema)",
       "  if map?(schema)",
-      "    get(schema, :kind)",
+      "    schema[:kind]",
       "  end",
       "end",
       "",

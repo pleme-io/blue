@@ -28,7 +28,14 @@ row(
 )
 
 row("lists.nil.length_raises", "length(nil)", fails(:eval, "got nil"))
-row("lists.no_indexing", "y = xs[0]", fails(:parse, "`nth(0, xs)`"))
+
+row(
+  "lists.index",
+  join_lines(["xs = [1, 2]", "[xs[0], xs[5], xs[-1]]"]),
+  value("[1, nil, nil]")
+)
+
+row("lists.index.spaced", "y = xs [0]", fails(:parse, "`xs[0]`"))
 
 row(
   "lists.append",

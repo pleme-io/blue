@@ -27,6 +27,21 @@ def waivers()
       "koutei::fail",
       "it ends the process with exit_with(1); the blue actions in pleme-io/actions run it on every failing step",
       "2027-01-31"
+    ),
+    waive(
+      "hikisuu::command",
+      "it reads the process's argv and may end it with exit_with(64); hikisuu::run_with is its body, tested with sinks, until the Terminal capability (docs/CLI-TUI.md section 7) lets a test hand it a line",
+      "2027-04-30"
+    ),
+    waive(
+      "heni::main",
+      "it reads the process's argv and may end it with exit_with(64); hikisuu::run_with is its body, tested with sinks, until the Terminal capability (docs/CLI-TUI.md section 7) lets a test hand it a line",
+      "2027-04-30"
+    ),
+    waive(
+      "souji::main",
+      "it reads the process's argv and may end it with exit_with(64); hikisuu::run_with is its body, tested with sinks, until the Terminal capability (docs/CLI-TUI.md section 7) lets a test hand it a line",
+      "2027-04-30"
     )
   ]
 end
@@ -72,7 +87,7 @@ def recorded()
       "untested: settei 5",
       "untested: shinchoku 14",
       "untested: shinsuu 1",
-      "untested: souji 5",
+      "untested: souji 2",
       "untested: teeburu 3",
       "untested: tehai 1",
       "untested: touroku 3",

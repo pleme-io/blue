@@ -280,6 +280,26 @@ test "arguments: commands, flags, roots, and refusals"
   assert kind_of(["nix", "--older-than-days", "-1"]) == :usage
 end
 
+test "the rust report: one line per target, kept when active, then the total"
+  r = {
+    rows: [
+      {path: "/a/target", kib: 2_097_152, active: false},
+      {path: "/b/target", kib: 0, active: true}
+    ],
+    removed: [{path: "/a/target"}],
+    kib: 2_097_152
+  }
+  assert rust_report(r, true) ==
+    join_lines(
+      [
+        "  would remove  2 GiB  /a/target",
+        "  kept (active)  0 GiB  /b/target",
+        "rust: would remove 1 of 2 target/ dirs, 2 GiB"
+      ]
+    )
+  assert contains?(rust_report(r, false), "rust: removed 1 of 2") == true
+end
+
 test "the nix command line: generations older than N days, dry-run passed through"
   assert nix_argv({older_than_days: 7, dry_run: true}) ==
     ["nix-collect-garbage", "--delete-older-than", "7d", "--dry-run"]

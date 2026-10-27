@@ -402,10 +402,11 @@ pub const NAMES: &[NameDoc] = names! {
     Clock: "sleep_ms" "sleep_ms(ms)" "Pause for milliseconds.";
     // ── network ───────────────────────────────────────────────────────────
     Network: "nats_connect" "nats_connect(url[, timeout_ms])" "A NATS connection to nats://[user:pass@|token@]host[:port] (port 4222), confirmed by a PING before it returns. Plain TCP: a server requiring TLS is refused. Raises when it cannot connect.";
-    Network: "nats_publish" "nats_publish(conn, subject, payload)" "Publish a string to one subject (no wildcards); nil. Also answers the server's pings, so a publish-only loop stays connected.";
+    Network: "nats_publish" "nats_publish(conn, subject, payload[, reply])" "Publish a string to one subject (no wildcards); nil. With reply, the receiver answers there (a JetStream pull names its inbox this way). Also answers the server's pings, so a publish-only loop stays connected.";
+    Network: "nats_inbox" "nats_inbox(conn)" "A fresh reply subject unique to this connection, for nats_subscribe and the reply of nats_publish.";
     Network: "nats_request" "nats_request(conn, subject, payload, timeout_ms)" "Publish and wait for one reply; the reply's payload as a string. Raises on timeout and when no one is subscribed (no responders).";
     Network: "nats_subscribe" "nats_subscribe(conn, subject[, queue])" "A subscription to a subject, wildcards * and > allowed; with a queue group, one member of the group gets each message. Read it with nats_next_message.";
-    Network: "nats_next_message" "nats_next_message(sub, timeout_ms)" "{subject:, payload:, reply:} for the next message, waiting at most timeout_ms (0 only checks); nil when none came. reply is nil unless the sender wants an answer: publish to it.";
+    Network: "nats_next_message" "nats_next_message(sub, timeout_ms)" "{subject:, payload:, status:, headers:, reply:} for the next message, waiting at most timeout_ms (0 only checks); nil when none came. status is the header block's code (JetStream's 404 and 408) or nil, headers its text or nil. reply is nil unless the sender wants an answer: publish to it.";
     Network: "nats_unsubscribe" "nats_unsubscribe(sub)" "Stop a subscription; messages already queued for it are dropped. nil.";
     Network: "nats_close" "nats_close(conn)" "Close the connection; every later call on it raises. nil.";
     Network: "http_request" "http_request(method, url, headers, body, timeout_ms)" "One HTTP/1.1 request to an http:// url (https is refused): {status:, headers:, body:}, headers as lower-case [name, value] pairs. headers is nil, a map or [[name, value], …]; body is nil or a string. Any status is an answer; only a failed exchange raises.";

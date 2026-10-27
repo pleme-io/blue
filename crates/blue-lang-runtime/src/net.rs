@@ -6,7 +6,8 @@
 //!
 //! ```text
 //! nats_connect(url[, timeout_ms])             → connection
-//! nats_publish(conn, subject, payload)        → nil
+//! nats_publish(conn, subject, payload[, reply]) → nil
+//! nats_inbox(conn)                            → a fresh reply subject
 //! nats_request(conn, subject, payload, ms)    → the reply's payload
 //! nats_subscribe(conn, subject[, queue])      → subscription
 //! nats_next_message(sub, ms)                  → {subject:, payload:, reply:} or nil
@@ -339,13 +340,17 @@ fn install_nats<H: 'static>(interp: &mut Interpreter<H>) {
 
     interp.register_fn(
         "nats_publish",
-        Arity::Exact(3),
+        Arity::Range(3, 4),
         |args: &[Value], _h: &mut H, span| {
             let conn = connection(&args[0], "nats_publish", span)?;
             let subject = arg_str(&args[1], "nats_publish", span)?;
             let payload = arg_str(&args[2], "nats_publish", span)?;
+            let reply = match args.get(3) {
+                None | Some(Value::Nil) => None,
+                Some(v) => Some(arg_str(v, "nats_publish", span)?),
+            };
             with_client(&conn, "nats_publish", span, |c| {
-                c.publish(&subject, None, payload.as_bytes())
+                c.publish(&subject, reply.as_deref(), payload.as_bytes())
             })?;
             Ok(Value::Nil)
         },
@@ -393,15 +398,31 @@ fn install_nats<H: 'static>(interp: &mut Interpreter<H>) {
                 c.next_message(sub.sid, timeout)
             })?;
             Ok(next.map_or(Value::Nil, |m| {
+                let status = m.status();
                 record(vec![
                     ("subject", Value::Str(Arc::from(m.subject))),
                     ("payload", text(&m.payload)),
+                    (
+                        "status",
+                        status.map_or(Value::Nil, |n| Value::Int(i64::from(n))),
+                    ),
+                    ("headers", m.headers.as_deref().map_or(Value::Nil, text)),
                     (
                         "reply",
                         m.reply.map_or(Value::Nil, |r| Value::Str(Arc::from(r))),
                     ),
                 ])
             }))
+        },
+    );
+
+    interp.register_fn(
+        "nats_inbox",
+        Arity::Exact(1),
+        |args: &[Value], _h: &mut H, span| {
+            let conn = connection(&args[0], "nats_inbox", span)?;
+            let inbox = with_client(&conn, "nats_inbox", span, |c| Ok(c.new_inbox()))?;
+            Ok(Value::Str(Arc::from(inbox)))
         },
     );
 

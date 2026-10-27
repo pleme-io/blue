@@ -534,7 +534,8 @@
 
           # The network primitives against real peers: a nats-server child
           # and a std TCP listener (`blue-lang-runtime/tests/net.rs`), a
-          # PostgreSQL and a valkey-server (`tests/resp.rs`).
+          # PostgreSQL, a valkey-server (`tests/resp.rs`) and a JetStream
+          # nats-server with a PostgreSQL for the outbox (`tests/jetstream.rs`).
           # REQUIRE makes a missing nats-server red rather than a skip.
           network =
             (import "${substrate}/lib/build/rust/workspace-tests.nix" { inherit lib; }).mkWorkspaceTests pkgs {
@@ -545,6 +546,7 @@
                   { args = [ "-p" "blue-lang-runtime" "--features" "sys" "--test" "net" ]; }
                   { args = [ "-p" "blue-lang-runtime" "--features" "sys" "--test" "pg" ]; }
                   { args = [ "-p" "blue-lang-runtime" "--features" "sys" "--test" "resp" ]; }
+                  { args = [ "-p" "blue-lang-runtime" "--features" "sys" "--test" "jetstream" ]; }
                 ];
                 nativeBuildInputs = [ "nats-server" "postgresql" "valkey" ];
                 env = {

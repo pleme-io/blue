@@ -107,7 +107,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-302 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 185 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+303 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 185 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -420,8 +420,9 @@ Higher binding power binds tighter.
 | `http_respond` | `http_respond(request, status, headers, body)` | 4 | Answer a request from http_next_request once and close its connection; headers as for http_request, body nil or a string. A second answer raises. nil. |
 | `nats_close` | `nats_close(conn)` | 1 | Close the connection; every later call on it raises. nil. |
 | `nats_connect` | `nats_connect(url[, timeout_ms])` | 1..2 | A NATS connection to nats://[user:pass@\|token@]host[:port] (port 4222), confirmed by a PING before it returns. Plain TCP: a server requiring TLS is refused. Raises when it cannot connect. |
-| `nats_next_message` | `nats_next_message(sub, timeout_ms)` | 2 | {subject:, payload:, reply:} for the next message, waiting at most timeout_ms (0 only checks); nil when none came. reply is nil unless the sender wants an answer: publish to it. |
-| `nats_publish` | `nats_publish(conn, subject, payload)` | 3 | Publish a string to one subject (no wildcards); nil. Also answers the server's pings, so a publish-only loop stays connected. |
+| `nats_inbox` | `nats_inbox(conn)` | 1 | A fresh reply subject unique to this connection, for nats_subscribe and the reply of nats_publish. |
+| `nats_next_message` | `nats_next_message(sub, timeout_ms)` | 2 | {subject:, payload:, status:, headers:, reply:} for the next message, waiting at most timeout_ms (0 only checks); nil when none came. status is the header block's code (JetStream's 404 and 408) or nil, headers its text or nil. reply is nil unless the sender wants an answer: publish to it. |
+| `nats_publish` | `nats_publish(conn, subject, payload[, reply])` | 3..4 | Publish a string to one subject (no wildcards); nil. With reply, the receiver answers there (a JetStream pull names its inbox this way). Also answers the server's pings, so a publish-only loop stays connected. |
 | `nats_request` | `nats_request(conn, subject, payload, timeout_ms)` | 4 | Publish and wait for one reply; the reply's payload as a string. Raises on timeout and when no one is subscribed (no responders). |
 | `nats_subscribe` | `nats_subscribe(conn, subject[, queue])` | 2..3 | A subscription to a subject, wildcards * and > allowed; with a queue group, one member of the group gets each message. Read it with nats_next_message. |
 | `nats_unsubscribe` | `nats_unsubscribe(sub)` | 1 | Stop a subscription; messages already queued for it are dropped. nil. |

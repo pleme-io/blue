@@ -241,6 +241,7 @@ const NETWORK_NAMES: &[&str] = &[
     "nats_next_message",
     "nats_unsubscribe",
     "nats_close",
+    "nats_inbox",
     "http_request",
     "tcp_connect_ms",
     "http_listen",

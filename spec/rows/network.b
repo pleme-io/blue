@@ -194,3 +194,11 @@ row(
   covers("builtin:resp_close"),
   host()
 )
+
+row(
+  "network.nats_inbox.not_a_connection",
+  "nats_inbox(\"bus\")",
+  fails(:eval, "expected a NATS connection"),
+  covers("builtin:nats_inbox"),
+  host()
+)

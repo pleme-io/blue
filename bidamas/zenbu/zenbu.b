@@ -118,6 +118,7 @@ use("shomei", [:hash_message])
 use("shuugou")
 use("shuusei")
 use("souji")
+use("sutoriimu")
 use("tajuu")
 use("teeburu")
 use("tehai")
@@ -226,6 +227,7 @@ test "every bidama in the distribution answers through this one import"
     {data: {"hero" => {"id" => "2001"}}}
   assert touroku::visibility_of({}) == "private"
   assert kiibariu::versioned_key("o", "h", :order, 1) == "o:vh:order:1"
+  assert sutoriimu::api("s", "INFO") == "$JS.API.STREAM.INFO.s"
 end
 
 test "four packages compose without the consumer naming any of them"

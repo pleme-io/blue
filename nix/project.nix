@@ -41,7 +41,7 @@
 # | `needs(name, range)` | refused at evaluation when the distribution lacks `name` |
 # | `tool(name)` | the nixpkgs attribute, on PATH for the runner, runs, checks and apps |
 # | `run(name, file[, reads])` | `packages.<name>`: `blue run file` with `RUN_OUT=$out` and `RUN_READS/<read>` holding each read run's output |
-# | `check(name, file)` | `checks.<name>`: `blue test file` |
+# | `check(name, file[, inputs])` | `checks.<name>`: `blue test file`; `inputs` are the project paths the tests read, under `$GEN_ROOT` |
 # | `app(name, file)` | `apps.<name>`: `blue run file` from the caller's directory |
 # | `generate(name, output, program[, inputs])` | `packages.generated-<name>`, `checks.generated-<name>-fresh`; `inputs` are the project paths the program reads, under `$GEN_ROOT` |
 # | `catalog(path)` | `packages.bidama-catalog`, `checks.bidama-catalog-fresh` |
@@ -231,7 +231,7 @@ let
       # `./<path>` under `nix run .#regen`. Each path is its own store object,
       # so the generator rebuilds when a path it reads changes, and not when
       # anything else in the project does.
-      inputsRoot = g: ins: pkgs.runCommand "generated-${g}-inputs" { } (lib.concatMapStrings
+      inputsRoot = g: ins: pkgs.runCommand "${g}-inputs" { } (lib.concatMapStrings
         (d: ''
           mkdir -p "$out/${dirOf d}"
           ln -s ${builtins.path { path = src + "/${d}"; name = baseNameOf d; }} "$out/${d}"
@@ -243,7 +243,7 @@ let
           name = "generated-${g}";
           program = programFile spec.program;
         } // lib.optionalAttrs ((spec.inputs or [ ]) != [ ]) {
-          root = inputsRoot g spec.inputs;
+          root = inputsRoot "generated-${g}" spec.inputs;
         })))
         generated;
 
@@ -527,7 +527,8 @@ let
       };
 
       checkWords = lib.mapAttrs
-        (cn: c: bl.mkTestCheck (common // { name = cn; file = programFile c.file; }))
+        (cn: c: bl.mkTestCheck (common // { name = cn; file = programFile c.file; }
+          // lib.optionalAttrs ((c.inputs or [ ]) != [ ]) { root = inputsRoot "check-${cn}" c.inputs; }))
         m.checks;
 
       app = an: program: {

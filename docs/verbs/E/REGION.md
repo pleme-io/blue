@@ -1,3 +1,8 @@
+---
+kind: explanation
+summary: verb graph region E: build, ship and run
+---
+
 # Region E: build, ship and run (346 verbs, 567 edges, 29 spaces)
 
 Drew from: Cargo/npm/pip/Bundler (resolve, lock, audit), SemVer 2.0 and conventional commits, Bazel/Nix/Make (key, stale, hermetic), GitHub Actions/Buildkite (declare, matrix, gate), OCI Distribution + regctl/crane (resolve, copy, combine), SLSA/in-toto/SBOM (attest, provenance), Terraform/Pulumi (plan, apply, drift, import, state lock), kubectl/Argo Rollouts/Flagger (rollout, analyze, shift, abort), OpenFeature (flag evaluate), systemd/launchd, HPA/VPA and FinOps Foundation (cost, showback). Fleet owners cited only where a CLAUDE.md one-liner was read; `-` means none read.

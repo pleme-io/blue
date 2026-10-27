@@ -1,3 +1,8 @@
+---
+kind: explanation
+summary: every break blue's evolution causes ships its own fixer
+---
+
 # Compounding: every evolution break fixes itself
 
 The operator, 2026-10-23: *"the more we write blue, the easier it should be to

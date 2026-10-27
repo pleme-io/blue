@@ -1,3 +1,8 @@
+---
+kind: explanation
+summary: verb graph region C: communication and distributed systems
+---
+
 # Region C: communication and distributed systems
 Rows: 324 verbs in 15 spaces, 506 edges (1.56 per verb). Drawn from: Go (net/http, context, errgroup, x/time/rate, sony/gobreaker),
 Erlang/OTP (gen_server, supervisor, monitor/link), Elixir (Task, Registry, GenStage), Rust (tower, tonic, tokio),

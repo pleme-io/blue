@@ -68,8 +68,8 @@
   {
     "name": "status error",
     "file": "tsuiseki.b",
-    "find": "{status: :error, error:",
-    "replace": "{status: :ok, error:"
+    "find": "{status: :error, error: {kind: error.kind,",
+    "replace": "{status: :ok, error: {kind: error.kind,"
   },
   {
     "name": "error kind",

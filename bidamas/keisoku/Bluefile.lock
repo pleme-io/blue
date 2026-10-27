@@ -9,6 +9,7 @@
       "jisho": "^0.1.0",
       "moji": "^0.1.0",
       "retsu": "^0.1.0",
+      "rogu": "^0.1.0",
       "tesuto": "^0.1.0"
     },
     "when": "anytime",

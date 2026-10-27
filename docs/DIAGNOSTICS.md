@@ -1,3 +1,8 @@
+---
+kind: reference
+summary: what the check stage reports, every rule code, and the machine-readable shape of a diagnostic
+---
+
 # Diagnostics
 
 What blue's check stage reports, and the machine-readable shape of it.

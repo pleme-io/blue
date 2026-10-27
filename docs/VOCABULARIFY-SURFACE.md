@@ -1,3 +1,8 @@
+---
+kind: explanation
+summary: kigou and yakugo: a program's spelling separated from its meaning
+---
+
 # vocabularify — the surface/structure vocabulary
 
 The typed vocabulary for *"a program's spelling is separable from its

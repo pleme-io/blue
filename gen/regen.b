@@ -1,6 +1,7 @@
 use("haibi", [:files, :write_tree])
 use("mokuroku", [:catalog_of, :registered_only, :render_markdown])
-use("retsu", [:concat_lists, :first, :last])
+use("retsu", [:concat_lists, :first, :flat_map, :is_empty, :last])
+use("shisutemu", [:status_of, :stdout_of])
 
 # regen: rewrite every file blue generates for this repository, in place.
 #
@@ -50,6 +51,90 @@ def regenerate(g)
     raise(:regen, "#{g[2]} exited #{to_s(status)}; #{g[1]} was not rewritten")
   end
   g[1]
+end
+
+def inputs_of(entry)
+  i = json_get(entry, "inputs")
+  if i.nil?
+    []
+  else
+    i
+  end
+end
+
+def entries_of(obj)
+  if list?(obj)
+    obj
+  else
+    map_entries(obj)
+  end
+end
+
+def inputs_of_packages()
+  p = json_get(manifest, "packages")
+  if p.nil?
+    []
+  else
+    p
+  end
+end
+
+def read_paths()
+  g = json_get(manifest, "generated")
+  c = json_get(manifest, "checks")
+  inputs = concat_lists(
+    if g.nil?
+      []
+    else
+      flat_map(entries_of(g), (e) -> inputs_of(last(e)))
+    end,
+    if c.nil?
+      []
+    else
+      flat_map(entries_of(c), (e) -> inputs_of(last(e)))
+    end
+  )
+  distinct(concat_lists(inputs_of_packages, inputs))
+end
+
+def untracked_files(paths)
+  if is_empty(paths) or not path_exists(".git")
+    []
+  else
+    cap = exec_capture(
+      "git",
+      "ls-files",
+      "--others",
+      "--exclude-standard",
+      "--",
+      *paths
+    )
+    if status_of(cap) != 0
+      []
+    else
+      filter((l) -> l != "", split(stdout_of(cap), line_break))
+    end
+  end
+end
+
+def untracked_setting()
+  v = getenv("BLUE_REGEN_UNTRACKED", "refuse")
+  if v != "refuse" and v != "allow"
+    raise(
+      :regen_setting,
+      "BLUE_REGEN_UNTRACKED is \"#{v}\"; it takes refuse (the default) or allow"
+    )
+  end
+  v
+end
+
+untracked = untracked_files(read_paths)
+
+if untracked != [] and untracked_setting == "refuse"
+  raise(
+    :untracked,
+    "regen reads files the flake cannot see, because git does not track them: #{join(untracked, ", ")}. Run `git add` on them, then regen again; BLUE_REGEN_UNTRACKED=allow renders without them"
+  )
 end
 
 # The catalogue covers the project's own `packages` roots, not every root on

@@ -1,3 +1,8 @@
+---
+kind: explanation
+summary: what blue costs today, where the time goes, and the order to remove it
+---
+
 # Performance: blue as a scripting language and as a tool
 
 This file records what blue costs today, where the time goes, and the order in

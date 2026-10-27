@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:b726b47e934783f3796763f32ecb70040abd2c77368ce6a3b4fd78340df88c84",
+  "manifest": {
+    "schema": 1,
+    "name": "hon",
+    "version": "0.1.0",
+    "needs": {
+      "kyohi": "^0.1.0",
+      "moji": "^0.1.0",
+      "mokuroku": "^0.1.0",
+      "retsu": "^0.1.0",
+      "shisutemu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

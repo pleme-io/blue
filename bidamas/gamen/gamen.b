@@ -1568,6 +1568,374 @@ def check(tree, rules?)
   kyohi::check(tree, rules or append([refusals], a11y_rules))
 end
 
+@doc """
+role_inks: the ANSI slot each semantic role paints in, kazari's sixteen-colour line, so a Nord terminal shows ishou's palette and blue carries no hex.
+
+    get(role_inks, :success) #=> :green
+"""
+def role_inks()
+  {
+    primary: :cyan,
+    text: :bright_white,
+    text_muted: :white,
+    text_dim: :bright_black,
+    border: :bright_black,
+    error: :red,
+    warning: :yellow,
+    pending: :bright_yellow,
+    success: :green,
+    info: :blue,
+    ident: :magenta
+  }
+end
+
+@doc """
+tone: text as a node painted in a semantic role's ink.
+
+    tone("ok", :success) #=> {text: "ok", ink: :green}
+"""
+def tone(text, role)
+  ink = get(role_inks, role)
+  if ink.nil?
+    raise(
+      :bad_option,
+      "no role #{to_s(role)}; a role is one of #{join(map((e) -> to_s(first(e)), map_entries(role_inks)), ", ")}"
+    )
+  end
+  {text:, ink:}
+end
+
+@doc """
+verdict_marks: the coloured circle each overall verdict shows: green when it holds, yellow when it is partial, red when it fails.
+
+    get(verdict_marks, :partial) #=> "🟡"
+"""
+def verdict_marks()
+  {pass: "🟢", partial: "🟡", fail: "🔴"}
+end
+
+@doc """
+mark: the symbol of a step state or a verdict, refusing a state that has none.
+
+    mark(:failed) #=> "❌"
+"""
+def mark(state)
+  found = get(step_marks, state) or get(verdict_marks, state)
+  if found.nil?
+    raise(
+      :bad_option,
+      "no mark for #{to_s(state)}; a state is running, done, failed, skipped, warn, pass, partial or fail"
+    )
+  end
+  found
+end
+
+@doc """
+code_point: the Unicode code point of one character, read from its UTF-8 bytes.
+
+    code_point("✅") #=> 9989
+"""
+def code_point(c)
+  b = text_bytes(c)
+  n = size(b)
+  if n == 1
+    first(b)
+  elsif n == 2
+    (first(b) - 192) * 64 + (b[1] - 128)
+  elsif n == 3
+    (first(b) - 224) * 4096 + (b[1] - 128) * 64 + (b[2] - 128)
+  else
+    (first(b) - 240) * 262_144 +
+      (b[1] - 128) * 4096 +
+      (b[2] - 128) * 64 +
+      (b[3] - 128)
+  end
+end
+
+@doc """
+wide_ranges: the code point ranges below the astral planes a terminal draws two cells wide: East Asian wide letters and the emoji presentation symbols.
+
+    first(wide_ranges) #=> [4352, 4447]
+"""
+def wide_ranges()
+  [
+    [4352, 4447],
+    [8986, 8987],
+    [9193, 9196],
+    [9200, 9200],
+    [9203, 9203],
+    [9725, 9726],
+    [9748, 9749],
+    [9800, 9811],
+    [9855, 9855],
+    [9875, 9875],
+    [9889, 9889],
+    [9898, 9899],
+    [9917, 9918],
+    [9924, 9925],
+    [9934, 9934],
+    [9940, 9940],
+    [9962, 9962],
+    [9970, 9971],
+    [9973, 9973],
+    [9978, 9978],
+    [9981, 9981],
+    [9989, 9989],
+    [9994, 9995],
+    [10024, 10024],
+    [10060, 10060],
+    [10062, 10062],
+    [10067, 10069],
+    [10071, 10071],
+    [10133, 10135],
+    [10160, 10160],
+    [10175, 10175],
+    [11035, 11036],
+    [11088, 11088],
+    [11093, 11093],
+    [11904, 12350],
+    [12353, 13311],
+    [13312, 19903],
+    [19968, 40959],
+    [40960, 42191],
+    [44032, 55203],
+    [63744, 64255],
+    [65072, 65103],
+    [65280, 65376],
+    [65504, 65510]
+  ]
+end
+
+@doc """
+char_cells: the terminal cells one character takes: two for a wide letter or emoji, none for a joiner or a combining mark, one more for the emoji selector that widens the symbol before it.
+
+    char_cells("🟢") #=> 2
+"""
+def char_cells(c)
+  cp = code_point(c)
+  if cp == 65039
+    1
+  elsif cp == 8205 or cp >= 768 and cp <= 879 or cp >= 65024 and cp <= 65038
+    0
+  elsif cp >= 65536
+    2
+  elsif find_first((r) -> cp >= first(r) and cp <= r[1], wide_ranges) != nil
+    2
+  else
+    1
+  end
+end
+
+@doc """
+cells: the terminal columns a text takes, the width tables and trees align by.
+
+    cells("⚠️ ok") #=> 5
+"""
+def cells(text)
+  reduce((n, c) -> n + char_cells(c), 0, chars(text))
+end
+
+@doc """
+plain: a node's text with every style dropped.
+
+    plain([{text: "a", bold: true}, "b"]) #=> "ab"
+"""
+def plain(node)
+  styled(node, {color: false, theme: nil})
+end
+
+@doc """
+padded: a node followed by spaces to fill a column of the given cells, or led by them when aligned right.
+
+    padded("ab", 4, :left) #=> ["ab", "  "]
+"""
+def padded(node, width, align)
+  gap = moji::repeated(" ", blue::max(0, width - cells(plain(node))))
+  if align == :right
+    [gap, node]
+  else
+    [node, gap]
+  end
+end
+
+@doc """
+table: rows of records laid out as aligned columns under a bold header and a rule, each cell text or a styled node, widths measured in terminal cells.
+
+    plain(table([{name: "a", n: 1}], {columns: [:name, :n]})) #=> join_lines(["name  n", "────  ─", "a     1"])
+"""
+def table(rows, opts)
+  checked(opts, [:columns, :headers, :align])
+  cols = opts[:columns]
+  if not list?(cols) or is_empty(cols)
+    raise(:bad_option, "a table needs columns: a list of the keys to show")
+  end
+  heads = map((k) -> get(opts[:headers] or {}, k) or to_s(k), cols)
+  body = map(
+    fn(r)
+      map(
+        fn(k)
+          if get(r, k).nil?
+            ""
+          elsif string?(get(r, k)) or map?(get(r, k)) or list?(get(r, k))
+            get(r, k)
+          else
+            to_s(get(r, k))
+          end
+        end,
+        cols
+      )
+    end,
+    rows
+  )
+  widths = map(
+    fn(i)
+      reduce(
+        (w, line) -> blue::max(w, cells(plain(line[i]))),
+        cells(heads[i]),
+        body
+      )
+    end,
+    range(0, size(cols))
+  )
+  aligns = map((k) -> get(opts[:align] or {}, k) or :left, cols)
+  row_node = (line) -> row(line, widths, aligns)
+  head = row_node(map((h) -> {text: h, bold: true}, heads))
+  rule = {
+    text: join(map((w) -> moji::repeated("─", w), widths), "  "),
+    ink: role_inks[:border]
+  }
+  intersperse(line_break, append([head, rule], map(row_node, body)))
+end
+
+@doc """
+row: one table line: its cells up to the last that holds text, each padded to its column and joined by two spaces, the last left-aligned cell left unpadded so no line ends in spaces.
+
+    plain(row(["a", "b", ""], [3, 3, 3], [:left, :left, :left])) #=> "a    b"
+"""
+def row(line, widths, aligns)
+  kept = blue::max(
+    1,
+    reduce(
+      fn(n, i)
+        if plain(line[i]) == ""
+          n
+        else
+          i + 1
+        end
+      end,
+      0,
+      range(0, size(line))
+    )
+  )
+  intersperse(
+    "  ",
+    map(
+      fn(i)
+        if i == kept - 1 and aligns[i] != :right
+          line[i]
+        else
+          padded(line[i], widths[i], aligns[i])
+        end
+      end,
+      range(0, kept)
+    )
+  )
+end
+
+@doc """
+tree: a record of label and children drawn as an indented tree with branch lines.
+
+    plain(tree({label: "a", children: [{label: "b"}]})) #=> join_lines(["a", "└── b"])
+"""
+def tree(node)
+  intersperse(
+    line_break,
+    append([node[:label]], branches(node[:children] or [], ""))
+  )
+end
+
+@doc """
+branches: the lines of a tree's children under a prefix, each led by its branch glyph.
+
+    plain(intersperse(line_break, branches([{label: "x"}, {label: "y"}], ""))) #=> join_lines(["├── x", "└── y"])
+"""
+def branches(children, prefix)
+  n = size(children)
+  flat_map(range(0, n), (i) -> branch(children[i], i == n - 1, prefix))
+end
+
+@doc """
+branch: one child of a tree as its own line under a prefix, then its children's lines.
+
+    plain(first(branch({label: "x"}, true, ""))) #=> "└── x"
+"""
+def branch(child, is_last, prefix)
+  glyph = if is_last
+    "└── "
+  else
+    "├── "
+  end
+  below = if is_last
+    "    "
+  else
+    "│   "
+  end
+  append(
+    [[{text: "#{prefix}#{glyph}", ink: role_inks[:border]}, child[:label]]],
+    branches(child[:children] or [], "#{prefix}#{below}")
+  )
+end
+
+@doc """
+meter: a fraction from 0 to 1 drawn as a bar of eighth blocks on a track, a given number of cells wide.
+
+    meter(0.5, 4) #=> {text: "██──", ink: :cyan}
+"""
+def meter(fraction, width)
+  f = blue::min(1, blue::max(0, fraction))
+  eighths = round(f * width * 8)
+  full = floor(eighths / 8)
+  part = eighths - full * 8
+  partial = if part == 0
+    ""
+  else
+    ["▏", "▎", "▍", "▌", "▋", "▊", "▉"][part - 1]
+  end
+  used = full +
+    if part == 0
+      0
+    else
+      1
+    end
+  {
+    text: concat(
+      moji::repeated("█", full),
+      partial,
+      moji::repeated("─", width - used)
+    ),
+    ink: role_inks[:primary]
+  }
+end
+
+@doc """
+spinner: the frame a busy indicator shows at a tick, braille by default and plain text when asked.
+
+    spinner(1, :ascii) #=> "/"
+"""
+def spinner(tick, style)
+  frames = if style == :ascii
+    ["|", "/", "-", "\\"]
+  elsif style == :braille
+    ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+  else
+    raise(
+      :bad_option,
+      "a spinner style is braille or ascii, got #{to_s(style)}"
+    )
+  end
+  frames[tick % size(frames)]
+end
+
 test "rgb reads long and short hex, any case, and a record"
   assert rgb("#ff8000") == {r: 255, g: 128, b: 0}
   assert rgb("#FF8000") == {r: 255, g: 128, b: 0}
@@ -2482,4 +2850,91 @@ test "show_step writes one line through the sink and keeps colour off when told"
   ).nil?
   assert first(seen) == unlines(["✅ [1/2] x (1.5s)"])
   assert terminal?(9) == false
+end
+
+test "a role paints in its kazari ink, and an unknown role is refused"
+  assert tone("x", :error) == {text: "x", ink: :red}
+  assert tone("x", :text_dim) == {text: "x", ink: :bright_black}
+  assert raises?(:bad_option, () -> tone("x", :loud))
+  assert styled(tone("ok", :success), {color: true, theme: nil}) ==
+    "#{esc_char}[32mok#{esc_char}[0m"
+end
+
+test "marks give the house symbols for steps and the circles for verdicts"
+  assert map(mark, [:done, :failed, :warn, :skipped]) == ["✅", "❌", "⚠️", "➖"]
+  assert map(mark, [:pass, :partial, :fail]) == ["🟢", "🟡", "🔴"]
+  assert raises?(:bad_option, () -> mark(:great))
+end
+
+test "cells counts the columns a terminal draws, wide symbols as two"
+  assert cells("") == 0
+  assert cells("abc") == 3
+  assert map(cells, ["✅", "❌", "➖", "⚠️", "🟢", "🔴"]) == [2, 2, 2, 2, 2, 2]
+  assert cells("⚠") == 1
+  assert cells("日本") == 4
+  assert cells("é") == 1
+  assert cells("é") == 1
+  assert code_point("a") == 97
+  assert code_point("é") == 233
+  assert code_point("🟢") == 128_994
+end
+
+test "a table aligns by cells, right-aligns on request, styles cells and ends no line in spaces"
+  rows = [
+    {check: "fmt", state: mark(:done), ms: 12},
+    {check: "census", state: mark(:failed), ms: 1520},
+    {check: "lock", state: tone("held", :warning)}
+  ]
+  t = table(
+    rows,
+    {columns: [:check, :state, :ms], headers: {ms: "time"}, align: {ms: :right}}
+  )
+  assert plain(t) ==
+    join_lines(
+      [
+        "check   state  time",
+        "──────  ─────  ────",
+        "fmt     ✅       12",
+        "census  ❌     1520",
+        "lock    held"
+      ]
+    )
+  painted = styled(t, {color: true, theme: nil})
+  assert contains?(painted, "#{esc_char}[1mcheck#{esc_char}[0m") == true
+  assert contains?(painted, "#{esc_char}[33mheld#{esc_char}[0m") == true
+  assert raises?(:bad_option, () -> table(rows, {}))
+  assert raises?(:bad_option, () -> table(rows, {columns: [:check], width: 3}))
+end
+
+test "a tree draws branches and keeps the rail beside a middle child"
+  t = {
+    label: "blue",
+    children: [
+      {label: "bidamas", children: [{label: "gamen"}, {label: "hikisuu"}]},
+      {label: "docs"}
+    ]
+  }
+  assert plain(tree(t)) ==
+    join_lines(
+      ["blue", "├── bidamas", "│   ├── gamen", "│   └── hikisuu", "└── docs"]
+    )
+  assert plain(tree({label: "leaf"})) == "leaf"
+end
+
+test "a meter fills by eighths, clamps outside 0 to 1, and keeps its width"
+  assert meter(0, 4)[:text] == "────"
+  assert meter(1, 4)[:text] == "████"
+  assert meter(2, 4)[:text] == "████"
+  assert meter(-1, 3)[:text] == "───"
+  assert meter(0.5, 3)[:text] == "█▌─"
+  assert meter(1 / 32, 4)[:text] == "▏───"
+  assert cells(meter(0.37, 10)[:text]) == 10
+end
+
+test "a spinner cycles its frames and refuses an unknown style"
+  assert spinner(0, :braille) == "⠋"
+  assert spinner(10, :braille) == "⠋"
+  assert map((i) -> spinner(i, :ascii), [0, 1, 2, 3, 4]) ==
+    ["|", "/", "-", "\\", "|"]
+  assert raises?(:bad_option, () -> spinner(0, :dots))
 end

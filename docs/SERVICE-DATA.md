@@ -1,5 +1,6 @@
 ---
 kind: explanation
+summary: Postgres, Valkey and the nervous system as the configurable defaults of a blue service (design)
 ---
 
 # SERVICE-DATA — Postgres, Valkey and the nervous system as defaults
@@ -94,10 +95,23 @@ to cover it. Do not escape to raw SQL or Rust.
 | S1 | haibi renders on pleme-lib's `shinkaDatabaseMigration`, wait init container, `observabilityBundle` and `jetstream`, and emits the kenshi labels (with H3 in `helmworks/docs/BLUE-SERVICES.md`) | 2 |
 | S2 | `model(...)` with versions, `teeburu::evolve`, the §2a judge and gate, the keifu renderer, typed accessors | 2 |
 | S2b | one renderer per remaining shinka migrator, each tested by applying it to a real Postgres | services that pin a tool |
-| S3 | telemetry export: `rogu` → Vector, `tsuiseki` → OTLP, `/metrics` from `keisoku` | 2 |
-| S4 | the RESP client and model-rendered cache keys; a hardened Valkey image | 1 now, 2 by default |
-| S5 | JetStream in the NATS client, the outbox, the subscription word | the gate for every event-driven service |
+| S3 ✅ | telemetry export: `rogu::exporting` → Vector (`VECTOR_ENDPOINT`), `tsuiseki::exporter` → OTLP/HTTP (`OTEL_EXPORTER_OTLP_ENDPOINT`), `keisoku::endpoint` serving `/metrics`; each on by default and off alone through `observe` (`rogu::on?`); the chart side is pleme-lib 0.55.0 `telemetry-export` and `kenshi-labels` (helmworks H6 ✅) | 2 |
+| S4 ✅ | the RESP client (`resp_*` in `blue-lang-runtime`, the `kiibariu` bidama): get, set with a TTL, del, pub/sub, SCAN; loose version-hashed keys; strict put and fetch checked against a schema; `read_upgrading` and `upgrade_eager` (SCAN batches, pipelined rewrite, TTL kept). Model-rendered keys and the hardened image are pending rows below | 1 now, 2 by default |
+| S5 ✅ | JetStream (`sutoriimu`): streams, publish with ack, durable pull consumers, ack and nak; the outbox written in the change's transaction and drained with SKIP LOCKED; `consumer` runs a handler under a one-for-one supervisor, a raise naks and restarts | the gate for every event-driven service |
 | S6 | `database.provider: :node_socket` for hosts like plo; escuta's Postgres source | hosts; log-based capture |
+
+### Pending (S3–S5)
+
+| Row | What is missing | Waits on |
+|---|---|---|
+| `pending-model-cache-keys` | `model(...)` entries' `cache` field rendered to `kiibariu` key prefixes (`prefix(namespace, version_hash, entity)`) and invalidation on write | S2: `model(...)` is not on main (2026-10-27) |
+| `pending-kv-judge` | `kiibariu::check` is a minimal field and type check standing in for the §2a schema judge; strict evolution takes `teeburu::evolve` steps once they exist | S2 |
+| `pending-eager-upgrade-job` | `upgrade_eager` rendered as a shinka job for `upgrade: :eager` | S2 and haibi |
+| `pending-kv-encodings` | strict entries are JSON strings; the hash and stream entry encodings | S2's `kv_model` |
+| `pending-resp-tls` | `resp_connect` with TLS on refuses by name; Valkey off loopback needs the runtime's TLS transport | `docs/HTTP2.md` P4 |
+| `pending-hardened-valkey` | `pleme-cache` still runs upstream `valkey/valkey` | a `mkHardenedImageSet` Valkey image |
+| `pending-outbox-dedupe` | the drain is at-least-once: a crash between publish and delete republishes; a `Nats-Msg-Id` header would let JetStream drop the duplicate, and the runtime has no HPUB word | an `nats_publish` with headers |
+| `pending-observe-wiring` | haibi passes `service(...)`'s `observe` and kenshi values into the chart (`telemetry`, `kenshi`) | S1 / H3 |
 
 ## 5. Known gaps carried in
 
@@ -105,4 +119,5 @@ to cover it. Do not escape to raw SQL or Rust.
   unverified and its NATS sink core NATS, not JetStream.
 - haibi writes its migration as a full `schema.sql` apply every time; S1/S2
   replace that with versioned migrations.
-- kensa's Valkey binding is typed and never connects (no RESP client).
+- kensa's Valkey binding is typed and never connects; blue now has a RESP
+  client (`kiibariu`), and kensa does not use it yet.

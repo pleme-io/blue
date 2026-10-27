@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:c8f5018355979bb8cd27941b4b37f39517adaad76ecbefbe135fa72bb7a1b9e8",
+  "manifest": {
+    "schema": 1,
+    "name": "kiibariu",
+    "version": "0.1.0",
+    "needs": {
+      "jisho": "^0.1.0",
+      "kyohi": "^0.1.0",
+      "moji": "^0.1.0",
+      "retsu": "^0.1.0",
+      "tesuto": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

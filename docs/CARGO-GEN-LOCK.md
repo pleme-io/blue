@@ -1,3 +1,8 @@
+---
+kind: explanation
+summary: why Cargo.gen.lock is committed, and what that trade costs
+---
+
 # `Cargo.gen.lock` is committed, and that is a trade
 
 The rationale is recorded here because the artifact itself landed in `d917383`,

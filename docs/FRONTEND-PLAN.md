@@ -1,3 +1,8 @@
+---
+kind: explanation
+summary: the build plan for blue's frontend framework
+---
+
 # FRONTEND-PLAN — building the blue frontend framework
 
 Design: [`theory/BLUE-FRONTEND.md`](https://github.com/pleme-io/theory/blob/main/BLUE-FRONTEND.md).

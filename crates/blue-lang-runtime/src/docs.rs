@@ -402,10 +402,11 @@ pub const NAMES: &[NameDoc] = names! {
     Clock: "sleep_ms" "sleep_ms(ms)" "Pause for milliseconds.";
     // ── network ───────────────────────────────────────────────────────────
     Network: "nats_connect" "nats_connect(url[, timeout_ms])" "A NATS connection to nats://[user:pass@|token@]host[:port] (port 4222), confirmed by a PING before it returns. Plain TCP: a server requiring TLS is refused. Raises when it cannot connect.";
-    Network: "nats_publish" "nats_publish(conn, subject, payload)" "Publish a string to one subject (no wildcards); nil. Also answers the server's pings, so a publish-only loop stays connected.";
+    Network: "nats_publish" "nats_publish(conn, subject, payload[, reply])" "Publish a string to one subject (no wildcards); nil. With reply, the receiver answers there (a JetStream pull names its inbox this way). Also answers the server's pings, so a publish-only loop stays connected.";
+    Network: "nats_inbox" "nats_inbox(conn)" "A fresh reply subject unique to this connection, for nats_subscribe and the reply of nats_publish.";
     Network: "nats_request" "nats_request(conn, subject, payload, timeout_ms)" "Publish and wait for one reply; the reply's payload as a string. Raises on timeout and when no one is subscribed (no responders).";
     Network: "nats_subscribe" "nats_subscribe(conn, subject[, queue])" "A subscription to a subject, wildcards * and > allowed; with a queue group, one member of the group gets each message. Read it with nats_next_message.";
-    Network: "nats_next_message" "nats_next_message(sub, timeout_ms)" "{subject:, payload:, reply:} for the next message, waiting at most timeout_ms (0 only checks); nil when none came. reply is nil unless the sender wants an answer: publish to it.";
+    Network: "nats_next_message" "nats_next_message(sub, timeout_ms)" "{subject:, payload:, status:, headers:, reply:} for the next message, waiting at most timeout_ms (0 only checks); nil when none came. status is the header block's code (JetStream's 404 and 408) or nil, headers its text or nil. reply is nil unless the sender wants an answer: publish to it.";
     Network: "nats_unsubscribe" "nats_unsubscribe(sub)" "Stop a subscription; messages already queued for it are dropped. nil.";
     Network: "nats_close" "nats_close(conn)" "Close the connection; every later call on it raises. nil.";
     Network: "http_request" "http_request(method, url, headers, body, timeout_ms)" "One HTTP/1.1 request to an http:// url (https is refused): {status:, headers:, body:}, headers as lower-case [name, value] pairs. headers is nil, a map or [[name, value], …]; body is nil or a string. Any status is an answer; only a failed exchange raises.";
@@ -414,6 +415,11 @@ pub const NAMES: &[NameDoc] = names! {
     Network: "pg_query" "pg_query(conn, sql, params)" "One statement with $1… parameters (nil, true/false, numbers or text): {columns:, rows:, command:}, each row a map from column name to value, integers, floats and booleans typed, everything else text.";
     Network: "pg_execute" "pg_execute(conn, sql)" "A script of statements, unparameterised: the list of their command tags. Raises naming the first failure.";
     Network: "pg_close" "pg_close(conn)" "Close the connection; every later call on it raises. nil.";
+    Network: "resp_connect" "resp_connect(host, port, password, tls[, timeout_ms])" "A RESP (Valkey, Redis) connection, authenticated with password when it is not nil and confirmed by a PING. tls true is refused by name until the runtime has a TLS transport (docs/HTTP2.md P4); tls false is allowed only for 127.0.0.1. Raises when it cannot connect.";
+    Network: "resp_command" "resp_command(conn, args)" "Send one command, a list of text or numbers, and return its reply: text, an integer, nil or a list. A server error raises.";
+    Network: "resp_pipeline" "resp_pipeline(conn, commands)" "Send every command in one write and return their replies in order. Raises naming the first server error.";
+    Network: "resp_next" "resp_next(conn, timeout_ms)" "The next reply the server pushes (a subscribed connection's messages), waiting at most timeout_ms (0 only checks what has arrived); nil when none came.";
+    Network: "resp_close" "resp_close(conn)" "Close the connection; every later call on it raises. nil.";
     Network: "http_listen" "http_listen(addr)" "A listening HTTP/1.1 server socket on host:port (port 0 picks a free one). Raises when the address cannot be bound.";
     Network: "http_listener_port" "http_listener_port(listener)" "The TCP port the listener is bound to.";
     Network: "http_next_request" "http_next_request(listener, timeout_ms)" "{method:, path:, query:, headers:, body:, exchange:} for the next request, waiting at most timeout_ms (0 only checks); nil when none came. A malformed request is answered 400 and skipped. Answer it with http_respond.";

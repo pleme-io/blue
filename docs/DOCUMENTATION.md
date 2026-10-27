@@ -1,6 +1,11 @@
+---
+kind: explanation
+summary: documentation as a battery: one source per fact, a Diátaxis book, rendered README, AGENTS.md and llms.txt (design)
+---
+
 # DOCUMENTATION — every blue project documents itself, and the language has a book
 
-Status: DESIGN, 2026-10-27. Built pieces are marked in §8.
+Status: DESIGN, 2026-10-27; D0 to D4 built (§8).
 
 ## 1. Destination
 
@@ -54,6 +59,18 @@ pages, and returns the renderings of §4 as values; a Bluefile word
 README, AGENTS.md and llms files. Static HTML is produced by a blue program,
 not a Rust or JavaScript static-site tool.
 
+As built, front matter names `kind`, an optional `summary` (the one-line
+description every map and `llms.txt` shows), `order` (a page's place within its
+kind), `role` (`introduction` feeds the README lead, `agents` feeds AGENTS.md and
+CLAUDE.md, `book` marks the rendered book) and `runs: true` (run the blocks of a
+page that is not a tutorial or how-to). The `docs` check runs, in a fresh
+directory per page: a block with `file=PATH` is written there; a `blue` block
+without one runs (`blue test` when it holds a test); a `console` block runs each
+`$` line, a leading `blue` being the blue under test, and compares the lines
+shown under it; `console fails` must fail and print each shown line;
+`console host` needs the network or nix and is shown, not run. Today the host
+blocks are the install command, `nix flake check` and blue's own build.
+
 ## 6. The Blue Book
 
 | Part (Diátaxis) | Chapters | From |
@@ -77,9 +94,9 @@ not a Rust or JavaScript static-site tool.
 | Step | Work | Gate | Tier |
 |---|---|---|---|
 | D0 | typed `@doc` / `@moduledoc` with doctests; `blue doc`; CATALOG and REFERENCE generation | B0056–B0060, `-fresh` checks | built |
-| D1 | front matter `kind:` on every page of `blue/docs/`; a check refuses a page without one | the check, red then green | design |
-| D2 | `hon`: reference, README, AGENTS.md and llms renderings from §3's sources | `-fresh` on each | design |
-| D3 | blue's own README, AGENTS.md, CLAUDE.md and llms files rendered by D2 | `generated-tree` refuses hand edits | design |
-| D4 | the book renderer and the Blue Book's tutorial and how-to chapters | every code block runs | design |
+| D1 | front matter `kind:` on every page of `blue/docs/`; a check refuses a page without one | `checks.docs` (`gen/docs.b`), red then green | built 2026-10-27 |
+| D2 | `hon`: reference, README, AGENTS.md and llms renderings from §3's sources | `-fresh` on each; `bidama-test-hon` | built 2026-10-27 |
+| D3 | blue's own README, AGENTS.md, CLAUDE.md and llms files rendered by D2 | `generated-{readme,agents,claude,llms,llms-full}-fresh` | built 2026-10-27 |
+| D4 | the book renderer and the Blue Book's tutorial and how-to chapters | `generated-book-fresh`; `checks.docs` runs every block | built 2026-10-27 in Markdown (`docs/BOOK.md`); static HTML moves to D5 |
 | D5 | the static site and its publication in `blue-project.yml` | a published URL | design |
 | D6 | every Bluefile project gets D2 by default; `book(...)` turns on D4 | `ola-mundo` renders all of §4 | design |

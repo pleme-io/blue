@@ -158,6 +158,21 @@ def enforce(subject, rules, opts?)
   nil
 end
 
+@doc """
+host_handle: a value a host handed in (a connection, a listener), else a :bad_option raise naming who wanted one.
+
+    (host_handle(nil, "w") rescue :refused) #=> :refused
+"""
+def host_handle(x, who)
+  if not foreign?(x)
+    raise(
+      :bad_option,
+      "#{who} takes a connection a host handed in, got #{to_s(x)}"
+    )
+  end
+  x
+end
+
 def ok(v)
   {ok: true, value: v}
 end

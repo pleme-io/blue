@@ -12,8 +12,21 @@ supervisor restarts it and the stream delivers the message again.
     api("orders", "INFO") #=> "$JS.API.STREAM.INFO.orders"
 """
 
+use("kyohi", [:host_handle])
 use("retsu", [:first, :is_empty, :size])
 use("tesuto", [:raises?])
+
+@doc """
+nats_url: a nats:// url, else a :bad_option raise.
+
+    nats_url("nats://127.0.0.1:4222") #=> "nats://127.0.0.1:4222"
+"""
+def nats_url(url)
+  if not string?(url) or not starts_with?(url, "nats://")
+    raise(:bad_option, "a consumer takes a nats:// url")
+  end
+  url
+end
 
 @doc """
 api: the JetStream API subject for a stream verb.
@@ -91,9 +104,13 @@ end
 
 @doc """
 declared: create a stream, or update it when its name is already in use.
+
+    raises?(:bad_option, () -> declared(nil, "s", "{}")) #=> true
 """
 def declared(c, name, body)
-  answer(nats_request(c, api(name, "CREATE"), body, 5000))
+  answer(
+    nats_request(host_handle(c, "sutoriimu"), api(name, "CREATE"), body, 5000)
+  )
 rescue e
   if e.kind == :jetstream and contains?(e.message, "10058")
     answer(nats_request(c, api(name, "UPDATE"), body, 5000))
@@ -104,9 +121,13 @@ end
 
 @doc """
 publish: publish to a stream's subject and wait for its ack: {stream:, seq:}.
+
+    raises?(:bad_option, () -> publish(nil, "s.x", "p", 100)) #=> true
 """
 def publish(c, subject, payload, wait_ms)
-  r = answer(nats_request(c, subject, payload, wait_ms))
+  r = answer(
+    nats_request(host_handle(c, "sutoriimu"), subject, payload, wait_ms)
+  )
   {stream: get(r, "stream"), seq: get(r, "seq")}
 end
 
@@ -207,9 +228,11 @@ end
 
 @doc """
 fetch: up to batch messages from a durable consumer, waiting at most wait_ms.
+
+    raises?(:bad_option, () -> fetch(nil, "s", "d", 1, 100)) #=> true
 """
 def fetch(c, stream, name, batch, wait_ms)
-  inbox = nats_inbox(c)
+  inbox = nats_inbox(host_handle(c, "sutoriimu"))
   sub = nats_subscribe(c, inbox)
   nats_publish(
     c,
@@ -224,16 +247,25 @@ end
 
 @doc """
 ack: tell the stream a message is done.
+
+    raises?(:bad_option, () -> ack(nil, {reply: "r"})) #=> true
 """
 def ack(c, m)
-  nats_publish(c, get(m, :reply), "+ACK")
+  nats_publish(host_handle(c, "sutoriimu"), get(m, :reply), "+ACK")
 end
 
 @doc """
-nak: tell the stream to deliver a message again.
+nak: tell the stream to deliver a message again, after delay_ms when it is not nil.
+
+    raises?(:bad_option, () -> nak(nil, {reply: "r"}, nil)) #=> true
 """
-def nak(c, m)
-  nats_publish(c, get(m, :reply), "-NAK")
+def nak(c, m, delay_ms)
+  body = if delay_ms.nil?
+    "-NAK"
+  else
+    "-NAK #{json_stringify({delay: delay_ms * 1_000_000})}"
+  end
+  nats_publish(host_handle(c, "sutoriimu"), get(m, :reply), body)
 end
 
 @doc """
@@ -257,14 +289,18 @@ end
 
 @doc """
 in_transaction: run f between BEGIN and COMMIT, rolling back and raising again when it raises.
+
+    raises?(:bad_option, () -> in_transaction(nil, () -> 1)) #=> true
 """
 def in_transaction(pg, f)
-  pg_execute(pg, "BEGIN")
+  pg_execute(host_handle(pg, "sutoriimu"), "BEGIN")
   out = f()
   pg_execute(pg, "COMMIT")
   out
 rescue e
-  pg_execute(pg, "ROLLBACK")
+  if foreign?(pg)
+    pg_execute(pg, "ROLLBACK")
+  end
   raise(e)
 end
 
@@ -331,20 +367,24 @@ end
 
 @doc """
 settle: run the handler on one message and ack it; nak and raise again when the handler raises.
+
+    raises?(:bad_option, () -> settle(nil, (_m) -> 1, {reply: "r"})) #=> true
 """
 def settle(c, handler, m)
   handler(m)
   ack(c, m)
 rescue e
-  nak(c, m)
+  nak(c, m, nil)
   raise(e)
 end
 
 @doc """
 work: a worker's loop: fetch, run the handler on each message, ack it; a raise naks and ends the worker.
+
+    raises?(:bad_option, () -> work("x", "s", "d", (_m) -> 1, 1, 1)) #=> true
 """
 def work(url, stream, name, handler, batch, wait_ms)
-  c = nats_connect(url)
+  c = nats_connect(nats_url(url))
   loop = fn()
     map((m) -> settle(c, handler, m), fetch(c, stream, name, batch, wait_ms))
     loop()
@@ -354,8 +394,11 @@ end
 
 @doc """
 consumer: a supervisor running workers for a durable consumer; each worker restarted when its handler raises.
+
+    raises?(:bad_option, () -> consumer("x", "s", "d", (_m) -> 1, {})) #=> true
 """
 def consumer(url, stream, name, handler, opts)
+  nats_url(url)
   workers = get(opts, :workers) or 1
   batch = get(opts, :batch) or 10
   wait_ms = get(opts, :wait_ms) or 1000

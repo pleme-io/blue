@@ -1173,7 +1173,7 @@ the example. It writes nothing it cannot source; what stays is counted by
         fix: Machine,
         law: "a `@doc` holds at least one example, an indented `expr #=> value` line",
         witness: "@moduledoc \"\"\"\nkagi holds one value.\n\n    kagi #=> 1\n\"\"\"\n\n@doc \"\"\"\nkagi is one.\n\"\"\"\ndef kagi()\n  1\nend\n",
-        ratchet: 916,
+        ratchet: 898,
         package: "kagi",
         explanation: "\
 An example shows how a definition is called and what it answers, and blue

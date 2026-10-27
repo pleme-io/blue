@@ -17,6 +17,7 @@ each key's TTL (upgrade_eager).
 """
 
 use("jisho", [:has?])
+use("kyohi", [:host_handle])
 use("moji", [:checked, :drop_chars])
 use("retsu", [:first, :is_empty, :size])
 use("tesuto", [:raises?])
@@ -89,16 +90,20 @@ end
 
 @doc """
 close: close a connection.
+
+    raises?(:bad_option, () -> close(nil)) #=> true
 """
 def close(c)
-  resp_close(c)
+  resp_close(host_handle(c, "kiibariu"))
 end
 
 @doc """
 get_key: the text stored at a key, or nil.
+
+    raises?(:bad_option, () -> get_key(nil, "k")) #=> true
 """
 def get_key(c, key)
-  resp_command(c, ["GET", key])
+  resp_command(host_handle(c, "kiibariu"), ["GET", key])
 end
 
 @doc """
@@ -150,17 +155,24 @@ def del(c, keys)
 end
 
 @doc """
-pttl: the milliseconds a key has left; -1 when it never expires, -2 when absent.
+pttl: the milliseconds a key has left; -1 when it never expires, nil when the key is absent.
+
+    raises?(:bad_option, () -> pttl(nil, "k")) #=> true
 """
 def pttl(c, key)
-  resp_command(c, ["PTTL", key])
+  left = resp_command(host_handle(c, "kiibariu"), ["PTTL", key])
+  if left != -2
+    left
+  end
 end
 
 @doc """
 publish: send a message on a channel; how many subscribers got it.
+
+    raises?(:bad_option, () -> publish(nil, "ch", "m")) #=> true
 """
 def publish(c, channel, message)
-  resp_command(c, ["PUBLISH", channel, message])
+  resp_command(host_handle(c, "kiibariu"), ["PUBLISH", channel, message])
 end
 
 @doc """
@@ -190,9 +202,11 @@ end
 
 @doc """
 next_message: {channel:, payload:} for the next message, or nil when none came in time.
+
+    raises?(:bad_option, () -> next_message(nil, 0)) #=> true
 """
 def next_message(c, wait_ms)
-  reply = resp_next(c, wait_ms)
+  reply = resp_next(host_handle(c, "kiibariu"), wait_ms)
   if reply.nil?
     nil
   else
@@ -202,14 +216,21 @@ end
 
 @doc """
 scan_step: one SCAN call; [next cursor, keys].
+
+    raises?(:bad_option, () -> scan_step(nil, "0", "*", 10)) #=> true
 """
 def scan_step(c, cursor, pattern, batch)
-  reply = resp_command(c, ["SCAN", cursor, "MATCH", pattern, "COUNT", batch])
+  reply = resp_command(
+    host_handle(c, "kiibariu"),
+    ["SCAN", cursor, "MATCH", pattern, "COUNT", batch]
+  )
   [first(reply), nth(1, reply)]
 end
 
 @doc """
 scan_each: call f with each batch of keys matching a pattern; how many keys were seen.
+
+    raises?(:bad_option, () -> scan_each(nil, "*", 10, (_k) -> nil)) #=> true
 """
 def scan_each(c, pattern, batch, f)
   walk = fn(cursor, seen)
@@ -229,6 +250,8 @@ end
 
 @doc """
 scan: every key matching a pattern.
+
+    raises?(:bad_option, () -> scan(nil, "*", 10)) #=> true
 """
 def scan(c, pattern, batch)
   found = [[]]
@@ -350,6 +373,8 @@ end
 
 @doc """
 fetch: the record at a key, checked against a schema; nil when absent.
+
+    raises?(:bad_option, () -> fetch(nil, {fields: {}}, "k")) #=> true
 """
 def fetch(c, schema, key)
   loaded(schema, get_key(c, key))

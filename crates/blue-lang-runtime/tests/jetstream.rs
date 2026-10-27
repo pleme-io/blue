@@ -57,7 +57,7 @@ fn a_durable_consumer_redelivers_a_nak_and_not_an_ack() {
          sutoriimu::publish(c, \"orders.created\", \"b\", 2000)\n\
          first_batch = sutoriimu::fetch(c, \"orders\", \"billing\", 10, 500)\n\
          sutoriimu::ack(c, nth(0, first_batch))\n\
-         sutoriimu::nak(c, nth(1, first_batch))\n\
+         sutoriimu::nak(c, nth(1, first_batch), nil)\n\
          again = sutoriimu::fetch(c, \"orders\", \"billing\", 10, 500)\n\
          sutoriimu::ack(c, nth(0, again))\n\
          empty = sutoriimu::fetch(c, \"orders\", \"billing\", 10, 300)\n\

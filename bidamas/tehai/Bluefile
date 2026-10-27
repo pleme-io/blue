@@ -1,4 +1,4 @@
-package("tehai", "0.2.0")
+package("tehai", "0.1.2")
 needs("retsu", "^0.1")
 needs("moji", "^0.1")
 needs("shisutemu", "^0.1")

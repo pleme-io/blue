@@ -94,10 +94,19 @@ def machine(line)
 end
 
 @doc """
+entries: Each meaningful line of a declared file, read by `read_line`.
+
+    entries(unlines(["# c", "", "x"]), trim) #=> ["x"]
+"""
+def entries(text, read_line)
+  map(read_line, filter(meaningful?, split(text, line_break)))
+end
+
+@doc """
 parse: declared remote builders from the machines file.
 """
 def parse(text)
-  map(machine, filter(meaningful?, split(text, line_break)))
+  entries(text, machine)
 end
 
 # ── the check ────────────────────────────────────────────────────────
@@ -316,7 +325,7 @@ parse_substituters: declared substituters, one URL per line.
     length(parse_substituters(unlines(["# peers", "http://rio:5000"]))) #=> 1
 """
 def parse_substituters(text)
-  map(substituter, filter(meaningful?, split(text, line_break)))
+  entries(text, substituter)
 end
 
 @doc """

@@ -352,6 +352,9 @@ test "with no GITHUB_ files set, writers print and return nil"
   assert summary_record("s") == unlines(["s"])
   assert mark(true) == "✅"
   assert mark(false) == "❌"
+  assert output("koutei-test", "v").nil?
+  assert summary("").nil?
+  assert annotate("notice", "koutei test", []).nil?
 end
 
 test "annotation text and properties are escaped as GitHub reads them"

@@ -19,6 +19,18 @@ def entries()
   ]
 end
 
+# The distribution's waivers: each names one definition no test can reach,
+# with why and until when.
+def waivers()
+  [
+    waive(
+      "koutei::fail",
+      "it ends the process with exit_with(1); the blue actions in pleme-io/actions run it on every failing step",
+      "2027-01-31"
+    )
+  ]
+end
+
 # Untested definitions per bidama, measured by `blue test --coverage` on
 # 2026-10-24. A row may shrink or hold, never grow; a package with no row
 # holds at zero.
@@ -302,7 +314,12 @@ test "a package whose tests fail is blind, never green"
 end
 
 test "every bidama is tested beside its definitions, beyond the debt recorded"
-  r = judge_all(entries, recorded, measure_all(self_exe, bidamas_root), today)
+  r = judge_all(
+    concat_lists(entries, waivers),
+    recorded,
+    measure_all(self_exe, bidamas_root),
+    today
+  )
   if red?(r)
     write_stderr(report(r, recorded))
   end

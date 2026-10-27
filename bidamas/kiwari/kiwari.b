@@ -960,7 +960,7 @@ def blue()
     description: "blue, emitted from its one grammar spec (kiwari)",
     repository: "https://github.com/pleme-io/blue",
     word: "identifier",
-    extras: [pat("[ \\t\\r]"), ref("comment")],
+    extras: [pat("[ \\t\\r]"), ref("comment"), ref("doc")],
     conflicts: [
       ["_primary", "_arrow_parameters"],
       ["_arrow_parameters", "_plain_parameters"],
@@ -1050,6 +1050,20 @@ def blue()
       rule("_newline", lit(line_break), nil),
       with(
         rule("comment", token(seq([lit("#"), pat("[^\\n]*")])), nil),
+        :role,
+        "comment"
+      ),
+      # `@doc """` … `"""` and `@moduledoc`: a typed child of the definition
+      # in blue's tree, absent from the forms it compares, so an extra here.
+      # The text holds no `"""` (lex.rs `lex_doc`).
+      with(
+        rule(
+          "doc",
+          token(
+            pat("@(module)?doc[ \\t]*\"\"\"([^\"]|\"[^\"]|\"\"[^\"])*\"\"\"")
+          ),
+          nil
+        ),
         :role,
         "comment"
       ),
@@ -1984,6 +1998,7 @@ test "every visible rule of blue's lowers, but the parts its parent reads"
   assert parts ==
     [
       "comment",
+      "doc",
       "rescue_clause",
       "rescue_all",
       "ensure_clause",

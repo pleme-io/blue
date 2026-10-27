@@ -2,12 +2,13 @@
 module.exports = grammar({
   name: 'blue',
   word: $ => $.identifier,
-  extras: $ => [/[ \t\r]/u, $.comment],
+  extras: $ => [/[ \t\r]/u, $.comment, $.doc],
   conflicts: $ => [[$._primary, $._arrow_parameters], [$._arrow_parameters, $._plain_parameters], [$._arrow_parameters, $.parameters], [$.pun_pair, $.pair]],
   rules: {
     source_file: $ => optional(choice(seq(repeat1($._newline), optional(choice(seq(repeat1(seq($._statement, repeat1($._newline))), optional($._statement)), $._statement))), choice(seq(repeat1(seq($._statement, repeat1($._newline))), optional($._statement)), $._statement))),
     _newline: $ => '\n',
     comment: $ => token(seq('#', /[^\n]*/u)),
+    doc: $ => token(/@(module)?doc[ \t]*"""([^"]|"[^"]|""[^"])*"""/u),
     identifier: $ => /(?:[A-Za-z_]|[^\x00-\x7F\p{White_Space}\p{Cc}∨∧≡≠≤≥−×÷−¬])[A-Za-z0-9_\u{80}-\u{10FFFF}]*[?!]?/u,
     _statement: $ => choice($.binding, $._expression),
     binding: $ => seq(field('name', $.identifier), '=', repeat($._newline), field('value', $._expression)),

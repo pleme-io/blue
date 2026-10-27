@@ -4632,8 +4632,8 @@ tehai (手配) — which nix remote builders can take work right now: every decl
 | `tehai::fake_ssh(dir, name, body)` | `th_fake_ssh` (old) |  |  |  |
 | `tehai::probe_dir(label)` | `th_probe_dir` (old) |  |  |  |
 | `tehai::probe_target` | `th_probe_target` (old) |  |  |  |
-| `tehai::cache_target` | `th_cache_target` (old) |  |  |  |
-| `tehai::fake_curl(dir, name, body)` | `th_fake_curl` (old) |  |  |  |
+| `tehai::cache_target` | `th_cache_target` (old) |  |  | cache_target: The substituter the probe tests read: cid's sui origin, with |
+| `tehai::fake_curl(dir, name, body)` | `th_fake_curl` (old) |  |  | fake_curl: A stand-in curl the probe tests run: a script in `dir` named |
 
 ## tesuto
 

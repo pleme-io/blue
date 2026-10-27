@@ -216,6 +216,8 @@ end
 @doc """
 or_empty: A parsed JSON object is a key/value list, not a map, so its fields are read
 through deeta (as_json, get_str, get_int), never `get`.
+
+    or_empty(nil) #=> []
 """
 def or_empty(xs)
   if xs.nil?
@@ -294,6 +296,8 @@ end
 substituter: A declared substituter: its URL as written (a `?priority=` query
 kept, since nix reads it), its host, and the base its `nix-cache-info` is read
 under, or a refusal naming the line.
+
+    get(substituter("http://cid:5001?priority=29"), :base) #=> "http://cid:5001"
 """
 def substituter(line)
   url = trim(line)
@@ -308,6 +312,8 @@ end
 
 @doc """
 parse_substituters: declared substituters, one URL per line.
+
+    length(parse_substituters(unlines(["# peers", "http://rio:5000"]))) #=> 1
 """
 def parse_substituters(text)
   map(substituter, filter(meaningful?, split(text, line_break)))
@@ -318,6 +324,8 @@ cache_info_argv: The curl command that reads one substituter's
 `nix-cache-info`: silent, failing on an HTTP error, with a short connect
 timeout and a whole-request bound, so "up" means the cache answers as a nix
 cache, not merely that the port is open.
+
+    last(cache_info_argv(substituter("http://rio:5000"), 2, "curl")) #=> "http://rio:5000/nix-cache-info"
 """
 def cache_info_argv(s, timeout_s, curl)
   [
@@ -351,6 +359,8 @@ end
 @doc """
 substituters_text: The nix.conf fragment for the live substituters: one
 `extra-substituters` line, or nothing when none answers.
+
+    substituters_text([]) #=> ""
 """
 def substituters_text(checked)
   live = map((c) -> get(c, :line), filter((c) -> get(c, :up), checked))
@@ -575,10 +585,22 @@ def probe_target()
   {host: "h", user: "u", key: nil}
 end
 
+@doc """
+cache_target: The substituter the probe tests read: cid's sui origin, with
+the priority query nix reads.
+
+    get(cache_target, :host) #=> "cid:5001"
+"""
 def cache_target()
   substituter("http://cid:5001?priority=29")
 end
 
+@doc """
+fake_curl: A stand-in curl the probe tests run: a script in `dir` named
+`name` whose body is `body`, made executable; its path.
+
+    ends_with?(fake_curl(probe_dir("doc"), "curl", "exit 0"), "/curl") #=> true
+"""
 def fake_curl(dir, name, body)
   fake_ssh(dir, name, body)
 end

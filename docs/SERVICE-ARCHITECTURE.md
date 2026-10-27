@@ -2,7 +2,8 @@
 
 Status: DESIGN, 2026-10-23. Nothing below is built unless the tier ledger (§12)
 says so. Paths are under `~/code/github/pleme-io/`. Line numbers were read on
-2026-10-23.
+2026-10-23. What a service may touch (effects, peers, paths, ports, programs),
+and how each layer enforces it, is `SERVICE-ACCESS.md`.
 
 ## 1. Destination
 

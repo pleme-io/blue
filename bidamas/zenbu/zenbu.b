@@ -65,6 +65,7 @@ use("heddaa")
 use("heni")
 use("hikisuu")
 use("hizuke", [:is_leap])
+use("hon")
 use("hyouka")
 use("jisho")
 use("jitaku")
@@ -151,6 +152,7 @@ test "every bidama in the distribution answers through this one import"
   assert near(kinji::trapz([0, 1, 3], [0, 2, 6]), 9) == true
   assert kiwari::unpainted(kiwari::blue) == []
   assert koutei::input_key("cache-url") == "INPUT_CACHE_URL"
+  assert hon::heading_anchor("1. Install blue") == "1-install-blue"
   assert danpen::render(danpen::parse("{a}")) == unlines(["{", "  a", "}"])
   assert kousei::name_of(kousei::entry(:plane, "edge", {})) == "edge"
   assert kueri::ident("order") == "\"order\""

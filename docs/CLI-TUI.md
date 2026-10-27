@@ -1,3 +1,8 @@
+---
+kind: explanation
+summary: one way to build a command line and a terminal interface in blue (design, layer 1 built)
+---
+
 # CLI-TUI — one way to build a command line and a terminal interface in blue
 
 Status: DESIGN, 2026-10-27. Layer 1 (arguments and line output) is BUILT; §9

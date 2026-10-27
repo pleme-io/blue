@@ -727,6 +727,7 @@ In blue's own distribution, a new package also needs a row in
 - [BUILD-ASSURANCE — what a blue build proves, how fast, and from which cache](BUILD-ASSURANCE.md): what a blue build proves, how fast, and from which cache (design)
 - [BUILD-STACK — the default platform for a blue service, from Bluefile to a running node](BUILD-STACK.md): the default platform for a blue service, from Bluefile to a running node (design)
 - [`Cargo.gen.lock` is committed, and that is a trade](CARGO-GEN-LOCK.md): why Cargo.gen.lock is committed, and what that trade costs
+- [CLI-TUI — one way to build a command line and a terminal interface in blue](CLI-TUI.md): one way to build a command line and a terminal interface in blue (design, layer 1 built)
 - [Competing languages — what blue takes, and what it refuses](COMPETING-LANGUAGES.md): what blue takes from competing languages on packaging and the standard library, and what it refuses
 - [Compile time: Rust's static guarantees and Lua's runtime, in blue](COMPILE-TIME.md): Rust's static guarantees and Lua's runtime, brought into blue
 - [Compounding: every evolution break fixes itself](COMPOUNDING.md): every break blue's evolution causes ships its own fixer

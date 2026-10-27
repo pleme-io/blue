@@ -1678,6 +1678,11 @@ test "a directory with pages is read sorted, with paths from the root"
   assert map((p) -> first(p), found) == ["docs/b.md", "docs/howto/a.md"]
 end
 
+@doc """
+sample_pages: The pages of a small sample project the tests render: an introduction, a tutorial, a how-to, an agents page and an explanation.
+
+    length(sample_pages) #=> 5
+"""
 def sample_pages()
   [
     [
@@ -1755,6 +1760,11 @@ def sample_pages()
   ]
 end
 
+@doc """
+sample_project: The sample pages as a project, with a manifest that declares a catalogue, a check and a generated README.
+
+    get(sample_project, :name) #=> "demo"
+"""
 def sample_project()
   project_of(
     sample_pages,

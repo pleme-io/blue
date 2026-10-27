@@ -388,5 +388,59 @@
     "file": "gamen.b",
     "find": "append([refusals], a11y_rules)",
     "replace": "a11y_rules"
+  },
+  {
+    "name": "cells counts every astral char as one",
+    "file": "gamen.b",
+    "find": "  elsif cp >= 65536\n    2\n",
+    "replace": "  elsif cp >= 65536\n    1\n"
+  },
+  {
+    "name": "the emoji selector adds nothing",
+    "file": "gamen.b",
+    "find": "  if cp == 65039\n    1\n",
+    "replace": "  if cp == 65039\n    0\n"
+  },
+  {
+    "name": "the four-byte code point drops a place",
+    "file": "gamen.b",
+    "find": "(nth(1, b) - 128) * 4096",
+    "replace": "(nth(1, b) - 128) * 64"
+  },
+  {
+    "name": "a right-aligned cell pads after",
+    "file": "gamen.b",
+    "find": "  if align == :right\n    [gap, node]",
+    "replace": "  if align == :left\n    [gap, node]"
+  },
+  {
+    "name": "the last cell is padded",
+    "file": "gamen.b",
+    "find": "if i == kept - 1 and nth(i, aligns) != :right",
+    "replace": "if false"
+  },
+  {
+    "name": "the tree rail is blank",
+    "file": "gamen.b",
+    "find": "    \"│   \"\n",
+    "replace": "    \"    \"\n"
+  },
+  {
+    "name": "the meter skips the partial block",
+    "file": "gamen.b",
+    "find": "  partial = if part == 0\n",
+    "replace": "  partial = if true\n"
+  },
+  {
+    "name": "the meter does not clamp",
+    "file": "gamen.b",
+    "find": "f = blue::min(1, blue::max(0, fraction))",
+    "replace": "f = fraction"
+  },
+  {
+    "name": "success paints red",
+    "file": "gamen.b",
+    "find": "    success: :green,\n",
+    "replace": "    success: :red,\n"
   }
 ]

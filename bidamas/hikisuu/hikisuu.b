@@ -321,7 +321,7 @@ problem: an accumulator with one more problem.
     get(problem({problems: []}, "x"), :problems) #=> ["x"]
 """
 def problem(acc, text)
-  assoc(acc, :problems, append(get(acc, :problems), [text]))
+  jisho::update(acc, :problems, (ps) -> append(ps, [text]))
 end
 
 @doc """
@@ -994,6 +994,7 @@ test "completion offers commands first, then the flags of the command, and nothi
   assert complete(["rust", "--"], souji_like) ==
     ["--dry-run", "--help", "--min-age-hours"]
   assert complete(["nix", "--older-than-days", ""], souji_like) == []
+  assert complete(["nix", "--older-than-days", "-"], souji_like) == []
   assert complete(["nix", "x"], souji_like) == []
   assert complete(["-"], souji_like) == ["--help"]
   assert complete([], {name: "x", flags: {a: false}}) == []

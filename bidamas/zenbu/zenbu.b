@@ -63,6 +63,7 @@ use("haibi")
 use("heddaa")
 # waive B0016: zenbu is the facade, and depending on it means depending on heni
 use("heni")
+use("hikisuu")
 use("hizuke", [:is_leap])
 use("hyouka")
 use("jisho")
@@ -188,7 +189,7 @@ test "every bidama in the distribution answers through this one import"
     tehai::machine("ssh://root@plo x86_64-linux - 8 8 - - -"),
     :host
   ) == "plo"
-  assert blue::get(souji::parse(["nix"]), :days) == 14
+  assert blue::get(hikisuu::parse(["nix"], souji::cli), :older_than_days) == 14
   assert blue::get(decide({corp: :absent}), :kind) == :noop
   assert size(relay_env("socks5h://r:1")) == 6
   assert hadome::recorded(

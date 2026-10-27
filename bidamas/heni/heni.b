@@ -29,12 +29,10 @@ survives, is refused, or is blind (its tests could not be started).
 """
 
 use("deeta", [:get_str])
+use("hikisuu")
 use("moji", [:occurrences, :replace_first, :strip_prefix])
 
-use(
-  "retsu",
-  [:contains, :count_where, :enumerate, :first, :is_empty, :last, :size]
-)
+use("retsu", [:count_where, :enumerate, :is_empty, :last])
 
 use("shisutemu", [:read_or, :status_of])
 
@@ -271,54 +269,55 @@ def ok?(r)
 end
 
 @doc """
-parse: {package, mutations_file, blue, test} from argv, or {error}.
+cli: heni's command line: the package and its mutations file, and which blue and which test file to run.
+
+    get(hikisuu::parse(["p", "m.json"], cli), :mutations_file) #=> "m.json"
 """
-def parse(args)
-  if size(args) < 2
-    {error: "usage: heni PACKAGE_DIR MUTATIONS.json [--blue BIN] [--test FILE]"}
-  else
-    parse_flags(
-      drop(2, args),
-      {
-        package: nth(0, args),
-        mutations_file: nth(1, args),
-        blue: self_exe,
-        test: nil,
-        error: nil
+def cli()
+  {
+    name: "heni",
+    about: "mutation testing for a blue package",
+    flags: {
+      blue: {
+        kind: :text,
+        default: nil,
+        value: "BIN",
+        about: "the blue that runs the tests; the one running heni when unset"
+      },
+      test: {
+        kind: :text,
+        default: nil,
+        value: "FILE",
+        about: "the test file to run, relative to the package"
       }
-    )
-  end
+    },
+    positional: [
+      {name: :package, about: "the package directory"},
+      {name: :mutations_file, about: "the JSON list of mutations"}
+    ]
+  }
 end
 
-def parse_flags(args, acc)
-  if is_empty(args) or get(acc, :error) != nil
-    acc
-  else
-    flag = first(args)
-    if contains(["--blue", "--test"], flag) and size(args) >= 2
-      key = if flag == "--blue"
-        :blue
-      else
-        :test
-      end
-      parse_flags(drop(2, args), assoc(acc, key, nth(1, args)))
-    else
-      assoc(acc, :error, "unknown argument #{flag}")
-    end
-  end
-end
+@doc """
+main: the command's entry point: argv read by heni's cli through hikisuu, which answers help and completion and refuses a bad line with exit 64.
 
+    get(hikisuu::outcome(["/p"], cli), :status) #=> 64
+"""
 def main()
-  a = parse(argv)
-  if get(a, :error) != nil
-    write_stderr(unlines([get(a, :error)]))
-    raise(:heni_usage, get(a, :error))
-  end
+  hikisuu::command(cli, mutate)
+end
+
+@doc """
+mutate: one heni run from a parsed command line: every mutation run, the report on stdout, and an error when the run is not clean.
+
+    procedure?(mutate) #=> true
+"""
+def mutate(a)
   r = run(
     {
       package: get(a, :package),
       mutations: mutations(json_parse(read_file(get(a, :mutations_file)))),
-      blue: get(a, :blue),
+      blue: get(a, :blue) or self_exe,
       test: get(a, :test),
       tmp: getenv("TMPDIR", "/tmp")
     }
@@ -357,12 +356,20 @@ test "the verdicts: refused, survived, caught"
 end
 
 test "arguments"
-  a = parse(["/p/kazu", "m.json", "--blue", "/bin/blue"])
+  a = hikisuu::parse(["/p/kazu", "m.json", "--blue", "/bin/blue"], cli)
   assert get(a, :package) == "/p/kazu"
   assert get(a, :blue) == "/bin/blue"
   assert get(a, :test).nil?
-  assert get(parse(["/p"]), :error) != nil
-  assert get(parse(["/p", "m", "--nope"]), :error) == "unknown argument --nope"
+  refused = fn(args)
+    begin
+      hikisuu::parse(args, cli)
+      nil
+    rescue e
+      e.message
+    end
+  end
+  assert refused(["/p"]) == "missing MUTATIONS_FILE"
+  assert refused(["/p", "m", "--nope"]) == "unknown flag --nope"
   assert package_name("/a/b/kazu/") == "kazu"
 end
 

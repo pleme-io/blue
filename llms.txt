@@ -1,22 +1,71 @@
 # blue
 
-> blue is a general-purpose language with a Ruby/Elixir surface that parses to a tatara-lisp tree, run by a Rust runtime. It has one formatting and no configuration; most of its vocabulary lives in packages called bidamas.
+> blue is a general-purpose language with a Ruby/Elixir surface that parses to a tatara-lisp tree and runs on a Rust runtime. It has one formatting, rigor where you write it, and most of its vocabulary in packages called bidamas.
 
-Start with AGENTS.md, then copy the closest program in docs/EXAMPLES.md. REFERENCE.md and CATALOG.md are generated from the implementation and gated fresh, so they match the compiler.
+Read the tutorials and how-to guides in order in [The blue Book](docs/BOOK.md).
 
-## Docs
+## Tutorials
 
-- [AGENTS.md](AGENTS.md): how to write blue, the commands, and the traps that cost agents most
-- [docs/EXAMPLES.md](docs/EXAMPLES.md): one tested program per common task, ready to paste as examples
-- [docs/REFERENCE.md](docs/REFERENCE.md): syntax, operators, reserved words, every built-in name and the Bluefile words
-- [bidamas/CATALOG.md](bidamas/CATALOG.md): every bidama and each of its definitions
-- [bidamas/okite/RULES.md](bidamas/okite/RULES.md): where blue's semantics differ from Ruby's, each rule enforced by laws
-- [docs/SAFETY.md](docs/SAFETY.md): the safety-first posture, one row per Rust guarantee: blue today, the gate, its tier and its off switch
-- [docs/TESTING.md](docs/TESTING.md): every kind of test and its one place beside what it tests, the hard block on untested definitions, and the Bluefile as the one pipeline the blue binary runs
+- [Install blue](docs/tutorial/install.md): install blue, evaluate one expression and run a first file, in about a minute
+- [A first script](docs/tutorial/first-script.md): write a script that reads its arguments, and let blue start one for you
+- [A first program](docs/tutorial/first-program.md): start a program with blue new, change its code, and test it
+- [A first bidama](docs/tutorial/first-bidama.md): write a documented bidama with doctests, read its docs with blue doc, and use it from a program
+- [A first service](docs/tutorial/first-service.md): declare a service in a Bluefile, write its handler and tests, and see what blue renders from it
+
+## How-to guides
+
+- [Write a test and a doctest](docs/howto/test-and-doctest.md): write a test block and a doctest, read a failure, and run one test by name
+- [Climb the blueshift](docs/howto/climb-the-blueshift.md): move a file from dynamic to checked one annotation at a time, reading blue shift at each step
+- [Declare what a program may touch](docs/howto/declare-access.md): hold a program to the host capabilities it needs with --allow, in a run or in a script's shebang
+- [Write an action](docs/howto/write-an-action.md): write a GitHub Actions step in blue with koutei, and run it locally before CI does
+- [Publish a bidama](docs/howto/publish-a-bidama.md): make a bidama reachable from other projects, and declare the registries that publish it
+
+## Reference
+
+- [Canonical forms](docs/CANONICAL-FORMS.md): every place the surface accepts two spellings, the one blue writes, and the rule that names it
+- [Diagnostics](docs/DIAGNOSTICS.md): what the check stage reports, every rule code, and the machine-readable shape of a diagnostic
+- [blue examples](docs/EXAMPLES.md): one tested program per common task, ready to paste as examples
+- [blue language reference](docs/REFERENCE.md): syntax, operators, reserved words, every built-in name and the Bluefile words
+- [Safety first: blue's posture, row by row](docs/SAFETY.md): the safety-first posture, one row per Rust guarantee: blue today, the gate, its tier and its off switch
+- [blue — the agent guide](AGENTS.md): rules for people and agents who write blue programs or change blue itself, with the build commands from the Bluefile
+- [bidamas/CATALOG.md](bidamas/CATALOG.md): every package and each of its definitions
 
 ## Optional
 
-- [bidamas/AUTHORING.md](bidamas/AUTHORING.md): writing, testing and publishing a bidama
-- [bidamas/NAMES.md](bidamas/NAMES.md): how packages are named
-- [docs/STDLIB.md](docs/STDLIB.md): the standard library's design as one verb vocabulary (design, not built)
-- [CLAUDE.md](CLAUDE.md): for people changing blue itself
+- [ABSENCE — no undeclared nil](docs/ABSENCE.md): no undeclared nil: how blue makes absence a declared, checked state
+- [API-EVOLUTION — the API is a versioned rendering of the one model](docs/API-EVOLUTION.md): the API as a versioned rendering of one model (design)
+- [BIDAMA-COHESION — one word per job, foundations below, a complete vocabulary](docs/BIDAMA-COHESION.md): one word per job, foundations below, a complete vocabulary across the bidamas (plan)
+- [BUILD-ASSURANCE — what a blue build proves, how fast, and from which cache](docs/BUILD-ASSURANCE.md): what a blue build proves, how fast, and from which cache (design)
+- [BUILD-STACK — the default platform for a blue service, from Bluefile to a running node](docs/BUILD-STACK.md): the default platform for a blue service, from Bluefile to a running node (design)
+- [`Cargo.gen.lock` is committed, and that is a trade](docs/CARGO-GEN-LOCK.md): why Cargo.gen.lock is committed, and what that trade costs
+- [Competing languages — what blue takes, and what it refuses](docs/COMPETING-LANGUAGES.md): what blue takes from competing languages on packaging and the standard library, and what it refuses
+- [Compile time: Rust's static guarantees and Lua's runtime, in blue](docs/COMPILE-TIME.md): Rust's static guarantees and Lua's runtime, brought into blue
+- [Compounding: every evolution break fixes itself](docs/COMPOUNDING.md): every break blue's evolution causes ships its own fixer
+- [DOCUMENTATION — every blue project documents itself, and the language has a book](docs/DOCUMENTATION.md): documentation as a battery: one source per fact, a Diátaxis book, rendered README, AGENTS.md and llms.txt (design)
+- [FRONTEND-PLAN — building the blue frontend framework](docs/FRONTEND-PLAN.md): the build plan for blue's frontend framework
+- [HTTP2 — blue speaks HTTP/2 and gRPC itself](docs/HTTP2.md): blue speaks HTTP/2 and gRPC itself (design, phase 1 built)
+- [Lessons behind the agent guide's rules](docs/LESSONS.md): the full story behind each rule the agent page states in short
+- [Namespaces: a bidama definition stays in its bidama](docs/NAMESPACES.md): a bidama definition stays in its bidama: the rule as built and its gates
+- [naturalize(tree-sitter) — the destination, before the build](docs/NATURALIZE-TREESITTER.md): tree-sitter naturalized: the grammar spec and what is emitted from it
+- [OPERATORS — short notation for what blue says most, keyed to the blueshift](docs/OPERATORS.md): short notation for what blue says most, keyed to the blueshift (design)
+- [Performance: blue as a scripting language and as a tool](docs/PERFORMANCE.md): what blue costs today, where the time goes, and the order to remove it
+- [Registry](docs/REGISTRY.md): how a blue project is published and resolved: registries as renderings of the Bluefile
+- [SERVICE-ACCESS — one access declaration, enforced by every layer that builds a service](docs/SERVICE-ACCESS.md): one access declaration, enforced by every layer that builds a service (design)
+- [SERVICE-ARCHITECTURE — the default blue service](docs/SERVICE-ARCHITECTURE.md): the default blue service and the batteries it composes (design)
+- [SERVICE-DATA — Postgres, Valkey and the nervous system as defaults](docs/SERVICE-DATA.md): Postgres, Valkey and the nervous system as the configurable defaults of a blue service (design)
+- [STDLIB: blue's batteries, as one verb vocabulary](docs/STDLIB.md): the standard library's design as one verb vocabulary (design)
+- [Testing and the SDLC: one blue pipeline](docs/TESTING.md): every kind of test and its one place beside what it tests, and the Bluefile as the one pipeline
+- [Blue verb roadmap: full software verbalization](docs/VERB-ROADMAP.md): the roadmap to full software verbalization
+- [vocabularify — the surface/structure vocabulary](docs/VOCABULARIFY-SURFACE.md): kigou and yakugo: a program's spelling separated from its meaning
+- [WORKSPACES — one root, many bidamas and many crates](docs/WORKSPACES.md): one root holding many bidamas and many crates (design)
+- [Region A: data and knowledge (578 verbs, 30 spaces, 875 edges)](docs/verbs/A/REGION.md): verb graph region A: data and knowledge
+- [Region B: storage and state (2026-10-22)](docs/verbs/B/REGION.md): verb graph region B: storage and state
+- [Blue verb graph: shared brief (read fully first)](docs/verbs/BRIEF.md): the shared brief behind the verb graph
+- [Region C: communication and distributed systems](docs/verbs/C/REGION.md): verb graph region C: communication and distributed systems
+- [Region D: security and trust (2026-10-22)](docs/verbs/D/REGION.md): verb graph region D: security and trust
+- [Region E: build, ship and run (346 verbs, 567 edges, 29 spaces)](docs/verbs/E/REGION.md): verb graph region E: build, ship and run
+- [Region F: OBSERVE, TEST, QUALITY AND THE ENGINEERING PROCESS](docs/verbs/F/REGION.md): verb graph region F: observe, test, quality and process
+- [Region G: interfaces, intelligence and the physical world](docs/verbs/G/REGION.md): verb graph region G: interfaces, intelligence and the physical world
+- [H: the verb GRAPH as data blue owns (META region)](docs/verbs/H/DESIGN.md): the verb graph as data blue owns
+- [Merged graph: repairs and decisions (H0a)](docs/verbs/merged/CHANGES.md): the merged verb graph: repairs and decisions
+- [Naming sweep: what is applied and what the operator decided](docs/verbs/names/RULINGS.md): the naming sweep of the verb graph's spaces, and the rulings

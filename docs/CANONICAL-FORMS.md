@@ -1,3 +1,8 @@
+---
+kind: reference
+summary: every place the surface accepts two spellings, the one blue writes, and the rule that names it
+---
+
 # Canonical forms
 
 blue has one way to write each thing. This is the inventory of every place where

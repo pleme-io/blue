@@ -1,3 +1,8 @@
+---
+kind: explanation
+summary: what blue takes from competing languages on packaging and the standard library, and what it refuses
+---
+
 # Competing languages — what blue takes, and what it refuses
 
 **Scope and honesty note.** This reviews the languages blue is actually

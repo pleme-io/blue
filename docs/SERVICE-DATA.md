@@ -1,5 +1,6 @@
 ---
 kind: explanation
+summary: Postgres, Valkey and the nervous system as the configurable defaults of a blue service (design)
 ---
 
 # SERVICE-DATA — Postgres, Valkey and the nervous system as defaults

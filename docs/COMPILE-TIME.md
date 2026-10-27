@@ -1,3 +1,8 @@
+---
+kind: explanation
+summary: Rust's static guarantees and Lua's runtime, brought into blue
+---
+
 # Compile time: Rust's static guarantees and Lua's runtime, in blue
 
 Operator, 2026-10-24: *"lets ensure that all the compiletime benefits rust has

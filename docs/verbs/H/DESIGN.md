@@ -1,3 +1,8 @@
+---
+kind: explanation
+summary: the verb graph as data blue owns
+---
+
 # H: the verb GRAPH as data blue owns (META region)
 
 Read: STDLIB §0-§11, mokuroku (text scan, CATALOG.md, `name_collisions`), okite (`decisions()` with laws),

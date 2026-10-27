@@ -1,3 +1,8 @@
+---
+kind: explanation
+summary: every kind of test and its one place beside what it tests, and the Bluefile as the one pipeline
+---
+
 # Testing and the SDLC: one blue pipeline
 
 Operator, 2026-10-24: *"just like we do test blocks in blue for tests could we

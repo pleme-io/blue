@@ -1,3 +1,8 @@
+---
+kind: explanation
+summary: the default platform for a blue service, from Bluefile to a running node (design)
+---
+
 # BUILD-STACK — the default platform for a blue service, from Bluefile to a running node
 
 Status: DESIGN, 2026-10-27. Nothing is built unless §8 says so. It joins three

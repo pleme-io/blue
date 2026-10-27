@@ -1,3 +1,8 @@
+---
+kind: explanation
+summary: the naming sweep of the verb graph's spaces, and the rulings
+---
+
 # Naming sweep: what is applied and what the operator decided
 
 Source: `N1.tsv` and `N2.tsv` (94 provisional spaces swept 2026-10-22: 28 KEEP, 39 KEEP_WITH_NOTE, 27 REJECT). Method: the `naming` skill over the whole fleet with a file-count control, plus crates.io with a User-Agent and positive and negative controls.

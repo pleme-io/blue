@@ -1,3 +1,8 @@
+---
+kind: explanation
+summary: the default blue service and the batteries it composes (design)
+---
+
 # SERVICE-ARCHITECTURE — the default blue service
 
 Status: DESIGN, 2026-10-23. Nothing below is built unless the tier ledger (§12)

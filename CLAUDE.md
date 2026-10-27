@@ -1,4 +1,6 @@
-# blue — Claude Orientation
+<!-- Rendered by hon from docs/agents.md, Bluefile.lock. Edit the sources, then run `nix run .#regen`. -->
+
+# blue — the agent guide
 
 No `pending-shikumi:` — M2 closed 2026-09-29. `BlueConfig`
 (`crates/blue-lang-cli/src/config.rs`) implements `shikumi::TieredConfig` with
@@ -10,32 +12,7 @@ to every interpreter through `blue_lang_runtime::set_execution_bounds`).
 `flake.nix` carries the module trio that deploys them, and `blue config <tier>`
 is the operator surface.
 
-The M1 waiver this replaces claimed three knobs were "blocked on an unsettled
-design". Measured 2026-08-01, two of the three were not blocked — they were
-**settled against being configurable**, which is a stronger statement and was
-worth correcting rather than carrying:
-
-- **Formatter width** — settled AGAINST. `blue-lang-fmt`'s module docs already
-  said so: "There is no configuration type in this crate, and that is the
-  feature… there is nowhere to put a knob." Typing it would forfeit §0 (one way
-  to write a thing) and the content-addressed identity §V.16.1 rests on. It is
-  a regression, not pending work.
-- **Posture ceiling** — settled elsewhere. §V.24 moved ceilings to the ROOT as
-  a Bluefile input; `blue_lang_waku::Waku` deliberately carries none and
-  `blue_lang_bidama::resolve(bidama, ceiling)` takes it as an argument. A
-  daemon knob would rebuild the anti-pattern §V.24 removed.
-- **Execution budget** — was open because no default constant existed to
-  expose. tatara-lisp-eval 0.3.63 gave both executors one budget and made
-  exceeding it a catchable error rather than a stack overflow, which closed M2.
-
-**The admission rule, which is what makes the surface safe to have shipped:** a
-knob may live in `BlueConfig` only if it is a **BOUND, never a preference**.
-Raising `solver_max_steps` or `max_expr_depth` changes no program's meaning —
-only whether a pathological input is refused — so neither can freeze a design
-guess as a public interface, which was the M1 objection. A preference would.
-Both are also read for real (`blue deps` → `Solver::with_max_steps`, every
-parsing subcommand → `parse_with_depth`), each with a red run recorded in the
-test that proves it.
+The M1 waiver this replaced, and why two of its three knobs are settled against configuration, is in [LESSONS.md](docs/LESSONS.md), "Bounds, never preferences".
 
 pending-tela: not a frontend app; blue hosts the frontend framework that
 retargets Tela (`theory/BLUE-FRONTEND.md`, `docs/FRONTEND-PLAN.md`). No `pending-urdume:` — blue is a language
@@ -51,10 +28,266 @@ A general-purpose language: a Ruby/Elixir surface, a tatara-lisp AST, macros
 as term rewriting on that AST, and a Rust runtime. Crates are `blue-lang-*`
 (bare `blue` is squatted on crates.io); source extension is `.b`.
 
-**Writing blue programs rather than changing blue?** Read
-[`AGENTS.md`](AGENTS.md). This file is for implementers.
+This page has two parts. **Writing blue programs** is for anyone who writes
+blue. **Changing blue itself** is for implementers of the parser, the runtime
+and the nix engine. `AGENTS.md` and `CLAUDE.md` are both rendered from this
+page and the `Bluefile`.
 
-## Grow blue pattern-first
+## Build and test
+
+These commands come from the Bluefile. Run them from the repository root.
+
+| Command | What it does |
+|---|---|
+| `nix flake check` | every check the Bluefile declares, and the gates every blue project gets |
+| `nix run .#regen` | rewrites every generated file in place |
+| `blue lock .` | rewrites `Bluefile.lock` after an edit to the `Bluefile` |
+| `blue test gen/docs.b` | `checks.docs` |
+| `blue test gen/heni-gate.b` | `checks.heni-mutations` |
+| `blue test gen/okite-laws.b` | `checks.okite-laws` |
+| `blue test rules/conventions.b` | `checks.project-rules` |
+| `blue test gen/regen_test.b` | `checks.regen-untracked` |
+| `blue test gen/test-beside.b` | `checks.test-beside` |
+| `blue test gen/verb-graph.b` | `checks.verb-graph` |
+
+Generated files, never edited by hand: `bidamas/CATALOG.md`, `AGENTS.md`, `docs/BOOK.md`, `CLAUDE.md`, `docs/EXAMPLES.md`, `crates/blue-lang-syntax/src/kigou/tables.rs`, `tree-sitter-blue/queries/folds.scm`, `tree-sitter-blue/grammar.js`, `tree-sitter-blue/queries/highlights.scm`, `tree-sitter-blue/queries/indents.scm`, `tree-sitter-blue/queries/locals.scm`, `tree-sitter-blue/tree-sitter.json`, `crates/blue-lang-kiwari/blue.kiwari.json`, `bidamas/kyasshu/keys/kensa.json`, `llms.txt`, `llms-full.txt`, `bidamas/okite/RULES.md`, `README.md`, `docs/REFERENCE.md`.
+
+## Writing blue programs
+
+blue looks like Ruby and Elixir and parses to a tatara-lisp tree that a Rust
+runtime executes. There is one formatting and no configuration, and most
+of the vocabulary lives in packages called bidamas.
+
+### Start from an example
+
+Copy the closest program in [`docs/EXAMPLES.md`](docs/EXAMPLES.md) and change
+it. Every example there runs as a check, so it works as written. Then look up
+names in [`docs/REFERENCE.md`](docs/REFERENCE.md) (built-ins, operators,
+syntax) and [`bidamas/CATALOG.md`](bidamas/CATALOG.md) (every bidama
+definition). Both are generated from the implementation and gated fresh.
+
+### A file is a program; a project is one command away
+
+A script needs no structure. `blue new --script tool.b` writes one that opens
+with `#!/usr/bin/env blue` and is executable, so both of these run it:
+
+```text
+blue tool.b a b        ./tool.b a b
+```
+
+It can `use` every standard bidama with no Bluefile and no `BLUE_PATH`: they
+are compiled into `blue`. Run this way a script prints only what it writes, and
+every argument after the file reaches `argv` as given. A subcommand wins over
+a file of the same name; `blue ./test` runs the file.
+
+**Safety first is the default posture.** A script states the host
+capabilities it needs in its shebang, `#!/usr/bin/env -S blue --allow
+filesystem`, and a name outside them is refused (`none`, `host`, or
+`process`, `filesystem`, `environment`, `clock`, `network`, `entropy`). Every
+Rust guarantee, the blue gate that matches it and its off switch:
+[`docs/SAFETY.md`](docs/SAFETY.md).
+
+When a script outgrows one file, `blue new NAME` starts a project: a Bluefile
+with `packages("bidamas")`, its lock, the stub `flake.nix`, the code and tests
+in `bidamas/NAME/NAME.b`, and `main.b` calling it. `blue new --bidama NAME`
+writes a package alone, inside a distribution's directory.
+
+`use("pkg")` looks in order: the `packages` roots of the project the file
+sits in (the nearest Bluefile above it that declares them), then the roots on
+`BLUE_PATH` (your override), then `BLUE_DIST` (the installed distribution the
+fleet's `blue` wrapper sets), then the distribution compiled into `blue`. The
+project always wins; outside it, a copy whose version is outside the range the
+file's `Bluefile.lock` records is skipped and named, never chosen.
+
+### Commands
+
+| | |
+|---|---|
+| `blue file.b a b` | run a program as a script: quiet, every argument after the file to `argv` |
+| `blue run file.b` | run a program and print its final value; `--quiet` drops it, `-- a b` passes arguments; `--allow CAP` holds it to those host capabilities; a runtime error prints the blue call stack, and `--format json` prints it as one object; `--timings` prints the wall time of each pipeline stage to stderr |
+| `blue new NAME` | a project; `--bidama NAME` a package, `--script NAME.b` an executable script |
+| `blue watch [check\|test\|run] PATH…` | rerun the command on every save (`check` by default) |
+| `blue test file.b` | check it, then run its `test` blocks; a directory runs every file with tests, in parallel; `--filter NAME` keeps tests whose name contains it; `--coverage` lists each definition's calls and the uncovered ones |
+| `blue profile file.b` | run it and list every function called: calls, inclusive and exclusive time, and allocations made in each |
+| `blue trace NAME file.b` | run it and print each call of `NAME` with its arguments and value |
+| `blue check file.b` | every rule (unbound names with did-you-mean, unused bindings, types, waivers); `--format json` prints one object per diagnostic, `--fix` applies the machine-applicable fixes |
+| `blue explain B0001` | what a diagnostic code means; `--list` lists them ([`docs/DIAGNOSTICS.md`](docs/DIAGNOSTICS.md)) |
+| `blue doc NAME` | a builtin, `pkg::name` or bare name: signature, doc line, namespace, tier and an example (a builtin's from its spec row, a definition's from its package's tests); `blue doc PKG` lists a package; `--file F` gives each answer's tier as F reaches it; `--json` |
+| `blue verbs import\|export\|check\|findings` | the verb graph (`bidamas/mokuroku/graph`, `docs/verbs/H/DESIGN.md`): `import` TSVs into its row files, `export` them back (the only writer of TSV), `check` its gates against the recorded baseline (`--record` writes it), `findings --tsv DIR` of a directory of TSVs |
+| `blue fmt file.b` | print the one formatting, zero-parameter calls bare (it resolves the file to know which); `--write` rewrites, `--check` fails on drift |
+| `blue reference` | the language reference as JSON |
+| `blue eval 'EXPR'` | evaluate once and print the value; `blue eval file.b:LINE:COL` evaluates the top-level form there in that file's context |
+| `blue repl` | an evaluation session: multi-line input, `:load`, `:expand`, `:doc`, `:reset`, `:quit`; ctrl-c stops a running evaluation |
+| `blue serve` | the same session as JSON lines on stdio, for editors (`theory/BLUE-TOOLING.md` §4) |
+| `blue image build [NAME]` | build a Bluefile `image` through nix: the tarball, its size and layers |
+| `blue workload render [NAME]` | a Bluefile `workload` as Kubernetes objects; `--write` rewrites the committed files |
+| `blue diff --context CTX` | the committed workload files against a cluster, read-only; there is no `blue apply`, GitOps applies |
+| `blue registry render [BACKEND]` | a Bluefile `registry` entry (sui first, FlakeHub optional) as its publish workflow; `--write` rewrites the committed files; `blue registry status` says whether sui serves each pin. The lock stays the truth: [`docs/REGISTRY.md`](docs/REGISTRY.md) |
+
+Sessions (`eval`, `repl`, `serve`) are pure: code that reaches the host
+(`read_file`, `now_ms`, `exec_capture`, …) is refused as volatile unless the
+session was started with `--allow host` (or `--allow filesystem`, and so on);
+`--budget STEPS` bounds each evaluation.
+
+A project adds its own check rules, written in blue: `rule("R0001",
+"rules/x.b", "def_name")` in its Bluefile names a definition that receives each
+top-level form as data and returns findings (`{at: path, message: "…", fix:
+tree}`); `blue check` runs it under a pure frame and a step budget, and the
+usual `# waive R0001: reason` applies. The shape, the frame and a worked rule:
+[`docs/DIAGNOSTICS.md`](docs/DIAGNOSTICS.md), "Project rules"; blue's own are
+in [`rules/`](rules).
+
+`run`, `test` and `check` rewrite a non-canonical file in place before they
+compile it, and say `blue: formatted <file>`. A checkout's bidamas override
+the compiled-in ones from `BLUE_PATH`:
+`BLUE_PATH=path/to/blue/bidamas blue test file.b`.
+
+`blue test` is hermetic. It drops the inherited `GIT_DIR`, `GIT_WORK_TREE`
+and their kin, so a fixture repository a test makes is its own, and it
+refuses a write outside the temporary directory (`TMPDIR`). The off switches
+are `BLUE_TEST_ENV=inherit` and `BLUE_TEST_WRITES=anywhere`. A test that
+writes a `.b` file writes it with `write_program`, which formats it (B0064).
+
+### One way to write each thing
+
+blue reads every older or borrowed spelling and writes one: `a and b`, `not x`,
+`if not c`, `f(x, y)`, `x.field`, `f(a, *xs)`, `raise(:kind, "why")`,
+`x rescue fallback`, `def main()`. `blue fmt --write` and `blue check --fix`
+rewrite a file to it and name each rule; `blue run` formats its entry in
+place; `blue test` and `blue check` never write a file, and refuse naming the
+command that fixes it. A loaded dependency compiles as written: its form is
+its producer's ([`docs/COMPOUNDING.md`](docs/COMPOUNDING.md)). The rules are the table at the end of
+[`docs/REFERENCE.md`](docs/REFERENCE.md) (generated from the registry the
+check stage runs); why each spelling won is
+[`docs/CANONICAL-FORMS.md`](docs/CANONICAL-FORMS.md). Write the canonical
+spelling and nothing is rewritten.
+
+The one spelling is the shortest that stays distinct, and each shorthand is
+built from a longer form that also works, so writing the long form is never
+wrong: the formatter shortens it. The same holds for the library: one verb per
+meaning, and one bidama for each cross-cutting concern (errors and refusals in
+`kyohi`, entries and switches in `kousei`, configuration in `settei`). Reach
+for that bidama before writing the concern by hand. Why: `theory/BLUE.md` §0
+and §V.28.1.
+
+Before you name a function, look for its verb: the graph rows in
+`bidamas/mokuroku/graph/` (one file per space) and the contract for each verb in
+`docs/verbs/contracts.tsv`. A verb that exists is called as `space::verb` with that
+contract. A verb that is only a row is the work to do: build it to its contract. A
+meaning with no row gets a row first (TSV, then `blue verbs import`), named in plain
+English as `read`, `put`, `need` (raises) or `get` (nil), never a `_or` variant.
+The plan and the waves are `docs/VERB-ROADMAP.md`.
+
+### The traps that cost the most
+
+Each one was checked against the runtime.
+
+- **`nil` is not `[]`** (okite D0004). `nil == []` is false, `list?(nil)` is
+  true, and `length(nil)` raises. Use retsu's `size`, `first`, `rest`,
+  `is_empty`, which accept both. The built-in `first([])` raises; retsu's
+  answers nil.
+- **`/` never truncates.** `7 / 2` is 3.5, while `6 / 2` stays the Int 3.
+  Integer division is `floor(a / b)`. `%` is Euclidean: `-7 % 3` is 2.
+- **`==` is structural** (`equal?`): strings, lists and maps compare by
+  content, and `4 == 4.0`. `<` takes numbers only; order text with
+  `compare(a, b)`.
+- **Argument order is Lisp's.** `map(f, xs)`, `filter(f, xs)`,
+  `reduce(f, init, xs)`, `nth(i, xs)`, `take(n, xs)`, but `join(xs, sep)` and
+  `split(s, sep)`. A pipe `xs |> f(a)` is read as `f(xs, a)` and written
+  that way (B0028), so `xs |> map(f)` is `map(xs, f)` and fails.
+- **Brevity is the house style.** A lambda that only forwards its parameters to a `def` of the file is that name (`map(describe, vs)`, B0044, machine-fixed); say it in the fewest tokens that parse to the same tree.
+- **No blocks, no indexing.** Write `map((x) -> x * 2, xs)` (inline, one expression), or a broken `fn(x) … end` over several lines; `fn … end` is never on one line, and blue compiles only canonical source. Never
+  `xs.map { |x| … }` or `do … end`. Write `nth(0, xs)`, never `xs[0]`.
+- **Errors are raised and rescued.** `raise(:not_found, "no repo #{name}")`
+  raises; `raise(:k, "m", {data: d, cause: e})` attaches data and the error
+  it wraps; `raise(e)` raises one again. `json_parse(text) rescue nil` is the
+  value or nil. A block catches by kind and binds the error:
+  `begin … rescue :timeout, :refused as e … rescue e … ensure … end`, and a
+  `def` takes the same clauses directly. The error reads as a record:
+  `e.kind`, `e.message`, `e.data`, `e.cause`, `e.trace`. A catch-all that
+  ignores the error is written `rescue _` (B0038). Retry a flaky step with
+  `saishikou::retrying({times: 3, wait_ms: 500}, fn() fetch(url) end)`.
+  Return refusals as data (`kyohi`) where a caller must branch on several.
+- **`x.name` reads a field; it is not a call.** It reads a map's key, a
+  keyed list (`exec_capture(...)` gives `cap.status`, `cap.stdout`), a
+  parsed JSON object (`doc.spec`) or an error's field, and raises naming the
+  fields there are when it is absent; `get(m, :k)` reads one that may be
+  absent. Nested JSON that may be missing: `deeta::json_at(doc,
+  "spec.items.0.name")`, nil when any step is absent. A call with arguments
+  is written `f(x, y)`.
+- **The entry point is `def main()`.** `blue run FILE` calls it after the
+  file's top level; `blue test`, `blue check` and `use` never do, so a file
+  is a program and a library at once. No `X_MAIN` variable (B0041).
+- **Each bidama is a namespace.** Reach another bidama's definition
+  qualified, `kueri::join(a, b)` after `use("kueri")`, or list it,
+  `use("retsu", [:first, :size])`, then call `first(xs)` bare. Nothing else
+  is visible: a name another bidama defines, reached bare without a list, is
+  an error (B0012), and `blue migrate FILE` adds the lists. When that name is
+  also a builtin, the builtin answers; B0012 then fires only for the
+  flat-era names a bidama lists in `legacy_names` (docs/NAMESPACES.md). A bare name is a
+  local, else your bidama's own definition, else a listed one, else a
+  builtin; `blue::first` names the builtin past a same-named definition. A
+  listed name can replace a builtin for your file only: kazu's `max(a, b)`
+  takes two numbers, and shuugou's `remove(xs, v)` reverses the built-in's
+  order (REFERENCE.md marks each). **Do not prefix** your names (`kz_count`
+  is an error, B0013/B0014): callers write `kazu::count`.
+- **Maps cannot be walked.** `get(m, k)` and `assoc(m, k, v)` work, but no
+  word lists a map's keys. When you need entries, keep `[key, value]` pairs,
+  as shuugou's `group_by` and `frequencies` do. A parsed JSON object is such a
+  pair list, not a map: read it with `json_get` or deeta.
+- **A function with no parameters is called bare** (B0023, `blue explain
+  B0023`): `now_ms`, `argv`, `kueri::count_all`, never `now_ms()`. `blue fmt
+  --write` rewrites the old spelling and the check stage refuses it. Pass
+  such a function as a value with `fn() now_ms end`. A local or parameter of
+  the same name is its value, never a call. Effects run where the name is
+  written: the built-in ones are listed in
+  [`docs/REFERENCE.md`](docs/REFERENCE.md), "Called where written bare". Find
+  a definition's callers through the resolver (`blue ast --resolved --json
+  FILE` lists every reference, `"position": "call"` or `"value"`, and the
+  language server's references), never by searching for `name(`: a bare
+  call has no parentheses.
+- **Output is `write_stdout`.** `println` prints strings with their quotes.
+- **Logic is words.** `if ready and not failed`; `&&`, `||` and `!` are read
+  and written as `and`, `or` and `not` (B0025). `not` binds tightly:
+  `not a == b` is `(not a) == b`, and blue writes the parentheses; the
+  comparison you meant is `a != b`.
+- **A list spread as arguments is a splat**: `max(*xs)`, `exec_capture(cmd,
+  *argv)`; `apply(f, xs)` with `f` a name is written that way (B0042).
+- **Names with `-` do not exist in blue.** tatara-lisp's kebab-case words are
+  unreachable. A keyword may end in `?` or `!` (`[:pair?]`), as a name may.
+- **Deep recursion aborts.** Prefer `map`, `filter` and `reduce` over
+  hand-written recursion on long lists, and `sort_keyed(key, xs)` for sorting.
+
+The rest of blue's semantics is Ruby's, except where
+[`bidamas/okite/RULES.md`](bidamas/okite/RULES.md) says otherwise.
+
+### Conventions
+
+The formatter settles layout. For the rest, follow the examples: a predicate
+you define ends in `?` (okite D0010), names in lower snake_case (B0040),
+interpolation over `concat`, `use` forms first and sorted, each listing what
+the file reads, and names without a prefix in a bidama (B0013/B0014) or a
+program (B0043). Tests go in the same
+file, named for the behaviour, with the empty input among the cases.
+
+Tests live beside what they test, and the Bluefile is the pipeline
+(`docs/TESTING.md`). A bidama definition no test reaches fails
+`checks.test-beside` beyond its package's recorded debt; waive one with
+`waive(name, why, until)` in `gen/test-beside.b`, never by deleting the gate.
+
+### More
+
+- [`bidamas/AUTHORING.md`](bidamas/AUTHORING.md): writing and testing a
+  bidama, and the measured traps not yet made rules.
+- [`bidamas/NAMES.md`](bidamas/NAMES.md): how packages are named.
+- [`spec/README.md`](spec/README.md): the conformance suite, one row per
+  observable behaviour run on every evaluator; a row's program and expected
+  result is the most exact statement of what blue does.
+- [`llms.txt`](llms.txt): these files as an index.
+
+## Changing blue itself
+
+### Grow blue pattern-first
 
 Before any capability is coded, fix its plan in writing: the reuse map (read from source; move,
 never copy), the shape (adopt what existing implementations agree on), the idioms, and the
@@ -62,7 +295,7 @@ dependency order. **Blue bends to the pattern:** boilerplate in a blue program m
 missing a word, so add the form, macro or primitive. The principle is `theory/BLUE.md` §I.1; the
 loop (plan, build, test, ancestry, DuckDB analysis, promote) is the `blue-development-cycle` skill.
 
-## One short way, built on the last
+### One short way, built on the last
 
 The FORM axis (`theory/BLUE.md` §0) is the core of blue: each thing has one spelling, the
 shortest that stays distinct from every other meaning. A new form or shorthand lowers to a form
@@ -82,7 +315,7 @@ its `legacy_names` row (a three-string row for a retired word). Form is the prod
 dependency compiles as written, a bidama build judges meaning only, and `blue test` and `blue
 check` never write. The ledger and the receipts are `docs/COMPOUNDING.md`.
 
-## Compose first: a reusable component is the unit of development
+### Compose first: a reusable component is the unit of development
 
 Every capability starts as the smallest reusable component, and a service is a declaration that
 composes them. Declare entries with `kousei` (each checked, configured off, tuned or refused
@@ -92,7 +325,7 @@ distribution refuses: `cargo test -p blue-lang-pkg --test distribution` fails wh
 identical function shapes rises, so reuse the existing word. The list of service batteries and
 what is still missing: `theory/FUEKI.md` section I.
 
-## The pipeline is the architecture
+### The pipeline is the architecture
 
 **parse → check → erase → run.** The order is load-bearing and lives in
 `blue-lang-runtime::pipeline`, not in each caller, because two of the four
@@ -104,7 +337,7 @@ fails loudly; both produce a green run on a program that should be rejected.
 caller that re-implements the order is one reordering away from disabling the
 checker.
 
-## Architecture rules are pipeline errors; lint is a view over them
+### Architecture rules are pipeline errors; lint is a view over them
 
 **Every rule blue enforces is a row in one registry, `blue_lang_check::RULES`,
 and runs in the check stage** — so `blue run`, `blue test`, `blue check`, the
@@ -140,7 +373,7 @@ and both keep a file only when its resolved tree proves unchanged (`blue ast
 renamed call, and the proof did. `mkBidama` runs the check stage, so a
 bidama that does not check does not build.
 
-## Where to look
+### Where to look
 
 | Intent | Crate |
 |---|---|
@@ -167,7 +400,7 @@ bidama that does not check does not build.
 | the verb graph: row files (`space`, `verb`, `edge`, `vocab`, `lateral`) read as data, never run; gates G1, G2, G4, G7, G9 and their hadome baseline (`graph.baseline`); TSV import and export; `blue verbs` (`blue-lang-cli/blue/verbs.b`) and `checks.verb-graph` (`gen/verb-graph.b`) | `mokuroku` (`bidamas/mokuroku/graph/`), `blue-lang-cli` |
 | `blue doc`: a blue program (`blue-lang-cli/blue/doc.b`) over mokuroku | `blue-lang-cli` |
 
-## Rules this repo has learned the hard way
+### Rules this repo has learned the hard way
 
 Each of these is a defect that shipped, not a style preference.
 
@@ -185,14 +418,7 @@ Each of these is a defect that shipped, not a style preference.
   `register_awaitable_fn`, whose readiness phase holds `&System` — so
   take-then-park does not typecheck. Do not move it back to a one-phase
   primitive to "simplify" it; the compile error is the feature.
-- **A spawned function is turned back into code, never shared.** `spawn`
-  walks the function's free names: functions come along as definitions
-  recompiled for the VM in the child, data comes along as deep copies, and a
-  host handle is refused by name. Sharing the closure would share its
-  environment, which is the coupling isolation exists to remove
-  (`blue_lang_proc::code`). Every child's host reads go through a recorder, so
-  a crash trace replays without the host; a new host name needs no edit here,
-  because the recorder reads `Capability::host_effects()`.
+- **A spawned function is turned back into code, never shared.** Detail: [LESSONS.md](docs/LESSONS.md).
 - **A VM closure carries its chunk.** Before tatara-lisp-eval 0.4.x a closure
   compiled by one program and called from another read the caller's constant
   pool: a wrong constant or a panic. `defmigrate` compiles new code into a
@@ -242,41 +468,12 @@ Each of these is a defect that shipped, not a style preference.
   reports the drift). `PROPTEST_CASES=20000 cargo test -p blue-lang-fmt` is the
   deep run; a failure it finds is saved beside the test file.
 - **A name that reads like a guarantee is not one; ask an interpreter.** `interpreter_hostless` binds the host layer under the `sys` feature, so `check_reach` is load-bearing. A capability is a bundle of NAMES, not a host effect; adding a variant is `E0004` at four sites. Pinned by `blue-lang-cli/tests/capability_surface.rs`. Detail: [docs/LESSONS.md](docs/LESSONS.md).
-- **Nix reads blue's evaluation of a Bluefile; it never re-derives it.**
-  `mk-bidama.nix` used to split each manifest's text on `needs("`, and a
-  computed `needs` was invisible to it — a facade closure one package short,
-  with nothing red. It now reads the committed `Bluefile.lock` (`blue lock`),
-  and `bidama-locks-fresh` + `granularity.rs` fail on a stale one. **Edit a
-  Bluefile or a bidama's `use` forms, run `blue lock <dir>`, commit both**: a
-  bidama's locked `needs` derive from its `use`s, a hand row only narrows a
-  range. A new manifest word is a row
-  in `bluefile.rs`'s `WORDS` and a name in `MANIFEST_NAMES`; a gate fails if
-  the two disagree. **It is also a row in `nix/project.nix`** (`known` plus its
-  lowering): the engine refuses every lock key it does not lower, so a new word
-  fails every project's evaluation until it has one, instead of being dropped.
-- **A generated file is declared once, in the root `Bluefile`, and refreshed by
-  its command.** `generate(name, output, program)` names the committed file and
-  the blue program that writes it; the project engine (`nix/project.nix`, the
-  same one behind every project's `lib.project`) reads `Bluefile.lock` and derives
-  `packages.generated-<name>` and `checks.generated-<name>-fresh`, and
-  `nix run .#regen` (`gen/regen.b`, reading the same lock) rewrites every such
-  file in place. Edit the program, run regen, commit both; never copy a store
-  path over a committed file. First instance: kigou's character tables
-  (`crates/blue-lang-syntax/gen/kigou.b`, rendered by the `sabi` bidama).
-  A generator runs alone in the store, so it reads project files only through
-  `generate`'s fourth argument: `inputs` names the paths, the engine puts
-  exactly those under `$GEN_ROOT` (regen: the project root), and the fresh
-  check goes red when one changes. `docs/REFERENCE.md` (from `blue
-  reference`) and `docs/EXAMPLES.md` (from `examples/`) are the first two.
-- **A description lives beside the table it describes, and a gate makes the
-  omission red.** `INFIX` rows carry `doc`, `keyword_doc` covers every
-  reserved word, `FORMS` rows are parsed by their own gate, `WORDS` rows carry
-  `doc`, and `blue_lang_runtime::docs::NAMES` is compared with a live
-  interpreter in both directions (a bound name with no row, a row naming
-  nothing, a signature disagreeing with the arity). A new operator, keyword,
-  word or primitive arrives with its line, and `docs/REFERENCE.md` follows.
+- **Nix reads blue's evaluation of a Bluefile; it never re-derives it.** Edit a Bluefile or a bidama's `use` forms, run `blue lock <dir>`, and commit both. Detail: [LESSONS.md](docs/LESSONS.md).
+- **A generated file is declared once, in the root `Bluefile`, and refreshed by its command.** Edit the program, run `nix run .#regen`, and commit both; a generator reads project files only through `generate`'s `inputs`, and regen refuses an untracked file under them (`BLUE_REGEN_UNTRACKED=allow` renders without it). Detail: [LESSONS.md](docs/LESSONS.md).
+- **A description lives beside the table it describes, and a gate makes the omission red.** A new operator, keyword, word or primitive arrives with its doc line. Detail: [LESSONS.md](docs/LESSONS.md).
 - **The mark is a COLOUR shift, and its direction is meaning.** Four solid `█` across Nord's Frost band, named by ANSI slot. Never a density ramp or dither glyphs; theme colours are `irodori` lookups, blue carries no hex, and a test enforces it. Quoting a warning and arguing past it is not clearing it. Detail: [docs/LESSONS.md](docs/LESSONS.md).
-## Every behaviour is a spec row
+
+### Every behaviour is a spec row
 
 A new builtin (`docs::NAMES`), form (`FORMS`), keyword, operator (`INFIX`),
 rule code (`RULES`) or okite decision is red in `checks.conformance` until a
@@ -285,7 +482,7 @@ implementation falls short it is `pending("<gap>")`, and it fails the run the
 moment the gap closes, until the mark is removed. Evaluators must agree with
 the tree-walker on every row. `spec/README.md` has the format.
 
-## Testing discipline
+### Testing discipline
 
 Every gate here has a **red run**: the test was shown to fail on a
 deliberately broken input before being trusted. Two specific traps this repo
@@ -299,23 +496,9 @@ hit:
   the property. If the red run does not go red, the mutation is wrong or the
   gate is vacuous; find out which.
 
-**A push to `main` runs the local gates first.** `nix develop` sets
-`core.hooksPath` to `.githooks`, whose `pre-push` runs `gen/prepush.b` on the
-working tree: `cargo fmt --check`, every `Bluefile.lock` confirmed, `regen` in
-every project that generates (each red names the file it rewrote; commit it),
-`gen --version` against substrate's one gen pin (red names the nix lock bump),
-`gen confirm` (red runs `gen build .` and names the files to commit),
-each member's test targets compiled alone (`cargo test -p M --no-run`, since
-`--workspace` unifies features and hid a break), and the `registry_graph`,
-`check_corpus`, `distribution` and `verb_graph` tests. These caught
-four `main` reds on 2026-10-22 that CI found only after the push. About 4.5 min
-warm (2026-10-23): regen of the root 71 s, the per-member compile 44 s, the
-tests 136 s. A project whose declared
-`tool` is not on PATH (`native`: `tatara-rust-emit`) is reported `➖`, never
-green. The hook first calls the global `core.hooksPath` hook of the same
-name, so the fleet's commit gates still run. Off: `BLUE_PREPUSH_OFF=1`.
+**A push to `main` runs the local gates first.** `nix develop` sets `core.hooksPath` to `.githooks`, whose `pre-push` runs `gen/prepush.b`: formatting, every lock, `regen` in every project that generates, the gen pin, each member compiled alone and the distribution tests. Off: `BLUE_PREPUSH_OFF=1`. What each gate caught and what it costs: [LESSONS.md](docs/LESSONS.md).
 
-## Dependencies
+### Dependencies
 
 `tatara-lisp` and `tatara-lisp-eval` are **crates.io registry deps**, not path
 deps and not git deps.
@@ -331,46 +514,15 @@ Co-developing the two means publishing tatara-lisp first and bumping the
 version — the trunk-based order anyway. That is a real cost and it is the one
 being paid deliberately: the alternative costs publishability.
 
-**And the cost is NOT the release. It is the CONSUMPTION, which nothing
-automates.** Measured 2026-08-12: `Cargo.toml` asks for `"0.3"`, a caret
-requirement that accepts anything in the line — and `Cargo.lock` pinned
-`0.3.27` while tatara-lisp had shipped through **`0.3.44`**. Seventeen
-releases, available the whole time, never consumed.
+The measured cost of a stale lock, and the update order, are in [LESSONS.md](docs/LESSONS.md), "A stale Cargo.lock is a stale flake.lock".
 
-The tempting diagnosis is that publishing is expensive so nobody paid it.
-That is false and worth refuting, because it points at the wrong fix:
-tatara-lisp's `auto-release.yml` fires reliably — its log alternates
-`release: workspace v0.3.43`, `v0.3.44` with the feature commits that earned
-them. **Upstream cadence was never the problem. blue's lock was.**
-
-What that cost, concretely: a reclamation leak (~832 B per dead interpreter
-incarnation) sat unfixed across those releases; the `&[Value]` calling
-convention that makes `Arc::get_mut` unable to ever succeed went un-renegotiated;
-`Vm`'s private frames kept a debugger unbuildable. Every one of those reads at
-first glance as "an upstream problem we cannot reach" and is really "a version
-we did not take."
-
-**So: a stale `Cargo.lock` against a pleme-io-owned crate is the same defect
-class as a stale `flake.lock`** — the org's named cardinal sin, and the exact
-failure ★★ MAINTENANCE JUGGLING exists to prevent. Treat it as one. Before
-concluding that a limitation is upstream's, check what `cargo update` would
-take: the fix may already be published.
-
-**The ordering that must not be got wrong when you do update.** `gen build`
-rewrites `Cargo.gen.lock` from whatever `Cargo.lock` it finds, so regenerate
-the delta AFTER the lock work, never before — generating against a stale lock
-ties the delta to bytes about to change, and can quietly revert an in-flight
-`Cargo.lock` edit. Verify the tie afterwards by comparing
-`shasum -a 256 Cargo.lock` against the delta's `cargo_lock_sha256`.
-
-
-## `Cargo.gen.lock` is committed, and that is a trade
+### `Cargo.gen.lock` is committed, and that is a trade
 
 The slim delta avoids eval-time IFD; `checks.gen-confirm` and `gen-spec.yml` keep it tied to
 `Cargo.lock`. Regenerate it with `gen build .` AFTER any lock work and check the sha tie. Why,
 the measured failure and the tier: [`docs/CARGO-GEN-LOCK.md`](docs/CARGO-GEN-LOCK.md).
 
-## What is not built
+### What is not built
 
 Stated so nobody cites it as existing: **no per-process GC heap** (processes have
 private environments and messages are deep-copied, but reclamation is `Arc`
@@ -381,9 +533,7 @@ form**, **no entropy primitive and no encryption** (the `crypto` layer hashes,
 signs and verifies; a keypair comes from a seed the caller supplies),
 **no TLS** (`net` speaks NATS and HTTP over plain TCP: an `https://` url and a
 NATS server requiring TLS are refused by name; planned in `docs/HTTP2.md` P4,
-rustls with ALPN `h2`), **no docstrings and no doctests** (`@doc` and
-`@moduledoc` are decided in `theory/BLUE.md`, "The documentation requirement",
-2026-10-24; the catalogue still reads the `#` line above a `def`),
+rustls with ALPN `h2`),
 **no import EMISSION into a wasm module** (`blue_lang_waku::imports_of`
 derives the table from a frame — nothing puts an entry into a `.wasm`, and no
 engine border is wired: that is `BLUE-EXECUTION.md` M2, blocked on `tatara-wasm`
@@ -394,3 +544,7 @@ runs them in-process under the rule frame; the LSP does not run them, and the
 ABI is shaped for a wasm module that nothing builds yet), and no **`case`/`when` pattern matching** or **ranges** — the two remaining
 surface gaps a Ruby or Elixir author would reach for. `theory/BLUE.md` §V.26 holds the tier ledger; **do not build against a
 DESIGN-tier row without saying so.**
+
+## The book
+
+Read the tutorials and how-to guides in order in [The blue Book](docs/BOOK.md). Every page, by kind, is listed in [llms.txt](llms.txt).

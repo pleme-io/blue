@@ -1,3 +1,8 @@
+---
+kind: explanation
+summary: one access declaration, enforced by every layer that builds a service (design)
+---
+
 # SERVICE-ACCESS — one access declaration, enforced by every layer that builds a service
 
 Status: DESIGN, 2026-10-27. One part is built: the engine posture (§4, A0).

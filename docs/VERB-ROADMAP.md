@@ -1,3 +1,8 @@
+---
+kind: explanation
+summary: the roadmap to full software verbalization
+---
+
 # Blue verb roadmap: full software verbalization
 
 Operator, 2026-10-22: *"extend bluelang batteries included nature by going to all of software engineering and building the language and verb graph and giving blue a development roadmap for full software verbalization."*

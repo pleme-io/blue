@@ -1,3 +1,8 @@
+---
+kind: explanation
+summary: verb graph region A: data and knowledge
+---
+
 # Region A: data and knowledge (578 verbs, 30 spaces, 875 edges)
 
 Source: `verbs.tsv`, `edges.tsv` (built from `src/` by `src/build.py`; 0 validation errors, every verb has an edge).

@@ -14,6 +14,45 @@ pub use tatara_lisp_eval::{
 #[cfg(feature = "packages")]
 pub use blue_lang_pkg::embedded::Standard;
 
+/// One package compiled into the host, beside the standard distribution.
+///
+/// A host that ships its own bidama with `include_str!` loads it under
+/// `name` from `files` (label, source); every other name, and every
+/// package's `needs` and `version`, is answered by [`Standard`].
+#[cfg(feature = "packages")]
+#[derive(Debug, Clone, Copy)]
+pub struct Embedded<'a> {
+    pub name: &'a str,
+    pub files: &'a [(&'a str, &'a str)],
+}
+
+#[cfg(feature = "packages")]
+impl Loader for Embedded<'_> {
+    fn load(&self, name: &str) -> Result<Vec<(String, String)>, String> {
+        if name == self.name {
+            Ok(self
+                .files
+                .iter()
+                .map(|(label, text)| ((*label).to_owned(), (*text).to_owned()))
+                .collect())
+        } else {
+            Standard.load(name)
+        }
+    }
+
+    fn needs(
+        &self,
+        package: &str,
+        entry_dir: Option<&std::path::Path>,
+    ) -> Option<std::collections::BTreeSet<String>> {
+        Standard.needs(package, entry_dir)
+    }
+
+    fn version(&self, package: &str, entry_dir: Option<&std::path::Path>) -> Option<String> {
+        Standard.version(package, entry_dir)
+    }
+}
+
 pub trait Host: Sized + 'static {
     const SURFACE: &'static [HostFn];
 

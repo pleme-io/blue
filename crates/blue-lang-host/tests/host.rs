@@ -384,3 +384,29 @@ fn a_posture_refuses_every_host_effect_it_does_not_allow_and_no_other() {
     assert_eq!(network_only.len(), Capability::host_effects().len() - 1);
     assert!(network_only.iter().all(|c| c.is_host_effect()));
 }
+
+#[test]
+fn an_embedded_package_loads_beside_the_standard_distribution() {
+    use blue_lang_host::Embedded;
+    const PKG: &str = "def greet(name)\n  \"hi #{name}\"\nend\n";
+    let embedded = Embedded {
+        name: "greeter",
+        files: &[("greeter/greeter.b", PKG)],
+    };
+    let src = "use(\"greeter\")\n\nuse(\"retsu\", [:size])\n\ndef both()\n  \"#{greeter::greet(\"blue\")} #{size([1, 2])}\"\nend\n";
+    let mut host = ();
+    let mut p = Program::<()>::builder(Entry::anonymous(src))
+        .loader(&embedded)
+        .posture(&[])
+        .load(&mut host)
+        .expect("the embedded package and a standard one both load");
+    let said: String = p.call("both", Vec::<Value>::new(), &mut host).unwrap();
+    assert_eq!(said, "hi blue 2");
+    let missing = Program::<()>::builder(Entry::anonymous("use(\"no_such_bidama\")\n"))
+        .loader(&embedded)
+        .load(&mut host)
+        .err()
+        .expect("an unknown package is refused")
+        .to_string();
+    assert!(missing.contains("no_such_bidama"), "{missing}");
+}

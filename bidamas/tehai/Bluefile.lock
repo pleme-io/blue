@@ -1,10 +1,10 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:b3f6b4151889d31e6fc1337665b6e2fc2bf78f135b78c717c81a34ca29bad91f",
+  "bluefile_b3": "b3:d45f64688cfd893c41a30b801300d776d2ac878a71da79e8494deee1344b1449",
   "manifest": {
     "schema": 1,
     "name": "tehai",
-    "version": "0.1.1",
+    "version": "0.2.0",
     "needs": {
       "deeta": "^0.1.0",
       "moji": "^0.1.0",

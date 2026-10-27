@@ -32,6 +32,8 @@ tool("git")
 # tehai's test starts a real ssh as its control (a missing binary must fail
 # differently from a reachable one); a Linux sandbox has no ssh unless named.
 tool("openssh")
+# tehai's substituter run reads a dead port's nix-cache-info with a real curl.
+tool("curl")
 
 # kigou's character tables: authored in blue, rendered into blue-lang-syntax's
 # Rust by the `sabi` bidama.

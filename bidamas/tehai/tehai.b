@@ -18,6 +18,11 @@ write a state file saying which are up, since when, and why not. A timer
 A malformed line is refused alone, named in the state, and never takes its
 valid siblings down with it.
 
+Substituters get the same split when TEHAI_SUBSTITUTERS_DECLARED names a
+file of URLs: each one's `nix-cache-info` is read with a short timeout, and
+the live ones are written as an `extra-substituters` line to a fragment
+nix.conf includes, so a peer cache that is down costs no lookup.
+
     probe(probe_target, 2, "") #=> [false, "ssh could not be started: "]
 """
 
@@ -26,7 +31,16 @@ use("moji", [:after_first, :before_first, :includes, :trim])
 
 use(
   "retsu",
-  [:concat_lists, :contains, :find_first, :first, :is_empty, :size, :take_n]
+  [
+    :concat_lists,
+    :contains,
+    :find_first,
+    :first,
+    :is_empty,
+    :last,
+    :size,
+    :take_n
+  ]
 )
 
 use(
@@ -270,18 +284,139 @@ def checked(m, result)
   }
 end
 
+# ── substituters ─────────────────────────────────────────────────────
+# A peer binary cache that is down costs every narinfo lookup a connect
+# timeout plus retries, the same way a dead builder costs every dispatch.
+# The declared list is one URL per line; the live ones are written as an
+# `extra-substituters` line in a file nix.conf includes with `!include`.
+
+@doc """
+substituter: A declared substituter: its URL as written (a `?priority=` query
+kept, since nix reads it), its host, and the base its `nix-cache-info` is read
+under, or a refusal naming the line.
+"""
+def substituter(line)
+  url = trim(line)
+  if (starts_with?(url, "http://") or starts_with?(url, "https://")) == false
+    {line: url, ok: false, why: "not an http:// or https:// URL: #{url}"}
+  else
+    base = before_first(url, "?")
+    host = before_first(after_first(base, "://"), "/")
+    {line: url, ok: true, host:, base:}
+  end
+end
+
+@doc """
+parse_substituters: declared substituters, one URL per line.
+"""
+def parse_substituters(text)
+  map(substituter, filter(meaningful?, split(text, line_break)))
+end
+
+@doc """
+cache_info_argv: The curl command that reads one substituter's
+`nix-cache-info`: silent, failing on an HTTP error, with a short connect
+timeout and a whole-request bound, so "up" means the cache answers as a nix
+cache, not merely that the port is open.
+"""
+def cache_info_argv(s, timeout_s, curl)
+  [
+    curl,
+    "-fsS",
+    "--connect-timeout",
+    to_s(timeout_s),
+    "--max-time",
+    to_s(timeout_s * 2),
+    "#{get(s, :base)}/nix-cache-info"
+  ]
+end
+
+@doc """
+probe_substituter: [up?, detail] for one substituter. A curl that cannot start
+is a down substituter with the reason, never an uncaught error for the run.
+
+    probe_substituter(cache_target, 1, "") #=> [false, "curl could not be started: "]
+"""
+def probe_substituter(s, timeout_s, curl)
+  cap = exec_capture(*cache_info_argv(s, timeout_s, curl)) rescue nil
+  if cap.nil?
+    [false, "curl could not be started: #{curl}"]
+  elsif status_of(cap) == 0 and includes(stdout_of(cap), "StoreDir:")
+    [true, trim(first(split(stdout_of(cap), line_break)))]
+  else
+    [false, last_nonempty_line(stderr_of(cap))]
+  end
+end
+
+@doc """
+substituters_text: The nix.conf fragment for the live substituters: one
+`extra-substituters` line, or nothing when none answers.
+"""
+def substituters_text(checked)
+  live = map((c) -> get(c, :line), filter((c) -> get(c, :up), checked))
+  if is_empty(live)
+    ""
+  else
+    "extra-substituters = #{join(live, " ")}#{line_break}"
+  end
+end
+
+@doc """
+run_substituters: Check every declared substituter once; write the live
+fragment and the state. Returns the state record.
+"""
+def run_substituters(declared_path, live_path, state_path, timeout_s, curl)
+  now = now_ms
+  declared = parse_substituters(read_or(declared_path, ""))
+  good = filter((s) -> get(s, :ok), declared)
+  refused = map(
+    (s) -> {line: get(s, :line), why: get(s, :why)},
+    filter((s) -> get(s, :ok) == false, declared)
+  )
+  checked = map(
+    (s) -> tehai::checked(s, probe_substituter(s, timeout_s, curl)),
+    good
+  )
+  states = tehai::states(checked, read_previous(state_path), now)
+  mkdir_p(path_dirname(live_path))
+  write_atomic(live_path, substituters_text(checked))
+  record = {
+    checked_ms: now,
+    declared: declared_path,
+    live: live_path,
+    curl:,
+    machines: states,
+    refused:
+  }
+  mkdir_p(path_dirname(state_path))
+  write_atomic(state_path, json_stringify(record))
+  record
+end
+
 @doc """
 main: The daemon's entry point: paths, timeout and the ssh binary from the
 environment. A bare "ssh" (PATH lookup) is the fallback, and the state says so.
+Substituters are checked only when TEHAI_SUBSTITUTERS_DECLARED names a file.
 """
 def main()
-  run(
+  r = run(
     getenv("TEHAI_DECLARED", "/etc/nix/machines"),
     getenv("TEHAI_LIVE", "/var/run/tehai/machines"),
     getenv("TEHAI_STATE", "/var/run/tehai/state.json"),
     to_int(getenv("TEHAI_TIMEOUT_S", "2")),
     getenv("TEHAI_SSH", "ssh")
   )
+  declared = getenv("TEHAI_SUBSTITUTERS_DECLARED", "")
+  if is_empty(declared) == false
+    run_substituters(
+      declared,
+      getenv("TEHAI_SUBSTITUTERS_LIVE", "/var/run/tehai/substituters.conf"),
+      getenv("TEHAI_SUBSTITUTERS_STATE", "/var/run/tehai/substituters.json"),
+      to_int(getenv("TEHAI_TIMEOUT_S", "2")),
+      getenv("TEHAI_CURL", "curl")
+    )
+  end
+  r
 end
 
 # ── tests ────────────────────────────────────────────────────────────
@@ -438,6 +573,87 @@ end
 
 def probe_target()
   {host: "h", user: "u", key: nil}
+end
+
+def cache_target()
+  substituter("http://cid:5001?priority=29")
+end
+
+def fake_curl(dir, name, body)
+  fake_ssh(dir, name, body)
+end
+
+test "substituters: the URL is kept as written, the probe drops the query, a bad line is refused alone"
+  ss = parse_substituters(
+    unlines(
+      [
+        "# peers",
+        "http://cid:5001",
+        "",
+        "http://cid.buzios.pleme.internal:5001?priority=29",
+        "ssh://cid"
+      ]
+    )
+  )
+  assert size(ss) == 3
+  assert get(nth(0, ss), :host) == "cid:5001"
+  assert get(nth(1, ss), :line) ==
+    "http://cid.buzios.pleme.internal:5001?priority=29"
+  assert get(nth(1, ss), :base) == "http://cid.buzios.pleme.internal:5001"
+  assert get(nth(2, ss), :ok) == false
+  assert last(cache_info_argv(nth(1, ss), 2, "/usr/bin/curl")) ==
+    "http://cid.buzios.pleme.internal:5001/nix-cache-info"
+  assert contains(cache_info_argv(nth(1, ss), 2, "c"), "--connect-timeout") ==
+    true
+end
+
+test "substituters: only the live ones are written, as one extra-substituters line"
+  ss = parse_substituters(unlines(["http://a:1", "http://b:2?priority=29"]))
+  checked = [
+    tehai::checked(nth(0, ss), [false, "Connection timed out"]),
+    tehai::checked(nth(1, ss), [true, "StoreDir: /nix/store"])
+  ]
+  assert substituters_text(checked) ==
+    unlines(["extra-substituters = http://b:2?priority=29"])
+  # None live: an empty fragment, so nix lists no peer at all.
+  assert substituters_text([tehai::checked(nth(0, ss), [false, "down"])]) == ""
+end
+
+test "probe_substituter is up only when the far side answers as a nix cache"
+  dir = probe_dir("cache")
+  up = fake_curl(dir, "up", "printf 'StoreDir: /nix/store\\nPriority: 30\\n'")
+  assert probe_substituter(cache_target, 1, up) ==
+    [true, "StoreDir: /nix/store"]
+  page = fake_curl(dir, "page", "echo '<html>'")
+  assert first(probe_substituter(cache_target, 1, page)) == false
+  down = fake_curl(
+    dir,
+    "down",
+    "echo 'curl: (28) Connection timed out after 1001 milliseconds' >&2; exit 28"
+  )
+  assert probe_substituter(cache_target, 1, down) ==
+    [false, "curl: (28) Connection timed out after 1001 milliseconds"]
+  assert probe_substituter(cache_target, 1, "/nonexistent/curl") ==
+    [false, "curl could not be started: /nonexistent/curl"]
+  rm_rf(dir)
+end
+
+test "a substituter run end to end: a dead peer is left out and named in the state"
+  dir = probe_dir("subs-run")
+  declared = path_join(dir, "substituters")
+  write_file(declared, unlines(["http://127.0.0.1:1", "broken"]))
+  r = run_substituters(
+    declared,
+    path_join(dir, "substituters.conf"),
+    path_join(dir, "substituters.json"),
+    1,
+    "curl"
+  )
+  assert read_file(path_join(dir, "substituters.conf")) == ""
+  assert get(first(get(r, :machines)), :up) == false
+  assert size(get(r, :refused)) == 1
+  assert size(read_previous(path_join(dir, "substituters.json"))) == 1
+  rm_rf(dir)
 end
 
 test "probe is up with nix's own answer when the far side prints it"

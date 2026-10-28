@@ -54,7 +54,6 @@ pub mod messages;
 #[cfg(feature = "sys")]
 pub mod net;
 pub mod nix;
-pub mod xml;
 pub mod observe;
 pub mod paths;
 pub mod pipeline;
@@ -66,6 +65,7 @@ pub mod stdlib;
 pub mod sys;
 pub mod timings;
 pub mod uses;
+pub mod xml;
 
 pub use erase::{erase_types, to_sexps};
 pub use inputs::{declarations, install_input_primitives, Declaration, InputError, Inputs};

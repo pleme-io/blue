@@ -121,7 +121,9 @@ fn resolve_ref(name: &str) -> Result<String, Fault> {
             .and_then(char::from_u32)
             .filter(|c| legal_char(*c))
             .map(String::from)
-            .ok_or_else(|| Fault::Malformed(format!("&{name}; is not a legal character reference")));
+            .ok_or_else(|| {
+                Fault::Malformed(format!("&{name}; is not a legal character reference"))
+            });
     }
     resolve_predefined_entity(name)
         .map(str::to_owned)
@@ -138,8 +140,7 @@ fn open(start: &BytesStart<'_>, src: &str, at: u64) -> Result<Open, Fault> {
         .to_owned();
     let mut attributes: Vec<(String, String)> = Vec::new();
     for attr in start.attributes() {
-        let attr = attr
-            .map_err(|e| Fault::Malformed(format!("{e} at {}", position(src, at))))?;
+        let attr = attr.map_err(|e| Fault::Malformed(format!("{e} at {}", position(src, at))))?;
         let k = std::str::from_utf8(attr.key.as_ref())
             .map_err(|e| Fault::Malformed(e.to_string()))?
             .to_owned();
@@ -215,7 +216,12 @@ pub fn parse(src: &str) -> Result<Value, Fault> {
             Event::End(_) => {
                 let done = stack
                     .pop()
-                    .ok_or_else(|| Fault::Malformed(format!("an end tag with no start at {}", position(src, at))))?
+                    .ok_or_else(|| {
+                        Fault::Malformed(format!(
+                            "an end tag with no start at {}",
+                            position(src, at)
+                        ))
+                    })?
                     .close();
                 match stack.last_mut() {
                     Some(parent) => parent.children.push(done),
@@ -335,7 +341,9 @@ fn checked_name(name: &str, what: &str) -> Result<(), Fault> {
     if ok {
         Ok(())
     } else {
-        Err(Fault::Refused(format!("{what} {name:?} is not an XML name")))
+        Err(Fault::Refused(format!(
+            "{what} {name:?} is not an XML name"
+        )))
     }
 }
 
@@ -367,9 +375,12 @@ fn render_into(out: &mut String, el: &Value, depth: usize) -> Result<(), Fault> 
             "elements nest deeper than {MAX_DEPTH}"
         )));
     }
-    let name = field(el, "name")
-        .and_then(scalar)
-        .ok_or_else(|| Fault::Refused(format!("an element is a map with a name; got {}", el.type_name())))?;
+    let name = field(el, "name").and_then(scalar).ok_or_else(|| {
+        Fault::Refused(format!(
+            "an element is a map with a name; got {}",
+            el.type_name()
+        ))
+    })?;
     checked_name(&name, "element name")?;
     out.push('<');
     out.push_str(&name);
@@ -477,11 +488,26 @@ mod tests {
 
     #[test]
     fn values_are_unescaped_and_prefixes_kept() {
-        let el = parse("<x:r xmlns:x=\"urn:example\" a=\"&lt;&#65;&#x42;\">1 &gt; 0</x:r>").expect("parses");
+        let el = parse("<x:r xmlns:x=\"urn:example\" a=\"&lt;&#65;&#x42;\">1 &gt; 0</x:r>")
+            .expect("parses");
         assert_eq!(scalar(get(&el, "name")).as_deref(), Some("x:r"));
-        let Value::Map(attrs) = get(&el, "attributes") else { panic!() };
-        assert_eq!(attrs.get(&MapKey::Str(Arc::from("a"))).and_then(scalar).as_deref(), Some("<AB"));
-        assert_eq!(attrs.get(&MapKey::Str(Arc::from("xmlns:x"))).and_then(scalar).as_deref(), Some("urn:example"));
+        let Value::Map(attrs) = get(&el, "attributes") else {
+            panic!()
+        };
+        assert_eq!(
+            attrs
+                .get(&MapKey::Str(Arc::from("a")))
+                .and_then(scalar)
+                .as_deref(),
+            Some("<AB")
+        );
+        assert_eq!(
+            attrs
+                .get(&MapKey::Str(Arc::from("xmlns:x")))
+                .and_then(scalar)
+                .as_deref(),
+            Some("urn:example")
+        );
         assert_eq!(text(&el), "1 > 0");
     }
 
@@ -506,7 +532,11 @@ mod tests {
             "<a x=\"1\" x=\"2\"/>",
             "<a>&#0;</a>",
         ] {
-            assert!(matches!(parse(bad), Err(Fault::Malformed(_))), "{bad}: {:?}", parse(bad));
+            assert!(
+                matches!(parse(bad), Err(Fault::Malformed(_))),
+                "{bad}: {:?}",
+                parse(bad)
+            );
         }
     }
 
@@ -520,13 +550,18 @@ mod tests {
         assert!(matches!(parse("<r a=\"&x;\"/>"), Err(Fault::Refused(_))));
         let unreferenced = "<!DOCTYPE r [<!ENTITY x SYSTEM \"file:///etc/passwd\">]><r/>";
         assert!(matches!(parse(unreferenced), Err(Fault::Refused(_))));
-        let declared_only = "<!DOCTYPE issues [<!ELEMENT issues (issue*)><!ATTLIST issues v CDATA \"\">]><issues/>";
+        let declared_only =
+            "<!DOCTYPE issues [<!ELEMENT issues (issue*)><!ATTLIST issues v CDATA \"\">]><issues/>";
         assert!(parse(declared_only).is_ok());
     }
 
     #[test]
     fn nesting_beyond_the_bound_is_refused() {
-        let deep = format!("{}{}", "<a>".repeat(MAX_DEPTH + 1), "</a>".repeat(MAX_DEPTH + 1));
+        let deep = format!(
+            "{}{}",
+            "<a>".repeat(MAX_DEPTH + 1),
+            "</a>".repeat(MAX_DEPTH + 1)
+        );
         assert!(matches!(parse(&deep), Err(Fault::Refused(_))));
         let ok = format!("{}{}", "<a>".repeat(MAX_DEPTH), "</a>".repeat(MAX_DEPTH));
         assert!(parse(&ok).is_ok());

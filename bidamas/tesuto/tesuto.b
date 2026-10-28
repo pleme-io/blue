@@ -71,6 +71,17 @@ def scratch()
   path_join(getenv("TMPDIR") or "/tmp", "tesuto-#{to_s(now_ns)}")
 end
 
+@doc """
+fresh_dir: A new, empty directory under TMPDIR whose name starts with `label`, made now: one per test that needs a directory.
+
+    starts_with?(path_basename(fresh_dir("doc")), "doc-") #=> true
+"""
+def fresh_dir(label)
+  dir = path_join(getenv("TMPDIR") or "/tmp", "#{label}-#{to_s(now_ns)}")
+  mkdir_p(dir)
+  dir
+end
+
 def caught(f)
   f()
   nil
@@ -392,4 +403,14 @@ test "beside splits untested names from waived ones, and stale finds idle waiver
   assert r[:untested] == ["p::a"]
   assert r[:waived] == ["p::b"]
   assert map((w) -> w[:name], stale(s, ["p::a", "p::b"])) == ["p::z"]
+end
+
+test "fresh_dir makes a new empty directory each call"
+  a = fresh_dir("tesuto-fresh")
+  b = fresh_dir("tesuto-fresh")
+  assert a != b
+  assert is_dir?(a)
+  assert ls(a) == []
+  rm_rf(a)
+  rm_rf(b)
 end

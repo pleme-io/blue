@@ -312,6 +312,7 @@ use(
 )
 
 use("shuugou", [:lookup, :set_equal, :unique, :unique_by])
+use("tesuto", [:fresh_dir])
 
 legacy_names("0.1.1", "la")
 
@@ -2508,12 +2509,7 @@ end
 test_dir: A fresh directory under TMPDIR for a test.
 """
 def test_dir(name)
-  dir = path_join(
-    getenv("TMPDIR", "/tmp"),
-    "anaritikusu-#{name}-#{to_s(now_ns)}"
-  )
-  mkdir_p(dir)
-  dir
+  fresh_dir("anaritikusu-#{name}")
 end
 
 @doc """

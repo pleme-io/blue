@@ -48,6 +48,8 @@ use(
   [:last_nonempty_line, :read_or, :status_of, :stderr_of, :stdout_of]
 )
 
+use("tesuto", [:fresh_dir])
+
 legacy_names("0.1.1", "th")
 
 # ── the machines format ──────────────────────────────────────────────
@@ -716,12 +718,7 @@ def fake_ssh(dir, name, body)
 end
 
 def probe_dir(label)
-  dir = path_join(
-    getenv("TMPDIR", "/tmp"),
-    "tehai-probe-#{label}-#{to_s(now_ns)}"
-  )
-  mkdir_p(dir)
-  dir
+  fresh_dir("tehai-probe-#{label}")
 end
 
 def probe_target()

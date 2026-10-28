@@ -11,7 +11,8 @@
       "nisshi": "^0.1.0",
       "raifusaikuru": "^0.1.0",
       "retsu": "^0.1.0",
-      "shuugou": "^0.1.0"
+      "shuugou": "^0.1.0",
+      "tesuto": "^0.1.0"
     },
     "when": "anytime",
     "sources": {},

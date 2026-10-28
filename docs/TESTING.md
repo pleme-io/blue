@@ -71,7 +71,7 @@ to dissolve.
 | `rule(code, file, def)` | `docs/DIAGNOSTICS.md` "Project rules" | a blue definition run by `blue check` on every top-level form, under a pure frame |
 | `generate(name, out, program)` | `bluefile.rs:540` | a committed file and its program, gated fresh |
 | `service(...)` | `nix/service.nix`, `docs/SERVICE-ARCHITECTURE.md` | chart, values schema, migrations; `checks.service-<name>-{fresh,chart,serves}` |
-| pre-push gate | `.githooks/pre-push` (3 lines of sh), `gen/prepush.b:192` | an ordered gate list in blue; `BLUE_PREPUSH_OFF=1` skips it |
+| pre-push gate | `.githooks/pre-push` (4 lines of sh), `gen/prepush.b` `gate_table` | a gate table in blue, scoped to the pushed paths; light gates by default, `BLUE_PREPUSH_FULL=1` all, `BLUE_PREPUSH_OFF=1` none |
 | CI | `.github/workflows/ci.yml` | one `uses:` of substrate's `cargo-ci.yml`; 0 lines of shell; no step calls blue |
 | capabilities | `docs/SAFETY.md` row 8 | six host effects (process, filesystem, environment, clock, network, entropy); `blue run --allow` |
 | absence | `docs/ABSENCE.md` (in flight, other owner) | `Option` and the nil checker rule |
@@ -260,7 +260,7 @@ name for "run the declared tests".
 | Runner | Today | Destination |
 |---|---|---|
 | nix | `checks.<name>` = `blue test file`, one derivation per row, cached | unchanged: nix is the hermetic, cached executor of each row |
-| pre-push | `gen/prepush.b`: a hand list of 9 gates in blue | `blue test . --stage push`; host gates (cargo fmt, gen tie) become `check` rows |
+| pre-push | `gen/prepush.b`: a hand table of 12 gates in blue (`gate_table`) | `blue test . --stage push`; host gates (cargo fmt, gen tie) become `check` rows |
 | CI | `ci.yml` uses substrate's `cargo-ci.yml` | a `generate("ci", ".github/workflows/ci.yml", "gen/ci.b")` row renders a workflow whose one job step is `nix flake check` or `blue test . --stage ci`; gated fresh |
 | release | `auto-release.yml` uses substrate's `rust-auto-release.yml` | the same rendering, with `--stage release` gates before the substrate flow |
 
@@ -278,7 +278,7 @@ ones, added when an action is touched, never by mass rewrite.
 | 1 | which checks exist, per word | `nix/project.nix`, `bidamas/mk-bidama.nix` | nix | stays nix (packaging is nix's job); it reads the lock, which blue wrote | none |
 | 2 | each check's body | `mk-bidama.nix:405-411` (`runCommand` one-liners) | sh glue | one `blue test` call per check (exists) | done |
 | 3 | freshness compare | `mkFreshCheck` (`cmp` in sh) | sh glue | `blue test` over a generated-vs-committed gate | T6 |
-| 4 | pre-push hook | `.githooks/pre-push` | 3 lines of sh | stays as glue; it calls `gen/prepush.b` | none |
+| 4 | pre-push hook | `.githooks/pre-push` | 4 lines of sh | stays as glue; it calls `gen/prepush.b` | none |
 | 5 | pre-push gate list | `gen/prepush.b` | blue, hand list | derived from `check` rows with `stage: :push` | T3 |
 | 6 | CI workflow | `.github/workflows/ci.yml` | YAML, no logic | rendered by `generate` from `gen/ci.b` | T5 |
 | 7 | CI logic | substrate `cargo-ci.yml` + actions `run.tlisp` | YAML + tatara-lisp | `nix flake check` only; the logic is the Bluefile's checks | T5 |

@@ -1421,7 +1421,8 @@ document lands.
   `#[allow]`, `tests/seam.rs` the gate), `blue-lang-runtime`
   (`src/alloc.rs:114`, the counting `GlobalAlloc`), `blue-lang-wasm` (three
   `extern "C"` exports, `src/lib.rs:76,84,123`) and `blue-lang-cli`
-  (`src/repl.rs:340`, the SIGINT handler, under a module `deny`). No
+  (`src/sigint.rs`, the SIGINT handlers of `repl` and `run`, under a module
+  `deny`; an inherited ignore stays ignored). No
   workspace `[lints]` table exists. Only kiwari denies `unsafe_code` at its
   crate root, so 17 of 18 crates accept a new `unsafe` block silently.
 - **Absence.** Another agent writes `docs/ABSENCE.md` (an `Option` bidama and
@@ -2262,7 +2263,7 @@ hit:
   the property. If the red run does not go red, the mutation is wrong or the
   gate is vacuous; find out which.
 
-**A push to `main` runs the local gates first.** `nix develop` sets `core.hooksPath` to `.githooks`, whose `pre-push` runs `gen/prepush.b`: formatting, every lock, `regen` in every project that generates, the gen pin, each member compiled alone and the distribution tests. Off: `BLUE_PREPUSH_OFF=1`. What each gate caught and what it costs: [LESSONS.md](docs/LESSONS.md).
+**Every push runs a fast local gate first.** `nix develop` sets `core.hooksPath` to `.githooks`, whose `pre-push` runs `gen/prepush.b`: the light gates the changed paths select from `gate_table` (formatting, the changed locks, retired words), in seconds; a path in `every_gate_paths` or one no gate names selects every gate. The heavy gates (`regen`, the gen pin and tie, the sweep of every consumer in `gen/consumers.json`, tests beside, each member compiled alone, the distribution tests, strict conformance) run in CI, or here with `BLUE_PREPUSH_FULL=1`. A clean tree that passed skips its next push. Off: `BLUE_PREPUSH_OFF=1`. What each gate caught and what it costs: [LESSONS.md](docs/LESSONS.md).
 
 **A new rule lands after its consumers are written in it.** `gen/consumers.json` is the registry of pleme-io repositories with `.b` files and the blue each pins (flake, git cargo source, crates.io or blue-setup); `blue gen/consumers.b derive` rewrites it from the workspace. `blue gen/consumers.b sweep` runs every consumer's files through this blue's `fmt --check` and `check`; prepush and the `consumers` CI job run it, and recorded debt may shrink, never grow (hadome). `blue gen/consumers.b fix REPO` writes one consumer with `fmt --write` in a worktree and commits only when `blue erase` is byte-identical before and after each file; the consumer then moves its pin and runs its tests. `checks.consumers` is red while `blue explain --list` names a code that `sweep --record` has not recorded green. Off: `level(REPO, :audit, why)` or `level("*", :off, why)` in `entries`.
 

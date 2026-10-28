@@ -204,18 +204,32 @@ The agent guide (`docs/agents.md`) states each of these in one line.
 
 ## The pre-push gates
 
-**A push to `main` runs the local gates first.** `nix develop` sets
+**Every push runs a fast local gate first.** `nix develop` sets
 `core.hooksPath` to `.githooks`, whose `pre-push` runs `gen/prepush.b` on the
-working tree: `cargo fmt --check`, every `Bluefile.lock` confirmed, `regen` in
-every project that generates (each red names the file it rewrote; commit it),
-`gen --version` against substrate's one gen pin (red names the nix lock bump),
-`gen confirm` (red runs `gen build .` and names the files to commit),
-each member's test targets compiled alone (`cargo test -p M --no-run`, since
-`--workspace` unifies features and hid a break), and the `registry_graph`,
-`check_corpus`, `distribution` and `verb_graph` tests. These caught
-four `main` reds on 2026-10-22 that CI found only after the push. About 4.5 min
-warm (2026-10-23): regen of the root 71 s, the per-member compile 44 s, the
-tests 136 s. A project whose declared
+working tree. The gates and the paths each one reads are one table,
+`gate_table`. A push runs only the light gates its changed paths select:
+`cargo fmt --check`, `blue fmt --check` on the changed `.b` files, the
+`Bluefile.lock` of each changed lock dir, and the retired-word gate when a
+bidama changed. A path in `every_gate_paths` (`Cargo.lock`, `flake.lock`,
+`flake.nix`, the hooks, the gate itself) or a path no gate names selects every
+gate, so an unknown path fails closed. The heavy gates run in CI, or here with
+`BLUE_PREPUSH_FULL=1`: `regen` in every project that generates (each red names
+the file it rewrote; commit it), `gen --version` against substrate's one gen
+pin, the sweep of every consumer in `gen/consumers.json`, `gen confirm` (red runs `gen build .` and names the files to commit),
+tests beside every bidama definition, each member's test targets compiled
+alone (`cargo test -p M --no-run`, since `--workspace` unifies features and
+hid a break), the `registry_graph`, `check_corpus`, `distribution` and
+`verb_graph` tests, and conformance, strict as CI runs it. These caught four
+`main` reds on 2026-10-22 that CI found only after the push; run in full on
+every push they took about 4.5 min warm (2026-10-23: regen of the root 71 s,
+the per-member compile 44 s, the tests 136 s) and blocked a push for ~8 min
+cold, which is why the full run became opt-in. The opening line names the
+gates, the paths that chose them and the time the last runs took. A clean
+tree that passed is recorded under `.git/prepush/green/<tree>`, and its next
+push skips; a dirty tree never skips. The hook builds blue into one target
+per clone under `$XDG_CACHE_HOME/blue-target/` unless `CARGO_TARGET_DIR` is
+set, so a push never compiles a cold `./target`. A project whose declared
 `tool` is not on PATH (`native`: `tatara-rust-emit`) is reported `➖`, never
-green. The hook first calls the global `core.hooksPath` hook of the same
-name, so the fleet's commit gates still run. Off: `BLUE_PREPUSH_OFF=1`.
+green. The hook hands the pushed refs to the global `core.hooksPath` hook of
+the same name first, so the fleet's commit gates still run. Off:
+`BLUE_PREPUSH_OFF=1`.

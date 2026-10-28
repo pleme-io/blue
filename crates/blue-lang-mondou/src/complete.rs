@@ -399,25 +399,23 @@ fn finish(mut out: Vec<Completion>) -> Vec<Completion> {
     out
 }
 
-/// Add `:name` to the list of an existing `use("pkg", [...])`, where the
-/// list's sorted order puts it (B0015).
 fn list_edit(
     a: &Analysis,
     import: &blue_lang_syntax::scope::Import,
     name: &str,
 ) -> Option<(Span, String)> {
-    if let Some((_, at)) = import.names.iter().find(|(n, _)| n.as_str() > name) {
-        return Some((Span::new(at.start, at.start), format!(":{name}, ")));
-    }
     let form = &a.text[import.span.start..import.span.end];
-    let close = form.rfind(']')?;
-    let at = import.span.start + close;
-    let text = if import.names.is_empty() {
-        format!(":{name}")
-    } else {
-        format!(", :{name}")
-    };
-    Some((Span::new(at, at), text))
+    let after_package = import.package_span.end - import.span.start;
+    let open = after_package + form[after_package..].find(['[', '%'])?;
+    let close = form.rfind(']')? + 1;
+    let mut names: Vec<&str> = import.names.iter().map(|(n, _)| n.as_str()).collect();
+    names.push(name);
+    names.sort_unstable();
+    names.dedup();
+    Some((
+        Span::new(import.span.start + open, import.span.start + close),
+        blue_lang_syntax::words::render_keywords(&names),
+    ))
 }
 
 /// A new `use("pkg", [:name])` line, among the file's `use` forms in sorted

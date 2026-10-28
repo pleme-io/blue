@@ -307,13 +307,17 @@ fn a_name_one_use_away_carries_its_use() {
         .expect("retsu's first, one list entry away");
     assert_eq!(
         first["additionalTextEdits"][0]["newText"],
-        json!(":first, ")
+        json!("%i[first size]")
     );
     assert_eq!(
         first["additionalTextEdits"][0]["range"]["start"],
-        json!({ "line": 0, "character": 14 })
+        json!({ "line": 0, "character": 13 })
     );
-    let fixed = "use(\"retsu\", [:first, :size])\n\ndef f(xs)\n  size(xs) + first(xs)\nend\n";
+    assert_eq!(
+        first["additionalTextEdits"][0]["range"]["end"],
+        json!({ "line": 0, "character": 20 })
+    );
+    let fixed = "use(\"retsu\", %i[first size])\n\ndef f(xs)\n  size(xs) + first(xs)\nend\n";
     let d = diagnostics(&change(&mut s, uri, fixed));
     assert!(d.is_empty(), "{d:?}");
 }

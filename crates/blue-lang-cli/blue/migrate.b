@@ -109,12 +109,20 @@ def uses_after(doc, want)
   )
 end
 
+def names_list(names)
+  if length(names) == 1
+    "[:#{first(names)}]"
+  else
+    "%i[#{join(names, " ")}]"
+  end
+end
+
 def render_use(u)
   names = u[1]
   if empty?(names)
     "use(\"#{first(u)}\")"
   else
-    "use(\"#{first(u)}\", [#{join(map((n) -> ":#{n}", names), ", ")}])"
+    "use(\"#{first(u)}\", #{names_list(names)})"
   end
 end
 

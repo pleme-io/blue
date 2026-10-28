@@ -89,6 +89,7 @@ use("kumiawase", [:combinations])
 use("kyasshu")
 use("kyohi")
 use("kyuuji")
+use("maakuappu")
 use("moji", [:empty])
 use("mokuroku", [:md_cell])
 use("nikkusu")
@@ -207,6 +208,7 @@ test "every bidama in the distribution answers through this one import"
   assert blue::get(shinchoku::agents_allowed(29, 14, 4000, 0), :allowed) == 0
   assert blue::get(kijun::fleet_repo(1), :standard) == "fleet-repo"
   assert nikkusu::kind(blue::get(nikkusu::read("{ }"), :root)) == "NODE_ROOT"
+  assert maakuappu::attr(maakuappu::parse("<r a=\"1\"/>"), "a") == "1"
   assert hyouka::installable(".", "x") == ".#x"
   assert kirikae::attr_for("darwin", "ryn") == "darwinConfigurations.ryn.system"
   assert shisei::stack([], (r) -> r)(1) == 1

@@ -46,6 +46,7 @@ pub enum Topic {
     Error,
     Json,
     Nix,
+    Xml,
     File,
     Process,
     Environment,
@@ -79,6 +80,7 @@ impl Topic {
         Topic::Error,
         Topic::Json,
         Topic::Nix,
+        Topic::Xml,
         Topic::File,
         Topic::Process,
         Topic::Environment,
@@ -107,6 +109,7 @@ impl Topic {
             Topic::Error => "Errors",
             Topic::Json => "JSON",
             Topic::Nix => "Nix source",
+            Topic::Xml => "XML",
             Topic::File => "Files and paths",
             Topic::Process => "Processes",
             Topic::Environment => "Environment and arguments",
@@ -354,6 +357,8 @@ pub const NAMES: &[NameDoc] = names! {
     Json: "json_get" "json_get(obj, key)" "The field of a parsed JSON object, or nil. Raises when obj is not an object.";
     Json: "json_get_or" "json_get_or(obj, key, default)" "The field of a parsed JSON object, or default.";
     Nix: "nix_parse" "nix_parse(source)" "Nix source as rnix's lossless syntax tree: {root, errors}. A node is {kind, start, end, children}, a token {kind, start, end, text}; kinds are rnix's names (NODE_ATTR_SET, TOKEN_IDENT), offsets count characters, and each error is {message, start, end}. The nikkusu bidama queries it.";
+    Xml: "xml_parse" "xml_parse(text)" "Parse an XML document to its root element, a map {name, attributes, children, text}: name keeps its namespace prefix, attributes maps each name to its unescaped value, children lists the child elements, text joins the element's own character data (whitespace between child elements dropped). Comments, processing instructions and the DOCTYPE are dropped. Only the five predefined entities and character references expand: a DTD entity declaration or any other reference raises :xml_refused, so nothing is fetched or multiplied. A document that is not well-formed raises :xml_malformed. The maakuappu bidama queries it.";
+    Xml: "xml_render" "xml_render(element)" "An element map as XML text, escaped so xml_parse reads it back equal: attributes in key order, an element with no text and no children as <name/>. A name that is not an XML name, a character XML 1.0 cannot hold or a value of the wrong kind raises :xml_refused.";
     // ── files ─────────────────────────────────────────────────────────────
     File: "read_file" "read_file(path)" "The file's text. Raises when it cannot be read; shisutemu's read_or(path, default) does not.";
     File: "write_file" "write_file(path, text)" "Replace the file's contents with text; nil.";

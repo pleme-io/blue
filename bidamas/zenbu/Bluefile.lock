@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:0713148b1997127404d671956d78e6cc98ccac732816737fafbbc500515de570",
+  "bluefile_b3": "b3:439191119242c862529bce452ec0f1674c4b74f38d7da1f4bfbf19e207671778",
   "manifest": {
     "schema": 1,
     "name": "zenbu",
@@ -47,6 +47,7 @@
       "kyasshu": "^0.1.0",
       "kyohi": "^0.1.0",
       "kyuuji": "^0.1.0",
+      "maakuappu": "^0.1.0",
       "moji": "^0.1.0",
       "mokuroku": "^0.1.0",
       "nikkusu": "^0.1.0",

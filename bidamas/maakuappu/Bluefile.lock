@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:727c90e2ca779b5738e21fd9ae3c8cc36e138eec2f3c12d813ebf82fb8400487",
+  "manifest": {
+    "schema": 1,
+    "name": "maakuappu",
+    "version": "0.1.0",
+    "needs": {
+      "retsu": "^0.1.0",
+      "tesuto": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

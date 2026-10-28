@@ -1,0 +1,44 @@
+[
+  {
+    "name": "children ignores the name",
+    "file": "maakuappu.b",
+    "find": "    filter((c) -> c.name == name, el.children)\n",
+    "replace": "    el.children\n"
+  },
+  {
+    "name": "descendants drops the match itself",
+    "file": "maakuappu.b",
+    "find": "          cons(c, below)\n",
+    "replace": "          below\n"
+  },
+  {
+    "name": "text_of keeps surrounding whitespace",
+    "file": "maakuappu.b",
+    "find": "    trim(el.text)\n",
+    "replace": "    el.text\n"
+  },
+  {
+    "name": "find starts from nothing",
+    "file": "maakuappu.b",
+    "find": "      [el],\n",
+    "replace": "      [],\n"
+  },
+  {
+    "name": "attr of nil is a map",
+    "file": "maakuappu.b",
+    "find": "  if el.nil?\n    nil\n  else\n    get(el.attributes, key)\n",
+    "replace": "  if el.nil?\n    {}\n  else\n    get(el.attributes, key)\n"
+  },
+  {
+    "name": "a malformed document reads as nil",
+    "file": "maakuappu.b",
+    "find": "  xml_parse(text)\n",
+    "replace": "  xml_parse(text) rescue nil\n"
+  },
+  {
+    "name": "render is to_s, unescaped",
+    "file": "maakuappu.b",
+    "find": "  xml_render(el)\n",
+    "replace": "  to_s(el)\n"
+  }
+]

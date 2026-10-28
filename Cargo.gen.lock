@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "ded5c990af72031ef951e1db0ddfaf857f38c6a653bdfab95b32495edbc7d679",
+  "cargo_lock_sha256": "5f1a947569f75a120620e3b2157f3b8b247728cab5f2cb73e0fdb6e92421488f",
   "manifest_sha256": {
-    "Cargo.toml": "89ba394e0c8c84149935ab8f4034404fabea1a01989d722f4862b2af6b2ac13a",
+    "Cargo.toml": "c4178f7896ed0de3ef0c657db9f330906f3563ecc55c80aad4b57917283c7058",
     "crates/blue-lang-art/Cargo.toml": "f6721f78c76a94d4915a455675cd05889176a43212494c53aa8a01dfc9dfe5ee",
     "crates/blue-lang-bidama/Cargo.toml": "7b29108c8c3d40b5cbaf9f427c4f0a0ace1e5b49e02bd7448dcb53d3ee91337f",
     "crates/blue-lang-check/Cargo.toml": "8e11f4b76e3ecef246fcac2ce0521a0960cb03b5d8e5ca996c151862d3eb6c87",
@@ -16,7 +16,7 @@
     "crates/blue-lang-mondou/Cargo.toml": "21bcf1305dd95a070e7b8940be3cbfb17477d8bd7cdc05d6c17d17bdf55c4614",
     "crates/blue-lang-pkg/Cargo.toml": "9d1301b763cf8dacae5214f8fbe3993578256f0b75a50c26a1fd12473241ce29",
     "crates/blue-lang-proc/Cargo.toml": "a9702f9f855394147b0651eb89ae07fd8c787f8d1df4d47f1194fb858bce2fc1",
-    "crates/blue-lang-runtime/Cargo.toml": "4dfde5e04450c7c7d28f1aaaed196c225cfd76a74f5bad1c7f98720e11938422",
+    "crates/blue-lang-runtime/Cargo.toml": "eceaf1b0167ba605332287773930158c62e5d894aa0c3fcfccc5f28abda1bba4",
     "crates/blue-lang-syntax/Cargo.toml": "9d405348af1d3f57fffd0a73ddf0776a933ce98bfbcaa60c53a1db55db4e75cd",
     "crates/blue-lang-test/Cargo.toml": "94cc8f3cb56a4cb8f7b9cbe57c23f9bf8120b665f8a59340b95f73276f5f34ad",
     "crates/blue-lang-waku/Cargo.toml": "ff84c97684a1254a92f7eab4a578bbea8562006de52dc3b28f4f50689e58b684",
@@ -1465,6 +1465,16 @@
           {
             "name": "hmac",
             "package_key": "hmac-0.12.1",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "quick_xml",
+            "package_key": "quick-xml-0.38.4",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -4058,6 +4068,22 @@
       },
       "quick-error-1.2.3": {
         "runtime_dependencies": [],
+        "build_dependencies": [],
+        "features": []
+      },
+      "quick-xml-0.38.4": {
+        "runtime_dependencies": [
+          {
+            "name": "memchr",
+            "package_key": "memchr-2.8.3",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
         "build_dependencies": [],
         "features": []
       },
@@ -9532,6 +9558,9 @@
     },
     "quick-error-1.2.3": {
       "edition": "2015"
+    },
+    "quick-xml-0.38.4": {
+      "edition": "2021"
     },
     "quote-1.0.47": {
       "edition": "2021",

@@ -244,7 +244,7 @@
       # crate for core` until the target was stated here.
       devShellTargets = [ "wasm32-unknown-unknown" ];
 
-      devShellHook = "git rev-parse --git-dir >/dev/null 2>&1 && git config core.hooksPath .githooks || true";
+      devShellHook = "git rev-parse --git-dir >/dev/null 2>&1 && git config core.hooksPath .githooks && git config alias.land '!.githooks/blue run --quiet gen/land.b --' || true";
 
       # The module trio, deploying blue's configurable BOUNDS as a shikumi
       # YAML at `~/.config/blue/blue.yaml` and pointing `BLUE_CONFIG` at it.

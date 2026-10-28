@@ -1,0 +1,46 @@
+name: land
+
+on:
+  push:
+    branches:
+      - "land/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: land-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+    secrets: inherit
+
+  fast-forward:
+    needs: ci
+    runs-on: ${{ github.event.repository.private && (vars.PRIVATE_BUILDER_RUNNER || 'pleme-private') || 'ubuntu-latest' }}
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - id: token
+        uses: pleme-io/actions/github-token@main
+        with:
+          pat: ${{ secrets.BOT_PAT }}
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          token: ${{ steps.token.outputs.token || secrets.GITHUB_TOKEN }}
+      - name: rehearse the fast-forward of main to ${{ github.sha }}
+        if: ${{ startsWith(github.ref_name, 'land/dry-') }}
+        run: git push --dry-run origin "${{ github.sha }}:refs/heads/main"
+      - name: fast-forward main to ${{ github.sha }}
+        if: ${{ !startsWith(github.ref_name, 'land/dry-') }}
+        run: git push --atomic origin "${{ github.sha }}:refs/heads/main" ":${{ github.ref }}"
+      - name: start the main-push workflows a GITHUB_TOKEN push does not start
+        if: ${{ !startsWith(github.ref_name, 'land/dry-') && steps.token.outputs.source != 'app' }}
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token || secrets.GITHUB_TOKEN }}
+        run: for w in auto-release.yml registry-flakehub.yml registry-sui.yml; do gh workflow run "$w" --ref main; done

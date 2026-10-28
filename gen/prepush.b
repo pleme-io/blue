@@ -841,7 +841,7 @@ def main()
   later = if ci == []
     ""
   else
-    "; CI runs #{join(ci, ", ")} on the pushed commit"
+    "; CI runs #{join(ci, ", ")} when it lands (git land)"
   end
   took = if guess.nil?
     "no timing yet"

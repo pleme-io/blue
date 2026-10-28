@@ -1,0 +1,3 @@
+#!/bin/sh
+t="${CARGO_TARGET_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/blue-target/$(git rev-parse --show-toplevel | cksum | cut -d' ' -f1)}"
+exec env -u GIT_DIR -u GIT_PREFIX -u GIT_INDEX_FILE -u GIT_WORK_TREE CARGO_TARGET_DIR="$t" cargo run -q -p blue-lang-cli -- "$@"

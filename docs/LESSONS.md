@@ -226,9 +226,12 @@ the per-member compile 44 s, the tests 136 s) and blocked a push for ~8 min
 cold, which is why the full run became opt-in. The opening line names the
 gates, the paths that chose them and the time the last runs took. A clean
 tree that passed is recorded under `.git/prepush/green/<tree>`, and its next
-push skips; a dirty tree never skips. The hook builds blue into one target
-per clone under `$XDG_CACHE_HOME/blue-target/` unless `CARGO_TARGET_DIR` is
-set, so a push never compiles a cold `./target`. A project whose declared
+push skips; a dirty tree never skips. The hook builds blue through `.githooks/blue`, the one launcher of the
+tree's blue that `git land` shares, into one target per clone under
+`$XDG_CACHE_HOME/blue-target/` unless `CARGO_TARGET_DIR` is set, so a push
+never compiles a cold `./target`. The heavy gates guard `main` through
+`git land` (`gen/land.b`): CI runs the `ci` suite on `land/<slug>` and
+fast-forwards `main` when it is green. A project whose declared
 `tool` is not on PATH (`native`: `tatara-rust-emit`) is reported `➖`, never
 green. The hook hands the pushed refs to the global `core.hooksPath` hook of
 the same name first, so the fleet's commit gates still run. Off:

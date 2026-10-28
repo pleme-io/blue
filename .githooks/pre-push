@@ -1,5 +1,4 @@
 #!/bin/sh
 h="$(git config --global --type=path core.hooksPath)/${0##*/}"
 [ "${0##*/}" = pre-push ] && [ -z "$BLUE_PREPUSH_OFF" ] || { [ ! -x "$h" ] || exec "$h" "$@"; exit 0; }
-t="${CARGO_TARGET_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/blue-target/$(git rev-parse --show-toplevel | cksum | cut -d' ' -f1)}"
-exec env -u GIT_DIR -u GIT_PREFIX -u GIT_INDEX_FILE -u GIT_WORK_TREE CARGO_TARGET_DIR="$t" BLUE_PREPUSH_HOOK=1 BLUE_PREPUSH_GLOBAL_HOOK="$h" cargo run -q -p blue-lang-cli -- run --quiet gen/prepush.b -- "$@"
+exec env BLUE_PREPUSH_HOOK=1 BLUE_PREPUSH_GLOBAL_HOOK="$h" "${0%/*}/blue" run --quiet gen/prepush.b -- "$@"

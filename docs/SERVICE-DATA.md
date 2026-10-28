@@ -93,21 +93,24 @@ to cover it. Do not escape to raw SQL or Rust.
 | Step | Work | Serves (of 2 services) |
 |---|---|---|
 | S1 | haibi renders on pleme-lib's `shinkaDatabaseMigration`, wait init container, `observabilityBundle` and `jetstream`, and emits the kenshi labels (with H3 in `helmworks/docs/BLUE-SERVICES.md`) | 2 |
-| S2 | `model(...)` with versions, `teeburu::evolve`, the §2a judge and gate, the keifu renderer, typed accessors | 2 |
+| S2 ✅ (partial) | in `teeburu`: `model(name, spec)` (a version, typed fields, keys, indexes, relations, `renamed_from`, `split_from`, `merged_from`, `drop` entries; a BLAKE3 `version_hash`); `evolve(from, to)` to typed steps (add_entity, add_field, rename, retype, add_index, split, merge, drop); `judge(steps)` refusing an undeclared drop-and-add pair (`:rename_undeclared`, both steps) and a destructive step without `allow: :destructive` (`:destructive`, that step alone), its siblings standing; `postgres(from, to, opts)` (each change led by `lock_timeout`, `CREATE INDEX CONCURRENTLY` and `DROP INDEX CONCURRENTLY` outside a transaction, a foreign key or NOT NULL as a constraint `NOT VALID` then `VALIDATE`, a constant default in one `ADD COLUMN`, backfills and split or merge copies as keyset batches each committed alone, a NOT NULL column with neither default nor backfill refused by name); `keifu(changes)` (the Liquibase XML shinka reads, `runInTransaction="false"` where needed); `kv_model` and `kv_check` (strict: missing, mistyped and undeclared fields all named; indexes, relations and non-JSON encodings refused by name) and `kv_upgrade` over the same steps. Typed accessors, the lock pin and the `blue check` gate are pending rows below | 2 |
 | S2b | one renderer per remaining shinka migrator, each tested by applying it to a real Postgres | services that pin a tool |
 | S3 ✅ | telemetry export: `rogu::exporting` → Vector (`VECTOR_ENDPOINT`), `tsuiseki::exporter` → OTLP/HTTP (`OTEL_EXPORTER_OTLP_ENDPOINT`), `keisoku::endpoint` serving `/metrics`; each on by default and off alone through `observe` (`rogu::on?`); the chart side is pleme-lib 0.55.0 `telemetry-export` and `kenshi-labels` (helmworks H6 ✅) | 2 |
 | S4 ✅ | the RESP client (`resp_*` in `blue-lang-runtime`, the `kiibariu` bidama): get, set with a TTL, del, pub/sub, SCAN; loose version-hashed keys; strict put and fetch checked against a schema; `read_upgrading` and `upgrade_eager` (SCAN batches, pipelined rewrite, TTL kept). Model-rendered keys and the hardened image are pending rows below | 1 now, 2 by default |
 | S5 ✅ | JetStream (`sutoriimu`): streams, publish with ack, durable pull consumers, ack and nak; the outbox written in the change's transaction and drained with SKIP LOCKED; `consumer` runs a handler under a one-for-one supervisor, a raise naks and restarts | the gate for every event-driven service |
 | S6 | `database.provider: :node_socket` for hosts like plo; escuta's Postgres source | hosts; log-based capture |
 
-### Pending (S3–S5)
+### Pending (S2–S5)
 
 | Row | What is missing | Waits on |
 |---|---|---|
-| `pending-model-cache-keys` | `model(...)` entries' `cache` field rendered to `kiibariu` key prefixes (`prefix(namespace, version_hash, entity)`) and invalidation on write | S2: `model(...)` is not on main (2026-10-27) |
-| `pending-kv-judge` | `kiibariu::check` is a minimal field and type check standing in for the §2a schema judge; strict evolution takes `teeburu::evolve` steps once they exist | S2 |
+| `pending-model-cache-keys` | `model(...)` entries' `cache` field rendered to `kiibariu` key prefixes (`prefix(model.name, model.hash, entity)`) and invalidation on write | a renderer from `model` to haibi's cache binding; `model` and `version_hash` are on main (2026-10-28) |
+| `pending-model-accessors` | typed accessors rendered from a model version (`orders::order::find`, `insert`, `update`) | a code generator over `model`; `teeburu::insert_statement` is the hand-written seed |
+| `pending-model-lock-pin` | the Bluefile lock pins each version's hash and `blue check` refuses a change with no version bump or a shipped lowering that changed | a `model` word in the Bluefile `WORDS` table and `nix/project.nix` |
+| `pending-keifu-no-transaction` | shinka's keifu applier honours `runInTransaction="false"`, so CONCURRENTLY and the keyset backfills run outside a transaction | shinka `keifu-core` (it reads only `id` and `author` today) |
+| `pending-mysql-lowering` | MySQL online DDL (`ALGORITHM=INSTANT` or `INPLACE`), each step refused by name where MySQL has no native form | a second `pg_step`-shaped lowering |
 | `pending-eager-upgrade-job` | `upgrade_eager` rendered as a shinka job for `upgrade: :eager` | S2 and haibi |
-| `pending-kv-encodings` | strict entries are JSON strings; the hash and stream entry encodings | S2's `kv_model` |
+| `pending-kv-encodings` | strict entries are JSON strings; `kv_model` refuses `encoding: :hash` and `:stream` by name until they render | a hash and a stream entry encoding in `kiibariu` |
 | `pending-resp-tls` | `resp_connect` with TLS on refuses by name; Valkey off loopback needs the runtime's TLS transport | `docs/HTTP2.md` P4 |
 | `pending-hardened-valkey` | `pleme-cache` still runs upstream `valkey/valkey` | a `mkHardenedImageSet` Valkey image |
 | `pending-outbox-dedupe` | the drain is at-least-once: a crash between publish and delete republishes; a `Nats-Msg-Id` header would let JetStream drop the duplicate, and the runtime has no HPUB word | an `nats_publish` with headers |

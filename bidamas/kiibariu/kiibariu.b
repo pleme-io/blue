@@ -16,10 +16,10 @@ each key's TTL (upgrade_eager).
     versioned_key("orders", "3f2a", :order, 7) #=> "orders:v3f2a:order:7"
 """
 
-use("jisho", [:has?])
 use("kyohi", [:host_handle])
 use("moji", [:checked, :drop_chars])
 use("retsu", [:first, :is_empty, :size])
+use("teeburu")
 use("tesuto", [:raises?])
 
 @doc """
@@ -292,52 +292,21 @@ def field_types()
 end
 
 @doc """
-of_type?: whether a value is of a schema field type.
+of_type?: whether a value is of a schema field type, judged by teeburu's strict model check.
 
     of_type?(:int, "1") #=> false
 """
 def of_type?(type, v)
-  if type == :text
-    string?(v)
-  elsif type == :int
-    integer?(v)
-  elsif type == :float
-    number?(v)
-  elsif type == :bool
-    boolean?(v)
-  elsif type == :list
-    list?(v)
-  elsif type == :record
-    map?(v)
-  elsif type == :any
-    true
-  else
-    raise(:bad_option, "no field type #{to_s(type)}")
-  end
+  teeburu::holds?(type, v)
 end
 
 @doc """
-check: the record when it matches a schema's fields, else a :bad_value raise.
+check: the record when it holds to a strict schema (teeburu::kv_check: every field present and typed, no field the schema does not declare unless `strict: false`), else one :bad_value raise naming every finding.
 
     check({fields: {"n" => :int}}, {"n" => 1}) #=> {"n" => 1}
 """
 def check(schema, rec)
-  if not map?(rec)
-    raise(:bad_value, "a stored value is a record, got #{to_s(rec)}")
-  end
-  map(
-    fn(e)
-      name = to_s(first(e))
-      if not has?(rec, name)
-        raise(:bad_value, "the record has no field #{name}")
-      end
-      if not of_type?(e[1], get(rec, name))
-        raise(:bad_value, "field #{name} is not #{to_s(e[1])}")
-      end
-    end,
-    map_entries(schema[:fields])
-  )
-  rec
+  teeburu::kv_check(schema, rec)
 end
 
 @doc """
@@ -537,8 +506,16 @@ end
 
 test "check passes a matching record and refuses a missing or mistyped field"
   schema = {fields: {"id" => :int, "state" => :text}}
-  assert check(schema, {"id" => 1, "state" => "new", "extra" => true}) ==
+  assert check(schema, {"id" => 1, "state" => "new"}) ==
+    {"id" => 1, "state" => "new"}
+  assert raises?(
+    :bad_value,
+    () -> check(schema, {"id" => 1, "state" => "new", "extra" => true})
+  )
+  assert check(
+    assoc(schema, :strict, false),
     {"id" => 1, "state" => "new", "extra" => true}
+  ) == {"id" => 1, "state" => "new", "extra" => true}
   assert raises?(:bad_value, () -> check(schema, {"id" => 1}))
   assert raises?(:bad_value, () -> check(schema, {"id" => "1", "state" => "x"}))
   assert raises?(:bad_value, () -> check(schema, "text"))

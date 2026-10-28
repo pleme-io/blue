@@ -274,7 +274,7 @@ gates = append(
             exec_capture(
               "#{bin}/blue",
               "#{root}/gen/retired.b",
-              "origin/main",
+              blue::trim(git(["merge-base", "origin/main", "HEAD"])),
               "HEAD"
             )
           )

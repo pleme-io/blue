@@ -291,6 +291,14 @@ row(
 )
 
 row(
+  "host.exec_exchange",
+  "exec_exchange([235, 0], 2, 5000, \"head\", \"-c\", \"2\")",
+  value("[[:status, 0], [:stdout, [235, 0]], [:stderr, \"\"]]"),
+  covers("builtin:exec_exchange"),
+  host()
+)
+
+row(
   "host.exec_with_stdin",
   "exec_with_stdin(\"abc\", \"cat\")",
   value("[[:status, 0], [:stdout, \"abc\"], [:stderr, \"\"]]"),

@@ -68,8 +68,11 @@ def meaningful?(line)
 end
 
 @doc """
-machine: A declared machine: its line as written, its URI, host and user, and its
-key, or a refusal naming the line.
+machine: A declared machine: its line as written, its URI, host and user, its
+key, the store protocol nix speaks to it and the far side's program when the
+URI names one (`?remote-program=`), or a refusal naming the line.
+
+    machine("ssh-ng://u@cid?remote-program=/x aarch64-darwin - 1 1 - - -")[:host] #=> "cid"
 """
 def machine(line)
   fs = fields(line)
@@ -77,7 +80,7 @@ def machine(line)
   if (starts_with?(uri, "ssh://") or starts_with?(uri, "ssh-ng://")) == false
     {line:, ok: false, why: "not an ssh:// or ssh-ng:// URI: #{uri}"}
   else
-    target = after_first(uri, "://")
+    target = before_first_or_all(after_first(uri, "://"), "?")
     user = if includes(target, "@")
       before_first(target, "@")
     end
@@ -89,7 +92,65 @@ def machine(line)
     key = if size(fs) > 2 and fs[2] != "-"
       fs[2]
     end
-    {line: trim(line), ok: true, uri:, host:, user:, key:}
+    {
+      line: trim(line),
+      ok: true,
+      uri:,
+      host:,
+      user:,
+      key:,
+      protocol: protocol(uri),
+      remote_program: query_param(uri, "remote-program")
+    }
+  end
+end
+
+@doc """
+before_first_or_all: The text before the first `sep`, or all of it when there is none.
+
+    before_first_or_all("cid?x=1", "?") #=> "cid"
+"""
+def before_first_or_all(s, sep)
+  if includes(s, sep)
+    before_first(s, sep)
+  else
+    s
+  end
+end
+
+@doc """
+protocol: The store protocol nix speaks to a builder, from its URI's scheme:
+`:worker` for ssh-ng:// (the far side runs `nix-daemon --stdio`), `:serve`
+for ssh:// (`nix-store --serve --write`).
+
+    protocol("ssh-ng://u@h") #=> :worker
+"""
+def protocol(uri)
+  if starts_with?(uri, "ssh-ng://")
+    :worker
+  else
+    :serve
+  end
+end
+
+@doc """
+query_param: The value of `name` in a URI's query, or nil.
+
+    query_param("ssh-ng://h?a=1&remote-program=/p", "remote-program") #=> "/p"
+"""
+def query_param(uri, name)
+  if includes(uri, "?") == false
+    nil
+  else
+    hit = find_first(
+      (kv) -> starts_with?(kv, "#{name}="),
+      split(after_first(uri, "?"), "&")
+    )
+    if hit.nil?
+      nil
+    else
+      after_first(hit, "=")
+    end
   end
 end
 
@@ -112,9 +173,25 @@ end
 # ── the check ────────────────────────────────────────────────────────
 
 @doc """
-probe_argv: The ssh command that checks one machine: non-interactive, a short connect
-timeout, a short keep-alive, and a trivial nix command on the far side, so
-"up" means nix answers, not merely that port 22 is open. `ssh` is the binary
+remote_command: What nix runs on the far side for this builder: cppnix's
+ssh-store (`nix-daemon --stdio`) or legacy-ssh-store (`nix-store --serve
+--write`), with the URI's remote program in place of the default.
+
+    remote_command(machine("ssh-ng://h x - 1 1 - - -")) #=> ["nix-daemon", "--stdio"]
+"""
+def remote_command(m)
+  if m[:protocol] == :worker
+    [m[:remote_program] or "nix-daemon", "--stdio"]
+  else
+    [m[:remote_program] or "nix-store", "--serve", "--write"]
+  end
+end
+
+@doc """
+probe_argv: The ssh command that checks one machine: non-interactive, a short
+connect timeout, a short keep-alive, and on the far side the very program nix
+will run for a build, so "up" means the builder's store answers the protocol
+nix speaks, not merely that ssh or `nix --version` does. `ssh` is the binary
 to run, by absolute path when the caller has one (services.tehai passes
 /usr/bin/ssh on macOS, openssh on NixOS), so the state can name which ssh ran.
 """
@@ -141,24 +218,78 @@ def probe_argv(m, timeout_s, ssh)
       "-o",
       "ServerAliveCountMax=1"
     ],
-    concat_lists(key, [dest, "nix-store", "--version"])
+    concat_lists(key, concat_lists([dest], remote_command(m)))
   )
 end
 
 @doc """
-probe: [up?, detail] for one machine. A failure to start ssh at all is a down
-machine with the reason, never an uncaught error for the whole run.
+le_bytes: `n` as `k` little-endian bytes, the nix wire format of a u64.
+
+    le_bytes(258, 3) #=> [2, 1, 0]
+"""
+def le_bytes(n, k)
+  if k == 0
+    []
+  else
+    concat_lists([n % 256], le_bytes(floor(n / 256), k - 1))
+  end
+end
+
+@doc """
+handshake: The client's opening magic and the reply's magic for a protocol,
+as wire bytes, and the protocol's name (cppnix worker-protocol.hh,
+serve-protocol.hh).
+
+    handshake(:worker)[:name] #=> "worker"
+"""
+def handshake(proto)
+  if proto == :worker
+    {
+      name: "worker",
+      hello: le_bytes(1_852_405_859, 8),
+      reply: le_bytes(1_685_612_911, 8)
+    }
+  else
+    {
+      name: "serve",
+      hello: le_bytes(957_128_171, 8),
+      reply: le_bytes(1_414_721_227, 8)
+    }
+  end
+end
+
+@doc """
+probe: [up?, detail] for one machine. The opening magic of its store protocol
+is sent, and it is up only when the far side replies with the protocol's own
+magic; the detail is then the protocol version it offers. A failure to start
+ssh at all is a down machine with the reason, never an uncaught error for the
+whole run.
 
     probe(probe_target, 2, "") #=> [false, "ssh could not be started: "]
 """
 def probe(m, timeout_s, ssh)
-  cap = exec_capture(*probe_argv(m, timeout_s, ssh)) rescue nil
+  hs = handshake(m[:protocol])
+  cap = exec_exchange(
+    hs[:hello],
+    16,
+    timeout_s * 3000,
+    *probe_argv(m, timeout_s, ssh)
+  ) rescue
+    nil
   if cap.nil?
     [false, "ssh could not be started: #{ssh}"]
-  elsif status_of(cap) == 0 and starts_with?(trim(stdout_of(cap)), "nix-store")
-    [true, trim(stdout_of(cap))]
   else
-    [false, last_nonempty_line(stderr_of(cap))]
+    out = json_get(cap, :stdout) or []
+    if size(out) >= 10 and take_n(out, 8) == hs[:reply]
+      [true, "#{hs[:name]} protocol #{to_s(out[9])}.#{to_s(out[8])}"]
+    else
+      why = last_nonempty_line(stderr_of(cap))
+      if is_empty(why)
+        [false, "no #{hs[:name]} protocol handshake"]
+      else
+        [false, why]
+      end
+    end
   end
 end
 
@@ -461,14 +592,27 @@ test "the machines format: comments and blanks skipped, fields read, a bad line 
   assert is_empty(parse("")) == true
 end
 
-test "the check is non-interactive, short, and asks nix, not just the port"
-  argv = probe_argv(first(parse(sample)), 2, "/usr/bin/ssh")
+test "the check is non-interactive, short, and opens the store protocol nix will use"
+  ms = parse(sample)
+  argv = probe_argv(ms[0], 2, "/usr/bin/ssh")
   assert first(argv) == "/usr/bin/ssh"
   assert contains(argv, "BatchMode=yes") == true
   assert contains(argv, "ConnectTimeout=2") == true
   assert take_n(reverse(argv), 3) ==
-    ["--version", "nix-store", "builder@quero-builder-ssm"]
+    ["--stdio", "nix-daemon", "builder@quero-builder-ssm"]
   assert contains(argv, "/Users/x/.ssh/key") == true
+  assert take_n(reverse(probe_argv(ms[1], 2, "ssh")), 4) ==
+    ["--write", "--serve", "nix-store", "root@plo"]
+end
+
+test "a remote-program query names the far side's program, and the host drops the query"
+  m = machine("ssh-ng://u@cid?remote-program=/opt/sui/bin/nix-daemon aarch64-darwin - 8 1 - - -")
+  assert m[:host] == "cid"
+  assert m[:protocol] == :worker
+  assert take_n(reverse(probe_argv(m, 2, "ssh")), 3) ==
+    ["--stdio", "/opt/sui/bin/nix-daemon", "u@cid"]
+  assert machine("ssh://h?compress=true x - 1 1 - - -")[:protocol] == :serve
+  assert machine("ssh://h?compress=true x - 1 1 - - -")[:host] == "h"
 end
 
 test "only live machines are written, each line exactly as declared"
@@ -675,10 +819,52 @@ test "a substituter run end to end: a dead peer is left out and named in the sta
   rm_rf(dir)
 end
 
-test "probe is up with nix's own answer when the far side prints it"
-  dir = probe_dir("up")
-  ssh = fake_ssh(dir, "ssh", "echo 'nix-store (Nix) 2.24.0'")
-  assert probe(probe_target, 2, ssh) == [true, "nix-store (Nix) 2.24.0"]
+def worker_target()
+  machine("ssh-ng://u@h aarch64-darwin - 1 1 - - -")
+end
+
+def serve_target()
+  machine("ssh://u@h aarch64-darwin - 1 1 - - -")
+end
+
+def worker_reply()
+  "printf 'oixd\\000\\000\\000\\000\\046\\001\\000\\000\\000\\000\\000\\000'"
+end
+
+def serve_reply()
+  "printf '\\313\\356\\122\\124\\000\\000\\000\\000\\007\\002\\000\\000\\000\\000\\000\\000'"
+end
+
+test "probe is up only when the far side answers the worker handshake, and names its version"
+  dir = probe_dir("worker")
+  seen = path_join(dir, "stdin")
+  ssh = fake_ssh(dir, "ssh", "head -c 8 > #{seen}; #{worker_reply}")
+  assert probe(worker_target, 2, ssh) == [true, "worker protocol 1.38"]
+  assert read_file(seen) == "cxin\u{0}\u{0}\u{0}\u{0}"
+  rm_rf(dir)
+end
+
+test "probe is up only when the far side answers the serve handshake, and names its version"
+  dir = probe_dir("serve")
+  ssh = fake_ssh(dir, "ssh", "head -c 8 > /dev/null; #{serve_reply}")
+  assert probe(serve_target, 2, ssh) == [true, "serve protocol 2.7"]
+  rm_rf(dir)
+end
+
+test "a far side whose nix answers --version but not the store protocol is down"
+  dir = probe_dir("version-only")
+  version = fake_ssh(dir, "version", "echo 'nix-store (Nix) 2.31.5'")
+  assert probe(worker_target, 2, version) ==
+    [false, "no worker protocol handshake"]
+  refused = fake_ssh(
+    dir,
+    "refused",
+    "echo \"error: unexpected argument '--stdio' found\" >&2; exit 2"
+  )
+  assert probe(worker_target, 2, refused) ==
+    [false, "error: unexpected argument '--stdio' found"]
+  assert first(probe(serve_target, 2, fake_ssh(dir, "wrong", worker_reply))) ==
+    false
   rm_rf(dir)
 end
 
@@ -689,18 +875,10 @@ test "probe is down with the last non-empty line of stderr when ssh fails"
     "ssh",
     "echo 'first' >&2; echo 'Permission denied' >&2; echo >&2; exit 255"
   )
-  assert probe(probe_target, 2, ssh) == [false, "Permission denied"]
-  rm_rf(dir)
-end
-
-test "probe is down when ssh succeeds but nix does not answer, and when it prints nothing"
-  dir = probe_dir("other")
-  other = fake_ssh(dir, "other", "echo 'hello'")
-  assert probe(probe_target, 2, other) == [false, ""]
-  near = fake_ssh(dir, "near", "echo 'nixos'")
-  assert probe(probe_target, 2, near) == [false, ""]
+  assert probe(worker_target, 2, ssh) == [false, "Permission denied"]
   quiet = fake_ssh(dir, "quiet", "exit 0")
-  assert probe(probe_target, 2, quiet) == [false, ""]
+  assert probe(worker_target, 2, quiet) ==
+    [false, "no worker protocol handshake"]
   rm_rf(dir)
 end
 
@@ -712,10 +890,18 @@ end
 
 test "probe hands ssh the argv that probe_argv builds"
   dir = probe_dir("argv")
-  ssh = fake_ssh(dir, "ssh", "echo \"nix-store $*\"")
-  r = probe({host: "h", user: "u", key: "/k"}, 3, ssh)
-  assert first(r) == true
-  assert contains?(r[1], "ConnectTimeout=3")
-  assert contains?(r[1], "-i /k u@h nix-store --version")
+  seen = path_join(dir, "argv")
+  ssh = fake_ssh(dir, "ssh", "echo \"$*\" > #{seen}; #{worker_reply}")
+  m = machine("ssh-ng://u@h aarch64-darwin /k 1 1 - - -")
+  assert first(probe(m, 3, ssh)) == true
+  assert contains?(read_file(seen), "ConnectTimeout=3")
+  assert contains?(read_file(seen), "-i /k u@h nix-daemon --stdio")
   rm_rf(dir)
+end
+
+test "the handshake magics are cppnix's: cxin/oixd for the worker protocol, 0x390c9deb/0x5452eecb for serve"
+  assert handshake(:worker)[:hello] == [99, 120, 105, 110, 0, 0, 0, 0]
+  assert handshake(:worker)[:reply] == [111, 105, 120, 100, 0, 0, 0, 0]
+  assert handshake(:serve)[:hello] == [235, 157, 12, 57, 0, 0, 0, 0]
+  assert handshake(:serve)[:reply] == [203, 238, 82, 84, 0, 0, 0, 0]
 end

@@ -382,6 +382,7 @@ pub const NAMES: &[NameDoc] = names! {
     Process: "exec_check" "exec_check(cmd, args...)" "Run a command, no shell; its exit status as an Int. Output passes through.";
     Process: "exec_ok?" "exec_ok?(cmd, args...)" "Whether a command exits 0.";
     Process: "exec_with_stdin" "exec_with_stdin(input, cmd, args...)" "exec_capture, with input written to the command's stdin. The INPUT comes first.";
+    Process: "exec_exchange" "exec_exchange(bytes, n, ms, cmd, args...)" "One request and reply over a child's stdio, for binary protocols: bytes (Ints 0..=255) are written and stdin stays open until n bytes of stdout arrive, stdout closes or ms pass; stdin then closes, and a child still running at ms is ended. :stdout is the list of bytes read, :status -1 when the child had to be ended.";
     Process: "exec_with_env" "exec_with_env(env, cmd, args...)" "exec_capture with extra environment variables, given as [[name, value], …].";
     Process: "exec_into" "exec_into(env, cmd, args...)" "Replace this process with a command run with extra environment variables, given as [[name, value], …]; stdio is inherited. Returns only by raising, when the command cannot start.";
     Process: "exit_with" "exit_with(code)" "End the program now with this exit status, after flushing stdout and stderr. A typed outcome a caller must branch on (EX_TEMPFAIL 75 for a hold) leaves this way, not as an uncaught error.";

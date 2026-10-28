@@ -18,6 +18,7 @@
 //! exec_into(env, cmd, arg…)  → replaces this process; returns only on failure
 //! sh_exec(script)            → capture form; script through `sh -c`
 //! exec_with_stdin(payload, cmd, arg…) → capture form
+//! exec_exchange(bytes, n, ms, cmd, arg…) → capture form, stdout as a list of bytes
 //! exec_with_env(pairs, cmd, arg…)    → capture form
 //!
 //! read_file(path)            → contents as a string
@@ -163,6 +164,35 @@ fn install_process<H: 'static>(interp: &mut Interpreter<H>) {
     );
 
     interp.register_fn(
+        "exec_exchange",
+        Arity::AtLeast(4),
+        |args: &[Value], _h: &mut H, span| {
+            let payload = arg_bytes(&args[0], "exec_exchange", span)?;
+            let want =
+                usize::try_from(arg_int(&args[1], "exec_exchange", span)?).map_err(|_| {
+                    EvalError::native_fn(
+                        "exec_exchange",
+                        "the reply length must not be negative",
+                        span,
+                    )
+                })?;
+            let wait_ms =
+                u64::try_from(arg_int(&args[2], "exec_exchange", span)?).map_err(|_| {
+                    EvalError::native_fn("exec_exchange", "the deadline must not be negative", span)
+                })?;
+            let (cmd, rest) = split_cmd(&args[3..], "exec_exchange", span)?;
+            exchange(
+                &payload,
+                want,
+                std::time::Duration::from_millis(wait_ms),
+                &cmd,
+                &rest,
+            )
+            .map_err(|e| EvalError::native_fn("exec_exchange", e.to_string(), span))
+        },
+    );
+
+    interp.register_fn(
         "exec_with_env",
         Arity::AtLeast(2),
         |args: &[Value], _h: &mut H, span| {
@@ -289,6 +319,130 @@ fn capture_result(out: &std::process::Output) -> Value {
             Value::Str(Arc::from(String::from_utf8_lossy(&out.stderr).as_ref())),
         ]),
     ])
+}
+
+fn exchange(
+    payload: &[u8],
+    want: usize,
+    wait: std::time::Duration,
+    cmd: &str,
+    rest: &[Arc<str>],
+) -> std::io::Result<Value> {
+    use std::io::{Read, Write};
+    let mut child = Command::new(cmd)
+        .args(rest.iter().map(|s| s.as_ref()))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+    let mut sink = child.stdin.take();
+    if let Some(s) = sink.as_mut() {
+        if let Err(e) = s.write_all(payload).and_then(|()| s.flush()) {
+            if e.kind() != std::io::ErrorKind::BrokenPipe {
+                return Err(e);
+            }
+        }
+    }
+    let (tx, rx) = std::sync::mpsc::channel::<Option<Vec<u8>>>();
+    let mut stdout = child.stdout.take();
+    std::thread::spawn(move || {
+        let Some(out) = stdout.as_mut() else {
+            let _ = tx.send(None);
+            return;
+        };
+        let mut buf = [0u8; 4096];
+        loop {
+            match out.read(&mut buf) {
+                Ok(0) | Err(_) => {
+                    let _ = tx.send(None);
+                    return;
+                }
+                Ok(n) => {
+                    if tx.send(Some(buf[..n].to_vec())).is_err() {
+                        return;
+                    }
+                }
+            }
+        }
+    });
+    let mut stderr = child.stderr.take();
+    let err_reader = std::thread::spawn(move || {
+        let mut text = Vec::new();
+        if let Some(e) = stderr.as_mut() {
+            let _ = e.read_to_end(&mut text);
+        }
+        text
+    });
+    let deadline = std::time::Instant::now() + wait;
+    let mut got = Vec::new();
+    while got.len() < want {
+        let left = deadline.saturating_duration_since(std::time::Instant::now());
+        match rx.recv_timeout(left) {
+            Ok(Some(chunk)) => got.extend(chunk),
+            Ok(None) | Err(_) => break,
+        }
+    }
+    drop(sink);
+    let status = loop {
+        if let Some(st) = child.try_wait()? {
+            break st.code().unwrap_or(-1);
+        }
+        if std::time::Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            break -1;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    };
+    let err = err_reader.join().unwrap_or_default();
+    Ok(Value::list(vec![
+        Value::list(vec![
+            Value::Keyword(Arc::from("status")),
+            Value::Int(i64::from(status)),
+        ]),
+        Value::list(vec![
+            Value::Keyword(Arc::from("stdout")),
+            Value::list(
+                got.iter()
+                    .map(|b| Value::Int(i64::from(*b)))
+                    .collect::<Vec<_>>(),
+            ),
+        ]),
+        Value::list(vec![
+            Value::Keyword(Arc::from("stderr")),
+            Value::Str(Arc::from(String::from_utf8_lossy(&err).as_ref())),
+        ]),
+    ]))
+}
+
+fn arg_bytes(
+    v: &Value,
+    fname: &'static str,
+    span: tatara_lisp::Span,
+) -> Result<Vec<u8>, EvalError> {
+    let Value::List(items) = v else {
+        return Err(EvalError::native_fn(
+            fname,
+            format!(
+                "expected a list of bytes (Ints 0..=255), got {}",
+                v.type_name()
+            ),
+            span,
+        ));
+    };
+    items
+        .iter()
+        .map(|it| match it {
+            Value::Int(n) => u8::try_from(*n).map_err(|_| {
+                EvalError::native_fn(fname, format!("{n} is not a byte (0..=255)"), span)
+            }),
+            other => Err(EvalError::native_fn(
+                fname,
+                format!("expected a byte (Int 0..=255), got {}", other.type_name()),
+                span,
+            )),
+        })
+        .collect()
 }
 
 static WRITE_ROOTS: std::sync::RwLock<Option<Vec<std::path::PathBuf>>> =
@@ -1169,6 +1323,60 @@ mod tests {
             }
         });
         assert!(matches!(stdout, Some(Value::Str(s)) if &*s == "42"));
+    }
+
+    fn stdout_bytes(v: &Value) -> Vec<i64> {
+        let Value::List(entries) = v else {
+            panic!("expected an alist, got {v:?}");
+        };
+        let stdout = entries.iter().find_map(|entry| match entry {
+            Value::List(pair)
+                if pair.len() == 2 && matches!(&pair[0], Value::Keyword(k) if &**k == "stdout") =>
+            {
+                Some(pair[1].clone())
+            }
+            _ => None,
+        });
+        let Some(Value::List(bytes)) = stdout else {
+            panic!("stdout must be a list of bytes");
+        };
+        bytes
+            .iter()
+            .map(|b| match b {
+                Value::Int(n) => *n,
+                _ => -1,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn exec_exchange_round_trips_bytes_that_are_not_utf8() {
+        let v = run(r#"(exec_exchange (list 235 157 12 57 0) 5 5000 "sh" "-c" "head -c 5")"#);
+        assert_eq!(stdout_bytes(&v), vec![235, 157, 12, 57, 0]);
+    }
+
+    #[test]
+    fn exec_exchange_keeps_stdin_open_until_the_reply_arrives() {
+        let v = run(
+            r#"(exec_exchange (list 65) 1 5000 "bash" "-c" "head -c 1 >/dev/null; read -t 0.3 x; if [ $? -gt 128 ]; then printf O; else printf C; fi")"#,
+        );
+        assert_eq!(stdout_bytes(&v), vec![79]);
+    }
+
+    #[test]
+    fn exec_exchange_stops_at_the_deadline_and_ends_the_child() {
+        let start = std::time::Instant::now();
+        let v = run(r#"(exec_exchange (list) 4 200 "sh" "-c" "printf ab; sleep 30")"#);
+        assert!(start.elapsed() < std::time::Duration::from_secs(10));
+        assert_eq!(stdout_bytes(&v), vec![97, 98]);
+    }
+
+    #[test]
+    fn exec_exchange_refuses_a_value_that_is_not_a_byte() {
+        let err = run_err(r#"(exec_exchange (list 256) 1 100 "cat")"#);
+        assert!(err.contains("256 is not a byte"), "{err}");
+        let err = run_err(r#"(exec_exchange "abc" 1 100 "cat")"#);
+        assert!(err.contains("expected a list of bytes"), "{err}");
     }
 
     #[test]

@@ -19,6 +19,8 @@ Semantics that differ from Ruby are in [`bidamas/okite/RULES.md`](../bidamas/oki
 | `"n = #{n}!"` | `(concat (concat "n = " n) "!")` | Interpolation: any expression inside #{…}, rendered with to_s. A literal that must contain #{ is built with concat("#", "{"). |
 | `:done` | `:done` | A keyword: a name as a value. It may not end in ? or !. |
 | `[1, "a"]` | `(list 1 "a")` | A list. Indexing is nth(i, xs); blue has no xs[i]. |
+| `%w[a b]` | `(list "a" "b")` | A list of strings, one per word, separated by spaces. The formatter writes any literal list of two or more such strings this way. Only [ ] delimits it, and a word holds no , " ' # \ [ ]. |
+| `%i[a b]` | `(list :a :b)` | A list of keywords, one per name: [:a, :b], written this way from two names on. |
 | `{a: 1, "k" => 2}` | `(hash-map :a 1 "k" 2)` | A map. `a:` is the keyword key :a; `=>` takes any key. Read with get(m, k), extend with assoc(m, k, v). |
 | `{a:, b:}` | `(hash-map :a a :b b)` | A map whose values are the variables of the same names: `{a:}` is `{a: a}`. Mix it with `{a:, n: 1}`. |
 | `{**a, b: 1}` | `(blue-merge (blue-splice a) (hash-map :b 1))` | A map that inherits every key of a map, `**a`, and lets a later entry override it. nil spreads as an empty map; anything else that is not a map is a type error. The map sibling of the splat `*xs`. |

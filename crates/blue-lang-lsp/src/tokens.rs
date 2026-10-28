@@ -213,6 +213,14 @@ fn classify(tokens: &[Token], i: usize) -> Option<(SemanticTokenType, u32)> {
         TokenKind::Int(_) | TokenKind::Float(_) => T::Number,
         TokenKind::Str(_) | TokenKind::InterpolatedStr { .. } => T::String,
         TokenKind::Sym(_) => T::EnumMember,
+        TokenKind::Words {
+            flavor: blue_lang_syntax::words::Flavor::Strings,
+            ..
+        } => T::String,
+        TokenKind::Words {
+            flavor: blue_lang_syntax::words::Flavor::Keywords,
+            ..
+        } => T::EnumMember,
 
         // `true` / `false` / `nil` are reserved words (`BLOCK_KEYWORDS`), so
         // they paint as keywords for the same reason `end` does. The lexer
@@ -425,6 +433,19 @@ mod tests {
             .filter(|(t, _, _)| t == text)
             .map(|(_, ty, _)| ty)
             .collect()
+    }
+
+    #[test]
+    fn a_word_list_paints_as_strings_or_symbols_line_by_line() {
+        let src = "x = %w[a b]\ny = %i[\n  c\n  d\n]\n";
+        assert_eq!(types_of(src, "%w[a b]"), vec![SemanticTokenType::String]);
+        for piece in ["%i[", "  c", "  d", "]"] {
+            assert_eq!(
+                types_of(src, piece),
+                vec![SemanticTokenType::EnumMember],
+                "{piece}"
+            );
+        }
     }
 
     #[test]

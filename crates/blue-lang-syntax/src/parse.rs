@@ -1061,6 +1061,7 @@ impl Parser {
                 | TokenKind::Str(_)
                 | TokenKind::InterpolatedStr { .. }
                 | TokenKind::Sym(_)
+                | TokenKind::Words { .. }
                 | TokenKind::True
                 | TokenKind::False
                 | TokenKind::Nil,
@@ -1585,6 +1586,20 @@ impl Parser {
             }
             TokenKind::InterpolatedStr { parts, exprs } => Self::interpolation(span, &parts, &exprs),
             TokenKind::Sym(s) => Ok(atom_at(span, Atom::Keyword(s))),
+            TokenKind::Words { flavor, words } => {
+                let open = Span::new(span.start, span.start + 3);
+                let mut items = vec![sym_at(open, "list")];
+                items.extend(words.into_iter().map(|(w, at)| {
+                    atom_at(
+                        at,
+                        match flavor {
+                            crate::words::Flavor::Strings => Atom::Str(w),
+                            crate::words::Flavor::Keywords => Atom::Keyword(w),
+                        },
+                    )
+                }));
+                Ok(list_at(span, items))
+            }
             TokenKind::True => Ok(atom_at(span, Atom::Bool(true))),
             TokenKind::False => Ok(atom_at(span, Atom::Bool(false))),
             TokenKind::Nil => Ok(Spanned::new(span, SpannedForm::Nil)),

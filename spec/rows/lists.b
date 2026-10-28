@@ -224,3 +224,31 @@ row(
   "reduce(fn(acc, x) append(acc, [x]) end, [], range(0, 2000)) |> length()",
   value("2000")
 )
+
+row(
+  "lists.words.strings",
+  "%w[a --force x/y]",
+  value("[\"a\", \"--force\", \"x/y\"]"),
+  covers("form:%w[a b]")
+)
+
+row(
+  "lists.words.keywords",
+  "%i[a pair? b]",
+  value("[:a, :pair?, :b]"),
+  covers("form:%i[a b]")
+)
+
+row(
+  "lists.words.same_tree",
+  "%w[a b] == [\"a\", \"b\"] && %i[a b] == [:a, :b]",
+  value("true")
+)
+
+row(
+  "lists.words.lines",
+  join_lines(["%w[", "  a", "  b", "]"]),
+  value("[\"a\", \"b\"]")
+)
+
+row("lists.words.empty", "%i[]", value("[]"))

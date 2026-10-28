@@ -269,6 +269,7 @@ def config_defaults()
     "records" => {"history" => "", "events" => "", "events_keep" => 1000},
     "gitops" => {
       "follow" => false,
+      "stale_after_seconds" => 300,
       "log" => "/var/log/pleme-gitops/stdout.log",
       "heartbeat" => "/var/log/pleme-gitops/heartbeat.json"
     }
@@ -343,6 +344,7 @@ def settings()
     events: or_computed(c.records.events, () -> state_file("events.jsonl")),
     events_keep: c.records.events_keep,
     follow: c.gitops.follow,
+    stale_after_s: c.gitops.stale_after_seconds,
     gitops_log: c.gitops.log
   }
 end
@@ -546,6 +548,16 @@ def writer_rev(line)
 end
 
 @doc """
+heartbeat_stale?: true when the gitops heartbeat names no time or was written longer ago than stale_ms, so a loop that hung mid-build is not taken for a live writer.
+
+    heartbeat_stale?(json_parse("{\"at_unix_ms\":1000}"), 400000, 300000) #=> true
+"""
+def heartbeat_stale?(hb, now, stale_ms)
+  at = get_int(hb, "at_unix_ms", 0)
+  at == 0 or now - at > stale_ms
+end
+
+@doc """
 gitops_handoff: the revision the gitops loop is building when it is the busy writer and builds the checkout's published rev or one after it, so kirikae can leave the switch to it; nil otherwise.
 
     gitops_handoff({busy: nil}, {}, "") #=> nil
@@ -563,6 +575,7 @@ def gitops_handoff(f, s, hb_text)
   end
   dir = checkout_path(s[:flake] or "")
   building = hb != nil and
+    not heartbeat_stale?(hb, now_ms, (s[:stale_after_s] or 300) * 1000) and
     get_str(hb, "outcome", "") == "building" and
     get_str(hb, "head_rev", "") == rev
   if rev.nil? or head.nil? or not building
@@ -718,6 +731,8 @@ def planned(s)
     {action: :handoff, why: handoff_note(rev, s[:host]), rev:, plan_ms: 0}
   elsif wp.nil?
     g0
+  elsif wp[:result][:followed] == :stale
+    nil
   else
     wp[:result]
   end
@@ -965,12 +980,20 @@ def following(s, rev, seen, deadline_ms, started, said_ms)
   end
   v = gitops_verdict(fresh, rev)
   hb = json_parse(read_or(s[:heartbeat] or heartbeat_path, "")) rescue nil
+  stale = hb != nil and
+    heartbeat_stale?(hb, now_ms, (s[:stale_after_s] or 300) * 1000)
   still = hb != nil and
+    not stale and
     get_str(hb, "outcome", "") == "building" and
     get_str(hb, "head_rev", "") == rev
   if v != nil or not still or now_ms >= deadline_ms
     verdict = if v != nil
       v
+    elsif stale
+      [
+        :stale,
+        "the gitops loop's heartbeat is #{to_s(floor((now_ms - get_int(hb, "at_unix_ms", 0)) / 60000))}m old, so nothing builds #{take_chars(rev, 8)}; kirikae switches the machine itself"
+      ]
     elsif not still
       [
         :warn,
@@ -2185,6 +2208,47 @@ test "with KIRIKAE_PHASES__PLAN at 0 the guard's go switches with no plan and no
   assert verify_switch(u[:desired], "/nix/store/x")[:verdict] == :unverified
 end
 
+test "a frozen heartbeat is no writer: following stops as stale and the guard's go is planned"
+  dir = path_join(getenv("TMPDIR", "/tmp"), "kirikae-stale-#{to_s(now_ns)}")
+  mkdir_p(dir)
+  rev = "b548e3a24f88a08d1c673ad27ac494293ac5cac1"
+  hb = path_join(dir, "heartbeat.json")
+  write_file(
+    hb,
+    json_stringify(
+      {
+        "at_unix_ms" => now_ms - 3_000_000,
+        "outcome" => "building",
+        "phase" => "in_flight",
+        "head_rev" => rev
+      }
+    )
+  )
+  s = {
+    narrate: :off,
+    gitops_log: path_join(dir, "stdout.log"),
+    heartbeat: hb,
+    wait_s: 60,
+    poll_s: 0,
+    stale_after_s: 300
+  }
+  r = follow(s, rev)
+  assert r[:followed] == :stale
+  t = now_ms
+  assert heartbeat_stale?(
+    json_parse("{\"at_unix_ms\":#{to_s(t)}}"),
+    t,
+    300_000
+  ) == false
+  assert heartbeat_stale?(json_parse("{}"), t, 300_000) == true
+  assert gitops_handoff(
+    {busy: [:busy, "", "darwin-rebuild build", rev], checkout: {head: rev}},
+    {stale_after_s: 300},
+    read_file(hb)
+  ).nil?
+  rm_rf(dir)
+end
+
 test "the toplevel attribute follows the platform"
   assert attr_for("darwin", "ryn") == "darwinConfigurations.ryn.system"
   assert attr_for("nixos", "plo") ==
@@ -2283,7 +2347,9 @@ end
 test "a gitops build of the published rev is handed off, and any other writer is waited for"
   head = "b548e3a24f88a08d1c673ad27ac494293ac5cac1"
   other = "cb22456a00000000000000000000000000000000"
-  building = (rev) -> "{\"outcome\":\"building\",\"head_rev\":\"#{rev}\"}"
+  building = fn(rev)
+    "{\"outcome\":\"building\",\"head_rev\":\"#{rev}\",\"at_unix_ms\":#{to_s(now_ms)}}"
+  end
   f = {
     checkout: {head:, branch: "main"},
     busy: [:busy, "x", "darwin-rebuild build at b548e3a2", head]

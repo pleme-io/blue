@@ -29,7 +29,12 @@ fn embed(out: &mut String) {
     let root = [manifest.join("../../bidamas"), manifest.join("bidamas")]
         .into_iter()
         .find(|r| r.is_dir())
-        .unwrap_or_else(|| manifest.join("../../bidamas"));
+        .unwrap_or_else(|| {
+            panic!(
+                "blue-lang-pkg: no bidamas/ beside {} or two levels up; the standard distribution would be empty. A nix build of this crate as a git dependency needs the whole repository as its source (substrate: [package.metadata.substrate] sources)",
+                manifest.display()
+            )
+        });
     println!("cargo:rerun-if-changed={}", root.display());
     for (name, dir, files) in packages(&root) {
         let bluefile = dir.join("Bluefile");

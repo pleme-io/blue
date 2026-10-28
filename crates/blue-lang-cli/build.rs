@@ -11,7 +11,10 @@ fn main() {
     let manifest = PathBuf::from(
         std::env::var_os("CARGO_MANIFEST_DIR").expect("cargo sets CARGO_MANIFEST_DIR"),
     );
-    let root = manifest.join("../../spec/rows");
+    let root = [manifest.join("../../spec/rows"), manifest.join("spec/rows")]
+        .into_iter()
+        .find(|r| r.is_dir())
+        .unwrap_or_else(|| manifest.join("../../spec/rows"));
     println!("cargo:rerun-if-changed={}", root.display());
     let mut files: Vec<PathBuf> = std::fs::read_dir(&root)
         .map(|d| {

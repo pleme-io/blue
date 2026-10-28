@@ -46,6 +46,8 @@ use(
   ]
 )
 
+use("settei")
+
 use("shisutemu", [:read_or, :stdout_of, :strip_ansi])
 
 def attr_for(kind, host)
@@ -242,30 +244,106 @@ def assoc_all(m, pairs)
   reduce((acc, kv) -> assoc(acc, first(kv), kv[1]), m, pairs)
 end
 
-def settings()
+@doc """
+config_defaults: every kirikae setting and its default, grouped by concern. settei lays ~/.config/kirikae/kirikae.yaml (or the file KIRIKAE_CONFIG names) over it, then KIRIKAE_<GROUP>__<KEY> (KIRIKAE_PHASES__PLAN=0, KIRIKAE_FORCE=1); a value of the wrong type is refused. An empty host, kind, history, events or narrate means the computed default.
+
+    config_defaults.phases.plan #=> true
+"""
+def config_defaults()
   {
-    flake: getenv("KIRIKAE_FLAKE", "."),
-    host: getenv("KIRIKAE_HOST", trim(stdout_of_host)),
-    kind: getenv("KIRIKAE_KIND", kind_of_host),
-    current: getenv("KIRIKAE_CURRENT", "/run/current-system"),
-    verify: verify_flag(getenv("KIRIKAE_VERIFY_SWITCH", "1")),
-    history: getenv(
-      "KIRIKAE_HISTORY",
-      path_join(getenv("HOME", "/tmp"), ".local/state/kirikae/history.jsonl")
-    ),
-    policy: policy(
-      to_int(getenv("KIRIKAE_BACKOFF_BASE_S", "0")),
-      to_int(getenv("KIRIKAE_BACKOFF_CAP_S", "21600"))
-    ),
-    wait_s: to_int(getenv("KIRIKAE_WAIT_S", "0")),
-    poll_s: to_int(getenv("KIRIKAE_POLL_S", "15")),
-    events: getenv(
-      "KIRIKAE_EVENTS",
-      path_join(getenv("HOME", "/tmp"), ".local/state/kirikae/events.jsonl")
-    ),
-    events_keep: to_int(getenv("KIRIKAE_EVENTS_KEEP", "1000")),
-    follow: getenv("KIRIKAE_FOLLOW", "") == "1",
-    gitops_log: getenv("KIRIKAE_GITOPS_LOG", "/var/log/pleme-gitops/stdout.log")
+    "flake" => ".",
+    "host" => "",
+    "kind" => "",
+    "current" => "/run/current-system",
+    "force" => false,
+    "narrate" => "",
+    "phases" => {"plan" => true, "verify" => true},
+    "guard" => {
+      "branch" => "main",
+      "fast_forward" => true,
+      "allow_unpublished" => false,
+      "allow_concurrent" => false
+    },
+    "wait" => {"seconds" => 0, "poll_seconds" => 15},
+    "backoff" => {"base_seconds" => 0, "cap_seconds" => 21600},
+    "records" => {"history" => "", "events" => "", "events_keep" => 1000},
+    "gitops" => {
+      "follow" => false,
+      "log" => "/var/log/pleme-gitops/stdout.log",
+      "heartbeat" => "/var/log/pleme-gitops/heartbeat.json"
+    }
+  }
+end
+
+@doc """
+config: kirikae's settings as settei resolves them: defaults, then the config file, then the environment; read by path, config.guard.branch.
+
+    config.guard.branch #=> "main"
+"""
+def config()
+  settei::read("kirikae", config_defaults, {aliases: env_aliases})
+end
+
+@doc """
+env_aliases: each grouped setting's environment name and the flat name it had before, which still sets it (sentinela passes KIRIKAE_HISTORY and KIRIKAE_BACKOFF_BASE_S).
+
+    env_aliases["KIRIKAE_BACKOFF__BASE_SECONDS"] #=> "KIRIKAE_BACKOFF_BASE_S"
+"""
+def env_aliases()
+  {
+    "KIRIKAE_PHASES__PLAN" => "KIRIKAE_PLAN",
+    "KIRIKAE_PHASES__VERIFY" => "KIRIKAE_VERIFY_SWITCH",
+    "KIRIKAE_GUARD__BRANCH" => "KIRIKAE_BRANCH",
+    "KIRIKAE_GUARD__FAST_FORWARD" => "KIRIKAE_FAST_FORWARD",
+    "KIRIKAE_GUARD__ALLOW_UNPUBLISHED" => "KIRIKAE_ALLOW_UNPUBLISHED",
+    "KIRIKAE_GUARD__ALLOW_CONCURRENT" => "KIRIKAE_ALLOW_CONCURRENT",
+    "KIRIKAE_WAIT__SECONDS" => "KIRIKAE_WAIT_S",
+    "KIRIKAE_WAIT__POLL_SECONDS" => "KIRIKAE_POLL_S",
+    "KIRIKAE_BACKOFF__BASE_SECONDS" => "KIRIKAE_BACKOFF_BASE_S",
+    "KIRIKAE_BACKOFF__CAP_SECONDS" => "KIRIKAE_BACKOFF_CAP_S",
+    "KIRIKAE_RECORDS__HISTORY" => "KIRIKAE_HISTORY",
+    "KIRIKAE_RECORDS__EVENTS" => "KIRIKAE_EVENTS",
+    "KIRIKAE_RECORDS__EVENTS_KEEP" => "KIRIKAE_EVENTS_KEEP",
+    "KIRIKAE_GITOPS__FOLLOW" => "KIRIKAE_FOLLOW",
+    "KIRIKAE_GITOPS__LOG" => "KIRIKAE_GITOPS_LOG",
+    "KIRIKAE_GITOPS__HEARTBEAT" => "KIRIKAE_GITOPS_HEARTBEAT"
+  }
+end
+
+@doc """
+or_computed: the setting, or the computed default when the setting is empty.
+
+    or_computed("", () -> "full") #=> "full"
+"""
+def or_computed(v, computed)
+  if v == ""
+    computed()
+  else
+    v
+  end
+end
+
+def state_file(name)
+  path_join(getenv("HOME", "/tmp"), ".local/state/kirikae/#{name}")
+end
+
+def settings()
+  c = config
+  {
+    flake: c.flake,
+    host: or_computed(c.host, () -> trim(stdout_of_host)),
+    kind: or_computed(c.kind, () -> kind_of_host),
+    current: c.current,
+    verify: c.phases.verify,
+    plan: c.phases.plan,
+    history: or_computed(c.records.history, () -> state_file("history.jsonl")),
+    policy: policy(c.backoff.base_seconds, c.backoff.cap_seconds),
+    wait_s: c.wait.seconds,
+    poll_s: c.wait.poll_seconds,
+    events: or_computed(c.records.events, () -> state_file("events.jsonl")),
+    events_keep: c.records.events_keep,
+    follow: c.gitops.follow,
+    gitops_log: c.gitops.log
   }
 end
 
@@ -326,12 +404,12 @@ end
 @doc """
 fast_forwardable?: true when the checkout is clean, readable, and only behind origin's rev, so a fast-forward cannot lose work; `flag` "0" turns fast-forwarding off.
 
-    fast_forwardable?({head: "a", dirty: "", remote: "b", branch: "main"}, "1") #=> true
-    fast_forwardable?({head: "a", dirty: " M x", remote: "b", branch: "main"}, "1") #=> false
-    fast_forwardable?({head: "a", dirty: "", remote: "b", branch: "main"}, "0") #=> false
+    fast_forwardable?({head: "a", dirty: "", remote: "b", branch: "main"}, true) #=> true
+    fast_forwardable?({head: "a", dirty: " M x", remote: "b", branch: "main"}, true) #=> false
+    fast_forwardable?({head: "a", dirty: "", remote: "b", branch: "main"}, false) #=> false
 """
 def fast_forwardable?(c, flag)
-  flag != "0" and
+  flag != false and
     c[:head] != nil and
     c[:dirty] == "" and
     c[:remote] != nil and
@@ -345,7 +423,7 @@ fast_forward: bring a clean checkout that is only behind origin up to origin's r
     fast_forward("/nonexistent", {head: "a", dirty: "", remote: "a", branch: "main"}) #=> {head: "a", dirty: "", remote: "a", branch: "main"}
 """
 def fast_forward(dir, c)
-  if not fast_forwardable?(c, getenv("KIRIKAE_FAST_FORWARD", "1"))
+  if not fast_forwardable?(c, config.guard.fast_forward)
     c
   elsif git_out(dir, ["fetch", "-q", "origin", c[:branch]]) != nil and
       git_out(dir, ["merge-base", "--is-ancestor", c[:head], c[:remote]]) !=
@@ -354,7 +432,7 @@ def fast_forward(dir, c)
     write_stderr(
       unlines(
         [
-          "kirikae: fast-forwarded the checkout #{take_chars(c[:head], 8)} → #{take_chars(c[:remote], 8)} (origin's #{c[:branch]}); KIRIKAE_FAST_FORWARD=0 turns this off"
+          "kirikae: fast-forwarded the checkout #{take_chars(c[:head], 8)} → #{take_chars(c[:remote], 8)} (origin's #{c[:branch]}); KIRIKAE_GUARD__FAST_FORWARD=0 turns this off"
         ]
       )
     )
@@ -534,14 +612,14 @@ def survey(s)
   c = if dir.nil?
     nil
   else
-    fast_forward(dir, checkout_of(dir, getenv("KIRIKAE_BRANCH", "main")))
+    fast_forward(dir, checkout_of(dir, config.guard.branch))
   end
-  stale = if c.nil? or getenv("KIRIKAE_ALLOW_UNPUBLISHED", "") != ""
+  stale = if c.nil? or config.guard.allow_unpublished
     nil
   else
     checkout_refusal(c)
   end
-  busy = if getenv("KIRIKAE_ALLOW_CONCURRENT", "") != ""
+  busy = if config.guard.allow_concurrent
     nil
   else
     busy_refusal(
@@ -566,17 +644,7 @@ def guard_of(f, s)
   elsif f[:busy] != nil
     busy_hold(f[:busy], now_ms)
   elsif c != nil
-    heartbeat_noop(
-      read_or(
-        getenv(
-          "KIRIKAE_GITOPS_HEARTBEAT",
-          "/var/log/pleme-gitops/heartbeat.json"
-        ),
-        ""
-      ),
-      c[:head],
-      resolve(s[:current])
-    )
+    heartbeat_noop(read_or(heartbeat_path, ""), c[:head], resolve(s[:current]))
   end
 end
 
@@ -653,7 +721,11 @@ def planned(s)
   else
     wp[:result]
   end
-  pp = if g.nil?
+  off = plan_off?(g, s)
+  pp = if off
+    tell(s, :skipped, :plan, unplanned_note, nil)
+    nil
+  elsif g.nil?
     phase(
       s,
       :plan,
@@ -670,10 +742,12 @@ def planned(s)
     )
     nil
   end
-  p = if pp.nil?
-    g
-  else
+  p = if pp != nil
     pp[:result]
+  elsif off
+    unplanned
+  else
+    g
   end
   timed = assoc(
     p,
@@ -701,12 +775,44 @@ def planned(s)
 end
 
 @doc """
+plan_off?: true when the guard said go and KIRIKAE_PHASES__PLAN is 0; a guard verdict or an unset plan setting keeps today's path.
+
+    plan_off?(nil, {plan: false}) #=> true
+"""
+def plan_off?(g, s)
+  g.nil? and s[:plan] == false
+end
+
+@doc """
+unplanned_note: why the plan phase does not run when KIRIKAE_PHASES__PLAN is 0.
+
+    unplanned_note #=> "KIRIKAE_PHASES__PLAN is 0: the switch evaluates the system once, with no dry-run before it"
+"""
+def unplanned_note()
+  "KIRIKAE_PHASES__PLAN is 0: the switch evaluates the system once, with no dry-run before it"
+end
+
+@doc """
+unplanned: the plan a run carries when KIRIKAE_PHASES__PLAN is 0: switch, with no store path to verify against.
+
+    unplanned[:action] #=> :switch
+"""
+def unplanned()
+  {
+    action: :switch,
+    why: "the plan phase is off (KIRIKAE_PHASES__PLAN=0)",
+    desired: "unplanned",
+    plan_ms: 0
+  }
+end
+
+@doc """
 handoff_note: why kirikae leaves a switch to the gitops loop: it already builds the published rev and activates the machine itself.
 
-    handoff_note("b548e3a24f88a08d1c673ad27ac494293ac5cac1", "ryn") #=> "the gitops loop is building b548e3a2 and will activate ryn itself; nothing to do (KIRIKAE_FOLLOW=1 follows it)"
+    handoff_note("b548e3a24f88a08d1c673ad27ac494293ac5cac1", "ryn") #=> "the gitops loop is building b548e3a2 and will activate ryn itself; nothing to do (KIRIKAE_GITOPS__FOLLOW=1 follows it)"
 """
 def handoff_note(rev, host)
-  "the gitops loop is building #{take_chars(rev, 8)} and will activate #{host} itself; nothing to do (KIRIKAE_FOLLOW=1 follows it)"
+  "the gitops loop is building #{take_chars(rev, 8)} and will activate #{host} itself; nothing to do (KIRIKAE_GITOPS__FOLLOW=1 follows it)"
 end
 
 @doc """
@@ -723,12 +829,12 @@ def switch_skip(action, host)
 end
 
 @doc """
-heartbeat_path: where the gitops loop writes its heartbeat, KIRIKAE_GITOPS_HEARTBEAT when set.
+heartbeat_path: where the gitops loop writes its heartbeat, KIRIKAE_GITOPS__HEARTBEAT when set.
 
     ends_with?(heartbeat_path, ".json") #=> true
 """
 def heartbeat_path()
-  getenv("KIRIKAE_GITOPS_HEARTBEAT", "/var/log/pleme-gitops/heartbeat.json")
+  config.gitops.heartbeat
 end
 
 @doc """
@@ -741,20 +847,20 @@ def fix_for(p, s)
     first(p[:refusal])
   end
   dir = checkout_path(s[:flake] or ".") or "."
-  branch = getenv("KIRIKAE_BRANCH", "main")
+  branch = config.guard.branch
   a = p[:action]
   if kind == :dirty
     "commit the change and push it (git -C #{dir} status shows it), then run again"
   elsif kind == :unpublished
-    "make HEAD origin's #{branch}: git -C #{dir} push origin HEAD:#{branch}, or git -C #{dir} pull --ff-only; KIRIKAE_ALLOW_UNPUBLISHED=1 plans it anyway"
+    "make HEAD origin's #{branch}: git -C #{dir} push origin HEAD:#{branch}, or git -C #{dir} pull --ff-only; KIRIKAE_GUARD__ALLOW_UNPUBLISHED=1 plans it anyway"
   elsif kind == :remote_unknown
-    "check the network and git -C #{dir} ls-remote origin #{branch}; KIRIKAE_ALLOW_UNPUBLISHED=1 skips the check"
+    "check the network and git -C #{dir} ls-remote origin #{branch}; KIRIKAE_GUARD__ALLOW_UNPUBLISHED=1 skips the check"
   elsif kind == :not_a_checkout
     "set KIRIKAE_FLAKE to a git checkout or a pinned github: flake, or run kirikae from the nix checkout"
   elsif kind == :busy
-    "wait it out (KIRIKAE_WAIT_S sets the ceiling), or run beside it with KIRIKAE_ALLOW_CONCURRENT=1"
+    "wait it out (KIRIKAE_WAIT__SECONDS sets the ceiling), or run beside it with KIRIKAE_GUARD__ALLOW_CONCURRENT=1"
   elsif a == :hold
-    "clear the failure the history names, then KIRIKAE_FORCE=1 tries now; KIRIKAE_BACKOFF_BASE_S=0 turns the backoff off"
+    "clear the failure the history names, then KIRIKAE_FORCE=1 tries now; KIRIKAE_BACKOFF__BASE_SECONDS=0 turns the backoff off"
   elsif a == :refuse
     "read the evaluation error: nix build --dry-run '#{p[:key] or installable(s[:flake] or ".", attr_for(s[:kind] or "darwin", s[:host]))}' --show-trace"
   end
@@ -1015,7 +1121,7 @@ def run(cmd)
     assoc(
       settings_for(cmd),
       :narrate,
-      narrate_level(getenv("KIRIKAE_NARRATE", "full"))
+      narrate_level(or_computed(config.narrate, () -> "full"))
     ),
     :handoff,
     true
@@ -1027,7 +1133,7 @@ def run(cmd)
     write_stderr(summary(p))
   end
   a = p[:action]
-  forced = getenv("KIRIKAE_FORCE", "") != ""
+  forced = config.force
   out = if a == :handoff
     outcome_of(
       if p[:followed] == :failed
@@ -1088,7 +1194,7 @@ def switched(s, p, cmd, started)
       if status != 0
         "the switch failed, so there is nothing to verify"
       else
-        "KIRIKAE_VERIFY_SWITCH is 0"
+        "KIRIKAE_PHASES__VERIFY is 0"
       end,
       nil
     )
@@ -1501,16 +1607,6 @@ def verify_switch(desired, after)
   end
 end
 
-def verify_flag(t)
-  if t == "1"
-    true
-  elsif t == "0"
-    false
-  else
-    raise(:usage, "KIRIKAE_VERIFY_SWITCH is 0 or 1, not #{t}")
-  end
-end
-
 def exit_hold()
   75
 end
@@ -1562,7 +1658,7 @@ def answer(args)
     ps = assoc(
       settings,
       :narrate,
-      narrate_level(getenv("KIRIKAE_NARRATE", "brief"))
+      narrate_level(or_computed(config.narrate, () -> "brief"))
     )
     started = now_ms
     p = planned(ps)
@@ -1589,6 +1685,8 @@ def answer(args)
       ),
       line_break
     )
+  elsif verb == "config"
+    json_stringify(config)
   elsif verb == "run"
     if size(args) < 2
       raise(:usage, "kirikae run <command> [args...]")
@@ -1616,7 +1714,7 @@ def answer(args)
   else
     raise(
       :usage,
-      "kirikae plan | run <command> [args...] | record <store-path> <outcome> [why] | demo [switch|handoff|follow|refuse]"
+      "kirikae plan | config | run <command> [args...] | record <store-path> <outcome> [why] | demo [switch|handoff|follow|refuse]"
     )
   end
 end
@@ -2016,16 +2114,75 @@ test "a command that exits 0 without switching is a failure the history counts"
   rm_rf(dir)
 end
 
-test "the verify switch is 0 or 1 and nothing else"
-  assert verify_flag("1") == true
-  assert verify_flag("0") == false
+test "every setting resolves from defaults, then the config file, then KIRIKAE_ env, typed"
+  none = settei::resolve("kirikae", config_defaults, nil, settei::no_env)
+  assert none == config_defaults
+  filed = settei::resolve(
+    "kirikae",
+    config_defaults,
+    {"phases" => {"plan" => false}, "wait" => {"seconds" => 60}},
+    settei::no_env
+  )
+  assert filed.phases.plan == false
+  assert filed.phases.verify == true
+  assert filed.wait.seconds == 60
+  env = settei::resolve(
+    "kirikae",
+    config_defaults,
+    {"phases" => {"plan" => false}},
+    settei::env_of(
+      {"KIRIKAE_PHASES__PLAN" => "1", "KIRIKAE_PHASES__VERIFY" => "0"}
+    )
+  )
+  assert env.phases.plan == true
+  assert env.phases.verify == false
+  sentinela = settei::resolve(
+    "kirikae",
+    config_defaults,
+    nil,
+    settei::aliased(
+      settei::env_of(
+        {
+          "KIRIKAE_BACKOFF_BASE_S" => "300",
+          "KIRIKAE_HISTORY" => "/var/log/pleme-gitops/kirikae.jsonl"
+        }
+      ),
+      env_aliases
+    )
+  )
+  assert sentinela.backoff.base_seconds == 300
+  assert sentinela.records.history == "/var/log/pleme-gitops/kirikae.jsonl"
   assert error?(
     begin
-      verify_flag("yes")
+      settei::resolve(
+        "kirikae",
+        config_defaults,
+        nil,
+        settei::env_of({"KIRIKAE_PHASES__VERIFY" => "yes please"})
+      )
     rescue e
       e
     end
   ) == true
+end
+
+test "with KIRIKAE_PHASES__PLAN at 0 the guard's go switches with no plan and no dry-run"
+  p = planned(
+    {
+      narrate: :off,
+      plan: false,
+      flake: "/nonexistent/kirikae",
+      host: "kirikae-no-such-host"
+    }
+  )
+  assert p[:action] == :refuse
+  u = unplanned
+  assert u[:action] == :switch
+  assert u[:plan_ms] == 0
+  assert plan_off?(nil, {plan: true}) == false
+  assert plan_off?(nil, {}) == false
+  assert plan_off?({action: :hold}, {plan: false}) == false
+  assert verify_switch(u[:desired], "/nix/store/x")[:verdict] == :unverified
 end
 
 test "the toplevel attribute follows the platform"
@@ -2211,7 +2368,7 @@ test "every refusal and hold names its fix, and a switch or no-op has none"
   )
   assert includes(
     fix_for({action: :hold, refusal: [:busy, "x"]}, {}),
-    "KIRIKAE_WAIT_S"
+    "KIRIKAE_WAIT__SECONDS"
   )
   assert includes(
     fix_for({action: :hold, why: "backoff"}, {}),

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:2420c826c547c2cf175918d536d78eb65a1f06d77e4407c69ae4812fb282c325",
+  "bluefile_b3": "b3:ab5b76f950cea3c242e63805ae5e5e88f662efc3ada2aa9831a4c6e664999e65",
   "manifest": {
     "schema": 1,
     "name": "kirikae",
@@ -12,6 +12,7 @@
       "kyohi": "^0.1.0",
       "moji": "^0.1.0",
       "retsu": "^0.1.0",
+      "settei": "^0.1.0",
       "shisutemu": "^0.1.0"
     },
     "when": "anytime",

@@ -1928,6 +1928,14 @@ meaning, and one bidama for each cross-cutting concern (errors and refusals in
 for that bidama before writing the concern by hand. Why: `theory/BLUE.md` §0
 and §V.28.1.
 
+Configuration is a record of defaults, grouped by concern, that
+`settei::read(app, defaults)` resolves: the defaults, then
+`~/.config/<app>/<app>.yaml` (or `<APP>_CONFIG`), then `<APP>_<GROUP>__<KEY>`
+in the environment, each value typed by its default. Read it by dotted path,
+`config.guard.branch`: a misspelt path raises and names the fields that
+exist, where `config["branch"]` returns nil. A program never reads its own
+settings with `getenv`. `bidamas/kirikae` is the worked example.
+
 Before you name a function, look for its verb: the graph rows in
 `bidamas/mokuroku/graph/` (one file per space) and the contract for each verb in
 `docs/verbs/contracts.tsv`. A verb that exists is called as `space::verb` with that

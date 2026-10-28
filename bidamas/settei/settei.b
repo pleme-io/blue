@@ -1,3 +1,9 @@
+@moduledoc """
+settei (設定) — configuration, blue's shikumi: a record of defaults grouped by concern, resolved by read(app, defaults) from the defaults, then ~/.config/<app>/<app>.yaml (or <APP>_CONFIG), then <APP>_<GROUP>__<KEY> in the environment, each value typed by its default and a wrong type refused. The resolved record is read by dotted path; a misspelt path raises and names the fields that exist.
+
+    resolve("app", {"guard" => {"branch" => "main"}}, nil, env_of({"APP_GUARD__BRANCH" => "next"})).guard.branch #=> "next"
+"""
+
 use("deeta")
 use("kyohi", [:enforce, :refusal])
 use("moji", [:env_key])
@@ -243,7 +249,7 @@ def file_doc(path, format)
 end
 
 @doc """
-read: resolve defaults, then file, then environment into one record.
+read: resolve defaults, then file, then environment into one record. opts[:aliases] maps a setting's environment name to the older name that still sets it.
 """
 def read(app, defaults, opts?)
   path = discovered_path(app)
@@ -252,7 +258,29 @@ def read(app, defaults, opts?)
   else
     file_doc(path, file_format(app, opts))
   end
-  resolve(app, defaults, doc, (name) -> getenv(name))
+  aliases = if opts.nil? or opts[:aliases].nil?
+    {}
+  else
+    opts[:aliases]
+  end
+  resolve(app, defaults, doc, aliased((name) -> getenv(name), aliases))
+end
+
+@doc """
+aliased: a lookup that reads a setting's environment name, then the older name aliases gives it, so a renamed setting keeps its old name working.
+
+    aliased(env_of({"APP_WAIT_S" => "5"}), {"APP_WAIT__SECONDS" => "APP_WAIT_S"})("APP_WAIT__SECONDS") #=> "5"
+"""
+def aliased(lookup, aliases)
+  fn(name)
+    v = lookup(name)
+    old = get(aliases, name)
+    if v.nil? and old != nil
+      lookup(old)
+    else
+      v
+    end
+  end
 end
 
 def load(app, opts?)
@@ -540,4 +568,14 @@ test "a YAML file and a JSON file resolve to the same settings"
   assert resolve("x", d, file_doc(j, :yaml), no_env) == want
   assert (file_doc(y, :json) rescue :refused) == :refused
   rm_rf(dir)
+end
+
+test "an alias keeps a renamed setting's old environment name working, and the new name wins"
+  d = {"wait" => {"seconds" => 0}}
+  old = env_of({"X_WAIT_S" => "5"})
+  both = env_of({"X_WAIT_S" => "5", "X_WAIT__SECONDS" => "9"})
+  names = {"X_WAIT__SECONDS" => "X_WAIT_S"}
+  assert resolve("x", d, nil, aliased(old, names)).wait.seconds == 5
+  assert resolve("x", d, nil, aliased(both, names)).wait.seconds == 9
+  assert resolve("x", d, nil, aliased(old, {})).wait.seconds == 0
 end

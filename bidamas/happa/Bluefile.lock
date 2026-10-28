@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:32c74f318de27432b4f7267b87918c621d969664f458379014a6edf68e682826",
+  "manifest": {
+    "schema": 1,
+    "name": "happa",
+    "version": "0.1.0",
+    "needs": {
+      "gurafu": "^0.1.0",
+      "kousei": "^0.1.0",
+      "moji": "^0.1.0",
+      "retsu": "^0.1.0",
+      "tesuto": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

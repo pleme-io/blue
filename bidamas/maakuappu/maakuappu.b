@@ -26,6 +26,19 @@ def render(el)
 end
 
 @doc """
+escape: text made safe inside an XML element or a double-quoted attribute, with &, <, > and " written as entities, for XML built as text rather than through render.
+
+    escape("a < b & \"c\"") #=> "a &lt; b &amp; &quot;c&quot;"
+"""
+def escape(text)
+  replace(
+    replace(replace(replace(text, "&", "&amp;"), "<", "&lt;"), ">", "&gt;"),
+    "\"",
+    "&quot;"
+  )
+end
+
+@doc """
 element: a new element with this name, attributes map, children and text, the shape parse returns.
 
     render(element("r", {}, [], "x")) #=> "<r>x</r>"
@@ -135,6 +148,14 @@ test "the empty cases: no document, no element, no path"
   assert e.text == ""
   assert find(e, []) == [e]
   assert render(e) == "<r/>"
+end
+
+test "escaped text reads back as itself inside an element and an attribute"
+  s = "a<b>&\"c\" d"
+  doc = parse("<r v=\"#{escape(s)}\">#{escape(s)}</r>")
+  assert text_of(doc) == s
+  assert attr(doc, "v") == s
+  assert escape("") == ""
 end
 
 test "render then parse is the identity on a parsed document"

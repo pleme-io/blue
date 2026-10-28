@@ -32,8 +32,8 @@
   {
     "name": "nodes are left unsorted",
     "file": "gurafu.b",
-    "find": "sort_keyed((n) -> n, distinct(ns))",
-    "replace": "distinct(ns)"
+    "find": "ns = ordered(append(opts[:nodes] or [], retsu::flat_map(pairs, (e) -> e)))",
+    "replace": "ns = distinct(append(opts[:nodes] or [], retsu::flat_map(pairs, (e) -> e)))"
   },
   {
     "name": "a cyclic graph is ordered anyway",

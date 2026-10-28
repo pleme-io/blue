@@ -32,6 +32,8 @@ use(
   ]
 )
 
+use("maakuappu")
+
 use("moji", [:includes, :pad_left, :take_chars])
 
 use(
@@ -508,11 +510,7 @@ end
 # printer or rsvg-convert keeps the scale 1:1.
 
 def svg_escape(s)
-  replace(
-    replace(replace(replace(s, "&", "&amp;"), "<", "&lt;"), ">", "&gt;"),
-    "\"",
-    "&quot;"
-  )
+  maakuappu::escape(s)
 end
 
 def svg_style(layer)

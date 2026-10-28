@@ -513,46 +513,21 @@ verb(
 
 edge("gurafu::graph", :composes, "gurafu::add_edge", "built edge by edge")
 
-edge(
-  "gurafu::path",
-  :composes,
-  "gurafu::distances",
-  "cheapest cost then route"
-)
+edge("gurafu::path", :composes, "gurafu::distances", "cheapest cost then route")
 
 edge("gurafu::neighbors", :composes, "gurafu::edges", "edges at a node")
 edge("gurafu::reverse", :composes, "gurafu::edges", "swap each edge")
 edge("gurafu::fold", :composes, "gurafu::kids", "children first")
 
-edge(
-  "gurafu::leaves",
-  :composes,
-  "gurafu::kids",
-  "nodes whose kids are empty"
-)
+edge("gurafu::leaves", :composes, "gurafu::kids", "nodes whose kids are empty")
 
-edge(
-  "gurafu::prune",
-  :composes,
-  "gurafu::kids",
-  "drop children where f holds"
-)
+edge("gurafu::prune", :composes, "gurafu::kids", "drop children where f holds")
 
 edge("gurafu::degree", :composes, "gurafu::neighbors", "count of neighbors")
 
-edge(
-  "gurafu::has_edge?",
-  :composes,
-  "gurafu::neighbors",
-  "target in neighbors"
-)
+edge("gurafu::has_edge?", :composes, "gurafu::neighbors", "target in neighbors")
 
-edge(
-  "gurafu::walk",
-  :composes,
-  "gurafu::neighbors",
-  "visit neighbors in order"
-)
+edge("gurafu::walk", :composes, "gurafu::neighbors", "visit neighbors in order")
 
 edge("gurafu::subgraph", :composes, "gurafu::nodes", "keep chosen nodes")
 edge("gurafu::lca", :composes, "gurafu::parent", "climb until the paths meet")
@@ -630,19 +605,9 @@ edge(
 
 edge("gurafu::tree", :refines, "gurafu::graph", "acyclic, one parent each")
 
-edge(
-  "gurafu::kids",
-  :refines,
-  "gurafu::neighbors",
-  "outgoing edges of a tree"
-)
+edge("gurafu::kids", :refines, "gurafu::neighbors", "outgoing edges of a tree")
 
-edge(
-  "gurafu::parent",
-  :refines,
-  "gurafu::neighbors",
-  "incoming edge of a tree"
-)
+edge("gurafu::parent", :refines, "gurafu::neighbors", "incoming edge of a tree")
 
 edge("gurafu::distances", :refines, "gurafu::walk", "walk with costs")
 

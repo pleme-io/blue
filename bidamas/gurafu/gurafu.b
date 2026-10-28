@@ -14,16 +14,8 @@ with a cycle and names the cycle; `cycle` answers that cycle, or nil.
 use("moji", [:checked])
 use("ran", [:seeds, :take_ints])
 use("retsu", [:first, :is_empty, :last, :size])
+use("shuugou", [:ordered])
 use("tesuto", [:raises?])
-
-@doc """
-ordered: the distinct nodes of a list, sorted under compare.
-
-    ordered(["b", "a", "b"]) #=> ["a", "b"]
-"""
-def ordered(ns)
-  sort_keyed((n) -> n, distinct(ns))
-end
 
 @doc """
 edge_ok: an edge when it is a pair of nodes, else a :bad_option raise.

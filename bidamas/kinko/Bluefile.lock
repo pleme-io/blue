@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:005acb9d9053ac5af231304e39971fbf1fabeb22c52476fc3bef63cf11474d9c",
+  "bluefile_b3": "b3:4b9e3d2c064aa30869e8a73f064580fa68f9cf00e91ad87a8a80e4dc2b458f00",
   "manifest": {
     "schema": 1,
     "name": "kinko",
@@ -10,7 +10,8 @@
       "kyohi": "^0.1.0",
       "moji": "^0.1.0",
       "retsu": "^0.1.0",
-      "ronri": "^0.1.0"
+      "ronri": "^0.1.0",
+      "shuugou": "^0.1.0"
     },
     "when": "anytime",
     "sources": {},

@@ -1,17 +1,43 @@
+@moduledoc """
+teeburu (テーブル) — a service's tables: rows over the runtime's pg_ words, and versioned data models that evolve in pure blue.
+
+open connects from settei's settings (database.url and database.schema) and scopes the search path to the service's schema; insert writes one parameterised row and returns it, rows runs a query, latest reads the newest rows of a table.
+
+model declares a versioned model (entities, keys, typed fields, indexes, relations, and the intent a diff cannot see). evolve gives the typed steps between two versions, judge refuses each unsafe step alone, postgres renders the steps that stand to Postgres's native safe forms, and keifu renders those changes as the changelog shinka applies. kv_model is the strict Valkey form of a model, checked by kv_check and upgraded by kv_upgrade; kiibariu's check uses it.
+
+    enabled?({}) #=> false
+"""
+
 use("kueri")
+use("maakuappu")
 use("moji", [:checked])
 use("retsu", [:find_first, :first, :is_empty, :last, :size])
-use("tesuto", [:raises?])
+use("tesuto", [:caught, :raises?])
 
+@doc """
+quoted: an identifier as a Postgres quoted identifier, each inner double quote doubled.
+
+    quoted("orders") #=> "\"orders\""
+"""
 def quoted(ident)
   "\"#{replace(ident, "\"", "\"\"")}\""
 end
 
+@doc """
+enabled?: whether the settings name a database, that is a database.url that is set and not empty.
+
+    enabled?({"database" => {"url" => ""}}) #=> false
+"""
 def enabled?(settings)
   db = settings["database"]
   db != nil and db["url"] != nil and db["url"] != ""
 end
 
+@doc """
+open: a Postgres connection from the settings' database.url, its search path set to database.schema; settings with no database raise :no_database.
+
+    raises?(:no_database, () -> open({"database" => {"url" => ""}})) #=> true
+"""
 def open(settings)
   if not enabled?(settings)
     raise(:no_database, "the settings name no database.url")
@@ -22,6 +48,11 @@ def open(settings)
   c
 end
 
+@doc """
+insert_statement: the parameterised INSERT for one row, as the SQL and its parameters in column order; the statement returns the row it writes.
+
+    first(insert_statement("orders", {"sku" => "a"})) #=> "INSERT INTO \"orders\" (\"sku\") VALUES ($1) RETURNING *"
+"""
 def insert_statement(table, row)
   es = map_entries(row)
   cols = join(map((e) -> quoted(to_s(first(e))), es), ", ")
@@ -32,19 +63,39 @@ def insert_statement(table, row)
   ]
 end
 
+@doc """
+insert: write one row into a table over a connection and return the row as stored; with no connection the runtime refuses it.
+
+    contains?(to_s(caught(() -> insert(nil, "orders", {"sku" => "a"}))), "a Postgres connection") #=> true
+"""
 def insert(conn, table, row)
   st = insert_statement(table, row)
   first(pg_query(conn, first(st), second(st))[:rows])
 end
 
+@doc """
+rows: the rows a parameterised query returns over a connection; with no connection the runtime refuses it.
+
+    contains?(to_s(caught(() -> rows(nil, "SELECT 1", []))), "a Postgres connection") #=> true
+"""
 def rows(conn, sql, params)
   pg_query(conn, sql, params)[:rows]
 end
 
+@doc """
+latest_statement: the SELECT for the n newest rows of a table, newest id first.
+
+    latest_statement("orders", 5) #=> "SELECT * FROM \"orders\" ORDER BY \"id\" DESC LIMIT 5"
+"""
 def latest_statement(table, n)
   "SELECT * FROM #{quoted(table)} ORDER BY \"id\" DESC LIMIT #{to_s(n)}"
 end
 
+@doc """
+latest: the n newest rows of a table over a connection, newest id first; with no connection the runtime refuses it.
+
+    contains?(to_s(caught(() -> latest(nil, "orders", 5))), "a Postgres connection") #=> true
+"""
 def latest(conn, table, n)
   rows(conn, latest_statement(table, n), [])
 end
@@ -283,7 +334,7 @@ relation_column: the column a relation is stored in.
     relation_column(:customer) #=> "customer_id"
 """
 def relation_column(rel)
-  "#{to_s(rel)}_id"
+  join([to_s(rel), "id"], "_")
 end
 
 @doc """
@@ -890,19 +941,6 @@ def postgres(from, to, opts)
 end
 
 @doc """
-xml_text: text escaped for an XML element or attribute.
-
-    xml_text("a < b & \"c\"") #=> "a &lt; b &amp; &quot;c&quot;"
-"""
-def xml_text(s)
-  replace(
-    replace(replace(replace(s, "&", "&amp;"), "<", "&lt;"), ">", "&gt;"),
-    "\"",
-    "&quot;"
-  )
-end
-
-@doc """
 keifu: changes as a keifu changelog, the Liquibase XML shinka applies in process: one changeSet per change, each statement its own sql element, and runInTransaction false where a change must run outside a transaction.
 
     contains?(keifu([{id: "m-v2-1", step: {step: :add_index}, transaction: false, sql: ["SELECT 1"]}]), "runInTransaction=\"false\"") #=> true
@@ -918,11 +956,13 @@ def keifu(changes)
       end
       append(
         [
-          "  <changeSet id=\"#{xml_text(c[:id])}\" author=\"blue\"#{tx}>",
-          "    <comment>#{xml_text(to_s(c[:step][:step]))}</comment>"
+          "  <changeSet id=\"#{maakuappu::escape(c[:id])}\" author=\"blue\"#{tx}>",
+          "    <comment>#{maakuappu::escape(to_s(c[:step][:step]))}</comment>"
         ],
         map(
-          (q) -> "    <sql splitStatements=\"false\">#{xml_text(q)}</sql>",
+          fn(q)
+            "    <sql splitStatements=\"false\">#{maakuappu::escape(q)}</sql>"
+          end,
           c[:sql]
         ),
         ["  </changeSet>"]

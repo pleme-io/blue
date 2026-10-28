@@ -3,6 +3,7 @@ use("kyohi", [:kinds, :refusal, :standing])
 use("moji", [:made_of])
 use("retsu", [:contains, :first, :flat_map, :is_empty, :size])
 use("ronri", [:every])
+use("shuugou", [:ordered])
 
 def sdk()
   "onepassword-sdk-go v0.4.1"
@@ -102,7 +103,7 @@ def settable_names()
 end
 
 def sorted(xs)
-  sort_keyed((x) -> x, distinct(xs))
+  ordered(xs)
 end
 
 def encode(ns)

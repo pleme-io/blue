@@ -14,6 +14,15 @@ use("ronri", [:any, :count_if, :every])
 
 legacy_names("0.1.0", [:frequencies, :group_by, :remove])
 
+@doc """
+ordered: the distinct members of a list in sorted order, the one canonical list for a set.
+
+    ordered(["b", "a", "b"]) #=> ["a", "b"]
+"""
+def ordered(xs)
+  sort_keyed((x) -> x, distinct(xs))
+end
+
 def member(xs, v)
   any((x) -> x == v, xs)
 end
@@ -358,6 +367,12 @@ def intersection_all(xss)
   else
     reduce(intersection, first(xss), rest(xss))
   end
+end
+
+test "ordered gives one list for a set, whatever order and repeats it came in"
+  assert ordered([]) == []
+  assert ordered([3, 1, 2, 1, 3]) == [1, 2, 3]
+  assert ordered(["b", "a"]) == ordered(["a", "b", "a"])
 end
 
 test "unique removes duplicates, keeping first-seen order"

@@ -1,5 +1,6 @@
 package("zumen", "0.1.2")
 needs("retsu", "^0.1")
+needs("maakuappu", "^0.1")
 needs("kazu", "^0.1")
 needs("moji", "^0.1")
 needs("gyouretsu", "^0.1")

@@ -1,37 +1,35 @@
-space("gurafu?", {status: :provisional})
+space("gurafu", {status: :ratified})
 
 verb(
-  "gurafu?",
+  "gurafu",
   "add_edge",
   {
     kind: :pure,
-    shape: "add_edge(graph, from, to, opts) -> graph",
+    shape: "add_edge(graph, from, to) -> graph",
     laterals: [],
     fleet: nil,
-    today: "absent",
-    meaning: "graph with an edge added; weight optional",
+    today: "exists:gurafu",
     wave: 2,
     origin: "A"
   }
 )
 
 verb(
-  "gurafu?",
+  "gurafu",
   "add_node",
   {
     kind: :pure,
     shape: "add_node(graph, node) -> graph",
     laterals: [],
     fleet: nil,
-    today: "absent",
-    meaning: "graph with a node added",
+    today: "exists:gurafu",
     wave: 2,
     origin: "A"
   }
 )
 
 verb(
-  "gurafu?",
+  "gurafu",
   "closure",
   {
     kind: :pure,
@@ -46,7 +44,7 @@ verb(
 )
 
 verb(
-  "gurafu?",
+  "gurafu",
   "color",
   {
     kind: :pure,
@@ -61,7 +59,7 @@ verb(
 )
 
 verb(
-  "gurafu?",
+  "gurafu",
   "components",
   {
     kind: :pure,
@@ -76,22 +74,21 @@ verb(
 )
 
 verb(
-  "gurafu?",
+  "gurafu",
   "cycle",
   {
     kind: :pure,
     shape: "cycle(graph) -> [node] or nil",
     laterals: [],
     fleet: nil,
-    today: "absent",
-    meaning: "one cycle if the graph has any",
+    today: "exists:gurafu",
     wave: 2,
     origin: "A"
   }
 )
 
 verb(
-  "gurafu?",
+  "gurafu",
   "degree",
   {
     kind: :pure,
@@ -106,22 +103,21 @@ verb(
 )
 
 verb(
-  "gurafu?",
+  "gurafu",
   "depth",
   {
     kind: :pure,
-    shape: "depth(tree, node) -> int",
+    shape: "depth(graph, node) -> int",
     laterals: [],
     fleet: nil,
-    today: "absent",
-    meaning: "edges from the root to a node",
+    today: "exists:gurafu",
     wave: 2,
     origin: "A"
   }
 )
 
 verb(
-  "gurafu?",
+  "gurafu",
   "distances",
   {
     kind: :pure,
@@ -136,22 +132,21 @@ verb(
 )
 
 verb(
-  "gurafu?",
+  "gurafu",
   "edges",
   {
     kind: :pure,
     shape: "edges(graph) -> [edge]",
     laterals: [],
     fleet: nil,
-    today: "absent",
-    meaning: "every edge, sorted",
+    today: "exists:gurafu",
     wave: 2,
     origin: "A"
   }
 )
 
 verb(
-  "gurafu?",
+  "gurafu",
   "flow",
   {
     kind: :pure,
@@ -166,7 +161,7 @@ verb(
 )
 
 verb(
-  "gurafu?",
+  "gurafu",
   "fold",
   {
     kind: :pure,
@@ -181,7 +176,7 @@ verb(
 )
 
 verb(
-  "gurafu?",
+  "gurafu",
   "graft",
   {
     kind: :pure,
@@ -197,37 +192,35 @@ verb(
 )
 
 verb(
-  "gurafu?",
+  "gurafu",
   "graph",
   {
     kind: :decl,
     shape: "graph(edges, opts) -> graph",
     laterals: ["validate"],
     fleet: nil,
-    today: "absent",
-    meaning: "build a graph from edges; directed or not",
+    today: "exists:gurafu",
     wave: 2,
     origin: "A"
   }
 )
 
 verb(
-  "gurafu?",
+  "gurafu",
   "has_edge?",
   {
     kind: :pure,
     shape: "has_edge?(graph, from, to) -> Bool",
     laterals: [],
     fleet: nil,
-    today: "absent",
-    meaning: "whether the edge exists",
+    today: "exists:gurafu",
     wave: 2,
     origin: "A"
   }
 )
 
 verb(
-  "gurafu?",
+  "gurafu",
   "kids",
   {
     kind: :pure,
@@ -242,7 +235,7 @@ verb(
 )
 
 verb(
-  "gurafu?",
+  "gurafu",
   "lca",
   {
     kind: :pure,
@@ -257,52 +250,49 @@ verb(
 )
 
 verb(
-  "gurafu?",
+  "gurafu",
   "leaves",
   {
     kind: :pure,
-    shape: "leaves(tree) -> [node]",
+    shape: "leaves(graph) -> [node]",
     laterals: [],
     fleet: nil,
-    today: "absent",
-    meaning: "nodes without children",
+    today: "exists:gurafu",
     wave: 2,
     origin: "A"
   }
 )
 
 verb(
-  "gurafu?",
+  "gurafu",
   "neighbors",
   {
     kind: :pure,
     shape: "neighbors(graph, node) -> [node]",
     laterals: [],
     fleet: nil,
-    today: "absent",
-    meaning: "nodes one edge away",
+    today: "exists:gurafu",
     wave: 2,
     origin: "A"
   }
 )
 
 verb(
-  "gurafu?",
+  "gurafu",
   "nodes",
   {
     kind: :pure,
     shape: "nodes(graph) -> [node]",
     laterals: [],
     fleet: nil,
-    today: "absent",
-    meaning: "every node, sorted",
+    today: "exists:gurafu",
     wave: 2,
     origin: "A"
   }
 )
 
 verb(
-  "gurafu?",
+  "gurafu",
   "parent",
   {
     kind: :pure,
@@ -317,7 +307,7 @@ verb(
 )
 
 verb(
-  "gurafu?",
+  "gurafu",
   "path",
   {
     kind: :pure,
@@ -332,7 +322,7 @@ verb(
 )
 
 verb(
-  "gurafu?",
+  "gurafu",
   "prune",
   {
     kind: :pure,
@@ -347,22 +337,21 @@ verb(
 )
 
 verb(
-  "gurafu?",
+  "gurafu",
   "reachable",
   {
     kind: :pure,
-    shape: "reachable(graph, start) -> set",
+    shape: "reachable(graph, start) -> [node]",
     laterals: [],
     fleet: nil,
-    today: "absent",
-    meaning: "every node a start node can reach",
+    today: "exists:gurafu",
     wave: 2,
     origin: "A"
   }
 )
 
 verb(
-  "gurafu?",
+  "gurafu",
   "reduction",
   {
     kind: :pure,
@@ -377,52 +366,49 @@ verb(
 )
 
 verb(
-  "gurafu?",
+  "gurafu",
   "remove_edge",
   {
     kind: :pure,
     shape: "remove_edge(graph, from, to) -> graph",
     laterals: [],
     fleet: nil,
-    today: "absent",
-    meaning: "graph without one edge",
+    today: "exists:gurafu",
     wave: 2,
     origin: "A"
   }
 )
 
 verb(
-  "gurafu?",
+  "gurafu",
   "remove_node",
   {
     kind: :pure,
     shape: "remove_node(graph, node) -> graph",
     laterals: [],
     fleet: nil,
-    today: "absent",
-    meaning: "graph without a node and its edges",
+    today: "exists:gurafu",
     wave: 2,
     origin: "A"
   }
 )
 
 verb(
-  "gurafu?",
+  "gurafu",
   "reverse",
   {
     kind: :pure,
     shape: "reverse(graph) -> graph",
     laterals: [],
     fleet: nil,
-    today: "absent",
-    meaning: "graph with every edge turned around",
+    today: "exists:gurafu",
     wave: 2,
     origin: "A"
   }
 )
 
 verb(
-  "gurafu?",
+  "gurafu",
   "root",
   {
     kind: :pure,
@@ -437,7 +423,7 @@ verb(
 )
 
 verb(
-  "gurafu?",
+  "gurafu",
   "scc",
   {
     kind: :pure,
@@ -452,7 +438,7 @@ verb(
 )
 
 verb(
-  "gurafu?",
+  "gurafu",
   "spanning",
   {
     kind: :pure,
@@ -467,37 +453,35 @@ verb(
 )
 
 verb(
-  "gurafu?",
+  "gurafu",
   "subgraph",
   {
     kind: :pure,
     shape: "subgraph(graph, nodes) -> graph",
     laterals: [],
     fleet: nil,
-    today: "absent",
-    meaning: "graph restricted to some nodes",
+    today: "exists:gurafu",
     wave: 2,
     origin: "A"
   }
 )
 
 verb(
-  "gurafu?",
+  "gurafu",
   "topo",
   {
     kind: :pure,
     shape: "topo(graph) -> [node]",
     laterals: ["error"],
     fleet: nil,
-    today: "absent",
-    meaning: "nodes ordered so every edge points forward",
+    today: "exists:gurafu",
     wave: 2,
     origin: "A"
   }
 )
 
 verb(
-  "gurafu?",
+  "gurafu",
   "tree",
   {
     kind: :decl,
@@ -512,7 +496,7 @@ verb(
 )
 
 verb(
-  "gurafu?",
+  "gurafu",
   "walk",
   {
     kind: :pure,
@@ -527,148 +511,148 @@ verb(
   }
 )
 
-edge("gurafu?::graph", :composes, "gurafu?::add_edge", "built edge by edge")
+edge("gurafu::graph", :composes, "gurafu::add_edge", "built edge by edge")
 
 edge(
-  "gurafu?::path",
+  "gurafu::path",
   :composes,
-  "gurafu?::distances",
+  "gurafu::distances",
   "cheapest cost then route"
 )
 
-edge("gurafu?::neighbors", :composes, "gurafu?::edges", "edges at a node")
-edge("gurafu?::reverse", :composes, "gurafu?::edges", "swap each edge")
-edge("gurafu?::fold", :composes, "gurafu?::kids", "children first")
+edge("gurafu::neighbors", :composes, "gurafu::edges", "edges at a node")
+edge("gurafu::reverse", :composes, "gurafu::edges", "swap each edge")
+edge("gurafu::fold", :composes, "gurafu::kids", "children first")
 
 edge(
-  "gurafu?::leaves",
+  "gurafu::leaves",
   :composes,
-  "gurafu?::kids",
+  "gurafu::kids",
   "nodes whose kids are empty"
 )
 
 edge(
-  "gurafu?::prune",
+  "gurafu::prune",
   :composes,
-  "gurafu?::kids",
+  "gurafu::kids",
   "drop children where f holds"
 )
 
-edge("gurafu?::degree", :composes, "gurafu?::neighbors", "count of neighbors")
+edge("gurafu::degree", :composes, "gurafu::neighbors", "count of neighbors")
 
 edge(
-  "gurafu?::has_edge?",
+  "gurafu::has_edge?",
   :composes,
-  "gurafu?::neighbors",
+  "gurafu::neighbors",
   "target in neighbors"
 )
 
 edge(
-  "gurafu?::walk",
+  "gurafu::walk",
   :composes,
-  "gurafu?::neighbors",
+  "gurafu::neighbors",
   "visit neighbors in order"
 )
 
-edge("gurafu?::subgraph", :composes, "gurafu?::nodes", "keep chosen nodes")
-edge("gurafu?::lca", :composes, "gurafu?::parent", "climb until the paths meet")
-edge("gurafu?::depth", :composes, "gurafu?::path", "path length from the root")
-edge("gurafu?::flow", :composes, "gurafu?::path", "augmenting paths")
+edge("gurafu::subgraph", :composes, "gurafu::nodes", "keep chosen nodes")
+edge("gurafu::lca", :composes, "gurafu::parent", "climb until the paths meet")
+edge("gurafu::depth", :composes, "gurafu::path", "path length from the root")
+edge("gurafu::flow", :composes, "gurafu::path", "augmenting paths")
 
 edge(
-  "gurafu?::closure",
+  "gurafu::closure",
   :composes,
-  "gurafu?::reachable",
+  "gurafu::reachable",
   "an edge to each reachable node"
 )
 
 edge(
-  "gurafu?::components",
+  "gurafu::components",
   :composes,
-  "gurafu?::reachable",
+  "gurafu::reachable",
   "reach from each unvisited node"
 )
 
-edge("gurafu?::cycle", :composes, "gurafu?::walk", "walk until a node repeats")
-edge("gurafu?::reachable", :composes, "gurafu?::walk", "every visited node")
-edge("gurafu?::path", :composes, "junban?::pop", "cheapest next node first")
-edge("gurafu?::walk", :composes, "junban?::pop", "queue order sets BFS or DFS")
+edge("gurafu::cycle", :composes, "gurafu::walk", "walk until a node repeats")
+edge("gurafu::reachable", :composes, "gurafu::walk", "every visited node")
+edge("gurafu::path", :composes, "junban?::pop", "cheapest next node first")
+edge("gurafu::walk", :composes, "junban?::pop", "queue order sets BFS or DFS")
 
 edge(
-  "gurafu?::distances",
+  "gurafu::distances",
   :composes,
   "junban?::reprioritize",
   "lower a cost in the queue"
 )
 
-edge("gurafu?::fold", :generalizes, "retsu::reduce", "trees fold like lists")
-edge("gurafu?::remove_edge", :inverse, "gurafu?::add_edge", "undoes add_edge")
-edge("gurafu?::remove_node", :inverse, "gurafu?::add_node", "undoes add_node")
-edge("gurafu?::prune", :inverse, "gurafu?::graft", "attach what prune cut")
-edge("gurafu?::graft", :inverse, "gurafu?::prune", "attach what prune cut")
-edge("gurafu?::add_edge", :inverse, "gurafu?::remove_edge", "undoes add_edge")
-edge("gurafu?::add_node", :inverse, "gurafu?::remove_node", "undoes add_node")
-edge("gurafu?::nodes", :pairs, "gurafu?::add_node", "read and build")
+edge("gurafu::fold", :generalizes, "retsu::reduce", "trees fold like lists")
+edge("gurafu::remove_edge", :inverse, "gurafu::add_edge", "undoes add_edge")
+edge("gurafu::remove_node", :inverse, "gurafu::add_node", "undoes add_node")
+edge("gurafu::prune", :inverse, "gurafu::graft", "attach what prune cut")
+edge("gurafu::graft", :inverse, "gurafu::prune", "attach what prune cut")
+edge("gurafu::add_edge", :inverse, "gurafu::remove_edge", "undoes add_edge")
+edge("gurafu::add_node", :inverse, "gurafu::remove_node", "undoes add_node")
+edge("gurafu::nodes", :pairs, "gurafu::add_node", "read and build")
 
 edge(
-  "gurafu?::reduction",
+  "gurafu::reduction",
   :pairs,
-  "gurafu?::closure",
+  "gurafu::closure",
   "smallest and fullest same reach"
 )
 
 edge(
-  "gurafu?::topo",
+  "gurafu::topo",
   :pairs,
-  "gurafu?::cycle",
+  "gurafu::cycle",
   "order or the cycle that blocks it"
 )
 
-edge("gurafu?::neighbors", :pairs, "gurafu?::degree", "which and how many")
-edge("gurafu?::nodes", :pairs, "gurafu?::edges", "vertices and links")
-edge("gurafu?::root", :pairs, "gurafu?::leaves", "the two ends of a tree")
+edge("gurafu::neighbors", :pairs, "gurafu::degree", "which and how many")
+edge("gurafu::nodes", :pairs, "gurafu::edges", "vertices and links")
+edge("gurafu::root", :pairs, "gurafu::leaves", "the two ends of a tree")
 
 edge(
-  "gurafu?::closure",
+  "gurafu::closure",
   :pairs,
-  "gurafu?::reachable",
+  "gurafu::reachable",
   "all pairs versus one start"
 )
 
-edge("gurafu?::prune", :pairs, "gurafu?::subgraph", "cut a tree or a graph")
+edge("gurafu::prune", :pairs, "gurafu::subgraph", "cut a tree or a graph")
 
 edge(
-  "gurafu?::scc",
+  "gurafu::scc",
   :refines,
-  "gurafu?::components",
+  "gurafu::components",
   "components of a directed graph"
 )
 
-edge("gurafu?::tree", :refines, "gurafu?::graph", "acyclic, one parent each")
+edge("gurafu::tree", :refines, "gurafu::graph", "acyclic, one parent each")
 
 edge(
-  "gurafu?::kids",
+  "gurafu::kids",
   :refines,
-  "gurafu?::neighbors",
+  "gurafu::neighbors",
   "outgoing edges of a tree"
 )
 
 edge(
-  "gurafu?::parent",
+  "gurafu::parent",
   :refines,
-  "gurafu?::neighbors",
+  "gurafu::neighbors",
   "incoming edge of a tree"
 )
 
-edge("gurafu?::distances", :refines, "gurafu?::walk", "walk with costs")
+edge("gurafu::distances", :refines, "gurafu::walk", "walk with costs")
 
 edge(
-  "gurafu?::spanning",
+  "gurafu::spanning",
   :requires,
-  "gurafu?::components",
+  "gurafu::components",
   "connected component at a time"
 )
 
-edge("gurafu?::topo", :requires, "gurafu?::cycle", "only acyclic graphs order")
-edge("gurafu?::color", :requires, "gurafu?::neighbors", "neighbors differ")
-edge("gurafu?::root", :requires, "gurafu?::tree", "has no parent")
+edge("gurafu::topo", :requires, "gurafu::cycle", "only acyclic graphs order")
+edge("gurafu::color", :requires, "gurafu::neighbors", "neighbors differ")
+edge("gurafu::root", :requires, "gurafu::tree", "has no parent")

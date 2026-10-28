@@ -358,7 +358,7 @@ edge(
 edge("chiri?::distance", :pairs, "chiri?::bearing", "how far and which way")
 edge("chiri?::area", :pairs, "chiri?::bounds", "measure versus box")
 edge("chiri?::contains?", :pairs, "chiri?::within", "region versus radius")
-edge("chiri?::neighbors", :refines, "gurafu?::neighbors", "grid cells as nodes")
+edge("chiri?::neighbors", :refines, "gurafu::neighbors", "grid cells as nodes")
 edge("chiri?::area", :refines, "kikagaku::area", "on the sphere")
 edge("chiri?::bounds", :refines, "kikagaku::bounds", "on the sphere")
 edge("chiri?::contains?", :refines, "kikagaku::contains?", "on the sphere")

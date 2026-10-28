@@ -204,7 +204,7 @@ edge("bunpou?::matches?", :composes, "bunpou?::parse", "parse and test success")
 edge(
   "bunpou?::check",
   :composes,
-  "gurafu?::cycle",
+  "gurafu::cycle",
   "left recursion is a rule-graph cycle"
 )
 

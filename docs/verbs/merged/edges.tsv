@@ -252,7 +252,7 @@ bunmyaku?::symbols	pairs	mokuroku::catalog	outline and catalog agree
 bunmyaku?::symbols	requires	koubun?::walk	outline from the tree
 bunmyaku?::sync	pairs	bunmyaku?::diagnostics	every change is rechecked
 bunmyaku?::sync	requires	koubun?::edit	applies a change to the tree
-bunpou?::check	composes	gurafu?::cycle	left recursion is a rule-graph cycle
+bunpou?::check	composes	gurafu::cycle	left recursion is a rule-graph cycle
 bunpou?::check	guards	bunpou?::grammar	refuse bad grammars before use
 bunpou?::expected	composes	bunpou?::parse	failure position gives the next tokens
 bunpou?::explain	composes	bunpou?::expected	nearest rule from the next tokens
@@ -407,7 +407,7 @@ chiri?::midpoint	composes	chiri?::destination	halfway along the heading
 chiri?::midpoint	refines	kikagaku::midpoint	on the sphere
 chiri?::nearest	composes	chiri?::distance	least distance wins
 chiri?::neighbors	composes	chiri?::cell	cells around a cell
-chiri?::neighbors	refines	gurafu?::neighbors	grid cells as nodes
+chiri?::neighbors	refines	gurafu::neighbors	grid cells as nodes
 chiri?::parse	composes	moji::find	degrees, minutes, seconds text
 chiri?::parse	inverse	chiri?::render	text and point round-trip
 chiri?::point	composes	sukiima?::refine	range checks are refinements
@@ -678,7 +678,7 @@ deeta::unpack	pairs	deeta::parse	binary versus text input
 deeta::update	composes	deeta::get	read the old value
 deeta::update	composes	deeta::put	store f(old)
 deeta::walk	generalizes	deeta::update	visits every node
-deeta::walk	refines	gurafu?::walk	documents are trees
+deeta::walk	refines	gurafu::walk	documents are trees
 deeta::write	composes	deeta::render	value rendered, then stored
 deeta::write	composes	fairu::write	atomic file replacement
 deeta::write	inverse	deeta::read	stores what read returns
@@ -1158,51 +1158,51 @@ goui?::with_lock	composes	goui?::acquire	acquire around f
 goui?::with_lock	composes	goui?::release	release after f
 goui?::with_lock	pairs	goui?::renew	long work renews
 goui?::with_lock	pairs	kyoujin?::once	lock or key for exactly-once
-gurafu?::add_edge	inverse	gurafu?::remove_edge	undoes add_edge
-gurafu?::add_node	inverse	gurafu?::remove_node	undoes add_node
-gurafu?::closure	composes	gurafu?::reachable	an edge to each reachable node
-gurafu?::closure	pairs	gurafu?::reachable	all pairs versus one start
-gurafu?::color	requires	gurafu?::neighbors	neighbors differ
-gurafu?::components	composes	gurafu?::reachable	reach from each unvisited node
-gurafu?::cycle	composes	gurafu?::walk	walk until a node repeats
-gurafu?::degree	composes	gurafu?::neighbors	count of neighbors
-gurafu?::depth	composes	gurafu?::path	path length from the root
-gurafu?::distances	composes	junban?::reprioritize	lower a cost in the queue
-gurafu?::distances	refines	gurafu?::walk	walk with costs
-gurafu?::flow	composes	gurafu?::path	augmenting paths
-gurafu?::fold	composes	gurafu?::kids	children first
-gurafu?::fold	generalizes	retsu::reduce	trees fold like lists
-gurafu?::graft	inverse	gurafu?::prune	attach what prune cut
-gurafu?::graph	composes	gurafu?::add_edge	built edge by edge
-gurafu?::has_edge?	composes	gurafu?::neighbors	target in neighbors
-gurafu?::kids	refines	gurafu?::neighbors	outgoing edges of a tree
-gurafu?::lca	composes	gurafu?::parent	climb until the paths meet
-gurafu?::leaves	composes	gurafu?::kids	nodes whose kids are empty
-gurafu?::neighbors	composes	gurafu?::edges	edges at a node
-gurafu?::neighbors	pairs	gurafu?::degree	which and how many
-gurafu?::nodes	pairs	gurafu?::add_node	read and build
-gurafu?::nodes	pairs	gurafu?::edges	vertices and links
-gurafu?::parent	refines	gurafu?::neighbors	incoming edge of a tree
-gurafu?::path	composes	gurafu?::distances	cheapest cost then route
-gurafu?::path	composes	junban?::pop	cheapest next node first
-gurafu?::prune	composes	gurafu?::kids	drop children where f holds
-gurafu?::prune	inverse	gurafu?::graft	attach what prune cut
-gurafu?::prune	pairs	gurafu?::subgraph	cut a tree or a graph
-gurafu?::reachable	composes	gurafu?::walk	every visited node
-gurafu?::reduction	pairs	gurafu?::closure	smallest and fullest same reach
-gurafu?::remove_edge	inverse	gurafu?::add_edge	undoes add_edge
-gurafu?::remove_node	inverse	gurafu?::add_node	undoes add_node
-gurafu?::reverse	composes	gurafu?::edges	swap each edge
-gurafu?::root	pairs	gurafu?::leaves	the two ends of a tree
-gurafu?::root	requires	gurafu?::tree	has no parent
-gurafu?::scc	refines	gurafu?::components	components of a directed graph
-gurafu?::spanning	requires	gurafu?::components	connected component at a time
-gurafu?::subgraph	composes	gurafu?::nodes	keep chosen nodes
-gurafu?::topo	pairs	gurafu?::cycle	order or the cycle that blocks it
-gurafu?::topo	requires	gurafu?::cycle	only acyclic graphs order
-gurafu?::tree	refines	gurafu?::graph	acyclic, one parent each
-gurafu?::walk	composes	gurafu?::neighbors	visit neighbors in order
-gurafu?::walk	composes	junban?::pop	queue order sets BFS or DFS
+gurafu::add_edge	inverse	gurafu::remove_edge	undoes add_edge
+gurafu::add_node	inverse	gurafu::remove_node	undoes add_node
+gurafu::closure	composes	gurafu::reachable	an edge to each reachable node
+gurafu::closure	pairs	gurafu::reachable	all pairs versus one start
+gurafu::color	requires	gurafu::neighbors	neighbors differ
+gurafu::components	composes	gurafu::reachable	reach from each unvisited node
+gurafu::cycle	composes	gurafu::walk	walk until a node repeats
+gurafu::degree	composes	gurafu::neighbors	count of neighbors
+gurafu::depth	composes	gurafu::path	path length from the root
+gurafu::distances	composes	junban?::reprioritize	lower a cost in the queue
+gurafu::distances	refines	gurafu::walk	walk with costs
+gurafu::flow	composes	gurafu::path	augmenting paths
+gurafu::fold	composes	gurafu::kids	children first
+gurafu::fold	generalizes	retsu::reduce	trees fold like lists
+gurafu::graft	inverse	gurafu::prune	attach what prune cut
+gurafu::graph	composes	gurafu::add_edge	built edge by edge
+gurafu::has_edge?	composes	gurafu::neighbors	target in neighbors
+gurafu::kids	refines	gurafu::neighbors	outgoing edges of a tree
+gurafu::lca	composes	gurafu::parent	climb until the paths meet
+gurafu::leaves	composes	gurafu::kids	nodes whose kids are empty
+gurafu::neighbors	composes	gurafu::edges	edges at a node
+gurafu::neighbors	pairs	gurafu::degree	which and how many
+gurafu::nodes	pairs	gurafu::add_node	read and build
+gurafu::nodes	pairs	gurafu::edges	vertices and links
+gurafu::parent	refines	gurafu::neighbors	incoming edge of a tree
+gurafu::path	composes	gurafu::distances	cheapest cost then route
+gurafu::path	composes	junban?::pop	cheapest next node first
+gurafu::prune	composes	gurafu::kids	drop children where f holds
+gurafu::prune	inverse	gurafu::graft	attach what prune cut
+gurafu::prune	pairs	gurafu::subgraph	cut a tree or a graph
+gurafu::reachable	composes	gurafu::walk	every visited node
+gurafu::reduction	pairs	gurafu::closure	smallest and fullest same reach
+gurafu::remove_edge	inverse	gurafu::add_edge	undoes add_edge
+gurafu::remove_node	inverse	gurafu::add_node	undoes add_node
+gurafu::reverse	composes	gurafu::edges	swap each edge
+gurafu::root	pairs	gurafu::leaves	the two ends of a tree
+gurafu::root	requires	gurafu::tree	has no parent
+gurafu::scc	refines	gurafu::components	components of a directed graph
+gurafu::spanning	requires	gurafu::components	connected component at a time
+gurafu::subgraph	composes	gurafu::nodes	keep chosen nodes
+gurafu::topo	pairs	gurafu::cycle	order or the cycle that blocks it
+gurafu::topo	requires	gurafu::cycle	only acyclic graphs order
+gurafu::tree	refines	gurafu::graph	acyclic, one parent each
+gurafu::walk	composes	gurafu::neighbors	visit neighbors in order
+gurafu::walk	composes	junban?::pop	queue order sets BFS or DFS
 gyouretsu::add	requires	gyouretsu::shape	shapes must match
 gyouretsu::compile	guards	gyouretsu::run	no run of a bad shape
 gyouretsu::cross	pairs	gyouretsu::dot	perpendicular versus parallel

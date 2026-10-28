@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:82bc03e87ea2fc98310e765af4b7575b792f30cc2e1de8fced327ef2d8b6f89c",
+  "manifest": {
+    "schema": 1,
+    "name": "gurafu",
+    "version": "0.1.0",
+    "needs": {
+      "moji": "^0.1.0",
+      "ran": "^0.1.0",
+      "retsu": "^0.1.0",
+      "tesuto": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

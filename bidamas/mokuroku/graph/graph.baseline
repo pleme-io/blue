@@ -30,7 +30,7 @@ g2-vocab: genbo? 2
 g2-vocab: genin? 11
 g2-vocab: gitto 12
 g2-vocab: goui? 15
-g2-vocab: gurafu? 24
+g2-vocab: gurafu 24
 g2-vocab: gyouretsu 15
 g2-vocab: habu 2
 g2-vocab: hadome 4
@@ -187,7 +187,7 @@ g4-wave: gazou? 1
 g4-wave: genbo? 1
 g4-wave: genin? 2
 g4-wave: gitto 1
-g4-wave: gurafu? 1
+g4-wave: gurafu 1
 g4-wave: gyouretsu 2
 g4-wave: himitsu 4
 g4-wave: hinagata? 2

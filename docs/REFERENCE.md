@@ -107,7 +107,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-304 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 185 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+306 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 185 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -265,7 +265,7 @@ Higher binding power binds tighter.
 | `decorate` | `decorate(f, keys-and-values...)` | 1+ | f with metadata attached; it still calls as f. |
 | `every?` | `every?(f, xs)` | 2 | Whether f accepts every element; true for []. |
 | `filter` | `filter(f, xs)` | 2 | The elements f accepts. The FUNCTION comes first. |
-| `find` | `find(xs, f)` | 2 | The first element f accepts, or nil. The COLLECTION comes first; nil is the empty list. find(f, xs) is still answered, because tatara-lisp's state machines and buses call it so. |
+| `find` | `find(xs, f)` | 2 | The first element f accepts, or nil. The COLLECTION comes first; nil is the empty list. find(f, xs) is still answered, because tatara-lisp's state machines and buses call it so. Also defined by `maakuappu` (`maakuappu::find`): a file that lists it gets that one. |
 | `flat_map` | `flat_map(xs, f)` | 2 | f applied to each element, the lists it returns joined in order (one level); f may return nil for none. The COLLECTION comes first. Also defined by `retsu` (`retsu::flat_map`): a file that lists it gets that one. |
 | `flip` | `flip(f)` | 1 | f with its two arguments swapped. Also defined by `kansuu` (`kansuu::flip`): a file that lists it gets that one. |
 | `foldl` | `foldl(f, init, xs)` | 3 | reduce with an init: f(acc, x) from the left. |
@@ -346,6 +346,13 @@ Higher binding power binds tighter.
 | name | call | arity | meaning |
 |---|---|---|---|
 | `nix_parse` | `nix_parse(source)` | 1 | Nix source as rnix's lossless syntax tree: {root, errors}. A node is {kind, start, end, children}, a token {kind, start, end, text}; kinds are rnix's names (NODE_ATTR_SET, TOKEN_IDENT), offsets count characters, and each error is {message, start, end}. The nikkusu bidama queries it. |
+
+### XML
+
+| name | call | arity | meaning |
+|---|---|---|---|
+| `xml_parse` | `xml_parse(text)` | 1 | Parse an XML document to its root element, a map {name, attributes, children, text}: name keeps its namespace prefix, attributes maps each name to its unescaped value, children lists the child elements, text joins the element's own character data (whitespace between child elements dropped). Comments, processing instructions and the DOCTYPE are dropped. Only the five predefined entities and character references expand: a DTD entity declaration or any other reference raises :xml_refused, so nothing is fetched or multiplied. A document that is not well-formed raises :xml_malformed. The maakuappu bidama queries it. |
+| `xml_render` | `xml_render(element)` | 1 | An element map as XML text, escaped so xml_parse reads it back equal: attributes in key order, an element with no text and no children as <name/>. A name that is not an XML name, a character XML 1.0 cannot hold or a value of the wrong kind raises :xml_refused. |
 
 ### Files and paths
 
@@ -484,7 +491,7 @@ Higher binding power binds tighter.
 | name | call | arity | meaning |
 |---|---|---|---|
 | `alive?` | `alive?(pid)` | 1 | true while pid is running or waiting. |
-| `children` | `children(sup)` | 1 | The pids a supervisor started, in order. |
+| `children` | `children(sup)` | 1 | The pids a supervisor started, in order. Also defined by `maakuappu` (`maakuappu::children`): a file that lists it gets that one. |
 | `defmigrate` | `defmigrate(target, new_fn[, transform])` | 2..3 | Swap the code of process target, or of every process running that function, at its next boundary without dropping its mailbox; a server's state becomes transform(state). A migration that raises leaves the old code running. Returns [[pid, :ok or [:error, why]], …]. |
 | `demonitor` | `demonitor(ref)` | 1 | Stop a monitor; true. |
 | `exit` | `exit(pid, reason)` | 2 | Send pid an exit signal: it ends with reason unless it traps exits (:normal ends nothing, :kill cannot be trapped). exit(self, r) raises. |

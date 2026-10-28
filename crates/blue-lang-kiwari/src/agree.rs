@@ -48,6 +48,9 @@ use crate::ts::{Node, Parser, Runtime, Tree};
 /// Prefixes judged by one incremental run before the next fresh parse.
 pub const CHUNK: usize = 512;
 
+/// Disagreements a run collects before it stops, unless the caller says otherwise.
+pub const STOP_AFTER: usize = 20;
+
 /// One way a prefix failed to agree.
 #[derive(Debug, Clone)]
 pub enum Disagreement {
@@ -151,6 +154,8 @@ pub struct Tally {
     pub both_refuse: usize,
     pub closed_statements_checked: usize,
     pub disagreements: usize,
+    /// The run stopped at its cap with prefixes left unjudged.
+    pub stopped_early: bool,
     pub findings: Vec<Finding>,
 }
 
@@ -163,6 +168,7 @@ impl Tally {
         self.both_refuse += o.both_refuse;
         self.closed_statements_checked += o.closed_statements_checked;
         self.disagreements += o.disagreements;
+        self.stopped_early |= o.stopped_early;
         self.findings.extend(o.findings.iter().cloned());
     }
 }
@@ -430,10 +436,22 @@ pub enum Scope {
     EveryPrefix,
 }
 
+/// How many disagreements a run may collect, shared by its workers.
+struct Budget {
+    cap: usize,
+    found: AtomicUsize,
+}
+
+impl Budget {
+    fn spent(&self) -> bool {
+        self.found.load(Ordering::Relaxed) >= self.cap
+    }
+}
+
 fn record(
     tally: &mut Tally,
     failed: &mut Vec<usize>,
-    keep: usize,
+    budget: &Budget,
     s: &Subject,
     i: usize,
     cut: usize,
@@ -446,19 +464,21 @@ fn record(
         Mode::Opening => tally.opening += 1,
     }
     if let Some(what) = what {
-        tally.disagreements += 1;
         failed.push(i);
-        if tally.findings.len() < keep {
-            let (line, col) = s.line_col(cut);
-            tally.findings.push(Finding {
-                file: s.path.clone(),
-                cut,
-                line,
-                col,
-                mode,
-                what,
-            });
+        if budget.found.fetch_add(1, Ordering::Relaxed) >= budget.cap {
+            tally.stopped_early = true;
+            return;
         }
+        tally.disagreements += 1;
+        let (line, col) = s.line_col(cut);
+        tally.findings.push(Finding {
+            file: s.path.clone(),
+            cut,
+            line,
+            col,
+            mode,
+            what,
+        });
     }
 }
 
@@ -470,7 +490,7 @@ fn run_chunk<'r>(
     from: usize,
     to: usize,
     scope: Scope,
-    keep: usize,
+    budget: &Budget,
     tally: &mut Tally,
     failed: &mut Vec<usize>,
 ) {
@@ -479,11 +499,24 @@ fn run_chunk<'r>(
     if scope == Scope::Whole {
         let tree = parser.parse(&s.src);
         let what = judge.judge(s.src.len(), tree.root(), Mode::Opening, None, tally);
-        record(tally, failed, keep, s, i, s.src.len(), Mode::Opening, what);
+        record(
+            tally,
+            failed,
+            budget,
+            s,
+            i,
+            s.src.len(),
+            Mode::Opening,
+            what,
+        );
         return;
     }
     let mut memo = Memo::default();
     for c in from..to {
+        if budget.spent() {
+            tally.stopped_early = true;
+            return;
+        }
         let cut = s.cuts[c];
         let tree = if c == from {
             parser.parse(&s.src[..cut])
@@ -496,25 +529,27 @@ fn run_chunk<'r>(
             parser.reparse_appended(old, &s.src[..cut], prev)
         };
         let what = judge.judge(cut, tree.root(), Mode::Typing, Some(&mut memo.seen), tally);
-        record(tally, failed, keep, s, i, cut, Mode::Typing, what);
+        record(tally, failed, budget, s, i, cut, Mode::Typing, what);
         memo.trees.push(tree);
         if c == last || (cut > 0 && s.src.as_bytes()[cut - 1] == b'\n') {
             let fresh = parser.parse(&s.src[..cut]);
             let what = judge.judge(cut, fresh.root(), Mode::Opening, None, tally);
-            record(tally, failed, keep, s, i, cut, Mode::Opening, what);
+            record(tally, failed, budget, s, i, cut, Mode::Opening, what);
         }
     }
 }
 
-/// Judge every file in `files` over `scope` on `threads` threads, keeping at
-/// most `keep` findings in full.
+/// Judge every file in `files` over `scope` on `threads` threads, stopping
+/// once `stop_after` disagreements are found: a grammar that misreads one
+/// construct misreads every later prefix of each file holding it, and the
+/// first few findings are what a fix needs.
 pub fn run(
     rt: &Runtime,
     spec: &Spec,
     files: &[PathBuf],
     scope: Scope,
     threads: usize,
-    keep: usize,
+    stop_after: usize,
 ) -> Result<Tally, String> {
     let subjects: Vec<Subject> = files
         .iter()
@@ -532,6 +567,10 @@ pub fn run(
         })
         .collect();
     let next = AtomicUsize::new(0);
+    let budget = Budget {
+        cap: stop_after.max(1),
+        found: AtomicUsize::new(0),
+    };
     let total = Mutex::new(Tally::default());
     let failed_files = Mutex::new(std::collections::BTreeSet::new());
     std::thread::scope(|scope_| {
@@ -545,6 +584,10 @@ pub fn run(
                     let Some(&(i, from, to)) = work.get(w) else {
                         break;
                     };
+                    if budget.spent() {
+                        local.stopped_early = true;
+                        break;
+                    }
                     run_chunk(
                         &mut parser,
                         spec,
@@ -553,7 +596,7 @@ pub fn run(
                         from,
                         to,
                         scope,
-                        keep,
+                        &budget,
                         &mut local,
                         &mut local_failed,
                     );
@@ -571,6 +614,5 @@ pub fn run(
     t.files_agreeing = subjects.len() - failed_files.into_inner().expect("threads joined").len();
     t.findings
         .sort_by(|a, b| (&a.file, a.cut).cmp(&(&b.file, b.cut)));
-    t.findings.truncate(keep);
     Ok(t)
 }

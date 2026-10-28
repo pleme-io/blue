@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:b996d249d60c0ab9c7472d81d716737dd41adafd6554d4a41fd757787f939e1a",
+  "bluefile_b3": "b3:ac934fd6b83dfa3774a8bcd7c705478ec67216633f8e777a296a519e724d92b4",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -19,6 +19,12 @@
       "curl"
     ],
     "checks": {
+      "consumers": {
+        "file": "gen/consumers.b",
+        "inputs": [
+          "gen/consumers.json"
+        ]
+      },
       "docs": {
         "file": "gen/docs.b",
         "inputs": [

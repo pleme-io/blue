@@ -63,3 +63,14 @@ jobs:
       # from local configuration`, and that is a fleet class, not a quirk.
       test-args: "--workspace --no-fail-fast"
     secrets: inherit
+
+  consumers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: blue
+        uses: pleme-io/actions/nix-build@main
+        with:
+          flake-ref: ".#default"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - run: ${{ steps.blue.outputs.out-path }}/bin/blue gen/consumers.b sweep --clone "$RUNNER_TEMP/consumers"

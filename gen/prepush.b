@@ -284,6 +284,12 @@ gates = append(
     ["Cargo.gen.lock tied", () -> gen_tie],
     ["every member's test targets compile alone", () -> test_targets],
     [
+      "every consumer in gen/consumers.json stays green at this blue",
+      fn()
+        verdict(exec_capture("#{bin}/blue", "#{root}/gen/consumers.b", "sweep"))
+      end
+    ],
+    [
       "tests beside every bidama definition",
       fn()
         verdict(

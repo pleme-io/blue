@@ -85,3 +85,4 @@ check("heni-mutations", "gen/heni-gate.b")
 # is reached by a test in its package, or waived with a why and a date, or
 # held as recorded debt that may only shrink. Configured in the file itself.
 check("test-beside", "gen/test-beside.b")
+check("consumers", "gen/consumers.b", ["gen/consumers.json"])

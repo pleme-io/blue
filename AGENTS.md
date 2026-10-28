@@ -42,6 +42,7 @@ These commands come from the Bluefile. Run them from the repository root.
 | `nix flake check` | every check the Bluefile declares, and the gates every blue project gets |
 | `nix run .#regen` | rewrites every generated file in place |
 | `blue lock .` | rewrites `Bluefile.lock` after an edit to the `Bluefile` |
+| `blue test gen/consumers.b` | `checks.consumers` |
 | `blue test gen/docs.b` | `checks.docs` |
 | `blue test gen/heni-gate.b` | `checks.heni-mutations` |
 | `blue test gen/okite-laws.b` | `checks.okite-laws` |
@@ -505,6 +506,8 @@ hit:
   gate is vacuous; find out which.
 
 **A push to `main` runs the local gates first.** `nix develop` sets `core.hooksPath` to `.githooks`, whose `pre-push` runs `gen/prepush.b`: formatting, every lock, `regen` in every project that generates, the gen pin, each member compiled alone and the distribution tests. Off: `BLUE_PREPUSH_OFF=1`. What each gate caught and what it costs: [LESSONS.md](docs/LESSONS.md).
+
+**A new rule lands after its consumers are written in it.** `gen/consumers.json` is the registry of pleme-io repositories with `.b` files and the blue each pins (flake, git cargo source, crates.io or blue-setup); `blue gen/consumers.b derive` rewrites it from the workspace. `blue gen/consumers.b sweep` runs every consumer's files through this blue's `fmt --check` and `check`; prepush and the `consumers` CI job run it, and recorded debt may shrink, never grow (hadome). `blue gen/consumers.b fix REPO` writes one consumer with `fmt --write` in a worktree and commits only when `blue erase` is byte-identical before and after each file; the consumer then moves its pin and runs its tests. `checks.consumers` is red while `blue explain --list` names a code that `sweep --record` has not recorded green. Off: `level(REPO, :audit, why)` or `level("*", :off, why)` in `entries`.
 
 ### Dependencies
 

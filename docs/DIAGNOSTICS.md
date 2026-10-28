@@ -82,6 +82,7 @@ it; `blue explain --list` lists them.
 | B0064 | unformatted-producer | error | a program that writes a `.b` file writes it with `write_program`, which formats it; a producer owns the form of what it emits |
 | B0065 | newline-escape | error | text of several lines is written as its lines: `join_lines([a, b])`, `unlines([a, b])` when it ends in a newline, `line_break` alone; never a `\n` escape in a string |
 | B0066 | index | error | a key or position is read with brackets: `m[:k]` for `get(m, :k)`, `xs[i]` for `nth(i, xs)` |
+| B0067 | name-as-string | error | a name a builtin reads as text is a keyword, not a string: `error(:kind, m)`, `json_get(doc, :field)`, `json_get_or(doc, :field, d)` |
 
 The registry is the source of truth; a test fails if a code is missing here.
 

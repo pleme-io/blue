@@ -647,3 +647,4 @@ Every rule blue holds, from the registry the check stage runs (`blue explain COD
 | `B0064` | unformatted-producer | a program that writes a `.b` file writes it with `write_program`, which formats it; a producer owns the form of what it emits | suggested |
 | `B0065` | newline-escape | text of several lines is written as its lines: `join_lines([a, b])`, `unlines([a, b])` when it ends in a newline, `line_break` alone; never a `\n` escape in a string | autofix |
 | `B0066` | index | a key or position is read with brackets: `m[:k]` for `get(m, :k)`, `xs[i]` for `nth(i, xs)` | autofix |
+| `B0067` | name-as-string | a name a builtin reads as text is a keyword, not a string: `error(:kind, m)`, `json_get(doc, :field)`, `json_get_or(doc, :field, d)` | autofix |

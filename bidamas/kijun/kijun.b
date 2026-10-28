@@ -2443,10 +2443,10 @@ test "check --json carries the wall time and one count per plane"
   r = evaluate(fleet_repo(1), in_memory(c[:sources]), [])
   timing = {wall: 7, planes: {layout: 1, expression: 2, tree: 3}}
   doc = json_parse(report_json(fleet_repo(1), r, judge(r[:gates], []), timing))
-  assert json_get(doc, "wall_ms") == 7
+  assert json_get(doc, :wall_ms) == 7
   assert map(
-    (p) -> [json_get(p, "plane"), json_get(p, "findings"), json_get(p, "ms")],
-    json_get(doc, "planes")
+    (p) -> [json_get(p, :plane), json_get(p, :findings), json_get(p, :ms)],
+    json_get(doc, :planes)
   ) == [["layout", 0, 1], ["expression", 1, 2], ["tree", 0, 3]]
   assert contains?(
     report_text(fleet_repo(1), r, judge(r[:gates], []), timing),

@@ -9,6 +9,7 @@ pub enum Respell {
     Field(&'static str),
     Raise,
     Chain(&'static crate::chains::ChainRule),
+    TextName(usize),
 }
 
 pub struct Synonym {
@@ -113,6 +114,29 @@ pub const SYNONYMS: &[Synonym] = &[
     },
 ];
 
+pub const TEXT_NAMES: &[(&str, usize)] = &[("error", 1), ("json_get", 2), ("json_get_or", 2)];
+
+#[must_use]
+pub fn text_name(builtin: &str) -> Option<usize> {
+    TEXT_NAMES
+        .iter()
+        .find(|(name, _)| *name == builtin)
+        .map(|(_, at)| *at)
+}
+
+#[must_use]
+pub fn name_string(node: &Spanned) -> Option<&str> {
+    match &node.form {
+        SpannedForm::Atom(Atom::Str(s))
+            if blue_lang_syntax::words::is_symbol_name(s)
+                && node.span.end - node.span.start == s.len() + 2 =>
+        {
+            Some(s)
+        }
+        _ => None,
+    }
+}
+
 #[must_use]
 pub fn synonym(name: &str, argc: usize) -> Option<&'static Synonym> {
     SYNONYMS.iter().find(|s| s.name == name && s.argc == argc)
@@ -144,6 +168,13 @@ pub fn apply(call: &Spanned, items: &[Spanned], r: &Respelling) -> Spanned {
     let list = |v: Vec<Spanned>| Spanned::new(call.span, SpannedForm::List(v));
     match r.respell {
         Respell::Chain(_) => items[1].clone(),
+        Respell::TextName(at) => {
+            let mut out = items.to_vec();
+            if let Some(SpannedForm::Atom(Atom::Str(text))) = out.get(at).map(|a| a.form.clone()) {
+                out[at] = Spanned::new(out[at].span, SpannedForm::Atom(Atom::Keyword(text)));
+            }
+            list(out)
+        }
         Respell::Rename(to) => {
             let mut out = items.to_vec();
             out[0] = sym(head.span, &qualified(to, r.qualify && to != "mod"));

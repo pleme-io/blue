@@ -50,7 +50,7 @@ def hyperfine(command, runs, out)
     out,
     command
   )
-  json_get(json_parse(read_file(out)), "results")[0]
+  json_get(json_parse(read_file(out)), :results)[0]
 end
 
 def ms(seconds)
@@ -60,9 +60,9 @@ end
 def measure(command, runs, out)
   r = hyperfine(command, runs, out)
   {
-    mean: ms(json_get(r, "mean")),
-    sd: ms(json_get(r, "stddev")),
-    user: ms(json_get(r, "user"))
+    mean: ms(json_get(r, :mean)),
+    sd: ms(json_get(r, :stddev)),
+    user: ms(json_get(r, :user))
   }
 end
 

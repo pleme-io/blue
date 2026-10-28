@@ -2038,6 +2038,57 @@ impl Walker<'_> {
         );
     }
 
+    fn text_name_call(&mut self, node: &Spanned, whole: &Spanned, name: &str) {
+        let resolved_builtin = matches!(
+            self.references.last().map(|r| &r.ns),
+            Some(Target::Builtin(b)) if b == name
+        );
+        if !resolved_builtin {
+            return;
+        }
+        let Some(at) = crate::respell::text_name(name) else {
+            return;
+        };
+        let Some(arg) = whole.as_list().and_then(|items| items.get(at)) else {
+            return;
+        };
+        let Some(text) = crate::respell::name_string(arg) else {
+            return;
+        };
+        self.respellings.push((
+            std::ptr::from_ref(node) as usize,
+            crate::respell::Respelling {
+                span: whole.span,
+                respell: crate::respell::Respell::TextName(at),
+                qualify: false,
+                error_builtin: false,
+            },
+        ));
+        if !self.report_unused {
+            return;
+        }
+        self.diagnostics.push(
+            Diagnostic::new(
+                Code::B0067,
+                format!("`{name}` reads `\"{text}\"` as a name: write `:{text}`"),
+                arg.span,
+            )
+            .at_top_level(self.top_level)
+            .with_help(format!(
+                "`{name}` treats the string and the keyword as the same text; `blue fmt --write`, `blue run` and `blue check --fix` write `:{text}`"
+            ))
+            .with_fix(Fix {
+                message: format!("write `:{text}`"),
+                edits: vec![Edit {
+                    span: arg.span,
+                    original: format!("\"{text}\""),
+                    replacement: format!(":{text}"),
+                }],
+                applicability: Applicability::MachineApplicable,
+            }),
+        );
+    }
+
     fn synonym_call(&mut self, node: &Spanned, whole: &Spanned, name: &str, argc: usize) {
         let resolved_builtin = matches!(
             self.references.last().map(|r| &r.ns),
@@ -2456,6 +2507,7 @@ impl Scopes for Walker<'_> {
         if !opaque && self.references.len() > before {
             self.synonym_call(node, whole, name, argc);
             self.chain_call(node, whole, name, argc);
+            self.text_name_call(node, whole, name);
         }
     }
 

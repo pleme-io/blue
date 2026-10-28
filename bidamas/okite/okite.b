@@ -279,6 +279,19 @@ def law_map_keys_are_exact()
   get(m, 1) == :int and get(m, 1.0).nil?
 end
 
+def law_string_is_not_keyword()
+  "a" != :a and {"a" => 1} != {a: 1} and {a: 1}["a"].nil?
+end
+
+def law_text_names_take_either()
+  doc = json_parse("{\"a\": 1}")
+  key = "a"
+  kind = "bad"
+  json_get(doc, key) == json_get(doc, :a) and
+    json_get_or(doc, key, 0) == json_get_or(doc, :a, 0) and
+    error(kind, "m").kind == error(:bad, "m").kind
+end
+
 def chain_values()
   fixed = [
     "",
@@ -547,6 +560,16 @@ def decisions()
       rule: "`kyohi::check` returns every finding and never raises; `kyohi::enforce` raises them as one error: kind from opts (`:first` or `:refused`), whys joined.",
       why: "`kyohi::refuse` raised and returned nil, which is the enforce meaning under the name the master check contract gives to the list; its callers now call enforce with `kind: :first` and raise what they raised.",
       laws: [["enforce is the old refuse", () -> law_enforce_is_the_old_refuse]]
+    },
+    {
+      id: "D0015",
+      date: "2026-10-28",
+      rule: "A string and a keyword are different values (\"a\" != :a); error, json_get and json_get_or read either as text, and there a name is a keyword.",
+      why: "The operator: symbols where possible, a character shorter and interned; B0067 respells only where a builtin reads the two alike, and a conformance row proves each such position.",
+      laws: [
+        ["a string is not a keyword", () -> law_string_is_not_keyword],
+        ["text names take either", () -> law_text_names_take_either]
+      ]
     }
   ]
 end

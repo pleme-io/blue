@@ -33,14 +33,14 @@ row("json.stringify.map", "json_stringify({a: 1})", value("\"{\\\"a\\\":1}\""))
 
 row(
   "json.get",
-  "json_get(json_parse(\"{\\\"a\\\": 1}\"), \"a\")",
+  "json_get(json_parse(\"{\\\"a\\\": 1}\"), :a)",
   value("1"),
   covers("builtin:json_get")
 )
 
 row(
   "json.get_or",
-  "json_get_or(json_parse(\"{}\"), \"a\", 0)",
+  "json_get_or(json_parse(\"{}\"), :a, 0)",
   value("0"),
   covers("builtin:json_get_or")
 )

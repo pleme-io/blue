@@ -545,6 +545,7 @@ impl Session {
                 blue_lang_check::Code::B0023
                     | blue_lang_check::Code::B0036
                     | blue_lang_check::Code::B0037
+                    | blue_lang_check::Code::B0067
             )
         });
         let place = |top_level: usize, span: Span, message: &str| -> String {

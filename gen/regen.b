@@ -14,12 +14,12 @@ use("shisutemu", [:status_of, :stdout_of])
 # Bluefile.lock itself has its own command: `blue lock .`.
 
 def manifest()
-  json_get(json_parse(read_file("Bluefile.lock")), "manifest")
+  json_get(json_parse(read_file("Bluefile.lock")), :manifest)
 end
 
 # [name, output, program] for every `generate` in the Bluefile.
 def generated()
-  g = json_get(manifest, "generated")
+  g = json_get(manifest, :generated)
   if g.nil?
     []
   else
@@ -27,8 +27,8 @@ def generated()
       fn(entry)
         [
           first(entry),
-          json_get(last(entry), "output"),
-          json_get(last(entry), "program")
+          json_get(last(entry), :output),
+          json_get(last(entry), :program)
         ]
       end,
       g
@@ -54,7 +54,7 @@ def regenerate(g)
 end
 
 def inputs_of(entry)
-  i = json_get(entry, "inputs")
+  i = json_get(entry, :inputs)
   if i.nil?
     []
   else
@@ -71,7 +71,7 @@ def entries_of(obj)
 end
 
 def inputs_of_packages()
-  p = json_get(manifest, "packages")
+  p = json_get(manifest, :packages)
   if p.nil?
     []
   else
@@ -80,8 +80,8 @@ def inputs_of_packages()
 end
 
 def read_paths()
-  g = json_get(manifest, "generated")
-  c = json_get(manifest, "checks")
+  g = json_get(manifest, :generated)
+  c = json_get(manifest, :checks)
   inputs = concat_lists(
     if g.nil?
       []
@@ -140,10 +140,10 @@ end
 # The catalogue covers the project's own `packages` roots, not every root on
 # BLUE_PATH: a project composed over the public distribution catalogues only
 # its own packages (the flake renders the same roots; nix/project.nix).
-catalog = json_get(manifest, "catalog")
+catalog = json_get(manifest, :catalog)
 
 def registered_catalog(catalog)
-  records = catalog_of(json_get(manifest, "packages"))
+  records = catalog_of(json_get(manifest, :packages))
   ledger = path_join(path_dirname(catalog), "NAMES.md")
   if path_exists(ledger)
     registered_only(read_file(ledger), records)
@@ -162,7 +162,7 @@ end
 written = concat_lists(written, map(regenerate, generated))
 
 # Every `workload` file, rendered from the same lock by blue itself.
-workloads = json_get(manifest, "workloads")
+workloads = json_get(manifest, :workloads)
 
 written = if workloads.nil?
   written
@@ -170,10 +170,10 @@ else
   if exec_check("blue", "workload", "render", "--write") != 0
     raise(:regen, "blue workload render --write failed")
   end
-  concat_lists(written, map((w) -> json_get(last(w), "output"), workloads))
+  concat_lists(written, map((w) -> json_get(last(w), :output), workloads))
 end
 
-written = if json_get(manifest, "registries").nil?
+written = if json_get(manifest, :registries).nil?
   written
 else
   if exec_check("blue", "registry", "render", "--write") != 0
@@ -181,7 +181,7 @@ else
   end
   concat_lists(
     written,
-    map((r) -> json_get(last(r), "output"), json_get(manifest, "registries"))
+    map((r) -> json_get(last(r), :output), json_get(manifest, :registries))
   )
 end
 

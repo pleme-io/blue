@@ -61,19 +61,19 @@ end
 # ── what is documented ─────────────────────────────────────────────────────
 
 def builtins()
-  json_get(json_parse(captured(["reference"])), "names")
+  json_get(json_parse(captured(["reference"])), :names)
 end
 
 # [id, program, expectation] for every conformance row covering the builtin.
 def rows_for(name)
   filter(
-    (r) -> member?("builtin:#{name}", json_get(r, "covers")),
+    (r) -> member?("builtin:#{name}", json_get(r, :covers)),
     json_parse(captured(["doc", "--rows"]))
   )
 end
 
 def builtin_entry(b, tier)
-  name = json_get(b, "name")
+  name = json_get(b, :name)
   rows = rows_for(name)
   example = if empty?(rows)
     nil
@@ -81,17 +81,17 @@ def builtin_entry(b, tier)
     row = first(rows)
     {
       from: "spec row #{json_get(row, "id")}",
-      code: [json_get(row, "src"), "=> #{json_get(row, "expect")}"]
+      code: [json_get(row, :src), "=> #{json_get(row, "expect")}"]
     }
   end
   {
     name:,
     namespace: "blue",
     tier:,
-    kind: json_get(b, "arbiter"),
-    topic: json_get(b, "topic"),
-    signature: json_get(b, "signature"),
-    doc: [json_get(b, "doc")],
+    kind: json_get(b, :arbiter),
+    topic: json_get(b, :topic),
+    signature: json_get(b, :signature),
+    doc: [json_get(b, :doc)],
     example:
   }
 end
@@ -178,16 +178,13 @@ end
 def tier_in(ctx, pkg, name)
   if ctx.nil?
     "qualified"
-  elsif json_get(ctx, "namespace") == pkg
+  elsif json_get(ctx, :namespace) == pkg
     "own"
   else
-    uses = filter(
-      (u) -> json_get(u, "package") == pkg,
-      json_get(ctx, "imports")
-    )
+    uses = filter((u) -> json_get(u, :package) == pkg, json_get(ctx, :imports))
     if empty?(uses)
       "not-imported"
-    elsif any?((u) -> member?(name, json_get(u, "names")), uses)
+    elsif any?((u) -> member?(name, json_get(u, :names)), uses)
       "imported"
     else
       "qualified"
@@ -208,7 +205,7 @@ def lookup(name, file, records)
     first(parts)
   end
   bare = last(parts)
-  own = if file.nil? or json_get(ctx, "namespace") != nil
+  own = if file.nil? or json_get(ctx, :namespace) != nil
     []
   else
     text = read_file(file)
@@ -230,7 +227,7 @@ def lookup(name, file, records)
   from_builtins = if qualifier.nil? or qualifier == "blue"
     map(
       (b) -> builtin_entry(b, "builtin"),
-      filter((b) -> json_get(b, "name") == bare, builtins)
+      filter((b) -> json_get(b, :name) == bare, builtins)
     )
   else
     []
@@ -256,7 +253,7 @@ def entry_text(e)
     if derived.nil?
       []
     else
-      map((l) -> "  · #{l}", json_get(derived, "lines"))
+      map((l) -> "  · #{l}", json_get(derived, :lines))
     end,
     if example.nil?
       []

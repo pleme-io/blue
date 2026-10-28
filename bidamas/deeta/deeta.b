@@ -280,9 +280,9 @@ test "json_get_or's default is NOT reached for a present null"
   # only for a MISSING key; a key present with null returns nil and bypasses
   # it. That is why the typed accessors re-check the value's type.
   doc = json_parse("{\"a\":null,\"b\":1}")
-  assert json_get_or(doc, "a", 42).nil?
-  assert json_get_or(doc, "b", 42) == 1
-  assert json_get_or(doc, "missing", 42) == 42
+  assert json_get_or(doc, :a, 42).nil?
+  assert json_get_or(doc, :b, 42) == 1
+  assert json_get_or(doc, :missing, 42) == 42
   assert get_int(doc, "a", 42) == 42
 end
 

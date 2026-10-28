@@ -1371,6 +1371,30 @@ A map read with a computed key stays `get(m, k)`, because `m[k]` is
 where `get` answers nil. The bracket must touch what it indexes; `xs [0]` is
 two expressions.",
     }
+    B0067 {
+        slug: "name-as-string",
+        severity: Error,
+        fix: Machine,
+        law: "a name a builtin reads as text is a keyword, not a string: `error(:kind, m)`, `json_get(doc, :field)`, `json_get_or(doc, :field, d)`",
+        witness: "error(\"bad\", \"why\")\n",
+        waivable: false,
+        explanation: "\
+A keyword is a name as a value: one character shorter than the string, and
+interned, so every evaluation of `:kind` shares one value. Where a builtin
+reads its argument as text, the string and the keyword are the same program,
+and the keyword is the one way to write it. Each position is proven by a
+conformance row (spec/rows/keywords.b):
+
+    error(\"kind\", m)          the kind is stored as text either way
+    json_get(doc, \"f\")        the field is looked up by its text
+    json_get_or(doc, \"f\", d)
+
+The rule follows resolution: a program's own `json_get`, a local or a listed
+import of that name is somebody else's function and is left alone, and only a
+string `:name` can spell is rewritten. Everywhere else a string and a keyword
+are different values: `\"a\" == :a` is false and `{\"a\" => 1}` has a
+different key from `{a: 1}`, so map keys and text are never reported.",
+    }
 }
 
 impl Code {

@@ -20,3 +20,4 @@ the build.
 - **D0012** `split` keeps every field: n separators give n + 1 fields, and join undoes split. Deviation from Ruby.
 - **D0013** A conversion chain is simplified only by a row of chain_rules, and a row gives the chain's own value, or its refusal, for every value.
 - **D0014** `kyohi::check` returns every finding and never raises; `kyohi::enforce` raises them as one error: kind from opts (`:first` or `:refused`), whys joined.
+- **D0015** A string and a keyword are different values ("a" != :a); error, json_get and json_get_or read either as text, and there a name is a keyword.

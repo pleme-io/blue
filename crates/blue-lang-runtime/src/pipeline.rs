@@ -623,6 +623,7 @@ pub(crate) fn check_stage(
                 blue_lang_check::Code::B0023
                     | blue_lang_check::Code::B0036
                     | blue_lang_check::Code::B0037
+                    | blue_lang_check::Code::B0067
                     | blue_lang_check::Code::B0061
                     | blue_lang_check::Code::B0062
                     | blue_lang_check::Code::B0063

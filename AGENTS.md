@@ -112,6 +112,7 @@ file's `Bluefile.lock` records is skipped and named, never chosen.
 | `blue profile file.b` | run it and list every function called: calls, inclusive and exclusive time, and allocations made in each |
 | `blue trace NAME file.b` | run it and print each call of `NAME` with its arguments and value |
 | `blue check file.b` | every rule (unbound names with did-you-mean, unused bindings, types, waivers); `--format json` prints one object per diagnostic, `--fix` applies the machine-applicable fixes |
+| `blue query '(reaches filesystem) (unannotated)' DIR` | every definition a code query matches: `(match PATTERN)` over the resolved tree with bindings, `(reaches CAP)`, `(calls retsu/first)`, `(package P)`, `(longer-than N)`; `--json`; a Bluefile's `query(name, text)` runs as `blue query NAME` ([`docs/DIAGNOSTICS.md`](docs/DIAGNOSTICS.md)) |
 | `blue explain B0001` | what a diagnostic code means; `--list` lists them ([`docs/DIAGNOSTICS.md`](docs/DIAGNOSTICS.md)) |
 | `blue doc NAME` | a builtin, `pkg::name` or bare name: signature, doc line, namespace, tier and an example (a builtin's from its spec row, a definition's from its package's tests); `blue doc PKG` lists a package; `--file F` gives each answer's tier as F reaches it; `--json` |
 | `blue verbs import\|export\|check\|findings` | the verb graph (`bidamas/mokuroku/graph`, `docs/verbs/H/DESIGN.md`): `import` TSVs into its row files, `export` them back (the only writer of TSV), `check` its gates against the recorded baseline (`--record` writes it), `findings --tsv DIR` of a directory of TSVs |
@@ -400,7 +401,7 @@ bidama that does not check does not build.
 | `image` and `workload`: specs and per-entry refusals, the rendered objects, the structural diff (`deploy`); the CLI doors in `blue-lang-cli/src/deploy.rs`; the lowering and the distroless gate in `nix/project.nix`, `nix/image-gate.b` | `blue-lang-pkg` |
 | the project engine: a `Bluefile.lock` lowered to packages, checks and apps (`lib.project`; blue's own flake is its first caller) | `nix/project.nix`, over `bidamas/mk-bidama.nix` |
 | the WASM surface (zero host imports) | `blue-lang-wasm` |
-| the query engine `mondou` (問答): parse, packages, items, scope and resolve, memoized; `def_hash` (a definition's identity, its resolved tree with each callee replaced by its hash); completion, definition, references, rename, symbols, signatures | `blue-lang-mondou` |
+| the query engine `mondou` (問答): parse, packages, items, scope and resolve, memoized; `def_hash` (a definition's identity, its resolved tree with each callee replaced by its hash); completion, definition, references, rename, symbols, signatures; `host_reach` (each definition's host capabilities, with the chain) and code queries (`query`, `blue query`) | `blue-lang-mondou` |
 | LSP: transport-free core + stdio shim, every answer from `mondou` | `blue-lang-lsp` |
 | the mark, wordmark, Nord theme | `blue-lang-art` |
 | embedding blue in a Rust program: `#[host]` turns an impl block into host functions, `Program` loads `.b` and makes typed calls; the one dependency a Rust host takes | `blue-lang-host`, `blue-lang-host-macros` |

@@ -103,6 +103,13 @@ impl DefHashes {
         self.by_top_level.get(&top_level).map(|&i| &self.defs[i])
     }
 
+    /// Where in [`Self::defs`] the definition top-level form `top_level`
+    /// makes sits, if it makes one.
+    #[must_use]
+    pub fn index_at(&self, top_level: usize) -> Option<usize> {
+        self.by_top_level.get(&top_level).copied()
+    }
+
     /// The definition binding `key`, when exactly one form binds it.
     #[must_use]
     pub fn of_key(&self, key: &str) -> Option<&HashedDef> {

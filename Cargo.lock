@@ -280,6 +280,7 @@ dependencies = [
  "blue-lang-check",
  "blue-lang-fmt",
  "blue-lang-lsp",
+ "blue-lang-mondou",
  "blue-lang-pkg",
  "blue-lang-proc",
  "blue-lang-runtime",
@@ -373,6 +374,9 @@ dependencies = [
  "blue-lang-fmt",
  "blue-lang-runtime",
  "blue-lang-syntax",
+ "blue-lang-waku",
+ "serde_json",
+ "tatara-lisp-eval",
 ]
 
 [[package]]
@@ -382,6 +386,7 @@ dependencies = [
  "blue-lang-bidama",
  "blue-lang-check",
  "blue-lang-fmt",
+ "blue-lang-mondou",
  "blue-lang-pkg",
  "blue-lang-runtime",
  "blue-lang-syntax",

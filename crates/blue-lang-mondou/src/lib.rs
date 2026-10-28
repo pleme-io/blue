@@ -29,6 +29,8 @@ mod items;
 mod locals;
 mod memo;
 mod navigate;
+mod query;
+pub mod reach;
 mod signature;
 
 use std::cell::{OnceCell, RefCell};
@@ -48,6 +50,8 @@ pub use items::{Item, ItemKind};
 pub use locals::{LocalBinding, Locals};
 pub use memo::Stats;
 pub use navigate::{Located, Refusal, Symbol, WorkspaceSymbol};
+pub use query::{Hit, Query, QueryError, Reaches, MATCH_STEPS};
+pub use reach::HostReach;
 pub use signature::Signature;
 
 /// A parse: the spanned tree, or why there is none.
@@ -330,7 +334,9 @@ impl Engine {
             resolved: OnceCell::new(),
             locals: OnceCell::new(),
             items: OnceCell::new(),
+            lowered: OnceCell::new(),
             def_hashes: OnceCell::new(),
+            host_reach: OnceCell::new(),
         }
     }
 
@@ -438,7 +444,9 @@ pub struct Analysis {
     resolved: OnceCell<Option<Resolved>>,
     locals: OnceCell<Locals>,
     items: OnceCell<Vec<Item>>,
+    lowered: OnceCell<Option<Vec<Spanned>>>,
     def_hashes: OnceCell<Option<DefHashes>>,
+    host_reach: OnceCell<Option<Vec<HostReach>>>,
 }
 
 impl Analysis {
@@ -468,15 +476,45 @@ impl Analysis {
     pub fn def_hashes(&self) -> Option<&DefHashes> {
         self.def_hashes
             .get_or_init(|| {
-                self.checked().map(|c| {
-                    let docs = program_docs(&c.program);
-                    def_hash::hash_program_documented(
-                        &blue_lang_runtime::pipeline::lower(&c.program, &c.names),
-                        &|i| docs.get(&i).cloned(),
-                    )
-                })
+                let c = self.checked()?;
+                let docs = program_docs(&c.program);
+                Some(def_hash::hash_program_documented(self.lowered()?, &|i| {
+                    docs.get(&i).cloned()
+                }))
             })
             .as_ref()
+    }
+
+    /// The program's top-level forms as the runtime lowers them, before type
+    /// erasure: every reference to a definition written as its key.
+    #[must_use]
+    pub fn lowered(&self) -> Option<&[Spanned]> {
+        self.lowered
+            .get_or_init(|| {
+                self.checked()
+                    .map(|c| blue_lang_runtime::pipeline::lower(&c.program, &c.names))
+            })
+            .as_deref()
+    }
+
+    /// Every definition's host reach ([`reach::host_reach`]), in the order of
+    /// [`Self::def_hashes`].
+    #[must_use]
+    pub fn host_reach(&self) -> Option<&[HostReach]> {
+        self.host_reach
+            .get_or_init(|| {
+                let hashes = self.def_hashes()?;
+                let erased = blue_lang_runtime::erase_types(self.lowered()?);
+                Some(reach::host_reach(&erased, hashes))
+            })
+            .as_deref()
+    }
+
+    /// The host reach of the definition top-level form `top_level` makes.
+    #[must_use]
+    pub fn host_reach_at(&self, top_level: usize) -> Option<&HostReach> {
+        let i = self.def_hashes()?.index_at(top_level)?;
+        self.host_reach()?.get(i)
     }
 
     /// The document's own top-level forms with their index in the program.

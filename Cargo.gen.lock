@@ -1,20 +1,20 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "759566b6d8d88cde5cb997d559b9c51bdf3212d362167080c8d98e55f004d22b",
+  "cargo_lock_sha256": "fff2eed1c2c9859513b086bf29695b987e150fa3066ab420bfc50b6061fd0343",
   "manifest_sha256": {
     "Cargo.toml": "3543c27e9fa1f4748a6a2bb9bfc6f59c4062b3cf73d804690e2887f948f4e165",
     "crates/blue-lang-art/Cargo.toml": "f6721f78c76a94d4915a455675cd05889176a43212494c53aa8a01dfc9dfe5ee",
     "crates/blue-lang-bidama/Cargo.toml": "7b29108c8c3d40b5cbaf9f427c4f0a0ace1e5b49e02bd7448dcb53d3ee91337f",
     "crates/blue-lang-check/Cargo.toml": "8e11f4b76e3ecef246fcac2ce0521a0960cb03b5d8e5ca996c151862d3eb6c87",
-    "crates/blue-lang-cli/Cargo.toml": "efc167d912fdb5440f7a3e17b13dd863d0fdbf3d515f2da8f71d690e2ce325ea",
+    "crates/blue-lang-cli/Cargo.toml": "63f69f46a0fbd017fba34b0e23a21a2565d4d7ae9d8e5988093ab79559c7b0cd",
     "crates/blue-lang-danpen-diff/Cargo.toml": "b7e792141144a87f38bf6e6f78365ddd1c3feabbae5097bc43e560fc2223dfbf",
     "crates/blue-lang-fmt/Cargo.toml": "4f5c416d0a44933a497ea60c2e0e7d412ac8da28e2cbd646bb45d75c6e07db88",
     "crates/blue-lang-host-macros/Cargo.toml": "f8efb27bcf0512036b610e3c3d54b0d237f00c812e8a29e0c3adaaa662e74d60",
     "crates/blue-lang-host/Cargo.toml": "515be2b89363222cc6fc71b8f74adfe6fa56b92a3f013cac979909eb6a2ecaa2",
     "crates/blue-lang-kiwari/Cargo.toml": "7061ed32aff7aac13a83517bb14ad40fb0e3b21d5ab948c719236b5f8d39150c",
     "crates/blue-lang-lsp/Cargo.toml": "5125ccc67133d1db214f30a272e9f01bfc496db6efece3768a3bcf130b934b5e",
-    "crates/blue-lang-mondou/Cargo.toml": "21bcf1305dd95a070e7b8940be3cbfb17477d8bd7cdc05d6c17d17bdf55c4614",
-    "crates/blue-lang-pkg/Cargo.toml": "9d1301b763cf8dacae5214f8fbe3993578256f0b75a50c26a1fd12473241ce29",
+    "crates/blue-lang-mondou/Cargo.toml": "ebddc07895f8139599c04423b844af1773caa47073f42d59802304675d48362d",
+    "crates/blue-lang-pkg/Cargo.toml": "861db4b834ef62506853d90f2fbb96af4a2e2ed3c092f0d5413fdc4b56770475",
     "crates/blue-lang-proc/Cargo.toml": "a9702f9f855394147b0651eb89ae07fd8c787f8d1df4d47f1194fb858bce2fc1",
     "crates/blue-lang-runtime/Cargo.toml": "eceaf1b0167ba605332287773930158c62e5d894aa0c3fcfccc5f28abda1bba4",
     "crates/blue-lang-syntax/Cargo.toml": "9d405348af1d3f57fffd0a73ddf0776a933ce98bfbcaa60c53a1db55db4e75cd",
@@ -700,6 +700,16 @@
             "tree": "target"
           },
           {
+            "name": "blue_lang_mondou",
+            "package_key": "blue-lang-mondou-0.0.123",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
             "name": "blue_lang_pkg",
             "package_key": "blue-lang-pkg-0.0.123",
             "kind": "normal",
@@ -1211,6 +1221,36 @@
             "optional": false,
             "target": null,
             "tree": "target"
+          },
+          {
+            "name": "blue_lang_waku",
+            "package_key": "blue-lang-waku-0.0.123",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "serde_json",
+            "package_key": "serde_json-1.0.151",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "tatara_lisp_eval",
+            "package_key": "tatara-lisp-eval-0.4.9",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
           }
         ],
         "build_dependencies": [],
@@ -1241,6 +1281,16 @@
           {
             "name": "blue_lang_fmt",
             "package_key": "blue-lang-fmt-0.0.123",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "blue_lang_mondou",
+            "package_key": "blue-lang-mondou-0.0.123",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,

@@ -1344,6 +1344,77 @@ A binding (`flat`, `ns`) has:
 | `name` | the definition's or builtin's name |
 | `key` | the symbol the resolved tree writes, or `null` when it keeps the written one |
 
+## `blue query`
+
+`blue query QUERY [PATH…]` lists every definition under the paths (files, or
+directories of `.b` files; `.` when none) that satisfies a query: one line per
+hit, `file:line:col: definition`, then what the pattern bound, then the chain
+through which the definition reaches each capability a `reaches` clause names.
+The engine answers it (`blue_lang_mondou::Engine::query`), each file loaded as
+`blue check FILE` and the language server load it, so an editor or agent door
+gets the same hits. A file whose imports do not load has no
+resolved tree; it is named on stderr and the exit is 1.
+
+A query is tatara-lisp data. Several clauses are their conjunction:
+
+| clause | holds for a definition when |
+|---|---|
+| `(match PATTERN)` | a form of its resolved tree matches `PATTERN`; each matching form is a hit, with what the pattern bound |
+| `(reaches CAP)` | it names a primitive of host capability `CAP` (`process`, `filesystem`, `environment`, `clock`, `network`; `host` for any), directly or through the definitions it references |
+| `(annotated)`, `(unannotated)` | it is, or is not, a typed definition |
+| `(calls NAME)` | a reference in it resolves to `NAME`: `retsu/first` or `retsu::first` for a bidama's definition, `%root/f` for a script's own, `first` for the builtin |
+| `(package NAME)` | it is defined in bidama `NAME` |
+| `(longer-than N)` | its tree has more than `N` forms |
+| `(kind K)` | it is a `function`, `macro` or `value` |
+| `(and C …)`, `(or C …)`, `(not C)` | the connectives |
+
+A pattern is tatara's `match` pattern, compiled by tatara's own matcher. A
+quasipattern reads as the code it matches: `` `(retsu/first ,xs) `` is a call
+to retsu's `first` with one argument, bound to `xs`; outside an unquote a
+symbol matches itself, `,_` matches anything, a final `,@rest` matches the
+remaining elements, and `,(? string? s)` runs a predicate (under a pure frame
+and a step budget; a predicate naming a host primitive or `eval` is refused).
+Patterns see the resolved tree, the `ns` tree of `blue ast --resolved --json`:
+every reference is written as what it resolved to, so a call written `first`
+after `use("retsu", [:first])` and one written `retsu::first` are both
+`retsu/first`, and a local named `first` is neither. A function definition's
+own `(name params…)` is not a call and is not searched.
+
+`--json` prints one object per hit per line:
+
+| field | meaning |
+|---|---|
+| `file`, `line`, `column` | where the matching form starts, or the definition when no pattern placed the hit |
+| `definition` | the definition's name as written |
+| `key` | its runtime key: `retsu/first`, `%root/f` |
+| `kind` | `function`, `macro` or `value` |
+| `bindings` | each name the pattern bound, and its value as tatara-lisp text |
+| `reach` | each host capability the definition reaches, and one chain to it: the definitions it goes through, then the primitive |
+
+A Bluefile names a query with `query(name, text)`, and `blue query NAME` runs
+it from the project's directory or below:
+
+```text
+query("host_unannotated", "(reaches host) (unannotated)")
+```
+
+Over blue's own standard bidamas (2026-10-28, 255 files):
+
+```text
+$ blue query '(reaches filesystem)' bidamas
+bidamas/anaritikusu/anaritikusu.b:2131:1: write_history  filesystem via write_file
+bidamas/anaritikusu/anaritikusu.b:2488:1: example_append  filesystem via nisshi/el_append -> nisshi/write -> append_file
+…
+146 hit(s) in 255 file(s)
+
+$ blue query '(match `(retsu/first ,xs))' bidamas/zumen
+bidamas/zumen/zumen.b:147:14: layer_names  xs = l
+1 hit(s) in 1 file(s)
+```
+
+`(annotated)` over the same corpus finds nothing: no bidama definition is
+typed yet.
+
 ---
 
 Source: `docs/SAFETY.md`
@@ -1870,6 +1941,7 @@ file's `Bluefile.lock` records is skipped and named, never chosen.
 | `blue profile file.b` | run it and list every function called: calls, inclusive and exclusive time, and allocations made in each |
 | `blue trace NAME file.b` | run it and print each call of `NAME` with its arguments and value |
 | `blue check file.b` | every rule (unbound names with did-you-mean, unused bindings, types, waivers); `--format json` prints one object per diagnostic, `--fix` applies the machine-applicable fixes |
+| `blue query '(reaches filesystem) (unannotated)' DIR` | every definition a code query matches: `(match PATTERN)` over the resolved tree with bindings, `(reaches CAP)`, `(calls retsu/first)`, `(package P)`, `(longer-than N)`; `--json`; a Bluefile's `query(name, text)` runs as `blue query NAME` ([`docs/DIAGNOSTICS.md`](docs/DIAGNOSTICS.md)) |
 | `blue explain B0001` | what a diagnostic code means; `--list` lists them ([`docs/DIAGNOSTICS.md`](docs/DIAGNOSTICS.md)) |
 | `blue doc NAME` | a builtin, `pkg::name` or bare name: signature, doc line, namespace, tier and an example (a builtin's from its spec row, a definition's from its package's tests); `blue doc PKG` lists a package; `--file F` gives each answer's tier as F reaches it; `--json` |
 | `blue verbs import\|export\|check\|findings` | the verb graph (`bidamas/mokuroku/graph`, `docs/verbs/H/DESIGN.md`): `import` TSVs into its row files, `export` them back (the only writer of TSV), `check` its gates against the recorded baseline (`--record` writes it), `findings --tsv DIR` of a directory of TSVs |
@@ -2158,7 +2230,7 @@ bidama that does not check does not build.
 | `image` and `workload`: specs and per-entry refusals, the rendered objects, the structural diff (`deploy`); the CLI doors in `blue-lang-cli/src/deploy.rs`; the lowering and the distroless gate in `nix/project.nix`, `nix/image-gate.b` | `blue-lang-pkg` |
 | the project engine: a `Bluefile.lock` lowered to packages, checks and apps (`lib.project`; blue's own flake is its first caller) | `nix/project.nix`, over `bidamas/mk-bidama.nix` |
 | the WASM surface (zero host imports) | `blue-lang-wasm` |
-| the query engine `mondou` (問答): parse, packages, items, scope and resolve, memoized; `def_hash` (a definition's identity, its resolved tree with each callee replaced by its hash); completion, definition, references, rename, symbols, signatures | `blue-lang-mondou` |
+| the query engine `mondou` (問答): parse, packages, items, scope and resolve, memoized; `def_hash` (a definition's identity, its resolved tree with each callee replaced by its hash); completion, definition, references, rename, symbols, signatures; `host_reach` (each definition's host capabilities, with the chain) and code queries (`query`, `blue query`) | `blue-lang-mondou` |
 | LSP: transport-free core + stdio shim, every answer from `mondou` | `blue-lang-lsp` |
 | the mark, wordmark, Nord theme | `blue-lang-art` |
 | embedding blue in a Rust program: `#[host]` turns an impl block into host functions, `Program` loads `.b` and makes typed calls; the one dependency a Rust host takes | `blue-lang-host`, `blue-lang-host-macros` |

@@ -172,7 +172,7 @@ pub struct Refusal {
     pub error: SpecError,
 }
 
-/// Why an image or workload spec is refused.
+/// Why an image, workload or query entry is refused.
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum SpecError {
     #[error("the spec must be a map ({{program: …}}), got {got}")]
@@ -184,6 +184,9 @@ pub enum SpecError {
     },
     #[error("`{field}` is required")]
     Missing { field: &'static str },
+    /// A `query` whose text is not a query (`blue_lang_mondou::QueryError`).
+    #[error("{reason}")]
+    Query { reason: String },
     #[error("`{field}` is empty")]
     Empty { field: &'static str },
     #[error("`{field}` must be {expected}, got {got}")]

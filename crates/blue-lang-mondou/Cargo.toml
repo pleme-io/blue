@@ -13,6 +13,9 @@ blue-lang-syntax = { workspace = true }
 blue-lang-fmt = { workspace = true }
 blue-lang-check = { workspace = true }
 blue-lang-runtime = { workspace = true }
+blue-lang-waku = { workspace = true }
+tatara-lisp-eval = { workspace = true }
+serde_json = { workspace = true }
 
 # `def_hash` keys leave the process (the memo store), so they are BLAKE3, as
 # blue's build inputs are. Features pinned as in `blue-lang-runtime`: no C.

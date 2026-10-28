@@ -14,6 +14,7 @@
 //! blue erase   FILE            the tatara-lisp form after type erasure
 //! blue check   FILE [--format json] [--fix]   every rule, the typing report
 //! blue explain CODE | --list   what a diagnostic code means
+//! blue query   QUERY [PATH...] [--json]   definitions a code query matches
 //! blue doc     NAME | PKG      signature, doc line, namespace, tier, example
 //! blue test    FILE|DIR [--filter P] [--coverage [--json]]   check, then run `test` blocks
 //! blue profile FILE [--top N]  calls, time and allocations per function
@@ -74,6 +75,7 @@ mod diagnostics;
 mod doc;
 mod observe;
 mod prefetch;
+mod query;
 mod reference;
 mod registry;
 mod repl;
@@ -206,6 +208,28 @@ enum Cmd {
         /// formats with its own (`blue check --fix --only B0062 FILE`).
         #[arg(long, requires = "fix", value_name = "CODE")]
         only: Vec<String>,
+    },
+    /// Every definition under PATH (files, or directories of `.b` files; `.`
+    /// when none) that satisfies QUERY, one line per hit:
+    /// `file:line:col: definition  name = value…`.
+    ///
+    /// QUERY is tatara-lisp data, or the name of a `query(name, …)` in the
+    /// Bluefile of this directory or above. Several clauses are their
+    /// conjunction: (match PATTERN) (reaches CAP) (annotated) (unannotated)
+    /// (calls NAME) (package NAME) (longer-than N) (kind function|macro|value)
+    /// (and …) (or …) (not C). CAP is process, filesystem, environment, clock,
+    /// network or host. A PATTERN is tatara's `match` pattern over the
+    /// resolved tree `blue ast` prints, every reference written as what it
+    /// resolved to: `(match `(retsu/first ,xs))` is every call to retsu's
+    /// first, with its argument bound to xs. A file that cannot be resolved is
+    /// named on stderr and the exit is 1.
+    Query {
+        query: String,
+        paths: Vec<PathBuf>,
+        /// One JSON object per hit per line: file, line, column, definition,
+        /// key, kind, bindings, reach.
+        #[arg(long)]
+        json: bool,
     },
     /// Make every reference each FILE makes to another bidama's definition
     /// explicit (`use("retsu", [:first])`, and the bidama's `needs`), keeping
@@ -832,6 +856,8 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             fix,
             only,
         } => check(&file, format, fix, &only),
+
+        Cmd::Query { query, paths, json } => query::run(&query, &paths, json),
 
         Cmd::Migrate { files } => {
             blue_lang_runtime::sys::set_program_args(files);

@@ -360,3 +360,74 @@ A binding (`flat`, `ns`) has:
 | `namespace` | the defining bidama for a `def`; `null` otherwise, and for the root namespace |
 | `name` | the definition's or builtin's name |
 | `key` | the symbol the resolved tree writes, or `null` when it keeps the written one |
+
+## `blue query`
+
+`blue query QUERY [PATH…]` lists every definition under the paths (files, or
+directories of `.b` files; `.` when none) that satisfies a query: one line per
+hit, `file:line:col: definition`, then what the pattern bound, then the chain
+through which the definition reaches each capability a `reaches` clause names.
+The engine answers it (`blue_lang_mondou::Engine::query`), each file loaded as
+`blue check FILE` and the language server load it, so an editor or agent door
+gets the same hits. A file whose imports do not load has no
+resolved tree; it is named on stderr and the exit is 1.
+
+A query is tatara-lisp data. Several clauses are their conjunction:
+
+| clause | holds for a definition when |
+|---|---|
+| `(match PATTERN)` | a form of its resolved tree matches `PATTERN`; each matching form is a hit, with what the pattern bound |
+| `(reaches CAP)` | it names a primitive of host capability `CAP` (`process`, `filesystem`, `environment`, `clock`, `network`; `host` for any), directly or through the definitions it references |
+| `(annotated)`, `(unannotated)` | it is, or is not, a typed definition |
+| `(calls NAME)` | a reference in it resolves to `NAME`: `retsu/first` or `retsu::first` for a bidama's definition, `%root/f` for a script's own, `first` for the builtin |
+| `(package NAME)` | it is defined in bidama `NAME` |
+| `(longer-than N)` | its tree has more than `N` forms |
+| `(kind K)` | it is a `function`, `macro` or `value` |
+| `(and C …)`, `(or C …)`, `(not C)` | the connectives |
+
+A pattern is tatara's `match` pattern, compiled by tatara's own matcher. A
+quasipattern reads as the code it matches: `` `(retsu/first ,xs) `` is a call
+to retsu's `first` with one argument, bound to `xs`; outside an unquote a
+symbol matches itself, `,_` matches anything, a final `,@rest` matches the
+remaining elements, and `,(? string? s)` runs a predicate (under a pure frame
+and a step budget; a predicate naming a host primitive or `eval` is refused).
+Patterns see the resolved tree, the `ns` tree of `blue ast --resolved --json`:
+every reference is written as what it resolved to, so a call written `first`
+after `use("retsu", [:first])` and one written `retsu::first` are both
+`retsu/first`, and a local named `first` is neither. A function definition's
+own `(name params…)` is not a call and is not searched.
+
+`--json` prints one object per hit per line:
+
+| field | meaning |
+|---|---|
+| `file`, `line`, `column` | where the matching form starts, or the definition when no pattern placed the hit |
+| `definition` | the definition's name as written |
+| `key` | its runtime key: `retsu/first`, `%root/f` |
+| `kind` | `function`, `macro` or `value` |
+| `bindings` | each name the pattern bound, and its value as tatara-lisp text |
+| `reach` | each host capability the definition reaches, and one chain to it: the definitions it goes through, then the primitive |
+
+A Bluefile names a query with `query(name, text)`, and `blue query NAME` runs
+it from the project's directory or below:
+
+```text
+query("host_unannotated", "(reaches host) (unannotated)")
+```
+
+Over blue's own standard bidamas (2026-10-28, 255 files):
+
+```text
+$ blue query '(reaches filesystem)' bidamas
+bidamas/anaritikusu/anaritikusu.b:2131:1: write_history  filesystem via write_file
+bidamas/anaritikusu/anaritikusu.b:2488:1: example_append  filesystem via nisshi/el_append -> nisshi/write -> append_file
+…
+146 hit(s) in 255 file(s)
+
+$ blue query '(match `(retsu/first ,xs))' bidamas/zumen
+bidamas/zumen/zumen.b:147:14: layer_names  xs = l
+1 hit(s) in 1 file(s)
+```
+
+`(annotated)` over the same corpus finds nothing: no bidama definition is
+typed yet.

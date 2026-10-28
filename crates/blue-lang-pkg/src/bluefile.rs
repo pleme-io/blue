@@ -174,6 +174,11 @@ pub struct Project {
     pub visibility: Option<String>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub registries: BTreeMap<String, serde_json::Value>,
+    /// `query(name, query)`: a code query `blue query NAME` runs, kept as the
+    /// query's tatara-lisp text (`blue_lang_mondou::Query`). Skipped when
+    /// empty, like `generated`.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub queries: BTreeMap<String, String>,
 }
 
 pub const VISIBILITIES: &[&str] = &["public", "unlisted", "private"];
@@ -722,6 +727,28 @@ const WORDS: &[Word] = &[
             insert_once(&mut into.project.registries, c.word, backend, spec)
         },
     },
+    Word {
+        name: "query",
+        signature: "query(name, query)",
+        doc: "A named code query, run by `blue query NAME [PATH…]`: the query is tatara-lisp data as text, its clauses those of `blue query` (\"(reaches filesystem) (unannotated)\").",
+        min: 2,
+        max: 2,
+        record: |c, into| {
+            let name = c.text(0, "name")?;
+            let text = c.text(1, "query")?;
+            match blue_lang_mondou::Query::parse(&text) {
+                Ok(q) => insert_once(&mut into.project.queries, c.word, name, q.source().to_string()),
+                Err(e) => refuse(
+                    into,
+                    c.word,
+                    name,
+                    crate::deploy::SpecError::Query {
+                        reason: e.to_string(),
+                    },
+                ),
+            }
+        },
+    },
 ];
 
 /// Record a refused entry and let the manifest go on, so the next refused
@@ -1204,6 +1231,7 @@ mod tests {
             .chain(["rule"])
             .chain(["frontend"])
             .chain(["registry"])
+            .chain(["query"])
             // P1b's list argument, 2026-09-23 — `Capability::Collections`.
             .chain(["list", blue_lang_syntax::LOWERED_MAP])
             .chain([
@@ -1912,5 +1940,30 @@ mod tests {
                 infix.callee
             );
         }
+    }
+
+    /// `query` keeps the query's text as tatara-lisp prints it, and refuses
+    /// one that is not a query, naming the entry and what is wrong; a second
+    /// refused entry is reported beside the first.
+    ///
+    /// Red run (2026-10-11): the recorder storing the text without
+    /// `Query::parse`: the text read back as written,
+    /// `"(reaches  host)   (unannotated)"`.
+    #[test]
+    fn query_records_its_text_and_refuses_one_that_is_not_a_query() {
+        let p = project_of("query(\"host\", \"(reaches  host)   (unannotated)\")");
+        assert_eq!(p.queries["host"], "(reaches host) (unannotated)");
+        let err = refusal_of("query(\"a\", \"(frobnicate)\")\nquery(\"b\", \"(reaches disk)\")")
+            .to_string();
+        assert!(
+            err.contains("query(\"a\"") && err.contains("not a clause"),
+            "{err}"
+        );
+        assert!(
+            err.contains("query(\"b\"") && err.contains("not a host capability"),
+            "{err}"
+        );
+        let v = serde_json::to_value(project_of("tool(\"jq\")")).expect("json");
+        assert!(v.get("queries").is_none(), "{v}");
     }
 }

@@ -1,0 +1,98 @@
+[
+  {
+    "name": "keys are ordered address first",
+    "file": "happa.b",
+    "find": "position(k[:kind], [:keyed, :module, :address])",
+    "replace": "position(k[:kind], [:address, :module, :keyed])"
+  },
+  {
+    "name": "a slug keeps upper case",
+    "file": "happa.b",
+    "find": "[retsu::push(first(acc), downcase(c)), false]",
+    "replace": "[retsu::push(first(acc), c), false]"
+  },
+  {
+    "name": "the multiset hash drops its count",
+    "file": "happa.b",
+    "find": "      le64(size(sorted)),\n",
+    "replace": "      [],\n"
+  },
+  {
+    "name": "drift is not taken oldest first",
+    "file": "happa.b",
+    "find": "        c[:since]\n      else\n        0",
+    "replace": "        0\n      else\n        0"
+  },
+  {
+    "name": "a blocked leaf does not make the parent partial",
+    "file": "happa.b",
+    "find": "counts[:failed] + counts[:stalled] + counts[:blocked] > 0",
+    "replace": "counts[:failed] + counts[:stalled] > 0"
+  },
+  {
+    "name": "drift slots are not clamped",
+    "file": "happa.b",
+    "find": "blue::min(blue::max(raw, 1), hi)",
+    "replace": "raw"
+  },
+  {
+    "name": "digest parts run together",
+    "file": "happa.b",
+    "find": "\"#{canonical(part)}|\"",
+    "replace": "\"#{canonical(part)}\""
+  },
+  {
+    "name": "the p95 tolerance is ignored",
+    "file": "happa.b",
+    "find": "p > f + floor(f * tolerance / 100)",
+    "replace": "p > f"
+  },
+  {
+    "name": "a mock is read backwards",
+    "file": "happa.b",
+    "find": "filter((u) -> u[:mock] == true, ups)",
+    "replace": "filter((u) -> u[:mock] == false, ups)"
+  },
+  {
+    "name": "a skip reason is not trimmed",
+    "file": "happa.b",
+    "find": "trim(first(blue::split(raw, \":\")))",
+    "replace": "first(blue::split(raw, \":\"))"
+  },
+  {
+    "name": "a stall waits twice its window",
+    "file": "happa.b",
+    "find": "now_ms - beat > window",
+    "replace": "now_ms - beat > window * 2"
+  },
+  {
+    "name": "workers below the global cap stand",
+    "file": "happa.b",
+    "find": "offed[:workers] < offed[:global]",
+    "replace": "false"
+  },
+  {
+    "name": "a merge keeps the larger root",
+    "file": "happa.b",
+    "find": "compare(ra, rb) < 0",
+    "replace": "compare(ra, rb) > 0"
+  },
+  {
+    "name": "a leaf checked at its slot is due again",
+    "file": "happa.b",
+    "find": "last.nil? or last < slot",
+    "replace": "last.nil? or last <= slot"
+  },
+  {
+    "name": "drift offsets bunch at the start",
+    "file": "happa.b",
+    "find": "floor(i * iv / n)",
+    "replace": "floor(i * iv / n / 2)"
+  },
+  {
+    "name": "generate drafts nothing",
+    "file": "happa.b",
+    "find": "if mode == :generate and fix[:draft] != nil",
+    "replace": "if false"
+  }
+]

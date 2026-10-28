@@ -174,7 +174,7 @@ Higher binding power binds tighter.
 | `join_lines` | `join_lines(xs)` | 1 | The elements' text, one per line, with no newline after the last: what a string with a \n escape is written as (B0065). |
 | `line_break` | `line_break` | 0 | The one-character line-break string, "\n" (B0065). `newline` prints one. |
 | `replace` | `replace(s, from, to)` | 3 | Every occurrence of from replaced by to. |
-| `split` | `split(s, sep)` | 2 | The fields between separators, empty ones kept (okite D0012): split("a,b,", ",") is ["a", "b", ""]. An empty sep splits into characters. |
+| `split` | `split(s, sep)` | 2 | The fields between separators, empty ones kept (okite D0012): split("a,b,", ",") is ["a", "b", ""]. An empty sep splits into characters. Also defined by `happa` (`happa::split`): a file that lists it gets that one. |
 | `starts_with?` | `starts_with?(s, prefix)` | 2 | Whether s begins with prefix. |
 | `string` | `string(x)` | 1 | tatara-lisp's rendering: :a stays ":a" and a list prints as (1). Use to_s. |
 | `text_bytes` | `text_bytes(s)` | 1 | The UTF-8 bytes of a string, as a list of integers 0..255: text_bytes("é") is [195, 169]. |

@@ -61,6 +61,7 @@ use("gurafu")
 use("gyouretsu", [:dot])
 use("hadome")
 use("haibi")
+use("happa")
 use("heddaa")
 # waive B0016: zenbu is the facade, and depending on it means depending on heni
 use("heni")
@@ -230,6 +231,7 @@ test "every bidama in the distribution answers through this one import"
     {data: {"hero" => {"id" => "2001"}}}
   assert touroku::visibility_of({}) == "private"
   assert kiibariu::versioned_key("o", "h", :order, 1) == "o:vh:order:1"
+  assert happa::key("aws_instance.web[3]") == {kind: :keyed, value: "3"}
   assert gurafu::topo(gurafu::graph([["b", "c"], ["a", "b"]], {})) ==
     ["a", "b", "c"]
   assert sutoriimu::api("s", "INFO") == "$JS.API.STREAM.INFO.s"

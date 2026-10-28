@@ -665,41 +665,41 @@ C	goui?	suspect?	pure	suspect?(history, now) -> Bool	time	-	absent	Whether a mem
 C	goui?	tick	pure	tick(clock, event) -> clock	time	-	absent	Advance a logical or hybrid clock.	3	tick(clock, event) -> clock	yes
 C	goui?	watch	stream	watch(group, f) -> nil	cancel	-	absent	Call f when membership or leader changes.	3	watch(group, f) -> nil	yes
 C	goui?	with_lock	effect	with_lock(name, f, opts) -> value	cancel,deadline,resource	-	absent	Run f while holding a named lease, then release.	2	with_lock(name, f, opts) -> value	yes
-A	gurafu?	add_edge	pure	add_edge(graph, from, to, opts) -> graph	-	-	absent	graph with an edge added; weight optional	2		na
-A	gurafu?	add_node	pure	add_node(graph, node) -> graph	-	-	absent	graph with a node added	2		na
-A	gurafu?	closure	pure	closure(graph) -> graph	-	-	absent	graph with an edge for every reachable pair	3	closure(graph) -> graph	yes
-A	gurafu?	color	pure	color(graph, opts) -> map	-	-	absent	give nodes colors so neighbors differ	4		na
-A	gurafu?	components	pure	components(graph) -> [set]	-	-	absent	groups of nodes joined by edges	2		na
-A	gurafu?	cycle	pure	cycle(graph) -> [node] or nil	-	-	absent	one cycle if the graph has any	2		na
-A	gurafu?	degree	pure	degree(graph, node) -> int	-	-	absent	number of edges at a node	2		na
-A	gurafu?	depth	pure	depth(tree, node) -> int	-	-	absent	edges from the root to a node	2		na
-A	gurafu?	distances	pure	distances(graph, from) -> map	-	-	absent	cheapest cost from a node to every node	2		na
-A	gurafu?	edges	pure	edges(graph) -> [edge]	-	-	absent	every edge, sorted	2		na
-A	gurafu?	flow	pure	flow(graph, from, to) -> record	-	-	absent	largest flow between two nodes	4		na
-A	gurafu?	fold	pure	fold(tree, f) -> value	-	-	absent	reduce a tree from the leaves up	2	fold(tree, f) -> value	yes
-A	gurafu?	graft	pure	graft(tree, node, subtree) -> tree	-	-	absent	tree with a subtree attached at a node	3	graft(tree, node) -> tree	no
-A	gurafu?	graph	decl	graph(edges, opts) -> graph	validate	-	absent	build a graph from edges; directed or not	2	graph(edges, opts) -> graph	yes
-A	gurafu?	has_edge?	pure	has_edge?(graph, from, to) -> Bool	-	-	absent	whether the edge exists	2		na
-A	gurafu?	kids	pure	kids(tree, node) -> [node]	-	-	absent	direct children of a node	2		na
-A	gurafu?	lca	pure	lca(tree, a, b) -> node	-	-	absent	nearest common ancestor of two nodes	3		na
-A	gurafu?	leaves	pure	leaves(tree) -> [node]	-	-	absent	nodes without children	2		na
-A	gurafu?	neighbors	pure	neighbors(graph, node) -> [node]	-	-	absent	nodes one edge away	2	neighbors(graph, node) -> [node]	yes
-A	gurafu?	nodes	pure	nodes(graph) -> [node]	-	-	absent	every node, sorted	2		na
-A	gurafu?	parent	pure	parent(tree, node) -> node or nil	-	-	absent	parent of a node, nil at the root	2	parent(tree, node) -> node or nil	yes
-A	gurafu?	path	pure	path(graph, from, to, opts) -> [node] or nil	-	-	absent	cheapest route between two nodes	2	path(graph, from, to, opts) -> [node] or nil	yes
-A	gurafu?	prune	pure	prune(tree, f) -> tree	-	-	absent	tree without subtrees where f holds	3		na
-A	gurafu?	reachable	pure	reachable(graph, start) -> set	-	-	absent	every node a start node can reach	2		na
-A	gurafu?	reduction	pure	reduction(graph) -> graph	-	-	absent	smallest graph with the same reachability	3		na
-A	gurafu?	remove_edge	pure	remove_edge(graph, from, to) -> graph	-	-	absent	graph without one edge	2		na
-A	gurafu?	remove_node	pure	remove_node(graph, node) -> graph	-	-	absent	graph without a node and its edges	2		na
-A	gurafu?	reverse	pure	reverse(graph) -> graph	-	-	absent	graph with every edge turned around	2	reverse(graph) -> graph	yes
-A	gurafu?	root	pure	root(tree) -> node	-	-	absent	the node without a parent	2	root(tree) -> node	yes
-A	gurafu?	scc	pure	scc(graph) -> [set]	-	-	absent	strongly connected groups of a directed graph	3		na
-A	gurafu?	spanning	pure	spanning(graph) -> graph	-	-	absent	cheapest tree that joins all nodes	3		na
-A	gurafu?	subgraph	pure	subgraph(graph, nodes) -> graph	-	-	absent	graph restricted to some nodes	2		na
-A	gurafu?	topo	pure	topo(graph) -> [node]	error	-	absent	nodes ordered so every edge points forward	2		na
-A	gurafu?	tree	decl	tree(value, kids) -> tree	validate	-	absent	rooted tree: a value and its subtrees	2	tree(value, kids) -> tree	yes
-A	gurafu?	walk	pure	walk(graph, start, order) -> [node]	-	-	absent	nodes in breadth-first or depth-first order	2	walk(graph, opts) -> [node]	no
+A	gurafu	add_edge	pure	add_edge(graph, from, to) -> graph	-	-	exists:gurafu	a graph that also holds the edge from one node to another, adding both nodes	2		na
+A	gurafu	add_node	pure	add_node(graph, node) -> graph	-	-	exists:gurafu	a graph that also holds a node	2		na
+A	gurafu	closure	pure	closure(graph) -> graph	-	-	absent	graph with an edge for every reachable pair	3	closure(graph) -> graph	yes
+A	gurafu	color	pure	color(graph, opts) -> map	-	-	absent	give nodes colors so neighbors differ	4		na
+A	gurafu	components	pure	components(graph) -> [set]	-	-	absent	groups of nodes joined by edges	2		na
+A	gurafu	cycle	pure	cycle(graph) -> [node] or nil	-	-	exists:gurafu	one cycle of a graph as its nodes in edge order, starting at the smallest, or nil when the graph has none	2		na
+A	gurafu	degree	pure	degree(graph, node) -> int	-	-	absent	number of edges at a node	2		na
+A	gurafu	depth	pure	depth(graph, node) -> int	-	-	exists:gurafu	how many edges lie on the longest path from a source to a node; a cycle is refused as topo refuses it	2		na
+A	gurafu	distances	pure	distances(graph, from) -> map	-	-	absent	cheapest cost from a node to every node	2		na
+A	gurafu	edges	pure	edges(graph) -> [edge]	-	-	exists:gurafu	every edge of a graph as a [from, to] pair, sorted	2		na
+A	gurafu	flow	pure	flow(graph, from, to) -> record	-	-	absent	largest flow between two nodes	4		na
+A	gurafu	fold	pure	fold(tree, f) -> value	-	-	absent	reduce a tree from the leaves up	2	fold(tree, f) -> value	yes
+A	gurafu	graft	pure	graft(tree, node, subtree) -> tree	-	-	absent	tree with a subtree attached at a node	3	graft(tree, node) -> tree	no
+A	gurafu	graph	decl	graph(edges, opts) -> graph	validate	-	exists:gurafu	a graph from edge pairs; `nodes:` adds nodes with no edge, and `directed: false` adds each edge both ways	2	graph(edges, opts) -> graph	yes
+A	gurafu	has_edge?	pure	has_edge?(graph, from, to) -> Bool	-	-	exists:gurafu	whether a graph holds the edge from one node to another	2		na
+A	gurafu	kids	pure	kids(tree, node) -> [node]	-	-	absent	direct children of a node	2		na
+A	gurafu	lca	pure	lca(tree, a, b) -> node	-	-	absent	nearest common ancestor of two nodes	3		na
+A	gurafu	leaves	pure	leaves(graph) -> [node]	-	-	exists:gurafu	the nodes no edge leaves, sorted	2		na
+A	gurafu	neighbors	pure	neighbors(graph, node) -> [node]	-	-	exists:gurafu	the nodes one edge away from a node, sorted; [] for a node the graph does not hold	2	neighbors(graph, node) -> [node]	yes
+A	gurafu	nodes	pure	nodes(graph) -> [node]	-	-	exists:gurafu	every node of a graph, sorted	2		na
+A	gurafu	parent	pure	parent(tree, node) -> node or nil	-	-	absent	parent of a node, nil at the root	2	parent(tree, node) -> node or nil	yes
+A	gurafu	path	pure	path(graph, from, to, opts) -> [node] or nil	-	-	absent	cheapest route between two nodes	2	path(graph, from, to, opts) -> [node] or nil	yes
+A	gurafu	prune	pure	prune(tree, f) -> tree	-	-	absent	tree without subtrees where f holds	3		na
+A	gurafu	reachable	pure	reachable(graph, start) -> [node]	-	-	exists:gurafu	every node a start node reaches by one edge or more, sorted; the start is in it only when it lies on a cycle	2		na
+A	gurafu	reduction	pure	reduction(graph) -> graph	-	-	absent	smallest graph with the same reachability	3		na
+A	gurafu	remove_edge	pure	remove_edge(graph, from, to) -> graph	-	-	exists:gurafu	a graph without one edge; its nodes stay	2		na
+A	gurafu	remove_node	pure	remove_node(graph, node) -> graph	-	-	exists:gurafu	a graph without a node and every edge at it	2		na
+A	gurafu	reverse	pure	reverse(graph) -> graph	-	-	exists:gurafu	a graph with every edge turned around	2	reverse(graph) -> graph	yes
+A	gurafu	root	pure	root(tree) -> node	-	-	absent	the node without a parent	2	root(tree) -> node	yes
+A	gurafu	scc	pure	scc(graph) -> [set]	-	-	absent	strongly connected groups of a directed graph	3		na
+A	gurafu	spanning	pure	spanning(graph) -> graph	-	-	absent	cheapest tree that joins all nodes	3		na
+A	gurafu	subgraph	pure	subgraph(graph, nodes) -> graph	-	-	exists:gurafu	a graph restricted to some nodes and the edges between them	2		na
+A	gurafu	topo	pure	topo(graph) -> [node]	error	-	exists:gurafu	every node ordered so each edge points forward, in layers from the sources, each layer sorted; a cycle is refused with :refused, naming it	2		na
+A	gurafu	tree	decl	tree(value, kids) -> tree	validate	-	absent	rooted tree: a value and its subtrees	2	tree(value, kids) -> tree	yes
+A	gurafu	walk	pure	walk(graph, start, order) -> [node]	-	-	absent	nodes in breadth-first or depth-first order	2	walk(graph, opts) -> [node]	no
 A	gyouretsu	add	pure	add(a, b) -> matrix	error	-	partial:gyouretsu	entrywise sum; shape mismatch raises	0	add(a, b) -> matrix	yes
 G	gyouretsu	compile	pure	compile(graph) -> compiled graph	validate	ml-forge	absent	compile a tensor graph; shapes proved before any run	3	compile(graph) -> compiled graph	yes
 A	gyouretsu	cross	pure	cross(a, b) -> vector	error	-	exists:gyouretsu	cross product of two 3-vectors	0		na

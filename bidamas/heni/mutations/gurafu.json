@@ -1,0 +1,44 @@
+[
+  {
+    "name": "a layer is left in arrival order",
+    "file": "gurafu.b",
+    "find": "ordered(filter((t) -> get(left, t) == 0, nexts))",
+    "replace": "filter((t) -> get(left, t) == 0, nexts)"
+  },
+  {
+    "name": "a cycle is walked backwards",
+    "file": "gurafu.b",
+    "find": "blue::reverse(drop(1, loop))",
+    "replace": "drop(1, loop)"
+  },
+  {
+    "name": "a cycle is not turned to its smallest node",
+    "file": "gurafu.b",
+    "find": "turned = position(first(ordered(forward)), forward)",
+    "replace": "turned = 0"
+  },
+  {
+    "name": "leaves are the nodes with an edge out",
+    "file": "gurafu.b",
+    "find": "filter((n) -> is_empty(neighbors(g, n)), nodes(g))",
+    "replace": "filter((n) -> not is_empty(neighbors(g, n)), nodes(g))"
+  },
+  {
+    "name": "directed false adds no reverse edges",
+    "file": "gurafu.b",
+    "find": "pairs = if opts[:directed] == false",
+    "replace": "pairs = if opts[:directed] == true"
+  },
+  {
+    "name": "nodes are left unsorted",
+    "file": "gurafu.b",
+    "find": "sort_keyed((n) -> n, distinct(ns))",
+    "replace": "distinct(ns)"
+  },
+  {
+    "name": "a cyclic graph is ordered anyway",
+    "file": "gurafu.b",
+    "find": "  if c != nil\n    raise(:refused",
+    "replace": "  if false\n    raise(:refused"
+  }
+]

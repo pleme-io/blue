@@ -57,6 +57,7 @@ use("empresa")
 use("fairu")
 use("gamen")
 use("gitto")
+use("gurafu")
 use("gyouretsu", [:dot])
 use("hadome")
 use("haibi")
@@ -229,6 +230,8 @@ test "every bidama in the distribution answers through this one import"
     {data: {"hero" => {"id" => "2001"}}}
   assert touroku::visibility_of({}) == "private"
   assert kiibariu::versioned_key("o", "h", :order, 1) == "o:vh:order:1"
+  assert gurafu::topo(gurafu::graph([["b", "c"], ["a", "b"]], {})) ==
+    ["a", "b", "c"]
   assert sutoriimu::api("s", "INFO") == "$JS.API.STREAM.INFO.s"
 end
 

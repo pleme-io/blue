@@ -580,7 +580,7 @@ edge(
   "render with fixed key order"
 )
 
-edge("deeta::walk", :refines, "gurafu?::walk", "documents are trees")
+edge("deeta::walk", :refines, "gurafu::walk", "documents are trees")
 edge("deeta::merge", :refines, "jisho::merge", "deep merge for documents")
 edge("deeta::select", :refines, "jisho::select", "paths instead of keys")
 edge("deeta::canonical", :requires, "deeta::walk", "sorts every level")

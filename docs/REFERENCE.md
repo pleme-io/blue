@@ -215,7 +215,7 @@ Higher binding power binds tighter.
 | `range` | `range(a[, b][, step])` | 1..3 | Ints from a up to but not including b by step; range(n) is 0 to n - 1. Native, so any length is safe. |
 | `repeatedly` | `repeatedly(f, n)` | 2 | A list of n calls to the zero-argument function f. The FUNCTION comes first. |
 | `rest` | `rest(xs)` | 1 | All but the first; raises on []. retsu's rest answers []. Also defined by `retsu` (`retsu::rest`): a file that lists it gets that one. |
-| `reverse` | `reverse(seq)` | 1 | The list or string backwards. Raises on nil. |
+| `reverse` | `reverse(seq)` | 1 | The list or string backwards. Raises on nil. Also defined by `gurafu` (`gurafu::reverse`): a file that lists it gets that one. |
 | `second` | `second(xs)` | 1 | The second element; raises when there is none. |
 | `sort_keyed` | `sort_keyed(key, xs)` | 2 | A stable sort by key(x), under compare's rules; native, so safe at any length. Mixed key kinds raise. |
 | `take` | `take(n, xs)` | 2 | The first n elements, or all of them. The COUNT comes first. |
@@ -473,7 +473,7 @@ Higher binding power binds tighter.
 
 | name | call | arity | meaning |
 |---|---|---|---|
-| `cycle` | `cycle(xs)` | 1 | A tatara-lisp lazy sequence repeating xs. blue's list words do not force it: take(2, cycle(xs)) is not a plain list. |
+| `cycle` | `cycle(xs)` | 1 | A tatara-lisp lazy sequence repeating xs. blue's list words do not force it: take(2, cycle(xs)) is not a plain list. Also defined by `gurafu` (`gurafu::cycle`): a file that lists it gets that one. |
 | `force` | `force(p)` | 1 | The value of a promise, computed once; a non-promise is returned as is. |
 | `realize` | `realize(lazy)` | 1 | A finite tatara-lisp lazy sequence forced into a list. On anything built from cycle it does not terminate. |
 

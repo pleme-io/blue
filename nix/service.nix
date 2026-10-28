@@ -1,4 +1,4 @@
-{ lib, pkgs, blue, bl, common, src, m, name, bluePath, programFile, lockFile, imageGate, oci, moduleTrio, chartLibraries ? { } }:
+{ lib, pkgs, blue, bl, common, src, m, name, bluePath, programFile, lockFile, imageGate, oci, moduleTrio, chartLibraries ? { }, component ? null }:
 
 let
   inherit (builtins) attrNames;
@@ -30,6 +30,44 @@ let
     own;
 
   program = sn: spec: "${apps.${sn}}/app/${baseNameOf spec.program}";
+
+  wasmOwn = lib.filterAttrs (_: s: (s.runtime.kind or "wasm") == "wasm") own;
+
+  components = lib.optionalAttrs (component != null) (lib.mapAttrs
+    (sn: spec: pkgs.runCommand "service-${sn}-component" { } (''
+      mkdir -p $out/app/share/${sn}
+      ln -s ${component} $out/component.wasm
+      cp -L ${programFile spec.program} $out/app/${baseNameOf spec.program}
+      cp -L ${trees.${sn}}/config/${sn}.yaml $out/app/share/${sn}/defaults.yaml
+    '' + lib.concatMapStrings
+      (a: ''
+        mkdir -p "$out/app/${dirOf a}"
+        cp -rL ${builtins.path { path = src + "/${a}"; name = baseNameOf a; }} "$out/app/${a}"
+      '')
+      (spec.assets or [ ])))
+    wasmOwn);
+
+  componentServesCheck = sn: spec:
+    pkgs.runCommand "service-${sn}-component-serves" { nativeBuildInputs = [ pkgs.curl pkgs.wasmtime ]; __darwinAllowLocalNetworking = true; } ''
+      export HOME=$TMPDIR
+      wasmtime run -S inherit-network=y -S tcp=y \
+        --dir ${components.${sn}}/app::/app \
+        --env BLUE_SERVICE=${sn} \
+        --env ${envPrefix sn}DEFAULTS=/app/share/${sn}/defaults.yaml \
+        --env ${envPrefix sn}LISTEN__HOST=127.0.0.1 \
+        ${components.${sn}}/component.wasm /app/${baseNameOf spec.program} > serve.log 2>&1 &
+      pid=$!
+      for i in $(seq 1 300); do
+        if curl -sf -o health.txt http://127.0.0.1:${toString spec.port}${spec.probe}; then break; fi
+        if ! kill -0 $pid 2>/dev/null; then cat serve.log >&2; exit 1; fi
+        sleep 0.1
+      done
+      code=$(curl -s -o root.txt -w '%{http_code}' http://127.0.0.1:${toString spec.port}/ || true)
+      kill $pid
+      test -s health.txt || { echo "service-${sn}-component-serves: ${spec.probe} never answered from the component" >&2; cat serve.log >&2; exit 1; }
+      test "$code" -ge 200 -a "$code" -lt 500 || { echo "service-${sn}-component-serves: / answered $code" >&2; cat root.txt serve.log >&2; exit 1; }
+      cat health.txt root.txt > $out
+    '';
 
   envOf = sn: {
     BLUE_SERVICE = sn;
@@ -245,6 +283,7 @@ let
       "service-${sn}-chart" = chartCheck sn spec;
     }
     // lib.optionalAttrs (executables ? ${sn}) { "service-${sn}-serves" = servesCheck sn spec; }
+    // lib.optionalAttrs (components ? ${sn}) { "service-${sn}-component-serves" = componentServesCheck sn spec; }
     // lib.optionalAttrs ((spec.schema or { }) != { }) { "service-${sn}-migrations" = migrationsCheck sn spec; }
     // lib.optionalAttrs (trios ? ${sn}) { "service-${sn}-trio" = trioCheck sn trios.${sn}; }
     // lib.optionalAttrs (imageSets ? ${sn}) {
@@ -257,9 +296,10 @@ let
     services;
 in
 {
-  inherit services trios executables;
+  inherit services trios executables components;
 
   packages = executables
+    // lib.mapAttrs' (sn: c: lib.nameValuePair "service-${sn}-component" c) components
     // lib.mapAttrs' (sn: t: lib.nameValuePair "service-${sn}-tree" t) trees
     // lib.concatMapAttrs (sn: set: { "image-${sn}" = set.packages."${sn}Image"; }) imageSets;
 

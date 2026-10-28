@@ -217,7 +217,6 @@ fn install_process<H: 'static>(interp: &mut Interpreter<H>) {
         "exec_into",
         Arity::AtLeast(2),
         |args: &[Value], _h: &mut H, span| {
-            use std::os::unix::process::CommandExt;
             let pairs = env_pairs(&args[0], "exec_into", span)?;
             let (cmd, rest) = split_cmd(&args[1..], "exec_into", span)?;
             let mut c = Command::new(&*cmd);
@@ -225,10 +224,9 @@ fn install_process<H: 'static>(interp: &mut Interpreter<H>) {
             for (k, v) in &pairs {
                 c.env(k.as_ref(), v.as_ref());
             }
-            let e = c.exec();
             Err(EvalError::native_fn(
                 "exec_into",
-                format!("{cmd}: {e}"),
+                format!("{cmd}: {}", replace_process(&mut c)),
                 span,
             ))
         },
@@ -302,6 +300,17 @@ fn env_pairs(
         }
     }
     Ok(out)
+}
+
+#[cfg(unix)]
+fn replace_process(c: &mut Command) -> String {
+    use std::os::unix::process::CommandExt;
+    c.exec().to_string()
+}
+
+#[cfg(not(unix))]
+fn replace_process(_c: &mut Command) -> String {
+    String::from("this target has no process to replace (a WASI component has no exec)")
 }
 
 fn capture_result(out: &std::process::Output) -> Value {

@@ -40,6 +40,24 @@
             "text": "text"
           }
         },
+        "access": {
+          "effects": [
+            "network",
+            "clock",
+            "entropy",
+            "environment"
+          ],
+          "egress": [],
+          "reads": [],
+          "writes": [],
+          "listen": [
+            18080
+          ],
+          "exec": []
+        },
+        "runtime": {
+          "kind": "wasm"
+        },
         "output": "deploy/greeter"
       }
     }

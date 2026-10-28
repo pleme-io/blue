@@ -5,7 +5,8 @@ summary: the default platform for a blue service, from Bluefile to a running nod
 
 # BUILD-STACK — the default platform for a blue service, from Bluefile to a running node
 
-Status: DESIGN, 2026-10-27. Nothing is built unless §8 says so. It joins three
+Status: DESIGN, 2026-10-27; the runtime rung (§2) is decided, and its judge
+and component are built, 2026-10-28. Nothing else is built unless §8 says so. It joins three
 designs into one chain: `SERVICE-ACCESS.md` (what a service may touch),
 `BUILD-ASSURANCE.md` (what a build proves, how fast, from which cache) and
 theory `BLUE-EXECUTION.md` §IV (blue to wasm).
@@ -13,9 +14,10 @@ theory `BLUE-EXECUTION.md` §IV (blue to wasm).
 ## 1. Destination
 
 A blue service is one declaration. Compiling it produces, with nothing written
-by hand: one **wasm component** (the default) or one **distroless image** (the
-typed fallback), one **Helm chart**, and the **Flux objects** for each place it
-runs. The build runs once, on the build node, and lands in the **sui** cache;
+by hand: one **wasm component** that engenho runs on its wasm backend (the
+default) or one **native** artifact (the typed fallback: a nix closure on an
+engenho node, a distroless image on a foreign cluster), one **Helm chart**, and
+the **Flux objects** for each place it runs. The build runs once, on the build node, and lands in the **sui** cache;
 every other machine substitutes. **engenho** runs the chart on any node.
 GitHub Actions is the trigger and the face; sui is the scheduler and the cache.
 No Hydra, no hand-written YAML, no image with a shell, no service with a
@@ -23,9 +25,9 @@ writable disk.
 
 ```mermaid
 flowchart LR
-  BF[Bluefile service + model + access] --> C{platform}
-  C -->|default| W[wasm component<br/>imports = access effects]
-  C -->|typed fallback| D[distroless image<br/>mkHardenedImageSet]
+  BF[Bluefile service + model + access] --> C{runtime}
+  C -->|default| W[wasm component<br/>engine + program bundle]
+  C -->|named WASI gap| D[native<br/>nix closure or distroless image]
   W --> H[Helm chart<br/>haibi, values schema]
   D --> H
   H --> F[Flux HelmRelease + Kustomization<br/>per placement]
@@ -36,17 +38,45 @@ flowchart LR
   S -. substitutes .-> E
 ```
 
-## 2. The platform ladder (the standard)
+## 2. The runtime rung (the standard; operator, 2026-10-28)
 
-| Rung | When | What it guarantees |
+**A blue service's default runtime is a WASI preview 2 component on engenho's
+wasm backend. Native is the fallback, and it requires a named WASI-capability
+gap.** Native stays one typed field away: behaviour is configured off, never
+deleted.
+
+| Rung | When | What runs |
 |---|---|---|
-| **wasm component** (default) | every blue service whose effects are all host imports | the module has an import only for each effect its `access` allows (`blue_lang_waku::Capability`, one import each in module `blue:host`); a filesystem the access refuses is not refused at runtime, it is absent from the module. Smallest artifact: the blue engine is built to wasm once per blue revision and cached, so a service adds its program and its imports |
-| **distroless image** (typed fallback) | a `host` service (Rust today, FUEKI H1), or an effect wasm cannot carry (a GPU, a kernel ABI: CONTAIN THE C) | substrate `mkHardenedImageSet`: no shell, no package manager, non-root, read-only root, 0 CVEs by construction; the Bluefile states the reason: `platform: :distroless, because: "<typed reason>"` |
-| never | — | an image with a shell, a writable root filesystem, a service that reads or writes disk outside its declared `access` |
+| **wasm** (default, no field) | every service whose `access` WASI can grant | blue's engine component (`crates/blue-lang-component`, built once per blue revision for `wasm32-wasip2`) plus the service's program bundle (`packages.service-<name>-component`); on engenho the pod will carry `runtimeClassName: wasm` and image `nix:<closure>` once the chart renders them (S4), and engenho's `kidou` preopens the bundle read-only at `/app` and derives the grants from `access` |
+| **native** | `runtime: :native, because: :<gap>`, where the gap is real | the program as a native process: a nix closure on an engenho node, `mkHardenedImageSet`'s distroless image on a cluster that runs OCI |
+| never | — | an image with a shell, a writable root filesystem, a service that reads or writes outside its declared `access` |
 
-The rung is a Bluefile fact, defaulted from the service: no `platform` means
-wasm. A service that asks for distroless without a reason is refused alone,
-like any other bad entry.
+### 2.1 The decision rule: which access WASI grants, which forces native
+
+The judge is `blue_lang_pkg::deploy::runtime` (`needs`, `runtime_of`). It reads
+the service's `access` and its `host`, never a guess:
+
+| Declaration | WASI grant | Rung |
+|---|---|---|
+| `:network`, `listen` | `wasi:sockets` TCP bind on each listen port | wasm |
+| `:network`, `egress: ["host:port"]` | `wasi:sockets` connect and `wasi:http` outgoing to exactly those peers | wasm |
+| `:filesystem`, `reads` / `writes` | `wasi:filesystem` preopens, read-only for reads, writable for writes | wasm |
+| `:clock`, `:entropy`, `:environment` | `wasi:clocks`, `wasi:random`, `wasi:cli/environment` | wasm |
+| `exec: [...]` or `:process` | none: WASI preview 2 has no process spawn or exec | native, `because: :process` |
+| `host: "<package>"` | none: the program is a native host binary | native, `because: :host_program` |
+| a device, GPU or kernel ABI (CONTAIN THE C) | none | native, `because: :device` (a world fact the access cannot show) |
+
+The judge refuses each bad entry alone and names it:
+
+- wasm while the service needs a gap: *"a service runs as a wasm component by
+  default, and its access declares exec /bin/git: WASI preview 2 has no process
+  spawn or exec; state `runtime: :native, because: :process`"*;
+- `runtime: :native` with no `because`, an unknown gap, or a gap nothing in the
+  service needs (a stale reason would keep a service native for nothing);
+- `because` without `runtime: :native`.
+
+This keeps FUEKI R1: the declaration states what the service needs; the rung
+follows from it, and *where* it runs stays placement.
 
 ## 3. Everything is a Helm chart
 
@@ -54,9 +84,9 @@ engenho runs a chart on any node, so the chart is the one packaging unit for
 every kind of workload. haibi already renders each service's chart, values
 schema, config and migration into `deploy/<service>/`; the chart gains:
 
-| Piece | wasm rung | distroless rung |
+| Piece | wasm rung | native rung |
 |---|---|---|
-| workload | the runtime class of theory `WASM-STACK.md`'s umbrella, or engenho's native wasm backend | a Deployment of the image |
+| workload (S4, design) | a Deployment with `pleme-lib.runtimeclass` (`runtimeClassName: wasm`), image `pleme-lib.wasm-component.image` (`nix:<closure>`), annotations `pleme-lib.wasm-component.annotations` (`blue.pleme.io/access`, `wasm.pleme.io/app`) | a Deployment of the nix closure or the image; annotation `blue.pleme.io/native-because` |
 | access | `SERVICE-ACCESS.md` §4: NetworkPolicy egress, read-only volumes for `reads`, nothing writable unless `writes` names it | the same |
 | values schema | generated, closed (`additionalProperties: false`) | the same |
 | Flux | a `HelmRelease` and `Kustomization` per `placement`, rendered in the GitOps repo from the pinned service flake (`SERVICE-ACCESS.md` §5) | the same |
@@ -70,7 +100,7 @@ lowers through `blue.lib.project` to substrate's nix (`lib/service/helm-build.ni
 |---|---|---|
 | `service(name, {...})` | the program, port, probes, config | haibi's chart (values plus pleme-lib `include`s) |
 | `access: {effects, egress, reads, writes, listen, exec}` | what it may touch (`SERVICE-ACCESS.md` §3) | pleme-lib access network policy and volumes; the engine posture; unit sandbox |
-| `platform: :wasm` / `:distroless, because: "..."` | the artifact rung (§2) | the wasm component or `mkHardenedImageSet` image; the chart's workload kind |
+| `runtime: :native, because: :process` (absent: wasm) | the runtime rung (§2) | `packages.service-<name>-component` and the wasm workload, or the native workload; `checks.service-<name>-component-serves` runs the component under wasmtime |
 | `schema: {...}` / `model(...)` | its data | DDL and the shinka migration |
 | `cache: {...}`, `secrets: [...]` | bindings | pleme-cache values; pleme-lib typed secret refs |
 | `supervision: {...}` | the OTP tree (§5.1) | the service runtime's supervisor; probes |
@@ -134,9 +164,12 @@ Turning it off is a typed waiver on the entry, never a missing entry.
 
 | Question | Chosen | Rejected, and why |
 |---|---|---|
-| Default artifact | a wasm component | **a container image by default**: a filesystem, a libc and a process model the service never asked for, each a place a CVE lives |
+| Default artifact | a wasm component on engenho's wasm backend | **a container image by default**: a filesystem, a libc and a process model the service never asked for, each a place a CVE lives |
+| Who decides the rung | the judge, from `access` and `host`; the author states only the gap | **a free `platform` field**: an author picks native for convenience and nothing records why |
+| How a service becomes a component | one engine component per blue revision, plus a per-service bundle the kubelet preopens read-only at `/app` | **a component compiled per service**: a full Rust build per service; **composition with a data plug**: a second toolchain (wac) for what a preopen does |
+| The fallback's reason | a closed set of WASI gaps (`process`, `host_program`, `device`) | **free text**: a reason no judge can check goes stale silently |
 | How access binds the artifact | import presence | **runtime checks only**: a refusal that exists only while the checker is right |
-| Fallback | distroless with a typed reason | **any base image**: the reason disappears and the base grows |
+| Fallback | native with a named WASI gap; distroless when it is an image | **any base image**: the reason disappears and the base grows |
 | Packaging unit | a Helm chart for every rung | **a NixOS module for hosts and a chart for clusters**: two renderings drift; engenho makes the chart run on a host |
 | CI scheduler | sui behind Actions | **Hydra**: a second scheduler, cache and UI beside the ones the fleet already runs |
 | Where builds run | the build node only | **every workstation**: each iteration builds twice, once for the wrong architecture |
@@ -145,13 +178,13 @@ Turning it off is a typed waiver on the entry, never a missing entry.
 
 | Step | Work | Gate |
 |---|---|---|
-| S1 | `platform` field on `service`, default wasm, distroless with a reason | parse tests, each refusal alone |
-| S2 | blue engine to wasm once per revision (theory `BLUE-EXECUTION.md` §IV), cached in sui | a service component is the engine plus its program |
+| S1 | `runtime` and `access` on `service`, default wasm, native with a named gap | parse tests, each refusal alone (`deploy::service` tests) |
+| S2 | blue engine to a WASI preview 2 component once per revision, cached in sui | a service component is the engine plus its program bundle; `checks.service-<name>-component-serves` |
 | S3 | imports from `access.effects` | a component built under the default access has no filesystem import (inspect the module) |
-| S4 | haibi chart for the wasm rung | rendered chart test |
+| S4 | haibi chart for the wasm rung, on pleme-lib's `pleme-wasm-component` mode (helmworks H4) | rendered chart test (`checks.service-<name>-chart`) |
 | S5 | Flux objects per `placement` in the GitOps repo | that repo's `-fresh` check |
 | S6 | `blue-project.yml` adopted by every Bluefile repo, sui scheduling builds | a fresh runner builds with zero local Rust (`BUILD-ASSURANCE.md` B1) |
-| S7 | kensa: the host rung today with its reason, and the path off it (FUEKI H1) | kensa's Bluefile states `platform: :distroless` with the reason |
+| S7 | kensa: the native rung today with its gap, and the path off it (FUEKI H1) | kensa's Bluefile states `runtime: :native, because: :host_program` |
 | S8 | the service runtime runs every handler under `blue-lang-proc` with the §5.1 defaults; the supervisor gains a restart window and backoff | a handler that raises answers 500 and the next request succeeds; a crash loop backs off and fails upward (counted in a test) |
 
 ## 8. Tier ledger
@@ -162,6 +195,10 @@ Turning it off is a typed waiver on the entry, never a missing entry.
 | capability → wasm import table | built (`blue-lang-waku`) |
 | engine posture (`Load::posture`) | built |
 | blue actions suite and `blue-project.yml` | built 2026-10-27 |
-| `platform` field, blue to wasm, wasm chart, Flux per placement | design |
+| `runtime` and `access` on `service`, the judge (§2.1) | built 2026-10-28 |
+| blue engine as a WASI preview 2 component (`blue-lang-component`), per-service bundle, `-component-serves` | built 2026-10-28 |
+| engenho `kidou` preopens the bundle at `/app` (`wasm.pleme.io/app`) | built 2026-10-28 |
+| haibi wasm chart on pleme-lib's wasm mode (S4) | design: pleme-lib has no `wasm-component` or `runtimeclass` helper yet (helmworks H4), so a chart still runs the native image |
+| Flux per placement | design |
 | OTP supervisor (`blue-lang-proc`), restart policy as data (`saishikou`) | built, not wired into services |
 | supervision as a service default, restart window and backoff | design |

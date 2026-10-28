@@ -43,9 +43,11 @@
 pub mod diff;
 pub mod frontend;
 pub mod render;
+pub mod runtime;
 pub mod service;
 
 pub use frontend::{frontend_of, Frontend};
+pub use runtime::{Access, Effect, Runtime, WasiGap};
 pub use service::{service_of, Service, Setting};
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -267,6 +269,34 @@ pub enum SpecError {
     ColumnType { column: String, got: String },
     #[error("`{name}` is both a service and an image, and both build `image-{name}`")]
     ServiceIsImage { name: String },
+    #[error("`{got}` is not an effect; the effects are network, filesystem, clock, entropy, environment and process")]
+    AccessEffect { got: String },
+    #[error("access egress `{got}` is not host:port")]
+    AccessPeer { got: String },
+    #[error("`{field}` entries are absolute paths with no `..`, got `{got}`")]
+    AccessPath { field: &'static str, got: String },
+    #[error("access writes need the :filesystem effect")]
+    WritesWithoutFilesystem,
+    #[error("a service answers HTTP on its port, and its access lacks the :network effect")]
+    ServiceWithoutNetwork,
+    #[error("`{got}` is not a runtime; a service runs as :wasm (the default) or :native")]
+    UnknownRuntime { got: String },
+    #[error("`because` names `{got}`, which is not a WASI gap; the gaps are process, host_program and device")]
+    UnknownGap { got: String },
+    #[error("`because: :{gap}` explains a native runtime, and this service runs as wasm; state `runtime: :native` or drop `because`")]
+    BecauseWithoutNative { gap: &'static str },
+    #[error("a service runs as a wasm component by default, and {cause}: {why}; state `runtime: :native, because: :{gap}`")]
+    WasmGap {
+        cause: String,
+        why: &'static str,
+        gap: &'static str,
+    },
+    #[error(
+        "`runtime: :native` needs `because:` naming the WASI gap (process, host_program or device)"
+    )]
+    NativeWithoutGap,
+    #[error("`because: :{gap}` names a gap nothing in this service needs; drop `runtime` and it runs as wasm")]
+    GapNotNeeded { gap: &'static str },
 }
 
 const IMAGE_FIELDS: &[&str] = &[

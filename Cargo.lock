@@ -298,6 +298,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "blue-lang-component"
+version = "0.0.124"
+dependencies = [
+ "blue-lang-pkg",
+ "blue-lang-runtime",
+]
+
+[[package]]
 name = "blue-lang-danpen-diff"
 version = "0.0.124"
 dependencies = [

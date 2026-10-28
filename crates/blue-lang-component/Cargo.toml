@@ -1,0 +1,18 @@
+[package]
+name = "blue-lang-component"
+description = "The blue engine as a WASI preview 2 command component: it runs one blue service program."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[[bin]]
+name = "blue-component"
+path = "src/main.rs"
+
+[dependencies]
+blue-lang-runtime = { workspace = true, features = ["sys"] }
+blue-lang-pkg = { workspace = true, features = ["embedded"] }

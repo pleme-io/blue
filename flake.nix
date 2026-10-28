@@ -387,6 +387,35 @@
       moduleTrio = import "${substrate}/lib/module-trio.nix" { inherit lib; };
       chartLibraries = { pleme-lib = "${helmworks}/charts/pleme-lib"; };
 
+      componentFor = system:
+        let
+          pkgs = pkgsFor system;
+          fx = substrate.inputs.fenix.packages.${system};
+          toolchain = fx.combine [ fx.stable.rustc fx.stable.cargo fx.targets.wasm32-wasip2.stable.rust-std ];
+          rust = pkgs.makeRustPlatform { cargo = toolchain; rustc = toolchain; };
+        in
+        pkgs.stdenv.mkDerivation {
+          pname = "blue-component";
+          version = (lib.importTOML ./Cargo.toml).workspace.package.version;
+          src = lib.fileset.toSource {
+            root = ./.;
+            fileset = lib.fileset.unions [ ./Cargo.toml ./Cargo.lock ./crates ./bidamas ];
+          };
+          cargoDeps = rust.importCargoLock { lockFile = ./Cargo.lock; };
+          nativeBuildInputs = [ rust.cargoSetupHook toolchain ];
+          buildPhase = ''
+            runHook preBuild
+            cargo build --release --offline --locked -p blue-lang-component --target wasm32-wasip2
+            runHook postBuild
+          '';
+          installPhase = ''
+            runHook preInstall
+            cp target/wasm32-wasip2/release/blue-component.wasm $out
+            runHook postInstall
+          '';
+          dontFixup = true;
+        };
+
       # This repository as a blue project. `base = { }` because its packages
       # ARE the public distribution every other project composes over.
       repository = lib.genAttrs systems (system: engine.projectFor {
@@ -468,7 +497,7 @@
     in
     base // {
       # `blue.lib.project { src = ./.; }` — a blue project's whole flake body.
-      lib.project = engine.mkProjectOutputs { inherit systems pkgsFor blueFor ociFor moduleTrio chartLibraries; };
+      lib.project = engine.mkProjectOutputs { inherit systems pkgsFor blueFor ociFor moduleTrio chartLibraries componentFor; };
 
       # `blue.lib.bidamas pkgs` — the bidama library for any package set.
       lib.bidamas = bidamaLibFor;
@@ -661,7 +690,7 @@
             pkgs.writeText "example-service-workload-off" "refused";
 
           example-http =
-            let ex = engine.projectFor { inherit pkgs blue moduleTrio chartLibraries; src = ./examples/http; oci = ociFor system; };
+            let ex = engine.projectFor { inherit pkgs blue moduleTrio chartLibraries; src = ./examples/http; oci = ociFor system; component = componentFor system; };
             in pkgs.runCommand "example-http" { } ''
               ${lib.concatMapStrings (d: "echo ${d} >> $out\n") (lib.attrValues ex.checks ++ lib.attrValues ex.packages)}
             '';

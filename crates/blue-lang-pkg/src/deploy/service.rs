@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use tatara_lisp_eval::Value;
 
+use super::runtime::{access_of, runtime_of, Access, Runtime};
 use super::{
     check_name, int_of, is_quantity, is_repository, port_of, project_path, text_of, Resources,
     Spec, SpecError, DEFAULT_OUTPUT_DIR,
@@ -45,6 +46,10 @@ pub struct Service {
     pub cache: Option<Cache>,
     #[serde(default, skip_serializing_if = "Slo::is_empty")]
     pub slo: Slo,
+    #[serde(default)]
+    pub access: Access,
+    #[serde(default)]
+    pub runtime: Runtime,
     pub output: String,
 }
 
@@ -176,6 +181,9 @@ pub const SERVICE_FIELDS: &[&str] = &[
     "owner",
     "cache",
     "slo",
+    "access",
+    "runtime",
+    "because",
     "output",
 ];
 
@@ -356,6 +364,8 @@ pub fn service_of(name: &str, spec: &Value) -> Result<Service, SpecError> {
     }
     let slo = slo_of(s.get("slo"))?;
     let cache = cache_of(s.get("cache"))?;
+    let access = access_of(s.get("access"), port)?;
+    let runtime = runtime_of(s.get("runtime"), s.get("because"), &access, host.as_deref())?;
 
     let output = match s.text("output")? {
         Some(o) => project_path("output", o)?,
@@ -379,6 +389,8 @@ pub fn service_of(name: &str, spec: &Value) -> Result<Service, SpecError> {
         owner,
         cache,
         slo,
+        access,
+        runtime,
         output,
     })
 }
@@ -388,6 +400,7 @@ mod tests {
     use super::*;
     use crate::bluefile::{read_bluefile, BluefileError};
     use crate::deploy::Refusal;
+    use crate::deploy::{Effect, WasiGap};
 
     fn read(body: &str) -> Result<crate::bluefile::Project, Vec<Refusal>> {
         let src = ["package(\"p\", \"0.3.0\")\n", body].concat();
@@ -426,7 +439,7 @@ mod tests {
     fn a_host_names_the_package_that_runs_the_program_and_round_trips() {
         let p = read(
             "service(\"hello\", {program: \"hello.b\", host: \"hello-host\", \
-             host_args: [\"daemon\", \"--declaration\"], \
+             host_args: [\"daemon\", \"--declaration\"], runtime: :native, because: :host_program, \
              repository: \"ghcr.io/pleme-io/hello\", port: 8080})\n",
         )
         .unwrap();
@@ -591,6 +604,96 @@ mod tests {
         assert!(
             read(&[MINIMAL, "generate(\"g\", \"deploy/hellothere\", \"g.b\")\n"].concat()).is_ok()
         );
+    }
+
+    #[test]
+    fn a_service_runs_as_wasm_with_the_default_access_unless_it_says_otherwise() {
+        let p = read(MINIMAL).unwrap();
+        let s = &p.services["hello"];
+        assert_eq!(s.runtime, Runtime::Wasm);
+        assert_eq!(s.access, Access::default_for(8080));
+        let json = serde_json::to_string(s).unwrap();
+        assert!(json.contains(r#""runtime":{"kind":"wasm"}"#), "{json}");
+        assert!(json.contains(r#""listen":[8080]"#), "{json}");
+        let back: Service = serde_json::from_str(&json).unwrap();
+        assert_eq!(&back, s);
+    }
+
+    #[test]
+    fn a_declared_access_is_recorded_and_wasm_still_carries_it() {
+        let p = read(
+            "service(\"hello\", {program: \"hello.b\", repository: \"ghcr.io/pleme-io/hello\", port: 8080, \
+             access: {effects: [:network, :filesystem, :clock], egress: [\"db.data.svc:5432\"], \
+             reads: [\"/etc/hello\"], writes: [\"/var/lib/hello\"], listen: [8080, 9090]}})\n",
+        )
+        .unwrap();
+        let s = &p.services["hello"];
+        assert_eq!(s.runtime, Runtime::Wasm);
+        assert_eq!(
+            s.access.effects,
+            [Effect::Network, Effect::Filesystem, Effect::Clock]
+        );
+        assert_eq!(s.access.egress, ["db.data.svc:5432"]);
+        assert_eq!(s.access.listen, [8080, 9090]);
+        assert_eq!(s.access.writes, ["/var/lib/hello"]);
+    }
+
+    #[test]
+    fn wasm_is_refused_by_name_when_the_service_needs_what_wasi_cannot_grant() {
+        let base = "program: \"hello.b\", repository: \"ghcr.io/pleme-io/hello\", port: 8080";
+        let cases = [
+            (
+                "access: {exec: [\"/bin/git\"]}",
+                "its access declares exec /bin/git: WASI preview 2 has no process spawn or exec; state `runtime: :native, because: :process`",
+            ),
+            (
+                "access: {effects: [:network, :process]}",
+                "its access declares the :process effect",
+            ),
+            (
+                "host: \"hello-host\"",
+                "it runs the host program hello-host: the program is a native host binary",
+            ),
+            ("runtime: :native", "needs `because:` naming the WASI gap"),
+            ("runtime: :native, because: :process", "names a gap nothing in this service needs"),
+            ("because: :process", "explains a native runtime, and this service runs as wasm"),
+            ("runtime: :oci", "is not a runtime"),
+            ("runtime: :native, because: :gpu", "is not a WASI gap"),
+            ("access: {effects: [:clock]}", "lacks the :network effect"),
+            ("access: {writes: [\"/data\"]}", "writes need the :filesystem effect"),
+            ("access: {egress: [\"db\"]}", "is not host:port"),
+            ("access: {reads: [\"etc\"]}", "absolute paths"),
+            ("access: {effects: [:gpu]}", "is not an effect"),
+        ];
+        for (extra, needle) in cases {
+            let body = ["service(\"hello\", {", base, ", ", extra, "})\n"].concat();
+            let errs = refused(&body);
+            assert!(errs.iter().any(|e| e.contains(needle)), "{extra}: {errs:?}");
+        }
+    }
+
+    #[test]
+    fn native_stands_when_its_named_gap_is_real() {
+        let base = "program: \"hello.b\", repository: \"ghcr.io/pleme-io/hello\", port: 8080";
+        let cases = [
+            (
+                "access: {exec: [\"/bin/git\"]}, runtime: :native, because: :process",
+                WasiGap::Process,
+            ),
+            (
+                "host: \"hello-host\", runtime: :native, because: :host_program",
+                WasiGap::HostProgram,
+            ),
+            ("runtime: :native, because: :device", WasiGap::Device),
+        ];
+        for (extra, gap) in cases {
+            let body = ["service(\"hello\", {", base, ", ", extra, "})\n"].concat();
+            let p = read(&body).unwrap();
+            let s = &p.services["hello"];
+            assert_eq!(s.runtime, Runtime::Native { because: gap }, "{extra}");
+            let back: Service = serde_json::from_str(&serde_json::to_string(s).unwrap()).unwrap();
+            assert_eq!(&back, s);
+        }
     }
 
     #[test]

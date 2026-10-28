@@ -50,7 +50,7 @@
 # | every project | `checks.project` (every other check, one name for CI) and, on Linux, `apps.scan-images` (each service's scan floor and grype gate) |
 # | `image(name, spec)` | Linux only: `packages.image-<name>` through `mkHardenedImageSet` (`nix/image.nix`; the direct `mkPackageImage` / `mkDistrolessImage` path is configured off, revived by `legacy.directImages = true`), `packages.image-<name>-manifest` (the archive's manifest.json, which `blue image build` reads), `checks.image-<name>-distroless` (`image-gate.b` over the closure) |
 # | `workload(name, spec)` | configured off (refused) unless `legacy.rawWorkloads = true`; then `packages.workload-<name>` (`blue workload render`), `checks.workload-<name>-fresh` |
-# | `service(name, spec)` | `nix/service.nix`: `packages.<name>`, `packages.service-<name>-tree` (haibi), `checks.service-<name>-{fresh,chart,serves}` (+ `-migrations` with a schema); on Linux `packages.image-<name>` through `mkHardenedImageSet`, `checks.image-<name>-distroless`, `apps.grype-scan-<name>`; the module trio and `overlays.default` |
+# | `service(name, spec)` | `nix/service.nix`: `packages.<name>`, `packages.service-<name>-tree` (haibi), `checks.service-<name>-{fresh,chart,serves}` (+ `-migrations` with a schema); a `runtime: :wasm` service (the default) also `packages.service-<name>-component` (blue's engine component plus the program bundle at `app/`) and `checks.service-<name>-component-serves` (the component under wasmtime answers its probe); on Linux `packages.image-<name>` through `mkHardenedImageSet`, `checks.image-<name>-distroless`, `apps.grype-scan-<name>`; the module trio and `overlays.default` |
 # | `frontend(name, spec)` | `checks.frontend-<name>-declared`: every `views`, `tokens` and `schema` path must exist in the project, and the declaration is written out as JSON; the renderers it lowers to come with FRONTEND-PLAN F11 |
 # | `registry(backend, spec)` | `packages.registry-<backend>` (`blue registry render`, judged by `touroku`), `checks.registry-<backend>-fresh` against the committed `output`; `package`'s `visibility` is recorded and read only by `touroku` (docs/REGISTRY.md) |
 # | `source(name, url, dir)` | **refused, not yet lowered** (fetchTree from the lock's pin is the named next step) |
@@ -171,7 +171,7 @@ let
   #   oci    substrate's image builders for the system (`substrate.lib.<system>`:
   #          mkPackageImage, mkDistrolessImage, hardenedBases); null where the
   #          caller has none, and an `image(...)` is then refused by name
-  projectFor = { pkgs, blue, src, base ? null, oci ? null, moduleTrio ? null, legacy ? { }, chartLibraries ? { } }:
+  projectFor = { pkgs, blue, src, base ? null, oci ? null, moduleTrio ? null, legacy ? { }, chartLibraries ? { }, component ? null }:
     assert lib.assertMsg (builtins.isPath src)
       "lib.project: src must be a path; pass `src = ./.` from the project's flake.nix";
     let
@@ -418,7 +418,7 @@ let
         (m.frontends or { });
 
       lowered = import ./service.nix {
-        inherit lib pkgs blue bl common src m name bluePath programFile lockFile imageGate oci moduleTrio chartLibraries;
+        inherit lib pkgs blue bl common src m name bluePath programFile lockFile imageGate oci moduleTrio chartLibraries component;
       };
 
       # `workload(name, spec)`: the objects `blue workload render` writes from
@@ -577,13 +577,14 @@ in
   #   blueFor   system -> the `blue` executable
   #   pkgsFor   system -> nixpkgs
   #   ociFor    system -> substrate's image builders, or null
-  mkProjectOutputs = { systems, blueFor, pkgsFor, ociFor ? (_: null), moduleTrio ? null, chartLibraries ? { } }: { src, legacy ? { } }:
+  mkProjectOutputs = { systems, blueFor, pkgsFor, ociFor ? (_: null), moduleTrio ? null, chartLibraries ? { }, componentFor ? (_: null) }: { src, legacy ? { } }:
     let
       per = lib.genAttrs systems (system: projectFor {
         inherit src moduleTrio legacy chartLibraries;
         pkgs = pkgsFor system;
         blue = blueFor system;
         oci = ociFor system;
+        component = componentFor system;
       });
       any = per.${builtins.head systems};
       arm = a: lib.mapAttrs (_: t: t."${a}Module") any.trios;

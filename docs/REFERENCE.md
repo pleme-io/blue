@@ -572,6 +572,7 @@ A Bluefile is a blue program that may call only these words.
 | `service(name, spec)` | An HTTP service from one of the project's programs: its runnable closure `packages.<name>`, its image through substrate's mkHardenedImageSet, its module trio, and the committed `output` tree (default `deploy/<name>`) of a Helm chart with a generated values.schema.json, its settings' defaults and schema, and with a `schema`, its additive SQL and shinka migration; every file gated fresh. |
 | `frontend(name, spec)` | A web frontend: `views` (the project paths of its view programs), `tokens` (the design-token program), `schema` (the GraphQL SDL its fragments are checked against) and `pwa` (true to install as a PWA). Recorded in the lock; the engine checks every path exists and records the declaration as `checks.frontend-<name>-declared` until the renderers land. |
 | `registry(backend, spec)` | A registry backend the project publishes to (`sui`, `flakehub`): its workflow rendered to the committed `output` (default `.github/workflows/registry-<backend>.yml`) and gated fresh; `enabled: false` keeps it declared and off. The Bluefile and its lock stay the truth (docs/REGISTRY.md). |
+| `query(name, query)` | A named code query, run by `blue query NAME [PATH…]`: the query is tatara-lisp data as text, its clauses those of `blue query` ("(reaches filesystem) (unannotated)"). |
 
 ## Rules
 

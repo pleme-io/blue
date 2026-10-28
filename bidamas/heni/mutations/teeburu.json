@@ -1,0 +1,68 @@
+[
+  {
+    "name": "int to bigint narrows",
+    "file": "teeburu.b",
+    "find": "      [:int, :bigint],\n",
+    "replace": ""
+  },
+  {
+    "name": "an undeclared rename is let through",
+    "file": "teeburu.b",
+    "find": "  paired_drops = filter((d) -> any?((a) -> meets?(d, a), adds), open_drops)",
+    "replace": "  paired_drops = []"
+  },
+  {
+    "name": "a narrowing retype is not destructive",
+    "file": "teeburu.b",
+    "find": " or s[:step] == :retype and not s[:widening]",
+    "replace": ""
+  },
+  {
+    "name": "an index is built inside a transaction",
+    "file": "teeburu.b",
+    "find": "\"CREATE INDEX CONCURRENTLY IF NOT EXISTS #{ident(index_name",
+    "replace": "\"CREATE INDEX IF NOT EXISTS #{ident(index_name"
+  },
+  {
+    "name": "a foreign key is validated as it is added",
+    "file": "teeburu.b",
+    "find": "(#{ident(target[:key])}) NOT VALID\"",
+    "replace": "(#{ident(target[:key])})\""
+  },
+  {
+    "name": "no lock timeout inside a transaction",
+    "file": "teeburu.b",
+    "find": "\"SET LOCAL lock_timeout = '#{lock_timeout}'\"",
+    "replace": "\"SELECT 1\""
+  },
+  {
+    "name": "a kv record may carry undeclared fields",
+    "file": "teeburu.b",
+    "find": "    extra = if entity[:strict] == false",
+    "replace": "    extra = if true"
+  },
+  {
+    "name": "keifu runs every change in a transaction",
+    "file": "teeburu.b",
+    "find": "      tx = if c[:transaction]\n        \"\"\n      else\n        \" runInTransaction=\\\"false\\\"\"",
+    "replace": "      tx = if c[:transaction]\n        \"\"\n      else\n        \"\""
+  },
+  {
+    "name": "a version may stand still",
+    "file": "teeburu.b",
+    "find": "if to[:version] <= from[:version]",
+    "replace": "if to[:version] < from[:version]"
+  },
+  {
+    "name": "the keyset never advances",
+    "file": "teeburu.b",
+    "find": "      \"    last_key := keys[array_length(keys, 1)];\",\n",
+    "replace": ""
+  },
+  {
+    "name": "a dropped field upgrade keeps the field",
+    "file": "teeburu.b",
+    "find": "        elsif st == :drop and s[:field] != nil\n          dissoc(r, to_s(s[:field]))",
+    "replace": "        elsif st == :drop and s[:field] != nil\n          r"
+  }
+]

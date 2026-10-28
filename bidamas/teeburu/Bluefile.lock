@@ -5,7 +5,12 @@
     "schema": 1,
     "name": "teeburu",
     "version": "0.1.0",
-    "needs": {},
+    "needs": {
+      "kueri": "^0.1.0",
+      "moji": "^0.1.0",
+      "retsu": "^0.1.0",
+      "tesuto": "^0.1.0"
+    },
     "when": "anytime",
     "sources": {},
     "packages": [],

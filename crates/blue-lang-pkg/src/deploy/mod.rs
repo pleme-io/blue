@@ -255,7 +255,7 @@ pub enum SpecError {
     SettingName { got: String },
     #[error("setting `{key}` is reserved: listen, health, flags and database are derived from the declaration, and config, tier and defaults name the settings tiers")]
     ReservedSetting { key: String },
-    #[error("setting `{key}` must be text, an integer or true/false, got {got}")]
+    #[error("setting `{key}` must be text, an integer, true/false, a list of text, a map of settings or nil, got {got}")]
     SettingType { key: String, got: &'static str },
     #[error("flag `{key}` must be true or false, got {got}")]
     FlagType { key: String, got: &'static str },

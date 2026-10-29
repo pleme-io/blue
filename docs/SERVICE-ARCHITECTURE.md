@@ -213,7 +213,10 @@ signals and protocols go in Rust.**
 
 Decision. The Bluefile `config:` and `flags:` entries are the source. haibi
 renders them into the Computed slot (`config/<name>.yaml`) and its JSON Schema.
-It already does this. At run time, one host primitive, `config_resolve(app)`,
+It already does this. A setting is text, an integer, true/false, a list of
+text, nil (unset: the program keeps its own default) or a map of settings.
+The chart passes a nested setting as `<PREFIX>_<KEY>__<KEY>`, the separator
+shikumi and settei read back; a list goes as JSON, and nil goes not at all. At run time, one host primitive, `config_resolve(app)`,
 runs shikumi's six slots and returns `[settings, refusals, sources]`. settei
 keeps its pure judge (`file_tier`, `env_tier`, `coerce`) as the reference
 semantics and as the engine on hosts without shikumi (wasm, a pure test run).

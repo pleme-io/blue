@@ -648,13 +648,11 @@ def deployment_with(n, h, svc)
         []
       end,
       [
-        "            {{- range $k, $v := .Values.config }}",
-        "            - name: {{ printf \"#{p}%s\" (upper $k) }}",
-        "              value: {{ $v | toString | quote }}",
+        "            {{- with include \"#{n}.env\" (list \"#{p}\" .Values.config) | trim }}",
+        "            {{- . | nindent 12 }}",
         "            {{- end }}",
-        "            {{- range $k, $v := .Values.flags }}",
-        "            - name: {{ printf \"#{p}FLAGS__%s\" (upper $k) }}",
-        "              value: {{ $v | toString | quote }}",
+        "            {{- with include \"#{n}.env\" (list \"#{p}FLAGS__\" .Values.flags) | trim }}",
+        "            {{- . | nindent 12 }}",
         "            {{- end }}",
         "          ports:",
         "            - name: http",
@@ -681,9 +679,34 @@ def deployment_with(n, h, svc)
         append(cache_mounts(n), cache_volumes(n))
       else
         []
-      end
+      end,
+      env_template(n)
     )
   )
+end
+
+@doc """
+The named template that turns a settings map into environment entries. A
+nested map joins its keys with `__`, the separator settei reads back; a list
+renders as JSON; a null leaf renders nothing, so the program keeps its own
+default.
+
+    first(env_template("hello")) == "{{- define \"hello.env\" }}"
+"""
+def env_template(n)
+  [
+    "{{- define \"#{n}.env\" }}",
+    "{{- $prefix := index . 0 }}",
+    "{{- range $k, $v := index . 1 }}",
+    "{{- if kindIs \"map\" $v }}",
+    "{{- include \"#{n}.env\" (list (printf \"%s%s__\" $prefix (upper $k)) $v) }}",
+    "{{- else if not (kindIs \"invalid\" $v) }}",
+    "- name: {{ printf \"%s%s\" $prefix (upper $k) }}",
+    "  value: {{ if kindIs \"slice\" $v }}{{ $v | toJson | quote }}{{ else }}{{ $v | toString | quote }}{{ end }}",
+    "{{- end }}",
+    "{{- end }}",
+    "{{- end }}"
+  ]
 end
 
 def migration(_n, h)
@@ -980,7 +1003,7 @@ test "the tree holds the chart, its schema, the config and, with a schema, the m
   ) == true
   assert contains?(
     deployment("ola-mundo", "pleme-lib"),
-    "OLA_MUNDO_FLAGS__%s"
+    "(list \"OLA_MUNDO_FLAGS__\" .Values.flags)"
   ) == true
   assert contains?(
     deployment("ola-mundo", "pleme-lib"),
@@ -1058,6 +1081,20 @@ test "the chart carries the service's SLO rules, its dashboard and a scrape anno
   vs = values_schema("hello", sample)["properties"]
   assert vs["slo"]["properties"]["rules"]["type"] == "boolean"
   assert catalog_entry("hello", "0.1.0", sample)["owner"] == "pleme-io"
+end
+
+test "nested settings reach the environment through one named template"
+  svc = assoc(sample, "config", {"api" => {"auth" => {"mode" => "off"}}})
+  d = deployment_with("ola-mundo", "pleme-lib", svc)
+  assert contains?(d, "{{- define \"ola-mundo.env\" }}") == true
+  assert contains?(d, "(list \"OLA_MUNDO_\" .Values.config)") == true
+  assert contains?(d, "(list \"OLA_MUNDO_FLAGS__\" .Values.flags)") == true
+  assert contains?(d, "range $k, $v := .Values.config") == false
+  vs = values_schema("ola-mundo", svc)["properties"]["config"]
+  assert get(
+    vs["properties"]["api"]["properties"]["auth"]["properties"]["mode"],
+    "type"
+  ) == "string"
 end
 
 test "a host service's arguments become the chart's args, and a blue service has none"

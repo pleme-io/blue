@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
+use tatara_lisp_eval::value::MapKey;
 use tatara_lisp_eval::Value;
 
 use super::runtime::{access_of, runtime_of, Access, Runtime};
@@ -15,6 +16,9 @@ pub enum Setting {
     Bool(bool),
     Int(i64),
     Text(String),
+    Texts(Vec<String>),
+    Group(BTreeMap<String, Setting>),
+    Unset,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -227,6 +231,37 @@ fn setting_of(key: &str, v: &Value) -> Result<Setting, SpecError> {
         Value::Bool(b) => Ok(Setting::Bool(*b)),
         Value::Int(n) => Ok(Setting::Int(*n)),
         Value::Str(s) => Ok(Setting::Text(s.to_string())),
+        Value::Nil => Ok(Setting::Unset),
+        Value::List(items) if items.iter().all(|i| matches!(i, Value::Str(_))) => {
+            Ok(Setting::Texts(
+                items
+                    .iter()
+                    .filter_map(|i| match i {
+                        Value::Str(s) => Some(s.to_string()),
+                        _ => None,
+                    })
+                    .collect(),
+            ))
+        }
+        Value::Map(map) => map
+            .iter()
+            .map(|(k, v)| {
+                let name = match k {
+                    MapKey::Keyword(s) | MapKey::Str(s) | MapKey::Symbol(s) => {
+                        setting_name(s.to_string())?
+                    }
+                    other => {
+                        return Err(SpecError::SettingType {
+                            key: key.to_string(),
+                            got: other.to_value().type_name(),
+                        })
+                    }
+                };
+                let value = setting_of(&format!("{key}.{name}"), v)?;
+                Ok((name, value))
+            })
+            .collect::<Result<BTreeMap<_, _>, _>>()
+            .map(Setting::Group),
         other => Err(SpecError::SettingType {
             key: key.to_string(),
             got: other.type_name(),
@@ -520,6 +555,33 @@ mod tests {
     }
 
     #[test]
+    fn a_setting_may_group_settings_list_text_or_be_unset() {
+        let p = read(
+            "service(\"hello\", {program: \"hello.b\", repository: \"ghcr.io/pleme-io/hello\", port: 8080, \
+             config: {api: {exposure: \"internal\", auth: {mode: \"off\", jwks_url: nil}, \
+             cors: {origins: [], hosts: [\"a\", \"b\"]}}}})\n",
+        )
+        .unwrap();
+        let s = &p.services["hello"];
+        let Setting::Group(api) = &s.config["api"] else {
+            panic!("api is a group")
+        };
+        assert_eq!(api["exposure"], Setting::Text("internal".into()));
+        let Setting::Group(auth) = &api["auth"] else {
+            panic!("auth is a group")
+        };
+        assert_eq!(auth["jwks_url"], Setting::Unset);
+        let Setting::Group(cors) = &api["cors"] else {
+            panic!("cors is a group")
+        };
+        assert_eq!(cors["origins"], Setting::Texts(vec![]));
+        assert_eq!(cors["hosts"], Setting::Texts(vec!["a".into(), "b".into()]));
+        let json = serde_json::to_string(s).unwrap();
+        let back: Service = serde_json::from_str(&json).unwrap();
+        assert_eq!(&back, s);
+    }
+
+    #[test]
     fn a_cache_entry_is_recorded_with_its_port() {
         let base = "program: \"hello.b\", repository: \"ghcr.io/pleme-io/hello\", port: 8080";
         let none = read(&["service(\"hello\", {", base, "})\n"].concat()).unwrap();
@@ -546,7 +608,10 @@ mod tests {
             ("config: {listen: 1}", "reserved"),
             ("config: {Bad: 1}", "not a setting name"),
             ("config: {a__b: 1}", "not a setting name"),
-            ("config: {l: [1]}", "must be text, an integer or true/false"),
+            ("config: {l: [1]}", "must be text, an integer, true/false"),
+            ("config: {g: {Bad: 1}}", "not a setting name"),
+            ("config: {g: {a__b: 1}}", "not a setting name"),
+            ("config: {g: {l: [1]}}", "setting `g.l` must be text"),
             ("flags: {shout: 1}", "must be true or false"),
             ("schema: {t: {id: \"text\"}}", "is every table's key"),
             ("schema: {t: {c: \"varchar\"}}", "is not a column type"),

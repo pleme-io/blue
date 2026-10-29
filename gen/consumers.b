@@ -374,7 +374,10 @@ def error_codes(check_out)
     json_read,
     filter((l) -> starts_with?(l, "{"), lines_of(check_out))
   )
-  map((d) -> d["code"], filter((d) -> d["severity"] == "error", diags))
+  map(
+    (d) -> d["code"],
+    filter((d) -> d["severity"] == "error" and d["waiver"].nil?, diags)
+  )
 end
 
 def measure(name, file, fmt_status, check_out)
@@ -980,12 +983,13 @@ test "the registry round-trips through its JSON rendering"
   assert back[:swept]["codes"] == ["B0001"]
 end
 
-test "a file's measurement is its fmt drift and each error code by count; warnings do not count"
+test "a file's measurement is its fmt drift and each error code by count; warnings and waived errors do not count"
   out = unlines(
     [
       "{\"code\":\"B0066\",\"severity\":\"error\"}",
       "{\"code\":\"B0066\",\"severity\":\"error\"}",
       "{\"code\":\"B0002\",\"severity\":\"warning\"}",
+      "{\"code\":\"B0013\",\"severity\":\"error\",\"waiver\":{\"reason\":\"kept\"}}",
       "typed declarations: 0"
     ]
   )

@@ -619,25 +619,9 @@ def row_ident_char?(c)
   contains?("abcdefghijklmnopqrstuvwxyz0123456789_?!", c)
 end
 
-def row_skip(cs, i, n)
-  if i < n and row_space?(cs[i])
-    row_skip(cs, i + 1, n)
-  else
-    i
-  end
-end
-
-def row_ident_end(cs, i, n)
-  if i < n and row_ident_char?(cs[i])
-    row_ident_end(cs, i + 1, n)
-  else
-    i
-  end
-end
-
-def row_digits_end(cs, i, n)
-  if i < n and row_digit?(cs[i])
-    row_digits_end(cs, i + 1, n)
+def row_run_end(keep, cs, i, n)
+  if i < n and keep(cs[i])
+    row_run_end(keep, cs, i + 1, n)
   else
     i
   end
@@ -696,7 +680,7 @@ def row_number(cs, i, n)
   else
     i
   end
-  e = row_digits_end(cs, from, n)
+  e = row_run_end(row_digit?, cs, from, n)
   if e == from
     row_fail(cs, i, "a number is digits, with a leading - for a negative one")
   else
@@ -705,7 +689,7 @@ def row_number(cs, i, n)
 end
 
 def row_word_value(cs, i, n)
-  e = row_ident_end(cs, i, n)
+  e = row_run_end(row_ident_char?, cs, i, n)
   w = row_text(cs, i, e)
   if w == "nil"
     [nil, e]
@@ -723,12 +707,12 @@ def row_word_value(cs, i, n)
 end
 
 def row_items(cs, i, n, close, acc)
-  j = row_skip(cs, i, n)
+  j = row_run_end(row_space?, cs, i, n)
   if j < n and cs[j] == close
     [acc, j + 1]
   else
     r = row_value(cs, j, n)
-    k = row_skip(cs, r[1], n)
+    k = row_run_end(row_space?, cs, r[1], n)
     if k < n and cs[k] == ","
       row_items(cs, k + 1, n, close, push(acc, r[0]))
     elsif k < n and cs[k] == close
@@ -743,25 +727,17 @@ def row_word_char?(c)
   not row_space?(c) and not contains?(",\"'#\\[]", c)
 end
 
-def row_word_end(cs, i, n)
-  if i < n and row_word_char?(cs[i])
-    row_word_end(cs, i + 1, n)
-  else
-    i
-  end
-end
-
 def row_words(cs, i, n, names, acc)
-  j = row_skip(cs, i, n)
+  j = row_run_end(row_space?, cs, i, n)
   if j >= n
     row_fail(cs, j, "a word list is not closed")
   elsif cs[j] == "]"
     [acc, j + 1]
   else
-    e = row_word_end(cs, j, n)
+    e = row_run_end(row_word_char?, cs, j, n)
     if e == j
       row_fail(cs, j, "a word holds no comma, quote, #, \\ or bracket")
-    elsif names and row_ident_end(cs, j, n) != e
+    elsif names and row_run_end(row_ident_char?, cs, j, n) != e
       row_fail(cs, j, "a word in %i[…] is a name")
     elsif names
       row_words(cs, e, n, names, push(acc, [:symbol, row_text(cs, j, e)]))
@@ -772,11 +748,11 @@ def row_words(cs, i, n, names, acc)
 end
 
 def row_entries(cs, i, n, acc)
-  j = row_skip(cs, i, n)
+  j = row_run_end(row_space?, cs, i, n)
   if j < n and cs[j] == "}"
     [acc, j + 1]
   else
-    e = row_ident_end(cs, j, n)
+    e = row_run_end(row_ident_char?, cs, j, n)
     if e == j or e >= n or cs[e] != ":"
       row_fail(cs, j, "a map entry is `name: value`")
     else
@@ -785,7 +761,7 @@ def row_entries(cs, i, n, acc)
         row_fail(cs, j, "the key `#{key}` is written twice")
       else
         r = row_value(cs, e + 1, n)
-        k = row_skip(cs, r[1], n)
+        k = row_run_end(row_space?, cs, r[1], n)
         grown = assoc(acc, key, r[0])
         if k < n and cs[k] == ","
           row_entries(cs, k + 1, n, grown)
@@ -800,7 +776,7 @@ def row_entries(cs, i, n, acc)
 end
 
 def row_value(cs, i, n)
-  j = row_skip(cs, i, n)
+  j = row_run_end(row_space?, cs, i, n)
   if j >= n
     row_fail(cs, j, "a value is missing")
   else
@@ -808,7 +784,7 @@ def row_value(cs, i, n)
     if c == "\""
       row_string(cs, j + 1, n, j + 1, [])
     elsif c == ":"
-      e = row_ident_end(cs, j + 1, n)
+      e = row_run_end(row_ident_char?, cs, j + 1, n)
       if e == j + 1
         row_fail(cs, j, "a symbol has a name")
       else
@@ -832,11 +808,11 @@ def row_value(cs, i, n)
 end
 
 def row_forms_from(cs, i, n, acc)
-  j = row_skip(cs, i, n)
+  j = row_run_end(row_space?, cs, i, n)
   if j >= n
     acc
   else
-    e = row_ident_end(cs, j, n)
+    e = row_run_end(row_ident_char?, cs, j, n)
     if e == j or e >= n or cs[e] != "("
       row_fail(cs, j, "a row is `word(arguments)`")
     else

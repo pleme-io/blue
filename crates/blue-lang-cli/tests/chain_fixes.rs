@@ -38,7 +38,7 @@ fn check_fix_adds_the_use_a_bare_name_needs_and_keeps_the_uses_sorted() {
     );
     assert_eq!(
         text(&f),
-        "use(\"moji\", [:lines])\nuse(\"retsu\", [:last, :rest])\n\ndef go(xs)\n  t = now_ms\n  [last(xs), rest(xs), t, lines(\"a\")]\nend\n"
+        "use(\"moji\", [:lines])\nuse(\"retsu\", %i[last rest])\n\ndef go(xs)\n  t = now_ms\n  [last(xs), rest(xs), t, lines(\"a\")]\nend\n"
     );
 }
 
@@ -67,7 +67,7 @@ fn check_fix_sorts_use_forms_by_package() {
     );
     assert_eq!(
         text(&f),
-        "use(\"junjo\", [:sort])\nuse(\"moji\", [:lines])\nuse(\"retsu\", [:first, :size])\n\ndef go(xs)\n  [first(xs), size(xs), lines(\"a\"), sort(xs)]\nend\n"
+        "use(\"junjo\", [:sort])\nuse(\"moji\", [:lines])\nuse(\"retsu\", %i[first size])\n\ndef go(xs)\n  [first(xs), size(xs), lines(\"a\"), sort(xs)]\nend\n"
     );
 }
 

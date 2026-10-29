@@ -177,7 +177,7 @@ fn every_diagnostic_is_reported_in_one_pass() {
 #[test]
 fn a_name_a_builtin_macro_defines_is_bound() {
     let src = "defflow(slug, trim, downcase)\n\nslug(\" A \")\n\n\
-               defsm(door, :initial, :closed, :transitions, [[:closed, :open, :opened]])\n\ndoor(:current)\n";
+               defsm(door, :initial, :closed, :transitions, [%i[closed open opened]])\n\ndoor(:current)\n";
     assert_eq!(codes_of(src), Vec::<Code>::new());
 }
 

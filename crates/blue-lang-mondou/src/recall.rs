@@ -60,6 +60,11 @@ pub struct Policy {
     /// Calls a definition gets to produce a hit or a stored result before
     /// it stops being looked up.
     pub window: u64,
+    /// The same, while the only misses of the definition still waiting for
+    /// their value are the first calls of tail-call chains: a chain that has
+    /// not ended by then is a loop the memo stops paying for, and the fuel
+    /// budget, not the memo, decides when it ends.
+    pub chain_window: u64,
     /// The in-process table's bound on stored bytes; past it, nothing more
     /// is stored this run.
     pub table_bytes: usize,
@@ -78,6 +83,7 @@ impl Default for Policy {
         Self {
             store_min: Duration::from_micros(5),
             window: 256,
+            chain_window: 1 << 14,
             table_bytes: 256 << 20,
         }
     }
@@ -281,6 +287,9 @@ struct Probe {
     start: Instant,
     /// Started inside another miss of the same definition.
     nested: bool,
+    /// The head of a tail-call chain: it no longer counts as a miss in
+    /// flight, so a self tail-recursive loop can retire.
+    carried: bool,
 }
 
 /// One activation the memo saw enter.
@@ -314,6 +323,8 @@ struct State {
     /// Misses of each definition still waiting for their value: running, or
     /// the first call of a tail-call chain that has not ended.
     active: Vec<u32>,
+    /// First calls of tail-call chains still waiting, per definition.
+    chained: Vec<u32>,
     buckets: HashMap<usize, Bucket>,
     writes: Vec<(usize, [u8; 32], Duration, Vec<u8>)>,
     damaged: usize,
@@ -352,6 +363,7 @@ impl Recall {
         let state = State {
             counts: vec![Counts::default(); defs.len()],
             active: vec![0; defs.len()],
+            chained: vec![0; defs.len()],
             ..State::default()
         };
         let retired = (0..defs.len()).map(|_| AtomicBool::new(false)).collect();
@@ -392,7 +404,13 @@ impl Recall {
                         }
                         Some(head)
                     }
-                    (None, probe) => probe,
+                    (None, Some(mut p)) => {
+                        done(st, &p);
+                        p.carried = true;
+                        st.chained[p.definition] += 1;
+                        Some(p)
+                    }
+                    (None, None) => None,
                 };
                 if head.is_some() {
                     self.carrying.store(true, Ordering::Relaxed);
@@ -588,7 +606,11 @@ impl Recall {
 
 /// A miss stops waiting for its value.
 fn done(st: &mut State, probe: &Probe) {
-    let a = &mut st.active[probe.definition];
+    let a = if probe.carried {
+        &mut st.chained[probe.definition]
+    } else {
+        &mut st.active[probe.definition]
+    };
     *a = a.saturating_sub(1);
 }
 
@@ -620,13 +642,14 @@ impl CallObserver for Recall {
             return answered;
         };
         let waiting = st.active[d];
+        let window = if st.chained[d] > 0 {
+            self.policy.chain_window
+        } else {
+            self.policy.window
+        };
         let c = &mut st.counts[d];
         c.calls += 1;
-        if waiting == 0
-            && c.calls > self.policy.window
-            && c.hits + c.disk_hits == 0
-            && c.stored == 0
-        {
+        if waiting == 0 && c.calls > window && c.hits + c.disk_hits == 0 && c.stored == 0 {
             c.retired = true;
             self.retired[d].store(true, Ordering::Relaxed);
             self.push(&mut st, frame);
@@ -652,6 +675,7 @@ impl CallObserver for Recall {
             key,
             start: Instant::now(),
             nested,
+            carried: false,
         });
         self.push(&mut st, frame);
         None

@@ -242,7 +242,10 @@ pub fn walker(env: &mut Env, row: &Row) -> Obs {
 
 /// The `memo` column: the walker under the memo, cold and then warm from the
 /// disk store the cold run wrote. A disagreement between the two is reported
-/// as a failure naming both, which stage 0 then disagrees with.
+/// as a failure naming both, which stage 0 then disagrees with. A cold run
+/// that wrote nothing leaves the warm run nothing to read, so it is not run:
+/// a runaway that stores no result costs one run against the row's time
+/// limit, not two.
 pub fn memo(env: &mut Env, row: &Row) -> Obs {
     if !runs(row) {
         return Obs::Blind(format!(
@@ -257,8 +260,12 @@ pub fn memo(env: &mut Env, row: &Row) -> Obs {
         .collect();
     let store = env.scratch.join("memo").join(store);
     let _ = std::fs::remove_dir_all(&store);
-    let (cold, _) = memo_run(env, row, &store);
-    let (warm, from_disk) = memo_run(env, row, &store);
+    let (cold, _, written) = memo_run(env, row, &store);
+    if written == 0 {
+        let _ = std::fs::remove_dir_all(&store);
+        return cold;
+    }
+    let (warm, from_disk, _) = memo_run(env, row, &store);
     let _ = std::fs::remove_dir_all(&store);
     env.memo_disk_hits += from_disk;
     if cold == warm {
@@ -271,9 +278,9 @@ pub fn memo(env: &mut Env, row: &Row) -> Obs {
     }
 }
 
-/// One memoized run over the store at `dir`, and how many calls the disk
-/// answered.
-fn memo_run(env: &mut Env, row: &Row, dir: &Path) -> (Obs, u64) {
+/// One memoized run over the store at `dir`, how many calls the disk
+/// answered, and how many results it wrote.
+fn memo_run(env: &mut Env, row: &Row, dir: &Path) -> (Obs, u64, usize) {
     use blue_lang_mondou::recall::{Plan, Policy, Recall};
     use blue_lang_mondou::store::{Identity, Store, DEFAULT_MAX_BYTES};
     use std::sync::Arc;
@@ -307,15 +314,15 @@ fn memo_run(env: &mut Env, row: &Row, dir: &Path) -> (Obs, u64) {
             held = Some(Arc::clone(&m));
             m
         });
-    let from_disk = held.as_ref().map_or(0, |m| {
-        m.flush();
-        m.report().total().disk_hits
+    let (from_disk, written) = held.as_ref().map_or((0, 0), |m| {
+        let flushed = m.flush();
+        (m.report().total().disk_hits, flushed.written)
     });
     let obs = match observed.and_then(|o| o.outcome) {
         Ok(run) => Obs::Value(env.literal(&run.value)),
         Err(e) => failed(&e),
     };
-    (obs, from_disk)
+    (obs, from_disk, written)
 }
 
 pub fn vm(env: &mut Env, row: &Row) -> Obs {

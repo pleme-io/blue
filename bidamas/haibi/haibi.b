@@ -143,14 +143,29 @@ def values(svc)
   values_with(svc, :pleme_lib)
 end
 
+@doc """
+runtime_kind: the runtime a service declares, `wasm` when it declares none.
+
+    runtime_kind({}) #=> "wasm"
+"""
 def runtime_kind(svc)
   get_or(get_or(svc, "runtime", {}), "kind", "wasm")
 end
 
+@doc """
+wasm?: whether a service runs as a WASI component.
+
+    wasm?({"runtime" => {"kind" => "native"}}) #=> false
+"""
 def wasm?(svc)
   runtime_kind(svc) == "wasm"
 end
 
+@doc """
+runtime_values: the chart's `runtime` values, with the component path the kubelet mounts at `/app`.
+
+    runtime_values({})["kind"] #=> "wasm"
+"""
 def runtime_values(svc)
   app = if wasm?(svc)
     "app"
@@ -165,6 +180,11 @@ def runtime_values(svc)
   }
 end
 
+@doc """
+access_values: the chart's `access` values; a service that declares none reaches the network, clock, entropy and environment and listens on its port.
+
+    access_values({"port" => 8080})["listen"] #=> [8080]
+"""
 def access_values(svc)
   a = get_or(svc, "access", {})
   {
@@ -177,10 +197,20 @@ def access_values(svc)
   }
 end
 
+@doc """
+program_name: the file name of a service's program, `main.b` when it names none.
+
+    program_name({"program" => "src/app.b"}) #=> "app.b"
+"""
 def program_name(svc)
   last(split(get_or(svc, "program", "main.b"), "/"))
 end
 
+@doc """
+args_of: the container arguments; a component runs its program from `/app`.
+
+    args_of({"program" => "src/app.b"}) #=> ["/app/app.b"]
+"""
 def args_of(svc)
   if wasm?(svc)
     ["/app/#{program_name(svc)}"]
@@ -631,6 +661,11 @@ def cache_volumes(n)
   ]
 end
 
+@doc """
+runtime_head: the template lines that validate the component and collect its peers, only on pleme-lib.
+
+    runtime_head(false) #=> []
+"""
 def runtime_head(on_lib)
   if on_lib
     [
@@ -648,6 +683,11 @@ def runtime_head(on_lib)
   end
 end
 
+@doc """
+pod_annotations: the pod annotation lines; on pleme-lib they also carry the component's egress.
+
+    pod_annotations(false)[1] #=> "      annotations:"
+"""
 def pod_annotations(on_lib)
   if on_lib
     [
@@ -667,6 +707,11 @@ def pod_annotations(on_lib)
   end
 end
 
+@doc """
+runtime_class: the runtimeClassName line, only on pleme-lib.
+
+    runtime_class(false) #=> []
+"""
 def runtime_class(on_lib)
   if on_lib
     ["      {{- include \"pleme-lib.runtimeclass\" . | nindent 6 }}"]
@@ -675,6 +720,11 @@ def runtime_class(on_lib)
   end
 end
 
+@doc """
+image_line: the container image line; a component on pleme-lib takes its image from the library.
+
+    contains?(image_line(true, true), "wasm-component.image") #=> true
+"""
 def image_line(on_lib, wasm)
   if on_lib and wasm
     "          image: {{ include \"pleme-lib.wasm-component.image\" . | quote }}"
@@ -683,6 +733,11 @@ def image_line(on_lib, wasm)
   end
 end
 
+@doc """
+defaults_env: the env lines that point a component at its packaged defaults file.
+
+    defaults_env("kensa", "KENSA_", false) #=> []
+"""
 def defaults_env(n, p, wasm)
   if wasm
     [

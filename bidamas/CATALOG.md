@@ -1091,12 +1091,12 @@ hadome (歯止め) — a baseline ratchet: recorded debt may shrink or hold, nev
 | `haibi::cache_values(svc)` |  |  |  |  |
 | `haibi::tables(svc)` |  |  |  |  |
 | `haibi::values(svc)` |  |  |  |  |
-| `haibi::runtime_kind(svc)` |  |  |  |  |
-| `haibi::wasm?(svc)` |  |  |  |  |
-| `haibi::runtime_values(svc)` |  |  |  |  |
-| `haibi::access_values(svc)` |  |  |  |  |
-| `haibi::program_name(svc)` |  |  |  |  |
-| `haibi::args_of(svc)` |  |  |  |  |
+| `haibi::runtime_kind(svc)` |  |  |  | runtime_kind: the runtime a service declares, `wasm` when it declares none. |
+| `haibi::wasm?(svc)` |  |  |  | wasm?: whether a service runs as a WASI component. |
+| `haibi::runtime_values(svc)` |  |  |  | runtime_values: the chart's `runtime` values, with the component path the kubelet mounts at `/app`. |
+| `haibi::access_values(svc)` |  |  |  | access_values: the chart's `access` values; a service that declares none reaches the network, clock, entropy and environment and listens on its port. |
+| `haibi::program_name(svc)` |  |  |  | program_name: the file name of a service's program, `main.b` when it names none. |
+| `haibi::args_of(svc)` |  |  |  | args_of: the container arguments; a component runs its program from `/app`. |
 | `haibi::service_values(svc, mode)` |  |  |  |  |
 | `haibi::values_with(svc, mode)` |  |  |  |  |
 | `haibi::values_schema(name, svc)` |  |  |  |  |
@@ -1121,11 +1121,11 @@ hadome (歯止め) — a baseline ratchet: recorded debt may shrink or hold, nev
 | `haibi::cache_mount(n)` |  |  |  |  |
 | `haibi::cache_mounts(n)` |  |  |  |  |
 | `haibi::cache_volumes(n)` |  |  |  |  |
-| `haibi::runtime_head(on_lib)` |  |  |  |  |
-| `haibi::pod_annotations(on_lib)` |  |  |  |  |
-| `haibi::runtime_class(on_lib)` |  |  |  |  |
-| `haibi::image_line(on_lib, wasm)` |  |  |  |  |
-| `haibi::defaults_env(n, p, wasm)` |  |  |  |  |
+| `haibi::runtime_head(on_lib)` |  |  |  | runtime_head: the template lines that validate the component and collect its peers, only on pleme-lib. |
+| `haibi::pod_annotations(on_lib)` |  |  |  | pod_annotations: the pod annotation lines; on pleme-lib they also carry the component's egress. |
+| `haibi::runtime_class(on_lib)` |  |  |  | runtime_class: the runtimeClassName line, only on pleme-lib. |
+| `haibi::image_line(on_lib, wasm)` |  |  |  | image_line: the container image line; a component on pleme-lib takes its image from the library. |
+| `haibi::defaults_env(n, p, wasm)` |  |  |  | defaults_env: the env lines that point a component at its packaged defaults file. |
 | `haibi::deployment_with(n, h, svc)` |  |  |  |  |
 | `haibi::env_template(n)` |  |  |  | env_template(n) is the named template that turns a settings map into |
 | `haibi::migration(_n, h)` |  |  |  |  |
@@ -3192,7 +3192,7 @@ mokuroku (目録): the catalogue of what every bidama on a BLUE_PATH provides.
 | `mokuroku::row_space?(c)` |  |  |  |  |
 | `mokuroku::row_digit?(c)` |  |  |  |  |
 | `mokuroku::row_ident_char?(c)` |  |  |  |  |
-| `mokuroku::row_run_end(keep, cs, i, n)` |  |  |  |  |
+| `mokuroku::row_run_end(keep, cs, i, n)` |  |  |  | row_run_end: the index after the run of characters from `i` that `keep` accepts. |
 | `mokuroku::row_text(cs, from, to)` |  |  |  |  |
 | `mokuroku::row_fail(cs, i, why)` |  |  |  |  |
 | `mokuroku::row_symbol?(v)` |  |  |  |  |
@@ -3201,8 +3201,8 @@ mokuroku (目録): the catalogue of what every bidama on a BLUE_PATH provides.
 | `mokuroku::row_number(cs, i, n)` |  |  |  |  |
 | `mokuroku::row_word_value(cs, i, n)` |  |  |  |  |
 | `mokuroku::row_items(cs, i, n, close, acc)` |  |  |  |  |
-| `mokuroku::row_word_char?(c)` |  |  |  |  |
-| `mokuroku::row_words(cs, i, n, names, acc)` |  |  |  |  |
+| `mokuroku::row_word_char?(c)` |  |  |  | row_word_char?: whether a character can sit inside a `%w[...]` word. |
+| `mokuroku::row_words(cs, i, n, names, acc)` |  |  |  | row_words: the words of a `%w[...]` or `%i[...]` list in a row file, and the index after its `]`. |
 | `mokuroku::row_entries(cs, i, n, acc)` |  |  |  |  |
 | `mokuroku::row_value(cs, i, n)` |  |  |  |  |
 | `mokuroku::row_forms_from(cs, i, n, acc)` |  |  |  |  |
@@ -3266,7 +3266,7 @@ mokuroku (目録): the catalogue of what every bidama on a BLUE_PATH provides.
 | `mokuroku::uncommented(line)` |  |  |  |  |
 | `mokuroku::unquoted(line)` |  |  |  |  |
 | `mokuroku::code_tokens(text)` |  |  |  |  |
-| `mokuroku::unworded(text)` |  |  |  |  |
+| `mokuroku::unworded(text)` |  |  |  | unworded: text with every `%w[...]` word list taken out, so its words are not read as code. |
 | `mokuroku::test_tokens(text)` |  |  |  |  |
 | `mokuroku::qualified_token(space, verb)` |  |  |  |  |
 | `mokuroku::legacy_prefixes(packages)` |  |  |  |  |
@@ -3562,8 +3562,8 @@ okite (掟) — blue's decisions, each enforced by laws written in blue.
 | `okite::law_empty_list_is_brackets` | `ok_law_empty_list_is_brackets` (old) |  | `B0036` |  |
 | `okite::law_split_keeps_every_field` | `ok_law_split_keeps_every_field` (old) |  |  |  |
 | `okite::law_map_keys_are_exact` | `ok_law_map_keys_are_exact` (old) |  |  |  |
-| `okite::law_string_is_not_keyword` | `ok_law_string_is_not_keyword` (old) |  |  |  |
-| `okite::law_text_names_take_either` | `ok_law_text_names_take_either` (old) |  |  |  |
+| `okite::law_string_is_not_keyword` | `ok_law_string_is_not_keyword` (old) |  |  | law_string_is_not_keyword: a string and a keyword of the same text are different values and different map keys. |
+| `okite::law_text_names_take_either` | `ok_law_text_names_take_either` (old) |  |  | law_text_names_take_either: a word that reads a name (`json_get`, `json_get_or`, `error`) takes the string or the keyword alike. |
 | `okite::chain_values` | `ok_chain_values` (old) |  |  |  |
 | `okite::chain_kind_matches(kind, v)` | `ok_chain_kind_matches` (old) |  |  |  |
 | `okite::chain_outcome(f, v)` | `ok_chain_outcome` (old) |  |  |  |

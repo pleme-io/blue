@@ -619,6 +619,11 @@ def row_ident_char?(c)
   contains?("abcdefghijklmnopqrstuvwxyz0123456789_?!", c)
 end
 
+@doc """
+row_run_end: the index after the run of characters from `i` that `keep` accepts.
+
+    row_run_end((c) -> c == "a", ["a", "a", "b"], 0, 3) #=> 2
+"""
 def row_run_end(keep, cs, i, n)
   if i < n and keep(cs[i])
     row_run_end(keep, cs, i + 1, n)
@@ -723,10 +728,20 @@ def row_items(cs, i, n, close, acc)
   end
 end
 
+@doc """
+row_word_char?: whether a character can sit inside a `%w[...]` word.
+
+    row_word_char?(",") #=> false
+"""
 def row_word_char?(c)
   not row_space?(c) and not contains?(",\"'#\\[]", c)
 end
 
+@doc """
+row_words: the words of a `%w[...]` or `%i[...]` list in a row file, and the index after its `]`.
+
+    row_words(["a", " ", "b", "]"], 0, 4, false, []) #=> [["a", "b"], 4]
+"""
 def row_words(cs, i, n, names, acc)
   j = row_run_end(row_space?, cs, i, n)
   if j >= n
@@ -1762,6 +1777,11 @@ def code_tokens(text)
   filter((t) -> t != "", split(spaced, " "))
 end
 
+@doc """
+unworded: text with every `%w[...]` word list taken out, so its words are not read as code.
+
+    contains?(unworded("x %w[foo] y"), "foo") #=> false
+"""
 def unworded(text)
   parts = split(text, "%w[")
   join(

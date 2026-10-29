@@ -238,7 +238,7 @@ row(
 row(
   "canon.B0065.writes",
   "\"a\\nb\"",
-  formats(unlines(["join_lines([\"a\", \"b\"])"]))
+  formats(unlines(["join_lines(%w[a b])"]))
 )
 
 row(

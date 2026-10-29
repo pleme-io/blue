@@ -292,7 +292,7 @@ row(
     [
       "use(\"danpen\")",
       "",
-      "card = danpen::fragment(:user_card, {on: \"User\", fields: [:id, :name]})",
+      "card = danpen::fragment(:user_card, {on: \"User\", fields: %i[id name]})",
       "",
       "def user_card(user: UserCard)",
       "  user.tone",
@@ -309,7 +309,7 @@ row(
     [
       "use(\"danpen\")",
       "",
-      "card = danpen::fragment(:user_card, {on: \"User\", fields: [:id, :name]})",
+      "card = danpen::fragment(:user_card, {on: \"User\", fields: %i[id name]})",
       "",
       "page = danpen::fragment(:page, {on: \"Query\", fields: [{me: [\"...user_card\"]}]})",
       "",
@@ -327,7 +327,7 @@ row(
     [
       "use(\"danpen\")",
       "",
-      "card = danpen::fragment(:user_card, {on: \"User\", fields: [:id, :name]})",
+      "card = danpen::fragment(:user_card, {on: \"User\", fields: %i[id name]})",
       "",
       "def user_card(user: UserCard)",
       "  [user.id, user[:name], user.__typename]",
@@ -343,7 +343,7 @@ row(
     [
       "use(\"danpen\")",
       "",
-      "card = danpen::fragment(:user_card, {on: \"User\", fields: [:id, :name]})",
+      "card = danpen::fragment(:user_card, {on: \"User\", fields: %i[id name]})",
       "",
       "page = danpen::fragment(:page, {on: \"Query\", fields: [{me: [:id]}]})",
       "",
@@ -378,7 +378,7 @@ row(
     [
       "use(\"danpen\")",
       "",
-      "card = danpen::fragment(:user_card, {on: \"User\", fields: [:id, :name]})",
+      "card = danpen::fragment(:user_card, {on: \"User\", fields: %i[id name]})",
       "",
       "page = danpen::fragment(:page, {on: \"Query\", fields: [{me: [\"...user_card\"]}]})",
       "",
@@ -400,7 +400,7 @@ row(
     [
       "use(\"danpen\")",
       "",
-      "card = danpen::fragment(:user_card, {on: \"User\", fields: [:id, :nmae]})"
+      "card = danpen::fragment(:user_card, {on: \"User\", fields: %i[id nmae]})"
     ]
   ),
   diagnoses(["B0050"]),
@@ -440,7 +440,7 @@ row(
     [
       "use(\"danpen\")",
       "",
-      "card = danpen::fragment(:user_card, {on: \"User\", fields: [:id, :name]})"
+      "card = danpen::fragment(:user_card, {on: \"User\", fields: %i[id name]})"
     ]
   ),
   diagnoses([]),
@@ -449,7 +449,7 @@ row(
 
 row(
   "data.B0051",
-  "TONES = [:WARM, :COOL]",
+  "TONES = %i[WARM COOL]",
   diagnoses(["B0051"]),
   covers("rule:B0051"),
   frontend("{types: {\"User\" => {\"id\" => \"ID\", \"name\" => \"String\"}}, enums: {\"Tone\" => [\"WARM\", \"COOL\"]}}")

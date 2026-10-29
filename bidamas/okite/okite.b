@@ -279,10 +279,20 @@ def law_map_keys_are_exact()
   get(m, 1) == :int and get(m, 1.0).nil?
 end
 
+@doc """
+law_string_is_not_keyword: a string and a keyword of the same text are different values and different map keys.
+
+    law_string_is_not_keyword #=> true
+"""
 def law_string_is_not_keyword()
   "a" != :a and {"a" => 1} != {a: 1} and {a: 1}["a"].nil?
 end
 
+@doc """
+law_text_names_take_either: a word that reads a name (`json_get`, `json_get_or`, `error`) takes the string or the keyword alike.
+
+    law_text_names_take_either #=> true
+"""
 def law_text_names_take_either()
   doc = json_parse("{\"a\": 1}")
   key = "a"

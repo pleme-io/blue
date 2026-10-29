@@ -2179,6 +2179,96 @@ checker.
 
 ### Architecture rules are pipeline errors; lint is a view over them
 
+**Every rule blue enforces is a row in `blue_lang_check::RULES` and runs in the
+check stage**, so no entry point can skip it. A new rule is a new row with a
+witness, never a separate checker; the one escape is `# waive CODE: reason`
+above the definition. **Each bidama is a namespace**: reach another bidama's
+definition qualified (`kueri::join`) or listed in `use`. The registry, name
+resolution and project rules: [implementing.md](docs/implementing.md).
+
+### Where to look
+
+The crate that owns each intent (parser, formatter, check, runtime, proc,
+pkg, mondou, LSP, host, CLI, verb graph) is the table in [implementing.md](docs/implementing.md), "Where to look".
+
+### Rules this repo has learned the hard way
+
+Each is a defect that shipped. The full text and receipts: [implementing.md](docs/implementing.md).
+
+- `INFIX` is one table, and both directions read it: adding an operator is adding one row.
+- The runtime has two layers and both are required: use `blue_lang_runtime::interpreter`.
+- A parking primitive must not consume.
+- A spawned function is turned back into code, never shared.
+- A VM closure carries its chunk.
+- A restart empties the mailbox.
+- Restart intensity is checked on the child that exited, not on siblings a strategy sweeps up.
+- A passing formatter law is not a right formatter, and a corpus is only as strong as its contents.
+- A name blue lowers to must not be one tatara already binds.
+- Comments are not in the tree, and must not be lost.
+- Call the COMPOSED substrate installer (`install_full_stdlib_with`), never the layers by name.
+- `==` is `equal?`, not `=`.
+- A lowered name is either OWNED or DELEGATED, and the two invariants are opposite.
+- A derived artifact needs a test that reads the artifact, not its source.
+- Isolation is the SEAL, not the rebuild: `spawn` goes through `blue_lang_proc::forking`.
+- A name has three arbiters, and an environment lookup sees one.
+- One door to the formatter: show a user their file through `format_source_lossless`.
+- A layout change is a change to every `.b` file: the reformatted corpus lands in the same commit.
+- A name that reads like a guarantee is not one; ask an interpreter.
+- Nix reads blue's evaluation of a Bluefile; it never re-derives it: run `blue lock <dir>` and commit both.
+- A generated file is declared once, in the root `Bluefile`, and refreshed by its command (`nix run .#regen`).
+- A description lives beside the table it describes, and a gate makes the omission red.
+- The mark is a COLOUR shift, and its direction is meaning.
+
+### Every behaviour is a spec row
+
+A new builtin (`docs::NAMES`), form (`FORMS`), keyword, operator (`INFIX`),
+rule code (`RULES`) or okite decision is red in `checks.conformance` until a
+row in `spec/rows/` covers it. A row states what blue PROMISES; where the
+implementation falls short it is `pending("<gap>")`, and it fails the run the
+moment the gap closes, until the mark is removed. Evaluators must agree with
+the tree-walker on every row. `spec/README.md` has the format.
+
+### Testing discipline
+
+Every gate has a **red run** on a deliberately broken input before it is
+trusted. A gate derived from the thing it checks is a tautology, and a break
+attempt that cannot violate the property proves nothing.
+
+**CI guards `main`; land with `git land`** (`gen/land.b`). Every push runs the
+fast `gen/prepush.b` gate (off: `BLUE_PREPUSH_OFF=1`; full: `BLUE_PREPUSH_FULL=1`).
+**A new rule lands after its consumers are written in it** (`blue gen/consumers.b
+sweep`, `fix REPO`). How each works: [implementing.md](docs/implementing.md), "Testing discipline".
+
+### Dependencies
+
+`tatara-lisp` and `tatara-lisp-eval` are **crates.io registry deps**, never path
+or git deps: a git dep doubles the crate in every consumer and cannot be
+published. Why, and the update order: [implementing.md](docs/implementing.md), "Dependencies".
+
+### `Cargo.gen.lock` is committed, and that is a trade
+
+The slim delta avoids eval-time IFD; `checks.gen-confirm` and `gen-spec.yml` keep it tied to
+`Cargo.lock`. Regenerate it with `gen build .` AFTER any lock work and check the sha tie. Why,
+the measured failure and the tier: [`docs/CARGO-GEN-LOCK.md`](docs/CARGO-GEN-LOCK.md).
+
+### What is not built
+
+No per-process GC heap, registry client, implementation self-hosting, comment
+attachment inside a form, entropy or encryption, TLS, wasm import emission,
+editor answers in a broken buffer, project rules in the editor or as wasm,
+`case`/`when` matching or ranges. Each with its plan: [implementing.md](docs/implementing.md), "What is not built".
+**Do not build against a DESIGN-tier row without saying so.**
+
+---
+
+Source: `docs/implementing.md`
+
+# Implementing blue — the detail behind the agent guide
+
+The agent guide (`docs/agents.md`, rendered as AGENTS.md and CLAUDE.md) states each of these in short and links here. Moved out of the guide on 2026-10-29 so the always-loaded page stays inside its context budget; nothing was dropped.
+
+## Architecture rules are pipeline errors; lint is a view over them
+
 **Every rule blue enforces is a row in one registry, `blue_lang_check::RULES`,
 and runs in the check stage** — so `blue run`, `blue test`, `blue check`, the
 LSP and every bidama build enforce it, and an error-severity violation cannot
@@ -2213,7 +2303,7 @@ and both keep a file only when its resolved tree proves unchanged (`blue ast
 renamed call, and the proof did. `mkBidama` runs the check stage, so a
 bidama that does not check does not build.
 
-### Where to look
+## Where to look
 
 | Intent | Crate |
 |---|---|
@@ -2240,7 +2330,7 @@ bidama that does not check does not build.
 | the verb graph: row files (`space`, `verb`, `edge`, `vocab`, `lateral`) read as data, never run; gates G1, G2, G4, G7, G9 and their hadome baseline (`graph.baseline`); TSV import and export; `blue verbs` (`blue-lang-cli/blue/verbs.b`) and `checks.verb-graph` (`gen/verb-graph.b`) | `mokuroku` (`bidamas/mokuroku/graph/`), `blue-lang-cli` |
 | `blue doc`: a blue program (`blue-lang-cli/blue/doc.b`) over mokuroku | `blue-lang-cli` |
 
-### Rules this repo has learned the hard way
+## Rules this repo has learned the hard way
 
 Each of these is a defect that shipped, not a style preference.
 
@@ -2313,16 +2403,7 @@ Each of these is a defect that shipped, not a style preference.
 - **A description lives beside the table it describes, and a gate makes the omission red.** A new operator, keyword, word or primitive arrives with its doc line. Detail: [LESSONS.md](docs/LESSONS.md).
 - **The mark is a COLOUR shift, and its direction is meaning.** Four solid `█` across Nord's Frost band, named by ANSI slot. Never a density ramp or dither glyphs; theme colours are `irodori` lookups, blue carries no hex, and a test enforces it. Quoting a warning and arguing past it is not clearing it. Detail: [docs/LESSONS.md](docs/LESSONS.md).
 
-### Every behaviour is a spec row
-
-A new builtin (`docs::NAMES`), form (`FORMS`), keyword, operator (`INFIX`),
-rule code (`RULES`) or okite decision is red in `checks.conformance` until a
-row in `spec/rows/` covers it. A row states what blue PROMISES; where the
-implementation falls short it is `pending("<gap>")`, and it fails the run the
-moment the gap closes, until the mark is removed. Evaluators must agree with
-the tree-walker on every row. `spec/README.md` has the format.
-
-### Testing discipline
+## Testing discipline
 
 Every gate here has a **red run**: the test was shown to fail on a
 deliberately broken input before being trusted. Two specific traps this repo
@@ -2342,7 +2423,7 @@ hit:
 
 **A new rule lands after its consumers are written in it.** `gen/consumers.json` is the registry of pleme-io repositories with `.b` files and the blue each pins (flake, git cargo source, crates.io or blue-setup); `blue gen/consumers.b derive` rewrites it from the workspace. `blue gen/consumers.b sweep` runs every consumer's files through this blue's `fmt --check` and `check`; prepush and the `consumers` CI job run it, and recorded debt may shrink, never grow (hadome). `blue gen/consumers.b fix REPO` writes one consumer with `fmt --write` in a worktree and commits only when `blue erase` is byte-identical before and after each file; the consumer then moves its pin and runs its tests. `checks.consumers` is red while `blue explain --list` names a code that `sweep --record` has not recorded green. Off: `level(REPO, :audit, why)` or `level("*", :off, why)` in `entries`.
 
-### Dependencies
+## Dependencies
 
 `tatara-lisp` and `tatara-lisp-eval` are **crates.io registry deps**, not path
 deps and not git deps.
@@ -2360,13 +2441,7 @@ being paid deliberately: the alternative costs publishability.
 
 The measured cost of a stale lock, and the update order, are in [LESSONS.md](docs/LESSONS.md), "A stale Cargo.lock is a stale flake.lock".
 
-### `Cargo.gen.lock` is committed, and that is a trade
-
-The slim delta avoids eval-time IFD; `checks.gen-confirm` and `gen-spec.yml` keep it tied to
-`Cargo.lock`. Regenerate it with `gen build .` AFTER any lock work and check the sha tie. Why,
-the measured failure and the tier: [`docs/CARGO-GEN-LOCK.md`](docs/CARGO-GEN-LOCK.md).
-
-### What is not built
+## What is not built
 
 Stated so nobody cites it as existing: **no per-process GC heap** (processes have
 private environments and messages are deep-copied, but reclamation is `Arc`

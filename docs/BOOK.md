@@ -718,6 +718,7 @@ In blue's own distribution, a new package also needs a row in
 - [blue language reference](REFERENCE.md): syntax, operators, reserved words, every built-in name and the Bluefile words
 - [Safety first: blue's posture, row by row](SAFETY.md): the safety-first posture, one row per Rust guarantee: blue today, the gate, its tier and its off switch
 - [blue — the agent guide](../AGENTS.md): rules for people and agents who write blue programs or change blue itself, with the build commands from the Bluefile
+- [Implementing blue — the detail behind the agent guide](implementing.md): the implementer detail behind the agent guide's "Changing blue itself": the check registry, crate map, hard-won rules, CI gates, dependencies and what is not built
 
 ## Explanation
 

@@ -574,11 +574,7 @@ row(
   covers("builtin:volatile")
 )
 
-row(
-  "fn.volatile.not_a_function",
-  "volatile(3)",
-  fails(:check, "B0062")
-)
+row("fn.volatile.not_a_function", "volatile(3)", fails(:check, "B0062"))
 
 row(
   "fn.volatile.not_a_function_at_run_time",

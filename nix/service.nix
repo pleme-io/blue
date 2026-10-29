@@ -48,6 +48,7 @@ let
     wasmOwn);
 
   componentServesCheck = sn: spec:
+    let port = toString (spec.port + 1); in
     pkgs.runCommand "service-${sn}-component-serves" { nativeBuildInputs = [ pkgs.curl pkgs.wasmtime ]; __darwinAllowLocalNetworking = true; } ''
       export HOME=$TMPDIR
       wasmtime run -S inherit-network=y -S tcp=y \
@@ -55,14 +56,15 @@ let
         --env BLUE_SERVICE=${sn} \
         --env ${envPrefix sn}DEFAULTS=/app/share/${sn}/defaults.yaml \
         --env ${envPrefix sn}LISTEN__HOST=127.0.0.1 \
+        --env ${envPrefix sn}LISTEN__PORT=${port} \
         ${components.${sn}}/component.wasm /app/${baseNameOf spec.program} > serve.log 2>&1 &
       pid=$!
       for i in $(seq 1 300); do
-        if curl -sf -o health.txt http://127.0.0.1:${toString spec.port}${spec.probe}; then break; fi
+        if curl -sf -o health.txt http://127.0.0.1:${port}${spec.probe}; then break; fi
         if ! kill -0 $pid 2>/dev/null; then cat serve.log >&2; exit 1; fi
         sleep 0.1
       done
-      code=$(curl -s -o root.txt -w '%{http_code}' http://127.0.0.1:${toString spec.port}/ || true)
+      code=$(curl -s -o root.txt -w '%{http_code}' http://127.0.0.1:${port}/ || true)
       kill $pid
       test -s health.txt || { echo "service-${sn}-component-serves: ${spec.probe} never answered from the component" >&2; cat serve.log >&2; exit 1; }
       test "$code" -ge 200 -a "$code" -lt 500 || { echo "service-${sn}-component-serves: / answered $code" >&2; cat root.txt serve.log >&2; exit 1; }
@@ -105,7 +107,8 @@ let
 
   chartCheck = sn: spec:
     let
-      chart = "chart";
+      wasm = (spec.runtime.kind or "wasm") == "wasm";
+      chart = "chart${lib.optionalString wasm " --set runtime.component.closure=/nix/store/00000000000000000000000000000000-${sn}-component"}";
       withDb = (spec.schema or { }) != { };
     in
     pkgs.runCommand "service-${sn}-chart" { nativeBuildInputs = [ pkgs.kubernetes-helm ]; } (''
@@ -117,6 +120,22 @@ let
     '') chartLibraries) + ''
       helm lint --strict ${chart}
       helm template t ${chart} > rendered.yaml
+    '' + lib.optionalString wasm ''
+      grep -q '^      runtimeClassName: wasm$' rendered.yaml || { echo "service-${sn}-chart: a wasm service rendered no runtimeClassName" >&2; exit 1; }
+      grep -q 'image: "nix:/nix/store/00000000000000000000000000000000-${sn}-component"' rendered.yaml
+      grep -q 'blue.pleme.io/access' rendered.yaml
+      grep -q 'wasm.pleme.io/app: "\{0,1\}app"\{0,1\}$' rendered.yaml
+      if helm template t chart > /dev/null 2> noclosure.log; then
+        echo "service-${sn}-chart: a wasm service rendered with no component closure" >&2
+        exit 1
+      fi
+      grep -q 'closure' noclosure.log
+    '' + lib.optionalString (!wasm) ''
+      if grep -q 'runtimeClassName' rendered.yaml; then
+        echo "service-${sn}-chart: a native service rendered a runtimeClassName" >&2
+        exit 1
+      fi
+    '' + ''
       grep -q '^kind: Deployment$' rendered.yaml
       grep -q '^kind: Service$' rendered.yaml
       grep -q '^kind: "PrometheusRule"$' rendered.yaml

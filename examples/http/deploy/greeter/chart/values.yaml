@@ -1,4 +1,17 @@
-args: []
+access:
+  effects:
+    - "network"
+    - "clock"
+    - "entropy"
+    - "environment"
+  egress: []
+  exec: []
+  listen:
+    - 18080
+  reads: []
+  writes: []
+args:
+  - "/app/greeter.b"
 command: []
 config:
   greeting: "hello"
@@ -32,6 +45,14 @@ podSecurityContext:
   runAsUser: 65532
 replicaCount: 1
 resources: {}
+runtime:
+  class: "wasm"
+  component:
+    app: "app"
+    closure: ""
+    path: "component.wasm"
+  kind: "wasm"
+  reason: ""
 securityContext:
   allowPrivilegeEscalation: false
   capabilities:

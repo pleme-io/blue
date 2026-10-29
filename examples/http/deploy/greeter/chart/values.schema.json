@@ -2,6 +2,38 @@
   "$schema": "https://json-schema.org/draft-07/schema#",
   "additionalProperties": false,
   "properties": {
+    "access": {
+      "additionalProperties": false,
+      "properties": {
+        "effects": {
+          "items": {
+            "default": "network",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "egress": {
+          "type": "array"
+        },
+        "exec": {
+          "type": "array"
+        },
+        "listen": {
+          "items": {
+            "default": 18080,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "reads": {
+          "type": "array"
+        },
+        "writes": {
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
     "args": {
       "items": {
         "type": "string"
@@ -158,6 +190,42 @@
             }
           },
           "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "runtime": {
+      "additionalProperties": false,
+      "properties": {
+        "class": {
+          "default": "wasm",
+          "type": "string"
+        },
+        "component": {
+          "additionalProperties": false,
+          "properties": {
+            "app": {
+              "default": "app",
+              "type": "string"
+            },
+            "closure": {
+              "default": "",
+              "type": "string"
+            },
+            "path": {
+              "default": "component.wasm",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "kind": {
+          "default": "wasm",
+          "type": "string"
+        },
+        "reason": {
+          "default": "",
+          "type": "string"
         }
       },
       "type": "object"

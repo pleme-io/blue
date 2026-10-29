@@ -47,7 +47,7 @@ deleted.
 
 | Rung | When | What runs |
 |---|---|---|
-| **wasm** (default, no field) | every service whose `access` WASI can grant | blue's engine component (`crates/blue-lang-component`, built once per blue revision for `wasm32-wasip2`) plus the service's program bundle (`packages.service-<name>-component`); on engenho the pod will carry `runtimeClassName: wasm` and image `nix:<closure>` once the chart renders them (S4), and engenho's `kidou` preopens the bundle read-only at `/app` and derives the grants from `access` |
+| **wasm** (default, no field) | every service whose `access` WASI can grant | blue's engine component (`crates/blue-lang-component`, built once per blue revision for `wasm32-wasip2`) plus the service's program bundle (`packages.service-<name>-component`); on engenho the pod carries `runtimeClassName: wasm` and image `nix:<closure>` from the chart (S4; the release sets `runtime.component.closure` to that package's store path, and the chart refuses to render without it), and engenho's `kidou` preopens the bundle read-only at `/app` and derives the grants from `access` |
 | **native** | `runtime: :native, because: :<gap>`, where the gap is real | the program as a native process: a nix closure on an engenho node, `mkHardenedImageSet`'s distroless image on a cluster that runs OCI |
 | never | — | an image with a shell, a writable root filesystem, a service that reads or writes outside its declared `access` |
 
@@ -86,7 +86,7 @@ schema, config and migration into `deploy/<service>/`; the chart gains:
 
 | Piece | wasm rung | native rung |
 |---|---|---|
-| workload (S4, design) | a Deployment with `pleme-lib.runtimeclass` (`runtimeClassName: wasm`), image `pleme-lib.wasm-component.image` (`nix:<closure>`), annotations `pleme-lib.wasm-component.annotations` (`blue.pleme.io/access`, `wasm.pleme.io/app`) | a Deployment of the nix closure or the image; annotation `blue.pleme.io/native-because` |
+| workload (S4) | a Deployment with `pleme-lib.runtimeclass` (`runtimeClassName: wasm`), image `pleme-lib.wasm-component.image` (`nix:<closure>`), annotations `pleme-lib.wasm-component.annotations` (`blue.pleme.io/access`, `wasm.pleme.io/app`) | a Deployment of the nix closure or the image; annotation `blue.pleme.io/native-because` |
 | access | `SERVICE-ACCESS.md` §4: NetworkPolicy egress, read-only volumes for `reads`, nothing writable unless `writes` names it | the same |
 | values schema | generated, closed (`additionalProperties: false`) | the same |
 | Flux | a `HelmRelease` and `Kustomization` per `placement`, rendered in the GitOps repo from the pinned service flake (`SERVICE-ACCESS.md` §5) | the same |
@@ -198,7 +198,7 @@ Turning it off is a typed waiver on the entry, never a missing entry.
 | `runtime` and `access` on `service`, the judge (§2.1) | built 2026-10-28 |
 | blue engine as a WASI preview 2 component (`blue-lang-component`), per-service bundle, `-component-serves` | built 2026-10-28 |
 | engenho `kidou` preopens the bundle at `/app` (`wasm.pleme.io/app`) | built 2026-10-28 |
-| haibi wasm chart on pleme-lib's wasm mode (S4) | design: pleme-lib has no `wasm-component` or `runtimeclass` helper yet (helmworks H4), so a chart still runs the native image |
+| haibi wasm chart on pleme-lib's wasm mode (S4) | built 2026-10-29 on pleme-lib 0.59.1: `checks.service-<name>-chart` renders the wasm Deployment and refuses one with no closure; no release sets `runtime.component.closure` yet (S5), and no deployed pod has run it |
 | Flux per placement | design |
 | OTP supervisor (`blue-lang-proc`), restart policy as data (`saishikou`) | built, not wired into services |
 | supervision as a service default, restart window and backoff | design |

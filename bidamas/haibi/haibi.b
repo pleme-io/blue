@@ -1,6 +1,6 @@
 use("deeta", [:get_or, :pretty, :yaml])
 use("kyuuji")
-use("retsu", [:first])
+use("retsu", [:first, :last])
 use("settei", [:env_prefix])
 use("shihyou")
 
@@ -143,6 +143,56 @@ def values(svc)
   values_with(svc, :pleme_lib)
 end
 
+def runtime_kind(svc)
+  get_or(get_or(svc, "runtime", {}), "kind", "wasm")
+end
+
+def wasm?(svc)
+  runtime_kind(svc) == "wasm"
+end
+
+def runtime_values(svc)
+  app = if wasm?(svc)
+    "app"
+  else
+    ""
+  end
+  {
+    "kind" => runtime_kind(svc),
+    "class" => "wasm",
+    "reason" => to_s(get_or(get_or(svc, "runtime", {}), "because", "")),
+    "component" => {"closure" => "", "path" => "component.wasm", "app" => app}
+  }
+end
+
+def access_values(svc)
+  a = get_or(svc, "access", {})
+  {
+    "effects" => get_or(
+      a,
+      "effects",
+      ["network", "clock", "entropy", "environment"]
+    ),
+    "egress" => get_or(a, "egress", []),
+    "reads" => get_or(a, "reads", []),
+    "writes" => get_or(a, "writes", []),
+    "listen" => get_or(a, "listen", [svc["port"]]),
+    "exec" => get_or(a, "exec", [])
+  }
+end
+
+def program_name(svc)
+  last(split(get_or(svc, "program", "main.b"), "/"))
+end
+
+def args_of(svc)
+  if wasm?(svc)
+    ["/app/#{program_name(svc)}"]
+  else
+    get_or(svc, "host_args", [])
+  end
+end
+
 def service_values(svc, mode)
   if mode == :self
     {"type" => "ClusterIP", "port" => svc["port"]}
@@ -171,7 +221,7 @@ def values_with(svc, mode)
       "pullPolicy" => "IfNotPresent"
     },
     "command" => [],
-    "args" => get_or(svc, "host_args", []),
+    "args" => args_of(svc),
     "service" => service_values(svc, mode),
     "listen" => d["listen"],
     "health" => d["health"],
@@ -184,6 +234,8 @@ def values_with(svc, mode)
       "prometheus.io/path" => kyuuji::metrics_path
     },
     "slo" => {"rules" => true, "dashboard" => true},
+    "runtime" => runtime_values(svc),
+    "access" => access_values(svc),
     "podSecurityContext" => {
       "runAsNonRoot" => true,
       "runAsUser" => 65532,
@@ -583,11 +635,77 @@ def cache_volumes(n)
   ]
 end
 
+def runtime_head(on_lib)
+  if on_lib
+    [
+      "{{- include \"pleme-lib.wasm-component.validate\" . }}",
+      "{{- $peers := list }}",
+      "{{- if and .Values.database .Values.database.enabled }}",
+      "{{- $peers = append $peers (printf \"%s:%v\" .Values.database.host .Values.database.port) }}",
+      "{{- end }}",
+      "{{- if and .Values.cache .Values.cache.enabled }}",
+      "{{- $peers = append $peers (printf \"%s:%v\" .Values.cache.host .Values.cache.port) }}",
+      "{{- end }}"
+    ]
+  else
+    []
+  end
+end
+
+def pod_annotations(on_lib)
+  if on_lib
+    [
+      "      annotations:",
+      "        {{- with .Values.podAnnotations }}",
+      "        {{- toYaml . | nindent 8 }}",
+      "        {{- end }}",
+      "        {{- include \"pleme-lib.wasm-component.annotations\" (dict \"ctx\" . \"extraEgress\" $peers) | nindent 8 }}"
+    ]
+  else
+    [
+      "      {{- with .Values.podAnnotations }}",
+      "      annotations:",
+      "        {{- toYaml . | nindent 8 }}",
+      "      {{- end }}"
+    ]
+  end
+end
+
+def runtime_class(on_lib)
+  if on_lib
+    ["      {{- include \"pleme-lib.runtimeclass\" . | nindent 6 }}"]
+  else
+    []
+  end
+end
+
+def image_line(on_lib, wasm)
+  if on_lib and wasm
+    "          image: {{ include \"pleme-lib.wasm-component.image\" . | quote }}"
+  else
+    "          image: \"{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}\""
+  end
+end
+
+def defaults_env(n, p, wasm)
+  if wasm
+    [
+      "            - name: #{p}DEFAULTS",
+      "              value: /app/share/#{n}/defaults.yaml"
+    ]
+  else
+    []
+  end
+end
+
 def deployment_with(n, h, svc)
   p = env_prefix(n)
   cached = cache?(svc)
+  on_lib = h == "pleme-lib"
+  wasm = wasm?(svc)
   lines(
     append(
+      runtime_head(on_lib),
       [
         "apiVersion: apps/v1",
         "kind: Deployment",
@@ -604,12 +722,12 @@ def deployment_with(n, h, svc)
         "  template:",
         "    metadata:",
         "      labels:",
-        "        {{- include \"#{h}.selectorLabels\" . | nindent 8 }}",
-        "      {{- with .Values.podAnnotations }}",
-        "      annotations:",
-        "        {{- toYaml . | nindent 8 }}",
-        "      {{- end }}",
-        "    spec:",
+        "        {{- include \"#{h}.selectorLabels\" . | nindent 8 }}"
+      ],
+      pod_annotations(on_lib),
+      ["    spec:"],
+      runtime_class(on_lib),
+      [
         "      serviceAccountName: {{ include \"#{h}.fullname\" . }}",
         "      automountServiceAccountToken: false",
         "      {{- with .Values.podSecurityContext }}",
@@ -618,7 +736,7 @@ def deployment_with(n, h, svc)
         "      {{- end }}",
         "      containers:",
         "        - name: #{n}",
-        "          image: \"{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}\"",
+        image_line(on_lib, wasm),
         "          imagePullPolicy: {{ .Values.image.pullPolicy }}",
         "          {{- with .Values.command }}",
         "          command:",
@@ -636,7 +754,10 @@ def deployment_with(n, h, svc)
         "            - name: #{p}LISTEN__PORT",
         "              value: {{ .Values.listen.port | quote }}",
         "            - name: #{p}HEALTH",
-        "              value: {{ .Values.health | quote }}",
+        "              value: {{ .Values.health | quote }}"
+      ],
+      defaults_env(n, p, wasm),
+      [
         "            {{- if and .Values.database .Values.database.enabled }}",
         "            - name: #{p}DATABASE__URL",
         "              value: {{ printf \"postgres://%s@%s:%v/%s\" .Values.database.username .Values.database.host .Values.database.port .Values.database.name | quote }}",
@@ -1097,10 +1218,67 @@ test "nested settings reach the environment through one named template"
   ) == "string"
 end
 
-test "a host service's arguments become the chart's args, and a blue service has none"
-  hosted = assoc(sample, "host_args", ["daemon", "--declaration"])
+test "a host service's arguments become the chart's args, and a wasm service's argument is its program"
+  hosted = assoc(
+    assoc(sample, "host_args", ["daemon", "--declaration"]),
+    "runtime",
+    {"kind" => "native", "because" => "host_program"}
+  )
   assert values(hosted)["args"] == ["daemon", "--declaration"]
-  assert values(sample)["args"] == []
+  assert values(sample)["args"] == ["/app/hello.b"]
   vs = values_schema("hello", hosted)["properties"]
   assert vs["args"]["type"] == "array"
+end
+
+test "a service runs as a wasm component by default: runtime class, closure image, access annotation, bundled defaults"
+  v = values(sample)
+  assert v["runtime"] ==
+    {
+      "kind" => "wasm",
+      "class" => "wasm",
+      "reason" => "",
+      "component" => {
+        "closure" => "",
+        "path" => "component.wasm",
+        "app" => "app"
+      }
+    }
+  assert v["access"]["listen"] == [8080]
+  assert v["access"]["effects"] ==
+    ["network", "clock", "entropy", "environment"]
+  d = deployment_with("hello", "pleme-lib", sample)
+  assert contains?(d, "include \"pleme-lib.runtimeclass\" . | nindent 6") ==
+    true
+  assert contains?(
+    d,
+    "image: {{ include \"pleme-lib.wasm-component.image\" . | quote }}"
+  ) == true
+  assert contains?(
+    d,
+    "include \"pleme-lib.wasm-component.annotations\" (dict \"ctx\" ."
+  ) == true
+  assert contains?(d, "include \"pleme-lib.wasm-component.validate\" .") == true
+  assert contains?(d, "value: /app/share/hello/defaults.yaml") == true
+  assert starts_with?(d, "{{- include") == true
+  vs = values_schema("hello", sample)["properties"]
+  assert vs["runtime"]["properties"]["kind"]["default"] == "wasm"
+  assert vs["runtime"]["additionalProperties"] == false
+end
+
+test "a native service keeps the image from its repository and says why it is native"
+  native = assoc(
+    sample,
+    "runtime",
+    {"kind" => "native", "because" => "process"}
+  )
+  v = values(native)
+  assert v["runtime"]["kind"] == "native"
+  assert v["runtime"]["reason"] == "process"
+  assert v["runtime"]["component"]["app"] == ""
+  d = deployment_with("hello", "pleme-lib", native)
+  assert contains?(d, "image: \"{{ .Values.image.repository }}") == true
+  assert contains?(d, "DEFAULTS") == false
+  assert contains?(d, "pleme-lib.wasm-component.annotations") == true
+  plain = deployment_with("hello", "hello", sample)
+  assert contains?(plain, "pleme-lib.") == false
 end

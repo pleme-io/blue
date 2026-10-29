@@ -1839,11 +1839,11 @@
     "helmworks": {
       "flake": false,
       "locked": {
-        "lastModified": 1792279583,
-        "narHash": "sha256-u7OqT0figq1TmJHEWSA8gyIyKnd2qLkCIrtKPh2zCsE=",
+        "lastModified": 1793260464,
+        "narHash": "sha256-PUwFrMtwtcCFR/JPXGe1OrrteQryVXqVpJpWTQQpeF0=",
         "owner": "pleme-io",
         "repo": "helmworks",
-        "rev": "c511ae42cdd738f13d9336693642876d42851b7f",
+        "rev": "1141ff120a1dc725c3e6b0d59d538c074dfd4c19",
         "type": "github"
       },
       "original": {

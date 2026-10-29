@@ -16,6 +16,21 @@ def entries()
       "nupastel",
       :audit,
       "its bidamas need blue migrate (B0012, B0013, B0015) before blue fmt can write them, and the operator runs that by hand; it is measured and never red"
+    ),
+    level(
+      "hanabi",
+      :audit,
+      "its host loads .b files only when canonical, and its crates.io blue-lang reads %w[...] as canonical only from the release that carries this formatter; it is written in it with that pin move"
+    ),
+    level(
+      "hanshi",
+      :audit,
+      "its host loads .b files only when canonical, and its crates.io blue-lang reads %w[...] as canonical only from the release that carries this formatter; it is written in it with that pin move"
+    ),
+    level(
+      "zukai",
+      :audit,
+      "its host loads .b files only when canonical, and its crates.io blue-lang reads %w[...] as canonical only from the release that carries this formatter; it is written in it with that pin move"
     )
   ]
 end

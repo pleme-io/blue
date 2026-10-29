@@ -686,12 +686,12 @@ def deployment_with(n, h, svc)
 end
 
 @doc """
-The named template that turns a settings map into environment entries. A
-nested map joins its keys with `__`, the separator settei reads back; a list
-renders as JSON; a null leaf renders nothing, so the program keeps its own
-default.
+env_template(n) is the named template that turns a settings map into
+environment entries. A nested map joins its keys with `__`, the separator
+settei reads back; a list renders as JSON; a null leaf renders nothing, so the
+program keeps its own default.
 
-    first(env_template("hello")) == "{{- define \"hello.env\" }}"
+    first(env_template("hello")) #=> "{{- define \"hello.env\" }}"
 """
 def env_template(n)
   [

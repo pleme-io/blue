@@ -207,15 +207,7 @@ pub fn run_framed(
     crate::inputs::install_input_primitives(&mut interp, inputs);
     let builtins = crate::timings::stage(crate::timings::Stage::Names, || builtin_names(&interp));
     let prepared = prepare(entry, loader, surface, &builtins)?;
-    if let Some(frame) = frame {
-        let refused = crate::ungranted_host_names(frame);
-        let escapes = entry_escapes(&prepared.program, &refused);
-        if !escapes.is_empty() {
-            return Err(RunError::Types(escapes));
-        }
-        crate::refuse_host_names(&mut interp, &refused, "this run's --allow");
-        crate::attach_node_in_frame(&mut interp, frame);
-    }
+    hold_to_frame(&mut interp, &prepared, frame)?;
     let mut value = crate::timings::stage(crate::timings::Stage::Eval, || {
         eval_prepared(&mut interp, &prepared, &mut ())
     })?;
@@ -230,6 +222,26 @@ pub fn run_framed(
         typed_decls: prepared.typed_decls,
         seams: prepared.seams,
     })
+}
+
+/// Refuse, in `interp`, every host name `frame` does not grant; a refused
+/// name the entry file writes refuses the program before it runs.
+fn hold_to_frame(
+    interp: &mut tatara_lisp_eval::Interpreter<()>,
+    prepared: &Prepared,
+    frame: Option<&blue_lang_waku::Waku>,
+) -> Result<(), RunError> {
+    let Some(frame) = frame else {
+        return Ok(());
+    };
+    let refused = crate::ungranted_host_names(frame);
+    let escapes = entry_escapes(&prepared.program, &refused);
+    if !escapes.is_empty() {
+        return Err(RunError::Types(escapes));
+    }
+    crate::refuse_host_names(interp, &refused, "this run's --allow");
+    crate::attach_node_in_frame(interp, frame);
+    Ok(())
 }
 
 fn entry_escapes(
@@ -268,10 +280,21 @@ pub struct Observed {
     pub outcome: Result<Run, RunError>,
 }
 
+/// What a call observer is built from: the program past every stage before
+/// evaluation, its tree before erasure (what `def_hash` reads) and after it
+/// (what runs), and the definitions read off it.
+pub struct Watched<'a> {
+    pub definitions: &'a std::sync::Arc<crate::observe::Definitions>,
+    pub program: &'a crate::uses::ResolvedProgram,
+    pub lowered: &'a [tatara_lisp::Spanned],
+    pub erased: &'a [tatara_lisp::Spanned],
+}
+
 /// [`run_in_surface`] with a call observer installed for the evaluation.
-/// `watch` builds the observer from the program's definitions once every stage
-/// before evaluation has passed; the profiler, the tracer and coverage are
-/// all built this way (`crate::observe::Recorder`).
+/// `watch` builds the observer once every stage before evaluation has
+/// passed; the profiler, the tracer, coverage and the call memo are all built
+/// this way (`crate::observe::Recorder`, `blue-lang-mondou`'s
+/// `recall::Recall`).
 ///
 /// # Errors
 ///
@@ -282,26 +305,56 @@ pub fn run_observed(
     inputs: Inputs,
     loader: &dyn crate::uses::Loader,
     surface: Option<&blue_lang_syntax::yakugo::Yakugo>,
-    watch: impl FnOnce(
-        &std::sync::Arc<crate::observe::Definitions>,
-    ) -> std::sync::Arc<dyn crate::observe::CallObserver>,
+    watch: impl FnOnce(&Watched<'_>) -> std::sync::Arc<dyn crate::observe::CallObserver>,
 ) -> Result<Observed, RunError> {
-    let mut interp = crate::interpreter_hostless();
+    run_observed_framed(entry, inputs, loader, surface, None, watch)
+}
+
+/// [`run_observed`] held to `frame` as [`run_framed`] holds a run.
+///
+/// # Errors
+///
+/// As [`run_observed`], and as [`run_framed`] for a host name the entry file
+/// writes that `frame` does not grant.
+pub fn run_observed_framed(
+    entry: Entry<'_>,
+    inputs: Inputs,
+    loader: &dyn crate::uses::Loader,
+    surface: Option<&blue_lang_syntax::yakugo::Yakugo>,
+    frame: Option<&blue_lang_waku::Waku>,
+    watch: impl FnOnce(&Watched<'_>) -> std::sync::Arc<dyn crate::observe::CallObserver>,
+) -> Result<Observed, RunError> {
+    let mut interp =
+        crate::timings::stage(crate::timings::Stage::Runtime, crate::interpreter_hostless);
     crate::inputs::install_input_primitives(&mut interp, inputs);
-    let prepared = prepare(entry, loader, surface, &builtin_names(&interp))?;
+    let builtins = crate::timings::stage(crate::timings::Stage::Names, || builtin_names(&interp));
+    let prepared = prepare(entry, loader, surface, &builtins)?;
+    hold_to_frame(&mut interp, &prepared, frame)?;
     let definitions = std::sync::Arc::new(crate::observe::Definitions::of(
         &prepared.program,
         &prepared.erased,
     ));
-    interp.set_call_observer(Some(watch(&definitions)));
-    let outcome = eval_prepared(&mut interp, &prepared, &mut ())
-        .and_then(|value| Ok(call_main(&mut interp, &prepared, &mut ())?.unwrap_or(value)))
-        .map(|value| Run {
-            value,
-            visited: prepared.visited,
-            typed_decls: prepared.typed_decls,
-            seams: prepared.seams,
-        });
+    interp.set_call_observer(Some(watch(&Watched {
+        definitions: &definitions,
+        program: &prepared.program,
+        lowered: &prepared.lowered,
+        erased: &prepared.erased,
+    })));
+    let outcome = crate::timings::stage(crate::timings::Stage::Eval, || {
+        eval_prepared(&mut interp, &prepared, &mut ())
+    })
+    .and_then(|value| {
+        Ok(crate::timings::stage(crate::timings::Stage::Main, || {
+            call_main(&mut interp, &prepared, &mut ())
+        })?
+        .unwrap_or(value))
+    })
+    .map(|value| Run {
+        value,
+        visited: prepared.visited,
+        typed_decls: prepared.typed_decls,
+        seams: prepared.seams,
+    });
     interp.set_call_observer(None);
     Ok(Observed {
         definitions,
@@ -315,6 +368,7 @@ pub fn run_observed(
 /// module exists to own is written once for both.
 pub(crate) struct Prepared {
     program: crate::uses::ResolvedProgram,
+    lowered: Vec<tatara_lisp::Spanned>,
     erased: Vec<tatara_lisp::Spanned>,
     visited: usize,
     typed_decls: usize,
@@ -413,12 +467,15 @@ pub(crate) fn prepare(
     //
     // No lowering step follows. The tree the evaluator receives IS the tree the
     // parser built, minus annotations, with the author's byte offsets intact.
-    let erased = crate::timings::stage(crate::timings::Stage::Erase, || {
-        erase_types(&lower(&program, &names))
+    let (lowered, erased) = crate::timings::stage(crate::timings::Stage::Erase, || {
+        let lowered = lower(&program, &names);
+        let erased = erase_types(&lowered);
+        (lowered, erased)
     });
 
     Ok(Prepared {
         program,
+        lowered,
         erased,
         visited: outcome.stats.visited,
         typed_decls: outcome.stats.typed_decls,

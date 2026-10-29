@@ -41,10 +41,15 @@ pub enum Ev {
     /// The static stages every evaluator shares: parse, check, format and the
     /// blueshift reading, called in-process.
     Static,
+    /// The tree-walker with the memo on (`blue_lang_mondou::recall`), every
+    /// pure call's result stored whatever it cost, run twice over one fresh
+    /// store: cold, then warm from disk. Both runs must agree with each other
+    /// and with stage 0.
+    Memo,
 }
 
 impl Ev {
-    pub const ALL: [Ev; 5] = [Ev::Walker, Ev::Vm, Ev::Wasm, Ev::Cli, Ev::Static];
+    pub const ALL: [Ev; 6] = [Ev::Walker, Ev::Vm, Ev::Wasm, Ev::Cli, Ev::Static, Ev::Memo];
 
     pub fn name(self) -> &'static str {
         match self {
@@ -53,6 +58,7 @@ impl Ev {
             Ev::Wasm => "wasm",
             Ev::Cli => "cli",
             Ev::Static => "static",
+            Ev::Memo => "memo",
         }
     }
 

@@ -706,6 +706,7 @@ mod tests {
     use blue_lang_runtime::uses::Loader;
 
     use super::*;
+    use crate::{Reach, Volatility};
 
     /// Two bidamas, in memory: `retsu` (a pure `first`) and `shisu`, whose
     /// `read_or` reaches the filesystem.
@@ -774,6 +775,43 @@ limit = 3\n";
         );
         assert_eq!(names(ENTRY, "(reaches :clock)"), ["stamp"]);
         assert_eq!(names(ENTRY, "(reaches host)"), ["boot", "config", "stamp"]);
+    }
+
+    #[test]
+    fn the_analysis_reads_purity_across_bidamas_off_the_same_walk() {
+        let mut engine = Engine::new(Box::new(Mem));
+        engine.set_document("e", Some(PathBuf::from("/b/kaki/kaki.b")), ENTRY);
+        let a = engine.analysis("e").expect("analysed");
+        let hashes = a.def_hashes().expect("hashes");
+        let reach = a.reach().expect("reach");
+        assert_eq!(reach.len(), hashes.defs().len());
+        let of = |key: &str| {
+            let i = hashes
+                .defs()
+                .iter()
+                .position(|d| d.key == key)
+                .unwrap_or_else(|| panic!("{key} is not defined"));
+            reach[i].clone()
+        };
+        assert!(of("kaki/head_of").is_pure(), "{:?}", of("kaki/head_of"));
+        assert!(of("kaki/own").is_pure());
+        assert!(matches!(
+            of("kaki/stamp"),
+            Reach::Volatile(Volatility::Host {
+                capability: Capability::Clock,
+                ..
+            })
+        ));
+        assert!(matches!(
+            of("kaki/boot"),
+            Reach::Volatile(Volatility::Through { callee }) if callee == "kaki/config"
+        ));
+        let stamp = hashes
+            .defs()
+            .iter()
+            .find(|d| d.key == "kaki/stamp")
+            .expect("stamp");
+        assert_eq!(a.reach_at(stamp.top_level), Some(&of("kaki/stamp")));
     }
 
     /// Red run (2026-10-11): `Annotated` compared with `!=`: the two

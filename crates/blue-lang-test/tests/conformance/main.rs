@@ -85,6 +85,7 @@ fn observe_in_process(env: &mut Env, row: &Row, ev: Ev, n: usize) -> Obs {
         Ev::Wasm => eval::wasm(env, row),
         Ev::Cli => eval::cli(env, row, n),
         Ev::Static => eval::statics(row, &env.roots),
+        Ev::Memo => eval::memo(env, row),
     }));
     run.unwrap_or_else(|_| {
         Obs::Crashed(format!(
@@ -199,7 +200,7 @@ fn controls(env: &mut Env) -> Vec<String> {
         vec![],
     );
     let out = run_row(env, &wrong, usize::MAX);
-    for ev in [Ev::Walker, Ev::Vm, Ev::Wasm] {
+    for ev in [Ev::Walker, Ev::Vm, Ev::Wasm, Ev::Memo] {
         if !out.verdicts[&ev].is_fail() {
             failures.push(format!(
                 "control: a wrong value was not failed by {} ({:?})",
@@ -219,7 +220,7 @@ fn controls(env: &mut Env) -> Vec<String> {
         }],
     );
     let out = run_row(env, &flipped, usize::MAX - 1);
-    for ev in [Ev::Walker, Ev::Vm, Ev::Wasm] {
+    for ev in [Ev::Walker, Ev::Vm, Ev::Wasm, Ev::Memo] {
         if !out.verdicts[&ev].is_fail() {
             failures.push(format!(
                 "control: a pending row that passes was not failed by {}",
@@ -238,7 +239,7 @@ fn controls(env: &mut Env) -> Vec<String> {
         }],
     );
     let out = run_row(env, &held, usize::MAX - 2);
-    for ev in [Ev::Walker, Ev::Vm, Ev::Wasm] {
+    for ev in [Ev::Walker, Ev::Vm, Ev::Wasm, Ev::Memo] {
         if !matches!(out.verdicts[&ev], Verdict::Pending(_)) {
             failures.push(format!(
                 "control: a pending row that still misses was not reported pending by {}",
@@ -463,6 +464,20 @@ fn main() {
             c[slot(&o.verdicts[&ev])] += 1;
         }
         writeln!(out, "{}", tally_line(ev.name(), &c)).ok();
+    }
+    writeln!(
+        out,
+        "  memo column: {} call(s) answered from disk by the warm runs",
+        env.memo_disk_hits
+    )
+    .ok();
+    if filter.is_none() && !rows.is_empty() && env.memo_disk_hits == 0 {
+        writeln!(
+            out,
+            "FAIL memo: no warm run answered a call from disk, so the column compared nothing"
+        )
+        .ok();
+        red = true;
     }
 
     // Per area (row file): rows, and verdict counts summed over evaluators.

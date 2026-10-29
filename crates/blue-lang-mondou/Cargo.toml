@@ -20,3 +20,6 @@ serde_json = { workspace = true }
 # `def_hash` keys leave the process (the memo store), so they are BLAKE3, as
 # blue's build inputs are. Features pinned as in `blue-lang-runtime`: no C.
 blake3 = { version = "1", default-features = false, features = ["std", "pure"] }
+
+[dev-dependencies]
+blue-lang-runtime = { path = "../blue-lang-runtime", features = ["sys"] }

@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "cdfd554fa0a80df54e6cba4b28ea3a3bc334fba0c7b33b74cb2369614d69ef50",
+  "cargo_lock_sha256": "06a4eb6ff40ef031ec726829a4c6c4ef286a4a5eace62570c8ee393467aa13b3",
   "manifest_sha256": {
     "Cargo.toml": "cf4e275a81852daa0c26a85368e5c8909f39157cf69cad4c0400cc7d30b9a853",
     "crates/blue-lang-art/Cargo.toml": "f6721f78c76a94d4915a455675cd05889176a43212494c53aa8a01dfc9dfe5ee",
@@ -14,12 +14,12 @@
     "crates/blue-lang-host/Cargo.toml": "515be2b89363222cc6fc71b8f74adfe6fa56b92a3f013cac979909eb6a2ecaa2",
     "crates/blue-lang-kiwari/Cargo.toml": "7061ed32aff7aac13a83517bb14ad40fb0e3b21d5ab948c719236b5f8d39150c",
     "crates/blue-lang-lsp/Cargo.toml": "5125ccc67133d1db214f30a272e9f01bfc496db6efece3768a3bcf130b934b5e",
-    "crates/blue-lang-mondou/Cargo.toml": "ebddc07895f8139599c04423b844af1773caa47073f42d59802304675d48362d",
+    "crates/blue-lang-mondou/Cargo.toml": "637a0cbb6ac275a3478a437406f8fd387a8b5257f755127815a47418b7ad08e5",
     "crates/blue-lang-pkg/Cargo.toml": "861db4b834ef62506853d90f2fbb96af4a2e2ed3c092f0d5413fdc4b56770475",
     "crates/blue-lang-proc/Cargo.toml": "a9702f9f855394147b0651eb89ae07fd8c787f8d1df4d47f1194fb858bce2fc1",
     "crates/blue-lang-runtime/Cargo.toml": "eceaf1b0167ba605332287773930158c62e5d894aa0c3fcfccc5f28abda1bba4",
     "crates/blue-lang-syntax/Cargo.toml": "9d405348af1d3f57fffd0a73ddf0776a933ce98bfbcaa60c53a1db55db4e75cd",
-    "crates/blue-lang-test/Cargo.toml": "94cc8f3cb56a4cb8f7b9cbe57c23f9bf8120b665f8a59340b95f73276f5f34ad",
+    "crates/blue-lang-test/Cargo.toml": "e9f8cddd31210fd4ad6861351dd29188b36625390fe1dab0374c26fb4b39b6fe",
     "crates/blue-lang-waku/Cargo.toml": "ff84c97684a1254a92f7eab4a578bbea8562006de52dc3b28f4f50689e58b684",
     "crates/blue-lang-wasm/Cargo.toml": "7ab5e1b7832f36ce7932147f98e193c0d626813528f2d85280ac1aa8b070a1a0",
     "crates/blue-lang-yaml-diff/Cargo.toml": "2aaacab66724df4d7d7e6065adcfa1d6c2aa330596abd1012f3c3e38a16eedbf"

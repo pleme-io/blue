@@ -1143,6 +1143,7 @@ A	kansuu	once	pure	once(f) -> function	idempotent	-	absent	function that runs f 
 A	kansuu	partial	pure	partial(f, args) -> function	-	-	absent	function with leading arguments fixed	1		na
 A	kansuu	pipe	pure	pipe(x, fs) -> value	-	-	exists:kansuu	pipe(f, g) applies f FIRST — reading order	0	pipe(x, opts) -> value	no
 A	kansuu	tap	pure	tap(x, f) -> x	-	-	exists:kansuu	tap runs f for its effect and hands the ORIGINAL value on	0		na
+A	kansuu	volatile	decl	volatile(f) -> nil	cache	-	rust:blue-lang-runtime	declare that f and every caller run on each call, never answered from the call memo	0	volatile(f) -> nil	yes
 A	kazu	abs	pure	abs(n) -> number	-	-	exists:kazu	distance from zero	0		na
 A	kazu	atan2	pure	atan2(y, x) -> number	-	-	absent	angle of a point from the x axis	1		na
 A	kazu	ceil	pure	ceil(n) -> int	-	-	absent	least integer not below n	1		na

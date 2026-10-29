@@ -189,6 +189,21 @@ verb(
   }
 )
 
+verb(
+  "kansuu",
+  "volatile",
+  {
+    kind: :decl,
+    shape: "volatile(f) -> nil",
+    laterals: ["cache"],
+    fleet: nil,
+    today: "rust:blue-lang-runtime",
+    meaning: "declare that f and every caller run on each call, never answered from the call memo",
+    wave: 0,
+    origin: "A"
+  }
+)
+
 edge("kansuu::memoize", :composes, "jisho::put", "the cache is a map")
 
 edge(
@@ -245,3 +260,10 @@ edge(
 )
 
 edge("kansuu::once", :refines, "kansuu::memoize", "memoize with no arguments")
+
+edge(
+  "kansuu::volatile",
+  :pairs,
+  "kansuu::memoize",
+  "never cached versus cached on request"
+)

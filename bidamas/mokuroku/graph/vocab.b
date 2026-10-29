@@ -5354,6 +5354,21 @@ vocab(
 )
 
 vocab(
+  "volatile",
+  {
+    subject: "f",
+    args: ["f"],
+    opts: false,
+    returns: "nil",
+    raises: ["type"],
+    kind: :decl,
+    meaning: "f and every caller run on each call, never answered from the call memo",
+    ref: nil,
+    status: :stdlib
+  }
+)
+
+vocab(
   "wait",
   {
     subject: "handle",

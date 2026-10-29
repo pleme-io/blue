@@ -6,7 +6,9 @@
 //! recorder's call counts over the entry file's definitions, a profile is the
 //! same counts timed, and a trace is the recorder printing one definition's
 //! calls as they happen. A runtime error's call stack is the hook's other arm
-//! and needs no flag.
+//! and needs no flag. When `BLUE_MEMO` is on (`crate::memo`), the call memo
+//! sits on the same hook: `blue test` installs it in place of nothing,
+//! `blue profile` wraps the recorder in it and reports its counts.
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -46,6 +48,7 @@ pub(crate) fn test(
     filter: Option<&str>,
     coverage: bool,
     json: bool,
+    memo: crate::memo::Mode,
 ) -> Result<ExitCode, CliError> {
     hermetic()?;
     let tree = path.is_dir();
@@ -54,7 +57,7 @@ pub(crate) fn test(
     } else {
         vec![path.to_path_buf()]
     };
-    let runs = run_files(&files, filter, coverage)?;
+    let runs = run_files(&files, filter, coverage, memo)?;
     let (mut total, mut passed, mut failed, mut broken) = (0, 0, 0, 0);
     for run in &runs {
         eprint!("{}", run.errors);
@@ -196,6 +199,7 @@ fn run_files(
     files: &[PathBuf],
     filter: Option<&str>,
     coverage: bool,
+    memo: crate::memo::Mode,
 ) -> Result<Vec<FileRun>, CliError> {
     let workers = std::thread::available_parallelism()
         .map_or(1, std::num::NonZero::get)
@@ -213,7 +217,7 @@ fn run_files(
                     let Some(path) = files.get(i) else { break };
                     // A file that cannot be read or loaded is that file's
                     // failure, not the tree's: its siblings still run.
-                    let run = test_file(path, filter, coverage).or_else(|e| {
+                    let run = test_file(path, filter, coverage, memo).or_else(|e| {
                         Ok(FileRun {
                             path: path.clone(),
                             errors: format!("blue: {}: {e}\n", path.display()),
@@ -231,8 +235,15 @@ fn run_files(
     slots.into_iter().flatten().collect()
 }
 
-/// Check one file, then run its (filtered) tests, recording coverage if asked.
-fn test_file(path: &Path, filter: Option<&str>, coverage: bool) -> Result<FileRun, CliError> {
+/// Check one file, then run its (filtered) tests, recording coverage if asked
+/// and memoized when `memo` is on and coverage was not asked: coverage
+/// reports what the code does, and an answered call does nothing.
+fn test_file(
+    path: &Path,
+    filter: Option<&str>,
+    coverage: bool,
+    memo: crate::memo::Mode,
+) -> Result<FileRun, CliError> {
     use std::fmt::Write as _;
     let src = read_compiled(path)?;
     // The check stage first, test blocks included: no test runs over a
@@ -267,12 +278,32 @@ fn test_file(path: &Path, filter: Option<&str>, coverage: bool) -> Result<FileRu
             coverage: None,
         });
     }
-    let recorder = coverage.then(|| {
-        let defs = Arc::new(Definitions::of(&checked.program, &checked.erased()));
-        Arc::new(Recorder::new(defs, false, None))
+    let memoized = memo != crate::memo::Mode::Off && !coverage;
+    let watched = (coverage || memoized).then(|| {
+        let lowered = blue_lang_runtime::pipeline::lower(&checked.program, &checked.names);
+        let erased = blue_lang_runtime::erase_types(&lowered);
+        let defs = Arc::new(Definitions::of(&checked.program, &erased));
+        (lowered, erased, defs)
     });
-    let observer = recorder.clone().map(|r| r as Arc<dyn CallObserver>);
+    let recorder = watched
+        .as_ref()
+        .filter(|_| coverage)
+        .map(|(_, _, defs)| Arc::new(Recorder::new(Arc::clone(defs), false, None)));
+    let recall = watched
+        .as_ref()
+        .filter(|_| memoized)
+        .map(|(lowered, erased, defs)| {
+            crate::memo::over(memo.persist(), defs, lowered, erased, None)
+        });
+    let observer = match (&recall, &recorder) {
+        (Some(m), _) => Some(Arc::clone(m) as Arc<dyn CallObserver>),
+        (None, Some(r)) => Some(Arc::clone(r) as Arc<dyn CallObserver>),
+        (None, None) => None,
+    };
     let report = blue_lang_test::run_checked(&checked, filter, observer);
+    if let Some(m) = &recall {
+        crate::memo::finish(m);
+    }
     for failure in &report.failures {
         let _ = writeln!(errors, "{failure}");
     }
@@ -333,7 +364,7 @@ fn run_watched(
     file: &Path,
     args: Vec<String>,
     cfg: &BlueConfig,
-    watch: impl FnOnce(&Arc<Definitions>) -> Arc<dyn CallObserver>,
+    watch: impl FnOnce(&blue_lang_runtime::pipeline::Watched<'_>) -> Arc<dyn CallObserver>,
 ) -> Result<blue_lang_runtime::pipeline::Observed, CliError> {
     blue_lang_runtime::sys::set_program_args(args);
     let src = crate::read_run(file)?;
@@ -363,17 +394,28 @@ pub(crate) fn profile(
     file: &Path,
     top: usize,
     json: bool,
+    memo: crate::memo::Mode,
     args: Vec<String>,
     cfg: &BlueConfig,
 ) -> Result<ExitCode, CliError> {
     let mut recorder = None;
+    let mut memoized = None;
     let started = Instant::now();
-    let observed = run_watched(file, args, cfg, |defs| {
-        let r = Arc::new(Recorder::new(Arc::clone(defs), true, None));
+    let observed = run_watched(file, args, cfg, |w| {
+        let r = Arc::new(Recorder::new(Arc::clone(w.definitions), true, None));
         recorder = Some(Arc::clone(&r));
-        r
+        if memo == crate::memo::Mode::Off {
+            return r;
+        }
+        let m = crate::memo::over(memo.persist(), w.definitions, w.lowered, w.erased, Some(r));
+        memoized = Some(Arc::clone(&m));
+        m
     })?;
     let total = started.elapsed();
+    if let Some(m) = &memoized {
+        crate::memo::finish(m);
+    }
+    let memo_report = memoized.as_ref().map(|m| m.report());
     let counted = recorder.as_ref().is_some_and(|r| r.counts_allocations());
     let mut rows: Vec<Measured> = recorder
         .map(|r| r.report())
@@ -389,7 +431,7 @@ pub(crate) fn profile(
     });
     let failed = report_outcome(&observed.outcome);
     if json {
-        let line = serde_json::json!({
+        let mut line = serde_json::json!({
             "file": file.display().to_string(),
             "total_ms": ms(total),
             "functions": rows.iter().take(top).map(|m| serde_json::json!({
@@ -405,6 +447,9 @@ pub(crate) fn profile(
                 "exclusive_bytes": counted.then_some(m.counts.allocated_exclusive.bytes),
             })).collect::<Vec<_>>(),
         });
+        if let Some(r) = &memo_report {
+            line["memo"] = crate::memo::json(r);
+        }
         println!("{}", serde_json::to_string(&line)?);
     } else {
         println!(
@@ -446,6 +491,9 @@ pub(crate) fn profile(
         }
         if rows.len() > top {
             println!("  … {} more (--top)", rows.len() - top);
+        }
+        if let Some(r) = &memo_report {
+            crate::memo::print(r);
         }
     }
     Ok(if failed {
@@ -514,7 +562,8 @@ pub(crate) fn trace(
     let observed = {
         let lines = Arc::clone(&lines);
         let calls = Arc::clone(&calls);
-        run_watched(file, args, cfg, |defs| {
+        run_watched(file, args, cfg, |w| {
+            let defs = w.definitions;
             let targets = defs.named(def);
             let sink = move |event: &TraceEvent<'_>| {
                 if matches!(event, TraceEvent::Call { .. }) {

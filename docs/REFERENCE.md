@@ -107,7 +107,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-306 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 185 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+307 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 185 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -282,6 +282,7 @@ Higher binding power binds tighter.
 | `some` | `some(f, xs)` | 2 | true when f accepts an element, else nil (not false). |
 | `tap` | `tap(f, x)` | 2 | Call f(x) for its effect and return x. Also defined by `kansuu` (`kansuu::tap`): a file that lists it gets that one. |
 | `visit` | `visit(f, x)` | 2 | f(x). |
+| `volatile` | `volatile(f)` | 1 | Declares that f must run on every call: neither f nor any definition reaching it is answered from the call memo. Nil; raises unless f is a function. |
 
 ### Predicates
 

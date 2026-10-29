@@ -23,7 +23,8 @@ fn blue() -> Command {
     let mut c = Command::new(env!("CARGO_BIN_EXE_blue"));
     c.env_remove("BLUE_PATH")
         .env_remove("BLUE_CONFIG")
-        .env_remove("BLUE_TIER");
+        .env_remove("BLUE_TIER")
+        .env_remove("BLUE_MEMO");
     c
 }
 
@@ -258,6 +259,96 @@ fn profile_counts_every_call() {
     assert_eq!(calls("count"), Some(4));
     let text = run(&["profile", f.to_str().unwrap()]);
     assert!(out(&text).contains("fib"), "{}", out(&text));
+    assert!(v.get("memo").is_none(), "the memo is off by default: {v}");
+    assert!(!out(&text).contains("memo:"), "{}", out(&text));
+}
+
+fn profiled(
+    f: &std::path::Path,
+    memo: &str,
+    cache: &std::path::Path,
+    extra: &[&str],
+) -> serde_json::Value {
+    let o = blue()
+        .env("BLUE_MEMO", memo)
+        .env("XDG_CACHE_HOME", cache)
+        .args(["profile", "--json"])
+        .args(extra)
+        .arg(f)
+        .output()
+        .expect("spawn blue");
+    assert!(o.status.success(), "{}", err(&o));
+    serde_json::from_str(out(&o).trim()).expect("JSON")
+}
+
+#[test]
+fn blue_memo_answers_repeated_pure_calls_and_no_memo_turns_it_off() {
+    let d = dir("memo-process");
+    let f = write(&d, "p.b", PROGRAM);
+    let cache = d.join("cache");
+    let v = profiled(&f, "process", &cache, &[]);
+    assert!(v["memo"]["hits"].as_u64().unwrap_or(0) > 0, "{v}");
+    assert!(v["memo"]["store"].is_null(), "process keeps no store: {v}");
+    assert!(!cache.join("blue").join("memo").exists());
+    let off = profiled(&f, "process", &cache, &["--no-memo"]);
+    assert!(off.get("memo").is_none(), "{off}");
+    let ran = blue()
+        .env("BLUE_MEMO", "process")
+        .args(["run", f.to_str().unwrap()])
+        .output()
+        .expect("spawn blue");
+    assert_eq!(out(&ran).trim(), "61", "{}", err(&ran));
+}
+
+#[test]
+fn blue_memo_on_keeps_results_for_the_next_run() {
+    let d = dir("memo-store");
+    let f = write(&d, "p.b", PROGRAM);
+    let cache = d.join("cache");
+    let cold = profiled(&f, "on", &cache, &[]);
+    assert_eq!(cold["memo"]["disk_hits"], 0, "{cold}");
+    assert!(cold["memo"]["stored"].as_u64().unwrap_or(0) > 0, "{cold}");
+    assert!(cache.join("blue").join("memo").is_dir());
+    let warm = profiled(&f, "on", &cache, &[]);
+    assert!(
+        warm["memo"]["disk_hits"].as_u64().unwrap_or(0) > 0,
+        "{warm}"
+    );
+}
+
+#[test]
+fn a_volatile_definition_runs_on_every_call_under_the_memo() {
+    let d = dir("memo-volatile");
+    let src = format!("{PROGRAM}\nvolatile(fib)\n");
+    let f = write(&d, "p.b", &src);
+    let v = profiled(&f, "process", &d.join("cache"), &[]);
+    let fib = v["memo"]["functions"]
+        .as_array()
+        .expect("functions")
+        .iter()
+        .any(|r| r["name"] == "fib");
+    assert!(!fib, "{v}");
+}
+
+#[test]
+fn blue_test_under_the_memo_reports_what_it_reports_without() {
+    let d = dir("memo-test");
+    let f = write(
+        &d,
+        "t.b",
+        &format!(
+            "{PROGRAM}\ntest \"fib\"\n  assert fib(12) == 144\n  assert fib(12) == 144\nend\n"
+        ),
+    );
+    for memo in ["off", "process", "on"] {
+        let o = blue()
+            .env("BLUE_MEMO", memo)
+            .env("XDG_CACHE_HOME", d.join("cache"))
+            .args(["test", f.to_str().unwrap()])
+            .output()
+            .expect("spawn blue");
+        assert!(o.status.success(), "{memo}: {}{}", out(&o), err(&o));
+    }
 }
 
 #[test]

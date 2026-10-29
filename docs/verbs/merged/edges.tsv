@@ -1947,6 +1947,7 @@ kansuu::once	refines	kansuu::memoize	memoize with no arguments
 kansuu::partial	composes	kansuu::curry	curry then apply
 kansuu::pipe	composes	kansuu::compose	reversed compose applied
 kansuu::tap	composes	kansuu::identity	returns the argument
+kansuu::volatile	pairs	kansuu::memoize	never cached versus cached on request
 kazu::abs	pairs	kazu::signum	magnitude and direction
 kazu::atan2	pairs	kazu::tan	angle from slope
 kazu::atan2	pairs	kikagaku::angle	angle from components

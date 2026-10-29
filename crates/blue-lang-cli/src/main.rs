@@ -73,6 +73,7 @@ mod config;
 mod deploy;
 mod diagnostics;
 mod doc;
+mod memo;
 mod observe;
 mod prefetch;
 mod query;
@@ -143,6 +144,9 @@ enum Cmd {
         /// Print the wall time of each pipeline stage to stderr after the run.
         #[arg(long)]
         timings: bool,
+        /// Run every call, answering none from the memo `BLUE_MEMO` turns on.
+        #[arg(long)]
+        no_memo: bool,
         /// The program's own arguments, after the file (use `--` before any
         /// that start with a dash): what `argv()` returns. Before 2026-09-27
         /// `run` refused any, so no blue program could take arguments.
@@ -315,6 +319,10 @@ enum Cmd {
         /// Print coverage as one JSON object per file.
         #[arg(long, requires = "coverage")]
         json: bool,
+        /// Run every call, answering none from the memo `BLUE_MEMO` turns
+        /// on. Coverage always does.
+        #[arg(long)]
+        no_memo: bool,
     },
     /// Run a program and report every function it called: calls, inclusive
     /// and exclusive time, and what it allocated, most exclusive time first.
@@ -325,6 +333,10 @@ enum Cmd {
         top: usize,
         #[arg(long)]
         json: bool,
+        /// Profile with every call run, none answered from the memo
+        /// `BLUE_MEMO` turns on.
+        #[arg(long)]
+        no_memo: bool,
         /// The program's own arguments, after the file.
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         args: Vec<String>,
@@ -653,6 +665,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             quiet,
             format,
             timings,
+            no_memo,
             args,
         } => {
             if timings {
@@ -716,16 +729,46 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             // type error in the file the user named would report against
             // `<anonymous>` while an imported package's reported its real path
             // — the entry file being the one file the CLI always knows.
-            let out = match blue_lang_runtime::pipeline::run_framed(
-                blue_lang_runtime::uses::Entry {
-                    path: Some(&file),
-                    text: &src,
-                },
-                bind_inputs(&src, &inputs, &cfg)?,
-                &loader,
-                surface.as_ref(),
-                frame.as_ref(),
-            ) {
+            let entry = blue_lang_runtime::uses::Entry {
+                path: Some(&file),
+                text: &src,
+            };
+            let inputs = bind_inputs(&src, &inputs, &cfg)?;
+            let ran = match memo::mode(no_memo, &cfg) {
+                memo::Mode::Off => blue_lang_runtime::pipeline::run_framed(
+                    entry,
+                    inputs,
+                    &loader,
+                    surface.as_ref(),
+                    frame.as_ref(),
+                ),
+                mode => {
+                    let mut held = None;
+                    let observed = blue_lang_runtime::pipeline::run_observed_framed(
+                        entry,
+                        inputs,
+                        &loader,
+                        surface.as_ref(),
+                        frame.as_ref(),
+                        |w| {
+                            let m = memo::over(
+                                mode.persist(),
+                                w.definitions,
+                                w.lowered,
+                                w.erased,
+                                None,
+                            );
+                            held = Some(std::sync::Arc::clone(&m));
+                            m
+                        },
+                    );
+                    if let Some(m) = &held {
+                        memo::finish(m);
+                    }
+                    observed.and_then(|o| o.outcome)
+                }
+            };
+            let out = match ran {
                 Err(e) if format == Format::Json => {
                     println!("{}", serde_json::to_string(&observe::error_json(&e))?);
                     return Ok(ExitCode::FAILURE);
@@ -1074,13 +1117,21 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             filter,
             coverage,
             json,
-        } => observe::test(&file, filter.as_deref(), coverage, json),
+            no_memo,
+        } => observe::test(
+            &file,
+            filter.as_deref(),
+            coverage,
+            json,
+            memo::mode(no_memo, &cfg),
+        ),
         Cmd::Profile {
             file,
             top,
             json,
+            no_memo,
             args,
-        } => observe::profile(&file, top, json, args, &cfg),
+        } => observe::profile(&file, top, json, memo::mode(no_memo, &cfg), args, &cfg),
         Cmd::Trace {
             def,
             file,

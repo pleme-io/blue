@@ -568,6 +568,25 @@ row(
 )
 
 row(
+  "fn.volatile",
+  join_lines(["def f(x)", "  x * 2", "end", "volatile(f)", "[f(3), f(3)]"]),
+  value("[6, 6]"),
+  covers("builtin:volatile")
+)
+
+row(
+  "fn.volatile.not_a_function",
+  "volatile(3)",
+  fails(:check, "B0062")
+)
+
+row(
+  "fn.volatile.not_a_function_at_run_time",
+  join_lines(["xs = [3]", "volatile(first(xs))"]),
+  fails(:eval, "expected function")
+)
+
+row(
   "fn.partial",
   "partial(fn(a, b) a - b end, 10)(3)",
   value("7"),

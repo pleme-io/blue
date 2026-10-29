@@ -376,6 +376,14 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
         Arity::Exact(0),
         |_a: &[Value], _h: &mut H, _s| Ok(chain_rules_value()),
     );
+    interp.register_fn(
+        "volatile",
+        Arity::Exact(1),
+        |a: &[Value], _h: &mut H, s| match &a[0] {
+            Value::Closure(_) | Value::NativeFn(_) | Value::Foreign(_) => Ok(Value::Nil),
+            other => Err(EvalError::type_mismatch("function", other.type_name(), s)),
+        },
+    );
     interp.register_fn("to_s", Arity::Exact(1), |a: &[Value], _h: &mut H, _s| {
         Ok(Value::Str(render(&a[0]).into()))
     });

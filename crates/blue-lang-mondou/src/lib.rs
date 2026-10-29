@@ -12,6 +12,12 @@
 //! | [`items`] | a parse | per analysis |
 //! | scope and resolve ([`Analysis`]) | a document revision | one per revision, shared by every request against it |
 //! | [`def_hash`] ([`Analysis::def_hashes`]) | the resolved tree | one per revision |
+//! | [`reach`] ([`Analysis::host_reach`], [`Analysis::reach`]) | the erased tree and the call graph | one per revision |
+//!
+//! A call of a definition [`reach`] proves pure can be answered by its
+//! `def_hash` and its arguments' encoding ([`canon`]): [`recall::Recall`]
+//! holds those answers for one run and [`store::Store`] keeps them on disk
+//! between runs. Both are off unless a door turns them on.
 //!
 //! The check stage is the pipeline's (`blue_lang_runtime::pipeline::
 //! check_entry`), handed a [`Loader`] that answers from these memos, so the
@@ -22,6 +28,7 @@
 //! rename, symbols, signatures — are computed from those queries in byte
 //! offsets ([`Span`]); a transport converts positions.
 
+pub mod canon;
 mod complete;
 pub mod def_hash;
 pub mod docview;
@@ -31,7 +38,9 @@ mod memo;
 mod navigate;
 mod query;
 pub mod reach;
+pub mod recall;
 mod signature;
+pub mod store;
 
 use std::cell::{OnceCell, RefCell};
 use std::collections::{BTreeMap, HashMap};
@@ -51,7 +60,7 @@ pub use locals::{LocalBinding, Locals};
 pub use memo::Stats;
 pub use navigate::{Located, Refusal, Symbol, WorkspaceSymbol};
 pub use query::{Hit, Query, QueryError, Reaches, MATCH_STEPS};
-pub use reach::HostReach;
+pub use reach::{HostReach, Reach, Volatility};
 pub use signature::Signature;
 
 /// A parse: the spanned tree, or why there is none.
@@ -337,6 +346,8 @@ impl Engine {
             lowered: OnceCell::new(),
             def_hashes: OnceCell::new(),
             host_reach: OnceCell::new(),
+            reach: OnceCell::new(),
+            erased: OnceCell::new(),
         }
     }
 
@@ -447,6 +458,8 @@ pub struct Analysis {
     lowered: OnceCell<Option<Vec<Spanned>>>,
     def_hashes: OnceCell<Option<DefHashes>>,
     host_reach: OnceCell<Option<Vec<HostReach>>>,
+    reach: OnceCell<Option<Vec<Reach>>>,
+    erased: OnceCell<Option<Vec<Spanned>>>,
 }
 
 impl Analysis {
@@ -497,6 +510,13 @@ impl Analysis {
             .as_deref()
     }
 
+    /// [`Self::lowered`] with its types erased: the tree the evaluator runs.
+    fn erased(&self) -> Option<&[Spanned]> {
+        self.erased
+            .get_or_init(|| self.lowered().map(blue_lang_runtime::erase_types))
+            .as_deref()
+    }
+
     /// Every definition's host reach ([`reach::host_reach`]), in the order of
     /// [`Self::def_hashes`].
     #[must_use]
@@ -504,10 +524,28 @@ impl Analysis {
         self.host_reach
             .get_or_init(|| {
                 let hashes = self.def_hashes()?;
-                let erased = blue_lang_runtime::erase_types(self.lowered()?);
-                Some(reach::host_reach(&erased, hashes))
+                Some(reach::host_reach(self.erased()?, hashes))
             })
             .as_deref()
+    }
+
+    /// Whether each definition's answer is a function of its arguments
+    /// alone ([`reach::reach_program`]), in the order of [`Self::def_hashes`].
+    #[must_use]
+    pub fn reach(&self) -> Option<&[Reach]> {
+        self.reach
+            .get_or_init(|| {
+                let hashes = self.def_hashes()?;
+                Some(reach::reach_program(self.erased()?, hashes))
+            })
+            .as_deref()
+    }
+
+    /// The reach of the definition top-level form `top_level` makes.
+    #[must_use]
+    pub fn reach_at(&self, top_level: usize) -> Option<&Reach> {
+        let i = self.def_hashes()?.index_at(top_level)?;
+        self.reach()?.get(i)
     }
 
     /// The host reach of the definition top-level form `top_level` makes.

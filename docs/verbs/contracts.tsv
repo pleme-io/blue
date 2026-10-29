@@ -356,6 +356,7 @@ verify	subject	subject,policy?	yes	verdict	tampered	any	check integrity against 
 verify?	data	data,signature?,key?	no	Bool		pure	whether a signature or proof holds	§3.4	stdlib
 version	subject	subject	no	version		pure	the version of a subject	-	decided
 versions	function	function	no	[version]		effect	published versions of a function	-	decided
+volatile	f	f	no	nil	type	decl	f and every caller run on each call, never answered from the call memo	-	stdlib
 wait	handle	handle,until?	yes	result	timeout	effect	wait for a handle to finish	§3.3	stdlib
 waive	subject	subject,reason,until?	no	waiver		pure	a recorded exception to a rule	-	decided
 walk	root	root	yes	[node]	not_found	any	every node under a root, in a fixed order	§3.1	stdlib

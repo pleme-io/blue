@@ -137,11 +137,18 @@ fn only_the_outermost_of_a_recursion_is_written_unless_asked_again() {
 #[test]
 fn a_tail_call_chain_is_stored_under_its_first_call() {
     let src = "def count(n, acc)\n  if n == 0\n    acc\n  else\n    count(n - 1, acc + n)\n  end\nend\n\n[count(300, 0), count(300, 0)]\n";
-    let (answer, report) = memoized(src, None, Policy::default());
+    let policy = Policy {
+        store_min: Duration::ZERO,
+        ..Policy::default()
+    };
+    let (answer, report) = memoized(src, None, policy);
     assert_eq!(answer, plain(src));
     let count = row(&report, "count");
     assert_eq!(count.hits, 1, "{count:?}");
-    assert_eq!(count.stored, 1, "only the chain's first call: {count:?}");
+    assert_eq!(
+        count.stored, 2,
+        "the chain's first call and the call that ends it, none of the 299 between: {count:?}"
+    );
 }
 
 #[test]

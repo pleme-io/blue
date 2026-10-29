@@ -216,7 +216,14 @@ fn reply<T>(outcome: Outcome<T>, field: &str, to_json: impl Fn(T) -> Json) -> Ma
 fn status<T>(result: &Result<T, Stop>) -> Map<String, Json> {
     match result {
         Ok(_) => ok(),
-        Err(Stop::Error(f)) => failure(&f.code, &f.message),
+        Err(Stop::Error(f)) => {
+            let mut m = failure(&f.code, &f.message);
+            if let (Some(stack), Some(Json::Object(error))) = (f.stack(), m.get_mut("error")) {
+                error.insert("stack".into(), stack.json());
+                error.insert("stack_depth".into(), stack.depth.into());
+            }
+            m
+        }
         Err(Stop::Volatile { reach, name }) => object(json!({
             "status": "volatile",
             "reach": reach.label(),

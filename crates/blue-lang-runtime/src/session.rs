@@ -118,6 +118,9 @@ pub struct Failure {
     /// (`B0001`) when the check stage refused the code.
     pub code: String,
     pub message: String,
+    /// The blue call stack a runtime error unwound through, innermost first,
+    /// as `blue run` reports it (`crate::observe::Fault`).
+    pub stack: Option<crate::observe::Stack>,
 }
 
 impl Failure {
@@ -125,7 +128,14 @@ impl Failure {
         Self {
             code: code.into(),
             message: message.into(),
+            stack: None,
         }
+    }
+
+    /// The call stack a runtime error unwound through, when it has one.
+    #[must_use]
+    pub fn stack(&self) -> Option<&crate::observe::Stack> {
+        self.stack.as_ref().filter(|s| !s.is_empty())
     }
 }
 
@@ -636,7 +646,8 @@ impl Session {
                 }
             }
         }
-        let stop = failed.map(|(i, e)| self.classify(&e, &erased, |span, msg| place(i, span, msg)));
+        let stop = failed
+            .map(|(i, e)| self.classify(&e, &program, i, &erased, |span, msg| place(i, span, msg)));
 
         match action {
             Action::Load => ctx.forms = forms.into_iter().map(Form::settled).collect(),
@@ -668,9 +679,12 @@ impl Session {
     fn classify(
         &self,
         e: &EvalError,
+        program: &ResolvedProgram,
+        top_level: usize,
         erased: &[Spanned],
         place: impl Fn(Span, &str) -> String,
     ) -> Stop {
+        let trace = self.interp.take_trace();
         match e {
             EvalError::Halted => {
                 self.interrupt.store(false, Ordering::SeqCst);
@@ -684,7 +698,11 @@ impl Session {
             other => {
                 let at = other.span().unwrap_or_else(Span::synthetic);
                 let message = pipeline::display_keys(&crate::messages::describe(other, erased));
-                Stop::Error(Failure::new("runtime", place(at, &message)))
+                let mut failure = Failure::new("runtime", place(at, &message));
+                failure.stack = Some(
+                    crate::observe::Fault::of(program, erased, top_level, other, &trace).stack,
+                );
+                Stop::Error(failure)
             }
         }
     }

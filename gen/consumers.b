@@ -11,21 +11,6 @@ def entries()
       "*",
       :enforce,
       "a repository that runs blue stays green at this blue: a canonical or format rule lands on main only after every consumer is written in it"
-    ),
-    level(
-      "hanabi",
-      :audit,
-      "its host loads .b files only when canonical, and its crates.io blue-lang reads %w[...] as canonical only from the release that carries this formatter; it is written in it with that pin move"
-    ),
-    level(
-      "hanshi",
-      :audit,
-      "its host loads .b files only when canonical, and its crates.io blue-lang reads %w[...] as canonical only from the release that carries this formatter; it is written in it with that pin move"
-    ),
-    level(
-      "zukai",
-      :audit,
-      "its host loads .b files only when canonical, and its crates.io blue-lang reads %w[...] as canonical only from the release that carries this formatter; it is written in it with that pin move"
     )
   ]
 end

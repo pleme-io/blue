@@ -51,7 +51,7 @@ verb(
   {
     kind: :pure,
     shape: "batch_verify?(items) -> Bool",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: nil,
     today: "absent",
     meaning: "many signatures checked together, faster than one by one",
@@ -66,7 +66,7 @@ verb(
   {
     kind: :pure,
     shape: "chain(previous, payload) -> hex",
-    laterals: ["serialize", "validate"],
+    laterals: %w[serialize validate],
     fleet: "tameshi",
     today: "exists:shomei",
     wave: 0,
@@ -154,7 +154,7 @@ verb(
   {
     kind: :pure,
     shape: "genesis(label) -> hex",
-    laterals: ["serialize", "validate"],
+    laterals: %w[serialize validate],
     fleet: "tameshi",
     today: "exists:shomei",
     wave: 0,
@@ -168,7 +168,7 @@ verb(
   {
     kind: :pure,
     shape: "hash(data, algorithm, opts) -> hex",
-    laterals: ["error", "serialize", "validate"],
+    laterals: %w[error serialize validate],
     fleet: "tameshi",
     today: "exists:shomei",
     wave: 0,
@@ -198,7 +198,7 @@ verb(
   {
     kind: :effect,
     shape: "hash_file(path, algorithm) -> hex",
-    laterals: ["error", "resource"],
+    laterals: %w[error resource],
     fleet: nil,
     today: "absent",
     meaning: "digest of a file, read in chunks",
@@ -213,7 +213,7 @@ verb(
   {
     kind: :stream,
     shape: "hash_stream(source, algorithm) -> text",
-    laterals: ["cancel", "deadline", "error"],
+    laterals: %w[cancel deadline error],
     fleet: nil,
     today: "absent",
     meaning: "a digest of a file or stream without holding it whole",
@@ -228,7 +228,7 @@ verb(
   {
     kind: :pure,
     shape: "head(genesis, payloads) -> hex",
-    laterals: ["serialize", "validate"],
+    laterals: %w[serialize validate],
     fleet: "tameshi",
     today: "exists:shomei",
     wave: 0,
@@ -256,7 +256,7 @@ verb(
   {
     kind: :pure,
     shape: "keypair(seed) -> record",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: "tameshi",
     today: "partial:shomei",
     meaning: "signing key and public key from a seed",
@@ -271,7 +271,7 @@ verb(
   {
     kind: :pure,
     shape: "mac(data, key, algorithm) -> hex",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: nil,
     today: "exists:shomei",
     wave: 1,
@@ -329,7 +329,7 @@ verb(
   {
     kind: :pure,
     shape: "prove(payloads, index) -> [step]",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: "tameshi",
     today: "exists:shomei",
     wave: 0,
@@ -385,7 +385,7 @@ verb(
   {
     kind: :pure,
     shape: "root(payloads) -> hex",
-    laterals: ["serialize", "validate"],
+    laterals: %w[serialize validate],
     fleet: "tameshi",
     today: "exists:shomei",
     wave: 0,
@@ -413,7 +413,7 @@ verb(
   {
     kind: :pure,
     shape: "sign(data, secret) -> hex",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: "tameshi",
     today: "exists:shomei",
     meaning: "signature over data",
@@ -442,7 +442,7 @@ verb(
   {
     kind: :pure,
     shape: "verify?(data, signature, public) -> Bool",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: "tameshi",
     today: "exists:shomei",
     wave: 0,

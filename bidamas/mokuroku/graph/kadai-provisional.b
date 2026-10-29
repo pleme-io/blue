@@ -157,7 +157,7 @@ verb(
   {
     kind: :effect,
     shape: "sync(from, to, opts) -> report",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: nil,
     today: "absent",
     meaning: "mirror issues between two trackers",
@@ -172,7 +172,7 @@ verb(
   {
     kind: :effect,
     shape: "transition(issue, to, opts) -> issue",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: nil,
     today: "absent",
     meaning: "move an issue along its workflow; refuse an illegal move",
@@ -202,7 +202,7 @@ verb(
   {
     kind: :effect,
     shape: "update(tracker, id, f) -> issue",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: nil,
     today: "absent",
     meaning: "change an issue; conflict on a concurrent write",

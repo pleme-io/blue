@@ -6,7 +6,7 @@ verb(
   {
     kind: :effect,
     shape: "eval(flag, context) -> value",
-    laterals: ["cache", "config"],
+    laterals: %w[cache config],
     fleet: nil,
     today: "absent",
     meaning: "the value of a flag for a context",
@@ -36,7 +36,7 @@ verb(
   {
     kind: :effect,
     shape: "kill(flag, reason) -> flag",
-    laterals: ["idempotent", "log", "switch"],
+    laterals: %w[idempotent log switch],
     fleet: nil,
     today: "absent",
     meaning: "turn a flag off for everyone at once",
@@ -81,7 +81,7 @@ verb(
   {
     kind: :effect,
     shape: "put(flag, rule, opts) -> flag",
-    laterals: ["idempotent", "log"],
+    laterals: %w[idempotent log],
     fleet: nil,
     today: "absent",
     meaning: "create or replace a flag rule",
@@ -96,7 +96,7 @@ verb(
   {
     kind: :effect,
     shape: "ramp(flag, percent) -> flag",
-    laterals: ["log", "switch"],
+    laterals: %w[log switch],
     fleet: nil,
     today: "absent",
     meaning: "raise the share of contexts that see it",

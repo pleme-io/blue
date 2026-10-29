@@ -21,7 +21,7 @@ verb(
   {
     kind: :effect,
     shape: "begin(conn, opts) -> tx",
-    laterals: ["error", "resource"],
+    laterals: %w[error resource],
     fleet: "pleme-database",
     today: "absent",
     meaning: "open a transaction at an isolation level",
@@ -81,7 +81,7 @@ verb(
   {
     kind: :effect,
     shape: "connect(url, opts) -> conn",
-    laterals: ["capability", "config", "deadline", "resource"],
+    laterals: %w[capability config deadline resource],
     fleet: "pleme-database",
     today: "partial:teeburu",
     meaning: "open one database connection from a URL or settings",
@@ -96,7 +96,7 @@ verb(
   {
     kind: :effect,
     shape: "copy(from, to, opts) -> count",
-    laterals: ["cancel", "deadline", "error"],
+    laterals: %w[cancel deadline error],
     fleet: "shinka",
     today: "absent",
     meaning: "copy a table or model between databases",
@@ -111,7 +111,7 @@ verb(
   {
     kind: :effect,
     shape: "count(conn, table, opts) -> number",
-    laterals: ["deadline", "error"],
+    laterals: %w[deadline error],
     fleet: nil,
     today: "absent",
     meaning: "how many rows match a filter",
@@ -126,7 +126,7 @@ verb(
   {
     kind: :effect,
     shape: "create(conn, table, row) -> row",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: "pleme-database",
     today: "partial:teeburu",
     meaning: "insert a new row and return it; exists if duplicate",
@@ -141,7 +141,7 @@ verb(
   {
     kind: :effect,
     shape: "delete(conn, table, key) -> nil",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: "pleme-database",
     today: "absent",
     meaning: "make the row absent; absent counts as done",
@@ -172,7 +172,7 @@ verb(
   {
     kind: :stream,
     shape: "dump(conn, source, f) -> count",
-    laterals: ["cancel", "deadline", "error"],
+    laterals: %w[cancel deadline error],
     fleet: nil,
     today: "absent",
     meaning: "stream a table or query out, row by row",
@@ -187,7 +187,7 @@ verb(
   {
     kind: :effect,
     shape: "execute(conn, sql, params) -> {affected}",
-    laterals: ["deadline", "error", "trace"],
+    laterals: %w[deadline error trace],
     fleet: "pleme-database",
     today: "absent",
     meaning: "run one parameterized statement for its effect",
@@ -218,7 +218,7 @@ verb(
   {
     kind: :effect,
     shape: "get(conn, table, key) -> row or nil",
-    laterals: ["deadline", "error"],
+    laterals: %w[deadline error],
     fleet: "pleme-database",
     today: "absent",
     meaning: "one row by primary key, or nil when absent",
@@ -250,7 +250,7 @@ verb(
   {
     kind: :effect,
     shape: "list(conn, table, opts) -> [row]",
-    laterals: ["deadline", "error"],
+    laterals: %w[deadline error],
     fleet: "pleme-database",
     today: "partial:teeburu",
     meaning: "rows matching a filter, ordered, every page",
@@ -266,7 +266,7 @@ verb(
   {
     kind: :stream,
     shape: "listen(conn, channel, f) -> nil",
-    laterals: ["cancel", "deadline"],
+    laterals: %w[cancel deadline],
     fleet: nil,
     today: "absent",
     meaning: "call f per notification on a channel",
@@ -282,7 +282,7 @@ verb(
   {
     kind: :effect,
     shape: "load(conn, table, rows) -> count",
-    laterals: ["cancel", "deadline", "error"],
+    laterals: %w[cancel deadline error],
     fleet: nil,
     today: "absent",
     meaning: "bulk insert many rows in one round trip",
@@ -297,7 +297,7 @@ verb(
   {
     kind: :effect,
     shape: "need(conn, table, key) -> row",
-    laterals: ["deadline", "error"],
+    laterals: %w[deadline error],
     fleet: "pleme-database",
     today: "absent",
     meaning: "one row by primary key, raising not_found",
@@ -358,7 +358,7 @@ verb(
   {
     kind: :effect,
     shape: "pool(url, opts) -> pool",
-    laterals: ["config", "ratelimit", "resource"],
+    laterals: %w[config ratelimit resource],
     fleet: "pleme-database",
     today: "absent",
     meaning: "a bounded set of reusable connections",
@@ -374,7 +374,7 @@ verb(
   {
     kind: :effect,
     shape: "put(conn, table, key, row) -> row",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: "pleme-database",
     today: "absent",
     meaning: "insert or replace a row by key",
@@ -390,7 +390,7 @@ verb(
   {
     kind: :effect,
     shape: "query(conn, sql, params) -> [row]",
-    laterals: ["deadline", "error", "retry", "trace"],
+    laterals: %w[deadline error retry trace],
     fleet: "pleme-database",
     today: "partial:teeburu",
     meaning: "run one parameterized statement and return its rows",
@@ -420,7 +420,7 @@ verb(
   {
     kind: :effect,
     shape: "rollback(tx) -> nil",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: "pleme-database",
     today: "absent",
     meaning: "discard a transaction; already ended counts as done",
@@ -435,7 +435,7 @@ verb(
   {
     kind: :effect,
     shape: "savepoint(tx, f) -> value",
-    laterals: ["error", "resource"],
+    laterals: %w[error resource],
     fleet: nil,
     today: "absent",
     meaning: "run f in a nested unit that rolls back alone",
@@ -465,7 +465,7 @@ verb(
   {
     kind: :effect,
     shape: "script(conn, text) -> [tag]",
-    laterals: ["deadline", "error"],
+    laterals: %w[deadline error],
     fleet: nil,
     today: "absent",
     meaning: "run an unparameterized multi-statement script",
@@ -480,7 +480,7 @@ verb(
   {
     kind: :stream,
     shape: "stream(conn, sql, params, f) -> nil",
-    laterals: ["cancel", "deadline", "error"],
+    laterals: %w[cancel deadline error],
     fleet: nil,
     today: "absent",
     meaning: "call f per row from a server cursor",
@@ -511,7 +511,7 @@ verb(
   {
     kind: :effect,
     shape: "update(conn, table, key, f) -> row",
-    laterals: ["error", "idempotent", "retry"],
+    laterals: %w[error idempotent retry],
     fleet: "pleme-database",
     today: "absent",
     meaning: "replace a row with f(old); conflict if it changed",
@@ -527,7 +527,7 @@ verb(
   {
     kind: :effect,
     shape: "with_connection(pool, f) -> value",
-    laterals: ["cancel", "error", "resource"],
+    laterals: %w[cancel error resource],
     fleet: "pleme-database",
     today: "absent",
     meaning: "lend a pooled connection to f and take it back",
@@ -542,7 +542,7 @@ verb(
   {
     kind: :effect,
     shape: "with_transaction(conn, f, opts) -> value",
-    laterals: ["cancel", "error", "resource", "retry"],
+    laterals: %w[cancel error resource retry],
     fleet: "pleme-database",
     today: "absent",
     meaning: "run f in one transaction; commit, or roll back on raise",

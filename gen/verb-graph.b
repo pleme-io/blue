@@ -1,18 +1,18 @@
 use(
   "mokuroku",
-  [
-    :blue_path_roots,
-    :graph_findings,
-    :graph_findings_live,
-    :graph_from_tsv,
-    :graph_load,
-    :graph_verdict,
-    :unbound_probe,
-    :untested_probe
+  %i[
+    blue_path_roots
+    graph_findings
+    graph_findings_live
+    graph_from_tsv
+    graph_load
+    graph_verdict
+    unbound_probe
+    untested_probe
   ]
 )
 
-use("retsu", [:find_first, :reject, :size])
+use("retsu", %i[find_first reject size])
 
 def graph_home()
   here = find_first(

@@ -89,18 +89,7 @@ def is_weekend(y, m, d)
 end
 
 def day_name(w)
-  nth(
-    w,
-    [
-      "Sunday",
-      "Monday",
-      "Tuesday",
-      "Wednesday",
-      "Thursday",
-      "Friday",
-      "Saturday"
-    ]
-  )
+  %w[Sunday Monday Tuesday Wednesday Thursday Friday Saturday][w]
 end
 
 @doc """
@@ -235,19 +224,19 @@ index is m - 1. Defined for 1..12.
 def month_name(m)
   nth(
     m - 1,
-    [
-      "January",
-      "February",
-      "March",
-      "April",
-      "May",
-      "June",
-      "July",
-      "August",
-      "September",
-      "October",
-      "November",
-      "December"
+    %w[
+      January
+      February
+      March
+      April
+      May
+      June
+      July
+      August
+      September
+      October
+      November
+      December
     ]
   )
 end

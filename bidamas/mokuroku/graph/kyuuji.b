@@ -6,7 +6,7 @@ verb(
   {
     kind: :pure,
     shape: "body(req, format) -> value",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: nil,
     today: "exists:kyuuji",
     wave: 1,
@@ -79,7 +79,7 @@ verb(
   {
     kind: :effect,
     shape: "file(path, opts) -> response",
-    laterals: ["cache", "resource"],
+    laterals: %w[cache resource],
     fleet: nil,
     today: "exists:kyuuji",
     wave: 2,
@@ -94,7 +94,7 @@ verb(
   {
     kind: :pure,
     shape: "guard(handler, check) -> handler",
-    laterals: ["capability", "error"],
+    laterals: %w[capability error],
     fleet: nil,
     today: "exists:kyuuji",
     wave: 1,
@@ -137,7 +137,7 @@ verb(
   {
     kind: :decl,
     shape: "hook(path, secret, f) -> route",
-    laterals: ["capability", "idempotent"],
+    laterals: %w[capability idempotent],
     fleet: nil,
     today: "absent",
     meaning: "Receive a signed webhook and call f once per delivery.",
@@ -222,7 +222,7 @@ verb(
   {
     kind: :effect,
     shape: "observe(m, status, seconds) -> m",
-    laterals: ["log", "trace"],
+    laterals: %w[log trace],
     fleet: "blue",
     today: "exists:kyuuji",
     wave: 0,
@@ -337,15 +337,7 @@ verb(
   {
     kind: :effect,
     shape: "serve(addr, app, opts) -> nil",
-    laterals: [
-      "cancel",
-      "capability",
-      "deadline",
-      "error",
-      "log",
-      "resource",
-      "trace"
-    ],
+    laterals: %w[cancel capability deadline error log resource trace],
     fleet: "blue",
     today: "exists:kyuuji",
     wave: 0,
@@ -359,7 +351,7 @@ verb(
   {
     kind: :effect,
     shape: "serve_once(listener, app, opts) -> nil",
-    laterals: ["deadline", "error"],
+    laterals: %w[deadline error],
     fleet: "blue",
     today: "exists:kyuuji",
     wave: 0,
@@ -373,7 +365,7 @@ verb(
   {
     kind: :effect,
     shape: "shutdown(server, opts) -> nil",
-    laterals: ["cancel", "deadline"],
+    laterals: %w[cancel deadline],
     fleet: nil,
     today: "absent",
     meaning: "Stop accepting, drain in-flight requests, then close.",
@@ -388,7 +380,7 @@ verb(
   {
     kind: :stream,
     shape: "stream(req, f, opts) -> response",
-    laterals: ["cancel", "deadline"],
+    laterals: %w[cancel deadline],
     fleet: nil,
     today: "partial:kyuuji",
     wave: 2,
@@ -431,7 +423,7 @@ verb(
   {
     kind: :effect,
     shape: "upgrade(req, f) -> response",
-    laterals: ["cancel", "capability"],
+    laterals: %w[cancel capability],
     fleet: nil,
     today: "partial:kyuuji",
     wave: 2,

@@ -91,7 +91,7 @@ verb(
   {
     kind: :pure,
     shape: "tighten(rows, kind, measurements) -> [row]",
-    laterals: ["migrate", "test"],
+    laterals: %w[migrate test],
     fleet: nil,
     today: "partial:hadome",
     meaning: "rows lowered to the new sizes, never raised",

@@ -2,7 +2,7 @@
   {
     "name": "int to bigint narrows",
     "file": "teeburu.b",
-    "find": "      [:int, :bigint],\n",
+    "find": "      %i[int bigint],\n",
     "replace": ""
   },
   {

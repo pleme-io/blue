@@ -6,7 +6,7 @@ verb(
   {
     kind: :effect,
     shape: "list(declared, opts) -> [state]",
-    laterals: ["deadline", "time"],
+    laterals: %w[deadline time],
     fleet: "tehai",
     today: "partial:tehai",
     meaning: "every builder with live or stale state",
@@ -35,7 +35,7 @@ verb(
   {
     kind: :effect,
     shape: "probe(machine, opts) -> checked",
-    laterals: ["deadline", "process"],
+    laterals: %w[deadline process],
     fleet: "tehai",
     today: "exists:tehai",
     wave: 0,
@@ -49,7 +49,7 @@ verb(
   {
     kind: :effect,
     shape: "write(path, machines) -> nil",
-    laterals: ["idempotent", "serialize"],
+    laterals: %w[idempotent serialize],
     fleet: "tehai",
     today: "partial:tehai",
     meaning: "write the live set atomically where nix reads it",

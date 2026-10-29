@@ -1,5 +1,5 @@
 use("moji", [:take_chars])
-use("retsu", [:first, :reject])
+use("retsu", %i[first reject])
 use("shisutemu", [:stdout_of])
 
 @doc """
@@ -62,7 +62,7 @@ end
 
 def main()
   a = land_args(argv)
-  if git(["status", "--porcelain", "--untracked-files=no"]) != ""
+  if git(%w[status --porcelain --untracked-files=no]) != ""
     write_stderr(
       unlines(
         ["land: tracked files differ from HEAD; commit them, since CI checks the commit"]
@@ -81,12 +81,12 @@ def main()
     )
     exit_with(1)
   end
-  sha = git(["rev-parse", "HEAD"])
+  sha = git(%w[rev-parse HEAD])
   ref = land_ref(
     slug_for(
       a[:slug],
-      git(["rev-parse", "--abbrev-ref", "HEAD"]),
-      git(["rev-parse", "--short", "HEAD"])
+      git(%w[rev-parse --abbrev-ref HEAD]),
+      git(%w[rev-parse --short HEAD])
     ),
     a[:dry]
   )

@@ -1,7 +1,7 @@
 use("hon", [:front_matter_text])
-use("mokuroku", [:catalog_of, :md_cell, :names_shadowing])
-use("retsu", [:concat_lists, :find_first, :first, :is_empty, :last, :size])
-use("shisutemu", [:status_of, :stderr_of, :stdout_of])
+use("mokuroku", %i[catalog_of md_cell names_shadowing])
+use("retsu", %i[concat_lists find_first first is_empty last size])
+use("shisutemu", %i[status_of stderr_of stdout_of])
 
 # Writes docs/REFERENCE.md from `blue reference`, the JSON the implementation
 # prints from its own tables (crates/blue-lang-cli/src/reference.rs). Declared
@@ -85,7 +85,7 @@ def keywords(data)
     (k) -> [code(text(k, "word")), md_cell(text(k, "doc"))],
     field(data, "keywords")
   )
-  table(["word", "meaning"], rows)
+  table(%w[word meaning], rows)
 end
 
 def words(data)
@@ -93,7 +93,7 @@ def words(data)
     (w) -> [code(text(w, "signature")), md_cell(text(w, "doc"))],
     field(data, "bluefile")
   )
-  table(["word", "declares"], rows)
+  table(%w[word declares], rows)
 end
 
 # [name, [package…]] for each built-in name a bidama also defines. Inside a
@@ -143,7 +143,7 @@ def topic_section(topic, names, redefined)
     [
       "### #{text(topic, "title")}",
       "",
-      table(["name", "call", "arity", "meaning"], rows)
+      table(%w[name call arity meaning], rows)
     ]
   )
 end
@@ -166,7 +166,7 @@ def nullary(names)
     [
       "A function that takes no parameters is CALLED where its name is written: `now_ms` is a number, `now_ms()` is the same call in a spelling the check stage refuses in a file (B0023; `blue fmt --write` rewrites it), and `fn() now_ms end` is the function itself as a value. A local or a parameter of the same name is its value, never a call. These #{to_s(size(bare))} built-in names therefore run, with their effects, wherever they are written bare:",
       "",
-      table(["name", "meaning"], rows)
+      table(%w[name meaning], rows)
     ]
   )
 end
@@ -187,7 +187,7 @@ def rules(data)
     [
       "Every rule blue holds, from the registry the check stage runs (`blue explain CODE` prints the reasoning). blue has one way to write each thing: a spelling a rule names is still read, and `blue fmt --write` and `blue check --fix` rewrite it where the fix is `autofix`; `blue test` and `blue check` never write, and name that command. The inventory, with the reason for each choice, is [`CANONICAL-FORMS.md`](CANONICAL-FORMS.md).",
       "",
-      table(["code", "rule", "law", "fix"], rows)
+      table(%w[code rule law fix], rows)
     ]
   )
 end

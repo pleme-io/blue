@@ -13,11 +13,11 @@ vector_endpoint or VECTOR_ENDPOINT), on unless observe sets logs: :off.
 """
 
 use("jisho", [:merge])
-use("retsu", [:first, :is_empty, :size])
-use("shisutemu", [:status_of, :stderr_of, :stdout_of])
+use("retsu", %i[first is_empty size])
+use("shisutemu", %i[status_of stderr_of stdout_of])
 
 def levels()
-  [:debug, :info, :warn, :error]
+  %i[debug info warn error]
 end
 
 def rank(lvl)
@@ -235,7 +235,7 @@ def written(cap)
 end
 
 test "levels are ordered and an unknown level is refused"
-  assert levels == [:debug, :info, :warn, :error]
+  assert levels == %i[debug info warn error]
   assert map(rank, levels) == [0, 1, 2, 3]
   caught = begin
     rank(:trace)
@@ -246,7 +246,7 @@ test "levels are ordered and an unknown level is refused"
 end
 
 test "level reads BLUE_LOG text: each name, unset and empty mean info, a typo is refused"
-  assert map(level_of, ["debug", "info", "warn", "error"]) == levels
+  assert map(level_of, %w[debug info warn error]) == levels
   assert level_of(nil) == :info
   assert level_of("") == :info
   caught = begin
@@ -335,7 +335,7 @@ end
 test "stderr gets one JSON line per call and stdout gets nothing"
   if self_exe != nil
     cap = probe(
-      [["BLUE_LOG", "debug"]],
+      [%w[BLUE_LOG debug]],
       "rogu::info(\"pinned\", {rev: \"abc\", n: 2})"
     )
     assert status_of(cap) == 0
@@ -354,7 +354,7 @@ end
 test "each verb writes its own level when everything is on"
   if self_exe != nil
     cap = probe(
-      [["BLUE_LOG", "debug"]],
+      [%w[BLUE_LOG debug]],
       join_lines(
         [
           "rogu::debug(\"a\", {})",
@@ -364,9 +364,8 @@ test "each verb writes its own level when everything is on"
         ]
       )
     )
-    assert map((r) -> r["level"], written(cap)) ==
-      ["debug", "info", "warn", "error"]
-    assert map((r) -> r["message"], written(cap)) == ["a", "b", "c", "d"]
+    assert map((r) -> r["level"], written(cap)) == %w[debug info warn error]
+    assert map((r) -> r["message"], written(cap)) == %w[a b c d]
   end
 end
 
@@ -380,9 +379,9 @@ test "BLUE_LOG filters: warn drops debug and info, error keeps only error"
         "rogu::error(\"d\", {})"
       ]
     )
-    warn_run = probe([["BLUE_LOG", "warn"]], body)
-    assert map((r) -> r["level"], written(warn_run)) == ["warn", "error"]
-    error_run = probe([["BLUE_LOG", "error"]], body)
+    warn_run = probe([%w[BLUE_LOG warn]], body)
+    assert map((r) -> r["level"], written(warn_run)) == %w[warn error]
+    error_run = probe([%w[BLUE_LOG error]], body)
     assert map((r) -> r["level"], written(error_run)) == ["error"]
   end
 end
@@ -397,7 +396,7 @@ end
 
 test "a call under a bad BLUE_LOG fails loudly and writes no line"
   if self_exe != nil
-    cap = probe([["BLUE_LOG", "verbose"]], "rogu::info(\"x\", {})")
+    cap = probe([%w[BLUE_LOG verbose]], "rogu::info(\"x\", {})")
     assert status_of(cap) != 0
     assert contains?(stderr_of(cap), "BLUE_LOG is verbose") == true
     assert contains?(stderr_of(cap), "\"level\"") == false
@@ -407,9 +406,9 @@ end
 test "enabled? in a child follows BLUE_LOG"
   if self_exe != nil
     body = "write_stdout(to_s([rogu::enabled?(:debug), rogu::enabled?(:info), rogu::enabled?(:warn), rogu::enabled?(:error)]))"
-    assert stdout_of(probe([["BLUE_LOG", "debug"]], body)) ==
+    assert stdout_of(probe([%w[BLUE_LOG debug]], body)) ==
       "[true, true, true, true]"
-    assert stdout_of(probe([["BLUE_LOG", "warn"]], body)) ==
+    assert stdout_of(probe([%w[BLUE_LOG warn]], body)) ==
       "[false, false, true, true]"
     assert stdout_of(probe([["BLUE_LOG", ""]], body)) ==
       "[false, true, true, true]"
@@ -426,8 +425,8 @@ test "with carries base fields on every line, and a call's own fields win"
         "get(l, :error)(\"down\", nil)"
       ]
     )
-    rows = written(probe([["BLUE_LOG", "info"]], body))
-    assert map((r) -> r["message"], rows) == ["up", "down"]
+    rows = written(probe([%w[BLUE_LOG info]], body))
+    assert map((r) -> r["message"], rows) == %w[up down]
     assert first(rows)["svc"] == "api"
     assert first(rows)["n"] == 2
     assert first(rows)["extra"] == true

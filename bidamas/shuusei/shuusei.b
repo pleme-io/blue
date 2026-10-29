@@ -18,24 +18,12 @@ use("deeta", [:json_at])
 
 use(
   "kousei",
-  [
-    :entry,
-    :field,
-    :judge,
-    :off,
-    :one_of,
-    :overlay,
-    :refuse,
-    :required,
-    :text,
-    :tune,
-    :value_of
-  ]
+  %i[entry field judge off one_of overlay refuse required text tune value_of]
 )
 
 use("kyohi", [:kinds])
 
-use("retsu", [:first, :rest, :size])
+use("retsu", %i[first rest size])
 
 def segments(path)
   split(path, ".")
@@ -221,7 +209,7 @@ def patch_table()
     required(field(:kind, text)),
     required(field(:name, text)),
     field(:namespace, text),
-    required(field(:op, one_of(["set", "delete", "merge", "upsert"]))),
+    required(field(:op, one_of(%w[set delete merge upsert]))),
     required(field(:path, text)),
     field(:value, anything),
     field(:key, text)
@@ -533,7 +521,7 @@ test "upsert replaces the element with the same key or appends, and doing it twi
 end
 
 test "object_key is kind, namespace and name, with an empty namespace when there is none"
-  assert object_key(web) == ["Deployment", "shop", "web"]
+  assert object_key(web) == %w[Deployment shop web]
   assert object_key(
     {"kind" => "Namespace", "metadata" => {"name" => "shop"}}
   ) == ["Namespace", "", "shop"]
@@ -609,7 +597,7 @@ test "a bad patch is refused alone by name and its siblings still apply"
   assert r[:applied] == 1
   assert json_at(r[:objects][0], "spec.replicas") == 3
   assert kinds(r[:refusals]) ==
-    [:invalid, :invalid, :invalid, :invalid, :unknown_target, :path]
+    %i[invalid invalid invalid invalid unknown_target path]
   assert json_at(r[:objects][0], "spec.paused").nil?
 end
 

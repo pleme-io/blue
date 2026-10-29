@@ -6,7 +6,7 @@ verb(
   {
     kind: :effect,
     shape: "check(repo, config) -> [finding]",
-    laterals: ["test", "validate"],
+    laterals: %w[test validate],
     fleet: "kijun",
     today: "partial:kijun",
     meaning: "hold a repo to its standard, findings as data",
@@ -51,7 +51,7 @@ verb(
   {
     kind: :effect,
     shape: "ratchet(findings, baseline) -> verdict",
-    laterals: ["serialize", "validate"],
+    laterals: %w[serialize validate],
     fleet: "hadome",
     today: "partial:hadome",
     meaning: "recorded debt may shrink or hold, never grow",

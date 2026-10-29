@@ -6,7 +6,7 @@ verb(
   {
     kind: :effect,
     shape: "cancel(run) -> nil",
-    laterals: ["cancel", "idempotent"],
+    laterals: %w[cancel idempotent],
     fleet: nil,
     today: "absent",
     meaning: "stop a run in progress",
@@ -21,7 +21,7 @@ verb(
   {
     kind: :effect,
     shape: "create(path, value, opts) -> record",
-    laterals: ["error", "idempotent", "ratelimit"],
+    laterals: %w[error idempotent ratelimit],
     fleet: nil,
     today: "absent",
     meaning: "add an item that must not exist",
@@ -36,7 +36,7 @@ verb(
   {
     kind: :effect,
     shape: "delete(path, opts) -> nil",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: nil,
     today: "absent",
     meaning: "remove an item",
@@ -66,7 +66,7 @@ verb(
   {
     kind: :effect,
     shape: "get(path, opts) -> record or nil",
-    laterals: ["deadline", "error", "ratelimit", "retry"],
+    laterals: %w[deadline error ratelimit retry],
     fleet: nil,
     today: "absent",
     meaning: "one API item, nil when absent",
@@ -96,7 +96,7 @@ verb(
   {
     kind: :effect,
     shape: "list(path, opts) -> [record]",
-    laterals: ["deadline", "error", "ratelimit", "retry"],
+    laterals: %w[deadline error ratelimit retry],
     fleet: nil,
     today: "absent",
     meaning: "every item under an API path, all pages",
@@ -111,7 +111,7 @@ verb(
   {
     kind: :effect,
     shape: "need(path, opts) -> record",
-    laterals: ["error", "ratelimit"],
+    laterals: %w[error ratelimit],
     fleet: nil,
     today: "absent",
     meaning: "one API item, raises when absent",
@@ -126,7 +126,7 @@ verb(
   {
     kind: :effect,
     shape: "put(path, value, opts) -> record",
-    laterals: ["error", "idempotent", "ratelimit"],
+    laterals: %w[error idempotent ratelimit],
     fleet: nil,
     today: "absent",
     meaning: "create or replace an item",
@@ -141,7 +141,7 @@ verb(
   {
     kind: :effect,
     shape: "query(graphql, vars) -> record",
-    laterals: ["deadline", "error", "ratelimit"],
+    laterals: %w[deadline error ratelimit],
     fleet: nil,
     today: "absent",
     meaning: "a GraphQL question",
@@ -187,7 +187,7 @@ verb(
   {
     kind: :effect,
     shape: "update(path, f, opts) -> record",
-    laterals: ["error", "idempotent", "ratelimit"],
+    laterals: %w[error idempotent ratelimit],
     fleet: nil,
     today: "absent",
     meaning: "change an item with a function",
@@ -202,7 +202,7 @@ verb(
   {
     kind: :effect,
     shape: "wait(run, opts) -> result",
-    laterals: ["cancel", "deadline"],
+    laterals: %w[cancel deadline],
     fleet: nil,
     today: "absent",
     meaning: "wait for a run to finish",

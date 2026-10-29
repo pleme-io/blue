@@ -11,8 +11,8 @@ model declares a versioned model (entities, keys, typed fields, indexes, relatio
 use("kueri")
 use("maakuappu")
 use("moji", [:checked])
-use("retsu", [:find_first, :first, :is_empty, :last, :size])
-use("tesuto", [:caught, :raises?])
+use("retsu", %i[find_first first is_empty last size])
+use("tesuto", %i[caught raises?])
 
 @doc """
 quoted: an identifier as a Postgres quoted identifier, each inner double quote doubled.
@@ -106,20 +106,20 @@ types lists what a model field may be declared as.
     first(types) #=> :uuid
 """
 def types()
-  [
-    :uuid,
-    :text,
-    :int,
-    :bigint,
-    :decimal,
-    :float,
-    :bool,
-    :timestamp,
-    :json,
-    :bytes,
-    :list,
-    :record,
-    :any
+  %i[
+    uuid
+    text
+    int
+    bigint
+    decimal
+    float
+    bool
+    timestamp
+    json
+    bytes
+    list
+    record
+    any
   ]
 end
 
@@ -160,13 +160,13 @@ def widening?(from, to)
   member?(
     [from, to],
     [
-      [:int, :bigint],
-      [:int, :decimal],
-      [:bigint, :decimal],
-      [:int, :float],
-      [:int, :text],
-      [:bigint, :text],
-      [:uuid, :text]
+      %i[int bigint],
+      %i[int decimal],
+      %i[bigint decimal],
+      %i[int float],
+      %i[int text],
+      %i[bigint text],
+      %i[uuid text]
     ]
   )
 end
@@ -180,7 +180,7 @@ def field_of(spec)
   rec = if keyword?(spec)
     {type: spec}
   else
-    checked(spec, [:type, :renamed_from, :allow, :default, :null, :backfill])
+    checked(spec, %i[type renamed_from allow default null backfill])
   end
   assoc(rec, :null, rec[:null] != false)
 end
@@ -226,7 +226,7 @@ model: a data model as a versioned value: entities with a key, typed fields, ind
     model("orders", {version: 1, entities: {order: {key: :id, fields: {id: :uuid}}}})[:version] #=> 1
 """
 def model(name, spec)
-  checked(spec, [:version, :entities, :drop])
+  checked(spec, %i[version entities drop])
   v = spec[:version]
   if not integer?(v) or v < 1
     raise(:bad_option, "a model version is a whole number from 1")
@@ -236,16 +236,16 @@ def model(name, spec)
     fn(e)
       checked(
         e[1],
-        [
-          :key,
-          :fields,
-          :indexes,
-          :relations,
-          :renamed_from,
-          :split_from,
-          :merged_from,
-          :cache,
-          :events
+        %i[
+          key
+          fields
+          indexes
+          relations
+          renamed_from
+          split_from
+          merged_from
+          cache
+          events
         ]
       )
     end,
@@ -688,7 +688,7 @@ pg_options: the lowering's options with their defaults: a five-second lock timeo
     pg_options({})[:batch] #=> 1000
 """
 def pg_options(opts)
-  checked(opts, [:lock_timeout, :batch])
+  checked(opts, %i[lock_timeout batch])
   {lock_timeout: opts[:lock_timeout] or "5s", batch: opts[:batch] or 1000}
 end
 
@@ -882,7 +882,7 @@ def pg_step(s, from, to, o, n)
   lt = o[:lock_timeout]
   one = (sql, tx) -> [change(base, s, tx, [sql], lt)]
   st = s[:step]
-  if member?(st, [:add_entity, :split, :merge])
+  if member?(st, %i[add_entity split merge])
     pg_create(s, from, to, o, base)
   elsif st == :add_field
     pg_add_field(s, to, o, base)
@@ -989,17 +989,7 @@ kv_entity: one strict Valkey entity checked and given its defaults: JSON encodin
 def kv_entity(name, ent)
   checked(
     ent,
-    [
-      :key,
-      :fields,
-      :encoding,
-      :ttl_ms,
-      :upgrade,
-      :strict,
-      :indexes,
-      :relations,
-      :renamed_from
-    ]
+    %i[key fields encoding ttl_ms upgrade strict indexes relations renamed_from]
   )
   if ent[:indexes] != nil
     raise(:refused, "kv entity #{to_s(name)}: indexes have no Valkey form")
@@ -1015,7 +1005,7 @@ def kv_entity(name, ent)
     )
   end
   up = ent[:upgrade] or :on_read
-  if not member?(up, [:on_read, :eager])
+  if not member?(up, %i[on_read eager])
     raise(:bad_option, "kv entity #{to_s(name)}: upgrade is :on_read or :eager")
   end
   assoc(
@@ -1035,7 +1025,7 @@ kv_model: a strict Valkey model: a versioned model whose entities each carry an 
     kv_model("sessions", {version: 1, entities: {session: {key: :id, fields: {id: :text}}}})[:entities][:session][:encoding] #=> :json
 """
 def kv_model(name, spec)
-  checked(spec, [:version, :entities])
+  checked(spec, %i[version entities])
   shaped = map(
     (e) -> [first(e), kv_entity(first(e), e[1])],
     map_entries(spec[:entities] or {})
@@ -1087,11 +1077,11 @@ holds?: whether a stored value is of a field type, as JSON carries it.
     holds?(:int, "1") #=> false
 """
 def holds?(type, v)
-  if member?(type, [:uuid, :text, :timestamp, :bytes])
+  if member?(type, %i[uuid text timestamp bytes])
     string?(v)
-  elsif member?(type, [:int, :bigint])
+  elsif member?(type, %i[int bigint])
     integer?(v)
-  elsif member?(type, [:decimal, :float])
+  elsif member?(type, %i[decimal float])
     number?(v)
   elsif type == :bool
     boolean?(v)
@@ -1099,7 +1089,7 @@ def holds?(type, v)
     v != nil and list?(v)
   elsif type == :record
     map?(v)
-  elsif member?(type, [:json, :any])
+  elsif member?(type, %i[json any])
     true
   else
     raise(:bad_option, "no field type #{to_s(type)}")
@@ -1172,7 +1162,7 @@ def kv_upgrade(steps, entity)
   own = filter((s) -> s[:entity] == entity, steps)
   bad = filter(
     fn(s)
-      member?(s[:step], [:add_index, :split, :merge]) or s[:references] != nil
+      member?(s[:step], %i[add_index split merge]) or s[:references] != nil
     end,
     own
   )
@@ -1322,7 +1312,7 @@ test "evolve names all eight steps, each in its place"
           relations: {customer: :customer}
         },
         part_a: {key: :id, fields: {id: :int, a: :text}, split_from: :parts},
-        ledger: {key: :id, fields: {id: :int}, merged_from: [:legacy, :parts]},
+        ledger: {key: :id, fields: {id: :int}, merged_from: %i[legacy parts]},
         invoice: {key: :id, fields: {id: :uuid}}
       },
       drop: [{entity: :order, field: :note, allow: :destructive}]
@@ -1345,7 +1335,7 @@ test "evolve names all eight steps, each in its place"
     ]
   j = judge(steps)
   assert map((r) -> first(r), j[:refusals]) ==
-    [:rename_undeclared, :destructive, :rename_undeclared, :rename_undeclared]
+    %i[rename_undeclared destructive rename_undeclared rename_undeclared]
   assert size(j[:steps]) == 7
 end
 
@@ -1371,7 +1361,7 @@ test "a drop met by an add with no declared rename is refused as a pair, and a d
     }
   )
   j = judge(evolve(v1, bare))
-  assert map(first, j[:refusals]) == [:rename_undeclared, :rename_undeclared]
+  assert map(first, j[:refusals]) == %i[rename_undeclared rename_undeclared]
   assert map(where_of, j[:steps]) == ["keep.extra"]
   named = model(
     "m",
@@ -1565,7 +1555,7 @@ test "split and merge copy rows in keyset batches into the new table"
         ab: {
           key: :id,
           fields: {id: :int, x: :text, y: :text},
-          merged_from: [:a, :b]
+          merged_from: %i[a b]
         }
       }
     }
@@ -1705,7 +1695,7 @@ test "a kv record upgrades through the same steps, and an index has no Valkey fo
     )
   )
   assert map(first, judge(steps)[:refusals]) ==
-    [:rename_undeclared, :rename_undeclared]
+    %i[rename_undeclared rename_undeclared]
   up = kv_upgrade(allowed[:steps], :s)
   assert up({"id" => "a", "n" => 3, "old" => "x"}) ==
     {"id" => "a", "count" => 3, "unit" => "ms"}

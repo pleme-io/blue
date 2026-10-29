@@ -111,7 +111,7 @@ verb(
   {
     kind: :pure,
     shape: "patch(a, hunks, opts) -> value",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: nil,
     today: "absent",
     meaning: "apply hunks; a mismatch raises conflict",

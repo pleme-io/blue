@@ -6,7 +6,7 @@ verb(
   {
     kind: :effect,
     shape: "apply(edits, opts) -> nil",
-    laterals: ["idempotent", "migrate"],
+    laterals: %w[idempotent migrate],
     fleet: "blue-lang-cli",
     today: "rust:blue-lang-cli",
     meaning: "write edits, each file only if its tree stays proven",
@@ -21,7 +21,7 @@ verb(
   {
     kind: :decl,
     shape: "deprecate(name, replacement, until) -> row",
-    laterals: ["migrate", "switch"],
+    laterals: %w[migrate switch],
     fleet: nil,
     today: "absent",
     meaning: "mark a name as replaced, with a date it goes",

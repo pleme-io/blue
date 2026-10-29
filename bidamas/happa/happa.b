@@ -16,9 +16,9 @@ camelCase names.
 """
 
 use("gurafu")
-use("kousei", [:entry, :field, :off, :one_of, :required, :text])
+use("kousei", %i[entry field off one_of required text])
 use("moji", [:checked])
-use("retsu", [:first, :is_empty, :last, :size])
+use("retsu", %i[first is_empty last size])
 use("tesuto", [:raises?])
 
 @doc """
@@ -175,7 +175,7 @@ key_id: text that orders leaf keys as the operator does: keyed, then module, the
     key_id({kind: :module, value: "module.a"}) #=> "1:module.a"
 """
 def key_id(k)
-  rank = position(k[:kind], [:keyed, :module, :address])
+  rank = position(k[:kind], %i[keyed module address])
   "#{to_s(rank)}:#{k[:value]}"
 end
 
@@ -617,7 +617,7 @@ classes: the work classes in priority order: an approved apply, a changed leaf's
     first(classes) #=> :apply
 """
 def classes()
-  [:apply, :change, :unblocked, :retry, :drift]
+  %i[apply change unblocked retry drift]
 end
 
 @doc """
@@ -789,12 +789,7 @@ skip_reasons: the typed world facts that let a fat template run as one, the anno
     first(skip_reasons) #=> "provider-singleton"
 """
 def skip_reasons()
-  [
-    "provider-singleton",
-    "atomic-bootstrap",
-    "external-contract",
-    "shared-lifecycle"
-  ]
+  %w[provider-singleton atomic-bootstrap external-contract shared-lifecycle]
 end
 
 @doc """
@@ -1000,7 +995,7 @@ def health(leaf, now_ms)
   beat = leaf[:heartbeat_at]
   window = leaf[:stall_after_ms] or stall_after_ms
   until_ms = leaf[:rate_limited_until]
-  busy = member?(phase, ["Planning", "Applying"])
+  busy = member?(phase, %w[Planning Applying])
   state = if until_ms != nil and until_ms > now_ms
     {kind: "rateLimited", until: to_s(until_ms)}
   elsif phase == "Failed"
@@ -1018,7 +1013,7 @@ def health(leaf, now_ms)
   else
     {kind: "planning"}
   end
-  alert = if member?(state[:kind], ["failed", "stalled"])
+  alert = if member?(state[:kind], %w[failed stalled])
     "firing"
   else
     "none"
@@ -1032,7 +1027,7 @@ holding?: whether a leaf state holds its dependents back: failed, stalled or rat
     holding?({kind: "stalled"}) #=> true
 """
 def holding?(state)
-  member?(state[:kind], ["failed", "stalled", "rateLimited"])
+  member?(state[:kind], %w[failed stalled rateLimited])
 end
 
 @doc """
@@ -1203,7 +1198,7 @@ inputs: each leaf's input slice in the keyed form: the shared inputs and the col
     inputs({collection: "repos", key: "slug", shared: ["owner"]}, {"owner" => "o", "repos" => [{"slug" => "a"}]}) #=> {"a" => {"owner" => "o", "repos" => [{"slug" => "a"}]}}
 """
 def inputs(declaration, values)
-  checked(declaration, [:collection, :key, :shared])
+  checked(declaration, %i[collection key shared])
   coll = declaration[:collection]
   rows = get(values, coll)
   entries = if map?(rows)
@@ -1278,11 +1273,11 @@ def cap_schema()
     per_workspace: [required(field(:value, count_ok(1)))],
     per_credential: [required(field(:value, count_ok(0)))],
     drift_share: [required(field(:value, share_ok))],
-    priority: [required(field(:value, one_of([:on, :off])))],
-    admission: [required(field(:value, one_of([:enforce, :off])))],
-    engine: [required(field(:value, one_of([:blue, :rust])))],
+    priority: [required(field(:value, one_of(%i[on off])))],
+    admission: [required(field(:value, one_of(%i[enforce off])))],
+    engine: [required(field(:value, one_of(%i[blue rust])))],
     queue: [
-      required(field(:value, one_of([:in_process, :jetstream]))),
+      required(field(:value, one_of(%i[in_process jetstream]))),
       field(:nats_url, text)
     ],
     rate: [
@@ -1440,8 +1435,8 @@ as_key: a recorded leaf key read back as happa writes it.
 def as_key(k)
   {
     kind: nth(
-      position(k["kind"], ["keyed", "module", "address"]),
-      [:keyed, :module, :address]
+      position(k["kind"], %w[keyed module address]),
+      %i[keyed module address]
     ),
     value: k["value"]
   }
@@ -1520,20 +1515,20 @@ test "split groups by key, joins along references and keeps the multiset"
   assert not bijection(before, dropped)[:ok]
   doubled = append(leaves, [{addresses: ["r.a[\"x\"]"]}])
   assert not bijection(before, doubled)[:disjoint]
-  assert raises?(:refused, () -> split(["a.b", "a.b"], []))
+  assert raises?(:refused, () -> split(%w[a.b a.b], []))
 end
 
 test "the multiset hash ignores order and cannot be forged by concatenation"
-  assert multiset_hash(["a", "b", "c"]) == multiset_hash(["c", "a", "b"])
-  assert multiset_hash(["a", "b", "c"]) != multiset_hash(["a", "b", "d"])
-  assert multiset_hash(["ab", "c"]) != multiset_hash(["a", "bc"])
+  assert multiset_hash(%w[a b c]) == multiset_hash(%w[c a b])
+  assert multiset_hash(%w[a b c]) != multiset_hash(%w[a b d])
+  assert multiset_hash(%w[ab c]) != multiset_hash(%w[a bc])
 end
 
 test "names are DNS labels, suffixed only when slugs collide or run long"
   assert names(
     "r",
     [{kind: :keyed, value: "a_b"}, {kind: :keyed, value: "a-b"}]
-  ) != ["r-a-b", "r-a-b"]
+  ) != %w[r-a-b r-a-b]
   long = names(
     "r",
     [{kind: :keyed, value: join(map((_i) -> "x", range(100)), "")}]
@@ -1554,18 +1549,18 @@ test "the digest ignores key order, sees values and keeps its three parts apart"
 end
 
 test "the leaf graph orders upstreams first and refuses a cycle by name"
-  g = graph(["app", "db", "vpc"], [["app", "db"], ["db", "vpc"]])
-  assert order(g) == ["vpc", "db", "app"]
-  assert destroy_order(g) == ["app", "db", "vpc"]
+  g = graph(%w[app db vpc], [%w[app db], %w[db vpc]])
+  assert order(g) == %w[vpc db app]
+  assert destroy_order(g) == %w[app db vpc]
   assert upstreams(g, "app") == ["db"]
-  assert dependents(g, ["vpc"]) == ["app", "db"]
+  assert dependents(g, ["vpc"]) == %w[app db]
   e = begin
-    graph(["root", "x", "y"], [["x", "root"], ["x", "y"], ["y", "x"]])
+    graph(%w[root x y], [%w[x root], %w[x y], %w[y x]])
   rescue err
     err
   end
   assert e.kind == :refused
-  assert e.data[:stuck] == ["x", "y"]
+  assert e.data[:stuck] == %w[x y]
   assert e.message == "a leaf cycle: x -> y -> x"
 end
 
@@ -1668,8 +1663,7 @@ test "the ratchet floor only falls, and a regression past tolerance is named"
   first_seen = ratchet(nil, 5, true, 1000, 10)
   assert first_seen[:floor] == {leafKeys: 5, cycleP95Ms: 1000}
   worse = ratchet(first_seen, 6, true, 1200, 10)
-  assert map((r) -> r[:metric], worse[:regressions]) ==
-    ["leafKeys", "cycleP95Ms"]
+  assert map((r) -> r[:metric], worse[:regressions]) == %w[leafKeys cycleP95Ms]
   assert worse[:floor] == {leafKeys: 5, cycleP95Ms: 1000}
   assert ratchet(first_seen, 4, true, 1000, 10)[:floor][:leafKeys] == 4
   assert p95([]).nil?
@@ -1735,10 +1729,7 @@ test "slice keeps a leaf's own resources and inputs cut the collection to its en
     },
     "module" => {"teams" => {}, "vpc" => {}}
   }
-  cut = slice(
-    rendered,
-    ["github_repository.acude", "module.teams.github_team.t"]
-  )
+  cut = slice(rendered, %w[github_repository.acude module.teams.github_team.t])
   assert cut ==
     {
       "module" => {"teams" => {}},
@@ -1890,8 +1881,8 @@ test "differential: change, schedule and verdict words equal their pangea-leaf s
     map(
       fn(c)
         mode = nth(
-          position(c["mode"], ["generate", "enforce", "off"]),
-          [:generate, :enforce, :off]
+          position(c["mode"], %w[generate enforce off]),
+          %i[generate enforce off]
         )
         admission(
           {fat: c["leaf_keys"] > 1, leafKeys: c["leaf_keys"]},
@@ -1976,10 +1967,7 @@ test "differential: change, schedule and verdict words equal their pangea-leaf s
             scope: x["scope"],
             credential: x["credential"],
             class: nth(
-              position(
-                x["class"],
-                ["apply", "change", "unblocked", "retry", "drift"]
-              ),
+              position(x["class"], %w[apply change unblocked retry drift]),
               classes
             ),
             depth: x["depth"],

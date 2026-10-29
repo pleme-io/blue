@@ -13,7 +13,7 @@ supervisor restarts it and the stream delivers the message again.
 """
 
 use("kyohi", [:host_handle])
-use("retsu", [:first, :is_empty, :size])
+use("retsu", %i[first is_empty size])
 use("tesuto", [:raises?])
 
 @doc """

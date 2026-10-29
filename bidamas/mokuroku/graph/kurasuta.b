@@ -36,7 +36,7 @@ verb(
   {
     kind: :effect,
     shape: "diff(desired, opts) -> [change]",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: nil,
     today: "absent",
     meaning: "live objects against rendered manifests",
@@ -114,7 +114,7 @@ verb(
   {
     kind: :effect,
     shape: "list(kind, opts) -> [object]",
-    laterals: ["deadline", "error"],
+    laterals: %w[deadline error],
     fleet: "banken",
     today: "absent",
     meaning: "every object of a kind, all pages, sorted",
@@ -159,7 +159,7 @@ verb(
   {
     kind: :pure,
     shape: "render(chart, values) -> [object]",
-    laterals: ["serialize", "validate"],
+    laterals: %w[serialize validate],
     fleet: nil,
     today: "absent",
     meaning: "objects a chart yields, no cluster contact",
@@ -189,7 +189,7 @@ verb(
   {
     kind: :effect,
     shape: "wait(kind, name, condition, opts) -> object",
-    laterals: ["cancel", "deadline"],
+    laterals: %w[cancel deadline],
     fleet: nil,
     today: "absent",
     meaning: "block until a condition holds",
@@ -205,7 +205,7 @@ verb(
   {
     kind: :stream,
     shape: "watch(kind, f, opts) -> nil",
-    laterals: ["cancel", "deadline"],
+    laterals: %w[cancel deadline],
     fleet: "banken",
     today: "absent",
     meaning: "call f per change until it returns stop",

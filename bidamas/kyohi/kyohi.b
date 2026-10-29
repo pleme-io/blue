@@ -19,7 +19,7 @@ reads.
     kinds([]) #=> []
 """
 
-use("retsu", [:contains, :find_first, :first, :flat_map, :is_empty, :size])
+use("retsu", %i[contains find_first first flat_map is_empty size])
 
 legacy_names(
   "0.1.2",
@@ -227,9 +227,9 @@ end
 
 test "what stands is every entry refused for nothing, in order"
   assert standing([], []) == []
-  assert standing(["a", "b", "c"], [[], [refusal(:x, "no")], []]) == ["a", "c"]
+  assert standing(%w[a b c], [[], [refusal(:x, "no")], []]) == %w[a c]
   assert standing(["a"], [[]]) == ["a"]
-  assert standing(["a", "b"], [[refusal(:x, "1")], [refusal(:y, "2")]]) == []
+  assert standing(%w[a b], [[refusal(:x, "1")], [refusal(:y, "2")]]) == []
 end
 
 test "a result carries a value or a refusal, never both"
@@ -250,7 +250,7 @@ test "a refusal is its kind and its why"
   assert r == [:too_big, "3 > 2"]
   assert kind(r) == :too_big
   assert why(r) == "3 > 2"
-  assert kinds([r, refusal(:bad, "no")]) == [:too_big, :bad]
+  assert kinds([r, refusal(:bad, "no")]) == %i[too_big bad]
   assert kinds([]) == []
 end
 
@@ -319,7 +319,7 @@ test "enforce raises refused with every finding joined and carried as data"
   assert error?(caught) == true
   assert caught.kind == :refused
   assert caught.message == "5 > 2; 5 is odd"
-  assert kinds(caught.data) == [:too_big, :odd]
+  assert kinds(caught.data) == %i[too_big odd]
   assert caught.data == check(5, [small, odd])
   single = caught_by(() -> enforce(4, [small], {}))
   assert single.kind == :refused
@@ -344,7 +344,7 @@ test "enforce takes the kind from opts, or the first finding's with :first"
   first_kind = caught_by(() -> enforce(5, [odd, small], {kind: :first}))
   assert first_kind.kind == :odd
   assert first_kind.message == "5 is odd; 5 > 2"
-  assert kinds(first_kind.data) == [:odd, :too_big]
+  assert kinds(first_kind.data) == %i[odd too_big]
   other = caught_by(() -> enforce(5, [small, odd], {kind: :first}))
   assert other.kind == :too_big
 end

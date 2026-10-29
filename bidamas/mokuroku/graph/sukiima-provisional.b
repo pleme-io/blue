@@ -6,7 +6,7 @@ verb(
   {
     kind: :pure,
     shape: "coerce(value, schema) -> value",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: nil,
     today: "absent",
     meaning: "convert text and numbers to the schema's types",
@@ -307,7 +307,7 @@ verb(
   {
     kind: :pure,
     shape: "validate(value, schema) -> value",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: nil,
     today: "absent",
     meaning: "return the value or raise every problem at once",

@@ -94,7 +94,7 @@ row(
       "end"
     ]
   ),
-  shifts("annotated", ["b", "c"]),
+  shifts("annotated", %w[b c]),
   position("annotated")
 )
 

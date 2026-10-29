@@ -6,7 +6,7 @@ verb(
   {
     kind: :effect,
     shape: "admit(artifact, policy, opts) -> decision",
-    laterals: ["error", "log", "switch"],
+    laterals: %w[error log switch],
     fleet: "sekiban",
     today: "absent",
     meaning: "gate on required attestations; audit or enforce mode",
@@ -51,7 +51,7 @@ verb(
   {
     kind: :effect,
     shape: "attest(subject, predicate, key, opts) -> envelope",
-    laterals: ["capability", "log", "serialize"],
+    laterals: %w[capability log serialize],
     fleet: "tameshi-attest",
     today: "absent",
     meaning: "sign a statement about an artifact (in-toto, DSSE)",
@@ -66,7 +66,7 @@ verb(
   {
     kind: :effect,
     shape: "attested?(subject, envelope, trust) -> Bool",
-    laterals: ["time", "validate"],
+    laterals: %w[time validate],
     fleet: "sekiban",
     today: "absent",
     meaning: "envelope verifies and names the subject digest",
@@ -81,7 +81,7 @@ verb(
   {
     kind: :effect,
     shape: "audit_lock(lock, opts) -> [advisory]",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: nil,
     today: "absent",
     meaning: "locked packages against advisories",
@@ -96,7 +96,7 @@ verb(
   {
     kind: :effect,
     shape: "blast(component, graph) -> [artifact]",
-    laterals: ["cache", "resource"],
+    laterals: %w[cache resource],
     fleet: "security-contract",
     today: "absent",
     meaning: "every artifact that contains a component",
@@ -111,7 +111,7 @@ verb(
   {
     kind: :pure,
     shape: "breaches(findings, policy) -> [finding]",
-    laterals: ["switch", "validate"],
+    laterals: %w[switch validate],
     fleet: "tameshi",
     today: "absent",
     meaning: "findings that break the policy threshold",
@@ -156,7 +156,7 @@ verb(
   {
     kind: :effect,
     shape: "get(feed, id) -> advisory or nil",
-    laterals: ["cache", "resource"],
+    laterals: %w[cache resource],
     fleet: nil,
     today: "absent",
     meaning: "one advisory by id, nil when unknown",
@@ -171,7 +171,7 @@ verb(
   {
     kind: :effect,
     shape: "inventory(subject, opts) -> sbom",
-    laterals: ["cache", "resource"],
+    laterals: %w[cache resource],
     fleet: "tameshi",
     today: "absent",
     meaning: "every component in an artifact or closure (SBOM)",
@@ -216,7 +216,7 @@ verb(
   {
     kind: :effect,
     shape: "list(feed, opts) -> [advisory]",
-    laterals: ["cache", "deadline", "resource"],
+    laterals: %w[cache deadline resource],
     fleet: nil,
     today: "absent",
     meaning: "advisories of a CVE or OSV feed, all pages",
@@ -231,7 +231,7 @@ verb(
   {
     kind: :pure,
     shape: "parse(text, format) -> sbom",
-    laterals: ["serialize", "validate"],
+    laterals: %w[serialize validate],
     fleet: "tameshi",
     today: "absent",
     meaning: "SPDX or CycloneDX text to an inventory",
@@ -246,7 +246,7 @@ verb(
   {
     kind: :effect,
     shape: "pin(dependencies, opts) -> lock",
-    laterals: ["idempotent", "resource"],
+    laterals: %w[idempotent resource],
     fleet: "blue-lang-pkg",
     today: "absent",
     meaning: "record exact versions and hashes of dependencies",
@@ -276,7 +276,7 @@ verb(
   {
     kind: :pure,
     shape: "provenance(build, opts) -> statement",
-    laterals: ["serialize", "validate"],
+    laterals: %w[serialize validate],
     fleet: "tameshi-attest",
     today: "absent",
     meaning: "who built what, from which inputs, how (SLSA)",
@@ -291,7 +291,7 @@ verb(
   {
     kind: :effect,
     shape: "rebuild(recipe, opts) -> record",
-    laterals: ["process", "resource"],
+    laterals: %w[process resource],
     fleet: "substrate",
     today: "absent",
     meaning: "build again and report whether outputs are bit-identical",
@@ -306,7 +306,7 @@ verb(
   {
     kind: :effect,
     shape: "record(artifact, evidence) -> receipt",
-    laterals: ["idempotent", "log", "resource"],
+    laterals: %w[idempotent log resource],
     fleet: "cartorio",
     today: "absent",
     meaning: "append to the ledger; get an inclusion receipt",
@@ -336,7 +336,7 @@ verb(
   {
     kind: :effect,
     shape: "review(change, opts) -> [finding]",
-    laterals: ["resource", "validate"],
+    laterals: %w[resource validate],
     fleet: nil,
     today: "absent",
     meaning: "risk in a dependency change: new, abandoned, unsigned",
@@ -351,7 +351,7 @@ verb(
   {
     kind: :effect,
     shape: "sbom(subject, opts) -> sbom",
-    laterals: ["cache", "serialize"],
+    laterals: %w[cache serialize],
     fleet: nil,
     today: "absent",
     meaning: "the bill of materials of an image or closure",
@@ -366,7 +366,7 @@ verb(
   {
     kind: :effect,
     shape: "scan(subject, opts) -> [finding]",
-    laterals: ["cache", "error", "resource", "time", "validate"],
+    laterals: %w[cache error resource time validate],
     fleet: "openclaw-scanner",
     today: "absent",
     meaning: "match components against known vulnerability data",
@@ -396,7 +396,7 @@ verb(
   {
     kind: :effect,
     shape: "sign(artifact, opts) -> signature",
-    laterals: ["capability", "log"],
+    laterals: %w[capability log],
     fleet: "tameshi-sigstore",
     today: "absent",
     meaning: "sign an artifact digest as an identity (Sigstore)",
@@ -426,7 +426,7 @@ verb(
   {
     kind: :effect,
     shape: "verify(subject, policy) -> verdict",
-    laterals: ["capability", "validate"],
+    laterals: %w[capability validate],
     fleet: "sekiban",
     today: "absent",
     meaning: "check signatures and attestations against a policy",
@@ -441,7 +441,7 @@ verb(
   {
     kind: :effect,
     shape: "verify?(artifact, signature, trust) -> Bool",
-    laterals: ["resource", "time", "validate"],
+    laterals: %w[resource time validate],
     fleet: "tameshi-sigstore",
     today: "absent",
     meaning: "artifact signature checks against the trusted identities",

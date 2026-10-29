@@ -6,7 +6,7 @@ verb(
   {
     kind: :effect,
     shape: "abort(rollout, reason) -> rollout",
-    laterals: ["cancel", "idempotent", "log"],
+    laterals: %w[cancel idempotent log],
     fleet: nil,
     today: "absent",
     meaning: "stop and keep the current mix",
@@ -21,7 +21,7 @@ verb(
   {
     kind: :effect,
     shape: "analyze(rollout, window) -> verdict",
-    laterals: ["time", "validate"],
+    laterals: %w[time validate],
     fleet: nil,
     today: "absent",
     meaning: "compare new against old on live metrics",
@@ -36,7 +36,7 @@ verb(
   {
     kind: :effect,
     shape: "approve(rollout, gate, opts) -> nil",
-    laterals: ["capability", "log"],
+    laterals: %w[capability log],
     fleet: nil,
     today: "absent",
     meaning: "let a held gate pass, naming who",
@@ -51,7 +51,7 @@ verb(
   {
     kind: :effect,
     shape: "bake(rollout, duration) -> verdict",
-    laterals: ["cancel", "deadline", "time"],
+    laterals: %w[cancel deadline time],
     fleet: nil,
     today: "absent",
     meaning: "hold a stage for a soak period",
@@ -66,7 +66,7 @@ verb(
   {
     kind: :effect,
     shape: "freeze(scope, reason, opts) -> window",
-    laterals: ["capability", "log", "time"],
+    laterals: %w[capability log time],
     fleet: nil,
     today: "absent",
     meaning: "forbid rollouts in a scope for a time",
@@ -112,7 +112,7 @@ verb(
   {
     kind: :effect,
     shape: "pause(rollout) -> rollout",
-    laterals: ["idempotent", "switch"],
+    laterals: %w[idempotent switch],
     fleet: nil,
     today: "absent",
     meaning: "hold a rollout where it stands",
@@ -143,7 +143,7 @@ verb(
   {
     kind: :effect,
     shape: "promote(rollout) -> rollout",
-    laterals: ["log", "switch"],
+    laterals: %w[log switch],
     fleet: nil,
     today: "absent",
     meaning: "make the new version the only one",
@@ -158,7 +158,7 @@ verb(
   {
     kind: :effect,
     shape: "resume(rollout) -> rollout",
-    laterals: ["idempotent", "switch"],
+    laterals: %w[idempotent switch],
     fleet: nil,
     today: "absent",
     meaning: "continue a held rollout",
@@ -173,7 +173,7 @@ verb(
   {
     kind: :effect,
     shape: "rollback(rollout, {to:}) -> rollout",
-    laterals: ["idempotent", "log", "switch"],
+    laterals: %w[idempotent log switch],
     fleet: nil,
     today: "absent",
     meaning: "return all traffic to the earlier version",
@@ -189,7 +189,7 @@ verb(
   {
     kind: :effect,
     shape: "shift(rollout, weight) -> rollout",
-    laterals: ["log", "switch"],
+    laterals: %w[log switch],
     fleet: nil,
     today: "absent",
     meaning: "move a share of traffic to the new version",
@@ -204,7 +204,7 @@ verb(
   {
     kind: :effect,
     shape: "start(plan, opts) -> rollout",
-    laterals: ["capability", "idempotent", "log"],
+    laterals: %w[capability idempotent log],
     fleet: "forge",
     today: "absent",
     meaning: "begin a rollout",
@@ -219,7 +219,7 @@ verb(
   {
     kind: :effect,
     shape: "step(rollout) -> rollout",
-    laterals: ["log", "switch"],
+    laterals: %w[log switch],
     fleet: nil,
     today: "absent",
     meaning: "advance one stage",
@@ -234,7 +234,7 @@ verb(
   {
     kind: :effect,
     shape: "thaw(window) -> nil",
-    laterals: ["idempotent", "log"],
+    laterals: %w[idempotent log],
     fleet: nil,
     today: "absent",
     meaning: "end a change freeze",
@@ -249,7 +249,7 @@ verb(
   {
     kind: :effect,
     shape: "verify(rollout) -> verdict",
-    laterals: ["deadline", "validate"],
+    laterals: %w[deadline validate],
     fleet: "forge",
     today: "absent",
     meaning: "health gate before the next step",
@@ -264,7 +264,7 @@ verb(
   {
     kind: :stream,
     shape: "watch(rollout, f, opts) -> nil",
-    laterals: ["cancel", "deadline"],
+    laterals: %w[cancel deadline],
     fleet: "shinchoku",
     today: "absent",
     meaning: "call f per step or health change",

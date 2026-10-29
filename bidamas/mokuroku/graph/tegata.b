@@ -6,7 +6,7 @@ verb(
   {
     kind: :effect,
     shape: "acquire(provider, opts) -> token",
-    laterals: ["cache", "resource", "retry"],
+    laterals: %w[cache resource retry],
     fleet: nil,
     today: "absent",
     meaning: "machine token by client credentials, reused until near expiry",
@@ -21,7 +21,7 @@ verb(
   {
     kind: :effect,
     shape: "api_key(prefix, opts) -> record",
-    laterals: ["capability", "validate"],
+    laterals: %w[capability validate],
     fleet: nil,
     today: "absent",
     meaning: "long-lived key: id, secret shown once, stored hash",
@@ -51,7 +51,7 @@ verb(
   {
     kind: :pure,
     shape: "assertion(xml, trust, opts) -> record",
-    laterals: ["error", "time", "validate"],
+    laterals: %w[error time validate],
     fleet: nil,
     today: "absent",
     meaning: "SAML assertion with signature, conditions and audience checked",
@@ -81,7 +81,7 @@ verb(
   {
     kind: :effect,
     shape: "discover(issuer) -> record",
-    laterals: ["cache", "deadline", "resource"],
+    laterals: %w[cache deadline resource],
     fleet: nil,
     today: "absent",
     meaning: "an issuer's OpenID configuration document",
@@ -96,7 +96,7 @@ verb(
   {
     kind: :effect,
     shape: "exchange(token, audience, opts) -> token",
-    laterals: ["resource", "validate"],
+    laterals: %w[resource validate],
     fleet: nil,
     today: "absent",
     meaning: "trade a token for one narrower or for another service",
@@ -126,7 +126,7 @@ verb(
   {
     kind: :effect,
     shape: "flow_finish(provider, callback, saved) -> tokens",
-    laterals: ["error", "resource", "validate"],
+    laterals: %w[error resource validate],
     fleet: nil,
     today: "absent",
     meaning: "check the callback and trade its code for tokens",
@@ -141,7 +141,7 @@ verb(
   {
     kind: :effect,
     shape: "flow_start(provider, opts) -> record",
-    laterals: ["capability", "time"],
+    laterals: %w[capability time],
     fleet: nil,
     today: "absent",
     meaning: "OAuth2 sign-in URL with state and PKCE verifier",
@@ -156,7 +156,7 @@ verb(
   {
     kind: :effect,
     shape: "introspect(token, opts) -> record",
-    laterals: ["cache", "deadline", "resource"],
+    laterals: %w[cache deadline resource],
     fleet: nil,
     today: "absent",
     meaning: "ask the issuer whether a token is still active",
@@ -171,7 +171,7 @@ verb(
   {
     kind: :effect,
     shape: "issue(claims, key, opts) -> token",
-    laterals: ["capability", "time", "validate"],
+    laterals: %w[capability time validate],
     fleet: "pleme-auth-tokens",
     today: "absent",
     meaning: "mint a signed token with expiry and audience",
@@ -186,7 +186,7 @@ verb(
   {
     kind: :effect,
     shape: "keys(issuer, opts) -> [key]",
-    laterals: ["cache", "deadline", "resource"],
+    laterals: %w[cache deadline resource],
     fleet: nil,
     today: "absent",
     meaning: "issuer's published verification keys, cached (JWKS)",
@@ -216,7 +216,7 @@ verb(
   {
     kind: :effect,
     shape: "read(token, opts) -> claims",
-    laterals: ["error", "time", "validate"],
+    laterals: %w[error time validate],
     fleet: "pleme-auth-tokens",
     today: "absent",
     meaning: "check signature, expiry, issuer, audience; return claims",
@@ -231,7 +231,7 @@ verb(
   {
     kind: :effect,
     shape: "refresh(refresh_token, opts) -> pair",
-    laterals: ["error", "idempotent", "time"],
+    laterals: %w[error idempotent time],
     fleet: "pleme-auth-tokens",
     today: "absent",
     meaning: "swap a refresh token for a new pair, retiring the old",
@@ -246,7 +246,7 @@ verb(
   {
     kind: :effect,
     shape: "revoke(token, opts) -> nil",
-    laterals: ["idempotent", "log"],
+    laterals: %w[idempotent log],
     fleet: nil,
     today: "absent",
     meaning: "make a token unacceptable before its expiry",
@@ -261,7 +261,7 @@ verb(
   {
     kind: :effect,
     shape: "revoked?(token) -> Bool",
-    laterals: ["cache", "resource"],
+    laterals: %w[cache resource],
     fleet: nil,
     today: "absent",
     meaning: "token is on the revocation list",

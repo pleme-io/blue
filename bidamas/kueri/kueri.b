@@ -120,36 +120,36 @@ M0). Near-misses, deliberately not merged: dialeto's relational sub-IR
 use("deeta", [:as_json])
 use("kazu")
 use("kyohi", [:enforce])
-use("moji", [:char_at, :made_of, :strip_suffix, :trim])
+use("moji", %i[char_at made_of strip_suffix trim])
 
 use(
   "retsu",
-  [
-    :as_list,
-    :concat_lists,
-    :contains,
-    :count_where,
-    :enumerate,
-    :equal_lists,
-    :find_first,
-    :first,
-    :flat_map,
-    :is_empty,
-    :last,
-    :push,
-    :rest,
-    :size
+  %i[
+    as_list
+    concat_lists
+    contains
+    count_where
+    enumerate
+    equal_lists
+    find_first
+    first
+    flat_map
+    is_empty
+    last
+    push
+    rest
+    size
   ]
 )
 
-use("shisutemu", [:status_of, :stderr_of, :stdout_of])
-use("shuugou", [:difference, :intersection, :unique, :unique_by])
+use("shisutemu", %i[status_of stderr_of stdout_of])
+use("shuugou", %i[difference intersection unique unique_by])
 
 legacy_names("0.1.1", "q")
 
 legacy_names(
   "0.1.2",
-  [["refusal_kind", "kyohi::kind"], ["refusal_why", "kyohi::why"]]
+  [%w[refusal_kind kyohi::kind], %w[refusal_why kyohi::why]]
 )
 
 # ── names and literals ─────────────────────────────────────────────────────
@@ -170,114 +170,114 @@ reserved_words: Words an engine will not read as a bare identifier: SQL's reserv
 DuckDB's own (qualify, pivot, asof, …). A name among them is quoted.
 """
 def reserved_words()
-  [
-    "all",
-    "analyse",
-    "analyze",
-    "and",
-    "anti",
-    "any",
-    "array",
-    "as",
-    "asc",
-    "asof",
-    "asymmetric",
-    "between",
-    "both",
-    "by",
-    "case",
-    "cast",
-    "check",
-    "collate",
-    "column",
-    "constraint",
-    "create",
-    "cross",
-    "current_catalog",
-    "current_date",
-    "current_role",
-    "current_time",
-    "current_timestamp",
-    "current_user",
-    "default",
-    "deferrable",
-    "desc",
-    "distinct",
-    "do",
-    "else",
-    "end",
-    "except",
-    "exists",
-    "false",
-    "fetch",
-    "filter",
-    "for",
-    "foreign",
-    "from",
-    "full",
-    "grant",
-    "group",
-    "having",
-    "ilike",
-    "in",
-    "initially",
-    "inner",
-    "intersect",
-    "into",
-    "is",
-    "isnull",
-    "join",
-    "lateral",
-    "leading",
-    "left",
-    "like",
-    "limit",
-    "localtime",
-    "localtimestamp",
-    "natural",
-    "not",
-    "notnull",
-    "null",
-    "offset",
-    "on",
-    "only",
-    "or",
-    "order",
-    "outer",
-    "over",
-    "partition",
-    "pivot",
-    "placing",
-    "positional",
-    "primary",
-    "qualify",
-    "range",
-    "references",
-    "returning",
-    "right",
-    "rows",
-    "select",
-    "semi",
-    "session_user",
-    "similar",
-    "some",
-    "symmetric",
-    "table",
-    "then",
-    "to",
-    "trailing",
-    "true",
-    "union",
-    "unique",
-    "unpivot",
-    "user",
-    "using",
-    "values",
-    "variadic",
-    "when",
-    "where",
-    "window",
-    "with"
+  %w[
+    all
+    analyse
+    analyze
+    and
+    anti
+    any
+    array
+    as
+    asc
+    asof
+    asymmetric
+    between
+    both
+    by
+    case
+    cast
+    check
+    collate
+    column
+    constraint
+    create
+    cross
+    current_catalog
+    current_date
+    current_role
+    current_time
+    current_timestamp
+    current_user
+    default
+    deferrable
+    desc
+    distinct
+    do
+    else
+    end
+    except
+    exists
+    false
+    fetch
+    filter
+    for
+    foreign
+    from
+    full
+    grant
+    group
+    having
+    ilike
+    in
+    initially
+    inner
+    intersect
+    into
+    is
+    isnull
+    join
+    lateral
+    leading
+    left
+    like
+    limit
+    localtime
+    localtimestamp
+    natural
+    not
+    notnull
+    null
+    offset
+    on
+    only
+    or
+    order
+    outer
+    over
+    partition
+    pivot
+    placing
+    positional
+    primary
+    qualify
+    range
+    references
+    returning
+    right
+    rows
+    select
+    semi
+    session_user
+    similar
+    some
+    symmetric
+    table
+    then
+    to
+    trailing
+    true
+    union
+    unique
+    unpivot
+    user
+    using
+    values
+    variadic
+    when
+    where
+    window
+    with
   ]
 end
 
@@ -332,7 +332,7 @@ end
 # The closed set of scalar column types a contract or a source may declare.
 # Composite types are built from them: q_struct_of and q_list_of.
 def types()
-  [:bigint, :integer, :double, :varchar, :boolean, :date]
+  %i[bigint integer double varchar boolean date]
 end
 
 def type(t)
@@ -358,7 +358,7 @@ def composite?(t)
     string?(t) == false and
     number?(t) == false and
     boolean?(t) == false and
-    contains([:struct, :list], blue::get(t, :kind))
+    contains(%i[struct list], blue::get(t, :kind))
 end
 
 @doc """
@@ -727,7 +727,7 @@ end
 order_sensitive_fns: Functions whose result depends on the order rows arrive in.
 """
 def order_sensitive_fns()
-  ["string_agg", "row_number", "lead", "lag"]
+  %w[string_agg row_number lead lag]
 end
 
 @doc """
@@ -778,14 +778,14 @@ def source(opts)
   if format.nil?
     format = :delimited
   end
-  if contains([:delimited, :jsonl], format) == false
+  if contains(%i[delimited jsonl], format) == false
     raise(:kueri_shape, "a source's format is :delimited or :jsonl")
   end
   delim = blue::get(opts, :delim)
   if delim.nil?
     delim = :tab
   end
-  if contains([:tab, :comma], delim) == false
+  if contains(%i[tab comma], delim) == false
     raise(:kueri_shape, "a source's delim is :tab or :comma")
   end
   {
@@ -862,7 +862,7 @@ def raw(opts)
   if d.nil?
     d = :duckdb
   end
-  if contains([:core, :duckdb], d) == false
+  if contains(%i[core duckdb], d) == false
     raise(:kueri_shape, "a raw node's dialect is :core or :duckdb")
   end
   {
@@ -911,11 +911,11 @@ end
 # ── posture ────────────────────────────────────────────────────────────────
 
 def reach_words()
-  [:portable, :duckdb]
+  %i[portable duckdb]
 end
 
 def rigor_words()
-  [:loose, :locked]
+  %i[loose locked]
 end
 
 @doc """
@@ -2351,7 +2351,7 @@ render: A model as one SQL query in `dialect` (:core or :duckdb), with no traili
 semicolon. Checks first, then the dialect floor: it throws, never degrades.
 """
 def render(model, dialect)
-  if contains([:core, :duckdb], dialect) == false
+  if contains(%i[core duckdb], dialect) == false
     raise(:kueri_shape, "a dialect is :core or :duckdb")
   end
   check(model)
@@ -2541,7 +2541,7 @@ def render_script(models, dialect, source)
   sources = blue::filter((n) -> blue::get(n, :kind) == :source, nodes)
   ms = blue::filter((n) -> blue::get(n, :kind) == :model, nodes)
   loose = blue::filter(
-    (m) -> contains([:view, :table], blue::get(m, :materialize)) == false,
+    (m) -> contains(%i[view table], blue::get(m, :materialize)) == false,
     ms
   )
   if is_empty(loose) == false
@@ -2775,7 +2775,7 @@ def example_leverage()
     {
       name: :leverage,
       from: example_horizons,
-      posture: [:portable, :locked],
+      posture: %i[portable locked],
       materialize: :parquet,
       pipeline: [
         group(
@@ -2845,7 +2845,7 @@ def example_tipping()
     {
       name: :tipping,
       from: example_curve_keep,
-      posture: [:portable, :locked],
+      posture: %i[portable locked],
       pipeline: [
         q_join(example_curve_cells, [:cell]),
         group(
@@ -2877,7 +2877,7 @@ test "an empty pipeline is SELECT * from its relation, in both dialects, and hol
   assert render(m, :duckdb) == join_lines(["SELECT *", "FROM horizons"])
   assert render(m, :core) == join_lines(["SELECT *", "FROM horizons"])
   assert is_empty(refusals(m)) == true
-  assert output(m) == ["rounds_together", "enforcement", "keep_mean", "keep_sd"]
+  assert output(m) == %w[rounds_together enforcement keep_mean keep_sd]
   assert blue::get(shift(m), :needs) == :portable
   assert is_empty(blue::get(shift(m), :held_by)) == true
   # A raw node is opaque to the DAG: a model over one reads nothing it can name.
@@ -2896,7 +2896,7 @@ test "the dialects differ only where a construct does: a neutral model renders t
       pipeline: [
         q_filter(gt(:rounds_together, 5)),
         derive(:gap, sub(:keep_mean, :keep_sd)),
-        select([:rounds_together, :gap]),
+        select(%i[rounds_together gap]),
         sort([desc(:gap)]),
         limit(3)
       ]
@@ -2908,7 +2908,7 @@ test "the dialects differ only where a construct does: a neutral model renders t
     q_filter(gt(:rounds_together, 5)),
     derive(:gap, sub(:keep_mean, :keep_sd))
   ]
-  b = [select([:rounds_together, :gap]), sort([desc(:gap)]), limit(3)]
+  b = [select(%i[rounds_together gap]), sort([desc(:gap)]), limit(3)]
   base = model({name: :recent, from: example_horizons})
   assert render(then(then(base, a), b), :duckdb) ==
     render(then(base, concat_lists(a, b)), :duckdb)
@@ -2981,7 +2981,7 @@ test "tipping renders a join, count(*) FILTER against a CASE that counts a 1, an
   )
   assert render(m, :duckdb) == duck
   assert render(m, :core) == core
-  assert output(m) == ["rounds", "tipping_enforcement", "bimodal_levels"]
+  assert output(m) == %w[rounds tipping_enforcement bimodal_levels]
 end
 
 test "a long pipeline folds into the fewest SELECTs: QUALIFY saves DuckDB a pass that core spends as a WHERE"
@@ -3176,7 +3176,7 @@ test "a locked model refuses what would make its output depend on luck"
     {
       name: :names,
       from: src,
-      posture: [:duckdb, :locked],
+      posture: %i[duckdb locked],
       pipeline: [group([], [agg(:games, string_agg(:game, ","))])],
       contract: [col(:games, :varchar)]
     }
@@ -3186,7 +3186,7 @@ test "a locked model refuses what would make its output depend on luck"
     {
       name: :names,
       from: src,
-      posture: [:duckdb, :locked],
+      posture: %i[duckdb locked],
       pipeline: [
         group(
           [],
@@ -3264,7 +3264,7 @@ test "a declared contract is checked at any rigor, and a wrong one throws"
     {
       name: :w,
       from: example_horizons,
-      pipeline: [select([:rounds_together, :keep_mean])],
+      pipeline: [select(%i[rounds_together keep_mean])],
       contract: [col(:rounds_together, :bigint), col(:keep_sd, :double)]
     }
   )
@@ -3280,7 +3280,7 @@ test "a declared contract is checked at any rigor, and a wrong one throws"
     {
       name: :w,
       from: example_horizons,
-      pipeline: [select([:rounds_together, :keep_mean])],
+      pipeline: [select(%i[rounds_together keep_mean])],
       contract: [col(:rounds_together, :bigint), col(:keep_mean, :double)]
     }
   )
@@ -3467,7 +3467,7 @@ test "malformed nodes are refused where they are built"
   ) == true
   assert error?(
     begin
-      model({name: :m, from: example_horizons, posture: [:portable, :duckdb]})
+      model({name: :m, from: example_horizons, posture: %i[portable duckdb]})
     rescue e
       e
     end
@@ -3498,7 +3498,7 @@ end
 
 test "refs are the DAG: direct deps, and a closure with every upstream before its readers"
   assert deps(example_leverage) == ["horizons"]
-  assert deps(example_tipping) == ["curve_keep", "curve_cells"]
+  assert deps(example_tipping) == %w[curve_keep curve_cells]
   summary = model(
     {
       name: :summary,
@@ -3506,11 +3506,11 @@ test "refs are the DAG: direct deps, and a closure with every upstream before it
       pipeline: [q_join(example_leverage, [:rounds])]
     }
   )
-  assert deps(summary) == ["tipping", "leverage"]
+  assert deps(summary) == %w[tipping leverage]
   assert map((n) -> blue::get(n, :name), closure(summary)) ==
-    ["curve_keep", "curve_cells", "tipping", "horizons", "leverage"]
+    %w[curve_keep curve_cells tipping horizons leverage]
   assert map((n) -> blue::get(n, :name), sources(summary)) ==
-    ["curve_keep", "curve_cells", "horizons"]
+    %w[curve_keep curve_cells horizons]
 end
 
 test "a raw node is the escape hatch: its own CTE, its declared columns, and :duckdb unless vouched"
@@ -3610,7 +3610,7 @@ test "the DuckDB seam: an empty result is not a failure, a broken query is not e
   t = duckdb(
     "SELECT typeof(1.0) AS bare, typeof(#{render_expr(lit(1.0), :duckdb)}) AS typed, typeof(#{render_expr(lit(1.0), :core)}) AS core"
   )
-  assert row_values(t, [:bare, :typed, :core]) ==
+  assert row_values(t, %i[bare typed core]) ==
     [["DECIMAL(2,1)", "DOUBLE", "DOUBLE"]]
 end
 
@@ -3791,7 +3791,7 @@ test "JSON Lines and literal rows load with declared types, and struct fields an
       from: recs,
       pipeline: [
         explode(:rule, q_get(:refusal, :detail)),
-        select([:entity, :seq, :rule])
+        select(%i[entity seq rule])
       ]
     }
   )
@@ -3811,7 +3811,7 @@ test "JSON Lines and literal rows load with declared types, and struct fields an
         "FROM step_1"
       ]
     )
-  assert example_run(then(rules, [sort([:rule])]), [:entity, :seq, :rule]) ==
+  assert example_run(then(rules, [sort([:rule])]), %i[entity seq rule]) ==
     [["item-1", 1, "quality_ok"], ["item-1", 1, "uses_left"]]
   # A link's fields; a payload key absent from a line is NULL, and 10 loads as
   # the DOUBLE its column declares.
@@ -3831,19 +3831,19 @@ test "JSON Lines and literal rows load with declared types, and struct fields an
       ]
     }
   )
-  assert example_run(links, [:entity, :link_id, :link_kind]) ==
-    [["item-1", "B-7", "batch"]]
+  assert example_run(links, %i[entity link_id link_kind]) ==
+    [%w[item-1 B-7 batch]]
   values = model(
     {
       name: :vs,
       from: recs,
       pipeline: [
         select([:entity, :seq, as(:value, q_get(:payload, :value))]),
-        sort([:entity, :seq])
+        sort(%i[entity seq])
       ]
     }
   )
-  assert example_run(values, [:entity, :seq, :value]) ==
+  assert example_run(values, %i[entity seq value]) ==
     [["item-1", 0, 10.0], ["item-1", 1, nil], ["item-2", 0, 10.5]]
   # Literal rows: typed, NULLs kept, and none at all still typed.
   gates = kueri::values(
@@ -3871,11 +3871,11 @@ test "JSON Lines and literal rows load with declared types, and struct fields an
       pipeline: [
         derive(:kind, q_get(:refusal, :kind)),
         q_join(gates, [:kind]),
-        select([:entity, :kind, :weight])
+        select(%i[entity kind weight])
       ]
     }
   )
-  assert example_run(weighed, [:entity, :kind, :weight]) ==
+  assert example_run(weighed, %i[entity kind weight]) ==
     [["item-1", "guard", 2]]
   none = kueri::values({name: :none, columns: [col(:kind, :varchar)], rows: []})
   assert example_run(
@@ -3951,9 +3951,7 @@ test "JSON Lines and literal rows load with declared types, and struct fields an
     ]
   assert error?(
     begin
-      kueri::values(
-        {name: :bad, columns: [col(:a, :varchar)], rows: [["a", "b"]]}
-      )
+      kueri::values({name: :bad, columns: [col(:a, :varchar)], rows: [%w[a b]]})
     rescue e
       e
     end
@@ -4005,7 +4003,7 @@ def example_intervals()
         derive(:before, coalesce(lag(:phase, [:entity], [:seq]), "start")),
         derive(:seconds, sub(coalesce(:until, 1000), :time)),
         derive(:state, q_if(is_null(:until), "open", "closed")),
-        select([:entity, :seq, :before, :phase, :until, :seconds, :state])
+        select(%i[entity seq before phase until seconds state])
       ]
     }
   )
@@ -4045,8 +4043,8 @@ test "lead, lag, coalesce, a conditional, null tests and an asof join: rendered 
   assert render(m, :core) == render(m, :duckdb)
   # By hand: e1 steps at 100, 250, 400 -> intervals 150, 150, and 1000 - 400
   # = 600 still open; e2 one step at 120 -> 880 open.
-  names = [:entity, :seq, :before, :phase, :until, :seconds, :state]
-  assert example_run(then(m, [sort([:entity, :seq])]), names) ==
+  names = %i[entity seq before phase until seconds state]
+  assert example_run(then(m, [sort(%i[entity seq])]), names) ==
     [
       ["e1", 0, "start", "a", 250, 150, "closed"],
       ["e1", 1, "a", "b", 400, 150, "closed"],
@@ -4082,8 +4080,8 @@ test "lead, lag, coalesce, a conditional, null tests and an asof join: rendered 
       name: :asof,
       from: probes,
       pipeline: [
-        asof_left_join(readings, [:entity, :time]),
-        select([:tag, :q]),
+        asof_left_join(readings, %i[entity time]),
+        select(%i[tag q]),
         sort([:tag])
       ]
     }
@@ -4092,7 +4090,7 @@ test "lead, lag, coalesce, a conditional, null tests and an asof join: rendered 
     render(asof, :duckdb),
     "ASOF LEFT JOIN readings USING (entity, time)"
   )
-  assert example_run(asof, [:tag, :q]) ==
+  assert example_run(asof, %i[tag q]) ==
     [["a", 1.0], ["b", 2.0], ["early", nil], ["none", nil]]
   # Controls: a lead with no order, and an asof join held at :portable or
   # rendered as core.
@@ -4196,14 +4194,14 @@ test "a model carries its columns, so a model built on it (plain or composed) se
   )
   # The empty case: a model with no stages carries its relation's columns.
   bare = model({name: :kbare, from: base, materialize: :view})
-  assert blue::get(bare, :known) == ["entity", "seq", "time", "phase"]
+  assert blue::get(bare, :known) == %w[entity seq time phase]
   # The identity: what it carries is what its walk infers.
   assert blue::get(a, :known) == output(a)
-  assert blue::get(a, :known) == ["entity", "seq", "time", "phase", "next_time"]
+  assert blue::get(a, :known) == %w[entity seq time phase next_time]
   # Composed: q_then carries the columns after the added stages, and a model
   # built on the composed one reads them (and refuses a column it dropped).
-  c = then(a, [select([:entity, :next_time])])
-  assert blue::get(c, :known) == ["entity", "next_time"]
+  c = then(a, [select(%i[entity next_time])])
+  assert blue::get(c, :known) == %w[entity next_time]
   over = model(
     {name: :kc, from: c, pipeline: [select([:next_time])], materialize: :view}
   )
@@ -4229,7 +4227,7 @@ test "left_join builds a left join node on a source or model, with its keys as t
   j = left_join(example_curve_cells, [:cell, "rounds"])
   assert blue::get(j, :kind) == :join
   assert blue::get(j, :how) == :left
-  assert blue::get(j, :keys) == ["cell", "rounds"]
+  assert blue::get(j, :keys) == %w[cell rounds]
   assert blue::get(j, :rel) == rel(example_curve_cells)
   assert blue::get(left_join(example_curve_cells, []), :keys) == []
 end
@@ -4267,7 +4265,7 @@ end
 
 test "window with no partition and no order has both empty, and an argument is kept"
   w = window("ntile", [expr(4)], ["g", :h], ["t"])
-  assert blue::get(w, :partition) == ["g", "h"]
+  assert blue::get(w, :partition) == %w[g h]
   assert blue::get(w, :order) == [key("t")]
   assert size(blue::get(w, :args)) == 1
   e = window("row_number", [], [], [])

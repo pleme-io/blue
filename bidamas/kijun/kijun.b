@@ -4,93 +4,93 @@ kijun (基準) — the standard a private nix fleet repo is held to, as data: la
     nix_string("a\"b${c}\\") #=> "\"a\\\"b\\${c}\\\\\""
 """
 
-use("deeta", [:as_json, :get_str])
+use("deeta", %i[as_json get_str])
 use("hadome")
 use("kyohi", [:refusal])
-use("moji", [:after_first, :before_first, :glob_match?, :lines, :trim])
+use("moji", %i[after_first before_first glob_match? lines trim])
 
 use(
   "nikkusu",
-  [
-    :angle_paths,
-    :args_of,
-    :attr,
-    :bindings,
-    :calls,
-    :calls_named,
-    :code,
-    :config_relative,
-    :head_name,
-    :kind,
-    :line_of,
-    :literal_string?,
-    :module_function?,
-    :module_path,
-    :named,
-    :nodes_of,
-    :nodes_where,
-    :option_declarations,
-    :string_content
+  %i[
+    angle_paths
+    args_of
+    attr
+    bindings
+    calls
+    calls_named
+    code
+    config_relative
+    head_name
+    kind
+    line_of
+    literal_string?
+    module_function?
+    module_path
+    named
+    nodes_of
+    nodes_where
+    option_declarations
+    string_content
   ]
 )
 
-use("retsu", [:first, :flat_map, :is_empty, :last, :rest, :size, :take_n])
+use("retsu", %i[first flat_map is_empty last rest size take_n])
 
-use("shisutemu", [:read_or, :status_of, :stderr_of, :stdout_of])
-use("shuugou", [:frequencies, :unique])
+use("shisutemu", %i[read_or status_of stderr_of stdout_of])
+use("shuugou", %i[frequencies unique])
 
 def fleet_repo(version)
   {
     standard: "fleet-repo",
     version:,
-    top: [
-      "flake.nix",
-      "flake.lock",
-      "fleet.nix",
-      "lib",
-      "modules",
-      "profiles",
-      "nodes",
-      "users",
-      "parts",
-      "overlays",
-      "pkgs",
-      "docs",
-      "secrets*.yaml",
-      ".sops.yaml",
-      ".github",
-      ".gitignore",
-      ".envrc",
-      "CLAUDE.md",
-      "AGENTS.md",
-      "README.md",
-      "LICENSE*",
-      "nixosConfigurations",
-      "darwinConfigurations",
-      "homeConfigurations",
-      "kijun.b",
-      "kijun.baseline"
+    top: %w[
+      flake.nix
+      flake.lock
+      fleet.nix
+      lib
+      modules
+      profiles
+      nodes
+      users
+      parts
+      overlays
+      pkgs
+      docs
+      secrets*.yaml
+      .sops.yaml
+      .github
+      .gitignore
+      .envrc
+      CLAUDE.md
+      AGENTS.md
+      README.md
+      LICENSE*
+      nixosConfigurations
+      darwinConfigurations
+      homeConfigurations
+      kijun.b
+      kijun.baseline
     ],
     registry: "lib/nodes.nix",
     node_constructor: "mkNode",
     engine: ["parts/fleet.nix"],
-    import_routes: [
-      "modules/pleme/nixos/default.nix",
-      "modules/pleme/darwin/default.nix",
-      "lib/fleet-universal-modules.nix",
-      "parts/fleet.nix",
-      "lib/nodes.nix",
-      "nodes/*/default.nix",
-      "profiles/*/default.nix"
+    import_routes: %w[
+      modules/pleme/nixos/default.nix
+      modules/pleme/darwin/default.nix
+      lib/fleet-universal-modules.nix
+      parts/fleet.nix
+      lib/nodes.nix
+      nodes/*/default.nix
+      profiles/*/default.nix
     ],
-    declarers: [
-      "modules/pleme/shared/**",
-      "modules/pleme/nixos/**",
-      "modules/pleme/darwin/**",
-      "modules/pleme/home-manager/**"
+    declarers: %w[
+      modules/pleme/shared/**
+      modules/pleme/nixos/**
+      modules/pleme/darwin/**
+      modules/pleme/home-manager/**
     ],
     trio_factory: ["mkModuleTrio"],
-    concept_consumers: ["modules/**", "profiles/**"],
+    concept_consumers: %w[modules/** profiles/**],
     configurations: [],
     waivers: [],
     disabled: [],
@@ -295,10 +295,7 @@ def factory_proven?(repo, m)
   cs = trio_calls(repo, "modules/pleme/shared/#{m}.nix")
   not is_empty(cs) and
     is_empty(
-      filter(
-        (c) -> not member?(spec_kind(c), ["binary", "package", "service"]),
-        cs
-      )
+      filter((c) -> not member?(spec_kind(c), %w[binary package service]), cs)
     )
 end
 
@@ -392,7 +389,7 @@ def check_system_calls(f, repo)
           "#{c[:head]} builds a system outside the node engine; declare the node through the registry"
         )
       end,
-      named(f[:calls], ["nixosSystem", "darwinSystem"])
+      named(f[:calls], %w[nixosSystem darwinSystem])
     )
   end
 end
@@ -400,11 +397,11 @@ end
 def identity?(b)
   p = module_path(b)
   v = b[:value]
-  if p == ["networking", "hostName"] or p == ["networking", "hostId"]
+  if p == %w[networking hostName] or p == %w[networking hostId]
     true
   elsif size(p) >= 3 and first(p) == "fileSystems" and last(p) == "device"
     v != nil and contains?(code(v), "by-uuid")
-  elsif starts?(p, ["sops", "secrets"]) and last(p) == "sopsFile"
+  elsif starts?(p, %w[sops secrets]) and last(p) == "sopsFile"
     v != nil and contains?(code(v), "nodes/")
   else
     false
@@ -462,12 +459,12 @@ def platform_prefixes()
   [
     ["systemd"],
     ["launchd"],
-    ["environment", "etc"],
-    ["environment", "systemPackages"],
-    ["networking", "firewall"],
-    ["networking", "hosts"],
-    ["security", "sudo"],
-    ["users", "users"],
+    %w[environment etc],
+    %w[environment systemPackages],
+    %w[networking firewall],
+    %w[networking hosts],
+    %w[security sudo],
+    %w[users users],
     ["boot"],
     ["homebrew"]
   ]
@@ -513,7 +510,7 @@ def check_shared_platform_question(f, _repo)
     nodes_where(
       fn(n)
         kind(n) == "NODE_SELECT" and
-          member?(last(split(code(n), ".")), ["isDarwin", "isLinux"])
+          member?(last(split(code(n), ".")), %w[isDarwin isLinux])
       end,
       f[:root]
     )
@@ -541,20 +538,20 @@ def check_angle(f, _repo)
 end
 
 def fetchers()
-  [
-    "fetchTarball",
-    "fetchurl",
-    "fetchzip",
-    "fetchGit",
-    "fetchgit",
-    "fetchTree",
-    "fetchFromGitHub",
-    "fetchFromGitLab"
+  %w[
+    fetchTarball
+    fetchurl
+    fetchzip
+    fetchGit
+    fetchgit
+    fetchTree
+    fetchFromGitHub
+    fetchFromGitLab
   ]
 end
 
 def pin_attrs()
-  ["hash", "sha256", "narHash", "outputHash", "rev"]
+  %w[hash sha256 narHash outputHash rev]
 end
 
 def unpinned?(c)
@@ -591,10 +588,7 @@ def script_body(c)
     if first(args) != nil and kind(first(args)) == "NODE_ATTR_SET"
       attr(first(args), "text")
     end
-  elsif member?(
-    n,
-    ["runCommand", "runCommandLocal", "runCommandNoCC", "runCommandCC"]
-  )
+  elsif member?(n, %w[runCommand runCommandLocal runCommandNoCC runCommandCC])
     args[2]
   else
     args[1]
@@ -610,16 +604,16 @@ def script_lines(body)
 end
 
 def scripts()
-  [
-    "writeShellScript",
-    "writeShellScriptBin",
-    "writeShellApplication",
-    "writeScript",
-    "writeScriptBin",
-    "runCommand",
-    "runCommandLocal",
-    "runCommandNoCC",
-    "runCommandCC"
+  %w[
+    writeShellScript
+    writeShellScriptBin
+    writeShellApplication
+    writeScript
+    writeScriptBin
+    runCommand
+    runCommandLocal
+    runCommandNoCC
+    runCommandCC
   ]
 end
 
@@ -765,7 +759,7 @@ def check_option_evaluates(tree, _repo)
 end
 
 def unit_kinds()
-  [:shared, :package, :overlay, :registry]
+  %i[shared package overlay registry]
 end
 
 def unit(kind_of, name, file, files)
@@ -905,7 +899,7 @@ def spec_names(c)
             string_content(v)
           end
         end,
-        ["name", "packageAttr"]
+        %w[name packageAttr]
       )
     )
   end
@@ -1017,7 +1011,7 @@ def rules()
       "trio/every-concept",
       :layout,
       :gate,
-      ["modules/pleme/shared/**", "pkgs/**", "overlays/*.nix", "lib/*.nix"],
+      %w[modules/pleme/shared/** pkgs/** overlays/*.nix lib/*.nix],
       "every concept the fleet manages, a shared module, a package, an overlay-added package or a registry consumed as configuration, has one type-known interface on the nixos, darwin and home-manager arms, so it is declared through the module-trio factory",
       "declare it with mkModuleTrio { kind = \"binary\" | \"package\" | \"registry\" | \"service\"; ... } in its own file, or name it (name or packageAttr) in a trio spec",
       check_concepts
@@ -1313,9 +1307,9 @@ end
 
 def ran_ids(cfg, tree)
   planes = if tree
-    [:layout, :expression, :tree]
+    %i[layout expression tree]
   else
-    [:layout, :expression]
+    %i[layout expression]
   end
   map((r) -> r[:id], flat_map(planes, (p) -> active(cfg, p)))
 end
@@ -1562,7 +1556,7 @@ end
 def parse_args(args)
   if is_empty(args)
     {error: "a command: check, baseline or rules"}
-  elsif not member?(first(args), ["check", "baseline", "rules"])
+  elsif not member?(first(args), %w[check baseline rules])
     {error: "unknown command #{first(args)}: check, baseline or rules"}
   else
     flags(
@@ -1668,7 +1662,7 @@ def plane_counts(result, timing)
         ms: get(timing[:planes], p)
       }
     end,
-    [:layout, :expression, :tree]
+    %i[layout expression tree]
   )
 end
 
@@ -2389,7 +2383,7 @@ test "a trio file renders itself, and the factory proves every kind but a regist
     sort_keyed((t) -> t, map((x) -> x[:subject], fired(fleet_repo(1), c, id)))
   end
   assert subjects("layout/shared-reachable") == ["x"]
-  assert subjects("layout/shared-has-proof") == ["r", "x"]
+  assert subjects("layout/shared-has-proof") == %w[r x]
   assert spec_kind(first(calls(nikkusu::read("f { kind = k; }")[:root]))) ==
     "computed"
 end
@@ -2411,7 +2405,7 @@ test "an uncatchable failure is located at its option's tag, and the error is it
     "flake has no attribute"
   assert nix_string("a\"b${c}\\") == "\"a\\\"b\\${c}\\\\\""
   assert contains?(
-    tree_expr(["pleme.a", "pleme.b"]),
+    tree_expr(%w[pleme.a pleme.b]),
     "excluded = [ \"pleme.a\" \"pleme.b\" ]"
   ) == true
 end
@@ -2432,8 +2426,8 @@ test "a blind option is one advice finding at its declaration, and the plane kee
   r = evaluate(fleet_repo(1), in_memory([]), [both])
   assert map((x) -> [x[:rule], x[:file]], r[:findings]) ==
     [
-      ["tree/hostname-from-node", "profiles/p/default.nix"],
-      ["tree/option-evaluates", "modules/pleme/shared/x.nix"]
+      %w[tree/hostname-from-node profiles/p/default.nix],
+      %w[tree/option-evaluates modules/pleme/shared/x.nix]
     ]
   assert map((x) -> x[:rule], r[:advice]) == ["tree/option-evaluates"]
 end
@@ -2483,7 +2477,7 @@ test "node-shape names both a missing default.nix and a NixOS node's missing lay
   f = first(filter((f) -> f[:rule] == "layout/node-shape", fixtures))
   xs = fired(fleet_repo(1), f[:bad], "layout/node-shape")
   assert sort_keyed((t) -> t, map((x) -> x[:subject], xs)) ==
-    ["default.nix", "layers.nix"]
+    %w[default.nix layers.nix]
 end
 
 test "a waiver is scoped to its rule and glob, and its siblings keep going"
@@ -2575,7 +2569,7 @@ end
 test "arguments: a command is required and flags are read"
   assert parse_args([])[:error] != nil
   assert parse_args(["lint"])[:error] != nil
-  a = parse_args(["check", "--json", "--root", "/r", "--tree"])
+  a = parse_args(%w[check --json --root /r --tree])
   assert [a[:json], a[:root], a[:tree]] == [true, "/r", true]
-  assert parse_args(["check", "--root"])[:error] != nil
+  assert parse_args(%w[check --root])[:error] != nil
 end

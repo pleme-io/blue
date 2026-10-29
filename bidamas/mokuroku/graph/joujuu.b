@@ -127,7 +127,7 @@ verb(
   {
     kind: :effect,
     shape: "reset(unit) -> nil",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: nil,
     today: "absent",
     meaning: "clear a failed state",
@@ -172,7 +172,7 @@ verb(
   {
     kind: :effect,
     shape: "start(unit, opts) -> nil",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: nil,
     today: "absent",
     meaning: "start a service",
@@ -187,7 +187,7 @@ verb(
   {
     kind: :effect,
     shape: "stop(unit, opts) -> nil",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: nil,
     today: "absent",
     meaning: "end a service after a grace period",
@@ -202,7 +202,7 @@ verb(
   {
     kind: :effect,
     shape: "wait(unit, state, opts) -> record",
-    laterals: ["cancel", "deadline"],
+    laterals: %w[cancel deadline],
     fleet: nil,
     today: "absent",
     meaning: "block until a unit reaches a state",

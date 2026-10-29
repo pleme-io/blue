@@ -17,23 +17,12 @@ new posture never turns a working service away until the operator says so.
 
 use(
   "kousei",
-  [
-    :entry,
-    :field,
-    :judge,
-    :kind_of,
-    :name_of,
-    :off,
-    :one_of,
-    :text,
-    :tune,
-    :value_of
-  ]
+  %i[entry field judge kind_of name_of off one_of text tune value_of]
 )
 
 use("kyohi", [:kinds])
 
-use("retsu", [:first, :flat_map, :size])
+use("retsu", %i[first flat_map size])
 
 @doc """
 posture: one named behaviour of a service with its fields.
@@ -145,7 +134,7 @@ end
 def veto(mode_default)
   posture(
     :veto,
-    [field(:mode, one_of(["audit", "enforce"])), field(:path, text)],
+    [field(:mode, one_of(%w[audit enforce])), field(:path, text)],
     {mode: mode_default, path: "/no"},
     fn(settings, sink)
       fn(handler)
@@ -195,7 +184,7 @@ test "a layer wraps the handler and the first layer is outermost"
   end
   h = stack([mark("outer"), mark("inner")], echo)
   assert h(req_at("/"))[:status] == 200
-  assert first(order) == ["outer", "inner"]
+  assert first(order) == %w[outer inner]
   assert stack([], echo)(req_at("/a")) == echo(req_at("/a"))
 end
 
@@ -276,7 +265,7 @@ end
 
 test "defaults has one entry per posture, named default, holding that posture's defaults"
   es = defaults([tag("X-A", "1"), veto("audit")])
-  assert map(kind_of, es) == [:tag, :veto]
+  assert map(kind_of, es) == %i[tag veto]
   assert map(value_of, es) == [{value: "1"}, {mode: "audit", path: "/no"}]
   assert defaults([]) == []
 end

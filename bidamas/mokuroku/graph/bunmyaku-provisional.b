@@ -81,7 +81,7 @@ verb(
   {
     kind: :effect,
     shape: "eval(expr, context) -> value",
-    laterals: ["capability", "deadline"],
+    laterals: %w[capability deadline],
     fleet: "blue-lang-runtime",
     today: "rust:blue-lang-runtime",
     meaning: "evaluate one expression in a session",
@@ -126,7 +126,7 @@ verb(
   {
     kind: :effect,
     shape: "serve(transport, opts) -> nil",
-    laterals: ["cancel", "resource"],
+    laterals: %w[cancel resource],
     fleet: "blue-lang-lsp",
     today: "rust:blue-lang-lsp",
     meaning: "run the language server on a transport",

@@ -2,12 +2,9 @@
 #
 # BLUE_SITE=127.0.0.1:8080 blue run examples/13_web_site.b serves it.
 use("bougyo", [:defended])
-use("gamen", [:page, :theme, :view])
+use("gamen", %i[page theme view])
 
-use(
-  "kyuuji",
-  [:answer, :dispatch, :param, :redirect, :request, :route, :router, :serve]
-)
+use("kyuuji", %i[answer dispatch param redirect request route router serve])
 
 use("shisei", [:silent])
 

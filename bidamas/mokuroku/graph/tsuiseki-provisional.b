@@ -6,7 +6,7 @@ verb(
   {
     kind: :pure,
     shape: "adopt(carrier) -> context",
-    laterals: ["serialize", "trace"],
+    laterals: %w[serialize trace],
     fleet: nil,
     today: "absent",
     meaning: "read trace context from headers or a message",
@@ -21,7 +21,7 @@ verb(
   {
     kind: :pure,
     shape: "carry(span, carrier) -> carrier",
-    laterals: ["serialize", "trace"],
+    laterals: %w[serialize trace],
     fleet: nil,
     today: "absent",
     meaning: "write trace context into headers or a message",
@@ -36,7 +36,7 @@ verb(
   {
     kind: :effect,
     shape: "correlate(trace_id, sources) -> [record]",
-    laterals: ["log", "trace"],
+    laterals: %w[log trace],
     fleet: nil,
     today: "absent",
     meaning: "logs, metrics and spans that share one trace id",
@@ -141,7 +141,7 @@ verb(
   {
     kind: :effect,
     shape: "push(sink, spans, opts) -> nil",
-    laterals: ["deadline", "retry"],
+    laterals: %w[deadline retry],
     fleet: nil,
     today: "absent",
     meaning: "send spans to a collector",
@@ -201,7 +201,7 @@ verb(
   {
     kind: :pure,
     shape: "sample?(rule, context) -> Bool",
-    laterals: ["ratelimit", "trace"],
+    laterals: %w[ratelimit trace],
     fleet: nil,
     today: "absent",
     meaning: "decide whether a trace is recorded",
@@ -216,7 +216,7 @@ verb(
   {
     kind: :effect,
     shape: "span(name, f, attrs) -> value",
-    laterals: ["error", "time", "trace"],
+    laterals: %w[error time trace],
     fleet: "pleme-observability",
     today: "exists:tsuiseki",
     wave: 0,

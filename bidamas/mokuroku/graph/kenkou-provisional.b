@@ -81,7 +81,7 @@ verb(
   {
     kind: :effect,
     shape: "probe(target, check, opts) -> verdict",
-    laterals: ["deadline", "error"],
+    laterals: %w[deadline error],
     fleet: nil,
     today: "absent",
     meaning: "healthy, degraded, down or blind, never guessed",
@@ -111,7 +111,7 @@ verb(
   {
     kind: :effect,
     shape: "wait(target, opts) -> verdict",
-    laterals: ["cancel", "deadline", "retry"],
+    laterals: %w[cancel deadline retry],
     fleet: nil,
     today: "absent",
     meaning: "block until a target is healthy",

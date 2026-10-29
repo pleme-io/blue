@@ -256,7 +256,7 @@ row(
 row(
   "check.every_error_in_one_pass",
   join_lines(["def f()", "  a1()", "end", "", "def g()", "  a2()", "end"]),
-  diagnoses(["B0001", "B0001"])
+  diagnoses(%w[B0001 B0001])
 )
 
 row(

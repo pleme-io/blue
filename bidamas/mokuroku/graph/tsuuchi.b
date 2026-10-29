@@ -6,7 +6,7 @@ verb(
   {
     kind: :decl,
     shape: "channel(kind, config) -> channel",
-    laterals: ["capability", "config"],
+    laterals: %w[capability config],
     fleet: nil,
     today: "absent",
     meaning: "Declare how one delivery kind is reached.",
@@ -81,7 +81,7 @@ verb(
   {
     kind: :effect,
     shape: "send(message, opts) -> receipt",
-    laterals: ["error", "idempotent", "ratelimit", "retry"],
+    laterals: %w[error idempotent ratelimit retry],
     fleet: nil,
     today: "absent",
     meaning: "Deliver to a person by email, SMS, push or webhook.",
@@ -188,7 +188,7 @@ verb(
   {
     kind: :pure,
     shape: "validate(address, kind) -> address",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: nil,
     today: "absent",
     meaning: "Check an email or phone number's form.",
@@ -203,7 +203,7 @@ verb(
   {
     kind: :pure,
     shape: "verify?(request, secret) -> Bool",
-    laterals: ["capability", "validate"],
+    laterals: %w[capability validate],
     fleet: nil,
     today: "absent",
     meaning: "Whether a webhook signature and timestamp are good.",

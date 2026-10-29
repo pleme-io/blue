@@ -60,7 +60,7 @@ truthy?: whether an input's text means yes: true, 1, yes or on.
     truthy?("on") #=> true
 """
 def truthy?(text)
-  member?(text, ["true", "1", "yes", "on"])
+  member?(text, %w[true 1 yes on])
 end
 
 @doc """
@@ -211,7 +211,7 @@ levels: the annotation levels GitHub shows.
     levels #=> ["error", "warning", "notice"]
 """
 def levels()
-  ["error", "warning", "notice"]
+  %w[error warning notice]
 end
 
 @doc """
@@ -333,14 +333,14 @@ test "only yes words are true"
 end
 
 test "a list input keeps its non-blank lines, trimmed"
-  assert lines_of(unlines(["a", "", "  b "])) == ["a", "b"]
+  assert lines_of(unlines(["a", "", "  b "])) == %w[a b]
   assert lines_of(nil) == []
   assert input_lines("koutei-no-such-input") == []
 end
 
 test "an output record survives a value that holds the delimiter"
-  assert output_record("n", 3) == unlines(["n<<KOUTEI_EOF", "3", "KOUTEI_EOF"])
-  tricky = join_lines(["a", "KOUTEI_EOF", "b"])
+  assert output_record("n", 3) == unlines(%w[n<<KOUTEI_EOF 3 KOUTEI_EOF])
+  tricky = join_lines(%w[a KOUTEI_EOF b])
   assert delimiter_for(tricky) == "KOUTEI_EOF_"
   assert widen("KOUTEI_EOF_ KOUTEI_EOF", "KOUTEI_EOF") == "KOUTEI_EOF__"
   assert output_record("v", tricky) ==
@@ -362,8 +362,8 @@ test "annotation text and properties are escaped as GitHub reads them"
   assert escape_property("x:y,z") == "x%3Ay%2Cz"
   assert annotation(
     "error",
-    join_lines(["two", "lines"]),
-    [["file", "a.b"], ["line", 3], ["col", nil]]
+    join_lines(%w[two lines]),
+    [%w[file a.b], ["line", 3], ["col", nil]]
   ) == "::error file=a.b,line=3::two%0Alines"
   assert annotation("notice", "n", []) == "::notice::n"
 end

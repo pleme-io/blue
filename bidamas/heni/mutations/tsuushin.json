@@ -2,8 +2,8 @@
   {
     "name": "a json body goes without its content type",
     "file": "tsuushin.b",
-    "find": "[[\"content-type\", \"application/json\"], [\"accept\", \"application/json\"]]",
-    "replace": "[[\"accept\", \"application/json\"]]"
+    "find": "[%w[content-type application/json], %w[accept application/json]]",
+    "replace": "[%w[accept application/json]]"
   },
   {
     "name": "any method is sent",

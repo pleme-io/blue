@@ -6,7 +6,7 @@ verb(
   {
     kind: :pure,
     shape: "check(grammar) -> nil",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: nil,
     today: "absent",
     meaning: "refuse left recursion, ambiguity and unused rules",

@@ -4,10 +4,10 @@ chokkan (直感) — System One judgment: typed questions in, calibrated answers
     margin([]) #=> 0
 """
 
-use("deeta", [:as_json, :get_number, :get_str, :is_doc])
-use("kyohi", [:enforce, :kinds, :refusal])
-use("moji", [:drop_chars, :is_blank])
-use("retsu", [:first, :flat_map, :is_empty, :last, :size])
+use("deeta", %i[as_json get_number get_str is_doc])
+use("kyohi", %i[enforce kinds refusal])
+use("moji", %i[drop_chars is_blank])
+use("retsu", %i[first flat_map is_empty last size])
 
 def noul(instructions)
   {type: "noul", instructions:}
@@ -252,8 +252,8 @@ end
 def example_questions()
   [
     ask("is_refund", noul("Is the customer asking for a refund?")),
-    ask("route", choice("Which model?", [["cid", "local"], ["opus", "deep"]])),
-    ask("difficulty", score("How hard?", ["easy", "middling", "hard"]))
+    ask("route", choice("Which model?", [%w[cid local], %w[opus deep]])),
+    ask("difficulty", score("How hard?", %w[easy middling hard]))
   ]
 end
 
@@ -286,7 +286,7 @@ test "a request carries every question's name, type and criteria"
   assert json_get(json_get(qs, :is_refund), :criteria).nil?
   assert json_get(json_get(json_get(qs, :route), :criteria), :opus) == "deep"
   assert json_get(json_get(qs, :difficulty), :criteria) ==
-    ["easy", "middling", "hard"]
+    %w[easy middling hard]
 end
 
 test "option and level counts are bounded exactly at their limits"
@@ -298,7 +298,7 @@ test "option and level counts are bounded exactly at their limits"
     [:options_out_of_range]
   assert kinds(problems([ask("s", score("rate", ["a"]))])) ==
     [:levels_out_of_range]
-  assert problems([ask("s", score("rate", ["a", "b"]))]) == []
+  assert problems([ask("s", score("rate", %w[a b]))]) == []
   assert problems(
     [ask("s", score("rate", map((i) -> to_s(i), range(0, 10))))]
   ) == []
@@ -310,11 +310,11 @@ end
 test "every problem is named at once, not only the first"
   qs = [
     ask("a", noul("")),
-    ask("a", choice("x", [["o", "1"], ["o", "2"]])),
+    ask("a", choice("x", [%w[o 1], %w[o 2]])),
     ask("b", {type: "vote", instructions: "x"})
   ]
   assert kinds(problems(qs)) ==
-    [:duplicate_question, :empty_instructions, :duplicate_option, :unknown_type]
+    %i[duplicate_question empty_instructions duplicate_option unknown_type]
   thrown = begin
     request("jev-latest", "s", qs)
   rescue e

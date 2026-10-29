@@ -20,7 +20,7 @@ verb(
   {
     kind: :pure,
     shape: "gated(mode, sink, name, why, deny, allow) -> response",
-    laterals: ["log", "switch"],
+    laterals: %w[log switch],
     fleet: "sekiban",
     today: "exists:shisei",
     wave: 0,
@@ -48,7 +48,7 @@ verb(
   {
     kind: :effect,
     shape: "promote(posture, mode, evidence) -> declaration",
-    laterals: ["log", "switch"],
+    laterals: %w[log switch],
     fleet: "sekiban",
     today: "absent",
     meaning: "move a posture from audit to enforce on evidence",
@@ -64,7 +64,7 @@ verb(
   {
     kind: :effect,
     shape: "rehearse(posture, window) -> record",
-    laterals: ["log", "switch", "time"],
+    laterals: %w[log switch time],
     fleet: nil,
     today: "absent",
     meaning: "what enforcing would have refused in a past window",
@@ -79,7 +79,7 @@ verb(
   {
     kind: :pure,
     shape: "serving(postures, declaration, sink, handler) -> handler",
-    laterals: ["config", "switch"],
+    laterals: %w[config switch],
     fleet: nil,
     today: "exists:shisei",
     wave: 0,
@@ -107,7 +107,7 @@ verb(
   {
     kind: :pure,
     shape: "stance(postures, declaration) -> record",
-    laterals: ["config", "validate"],
+    laterals: %w[config validate],
     fleet: nil,
     today: "exists:shisei",
     wave: 0,

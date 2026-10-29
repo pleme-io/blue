@@ -66,7 +66,7 @@ verb(
   {
     kind: :effect,
     shape: "index(sources, opts) -> index",
-    laterals: ["cache", "resource"],
+    laterals: %w[cache resource],
     fleet: nil,
     today: "absent",
     meaning: "build a search index over pages and docs",
@@ -171,7 +171,7 @@ verb(
   {
     kind: :effect,
     shape: "run(runbook, opts) -> report",
-    laterals: ["cancel", "capability", "log"],
+    laterals: %w[cancel capability log],
     fleet: nil,
     today: "absent",
     meaning: "run steps; stop at the first failed check",
@@ -231,7 +231,7 @@ verb(
   {
     kind: :effect,
     shape: "update(wiki, page, f) -> page",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: "confluence-pr-refresh",
     today: "absent",
     meaning: "change one anchored section; refuse a stale version",

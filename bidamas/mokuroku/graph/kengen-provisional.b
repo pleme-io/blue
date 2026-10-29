@@ -6,7 +6,7 @@ verb(
   {
     kind: :pure,
     shape: "allow?(subject, action, resource, ctx) -> Bool",
-    laterals: ["trace", "validate"],
+    laterals: %w[trace validate],
     fleet: "pleme-rbac",
     today: "absent",
     meaning: "policies permit this action",
@@ -21,7 +21,7 @@ verb(
   {
     kind: :effect,
     shape: "bind(subject, role, scope) -> binding",
-    laterals: ["idempotent", "log"],
+    laterals: %w[idempotent log],
     fleet: "pleme-rbac",
     today: "absent",
     meaning: "give a subject a role inside a scope",
@@ -36,7 +36,7 @@ verb(
   {
     kind: :pure,
     shape: "decide(request, policies) -> decision",
-    laterals: ["trace", "validate"],
+    laterals: %w[trace validate],
     fleet: "pleme-rbac",
     today: "absent",
     meaning: "full answer: effect, matched rules, obligations",
@@ -51,7 +51,7 @@ verb(
   {
     kind: :effect,
     shape: "delegate(from, to, permission, opts) -> grant",
-    laterals: ["idempotent", "log", "time"],
+    laterals: %w[idempotent log time],
     fleet: nil,
     today: "absent",
     meaning: "pass on part of my power for a limited time",
@@ -66,7 +66,7 @@ verb(
   {
     kind: :effect,
     shape: "expand(object, relation) -> tree",
-    laterals: ["resource", "trace"],
+    laterals: %w[resource trace],
     fleet: "pleme-rbac",
     today: "absent",
     meaning: "tree of everyone holding a relation to an object",
@@ -81,7 +81,7 @@ verb(
   {
     kind: :effect,
     shape: "grant(subject, permission, resource, opts) -> relation",
-    laterals: ["idempotent", "log"],
+    laterals: %w[idempotent log],
     fleet: "pleme-rbac",
     today: "absent",
     meaning: "let a subject do something to a resource",
@@ -111,7 +111,7 @@ verb(
   {
     kind: :effect,
     shape: "holders(action, resource, opts) -> [subject]",
-    laterals: ["cache", "resource"],
+    laterals: %w[cache resource],
     fleet: "pleme-rbac",
     today: "absent",
     meaning: "everyone who may do an action to a resource",
@@ -126,7 +126,7 @@ verb(
   {
     kind: :pure,
     shape: "parse(text, language) -> policy",
-    laterals: ["serialize", "validate"],
+    laterals: %w[serialize validate],
     fleet: nil,
     today: "absent",
     meaning: "policy text in a policy language to a policy",
@@ -156,7 +156,7 @@ verb(
   {
     kind: :pure,
     shape: "permit(subject, action, resource, ctx) -> nil",
-    laterals: ["error", "log", "validate"],
+    laterals: %w[error log validate],
     fleet: "pleme-rbac",
     today: "absent",
     meaning: "raise :denied unless allowed; the guard form",
@@ -171,7 +171,7 @@ verb(
   {
     kind: :decl,
     shape: "policy(name, rules, opts) -> policy",
-    laterals: ["config", "validate"],
+    laterals: %w[config validate],
     fleet: nil,
     today: "absent",
     meaning: "rules over subject, action, resource and context",
@@ -186,7 +186,7 @@ verb(
   {
     kind: :effect,
     shape: "powers(subject, opts) -> [record]",
-    laterals: ["cache", "resource"],
+    laterals: %w[cache resource],
     fleet: nil,
     today: "absent",
     meaning: "every action and resource a subject can reach",
@@ -216,7 +216,7 @@ verb(
   {
     kind: :effect,
     shape: "revoke(subject, permission, resource) -> nil",
-    laterals: ["idempotent", "log"],
+    laterals: %w[idempotent log],
     fleet: "pleme-rbac",
     today: "absent",
     meaning: "withdraw a grant",
@@ -262,7 +262,7 @@ verb(
   {
     kind: :effect,
     shape: "visible(subject, action, resources) -> [resource]",
-    laterals: ["cache", "resource"],
+    laterals: %w[cache resource],
     fleet: nil,
     today: "absent",
     meaning: "the resources a subject may act on, in one pass",

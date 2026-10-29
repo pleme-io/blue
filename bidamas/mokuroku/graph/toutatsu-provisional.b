@@ -6,7 +6,7 @@ verb(
   {
     kind: :effect,
     shape: "certify(key, principal, ttl) -> certificate",
-    laterals: ["capability", "time"],
+    laterals: %w[capability time],
     fleet: nil,
     today: "absent",
     meaning: "Obtain a short-lived SSH certificate for a key.",
@@ -36,7 +36,7 @@ verb(
   {
     kind: :effect,
     shape: "connect(host, opts) -> session",
-    laterals: ["capability", "deadline", "error", "resource"],
+    laterals: %w[capability deadline error resource],
     fleet: "sshproxy",
     today: "absent",
     meaning: "Open an authenticated remote shell session.",
@@ -51,7 +51,7 @@ verb(
   {
     kind: :effect,
     shape: "copy(session, from, to, opts) -> nil",
-    laterals: ["error", "resource"],
+    laterals: %w[error resource],
     fleet: nil,
     today: "absent",
     meaning: "Move a file to or from a remote host.",
@@ -143,7 +143,7 @@ verb(
   {
     kind: :effect,
     shape: "forward(session, local, remote) -> forwarding",
-    laterals: ["cancel", "resource"],
+    laterals: %w[cancel resource],
     fleet: "sshproxy",
     today: "absent",
     meaning: "Carry a local port to a remote one over the session.",
@@ -188,7 +188,7 @@ verb(
   {
     kind: :decl,
     shape: "peer(key, endpoint, allowed) -> peer",
-    laterals: ["capability", "config"],
+    laterals: %w[capability config],
     fleet: "blackmatter-vpn",
     today: "absent",
     meaning: "Declare one tunnel peer by key and address ranges.",
@@ -203,7 +203,7 @@ verb(
   {
     kind: :effect,
     shape: "propagated?(record, servers) -> Bool",
-    laterals: ["deadline", "time"],
+    laterals: %w[deadline time],
     fleet: nil,
     today: "absent",
     meaning: "Whether every server answers the new value.",
@@ -218,7 +218,7 @@ verb(
   {
     kind: :effect,
     shape: "put(zone, record) -> record",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: nil,
     today: "absent",
     meaning: "Create or replace a DNS record.",
@@ -233,7 +233,7 @@ verb(
   {
     kind: :effect,
     shape: "register(service, opts) -> registration",
-    laterals: ["resource", "time"],
+    laterals: %w[resource time],
     fleet: nil,
     today: "absent",
     meaning: "Announce a service instance under a lease.",
@@ -248,7 +248,7 @@ verb(
   {
     kind: :effect,
     shape: "resolve(name, type, opts) -> [record]",
-    laterals: ["cache", "deadline", "error"],
+    laterals: %w[cache deadline error],
     fleet: nil,
     today: "absent",
     meaning: "Look up DNS records of a type for a name.",
@@ -263,7 +263,7 @@ verb(
   {
     kind: :effect,
     shape: "reverse(address) -> [name]",
-    laterals: ["deadline", "error"],
+    laterals: %w[deadline error],
     fleet: nil,
     today: "absent",
     meaning: "Names that point at an address.",
@@ -278,7 +278,7 @@ verb(
   {
     kind: :effect,
     shape: "rotate(link, opts) -> key",
-    laterals: ["capability", "time"],
+    laterals: %w[capability time],
     fleet: nil,
     today: "absent",
     meaning: "Replace a tunnel's keys without a gap.",
@@ -293,7 +293,7 @@ verb(
   {
     kind: :effect,
     shape: "run(session, command, opts) -> result",
-    laterals: ["deadline", "error", "process"],
+    laterals: %w[deadline error process],
     fleet: "sshproxy",
     today: "absent",
     meaning: "Run a command remotely; same result as a local run.",
@@ -308,7 +308,7 @@ verb(
   {
     kind: :effect,
     shape: "up(link) -> nil",
-    laterals: ["capability", "resource"],
+    laterals: %w[capability resource],
     fleet: "blackmatter-vpn",
     today: "absent",
     meaning: "Bring a tunnel interface up.",

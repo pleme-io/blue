@@ -6,7 +6,7 @@ verb(
   {
     kind: :effect,
     shape: "acquire(name, opts) -> lease",
-    laterals: ["deadline", "resource", "time"],
+    laterals: %w[deadline resource time],
     fleet: nil,
     today: "absent",
     meaning: "Take a lease on a name for a duration.",
@@ -21,7 +21,7 @@ verb(
   {
     kind: :effect,
     shape: "append(log, entry, opts) -> index",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: nil,
     today: "absent",
     meaning: "Add an entry to a replicated log; return where.",
@@ -66,7 +66,7 @@ verb(
   {
     kind: :effect,
     shape: "elect(group, opts) -> leadership",
-    laterals: ["cancel", "deadline", "error", "resource"],
+    laterals: %w[cancel deadline error resource],
     fleet: nil,
     today: "absent",
     meaning: "Campaign until this member leads; hold while valid.",
@@ -111,7 +111,7 @@ verb(
   {
     kind: :stream,
     shape: "gossip(peers, state, opts) -> nil",
-    laterals: ["cancel", "time"],
+    laterals: %w[cancel time],
     fleet: nil,
     today: "absent",
     meaning: "Exchange state with random peers until stable.",
@@ -126,7 +126,7 @@ verb(
   {
     kind: :stream,
     shape: "heartbeat(member, interval) -> nil",
-    laterals: ["cancel", "time"],
+    laterals: %w[cancel time],
     fleet: nil,
     today: "absent",
     meaning: "Announce liveness every interval.",
@@ -216,7 +216,7 @@ verb(
   {
     kind: :effect,
     shape: "propose(group, value, opts) -> result",
-    laterals: ["deadline", "error", "idempotent"],
+    laterals: %w[deadline error idempotent],
     fleet: nil,
     today: "absent",
     meaning: "Ask the group to agree on a value.",
@@ -276,7 +276,7 @@ verb(
   {
     kind: :effect,
     shape: "replicate(log, to, opts) -> info",
-    laterals: ["deadline", "retry"],
+    laterals: %w[deadline retry],
     fleet: nil,
     today: "absent",
     meaning: "Bring a follower up to date.",
@@ -366,7 +366,7 @@ verb(
   {
     kind: :effect,
     shape: "with_lock(name, f, opts) -> value",
-    laterals: ["cancel", "deadline", "resource"],
+    laterals: %w[cancel deadline resource],
     fleet: nil,
     today: "absent",
     meaning: "Run f while holding a named lease, then release.",

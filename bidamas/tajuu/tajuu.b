@@ -17,60 +17,60 @@ stream-id parity, flow-control windows) is not here.
     error_name(99) #=> 99
 """
 
-use("kyohi", [:ok, :ok?, :refusal, :refusal_of, :refused, :value])
-use("retsu", [:first, :is_empty, :size, :slice])
-use("shinsuu", [:be_bytes, :be_value, :bit_at, :bytes_hex, :hex_bytes])
+use("kyohi", %i[ok ok? refusal refusal_of refused value])
+use("retsu", %i[first is_empty size slice])
+use("shinsuu", %i[be_bytes be_value bit_at bytes_hex hex_bytes])
 
 preface = hex_bytes("505249202a20485454502f322e300d0a0d0a534d0d0a0d0a")
 
-frame_types = [
-  :data,
-  :headers,
-  :priority,
-  :rst_stream,
-  :settings,
-  :push_promise,
-  :ping,
-  :goaway,
-  :window_update,
-  :continuation
+frame_types = %i[
+  data
+  headers
+  priority
+  rst_stream
+  settings
+  push_promise
+  ping
+  goaway
+  window_update
+  continuation
 ]
 
-error_codes = [
-  :no_error,
-  :protocol_error,
-  :internal_error,
-  :flow_control_error,
-  :settings_timeout,
-  :stream_closed,
-  :frame_size_error,
-  :refused_stream,
-  :cancel,
-  :compression_error,
-  :connect_error,
-  :enhance_your_calm,
-  :inadequate_security,
-  :http_1_1_required
+error_codes = %i[
+  no_error
+  protocol_error
+  internal_error
+  flow_control_error
+  settings_timeout
+  stream_closed
+  frame_size_error
+  refused_stream
+  cancel
+  compression_error
+  connect_error
+  enhance_your_calm
+  inadequate_security
+  http_1_1_required
 ]
 
-setting_names = [
-  :header_table_size,
-  :enable_push,
-  :max_concurrent_streams,
-  :initial_window_size,
-  :max_frame_size,
-  :max_header_list_size
+setting_names = %i[
+  header_table_size
+  enable_push
+  max_concurrent_streams
+  initial_window_size
+  max_frame_size
+  max_header_list_size
 ]
 
-stream_states = [
-  :idle,
-  :reserved_local,
-  :reserved_remote,
-  :open,
-  :half_closed_local,
-  :half_closed_remote,
-  :closed,
-  :closed_after_reset
+stream_states = %i[
+  idle
+  reserved_local
+  reserved_remote
+  open
+  half_closed_local
+  half_closed_remote
+  closed
+  closed_after_reset
 ]
 
 def code_of(name, names)
@@ -220,7 +220,7 @@ def wire(f)
 end
 
 def stream_of(f)
-  if member?(f[:type], [:settings, :ping, :goaway])
+  if member?(f[:type], %i[settings ping goaway])
     0
   else
     f[:stream]
@@ -541,13 +541,13 @@ end
 def allowed_send(state, kind)
   case state
   when :idle
-    member?(kind, [:headers, :priority, :promised])
+    member?(kind, %i[headers priority promised])
   when :reserved_local
-    member?(kind, [:headers, :rst_stream, :priority])
+    member?(kind, %i[headers rst_stream priority])
   when :reserved_remote
-    member?(kind, [:rst_stream, :window_update, :priority])
+    member?(kind, %i[rst_stream window_update priority])
   when :half_closed_local
-    member?(kind, [:window_update, :priority, :rst_stream, :continuation])
+    member?(kind, %i[window_update priority rst_stream continuation])
   when :closed
     kind == :priority
   when :closed_after_reset
@@ -559,7 +559,7 @@ end
 
 def after_send(state, kind)
   if kind == :rst_stream
-    if member?(state, [:open, :half_closed_local])
+    if member?(state, %i[open half_closed_local])
       :closed_after_reset
     else
       :closed
@@ -595,15 +595,15 @@ end
 def allowed_recv(state, kind)
   case state
   when :idle
-    member?(kind, [:headers, :priority, :promised])
+    member?(kind, %i[headers priority promised])
   when :reserved_local
-    member?(kind, [:rst_stream, :priority, :window_update])
+    member?(kind, %i[rst_stream priority window_update])
   when :reserved_remote
-    member?(kind, [:headers, :rst_stream, :priority])
+    member?(kind, %i[headers rst_stream priority])
   when :half_closed_remote
-    member?(kind, [:window_update, :priority, :rst_stream, :continuation])
+    member?(kind, %i[window_update priority rst_stream continuation])
   when :closed
-    member?(kind, [:priority, :window_update, :rst_stream])
+    member?(kind, %i[priority window_update rst_stream])
   else
     true
   end
@@ -638,7 +638,7 @@ def after_end_stream(state, dir)
 end
 
 def ends(state, dir, kind, end_stream)
-  if end_stream and member?(kind, [:headers, :data])
+  if end_stream and member?(kind, %i[headers data])
     after_end_stream(state, dir)
   else
     state
@@ -648,7 +648,7 @@ end
 def step(state, dir, kind, end_stream, stream?)
   stream = stream or 0
   discard = member?(state, [:closed_after_reset]) or
-    state == :closed and member?(kind, [:window_update, :rst_stream])
+    state == :closed and member?(kind, %i[window_update rst_stream])
   if not member?(state, stream_states)
     raise(:usage, "no stream state #{state}")
   elsif dir == :send and not allowed_send(state, kind)
@@ -914,24 +914,24 @@ end
 
 test "an illegal transition is refused with the error §5.1 and §6 name for it"
   cases = [
-    [:idle, :recv, :data, :connection, :protocol_error],
-    [:idle, :recv, :rst_stream, :connection, :protocol_error],
-    [:idle, :recv, :window_update, :connection, :protocol_error],
-    [:idle, :send, :data, :local, :protocol_error],
-    [:reserved_local, :recv, :headers, :connection, :protocol_error],
-    [:reserved_local, :recv, :data, :connection, :protocol_error],
-    [:reserved_local, :send, :data, :local, :protocol_error],
-    [:reserved_remote, :recv, :data, :connection, :protocol_error],
-    [:reserved_remote, :recv, :window_update, :connection, :protocol_error],
-    [:reserved_remote, :send, :headers, :local, :protocol_error],
-    [:half_closed_local, :send, :data, :local, :protocol_error],
-    [:half_closed_local, :send, :headers, :local, :protocol_error],
-    [:half_closed_remote, :recv, :data, :stream, :stream_closed],
-    [:half_closed_remote, :recv, :headers, :stream, :stream_closed],
-    [:closed, :recv, :data, :stream, :stream_closed],
-    [:closed, :recv, :headers, :connection, :stream_closed],
-    [:closed, :send, :data, :local, :protocol_error],
-    [:closed_after_reset, :send, :window_update, :local, :protocol_error]
+    %i[idle recv data connection protocol_error],
+    %i[idle recv rst_stream connection protocol_error],
+    %i[idle recv window_update connection protocol_error],
+    %i[idle send data local protocol_error],
+    %i[reserved_local recv headers connection protocol_error],
+    %i[reserved_local recv data connection protocol_error],
+    %i[reserved_local send data local protocol_error],
+    %i[reserved_remote recv data connection protocol_error],
+    %i[reserved_remote recv window_update connection protocol_error],
+    %i[reserved_remote send headers local protocol_error],
+    %i[half_closed_local send data local protocol_error],
+    %i[half_closed_local send headers local protocol_error],
+    %i[half_closed_remote recv data stream stream_closed],
+    %i[half_closed_remote recv headers stream stream_closed],
+    %i[closed recv data stream stream_closed],
+    %i[closed recv headers connection stream_closed],
+    %i[closed send data local protocol_error],
+    %i[closed_after_reset send window_update local protocol_error]
   ]
   seen = map(
     fn(c)

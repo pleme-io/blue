@@ -85,28 +85,43 @@ row(
   formats(unlines(["use(\"sp_mod\")", "sp_mod::sp_twice(2)"]))
 )
 
-row("fmt.words.strings", "[\"a\", \"b\"]", formats("%w[a b]\n"))
-row("fmt.words.keywords", "[:a, :b?]", formats("%i[a b?]\n"))
-row("fmt.words.one_stays", "[\"a\"]", formats("[\"a\"]\n"))
-row("fmt.words.not_words", "[\"a b\", \"c\"]", formats("[\"a b\", \"c\"]\n"))
-row("fmt.words.mixed", "[\"a\", :b]", formats("[\"a\", :b]\n"))
+row("fmt.words.strings", "[\"a\", \"b\"]", formats(unlines(["%w[a b]"])))
+row("fmt.words.keywords", "[:a, :b?]", formats(unlines(["%i[a b?]"])))
+row("fmt.words.one_stays", "[\"a\"]", formats(unlines(["[\"a\"]"])))
+
+row(
+  "fmt.words.not_words",
+  "[\"a b\", \"c\"]",
+  formats(unlines(["[\"a b\", \"c\"]"]))
+)
+
+row("fmt.words.mixed", "[\"a\", :b]", formats(unlines(["[\"a\", :b]"])))
 
 row(
   "fmt.words.import",
   "use(\"sp_mod\", [:sp_twice, :sp_x])",
-  formats("use(\"sp_mod\", %i[sp_twice sp_x])\n")
+  formats(unlines(["use(\"sp_mod\", %i[sp_twice sp_x])"]))
 )
 
 row(
   "fmt.words.comment_keeps_brackets",
-  "x = [\n  # why\n  \"a\",\n  \"b\"\n]",
-  formats("x = [\n  # why\n  \"a\",\n  \"b\"\n]\n")
+  join_lines(["x = [", "  # why", "  \"a\",", "  \"b\"", "]"]),
+  formats(unlines(["x = [", "  # why", "  \"a\",", "  \"b\"", "]"]))
 )
 
 row(
   "fmt.words.long_breaks",
   "[\"aaaaaaaaaaaaaaaaaaaa\", \"bbbbbbbbbbbbbbbbbbbbbbbbb\", \"cccccccccccccccccccccc\", \"dddddddddddddddddd\"]",
   formats(
-    "%w[\n  aaaaaaaaaaaaaaaaaaaa\n  bbbbbbbbbbbbbbbbbbbbbbbbb\n  cccccccccccccccccccccc\n  dddddddddddddddddd\n]\n"
+    unlines(
+      [
+        "%w[",
+        "  aaaaaaaaaaaaaaaaaaaa",
+        "  bbbbbbbbbbbbbbbbbbbbbbbbb",
+        "  cccccccccccccccccccccc",
+        "  dddddddddddddddddd",
+        "]"
+      ]
+    )
   )
 )

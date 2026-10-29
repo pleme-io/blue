@@ -6,7 +6,7 @@ verb(
   {
     kind: :effect,
     shape: "ancestors(repo, oid) -> [oid]",
-    laterals: ["cancel", "error"],
+    laterals: %w[cancel error],
     fleet: "daicho",
     today: "absent",
     meaning: "every commit that leads to this one",
@@ -36,7 +36,7 @@ verb(
   {
     kind: :effect,
     shape: "bisect(repo, good, bad, test) -> oid",
-    laterals: ["cancel", "deadline", "error"],
+    laterals: %w[cancel deadline error],
     fleet: nil,
     today: "absent",
     meaning: "find the first commit where a test turns bad",
@@ -66,7 +66,7 @@ verb(
   {
     kind: :effect,
     shape: "commit(repo, snapshot, opts) -> oid",
-    laterals: ["error", "idempotent", "time"],
+    laterals: %w[error idempotent time],
     fleet: "daicho",
     today: "absent",
     meaning: "record a snapshot with parents, author and a message",
@@ -81,7 +81,7 @@ verb(
   {
     kind: :effect,
     shape: "create(repo, name, oid) -> oid",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: "galho",
     today: "absent",
     meaning: "add a branch or tag ref; exists if taken",
@@ -96,7 +96,7 @@ verb(
   {
     kind: :effect,
     shape: "delete(repo, name) -> nil",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: nil,
     today: "absent",
     meaning: "remove a ref; absent counts as done",
@@ -203,7 +203,7 @@ verb(
   {
     kind: :effect,
     shape: "merge(repo, a, b, opts) -> {oid, conflicts}",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: "daicho",
     today: "absent",
     meaning: "join two histories with a strategy; conflicts are data",
@@ -265,7 +265,7 @@ verb(
   {
     kind: :effect,
     shape: "restore(repo, ref, to) -> nil",
-    laterals: ["capability", "error"],
+    laterals: %w[capability error],
     fleet: nil,
     today: "absent",
     meaning: "bring a past state back to a directory or store",
@@ -325,7 +325,7 @@ verb(
   {
     kind: :effect,
     shape: "update(repo, name, f) -> oid",
-    laterals: ["error", "idempotent", "retry"],
+    laterals: %w[error idempotent retry],
     fleet: nil,
     today: "absent",
     meaning: "move a ref with f(old) and refuse a concurrent move",

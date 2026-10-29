@@ -21,7 +21,7 @@ verb(
   {
     kind: :pure,
     shape: "canonical(value, opts) -> text",
-    laterals: ["idempotent", "serialize"],
+    laterals: %w[idempotent serialize],
     fleet: nil,
     today: "absent",
     meaning: "one byte-exact form per value: sorted keys, no noise",
@@ -36,7 +36,7 @@ verb(
   {
     kind: :pure,
     shape: "convert(text, from, to, opts) -> text",
-    laterals: ["error", "serialize"],
+    laterals: %w[error serialize],
     fleet: nil,
     today: "absent",
     meaning: "reparse in one format, render in another",
@@ -217,7 +217,7 @@ verb(
   {
     kind: :pure,
     shape: "parse(text, format, opts) -> value",
-    laterals: ["error", "serialize", "validate"],
+    laterals: %w[error serialize validate],
     fleet: "tatara-lisp-script",
     today: "exists:deeta",
     wave: 1,
@@ -231,7 +231,7 @@ verb(
   {
     kind: :pure,
     shape: "patch(doc, changes) -> doc",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: nil,
     today: "absent",
     meaning: "apply change records (RFC 6902 JSON Patch)",
@@ -291,7 +291,7 @@ verb(
   {
     kind: :effect,
     shape: "read(path, opts) -> value",
-    laterals: ["capability", "error", "serialize"],
+    laterals: %w[capability error serialize],
     fleet: nil,
     today: "partial:deeta",
     meaning: "file to value, format taken from the extension",
@@ -306,7 +306,7 @@ verb(
   {
     kind: :pure,
     shape: "render(value, format, opts) -> text",
-    laterals: ["error", "serialize"],
+    laterals: %w[error serialize],
     fleet: "tatara-lisp-script",
     today: "partial:deeta",
     meaning: "value to stable canonical text",
@@ -336,7 +336,7 @@ verb(
   {
     kind: :stream,
     shape: "stream(source, format, f, opts) -> count",
-    laterals: ["cancel", "error", "resource"],
+    laterals: %w[cancel error resource],
     fleet: nil,
     today: "absent",
     meaning: "call f per record of NDJSON, CSV or a JSON array",
@@ -366,7 +366,7 @@ verb(
   {
     kind: :pure,
     shape: "unpack(bytes, format, opts) -> value",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: "bencode",
     today: "absent",
     meaning: "binary format back to a value",
@@ -412,7 +412,7 @@ verb(
   {
     kind: :effect,
     shape: "write(path, value, opts) -> nil",
-    laterals: ["capability", "error", "idempotent", "serialize"],
+    laterals: %w[capability error idempotent serialize],
     fleet: nil,
     today: "absent",
     meaning: "value to file atomically, format from extension",

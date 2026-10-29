@@ -21,7 +21,7 @@ verb(
   {
     kind: :effect,
     shape: "cancel(queue, id) -> nil",
-    laterals: ["cancel", "idempotent"],
+    laterals: %w[cancel idempotent],
     fleet: nil,
     today: "absent",
     meaning: "remove a waiting message before anyone leases it",
@@ -66,7 +66,7 @@ verb(
   {
     kind: :effect,
     shape: "drain(queue, opts) -> nil",
-    laterals: ["cancel", "deadline"],
+    laterals: %w[cancel deadline],
     fleet: nil,
     today: "absent",
     meaning: "wait until the queue is empty and nothing is leased",
@@ -111,7 +111,7 @@ verb(
   {
     kind: :effect,
     shape: "nack(queue, message, opts) -> nil",
-    laterals: ["idempotent", "retry"],
+    laterals: %w[idempotent retry],
     fleet: "pleme-redis",
     today: "absent",
     meaning: "give a leased message back, optionally after a delay",
@@ -126,7 +126,7 @@ verb(
   {
     kind: :effect,
     shape: "open(spec) -> queue",
-    laterals: ["config", "resource"],
+    laterals: %w[config resource],
     fleet: "pleme-redis",
     today: "absent",
     meaning: "connect to a durable queue by name",
@@ -141,7 +141,7 @@ verb(
   {
     kind: :effect,
     shape: "pause(queue) -> nil",
-    laterals: ["idempotent", "switch"],
+    laterals: %w[idempotent switch],
     fleet: nil,
     today: "absent",
     meaning: "stop handing out messages while still accepting them",
@@ -186,7 +186,7 @@ verb(
   {
     kind: :effect,
     shape: "receive(queue, opts) -> [message]",
-    laterals: ["deadline", "error", "resource"],
+    laterals: %w[deadline error resource],
     fleet: "pleme-redis",
     today: "absent",
     meaning: "lease messages for a visibility time without removing them",
@@ -201,7 +201,7 @@ verb(
   {
     kind: :effect,
     shape: "redrive(queue, opts) -> count",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: nil,
     today: "absent",
     meaning: "move dead messages back to the live queue",
@@ -216,7 +216,7 @@ verb(
   {
     kind: :effect,
     shape: "renew(queue, message, by) -> nil",
-    laterals: ["deadline", "time"],
+    laterals: %w[deadline time],
     fleet: nil,
     today: "absent",
     meaning: "lengthen the lease on a message being worked",
@@ -232,7 +232,7 @@ verb(
   {
     kind: :effect,
     shape: "resume(queue) -> nil",
-    laterals: ["idempotent", "switch"],
+    laterals: %w[idempotent switch],
     fleet: nil,
     today: "absent",
     meaning: "hand out messages again after a pause",
@@ -247,7 +247,7 @@ verb(
   {
     kind: :decl,
     shape: "schedule(queue, spec, message) -> decl",
-    laterals: ["config", "time"],
+    laterals: %w[config time],
     fleet: nil,
     today: "absent",
     meaning: "declare a message sent on a repeating time rule",
@@ -263,7 +263,7 @@ verb(
   {
     kind: :effect,
     shape: "send(queue, message, opts) -> id",
-    laterals: ["error", "idempotent", "ratelimit", "serialize"],
+    laterals: %w[error idempotent ratelimit serialize],
     fleet: "pleme-redis",
     today: "absent",
     meaning: "add a message, optionally delayed, keyed or prioritized",
@@ -278,7 +278,7 @@ verb(
   {
     kind: :effect,
     shape: "send_all(queue, messages, opts) -> [id]",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: nil,
     today: "absent",
     meaning: "add many messages in one round trip",
@@ -293,7 +293,7 @@ verb(
   {
     kind: :effect,
     shape: "work(queue, f, opts) -> nil",
-    laterals: ["cancel", "deadline", "log", "ratelimit", "resource", "retry"],
+    laterals: %w[cancel deadline log ratelimit resource retry],
     fleet: "pleme-redis",
     today: "absent",
     meaning: "run f per message with leases, retries and a concurrency limit",

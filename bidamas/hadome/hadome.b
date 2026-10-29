@@ -4,22 +4,14 @@ hadome (歯止め) — a baseline ratchet: recorded debt may shrink or hold, nev
     render("rust", []) #=> ""
 """
 
-use("kyohi", [:kinds, :refusal])
+use("kyohi", %i[kinds refusal])
 
 use(
   "moji",
-  [
-    :after_first,
-    :after_last,
-    :before_first,
-    :before_last,
-    :includes,
-    :lines,
-    :trim
-  ]
+  %i[after_first after_last before_first before_last includes lines trim]
 )
 
-use("retsu", [:is_empty, :last])
+use("retsu", %i[is_empty last])
 
 def row(kind, key, size)
   {kind:, key:, size:}
@@ -252,7 +244,7 @@ test "failures name every unrecorded and grown measurement, and nothing held"
     measurement("nope", 3),
     measurement("docs/CLAUDE.md::The Tendril Method", 4139)
   ]
-  assert kinds(failures(example_baseline, "entry", ms)) == [:grew, :unrecorded]
+  assert kinds(failures(example_baseline, "entry", ms)) == %i[grew unrecorded]
   assert failures(example_baseline, "entry", []) == []
 end
 

@@ -16,24 +16,24 @@ renders straight into a schema.
 
 use("danpen")
 use("jisho", [:has?])
-use("kyohi", [:ok, :ok?, :refusal, :refusal_of, :refused, :value, :why])
+use("kyohi", %i[ok ok? refusal refusal_of refused value why])
 use("moji", [:starts_with])
 
 use(
   "retsu",
-  [
-    :contains,
-    :count_where,
-    :enumerate,
-    :find_first,
-    :first,
-    :flat_map,
-    :index_of,
-    :is_empty,
-    :last,
-    :rest,
-    :size,
-    :update_at
+  %i[
+    contains
+    count_where
+    enumerate
+    find_first
+    first
+    flat_map
+    index_of
+    is_empty
+    last
+    rest
+    size
+    update_at
   ]
 )
 
@@ -228,7 +228,7 @@ def builtin_directives()
   [
     directive(
       "skip",
-      ["FIELD", "FRAGMENT_SPREAD", "INLINE_FRAGMENT"],
+      %w[FIELD FRAGMENT_SPREAD INLINE_FRAGMENT],
       [arg("if", "Boolean!", {description: "Skipped when true."})],
       {
         description: "Directs the executor to skip this field or fragment when the `if` argument is true."
@@ -236,7 +236,7 @@ def builtin_directives()
     ),
     directive(
       "include",
-      ["FIELD", "FRAGMENT_SPREAD", "INLINE_FRAGMENT"],
+      %w[FIELD FRAGMENT_SPREAD INLINE_FRAGMENT],
       [arg("if", "Boolean!", {description: "Included when true."})],
       {
         description: "Directs the executor to include this field or fragment only when the `if` argument is true."
@@ -244,7 +244,7 @@ def builtin_directives()
     ),
     directive(
       "deprecated",
-      ["FIELD_DEFINITION", "ENUM_VALUE"],
+      %w[FIELD_DEFINITION ENUM_VALUE],
       [arg("reason", "String", {default: "No longer supported"})],
       {
         description: "Marks an element of a GraphQL schema as no longer supported."
@@ -262,19 +262,19 @@ def builtin_directives()
 end
 
 def output_kind?(k)
-  contains(["SCALAR", "OBJECT", "INTERFACE", "UNION", "ENUM"], k)
+  contains(%w[SCALAR OBJECT INTERFACE UNION ENUM], k)
 end
 
 def input_kind?(k)
-  contains(["SCALAR", "ENUM", "INPUT_OBJECT"], k)
+  contains(%w[SCALAR ENUM INPUT_OBJECT], k)
 end
 
 def leaf_kind?(k)
-  contains(["SCALAR", "ENUM"], k)
+  contains(%w[SCALAR ENUM], k)
 end
 
 def composite_kind?(k)
-  contains(["OBJECT", "INTERFACE", "UNION"], k)
+  contains(%w[OBJECT INTERFACE UNION], k)
 end
 
 def kind_named(types, name)
@@ -501,19 +501,19 @@ def shown_deprecated(xs, include)
 end
 
 def view_fields(p, include)
-  if kind_in?(p, ["OBJECT", "INTERFACE"])
+  if kind_in?(p, %w[OBJECT INTERFACE])
     map((f) -> {sc: p.sc, f:}, shown_deprecated(def_of(p).fields, include))
   end
 end
 
 def view_interfaces(p)
-  if kind_in?(p, ["OBJECT", "INTERFACE"])
+  if kind_in?(p, %w[OBJECT INTERFACE])
     map((i) -> type_view(p.sc, named(i)), def_of(p).interfaces)
   end
 end
 
 def view_possible(p)
-  if kind_in?(p, ["INTERFACE", "UNION"])
+  if kind_in?(p, %w[INTERFACE UNION])
     map((n) -> type_view(p.sc, named(n)), possible_types(p.sc, p.ref.name))
   end
 end
@@ -762,39 +762,30 @@ def introspection_types()
     ),
     enum_type(
       "__TypeKind",
-      [
-        "SCALAR",
-        "OBJECT",
-        "INTERFACE",
-        "UNION",
-        "ENUM",
-        "INPUT_OBJECT",
-        "LIST",
-        "NON_NULL"
-      ]
+      %w[SCALAR OBJECT INTERFACE UNION ENUM INPUT_OBJECT LIST NON_NULL]
     ),
     enum_type(
       "__DirectiveLocation",
-      [
-        "QUERY",
-        "MUTATION",
-        "SUBSCRIPTION",
-        "FIELD",
-        "FRAGMENT_DEFINITION",
-        "FRAGMENT_SPREAD",
-        "INLINE_FRAGMENT",
-        "VARIABLE_DEFINITION",
-        "SCHEMA",
-        "SCALAR",
-        "OBJECT",
-        "FIELD_DEFINITION",
-        "ARGUMENT_DEFINITION",
-        "INTERFACE",
-        "UNION",
-        "ENUM",
-        "ENUM_VALUE",
-        "INPUT_OBJECT",
-        "INPUT_FIELD_DEFINITION"
+      %w[
+        QUERY
+        MUTATION
+        SUBSCRIPTION
+        FIELD
+        FRAGMENT_DEFINITION
+        FRAGMENT_SPREAD
+        INLINE_FRAGMENT
+        VARIABLE_DEFINITION
+        SCHEMA
+        SCALAR
+        OBJECT
+        FIELD_DEFINITION
+        ARGUMENT_DEFINITION
+        INTERFACE
+        UNION
+        ENUM
+        ENUM_VALUE
+        INPUT_OBJECT
+        INPUT_FIELD_DEFINITION
       ]
     )
   ]
@@ -1721,7 +1712,7 @@ end
 
 def user_type?(t)
   not starts_with(t.name, "__") and
-    not contains(["Int", "Float", "String", "Boolean", "ID"], t.name)
+    not contains(%w[Int Float String Boolean ID], t.name)
 end
 
 def deprecated_text(d)
@@ -2014,7 +2005,7 @@ def people()
       kind: "Human",
       id: "1000",
       name: "Luke Skywalker",
-      friends: ["1002", "2001"],
+      friends: %w[1002 2001],
       homePlanet: "Tatooine",
       height: 1.72
     },
@@ -2094,12 +2085,12 @@ def fixture()
           ],
           {interfaces: ["Character"]}
         ),
-        union_type("SearchResult", ["Human", "Droid"]),
+        union_type("SearchResult", %w[Human Droid]),
         enum_type(
           "Unit",
           ["METER", enum_value("FOOT", {deprecated: "Use METER."})]
         ),
-        enum_type("Episode", ["NEWHOPE", "EMPIRE", "JEDI"]),
+        enum_type("Episode", %w[NEWHOPE EMPIRE JEDI]),
         input_type(
           "ReviewInput",
           [arg("stars", "Int!"), arg("commentary", "String")]
@@ -2230,15 +2221,15 @@ test "a schema is a value: built-ins joined, references checked, deprecations ke
   sc = fixture
   assert map(
     (n) -> lookup(sc, n).kind,
-    ["Int", "Float", "String", "Boolean", "ID", "__Schema"]
-  ) == ["SCALAR", "SCALAR", "SCALAR", "SCALAR", "SCALAR", "OBJECT"]
+    %w[Int Float String Boolean ID __Schema]
+  ) == %w[SCALAR SCALAR SCALAR SCALAR SCALAR OBJECT]
   assert [sc.query, sc.mutation, sc.subscription] ==
-    ["Query", "Mutation", "Subscription"]
+    %w[Query Mutation Subscription]
   assert field_def(sc, "Droid", "legacyCode").deprecated ==
     "Use primaryFunction."
   assert field_def(sc, "Query", "old").deprecated == "No longer supported"
   assert danpen::type_text(type_ref("[[Int!]]!")) == "[[Int!]]!"
-  assert possible_types(sc, "Character") == ["Droid", "Human"]
+  assert possible_types(sc, "Character") == %w[Droid Human]
   bad = begin
     schema(
       {
@@ -2283,8 +2274,7 @@ test "a schema derives from a model's entities, pure, refusing a bad field alone
   }
   d = from_model(m)
   assert from_model(m) == d
-  assert map((t) -> t.name, d.types) ==
-    ["Control", "Evidence", "Query", "DateTime"]
+  assert map((t) -> t.name, d.types) == %w[Control Evidence Query DateTime]
   c = first(d.types)
   assert map((f) -> "#{f.name}: #{danpen::type_text(f.type)}", c.fields) ==
     [
@@ -2295,16 +2285,16 @@ test "a schema derives from a model's entities, pure, refusing a bad field alone
       "evidence: [Evidence!]!"
     ]
   assert c.fields[2].deprecated == "Use evidenceTime."
-  assert kyohi::kinds(d.refusals) == [:unknown_type, :unknown_entity]
+  assert kyohi::kinds(d.refusals) == %i[unknown_type unknown_entity]
   assert map((f) -> f.name, d.types[2].fields) ==
-    [
-      "control",
-      "controls",
-      "evidence_",
-      "evidence"
+    %w[
+      control
+      controls
+      evidence_
+      evidence
     ] or
     map((f) -> f.name, d.types[2].fields) ==
-      ["control", "controls", "evidence", "evidence"]
+      %w[control controls evidence evidence]
   assert from_model({entities: []}).types == [object_type("Query", [])]
 end
 
@@ -2426,7 +2416,7 @@ test "a null in a non-null place propagates to the nearest nullable field"
         {
           message: "Cannot return null for non-nullable field Outer.inner.",
           locations: [{line: 1, column: 14}],
-          path: ["outer", "inner"]
+          path: %w[outer inner]
         }
       ]
     }
@@ -2448,7 +2438,7 @@ test "a null in a non-null place propagates to the nearest nullable field"
         {
           message: "the vault is sealed",
           locations: [{line: 1, column: 14}],
-          path: ["outer", "sealed"]
+          path: %w[outer sealed]
         }
       ]
     }
@@ -2559,7 +2549,7 @@ test "introspection reads the schema, its deprecations included on request"
   t = d.data["__type"]
   assert t["kind"] == "OBJECT"
   assert map((f) -> f["name"], t["fields"]) ==
-    ["id", "name", "friends", "primaryFunction"]
+    %w[id name friends primaryFunction]
   assert last(t["all"]) ==
     {
       "name" => "legacyCode",
@@ -2610,7 +2600,7 @@ test "introspection reads the schema, its deprecations included on request"
   assert height["args"] == [{"name" => "unit", "defaultValue" => "METER"}]
   dirs = request(sc, "{ __schema { directives { name locations } } }")
   assert map((x) -> x["name"], dirs.data["__schema"]["directives"]) ==
-    ["skip", "include", "deprecated", "specifiedBy"]
+    %w[skip include deprecated specifiedBy]
   reason = request(
     sc,
     "{ __schema { directives { args { name defaultValue } } } }"
@@ -2641,7 +2631,7 @@ test "a subscription is a source stream and a function from event to response"
         {
           message: "Cannot return null for non-nullable field Review.stars.",
           locations: [{line: 1, column: 57}],
-          path: ["reviewAdded", "stars"]
+          path: %w[reviewAdded stars]
         }
       ]
     }

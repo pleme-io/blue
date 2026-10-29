@@ -25,9 +25,9 @@ the logic is blue.
 """
 
 use("hikisuu")
-use("retsu", [:concat_lists, :first, :flat_map, :is_empty, :size])
+use("retsu", %i[concat_lists first flat_map is_empty size])
 
-use("shisutemu", [:last_nonempty_line, :status_of, :stderr_of, :stdout_of])
+use("shisutemu", %i[last_nonempty_line status_of stderr_of stdout_of])
 
 legacy_names("0.1.1", "sj")
 
@@ -254,14 +254,11 @@ end
 # ── tests ────────────────────────────────────────────────────────────
 
 test "arguments: commands, flags, roots, and refusals"
-  o = hikisuu::parse(
-    ["rust", "--dry-run", "--min-age-hours", "12", "/a", "/b"],
-    cli
-  )
+  o = hikisuu::parse(%w[rust --dry-run --min-age-hours 12 /a /b], cli)
   assert o[:command] == :rust
   assert o[:dry_run] == true
   assert o[:min_age_hours] == 12
-  assert o[:roots] == ["/a", "/b"]
+  assert o[:roots] == %w[/a /b]
   d = hikisuu::parse(["nix"], cli)
   assert d[:older_than_days] == 14
   assert d[:dry_run] == false
@@ -275,9 +272,9 @@ test "arguments: commands, flags, roots, and refusals"
   end
   assert kind_of([]) == :usage
   assert kind_of(["sweep"]) == :usage
-  assert kind_of(["rust", "--min-age-hours", "x"]) == :usage
-  assert kind_of(["rust", "--everything"]) == :usage
-  assert kind_of(["nix", "--older-than-days", "-1"]) == :usage
+  assert kind_of(%w[rust --min-age-hours x]) == :usage
+  assert kind_of(%w[rust --everything]) == :usage
+  assert kind_of(%w[nix --older-than-days -1]) == :usage
 end
 
 test "the rust report: one line per target, kept when active, then the total"
@@ -302,9 +299,9 @@ end
 
 test "the nix command line: generations older than N days, dry-run passed through"
   assert nix_argv({older_than_days: 7, dry_run: true}) ==
-    ["nix-collect-garbage", "--delete-older-than", "7d", "--dry-run"]
+    %w[nix-collect-garbage --delete-older-than 7d --dry-run]
   assert nix_argv({older_than_days: 14, dry_run: false}) ==
-    ["nix-collect-garbage", "--delete-older-than", "14d"]
+    %w[nix-collect-garbage --delete-older-than 14d]
 end
 
 test "rust: only a target/ beside a Cargo.toml, only when idle, dry run deletes nothing"

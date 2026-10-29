@@ -2,18 +2,11 @@
 keiyu (経由) — by way of: run one command with a proxy set for it alone.
 """
 
-use("retsu", [:first, :is_empty, :rest])
-use("shisutemu", [:status_of, :stdout_of])
+use("retsu", %i[first is_empty rest])
+use("shisutemu", %i[status_of stdout_of])
 
 def proxy_names()
-  [
-    "ALL_PROXY",
-    "all_proxy",
-    "HTTPS_PROXY",
-    "https_proxy",
-    "HTTP_PROXY",
-    "http_proxy"
-  ]
+  %w[ALL_PROXY all_proxy HTTPS_PROXY https_proxy HTTP_PROXY http_proxy]
 end
 
 def relay_env(url)
@@ -37,12 +30,12 @@ end
 test "every proxy variable a client reads names the relay"
   assert relay_env("socks5h://r:1") ==
     [
-      ["ALL_PROXY", "socks5h://r:1"],
-      ["all_proxy", "socks5h://r:1"],
-      ["HTTPS_PROXY", "socks5h://r:1"],
-      ["https_proxy", "socks5h://r:1"],
-      ["HTTP_PROXY", "socks5h://r:1"],
-      ["http_proxy", "socks5h://r:1"]
+      %w[ALL_PROXY socks5h://r:1],
+      %w[all_proxy socks5h://r:1],
+      %w[HTTPS_PROXY socks5h://r:1],
+      %w[https_proxy socks5h://r:1],
+      %w[HTTP_PROXY socks5h://r:1],
+      %w[http_proxy socks5h://r:1]
     ]
 end
 
@@ -58,7 +51,7 @@ test "the proxy reaches the child and never this process"
     prog = path_join(dir, "child.b")
     write_program(prog, unlines(["use(\"keiyu\", [:main])", "main()"]))
     cap = exec_with_env(
-      [["KEIYU_RELAY", "socks5h://relay.test:11080"]],
+      [%w[KEIYU_RELAY socks5h://relay.test:11080]],
       self_exe,
       "run",
       "--quiet",

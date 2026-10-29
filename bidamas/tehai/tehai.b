@@ -26,27 +26,15 @@ nix.conf includes, so a peer cache that is down costs no lookup.
     probe(probe_target, 2, "") #=> [false, "ssh could not be started: "]
 """
 
-use("deeta", [:as_json, :get_int, :get_str])
-use("moji", [:after_first, :before_first, :includes, :trim])
+use("deeta", %i[as_json get_int get_str])
+use("moji", %i[after_first before_first includes trim])
 
 use(
   "retsu",
-  [
-    :concat_lists,
-    :contains,
-    :find_first,
-    :first,
-    :is_empty,
-    :last,
-    :size,
-    :take_n
-  ]
+  %i[concat_lists contains find_first first is_empty last size take_n]
 )
 
-use(
-  "shisutemu",
-  [:last_nonempty_line, :read_or, :status_of, :stderr_of, :stdout_of]
-)
+use("shisutemu", %i[last_nonempty_line read_or status_of stderr_of stdout_of])
 
 use("tesuto", [:fresh_dir])
 
@@ -601,10 +589,10 @@ test "the check is non-interactive, short, and opens the store protocol nix will
   assert contains(argv, "BatchMode=yes") == true
   assert contains(argv, "ConnectTimeout=2") == true
   assert take_n(reverse(argv), 3) ==
-    ["--stdio", "nix-daemon", "builder@quero-builder-ssm"]
+    %w[--stdio nix-daemon builder@quero-builder-ssm]
   assert contains(argv, "/Users/x/.ssh/key") == true
   assert take_n(reverse(probe_argv(ms[1], 2, "ssh")), 4) ==
-    ["--write", "--serve", "nix-store", "root@plo"]
+    %w[--write --serve nix-store root@plo]
 end
 
 test "a remote-program query names the far side's program, and the host drops the query"
@@ -612,7 +600,7 @@ test "a remote-program query names the far side's program, and the host drops th
   assert m[:host] == "cid"
   assert m[:protocol] == :worker
   assert take_n(reverse(probe_argv(m, 2, "ssh")), 3) ==
-    ["--stdio", "/opt/sui/bin/nix-daemon", "u@cid"]
+    %w[--stdio /opt/sui/bin/nix-daemon u@cid]
   assert machine("ssh://h?compress=true x - 1 1 - - -")[:protocol] == :serve
   assert machine("ssh://h?compress=true x - 1 1 - - -")[:host] == "h"
 end
@@ -768,7 +756,7 @@ test "substituters: the URL is kept as written, the probe drops the query, a bad
 end
 
 test "substituters: only the live ones are written, as one extra-substituters line"
-  ss = parse_substituters(unlines(["http://a:1", "http://b:2?priority=29"]))
+  ss = parse_substituters(unlines(%w[http://a:1 http://b:2?priority=29]))
   checked = [
     tehai::checked(ss[0], [false, "Connection timed out"]),
     tehai::checked(ss[1], [true, "StoreDir: /nix/store"])
@@ -801,7 +789,7 @@ end
 test "a substituter run end to end: a dead peer is left out and named in the state"
   dir = probe_dir("subs-run")
   declared = path_join(dir, "substituters")
-  write_file(declared, unlines(["http://127.0.0.1:1", "broken"]))
+  write_file(declared, unlines(%w[http://127.0.0.1:1 broken]))
   r = run_substituters(
     declared,
     path_join(dir, "substituters.conf"),

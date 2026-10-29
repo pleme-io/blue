@@ -9,7 +9,7 @@ library and a very slow list library.
     bell(0) #=> 1
 """
 
-use("kazu", [:abs, :is_zero, :max_of, :sum])
+use("kazu", %i[abs is_zero max_of sum])
 
 @doc """
 factorial: product of 1 up to n.

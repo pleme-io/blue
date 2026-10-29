@@ -218,7 +218,7 @@ verb(
   {
     kind: :effect,
     shape: "post(ledger, entry) -> entry",
-    laterals: ["idempotent", "log", "validate"],
+    laterals: %w[idempotent log validate],
     fleet: nil,
     today: "absent",
     meaning: "record a balanced entry once; unbalanced is refused",
@@ -278,7 +278,7 @@ verb(
   {
     kind: :effect,
     shape: "reverse(ledger, entry) -> entry",
-    laterals: ["idempotent", "log"],
+    laterals: %w[idempotent log],
     fleet: nil,
     today: "absent",
     meaning: "post the opposite of an entry",
@@ -309,7 +309,7 @@ verb(
   {
     kind: :effect,
     shape: "seal(ledger, period) -> nil",
-    laterals: ["idempotent", "log"],
+    laterals: %w[idempotent log],
     fleet: nil,
     today: "absent",
     meaning: "seal a period; later posts to it are refused",

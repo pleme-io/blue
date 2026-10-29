@@ -104,7 +104,7 @@
   {
     "name": "5.1 reset from open",
     "file": "tajuu.b",
-    "find": "member?(state, [:open, :half_closed_local])",
+    "find": "member?(state, %i[open half_closed_local])",
     "replace": "member?(state, [:half_closed_local])"
   },
   {
@@ -122,8 +122,8 @@
   {
     "name": "5.1 reserved local receives",
     "file": "tajuu.b",
-    "find": "member?(kind, [:rst_stream, :priority, :window_update])",
-    "replace": "member?(kind, [:rst_stream, :priority])"
+    "find": "member?(kind, %i[rst_stream priority window_update])",
+    "replace": "member?(kind, %i[rst_stream priority])"
   },
   {
     "name": "6.1 DATA on closed is a stream error",
@@ -134,7 +134,7 @@
   {
     "name": "5.1 closed tolerates late frames",
     "file": "tajuu.b",
-    "find": "member?(kind, [:priority, :window_update, :rst_stream])",
+    "find": "member?(kind, %i[priority window_update rst_stream])",
     "replace": "member?(kind, [:priority])"
   },
   {
@@ -146,7 +146,7 @@
   {
     "name": "5.1 END_STREAM only on HEADERS and DATA",
     "file": "tajuu.b",
-    "find": "if end_stream and member?(kind, [:headers, :data])",
+    "find": "if end_stream and member?(kind, %i[headers data])",
     "replace": "if false"
   }
 ]

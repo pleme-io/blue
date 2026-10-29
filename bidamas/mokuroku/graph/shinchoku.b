@@ -35,7 +35,7 @@ verb(
   {
     kind: :stream,
     shape: "watch(target, f, opts) -> nil",
-    laterals: ["cancel", "time"],
+    laterals: %w[cancel time],
     fleet: "shinchoku",
     today: "partial:shinchoku",
     meaning: "sample a reconciler until it settles or stalls",

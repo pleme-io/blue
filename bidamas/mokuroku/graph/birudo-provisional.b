@@ -6,7 +6,7 @@ verb(
   {
     kind: :effect,
     shape: "bench(project, opts) -> [measure]",
-    laterals: ["process", "time"],
+    laterals: %w[process time],
     fleet: nil,
     today: "absent",
     meaning: "timed runs of marked workloads",
@@ -21,7 +21,7 @@ verb(
   {
     kind: :effect,
     shape: "build(project, targets, opts) -> [artifact]",
-    laterals: ["cache", "deadline", "error", "process"],
+    laterals: %w[cache deadline error process],
     fleet: nil,
     today: "partial:hyouka",
     meaning: "produce artifacts from sources",
@@ -36,7 +36,7 @@ verb(
   {
     kind: :effect,
     shape: "check(project, opts) -> [diagnostic]",
-    laterals: ["process", "validate"],
+    laterals: %w[process validate],
     fleet: nil,
     today: "rust:blue-lang-cli",
     meaning: "type and rule check without producing outputs",
@@ -51,7 +51,7 @@ verb(
   {
     kind: :effect,
     shape: "clean(project, opts) -> {freed:}",
-    laterals: ["idempotent", "resource"],
+    laterals: %w[idempotent resource],
     fleet: "souji",
     today: "partial:souji",
     meaning: "remove build outputs",
@@ -142,7 +142,7 @@ verb(
   {
     kind: :pure,
     shape: "plan(project, targets, opts) -> [step]",
-    laterals: ["cache", "validate"],
+    laterals: %w[cache validate],
     fleet: nil,
     today: "partial:hyouka",
     meaning: "steps and cache hits a build would take",
@@ -172,7 +172,7 @@ verb(
   {
     kind: :effect,
     shape: "reproduce(artifact, opts) -> Bool",
-    laterals: ["process", "validate"],
+    laterals: %w[process validate],
     fleet: nil,
     today: "absent",
     meaning: "rebuild and compare hashes bit for bit",
@@ -187,7 +187,7 @@ verb(
   {
     kind: :effect,
     shape: "restore(key) -> outputs or nil",
-    laterals: ["cache", "retry"],
+    laterals: %w[cache retry],
     fleet: nil,
     today: "absent",
     meaning: "fetch a step's outputs from the cache",
@@ -202,7 +202,7 @@ verb(
   {
     kind: :effect,
     shape: "run(step, opts) -> result",
-    laterals: ["capability", "process"],
+    laterals: %w[capability process],
     fleet: nil,
     today: "absent",
     meaning: "one step in a sandbox with declared inputs only",
@@ -217,7 +217,7 @@ verb(
   {
     kind: :effect,
     shape: "save(key, outputs) -> nil",
-    laterals: ["cache", "idempotent"],
+    laterals: %w[cache idempotent],
     fleet: nil,
     today: "absent",
     meaning: "store a step's outputs under its key",
@@ -262,7 +262,7 @@ verb(
   {
     kind: :effect,
     shape: "test(project, opts) -> report",
-    laterals: ["deadline", "process", "test"],
+    laterals: %w[deadline process test],
     fleet: nil,
     today: "rust:blue-lang-cli",
     meaning: "run the project tests and return a report",
@@ -277,7 +277,7 @@ verb(
   {
     kind: :effect,
     shape: "toolchain(spec) -> toolchain",
-    laterals: ["cache", "process"],
+    laterals: %w[cache process],
     fleet: nil,
     today: "absent",
     meaning: "the compiler and tools a build is pinned to",
@@ -292,7 +292,7 @@ verb(
   {
     kind: :stream,
     shape: "watch(project, f, opts) -> nil",
-    laterals: ["cancel", "process"],
+    laterals: %w[cancel process],
     fleet: nil,
     today: "absent",
     meaning: "rebuild when inputs change",

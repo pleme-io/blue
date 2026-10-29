@@ -21,7 +21,7 @@ verb(
   {
     kind: :effect,
     shape: "bisect(repo, good, bad, f) -> commit",
-    laterals: ["error", "process"],
+    laterals: %w[error process],
     fleet: nil,
     today: "absent",
     meaning: "first commit where a test fails",
@@ -36,7 +36,7 @@ verb(
   {
     kind: :effect,
     shape: "blame(repo, path, {at:}) -> [line record]",
-    laterals: ["error", "process"],
+    laterals: %w[error process],
     fleet: nil,
     today: "absent",
     meaning: "who last changed each line",
@@ -66,7 +66,7 @@ verb(
   {
     kind: :effect,
     shape: "clone(url, dir, opts) -> repo",
-    laterals: ["deadline", "error", "process", "resource", "retry"],
+    laterals: %w[deadline error process resource retry],
     fleet: nil,
     today: "exists",
     meaning: "copy a remote repository",
@@ -81,7 +81,7 @@ verb(
   {
     kind: :effect,
     shape: "commit(repo, message, opts) -> commit",
-    laterals: ["error", "idempotent", "process"],
+    laterals: %w[error idempotent process],
     fleet: nil,
     today: "exists",
     meaning: "record staged paths as a commit",
@@ -111,7 +111,7 @@ verb(
   {
     kind: :effect,
     shape: "create(repo, key, value, opts) -> value",
-    laterals: ["error", "idempotent", "process"],
+    laterals: %w[error idempotent process],
     fleet: nil,
     today: "exists",
     meaning: "make a branch or tag that must not exist",
@@ -126,7 +126,7 @@ verb(
   {
     kind: :effect,
     shape: "delete(repo, key) -> nil",
-    laterals: ["error", "idempotent", "process"],
+    laterals: %w[error idempotent process],
     fleet: nil,
     today: "exists",
     meaning: "remove a branch or tag, absent counts done",
@@ -156,7 +156,7 @@ verb(
   {
     kind: :effect,
     shape: "diff(repo, a, b, opts) -> [change]",
-    laterals: ["error", "process"],
+    laterals: %w[error process],
     fleet: nil,
     today: "exists",
     meaning: "changes between two refs",
@@ -188,7 +188,7 @@ verb(
   {
     kind: :effect,
     shape: "fetch(repo, opts) -> nil",
-    laterals: ["deadline", "error", "process", "retry"],
+    laterals: %w[deadline error process retry],
     fleet: nil,
     today: "exists",
     meaning: "update remote refs without touching the tree",
@@ -203,7 +203,7 @@ verb(
   {
     kind: :effect,
     shape: "get(repo, ref, opts) -> commit or nil",
-    laterals: ["error", "process"],
+    laterals: %w[error process],
     fleet: nil,
     today: "exists:gitto",
     wave: 0,
@@ -217,7 +217,7 @@ verb(
   {
     kind: :effect,
     shape: "graft(repo, ref) -> commit",
-    laterals: ["error", "process"],
+    laterals: %w[error process],
     fleet: nil,
     today: "absent",
     meaning: "apply one commit onto the current branch",
@@ -232,7 +232,7 @@ verb(
   {
     kind: :decl,
     shape: "hook(event, step) -> hook",
-    laterals: ["switch", "test"],
+    laterals: %w[switch test],
     fleet: "blue",
     today: "absent",
     meaning: "declare a step git runs before commit or push",
@@ -262,7 +262,7 @@ verb(
   {
     kind: :effect,
     shape: "info(repo) -> record",
-    laterals: ["error", "process"],
+    laterals: %w[error process],
     fleet: nil,
     today: "exists",
     meaning: "branch, head, ahead, behind, changes",
@@ -277,7 +277,7 @@ verb(
   {
     kind: :effect,
     shape: "list(repo, opts) -> [record]",
-    laterals: ["error", "process"],
+    laterals: %w[error process],
     fleet: nil,
     today: "exists:gitto",
     wave: 0,
@@ -291,7 +291,7 @@ verb(
   {
     kind: :effect,
     shape: "merge(repo, ref, opts) -> commit",
-    laterals: ["error", "process"],
+    laterals: %w[error process],
     fleet: nil,
     today: "exists",
     meaning: "fast-forward only by default",
@@ -351,7 +351,7 @@ verb(
   {
     kind: :effect,
     shape: "push(repo, opts) -> nil",
-    laterals: ["error", "process", "retry"],
+    laterals: %w[error process retry],
     fleet: nil,
     today: "exists",
     meaning: "publish refs, rebase or refuse, never force",
@@ -366,7 +366,7 @@ verb(
   {
     kind: :effect,
     shape: "read(repo, path, {at:}) -> bytes",
-    laterals: ["error", "process"],
+    laterals: %w[error process],
     fleet: nil,
     today: "exists",
     meaning: "a file's content at a ref",
@@ -382,7 +382,7 @@ verb(
   {
     kind: :effect,
     shape: "rebase(repo, onto, opts) -> nil",
-    laterals: ["error", "process"],
+    laterals: %w[error process],
     fleet: nil,
     today: "absent",
     meaning: "replay local commits on a new base; refuse on conflict",
@@ -397,7 +397,7 @@ verb(
   {
     kind: :effect,
     shape: "revert(repo, ref) -> commit",
-    laterals: ["error", "process"],
+    laterals: %w[error process],
     fleet: nil,
     today: "absent",
     meaning: "a commit that undoes another",
@@ -443,7 +443,7 @@ verb(
   {
     kind: :effect,
     shape: "worktree(repo, branch, dir) -> repo",
-    laterals: ["error", "process", "resource"],
+    laterals: %w[error process resource],
     fleet: "tend",
     today: "absent",
     meaning: "a second checkout of one repository",

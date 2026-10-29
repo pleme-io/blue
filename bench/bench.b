@@ -32,8 +32,8 @@ def workloads()
     ["fib", nil],
     ["pipeline", nil],
     ["strbuild", nil],
-    ["json_sum", "records.json"],
-    ["wordfreq", "words.txt"],
+    %w[json_sum records.json],
+    %w[wordfreq words.txt],
     ["spawn", nil]
   ]
 end
@@ -117,7 +117,7 @@ def copy_workloads(src, work, names)
             read_file(path_join(src, "#{n}.#{ext}"))
           )
         end,
-        ["b", "py", "rb"]
+        %w[b py rb]
       )
     end,
     names

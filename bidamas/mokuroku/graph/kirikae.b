@@ -6,7 +6,7 @@ verb(
   {
     kind: :pure,
     shape: "decide(desired, current, history, now, policy) -> verdict",
-    laterals: ["retry", "switch"],
+    laterals: %w[retry switch],
     fleet: "kirikae",
     today: "exists:kirikae",
     wave: 0,
@@ -21,7 +21,7 @@ verb(
   {
     kind: :pure,
     shape: "hold(key, history, now, policy) -> record or nil",
-    laterals: ["retry", "time"],
+    laterals: %w[retry time],
     fleet: "kirikae",
     today: "partial:kirikae",
     meaning: "back-off window after repeated failure",
@@ -51,7 +51,7 @@ verb(
   {
     kind: :pure,
     shape: "plan(flake, host, opts) -> action",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: "kirikae",
     today: "exists:kirikae",
     wave: 0,
@@ -65,7 +65,7 @@ verb(
   {
     kind: :effect,
     shape: "record(path, entry) -> nil",
-    laterals: ["idempotent", "serialize"],
+    laterals: %w[idempotent serialize],
     fleet: "kirikae",
     today: "exists:kirikae",
     wave: 0,
@@ -79,7 +79,7 @@ verb(
   {
     kind: :effect,
     shape: "rollback(host, {to:}) -> outcome",
-    laterals: ["error", "process", "switch"],
+    laterals: %w[error process switch],
     fleet: nil,
     today: "absent",
     meaning: "activate an earlier generation",
@@ -95,7 +95,7 @@ verb(
   {
     kind: :effect,
     shape: "run(plan, opts) -> outcome",
-    laterals: ["error", "log", "process", "switch"],
+    laterals: %w[error log process switch],
     fleet: "kirikae",
     today: "exists:kirikae",
     wave: 0,
@@ -109,7 +109,7 @@ verb(
   {
     kind: :effect,
     shape: "verify(desired, opts) -> Bool",
-    laterals: ["switch", "validate"],
+    laterals: %w[switch validate],
     fleet: "kirikae",
     today: "partial:kirikae",
     meaning: "current system resolves to the one built",

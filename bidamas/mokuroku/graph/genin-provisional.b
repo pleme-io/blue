@@ -6,7 +6,7 @@ verb(
   {
     kind: :effect,
     shape: "attach(target, opts) -> session",
-    laterals: ["capability", "resource"],
+    laterals: %w[capability resource],
     fleet: nil,
     today: "absent",
     meaning: "connect a debugger to a running process",
@@ -66,7 +66,7 @@ verb(
   {
     kind: :effect,
     shape: "diagnose(subject, opts) -> [finding]",
-    laterals: ["log", "trace"],
+    laterals: %w[log trace],
     fleet: nil,
     today: "absent",
     meaning: "collect evidence about a failing subject and rank causes",
@@ -81,7 +81,7 @@ verb(
   {
     kind: :effect,
     shape: "dump(process, opts) -> core",
-    laterals: ["capability", "resource"],
+    laterals: %w[capability resource],
     fleet: nil,
     today: "absent",
     meaning: "write the memory and state of a process to a file",
@@ -172,7 +172,7 @@ verb(
   {
     kind: :effect,
     shape: "reproduce(report, opts) -> recipe",
-    laterals: ["process", "test"],
+    laterals: %w[process test],
     fleet: nil,
     today: "absent",
     meaning: "build a command list that triggers the reported failure",
@@ -232,7 +232,7 @@ verb(
   {
     kind: :effect,
     shape: "stuck(process) -> [wait]",
-    laterals: ["deadline", "process"],
+    laterals: %w[deadline process],
     fleet: nil,
     today: "absent",
     meaning: "what a hung process waits on, as a chain",
@@ -262,7 +262,7 @@ verb(
   {
     kind: :effect,
     shape: "tape(f, opts) -> trace",
-    laterals: ["resource", "trace"],
+    laterals: %w[resource trace],
     fleet: nil,
     today: "rust:blue-lang-proc",
     meaning: "run f and keep the host reads needed to replay it",

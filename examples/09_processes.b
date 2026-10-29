@@ -3,8 +3,8 @@
 # exec_capture runs a command with no shell and answers its status, stdout and
 # stderr as pairs; shisutemu reads them. exec_check answers only the status.
 # To run blue itself, spawn self_exe: a nix sandbox has no blue on PATH.
-use("moji", [:is_blank, :trim])
-use("shisutemu", [:status_of, :stderr_of, :stdout_of])
+use("moji", %i[is_blank trim])
+use("shisutemu", %i[status_of stderr_of stdout_of])
 
 def blue_version()
   cap = exec_capture(self_exe, "--version")

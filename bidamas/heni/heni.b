@@ -30,11 +30,11 @@ survives, is refused, or is blind (its tests could not be started).
 
 use("deeta", [:get_str])
 use("hikisuu")
-use("moji", [:occurrences, :replace_first, :strip_prefix])
+use("moji", %i[occurrences replace_first strip_prefix])
 
-use("retsu", [:count_where, :enumerate, :is_empty, :last])
+use("retsu", %i[count_where enumerate is_empty last])
 
-use("shisutemu", [:read_or, :status_of])
+use("shisutemu", %i[read_or status_of])
 
 legacy_names("0.1.1", "hn")
 
@@ -344,7 +344,7 @@ test "the verdicts: refused, survived, caught"
 end
 
 test "arguments"
-  a = hikisuu::parse(["/p/kazu", "m.json", "--blue", "/bin/blue"], cli)
+  a = hikisuu::parse(%w[/p/kazu m.json --blue /bin/blue], cli)
   assert a[:package] == "/p/kazu"
   assert a[:blue] == "/bin/blue"
   assert a[:test].nil?
@@ -357,7 +357,7 @@ test "arguments"
     end
   end
   assert refused(["/p"]) == "missing MUTATIONS_FILE"
-  assert refused(["/p", "m", "--nope"]) == "unknown flag --nope"
+  assert refused(%w[/p m --nope]) == "unknown flag --nope"
   assert package_name("/a/b/kazu/") == "kazu"
 end
 
@@ -421,7 +421,7 @@ def end_to_end()
   ]
   r = run({package: pkg, mutations: muts, blue: self_exe, test: nil, tmp:})
   assert r[:control] == 0
-  assert map((x) -> x[:verdict], r[:results]) == [:caught, :survived, :refused]
+  assert map((x) -> x[:verdict], r[:results]) == %i[caught survived refused]
   assert ok?(r) == false
   assert contains?(
     report_text(r),

@@ -150,7 +150,7 @@ verb(
   {
     kind: :pure,
     shape: "matrix(rows) -> matrix",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: nil,
     today: "partial:gyouretsu",
     meaning: "build a matrix from rows of numbers",
@@ -252,7 +252,7 @@ verb(
   {
     kind: :effect,
     shape: "run(compiled, inputs) -> tensors",
-    laterals: ["deadline", "resource"],
+    laterals: %w[deadline resource],
     fleet: "ml-forge",
     today: "absent",
     meaning: "run a compiled graph on CPU or GPU",

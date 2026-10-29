@@ -21,7 +21,7 @@ verb(
   {
     kind: :effect,
     shape: "freeze(name, reason) -> nil",
-    laterals: ["capability", "idempotent", "log"],
+    laterals: %w[capability idempotent log],
     fleet: nil,
     today: "absent",
     meaning: "stop changes to an environment",
@@ -97,7 +97,7 @@ verb(
   {
     kind: :effect,
     shape: "promote(change, from, to) -> change",
-    laterals: ["log", "switch"],
+    laterals: %w[log switch],
     fleet: nil,
     today: "absent",
     meaning: "carry a pinned change to the next environment",
@@ -113,7 +113,7 @@ verb(
   {
     kind: :pure,
     shape: "resolve(spec, environment) -> record",
-    laterals: ["config", "validate"],
+    laterals: %w[config validate],
     fleet: nil,
     today: "absent",
     meaning: "a spec with this environment's overlay applied",

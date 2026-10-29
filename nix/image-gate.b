@@ -1,4 +1,4 @@
-use("retsu", [:concat_lists, :flat_map])
+use("retsu", %i[concat_lists flat_map])
 
 # The distroless gate for an image a Bluefile declares (nix/project.nix).
 #
@@ -12,7 +12,7 @@ use("retsu", [:concat_lists, :flat_map])
 # list fails rather than passing over nothing.
 
 def shells()
-  ["bin/sh", "bin/bash", "bin/dash", "bin/ash", "bin/zsh", "bin/busybox"]
+  %w[bin/sh bin/bash bin/dash bin/ash bin/zsh bin/busybox]
 end
 
 def closure(file)

@@ -49,7 +49,7 @@ verb(
   {
     kind: :effect,
     shape: "run(package, opts) -> report",
-    laterals: ["process", "test"],
+    laterals: %w[process test],
     fleet: nil,
     today: "exists:heni",
     wave: 0,

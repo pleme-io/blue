@@ -29,7 +29,7 @@ each renderer arm sits beside the constructor it reads.
     parts(choice([])) #=> []
 """
 
-use("retsu", [:concat_lists, :contains, :first, :flat_map, :is_empty, :last])
+use("retsu", %i[concat_lists contains first flat_map is_empty last])
 
 # ── the vocabulary ─────────────────────────────────────────────────────────
 
@@ -659,8 +659,8 @@ end
 
 def infix_rows()
   [
-    {op: "or", aliases: ["||", "∨"], power: [1, 2], callee: "or"},
-    {op: "and", aliases: ["&&", "∧"], power: [3, 4], callee: "and"},
+    {op: "or", aliases: %w[|| ∨], power: [1, 2], callee: "or"},
+    {op: "and", aliases: %w[&& ∧], power: [3, 4], callee: "and"},
     {op: "==", aliases: ["≡"], power: [5, 6], callee: "equal?"},
     {op: "!=", aliases: ["≠"], power: [5, 6], callee: "not="},
     {op: "<", aliases: [], power: [5, 6], callee: "<"},
@@ -681,13 +681,8 @@ infix row, so it is a postfix chain, never a binary.
 """
 def unary_rows()
   [
-    {
-      op: "-",
-      aliases: ["−"],
-      power: 11,
-      head: ["seq", ["sym", "-"], ["int", 0]]
-    },
-    {op: "not", aliases: ["!", "¬"], power: 11, head: ["sym", "not"]}
+    {op: "-", aliases: ["−"], power: 11, head: ["seq", %w[sym -], ["int", 0]]},
+    {op: "not", aliases: %w[! ¬], power: 11, head: %w[sym not]}
   ]
 end
 
@@ -795,7 +790,7 @@ def nil_or(f)
 end
 
 def rescued()
-  ["sym", "rescued-error"]
+  %w[sym rescued-error]
 end
 
 def bound_to_rescued(handler)
@@ -804,8 +799,8 @@ def bound_to_rescued(handler)
     [["binder"]],
     [
       "list",
-      ["sym", "let"],
-      ["list", ["list", ["field", "binder"], rescued]],
+      %w[sym let],
+      ["list", ["list", %w[field binder], rescued]],
       handler
     ],
     handler
@@ -815,44 +810,39 @@ end
 def rescue_lowering()
   kind_clause = [
     "list",
-    [
-      "list",
-      ["sym", "blue-rescues?"],
-      rescued,
-      ["each", ["kind"], ["keyword"]]
-    ],
+    ["list", %w[sym blue-rescues?], rescued, ["each", ["kind"], ["keyword"]]],
     bound_to_rescued(nil_or("body"))
   ]
   otherwise = [
     "if_any",
     [["otherwise"]],
     ["each", ["otherwise"], bound_to_rescued(nil_or("body"))],
-    ["list", ["sym", "blue-reraise"], rescued]
+    ["list", %w[sym blue-reraise], rescued]
   ]
   by_kind = [
     "list",
-    ["sym", "try"],
+    %w[sym try],
     nil_or("body"),
     [
       "list",
-      ["sym", "catch"],
+      %w[sym catch],
       ["list", rescued],
       [
         "list",
-        ["sym", "cond"],
+        %w[sym cond],
         ["each", ["clause"], kind_clause],
-        ["list", ["sym", "else"], otherwise]
+        ["list", %w[sym else], otherwise]
       ]
     ]
   ]
   catch_all = [
     "list",
-    ["sym", "try"],
+    %w[sym try],
     nil_or("body"),
     [
       "list",
-      ["sym", "catch"],
-      ["list", ["each", ["otherwise", "binder"], ["symbol"]]],
+      %w[sym catch],
+      ["list", ["each", %w[otherwise binder], ["symbol"]]],
       ["each", ["otherwise"], nil_or("body")]
     ]
   ]
@@ -867,24 +857,19 @@ def rescue_lowering()
     [["ensure"]],
     [
       "list",
-      ["sym", "blue-ensure"],
+      %w[sym blue-ensure],
       [
         "list",
-        ["sym", "try"],
-        ["list", ["sym", "blue-attempted"], protected],
+        %w[sym try],
+        ["list", %w[sym blue-attempted], protected],
         [
           "list",
-          ["sym", "catch"],
+          %w[sym catch],
           ["list", rescued],
-          ["list", ["sym", "blue-failed"], rescued]
+          ["list", %w[sym blue-failed], rescued]
         ]
       ],
-      [
-        "list",
-        ["sym", "lambda"],
-        ["list"],
-        ["each", ["ensure"], nil_or("body")]
-      ]
+      ["list", %w[sym lambda], ["list"], ["each", ["ensure"], nil_or("body")]]
     ],
     protected
   ]
@@ -926,18 +911,12 @@ def ended_lines(stmt)
 end
 
 def if_lowering(condition)
-  [
-    "list",
-    ["sym", "if"],
-    condition,
-    nil_or("consequence"),
-    ["field?", "alternative"]
-  ]
+  ["list", %w[sym if], condition, nil_or("consequence"), %w[field? alternative]]
 end
 
 def blue()
   aliases = filter(
-    (a) -> not member?(a, ["||", "&&", "!"]),
+    (a) -> not member?(a, %w[|| && !]),
     flat_map(concat_lists(infix_rows, unary_rows), (r) -> r[:aliases])
   )
   ident = ident_pattern(aliases)
@@ -949,92 +928,82 @@ def blue()
     name: "blue",
     camelcase: "Blue",
     scope: "source.blue",
-    file_types: ["b", "Bluefile"],
+    file_types: %w[b Bluefile],
     version: "0.1.0",
     description: "blue, emitted from its one grammar spec (kiwari)",
     repository: "https://github.com/pleme-io/blue",
     word: "identifier",
     extras: [pat("[ \\t\\r]"), ref("comment"), ref("moduledoc")],
     conflicts: [
-      ["_primary", "_arrow_parameters"],
-      ["_arrow_parameters", "_plain_parameters"],
-      ["_arrow_parameters", "parameters"],
-      ["pun_pair", "pair"],
-      ["string", "_plain_string"]
+      %w[_primary _arrow_parameters],
+      %w[_arrow_parameters _plain_parameters],
+      %w[_arrow_parameters parameters],
+      %w[pun_pair pair],
+      %w[string _plain_string]
     ],
     infix: infix_rows,
     unary: unary_rows,
     pipe:,
     reserved: {
-      surface: [
-        "if",
-        "begin",
-        "unless",
-        "def",
-        "defmacro",
-        "quote",
-        "unquote",
-        "unquote_splice",
-        "test",
-        "assert",
-        "fn",
-        "case"
+      surface: %w[
+        if
+        begin
+        unless
+        def
+        defmacro
+        quote
+        unquote
+        unquote_splice
+        test
+        assert
+        fn
+        case
       ],
-      block: [
-        "do",
-        "end",
-        "else",
-        "elsif",
-        "rescue",
-        "ensure",
-        "true",
-        "false",
-        "nil"
-      ]
+      block: %w[do end else elsif rescue ensure true false nil]
     },
     closers: ["end", ")", "]", "}"],
     keywords_painted: [
-      ["if", "keyword.conditional"],
-      ["unless", "keyword.conditional"],
-      ["elsif", "keyword.conditional"],
-      ["else", "keyword.conditional"],
-      ["case", "keyword.conditional"],
-      ["when", "keyword.conditional"],
-      ["def", "keyword.function"],
-      ["defmacro", "keyword.function"],
-      ["fn", "keyword.function"],
-      ["end", "keyword"],
-      ["test", "keyword"],
-      ["assert", "keyword"],
-      ["quote", "keyword"],
-      ["unquote", "keyword"],
-      ["unquote_splice", "keyword"],
-      ["begin", "keyword.exception"],
-      ["rescue", "keyword.exception"],
-      ["ensure", "keyword.exception"],
-      ["as", "keyword.exception"],
-      ["and", "keyword.operator"],
-      ["or", "keyword.operator"],
-      ["not", "keyword.operator"],
+      %w[if keyword.conditional],
+      %w[unless keyword.conditional],
+      %w[elsif keyword.conditional],
+      %w[else keyword.conditional],
+      %w[case keyword.conditional],
+      %w[when keyword.conditional],
+      %w[def keyword.function],
+      %w[defmacro keyword.function],
+      %w[fn keyword.function],
+      %w[end keyword],
+      %w[test keyword],
+      %w[assert keyword],
+      %w[quote keyword],
+      %w[unquote keyword],
+      %w[unquote_splice keyword],
+      %w[begin keyword.exception],
+      %w[rescue keyword.exception],
+      %w[ensure keyword.exception],
+      %w[as keyword.exception],
+      %w[and keyword.operator],
+      %w[or keyword.operator],
+      %w[not keyword.operator],
       ["true", ""],
       ["false", ""],
       ["nil", ""]
     ],
     punctuation: [
-      ["(", "punctuation.bracket"],
-      [")", "punctuation.bracket"],
+      %w[( punctuation.bracket],
+      %w[) punctuation.bracket],
       ["[", "punctuation.bracket"],
       ["]", "punctuation.bracket"],
-      ["{", "punctuation.bracket"],
-      ["}", "punctuation.bracket"],
+      %w[{ punctuation.bracket],
+      %w[} punctuation.bracket],
       [",", "punctuation.delimiter"],
-      [".", "punctuation.delimiter"],
-      ["::", "punctuation.delimiter"],
+      %w[. punctuation.delimiter],
+      %w[:: punctuation.delimiter],
       [concat("#", "{"), "punctuation.special"],
-      ["=", "operator"],
-      ["=>", "operator"],
-      ["**", "operator"],
-      ["->", "operator"],
+      %w[= operator],
+      %w[=> operator],
+      %w[** operator],
+      %w[-> operator],
       [":", ""],
       ["#", ""],
       ["\"", ""],
@@ -1095,7 +1064,7 @@ def blue()
             )
           ]
         ),
-        ["field", "definition"]
+        %w[field definition]
       ),
       # `x = v` is a statement, never an expression (parse.rs `statement`).
       rule(
@@ -1108,7 +1077,7 @@ def blue()
             field("value", ref("_expression"))
           ]
         ),
-        ["list", ["sym", "define"], ["field", "name"], ["field", "value"]]
+        ["list", %w[sym define], %w[field name], %w[field value]]
       ),
       rule(
         "_expression",
@@ -1137,9 +1106,9 @@ def blue()
         ),
         [
           "list",
-          ["sym", "try"],
-          ["field", "left"],
-          ["list", ["sym", "catch"], ["list", ["sym", "_"]], ["field", "right"]]
+          %w[sym try],
+          %w[field left],
+          ["list", %w[sym catch], ["list", %w[sym _]], %w[field right]]
         ]
       ),
       rule("_operand", choice([ref("unary_expression"), ref("_postfix")]), nil),
@@ -1183,8 +1152,8 @@ def blue()
         [
           "if_any",
           [["key"]],
-          ["list", ["sym", "get"], ["field", "object"], ["field", "key"]],
-          ["list", ["sym", "nth"], ["field", "position"], ["field", "object"]]
+          ["list", %w[sym get], %w[field object], %w[field key]],
+          ["list", %w[sym nth], %w[field position], %w[field object]]
         ]
       ),
       rule(
@@ -1192,32 +1161,32 @@ def blue()
         choice(
           map(
             ref,
-            [
-              "integer",
-              "float",
-              "string",
-              "symbol",
-              "true",
-              "false",
-              "nil",
-              "identifier",
-              "qualified_name",
-              "list",
-              "map",
-              "parenthesized_expression",
-              "if",
-              "begin",
-              "unless",
-              "def",
-              "defmacro",
-              "case",
-              "lambda",
-              "arrow_lambda",
-              "test",
-              "assert",
-              "quote",
-              "unquote",
-              "unquote_splice"
+            %w[
+              integer
+              float
+              string
+              symbol
+              true
+              false
+              nil
+              identifier
+              qualified_name
+              list
+              map
+              parenthesized_expression
+              if
+              begin
+              unless
+              def
+              defmacro
+              case
+              lambda
+              arrow_lambda
+              test
+              assert
+              quote
+              unquote
+              unquote_splice
             ]
           )
         ),
@@ -1226,7 +1195,7 @@ def blue()
       rule(
         "binary_expression",
         binary_rule(infix_rows),
-        ["list", ["callee", "operator"], ["field", "left"], ["field", "right"]]
+        ["list", %w[callee operator], %w[field left], %w[field right]]
       ),
       rule(
         "pipe_expression",
@@ -1241,7 +1210,7 @@ def blue()
             ]
           )
         ),
-        ["thread", "left", "right"]
+        %w[thread left right]
       ),
       # Below every infix row: after an expression header (`if a - b`) the
       # binary reading wins, as blue's greedy header does.
@@ -1259,7 +1228,7 @@ def blue()
             ]
           )
         ),
-        ["list", ["unary", "operator"], ["field", "operand"]]
+        ["list", %w[unary operator], %w[field operand]]
       ),
       rule(
         "call",
@@ -1270,7 +1239,7 @@ def blue()
               painted_as(
                 "function",
                 ref("_postfix"),
-                ["identifier", "qualified_name"],
+                %w[identifier qualified_name],
                 "function.call"
               ),
               field("arguments", ref("arguments"))
@@ -1279,14 +1248,9 @@ def blue()
         ),
         [
           "if_any",
-          [["arguments", "*", "list"]],
-          [
-            "list",
-            ["sym", "apply"],
-            ["field", "function"],
-            ["field?", "arguments"]
-          ],
-          ["list", ["field", "function"], ["field?", "arguments"]]
+          [%w[arguments * list]],
+          ["list", %w[sym apply], %w[field function], %w[field? arguments]],
+          ["list", %w[field function], %w[field? arguments]]
         ]
       ),
       rule(
@@ -1304,27 +1268,27 @@ def blue()
         ),
         [
           "if_any",
-          [["arguments", "*", "list"]],
+          [%w[arguments * list]],
           [
             "list",
-            ["sym", "apply"],
-            ["field", "method"],
-            ["field", "receiver"],
-            ["field?", "arguments"]
+            %w[sym apply],
+            %w[field method],
+            %w[field receiver],
+            %w[field? arguments]
           ],
           [
             "if_any",
             [["arguments"]],
             [
               "list",
-              ["field", "method"],
-              ["field", "receiver"],
-              ["field?", "arguments"]
+              %w[field method],
+              %w[field receiver],
+              %w[field? arguments]
             ],
             [
               "list",
-              ["sym", "blue-field"],
-              ["field", "receiver"],
+              %w[sym blue-field],
+              %w[field receiver],
               ["each", ["method"], ["keyword"]]
             ]
           ]
@@ -1363,7 +1327,7 @@ def blue()
       rule(
         "splat",
         seq([lit("*"), field("list", ref("_expression"))]),
-        ["field", "list"]
+        %w[field list]
       ),
       rule(
         "begin",
@@ -1432,12 +1396,12 @@ def blue()
         seq(
           [lit("("), nl, field("expression", ref("_expression")), nl, lit(")")]
         ),
-        ["field", "expression"]
+        %w[field expression]
       ),
       rule(
         "list",
         seq([lit("["), nl, comma_sep(ref("_expression")), lit("]")]),
-        ["list", ["sym", "list"], ["named"]]
+        ["list", %w[sym list], ["named"]]
       ),
       rule(
         "keyword_arguments",
@@ -1471,12 +1435,12 @@ def blue()
             )
           ]
         ),
-        ["list", ["sym", "blue-kwargs"], ["runs", "spread", "hash-map"]]
+        ["list", %w[sym blue-kwargs], %w[runs spread hash-map]]
       ),
       rule(
         "spread",
         seq([lit("**"), field("map", ref("_expression"))]),
-        ["list", ["sym", "blue-splice"], ["field", "map"]]
+        ["list", %w[sym blue-splice], %w[field map]]
       ),
       rule(
         "map",
@@ -1491,21 +1455,21 @@ def blue()
         [
           "if_any",
           [["spread"]],
-          ["list", ["sym", "blue-merge"], ["runs", "spread", "hash-map"]],
-          ["list", ["sym", "hash-map"], ["named"]]
+          ["list", %w[sym blue-merge], %w[runs spread hash-map]],
+          ["list", %w[sym hash-map], ["named"]]
         ]
       ),
       rule(
         "pun_pair",
         field("key", ref("label")),
-        ["seq", ["field", "key"], ["symbol_of", "key"]]
+        ["seq", %w[field key], %w[symbol_of key]]
       ),
       rule(
         "pair",
         seq(
           [field("key", ref("label")), nl, field("value", ref("_expression"))]
         ),
-        ["seq", ["field", "key"], ["field", "value"]]
+        ["seq", %w[field key], %w[field value]]
       ),
       rule(
         "rocket_pair",
@@ -1518,7 +1482,7 @@ def blue()
             field("value", ref("_expression"))
           ]
         ),
-        ["seq", ["field", "key"], ["field", "value"]]
+        ["seq", %w[field key], %w[field value]]
       ),
       # One token, so `{def: 1}` is a label although `def` is a keyword.
       with(
@@ -1553,7 +1517,7 @@ def blue()
             )
           ]
         ),
-        ["qualify", "package", "name"]
+        %w[qualify package name]
       ),
       with(rule("integer", pat("[0-9][0-9_]*"), ["lexeme"]), :role, "number"),
       with(
@@ -1598,7 +1562,7 @@ def blue()
               immediate(lit("\""))
             ]
           ),
-          ["interpolate", "concat", "interpolation"]
+          %w[interpolate concat interpolation]
         ),
         :role,
         "string"
@@ -1643,7 +1607,7 @@ def blue()
               lit("}")
             ]
           ),
-          ["field", "expression"]
+          %w[field expression]
         ),
         :role,
         "none"
@@ -1651,15 +1615,15 @@ def blue()
       rule(
         "if",
         seq(concat_lists(if_like("if")[:items], [lit("end")])),
-        if_lowering(["field", "condition"])
+        if_lowering(%w[field condition])
       ),
       rule(
         "unless",
         seq(concat_lists(if_like("unless")[:items], [lit("end")])),
-        if_lowering(["list", ["sym", "not"], ["field", "condition"]])
+        if_lowering(["list", %w[sym not], %w[field condition]])
       ),
       with(
-        rule("elsif", if_like("elsif"), if_lowering(["field", "condition"])),
+        rule("elsif", if_like("elsif"), if_lowering(%w[field condition])),
         :arm,
         true
       ),
@@ -1698,38 +1662,38 @@ def blue()
           ),
           [
             "if_any",
-            [["return_type"], ["parameters", "*", "type"]],
+            [["return_type"], %w[parameters * type]],
             [
               "list",
-              ["sym", "define-typed"],
+              %w[sym define-typed],
               [
                 "list",
-                ["field", "name"],
+                %w[field name],
                 [
                   "each_param",
-                  ["parameters", "*"],
+                  %w[parameters *],
                   [
                     "if_kind",
                     "identifier",
-                    ["list", ["param_symbol"], ["sym", "dyn"]],
+                    ["list", ["param_symbol"], %w[sym dyn]],
                     [
                       "list",
                       ["each", ["name"], ["param_symbol"]],
-                      ["field", "type"]
+                      %w[field type]
                     ]
                   ]
                 ]
               ],
-              ["field", "return_type", ["sym", "dyn"]],
+              ["field", "return_type", %w[sym dyn]],
               def_body
             ],
             [
               "list",
-              ["sym", "define"],
+              %w[sym define],
               [
                 "list",
-                ["field", "name"],
-                ["each_param", ["parameters", "*"], ["param_symbol"]]
+                %w[field name],
+                ["each_param", %w[parameters *], ["param_symbol"]]
               ],
               def_body
             ]
@@ -1790,8 +1754,8 @@ def blue()
         [
           "if_any",
           [["arguments"]],
-          ["list", ["field", "name"], ["field", "arguments"]],
-          ["field", "name"]
+          ["list", %w[field name], %w[field arguments]],
+          %w[field name]
         ]
       ),
       with(
@@ -1813,9 +1777,9 @@ def blue()
           ),
           [
             "list",
-            ["sym", "defmacro"],
-            ["field", "name"],
-            ["list", ["field?", "parameters"]],
+            %w[sym defmacro],
+            %w[field name],
+            ["list", %w[field? parameters]],
             nil_or("body")
           ]
         ),
@@ -1848,11 +1812,11 @@ def blue()
         ),
         [
           "list",
-          ["sym", "let"],
-          ["list", ["list", ["sym", "case-subject"], ["field", "subject"]]],
+          %w[sym let],
+          ["list", ["list", %w[sym case-subject], %w[field subject]]],
           [
             "list",
-            ["sym", "cond"],
+            %w[sym cond],
             [
               "each",
               ["arm"],
@@ -1860,14 +1824,14 @@ def blue()
                 "list",
                 [
                   "list",
-                  ["sym", "equal?"],
-                  ["sym", "case-subject"],
-                  ["field", "pattern"]
+                  %w[sym equal?],
+                  %w[sym case-subject],
+                  %w[field pattern]
                 ],
                 nil_or("body")
               ]
             ],
-            ["list", ["sym", "else"], ["field", "default", ["nil"]]]
+            ["list", %w[sym else], ["field", "default", ["nil"]]]
           ]
         ]
       ),
@@ -1905,8 +1869,8 @@ def blue()
           ),
           [
             "list",
-            ["sym", "lambda"],
-            ["list", ["field?", "parameters"]],
+            %w[sym lambda],
+            ["list", %w[field? parameters]],
             nil_or("body")
           ]
         ),
@@ -1932,9 +1896,9 @@ def blue()
           ),
           [
             "list",
-            ["sym", "lambda"],
-            ["list", ["field?", "parameters"]],
-            ["field", "body"]
+            %w[sym lambda],
+            ["list", %w[field? parameters]],
+            %w[field body]
           ]
         ),
         :scope,
@@ -1950,7 +1914,7 @@ def blue()
             lit("end")
           ]
         ),
-        ["list", ["sym", "deftest"], ["field", "name"], nil_or("body")]
+        ["list", %w[sym deftest], %w[field name], nil_or("body")]
       ),
       rule(
         "assert",
@@ -1960,9 +1924,9 @@ def blue()
         ),
         [
           "list",
-          ["sym", "blue-assert"],
-          ["quote", ["field", "expression"]],
-          ["field", "expression"]
+          %w[sym blue-assert],
+          ["quote", %w[field expression]],
+          %w[field expression]
         ]
       ),
       rule(
@@ -1982,7 +1946,7 @@ def blue()
             lit(")")
           ]
         ),
-        ["unquote", ["field", "expression"]]
+        ["unquote", %w[field expression]]
       ),
       rule(
         "unquote_splice",
@@ -1996,9 +1960,9 @@ def blue()
             lit(")")
           ]
         ),
-        ["unquote_splice", ["field", "expression"]]
+        ["unquote_splice", %w[field expression]]
       ),
-      rule("body", block(ref("_statement")), ["block", "begin"]),
+      rule("body", block(ref("_statement")), %w[block begin]),
       rule("_body_if", block(ref("_statement")), nil),
       rule("_body_when", block(ref("_statement")), nil),
       rule("_body_rescue", block(ref("_statement")), nil),
@@ -2054,17 +2018,17 @@ test "every visible rule of blue's lowers, but the parts its parent reads"
   g = blue
   parts = map((r) -> r[:name], filter((r) -> r[:lower].nil?, visible(g)))
   assert parts ==
-    [
-      "comment",
-      "moduledoc",
-      "doc",
-      "rescue_clause",
-      "rescue_all",
-      "ensure_clause",
-      "string_content",
-      "escape_sequence",
-      "typed_parameter",
-      "when"
+    %w[
+      comment
+      moduledoc
+      doc
+      rescue_clause
+      rescue_all
+      ensure_clause
+      string_content
+      escape_sequence
+      typed_parameter
+      when
     ]
 end
 
@@ -2118,7 +2082,7 @@ test "literals lists each literal the rules use once, in first-use order"
       rule("c", rep(field("f", prec_left(1, lit("w")))), nil)
     ]
   }
-  assert literals(g) == ["x", "y", "z", "w"]
+  assert literals(g) == %w[x y z w]
 end
 
 test "literals of a grammar with no rule, or only patterns and refs, is empty"
@@ -2135,7 +2099,7 @@ end
 
 test "a grammar with no pipe operator paints its literals without one"
   g = assoc(
-    tiny([rule("word", lit("x"), nil)], [["x", "punctuation"]]),
+    tiny([rule("word", lit("x"), nil)], [%w[x punctuation]]),
     :pipe,
     nil
   )

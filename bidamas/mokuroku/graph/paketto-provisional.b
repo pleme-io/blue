@@ -66,7 +66,7 @@ verb(
   {
     kind: :effect,
     shape: "fetch(pin, opts) -> bytes",
-    laterals: ["cache", "deadline", "retry", "validate"],
+    laterals: %w[cache deadline retry validate],
     fleet: "gen",
     today: "absent",
     meaning: "download one package and verify its hash",
@@ -81,7 +81,7 @@ verb(
   {
     kind: :effect,
     shape: "info(name, registry) -> record",
-    laterals: ["cache", "error"],
+    laterals: %w[cache error],
     fleet: nil,
     today: "absent",
     meaning: "versions, yanks and metadata of a package",
@@ -97,7 +97,7 @@ verb(
   {
     kind: :effect,
     shape: "install(lock, opts) -> nil",
-    laterals: ["cache", "idempotent", "process"],
+    laterals: %w[cache idempotent process],
     fleet: "gen",
     today: "absent",
     meaning: "place every locked package where the build reads it",
@@ -112,7 +112,7 @@ verb(
   {
     kind: :effect,
     shape: "lock(project, opts) -> [changed pin]",
-    laterals: ["idempotent", "serialize"],
+    laterals: %w[idempotent serialize],
     fleet: "gen",
     today: "rust:blue-lang-bidama",
     meaning: "write the lockfile from the manifest",
@@ -142,7 +142,7 @@ verb(
   {
     kind: :pure,
     shape: "parse(text, format) -> manifest",
-    laterals: ["serialize", "validate"],
+    laterals: %w[serialize validate],
     fleet: "gen",
     today: "absent",
     meaning: "a package manifest into a record",
@@ -157,7 +157,7 @@ verb(
   {
     kind: :effect,
     shape: "publish(package, registry, opts) -> record",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: nil,
     today: "absent",
     meaning: "upload a package version, immutable once up",
@@ -202,7 +202,7 @@ verb(
   {
     kind: :pure,
     shape: "resolve(manifest, index, opts) -> lock or conflict",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: "gen",
     today: "rust:blue-lang-bidama",
     meaning: "pick one version per package that satisfies all ranges",
@@ -217,7 +217,7 @@ verb(
   {
     kind: :effect,
     shape: "search(registry, query) -> [record]",
-    laterals: ["error", "ratelimit"],
+    laterals: %w[error ratelimit],
     fleet: nil,
     today: "absent",
     meaning: "packages matching a query",
@@ -292,7 +292,7 @@ verb(
   {
     kind: :effect,
     shape: "yank(name, version, registry) -> nil",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: nil,
     today: "absent",
     meaning: "mark a version unfit without deleting it",

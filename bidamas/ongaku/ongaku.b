@@ -8,23 +8,23 @@ thing to find in one. A pitch class is 0..11 with 0 = C.
     flat_count(2) #=> 0
 """
 
-use("kazu", [:abs, :floor_div, :max, :min, :near, :near_within, :sum])
+use("kazu", %i[abs floor_div max min near near_within sum])
 
 use(
   "retsu",
-  [
-    :all_but_last,
-    :contains,
-    :count_of,
-    :count_where,
-    :first,
-    :index_of,
-    :is_empty,
-    :last,
-    :push,
-    :repeat,
-    :rotate,
-    :size
+  %i[
+    all_but_last
+    contains
+    count_of
+    count_where
+    first
+    index_of
+    is_empty
+    last
+    push
+    repeat
+    rotate
+    size
   ]
 )
 
@@ -128,7 +128,7 @@ gives a scale with two D's and no C, which is wrong on paper even though it
 sounds identical. Both tables exist so `note_name_for_key` can choose.
 """
 def note_names_flat()
-  ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"]
+  %w[C Db D Eb E F Gb G Ab A Bb B]
 end
 
 def note_name_flat(pc)
@@ -323,7 +323,7 @@ def triad_shapes()
 end
 
 def triad_quality_names()
-  ["major", "minor", "diminished", "augmented", "sus2", "sus4"]
+  %w[major minor diminished augmented sus2 sus4]
 end
 
 def triad_quality(notes)
@@ -419,7 +419,7 @@ def major_steps()
 end
 
 def mode_names()
-  ["ionian", "dorian", "phrygian", "lydian", "mixolydian", "aeolian", "locrian"]
+  %w[ionian dorian phrygian lydian mixolydian aeolian locrian]
 end
 
 def mode_steps(name)
@@ -695,7 +695,7 @@ shortcut.
     sharps_in_order #=> ["F", "C", "G", "D", "A", "E", "B"]
 """
 def sharps_in_order()
-  ["F", "C", "G", "D", "A", "E", "B"]
+  %w[F C G D A E B]
 end
 
 def flats_in_order()
@@ -809,7 +809,7 @@ end
 
 test "C major has no sharps, which is the thing everyone knows"
   named = map(note_name, take(7, major_scale(0)))
-  assert named == ["C", "D", "E", "F", "G", "A", "B"]
+  assert named == %w[C D E F G A B]
 end
 
 test "minor differs from major exactly at the third"
@@ -998,7 +998,7 @@ test "transposition is additive and reversible"
   assert transpose_all(major_triad(0), 7) == major_triad(7)
   assert transpose_all(transpose_all(major_scale(3), 5), -5) == major_scale(3)
   assert transpose_all(major_scale(0), 12) == major_scale(0)
-  assert note_names_of([0, 4, 7]) == ["C", "E", "G"]
+  assert note_names_of([0, 4, 7]) == %w[C E G]
 end
 
 test "the four triad qualities are exactly the four ways to stack two thirds"
@@ -1066,7 +1066,7 @@ test "the qualities of a major key are not chosen, they fall out"
   # scale by stacking thirds. A hardcoded quality table would also pass this;
   # nothing in the implementation has one.
   assert scale_triad_qualities(major_scale(0)) ==
-    ["major", "minor", "minor", "major", "major", "minor", "diminished"]
+    %w[major minor minor major major minor diminished]
   assert scale_seventh_qualities(major_scale(0)) ==
     [
       "major seventh",
@@ -1175,18 +1175,18 @@ test "the accidental count is derivable from the notes, not just from the table"
 end
 
 test "accidentals come in a fixed order, and flats reverse the sharps"
-  assert sharps_in_order == ["F", "C", "G", "D", "A", "E", "B"]
-  assert flats_in_order == ["B", "E", "A", "D", "G", "C", "F"]
+  assert sharps_in_order == %w[F C G D A E B]
+  assert flats_in_order == %w[B E A D G C F]
   assert key_accidentals(0) == []
   assert key_accidentals(7) == ["F"]
-  assert key_accidentals(2) == ["F", "C"]
+  assert key_accidentals(2) == %w[F C]
   assert key_accidentals(5) == ["B"]
-  assert key_accidentals(10) == ["B", "E"]
+  assert key_accidentals(10) == %w[B E]
   # The named accidentals must be the letters that actually change in the key.
   assert size(key_accidentals(11)) == 5
   assert key_note_names(7) == ["G", "A", "B", "C", "D", "E", "F#"]
-  assert key_note_names(5) == ["F", "G", "A", "Bb", "C", "D", "E"]
-  assert key_note_names(1) == ["Db", "Eb", "F", "Gb", "Ab", "Bb", "C"]
+  assert key_note_names(5) == %w[F G A Bb C D E]
+  assert key_note_names(1) == %w[Db Eb F Gb Ab Bb C]
   # The documented limit: F# major's seventh degree should be written E#, and a
   # pitch class cannot carry the letter that would say so.
   assert last(key_note_names(6)) == "F"

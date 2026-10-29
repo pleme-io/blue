@@ -1,54 +1,38 @@
-use("deeta", [:get_int, :get_str])
+use("deeta", %i[get_int get_str])
 
 use(
   "gamen",
-  [
-    :color_default,
-    :duration_text,
-    :show,
-    :show_step,
-    :step,
-    :styled,
-    :terminal?
-  ]
+  %i[color_default duration_text show show_step step styled terminal?]
 )
 
 use(
   "hyouka",
-  [
-    :first_out,
-    :installable,
-    :plan_build,
-    :resolve,
-    :store_hash,
-    :store_name,
-    :store_path?
-  ]
+  %i[first_out installable plan_build resolve store_hash store_name store_path?]
 )
 
-use("kyohi", [:ok?, :refusal_of, :value])
+use("kyohi", %i[ok? refusal_of value])
 
-use("moji", [:drop_chars, :includes, :lines, :take_chars, :trim])
+use("moji", %i[drop_chars includes lines take_chars trim])
 
 use(
   "retsu",
-  [
-    :concat_lists,
-    :drop_n,
-    :drop_while,
-    :first,
-    :index_of,
-    :is_empty,
-    :last,
-    :rest,
-    :size,
-    :take_n
+  %i[
+    concat_lists
+    drop_n
+    drop_while
+    first
+    index_of
+    is_empty
+    last
+    rest
+    size
+    take_n
   ]
 )
 
 use("settei")
 
-use("shisutemu", [:read_or, :stdout_of, :strip_ansi])
+use("shisutemu", %i[read_or stdout_of strip_ansi])
 
 def attr_for(kind, host)
   if kind == "nixos"
@@ -375,7 +359,7 @@ end
 
 def git_out(dir, args)
   cap = exec_with_env(
-    [["GIT_TERMINAL_PROMPT", "0"]],
+    [%w[GIT_TERMINAL_PROMPT 0]],
     "git",
     "-C",
     dir,
@@ -392,8 +376,8 @@ end
 def checkout_of(dir, branch)
   remote = git_out(dir, ["ls-remote", "origin", "refs/heads/#{branch}"])
   {
-    head: git_out(dir, ["rev-parse", "HEAD"]),
-    dirty: git_out(dir, ["status", "--porcelain", "--untracked-files=no"]),
+    head: git_out(dir, %w[rev-parse HEAD]),
+    dirty: git_out(dir, %w[status --porcelain --untracked-files=no]),
     remote: if remote.nil?
       nil
     else
@@ -512,7 +496,7 @@ writer_of: a writer's process line, shortened to its command and the rev it buil
 """
 def writer_of(line)
   all = filter((w) -> w != "", split(trim(line), " "))
-  tools = ["darwin-rebuild", "nixos-rebuild", "nix"]
+  tools = %w[darwin-rebuild nixos-rebuild nix]
   found = drop_while((w) -> not member?(base_name(w), tools), all)
   ws = if is_empty(found)
     all
@@ -1377,7 +1361,7 @@ phases: the five phases of a run, in the order they run.
     phases #=> [:guard, :wait, :plan, :switch, :verify]
 """
 def phases()
-  [:guard, :wait, :plan, :switch, :verify]
+  %i[guard wait plan switch verify]
 end
 
 @doc """
@@ -1943,11 +1927,10 @@ test "the history file round-trips and keeps only its tail"
 end
 
 test "the node a rebuild names is the host it plans for"
-  assert node_arg(["fleet", "rebuild"]).nil?
-  assert node_arg(["/x/bin/fleet", "rebuild", "--show-trace", "plo"]) == "plo"
-  assert node_arg(["fleet", "rebuild", "--nix-option", "cores", "8", "rio"]) ==
-    "rio"
-  assert node_arg(["fleet", "rebuild", "--nix-option", "cores", "8"]).nil?
+  assert node_arg(%w[fleet rebuild]).nil?
+  assert node_arg(%w[/x/bin/fleet rebuild --show-trace plo]) == "plo"
+  assert node_arg(%w[fleet rebuild --nix-option cores 8 rio]) == "rio"
+  assert node_arg(%w[fleet rebuild --nix-option cores 8]).nil?
   assert node_arg(["darwin-rebuild"]).nil?
 end
 
@@ -2341,7 +2324,7 @@ test "the demo renders every phase in order, plain when colour is off"
       ]
     )
   assert map((l) -> take_chars(l, 1), take_n(rest(plain), 11)) ==
-    ["⏳", "⚠", "⏳", "⏳", "✅", "⏳", "✅", "⏳", "✅", "⏳", "✅"]
+    %w[⏳ ⚠ ⏳ ⏳ ✅ ⏳ ✅ ⏳ ✅ ⏳ ✅]
 end
 
 test "a gitops build of the published rev is handed off, and any other writer is waited for"

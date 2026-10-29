@@ -63,7 +63,7 @@ not say when anything happened; put a timestamp in the payload if it matters.
 use("deeta", [:get_or])
 use("kazu", [:max])
 use("moji", [:checked])
-use("retsu", [:first, :is_empty, :size])
+use("retsu", %i[first is_empty size])
 use("tesuto", [:raises?])
 
 # ── keys ───────────────────────────────────────────────────────────
@@ -132,24 +132,7 @@ def is_hash_hex(s)
       reduce(
         (left, c) -> replace(left, c, ""),
         s,
-        [
-          "0",
-          "1",
-          "2",
-          "3",
-          "4",
-          "5",
-          "6",
-          "7",
-          "8",
-          "9",
-          "a",
-          "b",
-          "c",
-          "d",
-          "e",
-          "f"
-        ]
+        %w[0 1 2 3 4 5 6 7 8 9 a b c d e f]
       ) == ""
   else
     false
@@ -423,7 +406,7 @@ form here and raises :bad_option).
 def hash(data, algorithm, opts?)
   opts = checked(opts, [:key])
   key = get_or(opts, :key, nil)
-  if not member?(algorithm, [:sha1, :sha256, :sha512, :blake3])
+  if not member?(algorithm, %i[sha1 sha256 sha512 blake3])
     raise(
       :bad_option,
       "hash: the algorithm must be :sha1, :sha256, :sha512 or :blake3, got #{algorithm}"
@@ -442,7 +425,7 @@ mac: The keyed digest (HMAC) of data under key, in lowercase hex, for :sha1,
     mac("x", "k", :sha1) #=> hash("x", :sha1, {key: "k"})
 """
 def mac(data, key, algorithm)
-  if member?(algorithm, [:sha1, :sha256, :sha512])
+  if member?(algorithm, %i[sha1 sha256 sha512])
     hmac_hex(algorithm, key, data)
   else
     raise(
@@ -612,9 +595,9 @@ test "chain values match b3sum over the two documented lines"
     "340a67af6036a998f2720cbe2a5ac48cd15562e4020913ed157722ef05e27eaa"
   assert chain_link(l1, "event-2") ==
     "53255aaf3c113bc2c2bb75162cc0131201a7382d0890a5bb575ae395f55c097c"
-  assert chain_hashes(g, ["event-1", "event-2"]) ==
+  assert chain_hashes(g, %w[event-1 event-2]) ==
     [l1, "53255aaf3c113bc2c2bb75162cc0131201a7382d0890a5bb575ae395f55c097c"]
-  assert chain_head(g, ["event-1", "event-2"]) ==
+  assert chain_head(g, %w[event-1 event-2]) ==
     "53255aaf3c113bc2c2bb75162cc0131201a7382d0890a5bb575ae395f55c097c"
 end
 
@@ -630,22 +613,18 @@ end
 
 test "a changed, dropped, added or reordered payload breaks the chain"
   g = chain_genesis("test-log")
-  events = ["event-1", "event-2", "event-3"]
+  events = %w[event-1 event-2 event-3]
   head_hash = chain_head(g, events)
   stored = chain_hashes(g, events)
   assert chain_verify(g, events, head_hash)
   assert chain_first_break(g, events, stored).nil?
-  assert not chain_verify(g, ["event-1", "event-X", "event-3"], head_hash)
-  assert not chain_verify(g, ["event-1", "event-3"], head_hash)
-  assert not chain_verify(
-    g,
-    ["event-1", "event-2", "event-3", "event-4"],
-    head_hash
-  )
-  assert not chain_verify(g, ["event-2", "event-1", "event-3"], head_hash)
-  assert chain_first_break(g, ["event-1", "event-X", "event-3"], stored) == 1
-  assert chain_first_break(g, ["event-1", "event-2"], stored) == 2
-  assert chain_first_break(g, ["event-9", "event-2", "event-3"], stored) == 0
+  assert not chain_verify(g, %w[event-1 event-X event-3], head_hash)
+  assert not chain_verify(g, %w[event-1 event-3], head_hash)
+  assert not chain_verify(g, %w[event-1 event-2 event-3 event-4], head_hash)
+  assert not chain_verify(g, %w[event-2 event-1 event-3], head_hash)
+  assert chain_first_break(g, %w[event-1 event-X event-3], stored) == 1
+  assert chain_first_break(g, %w[event-1 event-2], stored) == 2
+  assert chain_first_break(g, %w[event-9 event-2 event-3], stored) == 0
 end
 
 test "a link refuses a previous hash or payload it cannot place"
@@ -665,11 +644,11 @@ test "merkle values match b3sum over the three documented lines"
   assert merkle_leaf("a") == la
   assert merkle_leaf("b") == lb
   assert merkle_node(la, lb) == nab
-  assert merkle_root(["a", "b"]) == nab
-  assert merkle_root(["a", "b", "c"]) ==
+  assert merkle_root(%w[a b]) == nab
+  assert merkle_root(%w[a b c]) ==
     "b48d08dfd84e110f9790ac8bb31b50aedb753ff315ad2db75dd812b8fba02251"
-  assert merkle_proof(["a", "b", "c"], 2) == [["L", nab]]
-  assert merkle_proof(["a", "b", "c"], 0) == [["R", lb], ["R", lc]]
+  assert merkle_proof(%w[a b c], 2) == [["L", nab]]
+  assert merkle_proof(%w[a b c], 0) == [["R", lb], ["R", lc]]
 end
 
 test "the empty tree, a single leaf, and a leaf never equal to a node or link"
@@ -694,13 +673,13 @@ test "every proof of every tree from 1 to 9 leaves verifies"
 end
 
 test "a changed payload, a swapped proof or a reordered list breaks the root"
-  xs = ["a", "b", "c", "d", "e"]
+  xs = %w[a b c d e]
   root = merkle_root(xs)
   assert not merkle_verify(root, "X", merkle_proof(xs, 1))
   assert not merkle_verify(root, "b", merkle_proof(xs, 2))
-  assert merkle_root(["b", "a", "c", "d", "e"]) != root
-  assert merkle_root(["a", "b", "c", "d"]) != root
-  assert merkle_root(["a", "b", "c", "d", "e", "e"]) != root
+  assert merkle_root(%w[b a c d e]) != root
+  assert merkle_root(%w[a b c d]) != root
+  assert merkle_root(%w[a b c d e e]) != root
 end
 
 test "merkle refuses what it cannot place"
@@ -710,7 +689,7 @@ test "merkle refuses what it cannot place"
   assert (merkle_proof(["a"], -1) rescue :raised) == :raised
   assert (merkle_verify("nope", "a", []) rescue :raised) == :raised
   assert (merkle_verify(
-    merkle_root(["a", "b"]),
+    merkle_root(%w[a b]),
     "a",
     [["X", merkle_leaf("b")]]
   ) rescue
@@ -856,33 +835,21 @@ end
 
 test "verify_chain and proof follow the chain and the tree"
   g = chain_genesis("test-log")
-  events = ["event-1", "event-2"]
+  events = %w[event-1 event-2]
   head_hash = "53255aaf3c113bc2c2bb75162cc0131201a7382d0890a5bb575ae395f55c097c"
   assert verify_chain(g, events, head_hash)
   assert verify_chain(g, [], g)
-  assert not verify_chain(g, ["event-2", "event-1"], head_hash)
+  assert not verify_chain(g, %w[event-2 event-1], head_hash)
   assert not verify_chain(g, ["event-1"], head_hash)
   assert (verify_chain(g, events, "nope") rescue :raised) == :raised
   nab = "f5a5d8aff2c96f3abd9d097277b4dde881f23bae1f05ee31b2d3e064c6d9c81b"
-  assert proof(["a", "b", "c"], 2) == [["L", nab]]
+  assert proof(%w[a b c], 2) == [["L", nab]]
   assert proof(["a"], 0) == []
   assert (proof(["a"], 1) rescue :raised) == :raised
-  assert verify_proof?(
-    merkle_root(["a", "b", "c"]),
-    "c",
-    proof(["a", "b", "c"], 2)
-  )
+  assert verify_proof?(merkle_root(%w[a b c]), "c", proof(%w[a b c], 2))
   assert verify_proof?(merkle_root(["a"]), "a", [])
-  assert not verify_proof?(
-    merkle_root(["a", "b", "c"]),
-    "b",
-    proof(["a", "b", "c"], 2)
-  )
-  assert not verify_proof?(
-    merkle_root(["a", "b", "c"]),
-    "X",
-    proof(["a", "b", "c"], 0)
-  )
+  assert not verify_proof?(merkle_root(%w[a b c]), "b", proof(%w[a b c], 2))
+  assert not verify_proof?(merkle_root(%w[a b c]), "X", proof(%w[a b c], 0))
   assert (verify_proof?("nope", "a", []) rescue :raised) == :raised
 end
 
@@ -965,13 +932,13 @@ test "the hash chain binds under its graph names"
   assert g == chain_genesis("log")
   assert a == chain_link(g, "a")
   assert head(g, []) == g
-  assert head(g, ["a", "b"]) == b
-  assert trail(g, ["a", "b"]) == [a, b]
+  assert head(g, %w[a b]) == b
+  assert trail(g, %w[a b]) == [a, b]
   assert trail(g, []) == []
-  assert intact?(g, ["a", "b"], b)
-  assert not intact?(g, ["a", "c"], b)
-  assert first_break(g, ["a", "b"], [a, b]).nil?
-  assert first_break(g, ["a", "x"], [a, b]) == 1
+  assert intact?(g, %w[a b], b)
+  assert not intact?(g, %w[a c], b)
+  assert first_break(g, %w[a b], [a, b]).nil?
+  assert first_break(g, %w[a x], [a, b]) == 1
   assert first_break(g, ["a"], [a, b]) == 1
 end
 
@@ -985,14 +952,14 @@ test "the chain verbs refuse what is not a string or a hash"
 end
 
 test "root, prove and proves? agree on one entry of the tree"
-  ps = ["a", "b", "c"]
+  ps = %w[a b c]
   r = root(ps)
   assert r == merkle_root(ps)
   assert root([]) == merkle_root([])
   assert proves?(r, "b", prove(ps, 1))
   assert proves?(r, "c", prove(ps, 2))
   assert not proves?(r, "z", prove(ps, 1))
-  assert not proves?(root(["a", "b"]), "c", prove(ps, 2))
+  assert not proves?(root(%w[a b]), "c", prove(ps, 2))
 end
 
 test "public is the second half of the keypair"

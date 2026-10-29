@@ -1,4 +1,4 @@
-use("kiwari", [:blue, :render])
+use("kiwari", %i[blue render])
 
 # tree-sitter-blue/queries/locals.scm, rendered from blue's grammar spec (bidamas/kiwari).
 write_file(

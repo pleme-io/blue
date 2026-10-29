@@ -6,7 +6,7 @@ verb(
   {
     kind: :effect,
     shape: "append(log, event, opts) -> record",
-    laterals: ["error", "idempotent", "log", "serialize", "time"],
+    laterals: %w[error idempotent log serialize time],
     fleet: nil,
     today: "exists:nisshi",
     meaning: "add one event; refuses a bad event with a typed kind",
@@ -21,7 +21,7 @@ verb(
   {
     kind: :effect,
     shape: "append_all(log, events, opts) -> [record]",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: nil,
     today: "absent",
     meaning: "add many events atomically or none",
@@ -52,7 +52,7 @@ verb(
   {
     kind: :effect,
     shape: "audit(actor, action, target, outcome, opts) -> record",
-    laterals: ["idempotent", "log", "time"],
+    laterals: %w[idempotent log time],
     fleet: "tameshi",
     today: "absent",
     meaning: "append who did what to what, with the result",
@@ -81,7 +81,7 @@ verb(
   {
     kind: :stream,
     shape: "capture(source, f, opts) -> nil",
-    laterals: ["cancel", "deadline", "retry"],
+    laterals: %w[cancel deadline retry],
     fleet: nil,
     today: "absent",
     meaning: "turn a store changes into events, as change data capture",
@@ -96,7 +96,7 @@ verb(
   {
     kind: :effect,
     shape: "checkpoint(log, consumer, seq) -> nil",
-    laterals: ["capability", "idempotent", "log"],
+    laterals: %w[capability idempotent log],
     fleet: nil,
     today: "absent",
     meaning: "record how far a named consumer has read",
@@ -126,7 +126,7 @@ verb(
   {
     kind: :effect,
     shape: "compact(log, keyer) -> count",
-    laterals: ["error", "idempotent", "resource"],
+    laterals: %w[error idempotent resource],
     fleet: nil,
     today: "absent",
     meaning: "keep only the latest record per key",
@@ -215,7 +215,7 @@ verb(
   {
     kind: :effect,
     shape: "fold(log, projection, opts) -> view",
-    laterals: ["cancel", "error"],
+    laterals: %w[cancel error],
     fleet: nil,
     today: "absent",
     meaning: "keep a read model current from the log, from a checkpoint",
@@ -230,7 +230,7 @@ verb(
   {
     kind: :effect,
     shape: "forget(log, subject) -> count",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: nil,
     today: "absent",
     meaning: "make one subject payloads unreadable while the chain holds",
@@ -274,7 +274,7 @@ verb(
   {
     kind: :pure,
     shape: "head(log) -> hex",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: nil,
     today: "exists:nisshi",
     wave: 0,
@@ -361,7 +361,7 @@ verb(
   {
     kind: :effect,
     shape: "open(path, opts) -> log",
-    laterals: ["capability", "config", "idempotent", "resource"],
+    laterals: %w[capability config idempotent resource],
     fleet: nil,
     today: "exists:nisshi",
     wave: 0,
@@ -390,7 +390,7 @@ verb(
   {
     kind: :effect,
     shape: "publish(bus, topic, event, opts) -> nil",
-    laterals: ["error", "retry", "serialize", "trace"],
+    laterals: %w[error retry serialize trace],
     fleet: "pleme-redis",
     today: "absent",
     meaning: "send an event to the live readers of a topic",
@@ -406,7 +406,7 @@ verb(
   {
     kind: :effect,
     shape: "query(log, question, params) -> [record]",
-    laterals: ["resource", "validate"],
+    laterals: %w[resource validate],
     fleet: nil,
     today: "absent",
     meaning: "ask a log a question in SQL via kueri",
@@ -421,7 +421,7 @@ verb(
   {
     kind: :effect,
     shape: "read(stream, opts) -> [event]",
-    laterals: ["deadline", "error", "resource", "serialize"],
+    laterals: %w[deadline error resource serialize],
     fleet: "blue",
     today: "exists:nisshi",
     wave: 0,
@@ -435,7 +435,7 @@ verb(
   {
     kind: :pure,
     shape: "replay(log, definition) -> states",
-    laterals: ["deadline", "error", "migrate", "validate"],
+    laterals: %w[deadline error migrate validate],
     fleet: nil,
     today: "partial:nisshi",
     meaning: "fold records into the states they imply",
@@ -450,7 +450,7 @@ verb(
   {
     kind: :effect,
     shape: "roll(log, opts) -> nil",
-    laterals: ["idempotent", "resource"],
+    laterals: %w[idempotent resource],
     fleet: nil,
     today: "absent",
     meaning: "start a new segment linked to the old head",
@@ -480,7 +480,7 @@ verb(
   {
     kind: :effect,
     shape: "seal(log, segment) -> hash",
-    laterals: ["idempotent", "validate"],
+    laterals: %w[idempotent validate],
     fleet: nil,
     today: "absent",
     meaning: "freeze a segment against further writes and hash it",
@@ -495,7 +495,7 @@ verb(
   {
     kind: :effect,
     shape: "snapshot(log, state, opts) -> nil",
-    laterals: ["idempotent", "serialize"],
+    laterals: %w[idempotent serialize],
     fleet: nil,
     today: "absent",
     meaning: "save folded state at a sequence so replay can start there",
@@ -525,7 +525,7 @@ verb(
   {
     kind: :stream,
     shape: "stream(log, f, opts) -> nil",
-    laterals: ["cancel", "deadline", "error"],
+    laterals: %w[cancel deadline error],
     fleet: nil,
     today: "absent",
     meaning: "call f per record from a sequence onward, then return",
@@ -540,7 +540,7 @@ verb(
   {
     kind: :stream,
     shape: "subscribe(log, consumer, f, opts) -> nil",
-    laterals: ["cancel", "deadline", "retry"],
+    laterals: %w[cancel deadline retry],
     fleet: "pleme-redis",
     today: "absent",
     meaning: "durable delivery to f from the consumer offset, at least once",
@@ -555,7 +555,7 @@ verb(
   {
     kind: :effect,
     shape: "truncate(log, before) -> count",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: nil,
     today: "absent",
     meaning: "drop records older than a sequence under a retention rule",
@@ -570,7 +570,7 @@ verb(
   {
     kind: :pure,
     shape: "upcast(record, version) -> record",
-    laterals: ["migrate", "validate"],
+    laterals: %w[migrate validate],
     fleet: nil,
     today: "absent",
     meaning: "raise an old record to the current event shape",
@@ -585,7 +585,7 @@ verb(
   {
     kind: :pure,
     shape: "verify(log) -> report",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: nil,
     today: "exists:nisshi",
     wave: 0,
@@ -599,7 +599,7 @@ verb(
   {
     kind: :effect,
     shape: "verify?(log) -> Bool",
-    laterals: ["error", "serialize", "validate"],
+    laterals: %w[error serialize validate],
     fleet: nil,
     today: "partial:nisshi",
     meaning: "whether every hash link and signature holds",
@@ -614,7 +614,7 @@ verb(
   {
     kind: :stream,
     shape: "watch(log, f, opts) -> nil",
-    laterals: ["cancel", "deadline", "resource", "time"],
+    laterals: %w[cancel deadline resource time],
     fleet: nil,
     today: "absent",
     meaning: "call f per new record as it lands until f says stop",
@@ -629,7 +629,7 @@ verb(
   {
     kind: :effect,
     shape: "witness(log, ledger) -> receipt",
-    laterals: ["idempotent", "resource"],
+    laterals: %w[idempotent resource],
     fleet: "cartorio",
     today: "absent",
     meaning: "publish the head to an outside ledger",

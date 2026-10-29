@@ -21,7 +21,7 @@ verb(
   {
     kind: :effect,
     shape: "call(client, operation, request, opts) -> response",
-    laterals: ["deadline", "error", "idempotent", "retry", "trace"],
+    laterals: %w[deadline error idempotent retry trace],
     fleet: nil,
     today: "absent",
     meaning: "Invoke one operation; the kind of error comes from the status.",
@@ -52,7 +52,7 @@ verb(
   {
     kind: :decl,
     shape: "client(spec, base, opts) -> client",
-    laterals: ["capability", "config"],
+    laterals: %w[capability config],
     fleet: nil,
     today: "absent",
     meaning: "Bind a spec to an endpoint.",
@@ -157,7 +157,7 @@ verb(
   {
     kind: :effect,
     shape: "introspect(url, opts) -> spec",
-    laterals: ["deadline", "error"],
+    laterals: %w[deadline error],
     fleet: "pleme-graphql-helpers",
     today: "absent",
     meaning: "Fetch a live endpoint's own schema.",
@@ -247,7 +247,7 @@ verb(
   {
     kind: :pure,
     shape: "parse(text, :openapi) -> spec",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: "openapi-forge",
     today: "absent",
     meaning: "Read an OpenAPI, protobuf or GraphQL schema into a spec.",
@@ -277,7 +277,7 @@ verb(
   {
     kind: :effect,
     shape: "serve(spec, handlers, addr) -> nil",
-    laterals: ["error", "log", "trace"],
+    laterals: %w[error log trace],
     fleet: "grpc-forge",
     today: "absent",
     meaning: "Serve a spec with one handler per operation.",
@@ -293,7 +293,7 @@ verb(
   {
     kind: :stream,
     shape: "stream(client, operation, request, f) -> nil",
-    laterals: ["cancel", "deadline"],
+    laterals: %w[cancel deadline],
     fleet: nil,
     today: "absent",
     meaning: "Call f per message of a streaming operation.",
@@ -339,7 +339,7 @@ verb(
   {
     kind: :pure,
     shape: "validate(request, operation) -> request",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: nil,
     today: "absent",
     meaning: "Refuse a request that does not conform to its schema.",

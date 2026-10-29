@@ -66,7 +66,7 @@ verb(
   {
     kind: :effect,
     shape: "converge(replicas, opts) -> crdt",
-    laterals: ["cancel", "deadline", "retry"],
+    laterals: %w[cancel deadline retry],
     fleet: "crdt-doc",
     today: "absent",
     meaning: "exchange deltas among replicas until all agree",

@@ -6,7 +6,7 @@ verb(
   {
     kind: :pure,
     shape: "check(subject, rules) -> [finding]",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: nil,
     today: "exists:kyohi",
     wave: 0,
@@ -76,7 +76,7 @@ verb(
   {
     kind: :decl,
     shape: "ledger() -> [record]",
-    laterals: ["config", "error"],
+    laterals: %w[config error],
     fleet: nil,
     today: "exists:kyohi",
     wave: 0,
@@ -104,7 +104,7 @@ verb(
   {
     kind: :pure,
     shape: "retryable?(kind) -> Bool",
-    laterals: ["error", "retry"],
+    laterals: %w[error retry],
     fleet: nil,
     today: "exists:kyohi",
     wave: 0,

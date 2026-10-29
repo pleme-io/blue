@@ -50,7 +50,7 @@ verb(
   {
     kind: :effect,
     shape: "file(app, tier) -> path",
-    laterals: ["capability", "config"],
+    laterals: %w[capability config],
     fleet: "okiba",
     today: "exists:settei",
     wave: 0,
@@ -122,7 +122,7 @@ verb(
   {
     kind: :pure,
     shape: "need(config, path) -> value",
-    laterals: ["config", "error"],
+    laterals: %w[config error],
     fleet: "shikumi",
     today: "exists:settei",
     wave: 0,
@@ -136,7 +136,7 @@ verb(
   {
     kind: :effect,
     shape: "put(app, tier, path, value) -> nil",
-    laterals: ["config", "error", "idempotent"],
+    laterals: %w[config error idempotent],
     fleet: "shikumi",
     today: "absent",
     meaning: "write one setting into a named tier file",
@@ -152,7 +152,7 @@ verb(
   {
     kind: :effect,
     shape: "read(app, defaults, opts) -> record",
-    laterals: ["config", "error", "validate"],
+    laterals: %w[config error validate],
     fleet: "shikumi",
     today: "partial:settei",
     wave: 0,
@@ -167,7 +167,7 @@ verb(
   {
     kind: :effect,
     shape: "reload(app) -> record",
-    laterals: ["config", "error"],
+    laterals: %w[config error],
     fleet: "shikumi",
     today: "absent",
     meaning: "read the tiers again and return the fresh record",
@@ -182,7 +182,7 @@ verb(
   {
     kind: :pure,
     shape: "schema(defaults) -> schema",
-    laterals: ["config", "validate"],
+    laterals: %w[config validate],
     fleet: "shikumi",
     today: "absent",
     meaning: "the schema a defaults record implies",
@@ -197,7 +197,7 @@ verb(
   {
     kind: :pure,
     shape: "validate(config, schema) -> [problem]",
-    laterals: ["config", "validate"],
+    laterals: %w[config validate],
     fleet: "shikumi",
     today: "absent",
     meaning: "check a record against a schema, naming each fault",
@@ -212,7 +212,7 @@ verb(
   {
     kind: :stream,
     shape: "watch(app, f, opts) -> nil",
-    laterals: ["cancel", "config", "time"],
+    laterals: %w[cancel config time],
     fleet: "shikumi",
     today: "absent",
     meaning: "call f with the new record whenever a tier changes",

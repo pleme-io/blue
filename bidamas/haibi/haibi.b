@@ -1,6 +1,6 @@
-use("deeta", [:get_or, :pretty, :yaml])
+use("deeta", %i[get_or pretty yaml])
 use("kyuuji")
-use("retsu", [:first, :last])
+use("retsu", %i[first last])
 use("settei", [:env_prefix])
 use("shihyou")
 
@@ -168,11 +168,7 @@ end
 def access_values(svc)
   a = get_or(svc, "access", {})
   {
-    "effects" => get_or(
-      a,
-      "effects",
-      ["network", "clock", "entropy", "environment"]
-    ),
+    "effects" => get_or(a, "effects", %w[network clock entropy environment]),
     "egress" => get_or(a, "egress", []),
     "reads" => get_or(a, "reads", []),
     "writes" => get_or(a, "writes", []),
@@ -1097,21 +1093,21 @@ test "the tree holds the chart, its schema, the config and, with a schema, the m
   assert member?("chart/templates/_helpers.tpl", self_paths) == true
   paths = map((f) -> first(f), files("hello", "0.1.0", sample))
   assert paths ==
-    [
-      "chart/Chart.yaml",
-      "chart/files/dashboard.json",
-      "chart/files/schema.sql",
-      "chart/templates/NOTES.txt",
-      "chart/templates/dashboard.yaml",
-      "chart/templates/deployment.yaml",
-      "chart/templates/migration.yaml",
-      "chart/templates/service.yaml",
-      "chart/templates/serviceaccount.yaml",
-      "chart/templates/slo-rules.yaml",
-      "chart/values.schema.json",
-      "chart/values.yaml",
-      "config/hello.schema.json",
-      "config/hello.yaml"
+    %w[
+      chart/Chart.yaml
+      chart/files/dashboard.json
+      chart/files/schema.sql
+      chart/templates/NOTES.txt
+      chart/templates/dashboard.yaml
+      chart/templates/deployment.yaml
+      chart/templates/migration.yaml
+      chart/templates/service.yaml
+      chart/templates/serviceaccount.yaml
+      chart/templates/slo-rules.yaml
+      chart/values.schema.json
+      chart/values.yaml
+      config/hello.schema.json
+      config/hello.yaml
     ]
   bare = map(
     (f) -> first(f),
@@ -1220,11 +1216,11 @@ end
 
 test "a host service's arguments become the chart's args, and a wasm service's argument is its program"
   hosted = assoc(
-    assoc(sample, "host_args", ["daemon", "--declaration"]),
+    assoc(sample, "host_args", %w[daemon --declaration]),
     "runtime",
     {"kind" => "native", "because" => "host_program"}
   )
-  assert values(hosted)["args"] == ["daemon", "--declaration"]
+  assert values(hosted)["args"] == %w[daemon --declaration]
   assert values(sample)["args"] == ["/app/hello.b"]
   vs = values_schema("hello", hosted)["properties"]
   assert vs["args"]["type"] == "array"
@@ -1244,8 +1240,7 @@ test "a service runs as a wasm component by default: runtime class, closure imag
       }
     }
   assert v["access"]["listen"] == [8080]
-  assert v["access"]["effects"] ==
-    ["network", "clock", "entropy", "environment"]
+  assert v["access"]["effects"] == %w[network clock entropy environment]
   d = deployment_with("hello", "pleme-lib", sample)
   assert contains?(d, "include \"pleme-lib.runtimeclass\" . | nindent 6") ==
     true

@@ -1,13 +1,10 @@
-use("gamen", [:css, :element?, :render, :url_ok?])
+use("gamen", %i[css element? render url_ok?])
 
-use(
-  "kousei",
-  [:field, :flag, :int_in, :list_of, :one_of, :overlay, :record_whys, :required]
-)
+use("kousei", %i[field flag int_in list_of one_of overlay record_whys required])
 
 use("kyohi", [:refusal])
-use("retsu", [:first, :is_empty, :last, :rest])
-use("shinsuu", [:bytes_base64, :hex_bytes])
+use("retsu", %i[first is_empty last rest])
+use("shinsuu", %i[bytes_base64 hex_bytes])
 use("tesuto", [:raises?])
 
 @doc """
@@ -115,7 +112,7 @@ def latency_bounds()
 end
 
 def status_classes()
-  ["2xx", "3xx", "4xx", "5xx"]
+  %w[2xx 3xx 4xx 5xx]
 end
 
 def status_class(status)
@@ -486,7 +483,7 @@ def form_decoded(text)
 end
 
 def route_methods()
-  ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+  %w[GET HEAD POST PUT PATCH DELETE OPTIONS]
 end
 
 def segments(path)
@@ -586,7 +583,7 @@ router: Compose routes into one app; overlap is refused.
 def router(routes, opts?)
   o = opts or {}
   stray = filter(
-    (e) -> not member?(first(e), [:theme, :hydrate]),
+    (e) -> not member?(first(e), %i[theme hydrate]),
     map_entries(o)
   )
   if not is_empty(stray)
@@ -1102,12 +1099,7 @@ def cors_table()
 end
 
 def cors_defaults()
-  {
-    methods: ["GET", "HEAD", "POST"],
-    headers: [],
-    max_age: 600,
-    credentials: false
-  }
+  {methods: %w[GET HEAD POST], headers: [], max_age: 600, credentials: false}
 end
 
 def cors_policy(policy)
@@ -1260,7 +1252,7 @@ end
 test "a request header is found whatever the case of its name"
   r = with_headers(
     request("GET", "/", ""),
-    [["content-type", "text/plain"], ["x-a", "1"]]
+    [%w[content-type text/plain], %w[x-a 1]]
   )
   assert header(r, "Content-Type") == "text/plain"
   assert header(r, "X-A") == "1"
@@ -1284,9 +1276,8 @@ test "a router keeps sound routes and refuses each bad or overlapping one alone"
       route("GET", "/z", (_req) -> text(200, "z"))
     ]
   )
-  assert map((r) -> r[:pattern], app[:routes]) == ["/a/:id", "/a/new", "/z"]
-  assert map(first, app[:refusals]) ==
-    [:overlap, :route, :route, :route, :route, :route]
+  assert map((r) -> r[:pattern], app[:routes]) == %w[/a/:id /a/new /z]
+  assert map(first, app[:refusals]) == %i[overlap route route route route route]
   assert second(first(app[:refusals])) == "GET /a/new overlaps /a/:id"
   assert router([])[:routes] == []
   assert router([])[:refusals] == []
@@ -1399,7 +1390,7 @@ test "body reads text, json and a form, by name or by Content-Type"
   assert body(json, :text) == "{\"a\":[1,2]}"
   form = with_headers(
     assoc(request("POST", "/", ""), :body, "who=a+b&x=%3D%26&&n"),
-    [["content-type", "application/x-www-form-urlencoded"]]
+    [%w[content-type application/x-www-form-urlencoded]]
   )
   assert body(form, :auto) == {"who" => "a b", "x" => "=&", "n" => ""}
   assert body(request("POST", "/", ""), :text) == ""
@@ -1450,7 +1441,7 @@ test "stream keeps each chunk in order and the body is their join"
     end,
     {content_type: "text/event-stream"}
   )
-  assert r[:chunks] == ["a", "b", "3"]
+  assert r[:chunks] == %w[a b 3]
   assert r[:body] == "ab3"
   assert r[:headers]["Content-Type"] == "text/event-stream"
   empty = stream(request("GET", "/", ""), (_emit) -> nil)
@@ -1472,14 +1463,14 @@ test "file serves a file with its type and validator, 304 on a match, ranges by 
     "\"#{join(take(32, chars(digest_hex(:sha256, "body{color:red}"))), "")}\""
   again = with_headers(request("GET", "/", ""), [["if-none-match", tag]])
   assert file(path, {request: again})[:status] == 304
-  part = with_headers(request("GET", "/", ""), [["range", "bytes=5-9"]])
+  part = with_headers(request("GET", "/", ""), [%w[range bytes=5-9]])
   p = file(path, {request: part})
   assert p[:status] == 206
   assert p[:body] == "color"
   assert p[:headers]["Content-Range"] == "bytes 5-9/15"
-  tail = with_headers(request("GET", "/", ""), [["range", "bytes=-4"]])
+  tail = with_headers(request("GET", "/", ""), [%w[range bytes=-4]])
   assert file(path, {request: tail})[:body] == "red}"
-  past = with_headers(request("GET", "/", ""), [["range", "bytes=99-"]])
+  past = with_headers(request("GET", "/", ""), [%w[range bytes=99-]])
   assert file(path, {request: past})[:status] == 416
   assert file("#{dir}/kyuuji-no-such-file")[:status] == 404
   assert file("#{dir}/../etc/passwd")[:status] == 403
@@ -1488,15 +1479,12 @@ test "file serves a file with its type and validator, 304 on a match, ranges by 
 end
 
 test "cors answers an allowed preflight, marks allowed answers, and refuses a bad policy"
-  policy = {origins: ["https://app.example"], methods: ["GET", "POST"]}
+  policy = {origins: ["https://app.example"], methods: %w[GET POST]}
   h = cors((_r) -> text(200, "data"), policy)
   pre = h(
     with_headers(
       request("OPTIONS", "/", ""),
-      [
-        ["origin", "https://app.example"],
-        ["access-control-request-method", "POST"]
-      ]
+      [%w[origin https://app.example], %w[access-control-request-method POST]]
     )
   )
   assert pre[:status] == 204
@@ -1506,30 +1494,24 @@ test "cors answers an allowed preflight, marks allowed answers, and refuses a ba
   stranger = h(
     with_headers(
       request("OPTIONS", "/", ""),
-      [
-        ["origin", "https://evil.example"],
-        ["access-control-request-method", "GET"]
-      ]
+      [%w[origin https://evil.example], %w[access-control-request-method GET]]
     )
   )
   assert stranger[:status] == 403
   verb = h(
     with_headers(
       request("OPTIONS", "/", ""),
-      [
-        ["origin", "https://app.example"],
-        ["access-control-request-method", "DELETE"]
-      ]
+      [%w[origin https://app.example], %w[access-control-request-method DELETE]]
     )
   )
   assert verb[:status] == 403
   simple = h(
-    with_headers(request("GET", "/", ""), [["origin", "https://app.example"]])
+    with_headers(request("GET", "/", ""), [%w[origin https://app.example]])
   )
   assert simple[:headers]["Access-Control-Allow-Origin"] ==
     "https://app.example"
   other = h(
-    with_headers(request("GET", "/", ""), [["origin", "https://evil.example"]])
+    with_headers(request("GET", "/", ""), [%w[origin https://evil.example]])
   )
   assert other[:headers]["Access-Control-Allow-Origin"].nil?
   bare = h(request("GET", "/", ""))
@@ -1537,7 +1519,7 @@ test "cors answers an allowed preflight, marks allowed answers, and refuses a ba
   any = cors((_r) -> text(200, "x"), {origins: ["*"]})
   assert get(
     get(
-      any(with_headers(request("GET", "/", ""), [["origin", "https://a.b"]])),
+      any(with_headers(request("GET", "/", ""), [%w[origin https://a.b]])),
       :headers
     ),
     "Access-Control-Allow-Origin"
@@ -1557,10 +1539,10 @@ test "upgrade answers the RFC 6455 handshake and the wire refuses a hand-off it 
   req = with_headers(
     request("GET", "/ws", ""),
     [
-      ["upgrade", "websocket"],
+      %w[upgrade websocket],
       ["connection", "keep-alive, Upgrade"],
-      ["sec-websocket-key", "dGhlIHNhbXBsZSBub25jZQ=="],
-      ["sec-websocket-version", "13"]
+      %w[sec-websocket-key dGhlIHNhbXBsZSBub25jZQ==],
+      %w[sec-websocket-version 13]
     ]
   )
   r = upgrade(req, (_socket) -> nil)
@@ -1571,10 +1553,10 @@ test "upgrade answers the RFC 6455 handshake and the wire refuses a hand-off it 
   old = with_headers(
     req,
     [
-      ["upgrade", "websocket"],
-      ["connection", "upgrade"],
-      ["sec-websocket-key", "dGhlIHNhbXBsZSBub25jZQ=="],
-      ["sec-websocket-version", "8"]
+      %w[upgrade websocket],
+      %w[connection upgrade],
+      %w[sec-websocket-key dGhlIHNhbXBsZSBub25jZQ==],
+      %w[sec-websocket-version 8]
     ]
   )
   assert upgrade(old, (_s) -> nil)[:status] == 426

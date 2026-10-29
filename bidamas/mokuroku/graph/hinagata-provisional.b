@@ -51,7 +51,7 @@ verb(
   {
     kind: :effect,
     shape: "generate(spec, target, opts) -> [file]",
-    laterals: ["idempotent", "serialize"],
+    laterals: %w[idempotent serialize],
     fleet: "forge-gen",
     today: "absent",
     meaning: "code and docs derived from a spec",
@@ -96,7 +96,7 @@ verb(
   {
     kind: :pure,
     shape: "parse(text) -> template",
-    laterals: ["serialize", "validate"],
+    laterals: %w[serialize validate],
     fleet: nil,
     today: "absent",
     meaning: "template text to a template that names its holes",

@@ -21,7 +21,7 @@ verb(
   {
     kind: :decl,
     shape: "breaker(name, opts) -> breaker",
-    laterals: ["config", "error"],
+    laterals: %w[config error],
     fleet: "todoku-go",
     today: "absent",
     meaning: "Declare a breaker: failure count, window and reset time.",
@@ -36,7 +36,7 @@ verb(
   {
     kind: :decl,
     shape: "bucket(rate, burst) -> bucket",
-    laterals: ["config", "ratelimit"],
+    laterals: %w[config ratelimit],
     fleet: "samba",
     today: "absent",
     meaning: "Declare a token bucket by rate and burst.",
@@ -51,7 +51,7 @@ verb(
   {
     kind: :decl,
     shape: "bulkhead(name, limit, queue) -> bulkhead",
-    laterals: ["config", "resource"],
+    laterals: %w[config resource],
     fleet: nil,
     today: "absent",
     meaning: "Declare a bound on concurrent callers of one resource.",
@@ -66,7 +66,7 @@ verb(
   {
     kind: :effect,
     shape: "drain(source, opts) -> info",
-    laterals: ["cancel", "deadline"],
+    laterals: %w[cancel deadline],
     fleet: nil,
     today: "absent",
     meaning: "Finish queued work and stop taking more.",
@@ -81,7 +81,7 @@ verb(
   {
     kind: :effect,
     shape: "enter(bulkhead, f, opts) -> value",
-    laterals: ["deadline", "resource"],
+    laterals: %w[deadline resource],
     fleet: nil,
     today: "absent",
     meaning: "Run f in a bulkhead slot; raise when full.",
@@ -97,7 +97,7 @@ verb(
   {
     kind: :effect,
     shape: "hedge(f, after) -> value",
-    laterals: ["deadline", "retry"],
+    laterals: %w[deadline retry],
     fleet: nil,
     today: "absent",
     meaning: "Start a second try after a delay; keep the first answer.",
@@ -112,7 +112,7 @@ verb(
   {
     kind: :decl,
     shape: "inject(fault, opts) -> wrapper",
-    laterals: ["switch", "test"],
+    laterals: %w[switch test],
     fleet: nil,
     today: "absent",
     meaning: "Add delay, error or loss to a call, for chaos tests.",
@@ -202,7 +202,7 @@ verb(
   {
     kind: :effect,
     shape: "protect(breaker, f) -> value",
-    laterals: ["error", "retry"],
+    laterals: %w[error retry],
     fleet: "todoku-go",
     today: "absent",
     meaning: "Run f through a breaker; open breaker raises at once.",
@@ -277,7 +277,7 @@ verb(
   {
     kind: :pure,
     shape: "shed(load, policy) -> Bool",
-    laterals: ["ratelimit", "resource"],
+    laterals: %w[ratelimit resource],
     fleet: nil,
     today: "absent",
     meaning: "Whether to refuse work now to keep latency.",
@@ -322,7 +322,7 @@ verb(
   {
     kind: :effect,
     shape: "take(bucket, key, n, opts) -> nil",
-    laterals: ["deadline", "ratelimit"],
+    laterals: %w[deadline ratelimit],
     fleet: "samba",
     today: "absent",
     meaning: "Wait until n tokens are free, then take them.",

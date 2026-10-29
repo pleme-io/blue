@@ -171,7 +171,7 @@ verb(
   {
     kind: :pure,
     shape: "parse(source, lang) -> tree",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: "blue-lang-syntax",
     today: "rust:blue-lang-syntax",
     meaning: "source text to a tree with spans; error nodes kept",

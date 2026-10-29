@@ -36,7 +36,7 @@ verb(
   {
     kind: :effect,
     shape: "commit(index) -> nil",
-    laterals: ["error", "resource"],
+    laterals: %w[error resource],
     fleet: "sakuin",
     today: "absent",
     meaning: "make pending writes visible to searches",
@@ -66,7 +66,7 @@ verb(
   {
     kind: :effect,
     shape: "delete(index, id) -> nil",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: "sakuin",
     today: "absent",
     meaning: "remove one document by id; absent counts as done",
@@ -97,7 +97,7 @@ verb(
   {
     kind: :effect,
     shape: "embed(text, opts) -> vector",
-    laterals: ["deadline", "error", "ratelimit", "retry"],
+    laterals: %w[deadline error ratelimit retry],
     fleet: "codesearch",
     today: "absent",
     meaning: "the vector a model gives a text",
@@ -263,7 +263,7 @@ verb(
   {
     kind: :effect,
     shape: "open(spec) -> index",
-    laterals: ["capability", "config", "resource"],
+    laterals: %w[capability config resource],
     fleet: "sakuin",
     today: "absent",
     meaning: "open or create a search index at a path or URL",
@@ -278,7 +278,7 @@ verb(
   {
     kind: :effect,
     shape: "optimize(index) -> nil",
-    laterals: ["cancel", "resource"],
+    laterals: %w[cancel resource],
     fleet: nil,
     today: "absent",
     meaning: "merge index segments to speed later searches",
@@ -323,7 +323,7 @@ verb(
   {
     kind: :effect,
     shape: "put(index, id, doc) -> nil",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: "sakuin",
     today: "absent",
     meaning: "add or replace one document by id",
@@ -338,7 +338,7 @@ verb(
   {
     kind: :effect,
     shape: "query(index, question, params) -> [hit]",
-    laterals: ["deadline", "error"],
+    laterals: %w[deadline error],
     fleet: "codesearch",
     today: "absent",
     meaning: "hits for a structured question in the index language",
@@ -353,7 +353,7 @@ verb(
   {
     kind: :effect,
     shape: "reindex(index, source, opts) -> count",
-    laterals: ["cancel", "error", "migrate"],
+    laterals: %w[cancel error migrate],
     fleet: "sakuin",
     today: "absent",
     meaning: "rebuild the index from a source of documents",
@@ -398,7 +398,7 @@ verb(
   {
     kind: :effect,
     shape: "search(index, text, opts) -> {hits, total}",
-    laterals: ["deadline", "error", "trace"],
+    laterals: %w[deadline error trace],
     fleet: "sakuin",
     today: "absent",
     meaning: "ranked hits for free text, with filter, sort and page",
@@ -413,7 +413,7 @@ verb(
   {
     kind: :effect,
     shape: "similar(index, subject, opts) -> [hit]",
-    laterals: ["deadline", "error"],
+    laterals: %w[deadline error],
     fleet: "codesearch",
     today: "absent",
     meaning: "hits nearest to a document or vector",

@@ -6,7 +6,7 @@ verb(
   {
     kind: :effect,
     shape: "apply(app, patches) -> nil",
-    laterals: ["capability", "idempotent"],
+    laterals: %w[capability idempotent],
     fleet: nil,
     today: "absent",
     meaning: "change the live page by a patch list",
@@ -21,7 +21,7 @@ verb(
   {
     kind: :effect,
     shape: "install(app, opts) -> registration",
-    laterals: ["capability", "config"],
+    laterals: %w[capability config],
     fleet: nil,
     today: "absent",
     meaning: "register the service worker and manifest so the app installs",
@@ -36,7 +36,7 @@ verb(
   {
     kind: :effect,
     shape: "listen(root, opts) -> handle",
-    laterals: ["capability", "cancel"],
+    laterals: %w[capability cancel],
     fleet: nil,
     today: "absent",
     meaning: "forward page events under a root to the app",
@@ -66,7 +66,7 @@ verb(
   {
     kind: :effect,
     shape: "request(url, input, opts) -> response",
-    laterals: ["capability", "deadline", "error"],
+    laterals: %w[capability deadline error],
     fleet: nil,
     today: "absent",
     meaning: "one HTTP request through the browser fetch import",
@@ -81,7 +81,7 @@ verb(
   {
     kind: :effect,
     shape: "save(cache, store, opts) -> nil",
-    laterals: ["capability", "cache", "serialize"],
+    laterals: %w[capability cache serialize],
     fleet: nil,
     today: "absent",
     meaning: "keep cache entries in IndexedDB across reloads",

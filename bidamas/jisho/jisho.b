@@ -1,4 +1,4 @@
-use("retsu", [:first, :is_empty])
+use("retsu", %i[first is_empty])
 
 def keys(m)
   map(first, map_entries(m))
@@ -95,7 +95,7 @@ verb_for("jisho", "delete", delete)
 
 test "keys values entries and size read a map in key order"
   m = {"b" => 2, "a" => 1}
-  assert keys(m) == ["a", "b"]
+  assert keys(m) == %w[a b]
   assert values(m) == [1, 2]
   assert entries(m) == [["a", 1], ["b", 2]]
   assert size(m) == 2
@@ -139,7 +139,7 @@ end
 
 test "select keeps listed keys that exist and merge lets b win"
   m = {"a" => 1, "b" => 2, "c" => 3}
-  assert select(m, ["c", "a", "x"]) == {"a" => 1, "c" => 3}
+  assert select(m, %w[c a x]) == {"a" => 1, "c" => 3}
   assert merge({"a" => 1, "b" => 2}, {"b" => 3, "c" => 4}) ==
     {"a" => 1, "b" => 3, "c" => 4}
   assert merge({}, {}) == {}

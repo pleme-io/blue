@@ -20,7 +20,7 @@ verb(
   {
     kind: :effect,
     shape: "advance(engine, id) -> state",
-    laterals: ["deadline", "error", "retry"],
+    laterals: %w[deadline error retry],
     fleet: nil,
     today: "absent",
     meaning: "run an instance until it rests or ends",
@@ -35,7 +35,7 @@ verb(
   {
     kind: :effect,
     shape: "cancel(engine, id, opts) -> state",
-    laterals: ["cancel", "idempotent"],
+    laterals: %w[cancel idempotent],
     fleet: nil,
     today: "absent",
     meaning: "end an instance and run its compensations",
@@ -64,7 +64,7 @@ verb(
   {
     kind: :effect,
     shape: "compensate(engine, id) -> state",
-    laterals: ["error", "idempotent", "retry"],
+    laterals: %w[error idempotent retry],
     fleet: nil,
     today: "absent",
     meaning: "undo completed steps in reverse order, as a saga",
@@ -79,7 +79,7 @@ verb(
   {
     kind: :effect,
     shape: "create(engine, definition, input) -> instance",
-    laterals: ["error", "idempotent", "trace"],
+    laterals: %w[error idempotent trace],
     fleet: nil,
     today: "absent",
     meaning: "start a persisted instance of a lifecycle",
@@ -195,7 +195,7 @@ verb(
   {
     kind: :decl,
     shape: "permit(name, limit, window) -> decl",
-    laterals: ["ratelimit", "validate"],
+    laterals: %w[ratelimit validate],
     fleet: nil,
     today: "exists:raifusaikuru",
     wave: 0,
@@ -239,7 +239,7 @@ verb(
   {
     kind: :effect,
     shape: "resume(engine, opts) -> count",
-    laterals: ["cancel", "error"],
+    laterals: %w[cancel error],
     fleet: nil,
     today: "absent",
     meaning: "continue every unfinished instance after a restart",
@@ -268,7 +268,7 @@ verb(
   {
     kind: :effect,
     shape: "signal(engine, id, event, payload) -> state",
-    laterals: ["error", "idempotent", "trace"],
+    laterals: %w[error idempotent trace],
     fleet: nil,
     today: "absent",
     meaning: "deliver an event to an instance and persist the result",
@@ -298,7 +298,7 @@ verb(
   {
     kind: :decl,
     shape: "timer(state, duration, event) -> decl",
-    laterals: ["time", "validate"],
+    laterals: %w[time validate],
     fleet: nil,
     today: "absent",
     meaning: "declare an event raised after a state lasts too long",
@@ -314,7 +314,7 @@ verb(
   {
     kind: :effect,
     shape: "wait(engine, id, opts) -> state",
-    laterals: ["cancel", "deadline"],
+    laterals: %w[cancel deadline],
     fleet: nil,
     today: "absent",
     meaning: "block until an instance reaches a terminal state",

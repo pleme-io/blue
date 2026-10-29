@@ -4,23 +4,23 @@ ukai (迂回) — a detour: keep an overlay VPN reaching its control plane and r
     infer_enforcement([], [], [], :relay) #=> :unknown
 """
 
-use("deeta", [:as_json, :get_str])
+use("deeta", %i[as_json get_str])
 use("kyohi", [:ok])
-use("retsu", [:first, :is_empty, :last, :rest, :size])
-use("shisutemu", [:read_or, :status_of, :stderr_of, :stdout_of])
-use("shuugou", [:as_set, :difference, :unique])
+use("retsu", %i[first is_empty last rest size])
+use("shisutemu", %i[read_or status_of stderr_of stdout_of])
+use("shuugou", %i[as_set difference unique])
 
 def axes()
   [
-    [:corp, [:absent, :split, :full, :unread]],
+    [:corp, %i[absent split full unread]],
     [
       :enforcement,
-      [:permissive, :routes_rewritten, :egress_blocked, :unknown, :unread]
+      %i[permissive routes_rewritten egress_blocked unknown unread]
     ],
-    [:overlay, [:down, :direct, :relay, :none, :unread]],
-    [:gateway, [:present, :absent, :unread]],
-    [:targets, [:resolved, :unread]],
-    [:platform, [:darwin, :nixos]]
+    [:overlay, %i[down direct relay none unread]],
+    [:gateway, %i[present absent unread]],
+    [:targets, %i[resolved unread]],
+    [:platform, %i[darwin nixos]]
   ]
 end
 
@@ -50,7 +50,7 @@ def state(axes_map, payload)
     reduce(
       (s, k) -> assoc(s, k, get(payload, k)),
       axes_map,
-      [:gateway_addr, :gateway_iface, :hosts, :routed, :table, :priority]
+      %i[gateway_addr gateway_iface hosts routed table priority]
     )
   else
     raise(
@@ -247,11 +247,11 @@ def from_capture(c, parser)
 end
 
 def netstat_argv()
-  ["/usr/sbin/netstat", "-rn", "-f", "inet"]
+  %w[/usr/sbin/netstat -rn -f inet]
 end
 
 def ifconfig_argv()
-  ["/sbin/ifconfig", "-l"]
+  %w[/sbin/ifconfig -l]
 end
 
 def route_add_argv(host, gateway)
@@ -453,7 +453,7 @@ def r_dest(r)
 end
 
 def half?(d)
-  member?(d, ["0/1", "128/1", "128.0/1"])
+  member?(d, %w[0/1 128/1 128.0/1])
 end
 
 def corp_of(routes, pattern)
@@ -1064,23 +1064,16 @@ test "end to end over the measured state after the bypass: permissive, and only 
   o = decide(s)
   assert o[:kind] == :bypass
   assert o[:routes][:add] ==
-    [
-      "192.200.0.103",
-      "192.200.0.105",
-      "192.200.0.106",
-      "192.200.0.108",
-      "192.200.0.115"
-    ]
+    %w[192.200.0.103 192.200.0.105 192.200.0.106 192.200.0.108 192.200.0.115]
   assert size(plan(o, cfg_for(:darwin, []))) == 5
 end
 
 test "enforcement: removed routes and blocked egress are told apart, and each refuses"
-  assert infer_enforcement(["a", "b"], ["a"], ["a", "b"], :relay) ==
-    :routes_rewritten
-  assert infer_enforcement(["a", "b"], ["a", "b"], [], :none) == :egress_blocked
-  assert infer_enforcement(["a", "b"], ["a", "b"], [], :relay) == :permissive
-  assert infer_enforcement(["a", "b"], ["a"], [], :relay) == :permissive
-  assert infer_enforcement(["a", "b"], [], [], :relay) == :unknown
+  assert infer_enforcement(%w[a b], ["a"], %w[a b], :relay) == :routes_rewritten
+  assert infer_enforcement(%w[a b], %w[a b], [], :none) == :egress_blocked
+  assert infer_enforcement(%w[a b], %w[a b], [], :relay) == :permissive
+  assert infer_enforcement(%w[a b], ["a"], [], :relay) == :permissive
+  assert infer_enforcement(%w[a b], [], [], :relay) == :unknown
   assert infer_enforcement([], [], [], :relay) == :unknown
   obs = measured(
     fixture("netstat-full-no-bypass.txt"),
@@ -1102,10 +1095,10 @@ test "an unreadable observation is blind, naming what could not be read"
   )
   o = decide(assemble(cfg_for(:darwin, []), obs))
   assert o[:kind] == :blind
-  assert o[:unread] == [:enforcement, :targets]
+  assert o[:unread] == %i[enforcement targets]
   obs2 = assoc(obs, :routes, bad("netstat exited 1"))
   assert decide(assemble(cfg_for(:darwin, []), obs2))[:unread] ==
-    [:corp, :enforcement, :gateway, :targets]
+    %i[corp enforcement gateway targets]
 end
 
 test "nixos is policy routing: a table route and a rule per host"
@@ -1146,39 +1139,25 @@ test "nixos is policy routing: a table route and a rule per host"
   assert o[:kind] == :bypass
   assert plan(o, cfg) ==
     [
-      [
-        "/bin/ip",
-        "-4",
-        "route",
-        "replace",
-        "199.38.181.93/32",
-        "via",
-        "192.168.1.1",
-        "dev",
-        "eth0",
-        "table",
-        "5280"
+      %w[
+        /bin/ip
+        -4
+        route
+        replace
+        199.38.181.93/32
+        via
+        192.168.1.1
+        dev
+        eth0
+        table
+        5280
       ],
-      [
-        "/bin/ip",
-        "-4",
-        "rule",
-        "add",
-        "to",
-        "199.38.181.93/32",
-        "lookup",
-        "5280",
-        "priority",
-        "5200"
-      ]
+      %w[/bin/ip -4 rule add to 199.38.181.93/32 lookup 5280 priority 5200]
     ]
 end
 
 test "dry-run plans and runs nothing; a real capture keeps status and stdout apart"
-  rs = act(
-    [["/sbin/route", "-n", "add", "-host", "192.0.2.9", "192.0.2.1"]],
-    true
-  )
+  rs = act([%w[/sbin/route -n add -host 192.0.2.9 192.0.2.1]], true)
   assert first(rs)[:stderr] == "dry-run"
   assert first(rs)[:status].nil?
   ok_cap = {

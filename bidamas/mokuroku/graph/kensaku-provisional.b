@@ -66,7 +66,7 @@ verb(
   {
     kind: :effect,
     shape: "expand(model, query) -> queries",
-    laterals: ["cache", "deadline"],
+    laterals: %w[cache deadline],
     fleet: nil,
     today: "absent",
     meaning: "rewrite a query into variants to widen recall",
@@ -111,7 +111,7 @@ verb(
   {
     kind: :effect,
     shape: "ground(question, index, opts) -> {text, citations}",
-    laterals: ["deadline", "trace"],
+    laterals: %w[deadline trace],
     fleet: nil,
     today: "absent",
     meaning: "answer a question from retrieved sources only",
@@ -126,7 +126,7 @@ verb(
   {
     kind: :decl,
     shape: "index(kind, opts) -> index",
-    laterals: ["config", "resource"],
+    laterals: %w[config resource],
     fleet: "sakuin",
     today: "absent",
     meaning: "declare an index: keyword, vector, hybrid or spatial",
@@ -201,7 +201,7 @@ verb(
   {
     kind: :effect,
     shape: "rerank(hits, query, opts) -> hits",
-    laterals: ["cache", "deadline"],
+    laterals: %w[cache deadline],
     fleet: "codesearch",
     today: "absent",
     meaning: "reorder hits with a stronger model",
@@ -216,7 +216,7 @@ verb(
   {
     kind: :effect,
     shape: "search(index, query, opts) -> hits",
-    laterals: ["cache", "deadline"],
+    laterals: %w[cache deadline],
     fleet: "codesearch",
     today: "absent",
     meaning: "ranked hits for a query: exact, keyword, vector or hybrid",
@@ -261,7 +261,7 @@ verb(
   {
     kind: :effect,
     shape: "sync(index, source, opts) -> report",
-    laterals: ["idempotent", "resource"],
+    laterals: %w[idempotent resource],
     fleet: "codesearch",
     today: "absent",
     meaning: "bring an index level with its source, changes only",

@@ -111,7 +111,7 @@ verb(
   {
     kind: :stream,
     shape: "frames(video, f, opts) -> nil",
-    laterals: ["cancel", "resource"],
+    laterals: %w[cancel resource],
     fleet: "eizou",
     today: "absent",
     meaning: "call f with each decoded frame",
@@ -187,7 +187,7 @@ verb(
   {
     kind: :effect,
     shape: "ocr(image, opts) -> {text, boxes}",
-    laterals: ["cache", "deadline", "retry"],
+    laterals: %w[cache deadline retry],
     fleet: nil,
     today: "absent",
     meaning: "text found in an image, with boxes",
@@ -307,7 +307,7 @@ verb(
   {
     kind: :effect,
     shape: "transcode(src, target, opts) -> nil",
-    laterals: ["deadline", "process"],
+    laterals: %w[deadline process],
     fleet: nil,
     today: "absent",
     meaning: "re-encode a video to another codec or size",

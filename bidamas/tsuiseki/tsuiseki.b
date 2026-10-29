@@ -1,11 +1,11 @@
-use("jisho", [:delete, :has?, :merge])
+use("jisho", %i[delete has? merge])
 use("moji", [:take_chars])
 use("retsu", [:first])
 use("rogu")
 use("tesuto", [:raises?])
 
 def reserved()
-  [:parent, :sink]
+  %i[parent sink]
 end
 
 def attributes(attrs)

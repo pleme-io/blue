@@ -1,7 +1,7 @@
-use("hadome", [:judge, :parse, :render, :shrunk])
-use("mokuroku", [:blue_path_roots, :package_dirs])
-use("retsu", [:concat_lists, :find_first, :flat_map, :last, :size])
-use("tesuto", [:beside, :level, :settle, :stale, :uncovered, :waive])
+use("hadome", %i[judge parse render shrunk])
+use("mokuroku", %i[blue_path_roots package_dirs])
+use("retsu", %i[concat_lists find_first flat_map last size])
+use("tesuto", %i[beside level settle stale uncovered waive])
 
 # Tests live beside what they test (docs/TESTING.md). Every bidama's
 # definitions are reached by a test in the same package, or the gap is a

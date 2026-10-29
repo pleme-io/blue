@@ -6,7 +6,7 @@ verb(
   {
     kind: :effect,
     shape: "confine(f, profile, opts) -> value",
-    laterals: ["capability", "deadline", "error", "process"],
+    laterals: %w[capability deadline error process],
     fleet: "sui",
     today: "absent",
     meaning: "run a function or command inside a profile",
@@ -21,7 +21,7 @@ verb(
   {
     kind: :effect,
     shape: "drop(privileges) -> nil",
-    laterals: ["capability", "process"],
+    laterals: %w[capability process],
     fleet: nil,
     today: "absent",
     meaning: "give up privileges for good",
@@ -37,7 +37,7 @@ verb(
   {
     kind: :decl,
     shape: "egress(rules) -> rules",
-    laterals: ["capability", "config"],
+    laterals: %w[capability config],
     fleet: nil,
     today: "absent",
     meaning: "which hosts and ports a run may reach",
@@ -52,7 +52,7 @@ verb(
   {
     kind: :decl,
     shape: "elevate(profile, why, until) -> profile",
-    laterals: ["log", "switch", "time"],
+    laterals: %w[log switch time],
     fleet: "sekiban",
     today: "absent",
     meaning: "time-boxed, logged widening set by the root only",
@@ -67,7 +67,7 @@ verb(
   {
     kind: :effect,
     shape: "embed(module, profile, opts) -> instance",
-    laterals: ["capability", "resource"],
+    laterals: %w[capability resource],
     fleet: "blue-lang-wasm",
     today: "absent",
     meaning: "run a WASM module with exactly the granted imports",
@@ -82,7 +82,7 @@ verb(
   {
     kind: :pure,
     shape: "exceeds(observed, profile) -> [access]",
-    laterals: ["trace", "validate"],
+    laterals: %w[trace validate],
     fleet: nil,
     today: "absent",
     meaning: "accesses a profile did not grant",
@@ -97,7 +97,7 @@ verb(
   {
     kind: :decl,
     shape: "filter(syscalls) -> filter",
-    laterals: ["capability", "config"],
+    laterals: %w[capability config],
     fleet: nil,
     today: "absent",
     meaning: "allow-list of system calls (seccomp)",
@@ -113,7 +113,7 @@ verb(
   {
     kind: :effect,
     shape: "learn(command, opts) -> profile",
-    laterals: ["process", "trace"],
+    laterals: %w[process trace],
     fleet: nil,
     today: "absent",
     meaning: "run once, record what it touched, as a profile",
@@ -128,7 +128,7 @@ verb(
   {
     kind: :decl,
     shape: "limit(resource, amount) -> limit",
-    laterals: ["config", "deadline", "resource"],
+    laterals: %w[config deadline resource],
     fleet: nil,
     today: "absent",
     meaning: "cap CPU, memory, files or time for a run",
@@ -143,7 +143,7 @@ verb(
   {
     kind: :decl,
     shape: "profile(name, allow, opts) -> profile",
-    laterals: ["capability", "config"],
+    laterals: %w[capability config],
     fleet: "blue-lang-waku",
     today: "absent",
     meaning: "what a run may touch: paths, hosts, processes",

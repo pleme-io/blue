@@ -2,13 +2,13 @@
   {
     "name": "reserved parent",
     "file": "tsuiseki.b",
-    "find": "[:parent, :sink]",
+    "find": "%i[parent sink]",
     "replace": "[:sink]"
   },
   {
     "name": "reserved sink",
     "file": "tsuiseki.b",
-    "find": "[:parent, :sink]",
+    "find": "%i[parent sink]",
     "replace": "[:parent]"
   },
   {

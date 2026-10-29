@@ -36,7 +36,7 @@ verb(
   {
     kind: :pure,
     shape: "check(source, opts) -> [finding]",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: "blue-lang-check",
     today: "rust:blue-lang-check",
     meaning: "findings of every rule on a source, in one pass",
@@ -156,7 +156,7 @@ verb(
   {
     kind: :effect,
     shape: "scan(subject, opts) -> [finding]",
-    laterals: ["capability", "deadline"],
+    laterals: %w[capability deadline],
     fleet: "cse-lint",
     today: "absent",
     meaning: "look for secrets, advisories or licence problems",

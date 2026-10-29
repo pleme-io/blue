@@ -21,7 +21,7 @@ def shout(args)
 end
 
 test "it shouts every argument"
-  assert shout(["one", "two"]) == "ONE TWO"
+  assert shout(%w[one two]) == "ONE TWO"
 end
 
 test "with no arguments it says how to call it"

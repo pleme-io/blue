@@ -45,7 +45,7 @@ use("kiban", [:kb_board])
 # {kw: name}.
 
 def cz_delims()
-  ["(", ")"]
+  %w[( )]
 end
 
 # Split S-expression text into tokens: "(", ")", atoms, and strings kept with
@@ -304,11 +304,11 @@ def cz_type(n)
 end
 
 def cz_arith()
-  [["+", "checked_add"], ["-", "checked_sub"], ["*", "checked_mul"]]
+  [%w[+ checked_add], %w[- checked_sub], %w[* checked_mul]]
 end
 
 def cz_compare()
-  [["equal?", "eq"], ["<", "lt"], ["<=", "le"], [">", "gt"], [">=", "ge"]]
+  [%w[equal? eq], %w[< lt], %w[<= le], %w[> gt], %w[>= ge]]
 end
 
 def cz_lookup(key, pairs)
@@ -356,7 +356,7 @@ def cz_call(n, ctx)
     reduce(
       fn(acc, b)
         rs_call(
-          ["kiban_io", "checked"],
+          %w[kiban_io checked],
           [rs_method(acc, arith, [cz_expr(b, ctx)])]
         )
       end,
@@ -610,7 +610,7 @@ def cz_lower(forms, board)
   {
     attrs: [cz_attr("no_std", []), cz_attr("forbid", ["unsafe_code"])],
     items: append(
-      [{kind: "use", item: {path: ["kiban_io", "Io"]}}],
+      [{kind: "use", item: {path: %w[kiban_io Io]}}],
       map(cz_const, const_forms),
       map((f) -> cz_fn(f, fns, consts), fn_forms),
       [rs_fn("pub", "main", [], nil, main_body)]
@@ -834,10 +834,7 @@ end
 
 # The size ledger row as TSV (a header and one line), for DuckDB.
 def cz_size_tsv(program, board_name, m)
-  head = join(
-    ["program", "board", "text", "rodata", "data", "bss", "fmt_symbols"],
-    "\t"
-  )
+  head = join(%w[program board text rodata data bss fmt_symbols], "\t")
   row = join(
     [
       program,
@@ -866,9 +863,9 @@ test "the reader reads the resolved tree's atoms and nesting"
 end
 
 test "arithmetic lowers checked, and wrapping only where asked"
-  ctx = {self: nil, params: ["a", "b"], fns: [], consts: []}
+  ctx = {self: nil, params: %w[a b], fns: [], consts: []}
   e = cz_expr(first(cz_read("(+ a b)")), ctx)
-  assert e[:func] == ["kiban_io", "checked"]
+  assert e[:func] == %w[kiban_io checked]
   assert first(e[:args])[:method] == "checked_add"
   w = cz_expr(first(cz_read("(kiban/wrapping_add a b)")), ctx)
   assert w[:method] == "wrapping_add"

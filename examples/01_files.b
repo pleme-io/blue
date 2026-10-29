@@ -24,7 +24,7 @@ test "a file written, appended to and read back"
   dir = scratch_dir("files")
   path = path_join(dir, "notes.txt")
   write_file(path, unlines(["first"]))
-  assert log_lines(path, ["second", "third"]) == ["first", "second", "third"]
+  assert log_lines(path, %w[second third]) == %w[first second third]
   assert is_file?(path)
   assert size(ls(dir)) == 1
   rm_rf(dir)

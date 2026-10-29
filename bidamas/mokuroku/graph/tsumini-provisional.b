@@ -6,7 +6,7 @@ verb(
   {
     kind: :effect,
     shape: "build(spec, opts) -> image",
-    laterals: ["cache", "error", "process"],
+    laterals: %w[cache error process],
     fleet: nil,
     today: "absent",
     meaning: "make an image from a spec, no daemon",
@@ -51,7 +51,7 @@ verb(
   {
     kind: :effect,
     shape: "copy(from, to, opts) -> digest",
-    laterals: ["idempotent", "retry"],
+    laterals: %w[idempotent retry],
     fleet: "multi-arch-image-release",
     today: "absent",
     meaning: "move an image between registries without unpacking",
@@ -111,7 +111,7 @@ verb(
   {
     kind: :effect,
     shape: "gc(repo, opts) -> {freed:}",
-    laterals: ["idempotent", "resource"],
+    laterals: %w[idempotent resource],
     fleet: nil,
     today: "absent",
     meaning: "drop untagged and unreferenced blobs",
@@ -126,7 +126,7 @@ verb(
   {
     kind: :effect,
     shape: "info(ref) -> record",
-    laterals: ["cache", "error"],
+    laterals: %w[cache error],
     fleet: nil,
     today: "absent",
     meaning: "manifest, config and size of an image",
@@ -156,7 +156,7 @@ verb(
   {
     kind: :effect,
     shape: "list(repo, opts) -> [tag]",
-    laterals: ["error", "ratelimit"],
+    laterals: %w[error ratelimit],
     fleet: nil,
     today: "absent",
     meaning: "tags in a repository, all pages",
@@ -171,7 +171,7 @@ verb(
   {
     kind: :effect,
     shape: "pull(ref, dir, opts) -> image",
-    laterals: ["cache", "deadline", "retry"],
+    laterals: %w[cache deadline retry],
     fleet: nil,
     today: "absent",
     meaning: "fetch an image by digest",
@@ -186,7 +186,7 @@ verb(
   {
     kind: :effect,
     shape: "push(image, ref, opts) -> digest",
-    laterals: ["deadline", "idempotent", "retry"],
+    laterals: %w[deadline idempotent retry],
     fleet: nil,
     today: "absent",
     meaning: "upload an image, return its digest",
@@ -216,7 +216,7 @@ verb(
   {
     kind: :effect,
     shape: "resolve(ref) -> digest",
-    laterals: ["cache", "error"],
+    laterals: %w[cache error],
     fleet: nil,
     today: "absent",
     meaning: "turn a tag into its digest",
@@ -231,7 +231,7 @@ verb(
   {
     kind: :effect,
     shape: "run(ref, args, opts) -> result",
-    laterals: ["capability", "deadline", "process"],
+    laterals: %w[capability deadline process],
     fleet: nil,
     today: "absent",
     meaning: "run an image once and return its result",

@@ -6,7 +6,7 @@ verb(
   {
     kind: :effect,
     shape: "ask(model, prompt, opts) -> reply",
-    laterals: ["cache", "deadline", "ratelimit", "retry", "trace"],
+    laterals: %w[cache deadline ratelimit retry trace],
     fleet: "arnes-anthropic",
     today: "partial:chokkan",
     wave: 2,
@@ -20,7 +20,7 @@ verb(
   {
     kind: :effect,
     shape: "classify(model, input, labels, opts) -> {label, confidence}",
-    laterals: ["cache", "deadline", "retry"],
+    laterals: %w[cache deadline retry],
     fleet: "chokkan",
     today: "partial:chokkan",
     meaning: "one label from a closed set, with confidence",
@@ -51,7 +51,7 @@ verb(
   {
     kind: :effect,
     shape: "embed(model, texts, opts) -> vectors",
-    laterals: ["cache", "deadline", "ratelimit", "retry"],
+    laterals: %w[cache deadline ratelimit retry],
     fleet: "codesearch",
     today: "absent",
     meaning: "vectors for texts, one per text",
@@ -81,7 +81,7 @@ verb(
   {
     kind: :effect,
     shape: "extract(model, text, shape) -> record",
-    laterals: ["deadline", "retry", "validate"],
+    laterals: %w[deadline retry validate],
     fleet: nil,
     today: "absent",
     meaning: "a record of the given shape pulled from text",
@@ -172,7 +172,7 @@ verb(
   {
     kind: :decl,
     shape: "model(provider, id, opts) -> model",
-    laterals: ["config", "validate"],
+    laterals: %w[config validate],
     fleet: "arnes-anthropic",
     today: "absent",
     meaning: "declare a model: window, price, tier",
@@ -232,7 +232,7 @@ verb(
   {
     kind: :stream,
     shape: "stream(model, prompt, f, opts) -> reply",
-    laterals: ["cancel", "deadline", "trace"],
+    laterals: %w[cancel deadline trace],
     fleet: "arnes-anthropic",
     today: "absent",
     meaning: "call f for each delta of a reply",

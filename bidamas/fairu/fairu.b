@@ -1,4 +1,4 @@
-use("moji", [:present, :starts_with, :strip_suffix])
+use("moji", %i[present starts_with strip_suffix])
 
 @doc """
 absolute: the path made absolute against the current directory.
@@ -74,9 +74,9 @@ test "home is the HOME of the process and raises when it is empty"
 end
 
 test "parts keeps the root as its own part and drops empty segments"
-  assert parts("/a/b/c") == ["/", "a", "b", "c"]
-  assert parts("a/b") == ["a", "b"]
-  assert parts("a//b/") == ["a", "b"]
+  assert parts("/a/b/c") == %w[/ a b c]
+  assert parts("a/b") == %w[a b]
+  assert parts("a//b/") == %w[a b]
   assert parts("/") == ["/"]
   assert parts("") == []
 end

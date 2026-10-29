@@ -6,7 +6,7 @@ verb(
   {
     kind: :effect,
     shape: "acquire(locks, name, opts) -> lease",
-    laterals: ["deadline", "error", "resource", "retry"],
+    laterals: %w[deadline error resource retry],
     fleet: "pleme-redis",
     today: "absent",
     meaning: "take a named lock with a time limit, waiting up to wait",
@@ -21,7 +21,7 @@ verb(
   {
     kind: :effect,
     shape: "barrier(locks, name, n, opts) -> nil",
-    laterals: ["cancel", "deadline"],
+    laterals: %w[cancel deadline],
     fleet: nil,
     today: "absent",
     meaning: "wait until n parties have arrived",
@@ -51,7 +51,7 @@ verb(
   {
     kind: :effect,
     shape: "elect(locks, name, f, opts) -> nil",
-    laterals: ["cancel", "resource", "switch", "time"],
+    laterals: %w[cancel resource switch time],
     fleet: "shinka",
     today: "absent",
     meaning: "run f only while this process is the leader",
@@ -141,7 +141,7 @@ verb(
   {
     kind: :effect,
     shape: "open(spec) -> locks",
-    laterals: ["capability", "config", "resource"],
+    laterals: %w[capability config resource],
     fleet: "pleme-redis",
     today: "absent",
     meaning: "connect to a lock backend: file, database, Redis or cluster",
@@ -156,7 +156,7 @@ verb(
   {
     kind: :effect,
     shape: "release(lease) -> nil",
-    laterals: ["idempotent", "resource"],
+    laterals: %w[idempotent resource],
     fleet: "pleme-redis",
     today: "absent",
     meaning: "give up a lock; already released counts as done",
@@ -171,7 +171,7 @@ verb(
   {
     kind: :effect,
     shape: "renew(lease, by) -> lease",
-    laterals: ["error", "time"],
+    laterals: %w[error time],
     fleet: "pleme-redis",
     today: "absent",
     meaning: "lengthen the life of a lease before it lapses",
@@ -186,7 +186,7 @@ verb(
   {
     kind: :effect,
     shape: "revoke(locks, name) -> nil",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: nil,
     today: "absent",
     meaning: "take a lock from its holder by force",
@@ -201,7 +201,7 @@ verb(
   {
     kind: :effect,
     shape: "with_lock(locks, name, f, opts) -> value",
-    laterals: ["cancel", "deadline", "error", "resource"],
+    laterals: %w[cancel deadline error resource],
     fleet: "pleme-redis",
     today: "absent",
     meaning: "run f while holding a lock, releasing on any exit",

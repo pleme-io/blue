@@ -365,7 +365,7 @@ verb(
   {
     kind: :pure,
     shape: "pattern(text, opts) -> pattern",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: "tatara-lisp-script",
     today: "rust:blue-lang-runtime",
     meaning: "compile a regex into a reusable value",
@@ -514,7 +514,7 @@ verb(
   {
     kind: :pure,
     shape: "template(text, opts) -> template",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: nil,
     today: "absent",
     meaning: "compile text with named slots into a template",

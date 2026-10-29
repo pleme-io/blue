@@ -6,7 +6,7 @@ verb(
   {
     kind: :pure,
     shape: "derive(secret, salt, info, opts) -> key",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: nil,
     today: "absent",
     meaning: "several independent keys from one secret (HKDF)",
@@ -21,7 +21,7 @@ verb(
   {
     kind: :effect,
     shape: "destroy(key_id, opts) -> nil",
-    laterals: ["idempotent", "log"],
+    laterals: %w[idempotent log],
     fleet: nil,
     today: "absent",
     meaning: "erase key material; data under it is gone for good",
@@ -51,7 +51,7 @@ verb(
   {
     kind: :effect,
     shape: "enclose(data, key_id, opts) -> envelope",
-    laterals: ["capability", "error", "resource"],
+    laterals: %w[capability error resource],
     fleet: "cofre",
     today: "absent",
     meaning: "envelope encryption: fresh data key wrapped by a managed key",
@@ -81,7 +81,7 @@ verb(
   {
     kind: :pure,
     shape: "exchange(secret, peer_public) -> key",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: nil,
     today: "absent",
     meaning: "shared key from my secret and a peer public key",
@@ -96,7 +96,7 @@ verb(
   {
     kind: :effect,
     shape: "generate(kind, opts) -> key",
-    laterals: ["capability", "error"],
+    laterals: %w[capability error],
     fleet: "cofre",
     today: "absent",
     meaning: "new key of a kind from secure entropy",
@@ -126,7 +126,7 @@ verb(
   {
     kind: :pure,
     shape: "open_as(envelope, secret, opts) -> bytes",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: nil,
     today: "absent",
     meaning: "open an envelope sealed to my public key",
@@ -141,7 +141,7 @@ verb(
   {
     kind: :stream,
     shape: "open_stream(source, target, key) -> nil",
-    laterals: ["cancel", "error", "resource"],
+    laterals: %w[cancel error resource],
     fleet: nil,
     today: "absent",
     meaning: "open a chunked envelope, failing on the first bad chunk",
@@ -156,7 +156,7 @@ verb(
   {
     kind: :pure,
     shape: "parse(text, format) -> key",
-    laterals: ["serialize", "validate"],
+    laterals: %w[serialize validate],
     fleet: nil,
     today: "absent",
     meaning: "PEM, JWK or hex text to a key",
@@ -201,7 +201,7 @@ verb(
   {
     kind: :effect,
     shape: "random(count) -> bytes",
-    laterals: ["capability", "error"],
+    laterals: %w[capability error],
     fleet: nil,
     today: "absent",
     meaning: "secure random bytes from the host entropy source",
@@ -216,7 +216,7 @@ verb(
   {
     kind: :pure,
     shape: "rebuild(shares) -> secret",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: "tameshi",
     today: "absent",
     meaning: "secret from a threshold of shares",
@@ -246,7 +246,7 @@ verb(
   {
     kind: :effect,
     shape: "retire(key_id) -> nil",
-    laterals: ["idempotent", "log"],
+    laterals: %w[idempotent log],
     fleet: nil,
     today: "absent",
     meaning: "stop a key from sealing new data; old data still opens",
@@ -261,7 +261,7 @@ verb(
   {
     kind: :effect,
     shape: "rewrap(envelope, key_id) -> envelope",
-    laterals: ["idempotent", "resource"],
+    laterals: %w[idempotent resource],
     fleet: nil,
     today: "absent",
     meaning: "move the data key to a new key without touching data",
@@ -276,7 +276,7 @@ verb(
   {
     kind: :effect,
     shape: "rotate(key_id, opts) -> key",
-    laterals: ["idempotent", "log", "time"],
+    laterals: %w[idempotent log time],
     fleet: "cofre",
     today: "absent",
     meaning: "new key version; old versions still open old data",
@@ -291,7 +291,7 @@ verb(
   {
     kind: :effect,
     shape: "seal(data, key, opts) -> envelope",
-    laterals: ["capability", "error"],
+    laterals: %w[capability error],
     fleet: nil,
     today: "absent",
     meaning: "authenticated encryption; any tampering breaks it",
@@ -306,7 +306,7 @@ verb(
   {
     kind: :stream,
     shape: "seal_stream(source, target, key) -> nil",
-    laterals: ["cancel", "error", "resource"],
+    laterals: %w[cancel error resource],
     fleet: nil,
     today: "absent",
     meaning: "seal data larger than memory in authenticated chunks",
@@ -321,7 +321,7 @@ verb(
   {
     kind: :effect,
     shape: "seal_to(data, recipient_public, opts) -> envelope",
-    laterals: ["capability", "error"],
+    laterals: %w[capability error],
     fleet: nil,
     today: "absent",
     meaning: "seal so only the holder of a secret key can open",
@@ -336,7 +336,7 @@ verb(
   {
     kind: :effect,
     shape: "share(secret, threshold, count) -> [share]",
-    laterals: ["capability", "error"],
+    laterals: %w[capability error],
     fleet: "tameshi",
     today: "absent",
     meaning: "Shamir shares; any threshold of them rebuild the secret",
@@ -351,7 +351,7 @@ verb(
   {
     kind: :pure,
     shape: "shield(key, wrapping_key) -> text",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: nil,
     today: "absent",
     meaning: "encrypt one key under another key",
@@ -381,7 +381,7 @@ verb(
   {
     kind: :pure,
     shape: "stretch(password, salt, opts) -> key",
-    laterals: ["resource", "validate"],
+    laterals: %w[resource validate],
     fleet: "x-crypto",
     today: "absent",
     meaning: "password to key with a memory-hard function",
@@ -396,7 +396,7 @@ verb(
   {
     kind: :effect,
     shape: "unlock(envelope, opts) -> bytes",
-    laterals: ["error", "resource"],
+    laterals: %w[error resource],
     fleet: "cofre",
     today: "absent",
     meaning: "open an envelope by asking for its data key",
@@ -411,7 +411,7 @@ verb(
   {
     kind: :pure,
     shape: "unseal(envelope, key, opts) -> bytes",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: nil,
     today: "absent",
     meaning: "decrypt and check; raises :tampered on a bad tag",
@@ -426,7 +426,7 @@ verb(
   {
     kind: :pure,
     shape: "unwrap(text, wrapping_key) -> key",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: nil,
     today: "absent",
     meaning: "recover a key wrapped under another key",

@@ -10,8 +10,8 @@ stable, so equal elements keep their input order.
     rank([]) #=> []
 """
 
-use("kazu", [:max, :min])
-use("retsu", [:first, :indexes, :is_empty, :last, :rest, :size])
+use("kazu", %i[max min])
+use("retsu", %i[first indexes is_empty last rest size])
 use("ronri", [:count_if])
 
 def insert_ordered(x, xs)
@@ -805,9 +805,9 @@ end
 test "sort orders STRINGS, not only numbers"
   # `<=` raises on strings, so this is the assertion that would have failed
   # before sort was phrased on `compare`.
-  assert sort(["pear", "apple", "fig"]) == ["apple", "fig", "pear"]
-  assert is_sorted(["a", "b", "c"]) == true
-  assert is_sorted(["b", "a"]) == false
+  assert sort(%w[pear apple fig]) == %w[apple fig pear]
+  assert is_sorted(%w[a b c]) == true
+  assert is_sorted(%w[b a]) == false
   # And numbers still sort, which is what makes `compare` the right seam
   # rather than a string-only special case.
   assert sort([3, 1, 2]) == [1, 2, 3]
@@ -820,15 +820,15 @@ test "keyed sorts order by string keys as well as numbers"
   # mokuroku sorted packages by name).
   rows = [["kazu", 3], ["angou", 1], ["retsu", 2]]
   assert map((r) -> first(r), sort_by((r) -> first(r), rows)) ==
-    ["angou", "kazu", "retsu"]
+    %w[angou kazu retsu]
   assert map((r) -> first(r), sort_stable_by((r) -> first(r), rows)) ==
-    ["angou", "kazu", "retsu"]
+    %w[angou kazu retsu]
   assert first(min_by((r) -> first(r), rows)) == "angou"
   assert is_sorted_by((r) -> first(r), [["a", 1], ["b", 2]]) == true
   # Numeric keys order exactly as before.
   assert map((r) -> last(r), sort_by((r) -> last(r), rows)) == [1, 2, 3]
   # merge_sort had the same `<=` and the same failure on words.
-  assert merge_sort(["kazu", "angou", "retsu"]) == ["angou", "kazu", "retsu"]
+  assert merge_sort(%w[kazu angou retsu]) == %w[angou kazu retsu]
 end
 
 @doc """

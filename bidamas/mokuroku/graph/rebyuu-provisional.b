@@ -6,7 +6,7 @@ verb(
   {
     kind: :effect,
     shape: "approve(review, opts) -> nil",
-    laterals: ["capability", "idempotent"],
+    laterals: %w[capability idempotent],
     fleet: nil,
     today: "absent",
     meaning: "record that the reviewer accepts the change",
@@ -51,7 +51,7 @@ verb(
   {
     kind: :effect,
     shape: "catchup(review, opts) -> nil",
-    laterals: ["error", "process"],
+    laterals: %w[error process],
     fleet: nil,
     today: "absent",
     meaning: "bring the review branch up to its base by merge",
@@ -81,7 +81,7 @@ verb(
   {
     kind: :effect,
     shape: "land(review, opts) -> commit",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: nil,
     today: "absent",
     meaning: "merge a ready review by the repo policy",
@@ -142,7 +142,7 @@ verb(
   {
     kind: :effect,
     shape: "ready?(review) -> verdict",
-    laterals: ["capability", "test"],
+    laterals: %w[capability test],
     fleet: nil,
     today: "absent",
     meaning: "whether checks, approvals and threads allow landing",

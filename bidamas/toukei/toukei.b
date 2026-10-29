@@ -9,8 +9,8 @@ truncates is worse than none, because every number it returns is plausible.
 """
 
 use("junjo", [:sort])
-use("kazu", [:abs, :min, :near, :pow])
-use("retsu", [:contains, :first, :indexes, :is_empty, :last, :size, :zip_with])
+use("kazu", %i[abs min near pow])
+use("retsu", %i[contains first indexes is_empty last size zip_with])
 use("shuugou", [:unique])
 
 def total(xs)

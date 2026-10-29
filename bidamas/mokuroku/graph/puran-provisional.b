@@ -36,7 +36,7 @@ verb(
   {
     kind: :effect,
     shape: "checkin(goal, progress) -> nil",
-    laterals: ["log", "time"],
+    laterals: %w[log time],
     fleet: nil,
     today: "absent",
     meaning: "record progress against a goal",
@@ -96,7 +96,7 @@ verb(
   {
     kind: :decl,
     shape: "goal(owner, target, window) -> goal",
-    laterals: ["config", "time"],
+    laterals: %w[config time],
     fleet: nil,
     today: "absent",
     meaning: "declare an outcome target for a person or team",

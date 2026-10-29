@@ -1,25 +1,25 @@
 use(
   "mokuroku",
-  [
-    :blue_path_roots,
-    :edges_tsv,
-    :graph_baseline,
-    :graph_findings,
-    :graph_findings_live,
-    :graph_from_tsv,
-    :graph_load,
-    :graph_shrunk,
-    :graph_verdict,
-    :graph_writes,
-    :import_refusals,
-    :untested_probe,
-    :verbs_tsv,
-    :vocab_tsv
+  %i[
+    blue_path_roots
+    edges_tsv
+    graph_baseline
+    graph_findings
+    graph_findings_live
+    graph_from_tsv
+    graph_load
+    graph_shrunk
+    graph_verdict
+    graph_writes
+    import_refusals
+    untested_probe
+    verbs_tsv
+    vocab_tsv
   ]
 )
 
-use("retsu", [:concat_lists, :first, :is_empty, :size])
-use("shisutemu", [:status_of, :stderr_of, :stdout_of])
+use("retsu", %i[concat_lists first is_empty size])
+use("shisutemu", %i[status_of stderr_of stdout_of])
 
 def graph_dir_default()
   "bidamas/mokuroku/graph"
@@ -51,7 +51,7 @@ def has_flag(args, flag)
 end
 
 def positional(args)
-  value_flags = ["--dir", "--out", "--tsv", "--baseline"]
+  value_flags = %w[--dir --out --tsv --baseline]
   keep = filter(
     fn(i)
       a = args[i]

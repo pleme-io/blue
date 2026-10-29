@@ -6,7 +6,7 @@ verb(
   {
     kind: :effect,
     shape: "converge(host, opts) -> outcome",
-    laterals: ["log", "process", "switch"],
+    laterals: %w[log process switch],
     fleet: "kirikae",
     today: "partial:kirikae",
     meaning: "bring a host to its declared system",
@@ -21,7 +21,7 @@ verb(
   {
     kind: :effect,
     shape: "drain(host, opts) -> nil",
-    laterals: ["deadline", "idempotent", "switch"],
+    laterals: %w[deadline idempotent switch],
     fleet: nil,
     today: "absent",
     meaning: "move work off a host",
@@ -51,7 +51,7 @@ verb(
   {
     kind: :effect,
     shape: "facts(host) -> record",
-    laterals: ["cache", "process"],
+    laterals: %w[cache process],
     fleet: nil,
     today: "absent",
     meaning: "kernel, system, disk and load facts",
@@ -141,7 +141,7 @@ verb(
   {
     kind: :effect,
     shape: "reach?(host, opts) -> Bool",
-    laterals: ["deadline", "process"],
+    laterals: %w[deadline process],
     fleet: "tehai",
     today: "partial:tehai",
     meaning: "whether the host answers now",
@@ -156,7 +156,7 @@ verb(
   {
     kind: :effect,
     shape: "wait(host, state, opts) -> host",
-    laterals: ["cancel", "deadline"],
+    laterals: %w[cancel deadline],
     fleet: nil,
     today: "absent",
     meaning: "block until a host is up or gone",

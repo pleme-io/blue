@@ -268,7 +268,7 @@ its list with cons and is quadratic (~0.2 s at 10,000).
     lines("") #=> []
 """
 
-use("deeta", [:as_json, :get_int, :get_str, :is_doc])
+use("deeta", %i[as_json get_int get_str is_doc])
 use("junjo", [:sort_stable_by])
 use("kyohi")
 
@@ -276,46 +276,46 @@ use("raifusaikuru", [:lc_define])
 
 use(
   "retsu",
-  [
-    :all_but_last,
-    :as_list,
-    :concat_lists,
-    :contains,
-    :count_where,
-    :find_first,
-    :first,
-    :is_empty,
-    :push,
-    :remove_at,
-    :repeat,
-    :size,
-    :take_n,
-    :update_at
+  %i[
+    all_but_last
+    as_list
+    concat_lists
+    contains
+    count_where
+    find_first
+    first
+    is_empty
+    push
+    remove_at
+    repeat
+    size
+    take_n
+    update_at
   ]
 )
 
 use(
   "shomei",
-  [
-    :chain_first_break,
-    :chain_genesis,
-    :chain_link,
-    :is_hash_hex,
-    :keypair_public,
-    :keypair_secret,
-    :sign_message,
-    :signing_keypair,
-    :verify_message
+  %i[
+    chain_first_break
+    chain_genesis
+    chain_link
+    is_hash_hex
+    keypair_public
+    keypair_secret
+    sign_message
+    signing_keypair
+    verify_message
   ]
 )
 
-use("shuugou", [:lookup, :set_equal, :unique])
+use("shuugou", %i[lookup set_equal unique])
 
 legacy_names("0.1.1", "el")
 
 legacy_names(
   "0.1.2",
-  [["refusal_detail", "kyohi::why"], ["refusal_kind", "kyohi::kind"]]
+  [%w[refusal_detail kyohi::why], %w[refusal_kind kyohi::kind]]
 )
 
 # ── the format ─────────────────────────────────────────────────────────────
@@ -347,7 +347,7 @@ end
 refusal_kinds: Every refusal kind a record can carry: lc_admit's. Closed.
 """
 def refusal_kinds()
-  [:unknown_event, :no_edge, :missing_payload, :bad_payload, :bad_field, :guard]
+  %i[unknown_event no_edge missing_payload bad_payload bad_field guard]
 end
 
 @doc """
@@ -355,16 +355,7 @@ break_kinds: Every break el_verify reports, in the order it prefers them when tw
 one line. Closed: a test row exercises each.
 """
 def break_kinds()
-  [
-    :unparseable,
-    :prev,
-    :hash,
-    :not_canonical,
-    :seq,
-    :unsigned,
-    :signature,
-    :head
-  ]
+  %i[unparseable prev hash not_canonical seq unsigned signature head]
 end
 
 # ── canonical JSON ─────────────────────────────────────────────────────────
@@ -1023,7 +1014,7 @@ def shape_problem(
     "time is not a whole number"
   elsif nonempty_string?(ty_text) == false
     "type is not a non-empty string"
-  elsif contains(["admitted", "refused"], status) == false
+  elsif contains(%w[admitted refused], status) == false
     "status is neither admitted nor refused"
   elsif is_hash_hex(prev) == false
     "prev is not a hash"
@@ -1969,7 +1960,7 @@ test "an identity: append then read gives back every record and every state, and
   assert states(r1) == states(log)
   assert states(r2) == states(r1)
   assert head(r1) == head(log)
-  assert entities(r1) == ["item-0", "item-1", "item-2", "item-z"]
+  assert entities(r1) == %w[item-0 item-1 item-2 item-z]
   # The differential: each state is what raifusaikuru alone folds from that
   # entity's admitted events.
   assert map(
@@ -2000,7 +1991,7 @@ test "a refused event is written, marked with its reason, counted in seq, and fo
   )
   r = el_last(l1)
   assert rec_status(r) == :refused
-  assert rec_refusal(r) == [:no_edge, ["open", "reading", "discard"]]
+  assert rec_refusal(r) == [:no_edge, %w[open reading discard]]
   assert state(l1, "item-1") == raifusaikuru::initial(d)
   assert seq_of(l1, "item-1") == 1
   assert el_count(l1) == 1
@@ -2021,8 +2012,7 @@ test "a refused event is written, marked with its reason, counted in seq, and fo
   assert rec_type(el_last(l3)) == "fly"
   back = records(read(p, "nisshi-test", d))
   rm(p)
-  assert map(rec_status, back) ==
-    [:refused, :admitted, :admitted, :refused, :refused]
+  assert map(rec_status, back) == %i[refused admitted admitted refused refused]
   assert map(rec_seq, back) == [0, 1, 2, 3, 4]
   assert retsu::last(back) == el_last(l3)
 end
@@ -2062,10 +2052,10 @@ test "values checked independently: the genesis and every hash by b3sum, the sig
   assert genesis("nisshi-doc") ==
     "0a42d546253d153e4253d118781c1b773338b3dd532373a12a83accd79e7cba2"
   assert map(rec_hash, back) ==
-    [
-      "9172aea16c9c2cb304ee3d624c0a79be88ca7537769f3386b64aa55b273dc412",
-      "c0a4ffe9fe283b42e163c6ef6b722139699dc07dc1626520e65600acf08d062e",
-      "f2b9bb297775ea19093808d056e5988ac629c6938dd7917d7c7f545d04f0c2a3"
+    %w[
+      9172aea16c9c2cb304ee3d624c0a79be88ca7537769f3386b64aa55b273dc412
+      c0a4ffe9fe283b42e163c6ef6b722139699dc07dc1626520e65600acf08d062e
+      f2b9bb297775ea19093808d056e5988ac629c6938dd7917d7c7f545d04f0c2a3
     ]
   assert head(log) ==
     "f2b9bb297775ea19093808d056e5988ac629c6938dd7917d7c7f545d04f0c2a3"
@@ -2239,7 +2229,7 @@ test "append raises before writing on what JSON cannot hold, and on a malformed 
       el_append(
         l0,
         "item-1",
-        raifusaikuru::ev(:reading, 1000, [[:value, :high]]),
+        raifusaikuru::ev(:reading, 1000, [%i[value high]]),
         []
       )
     end,
@@ -2365,7 +2355,7 @@ test "a stale log value cannot write, a written-through value keeps no records, 
   two = lc_define(
     :two,
     [
-      raifusaikuru::states([:a, :b]),
+      raifusaikuru::states(%i[a b]),
       raifusaikuru::start(:a),
       raifusaikuru::terminals([:b]),
       raifusaikuru::event(:go, []),
@@ -2390,9 +2380,9 @@ test "links are carried faithfully: kinds as text, ids, order and duplicates, in
     read(p, "nisshi-test", d),
     "order-1",
     raifusaikuru::ev(:reading, 1000, [[:value, 1]]),
-    [[:pack, "P-17"], [:pack, "P-18"], ["oil", "O-3"], [:pack, "P-17"]]
+    [[:pack, "P-17"], [:pack, "P-18"], %w[oil O-3], [:pack, "P-17"]]
   )
-  want = [["pack", "P-17"], ["pack", "P-18"], ["oil", "O-3"], ["pack", "P-17"]]
+  want = [%w[pack P-17], %w[pack P-18], %w[oil O-3], %w[pack P-17]]
   assert rec_links(el_last(l1)) == want
   assert contains?(
     rec_line(el_last(l1)),
@@ -2533,7 +2523,7 @@ test "grouping by entity keeps first-appearance order and stream order, and leav
     )
   )
   groups = by_entity(push(recs, bad(5, "x", "not JSON")))
-  assert map((g) -> first(g), groups) == ["item-1", "item-2"]
+  assert map((g) -> first(g), groups) == %w[item-1 item-2]
   assert map(el_position, first(groups)[1]) == [0, 1, 2, 3]
   assert map(el_position, groups[1][1]) == [4]
   assert by_entity([]) == []
@@ -2616,8 +2606,7 @@ test "an observed event is a fact: a guard refusal is written admitted and repla
   assert raifusaikuru::value(state(tried, "item-1"), :uses) == 0
   rm(q)
   sealed = observe(seen, "item-2", raifusaikuru::ev(:use, 1300, []), [])
-  assert rec_refusal(el_last(sealed)) ==
-    [:no_edge, ["open", "reading", "discard"]]
+  assert rec_refusal(el_last(sealed)) == [:no_edge, %w[open reading discard]]
   assert state(sealed, "item-2") == raifusaikuru::initial(d)
   flown = observe(sealed, "item-1", raifusaikuru::ev(:fly, 1400, []), [])
   assert rec_refusal(el_last(flown)) == [:unknown_event, []]

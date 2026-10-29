@@ -9,7 +9,7 @@ reading it learns the language rather than an FFI boundary.
     abs(0) #=> 0
 """
 
-legacy_names("0.1.0", [:abs, :max, :min])
+legacy_names("0.1.0", %i[abs max min])
 
 @doc """
 abs: distance from zero.

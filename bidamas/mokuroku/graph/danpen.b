@@ -104,7 +104,7 @@ verb(
   {
     kind: :pure,
     shape: "validate(document, schema, opts) -> document",
-    laterals: ["validate", "error"],
+    laterals: %w[validate error],
     fleet: nil,
     today: "exists:danpen",
     wave: 1,

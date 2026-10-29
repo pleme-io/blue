@@ -6,7 +6,7 @@ verb(
   {
     kind: :effect,
     shape: "events(opts) -> [event]",
-    laterals: ["error", "time"],
+    laterals: %w[error time],
     fleet: nil,
     today: "absent",
     meaning: "the audit trail of changes",
@@ -37,7 +37,7 @@ verb(
   {
     kind: :effect,
     shape: "get(kind, id, opts) -> resource or nil",
-    laterals: ["error", "ratelimit"],
+    laterals: %w[error ratelimit],
     fleet: "cordel",
     today: "absent",
     meaning: "one cloud resource, nil when absent",
@@ -68,7 +68,7 @@ verb(
   {
     kind: :effect,
     shape: "list(kind, opts) -> [resource]",
-    laterals: ["deadline", "error", "ratelimit"],
+    laterals: %w[deadline error ratelimit],
     fleet: "cordel",
     today: "absent",
     meaning: "cloud resources of a kind, all pages",
@@ -129,7 +129,7 @@ verb(
   {
     kind: :effect,
     shape: "tag(resource, tags) -> nil",
-    laterals: ["capability", "idempotent"],
+    laterals: %w[capability idempotent],
     fleet: nil,
     today: "absent",
     meaning: "set tags on a resource",
@@ -159,7 +159,7 @@ verb(
   {
     kind: :effect,
     shape: "wait(resource, state, opts) -> resource",
-    laterals: ["cancel", "deadline"],
+    laterals: %w[cancel deadline],
     fleet: nil,
     today: "absent",
     meaning: "block until a resource reaches a state",

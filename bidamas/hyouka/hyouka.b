@@ -1,11 +1,11 @@
-use("deeta", [:as_json, :get_str])
-use("kyohi", [:ok, :ok?, :refusal, :refusal_of, :refused, :value])
-use("moji", [:drop_chars, :includes, :lines, :take_chars, :trim])
-use("retsu", [:concat_lists, :first, :is_empty, :size])
+use("deeta", %i[as_json get_str])
+use("kyohi", %i[ok ok? refusal refusal_of refused value])
+use("moji", %i[drop_chars includes lines take_chars trim])
+use("retsu", %i[concat_lists first is_empty size])
 
 use(
   "shisutemu",
-  [:last_nonempty_line, :status_of, :stderr_of, :stdout_of, :strip_ansi]
+  %i[last_nonempty_line status_of stderr_of stdout_of strip_ansi]
 )
 
 def nix_bin()
@@ -209,9 +209,7 @@ def path_info(paths, store)
   else
     ["--store", store]
   end
-  out = run_nix(
-    concat_lists(concat_lists(["path-info", "--json"], where), paths)
-  )
+  out = run_nix(concat_lists(concat_lists(%w[path-info --json], where), paths))
   parsed = json_parse(out[:stdout]) rescue nil
   present = map((p) -> first(p), info_pairs(parsed))
   {present:, missing: filter((p) -> member?(p, present) == false, paths)}

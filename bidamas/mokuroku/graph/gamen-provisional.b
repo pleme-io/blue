@@ -50,7 +50,7 @@ verb(
   {
     kind: :decl,
     shape: "component(name, spec) -> component",
-    laterals: ["switch", "validate"],
+    laterals: %w[switch validate],
     fleet: "pleme-widget-spec",
     today: "exists:gamen",
     wave: 1,
@@ -419,7 +419,7 @@ verb(
   {
     kind: :effect,
     shape: "start(app, surface, opts) -> handle",
-    laterals: ["process", "resource"],
+    laterals: %w[process resource],
     fleet: "madori",
     today: "absent",
     meaning: "run an app on a terminal, window or page",
@@ -449,7 +449,7 @@ verb(
   {
     kind: :effect,
     shape: "stop(handle, opts) -> nil",
-    laterals: ["cancel", "resource"],
+    laterals: %w[cancel resource],
     fleet: "madori",
     today: "absent",
     meaning: "end a running app and free its surface",

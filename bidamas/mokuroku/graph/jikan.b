@@ -171,7 +171,7 @@ verb(
   {
     kind: :pure,
     shape: "in_zone(instant, name) -> instant",
-    laterals: ["error", "time"],
+    laterals: %w[error time],
     fleet: nil,
     today: "absent",
     meaning: "same moment shown in another zone",
@@ -201,7 +201,7 @@ verb(
   {
     kind: :effect,
     shape: "measure(f) -> record",
-    laterals: ["log", "time", "trace"],
+    laterals: %w[log time trace],
     fleet: nil,
     today: "absent",
     meaning: "run f; return its value and how long it took",
@@ -306,7 +306,7 @@ verb(
   {
     kind: :effect,
     shape: "now() -> instant",
-    laterals: ["capability", "time"],
+    laterals: %w[capability time],
     fleet: "tatara-lisp-script",
     today: "rust:blue-lang-runtime",
     meaning: "the current instant",
@@ -336,7 +336,7 @@ verb(
   {
     kind: :pure,
     shape: "offset(name, instant) -> seconds",
-    laterals: ["error", "time"],
+    laterals: %w[error time],
     fleet: nil,
     today: "absent",
     meaning: "zone offset from UTC at that moment",
@@ -351,7 +351,7 @@ verb(
   {
     kind: :pure,
     shape: "parse(text, format, opts) -> instant",
-    laterals: ["error", "time"],
+    laterals: %w[error time],
     fleet: nil,
     today: "absent",
     meaning: "text to instant: rfc3339, date, human, pattern",
@@ -366,7 +366,7 @@ verb(
   {
     kind: :pure,
     shape: "render(value, format, opts) -> text",
-    laterals: ["serialize", "time"],
+    laterals: %w[serialize time],
     fleet: nil,
     today: "partial:hizuke",
     meaning: "instant or duration to text",
@@ -411,7 +411,7 @@ verb(
   {
     kind: :decl,
     shape: "schedule(spec) -> schedule",
-    laterals: ["time", "validate"],
+    laterals: %w[time validate],
     fleet: "lava-cron",
     today: "absent",
     meaning: "declare a cron, RRULE or every-duration schedule",
@@ -456,7 +456,7 @@ verb(
   {
     kind: :effect,
     shape: "since(instant) -> duration",
-    laterals: ["capability", "time"],
+    laterals: %w[capability time],
     fleet: "tatara-lisp-script",
     today: "rust:blue-lang-runtime",
     meaning: "duration from an instant to now",
@@ -471,7 +471,7 @@ verb(
   {
     kind: :effect,
     shape: "sleep(duration) -> nil",
-    laterals: ["cancel", "deadline", "time"],
+    laterals: %w[cancel deadline time],
     fleet: "tatara-lisp-script",
     today: "rust:blue-lang-runtime",
     meaning: "pause for a duration",
@@ -501,7 +501,7 @@ verb(
   {
     kind: :effect,
     shape: "today(opts) -> date",
-    laterals: ["capability", "time"],
+    laterals: %w[capability time],
     fleet: nil,
     today: "absent",
     meaning: "the current calendar date in a zone",
@@ -546,7 +546,7 @@ verb(
   {
     kind: :effect,
     shape: "until(instant) -> duration",
-    laterals: ["capability", "time"],
+    laterals: %w[capability time],
     fleet: nil,
     today: "absent",
     meaning: "duration from now to an instant",

@@ -186,7 +186,7 @@ verb(
   {
     kind: :pure,
     shape: "point(latitude, longitude, opts) -> point",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: nil,
     today: "absent",
     meaning: "a place on the earth; bad ranges raise",

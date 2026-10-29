@@ -1,7 +1,4 @@
-use(
-  "hon",
-  [:doc_pages, :kind_refusals, :project_at, :run_blocks, :runnable_page?]
-)
+use("hon", %i[doc_pages kind_refusals project_at run_blocks runnable_page?])
 
 use("kyohi", [:why])
 use("retsu", [:flat_map])

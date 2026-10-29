@@ -21,7 +21,7 @@ verb(
   {
     kind: :decl,
     shape: "agent(spec) -> agent",
-    laterals: ["config", "validate"],
+    laterals: %w[config validate],
     fleet: "arnes-loop",
     today: "absent",
     meaning: "declare an agent: model, tools, policy, limits",
@@ -36,7 +36,7 @@ verb(
   {
     kind: :effect,
     shape: "approve(request) -> decision",
-    laterals: ["capability", "log"],
+    laterals: %w[capability log],
     fleet: "arnes-loop",
     today: "absent",
     meaning: "let a person or policy allow one effect",
@@ -66,7 +66,7 @@ verb(
   {
     kind: :effect,
     shape: "call(tool, args, opts) -> result",
-    laterals: ["deadline", "idempotent", "retry", "trace"],
+    laterals: %w[deadline idempotent retry trace],
     fleet: "arnes-mcp-client",
     today: "absent",
     meaning: "invoke one tool; failure is a typed result",
@@ -96,7 +96,7 @@ verb(
   {
     kind: :effect,
     shape: "connect(server, opts) -> client",
-    laterals: ["deadline", "resource", "retry"],
+    laterals: %w[deadline resource retry],
     fleet: "arnes-mcp-client",
     today: "absent",
     meaning: "open an MCP client to a command or URL",
@@ -111,7 +111,7 @@ verb(
   {
     kind: :effect,
     shape: "delegate(agent, task, opts) -> outcome",
-    laterals: ["deadline", "process"],
+    laterals: %w[deadline process],
     fleet: nil,
     today: "absent",
     meaning: "hand a task to another agent and take its outcome",
@@ -216,7 +216,7 @@ verb(
   {
     kind: :effect,
     shape: "replay(trace, opts) -> outcome",
-    laterals: ["test", "trace"],
+    laterals: %w[test trace],
     fleet: nil,
     today: "absent",
     meaning: "re-run a trace with recorded replies, no model",
@@ -246,7 +246,7 @@ verb(
   {
     kind: :effect,
     shape: "run(agent, task, opts) -> outcome",
-    laterals: ["cancel", "deadline", "log", "trace"],
+    laterals: %w[cancel deadline log trace],
     fleet: "arnes-loop",
     today: "absent",
     meaning: "loop until the agent ends or a budget runs out",
@@ -261,7 +261,7 @@ verb(
   {
     kind: :pure,
     shape: "screen(tool, args) -> {allow, ask, deny, why}",
-    laterals: ["capability", "validate"],
+    laterals: %w[capability validate],
     fleet: "guardrail",
     today: "absent",
     meaning: "rules decide a tool call before it runs",
@@ -276,7 +276,7 @@ verb(
   {
     kind: :effect,
     shape: "serve(tools, transport) -> handle",
-    laterals: ["capability", "resource"],
+    laterals: %w[capability resource],
     fleet: "kotoba",
     today: "absent",
     meaning: "offer tools as an MCP server",
@@ -306,7 +306,7 @@ verb(
   {
     kind: :effect,
     shape: "spawn(agent, task) -> handle",
-    laterals: ["process", "resource"],
+    laterals: %w[process resource],
     fleet: nil,
     today: "absent",
     meaning: "start a sub-agent without waiting",

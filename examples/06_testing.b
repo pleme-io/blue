@@ -6,7 +6,7 @@
 # plausible one: the empty input, an identity that must survive, a value
 # anyone can check by hand, and the case a wrong formula still passes.
 use("kazu", [:sum])
-use("retsu", [:is_empty, :size])
+use("retsu", %i[is_empty size])
 
 def mean(xs)
   if is_empty(xs)

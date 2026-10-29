@@ -26,7 +26,7 @@
   {
     "name": "instrument checked",
     "file": "keisoku.b",
-    "find": "  checked(opts, [:help, :labels])\n",
+    "find": "  checked(opts, %i[help labels])\n",
     "replace": ""
   },
   {
@@ -140,7 +140,7 @@
   {
     "name": "measure checked",
     "file": "keisoku.b",
-    "find": "  checked(opts, [:labels, :clock])\n",
+    "find": "  checked(opts, %i[labels clock])\n",
     "replace": ""
   },
   {
@@ -182,7 +182,7 @@
   {
     "name": "read checked",
     "file": "keisoku.b",
-    "find": "checked(opts, [:labels, :wait_ms])\n",
+    "find": "checked(opts, %i[labels wait_ms])\n",
     "replace": ""
   },
   {

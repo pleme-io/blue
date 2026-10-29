@@ -1,12 +1,9 @@
-use("gamen", [:duration_text, :show_step])
-use("moji", [:glob_match?, :take_chars])
+use("gamen", %i[duration_text show_step])
+use("moji", %i[glob_match? take_chars])
 
-use(
-  "retsu",
-  [:all_but_last, :enumerate, :first, :flat_map, :last, :reject, :rest]
-)
+use("retsu", %i[all_but_last enumerate first flat_map last reject rest])
 
-use("shisutemu", [:status_of, :stderr_of, :stdout_of])
+use("shisutemu", %i[status_of stderr_of stdout_of])
 
 @doc """
 gate_table: Every gate the pre-push hook knows, as data. A gate has an id, a
@@ -23,33 +20,33 @@ def gate_table()
       id: "cargo-fmt",
       label: "cargo fmt",
       weight: :light,
-      inputs: ["**/*.rs", "**/rustfmt.toml", "**/Cargo.toml"]
+      inputs: %w[**/*.rs **/rustfmt.toml **/Cargo.toml]
     },
     {id: "blue-fmt", label: "blue fmt", weight: :light, inputs: ["**/*.b"]},
     {
       id: "locks",
       label: "Bluefile.lock fresh",
       weight: :light,
-      inputs: ["**/Bluefile", "**/Bluefile.lock", "**/*.b"]
+      inputs: %w[**/Bluefile **/Bluefile.lock **/*.b]
     },
     {
       id: "retired",
       label: "a retired word ships its fixer",
       weight: :light,
-      inputs: ["bidamas/**/*.b", "gen/retired.b"]
+      inputs: %w[bidamas/**/*.b gen/retired.b]
     },
     {
       id: "regen",
       label: "regen",
       weight: :heavy,
-      inputs: [
-        "**/*.b",
-        "**/Bluefile",
-        "**/Bluefile.lock",
-        "crates/**",
-        "docs/**",
-        "examples/**",
-        "spec/**"
+      inputs: %w[
+        **/*.b
+        **/Bluefile
+        **/Bluefile.lock
+        crates/**
+        docs/**
+        examples/**
+        spec/**
       ]
     },
     {
@@ -62,57 +59,57 @@ def gate_table()
       id: "consumers",
       label: "every consumer in gen/consumers.json stays green at this blue",
       weight: :heavy,
-      inputs: [
-        "crates/**",
-        "bidamas/**",
-        "spec/**",
-        "gen/consumers.b",
-        "gen/consumers.json"
+      inputs: %w[
+        crates/**
+        bidamas/**
+        spec/**
+        gen/consumers.b
+        gen/consumers.json
       ]
     },
     {
       id: "gen-tie",
       label: "Cargo.gen.lock tied",
       weight: :heavy,
-      inputs: ["Cargo.lock", "Cargo.gen.lock", "**/Cargo.toml"]
+      inputs: %w[Cargo.lock Cargo.gen.lock **/Cargo.toml]
     },
     {
       id: "test-beside",
       label: "tests beside every bidama definition",
       weight: :heavy,
-      inputs: ["bidamas/**", "gen/test-beside.b"]
+      inputs: %w[bidamas/** gen/test-beside.b]
     },
     {
       id: "test-targets",
       label: "every member's test targets compile alone",
       weight: :heavy,
-      inputs: ["crates/**", "**/Cargo.toml"]
+      inputs: %w[crates/** **/Cargo.toml]
     },
     {
       id: "tests",
       label: "registry_graph, check_corpus, distribution, verb_graph",
       weight: :heavy,
-      inputs: [
-        "crates/**",
-        "bidamas/**",
-        "spec/**",
-        "gen/**",
-        "docs/verbs/**",
-        "examples/**",
-        "**/Cargo.toml"
+      inputs: %w[
+        crates/**
+        bidamas/**
+        spec/**
+        gen/**
+        docs/verbs/**
+        examples/**
+        **/Cargo.toml
       ]
     },
     {
       id: "conformance",
       label: "conformance, strict as CI runs it",
       weight: :heavy,
-      inputs: ["spec/**", "crates/**", "bidamas/**"]
+      inputs: %w[spec/** crates/** bidamas/**]
     },
     {
       id: "prose",
       label: "prose",
       weight: :none,
-      inputs: ["**/*.md", "LICENSE", "**/.gitignore"]
+      inputs: %w[**/*.md LICENSE **/.gitignore]
     }
   ]
 end
@@ -124,14 +121,14 @@ the locks every build reads, the toolchain, and the gate itself.
     member?("Cargo.lock", every_gate_paths) #=> true
 """
 def every_gate_paths()
-  [
-    "Cargo.lock",
-    "flake.lock",
-    "flake.nix",
-    "rust-toolchain*",
-    "nix/**",
-    ".githooks/**",
-    "gen/prepush.b"
+  %w[
+    Cargo.lock
+    flake.lock
+    flake.nix
+    rust-toolchain*
+    nix/**
+    .githooks/**
+    gen/prepush.b
   ]
 end
 
@@ -400,7 +397,7 @@ def regenerates?(dir)
   m = manifest(dir)
   any?(
     (k) -> get(m, k) != nil,
-    ["catalog", "generated", "workloads", "registries", "services"]
+    %w[catalog generated workloads registries services]
   )
 end
 
@@ -435,11 +432,11 @@ def test_targets()
 end
 
 def changed()
-  "#{git(["status", "--porcelain", "--untracked-files=all"])}#{git(["diff"])}"
+  "#{git(%w[status --porcelain --untracked-files=all])}#{git(["diff"])}"
 end
 
 def regen(bin, root, dir)
-  was = lines_of(git(["status", "--porcelain", "--untracked-files=all"]))
+  was = lines_of(git(%w[status --porcelain --untracked-files=all]))
   before = changed
   run = exec_with_env(
     [["PATH", "#{bin}:#{getenv("PATH")}"]],
@@ -450,7 +447,7 @@ def regen(bin, root, dir)
     "run",
     "#{root}/gen/regen.b"
   )
-  now = lines_of(git(["status", "--porcelain", "--untracked-files=all"]))
+  now = lines_of(git(%w[status --porcelain --untracked-files=all]))
   if status_of(run) != 0
     missing = absent_tools(dir)
     if missing == []
@@ -512,9 +509,9 @@ def gen_tie()
   elsif status_of(exec_capture("gen", "confirm")) == 0
     [:green, ""]
   else
-    was = lines_of(git(["status", "--porcelain", "--untracked-files=all"]))
+    was = lines_of(git(%w[status --porcelain --untracked-files=all]))
     built = exec_capture("gen", "build", ".")
-    now = lines_of(git(["status", "--porcelain", "--untracked-files=all"]))
+    now = lines_of(git(%w[status --porcelain --untracked-files=all]))
     if status_of(built) != 0
       [:red, stderr_of(built)]
     else
@@ -553,9 +550,7 @@ def main()
   end
   full = full?(getenv("BLUE_PREPUSH_FULL"))
   started = now_ms
-  common = trim(
-    git(["rev-parse", "--path-format=absolute", "--git-common-dir"])
-  )
+  common = trim(git(%w[rev-parse --path-format=absolute --git-common-dir]))
   store = "#{common}/prepush"
   remote = if count(argv) > 0
     first(argv)
@@ -577,7 +572,7 @@ def main()
     end
   end
   updates = if fed == ""
-    [{local: trim(git(["rev-parse", "HEAD"])), remote: ""}]
+    [{local: trim(git(%w[rev-parse HEAD])), remote: ""}]
   else
     updates_of(fed)
   end
@@ -605,8 +600,8 @@ def main()
     selection(paths, table)
   end
   whole = full or chosen[:reason] != ""
-  dirty = lines_of(git(["status", "--porcelain", "--untracked-files=no"]))
-  head_tree = trim(git(["rev-parse", "HEAD^{tree}"]))
+  dirty = lines_of(git(%w[status --porcelain --untracked-files=no]))
+  head_tree = trim(git(%w[rev-parse HEAD^{tree}]))
   trees = distinct(
     map((p) -> trim(git(["rev-parse", "#{first(p)}^{tree}"])), pairs)
   )
@@ -652,9 +647,9 @@ def main()
       )
     )
   end
-  root = trim(git(["rev-parse", "--show-toplevel"]))
+  root = trim(git(%w[rev-parse --show-toplevel]))
   bin = dir_of(self_exe)
-  dirs = map(dir_of, lines_of(git(["ls-files", "*Bluefile.lock"])))
+  dirs = map(dir_of, lines_of(git(%w[ls-files *Bluefile.lock])))
   scoped_b = filter((p) -> ends_with?(p, ".b") and path_exists(p), paths)
   scoped_dirs = distinct(
     map(
@@ -666,7 +661,7 @@ def main()
     )
   )
   bfiles = if whole
-    lines_of(git(["ls-files", "*.b"]))
+    lines_of(git(%w[ls-files *.b]))
   else
     scoped_b
   end
@@ -795,7 +790,7 @@ def main()
         fn()
           verdict(
             exec_with_env(
-              [["BLUE_BIN", "#{bin}/blue"], ["BLUE_CONFORMANCE_STRICT", "1"]],
+              [["BLUE_BIN", "#{bin}/blue"], %w[BLUE_CONFORMANCE_STRICT 1]],
               "cargo",
               "test",
               "-q",
@@ -913,9 +908,9 @@ def main()
 end
 
 test "a .b-only change selects the .b gates and no Rust gate"
-  s = selection(["bidamas/shuugou/shuugou.b", "gen/regen.b"], gate_table)
+  s = selection(%w[bidamas/shuugou/shuugou.b gen/regen.b], gate_table)
   assert s[:reason] == ""
-  assert planned(s[:ids], false, gate_table) == ["blue-fmt", "locks", "retired"]
+  assert planned(s[:ids], false, gate_table) == %w[blue-fmt locks retired]
   assert not member?("test-targets", s[:ids])
 end
 
@@ -923,12 +918,12 @@ test "a Cargo.lock change selects every gate"
   s = selection(["Cargo.lock"], gate_table)
   assert s[:reason] == "Cargo.lock selects every gate"
   assert planned(s[:ids], false, gate_table) ==
-    ["cargo-fmt", "blue-fmt", "locks", "retired"]
+    %w[cargo-fmt blue-fmt locks retired]
   assert count(s[:ids]) == 12
 end
 
 test "an unknown path selects every gate"
-  s = selection(["bidamas/retsu/retsu.b", "tools/new.toml"], gate_table)
+  s = selection(%w[bidamas/retsu/retsu.b tools/new.toml], gate_table)
   assert s[:reason] == "no gate names tools/new.toml, so every gate runs"
   assert count(s[:ids]) == 12
 end
@@ -942,7 +937,7 @@ end
 test "a recorded green tree skips a push with the same base"
   rs = ["light t1 2026-10-24T12:00:00Z 3.2"]
   assert green_hit(rs, false, "t1", false) ==
-    ["light", "t1", "2026-10-24T12:00:00Z", "3.2"]
+    %w[light t1 2026-10-24T12:00:00Z 3.2]
   assert green_hit(rs, false, "t2", false).nil?
   assert green_hit(["full * 2026-10-24T12:00:00Z 400.0"], false, "t2", false) !=
     nil

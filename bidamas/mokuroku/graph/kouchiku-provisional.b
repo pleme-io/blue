@@ -6,7 +6,7 @@ verb(
   {
     kind: :effect,
     shape: "apply(plan, opts) -> result",
-    laterals: ["capability", "error", "log"],
+    laterals: %w[capability error log],
     fleet: nil,
     today: "absent",
     meaning: "carry out a reviewed plan, gated and logged",
@@ -21,7 +21,7 @@ verb(
   {
     kind: :pure,
     shape: "check(stack) -> [finding]",
-    laterals: ["test", "validate"],
+    laterals: %w[test validate],
     fleet: "pangea-sim",
     today: "absent",
     meaning: "refuse a bad stack before any plan",
@@ -36,7 +36,7 @@ verb(
   {
     kind: :effect,
     shape: "claim(stack, opts) -> lease",
-    laterals: ["capability", "deadline"],
+    laterals: %w[capability deadline],
     fleet: nil,
     today: "absent",
     meaning: "claim the state against a second writer",
@@ -51,7 +51,7 @@ verb(
   {
     kind: :decl,
     shape: "declare(name, resources) -> stack",
-    laterals: ["config", "validate"],
+    laterals: %w[config validate],
     fleet: "pangea-core",
     today: "absent",
     meaning: "infrastructure as typed resources",
@@ -66,7 +66,7 @@ verb(
   {
     kind: :effect,
     shape: "destroy(stack, opts) -> result",
-    laterals: ["capability", "log"],
+    laterals: %w[capability log],
     fleet: nil,
     today: "absent",
     meaning: "remove everything a stack owns",
@@ -96,7 +96,7 @@ verb(
   {
     kind: :effect,
     shape: "drift(stack) -> [difference]",
-    laterals: ["error", "time"],
+    laterals: %w[error time],
     fleet: "pangea-operator",
     today: "absent",
     meaning: "where real state left the declaration",
@@ -141,7 +141,7 @@ verb(
   {
     kind: :effect,
     shape: "import(stack, resource, id) -> state",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: nil,
     today: "absent",
     meaning: "adopt an existing resource into a stack",
@@ -203,7 +203,7 @@ verb(
   {
     kind: :effect,
     shape: "plan(stack, opts) -> plan",
-    laterals: ["deadline", "error", "idempotent"],
+    laterals: %w[deadline error idempotent],
     fleet: "pangea-operator",
     today: "absent",
     meaning: "what apply would create, change and delete",

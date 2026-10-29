@@ -35,7 +35,7 @@ verb(
   {
     kind: :pure,
     shape: "render(service, opts) -> [file]",
-    laterals: ["serialize", "validate"],
+    laterals: %w[serialize validate],
     fleet: "haibi",
     today: "partial:haibi",
     meaning: "chart, values, schema and rules from one service spec",

@@ -151,7 +151,7 @@ verb(
   {
     kind: :stream,
     shape: "play(motion, f, opts) -> handle",
-    laterals: ["cancel", "time"],
+    laterals: %w[cancel time],
     fleet: "madori",
     today: "absent",
     meaning: "call f with the motion value on every frame",

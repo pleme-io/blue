@@ -51,7 +51,7 @@ verb(
   {
     kind: :pure,
     shape: "check(world, invariants) -> findings",
-    laterals: ["test", "validate"],
+    laterals: %w[test validate],
     fleet: "zairyo",
     today: "absent",
     meaning: "find a broken law: leaked energy, mass or entity",
@@ -247,7 +247,7 @@ verb(
   {
     kind: :effect,
     shape: "replay(world, log) -> world",
-    laterals: ["test", "trace"],
+    laterals: %w[test trace],
     fleet: "asobi-net-rollback",
     today: "absent",
     meaning: "re-run recorded inputs; same seed, same world",
@@ -353,7 +353,7 @@ verb(
   {
     kind: :effect,
     shape: "write(world, target, opts) -> nil",
-    laterals: ["resource", "serialize"],
+    laterals: %w[resource serialize],
     fleet: "asobi-save",
     today: "absent",
     meaning: "save a world, versioned and checksummed",

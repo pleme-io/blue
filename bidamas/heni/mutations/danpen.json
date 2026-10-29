@@ -2,8 +2,8 @@
   {
     "name": "the spread punctuator loses its paint",
     "file": "danpen.b",
-    "find": "[\"...\", \"punctuation.special\"]",
-    "replace": "[\"..\", \"punctuation.special\"]"
+    "find": "%w[... punctuation.special]",
+    "replace": "%w[.. punctuation.special]"
   },
   {
     "name": "a rule lowers to a kind the parser never makes",
@@ -62,8 +62,8 @@
   {
     "name": "a rule is named that no fixture exercises",
     "file": "danpen.b",
-    "find": "    \"lone-anonymous\",\n    \"operation-unique\",",
-    "replace": "    \"lone-anonymous\",\n    \"phantom-rule\",\n    \"operation-unique\","
+    "find": "    lone-anonymous\n    operation-unique\n",
+    "replace": "    lone-anonymous\n    phantom-rule\n    operation-unique\n"
   },
   {
     "name": "spans are never recorded",

@@ -2,8 +2,8 @@
   {
     "name": "keys are ordered address first",
     "file": "happa.b",
-    "find": "position(k[:kind], [:keyed, :module, :address])",
-    "replace": "position(k[:kind], [:address, :module, :keyed])"
+    "find": "position(k[:kind], %i[keyed module address])",
+    "replace": "position(k[:kind], %i[address module keyed])"
   },
   {
     "name": "a slug keeps upper case",

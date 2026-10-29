@@ -5,8 +5,8 @@
 # imports, so each name carries the package's prefix (kz_). Its tests live in
 # the same file; `use` strips them, so importing a package never runs them.
 use("junjo", [:sort_stable_by])
-use("moji", [:is_alnum, :words])
-use("retsu", [:drop_while, :last, :size])
+use("moji", %i[is_alnum words])
+use("retsu", %i[drop_while last size])
 use("shuugou", [:unique])
 
 # Whether a token counts as a word: it holds at least one letter or digit.
@@ -35,11 +35,11 @@ def kz_counts(text)
 end
 
 test "words are lower-cased and stripped of punctuation"
-  assert kz_words("Blue, blue; BLUE!") == ["blue", "blue", "blue"]
+  assert kz_words("Blue, blue; BLUE!") == %w[blue blue blue]
 end
 
 test "a token with no letters is not a word"
-  assert kz_words("a -- b") == ["a", "b"]
+  assert kz_words("a -- b") == %w[a b]
   assert not kz_word?("--")
 end
 

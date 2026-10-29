@@ -6,7 +6,7 @@ verb(
   {
     kind: :effect,
     shape: "retrying(policy, step) -> value",
-    laterals: ["retry", "error"],
+    laterals: %w[retry error],
     fleet: nil,
     today: "exists:saishikou",
     wave: 0,

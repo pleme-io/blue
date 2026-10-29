@@ -2,7 +2,7 @@ vocab(
   "acquire",
   {
     subject: "source",
-    args: ["~source", "name"],
+    args: %w[~source name],
     opts: true,
     returns: "lease",
     raises: ["timeout"],
@@ -17,7 +17,7 @@ vocab(
   "add",
   {
     subject: "a",
-    args: ["a", "b"],
+    args: %w[a b],
     opts: false,
     returns: "value",
     raises: [],
@@ -32,7 +32,7 @@ vocab(
   "address",
   {
     subject: "data",
-    args: ["data", "algorithm?"],
+    args: %w[data algorithm?],
     opts: true,
     returns: "oid",
     raises: [],
@@ -47,7 +47,7 @@ vocab(
   "admit",
   {
     subject: "subject",
-    args: ["subject", "policy", "event?"],
+    args: %w[subject policy event?],
     opts: true,
     returns: "decision",
     raises: [],
@@ -62,7 +62,7 @@ vocab(
   "advance",
   {
     subject: "subject",
-    args: ["subject", "by"],
+    args: %w[subject by],
     opts: true,
     returns: "state",
     raises: [],
@@ -77,7 +77,7 @@ vocab(
   "alive?",
   {
     subject: "subject",
-    args: ["subject", "now?"],
+    args: %w[subject now?],
     opts: false,
     returns: "Bool",
     raises: [],
@@ -107,7 +107,7 @@ vocab(
   "all?",
   {
     subject: "xs",
-    args: ["xs", "f"],
+    args: %w[xs f],
     opts: false,
     returns: "Bool",
     raises: [],
@@ -122,7 +122,7 @@ vocab(
   "analyze",
   {
     subject: "subject",
-    args: ["subject", "by?"],
+    args: %w[subject by?],
     opts: true,
     returns: "verdict",
     raises: [],
@@ -137,7 +137,7 @@ vocab(
   "any?",
   {
     subject: "xs",
-    args: ["xs", "f"],
+    args: %w[xs f],
     opts: false,
     returns: "Bool",
     raises: [],
@@ -152,7 +152,7 @@ vocab(
   "append",
   {
     subject: "target",
-    args: ["target", "content"],
+    args: %w[target content],
     opts: true,
     returns: "nil",
     raises: ["permission_denied"],
@@ -167,7 +167,7 @@ vocab(
   "apply",
   {
     subject: "target",
-    args: ["target", "change?"],
+    args: %w[target change?],
     opts: true,
     returns: "result",
     raises: ["conflict"],
@@ -182,7 +182,7 @@ vocab(
   "approve",
   {
     subject: "subject",
-    args: ["subject", "gate?"],
+    args: %w[subject gate?],
     opts: true,
     returns: "decision",
     raises: [],
@@ -212,7 +212,7 @@ vocab(
   "assemble",
   {
     subject: "ast",
-    args: ["ast", "board"],
+    args: %w[ast board],
     opts: false,
     returns: "image",
     raises: [],
@@ -227,7 +227,7 @@ vocab(
   "assign",
   {
     subject: "subject",
-    args: ["subject", "who"],
+    args: %w[subject who],
     opts: true,
     returns: "nil",
     raises: ["not_found"],
@@ -242,7 +242,7 @@ vocab(
   "at",
   {
     subject: "subject",
-    args: ["subject", "position"],
+    args: %w[subject position],
     opts: false,
     returns: "item or nil",
     raises: [],
@@ -257,7 +257,7 @@ vocab(
   "audit",
   {
     subject: "actor",
-    args: ["actor", "action", "target", "outcome"],
+    args: %w[actor action target outcome],
     opts: true,
     returns: "record",
     raises: [],
@@ -287,7 +287,7 @@ vocab(
   "batch",
   {
     subject: "store",
-    args: ["store", "ops"],
+    args: %w[store ops],
     opts: true,
     returns: "[result]",
     raises: [],
@@ -302,7 +302,7 @@ vocab(
   "become",
   {
     subject: "command",
-    args: ["command", "args?"],
+    args: %w[command args?],
     opts: true,
     returns: "never",
     raises: ["command_not_found"],
@@ -317,7 +317,7 @@ vocab(
   "bind",
   {
     subject: "subject",
-    args: ["subject", "role", "scope"],
+    args: %w[subject role scope],
     opts: true,
     returns: "binding",
     raises: [],
@@ -332,7 +332,7 @@ vocab(
   "bisect",
   {
     subject: "candidates",
-    args: ["candidates", "good?", "bad?", "test"],
+    args: %w[candidates good? bad? test],
     opts: false,
     returns: "candidate",
     raises: [],
@@ -347,7 +347,7 @@ vocab(
   "bootstrap",
   {
     subject: "data",
-    args: ["data", "statistic", "rng", "n"],
+    args: %w[data statistic rng n],
     opts: false,
     returns: "interval",
     raises: [],
@@ -377,7 +377,7 @@ vocab(
   "budget",
   {
     subject: "scope",
-    args: ["scope?", "amount?", "period?"],
+    args: %w[scope? amount? period?],
     opts: true,
     returns: "budget",
     raises: [],
@@ -392,7 +392,7 @@ vocab(
   "build",
   {
     subject: "project",
-    args: ["project", "targets?"],
+    args: %w[project targets?],
     opts: true,
     returns: "artifact",
     raises: ["command_failed"],
@@ -422,7 +422,7 @@ vocab(
   "call",
   {
     subject: "target",
-    args: ["target", "input"],
+    args: %w[target input],
     opts: true,
     returns: "reply",
     raises: ["timeout"],
@@ -437,7 +437,7 @@ vocab(
   "cancel",
   {
     subject: "handle",
-    args: ["handle", "reason?"],
+    args: %w[handle reason?],
     opts: true,
     returns: "nil",
     raises: [],
@@ -452,10 +452,10 @@ vocab(
   "capture",
   {
     subject: "command",
-    args: ["command", "args?"],
+    args: %w[command args?],
     opts: true,
     returns: "text",
-    raises: ["command_not_found", "command_failed"],
+    raises: %w[command_not_found command_failed],
     kind: :effect,
     meaning: "run and return stdout without its trailing newline",
     ref: "§3.3",
@@ -467,7 +467,7 @@ vocab(
   "case",
   {
     subject: "name",
-    args: ["name", "f"],
+    args: %w[name f],
     opts: false,
     returns: "test",
     raises: [],
@@ -512,7 +512,7 @@ vocab(
   "chain",
   {
     subject: "prev",
-    args: ["prev", "payload"],
+    args: %w[prev payload],
     opts: false,
     returns: "hash",
     raises: [],
@@ -527,7 +527,7 @@ vocab(
   "chain_of",
   {
     subject: "chain",
-    args: ["chain", "roots"],
+    args: %w[chain roots],
     opts: true,
     returns: "[cert]",
     raises: [],
@@ -542,7 +542,7 @@ vocab(
   "check",
   {
     subject: "subject",
-    args: ["subject", "rules?"],
+    args: %w[subject rules?],
     opts: true,
     returns: "[finding]",
     raises: [],
@@ -557,7 +557,7 @@ vocab(
   "checksum",
   {
     subject: "data",
-    args: ["data", "algorithm?"],
+    args: %w[data algorithm?],
     opts: true,
     returns: "integer",
     raises: [],
@@ -572,7 +572,7 @@ vocab(
   "choice",
   {
     subject: "instructions",
-    args: ["instructions", "options?"],
+    args: %w[instructions options?],
     opts: false,
     returns: "question",
     raises: [],
@@ -602,7 +602,7 @@ vocab(
   "chunk",
   {
     subject: "xs",
-    args: ["xs", "n?"],
+    args: %w[xs n?],
     opts: true,
     returns: "[list]",
     raises: [],
@@ -632,7 +632,7 @@ vocab(
   "classify",
   {
     subject: "subject",
-    args: ["subject", "rules?"],
+    args: %w[subject rules?],
     opts: true,
     returns: "label",
     raises: [],
@@ -647,7 +647,7 @@ vocab(
   "clear",
   {
     subject: "store",
-    args: ["store", "prefix?"],
+    args: %w[store prefix?],
     opts: true,
     returns: "count",
     raises: [],
@@ -707,7 +707,7 @@ vocab(
   "command",
   {
     subject: "spec",
-    args: ["spec", "f"],
+    args: %w[spec f],
     opts: false,
     returns: "value",
     raises: [],
@@ -722,7 +722,7 @@ vocab(
   "commit",
   {
     subject: "subject",
-    args: ["subject", "what?"],
+    args: %w[subject what?],
     opts: true,
     returns: "oid or nil",
     raises: [],
@@ -737,7 +737,7 @@ vocab(
   "compact",
   {
     subject: "store",
-    args: ["store", "policy?"],
+    args: %w[store policy?],
     opts: true,
     returns: "count",
     raises: [],
@@ -752,7 +752,7 @@ vocab(
   "compare",
   {
     subject: "a",
-    args: ["a", "b"],
+    args: %w[a b],
     opts: true,
     returns: "-1, 0 or 1",
     raises: [],
@@ -782,7 +782,7 @@ vocab(
   "complete",
   {
     subject: "args",
-    args: ["args", "spec"],
+    args: %w[args spec],
     opts: false,
     returns: "[text]",
     raises: [],
@@ -797,7 +797,7 @@ vocab(
   "compose",
   {
     subject: "first",
-    args: ["first", "second?"],
+    args: %w[first second?],
     opts: false,
     returns: "function",
     raises: [],
@@ -812,7 +812,7 @@ vocab(
   "compress",
   {
     subject: "data",
-    args: ["data", "algorithm?"],
+    args: %w[data algorithm?],
     opts: true,
     returns: "bytes",
     raises: [],
@@ -857,7 +857,7 @@ vocab(
   "contains?",
   {
     subject: "xs",
-    args: ["xs", "x"],
+    args: %w[xs x],
     opts: false,
     returns: "Bool",
     raises: [],
@@ -872,7 +872,7 @@ vocab(
   "convert",
   {
     subject: "value",
-    args: ["value", "to", "from?"],
+    args: %w[value to from?],
     opts: true,
     returns: "value",
     raises: [],
@@ -887,10 +887,10 @@ vocab(
   "copy",
   {
     subject: "from",
-    args: ["from", "to"],
+    args: %w[from to],
     opts: true,
     returns: "nil",
-    raises: ["not_found", "exists"],
+    raises: %w[not_found exists],
     kind: :effect,
     meaning: "place a copy at a destination",
     ref: "§3.1",
@@ -902,7 +902,7 @@ vocab(
   "correlate",
   {
     subject: "a",
-    args: ["a", "b"],
+    args: %w[a b],
     opts: true,
     returns: "[record]",
     raises: [],
@@ -917,7 +917,7 @@ vocab(
   "cors",
   {
     subject: "handler",
-    args: ["handler", "policy"],
+    args: %w[handler policy],
     opts: false,
     returns: "handler",
     raises: [],
@@ -932,7 +932,7 @@ vocab(
   "count",
   {
     subject: "xs",
-    args: ["xs", "f?"],
+    args: %w[xs f?],
     opts: true,
     returns: "int",
     raises: [],
@@ -947,7 +947,7 @@ vocab(
   "coverage",
   {
     subject: "subject",
-    args: ["subject", "locales?"],
+    args: %w[subject locales?],
     opts: false,
     returns: "ratio",
     raises: [],
@@ -962,7 +962,7 @@ vocab(
   "create",
   {
     subject: "store",
-    args: ["~store", "key", "value"],
+    args: %w[~store key value],
     opts: true,
     returns: "value",
     raises: ["exists"],
@@ -977,7 +977,7 @@ vocab(
   "cut",
   {
     subject: "clip",
-    args: ["clip", "from", "to"],
+    args: %w[clip from to],
     opts: false,
     returns: "clip",
     raises: [],
@@ -992,7 +992,7 @@ vocab(
   "debug",
   {
     subject: "message",
-    args: ["message", "fields?"],
+    args: %w[message fields?],
     opts: false,
     returns: "nil",
     raises: [],
@@ -1007,7 +1007,7 @@ vocab(
   "decide",
   {
     subject: "facts",
-    args: ["facts", "history?", "policy?", "now?"],
+    args: %w[facts history? policy? now?],
     opts: false,
     returns: "decision",
     raises: [],
@@ -1022,7 +1022,7 @@ vocab(
   "declare",
   {
     subject: "name",
-    args: ["name", "spec?"],
+    args: %w[name spec?],
     opts: true,
     returns: "decl",
     raises: [],
@@ -1037,7 +1037,7 @@ vocab(
   "decode",
   {
     subject: "data",
-    args: ["data", "encoding"],
+    args: %w[data encoding],
     opts: false,
     returns: "bytes",
     raises: ["decode_error"],
@@ -1052,7 +1052,7 @@ vocab(
   "dedupe",
   {
     subject: "xs",
-    args: ["xs", "key?"],
+    args: %w[xs key?],
     opts: true,
     returns: "list",
     raises: [],
@@ -1082,7 +1082,7 @@ vocab(
   "delete",
   {
     subject: "store",
-    args: ["~store", "key"],
+    args: %w[~store key],
     opts: true,
     returns: "nil",
     raises: ["permission_denied"],
@@ -1097,7 +1097,7 @@ vocab(
   "delta",
   {
     subject: "crdt",
-    args: ["crdt", "since"],
+    args: %w[crdt since],
     opts: false,
     returns: "delta",
     raises: [],
@@ -1112,7 +1112,7 @@ vocab(
   "depend",
   {
     subject: "project",
-    args: ["project", "dep"],
+    args: %w[project dep],
     opts: true,
     returns: "[changed pin]",
     raises: [],
@@ -1127,7 +1127,7 @@ vocab(
   "derive",
   {
     subject: "secret",
-    args: ["secret", "salt", "info?"],
+    args: %w[secret salt info?],
     opts: true,
     returns: "key",
     raises: [],
@@ -1142,7 +1142,7 @@ vocab(
   "describe",
   {
     subject: "subject",
-    args: ["subject", "at?"],
+    args: %w[subject at?],
     opts: false,
     returns: "text",
     raises: [],
@@ -1157,7 +1157,7 @@ vocab(
   "detect",
   {
     subject: "data",
-    args: ["data", "rules?"],
+    args: %w[data rules?],
     opts: true,
     returns: "format or nil",
     raises: [],
@@ -1187,7 +1187,7 @@ vocab(
   "diff",
   {
     subject: "a",
-    args: ["a", "b"],
+    args: %w[a b],
     opts: true,
     returns: "[change]",
     raises: [],
@@ -1217,7 +1217,7 @@ vocab(
   "distance",
   {
     subject: "a",
-    args: ["a", "b"],
+    args: %w[a b],
     opts: true,
     returns: "number",
     raises: [],
@@ -1247,7 +1247,7 @@ vocab(
   "draw",
   {
     subject: "rng",
-    args: ["rng", "kind?"],
+    args: %w[rng kind?],
     opts: false,
     returns: "value",
     raises: [],
@@ -1262,7 +1262,7 @@ vocab(
   "drift",
   {
     subject: "a",
-    args: ["a", "b?"],
+    args: %w[a b?],
     opts: true,
     returns: "[change]",
     raises: [],
@@ -1277,7 +1277,7 @@ vocab(
   "drop",
   {
     subject: "xs",
-    args: ["xs", "n"],
+    args: %w[xs n],
     opts: false,
     returns: "list",
     raises: [],
@@ -1292,7 +1292,7 @@ vocab(
   "drop_while",
   {
     subject: "xs",
-    args: ["xs", "f"],
+    args: %w[xs f],
     opts: false,
     returns: "list",
     raises: [],
@@ -1307,7 +1307,7 @@ vocab(
   "due?",
   {
     subject: "subject",
-    args: ["subject", "now", "last?"],
+    args: %w[subject now last?],
     opts: false,
     returns: "Bool",
     raises: [],
@@ -1322,7 +1322,7 @@ vocab(
   "each",
   {
     subject: "xs",
-    args: ["xs", "f"],
+    args: %w[xs f],
     opts: false,
     returns: "nil",
     raises: [],
@@ -1337,7 +1337,7 @@ vocab(
   "embed",
   {
     subject: "model",
-    args: ["~model", "input"],
+    args: %w[~model input],
     opts: true,
     returns: "vector",
     raises: [],
@@ -1382,7 +1382,7 @@ vocab(
   "enclose",
   {
     subject: "data",
-    args: ["data", "key_id"],
+    args: %w[data key_id],
     opts: true,
     returns: "envelope",
     raises: [],
@@ -1397,7 +1397,7 @@ vocab(
   "encode",
   {
     subject: "data",
-    args: ["data", "encoding"],
+    args: %w[data encoding],
     opts: false,
     returns: "text",
     raises: [],
@@ -1412,7 +1412,7 @@ vocab(
   "enforce",
   {
     subject: "subject",
-    args: ["subject", "rules?"],
+    args: %w[subject rules?],
     opts: true,
     returns: "nil",
     raises: ["refused"],
@@ -1427,7 +1427,7 @@ vocab(
   "enter",
   {
     subject: "group",
-    args: ["group", "member?"],
+    args: %w[group member?],
     opts: false,
     returns: "view",
     raises: [],
@@ -1472,7 +1472,7 @@ vocab(
   "error",
   {
     subject: "message",
-    args: ["message", "fields?"],
+    args: %w[message fields?],
     opts: false,
     returns: "nil",
     raises: [],
@@ -1487,7 +1487,7 @@ vocab(
   "estimate",
   {
     subject: "subject",
-    args: ["subject", "method?", "n?"],
+    args: %w[subject method? n?],
     opts: true,
     returns: "estimate",
     raises: [],
@@ -1502,7 +1502,7 @@ vocab(
   "eval",
   {
     subject: "flag",
-    args: ["flag", "context"],
+    args: %w[flag context],
     opts: true,
     returns: "value",
     raises: [],
@@ -1562,7 +1562,7 @@ vocab(
   "expand",
   {
     subject: "subject",
-    args: ["subject", "by?"],
+    args: %w[subject by?],
     opts: true,
     returns: "value",
     raises: [],
@@ -1577,7 +1577,7 @@ vocab(
   "explain",
   {
     subject: "subject",
-    args: ["subject", "path?"],
+    args: %w[subject path?],
     opts: false,
     returns: "text",
     raises: [],
@@ -1592,7 +1592,7 @@ vocab(
   "export",
   {
     subject: "store",
-    args: ["store", "target"],
+    args: %w[store target],
     opts: true,
     returns: "count",
     raises: [],
@@ -1607,7 +1607,7 @@ vocab(
   "extract",
   {
     subject: "source",
-    args: ["source", "kind?"],
+    args: %w[source kind?],
     opts: true,
     returns: "[part]",
     raises: [],
@@ -1637,7 +1637,7 @@ vocab(
   "fetch",
   {
     subject: "source",
-    args: ["source", "version?"],
+    args: %w[source version?],
     opts: true,
     returns: "local copy",
     raises: ["not_found"],
@@ -1652,7 +1652,7 @@ vocab(
   "file",
   {
     subject: "app",
-    args: ["app", "tier"],
+    args: %w[app tier],
     opts: false,
     returns: "path",
     raises: [],
@@ -1667,7 +1667,7 @@ vocab(
   "fill",
   {
     subject: "template",
-    args: ["template", "data"],
+    args: %w[template data],
     opts: false,
     returns: "text",
     raises: [],
@@ -1682,7 +1682,7 @@ vocab(
   "filter",
   {
     subject: "xs",
-    args: ["xs", "f"],
+    args: %w[xs f],
     opts: true,
     returns: "list",
     raises: [],
@@ -1697,7 +1697,7 @@ vocab(
   "find",
   {
     subject: "subject",
-    args: ["subject", "query"],
+    args: %w[subject query],
     opts: true,
     returns: "item or nil",
     raises: [],
@@ -1742,7 +1742,7 @@ vocab(
   "fit",
   {
     subject: "model",
-    args: ["model", "data"],
+    args: %w[model data],
     opts: true,
     returns: "params",
     raises: [],
@@ -1757,7 +1757,7 @@ vocab(
   "flat_map",
   {
     subject: "xs",
-    args: ["xs", "f"],
+    args: %w[xs f],
     opts: false,
     returns: "list",
     raises: [],
@@ -1787,7 +1787,7 @@ vocab(
   "fold",
   {
     subject: "log",
-    args: ["log", "projection"],
+    args: %w[log projection],
     opts: true,
     returns: "view",
     raises: [],
@@ -1802,7 +1802,7 @@ vocab(
   "forecast",
   {
     subject: "series",
-    args: ["series", "horizon"],
+    args: %w[series horizon],
     opts: true,
     returns: "series",
     raises: [],
@@ -1817,7 +1817,7 @@ vocab(
   "fork",
   {
     subject: "rng",
-    args: ["rng", "label?"],
+    args: %w[rng label?],
     opts: false,
     returns: "rng",
     raises: [],
@@ -1832,7 +1832,7 @@ vocab(
   "fragment",
   {
     subject: "name",
-    args: ["name", "spec"],
+    args: %w[name spec],
     opts: false,
     returns: "fragment",
     raises: [],
@@ -1862,7 +1862,7 @@ vocab(
   "freeze",
   {
     subject: "name",
-    args: ["name", "reason"],
+    args: %w[name reason],
     opts: false,
     returns: "nil",
     raises: [],
@@ -1877,7 +1877,7 @@ vocab(
   "fresh?",
   {
     subject: "subject",
-    args: ["subject", "now"],
+    args: %w[subject now],
     opts: false,
     returns: "Bool",
     raises: [],
@@ -1907,7 +1907,7 @@ vocab(
   "gate",
   {
     subject: "subject",
-    args: ["subject", "rule"],
+    args: %w[subject rule],
     opts: false,
     returns: "verdict",
     raises: [],
@@ -1922,7 +1922,7 @@ vocab(
   "generate",
   {
     subject: "spec",
-    args: ["spec", "target?"],
+    args: %w[spec target?],
     opts: true,
     returns: "content",
     raises: [],
@@ -1937,7 +1937,7 @@ vocab(
   "get",
   {
     subject: "store",
-    args: ["~store", "key"],
+    args: %w[~store key],
     opts: true,
     returns: "value or nil",
     raises: [],
@@ -1967,7 +1967,7 @@ vocab(
   "graft",
   {
     subject: "repo",
-    args: ["repo", "commits"],
+    args: %w[repo commits],
     opts: false,
     returns: "[commit]",
     raises: [],
@@ -1997,7 +1997,7 @@ vocab(
   "grant",
   {
     subject: "subject",
-    args: ["subject", "permission", "resource"],
+    args: %w[subject permission resource],
     opts: true,
     returns: "relation",
     raises: ["permission_denied"],
@@ -2027,7 +2027,7 @@ vocab(
   "group",
   {
     subject: "subject",
-    args: ["subject", "keys?"],
+    args: %w[subject keys?],
     opts: true,
     returns: "group",
     raises: [],
@@ -2042,7 +2042,7 @@ vocab(
   "group_by",
   {
     subject: "xs",
-    args: ["xs", "f"],
+    args: %w[xs f],
     opts: false,
     returns: "map",
     raises: [],
@@ -2057,7 +2057,7 @@ vocab(
   "grow",
   {
     subject: "polygon",
-    args: ["polygon", "distance"],
+    args: %w[polygon distance],
     opts: false,
     returns: "polygon",
     raises: [],
@@ -2072,7 +2072,7 @@ vocab(
   "guard",
   {
     subject: "handler",
-    args: ["handler", "check"],
+    args: %w[handler check],
     opts: false,
     returns: "handler",
     raises: [],
@@ -2087,7 +2087,7 @@ vocab(
   "has?",
   {
     subject: "store",
-    args: ["~store", "key"],
+    args: %w[~store key],
     opts: false,
     returns: "Bool",
     raises: [],
@@ -2102,7 +2102,7 @@ vocab(
   "hash",
   {
     subject: "data",
-    args: ["data", "algorithm?"],
+    args: %w[data algorithm?],
     opts: true,
     returns: "hex",
     raises: ["bad_option"],
@@ -2117,7 +2117,7 @@ vocab(
   "header",
   {
     subject: "message",
-    args: ["message", "name"],
+    args: %w[message name],
     opts: false,
     returns: "text?",
     raises: [],
@@ -2132,7 +2132,7 @@ vocab(
   "highlight",
   {
     subject: "code",
-    args: ["code", "language?"],
+    args: %w[code language?],
     opts: false,
     returns: "spans",
     raises: [],
@@ -2147,7 +2147,7 @@ vocab(
   "history",
   {
     subject: "subject",
-    args: ["subject", "range?"],
+    args: %w[subject range?],
     opts: false,
     returns: "[record]",
     raises: [],
@@ -2162,7 +2162,7 @@ vocab(
   "hydrate",
   {
     subject: "tree",
-    args: ["tree", "root"],
+    args: %w[tree root],
     opts: true,
     returns: "app",
     raises: [],
@@ -2177,7 +2177,7 @@ vocab(
   "hypothesis",
   {
     subject: "a",
-    args: ["a", "b", "kind"],
+    args: %w[a b kind],
     opts: false,
     returns: "record",
     raises: [],
@@ -2207,7 +2207,7 @@ vocab(
   "import",
   {
     subject: "store",
-    args: ["store", "entries"],
+    args: %w[store entries],
     opts: true,
     returns: "count",
     raises: [],
@@ -2222,7 +2222,7 @@ vocab(
   "index",
   {
     subject: "store",
-    args: ["store", "field?"],
+    args: %w[store field?],
     opts: true,
     returns: "index",
     raises: [],
@@ -2237,7 +2237,7 @@ vocab(
   "index_of",
   {
     subject: "xs",
-    args: ["xs", "x"],
+    args: %w[xs x],
     opts: false,
     returns: "int or nil",
     raises: [],
@@ -2282,7 +2282,7 @@ vocab(
   "insert",
   {
     subject: "xs",
-    args: ["xs", "at?", "item"],
+    args: %w[xs at? item],
     opts: false,
     returns: "xs",
     raises: [],
@@ -2297,7 +2297,7 @@ vocab(
   "install",
   {
     subject: "package",
-    args: ["package", "dest?"],
+    args: %w[package dest?],
     opts: true,
     returns: "installed",
     raises: ["not_found"],
@@ -2327,7 +2327,7 @@ vocab(
   "intersect",
   {
     subject: "a",
-    args: ["a", "b"],
+    args: %w[a b],
     opts: false,
     returns: "x or nil",
     raises: [],
@@ -2372,7 +2372,7 @@ vocab(
   "join",
   {
     subject: "xs",
-    args: ["xs", "sep?"],
+    args: %w[xs sep?],
     opts: false,
     returns: "text",
     raises: [],
@@ -2387,7 +2387,7 @@ vocab(
   "judge",
   {
     subject: "subject",
-    args: ["subject", "criteria", "b?"],
+    args: %w[subject criteria b?],
     opts: true,
     returns: "verdict",
     raises: [],
@@ -2447,7 +2447,7 @@ vocab(
   "labels",
   {
     subject: "set",
-    args: ["set", "entries"],
+    args: %w[set entries],
     opts: false,
     returns: "table",
     raises: ["bad_option"],
@@ -2462,7 +2462,7 @@ vocab(
   "lag",
   {
     subject: "consumer",
-    args: ["consumer", "log?"],
+    args: %w[consumer log?],
     opts: false,
     returns: "number",
     raises: [],
@@ -2507,7 +2507,7 @@ vocab(
   "ledger",
   {
     subject: "accounts",
-    args: ["accounts?", "rules?"],
+    args: %w[accounts? rules?],
     opts: true,
     returns: "ledger",
     raises: [],
@@ -2537,7 +2537,7 @@ vocab(
   "limit",
   {
     subject: "subject",
-    args: ["subject", "amount?"],
+    args: %w[subject amount?],
     opts: true,
     returns: "limit",
     raises: [],
@@ -2552,7 +2552,7 @@ vocab(
   "limiter",
   {
     subject: "count",
-    args: ["count", "duration"],
+    args: %w[count duration],
     opts: false,
     returns: "limiter",
     raises: [],
@@ -2567,7 +2567,7 @@ vocab(
   "link",
   {
     subject: "from",
-    args: ["from", "to", "kind?"],
+    args: %w[from to kind?],
     opts: true,
     returns: "nil",
     raises: [],
@@ -2657,7 +2657,7 @@ vocab(
   "logarithm",
   {
     subject: "n",
-    args: ["n", "base?"],
+    args: %w[n base?],
     opts: false,
     returns: "number",
     raises: [],
@@ -2672,7 +2672,7 @@ vocab(
   "map",
   {
     subject: "xs",
-    args: ["xs", "f"],
+    args: %w[xs f],
     opts: true,
     returns: "list",
     raises: [],
@@ -2702,7 +2702,7 @@ vocab(
   "matches?",
   {
     subject: "subject",
-    args: ["subject", "pattern"],
+    args: %w[subject pattern],
     opts: false,
     returns: "Bool",
     raises: [],
@@ -2717,7 +2717,7 @@ vocab(
   "max_by",
   {
     subject: "xs",
-    args: ["xs", "f"],
+    args: %w[xs f],
     opts: false,
     returns: "item or nil",
     raises: [],
@@ -2732,7 +2732,7 @@ vocab(
   "measure",
   {
     subject: "subject",
-    args: ["subject", "metric?"],
+    args: %w[subject metric?],
     opts: true,
     returns: "number",
     raises: [],
@@ -2747,7 +2747,7 @@ vocab(
   "merge",
   {
     subject: "a",
-    args: ["a", "b"],
+    args: %w[a b],
     opts: true,
     returns: "value",
     raises: ["conflict"],
@@ -2762,7 +2762,7 @@ vocab(
   "meter",
   {
     subject: "fraction",
-    args: ["fraction", "width"],
+    args: %w[fraction width],
     opts: false,
     returns: "node",
     raises: [],
@@ -2777,7 +2777,7 @@ vocab(
   "min_by",
   {
     subject: "xs",
-    args: ["xs", "f"],
+    args: %w[xs f],
     opts: false,
     returns: "item or nil",
     raises: [],
@@ -2792,7 +2792,7 @@ vocab(
   "mirror",
   {
     subject: "from",
-    args: ["from", "to"],
+    args: %w[from to],
     opts: true,
     returns: "report",
     raises: [],
@@ -2807,7 +2807,7 @@ vocab(
   "mount",
   {
     subject: "parent",
-    args: ["parent", "at", "child"],
+    args: %w[parent at child],
     opts: true,
     returns: "parent",
     raises: [],
@@ -2822,10 +2822,10 @@ vocab(
   "move",
   {
     subject: "from",
-    args: ["from", "to"],
+    args: %w[from to],
     opts: true,
     returns: "nil",
-    raises: ["not_found", "exists"],
+    raises: %w[not_found exists],
     kind: :effect,
     meaning: "move or rename atomically",
     ref: "§3.1",
@@ -2837,7 +2837,7 @@ vocab(
   "need",
   {
     subject: "store",
-    args: ["~store", "key"],
+    args: %w[~store key],
     opts: true,
     returns: "value",
     raises: ["not_found"],
@@ -2852,7 +2852,7 @@ vocab(
   "negotiate",
   {
     subject: "client",
-    args: ["client", "server"],
+    args: %w[client server],
     opts: false,
     returns: "version",
     raises: [],
@@ -2867,7 +2867,7 @@ vocab(
   "neighbors",
   {
     subject: "graph",
-    args: ["~graph", "node"],
+    args: %w[~graph node],
     opts: false,
     returns: "[node]",
     raises: [],
@@ -2882,7 +2882,7 @@ vocab(
   "next",
   {
     subject: "schedule",
-    args: ["schedule", "after"],
+    args: %w[schedule after],
     opts: false,
     returns: "instant or nil",
     raises: [],
@@ -2897,7 +2897,7 @@ vocab(
   "none?",
   {
     subject: "xs",
-    args: ["xs", "f"],
+    args: %w[xs f],
     opts: false,
     returns: "Bool",
     raises: [],
@@ -2912,7 +2912,7 @@ vocab(
   "normalize",
   {
     subject: "x",
-    args: ["x", "form?"],
+    args: %w[x form?],
     opts: true,
     returns: "x",
     raises: [],
@@ -2927,7 +2927,7 @@ vocab(
   "notes",
   {
     subject: "root",
-    args: ["root", "kind"],
+    args: %w[root kind],
     opts: false,
     returns: "notes",
     raises: [],
@@ -2957,7 +2957,7 @@ vocab(
   "nth_root",
   {
     subject: "n",
-    args: ["n", "degree"],
+    args: %w[n degree],
     opts: false,
     returns: "number",
     raises: [],
@@ -2972,7 +2972,7 @@ vocab(
   "observe",
   {
     subject: "subject",
-    args: ["~subject", "value?", "labels?"],
+    args: %w[~subject value? labels?],
     opts: true,
     returns: "nil or state",
     raises: [],
@@ -2987,7 +2987,7 @@ vocab(
   "offset",
   {
     subject: "subject",
-    args: ["subject", "key"],
+    args: %w[subject key],
     opts: false,
     returns: "number or nil",
     raises: [],
@@ -3002,7 +3002,7 @@ vocab(
   "on",
   {
     subject: "subject",
-    args: ["subject", "event", "handler"],
+    args: %w[subject event handler],
     opts: false,
     returns: "subject",
     raises: [],
@@ -3020,7 +3020,7 @@ vocab(
     args: ["spec"],
     opts: true,
     returns: "handle",
-    raises: ["not_found", "permission_denied"],
+    raises: %w[not_found permission_denied],
     kind: :effect,
     meaning: "open or connect a store, log or session",
     ref: nil,
@@ -3047,7 +3047,7 @@ vocab(
   "outline",
   {
     subject: "tree",
-    args: ["tree", "span", "name"],
+    args: %w[tree span name],
     opts: false,
     returns: "[edit]",
     raises: [],
@@ -3062,7 +3062,7 @@ vocab(
   "pack",
   {
     subject: "items",
-    args: ["items", "format?"],
+    args: %w[items format?],
     opts: true,
     returns: "bytes",
     raises: [],
@@ -3077,7 +3077,7 @@ vocab(
   "parent",
   {
     subject: "node",
-    args: ["~tree", "node"],
+    args: %w[~tree node],
     opts: false,
     returns: "node or nil",
     raises: [],
@@ -3092,7 +3092,7 @@ vocab(
   "parse",
   {
     subject: "text",
-    args: ["text", "format?"],
+    args: %w[text format?],
     opts: true,
     returns: "value",
     raises: ["parse_error"],
@@ -3107,7 +3107,7 @@ vocab(
   "partition",
   {
     subject: "xs",
-    args: ["xs", "f"],
+    args: %w[xs f],
     opts: false,
     returns: "[list]",
     raises: [],
@@ -3122,7 +3122,7 @@ vocab(
   "patch",
   {
     subject: "base",
-    args: ["base", "delta"],
+    args: %w[base delta],
     opts: true,
     returns: "value",
     raises: ["conflict"],
@@ -3137,7 +3137,7 @@ vocab(
   "path",
   {
     subject: "graph",
-    args: ["graph", "from", "to"],
+    args: %w[graph from to],
     opts: true,
     returns: "[node] or nil",
     raises: [],
@@ -3167,7 +3167,7 @@ vocab(
   "peek",
   {
     subject: "queue",
-    args: ["queue", "n?"],
+    args: %w[queue n?],
     opts: false,
     returns: "item or nil",
     raises: [],
@@ -3182,7 +3182,7 @@ vocab(
   "period",
   {
     subject: "a",
-    args: ["a", "modulus"],
+    args: %w[a modulus],
     opts: false,
     returns: "int",
     raises: [],
@@ -3197,7 +3197,7 @@ vocab(
   "phrase",
   {
     subject: "items",
-    args: ["locale", "items"],
+    args: %w[locale items],
     opts: false,
     returns: "text",
     raises: [],
@@ -3212,7 +3212,7 @@ vocab(
   "pick",
   {
     subject: "source",
-    args: ["source", "rule"],
+    args: %w[source rule],
     opts: true,
     returns: "item or nil",
     raises: [],
@@ -3227,7 +3227,7 @@ vocab(
   "pin",
   {
     subject: "subject",
-    args: ["subject", "to?"],
+    args: %w[subject to?],
     opts: true,
     returns: "nil",
     raises: [],
@@ -3272,7 +3272,7 @@ vocab(
   "plain",
   {
     subject: "status",
-    args: ["status", "body"],
+    args: %w[status body],
     opts: false,
     returns: "response",
     raises: [],
@@ -3287,7 +3287,7 @@ vocab(
   "plan",
   {
     subject: "subject",
-    args: ["subject", "target?"],
+    args: %w[subject target?],
     opts: true,
     returns: "[action]",
     raises: ["as the verb"],
@@ -3302,7 +3302,7 @@ vocab(
   "pledge",
   {
     subject: "value",
-    args: ["value", "nonce"],
+    args: %w[value nonce],
     opts: false,
     returns: "hex",
     raises: [],
@@ -3317,7 +3317,7 @@ vocab(
   "policy",
   {
     subject: "name",
-    args: ["name?", "rules?"],
+    args: %w[name? rules?],
     opts: true,
     returns: "policy",
     raises: [],
@@ -3332,7 +3332,7 @@ vocab(
   "pool",
   {
     subject: "size",
-    args: ["size", "f"],
+    args: %w[size f],
     opts: true,
     returns: "pool",
     raises: [],
@@ -3347,7 +3347,7 @@ vocab(
   "prefix",
   {
     subject: "prompt",
-    args: ["prompt", "mark"],
+    args: %w[prompt mark],
     opts: false,
     returns: "prompt",
     raises: [],
@@ -3377,7 +3377,7 @@ vocab(
   "probe",
   {
     subject: "target",
-    args: ["target", "check?"],
+    args: %w[target check?],
     opts: true,
     returns: "record",
     raises: [],
@@ -3407,7 +3407,7 @@ vocab(
   "project",
   {
     subject: "subject",
-    args: ["subject", "onto"],
+    args: %w[subject onto],
     opts: false,
     returns: "projection",
     raises: [],
@@ -3422,7 +3422,7 @@ vocab(
   "promote",
   {
     subject: "subject",
-    args: ["subject", "to?"],
+    args: %w[subject to?],
     opts: true,
     returns: "subject",
     raises: [],
@@ -3437,7 +3437,7 @@ vocab(
   "protect",
   {
     subject: "breaker",
-    args: ["breaker", "f"],
+    args: %w[breaker f],
     opts: true,
     returns: "value",
     raises: ["breaker_open"],
@@ -3452,7 +3452,7 @@ vocab(
   "publish",
   {
     subject: "artifact",
-    args: ["artifact", "target"],
+    args: %w[artifact target],
     opts: true,
     returns: "record",
     raises: [],
@@ -3467,7 +3467,7 @@ vocab(
   "purge",
   {
     subject: "store",
-    args: ["store", "filter?"],
+    args: %w[store filter?],
     opts: true,
     returns: "count",
     raises: [],
@@ -3482,7 +3482,7 @@ vocab(
   "push",
   {
     subject: "subject",
-    args: ["subject", "item?"],
+    args: %w[subject item?],
     opts: true,
     returns: "nil or digest",
     raises: [],
@@ -3497,7 +3497,7 @@ vocab(
   "put",
   {
     subject: "store",
-    args: ["~store", "key", "value"],
+    args: %w[~store key value],
     opts: true,
     returns: "value",
     raises: ["permission_denied"],
@@ -3512,7 +3512,7 @@ vocab(
   "query",
   {
     subject: "store",
-    args: ["store", "question", "params?"],
+    args: %w[store question params?],
     opts: true,
     returns: "[record]",
     raises: ["query_error"],
@@ -3527,7 +3527,7 @@ vocab(
   "quota",
   {
     subject: "limiter",
-    args: ["limiter", "key"],
+    args: %w[limiter key],
     opts: false,
     returns: "record",
     raises: [],
@@ -3542,7 +3542,7 @@ vocab(
   "range",
   {
     subject: "from",
-    args: ["from", "to", "step?"],
+    args: %w[from to step?],
     opts: true,
     returns: "range",
     raises: [],
@@ -3557,7 +3557,7 @@ vocab(
   "rank",
   {
     subject: "items",
-    args: ["items", "query?"],
+    args: %w[items query?],
     opts: true,
     returns: "ranked",
     raises: [],
@@ -3575,7 +3575,7 @@ vocab(
     args: ["source"],
     opts: true,
     returns: "content",
-    raises: ["not_found", "permission_denied", "parse_error"],
+    raises: %w[not_found permission_denied parse_error],
     kind: :effect,
     meaning: "whole content of a source",
     ref: "§3.1",
@@ -3602,7 +3602,7 @@ vocab(
   "receive",
   {
     subject: "source",
-    args: ["source", "subject?"],
+    args: %w[source subject?],
     opts: true,
     returns: "message or nil",
     raises: [],
@@ -3617,7 +3617,7 @@ vocab(
   "record",
   {
     subject: "subject",
-    args: ["subject", "entry"],
+    args: %w[subject entry],
     opts: true,
     returns: "receipt",
     raises: [],
@@ -3647,7 +3647,7 @@ vocab(
   "redact",
   {
     subject: "doc",
-    args: ["doc", "rules"],
+    args: %w[doc rules],
     opts: false,
     returns: "doc",
     raises: [],
@@ -3662,7 +3662,7 @@ vocab(
   "redirect",
   {
     subject: "status",
-    args: ["status", "location"],
+    args: %w[status location],
     opts: false,
     returns: "response",
     raises: [],
@@ -3677,7 +3677,7 @@ vocab(
   "reduce",
   {
     subject: "xs",
-    args: ["xs", "f", "init?"],
+    args: %w[xs f init?],
     opts: false,
     returns: "value",
     raises: [],
@@ -3692,7 +3692,7 @@ vocab(
   "refresh",
   {
     subject: "subject",
-    args: ["subject", "key?", "f?"],
+    args: %w[subject key? f?],
     opts: true,
     returns: "value",
     raises: [],
@@ -3707,7 +3707,7 @@ vocab(
   "register",
   {
     subject: "subject",
-    args: ["subject", "target?"],
+    args: %w[subject target?],
     opts: true,
     returns: "registration",
     raises: [],
@@ -3722,7 +3722,7 @@ vocab(
   "reject",
   {
     subject: "xs",
-    args: ["xs", "f"],
+    args: %w[xs f],
     opts: false,
     returns: "list",
     raises: [],
@@ -3737,7 +3737,7 @@ vocab(
   "remember",
   {
     subject: "cache",
-    args: ["cache", "key", "f"],
+    args: %w[cache key f],
     opts: true,
     returns: "value",
     raises: [],
@@ -3752,7 +3752,7 @@ vocab(
   "remove",
   {
     subject: "xs",
-    args: ["xs", "item"],
+    args: %w[xs item],
     opts: false,
     returns: "xs",
     raises: [],
@@ -3767,7 +3767,7 @@ vocab(
   "render",
   {
     subject: "value",
-    args: ["value", "format?"],
+    args: %w[value format?],
     opts: true,
     returns: "text",
     raises: ["render_error"],
@@ -3782,7 +3782,7 @@ vocab(
   "renew",
   {
     subject: "subject",
-    args: ["subject", "by?"],
+    args: %w[subject by?],
     opts: true,
     returns: "subject",
     raises: [],
@@ -3797,7 +3797,7 @@ vocab(
   "replay",
   {
     subject: "log",
-    args: ["log", "definition?"],
+    args: %w[log definition?],
     opts: true,
     returns: "state",
     raises: [],
@@ -3812,7 +3812,7 @@ vocab(
   "request",
   {
     subject: "target",
-    args: ["target", "input"],
+    args: %w[target input],
     opts: true,
     returns: "reply",
     raises: [],
@@ -3827,7 +3827,7 @@ vocab(
   "reserve",
   {
     subject: "lines",
-    args: ["lines", "options"],
+    args: %w[lines options],
     opts: false,
     returns: "plan",
     raises: [],
@@ -3857,7 +3857,7 @@ vocab(
   "resize",
   {
     subject: "workload",
-    args: ["workload", "n"],
+    args: %w[workload n],
     opts: true,
     returns: "workload",
     raises: [],
@@ -3872,7 +3872,7 @@ vocab(
   "resolve",
   {
     subject: "ref",
-    args: ["ref", "context?"],
+    args: %w[ref context?],
     opts: true,
     returns: "value",
     raises: [],
@@ -3905,7 +3905,7 @@ vocab(
     args: ["unit"],
     opts: true,
     returns: "nil",
-    raises: ["not_found", "command_failed"],
+    raises: %w[not_found command_failed],
     kind: :effect,
     meaning: "stop then start a service",
     ref: "§3.3",
@@ -3917,7 +3917,7 @@ vocab(
   "restore",
   {
     subject: "source",
-    args: ["source", "to?", "version?"],
+    args: %w[source to? version?],
     opts: true,
     returns: "manifest",
     raises: [],
@@ -3947,7 +3947,7 @@ vocab(
   "retain",
   {
     subject: "subject",
-    args: ["subject", "key?"],
+    args: %w[subject key?],
     opts: true,
     returns: "nil or policy",
     raises: [],
@@ -3962,7 +3962,7 @@ vocab(
   "retry",
   {
     subject: "f",
-    args: ["f", "policy"],
+    args: %w[f policy],
     opts: false,
     returns: "value",
     raises: ["last error"],
@@ -3992,7 +3992,7 @@ vocab(
   "revoke",
   {
     subject: "subject",
-    args: ["subject", "reason?"],
+    args: %w[subject reason?],
     opts: true,
     returns: "nil",
     raises: [],
@@ -4007,7 +4007,7 @@ vocab(
   "rollback",
   {
     subject: "subject",
-    args: ["subject", "to?"],
+    args: %w[subject to?],
     opts: true,
     returns: "outcome",
     raises: [],
@@ -4037,7 +4037,7 @@ vocab(
   "rotate",
   {
     subject: "secret",
-    args: ["secret", "policy?"],
+    args: %w[secret policy?],
     opts: true,
     returns: "secret",
     raises: [],
@@ -4052,7 +4052,7 @@ vocab(
   "round",
   {
     subject: "n",
-    args: ["n", "unit?"],
+    args: %w[n unit?],
     opts: true,
     returns: "number",
     raises: [],
@@ -4067,7 +4067,7 @@ vocab(
   "route",
   {
     subject: "subject",
-    args: ["subject", "rules"],
+    args: %w[subject rules],
     opts: false,
     returns: "[target]",
     raises: [],
@@ -4097,7 +4097,7 @@ vocab(
   "rule",
   {
     subject: "name",
-    args: ["name", "match", "body?"],
+    args: %w[name match body?],
     opts: true,
     returns: "rule",
     raises: [],
@@ -4112,10 +4112,10 @@ vocab(
   "run",
   {
     subject: "subject",
-    args: ["subject", "input?"],
+    args: %w[subject input?],
     opts: true,
     returns: "result",
-    raises: ["command_not_found", "command_failed", "timeout"],
+    raises: %w[command_not_found command_failed timeout],
     kind: :effect,
     meaning: "run to completion and return the result",
     ref: "§3.3",
@@ -4127,7 +4127,7 @@ vocab(
   "sample",
   {
     subject: "dist",
-    args: ["dist", "rng?", "n?"],
+    args: %w[dist rng? n?],
     opts: false,
     returns: "record",
     raises: [],
@@ -4142,7 +4142,7 @@ vocab(
   "save",
   {
     subject: "subject",
-    args: ["subject", "path"],
+    args: %w[subject path],
     opts: true,
     returns: "nil",
     raises: [],
@@ -4172,7 +4172,7 @@ vocab(
   "scale",
   {
     subject: "subject",
-    args: ["subject", "factor"],
+    args: %w[subject factor],
     opts: true,
     returns: "x",
     raises: [],
@@ -4187,7 +4187,7 @@ vocab(
   "scan",
   {
     subject: "subject",
-    args: ["subject", "rules?"],
+    args: %w[subject rules?],
     opts: true,
     returns: "[finding]",
     raises: [],
@@ -4202,7 +4202,7 @@ vocab(
   "schedule",
   {
     subject: "spec",
-    args: ["spec", "target?"],
+    args: %w[spec target?],
     opts: true,
     returns: "schedule",
     raises: [],
@@ -4247,7 +4247,7 @@ vocab(
   "score",
   {
     subject: "output",
-    args: ["output", "rubric?"],
+    args: %w[output rubric?],
     opts: true,
     returns: "number",
     raises: [],
@@ -4262,7 +4262,7 @@ vocab(
   "seal",
   {
     subject: "subject",
-    args: ["subject", "key?"],
+    args: %w[subject key?],
     opts: true,
     returns: "envelope",
     raises: [],
@@ -4277,7 +4277,7 @@ vocab(
   "search",
   {
     subject: "index",
-    args: ["index", "query"],
+    args: %w[index query],
     opts: true,
     returns: "[hit]",
     raises: [],
@@ -4307,7 +4307,7 @@ vocab(
   "select",
   {
     subject: "x",
-    args: ["x", "keys"],
+    args: %w[x keys],
     opts: false,
     returns: "x",
     raises: [],
@@ -4322,7 +4322,7 @@ vocab(
   "send",
   {
     subject: "target",
-    args: ["target", "message"],
+    args: %w[target message],
     opts: true,
     returns: "receipt",
     raises: [],
@@ -4337,7 +4337,7 @@ vocab(
   "serve",
   {
     subject: "address",
-    args: ["address", "handler"],
+    args: %w[address handler],
     opts: true,
     returns: "nil",
     raises: [],
@@ -4352,7 +4352,7 @@ vocab(
   "settle",
   {
     subject: "store",
-    args: ["store", "change", "outcome"],
+    args: %w[store change outcome],
     opts: false,
     returns: "state",
     raises: ["conflict"],
@@ -4382,7 +4382,7 @@ vocab(
   "shield",
   {
     subject: "key",
-    args: ["key", "wrapping_key"],
+    args: %w[key wrapping_key],
     opts: false,
     returns: "text",
     raises: [],
@@ -4397,7 +4397,7 @@ vocab(
   "shift",
   {
     subject: "shape",
-    args: ["shape", "by"],
+    args: %w[shape by],
     opts: false,
     returns: "shape",
     raises: [],
@@ -4412,7 +4412,7 @@ vocab(
   "sign",
   {
     subject: "data",
-    args: ["data", "secret?"],
+    args: %w[data secret?],
     opts: true,
     returns: "signature",
     raises: ["bad_key"],
@@ -4427,7 +4427,7 @@ vocab(
   "signal",
   {
     subject: "target",
-    args: ["target", "event", "payload?"],
+    args: %w[target event payload?],
     opts: true,
     returns: "nil",
     raises: [],
@@ -4457,7 +4457,7 @@ vocab(
   "simulate",
   {
     subject: "world",
-    args: ["world", "ticks"],
+    args: %w[world ticks],
     opts: true,
     returns: "world",
     raises: [],
@@ -4517,7 +4517,7 @@ vocab(
   "slice",
   {
     subject: "store",
-    args: ["store", "key", "from", "to"],
+    args: %w[store key from to],
     opts: false,
     returns: "bytes",
     raises: [],
@@ -4562,7 +4562,7 @@ vocab(
   "sort_by",
   {
     subject: "xs",
-    args: ["xs", "f"],
+    args: %w[xs f],
     opts: false,
     returns: "list",
     raises: [],
@@ -4577,7 +4577,7 @@ vocab(
   "spawn",
   {
     subject: "subject",
-    args: ["subject", "input?"],
+    args: %w[subject input?],
     opts: true,
     returns: "handle",
     raises: ["command_not_found"],
@@ -4592,7 +4592,7 @@ vocab(
   "split",
   {
     subject: "text",
-    args: ["text", "pattern"],
+    args: %w[text pattern],
     opts: true,
     returns: "[text]",
     raises: [],
@@ -4607,7 +4607,7 @@ vocab(
   "stack",
   {
     subject: "items",
-    args: ["items", "axis?"],
+    args: %w[items axis?],
     opts: false,
     returns: "combined",
     raises: [],
@@ -4622,7 +4622,7 @@ vocab(
   "stale?",
   {
     subject: "subject",
-    args: ["subject", "policy?"],
+    args: %w[subject policy?],
     opts: false,
     returns: "Bool",
     raises: [],
@@ -4637,10 +4637,10 @@ vocab(
   "start",
   {
     subject: "subject",
-    args: ["subject", "input?"],
+    args: %w[subject input?],
     opts: true,
     returns: "handle or nil",
-    raises: ["not_found", "command_failed"],
+    raises: %w[not_found command_failed],
     kind: :effect,
     meaning: "start a service, run or session",
     ref: "§3.3",
@@ -4682,7 +4682,7 @@ vocab(
   "stream",
   {
     subject: "source",
-    args: ["source", "input?", "f"],
+    args: %w[source input? f],
     opts: true,
     returns: "result",
     raises: ["as run"],
@@ -4697,7 +4697,7 @@ vocab(
   "subscribe",
   {
     subject: "bus",
-    args: ["bus", "subject", "f"],
+    args: %w[bus subject f],
     opts: true,
     returns: "subscription",
     raises: [],
@@ -4712,7 +4712,7 @@ vocab(
   "succeeds?",
   {
     subject: "command",
-    args: ["command", "args?"],
+    args: %w[command args?],
     opts: true,
     returns: "Bool",
     raises: ["command_not_found"],
@@ -4742,7 +4742,7 @@ vocab(
   "sync",
   {
     subject: "from",
-    args: ["from", "to?"],
+    args: %w[from to?],
     opts: true,
     returns: "report",
     raises: [],
@@ -4757,7 +4757,7 @@ vocab(
   "table",
   {
     subject: "rows",
-    args: ["rows", "opts"],
+    args: %w[rows opts],
     opts: true,
     returns: "node",
     raises: [],
@@ -4772,7 +4772,7 @@ vocab(
   "tag",
   {
     subject: "subject",
-    args: ["subject", "name"],
+    args: %w[subject name],
     opts: true,
     returns: "nil",
     raises: [],
@@ -4787,7 +4787,7 @@ vocab(
   "take",
   {
     subject: "xs",
-    args: ["xs", "n"],
+    args: %w[xs n],
     opts: false,
     returns: "list",
     raises: [],
@@ -4802,7 +4802,7 @@ vocab(
   "take_while",
   {
     subject: "xs",
-    args: ["xs", "f"],
+    args: %w[xs f],
     opts: false,
     returns: "list",
     raises: [],
@@ -4862,7 +4862,7 @@ vocab(
   "terminal",
   {
     subject: "board",
-    args: ["board", "name"],
+    args: %w[board name],
     opts: false,
     returns: "pin",
     raises: [],
@@ -4877,7 +4877,7 @@ vocab(
   "test",
   {
     subject: "project",
-    args: ["project", "suite?"],
+    args: %w[project suite?],
     opts: true,
     returns: "report",
     raises: [],
@@ -4907,7 +4907,7 @@ vocab(
   "throttle",
   {
     subject: "handler",
-    args: ["handler", "bucket"],
+    args: %w[handler bucket],
     opts: false,
     returns: "handler",
     raises: [],
@@ -4922,7 +4922,7 @@ vocab(
   "tick",
   {
     subject: "clock",
-    args: ["clock", "event?"],
+    args: %w[clock event?],
     opts: false,
     returns: "clock",
     raises: [],
@@ -4937,7 +4937,7 @@ vocab(
   "timer",
   {
     subject: "instant",
-    args: ["instant", "f"],
+    args: %w[instant f],
     opts: true,
     returns: "timer",
     raises: [],
@@ -4952,7 +4952,7 @@ vocab(
   "top",
   {
     subject: "xs",
-    args: ["xs", "n?", "by?"],
+    args: %w[xs n? by?],
     opts: true,
     returns: "list",
     raises: [],
@@ -4997,7 +4997,7 @@ vocab(
   "translate",
   {
     subject: "key",
-    args: ["key", "locale", "args?"],
+    args: %w[key locale args?],
     opts: true,
     returns: "text",
     raises: [],
@@ -5012,7 +5012,7 @@ vocab(
   "tree",
   {
     subject: "value",
-    args: ["value", "kids?"],
+    args: %w[value kids?],
     opts: false,
     returns: "tree",
     raises: [],
@@ -5027,7 +5027,7 @@ vocab(
   "triage",
   {
     subject: "alert",
-    args: ["alert", "context?"],
+    args: %w[alert context?],
     opts: false,
     returns: "verdict",
     raises: [],
@@ -5057,7 +5057,7 @@ vocab(
   "truncate",
   {
     subject: "subject",
-    args: ["subject", "limit"],
+    args: %w[subject limit],
     opts: true,
     returns: "x or count",
     raises: [],
@@ -5072,7 +5072,7 @@ vocab(
   "turn",
   {
     subject: "shape",
-    args: ["shape", "angle", "about?"],
+    args: %w[shape angle about?],
     opts: false,
     returns: "shape",
     raises: [],
@@ -5087,7 +5087,7 @@ vocab(
   "union",
   {
     subject: "a",
-    args: ["a", "b"],
+    args: %w[a b],
     opts: true,
     returns: "x",
     raises: [],
@@ -5132,7 +5132,7 @@ vocab(
   "unpack",
   {
     subject: "archive",
-    args: ["archive", "to?"],
+    args: %w[archive to?],
     opts: true,
     returns: "[entry]",
     raises: ["decode_error"],
@@ -5147,7 +5147,7 @@ vocab(
   "unpack_to",
   {
     subject: "archive",
-    args: ["archive", "to"],
+    args: %w[archive to],
     opts: true,
     returns: "[path]",
     raises: [],
@@ -5162,7 +5162,7 @@ vocab(
   "unproject",
   {
     subject: "point",
-    args: ["subject", "point"],
+    args: %w[subject point],
     opts: false,
     returns: "point",
     raises: [],
@@ -5177,7 +5177,7 @@ vocab(
   "unseal",
   {
     subject: "envelope",
-    args: ["envelope", "key"],
+    args: %w[envelope key],
     opts: true,
     returns: "bytes",
     raises: ["tampered"],
@@ -5222,10 +5222,10 @@ vocab(
   "update",
   {
     subject: "store",
-    args: ["~store", "key", "f"],
+    args: %w[~store key f],
     opts: true,
     returns: "value",
-    raises: ["not_found", "conflict"],
+    raises: %w[not_found conflict],
     kind: :any,
     meaning: "replace an entry with f of the old value",
     ref: "§3.2",
@@ -5237,7 +5237,7 @@ vocab(
   "upgrade",
   {
     subject: "subject",
-    args: ["subject", "names?"],
+    args: %w[subject names?],
     opts: true,
     returns: "[change]",
     raises: [],
@@ -5252,7 +5252,7 @@ vocab(
   "validate",
   {
     subject: "value",
-    args: ["value", "schema"],
+    args: %w[value schema],
     opts: true,
     returns: "value",
     raises: ["bad_option"],
@@ -5297,7 +5297,7 @@ vocab(
   "verify",
   {
     subject: "subject",
-    args: ["subject", "policy?"],
+    args: %w[subject policy?],
     opts: true,
     returns: "verdict",
     raises: ["tampered"],
@@ -5312,7 +5312,7 @@ vocab(
   "verify?",
   {
     subject: "data",
-    args: ["data", "signature?", "key?"],
+    args: %w[data signature? key?],
     opts: false,
     returns: "Bool",
     raises: [],
@@ -5372,7 +5372,7 @@ vocab(
   "wait",
   {
     subject: "handle",
-    args: ["handle", "until?"],
+    args: %w[handle until?],
     opts: true,
     returns: "result",
     raises: ["timeout"],
@@ -5387,7 +5387,7 @@ vocab(
   "waive",
   {
     subject: "subject",
-    args: ["subject", "reason", "until?"],
+    args: %w[subject reason until?],
     opts: false,
     returns: "waiver",
     raises: [],
@@ -5417,7 +5417,7 @@ vocab(
   "warn",
   {
     subject: "message",
-    args: ["message", "fields?"],
+    args: %w[message fields?],
     opts: false,
     returns: "nil",
     raises: [],
@@ -5432,7 +5432,7 @@ vocab(
   "watch",
   {
     subject: "store",
-    args: ["store", "f"],
+    args: %w[store f],
     opts: true,
     returns: "nil",
     raises: ["not_found"],
@@ -5447,7 +5447,7 @@ vocab(
   "waveform",
   {
     subject: "kind",
-    args: ["kind", "params"],
+    args: %w[kind params],
     opts: false,
     returns: "signal",
     raises: [],
@@ -5462,7 +5462,7 @@ vocab(
   "weigh",
   {
     subject: "upstreams",
-    args: ["upstreams", "weights"],
+    args: %w[upstreams weights],
     opts: false,
     returns: "rule",
     raises: [],
@@ -5507,7 +5507,7 @@ vocab(
   "why",
   {
     subject: "decision",
-    args: ["subject", "name?"],
+    args: %w[subject name?],
     opts: false,
     returns: "text",
     raises: [],
@@ -5522,7 +5522,7 @@ vocab(
   "windows",
   {
     subject: "xs",
-    args: ["xs", "n"],
+    args: %w[xs n],
     opts: false,
     returns: "[list]",
     raises: [],
@@ -5552,7 +5552,7 @@ vocab(
   "with_lock",
   {
     subject: "name",
-    args: ["name", "f"],
+    args: %w[name f],
     opts: true,
     returns: "value",
     raises: ["timeout"],
@@ -5567,7 +5567,7 @@ vocab(
   "wrap",
   {
     subject: "x",
-    args: ["x", "with"],
+    args: %w[x with],
     opts: false,
     returns: "x",
     raises: [],
@@ -5582,7 +5582,7 @@ vocab(
   "write",
   {
     subject: "target",
-    args: ["target", "content"],
+    args: %w[target content],
     opts: true,
     returns: "nil",
     raises: ["permission_denied"],
@@ -5597,7 +5597,7 @@ vocab(
   "yank",
   {
     subject: "name",
-    args: ["name", "version", "registry?"],
+    args: %w[name version registry?],
     opts: true,
     returns: "nil",
     raises: [],
@@ -5612,7 +5612,7 @@ vocab(
   "zero",
   {
     subject: "f",
-    args: ["f", "bracket"],
+    args: %w[f bracket],
     opts: true,
     returns: "number",
     raises: [],
@@ -5627,7 +5627,7 @@ vocab(
   "zip",
   {
     subject: "xs",
-    args: ["xs", "ys"],
+    args: %w[xs ys],
     opts: false,
     returns: "[pair]",
     raises: [],

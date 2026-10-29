@@ -6,7 +6,7 @@ verb(
   {
     kind: :effect,
     shape: "accept(listener, opts) -> conn",
-    laterals: ["cancel", "deadline"],
+    laterals: %w[cancel deadline],
     fleet: "blue-lang-runtime",
     today: "rust:blue-lang-runtime",
     meaning: "Take the next incoming connection.",
@@ -21,7 +21,7 @@ verb(
   {
     kind: :effect,
     shape: "bind(addr, opts) -> conn",
-    laterals: ["capability", "error"],
+    laterals: %w[capability error],
     fleet: nil,
     today: "absent",
     meaning: "Bind a datagram socket to receive on.",
@@ -37,7 +37,7 @@ verb(
   {
     kind: :effect,
     shape: "certificate(host, opts) -> record",
-    laterals: ["error", "time"],
+    laterals: %w[error time],
     fleet: nil,
     today: "absent",
     meaning: "The peer certificate chain, expiry and names.",
@@ -67,7 +67,7 @@ verb(
   {
     kind: :effect,
     shape: "connect(addr, opts) -> conn",
-    laterals: ["capability", "deadline", "error", "resource"],
+    laterals: %w[capability deadline error resource],
     fleet: nil,
     today: "absent",
     meaning: "Open a TCP, UDP, Unix or TLS connection.",
@@ -112,7 +112,7 @@ verb(
   {
     kind: :effect,
     shape: "handshake(conn, opts) -> record",
-    laterals: ["deadline", "error"],
+    laterals: %w[deadline error],
     fleet: nil,
     today: "absent",
     meaning: "Run a protocol opening (TLS, WebSocket, PROXY) and return its outcome.",
@@ -142,7 +142,7 @@ verb(
   {
     kind: :effect,
     shape: "listen(addr, opts) -> listener",
-    laterals: ["capability", "error", "resource"],
+    laterals: %w[capability error resource],
     fleet: "blue-lang-runtime",
     today: "rust:blue-lang-runtime",
     meaning: "Bind and listen; port 0 picks a free one.",
@@ -157,7 +157,7 @@ verb(
   {
     kind: :effect,
     shape: "pipe(a, b, opts) -> info",
-    laterals: ["cancel", "resource"],
+    laterals: %w[cancel resource],
     fleet: nil,
     today: "absent",
     meaning: "Copy bytes both ways until one side closes.",
@@ -173,7 +173,7 @@ verb(
   {
     kind: :effect,
     shape: "read(conn, opts) -> bytes",
-    laterals: ["deadline", "error"],
+    laterals: %w[deadline error],
     fleet: nil,
     today: "absent",
     meaning: "Read what has arrived, up to a size.",
@@ -188,7 +188,7 @@ verb(
   {
     kind: :effect,
     shape: "receive(conn, opts) -> message",
-    laterals: ["cancel", "deadline"],
+    laterals: %w[cancel deadline],
     fleet: nil,
     today: "absent",
     meaning: "Take the next datagram or WebSocket message.",
@@ -218,7 +218,7 @@ verb(
   {
     kind: :effect,
     shape: "secure(conn, tls opts) -> conn",
-    laterals: ["capability", "error"],
+    laterals: %w[capability error],
     fleet: nil,
     today: "absent",
     meaning: "Upgrade a connection to TLS with a verified peer.",
@@ -249,7 +249,7 @@ verb(
   {
     kind: :stream,
     shape: "stream(conn, f, opts) -> nil",
-    laterals: ["cancel", "deadline"],
+    laterals: %w[cancel deadline],
     fleet: nil,
     today: "absent",
     meaning: "Call f per message until the peer closes.",
@@ -279,7 +279,7 @@ verb(
   {
     kind: :effect,
     shape: "write(conn, bytes, opts) -> nil",
-    laterals: ["deadline", "error"],
+    laterals: %w[deadline error],
     fleet: nil,
     today: "absent",
     meaning: "Write all bytes or raise.",

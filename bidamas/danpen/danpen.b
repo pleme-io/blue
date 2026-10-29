@@ -1,7 +1,7 @@
 use("deeta", [:get_or])
 use("kiwari")
-use("moji", [:capitalize, :checked])
-use("retsu", [:first, :is_empty, :last, :rest])
+use("moji", %i[capitalize checked])
+use("retsu", %i[first is_empty last rest])
 use("shomei")
 use("tesuto", [:raises?])
 
@@ -24,44 +24,44 @@ end
 
 def punctuation_roles()
   [
-    ["{", "punctuation.bracket"],
-    ["}", "punctuation.bracket"],
-    ["(", "punctuation.bracket"],
-    [")", "punctuation.bracket"],
+    %w[{ punctuation.bracket],
+    %w[} punctuation.bracket],
+    %w[( punctuation.bracket],
+    %w[) punctuation.bracket],
     ["[", "punctuation.bracket"],
     ["]", "punctuation.bracket"],
-    [":", "punctuation.delimiter"],
-    ["=", "punctuation.delimiter"],
-    ["!", "punctuation.special"],
-    ["$", "punctuation.special"],
-    ["@", "punctuation.special"],
-    ["&", "punctuation.delimiter"],
-    ["|", "punctuation.delimiter"],
-    ["...", "punctuation.special"]
+    %w[: punctuation.delimiter],
+    %w[= punctuation.delimiter],
+    %w[! punctuation.special],
+    %w[$ punctuation.special],
+    %w[@ punctuation.special],
+    %w[& punctuation.delimiter],
+    %w[| punctuation.delimiter],
+    %w[... punctuation.special]
   ]
 end
 
 def directive_locations()
-  [
-    "QUERY",
-    "MUTATION",
-    "SUBSCRIPTION",
-    "FIELD",
-    "FRAGMENT_DEFINITION",
-    "FRAGMENT_SPREAD",
-    "INLINE_FRAGMENT",
-    "VARIABLE_DEFINITION",
-    "SCHEMA",
-    "SCALAR",
-    "OBJECT",
-    "FIELD_DEFINITION",
-    "ARGUMENT_DEFINITION",
-    "INTERFACE",
-    "UNION",
-    "ENUM",
-    "ENUM_VALUE",
-    "INPUT_OBJECT",
-    "INPUT_FIELD_DEFINITION"
+  %w[
+    QUERY
+    MUTATION
+    SUBSCRIPTION
+    FIELD
+    FRAGMENT_DEFINITION
+    FRAGMENT_SPREAD
+    INLINE_FRAGMENT
+    VARIABLE_DEFINITION
+    SCHEMA
+    SCALAR
+    OBJECT
+    FIELD_DEFINITION
+    ARGUMENT_DEFINITION
+    INTERFACE
+    UNION
+    ENUM
+    ENUM_VALUE
+    INPUT_OBJECT
+    INPUT_FIELD_DEFINITION
   ]
 end
 
@@ -69,28 +69,28 @@ def keyword_roles()
   append(
     map(
       (k) -> [k, "keyword"],
-      [
-        "query",
-        "mutation",
-        "subscription",
-        "fragment",
-        "on",
-        "schema",
-        "scalar",
-        "type",
-        "implements",
-        "interface",
-        "union",
-        "enum",
-        "input",
-        "directive",
-        "repeatable",
-        "extend"
+      %w[
+        query
+        mutation
+        subscription
+        fragment
+        on
+        schema
+        scalar
+        type
+        implements
+        interface
+        union
+        enum
+        input
+        directive
+        repeatable
+        extend
       ]
     ),
     map(
       (k) -> [k, "constant.builtin"],
-      append(["true", "false", "null"], directive_locations)
+      append(%w[true false null], directive_locations)
     )
   )
 end
@@ -645,8 +645,8 @@ def number_at(x, i, line, col)
   else
     b
   end
-  stop = if member?(at(x, frac), ["e", "E"])
-    k = if member?(at(x, frac + 1), ["+", "-"])
+  stop = if member?(at(x, frac), %w[e E])
+    k = if member?(at(x, frac + 1), %w[+ -])
       frac + 2
     else
       frac + 1
@@ -971,7 +971,7 @@ def definition(p, i)
     type_system(p, i + 1, v)
   elsif t[:kind] != :name
     fail(p, i, "a definition")
-  elsif member?(v, ["query", "mutation", "subscription"])
+  elsif member?(v, %w[query mutation subscription])
     operation(p, i)
   elsif v == "fragment"
     fragment_definition(p, i)
@@ -1297,7 +1297,7 @@ def extends_something?(node)
     (k) -> not is_empty(get(node, k)),
     filter(
       (k) -> get(node, k) != nil,
-      [:directives, :operations, :interfaces, :fields, :members, :values]
+      %i[directives operations interfaces fields members values]
     )
   )
 end
@@ -1475,7 +1475,7 @@ def enum_value(p, i)
   desc = description_at(p, i)
   j = second(desc)
   name = name_at(p, j)
-  if member?(name, ["true", "false", "null"])
+  if member?(name, %w[true false null])
     fail(p, j, "an enum value other than true, false or null")
   end
   dirs = directives(p, j + 1, true)
@@ -1962,7 +1962,7 @@ def finding(rule, message, node)
 end
 
 def type_kinds()
-  [:scalar, :object, :interface, :union, :enum, :input]
+  %i[scalar object interface union enum input]
 end
 
 def definitions_of(schema)
@@ -1979,7 +1979,7 @@ def merged(base, ext)
     base,
     filter(
       (k) -> get(ext, k) != nil,
-      [:directives, :operations, :interfaces, :fields, :members, :values]
+      %i[directives operations interfaces fields members values]
     )
   )
 end
@@ -2081,7 +2081,7 @@ def implicit_roots(types)
           {operation: op, type: nil}
         end
       end,
-      [:query, :mutation, :subscription]
+      %i[query mutation subscription]
     )
   )
 end
@@ -2167,15 +2167,15 @@ def kind_of(s, name)
 end
 
 def input_kind?(k)
-  member?(k, [:scalar, :enum, :input])
+  member?(k, %i[scalar enum input])
 end
 
 def output_kind?(k)
-  member?(k, [:scalar, :object, :interface, :union, :enum])
+  member?(k, %i[scalar object interface union enum])
 end
 
 def composite?(k)
-  member?(k, [:object, :interface, :union])
+  member?(k, %i[object interface union])
 end
 
 def by_name(xs, name)
@@ -3331,7 +3331,7 @@ end
 fragment: declare a named field selection on one schema type.
 """
 def fragment(name, spec)
-  spec = checked(spec, [:on, :fields])
+  spec = checked(spec, %i[on fields])
   on = spec[:on]
   fields = spec[:fields]
   if not string?(on) or on == ""
@@ -3592,45 +3592,45 @@ def rule_of(path)
 end
 
 def rule_names()
-  [
-    "argument-exists",
-    "argument-required",
-    "argument-unique",
-    "directive-known",
-    "directive-location",
-    "directive-repeat",
-    "directive-unique",
-    "executable-definition",
-    "extension-kind",
-    "extension-orphan",
-    "field-exists",
-    "fragment-cycle",
-    "fragment-known",
-    "fragment-spread-possible",
-    "fragment-type",
-    "fragment-unique",
-    "fragment-unused",
-    "implements-interface",
-    "input-type",
-    "leaf-selection",
-    "lone-anonymous",
-    "operation-unique",
-    "output-type",
-    "parse",
-    "root-operation",
-    "root-type",
-    "schema-unique",
-    "subscription-single-root",
-    "type-known",
-    "type-system-only",
-    "type-unique",
-    "union-member",
-    "value-type",
-    "variable-defined",
-    "variable-input-type",
-    "variable-position",
-    "variable-unique",
-    "variable-unused"
+  %w[
+    argument-exists
+    argument-required
+    argument-unique
+    directive-known
+    directive-location
+    directive-repeat
+    directive-unique
+    executable-definition
+    extension-kind
+    extension-orphan
+    field-exists
+    fragment-cycle
+    fragment-known
+    fragment-spread-possible
+    fragment-type
+    fragment-unique
+    fragment-unused
+    implements-interface
+    input-type
+    leaf-selection
+    lone-anonymous
+    operation-unique
+    output-type
+    parse
+    root-operation
+    root-type
+    schema-unique
+    subscription-single-root
+    type-known
+    type-system-only
+    type-unique
+    union-member
+    value-type
+    variable-defined
+    variable-input-type
+    variable-position
+    variable-unique
+    variable-unused
   ]
 end
 
@@ -3883,7 +3883,7 @@ test "compose joins an operation with the fragments it reaches, by name"
     fragment(:Z, {on: "Character", fields: [:id]})
   ]
   doc = compose(op, frags)
-  assert map((d) -> d[:name], doc[:definitions]) == ["Hero", "A", "B", "C"]
+  assert map((d) -> d[:name], doc[:definitions]) == %w[Hero A B C]
   assert compose(op, reverse(frags)) == doc
   assert check(doc, hand_schema) == []
   assert raises?(:unknown_fragment, () -> compose(op, take(2, frags)))
@@ -4026,7 +4026,7 @@ test "the schema table is every composite type's fields and every enum's values"
   assert t[:types]["Any"] == {}
   assert t[:types]["Day"].nil?
   assert t[:types]["String"].nil?
-  assert t[:enums]["Tone"] == ["WARM", "COOL"]
+  assert t[:enums]["Tone"] == %w[WARM COOL]
   assert raises?(:invalid, () -> schema_table("type Q { a: Nope }"))
 end
 
@@ -4063,7 +4063,7 @@ test "check finds nothing in a sound schema or document"
   assert hand_schema[:findings] == []
   assert schema_named("kensa")[:findings] == []
   sound = append(
-    documents_named("valid-", ["hand", "tiny"]),
+    documents_named("valid-", %w[hand tiny]),
     documents_named("", ["kensa"])
   )
   assert length(sound) >= 10
@@ -4072,7 +4072,7 @@ test "check finds nothing in a sound schema or document"
 end
 
 test "each invalid document is found by the rule it is named for"
-  docs = documents_named("invalid-", ["hand", "tiny"])
+  docs = documents_named("invalid-", %w[hand tiny])
   missed = filter(
     (f) -> not member?(rule_of(first(f)), rules_found(f[1], f[2])),
     docs

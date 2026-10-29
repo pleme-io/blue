@@ -213,7 +213,7 @@ verb(
   {
     kind: :effect,
     shape: "load(path, opts) -> plan",
-    laterals: ["capability", "error"],
+    laterals: %w[capability error],
     fleet: nil,
     today: "absent",
     meaning: "a file of CSV, JSON or Parquet as a source",
@@ -243,7 +243,7 @@ verb(
   {
     kind: :effect,
     shape: "query(store, sql, params) -> [record]",
-    laterals: ["capability", "deadline", "error"],
+    laterals: %w[capability deadline error],
     fleet: "kueri",
     today: "partial:kueri",
     meaning: "raw SQL against a store, returning records",
@@ -272,7 +272,7 @@ verb(
   {
     kind: :effect,
     shape: "run(plan, opts) -> [record]",
-    laterals: ["capability", "deadline", "error", "resource"],
+    laterals: %w[capability deadline error resource],
     fleet: "kueri",
     today: "partial:kueri",
     meaning: "execute a plan in memory or in DuckDB",
@@ -302,7 +302,7 @@ verb(
   {
     kind: :effect,
     shape: "save(plan, path, opts) -> nil",
-    laterals: ["capability", "error", "idempotent"],
+    laterals: %w[capability error idempotent],
     fleet: nil,
     today: "absent",
     meaning: "write a plan's rows to a file",

@@ -82,7 +82,7 @@ verb(
   {
     kind: :effect,
     shape: "connect(url, opts) -> bus",
-    laterals: ["capability", "deadline", "error", "resource"],
+    laterals: %w[capability deadline error resource],
     fleet: "blue-lang-runtime",
     today: "rust:blue-lang-runtime",
     meaning: "Open a connection to a broker.",
@@ -142,7 +142,7 @@ verb(
   {
     kind: :effect,
     shape: "enter(bus, group, f) -> member",
-    laterals: ["process", "resource"],
+    laterals: %w[process resource],
     fleet: nil,
     today: "absent",
     meaning: "Share a subject's load across a consumer group.",
@@ -249,7 +249,7 @@ verb(
   {
     kind: :effect,
     shape: "publish(bus, subject, message, opts) -> receipt",
-    laterals: ["error", "idempotent", "retry"],
+    laterals: %w[error idempotent retry],
     fleet: "blue-lang-runtime",
     today: "rust:blue-lang-runtime",
     meaning: "Put a message on a subject, queue or log.",
@@ -341,7 +341,7 @@ verb(
   {
     kind: :effect,
     shape: "request(bus, subject, message, opts) -> reply",
-    laterals: ["deadline", "error", "retry"],
+    laterals: %w[deadline error retry],
     fleet: "blue-lang-runtime",
     today: "rust:blue-lang-runtime",
     meaning: "Publish and wait for one reply.",
@@ -387,7 +387,7 @@ verb(
   {
     kind: :stream,
     shape: "subscribe(bus, subject, f, opts) -> subscription",
-    laterals: ["cancel", "error"],
+    laterals: %w[cancel error],
     fleet: "blue-lang-runtime",
     today: "rust:blue-lang-runtime",
     meaning: "Call f per message on a subject or group.",

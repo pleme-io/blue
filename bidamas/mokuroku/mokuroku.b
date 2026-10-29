@@ -34,32 +34,32 @@ entry is [def_name, signature, doc_lines].
 
 use("deeta", [:get_or])
 
-use("hadome", [:failures, :measurement, :parse, :render, :shrunk])
+use("hadome", %i[failures measurement parse render shrunk])
 
 use("junjo", [:sort_by])
 
 use("kiwari", [:scm_string])
 
-use("kyohi", [:kinds, :refusal, :why])
+use("kyohi", %i[kinds refusal why])
 
 use(
   "retsu",
-  [
-    :concat_lists,
-    :contains,
-    :count_where,
-    :drop_while,
-    :find_first,
-    :first,
-    :flat_map,
-    :is_empty,
-    :last,
-    :push,
-    :reject,
-    :rest,
-    :size,
-    :slice,
-    :take_while
+  %i[
+    concat_lists
+    contains
+    count_where
+    drop_while
+    find_first
+    first
+    flat_map
+    is_empty
+    last
+    push
+    reject
+    rest
+    size
+    slice
+    take_while
   ]
 )
 
@@ -739,6 +739,38 @@ def row_items(cs, i, n, close, acc)
   end
 end
 
+def row_word_char?(c)
+  not row_space?(c) and not contains?(",\"'#\\[]", c)
+end
+
+def row_word_end(cs, i, n)
+  if i < n and row_word_char?(cs[i])
+    row_word_end(cs, i + 1, n)
+  else
+    i
+  end
+end
+
+def row_words(cs, i, n, names, acc)
+  j = row_skip(cs, i, n)
+  if j >= n
+    row_fail(cs, j, "a word list is not closed")
+  elsif cs[j] == "]"
+    [acc, j + 1]
+  else
+    e = row_word_end(cs, j, n)
+    if e == j
+      row_fail(cs, j, "a word holds no comma, quote, #, \\ or bracket")
+    elsif names and row_ident_end(cs, j, n) != e
+      row_fail(cs, j, "a word in %i[…] is a name")
+    elsif names
+      row_words(cs, e, n, names, push(acc, [:symbol, row_text(cs, j, e)]))
+    else
+      row_words(cs, e, n, names, push(acc, row_text(cs, j, e)))
+    end
+  end
+end
+
 def row_entries(cs, i, n, acc)
   j = row_skip(cs, i, n)
   if j < n and cs[j] == "}"
@@ -782,6 +814,11 @@ def row_value(cs, i, n)
       else
         [[:symbol, row_text(cs, j + 1, e)], e]
       end
+    elsif c == "%" and
+        j + 2 < n and
+        member?(cs[j + 1], %w[w i]) and
+        cs[j + 2] == "["
+      row_words(cs, j + 3, n, cs[j + 1] == "i", [])
     elsif c == "["
       row_items(cs, j + 1, n, "]", [])
     elsif c == "{"
@@ -822,14 +859,14 @@ end
 def row_specs()
   {
     "space" => {
-      pos: [["name", "str"]],
+      pos: [%w[name str]],
       fields: [
         ["status", "sym:ratified,provisional", true, nil],
         ["gloss", "strnil", false, nil]
       ]
     },
     "verb" => {
-      pos: [["space", "str"], ["verb", "str"]],
+      pos: [%w[space str], %w[verb str]],
       fields: [
         ["kind", "sym:pure,effect,stream,decl", true, nil],
         ["shape", "str", true, nil],
@@ -846,15 +883,15 @@ def row_specs()
     },
     "edge" => {
       pos: [
-        ["from", "str"],
+        %w[from str],
         ["rel", "sym:#{join(graph_rels, ",")}"],
-        ["to", "str"],
-        ["why", "str"]
+        %w[to str],
+        %w[why str]
       ],
       fields: []
     },
     "vocab" => {
-      pos: [["verb", "str"]],
+      pos: [%w[verb str]],
       fields: [
         ["subject", "str", true, nil],
         ["args", "strs", true, nil],
@@ -868,23 +905,14 @@ def row_specs()
       ]
     },
     "lateral" => {
-      pos: [["name", "str"]],
+      pos: [%w[name str]],
       fields: [["battery", "strnil", false, nil]]
     }
   }
 end
 
 def graph_rels()
-  [
-    "inverse",
-    "composes",
-    "refines",
-    "generalizes",
-    "requires",
-    "lifts",
-    "guards",
-    "pairs"
-  ]
+  %w[inverse composes refines generalizes requires lifts guards pairs]
 end
 
 def row_fits(type, v)
@@ -1267,7 +1295,7 @@ def with_doc_meanings(verbs, meanings)
       parts = split(v[:today], ":")
       key = "#{last(parts)}::#{v[:verb]}"
       if size(parts) == 2 and
-          member?(first(parts), ["exists", "partial"]) and
+          member?(first(parts), %w[exists partial]) and
           get(meanings, key) != nil
         assoc(v, :meaning, get(meanings, key))
       else
@@ -1412,28 +1440,7 @@ def graph_nodes(g)
 end
 
 def meaning_stops()
-  [
-    "a",
-    "an",
-    "the",
-    "of",
-    "to",
-    "in",
-    "on",
-    "by",
-    "for",
-    "and",
-    "or",
-    "with",
-    "as",
-    "from",
-    "into",
-    "at",
-    "its",
-    "is",
-    "it",
-    "that"
-  ]
+  %w[a an the of to in on by for and or with as from into at its is it that]
 end
 
 def meaning_tokens(s)
@@ -1486,7 +1493,7 @@ def graph_related(g, rels)
 end
 
 def finds_meaning(g)
-  related = graph_related(g, ["refines", "generalizes", "inverse"])
+  related = graph_related(g, %w[refines generalizes inverse])
   live = filter((r) -> r[:enabled], g[:verbs])
   keyed = map(
     fn(r)
@@ -1533,7 +1540,7 @@ def finds_vocab(g)
 end
 
 def needs_edges(g)
-  filter((e) -> member?(e[:rel], ["composes", "requires"]), g[:edges])
+  filter((e) -> member?(e[:rel], %w[composes requires]), g[:edges])
 end
 
 def adjacency(edges)
@@ -1779,9 +1786,20 @@ def code_tokens(text)
   filter((t) -> t != "", split(spaced, " "))
 end
 
+def unworded(text)
+  parts = split(text, "%w[")
+  join(
+    concat_lists(
+      [first(parts)],
+      map((p) -> join(drop(1, split(p, "]")), "]"), drop(1, parts))
+    ),
+    " "
+  )
+end
+
 def test_tokens(text)
   lines = flat_map(test_blocks_of_text(text), (b) -> last(b))
-  code_tokens(join(map(uncommented, lines), line_break))
+  code_tokens(unworded(join(map(uncommented, lines), line_break)))
 end
 
 def qualified_token(space, verb)
@@ -1911,16 +1929,16 @@ def graph_findings_live(g, exe)
 end
 
 def finding_kinds()
-  [
-    "g1-meaning",
-    "g2-vocab",
-    "g4-cycle",
-    "g4-wave",
-    "g7-inverse",
-    "g9-dangling",
-    "g9-relation",
-    "g10-unbound",
-    "g11-untested"
+  %w[
+    g1-meaning
+    g2-vocab
+    g4-cycle
+    g4-wave
+    g7-inverse
+    g9-dangling
+    g9-relation
+    g10-unbound
+    g11-untested
   ]
 end
 
@@ -2030,19 +2048,19 @@ def tsv_table(label, text, header_sets)
 end
 
 def verb_header()
-  [
-    "region",
-    "space",
-    "verb",
-    "kind",
-    "shape",
-    "laterals",
-    "fleet",
-    "blue_today",
-    "meaning",
-    "wave",
-    "contract_shape",
-    "conforms"
+  %w[
+    region
+    space
+    verb
+    kind
+    shape
+    laterals
+    fleet
+    blue_today
+    meaning
+    wave
+    contract_shape
+    conforms
   ]
 end
 
@@ -2051,22 +2069,11 @@ def verb_header_region()
 end
 
 def edge_header()
-  ["from", "rel", "to", "why"]
+  %w[from rel to why]
 end
 
 def vocab_header()
-  [
-    "verb",
-    "subject",
-    "args",
-    "opts",
-    "returns",
-    "raises",
-    "kind",
-    "meaning",
-    "stdlib_ref",
-    "status"
-  ]
+  %w[verb subject args opts returns raises kind meaning stdlib_ref status]
 end
 
 def tsv_verb(label, c, vocab)
@@ -2099,7 +2106,7 @@ def tsv_verb(label, c, vocab)
       :tsv_value,
       "#{label} #{id}: wave `#{c["wave"]}` is no whole number"
     )
-  elsif not member?(row[:kind], ["pure", "effect", "stream", "decl"])
+  elsif not member?(row[:kind], %w[pure effect stream decl])
     refusal(:tsv_value, "#{label} #{id}: kind `#{row[:kind]}` is no kind")
   elsif given.nil?
     row
@@ -2322,7 +2329,7 @@ def verb_fields(r)
         if r[:enabled]
           []
         else
-          [["enabled", "false"]]
+          [%w[enabled false]]
         end,
         optional_field(
           "replaced_by",
@@ -2506,7 +2513,7 @@ test "a manifest yields its name, version and needs"
       ]
     )
   )
-  assert m == ["kazu", "0.1.0", ["retsu", "moji"]]
+  assert m == ["kazu", "0.1.0", %w[retsu moji]]
 end
 
 test "a manifest with no needs has an empty needs list"
@@ -2577,7 +2584,7 @@ test "two packages defining one name is a collision; distinct names are not"
   ]
   b = ["b", "0.1.0", [], "", [["size", "size(xs)", []]], 0]
   c = ["c", "0.1.0", [], "", [["only_c", "only_c()", []]], 0]
-  assert name_collisions([a, b, c]) == [["size", ["a", "b"]]]
+  assert name_collisions([a, b, c]) == [["size", %w[a b]]]
   assert is_empty(name_collisions([a, c])) == true
   assert size(name_collisions_touching([a, b, c], ["c"])) == 0
   assert size(name_collisions_touching([a, b, c], ["b"])) == 1
@@ -2597,7 +2604,7 @@ test "shadows reports definitions that reuse a listed name"
     [["member", "member(x)", []], ["fine", "fine()", []]],
     0
   ]
-  assert names_shadowing([a], ["member", "get"]) == [["member", "a"]]
+  assert names_shadowing([a], %w[member get]) == [%w[member a]]
 end
 
 test "a pipe inside a table cell is escaped"
@@ -2724,15 +2731,14 @@ end
 
 test "a catalogue keeps the packages the ledger names and skips the rest"
   ledger = unlines(["| `alpha` | a |", "| `beta` | b |"])
-  records = [["alpha", "0.1.0"], ["gamma", "0.1.0"], ["beta", "0.2.0"]]
-  assert registered_only(ledger, records) ==
-    [["alpha", "0.1.0"], ["beta", "0.2.0"]]
+  records = [%w[alpha 0.1.0], %w[gamma 0.1.0], %w[beta 0.2.0]]
+  assert registered_only(ledger, records) == [%w[alpha 0.1.0], %w[beta 0.2.0]]
   assert registered_only(ledger, []) == []
 end
 
 test "a name that only appears inside another row's text is not registered"
   ledger = unlines(["| `alpha` | gamma and `gamma` are mentioned here |"])
-  assert registered_only(ledger, [["gamma", "0.1.0"]]) == []
+  assert registered_only(ledger, [%w[gamma 0.1.0]]) == []
 end
 
 test "a graph that breaks no gate has no finding"
@@ -2742,7 +2748,7 @@ test "a graph that breaks no gate has no finding"
       ["a", "write", "replace a file", 1]
     ],
     [["a::write", "requires", "a::read", "needs it"]],
-    ["read", "write"]
+    %w[read write]
   )
   assert g[:refusals] == []
   assert graph_findings(g) == []
@@ -2755,8 +2761,8 @@ test "g1 names two verbs of one space whose meanings differ only in stop words a
       ["a", "slurp", "the whole content of the file", 1],
       ["b", "load", "whole content of a file", 1]
     ],
-    [["a::read", "requires", "b::load", "x"]],
-    ["read", "slurp", "load"]
+    [%w[a::read requires b::load x]],
+    %w[read slurp load]
   )
   assert fx_kinds(g) == ["g1-meaning a::read a::slurp"]
 end
@@ -2764,34 +2770,29 @@ end
 test "g1 keeps word order: the same words in another order are another meaning"
   g = fx_graph(
     [["a", "take", "item from list", 1], ["a", "pull", "list from item", 1]],
-    [["a::take", "pairs", "a::pull", "x"]],
-    ["take", "pull"]
+    [%w[a::take pairs a::pull x]],
+    %w[take pull]
   )
   assert graph_findings(g) == []
 end
 
 test "g1 is silenced by a refines, generalizes or inverse edge, and by nothing else"
   rows = [["a", "read", "whole content", 1], ["a", "slurp", "whole content", 1]]
-  known = ["read", "slurp"]
+  known = %w[read slurp]
   assert fx_kinds(fx_graph(rows, [], known)) == ["g1-meaning a::read a::slurp"]
+  assert fx_kinds(fx_graph(rows, [%w[a::slurp refines a::read x]], known)) == []
   assert fx_kinds(
-    fx_graph(rows, [["a::slurp", "refines", "a::read", "x"]], known)
+    fx_graph(rows, [%w[a::read generalizes a::slurp x]], known)
   ) == []
-  assert fx_kinds(
-    fx_graph(rows, [["a::read", "generalizes", "a::slurp", "x"]], known)
-  ) == []
-  assert fx_kinds(
-    fx_graph(rows, [["a::read", "inverse", "a::slurp", "x"]], known)
-  ) == []
-  assert fx_kinds(
-    fx_graph(rows, [["a::read", "pairs", "a::slurp", "x"]], known)
-  ) == ["g1-meaning a::read a::slurp"]
+  assert fx_kinds(fx_graph(rows, [%w[a::read inverse a::slurp x]], known)) == []
+  assert fx_kinds(fx_graph(rows, [%w[a::read pairs a::slurp x]], known)) ==
+    ["g1-meaning a::read a::slurp"]
 end
 
 test "g2 names a verb with no vocabulary row"
   g = fx_graph(
     [["a", "read", "one", 1], ["a", "fetch", "two", 1]],
-    [["a::read", "pairs", "a::fetch", "x"]],
+    [%w[a::read pairs a::fetch x]],
     ["read"]
   )
   assert fx_kinds(g) == ["g2-vocab a::fetch"]
@@ -2806,12 +2807,12 @@ test "g4 names the nodes on a cycle of composes and requires, and not those lead
       ["a", "s", "four", 1]
     ],
     [
-      ["a::p", "composes", "a::q", "x"],
-      ["a::q", "requires", "a::r", "x"],
-      ["a::r", "composes", "a::p", "x"],
+      %w[a::p composes a::q x],
+      %w[a::q requires a::r x],
+      %w[a::r composes a::p x],
       ["a::s", "composes", "a::p", "enters the cycle"]
     ],
-    ["p", "q", "r", "s"]
+    %w[p q r s]
   )
   assert fx_kinds(g) == ["g4-cycle a::p", "g4-cycle a::q", "g4-cycle a::r"]
 end
@@ -2819,15 +2820,15 @@ end
 test "g4 names an edge to a later wave, and only for composes and requires"
   g = fx_graph(
     [["a", "p", "one", 1], ["a", "q", "two", 3]],
-    [["a::p", "composes", "a::q", "x"]],
-    ["p", "q"]
+    [%w[a::p composes a::q x]],
+    %w[p q]
   )
   assert fx_kinds(g) == ["g4-wave a::p -> a::q"]
   assert fx_kinds(
     fx_graph(
       [["a", "p", "one", 1], ["a", "q", "two", 3]],
-      [["a::p", "pairs", "a::q", "x"]],
-      ["p", "q"]
+      [%w[a::p pairs a::q x]],
+      %w[p q]
     )
   ) == []
 end
@@ -2838,24 +2839,18 @@ test "g7 names a verb with two inverse partners, however the edges are written"
     ["a", "del", "two", 1],
     ["a", "has", "three", 1]
   ]
-  known = ["put", "del", "has"]
+  known = %w[put del has]
   assert fx_kinds(
     fx_graph(
       rows,
-      [
-        ["a::put", "inverse", "a::del", "x"],
-        ["a::has", "inverse", "a::put", "x"]
-      ],
+      [%w[a::put inverse a::del x], %w[a::has inverse a::put x]],
       known
     )
   ) == ["g7-inverse a::put"]
   assert fx_kinds(
     fx_graph(
       rows,
-      [
-        ["a::put", "inverse", "a::del", "x"],
-        ["a::del", "inverse", "a::put", "x"]
-      ],
+      [%w[a::put inverse a::del x], %w[a::del inverse a::put x]],
       known
     )
   ) == []
@@ -2864,7 +2859,7 @@ end
 test "g9 names an endpoint that is no verb and a relation outside the closed set"
   g = fx_graph(
     [["a", "p", "one", 1]],
-    [["a::p", "composes", "a::gone", "x"], ["a::p", "frobs", "a::p", "x"]],
+    [%w[a::p composes a::gone x], %w[a::p frobs a::p x]],
     ["p"]
   )
   assert fx_kinds(g) == ["g9-dangling a::gone", "g9-relation a::p frobs a::p"]
@@ -2873,7 +2868,7 @@ end
 test "a retired verb keeps its row and is not held to g1 or g2"
   g = fx_graph(
     [["a", "read", "one", 1], ["a", "slurp", "one", 1]],
-    [["a::read", "pairs", "a::slurp", "x"]],
+    [%w[a::read pairs a::slurp x]],
     ["read"]
   )
   off = assoc(
@@ -2896,7 +2891,7 @@ end
 test "the ratchet: recorded debt holds or shrinks, and a new or grown count is a failure"
   g = fx_graph(
     [["a", "p", "one", 1], ["a", "q", "two", 1], ["b", "r", "three", 1]],
-    [["a::p", "pairs", "a::q", "x"], ["a::q", "pairs", "b::r", "x"]],
+    [%w[a::p pairs a::q x], %w[a::q pairs b::r x]],
     []
   )
   found = graph_findings(g)
@@ -2950,6 +2945,17 @@ test "a row file is data: a word that is not a row word is refused, never run"
   assert size(r[:rows]) == 1
 end
 
+test "a word list in a row reads as the list it spells"
+  assert row_forms("x(%w[a b-c], %i[d e?], %w[])") ==
+    [{word: "x", args: [%w[a b-c], [[:symbol, "d"], [:symbol, "e?"]], []]}]
+  assert kinds(
+    file_graph("a.b", unlines(["space(\"a\", {status: %i[a-b]})"]))[:refusals]
+  ) == [:row_syntax]
+  assert kinds(
+    file_graph("a.b", unlines(["space(\"a\", {status: %w[a"]))[:refusals]
+  ) == [:row_syntax]
+end
+
 test "a row file holds only literals: a name, a call or an operator in a value is a syntax refusal"
   assert kinds(
     file_graph("a.b", unlines(["space(\"a\", {status: ratified})"]))[:refusals]
@@ -2977,7 +2983,7 @@ test "a bad row is refused alone: its siblings load"
     )
   )
   assert size(r[:rows]) == 1
-  assert kinds(r[:refusals]) == [:bad_row, :bad_row]
+  assert kinds(r[:refusals]) == %i[bad_row bad_row]
 end
 
 test "a file holds the rows of its own space only, and the edges that start there"
@@ -2991,14 +2997,14 @@ test "a file holds the rows of its own space only, and the edges that start ther
       ]
     )
   )
-  assert kinds(r[:refusals]) == [:misplaced, :misplaced]
+  assert kinds(r[:refusals]) == %i[misplaced misplaced]
 end
 
 test "a duplicate verb, space, vocabulary row or edge is refused by name"
   g = fx_graph(
     [["a", "p", "one", 1], ["a", "p", "two", 1]],
-    [["a::p", "pairs", "a::p", "w"], ["a::p", "pairs", "a::p", "w"]],
-    ["p", "p"]
+    [%w[a::p pairs a::p w], %w[a::p pairs a::p w]],
+    %w[p p]
   )
   assert map(why, g[:refusals]) ==
     [
@@ -3015,7 +3021,7 @@ test "shapes: positionals exclude opts and option maps, and a contract takes the
   assert shape_takes_opts?("read(path, opts) -> text")
   assert shape_takes_opts?("run(cmd, {cwd: x}) -> record")
   assert not shape_takes_opts?("get(store, key) -> value")
-  v = {args: ["a", "b?"], opts: false}
+  v = {args: %w[a b?], opts: false}
   assert verb_conforms("f(a) -> x", v) == "yes"
   assert verb_conforms("f(a, b) -> x", v) == "yes"
   assert verb_conforms("f(a, b, c) -> x", v) == "no"
@@ -3131,14 +3137,14 @@ test "a graph is written as one file per space, edges in the file of their from,
         ["T", "b?", "q", "pure", "q(x) -> v", "-", "-", "absent", "m two", "1"]
       ]
     ),
-    tsv_text(edge_header, [["b?::q", "pairs", "a::p", "w"]]),
+    tsv_text(edge_header, [%w[b?::q pairs a::p w]]),
     tsv_text(vocab_header, [])
   )
   files = graph_writes(g)
-  assert map(first, files) == ["vocab.b", "a.b", "b-provisional.b"]
+  assert map(first, files) == %w[vocab.b a.b b-provisional.b]
   b = file_graph("b-provisional.b", files[2][1])
   assert b[:refusals] == []
-  assert map((r) -> r[:word], b[:rows]) == ["space", "verb", "edge"]
+  assert map((r) -> r[:word], b[:rows]) == %w[space verb edge]
   assert first(b[:rows])[:status] == "provisional"
 end
 
@@ -3171,11 +3177,11 @@ end
 
 def ux_rows()
   [
-    ["moji", "lower", "exists:moji", "one"],
-    ["moji", "ghost", "partial:moji", "two"],
-    ["moji", "void", "absent", "three"],
-    ["kazu", "abs", "exists", "four"],
-    ["gauge?", "gauge", "exists:moji", "five"]
+    %w[moji lower exists:moji one],
+    %w[moji ghost partial:moji two],
+    %w[moji void absent three],
+    %w[kazu abs exists four],
+    %w[gauge? gauge exists:moji five]
   ]
 end
 
@@ -3191,7 +3197,7 @@ test "the probe names every exists row of a named space, once, and nothing else"
 end
 
 test "the probe of a graph with no exists row is an empty list"
-  src = probe_source(ux_graph([["moji", "ghost", "partial:moji", "two"]]))
+  src = probe_source(ux_graph([%w[moji ghost partial:moji two]]))
   assert src == unlines(["", "def probe()", "  []", "end"])
 end
 
@@ -3207,7 +3213,7 @@ test "unbound_names reads the B0011 lines and nothing else"
       "/p/probe.b:3:2: error[B0010]: `retsu::first` is qualified by `retsu`, which this file does not `use`"
     ]
   )
-  assert unbound_names(out) == ["moji::nothere", "retsu::zzz"]
+  assert unbound_names(out) == %w[moji::nothere retsu::zzz]
   assert unbound_names("") == []
   assert unbound_names(unlines(["names resolved:     9"])) == []
 end
@@ -3216,18 +3222,11 @@ test "finds_unbound reports an exists row once and ignores any other row"
   g = ux_graph(ux_rows)
   found = finds_unbound(
     g,
-    [
-      "moji::lower",
-      "kazu::abs",
-      "moji::lower",
-      "moji::ghost",
-      "moji::void",
-      "zzz::none"
-    ]
+    %w[moji::lower kazu::abs moji::lower moji::ghost moji::void zzz::none]
   )
-  assert map((f) -> f[:subject], found) == ["kazu::abs", "moji::lower"]
-  assert map((f) -> f[:kind], found) == ["g10-unbound", "g10-unbound"]
-  assert map((f) -> f[:scope], found) == ["kazu", "moji"]
+  assert map((f) -> f[:subject], found) == %w[kazu::abs moji::lower]
+  assert map((f) -> f[:kind], found) == %w[g10-unbound g10-unbound]
+  assert map((f) -> f[:scope], found) == %w[kazu moji]
   assert finds_unbound(g, []) == []
 end
 
@@ -3289,19 +3288,19 @@ end
 def ut_graph()
   ux_graph(
     [
-      ["moji", "lower", "exists:moji", "one"],
-      ["moji", "upper", "exists:moji", "two"],
-      ["moji", "title", "partial:moji", "three"],
-      ["moji", "snake", "absent", "four"],
-      ["kazu", "abs", "exists:kazu", "five"],
-      ["kazu", "neg", "exists:kazu", "six"],
-      ["gauge?", "gauge", "exists:moji", "seven"]
+      %w[moji lower exists:moji one],
+      %w[moji upper exists:moji two],
+      %w[moji title partial:moji three],
+      %w[moji snake absent four],
+      %w[kazu abs exists:kazu five],
+      %w[kazu neg exists:kazu six],
+      %w[gauge? gauge exists:moji seven]
     ]
   )
 end
 
 test "code_tokens splits on punctuation and keeps ? and ! and a qualified name whole"
-  assert code_tokens("a.b(c, d) + e?(f!)") == ["a", "b", "c", "d", "e?", "f!"]
+  assert code_tokens("a.b(c, d) + e?(f!)") == %w[a b c d e? f!]
   assert code_tokens("moji::lower(x)") ==
     [qualified_token("moji", "lower"), "x"]
   assert code_tokens("") == []
@@ -3309,13 +3308,13 @@ test "code_tokens splits on punctuation and keeps ? and ! and a qualified name w
 end
 
 test "unquoted drops a string literal and keeps the code around it"
-  assert code_tokens(unquoted("f(\"g(x)\") + h")) == ["f", "h"]
-  assert code_tokens(unquoted("f(\"a\", \"b\", c)")) == ["f", "c"]
+  assert code_tokens(unquoted("f(\"g(x)\") + h")) == %w[f h]
+  assert code_tokens(unquoted("f(\"a\", \"b\", c)")) == %w[f c]
   assert code_tokens(unquoted("\"\"")) == []
 end
 
 test "an unmatched quote leaves the text after it as code"
-  assert code_tokens(unquoted("f(\"a\\\" g")) == ["f", "g"]
+  assert code_tokens(unquoted("f(\"a\\\" g")) == %w[f g]
 end
 
 test "test_tokens reads test blocks only, and no string inside them"
@@ -3330,7 +3329,7 @@ test "test_tokens reads test blocks only, and no string inside them"
       "end"
     ]
   )
-  assert test_tokens(text) == ["assert", "shown", "1"]
+  assert test_tokens(text) == %w[assert shown 1]
   assert test_tokens(unlines(["def only()", "  1", "end"])) == []
   assert test_tokens("") == []
 end
@@ -3350,17 +3349,22 @@ test "a name that appears only in a def body or a string is not a test"
   assert not tested?(c, "kazu", "lower")
 end
 
+test "a word of a %w list in a test is text, not a use of a verb"
+  assert unworded("f(%w[moji::a b], x)") == "f( , x)"
+  assert unworded(join_lines(["a %w[x", "y] b %w[z]"])) == "a   b  "
+  assert unworded("no list") == "no list"
+end
+
 test "g11 names every exists row with no test, once, sorted, and no other row"
   found = finds_untested(ut_graph, ut_corpus)
-  assert map((f) -> f[:subject], found) ==
-    ["kazu::abs", "kazu::neg", "moji::upper"]
+  assert map((f) -> f[:subject], found) == %w[kazu::abs kazu::neg moji::upper]
   assert map((f) -> f[:kind], found) ==
-    ["g11-untested", "g11-untested", "g11-untested"]
-  assert map((f) -> f[:scope], found) == ["kazu", "kazu", "moji"]
+    %w[g11-untested g11-untested g11-untested]
+  assert map((f) -> f[:scope], found) == %w[kazu kazu moji]
 end
 
 test "g11 is silent when every exists row has a test, and for an empty graph"
-  g = ux_graph([["moji", "lower", "exists:moji", "one"]])
+  g = ux_graph([%w[moji lower exists:moji one]])
   assert finds_untested(g, ut_corpus) == []
   assert finds_untested(ux_graph([]), ut_corpus) == []
 end
@@ -3369,7 +3373,7 @@ test "g11-untested is a kind the baseline measures"
   assert member?("g11-untested", finding_kinds)
   found = finds_untested(ut_graph, ut_corpus)
   assert map((m) -> m[:key], finding_measurements(found, "g11-untested")) ==
-    ["kazu", "moji"]
+    %w[kazu moji]
   assert map((m) -> m[:size], finding_measurements(found, "g11-untested")) ==
     [2, 1]
 end
@@ -3398,9 +3402,7 @@ test "corpus_packages reads each package's name and text from a root, and the pr
   )
   pkgs = corpus_packages([root])
   assert map(first, pkgs) == ["zed"]
-  g = ux_graph(
-    [["zed", "go", "exists:zed", "one"], ["zed", "stop", "exists:zed", "two"]]
-  )
+  g = ux_graph([%w[zed go exists:zed one], %w[zed stop exists:zed two]])
   assert map((f) -> f[:subject], untested_probe(g, [root])) == ["zed::stop"]
   rm_rf(root)
   r = untested_probe(g, []) rescue "caught"
@@ -3408,12 +3410,12 @@ test "corpus_packages reads each package's name and text from a root, and the pr
 end
 
 test "a comment after code, or alone on a line, names no token"
-  assert code_tokens(uncommented("f(x) # g(y)")) == ["f", "x"]
+  assert code_tokens(uncommented("f(x) # g(y)")) == %w[f x]
   assert code_tokens(uncommented("# only(this)")) == []
-  assert code_tokens(uncommented("f(\"#\", x)")) == ["f", "x"]
+  assert code_tokens(uncommented("f(\"#\", x)")) == %w[f x]
   assert code_tokens(uncommented("")) == []
   text = unlines(["test \"t\"", "  # hidden(1)", "  shown(2) # also(3)", "end"])
-  assert test_tokens(text) == ["shown", "2"]
+  assert test_tokens(text) == %w[shown 2]
 end
 
 def ut_prefixed()

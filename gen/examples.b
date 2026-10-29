@@ -1,10 +1,7 @@
 use("hon", [:front_matter_text])
-use("moji", [:includes, :is_blank, :lines, :squish, :strip_prefix, :trim])
+use("moji", %i[includes is_blank lines squish strip_prefix trim])
 
-use(
-  "retsu",
-  [:concat_lists, :drop_while, :first, :flat_map, :last, :rest, :take_while]
-)
+use("retsu", %i[concat_lists drop_while first flat_map last rest take_while])
 
 # Writes docs/EXAMPLES.md, one file an agent or a person can paste as
 # examples, from the golden corpus in examples/. Declared in the root

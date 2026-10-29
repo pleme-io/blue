@@ -21,7 +21,7 @@ verb(
   {
     kind: :effect,
     shape: "build(project, opts) -> artifact",
-    laterals: ["cache", "process"],
+    laterals: %w[cache process],
     fleet: nil,
     today: "absent",
     meaning: "make the release artifact reproducibly",
@@ -36,7 +36,7 @@ verb(
   {
     kind: :effect,
     shape: "canary(release, share, opts) -> verdict",
-    laterals: ["cancel", "test", "time"],
+    laterals: %w[cancel test time],
     fleet: nil,
     today: "absent",
     meaning: "send a share of traffic to a release and judge it",
@@ -51,7 +51,7 @@ verb(
   {
     kind: :effect,
     shape: "changelog(repo, plan) -> nil",
-    laterals: ["idempotent", "serialize"],
+    laterals: %w[idempotent serialize],
     fleet: nil,
     today: "absent",
     meaning: "insert notes into the changelog file",
@@ -66,7 +66,7 @@ verb(
   {
     kind: :effect,
     shape: "cut(repo, plan, opts) -> release",
-    laterals: ["idempotent", "log"],
+    laterals: %w[idempotent log],
     fleet: nil,
     today: "absent",
     meaning: "bump, tag and record a release",
@@ -204,7 +204,7 @@ verb(
   {
     kind: :effect,
     shape: "promote(release, to) -> release",
-    laterals: ["log", "switch"],
+    laterals: %w[log switch],
     fleet: nil,
     today: "absent",
     meaning: "move a release to the next channel",
@@ -219,7 +219,7 @@ verb(
   {
     kind: :effect,
     shape: "publish(release, targets, opts) -> [record]",
-    laterals: ["error", "idempotent", "retry"],
+    laterals: %w[error idempotent retry],
     fleet: nil,
     today: "absent",
     meaning: "send artifacts to registries and hosts",
@@ -294,7 +294,7 @@ verb(
   {
     kind: :effect,
     shape: "yank(release, reason) -> nil",
-    laterals: ["idempotent", "log"],
+    laterals: %w[idempotent log],
     fleet: nil,
     today: "absent",
     meaning: "withdraw a release, keeping the record",

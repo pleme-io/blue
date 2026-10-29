@@ -71,10 +71,10 @@ use("hon")
 use("hyouka")
 use("jisho")
 use("jitaku")
-use("junjo", [:is_sorted, :sort])
+use("junjo", %i[is_sorted sort])
 use("kakou")
 use("kansuu", [:identity])
-use("kazu", [:clamp, :near])
+use("kazu", %i[clamp near])
 use("keisoku")
 use("keiyu", [:relay_env])
 use("kiibariu")
@@ -102,7 +102,7 @@ use("ongaku", [:major_triad])
 use("outou")
 use("raifusaikuru")
 use("ran", [:take_ints])
-use("retsu", [:contains, :size])
+use("retsu", %i[contains size])
 use("rittai")
 use("rogu")
 use("ronri", [:every])
@@ -127,7 +127,7 @@ use("teeburu")
 use("tehai")
 use("tesuto")
 use("tokumei", [:suppress_small])
-use("toukei", [:mean, :median])
+use("toukei", %i[mean median])
 use("touroku")
 use("tsuiseki")
 use("tsuushin")
@@ -176,7 +176,7 @@ test "every bidama in the distribution answers through this one import"
   assert raifusaikuru::hours(2) == 7200
   assert take_ints(42, 100, 5) == take_ints(42, 100, 5)
   assert rittai::z([1, 2, 3]) == 3
-  assert rogu::levels == [:debug, :info, :warn, :error]
+  assert rogu::levels == %i[debug info warn error]
   assert size([1, 2, 3]) == 3
   assert every((v) -> v > 0, [1, 2, 3]) == true
   assert box_around([[1, 2], [3, 0]]) == [[1, 3], [0, 2]]
@@ -232,8 +232,7 @@ test "every bidama in the distribution answers through this one import"
   assert touroku::visibility_of({}) == "private"
   assert kiibariu::versioned_key("o", "h", :order, 1) == "o:vh:order:1"
   assert happa::key("aws_instance.web[3]") == {kind: :keyed, value: "3"}
-  assert gurafu::topo(gurafu::graph([["b", "c"], ["a", "b"]], {})) ==
-    ["a", "b", "c"]
+  assert gurafu::topo(gurafu::graph([%w[b c], %w[a b]], {})) == %w[a b c]
   assert sutoriimu::api("s", "INFO") == "$JS.API.STREAM.INFO.s"
 end
 

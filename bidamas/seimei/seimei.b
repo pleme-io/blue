@@ -10,17 +10,7 @@ expressed in about forty lines of blue.
 
 use(
   "retsu",
-  [
-    :as_list,
-    :contains,
-    :find_first,
-    :first,
-    :flatten1,
-    :is_empty,
-    :last,
-    :size,
-    :slice
-  ]
+  %i[as_list contains find_first first flatten1 is_empty last size slice]
 )
 
 @doc """

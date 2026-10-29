@@ -6,7 +6,7 @@ verb(
   {
     kind: :effect,
     shape: "all(fs, opts) -> [value]",
-    laterals: ["cancel", "error", "process"],
+    laterals: %w[cancel error process],
     fleet: nil,
     today: "absent",
     meaning: "Run all; first failure cancels the rest.",
@@ -21,7 +21,7 @@ verb(
   {
     kind: :effect,
     shape: "any(fs, opts) -> value",
-    laterals: ["cancel", "error", "process"],
+    laterals: %w[cancel error process],
     fleet: nil,
     today: "absent",
     meaning: "Return the first success; fail only if all fail.",
@@ -36,7 +36,7 @@ verb(
   {
     kind: :pure,
     shape: "backoff(policy, attempt) -> duration",
-    laterals: ["retry", "time"],
+    laterals: %w[retry time],
     fleet: nil,
     today: "absent",
     meaning: "The wait before a given attempt.",
@@ -96,7 +96,7 @@ verb(
   {
     kind: :effect,
     shape: "deadline(instant, f) -> value",
-    laterals: ["cancel", "deadline"],
+    laterals: %w[cancel deadline],
     fleet: nil,
     today: "absent",
     meaning: "Run f with an absolute deadline inherited by callees.",
@@ -126,7 +126,7 @@ verb(
   {
     kind: :effect,
     shape: "each(xs, f, opts) -> nil",
-    laterals: ["cancel", "error", "process"],
+    laterals: %w[cancel error process],
     fleet: nil,
     today: "absent",
     meaning: "Parallel side effects with a limit.",
@@ -157,7 +157,7 @@ verb(
   {
     kind: :effect,
     shape: "map(xs, f, opts) -> [value]",
-    laterals: ["cancel", "error", "process", "resource"],
+    laterals: %w[cancel error process resource],
     fleet: nil,
     today: "absent",
     meaning: "Parallel map with a limit; results in order.",
@@ -172,7 +172,7 @@ verb(
   {
     kind: :decl,
     shape: "policy(opts) -> policy",
-    laterals: ["config", "retry"],
+    laterals: %w[config retry],
     fleet: "shigoto-retry",
     today: "absent",
     meaning: "Declare attempts, backoff, jitter and which kinds retry.",
@@ -187,7 +187,7 @@ verb(
   {
     kind: :effect,
     shape: "race(fs, opts) -> value",
-    laterals: ["cancel", "process"],
+    laterals: %w[cancel process],
     fleet: nil,
     today: "absent",
     meaning: "Return the first finisher; cancel the rest.",
@@ -202,7 +202,7 @@ verb(
   {
     kind: :pure,
     shape: "remaining() -> duration",
-    laterals: ["deadline", "time"],
+    laterals: %w[deadline time],
     fleet: nil,
     today: "absent",
     meaning: "Time left before the current deadline.",
@@ -217,7 +217,7 @@ verb(
   {
     kind: :effect,
     shape: "retry(f, policy) -> value",
-    laterals: ["deadline", "error", "retry", "time"],
+    laterals: %w[deadline error retry time],
     fleet: "shigoto-retry",
     today: "absent",
     meaning: "Call f again under a policy while its error is retryable.",
@@ -232,7 +232,7 @@ verb(
   {
     kind: :effect,
     shape: "run(f, opts) -> value",
-    laterals: ["deadline", "process"],
+    laterals: %w[deadline process],
     fleet: nil,
     today: "absent",
     meaning: "Run f in a process with a timeout.",
@@ -247,7 +247,7 @@ verb(
   {
     kind: :effect,
     shape: "scope(f) -> value",
-    laterals: ["cancel", "process", "resource"],
+    laterals: %w[cancel process resource],
     fleet: nil,
     today: "absent",
     meaning: "A scope where every child ends before it returns.",
@@ -293,7 +293,7 @@ verb(
   {
     kind: :effect,
     shape: "stop(handle, opts) -> nil",
-    laterals: ["cancel", "process"],
+    laterals: %w[cancel process],
     fleet: nil,
     today: "absent",
     meaning: "Cancel a handle and wait for it to end.",
@@ -308,7 +308,7 @@ verb(
   {
     kind: :effect,
     shape: "throttle(f, duration) -> function",
-    laterals: ["ratelimit", "time"],
+    laterals: %w[ratelimit time],
     fleet: nil,
     today: "absent",
     meaning: "Call f at most once per duration.",
@@ -353,7 +353,7 @@ verb(
   {
     kind: :effect,
     shape: "wait(handle, opts) -> value",
-    laterals: ["deadline", "process"],
+    laterals: %w[deadline process],
     fleet: nil,
     today: "absent",
     meaning: "Wait for a handle's result.",

@@ -6,7 +6,7 @@ verb(
   {
     kind: :effect,
     shape: "apply(target, migrations, opts) -> [step]",
-    laterals: ["error", "idempotent", "log", "migrate"],
+    laterals: %w[error idempotent log migrate],
     fleet: "shinka",
     today: "absent",
     meaning: "run pending steps in order, recording each",
@@ -21,7 +21,7 @@ verb(
   {
     kind: :effect,
     shape: "backfill(target, f, opts) -> count",
-    laterals: ["cancel", "ratelimit", "resource", "retry"],
+    laterals: %w[cancel ratelimit resource retry],
     fleet: nil,
     today: "absent",
     meaning: "rewrite existing data in resumable batches",
@@ -36,7 +36,7 @@ verb(
   {
     kind: :effect,
     shape: "baseline(target, version) -> nil",
-    laterals: ["idempotent", "migrate"],
+    laterals: %w[idempotent migrate],
     fleet: nil,
     today: "absent",
     meaning: "mark a version as applied without running it",
@@ -171,7 +171,7 @@ verb(
   {
     kind: :effect,
     shape: "rollback(target, opts) -> [step]",
-    laterals: ["error", "migrate"],
+    laterals: %w[error migrate],
     fleet: "pleme-migrations",
     today: "absent",
     meaning: "undo steps back to a version or by count",
@@ -216,7 +216,7 @@ verb(
   {
     kind: :effect,
     shape: "verify?(target, migrations) -> Bool",
-    laterals: ["migrate", "validate"],
+    laterals: %w[migrate validate],
     fleet: "shinka",
     today: "absent",
     meaning: "whether applied steps still match their checksums",

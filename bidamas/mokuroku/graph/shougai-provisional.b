@@ -66,7 +66,7 @@ verb(
   {
     kind: :effect,
     shape: "declare(summary, opts) -> incident",
-    laterals: ["idempotent", "log"],
+    laterals: %w[idempotent log],
     fleet: nil,
     today: "absent",
     meaning: "open an incident with a severity and a timeline",
@@ -81,7 +81,7 @@ verb(
   {
     kind: :effect,
     shape: "drill(scenario, opts) -> report",
-    laterals: ["test", "time"],
+    laterals: %w[test time],
     fleet: nil,
     today: "absent",
     meaning: "rehearse an incident and measure the response",
@@ -187,7 +187,7 @@ verb(
   {
     kind: :effect,
     shape: "page(target, alert, opts) -> ack",
-    laterals: ["deadline", "retry"],
+    laterals: %w[deadline retry],
     fleet: "pangea-pagerduty",
     today: "absent",
     meaning: "notify an on-call person or team",
@@ -247,7 +247,7 @@ verb(
   {
     kind: :effect,
     shape: "silence(matcher, opts) -> silence",
-    laterals: ["switch", "time"],
+    laterals: %w[switch time],
     fleet: nil,
     today: "absent",
     meaning: "mute matching alerts for a period",

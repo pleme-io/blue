@@ -47,8 +47,8 @@ checks, and hand-rolling a character class here would drift from it.
     age_s(0) #=> "0s"
 """
 
-use("moji", [:is_alpha, :is_blank, :lines, :take_chars])
-use("retsu", [:first, :is_empty, :last, :rest])
+use("moji", %i[is_alpha is_blank lines take_chars])
+use("retsu", %i[first is_empty last rest])
 
 # ── process captures ───────────────────────────────────────────────
 
@@ -310,7 +310,7 @@ end
 
 test "last_nonempty_line ignores trailing blank lines and invents none"
   assert last_nonempty_line(unlines(["a", "", "b"])) == "b"
-  assert last_nonempty_line(join_lines(["a", "b"])) == "b"
+  assert last_nonempty_line(join_lines(%w[a b])) == "b"
   assert last_nonempty_line("only") == "only"
   assert last_nonempty_line(unlines(["", ""])) == ""
   assert last_nonempty_line("") == ""

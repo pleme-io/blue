@@ -1,6 +1,6 @@
 use("kazu", [:min])
-use("retsu", [:last, :take_while])
-use("shisutemu", [:status_of, :stdout_of])
+use("retsu", %i[last take_while])
+use("shisutemu", %i[status_of stdout_of])
 
 # A canonical rewrite (B0065, B0066, …) changes the text heni's mutations
 # anchor on, and the gate then refuses them: "find occurs 0 times". This
@@ -93,7 +93,7 @@ def with_anchor(entry, find, replace)
 end
 
 def key_order()
-  ["name", "file", "find", "replace"]
+  %w[name file find replace]
 end
 
 def ordered(entry)

@@ -1,9 +1,9 @@
 use("jisho")
-use("kyohi", [:kind, :kinds, :refusal, :why])
-use("moji", [:checked, :trim])
-use("retsu", [:count_where, :find_first, :first, :flat_map, :is_empty, :size])
-use("shinsuu", [:parse_int, :to_hex_width])
-use("shisutemu", [:esc_char, :status_of, :stderr_of, :stdout_of])
+use("kyohi", %i[kind kinds refusal why])
+use("moji", %i[checked trim])
+use("retsu", %i[count_where find_first first flat_map is_empty size])
+use("shinsuu", %i[parse_int to_hex_width])
+use("shisutemu", %i[esc_char status_of stderr_of stdout_of])
 use("tesuto", [:raises?])
 
 def hex_channels(text)
@@ -32,7 +32,7 @@ def rgb(color)
       jisho::has?(color, :r) and
       jisho::has?(color, :g) and
       jisho::has?(color, :b)
-    parts = map((k) -> get(color, k), [:r, :g, :b])
+    parts = map((k) -> get(color, k), %i[r g b])
     if count_where((v) -> number?(v) and v >= 0 and v <= 255, parts) != 3
       raise(:bad_option, "a color record takes r, g and b from 0 to 255")
     end
@@ -76,7 +76,7 @@ def contrast(a, b)
 end
 
 def modes()
-  [:light, :dark]
+  %i[light dark]
 end
 
 def token_color(name, value, mode)
@@ -249,7 +249,7 @@ end
 show: put a node on the terminal as styled output.
 """
 def show(node, opts)
-  checked(opts, [:theme, :color, :sink, :to, :newline])
+  checked(opts, %i[theme color sink to newline])
   write = writer(opts)
   on = opts[:color]
   ctx = {
@@ -313,7 +313,7 @@ step: one step of a run as a node: the state's mark, its place as [at/of], its n
     styled(step({state: :done, at: 3, of: 11, name: "regen", ms: 87240}), {color: false, theme: nil}) #=> "✅ [3/11] regen (1m 27s)"
 """
 def step(s)
-  checked(s, [:state, :at, :of, :name, :note, :ms])
+  checked(s, %i[state at of name note ms])
   state = s[:state]
   mark = get(step_marks, state)
   if mark.nil?
@@ -398,7 +398,7 @@ def tags()
     tag_row(:head, false, []),
     tag_row(:body, false, []),
     tag_row(:title, false, []),
-    tag_row(:meta, true, [:charset, :name, :content]),
+    tag_row(:meta, true, %i[charset name content]),
     tag_row(:main, false, []),
     tag_row(:header, false, []),
     tag_row(:footer, false, []),
@@ -418,8 +418,8 @@ def tags()
     tag_row(:ul, false, []),
     tag_row(:ol, false, [:start]),
     tag_row(:li, false, []),
-    tag_row(:a, false, [:href, :rel]),
-    tag_row(:img, true, [:src, :alt, :width, :height]),
+    tag_row(:a, false, %i[href rel]),
+    tag_row(:img, true, %i[src alt width height]),
     tag_row(:figure, false, []),
     tag_row(:figcaption, false, []),
     tag_row(:blockquote, false, [:cite]),
@@ -430,26 +430,22 @@ def tags()
     tag_row(:pre, false, []),
     tag_row(:br, true, []),
     tag_row(:hr, true, []),
-    tag_row(:button, false, [:type, :name, :value, :disabled]),
-    tag_row(:form, false, [:action, :method]),
+    tag_row(:button, false, %i[type name value disabled]),
+    tag_row(:form, false, %i[action method]),
     tag_row(:label, false, [:for]),
     tag_row(
       :input,
       true,
-      [:type, :name, :value, :placeholder, :required, :disabled, :checked]
+      %i[type name value placeholder required disabled checked]
     ),
-    tag_row(
-      :textarea,
-      false,
-      [:name, :placeholder, :required, :disabled, :rows]
-    ),
-    tag_row(:select, false, [:name, :required, :disabled]),
-    tag_row(:option, false, [:value, :selected, :disabled]),
+    tag_row(:textarea, false, %i[name placeholder required disabled rows]),
+    tag_row(:select, false, %i[name required disabled]),
+    tag_row(:option, false, %i[value selected disabled]),
     tag_row(:table, false, []),
     tag_row(:thead, false, []),
     tag_row(:tbody, false, []),
     tag_row(:tr, false, []),
-    tag_row(:th, false, [:scope, :colspan]),
+    tag_row(:th, false, %i[scope colspan]),
     tag_row(:td, false, [:colspan])
   ]
 end
@@ -503,23 +499,23 @@ def attributes()
 end
 
 def color_roles()
-  [
-    :background,
-    :surface,
-    :surface_elevated,
-    :text,
-    :text_muted,
-    :text_dim,
-    :primary,
-    :accent,
-    :border,
-    :error,
-    :warning,
-    :success,
-    :info,
-    :selection,
-    :cursor,
-    :agent
+  %i[
+    background
+    surface
+    surface_elevated
+    text
+    text_muted
+    text_dim
+    primary
+    accent
+    border
+    error
+    warning
+    success
+    info
+    selection
+    cursor
+    agent
   ]
 end
 
@@ -553,7 +549,7 @@ def layouts()
 end
 
 def aligns()
-  [:start, :center, :end, :stretch]
+  %i[start center end stretch]
 end
 
 def style_row(key, name, kind)
@@ -576,45 +572,45 @@ def style_props()
 end
 
 def roles()
-  [
-    :alert,
-    :article,
-    :banner,
-    :button,
-    :cell,
-    :checkbox,
-    :columnheader,
-    :complementary,
-    :contentinfo,
-    :dialog,
-    :figure,
-    :form,
-    :group,
-    :heading,
-    :img,
-    :link,
-    :list,
-    :listitem,
-    :main,
-    :menu,
-    :menuitem,
-    :navigation,
-    :none,
-    :presentation,
-    :progressbar,
-    :region,
-    :row,
-    :rowheader,
-    :search,
-    :separator,
-    :status,
-    :switch,
-    :tab,
-    :table,
-    :tablist,
-    :tabpanel,
-    :textbox,
-    :tooltip
+  %i[
+    alert
+    article
+    banner
+    button
+    cell
+    checkbox
+    columnheader
+    complementary
+    contentinfo
+    dialog
+    figure
+    form
+    group
+    heading
+    img
+    link
+    list
+    listitem
+    main
+    menu
+    menuitem
+    navigation
+    none
+    presentation
+    progressbar
+    region
+    row
+    rowheader
+    search
+    separator
+    status
+    switch
+    tab
+    table
+    tablist
+    tabpanel
+    textbox
+    tooltip
   ]
 end
 
@@ -820,7 +816,7 @@ def node_faults(node)
     tag = node[:tag]
     row = tag_of(tag)
     extra = filter(
-      (e) -> not member?(first(e), [:tag, :props, :children, :events]),
+      (e) -> not member?(first(e), %i[tag props children events]),
       map_entries(node)
     )
     shape = filter(
@@ -1014,7 +1010,7 @@ render: tree to html, ansi, svg or widget spec text.
 """
 def render(tree, target, opts?)
   o = opts or {}
-  checked(o, [:theme, :refuse])
+  checked(o, %i[theme refuse])
   refuse = o[:refuse] or :node
   if target != :html
     raise(
@@ -1022,7 +1018,7 @@ def render(tree, target, opts?)
       "render target #{to_s(target)} is not built; :html is, and show draws the terminal"
     )
   end
-  if not member?(refuse, [:node, :page])
+  if not member?(refuse, %i[node page])
     raise(:bad_option, "refuse is :node or :page, got #{to_s(refuse)}")
   end
   found = refusals(tree)
@@ -1111,7 +1107,7 @@ end
 component: declare a reusable view: props, state, events.
 """
 def component(name, spec)
-  checked(spec, [:props, :slots, :variants, :events, :a11y, :view])
+  checked(spec, %i[props slots variants events a11y view])
   props = spec[:props] or {}
   slots = spec[:slots] or [:default]
   variants = spec[:variants] or {}
@@ -1127,7 +1123,7 @@ def component(name, spec)
       "component #{to_s(name)} needs view: (props, slots) -> tree"
     )
   end
-  checked(a11y, [:role, :label])
+  checked(a11y, %i[role label])
   if a11y[:role] != nil and not member?(a11y[:role], roles)
     raise(
       :bad_option,
@@ -1300,7 +1296,7 @@ layout: place nodes in a size: stack, flex or grid.
 """
 def layout(kind, children, opts?)
   o = opts or {}
-  checked(o, [:gap, :columns, :align, :tag, :props])
+  checked(o, %i[gap columns align tag props])
   if scale_value(layouts, kind).nil?
     raise(:bad_option, "a layout is :stack, :row or :grid, got #{to_s(kind)}")
   end
@@ -1316,7 +1312,7 @@ def layout(kind, children, opts?)
       end
     end,
     {layout: kind},
-    [:gap, :columns, :align]
+    %i[gap columns align]
   )
   view(o[:tag] or :div, assoc(o[:props] or {}, :style, s), children)
 end
@@ -1358,7 +1354,7 @@ def style(node, theme)
 end
 
 def page(spec)
-  checked(spec, [:title, :lang, :body])
+  checked(spec, %i[title lang body])
   view(
     :html,
     {lang: spec[:lang] or "en"},
@@ -1444,16 +1440,16 @@ def label_rule(tree)
         n[:tag]
       end
       exempt = tag == :input and
-        member?(prop(n, :type), ["hidden", "submit", "button", "reset"])
+        member?(prop(n, :type), %w[hidden submit button reset])
       wrapped = any?((a) -> a[:tag] == :label, e[:ancestors])
       by_for = prop(n, :id) != nil and member?(prop(n, :id), targets)
-      if member?(tag, [:input, :textarea, :select]) and
+      if member?(tag, %i[input textarea select]) and
           not exempt and
           not named?(n) and
           not wrapped and
           not by_for
         [finding(e, :missing_label, "a form control needs a label")]
-      elsif member?(tag, [:button, :a]) and
+      elsif member?(tag, %i[button a]) and
           not named?(n) and
           trim(text_content(n)) == "" and
           not any?(
@@ -1480,7 +1476,7 @@ def label_rule(tree)
 end
 
 def interactive()
-  [:a, :button, :input, :select, :textarea, :option, :label]
+  %i[a button input select textarea option label]
 end
 
 def role_rule(tree)
@@ -1519,7 +1515,7 @@ end
 def focusable?(n)
   tag = n[:tag]
   t = prop(n, :tabindex)
-  member?(tag, [:button, :input, :select, :textarea]) or
+  member?(tag, %i[button input select textarea]) or
     tag == :a and prop(n, :href) != nil or
     integer?(t) and t >= 0
 end
@@ -1764,7 +1760,7 @@ table: rows of records laid out as aligned columns under a bold header and a rul
     plain(table([{name: "a", n: 1}], {columns: [:name, :n]})) #=> join_lines(["name  n", "────  ─", "a     1"])
 """
 def table(rows, opts)
-  checked(opts, [:columns, :headers, :align])
+  checked(opts, %i[columns headers align])
   cols = opts[:columns]
   if not list?(cols) or is_empty(cols)
     raise(:bad_option, "a table needs columns: a list of the keys to show")
@@ -1899,7 +1895,7 @@ def meter(fraction, width)
   partial = if part == 0
     ""
   else
-    ["▏", "▎", "▍", "▌", "▋", "▊", "▉"][part - 1]
+    %w[▏ ▎ ▍ ▌ ▋ ▊ ▉][part - 1]
   end
   used = full +
     if part == 0
@@ -1926,7 +1922,7 @@ def spinner(tick, style)
   frames = if style == :ascii
     ["|", "/", "-", "\\"]
   elsif style == :braille
-    ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+    %w[⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏]
   else
     raise(
       :bad_option,
@@ -2028,7 +2024,7 @@ end
 test "styled leaves plain text and lists of text alone"
   ctx = {color: true, theme: nil}
   assert styled("hi", ctx) == "hi"
-  assert styled(["a", "b", "c"], ctx) == "abc"
+  assert styled(%w[a b c], ctx) == "abc"
   assert styled([], ctx) == ""
   assert styled({text: "plain"}, ctx) == "plain"
 end
@@ -2207,7 +2203,7 @@ test "view refuses a tag or attribute outside the table and every on attribute"
 end
 
 test "the table is closed: no script, style or frame tag and no on attribute"
-  banned = [:script, :style, :iframe, :object, :embed, :link, :base, :frame]
+  banned = %i[script style iframe object embed link base frame]
   assert every?((r) -> not member?(r[:tag], banned), tags)
   assert every?((r) -> not starts_with?(r[:name], "on"), attributes)
   assert size(distinct(map((r) -> r[:tag], tags))) == size(tags)
@@ -2383,7 +2379,7 @@ test "a refused node becomes a marker and its siblings still render"
   }
   assert render(tree, :html) ==
     "<ul><li>one</li><!--gamen:refused unknown_attribute at 1--><!--gamen:refused unknown_tag at 2--><li>three</li></ul>"
-  assert kinds(refusals(tree)) == [:unknown_attribute, :unknown_tag]
+  assert kinds(refusals(tree)) == %i[unknown_attribute unknown_tag]
   assert contains?(why(first(refusals(tree))), "at 1 <li>") == true
   assert refusals(view(:p, {}, ["fine"])) == []
 end
@@ -2403,7 +2399,7 @@ test "refuse page raises one render_error that carries every refusal"
     e
   end
   assert caught.kind == :render_error
-  assert kinds(caught.data) == [:bad_url, :literal_color]
+  assert kinds(caught.data) == %i[bad_url literal_color]
   assert render(view(:p, {}, ["ok"]), :html, {refuse: :page}) == "<p>ok</p>"
   assert raises?(:bad_option, () -> render(tree, :html, {refuse: :all}))
   assert raises?(:bad_option, () -> render(tree, :ansi))
@@ -2434,7 +2430,7 @@ test "each render rule refuses its own fault"
   assert kinds(refusals({tag: :p, children: "x"})) == [:bad_node]
   assert kinds(refusals({tag: :p, kids: []})) == [:bad_node]
   assert kinds(refusals({tag: "p"})) == [:bad_node]
-  assert kinds(refusals(view(:p, {}, [:sym, true]))) == [:bad_node, :bad_node]
+  assert kinds(refusals(view(:p, {}, [:sym, true]))) == %i[bad_node bad_node]
   assert kinds(refusals({tag: :blink})) == [:unknown_tag]
 end
 
@@ -2510,7 +2506,7 @@ test "style resolves tokens through a theme, and html refuses the resolved color
     :bad_option,
     () -> style(view(:p, {style: {color: "#fff"}}), t)
   )
-  assert kinds(refusals(s)) == [:literal_color, :not_a_token]
+  assert kinds(refusals(s)) == %i[literal_color not_a_token]
 end
 
 test "css writes a theme as variables and refuses a token that is no role"
@@ -2531,7 +2527,7 @@ test "a component fills defaults and variants, takes slots, and sets its a11y ro
     :button,
     {
       props: {label: :required, kind: "button"},
-      variants: {tone: [:plain, :danger]},
+      variants: {tone: %i[plain danger]},
       events: [:press],
       view: fn(p, _s)
         view(
@@ -2560,7 +2556,7 @@ test "a component fills defaults and variants, takes slots, and sets its a11y ro
     :card,
     {
       props: {title: :required},
-      slots: [:default, :footer],
+      slots: %i[default footer],
       a11y: {role: :region, label: :title},
       view: fn(p, s)
         view(
@@ -2618,7 +2614,7 @@ test "a component fills defaults and variants, takes slots, and sets its a11y ro
       end
     }
   )
-  assert view(nav, {links: [["Home", "/"]]}) ==
+  assert view(nav, {links: [%w[Home /]]}) ==
     {
       tag: :nav,
       props: {aria_label: "Main"},
@@ -2643,7 +2639,7 @@ test "a component refuses an unknown prop, a missing one, a bad variant, slot or
     :tag,
     {
       props: {label: :required},
-      variants: {size: [:sm, :lg]},
+      variants: {size: %i[sm lg]},
       events: [:press],
       view: (p, _s) -> view(:span, {}, [p[:label]])
     }
@@ -2727,7 +2723,7 @@ test "check finds each accessibility fault and nothing on a sound tree"
       {},
       [view(:img, {src: "/a"}), view(:a, {href: "javascript:x"}, ["x"])]
     )
-  ) == [:bad_url, :missing_alt]
+  ) == %i[bad_url missing_alt]
   assert check(view(:img, {src: "/a"}), [focus_rule]) == []
   assert contains?(
     why(first(check(view(:div, {}, [view(:img, {src: "/a"})])))),
@@ -2861,15 +2857,15 @@ test "a role paints in its kazari ink, and an unknown role is refused"
 end
 
 test "marks give the house symbols for steps and the circles for verdicts"
-  assert map(mark, [:done, :failed, :warn, :skipped]) == ["✅", "❌", "⚠️", "➖"]
-  assert map(mark, [:pass, :partial, :fail]) == ["🟢", "🟡", "🔴"]
+  assert map(mark, %i[done failed warn skipped]) == %w[✅ ❌ ⚠️ ➖]
+  assert map(mark, %i[pass partial fail]) == %w[🟢 🟡 🔴]
   assert raises?(:bad_option, () -> mark(:great))
 end
 
 test "cells counts the columns a terminal draws, wide symbols as two"
   assert cells("") == 0
   assert cells("abc") == 3
-  assert map(cells, ["✅", "❌", "➖", "⚠️", "🟢", "🔴"]) == [2, 2, 2, 2, 2, 2]
+  assert map(cells, %w[✅ ❌ ➖ ⚠️ 🟢 🔴]) == [2, 2, 2, 2, 2, 2]
   assert cells("⚠") == 1
   assert cells("日本") == 4
   assert cells("é") == 1
@@ -2887,7 +2883,7 @@ test "a table aligns by cells, right-aligns on request, styles cells and ends no
   ]
   t = table(
     rows,
-    {columns: [:check, :state, :ms], headers: {ms: "time"}, align: {ms: :right}}
+    {columns: %i[check state ms], headers: {ms: "time"}, align: {ms: :right}}
   )
   assert plain(t) ==
     join_lines(

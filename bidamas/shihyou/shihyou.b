@@ -1,6 +1,6 @@
 use("deeta", [:get_or])
 use("kyuuji")
-use("retsu", [:first, :rest])
+use("retsu", %i[first rest])
 
 def defaults()
   {
@@ -61,7 +61,7 @@ def windows()
 end
 
 def ranges()
-  ["5m", "30m", "1h", "2h", "6h", "1d", "3d"]
+  %w[5m 30m 1h 2h 6h 1d 3d]
 end
 
 def selector(name)
@@ -426,18 +426,18 @@ test "alerts has a burn alert per window for each of the two indicators, in orde
   al = alerts("hello", objectives(sample))
   assert count(al) == 8
   assert map((a) -> a["alert"], al) ==
-    [
-      "SloAvailabilityBurn1h",
-      "SloAvailabilityBurn6h",
-      "SloAvailabilityBurn1d",
-      "SloAvailabilityBurn3d",
-      "SloLatencyBurn1h",
-      "SloLatencyBurn6h",
-      "SloLatencyBurn1d",
-      "SloLatencyBurn3d"
+    %w[
+      SloAvailabilityBurn1h
+      SloAvailabilityBurn6h
+      SloAvailabilityBurn1d
+      SloAvailabilityBurn3d
+      SloLatencyBurn1h
+      SloLatencyBurn6h
+      SloLatencyBurn1d
+      SloLatencyBurn3d
     ]
   assert map((a) -> a["labels"]["severity"], take(4, al)) ==
-    ["page", "page", "ticket", "ticket"]
+    %w[page page ticket ticket]
 end
 
 test "alerts carry the service, the indicator and the objective they spend"

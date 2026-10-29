@@ -11,25 +11,14 @@ nix module takes, from the entries that stand; `refusals` names the rest.
 
 use(
   "kousei",
-  [
-    :entry,
-    :flag,
-    :int_in,
-    :kind_of,
-    :name_of,
-    :required,
-    :text,
-    :value_of,
-    :verdict,
-    :where
-  ]
+  %i[entry flag int_in kind_of name_of required text value_of verdict where]
 )
 
-use("kyohi", [:kinds, :refusal])
-use("moji", [:is_hex, :made_of, :strip_prefix])
-use("retsu", [:contains, :first, :flat_map, :index_of, :is_empty, :last, :size])
+use("kyohi", %i[kinds refusal])
+use("moji", %i[is_hex made_of strip_prefix])
+use("retsu", %i[contains first flat_map index_of is_empty last size])
 
-legacy_names("0.1.1", [["unrefused", "kyohi::standing"]])
+legacy_names("0.1.1", [%w[unrefused kyohi::standing]])
 
 # ── checks: a check is fn(value) answering nil, or why the value is wrong ──
 
@@ -268,7 +257,7 @@ def tone_table()
   [
     field(:frequency, "frequency", int_in(20, 20000)),
     field(:frequencies, "frequencies", list_of(int_in(20, 20000))),
-    field(:noise, "noise", one_of(["white", "pink", "brown"])),
+    field(:noise, "noise", one_of(%w[white pink brown])),
     field(:tremolo, "tremolo", number_in(0.1, 20.0)),
     field(:depth, "depth", number_in(0.1, 1.0)),
     field(:minutes, "minutes", int_in(1, 60)),
@@ -697,10 +686,10 @@ end
 
 def singleton_checks()
   [
-    [:delivery, one_of(["systemd", "engenho"])],
-    [:exposure, one_of(["tailnet", "lan"])],
-    [:secrets_source, one_of(["sops", "external"])],
-    [:recorder, one_of(["sqlite", "postgres"])],
+    [:delivery, one_of(%w[systemd engenho])],
+    [:exposure, one_of(%w[tailnet lan])],
+    [:secrets_source, one_of(%w[sops external])],
+    [:recorder, one_of(%w[sqlite postgres])],
     [:media_base_url, base_url]
   ]
 end
@@ -1239,7 +1228,7 @@ def example_home()
     on(:mosquitto),
     component(:whisper, {enable: true, language: "pt"}),
     off(:node_red),
-    integrations(["default_config", "met"]),
+    integrations(%w[default_config met]),
     media_base_url("http://192.0.2.10:8123"),
     speaker("kitchen", "media_player.kitchen_speaker"),
     light_role("nightPath", ["light.hallway"]),
@@ -1389,15 +1378,7 @@ test "a bad entry is refused alone, and what names it falls with it"
     ]
   )
   assert kinds(refusals(h)) ==
-    [
-      :invalid,
-      :invalid,
-      :duplicate,
-      :needs_radio,
-      :invalid,
-      :unknown_tone,
-      :unknown_mood
-    ]
+    %i[invalid invalid duplicate needs_radio invalid unknown_tone unknown_mood]
   moods = json_get(json_get(home_doc(h), :homeAssistant), :moods)
   assert json_get(moods, :warm) != nil
   assert json_get(moods, :hot).nil?
@@ -1445,10 +1426,10 @@ test "a mood plays only where a base url and speakers stand"
     tone("hz432", {frequency: 432}),
     mood("m", {sound: sound("hz432", 0.3)})
   ]
-  assert kinds(refusals(bare)) == [:no_media_base_url, :no_speakers]
+  assert kinds(refusals(bare)) == %i[no_media_base_url no_speakers]
   assert kinds(
     refusals(append(bare, [media_base_url("ftp://x"), speaker("k", "light.k")]))
-  ) == [:invalid, :invalid, :no_media_base_url, :no_speakers]
+  ) == %i[invalid invalid no_media_base_url no_speakers]
   assert kinds(
     refusals(
       append(

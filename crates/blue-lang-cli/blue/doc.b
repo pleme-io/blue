@@ -1,22 +1,22 @@
 use(
   "mokuroku",
-  [
-    :blue_path_roots,
-    :catalog_of,
-    :entries_of_text,
-    :package_text,
-    :pkg_dir,
-    :pkg_entries,
-    :pkg_gloss,
-    :pkg_name,
-    :pkg_needs,
-    :pkg_tests,
-    :pkg_version,
-    :test_blocks_of_text
+  %i[
+    blue_path_roots
+    catalog_of
+    entries_of_text
+    package_text
+    pkg_dir
+    pkg_entries
+    pkg_gloss
+    pkg_name
+    pkg_needs
+    pkg_tests
+    pkg_version
+    test_blocks_of_text
   ]
 )
 
-use("retsu", [:first, :flat_map, :last])
+use("retsu", %i[first flat_map last])
 
 # blue doc: what a name is, where it lives and how it is called.
 #
@@ -68,7 +68,7 @@ end
 def rows_for(name)
   filter(
     (r) -> member?("builtin:#{name}", json_get(r, :covers)),
-    json_parse(captured(["doc", "--rows"]))
+    json_parse(captured(%w[doc --rows]))
   )
 end
 

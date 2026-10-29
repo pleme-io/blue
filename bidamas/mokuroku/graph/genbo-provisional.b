@@ -36,7 +36,7 @@ verb(
   {
     kind: :effect,
     shape: "copy(from, to, roots) -> count",
-    laterals: ["cancel", "deadline", "error", "idempotent"],
+    laterals: %w[cancel deadline error idempotent],
     fleet: "daicho",
     today: "absent",
     meaning: "send the objects the target lacks for some roots",
@@ -52,7 +52,7 @@ verb(
   {
     kind: :effect,
     shape: "delete(cas, oid) -> nil",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: nil,
     today: "absent",
     meaning: "remove one object; absent counts as done",
@@ -99,7 +99,7 @@ verb(
   {
     kind: :effect,
     shape: "export(cas, oid, to, opts) -> [path]",
-    laterals: ["cancel", "capability", "error"],
+    laterals: %w[cancel capability error],
     fleet: nil,
     today: "absent",
     meaning: "write a stored tree out to a directory",
@@ -115,7 +115,7 @@ verb(
   {
     kind: :effect,
     shape: "gc(cas, roots, opts) -> {removed, freed}",
-    laterals: ["cancel", "error", "resource"],
+    laterals: %w[cancel error resource],
     fleet: "daicho",
     today: "absent",
     meaning: "delete objects no root reaches, after a dry plan",
@@ -130,7 +130,7 @@ verb(
   {
     kind: :effect,
     shape: "get(cas, oid) -> bytes or nil",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: "daicho",
     today: "absent",
     meaning: "content by id, checked against its hash, or nil",
@@ -160,7 +160,7 @@ verb(
   {
     kind: :effect,
     shape: "import(cas, path, opts) -> oid",
-    laterals: ["cancel", "capability", "error"],
+    laterals: %w[cancel capability error],
     fleet: "fudajiku",
     today: "absent",
     meaning: "store a directory or file and return its root id",
@@ -206,7 +206,7 @@ verb(
   {
     kind: :effect,
     shape: "need(cas, oid) -> bytes",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: "daicho",
     today: "absent",
     meaning: "content by id, raising not_found",
@@ -221,7 +221,7 @@ verb(
   {
     kind: :effect,
     shape: "open(spec) -> cas",
-    laterals: ["capability", "config", "resource"],
+    laterals: %w[capability config resource],
     fleet: "daicho",
     today: "absent",
     meaning: "open a content-addressed store on disk or an object store",
@@ -236,7 +236,7 @@ verb(
   {
     kind: :effect,
     shape: "pack(cas, oids) -> bytes",
-    laterals: ["error", "serialize"],
+    laterals: %w[error serialize],
     fleet: "daicho",
     today: "absent",
     meaning: "bundle objects into one transferable pack",
@@ -251,7 +251,7 @@ verb(
   {
     kind: :effect,
     shape: "put(cas, bytes, opts) -> oid",
-    laterals: ["error", "idempotent", "serialize"],
+    laterals: %w[error idempotent serialize],
     fleet: "daicho",
     today: "absent",
     meaning: "store content under its own hash and return the id",
@@ -266,7 +266,7 @@ verb(
   {
     kind: :effect,
     shape: "reachable(cas, roots) -> set",
-    laterals: ["cancel", "error"],
+    laterals: %w[cancel error],
     fleet: "daicho",
     today: "absent",
     meaning: "the set of ids reachable from several roots",
@@ -281,7 +281,7 @@ verb(
   {
     kind: :effect,
     shape: "tree(cas, entries) -> oid",
-    laterals: ["error", "idempotent", "serialize"],
+    laterals: %w[error idempotent serialize],
     fleet: "daicho",
     today: "absent",
     meaning: "store a named set of child ids as one merkle node",
@@ -296,7 +296,7 @@ verb(
   {
     kind: :effect,
     shape: "unpack(cas, bytes) -> [oid]",
-    laterals: ["serialize", "validate"],
+    laterals: %w[serialize validate],
     fleet: "daicho",
     today: "absent",
     meaning: "store every object in a pack after checking each hash",
@@ -311,7 +311,7 @@ verb(
   {
     kind: :effect,
     shape: "verify(cas) -> [oid]",
-    laterals: ["cancel", "validate"],
+    laterals: %w[cancel validate],
     fleet: "daicho",
     today: "absent",
     meaning: "the ids whose content no longer matches their hash",
@@ -326,7 +326,7 @@ verb(
   {
     kind: :effect,
     shape: "walk(cas, oid) -> [oid]",
-    laterals: ["cancel", "error"],
+    laterals: %w[cancel error],
     fleet: "daicho",
     today: "absent",
     meaning: "every object reachable from a root, each once",

@@ -21,7 +21,7 @@ verb(
   {
     kind: :effect,
     shape: "experiment(spec) -> verdict",
-    laterals: ["cancel", "capability", "test"],
+    laterals: %w[cancel capability test],
     fleet: "vendaval",
     today: "absent",
     meaning: "test a steady-state claim under a fault and always heal",
@@ -36,7 +36,7 @@ verb(
   {
     kind: :effect,
     shape: "fault(target, kind, opts) -> handle",
-    laterals: ["capability", "resource", "time"],
+    laterals: %w[capability resource time],
     fleet: "vendaval",
     today: "absent",
     meaning: "inject a failure: kill, delay, loss, partition or corrupt",
@@ -51,7 +51,7 @@ verb(
   {
     kind: :decl,
     shape: "guard(probe, limit) -> guard",
-    laterals: ["cancel", "deadline"],
+    laterals: %w[cancel deadline],
     fleet: nil,
     today: "absent",
     meaning: "declare a stop condition that aborts an experiment",
@@ -66,7 +66,7 @@ verb(
   {
     kind: :effect,
     shape: "heal(handle) -> nil",
-    laterals: ["idempotent", "resource"],
+    laterals: %w[idempotent resource],
     fleet: "vendaval",
     today: "absent",
     meaning: "undo an injected fault",
@@ -126,7 +126,7 @@ verb(
   {
     kind: :effect,
     shape: "run(scenario, shape, opts) -> report",
-    laterals: ["cancel", "deadline", "process"],
+    laterals: %w[cancel deadline process],
     fleet: "vendaval",
     today: "absent",
     meaning: "apply load and record latency, errors and saturation",
@@ -156,7 +156,7 @@ verb(
   {
     kind: :effect,
     shape: "soak(scenario, shape, opts) -> report",
-    laterals: ["resource", "time"],
+    laterals: %w[resource time],
     fleet: "vendaval",
     today: "absent",
     meaning: "hold load for hours and watch for drift and leaks",

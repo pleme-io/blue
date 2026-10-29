@@ -6,7 +6,7 @@ verb(
   {
     kind: :effect,
     shape: "batch(store, ops) -> [result]",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: nil,
     today: "absent",
     meaning: "apply many writes atomically or none",
@@ -51,7 +51,7 @@ verb(
   {
     kind: :effect,
     shape: "compact(store) -> nil",
-    laterals: ["cancel", "resource"],
+    laterals: %w[cancel resource],
     fleet: nil,
     today: "absent",
     meaning: "reclaim space held by deleted entries",
@@ -66,7 +66,7 @@ verb(
   {
     kind: :effect,
     shape: "count(store, opts) -> number",
-    laterals: ["deadline", "error"],
+    laterals: %w[deadline error],
     fleet: nil,
     today: "absent",
     meaning: "how many keys lie under a prefix",
@@ -81,7 +81,7 @@ verb(
   {
     kind: :effect,
     shape: "create(store, key, value, opts) -> value",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: nil,
     today: "absent",
     meaning: "set a key only if it is absent",
@@ -96,7 +96,7 @@ verb(
   {
     kind: :effect,
     shape: "delete(store, key) -> nil",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: "pleme-redis",
     today: "absent",
     meaning: "make the key absent; absent counts as done",
@@ -111,7 +111,7 @@ verb(
   {
     kind: :effect,
     shape: "expire(store, key, ttl) -> nil",
-    laterals: ["idempotent", "time"],
+    laterals: %w[idempotent time],
     fleet: "pleme-redis",
     today: "absent",
     meaning: "make a key vanish after a duration",
@@ -126,7 +126,7 @@ verb(
   {
     kind: :stream,
     shape: "export(store, f, opts) -> count",
-    laterals: ["cancel", "error"],
+    laterals: %w[cancel error],
     fleet: nil,
     today: "absent",
     meaning: "call f per entry for a full copy out",
@@ -141,7 +141,7 @@ verb(
   {
     kind: :effect,
     shape: "get(store, key, opts) -> value or nil",
-    laterals: ["deadline", "error", "trace"],
+    laterals: %w[deadline error trace],
     fleet: "pleme-redis",
     today: "absent",
     meaning: "the value at a key, or nil when absent",
@@ -156,7 +156,7 @@ verb(
   {
     kind: :effect,
     shape: "get_many(store, keys) -> map",
-    laterals: ["deadline", "error"],
+    laterals: %w[deadline error],
     fleet: nil,
     today: "absent",
     meaning: "the values of many keys in one round trip",
@@ -186,7 +186,7 @@ verb(
   {
     kind: :effect,
     shape: "import(store, entries, opts) -> count",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: nil,
     today: "absent",
     meaning: "load many entries in bulk",
@@ -201,7 +201,7 @@ verb(
   {
     kind: :effect,
     shape: "increment(store, key, by) -> number",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: "pleme-redis",
     today: "absent",
     meaning: "add to a counter atomically and return it",
@@ -216,7 +216,7 @@ verb(
   {
     kind: :effect,
     shape: "index(store, field, opts) -> nil",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: nil,
     today: "absent",
     meaning: "declare a secondary index on a document field",
@@ -246,7 +246,7 @@ verb(
   {
     kind: :effect,
     shape: "keys(store, opts) -> [key]",
-    laterals: ["deadline", "error"],
+    laterals: %w[deadline error],
     fleet: nil,
     today: "absent",
     meaning: "every key under a prefix, sorted",
@@ -261,7 +261,7 @@ verb(
   {
     kind: :effect,
     shape: "list(store, opts) -> [{key, value}]",
-    laterals: ["deadline", "error"],
+    laterals: %w[deadline error],
     fleet: nil,
     today: "absent",
     meaning: "every entry under a prefix, all pages, sorted",
@@ -276,7 +276,7 @@ verb(
   {
     kind: :effect,
     shape: "need(store, key, opts) -> value",
-    laterals: ["deadline", "error"],
+    laterals: %w[deadline error],
     fleet: nil,
     today: "absent",
     meaning: "the value at a key, raising not_found",
@@ -291,7 +291,7 @@ verb(
   {
     kind: :effect,
     shape: "open(spec) -> store",
-    laterals: ["capability", "config", "resource"],
+    laterals: %w[capability config resource],
     fleet: "pleme-redis",
     today: "absent",
     meaning: "connect to an embedded, Redis, etcd or document store",
@@ -306,7 +306,7 @@ verb(
   {
     kind: :effect,
     shape: "patch(store, key, patch) -> doc",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: nil,
     today: "absent",
     meaning: "deep-merge a patch into the stored document",
@@ -322,7 +322,7 @@ verb(
   {
     kind: :effect,
     shape: "put(store, key, value, opts) -> value",
-    laterals: ["deadline", "error", "idempotent"],
+    laterals: %w[deadline error idempotent],
     fleet: "pleme-redis",
     today: "absent",
     meaning: "create or replace the value at a key",
@@ -337,7 +337,7 @@ verb(
   {
     kind: :effect,
     shape: "query(store, filter, opts) -> [doc]",
-    laterals: ["deadline", "error"],
+    laterals: %w[deadline error],
     fleet: nil,
     today: "absent",
     meaning: "documents matching a filter record, sorted",
@@ -352,7 +352,7 @@ verb(
   {
     kind: :effect,
     shape: "range(store, from, to, opts) -> [{key, value}]",
-    laterals: ["deadline", "error"],
+    laterals: %w[deadline error],
     fleet: nil,
     today: "absent",
     meaning: "entries between two keys in key order",
@@ -382,7 +382,7 @@ verb(
   {
     kind: :effect,
     shape: "swap(store, key, expected, new) -> Bool",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: nil,
     today: "absent",
     meaning: "set new only if the value equals expected",
@@ -412,7 +412,7 @@ verb(
   {
     kind: :effect,
     shape: "update(store, key, f, opts) -> value",
-    laterals: ["error", "idempotent", "retry"],
+    laterals: %w[error idempotent retry],
     fleet: nil,
     today: "absent",
     meaning: "replace a value with f(old); conflict if it moved",
@@ -427,7 +427,7 @@ verb(
   {
     kind: :stream,
     shape: "watch(store, f, opts) -> nil",
-    laterals: ["cancel", "deadline"],
+    laterals: %w[cancel deadline],
     fleet: nil,
     today: "absent",
     meaning: "call f per key change under a prefix",
@@ -442,7 +442,7 @@ verb(
   {
     kind: :effect,
     shape: "with_transaction(store, f, opts) -> value",
-    laterals: ["error", "resource", "retry"],
+    laterals: %w[error resource retry],
     fleet: nil,
     today: "absent",
     meaning: "run f against a consistent view; commit or abandon",

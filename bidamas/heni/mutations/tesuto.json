@@ -50,7 +50,7 @@
   {
     "name": "checked dropped",
     "file": "tesuto.b",
-    "find": "  checked(opts, [:name, :dir, :update])\n",
+    "find": "  checked(opts, %i[name dir update])\n",
     "replace": ""
   },
   {

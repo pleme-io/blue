@@ -1,6 +1,6 @@
 use("jisho")
-use("moji", [:checked, :lines])
-use("retsu", [:count_where, :enumerate, :first, :is_empty, :rest, :zip])
+use("moji", %i[checked lines])
+use("retsu", %i[count_where enumerate first is_empty rest zip])
 use("rogu")
 use("tesuto", [:raises?])
 
@@ -21,7 +21,7 @@ def label_names(opts)
 end
 
 def instrument(kind, name, bounds, opts)
-  checked(opts, [:help, :labels])
+  checked(opts, %i[help labels])
   if not name_ok?(name)
     raise(:bad_option, "an instrument takes a name: text with no space")
   end
@@ -208,7 +208,7 @@ end
 measure: run f and record how long it took.
 """
 def measure(h, f, opts)
-  checked(opts, [:labels, :clock])
+  checked(opts, %i[labels clock])
   need_kind(h, :histogram, "measure")
   started = tick(opts)
   outcome = attempt(f)
@@ -279,7 +279,7 @@ end
 read: scrape samples from an endpoint or exposition text.
 """
 def read(i, opts)
-  checked(opts, [:labels, :wait_ms])
+  checked(opts, %i[labels wait_ms])
   want = labels_of(i, opts[:labels])
   rows = filter(
     (r) -> wanted?(r[:labels], want),
@@ -466,7 +466,7 @@ test "read answers in label order whatever the order of writing"
   c = counter("hits", {})
   increase(c, 1, {k: "b"})
   increase(c, 1, {k: "a"})
-  assert map((s) -> s[:labels]["k"], read(c, {})) == ["a", "b"]
+  assert map((s) -> s[:labels]["k"], read(c, {})) == %w[a b]
 end
 
 test "two instruments keep their own series"
@@ -496,16 +496,8 @@ test "observe fills cumulative buckets, a sum and a count"
   observe(h, 7, {})
   samples = read(h, {})
   assert map((s) -> s[:name], samples) ==
-    [
-      "lat_bucket",
-      "lat_bucket",
-      "lat_bucket",
-      "lat_bucket",
-      "lat_sum",
-      "lat_count"
-    ]
-  assert map((s) -> s[:labels]["le"], take(4, samples)) ==
-    ["0.1", "0.5", "1", "+Inf"]
+    %w[lat_bucket lat_bucket lat_bucket lat_bucket lat_sum lat_count]
+  assert map((s) -> s[:labels]["le"], take(4, samples)) == %w[0.1 0.5 1 +Inf]
   assert values_of(samples) == [2, 3, 3, 4, 7.45, 4]
 end
 
@@ -532,7 +524,7 @@ end
 
 def ask_time(pid)
   send(pid, self)
-  receive([:time, :_])[1]
+  receive(%i[time _])[1]
 end
 
 test "measure records the seconds f took and returns its value"

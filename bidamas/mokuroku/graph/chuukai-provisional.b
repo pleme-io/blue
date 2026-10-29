@@ -6,7 +6,7 @@ verb(
   {
     kind: :pure,
     shape: "authorize(request, policy) -> decision",
-    laterals: ["capability", "error"],
+    laterals: %w[capability error],
     fleet: nil,
     today: "absent",
     meaning: "Decide whether a caller may reach a route.",
@@ -21,7 +21,7 @@ verb(
   {
     kind: :effect,
     shape: "drain(target) -> nil",
-    laterals: ["cancel", "deadline"],
+    laterals: %w[cancel deadline],
     fleet: nil,
     today: "absent",
     meaning: "Stop new traffic to a target; finish in-flight.",
@@ -51,7 +51,7 @@ verb(
   {
     kind: :effect,
     shape: "forward(request, upstream, opts) -> response",
-    laterals: ["deadline", "error", "retry", "trace"],
+    laterals: %w[deadline error retry trace],
     fleet: nil,
     today: "absent",
     meaning: "Pass a request to an upstream and return its answer.",
@@ -97,7 +97,7 @@ verb(
   {
     kind: :decl,
     shape: "policy(mesh, rule) -> mesh",
-    laterals: ["capability", "config"],
+    laterals: %w[capability config],
     fleet: "tatara-mesh",
     today: "absent",
     meaning: "Declare retry, timeout, mTLS and identity for a mesh.",
@@ -127,7 +127,7 @@ verb(
   {
     kind: :effect,
     shape: "purge(cdn, target) -> count",
-    laterals: ["cache", "idempotent"],
+    laterals: %w[cache idempotent],
     fleet: nil,
     today: "absent",
     meaning: "Drop cached objects by URL, tag or prefix.",
@@ -203,7 +203,7 @@ verb(
   {
     kind: :decl,
     shape: "ttl(rule, duration) -> rule",
-    laterals: ["cache", "time"],
+    laterals: %w[cache time],
     fleet: nil,
     today: "absent",
     meaning: "Declare how long an edge may keep a response.",
@@ -218,7 +218,7 @@ verb(
   {
     kind: :effect,
     shape: "tunnel(client, target) -> info",
-    laterals: ["cancel", "resource"],
+    laterals: %w[cancel resource],
     fleet: nil,
     today: "absent",
     meaning: "Relay raw bytes between two connections (CONNECT).",

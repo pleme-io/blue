@@ -1,6 +1,6 @@
-use("heni", [:mutations, :ok?, :report_text, :run])
+use("heni", %i[mutations ok? report_text run])
 use("mokuroku", [:blue_path_roots])
-use("retsu", [:find_first, :last, :reject, :size])
+use("retsu", %i[find_first last reject size])
 
 def off?()
   v = getenv("BLUE_HENI_OFF")

@@ -26,15 +26,7 @@ only way nodes are made, so a renderer arm and its constructor stay together.
 
 use(
   "retsu",
-  [
-    :concat_lists,
-    :contains,
-    :count_where,
-    :first,
-    :flat_map,
-    :is_empty,
-    :repeat
-  ]
+  %i[concat_lists contains count_where first flat_map is_empty repeat]
 )
 
 legacy_names("0.1.1", "rs")
@@ -354,45 +346,45 @@ end
 # ── identifiers ────────────────────────────────────────────────────────────
 
 def keywords()
-  [
-    "as",
-    "async",
-    "await",
-    "break",
-    "const",
-    "continue",
-    "crate",
-    "dyn",
-    "else",
-    "enum",
-    "extern",
-    "false",
-    "fn",
-    "for",
-    "if",
-    "impl",
-    "in",
-    "let",
-    "loop",
-    "match",
-    "mod",
-    "move",
-    "mut",
-    "pub",
-    "ref",
-    "return",
-    "self",
-    "Self",
-    "static",
-    "struct",
-    "super",
-    "trait",
-    "true",
-    "type",
-    "unsafe",
-    "use",
-    "where",
-    "while"
+  %w[
+    as
+    async
+    await
+    break
+    const
+    continue
+    crate
+    dyn
+    else
+    enum
+    extern
+    false
+    fn
+    for
+    if
+    impl
+    in
+    let
+    loop
+    match
+    mod
+    move
+    mut
+    pub
+    ref
+    return
+    self
+    Self
+    static
+    struct
+    super
+    trait
+    true
+    type
+    unsafe
+    use
+    where
+    while
   ]
 end
 
@@ -491,15 +483,15 @@ end
 test "an enum with an impl renders a derive, variants and a match"
   e = enum(
     "Mood",
-    ["Debug", "Clone", "Copy"],
+    %w[Debug Clone Copy],
     [variant("Calm", ["Quiet."]), variant("Loud", [])],
     ["A mood."]
   )
   body = rs_match(
     path(["self"]),
     [
-      arm(path(["Mood", "Calm"]), str("calm")),
-      arm(path(["Mood", "Loud"]), str("loud"))
+      arm(path(%w[Mood Calm]), str("calm")),
+      arm(path(%w[Mood Loud]), str("loud"))
     ]
   )
   i = impl(

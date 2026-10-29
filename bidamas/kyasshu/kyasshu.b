@@ -6,7 +6,7 @@ use("kyohi", [:refusal])
 use("moji", [:checked])
 use("raifusaikuru")
 use("ran")
-use("retsu", [:find_first, :first, :is_empty, :push, :size])
+use("retsu", %i[find_first first is_empty push size])
 use("tesuto", [:raises?])
 use("tsuushin")
 
@@ -351,7 +351,7 @@ def aged?(v, data, o)
 end
 
 def read_options()
-  [:fragment, :at, :now, :policy]
+  %i[fragment at now policy]
 end
 
 @doc """
@@ -518,7 +518,7 @@ end
 sweep: drop the entities older than their fragment evict limit.
 """
 def sweep(store, opts)
-  o = checked(opts, [:now, :policy])
+  o = checked(opts, %i[now policy])
   now = o[:now]
   if not number?(now)
     raise(:bad_option, "sweep: now: is the time to sweep at")
@@ -539,7 +539,7 @@ end
 declare a mutation and the entity types it touches.
 """
 def declare(name, spec)
-  s = checked(spec, [:touches, :operation])
+  s = checked(spec, %i[touches operation])
   touches = s[:touches]
   if not list?(touches) or
       is_empty(touches) or
@@ -569,9 +569,9 @@ def write_machine()
   raifusaikuru::lc_define(
     :optimistic_write,
     [
-      raifusaikuru::states([:pending, :confirmed, :rolled_back]),
+      raifusaikuru::states(%i[pending confirmed rolled_back]),
       raifusaikuru::start(:pending),
-      raifusaikuru::terminals([:confirmed, :rolled_back]),
+      raifusaikuru::terminals(%i[confirmed rolled_back]),
       raifusaikuru::event(:confirm, []),
       raifusaikuru::event(:roll_back, []),
       raifusaikuru::on(:pending, :confirm, :confirmed, []),
@@ -588,7 +588,7 @@ end
 write: lay a pending optimistic write over the store.
 """
 def write(store, change)
-  c = checked(change, [:id, :mutation, :patch])
+  c = checked(change, %i[id mutation patch])
   s = store or blank
   id = c[:id]
   m = c[:mutation]
@@ -675,8 +675,8 @@ end
 request: run an operation on a server by its persisted hash only.
 """
 def request(target, input, opts?)
-  i = checked(input, [:operation, :variables])
-  o = checked(opts, [:headers, :timeout_ms, :transport])
+  i = checked(input, %i[operation variables])
+  o = checked(opts, %i[headers timeout_ms transport])
   if i[:operation].nil?
     raise(:bad_option, "request: operation: is the document to run")
   end
@@ -732,7 +732,7 @@ def sdl()
 end
 
 def user_card()
-  danpen::fragment(:user_card, {on: "User", fields: [:id, :name]})
+  danpen::fragment(:user_card, {on: "User", fields: %i[id name]})
 end
 
 def comment_item()
@@ -860,7 +860,7 @@ end
 def drawn_response(seed)
   pids = take(
     ran::next_uniform(ran::stream_seed(seed, 5), 5),
-    ran::shuffle(seed, ["p1", "p2", "p3", "p4"])
+    ran::shuffle(seed, %w[p1 p2 p3 p4])
   )
   {
     "data" => {
@@ -1017,9 +1017,9 @@ def echoed(status, reply)
 end
 
 test "key joins its parts with a colon, as hanabi's entity cache keys an entity"
-  assert key(["User", "u7"]) == "User:u7"
+  assert key(%w[User u7]) == "User:u7"
   assert key(["User", 7]) == "User:7"
-  assert key(["Pair", "a", "b"]) == "Pair:a:b"
+  assert key(%w[Pair a b]) == "Pair:a:b"
   assert raises?(:bad_option, () -> key([]))
   assert raises?(:bad_option, () -> key(["User", nil]))
   assert raises?(:bad_option, () -> key("User:7"))
@@ -1027,7 +1027,7 @@ end
 
 test "schema keys every object type with an id, and the generated table is kensa's"
   t = schema(sdl)
-  assert t[:cached_types] == ["Comment", "Post", "User"]
+  assert t[:cached_types] == %w[Comment Post User]
   assert t[:key_fields] ==
     {"Comment" => ["id"], "Post" => ["id"], "User" => ["id"]}
   assert t[:separator] == ":"
@@ -1052,8 +1052,7 @@ end
 
 test "normalize splits a response into one entity per Type:id"
   s = normalize(response, sdl)
-  assert entity_keys(s) ==
-    ["Comment:c1", "Comment:c2", "Post:p1", "User:u7", "User:u8"]
+  assert entity_keys(s) == %w[Comment:c1 Comment:c2 Post:p1 User:u7 User:u8]
   assert s[:root] == {"post" => {"__ref" => "Post:p1"}}
   assert s[:entities]["Post:p1"] ==
     {
@@ -1128,7 +1127,7 @@ end
 test "a read misses when the store lacks an entity or a field"
   s = normalize(response, sdl)
   assert read(s, {fragment: user_card, at: "User:nobody"}).nil?
-  wide = danpen::fragment(:wide, {on: "User", fields: [:id, :name, :email]})
+  wide = danpen::fragment(:wide, {on: "User", fields: %i[id name email]})
   assert read(s, {fragment: wide, at: "User:u7"}).nil?
   assert read(nil, {fragment: user_card}).nil?
   assert read(s, {fragment: operation_of(page_query), at: nil}).nil?
@@ -1156,7 +1155,7 @@ test "policy takes each rule as a kousei entry, configured off alone and refused
     {on: "User", ttl: 60, stale: nil, persist: :indexeddb, evict: nil}
   assert p[:fragments]["comment_item"][:evict] == 300
   assert p[:fragments]["post_page"][:ttl].nil?
-  assert map(first, p[:refusals]) == [:invalid, :unknown_fragment]
+  assert map(first, p[:refusals]) == %i[invalid unknown_fragment]
   assert map(kousei::kind_of, p[:off]) == [:stale]
   assert raises?(:bad_option, () -> policy(user_card, []))
 end
@@ -1201,7 +1200,7 @@ test "persist snapshots the entities persisted fragments read, never a pending w
     [kousei::entry(:persist, "user_card", {to: :indexeddb})]
   )
   snap = snapshot(s, {policy: p})
-  assert entity_keys(snap) == ["User:u7", "User:u8"]
+  assert entity_keys(snap) == %w[User:u7 User:u8]
   assert snap[:root] == {}
   assert snap[:stamps] == {"User:u7" => 1000, "User:u8" => 1000}
   pending = write(
@@ -1232,7 +1231,7 @@ test "evict sweeps the entities older than their fragment's limit"
   )
   assert sweep(s, {now: 1299, policy: p}) == s
   swept = sweep(s, {now: 1300, policy: p})
-  assert entity_keys(swept) == ["Post:p1", "User:u7", "User:u8"]
+  assert entity_keys(swept) == %w[Post:p1 User:u7 User:u8]
   assert swept[:stamps]["Comment:c1"].nil?
   assert read(swept, {fragment: post_page, at: "Post:p1"}).nil?
   assert read(swept, {fragment: user_card, at: "User:u7"}) != nil
@@ -1300,10 +1299,10 @@ test "the write machine has no way out of a settled state"
 end
 
 test "declare names the types a mutation touches, and touched reads them off a patch"
-  m = declare(:rename, {touches: ["User", "User"]})
+  m = declare(:rename, {touches: %w[User User]})
   assert m == {mutation: "rename", touches: ["User"], operation: nil}
   assert touched(renamed("u7", "x")) == m[:touches]
-  assert touched(normalize(response, sdl)) == ["Comment", "Post", "User"]
+  assert touched(normalize(response, sdl)) == %w[Comment Post User]
   assert raises?(:bad_option, () -> declare(:rename, {touches: []}))
   assert raises?(:bad_option, () -> declare(:rename, {touches: [:User]}))
   assert raises?(:bad_option, () -> declare(:rename, {}))

@@ -14,41 +14,31 @@ Written for nupastel docs/plans/design-pipeline.md, step 6.
     num(2) #=> "2"
 """
 
-use("gyouretsu", [:dot, :magnitude, :scale, :vadd, :vector_near, :vsub])
-use("kazu", [:abs, :max, :min, :mod_positive, :near, :sum])
+use("gyouretsu", %i[dot magnitude scale vadd vector_near vsub])
+use("kazu", %i[abs max min mod_positive near sum])
 
 use(
   "kikagaku",
-  [
-    :bounding_box,
-    :circle_polygon,
-    :midpoint,
-    :px,
-    :py,
-    :radians,
-    :rect_polygon,
-    :region_holes,
-    :region_outline
+  %i[
+    bounding_box
+    circle_polygon
+    midpoint
+    px
+    py
+    radians
+    rect_polygon
+    region_holes
+    region_outline
   ]
 )
 
 use("maakuappu")
 
-use("moji", [:includes, :pad_left, :take_chars])
+use("moji", %i[includes pad_left take_chars])
 
 use(
   "retsu",
-  [
-    :concat_lists,
-    :contains,
-    :first,
-    :flat_map,
-    :indexes,
-    :is_empty,
-    :last,
-    :size,
-    :take_n
-  ]
+  %i[concat_lists contains first flat_map indexes is_empty last size take_n]
 )
 
 use("rittai")
@@ -58,7 +48,7 @@ use("shuugou", [:as_set])
 
 legacy_names("0.1.1", "zu")
 
-legacy_names("0.1.2", [["opt_lines", "shuugou::as_set"]])
+legacy_names("0.1.2", [%w[opt_lines shuugou::as_set]])
 
 # ── numbers ──────────────────────────────────────────────────────────
 
@@ -253,7 +243,7 @@ def sheet(entities, title)
 end
 
 def title_rows(title)
-  keys = [:part, :revision, :material, :thickness, :units, :source]
+  keys = %i[part revision material thickness units source]
   concat_lists(
     map(
       (k) -> "#{upcase(to_s(k))}: #{to_s(get(title, k))}",
@@ -618,8 +608,8 @@ end
 
 test "an empty drawing is still a whole DXF"
   d = dxf([])
-  assert starts_with?(d, unlines(["0", "SECTION", "2", "HEADER"])) == true
-  assert ends_with?(d, unlines(["0", "EOF"])) == true
+  assert starts_with?(d, unlines(%w[0 SECTION 2 HEADER])) == true
+  assert ends_with?(d, unlines(%w[0 EOF])) == true
   assert zu_count(d, "ENDSEC") == 3
   assert zu_count(d, "LAYER") == size(layers)
 end
@@ -683,9 +673,9 @@ test "a table: a header, then one line per row, numbers to one decimal"
     {name: "leg", length: 450.04, cut_a: 0},
     {name: "rail", length: 380, cut_a: 45}
   ]
-  t = table(rows, [:name, :length, :cut_a], [30, 25, 20], [0, 0], 3)
+  t = table(rows, %i[name length cut_a], [30, 25, 20], [0, 0], 3)
   assert size(t) == 9
-  assert map((e) -> e[:s], take_n(t, 3)) == ["NAME", "LENGTH", "CUT_A"]
+  assert map((e) -> e[:s], take_n(t, 3)) == %w[NAME LENGTH CUT_A]
   assert t[4][:s] == "450"
   assert near(px(t[5][:p]), 55) == true
   # The empty case: no rows is the header alone.

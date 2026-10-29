@@ -21,7 +21,7 @@ verb(
   {
     kind: :pure,
     shape: "bound(value, limits) -> value",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: nil,
     today: "absent",
     meaning: "reject input too large, too deep or too long",
@@ -51,7 +51,7 @@ verb(
   {
     kind: :pure,
     shape: "clear(value, check) -> value",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: nil,
     today: "absent",
     meaning: "remove the mark once a check has passed",
@@ -81,7 +81,7 @@ verb(
   {
     kind: :pure,
     shape: "contain(root, path) -> path",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: nil,
     today: "absent",
     meaning: "untrusted path under a root; raises :escapes_root",
@@ -96,7 +96,7 @@ verb(
   {
     kind: :effect,
     shape: "contain_real(root, path) -> path",
-    laterals: ["error", "resource"],
+    laterals: %w[error resource],
     fleet: nil,
     today: "absent",
     meaning: "as contain, after resolving links on disk",
@@ -216,7 +216,7 @@ verb(
   {
     kind: :effect,
     shape: "vet(url, rules) -> url",
-    laterals: ["error", "resource", "validate"],
+    laterals: %w[error resource validate],
     fleet: nil,
     today: "absent",
     meaning: "refuse targets inside private, link-local or metadata ranges",

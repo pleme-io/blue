@@ -36,7 +36,7 @@ verb(
   {
     kind: :decl,
     shape: "budget(scope, amount, period) -> budget",
-    laterals: ["config", "time"],
+    laterals: %w[config time],
     fleet: nil,
     today: "absent",
     meaning: "a spend limit for a scope",
@@ -66,7 +66,7 @@ verb(
   {
     kind: :effect,
     shape: "cost(scope, range, opts) -> [line]",
-    laterals: ["error", "time"],
+    laterals: %w[error time],
     fleet: nil,
     today: "absent",
     meaning: "spend by scope and period",

@@ -98,8 +98,8 @@
   {
     "name": "theme modes",
     "file": "gamen.b",
-    "find": "[:light, :dark]",
-    "replace": "[:light, :dark, :sepia]"
+    "find": "%i[light dark]",
+    "replace": "%i[light dark sepia]"
   },
   {
     "name": "theme pair",
@@ -218,7 +218,7 @@
   {
     "name": "show checked",
     "file": "gamen.b",
-    "find": "  checked(opts, [:theme, :color, :sink, :to, :newline])\n",
+    "find": "  checked(opts, %i[theme color sink to newline])\n",
     "replace": ""
   },
   {

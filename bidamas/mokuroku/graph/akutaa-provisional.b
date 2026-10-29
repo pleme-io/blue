@@ -21,7 +21,7 @@ verb(
   {
     kind: :effect,
     shape: "call(pid, request, opts) -> reply",
-    laterals: ["deadline", "error", "process"],
+    laterals: %w[deadline error process],
     fleet: "blue",
     today: "rust:blue-lang-proc",
     meaning: "Send a request and wait for its reply.",
@@ -66,7 +66,7 @@ verb(
   {
     kind: :effect,
     shape: "connect(node) -> nil",
-    laterals: ["capability", "process"],
+    laterals: %w[capability process],
     fleet: nil,
     today: "absent",
     meaning: "Join another node so pids reach across.",
@@ -126,7 +126,7 @@ verb(
   {
     kind: :pure,
     shape: "isolate(f) -> value",
-    laterals: ["error", "process"],
+    laterals: %w[error process],
     fleet: "blue",
     today: "rust:blue-lang-proc",
     meaning: "Run f with private state; return its result or exit reason.",
@@ -187,7 +187,7 @@ verb(
   {
     kind: :effect,
     shape: "migrate(pid, new code) -> nil",
-    laterals: ["migrate", "process"],
+    laterals: %w[migrate process],
     fleet: "blue",
     today: "rust:blue-lang-proc",
     meaning: "Swap a running process to new code live.",
@@ -217,7 +217,7 @@ verb(
   {
     kind: :decl,
     shape: "node(name, opts) -> node",
-    laterals: ["capability", "process"],
+    laterals: %w[capability process],
     fleet: "blue",
     today: "rust:blue-lang-proc",
     meaning: "Declare a node that hosts processes.",
@@ -232,7 +232,7 @@ verb(
   {
     kind: :decl,
     shape: "pool(size, f) -> pool",
-    laterals: ["process", "resource"],
+    laterals: %w[process resource],
     fleet: nil,
     today: "absent",
     meaning: "A fixed set of workers that share requests.",
@@ -247,7 +247,7 @@ verb(
   {
     kind: :effect,
     shape: "receive(patterns, opts) -> value",
-    laterals: ["deadline", "process"],
+    laterals: %w[deadline process],
     fleet: "blue",
     today: "rust:blue-lang-proc",
     meaning: "Take the first mailbox message matching a pattern.",
@@ -277,7 +277,7 @@ verb(
   {
     kind: :effect,
     shape: "replay(trace) -> result",
-    laterals: ["test", "trace"],
+    laterals: %w[test trace],
     fleet: "blue",
     today: "rust:blue-lang-proc",
     meaning: "Re-run a crashed process from its trace without the host.",
@@ -353,7 +353,7 @@ verb(
   {
     kind: :effect,
     shape: "spawn(f, opts) -> pid",
-    laterals: ["process", "resource"],
+    laterals: %w[process resource],
     fleet: "blue",
     today: "rust:blue-lang-proc",
     meaning: "Start an isolated process running f.",
@@ -368,7 +368,7 @@ verb(
   {
     kind: :effect,
     shape: "stop(pid, opts) -> nil",
-    laterals: ["deadline", "process"],
+    laterals: %w[deadline process],
     fleet: "blue",
     today: "rust:blue-lang-proc",
     meaning: "Ask, wait a grace period, then kill.",
@@ -383,7 +383,7 @@ verb(
   {
     kind: :decl,
     shape: "supervise(strategy, children, opts) -> supervisor",
-    laterals: ["process", "retry"],
+    laterals: %w[process retry],
     fleet: "blue",
     today: "rust:blue-lang-proc",
     meaning: "Declare children restarted by a strategy.",
@@ -428,7 +428,7 @@ verb(
   {
     kind: :effect,
     shape: "trace(pid) -> trace",
-    laterals: ["log", "trace"],
+    laterals: %w[log trace],
     fleet: "blue",
     today: "rust:blue-lang-proc",
     meaning: "The recorded crash trace of a process.",
@@ -458,7 +458,7 @@ verb(
   {
     kind: :effect,
     shape: "wait(pid, opts) -> exit reason",
-    laterals: ["deadline", "process"],
+    laterals: %w[deadline process],
     fleet: nil,
     today: "absent",
     meaning: "Block until a process exits.",

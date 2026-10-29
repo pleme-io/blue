@@ -6,7 +6,7 @@ verb(
   {
     kind: :effect,
     shape: "build(installable, opts) -> [out path]",
-    laterals: ["cache", "deadline", "error", "process"],
+    laterals: %w[cache deadline error process],
     fleet: nil,
     today: "partial:hyouka",
     meaning: "realise a derivation and return its output paths",
@@ -36,7 +36,7 @@ verb(
   {
     kind: :effect,
     shape: "check(flake, opts) -> [finding]",
-    laterals: ["error", "test"],
+    laterals: %w[error test],
     fleet: nil,
     today: "absent",
     meaning: "run the flake checks and return failures as data",
@@ -51,7 +51,7 @@ verb(
   {
     kind: :effect,
     shape: "clean(opts) -> {freed:}",
-    laterals: ["error", "idempotent", "resource"],
+    laterals: %w[error idempotent resource],
     fleet: "souji",
     today: "partial:souji",
     meaning: "delete store paths nothing refers to, dry run first",
@@ -66,7 +66,7 @@ verb(
   {
     kind: :effect,
     shape: "copy(paths, {to:}) -> nil",
-    laterals: ["deadline", "error", "idempotent", "retry"],
+    laterals: %w[deadline error idempotent retry],
     fleet: nil,
     today: "absent",
     meaning: "move closures between stores or hosts",
@@ -112,7 +112,7 @@ verb(
   {
     kind: :effect,
     shape: "eval(installable, opts) -> value",
-    laterals: ["cache", "deadline", "error"],
+    laterals: %w[cache deadline error],
     fleet: nil,
     today: "partial:hyouka",
     meaning: "evaluate a nix expression to a value",
@@ -128,7 +128,7 @@ verb(
   {
     kind: :effect,
     shape: "fetch(url, opts) -> {path:, hash:}",
-    laterals: ["cache", "error", "retry"],
+    laterals: %w[cache error retry],
     fleet: nil,
     today: "absent",
     meaning: "prefetch a source and return its content hash",
@@ -173,7 +173,7 @@ verb(
   {
     kind: :effect,
     shape: "lock(flake, {inputs:}) -> [changed input]",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: nil,
     today: "absent",
     meaning: "update flake.lock inputs, writing only through nix",
@@ -189,7 +189,7 @@ verb(
   {
     kind: :pure,
     shape: "plan(installable) -> {build:, fetch:}",
-    laterals: ["cache", "error"],
+    laterals: %w[cache error],
     fleet: nil,
     today: "partial:hyouka",
     meaning: "what a build would build and fetch, changing nothing",
@@ -204,7 +204,7 @@ verb(
   {
     kind: :effect,
     shape: "run(installable, args, opts) -> result",
-    laterals: ["error", "process"],
+    laterals: %w[error process],
     fleet: nil,
     today: "absent",
     meaning: "build then run an app output to completion",
@@ -219,7 +219,7 @@ verb(
   {
     kind: :effect,
     shape: "search(flake, query) -> [record]",
-    laterals: ["cache", "error"],
+    laterals: %w[cache error],
     fleet: nil,
     today: "absent",
     meaning: "find packages by name or description",
@@ -234,7 +234,7 @@ verb(
   {
     kind: :effect,
     shape: "show(flake) -> record",
-    laterals: ["cache", "error"],
+    laterals: %w[cache error],
     fleet: nil,
     today: "absent",
     meaning: "the outputs a flake offers, by system",
@@ -249,7 +249,7 @@ verb(
   {
     kind: :effect,
     shape: "verify(path, opts) -> [mismatch]",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: nil,
     today: "absent",
     meaning: "check store contents and signatures against their hashes",

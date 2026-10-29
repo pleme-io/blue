@@ -1,7 +1,7 @@
-use("haibi", [:files, :write_tree])
-use("mokuroku", [:catalog_of, :registered_only, :render_markdown])
-use("retsu", [:concat_lists, :first, :flat_map, :is_empty, :last])
-use("shisutemu", [:status_of, :stdout_of])
+use("haibi", %i[files write_tree])
+use("mokuroku", %i[catalog_of registered_only render_markdown])
+use("retsu", %i[concat_lists first flat_map is_empty last])
+use("shisutemu", %i[status_of stdout_of])
 
 # regen: rewrite every file blue generates for this repository, in place.
 #

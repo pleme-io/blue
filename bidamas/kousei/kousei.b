@@ -8,8 +8,8 @@ stand, so one typo never takes a whole declaration down.
     record_whys(get(schema_fixture, :plane), "x") #=> ["the value is not a record"]
 """
 
-use("kyohi", [:refusal, :standing])
-use("retsu", [:contains, :flat_map, :index_of, :is_empty, :size])
+use("kyohi", %i[refusal standing])
+use("retsu", %i[contains flat_map index_of is_empty size])
 
 @doc """
 verdict: nil when ok, else why.
@@ -289,7 +289,7 @@ def schema_fixture()
   {
     plane: [
       required(field(:listen, text)),
-      field(:surfaces, list_of(one_of([:ingest, :ui])))
+      field(:surfaces, list_of(one_of(%i[ingest ui])))
     ],
     rule: [field(:enabled, flag)]
   }
@@ -328,13 +328,13 @@ test "a bad entry is refused alone and its siblings stand"
     )
   )
   assert size(j[:accepted]) == 3
-  assert faults(j) == [:invalid, :invalid, :invalid, :unknown_kind, :duplicate]
+  assert faults(j) == %i[invalid invalid invalid unknown_kind duplicate]
   assert value_of(j[:accepted][2]) == {enabled: true}
 end
 
 test "off keeps the entry declared and out of what is accepted"
   j = judge(schema_fixture, append(fixture, [off(:plane, "internal")]))
-  assert map(name_of, j[:accepted]) == ["external", "segregation"]
+  assert map(name_of, j[:accepted]) == %w[external segregation]
   assert map(name_of, j[:off]) == ["internal"]
   j2 = judge(schema_fixture, append(fixture, [off(:plane, "nowhere")]))
   assert faults(j2) == [:unknown_entry]
@@ -347,15 +347,15 @@ test "a tune lays fields over its entry, and a bad tune is refused alone"
     append(
       fixture,
       [
-        tune(:plane, "external", {surfaces: [:ingest, :ui]}),
+        tune(:plane, "external", {surfaces: %i[ingest ui]}),
         tune(:plane, "external", {listen: 7}),
         tune(:plane, "ghost", {listen: "x"})
       ]
     )
   )
-  assert value_of(of_kind(j, :plane)[0])[:surfaces] == [:ingest, :ui]
+  assert value_of(of_kind(j, :plane)[0])[:surfaces] == %i[ingest ui]
   assert value_of(of_kind(j, :plane)[0])[:listen] == "127.0.0.1:8443"
-  assert faults(j) == [:invalid, :unknown_entry]
+  assert faults(j) == %i[invalid unknown_entry]
 end
 
 test "unknown fields and missing required fields are reasons, not crashes"

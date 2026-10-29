@@ -1,6 +1,6 @@
-use("moji", [:before_first, :strip_prefix, :trim])
-use("retsu", [:concat_lists, :first, :reject])
-use("shisutemu", [:status_of, :stdout_of])
+use("moji", %i[before_first strip_prefix trim])
+use("retsu", %i[concat_lists first reject])
+use("shisutemu", %i[status_of stdout_of])
 
 def words_of(text)
   starts = filter(
@@ -166,5 +166,5 @@ test "an indented def is a local, not a word"
         "end"
       ]
     )
-  ) == ["f", "m"]
+  ) == %w[f m]
 end

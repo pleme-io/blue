@@ -2,24 +2,24 @@ use("kyuuji", [:route_methods])
 
 use(
   "moji",
-  [
-    :after_first,
-    :before_first,
-    :char_index,
-    :checked,
-    :drop_chars,
-    :is_alnum,
-    :is_alpha,
-    :is_digit,
-    :last_char_index,
-    :lower,
-    :present,
-    :starts_with,
-    :take_chars
+  %i[
+    after_first
+    before_first
+    char_index
+    checked
+    drop_chars
+    is_alnum
+    is_alpha
+    is_digit
+    last_char_index
+    lower
+    present
+    starts_with
+    take_chars
   ]
 )
 
-use("retsu", [:all_but_last, :first, :is_empty, :last, :push, :rest])
+use("retsu", %i[all_but_last first is_empty last push rest])
 use("ronri", [:every])
 use("tesuto", [:raises?])
 
@@ -284,7 +284,7 @@ end
 request: Send one HTTP request; any status is data.
 """
 def request(method, url, opts?)
-  o = checked(opts, [:headers, :body, :json, :timeout_ms, :transport])
+  o = checked(opts, %i[headers body json timeout_ms transport])
   if not member?(method, route_methods)
     raise(:bad_option, "request: method #{to_s(method)} is not an HTTP method")
   end
@@ -298,7 +298,7 @@ def request(method, url, opts?)
     if json.nil?
       []
     else
-      [["content-type", "application/json"], ["accept", "application/json"]]
+      [%w[content-type application/json], %w[accept application/json]]
     end
   )
   body = if json.nil?
@@ -407,9 +407,9 @@ test "request sends a json body with its content type through the transport"
   assert sent[:body] == "{\"a\":1,\"b\":2}"
   assert sent[:headers] ==
     [
-      ["x-product", "kensa"],
-      ["content-type", "application/json"],
-      ["accept", "application/json"]
+      %w[x-product kensa],
+      %w[content-type application/json],
+      %w[accept application/json]
     ]
   assert sent[:timeout_ms] == 10000
 end

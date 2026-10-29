@@ -6,7 +6,7 @@ verb(
   {
     kind: :effect,
     shape: "chain_of(chain, roots, opts) -> [cert]",
-    laterals: ["error", "time", "validate"],
+    laterals: %w[error time validate],
     fleet: "webpki",
     today: "absent",
     meaning: "valid chain from leaf to a trusted root, or :untrusted",
@@ -81,7 +81,7 @@ verb(
   {
     kind: :effect,
     shape: "issue(csr, authority, opts) -> cert",
-    laterals: ["capability", "log", "time"],
+    laterals: %w[capability log time],
     fleet: "openclaw-publisher-pki",
     today: "absent",
     meaning: "sign a request as a CA with a lifetime",
@@ -111,7 +111,7 @@ verb(
   {
     kind: :pure,
     shape: "parse(text, format) -> cert",
-    laterals: ["serialize", "validate"],
+    laterals: %w[serialize validate],
     fleet: "webpki",
     today: "absent",
     meaning: "PEM or DER to a certificate record",
@@ -141,7 +141,7 @@ verb(
   {
     kind: :effect,
     shape: "probe(host, opts) -> record",
-    laterals: ["deadline", "resource"],
+    laterals: %w[deadline resource],
     fleet: nil,
     today: "absent",
     meaning: "connect and report version, chain and expiry",
@@ -186,7 +186,7 @@ verb(
   {
     kind: :effect,
     shape: "renew(cert, opts) -> cert",
-    laterals: ["idempotent", "retry", "time"],
+    laterals: %w[idempotent retry time],
     fleet: "x-crypto",
     today: "absent",
     meaning: "new certificate for the same identity before expiry (ACME)",
@@ -216,7 +216,7 @@ verb(
   {
     kind: :effect,
     shape: "revoke(cert, reason) -> nil",
-    laterals: ["idempotent", "log"],
+    laterals: %w[idempotent log],
     fleet: "openclaw-publisher-pki",
     today: "absent",
     meaning: "add a certificate to the signed revocation list",
@@ -231,7 +231,7 @@ verb(
   {
     kind: :effect,
     shape: "revoked?(cert, opts) -> Bool",
-    laterals: ["cache", "deadline", "resource"],
+    laterals: %w[cache deadline resource],
     fleet: "openclaw-publisher-pki",
     today: "absent",
     meaning: "listed as revoked by CRL or OCSP",
@@ -246,7 +246,7 @@ verb(
   {
     kind: :effect,
     shape: "roots(opts) -> [cert]",
-    laterals: ["cache", "resource"],
+    laterals: %w[cache resource],
     fleet: "webpki",
     today: "absent",
     meaning: "trusted root certificates in force",
@@ -261,7 +261,7 @@ verb(
   {
     kind: :effect,
     shape: "self_sign(subject, key, opts) -> cert",
-    laterals: ["capability", "time"],
+    laterals: %w[capability time],
     fleet: nil,
     today: "absent",
     meaning: "certificate signed by its own key, for tests and roots",
@@ -276,7 +276,7 @@ verb(
   {
     kind: :stream,
     shape: "watch(source, f, opts) -> nil",
-    laterals: ["cancel", "resource"],
+    laterals: %w[cancel resource],
     fleet: "kakuin-workload-api",
     today: "absent",
     meaning: "call f on each rotated workload certificate",

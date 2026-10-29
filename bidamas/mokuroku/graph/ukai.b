@@ -6,7 +6,7 @@ verb(
   {
     kind: :effect,
     shape: "apply(plan, opts) -> record",
-    laterals: ["idempotent", "log", "process"],
+    laterals: %w[idempotent log process],
     fleet: nil,
     today: "partial:ukai",
     meaning: "install the planned routes; same plan twice changes nothing",
@@ -35,7 +35,7 @@ verb(
   {
     kind: :effect,
     shape: "observe(opts) -> state",
-    laterals: ["process", "resource"],
+    laterals: %w[process resource],
     fleet: nil,
     today: "partial:ukai",
     wave: 0,

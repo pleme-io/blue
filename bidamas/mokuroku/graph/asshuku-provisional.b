@@ -21,7 +21,7 @@ verb(
   {
     kind: :effect,
     shape: "archive(root, to, opts) -> nil",
-    laterals: ["capability", "deadline", "error"],
+    laterals: %w[capability deadline error],
     fleet: nil,
     today: "absent",
     meaning: "pack a directory tree into an archive file",
@@ -51,7 +51,7 @@ verb(
   {
     kind: :pure,
     shape: "decompress(data, opts) -> bytes",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: nil,
     today: "absent",
     meaning: "restore bytes, refusing output past a size limit",
@@ -172,7 +172,7 @@ verb(
   {
     kind: :stream,
     shape: "stream(source, f, opts) -> nil",
-    laterals: ["cancel", "deadline", "error"],
+    laterals: %w[cancel deadline error],
     fleet: nil,
     today: "absent",
     meaning: "compress or decompress chunk by chunk, calling f per chunk",
@@ -187,7 +187,7 @@ verb(
   {
     kind: :pure,
     shape: "unpack(archive, opts) -> [entry]",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: nil,
     today: "absent",
     meaning: "every entry of an archive in memory, paths checked",
@@ -202,7 +202,7 @@ verb(
   {
     kind: :effect,
     shape: "unpack_to(archive, to, opts) -> [path]",
-    laterals: ["capability", "error", "validate"],
+    laterals: %w[capability error validate],
     fleet: nil,
     today: "absent",
     meaning: "write an archive under a directory; traversal refused",
@@ -217,7 +217,7 @@ verb(
   {
     kind: :pure,
     shape: "verify(archive) -> nil",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: nil,
     today: "absent",
     meaning: "check checksums and structure",

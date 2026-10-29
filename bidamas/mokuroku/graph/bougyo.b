@@ -6,7 +6,7 @@ verb(
   {
     kind: :decl,
     shape: "audit(opts) -> posture",
-    laterals: ["config", "log"],
+    laterals: %w[config log],
     fleet: nil,
     today: "absent",
     meaning: "record each decision as an audit record",
@@ -22,7 +22,7 @@ verb(
   {
     kind: :decl,
     shape: "authenticate(opts) -> posture",
-    laterals: ["config", "switch"],
+    laterals: %w[config switch],
     fleet: "pleme-auth-sdk",
     today: "absent",
     meaning: "attach the caller identity to each request",
@@ -37,7 +37,7 @@ verb(
   {
     kind: :decl,
     shape: "authorize(opts) -> posture",
-    laterals: ["config", "switch"],
+    laterals: %w[config switch],
     fleet: "pleme-rbac",
     today: "absent",
     meaning: "permit or deny each request by policy",
@@ -67,7 +67,7 @@ verb(
   {
     kind: :decl,
     shape: "cors(opts) -> posture",
-    laterals: ["config", "switch"],
+    laterals: %w[config switch],
     fleet: nil,
     today: "absent",
     meaning: "cross-origin rules as an explicit allow-list",
@@ -82,7 +82,7 @@ verb(
   {
     kind: :decl,
     shape: "csp(opts) -> posture",
-    laterals: ["config", "switch"],
+    laterals: %w[config switch],
     fleet: nil,
     today: "absent",
     meaning: "content security policy with a fresh nonce per response",
@@ -97,7 +97,7 @@ verb(
   {
     kind: :decl,
     shape: "csrf(opts) -> posture",
-    laterals: ["config", "switch"],
+    laterals: %w[config switch],
     fleet: nil,
     today: "absent",
     meaning: "state-changing requests carry a token or same-site proof",
@@ -112,7 +112,7 @@ verb(
   {
     kind: :decl,
     shape: "deadlines(opts) -> posture",
-    laterals: ["config", "deadline"],
+    laterals: %w[config deadline],
     fleet: nil,
     today: "absent",
     meaning: "header, body and idle time limits against slow clients",
@@ -127,7 +127,7 @@ verb(
   {
     kind: :decl,
     shape: "headers(opts) -> posture",
-    laterals: ["config", "switch"],
+    laterals: %w[config switch],
     fleet: nil,
     today: "partial:bougyo",
     meaning: "security response headers, added when missing",
@@ -142,7 +142,7 @@ verb(
   {
     kind: :decl,
     shape: "limits(opts) -> posture",
-    laterals: ["config", "validate"],
+    laterals: %w[config validate],
     fleet: nil,
     today: "partial:bougyo",
     meaning: "caps on method, path, headers and body",
@@ -157,7 +157,7 @@ verb(
   {
     kind: :decl,
     shape: "rate(opts) -> posture",
-    laterals: ["config", "ratelimit"],
+    laterals: %w[config ratelimit],
     fleet: "pleme-middleware-rate-limit",
     today: "absent",
     meaning: "requests per window per client",
@@ -172,7 +172,7 @@ verb(
   {
     kind: :decl,
     shape: "request_id(opts) -> posture",
-    laterals: ["config", "log"],
+    laterals: %w[config log],
     fleet: nil,
     today: "partial:bougyo",
     meaning: "request id that cannot forge a log line",
@@ -201,7 +201,7 @@ verb(
   {
     kind: :decl,
     shape: "tls(opts) -> posture",
-    laterals: ["config", "switch"],
+    laterals: %w[config switch],
     fleet: nil,
     today: "absent",
     meaning: "require TLS and send strict transport security",

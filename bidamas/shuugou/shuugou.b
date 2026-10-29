@@ -9,10 +9,10 @@ function in the distribution and none of the forks would be better.
     pairs([]) #=> []
 """
 
-use("retsu", [:first, :is_empty, :push, :rest, :size, :without])
-use("ronri", [:any, :count_if, :every])
+use("retsu", %i[first is_empty push rest size without])
+use("ronri", %i[any count_if every])
 
-legacy_names("0.1.0", [:frequencies, :group_by, :remove])
+legacy_names("0.1.0", %i[frequencies group_by remove])
 
 @doc """
 ordered: the distinct members of a list in sorted order, the one canonical list for a set.
@@ -372,7 +372,7 @@ end
 test "ordered gives one list for a set, whatever order and repeats it came in"
   assert ordered([]) == []
   assert ordered([3, 1, 2, 1, 3]) == [1, 2, 3]
-  assert ordered(["b", "a"]) == ordered(["a", "b", "a"])
+  assert ordered(%w[b a]) == ordered(%w[a b a])
 end
 
 test "unique removes duplicates, keeping first-seen order"
@@ -508,7 +508,7 @@ test "most_common, including the tie and the empty input"
   # And a later value still wins when it is a strict majority, which catches
   # a fold that never replaces at all.
   assert most_common([3, 3, 1, 1, 1]) == 1
-  assert most_common(["a", "b", "a"]) == "a"
+  assert most_common(%w[a b a]) == "a"
 end
 
 test "is_set is the precondition the other functions assume"

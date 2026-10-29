@@ -24,11 +24,11 @@ randomness is used, so the same runs give the same boxes.
     box_around([]) #=> []
 """
 
-use("junjo", [:sort, :sort_by])
-use("kazu", [:max, :sum])
-use("ran", [:next_float, :stream_seed])
-use("retsu", [:concat_lists, :first, :flat_map, :is_empty, :last, :size])
-use("toukei", [:largest, :mean, :percentile, :smallest])
+use("junjo", %i[sort sort_by])
+use("kazu", %i[max sum])
+use("ran", %i[next_float stream_seed])
+use("retsu", %i[concat_lists first flat_map is_empty last size])
+use("toukei", %i[largest mean percentile smallest])
 
 @doc """
 box_around: The box around every point: [min, max] of each input.
@@ -105,7 +105,7 @@ def peel_candidates(box, ids, points, ys, alpha)
     fn(j)
       values = map((i) -> points[i][j], ids)
       flat_map(
-        [:lo, :hi],
+        %i[lo hi],
         fn(side)
           edge = peeled_edge(values, side, alpha)
           if edge.nil?
@@ -270,8 +270,7 @@ test "a planted box is recovered exactly: x >= 5 and y <= 3 on a 10x10 grid"
   b = prim_box(prim(pts, ys, 0.05, 0.02), 1)
   assert b[4] == [[5, 9], [0, 3]]
   assert b[2] == 1
-  assert box_text(["x", "y"], b[4], box_around(pts)) ==
-    "x in [5, 9], y in [0, 3]"
+  assert box_text(%w[x y], b[4], box_around(pts)) == "x in [5, 9], y in [0, 3]"
 end
 
 test "a control: a target with no structure finds no dense box with real coverage"

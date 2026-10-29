@@ -12,14 +12,14 @@ service lists them as `[headers_posture, request_id_posture, limits_posture]`.
 """
 
 use("gamen")
-use("kousei", [:field, :int_in, :list_of, :off, :one_of, :text, :tune])
-use("kyuuji", [:header, :route_methods])
+use("kousei", %i[field int_in list_of off one_of text tune])
+use("kyuuji", %i[header route_methods])
 use("moji", [:lower])
-use("retsu", [:contains, :first, :is_empty, :size])
-use("shinsuu", [:bytes_base64, :hex_bytes])
-use("shisei", [:gated, :posture, :serving])
+use("retsu", %i[contains first is_empty size])
+use("shinsuu", %i[bytes_base64 hex_bytes])
+use("shisei", %i[gated posture serving])
 
-legacy_names("0.1.1", [["request_header", "kyuuji::header"]])
+legacy_names("0.1.1", [%w[request_header kyuuji::header]])
 
 @doc """
 has_header?: Whether the response already sets a header, whatever the case of its name.
@@ -64,15 +64,15 @@ end
 def header_table()
   map(
     (k) -> field(k, text),
-    [
-      :content_security_policy,
-      :cache_control,
-      :content_type_options,
-      :cross_origin_resource_policy,
-      :frame_options,
-      :page_security_policy,
-      :referrer_policy,
-      :strict_transport_security
+    %i[
+      content_security_policy
+      cache_control
+      content_type_options
+      cross_origin_resource_policy
+      frame_options
+      page_security_policy
+      referrer_policy
+      strict_transport_security
     ]
   )
 end
@@ -218,7 +218,7 @@ def limits_posture()
       field(:max_headers, int_in(1, 1000)),
       field(:max_path, int_in(1, 65536)),
       field(:methods, list_of(one_of(route_methods))),
-      field(:mode, one_of(["audit", "enforce"]))
+      field(:mode, one_of(%w[audit enforce]))
     ],
     {
       max_body: 1_048_576,
@@ -373,7 +373,7 @@ end
 
 test "a safe inbound request id is echoed and an unsafe one is replaced"
   h = defended([], quiet, ok)[:handler]
-  echoed = h(get_req("/", [["x-request-id", "abc-123_X.9"]], ""))
+  echoed = h(get_req("/", [%w[x-request-id abc-123_X.9]], ""))
   assert hdr(echoed, "X-Request-Id") == "abc-123_X.9"
   forged = h(
     get_req("/", [["x-request-id", join_lines(["a\r", "Set-Cookie: x=1"])]], "")
@@ -400,7 +400,7 @@ test "the request id reaches the handler"
     quiet,
     (req) -> {status: 200, headers: {}, body: req[:request_id]}
   )
-  r = seen[:handler](get_req("/", [["x-request-id", "trace-7"]], ""))
+  r = seen[:handler](get_req("/", [%w[x-request-id trace-7]], ""))
   assert r[:body] == "trace-7"
 end
 
@@ -427,7 +427,7 @@ test "limits in enforce refuse with the status that names the limit"
   path = defended([enforce({max_path: 4})], quiet, ok)[:handler]
   assert path(get_req("/toolong", [], ""))[:status] == 414
   heads = defended([enforce({max_headers: 1})], quiet, ok)[:handler]
-  assert heads(get_req("/", [["a", "1"], ["b", "2"]], ""))[:status] == 431
+  assert heads(get_req("/", [%w[a 1], %w[b 2]], ""))[:status] == 431
   verbs = defended([enforce({methods: ["GET"]})], quiet, ok)[:handler]
   post = {method: "POST", path: "/", query: "", headers: [], body: ""}
   assert verbs(post)[:status] == 405
@@ -440,7 +440,7 @@ test "a refused request still carries no stale state and the defaults stand when
   r = bad[:handler](get_req("/", [], "x"))
   assert r[:status] == 200
   worse = defended(
-    [tune(:limits, "default", {methods: ["GET", "TRACE"]})],
+    [tune(:limits, "default", {methods: %w[GET TRACE]})],
     quiet,
     ok
   )

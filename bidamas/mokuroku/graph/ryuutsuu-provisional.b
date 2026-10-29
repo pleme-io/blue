@@ -21,7 +21,7 @@ verb(
   {
     kind: :effect,
     shape: "fetch(name, channel, opts) -> archive",
-    laterals: ["cache", "deadline", "retry", "validate"],
+    laterals: %w[cache deadline retry validate],
     fleet: nil,
     today: "absent",
     meaning: "download and verify a distributable",
@@ -36,7 +36,7 @@ verb(
   {
     kind: :effect,
     shape: "install(archive, dest, opts) -> installed",
-    laterals: ["capability", "idempotent"],
+    laterals: %w[capability idempotent],
     fleet: nil,
     today: "absent",
     meaning: "put a program where the user runs it",
@@ -81,7 +81,7 @@ verb(
   {
     kind: :effect,
     shape: "mirror(from, to) -> nil",
-    laterals: ["idempotent", "retry"],
+    laterals: %w[idempotent retry],
     fleet: nil,
     today: "absent",
     meaning: "copy releases to another host",
@@ -111,7 +111,7 @@ verb(
   {
     kind: :effect,
     shape: "publish(archive, channel, opts) -> record",
-    laterals: ["idempotent", "retry"],
+    laterals: %w[idempotent retry],
     fleet: nil,
     today: "absent",
     meaning: "put a distributable on a channel",
@@ -156,7 +156,7 @@ verb(
   {
     kind: :effect,
     shape: "upgrade(name, opts) -> record",
-    laterals: ["idempotent", "switch"],
+    laterals: %w[idempotent switch],
     fleet: nil,
     today: "absent",
     meaning: "move an installed program to its channel head",

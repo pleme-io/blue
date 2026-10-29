@@ -6,7 +6,7 @@ verb(
   {
     kind: :pure,
     shape: "collapse(lines, window) -> [line]",
-    laterals: ["log", "ratelimit"],
+    laterals: %w[log ratelimit],
     fleet: nil,
     today: "absent",
     meaning: "merge repeated lines into one with a count",
@@ -21,7 +21,7 @@ verb(
   {
     kind: :effect,
     shape: "debug(message, fields) -> nil",
-    laterals: ["log", "switch"],
+    laterals: %w[log switch],
     fleet: "logging-go",
     today: "exists:rogu",
     wave: 0,
@@ -35,7 +35,7 @@ verb(
   {
     kind: :pure,
     shape: "enabled?(level) -> Bool",
-    laterals: ["log", "switch"],
+    laterals: %w[log switch],
     fleet: nil,
     today: "exists:rogu",
     wave: 0,
@@ -49,7 +49,7 @@ verb(
   {
     kind: :effect,
     shape: "error(message, fields) -> nil",
-    laterals: ["error", "log"],
+    laterals: %w[error log],
     fleet: "logging-go",
     today: "exists:rogu",
     wave: 0,
@@ -78,7 +78,7 @@ verb(
   {
     kind: :pure,
     shape: "level() -> keyword",
-    laterals: ["log", "switch"],
+    laterals: %w[log switch],
     fleet: nil,
     today: "exists:rogu",
     wave: 0,
@@ -92,7 +92,7 @@ verb(
   {
     kind: :pure,
     shape: "parse(line, format) -> record",
-    laterals: ["log", "serialize"],
+    laterals: %w[log serialize],
     fleet: nil,
     today: "absent",
     meaning: "a log line (json, logfmt, syslog) to a record",
@@ -107,7 +107,7 @@ verb(
   {
     kind: :effect,
     shape: "query(source, question, opts) -> [record]",
-    laterals: ["deadline", "log"],
+    laterals: %w[deadline log],
     fleet: nil,
     today: "absent",
     meaning: "ask a log store a question in its own language",
@@ -122,7 +122,7 @@ verb(
   {
     kind: :effect,
     shape: "read(source, opts) -> [record]",
-    laterals: ["log", "serialize"],
+    laterals: %w[log serialize],
     fleet: nil,
     today: "absent",
     meaning: "all log records from a file, journal or cluster source",
@@ -137,7 +137,7 @@ verb(
   {
     kind: :pure,
     shape: "redact(fields, rules) -> fields",
-    laterals: ["capability", "log"],
+    laterals: %w[capability log],
     fleet: nil,
     today: "absent",
     meaning: "replace secret and personal values before they are written",
@@ -152,7 +152,7 @@ verb(
   {
     kind: :pure,
     shape: "render(record, format) -> text",
-    laterals: ["log", "serialize"],
+    laterals: %w[log serialize],
     fleet: nil,
     today: "absent",
     meaning: "a record to a log line in a stable format",
@@ -167,7 +167,7 @@ verb(
   {
     kind: :effect,
     shape: "rotate(file, policy) -> nil",
-    laterals: ["log", "resource"],
+    laterals: %w[log resource],
     fleet: nil,
     today: "absent",
     meaning: "start a new log file by size or age; prune old",
@@ -182,7 +182,7 @@ verb(
   {
     kind: :pure,
     shape: "sample?(rule, line) -> Bool",
-    laterals: ["log", "ratelimit"],
+    laterals: %w[log ratelimit],
     fleet: nil,
     today: "absent",
     meaning: "decide whether to keep a line under a rate or key rule",
@@ -197,7 +197,7 @@ verb(
   {
     kind: :effect,
     shape: "scope(fields, f) -> value",
-    laterals: ["log", "trace"],
+    laterals: %w[log trace],
     fleet: "pleme-observability",
     today: "absent",
     meaning: "run f with extra fields on every line it logs",
@@ -213,7 +213,7 @@ verb(
   {
     kind: :decl,
     shape: "sink(target, opts) -> sink",
-    laterals: ["config", "log", "resource"],
+    laterals: %w[config log resource],
     fleet: nil,
     today: "absent",
     meaning: "choose where lines go: stderr, file, NATS, journal",
@@ -242,7 +242,7 @@ verb(
   {
     kind: :stream,
     shape: "watch(source, f, opts) -> nil",
-    laterals: ["cancel", "log"],
+    laterals: %w[cancel log],
     fleet: nil,
     today: "absent",
     meaning: "call f per new record until it returns stop",

@@ -96,7 +96,7 @@ verb(
   {
     kind: :effect,
     shape: "draw(surface, graph, scene) -> frame",
-    laterals: ["deadline", "resource"],
+    laterals: %w[deadline resource],
     fleet: "garasu",
     today: "absent",
     meaning: "run the passes and fill the surface",
@@ -278,7 +278,7 @@ verb(
   {
     kind: :decl,
     shape: "surface(kind, size, opts) -> surface",
-    laterals: ["resource", "validate"],
+    laterals: %w[resource validate],
     fleet: "garasu",
     today: "absent",
     meaning: "declare a draw target: window, offscreen or terminal",

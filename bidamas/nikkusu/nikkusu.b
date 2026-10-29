@@ -5,7 +5,7 @@ nikkusu (ニックス) — Nix source as data: rnix's lossless tree from nix_par
 """
 
 use("junjo", [:upper_bound])
-use("retsu", [:first, :flat_map, :is_empty, :last, :rest, :running_sum, :size])
+use("retsu", %i[first flat_map is_empty last rest running_sum size])
 
 @doc """
 read: The whole content of a source, by the source's space: in_space("gitto", repo) reads a file at a ref. Raises :usage when no space owns the subject or the space has no handler.
@@ -137,16 +137,16 @@ end
 def passes_path?(k)
   member?(
     k,
-    [
-      "NODE_ROOT",
-      "NODE_APPLY",
-      "NODE_PAREN",
-      "NODE_LIST",
-      "NODE_IF_ELSE",
-      "NODE_WITH",
-      "NODE_BIN_OP",
-      "NODE_LAMBDA",
-      "NODE_ASSERT"
+    %w[
+      NODE_ROOT
+      NODE_APPLY
+      NODE_PAREN
+      NODE_LIST
+      NODE_IF_ELSE
+      NODE_WITH
+      NODE_BIN_OP
+      NODE_LAMBDA
+      NODE_ASSERT
     ]
   )
 end
@@ -299,7 +299,7 @@ def angle_paths(root)
 end
 
 def option_calls()
-  ["mkOption", "mkEnableOption", "mkPackageOption", "mkSinkUndeclaredOptions"]
+  %w[mkOption mkEnableOption mkPackageOption mkSinkUndeclaredOptions]
 end
 
 def options_roots(root)
@@ -406,20 +406,20 @@ test "module_path drops a leading config, and under? reads a prefix"
   b = first(
     filter((b) -> b[:dotted] == "config.systemd.services.x", bindings(d[:root]))
   )
-  assert module_path(b) == ["systemd", "services", "x"]
-  assert under?(b, ["config", "systemd"]) == true
+  assert module_path(b) == %w[systemd services x]
+  assert under?(b, %w[config systemd]) == true
   assert under?(b, ["systemd"]) == false
 end
 
 test "calls: a curried call is one call with its head and every argument"
   d = read("lib.nixosSystem { system = \"x\"; } // f a (g b)")
   cs = calls(d[:root])
-  assert map((c) -> c[:head], cs) == ["lib.nixosSystem", "f", "g"]
+  assert map((c) -> c[:head], cs) == %w[lib.nixosSystem f g]
   assert size(cs[1][:args]) == 2
   assert head_name(first(cs)) == "nixosSystem"
   assert map(
     (c) -> c[:head],
-    calls_named(d[:root], ["nixosSystem", "darwinSystem"])
+    calls_named(d[:root], %w[nixosSystem darwinSystem])
   ) == ["lib.nixosSystem"]
   assert calls_named(d[:root], ["darwinSystem"]) == []
 end
@@ -438,8 +438,7 @@ end
 test "option declarations come from options bindings and mkOption calls"
   d = read(sample)
   os = option_declarations(d[:root])
-  assert map((o) -> o[:at], os) ==
-    ["options.pleme.x.enable", "lib.mkEnableOption"]
+  assert map((o) -> o[:at], os) == %w[options.pleme.x.enable lib.mkEnableOption]
   assert option_declarations(read("{ a.options = 1; }")[:root]) == []
   assert option_declarations(read("{ options = [ 1 ]; }")[:root]) == []
   assert size(option_declarations(read("{ options = { }; }")[:root])) == 1

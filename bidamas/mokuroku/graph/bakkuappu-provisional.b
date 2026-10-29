@@ -6,7 +6,7 @@ verb(
   {
     kind: :effect,
     shape: "backup(source, target, opts) -> manifest",
-    laterals: ["cancel", "deadline", "error", "idempotent", "log", "retry"],
+    laterals: %w[cancel deadline error idempotent log retry],
     fleet: "hozon",
     today: "absent",
     meaning: "copy a snapshot to a target, hashed and optionally encrypted",
@@ -21,7 +21,7 @@ verb(
   {
     kind: :effect,
     shape: "copy(from, to, opts) -> manifest",
-    laterals: ["cancel", "deadline", "error", "idempotent"],
+    laterals: %w[cancel deadline error idempotent],
     fleet: nil,
     today: "absent",
     meaning: "copy a backup from one target to another",
@@ -36,7 +36,7 @@ verb(
   {
     kind: :effect,
     shape: "delete(target, id) -> nil",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: nil,
     today: "absent",
     meaning: "remove one backup; absent counts as done",
@@ -66,7 +66,7 @@ verb(
   {
     kind: :effect,
     shape: "drill(target, opts) -> report",
-    laterals: ["deadline", "error", "log", "resource"],
+    laterals: %w[deadline error log resource],
     fleet: "pitr-forge",
     today: "absent",
     meaning: "restore into scratch space and prove the data is usable",
@@ -142,7 +142,7 @@ verb(
   {
     kind: :effect,
     shape: "mirror(from, to, opts) -> [action]",
-    laterals: ["cancel", "deadline", "error", "idempotent", "retry"],
+    laterals: %w[cancel deadline error idempotent retry],
     fleet: nil,
     today: "absent",
     meaning: "make the target match the source once, deleting extras on request",
@@ -157,7 +157,7 @@ verb(
   {
     kind: :pure,
     shape: "plan(source, target, opts) -> [action]",
-    laterals: ["log", "validate"],
+    laterals: %w[log validate],
     fleet: "hozon",
     today: "absent",
     meaning: "what a backup would copy and prune, changing nothing",
@@ -172,7 +172,7 @@ verb(
   {
     kind: :effect,
     shape: "promote(replica, opts) -> nil",
-    laterals: ["error", "switch"],
+    laterals: %w[error switch],
     fleet: nil,
     today: "absent",
     meaning: "make a replica the writable primary",
@@ -187,7 +187,7 @@ verb(
   {
     kind: :effect,
     shape: "prune(target, policy, opts) -> [id]",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: nil,
     today: "absent",
     meaning: "remove backups the retention policy no longer keeps",
@@ -202,7 +202,7 @@ verb(
   {
     kind: :stream,
     shape: "replicate(from, to, opts) -> nil",
-    laterals: ["cancel", "error", "retry"],
+    laterals: %w[cancel error retry],
     fleet: nil,
     today: "absent",
     meaning: "keep a target following a source continuously",
@@ -217,7 +217,7 @@ verb(
   {
     kind: :effect,
     shape: "restore(target, to, opts) -> manifest",
-    laterals: ["cancel", "deadline", "error", "log", "validate"],
+    laterals: %w[cancel deadline error log validate],
     fleet: "hozon",
     today: "absent",
     meaning: "bring a backup back, to a point in time when given",
@@ -232,7 +232,7 @@ verb(
   {
     kind: :decl,
     shape: "retain(rules) -> policy",
-    laterals: ["config", "validate"],
+    laterals: %w[config validate],
     fleet: nil,
     today: "absent",
     meaning: "declare how many daily, weekly and monthly backups to keep",
@@ -247,7 +247,7 @@ verb(
   {
     kind: :decl,
     shape: "schedule(source, target, spec) -> decl",
-    laterals: ["config", "time"],
+    laterals: %w[config time],
     fleet: "pitr-forge",
     today: "absent",
     meaning: "declare a backup on a repeating time rule",
@@ -263,7 +263,7 @@ verb(
   {
     kind: :effect,
     shape: "snapshot(source, opts) -> snap",
-    laterals: ["error", "idempotent", "resource", "time"],
+    laterals: %w[error idempotent resource time],
     fleet: "hozon",
     today: "absent",
     meaning: "a consistent point-in-time copy of files, a volume or a database",
@@ -278,7 +278,7 @@ verb(
   {
     kind: :effect,
     shape: "verify?(target, opts) -> Bool",
-    laterals: ["deadline", "validate"],
+    laterals: %w[deadline validate],
     fleet: "hozon",
     today: "absent",
     meaning: "whether stored backups still match their manifest hashes",

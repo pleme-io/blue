@@ -6,7 +6,7 @@ verb(
   {
     kind: :effect,
     shape: "connect(backend, opts) -> vault",
-    laterals: ["deadline", "error", "resource"],
+    laterals: %w[deadline error resource],
     fleet: "akeyless-auth",
     today: "absent",
     meaning: "authenticate to a secret backend, gated on the user",
@@ -21,7 +21,7 @@ verb(
   {
     kind: :effect,
     shape: "create(store, key, secret, opts) -> nil",
-    laterals: ["capability", "error", "idempotent"],
+    laterals: %w[capability error idempotent],
     fleet: "cofre",
     today: "absent",
     meaning: "add a secret only if the name is free",
@@ -36,7 +36,7 @@ verb(
   {
     kind: :pure,
     shape: "decrypt(bytes, key) -> secret",
-    laterals: ["capability", "error"],
+    laterals: %w[capability error],
     fleet: "blackmatter-secrets",
     today: "absent",
     meaning: "open sealed data into a secret",
@@ -51,7 +51,7 @@ verb(
   {
     kind: :effect,
     shape: "delete(store, key) -> nil",
-    laterals: ["capability", "error", "idempotent", "log"],
+    laterals: %w[capability error idempotent log],
     fleet: nil,
     today: "absent",
     meaning: "make the secret absent",
@@ -66,7 +66,7 @@ verb(
   {
     kind: :effect,
     shape: "deliver(reference, target, opts) -> nil",
-    laterals: ["idempotent", "log", "resource"],
+    laterals: %w[idempotent log resource],
     fleet: "cofre",
     today: "absent",
     meaning: "place a secret in a file, env or cluster Secret",
@@ -96,7 +96,7 @@ verb(
   {
     kind: :pure,
     shape: "encrypt(data, key) -> bytes",
-    laterals: ["capability", "error"],
+    laterals: %w[capability error],
     fleet: "blackmatter-secrets",
     today: "absent",
     meaning: "seal data under a key so only the key reads it",
@@ -111,7 +111,7 @@ verb(
   {
     kind: :effect,
     shape: "generate(spec) -> secret",
-    laterals: ["capability", "validate"],
+    laterals: %w[capability validate],
     fleet: "cofre",
     today: "absent",
     meaning: "new random secret by a typed spec",
@@ -126,7 +126,7 @@ verb(
   {
     kind: :effect,
     shape: "get(store, key, opts) -> secret or nil",
-    laterals: ["cache", "capability", "error", "resource"],
+    laterals: %w[cache capability error resource],
     fleet: "blackmatter-secrets",
     today: "absent",
     meaning: "one secret, nil when absent",
@@ -141,7 +141,7 @@ verb(
   {
     kind: :effect,
     shape: "has?(store, key) -> Bool",
-    laterals: ["capability", "resource"],
+    laterals: %w[capability resource],
     fleet: nil,
     today: "absent",
     meaning: "the secret exists",
@@ -156,7 +156,7 @@ verb(
   {
     kind: :effect,
     shape: "leaks(paths, opts) -> [finding]",
-    laterals: ["resource", "validate"],
+    laterals: %w[resource validate],
     fleet: nil,
     today: "absent",
     meaning: "secrets committed in files, by pattern and entropy",
@@ -171,7 +171,7 @@ verb(
   {
     kind: :effect,
     shape: "lease(reference, opts) -> lease",
-    laterals: ["capability", "error", "log", "resource", "time"],
+    laterals: %w[capability error log resource time],
     fleet: "akeyless-api",
     today: "absent",
     meaning: "short-lived credential issued on demand, expiring itself",
@@ -186,7 +186,7 @@ verb(
   {
     kind: :effect,
     shape: "list(store, opts) -> [key]",
-    laterals: ["capability", "error", "resource"],
+    laterals: %w[capability error resource],
     fleet: "blackmatter-secrets",
     today: "absent",
     meaning: "keys only, never values",
@@ -201,7 +201,7 @@ verb(
   {
     kind: :effect,
     shape: "materialize(plan, opts) -> report",
-    laterals: ["capability", "error", "idempotent"],
+    laterals: %w[capability error idempotent],
     fleet: "cofre",
     today: "absent",
     meaning: "apply a plan so each declared secret exists in its backend",
@@ -216,7 +216,7 @@ verb(
   {
     kind: :effect,
     shape: "need(store, key, opts) -> secret",
-    laterals: ["capability", "error", "resource"],
+    laterals: %w[capability error resource],
     fleet: "blackmatter-secrets",
     today: "absent",
     meaning: "one secret, raising :not_found when absent",
@@ -246,7 +246,7 @@ verb(
   {
     kind: :effect,
     shape: "put(store, key, value, opts) -> secret",
-    laterals: ["capability", "error", "idempotent", "log", "resource"],
+    laterals: %w[capability error idempotent log resource],
     fleet: "cofre",
     today: "absent",
     meaning: "create or replace a secret",
@@ -261,7 +261,7 @@ verb(
   {
     kind: :effect,
     shape: "read(reference, opts) -> secret",
-    laterals: ["cache", "capability", "deadline", "error", "resource", "trace"],
+    laterals: %w[cache capability deadline error resource trace],
     fleet: "cofre",
     today: "absent",
     meaning: "fetch a secret by reference; it prints as <secret>",
@@ -321,7 +321,7 @@ verb(
   {
     kind: :effect,
     shape: "rekey(file, recipients) -> nil",
-    laterals: ["capability", "error", "idempotent", "log", "resource"],
+    laterals: %w[capability error idempotent log resource],
     fleet: "blackmatter-secrets",
     today: "absent",
     meaning: "re-encrypt a sops file for a new recipient set",
@@ -336,7 +336,7 @@ verb(
   {
     kind: :effect,
     shape: "renew(lease) -> lease",
-    laterals: ["error", "idempotent", "time"],
+    laterals: %w[error idempotent time],
     fleet: nil,
     today: "absent",
     meaning: "extend a lease before it ends",
@@ -351,7 +351,7 @@ verb(
   {
     kind: :pure,
     shape: "reveal(secret) -> text",
-    laterals: ["capability", "log"],
+    laterals: %w[capability log],
     fleet: nil,
     today: "absent",
     meaning: "the single door from secret to plain text",
@@ -366,7 +366,7 @@ verb(
   {
     kind: :effect,
     shape: "revoke(lease) -> nil",
-    laterals: ["error", "idempotent", "log"],
+    laterals: %w[error idempotent log],
     fleet: nil,
     today: "absent",
     meaning: "end a lease now",
@@ -381,7 +381,7 @@ verb(
   {
     kind: :effect,
     shape: "rotate(reference, opts) -> secret",
-    laterals: ["capability", "error", "idempotent", "log", "retry", "time"],
+    laterals: %w[capability error idempotent log retry time],
     fleet: "cofre",
     today: "absent",
     meaning: "new value stored; previous version kept for a grace period",
@@ -396,7 +396,7 @@ verb(
   {
     kind: :effect,
     shape: "scan(path, opts) -> [finding]",
-    laterals: ["cancel", "capability"],
+    laterals: %w[cancel capability],
     fleet: nil,
     today: "absent",
     meaning: "find secret-shaped values in files or history",
@@ -426,7 +426,7 @@ verb(
   {
     kind: :effect,
     shape: "stale?(reference, policy) -> Bool",
-    laterals: ["resource", "time"],
+    laterals: %w[resource time],
     fleet: nil,
     today: "absent",
     meaning: "secret is older than its rotation policy",
@@ -441,7 +441,7 @@ verb(
   {
     kind: :effect,
     shape: "versions(reference) -> [record]",
-    laterals: ["capability", "error", "resource"],
+    laterals: %w[capability error resource],
     fleet: nil,
     today: "absent",
     meaning: "stored versions of a secret, newest first",
@@ -456,7 +456,7 @@ verb(
   {
     kind: :effect,
     shape: "with_secrets(references, f) -> value",
-    laterals: ["error", "resource"],
+    laterals: %w[error resource],
     fleet: nil,
     today: "absent",
     meaning: "run f with secrets delivered, then wipe them",

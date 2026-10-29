@@ -36,7 +36,7 @@ verb(
   {
     kind: :decl,
     shape: "consent(subject, purpose, until) -> consent",
-    laterals: ["config", "time"],
+    laterals: %w[config time],
     fleet: nil,
     today: "absent",
     meaning: "a person's permission for one purpose",
@@ -67,7 +67,7 @@ verb(
   {
     kind: :effect,
     shape: "detokenize(token, vault) -> value",
-    laterals: ["error", "log", "resource"],
+    laterals: %w[error log resource],
     fleet: nil,
     today: "absent",
     meaning: "recover the value a token stands for",
@@ -96,7 +96,7 @@ verb(
   {
     kind: :effect,
     shape: "erase(subject, opts) -> receipt",
-    laterals: ["idempotent", "log", "resource"],
+    laterals: %w[idempotent log resource],
     fleet: nil,
     today: "absent",
     meaning: "delete a person's data from every store, with receipt",
@@ -139,7 +139,7 @@ verb(
   {
     kind: :effect,
     shape: "gather(subject, stores) -> bundle",
-    laterals: ["log", "resource"],
+    laterals: %w[log resource],
     fleet: nil,
     today: "absent",
     meaning: "collect everything held about a person",
@@ -258,7 +258,7 @@ verb(
   {
     kind: :pure,
     shape: "permitted?(subject, purpose, consents, now) -> Bool",
-    laterals: ["time", "validate"],
+    laterals: %w[time validate],
     fleet: nil,
     today: "absent",
     meaning: "a consent covers this use right now",
@@ -361,7 +361,7 @@ verb(
   {
     kind: :pure,
     shape: "redact(value, kinds, opts) -> value",
-    laterals: ["log", "validate"],
+    laterals: %w[log validate],
     fleet: nil,
     today: "absent",
     meaning: "replace personal data with fixed marks",
@@ -377,7 +377,7 @@ verb(
   {
     kind: :decl,
     shape: "retention(kind, keep, basis) -> retention",
-    laterals: ["config", "time"],
+    laterals: %w[config time],
     fleet: nil,
     today: "absent",
     meaning: "how long a kind of data is kept, and why",
@@ -392,7 +392,7 @@ verb(
   {
     kind: :effect,
     shape: "spend(budget, epsilon) -> budget",
-    laterals: ["error", "log"],
+    laterals: %w[error log],
     fleet: nil,
     today: "absent",
     meaning: "use part of a budget; raises :exhausted at zero",
@@ -436,7 +436,7 @@ verb(
   {
     kind: :effect,
     shape: "tokenize(value, vault) -> token",
-    laterals: ["idempotent", "resource"],
+    laterals: %w[idempotent resource],
     fleet: nil,
     today: "absent",
     meaning: "swap a value for a random token kept in a vault",

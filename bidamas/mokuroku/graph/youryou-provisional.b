@@ -6,7 +6,7 @@ verb(
   {
     kind: :pure,
     shape: "bound(band) -> {floor:, ceiling:}",
-    laterals: ["resource", "validate"],
+    laterals: %w[resource validate],
     fleet: "breathe",
     today: "absent",
     meaning: "the limits a band may never cross",
@@ -21,7 +21,7 @@ verb(
   {
     kind: :effect,
     shape: "burst(workload, load, opts) -> report",
-    laterals: ["resource", "time"],
+    laterals: %w[resource time],
     fleet: "burst-forge",
     today: "absent",
     meaning: "drive load and record scaling behaviour",
@@ -36,7 +36,7 @@ verb(
   {
     kind: :effect,
     shape: "confirm(band) -> band",
-    laterals: ["capability", "log"],
+    laterals: %w[capability log],
     fleet: "breathe",
     today: "absent",
     meaning: "promote a calibrating band to live writes",
@@ -111,7 +111,7 @@ verb(
   {
     kind: :effect,
     shape: "intent(band, mode, opts) -> band",
-    laterals: ["capability", "log", "switch"],
+    laterals: %w[capability log switch],
     fleet: "breathe",
     today: "absent",
     meaning: "set a band to observe, calibrate, write or frozen",
@@ -141,7 +141,7 @@ verb(
   {
     kind: :effect,
     shape: "observe(workload, opts) -> usage",
-    laterals: ["resource", "time"],
+    laterals: %w[resource time],
     fleet: "breathe",
     today: "absent",
     meaning: "utilization over a window",
@@ -171,7 +171,7 @@ verb(
   {
     kind: :effect,
     shape: "put(band, spec) -> band",
-    laterals: ["idempotent", "log"],
+    laterals: %w[idempotent log],
     fleet: "breathe",
     today: "absent",
     meaning: "create or replace a band declaration",
@@ -186,7 +186,7 @@ verb(
   {
     kind: :effect,
     shape: "resize(workload, n, opts) -> workload",
-    laterals: ["log", "resource", "switch"],
+    laterals: %w[log resource switch],
     fleet: nil,
     today: "absent",
     meaning: "set the replica count",

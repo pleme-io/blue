@@ -6,7 +6,7 @@ verb(
   {
     kind: :effect,
     shape: "after(duration, f) -> timer",
-    laterals: ["cancel", "time"],
+    laterals: %w[cancel time],
     fleet: nil,
     today: "absent",
     meaning: "Call f once after a duration.",
@@ -21,7 +21,7 @@ verb(
   {
     kind: :effect,
     shape: "backfill(schedule, range, f) -> count",
-    laterals: ["idempotent", "time"],
+    laterals: %w[idempotent time],
     fleet: nil,
     today: "absent",
     meaning: "Run f for every firing in a past range.",
@@ -36,7 +36,7 @@ verb(
   {
     kind: :decl,
     shape: "budget(opts) -> budget",
-    laterals: ["config", "resource"],
+    laterals: %w[config resource],
     fleet: "shigoto-budget",
     today: "absent",
     meaning: "Bound parallelism on three axes.",
@@ -66,7 +66,7 @@ verb(
   {
     kind: :effect,
     shape: "claim(queue, opts) -> job or nil",
-    laterals: ["deadline", "resource"],
+    laterals: %w[deadline resource],
     fleet: "shigoto",
     today: "absent",
     meaning: "Take the next job under a lease.",
@@ -81,7 +81,7 @@ verb(
   {
     kind: :effect,
     shape: "compensate(saga, from) -> nil",
-    laterals: ["error", "retry"],
+    laterals: %w[error retry],
     fleet: nil,
     today: "absent",
     meaning: "Run undos for completed steps in reverse order.",
@@ -141,7 +141,7 @@ verb(
   {
     kind: :effect,
     shape: "enqueue(queue, job, opts) -> id",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: "shigoto",
     today: "absent",
     meaning: "Add a job to a queue; a duplicate key is one job.",
@@ -156,7 +156,7 @@ verb(
   {
     kind: :effect,
     shape: "every(schedule, f, opts) -> timer",
-    laterals: ["cancel", "process", "time"],
+    laterals: %w[cancel process time],
     fleet: nil,
     today: "absent",
     meaning: "Call f on each firing until cancelled.",
@@ -171,7 +171,7 @@ verb(
   {
     kind: :effect,
     shape: "fail(job, error) -> nil",
-    laterals: ["error", "retry"],
+    laterals: %w[error retry],
     fleet: "shigoto-retry",
     today: "absent",
     meaning: "Mark a claimed job failed; the policy decides to retry.",
@@ -246,7 +246,7 @@ verb(
   {
     kind: :pure,
     shape: "parse(text, :cron) -> schedule",
-    laterals: ["error", "time"],
+    laterals: %w[error time],
     fleet: "lava-cron",
     today: "absent",
     meaning: "Read a cron or interval expression into a schedule.",
@@ -321,7 +321,7 @@ verb(
   {
     kind: :effect,
     shape: "run(graph, opts) -> record",
-    laterals: ["cancel", "error", "process"],
+    laterals: %w[cancel error process],
     fleet: "shigoto",
     today: "absent",
     meaning: "Run a graph in dependency order within a budget.",
@@ -366,7 +366,7 @@ verb(
   {
     kind: :effect,
     shape: "start(workflow, input, opts) -> run",
-    laterals: ["idempotent", "resource"],
+    laterals: %w[idempotent resource],
     fleet: nil,
     today: "absent",
     meaning: "Begin a workflow run under a key.",
@@ -381,7 +381,7 @@ verb(
   {
     kind: :effect,
     shape: "timer(instant, f) -> timer",
-    laterals: ["cancel", "time"],
+    laterals: %w[cancel time],
     fleet: nil,
     today: "absent",
     meaning: "Call f once at an instant.",

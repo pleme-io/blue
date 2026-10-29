@@ -12,8 +12,8 @@ with a cycle and names the cycle; `cycle` answers that cycle, or nil.
 """
 
 use("moji", [:checked])
-use("ran", [:seeds, :take_ints])
-use("retsu", [:first, :is_empty, :last, :size])
+use("ran", %i[seeds take_ints])
+use("retsu", %i[first is_empty last size])
 use("shuugou", [:ordered])
 use("tesuto", [:raises?])
 
@@ -35,7 +35,7 @@ graph: a graph from edge pairs; `nodes:` adds nodes with no edge, and `directed:
     nodes(graph([["a", "b"]], {nodes: ["c"]})) #=> ["a", "b", "c"]
 """
 def graph(edges, opts)
-  checked(opts, [:directed, :nodes])
+  checked(opts, %i[directed nodes])
   given = map(edge_ok, edges)
   pairs = if opts[:directed] == false
     append(given, map((e) -> [e[1], first(e)], given))
@@ -371,62 +371,62 @@ test "the empty graph has no nodes, no edges, an empty order and no cycle"
 end
 
 test "graph sorts nodes and targets and drops repeated edges"
-  g = graph([["b", "a"], ["a", "c"], ["a", "b"], ["a", "c"]], {})
-  assert nodes(g) == ["a", "b", "c"]
-  assert edges(g) == [["a", "b"], ["a", "c"], ["b", "a"]]
-  assert neighbors(g, "a") == ["b", "c"]
+  g = graph([%w[b a], %w[a c], %w[a b], %w[a c]], {})
+  assert nodes(g) == %w[a b c]
+  assert edges(g) == [%w[a b], %w[a c], %w[b a]]
+  assert neighbors(g, "a") == %w[b c]
   assert neighbors(g, "z") == []
   assert has_edge?(g, "b", "a")
   assert not has_edge?(g, "c", "a")
 end
 
 test "an undirected graph holds each edge both ways, and a bad edge or option is refused"
-  g = graph([["a", "b"]], {directed: false})
-  assert edges(g) == [["a", "b"], ["b", "a"]]
+  g = graph([%w[a b]], {directed: false})
+  assert edges(g) == [%w[a b], %w[b a]]
   assert raises?(:bad_option, () -> graph([["a"]], {}))
   assert raises?(:bad_option, () -> graph(["ab"], {}))
   assert raises?(:bad_option, () -> graph([], {weights: true}))
 end
 
 test "add and remove are inverses on edges and nodes"
-  g = graph([["a", "b"]], {})
+  g = graph([%w[a b]], {})
   assert add_edge(remove_edge(g, "a", "b"), "a", "b") == g
   assert remove_node(add_node(g, "z"), "z") == g
-  assert nodes(add_edge(g, "c", "d")) == ["a", "b", "c", "d"]
+  assert nodes(add_edge(g, "c", "d")) == %w[a b c d]
   assert remove_node(g, "a") == graph([], {nodes: ["b"]})
 end
 
 test "reverse twice is the graph, and reverse turns reach into reach-from"
-  g = graph([["a", "b"], ["b", "c"], ["x", "c"]], {})
+  g = graph([%w[a b], %w[b c], %w[x c]], {})
   assert reverse(reverse(g)) == g
-  assert reachable(reverse(g), "c") == ["a", "b", "x"]
-  assert reachable(g, "a") == ["b", "c"]
+  assert reachable(reverse(g), "c") == %w[a b x]
+  assert reachable(g, "a") == %w[b c]
   assert reachable(g, "c") == []
 end
 
 test "subgraph keeps chosen nodes and only the edges between them"
-  g = graph([["a", "b"], ["b", "c"], ["c", "a"]], {})
-  assert subgraph(g, ["a", "c"]) == graph([["c", "a"]], {})
+  g = graph([%w[a b], %w[b c], %w[c a]], {})
+  assert subgraph(g, %w[a c]) == graph([%w[c a]], {})
   assert subgraph(g, []) == graph([], {})
 end
 
 test "leaves are the nodes with no edge out, isolated nodes included"
-  g = graph([["a", "b"], ["b", "c"]], {nodes: ["z"]})
-  assert leaves(g) == ["c", "z"]
+  g = graph([%w[a b], %w[b c]], {nodes: ["z"]})
+  assert leaves(g) == %w[c z]
 end
 
 test "topo is stable on ties: layer by layer, by name within a layer"
-  g = graph([["b", "d"], ["a", "d"], ["c", "e"], ["d", "e"]], {})
-  assert topo(g) == ["a", "b", "c", "d", "e"]
-  assert layers(g) == [["a", "b", "c"], ["d"], ["e"]]
-  assert topo(graph([], {nodes: ["c", "a", "b"]})) == ["a", "b", "c"]
+  g = graph([%w[b d], %w[a d], %w[c e], %w[d e]], {})
+  assert topo(g) == %w[a b c d e]
+  assert layers(g) == [%w[a b c], ["d"], ["e"]]
+  assert topo(graph([], {nodes: %w[c a b]})) == %w[a b c]
   assert depth(g, "e") == 2
   assert depth(g, "c") == 0
 end
 
 test "a cycle is a refusal naming the cycle"
-  g = graph([["a", "b"], ["b", "c"], ["c", "a"], ["x", "a"]], {})
-  assert cycle(g) == ["a", "b", "c"]
+  g = graph([%w[a b], %w[b c], %w[c a], %w[x a]], {})
+  assert cycle(g) == %w[a b c]
   assert raises?(:refused, () -> topo(g))
   e = begin
     topo(g)
@@ -434,9 +434,9 @@ test "a cycle is a refusal naming the cycle"
     err
   end
   assert e.message == "a cycle: a -> b -> c -> a"
-  assert e.data[:cycle] == ["a", "b", "c"]
-  assert cycle(graph([["k", "k"]], {})) == ["k"]
-  assert cycle(graph([["b", "c"], ["c", "b"], ["c", "a"]], {})) == ["b", "c"]
+  assert e.data[:cycle] == %w[a b c]
+  assert cycle(graph([%w[k k]], {})) == ["k"]
+  assert cycle(graph([%w[b c], %w[c b], %w[c a]], {})) == %w[b c]
   assert raises?(:refused, () -> depth(g, "x"))
 end
 
@@ -474,9 +474,9 @@ test "cycle is found exactly when one exists, judged by reachable"
 end
 
 test "the property helpers can say no"
-  g = graph([["a", "b"]], {})
-  assert not respects?(g, ["b", "a"])
-  assert not real_cycle?(g, ["a", "b"])
+  g = graph([%w[a b]], {})
+  assert not respects?(g, %w[b a])
+  assert not real_cycle?(g, %w[a b])
   assert not real_cycle?(g, [])
   assert acyclic?(g)
   assert not acyclic?(add_edge(g, "b", "a"))

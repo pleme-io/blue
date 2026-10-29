@@ -6,7 +6,7 @@ verb(
   {
     kind: :effect,
     shape: "bootstrap(project, opts) -> nil",
-    laterals: ["idempotent", "process"],
+    laterals: %w[idempotent process],
     fleet: nil,
     today: "absent",
     meaning: "make a fresh checkout ready to build and test",
@@ -22,7 +22,7 @@ verb(
   {
     kind: :effect,
     shape: "doctor(env) -> [problem]",
-    laterals: ["capability", "process"],
+    laterals: %w[capability process],
     fleet: nil,
     today: "absent",
     meaning: "check the tools, versions and access a project needs",
@@ -37,7 +37,7 @@ verb(
   {
     kind: :effect,
     shape: "gate(project, event) -> verdict",
-    laterals: ["process", "test"],
+    laterals: %w[process test],
     fleet: "blue",
     today: "absent",
     meaning: "run the steps declared for an event; any red stops it",
@@ -82,7 +82,7 @@ verb(
   {
     kind: :effect,
     shape: "rehearse(project, ci) -> report",
-    laterals: ["process", "test"],
+    laterals: %w[process test],
     fleet: nil,
     today: "absent",
     meaning: "run the CI jobs locally, in the same order",
@@ -112,7 +112,7 @@ verb(
   {
     kind: :effect,
     shape: "run(task, opts) -> result",
-    laterals: ["deadline", "process"],
+    laterals: %w[deadline process],
     fleet: nil,
     today: "absent",
     meaning: "run one declared task in the project environment",

@@ -6,7 +6,7 @@ verb(
   {
     kind: :effect,
     shape: "authenticate(client, flow, opts) -> token",
-    laterals: ["cache", "capability", "error"],
+    laterals: %w[cache capability error],
     fleet: nil,
     today: "absent",
     meaning: "Run an auth flow (OAuth2, basic) and keep the token.",
@@ -36,7 +36,7 @@ verb(
   {
     kind: :effect,
     shape: "create(base, key, value, opts) -> value",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: nil,
     today: "absent",
     meaning: "POST a new entry; refuses to overwrite.",
@@ -51,7 +51,7 @@ verb(
   {
     kind: :effect,
     shape: "delete(base, key, opts) -> nil",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: nil,
     today: "absent",
     meaning: "DELETE an entry; absent counts as done.",
@@ -66,7 +66,7 @@ verb(
   {
     kind: :effect,
     shape: "download(url, path, opts) -> info",
-    laterals: ["deadline", "error", "resource", "retry"],
+    laterals: %w[deadline error resource retry],
     fleet: nil,
     today: "absent",
     meaning: "Fetch a body to a file, resuming by range.",
@@ -111,7 +111,7 @@ verb(
   {
     kind: :pure,
     shape: "fresh?(response, now) -> Bool",
-    laterals: ["cache", "time"],
+    laterals: %w[cache time],
     fleet: nil,
     today: "absent",
     meaning: "Whether a cached response may be used unchecked.",
@@ -126,7 +126,7 @@ verb(
   {
     kind: :effect,
     shape: "get(base, key, opts) -> value or nil",
-    laterals: ["deadline", "error"],
+    laterals: %w[deadline error],
     fleet: nil,
     today: "absent",
     meaning: "One REST entry as parsed JSON; nil on 404.",
@@ -155,7 +155,7 @@ verb(
   {
     kind: :effect,
     shape: "list(base, opts) -> [record]",
-    laterals: ["deadline", "error", "retry"],
+    laterals: %w[deadline error retry],
     fleet: nil,
     today: "absent",
     meaning: "Every entry, following next-page links to the end.",
@@ -185,7 +185,7 @@ verb(
   {
     kind: :effect,
     shape: "need(base, key, opts) -> value",
-    laterals: ["deadline", "error"],
+    laterals: %w[deadline error],
     fleet: nil,
     today: "absent",
     meaning: "One REST entry; raises when absent.",
@@ -215,7 +215,7 @@ verb(
   {
     kind: :pure,
     shape: "parse(text, :url) -> url record",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: nil,
     today: "exists:tsuushin",
     wave: 0,
@@ -229,7 +229,7 @@ verb(
   {
     kind: :effect,
     shape: "put(base, key, value, opts) -> value",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: nil,
     today: "absent",
     meaning: "PUT: create or replace an entry.",
@@ -244,7 +244,7 @@ verb(
   {
     kind: :effect,
     shape: "read(url, opts) -> body",
-    laterals: ["deadline", "error", "retry"],
+    laterals: %w[deadline error retry],
     fleet: "blue-lang-runtime",
     today: "rust:blue-lang-runtime",
     meaning: "GET the body; raises outside 2xx.",
@@ -273,7 +273,7 @@ verb(
   {
     kind: :effect,
     shape: "request(method, url, opts) -> response",
-    laterals: ["capability", "deadline", "error", "retry", "trace"],
+    laterals: %w[capability deadline error retry trace],
     fleet: "blue-lang-runtime",
     today: "exists:tsuushin",
     wave: 0,
@@ -287,7 +287,7 @@ verb(
   {
     kind: :effect,
     shape: "revalidate(request, cached) -> response",
-    laterals: ["cache", "error"],
+    laterals: %w[cache error],
     fleet: nil,
     today: "absent",
     meaning: "Conditional GET with ETag; reuse body on 304.",
@@ -302,7 +302,7 @@ verb(
   {
     kind: :pure,
     shape: "sign(request, credentials) -> request",
-    laterals: ["capability", "serialize"],
+    laterals: %w[capability serialize],
     fleet: nil,
     today: "absent",
     meaning: "Add a signature or bearer header to a request.",
@@ -317,7 +317,7 @@ verb(
   {
     kind: :stream,
     shape: "stream(url, f, opts) -> response",
-    laterals: ["cancel", "deadline", "error"],
+    laterals: %w[cancel deadline error],
     fleet: "blue-lang-runtime",
     today: "absent",
     meaning: "Call f per chunk or line as the body arrives.",
@@ -332,7 +332,7 @@ verb(
   {
     kind: :effect,
     shape: "update(base, key, f, opts) -> value",
-    laterals: ["error", "retry"],
+    laterals: %w[error retry],
     fleet: nil,
     today: "absent",
     meaning: "GET, apply f, conditional PATCH; raises conflict.",
@@ -347,7 +347,7 @@ verb(
   {
     kind: :effect,
     shape: "upload(url, source, opts) -> response",
-    laterals: ["deadline", "error", "retry"],
+    laterals: %w[deadline error retry],
     fleet: nil,
     today: "absent",
     meaning: "Send a file or multipart form as the body.",
@@ -362,7 +362,7 @@ verb(
   {
     kind: :effect,
     shape: "wait(url, opts) -> response",
-    laterals: ["deadline", "retry", "time"],
+    laterals: %w[deadline retry time],
     fleet: nil,
     today: "absent",
     meaning: "Poll until the URL answers a wanted status.",

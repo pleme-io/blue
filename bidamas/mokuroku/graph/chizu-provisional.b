@@ -126,7 +126,7 @@ verb(
   {
     kind: :effect,
     shape: "geocode(text, opts) -> places",
-    laterals: ["cache", "deadline", "ratelimit", "retry"],
+    laterals: %w[cache deadline ratelimit retry],
     fleet: nil,
     today: "absent",
     meaning: "places that match an address or name",
@@ -156,7 +156,7 @@ verb(
   {
     kind: :effect,
     shape: "locate(point, opts) -> place or nil",
-    laterals: ["cache", "deadline", "ratelimit", "retry"],
+    laterals: %w[cache deadline ratelimit retry],
     fleet: nil,
     today: "absent",
     meaning: "the place at a point; nil if none",
@@ -216,7 +216,7 @@ verb(
   {
     kind: :effect,
     shape: "path(from, to, opts) -> steps",
-    laterals: ["cache", "deadline", "retry"],
+    laterals: %w[cache deadline retry],
     fleet: nil,
     today: "absent",
     meaning: "a route over roads or tracks between two points",

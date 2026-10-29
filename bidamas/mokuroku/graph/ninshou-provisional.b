@@ -21,7 +21,7 @@ verb(
   {
     kind: :effect,
     shape: "answer?(challenge, response, key) -> Bool",
-    laterals: ["idempotent", "time", "validate"],
+    laterals: %w[idempotent time validate],
     fleet: nil,
     today: "absent",
     meaning: "response is right, and the challenge is now spent",
@@ -66,7 +66,7 @@ verb(
   {
     kind: :effect,
     shape: "challenge(identity, opts) -> challenge",
-    laterals: ["capability", "time"],
+    laterals: %w[capability time],
     fleet: nil,
     today: "absent",
     meaning: "fresh one-use nonce a client must answer",
@@ -96,7 +96,7 @@ verb(
   {
     kind: :pure,
     shape: "code_valid?(secret, text, opts) -> Bool",
-    laterals: ["time", "validate"],
+    laterals: %w[time validate],
     fleet: "pleme-auth-mfa",
     today: "absent",
     meaning: "code is right within the allowed time window",
@@ -126,7 +126,7 @@ verb(
   {
     kind: :effect,
     shape: "forgive(identity) -> nil",
-    laterals: ["idempotent", "log"],
+    laterals: %w[idempotent log],
     fleet: nil,
     today: "absent",
     meaning: "clear the failure count after success",
@@ -157,7 +157,7 @@ verb(
   {
     kind: :pure,
     shape: "locked?(identity, now) -> Bool",
-    laterals: ["ratelimit", "time"],
+    laterals: %w[ratelimit time],
     fleet: nil,
     today: "absent",
     meaning: "too many failures; further attempts are refused",
@@ -187,7 +187,7 @@ verb(
   {
     kind: :pure,
     shape: "passkey_accept(request, response) -> credential",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: "namimado",
     today: "absent",
     meaning: "check an enrolment response and keep the new credential",
@@ -202,7 +202,7 @@ verb(
   {
     kind: :effect,
     shape: "passkey_ask(kind, opts) -> request",
-    laterals: ["capability", "time"],
+    laterals: %w[capability time],
     fleet: "namimado",
     today: "absent",
     meaning: "WebAuthn creation or assertion request with a fresh challenge",
@@ -217,7 +217,7 @@ verb(
   {
     kind: :pure,
     shape: "passkey_verify(request, response, credential) -> credential",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: "namimado",
     today: "absent",
     meaning: "check a sign-in; raises :cloned when the counter goes back",
@@ -232,7 +232,7 @@ verb(
   {
     kind: :effect,
     shape: "protect(password, opts) -> verifier",
-    laterals: ["capability", "resource"],
+    laterals: %w[capability resource],
     fleet: "pleme-auth-validators",
     today: "absent",
     meaning: "salted slow hash of a password, safe to store",
@@ -248,7 +248,7 @@ verb(
   {
     kind: :effect,
     shape: "renew(session) -> session",
-    laterals: ["log", "time"],
+    laterals: %w[log time],
     fleet: "pleme-auth-sessions",
     today: "absent",
     meaning: "new session id after a privilege change, old one dead",
@@ -263,7 +263,7 @@ verb(
   {
     kind: :effect,
     shape: "sign_in(identity, proofs, opts) -> session",
-    laterals: ["error", "log", "ratelimit", "time"],
+    laterals: %w[error log ratelimit time],
     fleet: "pleme-auth-sdk",
     today: "absent",
     meaning: "check every required factor, then start a session",
@@ -308,7 +308,7 @@ verb(
   {
     kind: :effect,
     shape: "start(identity, opts) -> session",
-    laterals: ["capability", "log", "time"],
+    laterals: %w[capability log time],
     fleet: "pleme-auth-sessions",
     today: "absent",
     meaning: "start a session with idle and absolute lifetimes",
@@ -323,7 +323,7 @@ verb(
   {
     kind: :effect,
     shape: "stop(session, opts) -> nil",
-    laterals: ["idempotent", "log"],
+    laterals: %w[idempotent log],
     fleet: "pleme-auth-sessions",
     today: "absent",
     meaning: "end one session or every session of an identity",
@@ -338,7 +338,7 @@ verb(
   {
     kind: :effect,
     shape: "strike(identity, opts) -> record",
-    laterals: ["log", "ratelimit", "time"],
+    laterals: %w[log ratelimit time],
     fleet: nil,
     today: "absent",
     meaning: "count a failed attempt toward a lockout",
@@ -353,7 +353,7 @@ verb(
   {
     kind: :effect,
     shape: "touch(session) -> session",
-    laterals: ["error", "time"],
+    laterals: %w[error time],
     fleet: "pleme-auth-sessions",
     today: "absent",
     meaning: "record activity; raises :expired past either lifetime",

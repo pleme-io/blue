@@ -15,27 +15,27 @@ repeatable", never "secure".
 """
 
 use("junjo", [:sort])
-use("kazu", [:abs, :max_of, :min_of, :near, :near_within])
+use("kazu", %i[abs max_of min_of near near_within])
 
 use(
   "retsu",
-  [
-    :contains,
-    :count_of,
-    :first,
-    :is_empty,
-    :last,
-    :remove_at,
-    :rest,
-    :running_sum,
-    :size,
-    :take_n,
-    :zip
+  %i[
+    contains
+    count_of
+    first
+    is_empty
+    last
+    remove_at
+    rest
+    running_sum
+    size
+    take_n
+    zip
   ]
 )
 
-use("ronri", [:any, :every])
-use("shuugou", [:intersection, :subset, :unique])
+use("ronri", %i[any every])
+use("shuugou", %i[intersection subset unique])
 
 def next_seed(seed)
   (1_664_525 * seed + 1_013_904_223) % 4_294_967_296
@@ -564,21 +564,21 @@ test "a weight of zero is never chosen"
   # The case a plausible `<=` walk gets wrong, and the reason weighted_choice
   # is worth having at all.
   assert every(
-    (s) -> weighted_choice(s, ["a", "b"], [1, 0]) == "a",
+    (s) -> weighted_choice(s, %w[a b], [1, 0]) == "a",
     seeds(2, 40)
   ) == true
   assert every(
-    (s) -> weighted_choice(s, ["a", "b"], [0, 1]) == "b",
+    (s) -> weighted_choice(s, %w[a b], [0, 1]) == "b",
     seeds(2, 40)
   ) == true
   assert every(
-    (s) -> weighted_choice(s, ["a", "b", "c"], [0, 1, 0]) == "b",
+    (s) -> weighted_choice(s, %w[a b c], [0, 1, 0]) == "b",
     seeds(9, 40)
   ) == true
 end
 
 test "weighted_choice follows the weights it was given"
-  picks = map((s) -> weighted_choice(s, ["a", "b"], [9, 1]), seeds(101, 200))
+  picks = map((s) -> weighted_choice(s, %w[a b], [9, 1]), seeds(101, 200))
   # Equal treatment would give roughly 100 each; 9:1 must be lopsided.
   assert count_of(picks, "a") > 3 * count_of(picks, "b")
   assert count_of(picks, "b") > 0
@@ -592,7 +592,7 @@ end
 test "the degenerate weightings answer rather than error"
   # Documented, not desirable: with nothing to weigh, the walk runs off the
   # end. Pinned so a future change to weight_walk has to notice.
-  assert weighted_choice(4, ["a", "b"], [0, 0]) == "b"
+  assert weighted_choice(4, %w[a b], [0, 0]) == "b"
   assert weighted_choice(4, [], []).nil?
 end
 

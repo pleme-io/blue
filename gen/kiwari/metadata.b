@@ -1,4 +1,4 @@
-use("kiwari", [:blue, :render])
+use("kiwari", %i[blue render])
 
 # tree-sitter-blue/tree-sitter.json, rendered from blue's grammar spec (bidamas/kiwari).
 write_file(

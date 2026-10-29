@@ -15,9 +15,9 @@ Appendix A (static table), Appendix B (Huffman code), Appendix C (examples).
     huffman_encode("") #=> []
 """
 
-use("kyohi", [:and_then, :ok, :ok?, :refusal, :refusal_of, :refused, :value])
-use("retsu", [:first, :is_empty, :size, :slice])
-use("shinsuu", [:bit_at, :bytes_hex, :hex_bytes, :shift_left, :shift_right])
+use("kyohi", %i[and_then ok ok? refusal refusal_of refused value])
+use("retsu", %i[first is_empty size slice])
+use("shinsuu", %i[bit_at bytes_hex hex_bytes shift_left shift_right])
 
 huffman_codes = [
   [8184, 13],
@@ -281,19 +281,19 @@ huffman_codes = [
 
 static_entries = [
   [":authority", ""],
-  [":method", "GET"],
-  [":method", "POST"],
-  [":path", "/"],
-  [":path", "/index.html"],
-  [":scheme", "http"],
-  [":scheme", "https"],
-  [":status", "200"],
-  [":status", "204"],
-  [":status", "206"],
-  [":status", "304"],
-  [":status", "400"],
-  [":status", "404"],
-  [":status", "500"],
+  %w[:method GET],
+  %w[:method POST],
+  %w[:path /],
+  %w[:path /index.html],
+  %w[:scheme http],
+  %w[:scheme https],
+  %w[:status 200],
+  %w[:status 204],
+  %w[:status 206],
+  %w[:status 304],
+  %w[:status 400],
+  %w[:status 404],
+  %w[:status 500],
   ["accept-charset", ""],
   ["accept-encoding", "gzip, deflate"],
   ["accept-language", ""],
@@ -865,7 +865,7 @@ test "the static table is Appendix A, indexed from 1"
   t = table(4096)
   assert size(static_entries) == 61
   assert lookup(t, 1) == [":authority", ""]
-  assert lookup(t, 2) == [":method", "GET"]
+  assert lookup(t, 2) == %w[:method GET]
   assert lookup(t, 16) == ["accept-encoding", "gzip, deflate"]
   assert lookup(t, 61) == ["www-authenticate", ""]
   assert lookup(t, 0).nil?
@@ -879,72 +879,71 @@ test "the dynamic table counts octets plus 32, evicts the oldest, and empties fo
   assert entry_size("é", "") == 34
   t = insert(insert(table(110), "a", "1"), "b", "2")
   assert table_size(t) == 68
-  assert entries(t) == [["b", "2"], ["a", "1"]]
-  assert lookup(t, 62) == ["b", "2"]
+  assert entries(t) == [%w[b 2], %w[a 1]]
+  assert lookup(t, 62) == %w[b 2]
   t2 = insert(t, "c", "333333333333333333333333333333333333333")
-  assert entries(t2) ==
-    [["c", "333333333333333333333333333333333333333"], ["b", "2"]]
+  assert entries(t2) == [%w[c 333333333333333333333333333333333333333], %w[b 2]]
   assert table_size(t2) == 106
   assert table_size(insert(t2, "x", repeat_text("y", 200))) == 0
   assert entries(resize(t2, 80)) ==
-    [["c", "333333333333333333333333333333333333333"]]
+    [%w[c 333333333333333333333333333333333333333]]
   assert entries(resize(t2, 71)) == []
   assert entries(resize(t2, 0)) == []
 end
 
 test "each representation of RFC 7541 C.2"
-  a = encode(table(4096), [["custom-key", "custom-header"]], {huffman: false})
+  a = encode(table(4096), [%w[custom-key custom-header]], {huffman: false})
   assert bytes_hex(a[:block]) ==
     "400a637573746f6d2d6b65790d637573746f6d2d686561646572"
   assert table_size(a[:table]) == 55
   b = encode(
     table(4096),
-    [[":path", "/sample/path"]],
+    [%w[:path /sample/path]],
     {huffman: false, plain: [":path"]}
   )
   assert bytes_hex(b[:block]) == "040c2f73616d706c652f70617468"
   assert table_size(b[:table]) == 0
   c = encode(
     table(4096),
-    [["password", "secret"]],
+    [%w[password secret]],
     {huffman: false, never: ["password"]}
   )
   assert bytes_hex(c[:block]) == "100870617373776f726406736563726574"
-  assert bytes_hex(encode(table(4096), [[":method", "GET"]])[:block]) == "82"
+  assert bytes_hex(encode(table(4096), [%w[:method GET]])[:block]) == "82"
   d = value(decode(table(4096), c[:block]))
-  assert d[:fields] == [["password", "secret"]]
+  assert d[:fields] == [%w[password secret]]
   assert d[:sensitive] == [0]
   assert table_size(d[:table]) == 0
   e = value(decode(table(4096), a[:block]))
-  assert entries(e[:table]) == [["custom-key", "custom-header"]]
+  assert entries(e[:table]) == [%w[custom-key custom-header]]
   assert value(decode(table(4096), hex_bytes("82")))[:fields] ==
-    [[":method", "GET"]]
+    [%w[:method GET]]
 end
 
 test "three requests share one dynamic table, without Huffman (C.3) and with it (C.4)"
   r1 = [
-    [":method", "GET"],
-    [":scheme", "http"],
-    [":path", "/"],
-    [":authority", "www.example.com"]
+    %w[:method GET],
+    %w[:scheme http],
+    %w[:path /],
+    %w[:authority www.example.com]
   ]
-  r2 = append(r1, [["cache-control", "no-cache"]])
+  r2 = append(r1, [%w[cache-control no-cache]])
   r3 = [
-    [":method", "GET"],
-    [":scheme", "https"],
-    [":path", "/index.html"],
-    [":authority", "www.example.com"],
-    ["custom-key", "custom-value"]
+    %w[:method GET],
+    %w[:scheme https],
+    %w[:path /index.html],
+    %w[:authority www.example.com],
+    %w[custom-key custom-value]
   ]
-  plain = [
-    "828684410f7777772e6578616d706c652e636f6d",
-    "828684be58086e6f2d6361636865",
-    "828785bf400a637573746f6d2d6b65790c637573746f6d2d76616c7565"
+  plain = %w[
+    828684410f7777772e6578616d706c652e636f6d
+    828684be58086e6f2d6361636865
+    828785bf400a637573746f6d2d6b65790c637573746f6d2d76616c7565
   ]
-  huffed = [
-    "828684418cf1e3c2e5f23a6ba0ab90f4ff",
-    "828684be5886a8eb10649cbf",
-    "828785bf408825a849e95ba97d7f8925a849e95bb8e8b4bf"
+  huffed = %w[
+    828684418cf1e3c2e5f23a6ba0ab90f4ff
+    828684be5886a8eb10649cbf
+    828785bf408825a849e95ba97d7f8925a849e95bb8e8b4bf
   ]
   assert exchange(4096, [r1, r2, r3], plain, false) == [57, 110, 164]
   assert exchange(4096, [r1, r2, r3], huffed, true) == [57, 110, 164]
@@ -954,23 +953,23 @@ test "three responses evict through a 256-octet table, without Huffman (C.5) and
   date1 = "Mon, 21 Oct 2013 20:13:21 GMT"
   home = "https://www.example.com"
   s1 = [
-    [":status", "302"],
-    ["cache-control", "private"],
+    %w[:status 302],
+    %w[cache-control private],
     ["date", date1],
     ["location", home]
   ]
   s2 = [
-    [":status", "307"],
-    ["cache-control", "private"],
+    %w[:status 307],
+    %w[cache-control private],
     ["date", date1],
     ["location", home]
   ]
   s3 = [
-    [":status", "200"],
-    ["cache-control", "private"],
+    %w[:status 200],
+    %w[cache-control private],
     ["date", "Mon, 21 Oct 2013 20:13:22 GMT"],
     ["location", home],
-    ["content-encoding", "gzip"],
+    %w[content-encoding gzip],
     ["set-cookie", "foo=ASDJKHQKBZXOQWEOPIUAXQWEOIU; max-age=3600; version=1"]
   ]
   plain = [
@@ -990,7 +989,7 @@ test "three responses evict through a 256-octet table, without Huffman (C.5) and
     :table
   )
   assert map((e) -> first(e), entries(last_table)) ==
-    ["set-cookie", "content-encoding", "date"]
+    %w[set-cookie content-encoding date]
 end
 
 test "a decoder refuses what no encoder may send, and accepts the same bytes made legal"
@@ -1004,7 +1003,7 @@ test "a decoder refuses what no encoder may send, and accepts the same bytes mad
   assert first(refusal_of(decode(t, [64, 10, 97]))) == :compression_error
   assert first(refusal_of(decode(t, [64]))) == :compression_error
   assert table_max(value(decode(t, [32, 130]))[:table]) == 0
-  assert value(decode(t, [32, 130]))[:fields] == [[":method", "GET"]]
+  assert value(decode(t, [32, 130]))[:fields] == [%w[:method GET]]
   assert table_max(
     value(decode(with_limit(t, 4096), encode_int(4096, 5, 32)))[:table]
   ) == 4096
@@ -1013,19 +1012,19 @@ end
 
 test "an encoder signals a table resize first, the smallest size before the final one"
   t = resize(resize(table(4096), 0), 4096)
-  out = encode(t, [[":method", "GET"]])
+  out = encode(t, [%w[:method GET]])
   assert out[:block] == [32, 63, 225, 31, 130]
-  assert encode(out[:table], [[":method", "GET"]])[:block] == [130]
+  assert encode(out[:table], [%w[:method GET]])[:block] == [130]
   back = value(decode(table(4096), out[:block]))
   assert table_max(back[:table]) == 4096
-  assert back[:fields] == [[":method", "GET"]]
+  assert back[:fields] == [%w[:method GET]]
   assert encode(resize(table(4096), 100), [])[:block] == [63, 69]
 end
 
 test "a field whose octets are not UTF-8 survives as bytes, and Huffman is used only when shorter"
-  out = encode(table(4096), [["x-raw", [255, 0]], ["x-text", "aaaaaaaa"]])
+  out = encode(table(4096), [["x-raw", [255, 0]], %w[x-text aaaaaaaa]])
   back = value(decode(table(4096), out[:block]))
-  assert back[:fields] == [["x-raw", [255, 0]], ["x-text", "aaaaaaaa"]]
+  assert back[:fields] == [["x-raw", [255, 0]], %w[x-text aaaaaaaa]]
   assert entries(back[:table]) == entries(out[:table])
   assert encode_string("aaaaaaaa", :shorter) ==
     append([133], huffman_encode("aaaaaaaa"))

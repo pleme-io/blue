@@ -25,12 +25,9 @@ lands this is a WORKAROUND at the library layer, not a repair of the cause —
     size([]) #=> 0
 """
 
-use("kazu", [:clamp, :min])
+use("kazu", %i[clamp min])
 
-legacy_names(
-  "0.1.0",
-  [:first, :flat_map, :interleave, :last, :partition, :rest, :zip]
-)
+legacy_names("0.1.0", %i[first flat_map interleave last partition rest zip])
 
 @doc """
 size: Total length: nil counts as empty rather than erroring.

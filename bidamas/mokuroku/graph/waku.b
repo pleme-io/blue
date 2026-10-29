@@ -6,7 +6,7 @@ verb(
   {
     kind: :pure,
     shape: "allows?(frame, name) -> Bool",
-    laterals: ["capability", "validate"],
+    laterals: %w[capability validate],
     fleet: "blue-lang-waku",
     today: "absent",
     meaning: "frame grants one name",
@@ -21,7 +21,7 @@ verb(
   {
     kind: :pure,
     shape: "escapes(frame, program) -> [escape]",
-    laterals: ["capability", "validate"],
+    laterals: %w[capability validate],
     fleet: "blue-lang-waku",
     today: "rust:waku",
     meaning: "names a program uses that its frame does not grant",
@@ -36,7 +36,7 @@ verb(
   {
     kind: :decl,
     shape: "frame(reach, when, where) -> frame",
-    laterals: ["capability", "config"],
+    laterals: %w[capability config],
     fleet: "blue-lang-waku",
     today: "rust:waku",
     meaning: "what a computation may name, depend on and own",
@@ -66,7 +66,7 @@ verb(
   {
     kind: :pure,
     shape: "narrow(frame, bound) -> frame",
-    laterals: ["capability", "validate"],
+    laterals: %w[capability validate],
     fleet: "blue-lang-waku",
     today: "rust:waku",
     meaning: "meet of two frames; never wider than either",

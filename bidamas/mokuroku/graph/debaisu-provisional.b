@@ -36,7 +36,7 @@ verb(
   {
     kind: :effect,
     shape: "close(handle) -> nil",
-    laterals: ["idempotent", "resource"],
+    laterals: %w[idempotent resource],
     fleet: nil,
     today: "absent",
     meaning: "release a bus or device; closed counts as done",
@@ -81,7 +81,7 @@ verb(
   {
     kind: :effect,
     shape: "flash(image, target, opts) -> nil",
-    laterals: ["capability", "deadline", "resource"],
+    laterals: %w[capability deadline resource],
     fleet: nil,
     today: "absent",
     meaning: "write an image to a device",
@@ -156,7 +156,7 @@ verb(
   {
     kind: :effect,
     shape: "open(bus, opts) -> handle",
-    laterals: ["capability", "resource"],
+    laterals: %w[capability resource],
     fleet: nil,
     today: "absent",
     meaning: "take a bus: I2C, SPI, UART, CAN",
@@ -171,7 +171,7 @@ verb(
   {
     kind: :effect,
     shape: "read(target, opts) -> value",
-    laterals: ["deadline", "resource"],
+    laterals: %w[deadline resource],
     fleet: "kiban",
     today: "rust:kiban",
     meaning: "a pin level or a register value",
@@ -201,7 +201,7 @@ verb(
   {
     kind: :effect,
     shape: "run(image, board, opts) -> trace",
-    laterals: ["deadline", "process"],
+    laterals: %w[deadline process],
     fleet: "kiban",
     today: "rust:kiban",
     meaning: "run an image on an emulated board",
@@ -216,7 +216,7 @@ verb(
   {
     kind: :stream,
     shape: "sample(sensor, opts) -> readings",
-    laterals: ["deadline", "time"],
+    laterals: %w[deadline time],
     fleet: nil,
     today: "absent",
     meaning: "readings from a sensor at a rate",
@@ -232,7 +232,7 @@ verb(
   {
     kind: :pure,
     shape: "schedule(tasks) -> table",
-    laterals: ["time", "validate"],
+    laterals: %w[time validate],
     fleet: nil,
     today: "absent",
     meaning: "prove every task meets its deadline, or name the one that fails",
@@ -262,7 +262,7 @@ verb(
   {
     kind: :decl,
     shape: "task(period, budget, f) -> task",
-    laterals: ["time", "validate"],
+    laterals: %w[time validate],
     fleet: nil,
     today: "absent",
     meaning: "declare a periodic task with a time budget",
@@ -292,7 +292,7 @@ verb(
   {
     kind: :effect,
     shape: "transfer(handle, address, bytes, opts) -> bytes",
-    laterals: ["deadline", "retry"],
+    laterals: %w[deadline retry],
     fleet: nil,
     today: "absent",
     meaning: "one bus transaction: write, then read",
@@ -307,7 +307,7 @@ verb(
   {
     kind: :stream,
     shape: "watch(pin, f, opts) -> nil",
-    laterals: ["cancel", "deadline"],
+    laterals: %w[cancel deadline],
     fleet: nil,
     today: "absent",
     meaning: "call f on every edge of a pin",
@@ -337,7 +337,7 @@ verb(
   {
     kind: :effect,
     shape: "write(target, value, opts) -> nil",
-    laterals: ["capability", "resource"],
+    laterals: %w[capability resource],
     fleet: "kiban",
     today: "rust:kiban",
     meaning: "drive a pin or set a register",

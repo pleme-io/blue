@@ -5,7 +5,7 @@ settei (設定) — configuration, blue's shikumi: a record of defaults grouped 
 """
 
 use("deeta")
-use("kyohi", [:enforce, :refusal])
+use("kyohi", %i[enforce refusal])
 use("moji", [:env_key])
 use("retsu", [:first])
 
@@ -55,9 +55,9 @@ def coerce(default, text)
       to_float(text)
     end
   elsif k == :bool
-    if member?(downcase(text), ["true", "1", "yes", "on"])
+    if member?(downcase(text), %w[true 1 yes on])
       true
-    elsif member?(downcase(text), ["false", "0", "no", "off"])
+    elsif member?(downcase(text), %w[false 0 no off])
       false
     end
   end
@@ -198,7 +198,7 @@ end
 
 def discovered_path(app)
   find(
-    map((t) -> file(app, t), [:explicit, :xdg, :home]),
+    map((t) -> file(app, t), %i[explicit xdg home]),
     (p) -> p != nil and is_file?(p)
   )
 end
@@ -401,7 +401,7 @@ end
 
 test "env names are the app upcased, nested keys joined by two underscores"
   assert env_prefix("ola-mundo") == "OLA_MUNDO_"
-  assert env_name("ola-mundo", ["flags", "shout"]) == "OLA_MUNDO_FLAGS__SHOUT"
+  assert env_name("ola-mundo", %w[flags shout]) == "OLA_MUNDO_FLAGS__SHOUT"
   assert coerce(1, "42") == 42
   assert coerce(1.5, "2") == 2.0
   assert coerce(true, "OFF") == false

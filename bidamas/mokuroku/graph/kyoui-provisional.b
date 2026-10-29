@@ -6,7 +6,7 @@ verb(
   {
     kind: :effect,
     shape: "alert(hit, sink, opts) -> nil",
-    laterals: ["idempotent", "log", "ratelimit"],
+    laterals: %w[idempotent log ratelimit],
     fleet: "tameshi",
     today: "absent",
     meaning: "send a deduplicated alert",
@@ -51,7 +51,7 @@ verb(
   {
     kind: :stream,
     shape: "detect(events, rules, opts) -> [alert]",
-    laterals: ["cancel", "log"],
+    laterals: %w[cancel log],
     fleet: "bm-guard",
     today: "absent",
     meaning: "match a stream of events; alerts as they occur",
@@ -81,7 +81,7 @@ verb(
   {
     kind: :effect,
     shape: "honeytoken(kind, place) -> token",
-    laterals: ["capability", "log"],
+    laterals: %w[capability log],
     fleet: nil,
     today: "absent",
     meaning: "plant a fake secret whose use raises an alert",
@@ -96,7 +96,7 @@ verb(
   {
     kind: :effect,
     shape: "hunt(store, indicators) -> [hit]",
-    laterals: ["deadline", "resource"],
+    laterals: %w[deadline resource],
     fleet: nil,
     today: "absent",
     meaning: "search stored events for indicators",
@@ -111,7 +111,7 @@ verb(
   {
     kind: :decl,
     shape: "indicator(kind, value, opts) -> indicator",
-    laterals: ["config", "time"],
+    laterals: %w[config time],
     fleet: "kagemusha",
     today: "absent",
     meaning: "a known-bad hash, address or domain, with expiry",
@@ -186,7 +186,7 @@ verb(
   {
     kind: :effect,
     shape: "respond(incident, playbook, opts) -> run",
-    laterals: ["idempotent", "log", "process"],
+    laterals: %w[idempotent log process],
     fleet: nil,
     today: "absent",
     meaning: "run a playbook against an incident, logging each step",

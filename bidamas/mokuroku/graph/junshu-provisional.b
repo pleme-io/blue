@@ -6,7 +6,7 @@ verb(
   {
     kind: :effect,
     shape: "assess(target, pack, opts) -> [result]",
-    laterals: ["process", "resource", "test"],
+    laterals: %w[process resource test],
     fleet: "kensa",
     today: "absent",
     meaning: "run a pack of compliance tests against a target",
@@ -21,7 +21,7 @@ verb(
   {
     kind: :effect,
     shape: "certify(assessment, key) -> certificate",
-    laterals: ["capability", "log"],
+    laterals: %w[capability log],
     fleet: "tameshi",
     today: "absent",
     meaning: "sign an assessment as a dated certification",
@@ -36,7 +36,7 @@ verb(
   {
     kind: :effect,
     shape: "collect(source, opts) -> [evidence]",
-    laterals: ["deadline", "resource"],
+    laterals: %w[deadline resource],
     fleet: "tameshi-watch",
     today: "absent",
     meaning: "gather results from external scanners",
@@ -81,7 +81,7 @@ verb(
   {
     kind: :pure,
     shape: "evidence(result, opts) -> record",
-    laterals: ["time", "validate"],
+    laterals: %w[time validate],
     fleet: "tameshi-watch",
     today: "absent",
     meaning: "a result bound to target, time, tool and digest",
@@ -171,7 +171,7 @@ verb(
   {
     kind: :decl,
     shape: "pack(name, tests, opts) -> pack",
-    laterals: ["config", "test"],
+    laterals: %w[config test],
     fleet: "provas",
     today: "absent",
     meaning: "a pinned set of tests with a deterministic hash",
@@ -186,7 +186,7 @@ verb(
   {
     kind: :pure,
     shape: "parse(text, format) -> assessment",
-    laterals: ["serialize", "validate"],
+    laterals: %w[serialize validate],
     fleet: "kensa",
     today: "absent",
     meaning: "OSCAL, SARIF or JUnit text to an assessment",
@@ -231,7 +231,7 @@ verb(
   {
     kind: :decl,
     shape: "waive(control, why, until) -> waiver",
-    laterals: ["config", "time"],
+    laterals: %w[config time],
     fleet: nil,
     today: "absent",
     meaning: "time-boxed, reasoned exception to a control",
@@ -246,7 +246,7 @@ verb(
   {
     kind: :stream,
     shape: "watch(sources, f, opts) -> nil",
-    laterals: ["cancel", "resource"],
+    laterals: %w[cancel resource],
     fleet: "tameshi-watch",
     today: "absent",
     meaning: "keep assessing as new results arrive",

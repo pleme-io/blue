@@ -1,4 +1,4 @@
-use("kiwari", [:blue, :render])
+use("kiwari", %i[blue render])
 
 # crates/blue-lang-kiwari/blue.kiwari.json, rendered from blue's grammar spec (bidamas/kiwari).
 write_file(

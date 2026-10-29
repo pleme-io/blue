@@ -21,7 +21,7 @@ verb(
   {
     kind: :effect,
     shape: "deploy(module, opts) -> function",
-    laterals: ["capability", "idempotent", "log"],
+    laterals: %w[capability idempotent log],
     fleet: "wasm-operator",
     today: "absent",
     meaning: "place a module where it runs",
@@ -51,7 +51,7 @@ verb(
   {
     kind: :effect,
     shape: "invoke(function, input, opts) -> output",
-    laterals: ["deadline", "error", "resource"],
+    laterals: %w[deadline error resource],
     fleet: "wasm-engine",
     today: "absent",
     meaning: "run a function once",
@@ -66,7 +66,7 @@ verb(
   {
     kind: :decl,
     shape: "limit(function, record) -> function",
-    laterals: ["capability", "resource"],
+    laterals: %w[capability resource],
     fleet: "wasm-engine",
     today: "absent",
     meaning: "fuel, memory and time a run may use",
@@ -96,7 +96,7 @@ verb(
   {
     kind: :effect,
     shape: "pack(source, target, opts) -> module",
-    laterals: ["cache", "process"],
+    laterals: %w[cache process],
     fleet: "wasm-engine",
     today: "absent",
     meaning: "compile a function to a portable module",
@@ -126,7 +126,7 @@ verb(
   {
     kind: :effect,
     shape: "resize(function, bounds) -> function",
-    laterals: ["resource", "switch"],
+    laterals: %w[resource switch],
     fleet: "wasm-operator",
     today: "absent",
     meaning: "set minimum and maximum instances",

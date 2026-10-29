@@ -18,21 +18,11 @@ to the program.
 
 use("jisho")
 use("kyohi", [:exit_status])
-use("moji", [:checked, :pad_right])
+use("moji", %i[checked pad_right])
 
 use(
   "retsu",
-  [
-    :find_first,
-    :first,
-    :index_of,
-    :is_empty,
-    :last,
-    :remove_at,
-    :rest,
-    :size,
-    :take_while
-  ]
+  %i[find_first first index_of is_empty last remove_at rest size take_while]
 )
 
 @doc """
@@ -66,13 +56,13 @@ flag_record: a flag entry as one record of key, text, kind, default, about, min 
 """
 def flag_record(key, entry)
   e = if map?(entry)
-    checked(entry, [:default, :about, :min, :kind, :value])
+    checked(entry, %i[default about min kind value])
   else
     {default: entry}
   end
   default = e[:default]
   kind = e[:kind] or kind_of(default)
-  if not member?(kind, [:switch, :int, :text])
+  if not member?(kind, %i[switch int text])
     raise(
       :bad_option,
       "flag #{flag_text(key)} needs a default of true, false, a whole number or text, or kind: :int or :text"
@@ -115,7 +105,7 @@ slot_record: a positional entry as one record of name, about, many and optional.
     get(slot_record({name: :roots, many: true}), :optional) #=> true
 """
 def slot_record(entry)
-  e = checked(entry, [:name, :about, :many, :optional])
+  e = checked(entry, %i[name about many optional])
   if not keyword?(e[:name])
     raise(:bad_option, "a positional needs name: as a symbol")
   end
@@ -137,7 +127,7 @@ def command_record(entry)
   e = if keyword?(entry)
     {name: entry}
   else
-    checked(entry, [:name, :about, :flags, :positional])
+    checked(entry, %i[name about flags positional])
   end
   if not keyword?(e[:name])
     raise(:bad_option, "a command needs name: as a symbol")
@@ -165,7 +155,7 @@ shape: the flags and positionals in force for a command of a spec, nil for none,
     size(get(shape({name: "x", flags: {a: 1}}, nil), :flags)) #=> 1
 """
 def shape(spec, command)
-  checked(spec, [:name, :about, :flags, :positional, :commands])
+  checked(spec, %i[name about flags positional commands])
   c = if command.nil?
     nil
   else
@@ -720,7 +710,7 @@ run_with: one program run through its spec against given sinks for stdout, stder
     run_with(["-h"], {name: "x"}, (_o) -> 1, {out: (_t) -> nil, err: (_t) -> nil, exit: (_n) -> nil}) #=> nil
 """
 def run_with(args, spec, f, io)
-  checked(io, [:out, :err, :exit])
+  checked(io, %i[out err exit])
   o = outcome(args, spec)
   k = o[:kind]
   if k == :run
@@ -786,16 +776,13 @@ def souji_like()
 end
 
 test "a switch, a number and positionals read into one record with defaults"
-  o = parse(
-    ["rust", "--dry-run", "--min-age-hours", "12", "/a", "/b"],
-    souji_like
-  )
+  o = parse(%w[rust --dry-run --min-age-hours 12 /a /b], souji_like)
   assert o ==
     {
       command: :rust,
       dry_run: true,
       min_age_hours: 12,
-      roots: ["/a", "/b"],
+      roots: %w[/a /b],
       help: false
     }
   d = parse(["nix"], souji_like)
@@ -806,26 +793,20 @@ end
 
 test "a value reads after = or as the next word, and flags may come before the command"
   assert get(
-    parse(["--dry-run", "nix", "--older-than-days=3"], souji_like),
+    parse(%w[--dry-run nix --older-than-days=3], souji_like),
     :older_than_days
   ) == 3
-  assert get(
-    parse(["nix", "--older-than-days", "0"], souji_like),
-    :older_than_days
-  ) == 0
+  assert parse(%w[nix --older-than-days 0], souji_like)[:older_than_days] == 0
 end
 
 test "-- ends the flags: what follows is positional"
-  assert parse(["rust", "--", "--dry-run"], souji_like)[:roots] == ["--dry-run"]
-  assert parse(["rust", "--", "--dry-run"], souji_like)[:dry_run] == false
+  assert parse(%w[rust -- --dry-run], souji_like)[:roots] == ["--dry-run"]
+  assert parse(%w[rust -- --dry-run], souji_like)[:dry_run] == false
 end
 
 test "every fault in a line is named in one usage error"
   e = begin
-    parse(
-      ["rust", "--min-age-hours", "x", "--nope", "--dry-run=yes"],
-      souji_like
-    )
+    parse(%w[rust --min-age-hours x --nope --dry-run=yes], souji_like)
   rescue err
     err
   end
@@ -846,12 +827,12 @@ test "a missing or unknown command, a value below its floor and a missing value 
   end
   assert refused([]) == "a command: rust, nix"
   assert refused(["sweep"]) == "unknown command sweep: rust, nix"
-  assert refused(["nix", "--older-than-days", "-1"]) ==
+  assert refused(%w[nix --older-than-days -1]) ==
     "--older-than-days takes 0 or more, not -1"
-  assert refused(["nix", "--older-than-days"]) == "--older-than-days needs a N"
-  assert refused(["nix", "-x"]) == "unknown flag -x"
-  assert refused(["nix", "extra"]) == "unexpected extra"
-  assert refused(["rust", "--older-than-days", "1"]) ==
+  assert refused(%w[nix --older-than-days]) == "--older-than-days needs a N"
+  assert refused(%w[nix -x]) == "unknown flag -x"
+  assert refused(%w[nix extra]) == "unexpected extra"
+  assert refused(%w[rust --older-than-days 1]) ==
     "unknown flag --older-than-days"
 end
 
@@ -865,7 +846,7 @@ test "a required positional is missing, an optional one is nil"
       {name: :extra, optional: true}
     ]
   }
-  assert parse(["p", "m"], spec) ==
+  assert parse(%w[p m], spec) ==
     {
       blue: nil,
       package: "p",
@@ -884,8 +865,8 @@ end
 
 test "help is asked by -h or --help anywhere before --, with the command it names"
   assert parse(["-h"], souji_like) == {help: true, command: nil}
-  assert parse(["nix", "--help"], souji_like) == {help: true, command: :nix}
-  assert parse(["rust", "--", "-h"], souji_like)[:help] == false
+  assert parse(%w[nix --help], souji_like) == {help: true, command: :nix}
+  assert parse(%w[rust -- -h], souji_like)[:help] == false
 end
 
 test "a bad spec is refused as bad_option, naming the flag"
@@ -961,14 +942,14 @@ test "help renders the title, usage, commands, arguments and aligned flags"
 end
 
 test "completion offers commands first, then the flags of the command, and nothing for a value"
-  assert complete([""], souji_like) == ["nix", "rust"]
+  assert complete([""], souji_like) == %w[nix rust]
   assert complete(["r"], souji_like) == ["rust"]
-  assert complete(["rust", "--m"], souji_like) == ["--min-age-hours"]
-  assert complete(["rust", "--"], souji_like) ==
-    ["--dry-run", "--help", "--min-age-hours"]
+  assert complete(%w[rust --m], souji_like) == ["--min-age-hours"]
+  assert complete(%w[rust --], souji_like) ==
+    %w[--dry-run --help --min-age-hours]
   assert complete(["nix", "--older-than-days", ""], souji_like) == []
-  assert complete(["nix", "--older-than-days", "-"], souji_like) == []
-  assert complete(["nix", "x"], souji_like) == []
+  assert complete(%w[nix --older-than-days -], souji_like) == []
+  assert complete(%w[nix x], souji_like) == []
   assert complete(["-"], souji_like) == ["--help"]
   assert complete([], {name: "x", flags: {a: false}}) == []
 end
@@ -990,8 +971,8 @@ test "a completion script calls the program back for each shell, and refuses ano
 end
 
 test "outcome answers help, completion, a usage refusal with 64, or the record"
-  assert outcome(["nix", "-h"], souji_like)[:text] == render(souji_like, :nix)
-  assert outcome(["__complete", "n"], souji_like) ==
+  assert outcome(%w[nix -h], souji_like)[:text] == render(souji_like, :nix)
+  assert outcome(%w[__complete n], souji_like) ==
     {kind: :complete, text: unlines(["nix"])}
   u = outcome(["sweep"], souji_like)
   assert u[:kind] == :usage
@@ -1023,7 +1004,7 @@ test "run_with calls the program only on a good line, and exits 64 on a bad one"
   assert run_with(["nix"], souji_like, (o) -> o[:older_than_days], io) == 14
   assert run_with(["sweep"], souji_like, (_o) -> 1, io).nil?
   assert run_with(["-h"], souji_like, (_o) -> 1, io).nil?
-  assert run_with(["__complete", "zz"], souji_like, (_o) -> 1, io).nil?
+  assert run_with(%w[__complete zz], souji_like, (_o) -> 1, io).nil?
   assert third(seen) == [64]
   assert size(second(seen)) == 1
   assert first(seen) == [render(souji_like, nil)]

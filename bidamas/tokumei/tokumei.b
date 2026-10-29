@@ -23,8 +23,8 @@ the caller's, and privacy that is spent on a decision stays spent.
     epsilon(0) #=> 0
 """
 
-use("kazu", [:abs, :clamp, :max])
-use("ran", [:next_float, :stream_seed])
+use("kazu", %i[abs clamp max])
+use("ran", %i[next_float stream_seed])
 use("retsu", [:size])
 use("toukei", [:mean])
 

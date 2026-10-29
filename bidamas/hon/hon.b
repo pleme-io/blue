@@ -13,39 +13,39 @@ use("kyohi", [:refusal])
 
 use(
   "moji",
-  [
-    :after_first,
-    :before_first,
-    :drop_chars,
-    :is_alnum,
-    :pad_left,
-    :repeated,
-    :strip_prefix,
-    :take_chars,
-    :trim
+  %i[
+    after_first
+    before_first
+    drop_chars
+    is_alnum
+    pad_left
+    repeated
+    strip_prefix
+    take_chars
+    trim
   ]
 )
 
-use("mokuroku", [:catalog_of, :pkg_entries, :pkg_gloss, :pkg_name])
+use("mokuroku", %i[catalog_of pkg_entries pkg_gloss pkg_name])
 
 use(
   "retsu",
-  [
-    :concat_lists,
-    :drop_while,
-    :find_first,
-    :first,
-    :flat_map,
-    :index_of,
-    :is_empty,
-    :last,
-    :push,
-    :rest,
-    :take_while
+  %i[
+    concat_lists
+    drop_while
+    find_first
+    first
+    flat_map
+    index_of
+    is_empty
+    last
+    push
+    rest
+    take_while
   ]
 )
 
-use("shisutemu", [:status_of, :stderr_of, :stdout_of])
+use("shisutemu", %i[status_of stderr_of stdout_of])
 
 @doc """
 page_kinds: The four Diátaxis kinds, in the order a book shows them.
@@ -53,7 +53,7 @@ page_kinds: The four Diátaxis kinds, in the order a book shows them.
     page_kinds #=> [:tutorial, :howto, :reference, :explanation]
 """
 def page_kinds()
-  [:tutorial, :howto, :reference, :explanation]
+  %i[tutorial howto reference explanation]
 end
 
 @doc """
@@ -573,7 +573,7 @@ listed_pages: The pages a book lists under `kind`: every page of that kind excep
 """
 def listed_pages(project, kind)
   filter(
-    (p) -> p[:kind] == kind and not member?(p[:role], ["introduction", "book"]),
+    (p) -> p[:kind] == kind and not member?(p[:role], %w[introduction book]),
     project[:pages]
   )
 end
@@ -858,7 +858,7 @@ def llms_full_text(project)
   intro = page_with_role(project, "introduction")
   pages = filter(
     (p) -> not member?(p[:path], generated),
-    flat_map([:tutorial, :howto, :reference], (k) -> listed_pages(project, k))
+    flat_map(%i[tutorial howto reference], (k) -> listed_pages(project, k))
   )
   shown = concat_lists(
     if intro.nil?
@@ -1115,7 +1115,7 @@ def book_contents(project)
     end
   end
   later = flat_map(
-    [:reference, :explanation],
+    %i[reference explanation],
     fn(kind)
       if listed_pages(project, kind) == []
         []
@@ -1322,7 +1322,7 @@ runnable_page?: Whether the docs check runs a page's blocks: every tutorial and 
     runnable_page?({kind: :howto, runs: false}) #=> true
 """
 def runnable_page?(page)
-  member?(page[:kind], [:tutorial, :howto]) or page[:runs]
+  member?(page[:kind], %i[tutorial howto]) or page[:runs]
 end
 
 @doc """
@@ -1567,8 +1567,8 @@ def rendering(name, root, to)
     concat(
       front_matter_of(
         [
-          ["kind", "reference"],
-          ["role", "book"],
+          %w[kind reference],
+          %w[role book],
           [
             "summary",
             "the book: tutorials and how-to guides in full, then the reference and the explanation"
@@ -1636,13 +1636,13 @@ test "each bad page is refused alone and named"
     ["docs/c.md", join_lines(["---", "kind: guide", "---", "# C"])]
   ]
   found = kind_refusals(pages)
-  assert map((r) -> first(r), found) == [:no_kind, :unknown_kind]
+  assert map((r) -> first(r), found) == %i[no_kind unknown_kind]
   assert contains?(last(first(found)), "docs/b.md")
   assert contains?(last(last(found)), "kind `guide`")
 end
 
 test "the kinds are listed in the book's order"
-  assert page_kinds == [:tutorial, :howto, :reference, :explanation]
+  assert page_kinds == %i[tutorial howto reference explanation]
 end
 
 test "a directory with pages is read sorted, with paths from the root"
@@ -1653,7 +1653,7 @@ test "a directory with pages is read sorted, with paths from the root"
   write_file(path_join(root, "docs/notes.txt"), "not a page")
   found = doc_pages(root)
   rm_rf(root)
-  assert map((p) -> first(p), found) == ["docs/b.md", "docs/howto/a.md"]
+  assert map((p) -> first(p), found) == %w[docs/b.md docs/howto/a.md]
 end
 
 @doc """
@@ -1760,12 +1760,12 @@ test "the project takes its name and summary from the introduction"
   assert p[:name] == "demo"
   assert p[:summary] == "demo is a small language."
   assert map((x) -> x[:path], p[:pages]) ==
-    [
-      "docs/tutorial/install.md",
-      "docs/howto/test.md",
-      "docs/agents.md",
-      "docs/DESIGN.md",
-      "docs/introduction.md"
+    %w[
+      docs/tutorial/install.md
+      docs/howto/test.md
+      docs/agents.md
+      docs/DESIGN.md
+      docs/introduction.md
     ]
 end
 

@@ -1,9 +1,9 @@
-use("hadome", [:failures, :orphans, :parse, :shrunk])
+use("hadome", %i[failures orphans parse shrunk])
 use("kyohi")
-use("moji", [:after_first, :after_last, :before_first, :trim])
-use("retsu", [:concat_lists, :flat_map, :is_empty, :reject, :size])
-use("shisutemu", [:status_of, :stderr_of, :stdout_of])
-use("tesuto", [:level, :level_of, :settle])
+use("moji", %i[after_first after_last before_first trim])
+use("retsu", %i[concat_lists flat_map is_empty reject size])
+use("shisutemu", %i[status_of stderr_of stdout_of])
+use("tesuto", %i[level level_of settle])
 
 def entries()
   [
@@ -23,11 +23,7 @@ end
 def recorded()
   unlines(
     [
-      "refused: arnes:bidamas/meirei/meirei.b:B0001 19",
-      "refused: arnes:bidamas/sanshou/sanshou.b:B0001 3",
-      "refused: arnes:bidamas/wariate/wariate.b:B0001 10",
       "refused: hanshi:crates/hanshi-core/rules/heartbeat.b:B0001 3",
-      "refused: makoto:bidamas/bunseki/bunseki.b:B0013 12",
       "refused: makoto:games/blackout.b:fmt 1",
       "refused: makoto:games/careful-curator.b:fmt 1",
       "refused: makoto:games/certainty-vs-severity-sensitivity.b:fmt 1",
@@ -64,18 +60,15 @@ def recorded()
       "refused: makoto:tools/catalog.b:B0012 2",
       "refused: makoto:tools/claims-evidence.b:fmt 1",
       "refused: makoto:tools/claims-evidence.b:B0012 13",
-      "refused: makoto:tools/claims-evidence.b:B0013 12",
       "refused: makoto:tools/claims-evidence.b:B0015 1",
       "refused: makoto:tools/claims-evidence.b:B0066 1",
       "refused: makoto:tools/collisions.b:B0012 17",
       "refused: makoto:tools/collisions.b:B0015 1",
       "refused: makoto:tools/regions.b:fmt 1",
       "refused: makoto:tools/regions.b:B0012 41",
-      "refused: makoto:tools/regions.b:B0013 12",
       "refused: makoto:tools/regions.b:B0015 1",
       "refused: makoto:tools/regions.b:B0066 9",
       "refused: makoto:tools/tune-duckdb.b:B0012 10",
-      "refused: makoto:tools/tune-duckdb.b:B0013 12",
       "refused: makoto:tools/tune-duckdb.b:B0015 1",
       "refused: zukai:crates/zukai-confluence/tests/pages.b:B0001 31",
       "refused: zukai:crates/zukai-kata/tests/patterns.b:B0001 20"
@@ -206,7 +199,7 @@ end
 def pin_refusal(p)
   if not map?(p)
     "has a pin that is not an entry"
-  elsif not member?(p[:kind], [:flake, :cargo, :crate, :setup])
+  elsif not member?(p[:kind], %i[flake cargo crate setup])
     "has a pin of kind #{to_s(p[:kind])}, not flake, cargo, crate or setup"
   elsif not string?(p[:rev]) or p[:rev] == ""
     "has a #{to_s(p[:kind])} pin with no rev"
@@ -497,11 +490,9 @@ def git_in(dir, args)
 end
 
 def ref_of(dir)
-  if status_of(git_in(dir, ["rev-parse", "-q", "--verify", "origin/HEAD"])) == 0
+  if status_of(git_in(dir, %w[rev-parse -q --verify origin/HEAD])) == 0
     "origin/HEAD"
-  elsif status_of(
-      git_in(dir, ["rev-parse", "-q", "--verify", "origin/main"])
-    ) == 0
+  elsif status_of(git_in(dir, %w[rev-parse -q --verify origin/main])) == 0
     "origin/main"
   else
     "HEAD"
@@ -577,7 +568,7 @@ def reach(root, name, clone)
       dir
     )
   elsif path_exists(path_join(dir, ".git"))
-    status_of(git_in(dir, ["fetch", "-q", "origin"])) == 0
+    status_of(git_in(dir, %w[fetch -q origin])) == 0
   else
     false
   end
@@ -761,11 +752,11 @@ def fix(blue, root, name)
     exit_with(2)
   end
   dir = path_join(root, name)
-  git_in(dir, ["fetch", "-q", "origin"])
+  git_in(dir, %w[fetch -q origin])
   ref = ref_of(dir)
   wt = scratch("fix-#{name}")
   rm_rf(wt)
-  git_in(dir, ["worktree", "prune"])
+  git_in(dir, %w[worktree prune])
   added = git_in(dir, ["worktree", "add", "-q", "--detach", wt, ref])
   if status_of(added) != 0
     write_stderr(stderr_of(added))
@@ -794,7 +785,7 @@ def fix(blue, root, name)
   elsif done == []
     write_stderr(unlines(["✅ fix: #{name} is already written at this blue"]))
   else
-    git_in(wt, ["add", "-A"])
+    git_in(wt, %w[add -A])
     msg = "blue fmt --write at blue #{take_text(blue_rev, 7)}: #{to_s(size(done))} files rewritten; blue erase byte-identical before and after each"
     committed = git_in(wt, ["commit", "-q", "-m", msg])
     if status_of(committed) != 0
@@ -891,12 +882,12 @@ end
 
 test "a flake.lock's blue nodes are its pins, and the root's own input is the direct one"
   pins = flake_pins(lock_fixture)
-  assert map((p) -> p[:node], pins) == ["blue", "blue_2"]
+  assert map((p) -> p[:node], pins) == %w[blue blue_2]
   assert map((p) -> p[:direct], pins) == [true, false]
   assert flake_pins(nil) == []
-  assert flake_inputs(lock_fixture) == ["blue", "substrate", "blue-lsp"] or
+  assert flake_inputs(lock_fixture) == %w[blue substrate blue-lsp] or
     sort_keyed((x) -> x, flake_inputs(lock_fixture)) ==
-      ["blue", "blue-lsp", "substrate"]
+      %w[blue blue-lsp substrate]
 end
 
 test "a Cargo.lock pins blue by its git source, and a sibling repository named blue-something is not blue"
@@ -978,7 +969,7 @@ test "the registry round-trips through its JSON rendering"
     consumer("actions", ["run.b"], [{kind: :setup, rev: "main"}], [])
   ]
   back = read_registry(render_registry(cs, {"codes" => ["B0001"]}))
-  assert map((c) -> c[:name], back[:consumers]) == ["actions", "tend"]
+  assert map((c) -> c[:name], back[:consumers]) == %w[actions tend]
   assert back[:consumers][1][:pins][0][:kind] == :cargo
   assert back[:swept]["codes"] == ["B0001"]
 end
@@ -1031,8 +1022,7 @@ test "a new refusal in an enforced consumer is red, recorded debt holds, audit l
       {name: "kensa", reached: false, measurements: []}
     ]
   )
-  assert map((v) -> v[:state], r[:verdicts]) ==
-    [:red, :green, :audit, :off, :blind]
+  assert map((v) -> v[:state], r[:verdicts]) == %i[red green audit off blind]
   assert map((v) -> v[:name], r[:red]) == ["actions"]
   assert r[:orphans] == []
 end

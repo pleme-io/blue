@@ -20,18 +20,18 @@ use("kazu", [:max])
 
 use(
   "retsu",
-  [
-    :concat_lists,
-    :contains,
-    :count_of,
-    :first,
-    :flat_map,
-    :index_of,
-    :indexes,
-    :is_empty,
-    :push,
-    :rest,
-    :size
+  %i[
+    concat_lists
+    contains
+    count_of
+    first
+    flat_map
+    index_of
+    indexes
+    is_empty
+    push
+    rest
+    size
   ]
 )
 
@@ -408,34 +408,7 @@ def primitive_root(p)
 end
 
 def alphabet()
-  [
-    "a",
-    "b",
-    "c",
-    "d",
-    "e",
-    "f",
-    "g",
-    "h",
-    "i",
-    "j",
-    "k",
-    "l",
-    "m",
-    "n",
-    "o",
-    "p",
-    "q",
-    "r",
-    "s",
-    "t",
-    "u",
-    "v",
-    "w",
-    "x",
-    "y",
-    "z"
-  ]
+  %w[a b c d e f g h i j k l m n o p q r s t u v w x y z]
 end
 
 def letter_index(ch)

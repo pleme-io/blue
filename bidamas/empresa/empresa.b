@@ -1,7 +1,7 @@
 use("deeta", [:pretty])
-use("kyohi", [:kinds, :refusal, :standing])
+use("kyohi", %i[kinds refusal standing])
 use("moji", [:made_of])
-use("retsu", [:contains, :first, :flat_map, :is_empty, :last, :size])
+use("retsu", %i[contains first flat_map is_empty last size])
 use("ronri", [:every])
 
 def slug_chars()
@@ -17,19 +17,19 @@ def path_chars()
 end
 
 def roles()
-  [:primary, :secondary]
+  %i[primary secondary]
 end
 
 def kinds_of_site()
-  [:static, :service]
+  %i[static service]
 end
 
 def gates()
-  [:proxy, :app]
+  %i[proxy app]
 end
 
 def visibilities()
-  [:public, :private]
+  %i[public private]
 end
 
 def dns_hosts()
@@ -51,16 +51,16 @@ def presets()
     google: {
       mx: [[1, "smtp.google.com."]],
       spf: "v=spf1 include:_spf.google.com ~all",
-      dkim: [["google._domainkey", "TXT", "PENDING-google-dkim"]],
+      dkim: [%w[google._domainkey TXT PENDING-google-dkim]],
       verify: "PENDING-google-verification"
     },
     proton: {
       mx: [[10, "mail.protonmail.ch."], [20, "mailsec.protonmail.ch."]],
       spf: "v=spf1 include:_spf.protonmail.ch ~all",
       dkim: [
-        ["protonmail._domainkey", "CNAME", "PENDING-proton-dkim1"],
-        ["protonmail2._domainkey", "CNAME", "PENDING-proton-dkim2"],
-        ["protonmail3._domainkey", "CNAME", "PENDING-proton-dkim3"]
+        %w[protonmail._domainkey CNAME PENDING-proton-dkim1],
+        %w[protonmail2._domainkey CNAME PENDING-proton-dkim2],
+        %w[protonmail3._domainkey CNAME PENDING-proton-dkim3]
       ],
       verify: "PENDING-proton-verification"
     },
@@ -71,9 +71,9 @@ def presets()
       ],
       spf: "v=spf1 include:spf.messagingengine.com ~all",
       dkim: [
-        ["fm1._domainkey", "CNAME", "fm1.{domain}.dkim.fmhosted.com."],
-        ["fm2._domainkey", "CNAME", "fm2.{domain}.dkim.fmhosted.com."],
-        ["fm3._domainkey", "CNAME", "fm3.{domain}.dkim.fmhosted.com."]
+        %w[fm1._domainkey CNAME fm1.{domain}.dkim.fmhosted.com.],
+        %w[fm2._domainkey CNAME fm2.{domain}.dkim.fmhosted.com.],
+        %w[fm3._domainkey CNAME fm3.{domain}.dkim.fmhosted.com.]
       ],
       verify: ""
     }
@@ -81,7 +81,7 @@ def presets()
 end
 
 def preset_names()
-  [:google, :proton, :fastmail]
+  %i[google proton fastmail]
 end
 
 def text?(v)
@@ -915,7 +915,7 @@ def example()
     sites: [
       {
         name: "acme-site",
-        hosts: ["acme.example", "www.acme.example", "acme-labs.example"],
+        hosts: %w[acme.example www.acme.example acme-labs.example],
         origin_host: "origin.tailnet.example",
         path_prefix: "/acme",
         gate: :proxy,
@@ -1019,15 +1019,7 @@ test "a service without a flake or a port, or a static site with a flake, is ref
     }
   )
   assert kinds(j.refused) ==
-    [
-      :bad_site,
-      :bad_site,
-      :bad_site,
-      :bad_site,
-      :bad_site,
-      :bad_site,
-      :bad_site
-    ]
+    %i[bad_site bad_site bad_site bad_site bad_site bad_site bad_site]
   assert map((x) -> x.name, j.accepted.sites) == ["web"]
   assert size(j.refused) == 7
   assert size(
@@ -1048,11 +1040,10 @@ test "edge rows carry the comma-joined hosts, a host slug and the zone name"
   assert s.site == "acme-site"
   assert s.origin_host == "origin.tailnet.example"
   assert map((a) -> a.slug, v.edge_aliases) ==
-    ["acme-example", "www-acme-example", "acme-labs-example"]
+    %w[acme-example www-acme-example acme-labs-example]
   assert map((a) -> a.zone, v.edge_aliases) ==
-    ["acme.example", "acme.example", "acme-labs.example"]
-  assert map((a) -> a.site, v.edge_aliases) ==
-    ["acme-site", "acme-site", "acme-site"]
+    %w[acme.example acme.example acme-labs.example]
+  assert map((a) -> a.site, v.edge_aliases) == %w[acme-site acme-site acme-site]
 end
 
 def all_strings?(rows)
@@ -1142,8 +1133,7 @@ test "email rows are expanded from the preset with documented values only"
   dmarc = last(rows)
   assert dmarc.name == "_dmarc.acme.example"
   assert dmarc.values == "v=DMARC1; p=none; rua=mailto:dmarc@acme.example"
-  assert map((r) -> r.pending, rows) ==
-    ["false", "false", "true", "true", "false"]
+  assert map((r) -> r.pending, rows) == %w[false false true true false]
   assert rows[1].values == "v=spf1 include:_spf.google.com ~all"
   assert rows[2].name == "google._domainkey.acme.example"
   assert rows[2].values == "PENDING-google-dkim"
@@ -1172,7 +1162,7 @@ end
 
 test "manual steps follow the order table and name each pending value"
   s = manual_steps(example)
-  assert map((x) -> x.step, s) == ["1", "1", "2a", "2a", "3", "3", "3a", "4"]
+  assert map((x) -> x.step, s) == %w[1 1 2a 2a 3 3 3a 4]
   assert first(s).what == "Register acme.example"
   assert s[4].what ==
     "Replace PENDING-google-dkim in the TXT row google._domainkey.acme.example with the value the provider shows for acme.example"
@@ -1197,7 +1187,7 @@ test "a bad domain falls alone"
     {name: "c.example", role: :primary, dns_host: :cloudflare}
   ]
   j = judge({company: "acme", domains: ds})
-  assert kinds(j.refused) == [:bad_domain, :bad_domain, :bad_domain]
+  assert kinds(j.refused) == %i[bad_domain bad_domain bad_domain]
   assert domain_names(j.accepted.domains) == ["acme.example"]
 end
 
@@ -1209,12 +1199,10 @@ test "a host belongs to the longest domain that holds it"
   a = {
     company: "acme",
     domains: ds,
-    sites: [
-      site("s", ["x.eu.acme.example", "y.acme.example", "eu.acme.example"])
-    ]
+    sites: [site("s", %w[x.eu.acme.example y.acme.example eu.acme.example])]
   }
   assert map((r) -> r.zone, variables(a).edge_aliases) ==
-    ["eu.acme.example", "acme.example", "eu.acme.example"]
+    %w[eu.acme.example acme.example eu.acme.example]
 end
 
 test "a duplicate domain is refused and the first stands"
@@ -1227,11 +1215,11 @@ test "a duplicate domain is refused and the first stands"
 end
 
 test "a host under no declared domain is refused and its siblings stand"
-  s = site("s", ["acme.example", "evil.other", "a.acme.example"])
+  s = site("s", %w[acme.example evil.other a.acme.example])
   a = {company: "acme", domains: one_domain, sites: [s]}
   j = judge(a)
   assert kinds(j.refused) == [:host_outside_domains]
-  assert first(j.accepted.sites).hosts == ["acme.example", "a.acme.example"]
+  assert first(j.accepted.sites).hosts == %w[acme.example a.acme.example]
   assert size(variables(a).edge_aliases) == 2
 end
 
@@ -1240,13 +1228,13 @@ test "a site with no host under a domain is refused whole"
   t = site("t", [])
   j = judge({company: "acme", domains: one_domain, sites: [s, t]})
   assert kinds(j.refused) ==
-    [:host_outside_domains, :site_without_domain, :site_without_domain]
+    %i[host_outside_domains site_without_domain site_without_domain]
   assert j.accepted.sites == []
 end
 
 test "a host claimed twice is refused the second time"
   a = site("a", ["acme.example"])
-  b = site("b", ["acme.example", "x.acme.example"])
+  b = site("b", %w[acme.example x.acme.example])
   j = judge({company: "acme", domains: one_domain, sites: [a, b]})
   assert kinds(j.refused) == [:duplicate_host]
   assert map((s) -> s.hosts, j.accepted.sites) ==
@@ -1260,7 +1248,7 @@ test "a bad or duplicate site is refused alone"
   j = judge(
     {company: "acme", domains: one_domain, sites: [ok, bad_gate, bad_path, ok]}
   )
-  assert kinds(j.refused) == [:bad_site, :bad_site, :duplicate_site]
+  assert kinds(j.refused) == %i[bad_site bad_site duplicate_site]
   assert size(j.accepted.sites) == 1
 end
 
@@ -1288,9 +1276,8 @@ test "a bad or duplicate repo is refused alone"
     {name: "a_b", visibility: :public}
   ]
   j = judge({company: "acme", github_org: "acme-org", repos: rs})
-  assert kinds(j.refused) ==
-    [:bad_repo, :bad_repo, :duplicate_repo, :duplicate_repo]
-  assert map((r) -> r.name, j.accepted.repos) == ["good", "a-b"]
+  assert kinds(j.refused) == %i[bad_repo bad_repo duplicate_repo duplicate_repo]
+  assert map((r) -> r.name, j.accepted.repos) == %w[good a-b]
 end
 
 test "repo rows carry the full github-org-repos field set as strings"
@@ -1309,7 +1296,7 @@ test "a bad or duplicate team is refused alone and an unknown repo falls only it
     {name: "BAD", permission: :admin, repos: :all},
     {name: "x", permission: :owner, repos: :all},
     {name: "core", permission: :read, repos: :all},
-    {name: "field", permission: :write, repos: ["audit-action", "ghost"]}
+    {name: "field", permission: :write, repos: %w[audit-action ghost]}
   ]
   a = assoc(
     assoc(example, :teams, ts),
@@ -1317,17 +1304,15 @@ test "a bad or duplicate team is refused alone and an unknown repo falls only it
     [{name: "audit-action", visibility: :public}]
   )
   j = judge(a)
-  assert kinds(j.refused) ==
-    [:bad_team, :bad_team, :duplicate_team, :unknown_repo]
-  assert map((t) -> t.name, j.accepted.teams) == ["core", "field"]
+  assert kinds(j.refused) == %i[bad_team bad_team duplicate_team unknown_repo]
+  assert map((t) -> t.name, j.accepted.teams) == %w[core field]
   assert j.accepted.teams[1].repos == ["audit-action"]
 end
 
 test "grants map permissions to the provider's names"
   g = variables(example).team_repo_grants
-  assert map((x) -> x.permission, g) == ["admin", "admin", "push"]
-  assert map((x) -> x.repo_slug, g) ==
-    ["audit_action", "deploy_helm", "audit_action"]
+  assert map((x) -> x.permission, g) == %w[admin admin push]
+  assert map((x) -> x.repo_slug, g) == %w[audit_action deploy_helm audit_action]
 end
 
 test "repos and teams without an org are refused, the rest stands"
@@ -1359,7 +1344,7 @@ test "values on one zone, name and type become one row, in order"
     ]
   )
   assert map((r) -> r.slug, rows) ==
-    ["acme_example__spf", "acme_example__www", "acme_example__mx1"]
+    %w[acme_example__spf acme_example__www acme_example__mx1]
   assert first(rows).values == "v=spf1 -all|site-verification=abc"
   assert rows[1].values == "192.0.2.1"
   assert rows[2].values == "10 a.example.|20 b.example."
@@ -1371,11 +1356,11 @@ test "a pending value is never merged into a live row and is marked not to apply
     [txt("spf", "v=spf1 -all"), txt("verify", "PENDING-google-verification")]
   )
   assert size(rows) == 2
-  assert map((r) -> r.apply, rows) == ["true", "false"]
-  assert map((r) -> r.pending, rows) == ["false", "true"]
+  assert map((r) -> r.apply, rows) == %w[true false]
+  assert map((r) -> r.pending, rows) == %w[false true]
   assert first(rows).values == "v=spf1 -all"
   v = variables(example).dns_records
-  assert map((r) -> r.apply, v) == ["true", "true", "false", "false", "true"]
+  assert map((r) -> r.apply, v) == %w[true true false false true]
 end
 
 test "a value holding a pipe, a quote or a backslash is refused alone"
@@ -1384,7 +1369,7 @@ test "a value holding a pipe, a quote or a backslash is refused alone"
   quoted = txt("q", "say \"x\"")
   slashed = txt("s", "a\\b")
   assert kinds(value_refusals([good, piped, quoted, slashed])) ==
-    [:unsafe_dns_value, :unsafe_dns_value, :unsafe_dns_value]
+    %i[unsafe_dns_value unsafe_dns_value unsafe_dns_value]
   assert value_refusals([good]) == []
   rows = dns_projection([good, piped, quoted, slashed])
   assert size(rows) == 1

@@ -4,8 +4,8 @@
 # join takes the list first; split takes the string first and keeps empty
 # fields. Build many lines as a list and join them once. moji holds the
 # string words the runtime lacks (padding, lines, words).
-use("moji", [:capitalize, :pad_left, :pad_right, :trim, :words])
-use("retsu", [:concat_lists, :first, :last])
+use("moji", %i[capitalize pad_left pad_right trim words])
+use("retsu", %i[concat_lists first last])
 
 def row(name, n)
   "#{pad_right(name, 8, " ")}#{pad_left(to_s(n), 4, " ")}"
@@ -39,7 +39,7 @@ test "the small string words"
   assert trim("  x  ") == "x"
   assert replace("a-b-c", "-", "+") == "a+b+c"
   assert starts_with?("blueshift", "blue")
-  assert words("  two   words ") == ["two", "words"]
+  assert words("  two   words ") == %w[two words]
   assert capitalize("bLUE") == "Blue"
 end
 

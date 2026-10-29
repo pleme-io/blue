@@ -21,7 +21,7 @@ verb(
   {
     kind: :effect,
     shape: "copy(from, to, opts) -> {etag, version}",
-    laterals: ["deadline", "error", "retry"],
+    laterals: %w[deadline error retry],
     fleet: nil,
     today: "absent",
     meaning: "copy an object inside or across stores",
@@ -36,7 +36,7 @@ verb(
   {
     kind: :effect,
     shape: "create(store, key, bytes, opts) -> {etag, version}",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: "armazem",
     today: "absent",
     meaning: "put an object only if the key is absent",
@@ -51,7 +51,7 @@ verb(
   {
     kind: :effect,
     shape: "delete(store, key) -> nil",
-    laterals: ["error", "idempotent", "retry"],
+    laterals: %w[error idempotent retry],
     fleet: "armazem",
     today: "absent",
     meaning: "make the object absent; absent counts as done",
@@ -66,7 +66,7 @@ verb(
   {
     kind: :effect,
     shape: "download(store, key, path, opts) -> nil",
-    laterals: ["cancel", "deadline", "error", "retry"],
+    laterals: %w[cancel deadline error retry],
     fleet: nil,
     today: "absent",
     meaning: "write an object to a file atomically",
@@ -96,7 +96,7 @@ verb(
   {
     kind: :effect,
     shape: "get(store, key, opts) -> bytes or nil",
-    laterals: ["deadline", "error", "retry", "trace"],
+    laterals: %w[deadline error retry trace],
     fleet: "armazem",
     today: "absent",
     meaning: "the object content, or nil when absent",
@@ -111,7 +111,7 @@ verb(
   {
     kind: :effect,
     shape: "has?(store, key) -> Bool",
-    laterals: ["deadline", "retry"],
+    laterals: %w[deadline retry],
     fleet: "armazem",
     today: "absent",
     meaning: "whether an object exists",
@@ -126,7 +126,7 @@ verb(
   {
     kind: :effect,
     shape: "info(store, key) -> {size, etag, modified, type, meta}",
-    laterals: ["deadline", "error", "retry"],
+    laterals: %w[deadline error retry],
     fleet: "armazem",
     today: "absent",
     meaning: "the object headers without its content",
@@ -142,7 +142,7 @@ verb(
   {
     kind: :decl,
     shape: "lifecycle(store, rules) -> decl",
-    laterals: ["config", "validate"],
+    laterals: %w[config validate],
     fleet: nil,
     today: "absent",
     meaning: "declare expiry and tiering rules for a prefix",
@@ -157,7 +157,7 @@ verb(
   {
     kind: :effect,
     shape: "list(store, opts) -> [{key, size, modified, etag}]",
-    laterals: ["deadline", "error", "retry"],
+    laterals: %w[deadline error retry],
     fleet: "armazem",
     today: "absent",
     meaning: "all objects under a prefix, every page, sorted",
@@ -172,7 +172,7 @@ verb(
   {
     kind: :effect,
     shape: "make_bucket(account, name, opts) -> nil",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: nil,
     today: "absent",
     meaning: "create a bucket; existing counts as done",
@@ -187,7 +187,7 @@ verb(
   {
     kind: :effect,
     shape: "move(from, to, opts) -> nil",
-    laterals: ["error", "retry"],
+    laterals: %w[error retry],
     fleet: nil,
     today: "absent",
     meaning: "copy then delete; not atomic, and says so",
@@ -202,7 +202,7 @@ verb(
   {
     kind: :effect,
     shape: "need(store, key, opts) -> bytes",
-    laterals: ["deadline", "error", "retry"],
+    laterals: %w[deadline error retry],
     fleet: "armazem",
     today: "absent",
     meaning: "the object content, raising not_found when absent",
@@ -217,7 +217,7 @@ verb(
   {
     kind: :effect,
     shape: "open(spec) -> store",
-    laterals: ["capability", "config", "resource"],
+    laterals: %w[capability config resource],
     fleet: "armazem",
     today: "absent",
     meaning: "connect to an S3, R2, GCS or local object store",
@@ -247,7 +247,7 @@ verb(
   {
     kind: :decl,
     shape: "policy(store, grants) -> decl",
-    laterals: ["capability", "validate"],
+    laterals: %w[capability validate],
     fleet: nil,
     today: "absent",
     meaning: "declare who may read or write which prefix",
@@ -262,7 +262,7 @@ verb(
   {
     kind: :pure,
     shape: "presign(store, key, opts) -> url",
-    laterals: ["capability", "time"],
+    laterals: %w[capability time],
     fleet: nil,
     today: "absent",
     meaning: "a time-limited URL granting one operation on an object",
@@ -277,7 +277,7 @@ verb(
   {
     kind: :effect,
     shape: "purge(store, prefix, opts) -> count",
-    laterals: ["cancel", "error", "retry"],
+    laterals: %w[cancel error retry],
     fleet: nil,
     today: "absent",
     meaning: "delete every object under a prefix",
@@ -292,7 +292,7 @@ verb(
   {
     kind: :effect,
     shape: "put(store, key, bytes, opts) -> {etag, version}",
-    laterals: ["deadline", "error", "idempotent", "retry"],
+    laterals: %w[deadline error idempotent retry],
     fleet: "armazem",
     today: "absent",
     meaning: "create or replace an object",
@@ -307,7 +307,7 @@ verb(
   {
     kind: :effect,
     shape: "restore(store, key, version) -> {etag, version}",
-    laterals: ["error", "idempotent"],
+    laterals: %w[error idempotent],
     fleet: nil,
     today: "absent",
     meaning: "make an earlier version the current object",
@@ -337,7 +337,7 @@ verb(
   {
     kind: :effect,
     shape: "slice(store, key, from, to) -> bytes",
-    laterals: ["deadline", "error", "retry"],
+    laterals: %w[deadline error retry],
     fleet: nil,
     today: "absent",
     meaning: "read a byte range of an object",
@@ -352,7 +352,7 @@ verb(
   {
     kind: :stream,
     shape: "stream(store, key, f, opts) -> nil",
-    laterals: ["cancel", "deadline", "error"],
+    laterals: %w[cancel deadline error],
     fleet: nil,
     today: "absent",
     meaning: "call f per chunk of an object as it arrives",
@@ -367,7 +367,7 @@ verb(
   {
     kind: :effect,
     shape: "update(store, key, f, opts) -> {etag, version}",
-    laterals: ["error", "idempotent", "retry"],
+    laterals: %w[error idempotent retry],
     fleet: nil,
     today: "absent",
     meaning: "replace an object with f(old) using the etag precondition",
@@ -382,7 +382,7 @@ verb(
   {
     kind: :effect,
     shape: "upload(store, key, path, opts) -> {etag, version}",
-    laterals: ["cancel", "deadline", "error", "retry"],
+    laterals: %w[cancel deadline error retry],
     fleet: nil,
     today: "absent",
     meaning: "send a file as one object, in parts when large",
@@ -412,7 +412,7 @@ verb(
   {
     kind: :effect,
     shape: "usage(store, prefix) -> {objects, bytes}",
-    laterals: ["error", "retry"],
+    laterals: %w[error retry],
     fleet: nil,
     today: "absent",
     meaning: "object count and total bytes under a prefix",
@@ -427,7 +427,7 @@ verb(
   {
     kind: :effect,
     shape: "versions(store, key) -> [version]",
-    laterals: ["error", "retry"],
+    laterals: %w[error retry],
     fleet: nil,
     today: "absent",
     meaning: "every stored version of an object, newest first",
@@ -443,7 +443,7 @@ verb(
   {
     kind: :stream,
     shape: "watch(store, f, opts) -> nil",
-    laterals: ["cancel", "deadline"],
+    laterals: %w[cancel deadline],
     fleet: nil,
     today: "absent",
     meaning: "call f per object change notice or poll difference",

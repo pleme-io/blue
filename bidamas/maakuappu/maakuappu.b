@@ -4,7 +4,7 @@ maakuappu (マークアップ) — XML as data: a document parsed by the runtime
     attr(child(parse("<r><c id=\"7\"/></r>"), "c"), "id") #=> "7"
 """
 
-use("retsu", [:first, :flat_map, :size])
+use("retsu", %i[first flat_map size])
 use("tesuto", [:raises?])
 
 @doc """
@@ -184,12 +184,12 @@ test "an nmap-shaped document answers values checked by hand"
     )
   )
   assert size(children(doc, "host")) == 2
-  assert map((p) -> attr(p, "portid"), find(doc, ["host", "ports", "port"])) ==
-    ["22", "443"]
+  assert map((p) -> attr(p, "portid"), find(doc, %w[host ports port])) ==
+    %w[22 443]
   assert size(descendants(doc, "port")) == 2
   assert size(descendants(doc, "address")) == 2
   assert attr(
-    child(first(find(doc, ["host", "ports", "port"])), "service"),
+    child(first(find(doc, %w[host ports port])), "service"),
     "name"
   ) == "ssh"
   assert attr(child(child(doc, "host"), "address"), "addr") == "203.0.113.5"

@@ -111,7 +111,7 @@ verb(
   {
     kind: :pure,
     shape: "locale(tag) -> locale",
-    laterals: ["error", "validate"],
+    laterals: %w[error validate],
     fleet: nil,
     today: "absent",
     meaning: "parse a BCP 47 language tag",

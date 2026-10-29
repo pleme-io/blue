@@ -21,7 +21,7 @@ verb(
   {
     kind: :effect,
     shape: "build(program, board) -> image",
-    laterals: ["process", "resource"],
+    laterals: %w[process resource],
     fleet: "blue-native",
     today: "rust:chuuzou",
     meaning: "emit, link and measure one board image",

@@ -1,4 +1,4 @@
-use("shisutemu", [:status_of, :stderr_of])
+use("shisutemu", %i[status_of stderr_of])
 
 def regen_program()
   root = getenv("GEN_ROOT", cwd)
@@ -66,7 +66,7 @@ def fixture()
     raise(:fixture, "blue lock failed in #{dir}")
   end
   git(".", ["init", "-q", "-b", "main", dir])
-  git(dir, ["add", "Bluefile", "Bluefile.lock", "t.b"])
+  git(dir, %w[add Bluefile Bluefile.lock t.b])
   dir
 end
 
@@ -98,7 +98,7 @@ end
 test "regen renders once the package is tracked"
   if self_exe != nil
     dir = fixture
-    git(dir, ["add", "bidamas", "notes"])
+    git(dir, %w[add bidamas notes])
     cap = regen_in(dir, [])
     assert status_of(cap) == 0
     assert contains?(read_file(path_join(dir, "bidamas/CATALOG.md")), "zed")
@@ -109,8 +109,8 @@ end
 test "allow renders without the refusal, and an unknown setting is refused"
   if self_exe != nil
     dir = fixture
-    assert status_of(regen_in(dir, [["BLUE_REGEN_UNTRACKED", "allow"]])) == 0
-    bad = regen_in(dir, [["BLUE_REGEN_UNTRACKED", "maybe"]])
+    assert status_of(regen_in(dir, [%w[BLUE_REGEN_UNTRACKED allow]])) == 0
+    bad = regen_in(dir, [%w[BLUE_REGEN_UNTRACKED maybe]])
     assert status_of(bad) != 0
     assert contains?(stderr_of(bad), "BLUE_REGEN_UNTRACKED")
     rm_rf(dir)

@@ -6,7 +6,7 @@ verb(
   {
     kind: :effect,
     shape: "run(command, args, opts) -> result",
-    laterals: ["process", "capability", "error"],
+    laterals: %w[process capability error],
     fleet: nil,
     today: "partial:shisutemu",
     meaning: "run a command to completion; exec primitives exist, the verb does not",

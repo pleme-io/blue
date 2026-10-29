@@ -1,11 +1,8 @@
-use("kazu", [:abs, :max, :min])
-use("retsu", [:first, :index_of, :is_empty, :last, :rest, :size, :zip])
-use("settei", [:env_of, :no_env, :resolve])
+use("kazu", %i[abs max min])
+use("retsu", %i[first index_of is_empty last rest size zip])
+use("settei", %i[env_of no_env resolve])
 
-use(
-  "shisutemu",
-  [:last_nonempty_line, :read_or, :status_of, :stderr_of, :stdout_of]
-)
+use("shisutemu", %i[last_nonempty_line read_or status_of stderr_of stdout_of])
 
 def moving(rate)
   {verdict: "moving", rate:}
@@ -142,7 +139,7 @@ def run_capture(argv)
 end
 
 def gh_budget()
-  r = run_capture(["gh", "api", "rate_limit"])
+  r = run_capture(%w[gh api rate_limit])
   if r[:ok]
     budget_of(r[:stdout])
   else
@@ -275,35 +272,35 @@ end
 
 def progress_paths()
   [
-    ["status", "pass", "heartbeatAt"],
-    ["status", "applyCursorCount"],
-    ["status", "applyCursorAdvancedAt"]
+    %w[status pass heartbeatAt],
+    %w[status applyCursorCount],
+    %w[status applyCursorAdvancedAt]
   ]
 end
 
 def motion_paths()
   [
-    ["status", "phase"],
-    ["status", "phaseEnteredAt"],
-    ["status", "observedGeneration"],
-    ["status", "cycleCount"],
-    ["status", "lastPlannedAt"],
-    ["status", "lastAppliedAt"]
+    %w[status phase],
+    %w[status phaseEnteredAt],
+    %w[status observedGeneration],
+    %w[status cycleCount],
+    %w[status lastPlannedAt],
+    %w[status lastAppliedAt]
   ]
 end
 
 def active_phase?(phase)
   member?(
     phase,
-    [
-      "Pending",
-      "Verifying",
-      "Verified",
-      "Compiling",
-      "Initializing",
-      "Planning",
-      "Applying",
-      "Destroying"
+    %w[
+      Pending
+      Verifying
+      Verified
+      Compiling
+      Initializing
+      Planning
+      Applying
+      Destroying
     ]
   )
 end
@@ -325,8 +322,8 @@ def latest(xs)
 end
 
 def cursor_rate(a, b, window_s)
-  ca = at(a, ["status", "applyCursorCount"])
-  cb = at(b, ["status", "applyCursorCount"])
+  ca = at(a, %w[status applyCursorCount])
+  cb = at(b, %w[status applyCursorCount])
   if number?(ca) and number?(cb) and window_s > 0
     abs(cb - ca) / window_s
   end
@@ -336,22 +333,22 @@ def liveness(a, b, window_s)
   if a.nil? or b.nil?
     blind("a status read failed")
   else
-    gen = at(b, ["metadata", "generation"])
-    observed = at(b, ["status", "observedGeneration"])
-    phase = at(b, ["status", "phase"])
-    pass_kind = at(b, ["status", "pass", "kind"])
+    gen = at(b, %w[metadata generation])
+    observed = at(b, %w[status observedGeneration])
+    phase = at(b, %w[status phase])
+    pass_kind = at(b, %w[status pass kind])
     present = filter((p) -> at(b, p) != nil, progress_paths)
     progressed = any?((p) -> at(a, p) != at(b, p), present)
     moved = any?((p) -> at(a, p) != at(b, p), motion_paths)
     since = latest(
       [
-        at(b, ["status", "phaseEnteredAt"]),
-        at(b, ["status", "pass", "heartbeatAt"]),
-        at(b, ["status", "applyCursorAdvancedAt"])
+        at(b, %w[status phaseEnteredAt]),
+        at(b, %w[status pass heartbeatAt]),
+        at(b, %w[status applyCursorAdvancedAt])
       ]
     )
     if pass_kind == "stalled"
-      assoc(stalled(since), :reason, at(b, ["status", "pass", "reason"]))
+      assoc(stalled(since), :reason, at(b, %w[status pass reason]))
     elsif progressed or moved
       v = assoc(
         moving(cursor_rate(a, b, window_s)),
@@ -476,12 +473,12 @@ def load_and_cores()
   load1 = if la != ""
     to_float(first(split(la, " ")))
   else
-    r = run_capture(["sysctl", "-n", "vm.loadavg"])
+    r = run_capture(%w[sysctl -n vm.loadavg])
     if r[:ok]
       to_float(split(blue::trim(r[:stdout]), " ")[1])
     end
   end
-  c = run_capture(["getconf", "_NPROCESSORS_ONLN"])
+  c = run_capture(%w[getconf _NPROCESSORS_ONLN])
   cores = if c[:ok]
     to_int(blue::trim(c[:stdout]))
   end
@@ -649,16 +646,13 @@ test "job_from_cronjob: the Job carries the template spec unchanged and is owned
   j = r[:job]
   assert j["kind"] == "Job"
   assert j["apiVersion"] == "batch/v1"
-  assert at(j, ["metadata", "name"]) == "vars-manual-1"
-  assert at(j, ["metadata", "namespace"]) == "pangea-system"
-  assert at(j, ["metadata", "labels", "app"]) == "vars"
-  assert at(
-    j,
-    ["metadata", "annotations", "cronjob.kubernetes.io/instantiate"]
-  ) == "manual"
-  assert j["spec"] ==
-    at(json_read(cronjob_text), ["spec", "jobTemplate", "spec"])
-  assert at(first(at(j, ["metadata", "ownerReferences"])), ["uid"]) == "u-1"
+  assert at(j, %w[metadata name]) == "vars-manual-1"
+  assert at(j, %w[metadata namespace]) == "pangea-system"
+  assert at(j, %w[metadata labels app]) == "vars"
+  assert at(j, %w[metadata annotations cronjob.kubernetes.io/instantiate]) ==
+    "manual"
+  assert j["spec"] == at(json_read(cronjob_text), %w[spec jobTemplate spec])
+  assert at(first(at(j, %w[metadata ownerReferences])), ["uid"]) == "u-1"
   assert json_read(json_stringify(j)) == j
 end
 

@@ -4,7 +4,7 @@ tesuto (テスト) — testing: errors and snapshots as assertions, and the poli
     uncovered({"uncovered" => []}) #=> []
 """
 
-use("moji", [:checked, :trim])
+use("moji", %i[checked trim])
 
 @doc """
 raises?: whether f raises that kind of error.
@@ -36,7 +36,7 @@ end
 snapshot: compare a value with its stored copy; update on request.
 """
 def snapshot(value, opts)
-  checked(opts, [:name, :dir, :update])
+  checked(opts, %i[name dir update])
   path = snapshot_path(opts)
   actual = unlines([literal(value)])
   if opts[:update] == true
@@ -112,7 +112,7 @@ levels: The three levels a package can be held at, from weakest to strongest.
     levels #=> [:off, :audit, :enforce]
 """
 def levels()
-  [:off, :audit, :enforce]
+  %i[off audit enforce]
 end
 
 @doc """
@@ -398,11 +398,11 @@ test "beside splits untested names from waived ones, and stale finds idle waiver
     ],
     "2026-10-24"
   )
-  r = beside(s, "p", ["p::a", "p::b"])
+  r = beside(s, "p", %w[p::a p::b])
   assert r[:level] == :enforce
   assert r[:untested] == ["p::a"]
   assert r[:waived] == ["p::b"]
-  assert map((w) -> w[:name], stale(s, ["p::a", "p::b"])) == ["p::z"]
+  assert map((w) -> w[:name], stale(s, %w[p::a p::b])) == ["p::z"]
 end
 
 test "fresh_dir makes a new empty directory each call"

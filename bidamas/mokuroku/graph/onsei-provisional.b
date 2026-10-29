@@ -126,7 +126,7 @@ verb(
   {
     kind: :effect,
     shape: "listen(device, opts) -> handle",
-    laterals: ["cancel", "resource"],
+    laterals: %w[cancel resource],
     fleet: "oto",
     today: "absent",
     meaning: "capture audio from an input device",
@@ -171,7 +171,7 @@ verb(
   {
     kind: :effect,
     shape: "play(clip, opts) -> handle",
-    laterals: ["cancel", "resource"],
+    laterals: %w[cancel resource],
     fleet: "oto",
     today: "absent",
     meaning: "play a clip on an output device",
@@ -231,7 +231,7 @@ verb(
   {
     kind: :effect,
     shape: "speak(text, voice, opts) -> clip",
-    laterals: ["cache", "deadline", "retry"],
+    laterals: %w[cache deadline retry],
     fleet: nil,
     today: "absent",
     meaning: "text spoken as a clip",
@@ -291,7 +291,7 @@ verb(
   {
     kind: :effect,
     shape: "transcribe(clip, opts) -> {text, spans}",
-    laterals: ["cache", "deadline", "retry"],
+    laterals: %w[cache deadline retry],
     fleet: nil,
     today: "absent",
     meaning: "speech in a clip as timed text",

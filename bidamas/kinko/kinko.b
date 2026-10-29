@@ -1,7 +1,7 @@
 use("deeta", [:pretty])
-use("kyohi", [:kinds, :refusal, :standing])
+use("kyohi", %i[kinds refusal standing])
 use("moji", [:made_of])
-use("retsu", [:contains, :first, :flat_map, :is_empty, :size])
+use("retsu", %i[contains first flat_map is_empty size])
 use("ronri", [:every])
 use("shuugou", [:ordered])
 
@@ -18,47 +18,42 @@ def permissions()
     permission("read_items", 32, [], true),
     permission("create_items", 128, ["read_items"], true),
     permission("reveal_item_password", 16, ["read_items"], true),
-    permission(
-      "update_items",
-      64,
-      ["read_items", "reveal_item_password"],
-      true
-    ),
+    permission("update_items", 64, %w[read_items reveal_item_password], true),
     permission(
       "archive_items",
       256,
-      ["read_items", "reveal_item_password", "update_items"],
+      %w[read_items reveal_item_password update_items],
       true
     ),
     permission(
       "delete_items",
       512,
-      ["read_items", "reveal_item_password", "update_items"],
+      %w[read_items reveal_item_password update_items],
       true
     ),
     permission(
       "update_item_history",
       1024,
-      ["read_items", "reveal_item_password"],
+      %w[read_items reveal_item_password],
       true
     ),
-    permission("import_items", 2_097_152, ["read_items", "create_items"], true),
+    permission("import_items", 2_097_152, %w[read_items create_items], true),
     permission(
       "export_items",
       4_194_304,
-      ["read_items", "reveal_item_password", "update_item_history"],
+      %w[read_items reveal_item_password update_item_history],
       true
     ),
     permission(
       "send_items",
       1_048_576,
-      ["read_items", "reveal_item_password", "update_item_history"],
+      %w[read_items reveal_item_password update_item_history],
       true
     ),
     permission(
       "print_items",
       8_388_608,
-      ["read_items", "reveal_item_password", "update_item_history"],
+      %w[read_items reveal_item_password update_item_history],
       true
     ),
     permission("manage_vault", 2, [], true),
@@ -68,18 +63,18 @@ end
 
 def bundles()
   [
-    ["view", ["read_items", "reveal_item_password", "update_item_history"]],
+    ["view", %w[read_items reveal_item_password update_item_history]],
     [
       "edit",
-      [
-        "create_items",
-        "update_items",
-        "archive_items",
-        "delete_items",
-        "import_items",
-        "export_items",
-        "send_items",
-        "print_items"
+      %w[
+        create_items
+        update_items
+        archive_items
+        delete_items
+        import_items
+        export_items
+        send_items
+        print_items
       ]
     ],
     ["manage", ["manage_vault"]]
@@ -556,7 +551,7 @@ def example()
       grant(
         "infra",
         "ops",
-        ["read_items", "reveal_item_password", "update_item_history"]
+        %w[read_items reveal_item_password update_item_history]
       )
     ]
   )
@@ -579,10 +574,10 @@ test "the table covers every SDK bit once and round-trips"
   assert decode(encode(names)) == sorted(names)
   assert decode(0) == []
   assert encode(
-    ["read_items", "reveal_item_password", "update_items", "delete_items"]
+    %w[read_items reveal_item_password update_items delete_items]
   ) == 624
   assert decode(624) ==
-    ["delete_items", "read_items", "reveal_item_password", "update_items"]
+    %w[delete_items read_items reveal_item_password update_items]
   assert every((p) -> every((r) -> contains(names, r), p.requires), permissions)
 end
 
@@ -593,7 +588,7 @@ test "closure refuses a permission without what it requires, and names what is m
   assert closure_whys(["delete_items"]) ==
     ["\"delete_items\" requires read_items, reveal_item_password, update_items"]
   assert closure_whys(
-    ["read_items", "reveal_item_password", "update_items", "delete_items"]
+    %w[read_items reveal_item_password update_items delete_items]
   ) == []
   assert size(closure_whys(["recover_vault"])) == 1
   assert size(closure_whys(["bogus"])) == 1
@@ -632,13 +627,13 @@ test "a bad entry is refused alone and its valid siblings stand"
     ]
   )
   assert kinds(judge(a).refusals) ==
-    [
-      :duplicate_vault,
-      :bad_vault,
-      :bad_vault,
-      :unknown_vault,
-      :bad_permissions,
-      :duplicate_grant
+    %i[
+      duplicate_vault
+      bad_vault
+      bad_vault
+      unknown_vault
+      bad_permissions
+      duplicate_grant
     ]
   assert map((v) -> v[:key], accepted(a)[:vaults]) == ["infra"]
   assert map(grant_name, accepted(a)[:grants]) == ["infra__ops"]
@@ -673,7 +668,7 @@ test "the projection carries what stands, field for field"
     {
       vault_id: "${opadmin_vault.infra.id}",
       group_id: "ops",
-      permissions: ["read_items", "reveal_item_password", "update_item_history"]
+      permissions: %w[read_items reveal_item_password update_item_history]
     }
   assert accepted(accepted(example)) == accepted(example)
 end

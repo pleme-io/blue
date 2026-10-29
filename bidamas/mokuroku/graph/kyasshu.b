@@ -35,7 +35,7 @@ verb(
   {
     kind: :effect,
     shape: "delete(cache, key) -> nil",
-    laterals: ["cache", "idempotent"],
+    laterals: %w[cache idempotent],
     fleet: "pleme-redis",
     today: "absent",
     meaning: "drop one entry; absent counts as done",
@@ -50,7 +50,7 @@ verb(
   {
     kind: :effect,
     shape: "flush(cache) -> count",
-    laterals: ["cache", "error"],
+    laterals: %w[cache error],
     fleet: nil,
     today: "absent",
     meaning: "push pending write-behind entries to the backing store",
@@ -65,7 +65,7 @@ verb(
   {
     kind: :pure,
     shape: "fresh?(entry, now) -> Bool",
-    laterals: ["cache", "time"],
+    laterals: %w[cache time],
     fleet: "token-cache-go",
     today: "absent",
     meaning: "whether an entry is still inside its lifetime",
@@ -80,7 +80,7 @@ verb(
   {
     kind: :effect,
     shape: "get(cache, key) -> value or nil",
-    laterals: ["cache", "time"],
+    laterals: %w[cache time],
     fleet: "pleme-redis",
     today: "absent",
     meaning: "the cached value, or nil when absent or expired",
@@ -125,7 +125,7 @@ verb(
   {
     kind: :effect,
     shape: "invalidate(cache, subject) -> count",
-    laterals: ["cache", "idempotent"],
+    laterals: %w[cache idempotent],
     fleet: nil,
     today: "absent",
     meaning: "mark stale by key, prefix, tag or dependency",
@@ -197,7 +197,7 @@ verb(
   {
     kind: :effect,
     shape: "open(spec) -> cache",
-    laterals: ["config", "resource"],
+    laterals: %w[config resource],
     fleet: "almoxarifado",
     today: "absent",
     meaning: "make a cache with a size, policy and lifetime",
@@ -212,7 +212,7 @@ verb(
   {
     kind: :decl,
     shape: "policy(fragments, entries) -> policy",
-    laterals: ["cache", "config"],
+    laterals: %w[cache config],
     fleet: nil,
     today: "exists:kyasshu",
     wave: 1,
@@ -226,7 +226,7 @@ verb(
   {
     kind: :effect,
     shape: "put(cache, key, value, opts) -> value",
-    laterals: ["cache", "time"],
+    laterals: %w[cache time],
     fleet: "pleme-redis",
     today: "absent",
     meaning: "store a value, evicting by policy when full",
@@ -241,7 +241,7 @@ verb(
   {
     kind: :pure,
     shape: "read(store, opts) -> value or nil",
-    laterals: ["cache", "time"],
+    laterals: %w[cache time],
     fleet: nil,
     today: "exists:kyasshu",
     wave: 1,
@@ -255,7 +255,7 @@ verb(
   {
     kind: :effect,
     shape: "refresh(cache, key, f) -> value",
-    laterals: ["cache", "error"],
+    laterals: %w[cache error],
     fleet: nil,
     today: "absent",
     meaning: "recompute one entry now, serving the old one meanwhile",
@@ -270,7 +270,7 @@ verb(
   {
     kind: :effect,
     shape: "remember(cache, key, f, opts) -> value",
-    laterals: ["cache", "deadline", "error", "idempotent"],
+    laterals: %w[cache deadline error idempotent],
     fleet: "almoxarifado",
     today: "absent",
     meaning: "get, or compute with f once for concurrent callers and store",
@@ -285,7 +285,7 @@ verb(
   {
     kind: :effect,
     shape: "renew(cache, key, ttl) -> nil",
-    laterals: ["cache", "time"],
+    laterals: %w[cache time],
     fleet: nil,
     today: "absent",
     meaning: "lengthen the life of an entry without changing its value",
@@ -301,7 +301,7 @@ verb(
   {
     kind: :effect,
     shape: "request(target, input, opts) -> reply",
-    laterals: ["cache", "error", "deadline"],
+    laterals: %w[cache error deadline],
     fleet: "hanabi",
     today: "exists:kyasshu",
     wave: 1,
@@ -315,7 +315,7 @@ verb(
   {
     kind: :effect,
     shape: "save(cache, path) -> nil",
-    laterals: ["cache", "serialize"],
+    laterals: %w[cache serialize],
     fleet: "token-cache-go",
     today: "absent",
     meaning: "persist entries to disk so a restart keeps them",
@@ -344,7 +344,7 @@ verb(
   {
     kind: :effect,
     shape: "settle(store, write, outcome) -> store",
-    laterals: ["cache", "error"],
+    laterals: %w[cache error],
     fleet: nil,
     today: "exists:kyasshu",
     wave: 1,
@@ -358,7 +358,7 @@ verb(
   {
     kind: :pure,
     shape: "snapshot(store, opts) -> store",
-    laterals: ["cache", "serialize"],
+    laterals: %w[cache serialize],
     fleet: nil,
     today: "exists:kyasshu",
     wave: 1,
@@ -372,7 +372,7 @@ verb(
   {
     kind: :pure,
     shape: "stale?(store, opts) -> Bool",
-    laterals: ["cache", "time"],
+    laterals: %w[cache time],
     fleet: nil,
     today: "exists:kyasshu",
     wave: 1,
@@ -386,7 +386,7 @@ verb(
   {
     kind: :effect,
     shape: "sweep(store, opts) -> store",
-    laterals: ["cache", "time"],
+    laterals: %w[cache time],
     fleet: nil,
     today: "exists:kyasshu",
     wave: 2,
@@ -415,7 +415,7 @@ verb(
   {
     kind: :effect,
     shape: "warm(cache, source, keys) -> count",
-    laterals: ["cache", "cancel"],
+    laterals: %w[cache cancel],
     fleet: nil,
     today: "absent",
     meaning: "fill entries ahead of demand",
@@ -430,7 +430,7 @@ verb(
   {
     kind: :stream,
     shape: "watch(cache, f, opts) -> nil",
-    laterals: ["cache", "cancel"],
+    laterals: %w[cache cancel],
     fleet: "hanabi",
     today: "absent",
     meaning: "call f per entity event that patches or drops a key",
@@ -445,7 +445,7 @@ verb(
   {
     kind: :effect,
     shape: "write(store, change) -> store",
-    laterals: ["cache", "idempotent"],
+    laterals: %w[cache idempotent],
     fleet: nil,
     today: "exists:kyasshu",
     wave: 1,

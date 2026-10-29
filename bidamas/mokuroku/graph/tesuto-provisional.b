@@ -21,7 +21,7 @@ verb(
   {
     kind: :effect,
     shape: "assert(expr) -> nil",
-    laterals: ["error", "test"],
+    laterals: %w[error test],
     fleet: "blue-lang-test",
     today: "rust:blue-lang-test",
     meaning: "fail the test with a structural diff when expr is false",
@@ -81,7 +81,7 @@ verb(
   {
     kind: :decl,
     shape: "contract(consumer, provider, interactions) -> contract",
-    laterals: ["test", "validate"],
+    laterals: %w[test validate],
     fleet: nil,
     today: "absent",
     meaning: "declare what a consumer expects of a provider",
@@ -96,7 +96,7 @@ verb(
   {
     kind: :effect,
     shape: "cover(target, opts) -> coverage",
-    laterals: ["resource", "test"],
+    laterals: %w[resource test],
     fleet: nil,
     today: "absent",
     meaning: "run tests and record which code ran",
@@ -111,7 +111,7 @@ verb(
   {
     kind: :effect,
     shape: "fake(target, impl, f) -> value",
-    laterals: ["capability", "test"],
+    laterals: %w[capability test],
     fleet: nil,
     today: "absent",
     meaning: "replace a dependency by a fake while f runs",
@@ -156,7 +156,7 @@ verb(
   {
     kind: :effect,
     shape: "freeze(instant, f) -> value",
-    laterals: ["test", "time"],
+    laterals: %w[test time],
     fleet: nil,
     today: "absent",
     meaning: "run f with the clock fixed at an instant",
@@ -171,7 +171,7 @@ verb(
   {
     kind: :effect,
     shape: "fuzz(target, opts) -> [crash]",
-    laterals: ["deadline", "resource", "test"],
+    laterals: %w[deadline resource test],
     fleet: "caixa-cargo-fuzz",
     today: "absent",
     meaning: "feed generated inputs until something fails or time ends",
@@ -216,7 +216,7 @@ verb(
   {
     kind: :pure,
     shape: "parse(text, format) -> report",
-    laterals: ["serialize", "test"],
+    laterals: %w[serialize test],
     fleet: nil,
     today: "absent",
     meaning: "a JUnit or TAP report to a record",
@@ -231,7 +231,7 @@ verb(
   {
     kind: :effect,
     shape: "quarantine(test, reason, until) -> nil",
-    laterals: ["switch", "test"],
+    laterals: %w[switch test],
     fleet: nil,
     today: "absent",
     meaning: "skip a flaky test by a dated, counted entry",
@@ -246,7 +246,7 @@ verb(
   {
     kind: :pure,
     shape: "raises?(kind, f) -> Bool",
-    laterals: ["error", "test"],
+    laterals: %w[error test],
     fleet: "blue-lang-test",
     today: "exists:tesuto",
     wave: 0,
@@ -260,7 +260,7 @@ verb(
   {
     kind: :pure,
     shape: "render(report, format) -> text",
-    laterals: ["serialize", "test"],
+    laterals: %w[serialize test],
     fleet: nil,
     today: "absent",
     meaning: "a test report as text, JUnit or TAP",
@@ -275,7 +275,7 @@ verb(
   {
     kind: :effect,
     shape: "rerun(test, n) -> [result]",
-    laterals: ["retry", "test"],
+    laterals: %w[retry test],
     fleet: nil,
     today: "absent",
     meaning: "run one test again n times and keep every result",
@@ -290,7 +290,7 @@ verb(
   {
     kind: :effect,
     shape: "run(target, opts) -> report",
-    laterals: ["deadline", "process", "test"],
+    laterals: %w[deadline process test],
     fleet: "blue-lang-test",
     today: "rust:blue-lang-test",
     meaning: "run every test under a target in parallel",
@@ -320,7 +320,7 @@ verb(
   {
     kind: :effect,
     shape: "snapshot(value, opts) -> nil",
-    laterals: ["serialize", "test"],
+    laterals: %w[serialize test],
     fleet: "blue-lang-test",
     today: "exists:tesuto",
     wave: 0,
@@ -364,7 +364,7 @@ verb(
   {
     kind: :stream,
     shape: "watch(paths, opts) -> nil",
-    laterals: ["cancel", "test"],
+    laterals: %w[cancel test],
     fleet: "blue-lang-cli",
     today: "rust:blue-lang-cli",
     meaning: "rerun tests when a watched file changes",

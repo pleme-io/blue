@@ -10,10 +10,7 @@ def service_call(base, token, domain, service, entity)
   [
     "POST",
     "#{base}/api/services/#{domain}/#{service}",
-    [
-      ["Authorization", "Bearer #{token}"],
-      ["Content-Type", "application/json"]
-    ],
+    [["Authorization", "Bearer #{token}"], %w[Content-Type application/json]],
     json_stringify({entity_id: entity})
   ]
 end
@@ -66,7 +63,7 @@ end
 
 test "a bus message names its command"
   m = {subject: "home.light.kitchen", payload: "on", reply: nil}
-  assert command_of(m) == ["light", "turn_on", "light.kitchen"]
+  assert command_of(m) == %w[light turn_on light.kitchen]
   assert command_of(assoc(m, :payload, "off"))[1] == "turn_off"
 end
 

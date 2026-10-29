@@ -18,8 +18,8 @@ where a decision here records a deviation. Knowing Ruby is knowing blue.
 use("junjo", [:sort])
 use("kyohi")
 use("moji", [:lines])
-use("ran", [:next_bool, :next_seed, :next_uniform, :pick])
-use("retsu", [:contains, :first, :flat_map, :index_of, :is_empty, :rest, :size])
+use("ran", %i[next_bool next_seed next_uniform pick])
+use("retsu", %i[contains first flat_map index_of is_empty rest size])
 
 legacy_names("0.1.1", "ok")
 
@@ -95,7 +95,7 @@ def gen_map(s, n, depth, acc)
     [acc, s]
   else
     g = gen(next_seed(s), depth)
-    key = pick(s, [:a, :b, :c, :d])
+    key = pick(s, %i[a b c d])
     gen_map(g[1], n - 1, depth, assoc(acc, key, g[0]))
   end
 end
@@ -304,7 +304,7 @@ def chain_values()
     " 12 ",
     "日本",
     "\"q\"",
-    join_lines(["a", "b"]),
+    join_lines(%w[a b]),
     "ẞ",
     "İ",
     "x y",
@@ -413,7 +413,7 @@ def refusal_lists_from(s, n, acc)
     refusals = map(
       fn(i)
         kyohi::refusal(
-          pick(next_seed(s) + i, [:a, :b, :c]),
+          pick(next_seed(s) + i, %i[a b c]),
           pick(next_seed(next_seed(s)) + i, ["", "x", "x y", "日本"])
         )
       end,

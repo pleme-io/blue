@@ -309,10 +309,7 @@ def plain_key?(k)
       end,
       cs
     ) and
-    not member?(
-      k,
-      ["true", "false", "null", "yes", "no", "on", "off", "y", "n"]
-    )
+    not member?(k, %w[true false null yes no on off y n])
 end
 
 def scalar_text(v)
@@ -757,7 +754,7 @@ def block_node(y, r, c, n, ctx, outer)
   line = p[:props]
   c2 = p[:c]
   ch = at_char(y, r, c2)
-  collection_here = member?(ctx, [:fresh, :fresh_map, :seq, :explicit])
+  collection_here = member?(ctx, %i[fresh fresh_map seq explicit])
   tabbed = member?("\t", chars(row_slice(y, r, c, c2)))
   if line_end?(ch) or comment_at?(y, r, c2)
     later_node(y, r, c2, n, ctx, merged_properties(r, c1, outer, line))
@@ -819,7 +816,7 @@ def later_node(y, r, c, n, ctx, props)
   r2 = first(at)
   c2 = second(at)
   m = content_level(y, r2, c2)
-  beside = member?(ctx, [:map, :fresh_map, :explicit])
+  beside = member?(ctx, %i[map fresh_map explicit])
   if m > n
     if leading_spaces(y, r2, 0) <= n
       yaml_fail(r2, 0, "a tab cannot indent a block")
@@ -965,7 +962,7 @@ def plain_start?(y, r, c, flow)
   nx = at_char(y, r, c + 1)
   if separator?(ch)
     false
-  elsif member?(ch, ["-", "?", ":"])
+  elsif member?(ch, %w[- ? :])
     not separator?(nx) and not (flow and flow_indicator?(nx))
   else
     not member?(
@@ -1628,11 +1625,11 @@ def null_words()
 end
 
 def true_words()
-  ["true", "True", "TRUE"]
+  %w[true True TRUE]
 end
 
 def false_words()
-  ["false", "False", "FALSE"]
+  %w[false False FALSE]
 end
 
 def core_value(t)
@@ -1683,11 +1680,11 @@ def int_value(t)
 end
 
 def float_value(t)
-  if member?(t, [".inf", ".Inf", ".INF", "+.inf", "+.Inf", "+.INF"])
+  if member?(t, %w[.inf .Inf .INF +.inf +.Inf +.INF])
     to_float("inf")
-  elsif member?(t, ["-.inf", "-.Inf", "-.INF"])
+  elsif member?(t, %w[-.inf -.Inf -.INF])
     to_float("-inf")
-  elsif member?(t, [".nan", ".NaN", ".NAN"])
+  elsif member?(t, %w[.nan .NaN .NAN])
     to_float("nan")
   elsif float_text?(unsigned(t))
     to_float(t)
@@ -1812,7 +1809,7 @@ test "parse :yaml reads block maps, sequences and plain scalars by the core sche
     :yaml
   ) == {"a" => 1, "b" => ["x", 2.5, true, nil], "c" => 31}
   assert parse(unlines(["key:", "- a", "- b", "next: yes"]), :yaml) ==
-    {"key" => ["a", "b"], "next" => "yes"}
+    {"key" => %w[a b], "next" => "yes"}
   assert parse(unlines(["- a: 1", "  b: 2", "- - c"]), :yaml) ==
     [{"a" => 1, "b" => 2}, ["c"]]
   assert parse(unlines(["plain", "  folded", "", "  text"]), :yaml) ==
@@ -1837,7 +1834,7 @@ test "parse :yaml reads literal and folded block scalars under each chomping"
       ["a: |", "  one", "  two", "", "b: >-", "  one", "  two", "", "  three"]
     ),
     :yaml
-  ) == {"a" => unlines(["one", "two"]), "b" => join_lines(["one two", "three"])}
+  ) == {"a" => unlines(%w[one two]), "b" => join_lines(["one two", "three"])}
   assert parse(
     unlines(["- |+", "  kept", "", "- |2-", "    indented"]),
     :yaml
@@ -1860,7 +1857,7 @@ test "parse :yaml reads one document, every document when asked, and nil for non
     unlines(["--- first", "--- second", "..."]),
     :yaml,
     {documents: :all}
-  ) == ["first", "second"]
+  ) == %w[first second]
   assert parse("", :yaml, {documents: :all}) == []
   assert refused_kind(unlines(["--- a", "--- b"])) == :parse_error
 end

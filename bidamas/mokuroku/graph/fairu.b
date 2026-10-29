@@ -20,7 +20,7 @@ verb(
   {
     kind: :effect,
     shape: "append(path, content) -> nil",
-    laterals: ["capability", "error"],
+    laterals: %w[capability error],
     fleet: nil,
     today: "partial:shisutemu",
     meaning: "add to the end of a file, creating it",
@@ -35,7 +35,7 @@ verb(
   {
     kind: :effect,
     shape: "copy(from, to, opts) -> nil",
-    laterals: ["capability", "deadline", "error"],
+    laterals: %w[capability deadline error],
     fleet: nil,
     today: "partial:shisutemu",
     meaning: "place a copy of a file or tree at a destination",
@@ -65,7 +65,7 @@ verb(
   {
     kind: :effect,
     shape: "delete(path, opts) -> nil",
-    laterals: ["capability", "error", "idempotent"],
+    laterals: %w[capability error idempotent],
     fleet: nil,
     today: "partial:shisutemu",
     meaning: "make the path absent; absent counts as done",
@@ -169,7 +169,7 @@ verb(
   {
     kind: :effect,
     shape: "info(path) -> {kind, size, modified, mode}",
-    laterals: ["capability", "error", "time"],
+    laterals: %w[capability error time],
     fleet: nil,
     today: "partial:shisutemu",
     meaning: "the current state of a path as a record",
@@ -199,7 +199,7 @@ verb(
   {
     kind: :effect,
     shape: "link(target, path, opts) -> nil",
-    laterals: ["capability", "error"],
+    laterals: %w[capability error],
     fleet: nil,
     today: "absent",
     meaning: "make a symbolic link; configured off by default",
@@ -214,7 +214,7 @@ verb(
   {
     kind: :effect,
     shape: "list(dir, opts) -> [entry]",
-    laterals: ["capability", "error"],
+    laterals: %w[capability error],
     fleet: nil,
     today: "partial:shisutemu",
     meaning: "the entries of one directory, sorted",
@@ -229,7 +229,7 @@ verb(
   {
     kind: :effect,
     shape: "make_dir(path, opts) -> nil",
-    laterals: ["capability", "error", "idempotent"],
+    laterals: %w[capability error idempotent],
     fleet: nil,
     today: "partial:shisutemu",
     meaning: "create a directory and its parents",
@@ -259,7 +259,7 @@ verb(
   {
     kind: :effect,
     shape: "mode(path, bits) -> nil",
-    laterals: ["capability", "error"],
+    laterals: %w[capability error],
     fleet: nil,
     today: "absent",
     meaning: "set permission bits; configured off by default",
@@ -274,7 +274,7 @@ verb(
   {
     kind: :effect,
     shape: "move(from, to, opts) -> nil",
-    laterals: ["capability", "error", "idempotent"],
+    laterals: %w[capability error idempotent],
     fleet: nil,
     today: "partial:shisutemu",
     meaning: "rename atomically on one filesystem",
@@ -348,7 +348,7 @@ verb(
   {
     kind: :effect,
     shape: "place(app, tier) -> path",
-    laterals: ["capability", "config"],
+    laterals: %w[capability config],
     fleet: "okiba",
     today: "absent",
     meaning: "the absolute config, state, data or cache path of an app",
@@ -363,7 +363,7 @@ verb(
   {
     kind: :effect,
     shape: "read(path, opts) -> text",
-    laterals: ["capability", "deadline", "error"],
+    laterals: %w[capability deadline error],
     fleet: nil,
     today: "partial:shisutemu",
     meaning: "the whole text of a file",
@@ -378,7 +378,7 @@ verb(
   {
     kind: :effect,
     shape: "read_bytes(path, opts) -> bytes",
-    laterals: ["capability", "error"],
+    laterals: %w[capability error],
     fleet: nil,
     today: "absent",
     meaning: "the whole content of a file as bytes",
@@ -452,7 +452,7 @@ verb(
   {
     kind: :stream,
     shape: "stream(path, f, opts) -> nil",
-    laterals: ["cancel", "deadline", "error"],
+    laterals: %w[cancel deadline error],
     fleet: nil,
     today: "absent",
     meaning: "call f per line or chunk without holding the file",
@@ -467,7 +467,7 @@ verb(
   {
     kind: :effect,
     shape: "sync(path) -> nil",
-    laterals: ["capability", "error"],
+    laterals: %w[capability error],
     fleet: nil,
     today: "absent",
     meaning: "flush a file to stable storage",
@@ -482,7 +482,7 @@ verb(
   {
     kind: :effect,
     shape: "touch(path, opts) -> nil",
-    laterals: ["capability", "idempotent", "time"],
+    laterals: %w[capability idempotent time],
     fleet: nil,
     today: "absent",
     meaning: "create an empty file or bump its modified time",
@@ -497,7 +497,7 @@ verb(
   {
     kind: :effect,
     shape: "update(path, f, opts) -> text",
-    laterals: ["error", "idempotent", "retry"],
+    laterals: %w[error idempotent retry],
     fleet: nil,
     today: "absent",
     meaning: "read, change with f, write back; conflict if it moved",
@@ -512,7 +512,7 @@ verb(
   {
     kind: :effect,
     shape: "usage(path) -> {bytes, files}",
-    laterals: ["capability", "deadline"],
+    laterals: %w[capability deadline],
     fleet: nil,
     today: "absent",
     meaning: "bytes and files used under a path",
@@ -527,7 +527,7 @@ verb(
   {
     kind: :effect,
     shape: "walk(root, opts) -> [path]",
-    laterals: ["cancel", "capability", "error"],
+    laterals: %w[cancel capability error],
     fleet: nil,
     today: "partial:shisutemu",
     meaning: "every file under a root, sorted",
@@ -542,7 +542,7 @@ verb(
   {
     kind: :stream,
     shape: "watch(path, f, opts) -> nil",
-    laterals: ["cancel", "deadline", "time"],
+    laterals: %w[cancel deadline time],
     fleet: nil,
     today: "absent",
     meaning: "call f per change event until it returns stop",
@@ -572,7 +572,7 @@ verb(
   {
     kind: :effect,
     shape: "with_temp_dir(f) -> value",
-    laterals: ["cancel", "error", "resource"],
+    laterals: %w[cancel error resource],
     fleet: "tatara-lisp",
     today: "absent",
     meaning: "run f in a fresh directory removed afterwards",
@@ -587,7 +587,7 @@ verb(
   {
     kind: :effect,
     shape: "with_temp_file(f, opts) -> value",
-    laterals: ["cancel", "error", "resource"],
+    laterals: %w[cancel error resource],
     fleet: "tatara-lisp",
     today: "absent",
     meaning: "run f with a fresh file removed afterwards",
@@ -602,7 +602,7 @@ verb(
   {
     kind: :effect,
     shape: "write(path, content, opts) -> nil",
-    laterals: ["capability", "error", "idempotent"],
+    laterals: %w[capability error idempotent],
     fleet: nil,
     today: "partial:shisutemu",
     meaning: "replace a whole file atomically, making parents",

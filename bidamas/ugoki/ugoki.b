@@ -1,7 +1,7 @@
 use("jisho")
-use("kazu", [:abs, :clamp, :lerp])
+use("kazu", %i[abs clamp lerp])
 use("moji", [:checked])
-use("retsu", [:count_where, :first, :zip])
+use("retsu", %i[count_where first zip])
 use("tesuto", [:raises?])
 
 def named_curves()
@@ -108,18 +108,18 @@ def channels(m, names)
 end
 
 def color?(v)
-  map?(v) and channels(v, [:r, :g, :b])
+  map?(v) and channels(v, %i[r g b])
 end
 
 def rotation?(v)
-  map?(v) and channels(v, [:x, :y, :z, :w])
+  map?(v) and channels(v, %i[x y z w])
 end
 
 def mix_color(a, b, t)
   names = if jisho::has?(a, :a) and jisho::has?(b, :a)
-    [:r, :g, :b, :a]
+    %i[r g b a]
   else
-    [:r, :g, :b]
+    %i[r g b]
   end
   reduce((acc, k) -> assoc(acc, k, lerp(get(a, k), get(b, k), t)), {}, names)
 end
@@ -132,13 +132,13 @@ def quaternion_blend(a, b, wa, wb)
   reduce(
     (acc, k) -> assoc(acc, k, wa * get(a, k) + wb * get(b, k)),
     {},
-    [:x, :y, :z, :w]
+    %i[x y z w]
   )
 end
 
 def quaternion_unit(q)
   n = sqrt(quaternion_dot(q, q))
-  reduce((acc, k) -> assoc(acc, k, get(q, k) / n), {}, [:x, :y, :z, :w])
+  reduce((acc, k) -> assoc(acc, k, get(q, k) / n), {}, %i[x y z w])
 end
 
 def mix_rotation(a, b, t)
@@ -193,7 +193,7 @@ end
 tween: declare a change of value over a duration.
 """
 def tween(from, to, opts)
-  checked(opts, [:seconds, :curve])
+  checked(opts, %i[seconds curve])
   mix(from, to, 0)
   c = opts[:curve] or curve(:linear, nil)
   {kind: :tween, from:, to:, seconds: positive_seconds(opts), curve: c}

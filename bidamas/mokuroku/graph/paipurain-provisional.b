@@ -6,7 +6,7 @@ verb(
   {
     kind: :effect,
     shape: "approve(run, gate, opts) -> nil",
-    laterals: ["capability", "log"],
+    laterals: %w[capability log],
     fleet: nil,
     today: "absent",
     meaning: "let a held gate pass, naming who",
@@ -36,7 +36,7 @@ verb(
   {
     kind: :effect,
     shape: "cancel(run) -> nil",
-    laterals: ["cancel", "idempotent"],
+    laterals: %w[cancel idempotent],
     fleet: nil,
     today: "absent",
     meaning: "stop a run and its jobs",
@@ -51,7 +51,7 @@ verb(
   {
     kind: :decl,
     shape: "declare(name, spec) -> pipeline",
-    laterals: ["config", "validate"],
+    laterals: %w[config validate],
     fleet: nil,
     today: "absent",
     meaning: "a pipeline as stages, jobs and gates",
@@ -188,7 +188,7 @@ verb(
   {
     kind: :effect,
     shape: "run(pipeline, event, opts) -> run",
-    laterals: ["deadline", "log", "process"],
+    laterals: %w[deadline log process],
     fleet: nil,
     today: "absent",
     meaning: "start a pipeline for an event",
@@ -203,7 +203,7 @@ verb(
   {
     kind: :decl,
     shape: "schedule(pipeline, cron) -> entry",
-    laterals: ["config", "time"],
+    laterals: %w[config time],
     fleet: nil,
     today: "absent",
     meaning: "run a pipeline on a calendar",
@@ -248,7 +248,7 @@ verb(
   {
     kind: :stream,
     shape: "watch(run, f, opts) -> nil",
-    laterals: ["cancel", "deadline"],
+    laterals: %w[cancel deadline],
     fleet: nil,
     today: "absent",
     meaning: "call f per job state change",

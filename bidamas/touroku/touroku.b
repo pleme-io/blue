@@ -5,21 +5,21 @@ touroku (登録) — registry: a project published to and resolved from registry
 """
 
 use("deeta", [:yaml])
-use("kousei", [:entry, :field, :flag, :judge, :list_of, :one_of, :text])
-use("kyohi", [:kinds, :refusal])
-use("moji", [:is_hex, :strip_prefix])
-use("retsu", [:contains, :first, :is_empty, :size])
+use("kousei", %i[entry field flag judge list_of one_of text])
+use("kyohi", %i[kinds refusal])
+use("moji", %i[is_hex strip_prefix])
+use("retsu", %i[contains first is_empty size])
 
 def visibilities()
-  ["public", "unlisted", "private"]
+  %w[public unlisted private]
 end
 
 def built_backends()
-  ["sui", "flakehub"]
+  %w[sui flakehub]
 end
 
 def planned_backends()
-  ["porto", "github"]
+  %w[porto github]
 end
 
 def backend_kinds()
@@ -34,9 +34,9 @@ def schema()
       field("output", text)
     ],
     flakehub: [
-      field("tag", one_of(["rolling", "semver"])),
+      field("tag", one_of(%w[rolling semver])),
       field("directory", text),
-      field("plan", one_of(["free", "paid"])),
+      field("plan", one_of(%w[free paid])),
       field("enabled", flag),
       field("output", text)
     ]
@@ -494,7 +494,7 @@ test "a private package never renders public, on any tag"
       assert contains?(r[:text], "visibility: \"private\"")
       assert not contains?(r[:text], "\"public\"")
     end,
-    ["rolling", "semver"]
+    %w[rolling semver]
   )
 end
 
@@ -531,7 +531,7 @@ end
 
 test "sui renders a gated publish of each output through sui-cache-push"
   r = render(
-    manifest_with("private", {"sui" => {"outputs" => ["default", "blue"]}}),
+    manifest_with("private", {"sui" => {"outputs" => %w[default blue]}}),
     "sui"
   )
   t = r[:text]
@@ -584,7 +584,7 @@ test "planned and unknown backends are refused by kind"
       {"porto" => {}, "npm" => {}, "sui" => {"outputs" => ["x"]}}
     )
   )
-  assert kinds(s[:refusals]) == [:unknown_backend, :not_built]
+  assert kinds(s[:refusals]) == %i[unknown_backend not_built]
   assert size(s[:standing]) == 1
 end
 

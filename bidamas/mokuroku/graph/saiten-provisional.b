@@ -97,7 +97,7 @@ verb(
   {
     kind: :decl,
     shape: "dataset(rows, shape) -> dataset",
-    laterals: ["serialize", "validate"],
+    laterals: %w[serialize validate],
     fleet: nil,
     today: "absent",
     meaning: "declare training or test rows with a shape",
@@ -202,7 +202,7 @@ verb(
   {
     kind: :effect,
     shape: "judge(a, b, criteria, opts) -> {winner, why}",
-    laterals: ["cache", "deadline", "retry"],
+    laterals: %w[cache deadline retry],
     fleet: nil,
     today: "absent",
     meaning: "blind pairwise grade of two outputs by a model",
@@ -217,7 +217,7 @@ verb(
   {
     kind: :effect,
     shape: "label(dataset, labeler, opts) -> dataset",
-    laterals: ["cache", "deadline", "retry"],
+    laterals: %w[cache deadline retry],
     fleet: nil,
     today: "absent",
     meaning: "add labels from a function, model or person",
@@ -232,7 +232,7 @@ verb(
   {
     kind: :effect,
     shape: "run(suite, subject, opts) -> results",
-    laterals: ["cache", "deadline", "ratelimit", "retry"],
+    laterals: %w[cache deadline ratelimit retry],
     fleet: nil,
     today: "absent",
     meaning: "run every case on a function, model or agent",
@@ -276,7 +276,7 @@ verb(
   {
     kind: :effect,
     shape: "train(spec, dataset, opts) -> handle",
-    laterals: ["cancel", "deadline", "resource"],
+    laterals: %w[cancel deadline resource],
     fleet: "ml-forge",
     today: "absent",
     meaning: "start a hosted fine-tune; local GPU training stays Rust",

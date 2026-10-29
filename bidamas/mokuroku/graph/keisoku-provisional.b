@@ -6,7 +6,7 @@ verb(
   {
     kind: :effect,
     shape: "bench(f, opts) -> stats",
-    laterals: ["deadline", "time"],
+    laterals: %w[deadline time],
     fleet: "tundra-gwbench",
     today: "absent",
     meaning: "run f many times; report spread, not one number",
@@ -107,7 +107,7 @@ verb(
   {
     kind: :effect,
     shape: "measure(histogram, f, opts) -> value",
-    laterals: ["error", "time"],
+    laterals: %w[error time],
     fleet: "metrics-go",
     today: "exists:keisoku",
     wave: 0,
@@ -150,7 +150,7 @@ verb(
   {
     kind: :effect,
     shape: "profile(f, opts) -> profile",
-    laterals: ["resource", "time"],
+    laterals: %w[resource time],
     fleet: nil,
     today: "rust:blue-lang-cli",
     meaning: "run f and report calls, time and allocation per function",
@@ -165,7 +165,7 @@ verb(
   {
     kind: :effect,
     shape: "push(sink, samples, opts) -> nil",
-    laterals: ["deadline", "retry"],
+    laterals: %w[deadline retry],
     fleet: nil,
     today: "absent",
     meaning: "send samples to a remote store",
@@ -239,7 +239,7 @@ verb(
   {
     kind: :effect,
     shape: "read(source, opts) -> [sample]",
-    laterals: ["deadline", "serialize"],
+    laterals: %w[deadline serialize],
     fleet: nil,
     today: "partial:keisoku",
     wave: 1,

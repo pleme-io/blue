@@ -17,8 +17,8 @@ each key's TTL (upgrade_eager).
 """
 
 use("kyohi", [:host_handle])
-use("moji", [:checked, :drop_chars])
-use("retsu", [:first, :is_empty, :size])
+use("moji", %i[checked drop_chars])
+use("retsu", %i[first is_empty size])
 use("teeburu")
 use("tesuto", [:raises?])
 
@@ -37,7 +37,7 @@ settings: a connection record judged and given its defaults.
     get(settings({host: "127.0.0.1", tls: false}), :port) #=> 6379
 """
 def settings(opts)
-  checked(opts, [:host, :port, :password_file, :tls, :timeout_ms])
+  checked(opts, %i[host port password_file tls timeout_ms])
   host = opts[:host]
   if not string?(host) or host == ""
     raise(:bad_option, "a connection takes host: non-empty text")
@@ -288,7 +288,7 @@ field_types: the field types a strict schema names.
     field_types #=> [:text, :int, :float, :bool, :list, :record, :any]
 """
 def field_types()
-  [:text, :int, :float, :bool, :list, :record, :any]
+  %i[text int float bool list record any]
 end
 
 @doc """
@@ -355,7 +355,7 @@ plan_ok: an upgrade plan with two different key prefixes, else a :bad_option rai
     raises?(:bad_option, () -> plan_ok({old: "a:", new: "a:"})) #=> true
 """
 def plan_ok(plan)
-  checked(plan, [:from, :to, :old, :new, :transform])
+  checked(plan, %i[from to old new transform])
   if not string?(plan[:old]) or
       not string?(plan[:new]) or
       plan[:old] == plan[:new]
@@ -492,7 +492,7 @@ test "settings refuse a literal password, a bad host and a bad tls"
 end
 
 test "a SET carries PX only with a TTL, and a bad TTL is refused"
-  assert set_command("k", "v", nil) == ["SET", "k", "v"]
+  assert set_command("k", "v", nil) == %w[SET k v]
   assert set_command("k", "v", 10) == ["SET", "k", "v", "PX", 10]
   assert raises?(:bad_option, () -> set_command("k", "v", 0))
   assert raises?(:bad_option, () -> set_command("k", "v", "5m"))
@@ -524,9 +524,8 @@ end
 
 test "a rewrite keeps a positive TTL and drops none"
   assert rewrite_commands("n", "t", 900, "o") ==
-    [["SET", "n", "t", "PX", 900], ["DEL", "o"]]
-  assert rewrite_commands("n", "t", -1, "o") ==
-    [["SET", "n", "t"], ["DEL", "o"]]
+    [["SET", "n", "t", "PX", 900], %w[DEL o]]
+  assert rewrite_commands("n", "t", -1, "o") == [%w[SET n t], %w[DEL o]]
 end
 
 test "an upgrade plan needs two different prefixes"

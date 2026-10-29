@@ -8,6 +8,7 @@
 (integer) @number
 (float) @number.float
 (symbol) @string.special.symbol
+(word_list) @string
 (true) @boolean
 (false) @boolean
 (nil) @constant.builtin

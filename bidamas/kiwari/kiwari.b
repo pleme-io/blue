@@ -1172,6 +1172,7 @@ def blue()
               identifier
               qualified_name
               list
+              word_list
               map
               parenthesized_expression
               if
@@ -1540,6 +1541,15 @@ def blue()
         rule("symbol", token(seq([lit(":"), pat(ident)])), ["keyword"]),
         :role,
         "string.special.symbol"
+      ),
+      with(
+        rule(
+          "word_list",
+          token(seq([pat("%[wi]\\["), pat("[^\\[\\],\"'\\\\#]*"), lit("]")])),
+          ["lexeme"]
+        ),
+        :role,
+        "string"
       ),
       with(rule("true", lit("true"), ["lexeme"]), :role, "boolean"),
       with(rule("false", lit("false"), ["lexeme"]), :role, "boolean"),

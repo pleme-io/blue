@@ -13,7 +13,7 @@
 //! has exactly one decoder. Where the grammar put the token's edges is still
 //! the grammar's claim, and the differential checks it.
 
-use blue_lang_syntax::{lex, TokenKind, OPTIONAL_MARKER};
+use blue_lang_syntax::{lex, words::Flavor, TokenKind, OPTIONAL_MARKER};
 use tatara_lisp::{Atom, Sexp};
 
 use crate::spec::{Spec, Template};
@@ -254,6 +254,16 @@ impl<'a> Lowerer<'a> {
                 TokenKind::True => vec![Sexp::Atom(Atom::Bool(true))],
                 TokenKind::False => vec![Sexp::Atom(Atom::Bool(false))],
                 TokenKind::Nil => vec![Sexp::Nil],
+                TokenKind::Words { flavor, words } => {
+                    let mut items = vec![sym("list")];
+                    items.extend(words.into_iter().map(|(w, _)| {
+                        Sexp::Atom(match flavor {
+                            Flavor::Strings => Atom::Str(w),
+                            Flavor::Keywords => Atom::Keyword(w),
+                        })
+                    }));
+                    vec![Sexp::List(items)]
+                }
                 other => {
                     return Err(self.err(node, format!("the lexeme is {other}, not a literal")))
                 }

@@ -18,6 +18,11 @@ def entries()
       "its bidamas need blue migrate (B0012, B0013, B0015) before blue fmt can write them, and the operator runs that by hand; it is measured and never red"
     ),
     level(
+      "makoto",
+      :audit,
+      "its pin bfdf668 predates blue 0.0.125, where its collisions gate finds 18 private names a public bidama also defines; it moves once they are renamed (makoto wip/blue-0.0.125 0e9dac1 holds that move), and it is measured and never red"
+    ),
+    level(
       "hanabi",
       :audit,
       "its host loads .b files only when canonical, and its crates.io blue-lang reads %w[...] as canonical only from the release that carries this formatter; it is written in it with that pin move"

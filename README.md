@@ -23,7 +23,9 @@ The philosophy is two axes
 **Form has no choices:** there is one short, distinct way to write each
 thing, every larger form is built from smaller ones, and every tool and gate
 enforces it. **Rigor has every choice:** a program is as strict as you write
-it, where you write it, and pays for nothing else.
+it, where you write it, and pays for nothing else. Every blue word (bidama,
+waku, mondou, the blueshift) maps to the concept you already know in
+[the glossary](docs/GLOSSARY.md).
 
 A file is a program, a library and its tests at once:
 
@@ -207,6 +209,7 @@ was rendered. `blue help COMMAND` shows each one's flags.
 | `blue posture FILE` | Report the posture a Bluefile's declared floor requires. |
 | `blue bluefile FILES...` | Print a Bluefile's evaluated manifest, or confirm its lock is fresh. |
 | `blue lock [DIRS]...` | Evaluate each directory's Bluefile, pin every `source(...)` with `nix flake prefetch`, and write `Bluefile.lock` beside it. |
+| `blue bundle FILE` | Seal FILE into an appliance payload: the program compiled (every `use` resolved, checked, erased) with the capability record its project's fresh `Bluefile.lock` verified, closed with its BLAKE3 digest. |
 | `blue lsp` | Run the language server, speaking LSP over stdin/stdout. |
 | `blue serve` | Serve one evaluation session as JSON lines on stdin/stdout (`theory/BLUE-TOOLING.md` §4): the door an editor drives. |
 | `blue repl` | An evaluation session at the terminal. |
@@ -236,7 +239,7 @@ rendered:
 | Surface forms | 29, with 13 operators and 24 reserved words |
 | Check rules | 65: 37 fix themselves, 7 suggest a fix |
 | Bluefile words | 21 |
-| Commands | 37 |
+| Commands | 38 |
 
 ## The standard library
 
@@ -405,12 +408,17 @@ Read it in order as [The blue Book](docs/BOOK.md), or open one page:
 - [Declare what a program may touch](docs/howto/declare-access.md): hold a program to the host capabilities it needs with --allow, in a run or in a script's shebang
 - [Write an action](docs/howto/write-an-action.md): write a GitHub Actions step in blue with koutei, and run it locally before CI does
 - [Publish a bidama](docs/howto/publish-a-bidama.md): make a bidama reachable from other projects, and declare the registries that publish it
+- [Run a pure worker](docs/howto/pure-worker.md): write a pure data transformation, run it under --allow none, and see the check stage refuse a variant that reaches the host
+- [Supervise processes](docs/howto/supervise-processes.md): start worker processes under a supervisor, crash one, and see its restart strategy bring it back
+- [Virtualize a capability](docs/howto/virtualize-a-capability.md): give a program a stepped clock with the Bluefile word virtualize, so now_ms is the same at every run, and scope it to one package with for:
+- [Test a refusal](docs/howto/test-a-refusal.md): test that code refuses correctly, for an error raised by kind, a kyohi refusal returned as data, and a run held by --allow that breaches with exit 77
 
 ### Reference
 
 - [Canonical forms](docs/CANONICAL-FORMS.md): every place the surface accepts two spellings, the one blue writes, and the rule that names it
 - [Diagnostics](docs/DIAGNOSTICS.md): what the check stage reports, every rule code, and the machine-readable shape of a diagnostic
 - [blue examples](docs/EXAMPLES.md): one tested program per common task, ready to paste as examples
+- [Glossary: blue's terms and the concepts they name](docs/GLOSSARY.md): every blue term mapped to the compiler, language or distributed-systems concept it names, in both directions, and how the parts meet in a compile, a test run and a deploy
 - [blue language reference](docs/REFERENCE.md): syntax, operators, reserved words, every built-in name and the Bluefile words
 - [Safety first: blue's posture, row by row](docs/SAFETY.md): the safety-first posture, one row per Rust guarantee: blue today, the gate, its tier and its off switch
 - [blue — the agent guide](AGENTS.md): rules for people and agents who write blue programs or change blue itself, with the build commands from the Bluefile

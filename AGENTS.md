@@ -142,8 +142,9 @@ usual `# waive R0001: reason` applies. The shape, the frame and a worked rule:
 [`docs/DIAGNOSTICS.md`](docs/DIAGNOSTICS.md), "Project rules"; blue's own are
 in [`rules/`](rules).
 
-`run`, `test` and `check` rewrite a non-canonical file in place before they
-compile it, and say `blue: formatted <file>`. A checkout's bidamas override
+`run` rewrites a non-canonical file in place before it compiles it, and says
+`blue: formatted <file>`; `test` and `check` refuse one, naming
+`blue fmt --write`. A checkout's bidamas override
 the compiled-in ones from `BLUE_PATH`:
 `BLUE_PATH=path/to/blue/bidamas blue test file.b`.
 
@@ -209,8 +210,8 @@ Each one was checked against the runtime.
   `split(s, sep)`. A pipe `xs |> f(a)` is read as `f(xs, a)` and written
   that way (B0028), so `xs |> map(f)` is `map(xs, f)` and fails.
 - **Brevity is the house style.** A lambda that only forwards its parameters to a `def` of the file is that name (`map(describe, vs)`, B0044, machine-fixed); say it in the fewest tokens that parse to the same tree.
-- **No blocks, no indexing.** Write `map((x) -> x * 2, xs)` (inline, one expression), or a broken `fn(x) … end` over several lines; `fn … end` is never on one line, and blue compiles only canonical source. Never
-  `xs.map { |x| … }` or `do … end`. Write `nth(0, xs)`, never `xs[0]`.
+- **No blocks; brackets index.** Write `map((x) -> x * 2, xs)` (inline, one expression), or a broken `fn(x) … end` over several lines; `fn … end` is never on one line, and blue compiles only canonical source. Never
+  `xs.map { |x| … }` or `do … end`. `xs[0]` is `nth(0, xs)` and `m[:k]` is `get(m, :k)` (B0066); a key held in a variable is read with `get(m, key)`, since `m[key]` reads a position.
 - **Errors are raised and rescued.** `raise(:not_found, "no repo #{name}")`
   raises; `raise(:k, "m", {data: d, cause: e})` attaches data and the error
   it wraps; `raise(e)` raises one again. `json_parse(text) rescue nil` is the

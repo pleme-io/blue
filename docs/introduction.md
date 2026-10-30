@@ -28,7 +28,9 @@ The philosophy is two axes
 **Form has no choices:** there is one short, distinct way to write each
 thing, every larger form is built from smaller ones, and every tool and gate
 enforces it. **Rigor has every choice:** a program is as strict as you write
-it, where you write it, and pays for nothing else.
+it, where you write it, and pays for nothing else. Every blue word (bidama,
+waku, mondou, the blueshift) maps to the concept you already know in
+[the glossary](GLOSSARY.md).
 
 A file is a program, a library and its tests at once:
 

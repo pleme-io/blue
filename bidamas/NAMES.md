@@ -104,6 +104,7 @@ replacement (`docs/COMPOUNDING.md`).
 | bidama | old | new | since |
 |---|---|---|---|
 | `bougyo` | `request_header` | `kyuuji::header` | 0.1.1 |
+| `happa` | `text_of` | `moji::text_of` | 0.1.1 |
 | `jitaku` | `unrefused` | `kyohi::standing` | 0.1.1 |
 | `kakou` | `opt` | `deeta::get_or` | 0.1.2 |
 | `kinji` | `opt` | `deeta::get_or` | 0.1.2 |

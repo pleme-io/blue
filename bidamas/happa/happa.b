@@ -27,6 +27,8 @@ use("moji", %i[checked text_of])
 use("retsu", %i[first is_empty last size])
 use("tesuto", [:raises?])
 
+legacy_names("0.1.1", [["text_of", "moji::text_of", ""]])
+
 @doc """
 name_end: the first index at or after i that holds a dot or an opening bracket, or the end.
 

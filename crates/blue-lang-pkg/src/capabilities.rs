@@ -684,7 +684,7 @@ pub fn hold_for(entry: &Path) -> Result<Option<blue_lang_runtime::Hold>, String>
         };
         let text = std::fs::read_to_string(&path).map_err(|e| refused(e.to_string()))?;
         let bf = crate::read_bluefile(&text).map_err(|e| refused(e.to_string()))?;
-        if crate::load_path::bidama_of(&bf).is_some() {
+        if !declared(&bf) && crate::load_path::bidama_of(&bf).is_some() {
             continue;
         }
         return Ok(declared(&bf).then(|| blue_lang_runtime::Hold {

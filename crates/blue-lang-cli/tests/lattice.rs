@@ -484,3 +484,25 @@ fn a_project_bluefile_that_does_not_read_refuses_the_run_instead_of_running_ambi
     assert_eq!(out(&o), "", "nothing ran");
     assert!(err(&o).contains("does not read"), "{}", err(&o));
 }
+
+#[test]
+fn a_project_with_no_packages_root_is_still_held_to_its_allow() {
+    let dir = std::env::temp_dir().join(format!("blue-lattice-bare-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    put(
+        &dir.join("Bluefile"),
+        "package(\"app\", \"0.1.0\")\nallow([])\n",
+    );
+    put(
+        &dir.join("main.b"),
+        "def main()\n  write_stdout(\"#{now_ms}\")\nend\n",
+    );
+    let o = run(&dir, &[]);
+    assert!(!o.status.success(), "{}", out(&o));
+    assert_eq!(out(&o), "", "nothing ran");
+    assert!(
+        err(&o).contains("`now_ms` reaches the host (clock)"),
+        "{}",
+        err(&o)
+    );
+}

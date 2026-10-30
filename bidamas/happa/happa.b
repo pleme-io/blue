@@ -1463,7 +1463,8 @@ data: one Terraform data source as a part of a body.
     data("aws_vpc", "net", {})[:address] #=> "data.aws_vpc.net"
 """
 def data(type, name, attrs)
-  {block: "data", type:, name:, attrs:, address: "data.#{type}.#{name}"}
+  r = resource(type, name, attrs)
+  assoc(assoc(r, :block, "data"), :address, "data.#{r[:address]}")
 end
 
 @doc """

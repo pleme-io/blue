@@ -167,7 +167,7 @@ G	bunsho	check	pure	check(doc, rules) -> findings	validate	-	absent	find dead li
 G	bunsho	convert	pure	convert(doc, to) -> doc	-	-	absent	a document in another format, content kept	2	convert(doc, to) -> doc	yes
 G	bunsho	deck	decl	deck(slides, theme) -> doc	validate	-	absent	declare a slide deck	2		na
 G	bunsho	diff	pure	diff(a, b) -> changes	-	-	absent	structural changes between two documents	2	diff(a, b) -> changes	yes
-G	bunsho	extract	pure	extract(doc, kind) -> parts	-	-	exists:bunsho	Every node of `kind` in a tree, in document order: `:heading`, `:link`, `:image`, `:code`, `:fact`, `:table` or any other kind	1	extract(doc, kind) -> parts	yes
+G	bunsho	extract	pure	extract(doc, kind) -> parts	-	-	exists:bunsho	Every node of `kinds` in a tree, in document order; `kinds` is one kind (`:heading`, `:link`, `:code`, `:fact`, `:table` or any other) or a list of them, so the links and images a link gate reads come in one pass	1	extract(doc, kind) -> parts	yes
 G	bunsho	fill	pure	fill(template, data) -> doc	validate	-	absent	a template with its slots filled from a record	1	fill(template, data) -> doc	yes
 G	bunsho	find	pure	find(doc, query) -> node or nil	-	-	absent	the first node that matches a query	1	find(doc, query) -> node or nil	yes
 G	bunsho	highlight	pure	highlight(code, language) -> spans	-	hikari	absent	code split into classed token spans	1	highlight(code, language) -> spans	yes

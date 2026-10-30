@@ -1460,12 +1460,11 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
         Cmd::Repl(session) => repl::repl(&session).map_err(CliError::Pkg),
         Cmd::Eval { target, session } => repl::eval(&target, &session).map_err(CliError::Pkg),
         Cmd::Lsp => {
-            let stdin = std::io::stdin();
             let stdout = std::io::stdout();
             blue_lang_lsp::Server::with_scopes(Box::new(
                 blue_lang_pkg::load_path::Environment::from_env(),
             ))
-            .serve(stdin.lock(), stdout.lock())
+            .serve(std::io::BufReader::new(std::io::stdin()), stdout.lock())
             .map_err(|source| CliError::Write {
                 path: "<stdio>".to_string(),
                 source,

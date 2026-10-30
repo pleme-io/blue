@@ -21,3 +21,4 @@ serde_json = "1"
 # Path only: a sibling dev-dep never carries a version (`blue-lang-cli`'s
 # `tests/registry_graph.rs`).
 blue-lang-pkg = { path = "../blue-lang-pkg", features = ["fixture"] }
+blue-lang-runtime = { path = "../blue-lang-runtime", features = ["sys"] }

@@ -21,16 +21,27 @@
 //! The server holds one [`Engine`] for the session. A document is parsed and
 //! checked once per revision, whatever is asked of it, and the bidamas its
 //! imports name are loaded once per session.
+//!
+//! ## Live evaluation runs beside the loop
+//!
+//! Under [`Server::serve`], each revision that checks clean is evaluated by
+//! [`crate::live`] on a worker thread, and a newer revision supersedes it.
+//! What it finds arrives as a second diagnostics push and as the answer to
+//! `textDocument/inlayHint`, which waits for the revision's run.
+//! `initializationOptions.liveEval: false` turns it off; the diagnostics
+//! path is then the one above, alone.
 
+use std::collections::HashMap;
 use std::io::{BufRead, Write};
 use std::path::PathBuf;
+use std::sync::mpsc::{self, Receiver, Sender};
 
 use blue_lang_mondou::{Engine, FileRef, Located};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use crate::analysis::{diagnostics, hover_of, LineIndex, Position};
-use crate::tokens;
+use crate::{live, tokens};
 
 /// What the server produced for one incoming message.
 #[derive(Clone, Debug, PartialEq)]
@@ -55,7 +66,53 @@ pub struct Server {
     engine: Engine,
     /// Set by `shutdown`, so `serve` can stop cleanly rather than on EOF alone.
     shutting_down: bool,
+    live: Live,
 }
+
+struct Live {
+    enabled: bool,
+    limits: live::Limits,
+    events: Option<Sender<Event>>,
+    generation: u64,
+    documents: HashMap<String, LiveDocument>,
+}
+
+impl Default for Live {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            limits: live::Limits::default(),
+            events: None,
+            generation: 0,
+            documents: HashMap::new(),
+        }
+    }
+}
+
+#[derive(Default)]
+struct LiveDocument {
+    generation: u64,
+    running: Option<live::Cancel>,
+    diagnostics: Vec<crate::Diagnostic>,
+    hints: Vec<live::Hint>,
+    waiting: Vec<(Value, Option<crate::Range>)>,
+}
+
+type Evaluated = Option<(Vec<crate::Diagnostic>, Vec<live::Hint>)>;
+
+enum Event {
+    Message(Value),
+    Evaluated {
+        uri: String,
+        generation: u64,
+        found: Evaluated,
+    },
+    Closed(std::io::Result<()>),
+}
+
+const LIVE_STACK: usize = 64 << 20;
+
+const UNTITLED: &str = "untitled.b";
 
 impl Default for Server {
     fn default() -> Self {
@@ -102,6 +159,7 @@ impl Server {
         Self {
             engine: Engine::new(loader),
             shutting_down: false,
+            live: Live::default(),
         }
     }
 
@@ -110,6 +168,7 @@ impl Server {
         Self {
             engine: Engine::with_scopes(scopes),
             shutting_down: false,
+            live: Live::default(),
         }
     }
 
@@ -138,7 +197,12 @@ impl Server {
         match req.method.as_str() {
             "initialize" => {
                 self.engine.set_workspace(workspace_folders(&req.params));
-                reply(&id, capabilities())
+                self.live.enabled = req
+                    .params
+                    .pointer("/initializationOptions/liveEval")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(true);
+                reply(&id, capabilities(self.live.enabled))
             }
 
             "initialized" => Response::None,
@@ -154,10 +218,11 @@ impl Server {
                 let text = str_at(&req.params, &["textDocument", "text"]).unwrap_or_default();
                 self.engine.set_document(&uri, path_of(&uri), &text);
                 self.engine.prepare_doc_views(&uri);
-                Response::Messages(vec![
+                let pushes = Response::Messages(vec![
                     self.diagnostics_notification(&uri),
                     self.shift_notification(&uri),
-                ])
+                ]);
+                with_messages(pushes, self.start_live(&uri))
             }
 
             "textDocument/didChange" => {
@@ -178,20 +243,44 @@ impl Server {
                 self.engine.set_document(&uri, path_of(&uri), &text);
                 // The reading is pushed on EVERY edit, so it tracks the author
                 // as they type rather than when they remember to ask.
-                Response::Messages(vec![
+                let pushes = Response::Messages(vec![
                     self.diagnostics_notification(&uri),
                     self.shift_notification(&uri),
-                ])
+                ]);
+                with_messages(pushes, self.start_live(&uri))
             }
 
             "textDocument/didClose" => {
+                let answered = self.close_live(&uri);
                 if self.engine.document_text(&uri).is_some() {
                     self.engine.close_document(&uri);
                     // Clear the client's squiggles; a closed file's diagnostics
                     // otherwise persist in the problems panel forever.
-                    return Response::Notify(publish(&uri, Vec::new()));
+                    return with_messages(Response::Notify(publish(&uri, Vec::new())), answered);
                 }
-                Response::None
+                with_messages(Response::None, answered)
+            }
+
+            "textDocument/inlayHint" if self.live.enabled => {
+                let at = |k: &str| {
+                    Some(Position {
+                        line: u32_at(&req.params, &["range", k, "line"])?,
+                        character: u32_at(&req.params, &["range", k, "character"])?,
+                    })
+                };
+                let range = at("start")
+                    .zip(at("end"))
+                    .map(|(start, end)| crate::Range { start, end });
+                match self.live.documents.get_mut(&uri) {
+                    Some(doc) if doc.running.is_some() => {
+                        if let Some(id) = id {
+                            doc.waiting.push((id, range));
+                        }
+                        Response::None
+                    }
+                    Some(doc) => reply(&id, hints_json(&doc.hints, range)),
+                    None => reply(&id, json!([])),
+                }
             }
 
             // A file changed on disk: a bidama holding it is loaded again on
@@ -490,31 +579,147 @@ impl Server {
         }
     }
 
-    /// The stdio loop. The only part of this crate that does I/O.
-    pub fn serve<R: BufRead, W: Write>(
+    /// The stdio loop. The only part of this crate that does I/O: `input` is
+    /// read on its own thread, and its messages and finished live
+    /// evaluations are answered here, in the order they arrive.
+    pub fn serve<R: BufRead + Send, W: Write>(
         &mut self,
-        mut input: R,
+        input: R,
         mut output: W,
     ) -> std::io::Result<()> {
-        while let Some(msg) = read_message(&mut input)? {
-            match self.handle_value(&msg) {
-                Response::None => {}
-                Response::Reply(v) | Response::Notify(v) => write_message(&mut output, &v)?,
-                Response::ReplyAndNotify(a, b) => {
-                    write_message(&mut output, &a)?;
-                    write_message(&mut output, &b)?;
-                }
-                Response::Messages(all) => {
-                    for m in all {
-                        write_message(&mut output, &m)?;
+        let (events, inbox) = mpsc::channel();
+        self.live.events = Some(events.clone());
+        let served = std::thread::scope(|scope| {
+            scope.spawn(move || read_messages(input, &events));
+            let served = self.pump(&inbox, &mut output);
+            drop(inbox);
+            served
+        });
+        self.live.events = None;
+        for doc in self.live.documents.values_mut() {
+            if let Some(running) = doc.running.take() {
+                running.supersede();
+            }
+        }
+        served
+    }
+
+    fn pump<W: Write>(&mut self, inbox: &Receiver<Event>, output: &mut W) -> std::io::Result<()> {
+        while let Ok(event) = inbox.recv() {
+            match event {
+                Event::Message(msg) => {
+                    let response = self.handle_value(&msg);
+                    write_response(output, response)?;
+                    if self.shutting_down {
+                        break;
                     }
                 }
-            }
-            if self.shutting_down {
-                break;
+                Event::Evaluated {
+                    uri,
+                    generation,
+                    found,
+                } => {
+                    for m in self.evaluated(&uri, generation, found) {
+                        write_message(output, &m)?;
+                    }
+                }
+                Event::Closed(result) => return result,
             }
         }
         Ok(())
+    }
+
+    fn start_live(&mut self, uri: &str) -> Vec<Value> {
+        let Some(events) = self.live.events.clone().filter(|_| self.live.enabled) else {
+            return Vec::new();
+        };
+        let job = self.live_job(uri);
+        let limits = self.live.limits;
+        self.live.generation += 1;
+        let generation = self.live.generation;
+        let doc = self.live.documents.entry(uri.to_string()).or_default();
+        doc.generation = generation;
+        if let Some(running) = doc.running.take() {
+            running.supersede();
+        }
+        doc.diagnostics.clear();
+        doc.hints.clear();
+        if let Some((text, path, snapshot)) = job {
+            let cancel = live::Cancel::default();
+            let running = cancel.clone();
+            let uri = uri.to_string();
+            let spawned = std::thread::Builder::new()
+                .name("blue-lsp-live".to_string())
+                .stack_size(LIVE_STACK)
+                .spawn(move || {
+                    let found = live::evaluate(&text, &path, Box::new(snapshot), limits, &running)
+                        .map(|f| (live::diagnostics(&f, &text), live::hints(&f, &text)));
+                    let _ = events.send(Event::Evaluated {
+                        uri,
+                        generation,
+                        found,
+                    });
+                });
+            if spawned.is_ok() {
+                doc.running = Some(cancel);
+                return Vec::new();
+            }
+        }
+        doc.waiting
+            .drain(..)
+            .map(|(id, _)| result_message(&id, json!([])))
+            .collect()
+    }
+
+    fn live_job(&self, uri: &str) -> Option<(String, PathBuf, live::Snapshot)> {
+        let a = self.engine.analysis(uri)?;
+        let checked = a.checked().filter(|c| c.outcome.ok())?;
+        let path = a.path.clone().unwrap_or_else(|| PathBuf::from(UNTITLED));
+        Some((
+            a.text.to_string(),
+            path,
+            live::Snapshot::of(&checked.program),
+        ))
+    }
+
+    fn evaluated(&mut self, uri: &str, generation: u64, found: Evaluated) -> Vec<Value> {
+        let Some(doc) = self.live.documents.get_mut(uri) else {
+            return Vec::new();
+        };
+        if doc.generation != generation {
+            return Vec::new();
+        }
+        doc.running = None;
+        if let Some((found_diagnostics, hints)) = found {
+            doc.diagnostics = found_diagnostics;
+            doc.hints = hints;
+        }
+        let mut out = Vec::new();
+        if !doc.diagnostics.is_empty() {
+            let mut all: Vec<Value> = diagnostics(&self.engine, uri)
+                .iter()
+                .map(diagnostic_json)
+                .collect();
+            all.extend(doc.diagnostics.iter().map(diagnostic_json));
+            out.push(publish(uri, all));
+        }
+        for (id, range) in doc.waiting.drain(..) {
+            out.push(result_message(&id, hints_json(&doc.hints, range)));
+        }
+        out
+    }
+
+    fn close_live(&mut self, uri: &str) -> Vec<Value> {
+        let Some(mut doc) = self.live.documents.remove(uri) else {
+            return Vec::new();
+        };
+        if let Some(running) = doc.running.take() {
+            running.supersede();
+        }
+        doc.waiting
+            .drain(..)
+            .map(|(id, _)| result_message(&id, json!([])))
+            .collect()
     }
 
     /// The byte offset a request's `position` names in its document.
@@ -615,8 +820,8 @@ pub fn handle(msg: &Value) -> Response {
     Server::new().handle_value(msg)
 }
 
-fn capabilities() -> Value {
-    json!({
+fn capabilities(live: bool) -> Value {
+    let mut caps = json!({
         "capabilities": {
             // 1 = Full. Incremental sync is NOT advertised, because this server
             // does not apply incremental edits; advertising it and then using
@@ -651,7 +856,45 @@ fn capabilities() -> Value {
             },
         },
         "serverInfo": { "name": "blue-lsp", "version": env!("CARGO_PKG_VERSION") },
-    })
+    });
+    if live {
+        caps["capabilities"]["inlayHintProvider"] = json!(true);
+    }
+    caps
+}
+
+fn with_messages(response: Response, more: Vec<Value>) -> Response {
+    if more.is_empty() {
+        return response;
+    }
+    let mut all = match response {
+        Response::None => Vec::new(),
+        Response::Reply(v) | Response::Notify(v) => vec![v],
+        Response::ReplyAndNotify(a, b) => vec![a, b],
+        Response::Messages(all) => all,
+    };
+    all.extend(more);
+    Response::Messages(all)
+}
+
+fn result_message(id: &Value, result: Value) -> Value {
+    json!({ "jsonrpc": "2.0", "id": id, "result": result })
+}
+
+fn hints_json(hints: &[live::Hint], range: Option<crate::Range>) -> Value {
+    Value::Array(
+        hints
+            .iter()
+            .filter(|h| range.is_none_or(|r| r.start <= h.position && h.position <= r.end))
+            .map(|h| {
+                json!({
+                    "position": { "line": h.position.line, "character": h.position.character },
+                    "label": h.label,
+                    "paddingLeft": true,
+                })
+            })
+            .collect(),
+    )
 }
 
 fn reply(id: &Option<Value>, result: Value) -> Response {
@@ -906,6 +1149,38 @@ fn read_message<R: BufRead>(input: &mut R) -> std::io::Result<Option<Value>> {
     Ok(serde_json::from_slice(&buf).ok())
 }
 
+fn read_messages<R: BufRead>(mut input: R, events: &Sender<Event>) {
+    let closed = loop {
+        match read_message(&mut input) {
+            Ok(Some(msg)) => {
+                if events.send(Event::Message(msg)).is_err() {
+                    return;
+                }
+            }
+            Ok(None) => break Ok(()),
+            Err(e) => break Err(e),
+        }
+    };
+    let _ = events.send(Event::Closed(closed));
+}
+
+fn write_response<W: Write>(output: &mut W, response: Response) -> std::io::Result<()> {
+    match response {
+        Response::None => Ok(()),
+        Response::Reply(v) | Response::Notify(v) => write_message(output, &v),
+        Response::ReplyAndNotify(a, b) => {
+            write_message(output, &a)?;
+            write_message(output, &b)
+        }
+        Response::Messages(all) => {
+            for m in all {
+                write_message(output, &m)?;
+            }
+            Ok(())
+        }
+    }
+}
+
 fn write_message<W: Write>(output: &mut W, value: &Value) -> std::io::Result<()> {
     let body = serde_json::to_vec(value)?;
     write!(output, "Content-Length: {}\r\n\r\n", body.len())?;
@@ -961,6 +1236,7 @@ mod tests {
         ("workspaceSymbolProvider", "workspace/symbol"),
         ("signatureHelpProvider", "textDocument/signatureHelp"),
         ("semanticTokensProvider", "textDocument/semanticTokens/full"),
+        ("inlayHintProvider", "textDocument/inlayHint"),
     ];
 
     /// Requests a client may send that this server does not answer, so it
@@ -983,7 +1259,6 @@ mod tests {
         ),
         ("foldingRangeProvider", "textDocument/foldingRange"),
         ("selectionRangeProvider", "textDocument/selectionRange"),
-        ("inlayHintProvider", "textDocument/inlayHint"),
         ("codeLensProvider", "textDocument/codeLens"),
         ("documentLinkProvider", "textDocument/documentLink"),
         ("callHierarchyProvider", "textDocument/prepareCallHierarchy"),
@@ -1589,5 +1864,267 @@ mod tests {
             .serve(std::io::BufReader::new(&b""[..]), &mut out)
             .expect("clean EOF");
         assert!(out.is_empty());
+    }
+
+    struct Client {
+        input: Option<std::io::PipeWriter>,
+        inbox: mpsc::Receiver<Value>,
+        seen: Vec<Value>,
+        server: Option<std::thread::JoinHandle<std::io::Result<()>>>,
+        next_id: i64,
+        capabilities: Value,
+    }
+
+    impl Client {
+        fn start(options: Value) -> Self {
+            let (server_in, input) = std::io::pipe().expect("a pipe to the server");
+            let (from_server, server_out) = std::io::pipe().expect("a pipe from the server");
+            let server = std::thread::spawn(move || {
+                Server::new().serve(std::io::BufReader::new(server_in), server_out)
+            });
+            let (sink, inbox) = mpsc::channel();
+            std::thread::spawn(move || {
+                let mut reader = std::io::BufReader::new(from_server);
+                while let Ok(Some(m)) = read_message(&mut reader) {
+                    if sink.send(m).is_err() {
+                        break;
+                    }
+                }
+            });
+            let mut client = Self {
+                input: Some(input),
+                inbox,
+                seen: Vec::new(),
+                server: Some(server),
+                next_id: 0,
+                capabilities: Value::Null,
+            };
+            let init = client.request("initialize", json!({ "initializationOptions": options }));
+            client.capabilities = init["result"]["capabilities"].clone();
+            client.notify("initialized", json!({}));
+            client
+        }
+
+        fn send(&mut self, v: &Value) {
+            let input = self.input.as_mut().expect("the pipe is open");
+            write_message(input, v).expect("write to the server");
+        }
+
+        fn notify(&mut self, method: &str, params: Value) {
+            self.send(&json!({ "jsonrpc": "2.0", "method": method, "params": params }));
+        }
+
+        fn request(&mut self, method: &str, params: Value) -> Value {
+            self.next_id += 1;
+            let id = self.next_id;
+            self.send(&req(id, method, params));
+            self.until(|m| m["id"] == json!(id) && m.get("method").is_none())
+        }
+
+        fn open(&mut self, uri: &str, text: &str) {
+            self.notify(
+                "textDocument/didOpen",
+                json!({ "textDocument": { "uri": uri, "languageId": "blue", "version": 1, "text": text } }),
+            );
+        }
+
+        fn inlay_hints(&mut self, uri: &str) -> Value {
+            self.request(
+                "textDocument/inlayHint",
+                json!({
+                    "textDocument": { "uri": uri },
+                    "range": { "start": { "line": 0, "character": 0 }, "end": { "line": 999, "character": 0 } },
+                }),
+            )
+        }
+
+        fn until(&mut self, wanted: impl Fn(&Value) -> bool) -> Value {
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+            loop {
+                let left = deadline.saturating_duration_since(std::time::Instant::now());
+                let m = self
+                    .inbox
+                    .recv_timeout(left)
+                    .unwrap_or_else(|_| panic!("nothing wanted arrived; saw {:#?}", self.seen));
+                self.seen.push(m.clone());
+                if wanted(&m) {
+                    return m;
+                }
+            }
+        }
+
+        fn settle(&mut self, quiet: std::time::Duration) {
+            while let Ok(m) = self.inbox.recv_timeout(quiet) {
+                self.seen.push(m);
+            }
+        }
+
+        fn live_diagnostics(&self, uri: &str) -> Vec<Value> {
+            self.seen
+                .iter()
+                .filter(|m| {
+                    m["method"] == json!("textDocument/publishDiagnostics")
+                        && m["params"]["uri"] == json!(uri)
+                })
+                .flat_map(|m| {
+                    m["params"]["diagnostics"]
+                        .as_array()
+                        .cloned()
+                        .unwrap_or_default()
+                })
+                .filter(|d| d["source"] == json!("live"))
+                .collect()
+        }
+    }
+
+    impl Drop for Client {
+        fn drop(&mut self) {
+            drop(self.input.take());
+            if let Some(server) = self.server.take() {
+                let _ = server.join();
+            }
+        }
+    }
+
+    fn live_push(uri: &str) -> impl Fn(&Value) -> bool + '_ {
+        move |m: &Value| {
+            m["method"] == json!("textDocument/publishDiagnostics")
+                && m["params"]["uri"] == json!(uri)
+                && m["params"]["diagnostics"]
+                    .as_array()
+                    .is_some_and(|ds| ds.iter().any(|d| d["source"] == json!("live")))
+        }
+    }
+
+    fn scratch(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("blue-lsp-live-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("a scratch directory");
+        dir
+    }
+
+    const DOCTEST: &str =
+        "@doc \"\"\"\ninc adds one.\n\n    inc(1) #=> 3\n\"\"\"\ndef inc(n)\n  n + 1\nend\n";
+
+    const RUNAWAY: &str = "def spin(n)\n  spin(n + 1)\nend\n\nspin(0)\n";
+
+    fn host_write(target: &std::path::Path) -> String {
+        format!("write_file(\"{}\", \"y\")\n", target.display())
+    }
+
+    #[test]
+    fn live_eval_warns_on_a_mismatched_doctest() {
+        let mut c = Client::start(json!({}));
+        let uri = "file:///live/doctest.b";
+        c.open(uri, DOCTEST);
+        let push = c.until(live_push(uri));
+        let live: Vec<&Value> = push["params"]["diagnostics"]
+            .as_array()
+            .expect("diagnostics")
+            .iter()
+            .filter(|d| d["source"] == json!("live"))
+            .collect();
+        assert_eq!(live.len(), 1, "{live:#?}");
+        assert_eq!(live[0]["message"], json!("doctest: got 2, expected 3"));
+        assert_eq!(live[0]["severity"], json!(Severity::Warning as i64));
+        assert_eq!(live[0]["range"]["start"]["line"], json!(3));
+    }
+
+    #[test]
+    fn live_eval_hints_the_value_of_a_top_level_expression() {
+        let mut c = Client::start(json!({}));
+        assert_eq!(c.capabilities["inlayHintProvider"], json!(true));
+        let uri = "file:///live/sum.b";
+        c.open(uri, "1 + 2\n");
+        let hints = c.inlay_hints(uri);
+        assert_eq!(
+            hints["result"],
+            json!([{ "position": { "line": 0, "character": 5 }, "label": "=> 3", "paddingLeft": true }])
+        );
+    }
+
+    #[test]
+    fn live_eval_refuses_the_host_and_writes_nothing() {
+        let dir = scratch("host");
+        let target = dir.join("x");
+        let mut c = Client::start(json!({}));
+        let uri = format!("file://{}", dir.join("write.b").display());
+        c.open(&uri, &host_write(&target));
+        c.inlay_hints(&uri);
+        assert!(
+            !target.exists(),
+            "live evaluation wrote {}",
+            target.display()
+        );
+        let live = c.live_diagnostics(&uri);
+        assert_eq!(live.len(), 1, "{live:#?}");
+        assert_eq!(
+            live[0]["message"],
+            json!("capability boundary: `write_file` reaches the host (filesystem); live evaluation grants none")
+        );
+        assert_eq!(live[0]["severity"], json!(Severity::Information as i64));
+        drop(c);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn live_eval_stops_a_runaway_and_keeps_answering() {
+        let mut c = Client::start(json!({}));
+        let uri = "file:///live/spin.b";
+        c.open(uri, RUNAWAY);
+        let push = c.until(live_push(uri));
+        let live: Vec<&Value> = push["params"]["diagnostics"]
+            .as_array()
+            .expect("diagnostics")
+            .iter()
+            .filter(|d| d["source"] == json!("live"))
+            .collect();
+        assert_eq!(live.len(), 1, "{live:#?}");
+        assert_eq!(
+            live[0]["message"],
+            json!("live evaluation stopped after 200000 steps")
+        );
+        assert_eq!(live[0]["severity"], json!(Severity::Hint as i64));
+        assert_eq!(live[0]["range"]["start"]["line"], json!(4));
+        let shift = c.request("blue/shift", json!({ "textDocument": { "uri": uri } }));
+        assert!(shift["result"]["rung"].is_string(), "{shift:#?}");
+    }
+
+    #[test]
+    fn live_eval_off_produces_none_of_it() {
+        let dir = scratch("off");
+        let target = dir.join("x");
+        let mut c = Client::start(json!({ "liveEval": false }));
+        assert!(
+            c.capabilities.get("inlayHintProvider").is_none(),
+            "{:#?}",
+            c.capabilities
+        );
+        let docs = [
+            (
+                "file:///live/off-doctest.b".to_string(),
+                DOCTEST.to_string(),
+            ),
+            ("file:///live/off-sum.b".to_string(), "1 + 2\n".to_string()),
+            (
+                format!("file://{}", dir.join("off-write.b").display()),
+                host_write(&target),
+            ),
+            ("file:///live/off-spin.b".to_string(), RUNAWAY.to_string()),
+        ];
+        for (uri, text) in &docs {
+            c.open(uri, text);
+        }
+        for (uri, _) in &docs {
+            let hints = c.inlay_hints(uri);
+            assert_eq!(hints["error"]["code"], json!(-32601), "{hints:#?}");
+        }
+        c.settle(std::time::Duration::from_millis(750));
+        for (uri, _) in &docs {
+            assert_eq!(c.live_diagnostics(uri), Vec::<Value>::new());
+        }
+        assert!(!target.exists());
+        drop(c);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

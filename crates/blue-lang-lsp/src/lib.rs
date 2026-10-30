@@ -23,7 +23,8 @@
 //! `prepareRename` (refused when the new name would change what any
 //! reference means), `documentSymbol`, `workspace/symbol`, `signatureHelp`,
 //! `codeAction` (each diagnostic's fixes, and `source.fixAll`, which is
-//! `blue check --fix`), `semanticTokens/full` — plus **`blue/shift`**, a
+//! `blue check --fix`), `semanticTokens/full`, `inlayHint` (each top-level
+//! expression's value, from live evaluation, [`live`]) — plus **`blue/shift`**, a
 //! custom request answering "how far is this shifted, and what is shifting
 //! it" ([`shift`]). Blueshift is blue's central model; a model that governs
 //! the language and is invisible while you use it is one the author has to
@@ -45,6 +46,7 @@
 //! [`tokens`] lists what it therefore declines to guess.
 
 pub mod analysis;
+pub mod live;
 pub mod server;
 pub mod shift;
 pub mod tokens;

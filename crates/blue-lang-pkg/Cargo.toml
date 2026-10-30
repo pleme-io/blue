@@ -36,6 +36,8 @@ tatara-lisp-eval = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+blue-lang-proc = { workspace = true }
+blake3 = { version = "1", default-features = false, features = ["std", "pure"] }
 
 [dev-dependencies]
 blue-lang-pkg = { path = ".", features = ["fixture"] }

@@ -423,6 +423,19 @@ impl Fault {
         }
     }
 
+    /// An error raised by forms that carry no source (`pipeline::run_compiled`):
+    /// the message alone, with no place and no stack.
+    #[must_use]
+    pub fn unplaced(e: &EvalError, erased: &[Spanned]) -> Self {
+        let message = crate::pipeline::display_keys(&crate::messages::describe(e, erased));
+        Self {
+            located: message.clone(),
+            message,
+            breach: crate::is_breach(e),
+            ..Self::default()
+        }
+    }
+
     /// The JSON form: one object, the stack innermost first.
     #[must_use]
     pub fn json(&self) -> serde_json::Value {

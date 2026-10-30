@@ -417,6 +417,18 @@
           dontFixup = true;
         };
 
+      applianceRelease = (import "${substrate}/lib/rust-workspace-release-flake.nix" {
+        inherit nixpkgs crate2nix flake-utils;
+        inherit (substrate.inputs) fenix;
+      }) {
+        toolName = "blue-appliance";
+        packageName = "blue-lang-appliance";
+        src = self;
+        repo = "pleme-io/blue";
+        memberSource = "own";
+      };
+      applianceFor = system: applianceRelease.packages.${system}.default;
+
       # This repository as a blue project. `base = { }` because its packages
       # ARE the public distribution every other project composes over.
       repository = lib.genAttrs systems (system: engine.projectFor {
@@ -425,6 +437,7 @@
         src = ./.;
         base = { };
         oci = ociFor system;
+        appliance = applianceFor system;
       });
 
       # The bidama library bound to a package set: every nix function blue has
@@ -498,7 +511,7 @@
     in
     base // {
       # `blue.lib.project { src = ./.; }` — a blue project's whole flake body.
-      lib.project = engine.mkProjectOutputs { inherit systems pkgsFor blueFor ociFor moduleTrio chartLibraries componentFor; };
+      lib.project = engine.mkProjectOutputs { inherit systems pkgsFor blueFor ociFor moduleTrio chartLibraries componentFor applianceFor; };
 
       # `blue.lib.bidamas pkgs` — the bidama library for any package set.
       lib.bidamas = bidamaLibFor;
@@ -527,6 +540,7 @@
               (blueSetFor { pkgs = pkgsFor system; blue = blueFor system; }))
             (engine.disjoint "package" native.${system}.packages {
               tree-sitter-blue = treeSitterBlueFor (pkgsFor system);
+              blue-appliance = applianceFor system;
             }))
       ) base.packages;
 
@@ -652,6 +666,7 @@
           project-fixture = import ./nix/project-fixture/check.nix {
             inherit pkgs blue engine;
             src = ./nix/project-fixture;
+            appliance = applianceFor system;
           };
 
           # The golden corpus: examples/ is a blue project of its own, lowered

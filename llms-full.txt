@@ -1684,6 +1684,17 @@ Tests: `crates/blue-lang-cli/tests/lattice.rs` (12, the last
 `capabilities.rs` (12), `provide.rs` (6), `provision.rs` (5), `uses.rs`
 (`a_package_reaches_*`, `renaming_*`, `quoted_data_*`).
 
+**Appliances (2026-10-30).** `blue bundle FILE --runner blue-appliance -o
+OUT` seals the compiled program and the lock's verified record onto the
+runner (`blue_lang_pkg::appliance`, `crates/blue-lang-appliance`). The
+runner verifies the payload's BLAKE3 seal, builds the hold from the record
+alone and takes no flags. A lock with no record makes a pure appliance:
+every host name is a breach, so here an undeclared program is pure, never
+ambient. A withheld name the entry writes refuses the bundle, and one
+reached later breaches and exits 77. nix builds one per Bluefile `app`
+(`nix/bundle.nix`). Tests: `crates/blue-lang-appliance/tests/appliance.rs`
+(6), `crates/blue-lang-cli/tests/bundle.rs` (2), `appliance.rs` units (8).
+
 **Row 9, host memory.** blue has no pointer and no raw buffer; all memory is
 Rust's. The four seams are listed in §2. The gate is one workspace lint table
 plus `#[allow(unsafe_code)]` at each seam and a test like kiwari's
@@ -2027,6 +2038,7 @@ file's `Bluefile.lock` records is skipped and named, never chosen.
 | `blue eval 'EXPR'` | evaluate once and print the value; `blue eval file.b:LINE:COL` evaluates the top-level form there in that file's context |
 | `blue repl` | an evaluation session: multi-line input, `:load`, `:expand`, `:doc`, `:reset`, `:quit`; ctrl-c stops a running evaluation |
 | `blue serve` | the same session as JSON lines on stdio, for editors (`theory/BLUE-TOOLING.md` §4) |
+| `blue bundle FILE -o OUT` | seal a program into an appliance payload: compiled, its imports resolved, held to the capabilities its fresh `Bluefile.lock` verified (pure when it records none); `--runner blue-appliance` makes OUT one executable that takes no flags. nix builds one per Bluefile `app` as `packages.appliance-<name>` |
 | `blue image build [NAME]` | build a Bluefile `image` through nix: the tarball, its size and layers |
 | `blue workload render [NAME]` | a Bluefile `workload` as Kubernetes objects; `--write` rewrites the committed files |
 | `blue diff --context CTX` | the committed workload files against a cluster, read-only; there is no `blue apply`, GitOps applies |

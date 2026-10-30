@@ -249,6 +249,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "blue-lang-appliance"
+version = "0.0.130"
+dependencies = [
+ "blue-lang-pkg",
+ "blue-lang-runtime",
+ "serde_json",
+]
+
+[[package]]
 name = "blue-lang-art"
 version = "0.0.130"
 dependencies = [
@@ -392,11 +401,13 @@ dependencies = [
 name = "blue-lang-pkg"
 version = "0.0.130"
 dependencies = [
+ "blake3",
  "blue-lang-bidama",
  "blue-lang-check",
  "blue-lang-fmt",
  "blue-lang-mondou",
  "blue-lang-pkg",
+ "blue-lang-proc",
  "blue-lang-runtime",
  "blue-lang-syntax",
  "blue-lang-test",

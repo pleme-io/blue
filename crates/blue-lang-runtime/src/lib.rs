@@ -260,6 +260,10 @@ pub fn ungranted_host_names(
 /// The kind of the fatal error a capability breach raises.
 pub const BREACH: &str = "capability-breach";
 
+/// The exit status a run that ended on a capability breach returns:
+/// `EX_NOPERM` (sysexits.h). `blue run` and an appliance both answer it.
+pub const BREACH_EXIT: u8 = 77;
+
 /// The fatal error a call to `name` raises when `who` does not grant `cap`.
 /// No `rescue` catches it: the run ends.
 #[must_use]

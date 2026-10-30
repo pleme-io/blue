@@ -32,6 +32,16 @@ in
 {
   inherit scannableBlue;
 
+  scratch = { name, tag, executable }:
+    pkgs.dockerTools.buildLayeredImage {
+      inherit name tag;
+      config = {
+        Entrypoint = [ executable ];
+        User = "65532:65532";
+        WorkingDir = "/";
+      };
+    };
+
   build = { what, name, repository, version, program, args ? [ ], env ? { }, ports ? [ ], contents, workdir, deviation ? null }:
     let
       shell = if deviation == null then false else deviation.shell or false;

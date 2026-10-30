@@ -18,16 +18,18 @@
 # word, `tool("no-such-tool-xyz")`, a lock key `service` no word lowers,
 # `check("bidama-collisions", …)`, and `needs("no-such-pkg", …)`.
 # The unbroken copy: "4 test(s): 4 passed, 0 failed".
-{ pkgs, blue, engine, src }:
+{ pkgs, blue, engine, src, appliance }:
 
 let
-  fx = engine.projectFor { inherit pkgs blue src; };
+  fx = engine.projectFor { inherit pkgs blue src appliance; };
 in
 pkgs.runCommand "project-fixture" { } ''
   : ${pkgs.lib.concatStringsSep " " (pkgs.lib.attrValues fx.checks)}
   GREET_OUT=$PWD/greet ${fx.apps.greet.program}
+  ${fx.packages.appliance-hello}/bin/hello > appliance
+  : ${pkgs.lib.optionalString pkgs.stdenv.isLinux "${fx.packages.appliance-hello-image}"}
   ${fx.runner}/bin/project-fixture test ${src + "/bidamas/fixture/fixture.b"} > runner.log
-  FIRST=${fx.packages.first} SECOND=${fx.packages.second} GREET=$PWD/greet \
+  FIRST=${fx.packages.first} SECOND=${fx.packages.second} GREET=$PWD/greet APPLIANCE=$PWD/appliance \
     FRONTEND=${fx.checks.frontend-console-declared} \
     BLUE_PATH=${fx.bluePath} ${blue}/bin/blue test ${./gate.b} > $out
 ''

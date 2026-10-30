@@ -121,6 +121,7 @@ file's `Bluefile.lock` records is skipped and named, never chosen.
 | `blue eval 'EXPR'` | evaluate once and print the value; `blue eval file.b:LINE:COL` evaluates the top-level form there in that file's context |
 | `blue repl` | an evaluation session: multi-line input, `:load`, `:expand`, `:doc`, `:reset`, `:quit`; ctrl-c stops a running evaluation |
 | `blue serve` | the same session as JSON lines on stdio, for editors (`theory/BLUE-TOOLING.md` §4) |
+| `blue bundle FILE -o OUT` | seal a program into an appliance payload: compiled, its imports resolved, held to the capabilities its fresh `Bluefile.lock` verified (pure when it records none); `--runner blue-appliance` makes OUT one executable that takes no flags. nix builds one per Bluefile `app` as `packages.appliance-<name>` |
 | `blue image build [NAME]` | build a Bluefile `image` through nix: the tarball, its size and layers |
 | `blue workload render [NAME]` | a Bluefile `workload` as Kubernetes objects; `--write` rewrites the committed files |
 | `blue diff --context CTX` | the committed workload files against a cluster, read-only; there is no `blue apply`, GitOps applies |

@@ -267,6 +267,17 @@ Tests: `crates/blue-lang-cli/tests/lattice.rs` (12, the last
 `capabilities.rs` (12), `provide.rs` (6), `provision.rs` (5), `uses.rs`
 (`a_package_reaches_*`, `renaming_*`, `quoted_data_*`).
 
+**Appliances (2026-10-30).** `blue bundle FILE --runner blue-appliance -o
+OUT` seals the compiled program and the lock's verified record onto the
+runner (`blue_lang_pkg::appliance`, `crates/blue-lang-appliance`). The
+runner verifies the payload's BLAKE3 seal, builds the hold from the record
+alone and takes no flags. A lock with no record makes a pure appliance:
+every host name is a breach, so here an undeclared program is pure, never
+ambient. A withheld name the entry writes refuses the bundle, and one
+reached later breaches and exits 77. nix builds one per Bluefile `app`
+(`nix/bundle.nix`). Tests: `crates/blue-lang-appliance/tests/appliance.rs`
+(6), `crates/blue-lang-cli/tests/bundle.rs` (2), `appliance.rs` units (8).
+
 **Row 9, host memory.** blue has no pointer and no raw buffer; all memory is
 Rust's. The four seams are listed in §2. The gate is one workspace lint table
 plus `#[allow(unsafe_code)]` at each seam and a test like kiwari's

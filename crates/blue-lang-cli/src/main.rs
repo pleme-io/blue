@@ -379,6 +379,22 @@ enum Cmd {
         /// Directories holding a Bluefile. The current one when none is named.
         dirs: Vec<PathBuf>,
     },
+    /// Seal FILE into an appliance payload: the program compiled (every `use`
+    /// resolved, checked, erased) with the capability record its project's
+    /// fresh `Bluefile.lock` verified, closed with its BLAKE3 digest. With
+    /// `--runner`, OUT is the executable: the runner's bytes, then the payload.
+    /// The appliance runs held to the record and takes no flags; a program
+    /// outside a project, or a project that declares no `allow` or
+    /// `virtualize`, runs pure.
+    Bundle {
+        file: PathBuf,
+        /// The sealed payload, or the executable with `--runner`.
+        #[arg(long, short = 'o', value_name = "OUT")]
+        output: PathBuf,
+        /// The `blue-appliance` runner to seal the payload onto.
+        #[arg(long, value_name = "RUNNER")]
+        runner: Option<PathBuf>,
+    },
     /// Run the language server, speaking LSP over stdin/stdout.
     Lsp,
     /// Serve one evaluation session as JSON lines on stdin/stdout
@@ -479,15 +495,8 @@ fn main() -> ExitCode {
     }
 }
 
-/// The exit status a run that ended on a capability breach returns:
-/// `EX_NOPERM` (sysexits.h).
-const BREACH_EXIT: u8 = 77;
-
 fn failure_code(e: &blue_lang_runtime::RunError) -> ExitCode {
-    match e {
-        blue_lang_runtime::RunError::Eval(fault) if fault.breach => ExitCode::from(BREACH_EXIT),
-        _ => ExitCode::FAILURE,
-    }
+    ExitCode::from(e.exit_status())
 }
 
 /// `blue check`'s output shape.
@@ -578,6 +587,13 @@ fn dir_of(file: &Path) -> PathBuf {
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or(Path::new("."))
         .to_path_buf()
+}
+
+fn read_bytes(path: &Path) -> Result<Vec<u8>, CliError> {
+    std::fs::read(path).map_err(|source| CliError::Read {
+        path: path.display().to_string(),
+        source,
+    })
 }
 
 fn read(path: &Path) -> Result<String, CliError> {
@@ -1460,6 +1476,42 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
         Cmd::Serve(session) => repl::serve(&session).map_err(CliError::Pkg),
         Cmd::Repl(session) => repl::repl(&session).map_err(CliError::Pkg),
         Cmd::Eval { target, session } => repl::eval(&target, &session).map_err(CliError::Pkg),
+        Cmd::Bundle {
+            file,
+            output,
+            runner,
+        } => {
+            let surface = resolve_surface().map_err(CliError::Pkg)?;
+            let payload = blue_lang_pkg::appliance::bundle(&file, surface.as_ref())
+                .map_err(|e| CliError::Pkg(e.to_string()))?;
+            let bytes = match &runner {
+                Some(r) => blue_lang_pkg::appliance::appended(read_bytes(r)?, &payload)?,
+                None => blue_lang_pkg::appliance::seal(&payload)?,
+            };
+            let written = |source| CliError::Write {
+                path: output.display().to_string(),
+                source,
+            };
+            std::fs::write(&output, &bytes).map_err(written)?;
+            #[cfg(unix)]
+            if runner.is_some() {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&output, std::fs::Permissions::from_mode(0o755))
+                    .map_err(written)?;
+            }
+            let held = match payload.policy.as_ref().map(|p| &p.ceiling) {
+                None => "pure".to_string(),
+                Some(None) => "every capability".to_string(),
+                Some(Some(c)) => format!("[{}]", c.join(", ")),
+            };
+            println!(
+                "{}: {} ({} forms, held to {held})",
+                output.display(),
+                payload.name,
+                payload.forms.len()
+            );
+            Ok(ExitCode::SUCCESS)
+        }
         Cmd::Lsp => {
             let stdout = std::io::stdout();
             blue_lang_lsp::Server::with_scopes(Box::new(

@@ -21,6 +21,10 @@ test "an app runs from the caller's directory with the packages and tools"
   assert trim(read_file(getenv("GREET", ""))) == "10 Hello, world!"
 end
 
+test "an app sealed into an appliance runs alone, its package compiled in"
+  assert trim(read_file(getenv("APPLIANCE", ""))) == "42"
+end
+
 test "a frontend's declaration is recorded once its paths exist"
   assert trim(read_file(getenv("FRONTEND", ""))) ==
     "{\"pwa\":true,\"schema\":\"schema.graphql\",\"views\":[\"apps\"]}"

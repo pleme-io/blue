@@ -42,7 +42,7 @@
 # | `tool(name)` | the nixpkgs attribute, on PATH for the runner, runs, checks and apps |
 # | `run(name, file[, reads])` | `packages.<name>`: `blue run file` with `RUN_OUT=$out` and `RUN_READS/<read>` holding each read run's output |
 # | `check(name, file[, inputs])` | `checks.<name>`: `blue test file`; `inputs` are the project paths the tests read, under `$GEN_ROOT` |
-# | `app(name, file)` | `apps.<name>`: `blue run file` from the caller's directory |
+# | `app(name, file)` | `apps.<name>`: `blue run file` from the caller's directory; with a runner, `packages.appliance-<name>` (`nix/bundle.nix`: `blue bundle` seals the program and the lock's verified capabilities onto `blue-appliance`, one executable held to them, pure when the lock records none) and, on Linux, `packages.appliance-<name>-image` (that executable alone in a scratch image) |
 # | `generate(name, output, program[, inputs])` | `packages.generated-<name>`, `checks.generated-<name>-fresh`; `inputs` are the project paths the program reads, under `$GEN_ROOT` |
 # | `catalog(path)` | `packages.bidama-catalog`, `checks.bidama-catalog-fresh` |
 # | `rule(code, file, def[, severity])` | `checks.project-rules-hold`: `blue check` on every `.b` of the project's packages and every run, check and app program, which runs the project rules beside the registry |
@@ -178,7 +178,9 @@ let
   #   oci    substrate's image builders for the system (`substrate.lib.<system>`:
   #          mkPackageImage, mkDistrolessImage, hardenedBases); null where the
   #          caller has none, and an `image(...)` is then refused by name
-  projectFor = { pkgs, blue, src, base ? null, oci ? null, moduleTrio ? null, legacy ? { }, chartLibraries ? { }, component ? null }:
+  #   appliance  the `blue-appliance` runner for the system (static musl on
+  #          Linux), or null, and an `app` then lowers to no appliance
+  projectFor = { pkgs, blue, src, base ? null, oci ? null, moduleTrio ? null, legacy ? { }, chartLibraries ? { }, component ? null, appliance ? null }:
     assert lib.assertMsg (builtins.isPath src)
       "lib.project: src must be a path; pass `src = ./.` from the project's flake.nix";
     let
@@ -424,6 +426,11 @@ let
             else pkgs.writeText "frontend-${fname}-declared.json" (builtins.toJSON spec)))
         (m.frontends or { });
 
+      bundled = import ./bundle.nix {
+        inherit lib pkgs oci blue src m name bluePath;
+        runner = appliance;
+      };
+
       lowered = import ./service.nix {
         inherit lib pkgs blue bl common src m name bluePath programFile lockFile imageGate oci moduleTrio chartLibraries component;
       };
@@ -447,7 +454,8 @@ let
 
       packages = disjoint "package" runs
         (disjoint "package" (catalogue // generatedPackages)
-          (disjoint "package" (imagePackages // workloadPackages // registryPackages) lowered.packages));
+          (disjoint "package" (imagePackages // workloadPackages // registryPackages)
+            (disjoint "package" bundled.packages lowered.packages)));
 
       gates =
         lib.optionalAttrs (ownNames != [ ]) ({
@@ -584,7 +592,8 @@ in
   #   blueFor   system -> the `blue` executable
   #   pkgsFor   system -> nixpkgs
   #   ociFor    system -> substrate's image builders, or null
-  mkProjectOutputs = { systems, blueFor, pkgsFor, ociFor ? (_: null), moduleTrio ? null, chartLibraries ? { }, componentFor ? (_: null) }: { src, legacy ? { } }:
+  #   applianceFor  system -> the `blue-appliance` runner, or null
+  mkProjectOutputs = { systems, blueFor, pkgsFor, ociFor ? (_: null), moduleTrio ? null, chartLibraries ? { }, componentFor ? (_: null), applianceFor ? (_: null) }: { src, legacy ? { } }:
     let
       per = lib.genAttrs systems (system: projectFor {
         inherit src moduleTrio legacy chartLibraries;
@@ -592,6 +601,7 @@ in
         blue = blueFor system;
         oci = ociFor system;
         component = componentFor system;
+        appliance = applianceFor system;
       });
       any = per.${builtins.head systems};
       arm = a: lib.mapAttrs (_: t: t."${a}Module") any.trios;

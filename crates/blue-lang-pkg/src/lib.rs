@@ -29,6 +29,9 @@
 //! land behind. Stated plainly so nobody reads `blue deps` as installing
 //! anything.
 
+/// One program sealed into one executable: the payload `blue bundle` writes
+/// and the runner reads from its own file.
+pub mod appliance;
 pub mod bluefile;
 pub mod canonical;
 pub mod capabilities;

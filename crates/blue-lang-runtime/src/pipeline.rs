@@ -73,6 +73,18 @@ pub enum RunError {
     Import(String),
 }
 
+impl RunError {
+    /// The exit status a program that stopped here returns:
+    /// [`crate::BREACH_EXIT`] for a capability breach, 1 for anything else.
+    #[must_use]
+    pub fn exit_status(&self) -> u8 {
+        match self {
+            RunError::Eval(fault) if fault.breach => crate::BREACH_EXIT,
+            _ => 1,
+        }
+    }
+}
+
 /// What a run produced, plus what the checker did on the way.
 #[derive(Debug)]
 pub struct Run {
@@ -203,11 +215,7 @@ pub fn run_framed(
     // stage's name oracle: every builtin, macro and special form a program may
     // name is read off the interpreter that will run it, never off a list.
     // Building it is not a stage; nothing is evaluated until `eval_prepared`.
-    let mut interp =
-        crate::timings::stage(crate::timings::Stage::Runtime, crate::interpreter_hostless);
-    crate::inputs::install_input_primitives(&mut interp, inputs);
-    let builtins = crate::timings::stage(crate::timings::Stage::Names, || builtin_names(&interp));
-    let mut prepared = prepare(entry, loader, surface, &builtins)?;
+    let (mut interp, mut prepared) = prepared_on(entry, inputs, loader, surface)?;
     hold_to_frame(&mut interp, &mut prepared, hold)?;
     let mut value = crate::timings::stage(crate::timings::Stage::Eval, || {
         eval_prepared(&mut interp, &prepared, &mut ())
@@ -237,7 +245,9 @@ fn hold_to_frame(
         return Ok(());
     };
     let withheld = hold.rebind_scoped(&prepared.program, &mut prepared.erased);
-    let escapes = entry_escapes(&prepared.program, &withheld);
+    let escapes = entry_escapes(&prepared.program, &withheld, &|cap| {
+        format!("this run does not allow; pass --allow {cap} to grant it")
+    });
     if !escapes.is_empty() {
         return Err(RunError::Types(escapes));
     }
@@ -249,6 +259,7 @@ fn hold_to_frame(
 fn entry_escapes(
     program: &crate::uses::ResolvedProgram,
     refused: &[(&'static str, blue_lang_waku::Capability)],
+    grant: &dyn Fn(&str) -> String,
 ) -> Vec<String> {
     use crate::uses::ResolvedProgram;
     let forms: Vec<tatara_lisp::Spanned> = program
@@ -273,10 +284,124 @@ fn entry_escapes(
                 .and_then(|f| f.path.clone())
                 .map_or_else(|| "<entry>".to_string(), |p| p.display().to_string());
             Some(format!(
-                "{at}: refused: `{name}` reaches the host ({cap}), which this run does not allow; pass --allow {cap} to grant it"
+                "{at}: refused: `{name}` reaches the host ({cap}), which {}",
+                grant(cap)
             ))
         })
         .collect()
+}
+
+/// The interpreter a program runs on, with `inputs` bound for its macros.
+fn runtime(inputs: Inputs) -> tatara_lisp_eval::Interpreter<()> {
+    let mut interp =
+        crate::timings::stage(crate::timings::Stage::Runtime, crate::interpreter_hostless);
+    crate::inputs::install_input_primitives(&mut interp, inputs);
+    interp
+}
+
+/// [`runtime`], and the program prepared against that interpreter's names.
+fn prepared_on(
+    entry: Entry<'_>,
+    inputs: Inputs,
+    loader: &dyn crate::uses::Loader,
+    surface: Option<&blue_lang_syntax::yakugo::Yakugo>,
+) -> Result<(tatara_lisp_eval::Interpreter<()>, Prepared), RunError> {
+    let interp = runtime(inputs);
+    let builtins = crate::timings::stage(crate::timings::Stage::Names, || builtin_names(&interp));
+    let prepared = prepare(entry, loader, surface, &builtins)?;
+    Ok((interp, prepared))
+}
+
+/// A program past every stage before evaluation, kept as data: the tree
+/// `def_hash` reads (`lowered`), the tree that runs (`erased`), one form per
+/// top-level form of `program` in both, and the runtime key of the entry
+/// file's `main`. What `blue bundle` seals into an appliance, and what
+/// [`run_compiled`] evaluates with no loader and no checker.
+pub struct Compiled {
+    pub program: crate::uses::ResolvedProgram,
+    pub lowered: Vec<tatara_lisp::Spanned>,
+    pub erased: Vec<tatara_lisp::Spanned>,
+    pub main: Option<String>,
+}
+
+/// Parse, resolve, check and erase `entry`, and stop before evaluation. Under
+/// a `hold`, a host name the entry file writes that the hold withholds
+/// refuses the program here, as [`run_framed`] refuses it before it runs.
+///
+/// # Errors
+///
+/// As [`run_framed`], with no runtime error: nothing is evaluated.
+pub fn compile(
+    entry: Entry<'_>,
+    loader: &dyn crate::uses::Loader,
+    surface: Option<&blue_lang_syntax::yakugo::Yakugo>,
+    hold: Option<&crate::Hold>,
+) -> Result<Compiled, RunError> {
+    let (_, prepared) = prepared_on(entry, Inputs::new(), loader, surface)?;
+    if let Some(hold) = hold {
+        let escapes = entry_escapes(&prepared.program, &hold.withheld_host_names(), &|cap| {
+            format!("this bundle's policy does not allow; declare allow(%i[{cap}]) in the project's Bluefile and run `blue lock`")
+        });
+        if !escapes.is_empty() {
+            return Err(RunError::Types(escapes));
+        }
+    }
+    let main = entry_main(&prepared.program).map(|(top_level, _)| {
+        blue_lang_check::names::key(&namespace_of(&prepared.program, top_level), MAIN)
+    });
+    let Prepared {
+        program,
+        lowered,
+        erased,
+        ..
+    } = prepared;
+    Ok(Compiled {
+        program,
+        lowered,
+        erased,
+        main,
+    })
+}
+
+/// Evaluate compiled forms under `hold`, then call `main` when one is named.
+/// The hold is not optional: a compiled program has no ambient run. `who`
+/// names the hold in a breach's message. Errors carry no position: the
+/// forms carry no source.
+///
+/// # Errors
+///
+/// [`RunError::Eval`] when a form or `main` raises, a breach included
+/// ([`crate::observe::Fault::breach`]).
+pub fn run_compiled(
+    erased: &[tatara_lisp::Spanned],
+    main: Option<&str>,
+    hold: &crate::Hold,
+    who: &'static str,
+) -> Result<Value, RunError> {
+    let mut interp = runtime(Inputs::new());
+    hold.bind(&mut interp, who);
+    crate::attach_node_held(&mut interp, hold);
+    let fault = |e: &tatara_lisp_eval::EvalError| {
+        RunError::Eval(Box::new(crate::observe::Fault::unplaced(e, erased)))
+    };
+    let mut value = Value::Nil;
+    for form in erased {
+        value = interp.eval_top_form(form, &mut ()).map_err(|e| fault(&e))?;
+    }
+    if let Some(key) = main {
+        let at = tatara_lisp::Span::synthetic();
+        let call = tatara_lisp::Spanned::new(
+            at,
+            tatara_lisp::SpannedForm::List(vec![tatara_lisp::Spanned::new(
+                at,
+                tatara_lisp::SpannedForm::Atom(tatara_lisp::Atom::Symbol(key.to_string())),
+            )]),
+        );
+        value = interp
+            .eval_top_form(&call, &mut ())
+            .map_err(|e| fault(&e))?;
+    }
+    Ok(value)
 }
 
 /// A run watched by a call observer, and the definitions the observer was
@@ -331,11 +456,7 @@ pub fn run_observed_framed(
     hold: Option<&crate::Hold>,
     watch: impl FnOnce(&Watched<'_>) -> std::sync::Arc<dyn crate::observe::CallObserver>,
 ) -> Result<Observed, RunError> {
-    let mut interp =
-        crate::timings::stage(crate::timings::Stage::Runtime, crate::interpreter_hostless);
-    crate::inputs::install_input_primitives(&mut interp, inputs);
-    let builtins = crate::timings::stage(crate::timings::Stage::Names, || builtin_names(&interp));
-    let mut prepared = prepare(entry, loader, surface, &builtins)?;
+    let (mut interp, mut prepared) = prepared_on(entry, inputs, loader, surface)?;
     hold_to_frame(&mut interp, &mut prepared, hold)?;
     let definitions = std::sync::Arc::new(crate::observe::Definitions::of(
         &prepared.program,
@@ -1349,9 +1470,7 @@ pub fn check_entry(
             .unwrap_or_default(),
         None => Vec::new(),
     };
-    let mut interp =
-        crate::timings::stage(crate::timings::Stage::Runtime, crate::interpreter_hostless);
-    crate::inputs::install_input_primitives(&mut interp, Inputs::new());
+    let interp = runtime(Inputs::new());
     let builtins = crate::timings::stage(crate::timings::Stage::Names, || {
         builtin_names_with(&interp, &host)
     });

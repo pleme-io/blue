@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:ac3b5ea47ccadf3147cfa78ec6e8bfdb69a0f5165de34c9f45b64e4c53c4ab1c",
+  "bluefile_b3": "b3:af54bbd3835cbe6a9a81a5e67e08bdd393a7f61f9eb9f04661b93a96bb3db6ef",
   "manifest": {
     "schema": 1,
     "name": "project-fixture",
@@ -36,6 +36,9 @@
     "apps": {
       "greet": {
         "file": "apps/greet.b"
+      },
+      "hello": {
+        "file": "apps/hello.b"
       }
     },
     "catalog": null,

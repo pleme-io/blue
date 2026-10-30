@@ -1,0 +1,21 @@
+[package]
+name = "blue-lang-appliance"
+description = "The runner of a blue appliance: it reads the payload sealed onto its own executable, verifies it, and runs it held to the capability policy it carries."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[[bin]]
+name = "blue-appliance"
+path = "src/main.rs"
+
+[dependencies]
+blue-lang-runtime = { workspace = true, features = ["sys"] }
+blue-lang-pkg = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }

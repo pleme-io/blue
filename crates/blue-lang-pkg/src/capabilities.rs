@@ -470,9 +470,26 @@ pub struct CapabilityRecord {
 /// The root's ceiling as a reach: `Unrestricted` when it declares none.
 #[must_use]
 pub fn ceiling_of(bf: &Bluefile) -> Reach {
-    bf.project.allow.as_ref().map_or(Reach::Unrestricted, |c| {
-        Reach::only(c.iter().filter_map(|l| host_capability(l)).chain(pure()))
-    })
+    reach_of(bf.project.allow.as_deref()).unwrap_or_else(|_| Reach::only(pure()))
+}
+
+/// The reach a ceiling's labels grant, with every pure capability beside
+/// them; `None`, no ceiling, is every capability.
+///
+/// # Errors
+///
+/// A label that names no host capability.
+pub fn reach_of(ceiling: Option<&[String]>) -> Result<Reach, String> {
+    let Some(labels) = ceiling else {
+        return Ok(Reach::Unrestricted);
+    };
+    let host = labels
+        .iter()
+        .map(|l| {
+            host_capability(l).ok_or_else(|| format!("ceiling names `{l}`, no host capability"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(Reach::only(host.into_iter().chain(pure())))
 }
 
 fn pure() -> impl Iterator<Item = Capability> {

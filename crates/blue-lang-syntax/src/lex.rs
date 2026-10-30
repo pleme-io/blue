@@ -775,6 +775,11 @@ fn skip_interpolation(bytes: &[u8], mut i: usize) -> Option<usize> {
                 i = skip_code_string(bytes, i)?;
                 continue;
             }
+            b'%' if matches!(bytes.get(i + 1), Some(b'w' | b'i'))
+                && bytes.get(i + 2) == Some(&b'[') =>
+            {
+                i += 3 + bytes.get(i + 3..)?.iter().position(|b| *b == b']')?;
+            }
             _ => {}
         }
         i += 1;
@@ -1034,6 +1039,17 @@ mod tests {
             );
         }
         assert_eq!(kinds("a %% b")[1], TokenKind::Op("%%".into()));
+    }
+
+    #[test]
+    fn a_word_list_inside_an_interpolation_keeps_its_braces() {
+        let src = "\"a#{join_lines(%w[} {])}b\"";
+        assert!(lex(src).is_ok(), "{:?}", lex(src));
+        assert!(lex("\"#{%w[/x/{id} y]}\"").is_ok());
+        assert!(
+            lex("\"#{%w[a b\"").is_err(),
+            "an open word list is still refused"
+        );
     }
 
     #[test]

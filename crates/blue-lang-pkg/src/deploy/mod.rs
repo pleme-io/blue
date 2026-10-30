@@ -297,8 +297,8 @@ pub enum SpecError {
     NativeWithoutGap,
     #[error("`because: :{gap}` names a gap nothing in this service needs; drop `runtime` and it runs as wasm")]
     GapNotNeeded { gap: &'static str },
-    #[error("`{got}` is not a control id: an uppercase letter, then uppercase letters, digits and `_` (NIST_SP_800_53R5_SA_11)")]
-    Control { got: String },
+    #[error("`{got}` is neither a control id (NIST_SP_800_53R5_SA_11) nor a control keyword (:nist_sa_11): {why}")]
+    Control { got: String, why: String },
     #[error("control `{control}` is listed twice")]
     DuplicateControl { control: String },
     #[error(

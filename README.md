@@ -237,8 +237,8 @@ rendered:
 | | |
 |---|---|
 | Built-in names | 307: 280 functions, 14 special forms, 13 macros |
-| Surface forms | 29, with 13 operators and 24 reserved words |
-| Check rules | 65: 37 fix themselves, 7 suggest a fix |
+| Surface forms | 30, with 13 operators and 25 reserved words |
+| Check rules | 67: 38 fix themselves, 7 suggest a fix |
 | Bluefile words | 22 |
 | Commands | 39 |
 

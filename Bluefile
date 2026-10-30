@@ -69,7 +69,7 @@ check("okite-laws", "gen/okite-laws.b")
 check("regen-untracked", "gen/regen_test.b", ["gen/regen.b"])
 check("docs", "gen/docs.b", ["docs"])
 check("markdown-laws", "gen/markdown-laws.b", ["docs"])
-receipt("docs", %w[NIST_SP_800_53R5_SA_5 NIST_SP_800_53R5_SA_11])
+receipt("docs", %i[nist_sa_5 nist_sa_11])
 
 # The repository's own check rules, written in blue: `blue check` runs each
 # on every file under this directory, under a pure frame

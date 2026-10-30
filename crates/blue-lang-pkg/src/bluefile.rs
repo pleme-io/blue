@@ -295,9 +295,19 @@ fn receipt_of(controls: Vec<String>) -> Result<Receipt, crate::deploy::SpecError
     if controls.is_empty() {
         return Err(SpecError::Empty { field: "controls" });
     }
-    if let Some(bad) = controls.iter().find(|c| !is_control_id(c)) {
-        return Err(SpecError::Control { got: bad.clone() });
-    }
+    let controls = controls
+        .into_iter()
+        .map(|c| {
+            if is_control_id(&c) {
+                Ok(c)
+            } else {
+                blue_lang_check::controls::oscal_id(&c).map_err(|why| SpecError::Control {
+                    got: c.clone(),
+                    why,
+                })
+            }
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     let mut seen = std::collections::BTreeSet::new();
     if let Some(twice) = controls.iter().find(|c| !seen.insert(c.as_str())) {
         return Err(SpecError::DuplicateControl {
@@ -839,12 +849,12 @@ const WORDS: &[Word] = &[
     Word {
         name: "receipt",
         signature: "receipt(check, controls)",
-        doc: "A `check` attested as `checks.<check>-receipt`: the check's own command, run under tameshi's `wrapTest`, writes and verifies a `tameshi-receipt.v1.json` that evidences each control (%w[NIST_SP_800_53R5_SA_11]), and the check is red unless the receipt records PASS. The target is the check's `inputs` (its BLUE_PATH when it names none), the test its program. Needs the engine's `tameshi` input.",
+        doc: "A `check` attested as `checks.<check>-receipt`: the check's own command, run under tameshi's `wrapTest`, writes and verifies a `tameshi-receipt.v1.json` that evidences each control (%i[nist_sa_11], the keywords a test's `satisfies` names, or the OSCAL id NIST_SP_800_53R5_SA_11), and the check is red unless the receipt records PASS. The target is the check's `inputs` (its BLUE_PATH when it names none), the test its program. Needs the engine's `tameshi` input.",
         min: 2,
         max: 2,
         record: |c, into| {
             let check = c.text(0, "check")?;
-            let controls = c.names(1, "controls")?;
+            let controls = c.labels(1, "controls")?;
             match receipt_of(controls) {
                 Ok(receipt) => insert_once(&mut into.project.receipts, c.word, check, receipt),
                 Err(error) => refuse(into, c.word, check, error),
@@ -1009,6 +1019,20 @@ impl Call<'_> {
             );
         }
         Ok(caps.into_iter().map(|c| c.label().to_string()).collect())
+    }
+
+    fn labels(&self, i: usize, param: &'static str) -> Result<Vec<String>, Malformed> {
+        let expected = "a list of strings or keywords";
+        let Value::List(items) = &self.args[i] else {
+            return Err(self.type_error(i, param, expected));
+        };
+        items
+            .iter()
+            .map(|v| match v {
+                Value::Str(s) | Value::Keyword(s) => Ok(s.to_string()),
+                _ => Err(self.type_error(i, param, expected)),
+            })
+            .collect()
     }
 
     /// A list of strings.
@@ -2165,9 +2189,9 @@ mod tests {
         .to_string();
         for (entry, why) in [
             ("receipt(\"a\"", "`controls` is empty"),
-            ("receipt(\"b\"", "`sa_5` is not a control id"),
+            ("receipt(\"b\"", "`sa_5` is neither a control id"),
             ("receipt(\"c\"", "control `SA_11` is listed twice"),
-            ("receipt(\"d\"", "`_SA` is not a control id"),
+            ("receipt(\"d\"", "`_SA` is neither a control id"),
         ] {
             assert!(
                 err.lines().any(|l| l.contains(entry) && l.contains(why)),
@@ -2182,6 +2206,31 @@ mod tests {
                 ..
             })
         ));
+    }
+
+    #[test]
+    fn a_receipt_names_its_controls_as_a_test_does_and_one_control_twice_is_refused() {
+        let p = project_of(
+            "check(\"docs\", \"gen/docs.b\")\nreceipt(\"docs\", %i[nist_sa_5 nist_sa_11])",
+        );
+        assert_eq!(
+            p.receipts["docs"].controls,
+            vec!["NIST_SP_800_53R5_SA_5", "NIST_SP_800_53R5_SA_11"]
+        );
+        let err = refusal_of(
+            "check(\"a\", \"a.b\")\ncheck(\"b\", \"b.b\")\nreceipt(\"a\", [:nist_sa_11, \"NIST_SP_800_53R5_SA_11\"])\nreceipt(\"b\", %i[nist_zz_1])",
+        )
+        .to_string();
+        assert!(
+            err.lines().any(|l| l.contains("receipt(\"a\"")
+                && l.contains("control `NIST_SP_800_53R5_SA_11` is listed twice")),
+            "{err}"
+        );
+        assert!(
+            err.lines()
+                .any(|l| l.contains("receipt(\"b\"") && l.contains("`zz` is not a NIST")),
+            "{err}"
+        );
     }
 
     #[test]

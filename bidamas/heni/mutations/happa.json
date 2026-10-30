@@ -94,5 +94,47 @@
     "file": "happa.b",
     "find": "if mode == :generate and fix[:draft] != nil",
     "replace": "if false"
+  },
+  {
+    "name": "an empty body still declares a terraform block",
+    "file": "happa.b",
+    "find": "  config = if is_empty(used)\n",
+    "replace": "  config = if false\n"
+  },
+  {
+    "name": "a ref drops the resource name",
+    "file": "happa.b",
+    "find": "\"${#{type}.#{name}.#{attr}}\"",
+    "replace": "\"${#{type}.#{attr}}\""
+  },
+  {
+    "name": "a duplicate address is never refused",
+    "file": "happa.b",
+    "find": "dup = if position(p[:address], addresses) < i",
+    "replace": "dup = if position(p[:address], addresses) < 0"
+  },
+  {
+    "name": "half a Roles Anywhere pair is accepted",
+    "file": "happa.b",
+    "find": "  elsif anchor == \"\" or profile == \"\"\n",
+    "replace": "  elsif false\n"
+  },
+  {
+    "name": "a disposable leaf keeps destroy protection",
+    "file": "happa.b",
+    "find": "destroyProtection: not disposable,",
+    "replace": "destroyProtection: true,"
+  },
+  {
+    "name": "aws is declared with no registry namespace",
+    "file": "happa.b",
+    "find": "\"aws\" => \"hashicorp/aws\",",
+    "replace": "\"aws\" => \"aws\","
+  },
+  {
+    "name": "manifests end without a line break",
+    "file": "happa.b",
+    "find": "unlines([\"\", \"---\"])), line_break)",
+    "replace": "unlines([\"\", \"---\"])), \"\")"
   }
 ]

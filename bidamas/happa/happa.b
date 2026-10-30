@@ -1,5 +1,5 @@
 @moduledoc """
-happa (葉っぱ) — a template's leaves: split, graph, change, schedule and verdicts, as pure decisions.
+happa (葉っぱ) — a template's leaves: their declaration, split, graph, change, schedule and verdicts, as pure decisions.
 
 A fat template's state splits into leaves by each address's leaf key (a
 for_each key, a module, or the address itself), joined by reference edges.
@@ -12,11 +12,17 @@ the leaf states come in as values, so the operator embeds this bidama with
 every host effect refused. Records meant for a status field carry its
 camelCase names.
 
+A workspace declares its leaves with the same words: `resource`, `data` and
+`output` parts gathered by `body` into Terraform JSON, each carried inline by
+`leaf` as a `dialect: json` InfrastructureTemplate, the state by `state`, and
+the whole committed as `manifests`.
+
     key("github_repository.repos[\"acude\"]") #=> {kind: :keyed, value: "acude"}
 """
 
 use("gurafu")
 use("kousei", %i[entry field off one_of required text])
+use("kyohi", %i[refusal standing])
 use("moji", [:checked])
 use("retsu", %i[first is_empty last size])
 use("tesuto", [:raises?])
@@ -1440,6 +1446,382 @@ def as_key(k)
     ),
     value: k["value"]
   }
+end
+
+@doc """
+resource: one Terraform resource as a part of a body.
+
+    resource("aws_vpc", "main", {cidr_block: "10.0.0.0/16"})[:address] #=> "aws_vpc.main"
+"""
+def resource(type, name, attrs)
+  {block: "resource", type:, name:, attrs:, address: "#{type}.#{name}"}
+end
+
+@doc """
+data: one Terraform data source as a part of a body.
+
+    data("aws_vpc", "net", {})[:address] #=> "data.aws_vpc.net"
+"""
+def data(type, name, attrs)
+  {block: "data", type:, name:, attrs:, address: "data.#{type}.#{name}"}
+end
+
+@doc """
+output: one Terraform output as a part of a body.
+
+    output("vpc_id", "x")[:attrs] #=> {value: "x"}
+"""
+def output(name, value)
+  {
+    block: "output",
+    type: nil,
+    name:,
+    attrs: {value:},
+    address: "output.#{name}"
+  }
+end
+
+@doc """
+ref: an interpolation that reads one attribute of a resource; a data source's type starts with `data.`.
+
+    ref("aws_vpc", "main", "id") #=> "${aws_vpc.main.id}"
+"""
+def ref(type, name, attr)
+  "${#{type}.#{name}.#{attr}}"
+end
+
+@doc """
+provider_sources: each provider's local name and its registry source, the table pangea-operator's `ruby/provider_registry.rs` holds, so a JSON body declares what it uses.
+
+    provider_sources["aws"] #=> "hashicorp/aws"
+"""
+def provider_sources()
+  {
+    "aws" => "hashicorp/aws",
+    "azurerm" => "hashicorp/azurerm",
+    "google" => "hashicorp/google",
+    "gcp" => "hashicorp/google",
+    "kubernetes" => "hashicorp/kubernetes",
+    "helm" => "hashicorp/helm",
+    "null" => "hashicorp/null",
+    "random" => "hashicorp/random",
+    "tls" => "hashicorp/tls",
+    "local" => "hashicorp/local",
+    "external" => "hashicorp/external",
+    "archive" => "hashicorp/archive",
+    "time" => "hashicorp/time",
+    "cloudflare" => "cloudflare/cloudflare",
+    "github" => "integrations/github",
+    "datadog" => "DataDog/datadog",
+    "akeyless" => "akeyless-community/akeyless",
+    "hcloud" => "hetznercloud/hcloud",
+    "splunk" => "splunk/splunk",
+    "porkbun" => "marcfrederick/porkbun"
+  }
+end
+
+@doc """
+provider_of: the provider local name a resource type belongs to: everything before its first underscore.
+
+    provider_of("aws_iam_role") #=> "aws"
+"""
+def provider_of(type)
+  first(blue::split(type, "_"))
+end
+
+@doc """
+part_whys: why a part cannot stand in a body: its provider has no known source.
+
+    part_whys(resource("nope_thing", "x", {})) #=> ["provider nope has no known source"]
+"""
+def part_whys(p)
+  if p[:type].nil? or get(provider_sources, provider_of(p[:type])) != nil
+    []
+  else
+    ["provider #{provider_of(p[:type])} has no known source"]
+  end
+end
+
+@doc """
+placed: a block map with one more part in it, under its type when it has one.
+
+    placed({}, output("a", 1)) #=> {"a" => {value: 1}}
+"""
+def placed(block, p)
+  if p[:type].nil?
+    assoc(block, p[:name], p[:attrs])
+  else
+    assoc(
+      block,
+      p[:type],
+      assoc(get(block, p[:type]) or {}, p[:name], p[:attrs])
+    )
+  end
+end
+
+@doc """
+body: the Terraform JSON of a list of parts, with `terraform.required_providers` derived from the types it uses; a duplicate address or an unknown provider is a refusal of that part alone, and the rest stands.
+
+    body([])[:config] #=> {}
+"""
+def body(parts)
+  addresses = map((p) -> p[:address], parts)
+  marks = map(
+    fn(i)
+      p = parts[i]
+      dup = if position(p[:address], addresses) < i
+        ["#{p[:address]} declared twice; the first stands"]
+      else
+        []
+      end
+      map(
+        (w) -> refusal(:invalid, "#{p[:address]}: #{w}"),
+        append(dup, part_whys(p))
+      )
+    end,
+    range(0, size(parts))
+  )
+  sound = standing(parts, marks)
+  blocks = reduce(
+    (acc, p) -> assoc(acc, p[:block], placed(get(acc, p[:block]) or {}, p)),
+    {},
+    sound
+  )
+  used = distinct(
+    map(provider_of, filter((t) -> t != nil, map((p) -> p[:type], sound)))
+  )
+  required = reduce(
+    (acc, n) -> assoc(acc, n, {source: get(provider_sources, n)}),
+    {},
+    used
+  )
+  config = if is_empty(used)
+    blocks
+  else
+    assoc(blocks, "terraform", {required_providers: required})
+  end
+  {config:, refusals: retsu::flat_map(marks, (r) -> r)}
+end
+
+@doc """
+aws_credentials: a leaf's AWS credentials: the bootstrap session Secret until the Roles Anywhere trust anchor and profile ARNs exist, then a Roles Anywhere session; one ARN without the other is refused.
+
+    aws_credentials({region: "sa-east-1", bootstrap: {name: "b", namespace: "n"}})[:secretRef] #=> {name: "b", namespace: "n"}
+"""
+def aws_credentials(account)
+  checked(account, %i[bootstrap region roles_anywhere])
+  ra = account[:roles_anywhere] or {}
+  anchor = ra[:trust_anchor_arn] or ""
+  profile = ra[:profile_arn] or ""
+  if anchor == "" and profile == ""
+    {secretRef: account[:bootstrap], region: account[:region]}
+  elsif anchor == "" or profile == ""
+    raise(
+      :bad_option,
+      "roles_anywhere needs both trust_anchor_arn and profile_arn, or neither"
+    )
+  else
+    {
+      rolesAnywhere: {
+        trustAnchorArn: anchor,
+        profileArn: profile,
+        roleArn: ra[:role_arn],
+        certSecretRef: ra[:cert_secret],
+        sessionDurationSeconds: ra[:session_seconds] or 3600
+      },
+      region: account[:region]
+    }
+  end
+end
+
+@doc """
+leaf_options: the options `leaf` takes.
+
+    member?(:disposable, leaf_options) #=> true
+"""
+def leaf_options()
+  %i[
+    aws
+    destroy_authorization
+    disposable
+    executor
+    namespace
+    pangea_namespace
+    refresh_interval
+  ]
+end
+
+@doc """
+leaf: an InfrastructureTemplate whose Terraform JSON rides inline (`dialect: json`) under the house defaults: magma, auto-approve, destroy protection, import on conflict, delete and replace refused; `disposable: true` lifts the protection and the refusal for a leaf whose resources come and go.
+
+    leaf("x", body([]), {pangea_namespace: "p"})[:spec][:dialect] #=> "json"
+"""
+def leaf(name, b, opts)
+  checked(opts, leaf_options)
+  if (opts[:pangea_namespace] or "") == ""
+    raise(:bad_option, "leaf #{name} needs pangea_namespace")
+  end
+  disposable = opts[:disposable] == true
+  spec = {
+    dialect: "json",
+    source: {inline: json_stringify(b[:config])},
+    executor: opts[:executor] or "magma",
+    pangeaNamespace: opts[:pangea_namespace],
+    autoApprove: true,
+    destroyProtection: not disposable,
+    refreshInterval: opts[:refresh_interval] or "60m",
+    importPolicy: {autoOnConflict: true},
+    policies: if disposable
+      []
+    else
+      [
+        {
+          name: "destruction-is-never-automatic",
+          decision: "refuse",
+          match: {actions: %w[delete replace]}
+        }
+      ]
+    end
+  }
+  with_aws = if opts[:aws].nil?
+    spec
+  else
+    assoc(spec, :providerCredentials, {aws: opts[:aws]})
+  end
+  {
+    apiVersion: "pangea.pleme.io/v1alpha1",
+    kind: "InfrastructureTemplate",
+    metadata: {name:, namespace: opts[:namespace] or "default"},
+    spec: if opts[:destroy_authorization].nil?
+      with_aws
+    else
+      assoc(with_aws, :destroyAuthorization, opts[:destroy_authorization])
+    end
+  }
+end
+
+@doc """
+state: a PangeaNamespace whose state lives in the operator's own Postgres (`pangea_state` on 127.0.0.1, credentials in `pangea-system/pangea-postgres`).
+
+    state("x")[:spec][:backend][:type] #=> "pg"
+"""
+def state(name)
+  {
+    apiVersion: "pangea.pleme.io/v1alpha1",
+    kind: "PangeaNamespace",
+    metadata: {name:},
+    spec: {
+      suspend: false,
+      backend: {
+        type: "pg",
+        pg: {
+          host: "127.0.0.1",
+          port: 5432,
+          database: "pangea_state",
+          schemaPrefix: "pangea_",
+          sslMode: "disable",
+          secretRef: {
+            name: "pangea-postgres",
+            namespace: "pangea-system",
+            usernameKey: "username",
+            passwordKey: "password"
+          }
+        }
+      }
+    }
+  }
+end
+
+@doc """
+manifests: the multi-document text a workspace commits: one JSON object per document, a line break at the end.
+
+    manifests([{a: 1}, {b: 2}]) #=> join_lines(["{\"a\":1}", "---", "{\"b\":2}", ""])
+"""
+def manifests(objects)
+  concat(join(map(json_stringify, objects), unlines(["", "---"])), line_break)
+end
+
+test "an empty body declares nothing and needs no provider"
+  assert body([]) == {config: {}, refusals: []}
+  assert manifests([]) == line_break
+end
+
+test "a body places each part by block and type and declares the providers it uses"
+  b = body(
+    [
+      resource("aws_vpc", "main", {cidr_block: "10.0.0.0/16"}),
+      resource("aws_subnet", "a", {vpc_id: ref("aws_vpc", "main", "id")}),
+      data("aws_caller_identity", "me", {}),
+      output("vpc_id", ref("aws_vpc", "main", "id"))
+    ]
+  )
+  assert b[:refusals] == []
+  assert b[:config]["resource"]["aws_subnet"]["a"][:vpc_id] ==
+    "${aws_vpc.main.id}"
+  assert b[:config]["data"]["aws_caller_identity"]["me"] == {}
+  assert b[:config]["output"]["vpc_id"] == {value: "${aws_vpc.main.id}"}
+  assert b[:config]["terraform"] ==
+    {required_providers: {"aws" => {source: "hashicorp/aws"}}}
+  assert ref("data.aws_vpc", "net", "id") == "${data.aws_vpc.net.id}"
+end
+
+test "a duplicate address or an unknown provider is refused alone and the rest stands"
+  b = body(
+    [
+      resource("aws_vpc", "main", {cidr_block: "10.0.0.0/16"}),
+      resource("aws_vpc", "main", {cidr_block: "10.9.0.0/16"}),
+      resource("nope_thing", "x", {}),
+      output("o", 1)
+    ]
+  )
+  assert kyohi::kinds(b[:refusals]) == %i[invalid invalid]
+  assert b[:config]["resource"] ==
+    {"aws_vpc" => {"main" => {cidr_block: "10.0.0.0/16"}}}
+  assert b[:config]["output"] == {"o" => {value: 1}}
+end
+
+test "credentials run on the bootstrap Secret until both ARNs exist, and half is refused"
+  base = {region: "sa-east-1", bootstrap: {name: "b", namespace: "n"}}
+  assert aws_credentials(base) ==
+    {secretRef: {name: "b", namespace: "n"}, region: "sa-east-1"}
+  ra = {
+    trust_anchor_arn: "arn:aws:rolesanywhere:sa-east-1:1:trust-anchor/t",
+    profile_arn: "arn:aws:rolesanywhere:sa-east-1:1:profile/p",
+    role_arn: "arn:aws:iam::1:role/r",
+    cert_secret: {name: "c", namespace: "n"}
+  }
+  c = aws_credentials(assoc(base, :roles_anywhere, ra))
+  assert c[:secretRef].nil?
+  assert c[:rolesAnywhere][:sessionDurationSeconds] == 3600
+  assert c[:rolesAnywhere][:certSecretRef] == {name: "c", namespace: "n"}
+  assert raises?(
+    :bad_option,
+    () -> aws_credentials(assoc(base, :roles_anywhere, {trust_anchor_arn: "a"}))
+  )
+end
+
+test "a leaf carries its body inline as json under the house defaults, and disposable lifts the refusal"
+  b = body([resource("aws_vpc", "main", {cidr_block: "10.0.0.0/16"})])
+  l = leaf("net", b, {pangea_namespace: "p"})
+  assert json_read(l[:spec][:source][:inline]) ==
+    json_read(json_stringify(b[:config]))
+  assert l[:spec][:destroyProtection]
+  assert l[:spec][:executor] == "magma"
+  assert first(l[:spec][:policies])[:decision] == "refuse"
+  assert l[:spec][:providerCredentials].nil?
+  d = leaf("box", b, {pangea_namespace: "p", disposable: true})
+  assert d[:spec][:policies] == []
+  assert not d[:spec][:destroyProtection]
+  assert raises?(:bad_option, () -> leaf("x", b, {}))
+  assert raises?(
+    :bad_option,
+    () -> leaf("x", b, {pangea_namespace: "p", colour: 1})
+  )
+end
+
+test "manifests are one JSON document per object"
+  assert manifests([state("s"), {a: 1}]) ==
+    "#{json_stringify(state("s"))}#{unlines(["", "---"])}{\"a\":1}#{line_break}"
 end
 
 test "the empty state has no leaves, keys or work"

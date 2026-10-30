@@ -232,6 +232,7 @@ test "every bidama in the distribution answers through this one import"
   assert touroku::visibility_of({}) == "private"
   assert kiibariu::versioned_key("o", "h", :order, 1) == "o:vh:order:1"
   assert happa::key("aws_instance.web[3]") == {kind: :keyed, value: "3"}
+  assert happa::ref("aws_vpc", "main", "id") == "${aws_vpc.main.id}"
   assert gurafu::topo(gurafu::graph([%w[b c], %w[a b]], {})) == %w[a b c]
   assert sutoriimu::api("s", "INFO") == "$JS.API.STREAM.INFO.s"
 end

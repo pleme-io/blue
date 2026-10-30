@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "7fc63f237d81102d4da38ad65ed2d45d53a8f500248bc69ca7c0de3ac2d895a1",
+  "cargo_lock_sha256": "6e73af942cddf3924bfdcbf3e45f52b45075d9b3f5cf82cf49d37a8a1c0bc852",
   "manifest_sha256": {
     "Cargo.toml": "e064d96a6922d611c7c41e524b6d91cb56d25ece257deb5b1160c5b50851d9e4",
     "crates/blue-lang-art/Cargo.toml": "f6721f78c76a94d4915a455675cd05889176a43212494c53aa8a01dfc9dfe5ee",
@@ -20,7 +20,7 @@
     "crates/blue-lang-runtime/Cargo.toml": "eceaf1b0167ba605332287773930158c62e5d894aa0c3fcfccc5f28abda1bba4",
     "crates/blue-lang-syntax/Cargo.toml": "9d405348af1d3f57fffd0a73ddf0776a933ce98bfbcaa60c53a1db55db4e75cd",
     "crates/blue-lang-test/Cargo.toml": "e9f8cddd31210fd4ad6861351dd29188b36625390fe1dab0374c26fb4b39b6fe",
-    "crates/blue-lang-waku/Cargo.toml": "ff84c97684a1254a92f7eab4a578bbea8562006de52dc3b28f4f50689e58b684",
+    "crates/blue-lang-waku/Cargo.toml": "04ab710d641ebe14de7777553f810c78f8a328357c845f02deed75e859f56de7",
     "crates/blue-lang-wasm/Cargo.toml": "7ab5e1b7832f36ce7932147f98e193c0d626813528f2d85280ac1aa8b070a1a0",
     "crates/blue-lang-yaml-diff/Cargo.toml": "2aaacab66724df4d7d7e6065adcfa1d6c2aa330596abd1012f3c3e38a16eedbf"
   },
@@ -636,7 +636,7 @@
           },
           {
             "name": "tatara_lisp",
-            "package_key": "tatara-lisp-0.4.10",
+            "package_key": "tatara-lisp-0.4.12",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -842,7 +842,7 @@
           },
           {
             "name": "tatara_lisp_eval",
-            "package_key": "tatara-lisp-eval-0.4.9",
+            "package_key": "tatara-lisp-eval-0.4.12",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -913,7 +913,7 @@
           },
           {
             "name": "tatara_lisp",
-            "package_key": "tatara-lisp-0.4.10",
+            "package_key": "tatara-lisp-0.4.12",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -979,7 +979,7 @@
           },
           {
             "name": "tatara_lisp",
-            "package_key": "tatara-lisp-0.4.10",
+            "package_key": "tatara-lisp-0.4.12",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -989,7 +989,7 @@
           },
           {
             "name": "tatara_lisp_eval",
-            "package_key": "tatara-lisp-eval-0.4.9",
+            "package_key": "tatara-lisp-eval-0.4.12",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1098,7 +1098,7 @@
           },
           {
             "name": "tatara_lisp",
-            "package_key": "tatara-lisp-0.4.10",
+            "package_key": "tatara-lisp-0.4.12",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1275,7 +1275,7 @@
           },
           {
             "name": "tatara_lisp_eval",
-            "package_key": "tatara-lisp-eval-0.4.9",
+            "package_key": "tatara-lisp-eval-0.4.12",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1383,7 +1383,7 @@
           },
           {
             "name": "tatara_lisp",
-            "package_key": "tatara-lisp-0.4.10",
+            "package_key": "tatara-lisp-0.4.12",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1393,7 +1393,7 @@
           },
           {
             "name": "tatara_lisp_eval",
-            "package_key": "tatara-lisp-eval-0.4.9",
+            "package_key": "tatara-lisp-eval-0.4.12",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1442,7 +1442,7 @@
           },
           {
             "name": "tatara_lisp",
-            "package_key": "tatara-lisp-0.4.10",
+            "package_key": "tatara-lisp-0.4.12",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1452,7 +1452,7 @@
           },
           {
             "name": "tatara_lisp_eval",
-            "package_key": "tatara-lisp-eval-0.4.9",
+            "package_key": "tatara-lisp-eval-0.4.12",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1619,7 +1619,7 @@
           },
           {
             "name": "tatara_lisp",
-            "package_key": "tatara-lisp-0.4.10",
+            "package_key": "tatara-lisp-0.4.12",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1629,7 +1629,7 @@
           },
           {
             "name": "tatara_lisp_eval",
-            "package_key": "tatara-lisp-eval-0.4.9",
+            "package_key": "tatara-lisp-eval-0.4.12",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1657,7 +1657,7 @@
         "runtime_dependencies": [
           {
             "name": "tatara_lisp",
-            "package_key": "tatara-lisp-0.4.10",
+            "package_key": "tatara-lisp-0.4.12",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1705,7 +1705,7 @@
           },
           {
             "name": "tatara_lisp",
-            "package_key": "tatara-lisp-0.4.10",
+            "package_key": "tatara-lisp-0.4.12",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1715,7 +1715,7 @@
           },
           {
             "name": "tatara_lisp_eval",
-            "package_key": "tatara-lisp-eval-0.4.9",
+            "package_key": "tatara-lisp-eval-0.4.12",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1740,8 +1740,20 @@
             "tree": "target"
           },
           {
+            "name": "serde",
+            "package_key": "serde-1.0.229",
+            "kind": "normal",
+            "features": [
+              "derive"
+            ],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
             "name": "tatara_lisp",
-            "package_key": "tatara-lisp-0.4.10",
+            "package_key": "tatara-lisp-0.4.12",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1767,7 +1779,7 @@
           },
           {
             "name": "tatara_lisp_eval",
-            "package_key": "tatara-lisp-eval-0.4.9",
+            "package_key": "tatara-lisp-eval-0.4.12",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -3557,7 +3569,7 @@
           "std"
         ]
       },
-      "monosashi-0.4.10": {
+      "monosashi-0.4.12": {
         "runtime_dependencies": [],
         "build_dependencies": [],
         "features": []
@@ -5565,11 +5577,11 @@
           "visit-mut"
         ]
       },
-      "tatara-closed-set-0.4.10": {
+      "tatara-closed-set-0.4.12": {
         "runtime_dependencies": [
           {
             "name": "tatara_closed_set_derive",
-            "package_key": "tatara-closed-set-derive-0.4.10",
+            "package_key": "tatara-closed-set-derive-0.4.12",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -5581,7 +5593,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "tatara-closed-set-derive-0.4.10": {
+      "tatara-closed-set-derive-0.4.12": {
         "runtime_dependencies": [
           {
             "name": "proc_macro2",
@@ -5619,7 +5631,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "tatara-lisp-0.4.10": {
+      "tatara-lisp-0.4.12": {
         "runtime_dependencies": [
           {
             "name": "blake3",
@@ -5655,7 +5667,7 @@
           },
           {
             "name": "tatara_closed_set",
-            "package_key": "tatara-closed-set-0.4.10",
+            "package_key": "tatara-closed-set-0.4.12",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -5665,7 +5677,7 @@
           },
           {
             "name": "tatara_lisp_derive",
-            "package_key": "tatara-lisp-derive-0.4.10",
+            "package_key": "tatara-lisp-derive-0.4.12",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -5689,7 +5701,7 @@
           "default"
         ]
       },
-      "tatara-lisp-derive-0.4.10": {
+      "tatara-lisp-derive-0.4.12": {
         "runtime_dependencies": [
           {
             "name": "proc_macro2",
@@ -5727,7 +5739,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "tatara-lisp-eval-0.4.9": {
+      "tatara-lisp-eval-0.4.12": {
         "runtime_dependencies": [
           {
             "name": "imbl",
@@ -5741,7 +5753,7 @@
           },
           {
             "name": "monosashi",
-            "package_key": "monosashi-0.4.10",
+            "package_key": "monosashi-0.4.12",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -5761,7 +5773,7 @@
           },
           {
             "name": "tatara_closed_set",
-            "package_key": "tatara-closed-set-0.4.10",
+            "package_key": "tatara-closed-set-0.4.12",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -5771,7 +5783,7 @@
           },
           {
             "name": "tatara_lisp",
-            "package_key": "tatara-lisp-0.4.10",
+            "package_key": "tatara-lisp-0.4.12",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -9582,7 +9594,7 @@
     "mio-1.2.2": {
       "edition": "2021"
     },
-    "monosashi-0.4.10": {
+    "monosashi-0.4.12": {
       "edition": "2021"
     },
     "notify-8.2.0": {
@@ -9806,21 +9818,21 @@
     "syn-3.0.9": {
       "edition": "2021"
     },
-    "tatara-closed-set-0.4.10": {
+    "tatara-closed-set-0.4.12": {
       "edition": "2021"
     },
-    "tatara-closed-set-derive-0.4.10": {
+    "tatara-closed-set-derive-0.4.12": {
       "edition": "2021",
       "proc_macro": true
     },
-    "tatara-lisp-0.4.10": {
+    "tatara-lisp-0.4.12": {
       "edition": "2021"
     },
-    "tatara-lisp-derive-0.4.10": {
+    "tatara-lisp-derive-0.4.12": {
       "edition": "2021",
       "proc_macro": true
     },
-    "tatara-lisp-eval-0.4.9": {
+    "tatara-lisp-eval-0.4.12": {
       "edition": "2021"
     },
     "tempfile-3.27.0": {

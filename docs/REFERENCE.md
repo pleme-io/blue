@@ -561,6 +561,9 @@ A Bluefile is a blue program that may call only these words.
 | `package(name, version[, visibility])` | The project's or package's name and version; exactly once per Bluefile. `visibility` (public, unlisted or private; private when undeclared) is what every `registry` backend renders. |
 | `needs(name, range)` | A dependency on a package and a version range ("^0.1"); a package's source must use() every package it needs. |
 | `posture(when)` | The posture floor a package requires: "sealed", "preceding" or "anytime". |
+| `reach(capabilities)` | The host capabilities a package needs, its floor (%i[clock]); without it the floor is what the package's code names, and `blue lock` refuses a reach that misses one. |
+| `allow(capabilities)` | The root's ceiling, the most host authority it grants (%i[filesystem clock]), as `--allow` grants it: every package's floor, joined, must fit under it or a provider, else `blue lock` refuses and names the path; `blue run` holds the program to it. |
+| `virtualize(capability, settings)` | A host capability bound to a pure provider for the whole program: :clock {at_ms:, step_ms:}, :entropy {seed:}, :filesystem {mode: :memory \| :null}. |
 | `source(name, url, dir)` | A named external distribution root, fetched from a flake URL and pinned in Bluefile.lock by `blue lock`. |
 | `packages(dir)` | A local directory whose subdirectories are packages: each is built, tested (`bidama-test-<pkg>`) and gated for collisions. |
 | `run(name, file[, reads])` | A program run as its own cached derivation, writing into $RUN_OUT; `reads` names runs whose outputs it reads. |

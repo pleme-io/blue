@@ -50,6 +50,9 @@ pub fn describe(e: &EvalError, forms: &[Spanned]) -> String {
             );
             lines.join("\n")
         }
+        EvalError::Fatal { kind, message, .. } if &**kind == crate::BREACH => {
+            format!("capability breach: {message}")
+        }
         other => other.short_message(),
     }
 }

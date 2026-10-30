@@ -228,6 +228,37 @@ fn a_supervisor_gives_up_past_its_intensity_and_its_monitor_hears_why() {
 }
 
 #[test]
+fn a_supervisor_drops_a_breached_child_and_never_restarts_it() {
+    let (mut root, _) = node_with(
+        50,
+        Arc::new(|| {
+            let mut child = blue_lang_runtime::interpreter_hostless();
+            child.register_fn("breach", Arity::Any, |_: &[Value], _: &mut (), at| {
+                Err(tatara_lisp_eval::EvalError::fatal(
+                    "capability-breach",
+                    "`read_file` reaches the host (filesystem)",
+                    at,
+                ))
+            });
+            child
+        }),
+    );
+    let out = show(
+        &mut root,
+        "me = self()\n\
+         def bad(parent)\n  send(parent, :bad_started)\n  breach(1) rescue :swallowed\nend\n\
+         def worker(parent)\n  send(parent, :w)\n  m = receive()\n  if m == :crash\n    throw(error(:asked, \"x\"))\n  end\nend\n\
+         sup = supervisor(:one_for_all, [[bad, [me]], [worker, [me]]], 5)\n\
+         starts = [receive(:bad_started), receive(:w)]\n\
+         alive = children(sup)\n\
+         send(first(alive), :crash)\n\
+         def drain(acc)\n  m = receive(:_, 100, :none)\n  if m == :none\n    acc\n  else\n    drain(append(acc, [m]))\n  end\nend\n\
+         [length(alive), drain([])]",
+    );
+    assert_eq!(out, "(1 (:w))");
+}
+
+#[test]
 fn one_for_all_and_rest_for_one_sweep_their_siblings() {
     // Each child announces every start; the middle one is told to crash, and
     // the announcements after that are the strategy's sweep.

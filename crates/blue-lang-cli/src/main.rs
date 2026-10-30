@@ -470,8 +470,22 @@ fn main() -> ExitCode {
         Ok(code) => code,
         Err(e) => {
             eprintln!("blue: {e}");
-            ExitCode::FAILURE
+            match &e {
+                CliError::Blue(run) => failure_code(run),
+                _ => ExitCode::FAILURE,
+            }
         }
+    }
+}
+
+/// The exit status a run that ended on a capability breach returns:
+/// `EX_NOPERM` (sysexits.h).
+const BREACH_EXIT: u8 = 77;
+
+fn failure_code(e: &blue_lang_runtime::RunError) -> ExitCode {
+    match e {
+        blue_lang_runtime::RunError::Eval(fault) if fault.breach => ExitCode::from(BREACH_EXIT),
+        _ => ExitCode::FAILURE,
     }
 }
 
@@ -672,12 +686,20 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                 blue_lang_runtime::timings::enable();
             }
             sigint::stop();
-            let frame = if allow.is_empty() {
-                None
+            let project = blue_lang_pkg::capabilities::hold_for(&file);
+            let hold = if allow.is_empty() {
+                project
             } else {
-                Some(blue_lang_runtime::session::frame_granting(
+                let asked = blue_lang_runtime::session::frame_granting(
                     &repl::granted(&allow).map_err(CliError::Fmt)?,
-                ))
+                );
+                Some(match project {
+                    Some(p) => blue_lang_runtime::Hold {
+                        frame: asked.narrow(&p.frame),
+                        provisions: p.provisions,
+                    },
+                    None => blue_lang_runtime::Hold::from(asked),
+                })
             };
             blue_lang_runtime::sys::set_program_args(args);
             // The SURFACE the program is written in: BLUE_LANG wins, else the
@@ -740,7 +762,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                     inputs,
                     &loader,
                     surface.as_ref(),
-                    frame.as_ref(),
+                    hold.as_ref(),
                 ),
                 mode => {
                     let mut held = None;
@@ -749,7 +771,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                         inputs,
                         &loader,
                         surface.as_ref(),
-                        frame.as_ref(),
+                        hold.as_ref(),
                         |w| {
                             let m = memo::over(
                                 mode.persist(),
@@ -771,7 +793,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             let out = match ran {
                 Err(e) if format == Format::Json => {
                     println!("{}", serde_json::to_string(&observe::error_json(&e))?);
-                    return Ok(ExitCode::FAILURE);
+                    return Ok(failure_code(&e));
                 }
                 out => out?,
             };

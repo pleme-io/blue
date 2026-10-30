@@ -23,7 +23,7 @@
 //! ```text
 //! { "format": "blue-trace", "version": 1,
 //!   "pid": 3, "incarnation": 0, "definition": "consumer" | null,
-//!   "exit": { "kind": "crashed" | "runaway" | "killed", "text": "…", "reason": VALUE },
+//!   "exit": { "kind": "crashed" | "runaway" | "killed" | "fatal", "text": "…", "reason": VALUE },
 //!   "budget": { "fuel": n | null, "max_depth": n | null, "quantum": n | null },
 //!   "clock": "real" | "virtual",
 //!   "code": { "defs": [FORM…], "bindings": [{ "name": "%a0", "value": VALUE }…], "start": FORM },
@@ -105,6 +105,7 @@ pub fn reason_kind(r: &ExitReason) -> &'static str {
         ExitReason::Crashed(_) => "crashed",
         ExitReason::Runaway(_) => "runaway",
         ExitReason::Killed(_) => "killed",
+        ExitReason::Fatal(_) => "fatal",
     }
 }
 
@@ -113,7 +114,10 @@ pub fn reason_kind(r: &ExitReason) -> &'static str {
 pub fn reason_text(r: &ExitReason) -> String {
     match r {
         ExitReason::Normal => "normal".into(),
-        ExitReason::Crashed(m) | ExitReason::Runaway(m) | ExitReason::Killed(m) => m.clone(),
+        ExitReason::Crashed(m)
+        | ExitReason::Runaway(m)
+        | ExitReason::Killed(m)
+        | ExitReason::Fatal(m) => m.clone(),
     }
 }
 

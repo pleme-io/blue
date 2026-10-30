@@ -386,6 +386,8 @@ pub struct Fault {
     /// `file:line:col: message`, the one-line form.
     pub located: String,
     pub stack: Stack,
+    /// The run ended on a capability breach ([`crate::breach`]).
+    pub breach: bool,
 }
 
 impl Fault {
@@ -417,6 +419,7 @@ impl Fault {
             place: Place::of(program, site, at),
             stack: Stack::of(program, &defs, trace, raised, top_level),
             message,
+            breach: crate::is_breach(e),
         }
     }
 
@@ -429,6 +432,9 @@ impl Fault {
         v["message"] = self.message.clone().into();
         v["stack"] = self.stack.json();
         v["stack_depth"] = self.stack.depth.into();
+        if self.breach {
+            v["kind"] = crate::BREACH.into();
+        }
         v
     }
 }

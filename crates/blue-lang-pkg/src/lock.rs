@@ -137,6 +137,10 @@ pub struct Lock {
     pub sources: BTreeMap<String, Pin>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub refused: BTreeMap<String, String>,
+    /// The verified capability lattice, when the root declares a `ceiling`
+    /// or a `virtualize` provider ([`crate::capabilities`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub capabilities: Option<crate::capabilities::CapabilityRecord>,
 }
 
 /// How `blue lock` asks for a source's pin.
@@ -193,6 +197,8 @@ pub enum LockError {
     Json(#[from] serde_json::Error),
     #[error(transparent)]
     Needs(#[from] NeedsError),
+    #[error(transparent)]
+    Capability(#[from] crate::capabilities::CapabilityError),
     #[error("cannot read {path}: {error}")]
     Read { path: String, error: String },
 }
@@ -374,10 +380,11 @@ pub fn lock_dir_with(
             .into());
         }
     }
+    let capabilities = crate::capabilities::check_dir(dir, &bf)?;
     let previous =
         read_text(&dir.join(LOCK_FILE))?.and_then(|t| serde_json::from_str::<Lock>(&t).ok());
     let loader = crate::load_path::LoadPath::for_dir(dir);
-    lock_with(
+    let (mut lock, notes) = lock_with(
         &src,
         &needs,
         prefetch,
@@ -386,7 +393,9 @@ pub fn lock_dir_with(
             loader: &loader,
             previous: previous.as_ref(),
         },
-    )
+    )?;
+    lock.capabilities = capabilities;
+    Ok((lock, notes))
 }
 
 pub struct Resolve<'a> {
@@ -462,6 +471,14 @@ pub fn confirm_dir(dir: &Path) -> Result<Freshness, LockError> {
             reason: Staleness::Missing,
         });
     };
+    let recorded = serde_json::from_str::<Lock>(&lock_text)
+        .ok()
+        .and_then(|l| l.capabilities);
+    if !crate::capabilities::consistent(&bf, recorded.as_ref()) {
+        return Ok(Freshness::Stale {
+            reason: Staleness::Capabilities,
+        });
+    }
     let lock_text = Some(lock_text);
     match derived_needs(dir, &bf) {
         Ok(needs) => confirm(&src, &needs, lock_text.as_deref()),
@@ -555,6 +572,7 @@ pub fn lock_with(
             manifest: ManifestRecord::with_needs(&bluefile, needs),
             sources,
             refused,
+            capabilities: None,
         },
         notes,
     ))
@@ -617,6 +635,10 @@ pub enum Staleness {
         unused: Vec<String>,
         absent: Vec<String>,
     },
+    /// The capability lattice the lock records is not the one the packages
+    /// verify to now.
+    #[error("the recorded capabilities do not state the Bluefile's allow and virtualize, or their floors do not fit; run `blue lock`")]
+    Capabilities,
 }
 
 /// Check a committed lock against the Bluefile beside it, **offline**.

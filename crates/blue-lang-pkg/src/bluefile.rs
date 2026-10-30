@@ -179,6 +179,18 @@ pub struct Project {
     /// empty, like `generated`.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub queries: BTreeMap<String, String>,
+    /// `reach(capabilities)`: the host capabilities a package declares as its
+    /// floor ([`crate::capabilities`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reach: Option<Vec<String>>,
+    /// `allow(capabilities)`: the root's ceiling, the most host authority it
+    /// grants.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub allow: Option<Vec<String>>,
+    /// `virtualize(capability, settings)`: a host capability bound to a pure
+    /// provider, keyed by the capability's label.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub virtualized: BTreeMap<String, blue_lang_waku::Provision>,
 }
 
 pub const VISIBILITIES: &[&str] = &["public", "unlisted", "private"];
@@ -369,6 +381,9 @@ pub enum Malformed {
         expected: &'static [&'static str],
         got: String,
     },
+    /// Settings no pure provider accepts.
+    #[error("`{word}`: {why}")]
+    Provider { word: &'static str, why: String },
 }
 
 /// The frame a Bluefile is evaluated in.
@@ -492,6 +507,52 @@ const WORDS: &[Word] = &[
         record: |c, into| {
             let when = c.label(0, "when")?;
             set_once(&mut into.when, c.word, when.clone(), when)
+        },
+    },
+    Word {
+        name: "reach",
+        signature: "reach(capabilities)",
+        doc: "The host capabilities a package needs, its floor (%i[clock]); without it the floor is what the package's code names, and `blue lock` refuses a reach that misses one.",
+        min: 1,
+        max: 1,
+        record: |c, into| {
+            let caps = c.capabilities(0, "capabilities")?;
+            set_once(&mut into.project.reach, c.word, "reach".into(), caps)
+        },
+    },
+    Word {
+        name: "allow",
+        signature: "allow(capabilities)",
+        doc: "The root's ceiling, the most host authority it grants (%i[filesystem clock]), as `--allow` grants it: every package's floor, joined, must fit under it or a provider, else `blue lock` refuses and names the path; `blue run` holds the program to it.",
+        min: 1,
+        max: 1,
+        record: |c, into| {
+            let caps = c.capabilities(0, "capabilities")?;
+            set_once(&mut into.project.allow, c.word, "allow".into(), caps)
+        },
+    },
+    Word {
+        name: "virtualize",
+        signature: "virtualize(capability, settings)",
+        doc: "A host capability bound to a pure provider for the whole program: :clock {at_ms:, step_ms:}, :entropy {seed:}, :filesystem {mode: :memory | :null}.",
+        min: 2,
+        max: 2,
+        record: |c, into| {
+            let label = c.label(0, "capability")?;
+            let cap = crate::capabilities::host_capability(&label).ok_or(Malformed::Choice {
+                word: c.word,
+                param: "capability",
+                expected: crate::capabilities::HOST_LABELS,
+                got: label.clone(),
+            })?;
+            let provision = crate::capabilities::provision_of(cap, &c.args[1])
+                .map_err(|why| Malformed::Provider { word: c.word, why })?;
+            insert_once(
+                &mut into.project.virtualized,
+                c.word,
+                cap.label().to_string(),
+                provision,
+            )
         },
     },
     Word {
@@ -863,6 +924,30 @@ impl Call<'_> {
             .collect()
     }
 
+    /// A list of host capability labels, as keywords or strings, kept in
+    /// `Capability::ALL` order without repeats.
+    fn capabilities(&self, i: usize, param: &'static str) -> Result<Vec<String>, Malformed> {
+        let Value::List(items) = &self.args[i] else {
+            return Err(self.type_error(i, param, "a list of capabilities"));
+        };
+        let mut caps = std::collections::BTreeSet::new();
+        for v in items.iter() {
+            let label = match v {
+                Value::Str(s) | Value::Keyword(s) => s.to_string(),
+                _ => return Err(self.type_error(i, param, "a list of capabilities")),
+            };
+            caps.insert(
+                crate::capabilities::host_capability(&label).ok_or(Malformed::Choice {
+                    word: self.word,
+                    param,
+                    expected: crate::capabilities::HOST_LABELS,
+                    got: label,
+                })?,
+            );
+        }
+        Ok(caps.into_iter().map(|c| c.label().to_string()).collect())
+    }
+
     /// A list of strings.
     fn names(&self, i: usize, param: &'static str) -> Result<Vec<String>, Malformed> {
         let expected = "a list of strings";
@@ -1232,6 +1317,7 @@ mod tests {
             .chain(["frontend"])
             .chain(["registry"])
             .chain(["query"])
+            .chain(["reach", "allow", "virtualize"])
             // P1b's list argument, 2026-09-23 — `Capability::Collections`.
             .chain(["list", blue_lang_syntax::LOWERED_MAP])
             .chain([

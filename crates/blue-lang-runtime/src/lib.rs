@@ -58,6 +58,8 @@ pub mod observe;
 pub mod paths;
 pub mod pipeline;
 pub mod project_rules;
+#[cfg(feature = "sys")]
+pub mod provide;
 pub mod session;
 pub mod spread;
 pub mod stdlib;
@@ -140,48 +142,127 @@ pub fn attach_node<H: 'static>(interp: &mut Interpreter<H>) {
 /// is refused in its children too. Without this a spawned child would run on
 /// the full runtime and a frame would be one `spawn` away from meaningless.
 pub fn attach_node_in_frame<H: 'static>(interp: &mut Interpreter<H>, frame: &blue_lang_waku::Waku) {
+    attach_node_held(interp, &Hold::from(frame.clone()));
+}
+
+/// [`attach_node_in_frame`] with the hold's providers bound in every child.
+pub fn attach_node_held<H: 'static>(interp: &mut Interpreter<H>, hold: &Hold) {
     let mut config = node_config();
-    let refused = ungranted_host_names(frame);
+    let refused = hold.withheld_host_names();
+    #[cfg(feature = "sys")]
+    let provisions = hold.provisions.clone();
     config.child = std::sync::Arc::new(move || {
         let mut child = child_interpreter();
         refuse_host_names(&mut child, &refused, "this process's frame");
+        #[cfg(feature = "sys")]
+        provide::provide(&mut child, &provisions);
         child
     });
     dispatch::install(interp);
     blue_lang_proc::install(interp, blue_lang_proc::Node::new(config));
 }
 
-/// Every host name `frame` does not grant, with the label of its capability.
-#[must_use]
-pub fn ungranted_host_names(frame: &blue_lang_waku::Waku) -> Vec<(&'static str, &'static str)> {
-    blue_lang_waku::Capability::host_effects()
-        .into_iter()
-        .filter(|cap| !frame.reach.grants(*cap))
-        .flat_map(|cap| cap.names().into_iter().map(move |n| (n, cap.label())))
-        .collect()
+/// What a run is held to: the frame it may reach the host through, and the
+/// capabilities pure providers stand in for.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Hold {
+    pub frame: blue_lang_waku::Waku,
+    pub provisions: blue_lang_waku::Provisions,
 }
 
-/// Bind each of `refused` that `interp` defines to a refusal naming `who`.
+impl From<blue_lang_waku::Waku> for Hold {
+    fn from(frame: blue_lang_waku::Waku) -> Self {
+        Self {
+            frame,
+            provisions: blue_lang_waku::Provisions::default(),
+        }
+    }
+}
+
+impl Hold {
+    /// Every host name neither the frame grants nor a provider stands in for.
+    #[must_use]
+    pub fn withheld_host_names(&self) -> Vec<(&'static str, blue_lang_waku::Capability)> {
+        let reach = self.provisions.widen(&self.frame.reach);
+        blue_lang_waku::Capability::host_effects()
+            .into_iter()
+            .filter(|cap| !reach.grants(*cap))
+            .flat_map(|cap| cap.names().into_iter().map(move |n| (n, cap)))
+            .collect()
+    }
+
+    /// Bind the hold into `interp`: a breach for every withheld host name,
+    /// then each provider over its capability's names.
+    pub fn bind<H: 'static>(&self, interp: &mut Interpreter<H>, who: &'static str) {
+        refuse_host_names(interp, &self.withheld_host_names(), who);
+        #[cfg(feature = "sys")]
+        provide::provide(interp, &self.provisions);
+    }
+}
+
+/// Every host name `frame` does not grant, with its capability.
+#[must_use]
+pub fn ungranted_host_names(
+    frame: &blue_lang_waku::Waku,
+) -> Vec<(&'static str, blue_lang_waku::Capability)> {
+    Hold::from(frame.clone()).withheld_host_names()
+}
+
+/// The kind of the fatal error a capability breach raises.
+pub const BREACH: &str = "capability-breach";
+
+/// The fatal error a call to `name` raises when `who` does not grant `cap`.
+/// No `rescue` catches it: the run ends.
+#[must_use]
+pub fn breach(
+    name: &str,
+    cap: blue_lang_waku::Capability,
+    who: &str,
+    at: tatara_lisp::Span,
+) -> tatara_lisp_eval::EvalError {
+    tatara_lisp_eval::EvalError::fatal(
+        BREACH,
+        format!(
+            "`{name}` reaches the host ({}), which {who} does not grant",
+            cap.label()
+        ),
+        at,
+    )
+}
+
+/// Is `e` a capability breach?
+#[must_use]
+pub fn is_breach(e: &tatara_lisp_eval::EvalError) -> bool {
+    matches!(e, tatara_lisp_eval::EvalError::Fatal { kind, .. } if &**kind == BREACH)
+}
+
+/// Bind each of `refused` that `interp` defines to a breach naming `who`.
 pub fn refuse_host_names<H: 'static>(
     interp: &mut Interpreter<H>,
-    refused: &[(&'static str, &'static str)],
+    refused: &[(&'static str, blue_lang_waku::Capability)],
     who: &'static str,
 ) {
-    for &(name, label) in refused {
+    refuse_host_names_noting(interp, refused, who, |_, _, _| {});
+}
+
+/// [`refuse_host_names`], calling `note` with the host, the capability and
+/// the name before each breach is raised.
+pub fn refuse_host_names_noting<H: 'static>(
+    interp: &mut Interpreter<H>,
+    refused: &[(&'static str, blue_lang_waku::Capability)],
+    who: &'static str,
+    note: fn(&mut H, blue_lang_waku::Capability, &'static str),
+) {
+    for &(name, cap) in refused {
         if interp.lookup_global(name).is_none() {
             continue;
         }
         interp.register_fn(
             name,
             tatara_lisp_eval::ffi::Arity::Any,
-            move |_: &[tatara_lisp_eval::Value], _: &mut H, span| {
-                Err(tatara_lisp_eval::EvalError::native_fn(
-                    name,
-                    format!(
-                        "refused: `{name}` reaches the host ({label}), which {who} does not grant"
-                    ),
-                    span,
-                ))
+            move |_: &[tatara_lisp_eval::Value], host: &mut H, span| {
+                note(host, cap, name);
+                Err(breach(name, cap, who, span))
             },
         );
     }

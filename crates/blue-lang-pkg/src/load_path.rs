@@ -468,7 +468,7 @@ fn version_at(dir: &Path) -> Option<Version> {
     Some(crate::bluefile::read_bluefile(&text).ok()?.version)
 }
 
-fn project_of(dir: &Path) -> Option<PathBuf> {
+pub(crate) fn project_of(dir: &Path) -> Option<PathBuf> {
     dir.ancestors()
         .find(|at| {
             std::fs::read_to_string(at.join(crate::MANIFEST_FILE))

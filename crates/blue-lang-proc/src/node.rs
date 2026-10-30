@@ -445,6 +445,7 @@ pub fn reason_value(r: &ExitReason) -> Value {
         ExitReason::Crashed(m) => Value::list([kw("crashed"), Value::Str(Arc::from(m.as_str()))]),
         ExitReason::Runaway(m) => Value::list([kw("runaway"), Value::Str(Arc::from(m.as_str()))]),
         ExitReason::Killed(m) => Value::list([kw("killed"), Value::Str(Arc::from(m.as_str()))]),
+        ExitReason::Fatal(m) => Value::list([kw("fatal"), Value::Str(Arc::from(m.as_str()))]),
     }
 }
 
@@ -1051,7 +1052,15 @@ impl Node {
         }
         let supervised =
             sup.filter(|s| matches!(st.info.get(s).map(|i| &i.kind), Some(Kind::Supervisor(_))));
-        if supervised.is_none() {
+        if reason.is_fatal() {
+            if let Some(Kind::Supervisor(spec)) = supervised
+                .and_then(|s| st.info.get_mut(&s))
+                .map(|i| &mut i.kind)
+            {
+                spec.children.retain(|c| *c != pid);
+            }
+            st.forget(pid);
+        } else if supervised.is_none() {
             st.forget(pid);
         } else if let Some(info) = st.info.get_mut(&pid) {
             info.live = false;
@@ -1067,7 +1076,7 @@ impl Node {
         for l in links {
             self.signal(sched, pid, l, value.clone());
         }
-        if let (Some(s), true) = (supervised, reason.is_abnormal()) {
+        if let (Some(s), true) = (supervised, reason.is_restartable()) {
             self.supervise(sched, s, pid);
         }
     }

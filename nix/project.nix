@@ -103,7 +103,7 @@ let
     "schema" "name" "version" "needs" "when"
     "sources" "packages" "runs" "tools" "checks" "apps" "catalog" "generated"
     "images" "workloads" "rules" "services" "frontends"
-    "visibility" "registries"
+    "visibility" "registries" "reach" "allow" "virtualized"
   ];
 
   readLock = src:
@@ -127,6 +127,13 @@ let
           lib.project: the Bluefile declares ${lib.concatStringsSep ", " unknown},
           which this engine does not lower. A declared fact is never dropped in
           silence: give the word a row in blue's nix/project.nix.
+        ''
+      else if (m ? allow || m ? virtualized) && !(lock ? capabilities) then
+        throw ''
+          lib.project: the Bluefile declares `allow` or a `virtualize` provider,
+          and Bluefile.lock records no verified capabilities. `blue lock .`
+          verifies every package's floor fits under the ceiling and writes the
+          record, or refuses and names the path to the breach.
         ''
       else if m.sources != { } then
         throw ''

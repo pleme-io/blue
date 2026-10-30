@@ -133,22 +133,64 @@ fn a_host_name_reached_through_a_bidama_is_refused_where_it_is_called() {
         .arg(&file)
         .output()
         .unwrap();
-    assert!(!o.status.success(), "{}", out(&o));
+    assert_eq!(o.status.code(), Some(77), "{}", out(&o));
     assert_eq!(out(&o), "before\n");
     assert!(
-        err(&o).contains("reaches the host (filesystem)"),
+        err(&o).contains("capability breach: `is_file?` reaches the host (filesystem)"),
         "{}",
         err(&o)
     );
 }
 
 #[test]
-fn a_process_the_run_spawns_is_held_to_the_same_capabilities() {
+fn no_rescue_swallows_a_breach() {
+    let dir = scratch("rescue");
+    for (name, body) in [
+        (
+            "inline",
+            "  v = read_or(\"/etc/hosts\", \"\") rescue \"swallowed\"\n  write_stdout(v)\n",
+        ),
+        (
+            "catch-all",
+            "  v = begin\n    read_or(\"/etc/hosts\", \"\")\n  rescue _\n    \"swallowed\"\n  end\n  write_stdout(v)\n",
+        ),
+        (
+            "ensure",
+            "  v = begin\n    read_or(\"/etc/hosts\", \"\")\n  rescue e\n    \"swallowed #{e.message}\"\n  ensure\n    write_stdout(\"ensure ran\\n\")\n  end\n  write_stdout(v)\n",
+        ),
+    ] {
+        let file = dir.join(format!("{name}.b"));
+        put(
+            &file,
+            &format!(
+                "use(\"shisutemu\", [:read_or])\n\ndef main()\n  write_stdout(\"before\\n\")\n{body}end\n"
+            ),
+        );
+        let o = blue()
+            .args(["--allow", "none"])
+            .arg(&file)
+            .output()
+            .unwrap();
+        assert_eq!(o.status.code(), Some(77), "{name}: {}{}", out(&o), err(&o));
+        assert_eq!(out(&o), "before\n", "{name}: nothing after the breach ran");
+        assert!(err(&o).contains("capability breach"), "{name}: {}", err(&o));
+        let granted = blue()
+            .args(["--allow", "filesystem"])
+            .arg(&file)
+            .output()
+            .unwrap();
+        assert!(granted.status.success(), "{name}: {}", err(&granted));
+        assert!(!out(&granted).contains("swallowed"), "{name}: {}", out(&granted));
+    }
+}
+
+#[test]
+fn a_breach_in_a_spawned_process_ends_it_and_its_monitor_sees_why() {
     let dir = scratch("spawned");
     let file = dir.join("spawns.b");
     put(
         &file,
-        "use(\"shisutemu\", [:read_or])\n\ndef reader(parent)\n  send(parent, read_or(\"/etc/hosts\", \"\") rescue \"refused\")\nend\n\ndef main()\n  spawn(reader, [self])\n  write_stdout(receive(:_, 5_000))\nend\n",
+        "use(\"shisutemu\", [:read_or])\n\ndef reader(parent)\n  send(parent, read_or(\"/etc/hosts\", \"\") rescue \"swallowed\")\nend\n\ndef main()\n  pid = spawn(reader, [self])\n  monitor(pid)\n  write_stdout(to_s(receive(:_, 5000)))\nend\n",
     );
     let o = blue()
         .args(["--allow", "none"])
@@ -156,14 +198,20 @@ fn a_process_the_run_spawns_is_held_to_the_same_capabilities() {
         .output()
         .unwrap();
     assert!(o.status.success(), "{}", err(&o));
-    assert_eq!(out(&o), "refused");
+    assert!(out(&o).contains(":down"), "{}", out(&o));
+    assert!(
+        out(&o).contains(":fatal") && out(&o).contains("capability-breach"),
+        "{}",
+        out(&o)
+    );
+    assert!(!out(&o).contains("swallowed"), "{}", out(&o));
     let o = blue()
         .args(["--allow", "filesystem"])
         .arg(&file)
         .output()
         .unwrap();
     assert!(o.status.success(), "{}", err(&o));
-    assert_ne!(out(&o), "refused");
+    assert!(!out(&o).contains(":fatal"), "{}", out(&o));
 }
 
 #[cfg(unix)]

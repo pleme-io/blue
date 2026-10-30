@@ -182,21 +182,22 @@ pub fn run_in_surface(
     run_framed(entry, inputs, loader, surface, None)
 }
 
-/// [`run_in_surface`] held to `frame` when one is given: a host name the
-/// frame does not grant, written in the entry file, refuses the program
-/// before it runs, and one reached through a bidama or a spawned process is
-/// refused where it is called. `None` runs with every capability.
+/// [`run_in_surface`] held to `hold` when one is given: a host name it
+/// withholds, written in the entry file, refuses the program before it runs,
+/// and one reached through a bidama or a spawned process is a breach where it
+/// is called; a provided capability's names reach its provider. `None` runs
+/// with every capability.
 ///
 /// # Errors
 ///
 /// As [`run_with_loader`], and [`RunError::Types`] naming each host name the
-/// entry file writes that `frame` does not grant.
+/// entry file writes that `hold` withholds.
 pub fn run_framed(
     entry: Entry<'_>,
     inputs: Inputs,
     loader: &dyn crate::uses::Loader,
     surface: Option<&blue_lang_syntax::yakugo::Yakugo>,
-    frame: Option<&blue_lang_waku::Waku>,
+    hold: Option<&crate::Hold>,
 ) -> Result<Run, RunError> {
     // The interpreter is built BEFORE the check stage, because it is the check
     // stage's name oracle: every builtin, macro and special form a program may
@@ -207,7 +208,7 @@ pub fn run_framed(
     crate::inputs::install_input_primitives(&mut interp, inputs);
     let builtins = crate::timings::stage(crate::timings::Stage::Names, || builtin_names(&interp));
     let prepared = prepare(entry, loader, surface, &builtins)?;
-    hold_to_frame(&mut interp, &prepared, frame)?;
+    hold_to_frame(&mut interp, &prepared, hold)?;
     let mut value = crate::timings::stage(crate::timings::Stage::Eval, || {
         eval_prepared(&mut interp, &prepared, &mut ())
     })?;
@@ -224,29 +225,28 @@ pub fn run_framed(
     })
 }
 
-/// Refuse, in `interp`, every host name `frame` does not grant; a refused
-/// name the entry file writes refuses the program before it runs.
+/// Bind `hold` into `interp` and its processes; a withheld name the entry
+/// file writes refuses the program before it runs.
 fn hold_to_frame(
     interp: &mut tatara_lisp_eval::Interpreter<()>,
     prepared: &Prepared,
-    frame: Option<&blue_lang_waku::Waku>,
+    hold: Option<&crate::Hold>,
 ) -> Result<(), RunError> {
-    let Some(frame) = frame else {
+    let Some(hold) = hold else {
         return Ok(());
     };
-    let refused = crate::ungranted_host_names(frame);
-    let escapes = entry_escapes(&prepared.program, &refused);
+    let escapes = entry_escapes(&prepared.program, &hold.withheld_host_names());
     if !escapes.is_empty() {
         return Err(RunError::Types(escapes));
     }
-    crate::refuse_host_names(interp, &refused, "this run's --allow");
-    crate::attach_node_in_frame(interp, frame);
+    hold.bind(interp, "this run's frame");
+    crate::attach_node_held(interp, hold);
     Ok(())
 }
 
 fn entry_escapes(
     program: &crate::uses::ResolvedProgram,
-    refused: &[(&'static str, &'static str)],
+    refused: &[(&'static str, blue_lang_waku::Capability)],
 ) -> Vec<String> {
     use crate::uses::ResolvedProgram;
     let forms: Vec<tatara_lisp::Spanned> = program
@@ -256,7 +256,12 @@ fn entry_escapes(
         .filter(|(i, _)| program.owner_of(*i) == Some(ResolvedProgram::ENTRY))
         .map(|(_, f)| f.clone())
         .collect();
-    let label = |name: &str| refused.iter().find(|(n, _)| *n == name).map(|(_, l)| *l);
+    let label = |name: &str| {
+        refused
+            .iter()
+            .find(|(n, _)| *n == name)
+            .map(|(_, c)| c.label())
+    };
     blue_lang_waku::free_names(&forms, &|name| label(name).is_none())
         .into_iter()
         .filter_map(|name| {
@@ -321,7 +326,7 @@ pub fn run_observed_framed(
     inputs: Inputs,
     loader: &dyn crate::uses::Loader,
     surface: Option<&blue_lang_syntax::yakugo::Yakugo>,
-    frame: Option<&blue_lang_waku::Waku>,
+    hold: Option<&crate::Hold>,
     watch: impl FnOnce(&Watched<'_>) -> std::sync::Arc<dyn crate::observe::CallObserver>,
 ) -> Result<Observed, RunError> {
     let mut interp =
@@ -329,7 +334,7 @@ pub fn run_observed_framed(
     crate::inputs::install_input_primitives(&mut interp, inputs);
     let builtins = crate::timings::stage(crate::timings::Stage::Names, || builtin_names(&interp));
     let prepared = prepare(entry, loader, surface, &builtins)?;
-    hold_to_frame(&mut interp, &prepared, frame)?;
+    hold_to_frame(&mut interp, &prepared, hold)?;
     let definitions = std::sync::Arc::new(crate::observe::Definitions::of(
         &prepared.program,
         &prepared.erased,

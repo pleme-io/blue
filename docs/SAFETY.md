@@ -120,7 +120,7 @@ tier. ⚠️ marks a partial seal. ❌ marks an open row.
 | 5 | Bounds-checked indexing | ✅ memory: no raw index exists; ⚠️ semantics: `nth` out of range is `nil` | row 1 owns the `nil` | unrepresentable (memory) | n/a |
 | 6 | Integer overflow, numeric conversion | ✅ `+ - * abs floor` raise on overflow; `/` by zero raises; `to_int` of a huge float is `nil` | `to_int` → row 1 | runtime-refused | on, no off |
 | 7 | No implicit coercion | ⚠️ operators refuse mixed types; `4 == 4.0` is true; call types are checked only inside typed definitions (B0003–B0005) | call-site checks from any caller when the argument is a literal | runtime-refused → checked-at-expansion | on |
-| 8 | `unsafe` ⇔ declared capability | ⚠️ sessions pure by default; **`blue run --allow` and shebang `--allow` (landed)**; an undeclared run is still ambient | default flip for scripts, then `posture(reach:)` for bidamas | checked-at-expansion (entry) + runtime-refused (bidama, process) | declared: on; undeclared: ambient until phase 3 (`--allow host`) |
+| 8 | `unsafe` ⇔ declared capability | ⚠️ sessions pure by default; **`blue run --allow` and shebang `--allow` (landed)**; **a breach is fatal: no `rescue` or `ensure` sees it (landed)**; an undeclared run is still ambient | default flip for scripts, then `posture(reach:)` for bidamas | checked-at-expansion (entry) + runtime-fatal (bidama, process) | declared: on; undeclared: ambient until phase 3 (`--allow host`) |
 | 9 | Memory safety of the host seam | ⚠️ 1 of 18 crates denies `unsafe_code` at its root | workspace `unsafe_code = "deny"`, one `#[allow]` per seam, one seam test | unrepresentable for kiwari → unrepresentable for every crate | on (`#[allow(unsafe_code)]` at a named seam) |
 | 10 | No data races | ✅ share-nothing processes; copy on send; handles refuse to cross | none needed | unrepresentable | n/a |
 | 11 | Panic vs typed refusal | ⚠️ blue faults are catchable; a Rust panic in a native function is not a blue error | one unwind seam at the native-call boundary → `:internal` refusal | open → runtime-refused | on |
@@ -192,13 +192,50 @@ builds the session frame (`session::frame_granting`) and
 `pipeline::run_framed` (`pipeline.rs:194`) does two things. First, a host
 name the entry file writes outside the frame stops the program before
 anything runs (`entry_escapes`, `pipeline.rs:229`). Second, every ungranted
-host name is bound to a refusal (`lib.rs:161`), so a bidama or a spawned
-process that reaches it is refused where it calls it. Without the flag the
-run is ambient, as before. Two gaps stay open. A refusal is a normal error,
-so `rescue _` can swallow it (measured in
-`crates/blue-lang-cli/tests/allow.rs`). And a bidama cannot yet declare its
-own reach: `posture` takes only `when`
-(`crates/blue-lang-pkg/src/bluefile.rs:76`).
+host name is bound to a breach (`blue_lang_runtime::refuse_host_names`), so a
+bidama or a spawned process that reaches it ends where it calls it. Without
+the flag the run is ambient, as before.
+
+A breach is fatal (2026-10-30). It raises `EvalError::Fatal` (kind
+`capability-breach`, tatara-lisp-eval 0.4.12), and `EvalError::is_catchable`
+is false for it on both executors, so no `rescue`, `rescue _`, `x rescue y`
+or `ensure` runs. `blue run` prints `capability breach: …` and exits 77
+(`EX_NOPERM`). A process that breaches exits `[:fatal, message]`: its links
+and monitors see that reason, and its supervisor drops it from its children
+and never restarts it, so a `one_for_all` sweep leaves it down
+(`blue-lang-proc` `ExitReason::Fatal`, `is_restartable`). Tests:
+`crates/blue-lang-cli/tests/allow.rs` (`no_rescue_swallows_a_breach`,
+`a_breach_in_a_spawned_process_ends_it_and_its_monitor_sees_why`) and
+`blue-lang-proc`'s `a_fatal_child_is_*`.
+
+**The lattice (2026-10-30).** A package's floor is the set of host
+capabilities its code names (test blocks aside), or its declared
+`reach(%i[…])`, which `blue lock` refuses when it misses one. The root
+states its ceiling with `allow(%i[…])`, the manifest spelling of `--allow`.
+`blue lock` joins the floors over the closure the root's `use` forms reach
+and checks `⋁ floors ⊑ allow ∨ provided` (`blue_lang_bidama::resolve`,
+`crates/blue-lang-pkg/src/capabilities.rs`). A breach writes no lock and names
+its path, one row per package and capability:
+`[app] -> [porta] -> [rede: needs 'network'] violates ceiling [filesystem, clock]`.
+A verified lock carries a `capabilities` record (ceiling, providers, the join,
+each floor); `blue bluefile --confirm` checks the record against the Bluefile
+offline, and nix's project engine refuses a Bluefile that declares `allow` or
+`virtualize` with no record. A root that declares neither locks as before.
+
+**Providers (2026-10-30).** `virtualize(:clock, {at_ms:, step_ms:})`,
+`virtualize(:entropy, {seed:})` and `virtualize(:filesystem, {mode: :memory |
+:null})` bind a capability to a pure provider (`blue_lang_waku::Provision`,
+`crates/blue-lang-runtime/src/provide.rs`): a floor that needs it resolves
+under a ceiling that withholds it, with no fork of the leaf. Process,
+network and environment have no provider (`Provision::kinds_for`). A
+capability both allowed and virtualized is refused.
+
+**The hold `blue run` applies.** Inside a project that declares `allow` or
+`virtualize`, `blue run` holds the program to it with no flag: withheld names
+breach, provided names reach their provider, and every spawned process gets
+the same hold with its own provider state. `--allow` narrows it further and
+never widens it. Tests: `crates/blue-lang-cli/tests/lattice.rs` (6),
+`capabilities.rs` (7), `provide.rs` (5), `provision.rs` (4).
 
 **Row 9, host memory.** blue has no pointer and no raw buffer; all memory is
 Rust's. The four seams are listed in §2. The gate is one workspace lint table
@@ -260,8 +297,9 @@ A run is in one of these capability states:
 - **declared**: `--allow` names a set. The frame is that set.
 - **refused-before-run**: the entry file writes a name outside the frame. No
   effect has happened.
-- **refused-at-call**: a bidama or a process reaches a name outside the
-  frame. Effects before the call have happened.
+- **breached**: a bidama or a process reaches a name outside the frame.
+  Effects before the call have happened; nothing after it runs. The run
+  exits 77, or the process exits `[:fatal, message]`.
 - **unknown capability**: `--allow disk`. The CLI refuses the flag and names
   the legal values.
 
@@ -326,9 +364,9 @@ sequenceDiagram
   alt the entry writes getenv
     P-->>CLI: refused before run (environment)
   else clean entry
-    P->>I: bind ungranted host names to refusals
+    P->>I: bind ungranted host names to breaches
     I->>I: run main
-    I-->>CLI: a bidama reaches exec_capture: refused at call
+    I-->>CLI: a bidama reaches exec_capture: breach, no rescue runs, exit 77
   end
 ```
 
@@ -342,11 +380,11 @@ stateDiagram-v2
   unknown --> [*]: CLI refuses the flag
   declared --> refused_before_run: entry writes an ungranted name
   declared --> running: entry is clean
-  running --> refused_at_call: bidama or process reaches an ungranted name
+  running --> breached: bidama or process reaches an ungranted name
   running --> done
   ambient --> done
   refused_before_run --> [*]
-  refused_at_call --> [*]
+  breached --> [*]: exit 77, no rescue or ensure runs
   done --> [*]
 ```
 
@@ -386,17 +424,23 @@ behaviour.
 allowed at a seam). Rejected: a per-crate attribute (it drifts; 17 of 18
 crates lack it today).
 
-**D7. A refusal stays catchable for now.** A refused capability is an error
-with a kind. Rejected for now: an uncatchable refusal (it changes how
-supervisors and `rescue` work). The open question below owns it.
+**D7. A breach is fatal (operator, 2026-10-30; replaces "a refusal stays
+catchable").** A capability breach is not an error a program handles: no
+`rescue` catches it and no `ensure` runs, the run exits 77, a process exits
+`[:fatal, …]` and its supervisor never restarts it. Rejected: a refusal
+that only a named `rescue :refused` catches (code that names it can still
+swallow it). Rejected: restarting a breached child (the same code breaches
+again; a restart spends intensity and then kills innocent siblings).
 
 ## 9. Open questions
 
-- **Q1 (ours).** Should a capability refusal escape `rescue _`? B0038 already
-  makes a silent catch-all explicit; the stronger answer is a refusal kind
-  that only a named `rescue :refused` catches.
-- **Q2 (ours).** How a bidama's declared reach composes with the root's
-  frame. `posture` takes only `when` today (`bluefile.rs:76`).
+- ~~**Q1 (ours).** Should a capability refusal escape `rescue _`?~~ Closed
+  2026-10-30 by D7: a breach escapes every `rescue`.
+- ~~**Q2 (ours).** How a bidama's declared reach composes with the root's
+  frame.~~ Closed 2026-10-30: floors join and must fit under `allow` widened
+  by `virtualize` (row 8 note, "The lattice"). Open: a floor counts the whole
+  package; a floor of only the definitions the root reaches (mondou's reach)
+  would remove the over-approximation.
 - **Q3 (world-fact).** WASI has no subprocess spawn; `Process` stays a blue
   import with no WASI lowering.
 - **Q4 (world-fact).** A shebang flag needs `env -S` on Linux.
@@ -426,5 +470,7 @@ supervisors and `rescue` work). The open question below owns it.
 | this matrix | DESIGN | this file |
 | B0053 discarded-value | TESTED | registry witness, spec rows `safety.B0053*`, census 0 of 355 files |
 | `blue run --allow`, shebang `--allow` | TESTED | `crates/blue-lang-cli/tests/allow.rs` (6 red before the change, 7 green after), `script.rs` unit test |
+| capability lattice in `blue lock`, providers, the project hold | TESTED | `tests/lattice.rs` 6/6, `capabilities.rs` 7, `provide.rs` 5, `provision.rs` 4 |
+| a breach is fatal (D7) | TESTED | tatara-lisp-eval `no_catch_sees_a_fatal_error_on_the_walker`, `no_handler_sees_a_fatal_error_on_the_vm` (cargo mutants: 7 of 7 caught); `allow.rs` 8/8; `blue-lang-proc` `a_fatal_child_is_*` |
 | rows 4, 5 (memory), 6, 10 | EXISTS | measured behaviour cited above |
 | rows 1, 3, 9, 11–15 gates | DESIGN | phases 1–10 |

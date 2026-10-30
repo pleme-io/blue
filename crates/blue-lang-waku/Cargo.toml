@@ -17,3 +17,4 @@ tatara-lisp = { workspace = true }
 # third copy that disagreed. `blue-lang-syntax` depends on no sibling, so the
 # registry graph stays acyclic (`blue-lang-cli/tests/registry_graph.rs`).
 blue-lang-syntax = { workspace = true }
+serde = { workspace = true }

@@ -82,11 +82,23 @@ pub enum ExitReason {
     /// reason)`, or a supervisor shutting its children down. Carries the
     /// rendered reason.
     Killed(String),
+    /// A fault the runtime declares unrecoverable, such as a capability
+    /// breach. Links and monitors see it; a supervisor never restarts it.
+    Fatal(String),
 }
 
 impl ExitReason {
     pub fn is_abnormal(&self) -> bool {
         !matches!(self, ExitReason::Normal)
+    }
+
+    pub fn is_fatal(&self) -> bool {
+        matches!(self, ExitReason::Fatal(_))
+    }
+
+    /// Does a supervisor restart a child that exited this way?
+    pub fn is_restartable(&self) -> bool {
+        self.is_abnormal() && !self.is_fatal()
     }
 }
 
@@ -522,7 +534,7 @@ impl<H: 'static> Supervisor<H> {
         }
 
         for (idx, reason) in exited {
-            if reason.is_abnormal() {
+            if reason.is_restartable() {
                 self.apply_strategy(idx, host);
             }
         }
@@ -568,6 +580,13 @@ impl<H: 'static> Supervisor<H> {
         }
 
         for idx in targets {
+            if self.procs[idx]
+                .state
+                .exit_reason()
+                .is_some_and(ExitReason::is_fatal)
+            {
+                continue;
+            }
             self.procs[idx].restart();
             self.interpreters_built += 1;
             let pid = self.procs[idx].pid;
@@ -584,6 +603,9 @@ impl<H: 'static> Supervisor<H> {
 pub(crate) fn classify(e: &VmError) -> ExitReason {
     match e {
         VmError::BudgetExhausted { .. } => ExitReason::Runaway(e.to_string()),
+        VmError::Eval(fatal @ tatara_lisp_eval::EvalError::Fatal { .. }) => {
+            ExitReason::Fatal(fatal.short_message())
+        }
         other => ExitReason::Crashed(other.to_string()),
     }
 }
@@ -773,6 +795,90 @@ mod tests {
             Some(1),
             "one_for_all must restart siblings"
         );
+    }
+
+    fn breaching_build() -> Interpreter<()> {
+        let mut interp = build();
+        interp.register_fn(
+            "breach",
+            tatara_lisp_eval::ffi::Arity::Exact(0),
+            |_: &[Value], _: &mut (), at| {
+                Err(tatara_lisp_eval::EvalError::fatal(
+                    "capability-breach",
+                    "`read_file` reaches the host (filesystem)",
+                    at,
+                ))
+            },
+        );
+        interp
+    }
+
+    fn breaching() -> Arc<Chunk> {
+        compile("(try (breach) (catch (e) 0))")
+    }
+
+    #[test]
+    fn a_fatal_child_is_never_restarted_and_no_sibling_restarts_for_it() {
+        let mut sup = Supervisor::new(Strategy::OneForAll, 5);
+        let bad = sup.spawn(breaching(), preemptive(50), breaching_build);
+        let ok = sup.spawn(blue("1 + 2"), preemptive(50), build);
+        sup.run_to_quiescence(&mut (), 100);
+
+        assert!(
+            sup.events.iter().any(|e| matches!(
+                e,
+                Event::Exited { pid, reason: ExitReason::Fatal(m) } if *pid == bad && m.contains("capability-breach")
+            )),
+            "{:?}",
+            sup.events
+        );
+        assert_eq!(
+            sup.restarts_of(bad),
+            Some(0),
+            "a fatal child must not restart"
+        );
+        assert_eq!(
+            sup.restarts_of(ok),
+            Some(0),
+            "a sibling must not restart for it"
+        );
+        assert_eq!(sup.state_of(ok).and_then(ProcState::done_int), Some(3));
+    }
+
+    #[test]
+    fn a_fatal_child_is_not_swept_up_when_a_sibling_restarts() {
+        let mut sup = Supervisor::new(Strategy::OneForAll, 5);
+        let bad = sup.spawn(breaching(), preemptive(50), breaching_build);
+        sup.round(&mut ());
+        let crasher = sup.spawn(crashing(), tiny_budget(), build);
+        sup.round(&mut ());
+
+        assert_eq!(sup.restarts_of(crasher), Some(1));
+        assert_eq!(
+            sup.restarts_of(bad),
+            Some(0),
+            "one_for_all must leave a fatal child down"
+        );
+        assert!(sup
+            .state_of(bad)
+            .and_then(ProcState::exit_reason)
+            .is_some_and(ExitReason::is_fatal));
+    }
+
+    #[test]
+    fn only_a_fatal_exit_is_abnormal_and_not_restartable() {
+        let s = String::new;
+        for (r, restartable) in [
+            (ExitReason::Normal, false),
+            (ExitReason::Crashed(s()), true),
+            (ExitReason::Runaway(s()), true),
+            (ExitReason::Killed(s()), true),
+            (ExitReason::Fatal(s()), false),
+        ] {
+            assert_eq!(r.is_restartable(), restartable, "{r:?}");
+            assert_eq!(r.is_fatal(), matches!(r, ExitReason::Fatal(_)), "{r:?}");
+        }
+        assert!(ExitReason::Fatal(s()).is_abnormal());
     }
 
     /// `rest_for_one` restarts the exited child and everything declared

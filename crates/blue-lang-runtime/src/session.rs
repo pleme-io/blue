@@ -16,9 +16,9 @@
 //! than as an error message:
 //!
 //! - **The frame.** A host-effect [`Capability`] the session's frame does not
-//!   grant is bound to a refusal: reaching it, directly or through any number
+//!   grant is bound to a breach: reaching it, directly or through any number
 //!   of calls, stops the evaluation as [`Stop::Volatile`] naming the
-//!   capability. The default frame grants none, so evaluation is pure unless
+//!   capability, and no `rescue` in the evaluated code sees it. The default frame grants none, so evaluation is pure unless
 //!   the session was started with a wider one.
 //! - **The step budget** ([`Stop::Exhausted`]), set fresh for each request.
 //! - **The interrupt flag** ([`Stop::Interrupted`]), which another thread sets
@@ -759,31 +759,18 @@ fn run_failure(e: RunError) -> Failure {
 }
 
 /// The interpreter a session runs: the whole blue runtime, output captured,
-/// and every host name the frame does not grant bound to a refusal.
+/// and every host name the frame does not grant bound to a breach.
 fn build(frame: &Waku, interrupt: &Arc<AtomicBool>, host: &mut Host) -> Interpreter<Host> {
     let mut interp = crate::interpreter(host);
     capture_output(&mut interp);
-    for cap in Capability::host_effects() {
-        if frame.reach.grants(cap) {
-            continue;
-        }
-        for name in cap.names() {
-            if interp.lookup_global(name).is_none() {
-                continue;
-            }
-            interp.register_fn(name, Arity::Any, move |_: &[Value], h: &mut Host, span| {
-                h.reached.get_or_insert((cap, name));
-                Err(EvalError::native_fn(
-                    name,
-                    format!(
-                        "refused: `{name}` reaches the host ({}), which this session's frame does not grant",
-                        cap.label()
-                    ),
-                    span,
-                ))
-            });
-        }
-    }
+    crate::refuse_host_names_noting(
+        &mut interp,
+        &crate::ungranted_host_names(frame),
+        "this session's frame",
+        |h: &mut Host, cap, name| {
+            h.reached.get_or_insert((cap, name));
+        },
+    );
     // Processes the session's programs spawn are held to the same frame.
     crate::attach_node_in_frame(&mut interp, frame);
     interp.set_interrupt(Arc::clone(interrupt));

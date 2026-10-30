@@ -190,8 +190,27 @@ const ASSERTION_NAMES: &[&str] = &[blue_lang_syntax::LOWERED_ASSERT];
 /// when the two disagree — a name here with no recorder would pass the frame
 /// and die unbound; a recorder with no name here could never be reached.
 const MANIFEST_NAMES: &[&str] = &[
-    "package", "needs", "posture", "source", "packages", "run", "tool", "check", "app", "catalog",
-    "generate", "image", "workload", "rule", "service", "frontend", "registry", "query",
+    "package",
+    "needs",
+    "posture",
+    "source",
+    "packages",
+    "run",
+    "tool",
+    "check",
+    "app",
+    "catalog",
+    "generate",
+    "image",
+    "workload",
+    "rule",
+    "service",
+    "frontend",
+    "registry",
+    "query",
+    "reach",
+    "allow",
+    "virtualize",
 ];
 
 /// `blue_lang_runtime::sys::install_process`, 2026-08-13.

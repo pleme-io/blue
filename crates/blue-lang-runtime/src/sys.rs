@@ -767,6 +767,22 @@ fn install_fs<H: 'static>(interp: &mut Interpreter<H>) {
         },
     );
 
+    install_path_words(interp);
+
+    interp.register_fn(
+        "cwd",
+        Arity::Exact(0),
+        |_args: &[Value], _h: &mut H, span| {
+            let d = std::env::current_dir()
+                .map_err(|e| EvalError::native_fn("cwd", e.to_string(), span))?;
+            Ok(Value::Str(Arc::from(d.to_string_lossy().into_owned())))
+        },
+    );
+}
+
+/// `path_join`, `path_basename`, `path_dirname` and `path_extension`: string
+/// arithmetic the filesystem capability carries.
+pub(crate) fn install_path_words<H: 'static>(interp: &mut Interpreter<H>) {
     interp.register_fn(
         "path_join",
         Arity::AtLeast(1),
@@ -816,16 +832,6 @@ fn install_fs<H: 'static>(interp: &mut Interpreter<H>) {
                 .map(|s| s.to_string_lossy().into_owned())
                 .unwrap_or_default();
             Ok(Value::Str(Arc::from(ext)))
-        },
-    );
-
-    interp.register_fn(
-        "cwd",
-        Arity::Exact(0),
-        |_args: &[Value], _h: &mut H, span| {
-            let d = std::env::current_dir()
-                .map_err(|e| EvalError::native_fn("cwd", e.to_string(), span))?;
-            Ok(Value::Str(Arc::from(d.to_string_lossy().into_owned())))
         },
     );
 }
@@ -923,7 +929,7 @@ fn walk_glob(dir: &Path, parts: &[&str], idx: usize, out: &mut Vec<PathBuf>) {
     }
 }
 
-fn glob_match(pattern: &str, name: &str) -> bool {
+pub(crate) fn glob_match(pattern: &str, name: &str) -> bool {
     let mut pi = 0;
     let mut ni = 0;
     let pbytes = pattern.as_bytes();
@@ -1158,7 +1164,7 @@ fn install_clock<H: 'static>(interp: &mut Interpreter<H>) {
 }
 
 /// Format a unix-seconds timestamp as RFC-3339 UTC (no external crate).
-fn format_rfc3339_utc(unix_secs: i64) -> String {
+pub(crate) fn format_rfc3339_utc(unix_secs: i64) -> String {
     let (y, m, d, h, mi, s) = seconds_to_datetime(unix_secs);
     format!("{y:04}-{m:02}-{d:02}T{h:02}:{mi:02}:{s:02}Z")
 }

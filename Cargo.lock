@@ -250,7 +250,7 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-appliance"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "blue-lang-pkg",
  "blue-lang-runtime",
@@ -259,7 +259,7 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-art"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "irodori",
  "katsuji",
@@ -267,14 +267,14 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-bidama"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "blue-lang-waku",
 ]
 
 [[package]]
 name = "blue-lang-check"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "blue-lang-syntax",
  "tatara-lisp",
@@ -282,7 +282,7 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-cli"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "blue-lang-art",
  "blue-lang-bidama",
@@ -308,7 +308,7 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-component"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "blue-lang-pkg",
  "blue-lang-runtime",
@@ -316,7 +316,7 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-danpen-diff"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "apollo-compiler",
  "blue-lang-host",
@@ -326,7 +326,7 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-fmt"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "blue-lang-syntax",
  "proptest",
@@ -336,7 +336,7 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-host"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "blue-lang-host-macros",
  "blue-lang-pkg",
@@ -349,7 +349,7 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-host-macros"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -358,7 +358,7 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-kiwari"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "blue-lang-syntax",
  "libc",
@@ -370,7 +370,7 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-lsp"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "blue-lang-check",
  "blue-lang-fmt",
@@ -385,7 +385,7 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-mondou"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "blake3",
  "blue-lang-check",
@@ -399,7 +399,7 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-pkg"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "blake3",
  "blue-lang-bidama",
@@ -421,7 +421,7 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-proc"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "blue-lang-bidama",
  "blue-lang-runtime",
@@ -434,7 +434,7 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-runtime"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "blake3",
  "blue-lang-check",
@@ -458,7 +458,7 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-syntax"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "blue-lang-fmt",
  "blue-lang-runtime",
@@ -469,7 +469,7 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-test"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "blue-lang-check",
  "blue-lang-fmt",
@@ -487,7 +487,7 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-waku"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "blue-lang-syntax",
  "serde",
@@ -496,7 +496,7 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-wasm"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "blue-lang-runtime",
  "blue-lang-waku",
@@ -505,7 +505,7 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-yaml-diff"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "blue-lang-host",
  "blue-lang-pkg",

@@ -463,8 +463,9 @@ pub struct Hover {
     /// Where it lives and how it resolved: `bidama \`retsu\``, `local`.
     pub namespace: String,
     pub doc: Option<String>,
-    /// What blue derives about a definition: its signature and rung, its
-    /// contract row, its space, callers and refusals. Never stored.
+    /// What blue derives about a definition: its signature and rung, the
+    /// host capabilities it reaches, its contract row, its space, callers and
+    /// refusals. Never stored.
     pub derived: Vec<String>,
 }
 

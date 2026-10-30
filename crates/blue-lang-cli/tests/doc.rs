@@ -132,3 +132,33 @@ fn a_package_name_lists_the_package() {
         "{p}"
     );
 }
+
+#[test]
+fn the_derived_view_names_the_host_capabilities_a_definition_reaches() {
+    let o = doc(&["read", "--file", "bidamas/settei/settei.b", "--derived"]);
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    let v = &json_lines(&o)[0];
+    assert!(
+        v["reach"]
+            .as_array()
+            .is_some_and(|r| r.iter().any(|c| c == "filesystem")),
+        "{v}"
+    );
+    assert!(
+        v["lines"].as_array().is_some_and(|ls| ls.iter().any(|l| l
+            .as_str()
+            .is_some_and(|l| l.starts_with("reaches ") && l.contains("`filesystem`")))),
+        "{v}"
+    );
+
+    let o = doc(&["size", "--file", "bidamas/retsu/retsu.b", "--derived"]);
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    let v = &json_lines(&o)[0];
+    assert_eq!(v["reach"], serde_json::json!([]), "{v}");
+    assert!(
+        v["lines"]
+            .as_array()
+            .is_some_and(|ls| ls.iter().any(|l| l == "pure: reaches no host capability")),
+        "{v}"
+    );
+}

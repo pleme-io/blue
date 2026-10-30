@@ -1867,6 +1867,38 @@ mod tests {
         assert!(md.contains("nodes analysed"), "and its cost: {md}");
     }
 
+    #[test]
+    fn hover_carries_the_host_reach_of_the_definition() {
+        let mut s = Server::new();
+        open(
+            &mut s,
+            "file:///a.b",
+            "def slurp(p)\n  read_file(p)\nend\n\ndef stamp()\n  now_ms\nend\n\ndef add(a, b)\n  a + b\nend\n",
+        );
+        let hover = |s: &mut Server, line: u32| {
+            let Response::Reply(r) = s.handle_value(&req(
+                22,
+                "textDocument/hover",
+                json!({
+                    "textDocument": { "uri": "file:///a.b" },
+                    "position": { "line": line, "character": 5 },
+                }),
+            )) else {
+                panic!()
+            };
+            r["result"]["contents"]["value"]
+                .as_str()
+                .expect("markdown")
+                .to_string()
+        };
+        let md = hover(&mut s, 0);
+        assert!(md.contains("- reaches `filesystem`\n"), "{md}");
+        let md = hover(&mut s, 4);
+        assert!(md.contains("- reaches `clock`\n"), "{md}");
+        let md = hover(&mut s, 8);
+        assert!(md.contains("- pure: reaches no host capability\n"), "{md}");
+    }
+
     /// And it names what is HOLDING IT BACK, which is the actionable half.
     #[test]
     fn hover_names_what_is_holding_the_shift_back() {

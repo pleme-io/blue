@@ -5,7 +5,7 @@
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
-use blue_lang_check::names::Target;
+use blue_lang_check::names::{Binding, Target};
 use blue_lang_check::Namespace;
 use blue_lang_runtime::uses::ResolvedProgram;
 use blue_lang_syntax::Span;
@@ -132,12 +132,19 @@ impl Analysis {
     /// Where a definition `ns`/`name` is, in this program.
     #[must_use]
     pub fn definition_of(&self, engine: &Engine, ns: &Namespace, name: &str) -> Option<Located> {
-        let c = self.checked()?;
-        let scope = c.names.scopes().iter().find(|s| &s.namespace == ns)?;
-        let binding = scope.get(name)?;
+        let binding = self.binding(ns, name)?;
         let span = binding.span?;
         let file = self.file_of(engine, binding.top_level?)?;
         Some(Located { file, span })
+    }
+
+    pub(crate) fn binding(&self, ns: &Namespace, name: &str) -> Option<&Binding> {
+        let c = self.checked()?;
+        c.names
+            .scopes()
+            .iter()
+            .find(|s| &s.namespace == ns)?
+            .get(name)
     }
 
     /// Where the name at `offset` is defined.

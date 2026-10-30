@@ -250,6 +250,7 @@ prose::count_words(text)
   
       count_words("the quick brown fox") #=> 4
   · signature `def count_words(text)` · rung dynamic
+  · pure: reaches no host capability
   example (test "an empty text has no words"):
     assert count_words("") == 0
 ```

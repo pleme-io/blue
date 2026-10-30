@@ -103,6 +103,7 @@ pub fn derived_json(v: &blue_lang_lsp::docview::DocView) -> serde_json::Result<S
         "edges": v.edges,
         "callers": v.callers,
         "refusals": v.refusals.iter().map(|(k, m)| serde_json::json!({"kind": k, "meaning": m})).collect::<Vec<_>>(),
+        "reach": v.reach.as_ref().map(|r| r.keys().map(|c| c.label()).collect::<Vec<_>>()),
         "lines": v.derived_lines(),
     }))
 }

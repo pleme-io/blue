@@ -10,6 +10,7 @@
 //! | space, kind, shape, laterals, edges | the verb graph (`bidamas/mokuroku/graph`) |
 //! | callers | the definitions of its file whose body names it |
 //! | refusal kinds | the `refusal(:k, …)` and `raise(:k, …)` its body holds, each with `kyohi`'s ledger meaning |
+//! | host reach | [`crate::Analysis::host_reach_of`], the reach `blue query '(reaches CAP)'` reads; absent when the program does not check |
 //!
 //! A shape a space shares is one row: a contract row is keyed by its verb and
 //! a refusal kind by `kyohi`'s ledger, so every definition that shares it
@@ -20,7 +21,9 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use blue_lang_syntax::doc as d;
-use blue_lang_syntax::{Atom, Spanned, SpannedForm};
+use blue_lang_syntax::{Atom, Span, Spanned, SpannedForm};
+
+use crate::HostReach;
 
 /// A verb's row in the graph.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -50,6 +53,7 @@ pub struct DocView {
     pub callers: Vec<String>,
     /// Each refusal kind with `kyohi`'s meaning of it.
     pub refusals: Vec<(String, Option<String>)>,
+    pub reach: Option<HostReach>,
 }
 
 /// The view of the definition `name` in `text`, the file at `path` of bidama
@@ -141,6 +145,7 @@ fn view(
         edges,
         callers,
         refusals,
+        reach: None,
     })
 }
 
@@ -210,6 +215,14 @@ impl DocView {
             "signature `{}` · rung {}",
             self.signature, self.rung
         )];
+        if let Some(reach) = &self.reach {
+            out.push(if reach.is_empty() {
+                "pure: reaches no host capability".to_string()
+            } else {
+                let caps: Vec<String> = reach.keys().map(|c| format!("`{}`", c.label())).collect();
+                format!("reaches {}", caps.join(", "))
+            });
+        }
         if let Some(c) = &self.contract {
             let field = |k: &str| {
                 c.get(k)
@@ -450,6 +463,7 @@ fn ledger(parsed: &crate::Parsed) -> HashMap<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use blue_lang_waku::Capability;
 
     const SRC: &str = "@doc \"\"\"\nget_one reads one.\n\n    get_one(1) #=> 1\n\"\"\"\ndef get_one(k: Int) -> Int\n  if k < 0\n    raise(:not_found, \"no\")\n  end\n  k\nend\n\ndef twice(k)\n  get_one(k) + get_one(k)\nend\n";
 
@@ -486,6 +500,48 @@ mod tests {
             "{lines:?}"
         );
     }
+
+    #[test]
+    fn the_view_names_the_host_capabilities_a_definition_reaches() {
+        let mut e = crate::Engine::new(Box::new(blue_lang_runtime::uses::NoLoader));
+        let src = "def add(a, b)\n  a + b\nend\n\ndef slurp(p)\n  read_file(p)\nend\n\ndef stamp()\n  now_ms\nend\n\ndef later()\n  stamp + 1\nend\n";
+        e.set_document("t.b", None, src);
+        let lines = |name: &str| {
+            e.doc_view_in("t.b", None, name)
+                .unwrap_or_else(|| panic!("{name}"))
+                .derived_lines()
+        };
+        let reaches = |name: &str| {
+            e.doc_view_in("t.b", None, name)
+                .and_then(|v| v.reach)
+                .map(|r| r.into_keys().collect::<Vec<_>>())
+        };
+        assert_eq!(reaches("add"), Some(Vec::new()));
+        assert_eq!(reaches("slurp"), Some(vec![Capability::FileSystem]));
+        assert_eq!(reaches("stamp"), Some(vec![Capability::Clock]));
+        assert_eq!(reaches("later"), Some(vec![Capability::Clock]));
+        assert!(
+            lines("add").contains(&"pure: reaches no host capability".to_string()),
+            "{:?}",
+            lines("add")
+        );
+        assert!(
+            lines("slurp").contains(&"reaches `filesystem`".to_string()),
+            "{:?}",
+            lines("slurp")
+        );
+        assert!(
+            lines("stamp").contains(&"reaches `clock`".to_string()),
+            "{:?}",
+            lines("stamp")
+        );
+        let syntactic = of_file(src, None, None, "slurp").expect("slurp");
+        assert_eq!(syntactic.reach, None);
+        assert!(!syntactic
+            .derived_lines()
+            .iter()
+            .any(|l| l.contains("reaches")));
+    }
 }
 
 impl crate::Engine {
@@ -512,7 +568,23 @@ impl crate::Engine {
         };
         let forms = self.memo.documented(&text, true);
         let data = path.as_deref().map(|p| self.repo_data(p));
-        view(forms.as_ref().as_ref().ok()?, data.as_deref(), bidama, name)
+        let mut v = view(forms.as_ref().as_ref().ok()?, data.as_deref(), bidama, name)?;
+        v.reach = a.host_reach_of(ns, name).cloned();
+        Some(v)
+    }
+
+    #[must_use]
+    pub fn doc_view_in(&self, id: &str, bidama: Option<&str>, name: &str) -> Option<DocView> {
+        let a = self.analysis(id)?;
+        let ns = bidama.map_or_else(
+            || a.own_namespace(),
+            |b| blue_lang_check::Namespace::Bidama(b.to_string()),
+        );
+        let at = crate::Located {
+            file: crate::FileRef::Document(id.to_string()),
+            span: Span::new(0, 0),
+        };
+        self.doc_view(&a, &at, &ns, name)
     }
 
     pub fn prepare_doc_views(&self, id: &str) {

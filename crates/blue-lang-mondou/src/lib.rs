@@ -98,7 +98,7 @@ struct Document {
 pub struct Engine {
     scopes: Box<dyn Scopes>,
     loaders: RefCell<BTreeMap<Vec<PathBuf>, Rc<dyn Loader>>>,
-    memo: memo::Memo,
+    memo: Rc<memo::Memo>,
     documents: BTreeMap<String, Document>,
     revision: u64,
     generation: std::cell::Cell<u64>,
@@ -120,7 +120,7 @@ impl Engine {
         Self {
             scopes,
             loaders: RefCell::new(BTreeMap::new()),
-            memo: memo::Memo::default(),
+            memo: Rc::default(),
             documents: BTreeMap::new(),
             revision: 0,
             generation: std::cell::Cell::new(0),
@@ -185,7 +185,7 @@ impl Engine {
     pub fn set_workspace(&mut self, folders: Vec<PathBuf>) {
         self.scopes.set_workspace(folders);
         self.loaders.borrow_mut().clear();
-        self.memo = memo::Memo::default();
+        self.memo = Rc::default();
         self.repo.borrow_mut().clear();
         self.generation.set(self.generation.get() + 1);
     }
@@ -337,6 +337,7 @@ impl Engine {
             id: id.map(str::to_string),
             revision: 0,
             generation: self.generation.get(),
+            memo: self.memo.clone(),
             text,
             path,
             scope,
@@ -446,6 +447,7 @@ pub struct Analysis {
     id: Option<String>,
     revision: u64,
     generation: u64,
+    memo: Rc<memo::Memo>,
     pub text: Rc<str>,
     pub path: Option<PathBuf>,
     pub scope: Vec<PathBuf>,
@@ -493,7 +495,8 @@ impl Analysis {
         self.def_hashes
             .get_or_init(|| {
                 let c = self.checked()?;
-                Some(hash_checked(&c.program, self.lowered()?))
+                let documented = |t: &str| self.memo.documented(t, t != &*self.text);
+                Some(hash_checked_with(&c.program, self.lowered()?, &documented))
             })
             .as_ref()
     }
@@ -553,6 +556,11 @@ impl Analysis {
     pub fn host_reach_at(&self, top_level: usize) -> Option<&HostReach> {
         let i = self.def_hashes()?.index_at(top_level)?;
         self.host_reach()?.get(i)
+    }
+
+    #[must_use]
+    pub fn host_reach_of(&self, ns: &Namespace, name: &str) -> Option<&HostReach> {
+        self.host_reach_at(self.binding(ns, name)?.top_level?)
     }
 
     /// The document's own top-level forms with their index in the program.
@@ -659,8 +667,20 @@ impl Analysis {
 /// [`witness`]) names the same definition the engine does.
 #[must_use]
 pub fn hash_checked(program: &ResolvedProgram, lowered: &[Spanned]) -> DefHashes {
-    let docs = program_docs(program);
+    hash_checked_with(program, lowered, &parse_documented)
+}
+
+fn hash_checked_with(
+    program: &ResolvedProgram,
+    lowered: &[Spanned],
+    documented: &dyn Fn(&str) -> Rc<Parsed>,
+) -> DefHashes {
+    let docs = program_docs_with(program, documented);
     def_hash::hash_program_documented(lowered, &|i| docs.get(&i).cloned())
+}
+
+fn parse_documented(text: &str) -> Rc<Parsed> {
+    Rc::new(blue_lang_syntax::parse_program_documented(text))
 }
 
 /// The `@doc` text of every documented top-level form of `program`, by its
@@ -669,6 +689,13 @@ pub fn hash_checked(program: &ResolvedProgram, lowered: &[Spanned]) -> DefHashes
 #[must_use]
 pub fn program_docs(program: &ResolvedProgram) -> HashMap<usize, String> {
     DocSources::of(program).docs()
+}
+
+fn program_docs_with(
+    program: &ResolvedProgram,
+    documented: &dyn Fn(&str) -> Rc<Parsed>,
+) -> HashMap<usize, String> {
+    DocSources::of(program).docs_with(documented)
 }
 
 /// What [`program_docs`] reads of a program, owned: each file's text and
@@ -698,9 +725,14 @@ impl DocSources {
     }
 
     pub(crate) fn docs(&self) -> HashMap<usize, String> {
+        self.docs_with(&parse_documented)
+    }
+
+    fn docs_with(&self, documented: &dyn Fn(&str) -> Rc<Parsed>) -> HashMap<usize, String> {
         let mut out = HashMap::new();
         for (id, text) in &self.files {
-            let Ok(documented) = blue_lang_syntax::parse_program_documented(text) else {
+            let parsed = documented(text);
+            let Ok(documented) = parsed.as_ref() else {
                 continue;
             };
             let texts: HashMap<Span, &str> = documented

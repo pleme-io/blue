@@ -1015,20 +1015,18 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                     &blue_lang_pkg::load_path::LoadPath::for_entry(&file),
                     &file,
                 );
-                return Ok(
-                    match blue_lang_lsp::docview::of_file(
-                        &text,
-                        Some(&file),
-                        bidama.as_deref(),
-                        &name,
-                    ) {
-                        Some(v) => {
-                            println!("{}", doc::derived_json(&v)?);
-                            ExitCode::SUCCESS
-                        }
-                        None => ExitCode::FAILURE,
-                    },
-                );
+                let mut engine = blue_lang_mondou::Engine::with_scopes(Box::new(
+                    blue_lang_pkg::load_path::Environment::from_env(),
+                ));
+                let id = file.display().to_string();
+                engine.set_document(&id, Some(file.clone()), &text);
+                return Ok(match engine.doc_view_in(&id, bidama.as_deref(), &name) {
+                    Some(v) => {
+                        println!("{}", doc::derived_json(&v)?);
+                        ExitCode::SUCCESS
+                    }
+                    None => ExitCode::FAILURE,
+                });
             }
             let mut args: Vec<String> = name.into_iter().collect();
             if let Some(f) = file {

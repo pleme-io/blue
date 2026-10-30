@@ -210,6 +210,7 @@ const MANIFEST_NAMES: &[&str] = &[
     "service",
     "frontend",
     "registry",
+    "receipt",
     "query",
     "reach",
     "allow",

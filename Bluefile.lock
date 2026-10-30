@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:2c048a102659c316adf5d799070bde28ec130d175e69a050d536e0a4f8454a92",
+  "bluefile_b3": "b3:3c69e75336de267154ecd2cba5ae5122741f9983906385e855a138b907508fd4",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -191,6 +191,14 @@
         "output": ".github/workflows/registry-sui.yml",
         "outputs": [
           "default"
+        ]
+      }
+    },
+    "receipts": {
+      "docs": {
+        "controls": [
+          "NIST_SP_800_53R5_SA_5",
+          "NIST_SP_800_53R5_SA_11"
         ]
       }
     }

@@ -21,6 +21,10 @@
       inputs.crate2nix.follows = "crate2nix";
       inputs.flake-utils.follows = "flake-utils";
     };
+    tameshi = {
+      url = "github:pleme-io/tameshi";
+      inputs.substrate.follows = "substrate";
+    };
   };
 
   outputs = {
@@ -31,6 +35,7 @@
     substrate,
     helmworks,
     tatara-rust-ast,
+    tameshi,
   }: let
     inherit (nixpkgs) lib;
     inherit (lib) mkOption types;
@@ -438,6 +443,7 @@
         base = { };
         oci = ociFor system;
         appliance = applianceFor system;
+        inherit tameshi;
       });
 
       # The bidama library bound to a package set: every nix function blue has
@@ -511,7 +517,7 @@
     in
     base // {
       # `blue.lib.project { src = ./.; }` — a blue project's whole flake body.
-      lib.project = engine.mkProjectOutputs { inherit systems pkgsFor blueFor ociFor moduleTrio chartLibraries componentFor applianceFor; };
+      lib.project = engine.mkProjectOutputs { inherit systems pkgsFor blueFor ociFor moduleTrio chartLibraries componentFor applianceFor tameshi; };
 
       # `blue.lib.bidamas pkgs` — the bidama library for any package set.
       lib.bidamas = bidamaLibFor;

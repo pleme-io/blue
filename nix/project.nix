@@ -103,7 +103,7 @@ let
     "schema" "name" "version" "needs" "when"
     "sources" "packages" "runs" "tools" "checks" "apps" "catalog" "generated"
     "images" "workloads" "rules" "services" "frontends"
-    "visibility" "registries" "reach" "allow" "virtualized"
+    "visibility" "registries" "reach" "allow" "virtualized" "receipts"
   ];
 
   readLock = src:
@@ -180,7 +180,7 @@ let
   #          caller has none, and an `image(...)` is then refused by name
   #   appliance  the `blue-appliance` runner for the system (static musl on
   #          Linux), or null, and an `app` then lowers to no appliance
-  projectFor = { pkgs, blue, src, base ? null, oci ? null, moduleTrio ? null, legacy ? { }, chartLibraries ? { }, component ? null, appliance ? null }:
+  projectFor = { pkgs, blue, src, base ? null, oci ? null, moduleTrio ? null, legacy ? { }, chartLibraries ? { }, component ? null, appliance ? null, tameshi ? null }:
     assert lib.assertMsg (builtins.isPath src)
       "lib.project: src must be a path; pass `src = ./.` from the project's flake.nix";
     let
@@ -546,6 +546,41 @@ let
           // lib.optionalAttrs ((c.inputs or [ ]) != [ ]) { root = inputsRoot "check-${cn}" c.inputs; }))
         m.checks;
 
+      receiptChecks = lib.mapAttrs'
+        (cn: r: lib.nameValuePair "${cn}-receipt" (
+          if tameshi == null then
+            throw "lib.project: the Bluefile declares receipt(\"${cn}\", …), and this engine was given no `tameshi`: blue's flake input `tameshi`, passed to projectFor or mkProjectOutputs as `tameshi`"
+          else
+            let
+              system = pkgs.stdenv.hostPlatform.system;
+              inherit (checkWords.${cn} or (throw "lib.project: receipt(\"${cn}\") names no check(...) of this Bluefile")) test;
+              attested = tameshi.lib.wrapTest {
+                inherit system;
+                inherit (r) controls;
+                inherit (test) command;
+                name = "${cn}-attested";
+                target = { kind = "nix-output"; path = if test.root != null then test.root else test.bluePath; };
+                test = { runner = "blue"; path = test.file; };
+                nativeBuildInputs = test.tools;
+              };
+              receipt = "${attested}/tameshi-receipt.v1.json";
+            in
+            pkgs.runCommand "${cn}-receipt" { nativeBuildInputs = [ tameshi.packages.${system}.tameshi ]; passthru = { inherit attested; }; } (''
+              mkdir -p $out
+              cp ${attested}/* $out/
+              tameshi ledger fold $out/ledger.json ${receipt}
+            '' + lib.concatMapStrings
+              (c: ''
+                tameshi ledger prove $out/ledger.json --receipt ${receipt} --control ${c} --out $out/${c}.proof.json
+                tameshi ledger verify $out/${c}.proof.json --ledger $out/ledger.json --receipt ${receipt} --control ${c} --expect-status PASS || {
+                  echo "${cn}-receipt: the receipt does not record ${cn} as PASS for ${c}; the run is ${attested.run}" >&2
+                  cat ${attested.run}/stdout.log ${attested.run}/stderr.log >&2
+                  exit 1
+                }
+              '')
+              r.controls)))
+        (m.receipts or { });
+
       app = an: program: {
         type = "app";
         program = "${bl.mkBlueApp (common // { name = an; inherit program; })}/bin/${an}";
@@ -567,7 +602,7 @@ let
           };
         });
 
-      allChecks = disjoint "check" (disjoint "check" gates ruleGate) checkWords;
+      allChecks = disjoint "check" (disjoint "check" (disjoint "check" gates ruleGate) checkWords) receiptChecks;
     in
     if missingNeeds != [ ] then
       throw "lib.project: the Bluefile needs ${lib.concatStringsSep ", " missingNeeds}, which neither the project nor the distribution it composes over provides"
@@ -593,10 +628,10 @@ in
   #   pkgsFor   system -> nixpkgs
   #   ociFor    system -> substrate's image builders, or null
   #   applianceFor  system -> the `blue-appliance` runner, or null
-  mkProjectOutputs = { systems, blueFor, pkgsFor, ociFor ? (_: null), moduleTrio ? null, chartLibraries ? { }, componentFor ? (_: null), applianceFor ? (_: null) }: { src, legacy ? { } }:
+  mkProjectOutputs = { systems, blueFor, pkgsFor, ociFor ? (_: null), moduleTrio ? null, chartLibraries ? { }, componentFor ? (_: null), applianceFor ? (_: null), tameshi ? null }: { src, legacy ? { } }:
     let
       per = lib.genAttrs systems (system: projectFor {
-        inherit src moduleTrio legacy chartLibraries;
+        inherit src moduleTrio legacy chartLibraries tameshi;
         pkgs = pkgsFor system;
         blue = blueFor system;
         oci = ociFor system;

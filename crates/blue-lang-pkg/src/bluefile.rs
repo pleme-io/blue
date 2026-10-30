@@ -174,6 +174,8 @@ pub struct Project {
     pub visibility: Option<String>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub registries: BTreeMap<String, serde_json::Value>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub receipts: BTreeMap<String, Receipt>,
     /// `query(name, query)`: a code query `blue query NAME` runs, kept as the
     /// query's tatara-lisp text (`blue_lang_mondou::Query`). Skipped when
     /// empty, like `generated`.
@@ -273,6 +275,51 @@ pub struct Check {
     pub file: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub inputs: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Receipt {
+    pub controls: Vec<String>,
+}
+
+#[must_use]
+pub fn is_control_id(text: &str) -> bool {
+    let mut bytes = text.bytes();
+    bytes.next().is_some_and(|b| b.is_ascii_uppercase())
+        && bytes.all(|b| b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'_')
+}
+
+fn receipt_of(controls: Vec<String>) -> Result<Receipt, crate::deploy::SpecError> {
+    use crate::deploy::SpecError;
+    if controls.is_empty() {
+        return Err(SpecError::Empty { field: "controls" });
+    }
+    if let Some(bad) = controls.iter().find(|c| !is_control_id(c)) {
+        return Err(SpecError::Control { got: bad.clone() });
+    }
+    let mut seen = std::collections::BTreeSet::new();
+    if let Some(twice) = controls.iter().find(|c| !seen.insert(c.as_str())) {
+        return Err(SpecError::DuplicateControl {
+            control: twice.clone(),
+        });
+    }
+    Ok(Receipt { controls })
+}
+
+fn receipts_without_a_check(project: &Project) -> Vec<crate::deploy::Refusal> {
+    project
+        .receipts
+        .keys()
+        .filter(|name| !project.checks.contains_key(*name))
+        .map(|name| crate::deploy::Refusal {
+            word: "receipt",
+            name: name.clone(),
+            error: crate::deploy::SpecError::UnknownCheck {
+                checks: project.checks.keys().cloned().collect(),
+            },
+        })
+        .collect()
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -790,6 +837,21 @@ const WORDS: &[Word] = &[
         },
     },
     Word {
+        name: "receipt",
+        signature: "receipt(check, controls)",
+        doc: "A `check` attested as `checks.<check>-receipt`: the check's own command, run under tameshi's `wrapTest`, writes and verifies a `tameshi-receipt.v1.json` that evidences each control (%w[NIST_SP_800_53R5_SA_11]), and the check is red unless the receipt records PASS. The target is the check's `inputs` (its BLUE_PATH when it names none), the test its program. Needs the engine's `tameshi` input.",
+        min: 2,
+        max: 2,
+        record: |c, into| {
+            let check = c.text(0, "check")?;
+            let controls = c.names(1, "controls")?;
+            match receipt_of(controls) {
+                Ok(receipt) => insert_once(&mut into.project.receipts, c.word, check, receipt),
+                Err(error) => refuse(into, c.word, check, error),
+            }
+        },
+    },
+    Word {
         name: "query",
         signature: "query(name, query)",
         doc: "A named code query, run by `blue query NAME [PATH…]`: the query is tatara-lisp data as text, its clauses those of `blue query` (\"(reaches filesystem) (unannotated)\").",
@@ -1126,6 +1188,7 @@ fn evaluate_bluefile(src: &str) -> Result<Bluefile, BluefileError> {
         .collect();
     let mut refusals = c.refused;
     refusals.extend(crate::deploy::check_entries(&c.project, &refused_images));
+    refusals.extend(receipts_without_a_check(&c.project));
     if !refusals.is_empty() {
         return Err(BluefileError::Refused { refusals });
     }
@@ -1317,6 +1380,7 @@ mod tests {
             .chain(["rule"])
             .chain(["frontend"])
             .chain(["registry"])
+            .chain(["receipt"])
             .chain(["query"])
             .chain(["reach", "allow", "virtualize"])
             // P1b's list argument, 2026-09-23 — `Capability::Collections`.
@@ -2052,5 +2116,81 @@ mod tests {
         );
         let v = serde_json::to_value(project_of("tool(\"jq\")")).expect("json");
         assert!(v.get("queries").is_none(), "{v}");
+    }
+
+    #[test]
+    fn receipt_records_its_check_and_controls_in_any_order() {
+        let p = project_of(
+            "receipt(\"docs\", %w[NIST_SP_800_53R5_SA_5 NIST_SP_800_53R5_SA_11])\ncheck(\"docs\", \"gen/docs.b\", [\"docs\"])",
+        );
+        assert_eq!(
+            p.receipts["docs"].controls,
+            vec!["NIST_SP_800_53R5_SA_5", "NIST_SP_800_53R5_SA_11"]
+        );
+        assert_eq!(
+            serde_json::to_value(&p).expect("json")["receipts"],
+            serde_json::json!({"docs": {"controls": ["NIST_SP_800_53R5_SA_5", "NIST_SP_800_53R5_SA_11"]}})
+        );
+        let bare =
+            serde_json::to_value(project_of("check(\"docs\", \"gen/docs.b\")")).expect("json");
+        assert!(bare.get("receipts").is_none(), "{bare}");
+    }
+
+    #[test]
+    fn a_receipt_naming_no_declared_check_is_refused_and_its_siblings_are_not() {
+        let err = refusal_of(
+            "check(\"docs\", \"gen/docs.b\")\ncheck(\"unit\", \"t/unit.b\")\nreceipt(\"dosc\", %w[SA_11])\nreceipt(\"docs\", %w[SA_11])\nreceipt(\"unit\", [])",
+        )
+        .to_string();
+        assert!(
+            err.contains("receipt(\"dosc\"")
+                && err.contains("names no `check(...)`")
+                && err.contains("the checks are docs, unit"),
+            "{err}"
+        );
+        assert!(
+            err.contains("receipt(\"unit\"") && err.contains("`controls` is empty"),
+            "{err}"
+        );
+        assert!(!err.contains("receipt(\"docs\""), "{err}");
+        let none = refusal_of("receipt(\"docs\", %w[SA_11])").to_string();
+        assert!(none.contains("it declares none"), "{none}");
+    }
+
+    #[test]
+    fn a_receipt_with_an_empty_invalid_or_repeated_control_is_refused_naming_it() {
+        let err = refusal_of(
+            "check(\"a\", \"a.b\")\ncheck(\"b\", \"b.b\")\ncheck(\"c\", \"c.b\")\ncheck(\"d\", \"d.b\")\nreceipt(\"a\", [])\nreceipt(\"b\", %w[NIST_SP_800_53R5_SA_11 sa_5])\nreceipt(\"c\", %w[SA_11 SA_11])\nreceipt(\"d\", %w[_SA])",
+        )
+        .to_string();
+        for (entry, why) in [
+            ("receipt(\"a\"", "`controls` is empty"),
+            ("receipt(\"b\"", "`sa_5` is not a control id"),
+            ("receipt(\"c\"", "control `SA_11` is listed twice"),
+            ("receipt(\"d\"", "`_SA` is not a control id"),
+        ] {
+            assert!(
+                err.lines().any(|l| l.contains(entry) && l.contains(why)),
+                "{entry}: {err}"
+            );
+        }
+        assert!(matches!(
+            refusal_of("check(\"a\", \"a.b\")\nreceipt(\"a\", \"SA_11\")"),
+            BluefileError::Malformed(Malformed::Type {
+                word: "receipt",
+                param: "controls",
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn a_control_id_is_what_tameshi_accepts() {
+        for ok in ["A", "SA_11", "NIST_SP_800_53R5_SA_5", "X9"] {
+            assert!(is_control_id(ok), "{ok}");
+        }
+        for bad in ["", "sa_11", "_SA", "9A", "SA-11", "SA 11", "Sa"] {
+            assert!(!is_control_id(bad), "{bad}");
+        }
     }
 }

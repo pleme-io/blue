@@ -406,8 +406,12 @@ rec {
   # with no `test` blocks fails (`blue test` refuses it), so a check cannot
   # pass over nothing. The tally is the output, for reading after the fact.
   mkTestCheck = { blue, bidamas, file, name, tools ? [ ], root ? null }:
-    runCommand name { nativeBuildInputs = tools; } ''
-      ${lib.optionalString (root != null) "GEN_ROOT=${root} "}BLUE_PATH=${mkBluePath { inherit bidamas; }} ${blue}/bin/blue test ${file} > $out
+    let
+      bluePath = mkBluePath { inherit bidamas; };
+      command = "${lib.optionalString (root != null) "GEN_ROOT=${root} "}BLUE_PATH=${bluePath} ${blue}/bin/blue test ${file}";
+    in
+    runCommand name { nativeBuildInputs = tools; passthru.test = { inherit command root file tools bluePath; }; } ''
+      ${command} > $out
     '';
 
   # Fails when a committed generated file differs from a fresh generation. The

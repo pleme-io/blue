@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:72495c8b261291d1ce69ec0a0a89c71357761461a89186db51798521630468d3",
+  "bluefile_b3": "b3:2f5b488b6dfb7aa4827f8e8259f960df6ac8db3f064c7bbb3fe38ca3d887cc71",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -63,6 +63,10 @@
       "kiwari-indents": {
         "output": "tree-sitter-blue/queries/indents.scm",
         "program": "gen/kiwari/indents.b"
+      },
+      "kiwari-injections": {
+        "output": "tree-sitter-blue/queries/injections.scm",
+        "program": "gen/kiwari/injections.b"
       },
       "kiwari-locals": {
         "output": "tree-sitter-blue/queries/locals.scm",

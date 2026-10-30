@@ -129,6 +129,11 @@ impl Spec {
             .find(|i| i.op == spelling || i.aliases.iter().any(|a| a == spelling))
     }
 
+    /// Does a node of `kind` mean no form at all, as `@moduledoc` does?
+    pub fn means_nothing(&self, kind: &str) -> bool {
+        matches!(self.lower.get(kind), Some(Template::Seq(parts)) if parts.is_empty())
+    }
+
     pub fn unary_for(&self, spelling: &str) -> Option<&Unary> {
         self.unary
             .iter()

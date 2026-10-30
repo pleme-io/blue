@@ -578,6 +578,14 @@
               };
             };
 
+          tree-sitter-blue-test = pkgs.runCommand "tree-sitter-blue-test" {
+            nativeBuildInputs = [ pkgs.tree-sitter pkgs.nodejs pkgs.stdenv.cc ];
+          } ''
+            cp -R ${./tree-sitter-blue} grammar && chmod -R u+w grammar && cd grammar
+            export HOME=$TMPDIR
+            test -d test/corpus && test -d test/highlight && tree-sitter generate && tree-sitter test && touch $out
+          '';
+
           # Every rule being ratcheted in (`blue_lang_check::RULES`'
           # `ratchet`) measures EXACTLY its row's count over the repository:
           # a new violation, or progress the row has not recorded, is red.

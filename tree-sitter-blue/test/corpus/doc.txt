@@ -1,0 +1,128 @@
+================================================================================
+a module doc: prose, an indented block, an example
+================================================================================
+
+@moduledoc """
+retsu holds the list verbs.
+
+    a table, not code
+
+    first([1, 2]) #=> 1
+"""
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (moduledoc
+    text: (doc_text
+      (doc_open)
+      (doc_content
+        (doc_line)
+        (doc_blank)
+        (doc_block
+          (doc_code))
+        (doc_blank)
+        (doc_example
+          (doc_check)))
+      (doc_close))))
+
+================================================================================
+a documented def: its example runs a line, then checks one
+================================================================================
+
+@doc """
+clamp keeps a number in range.
+
+    lo = 1
+    clamp(99, lo, 10) #=> 10
+"""
+def clamp(x, lo, hi)
+  x
+end
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (documented
+    doc: (doc
+      text: (doc_text
+        (doc_open)
+        (doc_content
+          (doc_line)
+          (doc_blank)
+          (doc_example
+            (doc_code)
+            (doc_check)))
+        (doc_close)))
+    definition: (def
+      name: (identifier)
+      parameters: (parameters
+        parameter: (identifier)
+        parameter: (identifier)
+        parameter: (identifier))
+      body: (body
+        (identifier)))))
+
+================================================================================
+a documented value, and a module doc before it
+================================================================================
+
+@moduledoc """
+"""
+
+@doc """
+# A heading, not a comment
+"""
+limit = 10
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (moduledoc
+    text: (doc_text
+      (doc_open)
+      (doc_close)))
+  (documented
+    doc: (doc
+      text: (doc_text
+        (doc_open)
+        (doc_content
+          (doc_line))
+        (doc_close)))
+    definition: (binding
+      name: (identifier)
+      value: (integer))))
+
+================================================================================
+an expectation in code is not a comment, and one in a string is text
+================================================================================
+
+inc(1) #=> 2
+s = "a #=> b"
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (call
+    function: (identifier)
+    arguments: (arguments
+      (integer)))
+  (expectation)
+  (binding
+    name: (identifier)
+    value: (string
+      (string_content)
+      (string_content)
+      (string_content))))
+
+================================================================================
+a doc must document a definition
+:error
+================================================================================
+
+@doc """
+loose.
+"""
+inc(1)
+
+--------------------------------------------------------------------------------

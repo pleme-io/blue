@@ -47,6 +47,7 @@ generate("kiwari-highlights", "tree-sitter-blue/queries/highlights.scm", "gen/ki
 generate("kiwari-folds", "tree-sitter-blue/queries/folds.scm", "gen/kiwari/folds.b")
 generate("kiwari-indents", "tree-sitter-blue/queries/indents.scm", "gen/kiwari/indents.b")
 generate("kiwari-locals", "tree-sitter-blue/queries/locals.scm", "gen/kiwari/locals.b")
+generate("kiwari-injections", "tree-sitter-blue/queries/injections.scm", "gen/kiwari/injections.b")
 generate("kiwari-spec", "crates/blue-lang-kiwari/blue.kiwari.json", "gen/kiwari/spec.b")
 
 # The language reference, from `blue reference` (the tables the implementation

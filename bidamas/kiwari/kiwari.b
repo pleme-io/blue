@@ -29,7 +29,10 @@ each renderer arm sits beside the constructor it reads.
     parts(choice([])) #=> []
 """
 
-use("retsu", [:concat_lists, :contains, :first, :flat_map, :is_empty, :last])
+use(
+  "retsu",
+  [:concat_lists, :contains, :first, :flat_map, :is_empty, :last, :size]
+)
 
 # ── the vocabulary ─────────────────────────────────────────────────────────
 
@@ -573,6 +576,94 @@ def locals(grammar)
   )
 end
 
+@doc """
+inject: An injection: the nodes whose text is another language's source, the
+parent they must sit in (nil for anywhere), the language, and its settings:
+`combined` parses every match in a file as one document, `skip` drops that
+many leading characters of the node.
+
+    get(inject(["a"], nil, "markdown", {}), :language) #=> "markdown"
+"""
+def inject(nodes, within, language, settings)
+  {nodes:, within:, language:, settings:}
+end
+
+def node_names(g)
+  filter((n) -> not n.nil?, map((r) -> node_name(g, r), get(g, :rules)))
+end
+
+def injection_nodes(nodes)
+  if size(nodes) == 1
+    "(#{first(nodes)})"
+  else
+    "[#{join(map((n) -> "(#{n})", nodes), " ")}]"
+  end
+end
+
+def injection_line(i)
+  captured = "#{injection_nodes(get(i, :nodes))} @injection.content"
+  pattern = if get(i, :within).nil?
+    captured
+  else
+    "(#{get(i, :within)} #{captured})"
+  end
+  settings = get(i, :settings)
+  skip = if get(settings, :skip).nil?
+    []
+  else
+    ["(#offset! @injection.content 0 #{to_s(get(settings, :skip))} 0 0)"]
+  end
+  combined = if get(settings, :combined) == true
+    ["(#set! injection.combined)"]
+  else
+    []
+  end
+  parts = concat_lists(
+    concat_lists([pattern], skip),
+    concat_lists(
+      ["(#set! injection.language #{scm_string(get(i, :language))})"],
+      combined
+    )
+  )
+  "(#{join(parts, " ")})"
+end
+
+@doc """
+injections: One pattern per injection the grammar declares. A node no rule makes is
+refused, so an injection cannot outlive the rule it reads.
+"""
+def injections(grammar)
+  g = checked(grammar)
+  rows = if get(g, :injections).nil?
+    []
+  else
+    get(g, :injections)
+  end
+  known = node_names(g)
+  unknown = filter(
+    (n) -> not member?(n, known),
+    distinct(
+      flat_map(
+        rows,
+        fn(i)
+          if get(i, :within).nil?
+            get(i, :nodes)
+          else
+            concat_lists([get(i, :within)], get(i, :nodes))
+          end
+        end
+      )
+    )
+  )
+  if not is_empty(unknown)
+    raise(:kiwari_injection, "injections name no node: #{join(unknown, " ")}")
+  end
+  query_lines(
+    "; Text that is another language's source: a doc's prose is Markdown, its examples blue.",
+    map(injection_line, rows)
+  )
+end
+
 # ── the spec for Rust ──────────────────────────────────────────────────────
 
 def spec_json(grammar)
@@ -603,6 +694,7 @@ def artifacts(g)
     ["folds.scm", () -> folds(g)],
     ["indents.scm", () -> indents(g)],
     ["locals.scm", () -> locals(g)],
+    ["injections.scm", () -> injections(g)],
     ["#{get(g, :name)}.kiwari.json", () -> "#{spec_json(g)}\n"]
   ]
 end
@@ -926,6 +1018,137 @@ def rescue_clauses()
   )
 end
 
+@doc """
+doc_char: One character of a doc text's line, read so that no run of three `"`
+can form: blue refuses a text that holds `\"\"\"` (lex.rs `lex_doc`).
+"""
+def doc_char()
+  "(?:[^\"\\n]|\"[^\"\\n]|\"\"[^\"\\n])"
+end
+
+@doc """
+doc_rest: The rest of a doc line after its first character.
+"""
+def doc_rest()
+  "#{doc_char}*\"{0,2}"
+end
+
+@doc """
+doc_first: A doc line's first character after its indentation: not blank.
+"""
+def doc_first()
+  "(?:[^ \\t\\r\\n\"]|\"[^\"\\n]|\"\"[^\"\\n])"
+end
+
+@doc """
+doc_line_pattern: A whole doc line after `indent`, through its newline.
+"""
+def doc_line_pattern(indent)
+  "#{indent}(?:#{doc_first}#{doc_rest}|\"{1,2})\\n"
+end
+
+@doc """
+doc_check_pattern: An indented line `expr #=> value`: a doctest's check (doc.rs
+`examples` splits it at its last ` #=> `).
+"""
+def doc_check_pattern()
+  "[ \\t]+#{doc_first}#{doc_rest} #=> #{doc_rest}\\n"
+end
+
+@doc """
+doc_rules: `@moduledoc` and `@doc` (doc.rs): a heredoc whose lines are prose, blank,
+or indented, and an indented paragraph holding a check is an example. A
+documented definition lowers to the definition, and a module doc to nothing,
+as `parse_program` strips both.
+"""
+def doc_rules()
+  sep = choice([ref("doc_line"), ref("doc_blank")])
+  paragraph = choice([ref("doc_example"), ref("doc_block")])
+  [
+    rule(
+      "moduledoc",
+      seq([lit("@moduledoc"), field("text", ref("doc_text"))]),
+      ["seq"]
+    ),
+    rule(
+      "documented",
+      seq(
+        [
+          field("doc", ref("doc")),
+          rep1(ref("_newline")),
+          field(
+            "definition",
+            choice([ref("def"), ref("defmacro"), ref("binding")])
+          )
+        ]
+      ),
+      ["field", "definition"]
+    ),
+    rule("doc", seq([lit("@doc"), field("text", ref("doc_text"))]), nil),
+    rule(
+      "doc_text",
+      seq([ref("doc_open"), opt(ref("doc_content")), ref("doc_close")]),
+      nil
+    ),
+    with(
+      rule("doc_open", token(pat("\"\"\"[ \\t]*\\n")), nil),
+      :role,
+      "punctuation.delimiter.documentation"
+    ),
+    with(
+      rule("doc_close", immediate(pat("[ \\t]*\"\"\"")), nil),
+      :role,
+      "punctuation.delimiter.documentation"
+    ),
+    rule(
+      "doc_content",
+      choice([seq([paragraph, opt(ref("_doc_after"))]), ref("_doc_after")]),
+      nil
+    ),
+    rule(
+      "_doc_after",
+      seq([rep1(sep), opt(seq([paragraph, opt(ref("_doc_after"))]))]),
+      nil
+    ),
+    with(
+      rule("doc_line", immediate(prec(1, pat(doc_line_pattern("")))), nil),
+      :role,
+      "comment.documentation"
+    ),
+    rule("doc_blank", immediate(pat("[ \\t\\r]*\\n")), nil),
+    rule("doc_code", immediate(prec(1, pat(doc_line_pattern("[ \\t]+")))), nil),
+    rule("doc_check", immediate(prec(2, pat(doc_check_pattern))), nil),
+    rule(
+      "doc_example",
+      seq(
+        [
+          rep(ref("doc_code")),
+          ref("doc_check"),
+          rep(choice([ref("doc_code"), ref("doc_check")]))
+        ]
+      ),
+      nil
+    ),
+    with(
+      rule("doc_block", rep1(ref("doc_code")), nil),
+      :role,
+      "markup.raw.block"
+    )
+  ]
+end
+
+def module_body()
+  top = ref("_top_statement")
+  choice(
+    [
+      lines(top),
+      seq(
+        [ref("moduledoc"), opt(seq([rep1(ref("_newline")), opt(lines(top))]))]
+      )
+    ]
+  )
+end
+
 def ended_lines(stmt)
   ended = rep1(seq([stmt, rep1(ref("_newline"))]))
   choice([seq([rep1(ref("_newline")), opt(ended)]), ended])
@@ -941,7 +1164,15 @@ def if_lowering(condition)
   ]
 end
 
+@doc """
+blue: blue's grammar: its surface and its documentation.
+"""
 def blue()
+  g = surface
+  assoc(g, :rules, concat_lists(get(g, :rules), doc_rules))
+end
+
+def surface()
   aliases = filter(
     (a) -> not member?(a, ["||", "&&", "!"]),
     flat_map(concat_lists(infix_rows, unary_rows), (r) -> get(r, :aliases))
@@ -960,7 +1191,7 @@ def blue()
     description: "blue, emitted from its one grammar spec (kiwari)",
     repository: "https://github.com/pleme-io/blue",
     word: "identifier",
-    extras: [pat("[ \\t\\r]"), ref("comment")],
+    extras: [pat("[ \\t\\r]"), ref("comment"), ref("expectation")],
     conflicts: [
       ["_primary", "_arrow_parameters"],
       ["_arrow_parameters", "_plain_parameters"],
@@ -998,6 +1229,16 @@ def blue()
       ]
     },
     closers: ["end", ")", "]", "}"],
+    injections: [
+      inject(
+        ["doc_line", "doc_blank", "doc_block"],
+        nil,
+        "markdown",
+        {combined: true}
+      ),
+      inject(["doc_code", "doc_check"], "doc_example", "blue", {}),
+      inject(["expectation"], nil, "blue", {skip: 3})
+    ],
     keywords_painted: [
       ["if", "keyword.conditional"],
       ["unless", "keyword.conditional"],
@@ -1023,7 +1264,9 @@ def blue()
       ["not", "keyword.operator"],
       ["true", ""],
       ["false", ""],
-      ["nil", ""]
+      ["nil", ""],
+      ["@doc", "attribute.documentation"],
+      ["@moduledoc", "attribute.documentation"]
     ],
     punctuation: [
       ["(", "punctuation.bracket"],
@@ -1042,16 +1285,33 @@ def blue()
       ["->", "operator"],
       [":", ""],
       ["#", ""],
+      ["#=>", ""],
       ["\"", ""],
       ["\n", ""]
     ],
     rules: [
-      rule("source_file", opt(block(ref("_statement"))), ["named"]),
+      rule(
+        "source_file",
+        opt(
+          choice([seq([rep1(ref("_newline")), opt(module_body)]), module_body])
+        ),
+        ["named"]
+      ),
       rule("_newline", lit("\n"), nil),
       with(
-        rule("comment", token(seq([lit("#"), pat("[^\\n]*")])), nil),
+        rule("comment", token(prec(-1, seq([lit("#"), pat("[^\\n]*")]))), nil),
         :role,
         "comment"
+      ),
+      with(
+        rule("expectation", token(seq([lit("#=>"), pat("[^\\n]*")])), nil),
+        :role,
+        "comment"
+      ),
+      rule(
+        "_top_statement",
+        choice([ref("documented"), ref("_statement")]),
+        nil
       ),
       with(
         with(rule("identifier", pat(ident), ["symbol"]), :role, "variable"),
@@ -1984,14 +2244,69 @@ test "every visible rule of blue's lowers, but the parts its parent reads"
   assert parts ==
     [
       "comment",
+      "expectation",
       "rescue_clause",
       "rescue_all",
       "ensure_clause",
       "string_content",
       "escape_sequence",
       "typed_parameter",
-      "when"
+      "when",
+      "doc",
+      "doc_text",
+      "doc_open",
+      "doc_close",
+      "doc_content",
+      "doc_line",
+      "doc_blank",
+      "doc_code",
+      "doc_check",
+      "doc_example",
+      "doc_block"
     ]
+end
+
+test "a doc's prose is injected as Markdown and its examples as blue"
+  q = injections(blue)
+  assert contains?(
+    q,
+    "([(doc_line) (doc_blank) (doc_block)] @injection.content (#set! injection.language \"markdown\") (#set! injection.combined))"
+  )
+  assert contains?(
+    q,
+    "((doc_example [(doc_code) (doc_check)] @injection.content) (#set! injection.language \"blue\"))"
+  )
+  assert contains?(
+    q,
+    "((expectation) @injection.content (#offset! @injection.content 0 3 0 0) (#set! injection.language \"blue\"))"
+  )
+end
+
+test "an injection naming a node no rule makes is refused"
+  g = assoc(blue, :injections, [inject(["doc_lines"], nil, "markdown", {})])
+  assert begin
+    injections(g)
+  rescue e
+    error?(e)
+  end == true
+  assert injections(assoc(blue, :injections, [])) ==
+    "#{generated_by(";")}\n; Text that is another language's source: a doc's prose is Markdown, its examples blue.\n"
+end
+
+test "a documented definition lowers to the definition and a module doc to nothing"
+  rows = filter(
+    (r) -> member?(get(r, :name), ["moduledoc", "documented"]),
+    get(blue, :rules)
+  )
+  assert map((r) -> get(r, :lower), rows) == [["seq"], ["field", "definition"]]
+end
+
+test "the doc markers and delimiters are painted, and an expectation is not a comment"
+  h = highlights(blue)
+  assert contains?(h, "[\"@moduledoc\" \"@doc\"] @attribute.documentation")
+  assert contains?(h, "(doc_line) @comment.documentation")
+  assert contains?(h, "(doc_open) @punctuation.delimiter.documentation")
+  assert contains?(h, "(expectation) @punctuation.special.doctest")
 end
 
 test "a literal with no role is refused by every renderer"

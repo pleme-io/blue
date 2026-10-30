@@ -1,6 +1,7 @@
 ; Generated from bidamas/kiwari by gen/kiwari/. Edit the spec and run `nix run .#regen`.
 ; The general first: neovim lets the last matching pattern win.
 (comment) @comment
+(expectation) @comment
 (identifier) @variable
 (label) @property
 (integer) @number
@@ -12,6 +13,10 @@
 (string) @string
 (escape_sequence) @string.escape
 (interpolation) @none
+(doc_open) @punctuation.delimiter.documentation
+(doc_close) @punctuation.delimiter.documentation
+(doc_line) @comment.documentation
+(doc_block) @markup.raw.block
 (binding name: (identifier) @variable)
 (call function: (identifier) @function.call)
 (call function: (qualified_name) @function.call)
@@ -32,3 +37,4 @@
 ["#{"] @punctuation.special
 ["if" "unless" "elsif" "else" "case" "when"] @keyword.conditional
 ["def" "defmacro" "fn"] @keyword.function
+["@moduledoc" "@doc"] @attribute.documentation

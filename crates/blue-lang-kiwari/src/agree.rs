@@ -245,11 +245,11 @@ fn first_error(node: Node<'_>) -> Option<usize> {
         .find_map(|c| first_error(c.node))
 }
 
-fn top_level(root: Node<'_>) -> Vec<Node<'_>> {
+fn top_level<'t>(root: Node<'t>, spec: &Spec) -> Vec<Node<'t>> {
     root.children()
         .into_iter()
         .map(|c| c.node)
-        .filter(|n| n.is_named() && !n.is_extra())
+        .filter(|n| n.is_named() && !n.is_extra() && !spec.means_nothing(n.kind()))
         .collect()
 }
 
@@ -336,7 +336,7 @@ impl Judge<'_> {
             None
         };
         let lowerer = Lowerer::new(self.spec, prefix);
-        let nodes = top_level(root);
+        let nodes = top_level(root, self.spec);
         match (tail, ts_error) {
             (Ok(tail), None) => {
                 tally.both_accept += 1;

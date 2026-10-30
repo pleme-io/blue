@@ -10,3 +10,6 @@ result-*
 # information, 2.1× the bytes (417 KB vs 197 KB here), and a second copy to
 # keep in sync. Committing both means two artifacts that can disagree.
 Cargo.build-spec.json
+
+# git worktrees of this repository live here; each is its own checkout
+/.worktrees/

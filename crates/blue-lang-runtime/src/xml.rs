@@ -370,7 +370,7 @@ fn escape_into(out: &mut String, text: &str, in_attribute: bool) -> Result<(), F
 }
 
 fn render_into(out: &mut String, el: &Value, depth: usize) -> Result<(), Fault> {
-    if depth > MAX_DEPTH {
+    if depth >= MAX_DEPTH {
         return Err(Fault::Refused(format!(
             "elements nest deeper than {MAX_DEPTH}"
         )));
@@ -565,6 +565,58 @@ mod tests {
         assert!(matches!(parse(&deep), Err(Fault::Refused(_))));
         let ok = format!("{}{}", "<a>".repeat(MAX_DEPTH), "</a>".repeat(MAX_DEPTH));
         assert!(parse(&ok).is_ok());
+    }
+
+    #[test]
+    fn faults_name_their_line_and_column() {
+        let Err(Fault::Malformed(m)) = parse("<a>\n\n  x <b></a>") else {
+            panic!()
+        };
+        assert!(m.contains("line 3, column"), "{m}");
+        let Err(Fault::Malformed(m)) = parse("<a/>\n  <b/>") else {
+            panic!()
+        };
+        assert!(m.ends_with("line 2, column 3"), "{m}");
+        let Err(Fault::Malformed(m)) = parse("<a/>\n<!DOCTYPE a>") else {
+            panic!()
+        };
+        assert!(m.contains("DOCTYPE"), "{m}");
+        assert!(parse("\n <r/>\n").is_ok());
+    }
+
+    #[test]
+    fn render_is_bounded_like_parse_and_checks_names() {
+        let mut el = element("a".into(), vec![], vec![], String::new());
+        for _ in 1..MAX_DEPTH {
+            el = element("a".into(), vec![], vec![el], String::new());
+        }
+        let text = render(&el).expect("the deepest document parse accepts renders");
+        assert!(parse(&text).is_ok());
+        let deeper = element("a".into(), vec![], vec![el], String::new());
+        assert!(matches!(render(&deeper), Err(Fault::Refused(_))));
+        for ok in ["a", "a1", "a-b.c", "_x", "x:y", "\u{e9}t\u{e9}"] {
+            let el = element(ok.into(), vec![], vec![], String::new());
+            assert!(render(&el).is_ok(), "{ok}");
+        }
+        for bad in ["1a", "-a", ".a", "a b", "a\u{2003}b", "a\u{85}b", ""] {
+            let el = element(bad.into(), vec![], vec![], String::new());
+            assert!(matches!(render(&el), Err(Fault::Refused(_))), "{bad:?}");
+        }
+        let kinds = Value::map([
+            (key("name"), Value::Str(Arc::from("r"))),
+            (
+                key("attributes"),
+                Value::map([
+                    (MapKey::Str(Arc::from("b")), Value::Bool(true)),
+                    (MapKey::Str(Arc::from("f")), Value::Float(1.5)),
+                    (MapKey::Str(Arc::from("n")), Value::Int(7)),
+                ]),
+            ),
+        ]);
+        assert_eq!(
+            render(&kinds).expect("renders"),
+            "<r b=\"true\" f=\"1.5\" n=\"7\"/>"
+        );
     }
 
     #[test]

@@ -1,3 +1,15 @@
+@moduledoc """
+haibi (配備) — deployment: a Bluefile `service` rendered into everything that ships it.
+
+`files` answers each file as a path and its text: a Helm chart with a
+closed, generated values.schema.json, the settings' defaults and their JSON
+Schema, the SLO rules and dashboard from shihyou, and, for declared tables,
+the additive SQL and the shinka DatabaseMigration. A service runs as a WASI
+component unless it declares another runtime.
+
+    args_of({"program" => "src/app.b"}) #=> ["/app/app.b"]
+"""
+
 use("deeta", %i[get_or pretty yaml])
 use("kyuuji")
 use("retsu", %i[first last])

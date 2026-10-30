@@ -1,3 +1,14 @@
+@moduledoc """
+keisoku (計測) — measurement: the instruments a program keeps while it runs, and their samples in the Prometheus text format.
+
+A `counter` only goes up, a `gauge` goes up and down, and a `histogram`
+records values into buckets. Each instrument is a process that holds one
+series per label set. `measure` records how long a function took. `read`
+answers the samples, and `exposition` writes them as /metrics serves them.
+
+    sample_line({name: "hits_total", labels: {"path" => "/a"}, value: 2}) #=> "hits_total{path=\"/a\"} 2"
+"""
+
 use("jisho")
 use("moji", %i[checked lines])
 use("retsu", %i[count_where enumerate first is_empty rest zip])

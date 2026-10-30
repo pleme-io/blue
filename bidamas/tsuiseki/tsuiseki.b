@@ -1,3 +1,15 @@
+@moduledoc """
+tsuiseki (追跡) — tracing: spans run around functions and written to the log, a sink or an OTLP collector.
+
+A span is a named piece of work with a trace id, a parent, a duration and a
+status. `span` runs a function inside one and gives it the open span. When
+the function raises, the span records the error, is written, and raises the
+same error again. `exporter` ships spans as OTLP/JSON when observe turns
+traces on.
+
+    attribute(:n, 2) #=> {key: "n", value: {intValue: "2"}}
+"""
+
 use("jisho", %i[delete has? merge])
 use("moji", [:take_chars])
 use("retsu", [:first])

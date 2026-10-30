@@ -1,3 +1,15 @@
+@moduledoc """
+shihyou (指標) — indicator: a service's SLO as data, projected to the rules and the dashboard that watch it.
+
+The availability and latency objectives have defaults, and a service's
+Bluefile overrides each one alone. `rules` projects them to multi-window
+burn-rate recording and alert rules, `dashboard` to a Grafana dashboard,
+and `entry` to the service's catalog entry, all over kyuuji's /metrics
+series.
+
+    budget(99.5) #=> 0.005
+"""
+
 use("deeta", [:get_or])
 use("kyuuji")
 use("retsu", %i[first rest])

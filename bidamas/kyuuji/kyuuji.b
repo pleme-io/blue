@@ -1,3 +1,16 @@
+@moduledoc """
+kyuuji (給仕) — serving: an HTTP/1.1 service over the runtime's `http_listen`.
+
+A handler is a function from a request record to a response record, and a
+router composes routes and refuses each overlap alone. The health path is
+answered before the handler, and a raise is answered 500, so the loop keeps
+serving. Guards, timeouts, recovery and CORS wrap a handler, and a handler
+can answer with a file, a stream or a WebSocket upgrade. The metrics path
+serves request counts and latencies as Prometheus text.
+
+    answer(request("GET", "/x", ""), "/healthz", (_req) -> raise(:boom, "no"))[:status] #=> 500
+"""
+
 use("gamen", %i[css element? render url_ok?])
 
 use("kousei", %i[field flag int_in list_of one_of overlay record_whys required])

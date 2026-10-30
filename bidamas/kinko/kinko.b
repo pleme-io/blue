@@ -1,3 +1,16 @@
+@moduledoc """
+kinko (金庫) — a safe: a 1Password account declared as data, each entry refused alone, projected to Terraform JSON.
+
+An account is a tier, vaults and group vault grants. `judge` refuses each
+bad entry alone (permission closure, Teams bundles, tier rules, duplicates,
+unknown vaults), and its valid siblings stand. kinko holds the vendor
+permission table and the reconcile interval that a tier's daily quota
+allows. `terraform` projects what stands for the `opadmin` and
+`onepassword` providers side by side.
+
+    decode(48) #=> ["read_items", "reveal_item_password"]
+"""
+
 use("deeta", [:pretty])
 use("kyohi", %i[kinds refusal standing])
 use("moji", [:made_of])

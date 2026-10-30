@@ -1,3 +1,15 @@
+@moduledoc """
+hyouka (評価) — evaluation: Nix's command line as data.
+
+`eval_json`, `eval_raw` and `plan_build` run nix and answer a kyohi result:
+the value, or one refusal classified from what nix said. `plan_build` reads
+a dry build's drv and out paths, and what nix will build and fetch, from
+nix's own output. `path_info` asks any store which paths it holds, and a
+store path is read by its fixed layout.
+
+    failure_class("run timed out after 5400s") #=> :timeout
+"""
+
 use("deeta", %i[as_json get_str])
 use("kyohi", %i[ok ok? refusal refusal_of refused value])
 use("moji", %i[drop_chars includes lines take_chars trim])

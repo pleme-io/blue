@@ -1,3 +1,12 @@
+@moduledoc """
+gitto (ギット) — git, as verbs: a repository read as commits, refs, branches and files, and written by commit, fetch, merge, push and clone.
+
+Every verb runs the git CLI in the repository with prompts off and a fixed
+locale. A command that fails raises `:git_failed` with what git said.
+
+    ref_of("v1", :tag) #=> "refs/tags/v1"
+"""
+
 use("deeta", [:get_or])
 
 use(

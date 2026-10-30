@@ -1,3 +1,16 @@
+@moduledoc """
+shinchoku (進捗) — progress: operational probes that judge by progress over a window, never by one reading.
+
+`progress` reads timestamped counter samples as moving at a rate, stalled
+since a time, or blind with a reason; a failed sample is blind.
+`gh_budget` reads GitHub's rate limit as typed buckets, `agents_allowed`
+says how many more agents may start under settei thresholds,
+`job_from_cronjob` renders a Job from a CronJob, and `reconcile_liveness`
+reads an InfrastructureTemplate twice to judge its reconcile.
+
+    progress([sample(0, 2100), sample(40000, 2140)], 40) #=> {verdict: "moving", rate: 1}
+"""
+
 use("kazu", %i[abs max min])
 use("retsu", %i[first index_of is_empty last rest size zip])
 use("settei", %i[env_of no_env resolve])

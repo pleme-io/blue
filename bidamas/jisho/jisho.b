@@ -1,3 +1,14 @@
+@moduledoc """
+jisho (辞書) — dictionaries: maps as values, read and changed by key, each change a new map.
+
+jisho holds `keys`, `values`, `entries`, `size`, `empty?`, `has?` (true for
+a key that holds nil), `put`, `delete`, `need` (raises `:not_found`),
+`update`, `select`, `merge` (b wins) and `from_entries`. The master verbs
+reach jisho for a plain map.
+
+    merge({"a" => 1, "b" => 2}, {"b" => 3}) #=> {"a" => 1, "b" => 3}
+"""
+
 use("retsu", %i[first is_empty])
 
 def keys(m)

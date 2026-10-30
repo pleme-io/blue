@@ -1,3 +1,13 @@
+@moduledoc """
+fairu (ファイル) — files: paths and the files they name.
+
+fairu holds the properties of a path (`absolute`, `parts`, `stem`) and the
+home directory of the user. The verbs that read and write files are runtime
+primitives, and the verb graph names them in this space.
+
+    stem("/x/archive.tar.gz") #=> "archive.tar"
+"""
+
 use("moji", %i[present starts_with strip_suffix])
 
 @doc """

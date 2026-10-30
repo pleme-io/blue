@@ -1,3 +1,16 @@
+@moduledoc """
+empresa (会社) — a company declared as data: domains, mail, sites and a GitHub org, each entry refused alone, projected to the variables its infrastructure applies.
+
+`judge` answers what stands and what is refused. A duplicate domain, a host
+under no declared domain, a site without a host, an unknown mail preset or a
+bad slug falls alone, and its valid siblings stand. `variables` projects what
+stands to flat record lists: zones, DNS records with the mail rows expanded
+from the preset, edge aliases and sites, repos, teams and their grants.
+`manual_steps` lists what no IaC can do.
+
+    kinds(judge({company: "Acme Corp"}).refused) #=> [:bad_slug]
+"""
+
 use("deeta", [:pretty])
 use("kyohi", %i[kinds refusal standing])
 use("moji", [:made_of])

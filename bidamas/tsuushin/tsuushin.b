@@ -1,3 +1,14 @@
+@moduledoc """
+tsuushin (通信) — communication: what two programs say to each other.
+
+A URL is a record. `parse` reads it, `render` writes its canonical text,
+and `join` resolves a reference against a base as a browser does.
+`request` sends one HTTP request through a replaceable transport, and any
+status is data.
+
+    join("http://a.com/b/c/d", "../g") #=> "http://a.com/b/g"
+"""
+
 use("kyuuji", [:route_methods])
 
 use(

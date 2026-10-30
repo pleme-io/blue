@@ -1,3 +1,14 @@
+@moduledoc """
+ugoki (動き) — motion: how a value moves over time.
+
+`curve` declares an easing curve, and `tween` and `spring` declare motions.
+`mix` blends numbers, vectors, colors and rotations. `sample` reads a
+motion at a time, and `advance` steps a state forward by a time step. Every
+word is pure: no clock, no host.
+
+    sample(tween(10, 20, {seconds: 2}), 1) #=> 15
+"""
+
 use("jisho")
 use("kazu", %i[abs clamp lerp])
 use("moji", [:checked])

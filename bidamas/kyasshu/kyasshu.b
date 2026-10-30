@@ -1,3 +1,16 @@
+@moduledoc """
+kyasshu (キャッシュ) — cache: the normalized entity store of the frontend data runtime.
+
+One key function (`Type:id`, the key hanabi's entity cache uses) is derived
+from a GraphQL schema. `normalize` splits a response into entities, `merge`
+keeps one copy of each, and `read` answers the masked fields of one
+fragment. The ttl, stale, persist and evict rules of each fragment are
+kousei entries. An optimistic write is pending until `settle` confirms it or
+rolls it back, and `request` asks a server by persisted hash only.
+
+    key(["User", 7]) #=> "User:7"
+"""
+
 use("danpen")
 use("deeta", [:get_or])
 use("gamen")

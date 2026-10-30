@@ -249,45 +249,45 @@ rendered:
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
 - [bougyo](bidamas/CATALOG.md#bougyo) (防御) — the request-side defence of a service: security headers, a request id, and limits on what a request may be.
 - [chokkan](bidamas/CATALOG.md#chokkan) (直感) — System One judgment: typed questions in, calibrated answers out.
-- [danpen](bidamas/CATALOG.md#danpen)
+- [danpen](bidamas/CATALOG.md#danpen) (断片) — GraphQL in blue: documents parsed into plain records, checked against a schema, composed from fragments, rendered and hashed.
 - [deeta](bidamas/CATALOG.md#deeta) (データ) — JSON data, read safely.
-- [empresa](bidamas/CATALOG.md#empresa)
-- [fairu](bidamas/CATALOG.md#fairu)
-- [gamen](bidamas/CATALOG.md#gamen)
-- [gitto](bidamas/CATALOG.md#gitto)
+- [empresa](bidamas/CATALOG.md#empresa) (会社) — a company declared as data: domains, mail, sites and a GitHub org, each entry refused alone, projected to the variables its infrastructure applies.
+- [fairu](bidamas/CATALOG.md#fairu) (ファイル) — files: paths and the files they name.
+- [gamen](bidamas/CATALOG.md#gamen) (画面) — screen: what a program shows, as values: colors and themes, UI trees rendered to HTML, and styled text, tables and trees on the terminal.
+- [gitto](bidamas/CATALOG.md#gitto) (ギット) — git, as verbs: a repository read as commits, refs, branches and files, and written by commit, fetch, merge, push and clone.
 - [gurafu](bidamas/CATALOG.md#gurafu) (グラフ) — directed graphs as values: build them, ask them, order them.
 - [gyouretsu](bidamas/CATALOG.md#gyouretsu) (行列) — vectors and matrices as nested lists.
 - [hadome](bidamas/CATALOG.md#hadome) (歯止め) — a baseline ratchet: recorded debt may shrink or hold, never grow.
-- [haibi](bidamas/CATALOG.md#haibi)
+- [haibi](bidamas/CATALOG.md#haibi) (配備) — deployment: a Bluefile `service` rendered into everything that ships it.
 - [happa](bidamas/CATALOG.md#happa) (葉っぱ) — a template's leaves: their declaration, split, graph, change, schedule and verdicts, as pure decisions.
 - [heddaa](bidamas/CATALOG.md#heddaa) (ヘッダー) — header fields as HTTP/2 carries them: HPACK (RFC 7541).
 - [heni](bidamas/CATALOG.md#heni) (変異) — mutation testing for a blue package: each mutation changes one literal in a fresh copy of the package, runs its tests, and must make them fail.
 - [hikisuu](bidamas/CATALOG.md#hikisuu) (引数) — command-line arguments: one declared spec is parsed into a record, rendered as help, and answered as shell completion.
 - [hizuke](bidamas/CATALOG.md#hizuke) (日付) — the proleptic Gregorian calendar, as arithmetic.
 - [hon](bidamas/CATALOG.md#hon) (本) — a project's book: its pages, each of one Diátaxis kind, rendered into the files a reader or an agent opens.
-- [hyouka](bidamas/CATALOG.md#hyouka)
-- [jisho](bidamas/CATALOG.md#jisho)
+- [hyouka](bidamas/CATALOG.md#hyouka) (評価) — evaluation: Nix's command line as data.
+- [jisho](bidamas/CATALOG.md#jisho) (辞書) — dictionaries: maps as values, read and changed by key, each change a new map.
 - [jitaku](bidamas/CATALOG.md#jitaku) (自宅) — a home, declared entry by entry, each refused alone, projected to pleme.lareira.
 - [junjo](bidamas/CATALOG.md#junjo) (順序) — ordering: sorting, searching, selection.
 - [kakou](bidamas/CATALOG.md#kakou) (加工) — fabrication: folded sheet, cut tube and bent wire, from the dimensions a shop measures to the blanks, cut lists and solids it makes.
 - [kansuu](bidamas/CATALOG.md#kansuu) (関数) — functions about functions.
 - [kazu](bidamas/CATALOG.md#kazu) (数) — numbers.
-- [keisoku](bidamas/CATALOG.md#keisoku)
+- [keisoku](bidamas/CATALOG.md#keisoku) (計測) — measurement: the instruments a program keeps while it runs, and their samples in the Prometheus text format.
 - [keiyu](bidamas/CATALOG.md#keiyu) (経由) — by way of: run one command with a proxy set for it alone.
 - [kiibariu](bidamas/CATALOG.md#kiibariu) (キーバリュー) — Valkey and Redis over the runtime's RESP words.
 - [kijun](bidamas/CATALOG.md#kijun) (基準) — the standard a private nix fleet repo is held to, as data: layout, expression and evaluated-tree rules, per-entry waivers, and a baseline ratchet.
 - [kikagaku](bidamas/CATALOG.md#kikagaku) (幾何学) — plane geometry on [x, y] points.
 - [kinji](bidamas/CATALOG.md#kinji) (近似) — approximation: numerical methods: ODEs, roots, minimisation, least squares, interpolation and quadrature.
-- [kinko](bidamas/CATALOG.md#kinko)
-- [kirikae](bidamas/CATALOG.md#kirikae)
+- [kinko](bidamas/CATALOG.md#kinko) (金庫) — a safe: a 1Password account declared as data, each entry refused alone, projected to Terraform JSON.
+- [kirikae](bidamas/CATALOG.md#kirikae) (切り替え) — switching over: whether a system switch must run, may be skipped, or must wait.
 - [kiwari](bidamas/CATALOG.md#kiwari) (木割): one grammar spec, every syntax artifact emitted from it.
 - [kousei](bidamas/CATALOG.md#kousei) (構成) — a system composed entry by entry: each entry checked, configured off, tuned or refused alone, then judged into what stands.
 - [koutei](bidamas/CATALOG.md#koutei) (工程) — one step of a pipeline, as GitHub Actions runs it.
 - [kueri](bidamas/CATALOG.md#kueri) (クエリ) — queries: analysis is authored in blue, and SQL is only the rendered bridge to DuckDB.
 - [kumiawase](bidamas/CATALOG.md#kumiawase) (組み合わせ) — counting without enumerating.
-- [kyasshu](bidamas/CATALOG.md#kyasshu)
+- [kyasshu](bidamas/CATALOG.md#kyasshu) (キャッシュ) — cache: the normalized entity store of the frontend data runtime.
 - [kyohi](bidamas/CATALOG.md#kyohi) (拒否) — refusals, as data.
-- [kyuuji](bidamas/CATALOG.md#kyuuji)
+- [kyuuji](bidamas/CATALOG.md#kyuuji) (給仕) — serving: an HTTP/1.1 service over the runtime's `http_listen`.
 - [maakuappu](bidamas/CATALOG.md#maakuappu) (マークアップ) — XML as data: a document parsed by the runtime's xml_parse (quick-xml) into element maps {name, attributes, children, text}, the queries a reader of a scanner export asks of it (children and descendants by name, attributes, text, a path of element names), and the element rendered back with every value escaped. A DTD entity is never expanded or fetched: the document is refused (:xml_refused), and a document that is not well-formed raises :xml_malformed.
 - [moji](bidamas/CATALOG.md#moji) (文字) — strings.
 - [mokuroku](bidamas/CATALOG.md#mokuroku) (目録): the catalogue of what every bidama on a BLUE_PATH provides.
@@ -307,8 +307,8 @@ rendered:
 - [saishikou](bidamas/CATALOG.md#saishikou) (再試行) — retrying a step that can fail for a moment.
 - [seimei](bidamas/CATALOG.md#seimei) (生命) — cellular automata: elementary rules, and Life.
 - [settei](bidamas/CATALOG.md#settei) (設定) — configuration, blue's shikumi: a record of defaults grouped by concern, resolved by read(app, defaults) from the defaults, then ~/.config/<app>/<app>.yaml (or <APP>_CONFIG), then <APP>_<GROUP>__<KEY> in the environment, each value typed by its default and a wrong type refused. The resolved record is read by dotted path; a misspelt path raises and names the fields that exist.
-- [shihyou](bidamas/CATALOG.md#shihyou)
-- [shinchoku](bidamas/CATALOG.md#shinchoku)
+- [shihyou](bidamas/CATALOG.md#shihyou) (指標) — indicator: a service's SLO as data, projected to the rules and the dashboard that watch it.
+- [shinchoku](bidamas/CATALOG.md#shinchoku) (進捗) — progress: operational probes that judge by progress over a window, never by one reading.
 - [shinsuu](bidamas/CATALOG.md#shinsuu) (進数) — base conversion and checksums.
 - [shisei](bidamas/CATALOG.md#shisei) (姿勢) — a service's posture: postures declared as kousei entries, each on by default, each configured off or tuned, each refused alone.
 - [shisutemu](bidamas/CATALOG.md#shisutemu) (システム) — the system.
@@ -324,9 +324,9 @@ rendered:
 - [tokumei](bidamas/CATALOG.md#tokumei) (匿名) — anonymity: learn what a group is without exposing anyone in it.
 - [toukei](bidamas/CATALOG.md#toukei) (統計) — descriptive statistics.
 - [touroku](bidamas/CATALOG.md#touroku) (登録) — registry: a project published to and resolved from registry backends, each a rendering of the Bluefile, never its truth.
-- [tsuiseki](bidamas/CATALOG.md#tsuiseki)
-- [tsuushin](bidamas/CATALOG.md#tsuushin)
-- [ugoki](bidamas/CATALOG.md#ugoki)
+- [tsuiseki](bidamas/CATALOG.md#tsuiseki) (追跡) — tracing: spans run around functions and written to the log, a sink or an OTLP collector.
+- [tsuushin](bidamas/CATALOG.md#tsuushin) (通信) — communication: what two programs say to each other.
+- [ugoki](bidamas/CATALOG.md#ugoki) (動き) — motion: how a value moves over time.
 - [ukai](bidamas/CATALOG.md#ukai) (迂回) — a detour: keep an overlay VPN reaching its control plane and relays while a full-tunnel corporate VPN owns the default route.
 - [zenbu](bidamas/CATALOG.md#zenbu) (全部) — the whole distribution, as ONE dependency.
 - [zumen](bidamas/CATALOG.md#zumen) (図面) — technical drawings: 2-D entities on layers, sheets with a title block, feature-edge views of solids, written as DXF R12 and SVG.

@@ -1,3 +1,17 @@
+@moduledoc """
+kirikae (切り替え) — switching over: whether a system switch must run, may be skipped, or must wait.
+
+`plan` compares the desired toplevel from a dry build with the running one.
+A toplevel that failed to activate is held for a backoff that doubles with
+each failure. A guard refuses a checkout that is not clean at origin's rev,
+waits for another writer of the machine, and leaves the switch to the
+gitops loop when that loop already builds the checkout's rev or a later
+one. `run` plans, runs the rebuild command, verifies the new system and
+records the outcome.
+
+    backoff_ms(2, policy(300, 3600)) #=> 600000
+"""
+
 use("deeta", %i[get_int get_str])
 
 use(

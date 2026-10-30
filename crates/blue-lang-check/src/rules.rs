@@ -1190,7 +1190,7 @@ calls the definition and reads no local of its test.",
         fix: Machine,
         law: "a bidama's file opens with a `@moduledoc` holding its purpose and one whole example",
         witness: "@doc \"\"\"\nkagi is one.\n\n    kagi #=> 1\n\"\"\"\ndef kagi()\n  1\nend\n",
-        ratchet: 26,
+        ratchet: 8,
         package: "kagi",
         explanation: "\
 `@moduledoc` is the first form of a bidama's file: what the bidama is for,

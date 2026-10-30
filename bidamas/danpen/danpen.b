@@ -1,3 +1,16 @@
+@moduledoc """
+danpen (断片) — GraphQL in blue: documents parsed into plain records, checked against a schema, composed from fragments, rendered and hashed.
+
+The grammar is the October 2021 specification, held as a kiwari spec.
+`parse` reads SDL and executable documents. `check` and `validate` judge a
+document against a schema, and each rule has an invalid fixture.
+`fragment`, `compose` and `select` build a view's operation and its masked
+read. `render` writes apollo-compiler's canonical text, and `hash` is the
+persisted-operation id of that text.
+
+    render(parse("query   Q {  a  }"), :compact) #=> "query Q { a }"
+"""
+
 use("deeta", [:get_or])
 use("kiwari")
 use("moji", %i[capitalize checked])

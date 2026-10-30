@@ -1,3 +1,16 @@
+@moduledoc """
+gamen (画面) — screen: what a program shows, as values: colors and themes, UI trees rendered to HTML, and styled text, tables and trees on the terminal.
+
+`contrast` gives the WCAG ratio of two colors, and `theme` resolves Nord
+tokens for light or dark. `view`, `component` and `layout` build a UI tree
+from a closed table of tags and attributes. `render` writes the tree as
+HTML, ANSI, SVG or a widget spec and escapes every text, and `check` finds
+its accessibility faults. On the terminal, `show` writes styled text, and
+`table`, `tree` and `step` measure width in terminal cells.
+
+    render(view(:p, {}, ["a & b"]), :html) #=> "<p>a &amp; b</p>"
+"""
+
 use("jisho")
 use("kyohi", %i[kind kinds refusal why])
 use("moji", %i[checked trim])

@@ -133,6 +133,15 @@ def slice_chars(s, start, len)
 end
 
 @doc """
+text_of: The characters of a list from index `from` up to but not including `to`, joined: the slice a parser that walks `chars(s)` by index takes.
+
+    text_of(chars("abcd"), 1, 3) #=> "bc"
+"""
+def text_of(cs, from, to)
+  join(take(to - from, drop(from, cs)), "")
+end
+
+@doc """
 substring: Characters from `start` up to but NOT including `stop` — the ENDPOINT-based
 form. Both spellings exist because both appear in real calling code and
 converting between them by hand is where the off-by-one lives.
@@ -941,6 +950,13 @@ test "slice is length-based and substring is endpoint-based"
   assert substring("abcdef", 2, 2) == ""
   assert slice_chars("abc", 1, 99) == "bc"
   assert slice_chars("abc", 9, 1) == ""
+end
+
+test "text_of joins an index range of a character list, the end excluded"
+  assert text_of(chars("héllo"), 1, 4) == "éll"
+  assert text_of(chars("abc"), 1, 1) == ""
+  assert text_of([], 0, 0) == ""
+  assert text_of(chars("abc"), 1, 9) == "bc"
 end
 
 test "indices are characters, not bytes"

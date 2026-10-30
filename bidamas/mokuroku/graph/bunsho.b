@@ -1,7 +1,7 @@
-space("bunsho?", {status: :provisional})
+space("bunsho", {status: :ratified})
 
 verb(
-  "bunsho?",
+  "bunsho",
   "check",
   {
     kind: :pure,
@@ -16,7 +16,7 @@ verb(
 )
 
 verb(
-  "bunsho?",
+  "bunsho",
   "convert",
   {
     kind: :pure,
@@ -31,7 +31,7 @@ verb(
 )
 
 verb(
-  "bunsho?",
+  "bunsho",
   "deck",
   {
     kind: :decl,
@@ -46,7 +46,7 @@ verb(
 )
 
 verb(
-  "bunsho?",
+  "bunsho",
   "diff",
   {
     kind: :pure,
@@ -61,22 +61,21 @@ verb(
 )
 
 verb(
-  "bunsho?",
+  "bunsho",
   "extract",
   {
     kind: :pure,
     shape: "extract(doc, kind) -> parts",
     laterals: [],
     fleet: nil,
-    today: "absent",
-    meaning: "tables, images, code blocks, links or front matter",
+    today: "exists:bunsho",
     wave: 1,
     origin: "G"
   }
 )
 
 verb(
-  "bunsho?",
+  "bunsho",
   "fill",
   {
     kind: :pure,
@@ -91,7 +90,7 @@ verb(
 )
 
 verb(
-  "bunsho?",
+  "bunsho",
   "find",
   {
     kind: :pure,
@@ -106,22 +105,21 @@ verb(
 )
 
 verb(
-  "bunsho?",
-  "get",
+  "bunsho",
+  "map_nodes",
   {
     kind: :pure,
-    shape: "get(doc, id) -> node or nil",
+    shape: "map_nodes(doc, f) -> doc",
     laterals: [],
     fleet: nil,
-    today: "absent",
-    meaning: "a section or cell by id; nil if absent",
+    today: "exists:bunsho",
     wave: 1,
     origin: "G"
   }
 )
 
 verb(
-  "bunsho?",
+  "bunsho",
   "highlight",
   {
     kind: :pure,
@@ -136,7 +134,7 @@ verb(
 )
 
 verb(
-  "bunsho?",
+  "bunsho",
   "merge",
   {
     kind: :pure,
@@ -151,7 +149,7 @@ verb(
 )
 
 verb(
-  "bunsho?",
+  "bunsho",
   "normalize",
   {
     kind: :pure,
@@ -166,7 +164,7 @@ verb(
 )
 
 verb(
-  "bunsho?",
+  "bunsho",
   "outline",
   {
     kind: :pure,
@@ -182,7 +180,7 @@ verb(
 )
 
 verb(
-  "bunsho?",
+  "bunsho",
   "paginate",
   {
     kind: :pure,
@@ -197,22 +195,21 @@ verb(
 )
 
 verb(
-  "bunsho?",
+  "bunsho",
   "parse",
   {
     kind: :pure,
-    shape: "parse(text, format) -> doc",
+    shape: "parse(text, format?) -> doc",
     laterals: ["validate"],
     fleet: "mojiban",
-    today: "absent",
-    meaning: "markdown or HTML text to a document tree",
+    today: "exists:bunsho",
     wave: 1,
     origin: "G"
   }
 )
 
 verb(
-  "bunsho?",
+  "bunsho",
   "put",
   {
     kind: :pure,
@@ -227,7 +224,7 @@ verb(
 )
 
 verb(
-  "bunsho?",
+  "bunsho",
   "read",
   {
     kind: :effect,
@@ -242,7 +239,7 @@ verb(
 )
 
 verb(
-  "bunsho?",
+  "bunsho",
   "redact",
   {
     kind: :pure,
@@ -257,22 +254,63 @@ verb(
 )
 
 verb(
-  "bunsho?",
+  "bunsho",
   "render",
   {
     kind: :pure,
-    shape: "render(doc, format, opts) -> text or bytes",
+    shape: "render(doc, format?) -> text",
     laterals: ["serialize"],
     fleet: "mojiban",
-    today: "absent",
-    meaning: "a document as html, ansi, markdown, pdf or docx",
+    today: "exists:bunsho",
     wave: 1,
     origin: "G"
   }
 )
 
 verb(
-  "bunsho?",
+  "bunsho",
+  "rebase",
+  {
+    kind: :pure,
+    shape: "rebase(doc, from, to) -> doc",
+    laterals: [],
+    fleet: nil,
+    today: "exists:bunsho",
+    wave: 1,
+    origin: "G"
+  }
+)
+
+verb(
+  "bunsho",
+  "walk",
+  {
+    kind: :pure,
+    shape: "walk(doc) -> [node]",
+    laterals: [],
+    fleet: nil,
+    today: "exists:bunsho",
+    wave: 1,
+    origin: "G"
+  }
+)
+
+verb(
+  "bunsho",
+  "section",
+  {
+    kind: :pure,
+    shape: "section(doc, anchor) -> [node] or nil",
+    laterals: [],
+    fleet: nil,
+    today: "exists:bunsho",
+    wave: 1,
+    origin: "G"
+  }
+)
+
+verb(
+  "bunsho",
   "slide",
   {
     kind: :decl,
@@ -287,7 +325,7 @@ verb(
 )
 
 verb(
-  "bunsho?",
+  "bunsho",
   "table",
   {
     kind: :decl,
@@ -302,7 +340,7 @@ verb(
 )
 
 verb(
-  "bunsho?",
+  "bunsho",
   "write",
   {
     kind: :effect,
@@ -316,90 +354,87 @@ verb(
   }
 )
 
-edge("bunsho?::convert", :composes, "bunsho?::parse", "parse the source")
+edge("bunsho::convert", :composes, "bunsho::parse", "parse the source")
 
 edge(
-  "bunsho?::normalize",
+  "bunsho::normalize",
   :composes,
-  "bunsho?::parse",
+  "bunsho::parse",
   "parse then render canonical"
 )
 
-edge("bunsho?::read", :composes, "bunsho?::parse", "file then tree")
-edge("bunsho?::fill", :composes, "bunsho?::put", "slots are puts")
-edge("bunsho?::convert", :composes, "bunsho?::render", "render the target")
+edge("bunsho::read", :composes, "bunsho::parse", "file then tree")
+edge("bunsho::fill", :composes, "bunsho::put", "slots are puts")
+edge("bunsho::convert", :composes, "bunsho::render", "render the target")
 
 edge(
-  "bunsho?::deck",
+  "bunsho::deck",
   :composes,
-  "bunsho?::render",
+  "bunsho::render",
   "a deck renders to pdf or html"
 )
 
 edge(
-  "bunsho?::normalize",
+  "bunsho::normalize",
   :composes,
-  "bunsho?::render",
+  "bunsho::render",
   "parse then render canonical"
 )
 
-edge("bunsho?::write", :composes, "bunsho?::render", "tree then file")
-edge("bunsho?::deck", :composes, "bunsho?::slide", "a deck is slides")
-edge("bunsho?::write", :guards, "bunsho?::redact", "redact before write")
-edge("bunsho?::check", :guards, "bunsho?::render", "no output with dead links")
-edge("bunsho?::redact", :guards, "bunsho?::write", "no secret in output")
-edge("bunsho?::merge", :inverse, "bunsho?::diff", "apply what diff found")
-edge("bunsho?::diff", :inverse, "bunsho?::merge", "apply what diff found")
-edge("bunsho?::render", :inverse, "bunsho?::parse", "text to tree and back")
-edge("bunsho?::parse", :inverse, "bunsho?::render", "text to tree and back")
-edge("bunsho?::put", :pairs, "bunsho?::get", "write and read by id")
-edge("bunsho?::get", :pairs, "bunsho?::put", "read and write by id")
-edge("bunsho?::extract", :refines, "bunsho?::find", "all parts of a kind")
+edge("bunsho::write", :composes, "bunsho::render", "tree then file")
+edge("bunsho::extract", :composes, "bunsho::walk", "the nodes of one kind")
+edge("bunsho::rebase", :composes, "bunsho::map_nodes", "rewrites link nodes")
+edge("bunsho::walk", :requires, "bunsho::parse", "needs a tree")
+edge("bunsho::map_nodes", :requires, "bunsho::parse", "needs a tree")
 
 edge(
-  "bunsho?::table",
+  "bunsho::section",
   :requires,
-  "bunsho?::extract",
+  "bunsho::parse",
+  "anchors come from the tree"
+)
+
+edge("bunsho::deck", :composes, "bunsho::slide", "a deck is slides")
+edge("bunsho::write", :guards, "bunsho::redact", "redact before write")
+edge("bunsho::check", :guards, "bunsho::render", "no output with dead links")
+edge("bunsho::redact", :guards, "bunsho::write", "no secret in output")
+edge("bunsho::merge", :inverse, "bunsho::diff", "apply what diff found")
+edge("bunsho::diff", :inverse, "bunsho::merge", "apply what diff found")
+edge("bunsho::render", :inverse, "bunsho::parse", "text to tree and back")
+edge("bunsho::parse", :inverse, "bunsho::render", "text to tree and back")
+edge("bunsho::put", :pairs, "bunsho::section", "write and read by id")
+edge("bunsho::section", :pairs, "bunsho::put", "read and write by id")
+edge("bunsho::extract", :refines, "bunsho::find", "all parts of a kind")
+
+edge(
+  "bunsho::table",
+  :requires,
+  "bunsho::extract",
   "tables are extracted parts"
 )
 
-edge(
-  "bunsho?::diff",
-  :requires,
-  "bunsho?::normalize",
-  "compare canonical forms"
-)
+edge("bunsho::diff", :requires, "bunsho::normalize", "compare canonical forms")
 
-edge("bunsho?::merge", :requires, "bunsho?::normalize", "merge canonical forms")
-edge("bunsho?::read", :requires, "bunsho?::normalize", "one form after reading")
+edge("bunsho::merge", :requires, "bunsho::normalize", "merge canonical forms")
+edge("bunsho::read", :requires, "bunsho::normalize", "one form after reading")
 
 edge(
-  "bunsho?::check",
+  "bunsho::check",
   :requires,
-  "bunsho?::outline",
+  "bunsho::outline",
   "heading levels from the outline"
 )
 
-edge(
-  "bunsho?::paginate",
-  :requires,
-  "bunsho?::outline",
-  "break before headings"
-)
+edge("bunsho::paginate", :requires, "bunsho::outline", "break before headings")
 
-edge("bunsho?::fill", :requires, "bunsho?::parse", "templates are documents")
-edge("bunsho?::find", :requires, "bunsho?::parse", "searches a tree")
-edge("bunsho?::highlight", :requires, "bunsho?::parse", "code blocks are nodes")
-edge("bunsho?::outline", :requires, "bunsho?::parse", "needs a tree")
-edge("bunsho?::slide", :requires, "gamen?::layout", "slides are laid out")
+edge("bunsho::fill", :requires, "bunsho::parse", "templates are documents")
+edge("bunsho::find", :requires, "bunsho::parse", "searches a tree")
+edge("bunsho::highlight", :requires, "bunsho::parse", "code blocks are nodes")
+edge("bunsho::outline", :requires, "bunsho::parse", "needs a tree")
+edge("bunsho::slide", :requires, "gamen?::layout", "slides are laid out")
 
-edge(
-  "bunsho?::paginate",
-  :requires,
-  "gamen?::measure",
-  "page breaks need sizes"
-)
+edge("bunsho::paginate", :requires, "gamen?::measure", "page breaks need sizes")
 
-edge("bunsho?::highlight", :requires, "gamen?::paint", "spans become ink")
-edge("bunsho?::deck", :requires, "gamen?::theme", "slides take a theme")
-edge("bunsho?::table", :requires, "gamen?::view", "a table is a view")
+edge("bunsho::highlight", :requires, "gamen?::paint", "spans become ink")
+edge("bunsho::deck", :requires, "gamen?::theme", "slides take a theme")
+edge("bunsho::table", :requires, "gamen?::view", "a table is a view")

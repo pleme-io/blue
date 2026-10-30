@@ -395,7 +395,7 @@ edge("kinyuu?::render", :refines, "gamen?::localize", "money form of localize")
 edge(
   "kinyuu?::invoice",
   :requires,
-  "bunsho?::fill",
+  "bunsho::fill",
   "an invoice is rendered from a template"
 )
 

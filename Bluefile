@@ -68,6 +68,7 @@ generate("kyasshu-keys", "bidamas/kyasshu/keys/kensa.json", "gen/kyasshu-keys.b"
 check("okite-laws", "gen/okite-laws.b")
 check("regen-untracked", "gen/regen_test.b", ["gen/regen.b"])
 check("docs", "gen/docs.b", ["docs"])
+check("markdown-laws", "gen/markdown-laws.b", ["docs"])
 
 # The repository's own check rules, written in blue: `blue check` runs each
 # on every file under this directory, under a pure frame

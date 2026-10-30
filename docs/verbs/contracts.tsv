@@ -178,6 +178,7 @@ lock	project	project	yes	[changed pin]		effect	write the lock of a project from 
 log	repo	repo	yes	[commit]		effect	commits from a ref backward	-	decided
 logarithm	n	n,base?	no	number		pure	the logarithm of n in a base	-	decided
 map	xs	xs,f	yes	list		pure	a list of f applied to each item	§3.6	stdlib
+map_nodes	tree	tree,f	no	tree		pure	the tree with f applied to every node, children first; a bidama that defines map shadows the builtin map in its own file	-	decided
 mark	state	state	no	text		pure	the symbol a state shows	-	decided
 matches?	subject	subject,pattern	no	Bool		pure	whether a subject matches a pattern	-	decided
 max_by	xs	xs,f	no	item or nil		pure	the item with the greatest f	§3.6	stdlib
@@ -239,6 +240,7 @@ range	from	from,to,step?	yes	range		pure	numbers or keys between two ends	-	deci
 rank	items	items,query?	yes	ranked		pure	items ordered by a score	-	decided
 read	source	source	yes	content	not_found,permission_denied,parse_error	effect	whole content of a source	§3.1	stdlib
 ready?	subject	subject	no	Bool		any	whether a thing is ready to use	-	decided
+rebase	tree	tree,from,to	no	tree		pure	the tree moved from one base directory to another, each relative reference rewritten to reach the same place	-	decided
 receive	source	source,subject?	yes	message or nil		effect	take the next message from a source	-	decided
 record	subject	subject,entry	yes	receipt		effect	append an outcome to a history or ledger	-	decided
 recover	handler	handler	no	handler		pure	turn what a handler raises into an answer	-	decided
@@ -285,6 +287,7 @@ scope	f	f	no	value		effect	a scope where every child ends before it returns	-	de
 score	output	output,rubric?	yes	number		pure	a number saying how good a result is	-	decided
 seal	subject	subject,key?	yes	envelope		effect	close a thing so later change is refused or unreadable	-	decided
 search	index	index,query	yes	[hit]		effect	ranked hits for a query	-	decided
+section	doc	doc,anchor	no	[node] or nil		pure	the part of a document under one heading, nil when absent; get by id, named apart because a bidama that defines get breaks its own m[:k] index sugar	-	decided
 segment	source	source	yes	spans		pure	a source cut into spans	-	decided
 select	x	x,keys	no	x		pure	only the listed parts of a value	-	decided
 send	target	target,message	yes	receipt		effect	deliver a message or event to a target	-	decided

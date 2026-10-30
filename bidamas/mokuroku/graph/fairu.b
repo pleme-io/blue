@@ -306,8 +306,7 @@ verb(
     shape: "normalize(path) -> path",
     laterals: [],
     fleet: nil,
-    today: "absent",
-    meaning: "the path with dot parts and doubled separators removed",
+    today: "exists:fairu",
     wave: 1,
     origin: "B"
   }
@@ -395,8 +394,7 @@ verb(
     shape: "relative(path, base) -> path",
     laterals: [],
     fleet: nil,
-    today: "absent",
-    meaning: "the path expressed relative to a base",
+    today: "exists:fairu",
     wave: 1,
     origin: "B"
   }

@@ -50,6 +50,7 @@ nix consumes blue's own evaluation instead of re-deriving it.
 use("anaritikusu")
 use("angou", [:is_prime])
 use("bougyo")
+use("bunsho")
 use("chokkan")
 use("danpen")
 use("deeta", [:get_str])
@@ -234,6 +235,7 @@ test "every bidama in the distribution answers through this one import"
   assert happa::key("aws_instance.web[3]") == {kind: :keyed, value: "3"}
   assert happa::ref("aws_vpc", "main", "id") == "${aws_vpc.main.id}"
   assert gurafu::topo(gurafu::graph([%w[b c], %w[a b]], {})) == %w[a b c]
+  assert bunsho::render(bunsho::parse("* a")) == unlines(["- a"])
   assert sutoriimu::api("s", "INFO") == "$JS.API.STREAM.INFO.s"
 end
 

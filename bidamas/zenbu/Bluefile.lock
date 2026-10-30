@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:653b7ec23bdf1bfa907098c2bf52b6801d3db436d02baf34c47e5b59d6617432",
+  "bluefile_b3": "b3:b1453c5078c78071f533b6acc2e73b2ac424fde74ea7f0040ff1b07c22376035",
   "manifest": {
     "schema": 1,
     "name": "zenbu",
@@ -9,6 +9,7 @@
       "anaritikusu": "^0.1.0",
       "angou": "^0.1.0",
       "bougyo": "^0.1.0",
+      "bunsho": "^0.1.0",
       "chokkan": "^0.1.0",
       "danpen": "^0.1.0",
       "deeta": "^0.1.0",

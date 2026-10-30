@@ -1,0 +1,5 @@
+package("bunsho", "0.1.0")
+needs("fairu", "^0.1")
+needs("kazu", "^0.1")
+needs("moji", "^0.1")
+needs("retsu", "^0.1")

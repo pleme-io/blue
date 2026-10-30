@@ -45,6 +45,7 @@ These commands come from the Bluefile. Run them from the repository root.
 | `blue test gen/consumers.b` | `checks.consumers` |
 | `blue test gen/docs.b` | `checks.docs` |
 | `blue test gen/heni-gate.b` | `checks.heni-mutations` |
+| `blue test gen/markdown-laws.b` | `checks.markdown-laws` |
 | `blue test gen/okite-laws.b` | `checks.okite-laws` |
 | `blue test rules/conventions.b` | `checks.project-rules` |
 | `blue test gen/regen_test.b` | `checks.regen-untracked` |

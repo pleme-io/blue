@@ -1,0 +1,38 @@
+[
+  {
+    "name": "two lists in a row take the same markers",
+    "file": "bunsho.b",
+    "find": "      {prev: node, other:, parts: push(acc[:parts], render_block(node, other))}\n",
+    "replace": "      {prev: node, other:, parts: push(acc[:parts], render_block(node, false))}\n"
+  },
+  {
+    "name": "a literal star is written unescaped",
+    "file": "bunsho.b",
+    "find": "  elsif c == \"*\"\n    if before != nil and after != nil and space?(before) and space?(after)\n      c\n    else\n      \"\\\\*\"\n    end\n",
+    "replace": "  elsif c == \"*\"\n    c\n"
+  },
+  {
+    "name": "a section runs past a heading of its own depth",
+    "file": "bunsho.b",
+    "find": "kids[i][:depth] <= depth,",
+    "replace": "kids[i][:depth] < depth,"
+  },
+  {
+    "name": "rebase drops the anchor",
+    "file": "bunsho.b",
+    "find": "        assoc(n, :target, concat(moved, anchor))\n",
+    "replace": "        assoc(n, :target, moved)\n"
+  },
+  {
+    "name": "a right-aligned column reads as left",
+    "file": "bunsho.b",
+    "find": "          elsif ends_with?(c, \":\")\n            :right\n",
+    "replace": "          elsif ends_with?(c, \":\")\n            :left\n"
+  },
+  {
+    "name": "a repeated anchor is not numbered",
+    "file": "bunsho.b",
+    "find": "              \"#{base}-#{to_s(seen)}\"\n",
+    "replace": "              base\n"
+  }
+]

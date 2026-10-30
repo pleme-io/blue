@@ -8,7 +8,7 @@ g2-vocab: bougyo 13
 g2-vocab: bunmyaku? 8
 g2-vocab: bunpou? 5
 g2-vocab: bunri? 7
-g2-vocab: bunsho? 3
+g2-vocab: bunsho 3
 g2-vocab: byouga? 9
 g2-vocab: chigai? 5
 g2-vocab: chiri? 11
@@ -28,7 +28,7 @@ g2-vocab: gamen? 16
 g2-vocab: gazou? 10
 g2-vocab: genbo? 2
 g2-vocab: genin? 11
-g2-vocab: gitto 12
+g2-vocab: gitto 11
 g2-vocab: goui? 15
 g2-vocab: gurafu 24
 g2-vocab: gyouretsu 15
@@ -104,7 +104,7 @@ g2-vocab: puran? 11
 g2-vocab: raifusaikuru 4
 g2-vocab: ran 2
 g2-vocab: rebyuu? 4
-g2-vocab: rekishi? 7
+g2-vocab: rekishi? 6
 g2-vocab: retsu 3
 g2-vocab: rirezu? 6
 g2-vocab: rittai 7

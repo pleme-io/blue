@@ -163,27 +163,30 @@ D	bunri?	limit	decl	limit(resource, amount) -> limit	config,deadline,resource	-	
 D	bunri?	profile	decl	profile(name, allow, opts) -> profile	capability,config	blue-lang-waku	absent	what a run may touch: paths, hosts, processes	1	profile(name, opts) -> profile	no
 D	bunri?	scrub_env	pure	scrub_env(env, keep) -> env	validate	-	absent	environment with everything but the kept names removed	1		na
 D	bunri?	tighten	pure	tighten(profile, observed) -> profile	validate	-	absent	narrowest profile that still permits what was observed	3		na
-G	bunsho?	check	pure	check(doc, rules) -> findings	validate	-	absent	find dead links, skipped heading levels, missing alt text	1	check(doc, rules) -> findings	yes
-G	bunsho?	convert	pure	convert(doc, to) -> doc	-	-	absent	a document in another format, content kept	2	convert(doc, to) -> doc	yes
-G	bunsho?	deck	decl	deck(slides, theme) -> doc	validate	-	absent	declare a slide deck	2		na
-G	bunsho?	diff	pure	diff(a, b) -> changes	-	-	absent	structural changes between two documents	2	diff(a, b) -> changes	yes
-G	bunsho?	extract	pure	extract(doc, kind) -> parts	-	-	absent	tables, images, code blocks, links or front matter	1	extract(doc, kind) -> parts	yes
-G	bunsho?	fill	pure	fill(template, data) -> doc	validate	-	absent	a template with its slots filled from a record	1	fill(template, data) -> doc	yes
-G	bunsho?	find	pure	find(doc, query) -> node or nil	-	-	absent	the first node that matches a query	1	find(doc, query) -> node or nil	yes
-G	bunsho?	get	pure	get(doc, id) -> node or nil	-	-	absent	a section or cell by id; nil if absent	1	get(doc, id) -> node or nil	yes
-G	bunsho?	highlight	pure	highlight(code, language) -> spans	-	hikari	absent	code split into classed token spans	1	highlight(code, language) -> spans	yes
-G	bunsho?	merge	pure	merge(a, b, opts) -> doc	-	-	absent	combine two documents; conflict is a refusal	2	merge(a, b, opts) -> doc	yes
-G	bunsho?	normalize	pure	normalize(doc) -> doc	-	-	absent	the one canonical form of a document	1	normalize(doc) -> doc	yes
-G	bunsho?	outline	pure	outline(doc) -> heading tree	-	mojiban	absent	the headings of a document, nested	1	outline(doc, span, name) -> heading tree	no
-G	bunsho?	paginate	pure	paginate(doc, page) -> pages	-	-	absent	break a document into pages of a size	3		na
-G	bunsho?	parse	pure	parse(text, format) -> doc	validate	mojiban	absent	markdown or HTML text to a document tree	1	parse(text, format) -> doc	yes
-G	bunsho?	put	pure	put(doc, id, node) -> doc	-	-	absent	a document with a section or cell replaced	1	put(doc, id, node) -> doc	yes
-G	bunsho?	read	effect	read(src, opts) -> doc	resource	mojiban	absent	a document file read to a tree, by extension	1	read(src, opts) -> doc	yes
-G	bunsho?	redact	pure	redact(doc, rules) -> doc	-	-	absent	a document with sensitive spans masked	1	redact(doc, rules) -> doc	yes
-G	bunsho?	render	pure	render(doc, format, opts) -> text or bytes	serialize	mojiban	absent	a document as html, ansi, markdown, pdf or docx	1	render(doc, format, opts) -> text or bytes	yes
-G	bunsho?	slide	decl	slide(layout, content) -> slide	validate	-	absent	declare one slide: layout, text, figures, notes	2		na
-G	bunsho?	table	decl	table(columns, rows) -> table	validate	caixa-csv	absent	declare rows under typed columns	1	table(columns, rows) -> table	yes
-G	bunsho?	write	effect	write(doc, target, opts) -> nil	resource	-	absent	a document tree written to a file	1	write(doc, target, opts) -> nil	yes
+G	bunsho	check	pure	check(doc, rules) -> findings	validate	-	absent	find dead links, skipped heading levels, missing alt text	1	check(doc, rules) -> findings	yes
+G	bunsho	convert	pure	convert(doc, to) -> doc	-	-	absent	a document in another format, content kept	2	convert(doc, to) -> doc	yes
+G	bunsho	deck	decl	deck(slides, theme) -> doc	validate	-	absent	declare a slide deck	2		na
+G	bunsho	diff	pure	diff(a, b) -> changes	-	-	absent	structural changes between two documents	2	diff(a, b) -> changes	yes
+G	bunsho	extract	pure	extract(doc, kind) -> parts	-	-	exists:bunsho	Every node of `kind` in a tree, in document order: `:heading`, `:link`, `:image`, `:code`, `:fact`, `:table` or any other kind	1	extract(doc, kind) -> parts	yes
+G	bunsho	fill	pure	fill(template, data) -> doc	validate	-	absent	a template with its slots filled from a record	1	fill(template, data) -> doc	yes
+G	bunsho	find	pure	find(doc, query) -> node or nil	-	-	absent	the first node that matches a query	1	find(doc, query) -> node or nil	yes
+G	bunsho	highlight	pure	highlight(code, language) -> spans	-	hikari	absent	code split into classed token spans	1	highlight(code, language) -> spans	yes
+G	bunsho	map_nodes	pure	map_nodes(doc, f) -> doc	-	-	exists:bunsho	The tree with `f` applied to every node, children first, the root last	1	map_nodes(doc, f) -> doc	yes
+G	bunsho	merge	pure	merge(a, b, opts) -> doc	-	-	absent	combine two documents; conflict is a refusal	2	merge(a, b, opts) -> doc	yes
+G	bunsho	normalize	pure	normalize(doc) -> doc	-	-	absent	the one canonical form of a document	1	normalize(doc) -> doc	yes
+G	bunsho	outline	pure	outline(doc) -> heading tree	-	mojiban	absent	the headings of a document, nested	1	outline(doc, span, name) -> heading tree	no
+G	bunsho	paginate	pure	paginate(doc, page) -> pages	-	-	absent	break a document into pages of a size	3		na
+G	bunsho	parse	pure	parse(text, format?) -> doc	validate	mojiban	exists:bunsho	The tree of a Markdown text: a `:root` whose `front` holds its front matter pairs (nil without any) and whose children are its blocks	1	parse(text, format?) -> doc	yes
+G	bunsho	put	pure	put(doc, id, node) -> doc	-	-	absent	a document with a section or cell replaced	1	put(doc, id, node) -> doc	yes
+G	bunsho	read	effect	read(src, opts) -> doc	resource	mojiban	absent	a document file read to a tree, by extension	1	read(src, opts) -> doc	yes
+G	bunsho	rebase	pure	rebase(doc, from, to) -> doc	-	-	exists:bunsho	The tree moved from directory `from` to directory `to`, both relative to one root: every relative link and image target rewritten to reach the same file, its anchor kept	1	rebase(doc, from, to) -> doc	yes
+G	bunsho	redact	pure	redact(doc, rules) -> doc	-	-	absent	a document with sensitive spans masked	1	redact(doc, rules) -> doc	yes
+G	bunsho	render	pure	render(doc, format?) -> text	serialize	mojiban	exists:bunsho	The canonical Markdown of a tree: its front matter between `---` lines, then its blocks with one empty line between them, and a line break at the end; "" for an empty tree	1	render(doc, format?) -> text	yes
+G	bunsho	section	pure	section(doc, anchor) -> [node] or nil	-	-	exists:bunsho	The section of a tree under the top-level heading whose anchor is `anchor`: the blocks after it up to the next heading of its depth or above, without the heading; nil when no top-level heading has that anchor	1	section(doc, anchor) -> [node] or nil	yes
+G	bunsho	slide	decl	slide(layout, content) -> slide	validate	-	absent	declare one slide: layout, text, figures, notes	2		na
+G	bunsho	table	decl	table(columns, rows) -> table	validate	caixa-csv	absent	declare rows under typed columns	1	table(columns, rows) -> table	yes
+G	bunsho	walk	pure	walk(doc) -> [node]	-	-	exists:bunsho	Every node under a tree, in document order, each before its children	1	walk(doc) -> [node]	yes
+G	bunsho	write	effect	write(doc, target, opts) -> nil	resource	-	absent	a document tree written to a file	1	write(doc, target, opts) -> nil	yes
 I	burauza	apply	effect	apply(app, patches) -> nil	capability,idempotent	-	absent	change the live page by a patch list	2	apply(app, patches) -> nil	yes
 I	burauza	install	effect	install(app, opts) -> registration	capability,config	-	absent	register the service worker and manifest so the app installs	2	install(app, opts) -> registration	yes
 I	burauza	listen	effect	listen(root, opts) -> handle	capability,cancel	-	absent	forward page events under a root to the app	2	listen(root, opts) -> handle	yes
@@ -430,13 +433,13 @@ B	fairu	match?	pure	match?(pattern, path) -> Bool	-	-	absent	whether a glob patt
 B	fairu	mode	effect	mode(path, bits) -> nil	capability,error	-	absent	set permission bits; configured off by default	3		na
 B	fairu	move	effect	move(from, to, opts) -> nil	capability,error,idempotent	-	partial:shisutemu	rename atomically on one filesystem	0	move(from, to, opts) -> nil	yes
 B	fairu	name	pure	name(path) -> text	-	-	partial:shisutemu	the last part of a path	0		na
-B	fairu	normalize	pure	normalize(path) -> path	-	-	absent	the path with dot parts and doubled separators removed	1	normalize(path) -> path	yes
+B	fairu	normalize	pure	normalize(path) -> path	-	-	exists:fairu	the path with each `.` part, each empty part and each `dir/..` pair removed; a `..` that climbs above where the path starts is kept, and a leading `/` stays	1	normalize(path) -> path	yes
 B	fairu	parent	pure	parent(path) -> path	-	-	partial:shisutemu	the directory part of a path	0	parent(path) -> path	yes
 B	fairu	parts	pure	parts(path) -> [text]	-	-	exists:fairu	the path split into its parts	0		na
 B	fairu	place	effect	place(app, tier) -> path	capability,config	okiba	absent	the absolute config, state, data or cache path of an app	1		na
 B	fairu	read	effect	read(path, opts) -> text	capability,deadline,error	-	partial:shisutemu	the whole text of a file	0	read(path, opts) -> text	yes
 B	fairu	read_bytes	effect	read_bytes(path, opts) -> bytes	capability,error	-	absent	the whole content of a file as bytes	1		na
-B	fairu	relative	pure	relative(path, base) -> path	-	-	absent	the path expressed relative to a base	1		na
+B	fairu	relative	pure	relative(path, base) -> path	-	-	exists:fairu	the path to `path` as a file in the directory `base` writes it, both paths relative to one root	1		na
 B	fairu	same?	effect	same?(a, b) -> Bool	capability	-	absent	whether two paths are one file on disk	2		na
 B	fairu	space	effect	space(path) -> {total, free}	capability	-	absent	free and total bytes of the volume holding a path	2		na
 B	fairu	stem	pure	stem(path) -> text	-	-	exists:fairu	the name without its final extension	0		na
@@ -635,7 +638,7 @@ E	gitto	need	effect	need(repo, ref) -> commit	error	-	absent	one commit, raises 
 E	gitto	patch	pure	patch(repo, change) -> text	serialize	-	absent	a change rendered as an applicable patch	2	patch(repo, change) -> text	yes
 E	gitto	push	effect	push(repo, opts) -> nil	error,process,retry	-	exists	publish refs, rebase or refuse, never force	0	push(repo, opts) -> nil	yes
 E	gitto	read	effect	read(repo, path, {at:}) -> bytes	error,process	-	exists	a file's content at a ref	0	read(repo, opts) -> bytes	no
-F	gitto	rebase	effect	rebase(repo, onto, opts) -> nil	error,process	-	absent	replay local commits on a new base; refuse on conflict	1		na
+F	gitto	rebase	effect	rebase(repo, onto, opts) -> nil	error,process	-	absent	replay local commits on a new base; refuse on conflict	1	rebase(repo, onto, opts) -> nil	no
 E	gitto	revert	effect	revert(repo, ref) -> commit	error,process	-	absent	a commit that undoes another	1		na
 F	gitto	stage	effect	stage(repo, paths) -> nil	process	-	absent	choose paths for the next commit	1		na
 E	gitto	tag	effect	tag(repo, name, {at:, sign:}) -> tag	error	-	absent	annotate a commit with a name	1	tag(repo, name, opts) -> tag	yes
@@ -1948,7 +1951,7 @@ B	rekishi?	log	effect	log(repo, opts) -> [commit]	error	daicho	absent	commits fr
 B	rekishi?	merge	effect	merge(repo, a, b, opts) -> {oid, conflicts}	error,idempotent	daicho	absent	join two histories with a strategy; conflicts are data	2	merge(repo, a, opts) -> {oid, conflicts}	no
 B	rekishi?	patch	pure	patch(value, changes) -> value	error	-	absent	apply change records to a value	2	patch(value, changes) -> value	yes
 B	rekishi?	read	effect	read(repo, ref, path) -> content	error	daicho	absent	the content of a path as it was at a ref	2	read(repo, opts) -> content	no
-B	rekishi?	rebase	effect	rebase(repo, branch, onto) -> oid	error	-	absent	replay a branch commits on a new base	3		na
+B	rekishi?	rebase	effect	rebase(repo, branch, onto) -> oid	error	-	absent	replay a branch commits on a new base	3	rebase(repo, branch, onto) -> oid	yes
 B	rekishi?	restore	effect	restore(repo, ref, to) -> nil	capability,error	-	absent	bring a past state back to a directory or store	2	restore(repo, ref, to) -> nil	yes
 B	rekishi?	revert	effect	revert(repo, oid) -> oid	error	-	absent	add a commit that undoes an earlier one	3		na
 B	rekishi?	squash	effect	squash(repo, from, to, opts) -> oid	error	-	absent	fold a run of commits into one	3		na

@@ -615,7 +615,7 @@ edge("gamen?::show", :refines, "gamen?::render", "render to the terminal")
 edge("gamen?::notify", :refines, "gamen?::send", "an event for the person")
 edge("gamen?::paint", :refines, "gamen?::style", "style applied to text")
 edge("gamen?::island", :refines, "gamen?::view", "a view hydrated alone")
-edge("gamen?::translate", :requires, "bunsho?::fill", "messages are templates")
+edge("gamen?::translate", :requires, "bunsho::fill", "messages are templates")
 edge("gamen?::apply", :requires, "byouga?::draw", "the GPU path of apply")
 
 edge(

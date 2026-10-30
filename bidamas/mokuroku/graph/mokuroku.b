@@ -150,7 +150,7 @@ edge(
 edge("mokuroku::render", :inverse, "mokuroku::catalog", "catalog to a document")
 edge("mokuroku::catalog", :inverse, "mokuroku::render", "catalog to a document")
 edge("mokuroku::get", :pairs, "bunmyaku?::describe", "same text in the editor")
-edge("mokuroku::render", :pairs, "bunsho?::render", "catalogs are documents")
+edge("mokuroku::render", :pairs, "bunsho::render", "catalogs are documents")
 
 edge(
   "mokuroku::catalog",

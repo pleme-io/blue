@@ -23,18 +23,9 @@ the whole committed as `manifests`.
 use("gurafu")
 use("kousei", %i[entry field off one_of required text])
 use("kyohi", %i[refusal standing])
-use("moji", [:checked])
+use("moji", %i[checked text_of])
 use("retsu", %i[first is_empty last size])
 use("tesuto", [:raises?])
-
-@doc """
-text_of: the characters from one index up to another, joined.
-
-    text_of(chars("abcd"), 1, 3) #=> "bc"
-"""
-def text_of(cs, from, to)
-  join(take(to - from, drop(from, cs)), "")
-end
 
 @doc """
 name_end: the first index at or after i that holds a dot or an opening bracket, or the end.

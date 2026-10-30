@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:dd4f1ad14907ad98faca436f56d74133c51ad742c363e6e9f0326a0bab9100cd",
+  "bluefile_b3": "b3:2c048a102659c316adf5d799070bde28ec130d175e69a050d536e0a4f8454a92",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -33,6 +33,12 @@
       },
       "heni-mutations": {
         "file": "gen/heni-gate.b"
+      },
+      "markdown-laws": {
+        "file": "gen/markdown-laws.b",
+        "inputs": [
+          "docs"
+        ]
       },
       "okite-laws": {
         "file": "gen/okite-laws.b"

@@ -9,6 +9,7 @@ primitives, and the verb graph names them in this space.
 """
 
 use("moji", %i[present starts_with strip_suffix])
+use("retsu", %i[concat_lists last push take_while])
 
 @doc """
 absolute: the path made absolute against the current directory.
@@ -64,6 +65,69 @@ def stem(path)
   else
     strip_suffix(name, ".#{ext}")
   end
+end
+
+@doc """
+normalize: the path with each `.` part, each empty part and each `dir/..` pair removed; a `..` that climbs above where the path starts is kept, and a leading `/` stays.
+
+    normalize("docs/howto/../SAFETY.md") #=> "docs/SAFETY.md"
+"""
+def normalize(path)
+  kept = reduce(
+    fn(acc, part)
+      if part == "" or part == "."
+        acc
+      elsif part == ".." and acc != [] and last(acc) != ".."
+        take(length(acc) - 1, acc)
+      else
+        push(acc, part)
+      end
+    end,
+    [],
+    split(path, "/")
+  )
+  body = join(kept, "/")
+  if starts_with(path, "/")
+    concat("/", body)
+  else
+    body
+  end
+end
+
+@doc """
+relative: the path to `path` as a file in the directory `base` writes it, both paths relative to one root.
+
+    relative("bidamas/CATALOG.md", "docs") #=> "../bidamas/CATALOG.md"
+"""
+def relative(path, base)
+  from = filter((s) -> s != "", split(normalize(base), "/"))
+  to = split(normalize(path), "/")
+  shared = length(
+    take_while(
+      (i) -> i < length(from) and i < length(to) and from[i] == to[i],
+      range(0, length(from))
+    )
+  )
+  join(
+    concat_lists(map((_s) -> "..", drop(shared, from)), drop(shared, to)),
+    "/"
+  )
+end
+
+test "normalize removes dot parts, empty parts and each pair that climbs back"
+  assert normalize("a/./b//c/../d") == "a/b/d"
+  assert normalize("/a/../b") == "/b"
+  assert normalize("../x") == "../x"
+  assert normalize("a/../..") == ".."
+  assert normalize("") == ""
+end
+
+test "relative climbs out of the base only as far as the two paths differ"
+  assert relative("docs/a.md", "") == "docs/a.md"
+  assert relative("docs/a.md", "docs") == "a.md"
+  assert relative("docs/a.md", "docs/howto") == "../a.md"
+  assert relative("README.md", "docs/howto") == "../../README.md"
+  assert relative("docs/x/../a.md", "./docs") == "a.md"
 end
 
 test "a relative path is placed under the current directory and an absolute one is kept"

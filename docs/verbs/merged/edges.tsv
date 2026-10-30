@@ -293,40 +293,45 @@ bunri?::profile	refines	waku::frame	a frame for processes and hosts
 bunri?::scrub_env	guards	bunri?::confine	no stray secrets in env
 bunri?::tighten	composes	waku::narrow	meet of profile and observation
 bunri?::tighten	requires	bunri?::learn	narrow to what was seen
-bunsho?::check	guards	bunsho?::render	no output with dead links
-bunsho?::check	requires	bunsho?::outline	heading levels from the outline
-bunsho?::convert	composes	bunsho?::parse	parse the source
-bunsho?::convert	composes	bunsho?::render	render the target
-bunsho?::deck	composes	bunsho?::render	a deck renders to pdf or html
-bunsho?::deck	composes	bunsho?::slide	a deck is slides
-bunsho?::deck	requires	gamen?::theme	slides take a theme
-bunsho?::diff	inverse	bunsho?::merge	apply what diff found
-bunsho?::diff	requires	bunsho?::normalize	compare canonical forms
-bunsho?::extract	refines	bunsho?::find	all parts of a kind
-bunsho?::fill	composes	bunsho?::put	slots are puts
-bunsho?::fill	requires	bunsho?::parse	templates are documents
-bunsho?::find	requires	bunsho?::parse	searches a tree
-bunsho?::get	pairs	bunsho?::put	read and write by id
-bunsho?::highlight	requires	bunsho?::parse	code blocks are nodes
-bunsho?::highlight	requires	gamen?::paint	spans become ink
-bunsho?::merge	inverse	bunsho?::diff	apply what diff found
-bunsho?::merge	requires	bunsho?::normalize	merge canonical forms
-bunsho?::normalize	composes	bunsho?::parse	parse then render canonical
-bunsho?::normalize	composes	bunsho?::render	parse then render canonical
-bunsho?::outline	requires	bunsho?::parse	needs a tree
-bunsho?::paginate	requires	bunsho?::outline	break before headings
-bunsho?::paginate	requires	gamen?::measure	page breaks need sizes
-bunsho?::parse	inverse	bunsho?::render	text to tree and back
-bunsho?::put	pairs	bunsho?::get	write and read by id
-bunsho?::read	composes	bunsho?::parse	file then tree
-bunsho?::read	requires	bunsho?::normalize	one form after reading
-bunsho?::redact	guards	bunsho?::write	no secret in output
-bunsho?::render	inverse	bunsho?::parse	text to tree and back
-bunsho?::slide	requires	gamen?::layout	slides are laid out
-bunsho?::table	requires	bunsho?::extract	tables are extracted parts
-bunsho?::table	requires	gamen?::view	a table is a view
-bunsho?::write	composes	bunsho?::render	tree then file
-bunsho?::write	guards	bunsho?::redact	redact before write
+bunsho::check	guards	bunsho::render	no output with dead links
+bunsho::check	requires	bunsho::outline	heading levels from the outline
+bunsho::convert	composes	bunsho::parse	parse the source
+bunsho::convert	composes	bunsho::render	render the target
+bunsho::deck	composes	bunsho::render	a deck renders to pdf or html
+bunsho::deck	composes	bunsho::slide	a deck is slides
+bunsho::deck	requires	gamen?::theme	slides take a theme
+bunsho::diff	inverse	bunsho::merge	apply what diff found
+bunsho::diff	requires	bunsho::normalize	compare canonical forms
+bunsho::extract	composes	bunsho::walk	the nodes of one kind
+bunsho::extract	refines	bunsho::find	all parts of a kind
+bunsho::fill	composes	bunsho::put	slots are puts
+bunsho::fill	requires	bunsho::parse	templates are documents
+bunsho::find	requires	bunsho::parse	searches a tree
+bunsho::highlight	requires	bunsho::parse	code blocks are nodes
+bunsho::highlight	requires	gamen?::paint	spans become ink
+bunsho::map_nodes	requires	bunsho::parse	needs a tree
+bunsho::merge	inverse	bunsho::diff	apply what diff found
+bunsho::merge	requires	bunsho::normalize	merge canonical forms
+bunsho::normalize	composes	bunsho::parse	parse then render canonical
+bunsho::normalize	composes	bunsho::render	parse then render canonical
+bunsho::outline	requires	bunsho::parse	needs a tree
+bunsho::paginate	requires	bunsho::outline	break before headings
+bunsho::paginate	requires	gamen?::measure	page breaks need sizes
+bunsho::parse	inverse	bunsho::render	text to tree and back
+bunsho::put	pairs	bunsho::section	write and read by id
+bunsho::read	composes	bunsho::parse	file then tree
+bunsho::read	requires	bunsho::normalize	one form after reading
+bunsho::rebase	composes	bunsho::map_nodes	rewrites link nodes
+bunsho::redact	guards	bunsho::write	no secret in output
+bunsho::render	inverse	bunsho::parse	text to tree and back
+bunsho::section	pairs	bunsho::put	read and write by id
+bunsho::section	requires	bunsho::parse	anchors come from the tree
+bunsho::slide	requires	gamen?::layout	slides are laid out
+bunsho::table	requires	bunsho::extract	tables are extracted parts
+bunsho::table	requires	gamen?::view	a table is a view
+bunsho::walk	requires	bunsho::parse	needs a tree
+bunsho::write	composes	bunsho::render	tree then file
+bunsho::write	guards	bunsho::redact	redact before write
 burauza::apply	composes	gamen?::diff	the patch list
 burauza::apply	refines	gamen?::apply	the browser surface
 burauza::apply	requires	burauza::mount	a live root
@@ -555,7 +560,7 @@ dairi?::run	inverse	dairi?::stop	ends the loop
 dairi?::screen	guards	dairi?::approve	only ask when rules say ask
 dairi?::serve	requires	dairi?::tool	offers tools
 dairi?::skill	refines	dairi?::tool	instructions, not an effect
-dairi?::skill	requires	bunsho?::parse	a skill is a document
+dairi?::skill	requires	bunsho::parse	a skill is a document
 dairi?::spawn	requires	dairi?::agent	a sub-agent
 dairi?::stop	inverse	dairi?::run	ends the loop
 dairi?::stop	pairs	dairi?::wait	end then join
@@ -913,7 +918,7 @@ gamen?::stop	inverse	gamen?::start	ends the app
 gamen?::style	requires	gamen?::theme	needs a theme
 gamen?::theme	generalizes	gamen?::style	style resolves theme tokens
 gamen?::translate	composes	gamen?::plural	forms inside messages
-gamen?::translate	requires	bunsho?::fill	messages are templates
+gamen?::translate	requires	bunsho::fill	messages are templates
 gamen?::update	composes	gamen?::get	reads the old value
 gamen?::update	composes	gamen?::put	writes f of old
 gamen?::view	requires	gamen?::component	a view may be a component
@@ -2107,7 +2112,7 @@ kenkou?::wait	composes	kenkou?::probe	poll until healthy
 kenkou?::wait	composes	kenkou?::ready?	poll until ready
 kensaku?::analyze	requires	kensaku?::index	index terms
 kensaku?::chunk	pairs	kensaku?::analyze	pieces then terms
-kensaku?::chunk	requires	bunsho?::outline	split on structure
+kensaku?::chunk	requires	bunsho::outline	split on structure
 kensaku?::cite	requires	kensaku?::search	from hits
 kensaku?::delete	inverse	kensaku?::put	removes what put added
 kensaku?::expand	pairs	kensaku?::fuse	variants merged back
@@ -2247,7 +2252,7 @@ kinyuu?::discount	composes	kinyuu?::interest	inverse of growth
 kinyuu?::get	requires	kinyuu?::money	a rate converts money
 kinyuu?::interest	requires	kinyuu?::round	round each period
 kinyuu?::invoice	composes	kinyuu?::tax	totals with tax
-kinyuu?::invoice	requires	bunsho?::fill	an invoice is rendered from a template
+kinyuu?::invoice	requires	bunsho::fill	an invoice is rendered from a template
 kinyuu?::invoice	requires	kinyuu?::money	totals in money
 kinyuu?::irr	composes	kinyuu?::discount	root of net present value
 kinyuu?::irr	requires	kinji::zero	a root finder
@@ -2910,7 +2915,7 @@ mokei?::prefix	requires	mokei?::ask	provider caches the prefix
 mokei?::prefix	requires	mokei?::prompt	marks a prompt prefix
 mokei?::prompt	composes	mokei?::example	plus worked cases
 mokei?::prompt	composes	mokei?::message	a prompt is turns
-mokei?::render	pairs	bunsho?::fill	templates fill slots
+mokei?::render	pairs	bunsho::fill	templates fill slots
 mokei?::render	requires	mokei?::prompt	needs a prompt
 mokei?::stream	lifts	mokei?::ask	ask as deltas
 mokei?::stream	requires	mokei?::tokens	usage counted per delta
@@ -2933,7 +2938,7 @@ mokuroku::get	pairs	bunmyaku?::describe	same text in the editor
 mokuroku::get	refines	mokuroku::catalog	one entry
 mokuroku::list	generalizes	mokuroku::check	the set checked
 mokuroku::render	inverse	mokuroku::catalog	catalog to a document
-mokuroku::render	pairs	bunsho?::render	catalogs are documents
+mokuroku::render	pairs	bunsho::render	catalogs are documents
 mokuroku::render	pairs	chishiki?::publish	docs are published
 mokuroku::render	pairs	hinagata?::regen	CATALOG is a generated file
 mokuroku::render	requires	mokuroku::list	catalog of packages
@@ -3589,7 +3594,7 @@ saiten?::calibrate	requires	saiten?::score	raw scores to rates
 saiten?::calibrate	requires	toukei::describe	rates from counts
 saiten?::case	requires	saiten?::dataset	cases are rows
 saiten?::check	guards	saiten?::train	no bad rows reach a run
-saiten?::check	requires	bunsho?::redact	find personal data
+saiten?::check	requires	bunsho::redact	find personal data
 saiten?::compare	composes	toukei::hypothesis	significance
 saiten?::compare	requires	saiten?::run	two result sets
 saiten?::dataset	requires	saiten?::check	rows meet the shape
@@ -3656,7 +3661,7 @@ sakuin::similar	composes	sakuin::nearest	closest vectors
 sakuin::similar	refines	sakuin::query	nearest by vector
 sakuin::suggest	refines	sakuin::search	prefix completions
 sanshou::paths	pairs	dairi?::call	mentions become tool calls
-sanshou::paths	refines	bunsho?::extract	mentions as parts
+sanshou::paths	refines	bunsho::extract	mentions as parts
 seimei::advance	pairs	ran::draw	seeded rules
 seimei::advance	refines	waarudo?::advance	a grid world step
 seimitsu?::big	guards	seimitsu?::mod_pow	exact exponent math

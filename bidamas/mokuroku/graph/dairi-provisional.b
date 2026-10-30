@@ -389,7 +389,7 @@ edge("dairi?::wait", :pairs, "dairi?::spawn", "start and join")
 edge("dairi?::stop", :pairs, "dairi?::wait", "end then join")
 edge("dairi?::find", :refines, "dairi?::get", "by query, not by key")
 edge("dairi?::skill", :refines, "dairi?::tool", "instructions, not an effect")
-edge("dairi?::skill", :requires, "bunsho?::parse", "a skill is a document")
+edge("dairi?::skill", :requires, "bunsho::parse", "a skill is a document")
 edge("dairi?::on", :requires, "dairi?::agent", "hooks on an agent")
 edge("dairi?::spawn", :requires, "dairi?::agent", "a sub-agent")
 

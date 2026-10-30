@@ -16,4 +16,4 @@ verb(
 )
 
 edge("sanshou::paths", :pairs, "dairi?::call", "mentions become tool calls")
-edge("sanshou::paths", :refines, "bunsho?::extract", "mentions as parts")
+edge("sanshou::paths", :refines, "bunsho::extract", "mentions as parts")

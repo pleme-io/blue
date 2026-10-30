@@ -2684,6 +2684,21 @@ vocab(
 )
 
 vocab(
+  "map_nodes",
+  {
+    subject: "tree",
+    args: %w[tree f],
+    opts: false,
+    returns: "tree",
+    raises: [],
+    kind: :pure,
+    meaning: "the tree with f applied to every node, children first; a bidama that defines map shadows the builtin map in its own file",
+    ref: nil,
+    status: :decided
+  }
+)
+
+vocab(
   "mark",
   {
     subject: "state",
@@ -3599,6 +3614,21 @@ vocab(
 )
 
 vocab(
+  "rebase",
+  {
+    subject: "tree",
+    args: %w[tree from to],
+    opts: false,
+    returns: "tree",
+    raises: [],
+    kind: :pure,
+    meaning: "the tree moved from one base directory to another, each relative reference rewritten to reach the same place",
+    ref: nil,
+    status: :decided
+  }
+)
+
+vocab(
   "receive",
   {
     subject: "source",
@@ -4283,6 +4313,21 @@ vocab(
     raises: [],
     kind: :effect,
     meaning: "ranked hits for a query",
+    ref: nil,
+    status: :decided
+  }
+)
+
+vocab(
+  "section",
+  {
+    subject: "doc",
+    args: %w[doc anchor],
+    opts: false,
+    returns: "[node] or nil",
+    raises: [],
+    kind: :pure,
+    meaning: "the part of a document under one heading, nil when absent; get by id, named apart because a bidama that defines get breaks its own m[:k] index sugar",
     ref: nil,
     status: :decided
   }

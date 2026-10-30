@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:ac934fd6b83dfa3774a8bcd7c705478ec67216633f8e777a296a519e724d92b4",
+  "bluefile_b3": "b3:dd4f1ad14907ad98faca436f56d74133c51ad742c363e6e9f0326a0bab9100cd",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -61,7 +61,8 @@
         "program": "gen/hon/agents.b",
         "inputs": [
           "Bluefile.lock",
-          "docs"
+          "docs",
+          "bidamas"
         ]
       },
       "book": {
@@ -78,7 +79,8 @@
         "program": "gen/hon/claude.b",
         "inputs": [
           "Bluefile.lock",
-          "docs"
+          "docs",
+          "bidamas"
         ]
       },
       "examples": {
@@ -132,7 +134,8 @@
         "program": "gen/hon/llms.b",
         "inputs": [
           "Bluefile.lock",
-          "docs"
+          "docs",
+          "bidamas"
         ]
       },
       "llms-full": {
@@ -140,7 +143,8 @@
         "program": "gen/hon/llms-full.b",
         "inputs": [
           "Bluefile.lock",
-          "docs"
+          "docs",
+          "bidamas"
         ]
       },
       "okite-rules": {
@@ -152,7 +156,8 @@
         "program": "gen/hon/readme.b",
         "inputs": [
           "Bluefile.lock",
-          "docs"
+          "docs",
+          "bidamas"
         ]
       },
       "reference": {

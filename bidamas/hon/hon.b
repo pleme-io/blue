@@ -26,12 +26,24 @@ use(
   ]
 )
 
-use("mokuroku", %i[catalog_of pkg_entries pkg_gloss pkg_name])
+use(
+  "mokuroku",
+  %i[
+    catalog_def_count
+    catalog_of
+    md_cell
+    pkg_entries
+    pkg_gloss
+    pkg_name
+    pkg_tests
+  ]
+)
 
 use(
   "retsu",
   %i[
     concat_lists
+    count_where
     drop_while
     find_first
     first
@@ -701,9 +713,49 @@ def readme_text(project)
       last(parts),
       "## The book",
       where,
-      book_map(project, "###", "")
+      readme_map(project)
     ]
   )
+end
+
+@doc """
+readme_map: The book's pages as a README lists them: each tutorial, how-to and reference page in the open, and the explanation pages folded behind one line that counts them.
+
+    readme_map({name: "demo", pages: [{path: "docs/w.md", kind: :explanation, title: "W", summary: "why"}]}) #=> join_lines(["### Explanation", "", "<details>", "<summary>1 page on why demo is shaped as it is</summary>", "", "- [W](docs/w.md): why", "", "</details>"])
+"""
+def readme_map(project)
+  why = listed_pages(project, :explanation)
+  told = book_map(
+    assoc(
+      project,
+      :pages,
+      filter((p) -> p[:kind] != :explanation, project[:pages])
+    ),
+    "###",
+    ""
+  )
+  noun = if length(why) == 1
+    "page"
+  else
+    "pages"
+  end
+  folded = if why == []
+    ""
+  else
+    join_lines(
+      concat_lists(
+        [
+          "### Explanation",
+          "",
+          "<details>",
+          "<summary>#{to_s(length(why))} #{noun} on why #{project[:name]} is shaped as it is</summary>",
+          ""
+        ],
+        concat_lists(map((p) -> page_link(p, ""), why), ["", "</details>"])
+      )
+    )
+  end
+  join(filter((t) -> t != "", [told, folded]), unlines(["", ""]))
 end
 
 @doc """
@@ -1549,12 +1601,399 @@ def book_links(blue, root, project, to)
 end
 
 @doc """
+fact_names: The facts a page may hold in a `hon` block, each named by the block's first word: `commands` and `language` from the reference the rendering blue prints, `packages` from the project's catalogue, and `include PAGE#ANCHOR` for one section of another page.
+
+    fact_names #=> %w[commands include language packages]
+"""
+def fact_names()
+  %w[commands include language packages]
+end
+
+@doc """
+fact_line: The fact a `hon` block names, as [name, arguments]: the words of its first line.
+
+    fact_line("include implementing.md#what-is-not-built") #=> ["include", ["implementing.md#what-is-not-built"]]
+"""
+def fact_line(code)
+  words = filter(
+    (w) -> w != "",
+    split(trim(first(split(code, line_break)) or ""), " ")
+  )
+  [first(words) or "", rest(words)]
+end
+
+@doc """
+facts_in: The facts a page body names, one [name, arguments] for each of its `hon` blocks, in order.
+
+    facts_in(join_lines(["```hon", "commands", "```", "```blue", "1", "```"])) #=> [["commands", []]]
+"""
+def facts_in(body)
+  map(
+    (b) -> fact_line(b[:code]),
+    filter((b) -> b[:lang] == "hon", fenced_blocks(body))
+  )
+end
+
+@doc """
+with_facts: A page body with each `hon` block replaced by the text `render` gives for the fact it names; every other block is kept as written.
+
+    with_facts(join_lines(["a", "```hon", "x", "```"]), (f) -> upcase(first(f))) #=> join_lines(["a", "X"])
+"""
+def with_facts(body, render)
+  state = reduce(
+    fn(acc, line)
+      fence = acc[0]
+      held = acc[1]
+      out = acc[2]
+      if fence.nil? and fence_line?(line)
+        if trim(line) == "```hon"
+          [:hon, [], out]
+        else
+          [:code, [], push(out, line)]
+        end
+      elsif fence == :hon and trim(line) == "```"
+        [nil, [], push(out, render(fact_line(join(held, line_break))))]
+      elsif fence == :hon
+        [fence, push(held, line), out]
+      elsif fence == :code and trim(line) == "```"
+        [nil, [], push(out, line)]
+      else
+        [fence, held, push(out, line)]
+      end
+    end,
+    [nil, [], []],
+    split(body, line_break)
+  )
+  join(state[2], line_break)
+end
+
+@doc """
+heading_level: The level of a Markdown heading line, or 0 for any other line.
+
+    heading_level("### Three") #=> 3
+"""
+def heading_level(line)
+  n = length(take_while((c) -> c == "#", chars(line)))
+  if n > 0 and starts_with?(drop_chars(line, n), " ")
+    n
+  else
+    0
+  end
+end
+
+@doc """
+section_of: The text under the heading of `body` whose anchor is `anchor`, up to the next heading of its level or above, without the heading itself; nil when no heading has that anchor.
+
+    section_of(join_lines(["# T", "## Gaps", "none", "## Next", "x"]), "gaps") #=> "none"
+"""
+def section_of(body, anchor)
+  state = reduce(
+    fn(acc, line)
+      inside = acc[0]
+      level = acc[1]
+      found = acc[2]
+      fence = if fence_line?(line)
+        not inside
+      else
+        inside
+      end
+      h = if inside or fence_line?(line)
+        0
+      else
+        heading_level(line)
+      end
+      if acc[3]
+        acc
+      elsif level.nil? and
+          h > 0 and
+          heading_anchor(drop_chars(line, h + 1)) == anchor
+        [fence, h, [], false]
+      elsif level.nil?
+        [fence, nil, found, false]
+      elsif h > 0 and h <= level
+        [fence, level, found, true]
+      else
+        [fence, level, push(found, line), false]
+      end
+    end,
+    [false, nil, [], false],
+    split(body, line_break)
+  )
+  if state[1].nil?
+    nil
+  else
+    trim(join(state[2], line_break))
+  end
+end
+
+@doc """
+included_text: The section `target` names, written `page#anchor` from directory `dir`, with its links rewritten for `dir`; raises naming what is missing when the page or the section does not exist.
+
+    (included_text(project_of([], {}), "docs", "a.md#gaps") rescue :refused) #=> :refused
+"""
+def included_text(project, dir, target)
+  if target.nil? or not contains?(target, "#")
+    raise(:no_section, "an include names `page#anchor`, not `#{to_s(target)}`")
+  end
+  path = path_in(dir, before_first(target, "#"))
+  anchor = after_first(target, "#")
+  page = find_first((p) -> p[:path] == path, project[:pages])
+  if page.nil?
+    raise(:no_page, "include #{target}: there is no page #{path}")
+  end
+  text = section_of(page[:body], anchor)
+  if text.nil?
+    raise(
+      :no_section,
+      "include #{target}: #{path} has no heading whose anchor is `#{anchor}`"
+    )
+  end
+  rebased_links(text, path_dirname(path), dir)
+end
+
+@doc """
+first_sentence: The first sentence of a help text, ending in a full stop.
+
+    first_sentence("Run it. More") #=> "Run it."
+"""
+def first_sentence(text)
+  s = trim(before_first(concat(text, " "), ". "))
+  if s == "" or ends_with?(s, ".") or ends_with?(s, "?") or ends_with?(s, "!")
+    s
+  else
+    concat(s, ".")
+  end
+end
+
+@doc """
+command_table: The commands `blue reference` lists, as a Markdown table: each as it is typed, with the first sentence of its help.
+
+    command_table([{"name" => "run", "usage" => "FILE", "about" => "Run it. More", "flags" => []}]) #=> join_lines(["| Command | What it does |", "|---|---|", "| `blue run FILE` | Run it. |"])
+"""
+def command_table(commands)
+  join_lines(
+    concat_lists(
+      ["| Command | What it does |", "|---|---|"],
+      map(
+        fn(c)
+          typed = join(
+            filter((w) -> w != "", ["blue", c["name"], c["usage"]]),
+            " "
+          )
+          "| `#{md_cell(typed)}` | #{md_cell(first_sentence(c["about"]))} |"
+        end,
+        commands
+      )
+    )
+  )
+end
+
+@doc """
+language_table: The size of the language as `blue reference` states it, read from the tables the implementation runs on: its names by arbiter, its forms, operators and reserved words, its check rules by fix, its Bluefile words and its commands.
+
+    contains?(language_table({"names" => [], "forms" => [], "operators" => [], "keywords" => [], "rules" => [], "bluefile" => [], "commands" => []}), "| Check rules | 0") #=> true
+"""
+def language_table(reference)
+  names = reference["names"]
+  rules = reference["rules"]
+  functions = count_where((n) -> n["arbiter"] == "function", names)
+  forms = count_where((n) -> n["arbiter"] == "special form", names)
+  macros = count_where((n) -> n["arbiter"] == "macro", names)
+  fixed = count_where((r) -> r["fix"] == "autofix", rules)
+  suggested = count_where((r) -> r["fix"] == "suggested", rules)
+  join_lines(
+    [
+      "| | |",
+      "|---|---|",
+      "| Built-in names | #{to_s(length(names))}: #{to_s(functions)} functions, #{to_s(forms)} special forms, #{to_s(macros)} macros |",
+      "| Surface forms | #{to_s(length(reference["forms"]))}, with #{to_s(length(reference["operators"]))} operators and #{to_s(length(reference["keywords"]))} reserved words |",
+      "| Check rules | #{to_s(length(rules))}: #{to_s(fixed)} fix themselves, #{to_s(suggested)} suggest a fix |",
+      "| Bluefile words | #{to_s(length(reference["bluefile"]))} |",
+      "| Commands | #{to_s(length(reference["commands"] or []))} |"
+    ]
+  )
+end
+
+@doc """
+package_line: One package as a list item: its name linked to its section of the catalogue at `catalog`, then the purpose its `@moduledoc` states.
+
+    package_line(["kazu", "0.1.0", [], "kazu (数) — numbers.", [], 0, nil, "b/kazu"], "C.md") #=> "- [kazu](C.md#kazu) (数) — numbers."
+"""
+def package_line(record, catalog)
+  name = pkg_name(record)
+  gloss = pkg_gloss(record)
+  link = "[#{name}](#{catalog}##{name})"
+  if gloss == ""
+    "- #{link}"
+  elsif starts_with?(gloss, name)
+    "- #{link}#{drop_chars(gloss, length(name))}"
+  else
+    "- #{link} — #{gloss}"
+  end
+end
+
+@doc """
+package_list: The project's packages, counted, then one line each, linked into the catalogue at `catalog`.
+
+    package_list([], "C.md") #=> "0 packages, 0 definitions, 0 tests."
+"""
+def package_list(records, catalog)
+  tests = reduce((acc, r) -> acc + pkg_tests(r), 0, records)
+  join_lines(
+    concat_lists(
+      [
+        "#{to_s(length(records))} packages, #{to_s(catalog_def_count(records))} definitions, #{to_s(tests)} tests."
+      ],
+      if records == []
+        []
+      else
+        concat_lists([""], map((r) -> package_line(r, catalog), records))
+      end
+    )
+  )
+end
+
+@doc """
+fact_sources: What the facts of a project's pages read, gathered once: the reference that `blue` at `blue` prints, when a page names `commands` or `language`, and the catalogue of the project's packages under `root`, when a page names `packages`.
+
+    fact_sources(nil, "/nonexistent", project_of([], {})) #=> {reference: nil, packages: nil}
+"""
+def fact_sources(blue, root, project)
+  named = map(first, flat_map(project[:pages], (p) -> facts_in(p[:body])))
+  roots = map((d) -> path_join(root, d), project[:manifest]["packages"] or [])
+  {
+    reference: if blue.nil? or
+        not any?((n) -> member?(n, %w[commands language]), named)
+      nil
+    else
+      json_read(stdout_of(exec_capture(blue, "reference")))
+    end,
+    packages: if not member?("packages", named)
+      nil
+    elsif roots != [] and filter(is_dir?, roots) == []
+      :unseen
+    else
+      catalog_of(filter(is_dir?, roots))
+    end
+  }
+end
+
+@doc """
+fact_text: The text one fact renders in `page`, from the gathered `sources`; raises naming the page when the fact is unknown or its source is absent.
+
+    (fact_text({reference: nil, packages: nil}, project_of([], {}), {path: "docs/a.md"}, ["nothing", []]) rescue :refused) #=> :refused
+"""
+def fact_text(sources, project, page, fact)
+  name = first(fact)
+  dir = path_dirname(page[:path])
+  if member?(name, %w[commands language]) and sources[:reference].nil?
+    raise(
+      :no_reference,
+      "#{page[:path]}: the `#{name}` fact reads `blue reference`, and this rendering has no blue to ask"
+    )
+  end
+  if name == "packages" and sources[:packages] == :unseen
+    raise(
+      :no_packages,
+      "#{page[:path]}: the `packages` fact reads #{join(project[:manifest]["packages"], ", ")}, which this rendering cannot see; list it in the inputs of the Bluefile `generate` that renders this page"
+    )
+  end
+  if name == "commands"
+    command_table(sources[:reference]["commands"] or [])
+  elsif name == "language"
+    language_table(sources[:reference])
+  elsif name == "packages"
+    package_list(
+      sources[:packages] or [],
+      link_from(dir, project[:manifest]["catalog"] or "bidamas/CATALOG.md")
+    )
+  elsif name == "include"
+    with_facts(
+      included_text(project, dir, first(last(fact))),
+      fn(f)
+        if first(f) == "include"
+          raise(
+            :nested_include,
+            "#{page[:path]}: include #{first(last(fact))} holds another include; an included section names facts, not pages"
+          )
+        end
+        fact_text(sources, project, page, f)
+      end
+    )
+  else
+    raise(
+      :unknown_fact,
+      "#{page[:path]} names the fact `#{name}`; hon renders #{join(fact_names, ", ")}"
+    )
+  end
+end
+
+@doc """
+with_facts_of: The project with every `hon` block of every page rendered from the gathered `sources`.
+
+    with_facts_of(project_of([], {}), {reference: nil, packages: nil})[:pages] #=> []
+"""
+def with_facts_of(project, sources)
+  assoc(
+    project,
+    :pages,
+    map(
+      fn(p)
+        assoc(
+          p,
+          :body,
+          with_facts(p[:body], (f) -> fact_text(sources, project, p, f))
+        )
+      end,
+      project[:pages]
+    )
+  )
+end
+
+@doc """
+fact_refusals: One refusal for each `hon` block of the project's pages that names no fact hon renders, or includes a page or a section that does not exist; each names its page, and every other block still renders.
+
+    fact_refusals(project_of([["docs/a.md", join_lines(["---", "kind: howto", "---", "```hon", "tally", "```"])]], {})) #=> [[:unknown_fact, "docs/a.md names the fact `tally`; hon renders commands, include, language, packages"]]
+"""
+def fact_refusals(project)
+  flat_map(
+    project[:pages],
+    fn(page)
+      flat_map(
+        facts_in(page[:body]),
+        fn(f)
+          name = first(f)
+          if not member?(name, fact_names)
+            [
+              refusal(
+                :unknown_fact,
+                "#{page[:path]} names the fact `#{name}`; hon renders #{join(fact_names, ", ")}"
+              )
+            ]
+          elsif name == "include"
+            begin
+              included_text(project, path_dirname(page[:path]), first(last(f)))
+              []
+            rescue e
+              [refusal(e.kind, "#{page[:path]}: #{e.message}")]
+            end
+          else
+            []
+          end
+        end
+      )
+    end
+  )
+end
+
+@doc """
 rendering: The text of one rendering of the project at `root`, by name: `:readme`, `:agents`, `:llms`, `:llms_full`, or `:book` for a book written in directory `to`.
 
     starts_with?(rendering(:llms, "/nonexistent", ""), "# ") #=> true
 """
 def rendering(name, root, to)
-  project = project_at(root)
+  written = project_at(root)
+  project = with_facts_of(written, fact_sources(self_exe, root, written))
   if name == :readme
     readme_text(project)
   elsif name == :agents
@@ -1933,4 +2372,214 @@ test "the reference shows each definition's prose and its examples as code"
       ["### `demo::inc(n)`", "", "Adds one.", "", "```blue", "inc(1)", "```"]
     )
   )
+end
+
+@doc """
+fact_pages: The pages of a sample project the fact tests render: an introduction that includes a section of an implementer's page.
+
+    map(first, fact_pages) #=> ["docs/introduction.md", "docs/implementing.md"]
+"""
+def fact_pages()
+  [
+    [
+      "docs/introduction.md",
+      join_lines(
+        [
+          "---",
+          "kind: explanation",
+          "role: introduction",
+          "---",
+          "# demo",
+          "",
+          "## Gaps",
+          "",
+          "```hon",
+          "include implementing.md#what-is-not-built",
+          "```",
+          "",
+          "```console",
+          "$ echo kept",
+          "```"
+        ]
+      )
+    ],
+    [
+      "docs/implementing.md",
+      join_lines(
+        [
+          "---",
+          "kind: reference",
+          "---",
+          "# Implementing",
+          "",
+          "## What is not built",
+          "",
+          "No TLS; see [HTTP2](HTTP2.md).",
+          "",
+          "```text",
+          "## not a heading",
+          "```",
+          "",
+          "### A detail",
+          "",
+          "kept too",
+          "",
+          "## Next",
+          "",
+          "left out"
+        ]
+      )
+    ]
+  ]
+end
+
+test "an include brings one section, links rewritten, up to the next heading of its level"
+  project = project_of(fact_pages, {"name" => "demo"})
+  text = included_text(project, "", "docs/implementing.md#what-is-not-built")
+  assert contains?(text, "[HTTP2](docs/HTTP2.md)")
+  assert contains?(text, "## not a heading")
+  assert contains?(text, "kept too")
+  assert not contains?(text, "left out")
+end
+
+test "the facts of a page render in place and every other block is kept"
+  project = project_of(fact_pages, {"name" => "demo"})
+  done = with_facts_of(project, {reference: nil, packages: nil})
+  intro = page_with_role(done, "introduction")
+  assert contains?(intro[:body], "No TLS; see [HTTP2](HTTP2.md).")
+  assert not contains?(intro[:body], "```hon")
+  assert contains?(intro[:body], "$ echo kept")
+end
+
+test "only a block marked hon names a fact"
+  assert facts_in(join_lines(%w[```text hon ``` ```hon packages ```])) ==
+    [["packages", []]]
+end
+
+test "each bad fact is refused alone, naming its page, and good ones pass"
+  pages = concat_lists(
+    fact_pages,
+    [
+      [
+        "docs/bad.md",
+        join_lines(
+          [
+            "---",
+            "kind: howto",
+            "---",
+            "# Bad",
+            "```hon",
+            "tally",
+            "```",
+            "```hon",
+            "include nowhere.md#x",
+            "```",
+            "```hon",
+            "include implementing.md#no-such-heading",
+            "```",
+            "```hon",
+            "commands",
+            "```"
+          ]
+        )
+      ]
+    ]
+  )
+  found = fact_refusals(project_of(pages, {"name" => "demo"}))
+  assert map(first, found) == %i[unknown_fact no_page no_section]
+  assert every?((r) -> contains?(last(r), "docs/bad.md"), found)
+end
+
+test "an included section that includes another page is refused"
+  pages = [
+    [
+      "docs/a.md",
+      join_lines(
+        [
+          "---",
+          "kind: howto",
+          "---",
+          "# A",
+          "```hon",
+          "include b.md#one",
+          "```"
+        ]
+      )
+    ],
+    [
+      "docs/b.md",
+      join_lines(
+        [
+          "---",
+          "kind: reference",
+          "---",
+          "# B",
+          "## One",
+          "```hon",
+          "include a.md#a",
+          "```"
+        ]
+      )
+    ]
+  ]
+  project = project_of(pages, {"name" => "demo"})
+  refused = with_facts_of(project, {reference: nil, packages: nil}) rescue
+    :nested
+  assert refused == :nested
+end
+
+test "a fact that reads the reference is refused when no blue renders"
+  project = project_of(
+    [
+      [
+        "docs/a.md",
+        join_lines(["---", "kind: howto", "---", "```hon", "language", "```"])
+      ]
+    ],
+    {"name" => "demo"}
+  )
+  assert (with_facts_of(project, {reference: nil, packages: nil}) rescue
+    :no_blue) == :no_blue
+end
+
+test "the commands table types each command and keeps a pipe inside its cell"
+  t = command_table(
+    [
+      {
+        "name" => "",
+        "usage" => "FILE [ARGS]...",
+        "about" => "Run a script",
+        "flags" => []
+      },
+      {
+        "name" => "image build",
+        "usage" => "[NAME]",
+        "about" => "Build a|b. Then more",
+        "flags" => []
+      }
+    ]
+  )
+  assert contains?(t, "| `blue FILE [ARGS]...` | Run a script. |")
+  assert contains?(t, "| `blue image build [NAME]` | Build a\\|b. |")
+end
+
+test "the README folds the explanation and keeps every other kind in the open"
+  r = readme_text(sample_project)
+  assert contains?(r, "<details>")
+  assert contains?(r, "### How-to guides")
+end
+
+test "a packages fact refuses when the rendering cannot see the packages, rather than count none"
+  project = project_of(
+    [
+      [
+        "docs/a.md",
+        join_lines(["---", "kind: howto", "---", "```hon", "packages", "```"])
+      ]
+    ],
+    {"name" => "demo", "packages" => ["bidamas"]}
+  )
+  sources = fact_sources(nil, "/nonexistent", project)
+  assert sources[:packages] == :unseen
+  assert (with_facts_of(project, sources) rescue :refused) == :refused
 end

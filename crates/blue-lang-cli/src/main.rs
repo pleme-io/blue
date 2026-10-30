@@ -447,8 +447,9 @@ enum Cmd {
     /// are genuinely exclusive, and which language each shape corresponds to.
     Morph,
     /// Print the language reference as JSON: operators, keywords, surface
-    /// forms, Bluefile words and every bound name, each read from the table
-    /// the implementation runs on. `docs/REFERENCE.md` is rendered from it.
+    /// forms, Bluefile words, every bound name and every command, each read
+    /// from the table the implementation runs on. `docs/REFERENCE.md` is
+    /// rendered from it, and the README's commands and numbers.
     Reference,
     /// Run a crashed process again from the trace its crash wrote, and say
     /// whether it crashed the same way. `blue run` writes traces to

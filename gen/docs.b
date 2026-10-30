@@ -1,4 +1,7 @@
-use("hon", %i[doc_pages kind_refusals project_at run_blocks runnable_page?])
+use(
+  "hon",
+  %i[doc_pages fact_refusals kind_refusals project_at run_blocks runnable_page?]
+)
 
 use("kyohi", [:why])
 use("retsu", [:flat_map])
@@ -17,6 +20,14 @@ test "every page under docs/ declares one Diátaxis kind"
     write_stderr(unlines(map(why, found)))
   end
   assert length(pages) > 30
+  assert found == []
+end
+
+test "every hon block of every page names a fact hon renders, and every include finds its section"
+  found = fact_refusals(project_at(project_root))
+  if found != []
+    write_stderr(unlines(map(why, found)))
+  end
   assert found == []
 end
 

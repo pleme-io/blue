@@ -4,8 +4,9 @@
 //! never restated: operators from `blue_lang_syntax::INFIX`, reserved words
 //! from `SURFACE_KEYWORDS` and `BLOCK_KEYWORDS`, the surface forms from
 //! `blue_lang_syntax::FORMS` (each row parsed by a gate), the Bluefile words
-//! from `blue_lang_pkg::bluefile::words`, and the bound names from a live
-//! interpreter, described by `blue_lang_runtime::docs`. `gen/reference.b`
+//! from `blue_lang_pkg::bluefile::words`, the bound names from a live
+//! interpreter, described by `blue_lang_runtime::docs`, and the commands from
+//! the clap tree `blue` parses its own arguments with. `gen/reference.b`
 //! renders this into `docs/REFERENCE.md`, and `generated-reference-fresh`
 //! fails when the committed file is stale, so the reference cannot drift from
 //! the compiler that produced it.
@@ -31,6 +32,15 @@ pub struct Reference {
     /// reserved words, which the keyword table describes instead.
     uncallable: usize,
     rules: Vec<RuleRow>,
+    commands: Vec<CommandRow>,
+}
+
+#[derive(Serialize)]
+pub struct CommandRow {
+    name: String,
+    usage: String,
+    about: String,
+    flags: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -210,7 +220,87 @@ pub fn reference() -> Reference {
                 law: r.law,
             })
             .collect(),
+        commands: commands(&<crate::Cli as clap::CommandFactory>::command()),
     }
+}
+
+pub const SCRIPT_ABOUT: &str = "Run a program as a script: quiet, and every argument after the file reaches `argv`.";
+
+pub fn commands(cli: &clap::Command) -> Vec<CommandRow> {
+    let mut rows = vec![CommandRow {
+        name: String::new(),
+        usage: "FILE [ARGS]...".into(),
+        about: SCRIPT_ABOUT.into(),
+        flags: vec!["--allow CAPABILITY".into()],
+    }];
+    for sub in cli.get_subcommands() {
+        command_rows(sub, "", &mut rows);
+    }
+    rows
+}
+
+fn command_rows(cmd: &clap::Command, above: &str, rows: &mut Vec<CommandRow>) {
+    if cmd.is_hide_set() || cmd.get_name() == "help" {
+        return;
+    }
+    let name = if above.is_empty() {
+        cmd.get_name().to_string()
+    } else {
+        format!("{above} {}", cmd.get_name())
+    };
+    if cmd.has_subcommands() {
+        for sub in cmd.get_subcommands() {
+            command_rows(sub, &name, rows);
+        }
+        return;
+    }
+    rows.push(CommandRow {
+        usage: cmd
+            .get_positionals()
+            .filter(|a| !a.is_hide_set())
+            .map(positional)
+            .collect::<Vec<_>>()
+            .join(" "),
+        about: cmd
+            .get_about()
+            .map(|a| a.to_string().trim().to_string())
+            .unwrap_or_default(),
+        flags: cmd
+            .get_arguments()
+            .filter(|a| !a.is_positional() && !a.is_hide_set())
+            .filter_map(flag)
+            .collect(),
+        name,
+    });
+}
+
+fn value_name(arg: &clap::Arg) -> String {
+    arg.get_value_names()
+        .and_then(|v| v.first())
+        .map_or_else(|| arg.get_id().as_str().to_uppercase(), ToString::to_string)
+}
+
+fn positional(arg: &clap::Arg) -> String {
+    let many = if matches!(arg.get_action(), clap::ArgAction::Append) {
+        "..."
+    } else {
+        ""
+    };
+    let after = if arg.is_last_set() { "-- " } else { "" };
+    if arg.is_required_set() {
+        format!("{after}{}{many}", value_name(arg))
+    } else {
+        format!("[{after}{}]{many}", value_name(arg))
+    }
+}
+
+fn flag(arg: &clap::Arg) -> Option<String> {
+    let long = arg.get_long()?;
+    Some(if arg.get_action().takes_values() {
+        format!("--{long} {}", value_name(arg))
+    } else {
+        format!("--{long}")
+    })
 }
 
 /// The parameter counts a signature states: (required, optional, variadic).
@@ -356,6 +446,44 @@ mod tests {
             parenthesized.is_empty(),
             "a zero-parameter function is called bare, so its signature is its name: {parenthesized:?}"
         );
+    }
+
+    fn listed() -> Vec<CommandRow> {
+        commands(&<crate::Cli as clap::CommandFactory>::command())
+    }
+
+    #[test]
+    fn the_commands_are_read_from_the_parser_blue_runs() {
+        let rows = listed();
+        let names: Vec<&str> = rows.iter().map(|r| r.name.as_str()).collect();
+        for want in ["", "run", "test", "check", "fmt", "lsp", "image build", "registry status"] {
+            assert!(names.contains(&want), "no `{want}` among {names:?}");
+        }
+        assert!(!names.contains(&"image"), "a command with subcommands is listed by its leaves");
+        assert!(!names.contains(&"help"));
+        assert!(rows.len() >= 30, "only {} commands", rows.len());
+    }
+
+    #[test]
+    fn every_command_is_described() {
+        let bare: Vec<String> = listed()
+            .into_iter()
+            .filter(|r| r.about.is_empty())
+            .map(|r| r.name)
+            .collect();
+        assert!(bare.is_empty(), "commands with no help line: {bare:?}");
+    }
+
+    #[test]
+    fn a_command_reads_as_it_is_typed() {
+        let rows = listed();
+        let run = rows.iter().find(|r| r.name == "run").expect("run");
+        assert_eq!(run.usage, "FILE [ARGS]...");
+        assert!(run.flags.contains(&"--allow CAPABILITY".to_string()), "{:?}", run.flags);
+        assert!(run.flags.contains(&"--quiet".to_string()), "{:?}", run.flags);
+        let test = rows.iter().find(|r| r.name == "test").expect("test");
+        assert_eq!(test.usage, "FILE");
+        assert!(test.flags.contains(&"--filter PATTERN".to_string()), "{:?}", test.flags);
     }
 
     #[test]

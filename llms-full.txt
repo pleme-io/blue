@@ -1,6 +1,6 @@
 # blue
 
-> blue is a general-purpose language with a Ruby/Elixir surface that parses to a tatara-lisp tree and runs on a Rust runtime. It has one formatting, rigor where you write it, and most of its vocabulary in packages called bidamas.
+> blue is a general-purpose language with a Ruby/Elixir surface that parses to a tatara-lisp tree and runs on a Rust runtime. It has one formatting, rigor where you write it, safety first, and most of its vocabulary in packages called bidamas.
 
 ---
 
@@ -19,9 +19,10 @@ parses to a [tatara-lisp](https://github.com/pleme-io/tatara-lisp) tree,
 macros rewrite that tree, and a Rust runtime runs it, not the BEAM. Each
 thing has one spelling, and the formatter writes it. Rigor is your choice:
 declare nothing and a program is dynamic and fast; annotate one function and
-that function is checked. The standard library is a set of packages called
-bidamas, and one `Bluefile` says how a project is built, tested, rendered and
-shipped.
+that function is checked. Safety is not a choice: a program reaches the host
+only through the capabilities it is given. The standard library is a set of
+packages called bidamas, and one `Bluefile` says how a project is built,
+tested, documented and shipped.
 
 The philosophy is two axes
 ([`theory/BLUE.md`](https://github.com/pleme-io/theory/blob/main/BLUE.md) §0).
@@ -29,6 +30,38 @@ The philosophy is two axes
 thing, every larger form is built from smaller ones, and every tool and gate
 enforces it. **Rigor has every choice:** a program is as strict as you write
 it, where you write it, and pays for nothing else.
+
+A file is a program, a library and its tests at once:
+
+```blue file=words.b
+@doc """
+shout: The text in capitals, with an exclamation mark.
+
+    shout("olá") #=> "OLÁ!"
+"""
+def shout(text: String) -> String
+  "#{upcase(text)}!"
+end
+
+def main()
+  write_stdout(unlines([join(map(shout, argv), " ")]))
+end
+
+test "shout raises its voice and keeps the text"
+  assert shout("oi") == "OI!"
+  assert shout("") == "!"
+end
+```
+
+```console
+$ blue words.b olá mundo
+OLÁ! MUNDO!
+$ blue test words.b
+2 test(s): 2 passed, 0 failed
+```
+
+The example in the `@doc` is the second test: `blue test` runs it beside the
+`test` block, so a documented example cannot drift from the code.
 
 ## The blueshift
 
@@ -72,64 +105,241 @@ some declarations are typed; untyped ones are unchecked
   → type annotation          `fact` is annotated, so it is checked
 ```
 
-The mark is a blueshift too: four solid cells walk Nord's Frost band toward
-blue. A blueshift is a shift in colour, so the mark shifts colour. It names
-each colour by ANSI slot, never by hex, so it renders in your Nord and
-follows you when you retheme.
+The language server closes the gap for you: on a loose definition it offers a
+code action that writes the types its calls showed.
+
+## Safety first
+
+Every effect outside the program is a capability: `process`, `filesystem`,
+`environment`, `clock`, `network` or `entropy`. `--allow` holds a run to the
+ones you name, and the check stage refuses the program before it runs when it
+writes a host name outside them:
+
+```blue file=peek.b
+def main()
+  write_stdout(read_file("words.b"))
+end
+```
+
+```console fails
+$ blue --allow none peek.b
+refused: `read_file` reaches the host (filesystem), which this run does not allow; pass --allow filesystem to grant it
+```
+
+A script states its capabilities in its shebang,
+`#!/usr/bin/env -S blue --allow filesystem`. A project states them once in its
+`Bluefile`: `allow` is the ceiling of the whole program, `reach` is the floor
+each package needs, and `blue lock` refuses a package whose floor does not fit
+under the ceiling. `virtualize` binds a capability to a pure provider, such as
+a stepped clock, a seeded random source or an in-memory file tree, for the
+whole program or only for the packages you name. An evaluation session
+(`eval`, `repl`, `serve`) is pure unless you start it with `--allow`. Every
+Rust guarantee, the blue gate that matches it and its off switch are in
+[Safety first](docs/SAFETY.md).
+
+## What ships
+
+| Battery | What you get | Read |
+|---|---|---|
+| The language | macros as term rewriting, with bounded expansion; errors raised and rescued by kind, or returned as refusals; OTP-style processes with private environments, copy-on-send and supervised restarts | [the reference](docs/REFERENCE.md), [the agent guide](AGENTS.md) |
+| Tests | `test` blocks beside the code, a doctest in every `@doc`, coverage, mutation testing, and a conformance suite every evaluator must pass | [Testing](docs/TESTING.md), [the spec](spec/README.md) |
+| Tools | one formatter; a check stage whose rules carry their own fixes; a language server with hover, completion, definitions, references, rename, signature help, semantic tokens, inlay hints and code actions; a REPL; `watch`, `profile`, `trace` and code queries | [Diagnostics](docs/DIAGNOSTICS.md) |
+| Packages | bidamas, each a namespace; a `Bluefile` that is itself a blue program, pinned by its lock; registries rendered as publish workflows | [Authoring](bidamas/AUTHORING.md), [Registry](docs/REGISTRY.md) |
+| Shipping | a Bluefile `app`, `image` (built by nix, distroless by default), `workload` and `service` (Kubernetes objects and a Helm chart, committed and gated fresh for GitOps), and `blue diff`, read-only | [the build stack](docs/BUILD-STACK.md) |
+| Services | configuration (`settei`), entries each off or refused alone (`kousei`), postures (`shisei`), request defence (`bougyo`), retries (`saishikou`); HTTP, NATS, PostgreSQL, Valkey and JetStream; HTTP/2 framing and HPACK in pure blue | [Service architecture](docs/SERVICE-ARCHITECTURE.md), [HTTP/2](docs/HTTP2.md) |
+| Documentation | this README, `AGENTS.md`, `llms.txt` and the book, rendered from one source per fact, every example run | [Documentation](docs/DOCUMENTATION.md), [Markdown](docs/MARKDOWN.md) |
+| Editors | a tree-sitter grammar generated from blue's own grammar spec | [tree-sitter](docs/NATURALIZE-TREESITTER.md) |
+| WebAssembly | the whole pipeline compiled to `wasm32-unknown-unknown` with no host imports at all | [`blue-lang-wasm`](crates/blue-lang-wasm) |
 
 ## Commands
 
-| Command | |
+Every command `blue` takes, read from its own argument parser when this file
+was rendered. `blue help COMMAND` shows each one's flags.
+
+| Command | What it does |
 |---|---|
-| `blue FILE ARGS` | run a program as a script: quiet, every argument after the file reaches `argv` |
-| `blue run FILE` | parse, check, erase and run, then print the final value |
-| `blue test FILE` | check the file, then run its `test` blocks and its doctests |
-| `blue fmt FILE [--check\|--write]` | the one formatting |
-| `blue check FILE` | every rule, and what the type checker did |
-| `blue shift FILE` | the blueshift: how far the file is checked, and what holds it back |
-| `blue doc NAME` | what a name is: signature, doc line, tier and an example |
-| `blue new NAME` | a project; `--bidama NAME` a package; `--script NAME.b` a script |
-| `blue ast FILE` / `blue erase FILE` | the tree with and without annotations |
-| `blue lock DIR` | evaluate a `Bluefile` into `Bluefile.lock` |
-| `blue reference` | the language reference, as JSON |
-| `blue lsp` | the language server over stdio |
-| `blue repl` / `blue eval EXPR` | an evaluation session at the terminal, or one expression |
-| `blue banner` | the wordmark |
+| `blue FILE [ARGS]...` | Run a program as a script: quiet, and every argument after the file reaches `argv`. |
+| `blue run FILE [ARGS]...` | Parse, type-check, erase, and execute a program. |
+| `blue fmt FILE...` | Format a program. |
+| `blue ast FILE` | Print the tatara-lisp form, annotations intact. |
+| `blue erase FILE` | Print the tatara-lisp form after type erasure — what actually runs. |
+| `blue check FILE` | Check a program against every rule in the registry — unbound names, unused bindings, types, waivers — and report the typing analysis. |
+| `blue query QUERY [PATHS]...` | Every definition under PATH (files, or directories of `.b` files; `.` when none) that satisfies QUERY, one line per hit: `file:line:col: definition  name = value…`. |
+| `blue migrate FILES...` | Make every reference each FILE makes to another bidama's definition explicit (`use("retsu", [:first])`, and the bidama's `needs`), keeping a file only when its resolved tree is proven unchanged. |
+| `blue doc [NAME]` | What NAME is: its signature, doc line, namespace, tier and an example, for a builtin, `pkg::name`, or a bare name across the builtins and every bidama on BLUE_PATH; a bidama's name lists the package. |
+| `blue verbs ARGS...` | The verb graph (`bidamas/mokuroku/graph`): `import` region or merged TSVs into its row files, `export` them back to TSV (the only writer of TSV), `check` its gates against the recorded baseline, `findings` of a TSV directory. |
+| `blue explain-name NAME AT` | How a bare NAME resolves at FILE:LINE: every tier of the resolution order, what each holds, and which wins. |
+| `blue census [ROOT]` | Count, over every `.b` file under ROOT, each finding of every rule still being ratcheted in, and fail unless each count equals its registry row's `ratchet`. |
+| `blue explain [CODE]` | Explain a diagnostic code (`blue explain B0001`), or list them all. |
+| `blue test FILE` | Check the file (as `blue check` does), then run its `test` blocks. |
+| `blue profile FILE [ARGS]...` | Run a program and report every function it called: calls, inclusive and exclusive time, and what it allocated, most exclusive time first. |
+| `blue trace DEF FILE [ARGS]...` | Run a program and print each call of DEF with its arguments, and each exit with its value, to stderr. |
+| `blue deps FILE` | Resolve a Bluefile's dependencies. |
+| `blue posture FILE` | Report the posture a Bluefile's declared floor requires. |
+| `blue bluefile FILES...` | Print a Bluefile's evaluated manifest, or confirm its lock is fresh. |
+| `blue lock [DIRS]...` | Evaluate each directory's Bluefile, pin every `source(...)` with `nix flake prefetch`, and write `Bluefile.lock` beside it. |
+| `blue lsp` | Run the language server, speaking LSP over stdin/stdout. |
+| `blue serve` | Serve one evaluation session as JSON lines on stdin/stdout (`theory/BLUE-TOOLING.md` §4): the door an editor drives. |
+| `blue repl` | An evaluation session at the terminal. |
+| `blue eval TARGET` | Evaluate EXPR, or the top-level form at FILE:LINE:COL in that file's context, and print its value. |
+| `blue banner` | Print blue's wordmark. |
+| `blue shift FILE` | Report the blueshift: how far this program is shifted, and what is shifting it. |
+| `blue morph` | The morphology: what each posture grants, what it forfeits, which pairs are genuinely exclusive, and which language each shape corresponds to. |
+| `blue reference` | Print the language reference as JSON: operators, keywords, surface forms, Bluefile words, every bound name and every command, each read from the table the implementation runs on. |
+| `blue replay TRACE` | Run a crashed process again from the trace its crash wrote, and say whether it crashed the same way. |
+| `blue config [TIER]` | Show the bounds `blue` is running with, at any tier. |
+| `blue new NAME` | Start a program (a project with its own bidama), a `--bidama`, or a `--script`, each passing `blue test` as written. |
+| `blue watch [CMD] PATH... [-- ARGS]...` | Rerun `check` (the default), `test` or `run` over each PATH whenever a watched file changes: `blue watch test lib.b`. |
+| `blue image build [NAME] [-- NIX_ARGS]...` | Build an `image(...)` through nix and report the tarball, its size and its layers. |
+| `blue workload render [NAME]` | Print a workload's rendered objects, or with `--write` rewrite every workload's committed `output` file. |
+| `blue diff [NAME]` | Compare the committed workload files with a cluster, read-only: exit 0 when they agree, 1 when they differ, 2 when the comparison failed. |
+| `blue registry render [BACKEND]` | Print one backend's workflow, or with --write rewrite every standing backend's committed output. |
+| `blue registry status` | The sui state of every pin: warm on the origin SUI_CACHE_URL names, cold, or absent; never fails. |
 
-## What is here
+## The language in numbers
 
-Macros with **bounded expansion**: a runaway macro is a typed error that
-names the macro, not a dead compiler. OTP-style **supervision** with private
-per-process environments and copy-on-send. A **test framework** whose
-failures print the expression as blue source, and **doctests** in every
-`@doc`. A **package manager** whose manifest is itself a blue program. A
-**WASM** target that runs the whole language with zero host imports.
+Counted from the tables the implementation runs on, when this file was
+rendered:
 
-## What is not
+| | |
+|---|---|
+| Built-in names | 307: 280 functions, 14 special forms, 13 macros |
+| Surface forms | 29, with 13 operators and 24 reserved words |
+| Check rules | 65: 37 fix themselves, 7 suggest a fix |
+| Bluefile words | 21 |
+| Commands | 37 |
+
+## The standard library
+
+<details>
+<summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
+
+85 packages, 4651 definitions, 1526 tests.
+
+- [anaritikusu](bidamas/CATALOG.md#anaritikusu) (アナリティクス) — lifecycle analytics: a database of telemetry, standard models and cross-lifecycle joins, generated from lifecycle definitions.
+- [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
+- [bougyo](bidamas/CATALOG.md#bougyo) (防御) — the request-side defence of a service: security headers, a request id, and limits on what a request may be.
+- [chokkan](bidamas/CATALOG.md#chokkan) (直感) — System One judgment: typed questions in, calibrated answers out.
+- [danpen](bidamas/CATALOG.md#danpen)
+- [deeta](bidamas/CATALOG.md#deeta) (データ) — JSON data, read safely.
+- [empresa](bidamas/CATALOG.md#empresa)
+- [fairu](bidamas/CATALOG.md#fairu)
+- [gamen](bidamas/CATALOG.md#gamen)
+- [gitto](bidamas/CATALOG.md#gitto)
+- [gurafu](bidamas/CATALOG.md#gurafu) (グラフ) — directed graphs as values: build them, ask them, order them.
+- [gyouretsu](bidamas/CATALOG.md#gyouretsu) (行列) — vectors and matrices as nested lists.
+- [hadome](bidamas/CATALOG.md#hadome) (歯止め) — a baseline ratchet: recorded debt may shrink or hold, never grow.
+- [haibi](bidamas/CATALOG.md#haibi)
+- [happa](bidamas/CATALOG.md#happa) (葉っぱ) — a template's leaves: their declaration, split, graph, change, schedule and verdicts, as pure decisions.
+- [heddaa](bidamas/CATALOG.md#heddaa) (ヘッダー) — header fields as HTTP/2 carries them: HPACK (RFC 7541).
+- [heni](bidamas/CATALOG.md#heni) (変異) — mutation testing for a blue package: each mutation changes one literal in a fresh copy of the package, runs its tests, and must make them fail.
+- [hikisuu](bidamas/CATALOG.md#hikisuu) (引数) — command-line arguments: one declared spec is parsed into a record, rendered as help, and answered as shell completion.
+- [hizuke](bidamas/CATALOG.md#hizuke) (日付) — the proleptic Gregorian calendar, as arithmetic.
+- [hon](bidamas/CATALOG.md#hon) (本) — a project's book: its pages, each of one Diátaxis kind, rendered into the files a reader or an agent opens.
+- [hyouka](bidamas/CATALOG.md#hyouka)
+- [jisho](bidamas/CATALOG.md#jisho)
+- [jitaku](bidamas/CATALOG.md#jitaku) (自宅) — a home, declared entry by entry, each refused alone, projected to pleme.lareira.
+- [junjo](bidamas/CATALOG.md#junjo) (順序) — ordering: sorting, searching, selection.
+- [kakou](bidamas/CATALOG.md#kakou) (加工) — fabrication: folded sheet, cut tube and bent wire, from the dimensions a shop measures to the blanks, cut lists and solids it makes.
+- [kansuu](bidamas/CATALOG.md#kansuu) (関数) — functions about functions.
+- [kazu](bidamas/CATALOG.md#kazu) (数) — numbers.
+- [keisoku](bidamas/CATALOG.md#keisoku)
+- [keiyu](bidamas/CATALOG.md#keiyu) (経由) — by way of: run one command with a proxy set for it alone.
+- [kiibariu](bidamas/CATALOG.md#kiibariu) (キーバリュー) — Valkey and Redis over the runtime's RESP words.
+- [kijun](bidamas/CATALOG.md#kijun) (基準) — the standard a private nix fleet repo is held to, as data: layout, expression and evaluated-tree rules, per-entry waivers, and a baseline ratchet.
+- [kikagaku](bidamas/CATALOG.md#kikagaku) (幾何学) — plane geometry on [x, y] points.
+- [kinji](bidamas/CATALOG.md#kinji) (近似) — approximation: numerical methods: ODEs, roots, minimisation, least squares, interpolation and quadrature.
+- [kinko](bidamas/CATALOG.md#kinko)
+- [kirikae](bidamas/CATALOG.md#kirikae)
+- [kiwari](bidamas/CATALOG.md#kiwari) (木割): one grammar spec, every syntax artifact emitted from it.
+- [kousei](bidamas/CATALOG.md#kousei) (構成) — a system composed entry by entry: each entry checked, configured off, tuned or refused alone, then judged into what stands.
+- [koutei](bidamas/CATALOG.md#koutei) (工程) — one step of a pipeline, as GitHub Actions runs it.
+- [kueri](bidamas/CATALOG.md#kueri) (クエリ) — queries: analysis is authored in blue, and SQL is only the rendered bridge to DuckDB.
+- [kumiawase](bidamas/CATALOG.md#kumiawase) (組み合わせ) — counting without enumerating.
+- [kyasshu](bidamas/CATALOG.md#kyasshu)
+- [kyohi](bidamas/CATALOG.md#kyohi) (拒否) — refusals, as data.
+- [kyuuji](bidamas/CATALOG.md#kyuuji)
+- [maakuappu](bidamas/CATALOG.md#maakuappu) (マークアップ) — XML as data: a document parsed by the runtime's xml_parse (quick-xml) into element maps {name, attributes, children, text}, the queries a reader of a scanner export asks of it (children and descendants by name, attributes, text, a path of element names), and the element rendered back with every value escaped. A DTD entity is never expanded or fetched: the document is refused (:xml_refused), and a document that is not well-formed raises :xml_malformed.
+- [moji](bidamas/CATALOG.md#moji) (文字) — strings.
+- [mokuroku](bidamas/CATALOG.md#mokuroku) (目録): the catalogue of what every bidama on a BLUE_PATH provides.
+- [nikkusu](bidamas/CATALOG.md#nikkusu) (ニックス) — Nix source as data: rnix's lossless tree from nix_parse, and the queries a linter asks of it (attrpath bindings, calls by head, with scopes, angle paths, option declarations).
+- [nisshi](bidamas/CATALOG.md#nisshi) (日誌) — an event log: append-only JSON Lines, hash-chained, optionally signed, replayed into lifecycle states.
+- [okite](bidamas/CATALOG.md#okite) (掟) — blue's decisions, each enforced by laws written in blue.
+- [ongaku](bidamas/CATALOG.md#ongaku) (音楽) — twelve-tone music theory, as arithmetic on semitones.
+- [outou](bidamas/CATALOG.md#outou) (応答) — a GraphQL request answered: a schema of blue resolvers, execution to {data, errors}, introspection and subscription events, over danpen's documents.
+- [raifusaikuru](bidamas/CATALOG.md#raifusaikuru) (ライフサイクル) — lifecycles: event-sourced states, guards that name the rule and the task, and permit limits.
+- [ran](bidamas/CATALOG.md#ran) (乱) — deterministic pseudo-randomness.
+- [retsu](bidamas/CATALOG.md#retsu) (列) — lists, made TOTAL.
+- [rittai](bidamas/CATALOG.md#rittai) (立体) — solids: poses, triangle meshes built by extrusion and sweep, their validity, volume and centroid, and STL.
+- [rogu](bidamas/CATALOG.md#rogu) (ログ) — logging: one structured line per call, JSON on stderr.
+- [ronri](bidamas/CATALOG.md#ronri) (論理) — predicates, and the algebra over them.
+- [ryouiki](bidamas/CATALOG.md#ryouiki) (領域) — region: which region of the inputs produces an outcome.
+- [sabi](bidamas/CATALOG.md#sabi) (錆): Rust source from blue data. Build the items as values, render once.
+- [saishikou](bidamas/CATALOG.md#saishikou) (再試行) — retrying a step that can fail for a moment.
+- [seimei](bidamas/CATALOG.md#seimei) (生命) — cellular automata: elementary rules, and Life.
+- [settei](bidamas/CATALOG.md#settei) (設定) — configuration, blue's shikumi: a record of defaults grouped by concern, resolved by read(app, defaults) from the defaults, then ~/.config/<app>/<app>.yaml (or <APP>_CONFIG), then <APP>_<GROUP>__<KEY> in the environment, each value typed by its default and a wrong type refused. The resolved record is read by dotted path; a misspelt path raises and names the fields that exist.
+- [shihyou](bidamas/CATALOG.md#shihyou)
+- [shinchoku](bidamas/CATALOG.md#shinchoku)
+- [shinsuu](bidamas/CATALOG.md#shinsuu) (進数) — base conversion and checksums.
+- [shisei](bidamas/CATALOG.md#shisei) (姿勢) — a service's posture: postures declared as kousei entries, each on by default, each configured off or tuned, each refused alone.
+- [shisutemu](bidamas/CATALOG.md#shisutemu) (システム) — the system.
+- [shomei](bidamas/CATALOG.md#shomei) (署名) — signatures and hash chains: Ed25519 and BLAKE3, for real.
+- [shuugou](bidamas/CATALOG.md#shuugou) (集合) — sets, over plain lists.
+- [shuusei](bidamas/CATALOG.md#shuusei) (修正) — amending declared data: put a value at a path, delete it, merge into it, upsert a list element, and amend a keyed set of objects by judged patch entries.
+- [souji](bidamas/CATALOG.md#souji) (掃除) — cleaning a node: Rust target/ directories nobody is building in, and nix store paths nothing refers to, with a dry run first.
+- [sutoriimu](bidamas/CATALOG.md#sutoriimu) (ストリーム) — NATS JetStream over the runtime's NATS words.
+- [tajuu](bidamas/CATALOG.md#tajuu) (多重) — multiplexing: HTTP/2's frames and the streams they carry
+- [teeburu](bidamas/CATALOG.md#teeburu) (テーブル) — a service's tables: rows over the runtime's pg_ words, and versioned data models that evolve in pure blue.
+- [tehai](bidamas/CATALOG.md#tehai) (手配) — which nix remote builders can take work right now: every declared machine checked, and only the live ones written where nix reads them.
+- [tesuto](bidamas/CATALOG.md#tesuto) (テスト) — testing: errors and snapshots as assertions, and the policy that holds every definition to a test beside it.
+- [tokumei](bidamas/CATALOG.md#tokumei) (匿名) — anonymity: learn what a group is without exposing anyone in it.
+- [toukei](bidamas/CATALOG.md#toukei) (統計) — descriptive statistics.
+- [touroku](bidamas/CATALOG.md#touroku) (登録) — registry: a project published to and resolved from registry backends, each a rendering of the Bluefile, never its truth.
+- [tsuiseki](bidamas/CATALOG.md#tsuiseki)
+- [tsuushin](bidamas/CATALOG.md#tsuushin)
+- [ugoki](bidamas/CATALOG.md#ugoki)
+- [ukai](bidamas/CATALOG.md#ukai) (迂回) — a detour: keep an overlay VPN reaching its control plane and relays while a full-tunnel corporate VPN owns the default route.
+- [zenbu](bidamas/CATALOG.md#zenbu) (全部) — the whole distribution, as ONE dependency.
+- [zumen](bidamas/CATALOG.md#zumen) (図面) — technical drawings: 2-D entities on layers, sheets with a title block, feature-edge views of solids, written as DXF R12 and SVG.
+
+</details>
+
+## What is not built
 
 blue states its gaps plainly, because a language's honest gaps matter more
-than its claims:
+than its claims. This list is the one in
+[Implementing blue](docs/implementing.md#what-is-not-built), rendered here:
 
-- **No per-process GC heap.** Processes have private environments and
-  messages are deep-copied, but reclamation is `Arc` refcounting. There is no
-  independent per-process collection pause.
-- **Not self-hosted.** The toolchain is Rust. `spec/*.b` is blue specifying
-  blue, which is the specification axis only.
-- **Nothing fetches.** Dependency resolution is real; there is no registry
-  client.
-- **The formatter refuses a comment it cannot place.** It keeps comments
-  before and after a top-level form. It refuses a comment inside an
-  expression rather than drop it.
-
-The full tier ledger, every row marked SHIPPED or ABSENT, is
-[`theory/BLUE.md`](https://github.com/pleme-io/theory/blob/main/BLUE.md) §V.26.
+Stated so nobody cites it as existing: **no per-process GC heap** (processes have
+private environments and messages are deep-copied, but reclamation is `Arc`
+refcounting — no independent collection pause), **no registry client** (resolution
+is real; nothing fetches), **no self-hosting on the implementation axis**
+(`spec/*.b` is the specification axis only), **no comment attachment inside a
+form**, **no entropy primitive and no encryption** (the `crypto` layer hashes,
+signs and verifies; a keypair comes from a seed the caller supplies),
+**no TLS** (`net` speaks NATS and HTTP over plain TCP: an `https://` url and a
+NATS server requiring TLS are refused by name; planned in `docs/HTTP2.md` P4,
+rustls with ALPN `h2`),
+**no import EMISSION into a wasm module** (`blue_lang_waku::imports_of`
+derives the table from a frame — nothing puts an entry into a `.wasm`, and no
+engine border is wired: that is `BLUE-EXECUTION.md` M2, blocked on `tatara-wasm`
+not being on crates.io), **no editor answer inside a broken buffer** (the
+LSP answers from the newest revision that parsed until the parser recovers,
+`BLUE-ENGINE.md` E6), **project rules in the editor or as wasm** (`blue check`
+runs them in-process under the rule frame; the LSP does not run them, and the
+ABI is shaped for a wasm module that nothing builds yet), and no **`case`/`when` pattern matching** or **ranges** — the two remaining
+surface gaps a Ruby or Elixir author would reach for. `theory/BLUE.md` §V.26 holds the tier ledger; **do not build against a
+DESIGN-tier row without saying so.**
 
 ## Theming
 
 Colours come from [irodori](https://github.com/pleme-io/irodori), the fleet's
 Nord palette. blue carries no hex of its own. `nord10` (`#5E81AC`, deep frost
 blue) is its identity, and `nord8` frost cyan stays the fleet's shared
-interaction colour: identity and interaction are different roles.
+interaction colour: identity and interaction are different roles. The mark is
+a blueshift too: four solid cells walk Nord's Frost band toward blue. It names
+each colour by ANSI slot, never by hex, so it renders in your Nord and follows
+you when you retheme.
 
 ## Building blue
 
@@ -140,7 +350,10 @@ $ cargo test --workspace
 ```
 
 `nix build` is hermetic. `nix flake check` runs every gate the root
-`Bluefile` declares. Changing blue itself starts at [AGENTS.md](AGENTS.md).
+`Bluefile` declares. This README is rendered by `hon` from
+[`docs/introduction.md`](docs/introduction.md), the first tutorial, the
+implementation's own tables and the catalogue; edit those, then run
+`nix run .#regen`. Changing blue itself starts at [AGENTS.md](AGENTS.md).
 
 MIT.
 

@@ -85,6 +85,7 @@ mod scaffold;
 mod script;
 mod sigint;
 mod watch;
+mod witness;
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;

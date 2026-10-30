@@ -109,10 +109,10 @@ impl Identity {
     }
 }
 
-/// The store's directory when nothing names one: `$XDG_CACHE_HOME/blue/memo`,
-/// else `$HOME/.cache/blue/memo`.
+/// blue's cache directory: `$XDG_CACHE_HOME/blue`, else `$HOME/.cache/blue`.
+/// Every persistent tier lives under it, one directory each.
 #[must_use]
-pub fn default_root() -> Option<PathBuf> {
+pub fn cache_root() -> Option<PathBuf> {
     let base = std::env::var_os("XDG_CACHE_HOME")
         .filter(|v| !v.is_empty())
         .map(PathBuf::from)
@@ -122,7 +122,13 @@ pub fn default_root() -> Option<PathBuf> {
                 .filter(|v| !v.is_empty())
                 .map(|h| PathBuf::from(h).join(".cache"))
         })?;
-    Some(base.join("blue").join("memo"))
+    Some(base.join("blue"))
+}
+
+/// The store's directory when nothing names one: [`cache_root`]`/memo`.
+#[must_use]
+pub fn default_root() -> Option<PathBuf> {
+    Some(cache_root()?.join("memo"))
 }
 
 /// One stored entry.

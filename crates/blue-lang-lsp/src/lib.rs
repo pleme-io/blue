@@ -22,8 +22,10 @@
 //! it), `definition` (into bidamas), `references`, `rename` with
 //! `prepareRename` (refused when the new name would change what any
 //! reference means), `documentSymbol`, `workspace/symbol`, `signatureHelp`,
-//! `codeAction` (each diagnostic's fixes, and `source.fixAll`, which is
-//! `blue check --fix`), `semanticTokens/full`, `inlayHint` (each top-level
+//! `codeAction` (each diagnostic's fixes, `source.fixAll`, which is
+//! `blue check --fix`, and `blueshift: lock invariants`, which types a loose
+//! `def` from what its calls showed, [`lock`]), `semanticTokens/full`,
+//! `inlayHint` (each top-level
 //! expression's value, from live evaluation, [`live`]) — plus **`blue/shift`**, a
 //! custom request answering "how far is this shifted, and what is shifting
 //! it" ([`shift`]). Blueshift is blue's central model; a model that governs
@@ -47,6 +49,7 @@
 
 pub mod analysis;
 pub mod live;
+pub mod lock;
 pub mod server;
 pub mod shift;
 pub mod tokens;

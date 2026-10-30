@@ -16,6 +16,12 @@
 //! Examples run one line at a time in the document's context, after its
 //! expressions, so a binding an example makes is seen by the examples after
 //! it, never by an expression.
+//!
+//! [`witness`] then runs the document as `blue test` does, its expressions,
+//! examples and `test` blocks, held to the same frame and limits, with a
+//! `blue_lang_mondou::witness::Witness` on the call hook: the evidence
+//! `blueshift: lock invariants` ([`crate::lock`]) reads. A session has no call
+//! hook of its own, so this is a second run of the same items.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::panic::{catch_unwind, AssertUnwindSafe};
@@ -24,9 +30,14 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc};
 use std::time::Duration;
 
+use blue_lang_mondou::witness::{Witness, Witnessed};
+use blue_lang_runtime::observe::CallObserver;
+use blue_lang_runtime::pipeline::{check_entry, Checking};
 use blue_lang_runtime::session::{pure_frame, Config, Load, Session, Stop};
-use blue_lang_runtime::uses::{Frontend, Loader, ResolvedProgram};
+use blue_lang_runtime::uses::{Entry, Frontend, Loader, ResolvedProgram};
+use blue_lang_runtime::Hold;
 use blue_lang_syntax::{Span, Spanned};
+use blue_lang_test::{run_guarded, Guard};
 
 use crate::analysis::{Diagnostic, LineIndex, Position, Severity};
 
@@ -225,6 +236,56 @@ pub fn evaluate(
     drop(finished);
     let _ = watchdog.join();
     found
+}
+
+/// What `text`'s executions showed: its expressions, `@doc` examples and
+/// `test` blocks, run by `blue test`'s runner under the pure frame, the
+/// preamble and then each test held to [`Limits::steps`], and the whole to
+/// [`Limits::wall`]. Empty when the
+/// document does not check; `None` when `cancel` superseded the run.
+#[must_use]
+pub fn witness(
+    text: &str,
+    path: &Path,
+    loader: &dyn Loader,
+    limits: Limits,
+    cancel: &Cancel,
+) -> Option<Witnessed> {
+    let entry = Entry {
+        path: Some(path),
+        text,
+    };
+    let checked = catch_unwind(AssertUnwindSafe(|| {
+        check_entry(entry, loader, None, Checking::WithTests)
+    }));
+    let checked = match checked {
+        Ok(Ok(c)) if c.outcome.ok() => c,
+        _ => return Some(Witnessed::default()),
+    };
+    cancel.interrupt.store(false, Ordering::SeqCst);
+    if cancel.superseded() {
+        return None;
+    }
+    let cut = Arc::new(AtomicBool::new(false));
+    let (finished, watchdog) = watch(limits.wall, &cancel.interrupt, &cut);
+    let guard = Guard {
+        hold: Some(Hold::from(pure_frame())),
+        steps: Some(limits.steps),
+        interrupt: Some(Arc::clone(&cancel.interrupt)),
+    };
+    let seen = catch_unwind(AssertUnwindSafe(|| {
+        let witness = Arc::new(Witness::of_checked(&checked, None));
+        let observer: Arc<dyn CallObserver> = witness.clone();
+        let _ = run_guarded(&checked, None, Some(observer), &guard);
+        witness.witnessed()
+    }))
+    .unwrap_or_default();
+    drop(finished);
+    let _ = watchdog.join();
+    if cancel.superseded() {
+        return None;
+    }
+    Some(seen)
 }
 
 fn watch(

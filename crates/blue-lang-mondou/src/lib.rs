@@ -17,7 +17,9 @@
 //! A call of a definition [`reach`] proves pure can be answered by its
 //! `def_hash` and its arguments' encoding ([`canon`]): [`recall::Recall`]
 //! holds those answers for one run and [`store::Store`] keeps them on disk
-//! between runs. Both are off unless a door turns them on.
+//! between runs. Both are off unless a door turns them on. The same hook
+//! and store keep what each loose definition's calls showed
+//! ([`witness`]), by the same `def_hash`, for `blueshift: lock invariants`.
 //!
 //! The check stage is the pipeline's (`blue_lang_runtime::pipeline::
 //! check_entry`), handed a [`Loader`] that answers from these memos, so the
@@ -41,6 +43,7 @@ pub mod reach;
 pub mod recall;
 mod signature;
 pub mod store;
+pub mod witness;
 
 use std::cell::{OnceCell, RefCell};
 use std::collections::{BTreeMap, HashMap};
@@ -490,10 +493,7 @@ impl Analysis {
         self.def_hashes
             .get_or_init(|| {
                 let c = self.checked()?;
-                let docs = program_docs(&c.program);
-                Some(def_hash::hash_program_documented(self.lowered()?, &|i| {
-                    docs.get(&i).cloned()
-                }))
+                Some(hash_checked(&c.program, self.lowered()?))
             })
             .as_ref()
     }
@@ -651,6 +651,16 @@ impl Analysis {
             Err(_) => Vec::new(),
         }
     }
+}
+
+/// Every definition of a checked `program` hashed as the engine hashes it
+/// ([`Analysis::def_hashes`]): its `lowered` tree with its `@doc` text. The one
+/// door, so a hash computed outside the engine (a witnessed run,
+/// [`witness`]) names the same definition the engine does.
+#[must_use]
+pub fn hash_checked(program: &ResolvedProgram, lowered: &[Spanned]) -> DefHashes {
+    let docs = program_docs(program);
+    def_hash::hash_program_documented(lowered, &|i| docs.get(&i).cloned())
 }
 
 /// The `@doc` text of every documented top-level form of `program`, by its

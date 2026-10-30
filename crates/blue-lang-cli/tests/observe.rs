@@ -24,7 +24,8 @@ fn blue() -> Command {
     c.env_remove("BLUE_PATH")
         .env_remove("BLUE_CONFIG")
         .env_remove("BLUE_TIER")
-        .env_remove("BLUE_MEMO");
+        .env_remove("BLUE_MEMO")
+        .env_remove("BLUE_WITNESS");
     c
 }
 
@@ -349,6 +350,61 @@ fn blue_test_under_the_memo_reports_what_it_reports_without() {
             .expect("spawn blue");
         assert!(o.status.success(), "{memo}: {}{}", out(&o), err(&o));
     }
+}
+
+/// Every file under `root`, read whole.
+fn files_under(root: &std::path::Path) -> Vec<Vec<u8>> {
+    let Ok(entries) = std::fs::read_dir(root) else {
+        return Vec::new();
+    };
+    entries
+        .flatten()
+        .flat_map(|e| {
+            let p = e.path();
+            if p.is_dir() {
+                files_under(&p)
+            } else {
+                vec![std::fs::read(&p).expect("read a store file")]
+            }
+        })
+        .collect()
+}
+
+/// **`blue test` records what each loose definition's calls showed**, in
+/// the witness store under `XDG_CACHE_HOME`, where the language server reads
+/// it; `BLUE_WITNESS=off` records nothing.
+///
+/// Red run (2026-10-30): `witness::finish` not called: the store holds no
+/// file, `left: 0, right: 1`.
+#[test]
+fn blue_test_records_the_witness_and_off_records_nothing() {
+    let d = dir("witness");
+    let f = write(
+        &d,
+        "t.b",
+        "def inc(x)\n  x + 1\nend\n\ntest \"inc\"\n  assert inc(1) == 2\nend\n",
+    );
+    let off = blue()
+        .env("XDG_CACHE_HOME", d.join("off"))
+        .env("BLUE_WITNESS", "off")
+        .args(["test", f.to_str().unwrap()])
+        .output()
+        .expect("spawn blue");
+    assert!(off.status.success(), "{}{}", out(&off), err(&off));
+    assert!(files_under(&d.join("off/blue/witness")).is_empty());
+    let on = blue()
+        .env("XDG_CACHE_HOME", d.join("on"))
+        .args(["test", f.to_str().unwrap()])
+        .output()
+        .expect("spawn blue");
+    assert!(on.status.success(), "{}{}", out(&on), err(&on));
+    let files = files_under(&d.join("on/blue/witness"));
+    assert_eq!(files.len(), 1, "one definition ran");
+    assert!(
+        files[0].windows(10).any(|w| w == b"Int -> Int"),
+        "{:?}",
+        String::from_utf8_lossy(&files[0])
+    );
 }
 
 #[test]

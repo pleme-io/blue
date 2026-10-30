@@ -502,6 +502,20 @@ struct Block<'a> {
     top_level: usize,
 }
 
+/// What a run is held to beyond its program. The default holds it to
+/// nothing more, as `blue test` runs.
+#[derive(Clone, Debug, Default)]
+pub struct Guard {
+    /// The frame and providers: every host name it withholds raises the
+    /// capability breach, in the preamble, every test and every process they
+    /// start.
+    pub hold: Option<blue_lang_runtime::Hold>,
+    /// Steps the preamble, and then each test, may take.
+    pub steps: Option<usize>,
+    /// Set from another thread to halt the run.
+    pub interrupt: Option<Arc<AtomicBool>>,
+}
+
 /// Run the test blocks of a checked program whose name contains `filter`,
 /// on the tree `blue run` evaluates.
 ///
@@ -515,6 +529,18 @@ pub fn run_checked(
     checked: &blue_lang_runtime::pipeline::Checked,
     filter: Option<&str>,
     observer: Option<Arc<dyn blue_lang_runtime::observe::CallObserver>>,
+) -> Report {
+    run_guarded(checked, filter, observer, &Guard::default())
+}
+
+/// [`run_checked`] held to `guard`: what the language server runs to watch a
+/// document's tests without letting them reach the host or run away.
+#[must_use]
+pub fn run_guarded(
+    checked: &blue_lang_runtime::pipeline::Checked,
+    filter: Option<&str>,
+    observer: Option<Arc<dyn blue_lang_runtime::observe::CallObserver>>,
+    guard: &Guard,
 ) -> Report {
     use blue_lang_runtime::observe::Fault;
     let erased = checked.erased();
@@ -541,6 +567,19 @@ pub fn run_checked(
 
     let mut report = Report::default();
     let mut prototype = blue_lang_runtime::interpreter_hostless();
+    if let Some(hold) = &guard.hold {
+        hold.bind(&mut prototype, "this run's frame");
+        blue_lang_runtime::attach_node_held(&mut prototype, hold);
+    }
+    if let Some(flag) = &guard.interrupt {
+        prototype.set_interrupt(Arc::clone(flag));
+    }
+    if let Some(steps) = guard.steps {
+        let _ = prototype.set_budget(tatara_lisp_eval::vm::Budget {
+            fuel: Some(steps),
+            ..prototype.budget()
+        });
+    }
     prototype.set_call_observer(observer);
     let preamble_rec = Recorder::default();
     install_assert(&mut prototype, &preamble_rec);

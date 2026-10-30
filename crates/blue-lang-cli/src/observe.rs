@@ -8,7 +8,10 @@
 //! calls as they happen. A runtime error's call stack is the hook's other arm
 //! and needs no flag. When `BLUE_MEMO` is on (`crate::memo`), the call memo
 //! sits on the same hook: `blue test` installs it in place of nothing,
-//! `blue profile` wraps the recorder in it and reports its counts.
+//! `blue profile` wraps the recorder in it and reports its counts. `blue
+//! test` also wraps whatever watches the run in the witness
+//! (`crate::witness`), which records what each loose definition's calls
+//! showed.
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -279,12 +282,17 @@ fn test_file(
         });
     }
     let memoized = memo != crate::memo::Mode::Off && !coverage;
-    let watched = (coverage || memoized).then(|| {
-        let lowered = blue_lang_runtime::pipeline::lower(&checked.program, &checked.names);
-        let erased = blue_lang_runtime::erase_types(&lowered);
-        let defs = Arc::new(Definitions::of(&checked.program, &erased));
-        (lowered, erased, defs)
-    });
+    let witnessing = crate::witness::enabled();
+    let lowered = (coverage || memoized || witnessing)
+        .then(|| blue_lang_runtime::pipeline::lower(&checked.program, &checked.names));
+    let watched = lowered
+        .as_ref()
+        .filter(|_| coverage || memoized)
+        .map(|lowered| {
+            let erased = blue_lang_runtime::erase_types(lowered);
+            let defs = Arc::new(Definitions::of(&checked.program, &erased));
+            (lowered, erased, defs)
+        });
     let recorder = watched
         .as_ref()
         .filter(|_| coverage)
@@ -295,14 +303,25 @@ fn test_file(
         .map(|(lowered, erased, defs)| {
             crate::memo::over(memo.persist(), defs, lowered, erased, None)
         });
-    let observer = match (&recall, &recorder) {
+    let watching = match (&recall, &recorder) {
         (Some(m), _) => Some(Arc::clone(m) as Arc<dyn CallObserver>),
         (None, Some(r)) => Some(Arc::clone(r) as Arc<dyn CallObserver>),
         (None, None) => None,
     };
+    let witness = lowered
+        .as_ref()
+        .filter(|_| witnessing)
+        .map(|lowered| crate::witness::over(lowered, &checked.program, watching.clone()));
+    let observer = match &witness {
+        Some(w) => Some(Arc::clone(w) as Arc<dyn CallObserver>),
+        None => watching,
+    };
     let report = blue_lang_test::run_checked(&checked, filter, observer);
     if let Some(m) = &recall {
         crate::memo::finish(m);
+    }
+    if let Some(w) = &witness {
+        crate::witness::finish(w);
     }
     for failure in &report.failures {
         let _ = writeln!(errors, "{failure}");

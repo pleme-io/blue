@@ -30,18 +30,28 @@
 //! `textDocument/inlayHint`, which waits for the revision's run.
 //! `initializationOptions.liveEval: false` turns it off; the diagnostics
 //! path is then the one above, alone.
+//!
+//! After that run, the same worker runs the revision's witness
+//! ([`live::witness`]), and a `textDocument/codeAction` asked meanwhile waits
+//! for it: `blueshift: lock invariants` ([`crate::lock`]) reads what it showed
+//! beside what `blue test` runs recorded, in the store
+//! `initializationOptions.witnessStore` names (a directory, or `false` for
+//! none; when absent, `blue_lang_mondou::witness::default_root` if a run has
+//! made it).
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::io::{BufRead, Write};
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver, Sender};
 
-use blue_lang_mondou::{Engine, FileRef, Located};
+use blue_lang_mondou::store::Identity;
+use blue_lang_mondou::witness::{Observation, Witnessed, Witnesses};
+use blue_lang_mondou::{DefHash, Engine, FileRef, Located};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use crate::analysis::{diagnostics, hover_of, LineIndex, Position};
-use crate::{live, tokens};
+use crate::{live, lock, tokens};
 
 /// What the server produced for one incoming message.
 #[derive(Clone, Debug, PartialEq)]
@@ -67,6 +77,7 @@ pub struct Server {
     /// Set by `shutdown`, so `serve` can stop cleanly rather than on EOF alone.
     shutting_down: bool,
     live: Live,
+    witnesses: Option<Witnesses>,
 }
 
 struct Live {
@@ -93,9 +104,23 @@ impl Default for Live {
 struct LiveDocument {
     generation: u64,
     running: Option<live::Cancel>,
+    /// The revision's worker, until its witness reports: a newer revision
+    /// or a close ends it.
+    worker: Option<live::Cancel>,
     diagnostics: Vec<crate::Diagnostic>,
     hints: Vec<live::Hint>,
     waiting: Vec<(Value, Option<crate::Range>)>,
+    witnessed: Witnessed,
+    witnessing: bool,
+    asked: Vec<(Value, Asked)>,
+}
+
+/// A `textDocument/codeAction` request: the range it names and the kinds it
+/// wants (none named is every kind).
+struct Asked {
+    start: Position,
+    end: Position,
+    only: Vec<String>,
 }
 
 type Evaluated = Option<(Vec<crate::Diagnostic>, Vec<live::Hint>)>;
@@ -106,6 +131,11 @@ enum Event {
         uri: String,
         generation: u64,
         found: Evaluated,
+    },
+    Witnessed {
+        uri: String,
+        generation: u64,
+        witnessed: Option<Witnessed>,
     },
     Closed(std::io::Result<()>),
 }
@@ -160,6 +190,7 @@ impl Server {
             engine: Engine::new(loader),
             shutting_down: false,
             live: Live::default(),
+            witnesses: None,
         }
     }
 
@@ -169,6 +200,7 @@ impl Server {
             engine: Engine::with_scopes(scopes),
             shutting_down: false,
             live: Live::default(),
+            witnesses: None,
         }
     }
 
@@ -202,6 +234,15 @@ impl Server {
                     .pointer("/initializationOptions/liveEval")
                     .and_then(Value::as_bool)
                     .unwrap_or(true);
+                self.witnesses = match req.params.pointer("/initializationOptions/witnessStore") {
+                    Some(Value::String(dir)) => {
+                        Witnesses::open(std::path::Path::new(dir), Identity::of_this_build()).ok()
+                    }
+                    Some(Value::Bool(false)) => None,
+                    _ => blue_lang_mondou::witness::default_root()
+                        .filter(|root| root.is_dir())
+                        .and_then(|root| Witnesses::open(&root, Identity::of_this_build()).ok()),
+                };
                 reply(&id, capabilities(self.live.enabled))
             }
 
@@ -354,7 +395,6 @@ impl Server {
                     line: u32_at(&req.params, &["range", k, "line"]).unwrap_or(0),
                     character: u32_at(&req.params, &["range", k, "character"]).unwrap_or(0),
                 };
-                let (start, end) = (at("start"), at("end"));
                 let only: Vec<String> = req
                     .params
                     .get("context")
@@ -367,47 +407,20 @@ impl Server {
                             .collect()
                     })
                     .unwrap_or_default();
-                let wants = |kind: &str| {
-                    only.is_empty()
-                        || only
-                            .iter()
-                            .any(|o| kind == o || kind.starts_with(&format!("{o}.")))
+                let asked = Asked {
+                    start: at("start"),
+                    end: at("end"),
+                    only,
                 };
-                let mut actions = Vec::new();
-                if wants("quickfix") {
-                    for d in diagnostics(&self.engine, &uri) {
-                        if d.range.end < start || end < d.range.start {
-                            continue;
+                match self.live.documents.get_mut(&uri) {
+                    Some(doc) if doc.witnessing => {
+                        if let Some(id) = id {
+                            doc.asked.push((id, asked));
                         }
-                        for fix in &d.fixes {
-                            let edits: Vec<Value> = fix
-                                .edits
-                                .iter()
-                                .map(|e| json!({ "range": range_json(e.range), "newText": e.new_text }))
-                                .collect();
-                            actions.push(json!({
-                                "title": fix.title,
-                                "kind": "quickfix",
-                                "isPreferred": fix.preferred,
-                                "diagnostics": [diagnostic_json(&d)],
-                                "edit": { "changes": { uri.clone(): edits } },
-                            }));
-                        }
+                        Response::None
                     }
+                    _ => reply(&id, self.code_actions(&uri, &asked)),
                 }
-                if wants("source.fixAll") {
-                    if let (Some(fixed), Some(text)) =
-                        (self.engine.fix_all(&uri), self.engine.document_text(&uri))
-                    {
-                        let whole = LineIndex::new(&text).whole_document();
-                        actions.push(json!({
-                            "title": "apply every machine-applicable fix (blue check --fix)",
-                            "kind": "source.fixAll",
-                            "edit": { "changes": { uri.clone(): [{ "range": range_json(whole), "newText": fixed }] } },
-                        }));
-                    }
-                }
-                reply(&id, Value::Array(actions))
             }
 
             // Ranked by the resolution tiers: locals, this file, its `use`
@@ -597,8 +610,9 @@ impl Server {
         });
         self.live.events = None;
         for doc in self.live.documents.values_mut() {
-            if let Some(running) = doc.running.take() {
-                running.supersede();
+            doc.running = None;
+            if let Some(worker) = doc.worker.take() {
+                worker.supersede();
             }
         }
         served
@@ -623,6 +637,15 @@ impl Server {
                         write_message(output, &m)?;
                     }
                 }
+                Event::Witnessed {
+                    uri,
+                    generation,
+                    witnessed,
+                } => {
+                    for m in self.witnessed(&uri, generation, witnessed) {
+                        write_message(output, &m)?;
+                    }
+                }
                 Event::Closed(result) => return result,
             }
         }
@@ -639,8 +662,9 @@ impl Server {
         let generation = self.live.generation;
         let doc = self.live.documents.entry(uri.to_string()).or_default();
         doc.generation = generation;
-        if let Some(running) = doc.running.take() {
-            running.supersede();
+        doc.running = None;
+        if let Some(worker) = doc.worker.take() {
+            worker.supersede();
         }
         doc.diagnostics.clear();
         doc.hints.clear();
@@ -652,23 +676,137 @@ impl Server {
                 .name("blue-lsp-live".to_string())
                 .stack_size(LIVE_STACK)
                 .spawn(move || {
-                    let found = live::evaluate(&text, &path, Box::new(snapshot), limits, &running)
-                        .map(|f| (live::diagnostics(&f, &text), live::hints(&f, &text)));
+                    let found =
+                        live::evaluate(&text, &path, Box::new(snapshot.clone()), limits, &running)
+                            .map(|f| (live::diagnostics(&f, &text), live::hints(&f, &text)));
+                    let ran = found.is_some();
                     let _ = events.send(Event::Evaluated {
-                        uri,
+                        uri: uri.clone(),
                         generation,
                         found,
                     });
+                    let witnessed = ran
+                        .then(|| live::witness(&text, &path, &snapshot, limits, &running))
+                        .flatten();
+                    let _ = events.send(Event::Witnessed {
+                        uri,
+                        generation,
+                        witnessed,
+                    });
                 });
             if spawned.is_ok() {
-                doc.running = Some(cancel);
+                doc.running = Some(cancel.clone());
+                doc.worker = Some(cancel);
+                doc.witnessing = true;
                 return Vec::new();
             }
         }
-        doc.waiting
+        doc.witnessing = false;
+        let asked = std::mem::take(&mut doc.asked);
+        let mut out: Vec<Value> = doc
+            .waiting
             .drain(..)
             .map(|(id, _)| result_message(&id, json!([])))
+            .collect();
+        out.extend(self.answer(uri, asked));
+        out
+    }
+
+    /// The revision's witness finished: keep what it showed and answer every
+    /// code action that waited for it.
+    fn witnessed(
+        &mut self,
+        uri: &str,
+        generation: u64,
+        witnessed: Option<Witnessed>,
+    ) -> Vec<Value> {
+        let Some(doc) = self.live.documents.get_mut(uri) else {
+            return Vec::new();
+        };
+        if doc.generation != generation {
+            return Vec::new();
+        }
+        doc.witnessing = false;
+        doc.worker = None;
+        if let Some(w) = witnessed {
+            doc.witnessed = w;
+        }
+        let asked = std::mem::take(&mut doc.asked);
+        self.answer(uri, asked)
+    }
+
+    fn answer(&self, uri: &str, asked: Vec<(Value, Asked)>) -> Vec<Value> {
+        asked
+            .into_iter()
+            .map(|(id, a)| result_message(&id, self.code_actions(uri, &a)))
             .collect()
+    }
+
+    /// The code actions on a range: each diagnostic's fixes, `source.fixAll`,
+    /// and `blueshift: lock invariants` on a loose `def` head the evidence
+    /// locks.
+    fn code_actions(&self, uri: &str, asked: &Asked) -> Value {
+        let (start, end) = (asked.start, asked.end);
+        let wants = |kind: &str| {
+            asked.only.is_empty()
+                || asked
+                    .only
+                    .iter()
+                    .any(|o| kind == o || kind.starts_with(&format!("{o}.")))
+        };
+        let mut actions = Vec::new();
+        if wants("quickfix") {
+            for d in diagnostics(&self.engine, uri) {
+                if d.range.end < start || end < d.range.start {
+                    continue;
+                }
+                for fix in &d.fixes {
+                    let edits: Vec<Value> = fix
+                        .edits
+                        .iter()
+                        .map(|e| json!({ "range": range_json(e.range), "newText": e.new_text }))
+                        .collect();
+                    actions.push(json!({
+                        "title": fix.title,
+                        "kind": "quickfix",
+                        "isPreferred": fix.preferred,
+                        "diagnostics": [diagnostic_json(&d)],
+                        "edit": { "changes": { uri: edits } },
+                    }));
+                }
+            }
+        }
+        if wants("source.fixAll") {
+            if let (Some(fixed), Some(text)) =
+                (self.engine.fix_all(uri), self.engine.document_text(uri))
+            {
+                let whole = LineIndex::new(&text).whole_document();
+                actions.push(json!({
+                    "title": "apply every machine-applicable fix (blue check --fix)",
+                    "kind": "source.fixAll",
+                    "edit": { "changes": { uri: [{ "range": range_json(whole), "newText": fixed }] } },
+                }));
+            }
+        }
+        if wants(lock::KIND) {
+            let live = self.live.documents.get(uri).map(|d| &d.witnessed);
+            let evidence = |def: &DefHash| -> Vec<Observation> {
+                let mut all: BTreeSet<Observation> =
+                    live.and_then(|w| w.of(def)).cloned().unwrap_or_default();
+                if let Some(store) = &self.witnesses {
+                    all.extend(store.load(def));
+                }
+                all.into_iter().collect()
+            };
+            for l in lock::locks(&self.engine, uri, crate::Range { start, end }, &evidence) {
+                actions.push(json!({
+                    "title": lock::TITLE,
+                    "kind": lock::KIND,
+                    "edit": { "changes": { uri: [{ "range": range_json(l.edit.range), "newText": l.edit.new_text }] } },
+                }));
+            }
+        }
+        Value::Array(actions)
     }
 
     fn live_job(&self, uri: &str) -> Option<(String, PathBuf, live::Snapshot)> {
@@ -713,12 +851,17 @@ impl Server {
         let Some(mut doc) = self.live.documents.remove(uri) else {
             return Vec::new();
         };
-        if let Some(running) = doc.running.take() {
-            running.supersede();
+        if let Some(worker) = doc.worker.take() {
+            worker.supersede();
         }
         doc.waiting
             .drain(..)
             .map(|(id, _)| result_message(&id, json!([])))
+            .chain(
+                doc.asked
+                    .drain(..)
+                    .map(|(id, _)| result_message(&id, json!([]))),
+            )
             .collect()
     }
 
@@ -829,7 +972,7 @@ fn capabilities(live: bool) -> Value {
             "textDocumentSync": 1,
             "documentFormattingProvider": true,
             "hoverProvider": true,
-            "codeActionProvider": { "codeActionKinds": ["quickfix", "source.fixAll"] },
+            "codeActionProvider": { "codeActionKinds": ["quickfix", "source.fixAll", lock::KIND] },
             // `:` completes after a qualifier (`kueri::`); a send's method
             // name is any function in scope anyway, so `.` is not one.
             "completionProvider": { "resolveProvider": false, "triggerCharacters": [":"] },
@@ -1328,7 +1471,7 @@ mod tests {
         }
         assert_eq!(
             caps["codeActionProvider"]["codeActionKinds"],
-            json!(["quickfix", "source.fixAll"])
+            json!(["quickfix", "source.fixAll", "refactor.rewrite"])
         );
         assert_eq!(caps["renameProvider"]["prepareProvider"], json!(true));
     }
@@ -2126,5 +2269,199 @@ mod tests {
         assert!(!target.exists());
         drop(c);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    const INC: &str = "def inc(x)\n  x + 1\nend\n\ninc(1)\n";
+
+    fn lock_client(name: &str, live: bool) -> (Client, PathBuf) {
+        let store = scratch(name);
+        let c = Client::start(json!({
+            "liveEval": live,
+            "witnessStore": store.display().to_string(),
+        }));
+        (c, store)
+    }
+
+    fn lock_actions(c: &mut Client, uri: &str) -> Vec<Value> {
+        let r = c.request(
+            "textDocument/codeAction",
+            json!({
+                "textDocument": { "uri": uri },
+                "range": { "start": { "line": 0, "character": 4 }, "end": { "line": 0, "character": 4 } },
+                "context": { "diagnostics": [] },
+            }),
+        );
+        r["result"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|a| a["kind"] == json!(lock::KIND))
+            .collect()
+    }
+
+    fn applied(text: &str, action: &Value, uri: &str) -> String {
+        let edits = action["edit"]["changes"][uri]
+            .as_array()
+            .expect("one document's edits");
+        assert_eq!(edits.len(), 1, "{edits:#?}");
+        let index = LineIndex::new(text);
+        let at = |p: &Value| {
+            index.offset(Position {
+                line: u32::try_from(p["line"].as_u64().expect("line")).expect("line"),
+                character: u32::try_from(p["character"].as_u64().expect("character"))
+                    .expect("character"),
+            })
+        };
+        let (start, end) = (
+            at(&edits[0]["range"]["start"]),
+            at(&edits[0]["range"]["end"]),
+        );
+        let new_text = edits[0]["newText"].as_str().expect("newText");
+        format!("{}{new_text}{}", &text[..start], &text[end..])
+    }
+
+    fn record_a_test_run(store: &std::path::Path, text: &str) {
+        use blue_lang_runtime::pipeline::{check_entry, Checking};
+        use blue_lang_runtime::uses::{Entry, NoLoader};
+        let checked = check_entry(
+            Entry { path: None, text },
+            &NoLoader,
+            None,
+            Checking::WithTests,
+        )
+        .expect("the fixture checks");
+        let witness = std::sync::Arc::new(blue_lang_mondou::witness::Witness::of_checked(
+            &checked, None,
+        ));
+        let report = blue_lang_test::run_checked(&checked, None, Some(witness.clone()));
+        assert_eq!((report.passed, report.failures.len()), (1, 0));
+        Witnesses::open(store, Identity::of_this_build())
+            .expect("a store")
+            .record(&witness.witnessed())
+            .expect("recorded");
+    }
+
+    /// Red run (2026-10-30): `live::witness` answering an empty table: no
+    /// action, `left: 0, right: 1`.
+    #[test]
+    fn lock_types_a_definition_from_the_ints_it_was_called_with() {
+        let (mut c, store) = lock_client("lock-ints", true);
+        let uri = "file:///lock/inc.b";
+        c.open(uri, INC);
+        let locks = lock_actions(&mut c, uri);
+        assert_eq!(locks.len(), 1, "{locks:#?}");
+        assert_eq!(locks[0]["title"], json!("blueshift: lock invariants"));
+        let typed = applied(INC, &locks[0], uri);
+        assert_eq!(typed, "def inc(x: Int) -> Int\n  x + 1\nend\n\ninc(1)\n");
+        assert_eq!(
+            blue_lang_fmt::format_source_lossless(&typed).expect("formats"),
+            typed
+        );
+        let analysis = crate::analysis::analyse(&typed);
+        assert!(
+            analysis.diagnostics.is_empty(),
+            "{:#?}",
+            analysis.diagnostics
+        );
+        assert_eq!(
+            crate::shift::shift_of(&typed).declaration_rung("inc"),
+            Some(crate::Rung::Checked)
+        );
+        drop(c);
+        let _ = std::fs::remove_dir_all(&store);
+    }
+
+    /// Red run (2026-10-30): `witness::join` answering its left side for any
+    /// two shapes: `show(x: Int) -> Int` offered for a parameter that saw a
+    /// string.
+    #[test]
+    fn lock_offers_nothing_for_types_with_no_union() {
+        let (mut c, store) = lock_client("lock-mixed", true);
+        let one = "file:///lock/show-one.b";
+        c.open(one, "def show(x)\n  x\nend\n\nshow(1)\n");
+        assert_eq!(lock_actions(&mut c, one).len(), 1, "the control locks");
+        let mixed = "file:///lock/show-mixed.b";
+        c.open(mixed, "def show(x)\n  x\nend\n\nshow(1)\nshow(\"a\")\n");
+        assert_eq!(lock_actions(&mut c, mixed), Vec::<Value>::new());
+        drop(c);
+        let _ = std::fs::remove_dir_all(&store);
+    }
+
+    /// Red run (2026-10-30): `witness::lock` writing `dyn` for a position no
+    /// call reached: `inc(x: dyn) -> dyn` offered.
+    #[test]
+    fn lock_offers_nothing_without_observations() {
+        let (mut c, store) = lock_client("lock-none", true);
+        let uri = "file:///lock/uncalled.b";
+        c.open(uri, "def inc(x)\n  x + 1\nend\n");
+        assert_eq!(lock_actions(&mut c, uri), Vec::<Value>::new());
+        drop(c);
+        let _ = std::fs::remove_dir_all(&store);
+    }
+
+    /// The store holds what a `blue test` run showed, keyed by `def_hash`:
+    /// it locks the definition that ran, and nothing once the definition
+    /// changes.
+    ///
+    /// Red run (2026-10-30): every definition hashed by its key alone, so an
+    /// edit keeps the hash: the stale lock offered, `left: [{…}], right: []`.
+    #[test]
+    fn lock_is_not_offered_from_stale_observations() {
+        let before = "def inc(x)\n  x + 1\nend\n\ntest \"inc\"\n  assert inc(1) == 2\nend\n";
+        let after = "def inc(x)\n  x + 2\nend\n\ntest \"inc\"\n  assert inc(1) == 3\nend\n";
+        let (mut c, store) = lock_client("lock-stale", false);
+        record_a_test_run(&store, before);
+        let uri = "file:///lock/stale.b";
+        c.open(uri, before);
+        let locks = lock_actions(&mut c, uri);
+        assert_eq!(locks.len(), 1, "a test run's evidence locks: {locks:#?}");
+        assert!(applied(before, &locks[0], uri).starts_with("def inc(x: Int) -> Int\n"));
+        c.notify(
+            "textDocument/didChange",
+            json!({ "textDocument": { "uri": uri, "version": 2 }, "contentChanges": [{ "text": after }] }),
+        );
+        assert_eq!(lock_actions(&mut c, uri), Vec::<Value>::new());
+        drop(c);
+        let _ = std::fs::remove_dir_all(&store);
+    }
+
+    /// The witness runs `test` blocks, which live evaluation never does, so
+    /// it is held to the same pure frame; a code action waits for it.
+    ///
+    /// Red run (2026-10-30): the witness's guard without its hold: the test
+    /// block wrote the file, and `touch(p: Str) -> Nil` was offered.
+    #[test]
+    fn the_witness_refuses_the_host_and_writes_nothing() {
+        let (mut c, store) = lock_client("witness-host", true);
+        let target = store.join("x");
+        let uri = format!("file://{}", store.join("touch.b").display());
+        c.open(
+            &uri,
+            &format!(
+                "def touch(p)\n  write_file(p, \"y\")\nend\n\ntest \"touch\"\n  touch(\"{}\")\nend\n",
+                target.display()
+            ),
+        );
+        assert_eq!(lock_actions(&mut c, &uri), Vec::<Value>::new());
+        assert!(!target.exists(), "the witness wrote {}", target.display());
+        drop(c);
+        let _ = std::fs::remove_dir_all(&store);
+    }
+
+    /// Red run (2026-10-30): the witness's guard with no step bound and no
+    /// interrupt: the code action never answered, the client's 30 s deadline
+    /// panicked.
+    #[test]
+    fn the_witness_stops_a_runaway_test_and_answers() {
+        let (mut c, store) = lock_client("witness-spin", true);
+        let uri = "file:///lock/spin.b";
+        c.open(
+            uri,
+            "def spin(n)\n  spin(n + 1)\nend\n\ntest \"spin\"\n  spin(0)\nend\n",
+        );
+        assert_eq!(lock_actions(&mut c, uri), Vec::<Value>::new());
+        drop(c);
+        let _ = std::fs::remove_dir_all(&store);
     }
 }

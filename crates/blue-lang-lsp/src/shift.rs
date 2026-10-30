@@ -188,6 +188,21 @@ impl Shift {
             .filter(|f| !f.kind.shifts_forward())
             .collect()
     }
+
+    /// The rung of declaration `name` alone: `Checked` when its signature is
+    /// annotated, since the type walk covers its body, else `Dynamic`. `None`
+    /// when no declaration has that name.
+    #[must_use]
+    pub fn declaration_rung(&self, name: &str) -> Option<Rung> {
+        self.factors
+            .iter()
+            .filter(|f| f.subject == name)
+            .find_map(|f| match f.kind {
+                FactorKind::TypeAnnotation => Some(Rung::Checked),
+                FactorKind::UntypedDeclaration => Some(Rung::Dynamic),
+                FactorKind::CapabilityDeclaration | FactorKind::Seam => None,
+            })
+    }
 }
 
 /// Compute the reading for a document.
@@ -440,6 +455,15 @@ mod tests {
         assert!(line.contains("1/1 typed"), "{line}");
         assert!(line.contains("nodes analysed"), "{line}");
         assert!(line.starts_with("███░"), "carries the ramp: {line}");
+    }
+
+    #[test]
+    fn a_declaration_has_its_own_rung() {
+        let src = format!("{TYPED}\ndef other(x)\n  x\nend");
+        let s = shift_of(&src);
+        assert_eq!(s.declaration_rung("add"), Some(Rung::Checked));
+        assert_eq!(s.declaration_rung("other"), Some(Rung::Dynamic));
+        assert_eq!(s.declaration_rung("absent"), None);
     }
 
     /// Anti-vacuity: the reading must actually MOVE with the source. A constant

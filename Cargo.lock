@@ -369,6 +369,7 @@ dependencies = [
  "blue-lang-pkg",
  "blue-lang-runtime",
  "blue-lang-syntax",
+ "blue-lang-test",
  "serde",
  "serde_json",
 ]

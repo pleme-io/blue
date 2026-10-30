@@ -18,6 +18,7 @@ pub enum Spelling {
     NilTest,
     NewlineEscape,
     Index,
+    TestDeclaration,
 }
 
 impl Spelling {
@@ -38,6 +39,7 @@ impl Spelling {
         Spelling::NilTest,
         Spelling::NewlineEscape,
         Spelling::Index,
+        Spelling::TestDeclaration,
     ];
 }
 

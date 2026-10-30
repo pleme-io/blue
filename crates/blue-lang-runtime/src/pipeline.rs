@@ -1222,7 +1222,11 @@ pub fn namespace_of(program: &crate::uses::ResolvedProgram, i: usize) -> Namespa
 /// `blue-lang-test` registers these on its own interpreter, and this crate
 /// cannot depend on it (it depends on this one), so the list lives beside the
 /// only name in it: the lowered `assert`, which `blue-lang-syntax` owns.
-pub const HARNESS_NAMES: &[&str] = &[blue_lang_syntax::LOWERED_ASSERT];
+pub const HARNESS_NAMES: &[&str] = &[
+    blue_lang_syntax::LOWERED_ASSERT,
+    blue_lang_syntax::LOWERED_ASSERT_PANICS,
+    blue_lang_syntax::LOWERED_TEST_META,
+];
 
 /// The check stage's builtin scopes, read off the interpreter that will run
 /// the program: the test harness's names ([`HARNESS_NAMES`]), then its special
@@ -1567,6 +1571,7 @@ pub fn spelling_code(spelling: blue_lang_syntax::Spelling) -> blue_lang_check::C
         Spelling::NilTest => Code::B0047,
         Spelling::NewlineEscape => Code::B0065,
         Spelling::Index => Code::B0066,
+        Spelling::TestDeclaration => Code::B0068,
     }
 }
 

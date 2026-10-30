@@ -969,10 +969,14 @@ impl<'s> Renderer<'s> {
             // as a binding, `q = define(zz, 5)` printed `q = zz = 5`, which
             // does not parse (2026-09-29).
             // (deftest "name" body)
-            Some("deftest") if items.len() == 3 && items[1].as_string().is_some() => {
-                let mut head = String::from("test ");
-                head.push_str(&render_string(items[1].as_string().unwrap_or("")));
-                return self.block(s, Doc::text(head), &items[2]);
+            Some("deftest") if blue_lang_syntax::test_parts(s).is_some() => {
+                if let Some(parts) = blue_lang_syntax::test_parts(s) {
+                    let mut head = Doc::text(format!("test {}", render_string(parts.name)));
+                    if let Some(map) = parts.meta.and_then(blue_lang_syntax::meta_map) {
+                        head = head.concat(Doc::text(", ")).concat(self.expr(map, 0));
+                    }
+                    return self.block(s, head, parts.body);
+                }
             }
             // (blue-assert 'expr expr) — print the expression ONCE.
             //
@@ -986,6 +990,12 @@ impl<'s> Renderer<'s> {
             Some(n) if n == blue_lang_syntax::LOWERED_ASSERT && items.len() == 3 => {
                 let d = Doc::text("assert ").concat(self.expr(&items[2], 0));
                 return parenthesize_below(d, min_prec, 0);
+            }
+            Some(n) if n == blue_lang_syntax::LOWERED_ASSERT_PANICS && items.len() == 3 => {
+                if let Some([_, _, body]) = items[2].as_list() {
+                    let d = Doc::text("assert_panics ").concat(self.expr(body, 0));
+                    return parenthesize_below(d, min_prec, 0);
+                }
             }
             // (let ((case-subject S)) (cond …)) — a lowered `case`.
             Some("let") if is_case(&s.to_sexp()) => return self.case_form(s),
@@ -1860,6 +1870,9 @@ impl<'s> Renderer<'s> {
 }
 
 fn pipe_built(head: &str, len: usize) -> bool {
+    if head == "deftest" && len == 5 {
+        return true;
+    }
     let arity = match head {
         "lambda" | "define" | "deftest" | "try" => 3,
         "define-typed" | "defmacro" => 4,
@@ -1879,7 +1892,7 @@ fn pipe_built(head: &str, len: usize) -> bool {
 fn swallows_tail(s: &Spanned) -> bool {
     matches!(
         sym_name_of(s),
-        Some("lambda" | blue_lang_syntax::LOWERED_ASSERT)
+        Some("lambda" | blue_lang_syntax::LOWERED_ASSERT | blue_lang_syntax::LOWERED_ASSERT_PANICS)
     )
 }
 

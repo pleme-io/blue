@@ -57,6 +57,10 @@ const CORPUS: &[&str] = &[
     // Tests and assertions.
     "test \"adds\"\n  assert 1 + 1 == 2\nend",
     "test \"two asserts\"\n  assert true\n  assert 1 < 2\nend",
+    "test \"isolated\", {satisfies: [:nist_ac_6], target: f}\n  assert_panics f(1)\nend",
+    "test \"both\", {satisfies: %i[nist_ac_6 nist_cm_7], target: tokens::parse}\n  assert_panics (tokens::parse(\"x\") rescue nil)\n  assert true\nend",
+    "test \"only controls\", {satisfies: %i[nist_ac_6 nist_cm_7 nist_si_10]}\n  assert_panics read_file(\"/etc/hosts\")\nend",
+    "test \"a test whose declaration is too long for one line of eighty\", {satisfies: [:nist_ac_6], target: parse_token}\n  assert true\nend",
     // Macros and the quasiquote family. Absent until `defmacro` shipped
     // rendering as `defmacro(double, x(), ...)` — text that does not re-parse.
     "defmacro double(x)\n  quote\n    unquote(x) + unquote(x)\n  end\nend",

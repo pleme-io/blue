@@ -332,6 +332,24 @@ runtime's `tests::held::*` (with
 `a_scoped_provider_binds_its_alias_uncounted_and_leaves_the_host_name_counted`)
 and `receipt::tests::*`.
 
+**Breach assertions and test evidence (2026-10-30).** A test proves a
+refusal with `assert_panics expr`: the harness turns the function
+`(lambda () expr)` back into code as `spawn` does
+(`blue_lang_proc::code::spawn_code`), runs it in a fresh interpreter held to
+a pure frame (`session::pure_frame`, its processes held too) and passes only
+when that child ends on `EvalError::Fatal` of kind `capability-breach` with
+its own `HostIo` at 0. The child is where the breach ends, so the test
+outlives it; no `rescue` inside the child sees it. `blue test --allow CAP`
+holds the tests themselves, as `blue run --allow` holds a program, so a
+breach a test reaches outside `assert_panics` ends that test. A test declares
+the controls it verifies and its target (`test "…", {satisfies:
+[:nist_ac_6], target: f}`), and `blue test --facts` writes the frame block
+(`Hold::frame_summary`) with the tally and steps for tameshi, and each test's
+controls, target `def_hash` and own `def_hash` beside it
+([`TESTING.md`](TESTING.md), "Declared controls"). Tests:
+`crates/blue-lang-cli/tests/compliance.rs` (4) and the harness's
+`assert_panics_*`.
+
 **Row 9, host memory.** blue has no pointer and no raw buffer; all memory is
 Rust's. The four seams are listed in §2. The gate is one workspace lint table
 plus `#[allow(unsafe_code)]` at each seam and a test like kiwari's

@@ -23,6 +23,7 @@ pub mod lex;
 pub mod parse;
 pub mod scope;
 pub mod spelling;
+pub mod test_form;
 pub mod words;
 pub mod yakugo;
 
@@ -36,13 +37,15 @@ pub use parse::{
     parse_program_in, parse_program_spanned, parse_program_spanned_with_depth, parse_program_tree,
     parse_program_tree_in, parse_program_tree_with_depth, parse_program_with_depth,
     parses_on_this_thread, qualified, qualify, spelling_notes, Comment, Infix, ParseError,
-    BLOCK_KEYWORDS, BUILTIN_QUALIFIER, INFIX, LOWERED_ASSERT, LOWERED_ATTEMPTED, LOWERED_CONCAT,
-    LOWERED_ENSURE, LOWERED_ERROR_MATCH, LOWERED_FAILED, LOWERED_FIELD, LOWERED_HEADS,
-    LOWERED_KWARGS, LOWERED_MAP, LOWERED_MERGE, LOWERED_OPTIONAL_ARG, LOWERED_OPTIONAL_ARITY,
-    LOWERED_RERAISE, LOWERED_SPLICE, MASTER_VERBS, MAX_EXPR_DEPTH, OPERATOR_KEYWORDS,
-    OPTIONAL_MARKER, QUALIFIER, RESCUED, SURFACE_KEYWORDS, SYMBOL_SPELLINGS,
+    BLOCK_KEYWORDS, BUILTIN_QUALIFIER, INFIX, LOWERED_ASSERT, LOWERED_ASSERT_PANICS,
+    LOWERED_ATTEMPTED, LOWERED_CONCAT, LOWERED_ENSURE, LOWERED_ERROR_MATCH, LOWERED_FAILED,
+    LOWERED_FIELD, LOWERED_HEADS, LOWERED_KWARGS, LOWERED_MAP, LOWERED_MERGE, LOWERED_OPTIONAL_ARG,
+    LOWERED_OPTIONAL_ARITY, LOWERED_RERAISE, LOWERED_SPLICE, LOWERED_TEST_META, MASTER_VERBS,
+    MAX_EXPR_DEPTH, OPERATOR_KEYWORDS, OPTIONAL_MARKER, QUALIFIER, RESCUED, SURFACE_KEYWORDS,
+    SYMBOL_SPELLINGS,
 };
 pub use spelling::{Note, Spelling};
+pub use test_form::{is_meta, meta_map, target_key, test_meta, test_parts, TestMeta, TestParts};
 // `Spanned`/`SpannedForm` alongside `Sexp` for the same reason `Sexp` is here:
 // the parser's real output is the spanned tree, and a consumer that wants a
 // position should not have to add a tatara-lisp dependency to name the node it

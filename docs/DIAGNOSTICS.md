@@ -83,6 +83,8 @@ it; `blue explain --list` lists them.
 | B0065 | newline-escape | error | text of several lines is written as its lines: `join_lines([a, b])`, `unlines([a, b])` when it ends in a newline, `line_break` alone; never a `\n` escape in a string |
 | B0066 | index | error | a key or position is read with brackets: `m[:k]` for `get(m, :k)`, `xs[i]` for `nth(i, xs)` |
 | B0067 | name-as-string | error | a name a builtin reads as text is a keyword, not a string: `error(:kind, m)`, `json_get(doc, :field)`, `json_get_or(doc, :field, d)` |
+| B0068 | test-declaration-order | error | a test's declaration is written `satisfies` then `target`, its controls sorted: `{satisfies: %i[nist_ac_6 nist_cm_7], target: f}` |
+| B0069 | test-declaration | error | a test satisfies controls the catalog table names (`:nist_ac_6` is NIST_SP_800_53R5_AC_6) and targets a definition of the program |
 
 The registry is the source of truth; a test fails if a code is missing here.
 

@@ -44,7 +44,7 @@
 //! | [`Capability::Operators`] | `blue_lang_syntax::INFIX`, the one operator table |
 //! | [`Capability::Collections`] | `blue_lang_syntax::LOWERED_MAP` + the list constructor |
 //! | [`Capability::Interpolation`] | `blue_lang_syntax::LOWERED_CONCAT` |
-//! | [`Capability::Assertion`] | `blue_lang_syntax::LOWERED_ASSERT` |
+//! | [`Capability::Assertion`] | `blue_lang_syntax::LOWERED_ASSERT`, `LOWERED_ASSERT_PANICS` |
 //! | [`Capability::CoreForms`] | the heads `blue-lang-syntax` lowers control flow to |
 //! | [`Capability::ManifestDeclaration`] | the Bluefile vocabulary (`blue_lang_pkg::bluefile`'s word table) |
 //! | the five host bundles | `blue_lang_runtime::sys`'s four installers and `net`'s |
@@ -184,7 +184,10 @@ const INTERPOLATION_NAMES: &[&str] = &[
     "unlines",
     "line_break",
 ];
-const ASSERTION_NAMES: &[&str] = &[blue_lang_syntax::LOWERED_ASSERT];
+const ASSERTION_NAMES: &[&str] = &[
+    blue_lang_syntax::LOWERED_ASSERT,
+    blue_lang_syntax::LOWERED_ASSERT_PANICS,
+];
 /// The Bluefile vocabulary. `blue_lang_pkg::bluefile`'s word table records
 /// each of these, and `the_word_table_is_the_manifest_capability` there fails
 /// when the two disagree — a name here with no recorder would pass the frame
@@ -614,6 +617,7 @@ mod tests {
     fn every_lowered_name_is_claimed_by_some_capability() {
         for lowered in [
             blue_lang_syntax::LOWERED_ASSERT,
+            blue_lang_syntax::LOWERED_ASSERT_PANICS,
             blue_lang_syntax::LOWERED_MAP,
             blue_lang_syntax::LOWERED_CONCAT,
         ] {

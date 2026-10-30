@@ -546,6 +546,24 @@ pub const MASTER_VERBS: &[&str] = &[
 /// the gate checked its own copy. Same duplication class as the operator table.
 pub const LOWERED_ASSERT: &str = "blue-assert";
 
+/// The callee `assert_panics e` lowers to: `(blue-assert-panics 'e (lambda ()
+/// e))`, the expression as data for the failure and as a function the
+/// harness moves into a child held to a pure frame.
+///
+/// `blue-` for the reason [`LOWERED_ASSERT`] is: a name tatara binds is
+/// captured before blue's own. Only the test harness binds it.
+pub const LOWERED_ASSERT_PANICS: &str = "blue-assert-panics";
+
+/// The head a test's declaration lowers under: `test "n", {satisfies: …,
+/// target: f}` is `(deftest "n" (blue-test-meta (hash-map :satisfies (list …)
+/// :target f)) body)`.
+///
+/// The map is the tree the options' own spelling lowers to, under a head the
+/// harness owns. The harness removes it before the body runs, so it is never
+/// evaluated: it is a declaration the harness, the check stage, `blue query`
+/// and the engine read. `blue-` so no tatara name captures it.
+pub const LOWERED_TEST_META: &str = "blue-test-meta";
+
 /// The callee a `{...}` map literal lowers to.
 ///
 /// **`hash-map`, not `map`.** tatara binds `map` to the higher-order function,
@@ -613,6 +631,7 @@ pub const SURFACE_KEYWORDS: &[&str] = &[
     "unquote_splice",
     "test",
     "assert",
+    "assert_panics",
     "fn",
     "case",
 ];
@@ -724,8 +743,9 @@ pub fn keyword_doc(word: &str) -> &'static str {
         "quote" => "`quote … end`: the form itself as data, not its value. Used inside `defmacro`.",
         "unquote" => "`unquote(x)`: inside `quote`, splice in the value of `x`.",
         "unquote_splice" => "`unquote_splice(xs)`: inside `quote`, splice the items of the form `xs` in place, not the form itself.",
-        "test" => "`test \"what must hold\" … end`: a test block, run by `blue test` and ignored by `blue run`.",
+        "test" => "`test \"what must hold\" … end`: a test block, run by `blue test` and ignored by `blue run`. `test \"n\", {satisfies: [:nist_ac_6], target: f}` declares the controls it verifies and the definition it targets (B0068, B0069).",
         "assert" => "`assert expr`: inside a test, fail it unless `expr` is truthy; the failure quotes the expression.",
+        "assert_panics" => "`assert_panics expr`: inside a test, pass only when `expr`, run in a child held to a pure frame, ends on a capability breach with no host call made.",
         "fn" => "`fn(x) x * 2 end`: an anonymous function, a value. Blue has no brace or do blocks.",
         "case" => "`case v when 1 … when 2 … else … end`: compares with `==`; it does not destructure.",
         "do" => "Reserved and refused: blue has no do-blocks. Pass `fn(x) … end` instead.",
@@ -1666,6 +1686,7 @@ impl Parser {
                 "fn" => self.lambda_form(span),
                 "test" => self.test_form(span),
                 "assert" => self.assert_form(span),
+                "assert_panics" => self.assert_panics_form(span),
                 "quote" => self.quote_form(span),
                 "unquote" => self.unquote_form(span, false),
                 "unquote_splice" => self.unquote_form(span, true),
@@ -2529,15 +2550,173 @@ impl Parser {
                 ))
             }
         };
+        let meta = if self.eat(&TokenKind::Comma) {
+            self.skip_newlines();
+            Some(self.test_declaration()?)
+        } else {
+            None
+        };
         let body = self.body(&["end"])?;
         self.expect_ident("end")?;
+        let mut items = vec![sym_at(head, "deftest"), atom_at(name_span, Atom::Str(name))];
+        items.extend(meta);
+        items.push(body);
+        Ok(list_at(self.span_since(head.start), items))
+    }
+
+    /// `{satisfies: %i[nist_ac_6 nist_cm_7], target: parse_token}` after a
+    /// test's name => `(blue-test-meta (hash-map :satisfies (list :nist_ac_6
+    /// :nist_cm_7) :target parse_token))`.
+    ///
+    /// The map literal's own tree, in one order: `satisfies` then `target`,
+    /// the controls sorted, so one declaration is one tree whatever order it
+    /// was written in (B0068 names the other orders). A control is a keyword
+    /// and the check stage reads it against the catalog table (B0069); a
+    /// target is a name, resolved like any reference but never called.
+    fn test_declaration(&mut self) -> Result<Spanned, Fail> {
+        const SHAPE: &str = "a test's declaration is a map: \
+                             `test \"name\", {satisfies: %i[nist_ac_6], target: parse_token}`";
+        let open = self.peek_span();
+        if !self.eat(&TokenKind::LBrace) {
+            return Err(fail(SHAPE, open));
+        }
+        let map = self.map_literal(open)?;
+        let items = match map.as_list() {
+            Some(items) if items.first().and_then(Spanned::as_symbol) == Some(LOWERED_MAP) => {
+                items.to_vec()
+            }
+            _ => return Err(fail(SHAPE, map.span)),
+        };
+        if items.len() == 1 {
+            return Err(fail(
+                "an empty declaration declares nothing: write `satisfies:`, `target:` or neither",
+                map.span,
+            ));
+        }
+        let mut keys = Vec::new();
+        let mut satisfies: Option<(Span, Vec<Spanned>)> = None;
+        let mut target: Option<Spanned> = None;
+        for pair in items[1..].chunks(2) {
+            let [key, value] = pair else {
+                return Err(fail(SHAPE, map.span));
+            };
+            let name = key.as_keyword().unwrap_or_default().to_string();
+            if keys.contains(&name) {
+                return Err(fail(format!("`{name}:` is written twice"), key.span));
+            }
+            match name.as_str() {
+                "satisfies" => {
+                    let controls = match value.as_list() {
+                        Some([head, rest @ ..]) if head.as_symbol() == Some("list") => rest,
+                        _ => {
+                            return Err(fail(
+                                "`satisfies:` takes a list of control keywords: \
+                                 `satisfies: %i[nist_ac_6 nist_cm_7]`",
+                                value.span,
+                            ))
+                        }
+                    };
+                    if controls.is_empty() {
+                        return Err(fail(
+                            "`satisfies: []` claims no control: leave the key out",
+                            value.span,
+                        ));
+                    }
+                    let mut seen: Vec<&str> = Vec::new();
+                    for c in controls {
+                        let Some(word) = c.as_keyword() else {
+                            return Err(fail(
+                                "a control is a keyword such as `:nist_ac_6`",
+                                c.span,
+                            ));
+                        };
+                        if seen.contains(&word) {
+                            return Err(fail(format!("`:{word}` is listed twice"), c.span));
+                        }
+                        seen.push(word);
+                    }
+                    satisfies = Some((value.span, controls.to_vec()));
+                }
+                "target" => {
+                    if value.as_symbol().is_none() {
+                        return Err(fail(
+                            "`target:` names the definition the test verifies: \
+                             `target: parse_token`",
+                            value.span,
+                        ));
+                    }
+                    target = Some(value.clone());
+                }
+                _ => {
+                    return Err(fail(
+                        format!(
+                            "a test declares `satisfies:` and `target:`; `{}` is not one",
+                            self.text(key.span)
+                        ),
+                        key.span,
+                    ))
+                }
+            }
+            keys.push(name);
+        }
+        let mut entries = vec![items[0].clone()];
+        if let Some((span, mut controls)) = satisfies {
+            let written: Vec<String> = controls
+                .iter()
+                .map(|c| c.as_keyword().unwrap_or_default().to_string())
+                .collect();
+            controls.sort_by(|a, b| a.as_keyword().cmp(&b.as_keyword()));
+            let sorted: Vec<String> = controls
+                .iter()
+                .map(|c| c.as_keyword().unwrap_or_default().to_string())
+                .collect();
+            if written != sorted {
+                self.note(
+                    Spelling::TestDeclaration,
+                    span,
+                    &format!("%i[{}]", written.join(" ")),
+                    &format!("%i[{}]", sorted.join(" ")),
+                );
+            }
+            let mut list = vec![sym_at(span, "list")];
+            list.extend(controls);
+            entries.push(atom_at(span, Atom::Keyword("satisfies".into())));
+            entries.push(list_at(span, list));
+        }
+        if keys.first().map(String::as_str) == Some("target") && keys.len() == 2 {
+            self.note(
+                Spelling::TestDeclaration,
+                map.span,
+                "{target: …, satisfies: …}",
+                "{satisfies: …, target: …}",
+            );
+        }
+        if let Some(t) = target {
+            entries.push(atom_at(t.span, Atom::Keyword("target".into())));
+            entries.push(t);
+        }
+        Ok(list_at(
+            map.span,
+            vec![sym_at(open, LOWERED_TEST_META), list_at(map.span, entries)],
+        ))
+    }
+
+    /// `assert_panics expr` => `(blue-assert-panics 'expr (lambda () expr))`
+    ///
+    /// The quoted form names the failure in blue syntax, as `assert`'s does;
+    /// the function is what the harness turns back into code and runs in a
+    /// child held to a pure frame, because a capability breach ends the
+    /// evaluation that reaches it and no `rescue` sees it.
+    fn assert_panics_form(&mut self, head: Span) -> Result<Spanned, Fail> {
+        let e = self.expr(0)?;
+        let quoted = Spanned::new(e.span, SpannedForm::Quote(Box::new(e.clone())));
+        let thunk = list_at(
+            e.span,
+            vec![sym_at(head, "lambda"), list_at(e.span, Vec::new()), e],
+        );
         Ok(list_at(
             self.span_since(head.start),
-            vec![
-                sym_at(head, "deftest"),
-                atom_at(name_span, Atom::Str(name)),
-                body,
-            ],
+            vec![sym_at(head, LOWERED_ASSERT_PANICS), quoted, thunk],
         ))
     }
 

@@ -27,6 +27,7 @@ pub fn check(forms: &[Spanned], is_entry: &dyn Fn(usize) -> bool, script: bool) 
         if !is_constant(form) {
             names(form, *i, &mut out);
         }
+        declared_controls(form, *i, &mut out);
         if let Some((name, span)) = test_name(form) {
             if tests.contains_key(&name) {
                 out.push(
@@ -203,11 +204,30 @@ fn rename_all(form: &Spanned, map: &std::collections::HashMap<&str, &str>) -> Sp
 }
 
 fn test_name(form: &Spanned) -> Option<(String, Span)> {
-    let items = form.as_list()?;
-    if items.len() == 3 && items[0].as_symbol() == Some("deftest") {
-        return Some((items[1].as_string()?.to_string(), items[1].span));
+    let parts = blue_lang_syntax::test_parts(form)?;
+    Some((parts.name.to_string(), parts.name_span))
+}
+
+/// B0069 for every control a test declares that the catalog table does not
+/// map.
+fn declared_controls(form: &Spanned, top: usize, out: &mut Vec<Diagnostic>) {
+    let Some(meta) = blue_lang_syntax::test_parts(form)
+        .and_then(|p| p.meta)
+        .and_then(blue_lang_syntax::test_meta)
+    else {
+        return;
+    };
+    for (control, span) in meta.satisfies {
+        if let Err(why) = crate::controls::oscal_id(control) {
+            out.push(
+                Diagnostic::new(Code::B0069, why, span)
+                    .at_top_level(top)
+                    .with_help(
+                        "blue_lang_check::controls::CATALOGS lists every catalog and family",
+                    ),
+            );
+        }
     }
-    None
 }
 
 fn is_nil(s: &Spanned) -> bool {

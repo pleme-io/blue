@@ -1395,6 +1395,44 @@ string `:name` can spell is rewritten. Everywhere else a string and a keyword
 are different values: `\"a\" == :a` is false and `{\"a\" => 1}` has a
 different key from `{a: 1}`, so map keys and text are never reported.",
     }
+    B0068 {
+        slug: "test-declaration-order",
+        severity: Error,
+        fix: Machine,
+        law: "a test's declaration is written `satisfies` then `target`, its controls sorted: `{satisfies: %i[nist_ac_6 nist_cm_7], target: f}`",
+        witness: "test \"t\", {satisfies: %i[nist_cm_7 nist_ac_6]}\n  assert true\nend\n",
+        waivable: false,
+        explanation: "\
+A test's declaration is a set of controls and one target, so every order it
+can be written in is one meaning. The parser builds one tree from all of
+them: the controls sorted, `satisfies` before `target`. The tree is what the
+harness reads, what `blue query` matches and what the test's `def_hash`
+hashes, so two orders never give one test two identities.
+
+`blue fmt --write`, `blue run` and `blue check --fix` write the order; the
+written order changes nothing a test reports.",
+    }
+    B0069 {
+        slug: "test-declaration",
+        severity: Error,
+        fix: None,
+        law: "a test satisfies controls the catalog table names (`:nist_ac_6` is NIST_SP_800_53R5_AC_6) and targets a definition of the program",
+        witness: "test \"t\", {satisfies: [:nist_zz_1]}\n  assert true\nend\n",
+        waivable: false,
+        explanation: "\
+A test's declaration is evidence: `blue test --facts` writes each control
+as the id a tameshi receipt and an OSCAL catalog name it by, and the target
+as its `def_hash`. A control the table does not map has no id to write, and
+a target that is a builtin or a local has no `def_hash`, so the evidence
+would name nothing.
+
+A control is `:<catalog>_<family>_<number>`, with `_<enhancement>` for a
+control enhancement: `:nist_ac_6` is NIST SP 800-53 Rev. 5 AC-6, and
+`:nist_ac_6_1` is AC-6(1). The table is
+`blue_lang_check::controls::CATALOGS`, read by `controls::oscal_id`, the one
+mapping every door uses. A target is a `def` of the file or of a bidama it
+uses, written as a call would name it: `parse_token`, `moji::split`.",
+    }
 }
 
 impl Code {

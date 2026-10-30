@@ -285,6 +285,58 @@ pub fn identified(
         .collect()
 }
 
+/// What the evidence of a test run names: every unambiguous definition key
+/// with its `def_hash`, and every `test` block, by its top-level form, with
+/// its own.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct TestIdentities {
+    pub definitions: BTreeMap<String, String>,
+    pub tests: BTreeMap<usize, String>,
+}
+
+/// The identities of a lowered program's definitions and of its `test`
+/// blocks, each written `b3:<hex>` and `docs` hashed with their definitions
+/// as [`identified`] hashes them.
+///
+/// A test's identity is the `def_hash` of the test as a definition whose body
+/// is its declaration and its body: a reference to a definition is that
+/// definition's hash, so a test's identity changes when its body, its
+/// declaration, its target or anything it calls changes, and never when it is
+/// renamed (a test's name, like a definition's, is metadata).
+#[must_use]
+pub fn test_identities(lowered: &[Spanned], docs: &HashMap<usize, String>) -> TestIdentities {
+    let synthetic = |form: SpannedForm| Spanned::new(blue_lang_syntax::Span::synthetic(), form);
+    let symbol = |s: &str| synthetic(SpannedForm::Atom(Atom::Symbol(s.to_string())));
+    let mut forms = lowered.to_vec();
+    let mut keys = Vec::new();
+    for (i, form) in lowered.iter().enumerate() {
+        let Some(parts) = blue_lang_syntax::test_parts(form) else {
+            continue;
+        };
+        let key = format!("%test/{i}");
+        let mut define = vec![
+            symbol("define"),
+            synthetic(SpannedForm::List(vec![symbol(&key)])),
+        ];
+        define.extend(parts.meta.cloned());
+        define.push(parts.body.clone());
+        forms.push(synthetic(SpannedForm::List(define)));
+        keys.push((i, key));
+    }
+    let hashes = hash_program_documented(&forms, &|i| docs.get(&i).cloned());
+    let definitions = hashes
+        .defs()
+        .iter()
+        .filter(|d| d.top_level < lowered.len() && !hashes.is_ambiguous(&d.key))
+        .map(|d| (d.key.clone(), d.hash.to_string()))
+        .collect();
+    let tests = keys
+        .into_iter()
+        .filter_map(|(i, key)| hashes.of_key(&key).map(|d| (i, d.hash.to_string())))
+        .collect();
+    TestIdentities { definitions, tests }
+}
+
 /// Every symbol of `form`, in any position.
 fn names<'a>(form: &'a Spanned, out: &mut dyn FnMut(&'a str)) {
     match &form.form {
@@ -753,5 +805,50 @@ mod tests {
     fn the_hash_prints_as_a_b3_declaration() {
         let h = hash_of(BASE, "f").to_string();
         assert!(h.starts_with("b3:") && h.len() == 67, "{h}");
+    }
+
+    fn with_tests(src: &str) -> TestIdentities {
+        let checked = blue_lang_runtime::pipeline::check_entry(
+            blue_lang_runtime::uses::Entry::anonymous(src),
+            &blue_lang_runtime::uses::NoLoader,
+            None,
+            blue_lang_runtime::pipeline::Checking::WithTests,
+        )
+        .expect("checks");
+        assert!(checked.outcome.ok(), "{:?}", checked.outcome.diagnostics);
+        let lowered = blue_lang_runtime::pipeline::lower(&checked.program, &checked.names);
+        test_identities(&lowered, &HashMap::new())
+    }
+
+    fn only_test(ids: &TestIdentities) -> String {
+        assert_eq!(ids.tests.len(), 1, "{ids:?}");
+        ids.tests.values().next().cloned().unwrap_or_default()
+    }
+
+    const TESTED: &str = "def g(x)\n  x * 2\nend\n\ndef f(x)\n  g(x) + 1\nend\n\n\
+                          test \"f adds\", {satisfies: [:nist_ac_6], target: f}\n  assert f(1) == 3\nend\n";
+
+    #[test]
+    fn a_test_is_identified_by_its_tree_and_what_it_reaches_never_by_its_name() {
+        let base = with_tests(TESTED);
+        let test = only_test(&base);
+        assert!(test.starts_with("b3:") && test.len() == 67, "{test}");
+        assert_eq!(
+            base.definitions.get("%root/f"),
+            Some(&hash_of(BASE, "f").to_string())
+        );
+        assert!(!base.definitions.keys().any(|k| k.starts_with("%test/")));
+        let renamed = with_tests(&TESTED.replace("\"f adds\"", "\"f adds one\""));
+        assert_eq!(only_test(&renamed), test, "a renamed test is the same test");
+        let body = with_tests(&TESTED.replace("f(1) == 3", "f(2) == 5"));
+        assert_ne!(only_test(&body), test, "a changed body is another test");
+        let callee = with_tests(&TESTED.replace("x * 2", "x * 3"));
+        assert_ne!(only_test(&callee), test, "a changed callee is another test");
+        let declared = with_tests(&TESTED.replace("[:nist_ac_6]", "%i[nist_ac_6 nist_cm_7]"));
+        assert_ne!(
+            only_test(&declared),
+            test,
+            "a changed declaration is another test"
+        );
     }
 }

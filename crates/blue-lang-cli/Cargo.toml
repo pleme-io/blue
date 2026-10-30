@@ -56,3 +56,6 @@ libc = "0.2"
 
 [dev-dependencies]
 blue-lang-pkg = { path = "../blue-lang-pkg", features = ["embedded", "fixture"] }
+# `tests/compliance.rs`: a `blue test --facts` run becomes a tameshi
+# Attested Verification Tuple, read by tameshi's own strict types.
+tameshi = "0.1.7"

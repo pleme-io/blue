@@ -136,6 +136,63 @@ test "the cache key carries the entity's key", {kind: :integration, allow: [:net
 end
 ```
 
+### Declared controls (live, 2026-10-30)
+
+The first two keys of the map are built: what a test verifies.
+
+```
+test "a token is parsed in isolation from the filesystem", {
+  satisfies: [:nist_ac_6],
+  target: parse_token
+}
+  assert_panics parse_token("/etc/hosts")
+end
+```
+
+- `satisfies:` lists compliance controls as catalog keywords. `:nist_ac_6` is
+  NIST SP 800-53 Rev. 5 AC-6, which tameshi and OSCAL name
+  `NIST_SP_800_53R5_AC_6`; `:nist_ac_6_1` is the enhancement AC-6(1). The one
+  mapping is `blue_lang_check::controls::oscal_id`, over the table
+  `controls::CATALOGS`; a keyword it does not map is B0069.
+- `target:` names the definition the test verifies. It resolves like any
+  reference (`%root/parse_token`, `moji::split`), is never called, and must
+  be a definition: a builtin or a local is B0069, an unbound name B0001.
+- The map lowers to its own tree under the harness's head:
+  `(deftest "…" (blue-test-meta (hash-map :satisfies (list :nist_ac_6)
+  :target parse_token)) body)`. Every order is one tree, the controls sorted
+  and the keys in order (B0068). `kind:`, `allow:` and `fakes:` are still
+  design and are refused, never ignored.
+- `assert_panics expr` passes only when `expr`, moved into a child the way
+  `spawn` moves a function (its helpers defined, its data copied, nothing
+  shared) and run held to a pure frame, ends on a capability breach having
+  made no host call. Any other end fails the test and says how it ended
+  (`ended: returned 2`). A breach is fatal, so no `rescue` in the child
+  hides one, and one reached outside `assert_panics` ends its test.
+- `blue test --allow none` holds every test to a pure frame, as
+  `blue run --allow` holds a program. Without `--allow` the tests are
+  ambient, as before.
+- `blue test --facts FILE` (or `TAMESHI_FACTS=FILE`, how tameshi's runner
+  asks) writes two canonical JSON files. FILE is exactly tameshi's facts
+  (`RunFacts`): `{"assertions":{"failed":0,"passed":1},"frame":{"granted":[],
+  "host_io":0,"withheld":[…]},"steps":358}`. tameshi refuses any other field,
+  so `blue-test-evidence.json` beside it (schema `blue-test-evidence.v1`)
+  carries each test: `controls` as tameshi ids, `target` as a tameshi
+  `Target` (`{"kind":"blue-def","hash":<def_hash>}`), `test` as a tameshi
+  `TestRef` (`{"runner":"blue","hash":<the test's def_hash>}`), `status`,
+  `assertions`, `steps` and `host_io`. A test's `def_hash` is the hash of its
+  declaration and body as one definition
+  (`blue_lang_mondou::def_hash::test_identities`): renaming it keeps it,
+  changing its body, its declaration or anything it reaches changes it.
+  With facts and no `--allow`, the run is held to the top so host calls are
+  counted.
+
+Tests: `crates/blue-lang-cli/tests/compliance.rs` (a facts run read by
+tameshi 0.1.7's strict types, folded into an `EvidenceLedger` whose AC-6
+leaf's inclusion proof verifies, and tameshi's own runner reading a passing
+receipt), the harness's `assert_panics_*` and
+`under_a_pure_frame_a_breach_outside_assert_panics_ends_its_test_past_a_rescue`,
+`spec/rows/testing.b`.
+
 ## 5. Integration points are first-class
 
 An integration point is any place blue meets the world:
@@ -420,7 +477,8 @@ stateDiagram-v2
 | `tesuto::uncovered`, `level`, `waive`, `settle`, `level_of`, `beside`, `stale` | tested | `bidamas/tesuto/tesuto.b`, 15 tests, 18/18 definitions reached |
 | coverage gate at enforce with a ratchet | tested, gated | `gen/test-beside.b` (7 tests: red then green on a fixture package; growth, waiver, stale, audit, off, blind); `checks.test-beside`; pre-push gate |
 | recorded debt | live | 210 untested definitions in 42 packages, 2026-10-24; 35 packages at zero |
-| integration-point finding, test options map | design | section 5, D6 |
+| test options map: `satisfies:`, `target:`, `assert_panics`, `blue test --allow`, `--facts` | live | section 4, "Declared controls"; `tests/compliance.rs` (4), `spec/rows/testing.b` (12) |
+| integration-point finding, test options map: `kind:`, `allow:`, `fakes:` | design | section 5, D6 |
 | BDD words beyond `raises?` and `snapshot` | design | section 6 |
 | rendered CI workflow, `blue test .` | design | section 9 |
 

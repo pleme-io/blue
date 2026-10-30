@@ -67,6 +67,7 @@ and the refusals. `blue explain CODE` prints each row.
 | `"#{a}\n#{b}"`, `"done\n"`, `"\n"`: a `\n` escape in a string | `join_lines([a, b])`, `unlines(["done"])`, `line_break` | readability: a line break is seen, not counted in escapes; `join_lines` renders each element as interpolation does, so the text is the same (a differential of the old and new binaries, 2026-10-27, byte-identical). A string inside `quote` is data and keeps its escape; `@doc` example text is not rewritten. Corpus: 95 files of blue rewritten (2026-10-27) | parser (one tree) | B0065 | autofix |
 | `get(m, :k)`, `get(m, "k")`, `nth(i, xs)`, `nth(0, xs)` | `m[:k]`, `m["k"]`, `xs[i]`, `xs[0]` | universal notation (principle 1, amended): indexing is read without a lookup. One tree: a keyword or string literal key is `get`, any other key `nth`, so a missing key and a position past either end are nil as before. `m.k` is not used for `get`: measured 2026-10-27, `blue-field` raises on a missing field (`errors.rs` `field`), `get` answers nil. A computed map key stays `get(m, k)`. Every bidama's tests byte-identical before and after (77 of 78; tsuiseki differs only in span timestamps and ids). Corpus: 101 files rewritten | parser (one tree) | B0066 | autofix |
 | `nil?(x)`, `x == nil`, `nil == x` | `x.nil?` | readability: the test reads as a question put to the value, and one spelling replaces three. `x != nil` and `not x.nil?` stay: the opposite test is its own tree. Each form answers the same on every input class (`blue eval`, 2026-10-23); a map holding a `nil?` key answers `.nil?` with that key. Corpus: 7 `nil?`, the `== nil` tests of every bidama | parser (builds the field read), resolution (`nil?(x)`) | B0047 | autofix |
+| `test "n", {target: f, satisfies: %i[nist_cm_7 nist_ac_6]}` | `test "n", {satisfies: %i[nist_ac_6 nist_cm_7], target: f}` | one tree: a declaration is a set of controls and one target, so the parser builds one order, and the test's `def_hash` and `blue query` see one shape. The map is the options' own literal (a call takes no bare entries without `**`, spec row `maps.spread.call.entries_need_a_spread`), as `virtualize(cap, {using: …})` takes settings. Corpus: 0 (new, 2026-10-30) | parser (builds the order) | B0068 | autofix |
 | `if c … else nil end`, an empty `else` | `if c … end` | an `if` that fails is already nil. Corpus: 85 | parser (drops the branch) | B0035 | autofix (kept when the `else` holds a comment) |
 | `car`, `cdr`, `next`, `modulo`, `rem`, `bool?`, `comp`, `foldl`, `some?(x)`, `error_kind(e)`, `error_message(e)` | `first`, `rest`, `rest`, `a % b`, `a % b`, `boolean?`, `compose`, `reduce`, `x != nil`, `e.kind`, `e.message` | readability: the name a reader without Lisp knows; `some?` reads as "some element". Each pair measured equal on every input class (`blue eval`, 2026-10-19). Corpus: 2 `car`, 12 `cdr`, 34 `modulo`, 13 `foldl`, 2 `bool?`, 7 `nil?` | resolution | B0036 | autofix; writes `blue::first` where a listed import shadows the bare name |
 | `throw(error(k, m))`, `throw(x)`, `try(x, catch(e(), h))`, `begin … end` as a whole `def` body | `raise(k, m)`, `raise(x)`, `x rescue h` or `begin … rescue e … end`, the clauses on the `def` | readability: one step to raise, a block that reads like Ruby's, the error a readable record. Corpus: 92 `throw(error(`, 178 `throw(`, 212 `try(` | resolution (`throw`), parser (`try`, `begin`) | B0037 | autofix |
@@ -103,6 +104,17 @@ and the refusals. `blue explain CODE` prints each row.
   are; `get(m, :k)` reads a field that may be absent.
 - **Splat**: `f(a, *xs)`, the list last.
 - **Entry point**: `def main()`, called by `blue run` and by nothing else.
+- **Test declarations**: `test "n", {satisfies: [:nist_ac_6], target: parse_token}`
+  lowers to `(deftest "n" (blue-test-meta (hash-map :satisfies (list
+  :nist_ac_6) :target parse_token)) body)`: the map literal's own tree under
+  a head only the harness binds, so the declaration is data the harness, the
+  check stage and `blue query` read, and the target is a reference the
+  resolver names (`%root/parse_token`) and never calls. A control is a
+  catalog keyword (`blue_lang_check::controls::oscal_id`, B0069).
+- **Breach assertions**: `assert_panics expr` lowers to `(blue-assert-panics
+  'expr (lambda () expr))`, `assert`'s shape plus the function the harness
+  moves into a child held to a pure frame. One spelling: `assert_panics(expr)`
+  is the same tree, its parentheses only grouping (B0024).
 - **Libraries**: `deeta::json_at(doc, "spec.items.0.name")`, nil when any step
   is absent; `saishikou::retrying({times: 3, wait_ms: 500, on: [:timeout]}, fn() … end)`.
 
@@ -125,3 +137,5 @@ and the refusals. `blue explain CODE` prints each row.
 | Result values and a `?` operator | not added | exceptions stay the one error model; `kyohi` holds refusals as data where a caller branches on them |
 | retry as syntax (`retry`) | a bidama, `saishikou` | a bounded helper says its bound; a keyword hides a loop |
 | a warning for rescuing a kind nothing raises | not built | no analysis can know which kinds a call raises |
+| `test "n" satisfies: …` without braces, or `@satisfies` above a test | the map after a comma | a call takes no bare entries without `**`, and an attribute is a second form to read for one test; the map is the literal the house already passes settings in |
+| a block `assert_panics … end` | `assert_panics expr` | `assert`'s shape; several statements are a function, called |

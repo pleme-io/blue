@@ -2517,6 +2517,24 @@ impl Scopes for Walker<'_> {
         self.position = Position::Value;
     }
 
+    fn target(&mut self, node: &Spanned, name: &str, opaque: bool) {
+        self.place(node, name, opaque);
+        let what = match self.table.ns_target(name, &self.own, self.top_level) {
+            Target::Builtin(_) => "a builtin",
+            Target::Local => "a local",
+            _ => return,
+        };
+        self.diagnostics.push(
+            Diagnostic::new(
+                Code::B0069,
+                format!("a test targets a definition, and `{name}` is {what}"),
+                node.span,
+            )
+            .at_top_level(self.top_level)
+            .with_help("name a `def` of this file or of a bidama it uses"),
+        );
+    }
+
     /// A free symbol of a macro's template is qualified to the DEFINER's
     /// namespace (Clojure's syntax-quote rule), so the expansion means the
     /// same thing in every caller: a template naming its own bidama's `helper`

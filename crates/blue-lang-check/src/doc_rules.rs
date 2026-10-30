@@ -618,12 +618,9 @@ impl TestAssertions {
     fn of(text: &str, documented: &[Spanned]) -> Self {
         let mut found = Vec::new();
         for form in documented {
-            let Some([head, _, body]) = form.as_list() else {
+            let Some(body) = blue_lang_syntax::test_parts(form).map(|p| p.body) else {
                 continue;
             };
-            if head.as_symbol() != Some("deftest") {
-                continue;
-            }
             let mut locals = BTreeSet::new();
             assigned(body, &mut locals);
             let mut asserts = Vec::new();

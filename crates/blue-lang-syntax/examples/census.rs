@@ -216,7 +216,7 @@ fn tree(s: &Sexp, bump: &mut dyn FnMut(&str), tests: &mut HashMap<String, usize>
                 bump("count(x) > 0");
             }
         }
-        "deftest" if items.len() == 3 => {
+        "deftest" if items.len() == 3 || items.len() == 4 => {
             if let Sexp::Atom(Atom::Str(n)) = &items[1] {
                 *tests.entry(n.to_string()).or_default() += 1;
             }

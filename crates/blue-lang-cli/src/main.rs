@@ -73,6 +73,7 @@ mod config;
 mod deploy;
 mod diagnostics;
 mod doc;
+mod facts;
 mod memo;
 mod observe;
 mod prefetch;
@@ -332,6 +333,19 @@ enum Cmd {
         /// on. Coverage always does.
         #[arg(long)]
         no_memo: bool,
+        /// Hold the tests to these host capabilities, as `blue run --allow`
+        /// holds a program: `none`, `host`, or one label. Repeatable. A host
+        /// name a test reaches outside them is a capability breach, which
+        /// fails that test; no `rescue` sees it. Without the flag the tests
+        /// have every capability.
+        #[arg(long = "allow", value_name = "CAPABILITY")]
+        allow: Vec<String>,
+        /// Write the run's facts for tameshi to FILE: the assertion tally,
+        /// the steps and the frame. `blue-test-evidence.json` beside it
+        /// names each test's controls, its target's `def_hash` and its own.
+        /// `TAMESHI_FACTS` names FILE when the flag is not given.
+        #[arg(long, value_name = "FILE")]
+        facts: Option<PathBuf>,
     },
     /// Run a program and report every function it called: calls, inclusive
     /// and exclusive time, and what it allocated, most exclusive time first.
@@ -1182,13 +1196,31 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             coverage,
             json,
             no_memo,
-        } => observe::test(
-            &file,
-            filter.as_deref(),
-            coverage,
-            json,
-            memo::mode(no_memo, &cfg),
-        ),
+            allow,
+            facts,
+        } => {
+            let facts = facts::path(facts);
+            let asked = if allow.is_empty() {
+                None
+            } else {
+                Some(blue_lang_runtime::Hold::from(
+                    blue_lang_runtime::session::frame_granting(
+                        &repl::granted(&allow).map_err(CliError::Fmt)?,
+                    ),
+                ))
+            };
+            observe::test(
+                &file,
+                &observe::Watch {
+                    filter: filter.as_deref(),
+                    coverage,
+                    json,
+                    memo: memo::mode(no_memo, &cfg),
+                },
+                receipt::hold_for(asked, facts.as_deref()),
+                facts.as_deref(),
+            )
+        }
         Cmd::Profile {
             file,
             top,

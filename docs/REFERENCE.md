@@ -44,6 +44,9 @@ Semantics that differ from Ruby are in [`bidamas/okite/RULES.md`](../bidamas/oki
 rescue :timeout as e
   wait(e)
 end` | `(try (risky x) (catch (rescued-error) (cond ((blue-rescues? rescued-error :timeout) (let ((e rescued-error)) (wait e))) (else (blue-reraise rescued-error)))))` | Catch by kind, binding the error; `rescue e` (last) catches every error, an unmatched kind raises again, and `ensure` runs on both paths. A def body takes the same clauses without begin. |
+| `test "isolated", {satisfies: [:nist_ac_6], target: parse}
+  assert parse(1)
+end` | `(deftest "isolated" (blue-test-meta (hash-map :satisfies (list :nist_ac_6) :target parse)) (blue-assert '(parse 1) (parse 1)))` | A test that declares the controls it verifies, each a catalog keyword (:nist_ac_6 is NIST_SP_800_53R5_AC_6, B0069), and the definition it targets. `blue test --facts` hands both, with each one's def_hash, to tameshi. Written satisfies then target, the controls sorted (B0068). |
 | `@doc """
 inc adds one to a number.
 
@@ -90,8 +93,9 @@ Higher binding power binds tighter.
 | `quote` | `quote … end`: the form itself as data, not its value. Used inside `defmacro`. |
 | `unquote` | `unquote(x)`: inside `quote`, splice in the value of `x`. |
 | `unquote_splice` | `unquote_splice(xs)`: inside `quote`, splice the items of the form `xs` in place, not the form itself. |
-| `test` | `test "what must hold" … end`: a test block, run by `blue test` and ignored by `blue run`. |
+| `test` | `test "what must hold" … end`: a test block, run by `blue test` and ignored by `blue run`. `test "n", {satisfies: [:nist_ac_6], target: f}` declares the controls it verifies and the definition it targets (B0068, B0069). |
 | `assert` | `assert expr`: inside a test, fail it unless `expr` is truthy; the failure quotes the expression. |
+| `assert_panics` | `assert_panics expr`: inside a test, pass only when `expr`, run in a child held to a pure frame, ends on a capability breach with no host call made. |
 | `fn` | `fn(x) x * 2 end`: an anonymous function, a value. Blue has no brace or do blocks. |
 | `case` | `case v when 1 … when 2 … else … end`: compares with `==`; it does not destructure. |
 | `do` | Reserved and refused: blue has no do-blocks. Pass `fn(x) … end` instead. |
@@ -651,3 +655,5 @@ Every rule blue holds, from the registry the check stage runs (`blue explain COD
 | `B0065` | newline-escape | text of several lines is written as its lines: `join_lines([a, b])`, `unlines([a, b])` when it ends in a newline, `line_break` alone; never a `\n` escape in a string | autofix |
 | `B0066` | index | a key or position is read with brackets: `m[:k]` for `get(m, :k)`, `xs[i]` for `nth(i, xs)` | autofix |
 | `B0067` | name-as-string | a name a builtin reads as text is a keyword, not a string: `error(:kind, m)`, `json_get(doc, :field)`, `json_get_or(doc, :field, d)` | autofix |
+| `B0068` | test-declaration-order | a test's declaration is written `satisfies` then `target`, its controls sorted: `{satisfies: %i[nist_ac_6 nist_cm_7], target: f}` | autofix |
+| `B0069` | test-declaration | a test satisfies controls the catalog table names (`:nist_ac_6` is NIST_SP_800_53R5_AC_6) and targets a definition of the program | refused |

@@ -161,6 +161,11 @@ pub const FORMS: &[Form] = &[
         doc: "Catch by kind, binding the error; `rescue e` (last) catches every error, an unmatched kind raises again, and `ensure` runs on both paths. A def body takes the same clauses without begin.",
     },
     Form {
+        example: "test \"isolated\", {satisfies: [:nist_ac_6], target: parse}\n  assert parse(1)\nend",
+        lowers_to: "(deftest \"isolated\" (blue-test-meta (hash-map :satisfies (list :nist_ac_6) :target parse)) (blue-assert '(parse 1) (parse 1)))",
+        doc: "A test that declares the controls it verifies, each a catalog keyword (:nist_ac_6 is NIST_SP_800_53R5_AC_6, B0069), and the definition it targets. `blue test --facts` hands both, with each one's def_hash, to tameshi. Written satisfies then target, the controls sorted (B0068).",
+    },
+    Form {
         example: "@doc \"\"\"\ninc adds one to a number.\n\n    inc(1) #=> 2\n\"\"\"\ndef inc(n)\n  n + 1\nend",
         lowers_to: "(blue-doc \"inc adds one to a number.\\n\\n    inc(1) #=> 2\" (define (inc n) (+ n 1)))",
         doc: "Documents the definition below it: one sentence of intent starting with its name, then an indented example whose `expr #=> value` lines `blue test` runs as tests. A heredoc: no escapes, no interpolation. Everything else about a definition is derived (B0056–B0060).",

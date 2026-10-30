@@ -271,6 +271,11 @@ pub trait Scopes {
     fn place(&mut self, node: &Spanned, name: &str, opaque: bool) {
         self.reference(node, name, opaque);
     }
+    /// The definition a test's declaration targets: resolved as a place,
+    /// named and never called.
+    fn target(&mut self, node: &Spanned, name: &str, opaque: bool) {
+        self.place(node, name, opaque);
+    }
     /// The head of a special form or a macro call — not a reference to a
     /// binding, but still a name the program writes.
     fn head(&mut self, _node: &Spanned, _name: &str, _kind: HeadKind) {}
@@ -488,6 +493,22 @@ impl Walker<'_> {
         }
     }
 
+    /// A test's declaration is not code: its head is the harness's, its
+    /// controls are data, and its target is a reference resolved as a place,
+    /// so a zero-parameter definition it names is named, never called.
+    fn walk_test_meta(&mut self, meta: &Spanned, opaque: bool) {
+        if let Some(head) = meta.as_list().and_then(|items| items.first()) {
+            self.pass
+                .head(head, crate::parse::LOWERED_TEST_META, HeadKind::SpecialForm);
+        }
+        let target = crate::test_form::test_meta(meta).and_then(|m| m.target);
+        if let Some(t) = target {
+            if let Some(name) = t.as_symbol() {
+                self.pass.target(t, name, opaque);
+            }
+        }
+    }
+
     fn walk_all(&mut self, items: &[Spanned], opaque: bool) {
         for i in items {
             self.walk(i, opaque);
@@ -502,8 +523,18 @@ impl Walker<'_> {
         // `deftest` is the test harness's declaration, not a special form: a
         // body, run in a frame of its own.
         if head == "deftest" && self.depth == 0 {
-            if let Some(body) = items.get(2) {
-                self.body(&[], std::slice::from_ref(body), opaque);
+            match crate::test_form::test_parts(form) {
+                Some(parts) => {
+                    if let Some(meta) = parts.meta {
+                        self.walk_test_meta(meta, opaque);
+                    }
+                    self.body(&[], std::slice::from_ref(parts.body), opaque);
+                }
+                None => {
+                    if let Some(body) = items.get(2) {
+                        self.body(&[], std::slice::from_ref(body), opaque);
+                    }
+                }
             }
             return;
         }

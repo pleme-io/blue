@@ -31,7 +31,7 @@
 ["[" "]" "(" ")" "{" "}"] @punctuation.bracket
 ["or" "and" "not"] @keyword.operator
 ["." "," "::"] @punctuation.delimiter
-["end" "test" "assert" "quote" "unquote" "unquote_splice"] @keyword
+["end" "test" "assert" "assert_panics" "quote" "unquote" "unquote_splice"] @keyword
 ["#{"] @punctuation.special
 ["if" "unless" "elsif" "else" "case" "when"] @keyword.conditional
 ["def" "defmacro" "fn"] @keyword.function

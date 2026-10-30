@@ -38,29 +38,58 @@ struct FileRun {
     errors: String,
     report: Option<blue_lang_test::Report>,
     coverage: Option<Vec<Measured>>,
+    /// Each definition's and each test's `def_hash`, when facts are asked.
+    identities: Option<blue_lang_mondou::def_hash::TestIdentities>,
 }
 
-/// `blue test PATH [--filter PATTERN] [--coverage [--json]]`.
+/// How `blue test` watches what it runs.
+#[derive(Clone, Copy)]
+pub(crate) struct Watch<'a> {
+    pub filter: Option<&'a str>,
+    pub coverage: bool,
+    pub json: bool,
+    pub memo: crate::memo::Mode,
+}
+
+/// `blue test PATH [--filter PATTERN] [--coverage [--json]] [--allow CAP]
+/// [--facts FILE]`.
 ///
 /// A file runs as it always has. A directory runs every `.b` file under it
 /// that holds a `test` block, files in parallel, and ends with one summary
 /// line. Non-zero when any file fails to check, any test fails, or no test
-/// ran at all.
+/// ran at all. With `hold`, every file's tests are held to it; with `facts`,
+/// the facts and the evidence are written once every file is done
+/// (`crate::facts`).
 pub(crate) fn test(
     path: &Path,
-    filter: Option<&str>,
-    coverage: bool,
-    json: bool,
-    memo: crate::memo::Mode,
+    watch: &Watch<'_>,
+    hold: Option<blue_lang_runtime::Hold>,
+    facts: Option<&Path>,
 ) -> Result<ExitCode, CliError> {
     hermetic()?;
+    let (filter, json) = (watch.filter, watch.json);
     let tree = path.is_dir();
     let files = if tree {
         test_files(path)
     } else {
         vec![path.to_path_buf()]
     };
-    let runs = run_files(&files, filter, coverage, memo)?;
+    let guard = blue_lang_test::Guard {
+        hold,
+        ..blue_lang_test::Guard::default()
+    };
+    let runs = run_files(&files, watch, &guard, facts.is_some())?;
+    if let (Some(facts), Some(hold)) = (facts, &guard.hold) {
+        let evidence: Vec<crate::facts::FileEvidence<'_>> = runs
+            .iter()
+            .map(|r| crate::facts::FileEvidence {
+                path: &r.path,
+                report: r.report.as_ref(),
+                identities: r.identities.as_ref(),
+            })
+            .collect();
+        crate::facts::write(facts, hold, &evidence).map_err(CliError::Fmt)?;
+    }
     let (mut total, mut passed, mut failed, mut broken) = (0, 0, 0, 0);
     for run in &runs {
         eprint!("{}", run.errors);
@@ -200,9 +229,9 @@ fn test_files(root: &Path) -> Vec<PathBuf> {
 /// Run each file's tests, across as many threads as the machine has.
 fn run_files(
     files: &[PathBuf],
-    filter: Option<&str>,
-    coverage: bool,
-    memo: crate::memo::Mode,
+    watch: &Watch<'_>,
+    guard: &blue_lang_test::Guard,
+    identify: bool,
 ) -> Result<Vec<FileRun>, CliError> {
     let workers = std::thread::available_parallelism()
         .map_or(1, std::num::NonZero::get)
@@ -220,12 +249,13 @@ fn run_files(
                     let Some(path) = files.get(i) else { break };
                     // A file that cannot be read or loaded is that file's
                     // failure, not the tree's: its siblings still run.
-                    let run = test_file(path, filter, coverage, memo).or_else(|e| {
+                    let run = test_file(path, watch, guard, identify).or_else(|e| {
                         Ok(FileRun {
                             path: path.clone(),
                             errors: format!("blue: {}: {e}\n", path.display()),
                             report: None,
                             coverage: None,
+                            identities: None,
                         })
                     });
                     if let Ok(mut slots) = results.lock() {
@@ -243,11 +273,12 @@ fn run_files(
 /// reports what the code does, and an answered call does nothing.
 fn test_file(
     path: &Path,
-    filter: Option<&str>,
-    coverage: bool,
-    memo: crate::memo::Mode,
+    watch: &Watch<'_>,
+    guard: &blue_lang_test::Guard,
+    identify: bool,
 ) -> Result<FileRun, CliError> {
     use std::fmt::Write as _;
+    let (filter, coverage, memo) = (watch.filter, watch.coverage, watch.memo);
     let src = read_compiled(path)?;
     // The check stage first, test blocks included: no test runs over a
     // program with an error, as `run` would not evaluate it.
@@ -279,6 +310,7 @@ fn test_file(
             errors,
             report: None,
             coverage: None,
+            identities: None,
         });
     }
     let memoized = memo != crate::memo::Mode::Off && !coverage;
@@ -316,7 +348,14 @@ fn test_file(
         Some(w) => Some(Arc::clone(w) as Arc<dyn CallObserver>),
         None => watching,
     };
-    let report = blue_lang_test::run_checked(&checked, filter, observer);
+    let report = blue_lang_test::run_guarded(&checked, filter, observer, guard);
+    let identities = identify.then(|| {
+        let lowered = blue_lang_runtime::pipeline::lower(&checked.program, &checked.names);
+        blue_lang_mondou::def_hash::test_identities(
+            &lowered,
+            &blue_lang_mondou::program_docs(&checked.program),
+        )
+    });
     if let Some(m) = &recall {
         crate::memo::finish(m);
     }
@@ -331,6 +370,7 @@ fn test_file(
         errors,
         report: Some(report),
         coverage: recorder.map(|r| r.report()),
+        identities,
     })
 }
 

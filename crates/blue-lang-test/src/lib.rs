@@ -47,6 +47,17 @@
 //! regardless of test count, which is the whole point, and a regression to
 //! per-test replay would show up there.
 //!
+//! ## A refusal is proven in a child
+//!
+//! `assert_panics expr` lowers to `(blue-assert-panics 'expr (lambda ()
+//! expr))`. A capability breach is fatal: it ends the evaluation that reaches
+//! it and no `rescue` sees it, so a test cannot catch one in its own
+//! interpreter. The harness turns the function back into code the way `spawn`
+//! does, runs it in a fresh interpreter held to a pure frame, and passes only
+//! when that child ends on the breach having made no host call. A test's
+//! declaration (`test "n", {satisfies: [:nist_ac_6], target: f}`) rides in
+//! each [`Outcome`], for the evidence `blue test --facts` writes.
+//!
 //! ## `pending-dojo:` blue-facet
 //!
 //! The fleet's ★★ DOJO doctrine says every testing quality is a typed facet
@@ -58,7 +69,7 @@
 //! vocabulary competing with dojo; it is the first facet, waiting for the
 //! border.
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 
 use tatara_lisp::{Atom, Sexp, Spanned};
@@ -72,6 +83,58 @@ use blue_lang_runtime::literal::{render_form, render_value};
 pub struct Test {
     pub name: String,
     pub body: Sexp,
+    pub declared: Declared,
+}
+
+/// What a test declares: `test "n", {satisfies: [:nist_ac_6], target: f}`.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Declared {
+    /// The control keywords, sorted, without the colon: `nist_ac_6`.
+    pub satisfies: Vec<String>,
+    /// The definition the target names, as the tree the harness runs names
+    /// it: the runtime key `%root/parse_token` after resolution.
+    pub target: Option<String>,
+}
+
+impl Declared {
+    fn of(meta: Option<&Spanned>) -> Self {
+        let Some(meta) = meta.and_then(blue_lang_syntax::test_meta) else {
+            return Self::default();
+        };
+        Self {
+            satisfies: meta
+                .satisfies
+                .iter()
+                .map(|(c, _)| (*c).to_string())
+                .collect(),
+            target: blue_lang_syntax::target_key(&meta).map(str::to_string),
+        }
+    }
+}
+
+/// Assertions that held and assertions that failed.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Tally {
+    pub passed: u64,
+    pub failed: u64,
+}
+
+/// What one test did: its declaration, its verdict, and what it cost.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Outcome {
+    pub name: String,
+    /// The top-level form the test is, in the checked program.
+    pub top_level: Option<usize>,
+    pub declared: Declared,
+    pub passed: bool,
+    /// Every assertion the test evaluated. A test that raised counts one
+    /// failed assertion: the verification it was making did not hold.
+    pub assertions: Tally,
+    /// Evaluation steps, the children `assert_panics` ran included.
+    pub steps: u64,
+    /// Host calls through granted names while the test ran; 0 under a pure
+    /// frame by construction.
+    pub host_io: u64,
 }
 
 /// Why a test did not pass. **Two distinct outcomes, never merged**: an
@@ -90,6 +153,14 @@ pub enum Failure {
     },
     /// The test raised before or instead of asserting.
     Errored { test: String, error: String },
+    /// An `assert_panics` whose expression, run in a child held to a pure
+    /// frame, did not end on a capability breach, or reached the host first.
+    /// Carries the expression as canonical blue source and how it ended.
+    NoBreach {
+        test: String,
+        expression: String,
+        ended: String,
+    },
 }
 
 /// The two sides of a failed comparison, as canonical blue source.
@@ -161,7 +232,9 @@ fn path_tail(inner: &str) -> String {
 impl Failure {
     pub fn test(&self) -> &str {
         match self {
-            Failure::Assertion { test, .. } | Failure::Errored { test, .. } => test,
+            Failure::Assertion { test, .. }
+            | Failure::Errored { test, .. }
+            | Failure::NoBreach { test, .. } => test,
         }
     }
 }
@@ -189,6 +262,14 @@ impl std::fmt::Display for Failure {
                 Ok(())
             }
             Failure::Errored { test, error } => write!(f, "ERROR {test}\n  {error}"),
+            Failure::NoBreach {
+                test,
+                expression,
+                ended,
+            } => write!(
+                f,
+                "FAIL {test}\n  assert_panics {expression}\n  ended: {ended}"
+            ),
         }
     }
 }
@@ -204,6 +285,15 @@ pub struct Report {
     /// and a regression to replay would show up here as a number that tracks
     /// the test count again.
     pub preamble_evaluations: usize,
+    /// Each test that ran, in file order.
+    pub outcomes: Vec<Outcome>,
+    /// Every assertion of every test.
+    pub assertions: Tally,
+    /// Evaluation steps: the preamble once, then every test.
+    pub steps: u64,
+    /// Host calls through granted names over the whole run, when it was
+    /// held to a frame; `None` for an unheld run, which counts nothing.
+    pub host_io: Option<u64>,
 }
 
 impl Report {
@@ -250,18 +340,16 @@ pub fn split(forms: &[Sexp]) -> (Vec<Test>, Vec<Sexp>) {
 
 fn as_test(form: &Sexp) -> Option<Test> {
     let Sexp::List(items) = form else { return None };
-    if items.len() != 3 {
+    if !matches!(items.first(), Some(Sexp::Atom(Atom::Symbol(h))) if &**h == "deftest") {
         return None;
     }
-    match (&items[0], &items[1]) {
-        (Sexp::Atom(Atom::Symbol(h)), Sexp::Atom(Atom::Str(name))) if &**h == "deftest" => {
-            Some(Test {
-                name: name.to_string(),
-                body: items[2].clone(),
-            })
-        }
-        _ => None,
-    }
+    let lifted = Spanned::from_sexp_synthetic(form);
+    let parts = blue_lang_syntax::test_parts(&lifted)?;
+    Some(Test {
+        name: parts.name.to_string(),
+        body: parts.body.to_sexp(),
+        declared: Declared::of(parts.meta),
+    })
 }
 
 /// The host a test runs against: one flag recording whether an `assert`
@@ -270,11 +358,104 @@ fn as_test(form: &Sexp) -> Option<Test> {
 /// A flag rather than an early return, because a primitive cannot unwind the
 /// interpreter — and because a test with several asserts should report the
 /// FIRST failure, which is the one whose cause is still local.
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct Recorder {
     failed: Arc<AtomicBool>,
     expression: Arc<std::sync::Mutex<Option<String>>>,
     operands: Arc<std::sync::Mutex<Option<Operands>>>,
+    /// How the child of a failed `assert_panics` ended, when that was the
+    /// first failure.
+    ended: Arc<std::sync::Mutex<Option<String>>>,
+    held: Arc<AtomicU64>,
+    broken: Arc<AtomicU64>,
+    /// Steps the children `assert_panics` ran spent.
+    child_steps: Arc<AtomicU64>,
+}
+
+impl Recorder {
+    fn count(&self, held: bool) {
+        let counter = if held { &self.held } else { &self.broken };
+        counter.fetch_add(1, Ordering::SeqCst);
+    }
+
+    fn tally(&self) -> Tally {
+        Tally {
+            passed: self.held.load(Ordering::SeqCst),
+            failed: self.broken.load(Ordering::SeqCst),
+        }
+    }
+}
+
+/// What `assert_panics` runs its expression under: the bounds the test
+/// itself runs under.
+#[derive(Clone, Default)]
+struct Bounds {
+    steps: Option<usize>,
+    interrupt: Option<Arc<AtomicBool>>,
+}
+
+/// How the child an `assert_panics` ran ended.
+struct Attempt {
+    ended: Result<Value, tatara_lisp_eval::EvalError>,
+    host_io: u64,
+    steps: u64,
+}
+
+impl Attempt {
+    /// The verdict: a capability breach, with no host call made first.
+    fn breached(&self) -> bool {
+        matches!(&self.ended, Err(e) if blue_lang_runtime::is_breach(e)) && self.host_io == 0
+    }
+
+    fn describe(&self) -> String {
+        match &self.ended {
+            Ok(v) => format!("returned {}", render_value(v)),
+            Err(e) if blue_lang_runtime::is_breach(e) => format!(
+                "a capability breach after {} host call(s): {}",
+                self.host_io,
+                e.short_message()
+            ),
+            Err(e) => format!("raised, not a capability breach: {}", e.short_message()),
+        }
+    }
+}
+
+/// Run `thunk` the way a process runs a spawned function: turned back into
+/// code (its helpers defined, the data it reaches copied, nothing of the
+/// test's interpreter shared), in a fresh interpreter held to a pure frame,
+/// whose processes are held to it too. A breach ends this child, not the
+/// test, and no `rescue` inside it sees the breach.
+fn attempt(thunk: &Value, bounds: &Bounds) -> Result<Attempt, String> {
+    let (code, _) = blue_lang_proc::code::spawn_code(thunk, &[])?;
+    let hold = blue_lang_runtime::Hold::from(blue_lang_runtime::session::pure_frame());
+    let account = blue_lang_runtime::Account::default();
+    let mut child = blue_lang_runtime::interpreter_hostless();
+    hold.bind(&mut child, "assert_panics's pure frame", &account.host_io);
+    blue_lang_runtime::attach_node_accounted(&mut child, Some(&hold), &account);
+    if let Some(flag) = &bounds.interrupt {
+        child.set_interrupt(Arc::clone(flag));
+    }
+    if let Some(steps) = bounds.steps {
+        let _ = child.set_budget(tatara_lisp_eval::vm::Budget {
+            fuel: Some(steps),
+            ..child.budget()
+        });
+    }
+    for (name, value) in &code.bindings {
+        child.define_global(name.clone(), value.clone());
+    }
+    let mut ended = Ok(Value::Nil);
+    for form in code.program() {
+        ended = child.eval_top_form(&form, &mut ());
+        if ended.is_err() {
+            break;
+        }
+    }
+    Ok(Attempt {
+        ended,
+        host_io: account.host_io.total(),
+        steps: child.steps_spent() as u64,
+    })
 }
 
 /// The harness's comparison assertion: `(blue-assert-compare 'e lhs rhs
@@ -366,25 +547,23 @@ pub fn compare_asserts_spanned(form: &Spanned) -> Spanned {
 }
 
 /// Install the assertion primitive, recording failures into `rec`.
-fn install_assert(interp: &mut Interpreter<()>, rec: &Recorder) {
-    let failed = rec.failed.clone();
-    let expression = rec.expression.clone();
+fn install_assert(interp: &mut Interpreter<()>, rec: &Recorder, bounds: &Bounds) {
     {
-        let failed = rec.failed.clone();
-        let expression = rec.expression.clone();
-        let operands = rec.operands.clone();
+        let rec = rec.clone();
         interp.register_fn(
             ASSERT_COMPARE,
             Arity::Exact(4),
             move |args: &[Value], _host: &mut (), _span| {
-                if truthy(&args[3]) {
+                let held = truthy(&args[3]);
+                rec.count(held);
+                if held {
                     return Ok(Value::Bool(true));
                 }
-                if !failed.swap(true, Ordering::SeqCst) {
-                    if let Ok(mut slot) = expression.lock() {
+                if !rec.failed.swap(true, Ordering::SeqCst) {
+                    if let Ok(mut slot) = rec.expression.lock() {
                         *slot = Some(render_form(&args[0]));
                     }
-                    if let Ok(mut slot) = operands.lock() {
+                    if let Ok(mut slot) = rec.operands.lock() {
                         *slot = Some(Operands {
                             left: render_value(&args[1]),
                             right: render_value(&args[2]),
@@ -396,18 +575,49 @@ fn install_assert(interp: &mut Interpreter<()>, rec: &Recorder) {
             },
         );
     }
+    {
+        let rec = rec.clone();
+        interp.register_fn(
+            blue_lang_syntax::LOWERED_ASSERT,
+            Arity::Exact(2),
+            move |args: &[Value], _host: &mut (), _span| {
+                let held = truthy(&args[1]);
+                rec.count(held);
+                if held {
+                    return Ok(Value::Bool(true));
+                }
+                if !rec.failed.swap(true, Ordering::SeqCst) {
+                    if let Ok(mut slot) = rec.expression.lock() {
+                        *slot = Some(render_form(&args[0]));
+                    }
+                }
+                Ok(Value::Bool(false))
+            },
+        );
+    }
+    let rec = rec.clone();
+    let bounds = bounds.clone();
     interp.register_fn(
-        blue_lang_syntax::LOWERED_ASSERT,
+        blue_lang_syntax::LOWERED_ASSERT_PANICS,
         Arity::Exact(2),
         move |args: &[Value], _host: &mut (), _span| {
-            if truthy(&args[1]) {
+            let (held, ended) = match attempt(&args[1], &bounds) {
+                Ok(a) => {
+                    rec.child_steps.fetch_add(a.steps, Ordering::SeqCst);
+                    (a.breached(), a.describe())
+                }
+                Err(why) => (false, format!("it could not be moved into a child: {why}")),
+            };
+            rec.count(held);
+            if held {
                 return Ok(Value::Bool(true));
             }
-            // Record the FIRST failure only: later asserts in the same test
-            // are usually consequences of it.
-            if !failed.swap(true, Ordering::SeqCst) {
-                if let Ok(mut slot) = expression.lock() {
+            if !rec.failed.swap(true, Ordering::SeqCst) {
+                if let Ok(mut slot) = rec.expression.lock() {
                     *slot = Some(render_form(&args[0]));
+                }
+                if let Ok(mut slot) = rec.ended.lock() {
+                    *slot = Some(ended);
                 }
             }
             Ok(Value::Bool(false))
@@ -445,7 +655,7 @@ pub fn run(forms: &[Sexp]) -> Report {
     // The preamble may legitimately assert at the top level, so `assert` has to
     // be bound while it runs. Each fork overwrites this with its own recorder.
     let preamble_rec = Recorder::default();
-    install_assert(&mut prototype, &preamble_rec);
+    install_assert(&mut prototype, &preamble_rec, &Bounds::default());
 
     let preamble_error = match eval_all(&mut prototype, &preamble) {
         Err(e) => Some(e),
@@ -455,16 +665,21 @@ pub fn run(forms: &[Sexp]) -> Report {
         Ok(()) => None,
     };
     report.preamble_evaluations = 1;
+    report.steps = prototype.steps_spent() as u64;
 
     // A broken preamble fails every test, exactly as it did when each test
     // replayed it. Reported per test rather than once so the shape of the
     // report does not change with the shape of the runner.
     if let Some(error) = preamble_error {
         for test in &tests {
-            report.failures.push(Failure::Errored {
-                test: test.name.clone(),
-                error: error.clone(),
-            });
+            let ran = Ran {
+                name: &test.name,
+                top_level: None,
+                declared: &test.declared,
+                steps: 0,
+                host_io: 0,
+            };
+            finish(&mut report, &ran, &Recorder::default(), Err(error.clone()));
         }
         return report;
     }
@@ -472,7 +687,7 @@ pub fn run(forms: &[Sexp]) -> Report {
     for test in &tests {
         let rec = Recorder::default();
         let mut interp = prototype.fork();
-        install_assert(&mut interp, &rec);
+        install_assert(&mut interp, &rec, &Bounds::default());
         // A process node per test, so one test's processes and mailbox are
         // not the next test's: the fork shares the prototype's node otherwise.
         blue_lang_runtime::attach_node(&mut interp);
@@ -482,24 +697,65 @@ pub fn run(forms: &[Sexp]) -> Report {
         // pipeline uses, so a test sees exactly the program `blue run` would.
         let program: Vec<Sexp> = vec![test.body.clone()];
 
-        match eval_all(&mut interp, &program) {
-            Err(error) => report.failures.push(Failure::Errored {
-                test: test.name.clone(),
-                error,
-            }),
-            Ok(()) => record_verdict(&mut report, &test.name, &rec),
-        }
+        let ended = eval_all(&mut interp, &program);
+        let ran = Ran {
+            name: &test.name,
+            top_level: None,
+            declared: &test.declared,
+            steps: interp.steps_spent() as u64,
+            host_io: 0,
+        };
+        finish(&mut report, &ran, &rec, ended);
     }
 
     report
 }
 
-/// One `test` block of a checked program: its name, its body, and the
-/// top-level form it is.
+/// What a finished test was, beside its recorder.
+struct Ran<'a> {
+    name: &'a str,
+    top_level: Option<usize>,
+    declared: &'a Declared,
+    steps: u64,
+    host_io: u64,
+}
+
+/// Record a finished test: its failure, if it has one, and its outcome.
+fn finish(report: &mut Report, ran: &Ran<'_>, rec: &Recorder, ended: Result<(), String>) {
+    let mut assertions = rec.tally();
+    let passed = match ended {
+        Err(error) => {
+            assertions.failed += 1;
+            report.failures.push(Failure::Errored {
+                test: ran.name.to_string(),
+                error,
+            });
+            false
+        }
+        Ok(()) => record_verdict(report, ran.name, rec),
+    };
+    let steps = ran.steps + rec.child_steps.load(Ordering::SeqCst);
+    report.assertions.passed += assertions.passed;
+    report.assertions.failed += assertions.failed;
+    report.steps += steps;
+    report.outcomes.push(Outcome {
+        name: ran.name.to_string(),
+        top_level: ran.top_level,
+        declared: ran.declared.clone(),
+        passed,
+        assertions,
+        steps,
+        host_io: ran.host_io,
+    });
+}
+
+/// One `test` block of a checked program: its name, its body, the top-level
+/// form it is, and what it declares.
 struct Block<'a> {
     name: String,
     body: &'a Spanned,
     top_level: usize,
+    declared: Declared,
 }
 
 /// What a run is held to beyond its program. The default holds it to
@@ -548,17 +804,12 @@ pub fn run_guarded(
     let mut blocks = Vec::new();
     let mut preamble = Vec::new();
     for (i, form) in erased.iter().enumerate() {
-        let test = form.as_list().and_then(|items| match items {
-            [head, name, body] if head.as_symbol() == Some("deftest") => {
-                name.as_string().map(|n| (n.to_string(), body))
-            }
-            _ => None,
-        });
-        match test {
-            Some((name, body)) => blocks.push(Block {
-                name,
-                body,
+        match blue_lang_syntax::test_parts(form) {
+            Some(parts) => blocks.push(Block {
+                name: parts.name.to_string(),
+                body: parts.body,
                 top_level: i,
+                declared: Declared::of(parts.meta),
             }),
             None => preamble.push((i, form)),
         }
@@ -567,11 +818,16 @@ pub fn run_guarded(
 
     let mut report = Report::default();
     let mut prototype = blue_lang_runtime::interpreter_hostless();
+    let account = blue_lang_runtime::Account::default();
     if let Some(hold) = &guard.hold {
-        let account = blue_lang_runtime::Account::default();
         hold.bind(&mut prototype, "this run's frame", &account.host_io);
         blue_lang_runtime::attach_node_accounted(&mut prototype, Some(hold), &account);
     }
+    let held = guard.hold.is_some();
+    let bounds = Bounds {
+        steps: guard.steps,
+        interrupt: guard.interrupt.clone(),
+    };
     if let Some(flag) = &guard.interrupt {
         prototype.set_interrupt(Arc::clone(flag));
     }
@@ -583,7 +839,7 @@ pub fn run_guarded(
     }
     prototype.set_call_observer(observer);
     let preamble_rec = Recorder::default();
-    install_assert(&mut prototype, &preamble_rec);
+    install_assert(&mut prototype, &preamble_rec, &bounds);
     let fault = |interp: &Interpreter<()>, i: usize, e: &tatara_lisp_eval::EvalError| {
         Fault::of(program, &erased, i, e, &interp.take_trace()).to_string()
     };
@@ -598,12 +854,18 @@ pub fn run_guarded(
         preamble_error = Some("an assertion in the file's preamble failed".to_string());
     }
     report.preamble_evaluations = 1;
+    report.steps = prototype.steps_spent() as u64;
+    report.host_io = held.then(|| account.host_io.total());
     if let Some(error) = preamble_error {
         for block in &blocks {
-            report.failures.push(Failure::Errored {
-                test: block.name.clone(),
-                error: error.clone(),
-            });
+            let ran = Ran {
+                name: &block.name,
+                top_level: Some(block.top_level),
+                declared: &block.declared,
+                steps: 0,
+                host_io: 0,
+            };
+            finish(&mut report, &ran, &Recorder::default(), Err(error.clone()));
         }
         return report;
     }
@@ -611,36 +873,51 @@ pub fn run_guarded(
     for block in &blocks {
         let rec = Recorder::default();
         let mut interp = prototype.fork();
-        install_assert(&mut interp, &rec);
-        match interp.eval_top_form(&compare_asserts_spanned(block.body), &mut ()) {
-            Err(e) => report.failures.push(Failure::Errored {
-                test: block.name.clone(),
-                error: fault(&interp, block.top_level, &e),
-            }),
-            Ok(_) => record_verdict(&mut report, &block.name, &rec),
-        }
+        install_assert(&mut interp, &rec, &bounds);
+        let before = account.host_io.total();
+        let ended = interp
+            .eval_top_form(&compare_asserts_spanned(block.body), &mut ())
+            .map(drop)
+            .map_err(|e| fault(&interp, block.top_level, &e));
+        let ran = Ran {
+            name: &block.name,
+            top_level: Some(block.top_level),
+            declared: &block.declared,
+            steps: interp.steps_spent() as u64,
+            host_io: account.host_io.total() - before,
+        };
+        finish(&mut report, &ran, &rec, ended);
     }
+    report.host_io = held.then(|| account.host_io.total());
     report
 }
 
 /// A finished test's verdict: its first failed assertion, or a pass.
-fn record_verdict(report: &mut Report, test: &str, rec: &Recorder) {
-    if rec.failed.load(Ordering::SeqCst) {
-        let expression = rec
-            .expression
-            .lock()
-            .ok()
-            .and_then(|s| s.clone())
-            .unwrap_or_else(|| "<expression unavailable>".to_string());
-        let operands = rec.operands.lock().ok().and_then(|s| s.clone());
-        report.failures.push(Failure::Assertion {
+fn record_verdict(report: &mut Report, test: &str, rec: &Recorder) -> bool {
+    if !rec.failed.load(Ordering::SeqCst) {
+        report.passed += 1;
+        return true;
+    }
+    let expression = rec
+        .expression
+        .lock()
+        .ok()
+        .and_then(|s| s.clone())
+        .unwrap_or_else(|| "<expression unavailable>".to_string());
+    let ended = rec.ended.lock().ok().and_then(|s| s.clone());
+    report.failures.push(match ended {
+        Some(ended) => Failure::NoBreach {
             test: test.to_string(),
             expression,
-            operands,
-        });
-    } else {
-        report.passed += 1;
-    }
+            ended,
+        },
+        None => Failure::Assertion {
+            test: test.to_string(),
+            expression,
+            operands: rec.operands.lock().ok().and_then(|s| s.clone()),
+        },
+    });
+    false
 }
 
 // The spanless path, kept for a caller holding only parsed `Sexp` (the spec
@@ -909,6 +1186,139 @@ mod tests {
         assert_eq!(tests[0].name, "a");
         assert_eq!(preamble.len(), 1, "the def stays in the preamble");
     }
+
+    const READER: &str = "def reader(path)\n  read_file(path)\nend\n";
+
+    #[test]
+    fn assert_panics_passes_when_its_expression_breaches_in_a_pure_child() {
+        let r = report(&format!(
+            "{READER}test \"refused\"\n  assert_panics reader(\"/etc/hosts\")\nend\n"
+        ));
+        assert!(r.ok(), "{r}");
+        assert_eq!(
+            r.assertions,
+            Tally {
+                passed: 1,
+                failed: 0
+            }
+        );
+    }
+
+    #[test]
+    fn assert_panics_fails_naming_how_an_expression_that_did_not_breach_ended() {
+        let r = report("test \"pure\"\n  assert_panics 1 + 1\nend\n");
+        match &r.failures[..] {
+            [Failure::NoBreach {
+                expression, ended, ..
+            }] => {
+                assert_eq!(expression, "1 + 1");
+                assert_eq!(ended, "returned 2");
+            }
+            other => panic!("expected one NoBreach failure: {other:?}"),
+        }
+        assert_eq!(
+            r.failures[0].to_string(),
+            "FAIL pure\n  assert_panics 1 + 1\n  ended: returned 2"
+        );
+        let raised = report("test \"raises\"\n  assert_panics raise(:boom, \"no\")\nend\n");
+        match &raised.failures[..] {
+            [Failure::NoBreach { ended, .. }] => {
+                assert!(
+                    ended.starts_with("raised, not a capability breach"),
+                    "{ended}"
+                );
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_rescue_inside_the_expression_does_not_turn_a_breach_into_a_value() {
+        let r = report(&format!(
+            "{READER}test \"rescued\"\n  assert_panics reader(\"/etc/hosts\") rescue \"swallowed\"\nend\n"
+        ));
+        assert!(r.ok(), "{r}");
+    }
+
+    #[test]
+    fn each_outcome_carries_its_declaration_and_its_assertions() {
+        let r = report(&format!(
+            "{READER}test \"declared\", {{satisfies: %i[nist_ac_6 nist_cm_7], target: reader}}\n  \
+             assert_panics reader(\"x\")\n  assert 1 == 1\nend\n\
+             test \"plain\"\n  assert 1 == 2\nend\n"
+        ));
+        assert_eq!(r.outcomes.len(), 2, "{r}");
+        let declared = &r.outcomes[0];
+        assert_eq!(declared.declared.satisfies, ["nist_ac_6", "nist_cm_7"]);
+        assert_eq!(declared.declared.target.as_deref(), Some("reader"));
+        assert!(declared.passed);
+        assert_eq!(
+            declared.assertions,
+            Tally {
+                passed: 2,
+                failed: 0
+            }
+        );
+        let plain = &r.outcomes[1];
+        assert_eq!(plain.declared, Declared::default());
+        assert!(!plain.passed);
+        assert_eq!(
+            plain.assertions,
+            Tally {
+                passed: 0,
+                failed: 1
+            }
+        );
+        assert_eq!(
+            r.assertions,
+            Tally {
+                passed: 2,
+                failed: 1
+            }
+        );
+        assert!(r.steps > 0);
+    }
+
+    fn checked(src: &str) -> blue_lang_runtime::pipeline::Checked {
+        let checked = blue_lang_runtime::pipeline::check_entry(
+            blue_lang_runtime::uses::Entry::anonymous(src),
+            &blue_lang_runtime::uses::NoLoader,
+            None,
+            blue_lang_runtime::pipeline::Checking::WithTests,
+        )
+        .expect("checks");
+        assert!(checked.outcome.ok(), "{:?}", checked.outcome.diagnostics);
+        checked
+    }
+
+    #[test]
+    fn under_a_pure_frame_a_breach_outside_assert_panics_ends_its_test_past_a_rescue() {
+        let src = format!(
+            "{READER}test \"bare\", {{satisfies: [:nist_ac_6], target: reader}}\n  \
+             got = reader(\"/nonexistent/blue-harness\") rescue \"swallowed\"\n  assert got == \"swallowed\"\nend\n"
+        );
+        let pure = Guard {
+            hold: Some(blue_lang_runtime::Hold::from(
+                blue_lang_runtime::session::pure_frame(),
+            )),
+            ..Guard::default()
+        };
+        let r = run_guarded(&checked(&src), None, None, &pure);
+        match &r.failures[..] {
+            [Failure::Errored { error, .. }] => {
+                assert!(error.contains("capability breach"), "{error}");
+            }
+            other => panic!("expected the breach to end the test: {other:?}"),
+        }
+        assert_eq!(r.host_io, Some(0));
+        assert_eq!(
+            r.outcomes[0].declared.target.as_deref(),
+            Some("%root/reader")
+        );
+        let ambient = run_guarded(&checked(&src), None, None, &Guard::default());
+        assert!(ambient.ok(), "unheld, the rescue answers: {ambient}");
+        assert_eq!(ambient.host_io, None);
+    }
 }
 
 #[cfg(test)]
@@ -943,6 +1353,8 @@ mod shadowing {
         // macro named `blue-assert-compare` would swallow every comparison.
         const LOWERED: &[&str] = &[
             blue_lang_syntax::LOWERED_ASSERT,
+            blue_lang_syntax::LOWERED_ASSERT_PANICS,
+            blue_lang_syntax::LOWERED_TEST_META,
             super::ASSERT_COMPARE,
             "blue-assert-lhs",
             "blue-assert-rhs",

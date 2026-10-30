@@ -956,6 +956,7 @@ def blue()
         unquote_splice
         test
         assert
+        assert_panics
         fn
         case
       ],
@@ -975,6 +976,7 @@ def blue()
       %w[end keyword],
       %w[test keyword],
       %w[assert keyword],
+      %w[assert_panics keyword],
       %w[quote keyword],
       %w[unquote keyword],
       %w[unquote_splice keyword],
@@ -1185,6 +1187,7 @@ def blue()
               arrow_lambda
               test
               assert
+              assert_panics
               quote
               unquote
               unquote_splice
@@ -1920,11 +1923,23 @@ def blue()
           [
             lit("test"),
             field("name", alias(ref("_plain_string"), "string")),
+            opt(seq([lit(","), nl, field("declaration", ref("map"))])),
             opt(field("body", ref("body"))),
             lit("end")
           ]
         ),
-        ["list", %w[sym deftest], %w[field name], nil_or("body")]
+        [
+          "list",
+          %w[sym deftest],
+          %w[field name],
+          [
+            "if_any",
+            [["declaration"]],
+            ["list", %w[sym blue-test-meta], %w[field declaration]],
+            ["seq"]
+          ],
+          nil_or("body")
+        ]
       ),
       rule(
         "assert",
@@ -1937,6 +1952,19 @@ def blue()
           %w[sym blue-assert],
           ["quote", %w[field expression]],
           %w[field expression]
+        ]
+      ),
+      rule(
+        "assert_panics",
+        prec_right(
+          0,
+          seq([lit("assert_panics"), field("expression", ref("_expression"))])
+        ),
+        [
+          "list",
+          %w[sym blue-assert-panics],
+          ["quote", %w[field expression]],
+          ["list", %w[sym lambda], ["list"], %w[field expression]]
         ]
       ),
       rule(

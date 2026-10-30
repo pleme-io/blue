@@ -83,7 +83,9 @@ fn a_virtual_provider_lets_a_leaf_that_needs_the_clock_resolve_under_a_pure_ceil
 
     put(
         &dir.join("Bluefile"),
-        &format!("{bare}virtualize(:clock, {{at_ms: 0, step_ms: 1}})\n"),
+        &format!(
+            "{bare}virtualize(:clock, {{using: :deterministic_stepped, at_ms: 0, step_ms: 1}})\n"
+        ),
     );
     let o = lock(&dir);
     assert!(o.status.success(), "{}", err(&o));
@@ -91,7 +93,7 @@ fn a_virtual_provider_lets_a_leaf_that_needs_the_clock_resolve_under_a_pure_ceil
     let written: serde_json::Value = serde_json::from_str(&text).unwrap();
     let caps = &written["capabilities"];
     assert_eq!(
-        caps["provided"]["clock"]["provider"], "stepped-clock",
+        caps["provided"]["clock"]["provider"], "deterministic-stepped",
         "{text}"
     );
     assert_eq!(
@@ -177,7 +179,7 @@ fn only_clock_entropy_and_filesystem_have_pure_providers() {
 fn blue_run_holds_a_program_to_its_projects_allow_and_providers() {
     let dir = project(
         "run",
-        "package(\"app\", \"0.1.0\")\npackages(\"bidamas\")\nallow([])\nvirtualize(:clock, {at_ms: 1000, step_ms: 5})\n",
+        "package(\"app\", \"0.1.0\")\npackages(\"bidamas\")\nallow([])\nvirtualize(:clock, {using: :deterministic_stepped, at_ms: 1000, step_ms: 5})\n",
         CLOCK,
         REDE,
     );
@@ -212,6 +214,246 @@ fn blue_run_holds_a_program_to_its_projects_allow_and_providers() {
         "{}",
         err(&o)
     );
+}
+
+fn run(dir: &Path, extra: &[&str]) -> Output {
+    blue()
+        .args(["run", "--quiet"])
+        .args(extra)
+        .arg(dir.join("main.b"))
+        .output()
+        .unwrap()
+}
+
+fn out(o: &Output) -> String {
+    String::from_utf8_lossy(&o.stdout).into_owned()
+}
+
+fn lock_leaves(dir: &Path) {
+    for leaf in ["bidamas/rede", "bidamas/porta"] {
+        let o = lock(&dir.join(leaf));
+        assert!(o.status.success(), "{leaf}: {}", err(&o));
+    }
+}
+
+const SCOPED_CLOCK: &str = "package(\"app\", \"0.1.0\")\npackages(\"bidamas\")\nallow([])\nvirtualize(:clock, {using: :deterministic_stepped, at_ms: 1000, step_ms: 5, for: %w[rede]})\n";
+
+#[test]
+fn every_using_spelling_locks_and_runs_its_provider() {
+    let host = "def get(u)\n  write_file(\"/t\", \"kept\")\n  \"#{now_ms} #{now_ms} #{length(random_bytes(2))} #{read_file(\"/t\")}\"\nend\n";
+    let fixed = "package(\"app\", \"0.1.0\")\npackages(\"bidamas\")\nallow([])\nvirtualize(:clock, {using: :deterministic_stepped, at_ms: 1000, step_ms: 5})\nvirtualize(:entropy, {using: :seeded_prng, seed: \"s\"})\n";
+    let dir = project(
+        "using",
+        &format!("{fixed}virtualize(:filesystem, {{using: :in_memory_overlay}})\n"),
+        host,
+        REDE,
+    );
+    put(
+        &dir.join("main.b"),
+        "use(\"porta\", [:fetch])\n\ndef main()\n  write_stdout(fetch(\"x\"))\nend\n",
+    );
+    lock_leaves(&dir);
+    let o = lock(&dir);
+    assert!(o.status.success(), "{}", err(&o));
+    let text = std::fs::read_to_string(dir.join("Bluefile.lock")).unwrap();
+    let written: serde_json::Value = serde_json::from_str(&text).unwrap();
+    let provided = &written["capabilities"]["provided"];
+    assert_eq!(
+        provided["clock"]["provider"], "deterministic-stepped",
+        "{text}"
+    );
+    assert_eq!(provided["entropy"]["provider"], "seeded-prng", "{text}");
+    assert_eq!(
+        provided["filesystem"]["provider"], "in-memory-overlay",
+        "{text}"
+    );
+    let o = run(&dir, &[]);
+    assert!(o.status.success(), "{}", err(&o));
+    assert_eq!(out(&o), "1000 1005 2 kept");
+
+    put(
+        &dir.join("Bluefile"),
+        &format!("{fixed}virtualize(:filesystem, {{using: :null_sink}})\n"),
+    );
+    let o = lock(&dir);
+    assert!(o.status.success(), "{}", err(&o));
+    let text = std::fs::read_to_string(dir.join("Bluefile.lock")).unwrap();
+    assert!(text.contains("\"null-sink\""), "{text}");
+    let o = run(&dir, &[]);
+    assert!(
+        !o.status.success(),
+        "a null sink keeps nothing to read back"
+    );
+    assert!(err(&o).contains("virtual filesystem"), "{}", err(&o));
+}
+
+#[test]
+fn an_unknown_using_is_refused_by_name() {
+    let dir = project(
+        "unknown-using",
+        "package(\"app\", \"0.1.0\")\npackages(\"bidamas\")\nallow([])\nvirtualize(:clock, {using: :wall_clock})\n",
+        CLOCK,
+        REDE,
+    );
+    let o = lock(&dir);
+    assert!(!o.status.success());
+    assert!(
+        err(&o).contains(
+            "`using: :wall_clock` is not a clock provider; it takes :deterministic_stepped"
+        ),
+        "{}",
+        err(&o)
+    );
+    assert!(!dir.join("Bluefile.lock").exists());
+
+    put(
+        &dir.join("Bluefile"),
+        "package(\"app\", \"0.1.0\")\npackages(\"bidamas\")\nallow([])\nvirtualize(:filesystem, {mode: :memory})\n",
+    );
+    let o = lock(&dir);
+    assert!(
+        !o.status.success(),
+        "the retired `mode:` spelling is refused"
+    );
+    assert!(
+        err(&o).contains("filesystem needs `using:`, one of :in_memory_overlay, :null_sink"),
+        "{}",
+        err(&o)
+    );
+}
+
+#[test]
+fn a_scoped_clock_serves_its_leaf_and_not_the_root_or_an_unscoped_package() {
+    let dir = project("scoped", SCOPED_CLOCK, CLOCK, REDE);
+    put(
+        &dir.join("main.b"),
+        "use(\"porta\", [:fetch])\n\ndef main()\n  write_stdout(\"#{fetch(\"x\")} #{fetch(\"y\")}\")\nend\n",
+    );
+    lock_leaves(&dir);
+    let o = lock(&dir);
+    assert!(o.status.success(), "{}", err(&o));
+    let text = std::fs::read_to_string(dir.join("Bluefile.lock")).unwrap();
+    let written: serde_json::Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(
+        written["capabilities"]["provided"]["clock"]["for"],
+        serde_json::json!(["rede"]),
+        "{text}"
+    );
+    let o = run(&dir, &[]);
+    assert!(o.status.success(), "{}", err(&o));
+    assert_eq!(out(&o), "1000 1005", "rede reads the virtual clock");
+
+    put(
+        &dir.join("main.b"),
+        "use(\"porta\", [:fetch])\n\ndef main()\n  write_stdout(\"#{fetch(\"x\")} #{now_ms}\")\nend\n",
+    );
+    let o = run(&dir, &[]);
+    assert!(!o.status.success(), "the root's own now_ms is not rede's");
+    assert_eq!(out(&o), "", "refused before it runs");
+    assert!(
+        err(&o).contains("refused: `now_ms` reaches the host (clock)"),
+        "{}",
+        err(&o)
+    );
+
+    put(
+        &dir.join("main.b"),
+        "use(\"porta\", [:fetch])\n\ndef main()\n  write_stdout(\"before \")\n  write_stdout(fetch(\"x\"))\nend\n",
+    );
+    put(
+        &dir.join("bidamas/porta/porta.b"),
+        "use(\"rede\", [:get])\n\ndef fetch(u)\n  \"#{get(u)} #{now_ms}\"\nend\n",
+    );
+    let o = run(&dir, &[]);
+    assert_eq!(o.status.code(), Some(77), "{}", err(&o));
+    assert_eq!(out(&o), "before ");
+    assert!(
+        err(&o).contains("capability breach: `now_ms` reaches the host (clock)"),
+        "{}",
+        err(&o)
+    );
+}
+
+#[test]
+fn blue_lock_refuses_an_unscoped_package_that_needs_the_scoped_capability() {
+    let dir = project("scoped-lock", SCOPED_CLOCK, CLOCK, REDE);
+    put(
+        &dir.join("bidamas/porta/porta.b"),
+        "use(\"rede\", [:get])\n\ndef fetch(u)\n  \"#{get(u)} #{now_ms}\"\nend\n",
+    );
+    let o = lock(&dir);
+    assert!(!o.status.success());
+    assert!(
+        err(&o).contains(
+            "[app] -> [porta: needs 'clock'] violates ceiling [] (clock is virtualized only for [rede] and what they use)"
+        ),
+        "{}",
+        err(&o)
+    );
+    assert!(!dir.join("Bluefile.lock").exists());
+
+    put(
+        &dir.join("Bluefile"),
+        &SCOPED_CLOCK.replace("%w[rede]", "%w[porta]"),
+    );
+    let o = lock(&dir);
+    assert!(
+        o.status.success(),
+        "porta and rede, which it uses: {}",
+        err(&o)
+    );
+
+    put(
+        &dir.join("Bluefile"),
+        &SCOPED_CLOCK.replace("%w[rede]", "%w[nowhere]"),
+    );
+    let o = lock(&dir);
+    assert!(!o.status.success());
+    assert!(
+        err(&o).contains("is for `nowhere`, which [app] does not use"),
+        "{}",
+        err(&o)
+    );
+}
+
+#[test]
+fn allow_none_still_runs_a_leaf_its_project_virtualizes() {
+    let scoped = "package(\"app\", \"0.1.0\")\npackages(\"bidamas\")\nvirtualize(:clock, {using: :deterministic_stepped, at_ms: 42, for: %w[rede]})\n";
+    let dir = project("allow-none", scoped, CLOCK, REDE);
+    lock_leaves(&dir);
+    put(
+        &dir.join("main.b"),
+        "use(\"porta\", [:fetch])\n\ndef main()\n  write_stdout(\"#{fetch(\"x\")}\")\nend\n",
+    );
+    let o = run(&dir, &["--allow", "none"]);
+    assert!(o.status.success(), "{}", err(&o));
+    assert_eq!(out(&o), "42");
+
+    put(
+        &dir.join("bidamas/rede/rede.b"),
+        "def get(u)\n  \"#{now_ms} #{getenv(\"HOME\")}\"\nend\n",
+    );
+    let o = run(&dir, &["--allow", "none"]);
+    assert_eq!(
+        o.status.code(),
+        Some(77),
+        "the provider stands in for the clock only: {}",
+        err(&o)
+    );
+    assert!(
+        err(&o).contains("capability breach: `getenv` reaches the host (environment)"),
+        "{}",
+        err(&o)
+    );
+
+    put(
+        &dir.join("Bluefile"),
+        &scoped.replace(", for: %w[rede]", ""),
+    );
+    put(&dir.join("bidamas/rede/rede.b"), CLOCK);
+    let o = run(&dir, &["--allow", "none"]);
+    assert!(o.status.success(), "{}", err(&o));
+    assert_eq!(out(&o), "42", "a whole-program provider runs it too");
 }
 
 #[test]

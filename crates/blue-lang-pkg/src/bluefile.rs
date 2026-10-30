@@ -187,10 +187,11 @@ pub struct Project {
     /// grants.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub allow: Option<Vec<String>>,
-    /// `virtualize(capability, settings)`: a host capability bound to a pure
-    /// provider, keyed by the capability's label.
+    /// `virtualize(capability, {using:, …})`: a host capability bound to a
+    /// pure provider, for the whole program or `for:` some packages, keyed by
+    /// the capability's label.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub virtualized: BTreeMap<String, blue_lang_waku::Provision>,
+    pub virtualized: BTreeMap<String, blue_lang_waku::Provided>,
 }
 
 pub const VISIBILITIES: &[&str] = &["public", "unlisted", "private"];
@@ -533,8 +534,8 @@ const WORDS: &[Word] = &[
     },
     Word {
         name: "virtualize",
-        signature: "virtualize(capability, settings)",
-        doc: "A host capability bound to a pure provider for the whole program: :clock {at_ms:, step_ms:}, :entropy {seed:}, :filesystem {mode: :memory | :null}.",
+        signature: "virtualize(capability, {using:, for:, …})",
+        doc: "A host capability bound to a pure provider: :clock {using: :deterministic_stepped, at_ms:, step_ms:}, :entropy {using: :seeded_prng, seed:}, :filesystem {using: :in_memory_overlay} (an isolated tree on an empty base; nothing reaches the host) or {using: :null_sink} (every write dropped). `for: %w[pkg]` serves only those packages and what they use; the rest of the program gets the host or a breach. Without `for:` it serves the whole program.",
         min: 2,
         max: 2,
         record: |c, into| {

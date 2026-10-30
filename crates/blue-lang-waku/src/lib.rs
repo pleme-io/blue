@@ -45,7 +45,7 @@ pub mod provision;
 
 pub use capability::{Capability, Import, HOST_MODULE};
 pub use imports::imports_of;
-pub use provision::{Provision, ProvisionError, Provisions};
+pub use provision::{Provided, Provision, ProvisionError, Provisions};
 
 /// What definitions a computation may **name**.
 ///

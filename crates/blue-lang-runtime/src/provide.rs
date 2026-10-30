@@ -1,7 +1,8 @@
 //! The pure providers a frame binds in place of the host
-//! ([`blue_lang_waku::Provision`]): a stepped clock, a seeded entropy
-//! stream, and a filesystem in memory or nowhere. Each interpreter gets its
-//! own provider state, as each process owns its interpreter.
+//! ([`blue_lang_waku::Provision`]): a deterministic stepped clock, a seeded
+//! PRNG, and a filesystem as an in-memory overlay or a null sink. Each
+//! interpreter gets its own provider state, as each process owns its
+//! interpreter.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -12,15 +13,28 @@ use tatara_lisp_eval::{EvalError, Interpreter, Value};
 
 use crate::sys::{arg_int, arg_str};
 
-/// Bind every provider in `provisions` into `interp`, over whatever the
-/// host or a refusal bound to the same names.
+/// The name a provider binds one of its capability's words under.
+pub(crate) type Key = fn(&'static str) -> String;
+
+/// Bind every provider in `provisions` into `interp`. A whole-program
+/// provider binds its capability's names over whatever the host or a refusal
+/// bound to them; a scoped one binds them under [`crate::provided_name`],
+/// where [`crate::Hold::rebind_scoped`] moved the references its packages
+/// write.
 pub fn provide<H: 'static>(interp: &mut Interpreter<H>, provisions: &Provisions) {
     for p in provisions.iter() {
-        match p {
-            Provision::SteppedClock { at_ms, step_ms } => clock(interp, *at_ms, *step_ms),
-            Provision::SeededEntropy { seed } => entropy(interp, seed),
-            Provision::MemoryFs => filesystem(interp, true),
-            Provision::NullFs => filesystem(interp, false),
+        let key: Key = if p.scope.is_some() {
+            crate::provided_name
+        } else {
+            String::from
+        };
+        match &p.provision {
+            Provision::DeterministicStepped { at_ms, step_ms } => {
+                clock(interp, key, *at_ms, *step_ms);
+            }
+            Provision::SeededPrng { seed } => entropy(interp, key, seed),
+            Provision::InMemoryOverlay => filesystem(interp, key, true),
+            Provision::NullSink => filesystem(interp, key, false),
         }
     }
 }
@@ -33,7 +47,7 @@ fn str_value(s: impl Into<String>) -> Value {
     Value::Str(Arc::from(s.into()))
 }
 
-fn clock<H: 'static>(interp: &mut Interpreter<H>, at_ms: i64, step_ms: i64) {
+fn clock<H: 'static>(interp: &mut Interpreter<H>, key: Key, at_ms: i64, step_ms: i64) {
     let t = Arc::new(Mutex::new(at_ms));
     let read = {
         let t = Arc::clone(&t);
@@ -50,23 +64,25 @@ fn clock<H: 'static>(interp: &mut Interpreter<H>, at_ms: i64, step_ms: i64) {
     });
     let r = Arc::clone(&read);
     interp.register_fn(
-        "now_ms",
+        key("now_ms"),
         Arity::Exact(0),
         move |_: &[Value], _: &mut H, _| Ok(Value::Int(r())),
     );
     let r = Arc::clone(&read);
-    interp.register_fn("now", Arity::Exact(0), move |_: &[Value], _: &mut H, _| {
-        Ok(Value::Int(r().div_euclid(1000)))
-    });
+    interp.register_fn(
+        key("now"),
+        Arity::Exact(0),
+        move |_: &[Value], _: &mut H, _| Ok(Value::Int(r().div_euclid(1000))),
+    );
     let r = Arc::clone(&read);
     interp.register_fn(
-        "now_ns",
+        key("now_ns"),
         Arity::Exact(0),
         move |_: &[Value], _: &mut H, _| Ok(Value::Int(r().saturating_mul(1_000_000))),
     );
     let r = Arc::clone(&read);
     interp.register_fn(
-        "now_rfc3339",
+        key("now_rfc3339"),
         Arity::Exact(0),
         move |_: &[Value], _: &mut H, _| {
             Ok(str_value(crate::sys::format_rfc3339_utc(
@@ -76,7 +92,7 @@ fn clock<H: 'static>(interp: &mut Interpreter<H>, at_ms: i64, step_ms: i64) {
     );
     let r = Arc::clone(&read);
     interp.register_fn(
-        "elapsed_since",
+        key("elapsed_since"),
         Arity::Exact(1),
         move |a: &[Value], _: &mut H, span| {
             let start = arg_int(&a[0], "elapsed_since", span)?;
@@ -87,7 +103,7 @@ fn clock<H: 'static>(interp: &mut Interpreter<H>, at_ms: i64, step_ms: i64) {
     );
     let adv = Arc::clone(&advance);
     interp.register_fn(
-        "sleep",
+        key("sleep"),
         Arity::Exact(1),
         move |a: &[Value], _: &mut H, span| {
             adv(arg_int(&a[0], "sleep", span)?.saturating_mul(1000));
@@ -95,7 +111,7 @@ fn clock<H: 'static>(interp: &mut Interpreter<H>, at_ms: i64, step_ms: i64) {
         },
     );
     interp.register_fn(
-        "sleep_ms",
+        key("sleep_ms"),
         Arity::Exact(1),
         move |a: &[Value], _: &mut H, span| {
             advance(arg_int(&a[0], "sleep_ms", span)?);
@@ -104,14 +120,14 @@ fn clock<H: 'static>(interp: &mut Interpreter<H>, at_ms: i64, step_ms: i64) {
     );
 }
 
-fn entropy<H: 'static>(interp: &mut Interpreter<H>, seed: &str) {
+fn entropy<H: 'static>(interp: &mut Interpreter<H>, key: Key, seed: &str) {
     let stream = Mutex::new(
         blake3::Hasher::new_derive_key("blue seeded-entropy 2026-10-30")
             .update(seed.as_bytes())
             .finalize_xof(),
     );
     interp.register_fn(
-        "random_bytes",
+        key("random_bytes"),
         Arity::Exact(1),
         move |a: &[Value], _: &mut H, span| {
             let count = crate::entropy::count_of(&a[0])
@@ -192,7 +208,7 @@ fn segments_match(pattern: &[&str], path: &[&str]) -> bool {
 }
 
 #[allow(clippy::too_many_lines)]
-fn filesystem<H: 'static>(interp: &mut Interpreter<H>, keep: bool) {
+fn filesystem<H: 'static>(interp: &mut Interpreter<H>, key: Key, keep: bool) {
     let tree = Arc::new(Mutex::new(Tree::default()));
     let path_of = |a: &Value, word: &'static str, span| -> Result<String, EvalError> {
         Ok(absolute(&arg_str(a, word, span)?))
@@ -200,7 +216,7 @@ fn filesystem<H: 'static>(interp: &mut Interpreter<H>, keep: bool) {
 
     let t = Arc::clone(&tree);
     interp.register_fn(
-        "read_file",
+        key("read_file"),
         Arity::Exact(1),
         move |a: &[Value], _: &mut H, span| {
             let p = path_of(&a[0], "read_file", span)?;
@@ -228,7 +244,7 @@ fn filesystem<H: 'static>(interp: &mut Interpreter<H>, keep: bool) {
     };
     let w = Arc::clone(&write);
     interp.register_fn(
-        "write_file",
+        key("write_file"),
         Arity::Exact(2),
         move |a: &[Value], _: &mut H, span| {
             let p = path_of(&a[0], "write_file", span)?;
@@ -238,7 +254,7 @@ fn filesystem<H: 'static>(interp: &mut Interpreter<H>, keep: bool) {
     );
     let w = Arc::clone(&write);
     interp.register_fn(
-        "append_file",
+        key("append_file"),
         Arity::Exact(2),
         move |a: &[Value], _: &mut H, span| {
             let p = path_of(&a[0], "append_file", span)?;
@@ -248,7 +264,7 @@ fn filesystem<H: 'static>(interp: &mut Interpreter<H>, keep: bool) {
     );
     let w = Arc::clone(&write);
     interp.register_fn(
-        "write_program",
+        key("write_program"),
         Arity::Exact(2),
         move |a: &[Value], _: &mut H, span| {
             let p = path_of(&a[0], "write_program", span)?;
@@ -267,7 +283,7 @@ fn filesystem<H: 'static>(interp: &mut Interpreter<H>, keep: bool) {
 
     let t = Arc::clone(&tree);
     interp.register_fn(
-        "file_size",
+        key("file_size"),
         Arity::Exact(1),
         move |a: &[Value], _: &mut H, span| {
             let p = path_of(&a[0], "file_size", span)?;
@@ -281,7 +297,7 @@ fn filesystem<H: 'static>(interp: &mut Interpreter<H>, keep: bool) {
     );
     let t = Arc::clone(&tree);
     interp.register_fn(
-        "file_mtime_ms",
+        key("file_mtime_ms"),
         Arity::Exact(1),
         move |a: &[Value], _: &mut H, span| {
             let p = path_of(&a[0], "file_mtime_ms", span)?;
@@ -294,7 +310,7 @@ fn filesystem<H: 'static>(interp: &mut Interpreter<H>, keep: bool) {
     );
     let t = Arc::clone(&tree);
     interp.register_fn(
-        "is_file?",
+        key("is_file?"),
         Arity::Exact(1),
         move |a: &[Value], _: &mut H, span| {
             let p = path_of(&a[0], "is_file?", span)?;
@@ -303,7 +319,7 @@ fn filesystem<H: 'static>(interp: &mut Interpreter<H>, keep: bool) {
     );
     let t = Arc::clone(&tree);
     interp.register_fn(
-        "is_dir?",
+        key("is_dir?"),
         Arity::Exact(1),
         move |a: &[Value], _: &mut H, span| {
             let p = path_of(&a[0], "is_dir?", span)?;
@@ -312,7 +328,7 @@ fn filesystem<H: 'static>(interp: &mut Interpreter<H>, keep: bool) {
     );
     let t = Arc::clone(&tree);
     interp.register_fn(
-        "path_exists",
+        key("path_exists"),
         Arity::Exact(1),
         move |a: &[Value], _: &mut H, span| {
             let p = path_of(&a[0], "path_exists", span)?;
@@ -322,7 +338,7 @@ fn filesystem<H: 'static>(interp: &mut Interpreter<H>, keep: bool) {
     );
     let t = Arc::clone(&tree);
     interp.register_fn(
-        "ls",
+        key("ls"),
         Arity::Exact(1),
         move |a: &[Value], _: &mut H, span| {
             let p = path_of(&a[0], "ls", span)?;
@@ -342,7 +358,7 @@ fn filesystem<H: 'static>(interp: &mut Interpreter<H>, keep: bool) {
     );
     let t = Arc::clone(&tree);
     interp.register_fn(
-        "walk_dir",
+        key("walk_dir"),
         Arity::Exact(1),
         move |a: &[Value], _: &mut H, span| {
             let p = path_of(&a[0], "walk_dir", span)?;
@@ -352,7 +368,7 @@ fn filesystem<H: 'static>(interp: &mut Interpreter<H>, keep: bool) {
     );
     let t = Arc::clone(&tree);
     interp.register_fn(
-        "glob",
+        key("glob"),
         Arity::Exact(1),
         move |a: &[Value], _: &mut H, span| {
             let pattern = arg_str(&a[0], "glob", span)?;
@@ -376,7 +392,7 @@ fn filesystem<H: 'static>(interp: &mut Interpreter<H>, keep: bool) {
     for word in ["mkdir", "mkdir_p"] {
         let t = Arc::clone(&tree);
         interp.register_fn(
-            word,
+            key(word),
             Arity::Exact(1),
             move |a: &[Value], _: &mut H, span| {
                 let p = path_of(&a[0], word, span)?;
@@ -391,7 +407,7 @@ fn filesystem<H: 'static>(interp: &mut Interpreter<H>, keep: bool) {
     }
     let t = Arc::clone(&tree);
     interp.register_fn(
-        "rm",
+        key("rm"),
         Arity::Exact(1),
         move |a: &[Value], _: &mut H, span| {
             let p = path_of(&a[0], "rm", span)?;
@@ -404,7 +420,7 @@ fn filesystem<H: 'static>(interp: &mut Interpreter<H>, keep: bool) {
     );
     let t = Arc::clone(&tree);
     interp.register_fn(
-        "rm_rf",
+        key("rm_rf"),
         Arity::Exact(1),
         move |a: &[Value], _: &mut H, span| {
             let p = path_of(&a[0], "rm_rf", span)?;
@@ -417,7 +433,7 @@ fn filesystem<H: 'static>(interp: &mut Interpreter<H>, keep: bool) {
     );
     let t = Arc::clone(&tree);
     interp.register_fn(
-        "rename_file",
+        key("rename_file"),
         Arity::Exact(2),
         move |a: &[Value], _: &mut H, span| {
             let from = path_of(&a[0], "rename_file", span)?;
@@ -432,10 +448,10 @@ fn filesystem<H: 'static>(interp: &mut Interpreter<H>, keep: bool) {
             Ok(Value::Nil)
         },
     );
-    interp.register_fn("cwd", Arity::Exact(0), |_: &[Value], _: &mut H, _| {
+    interp.register_fn(key("cwd"), Arity::Exact(0), |_: &[Value], _: &mut H, _| {
         Ok(str_value("/"))
     });
-    crate::sys::install_path_words(interp);
+    crate::sys::install_path_words(interp, key);
 }
 
 #[cfg(test)]
@@ -462,7 +478,7 @@ mod tests {
 
     #[test]
     fn a_stepped_clock_reads_its_start_and_steps_and_a_sleep_advances_without_waiting() {
-        let c = [Provision::SteppedClock {
+        let c = [Provision::DeterministicStepped {
             at_ms: 1_000,
             step_ms: 10,
         }];
@@ -474,7 +490,7 @@ mod tests {
         assert_eq!(ok(&c, "(begin (sleep_ms 60000) (now_ms))"), "61000");
         assert!(started.elapsed() < std::time::Duration::from_secs(5));
         assert_eq!(ok(&c, "(begin (sleep 2) (now))"), "3");
-        let fixed = [Provision::SteppedClock {
+        let fixed = [Provision::DeterministicStepped {
             at_ms: 86_400_000,
             step_ms: 0,
         }];
@@ -488,8 +504,8 @@ mod tests {
 
     #[test]
     fn seeded_entropy_is_one_stream_per_seed() {
-        let a = [Provision::SeededEntropy { seed: "a".into() }];
-        let b = [Provision::SeededEntropy { seed: "b".into() }];
+        let a = [Provision::SeededPrng { seed: "a".into() }];
+        let b = [Provision::SeededPrng { seed: "b".into() }];
         let first = ok(&a, "(random_bytes 8)");
         assert_eq!(
             first,
@@ -511,8 +527,8 @@ mod tests {
     }
 
     #[test]
-    fn a_memory_filesystem_keeps_what_the_run_writes() {
-        let m = [Provision::MemoryFs];
+    fn an_in_memory_overlay_keeps_what_the_run_writes_and_reads_nothing_of_the_host() {
+        let m = [Provision::InMemoryOverlay];
         assert_eq!(
             ok(&m, "(begin (write_file \"a/b.txt\" \"hi\") (append_file \"/a/b.txt\" \"!\") (list (read_file \"/a/b.txt\") (is_dir? \"/a\") (is_file? \"a/b.txt\") (file_size \"a/b.txt\") (ls \"/a\") (glob \"**/*.txt\") (cwd)))"),
             "(\"hi!\" #t #t 3 (\"/a/b.txt\") (\"a/b.txt\") \"/\")"
@@ -529,8 +545,8 @@ mod tests {
     }
 
     #[test]
-    fn a_null_filesystem_drops_every_write() {
-        let n = [Provision::NullFs];
+    fn a_null_sink_drops_every_write() {
+        let n = [Provision::NullSink];
         assert_eq!(
             ok(&n, "(begin (write_file \"a\" \"x\") (mkdir_p \"d\") (list (path_exists \"a\") (is_dir? \"d\") (walk_dir \"/\")))"),
             "(#f #f ())"
@@ -548,7 +564,7 @@ mod tests {
             .collect();
         crate::refuse_host_names(&mut interp, &refused, "the test");
         let mut ps = Provisions::default();
-        ps.add(Provision::MemoryFs).unwrap();
+        ps.add(Provision::InMemoryOverlay).unwrap();
         provide(&mut interp, &ps);
         let breaches = |name: &str, interp: &mut Interpreter<()>| {
             let forms = tatara_lisp::read_spanned(&format!("({name})")).unwrap();
@@ -558,5 +574,53 @@ mod tests {
             assert!(!breaches(name, &mut interp), "{name} is provided");
         }
         assert!(breaches("getenv", &mut interp), "environment stays refused");
+    }
+
+    #[test]
+    fn a_scoped_provider_binds_every_name_of_its_capability_under_its_alias_and_leaves_the_bare_name_to_the_frame(
+    ) {
+        use blue_lang_waku::{Capability, Provided};
+        for p in [
+            Provision::DeterministicStepped {
+                at_ms: 7,
+                step_ms: 0,
+            },
+            Provision::SeededPrng { seed: "s".into() },
+            Provision::InMemoryOverlay,
+            Provision::NullSink,
+        ] {
+            let cap = p.capability();
+            let mut interp = crate::interpreter_hostless();
+            let refused: Vec<_> = cap.names().into_iter().map(|n| (n, cap)).collect();
+            crate::refuse_host_names(&mut interp, &refused, "the test");
+            let mut ps = Provisions::default();
+            ps.add(Provided {
+                provision: p.clone(),
+                scope: Some(std::iter::once("rede".to_string()).collect()),
+            })
+            .unwrap();
+            provide(&mut interp, &ps);
+            for name in cap.names() {
+                let alias = crate::provided_name(name);
+                assert!(
+                    interp.lookup_global(&alias).is_some(),
+                    "{}: {alias} is bound",
+                    p.name()
+                );
+                let forms = tatara_lisp::read_spanned(&format!("({name})")).unwrap();
+                assert!(
+                    matches!(interp.eval_program(&forms, &mut ()), Err(e) if crate::is_breach(&e)),
+                    "{}: bare {name} is the frame's",
+                    p.name()
+                );
+            }
+            if cap == Capability::Clock {
+                let forms = tatara_lisp::read_spanned("(%provided/now_ms)").unwrap();
+                assert_eq!(
+                    interp.eval_program(&forms, &mut ()).unwrap().to_string(),
+                    "7"
+                );
+            }
+        }
     }
 }

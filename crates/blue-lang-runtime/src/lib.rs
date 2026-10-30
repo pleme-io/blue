@@ -179,8 +179,18 @@ impl From<blue_lang_waku::Waku> for Hold {
     }
 }
 
+/// The name a scoped provider binds the host name `word` under. No blue
+/// source can write it, so only the references [`Hold::rebind_scoped`] moves
+/// onto it reach the provider.
+#[must_use]
+pub fn provided_name(word: &str) -> String {
+    format!("%provided/{word}")
+}
+
 impl Hold {
-    /// Every host name neither the frame grants nor a provider stands in for.
+    /// Every host name neither the frame grants nor a whole-program provider
+    /// stands in for. A scoped provider's names stay here: code outside its
+    /// packages gets the frame's answer.
     #[must_use]
     pub fn withheld_host_names(&self) -> Vec<(&'static str, blue_lang_waku::Capability)> {
         let reach = self.provisions.widen(&self.frame.reach);
@@ -192,11 +202,50 @@ impl Hold {
     }
 
     /// Bind the hold into `interp`: a breach for every withheld host name,
-    /// then each provider over its capability's names.
+    /// then each whole-program provider over its capability's names and each
+    /// scoped one under [`provided_name`].
     pub fn bind<H: 'static>(&self, interp: &mut Interpreter<H>, who: &'static str) {
         refuse_host_names(interp, &self.withheld_host_names(), who);
         #[cfg(feature = "sys")]
         provide::provide(interp, &self.provisions);
+    }
+
+    /// Move each scoped provider's host names, where a file of a package it
+    /// serves writes them in `forms`, onto [`provided_name`]. A provider
+    /// serves the packages its `for:` names and every package they `use`, by
+    /// the imports `program` resolved; `forms` is `program`'s evaluated tree,
+    /// top-level form for top-level form. Returns the host names the entry
+    /// file may not write: [`Hold::withheld_host_names`] less those a scoped
+    /// provider serves the entry's own package.
+    pub fn rebind_scoped(
+        &self,
+        program: &uses::ResolvedProgram,
+        forms: &mut [tatara_lisp::Spanned],
+    ) -> Vec<(&'static str, blue_lang_waku::Capability)> {
+        let served: Vec<(
+            blue_lang_waku::Capability,
+            std::collections::BTreeSet<String>,
+        )> = self
+            .provisions
+            .scoped()
+            .map(|(cap, named)| (cap, program.reached_from(named)))
+            .collect();
+        let serves = |package: Option<&str>, cap: blue_lang_waku::Capability| {
+            package.is_some_and(|p| served.iter().any(|(c, s)| *c == cap && s.contains(p)))
+        };
+        if !served.is_empty() {
+            uses::rename_written(program, forms, &|package, name| {
+                let cap = blue_lang_waku::Provision::capability_of(name)?;
+                serves(package, cap).then(|| provided_name(name))
+            });
+        }
+        let entry = program
+            .file(uses::ResolvedProgram::ENTRY)
+            .and_then(|f| f.package.as_deref());
+        self.withheld_host_names()
+            .into_iter()
+            .filter(|(_, cap)| !serves(entry, *cap))
+            .collect()
     }
 }
 

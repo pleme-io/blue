@@ -563,7 +563,7 @@ A Bluefile is a blue program that may call only these words.
 | `posture(when)` | The posture floor a package requires: "sealed", "preceding" or "anytime". |
 | `reach(capabilities)` | The host capabilities a package needs, its floor (%i[clock]); without it the floor is what the package's code names, and `blue lock` refuses a reach that misses one. |
 | `allow(capabilities)` | The root's ceiling, the most host authority it grants (%i[filesystem clock]), as `--allow` grants it: every package's floor, joined, must fit under it or a provider, else `blue lock` refuses and names the path; `blue run` holds the program to it. |
-| `virtualize(capability, settings)` | A host capability bound to a pure provider for the whole program: :clock {at_ms:, step_ms:}, :entropy {seed:}, :filesystem {mode: :memory \| :null}. |
+| `virtualize(capability, {using:, for:, …})` | A host capability bound to a pure provider: :clock {using: :deterministic_stepped, at_ms:, step_ms:}, :entropy {using: :seeded_prng, seed:}, :filesystem {using: :in_memory_overlay} (an isolated tree on an empty base; nothing reaches the host) or {using: :null_sink} (every write dropped). `for: %w[pkg]` serves only those packages and what they use; the rest of the program gets the host or a breach. Without `for:` it serves the whole program. |
 | `source(name, url, dir)` | A named external distribution root, fetched from a flake URL and pinned in Bluefile.lock by `blue lock`. |
 | `packages(dir)` | A local directory whose subdirectories are packages: each is built, tested (`bidama-test-<pkg>`) and gated for collisions. |
 | `run(name, file[, reads])` | A program run as its own cached derivation, writing into $RUN_OUT; `reads` names runs whose outputs it reads. |

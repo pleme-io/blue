@@ -1639,20 +1639,49 @@ each floor); `blue bluefile --confirm` checks the record against the Bluefile
 offline, and nix's project engine refuses a Bluefile that declares `allow` or
 `virtualize` with no record. A root that declares neither locks as before.
 
-**Providers (2026-10-30).** `virtualize(:clock, {at_ms:, step_ms:})`,
-`virtualize(:entropy, {seed:})` and `virtualize(:filesystem, {mode: :memory |
-:null})` bind a capability to a pure provider (`blue_lang_waku::Provision`,
-`crates/blue-lang-runtime/src/provide.rs`): a floor that needs it resolves
-under a ceiling that withholds it, with no fork of the leaf. Process,
-network and environment have no provider (`Provision::kinds_for`). A
-capability both allowed and virtualized is refused.
+**Providers (2026-10-30).** `virtualize(cap, {using: …})` binds a capability
+to a pure provider (`blue_lang_waku::Provision`,
+`crates/blue-lang-runtime/src/provide.rs`), so a floor that needs it resolves
+under a ceiling that withholds it, with no fork of the leaf. `using` names
+the provider and its settings sit beside it: `:clock {using:
+:deterministic_stepped, at_ms:, step_ms:}`, `:entropy {using: :seeded_prng,
+seed:}`, and `:filesystem {using: :in_memory_overlay}` (an isolated tree on an
+empty base: no read or write reaches the host) or `{using: :null_sink}` (every
+write dropped, every read finds nothing). The lock records the provider as
+the kebab-case label (`deterministic-stepped`). An unknown `using` is refused
+with the legal ones named. The settings are a map because blue refuses a
+keyword entry in a call without a `**` spread (spec row
+`maps.spread.call.entries_need_a_spread`). Process, network and environment
+have no provider (`Provision::kinds_for`). `Provisions::disjoint_from`
+refuses a whole-program provider for a capability `allow` also grants, but
+`blue lock` does not call it yet.
+
+**Scoped providers (2026-10-30).** `for: %w[rede]` beside `using` binds the
+provider only for the named packages and every package they `use`. In the
+lattice it comes out of those packages' floors before the join; a package
+outside it that needs the capability still breaches, with its path:
+`[app] -> [porta: needs 'clock'] violates ceiling [] (clock is virtualized only
+for [rede] and what they use)`. A `for:` that names a package the root does
+not reach is refused. At run time the program is checked as written; then
+`Hold::rebind_scoped` moves the capability's host names that a file of a
+served package writes onto `%provided/<name>`, which only the provider binds
+(`uses::rename_written`, keyed by the file each top-level form came from, so
+quoted data keeps its symbols). The same name written by the root or an
+unscoped package gets the frame: the host if `allow` grants it, else a breach.
+The entry file is refused before it runs for a withheld name it writes unless
+its own package is served. A scoped provider may share its capability with
+`allow`.
 
 **The hold `blue run` applies.** Inside a project that declares `allow` or
 `virtualize`, `blue run` holds the program to it with no flag: withheld names
 breach, provided names reach their provider, and every spawned process gets
 the same hold with its own provider state. `--allow` narrows it further and
-never widens it. Tests: `crates/blue-lang-cli/tests/lattice.rs` (6),
-`capabilities.rs` (7), `provide.rs` (5), `provision.rs` (4).
+never widens it, and keeps the project's providers: `--allow none` still runs
+a leaf its project virtualizes. Open: a project Bluefile that does not parse
+gives no hold (`capabilities::hold_for` answers `None`), so that run has every
+capability. Tests: `crates/blue-lang-cli/tests/lattice.rs` (11),
+`capabilities.rs` (12), `provide.rs` (6), `provision.rs` (5), `uses.rs`
+(`a_package_reaches_*`, `renaming_*`, `quoted_data_*`).
 
 **Row 9, host memory.** blue has no pointer and no raw buffer; all memory is
 Rust's. The four seams are listed in §2. The gate is one workspace lint table

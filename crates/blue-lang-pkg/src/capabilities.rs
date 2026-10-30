@@ -3,14 +3,15 @@
 //! declared `reach`, which must cover them. The floors join over the
 //! dependency closure, and the join must fit under the root's `ceiling`
 //! widened by its `virtualize` providers: `⋁ floors ⊑ ceiling ∨ provided`.
-//! A breach names the path from the root to the package that needs the
-//! capability.
+//! A provider scoped `for:` some packages widens only the floors of those
+//! packages and the packages they use. A breach names the path from the root
+//! to the package that needs the capability.
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::path::Path;
 
 use blue_lang_bidama::{resolve, Bidama, Conflict};
-use blue_lang_waku::{Capability, Provision, Provisions, Reach, Waku, When, Where};
+use blue_lang_waku::{Capability, Provided, Provision, Provisions, Reach, Waku, When, Where};
 use serde::{Deserialize, Serialize};
 
 use crate::load_path::{Found, LoadPath};
@@ -35,18 +36,22 @@ pub fn host_capability(label: &str) -> Option<Capability> {
         .find(|c| c.label() == label.trim_start_matches(':'))
 }
 
-/// The pure provider `settings` asks for `cap`: `:clock {at_ms:, step_ms:}`
-/// (both default 0), `:entropy {seed:}`, `:filesystem {mode: :memory | :null}`
-/// (default `:memory`).
+/// The provider `settings` asks for `cap`, and the packages it serves:
+/// `{using: :deterministic_stepped, at_ms:, step_ms:}` (both default 0) for
+/// the clock, `{using: :seeded_prng, seed:}` for entropy, and
+/// `{using: :in_memory_overlay}` or `{using: :null_sink}` for the
+/// filesystem. `for: %w[pkg …]` serves only those packages and every package
+/// they use; without it the provider serves the whole program.
 ///
 /// # Errors
 ///
-/// A capability with no pure provider, a field the provider does not take,
-/// or a field of the wrong kind.
+/// A capability with no pure provider, a `using` that names none of its
+/// providers (the error lists them), a field the provider does not take, a
+/// field of the wrong kind, or an empty `for`.
 pub fn provision_of(
     cap: Capability,
     settings: &tatara_lisp_eval::Value,
-) -> Result<Provision, String> {
+) -> Result<Provided, String> {
     use tatara_lisp_eval::value::MapKey;
     use tatara_lisp_eval::Value;
     let kinds = Provision::kinds_for(cap);
@@ -56,16 +61,18 @@ pub fn provision_of(
             cap.label()
         ));
     }
+    let legal = || {
+        kinds
+            .iter()
+            .map(|k| format!(":{k}"))
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
     let Value::Map(map) = settings else {
         return Err(format!(
             "settings must be a map, got {}",
             settings.type_name()
         ));
-    };
-    let allowed: &[&str] = match cap {
-        Capability::Clock => &["at_ms", "step_ms"],
-        Capability::Entropy => &["seed"],
-        _ => &["mode"],
     };
     let mut fields = BTreeMap::new();
     for (k, v) in map.iter() {
@@ -75,14 +82,74 @@ pub fn provision_of(
             }
             _ => return Err("a setting is named by a keyword".into()),
         };
-        if !allowed.contains(&key.as_str()) {
-            return Err(format!(
-                "`{key}` is not a {} setting; it takes {}",
-                cap.label(),
-                allowed.join(", ")
-            ));
-        }
         fields.insert(key, v.clone());
+    }
+    let using = match fields.remove("using") {
+        Some(Value::Keyword(u) | Value::Str(u)) => u.trim_start_matches(':').to_string(),
+        Some(other) => {
+            return Err(format!(
+                "`using` names a provider, got {}; {} takes {}",
+                other.type_name(),
+                cap.label(),
+                legal()
+            ))
+        }
+        None => {
+            return Err(format!(
+                "{} needs `using:`, one of {}",
+                cap.label(),
+                legal()
+            ))
+        }
+    };
+    let unknown = || {
+        format!(
+            "`using: :{using}` is not a {} provider; it takes {}",
+            cap.label(),
+            legal()
+        )
+    };
+    if !kinds.contains(&using.as_str()) {
+        return Err(unknown());
+    }
+    let scope = match fields.remove("for") {
+        None => None,
+        Some(Value::List(items)) if !items.is_empty() => Some(
+            items
+                .iter()
+                .map(|v| match v {
+                    Value::Str(s) => Ok(s.to_string()),
+                    other => Err(format!(
+                        "`for` names packages as strings (%w[rede]), got {}",
+                        other.type_name()
+                    )),
+                })
+                .collect::<Result<BTreeSet<String>, String>>()?,
+        ),
+        Some(Value::List(_)) => {
+            return Err("`for` names no package; drop it to serve the whole program".into())
+        }
+        Some(other) => {
+            return Err(format!(
+                "`for` is a list of package names (%w[rede]), got {}",
+                other.type_name()
+            ))
+        }
+    };
+    let takes: &[&str] = match using.as_str() {
+        "deterministic_stepped" => &["at_ms", "step_ms"],
+        "seeded_prng" => &["seed"],
+        _ => &[],
+    };
+    if let Some(extra) = fields.keys().find(|k| !takes.contains(&k.as_str())) {
+        let besides = if takes.is_empty() {
+            "nothing besides `using` and `for`".to_string()
+        } else {
+            takes.join(", ")
+        };
+        return Err(format!(
+            "`{extra}` is not a {using} setting; it takes {besides}"
+        ));
     }
     let int = |f: &str| match fields.get(f) {
         None => Ok(0),
@@ -92,32 +159,28 @@ pub fn provision_of(
             other.type_name()
         )),
     };
-    match cap {
-        Capability::Clock => Ok(Provision::SteppedClock {
+    let provision = match using.as_str() {
+        "deterministic_stepped" => Provision::DeterministicStepped {
             at_ms: int("at_ms")?,
             step_ms: int("step_ms")?,
-        }),
-        Capability::Entropy => match fields.get("seed") {
-            Some(Value::Str(s)) => Ok(Provision::SeededEntropy {
+        },
+        "seeded_prng" => match fields.get("seed") {
+            Some(Value::Str(s)) => Provision::SeededPrng {
                 seed: s.to_string(),
-            }),
-            Some(other) => Err(format!(
-                "`seed` must be a string, got {}",
-                other.type_name()
-            )),
-            None => Err("entropy needs a `seed`".into()),
-        },
-        _ => match fields.get("mode") {
-            None => Ok(Provision::MemoryFs),
-            Some(Value::Keyword(m) | Value::Str(m)) if m.trim_start_matches(':') == "memory" => {
-                Ok(Provision::MemoryFs)
+            },
+            Some(other) => {
+                return Err(format!(
+                    "`seed` must be a string, got {}",
+                    other.type_name()
+                ))
             }
-            Some(Value::Keyword(m) | Value::Str(m)) if m.trim_start_matches(':') == "null" => {
-                Ok(Provision::NullFs)
-            }
-            Some(other) => Err(format!("`mode` must be :memory or :null, got {other}")),
+            None => return Err("seeded_prng needs a `seed`".into()),
         },
-    }
+        "in_memory_overlay" => Provision::InMemoryOverlay,
+        "null_sink" => Provision::NullSink,
+        _ => return Err(unknown()),
+    };
+    Ok(Provided { provision, scope })
 }
 
 fn capability_of_name(name: &str) -> Option<Capability> {
@@ -201,6 +264,13 @@ pub enum CapabilityError {
     /// The join of the floors does not fit under the ceiling.
     #[error("{}", .0.iter().map(ToString::to_string).collect::<Vec<_>>().join("\n"))]
     Breach(Vec<Breach>),
+    /// A provider's `for:` names a package the root does not reach.
+    #[error("`virtualize(:{capability}, …)` is for `{package}`, which [{root}] does not use; name a package it uses")]
+    Scope {
+        capability: String,
+        package: String,
+        root: String,
+    },
 }
 
 /// One capability one package needs that the ceiling withholds.
@@ -209,8 +279,11 @@ pub struct Breach {
     /// The packages from the root to the one that needs it.
     pub path: Vec<String>,
     pub needs: Capability,
-    /// The ceiling with its providers, as labels.
+    /// The ceiling with its whole-program providers, as labels.
     pub ceiling: Vec<String>,
+    /// The packages a scoped provider of `needs` is for; empty when it has
+    /// none.
+    pub provided_for: Vec<String>,
 }
 
 impl std::fmt::Display for Breach {
@@ -233,7 +306,16 @@ impl std::fmt::Display for Breach {
             "{} violates ceiling [{}]",
             hops.join(" -> "),
             self.ceiling.join(", ")
-        )
+        )?;
+        if !self.provided_for.is_empty() {
+            write!(
+                f,
+                " ({} is virtualized only for [{}] and what they use)",
+                self.needs.label(),
+                self.provided_for.join(", ")
+            )?;
+        }
+        Ok(())
     }
 }
 
@@ -346,6 +428,26 @@ impl Graph {
         path.reverse();
         path
     }
+
+    /// `named` and every package they reach through `use`.
+    #[must_use]
+    pub fn reached_from(&self, named: &BTreeSet<String>) -> BTreeSet<String> {
+        let mut out = named.clone();
+        let mut queue: Vec<&str> = named.iter().map(String::as_str).collect();
+        while let Some(at) = queue.pop() {
+            for next in self
+                .nodes
+                .get(at)
+                .map(|n| n.needs.as_slice())
+                .unwrap_or_default()
+            {
+                if out.insert(next.clone()) {
+                    queue.push(next.as_str());
+                }
+            }
+        }
+        out
+    }
 }
 
 /// The capabilities record `Bluefile.lock` carries when the root declares a
@@ -356,9 +458,9 @@ pub struct CapabilityRecord {
     /// The root's ceiling; absent when it declares none (every capability).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ceiling: Option<Vec<String>>,
-    /// Each virtualized capability's provider.
+    /// Each virtualized capability's provider, with the packages it is for.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub provided: BTreeMap<String, Provision>,
+    pub provided: BTreeMap<String, Provided>,
     /// The join of every floor in the closure.
     pub floor: Vec<String>,
     /// Each package's floor.
@@ -387,10 +489,14 @@ pub fn provisions_of(bf: &Bluefile) -> Provisions {
     ps
 }
 
-/// Verify `⋁ floors ⊑ ceiling ∨ provided` over `graph`.
+/// Verify `⋁ floors ⊑ ceiling ∨ provided` over `graph`. A scoped provider
+/// counts only for the packages it is for and the packages they use: it is
+/// taken out of their floors before the join, and a package outside it that
+/// needs its capability breaches.
 ///
 /// # Errors
 ///
+/// [`CapabilityError::Scope`] for a `for:` package the root does not reach;
 /// [`CapabilityError::Breach`], one row per package and capability past the
 /// ceiling, each with its path from the root.
 pub fn verify(
@@ -404,6 +510,27 @@ pub fn verify(
         when: When::Anytime,
         place: Where::Shared,
     };
+    let mut served: BTreeMap<String, BTreeSet<Capability>> = BTreeMap::new();
+    let mut scoped_for: BTreeMap<Capability, Vec<String>> = BTreeMap::new();
+    for (cap, named) in provisions.scoped() {
+        if let Some(stray) = named.iter().find(|n| !graph.nodes.contains_key(*n)) {
+            return Err(CapabilityError::Scope {
+                capability: cap.label().to_string(),
+                package: stray.clone(),
+                root: graph.root.clone(),
+            });
+        }
+        for p in graph.reached_from(named) {
+            served.entry(p).or_default().insert(cap);
+        }
+        scoped_for.insert(cap, named.iter().cloned().collect());
+    }
+    let unserved = |name: &str, node: &Node| -> BTreeSet<Capability> {
+        match served.get(name) {
+            Some(s) => node.floor.difference(s).copied().collect(),
+            None => node.floor.clone(),
+        }
+    };
     let bidamas: Vec<Bidama> = graph
         .nodes
         .iter()
@@ -411,7 +538,7 @@ pub fn verify(
             Bidama::new(
                 name.clone(),
                 Waku {
-                    reach: Reach::only(node.floor.iter().copied()),
+                    reach: Reach::only(unserved(name, node)),
                     when: When::Sealed,
                     place: Where::Arena,
                 },
@@ -427,11 +554,12 @@ pub fn verify(
             .collect(),
     };
     match resolve(&bidamas, &bound) {
-        Ok(resolution) => {
-            let floor = match resolution.posture.reach {
-                Reach::Only(caps) => labels(&caps),
-                Reach::Unrestricted => vec!["every capability".to_string()],
-            };
+        Ok(_) => {
+            let joined: BTreeSet<Capability> = graph
+                .nodes
+                .values()
+                .flat_map(|n| n.floor.iter().copied())
+                .collect();
             Ok(CapabilityRecord {
                 ceiling: match ceiling {
                     Reach::Unrestricted => None,
@@ -439,9 +567,9 @@ pub fn verify(
                 },
                 provided: provisions
                     .iter()
-                    .map(|p| (p.capability().label().to_string(), p.clone()))
+                    .map(|p| (p.provision.capability().label().to_string(), p.clone()))
                     .collect(),
-                floor,
+                floor: labels(&joined),
                 packages: graph
                     .nodes
                     .iter()
@@ -459,11 +587,15 @@ pub fn verify(
                 let Some(node) = graph.nodes.get(&name) else {
                     continue;
                 };
-                for cap in node.floor.iter().filter(|c| !widened.grants(**c)) {
+                for cap in unserved(&name, node)
+                    .into_iter()
+                    .filter(|c| !widened.grants(*c))
+                {
                     breaches.push(Breach {
                         path: graph.path_to(&name),
-                        needs: *cap,
+                        needs: cap,
                         ceiling: shown_ceiling(&widened),
+                        provided_for: scoped_for.get(&cap).cloned().unwrap_or_default(),
                     });
                 }
             }
@@ -481,7 +613,7 @@ pub fn consistent(bf: &Bluefile, record: Option<&CapabilityRecord>) -> bool {
     let Some(r) = record else {
         return !declared(bf);
     };
-    let provided: BTreeMap<String, Provision> = bf
+    let provided: BTreeMap<String, Provided> = bf
         .project
         .virtualized
         .iter()
@@ -631,13 +763,213 @@ mod tests {
         let ceiling = reach(&[Capability::FileSystem]);
         assert!(verify(&g, &ceiling, &Provisions::default()).is_err());
         let mut ps = Provisions::default();
-        ps.add(Provision::SteppedClock {
+        ps.add(Provision::DeterministicStepped {
             at_ms: 0,
             step_ms: 1,
         })
         .unwrap();
         let record = verify(&g, &ceiling, &ps).expect("the virtual clock covers dep-b");
         assert!(record.provided.contains_key("clock"));
+    }
+
+    fn clock_for(packages: &[&str]) -> Provisions {
+        let mut ps = Provisions::default();
+        ps.add(Provided {
+            provision: Provision::DeterministicStepped {
+                at_ms: 0,
+                step_ms: 1,
+            },
+            scope: Some(packages.iter().map(ToString::to_string).collect()),
+        })
+        .unwrap();
+        ps
+    }
+
+    #[test]
+    fn a_scoped_provider_widens_only_the_packages_it_is_for_and_what_they_use() {
+        let mut g = sample();
+        g.nodes.get_mut("app").unwrap().floor = BTreeSet::new();
+        g.nodes.get_mut("dep-b").unwrap().floor = BTreeSet::from([Capability::Clock]);
+        let ceiling = reach(&[]);
+        for scope in [&["dep-b"][..], &["dep-a"], &["app"]] {
+            let record = verify(&g, &ceiling, &clock_for(scope))
+                .unwrap_or_else(|e| panic!("for {scope:?}: {e}"));
+            assert_eq!(record.packages["dep-b"], ["clock"]);
+            assert_eq!(record.floor, ["clock"], "the join is what the code names");
+            assert_eq!(
+                record.provided["clock"].scope,
+                Some(scope.iter().map(ToString::to_string).collect())
+            );
+        }
+
+        g.nodes.get_mut("dep-a").unwrap().floor = BTreeSet::from([Capability::Clock]);
+        let err = verify(&g, &ceiling, &clock_for(&["dep-b"]))
+            .expect_err("dep-a is outside the scope and needs the clock");
+        assert_eq!(
+            err.to_string(),
+            "[app] -> [dep-a: needs 'clock'] violates ceiling [] (clock is virtualized only for [dep-b] and what they use)"
+        );
+        verify(&g, &ceiling, &clock_for(&["dep-a"])).expect("dep-a uses dep-b");
+    }
+
+    #[test]
+    fn a_scope_that_names_a_package_the_root_does_not_use_is_refused() {
+        let err = verify(&sample(), &Reach::Unrestricted, &clock_for(&["nowhere"]))
+            .expect_err("nowhere is not in the closure");
+        assert_eq!(
+            err.to_string(),
+            "`virtualize(:clock, …)` is for `nowhere`, which [app] does not use; name a package it uses"
+        );
+    }
+
+    fn virtualized(settings: &str) -> Result<BTreeMap<String, Provided>, String> {
+        crate::read_bluefile(&format!(
+            "package(\"app\", \"0.1.0\")\nvirtualize({settings})\n"
+        ))
+        .map(|bf| bf.project.virtualized)
+        .map_err(|e| e.to_string())
+    }
+
+    #[test]
+    fn each_provider_is_named_by_using_with_its_settings_beside_it() {
+        let cases = [
+            (
+                ":clock, {using: :deterministic_stepped, at_ms: 5, step_ms: 2}",
+                Provision::DeterministicStepped {
+                    at_ms: 5,
+                    step_ms: 2,
+                },
+            ),
+            (
+                ":clock, {using: :deterministic_stepped}",
+                Provision::DeterministicStepped {
+                    at_ms: 0,
+                    step_ms: 0,
+                },
+            ),
+            (
+                ":entropy, {using: :seeded_prng, seed: \"s\"}",
+                Provision::SeededPrng { seed: "s".into() },
+            ),
+            (
+                ":filesystem, {using: :in_memory_overlay}",
+                Provision::InMemoryOverlay,
+            ),
+            (":filesystem, {using: :null_sink}", Provision::NullSink),
+        ];
+        for (settings, want) in cases {
+            let got = virtualized(settings).unwrap_or_else(|e| panic!("{settings}: {e}"));
+            let p = &got[want.capability().label()];
+            assert_eq!(p.provision, want, "{settings}");
+            assert_eq!(p.scope, None, "{settings}");
+        }
+        for cap in Capability::host_effects() {
+            for kind in Provision::kinds_for(cap) {
+                let settings = match *kind {
+                    "seeded_prng" => format!(":{}, {{using: :{kind}, seed: \"s\"}}", cap.label()),
+                    _ => format!(":{}, {{using: :{kind}}}", cap.label()),
+                };
+                let got = virtualized(&settings).unwrap_or_else(|e| panic!("{settings}: {e}"));
+                assert_eq!(got[cap.label()].provision.name(), *kind);
+            }
+        }
+        let scoped =
+            virtualized(":clock, {using: :deterministic_stepped, for: %w[rede porta]}").unwrap();
+        assert_eq!(
+            scoped["clock"].scope,
+            Some(BTreeSet::from(["porta".to_string(), "rede".to_string()]))
+        );
+    }
+
+    #[test]
+    fn an_unknown_or_missing_using_is_refused_naming_the_legal_ones() {
+        for (settings, says) in [
+            (
+                ":clock, {using: :wall}",
+                "`using: :wall` is not a clock provider; it takes :deterministic_stepped",
+            ),
+            (
+                ":clock, {using: :seeded_prng, seed: \"s\"}",
+                "`using: :seeded_prng` is not a clock provider; it takes :deterministic_stepped",
+            ),
+            (
+                ":filesystem, {using: :memory}",
+                "`using: :memory` is not a filesystem provider; it takes :in_memory_overlay, :null_sink",
+            ),
+            (
+                ":filesystem, {mode: :memory}",
+                "filesystem needs `using:`, one of :in_memory_overlay, :null_sink",
+            ),
+            (
+                ":filesystem, {using: :null_sink, mode: :null}",
+                "`mode` is not a null_sink setting; it takes nothing besides `using` and `for`",
+            ),
+            (
+                ":clock, {using: :deterministic_stepped, seed: \"s\"}",
+                "`seed` is not a deterministic_stepped setting; it takes at_ms, step_ms",
+            ),
+            (
+                ":entropy, {using: :seeded_prng}",
+                "seeded_prng needs a `seed`",
+            ),
+            (
+                ":clock, {using: :deterministic_stepped, for: []}",
+                "`for` names no package; drop it to serve the whole program",
+            ),
+            (
+                ":clock, {using: :deterministic_stepped, for: \"rede\"}",
+                "`for` is a list of package names (%w[rede])",
+            ),
+            (":network, {using: :x}", "network has no pure provider"),
+        ] {
+            let err = virtualized(settings).expect_err(settings);
+            assert!(err.contains(says), "{settings}: {err}");
+        }
+    }
+
+    #[test]
+    fn the_lock_records_a_provider_by_its_kebab_label_with_its_scope_beside_it() {
+        let every = [
+            Provision::DeterministicStepped {
+                at_ms: 5,
+                step_ms: 0,
+            },
+            Provision::SeededPrng { seed: "s".into() },
+            Provision::InMemoryOverlay,
+            Provision::NullSink,
+        ];
+        for p in every {
+            let json = serde_json::to_value(Provided::from(p.clone())).unwrap();
+            assert_eq!(json["provider"], p.label(), "{json}");
+            assert!(json.get("for").is_none(), "{json}");
+            assert_eq!(
+                serde_json::from_value::<Provided>(json).unwrap(),
+                Provided::from(p)
+            );
+        }
+        let scoped = Provided {
+            provision: Provision::DeterministicStepped {
+                at_ms: 5,
+                step_ms: 0,
+            },
+            scope: Some(BTreeSet::from(["rede".to_string()])),
+        };
+        let json = serde_json::to_value(&scoped).unwrap();
+        assert_eq!(
+            json,
+            serde_json::json!({"provider": "deterministic-stepped", "at_ms": 5, "step_ms": 0, "for": ["rede"]})
+        );
+        assert_eq!(serde_json::from_value::<Provided>(json).unwrap(), scoped);
+        for stale in [
+            serde_json::json!({"provider": "seeded-prng", "seed": "s", "mode": "x"}),
+            serde_json::json!({"provider": "stepped-clock", "at_ms": 0, "step_ms": 0}),
+            serde_json::json!({"provider": "memory-fs"}),
+        ] {
+            assert!(
+                serde_json::from_value::<Provided>(stale.clone()).is_err(),
+                "{stale}"
+            );
+        }
     }
 
     #[test]

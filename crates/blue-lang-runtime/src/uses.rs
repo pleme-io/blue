@@ -362,6 +362,23 @@ impl ResolvedProgram {
         &self.imports
     }
 
+    /// `named` and every bidama a file of theirs reaches through `use`,
+    /// transitively.
+    #[must_use]
+    pub fn reached_from(&self, named: &BTreeSet<String>) -> BTreeSet<String> {
+        let mut out = named.clone();
+        let mut pending: Vec<String> = named.iter().cloned().collect();
+        while let Some(at) = pending.pop() {
+            for (owner, import) in &self.imports {
+                let from = self.file(*owner).and_then(|f| f.package.as_deref());
+                if from == Some(at.as_str()) && out.insert(import.package.clone()) {
+                    pending.push(import.package.clone());
+                }
+            }
+        }
+        out
+    }
+
     /// Every file that contributed, entry first.
     #[must_use]
     pub fn files(&self) -> &[SourceFile] {
@@ -642,6 +659,65 @@ fn expand(
         out.push(form, owner);
     }
     Ok(())
+}
+
+/// Rename the symbols each file of `program` wrote in `forms`, its evaluated
+/// tree top-level form for top-level form: `rename(package, name)` answers
+/// the new name for a symbol a file of `package` (`None` for the root
+/// namespace) wrote, or `None` to keep it. Quoted data is not code and keeps
+/// its symbols; inside a quasiquote only what is unquoted is renamed.
+pub fn rename_written(
+    program: &ResolvedProgram,
+    forms: &mut [Spanned],
+    rename: &dyn Fn(Option<&str>, &str) -> Option<String>,
+) {
+    for (i, form) in forms.iter_mut().enumerate() {
+        let package = program
+            .owner_of(i)
+            .and_then(|id| program.file(id))
+            .and_then(|f| f.package.as_deref());
+        rename_symbols(form, &|name| rename(package, name), false);
+    }
+}
+
+fn rename_symbols(form: &mut Spanned, rename: &dyn Fn(&str) -> Option<String>, template: bool) {
+    use tatara_lisp::{Atom, SpannedForm};
+    match &mut form.form {
+        SpannedForm::Atom(Atom::Symbol(s)) if !template => {
+            if let Some(to) = rename(s) {
+                *s = to;
+            }
+        }
+        SpannedForm::List(items) => {
+            let head = items
+                .first()
+                .and_then(Spanned::as_symbol)
+                .map(str::to_owned);
+            match (head.as_deref(), template) {
+                (Some("quote"), false) => {}
+                (Some("quasiquote"), false) => {
+                    for item in items.iter_mut().skip(1) {
+                        rename_symbols(item, rename, true);
+                    }
+                }
+                (Some("unquote" | "unquote-splicing"), true) => {
+                    for item in items.iter_mut().skip(1) {
+                        rename_symbols(item, rename, false);
+                    }
+                }
+                _ => {
+                    for item in items.iter_mut() {
+                        rename_symbols(item, rename, template);
+                    }
+                }
+            }
+        }
+        SpannedForm::Quasiquote(inner) if !template => rename_symbols(inner, rename, true),
+        SpannedForm::Unquote(inner) | SpannedForm::UnquoteSplice(inner) if template => {
+            rename_symbols(inner, rename, false);
+        }
+        _ => {}
+    }
 }
 
 /// Prefix a failure with the import chain that reached it.
@@ -968,6 +1044,84 @@ pub(crate) mod tests {
         }
         // `double`, the `use` declaration, and the call.
         assert_eq!(out.forms().len(), 3, "{:?}", out.forms());
+    }
+
+    #[test]
+    fn a_package_reaches_what_it_uses_transitively_and_nothing_its_importer_uses() {
+        let loader = MemLoader(BTreeMap::from([
+            ("retsu", "use(\"kazu\")\ndef sum2(a, b)\n  a + b\nend"),
+            ("kazu", "def double(n)\n  n * 2\nend"),
+            ("other", "def one()\n  1\nend"),
+        ]));
+        let out = resolve("use(\"retsu\")\nuse(\"other\")", &loader).expect("resolves");
+        let named = BTreeSet::from(["retsu".to_string()]);
+        assert_eq!(
+            out.reached_from(&named),
+            BTreeSet::from(["kazu".to_string(), "retsu".to_string()])
+        );
+        assert_eq!(
+            out.reached_from(&BTreeSet::from(["kazu".to_string()])),
+            BTreeSet::from(["kazu".to_string()])
+        );
+    }
+
+    #[test]
+    fn renaming_reaches_only_the_files_of_the_named_package() {
+        let loader = MemLoader(BTreeMap::from([("rede", "def get()\n  now_ms\nend")]));
+        let out = resolve("use(\"rede\")\nnow_ms", &loader).expect("resolves");
+        let mut forms: Vec<Spanned> = out.forms().to_vec();
+        rename_written(&out, &mut forms, &|package, name| {
+            (package == Some("rede") && name == "now_ms").then(|| "%moved".to_string())
+        });
+        let shown: Vec<(Option<String>, String)> = forms
+            .iter()
+            .enumerate()
+            .map(|(i, f)| {
+                let package = out
+                    .owner_of(i)
+                    .and_then(|id| out.file(id))
+                    .and_then(|f| f.package.clone());
+                (package, f.to_sexp().to_string())
+            })
+            .collect();
+        assert!(
+            shown
+                .iter()
+                .any(|(p, s)| p.as_deref() == Some("rede") && s.contains("%moved")),
+            "{shown:?}"
+        );
+        assert!(
+            shown
+                .iter()
+                .all(|(p, s)| p.is_some() || !s.contains("%moved")),
+            "{shown:?}"
+        );
+        assert!(
+            shown.iter().any(|(p, s)| p.is_none() && s == "now_ms"),
+            "{shown:?}"
+        );
+    }
+
+    #[test]
+    fn quoted_data_keeps_its_symbols_and_an_unquote_is_code() {
+        let mut forms = tatara_lisp::read_spanned(
+            "(list now_ms 'now_ms (quote now_ms) `(now_ms ,now_ms) (quasiquote (now_ms (unquote now_ms))))",
+        )
+        .expect("reads");
+        super::rename_symbols(
+            &mut forms[0],
+            &|name| (name == "now_ms").then(|| "%moved".to_string()),
+            false,
+        );
+        assert_eq!(
+            forms[0].to_sexp().to_string(),
+            tatara_lisp::read_spanned(
+                "(list %moved 'now_ms (quote now_ms) `(now_ms ,%moved) (quasiquote (now_ms (unquote %moved))))"
+            )
+            .unwrap()[0]
+                .to_sexp()
+                .to_string()
+        );
     }
 
     /// An unresolvable index reports no position rather than the entry file's.

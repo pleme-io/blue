@@ -207,8 +207,8 @@ pub fn run_framed(
         crate::timings::stage(crate::timings::Stage::Runtime, crate::interpreter_hostless);
     crate::inputs::install_input_primitives(&mut interp, inputs);
     let builtins = crate::timings::stage(crate::timings::Stage::Names, || builtin_names(&interp));
-    let prepared = prepare(entry, loader, surface, &builtins)?;
-    hold_to_frame(&mut interp, &prepared, hold)?;
+    let mut prepared = prepare(entry, loader, surface, &builtins)?;
+    hold_to_frame(&mut interp, &mut prepared, hold)?;
     let mut value = crate::timings::stage(crate::timings::Stage::Eval, || {
         eval_prepared(&mut interp, &prepared, &mut ())
     })?;
@@ -225,17 +225,19 @@ pub fn run_framed(
     })
 }
 
-/// Bind `hold` into `interp` and its processes; a withheld name the entry
+/// Bind `hold` into `interp` and its processes, with each scoped provider's
+/// packages moved onto it (`Hold::rebind_scoped`); a withheld name the entry
 /// file writes refuses the program before it runs.
 fn hold_to_frame(
     interp: &mut tatara_lisp_eval::Interpreter<()>,
-    prepared: &Prepared,
+    prepared: &mut Prepared,
     hold: Option<&crate::Hold>,
 ) -> Result<(), RunError> {
     let Some(hold) = hold else {
         return Ok(());
     };
-    let escapes = entry_escapes(&prepared.program, &hold.withheld_host_names());
+    let withheld = hold.rebind_scoped(&prepared.program, &mut prepared.erased);
+    let escapes = entry_escapes(&prepared.program, &withheld);
     if !escapes.is_empty() {
         return Err(RunError::Types(escapes));
     }
@@ -333,8 +335,8 @@ pub fn run_observed_framed(
         crate::timings::stage(crate::timings::Stage::Runtime, crate::interpreter_hostless);
     crate::inputs::install_input_primitives(&mut interp, inputs);
     let builtins = crate::timings::stage(crate::timings::Stage::Names, || builtin_names(&interp));
-    let prepared = prepare(entry, loader, surface, &builtins)?;
-    hold_to_frame(&mut interp, &prepared, hold)?;
+    let mut prepared = prepare(entry, loader, surface, &builtins)?;
+    hold_to_frame(&mut interp, &mut prepared, hold)?;
     let definitions = std::sync::Arc::new(crate::observe::Definitions::of(
         &prepared.program,
         &prepared.erased,

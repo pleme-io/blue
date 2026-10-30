@@ -767,7 +767,7 @@ fn install_fs<H: 'static>(interp: &mut Interpreter<H>) {
         },
     );
 
-    install_path_words(interp);
+    install_path_words(interp, String::from);
 
     interp.register_fn(
         "cwd",
@@ -781,10 +781,13 @@ fn install_fs<H: 'static>(interp: &mut Interpreter<H>) {
 }
 
 /// `path_join`, `path_basename`, `path_dirname` and `path_extension`: string
-/// arithmetic the filesystem capability carries.
-pub(crate) fn install_path_words<H: 'static>(interp: &mut Interpreter<H>) {
+/// arithmetic the filesystem capability carries, each bound under `key(word)`.
+pub(crate) fn install_path_words<H: 'static>(
+    interp: &mut Interpreter<H>,
+    key: fn(&'static str) -> String,
+) {
     interp.register_fn(
-        "path_join",
+        key("path_join"),
         Arity::AtLeast(1),
         |args: &[Value], _h: &mut H, span| {
             let mut buf = PathBuf::new();
@@ -797,7 +800,7 @@ pub(crate) fn install_path_words<H: 'static>(interp: &mut Interpreter<H>) {
     );
 
     interp.register_fn(
-        "path_basename",
+        key("path_basename"),
         Arity::Exact(1),
         |args: &[Value], _h: &mut H, span| {
             let p = arg_str(&args[0], "path_basename", span)?;
@@ -810,7 +813,7 @@ pub(crate) fn install_path_words<H: 'static>(interp: &mut Interpreter<H>) {
     );
 
     interp.register_fn(
-        "path_dirname",
+        key("path_dirname"),
         Arity::Exact(1),
         |args: &[Value], _h: &mut H, span| {
             let p = arg_str(&args[0], "path_dirname", span)?;
@@ -823,7 +826,7 @@ pub(crate) fn install_path_words<H: 'static>(interp: &mut Interpreter<H>) {
     );
 
     interp.register_fn(
-        "path_extension",
+        key("path_extension"),
         Arity::Exact(1),
         |args: &[Value], _h: &mut H, span| {
             let p = arg_str(&args[0], "path_extension", span)?;

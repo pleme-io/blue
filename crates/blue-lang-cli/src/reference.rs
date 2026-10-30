@@ -224,7 +224,8 @@ pub fn reference() -> Reference {
     }
 }
 
-pub const SCRIPT_ABOUT: &str = "Run a program as a script: quiet, and every argument after the file reaches `argv`.";
+pub const SCRIPT_ABOUT: &str =
+    "Run a program as a script: quiet, and every argument after the file reaches `argv`.";
 
 pub fn commands(cli: &clap::Command) -> Vec<CommandRow> {
     let mut rows = vec![CommandRow {
@@ -456,10 +457,22 @@ mod tests {
     fn the_commands_are_read_from_the_parser_blue_runs() {
         let rows = listed();
         let names: Vec<&str> = rows.iter().map(|r| r.name.as_str()).collect();
-        for want in ["", "run", "test", "check", "fmt", "lsp", "image build", "registry status"] {
+        for want in [
+            "",
+            "run",
+            "test",
+            "check",
+            "fmt",
+            "lsp",
+            "image build",
+            "registry status",
+        ] {
             assert!(names.contains(&want), "no `{want}` among {names:?}");
         }
-        assert!(!names.contains(&"image"), "a command with subcommands is listed by its leaves");
+        assert!(
+            !names.contains(&"image"),
+            "a command with subcommands is listed by its leaves"
+        );
         assert!(!names.contains(&"help"));
         assert!(rows.len() >= 30, "only {} commands", rows.len());
     }
@@ -479,11 +492,23 @@ mod tests {
         let rows = listed();
         let run = rows.iter().find(|r| r.name == "run").expect("run");
         assert_eq!(run.usage, "FILE [ARGS]...");
-        assert!(run.flags.contains(&"--allow CAPABILITY".to_string()), "{:?}", run.flags);
-        assert!(run.flags.contains(&"--quiet".to_string()), "{:?}", run.flags);
+        assert!(
+            run.flags.contains(&"--allow CAPABILITY".to_string()),
+            "{:?}",
+            run.flags
+        );
+        assert!(
+            run.flags.contains(&"--quiet".to_string()),
+            "{:?}",
+            run.flags
+        );
         let test = rows.iter().find(|r| r.name == "test").expect("test");
         assert_eq!(test.usage, "FILE");
-        assert!(test.flags.contains(&"--filter PATTERN".to_string()), "{:?}", test.flags);
+        assert!(
+            test.flags.contains(&"--filter PATTERN".to_string()),
+            "{:?}",
+            test.flags
+        );
     }
 
     #[test]

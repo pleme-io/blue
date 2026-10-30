@@ -1677,9 +1677,10 @@ its own package is served. A scoped provider may share its capability with
 breach, provided names reach their provider, and every spawned process gets
 the same hold with its own provider state. `--allow` narrows it further and
 never widens it, and keeps the project's providers: `--allow none` still runs
-a leaf its project virtualizes. Open: a project Bluefile that does not parse
-gives no hold (`capabilities::hold_for` answers `None`), so that run has every
-capability. Tests: `crates/blue-lang-cli/tests/lattice.rs` (11),
+a leaf its project virtualizes. A project Bluefile that does not read refuses
+the run: `capabilities::hold_for` fails closed, never holds to nothing.
+Tests: `crates/blue-lang-cli/tests/lattice.rs` (12, the last
+`a_project_bluefile_that_does_not_read_refuses_the_run_instead_of_running_ambient`),
 `capabilities.rs` (12), `provide.rs` (6), `provision.rs` (5), `uses.rs`
 (`a_package_reaches_*`, `renaming_*`, `quoted_data_*`).
 

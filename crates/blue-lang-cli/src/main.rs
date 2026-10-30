@@ -686,7 +686,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                 blue_lang_runtime::timings::enable();
             }
             sigint::stop();
-            let project = blue_lang_pkg::capabilities::hold_for(&file);
+            let project = blue_lang_pkg::capabilities::hold_for(&file).map_err(CliError::Pkg)?;
             let hold = if allow.is_empty() {
                 project
             } else {

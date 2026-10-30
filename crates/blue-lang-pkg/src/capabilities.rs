@@ -643,24 +643,43 @@ pub fn declared(bf: &Bluefile) -> bool {
 /// What `blue run` holds the program at `entry` to when its project declares
 /// `allow` or a provider: the ceiling as its frame, and the providers.
 /// `None` when the project declares neither, or there is no project.
-#[must_use]
-pub fn hold_for(entry: &Path) -> Option<blue_lang_runtime::Hold> {
+///
+/// # Errors
+///
+/// The nearest Bluefile above `entry` that is not a bidama's cannot be read
+/// or does not evaluate: the run is refused rather than held to nothing.
+pub fn hold_for(entry: &Path) -> Result<Option<blue_lang_runtime::Hold>, String> {
     let dir = entry
         .parent()
         .filter(|d| !d.as_os_str().is_empty())
         .unwrap_or(Path::new("."));
     let dir = dir.canonicalize().unwrap_or_else(|_| dir.to_path_buf());
-    let project = crate::load_path::project_of(&dir)?;
-    let text = std::fs::read_to_string(project.join(crate::MANIFEST_FILE)).ok()?;
-    let bf = crate::read_bluefile(&text).ok()?;
-    declared(&bf).then(|| blue_lang_runtime::Hold {
-        frame: Waku {
-            reach: ceiling_of(&bf),
-            when: When::Anytime,
-            place: Where::Process,
-        },
-        provisions: provisions_of(&bf),
-    })
+    for at in dir.ancestors() {
+        let path = at.join(crate::MANIFEST_FILE);
+        if !path.is_file() {
+            continue;
+        }
+        let refused = |why: String| {
+            format!(
+                "{}: {why}; blue run holds a program to its project's allow and virtualize, and does not run it with every capability while the Bluefile does not read",
+                path.display()
+            )
+        };
+        let text = std::fs::read_to_string(&path).map_err(|e| refused(e.to_string()))?;
+        let bf = crate::read_bluefile(&text).map_err(|e| refused(e.to_string()))?;
+        if crate::load_path::bidama_of(&bf).is_some() {
+            continue;
+        }
+        return Ok(declared(&bf).then(|| blue_lang_runtime::Hold {
+            frame: Waku {
+                reach: ceiling_of(&bf),
+                when: When::Anytime,
+                place: Where::Process,
+            },
+            provisions: provisions_of(&bf),
+        }));
+    }
+    Ok(None)
 }
 
 /// Verify the project at `dir` when its Bluefile declares a ceiling or a

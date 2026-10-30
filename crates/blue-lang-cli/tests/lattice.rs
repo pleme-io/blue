@@ -469,3 +469,18 @@ fn a_root_with_no_ceiling_locks_as_before() {
     let text = std::fs::read_to_string(dir.join("Bluefile.lock")).unwrap();
     assert!(!text.contains("capabilities"), "{text}");
 }
+
+#[test]
+fn a_project_bluefile_that_does_not_read_refuses_the_run_instead_of_running_ambient() {
+    let dir = project(
+        "unreadable",
+        "package(\"app\", \"0.1.0\")\npackages(\"bidamas\")\nallow([])\nvirtualize(:clock, {using: :sundial})\n",
+        CLOCK,
+        REDE,
+    );
+    lock_leaves(&dir);
+    let o = run(&dir, &[]);
+    assert!(!o.status.success(), "{}", out(&o));
+    assert_eq!(out(&o), "", "nothing ran");
+    assert!(err(&o).contains("does not read"), "{}", err(&o));
+}

@@ -115,6 +115,6 @@ them is written by hand. Why facts become nodes of a typed Markdown tree:
 | D4.1 | facts in a page (§5): `commands`, `language`, `packages`, `include`; the README rewritten on them | `checks.docs` refuses a bad fact by page; `bidama-test-hon` | built 2026-10-30 |
 | D5 | the static site and its publication in `blue-project.yml` | a published URL | design |
 | D6 | every Bluefile project gets D2 by default; `book(...)` turns on D4 | `ola-mundo` renders all of §4 | design |
-| D7 | Markdown as a typed tree; facts as nodes; a link and anchor gate; the book as PDF through Typst | [`MARKDOWN.md`](MARKDOWN.md) §7 | design |
-| D8 | a `tameshi-receipt.v1.json` for every docs run, through tameshi's `wrapTest` (runner `blue`) | `checks.docs-receipt` verifies the receipt | design |
+| D7 | Markdown as a typed tree; facts as nodes; a link and anchor gate; the book as PDF through Typst | [`MARKDOWN.md`](MARKDOWN.md) §7 | the tree built 2026-10-30 (`bunsho`, M1 and M2); the rest design |
+| D8 | a `tameshi-receipt.v1.json` for every docs run: the Bluefile word `receipt(check, controls)` wraps any check in tameshi's `wrapTest` (runner `blue`), and blue declares it for `docs` under NIST SP 800-53 SA-5 and SA-11 | `checks.docs-receipt` writes the receipt and fails unless tameshi verifies it PASS | built 2026-10-30 |
 | D9 | each doc block held to a ceiling it declares, so an example that reaches the host says so | a block reaching outside its ceiling is refused by page | design; today every block runs hermetic in a fresh directory inside the nix sandbox, with every blue capability |

@@ -210,7 +210,7 @@ rendered:
 | Built-in names | 307: 280 functions, 14 special forms, 13 macros |
 | Surface forms | 29, with 13 operators and 24 reserved words |
 | Check rules | 65: 37 fix themselves, 7 suggest a fix |
-| Bluefile words | 21 |
+| Bluefile words | 22 |
 | Commands | 39 |
 
 ## The standard library
@@ -218,11 +218,12 @@ rendered:
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-85 packages, 4651 definitions, 1526 tests.
+86 packages, 4754 definitions, 1545 tests.
 
 - [anaritikusu](bidamas/CATALOG.md#anaritikusu) (アナリティクス) — lifecycle analytics: a database of telemetry, standard models and cross-lifecycle joins, generated from lifecycle definitions.
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
 - [bougyo](bidamas/CATALOG.md#bougyo) (防御) — the request-side defence of a service: security headers, a request id, and limits on what a request may be.
+- [bunsho](bidamas/CATALOG.md#bunsho) (文書) — Markdown as a first-class value: `.md` text parsed into one typed tree whose node kinds are the ones CommonMark, GitHub Flavored Markdown and mdast agree on, the tree rendered back in one canonical formatting, and the tree read by node, by kind and by section.
 - [chokkan](bidamas/CATALOG.md#chokkan) (直感) — System One judgment: typed questions in, calibrated answers out.
 - [danpen](bidamas/CATALOG.md#danpen) (断片) — GraphQL in blue: documents parsed into plain records, checked against a schema, composed from fragments, rendered and hashed.
 - [deeta](bidamas/CATALOG.md#deeta) (データ) — JSON data, read safely.

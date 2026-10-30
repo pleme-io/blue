@@ -5,8 +5,9 @@ summary: Markdown as a first-class blue value: one typed tree, one formatting, c
 
 # MARKDOWN — Markdown is a first-class blue value
 
-Status: DESIGN, 2026-10-30. Built: M0 only (§7), the typed facts `hon`
-renders into a page. Nothing else below is built.
+Status: DESIGN, 2026-10-30. Built: M0, M1 and M2 (§7): the typed facts
+`hon` renders into a page, and the `bunsho` (文書) bidama, which parses
+Markdown into the tree of §3 and renders it back. The rest is design.
 
 ## 1. Destination
 
@@ -35,8 +36,8 @@ Markdown text does not keep: `fence_line?`, `outside_fences`, `demoted`,
 `heading_anchor`, `with_facts`, `heading_level` and `section_of`. Each one is a
 small parser, and each one disagrees with the others at an edge: a
 four-backtick fence, a heading inside a list, a `](` inside code. No gate
-checks a link target today. With a tree, each of these is one node operation,
-and a link is a node whose target a gate can resolve.
+checked a link target before M2. With a tree, each of these is one node
+operation, and a link is a node whose target a gate resolves.
 
 ## 3. The shape, adopted
 
@@ -65,15 +66,23 @@ column]}`. `at` is the position in the source, so a gate names the line.
 Each is a row in the verb graph before it is built (`blue verbs`), with one
 contract in every space that has the verb.
 
-| Verb | Contract |
-|---|---|
-| `parse(text)` | `.md` text to a `root`; never raises: text it cannot read is a `text` or `html` node |
-| `render(tree)` | the canonical Markdown of a tree |
-| `section(tree, anchor)` | the nodes under one heading, up to the next of its depth or above; nil when absent |
-| `headings(tree)`, `links(tree)`, `blocks(tree, lang)`, `facts(tree)` | the nodes of one kind, in order |
-| `map_nodes(f, tree)` | the tree with `f` applied to every node, bottom up |
-| `rebased(tree, from, to)` | every relative link target rewritten to reach the same file from another directory |
-| `to_html(tree)`, `to_typst(tree)`, `to_terminal(tree)` | the renderings of §6 |
+| Verb | Contract | Tier |
+|---|---|---|
+| `bunsho::parse(text)` | `.md` text to a `root`; never raises: text it cannot read is a `text` or `html` node | built |
+| `bunsho::render(tree)` | the canonical Markdown of a tree | built |
+| `bunsho::section(tree, anchor)` | the nodes under one heading, up to the next of its depth or above; nil when absent | built |
+| `bunsho::extract(tree, kinds)` | the nodes of one kind, or of several, in order: headings, links, code blocks, facts | built |
+| `bunsho::walk(tree)` | every node, in document order | built |
+| `bunsho::map_nodes(tree, f)` | the tree with `f` applied to every node, bottom up | built |
+| `bunsho::rebase(tree, from, to)` | every relative link target rewritten to reach the same file from another directory | built |
+| `to_html(tree)`, `to_typst(tree)`, `to_terminal(tree)` | the renderings of §6 | design |
+
+One verb reads nodes by kind, not one verb per kind (the verb law,
+`docs/VERB-ROADMAP.md`). The section verb is `section`, not the graph's
+`get`: a bidama that defines `get` breaks its own `m[:k]`, because the
+bracket lowers to a bare `get` and recurses. Not yet read as CommonMark
+reads them: entity references, reference-style links, e-mail autolinks and
+the delimiter-stack edges of emphasis. Each is stable under both laws.
 
 Two laws hold on every page of `docs/` and on the CommonMark examples the
 parser claims, each an okite law with a witness:
@@ -110,8 +119,8 @@ fact is one definition, not a change to the renderer.
 | Step | Work | Gate | Tier |
 |---|---|---|---|
 | M0 | typed facts in a page: `commands`, `language`, `packages`, `include` | `checks.docs` refuses an unknown fact or a missing section by page; `bidama-test-hon` | built 2026-10-30 |
-| M1 | the block tree: `parse` and `render` for every block kind of §3 | the two laws over `docs/`; red on a reordered child | design |
-| M2 | inline nodes: links, code spans, emphasis, images | a link and anchor gate over `docs/`, one refusal per broken link | design |
+| M1 | the block tree: `parse` and `render` for every block kind of §3 | `checks.markdown-laws`: both laws on every page of `docs/`; `bidama-test-bunsho`; heni catches every mutation | built 2026-10-30 (`bunsho`) |
+| M2 | inline nodes: links, code spans, emphasis, images; the link and anchor gate | `checks.markdown-laws`: every relative link and image under `docs/` (330 on 2026-10-30) reaches a file, and every `#anchor` a heading, each refused by page and line | built 2026-10-30 |
 | M3 | `hon` on the tree: its text functions removed, facts as nodes | every `hon` test, unchanged renderings byte for byte | design |
 | M4 | `blue fmt` formats `.md` | an md-fmt gate over `docs/` | design |
 | M5 | `to_typst` and `typst` from nixpkgs | `nix build .#book-pdf` | design |

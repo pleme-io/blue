@@ -320,9 +320,7 @@ impl<'a> Lexer<'a> {
                     }
                 }
                 c if is_ident_start(c) => self.lex_ident(start),
-                b'%' if matches!(self.peek_at(1), Some(b'w' | b'i'))
-                    && self.peek_at(2) == Some(b'[') =>
-                {
+                b'%' if self.at_word_list() => {
                     self.lex_words(start)?;
                 }
                 c if OP_CHARS.as_bytes().contains(&c) => self.lex_op(start),
@@ -720,8 +718,17 @@ impl<'a> Lexer<'a> {
         self.push(kind, start);
     }
 
+    fn at_word_list(&self) -> bool {
+        self.peek() == Some(b'%')
+            && matches!(self.peek_at(1), Some(b'w' | b'i'))
+            && self.peek_at(2) == Some(b'[')
+    }
+
     fn lex_op(&mut self, start: usize) {
         while matches!(self.peek(), Some(c) if OP_CHARS.as_bytes().contains(&c)) {
+            if self.pos > start && self.at_word_list() {
+                break;
+            }
             self.pos += 1;
         }
         let text = self.src[start..self.pos].to_string();
@@ -1014,6 +1021,19 @@ mod tests {
             ]
         );
         assert_eq!(kinds("x%i")[1], TokenKind::Op("%".into()));
+    }
+
+    #[test]
+    fn an_operator_before_a_word_list_ends_where_the_list_begins() {
+        for (src, op) in [("*%i[a a]", "*"), ("x ==%w[b]", "=="), ("-%i[a]", "-")] {
+            let ks = kinds(src);
+            assert!(ks.contains(&TokenKind::Op(op.into())), "{src}: {ks:?}");
+            assert!(
+                ks.iter().any(|k| matches!(k, TokenKind::Words { .. })),
+                "{src}: {ks:?}"
+            );
+        }
+        assert_eq!(kinds("a %% b")[1], TokenKind::Op("%%".into()));
     }
 
     #[test]

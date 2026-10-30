@@ -1649,6 +1649,7 @@ def leaf_options()
     namespace
     pangea_namespace
     refresh_interval
+    skip_leaf
   ]
 end
 
@@ -1689,10 +1690,20 @@ def leaf(name, b, opts)
   else
     assoc(spec, :providerCredentials, {aws: opts[:aws]})
   end
+  base_meta = {name:, namespace: opts[:namespace] or "default"}
+  meta = if opts[:skip_leaf].nil?
+    base_meta
+  else
+    reason = skip_reason(opts[:skip_leaf])
+    if reason.nil?
+      raise(:bad_option, "leaf #{name}: bad skip_leaf #{opts[:skip_leaf]}")
+    end
+    assoc(base_meta, :annotations, {skip_annotation => reason})
+  end
   {
     apiVersion: "pangea.pleme.io/v1alpha1",
     kind: "InfrastructureTemplate",
-    metadata: {name:, namespace: opts[:namespace] or "default"},
+    metadata: meta,
     spec: if opts[:destroy_authorization].nil?
       with_aws
     else
@@ -1817,6 +1828,19 @@ test "a leaf carries its body inline as json under the house defaults, and dispo
   assert raises?(
     :bad_option,
     () -> leaf("x", b, {pangea_namespace: "p", colour: 1})
+  )
+end
+
+test "skip_leaf stamps the typed world-fact annotation, and a bad reason is refused"
+  b = body([resource("aws_vpc", "main", {cidr_block: "10.0.0.0/16"})])
+  one = {pangea_namespace: "p", skip_leaf: "shared-lifecycle: one state"}
+  l = leaf("net", b, one)
+  assert l[:metadata][:annotations]["pangea.pleme.io/skip-leaf"] ==
+    "shared-lifecycle"
+  assert leaf("net", b, {pangea_namespace: "p"})[:metadata][:annotations].nil?
+  assert raises?(
+    :bad_option,
+    () -> leaf("x", b, {pangea_namespace: "p", skip_leaf: "nope"})
   )
 end
 

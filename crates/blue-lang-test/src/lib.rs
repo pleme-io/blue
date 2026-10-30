@@ -568,8 +568,9 @@ pub fn run_guarded(
     let mut report = Report::default();
     let mut prototype = blue_lang_runtime::interpreter_hostless();
     if let Some(hold) = &guard.hold {
-        hold.bind(&mut prototype, "this run's frame");
-        blue_lang_runtime::attach_node_held(&mut prototype, hold);
+        let account = blue_lang_runtime::Account::default();
+        hold.bind(&mut prototype, "this run's frame", &account.host_io);
+        blue_lang_runtime::attach_node_accounted(&mut prototype, Some(hold), &account);
     }
     if let Some(flag) = &guard.interrupt {
         prototype.set_interrupt(Arc::clone(flag));

@@ -211,12 +211,36 @@ pub fn run_framed(
     surface: Option<&blue_lang_syntax::yakugo::Yakugo>,
     hold: Option<&crate::Hold>,
 ) -> Result<Run, RunError> {
+    run_framed_accounted(
+        entry,
+        inputs,
+        loader,
+        surface,
+        hold,
+        &crate::Account::default(),
+    )
+}
+
+/// [`run_framed`] giving `account` of itself: the host calls the run and its
+/// processes make, and the identities of what it runs (`crate::Account`).
+///
+/// # Errors
+///
+/// As [`run_framed`].
+pub fn run_framed_accounted(
+    entry: Entry<'_>,
+    inputs: Inputs,
+    loader: &dyn crate::uses::Loader,
+    surface: Option<&blue_lang_syntax::yakugo::Yakugo>,
+    hold: Option<&crate::Hold>,
+    account: &crate::Account,
+) -> Result<Run, RunError> {
     // The interpreter is built BEFORE the check stage, because it is the check
     // stage's name oracle: every builtin, macro and special form a program may
     // name is read off the interpreter that will run it, never off a list.
     // Building it is not a stage; nothing is evaluated until `eval_prepared`.
     let (mut interp, mut prepared) = prepared_on(entry, inputs, loader, surface)?;
-    hold_to_frame(&mut interp, &mut prepared, hold)?;
+    hold_to_frame(&mut interp, &mut prepared, hold, account)?;
     let mut value = crate::timings::stage(crate::timings::Stage::Eval, || {
         eval_prepared(&mut interp, &prepared, &mut ())
     })?;
@@ -235,13 +259,26 @@ pub fn run_framed(
 
 /// Bind `hold` into `interp` and its processes, with each scoped provider's
 /// packages moved onto it (`Hold::rebind_scoped`); a withheld name the entry
-/// file writes refuses the program before it runs.
+/// file writes refuses the program before it runs. With an `account` that
+/// identifies, the program's identities are deferred to it and the node is
+/// attached again knowing them; without a hold or one, nothing changes.
 fn hold_to_frame(
     interp: &mut tatara_lisp_eval::Interpreter<()>,
     prepared: &mut Prepared,
     hold: Option<&crate::Hold>,
+    account: &crate::Account,
 ) -> Result<(), RunError> {
+    if let Some(identify) = account.identify {
+        account.identities.defer(identify(
+            &prepared.program,
+            std::sync::Arc::clone(&prepared.lowered),
+            main_key(prepared),
+        ));
+    }
     let Some(hold) = hold else {
+        if account.identify.is_some() {
+            crate::attach_node_accounted(interp, None, account);
+        }
         return Ok(());
     };
     let withheld = hold.rebind_scoped(&prepared.program, &mut prepared.erased);
@@ -251,8 +288,8 @@ fn hold_to_frame(
     if !escapes.is_empty() {
         return Err(RunError::Types(escapes));
     }
-    hold.bind(interp, "this run's frame");
-    crate::attach_node_held(interp, hold);
+    hold.bind(interp, "this run's frame", &account.host_io);
+    crate::attach_node_accounted(interp, Some(hold), account);
     Ok(())
 }
 
@@ -346,9 +383,7 @@ pub fn compile(
             return Err(RunError::Types(escapes));
         }
     }
-    let main = entry_main(&prepared.program).map(|(top_level, _)| {
-        blue_lang_check::names::key(&namespace_of(&prepared.program, top_level), MAIN)
-    });
+    let main = main_key(&prepared);
     let Prepared {
         program,
         lowered,
@@ -357,7 +392,7 @@ pub fn compile(
     } = prepared;
     Ok(Compiled {
         program,
-        lowered,
+        lowered: std::sync::Arc::unwrap_or_clone(lowered),
         erased,
         main,
     })
@@ -379,8 +414,9 @@ pub fn run_compiled(
     who: &'static str,
 ) -> Result<Value, RunError> {
     let mut interp = runtime(Inputs::new());
-    hold.bind(&mut interp, who);
-    crate::attach_node_held(&mut interp, hold);
+    let account = crate::Account::default();
+    hold.bind(&mut interp, who, &account.host_io);
+    crate::attach_node_accounted(&mut interp, Some(hold), &account);
     let fault = |e: &tatara_lisp_eval::EvalError| {
         RunError::Eval(Box::new(crate::observe::Fault::unplaced(e, erased)))
     };
@@ -456,8 +492,34 @@ pub fn run_observed_framed(
     hold: Option<&crate::Hold>,
     watch: impl FnOnce(&Watched<'_>) -> std::sync::Arc<dyn crate::observe::CallObserver>,
 ) -> Result<Observed, RunError> {
+    run_observed_accounted(
+        entry,
+        inputs,
+        loader,
+        surface,
+        hold,
+        &crate::Account::default(),
+        watch,
+    )
+}
+
+/// [`run_observed_framed`] giving `account` of itself, as
+/// [`run_framed_accounted`] does.
+///
+/// # Errors
+///
+/// As [`run_observed_framed`].
+pub fn run_observed_accounted(
+    entry: Entry<'_>,
+    inputs: Inputs,
+    loader: &dyn crate::uses::Loader,
+    surface: Option<&blue_lang_syntax::yakugo::Yakugo>,
+    hold: Option<&crate::Hold>,
+    account: &crate::Account,
+    watch: impl FnOnce(&Watched<'_>) -> std::sync::Arc<dyn crate::observe::CallObserver>,
+) -> Result<Observed, RunError> {
     let (mut interp, mut prepared) = prepared_on(entry, inputs, loader, surface)?;
-    hold_to_frame(&mut interp, &mut prepared, hold)?;
+    hold_to_frame(&mut interp, &mut prepared, hold, account)?;
     let definitions = std::sync::Arc::new(crate::observe::Definitions::of(
         &prepared.program,
         &prepared.erased,
@@ -496,7 +558,7 @@ pub fn run_observed_framed(
 /// module exists to own is written once for both.
 pub(crate) struct Prepared {
     program: crate::uses::ResolvedProgram,
-    lowered: Vec<tatara_lisp::Spanned>,
+    lowered: std::sync::Arc<Vec<tatara_lisp::Spanned>>,
     erased: Vec<tatara_lisp::Spanned>,
     visited: usize,
     typed_decls: usize,
@@ -603,7 +665,7 @@ pub(crate) fn prepare(
 
     Ok(Prepared {
         program,
-        lowered,
+        lowered: std::sync::Arc::new(lowered),
         erased,
         visited: outcome.stats.visited,
         typed_decls: outcome.stats.typed_decls,
@@ -1696,22 +1758,31 @@ pub fn entry_main(program: &crate::uses::ResolvedProgram) -> Option<(usize, tata
     })
 }
 
+/// The entry's `main`: its top-level form, where it is named, and the key
+/// a call to it is written with.
+fn main_call(prepared: &Prepared) -> Option<(usize, tatara_lisp::Span, String)> {
+    let (top_level, span) = entry_main(&prepared.program)?;
+    let ns = namespace_of(&prepared.program, top_level);
+    Some((top_level, span, blue_lang_check::names::key(&ns, MAIN)))
+}
+
+fn main_key(prepared: &Prepared) -> Option<String> {
+    main_call(prepared).map(|(_, _, key)| key)
+}
+
 pub(crate) fn call_main<H: 'static>(
     interp: &mut tatara_lisp_eval::Interpreter<H>,
     prepared: &Prepared,
     host: &mut H,
 ) -> Result<Option<Value>, RunError> {
-    let Some((top_level, span)) = entry_main(&prepared.program) else {
+    let Some((top_level, span, key)) = main_call(prepared) else {
         return Ok(None);
     };
-    let ns = namespace_of(&prepared.program, top_level);
     let call = tatara_lisp::Spanned::new(
         span,
         tatara_lisp::SpannedForm::List(vec![tatara_lisp::Spanned::new(
             span,
-            tatara_lisp::SpannedForm::Atom(tatara_lisp::Atom::Symbol(blue_lang_check::names::key(
-                &ns, MAIN,
-            ))),
+            tatara_lisp::SpannedForm::Atom(tatara_lisp::Atom::Symbol(key)),
         )]),
     );
     interp.eval_top_form(&call, host).map(Some).map_err(|e| {

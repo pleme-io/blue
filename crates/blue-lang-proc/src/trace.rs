@@ -16,21 +16,34 @@
 //! the host, time is what it was, and a process that asks for something its
 //! tape does not hold has diverged, which the replay reports by name.
 //!
-//! ## Format `blue-trace` version 1
+//! ## Format `blue-trace` version 2
 //!
 //! One JSON object:
 //!
 //! ```text
-//! { "format": "blue-trace", "version": 1,
-//!   "pid": 3, "incarnation": 0, "definition": "consumer" | null,
+//! { "format": "blue-trace", "version": 2,
+//!   "pid": 3, "incarnation": 0, "definition": "%root/consumer" | null,
+//!   "def_hash": "b3:…" | null,
 //!   "exit": { "kind": "crashed" | "runaway" | "killed" | "fatal", "text": "…", "reason": VALUE },
 //!   "budget": { "fuel": n | null, "max_depth": n | null, "quantum": n | null },
 //!   "clock": "real" | "virtual",
 //!   "code": { "defs": [FORM…], "bindings": [{ "name": "%a0", "value": VALUE }…], "start": FORM },
-//!   "tape": [{ "call": "receive", "value": VALUE } | { "call": "now_ms", "raised": "…" }…],
+//!   "tape": [{ "call": "receive", "value": VALUE } | { "call": "now_ms", "raised": "…" }
+//!            | { "call": "is_file?", "fatal": { "kind": "capability-breach", "message": "…" } }…],
 //!   "truncated": false,
-//!   "schedule": [{ "pid": 1, "outcome": "yielded" | "blocked" | "done" | "exited", "burned": n }…] }
+//!   "schedule": [{ "pid": 1, "outcome": "yielded" | "blocked" | "done" | "exited", "burned": n }…],
+//!   "hold": null | { "granted": [LABEL…], "provided": [PROVIDER…], "withheld": [LABEL…] },
+//!   "mailbox": null | { "bound": n, "recent": [VALUE…], "unconsumed": [VALUE…], "unconsumed_total": n } }
 //! ```
+//!
+//! Version 2 adds `def_hash` (the spawned definition's identity), the
+//! `fatal` tape outcome (an error no `rescue` catches, replayed as one), and,
+//! for a process under a hold, the hold ([`crate::Frame`]) and its mailbox
+//! journal: the last `bound` messages it took and the first `bound` still
+//! waiting when it exited. A trace of a fatal exit is written with the
+//! extension `.bluecrash`, and its replay runs under the recorded hold: a
+//! name the hold withholds answers only with the breach its tape recorded.
+//! Version 1 is still read; its new fields are absent.
 //!
 //! A VALUE is `null` (nil) or a one-key object naming its kind: `int`,
 //! `float`, `str`, `sym`, `kw`, `bool`, `list` (an array), `map` (an array of
@@ -55,18 +68,56 @@ use tatara_lisp_eval::{ErrorObj, EvalError, Interpreter, MapKey, Value};
 
 use crate::code::Code;
 use crate::node::{host_names, ClockKind, PROCESS_WORDS, SERVER_NEXT};
+use crate::receipt::Frame;
 use crate::{classify, ExitReason};
 
 /// The format name every trace carries.
 pub const FORMAT: &str = "blue-trace";
-/// The version this crate writes and reads.
-pub const VERSION: u64 = 1;
+/// The version this crate writes.
+pub const VERSION: u64 = 2;
+/// Every version this crate reads.
+pub const READS: [u64; 2] = [1, VERSION];
+/// The extension of a fatal exit's trace.
+pub const CRASH_EXTENSION: &str = "bluecrash";
 
 /// One call on a process's tape and what it answered.
 #[derive(Clone, Debug)]
 pub struct TapeEntry {
     pub call: String,
     pub outcome: Result<Value, String>,
+    /// The kind of a fatal error, when the call raised one: the `Err` is its
+    /// message, and no `rescue` caught it.
+    pub fatal: Option<String>,
+}
+
+impl TapeEntry {
+    /// The entry a call's result makes.
+    #[must_use]
+    pub fn of(call: &str, out: &Result<Value, EvalError>) -> Self {
+        let (outcome, fatal) = match out {
+            Ok(v) => (Ok(v.clone()), None),
+            Err(EvalError::Fatal { kind, message, .. }) => {
+                (Err(message.to_string()), Some(kind.to_string()))
+            }
+            Err(e) => (Err(e.to_string()), None),
+        };
+        Self {
+            call: call.to_string(),
+            outcome,
+            fatal,
+        }
+    }
+}
+
+/// A held process's mailbox at its exit: the last messages it took and the
+/// first still waiting, each list at most `bound` long.
+#[derive(Clone, Debug)]
+pub struct Journal {
+    pub bound: usize,
+    pub recent: Vec<Value>,
+    pub unconsumed: Vec<Value>,
+    /// How many were waiting, of which `unconsumed` keeps the first `bound`.
+    pub unconsumed_total: usize,
 }
 
 /// One scheduling slice: whose it was, how it ended, what it cost.
@@ -83,6 +134,8 @@ pub struct Trace {
     pub pid: u64,
     pub incarnation: usize,
     pub definition: Option<String>,
+    /// The `def_hash` of [`Self::definition`], when it has one.
+    pub def_hash: Option<String>,
     /// The exit reason as blue sees it, e.g. `[:crashed, "…"]`.
     pub reason: Value,
     /// The rendered reason; a replay reproduces the crash when it renders the
@@ -95,6 +148,10 @@ pub struct Trace {
     pub truncated: bool,
     pub schedule: Vec<SliceRecord>,
     pub clock: ClockKind,
+    /// The hold the process ran under, if any.
+    pub hold: Option<Frame>,
+    /// Its mailbox journal, when it ran under a hold with one.
+    pub mailbox: Option<Journal>,
 }
 
 /// The kind of an abnormal exit, as a trace names it.
@@ -365,6 +422,7 @@ impl Trace {
             "pid": self.pid,
             "incarnation": self.incarnation,
             "definition": self.definition,
+            "def_hash": self.def_hash,
             "exit": { "kind": self.reason_kind, "text": self.reason_text, "reason": value_to_json(&self.reason) },
             "budget": { "fuel": opt(self.budget.fuel), "max_depth": opt(self.budget.max_depth), "quantum": opt(self.budget.quantum) },
             "clock": self.clock.label(),
@@ -373,12 +431,20 @@ impl Trace {
                 "bindings": self.code.bindings.iter().map(|(n, v)| json!({"name": &**n, "value": value_to_json(v)})).collect::<Vec<_>>(),
                 "start": self.code.start.as_ref().map_or(Json::Null, form_to_json),
             },
-            "tape": self.tape.iter().map(|e| match &e.outcome {
-                Ok(v) => json!({"call": e.call, "value": value_to_json(v)}),
-                Err(m) => json!({"call": e.call, "raised": m}),
+            "tape": self.tape.iter().map(|e| match (&e.outcome, &e.fatal) {
+                (Ok(v), _) => json!({"call": e.call, "value": value_to_json(v)}),
+                (Err(m), Some(kind)) => json!({"call": e.call, "fatal": {"kind": kind, "message": m}}),
+                (Err(m), None) => json!({"call": e.call, "raised": m}),
             }).collect::<Vec<_>>(),
             "truncated": self.truncated,
             "schedule": self.schedule.iter().map(|s| json!({"pid": s.pid, "outcome": s.outcome, "burned": s.burned})).collect::<Vec<_>>(),
+            "hold": self.hold.as_ref().map_or(Json::Null, Frame::to_json),
+            "mailbox": self.mailbox.as_ref().map_or(Json::Null, |m| json!({
+                "bound": m.bound,
+                "recent": m.recent.iter().map(value_to_json).collect::<Vec<_>>(),
+                "unconsumed": m.unconsumed.iter().map(value_to_json).collect::<Vec<_>>(),
+                "unconsumed_total": m.unconsumed_total,
+            })),
         })
     }
 
@@ -393,9 +459,9 @@ impl Trace {
             return Err(format!("not a {FORMAT} file"));
         }
         let version = j.get("version").and_then(Json::as_u64).unwrap_or(0);
-        if version != VERSION {
+        if !READS.contains(&version) {
             return Err(format!(
-                "{FORMAT} version {version}; this blue reads version {VERSION}"
+                "{FORMAT} version {version}; this blue reads versions 1 to {VERSION}"
             ));
         }
         let field = |k: &str| j.get(k).ok_or_else(|| format!("{FORMAT}: missing `{k}`"));
@@ -424,13 +490,24 @@ impl Trace {
                 .get("call")
                 .and_then(Json::as_str)
                 .ok_or_else(|| bad("tape entry"))?;
-            let outcome = match e.get("raised").and_then(Json::as_str) {
-                Some(m) => Err(m.to_string()),
-                None => Ok(value_from_json(e.get("value").unwrap_or(&Json::Null))?),
+            let text = |f: &Json, k: &str| {
+                f.get(k)
+                    .and_then(Json::as_str)
+                    .map(str::to_string)
+                    .ok_or_else(|| bad("fatal entry"))
+            };
+            let (outcome, fatal) = match (e.get("fatal"), e.get("raised").and_then(Json::as_str)) {
+                (Some(f), _) => (Err(text(f, "message")?), Some(text(f, "kind")?)),
+                (None, Some(m)) => (Err(m.to_string()), None),
+                (None, None) => (
+                    Ok(value_from_json(e.get("value").unwrap_or(&Json::Null))?),
+                    None,
+                ),
             };
             tape.push(TapeEntry {
                 call: call.to_string(),
                 outcome,
+                fatal,
             });
         }
         let schedule = j
@@ -456,6 +533,7 @@ impl Trace {
                 .get("definition")
                 .and_then(Json::as_str)
                 .map(str::to_string),
+            def_hash: j.get("def_hash").and_then(Json::as_str).map(str::to_string),
             reason: value_from_json(exit.get("reason").unwrap_or(&Json::Null))?,
             reason_text: exit
                 .get("text")
@@ -494,7 +572,25 @@ impl Trace {
                 Some("real") => ClockKind::Real,
                 _ => ClockKind::Virtual,
             },
+            hold: match j.get("hold") {
+                None | Some(Json::Null) => None,
+                Some(h) => Some(Frame::from_json(h)?),
+            },
+            mailbox: match j.get("mailbox") {
+                None | Some(Json::Null) => None,
+                Some(m) => Some(journal_from_json(m)?),
+            },
         })
+    }
+
+    /// `bluecrash` for a fatal exit, `json` for any other.
+    #[must_use]
+    pub fn extension(&self) -> &'static str {
+        if self.reason_kind == "fatal" {
+            CRASH_EXTENSION
+        } else {
+            "json"
+        }
     }
 
     /// Parse a trace file's text.
@@ -515,10 +611,11 @@ impl Trace {
     pub fn write_to(&self, dir: &Path) -> std::io::Result<PathBuf> {
         std::fs::create_dir_all(dir)?;
         let path = dir.join(format!(
-            "blue-trace-{}-p{}-i{}.json",
+            "blue-trace-{}-p{}-i{}.{}",
             std::process::id(),
             self.pid,
-            self.incarnation
+            self.incarnation,
+            self.extension()
         ));
         let text = serde_json::to_string_pretty(&self.to_json()).map_err(std::io::Error::other)?;
         std::fs::write(&path, text + "\n")?;
@@ -549,8 +646,32 @@ struct Cursor {
     diverged: Option<String>,
 }
 
-/// Install a tape reader under `name`.
-fn reader(interp: &mut Interpreter<()>, name: &str, cursor: &Arc<Mutex<Cursor>>) {
+fn journal_from_json(j: &Json) -> Result<Journal, String> {
+    let values = |k: &str| -> Result<Vec<Value>, String> {
+        j.get(k)
+            .and_then(Json::as_array)
+            .ok_or_else(|| bad("mailbox"))?
+            .iter()
+            .map(value_from_json)
+            .collect()
+    };
+    Ok(Journal {
+        bound: opt_from(j.get("bound")).ok_or_else(|| bad("mailbox"))?,
+        recent: values("recent")?,
+        unconsumed: values("unconsumed")?,
+        unconsumed_total: opt_from(j.get("unconsumed_total")).unwrap_or(0),
+    })
+}
+
+/// Install a tape reader under `name`. `withheld` names the capability when
+/// the recorded hold withholds `name`: the tape may then answer only with the
+/// fatal error the live call raised.
+fn reader(
+    interp: &mut Interpreter<()>,
+    name: &str,
+    cursor: &Arc<Mutex<Cursor>>,
+    withheld: Option<&'static str>,
+) {
     let cursor = cursor.clone();
     let word: Arc<str> = Arc::from(name);
     interp.register_fn(
@@ -574,10 +695,19 @@ fn reader(interp: &mut Interpreter<()>, name: &str, cursor: &Arc<Mutex<Cursor>>)
                 c.diverged.get_or_insert(why.clone());
                 return Err(EvalError::native_fn(word.clone(), why, span));
             }
+            if let (Some(cap), None) = (withheld, &entry.fatal) {
+                let why = format!(
+                    "at tape entry {pos} the trace records `{word}` reaching the host, which its hold withholds ({cap})"
+                );
+                c.diverged.get_or_insert(why.clone());
+                return Err(EvalError::native_fn(word.clone(), why, span));
+            }
             c.pos += 1;
-            entry
-                .outcome
-                .map_err(|m| EvalError::native_fn(word.clone(), m, span))
+            match (entry.outcome, entry.fatal) {
+                (Ok(v), _) => Ok(v),
+                (Err(m), Some(kind)) => Err(EvalError::fatal(kind, m, span)),
+                (Err(m), None) => Err(EvalError::native_fn(word.clone(), m, span)),
+            }
         },
     );
 }
@@ -587,6 +717,9 @@ fn reader(interp: &mut Interpreter<()>, name: &str, cursor: &Arc<Mutex<Cursor>>)
 /// `interp` is a fresh interpreter from the same runtime the process ran on;
 /// every process word and host name in it is rebound to the tape before
 /// anything runs, so the replay is sandboxed and time-frozen by construction.
+/// A trace with a hold replays under it: a name the hold withholds answers
+/// only with the fatal error its tape recorded, so a breach replays as the
+/// same breach at the same tape entry.
 #[must_use]
 pub fn replay(trace: &Trace, mut interp: Interpreter<()>) -> Replayed {
     let cursor = Arc::new(Mutex::new(Cursor {
@@ -594,13 +727,19 @@ pub fn replay(trace: &Trace, mut interp: Interpreter<()>) -> Replayed {
         pos: 0,
         diverged: None,
     }));
+    let withheld: std::collections::BTreeMap<&str, &'static str> = trace
+        .hold
+        .iter()
+        .flat_map(Frame::withheld_names)
+        .map(|(n, c)| (n, c.label()))
+        .collect();
     let host = host_names();
     for name in PROCESS_WORDS
         .iter()
         .chain([&SERVER_NEXT])
         .chain(host.iter())
     {
-        reader(&mut interp, name, &cursor);
+        reader(&mut interp, name, &cursor, withheld.get(name).copied());
     }
     for (n, v) in &trace.code.bindings {
         interp.define_global(n.clone(), v.clone());

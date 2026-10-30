@@ -668,27 +668,58 @@ pub fn hash_checked(program: &ResolvedProgram, lowered: &[Spanned]) -> DefHashes
 /// span (a stripped definition spans its documentation).
 #[must_use]
 pub fn program_docs(program: &ResolvedProgram) -> HashMap<usize, String> {
-    let mut out = HashMap::new();
-    for file in program.files() {
-        let Ok(documented) = blue_lang_syntax::parse_program_documented(&file.text) else {
-            continue;
-        };
-        let texts: HashMap<Span, &str> = documented
-            .iter()
-            .filter_map(|f| blue_lang_syntax::doc::documented(f).map(|(t, _)| (f.span, t)))
-            .collect();
-        if texts.is_empty() {
-            continue;
+    DocSources::of(program).docs()
+}
+
+/// What [`program_docs`] reads of a program, owned: each file's text and
+/// each top-level form's file and span. Taken when a run starts, so the
+/// parse it needs waits until an identity is asked for
+/// ([`def_hash::identify`]).
+pub(crate) struct DocSources {
+    files: Vec<(blue_lang_runtime::uses::FileId, String)>,
+    forms: Vec<(Option<blue_lang_runtime::uses::FileId>, Span)>,
+}
+
+impl DocSources {
+    pub(crate) fn of(program: &ResolvedProgram) -> Self {
+        Self {
+            files: program
+                .files()
+                .iter()
+                .map(|f| (f.id, f.text.clone()))
+                .collect(),
+            forms: program
+                .forms()
+                .iter()
+                .enumerate()
+                .map(|(i, f)| (program.owner_of(i), f.span))
+                .collect(),
         }
-        for (i, form) in program.forms().iter().enumerate() {
-            if program.owner_of(i) == Some(file.id) {
-                if let Some(t) = texts.get(&form.span) {
-                    out.insert(i, (*t).to_string());
+    }
+
+    pub(crate) fn docs(&self) -> HashMap<usize, String> {
+        let mut out = HashMap::new();
+        for (id, text) in &self.files {
+            let Ok(documented) = blue_lang_syntax::parse_program_documented(text) else {
+                continue;
+            };
+            let texts: HashMap<Span, &str> = documented
+                .iter()
+                .filter_map(|f| blue_lang_syntax::doc::documented(f).map(|(t, _)| (f.span, t)))
+                .collect();
+            if texts.is_empty() {
+                continue;
+            }
+            for (i, (owner, span)) in self.forms.iter().enumerate() {
+                if *owner == Some(*id) {
+                    if let Some(t) = texts.get(span) {
+                        out.insert(i, (*t).to_string());
+                    }
                 }
             }
         }
+        out
     }
-    out
 }
 
 pub(crate) fn canonical(path: &Path) -> PathBuf {

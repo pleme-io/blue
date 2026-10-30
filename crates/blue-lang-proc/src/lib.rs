@@ -58,10 +58,12 @@ pub mod code;
 pub mod mailbox;
 pub mod node;
 pub mod pattern;
+pub mod receipt;
 pub mod trace;
 pub use mailbox::{copy_data, deep_copy, install_process_primitives, System};
 pub use node::{install, ClockKind, Node, NodeConfig, PROCESS_WORDS, ROOT};
-pub use trace::{replay, Replayed, Trace};
+pub use receipt::{Frame, HostIo, Identities, Receipt, ReceiptSink, Subject};
+pub use trace::{replay, Journal, Replayed, Trace};
 
 /// A process identifier.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]

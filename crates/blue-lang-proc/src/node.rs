@@ -65,7 +65,8 @@ use tatara_lisp_eval::{EvalError, Interpreter, Value};
 use crate::code::{self, Code, Entry};
 use crate::mailbox::copy_data;
 use crate::pattern;
-use crate::trace::{SliceRecord, TapeEntry, Trace};
+use crate::receipt::{Frame, HostIo, Identities, Receipt, ReceiptSink, Subject};
+use crate::trace::{Journal, SliceRecord, TapeEntry, Trace};
 use crate::{ExitReason, Pid, Proc, ProcState, Slice, Strategy};
 
 /// The program itself.
@@ -79,6 +80,10 @@ pub const DEFAULT_QUANTUM: usize = 1_000;
 /// truncated. A replay needs the whole tape, so a truncated trace says so
 /// rather than replaying a suffix.
 pub const DEFAULT_MAX_TAPE: usize = 100_000;
+
+/// Messages a held process's mailbox journal keeps of each kind (taken,
+/// still waiting), when the host does not say.
+pub const DEFAULT_JOURNAL: usize = 8;
 
 /// Slices the interleaving record keeps.
 const SCHEDULE_RING: usize = 1_024;
@@ -138,6 +143,15 @@ static TRACE_DIR: OnceLock<Option<PathBuf>> = OnceLock::new();
 /// keeps its traces in memory only.
 pub fn set_trace_dir(dir: Option<PathBuf>) {
     let _ = TRACE_DIR.set(dir);
+}
+
+static JOURNAL: OnceLock<usize> = OnceLock::new();
+
+/// How many messages of each kind a held process's mailbox journal keeps;
+/// `0` keeps none. Only the first call counts, like [`set_trace_dir`]; a
+/// node built before any call keeps [`DEFAULT_JOURNAL`].
+pub fn set_journal_bound(bound: usize) {
+    let _ = JOURNAL.set(bound);
 }
 
 /// How a node reads time.
@@ -219,11 +233,23 @@ pub struct NodeConfig {
     /// Where crash traces are written, if anywhere.
     pub trace_dir: Option<PathBuf>,
     pub child: ChildFactory,
+    /// The hold every process runs under, when the host holds them to one.
+    pub frame: Option<Frame>,
+    /// Messages of each kind a held process's mailbox journal keeps; `0`
+    /// keeps no journal.
+    pub journal: usize,
+    /// The ledger the host's counting shims tally into.
+    pub host_io: HostIo,
+    /// Each definition's `def_hash`, for traces and receipts.
+    pub identities: Identities,
+    /// Where each held process's receipt goes when an incarnation ends.
+    pub receipts: Option<ReceiptSink>,
 }
 
 impl NodeConfig {
     /// Unbounded fuel, the default depth, [`DEFAULT_QUANTUM`], a virtual
-    /// clock, and the trace directory [`set_trace_dir`] named.
+    /// clock, the trace directory [`set_trace_dir`] named, the journal bound
+    /// [`set_journal_bound`] named, no hold and no receipts.
     #[must_use]
     pub fn new(child: ChildFactory) -> Self {
         Self {
@@ -236,7 +262,16 @@ impl NodeConfig {
             max_tape: DEFAULT_MAX_TAPE,
             trace_dir: TRACE_DIR.get().cloned().flatten(),
             child,
+            frame: None,
+            journal: JOURNAL.get().copied().unwrap_or(DEFAULT_JOURNAL),
+            host_io: HostIo::default(),
+            identities: Identities::default(),
+            receipts: None,
         }
+    }
+
+    fn journals(&self) -> bool {
+        self.frame.is_some() && self.journal > 0
     }
 }
 
@@ -334,6 +369,8 @@ struct NodeState {
     pending: Vec<Proc<()>>,
     waits: BTreeMap<Pid, Wait>,
     tapes: BTreeMap<Pid, Tape>,
+    /// The last messages each held process took, oldest first.
+    journals: BTreeMap<Pid, VecDeque<Value>>,
     /// Exit signals sent inside a slice, delivered between slices.
     signals: VecDeque<(Pid, Pid, Value)>,
     migrations: BTreeMap<Pid, Migration>,
@@ -361,6 +398,7 @@ impl NodeState {
             pending: Vec::new(),
             waits: BTreeMap::new(),
             tapes: BTreeMap::new(),
+            journals: BTreeMap::new(),
             signals: VecDeque::new(),
             migrations: BTreeMap::new(),
             outcomes: BTreeMap::new(),
@@ -409,6 +447,16 @@ impl NodeState {
         self.boxes.remove(&pid);
         self.waits.remove(&pid);
         self.tapes.remove(&pid);
+        self.journals.remove(&pid);
+    }
+
+    /// `pid` took `msg`: keep it among its last `bound`.
+    fn note_taken(&mut self, pid: Pid, msg: &Value, bound: usize) {
+        let ring = self.journals.entry(pid).or_default();
+        if ring.len() == bound {
+            ring.pop_front();
+        }
+        ring.push_back(msg.clone());
     }
 }
 
@@ -455,6 +503,14 @@ fn is_keyword(v: &Value, name: &str) -> bool {
 
 fn render(v: &Value) -> String {
     v.to_string()
+}
+
+/// Whether a crash's trace is written out, not only kept in memory: a
+/// supervised crash is the one a running system recovers from, so nobody
+/// sees it happen, and a fatal one is never restarted, so its trace is all
+/// that is left of it.
+fn written(supervised: bool, reason: &ExitReason) -> bool {
+    supervised || reason.is_fatal()
 }
 
 fn refuse(word: &str, msg: impl Into<String>, span: Span) -> EvalError {
@@ -673,6 +729,7 @@ fn install_child(proto: &mut Interpreter<()>, me: &Weak<Node>) {
                     let i = pattern::first_match(b, &pattern)?;
                     b.remove(i)
                 });
+                node.journal(&mut st, pid, taken.as_ref());
                 Ok(taken.unwrap_or(default))
             };
             node.record(node.current(), "receive", &out);
@@ -703,11 +760,9 @@ fn install_child(proto: &mut Interpreter<()>, me: &Weak<Node>) {
             let mut st = node.st();
             let pid = st.current;
             st.waits.remove(&pid);
-            let msg = st
-                .boxes
-                .get_mut(&pid)
-                .and_then(VecDeque::pop_front)
-                .unwrap_or(Value::Nil);
+            let taken = st.boxes.get_mut(&pid).and_then(VecDeque::pop_front);
+            node.journal(&mut st, pid, taken.as_ref());
+            let msg = taken.unwrap_or(Value::Nil);
             // A boundary: the tape restarts here, from this state, so a
             // long-lived server's trace is its last message, not its life.
             if let Some(info) = st.info.get_mut(&pid) {
@@ -833,10 +888,20 @@ impl Node {
             tape.entries = Vec::new();
             return;
         }
-        tape.entries.push(TapeEntry {
-            call: call.to_string(),
-            outcome: out.as_ref().map(Clone::clone).map_err(ToString::to_string),
-        });
+        tape.entries.push(TapeEntry::of(call, out));
+    }
+
+    /// The process running now took `msg`, if `taken`.
+    fn journal(&self, st: &mut NodeState, pid: Pid, taken: Option<&Value>) {
+        if let (true, Some(msg)) = (self.config.journals(), taken) {
+            st.note_taken(pid, msg, self.config.journal);
+        }
+    }
+
+    /// `pid` runs now: the scheduler's current process and the host ledger's.
+    fn switch(&self, st: &mut NodeState, pid: Pid) {
+        st.current = pid;
+        self.config.host_io.enter(pid);
     }
 
     /// Compile `code` and queue a process running it.
@@ -905,13 +970,13 @@ impl Node {
                 continue;
             }
             let pid = sched[idx].pid;
-            self.st().current = pid;
+            self.switch(&mut self.st(), pid);
             let before = sched[idx].vm.burned();
             let out = sched[idx].slice(&mut ());
             let burned = sched[idx].vm.burned().saturating_sub(before);
             {
                 let mut st = self.st();
-                st.current = ROOT;
+                self.switch(&mut st, ROOT);
                 let outcome = match &out {
                     Slice::Yielded => "yielded",
                     Slice::Blocked => "blocked",
@@ -1024,6 +1089,7 @@ impl Node {
         let trace = reason
             .is_abnormal()
             .then(|| self.trace_of(&mut st, pid, reason, &value));
+        let receipt = self.receipt_of(&st, pid, reason);
         let (links, monitors, sup) = {
             let info = st.info.get_mut(&pid).expect("checked above");
             (
@@ -1067,11 +1133,14 @@ impl Node {
         }
         drop(st);
 
+        if let (Some(r), Some(sink)) = (&receipt, &self.config.receipts) {
+            sink(r);
+        }
         if let Some(t) = trace {
             // Every crash is kept in memory; a supervised one is also written
             // out, because it is the crash a running system recovers from and
             // so the one nobody sees happen.
-            self.keep_trace(t, supervised.is_some());
+            self.keep_trace(t, written(supervised.is_some(), reason));
         }
         for l in links {
             self.signal(sched, pid, l, value.clone());
@@ -1120,6 +1189,8 @@ impl Node {
             }
             st.waits.remove(&pid);
             st.tapes.insert(pid, Tape::default());
+            st.journals.remove(&pid);
+            self.config.host_io.take(pid);
             st.info.get_mut(&pid).and_then(|info| {
                 info.restarts += 1;
                 info.live = true;
@@ -1215,10 +1286,10 @@ impl Node {
             let (true, Some(m)) = (ready, m) else {
                 continue;
             };
-            self.st().current = pid;
+            self.switch(&mut self.st(), pid);
             let result = self.migrate(&mut sched[idx], &kind, &m);
             let mut st = self.st();
-            st.current = ROOT;
+            self.switch(&mut st, ROOT);
             st.migrations.remove(&pid);
             st.outcomes
                 .entry(m.request)
@@ -1347,10 +1418,32 @@ impl Node {
             code.bind("%state", s.clone());
         }
         let tape = st.tapes.get(&pid).cloned().unwrap_or_default();
+        let bound = self.config.journal;
+        let mailbox = self.config.journals().then(|| {
+            let waiting = st.boxes.get(&pid);
+            Journal {
+                bound,
+                recent: st
+                    .journals
+                    .get(&pid)
+                    .map(|r| r.iter().cloned().collect())
+                    .unwrap_or_default(),
+                unconsumed: waiting
+                    .map(|b| b.iter().take(bound).cloned().collect())
+                    .unwrap_or_default(),
+                unconsumed_total: waiting.map_or(0, VecDeque::len),
+            }
+        });
         Trace {
             pid: pid.0,
             incarnation: info.restarts,
             definition: info.def_name.clone(),
+            def_hash: info
+                .def_name
+                .as_deref()
+                .and_then(|d| self.config.identities.of(d)),
+            hold: self.config.frame.clone(),
+            mailbox,
             reason: value.clone(),
             reason_text: crate::trace::reason_text(reason),
             reason_kind: crate::trace::reason_kind(reason).to_string(),
@@ -1361,6 +1454,30 @@ impl Node {
             schedule: st.schedule.iter().cloned().collect(),
             clock: self.config.clock,
         }
+    }
+
+    /// The receipt of `pid`'s incarnation, which is ending: only a held
+    /// node's processes have one, since only a hold's shims count host calls.
+    fn receipt_of(&self, st: &NodeState, pid: Pid, reason: &ExitReason) -> Option<Receipt> {
+        let host_io = self.config.host_io.take(pid);
+        let frame = self.config.frame.clone()?;
+        self.config.receipts.as_ref()?;
+        let info = st.info.get(&pid)?;
+        Some(Receipt {
+            subject: Subject::Actor {
+                pid,
+                incarnation: info.restarts,
+            },
+            definition: info.def_name.clone(),
+            def_hash: info
+                .def_name
+                .as_deref()
+                .and_then(|d| self.config.identities.of(d)),
+            frame,
+            host_io,
+            exit_kind: crate::trace::reason_kind(reason).to_string(),
+            exit_text: crate::trace::reason_text(reason),
+        })
     }
 
     fn keep_trace(&self, trace: Trace, write: bool) {

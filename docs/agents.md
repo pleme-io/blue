@@ -89,7 +89,9 @@ file's `Bluefile.lock` records is skipped and named, never chosen.
 | | |
 |---|---|
 | `blue file.b a b` | run a program as a script: quiet, every argument after the file to `argv` |
-| `blue run file.b` | run a program and print its final value; `--quiet` drops it, `-- a b` passes arguments; `--allow CAP` holds it to those host capabilities; a runtime error prints the blue call stack, and `--format json` prints it as one object; `--timings` prints the wall time of each pipeline stage to stderr |
+| `blue run file.b` | run a program and print its final value; `--quiet` drops it, `-- a b` passes arguments; `--allow CAP` holds it to those host capabilities; `--receipts DIR` writes an execution receipt for the run and for each process ([`docs/SAFETY.md`](SAFETY.md), row 8); a runtime error prints the blue call stack, and `--format json` prints it as one object; `--timings` prints the wall time of each pipeline stage to stderr |
+| `blue replay TRACE` | run a crashed process again from its trace and say whether it crashed the same way; a fatal exit's `.bluecrash` replays under the hold it recorded |
+| `blue receipt verify FILE` | recompute a receipt's name from the BLAKE3 hash of its bytes; any edit fails |
 | `blue new NAME` | a project; `--bidama NAME` a package, `--script NAME.b` an executable script |
 | `blue watch [check\|test\|run] PATH…` | rerun the command on every save (`check` by default) |
 | `blue test file.b` | check it, then run its `test` blocks; a directory runs every file with tests, in parallel; `--filter NAME` keeps tests whose name contains it; `--coverage` lists each definition's calls and the uncovered ones |

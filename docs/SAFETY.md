@@ -278,6 +278,60 @@ reached later breaches and exits 77. nix builds one per Bluefile `app`
 (`nix/bundle.nix`). Tests: `crates/blue-lang-appliance/tests/appliance.rs`
 (6), `crates/blue-lang-cli/tests/bundle.rs` (2), `appliance.rs` units (8).
 
+**The crash journal (2026-10-30).** A held process that exits fatal writes
+its trace, supervised or not, as `blue-trace-<os pid>-p<pid>-i<n>.bluecrash` into
+`BLUE_TRACE_DIR` (`blue-lang-proc` `node::written`). The trace is
+`blue-trace` version 2 (`trace.rs`; version 1 still reads): it names the
+spawned definition's `def_hash` as the engine hashes it, `@doc` included
+(`blue_lang_mondou::def_hash::identify`), the hold (granted, provided and
+withheld capabilities, each provider with its `for` scope,
+`blue_lang_proc::Frame`),
+a breach on the tape as a `fatal` entry, and a mailbox journal: the last
+messages the process took and the first still waiting, each at most
+`BLUE_CRASH_JOURNAL` long (default 8, `node::DEFAULT_JOURNAL`; `0` turns the
+journal off and the trace is as before). `blue replay` runs it under the
+recorded hold: a name the hold withholds answers only with the breach its
+tape recorded, so the breach replays as the same breach at the same tape
+entry, and a tape that says a withheld name answered diverges by name. Tests:
+`crates/blue-lang-cli/tests/crash_journal.rs`
+(`a_breach_under_allow_none_writes_a_bluecrash_that_replays_as_the_same_breach`,
+`the_mailbox_journal_holds_the_unconsumed_messages`,
+`a_bluecrash_whose_tape_says_a_withheld_name_answered_does_not_replay`) and
+`crates/blue-lang-proc/tests/held.rs`
+(`an_unsupervised_fatal_exit_is_written_as_a_bluecrash`,
+`an_unsupervised_crash_that_is_not_fatal_is_kept_but_not_written`,
+`a_breach_replays_as_the_same_breach_at_the_same_tape_entry`,
+`the_journal_keeps_the_last_taken_and_the_first_waiting_within_its_bound`,
+`a_journal_configured_off_or_an_unheld_node_keeps_no_mailbox`,
+`a_version_1_trace_is_still_read_and_replayed`).
+
+**Execution receipts (2026-10-30).** `blue run --receipts DIR` writes one
+receipt for the run and one for each process incarnation as it ends (off
+without the flag). A receipt is canonical JSON (keys sorted, no whitespace)
+named `<blake3 hex>.receipt.json` by the hash of its bytes
+(`blue_lang_runtime::receipt`): the `def_hash` (the run's is `%run`, a
+definition of every top-level form and the call to `main`), the exit, the
+providers as the lock records them (a scoped one with `for`), and the frame
+block, exactly `{"granted":[…],"withheld":[…],"host_io":n}`
+(`Hold::frame_summary`). `host_io` counts calls through granted host names:
+`Hold::bind` puts a counting shim over each granted name and none over a
+withheld name or a provider (a whole-program provider's names, a scoped
+one's `%provided/<name>`), so a pure frame counts 0 by construction, and the
+node tells the ledger (`blue_lang_proc::HostIo`) which process runs. A
+capability a scoped provider shares with `allow` is granted: code outside
+the scope reaches the host and is counted. A run with no hold
+runs under the top so its calls are counted. `blue receipt verify FILE`
+recomputes the name and refuses any edit. Tests:
+`crates/blue-lang-cli/tests/receipts.rs`
+(`a_pure_frames_receipts_count_no_host_io_and_list_every_withheld_capability`,
+`a_granted_run_counts_each_host_call_and_each_process_its_own`,
+`receipt_verify_passes_then_fails_after_a_one_byte_edit`),
+`crates/blue-lang-proc/tests/held.rs`
+(`each_held_incarnation_hands_its_receipt_with_its_own_host_io`), and the
+runtime's `tests::held::*` (with
+`a_scoped_provider_binds_its_alias_uncounted_and_leaves_the_host_name_counted`)
+and `receipt::tests::*`.
+
 **Row 9, host memory.** blue has no pointer and no raw buffer; all memory is
 Rust's. The four seams are listed in §2. The gate is one workspace lint table
 plus `#[allow(unsafe_code)]` at each seam and a test like kiwari's

@@ -230,6 +230,61 @@ pub fn hash_program_documented(
     out
 }
 
+/// [`identified`] for a checked `program`, its `lowered` tree and the key of
+/// its entry's `main`, computed when first asked: the texts the `@doc`
+/// lookup reads are taken now, the parse and the hashing wait. The
+/// `blue_lang_runtime::Identify` a run is handed.
+pub fn identify(
+    program: &blue_lang_runtime::uses::ResolvedProgram,
+    lowered: std::sync::Arc<Vec<Spanned>>,
+    main: Option<String>,
+) -> blue_lang_runtime::Identified {
+    let sources = crate::DocSources::of(program);
+    Box::new(move || identified(&lowered, &sources.docs(), main.as_deref()))
+}
+
+/// Every unambiguous definition key of a program with its `def_hash`
+/// written `b3:<hex>`, each with its `@doc` text as the engine hashes it
+/// ([`crate::hash_checked`]; `docs` by top-level form), and
+/// `blue_lang_runtime::receipt::RUN` with the hash of the run: a definition
+/// whose body is every top-level form in order (a definition by its key, so
+/// its hash stands in) and then the call to `main` when the entry has one.
+/// What a crash trace and a receipt name.
+#[must_use]
+pub fn identified(
+    lowered: &[Spanned],
+    docs: &HashMap<usize, String>,
+    main: Option<&str>,
+) -> BTreeMap<String, String> {
+    let run_key = blue_lang_runtime::receipt::RUN;
+    let mut bound: HashMap<&str, usize> = HashMap::new();
+    for form in lowered {
+        if let Some((key, _)) = defined(form) {
+            *bound.entry(key).or_default() += 1;
+        }
+    }
+    let synthetic = |form: SpannedForm| Spanned::new(blue_lang_syntax::Span::synthetic(), form);
+    let symbol = |s: &str| synthetic(SpannedForm::Atom(Atom::Symbol(s.to_string())));
+    let mut run = vec![
+        symbol("define"),
+        synthetic(SpannedForm::List(vec![symbol(run_key)])),
+    ];
+    run.extend(lowered.iter().map(|form| match defined(form) {
+        Some((key, _)) if bound.get(key) == Some(&1) => symbol(key),
+        _ => form.clone(),
+    }));
+    run.extend(main.map(|m| synthetic(SpannedForm::List(vec![symbol(m)]))));
+    let mut forms = lowered.to_vec();
+    forms.push(synthetic(SpannedForm::List(run)));
+    let hashes = hash_program_documented(&forms, &|i| docs.get(&i).cloned());
+    hashes
+        .defs()
+        .iter()
+        .filter(|d| !hashes.is_ambiguous(&d.key))
+        .map(|d| (d.key.clone(), d.hash.to_string()))
+        .collect()
+}
+
 /// Every symbol of `form`, in any position.
 fn names<'a>(form: &'a Spanned, out: &mut dyn FnMut(&'a str)) {
     match &form.form {
@@ -524,6 +579,61 @@ mod tests {
 
     const BASE: &str =
         "def g(x)\n  x * 2\nend\n\ndef f(x)\n  g(x) + 1\nend\n\ndef h(x)\n  x - 1\nend\n";
+
+    #[test]
+    fn identify_names_every_definition_and_the_run_and_the_run_reaches_them_all() {
+        let run = blue_lang_runtime::receipt::RUN;
+        let ids_of =
+            |src: &str, main: Option<&str>| identified(&lowered(src), &HashMap::new(), main);
+        let program = format!("{BASE}\nf(2)\n");
+        let ids = ids_of(&program, None);
+        assert_eq!(
+            ids.get("%root/f"),
+            Some(&hash_of(&program, "f").to_string()),
+            "an undocumented definition's hash is hash_program's"
+        );
+        assert!(ids["%root/f"].starts_with("b3:") && ids["%root/f"].len() == 67);
+        let changed_callee = ids_of(&format!("{}\nf(2)\n", BASE.replace("x - 1", "x - 2")), None);
+        assert_ne!(
+            ids[run], changed_callee[run],
+            "a definition the run holds changes its hash"
+        );
+        let changed_top = ids_of(&format!("{BASE}\nf(3)\n"), None);
+        assert_ne!(ids[run], changed_top[run], "a top-level form changes it");
+        let moved = ids_of(&format!("# a note\n{BASE}\n\nf(2)\n"), None);
+        assert_eq!(ids[run], moved[run], "layout and comments do not");
+        let with_main = ids_of(&program, Some("%root/f"));
+        assert_ne!(
+            ids[run], with_main[run],
+            "the call to main is part of the run"
+        );
+        assert_eq!(ids["%root/f"], with_main["%root/f"]);
+    }
+
+    #[test]
+    fn identify_names_a_definition_as_the_engine_does_doc_included() {
+        let src = format!("@doc \"\"\"\ndoubles\n\"\"\"\n{BASE}");
+        let checked = blue_lang_runtime::pipeline::check_entry(
+            blue_lang_runtime::uses::Entry::anonymous(&src),
+            &blue_lang_runtime::uses::NoLoader,
+            None,
+            blue_lang_runtime::pipeline::Checking::Program,
+        )
+        .expect("checks");
+        let lowered = blue_lang_runtime::pipeline::lower(&checked.program, &checked.names);
+        let engine = crate::hash_checked(&checked.program, &lowered);
+        let ids = identify(&checked.program, std::sync::Arc::new(lowered.clone()), None)();
+        assert_eq!(
+            ids["%root/g"],
+            engine.of_key("%root/g").expect("g").hash.to_string(),
+            "a documented definition is named as the engine names it"
+        );
+        assert_ne!(
+            ids["%root/g"],
+            hash_of(BASE, "g").to_string(),
+            "its doc is in its hash"
+        );
+    }
 
     #[test]
     fn layout_comments_and_position_are_not_in_the_hash() {

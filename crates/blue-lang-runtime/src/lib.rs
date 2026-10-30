@@ -60,6 +60,7 @@ pub mod pipeline;
 pub mod project_rules;
 #[cfg(feature = "sys")]
 pub mod provide;
+pub mod receipt;
 pub mod session;
 pub mod spread;
 pub mod stdlib;
@@ -75,6 +76,8 @@ pub use pipeline::{
     parse, parse_tree_with_depth, parse_with_depth, run, run_with_inputs, Run, RunError,
 };
 pub use stdlib::install_blue_stdlib;
+
+pub use blue_lang_proc::{Frame, HostIo, Identities, Receipt};
 
 use tatara_lisp_eval::{install_full_stdlib_with, Interpreter};
 
@@ -147,20 +150,65 @@ pub fn attach_node_in_frame<H: 'static>(interp: &mut Interpreter<H>, frame: &blu
 
 /// [`attach_node_in_frame`] with the hold's providers bound in every child.
 pub fn attach_node_held<H: 'static>(interp: &mut Interpreter<H>, hold: &Hold) {
+    attach_node_accounted(interp, Some(hold), &Account::default());
+}
+
+/// Give `interp` a node whose processes are held to `hold`, when there is
+/// one, and give `account` of them: each child's host calls tally into its
+/// ledger, its identities name each trace's and receipt's definition, and
+/// with a receipts directory every held process writes a receipt there when
+/// an incarnation ends.
+pub fn attach_node_accounted<H: 'static>(
+    interp: &mut Interpreter<H>,
+    hold: Option<&Hold>,
+    account: &Account,
+) {
     let mut config = node_config();
-    let refused = hold.withheld_host_names();
-    #[cfg(feature = "sys")]
-    let provisions = hold.provisions.clone();
-    config.child = std::sync::Arc::new(move || {
-        let mut child = child_interpreter();
-        refuse_host_names(&mut child, &refused, "this process's frame");
-        #[cfg(feature = "sys")]
-        provide::provide(&mut child, &provisions);
-        child
-    });
+    config.host_io = account.host_io.clone();
+    config.identities = account.identities.clone();
+    if let Some(hold) = hold {
+        config.frame = Some(hold.frame());
+        config.receipts = account.receipts.clone().map(receipt::sink);
+        let held = hold.clone();
+        let io = account.host_io.clone();
+        config.child = std::sync::Arc::new(move || {
+            let mut child = child_interpreter();
+            held.bind(&mut child, "this process's frame", &io);
+            child
+        });
+    }
     dispatch::install(interp);
     blue_lang_proc::install(interp, blue_lang_proc::Node::new(config));
 }
+
+/// The account a run gives of itself besides its value, filled while it runs
+/// and read after it ends, whether it returned or raised.
+#[derive(Clone, Default)]
+pub struct Account {
+    /// Host calls through granted host names, per process.
+    pub host_io: HostIo,
+    /// Each definition's `def_hash`, and the run's under [`receipt::RUN`].
+    pub identities: Identities,
+    /// How the identities are computed from the program, once it is lowered.
+    /// Without one, no trace or receipt names a `def_hash`.
+    pub identify: Option<Identify>,
+    /// Where each held process writes its receipt; none are written without.
+    pub receipts: Option<std::path::PathBuf>,
+}
+
+/// The table of a lowered program's identities, computed when first asked.
+pub type Identified =
+    Box<dyn FnOnce() -> std::collections::BTreeMap<String, String> + Send + 'static>;
+
+/// Given a checked program, its lowered tree and the key of the entry's
+/// `main` if it has one: each definition key with its `def_hash`, and
+/// [`receipt::RUN`] with the run's, computed only when first asked.
+/// `blue-lang-mondou` computes it; this crate only calls it.
+pub type Identify = fn(
+    &uses::ResolvedProgram,
+    std::sync::Arc<Vec<tatara_lisp::Spanned>>,
+    Option<String>,
+) -> Identified;
 
 /// What a run is held to: the frame it may reach the host through, and the
 /// capabilities pure providers stand in for.
@@ -188,26 +236,74 @@ pub fn provided_name(word: &str) -> String {
 }
 
 impl Hold {
+    /// Every host capability neither the frame grants nor a whole-program
+    /// provider stands in for. A scoped provider's capability stays here:
+    /// code outside its packages gets the frame's answer.
+    #[must_use]
+    pub fn withheld(&self) -> Vec<blue_lang_waku::Capability> {
+        let reach = self.provisions.widen(&self.frame.reach);
+        blue_lang_waku::Capability::host_effects()
+            .into_iter()
+            .filter(|cap| !reach.grants(*cap))
+            .collect()
+    }
+
+    /// Every host capability a call can reach the host through: granted by
+    /// the frame, and no whole-program provider standing in for it. A scoped
+    /// provider's capability the frame grants is here: code outside its
+    /// packages reaches the host.
+    #[must_use]
+    pub fn granted(&self) -> Vec<blue_lang_waku::Capability> {
+        blue_lang_waku::Capability::host_effects()
+            .into_iter()
+            .filter(|cap| {
+                self.frame.reach.grants(*cap)
+                    && self.provisions.get(*cap).is_none_or(|p| p.scope.is_some())
+            })
+            .collect()
+    }
+
     /// Every host name neither the frame grants nor a whole-program provider
     /// stands in for. A scoped provider's names stay here: code outside its
     /// packages gets the frame's answer.
     #[must_use]
     pub fn withheld_host_names(&self) -> Vec<(&'static str, blue_lang_waku::Capability)> {
-        let reach = self.provisions.widen(&self.frame.reach);
-        blue_lang_waku::Capability::host_effects()
-            .into_iter()
-            .filter(|cap| !reach.grants(*cap))
-            .flat_map(|cap| cap.names().into_iter().map(move |n| (n, cap)))
-            .collect()
+        names_of(self.withheld())
+    }
+
+    /// Every host name a call can reach the host through.
+    #[must_use]
+    pub fn granted_host_names(&self) -> Vec<(&'static str, blue_lang_waku::Capability)> {
+        names_of(self.granted())
+    }
+
+    /// The hold as an artifact names it.
+    #[must_use]
+    pub fn frame(&self) -> Frame {
+        Frame {
+            granted: self.granted(),
+            provided: self.provisions.iter().cloned().collect(),
+            withheld: self.withheld(),
+        }
+    }
+
+    /// The frame block of a receipt for a run held here that made `host_io`
+    /// host calls: exactly `{"granted":[…],"withheld":[…],"host_io":n}`.
+    #[must_use]
+    pub fn frame_summary(&self, host_io: u64) -> serde_json::Value {
+        self.frame().block(host_io)
     }
 
     /// Bind the hold into `interp`: a breach for every withheld host name,
     /// then each whole-program provider over its capability's names and each
-    /// scoped one under [`provided_name`].
-    pub fn bind<H: 'static>(&self, interp: &mut Interpreter<H>, who: &'static str) {
+    /// scoped one under [`provided_name`], then a shim over every granted
+    /// host name that tallies each call into `io`. A withheld or provided
+    /// name gets no shim, so a pure frame tallies nothing.
+    pub fn bind<H: 'static>(&self, interp: &mut Interpreter<H>, who: &'static str, io: &HostIo) {
         refuse_host_names(interp, &self.withheld_host_names(), who);
         #[cfg(feature = "sys")]
         provide::provide(interp, &self.provisions);
+        count_host_names(interp, &self.granted_host_names(), io);
     }
 
     /// Move each scoped provider's host names, where a file of a package it
@@ -246,6 +342,53 @@ impl Hold {
             .into_iter()
             .filter(|(_, cap)| !serves(entry, *cap))
             .collect()
+    }
+}
+
+fn names_of(
+    caps: Vec<blue_lang_waku::Capability>,
+) -> Vec<(&'static str, blue_lang_waku::Capability)> {
+    caps.into_iter()
+        .flat_map(|cap| cap.names().into_iter().map(move |n| (n, cap)))
+        .collect()
+}
+
+/// Shim each of `granted` that `interp` defines so a call that reaches it
+/// tallies one host call into `io`. The shim is registered under its own
+/// name and the host name rebound to it, so the original stays reachable by
+/// its name and reports its own arity errors.
+fn count_host_names<H: 'static>(
+    interp: &mut Interpreter<H>,
+    granted: &[(&'static str, blue_lang_waku::Capability)],
+    io: &HostIo,
+) {
+    for &(name, _) in granted {
+        let Some(original @ tatara_lisp_eval::Value::NativeFn(_)) = interp.lookup_global(name)
+        else {
+            continue;
+        };
+        let tatara_lisp_eval::Value::NativeFn(nf) = &original else {
+            continue;
+        };
+        let arity = nf.arity;
+        let io = io.clone();
+        let shim = format!("%io:{name}");
+        interp.register_higher_order_fn(
+            shim.clone(),
+            tatara_lisp_eval::ffi::Arity::Any,
+            move |args: &[tatara_lisp_eval::Value],
+                  host: &mut H,
+                  caller: &tatara_lisp_eval::ffi::Caller<H>,
+                  span| {
+                if arity.check(args.len()).is_ok() {
+                    io.tally();
+                }
+                caller.apply_value(&original, args.to_vec(), host, span)
+            },
+        );
+        if let Some(v) = interp.lookup_global(&shim) {
+            interp.define_global(name, v);
+        }
     }
 }
 
@@ -559,6 +702,130 @@ mod tests {
         ));
         // Layer 4b: cryptography.
         assert!(matches!(eval(r#"(blake3_hex "")"#), Value::Str(_)));
+    }
+
+    #[cfg(feature = "sys")]
+    mod held {
+        use super::super::*;
+        use blue_lang_waku::{Capability, Provided, Provision, Provisions};
+        use tatara_lisp_eval::Value;
+
+        fn held(host: &[Capability], provided: &[Provided]) -> (Hold, Interpreter<()>, HostIo) {
+            let mut provisions = Provisions::default();
+            for p in provided {
+                provisions.add(p.clone()).expect("one provider each");
+            }
+            let hold = Hold {
+                frame: session::frame_granting(host),
+                provisions,
+            };
+            let mut interp = interpreter_hostless();
+            let io = HostIo::new();
+            hold.bind(&mut interp, "this test's frame", &io);
+            (hold, interp, io)
+        }
+
+        fn call(interp: &mut Interpreter<()>, src: &str) -> Result<Value, String> {
+            let forms = tatara_lisp::read_spanned(src).expect("read");
+            interp
+                .eval_program(&forms, &mut ())
+                .map_err(|e| e.to_string())
+        }
+
+        #[test]
+        fn a_pure_hold_shims_no_name_so_nothing_can_tally() {
+            let (hold, mut interp, io) = held(&[], &[]);
+            assert!(hold.granted_host_names().is_empty());
+            for (name, _) in hold.withheld_host_names() {
+                assert!(
+                    interp.lookup_global(&format!("%io:{name}")).is_none(),
+                    "`{name}` is withheld, so it has no counting shim"
+                );
+            }
+            assert!(call(&mut interp, "(getenv \"HOME\")").is_err());
+            assert!(call(&mut interp, "(now_ms)").is_err());
+            assert_eq!(io.total(), 0);
+        }
+
+        #[test]
+        fn a_granted_name_tallies_each_call_and_a_provided_or_withheld_one_none() {
+            let (hold, mut interp, io) = held(
+                &[Capability::Environment],
+                &[Provision::DeterministicStepped {
+                    at_ms: 10,
+                    step_ms: 1,
+                }
+                .into()],
+            );
+            assert_eq!(hold.granted(), [Capability::Environment]);
+            call(&mut interp, "(getenv \"HOME\")").expect("granted");
+            call(&mut interp, "(argv)").expect("granted");
+            assert_eq!(io.total(), 2, "two calls through granted names");
+            assert_eq!(
+                call(&mut interp, "(now_ms)").expect("provided").to_string(),
+                "10"
+            );
+            assert!(call(&mut interp, "(read_file \"/etc/hosts\")").is_err());
+            assert_eq!(io.total(), 2, "a provider and a breach reach no host");
+            let wrong = call(&mut interp, "(getenv)").expect_err("arity");
+            assert!(
+                wrong.contains("getenv"),
+                "the original names itself: {wrong}"
+            );
+            assert_eq!(
+                io.total(),
+                2,
+                "a call refused for its arity reached no host"
+            );
+        }
+
+        #[test]
+        fn an_unrestricted_hold_shims_every_host_name_but_a_provided_one() {
+            let hold = Hold {
+                frame: blue_lang_waku::Waku::top(),
+                provisions: {
+                    let mut p = Provisions::default();
+                    p.add(Provision::NullSink).expect("one");
+                    p
+                },
+            };
+            assert!(hold.withheld().is_empty());
+            assert!(!hold.granted().contains(&Capability::FileSystem));
+            assert_eq!(hold.granted().len(), Capability::host_effects().len() - 1);
+            let f = hold.frame();
+            assert_eq!(f.provided, [Provided::from(Provision::NullSink)]);
+            assert_eq!(f.granted, hold.granted());
+        }
+
+        #[test]
+        fn a_scoped_provider_binds_its_alias_uncounted_and_leaves_the_host_name_counted() {
+            let scoped = Provided {
+                provision: Provision::NullSink,
+                scope: Some(std::collections::BTreeSet::from(["kazu".to_string()])),
+            };
+            let (hold, mut interp, io) =
+                held(&[Capability::FileSystem], std::slice::from_ref(&scoped));
+            assert_eq!(hold.granted(), [Capability::FileSystem]);
+            assert_eq!(hold.frame().provided, [scoped]);
+            let alias = provided_name("read_file");
+            assert!(
+                interp.lookup_global(&alias).is_some(),
+                "the scoped alias is bound"
+            );
+            let _ = call(&mut interp, &format!("({alias} \"/etc/hosts\")"));
+            assert_eq!(io.total(), 0, "the provider reaches no host");
+            call(&mut interp, "(read_file \"/etc/hosts\")").expect("granted");
+            assert_eq!(io.total(), 1, "code outside the scope reaches the host");
+        }
+
+        #[test]
+        fn the_frame_summary_is_exactly_granted_withheld_and_host_io() {
+            let (hold, _, _) = held(&[Capability::Clock], &[]);
+            assert_eq!(
+                blue_lang_proc::receipt::canonical(&hold.frame_summary(4)),
+                r#"{"granted":["clock"],"host_io":4,"withheld":["process","filesystem","environment","network","entropy"]}"#
+            );
+        }
     }
 
     /// Anti-vacuity: a bare interpreter really does LACK layer 2, so the test

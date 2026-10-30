@@ -77,6 +77,7 @@ mod memo;
 mod observe;
 mod prefetch;
 mod query;
+mod receipt;
 mod reference;
 mod registry;
 mod repl;
@@ -132,6 +133,13 @@ enum Cmd {
         /// `#!/usr/bin/env -S blue --allow filesystem`.
         #[arg(long = "allow", value_name = "CAPABILITY")]
         allow: Vec<String>,
+        /// Write an execution receipt into DIR for the run and for each
+        /// process when an incarnation ends: the definition's `def_hash`, the
+        /// frame (granted, provided, withheld), the exit, and the host calls
+        /// made through granted names. Each is canonical JSON named by the
+        /// BLAKE3 hash of its bytes; `blue receipt verify` checks one.
+        #[arg(long, value_name = "DIR")]
+        receipts: Option<PathBuf>,
         /// Do not print the program's final value. An installed command's
         /// output is what it writes (`write_stdout`), not the value its last
         /// expression happens to leave; `mkBlueApp` passes this, so a blue
@@ -430,8 +438,15 @@ enum Cmd {
     Reference,
     /// Run a crashed process again from the trace its crash wrote, and say
     /// whether it crashed the same way. `blue run` writes traces to
-    /// `BLUE_TRACE_DIR` (default: `blue-traces` in the temporary directory).
+    /// `BLUE_TRACE_DIR` (default: `blue-traces` in the temporary directory),
+    /// a fatal exit's as a `.bluecrash`, which replays under its recorded
+    /// hold.
     Replay { trace: PathBuf },
+    /// Execution receipts `blue run --receipts DIR` writes.
+    Receipt {
+        #[command(subcommand)]
+        cmd: receipt::ReceiptCmd,
+    },
     /// Show the bounds `blue` is running with, at any tier.
     ///
     /// The fleet-uniform `config-show` surface, supplied by shikumi rather
@@ -682,6 +697,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
     // the LSP, a Bluefile — runs under the configured bounds.
     blue_lang_runtime::set_execution_bounds(cfg.execution_bounds());
     blue_lang_proc::node::set_trace_dir(replay::trace_dir());
+    blue_lang_proc::node::set_journal_bound(replay::journal_bound());
     // `self_exe` answers with THIS binary only because it is the blue CLI;
     // any other embedder leaves it nil (blue_lang_runtime::sys::set_blue_exe).
     if let Ok(me) = std::env::current_exe() {
@@ -689,10 +705,12 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
     }
     match cli.cmd {
         Cmd::Replay { trace } => replay::run(&trace).map_err(CliError::Fmt),
+        Cmd::Receipt { cmd } => Ok(receipt::run(cmd)),
         Cmd::Run {
             file,
             inputs,
             allow,
+            receipts,
             quiet,
             format,
             timings,
@@ -718,6 +736,8 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                     None => blue_lang_runtime::Hold::from(asked),
                 })
             };
+            let hold = receipt::hold_for(hold, receipts.as_deref());
+            let account = receipt::account(receipts.clone());
             blue_lang_runtime::sys::set_program_args(args);
             // The SURFACE the program is written in: BLUE_LANG wins, else the
             // host locale. An explicit choice must beat a detected one.
@@ -774,21 +794,23 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             };
             let inputs = bind_inputs(&src, &inputs, &cfg)?;
             let ran = match memo::mode(no_memo, &cfg) {
-                memo::Mode::Off => blue_lang_runtime::pipeline::run_framed(
+                memo::Mode::Off => blue_lang_runtime::pipeline::run_framed_accounted(
                     entry,
                     inputs,
                     &loader,
                     surface.as_ref(),
                     hold.as_ref(),
+                    &account,
                 ),
                 mode => {
                     let mut held = None;
-                    let observed = blue_lang_runtime::pipeline::run_observed_framed(
+                    let observed = blue_lang_runtime::pipeline::run_observed_accounted(
                         entry,
                         inputs,
                         &loader,
                         surface.as_ref(),
                         hold.as_ref(),
+                        &account,
                         |w| {
                             let m = memo::over(
                                 mode.persist(),
@@ -807,6 +829,9 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                     observed.and_then(|o| o.outcome)
                 }
             };
+            if let Some(dir) = &receipts {
+                receipt::write_run(dir, hold.as_ref(), &account, &ran);
+            }
             let out = match ran {
                 Err(e) if format == Format::Json => {
                     println!("{}", serde_json::to_string(&observe::error_json(&e))?);

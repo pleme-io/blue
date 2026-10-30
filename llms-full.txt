@@ -190,6 +190,7 @@ was rendered. `blue help COMMAND` shows each one's flags.
 | `blue morph` | The morphology: what each posture grants, what it forfeits, which pairs are genuinely exclusive, and which language each shape corresponds to. |
 | `blue reference` | Print the language reference as JSON: operators, keywords, surface forms, Bluefile words, every bound name and every command, each read from the table the implementation runs on. |
 | `blue replay TRACE` | Run a crashed process again from the trace its crash wrote, and say whether it crashed the same way. |
+| `blue receipt verify FILE` | Recompute a receipt's name from its bytes and check its form; any edit fails. |
 | `blue config [TIER]` | Show the bounds `blue` is running with, at any tier. |
 | `blue new NAME` | Start a program (a project with its own bidama), a `--bidama`, or a `--script`, each passing `blue test` as written. |
 | `blue watch [CMD] PATH... [-- ARGS]...` | Rerun `check` (the default), `test` or `run` over each PATH whenever a watched file changes: `blue watch test lib.b`. |
@@ -210,7 +211,7 @@ rendered:
 | Surface forms | 29, with 13 operators and 24 reserved words |
 | Check rules | 65: 37 fix themselves, 7 suggest a fix |
 | Bluefile words | 21 |
-| Commands | 38 |
+| Commands | 39 |
 
 ## The standard library
 

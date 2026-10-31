@@ -142,6 +142,17 @@
           the editor, a project rule, a Bluefile. Null lifts it.
         '';
       };
+      flashBytesPerSecond = {
+        yaml = "flash_bytes_per_second";
+        default = 16384;
+        type = types.ints.between 0 1073741824;
+        description = ''
+          Bytes a second one wire's Flash channel may send, and one second's
+          worth at once. A send past it is refused with a catchable
+          `:rate_limited` naming the wait; raising it changes only whether a
+          burst is refused.
+        '';
+      };
     };
 
     boundOptions = lib.mapAttrs (_: b: mkOption { inherit (b) type default description; }) bounds;
@@ -303,8 +314,10 @@
       #     now two bounds (`max_call_depth`, `max_steps`).
       #   - memory — two bounds on live bytes (`max_alloc_bytes` for `blue run`,
       #     `guest_max_alloc_bytes` for doors that run code they did not write).
+      #   - flash rate — `flash_bytes_per_second`, the rate the host holds one
+      #     wire's Flash channel to.
       #
-      # What is left are six BOUNDS, each with a shipped overridable default in
+      # What is left are seven BOUNDS, each with a shipped overridable default in
       # code. Raising either changes no program's meaning — only whether a
       # pathological input is refused — so exposing them cannot freeze a design
       # guess as a public interface, which was the whole objection.

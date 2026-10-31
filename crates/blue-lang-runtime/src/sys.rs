@@ -1078,6 +1078,13 @@ fn install_env<H: 'static>(interp: &mut Interpreter<H>) {
 
 // ── clock ────────────────────────────────────────────────────────────────
 
+pub(crate) fn wall_ms() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX))
+        .unwrap_or(0)
+}
+
 fn install_clock<H: 'static>(interp: &mut Interpreter<H>) {
     interp.register_fn(
         "now",
@@ -1095,14 +1102,7 @@ fn install_clock<H: 'static>(interp: &mut Interpreter<H>) {
     interp.register_fn(
         "now_ms",
         Arity::Exact(0),
-        |_args: &[Value], _h: &mut H, _span| {
-            Ok(Value::Int(
-                SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .map(|d| d.as_millis() as i64)
-                    .unwrap_or(0),
-            ))
-        },
+        |_args: &[Value], _h: &mut H, _span| Ok(Value::Int(wall_ms())),
     );
 
     interp.register_fn(

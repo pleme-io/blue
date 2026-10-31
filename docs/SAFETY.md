@@ -125,7 +125,7 @@ tier. ⚠️ marks a partial seal. ❌ marks an open row.
 | 5 | Bounds-checked indexing | ✅ memory: no raw index exists; ⚠️ semantics: `nth` out of range is `nil` | row 1 owns the `nil` | unrepresentable (memory) | n/a |
 | 6 | Integer overflow, numeric conversion | ✅ `+ - * abs floor` raise on overflow; `/` by zero raises; `to_int` of a huge float is `nil` | `to_int` → row 1 | runtime-refused | on, no off |
 | 7 | No implicit coercion | ⚠️ operators refuse mixed types; `4 == 4.0` is true; call types are checked only inside typed definitions (B0003–B0005) | call-site checks from any caller when the argument is a literal | runtime-refused → checked-at-expansion | on |
-| 8 | `unsafe` ⇔ declared capability | ⚠️ sessions pure by default; **`blue run --allow` and shebang `--allow` (landed)**; **a breach is fatal: no `rescue` or `ensure` sees it (landed)**; **the wire's two channels are their own capabilities, `comm_flash` and `comm_scavenger` (landed)**; an undeclared run is still ambient | default flip for scripts, then `posture(reach:)` for bidamas | checked-at-expansion (entry) + runtime-fatal (bidama, process) | declared: on; undeclared: ambient until phase 3 (`--allow host`) |
+| 8 | `unsafe` ⇔ declared capability | ⚠️ sessions pure by default; **`blue run --allow` and shebang `--allow` (landed)**; **a breach is fatal: no `rescue` or `ensure` sees it (landed)**; **the wire's two channels are their own capabilities, `comm_flash` and `comm_scavenger` (landed)**; **the Flash rate is the host's, a typed bound refused as a catchable `:rate_limited` (landed)**; **both channels have an in-process loopback provider (landed)**; an undeclared run is still ambient | default flip for scripts, then `posture(reach:)` for bidamas | checked-at-expansion (entry) + runtime-fatal (bidama, process) | declared: on; undeclared: ambient until phase 3 (`--allow host`) |
 | 9 | Memory safety of the host seam | ⚠️ 1 of 18 crates denies `unsafe_code` at its root | workspace `unsafe_code = "deny"`, one `#[allow]` per seam, one seam test | unrepresentable for kiwari → unrepresentable for every crate | on (`#[allow(unsafe_code)]` at a named seam) |
 | 10 | No data races | ✅ share-nothing processes; copy on send; handles refuse to cross | none needed | unrepresentable | n/a |
 | 11 | Panic vs typed refusal | ⚠️ blue faults are catchable; a Rust panic in a native function is not a blue error | one unwind seam at the native-call boundary → `:internal` refusal | open → runtime-refused | on |
@@ -279,8 +279,9 @@ write dropped, every read finds nothing). The lock records the provider as
 the kebab-case label (`deterministic-stepped`). An unknown `using` is refused
 with the legal ones named. The settings are a map because blue refuses a
 keyword entry in a call without a `**` spread (spec row
-`maps.spread.call.entries_need_a_spread`). Process, network, environment and
-the two wire channels have no provider (`Provision::kinds_for`). `Provisions::disjoint_from`
+`maps.spread.call.entries_need_a_spread`). `:comm_flash {using: :loopback}` and
+`:comm_scavenger {using: :loopback}` carry the wire's frames in process (below).
+Process, network and environment have no provider (`Provision::kinds_for`). `Provisions::disjoint_from`
 refuses a whole-program provider for a capability `allow` also grants, but
 `blue lock` does not call it yet.
 
@@ -294,15 +295,55 @@ the label or its snake case). The host border enforces the framing (0x02
 Flash, 0x01 Tide with an 8-byte send stamp), the 1280-byte MTU (a frame past
 it raises and is not sent), a Flash inbox of 256 frames that drops past it,
 and a Tide send ring and inbox bounded in frames and bytes that evict their
-oldest. The rate is not the border's: `kodou` paces Flash by ibuki's token
-bucket and Tide by ibuki's LEDBAT controller, so a program granted
-`comm_flash` that calls `flash_put` itself is not paced. Tests:
+oldest. `kodou` paces Flash by ibuki's token bucket and Tide by ibuki's
+LEDBAT controller; the host holds the Flash rate (below). Tests:
 `crates/blue-lang-cli/tests/wire.rs`
 (`a_frame_without_comm_flash_breaches_with_77_and_sends_nothing`: under
 `--allow comm_scavenger --allow clock` the listener hears the one Tide
 control frame and no Flash frame, the run exits 77; under `--allow none` it
 hears nothing; `blue lock` refuses
 `[wire-breach] -> [kodou::link: needs 'comm-flash'] violates ceiling [clock, comm-scavenger]`).
+
+**The Flash rate is the host's (2026-10-30).** Each wire's Flash send path
+holds a token bucket with the rate and burst ibuki's bucket models
+(`crates/blue-lang-runtime/src/wire.rs`, `Bucket`): `flash_bytes_per_second`
+bytes a second and one second's worth at once, a typed bound in `BlueConfig`
+(a BOUND, never a preference; default 16384, `wire::DEFAULT_FLASH_RATE`). It
+reads the frame's clock: a whole-program clock provider when the hold has one
+(peeked, never stepped), else the host's wall clock; a scoped clock is a
+package's, not the frame's. A send past it raises `:rate_limited` with
+`{bytes:, rate:, burst:, wait_ms:}` and sends nothing. The refusal is
+catchable on purpose: a rate refusal is not a capability breach (the program
+holds the capability and only asked too fast), so a sender can wait
+`wait_ms` and send again; the fatal path stays for a capability the frame
+withholds. Under a real clock the host reads its clock a moment after kodou's
+bucket did, so at the margin it can refuse a frame the bucket passed;
+`kodou::emit` waits the host's `wait_ms` once and resends. The bucket is per
+wire, as kodou's is per link, so a program that opens n wires may spend n
+times the rate until a per-app bound exists (`theory/IBUKI.md` §VI.2). With
+no whole-program clock provider the rate reads the host's clock, so the wire,
+like any network capability, lets a program observe elapsed time. Tests:
+`crates/blue-lang-cli/tests/wire.rs`
+(`a_direct_flash_put_burst_past_the_rate_is_refused_by_the_host_and_the_refusal_is_catchable`,
+also under `flash_bytes_per_second: 2560`;
+`kodou_s_bucket_and_the_host_s_rate_agree_on_every_send_of_the_same_schedule`;
+the paced test asserts `refused` 0), `wire.rs` unit tests, spec rows
+`wire.flash_put.past_the_rate_*`.
+
+**The loopback provider (2026-10-30).** `virtualize(:comm_flash, {using:
+:loopback})` and the same for `:comm_scavenger` bind the wire words to an
+in-process queue (`Provision::Loopback`, `wire::LoopbackNet`): `flash_open`
+and `tide_open` bind a virtual `ip:port` (port 0 picks the next free one from
+49152), a frame goes to the queue of the link bound there or nowhere, a name
+is never resolved, and an empty inbox answers nil at once. Framing, the MTU,
+the rings and the Flash rate are the socket's own code. A loopback word
+refuses a host socket, so a Flash frame never leaves through a socket a Tide
+grant opened. Both channels of one hold share one queue; each interpreter has
+its own, like the other providers. Tests: `crates/blue-lang-cli/tests/wire.rs`
+(`a_program_under_loopback_and_allow_none_sends_and_receives_in_process_and_touches_no_socket`:
+the program binds the address a test socket holds, which only an in-process
+link can, and neither that socket nor a second one hears a frame;
+`the_paced_flash_program_replays_over_the_loopback_with_the_schedule_it_had_over_udp`).
 
 **Scoped providers (2026-10-30).** `for: %w[rede]` beside `using` binds the
 provider only for the named packages and every package they `use`. In the

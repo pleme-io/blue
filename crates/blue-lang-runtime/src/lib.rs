@@ -305,11 +305,19 @@ impl Hold {
     /// then each whole-program provider over its capability's names and each
     /// scoped one under [`provided_name`], then a shim over every granted
     /// host name that tallies each call into `io`. A withheld or provided
-    /// name gets no shim, so a pure frame tallies nothing.
+    /// name gets no shim, so a pure frame tallies nothing. A whole-program
+    /// clock provider is also the clock the host's Flash rate reads.
     pub fn bind<H: 'static>(&self, interp: &mut Interpreter<H>, who: &'static str, io: &HostIo) {
         refuse_host_names(interp, &self.withheld_host_names(), who);
         #[cfg(feature = "sys")]
-        provide::provide(interp, &self.provisions);
+        if let Some(clock) = provide::provide(interp, &self.provisions) {
+            if self
+                .granted()
+                .contains(&blue_lang_waku::Capability::CommFlash)
+            {
+                wire::host_flash_on(interp, clock);
+            }
+        }
         count_host_names(interp, &self.granted_host_names(), io);
     }
 
@@ -841,6 +849,40 @@ mod tests {
             assert_eq!(io.total(), 0, "the provider reaches no host");
             call(&mut interp, "(read_file \"/etc/hosts\")").expect("granted");
             assert_eq!(io.total(), 1, "code outside the scope reaches the host");
+        }
+
+        #[test]
+        fn a_host_flash_grant_reads_the_whole_program_stepped_clock_for_its_rate() {
+            let (_, mut interp, _) = held(
+                &[Capability::CommFlash],
+                &[Provision::DeterministicStepped {
+                    at_ms: 0,
+                    step_ms: 0,
+                }
+                .into()],
+            );
+            let big = "x".repeat(1279);
+            call(
+                &mut interp,
+                &format!("(begin (define w (flash_open \"127.0.0.1:0\")) (define big \"{big}\"))"),
+            )
+            .expect("granted");
+            for _ in 0..12 {
+                call(&mut interp, "(flash_put w \"127.0.0.1:9\" big)").expect("within the burst");
+            }
+            let refused =
+                call(&mut interp, "(flash_put w \"127.0.0.1:9\" big)").expect_err("past it");
+            assert!(
+                refused.contains(":rate_limited") && refused.contains(":wait_ms 16"),
+                "{refused}"
+            );
+            call(&mut interp, "(sleep_ms 16)").expect("provided");
+            assert_eq!(
+                call(&mut interp, "(flash_put w \"127.0.0.1:9\" big)")
+                    .expect("a virtual sleep refills the host's bucket")
+                    .to_string(),
+                "1280"
+            );
         }
 
         #[test]

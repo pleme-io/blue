@@ -31,9 +31,10 @@
 #
 # ── THE VALUES ARE THE SHIPPED DEFAULTS ──────────────────────────────────────
 #
-# All six are BOUNDS: raising any changes no program's meaning, only whether a
-# pathological input is refused. That is the entire argument for why these
-# knobs are configurable and blue's formatter width and posture ceiling are not
+# All seven are BOUNDS: raising any changes no program's meaning, only whether a
+# pathological input, or a Flash burst past the wire's rate, is refused. That is
+# the entire argument for why these knobs are configurable and blue's formatter
+# width and posture ceiling are not
 # — see `crates/blue-lang-cli/src/config.rs`. `max_steps: nil` is unbounded, the
 # default (nil lowers to `Sexp::Nil`, which shikumi maps to absent), and so is
 # `max_alloc_bytes: nil`; `guest_max_alloc_bytes` is 1 GiB.
@@ -43,5 +44,6 @@
   max_call_depth: 100_000,
   max_steps: nil,
   max_alloc_bytes: nil,
-  guest_max_alloc_bytes: 1_073_741_824
+  guest_max_alloc_bytes: 1_073_741_824,
+  flash_bytes_per_second: 16384
 }

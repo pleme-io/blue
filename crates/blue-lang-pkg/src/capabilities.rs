@@ -96,10 +96,11 @@ pub fn unit_of(bf: &Bluefile) -> FloorUnit {
 
 /// The provider `settings` asks for `cap`, and the packages it serves:
 /// `{using: :deterministic_stepped, at_ms:, step_ms:}` (both default 0) for
-/// the clock, `{using: :seeded_prng, seed:}` for entropy, and
+/// the clock, `{using: :seeded_prng, seed:}` for entropy,
 /// `{using: :in_memory_overlay}` or `{using: :null_sink}` for the
-/// filesystem. `for: %w[pkg …]` serves only those packages and every package
-/// they use; without it the provider serves the whole program.
+/// filesystem, and `{using: :loopback}` for `comm_flash` and
+/// `comm_scavenger`. `for: %w[pkg …]` serves only those packages and every
+/// package they use; without it the provider serves the whole program.
 ///
 /// # Errors
 ///
@@ -115,7 +116,7 @@ pub fn provision_of(
     let kinds = Provision::kinds_for(cap);
     if kinds.is_empty() {
         return Err(format!(
-            "{} has no pure provider; virtualize clock, entropy or filesystem",
+            "{} has no pure provider; virtualize clock, entropy, filesystem, comm_flash or comm_scavenger",
             cap.label()
         ));
     }
@@ -236,6 +237,10 @@ pub fn provision_of(
         },
         "in_memory_overlay" => Provision::InMemoryOverlay,
         "null_sink" => Provision::NullSink,
+        "loopback" => match blue_lang_waku::Channel::of(cap) {
+            Some(channel) => Provision::Loopback { channel },
+            None => return Err(unknown()),
+        },
         _ => return Err(unknown()),
     };
     Ok(Provided { provision, scope })
@@ -1304,6 +1309,18 @@ mod tests {
                 Provision::InMemoryOverlay,
             ),
             (":filesystem, {using: :null_sink}", Provision::NullSink),
+            (
+                ":comm_flash, {using: :loopback}",
+                Provision::Loopback {
+                    channel: blue_lang_waku::Channel::Flash,
+                },
+            ),
+            (
+                ":comm_scavenger, {using: :loopback}",
+                Provision::Loopback {
+                    channel: blue_lang_waku::Channel::Tide,
+                },
+            ),
         ];
         for (settings, want) in cases {
             let got = virtualized(settings).unwrap_or_else(|e| panic!("{settings}: {e}"));
@@ -1313,9 +1330,10 @@ mod tests {
         }
         for cap in Capability::host_effects() {
             for kind in Provision::kinds_for(cap) {
+                let symbol = cap.label().replace('-', "_");
                 let settings = match *kind {
-                    "seeded_prng" => format!(":{}, {{using: :{kind}, seed: \"s\"}}", cap.label()),
-                    _ => format!(":{}, {{using: :{kind}}}", cap.label()),
+                    "seeded_prng" => format!(":{symbol}, {{using: :{kind}, seed: \"s\"}}"),
+                    _ => format!(":{symbol}, {{using: :{kind}}}"),
                 };
                 let got = virtualized(&settings).unwrap_or_else(|e| panic!("{settings}: {e}"));
                 assert_eq!(got[cap.label()].provision.name(), *kind);
@@ -1369,6 +1387,14 @@ mod tests {
                 "`for` is a list of package names (%w[rede])",
             ),
             (":network, {using: :x}", "network has no pure provider"),
+            (
+                ":comm_flash, {using: :loopback, channel: :tide}",
+                "`channel` is not a loopback setting; it takes nothing besides `using` and `for`",
+            ),
+            (
+                ":comm_scavenger, {using: :null_sink}",
+                "`using: :null_sink` is not a comm-scavenger provider; it takes :loopback",
+            ),
         ] {
             let err = virtualized(settings).expect_err(settings);
             assert!(err.contains(says), "{settings}: {err}");
@@ -1385,6 +1411,9 @@ mod tests {
             Provision::SeededPrng { seed: "s".into() },
             Provision::InMemoryOverlay,
             Provision::NullSink,
+            Provision::Loopback {
+                channel: blue_lang_waku::Channel::Flash,
+            },
         ];
         for p in every {
             let json = serde_json::to_value(Provided::from(p.clone())).unwrap();
@@ -1408,10 +1437,19 @@ mod tests {
             serde_json::json!({"provider": "deterministic-stepped", "at_ms": 5, "step_ms": 0, "for": ["rede"]})
         );
         assert_eq!(serde_json::from_value::<Provided>(json).unwrap(), scoped);
+        assert_eq!(
+            serde_json::to_value(Provided::from(Provision::Loopback {
+                channel: blue_lang_waku::Channel::Tide,
+            }))
+            .unwrap(),
+            serde_json::json!({"provider": "loopback", "channel": "tide"})
+        );
         for stale in [
             serde_json::json!({"provider": "seeded-prng", "seed": "s", "mode": "x"}),
             serde_json::json!({"provider": "stepped-clock", "at_ms": 0, "step_ms": 0}),
             serde_json::json!({"provider": "memory-fs"}),
+            serde_json::json!({"provider": "loopback"}),
+            serde_json::json!({"provider": "loopback", "channel": "network"}),
         ] {
             assert!(
                 serde_json::from_value::<Provided>(stale.clone()).is_err(),

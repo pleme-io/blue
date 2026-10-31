@@ -2,8 +2,9 @@
 # the Tide channel (comm_scavenger, framing byte 0x01) over one UDP socket.
 # Each row is host() and runs on loopback with no peer, so it states what blue
 # promises without one: a frame past 1280 bytes is refused before it is sent,
-# a handle of the wrong kind is refused, and a channel not opened on a wire is
-# refused by name. The pacing and the gossip run in
+# a Flash burst past the wire's rate is refused as :rate_limited, a handle of
+# the wrong kind is refused, and a channel not opened on a wire is refused by
+# name. The pacing, the loopback provider and the gossip run in
 # crates/blue-lang-cli/tests/wire.rs.
 
 row(
@@ -25,6 +26,33 @@ row(
   value("[1280, :refused, 1]"),
   covers("builtin:flash_put"),
   covers("builtin:flash_stats"),
+  host()
+)
+
+row(
+  "wire.flash_put.past_the_rate_refuses_and_counts",
+  join_lines(
+    [
+      "w = flash_open(\"127.0.0.1:0\")",
+      "big = join(map((_i) -> \"x\", range(1279)), \"\")",
+      "sent = map((_i) -> (flash_put(w, \"127.0.0.1:9\", big) rescue :refused), range(20))",
+      "[member?(:refused, sent), flash_stats(w).sent + flash_stats(w).refused, flash_stats(w).rate]"
+    ]
+  ),
+  value("[true, 20, 16384]"),
+  host()
+)
+
+row(
+  "wire.flash_put.past_the_rate_names_it",
+  join_lines(
+    [
+      "w = flash_open(\"127.0.0.1:0\")",
+      "big = join(map((_i) -> \"x\", range(1279)), \"\")",
+      "map((_i) -> flash_put(w, \"127.0.0.1:9\", big), range(20))"
+    ]
+  ),
+  fails(:eval, "past the wire's rate"),
   host()
 )
 

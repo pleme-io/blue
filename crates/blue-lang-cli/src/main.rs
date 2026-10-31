@@ -720,6 +720,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
     // Before any interpreter is built, so every evaluating door — run, test,
     // the LSP, a Bluefile — runs under the configured bounds.
     blue_lang_runtime::set_execution_bounds(cfg.execution_bounds());
+    blue_lang_runtime::wire::set_flash_rate(cfg.flash_bytes_per_second);
     blue_lang_proc::node::set_trace_dir(replay::trace_dir());
     blue_lang_proc::node::set_journal_bound(replay::journal_bound());
     // `self_exe` answers with THIS binary only because it is the blue CLI;

@@ -1,4 +1,4 @@
-//! blue's typed configuration surface — [`shikumi::TieredConfig`], six fields.
+//! blue's typed configuration surface — [`shikumi::TieredConfig`], seven fields.
 //!
 //! ```text
 //! blue config bare        # zero-opinion floor
@@ -18,7 +18,7 @@
 //! do exactly that, so preferences do not go in this file.
 //!
 //! Each field also had to already have a **shipped, overridable default in
-//! code**. All six do, and the `prescribed_default()` below returns those
+//! code**. All seven do, and the `prescribed_default()` below returns those
 //! constants *by name* rather than copying their values — so the config cannot
 //! drift from what the code actually does.
 //!
@@ -44,6 +44,13 @@
 //!   package-declares-a-ceiling shape §V.24 names as Cargo's documented
 //!   anti-pattern.
 //!
+//! * **Flash rate** — `flash_bytes_per_second`, the bytes a second (and, as
+//!   one second's burst, the bytes at once) the host lets one wire's Flash
+//!   channel send, default `blue_lang_runtime::wire::DEFAULT_FLASH_RATE`
+//!   (16 KiB/s, the rate ibuki's bucket models). A send past it is refused
+//!   with a catchable `:rate_limited`, so raising or lowering it changes only
+//!   whether a burst is refused, never what a frame means.
+//!
 //! * **Execution budget** — was unsettled for a concrete reason: no default
 //!   constant existed to expose. tatara-lisp-eval 0.3.63 gave both executors
 //!   one budget and made exceeding it a catchable error instead of a stack
@@ -63,8 +70,8 @@
 //!
 //! # Tier honesty
 //!
-//! The six-field surface is **only-mitigated** against a seventh knob creeping
-//! in — `the_surface_is_exactly_six_knobs` is an exhaustive destructure, so
+//! The seven-field surface is **only-mitigated** against an eighth knob creeping
+//! in — `the_surface_is_exactly_seven_knobs` is an exhaustive destructure, so
 //! adding a field is an `E0027` compile error in the test binary rather than
 //! something structurally unrepresentable. It forces acknowledgement, not
 //! justification.
@@ -146,6 +153,8 @@ pub struct BlueConfig {
     /// editor, a project rule, a Bluefile (resolving a dependency evaluates
     /// its manifest); `null` lifts it. 1 GiB by default.
     pub guest_max_alloc_bytes: Option<u64>,
+
+    pub flash_bytes_per_second: u64,
 }
 
 impl BlueConfig {
@@ -176,6 +185,7 @@ impl TieredConfig for BlueConfig {
             max_steps: Some(0),
             max_alloc_bytes: Some(0),
             guest_max_alloc_bytes: Some(0),
+            flash_bytes_per_second: 0,
         }
     }
 
@@ -192,6 +202,7 @@ impl TieredConfig for BlueConfig {
             max_alloc_bytes: blue_lang_runtime::ExecutionBounds::DEFAULT.max_alloc_bytes,
             guest_max_alloc_bytes: blue_lang_runtime::ExecutionBounds::DEFAULT
                 .guest_max_alloc_bytes,
+            flash_bytes_per_second: blue_lang_runtime::wire::DEFAULT_FLASH_RATE,
         }
     }
 }
@@ -235,9 +246,9 @@ fn tier_from_env() -> ConfigTier {
 mod tests {
     use super::*;
 
-    /// The gate on "exactly six knobs".
+    /// The gate on "exactly seven knobs".
     ///
-    /// An exhaustive destructure: a seventh field makes this `E0027 pattern does
+    /// An exhaustive destructure: an eighth field makes this `E0027 pattern does
     /// not mention field`, so the test binary stops compiling and `cargo test`
     /// goes red. Red run recorded 2026-08-01 by adding a `formatter_width`
     /// field — `error[E0027]: pattern does not mention field
@@ -250,7 +261,7 @@ mod tests {
     /// unrepresentable. Whoever updates the pattern has to have read the rule
     /// in this module's docs, which is the whole mechanism.
     #[test]
-    fn the_surface_is_exactly_six_knobs() {
+    fn the_surface_is_exactly_seven_knobs() {
         let BlueConfig {
             solver_max_steps: _,
             max_expr_depth: _,
@@ -258,6 +269,7 @@ mod tests {
             max_steps: _,
             max_alloc_bytes: _,
             guest_max_alloc_bytes: _,
+            flash_bytes_per_second: _,
         } = BlueConfig::prescribed_default();
     }
 
@@ -274,6 +286,10 @@ mod tests {
         );
         assert_eq!(b.max_alloc_bytes, Some(0));
         assert_eq!(b.guest_max_alloc_bytes, Some(0));
+        assert_eq!(
+            b.flash_bytes_per_second, 0,
+            "the floor sends no Flash frame"
+        );
     }
 
     /// The prescribed tier IS the shipped constants — not a copy of them.
@@ -310,6 +326,14 @@ mod tests {
         assert_eq!(
             d.guest_max_alloc_bytes,
             Some(1 << 30),
+            "the shipped value, pinned"
+        );
+        assert_eq!(
+            d.flash_bytes_per_second,
+            blue_lang_runtime::wire::DEFAULT_FLASH_RATE
+        );
+        assert_eq!(
+            d.flash_bytes_per_second, 16_384,
             "the shipped value, pinned"
         );
     }
@@ -366,7 +390,7 @@ mod tests {
             .keys()
             .cloned()
             .collect();
-        assert_eq!(keys.len(), 6, "six knobs, per this module's docs");
+        assert_eq!(keys.len(), 7, "seven knobs, per this module's docs");
 
         let flake =
             std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../flake.nix"))
@@ -457,7 +481,8 @@ mod tests {
                 "max_call_depth",
                 "max_steps",
                 "max_alloc_bytes",
-                "guest_max_alloc_bytes"
+                "guest_max_alloc_bytes",
+                "flash_bytes_per_second"
             ]
         );
 
@@ -484,7 +509,8 @@ mod tests {
                 Some(d.max_call_depth as i64),
                 d.max_steps.map(|n| n as i64),
                 d.max_alloc_bytes.map(|n| n as i64),
-                d.guest_max_alloc_bytes.map(|n| n as i64)
+                d.guest_max_alloc_bytes.map(|n| n as i64),
+                Some(d.flash_bytes_per_second as i64)
             ],
             "blue.b must state the shipped defaults"
         );

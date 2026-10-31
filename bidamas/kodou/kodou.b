@@ -1,7 +1,7 @@
 @moduledoc """
 kodou (鼓動) — the dual-pulse wire: a Flash channel paced by ibuki's token bucket and a Tide channel paced by ibuki's LEDBAT controller from the one-way delay each acknowledgement measures, over one UDP socket the host frames (0x02 Flash, 0x01 Tide); and the gossip of crash proofs on it: an alert on Flash, the artifact on Tide when a peer asks for it, verified by its content hash and kept in kensa's `kensa-immunity.v1` file.
 
-The host words are `flash_*` (the comm_flash capability) and `tide_*` (comm_scavenger); the clock paces both, so under a stepped clock a run repeats. The host refuses a frame past 1280 bytes; the rate is this bidama's, so a program that calls `flash_put` itself is not paced. The design and its tiers: `theory/IBUKI.md`.
+The host words are `flash_*` (the comm_flash capability) and `tide_*` (comm_scavenger); the clock paces both, so under a stepped clock a run repeats. The host refuses a frame past 1280 bytes, and holds each wire's Flash channel to the same rate and burst as ibuki's bucket (`flash_bytes_per_second`, 16 KiB/s), refusing a send past it as a catchable `:rate_limited`; so a program that calls `flash_put` itself is paced too. `virtualize(:comm_flash, {using: :loopback})` and the same for comm_scavenger carry the frames in process, with no socket. The design and its tiers: `theory/IBUKI.md`.
 
     parts("abcdef", 4) #=> ["abcd", "ef"]
 """
@@ -87,7 +87,7 @@ def address(l)
 end
 
 @doc """
-emit: the link after one Flash frame to `peer`, sent when the bucket holds its bytes (the payload and its framing byte) and after waiting out the bucket when it does not; `sent:` names when and how many bytes. A frame past the MTU is a :bad_option raise and sends nothing.
+emit: the link after one Flash frame to `peer`, sent when the bucket holds its bytes (the payload and its framing byte) and after waiting out the bucket when it does not; `sent:` names when and how many bytes. A frame past the MTU is a :bad_option raise and sends nothing. Under a real clock the host reads its clock a moment after the bucket did, so at the margin it can refuse what the bucket passed: emit waits the host's `wait_ms` once and sends again, and a second refusal raises.
 
     emit(link("127.0.0.1:0", {}), "127.0.0.1:9", "hi").sent.bytes #=> 3
 """
@@ -101,7 +101,15 @@ def emit(l, peer, payload)
     sleep_ms(r.wait_ms)
     emit({**l, flash: r.bucket}, peer, payload)
   else
-    flash_put(l.wire, peer, payload)
+    begin
+      flash_put(l.wire, peer, payload)
+    rescue :rate_limited as e
+      if e.data.wait_ms.nil?
+        raise(e)
+      end
+      sleep_ms(e.data.wait_ms)
+      flash_put(l.wire, peer, payload)
+    end
     {**l, flash: r.bucket, sent: {at_ms: at, bytes:}}
   end
 end
@@ -825,6 +833,15 @@ test "a Flash frame crosses loopback paced by the bucket, and a frame past the M
   assert flash_stats(a.wire).sent == 1
   assert raised(() -> link("127.0.0.1:0", {channels: []})) == :bad_option
   assert raised(() -> link("127.0.0.1:0", {channels: [:radio]})) == :bad_option
+end
+
+test "a frame the host's rate refuses is sent again once the host's wait has passed"
+  a = link("127.0.0.1:0", {channels: [:flash], flash: {rate: 1_000_000}})
+  b = link("127.0.0.1:0", {})
+  big = join(map((_i) -> "x", range(1279)), "")
+  done = reduce((l, _i) -> emit(l, address(b), big), a, range(14))
+  assert flash_stats(done.wire).sent == 14
+  assert flash_stats(done.wire).refused >= 1
 end
 
 test "a Tide frame is acknowledged with the delay it measured, and the acknowledgement grows the window"

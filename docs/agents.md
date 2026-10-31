@@ -8,14 +8,16 @@ summary: rules for people and agents who write blue programs or change blue itse
 
 No `pending-shikumi:` — M2 closed 2026-09-29. `BlueConfig`
 (`crates/blue-lang-cli/src/config.rs`) implements `shikumi::TieredConfig` with
-six bounds, each with a shipped overridable default: `solver_max_steps`,
+seven bounds, each with a shipped overridable default: `solver_max_steps`,
 `max_expr_depth`, the execution budget as `max_call_depth` and
 `max_steps` (depth defaults to tatara-lisp-eval's `DEFAULT_MAX_DEPTH`, steps to
 unbounded, since a default step bound would end runs that work today), and
 live bytes as `max_alloc_bytes` (unbounded, for `blue run` and `blue test`)
 and `guest_max_alloc_bytes` (1 GiB, for sessions, live evaluation, project
 rules and Bluefiles; `crates/blue-lang-runtime/src/memory.rs`), all applied to every
-interpreter through `blue_lang_runtime::set_execution_bounds`.
+interpreter through `blue_lang_runtime::set_execution_bounds`, and
+`flash_bytes_per_second`, the rate the host holds one wire's Flash channel to
+(16 KiB/s, applied through `blue_lang_runtime::wire::set_flash_rate`).
 `flake.nix` carries the module trio that deploys them, and `blue config <tier>`
 is the operator surface.
 

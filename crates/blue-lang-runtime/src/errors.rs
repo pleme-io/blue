@@ -187,7 +187,23 @@ fn raise_with(
 }
 
 pub fn raise_kind(kind: &str, message: String, sp: tatara_lisp::Span) -> EvalError {
-    match raise_with(&[keyword(kind), Value::Str(message.into())], None, sp) {
+    raise_kind_with(kind, message, Value::Nil, sp)
+}
+
+pub fn raise_kind_with(
+    kind: &str,
+    message: String,
+    data: Value,
+    sp: tatara_lisp::Span,
+) -> EvalError {
+    let mut opts = tatara_lisp_eval::Map::new();
+    opts.insert(MapKey::Keyword(Arc::from(DATA)), data);
+    let args = [
+        keyword(kind),
+        Value::Str(message.into()),
+        Value::Map(Arc::new(opts)),
+    ];
+    match raise_with(&args, None, sp) {
         Err(e) => e,
         Ok(_) => unreachable!("raise_with always raises"),
     }

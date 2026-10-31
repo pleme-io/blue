@@ -108,7 +108,8 @@ def main()
         bucket:,
         host:,
         sent: flash_stats(a.wire).sent,
-        received: flash_stats(b.wire).received
+        received: flash_stats(b.wire).received,
+        refused: flash_stats(a.wire).refused
       }
     )
   )
@@ -216,8 +217,274 @@ fn flash_never_exceeds_its_rate_or_its_mtu_and_repeats_under_a_stepped_clock() {
     assert_eq!(j["host"], "refused", "{j}");
     assert_eq!(j["sent"], 40, "a refused frame is not sent: {j}");
     assert_eq!(j["received"], 40, "{j}");
+    assert_eq!(
+        j["refused"], 0,
+        "kodou's pacing never meets the host's rate refusal: {j}"
+    );
     assert_eq!(run(&dir, "flash.b"), j, "a stepped clock repeats the run");
     let _ = std::fs::remove_dir_all(dir);
+}
+
+const RATED: &str = "package(\"wire-rated\", \"0.1.0\")\nallow(%i[comm_flash])\nvirtualize(:clock, {using: :deterministic_stepped, at_ms: 0, step_ms: 0})\n";
+
+const AGREED: &str = "package(\"wire-agreed\", \"0.1.0\")\nallow(%i[comm_flash])\nvirtualize(:clock, {using: :deterministic_stepped, at_ms: 0, step_ms: 0})\nvirtualize(:entropy, {using: :seeded_prng, seed: \"wire\", for: %w[shomei]})\n";
+
+fn bursting(port: u16) -> String {
+    format!(
+        r#"def attempt(w, peer, big)
+  flash_put(w, peer, big)
+  "sent"
+rescue :rate_limited as e
+  "refused #{{to_s(e.data.wait_ms)}}"
+end
+
+def main()
+  w = flash_open("127.0.0.1:0")
+  peer = "127.0.0.1:{port}"
+  big = join(map((_i) -> "x", range(1279)), "")
+  burst = map((_i) -> attempt(w, peer, big), range(13))
+  sleep_ms(15)
+  early = attempt(w, peer, big)
+  sleep_ms(1)
+  late = attempt(w, peer, big)
+  write_stdout(
+    json_stringify(
+      {{
+        burst:,
+        early:,
+        late:,
+        sent: flash_stats(w).sent,
+        refused: flash_stats(w).refused,
+        rate: flash_stats(w).rate
+      }}
+    )
+  )
+end
+"#
+    )
+}
+
+#[test]
+fn a_direct_flash_put_burst_past_the_rate_is_refused_by_the_host_and_the_refusal_is_catchable() {
+    let (l, port) = listener();
+    let dir = project("rated", RATED, &[("burst.b", &bursting(port))]);
+    let j = run(&dir, "burst.b");
+    let burst: Vec<&str> = j["burst"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{j}"))
+        .iter()
+        .map(|v| v.as_str().expect("text"))
+        .collect();
+    assert_eq!(&burst[..12], &["sent"; 12], "{j}");
+    assert_eq!(
+        burst[12], "refused 16",
+        "the thirteenth full frame waits 16 ms: {j}"
+    );
+    assert_eq!(j["early"], "refused 1", "{j}");
+    assert_eq!(
+        j["late"], "sent",
+        "the frame's stepped clock refills the host's bucket: {j}"
+    );
+    assert_eq!(
+        (j["sent"].as_i64(), j["refused"].as_i64()),
+        (Some(13), Some(2)),
+        "{j}"
+    );
+    assert_eq!(j["rate"], 16_384, "{j}");
+    assert_eq!(
+        heard(&l).len(),
+        13,
+        "a refused frame never reaches the socket"
+    );
+
+    let config = dir.join("blue.yaml");
+    put(&config, "flash_bytes_per_second: 2560\n");
+    let o = blue()
+        .env("BLUE_CONFIG", &config)
+        .args(["run", "--quiet"])
+        .arg(dir.join("burst.b"))
+        .output()
+        .expect("blue run");
+    assert!(o.status.success(), "{}{}", out(&o), err(&o));
+    let bounded: Json = serde_json::from_str(out(&o).trim()).expect("json");
+    assert_eq!(
+        bounded["rate"], 2560,
+        "the bound is BlueConfig's: {bounded}"
+    );
+    assert_eq!(bounded["burst"][1], "sent", "{bounded}");
+    assert_eq!(bounded["burst"][2], "refused 500", "{bounded}");
+    assert_eq!(bounded["sent"], 2, "{bounded}");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+fn agreeing(schedule: &[(u64, u64)]) -> String {
+    let rows: Vec<String> = schedule
+        .iter()
+        .map(|(bytes, advance)| format!("[{bytes}, {advance}]"))
+        .collect();
+    format!(
+        r##"use("ibuki", %i[flash flash_send])
+use("retsu", [:push])
+
+def step(acc, s)
+  sleep_ms(nth(1, s))
+  bytes = nth(0, s)
+  r = flash_send(acc.bucket, bytes, now_ms)
+  host = begin
+    flash_put(acc.wire, "127.0.0.1:9", join(map((_i) -> "x", range(bytes - 1)), ""))
+    "sent"
+  rescue :rate_limited as e
+    "wait #{{e.data.wait_ms}}"
+  end
+  model = if r.verdict == :sent
+    "sent"
+  elsif r.verdict == :wait
+    "wait #{{r.wait_ms}}"
+  else
+    "refused"
+  end
+  {{**acc, bucket: r.bucket, rows: push(acc.rows, "#{{model}}|#{{host}}")}}
+end
+
+def main()
+  start = {{wire: flash_open("127.0.0.1:0"), bucket: flash({{}}), rows: []}}
+  done = reduce(step, start, [{rows}])
+  write_stdout(json_stringify(done.rows))
+end
+"##,
+        rows = rows.join(", ")
+    )
+}
+
+#[test]
+fn kodou_s_bucket_and_the_host_s_rate_agree_on_every_send_of_the_same_schedule() {
+    let mut seed: u64 = 0x1b0c;
+    let mut draw = |n: u64| {
+        seed = seed
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
+        (seed >> 33) % n
+    };
+    let schedule: Vec<(u64, u64)> = (0..160).map(|_| (1 + draw(1280), draw(30))).collect();
+    let dir = project("agree", AGREED, &[("agree.b", &agreeing(&schedule))]);
+    let j = run(&dir, "agree.b");
+    let rows = j.as_array().unwrap_or_else(|| panic!("{j}"));
+    assert_eq!(rows.len(), schedule.len());
+    let mut waits = 0;
+    for (i, row) in rows.iter().enumerate() {
+        let (model, host) = row
+            .as_str()
+            .and_then(|r| r.split_once('|'))
+            .unwrap_or_else(|| panic!("row {i}: {row}"));
+        assert_eq!(model, host, "send {i} of {:?}", schedule[i]);
+        if model.starts_with("wait ") {
+            waits += 1;
+        }
+    }
+    assert!(
+        waits > 10 && waits < rows.len() - 10,
+        "both verdicts occur: {waits} waits"
+    );
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+const LOOPED: &str = "package(\"wire-looped\", \"0.1.0\")\nallow([])\nvirtualize(:comm_flash, {using: :loopback})\nvirtualize(:comm_scavenger, {using: :loopback})\n";
+
+fn looping(held: u16, closed: u16) -> String {
+    format!(
+        r#"def main()
+  a = tide_open(flash_open("127.0.0.1:{held}"))
+  b = tide_open(flash_open("127.0.0.1:0"))
+  to = flash_stats(b).address
+  flash_put(a, to, "alert")
+  tide_send(a, to, "bulk", 7)
+  tide_put(a, to, "queued")
+  tide_release(a, 100, 9)
+  flash_put(a, "127.0.0.1:{closed}", "nobody")
+  f = flash_next(b, 0)
+  t1 = tide_next(b, 0)
+  t2 = tide_next(b, 0)
+  write_stdout(
+    json_stringify(
+      {{
+        at: flash_stats(a).address,
+        from: f.from,
+        flash: f.payload,
+        tide: [t1.payload, t1.sent_ms, t2.payload, t2.sent_ms],
+        idle: flash_next(b, 60000).nil?
+      }}
+    )
+  )
+end
+"#
+    )
+}
+
+#[test]
+fn a_program_under_loopback_and_allow_none_sends_and_receives_in_process_and_touches_no_socket() {
+    let (held, held_port) = listener();
+    let (closed, closed_port) = listener();
+    let dir = project(
+        "looped",
+        LOOPED,
+        &[("loop.b", &looping(held_port, closed_port))],
+    );
+    let started = std::time::Instant::now();
+    let j = run(&dir, "loop.b");
+    let at = format!("127.0.0.1:{held_port}");
+    assert_eq!(
+        j,
+        serde_json::json!({
+            "at": at,
+            "from": at,
+            "flash": "alert",
+            "tide": ["bulk", 7, "queued", 9],
+            "idle": true,
+        }),
+        "the link bound the address a real socket holds, which only an in-process link can"
+    );
+    assert!(
+        started.elapsed() < Duration::from_secs(30),
+        "an empty loopback inbox answers at once"
+    );
+    assert!(heard(&held).is_empty(), "the held port heard nothing");
+    assert!(
+        heard(&closed).is_empty(),
+        "a frame to an address no link binds goes nowhere"
+    );
+
+    let bare = scratch("looped-bare");
+    put(&bare.join("loop.b"), &looping(held_port, closed_port));
+    let o = blue()
+        .args(["run", "--quiet", "--allow", "none"])
+        .arg(bare.join("loop.b"))
+        .output()
+        .expect("blue run");
+    assert!(
+        !o.status.success() && err(&o).contains("`flash_open` reaches the host (comm-flash)"),
+        "without the provider the same program is refused: {}",
+        err(&o)
+    );
+    assert!(heard(&held).is_empty() && heard(&closed).is_empty());
+    let _ = std::fs::remove_dir_all(dir);
+    let _ = std::fs::remove_dir_all(bare);
+}
+
+const REPLAYED: &str = "package(\"wire-replayed\", \"0.1.0\")\nallow([])\nvirtualize(:comm_flash, {using: :loopback})\nvirtualize(:comm_scavenger, {using: :loopback})\nvirtualize(:clock, {using: :deterministic_stepped, at_ms: 0, step_ms: 0})\nvirtualize(:filesystem, {using: :null_sink, for: %w[kodou]})\nvirtualize(:entropy, {using: :seeded_prng, seed: \"wire\", for: %w[shomei]})\n";
+
+#[test]
+fn the_paced_flash_program_replays_over_the_loopback_with_the_schedule_it_had_over_udp() {
+    let udp = project("replay-udp", PACED, &[("flash.b", FLASH)]);
+    let looped = project("replay-loop", REPLAYED, &[("flash.b", FLASH)]);
+    let over_udp = run(&udp, "flash.b");
+    let over_loopback = run(&looped, "flash.b");
+    assert_eq!(
+        over_loopback, over_udp,
+        "the same program, the same schedule, no socket"
+    );
+    assert_eq!(over_loopback["refused"], 0, "{over_loopback}");
+    let _ = std::fs::remove_dir_all(udp);
+    let _ = std::fs::remove_dir_all(looped);
 }
 
 #[test]

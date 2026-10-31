@@ -1,8 +1,8 @@
 //! The pure providers a frame binds in place of the host
 //! ([`blue_lang_waku::Provision`]): a deterministic stepped clock, a seeded
-//! PRNG, and a filesystem as an in-memory overlay or a null sink. Each
-//! interpreter gets its own provider state, as each process owns its
-//! interpreter.
+//! PRNG, a filesystem as an in-memory overlay or a null sink, and the wire's
+//! two channels over an in-process loopback. Each interpreter gets its own
+//! provider state, as each process owns its interpreter.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -21,7 +21,12 @@ pub(crate) type Key = fn(&'static str) -> String;
 /// bound to them; a scoped one binds them under [`crate::provided_name`],
 /// where [`crate::Hold::rebind_scoped`] moved the references its packages
 /// write.
-pub fn provide<H: 'static>(interp: &mut Interpreter<H>, provisions: &Provisions) {
+pub fn provide<H: 'static>(
+    interp: &mut Interpreter<H>,
+    provisions: &Provisions,
+) -> Option<crate::wire::ClockRead> {
+    let mut frame_clock = None;
+    let mut links = Vec::new();
     for p in provisions.iter() {
         let key: Key = if p.scope.is_some() {
             crate::provided_name
@@ -30,13 +35,25 @@ pub fn provide<H: 'static>(interp: &mut Interpreter<H>, provisions: &Provisions)
         };
         match &p.provision {
             Provision::DeterministicStepped { at_ms, step_ms } => {
-                clock(interp, key, *at_ms, *step_ms);
+                let peek = clock(interp, key, *at_ms, *step_ms);
+                if p.scope.is_none() {
+                    frame_clock = Some(peek);
+                }
             }
             Provision::SeededPrng { seed } => entropy(interp, key, seed),
             Provision::InMemoryOverlay => filesystem(interp, key, true),
             Provision::NullSink => filesystem(interp, key, false),
+            Provision::Loopback { channel } => links.push((key, *channel)),
         }
     }
+    if !links.is_empty() {
+        let net = Arc::new(crate::wire::LoopbackNet::default());
+        let read = frame_clock.clone().unwrap_or_else(crate::wire::host_clock);
+        for (key, channel) in links {
+            crate::wire::provide_loopback(interp, key, channel, &net, Arc::clone(&read));
+        }
+    }
+    frame_clock
 }
 
 fn locked<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -47,8 +64,17 @@ fn str_value(s: impl Into<String>) -> Value {
     Value::Str(Arc::from(s.into()))
 }
 
-fn clock<H: 'static>(interp: &mut Interpreter<H>, key: Key, at_ms: i64, step_ms: i64) {
+fn clock<H: 'static>(
+    interp: &mut Interpreter<H>,
+    key: Key,
+    at_ms: i64,
+    step_ms: i64,
+) -> crate::wire::ClockRead {
     let t = Arc::new(Mutex::new(at_ms));
+    let peek = {
+        let t = Arc::clone(&t);
+        Arc::new(move || *locked(&t))
+    };
     let read = {
         let t = Arc::clone(&t);
         Arc::new(move || {
@@ -118,6 +144,7 @@ fn clock<H: 'static>(interp: &mut Interpreter<H>, key: Key, at_ms: i64, step_ms:
             Ok(Value::Nil)
         },
     );
+    peek
 }
 
 fn entropy<H: 'static>(interp: &mut Interpreter<H>, key: Key, seed: &str) {
@@ -588,6 +615,12 @@ mod tests {
             Provision::SeededPrng { seed: "s".into() },
             Provision::InMemoryOverlay,
             Provision::NullSink,
+            Provision::Loopback {
+                channel: blue_lang_waku::Channel::Flash,
+            },
+            Provision::Loopback {
+                channel: blue_lang_waku::Channel::Tide,
+            },
         ] {
             let cap = p.capability();
             let mut interp = crate::interpreter_hostless();
@@ -622,5 +655,130 @@ mod tests {
                 );
             }
         }
+    }
+
+    fn wired(provisions: &[Provision], src: &str) -> Result<String, String> {
+        let mut interp = crate::interpreter_hostless();
+        crate::wire::install_wire(&mut interp);
+        let mut ps = Provisions::default();
+        for p in provisions {
+            ps.add(p.clone()).unwrap();
+        }
+        provide(&mut interp, &ps);
+        let forms = tatara_lisp::read_spanned(src).map_err(|e| e.to_string())?;
+        interp
+            .eval_program(&forms, &mut ())
+            .map(|v| v.to_string())
+            .map_err(|e| e.to_string())
+    }
+
+    fn loopback() -> Vec<Provision> {
+        vec![
+            Provision::Loopback {
+                channel: blue_lang_waku::Channel::Flash,
+            },
+            Provision::Loopback {
+                channel: blue_lang_waku::Channel::Tide,
+            },
+        ]
+    }
+
+    #[test]
+    fn a_loopback_link_carries_both_channels_in_process_and_resolves_no_name() {
+        let src = "(begin (define a (tide_open (flash_open \"127.0.0.1:0\"))) (define b (tide_open (flash_open \"127.0.0.1:0\"))) (define to (get (flash_stats b) :address)) (flash_put a to \"alert\") (tide_send a to \"bulk\" 7) (define f (flash_next b 0)) (define t (tide_next b 0)) (list to (get f :payload) (get f :from) (get t :payload) (get t :sent_ms) (flash_next b 60000) (tide_next b 60000)))";
+        let started = std::time::Instant::now();
+        assert_eq!(
+            wired(&loopback(), src).unwrap(),
+            "(\"127.0.0.1:49153\" \"alert\" \"127.0.0.1:49152\" \"bulk\" 7 () ())"
+        );
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(5),
+            "an empty loopback inbox answers at once"
+        );
+        let named = wired(&loopback(), "(flash_open \"localhost:0\")").unwrap_err();
+        assert!(named.contains("resolves no name"), "{named}");
+        let peer = wired(
+            &loopback(),
+            "(flash_put (flash_open \"127.0.0.1:0\") \"localhost:9\" \"x\")",
+        )
+        .unwrap_err();
+        assert!(peer.contains("resolves no name"), "{peer}");
+        let taken = wired(
+            &loopback(),
+            "(begin (define keep (flash_open \"127.0.0.1:7\")) (flash_open \"127.0.0.1:7\"))",
+        )
+        .unwrap_err();
+        assert!(taken.contains("in use"), "{taken}");
+    }
+
+    #[test]
+    fn a_loopback_word_refuses_a_host_socket() {
+        let mut interp = crate::interpreter_hostless();
+        crate::wire::install_wire(&mut interp);
+        let host = interp
+            .eval_program(
+                &tatara_lisp::read_spanned("(tide_open \"127.0.0.1:0\")").unwrap(),
+                &mut (),
+            )
+            .unwrap();
+        let mut ps = Provisions::default();
+        ps.add(Provision::Loopback {
+            channel: blue_lang_waku::Channel::Flash,
+        })
+        .unwrap();
+        provide(&mut interp, &ps);
+        interp.define_global("host", host);
+        let joined = interp
+            .eval_program(
+                &tatara_lisp::read_spanned("(flash_open host)").unwrap(),
+                &mut (),
+            )
+            .unwrap_err()
+            .to_string();
+        assert!(joined.contains("reaches no socket"), "{joined}");
+    }
+
+    #[test]
+    fn the_host_rate_reads_a_whole_program_stepped_clock_so_a_virtual_sleep_refills_it() {
+        let mut ps = vec![Provision::DeterministicStepped {
+            at_ms: 0,
+            step_ms: 0,
+        }];
+        ps.extend(loopback());
+        let big = "x".repeat(1279);
+        let src = format!(
+            "(begin (define w (flash_open \"127.0.0.1:0\")) (define big \"{big}\") (define sent (map (lambda (i) (flash_put w \"127.0.0.1:9\" big)) (list 1 2 3 4 5 6 7 8 9 10 11 12))) (define refused (try (flash_put w \"127.0.0.1:9\" big) (catch (e) (list (blue-field e :kind) (blue-field (blue-field e :data) :wait_ms))))) (sleep_ms 15) (define early (try (flash_put w \"127.0.0.1:9\" big) (catch (e) (blue-field e :kind)))) (sleep_ms 1) (list (length sent) refused early (flash_put w \"127.0.0.1:9\" big) (get (flash_stats w) :refused)))"
+        );
+        assert_eq!(
+            wired(&ps, &src).unwrap(),
+            "(12 (:rate_limited 16) :rate_limited 1280 2)"
+        );
+        let scoped = blue_lang_waku::Provided {
+            provision: Provision::DeterministicStepped {
+                at_ms: 0,
+                step_ms: 0,
+            },
+            scope: Some(std::iter::once("rede".to_string()).collect()),
+        };
+        let mut interp = crate::interpreter_hostless();
+        let mut only = Provisions::default();
+        only.add(scoped).unwrap();
+        assert!(
+            provide(&mut interp, &only).is_none(),
+            "a scoped clock is not the frame's: the rate reads the host's"
+        );
+        let mut whole = Provisions::default();
+        whole
+            .add(Provision::DeterministicStepped {
+                at_ms: 42,
+                step_ms: 5,
+            })
+            .unwrap();
+        let read = provide(&mut interp, &whole).expect("a whole-program clock is the frame's");
+        assert_eq!(
+            (read(), read()),
+            (42, 42),
+            "the rate peeks, it never steps the clock"
+        );
     }
 }

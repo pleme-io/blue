@@ -3,8 +3,9 @@
 //! A frame that virtualizes a capability grants its names, so a package whose
 //! floor needs the capability resolves under a ceiling that withholds it, but
 //! no call reaches the host: the clock steps, entropy is a seeded stream, the
-//! filesystem lives in memory or nowhere. [`Provision::kinds_for`] is
-//! exhaustive over [`Capability`], so a new capability lands with its answer.
+//! filesystem lives in memory or nowhere, and the wire's frames go to an
+//! in-process queue. [`Provision::kinds_for`] is exhaustive over
+//! [`Capability`], so a new capability lands with its answer.
 //!
 //! A provider serves the whole program, or only the packages it names
 //! ([`Provided::scope`]) and every package they use.
@@ -22,14 +23,46 @@ use crate::{Capability, Reach};
 pub enum Provision {
     /// The clock reads `at_ms`; each reading advances it by `step_ms`, and a
     /// sleep advances it by its length and returns at once.
-    DeterministicStepped { at_ms: i64, step_ms: i64 },
+    DeterministicStepped {
+        at_ms: i64,
+        step_ms: i64,
+    },
     /// `random_bytes` reads one BLAKE3 stream keyed by `seed`.
-    SeededPrng { seed: String },
+    SeededPrng {
+        seed: String,
+    },
     /// An isolated tree on an empty base that the run's writes fill; no read
     /// or write reaches the host.
     InMemoryOverlay,
     /// Every write succeeds and is dropped; every read finds nothing.
     NullSink,
+    Loopback {
+        channel: Channel,
+    },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Channel {
+    Flash,
+    Tide,
+}
+
+impl Channel {
+    #[must_use]
+    pub fn capability(self) -> Capability {
+        match self {
+            Channel::Flash => Capability::CommFlash,
+            Channel::Tide => Capability::CommScavenger,
+        }
+    }
+
+    #[must_use]
+    pub fn of(cap: Capability) -> Option<Channel> {
+        [Channel::Flash, Channel::Tide]
+            .into_iter()
+            .find(|c| c.capability() == cap)
+    }
 }
 
 impl Provision {
@@ -39,6 +72,7 @@ impl Provision {
             Provision::DeterministicStepped { .. } => Capability::Clock,
             Provision::SeededPrng { .. } => Capability::Entropy,
             Provision::InMemoryOverlay | Provision::NullSink => Capability::FileSystem,
+            Provision::Loopback { channel } => channel.capability(),
         }
     }
 
@@ -50,6 +84,7 @@ impl Provision {
             Provision::SeededPrng { .. } => "seeded_prng",
             Provision::InMemoryOverlay => "in_memory_overlay",
             Provision::NullSink => "null_sink",
+            Provision::Loopback { .. } => "loopback",
         }
     }
 
@@ -61,6 +96,7 @@ impl Provision {
             Provision::SeededPrng { .. } => "seeded-prng",
             Provision::InMemoryOverlay => "in-memory-overlay",
             Provision::NullSink => "null-sink",
+            Provision::Loopback { .. } => "loopback",
         }
     }
 
@@ -72,11 +108,10 @@ impl Provision {
             Capability::Clock => &["deterministic_stepped"],
             Capability::Entropy => &["seeded_prng"],
             Capability::FileSystem => &["in_memory_overlay", "null_sink"],
+            Capability::CommFlash | Capability::CommScavenger => &["loopback"],
             Capability::Process
             | Capability::Environment
             | Capability::Network
-            | Capability::CommFlash
-            | Capability::CommScavenger
             | Capability::CoreForms
             | Capability::Operators
             | Capability::Collections
@@ -231,6 +266,12 @@ mod tests {
             Provision::SeededPrng { seed: "s".into() },
             Provision::InMemoryOverlay,
             Provision::NullSink,
+            Provision::Loopback {
+                channel: Channel::Flash,
+            },
+            Provision::Loopback {
+                channel: Channel::Tide,
+            },
         ]
     }
 
@@ -242,16 +283,22 @@ mod tests {
     }
 
     #[test]
-    fn every_provider_is_listed_under_its_capability_and_no_other() {
+    fn every_provider_is_listed_under_its_capability_and_each_listing_is_one_provider() {
         for p in every() {
-            for cap in Capability::ALL {
-                assert_eq!(
-                    Provision::kinds_for(cap).contains(&p.name()),
-                    cap == p.capability(),
-                    "{} under {}",
-                    p.name(),
-                    cap.label()
-                );
+            assert!(
+                Provision::kinds_for(p.capability()).contains(&p.name()),
+                "{} under {}",
+                p.name(),
+                p.capability().label()
+            );
+        }
+        for cap in Capability::ALL {
+            for kind in Provision::kinds_for(cap) {
+                let serving: Vec<Provision> = every()
+                    .into_iter()
+                    .filter(|p| p.name() == *kind && p.capability() == cap)
+                    .collect();
+                assert_eq!(serving.len(), 1, "{kind} under {}", cap.label());
             }
         }
         let listed: usize = Capability::ALL
@@ -262,6 +309,24 @@ mod tests {
     }
 
     #[test]
+    fn a_loopback_serves_the_channel_its_capability_drives() {
+        for cap in Capability::ALL {
+            match Channel::of(cap) {
+                Some(channel) => {
+                    assert_eq!(channel.capability(), cap);
+                    assert_eq!(Provision::Loopback { channel }.capability(), cap);
+                }
+                None => assert!(
+                    !matches!(cap, Capability::CommFlash | Capability::CommScavenger),
+                    "{}",
+                    cap.label()
+                ),
+            }
+        }
+        assert_eq!(Channel::of(Capability::Network), None);
+    }
+
+    #[test]
     fn the_lock_label_is_the_bluefile_name_in_kebab_case() {
         for p in every() {
             assert_eq!(p.label(), p.name().replace('_', "-"));
@@ -269,7 +334,7 @@ mod tests {
     }
 
     #[test]
-    fn only_host_effects_can_be_virtualized_and_not_process_network_environment_or_the_wire() {
+    fn only_host_effects_can_be_virtualized_and_not_process_network_or_environment() {
         for cap in Capability::ALL {
             let can = !Provision::kinds_for(cap).is_empty();
             assert!(!can || cap.is_host_effect(), "{}", cap.label());
@@ -278,8 +343,6 @@ mod tests {
             Capability::Process,
             Capability::Network,
             Capability::Environment,
-            Capability::CommFlash,
-            Capability::CommScavenger,
         ] {
             assert!(Provision::kinds_for(cap).is_empty(), "{}", cap.label());
         }
@@ -289,8 +352,15 @@ mod tests {
             Some(Capability::FileSystem)
         );
         assert_eq!(Provision::capability_of("getenv"), None);
-        assert_eq!(Provision::capability_of("flash_put"), None);
-        assert_eq!(Provision::capability_of("tide_release"), None);
+        assert_eq!(
+            Provision::capability_of("flash_put"),
+            Some(Capability::CommFlash)
+        );
+        assert_eq!(
+            Provision::capability_of("tide_release"),
+            Some(Capability::CommScavenger)
+        );
+        assert_eq!(Provision::capability_of("tcp_connect_ms"), None);
         assert_eq!(Provision::capability_of("map"), None);
     }
 

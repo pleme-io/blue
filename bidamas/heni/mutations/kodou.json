@@ -88,5 +88,11 @@
     "file": "kodou.b",
     "find": "      has?(n.wanted, h) or\n      member?(h, n.known)",
     "replace": "      has?(n.wanted, h)"
+  },
+  {
+    "name": "a host refusal is not waited out",
+    "file": "kodou.b",
+    "find": "      sleep_ms(e.data.wait_ms)\n      flash_put(l.wire, peer, payload)",
+    "replace": "      flash_put(l.wire, peer, payload)"
   }
 ]

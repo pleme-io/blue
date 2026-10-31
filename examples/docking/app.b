@@ -49,7 +49,7 @@ def main()
   write_stdout(unlines(last(out)))
 end
 
-test "a fresh bucket sends twelve full packets at once and holds the thirteenth", {
+test "a fresh bucket sends twelve full packets and holds the thirteenth", {
   target: sendable
 }
   assert sendable(0) == 0
@@ -57,7 +57,7 @@ test "a fresh bucket sends twelve full packets at once and holds the thirteenth"
   assert sendable(20) == 12
 end
 
-test "the network is not in this frame: reaching it is a breach no rescue swallows", {
+test "the network is outside this frame: a breach no rescue swallows", {
   satisfies: %i[nist_ac_6 nist_sc_7],
   target: sendable
 }

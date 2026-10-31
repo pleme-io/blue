@@ -16,7 +16,12 @@ row(
 
 row(
   "wire.flash_put.past_the_mtu_sends_nothing",
-  "w = flash_open(\"127.0.0.1:0\")\n[flash_put(w, \"127.0.0.1:9\", join(map((_i) -> \"x\", range(1279)), \"\")), (flash_put(w, \"127.0.0.1:9\", join(map((_i) -> \"x\", range(1280)), \"\")) rescue :refused), flash_stats(w).sent]",
+  join_lines(
+    [
+      "w = flash_open(\"127.0.0.1:0\")",
+      "[flash_put(w, \"127.0.0.1:9\", join(map((_i) -> \"x\", range(1279)), \"\")), (flash_put(w, \"127.0.0.1:9\", join(map((_i) -> \"x\", range(1280)), \"\")) rescue :refused), flash_stats(w).sent]"
+    ]
+  ),
   value("[1280, :refused, 1]"),
   covers("builtin:flash_put"),
   covers("builtin:flash_stats"),
@@ -25,7 +30,7 @@ row(
 
 row(
   "wire.flash_next.nothing_came",
-  "w = flash_open(\"127.0.0.1:0\")\nflash_next(w, 0)",
+  join_lines(["w = flash_open(\"127.0.0.1:0\")", "flash_next(w, 0)"]),
   value("nil"),
   covers("builtin:flash_next"),
   host()
@@ -33,7 +38,9 @@ row(
 
 row(
   "wire.flash_close.then_refused",
-  "w = flash_open(\"127.0.0.1:0\")\nflash_close(w)\nflash_next(w, 0)",
+  join_lines(
+    ["w = flash_open(\"127.0.0.1:0\")", "flash_close(w)", "flash_next(w, 0)"]
+  ),
   fails(:eval, "not open"),
   covers("builtin:flash_close"),
   host()
@@ -56,7 +63,12 @@ row(
 
 row(
   "wire.tide_put.the_ring_evicts_its_oldest",
-  "w = tide_open(\"127.0.0.1:0\", {ring_frames: 2})\n[tide_put(w, \"127.0.0.1:9\", \"a\"), tide_put(w, \"127.0.0.1:9\", \"b\"), tide_put(w, \"127.0.0.1:9\", \"c\"), tide_stats(w).queued, tide_stats(w).evicted]",
+  join_lines(
+    [
+      "w = tide_open(\"127.0.0.1:0\", {ring_frames: 2})",
+      "[tide_put(w, \"127.0.0.1:9\", \"a\"), tide_put(w, \"127.0.0.1:9\", \"b\"), tide_put(w, \"127.0.0.1:9\", \"c\"), tide_stats(w).queued, tide_stats(w).evicted]"
+    ]
+  ),
   value("[0, 0, 1, 2, 1]"),
   covers("builtin:tide_put"),
   covers("builtin:tide_stats"),
@@ -65,7 +77,14 @@ row(
 
 row(
   "wire.tide_release.only_what_the_window_allows",
-  "w = tide_open(\"127.0.0.1:0\")\ntide_put(w, \"127.0.0.1:9\", \"abc\")\ntide_put(w, \"127.0.0.1:9\", \"def\")\n[tide_release(w, 13, 0), tide_release(w, 11, 0), tide_release(w, 12, 0), tide_stats(w).queued]",
+  join_lines(
+    [
+      "w = tide_open(\"127.0.0.1:0\")",
+      "tide_put(w, \"127.0.0.1:9\", \"abc\")",
+      "tide_put(w, \"127.0.0.1:9\", \"def\")",
+      "[tide_release(w, 13, 0), tide_release(w, 11, 0), tide_release(w, 12, 0), tide_stats(w).queued]"
+    ]
+  ),
   value("[12, 0, 12, 0]"),
   covers("builtin:tide_release"),
   host()
@@ -73,7 +92,12 @@ row(
 
 row(
   "wire.tide_send.past_the_mtu",
-  "w = tide_open(\"127.0.0.1:0\")\ntide_send(w, \"127.0.0.1:9\", join(map((_i) -> \"x\", range(1272)), \"\"), 0)",
+  join_lines(
+    [
+      "w = tide_open(\"127.0.0.1:0\")",
+      "tide_send(w, \"127.0.0.1:9\", join(map((_i) -> \"x\", range(1272)), \"\"), 0)"
+    ]
+  ),
   fails(:eval, "at most 1280 bytes"),
   covers("builtin:tide_send"),
   host()
@@ -81,7 +105,7 @@ row(
 
 row(
   "wire.tide_next.nothing_came",
-  "w = tide_open(\"127.0.0.1:0\")\ntide_next(w, 0)",
+  join_lines(["w = tide_open(\"127.0.0.1:0\")", "tide_next(w, 0)"]),
   value("nil"),
   covers("builtin:tide_next"),
   host()
@@ -89,7 +113,14 @@ row(
 
 row(
   "wire.tide_close.a_shared_wire_keeps_its_other_channel",
-  "w = flash_open(\"127.0.0.1:0\")\ntide_open(w)\ntide_close(w)\n[flash_next(w, 0), (tide_next(w, 0) rescue :closed)]",
+  join_lines(
+    [
+      "w = flash_open(\"127.0.0.1:0\")",
+      "tide_open(w)",
+      "tide_close(w)",
+      "[flash_next(w, 0), (tide_next(w, 0) rescue :closed)]"
+    ]
+  ),
   value("[nil, :closed]"),
   covers("builtin:tide_close"),
   host()

@@ -38,7 +38,11 @@ row(
   covers("builtin:json_canonical")
 )
 
-row("json.canonical.bad", "json_canonical(\"{\")", fails(:eval, "json_canonical"))
+row(
+  "json.canonical.bad",
+  "json_canonical(\"{\")",
+  fails(:eval, "json_canonical")
+)
 
 row(
   "json.get",

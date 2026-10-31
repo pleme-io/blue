@@ -7,6 +7,7 @@
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use blue_lang_check::Ty;
 use blue_lang_mondou::store::Identity;
@@ -134,6 +135,46 @@ fn shapes_mixed_inside_a_list_show_no_type() {
     assert_eq!(
         seen(&w, hash("same")),
         vec!["List(List(Int)) -> List(List(Int))", "? -> ?"]
+    );
+}
+
+const SPINS: usize = 50_000;
+
+fn spin_over(len: usize) -> String {
+    format!(
+        "def spin(cs, i, n)\n  if i < n and cs[0] == 0\n    spin(cs, i + 1, n)\n  else\n    i\n  end\nend\n\n\
+         spin(range({len}), 0, {SPINS})\n"
+    )
+}
+
+fn witnessed_within(src: String, limit: Duration) -> (Duration, Vec<String>) {
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let started = Instant::now();
+        let (w, hash) = witnessed(&src);
+        let _ = tx.send((started.elapsed(), seen(&w, hash("spin"))));
+    });
+    rx.recv_timeout(limit)
+        .unwrap_or_else(|_| panic!("a witnessed loop of {SPINS} calls ran past {limit:?}"))
+}
+
+/// The shape of `mokuroku`'s row reader (`row_run_end(keep, cs, i + 1, n)`),
+/// which held `blue test gen/verb-graph.b` past every timeout with the
+/// witness on.
+///
+/// Red run (2026-10-31): without the witness's list memo, every call read
+/// `witness::READ` values of the list it was handed again: `the loop over
+/// 100000 values took 14.847396625s, over one 110.237125ms`.
+#[test]
+fn a_list_every_call_of_a_loop_is_handed_is_read_once() {
+    let limit = Duration::from_secs(120);
+    let (short, small) = witnessed_within(spin_over(1), limit);
+    let (long, large) = witnessed_within(spin_over(100_000), limit);
+    assert_eq!(small, vec!["List(Int) Int Int -> Int"]);
+    assert_eq!(large, vec!["? Int Int -> Int"], "past READ, no type");
+    assert!(
+        long < short * 3 + Duration::from_secs(1),
+        "the loop over 100000 values took {long:?}, over one {short:?}"
     );
 }
 

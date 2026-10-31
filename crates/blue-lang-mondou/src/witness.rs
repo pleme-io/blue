@@ -28,7 +28,7 @@
 //! under [`default_root`]: `blue test` writes there and the language server
 //! reads there, beside what its own live evaluation showed.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
@@ -38,6 +38,7 @@ use blue_lang_check::Ty;
 use blue_lang_runtime::observe::{Call, CallObserver, Exit};
 use blue_lang_runtime::pipeline::Checked;
 use blue_lang_syntax::{Span, Spanned};
+use tatara_lisp_eval::persist::List;
 use tatara_lisp_eval::Value;
 
 use crate::def_hash::{DefHashes, DefKind};
@@ -147,6 +148,9 @@ fn shape(value: &Value, left: &mut usize) -> Shape {
             let mut joined: Option<Shape> = None;
             for item in items.iter() {
                 let s = shape(item, left);
+                if s == Shape::Opaque {
+                    return Shape::Opaque;
+                }
                 joined = Some(match joined {
                     None => s,
                     Some(j) => match join(&j, &s) {
@@ -155,11 +159,7 @@ fn shape(value: &Value, left: &mut usize) -> Shape {
                     },
                 });
             }
-            match joined {
-                None => Shape::List(None),
-                Some(Shape::Opaque) => Shape::Opaque,
-                Some(element) => Shape::List(Some(Box::new(element))),
-            }
+            Shape::List(joined.map(Box::new))
         }
         _ => Shape::Opaque,
     }
@@ -326,12 +326,20 @@ struct State {
     seen: Witnessed,
 }
 
+const LISTS: usize = 16;
+
+const KEPT_FROM: usize = 64;
+
 /// The observer. A call of anything but a loose top-level `def` takes no
-/// lock and keeps no frame, unless it ends a chain of tail calls.
+/// lock and keeps no frame, unless it ends a chain of tail calls. No value
+/// is read while the state is locked, and a list read past `KEPT_FROM`
+/// values is kept by identity (the last `LISTS` of them), so a loop that
+/// hands every call the list it was handed reads it once.
 pub struct Witness {
     targets: HashMap<Arc<str>, (DefHash, Span)>,
     inner: Option<Arc<dyn CallObserver>>,
     state: Mutex<State>,
+    lists: Mutex<VecDeque<(Arc<List>, Shape)>>,
     depth: AtomicUsize,
     top: AtomicUsize,
     carrying: AtomicBool,
@@ -363,6 +371,7 @@ impl Witness {
             targets,
             inner,
             state: Mutex::new(State::default()),
+            lists: Mutex::new(VecDeque::with_capacity(LISTS)),
             depth: AtomicUsize::new(0),
             top: AtomicUsize::new(0),
             carrying: AtomicBool::new(false),
@@ -387,6 +396,35 @@ impl Witness {
         self.state.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
+    fn lists(&self) -> std::sync::MutexGuard<'_, VecDeque<(Arc<List>, Shape)>> {
+        self.lists.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn shape_of(&self, value: &Value) -> Shape {
+        let Value::List(list) = value else {
+            return Shape::of(value);
+        };
+        {
+            let mut kept = self.lists();
+            if let Some(at) = kept.iter().position(|(l, _)| Arc::ptr_eq(l, list)) {
+                let hit = kept.remove(at).expect("a position inside the list");
+                let shape = hit.1.clone();
+                kept.push_back(hit);
+                return shape;
+            }
+        }
+        let mut left = READ;
+        let shape = shape(value, &mut left);
+        if READ - left >= KEPT_FROM {
+            let mut kept = self.lists();
+            if kept.len() >= LISTS {
+                kept.pop_front();
+            }
+            kept.push_back((Arc::clone(list), shape.clone()));
+        }
+        shape
+    }
+
     fn target(&self, call: &Call<'_>) -> Option<DefHash> {
         let (hash, source) = self.targets.get(&**call.name?)?;
         (*source == call.source).then_some(*hash)
@@ -407,14 +445,11 @@ impl CallObserver for Witness {
         if target.is_none() && !self.carrying.load(Ordering::Relaxed) {
             return answered;
         }
+        let own = target.map(|h| (h, args.iter().map(|a| self.shape_of(a)).collect()));
         let mut st = self.state();
         let heads = std::mem::take(&mut st.pending);
         self.carrying.store(false, Ordering::Relaxed);
-        st.stack.push(Frame {
-            depth,
-            own: target.map(|h| (h, args.iter().map(Shape::of).collect())),
-            heads,
-        });
+        st.stack.push(Frame { depth, own, heads });
         self.top.store(depth, Ordering::Relaxed);
         answered
     }
@@ -423,6 +458,10 @@ impl CallObserver for Witness {
         let depth = self.depth.fetch_sub(1, Ordering::Relaxed);
         let ours = self.top.load(Ordering::Relaxed) == depth;
         if ours || self.carrying.load(Ordering::Relaxed) {
+            let ret = match exit {
+                Exit::Returned(v) | Exit::Supplied(v) if ours => Some(self.shape_of(v)),
+                _ => None,
+            };
             let mut st = self.state();
             st.pending.clear();
             self.carrying.store(false, Ordering::Relaxed);
@@ -430,7 +469,7 @@ impl CallObserver for Witness {
                 if let Some(frame) = st.stack.pop() {
                     self.top
                         .store(st.stack.last().map_or(0, |f| f.depth), Ordering::Relaxed);
-                    self.left(&mut st, frame, exit);
+                    self.left(&mut st, frame, exit, ret);
                 }
             }
         }
@@ -441,11 +480,10 @@ impl CallObserver for Witness {
 }
 
 impl Witness {
-    fn left(&self, st: &mut State, frame: Frame, exit: Exit<'_>) {
+    fn left(&self, st: &mut State, frame: Frame, exit: Exit<'_>, ret: Option<Shape>) {
         let Frame { own, mut heads, .. } = frame;
-        match exit {
-            Exit::Returned(v) | Exit::Supplied(v) => {
-                let ret = Shape::of(v);
+        match (exit, ret) {
+            (Exit::Returned(_) | Exit::Supplied(_), Some(ret)) => {
                 for (def, args) in own.into_iter().chain(heads) {
                     st.seen.insert(
                         def,
@@ -456,14 +494,14 @@ impl Witness {
                     );
                 }
             }
-            Exit::TailCalled => {
+            (Exit::TailCalled, _) => {
                 heads.extend(own);
                 if !heads.is_empty() {
                     st.pending = heads;
                     self.carrying.store(true, Ordering::Relaxed);
                 }
             }
-            Exit::Raised(_) => {}
+            _ => {}
         }
     }
 }

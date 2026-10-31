@@ -6,6 +6,9 @@ use std::process::ExitCode;
 
 use blue_lang_pkg::appliance;
 
+#[global_allocator]
+static ALLOC: blue_lang_runtime::alloc::Counting = blue_lang_runtime::alloc::Counting;
+
 fn main() -> ExitCode {
     let payload = match appliance::open_self() {
         Ok(p) => p,

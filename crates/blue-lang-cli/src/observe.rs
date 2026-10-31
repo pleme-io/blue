@@ -280,7 +280,19 @@ fn test_file(
     identify: bool,
 ) -> Result<FileRun, CliError> {
     use std::fmt::Write as _;
-    let (filter, coverage, memo) = (watch.filter, watch.coverage, watch.memo);
+    let own;
+    let guard = match blue_lang_pkg::capabilities::bounds_for(path) {
+        Some(bounds) => {
+            own = blue_lang_test::Guard {
+                bounds: Some(bounds),
+                ..guard.clone()
+            };
+            &own
+        }
+        None => guard,
+    };
+    let (filter, coverage) = (watch.filter, watch.coverage);
+    let memo = crate::memo::unless_bounded(watch.memo, guard.bounds);
     let src = read_compiled(path)?;
     // The check stage first, test blocks included: no test runs over a
     // program with an error, as `run` would not evaluate it.

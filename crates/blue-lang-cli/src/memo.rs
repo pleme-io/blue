@@ -59,6 +59,20 @@ pub(crate) fn mode(no_memo: bool, cfg: &crate::config::BlueConfig) -> Mode {
     Mode::of(no_memo, std::env::var(ENV).ok().as_deref(), cfg)
 }
 
+/// `mode`, or off when a project's own bounds hold the run, as the
+/// operator's do in [`Mode::of`]: an answered call skips the steps and bytes
+/// a bound counts.
+pub(crate) fn unless_bounded(
+    mode: Mode,
+    bounds: Option<blue_lang_runtime::ExecutionBounds>,
+) -> Mode {
+    if bounds.is_some() {
+        Mode::Off
+    } else {
+        mode
+    }
+}
+
 fn store() -> Option<Arc<Store>> {
     let root = store::default_root()?;
     Store::open(&root, Identity::of_this_build(), store::DEFAULT_MAX_BYTES)

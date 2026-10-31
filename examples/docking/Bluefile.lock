@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:400a0562c5290987d1c5842c8c41afc11e904e6f94feb8e63c14c4275f0fcfe3",
+  "bluefile_b3": "b3:7e56f1691ce167f5e9df33cabfa22722cc28d2432f439beb6778622771405ed0",
   "manifest": {
     "schema": 1,
     "name": "ibuki-docking",
@@ -39,6 +39,10 @@
           "shomei"
         ]
       }
+    },
+    "bounds": {
+      "steps": 1000000,
+      "alloc_bytes": 67108864
     }
   },
   "sources": {},
@@ -84,6 +88,10 @@
       "ibuki-docking::main": [
         "clock"
       ]
+    },
+    "bounds": {
+      "steps": 1000000,
+      "alloc_bytes": 67108864
     }
   }
 }

@@ -33,6 +33,7 @@
 /// and the runner reads from its own file.
 pub mod appliance;
 pub mod bluefile;
+pub mod bounds;
 pub mod canonical;
 pub mod capabilities;
 pub mod corpus;

@@ -845,6 +845,10 @@ pub struct CapabilityRecord {
     /// rows. Empty under [`FloorUnit::Package`].
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub definitions: BTreeMap<String, Vec<String>>,
+    /// The root's own execution bounds, as its `bounds(...)` declares them;
+    /// absent when it declares none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bounds: Option<crate::bounds::Bounds>,
 }
 
 /// The root's ceiling as a reach: `Unrestricted` when it declares none.
@@ -979,6 +983,7 @@ pub fn verify(
                     .iter()
                     .map(|(d, caps)| (d.clone(), labels(caps)))
                     .collect(),
+                bounds: None,
             })
         }
         Err(conflict) => {
@@ -1013,8 +1018,9 @@ pub fn verify(
 }
 
 /// Does `record` state the lattice `bf` declares, offline: present exactly
-/// when `bf` declares `allow` or a provider, the same ceiling, providers and
-/// unit, every package floor inside the join and the join under the ceiling
+/// when `bf` declares `allow`, a provider or `bounds`, the same ceiling,
+/// providers, unit and bounds, every package floor inside the join and the
+/// join under the ceiling
 /// and providers. Under [`FloorUnit::Definition`] each package's floor is
 /// exactly the join of its definitions' rows; under [`FloorUnit::Package`]
 /// there are no rows.
@@ -1041,6 +1047,7 @@ pub fn consistent(bf: &Bluefile, record: Option<&CapabilityRecord>) -> bool {
         && r.ceiling == bf.project.allow
         && r.provided == provided
         && r.unit == unit_of(bf)
+        && r.bounds == bf.project.bounds
         && fits
         && r.packages.values().flatten().all(|f| floor.contains(f))
         && evidenced(r)
@@ -1066,21 +1073,48 @@ fn evidenced(r: &CapabilityRecord) -> bool {
     }
 }
 
-/// Does the root at `bf` ask for the lattice to be verified?
+/// Does the root at `bf` ask for the lattice to be verified, or declare
+/// bounds of its own?
 #[must_use]
 pub fn declared(bf: &Bluefile) -> bool {
-    bf.project.allow.is_some() || !bf.project.virtualized.is_empty()
+    bf.project.allow.is_some() || !bf.project.virtualized.is_empty() || bf.project.bounds.is_some()
 }
 
 /// What `blue run` holds the program at `entry` to when its project declares
-/// `allow` or a provider: the ceiling as its frame, and the providers.
-/// `None` when the project declares neither, or there is no project.
+/// `allow`, a provider or `bounds`: the ceiling as its frame, the providers,
+/// and its bounds. `None` when the project declares none of them, or there
+/// is no project.
 ///
 /// # Errors
 ///
 /// The nearest Bluefile above `entry` that is not a bidama's cannot be read
 /// or does not evaluate: the run is refused rather than held to nothing.
 pub fn hold_for(entry: &Path) -> Result<Option<blue_lang_runtime::Hold>, String> {
+    Ok(held_project(entry)?.map(|bf| blue_lang_runtime::Hold {
+        frame: Waku {
+            reach: ceiling_of(&bf),
+            when: When::Anytime,
+            place: Where::Process,
+        },
+        provisions: provisions_of(&bf),
+        bounds: bf.project.bounds.map(crate::bounds::Bounds::execution),
+    }))
+}
+
+/// The bounds the project at `entry` declares, as [`hold_for`] finds its
+/// project; `None` when it declares none, or its Bluefile does not read, as
+/// the loader reads no roots from it.
+#[must_use]
+pub fn bounds_for(entry: &Path) -> Option<blue_lang_runtime::ExecutionBounds> {
+    held_project(entry)
+        .ok()
+        .flatten()?
+        .project
+        .bounds
+        .map(crate::bounds::Bounds::execution)
+}
+
+fn held_project(entry: &Path) -> Result<Option<Bluefile>, String> {
     let dir = entry
         .parent()
         .filter(|d| !d.as_os_str().is_empty())
@@ -1102,20 +1136,13 @@ pub fn hold_for(entry: &Path) -> Result<Option<blue_lang_runtime::Hold>, String>
         if !declared(&bf) && crate::load_path::bidama_of(&bf).is_some() {
             continue;
         }
-        return Ok(declared(&bf).then(|| blue_lang_runtime::Hold {
-            frame: Waku {
-                reach: ceiling_of(&bf),
-                when: When::Anytime,
-                place: Where::Process,
-            },
-            provisions: provisions_of(&bf),
-        }));
+        return Ok(declared(&bf).then_some(bf));
     }
     Ok(None)
 }
 
-/// Verify the project at `dir` when its Bluefile declares a ceiling or a
-/// provider; `None` when it declares neither.
+/// Verify the project at `dir` when its Bluefile declares a ceiling, a
+/// provider or bounds, and record its bounds; `None` when it declares none.
 ///
 /// # Errors
 ///
@@ -1126,7 +1153,12 @@ pub fn check_dir(dir: &Path, bf: &Bluefile) -> Result<Option<CapabilityRecord>, 
     }
     let loader = LoadPath::for_dir(dir).unpinned();
     let g = graph(dir, bf, &loader)?;
-    verify(&g, &ceiling_of(bf), &provisions_of(bf)).map(Some)
+    verify(&g, &ceiling_of(bf), &provisions_of(bf)).map(|r| {
+        Some(CapabilityRecord {
+            bounds: bf.project.bounds,
+            ..r
+        })
+    })
 }
 
 #[cfg(test)]

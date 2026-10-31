@@ -779,6 +779,10 @@ pub struct Guard {
     /// the preamble, every test and every process they start. `blue test`
     /// passes `blue_lang_mondou::def_hash::identify`; `None` names none.
     pub identify: Option<blue_lang_runtime::Identify>,
+    /// The project's own bounds, met with the steps, depth and live bytes
+    /// above, so they only narrow; `blue test` reads them from the
+    /// project's Bluefile.
+    pub bounds: Option<blue_lang_runtime::ExecutionBounds>,
 }
 
 /// `f` on `interp`, held to `bound` live bytes through its interrupt flag;
@@ -852,20 +856,40 @@ pub fn run_guarded(
         ..blue_lang_runtime::Account::default()
     };
     let identified = account.defer_identities(program, lowered, None);
-    if let Some(hold) = &guard.hold {
-        hold.bind(&mut prototype, "this run's frame", &account.host_io);
-        blue_lang_runtime::attach_node_accounted(&mut prototype, Some(hold), &account);
-    } else if identified {
-        blue_lang_runtime::attach_node_accounted(&mut prototype, None, &account);
+    let hold = guard.hold.as_ref().map(|h| blue_lang_runtime::Hold {
+        bounds: match (h.bounds, guard.bounds) {
+            (Some(a), Some(b)) => Some(a.meet(b)),
+            (a, b) => a.or(b),
+        },
+        ..h.clone()
+    });
+    match (&hold, guard.bounds) {
+        (Some(hold), _) => {
+            hold.bind(&mut prototype, "this run's frame", &account.host_io);
+            blue_lang_runtime::attach_node_accounted(&mut prototype, Some(hold), &account);
+        }
+        (None, Some(own)) => blue_lang_runtime::attach_node_bounded(&mut prototype, own, &account),
+        (None, None) if identified => {
+            blue_lang_runtime::attach_node_accounted(&mut prototype, None, &account);
+        }
+        (None, None) => {}
     }
-    let held = guard.hold.is_some();
+    let held = hold.is_some();
+    let max_alloc_bytes = guard.bounds.map_or(guard.max_alloc_bytes, |own| {
+        blue_lang_runtime::ExecutionBounds {
+            max_alloc_bytes: guard.max_alloc_bytes,
+            ..blue_lang_runtime::ExecutionBounds::UNBOUNDED
+        }
+        .meet(own)
+        .max_alloc_bytes
+    });
     let bounds = Bounds {
         steps: guard.steps,
         interrupt: guard.interrupt.clone(),
     };
     match &guard.interrupt {
         Some(flag) => prototype.set_interrupt(Arc::clone(flag)),
-        None if guard.max_alloc_bytes.is_some() => {
+        None if max_alloc_bytes.is_some() => {
             prototype.set_interrupt(Arc::new(AtomicBool::new(false)));
         }
         None => {}
@@ -876,13 +900,16 @@ pub fn run_guarded(
             ..prototype.budget()
         });
     }
+    if let Some(own) = guard.bounds {
+        own.narrow(&mut prototype);
+    }
     prototype.set_call_observer(observer);
     let preamble_rec = Recorder::default();
     install_assert(&mut prototype, &preamble_rec, &bounds);
     let fault = |interp: &Interpreter<()>, i: usize, e: &tatara_lisp_eval::EvalError| {
         Fault::of(program, &erased, i, e, &interp.take_trace()).to_string()
     };
-    let (preamble_error, over) = memory_held(&mut prototype, guard.max_alloc_bytes, |prototype| {
+    let (preamble_error, over) = memory_held(&mut prototype, max_alloc_bytes, |prototype| {
         for (i, form) in preamble {
             if let Err(e) = prototype.eval_top_form(&compare_asserts_spanned(form), &mut ()) {
                 return Some(fault(prototype, i, &e));
@@ -916,7 +943,7 @@ pub fn run_guarded(
         let mut interp = prototype.fork();
         install_assert(&mut interp, &rec, &bounds);
         let before = account.host_io.total();
-        let (ended, over) = memory_held(&mut interp, guard.max_alloc_bytes, |interp| {
+        let (ended, over) = memory_held(&mut interp, max_alloc_bytes, |interp| {
             interp
                 .eval_top_form(&compare_asserts_spanned(block.body), &mut ())
                 .map(drop)

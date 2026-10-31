@@ -219,6 +219,7 @@ const MANIFEST_NAMES: &[&str] = &[
     "allow",
     "virtualize",
     "floors",
+    "bounds",
 ];
 
 /// `blue_lang_runtime::sys::install_process`, 2026-08-13.

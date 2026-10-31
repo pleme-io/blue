@@ -760,6 +760,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                     Some(p) => blue_lang_runtime::Hold {
                         frame: asked.narrow(&p.frame),
                         provisions: p.provisions,
+                        bounds: p.bounds,
                     },
                     None => blue_lang_runtime::Hold::from(asked),
                 })
@@ -821,7 +822,11 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                 text: &src,
             };
             let inputs = bind_inputs(&src, &inputs, &cfg)?;
-            let ran = match memo::mode(no_memo, &cfg) {
+            let memo = memo::unless_bounded(
+                memo::mode(no_memo, &cfg),
+                hold.as_ref().and_then(|h| h.bounds),
+            );
+            let ran = match memo {
                 memo::Mode::Off => blue_lang_runtime::pipeline::run_framed_accounted(
                     entry,
                     inputs,

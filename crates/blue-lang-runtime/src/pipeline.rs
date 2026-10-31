@@ -241,7 +241,7 @@ pub fn run_framed_accounted(
     // Building it is not a stage; nothing is evaluated until `eval_prepared`.
     let (mut interp, mut prepared) = prepared_on(entry, inputs, loader, surface)?;
     hold_to_frame(&mut interp, &mut prepared, hold, account)?;
-    let value = evaluate_held(&mut interp, &prepared)?;
+    let value = evaluate_held(&mut interp, &prepared, hold)?;
     Ok(Run {
         value,
         visited: prepared.visited,
@@ -251,12 +251,13 @@ pub fn run_framed_accounted(
 }
 
 /// A prepared program's top-level forms, then its `main`, held to
-/// `max_alloc_bytes` ([`crate::memory`]).
+/// `max_alloc_bytes` ([`crate::memory`]), met with `hold`'s.
 fn evaluate_held(
     interp: &mut tatara_lisp_eval::Interpreter<()>,
     prepared: &Prepared,
+    hold: Option<&crate::Hold>,
 ) -> Result<Value, RunError> {
-    let bound = crate::execution_bounds().max_alloc_bytes;
+    let bound = crate::execution_bounds_under(hold).max_alloc_bytes;
     let (outcome, over) = crate::memory::held_on(interp, bound, |interp| {
         let value = crate::timings::stage(crate::timings::Stage::Eval, || {
             eval_prepared(interp, prepared, &mut ())
@@ -478,7 +479,7 @@ pub fn run_compiled(
             erased,
         )))
     };
-    let bound = crate::execution_bounds().max_alloc_bytes;
+    let bound = hold.execution_bounds().max_alloc_bytes;
     let (outcome, over) = crate::memory::held_on(&mut interp, bound, |interp| {
         let mut value = Value::Nil;
         for form in erased {
@@ -590,7 +591,7 @@ pub fn run_observed_accounted(
         lowered: &prepared.lowered,
         erased: &prepared.erased,
     })));
-    let outcome = evaluate_held(&mut interp, &prepared).map(|value| Run {
+    let outcome = evaluate_held(&mut interp, &prepared, hold).map(|value| Run {
         value,
         visited: prepared.visited,
         typed_decls: prepared.typed_decls,

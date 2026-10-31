@@ -104,6 +104,7 @@ let
     "sources" "packages" "runs" "tools" "checks" "apps" "catalog" "generated"
     "images" "workloads" "rules" "services" "frontends"
     "visibility" "registries" "reach" "allow" "virtualized" "receipts" "floors"
+    "bounds"
   ];
 
   readLock = src:

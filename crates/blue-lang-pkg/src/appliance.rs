@@ -241,7 +241,8 @@ impl Payload {
     }
 }
 
-/// The hold a policy states: its ceiling as the frame, its providers bound.
+/// The hold a policy states: its ceiling as the frame, its providers bound,
+/// and its bounds met with the runner's.
 /// `None` is the pure frame: every pure capability and no host effect, never
 /// the ambient run `blue run` gives a project that declares nothing.
 ///
@@ -275,6 +276,7 @@ pub fn hold_of(policy: Option<&CapabilityRecord>) -> Result<Hold, Refusal> {
             place: Where::Process,
         },
         provisions,
+        bounds: record.bounds.map(crate::bounds::Bounds::execution),
     })
 }
 

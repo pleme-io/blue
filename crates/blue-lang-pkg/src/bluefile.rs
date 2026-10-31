@@ -198,6 +198,10 @@ pub struct Project {
     /// definitions when undeclared ([`crate::capabilities::FloorUnit`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub floors: Option<crate::capabilities::FloorUnit>,
+    /// `bounds({steps:, call_depth:, alloc_bytes:})`: the root's own
+    /// execution bounds, met with the operator's ([`crate::bounds`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bounds: Option<crate::bounds::Bounds>,
 }
 
 pub const VISIBILITIES: &[&str] = &["public", "unlisted", "private"];
@@ -451,6 +455,10 @@ pub enum Malformed {
     /// Settings no pure provider accepts.
     #[error("`{word}`: {why}")]
     Provider { word: &'static str, why: String },
+    /// Settings that declare no execution bound, or one that is not a
+    /// positive integer.
+    #[error("`{word}`: {why}")]
+    Bounds { word: &'static str, why: String },
 }
 
 /// The frame a Bluefile is evaluated in.
@@ -613,6 +621,18 @@ const WORDS: &[Word] = &[
                 got: label,
             })?;
             set_once(&mut into.project.floors, c.word, "floors".into(), unit)
+        },
+    },
+    Word {
+        name: "bounds",
+        signature: "bounds({steps:, call_depth:, alloc_bytes:})",
+        doc: "The root's own execution bounds, each optional and each a positive integer: `steps` a run (and each test) may take, `call_depth` nested calls alive at once, `alloc_bytes` live bytes one evaluation may hold. `blue lock` records them in the capabilities record; `blue run`, `blue test` and an appliance hold the program to the lesser of each and the operator's BlueConfig bound, so a project narrows a bound and never widens one.",
+        min: 1,
+        max: 1,
+        record: |c, into| {
+            let bounds = crate::bounds::Bounds::of_settings(&c.args[0])
+                .map_err(|why| Malformed::Bounds { word: c.word, why })?;
+            set_once(&mut into.project.bounds, c.word, "bounds".into(), bounds)
         },
     },
     Word {
@@ -1442,7 +1462,7 @@ mod tests {
             .chain(["registry"])
             .chain(["receipt"])
             .chain(["query"])
-            .chain(["reach", "allow", "virtualize", "floors"])
+            .chain(["reach", "allow", "virtualize", "floors", "bounds"])
             // P1b's list argument, 2026-09-23 — `Capability::Collections`.
             .chain(["list", blue_lang_syntax::LOWERED_MAP])
             .chain([

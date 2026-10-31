@@ -71,7 +71,12 @@ document lands.
   (2026-10-30): `max_alloc_bytes` for `run` and `test`, unbounded by
   default; `guest_max_alloc_bytes` for sessions, live evaluation, project
   rules and Bluefiles, 1 GiB by default
-  (`crates/blue-lang-runtime/src/memory.rs`).
+  (`crates/blue-lang-runtime/src/memory.rs`). A project's own (2026-10-31):
+  `bounds({steps:, call_depth:, alloc_bytes:})` in its root Bluefile, each
+  key optional and each a positive integer. `blue lock` records them in the
+  capabilities record, and `blue run`, `blue test` and an appliance hold the
+  program to the lesser of each and the operator's
+  (`crates/blue-lang-pkg/src/bounds.rs`, `ExecutionBounds::meet`).
 - **Share-nothing processes.** Each process owns its interpreter. A message is
   deep-copied, and a function or host handle is refused on send
   (`crates/blue-lang-proc/src/mailbox.rs:130`, `:215`).
@@ -130,7 +135,7 @@ tier. ⚠️ marks a partial seal. ❌ marks an open row.
 | 9 | Memory safety of the host seam | ⚠️ 1 of 18 crates denies `unsafe_code` at its root | workspace `unsafe_code = "deny"`, one `#[allow]` per seam, one seam test | unrepresentable for kiwari → unrepresentable for every crate | on (`#[allow(unsafe_code)]` at a named seam) |
 | 10 | No data races | ✅ share-nothing processes; copy on send; handles refuse to cross | none needed | unrepresentable | n/a |
 | 11 | Panic vs typed refusal | ⚠️ blue faults are catchable; a Rust panic in a native function is not a blue error | one unwind seam at the native-call boundary → `:internal` refusal | open → runtime-refused | on |
-| 12 | Resource bounds | ⚠️ depth bounded; steps unbounded by default; **live bytes bounded per evaluation and per process (landed: `max_alloc_bytes`, `guest_max_alloc_bytes`)**; no wall-clock bound | `max_wall_ms` bound; on for doors that run code they did not write | runtime-refused | memory: off for `run` and `test` (`max_alloc_bytes: null`; it removes working behaviour), 1 GiB for sessions, live evaluation, rules and Bluefiles (`guest_max_alloc_bytes`; `null` lifts it) |
+| 12 | Resource bounds | ⚠️ depth bounded; steps unbounded by default; **live bytes bounded per evaluation and per process (landed: `max_alloc_bytes`, `guest_max_alloc_bytes`)**; **a project bounds its own steps, depth and live bytes with `bounds(...)`, met with the operator's, so it narrows and never widens (landed)**; no wall-clock bound | `max_wall_ms` bound; on for doors that run code they did not write | runtime-refused | memory: off for `run` and `test` (`max_alloc_bytes: null`; it removes working behaviour), 1 GiB for sessions, live evaluation, rules and Bluefiles (`guest_max_alloc_bytes`; `null` lifts it); a project's `bounds`: none until it declares them (drop the word) |
 | 13 | Supply chain | ⚠️ `Bluefile.lock` holds `bluefile_b3`, version ranges and source NAR hashes; B0019 needs-mismatch | the lock records each resolved bidama's b3; the loader refuses a mismatch | runtime-refused at load | on (`blue lock` rewrites) |
 | 14 | Secrets | ❌ a secret is a plain string; `pg_connect` takes a password in the URL | a secret bidama (named through `naming`): read from a file, opaque, redacted on print, refused on send | open → unrepresentable (print) + checked-at-expansion (literal) | on (`# waive`) |
 | 15 | Injection | ⚠️ `exec_*` has no shell; `pg_query` binds params; `sh_exec` and `pg_execute` take text | rule: `sh_exec` / `pg_execute` with an interpolated argument | checked-at-expansion | on (`# waive`) |
@@ -812,6 +817,7 @@ again; a restart spends intensity and then kills innocent siblings).
 | `blue run --allow`, shebang `--allow` | TESTED | `crates/blue-lang-cli/tests/allow.rs` (6 red before the change, 7 green after), `script.rs` unit test |
 | capability lattice in `blue lock`, providers, the project hold | TESTED | `tests/lattice.rs` 6/6, `capabilities.rs` 7, `provide.rs` 5, `provision.rs` 4 |
 | definition floors, `floors(:package)` | TESTED | `tests/lattice.rs` 19/19 (7 red with the default flipped to `:package`, 4 red with `floors(...)` ignored), `capabilities.rs` 16, mondou `reach.rs` 7; cargo mutants over the lattice code, 61 mutants: 7 missed on the first run: 4 closed by tests (a top-level value, a compiled-in package for both units, a declared ceiling with no record), 2 in a bound check since removed (its replacement, mutated to revisit, hangs on the mutual-recursion fixture), 1 equivalent (a guard on the root's own forms); 5 unviable |
+| a project's own bounds, `bounds(...)` | TESTED | `tests/bounds.rs` 6/6 (run, test, `--allow`, a spawned process, a bound past the operator's, the lock and `--confirm`), `blue-lang-appliance` 2 (sealed and applied, steps and live bytes), `bounds.rs` 7; each red with its site reverted: the hold, the test door, the node of a run and of a test, the appliance hold, the meet, the record, `consistent`, the runner's counting allocator, the word |
 | a breach is fatal (D7) | TESTED | tatara-lisp-eval `no_catch_sees_a_fatal_error_on_the_walker`, `no_handler_sees_a_fatal_error_on_the_vm` (cargo mutants: 7 of 7 caught); `allow.rs` 8/8; `blue-lang-proc` `a_fatal_child_is_*` |
 | rows 4, 5 (memory), 6, 10 | EXISTS | measured behaviour cited above |
 | rows 1, 3, 9, 11–15 gates | DESIGN | phases 1–10 |

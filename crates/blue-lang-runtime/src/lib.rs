@@ -153,6 +153,22 @@ pub fn attach_node_in_frame<H: 'static>(interp: &mut Interpreter<H>, frame: &blu
     attach_node_held(interp, &Hold::from(frame.clone()));
 }
 
+/// [`attach_node`] for a program its project bounds: every process it
+/// starts runs under `bounds` met with the process's, and gives `account`
+/// of them as [`attach_node_accounted`] does with no hold.
+pub fn attach_node_bounded<H: 'static>(
+    interp: &mut Interpreter<H>,
+    bounds: ExecutionBounds,
+    account: &Account,
+) {
+    let mut config = node_config_under(execution_bounds().meet(bounds));
+    config.host_io = account.host_io.clone();
+    config.identities = account.identities.clone();
+    config.places = account.places.clone();
+    dispatch::install(interp);
+    blue_lang_proc::install(interp, blue_lang_proc::Node::new(config));
+}
+
 /// [`attach_node_in_frame`] with the hold's providers bound in every child.
 pub fn attach_node_held<H: 'static>(interp: &mut Interpreter<H>, hold: &Hold) {
     attach_node_accounted(interp, Some(hold), &Account::default());
@@ -168,7 +184,7 @@ pub fn attach_node_accounted<H: 'static>(
     hold: Option<&Hold>,
     account: &Account,
 ) {
-    let mut config = node_config();
+    let mut config = node_config_under(execution_bounds_under(hold));
     config.host_io = account.host_io.clone();
     config.identities = account.identities.clone();
     config.places = account.places.clone();
@@ -239,12 +255,17 @@ pub type Identify = fn(
     Option<String>,
 ) -> Identified;
 
-/// What a run is held to: the frame it may reach the host through, and the
-/// capabilities pure providers stand in for.
+/// What a run is held to: the frame it may reach the host through, the
+/// capabilities pure providers stand in for, and the bounds its project
+/// declares beside the process's.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Hold {
     pub frame: blue_lang_waku::Waku,
     pub provisions: blue_lang_waku::Provisions,
+    /// The project's own bounds (`bounds(...)` in its Bluefile), met with
+    /// the process's ([`Hold::execution_bounds`]), so they only narrow.
+    /// `None` runs under the process's bounds alone.
+    pub bounds: Option<ExecutionBounds>,
 }
 
 impl From<blue_lang_waku::Waku> for Hold {
@@ -252,6 +273,7 @@ impl From<blue_lang_waku::Waku> for Hold {
         Self {
             frame,
             provisions: blue_lang_waku::Provisions::default(),
+            bounds: None,
         }
     }
 }
@@ -306,6 +328,14 @@ impl Hold {
         names_of(self.granted())
     }
 
+    /// The bounds a run held here runs under: the process's, met with the
+    /// project's.
+    #[must_use]
+    pub fn execution_bounds(&self) -> ExecutionBounds {
+        let process = execution_bounds();
+        self.bounds.map_or(process, |own| process.meet(own))
+    }
+
     /// The hold as an artifact names it.
     #[must_use]
     pub fn frame(&self) -> Frame {
@@ -330,6 +360,9 @@ impl Hold {
     /// name gets no shim, so a pure frame tallies nothing. A whole-program
     /// clock provider is also the clock the host's Flash rate reads.
     pub fn bind<H: 'static>(&self, interp: &mut Interpreter<H>, who: &'static str, io: &HostIo) {
+        if let Some(bounds) = self.bounds {
+            bounds.narrow(interp);
+        }
         refuse_host_names(interp, &self.withheld_host_names(), who);
         #[cfg(feature = "sys")]
         if let Some(clock) = provide::provide(interp, &self.provisions) {
@@ -507,7 +540,10 @@ pub fn refuse_host_names_noting<H: 'static>(
 /// a host (a node with no host has a virtual clock: time passes only when
 /// every process waits).
 fn node_config() -> blue_lang_proc::NodeConfig {
-    let b = execution_bounds();
+    node_config_under(execution_bounds())
+}
+
+fn node_config_under(b: ExecutionBounds) -> blue_lang_proc::NodeConfig {
     let mut config = blue_lang_proc::NodeConfig::new(std::sync::Arc::new(child_interpreter));
     config.budget = tatara_lisp_eval::vm::Budget {
         fuel: b.max_steps,
@@ -586,6 +622,56 @@ impl ExecutionBounds {
         max_alloc_bytes: None,
         guest_max_alloc_bytes: Some(memory::GUEST_MAX_ALLOC_BYTES),
     };
+
+    /// No bound at all: what [`Self::meet`] leaves any bounds as, so a
+    /// project that declares one bound states it over this.
+    pub const UNBOUNDED: Self = Self {
+        max_call_depth: usize::MAX,
+        max_steps: None,
+        max_alloc_bytes: None,
+        guest_max_alloc_bytes: None,
+    };
+
+    /// The lesser of each bound in `self` and `other`, where `None` is no
+    /// bound: neither side can widen what the other bounds.
+    #[must_use]
+    pub fn meet(self, other: Self) -> Self {
+        Self {
+            max_call_depth: self.max_call_depth.min(other.max_call_depth),
+            max_steps: lesser(self.max_steps, other.max_steps),
+            max_alloc_bytes: lesser(self.max_alloc_bytes, other.max_alloc_bytes),
+            guest_max_alloc_bytes: lesser(self.guest_max_alloc_bytes, other.guest_max_alloc_bytes),
+        }
+    }
+
+    /// Hold `interp` to these bounds as well as its own budget: its depth
+    /// becomes the lesser of the two, and its steps the lesser of
+    /// `max_steps` and the steps its budget has left, counted from here.
+    pub fn narrow<H: 'static>(self, interp: &mut Interpreter<H>) {
+        let budget = interp.budget();
+        let left = budget
+            .fuel
+            .map(|fuel| fuel.saturating_sub(interp.steps_spent()));
+        let _ = interp.set_budget(tatara_lisp_eval::vm::Budget {
+            fuel: lesser(left, self.max_steps),
+            max_depth: lesser(budget.max_depth, Some(self.max_call_depth)),
+            quantum: budget.quantum,
+        });
+    }
+}
+
+fn lesser<T: Ord>(a: Option<T>, b: Option<T>) -> Option<T> {
+    match (a, b) {
+        (Some(a), Some(b)) => Some(a.min(b)),
+        (a, None) => a,
+        (None, b) => b,
+    }
+}
+
+/// The bounds a run held to `hold` runs under; the process's without one.
+#[must_use]
+pub fn execution_bounds_under(hold: Option<&Hold>) -> ExecutionBounds {
+    hold.map_or_else(execution_bounds, Hold::execution_bounds)
 }
 
 /// Name the bounds for this process. The CLI calls this once with the resolved
@@ -773,6 +859,7 @@ mod tests {
             let hold = Hold {
                 frame: session::frame_granting(host),
                 provisions,
+                bounds: None,
             };
             let mut interp = interpreter_hostless();
             let io = HostIo::new();
@@ -843,6 +930,7 @@ mod tests {
                     p.add(Provision::NullSink).expect("one");
                     p
                 },
+                bounds: None,
             };
             assert!(hold.withheld().is_empty());
             assert!(!hold.granted().contains(&Capability::FileSystem));

@@ -227,3 +227,77 @@ fn a_runner_with_no_payload_says_so() {
         text(&out.stderr)
     );
 }
+
+const SPIN: &str = "def spin(n)\n  if n == 0\n    \"done\"\n  else\n    spin(n - 1)\n  end\nend\n\ndef main()\n  write_stdout(unlines([spin(1_000_000)]))\nend\n";
+
+const HOG: &str = "def main()\n  write_stdout(unlines([\"#{length(map((x) -> [x, x], range(0, 20000)))}\"]))\nend\n";
+
+fn bounded(name: &str, bounds: &str, main: &str) -> PathBuf {
+    let dir = scratch(name).join("app");
+    put(
+        &dir.join("Bluefile"),
+        &format!("package(\"app\", \"0.1.0\")\n{bounds}"),
+    );
+    put(&dir.join("main.b"), main);
+    lock(&dir);
+    dir
+}
+
+fn sealed(dir: &Path) -> (Payload, Output) {
+    let payload = appliance::bundle(&dir.join("main.b"), None).expect("bundles");
+    let exe = executable(&dir.parent().unwrap().join("app-exe"), &payload);
+    std::fs::remove_dir_all(dir).unwrap();
+    let out = run(&exe, &[]);
+    (payload, out)
+}
+
+#[test]
+fn a_step_bound_the_project_declares_is_sealed_with_it_and_holds_the_appliance() {
+    let (payload, out) = sealed(&bounded("steps-free", "", SPIN));
+    assert!(payload.policy.is_none());
+    assert_eq!(out.status.code(), Some(0), "{}", text(&out.stderr));
+    assert_eq!(text(&out.stdout), "done\n");
+
+    let (payload, out) = sealed(&bounded(
+        "steps-held",
+        "bounds({steps: 100_000, call_depth: 2000})\n",
+        SPIN,
+    ));
+    let policy = payload.policy.expect("bounds alone seal a record");
+    assert_eq!(
+        serde_json::to_value(policy.bounds).unwrap(),
+        serde_json::json!({"steps": 100_000, "call_depth": 2000})
+    );
+    assert_eq!(policy.ceiling, None);
+    assert!(!out.status.success(), "{}", text(&out.stdout));
+    assert_ne!(out.status.code(), Some(77), "a bound is not a breach");
+    assert!(out.stdout.is_empty(), "{}", text(&out.stdout));
+    assert!(
+        text(&out.stderr).contains("fuel budget of 100000 exceeded in `app::spin`"),
+        "{}",
+        text(&out.stderr)
+    );
+}
+
+#[test]
+fn a_live_byte_bound_the_project_declares_holds_the_appliance() {
+    let (_, out) = sealed(&bounded("alloc-free", "", HOG));
+    assert_eq!(out.status.code(), Some(0), "{}", text(&out.stderr));
+    assert_eq!(text(&out.stdout), "20000\n");
+
+    let (payload, out) = sealed(&bounded(
+        "alloc-held",
+        "bounds({alloc_bytes: 1_048_576})\n",
+        HOG,
+    ));
+    assert_eq!(
+        serde_json::to_value(payload.policy.expect("sealed").bounds).unwrap(),
+        serde_json::json!({"alloc_bytes": 1_048_576})
+    );
+    assert!(!out.status.success(), "{}", text(&out.stdout));
+    assert!(
+        text(&out.stderr).contains("memory-exhausted: live-byte budget of 1048576 exceeded"),
+        "{}",
+        text(&out.stderr)
+    );
+}

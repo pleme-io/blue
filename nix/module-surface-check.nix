@@ -123,6 +123,9 @@ let
     max_expr_depth = 256;
     max_call_depth = 100000;
     max_steps = null;
+    max_alloc_bytes = null;
+    guest_max_alloc_bytes = 1073741824;
+    flash_bytes_per_second = 16384;
   };
 
   evaluates = [
@@ -207,6 +210,18 @@ let
     (expect "a zero step bound is refused (null, not 0, is unbounded)"
       (rejects hmBase homeManagerModule {
         programs.blue = { enable = true; maxSteps = 0; };
+      }))
+    (expect "a zero live-byte bound is refused (null, not 0, is unbounded)"
+      (rejects hmBase homeManagerModule {
+        programs.blue = { enable = true; maxAllocBytes = 0; };
+      }))
+    (expect "a zero guest live-byte bound is refused (null lifts it)"
+      (rejects hmBase homeManagerModule {
+        programs.blue = { enable = true; guestMaxAllocBytes = 0; };
+      }))
+    (expect "a Flash rate above the ceiling is refused"
+      (rejects hmBase homeManagerModule {
+        programs.blue = { enable = true; flashBytesPerSecond = 1073741825; };
       }))
     (expect "a tier outside the enum is refused"
       (rejects hmBase homeManagerModule {

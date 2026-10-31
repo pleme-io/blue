@@ -7,7 +7,10 @@
 //! stays bare, a builtin stays bare. Hashing it, each reference to another
 //! definition is replaced by that definition's hash, so a definition's hash
 //! changes exactly when it, or anything it reaches, changes. Spans, comments
-//! and layout are not in the tree, so they are not in the hash.
+//! and layout are not in the tree, so they are not in the hash. The one span
+//! `lower` writes into the tree, a `raise`'s `path:line` (`blue-raise-at`),
+//! is hashed as the `raise` it was, so how a package was reached, and where
+//! in its file a raise sits, change no hash.
 //!
 //! A definition's own name is metadata, not content: renaming one leaves its
 //! hash, and every caller's, as it was (§5.2: a rename changes names, never
@@ -337,6 +340,18 @@ pub fn test_identities(lowered: &[Spanned], docs: &HashMap<usize, String>) -> Te
     TestIdentities { definitions, tests }
 }
 
+fn located_raise(items: &[Spanned]) -> Option<&[Spanned]> {
+    match items {
+        [head, site, args @ ..]
+            if head.as_symbol() == Some(blue_lang_runtime::errors::RAISE_AT)
+                && matches!(site.form, SpannedForm::Atom(Atom::Str(_))) =>
+        {
+            Some(args)
+        }
+        _ => None,
+    }
+}
+
 /// Every symbol of `form`, in any position.
 fn names<'a>(form: &'a Spanned, out: &mut dyn FnMut(&'a str)) {
     match &form.form {
@@ -578,13 +593,27 @@ impl Unit<'_> {
             SpannedForm::Atom(Atom::Bool(b)) => {
                 h.update(&[tag::BOOL, u8::from(*b)]);
             }
-            SpannedForm::List(items) => {
-                h.update(&[tag::LIST]);
-                h.update(&(items.len() as u64).to_le_bytes());
-                for i in items {
-                    self.node(h, i, own, unit, order);
+            SpannedForm::List(items) => match located_raise(items) {
+                Some(args) => {
+                    h.update(&[tag::LIST]);
+                    h.update(&((args.len() + 1) as u64).to_le_bytes());
+                    let head = Spanned::new(
+                        node.span,
+                        SpannedForm::Atom(Atom::Symbol("raise".to_string())),
+                    );
+                    self.node(h, &head, own, unit, order);
+                    for i in args {
+                        self.node(h, i, own, unit, order);
+                    }
                 }
-            }
+                None => {
+                    h.update(&[tag::LIST]);
+                    h.update(&(items.len() as u64).to_le_bytes());
+                    for i in items {
+                        self.node(h, i, own, unit, order);
+                    }
+                }
+            },
             SpannedForm::Quote(x) => {
                 h.update(&[tag::QUOTE]);
                 self.node(h, x, own, unit, order);
@@ -684,6 +713,72 @@ mod tests {
             ids["%root/g"],
             hash_of(BASE, "g").to_string(),
             "its doc is in its hash"
+        );
+    }
+
+    struct Kagi(&'static str, String);
+
+    impl blue_lang_runtime::uses::Loader for Kagi {
+        fn load(&self, name: &str) -> Result<Vec<(String, String)>, String> {
+            (name == "kagi")
+                .then(|| vec![(self.0.to_string(), self.1.clone())])
+                .ok_or_else(|| format!("no bidama named \"{name}\""))
+        }
+
+        fn entry_package(&self, path: &std::path::Path) -> Option<String> {
+            (path.file_stem()? == "kagi").then(|| "kagi".to_string())
+        }
+    }
+
+    const KAGI: &str = "@doc \"\"\"\nguard: x, refused below zero.\n\"\"\"\n\
+                        def guard(x)\n  if x < 0\n    raise(:negative, \"below zero\")\n  else\n    x\n  end\nend\n";
+
+    fn kagi_ids(entry: Option<&str>, label: &'static str, src: &str) -> BTreeMap<String, String> {
+        let loader = Kagi(label, src.to_string());
+        let text = match entry {
+            Some(_) => src.to_string(),
+            None => "use(\"kagi\")\n\nkagi::guard(1)\n".to_string(),
+        };
+        let checked = blue_lang_runtime::pipeline::check_entry(
+            blue_lang_runtime::uses::Entry {
+                path: entry.map(std::path::Path::new),
+                text: &text,
+            },
+            &loader,
+            None,
+            blue_lang_runtime::pipeline::Checking::Program,
+        )
+        .expect("checks");
+        assert!(checked.outcome.ok(), "{:?}", checked.outcome.diagnostics);
+        let lowered = blue_lang_runtime::pipeline::lower(&checked.program, &checked.names);
+        let engine = crate::hash_checked(&checked.program, &lowered)
+            .of_key("kagi/guard")
+            .expect("kagi/guard")
+            .hash
+            .to_string();
+        let ids = identify(&checked.program, std::sync::Arc::new(lowered), None)();
+        assert_eq!(ids.get("kagi/guard"), Some(&engine));
+        ids
+    }
+
+    /// Red run (2026-10-31): without `located_raise` in `Unit::node`, the
+    /// four reaches named four hashes, since `lower` writes each `raise` as
+    /// `blue-raise-at` and the path and line it was reached by.
+    #[test]
+    fn a_definition_hashes_alike_however_its_package_is_reached_and_wherever_its_raise_sits() {
+        let as_entry = kagi_ids(Some("bidamas/kagi/kagi.b"), "", KAGI)["kagi/guard"].clone();
+        let moved_entry = kagi_ids(Some("/srv/other/kagi/kagi.b"), "", KAGI)["kagi/guard"].clone();
+        let used = kagi_ids(None, "/srv/dist/bidamas/kagi/kagi.b", KAGI)["kagi/guard"].clone();
+        let lower_down = format!("# a note\n\n\ndef unrelated(y)\n  y\nend\n\n{KAGI}");
+        let laid_out = kagi_ids(None, "kagi.b", &lower_down)["kagi/guard"].clone();
+        assert_eq!(as_entry, moved_entry, "the entry's path is not in the hash");
+        assert_eq!(as_entry, used, "an entry and an import hash alike");
+        assert_eq!(as_entry, laid_out, "the raise's line is not in the hash");
+        let other_kind = KAGI.replace(":negative", ":below");
+        assert_ne!(
+            as_entry,
+            kagi_ids(None, "kagi.b", &other_kind)["kagi/guard"],
+            "the raise itself is"
         );
     }
 

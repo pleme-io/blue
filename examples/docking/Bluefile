@@ -15,9 +15,11 @@
 # same lines. Add a host word outside a test block and `blue lock` refuses,
 # naming the package and the capability.
 #
-# A floor counts a whole package: ibuki uses shomei's hashes, and shomei also
-# holds `random`, so shomei's floor names entropy though nothing here calls it.
-# The seeded provider, scoped to shomei, answers that floor without the host.
+# A floor counts the definitions the app reaches (floors(:definition), the
+# default), so shomei's floor is empty here: ibuki uses shomei's hashes, never
+# its `random`. Under floors(:package) a floor counts the whole package and
+# shomei's names entropy; the seeded provider, scoped to shomei, answers it
+# without the host, so the app docks under either unit.
 package("ibuki-docking", "0.1.0")
 
 allow([])

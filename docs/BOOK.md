@@ -1000,7 +1000,7 @@ The run refuses it in the check stage, and `blue lock` refuses the project:
 $ blue run --quiet books/late.b
 books/late.b: refused: `now_ms` reaches the host (clock), which this run does not allow; pass --allow clock to grant it
 $ blue lock books
-blue: [books: needs 'clock'] violates ceiling [] (clock is virtualized only for [ledger] and what they use)
+blue: [books::main: needs 'clock'] violates ceiling [] (clock is virtualized only for [ledger] and what they use)
 ```
 
 The other providers are `:seeded_prng` for `:entropy`, and

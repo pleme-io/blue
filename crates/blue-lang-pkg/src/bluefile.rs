@@ -181,8 +181,8 @@ pub struct Project {
     /// empty, like `generated`.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub queries: BTreeMap<String, String>,
-    /// `reach(capabilities)`: the host capabilities a package declares as its
-    /// floor ([`crate::capabilities`]).
+    /// `reach(capabilities)`: the host capabilities a package declares it may
+    /// reach, the bound of its floor ([`crate::capabilities`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reach: Option<Vec<String>>,
     /// `allow(capabilities)`: the root's ceiling, the most host authority it
@@ -194,6 +194,10 @@ pub struct Project {
     /// the capability's label.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub virtualized: BTreeMap<String, blue_lang_waku::Provided>,
+    /// `floors(unit)`: what `blue lock` counts in each floor; the reached
+    /// definitions when undeclared ([`crate::capabilities::FloorUnit`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub floors: Option<crate::capabilities::FloorUnit>,
 }
 
 pub const VISIBILITIES: &[&str] = &["public", "unlisted", "private"];
@@ -570,7 +574,7 @@ const WORDS: &[Word] = &[
     Word {
         name: "reach",
         signature: "reach(capabilities)",
-        doc: "The host capabilities a package needs, its floor (%i[clock]); without it the floor is what the package's code names, and `blue lock` refuses a reach that misses one.",
+        doc: "The host capabilities a package may reach (%i[clock]): `blue lock` refuses a reach that misses one its reached definitions name. Under the root's `floors(:package)` it is the package's whole floor and must cover everything its code names.",
         min: 1,
         max: 1,
         record: |c, into| {
@@ -587,6 +591,23 @@ const WORDS: &[Word] = &[
         record: |c, into| {
             let caps = c.capabilities(0, "capabilities")?;
             set_once(&mut into.project.allow, c.word, "allow".into(), caps)
+        },
+    },
+    Word {
+        name: "floors",
+        signature: "floors(unit)",
+        doc: "What `blue lock` counts in a floor: :definition (the default), the host capabilities the definitions the root's code reaches name, through every package it uses; or :package, everything each package in the closure names, whole. The lock records it as the capabilities record's `unit`.",
+        min: 1,
+        max: 1,
+        record: |c, into| {
+            let label = c.label(0, "unit")?;
+            let unit = crate::capabilities::FloorUnit::of_label(&label).ok_or(Malformed::Choice {
+                word: c.word,
+                param: "unit",
+                expected: crate::capabilities::FloorUnit::LABELS,
+                got: label,
+            })?;
+            set_once(&mut into.project.floors, c.word, "floors".into(), unit)
         },
     },
     Word {
@@ -1406,7 +1427,7 @@ mod tests {
             .chain(["registry"])
             .chain(["receipt"])
             .chain(["query"])
-            .chain(["reach", "allow", "virtualize"])
+            .chain(["reach", "allow", "virtualize", "floors"])
             // P1b's list argument, 2026-09-23 — `Capability::Collections`.
             .chain(["list", blue_lang_syntax::LOWERED_MAP])
             .chain([

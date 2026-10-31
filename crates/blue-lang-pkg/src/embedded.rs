@@ -49,7 +49,7 @@ impl Standard {
         PACKAGES.iter().any(|(n, _, _)| *n == name)
     }
 
-    fn bluefile(self, name: &str) -> Option<crate::Bluefile> {
+    pub(crate) fn bluefile(self, name: &str) -> Option<crate::Bluefile> {
         let (_, text, _) = PACKAGES.iter().find(|(n, _, _)| *n == name)?;
         crate::read_bluefile(text).ok()
     }

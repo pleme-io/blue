@@ -3,13 +3,18 @@
 //!
 //! One walk of each definition's erased tree (what the evaluator runs) reads
 //! what the definition names on its own; the definitions it calls, from
-//! [`DefHashes`]'s call graph, carry the rest. Each answer is the join of the
-//! two, read until nothing changes. Two answers come off the one walk:
+//! [`DefHashes`]'s call graph, carry the rest. Three answers come off the one
+//! walk; the first and the last are the join of the two, read until nothing
+//! changes, and the middle one leaves the walk over calls to its caller:
 //!
 //! - [`host_reach`]: every host capability (`blue_lang_waku::Capability::
 //!   host_effects`) a definition reaches, with one chain to each: the
 //!   definitions it goes through, then the primitive. What `blue query`'s
 //!   `(reaches CAP)` reads.
+//! - [`form_reach`]: what each top-level form names on its own, host
+//!   capabilities and definitions, so a caller can walk from the forms it
+//!   runs to every definition they reach. What `blue lock`'s floors of
+//!   reached definitions read.
 //! - [`reach_program`]: whether a definition's answer is a function of its
 //!   arguments alone. It is [`Reach::Pure`] only when every name it writes is
 //!   a local, a special form that computes, or a builtin whose documented
@@ -219,6 +224,23 @@ struct Own {
     first: Option<Volatility>,
 }
 
+/// What `form` names on its own, and every key it assigns outside the frame
+/// that binds it, added to `assigned`.
+fn own_of(form: &Spanned, keys: &BTreeSet<&str>, assigned: &mut BTreeSet<String>) -> Own {
+    let mut pass = Pass {
+        keys,
+        frames: Vec::new(),
+        own: Own {
+            host: HostReach::new(),
+            first: None,
+        },
+        assigning: false,
+        assigned,
+    };
+    blue_lang_syntax::scope::walk_top(form, &mut pass);
+    pass.own
+}
+
 /// One walk per definition of `hashes`, in its order, and every key the
 /// program assigns outside the frame that binds it.
 fn walk(erased: &[Spanned], hashes: &DefHashes) -> (Vec<Own>, BTreeSet<String>) {
@@ -233,22 +255,68 @@ fn walk(erased: &[Spanned], hashes: &DefHashes) -> (Vec<Own>, BTreeSet<String>) 
         })
         .collect();
     for (top_level, form) in erased.iter().enumerate() {
-        let mut pass = Pass {
-            keys: &keys,
-            frames: Vec::new(),
-            own: Own {
-                host: HostReach::new(),
-                first: None,
-            },
-            assigning: false,
-            assigned: &mut assigned,
-        };
-        blue_lang_syntax::scope::walk_top(form, &mut pass);
+        let found = own_of(form, &keys, &mut assigned);
         if let Some(d) = hashes.index_at(top_level) {
-            own[d] = pass.own;
+            own[d] = found;
         }
     }
     (own, assigned)
+}
+
+/// What one top-level form names on its own, before what it reaches.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct FormReach {
+    /// Each host capability the form's own code names, with the first
+    /// primitive that names it.
+    pub host: BTreeMap<Capability, String>,
+    /// The other definitions the form names, by index in
+    /// [`DefHashes::defs`]: a call, or a definition passed as a value. A key
+    /// more than one form binds names each of them, since which one runs
+    /// depends on when.
+    pub names: Vec<usize>,
+}
+
+/// One [`FormReach`] per top-level form of `erased`, a definition or not,
+/// `erased` as for [`host_reach`]. The edges a walk from some forms follows
+/// to every definition they can call: what a floor of only the reached
+/// definitions reads (`blue_lang_pkg::capabilities`). A form that is not a
+/// definition, such as a bare call at the top level, runs when its file
+/// loads, so it is here too.
+#[must_use]
+pub fn form_reach(erased: &[Spanned], hashes: &DefHashes) -> Vec<FormReach> {
+    let keys: BTreeSet<&str> = hashes.keys().collect();
+    let mut by_key: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
+    for (i, def) in hashes.defs().iter().enumerate() {
+        by_key.entry(def.key.as_str()).or_default().push(i);
+    }
+    let mut assigned = BTreeSet::new();
+    erased
+        .iter()
+        .enumerate()
+        .map(|(top_level, form)| {
+            let own = own_of(form, &keys, &mut assigned);
+            let itself = hashes.index_at(top_level);
+            let mut named = Vec::new();
+            names_of_keys(form, &keys, &mut named);
+            let mut names: Vec<usize> = named
+                .into_iter()
+                .filter_map(|k| by_key.get(k))
+                .flatten()
+                .copied()
+                .filter(|&d| Some(d) != itself)
+                .collect();
+            names.sort_unstable();
+            names.dedup();
+            FormReach {
+                host: own
+                    .host
+                    .into_iter()
+                    .filter_map(|(cap, chain)| Some((cap, chain.into_iter().next()?)))
+                    .collect(),
+                names,
+            }
+        })
+        .collect()
 }
 
 /// The host reach of every definition in `hashes`, in the same order.
@@ -582,6 +650,53 @@ mod tests {
             r["total"]
         );
         assert!(!r["read_total"].is_pure(), "{:?}", r["read_total"]);
+    }
+
+    fn forms(src: &str) -> (Vec<FormReach>, DefHashes) {
+        let checked = blue_lang_runtime::pipeline::check_entry(
+            blue_lang_runtime::uses::Entry::anonymous(src),
+            &blue_lang_runtime::uses::NoLoader,
+            None,
+            blue_lang_runtime::pipeline::Checking::Program,
+        )
+        .expect("checks");
+        let lowered = blue_lang_runtime::pipeline::lower(&checked.program, &checked.names);
+        let hashes = hash_program(&lowered);
+        (
+            form_reach(&blue_lang_runtime::erase_types(&lowered), &hashes),
+            hashes,
+        )
+    }
+
+    #[test]
+    fn each_form_names_its_own_host_words_and_the_definitions_it_names_and_nothing_further() {
+        let src = "def stamp()\n  now_ms\nend\n\ndef wrap()\n  stamp + 1\nend\n\ndef pure(x)\n  x * 2\nend\n\nwrite_stdout(\"#{wrap} #{read_file(\"/x\")}\")\n";
+        let (forms, hashes) = forms(src);
+        let index = |name: &str| {
+            hashes
+                .defs()
+                .iter()
+                .position(|d| blue_lang_runtime::observe::display_key(&d.key) == name)
+                .unwrap_or_else(|| panic!("{name} is not defined"))
+        };
+        let at = |name: &str| &forms[hashes.defs()[index(name)].top_level];
+        assert_eq!(
+            at("stamp").host,
+            BTreeMap::from([(Capability::Clock, "now_ms".to_string())])
+        );
+        assert!(
+            at("wrap").host.is_empty(),
+            "the clock is stamp's, reached through it, not wrap's own"
+        );
+        assert_eq!(at("wrap").names, vec![index("stamp")]);
+        assert!(at("pure").host.is_empty() && at("pure").names.is_empty());
+        let top = forms.last().expect("the bare call is a form");
+        assert_eq!(
+            top.host,
+            BTreeMap::from([(Capability::FileSystem, "read_file".to_string())])
+        );
+        assert_eq!(top.names, vec![index("wrap")]);
+        assert_eq!(forms.len(), 4);
     }
 
     #[test]

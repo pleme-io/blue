@@ -103,7 +103,7 @@ let
     "schema" "name" "version" "needs" "when"
     "sources" "packages" "runs" "tools" "checks" "apps" "catalog" "generated"
     "images" "workloads" "rules" "services" "frontends"
-    "visibility" "registries" "reach" "allow" "virtualized" "receipts"
+    "visibility" "registries" "reach" "allow" "virtualized" "receipts" "floors"
   ];
 
   readLock = src:

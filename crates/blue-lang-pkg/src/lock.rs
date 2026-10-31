@@ -637,7 +637,7 @@ pub enum Staleness {
     },
     /// The capability lattice the lock records is not the one the packages
     /// verify to now.
-    #[error("the recorded capabilities do not state the Bluefile's allow and virtualize, or their floors do not fit; run `blue lock`")]
+    #[error("the recorded capabilities do not state the Bluefile's allow, virtualize and floors, or their floors do not fit the ceiling or the definitions recorded for them; run `blue lock`")]
     Capabilities,
 }
 

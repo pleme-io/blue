@@ -1,14 +1,23 @@
 //! The capability lattice `blue lock` verifies. Each package's floor is the
-//! set of host capabilities its code names (test blocks aside), or its
-//! declared `reach`, which must cover them. The floors join over the
-//! dependency closure, and the join must fit under the root's `ceiling`
-//! widened by its `virtualize` providers: `⋁ floors ⊑ ceiling ∨ provided`.
-//! A provider scoped `for:` some packages widens only the floors of those
-//! packages and the packages they use. A breach names the path from the root
-//! to the package that needs the capability.
+//! set of host capabilities its code names (test blocks aside). The floors
+//! join over the dependency closure, and the join must fit under the root's
+//! `ceiling` widened by its `virtualize` providers:
+//! `⋁ floors ⊑ ceiling ∨ provided`. A provider scoped `for:` some packages
+//! widens only the floors of those packages and the packages they use.
+//!
+//! What a floor counts is the root's [`FloorUnit`], `floors(...)` in its
+//! Bluefile. By default ([`FloorUnit::Definition`]) a package's floor is what
+//! the definitions the root's code reaches name, read by mondou's reach
+//! ([`blue_lang_mondou::reach::form_reach`]) over the program each root file
+//! loads, so a pure caller of one pure word in a package that also holds a
+//! host word inherits nothing; a declared `reach` bounds what they may name.
+//! A breach names the definitions from the root to the one that names the
+//! capability. With [`FloorUnit::Package`] a floor is everything the
+//! package's code names, or its declared `reach`, which must cover it, and a
+//! breach names the packages from the root.
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use blue_lang_bidama::{resolve, Bidama, Conflict};
 use blue_lang_waku::{Capability, Provided, Provision, Provisions, Reach, Waku, When, Where};
@@ -34,6 +43,54 @@ pub fn host_capability(label: &str) -> Option<Capability> {
     Capability::host_effects()
         .into_iter()
         .find(|c| c.label() == label.trim_start_matches(':'))
+}
+
+/// What a floor counts: the root's `floors(...)`, recorded in the lock as
+/// `unit`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum FloorUnit {
+    /// The host capabilities the definitions the root's code reaches name,
+    /// through every package it uses. The default.
+    #[default]
+    Definition,
+    /// Every host capability each package in the closure names, whole, or
+    /// its declared `reach`.
+    Package,
+}
+
+impl FloorUnit {
+    /// The labels a Bluefile names a unit by, in declaration order.
+    pub const LABELS: &'static [&'static str] = &["definition", "package"];
+
+    /// The unit a Bluefile label names.
+    #[must_use]
+    pub fn of_label(label: &str) -> Option<Self> {
+        match label.trim_start_matches(':') {
+            "definition" => Some(Self::Definition),
+            "package" => Some(Self::Package),
+            _ => None,
+        }
+    }
+
+    #[must_use]
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Definition => "definition",
+            Self::Package => "package",
+        }
+    }
+
+    /// What a record written before `unit` existed counted: whole packages.
+    fn recorded_before_units() -> Self {
+        Self::Package
+    }
+}
+
+/// The unit the root at `bf` counts its floors by.
+#[must_use]
+pub fn unit_of(bf: &Bluefile) -> FloorUnit {
+    bf.project.floors.unwrap_or_default()
 }
 
 /// The provider `settings` asks for `cap`, and the packages it serves:
@@ -193,15 +250,14 @@ fn labels(caps: &BTreeSet<Capability>) -> Vec<String> {
     caps.iter().map(|c| c.label().to_string()).collect()
 }
 
-/// The host capabilities the blue code under `dir` names, test blocks
-/// aside. A subdirectory with its own Bluefile is another package and is
-/// not read.
+/// The blue files of the package at `dir`, sorted. A subdirectory with its
+/// own Bluefile is another package and is not read.
 ///
 /// # Errors
 ///
-/// A file that cannot be read or parsed, named with its path.
-pub fn reached(dir: &Path) -> Result<BTreeSet<Capability>, String> {
-    let mut out = BTreeSet::new();
+/// A directory that cannot be read, named with its path.
+pub fn sources_of(dir: &Path) -> Result<Vec<PathBuf>, String> {
+    let mut out = Vec::new();
     let mut pending = vec![dir.to_path_buf()];
     while let Some(at) = pending.pop() {
         let entries = std::fs::read_dir(&at).map_err(|e| format!("{}: {e}", at.display()))?;
@@ -214,23 +270,39 @@ pub fn reached(dir: &Path) -> Result<BTreeSet<Capability>, String> {
                     pending.push(path);
                 }
             } else if path.extension().is_some_and(|e| e == "b") {
-                let text = std::fs::read_to_string(&path)
-                    .map_err(|e| format!("{}: {e}", path.display()))?;
-                let forms = blue_lang_syntax::parse_program_tree(&text)
-                    .map_err(|e| format!("{}: {e}", path.display()))?;
-                let code: Vec<_> = forms
-                    .into_iter()
-                    .filter(|f| {
-                        f.as_list()
-                            .and_then(|l| l.first())
-                            .and_then(|h| h.as_symbol())
-                            != Some("deftest")
-                    })
-                    .collect();
-                let names = blue_lang_waku::free_names(&code, &|n| capability_of_name(n).is_none());
-                out.extend(names.iter().filter_map(|n| capability_of_name(n)));
+                out.push(path);
             }
         }
+    }
+    out.sort();
+    Ok(out)
+}
+
+/// The host capabilities the blue code under `dir` names, test blocks
+/// aside. A subdirectory with its own Bluefile is another package and is
+/// not read.
+///
+/// # Errors
+///
+/// A file that cannot be read or parsed, named with its path.
+pub fn reached(dir: &Path) -> Result<BTreeSet<Capability>, String> {
+    let mut out = BTreeSet::new();
+    for path in sources_of(dir)? {
+        let text =
+            std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+        let forms = blue_lang_syntax::parse_program_tree(&text)
+            .map_err(|e| format!("{}: {e}", path.display()))?;
+        let code: Vec<_> = forms
+            .into_iter()
+            .filter(|f| {
+                f.as_list()
+                    .and_then(|l| l.first())
+                    .and_then(|h| h.as_symbol())
+                    != Some("deftest")
+            })
+            .collect();
+        let names = blue_lang_waku::free_names(&code, &|n| capability_of_name(n).is_none());
+        out.extend(names.iter().filter_map(|n| capability_of_name(n)));
     }
     Ok(out)
 }
@@ -240,6 +312,23 @@ pub fn reached(dir: &Path) -> Result<BTreeSet<Capability>, String> {
 pub struct Node {
     pub floor: BTreeSet<Capability>,
     pub needs: Vec<String>,
+    /// Under [`FloorUnit::Definition`], each capability of the floor and the
+    /// hops from the root to the definition that names it
+    /// (`app`, `porta::fetch`, `rede::get`). Empty under
+    /// [`FloorUnit::Package`], where a breach names the packages.
+    pub paths: BTreeMap<Capability, Vec<String>>,
+}
+
+impl Node {
+    /// A package with `floor`, using `needs`, with no definition paths.
+    #[must_use]
+    pub fn of(floor: BTreeSet<Capability>, needs: Vec<String>) -> Self {
+        Self {
+            floor,
+            needs,
+            paths: BTreeMap::new(),
+        }
+    }
 }
 
 /// The root and every package it reaches through `use`.
@@ -247,6 +336,13 @@ pub struct Node {
 pub struct Graph {
     pub root: String,
     pub nodes: BTreeMap<String, Node>,
+    /// What each floor counts.
+    pub unit: FloorUnit,
+    /// Under [`FloorUnit::Definition`], every reached definition that names
+    /// a host capability on its own, as `package::name` (a package alone for
+    /// the code at its top level), with what it names: the evidence the
+    /// floors are joined from. Empty under [`FloorUnit::Package`].
+    pub definitions: BTreeMap<String, BTreeSet<Capability>>,
 }
 
 /// Why the lattice could not be verified.
@@ -276,7 +372,8 @@ pub enum CapabilityError {
 /// One capability one package needs that the ceiling withholds.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Breach {
-    /// The packages from the root to the one that needs it.
+    /// The hops from the root to what needs it: the packages, or under
+    /// [`FloorUnit::Definition`] the definitions (`porta::fetch`).
     pub path: Vec<String>,
     pub needs: Capability,
     /// The ceiling with its whole-program providers, as labels.
@@ -319,80 +416,342 @@ impl std::fmt::Display for Breach {
     }
 }
 
+fn declared_reach(bf: Option<&Bluefile>) -> Option<BTreeSet<Capability>> {
+    let declared = bf?.project.reach.as_ref()?;
+    Some(declared.iter().filter_map(|l| host_capability(l)).collect())
+}
+
+fn within_declared(
+    name: &str,
+    code: &BTreeSet<Capability>,
+    declared: &BTreeSet<Capability>,
+) -> Result<(), CapabilityError> {
+    let missing: BTreeSet<Capability> = code.difference(declared).copied().collect();
+    if missing.is_empty() {
+        Ok(())
+    } else {
+        Err(CapabilityError::Undeclared {
+            package: name.to_string(),
+            declared: labels(declared),
+            missing: labels(&missing),
+        })
+    }
+}
+
 fn floor_of(
     name: &str,
     dir: &Path,
     bf: Option<&Bluefile>,
 ) -> Result<BTreeSet<Capability>, CapabilityError> {
     let code = reached(dir).map_err(CapabilityError::Read)?;
-    let Some(declared) = bf.and_then(|b| b.project.reach.as_ref()) else {
+    let Some(declared) = declared_reach(bf) else {
         return Ok(code);
     };
-    let declared: BTreeSet<Capability> =
-        declared.iter().filter_map(|l| host_capability(l)).collect();
-    let missing: BTreeSet<Capability> = code.difference(&declared).copied().collect();
-    if missing.is_empty() {
-        Ok(declared)
-    } else {
-        Err(CapabilityError::Undeclared {
-            package: name.to_string(),
-            declared: labels(&declared),
-            missing: labels(&missing),
-        })
-    }
+    within_declared(name, &code, &declared)?;
+    Ok(declared)
 }
 
-/// The closure of the project at `dir`: its own code, then every package its
-/// code uses, breadth first, each read once.
-///
-/// # Errors
-///
-/// A package that cannot be read, or one whose declared `reach` misses a
-/// capability its code names.
-pub fn graph(dir: &Path, root: &Bluefile, loader: &LoadPath) -> Result<Graph, CapabilityError> {
-    let mut nodes = BTreeMap::new();
-    let mut queue = VecDeque::new();
+/// One package of the closure as the walk found it.
+struct Member {
+    name: String,
+    needs: Vec<String>,
+    dir: Option<PathBuf>,
+    bluefile: Option<Bluefile>,
+}
+
+/// The root, then every package its code uses, breadth first, each read
+/// once. A compiled-in package is a leaf under [`FloorUnit::Package`], as it
+/// always was; under [`FloorUnit::Definition`] its own `use`s are followed,
+/// since its definitions are read like any other.
+fn closure(dir: &Path, root: &Bluefile, loader: &LoadPath, unit: FloorUnit) -> Vec<Member> {
     let root_needs: Vec<String> = crate::needs::used_by(dir)
         .into_iter()
         .filter(|n| *n != root.name)
         .collect();
-    queue.extend(root_needs.iter().cloned());
-    nodes.insert(
-        root.name.clone(),
-        Node {
-            floor: floor_of(&root.name, dir, Some(root))?,
-            needs: root_needs,
-        },
-    );
+    let mut queue: VecDeque<String> = root_needs.iter().cloned().collect();
+    let mut seen = BTreeSet::from([root.name.clone()]);
+    let mut out = vec![Member {
+        name: root.name.clone(),
+        needs: root_needs,
+        dir: Some(dir.to_path_buf()),
+        bluefile: Some(root.clone()),
+    }];
     while let Some(name) = queue.pop_front() {
-        if nodes.contains_key(&name) {
+        if !seen.insert(name.clone()) {
             continue;
         }
-        let Some(Found::Dir(pkg)) = loader.select(&name).found else {
-            nodes.insert(
+        let member = match loader.select(&name).found {
+            Some(Found::Dir(pkg)) => {
+                let bluefile = std::fs::read_to_string(pkg.join(crate::MANIFEST_FILE))
+                    .ok()
+                    .and_then(|t| crate::read_bluefile(&t).ok());
+                let needs: Vec<String> = crate::needs::used_by(&pkg)
+                    .into_iter()
+                    .filter(|n| *n != name)
+                    .collect();
+                Member {
+                    name,
+                    needs,
+                    dir: Some(pkg),
+                    bluefile,
+                }
+            }
+            Some(Found::Standard) if unit == FloorUnit::Definition => {
+                use blue_lang_runtime::uses::Loader;
+                let needs = crate::embedded::Standard
+                    .needs(&name, None)
+                    .unwrap_or_default()
+                    .into_iter()
+                    .collect();
+                Member {
+                    bluefile: crate::embedded::Standard.bluefile(&name),
+                    name,
+                    needs,
+                    dir: None,
+                }
+            }
+            _ => Member {
                 name,
-                Node {
-                    floor: BTreeSet::new(),
-                    needs: Vec::new(),
-                },
-            );
-            continue;
+                needs: Vec::new(),
+                dir: None,
+                bluefile: None,
+            },
         };
-        let bf = std::fs::read_to_string(pkg.join(crate::MANIFEST_FILE))
-            .ok()
-            .and_then(|t| crate::read_bluefile(&t).ok());
-        let needs: Vec<String> = crate::needs::used_by(&pkg)
-            .into_iter()
-            .filter(|n| *n != name)
-            .collect();
-        queue.extend(needs.iter().cloned());
-        let floor = floor_of(&name, &pkg, bf.as_ref())?;
-        nodes.insert(name, Node { floor, needs });
+        queue.extend(member.needs.iter().cloned());
+        out.push(member);
     }
-    Ok(Graph {
+    out
+}
+
+/// The closure of the project at `dir`: its own code, then every package its
+/// code uses, breadth first, each read once, with each floor counted by the
+/// root's [`FloorUnit`] ([`unit_of`]).
+///
+/// # Errors
+///
+/// A package that cannot be read, one whose declared `reach` misses a
+/// capability its code names (under [`FloorUnit::Definition`], its reached
+/// definitions), or under [`FloorUnit::Definition`] a root file whose
+/// program does not load.
+pub fn graph(dir: &Path, root: &Bluefile, loader: &LoadPath) -> Result<Graph, CapabilityError> {
+    let unit = unit_of(root);
+    let members = closure(dir, root, loader, unit);
+    match unit {
+        FloorUnit::Package => {
+            let mut nodes = BTreeMap::new();
+            for m in members {
+                let floor = match &m.dir {
+                    Some(at) => floor_of(&m.name, at, m.bluefile.as_ref())?,
+                    None => BTreeSet::new(),
+                };
+                nodes.insert(m.name, Node::of(floor, m.needs));
+            }
+            Ok(Graph {
+                root: root.name.clone(),
+                nodes,
+                unit,
+                definitions: BTreeMap::new(),
+            })
+        }
+        FloorUnit::Definition => definition_graph(dir, root, loader, members),
+    }
+}
+
+fn definition_graph(
+    dir: &Path,
+    root: &Bluefile,
+    loader: &LoadPath,
+    members: Vec<Member>,
+) -> Result<Graph, CapabilityError> {
+    let evidence = reached_definitions(dir, &root.name, loader)?;
+    let mut nodes = BTreeMap::new();
+    for m in members {
+        let floor = evidence.floors.get(&m.name).cloned().unwrap_or_default();
+        if let Some(declared) = declared_reach(m.bluefile.as_ref()) {
+            within_declared(&m.name, &floor, &declared)?;
+        }
+        nodes.insert(m.name, Node::of(floor, m.needs));
+    }
+    for (name, floor) in &evidence.floors {
+        nodes
+            .entry(name.clone())
+            .or_insert_with(|| Node::of(floor.clone(), Vec::new()));
+    }
+    let mut graph = Graph {
         root: root.name.clone(),
         nodes,
-    })
+        unit: FloorUnit::Definition,
+        definitions: evidence.definitions,
+    };
+    for ((package, cap), chain) in evidence.chains {
+        let hops = match chain.from {
+            None => chain.hops,
+            Some(from) => {
+                let mut hops = graph.path_to(&from);
+                hops.pop();
+                hops.extend(chain.hops);
+                hops
+            }
+        };
+        if let Some(node) = graph.nodes.get_mut(&package) {
+            node.paths.insert(cap, hops);
+        }
+    }
+    Ok(graph)
+}
+
+/// The hops to one definition that names a capability: from the root's own
+/// code (`from` is `None`), or from code at the top level of package `from`,
+/// which runs when it loads.
+struct Chain {
+    from: Option<String>,
+    hops: Vec<String>,
+}
+
+/// What the definitions the root's code reaches name, read over every root
+/// file's program.
+#[derive(Default)]
+struct Evidence {
+    floors: BTreeMap<String, BTreeSet<Capability>>,
+    definitions: BTreeMap<String, BTreeSet<Capability>>,
+    chains: BTreeMap<(String, Capability), Chain>,
+}
+
+/// Every root file is checked as `blue run` would check it (test blocks
+/// dropped), with every package it loads, and lowered to the tree the
+/// evaluator runs. The walk starts at every form the root's code holds and
+/// at every form that runs when its file loads (a bare call, a value, a
+/// macro), and follows each definition a form names
+/// ([`blue_lang_mondou::reach::form_reach`]). A reached form's own host
+/// capabilities join its package's floor. Code built at run time and
+/// `eval`ed is outside any tree, so the run's hold catches it.
+fn reached_definitions(
+    dir: &Path,
+    root: &str,
+    loader: &LoadPath,
+) -> Result<Evidence, CapabilityError> {
+    use blue_lang_mondou::def_hash::DefKind;
+    use blue_lang_runtime::pipeline::{check_entry, lower, namespace_of, Checking};
+    use blue_lang_runtime::uses::{Entry, ResolvedProgram};
+    let mut evidence = Evidence::default();
+    for path in sources_of(dir).map_err(CapabilityError::Read)? {
+        let text = std::fs::read_to_string(&path)
+            .map_err(|e| CapabilityError::Read(format!("{}: {e}", path.display())))?;
+        let checked = check_entry(
+            Entry {
+                path: Some(&path),
+                text: &text,
+            },
+            loader,
+            None,
+            Checking::Program,
+        )
+        .map_err(|e| {
+            CapabilityError::Read(format!(
+                "{}: {e}; a floor of reached definitions reads the program each root file loads (`floors(:package)` counts each package whole)",
+                path.display()
+            ))
+        })?;
+        let program = &checked.program;
+        let lowered = lower(program, &checked.names);
+        let hashes = blue_lang_mondou::def_hash::hash_program(&lowered);
+        let forms =
+            blue_lang_mondou::reach::form_reach(&blue_lang_runtime::erase_types(&lowered), &hashes);
+        let own = |i: usize| program.owner_of(i) == Some(ResolvedProgram::ENTRY);
+        let package_of = |i: usize| match namespace_of(program, i) {
+            blue_lang_check::Namespace::Bidama(p) if !own(i) => p,
+            _ => root.to_string(),
+        };
+        let label_of = |i: usize| {
+            let package = package_of(i);
+            match hashes.at(i) {
+                Some(def) => {
+                    let name = def
+                        .key
+                        .split_once(blue_lang_syntax::QUALIFIER)
+                        .map_or(def.key.as_str(), |(_, n)| n);
+                    format!("{package}::{name}")
+                }
+                None => package,
+            }
+        };
+        let loads = |i: usize| hashes.at(i).is_none_or(|d| d.kind != DefKind::Function);
+        let starts = (0..forms.len())
+            .filter(|&i| own(i))
+            .chain((0..forms.len()).filter(|&i| !own(i) && loads(i)));
+        let mut parent: Vec<Option<usize>> = vec![None; forms.len()];
+        let mut seen = vec![false; forms.len()];
+        let mut order = Vec::new();
+        let mut queue = VecDeque::new();
+        for i in starts {
+            if !seen[i] {
+                seen[i] = true;
+                queue.push_back(i);
+            }
+        }
+        while let Some(at) = queue.pop_front() {
+            order.push(at);
+            for &d in &forms[at].names {
+                let next = hashes.defs()[d].top_level;
+                if seen.get(next) == Some(&false) {
+                    seen[next] = true;
+                    parent[next] = Some(at);
+                    queue.push_back(next);
+                }
+            }
+        }
+        for at in order {
+            if forms[at].host.is_empty() {
+                continue;
+            }
+            let package = package_of(at);
+            let mut walk = vec![at];
+            let mut back = at;
+            while let Some(p) = parent[back] {
+                walk.push(p);
+                back = p;
+            }
+            walk.reverse();
+            let start = walk[0];
+            let chain = || {
+                if !own(start) {
+                    Chain {
+                        from: Some(package_of(start)),
+                        hops: walk.iter().map(|&i| label_of(i)).collect(),
+                    }
+                } else if walk.len() == 1 {
+                    Chain {
+                        from: None,
+                        hops: vec![label_of(start)],
+                    }
+                } else {
+                    Chain {
+                        from: None,
+                        hops: std::iter::once(root.to_string())
+                            .chain(walk[1..].iter().map(|&i| label_of(i)))
+                            .collect(),
+                    }
+                }
+            };
+            for &cap in forms[at].host.keys() {
+                evidence
+                    .floors
+                    .entry(package.clone())
+                    .or_default()
+                    .insert(cap);
+                evidence
+                    .definitions
+                    .entry(label_of(at))
+                    .or_default()
+                    .insert(cap);
+                evidence
+                    .chains
+                    .entry((package.clone(), cap))
+                    .or_insert_with(&chain);
+            }
+        }
+    }
+    Ok(evidence)
 }
 
 impl Graph {
@@ -461,10 +820,20 @@ pub struct CapabilityRecord {
     /// Each virtualized capability's provider, with the packages it is for.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub provided: BTreeMap<String, Provided>,
+    /// What each floor counts; a record written before the field counted
+    /// whole packages.
+    #[serde(default = "FloorUnit::recorded_before_units")]
+    pub unit: FloorUnit,
     /// The join of every floor in the closure.
     pub floor: Vec<String>,
     /// Each package's floor.
     pub packages: BTreeMap<String, Vec<String>>,
+    /// Under [`FloorUnit::Definition`], each reached definition that names a
+    /// host capability on its own (`rede::get`, or `rede` for code at its top
+    /// level) and what it names: each package's floor is the join of its
+    /// rows. Empty under [`FloorUnit::Package`].
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub definitions: BTreeMap<String, Vec<String>>,
 }
 
 /// The root's ceiling as a reach: `Unrestricted` when it declares none.
@@ -515,7 +884,8 @@ pub fn provisions_of(bf: &Bluefile) -> Provisions {
 ///
 /// [`CapabilityError::Scope`] for a `for:` package the root does not reach;
 /// [`CapabilityError::Breach`], one row per package and capability past the
-/// ceiling, each with its path from the root.
+/// ceiling, each with its path from the root: the node's definition path
+/// under [`FloorUnit::Definition`], else the packages.
 pub fn verify(
     graph: &Graph,
     ceiling: &Reach,
@@ -586,11 +956,17 @@ pub fn verify(
                     .iter()
                     .map(|p| (p.provision.capability().label().to_string(), p.clone()))
                     .collect(),
+                unit: graph.unit,
                 floor: labels(&joined),
                 packages: graph
                     .nodes
                     .iter()
                     .map(|(n, node)| (n.clone(), labels(&node.floor)))
+                    .collect(),
+                definitions: graph
+                    .definitions
+                    .iter()
+                    .map(|(d, caps)| (d.clone(), labels(caps)))
                     .collect(),
             })
         }
@@ -609,7 +985,11 @@ pub fn verify(
                     .filter(|c| !widened.grants(*c))
                 {
                     breaches.push(Breach {
-                        path: graph.path_to(&name),
+                        path: node
+                            .paths
+                            .get(&cap)
+                            .cloned()
+                            .unwrap_or_else(|| graph.path_to(&name)),
                         needs: cap,
                         ceiling: shown_ceiling(&widened),
                         provided_for: scoped_for.get(&cap).cloned().unwrap_or_default(),
@@ -622,9 +1002,11 @@ pub fn verify(
 }
 
 /// Does `record` state the lattice `bf` declares, offline: present exactly
-/// when `bf` declares `allow` or a provider, the same ceiling and providers,
-/// every package floor inside the join and the join under the ceiling and
-/// providers.
+/// when `bf` declares `allow` or a provider, the same ceiling, providers and
+/// unit, every package floor inside the join and the join under the ceiling
+/// and providers. Under [`FloorUnit::Definition`] each package's floor is
+/// exactly the join of its definitions' rows; under [`FloorUnit::Package`]
+/// there are no rows.
 #[must_use]
 pub fn consistent(bf: &Bluefile, record: Option<&CapabilityRecord>) -> bool {
     let Some(r) = record else {
@@ -647,8 +1029,30 @@ pub fn consistent(bf: &Bluefile, record: Option<&CapabilityRecord>) -> bool {
     declared(bf)
         && r.ceiling == bf.project.allow
         && r.provided == provided
+        && r.unit == unit_of(bf)
         && fits
         && r.packages.values().flatten().all(|f| floor.contains(f))
+        && evidenced(r)
+}
+
+fn evidenced(r: &CapabilityRecord) -> bool {
+    match r.unit {
+        FloorUnit::Package => r.definitions.is_empty(),
+        FloorUnit::Definition => {
+            let mut joined: BTreeMap<&str, BTreeSet<&String>> = BTreeMap::new();
+            for (definition, caps) in &r.definitions {
+                let package = definition
+                    .split_once("::")
+                    .map_or(definition.as_str(), |(p, _)| p);
+                joined.entry(package).or_default().extend(caps);
+            }
+            joined.keys().all(|p| r.packages.contains_key(*p))
+                && r.packages.iter().all(|(p, floor)| {
+                    floor.iter().collect::<BTreeSet<_>>()
+                        == joined.get(p.as_str()).cloned().unwrap_or_default()
+                })
+        }
+    }
 }
 
 /// Does the root at `bf` ask for the lattice to be verified?
@@ -719,10 +1123,10 @@ mod tests {
     use super::*;
 
     fn node(floor: &[Capability], needs: &[&str]) -> Node {
-        Node {
-            floor: floor.iter().copied().collect(),
-            needs: needs.iter().map(ToString::to_string).collect(),
-        }
+        Node::of(
+            floor.iter().copied().collect(),
+            needs.iter().map(ToString::to_string).collect(),
+        )
     }
 
     fn sample() -> Graph {
@@ -733,6 +1137,8 @@ mod tests {
                 ("dep-a".into(), node(&[], &["dep-b"])),
                 ("dep-b".into(), node(&[Capability::Network], &[])),
             ]),
+            unit: FloorUnit::Package,
+            definitions: BTreeMap::new(),
         }
     }
 
@@ -1030,6 +1436,166 @@ mod tests {
                 "[app] -> [dep-a] -> [dep-b: needs 'network'] violates ceiling [filesystem]",
             ]
         );
+    }
+
+    #[test]
+    fn under_definition_floors_a_breach_names_the_definitions_from_the_root() {
+        let mut g = sample();
+        g.unit = FloorUnit::Definition;
+        g.nodes.get_mut("app").unwrap().floor = BTreeSet::new();
+        g.nodes.get_mut("dep-b").unwrap().paths = BTreeMap::from([(
+            Capability::Network,
+            vec!["app".into(), "dep-a::wrap".into(), "dep-b::get".into()],
+        )]);
+        g.definitions =
+            BTreeMap::from([("dep-b::get".into(), BTreeSet::from([Capability::Network]))]);
+        let err = verify(&g, &reach(&[]), &Provisions::default()).expect_err("dep-b::get");
+        assert_eq!(
+            err.to_string(),
+            "[app] -> [dep-a::wrap] -> [dep-b::get: needs 'network'] violates ceiling []"
+        );
+        let record =
+            verify(&g, &reach(&[Capability::Network]), &Provisions::default()).expect("fits");
+        assert_eq!(record.unit, FloorUnit::Definition);
+        assert_eq!(
+            record.definitions,
+            BTreeMap::from([("dep-b::get".to_string(), vec!["network".to_string()])])
+        );
+    }
+
+    fn root(extra: &str) -> Bluefile {
+        crate::read_bluefile(&format!(
+            "package(\"app\", \"0.1.0\")\nallow(%i[network])\n{extra}"
+        ))
+        .unwrap()
+    }
+
+    fn record(
+        unit: &str,
+        packages: serde_json::Value,
+        definitions: serde_json::Value,
+    ) -> CapabilityRecord {
+        serde_json::from_value(serde_json::json!({
+            "ceiling": ["network"],
+            "unit": unit,
+            "floor": ["network"],
+            "packages": packages,
+            "definitions": definitions,
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn a_consistent_record_states_the_unit_and_joins_each_floor_from_its_definitions() {
+        let floors = serde_json::json!({"app": [], "rede": ["network"]});
+        let rows = serde_json::json!({"rede::get": ["network"]});
+        let by_definition = record("definition", floors.clone(), rows.clone());
+        assert!(consistent(&root(""), Some(&by_definition)));
+        assert!(
+            !consistent(&root(""), None),
+            "a declared ceiling needs its record"
+        );
+        let undeclared = crate::read_bluefile("package(\"app\", \"0.1.0\")\n").unwrap();
+        assert!(consistent(&undeclared, None));
+        assert!(!consistent(&undeclared, Some(&by_definition)));
+        assert!(
+            !consistent(&root("floors(:package)\n"), Some(&by_definition)),
+            "the Bluefile counts packages; the record counted definitions"
+        );
+        assert!(
+            !consistent(
+                &root(""),
+                Some(&record("definition", floors.clone(), serde_json::json!({})))
+            ),
+            "a floor with no definition behind it"
+        );
+        assert!(
+            !consistent(
+                &root(""),
+                Some(&record(
+                    "definition",
+                    serde_json::json!({"app": [], "rede": []}),
+                    rows.clone()
+                ))
+            ),
+            "a definition row its package's floor leaves out"
+        );
+        assert!(
+            !consistent(
+                &root(""),
+                Some(&record(
+                    "definition",
+                    floors.clone(),
+                    serde_json::json!({"nowhere::get": ["network"]})
+                ))
+            ),
+            "a row for a package outside the closure"
+        );
+        assert!(consistent(
+            &root("floors(:package)\n"),
+            Some(&record("package", floors.clone(), serde_json::json!({})))
+        ));
+        assert!(
+            !consistent(
+                &root("floors(:package)\n"),
+                Some(&record("package", floors, rows))
+            ),
+            "whole packages carry no definition rows"
+        );
+    }
+
+    #[test]
+    fn a_record_written_before_units_reads_as_whole_packages() {
+        let old: CapabilityRecord = serde_json::from_value(serde_json::json!({
+            "ceiling": [],
+            "floor": [],
+            "packages": {"app": []}
+        }))
+        .unwrap();
+        assert_eq!(old.unit, FloorUnit::Package);
+        assert!(old.definitions.is_empty());
+        assert!(
+            !consistent(&root(""), Some(&old)),
+            "a lock counted by package is stale under the definition default"
+        );
+        let json = serde_json::to_value(record(
+            "definition",
+            serde_json::json!({"app": []}),
+            serde_json::json!({}),
+        ))
+        .unwrap();
+        assert_eq!(json["unit"], "definition");
+        assert!(json.get("definitions").is_none(), "{json}");
+    }
+
+    #[test]
+    fn floors_names_a_unit_and_refuses_any_other() {
+        assert_eq!(root("").project.floors, None);
+        assert_eq!(unit_of(&root("")), FloorUnit::Definition);
+        assert_eq!(unit_of(&root("floors(:package)\n")), FloorUnit::Package);
+        assert_eq!(
+            unit_of(&root("floors(:definition)\n")),
+            FloorUnit::Definition
+        );
+        for label in FloorUnit::LABELS {
+            assert_eq!(
+                FloorUnit::of_label(label).map(FloorUnit::label),
+                Some(*label)
+            );
+        }
+        let refused = crate::read_bluefile("package(\"app\", \"0.1.0\")\nfloors(:module)\n")
+            .expect_err("no such unit")
+            .to_string();
+        assert!(
+            refused.contains("definition")
+                && refused.contains("package")
+                && refused.contains("module"),
+            "{refused}"
+        );
+        let twice = crate::read_bluefile(
+            "package(\"app\", \"0.1.0\")\nfloors(:package)\nfloors(:definition)\n",
+        );
+        assert!(twice.is_err(), "declared once");
     }
 
     #[test]

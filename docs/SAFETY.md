@@ -208,19 +208,59 @@ and never restarts it, so a `one_for_all` sweep leaves it down
 `a_breach_in_a_spawned_process_ends_it_and_its_monitor_sees_why`) and
 `blue-lang-proc`'s `a_fatal_child_is_*`.
 
-**The lattice (2026-10-30).** A package's floor is the set of host
-capabilities its code names (test blocks aside), or its declared
-`reach(%i[…])`, which `blue lock` refuses when it misses one. The root
-states its ceiling with `allow(%i[…])`, the manifest spelling of `--allow`.
-`blue lock` joins the floors over the closure the root's `use` forms reach
-and checks `⋁ floors ⊑ allow ∨ provided` (`blue_lang_bidama::resolve`,
+**The lattice (2026-10-30).** The root states its ceiling with
+`allow(%i[…])`, the manifest spelling of `--allow`. `blue lock` joins the
+floors over the closure the root's `use` forms reach and checks
+`⋁ floors ⊑ allow ∨ provided` (`blue_lang_bidama::resolve`,
 `crates/blue-lang-pkg/src/capabilities.rs`). A breach writes no lock and names
-its path, one row per package and capability:
+its path, one row per package and capability. A verified lock carries a
+`capabilities` record (ceiling, providers, `unit`, the join, each floor, and
+under definition floors each definition row); `blue bluefile --confirm` checks
+the record against the Bluefile offline, and nix's project engine refuses a
+Bluefile that declares `allow` or `virtualize` with no record. A root that
+declares neither locks as before.
+
+**Definition floors (2026-10-30).** What a floor counts is the root's
+`floors(:definition | :package)`, `:definition` when undeclared. Under
+`:definition`, `blue lock` checks every root file as `blue run` would (test
+blocks dropped) with every package it loads, lowers it to the tree the
+evaluator runs, and walks from the root's own forms, and from each form that
+runs when its file loads (a bare call, a value, a macro), along every
+definition a form names (`blue_lang_mondou::reach::form_reach`). A package's
+floor is the host capabilities its reached forms name on their own, so a pure
+caller of one pure word in a package that also holds a host word inherits
+nothing. A declared `reach(%i[…])` bounds what the reached definitions may
+name and is refused when they name more. A breach names the definitions from
+the root: `[app] -> [porta::fetch] -> [rede::get: needs 'network'] violates
+ceiling []`, or `[app::main: needs 'clock']` when the root's own definition
+names it. The record's `definitions` map each reached definition that names a
+host capability (`rede::get`, or `rede` for code at its top level) to what it
+names, and `--confirm` holds each package's floor to exactly the join of its
+rows. A quoted form is code here: `eval(quote read_file(p) end)` counts, which
+the whole-package reading (waku's free names) never counted. Code the lock
+never read, such as a dependency edited after it, is the hold's: the run
+breaches and exits 77. A root file whose program does not load refuses the
+lock, never counts as empty. A compiled-in package is read like any other
+here; under `:package` it stays the empty leaf it was.
+
+`floors(:package)` keeps the whole-package reading, configured on rather than
+deleted: a package's floor is every host capability its code names (test
+blocks aside), or its declared `reach`, which `blue lock` refuses when it
+misses one, and a breach names packages:
 `[app] -> [porta] -> [rede: needs 'network'] violates ceiling [filesystem, clock]`.
-A verified lock carries a `capabilities` record (ceiling, providers, the join,
-each floor); `blue bluefile --confirm` checks the record against the Bluefile
-offline, and nix's project engine refuses a Bluefile that declares `allow` or
-`virtualize` with no record. A root that declares neither locks as before.
+A record written before `unit` existed reads as `package`, so its lock is
+stale under the default until relocked. Measured on the case that ranked it
+first (`theory/IBUKI.md` §VI): a root that imports `tesuto` only for
+`raises?` locks under `allow([])`, where whole packages refuse it for
+tesuto's filesystem and environment. Tests: `tests/lattice.rs`
+(`a_root_that_reaches_only_a_pure_word_resolves_under_allow_none`,
+`a_root_that_reaches_the_host_word_is_refused_with_the_definitions_on_the_way`,
+`an_evaled_host_word_is_counted_when_written_and_stopped_by_the_hold_when_the_lock_never_read_it`,
+`counting_whole_packages_reproduces_the_package_verdicts`,
+`a_root_that_imports_tesuto_only_for_raises_no_longer_inherits_its_disk_and_environment`,
+`a_compiled_in_package_is_followed_by_definition_and_a_leaf_by_package`),
+`capabilities.rs` (4 more), mondou `reach.rs`
+(`each_form_names_its_own_host_words_and_the_definitions_it_names_and_nothing_further`).
 
 **Providers (2026-10-30).** `virtualize(cap, {using: …})` binds a capability
 to a pure provider (`blue_lang_waku::Provision`,
@@ -243,8 +283,9 @@ refuses a whole-program provider for a capability `allow` also grants, but
 provider only for the named packages and every package they `use`. In the
 lattice it comes out of those packages' floors before the join; a package
 outside it that needs the capability still breaches, with its path:
-`[app] -> [porta: needs 'clock'] violates ceiling [] (clock is virtualized only
-for [rede] and what they use)`. A `for:` that names a package the root does
+`[app] -> [porta::fetch: needs 'clock'] violates ceiling [] (clock is
+virtualized only for [rede] and what they use)` (`[porta: needs 'clock']`
+under `floors(:package)`). A `for:` that names a package the root does
 not reach is refused. At run time the program is checked as written; then
 `Hold::rebind_scoped` moves the capability's host names that a file of a
 served package writes onto `%provided/<name>`, which only the provider binds
@@ -262,9 +303,9 @@ the same hold with its own provider state. `--allow` narrows it further and
 never widens it, and keeps the project's providers: `--allow none` still runs
 a leaf its project virtualizes. A project Bluefile that does not read refuses
 the run: `capabilities::hold_for` fails closed, never holds to nothing.
-Tests: `crates/blue-lang-cli/tests/lattice.rs` (12, the last
+Tests: `crates/blue-lang-cli/tests/lattice.rs` (19, among them
 `a_project_bluefile_that_does_not_read_refuses_the_run_instead_of_running_ambient`),
-`capabilities.rs` (12), `provide.rs` (6), `provision.rs` (5), `uses.rs`
+`capabilities.rs` (16), `provide.rs` (6), `provision.rs` (5), `uses.rs`
 (`a_package_reaches_*`, `renaming_*`, `quoted_data_*`).
 
 **Appliances (2026-10-30).** `blue bundle FILE --runner blue-appliance -o
@@ -595,9 +636,11 @@ again; a restart spends intensity and then kills innocent siblings).
   2026-10-30 by D7: a breach escapes every `rescue`.
 - ~~**Q2 (ours).** How a bidama's declared reach composes with the root's
   frame.~~ Closed 2026-10-30: floors join and must fit under `allow` widened
-  by `virtualize` (row 8 note, "The lattice"). Open: a floor counts the whole
-  package; a floor of only the definitions the root reaches (mondou's reach)
-  would remove the over-approximation.
+  by `virtualize` (row 8 note, "The lattice"). The over-approximation it left
+  open, a floor that counts the whole package, closed the same day: floors
+  count the definitions the root reaches (mondou's reach), and a declared
+  reach bounds them (row 8 note, "Definition floors"); `floors(:package)`
+  keeps the whole-package reading.
 - **Q3 (world-fact).** WASI has no subprocess spawn; `Process` stays a blue
   import with no WASI lowering.
 - **Q4 (world-fact).** A shebang flag needs `env -S` on Linux.
@@ -628,6 +671,7 @@ again; a restart spends intensity and then kills innocent siblings).
 | B0053 discarded-value | TESTED | registry witness, spec rows `safety.B0053*`, census 0 of 355 files |
 | `blue run --allow`, shebang `--allow` | TESTED | `crates/blue-lang-cli/tests/allow.rs` (6 red before the change, 7 green after), `script.rs` unit test |
 | capability lattice in `blue lock`, providers, the project hold | TESTED | `tests/lattice.rs` 6/6, `capabilities.rs` 7, `provide.rs` 5, `provision.rs` 4 |
+| definition floors, `floors(:package)` | TESTED | `tests/lattice.rs` 19/19 (7 red with the default flipped to `:package`, 4 red with `floors(...)` ignored), `capabilities.rs` 16, mondou `reach.rs` 7; cargo mutants over the lattice code, 61 mutants: 7 missed on the first run: 4 closed by tests (a top-level value, a compiled-in package for both units, a declared ceiling with no record), 2 in a bound check since removed (its replacement, mutated to revisit, hangs on the mutual-recursion fixture), 1 equivalent (a guard on the root's own forms); 5 unviable |
 | a breach is fatal (D7) | TESTED | tatara-lisp-eval `no_catch_sees_a_fatal_error_on_the_walker`, `no_handler_sees_a_fatal_error_on_the_vm` (cargo mutants: 7 of 7 caught); `allow.rs` 8/8; `blue-lang-proc` `a_fatal_child_is_*` |
 | rows 4, 5 (memory), 6, 10 | EXISTS | measured behaviour cited above |
 | rows 1, 3, 9, 11–15 gates | DESIGN | phases 1–10 |

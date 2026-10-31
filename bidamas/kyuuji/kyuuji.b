@@ -15,10 +15,9 @@ use("gamen", %i[css element? render url_ok?])
 
 use("kousei", %i[field flag int_in list_of one_of overlay record_whys required])
 
-use("kyohi", [:refusal])
+use("kyohi", %i[raised refusal])
 use("retsu", %i[first is_empty last rest])
 use("shinsuu", %i[bytes_base64 hex_bytes])
-use("tesuto", [:raises?])
 
 @doc """
 response: Build a response record.
@@ -1294,7 +1293,7 @@ test "a router keeps sound routes and refuses each bad or overlapping one alone"
   assert second(first(app[:refusals])) == "GET /a/new overlaps /a/:id"
   assert router([])[:routes] == []
   assert router([])[:refusals] == []
-  assert raises?(:bad_option, () -> router([], {colour: 1}))
+  assert raised(() -> router([], {colour: 1})) == :bad_option
 end
 
 test "resolve binds path parameters, decodes them, and takes a tail with *"
@@ -1374,13 +1373,11 @@ test "redirect answers a 3xx with a safe location and refuses anything else"
   assert r[:headers]["Location"] == "/done?x=1"
   assert r[:body] == ""
   assert redirect(301, "https://blue.example/")[:status] == 301
-  assert raises?(:bad_option, () -> redirect(200, "/"))
-  assert raises?(:bad_option, () -> redirect(302, "//evil.example/"))
-  assert raises?(:bad_option, () -> redirect(302, "javascript:alert(1)"))
-  assert raises?(
-    :bad_option,
-    () -> redirect(302, join_lines(["/a\r", "Set-Cookie: x"]))
-  )
+  assert raised(() -> redirect(200, "/")) == :bad_option
+  assert raised(() -> redirect(302, "//evil.example/")) == :bad_option
+  assert raised(() -> redirect(302, "javascript:alert(1)")) == :bad_option
+  assert raised(() -> redirect(302, join_lines(["/a\r", "Set-Cookie: x"]))) ==
+    :bad_option
 end
 
 test "guard lets nil and true through, answers 403 for false, and passes a refusal response on"
@@ -1390,7 +1387,7 @@ test "guard lets nil and true through, answers 403 for false, and passes a refus
   assert guard(ok, (_r) -> true)(req)[:body] == "in"
   assert guard(ok, (_r) -> false)(req)[:status] == 403
   assert guard(ok, (_r) -> text(401, "who"))(req)[:status] == 401
-  assert raises?(:bad_option, () -> guard(ok, (_r) -> 7)(req))
+  assert raised(() -> guard(ok, (_r) -> 7)(req)) == :bad_option
   assert guard(site, (_r) -> nil)(request("GET", "/u/3", ""))[:body] == "user 3"
 end
 
@@ -1409,9 +1406,9 @@ test "body reads text, json and a form, by name or by Content-Type"
   assert body(request("POST", "/", ""), :text) == ""
   assert body(request("POST", "/", ""), :form) == {}
   bad = assoc(request("POST", "/", ""), :body, "{nope")
-  assert raises?(:bad_request, () -> body(bad, :json))
-  assert raises?(:unsupported, () -> body(bad, :auto))
-  assert raises?(:bad_option, () -> body(bad, :xml))
+  assert raised(() -> body(bad, :json)) == :bad_request
+  assert raised(() -> body(bad, :auto)) == :unsupported
+  assert raised(() -> body(bad, :xml)) == :bad_option
 end
 
 test "recover turns a raised kind into its status and hides an unknown fault"
@@ -1440,8 +1437,8 @@ test "timeout answers 503 past its deadline and passes a fast answer through"
   assert late[:status] == 503
   assert late[:body] == unlines(["the handler ran past its 20 ms deadline"])
   assert timeout((_r) -> text(200, "quick"), 1000)(req)[:body] == "quick"
-  assert raises?(:bad_option, () -> timeout(slow, 0))
-  assert raises?(:bad_option, () -> timeout(slow, 1.5))
+  assert raised(() -> timeout(slow, 0)) == :bad_option
+  assert raised(() -> timeout(slow, 1.5)) == :bad_option
 end
 
 test "stream keeps each chunk in order and the body is their join"
@@ -1537,15 +1534,11 @@ test "cors answers an allowed preflight, marks allowed answers, and refuses a ba
     ),
     "Access-Control-Allow-Origin"
   ) == "*"
-  assert raises?(
-    :bad_option,
-    () -> cors(h, {origins: ["*"], credentials: true})
-  )
-  assert raises?(:bad_option, () -> cors(h, {origin: ["x"]}))
-  assert raises?(
-    :bad_option,
-    () -> cors(h, {origins: ["x"], methods: ["BREW"]})
-  )
+  assert raised(() -> cors(h, {origins: ["*"], credentials: true})) ==
+    :bad_option
+  assert raised(() -> cors(h, {origin: ["x"]})) == :bad_option
+  assert raised(() -> cors(h, {origins: ["x"], methods: ["BREW"]})) ==
+    :bad_option
 end
 
 test "upgrade answers the RFC 6455 handshake and the wire refuses a hand-off it cannot make"

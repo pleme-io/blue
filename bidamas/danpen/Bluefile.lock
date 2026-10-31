@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:ddff219ac90d4293dad19dd2297e16a08e4e20ae1ade4620486f36aec268d3a5",
+  "bluefile_b3": "b3:693fec991744b4f30d1a5f83dd6ffcd0d1b7dd340d2aaf4a42909cc6513667c3",
   "manifest": {
     "schema": 1,
     "name": "danpen",
@@ -8,10 +8,10 @@
     "needs": {
       "deeta": "^0.1.0",
       "kiwari": "^0.1.0",
+      "kyohi": "^0.1.0",
       "moji": "^0.1.0",
       "retsu": "^0.1.0",
-      "shomei": "^0.1.0",
-      "tesuto": "^0.1.0"
+      "shomei": "^0.1.0"
     },
     "when": "anytime",
     "sources": {},

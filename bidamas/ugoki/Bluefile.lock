@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:56b568d469998ee25ed360e19bcfe86e9d96a07a2ea1b82256780509bd938954",
+  "bluefile_b3": "b3:6ffa9aab204a96212f390020e8b4348209b0f78522c3140f14d49ee37392f8f1",
   "manifest": {
     "schema": 1,
     "name": "ugoki",
@@ -8,9 +8,9 @@
     "needs": {
       "jisho": "^0.1.0",
       "kazu": "^0.1.0",
+      "kyohi": "^0.1.0",
       "moji": "^0.1.0",
-      "retsu": "^0.1.0",
-      "tesuto": "^0.1.0"
+      "retsu": "^0.1.0"
     },
     "when": "anytime",
     "sources": {},

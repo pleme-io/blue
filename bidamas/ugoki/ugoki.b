@@ -11,9 +11,9 @@ word is pure: no clock, no host.
 
 use("jisho")
 use("kazu", %i[abs clamp lerp])
+use("kyohi", [:raised])
 use("moji", [:checked])
 use("retsu", %i[count_where first zip])
-use("tesuto", [:raises?])
 
 def named_curves()
   {
@@ -320,17 +320,17 @@ test "curve declares each kind and refuses what it cannot draw"
   assert curve(:named, :ease_in) ==
     {kind: :bezier, points: [0.42, 0.0, 1.0, 1.0]}
   assert curve(:named, :ease) == curve(:bezier, [0.25, 0.1, 0.25, 1.0])
-  assert raises?(:bad_option, () -> curve(:linear, 3))
-  assert raises?(:bad_option, () -> curve(:steps, 0))
-  assert raises?(:bad_option, () -> curve(:steps, 2.5))
-  assert raises?(:bad_option, () -> curve(:bezier, [0, 0, 1]))
-  assert raises?(:bad_option, () -> curve(:bezier, [2, 0, 0.5, 1]))
-  assert raises?(:bad_option, () -> curve(:bezier, [0.5, 0, -0.1, 1]))
-  assert raises?(:bad_option, () -> curve(:bezier, [0.5, 0, 1.5, 1]))
-  assert raises?(:bad_option, () -> curve(:bezier, [-0.5, 0, 0.5, 1]))
-  assert raises?(:bad_option, () -> curve(:bezier, nil))
-  assert raises?(:bad_option, () -> curve(:named, :wobble))
-  assert raises?(:bad_option, () -> curve(:spline, nil))
+  assert raised(() -> curve(:linear, 3)) == :bad_option
+  assert raised(() -> curve(:steps, 0)) == :bad_option
+  assert raised(() -> curve(:steps, 2.5)) == :bad_option
+  assert raised(() -> curve(:bezier, [0, 0, 1])) == :bad_option
+  assert raised(() -> curve(:bezier, [2, 0, 0.5, 1])) == :bad_option
+  assert raised(() -> curve(:bezier, [0.5, 0, -0.1, 1])) == :bad_option
+  assert raised(() -> curve(:bezier, [0.5, 0, 1.5, 1])) == :bad_option
+  assert raised(() -> curve(:bezier, [-0.5, 0, 0.5, 1])) == :bad_option
+  assert raised(() -> curve(:bezier, nil)) == :bad_option
+  assert raised(() -> curve(:named, :wobble)) == :bad_option
+  assert raised(() -> curve(:spline, nil)) == :bad_option
 end
 
 test "ease is the identity on linear and pins both ends on every curve"
@@ -379,7 +379,7 @@ test "mix blends vectors element by element and refuses unequal sizes"
   assert mix([0, 10], [10, 20], 0.5) == [5, 15]
   assert mix([], [], 0.5) == []
   assert mix([[0, 0], [2, 2]], [[2, 2], [4, 4]], 0.5) == [[1, 1], [3, 3]]
-  assert raises?(:bad_option, () -> mix([1, 2], [1], 0.5))
+  assert raised(() -> mix([1, 2], [1], 0.5)) == :bad_option
 end
 
 test "mix blends colors channel by channel, with alpha only when both have it"
@@ -412,13 +412,11 @@ test "mix slerps rotations along the shortest arc"
 end
 
 test "mix refuses values of different kinds"
-  assert raises?(:bad_option, () -> mix(1, "a", 0.5))
-  assert raises?(:bad_option, () -> mix({r: 0, g: 0, b: 0}, 1, 0.5))
-  assert raises?(
-    :bad_option,
-    () -> mix({r: 0, g: 0, b: 0}, {x: 0, y: 0, z: 0, w: 1}, 0.5)
-  )
-  assert raises?(:bad_option, () -> mix(nil, nil, 0.5))
+  assert raised(() -> mix(1, "a", 0.5)) == :bad_option
+  assert raised(() -> mix({r: 0, g: 0, b: 0}, 1, 0.5)) == :bad_option
+  assert raised(() -> mix({r: 0, g: 0, b: 0}, {x: 0, y: 0, z: 0, w: 1}, 0.5)) ==
+    :bad_option
+  assert raised(() -> mix(nil, nil, 0.5)) == :bad_option
 end
 
 test "tween declares a change, defaults to linear, and refuses what cannot run"
@@ -428,12 +426,12 @@ test "tween declares a change, defaults to linear, and refuses what cannot run"
   assert m[:seconds] == 2
   eased = tween(0, 1, {seconds: 1, curve: curve(:steps, 2)})
   assert eased[:curve] == {kind: :steps, count: 2}
-  assert raises?(:bad_option, () -> tween(0, 1, {}))
-  assert raises?(:bad_option, () -> tween(0, 1, {seconds: 0}))
-  assert raises?(:bad_option, () -> tween(0, 1, {seconds: -1}))
-  assert raises?(:bad_option, () -> tween(0, 1, {seconds: "2"}))
-  assert raises?(:bad_option, () -> tween(0, 1, {seconds: 1, speed: 2}))
-  assert raises?(:bad_option, () -> tween(0, "a", {seconds: 1}))
+  assert raised(() -> tween(0, 1, {})) == :bad_option
+  assert raised(() -> tween(0, 1, {seconds: 0})) == :bad_option
+  assert raised(() -> tween(0, 1, {seconds: -1})) == :bad_option
+  assert raised(() -> tween(0, 1, {seconds: "2"})) == :bad_option
+  assert raised(() -> tween(0, 1, {seconds: 1, speed: 2})) == :bad_option
+  assert raised(() -> tween(0, "a", {seconds: 1})) == :bad_option
 end
 
 test "spring declares a unit motion and refuses non-physical parameters"
@@ -441,10 +439,10 @@ test "spring declares a unit motion and refuses non-physical parameters"
   assert s[:kind] == :spring
   assert s[:stiffness] == 100
   assert spring(100, 0, 1) != nil
-  assert raises?(:bad_option, () -> spring(0, 1, 1))
-  assert raises?(:bad_option, () -> spring(100, -1, 1))
-  assert raises?(:bad_option, () -> spring(100, 1, 0))
-  assert raises?(:bad_option, () -> spring("a", 1, 1))
+  assert raised(() -> spring(0, 1, 1)) == :bad_option
+  assert raised(() -> spring(100, -1, 1)) == :bad_option
+  assert raised(() -> spring(100, 1, 0)) == :bad_option
+  assert raised(() -> spring("a", 1, 1)) == :bad_option
 end
 
 test "duration is the seconds of a tween and nil for a spring"
@@ -505,9 +503,9 @@ test "advance moves a state forward by seconds and starts from nil"
   assert second == {t: 3, value: 3}
   assert advance(m, second, {seconds: 0}) == second
   assert advance(m, second, {seconds: 100})[:value] == 10
-  assert raises?(:bad_option, () -> advance(m, nil, {}))
-  assert raises?(:bad_option, () -> advance(m, nil, {seconds: -1}))
-  assert raises?(:bad_option, () -> advance(m, nil, {seconds: 1, speed: 1}))
+  assert raised(() -> advance(m, nil, {})) == :bad_option
+  assert raised(() -> advance(m, nil, {seconds: -1})) == :bad_option
+  assert raised(() -> advance(m, nil, {seconds: 1, speed: 1})) == :bad_option
 end
 
 test "stepping a motion by small steps meets sampling it at the total"

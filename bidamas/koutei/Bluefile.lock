@@ -1,14 +1,14 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:6e9ef3894e780042b231ae78b234d8033d0a882c1660ac802c8ae6ce28d740d1",
+  "bluefile_b3": "b3:3660078f2dd63f4aef082af5b8cba97e98e6b42b5f50774900cd41d236249200",
   "manifest": {
     "schema": 1,
     "name": "koutei",
     "version": "0.1.0",
     "needs": {
       "deeta": "^0.1.0",
-      "moji": "^0.1.0",
-      "tesuto": "^0.1.0"
+      "kyohi": "^0.1.0",
+      "moji": "^0.1.0"
     },
     "when": "anytime",
     "sources": {},

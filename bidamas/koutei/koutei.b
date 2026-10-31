@@ -11,8 +11,8 @@ here and the writer is one line.
 """
 
 use("deeta", [:json_at])
+use("kyohi", [:raised])
 use("moji", [:env_key])
-use("tesuto", [:raises?])
 
 @doc """
 input_key: the environment variable an action passes input `name` in.
@@ -369,7 +369,7 @@ test "annotation text and properties are escaped as GitHub reads them"
 end
 
 test "a level GitHub does not show is refused"
-  assert raises?(:bad_level, () -> annotation("info", "x", []))
+  assert raised(() -> annotation("info", "x", [])) == :bad_level
 end
 
 test "a blue diagnostic becomes an annotation at its span"

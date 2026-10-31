@@ -7,8 +7,7 @@
     "version": "0.1.0",
     "needs": {
       "kyohi": "^0.1.0",
-      "retsu": "^0.1.0",
-      "tesuto": "^0.1.0"
+      "retsu": "^0.1.0"
     },
     "when": "anytime",
     "sources": {},

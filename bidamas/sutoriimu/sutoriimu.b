@@ -12,9 +12,8 @@ supervisor restarts it and the stream delivers the message again.
     api("orders", "INFO") #=> "$JS.API.STREAM.INFO.orders"
 """
 
-use("kyohi", [:host_handle])
+use("kyohi", %i[host_handle raised])
 use("retsu", %i[first is_empty size])
-use("tesuto", [:raises?])
 
 @doc """
 nats_url: a nats:// url, else a :bad_option raise.
@@ -89,7 +88,7 @@ end
 @doc """
 ensure_stream: declare a stream over subjects, created when absent; its info.
 
-    raises?(:bad_option, () -> ensure_stream(nil, "a.b", ["x"])) #=> true
+    raised(() -> ensure_stream(nil, "a.b", ["x"])) #=> :bad_option
 """
 def ensure_stream(c, name, subjects)
   need_name("stream", name)
@@ -102,7 +101,7 @@ end
 @doc """
 declared: create a stream, or update it when its name is already in use.
 
-    raises?(:bad_option, () -> declared(nil, "s", "{}")) #=> true
+    raised(() -> declared(nil, "s", "{}")) #=> :bad_option
 """
 def declared(c, name, body)
   answer(
@@ -119,7 +118,7 @@ end
 @doc """
 publish: publish to a stream's subject and wait for its ack: {stream:, seq:}.
 
-    raises?(:bad_option, () -> publish(nil, "s.x", "p", 100)) #=> true
+    raised(() -> publish(nil, "s.x", "p", 100)) #=> :bad_option
 """
 def publish(c, subject, payload, wait_ms)
   r = answer(
@@ -148,7 +147,7 @@ end
 @doc """
 durable: declare a durable pull consumer with explicit acks on a stream.
 
-    raises?(:bad_option, () -> durable(nil, "s", "a b", "s.>", 1000)) #=> true
+    raised(() -> durable(nil, "s", "a b", "s.>", 1000)) #=> :bad_option
 """
 def durable(c, stream, name, filter, ack_wait_ms)
   need_name("stream", stream)
@@ -226,7 +225,7 @@ end
 @doc """
 fetch: up to batch messages from a durable consumer, waiting at most wait_ms.
 
-    raises?(:bad_option, () -> fetch(nil, "s", "d", 1, 100)) #=> true
+    raised(() -> fetch(nil, "s", "d", 1, 100)) #=> :bad_option
 """
 def fetch(c, stream, name, batch, wait_ms)
   inbox = nats_inbox(host_handle(c, "sutoriimu"))
@@ -245,7 +244,7 @@ end
 @doc """
 ack: tell the stream a message is done.
 
-    raises?(:bad_option, () -> ack(nil, {reply: "r"})) #=> true
+    raised(() -> ack(nil, {reply: "r"})) #=> :bad_option
 """
 def ack(c, m)
   nats_publish(host_handle(c, "sutoriimu"), m[:reply], "+ACK")
@@ -254,7 +253,7 @@ end
 @doc """
 nak: tell the stream to deliver a message again, after delay_ms when it is not nil.
 
-    raises?(:bad_option, () -> nak(nil, {reply: "r"}, nil)) #=> true
+    raised(() -> nak(nil, {reply: "r"}, nil)) #=> :bad_option
 """
 def nak(c, m, delay_ms)
   body = if delay_ms.nil?
@@ -287,7 +286,7 @@ end
 @doc """
 in_transaction: run f between BEGIN and COMMIT, rolling back and raising again when it raises.
 
-    raises?(:bad_option, () -> in_transaction(nil, () -> 1)) #=> true
+    raised(() -> in_transaction(nil, () -> 1)) #=> :bad_option
 """
 def in_transaction(pg, f)
   pg_execute(host_handle(pg, "sutoriimu"), "BEGIN")
@@ -304,7 +303,7 @@ end
 @doc """
 write_with_outbox: run a change and record its events in the same transaction; the change's rows.
 
-    raises?(:bad_option, () -> write_with_outbox(nil, "a b", ["SELECT 1", []], [])) #=> true
+    raised(() -> write_with_outbox(nil, "a b", ["SELECT 1", []], [])) #=> :bad_option
 """
 def write_with_outbox(pg, table, change, events)
   need_name("table", table)
@@ -342,7 +341,7 @@ end
 @doc """
 drain: publish up to batch outbox events to the stream, each acked, and delete them; how many moved.
 
-    raises?(:bad_option, () -> drain(nil, nil, "a.b", 10, 100)) #=> true
+    raised(() -> drain(nil, nil, "a.b", 10, 100)) #=> :bad_option
 """
 def drain(pg, js, table, batch, wait_ms)
   need_name("table", table)
@@ -362,7 +361,7 @@ end
 @doc """
 settle: run the handler on one message and ack it; nak and raise again when the handler raises.
 
-    raises?(:bad_option, () -> settle(nil, (_m) -> 1, {reply: "r"})) #=> true
+    raised(() -> settle(nil, (_m) -> 1, {reply: "r"})) #=> :bad_option
 """
 def settle(c, handler, m)
   handler(m)
@@ -375,7 +374,7 @@ end
 @doc """
 work: a worker's loop: fetch, run the handler on each message, ack it; a raise naks and ends the worker.
 
-    raises?(:bad_option, () -> work("x", "s", "d", (_m) -> 1, 1, 1)) #=> true
+    raised(() -> work("x", "s", "d", (_m) -> 1, 1, 1)) #=> :bad_option
 """
 def work(url, stream, name, handler, batch, wait_ms)
   c = nats_connect(nats_url(url))
@@ -389,7 +388,7 @@ end
 @doc """
 consumer: a supervisor running workers for a durable consumer; each worker restarted when its handler raises.
 
-    raises?(:bad_option, () -> consumer("x", "s", "d", (_m) -> 1, {})) #=> true
+    raised(() -> consumer("x", "s", "d", (_m) -> 1, {})) #=> :bad_option
 """
 def consumer(url, stream, name, handler, opts)
   nats_url(url)
@@ -419,10 +418,10 @@ end
 
 test "names with a dot, a space or a wildcard are refused"
   assert name_ok?("orders") == true
-  assert raises?(:bad_option, () -> need_name("stream", "a.b"))
-  assert raises?(:bad_option, () -> need_name("stream", "a b"))
-  assert raises?(:bad_option, () -> need_name("stream", "a>"))
-  assert raises?(:bad_option, () -> need_name("stream", ""))
+  assert raised(() -> need_name("stream", "a.b")) == :bad_option
+  assert raised(() -> need_name("stream", "a b")) == :bad_option
+  assert raised(() -> need_name("stream", "a>")) == :bad_option
+  assert raised(() -> need_name("stream", "")) == :bad_option
 end
 
 test "a consumer acks explicitly and waits in nanoseconds"
@@ -445,5 +444,5 @@ test "the outbox statements quote the table and list the drained ids"
     "INSERT INTO \"ob\" (subject, payload) VALUES ($1, $2)"
   assert drain_delete("ob", [1, 2]) == "DELETE FROM \"ob\" WHERE id IN (1, 2)"
   assert contains?(drain_select("ob", 3), "SKIP LOCKED") == true
-  assert raises?(:bad_option, () -> outbox_ddl("a\"b c"))
+  assert raised(() -> outbox_ddl("a\"b c")) == :bad_option
 end

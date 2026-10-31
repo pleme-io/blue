@@ -4,8 +4,8 @@ maakuappu (マークアップ) — XML as data: a document parsed by the runtime
     attr(child(parse("<r><c id=\"7\"/></r>"), "c"), "id") #=> "7"
 """
 
+use("kyohi", [:raised])
 use("retsu", %i[first flat_map size])
-use("tesuto", [:raises?])
 
 @doc """
 parse: the root element of an XML document. Raises :xml_malformed when the text is not well-formed and :xml_refused when it declares or references a DTD entity.
@@ -136,7 +136,7 @@ def find(el, path)
 end
 
 test "the empty cases: no document, no element, no path"
-  assert raises?(:xml_malformed, () -> parse(""))
+  assert raised(() -> parse("")) == :xml_malformed
   assert children(nil, "c") == []
   assert child(nil, "c").nil?
   assert descendants(nil, "c") == []
@@ -198,20 +198,20 @@ test "an nmap-shaped document answers values checked by hand"
 end
 
 test "a control: what is not well-formed or names a DTD entity is refused, never nil"
-  assert raises?(:xml_malformed, () -> parse("<a><b></a>"))
-  assert raises?(:xml_malformed, () -> parse("<a/><b/>"))
-  assert raises?(:xml_malformed, () -> parse("<a x=\"1\" x=\"2\"/>"))
-  assert raises?(:xml_refused, () -> parse("<r>&nbsp;</r>"))
+  assert raised(() -> parse("<a><b></a>")) == :xml_malformed
+  assert raised(() -> parse("<a/><b/>")) == :xml_malformed
+  assert raised(() -> parse("<a x=\"1\" x=\"2\"/>")) == :xml_malformed
+  assert raised(() -> parse("<r>&nbsp;</r>")) == :xml_refused
   assert parse("<r>&amp;&#65;</r>").text == "&A"
-  assert raises?(:xml_refused, () -> render(element("bad name", {}, [], "")))
-  assert raises?(:xml_refused, () -> render(5))
+  assert raised(() -> render(element("bad name", {}, [], ""))) == :xml_refused
+  assert raised(() -> render(5)) == :xml_refused
 end
 
 test "an external entity (XXE) and a billion laughs are refused before any expansion"
   xxe = "<?xml version=\"1.0\"?><!DOCTYPE r [<!ENTITY x SYSTEM \"file:///etc/passwd\">]><r>&x;</r>"
-  assert raises?(:xml_refused, () -> parse(xxe))
+  assert raised(() -> parse(xxe)) == :xml_refused
   laughs = "<!DOCTYPE r [<!ENTITY a \"ha\"><!ENTITY b \"&a;&a;&a;&a;&a;&a;&a;&a;\"><!ENTITY c \"&b;&b;&b;&b;&b;&b;&b;&b;\">]><r>&c;</r>"
-  assert raises?(:xml_refused, () -> parse(laughs))
+  assert raised(() -> parse(laughs)) == :xml_refused
   burp_dtd = "<!DOCTYPE issues [<!ELEMENT issues (issue*)><!ATTLIST issues burpVersion CDATA \"\">]><issues burpVersion=\"2\"/>"
   assert attr(parse(burp_dtd), "burpVersion") == "2"
 end

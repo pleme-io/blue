@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:266efdbadf46fda78e087107d5d12e7b606721d7ab84ce3351eafe73cbb99a15",
+  "bluefile_b3": "b3:8ccd5d63cacf6aee236702a7d700dac1c2f4317dcf8d609043849fc7b261b988",
   "manifest": {
     "schema": 1,
     "name": "gamen",
@@ -11,8 +11,7 @@
       "moji": "^0.1.0",
       "retsu": "^0.1.0",
       "shinsuu": "^0.1.0",
-      "shisutemu": "^0.1.0",
-      "tesuto": "^0.1.0"
+      "shisutemu": "^0.1.0"
     },
     "when": "anytime",
     "sources": {},

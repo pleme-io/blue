@@ -6,11 +6,11 @@
     "name": "gurafu",
     "version": "0.1.0",
     "needs": {
+      "kyohi": "^0.1.0",
       "moji": "^0.1.0",
       "ran": "^0.1.0",
       "retsu": "^0.1.0",
-      "shuugou": "^0.1.0",
-      "tesuto": "^0.1.0"
+      "shuugou": "^0.1.0"
     },
     "when": "anytime",
     "sources": {},

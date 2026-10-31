@@ -11,10 +11,10 @@ traces on.
 """
 
 use("jisho", %i[delete has? merge])
+use("kyohi", [:raised])
 use("moji", [:take_chars])
 use("retsu", [:first])
 use("rogu")
-use("tesuto", [:raises?])
 
 def reserved()
   %i[parent sink]
@@ -286,7 +286,7 @@ end
 test "span records an error, emits it, and raises the same error again"
   seen = [[]]
   sink = (s) -> set!(seen, [append(first(seen), [s])])
-  assert raises?(:oops, () -> span("bad", (_s) -> raise(:oops, "no"), {sink:}))
+  assert raised(() -> span("bad", (_s) -> raise(:oops, "no"), {sink:})) == :oops
   r = first(first(seen))
   assert r[:status] == :error
   assert r[:error] == {kind: :oops, message: "no"}
@@ -308,13 +308,13 @@ end
 test "span refuses a bad name, a bad attrs, a bad parent, and runs nothing then"
   ran = [false]
   f = (_s) -> set!(ran, [true])
-  assert raises?(:bad_option, () -> span("", f, {}))
-  assert raises?(:bad_option, () -> span(:a, f, {}))
-  assert raises?(:bad_option, () -> span(nil, f, {}))
-  assert raises?(:bad_option, () -> span("a", f, [1]))
-  assert raises?(:bad_option, () -> span("a", f, {parent: 5}))
-  assert raises?(:bad_option, () -> span("a", f, {parent: {id: "x"}}))
-  assert raises?(:bad_option, () -> span("a", f, {parent: {trace_id: "x"}}))
+  assert raised(() -> span("", f, {})) == :bad_option
+  assert raised(() -> span(:a, f, {})) == :bad_option
+  assert raised(() -> span(nil, f, {})) == :bad_option
+  assert raised(() -> span("a", f, [1])) == :bad_option
+  assert raised(() -> span("a", f, {parent: 5})) == :bad_option
+  assert raised(() -> span("a", f, {parent: {id: "x"}})) == :bad_option
+  assert raised(() -> span("a", f, {parent: {trace_id: "x"}})) == :bad_option
   assert first(ran) == false
 end
 

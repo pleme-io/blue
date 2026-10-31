@@ -1,16 +1,16 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:cbeab0599dafac89205855b279fd9d98c338874c7ca77604e88869c8d9852621",
+  "bluefile_b3": "b3:89e78e4f9db5c8aa6621b975e23c327e434bf65d4a8af2ab8b7f7a9d822ae4fc",
   "manifest": {
     "schema": 1,
     "name": "keisoku",
     "version": "0.1.0",
     "needs": {
       "jisho": "^0.1.0",
+      "kyohi": "^0.1.0",
       "moji": "^0.1.0",
       "retsu": "^0.1.0",
-      "rogu": "^0.1.0",
-      "tesuto": "^0.1.0"
+      "rogu": "^0.1.0"
     },
     "when": "anytime",
     "sources": {},

@@ -11,11 +11,11 @@ with a cycle and names the cycle; `cycle` answers that cycle, or nil.
     topo(graph([["b", "c"], ["a", "b"]], {})) #=> ["a", "b", "c"]
 """
 
+use("kyohi", [:raised])
 use("moji", [:checked])
 use("ran", %i[seeds take_ints])
 use("retsu", %i[first is_empty last size])
 use("shuugou", [:ordered])
-use("tesuto", [:raises?])
 
 @doc """
 edge_ok: an edge when it is a pair of nodes, else a :bad_option raise.
@@ -383,9 +383,9 @@ end
 test "an undirected graph holds each edge both ways, and a bad edge or option is refused"
   g = graph([%w[a b]], {directed: false})
   assert edges(g) == [%w[a b], %w[b a]]
-  assert raises?(:bad_option, () -> graph([["a"]], {}))
-  assert raises?(:bad_option, () -> graph(["ab"], {}))
-  assert raises?(:bad_option, () -> graph([], {weights: true}))
+  assert raised(() -> graph([["a"]], {})) == :bad_option
+  assert raised(() -> graph(["ab"], {})) == :bad_option
+  assert raised(() -> graph([], {weights: true})) == :bad_option
 end
 
 test "add and remove are inverses on edges and nodes"
@@ -427,7 +427,7 @@ end
 test "a cycle is a refusal naming the cycle"
   g = graph([%w[a b], %w[b c], %w[c a], %w[x a]], {})
   assert cycle(g) == %w[a b c]
-  assert raises?(:refused, () -> topo(g))
+  assert raised(() -> topo(g)) == :refused
   e = begin
     topo(g)
   rescue err
@@ -437,7 +437,7 @@ test "a cycle is a refusal naming the cycle"
   assert e.data[:cycle] == %w[a b c]
   assert cycle(graph([%w[k k]], {})) == ["k"]
   assert cycle(graph([%w[b c], %w[c b], %w[c a]], {})) == %w[b c]
-  assert raises?(:refused, () -> depth(g, "x"))
+  assert raised(() -> depth(g, "x")) == :refused
 end
 
 test "a cycle downstream of a long chain is found, and a long chain orders"
@@ -466,7 +466,7 @@ test "cycle is found exactly when one exists, judged by reachable"
       if acyclic?(g)
         c.nil? and respects?(g, topo(g))
       else
-        real_cycle?(g, c) and raises?(:refused, () -> topo(g))
+        real_cycle?(g, c) and raised(() -> topo(g)) == :refused
       end
     end,
     seeds(23, 60)

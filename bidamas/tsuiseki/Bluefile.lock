@@ -1,16 +1,16 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:fe1ab08d863fd9d2698ad7f6a322aa2296aeeb4ead84ebddc7c8b775cfb1971e",
+  "bluefile_b3": "b3:97437b169e05fbd77d635a68cf8f8dcb6e60a74c494fa358459fa160e7f7b8af",
   "manifest": {
     "schema": 1,
     "name": "tsuiseki",
     "version": "0.1.0",
     "needs": {
       "jisho": "^0.1.0",
+      "kyohi": "^0.1.0",
       "moji": "^0.1.0",
       "retsu": "^0.1.0",
-      "rogu": "^0.1.0",
-      "tesuto": "^0.1.0"
+      "rogu": "^0.1.0"
     },
     "when": "anytime",
     "sources": {},

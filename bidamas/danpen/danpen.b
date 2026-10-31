@@ -13,10 +13,10 @@ persisted-operation id of that text.
 
 use("deeta", [:get_or])
 use("kiwari")
+use("kyohi", [:raised])
 use("moji", %i[capitalize checked])
 use("retsu", %i[first is_empty last rest])
 use("shomei")
-use("tesuto", [:raises?])
 
 def graphql()
   {
@@ -3708,13 +3708,13 @@ test "parse reads an operation into records"
 end
 
 test "parse refuses malformed text with its line and column"
-  assert raises?(:parse_error, () -> parse(""))
-  assert raises?(:parse_error, () -> parse("query { a "))
-  assert raises?(:parse_error, () -> parse("{ a(x: 01) }"))
-  assert raises?(:parse_error, () -> parse("{ a(x: 1.) }"))
-  assert raises?(:parse_error, () -> parse("{ a(x: \"open) }"))
-  assert raises?(:parse_error, () -> parse("query ($v: Int = $w) { a }"))
-  assert raises?(:parse_error, () -> parse("\"described\" query { a }"))
+  assert raised(() -> parse("")) == :parse_error
+  assert raised(() -> parse("query { a ")) == :parse_error
+  assert raised(() -> parse("{ a(x: 01) }")) == :parse_error
+  assert raised(() -> parse("{ a(x: 1.) }")) == :parse_error
+  assert raised(() -> parse("{ a(x: \"open) }")) == :parse_error
+  assert raised(() -> parse("query ($v: Int = $w) { a }")) == :parse_error
+  assert raised(() -> parse("\"described\" query { a }")) == :parse_error
   e = begin
     parse(join_lines(["{", "  a", "  b(: 1)", "}"]))
   rescue err
@@ -3778,7 +3778,7 @@ test "render prints apollo-compiler's canonical layout"
     unlines(["\"\"\"short\"\"\"", "scalar S"])
   assert render(parse("{ a(s: \"one\\ntwo\") }")) ==
     unlines(["{", "  a(s: \"one\\ntwo\")", "}"])
-  assert raises?(:bad_option, () -> render(doc, :json))
+  assert raised(() -> render(doc, :json)) == :bad_option
 end
 
 test "parse after render is the identity on every corpus document"
@@ -3851,7 +3851,7 @@ test "SDL default values are checked only when asked"
   assert check(doc) == []
   assert map((f) -> f[:rule], check(doc, nil, {defaults: true})) ==
     ["value-type"]
-  assert raises?(:bad_option, () -> check(doc, nil, {strict: true}))
+  assert raised(() -> check(doc, nil, {strict: true})) == :bad_option
 end
 
 test "validate answers the document or raises the findings"
@@ -3879,12 +3879,10 @@ test "a fragment declared in blue is the fragment parse reads"
     )
   )
   assert declared == parsed
-  assert raises?(:bad_option, () -> fragment(:x, {on: "User", fields: []}))
-  assert raises?(:bad_option, () -> fragment(:x, {fields: [:id]}))
-  assert raises?(
-    :bad_option,
-    () -> fragment(:x, {on: "User", fields: [:id], extra: 1})
-  )
+  assert raised(() -> fragment(:x, {on: "User", fields: []})) == :bad_option
+  assert raised(() -> fragment(:x, {fields: [:id]})) == :bad_option
+  assert raised(() -> fragment(:x, {on: "User", fields: [:id], extra: 1})) ==
+    :bad_option
 end
 
 test "compose joins an operation with the fragments it reaches, by name"
@@ -3899,7 +3897,7 @@ test "compose joins an operation with the fragments it reaches, by name"
   assert map((d) -> d[:name], doc[:definitions]) == %w[Hero A B C]
   assert compose(op, reverse(frags)) == doc
   assert check(doc, hand_schema) == []
-  assert raises?(:unknown_fragment, () -> compose(op, take(2, frags)))
+  assert raised(() -> compose(op, take(2, frags))) == :unknown_fragment
   assert compose(parse("{ hero { id } }"), frags)[:definitions] ==
     parse("{ hero { id } }")[:definitions]
 end
@@ -3912,8 +3910,8 @@ test "compose writes a view's operation from its root fragment"
   )
   assert render(compose(page, [card]), :compact) ==
     "query ProfilePage { ...profile_page } fragment profile_page on Query { me { ...user_card } } fragment user_card on User { name }"
-  assert raises?(:bad_option, () -> compose(card, []))
-  assert raises?(:unknown_fragment, () -> compose(page, []))
+  assert raised(() -> compose(card, [])) == :bad_option
+  assert raised(() -> compose(page, [])) == :unknown_fragment
 end
 
 test "select reads only the fields a fragment declares"
@@ -3962,7 +3960,7 @@ test "select_into takes hooks that resolve a value, answer an absent field and s
   sels = fragment(:f, {on: "Query", fields: [{who: [:name]}]})[:selections]
   assert select_into({"who" => {"ref" => "u1"}}, sels, hooks) ==
     {"seen" => nil, "who" => {"seen" => "u1", "name" => "Ada"}}
-  assert raises?(:absent, () -> select_into({}, sels, hooks))
+  assert raised(() -> select_into({}, sels, hooks)) == :absent
   assert select_into({}, sels) == {}
   assert select_into({"who" => {"ref" => "u1"}}, sels) == {"who" => {}}
 end
@@ -3982,7 +3980,7 @@ test "hash is the sha256 of the canonical text, as shasum computes it"
   assert hash("{ hero { name } }") ==
     "acc088d6d5fdba669a03cf99c1564e10730ec3ccda96ad7943bd57c7237b2aef"
   assert hash(parse("query Q { a }"), :blake3) != hash(parse("query Q { a }"))
-  assert raises?(:bad_option, () -> hash(parse("{ a }"), :md5))
+  assert raised(() -> hash(parse("{ a }"), :md5)) == :bad_option
 end
 
 def kinds_in(x)
@@ -4040,7 +4038,7 @@ test "the schema table is every composite type's fields and every enum's values"
   assert t[:types]["Day"].nil?
   assert t[:types]["String"].nil?
   assert t[:enums]["Tone"] == %w[WARM COOL]
-  assert raises?(:invalid, () -> schema_table("type Q { a: Nope }"))
+  assert raised(() -> schema_table("type Q { a: Nope }")) == :invalid
 end
 
 test "render as a table is blue text that reads back as the table"

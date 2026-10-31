@@ -16,11 +16,10 @@ each key's TTL (upgrade_eager).
     versioned_key("orders", "3f2a", :order, 7) #=> "orders:v3f2a:order:7"
 """
 
-use("kyohi", [:host_handle])
+use("kyohi", %i[host_handle raised])
 use("moji", %i[checked drop_chars])
 use("retsu", %i[first is_empty size])
 use("teeburu")
-use("tesuto", [:raises?])
 
 @doc """
 default_port: the port Valkey and Redis listen on.
@@ -75,7 +74,7 @@ end
 @doc """
 connect: a connection opened from a settings record.
 
-    raises?(:bad_option, () -> connect({host: ""})) #=> true
+    raised(() -> connect({host: ""})) #=> :bad_option
 """
 def connect(opts)
   s = settings(opts)
@@ -91,7 +90,7 @@ end
 @doc """
 close: close a connection.
 
-    raises?(:bad_option, () -> close(nil)) #=> true
+    raised(() -> close(nil)) #=> :bad_option
 """
 def close(c)
   resp_close(host_handle(c, "kiibariu"))
@@ -100,7 +99,7 @@ end
 @doc """
 get_key: the text stored at a key, or nil.
 
-    raises?(:bad_option, () -> get_key(nil, "k")) #=> true
+    raised(() -> get_key(nil, "k")) #=> :bad_option
 """
 def get_key(c, key)
   resp_command(host_handle(c, "kiibariu"), ["GET", key])
@@ -134,7 +133,7 @@ end
 @doc """
 set_key: store text at a key, with a TTL in milliseconds or nil.
 
-    raises?(:bad_option, () -> set_key(nil, "k", "v", 0)) #=> true
+    raised(() -> set_key(nil, "k", "v", 0)) #=> :bad_option
 """
 def set_key(c, key, value, ttl_ms)
   resp_command(c, set_command(key, value, ttl_ms))
@@ -157,7 +156,7 @@ end
 @doc """
 pttl: the milliseconds a key has left; -1 when it never expires, nil when the key is absent.
 
-    raises?(:bad_option, () -> pttl(nil, "k")) #=> true
+    raised(() -> pttl(nil, "k")) #=> :bad_option
 """
 def pttl(c, key)
   left = resp_command(host_handle(c, "kiibariu"), ["PTTL", key])
@@ -169,7 +168,7 @@ end
 @doc """
 publish: send a message on a channel; how many subscribers got it.
 
-    raises?(:bad_option, () -> publish(nil, "ch", "m")) #=> true
+    raised(() -> publish(nil, "ch", "m")) #=> :bad_option
 """
 def publish(c, channel, message)
   resp_command(host_handle(c, "kiibariu"), ["PUBLISH", channel, message])
@@ -178,7 +177,7 @@ end
 @doc """
 subscribe: turn a connection into a subscriber of channels.
 
-    raises?(:bad_option, () -> subscribe(nil, [])) #=> true
+    raised(() -> subscribe(nil, [])) #=> :bad_option
 """
 def subscribe(c, channels)
   if is_empty(channels)
@@ -203,7 +202,7 @@ end
 @doc """
 next_message: {channel:, payload:} for the next message, or nil when none came in time.
 
-    raises?(:bad_option, () -> next_message(nil, 0)) #=> true
+    raised(() -> next_message(nil, 0)) #=> :bad_option
 """
 def next_message(c, wait_ms)
   reply = resp_next(host_handle(c, "kiibariu"), wait_ms)
@@ -217,7 +216,7 @@ end
 @doc """
 scan_step: one SCAN call; [next cursor, keys].
 
-    raises?(:bad_option, () -> scan_step(nil, "0", "*", 10)) #=> true
+    raised(() -> scan_step(nil, "0", "*", 10)) #=> :bad_option
 """
 def scan_step(c, cursor, pattern, batch)
   reply = resp_command(
@@ -230,7 +229,7 @@ end
 @doc """
 scan_each: call f with each batch of keys matching a pattern; how many keys were seen.
 
-    raises?(:bad_option, () -> scan_each(nil, "*", 10, (_k) -> nil)) #=> true
+    raised(() -> scan_each(nil, "*", 10, (_k) -> nil)) #=> :bad_option
 """
 def scan_each(c, pattern, batch, f)
   walk = fn(cursor, seen)
@@ -251,7 +250,7 @@ end
 @doc """
 scan: every key matching a pattern.
 
-    raises?(:bad_option, () -> scan(nil, "*", 10)) #=> true
+    raised(() -> scan(nil, "*", 10)) #=> :bad_option
 """
 def scan(c, pattern, batch)
   found = [[]]
@@ -334,7 +333,7 @@ end
 @doc """
 put: check a record against a schema and store it as JSON.
 
-    raises?(:bad_value, () -> put(nil, {fields: {"n" => :int}}, "k", {"n" => "1"}, nil)) #=> true
+    raised(() -> put(nil, {fields: {"n" => :int}}, "k", {"n" => "1"}, nil)) #=> :bad_value
 """
 def put(c, schema, key, rec, ttl_ms)
   set_key(c, key, stored(schema, rec), ttl_ms)
@@ -343,7 +342,7 @@ end
 @doc """
 fetch: the record at a key, checked against a schema; nil when absent.
 
-    raises?(:bad_option, () -> fetch(nil, {fields: {}}, "k")) #=> true
+    raised(() -> fetch(nil, {fields: {}}, "k")) #=> :bad_option
 """
 def fetch(c, schema, key)
   loaded(schema, get_key(c, key))
@@ -352,7 +351,7 @@ end
 @doc """
 plan_ok: an upgrade plan with two different key prefixes, else a :bad_option raise.
 
-    raises?(:bad_option, () -> plan_ok({old: "a:", new: "a:"})) #=> true
+    raised(() -> plan_ok({old: "a:", new: "a:"})) #=> :bad_option
 """
 def plan_ok(plan)
   checked(plan, %i[from to old new transform])
@@ -399,7 +398,7 @@ end
 @doc """
 read_upgrading: the record for an id under the new schema, upgrading an old entry on the way.
 
-    raises?(:bad_option, () -> read_upgrading(nil, {old: "a:", new: "a:"}, 1)) #=> true
+    raised(() -> read_upgrading(nil, {old: "a:", new: "a:"}, 1)) #=> :bad_option
 """
 def read_upgrading(c, plan, id)
   plan_ok(plan)
@@ -462,7 +461,7 @@ end
 @doc """
 upgrade_eager: rewrite every old entry to the new schema in SCAN batches, keeping each TTL; how many moved.
 
-    raises?(:bad_option, () -> upgrade_eager(nil, {old: "a:", new: "a:"}, 10)) #=> true
+    raised(() -> upgrade_eager(nil, {old: "a:", new: "a:"}, 10)) #=> :bad_option
 """
 def upgrade_eager(c, plan, batch)
   plan_ok(plan)
@@ -485,17 +484,17 @@ test "settings default the port and the timeout and turn TLS on"
 end
 
 test "settings refuse a literal password, a bad host and a bad tls"
-  assert raises?(:bad_option, () -> settings({host: "h", password: "x"}))
-  assert raises?(:bad_option, () -> settings({host: ""}))
-  assert raises?(:bad_option, () -> settings({host: "h", tls: "no"}))
-  assert raises?(:bad_option, () -> settings({host: "h", password_file: 3}))
+  assert raised(() -> settings({host: "h", password: "x"})) == :bad_option
+  assert raised(() -> settings({host: ""})) == :bad_option
+  assert raised(() -> settings({host: "h", tls: "no"})) == :bad_option
+  assert raised(() -> settings({host: "h", password_file: 3})) == :bad_option
 end
 
 test "a SET carries PX only with a TTL, and a bad TTL is refused"
   assert set_command("k", "v", nil) == %w[SET k v]
   assert set_command("k", "v", 10) == ["SET", "k", "v", "PX", 10]
-  assert raises?(:bad_option, () -> set_command("k", "v", 0))
-  assert raises?(:bad_option, () -> set_command("k", "v", "5m"))
+  assert raised(() -> set_command("k", "v", 0)) == :bad_option
+  assert raised(() -> set_command("k", "v", "5m")) == :bad_option
 end
 
 test "a versioned key moves when the version hash moves"
@@ -508,18 +507,19 @@ test "check passes a matching record and refuses a missing or mistyped field"
   schema = {fields: {"id" => :int, "state" => :text}}
   assert check(schema, {"id" => 1, "state" => "new"}) ==
     {"id" => 1, "state" => "new"}
-  assert raises?(
-    :bad_value,
+  assert raised(
     () -> check(schema, {"id" => 1, "state" => "new", "extra" => true})
-  )
+  ) == :bad_value
   assert check(
     assoc(schema, :strict, false),
     {"id" => 1, "state" => "new", "extra" => true}
   ) == {"id" => 1, "state" => "new", "extra" => true}
-  assert raises?(:bad_value, () -> check(schema, {"id" => 1}))
-  assert raises?(:bad_value, () -> check(schema, {"id" => "1", "state" => "x"}))
-  assert raises?(:bad_value, () -> check(schema, "text"))
-  assert raises?(:bad_option, () -> check({fields: {"a" => :blob}}, {"a" => 1}))
+  assert raised(() -> check(schema, {"id" => 1})) == :bad_value
+  assert raised(() -> check(schema, {"id" => "1", "state" => "x"})) ==
+    :bad_value
+  assert raised(() -> check(schema, "text")) == :bad_value
+  assert raised(() -> check({fields: {"a" => :blob}}, {"a" => 1})) ==
+    :bad_option
 end
 
 test "a rewrite keeps a positive TTL and drops none"
@@ -529,8 +529,8 @@ test "a rewrite keeps a positive TTL and drops none"
 end
 
 test "an upgrade plan needs two different prefixes"
-  assert raises?(:bad_option, () -> plan_ok({old: "a:", new: "a:"}))
-  assert raises?(:bad_option, () -> plan_ok({old: "a:"}))
+  assert raised(() -> plan_ok({old: "a:", new: "a:"})) == :bad_option
+  assert raised(() -> plan_ok({old: "a:"})) == :bad_option
 end
 
 test "upgraded checks the old record, transforms it and checks the new one"
@@ -542,7 +542,7 @@ test "upgraded checks the old record, transforms it and checks the new one"
     transform: (r) -> assoc(r, "currency", "BRL")
   }
   assert upgraded(plan, "{\"total\":3}") == {"total" => 3, "currency" => "BRL"}
-  assert raises?(:bad_value, () -> upgraded(plan, "{\"total\":\"3\"}"))
+  assert raised(() -> upgraded(plan, "{\"total\":\"3\"}")) == :bad_value
   bad = assoc(plan, :transform, (r) -> r)
-  assert raises?(:bad_value, () -> upgraded(bad, "{\"total\":3}"))
+  assert raised(() -> upgraded(bad, "{\"total\":3}")) == :bad_value
 end

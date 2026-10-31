@@ -22,10 +22,9 @@ the whole committed as `manifests`.
 
 use("gurafu")
 use("kousei", %i[entry field off one_of required text])
-use("kyohi", %i[refusal standing])
+use("kyohi", %i[raised refusal standing])
 use("moji", %i[checked text_of])
 use("retsu", %i[first is_empty last size])
-use("tesuto", [:raises?])
 
 legacy_names("0.1.1", [["text_of", "moji::text_of", ""]])
 
@@ -1799,10 +1798,9 @@ test "credentials run on the bootstrap Secret until both ARNs exist, and half is
   assert c[:secretRef].nil?
   assert c[:rolesAnywhere][:sessionDurationSeconds] == 3600
   assert c[:rolesAnywhere][:certSecretRef] == {name: "c", namespace: "n"}
-  assert raises?(
-    :bad_option,
+  assert raised(
     () -> aws_credentials(assoc(base, :roles_anywhere, {trust_anchor_arn: "a"}))
-  )
+  ) == :bad_option
 end
 
 test "a leaf carries its body inline as json under the house defaults, and disposable lifts the refusal"
@@ -1817,11 +1815,9 @@ test "a leaf carries its body inline as json under the house defaults, and dispo
   d = leaf("box", b, {pangea_namespace: "p", disposable: true})
   assert d[:spec][:policies] == []
   assert not d[:spec][:destroyProtection]
-  assert raises?(:bad_option, () -> leaf("x", b, {}))
-  assert raises?(
-    :bad_option,
-    () -> leaf("x", b, {pangea_namespace: "p", colour: 1})
-  )
+  assert raised(() -> leaf("x", b, {})) == :bad_option
+  assert raised(() -> leaf("x", b, {pangea_namespace: "p", colour: 1})) ==
+    :bad_option
 end
 
 test "skip_leaf stamps the typed world-fact annotation, and a bad reason is refused"
@@ -1831,10 +1827,9 @@ test "skip_leaf stamps the typed world-fact annotation, and a bad reason is refu
   assert l[:metadata][:annotations]["pangea.pleme.io/skip-leaf"] ==
     "shared-lifecycle"
   assert leaf("net", b, {pangea_namespace: "p"})[:metadata][:annotations].nil?
-  assert raises?(
-    :bad_option,
+  assert raised(
     () -> leaf("x", b, {pangea_namespace: "p", skip_leaf: "nope"})
-  )
+  ) == :bad_option
 end
 
 test "manifests are one JSON document per object"
@@ -1882,11 +1877,11 @@ test "a leaf key is the index key, else the top module, else the address"
 end
 
 test "a malformed address raises, never a guess"
-  assert raises?(:parse_error, () -> key(""))
-  assert raises?(:parse_error, () -> key("a.b[\"x"))
-  assert raises?(:parse_error, () -> key("a.b[1"))
-  assert raises?(:parse_error, () -> key("a..b"))
-  assert raises?(:parse_error, () -> key("a.b[1]c"))
+  assert raised(() -> key("")) == :parse_error
+  assert raised(() -> key("a.b[\"x")) == :parse_error
+  assert raised(() -> key("a.b[1")) == :parse_error
+  assert raised(() -> key("a..b")) == :parse_error
+  assert raised(() -> key("a.b[1]c")) == :parse_error
 end
 
 test "split groups by key, joins along references and keeps the multiset"
@@ -1915,7 +1910,7 @@ test "split groups by key, joins along references and keeps the multiset"
   assert not bijection(before, dropped)[:ok]
   doubled = append(leaves, [{addresses: ["r.a[\"x\"]"]}])
   assert not bijection(before, doubled)[:disjoint]
-  assert raises?(:refused, () -> split(%w[a.b a.b], []))
+  assert raised(() -> split(%w[a.b a.b], [])) == :refused
 end
 
 test "the multiset hash ignores order and cannot be forged by concatenation"
@@ -2142,12 +2137,11 @@ test "slice keeps a leaf's own resources and inputs cut the collection to its en
     {"owner" => "o", "x" => 1, "repos" => [{"slug" => "a"}, {"slug" => "b"}]}
   )
   assert got["b"] == {"owner" => "o", "repos" => [{"slug" => "b"}]}
-  assert raises?(
-    :bad_key,
+  assert raised(
     () -> inputs(decl, {"repos" => [{"slug" => "a"}, {"slug" => "a"}]})
-  )
-  assert raises?(:bad_key, () -> inputs(decl, {"repos" => [{"name" => "a"}]}))
-  assert raises?(:bad_option, () -> inputs(decl, {"repos" => "a"}))
+  ) == :bad_key
+  assert raised(() -> inputs(decl, {"repos" => [{"name" => "a"}]})) == :bad_key
+  assert raised(() -> inputs(decl, {"repos" => "a"})) == :bad_option
 end
 
 test "each setting is judged alone: a bad one keeps its default, an off one its off value"

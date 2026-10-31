@@ -12,12 +12,11 @@ its accessibility faults. On the terminal, `show` writes styled text, and
 """
 
 use("jisho")
-use("kyohi", %i[kind kinds refusal why])
+use("kyohi", %i[kind kinds raised refusal why])
 use("moji", %i[checked trim])
 use("retsu", %i[count_where find_first first flat_map is_empty size])
 use("shinsuu", %i[parse_int to_hex_width])
 use("shisutemu", %i[esc_char status_of stderr_of stdout_of])
-use("tesuto", [:raises?])
 
 def hex_channels(text)
   digits = moji::strip_prefix(text, "#")
@@ -1955,17 +1954,17 @@ test "rgb reads long and short hex, any case, and a record"
 end
 
 test "rgb refuses what is not a color"
-  assert raises?(:bad_option, () -> rgb("ff8000"))
-  assert raises?(:bad_option, () -> rgb("#ff80"))
-  assert raises?(:bad_option, () -> rgb("#gg0000"))
-  assert raises?(:bad_option, () -> rgb(""))
-  assert raises?(:bad_option, () -> rgb("#"))
-  assert raises?(:bad_option, () -> rgb({r: 1, g: 2}))
-  assert raises?(:bad_option, () -> rgb({r: 256, g: 0, b: 0}))
-  assert raises?(:bad_option, () -> rgb({r: -1, g: 0, b: 0}))
-  assert raises?(:bad_option, () -> rgb({r: "1", g: 0, b: 0}))
-  assert raises?(:bad_option, () -> rgb(nil))
-  assert raises?(:bad_option, () -> rgb(5))
+  assert raised(() -> rgb("ff8000")) == :bad_option
+  assert raised(() -> rgb("#ff80")) == :bad_option
+  assert raised(() -> rgb("#gg0000")) == :bad_option
+  assert raised(() -> rgb("")) == :bad_option
+  assert raised(() -> rgb("#")) == :bad_option
+  assert raised(() -> rgb({r: 1, g: 2})) == :bad_option
+  assert raised(() -> rgb({r: 256, g: 0, b: 0})) == :bad_option
+  assert raised(() -> rgb({r: -1, g: 0, b: 0})) == :bad_option
+  assert raised(() -> rgb({r: "1", g: 0, b: 0})) == :bad_option
+  assert raised(() -> rgb(nil)) == :bad_option
+  assert raised(() -> rgb(5)) == :bad_option
 end
 
 test "hex writes lowercase six digits and rounds a blended channel"
@@ -1991,8 +1990,8 @@ test "contrast matches the WCAG values people quote"
 end
 
 test "contrast refuses a value that is not a color"
-  assert raises?(:bad_option, () -> contrast("red", "#fff"))
-  assert raises?(:bad_option, () -> contrast("#fff", nil))
+  assert raised(() -> contrast("red", "#fff")) == :bad_option
+  assert raised(() -> contrast("#fff", nil)) == :bad_option
 end
 
 test "theme picks the mode of a light and dark pair and keeps a single color"
@@ -2017,13 +2016,11 @@ test "theme normalizes records and short hex to six digit text, and may be empty
 end
 
 test "theme refuses a mode it does not know and names the token that is no color"
-  assert raises?(:bad_option, () -> theme({}, :sepia))
-  assert raises?(:bad_option, () -> theme({}, "light"))
-  assert raises?(:bad_option, () -> theme({a: "nope"}, :light))
-  assert raises?(
-    :bad_option,
-    () -> theme({a: {light: "#fff", dark: "bad"}}, :dark)
-  )
+  assert raised(() -> theme({}, :sepia)) == :bad_option
+  assert raised(() -> theme({}, "light")) == :bad_option
+  assert raised(() -> theme({a: "nope"}, :light)) == :bad_option
+  assert raised(() -> theme({a: {light: "#fff", dark: "bad"}}, :dark)) ==
+    :bad_option
   assert theme({a: {light: "#fff", dark: "bad"}}, :light)[:tokens] ==
     {a: "#ffffff"}
   message = begin
@@ -2068,20 +2065,19 @@ test "styled resolves a theme token and refuses one the theme lacks"
   ctx = {color: true, theme: t}
   assert styled({text: "w", fg: :warn}, ctx) ==
     "#{esc_char}[38;2;235;203;139mw#{esc_char}[0m"
-  assert raises?(:bad_option, () -> styled({text: "w", fg: :error}, ctx))
-  assert raises?(
-    :bad_option,
+  assert raised(() -> styled({text: "w", fg: :error}, ctx)) == :bad_option
+  assert raised(
     () -> styled({text: "w", fg: :warn}, {color: true, theme: nil})
-  )
+  ) == :bad_option
 end
 
 test "styled refuses a node that is neither text, a list nor a record with text"
   ctx = {color: true, theme: nil}
-  assert raises?(:bad_option, () -> styled(5, ctx))
-  assert raises?(:bad_option, () -> styled({bold: true}, ctx))
-  assert raises?(:bad_option, () -> styled(nil, ctx))
-  assert raises?(:bad_option, () -> styled({text: 5}, ctx))
-  assert raises?(:bad_option, () -> styled({text: "x", fg: "nope"}, ctx))
+  assert raised(() -> styled(5, ctx)) == :bad_option
+  assert raised(() -> styled({bold: true}, ctx)) == :bad_option
+  assert raised(() -> styled(nil, ctx)) == :bad_option
+  assert raised(() -> styled({text: 5}, ctx)) == :bad_option
+  assert raised(() -> styled({text: "x", fg: "nope"}, ctx)) == :bad_option
 end
 
 test "show writes the styled text and a newline to the sink, and returns nil"
@@ -2102,15 +2098,13 @@ test "show takes its tokens from the theme option"
   t = theme({ok: "#a3be8c"}, :light)
   assert collect({color: true, theme: t}, {text: "ok", fg: :ok}) ==
     unlines(["#{esc_char}[38;2;163;190;140mok#{esc_char}[0m"])
-  assert raises?(
-    :bad_option,
-    () -> collect({color: true}, {text: "ok", fg: :ok})
-  )
+  assert raised(() -> collect({color: true}, {text: "ok", fg: :ok})) ==
+    :bad_option
 end
 
 test "show refuses an unknown option and an unknown destination"
-  assert raises?(:bad_option, () -> show("a", {sink: (_t) -> nil, style: 1}))
-  assert raises?(:bad_option, () -> show("a", {to: :file}))
+  assert raised(() -> show("a", {sink: (_t) -> nil, style: 1})) == :bad_option
+  assert raised(() -> show("a", {to: :file})) == :bad_option
 end
 
 test "show leaves color to NO_COLOR when color is not given"
@@ -2123,10 +2117,10 @@ test "show leaves color to NO_COLOR when color is not given"
 end
 
 test "rgb refuses extra and missing hex digits"
-  assert raises?(:bad_option, () -> rgb("#ff80000"))
-  assert raises?(:bad_option, () -> rgb("#ffff"))
-  assert raises?(:bad_option, () -> rgb("#ff"))
-  assert raises?(:bad_option, () -> rgb("#ffffffff"))
+  assert raised(() -> rgb("#ff80000")) == :bad_option
+  assert raised(() -> rgb("#ffff")) == :bad_option
+  assert raised(() -> rgb("#ff")) == :bad_option
+  assert raised(() -> rgb("#ffffffff")) == :bad_option
 end
 
 test "a missing theme token is named, with and without a theme at all"
@@ -2156,8 +2150,8 @@ test "the writer goes to stdout or stderr and refuses any other place"
   assert writer({})("").nil?
   assert writer({to: :stdout})("").nil?
   assert writer({to: :stderr})("").nil?
-  assert raises?(:bad_option, () -> writer({to: :file}))
-  assert raises?(:bad_option, () -> writer({to: "stderr"}))
+  assert raised(() -> writer({to: :file})) == :bad_option
+  assert raised(() -> writer({to: "stderr"})) == :bad_option
 end
 
 test "show writes stdout by default and stderr on request, each to its own stream"
@@ -2197,16 +2191,16 @@ test "view builds a plain record of tag, props and children"
 end
 
 test "view refuses a tag or attribute outside the table and every on attribute"
-  assert raises?(:bad_option, () -> view(:script, {}, ["alert(1)"]))
-  assert raises?(:bad_option, () -> view(:iframe, {}, []))
-  assert raises?(:bad_option, () -> view(:style, {}, []))
-  assert raises?(:bad_option, () -> view(:div, {onclick: "steal()"}, []))
-  assert raises?(:bad_option, () -> view(:a, {onmouseover: "x"}, []))
-  assert raises?(:bad_option, () -> view(:a, {src: "/x"}, []))
-  assert raises?(:bad_option, () -> view(:div, {data_x: 1}, []))
-  assert raises?(:bad_option, () -> view(:div, {}, {default: []}))
-  assert raises?(:bad_option, () -> view("div", {}, []))
-  assert raises?(:bad_option, () -> view(:div, [], []))
+  assert raised(() -> view(:script, {}, ["alert(1)"])) == :bad_option
+  assert raised(() -> view(:iframe, {}, [])) == :bad_option
+  assert raised(() -> view(:style, {}, [])) == :bad_option
+  assert raised(() -> view(:div, {onclick: "steal()"}, [])) == :bad_option
+  assert raised(() -> view(:a, {onmouseover: "x"}, [])) == :bad_option
+  assert raised(() -> view(:a, {src: "/x"}, [])) == :bad_option
+  assert raised(() -> view(:div, {data_x: 1}, [])) == :bad_option
+  assert raised(() -> view(:div, {}, {default: []})) == :bad_option
+  assert raised(() -> view("div", {}, [])) == :bad_option
+  assert raised(() -> view(:div, [], [])) == :bad_option
   message = begin
     view(:div, {onclick: "x"}, [])
   rescue :bad_option as e
@@ -2414,9 +2408,9 @@ test "refuse page raises one render_error that carries every refusal"
   assert caught.kind == :render_error
   assert kinds(caught.data) == %i[bad_url literal_color]
   assert render(view(:p, {}, ["ok"]), :html, {refuse: :page}) == "<p>ok</p>"
-  assert raises?(:bad_option, () -> render(tree, :html, {refuse: :all}))
-  assert raises?(:bad_option, () -> render(tree, :ansi))
-  assert raises?(:bad_option, () -> render(tree, :html, {color: true}))
+  assert raised(() -> render(tree, :html, {refuse: :all})) == :bad_option
+  assert raised(() -> render(tree, :ansi)) == :bad_option
+  assert raised(() -> render(tree, :html, {color: true})) == :bad_option
 end
 
 test "each render rule refuses its own fault"
@@ -2471,9 +2465,9 @@ test "layout builds a div with a style record and refuses what it does not know"
     }
   assert layout(:row, []) ==
     {tag: :div, props: {style: {layout: :row}}, children: []}
-  assert raises?(:bad_option, () -> layout(:float, []))
-  assert raises?(:bad_option, () -> layout(:stack, [], {columns: 2}))
-  assert raises?(:bad_option, () -> layout(:stack, [], {width: 2}))
+  assert raised(() -> layout(:float, [])) == :bad_option
+  assert raised(() -> layout(:stack, [], {columns: 2})) == :bad_option
+  assert raised(() -> layout(:stack, [], {width: 2})) == :bad_option
 end
 
 test "style tokens render as variables, a layout as fixed display rules"
@@ -2511,14 +2505,10 @@ test "style resolves tokens through a theme, and html refuses the resolved color
   s = style(n, t)
   assert prop(s, :style) == {color: "#88c0d0", padding: "1rem"}
   assert style(view(:p), t) == view(:p)
-  assert raises?(
-    :bad_option,
-    () -> style(view(:p, {style: {color: :error}}), t)
-  )
-  assert raises?(
-    :bad_option,
-    () -> style(view(:p, {style: {color: "#fff"}}), t)
-  )
+  assert raised(() -> style(view(:p, {style: {color: :error}}), t)) ==
+    :bad_option
+  assert raised(() -> style(view(:p, {style: {color: "#fff"}}), t)) ==
+    :bad_option
   assert kinds(refusals(s)) == %i[literal_color not_a_token]
 end
 
@@ -2526,7 +2516,7 @@ test "css writes a theme as variables and refuses a token that is no role"
   t = theme({text: "#2e3440", text_muted: "#4c566a"}, :light)
   assert css(t) ==
     ":root{--color-text:#2e3440;--color-text-muted:#4c566a;--space-none:0;--space-xs:0.25rem;--space-sm:0.5rem;--space-md:1rem;--space-lg:1.5rem;--space-xl:2rem;--size-sm:0.875rem;--size-md:1rem;--size-lg:1.25rem;--size-xl:1.5rem;--size-xxl:2rem}"
-  assert raises?(:bad_option, () -> css(theme({link: "#fff"}, :light)))
+  assert raised(() -> css(theme({link: "#fff"}, :light))) == :bad_option
   assert render(
     view(:head, {}, [view(:title, {}, ["t"])]),
     :html,
@@ -2657,37 +2647,28 @@ test "a component refuses an unknown prop, a missing one, a bad variant, slot or
       view: (p, _s) -> view(:span, {}, [p[:label]])
     }
   )
-  assert raises?(:bad_option, () -> view(c, {}))
-  assert raises?(:bad_option, () -> view(c, {label: "x", colour: "red"}))
-  assert raises?(:bad_option, () -> view(c, {label: "x", size: :xl}))
-  assert raises?(:bad_option, () -> view(c, {label: "x"}, {footer: []}))
-  assert raises?(
-    :bad_option,
-    () -> view(c, {label: "x", on: {hover: (_e) -> nil}})
-  )
+  assert raised(() -> view(c, {})) == :bad_option
+  assert raised(() -> view(c, {label: "x", colour: "red"})) == :bad_option
+  assert raised(() -> view(c, {label: "x", size: :xl})) == :bad_option
+  assert raised(() -> view(c, {label: "x"}, {footer: []})) == :bad_option
+  assert raised(() -> view(c, {label: "x", on: {hover: (_e) -> nil}})) ==
+    :bad_option
   assert view(c, {label: "x", size: :lg})[:children] == ["x"]
-  assert raises?(:bad_option, () -> component("tag", {view: (_p, _s) -> nil}))
-  assert raises?(:bad_option, () -> component(:tag, {}))
-  assert raises?(
-    :bad_option,
-    () -> component(:tag, {view: (_p, _s) -> nil, colour: 1})
-  )
-  assert raises?(
-    :bad_option,
+  assert raised(() -> component("tag", {view: (_p, _s) -> nil})) == :bad_option
+  assert raised(() -> component(:tag, {})) == :bad_option
+  assert raised(() -> component(:tag, {view: (_p, _s) -> nil, colour: 1})) ==
+    :bad_option
+  assert raised(
     () -> component(:tag, {view: (_p, _s) -> nil, a11y: {role: :widget}})
-  )
-  assert raises?(
-    :bad_option,
+  ) == :bad_option
+  assert raised(
     () -> component(:tag, {view: (_p, _s) -> nil, a11y: {label: :title}})
-  )
-  assert raises?(
-    :bad_option,
+  ) == :bad_option
+  assert raised(
     () -> component(:tag, {view: (_p, _s) -> nil, variants: {size: []}})
-  )
-  assert raises?(
-    :bad_option,
-    () -> view(component(:t, {view: (_p, _s) -> "text"}), {})
-  )
+  ) == :bad_option
+  assert raised(() -> view(component(:t, {view: (_p, _s) -> "text"}), {})) ==
+    :bad_option
 end
 
 test "check finds each accessibility fault and nothing on a sound tree"
@@ -2788,16 +2769,16 @@ test "a static page of components renders to one html document"
   assert check(doc) == []
   assert render(doc, :html, {theme: t, refuse: :page}) ==
     "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta content=\"width=device-width, initial-scale=1\" name=\"viewport\"><title>Status &lt;ok&gt;</title><style>#{css(t)}</style></head><body><main><div style=\"display:flex;flex-direction:column;gap:var(--space-lg)\"><article aria-label=\"Build\" role=\"region\" style=\"padding:var(--space-md);background:var(--color-surface)\"><h2>Build</h2><p>green &amp; fast</p></article><article aria-label=\"Docs\" role=\"region\" style=\"padding:var(--space-md);background:var(--color-surface)\"><h2>Docs</h2><a href=\"https://blue.example/docs\">read</a></article></div></main></body></html>"
-  assert raises?(:bad_option, () -> page({title: "x", body: [], theme: t}))
+  assert raised(() -> page({title: "x", body: [], theme: t})) == :bad_option
 end
 
 test "labels keys display text by each value of a closed set"
   t = labels(:Tone, {WARM: "Warm", COOL: "Cool"})
   assert t == {labels: :Tone, entries: {"WARM" => "Warm", "COOL" => "Cool"}}
   assert t.entries["WARM"] == "Warm"
-  assert raises?(:bad_option, () -> labels("Tone", {WARM: "Warm"}))
-  assert raises?(:bad_option, () -> labels(:Tone, {}))
-  assert raises?(:bad_option, () -> labels(:Tone, {WARM: 1}))
+  assert raised(() -> labels("Tone", {WARM: "Warm"})) == :bad_option
+  assert raised(() -> labels(:Tone, {})) == :bad_option
+  assert raised(() -> labels(:Tone, {WARM: 1})) == :bad_option
 end
 
 test "an ink paints by ANSI slot, after the flags and before a hex colour, and an unknown ink is refused"
@@ -2810,7 +2791,7 @@ test "an ink paints by ANSI slot, after the flags and before a hex colour, and a
   ) == "#{esc}[1;90;38;2;255;0;0mx#{esc}[0m"
   assert styled({text: "x", ink: :cyan}, {color: false, theme: nil}) == "x"
   assert size(map_entries(inks)) == 16
-  assert raises?(:bad_option, () -> styled({text: "x", ink: :teal}, ctx))
+  assert raised(() -> styled({text: "x", ink: :teal}, ctx)) == :bad_option
 end
 
 test "duration_text: tenths under a minute, minutes and padded seconds above"
@@ -2840,14 +2821,10 @@ test "a step line reads mark, place, name, note and duration, and refuses an unk
     {color: true, theme: nil}
   ) ==
     "❌ #{esc_char}[90m[4/5]#{esc_char}[0m #{esc_char}[1;31mswitch#{esc_char}[0m"
-  assert raises?(
-    :bad_option,
-    () -> step({state: :gone, at: 1, of: 1, name: "x"})
-  )
-  assert raises?(
-    :bad_option,
-    () -> step({state: :done, at: 1, of: 1, name: "x", eta: 1})
-  )
+  assert raised(() -> step({state: :gone, at: 1, of: 1, name: "x"})) ==
+    :bad_option
+  assert raised(() -> step({state: :done, at: 1, of: 1, name: "x", eta: 1})) ==
+    :bad_option
 end
 
 test "show_step writes one line through the sink and keeps colour off when told"
@@ -2864,7 +2841,7 @@ end
 test "a role paints in its kazari ink, and an unknown role is refused"
   assert tone("x", :error) == {text: "x", ink: :red}
   assert tone("x", :text_dim) == {text: "x", ink: :bright_black}
-  assert raises?(:bad_option, () -> tone("x", :loud))
+  assert raised(() -> tone("x", :loud)) == :bad_option
   assert styled(tone("ok", :success), {color: true, theme: nil}) ==
     "#{esc_char}[32mok#{esc_char}[0m"
 end
@@ -2872,7 +2849,7 @@ end
 test "marks give the house symbols for steps and the circles for verdicts"
   assert map(mark, %i[done failed warn skipped]) == %w[✅ ❌ ⚠️ ➖]
   assert map(mark, %i[pass partial fail]) == %w[🟢 🟡 🔴]
-  assert raises?(:bad_option, () -> mark(:great))
+  assert raised(() -> mark(:great)) == :bad_option
 end
 
 test "cells counts the columns a terminal draws, wide symbols as two"
@@ -2911,8 +2888,8 @@ test "a table aligns by cells, right-aligns on request, styles cells and ends no
   painted = styled(t, {color: true, theme: nil})
   assert contains?(painted, "#{esc_char}[1mcheck#{esc_char}[0m") == true
   assert contains?(painted, "#{esc_char}[33mheld#{esc_char}[0m") == true
-  assert raises?(:bad_option, () -> table(rows, {}))
-  assert raises?(:bad_option, () -> table(rows, {columns: [:check], width: 3}))
+  assert raised(() -> table(rows, {})) == :bad_option
+  assert raised(() -> table(rows, {columns: [:check], width: 3})) == :bad_option
 end
 
 test "a tree draws branches and keeps the rail beside a middle child"
@@ -2945,5 +2922,5 @@ test "a spinner cycles its frames and refuses an unknown style"
   assert spinner(10, :braille) == "⠋"
   assert map((i) -> spinner(i, :ascii), [0, 1, 2, 3, 4]) ==
     ["|", "/", "-", "\\", "|"]
-  assert raises?(:bad_option, () -> spinner(0, :dots))
+  assert raised(() -> spinner(0, :dots)) == :bad_option
 end

@@ -10,10 +10,10 @@ answers the samples, and `exposition` writes them as /metrics serves them.
 """
 
 use("jisho")
+use("kyohi", [:raised])
 use("moji", %i[checked lines])
 use("retsu", %i[count_where enumerate first is_empty rest zip])
 use("rogu")
-use("tesuto", [:raises?])
 
 def name_ok?(name)
   string?(name) and name != "" and not contains?(name, " ")
@@ -387,12 +387,12 @@ test "counter declares an instrument and starts with no series"
 end
 
 test "counter refuses a bad name, an unknown option and bad labels"
-  assert raises?(:bad_option, () -> counter("", {}))
-  assert raises?(:bad_option, () -> counter("two words", {}))
-  assert raises?(:bad_option, () -> counter(:sym, {}))
-  assert raises?(:bad_option, () -> counter("n", {unit: "s"}))
-  assert raises?(:bad_option, () -> counter("n", {labels: "a"}))
-  assert raises?(:bad_option, () -> counter("n", {labels: ["a b"]}))
+  assert raised(() -> counter("", {})) == :bad_option
+  assert raised(() -> counter("two words", {})) == :bad_option
+  assert raised(() -> counter(:sym, {})) == :bad_option
+  assert raised(() -> counter("n", {unit: "s"})) == :bad_option
+  assert raised(() -> counter("n", {labels: "a"})) == :bad_option
+  assert raised(() -> counter("n", {labels: ["a b"]})) == :bad_option
 end
 
 test "increase adds, per label set, and returns nil"
@@ -423,7 +423,7 @@ test "increase by zero creates the series and a counter never goes down"
   c = counter("hits", {})
   increase(c, 0, {})
   assert values_of(read(c, {})) == [0]
-  assert raises?(:bad_option, () -> increase(c, -1, {}))
+  assert raised(() -> increase(c, -1, {})) == :bad_option
   assert values_of(read(c, {})) == [0]
   assert increase(c, 1.5, {}).nil?
   assert values_of(read(c, {})) == [1.5]
@@ -431,12 +431,12 @@ end
 
 test "increase refuses a non-number, another kind and an undeclared label"
   c = counter("hits", {labels: ["path"]})
-  assert raises?(:bad_option, () -> increase(c, "1", {}))
-  assert raises?(:bad_option, () -> increase(c, nil, {}))
-  assert raises?(:bad_option, () -> increase(c, 1, {host: "a"}))
+  assert raised(() -> increase(c, "1", {})) == :bad_option
+  assert raised(() -> increase(c, nil, {})) == :bad_option
+  assert raised(() -> increase(c, 1, {host: "a"})) == :bad_option
   assert increase(c, 1, {path: "/a"}).nil?
-  assert raises?(:bad_option, () -> increase(gauge("g", {}), 1, {}))
-  assert raises?(:bad_option, () -> increase(histogram("h", [1], {}), 1, {}))
+  assert raised(() -> increase(gauge("g", {}), 1, {})) == :bad_option
+  assert raised(() -> increase(histogram("h", [1], {}), 1, {})) == :bad_option
 end
 
 test "put sets a gauge, replaces the value, and allows negatives"
@@ -455,9 +455,9 @@ end
 
 test "put refuses a non-number, another kind and an undeclared label"
   g = gauge("g", {labels: ["shard"]})
-  assert raises?(:bad_option, () -> put(g, "x", {}))
-  assert raises?(:bad_option, () -> put(g, 1, {zone: "a"}))
-  assert raises?(:bad_option, () -> put(counter("c", {}), 1, {}))
+  assert raised(() -> put(g, "x", {})) == :bad_option
+  assert raised(() -> put(g, 1, {zone: "a"})) == :bad_option
+  assert raised(() -> put(counter("c", {}), 1, {})) == :bad_option
 end
 
 test "read filters by labels and refuses an unknown option"
@@ -470,7 +470,7 @@ test "read filters by labels and refuses an unknown option"
   assert values_of(read(c, {labels: {path: "/a", code: 500}})) == [2]
   assert read(c, {labels: {path: "/zzz"}}) == []
   assert retsu::size(read(c, {})) == 3
-  assert raises?(:bad_option, () -> read(c, {since: 1}))
+  assert raised(() -> read(c, {since: 1})) == :bad_option
 end
 
 test "read answers in label order whatever the order of writing"
@@ -490,11 +490,11 @@ test "two instruments keep their own series"
 end
 
 test "histogram refuses bounds that are not increasing numbers"
-  assert raises?(:bad_option, () -> histogram("h", [], {}))
-  assert raises?(:bad_option, () -> histogram("h", [1, 1], {}))
-  assert raises?(:bad_option, () -> histogram("h", [2, 1], {}))
-  assert raises?(:bad_option, () -> histogram("h", ["a"], {}))
-  assert raises?(:bad_option, () -> histogram("h", nil, {}))
+  assert raised(() -> histogram("h", [], {})) == :bad_option
+  assert raised(() -> histogram("h", [1, 1], {})) == :bad_option
+  assert raised(() -> histogram("h", [2, 1], {})) == :bad_option
+  assert raised(() -> histogram("h", ["a"], {})) == :bad_option
+  assert raised(() -> histogram("h", nil, {})) == :bad_option
   assert histogram("h", [1], {})[:bounds] == [1]
 end
 
@@ -518,9 +518,9 @@ test "observe keeps a series per label set and refuses what it cannot record"
   observe(h, 2, {route: "b"})
   assert values_of(read(h, {labels: {route: "a"}})) == [1, 1, 0.5, 1]
   assert values_of(read(h, {labels: {route: "b"}})) == [0, 1, 2, 1]
-  assert raises?(:bad_option, () -> observe(h, "x", {route: "a"}))
-  assert raises?(:bad_option, () -> observe(h, 1, {zone: "a"}))
-  assert raises?(:bad_option, () -> observe(gauge("g", {}), 1, {}))
+  assert raised(() -> observe(h, "x", {route: "a"})) == :bad_option
+  assert raised(() -> observe(h, 1, {zone: "a"})) == :bad_option
+  assert raised(() -> observe(gauge("g", {}), 1, {})) == :bad_option
 end
 
 def hand_out(requester, times)
@@ -555,7 +555,7 @@ end
 test "measure records when f raises, and raises the same error again"
   h = histogram("took", [1], {})
   clock = fake_clock([0, 2000])
-  assert raises?(:oops, () -> measure(h, () -> raise(:oops, "no"), {clock:}))
+  assert raised(() -> measure(h, () -> raise(:oops, "no"), {clock:})) == :oops
   assert values_of(read(h, {})) == [0, 1, 2, 1]
 end
 
@@ -564,16 +564,16 @@ test "measure takes labels and refuses another kind and an unknown option"
   measure(h, () -> 1, {labels: {job: "a"}})
   assert retsu::size(read(h, {labels: {job: "a"}})) == 4
   assert read(h, {labels: {job: "b"}}) == []
-  assert raises?(:bad_option, () -> measure(h, () -> 1, {label: {}}))
-  assert raises?(:bad_option, () -> measure(counter("c", {}), () -> 1, {}))
+  assert raised(() -> measure(h, () -> 1, {label: {}})) == :bad_option
+  assert raised(() -> measure(counter("c", {}), () -> 1, {})) == :bad_option
 end
 
 test "read raises a timeout when the instrument does not answer"
   c = counter("gone", {})
   dead = jisho::merge(c, {pid: spawn(() -> nil)})
-  assert raises?(:timeout, () -> read(dead, {wait_ms: 50}))
+  assert raised(() -> read(dead, {wait_ms: 50})) == :timeout
   started = now_ms
-  assert raises?(:timeout, () -> read(dead, {wait_ms: 1}))
+  assert raised(() -> read(dead, {wait_ms: 1})) == :timeout
   assert now_ms - started < 3000
   assert read(c, {wait_ms: 5000}) == []
 end

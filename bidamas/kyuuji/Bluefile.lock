@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:66c90986c05d6379d86afc2d70ac965a9498ff49d3c45034194c72d40f3e2928",
+  "bluefile_b3": "b3:3677c2a4d9f4fceb26f92423de5167bc1417989210945b11601e8dc452dbb818",
   "manifest": {
     "schema": 1,
     "name": "kyuuji",
@@ -10,8 +10,7 @@
       "kousei": "^0.1.0",
       "kyohi": "^0.1.0",
       "retsu": "^0.1.0",
-      "shinsuu": "^0.1.0",
-      "tesuto": "^0.1.0"
+      "shinsuu": "^0.1.0"
     },
     "when": "anytime",
     "sources": {},

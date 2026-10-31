@@ -9,6 +9,7 @@ status is data.
     join("http://a.com/b/c/d", "../g") #=> "http://a.com/b/g"
 """
 
+use("kyohi", [:raised])
 use("kyuuji", [:route_methods])
 
 use(
@@ -32,7 +33,6 @@ use(
 
 use("retsu", %i[all_but_last first is_empty last push rest])
 use("ronri", [:every])
-use("tesuto", [:raises?])
 
 def default_port(scheme)
   if scheme == "http"
@@ -435,16 +435,12 @@ test "request passes a plain body and refuses what it cannot send"
   assert sent[:body] == "x"
   assert sent[:headers] == []
   assert sent[:timeout_ms] == 5
-  assert raises?(
-    :bad_option,
+  assert raised(
     () -> request("FETCH", "http://h.example/", {transport: recorder})
-  )
-  assert raises?(
-    :parse_error,
-    () -> request("GET", "h.example/", {transport: recorder})
-  )
-  assert raises?(
-    :bad_option,
+  ) == :bad_option
+  assert raised(() -> request("GET", "h.example/", {transport: recorder})) ==
+    :parse_error
+  assert raised(
     fn()
       request(
         "POST",
@@ -452,9 +448,7 @@ test "request passes a plain body and refuses what it cannot send"
         {body: "x", json: {}, transport: recorder}
       )
     end
-  )
-  assert raises?(
-    :bad_option,
-    () -> request("GET", "http://h.example/", {retries: 3})
-  )
+  ) == :bad_option
+  assert raised(() -> request("GET", "http://h.example/", {retries: 3})) ==
+    :bad_option
 end

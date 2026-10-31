@@ -1,16 +1,16 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:900e7aaa7e24c56a539eec42c753eee38105ef4a201d3ac2c40aea0f89c16061",
+  "bluefile_b3": "b3:e1963245a26a3ace52e27826ed734faf943d524c0a44502e5eec477b2bac1914",
   "manifest": {
     "schema": 1,
     "name": "tsuushin",
     "version": "0.1.1",
     "needs": {
+      "kyohi": "^0.1.0",
       "kyuuji": "^0.1.0",
       "moji": "^0.1.0",
       "retsu": "^0.1.0",
-      "ronri": "^0.1.0",
-      "tesuto": "^0.1.0"
+      "ronri": "^0.1.0"
     },
     "when": "anytime",
     "sources": {},

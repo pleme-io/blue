@@ -302,7 +302,7 @@ bucket and Tide by ibuki's LEDBAT controller, so a program granted
 `--allow comm_scavenger --allow clock` the listener hears the one Tide
 control frame and no Flash frame, the run exits 77; under `--allow none` it
 hears nothing; `blue lock` refuses
-`[kodou: needs 'comm-flash'] violates ceiling [clock, comm-scavenger]`).
+`[wire-breach] -> [kodou::link: needs 'comm-flash'] violates ceiling [clock, comm-scavenger]`).
 
 **Scoped providers (2026-10-30).** `for: %w[rede]` beside `using` binds the
 provider only for the named packages and every package they `use`. In the

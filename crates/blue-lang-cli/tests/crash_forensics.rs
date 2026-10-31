@@ -176,7 +176,16 @@ fn a_breach_writes_a_version_3_bluecrash_named_by_its_crash_hash() {
         j["frame"],
         serde_json::json!({
             "granted": [],
-            "withheld": ["process", "filesystem", "environment", "clock", "network", "entropy"],
+            "withheld": [
+                "process",
+                "filesystem",
+                "environment",
+                "clock",
+                "network",
+                "entropy",
+                "comm-flash",
+                "comm-scavenger",
+            ],
             "host_io": 0,
         })
     );
@@ -202,7 +211,7 @@ fn dump_prints_the_violation_its_coordinate_the_hold_the_exit_and_the_mailbox() 
         "exit: fatal fatal capability-breach: `is_file?` reaches the host (filesystem)".into(),
         "violation: LatticeCeilingBreach: `is_file?` demands filesystem\n".into(),
         format!("shisutemu/shisutemu.b:{line}:{column} in shisutemu::read_or (tape entry 8 of 8)\n"),
-        "hold: granted none; provided none; withheld process, filesystem, environment, clock, network, entropy\n".into(),
+        "hold: granted none; provided none; withheld process, filesystem, environment, clock, network, entropy, comm-flash, comm-scavenger\n".into(),
         "host calls through granted names: 0\n".into(),
         "mailbox: 4 recent, 1 unconsumed (bound 8)\n  waiting: \"e\"\n".into(),
     ] {

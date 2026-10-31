@@ -333,7 +333,9 @@ fn a_frame_without_comm_flash_breaches_with_77_and_sends_nothing() {
     let o = blue().arg("lock").arg(&locked).output().expect("blue lock");
     assert!(!o.status.success());
     assert!(
-        err(&o).contains("[kodou: needs 'comm-flash'] violates ceiling [clock, comm-scavenger]"),
+        err(&o).contains(
+            "[wire-breach] -> [kodou::link: needs 'comm-flash'] violates ceiling [clock, comm-scavenger]"
+        ),
         "{}",
         err(&o)
     );

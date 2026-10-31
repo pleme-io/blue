@@ -13,6 +13,13 @@
 //! B0006 (syntax) has no tree to check, so its witness goes through
 //! `pipeline::syntax_diagnostic`, the door `blue check` reports it from.
 //!
+//! Every witness sees the full interpreter's surface (`docs::NAMES`) in
+//! every feature set: built without `sys`, the words that layer binds are
+//! declared beside the witness in a `blue-host.json`, as a host declares its
+//! own. Red run (2026-10-31), `cargo test -p blue-lang-runtime` without
+//! `sys` before that: `B0064: expected [B0064], got [B0001, B0064]`, since
+//! its witness calls `write_file`.
+//!
 //! Red run (2026-09-29): `check_names` removed from `check_stage` — the
 //! B0001 and B0002 rows fail with `B0001: expected [B0001], got []`.
 
@@ -71,6 +78,65 @@ fn codes_with(src: &str, imports: &'static [(&'static str, &'static str)]) -> Ve
     codes_in(src, imports, None, None)
 }
 
+/// The words of the full interpreter (`docs::NAMES`, the surface every
+/// witness is written against and `blue explain` shows) that this build
+/// does not bind: the `sys` layer, when the crate is built without it.
+fn host_words() -> Vec<&'static blue_lang_runtime::docs::NameDoc> {
+    let interp = blue_lang_runtime::interpreter(&mut ());
+    blue_lang_runtime::docs::NAMES
+        .iter()
+        .filter(|d| interp.resolve_head(d.name).is_none())
+        .collect()
+}
+
+fn host_surface() -> &'static str {
+    static TEXT: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    TEXT.get_or_init(|| {
+        let words = host_words();
+        let params: Vec<Vec<String>> = words
+            .iter()
+            .map(|d| blue_lang_check::contracts::parameters(d.signature).unwrap_or_default())
+            .collect();
+        let params: Vec<Vec<&str>> = params
+            .iter()
+            .map(|p| p.iter().map(String::as_str).collect())
+            .collect();
+        blue_lang_runtime::host_surface::render(
+            words
+                .iter()
+                .zip(&params)
+                .map(|(d, p)| (d.name, p.as_slice(), p.len(), d.doc)),
+        )
+    })
+}
+
+/// A directory whose `blue-host.json` declares [`host_words`], as a host
+/// that supplies them declares its own, removed when dropped: a witness
+/// checked there sees the surface it was written against in every feature
+/// set.
+struct FullSurface(std::path::PathBuf);
+
+impl FullSurface {
+    fn new() -> Self {
+        static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let dir = std::env::temp_dir().join(format!("blue-rules-{}-{n}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("a scratch directory");
+        std::fs::write(
+            dir.join(blue_lang_runtime::host_surface::FILE),
+            host_surface(),
+        )
+        .expect("the host surface is written");
+        Self(dir)
+    }
+}
+
+impl Drop for FullSurface {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
 fn codes_in(
     src: &str,
     imports: &'static [(&'static str, &'static str)],
@@ -80,10 +146,13 @@ fn codes_in(
     if let Some(d) = syntax_diagnostic(src) {
         return vec![d.code];
     }
-    let path = package.map_or_else(|| "witness.b".to_string(), |p| format!("{p}.b"));
+    let surface = FullSurface::new();
+    let path = surface
+        .0
+        .join(package.map_or_else(|| "witness.b".to_string(), |p| format!("{p}.b")));
     let checked = check_entry(
         Entry {
-            path: Some(std::path::Path::new(&path)),
+            path: Some(&path),
             text: src,
         },
         &Imports(imports, frontend, package),
@@ -117,6 +186,19 @@ fn every_rule_fires_on_its_witness_and_only_it() {
         }
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+#[test]
+fn a_witness_sees_the_sys_words_as_the_host_s_only_where_the_build_lacks_them() {
+    let words: Vec<&str> = host_words().iter().map(|d| d.name).collect();
+    for word in ["write_file", "read_file", "exec_capture"] {
+        assert_eq!(
+            words.contains(&word),
+            !cfg!(feature = "sys"),
+            "{word} in {words:?}"
+        );
+    }
+    assert!(host_surface().contains("\"write_file\"") != cfg!(feature = "sys"));
 }
 
 /// Anti-vacuity for the test above: a program that breaks no rule produces

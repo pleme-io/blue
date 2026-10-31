@@ -16,7 +16,7 @@
 //! - [`Places`]: each definition key's file and text, read only when a crash
 //!   asks where its breaching call is.
 //!
-//! ## Format `blue-receipt` version 1
+//! ## Format `blue-receipt`, versions 1 and 2
 //!
 //! One canonical JSON object (keys sorted, no whitespace), named by the
 //! BLAKE3 hash of its bytes (`blue_lang_runtime::receipt` writes and
@@ -31,6 +31,19 @@
 //!   "provided": [{ "provider": "deterministic-stepped", …, "for": [PACKAGE…] }…],
 //!   "subject": "actor" | "run", "version": 1 }
 //! ```
+//!
+//! Version 2 is version 1 with two more keys, written only for a
+//! `spawn_server` incarnation, whose state the node holds:
+//!
+//! ```text
+//! { …, "input_root": "b3:…", "output_root": "b3:…", …, "version": 2 }
+//! ```
+//!
+//! `input_root` is the [`StateRoot`] of the state the incarnation began
+//! with, before its first message; `output_root` that of the state after
+//! the last message its handler returned from. A receipt without roots is
+//! version 1, byte for byte as before version 2 existed, so the name of
+//! every receipt a run wrote before stays the name it has.
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -42,8 +55,75 @@ use crate::Pid;
 
 /// The format name every receipt carries.
 pub const FORMAT: &str = "blue-receipt";
-/// The version this crate writes.
-pub const VERSION: u64 = 1;
+/// The version a receipt with state roots carries.
+pub const VERSION: u64 = 2;
+/// The version a receipt without state roots carries.
+pub const VERSION_UNROOTED: u64 = 1;
+/// Every version [`check`] accepts.
+pub const READS: [u64; 2] = [VERSION_UNROOTED, VERSION];
+/// The keys only a version 2 receipt has.
+pub const ROOT_KEYS: [&str; 2] = ["input_root", "output_root"];
+
+/// The root of a server's state: `b3:` and the BLAKE3 hash of its canonical
+/// JSON. The runtime computes it (`blue_lang_runtime::json::state_root`); a
+/// node only calls it.
+pub type StateRoot = fn(&tatara_lisp_eval::Value) -> String;
+
+/// A server incarnation's state roots: before its first message, and after
+/// the last one its handler returned from.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Roots {
+    pub input: String,
+    pub output: String,
+}
+
+fn is_root(text: &str) -> bool {
+    text.strip_prefix("b3:").is_some_and(|hex| {
+        hex.len() == 64
+            && hex
+                .bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+    })
+}
+
+/// Whether `receipt` has the form its `version` names: version 1 carries no
+/// state root, version 2 carries both, each `b3:` and 64 lowercase hex
+/// digits.
+///
+/// # Errors
+///
+/// Naming a version this blue does not read, or the root that is missing,
+/// present where it may not be, or not a hash.
+pub fn check(receipt: &Json) -> Result<(), String> {
+    let version = receipt.get("version").and_then(Json::as_u64);
+    let rooted = match version {
+        Some(VERSION_UNROOTED) => false,
+        Some(VERSION) => true,
+        _ => {
+            return Err(format!(
+                "{FORMAT} version {}; this blue reads versions {} to {VERSION}",
+                receipt.get("version").unwrap_or(&Json::Null),
+                READS[0]
+            ))
+        }
+    };
+    for key in ROOT_KEYS {
+        match (rooted, receipt.get(key)) {
+            (false, None) => {}
+            (false, Some(_)) => {
+                return Err(format!(
+                    "a version {VERSION_UNROOTED} receipt carries `{key}`, which only version {VERSION} has"
+                ))
+            }
+            (true, None) => return Err(format!("a version {VERSION} receipt without `{key}`")),
+            (true, Some(root)) if !root.as_str().is_some_and(is_root) => {
+                return Err(format!("`{key}` is {root}, not b3: and 64 hex digits"))
+            }
+            (true, Some(_)) => {}
+        }
+    }
+    Ok(())
+}
 
 fn locked<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -353,19 +433,23 @@ pub struct Receipt {
     pub host_io: u64,
     pub exit_kind: String,
     pub exit_text: String,
+    /// A server incarnation's state roots; `None` for any other subject,
+    /// and then the receipt is version 1.
+    pub roots: Option<Roots>,
 }
 
 impl Receipt {
-    /// This receipt as `blue-receipt` JSON.
+    /// This receipt as `blue-receipt` JSON: version 2 with its roots, version
+    /// 1 without.
     #[must_use]
     pub fn to_json(&self) -> Json {
         let (subject, pid, incarnation) = match self.subject {
             Subject::Actor { pid, incarnation } => ("actor", pid.0, incarnation),
             Subject::Run => ("run", crate::ROOT.0, 0),
         };
-        json!({
+        let mut j = json!({
             "format": FORMAT,
-            "version": VERSION,
+            "version": VERSION_UNROOTED,
             "subject": subject,
             "pid": pid,
             "incarnation": incarnation,
@@ -374,7 +458,13 @@ impl Receipt {
             "exit": { "kind": self.exit_kind, "text": self.exit_text },
             "frame": self.frame.block(self.host_io),
             "provided": self.frame.provided_json(),
-        })
+        });
+        if let Some(roots) = &self.roots {
+            j["version"] = json!(VERSION);
+            j["input_root"] = json!(roots.input);
+            j["output_root"] = json!(roots.output);
+        }
+        j
     }
 
     /// The bytes a receipt is: its JSON, canonical.
@@ -572,6 +662,7 @@ mod tests {
             host_io: 7,
             exit_kind: "normal".into(),
             exit_text: "normal".into(),
+            roots: None,
         };
         let text = String::from_utf8(r.bytes()).expect("utf8");
         assert!(!text.contains(' ') && !text.contains('\n'), "{text}");
@@ -588,5 +679,94 @@ mod tests {
             back["provided"][1],
             json!({"provider": "null-sink", "for": ["kazu"]})
         );
+    }
+
+    const V1: &str = r#"{"def_hash":"b3:ab","definition":"%root/w","exit":{"kind":"normal","text":"normal"},"format":"blue-receipt","frame":{"granted":["filesystem"],"host_io":7,"withheld":["process","environment","network","entropy"]},"incarnation":1,"pid":2,"provided":[{"at_ms":5,"provider":"deterministic-stepped","step_ms":1},{"for":["kazu"],"provider":"null-sink"}],"subject":"actor","version":1}"#;
+
+    fn actor(roots: Option<Roots>) -> Receipt {
+        Receipt {
+            subject: Subject::Actor {
+                pid: Pid(2),
+                incarnation: 1,
+            },
+            definition: Some("%root/w".into()),
+            def_hash: Some("b3:ab".into()),
+            frame: frame(),
+            host_io: 7,
+            exit_kind: "normal".into(),
+            exit_text: "normal".into(),
+            roots,
+        }
+    }
+
+    fn root(c: char) -> String {
+        format!("b3:{}", c.to_string().repeat(64))
+    }
+
+    #[test]
+    fn a_receipt_without_roots_is_the_version_1_receipt_byte_for_byte() {
+        let r = actor(None);
+        assert_eq!(String::from_utf8(r.bytes()).expect("utf8"), V1);
+        assert_eq!(check(&r.to_json()), Ok(()));
+    }
+
+    #[test]
+    fn a_receipt_with_roots_is_version_2_and_without_them_is_version_1_again() {
+        let r = actor(Some(Roots {
+            input: root('a'),
+            output: root('b'),
+        }));
+        let j = r.to_json();
+        assert_eq!(j["version"], VERSION);
+        assert_eq!(j["input_root"], root('a'));
+        assert_eq!(j["output_root"], root('b'));
+        assert_eq!(check(&j), Ok(()));
+        let mut stripped = j.clone();
+        for key in ROOT_KEYS {
+            stripped.as_object_mut().expect("object").remove(key);
+        }
+        stripped["version"] = json!(VERSION_UNROOTED);
+        assert_eq!(canonical(&stripped), V1);
+    }
+
+    #[test]
+    fn check_reads_versions_1_and_2_and_refuses_a_root_out_of_place() {
+        let v1 = actor(None).to_json();
+        let v2 = actor(Some(Roots {
+            input: root('0'),
+            output: root('f'),
+        }))
+        .to_json();
+        let edited = |base: &Json, key: &str, value: Json| {
+            let mut j = base.clone();
+            j[key] = value;
+            j
+        };
+        let refused = |j: &Json, why: &str| {
+            let e = check(j).expect_err(why);
+            assert!(e.contains(why), "{e}");
+        };
+        refused(
+            &edited(&v1, "input_root", json!(root('a'))),
+            "carries `input_root`",
+        );
+        refused(&edited(&v1, "version", json!(3)), "reads versions 1 to 2");
+        refused(
+            &edited(&v2, "output_root", json!("b3:00")),
+            "not b3: and 64 hex",
+        );
+        refused(
+            &edited(&v2, "input_root", json!(root('A'))),
+            "not b3: and 64 hex",
+        );
+        let mut half = v2.clone();
+        half.as_object_mut().expect("object").remove("output_root");
+        refused(&half, "without `output_root`");
+        let mut unversioned = v1.clone();
+        unversioned
+            .as_object_mut()
+            .expect("object")
+            .remove("version");
+        refused(&unversioned, "reads versions 1 to 2");
     }
 }

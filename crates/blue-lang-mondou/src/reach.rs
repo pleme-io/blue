@@ -118,10 +118,19 @@ impl std::fmt::Display for Volatility {
 }
 
 /// The builtins whose topic computes but which answer differently for equal
-/// calls, or rebind the program's names. Each is a row of
+/// calls, or rebind the program's names. `def_hash` is one: its answer
+/// covers `@doc` text the memo's key does not, and is nil where the door
+/// identifies no program. Each is a row of
 /// `blue_lang_runtime::docs::NAMES` or a special form; a test fails when one
 /// stops being either.
-const NONDETERMINISTIC: &[&str] = &["gensym", "defsm", "defcommand", "defquery", "defactor"];
+const NONDETERMINISTIC: &[&str] = &[
+    "gensym",
+    "defsm",
+    "defcommand",
+    "defquery",
+    "defactor",
+    "def_hash",
+];
 
 /// The host capability that grants `name`, if one does.
 #[must_use]

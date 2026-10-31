@@ -36,8 +36,8 @@ missing-row gate's totals.
 
 | column | what runs the row | what it can observe |
 |---|---|---|
-| `walker` | `pipeline::run_in_surface`, the `blue run` path, with a loader over `spec/bidamas` and `bidamas` | value, failure |
-| `vm` | the same check and erasure, then `eval_program_vm` (batched expansion, bytecode VM) | value, failure |
+| `walker` | `pipeline::run_framed_accounted`, the `blue run` path, with a loader over `spec/bidamas` and `bidamas` and the account `blue run` gives, which names each definition's `def_hash` | value, failure |
+| `vm` | the same check, erasure and identities, then `eval_program_vm` (batched expansion, bytecode VM) | value, failure |
 | `wasm` | `blue_lang_wasm::eval_tagged`, the module's ABI (no loader) | an Int, "not an Int", or an error |
 | `cli` | the `blue` binary: `run --quiet`, `fmt`, `check --format json`, `shift` | output, failure, formatting, diagnostics, rung |
 | `static` | the front end in-process: `check_entry`, `format_source_lossless`, `shift_of` | diagnostics, formatting, rung |

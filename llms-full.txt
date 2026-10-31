@@ -210,7 +210,7 @@ rendered:
 
 | | |
 |---|---|
-| Built-in names | 320: 293 functions, 14 special forms, 13 macros |
+| Built-in names | 321: 294 functions, 14 special forms, 13 macros |
 | Surface forms | 30, with 13 operators and 25 reserved words |
 | Check rules | 67: 38 fix themselves, 7 suggest a fix |
 | Bluefile words | 23 |
@@ -221,7 +221,7 @@ rendered:
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-88 packages, 4819 definitions, 1578 tests.
+88 packages, 4819 definitions, 1579 tests.
 
 - [anaritikusu](bidamas/CATALOG.md#anaritikusu) (アナリティクス) — lifecycle analytics: a database of telemetry, standard models and cross-lifecycle joins, generated from lifecycle definitions.
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
@@ -2937,6 +2937,34 @@ runtime's `tests::held::*` (with
 `a_scoped_provider_binds_its_alias_uncounted_and_leaves_the_host_name_counted`)
 and `receipt::tests::*`.
 
+**State roots and the `def_hash` word (2026-10-31).** A `spawn_server`
+incarnation's receipt is `blue-receipt` version 2: version 1 with
+`input_root`, the state it began with, and `output_root`, the state after
+the last message its handler returned from, each `b3:` and the BLAKE3 hash
+of the state's canonical JSON (`blue_lang_runtime::json::state_root`, the
+text `json_canonical(json_stringify(state))` gives in blue). Every other
+receipt stays version 1, byte for byte, so no receipt a run wrote before
+changes its name. `blue receipt verify` reads both and refuses a version 1
+with a root, a version 2 without both, a root that is not a hash, and any
+other version (`blue_lang_proc::receipt::check`). `def_hash(f)` answers the
+`def_hash` the node's identities give the definition `f` is bound under,
+the same table a trace and a receipt read, so a program states the identity
+its receipts carry: ibuki's Strand names `def_hash(step)` when its caller
+names none. It reaches no host capability, so it runs under `--allow none`;
+the call memo treats its callers as volatile, since its answer covers `@doc`
+text the memo's key does not. `blue run`, `test`, `profile` and `trace`
+identify their program; a session and an appliance do not, and there the
+word answers nil. Tests:
+`crates/blue-lang-cli/tests/receipts.rs`
+(`the_def_hash_word_answers_the_hash_the_servers_receipt_records`,
+`a_server_receipt_binds_its_state_before_its_first_message_and_after_its_last`,
+`receipt_verify_reads_versions_1_and_2_and_refuses_a_root_out_of_place`,
+`the_strand_record_names_the_def_hash_its_step_process_receipt_records`),
+`blue_lang_proc::receipt::tests` (a receipt without roots is the version 1
+bytes), the `fn.def_hash.*` rows in `spec/rows/functions.b`, and ibuki's
+test "a Strand names the engine's def_hash of step when the caller names
+none".
+
 **Breach assertions and test evidence (2026-10-30).** A test proves a
 refusal with `assert_panics expr`: the harness turns the function
 `(lambda () expr)` back into code as `spawn` does
@@ -3350,7 +3378,7 @@ file's `Bluefile.lock` records is skipped and named, never chosen.
 | `blue run file.b` | run a program and print its final value; `--quiet` drops it, `-- a b` passes arguments; `--allow CAP` holds it to those host capabilities; `--receipts DIR` writes an execution receipt for the run and for each process ([`docs/SAFETY.md`](docs/SAFETY.md), row 8); a runtime error prints the blue call stack, and `--format json` prints it as one object; `--timings` prints the wall time of each pipeline stage to stderr |
 | `blue replay TRACE` | run a crashed process again from its trace and say whether it crashed the same way; a fatal exit's `.bluecrash` replays under the hold it recorded; TRACE is a file or its crash hash (`b3:<hex>`, 8 digits at least) |
 | `blue crash dump\|bisect\|immunize CRASH` | a trace by file or crash hash: `dump` what it violated and where (class, host name, capability, file:line:col, hold, exit, mailbox; `--json`); `bisect` it to the fewest messages that replay to the same crash; `immunize` it into a test, red until the target is fixed (`--into FILE`) ([`docs/SAFETY.md`](docs/SAFETY.md), row 8) |
-| `blue receipt verify FILE` | recompute a receipt's name from the BLAKE3 hash of its bytes; any edit fails |
+| `blue receipt verify FILE` | recompute a receipt's name from the BLAKE3 hash of its bytes and check its form: version 1, or version 2 with a server's `input_root` and `output_root`; any edit fails |
 | `blue new NAME` | a project; `--bidama NAME` a package, `--script NAME.b` an executable script |
 | `blue watch [check\|test\|run] PATH…` | rerun the command on every save (`check` by default) |
 | `blue test file.b` | check it, then run its `test` blocks; a directory runs every file with tests, in parallel; `--filter NAME` keeps tests whose name contains it; `--coverage` lists each definition's calls and the uncovered ones; `--allow CAP` holds the tests to those host capabilities; `--facts FILE` (or `TAMESHI_FACTS`) writes the facts tameshi reads and `blue-test-evidence.json` beside it ([`docs/TESTING.md`](docs/TESTING.md#declared-controls-live-2026-10-30)) |

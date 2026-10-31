@@ -368,6 +368,7 @@ pub const NAMES: &[NameDoc] = names! {
     Function: "juxt" "juxt(fs...)" "The function x -> [f(x), g(x), …].";
     Function: "tap" "tap(f, x)" "Call f(x) for its effect and return x.";
     Function: "memoize" "memoize(f)" "f, remembering each argument's answer.";
+    Function: "def_hash" "def_hash(f)" "The engine's identity of the definition f is bound under, as b3: and 64 hex digits: the hash of its resolved tree and @doc, with each definition it names by that one's hash, so it changes exactly when f or anything f reaches changes, never on a rename. It is the def_hash that run's crash traces and receipts name for f. Nil for a function no definition binds (a lambda, a builtin) and in a door that identifies no program (a session, an appliance); blue run, test, profile and trace identify theirs. Reads no host state; raises unless f is a function.";
     Function: "volatile" "volatile(f)" "Declares that f must run on every call: neither f nor any definition reaching it is answered from the call memo. Nil; raises unless f is a function.";
     Function: "decorate" "decorate(f, keys-and-values...)" "f with metadata attached; it still calls as f.";
     Function: "visit" "visit(f, x)" "f(x).";

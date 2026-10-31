@@ -5,8 +5,8 @@
 //!
 //! | evaluator | what it runs | what it can observe |
 //! |---|---|---|
-//! | `walker` | `pipeline::run_in_surface`, the `blue run` path, with a loader | value, failure |
-//! | `vm` | the same check and erasure, then `eval_program_vm`: batched expansion and the bytecode VM | value, failure |
+//! | `walker` | `pipeline::run_framed_accounted`, the `blue run` path, with a loader and the account `blue run` gives, which names each definition's `def_hash` | value, failure |
+//! | `vm` | the same check, erasure and identities, then `eval_program_vm`: batched expansion and the bytecode VM | value, failure |
 //! | `wasm` | `blue_lang_wasm::eval_tagged`, the module's ABI, with no loader | integer / non-integer / error |
 //! | `cli` | the shipped `blue` binary as a subprocess | output, failure, `fmt`, `check`, `shift` |
 //! | `static` | the shared front end in-process: check, format, blueshift | diagnostics, formatting, rung |
@@ -17,7 +17,7 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use blue_lang_runtime::pipeline::{check_entry, render, run_in_surface, Checking, RunError};
+use blue_lang_runtime::pipeline::{check_entry, render, run_framed_accounted, Checking, RunError};
 use blue_lang_runtime::uses::{Entry, Loader};
 use blue_lang_runtime::Inputs;
 use tatara_lisp_eval::Value;
@@ -217,6 +217,15 @@ fn import_message(m: &str) -> String {
     }
 }
 
+/// The account `blue run` gives of a run: it names each definition's
+/// `def_hash`, so the `def_hash` word answers as it does there.
+fn identifying() -> blue_lang_runtime::Account {
+    blue_lang_runtime::Account {
+        identify: Some(blue_lang_mondou::def_hash::identify),
+        ..blue_lang_runtime::Account::default()
+    }
+}
+
 /// Does this row's expectation run on value-and-failure evaluators?
 fn runs(row: &Row) -> bool {
     matches!(row.expect, Expect::Value(_) | Expect::Fails(..))
@@ -234,7 +243,7 @@ pub fn walker(env: &mut Env, row: &Row) -> Obs {
         path: Some(Path::new(ROW_FILE)),
         text: &row.src,
     };
-    match run_in_surface(entry, Inputs::new(), &loader, None) {
+    match run_framed_accounted(entry, Inputs::new(), &loader, None, None, &identifying()) {
         Ok(run) => Obs::Value(env.literal(&run.value)),
         Err(e) => failed(&e),
     }
@@ -302,8 +311,14 @@ fn memo_run(env: &mut Env, row: &Row, dir: &Path) -> (Obs, u64, usize) {
         ..Policy::default()
     };
     let mut held = None;
-    let observed =
-        blue_lang_runtime::pipeline::run_observed(entry, Inputs::new(), &loader, None, |w| {
+    let observed = blue_lang_runtime::pipeline::run_observed_accounted(
+        entry,
+        Inputs::new(),
+        &loader,
+        None,
+        None,
+        &identifying(),
+        |w| {
             let m = Arc::new(Recall::new(
                 Arc::clone(w.definitions),
                 Plan::of(w.definitions, w.lowered, w.erased),
@@ -313,7 +328,8 @@ fn memo_run(env: &mut Env, row: &Row, dir: &Path) -> (Obs, u64, usize) {
             ));
             held = Some(Arc::clone(&m));
             m
-        });
+        },
+    );
     let (from_disk, written) = held.as_ref().map_or((0, 0), |m| {
         let flushed = m.flush();
         (m.report().total().disk_hits, flushed.written)
@@ -352,8 +368,12 @@ pub fn vm(env: &mut Env, row: &Row) -> Obs {
     }
     // The pipeline's own tree: lowered (every `use` declaration inert, every
     // qualified name at its key) and erased.
-    let erased = checked.erased();
+    let lowered = std::sync::Arc::new(checked.lowered());
+    let erased = blue_lang_runtime::erase_types(&lowered);
     let mut interp = blue_lang_runtime::interpreter_hostless();
+    let account = identifying();
+    account.defer_identities(&checked.program, lowered, None);
+    blue_lang_runtime::attach_node_accounted(&mut interp, None, &account);
     blue_lang_runtime::install_input_primitives(&mut interp, Inputs::new());
     match interp.eval_program_vm(&erased, &mut ()) {
         Ok(v) => Obs::Value(env.literal(&v)),

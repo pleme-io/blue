@@ -292,12 +292,11 @@ fn hold_to_frame(
     hold: Option<&crate::Hold>,
     account: &crate::Account,
 ) -> Result<(), RunError> {
-    if let Some(identify) = account.identify {
-        account.identities.defer(identify(
-            &prepared.program,
-            std::sync::Arc::clone(&prepared.lowered),
-            main_key(prepared),
-        ));
+    if account.defer_identities(
+        &prepared.program,
+        std::sync::Arc::clone(&prepared.lowered),
+        main_key(prepared),
+    ) {
         let places = places_of(&prepared.program, &prepared.erased);
         account.places.defer(move || places);
     }
@@ -1433,7 +1432,14 @@ impl Checked {
     /// `run` evaluates, for a door that brings its own evaluator (the VM).
     #[must_use]
     pub fn erased(&self) -> Vec<tatara_lisp::Spanned> {
-        erase_types(&lower(&self.program, &self.names))
+        erase_types(&self.lowered())
+    }
+
+    /// The program [`lower`]ed: what [`Checked::erased`] erases, and the
+    /// tree `def_hash` reads (`crate::Account::defer_identities`).
+    #[must_use]
+    pub fn lowered(&self) -> Vec<tatara_lisp::Spanned> {
+        lower(&self.program, &self.names)
     }
 
     /// What `blue test` hands the harness: the program [`lower`]ed, spans

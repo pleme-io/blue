@@ -12,6 +12,7 @@
 //! exit(pid, reason)           trap_exit(flag)
 //! supervisor(strategy, children[, max_restarts])         children(sup)
 //! defmigrate(target, new_fn[, transform])
+//! def_hash(f)
 //! ```
 //!
 //! ## The shapes, adopted rather than invented
@@ -65,7 +66,9 @@ use tatara_lisp_eval::{EvalError, Interpreter, Value};
 use crate::code::{self, Code, Entry};
 use crate::mailbox::copy_data;
 use crate::pattern;
-use crate::receipt::{Frame, HostIo, Identities, Places, Receipt, ReceiptSink, Subject};
+use crate::receipt::{
+    Frame, HostIo, Identities, Places, Receipt, ReceiptSink, Roots, StateRoot, Subject,
+};
 use crate::trace::{Journal, SliceRecord, TapeEntry, Trace};
 use crate::violation::{defined_key, Violation};
 use crate::{ExitReason, Pid, Proc, ProcState, Slice, Strategy};
@@ -117,6 +120,7 @@ pub const PROCESS_WORDS: &[&str] = &[
     "supervisor",
     "children",
     "defmigrate",
+    "def_hash",
 ];
 
 /// The word a server's loop waits in. Not spellable, so not in
@@ -267,6 +271,9 @@ pub struct NodeConfig {
     pub places: Places,
     /// Where each held process's receipt goes when an incarnation ends.
     pub receipts: Option<ReceiptSink>,
+    /// How a server's receipt names its state; without one, a server's
+    /// receipt carries no roots.
+    pub state_root: Option<StateRoot>,
     /// The allocator meter that holds each process to its live-byte bound;
     /// `None` holds no process to one.
     pub meter: Option<Meter>,
@@ -294,6 +301,7 @@ impl NodeConfig {
             identities: Identities::default(),
             places: Places::default(),
             receipts: None,
+            state_root: None,
             meter: None,
         }
     }
@@ -339,6 +347,8 @@ struct Info {
     snapshot: Option<Value>,
     /// The state a server restarts with.
     initial: Option<Value>,
+    /// The state this incarnation of a server began with.
+    entered: Option<Value>,
     /// Live bytes this incarnation holds ([`Meter`]).
     held: i64,
     /// The live bytes it may hold: its spawner's bound, kept across restarts.
@@ -360,6 +370,7 @@ impl Info {
             live: true,
             snapshot: None,
             initial: None,
+            entered: None,
             held: 0,
             bound: None,
         }
@@ -673,6 +684,7 @@ const WORDS: &[(&str, Arity, Word)] = &[
     ("supervisor", Arity::Range(2, 3), w_supervisor),
     ("children", Arity::Exact(1), w_children),
     ("defmigrate", Arity::Range(2, 3), w_defmigrate),
+    ("def_hash", Arity::Exact(1), w_def_hash),
 ];
 
 /// Bind the process words into the interpreter that runs a program, against
@@ -1055,6 +1067,7 @@ impl Node {
         info.def_name = def_name;
         info.sup = sup;
         info.snapshot.clone_from(&initial);
+        info.entered.clone_from(&initial);
         info.initial = initial;
         info.bound = bound;
         st.info.insert(pid, info);
@@ -1213,7 +1226,7 @@ impl Node {
         let trace = reason
             .is_abnormal()
             .then(|| self.trace_of(&mut st, pid, reason, &value));
-        let receipt = self.receipt_of(&st, pid, reason);
+        let receipt = self.receipt_of(&st, sched, pid, reason);
         let (links, monitors, sup) = {
             let info = st.info.get_mut(&pid).expect("checked above");
             (
@@ -1320,6 +1333,7 @@ impl Node {
                 info.live = true;
                 info.held = 0;
                 info.snapshot.clone_from(&info.initial);
+                info.entered.clone_from(&info.initial);
                 info.chunk.clone()
             })
         };
@@ -1597,11 +1611,32 @@ impl Node {
 
     /// The receipt of `pid`'s incarnation, which is ending: only a held
     /// node's processes have one, since only a hold's shims count host calls.
-    fn receipt_of(&self, st: &NodeState, pid: Pid, reason: &ExitReason) -> Option<Receipt> {
+    fn receipt_of(
+        &self,
+        st: &NodeState,
+        sched: &[Proc<()>],
+        pid: Pid,
+        reason: &ExitReason,
+    ) -> Option<Receipt> {
         let host_io = self.config.host_io.take(pid);
         let frame = self.config.frame.clone()?;
         self.config.receipts.as_ref()?;
         let info = st.info.get(&pid)?;
+        let roots = match (&info.kind, self.config.state_root, &info.entered) {
+            (Kind::Server, Some(root), Some(entered)) => {
+                let left = sched
+                    .iter()
+                    .find(|p| p.pid == pid)
+                    .and_then(|p| p.interp.lookup_global("%state"))
+                    .or_else(|| info.snapshot.clone())
+                    .unwrap_or(Value::Nil);
+                Some(Roots {
+                    input: root(entered),
+                    output: root(&left),
+                })
+            }
+            _ => None,
+        };
         Some(Receipt {
             subject: Subject::Actor {
                 pid,
@@ -1616,6 +1651,7 @@ impl Node {
             host_io,
             exit_kind: crate::trace::reason_kind(reason).to_string(),
             exit_text: crate::trace::reason_text(reason),
+            roots,
         })
     }
 
@@ -1853,6 +1889,22 @@ fn w_spawn_link(node: &Node, who: Who, args: &[Value], span: Span) -> Result<Val
         i.links.insert(me);
     }
     Ok(int(pid.0))
+}
+
+/// The `def_hash` the node's identities give the definition `f` is bound
+/// under, as a trace and a receipt name it; nil when they give none.
+fn w_def_hash(node: &Node, _who: Who, args: &[Value], span: Span) -> Result<Value, EvalError> {
+    let f = &args[0];
+    if !code::is_function(f) {
+        return Err(refuse(
+            "def_hash",
+            format!("expected a function, got {}", f.type_name()),
+            span,
+        ));
+    }
+    Ok(code::name_of(f)
+        .and_then(|key| node.config.identities.of(&key))
+        .map_or(Value::Nil, |hash| Value::Str(Arc::from(hash))))
 }
 
 fn w_spawn_server(node: &Node, _who: Who, args: &[Value], span: Span) -> Result<Value, EvalError> {

@@ -77,6 +77,7 @@ pub(crate) fn test(
     let guard = blue_lang_test::Guard {
         hold,
         max_alloc_bytes: blue_lang_runtime::execution_bounds().max_alloc_bytes,
+        identify: Some(blue_lang_mondou::def_hash::identify),
         ..blue_lang_test::Guard::default()
     };
     let runs = run_files(&files, watch, &guard, facts.is_some())?;
@@ -429,7 +430,7 @@ fn run_watched(
     blue_lang_runtime::sys::set_program_args(args);
     let src = crate::read_run(file)?;
     let inputs = crate::bind_inputs(&src, &[], cfg)?;
-    Ok(blue_lang_runtime::pipeline::run_observed(
+    Ok(blue_lang_runtime::pipeline::run_observed_accounted(
         Entry {
             path: Some(file),
             text: &src,
@@ -437,6 +438,8 @@ fn run_watched(
         inputs,
         &blue_lang_pkg::load_path::LoadPath::for_entry(file),
         None,
+        None,
+        &crate::receipt::account(None),
         watch,
     )?)
 }

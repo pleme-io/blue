@@ -37,6 +37,7 @@ def kensa_capabilities()
     entropy
     comm-flash
     comm-scavenger
+    mpc-threshold
   ]
 end
 
@@ -774,6 +775,8 @@ test "an entry is kensa's shape, keys and all, and a crash it cannot name is ref
   assert entry_of(fixture_crash("comm-flash", d))["capability"] == "comm-flash"
   assert entry_of(fixture_crash("comm-scavenger", d))["capability"] ==
     "comm-scavenger"
+  assert entry_of(fixture_crash("mpc-threshold", d))["capability"] ==
+    "mpc-threshold"
   assert raised(() -> entry_of(fixture_crash("gpu", d))) == :refused
   assert raised(() -> entry_of(fixture_crash("filesystem", "b3:short"))) ==
     :refused

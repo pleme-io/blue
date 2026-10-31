@@ -104,7 +104,13 @@
   {
     "name": "kensa cannot name comm-scavenger",
     "file": "kodou.b",
-    "find": "    comm-flash\n    comm-scavenger\n  ]",
-    "replace": "    comm-flash\n  ]"
+    "find": "    comm-flash\n    comm-scavenger\n    mpc-threshold\n  ]",
+    "replace": "    comm-flash\n    mpc-threshold\n  ]"
+  },
+  {
+    "name": "kensa cannot name mpc-threshold",
+    "file": "kodou.b",
+    "find": "    comm-scavenger\n    mpc-threshold\n  ]",
+    "replace": "    comm-scavenger\n  ]"
   }
 ]

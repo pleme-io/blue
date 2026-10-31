@@ -26,8 +26,9 @@ use blue_lang_syntax::{Atom, Sexp};
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
 )]
 pub enum Ev {
-    /// The tree-walker behind `blue run`: `pipeline::run_in_surface`. Stage 0:
-    /// every other evaluator is compared against it.
+    /// The tree-walker behind `blue run`: `pipeline::run_framed_accounted`,
+    /// naming each definition's `def_hash` as `blue run` does. Stage 0: every
+    /// other evaluator is compared against it.
     Walker,
     /// The bytecode VM: the same check and erasure, then batched expansion and
     /// `tatara_lisp_eval::vm` (`Interpreter::eval_program_vm`).

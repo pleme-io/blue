@@ -440,6 +440,34 @@ runtime's `tests::held::*` (with
 `a_scoped_provider_binds_its_alias_uncounted_and_leaves_the_host_name_counted`)
 and `receipt::tests::*`.
 
+**State roots and the `def_hash` word (2026-10-31).** A `spawn_server`
+incarnation's receipt is `blue-receipt` version 2: version 1 with
+`input_root`, the state it began with, and `output_root`, the state after
+the last message its handler returned from, each `b3:` and the BLAKE3 hash
+of the state's canonical JSON (`blue_lang_runtime::json::state_root`, the
+text `json_canonical(json_stringify(state))` gives in blue). Every other
+receipt stays version 1, byte for byte, so no receipt a run wrote before
+changes its name. `blue receipt verify` reads both and refuses a version 1
+with a root, a version 2 without both, a root that is not a hash, and any
+other version (`blue_lang_proc::receipt::check`). `def_hash(f)` answers the
+`def_hash` the node's identities give the definition `f` is bound under,
+the same table a trace and a receipt read, so a program states the identity
+its receipts carry: ibuki's Strand names `def_hash(step)` when its caller
+names none. It reaches no host capability, so it runs under `--allow none`;
+the call memo treats its callers as volatile, since its answer covers `@doc`
+text the memo's key does not. `blue run`, `test`, `profile` and `trace`
+identify their program; a session and an appliance do not, and there the
+word answers nil. Tests:
+`crates/blue-lang-cli/tests/receipts.rs`
+(`the_def_hash_word_answers_the_hash_the_servers_receipt_records`,
+`a_server_receipt_binds_its_state_before_its_first_message_and_after_its_last`,
+`receipt_verify_reads_versions_1_and_2_and_refuses_a_root_out_of_place`,
+`the_strand_record_names_the_def_hash_its_step_process_receipt_records`),
+`blue_lang_proc::receipt::tests` (a receipt without roots is the version 1
+bytes), the `fn.def_hash.*` rows in `spec/rows/functions.b`, and ibuki's
+test "a Strand names the engine's def_hash of step when the caller names
+none".
+
 **Breach assertions and test evidence (2026-10-30).** A test proves a
 refusal with `assert_panics expr`: the harness turns the function
 `(lambda () expr)` back into code as `spawn` does

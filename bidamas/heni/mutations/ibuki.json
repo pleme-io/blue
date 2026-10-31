@@ -108,6 +108,12 @@
     "replace": "nil"
   },
   {
+    "name": "a Strand with no def_hash from its caller names none from the engine",
+    "file": "ibuki.b",
+    "find": "d = opts[:def_hash] or def_hash(step)",
+    "replace": "d = opts[:def_hash]"
+  },
+  {
     "name": "a record's input root is its output root",
     "file": "ibuki.b",
     "find": "input_root: state_root(s.state)",

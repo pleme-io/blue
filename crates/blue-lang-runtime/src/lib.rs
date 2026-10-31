@@ -173,6 +173,7 @@ pub fn attach_node_accounted<H: 'static>(
     if let Some(hold) = hold {
         config.frame = Some(hold.frame());
         config.receipts = account.receipts.clone().map(receipt::sink);
+        config.state_root = Some(json::state_root);
         let held = hold.clone();
         let io = account.host_io.clone();
         config.child = std::sync::Arc::new(move || {
@@ -201,6 +202,25 @@ pub struct Account {
     pub places: Places,
     /// Where each held process writes its receipt; none are written without.
     pub receipts: Option<std::path::PathBuf>,
+}
+
+impl Account {
+    /// Name `program`'s definitions in this account's identities, computed
+    /// by its `identify` from the `lowered` tree when first asked, with the
+    /// entry's `main` under [`receipt::RUN`]. `false`, and nothing deferred,
+    /// for an account that does not identify.
+    pub fn defer_identities(
+        &self,
+        program: &uses::ResolvedProgram,
+        lowered: std::sync::Arc<Vec<tatara_lisp::Spanned>>,
+        main: Option<String>,
+    ) -> bool {
+        let Some(identify) = self.identify else {
+            return false;
+        };
+        self.identities.defer(identify(program, lowered, main));
+        true
+    }
 }
 
 /// The table of a lowered program's identities, computed when first asked.

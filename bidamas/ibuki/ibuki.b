@@ -474,13 +474,13 @@ def state_root(state)
 end
 
 @doc """
-strand: an empty Strand under a protocol label (`lww-map/1`), naming its transition's engine `def_hash` when the caller has one.
+strand: an empty Strand under a protocol label (`lww-map/1`), naming its transition's engine `def_hash`: the caller's, else the engine's identity of `step` as `def_hash` reads it, which is nil where the engine identifies no program.
 
     strand({}).seq #=> 0
 """
 def strand(opts)
   checked(opts, %i[def_hash protocol])
-  d = opts[:def_hash]
+  d = opts[:def_hash] or def_hash(step)
   if not d.nil? and
       not (
         string?(d) and
@@ -930,6 +930,19 @@ test "a Strand names its def_hash only in the b3 shape, and an unknown op is ref
   assert raised(() -> strand({def_hash: "sha256:00"})) == :bad_option
   assert raised(() -> step(strand({}), {op: :delete})) == :bad_option
   assert strand({}).genesis != strand({protocol: "lww-map/2"}).genesis
+end
+
+test "a Strand names the engine's def_hash of step when the caller names none"
+  h = def_hash(step)
+  assert string?(h) and is_hash_hex(replace(h, "b3:", ""))
+  assert strand({}).def_hash == h
+  assert step(
+    strand({}),
+    {op: :put, key: "k", value: 1, at: 1, by: "r"}
+  ).record.def_hash == h
+  mine = "b3:#{hash_message("ibuki")}"
+  assert strand({def_hash: mine}).def_hash == mine
+  assert strand({def_hash: nil}).def_hash == h
 end
 
 test "the property helpers can say no"

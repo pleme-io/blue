@@ -113,7 +113,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-320 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 185 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+321 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 185 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -269,6 +269,7 @@ Higher binding power binds tighter.
 | `compose` | `compose(fs...)` | 0+ | Right to left: compose(f, g)(x) is f(g(x)). Also defined by `danpen` (`danpen::compose`), `kansuu` (`kansuu::compose`): a file that lists it gets that one. |
 | `const` | `const(x)` | 1 | A function that ignores its argument and returns x. |
 | `decorate` | `decorate(f, keys-and-values...)` | 1+ | f with metadata attached; it still calls as f. |
+| `def_hash` | `def_hash(f)` | 1 | The engine's identity of the definition f is bound under, as b3: and 64 hex digits: the hash of its resolved tree and @doc, with each definition it names by that one's hash, so it changes exactly when f or anything f reaches changes, never on a rename. It is the def_hash that run's crash traces and receipts name for f. Nil for a function no definition binds (a lambda, a builtin) and in a door that identifies no program (a session, an appliance); blue run, test, profile and trace identify theirs. Reads no host state; raises unless f is a function. |
 | `every?` | `every?(f, xs)` | 2 | Whether f accepts every element; true for []. |
 | `filter` | `filter(f, xs)` | 2 | The elements f accepts. The FUNCTION comes first. |
 | `find` | `find(xs, f)` | 2 | The first element f accepts, or nil. The COLLECTION comes first; nil is the empty list. find(f, xs) is still answered, because tatara-lisp's state machines and buses call it so. Also defined by `maakuappu` (`maakuappu::find`): a file that lists it gets that one. |

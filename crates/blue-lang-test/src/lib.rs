@@ -775,6 +775,10 @@ pub struct Guard {
     /// `memory-exhausted`. `None` is unbounded. `blue test` passes
     /// `max_alloc_bytes`, live evaluation `guest_max_alloc_bytes`.
     pub max_alloc_bytes: Option<u64>,
+    /// How the program's definitions are named, so `def_hash` answers in
+    /// the preamble, every test and every process they start. `blue test`
+    /// passes `blue_lang_mondou::def_hash::identify`; `None` names none.
+    pub identify: Option<blue_lang_runtime::Identify>,
 }
 
 /// `f` on `interp`, held to `bound` live bytes through its interrupt flag;
@@ -823,7 +827,8 @@ pub fn run_guarded(
     guard: &Guard,
 ) -> Report {
     use blue_lang_runtime::observe::Fault;
-    let erased = checked.erased();
+    let lowered = Arc::new(checked.lowered());
+    let erased = blue_lang_runtime::erase_types(&lowered);
     let program = &checked.program;
     let mut blocks = Vec::new();
     let mut preamble = Vec::new();
@@ -842,10 +847,16 @@ pub fn run_guarded(
 
     let mut report = Report::default();
     let mut prototype = blue_lang_runtime::interpreter_hostless();
-    let account = blue_lang_runtime::Account::default();
+    let account = blue_lang_runtime::Account {
+        identify: guard.identify,
+        ..blue_lang_runtime::Account::default()
+    };
+    let identified = account.defer_identities(program, lowered, None);
     if let Some(hold) = &guard.hold {
         hold.bind(&mut prototype, "this run's frame", &account.host_io);
         blue_lang_runtime::attach_node_accounted(&mut prototype, Some(hold), &account);
+    } else if identified {
+        blue_lang_runtime::attach_node_accounted(&mut prototype, None, &account);
     }
     let held = guard.hold.is_some();
     let bounds = Bounds {

@@ -9,7 +9,7 @@
 
 use std::path::{Path, PathBuf};
 
-use blue_lang_proc::receipt::{canonical, FORMAT};
+use blue_lang_proc::receipt::{canonical, check, FORMAT};
 use blue_lang_proc::{Receipt, ReceiptSink, Subject};
 
 use crate::pipeline::{Run, RunError};
@@ -83,6 +83,7 @@ pub fn verify(path: &Path) -> Result<String, String> {
     if canonical(&j).as_bytes() != bytes.as_slice() {
         return Err(format!("{shown}: not canonical JSON"));
     }
+    check(&j).map_err(|e| format!("{shown}: {e}"))?;
     Ok(format!(
         "b3:{}",
         expected.trim_end_matches(&format!(".{EXTENSION}"))
@@ -112,6 +113,7 @@ pub fn of_run(hold: &Hold, account: &Account, exit: (&str, String)) -> Receipt {
         host_io: account.host_io.total(),
         exit_kind: exit.0.to_string(),
         exit_text: exit.1,
+        roots: None,
     }
 }
 

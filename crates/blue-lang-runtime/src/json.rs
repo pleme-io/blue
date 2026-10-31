@@ -119,6 +119,16 @@ pub fn install_json_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
     );
 }
 
+/// The root of a value: `b3:` and the BLAKE3 hash of its canonical JSON,
+/// the text `json_canonical(json_stringify(v))` answers in blue. What a
+/// server's receipt names its state by.
+#[must_use]
+pub fn state_root(v: &Value) -> String {
+    let text = serde_json::to_string(&value_to_json(v)).unwrap_or_default();
+    let canonical = canonical_text(&text).unwrap_or(text);
+    format!("b3:{}", blake3::hash(canonical.as_bytes()).to_hex())
+}
+
 pub fn canonical_text(text: &str) -> Result<String, String> {
     let parsed: JsonValue = serde_json::from_str(text).map_err(|e| e.to_string())?;
     serde_json::to_string(&sorted(parsed)).map_err(|e| e.to_string())

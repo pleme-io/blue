@@ -651,3 +651,51 @@ row(
   join_lines(["def f(a, *rest)", "  rest", "end", "", "f(1, 2, 3)"]),
   value("[2, 3]")
 )
+
+row(
+  "fn.def_hash.names_a_definition",
+  join_lines(["def f(x)", "  x", "end", "", "length(def_hash(f))"]),
+  value("67"),
+  covers("builtin:def_hash"),
+  pending("G16", "wasm")
+)
+
+row(
+  "fn.def_hash.a_name_is_not_content",
+  join_lines(
+    [
+      "def f(x)",
+      "  x + 1",
+      "end",
+      "",
+      "def g(x)",
+      "  x + 1",
+      "end",
+      "",
+      "def h(x)",
+      "  x + 2",
+      "end",
+      "",
+      "[def_hash(f) == def_hash(g), def_hash(f) == def_hash(h)]"
+    ]
+  ),
+  value("[true, false]")
+)
+
+row(
+  "fn.def_hash.nil_without_a_definition",
+  "[def_hash((x) -> x), def_hash(length)]",
+  value("[nil, nil]")
+)
+
+row(
+  "fn.def_hash.refuses_a_literal_that_is_not_a_function",
+  "def_hash(1)",
+  fails(:check, "B0062")
+)
+
+row(
+  "fn.def_hash.refuses_a_value_that_is_not_a_function",
+  "def_hash(json_parse(\"1\"))",
+  fails(:eval, "expected a function")
+)

@@ -18,3 +18,5 @@ cc ef8d6742841bc6986d3f5f60652bd94a6182698ac997acadb528ad79c97d179d # shrinks to
 cc 505c851ca982b77841309906b78636bdad9db61d13dd7b70de0803bd38203a53 # shrinks to src = "\"a#{\"{\" |> \"}\"}b\""
 cc 32d6774c469c796020386f141224b20fcfc43369d38213521b279b8d10a8d237 # shrinks to src = "a |> and(a, *a)"
 cc 70812793c21e5caa3a21f316b0c117c2d35a17fe2a60566b4162f9b96284019d # shrinks to src = "a = def a(a: Int) -> Int\nbegin\na\nensure\n\"#{\"\nend\nend\ndef a(a: Int) -> Int\ntest \"#}\"\na\nend\nend"
+cc 1a09cdedf095aed80e988aebce5c4470f13fa0da0aa44a179a0038d0aa0c8948 # shrinks to src = "{a: a(a, *[:a, :a])}"
+cc 6cf394449503decfa7ef2aa41031ba52d106b6f7fca33afeb7f1e6d89f84608f # shrinks to src = "a = a or begin\na = \"a#{\"}\\n{\"}b\"\nrescue a\na\nend"

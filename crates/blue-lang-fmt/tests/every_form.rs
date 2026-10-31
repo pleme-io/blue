@@ -28,8 +28,9 @@
 
 use blue_lang_fmt::{format_forms, format_source, format_source_lossless};
 use blue_lang_syntax::parse_program;
-use common::gen::{program, vocabulary};
+use common::gen::program;
 use proptest::prelude::*;
+use proptest::test_runner::{contextualize_config, TestError, TestRunner};
 
 mod common;
 
@@ -69,16 +70,52 @@ fn round_trips(src: &str) -> Result<(), TestCaseError> {
     Ok(())
 }
 
-proptest! {
-    #![proptest_config(ProptestConfig {
+const FOUND: &[&str] = &[
+    "q = define(zz, 5)",
+    "f(define(x, 1))",
+    "[define(x, 1)]",
+    "fn(y) define(x, y) end",
+    "define(x, define(y, 1))",
+    "(assert a) |> if a\na\nelse\na\nend",
+    "(assert a) |> f",
+    "(assert a) |> f(1)",
+    "(assert a) |> fn(x) x end",
+    "(assert a) + b",
+    "(assert a) == b",
+    "(assert a) and b",
+    "(assert a).m(1)",
+    "f((assert a))",
+    "(not a) |> f",
+    "(-a) |> f",
+    "{a: a(a, *[:a, :a])}",
+    "a = a or begin\na = \"a#{\"}\\n{\"}b\"\nrescue a\na\nend",
+];
+
+/// Every accepted source, formatted, parses back to the same tree.
+#[test]
+fn every_accepted_program_round_trips() {
+    let mut config = contextualize_config(ProptestConfig {
         max_global_rejects: 1 << 16,
         ..common::config(4096)
-    })]
-
-    /// Every accepted source, formatted, parses back to the same tree.
-    #[test]
-    fn every_accepted_program_round_trips(src in program()) {
-        round_trips(&src)?;
+    });
+    config.source_file = Some(file!());
+    config.test_name = Some(concat!(
+        module_path!(),
+        "::every_accepted_program_round_trips"
+    ));
+    if config.failure_persistence.is_some() {
+        for src in FOUND {
+            round_trips(src)
+                .unwrap_or_else(|e| panic!("found case {src:?} no longer round-trips: {e}"));
+        }
+    }
+    match TestRunner::new(config).run(&program(), |src| round_trips(&src)) {
+        Ok(()) => {}
+        Err(TestError::Fail(why, src)) => panic!(
+            "{why}\nminimal failing input: {src:?}\nonce it is fixed, add that input to FOUND in \
+             crates/blue-lang-fmt/tests/every_form.rs so every run replays it first"
+        ),
+        Err(TestError::Abort(why)) => panic!("{why}"),
     }
 }
 
@@ -86,24 +123,7 @@ proptest! {
 /// without waiting for the generator to find it again.
 #[test]
 fn found_cases_round_trip() {
-    for src in [
-        "q = define(zz, 5)",
-        "f(define(x, 1))",
-        "[define(x, 1)]",
-        "fn(y) define(x, y) end",
-        "define(x, define(y, 1))",
-        "(assert a) |> if a\na\nelse\na\nend",
-        "(assert a) |> f",
-        "(assert a) |> f(1)",
-        "(assert a) |> fn(x) x end",
-        "(assert a) + b",
-        "(assert a) == b",
-        "(assert a) and b",
-        "(assert a).m(1)",
-        "f((assert a))",
-        "(not a) |> f",
-        "(-a) |> f",
-    ] {
+    for src in FOUND {
         round_trips(src).unwrap_or_else(|e| panic!("{src:?}: {e}"));
     }
 }

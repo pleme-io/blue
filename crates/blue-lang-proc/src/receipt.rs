@@ -1,7 +1,7 @@
 //! What an actor or a run is held to, what it did through the host, and the
 //! receipt that says so.
 //!
-//! Three pieces a node shares with the runtime that builds it:
+//! Four pieces a node shares with the runtime that builds it:
 //!
 //! - [`Frame`]: the hold as its artifacts name it: the host capabilities
 //!   granted from the host, those a pure provider stands in for, and those
@@ -13,6 +13,8 @@
 //!   gets no shim, so a pure frame counts nothing by construction.
 //! - [`Identities`]: each definition key's `def_hash`, computed only when an
 //!   artifact asks for one.
+//! - [`Places`]: each definition key's file and text, read only when a crash
+//!   asks where its breaching call is.
 //!
 //! ## Format `blue-receipt` version 1
 //!
@@ -193,50 +195,139 @@ impl HostIo {
     }
 }
 
-type Deferred = Box<dyn FnOnce() -> BTreeMap<String, String> + Send>;
+type Deferred<T> = Box<dyn FnOnce() -> T + Send>;
 
-#[derive(Default)]
-enum Table {
-    #[default]
+enum Table<T> {
     Unknown,
-    Deferred(Deferred),
-    Known(BTreeMap<String, String>),
+    Deferred(Deferred<T>),
+    Known(T),
+}
+
+/// A table the runtime hands a node unfinished: computed the first time an
+/// artifact asks, and never when none does.
+struct Lazy<T>(Arc<Mutex<Table<T>>>);
+
+impl<T> Clone for Lazy<T> {
+    fn clone(&self) -> Self {
+        Self(Arc::clone(&self.0))
+    }
+}
+
+impl<T> Default for Lazy<T> {
+    fn default() -> Self {
+        Self(Arc::new(Mutex::new(Table::Unknown)))
+    }
+}
+
+impl<T> Lazy<T> {
+    fn defer(&self, compute: impl FnOnce() -> T + Send + 'static) {
+        *locked(&self.0) = Table::Deferred(Box::new(compute));
+    }
+
+    fn read<R>(&self, f: impl FnOnce(&T) -> Option<R>) -> Option<R> {
+        let mut state = locked(&self.0);
+        if let Table::Deferred(_) = &*state {
+            if let Table::Deferred(compute) = std::mem::replace(&mut *state, Table::Unknown) {
+                *state = Table::Known(compute());
+            }
+        }
+        match &*state {
+            Table::Known(table) => f(table),
+            Table::Unknown | Table::Deferred(_) => None,
+        }
+    }
+
+    fn state(&self) -> &'static str {
+        match &*locked(&self.0) {
+            Table::Unknown => "unknown",
+            Table::Deferred(_) => "deferred",
+            Table::Known(_) => "known",
+        }
+    }
 }
 
 /// Each definition key's `def_hash` (`b3:<hex>`), computed on first ask.
 #[derive(Clone, Default)]
-pub struct Identities(Arc<Mutex<Table>>);
+pub struct Identities(Lazy<BTreeMap<String, String>>);
 
 impl std::fmt::Debug for Identities {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let state = match &*locked(&self.0) {
-            Table::Unknown => "unknown",
-            Table::Deferred(_) => "deferred",
-            Table::Known(_) => "known",
-        };
-        write!(f, "Identities({state})")
+        write!(f, "Identities({})", self.0.state())
     }
 }
 
 impl Identities {
     /// Compute the table with `hash` when the first identity is asked for.
     pub fn defer(&self, hash: impl FnOnce() -> BTreeMap<String, String> + Send + 'static) {
-        *locked(&self.0) = Table::Deferred(Box::new(hash));
+        self.0.defer(hash);
     }
 
     /// The `def_hash` of the definition bound to `key`, if it has one.
     #[must_use]
     pub fn of(&self, key: &str) -> Option<String> {
-        let mut state = locked(&self.0);
-        if let Table::Deferred(_) = &*state {
-            if let Table::Deferred(hash) = std::mem::take(&mut *state) {
-                *state = Table::Known(hash());
-            }
+        self.0.read(|table| table.get(key).cloned())
+    }
+}
+
+/// The file a definition was read from: the name a reader opens it by, and
+/// the text its spans index.
+#[derive(Clone, Debug)]
+pub struct Source {
+    pub file: String,
+    pub text: Arc<str>,
+}
+
+/// A position a reader can open: a file, and a 1-based line and column.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Place {
+    pub file: String,
+    pub line: usize,
+    pub column: usize,
+}
+
+impl std::fmt::Display for Place {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}:{}:{}", self.file, self.line, self.column)
+    }
+}
+
+/// Each definition key's [`Source`], computed on first ask: what turns a
+/// span in a crashed process's code into a [`Place`].
+#[derive(Clone, Default)]
+pub struct Places(Lazy<BTreeMap<String, Source>>);
+
+impl std::fmt::Debug for Places {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Places({})", self.0.state())
+    }
+}
+
+impl Places {
+    /// Compute the table with `read` when the first place is asked for.
+    pub fn defer(&self, read: impl FnOnce() -> BTreeMap<String, Source> + Send + 'static) {
+        self.0.defer(read);
+    }
+
+    /// Where `span` is, inside the definition bound to `key`. `None` for a
+    /// synthetic span, a key with no source, or a span past the end of the
+    /// key's file: an offset outside the file is proof it indexes another
+    /// one, and answering it anyway would name a line that is not the place.
+    #[must_use]
+    pub fn locate(&self, key: &str, span: tatara_lisp::Span) -> Option<Place> {
+        if span.is_synthetic() {
+            return None;
         }
-        match &*state {
-            Table::Known(table) => table.get(key).cloned(),
-            Table::Unknown | Table::Deferred(_) => None,
-        }
+        self.0.read(|table| {
+            let source = table.get(key)?;
+            (span.end <= source.text.len()).then(|| {
+                let (line, column) = tatara_lisp::Span::line_col(&source.text, span.start);
+                Place {
+                    file: source.file.clone(),
+                    line,
+                    column,
+                }
+            })
+        })
     }
 }
 
@@ -431,6 +522,38 @@ mod tests {
         assert_eq!(*locked(&calls), 0);
         assert_eq!(ids.of("%root/f").as_deref(), Some("b3:00"));
         assert_eq!(ids.clone().of("%root/g"), None);
+        assert_eq!(*locked(&calls), 1);
+    }
+
+    #[test]
+    fn a_place_is_read_once_and_only_inside_its_own_file() {
+        let places = Places::default();
+        let at = tatara_lisp::Span::new(10, 14);
+        assert_eq!(places.locate("%root/f", at), None);
+        let calls = Arc::new(Mutex::new(0));
+        let c = Arc::clone(&calls);
+        places.defer(move || {
+            *locked(&c) += 1;
+            BTreeMap::from([(
+                "%root/f".to_string(),
+                Source {
+                    file: "w.b".into(),
+                    text: Arc::from("def f()\n  g(1)\nend\n"),
+                },
+            )])
+        });
+        assert_eq!(*locked(&calls), 0);
+        let place = places.locate("%root/f", at).expect("in its file");
+        assert_eq!(place.to_string(), "w.b:2:3");
+        assert_eq!(
+            places.locate("%root/f", tatara_lisp::Span::new(10, 99)),
+            None
+        );
+        assert_eq!(
+            places.locate("%root/f", tatara_lisp::Span::synthetic()),
+            None
+        );
+        assert_eq!(places.clone().locate("%root/g", at), None);
         assert_eq!(*locked(&calls), 1);
     }
 

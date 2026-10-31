@@ -90,7 +90,8 @@ file's `Bluefile.lock` records is skipped and named, never chosen.
 |---|---|
 | `blue file.b a b` | run a program as a script: quiet, every argument after the file to `argv` |
 | `blue run file.b` | run a program and print its final value; `--quiet` drops it, `-- a b` passes arguments; `--allow CAP` holds it to those host capabilities; `--receipts DIR` writes an execution receipt for the run and for each process ([`docs/SAFETY.md`](SAFETY.md), row 8); a runtime error prints the blue call stack, and `--format json` prints it as one object; `--timings` prints the wall time of each pipeline stage to stderr |
-| `blue replay TRACE` | run a crashed process again from its trace and say whether it crashed the same way; a fatal exit's `.bluecrash` replays under the hold it recorded |
+| `blue replay TRACE` | run a crashed process again from its trace and say whether it crashed the same way; a fatal exit's `.bluecrash` replays under the hold it recorded; TRACE is a file or its crash hash (`b3:<hex>`, 8 digits at least) |
+| `blue crash dump\|bisect\|immunize CRASH` | a trace by file or crash hash: `dump` what it violated and where (class, host name, capability, file:line:col, hold, exit, mailbox; `--json`); `bisect` it to the fewest messages that replay to the same crash; `immunize` it into a test, red until the target is fixed (`--into FILE`) ([`docs/SAFETY.md`](SAFETY.md), row 8) |
 | `blue receipt verify FILE` | recompute a receipt's name from the BLAKE3 hash of its bytes; any edit fails |
 | `blue new NAME` | a project; `--bidama NAME` a package, `--script NAME.b` an executable script |
 | `blue watch [check\|test\|run] PATH…` | rerun the command on every save (`check` by default) |

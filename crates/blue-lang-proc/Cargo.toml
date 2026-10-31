@@ -16,6 +16,9 @@ tatara-lisp-eval = { workspace = true }
 blue-lang-waku = { workspace = true }
 # Crash traces are JSON (`trace.rs`), readable by blue's own `json_parse`.
 serde_json = { workspace = true }
+# A crash trace is written under the BLAKE3 hash of its canonical bytes, the
+# name `blue crash` and `blue replay` resolve; the same build as the runtime's.
+blake3 = { version = "1", default-features = false, features = ["std", "pure"] }
 
 [dev-dependencies]
 # The replay suite pins `Model::BLUE_TODAY.interleaving` against what it

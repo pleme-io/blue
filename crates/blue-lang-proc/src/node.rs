@@ -65,8 +65,9 @@ use tatara_lisp_eval::{EvalError, Interpreter, Value};
 use crate::code::{self, Code, Entry};
 use crate::mailbox::copy_data;
 use crate::pattern;
-use crate::receipt::{Frame, HostIo, Identities, Receipt, ReceiptSink, Subject};
+use crate::receipt::{Frame, HostIo, Identities, Places, Receipt, ReceiptSink, Subject};
 use crate::trace::{Journal, SliceRecord, TapeEntry, Trace};
+use crate::violation::{defined_key, Violation};
 use crate::{ExitReason, Pid, Proc, ProcState, Slice, Strategy};
 
 /// The program itself.
@@ -242,6 +243,8 @@ pub struct NodeConfig {
     pub host_io: HostIo,
     /// Each definition's `def_hash`, for traces and receipts.
     pub identities: Identities,
+    /// Each definition's file, for the place a trace names.
+    pub places: Places,
     /// Where each held process's receipt goes when an incarnation ends.
     pub receipts: Option<ReceiptSink>,
 }
@@ -266,6 +269,7 @@ impl NodeConfig {
             journal: JOURNAL.get().copied().unwrap_or(DEFAULT_JOURNAL),
             host_io: HostIo::default(),
             identities: Identities::default(),
+            places: Places::default(),
             receipts: None,
         }
     }
@@ -1434,6 +1438,13 @@ impl Node {
                 unconsumed_total: waiting.map_or(0, VecDeque::len),
             }
         });
+        let reason_kind = crate::trace::reason_kind(reason).to_string();
+        let places = &self.config.places;
+        let violation = Violation::of(&reason_kind, &tape.entries, &code.defs, places);
+        let defined_at = info.def_name.as_deref().and_then(|d| {
+            let form = code.defs.iter().find(|f| defined_key(f) == Some(d))?;
+            places.locate(d, form.span)
+        });
         Trace {
             pid: pid.0,
             incarnation: info.restarts,
@@ -1443,10 +1454,17 @@ impl Node {
                 .as_deref()
                 .and_then(|d| self.config.identities.of(d)),
             hold: self.config.frame.clone(),
+            host_io: self
+                .config
+                .frame
+                .as_ref()
+                .map(|_| self.config.host_io.of(pid)),
             mailbox,
+            violation,
+            defined_at,
             reason: value.clone(),
             reason_text: crate::trace::reason_text(reason),
-            reason_kind: crate::trace::reason_kind(reason).to_string(),
+            reason_kind,
             budget: self.config.budget,
             code,
             tape: tape.entries,

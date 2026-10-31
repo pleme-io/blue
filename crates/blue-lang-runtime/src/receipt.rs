@@ -2,7 +2,8 @@
 //! by recomputing that name.
 //!
 //! The format is `blue_lang_proc::receipt`'s; this module adds the content
-//! address, because BLAKE3 is the runtime's. A node hands each held actor's
+//! address, as `blue_lang_proc::trace::crash_hash` does for a crash trace,
+//! with the same canonical text and the same hash. A node hands each held actor's
 //! receipt to [`sink`]; a door writes the run's receipt with [`of_run`] and
 //! [`write`]; `blue receipt verify` calls [`verify`].
 

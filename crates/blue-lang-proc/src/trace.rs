@@ -16,34 +16,45 @@
 //! the host, time is what it was, and a process that asks for something its
 //! tape does not hold has diverged, which the replay reports by name.
 //!
-//! ## Format `blue-trace` version 2
+//! ## Format `blue-trace` version 3
 //!
-//! One JSON object:
+//! One canonical JSON object (keys sorted, no whitespace), written under the
+//! BLAKE3 hash of its bytes, its `crash_hash`: `<hex>.bluecrash` for a fatal
+//! exit, `<hex>.json` for any other ([`Trace::write_to`]).
 //!
 //! ```text
-//! { "format": "blue-trace", "version": 2,
+//! { "format": "blue-trace", "version": 3,
 //!   "pid": 3, "incarnation": 0, "definition": "%root/consumer" | null,
 //!   "def_hash": "b3:…" | null,
+//!   "defined_at": null | { "file": PATH, "line": n, "column": n },
 //!   "exit": { "kind": "crashed" | "runaway" | "killed" | "fatal", "text": "…", "reason": VALUE },
+//!   "violation": null | VIOLATION,
 //!   "budget": { "fuel": n | null, "max_depth": n | null, "quantum": n | null },
 //!   "clock": "real" | "virtual",
 //!   "code": { "defs": [FORM…], "bindings": [{ "name": "%a0", "value": VALUE }…], "start": FORM },
 //!   "tape": [{ "call": "receive", "value": VALUE } | { "call": "now_ms", "raised": "…" }
-//!            | { "call": "is_file?", "fatal": { "kind": "capability-breach", "message": "…" } }…],
+//!            | { "call": "is_file?", "fatal": { "kind": "capability-breach", "message": "…", "at": [start, end] } }…],
 //!   "truncated": false,
 //!   "schedule": [{ "pid": 1, "outcome": "yielded" | "blocked" | "done" | "exited", "burned": n }…],
 //!   "hold": null | { "granted": [LABEL…], "provided": [PROVIDER…], "withheld": [LABEL…] },
+//!   "frame": null | { "granted": [LABEL…], "withheld": [LABEL…], "host_io": n },
 //!   "mailbox": null | { "bound": n, "recent": [VALUE…], "unconsumed": [VALUE…], "unconsumed_total": n } }
 //! ```
 //!
-//! Version 2 adds `def_hash` (the spawned definition's identity), the
+//! Version 3 adds the `violation` block ([`crate::violation`]), the span of a
+//! fatal tape entry's call, where the spawned definition is (`defined_at`),
+//! and, under a hold, the receipt's frame block (`frame`, the incarnation's
+//! host calls through granted names), so a crash and a receipt name a frame
+//! the same way.
+//!
+//! Version 2 added `def_hash` (the spawned definition's identity), the
 //! `fatal` tape outcome (an error no `rescue` catches, replayed as one), and,
 //! for a process under a hold, the hold ([`crate::Frame`]) and its mailbox
 //! journal: the last `bound` messages it took and the first `bound` still
-//! waiting when it exited. A trace of a fatal exit is written with the
-//! extension `.bluecrash`, and its replay runs under the recorded hold: a
-//! name the hold withholds answers only with the breach its tape recorded.
-//! Version 1 is still read; its new fields are absent.
+//! waiting when it exited. A trace of a fatal exit replays under the
+//! recorded hold: a name the hold withholds answers only with the breach its
+//! tape recorded. Versions 1 and 2 are still read; their absent fields are
+//! absent, and their violation is read off the exit and the tape.
 //!
 //! A VALUE is `null` (nil) or a one-key object naming its kind: `int`,
 //! `float`, `str`, `sym`, `kw`, `bool`, `list` (an array), `map` (an array of
@@ -68,17 +79,27 @@ use tatara_lisp_eval::{ErrorObj, EvalError, Interpreter, MapKey, Value};
 
 use crate::code::Code;
 use crate::node::{host_names, ClockKind, PROCESS_WORDS, SERVER_NEXT};
-use crate::receipt::Frame;
+use crate::receipt::{canonical, Frame, Place, Places};
+use crate::violation::Violation;
 use crate::{classify, ExitReason};
 
 /// The format name every trace carries.
 pub const FORMAT: &str = "blue-trace";
 /// The version this crate writes.
-pub const VERSION: u64 = 2;
+pub const VERSION: u64 = 3;
 /// Every version this crate reads.
-pub const READS: [u64; 2] = [1, VERSION];
+pub const READS: [u64; 3] = [1, 2, VERSION];
 /// The extension of a fatal exit's trace.
 pub const CRASH_EXTENSION: &str = "bluecrash";
+/// The extension of any other exit's trace.
+pub const TRACE_EXTENSION: &str = "json";
+
+/// The content address of trace JSON: the BLAKE3 hash, in hex, of its
+/// canonical text.
+#[must_use]
+pub fn crash_hash(j: &Json) -> String {
+    blake3::hash(canonical(j).as_bytes()).to_hex().to_string()
+}
 
 /// One call on a process's tape and what it answered.
 #[derive(Clone, Debug)]
@@ -88,23 +109,28 @@ pub struct TapeEntry {
     /// The kind of a fatal error, when the call raised one: the `Err` is its
     /// message, and no `rescue` caught it.
     pub fatal: Option<String>,
+    /// Where a fatal error was raised: the span of the call.
+    pub at: Option<Span>,
 }
 
 impl TapeEntry {
     /// The entry a call's result makes.
     #[must_use]
     pub fn of(call: &str, out: &Result<Value, EvalError>) -> Self {
-        let (outcome, fatal) = match out {
-            Ok(v) => (Ok(v.clone()), None),
-            Err(EvalError::Fatal { kind, message, .. }) => {
-                (Err(message.to_string()), Some(kind.to_string()))
-            }
-            Err(e) => (Err(e.to_string()), None),
+        let (outcome, fatal, at) = match out {
+            Ok(v) => (Ok(v.clone()), None, None),
+            Err(EvalError::Fatal { kind, message, at }) => (
+                Err(message.to_string()),
+                Some(kind.to_string()),
+                Some(*at).filter(|s| !s.is_synthetic()),
+            ),
+            Err(e) => (Err(e.to_string()), None, None),
         };
         Self {
             call: call.to_string(),
             outcome,
             fatal,
+            at,
         }
     }
 }
@@ -152,6 +178,12 @@ pub struct Trace {
     pub hold: Option<Frame>,
     /// Its mailbox journal, when it ran under a hold with one.
     pub mailbox: Option<Journal>,
+    /// What the exit violated, if it is a violation.
+    pub violation: Option<Violation>,
+    /// Where [`Self::definition`] is defined, when the runtime said.
+    pub defined_at: Option<Place>,
+    /// Host calls the incarnation made through granted names, under a hold.
+    pub host_io: Option<u64>,
 }
 
 /// The kind of an abnormal exit, as a trace names it.
@@ -423,7 +455,9 @@ impl Trace {
             "incarnation": self.incarnation,
             "definition": self.definition,
             "def_hash": self.def_hash,
+            "defined_at": self.defined_at.as_ref().map_or(Json::Null, |p| json!({"file": p.file, "line": p.line, "column": p.column})),
             "exit": { "kind": self.reason_kind, "text": self.reason_text, "reason": value_to_json(&self.reason) },
+            "violation": self.violation.as_ref().map_or(Json::Null, Violation::to_json),
             "budget": { "fuel": opt(self.budget.fuel), "max_depth": opt(self.budget.max_depth), "quantum": opt(self.budget.quantum) },
             "clock": self.clock.label(),
             "code": {
@@ -433,12 +467,19 @@ impl Trace {
             },
             "tape": self.tape.iter().map(|e| match (&e.outcome, &e.fatal) {
                 (Ok(v), _) => json!({"call": e.call, "value": value_to_json(v)}),
-                (Err(m), Some(kind)) => json!({"call": e.call, "fatal": {"kind": kind, "message": m}}),
+                (Err(m), Some(kind)) => {
+                    let mut fatal = json!({"kind": kind, "message": m});
+                    if let Some(s) = e.at {
+                        fatal["at"] = json!([s.start, s.end]);
+                    }
+                    json!({"call": e.call, "fatal": fatal})
+                }
                 (Err(m), None) => json!({"call": e.call, "raised": m}),
             }).collect::<Vec<_>>(),
             "truncated": self.truncated,
             "schedule": self.schedule.iter().map(|s| json!({"pid": s.pid, "outcome": s.outcome, "burned": s.burned})).collect::<Vec<_>>(),
             "hold": self.hold.as_ref().map_or(Json::Null, Frame::to_json),
+            "frame": self.hold.as_ref().map_or(Json::Null, |h| h.block(self.host_io.unwrap_or(0))),
             "mailbox": self.mailbox.as_ref().map_or(Json::Null, |m| json!({
                 "bound": m.bound,
                 "recent": m.recent.iter().map(value_to_json).collect::<Vec<_>>(),
@@ -504,10 +545,23 @@ impl Trace {
                     None,
                 ),
             };
+            let at = match e
+                .get("fatal")
+                .and_then(|f| f.get("at"))
+                .and_then(Json::as_array)
+                .map(Vec::as_slice)
+            {
+                Some([s, e]) => match (opt_from(Some(s)), opt_from(Some(e))) {
+                    (Some(s), Some(e)) => Some(Span::new(s, e)),
+                    _ => return Err(bad("fatal span")),
+                },
+                _ => None,
+            };
             tape.push(TapeEntry {
                 call: call.to_string(),
                 outcome,
                 fatal,
+                at,
             });
         }
         let schedule = j
@@ -526,7 +580,41 @@ impl Trace {
                 burned: opt_from(s.get("burned")).unwrap_or(0),
             })
             .collect();
+        let reason_kind = exit
+            .get("kind")
+            .and_then(Json::as_str)
+            .unwrap_or("")
+            .to_string();
+        let defs: Vec<Spanned> = code
+            .get("defs")
+            .and_then(Json::as_array)
+            .cloned()
+            .unwrap_or_default()
+            .iter()
+            .map(form_from_json)
+            .collect::<Result<_, _>>()?;
+        let violation = if version >= 3 {
+            match j.get("violation") {
+                None | Some(Json::Null) => None,
+                Some(v) => Some(Violation::from_json(v)?),
+            }
+        } else {
+            Violation::of(&reason_kind, &tape, &defs, &Places::default())
+        };
+        let defined_at = j.get("defined_at").and_then(|p| {
+            Some(Place {
+                file: p.get("file")?.as_str()?.to_string(),
+                line: opt_from(p.get("line"))?,
+                column: opt_from(p.get("column"))?,
+            })
+        });
         Ok(Self {
+            violation,
+            defined_at,
+            host_io: j
+                .get("frame")
+                .and_then(|f| f.get("host_io"))
+                .and_then(Json::as_u64),
             pid: field("pid")?.as_u64().ok_or_else(|| bad("pid"))?,
             incarnation: opt_from(j.get("incarnation")).unwrap_or(0),
             definition: j
@@ -540,25 +628,14 @@ impl Trace {
                 .and_then(Json::as_str)
                 .unwrap_or("")
                 .to_string(),
-            reason_kind: exit
-                .get("kind")
-                .and_then(Json::as_str)
-                .unwrap_or("")
-                .to_string(),
+            reason_kind,
             budget: Budget {
                 fuel: opt_from(budget.get("fuel")),
                 max_depth: opt_from(budget.get("max_depth")),
                 quantum: opt_from(budget.get("quantum")),
             },
             code: Code {
-                defs: code
-                    .get("defs")
-                    .and_then(Json::as_array)
-                    .cloned()
-                    .unwrap_or_default()
-                    .iter()
-                    .map(form_from_json)
-                    .collect::<Result<_, _>>()?,
+                defs,
                 bindings,
                 start: match code.get("start") {
                     None | Some(Json::Null) => None,
@@ -589,8 +666,21 @@ impl Trace {
         if self.reason_kind == "fatal" {
             CRASH_EXTENSION
         } else {
-            "json"
+            TRACE_EXTENSION
         }
+    }
+
+    /// The bytes this trace is written as: its JSON, canonical.
+    #[must_use]
+    pub fn bytes(&self) -> Vec<u8> {
+        canonical(&self.to_json()).into_bytes()
+    }
+
+    /// This trace's content address: the BLAKE3 hash of [`Self::bytes`], in
+    /// hex.
+    #[must_use]
+    pub fn crash_hash(&self) -> String {
+        crash_hash(&self.to_json())
     }
 
     /// Parse a trace file's text.
@@ -603,22 +693,22 @@ impl Trace {
         Self::from_json(&j)
     }
 
-    /// Write this trace into `dir`, creating it, and answer the file's path.
+    /// Write this trace into `dir`, creating it, under its content address
+    /// (`<crash_hash>.bluecrash` or `<crash_hash>.json`), and answer the
+    /// file's path. The same crash is the same file.
     ///
     /// # Errors
     ///
     /// When the directory or the file cannot be written.
     pub fn write_to(&self, dir: &Path) -> std::io::Result<PathBuf> {
         std::fs::create_dir_all(dir)?;
+        let bytes = self.bytes();
         let path = dir.join(format!(
-            "blue-trace-{}-p{}-i{}.{}",
-            std::process::id(),
-            self.pid,
-            self.incarnation,
+            "{}.{}",
+            blake3::hash(&bytes).to_hex(),
             self.extension()
         ));
-        let text = serde_json::to_string_pretty(&self.to_json()).map_err(std::io::Error::other)?;
-        std::fs::write(&path, text + "\n")?;
+        std::fs::write(&path, bytes)?;
         Ok(path)
     }
 }

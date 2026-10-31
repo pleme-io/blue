@@ -70,6 +70,7 @@ const MIGRATE: &str = include_str!("../blue/migrate.b");
 
 const VERBS: &str = include_str!("../blue/verbs.b");
 mod config;
+mod crash;
 mod deploy;
 mod diagnostics;
 mod doc;
@@ -455,8 +456,16 @@ enum Cmd {
     /// whether it crashed the same way. `blue run` writes traces to
     /// `BLUE_TRACE_DIR` (default: `blue-traces` in the temporary directory),
     /// a fatal exit's as a `.bluecrash`, which replays under its recorded
-    /// hold.
-    Replay { trace: PathBuf },
+    /// hold. TRACE is a file or a crash hash (`b3:<hex>`, 8 digits at least)
+    /// resolved in that directory.
+    Replay { trace: String },
+    /// A crash trace, by its file or its crash hash: `dump` what it violated
+    /// and where, `bisect` it to the fewest messages that still replay to
+    /// it, `immunize` it into a test that locks the fix.
+    Crash {
+        #[command(subcommand)]
+        cmd: crash::CrashCmd,
+    },
     /// Execution receipts `blue run --receipts DIR` writes.
     Receipt {
         #[command(subcommand)]
@@ -719,7 +728,10 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
         blue_lang_runtime::sys::set_blue_exe(me.to_string_lossy().into_owned());
     }
     match cli.cmd {
-        Cmd::Replay { trace } => replay::run(&trace).map_err(CliError::Fmt),
+        Cmd::Replay { trace } => crash::resolve(&trace)
+            .and_then(|path| replay::run(&path))
+            .map_err(CliError::Fmt),
+        Cmd::Crash { cmd } => crash::run(cmd).map_err(CliError::Fmt),
         Cmd::Receipt { cmd } => Ok(receipt::run(cmd)),
         Cmd::Run {
             file,

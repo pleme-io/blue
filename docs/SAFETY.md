@@ -279,9 +279,10 @@ reached later breaches and exits 77. nix builds one per Bluefile `app`
 (6), `crates/blue-lang-cli/tests/bundle.rs` (2), `appliance.rs` units (8).
 
 **The crash journal (2026-10-30).** A held process that exits fatal writes
-its trace, supervised or not, as `blue-trace-<os pid>-p<pid>-i<n>.bluecrash` into
-`BLUE_TRACE_DIR` (`blue-lang-proc` `node::written`). The trace is
-`blue-trace` version 2 (`trace.rs`; version 1 still reads): it names the
+its trace, supervised or not, as `<crash_hash>.bluecrash` into
+`BLUE_TRACE_DIR` (`blue-lang-proc` `node::written`; the name is the next
+note's). The trace is `blue-trace` version 3 (`trace.rs`; versions 1 and 2
+still read): it names the
 spawned definition's `def_hash` as the engine hashes it, `@doc` included
 (`blue_lang_mondou::def_hash::identify`), the hold (granted, provided and
 withheld capabilities, each provider with its `for` scope,
@@ -349,6 +350,49 @@ controls, target `def_hash` and own `def_hash` beside it
 ([`TESTING.md`](TESTING.md), "Declared controls"). Tests:
 `crates/blue-lang-cli/tests/compliance.rs` (4) and the harness's
 `assert_panics_*`.
+
+**Crash forensics (2026-10-30).** Version 3 of the trace is canonical JSON
+named by the BLAKE3 hash of its bytes, `<crash_hash>.bluecrash` (`.json` for
+an exit that is not fatal), so the same crash is the same file and an edit
+is refused by name (`blue crash`, `blue replay`). It adds a `violation`
+block (`blue_lang_proc::violation`): `LatticeCeilingBreach` for a fatal exit
+whose tape ends on a breach, with the host name, the capability, the tape
+entry and the breaching call's span, its enclosing definition and, when the
+run identifies (`blue run`), its file, line and column
+(`blue_lang_proc::Places`); `ThermodynamicCycleExhaustion` for a runaway.
+Three other classes a forensic reader names are refused on read, each with
+why: no exit produces them (`theory/IBUKI-FORENSICS.md`). It also writes the
+receipt's frame block (`frame`), which makes the file one tameshi 0.1.7's
+`incident ingest` accepts, with tameshi's digest equal to the crash hash; a
+version 2 file has no `frame` and tameshi refuses it. `blue crash dump`
+prints the violation, the coordinate, the hold, the exit and the mailbox
+(`--json`); `blue crash bisect` delta-debugs the messages the process took
+against deterministic replay and writes the reduced trace under its own
+hash; `blue crash immunize` writes a test beside the target
+(`crates/blue-lang-cli/blue/crash.b`, `write_program`) that spawns it, sends
+it the bisected messages and asserts it took them, declaring `satisfies:
+[:nist_ir_4]`. The test is red on the crashed code and green once it is
+fixed, under the hold it prints (`blue test --allow none FILE`): a test
+cannot declare a hold, and run unheld the breach cannot happen, so the lock
+reads green on the unfixed code (pinned in the test below). **What a trace
+holds:** under a granted frame the tape records each host call's result,
+which can be an environment variable's value or a file's contents; a
+replay needs those values, so they are written in plain text. A pure or
+`--allow none` frame records no host value (each call is a breach). Redacting
+the tape would trade replay for secrecy; that is not built (row 14). Tests:
+`crates/blue-lang-cli/tests/crash_forensics.rs`
+(`a_breach_writes_a_version_3_bluecrash_named_by_its_crash_hash`,
+`dump_prints_the_violation_its_coordinate_the_hold_the_exit_and_the_mailbox`,
+`bisect_reduces_a_five_message_mailbox_to_the_one_poison_message`,
+`immunize_writes_a_lock_that_is_red_on_the_crashed_code_and_green_once_fixed`,
+`a_trace_named_by_a_hash_its_content_no_longer_has_is_refused`),
+`crates/blue-lang-proc/tests/forensics.rs`
+(`a_breach_names_the_place_of_its_call_when_the_node_has_the_files`,
+`a_runaway_is_a_thermodynamic_cycle_exhaustion`,
+`a_version_2_trace_reads_with_its_violation_read_off_the_tape`,
+`a_trace_is_written_under_its_crash_hash_and_the_same_crash_is_the_same_file`),
+and the units in `violation.rs`, `bisect.rs` and `receipt.rs`
+(`a_place_is_read_once_and_only_inside_its_own_file`).
 
 **Row 9, host memory.** blue has no pointer and no raw buffer; all memory is
 Rust's. The four seams are listed in §2. The gate is one workspace lint table

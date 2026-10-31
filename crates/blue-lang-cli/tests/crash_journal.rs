@@ -92,7 +92,7 @@ fn replay(path: &Path) -> Output {
 #[test]
 fn a_breach_under_allow_none_writes_a_bluecrash_that_replays_as_the_same_breach() {
     let (dir, path, j) = crash("breach", None);
-    assert_eq!(j["version"], 2);
+    assert_eq!(j["version"], 3);
     assert_eq!(j["definition"], "%root/reader");
     assert!(
         j["def_hash"]
@@ -170,7 +170,14 @@ fn the_mailbox_journal_holds_the_unconsumed_messages() {
 fn a_bluecrash_whose_tape_says_a_withheld_name_answered_does_not_replay() {
     let (dir, path, mut j) = crash("tampered", None);
     j["tape"][1] = serde_json::json!({"call": "is_file?", "value": {"bool": true}});
-    std::fs::write(&path, serde_json::to_string(&j).expect("json")).expect("write");
+    let text = serde_json::to_string(&j).expect("json");
+    std::fs::write(&path, &text).expect("write");
+    assert!(
+        err(&replay(&path)).contains("the trace was edited"),
+        "under its hash name the edit is refused before it runs"
+    );
+    let path = dir.join("tampered.bluecrash");
+    std::fs::write(&path, text).expect("write");
     let o = replay(&path);
     let stdout = out(&o);
     assert!(!o.status.success(), "{stdout}");

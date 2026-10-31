@@ -274,6 +274,8 @@ fn hold_to_frame(
             std::sync::Arc::clone(&prepared.lowered),
             main_key(prepared),
         ));
+        let places = places_of(&prepared.program, &prepared.erased);
+        account.places.defer(move || places);
     }
     let Some(hold) = hold else {
         if account.identify.is_some() {
@@ -291,6 +293,36 @@ fn hold_to_frame(
     hold.bind(interp, "this run's frame", &account.host_io);
     crate::attach_node_accounted(interp, Some(hold), account);
     Ok(())
+}
+
+/// Each key a top-level `define` of `program` binds (`erased`, one form per
+/// top-level form), with the file it came from: what a crash trace turns a
+/// breaching call's span into a file, line and column against. Each file's
+/// text is shared by every key it defines.
+fn places_of(
+    program: &crate::uses::ResolvedProgram,
+    erased: &[tatara_lisp::Spanned],
+) -> std::collections::BTreeMap<String, blue_lang_proc::Source> {
+    let files: Vec<blue_lang_proc::Source> = program
+        .files()
+        .iter()
+        .map(|f| blue_lang_proc::Source {
+            file: f
+                .path
+                .as_ref()
+                .map_or_else(|| "<anonymous>".to_string(), |p| p.display().to_string()),
+            text: std::sync::Arc::from(f.text.as_str()),
+        })
+        .collect();
+    erased
+        .iter()
+        .enumerate()
+        .filter_map(|(i, form)| {
+            let key = blue_lang_proc::violation::defined_key(form)?;
+            let source = files.get(program.owner_of(i)?.index())?;
+            Some((key.to_string(), source.clone()))
+        })
+        .collect()
 }
 
 fn entry_escapes(

@@ -96,7 +96,20 @@ fn a_tampered_trace_is_not_reported_as_reproduced() {
     // tape does not hold.
     assert_eq!(j["tape"][4]["call"], "receive");
     j["tape"][4]["value"] = serde_json::json!({ "int": 4 });
-    std::fs::write(&trace, serde_json::to_string(&j).expect("json")).expect("write");
+    let edited = serde_json::to_string(&j).expect("json");
+    std::fs::write(&trace, &edited).expect("write");
+    let refused = blue()
+        .arg("replay")
+        .arg(&trace)
+        .output()
+        .expect("blue replay");
+    assert!(
+        !refused.status.success()
+            && String::from_utf8_lossy(&refused.stderr).contains("the trace was edited"),
+        "under its hash name the edit is refused before it runs"
+    );
+    let trace = dir.join("tampered.json");
+    std::fs::write(&trace, edited).expect("write");
     let out = blue()
         .arg("replay")
         .arg(&trace)

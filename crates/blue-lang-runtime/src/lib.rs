@@ -77,7 +77,7 @@ pub use pipeline::{
 };
 pub use stdlib::install_blue_stdlib;
 
-pub use blue_lang_proc::{Frame, HostIo, Identities, Receipt};
+pub use blue_lang_proc::{Frame, HostIo, Identities, Places, Receipt};
 
 use tatara_lisp_eval::{install_full_stdlib_with, Interpreter};
 
@@ -166,6 +166,7 @@ pub fn attach_node_accounted<H: 'static>(
     let mut config = node_config();
     config.host_io = account.host_io.clone();
     config.identities = account.identities.clone();
+    config.places = account.places.clone();
     if let Some(hold) = hold {
         config.frame = Some(hold.frame());
         config.receipts = account.receipts.clone().map(receipt::sink);
@@ -190,8 +191,11 @@ pub struct Account {
     /// Each definition's `def_hash`, and the run's under [`receipt::RUN`].
     pub identities: Identities,
     /// How the identities are computed from the program, once it is lowered.
-    /// Without one, no trace or receipt names a `def_hash`.
+    /// Without one, no trace or receipt names a `def_hash`, and no trace
+    /// names the file, line and column of a breaching call.
     pub identify: Option<Identify>,
+    /// Each definition's file, read from the program when it identifies.
+    pub places: Places,
     /// Where each held process writes its receipt; none are written without.
     pub receipts: Option<std::path::PathBuf>,
 }
@@ -400,8 +404,9 @@ pub fn ungranted_host_names(
     Hold::from(frame.clone()).withheld_host_names()
 }
 
-/// The kind of the fatal error a capability breach raises.
-pub const BREACH: &str = "capability-breach";
+/// The kind of the fatal error a capability breach raises: the node's, so a
+/// crash trace classifies the breach this crate raises.
+pub const BREACH: &str = blue_lang_proc::violation::BREACH;
 
 /// The exit status a run that ended on a capability breach returns:
 /// `EX_NOPERM` (sysexits.h). `blue run` and an appliance both answer it.

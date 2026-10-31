@@ -228,7 +228,7 @@ fn a_version_1_trace_is_still_read_and_replayed() {
         "def w()\n  receive()\n  throw(error(:x, \"boom\"))\nend\nsup = supervisor(:one_for_one, [w], 0)\nm = monitor(sup)\nsend(nth(0, children(sup)), 1)\nreceive()",
     );
     let mut j = node.traces()[0].to_json();
-    assert_eq!(j["version"], 2);
+    assert_eq!(j["version"], 3);
     j["version"] = serde_json::json!(1);
     for k in ["def_hash", "hold", "mailbox"] {
         j.as_object_mut().expect("object").remove(k);

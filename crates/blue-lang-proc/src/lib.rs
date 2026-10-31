@@ -54,16 +54,22 @@ use std::sync::Arc;
 use tatara_lisp_eval::vm::{Budget, Chunk, Progress, Vm, VmError};
 use tatara_lisp_eval::{Interpreter, Value};
 
+pub mod bisect;
 pub mod code;
 pub mod mailbox;
 pub mod node;
 pub mod pattern;
 pub mod receipt;
 pub mod trace;
+pub mod violation;
+pub use bisect::{bisect, Bisected};
 pub use mailbox::{copy_data, deep_copy, install_process_primitives, System};
 pub use node::{install, ClockKind, Node, NodeConfig, PROCESS_WORDS, ROOT};
-pub use receipt::{Frame, HostIo, Identities, Receipt, ReceiptSink, Subject};
+pub use receipt::{
+    Frame, HostIo, Identities, Place, Places, Receipt, ReceiptSink, Source, Subject,
+};
 pub use trace::{replay, Journal, Replayed, Trace};
+pub use violation::{Class, Violation};
 
 /// A process identifier.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]

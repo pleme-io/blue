@@ -494,6 +494,7 @@ dependencies = [
 name = "blue-lang-proc"
 version = "0.0.134"
 dependencies = [
+ "blake3",
  "blue-lang-bidama",
  "blue-lang-runtime",
  "blue-lang-syntax",

@@ -219,6 +219,9 @@ was rendered. `blue help COMMAND` shows each one's flags.
 | `blue morph` | The morphology: what each posture grants, what it forfeits, which pairs are genuinely exclusive, and which language each shape corresponds to. |
 | `blue reference` | Print the language reference as JSON: operators, keywords, surface forms, Bluefile words, every bound name and every command, each read from the table the implementation runs on. |
 | `blue replay TRACE` | Run a crashed process again from the trace its crash wrote, and say whether it crashed the same way. |
+| `blue crash dump CRASH` | What a crash violated and where: its class, the host name and capability a breach demanded, the breaching call's file, line and column, the hold, the exit and the mailbox. |
+| `blue crash bisect CRASH` | The fewest messages the process took that still replay to the same crash, found by delta debugging against deterministic replay; the reduced trace is written beside the original under its own hash. |
+| `blue crash immunize CRASH` | The crash's regression lock: a test that spawns the target, sends it the fewest messages that crashed it and asserts it took them, red until the target is fixed. |
 | `blue receipt verify FILE` | Recompute a receipt's name from its bytes and check its form; any edit fails. |
 | `blue config [TIER]` | Show the bounds `blue` is running with, at any tier. |
 | `blue new NAME` | Start a program (a project with its own bidama), a `--bidama`, or a `--script`, each passing `blue test` as written. |
@@ -240,7 +243,7 @@ rendered:
 | Surface forms | 30, with 13 operators and 25 reserved words |
 | Check rules | 67: 38 fix themselves, 7 suggest a fix |
 | Bluefile words | 22 |
-| Commands | 39 |
+| Commands | 42 |
 
 ## The standard library
 

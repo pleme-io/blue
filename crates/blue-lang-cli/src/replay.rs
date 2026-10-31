@@ -5,12 +5,13 @@
 //! and host name reads the tape, so it touches nothing outside itself and sees
 //! the clock exactly as the crashed run did. A `.bluecrash` (a fatal exit's
 //! trace) replays under the hold it recorded: a breach replays as the same
-//! breach at the same tape entry.
+//! breach at the same tape entry. TRACE is a file or a crash hash, resolved
+//! in the trace directory (`crate::crash::resolve`).
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use blue_lang_proc::{replay, Trace};
+use blue_lang_proc::replay;
 
 /// Where `blue run` writes crash traces: `BLUE_TRACE_DIR`, or a `blue-traces`
 /// directory under the system's temporary directory. `BLUE_TRACE_DIR=` (empty)
@@ -43,10 +44,49 @@ fn labels(caps: &[blue_lang_waku::Capability]) -> String {
         .join(", ")
 }
 
+/// The hold line a replay and a dump print.
+pub fn hold_line(hold: &blue_lang_proc::Frame) -> String {
+    format!(
+        "hold: granted {}; provided {}; withheld {}",
+        labels(&hold.granted),
+        if hold.provided.is_empty() {
+            "none".to_string()
+        } else {
+            hold.provided
+                .iter()
+                .map(|p| {
+                    let served = p.scope.as_ref().map_or_else(String::new, |s| {
+                        format!(" for {}", s.iter().cloned().collect::<Vec<_>>().join(", "))
+                    });
+                    format!(
+                        "{} ({}{served})",
+                        p.provision.capability().label(),
+                        p.provision.label()
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(", ")
+        },
+        labels(&hold.withheld),
+    )
+}
+
+/// The mailbox lines a replay and a dump print: the counts, then each
+/// message still waiting.
+pub fn mailbox_lines(m: &blue_lang_proc::Journal) -> Vec<String> {
+    let mut lines = vec![format!(
+        "mailbox: {} recent, {} unconsumed (bound {})",
+        m.recent.len(),
+        m.unconsumed_total,
+        m.bound
+    )];
+    lines.extend(m.unconsumed.iter().map(|v| format!("  waiting: {v}")));
+    lines
+}
+
 /// Replay `path`; success when the replay ends the way the trace recorded.
 pub fn run(path: &Path) -> Result<ExitCode, String> {
-    let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
-    let trace = Trace::parse(&text).map_err(|e| format!("{}: {e}", path.display()))?;
+    let trace = crate::crash::load(path)?.trace;
     println!(
         "process {}{} incarnation {}: {} tape entries{}",
         trace.pid,
@@ -63,39 +103,11 @@ pub fn run(path: &Path) -> Result<ExitCode, String> {
         println!("def_hash: {h}");
     }
     if let Some(hold) = &trace.hold {
-        println!(
-            "hold: granted {}; provided {}; withheld {}",
-            labels(&hold.granted),
-            if hold.provided.is_empty() {
-                "none".to_string()
-            } else {
-                hold.provided
-                    .iter()
-                    .map(|p| {
-                        let served = p.scope.as_ref().map_or_else(String::new, |s| {
-                            format!(" for {}", s.iter().cloned().collect::<Vec<_>>().join(", "))
-                        });
-                        format!(
-                            "{} ({}{served})",
-                            p.provision.capability().label(),
-                            p.provision.label()
-                        )
-                    })
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            },
-            labels(&hold.withheld),
-        );
+        println!("{}", hold_line(hold));
     }
     if let Some(m) = &trace.mailbox {
-        println!(
-            "mailbox: {} recent, {} unconsumed (bound {})",
-            m.recent.len(),
-            m.unconsumed_total,
-            m.bound
-        );
-        for v in &m.unconsumed {
-            println!("  waiting: {v}");
+        for line in mailbox_lines(m) {
+            println!("{line}");
         }
     }
     println!("recorded: {} {}", trace.reason_kind, trace.reason_text);

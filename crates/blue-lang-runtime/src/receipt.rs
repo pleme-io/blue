@@ -224,7 +224,8 @@ mod tests {
                 "network",
                 "entropy",
                 "comm-flash",
-                "comm-scavenger"
+                "comm-scavenger",
+                "mpc-threshold"
             ])
         );
         assert_eq!(j["frame"]["host_io"], 1, "the ledger's total, as given");

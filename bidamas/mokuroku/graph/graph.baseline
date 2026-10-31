@@ -23,7 +23,7 @@ g2-vocab: deeta 3
 g2-vocab: fairu 22
 g2-vocab: fuka? 10
 g2-vocab: furagu? 3
-g2-vocab: fuuin? 19
+g2-vocab: fuuin 19
 g2-vocab: gamen? 16
 g2-vocab: gazou? 10
 g2-vocab: genbo? 2
@@ -142,7 +142,7 @@ g2-vocab: tougou? 8
 g2-vocab: toukei 18
 g2-vocab: toutatsu? 7
 g2-vocab: tsuiseki? 7
-g2-vocab: tsumini? 4
+g2-vocab: tsumini? 3
 g2-vocab: tsuuchi 4
 g2-vocab: tsuushin 7
 g2-vocab: ugoki? 18
@@ -155,7 +155,7 @@ g2-vocab: youryou? 5
 g2-vocab: yushutsu 1
 g2-vocab: zumen 3
 g4-cycle: byouga? 4
-g4-cycle: fuuin? 2
+g4-cycle: fuuin 2
 g4-cycle: gamen? 3
 g4-cycle: gyouretsu 3
 g4-cycle: keisoku? 2

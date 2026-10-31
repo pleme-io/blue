@@ -239,7 +239,7 @@ edge("jouka?::contain", :guards, "fairu::write", "safe path before write")
 edge(
   "jouka?::bound",
   :guards,
-  "fuuin?::open_stream",
+  "fuuin::open_stream",
   "decompression and chunk limits"
 )
 

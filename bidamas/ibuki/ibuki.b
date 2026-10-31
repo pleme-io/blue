@@ -48,7 +48,7 @@ def classes()
     {
       name: :synod,
       numeral: "V",
-      ceiling: %w[entropy network],
+      ceiling: %w[entropy mpc-threshold network],
       holds: "a k-of-n authority whose key is never whole on one machine"
     }
   ]
@@ -617,6 +617,9 @@ test "the five classes are in order with their numerals and ceilings"
   assert map((c) -> c.numeral, classes) == %w[I II III IV V]
   assert class_named(:crystal).ceiling == []
   assert class_named(:airlock).ceiling == %w[clock entropy network]
+  assert class_named(:synod).ceiling == %w[entropy mpc-threshold network]
+  assert admit(:synod, %w[entropy mpc-threshold network]) == []
+  assert map(first, admit(:nomad, ["mpc-threshold"])) == [:denied]
   assert raised(() -> class_named(:planet)) == :not_found
 end
 

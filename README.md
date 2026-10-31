@@ -239,7 +239,7 @@ rendered:
 
 | | |
 |---|---|
-| Built-in names | 320: 293 functions, 14 special forms, 13 macros |
+| Built-in names | 329: 302 functions, 14 special forms, 13 macros |
 | Surface forms | 30, with 13 operators and 25 reserved words |
 | Check rules | 67: 38 fix themselves, 7 suggest a fix |
 | Bluefile words | 23 |
@@ -250,7 +250,7 @@ rendered:
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-88 packages, 4819 definitions, 1578 tests.
+89 packages, 4823 definitions, 1584 tests.
 
 - [anaritikusu](bidamas/CATALOG.md#anaritikusu) (アナリティクス) — lifecycle analytics: a database of telemetry, standard models and cross-lifecycle joins, generated from lifecycle definitions.
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
@@ -261,6 +261,7 @@ rendered:
 - [deeta](bidamas/CATALOG.md#deeta) (データ) — JSON data, read safely.
 - [empresa](bidamas/CATALOG.md#empresa) (会社) — a company declared as data: domains, mail, sites and a GitHub org, each entry refused alone, projected to the variables its infrastructure applies.
 - [fairu](bidamas/CATALOG.md#fairu) (ファイル) — files: paths and the files they name.
+- [fuuin](bidamas/CATALOG.md#fuuin) (封印) — k-of-n threshold signing: a group whose key no one share holds, signed by any k of its n shares in two rounds, RFC 9591 FROST over Ed25519.
 - [gamen](bidamas/CATALOG.md#gamen) (画面) — screen: what a program shows, as values: colors and themes, UI trees rendered to HTML, and styled text, tables and trees on the terminal.
 - [gitto](bidamas/CATALOG.md#gitto) (ギット) — git, as verbs: a repository read as commits, refs, branches and files, and written by commit, fetch, merge, push and clone.
 - [gurafu](bidamas/CATALOG.md#gurafu) (グラフ) — directed graphs as values: build them, ask them, order them.

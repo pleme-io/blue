@@ -801,69 +801,73 @@ furagu?::ramp	pairs	tenkai?::shift	flag ramp mirrors traffic shift
 furagu?::ramp	refines	furagu?::put	percent rule
 furagu?::stale?	composes	furagu?::history	age of last change
 furagu?::watch	lifts	furagu?::eval	rule change stream
-fuuin?::derive	composes	shomei::mac	extract and expand steps
-fuuin?::derive	refines	shomei::mac	HKDF is built from keyed hash
-fuuin?::destroy	inverse	fuuin?::generate	key cannot return once gone
-fuuin?::destroy	requires	fuuin?::retire	retire before erasing
-fuuin?::due?	guards	fuuin?::rotate	decides when rotation runs
-fuuin?::enclose	composes	fuuin?::generate	fresh data key each time
-fuuin?::enclose	composes	fuuin?::seal	data sealed under data key
-fuuin?::enclose	composes	fuuin?::shield	data key wrapped by managed key
-fuuin?::enclose	guards	fuuin?::due?	policy age checked at lock time
-fuuin?::enclose	inverse	fuuin?::unlock	asks the key service to unwrap
-fuuin?::encrypted?	guards	fuuin?::unseal	avoid opening plain bytes
-fuuin?::encrypted?	pairs	fuuin?::peek	detect, then read the header
-fuuin?::exchange	pairs	fuuin?::derive	shared secret then derive keys
-fuuin?::exchange	requires	fuuin?::generate	each side needs a keypair
-fuuin?::exchange	requires	fuuin?::parse	peer key arrives as text
-fuuin?::generate	composes	fuuin?::random	key bytes from entropy
-fuuin?::generate	guards	fuuin?::strength	refuses kinds below the minimum
-fuuin?::generate	inverse	fuuin?::destroy	key cannot return once gone
-fuuin?::hybrid	composes	fuuin?::exchange	classical plus post-quantum exchange
-fuuin?::hybrid	generalizes	fuuin?::quantum_safe?	safe when either part holds
-fuuin?::hybrid	requires	fuuin?::quantum_safe?	one half must be post-quantum
-fuuin?::open_as	inverse	fuuin?::seal_to	opens with the secret key
-fuuin?::open_stream	inverse	fuuin?::seal_stream	undoes chunked sealing
-fuuin?::open_stream	lifts	fuuin?::unseal	chunked opening of streams
-fuuin?::parse	inverse	fuuin?::render	key to text
-fuuin?::parse	requires	fuuin?::render	round trip law
-fuuin?::peek	guards	fuuin?::unseal	learn key id before opening
-fuuin?::quantum_safe?	guards	fuuin?::generate	filters kinds for long-lived data
-fuuin?::random	requires	fuuin?::generate	entropy is the base of every key
-fuuin?::rebuild	inverse	fuuin?::share	split what rebuild joins
-fuuin?::rebuild	requires	fuuin?::share	needs a threshold of shares
-fuuin?::render	inverse	fuuin?::parse	key to text
-fuuin?::retire	guards	fuuin?::rotate	old version retires after rotate
-fuuin?::retire	guards	fuuin?::seal	retired keys cannot seal
-fuuin?::rewrap	composes	fuuin?::unlock	unwrap then wrap under new key
-fuuin?::rewrap	pairs	fuuin?::rotate	rotation moves data keys over
-fuuin?::rotate	composes	fuuin?::generate	new version of the key
-fuuin?::rotate	pairs	fuuin?::retire	old version retires after rotation
-fuuin?::rotate	requires	fuuin?::due?	rotate when policy says so
-fuuin?::seal	composes	shomei::mac	tag authenticates ciphertext
-fuuin?::seal	inverse	fuuin?::unseal	decrypts and authenticates
-fuuin?::seal	pairs	fuuin?::unseal	every seal has an open
-fuuin?::seal	requires	fuuin?::random	fresh nonce per message
-fuuin?::seal_stream	inverse	fuuin?::open_stream	undoes chunked sealing
-fuuin?::seal_stream	lifts	fuuin?::seal	chunked sealing of streams
-fuuin?::seal_to	composes	fuuin?::exchange	ephemeral exchange then seal
-fuuin?::seal_to	composes	fuuin?::seal	payload sealed under derived key
-fuuin?::seal_to	inverse	fuuin?::open_as	opens with the secret key
-fuuin?::share	inverse	fuuin?::rebuild	split what rebuild joins
-fuuin?::share	requires	fuuin?::random	share polynomial needs entropy
-fuuin?::share	requires	fuuin?::strength	threshold must keep the bits
-fuuin?::shield	composes	fuuin?::seal	key sealed under key
-fuuin?::shield	inverse	fuuin?::unwrap	recover the wrapped key
-fuuin?::shield	pairs	fuuin?::unwrap	every wrap has an unwrap
-fuuin?::strength	guards	fuuin?::generate	names security bits of a request
-fuuin?::stretch	pairs	ninshou?::protect	password storage uses stretching
-fuuin?::stretch	refines	fuuin?::derive	derive from a low-entropy password
-fuuin?::unlock	inverse	fuuin?::enclose	asks the key service to unwrap
-fuuin?::unseal	guards	fuuin?::peek	peek chooses the key to open with
-fuuin?::unseal	inverse	fuuin?::seal	decrypts and authenticates
-fuuin?::unwrap	inverse	fuuin?::shield	recover the wrapped key
-fuuin?::zeroize	guards	fuuin?::destroy	memory wiped when a key dies
-fuuin?::zeroize	pairs	himitsu::reveal	wipe after plain text use
+fuuin::combine	pairs	shomei::verify?	the signature is ordinary Ed25519
+fuuin::combine	requires	fuuin::sign	a threshold of signature shares
+fuuin::derive	composes	shomei::mac	extract and expand steps
+fuuin::derive	refines	shomei::mac	HKDF is built from keyed hash
+fuuin::destroy	inverse	fuuin::generate	key cannot return once gone
+fuuin::destroy	requires	fuuin::retire	retire before erasing
+fuuin::due?	guards	fuuin::rotate	decides when rotation runs
+fuuin::enclose	composes	fuuin::generate	fresh data key each time
+fuuin::enclose	composes	fuuin::seal	data sealed under data key
+fuuin::enclose	composes	fuuin::shield	data key wrapped by managed key
+fuuin::enclose	guards	fuuin::due?	policy age checked at lock time
+fuuin::enclose	inverse	fuuin::unlock	asks the key service to unwrap
+fuuin::encrypted?	guards	fuuin::unseal	avoid opening plain bytes
+fuuin::encrypted?	pairs	fuuin::peek	detect, then read the header
+fuuin::exchange	pairs	fuuin::derive	shared secret then derive keys
+fuuin::exchange	requires	fuuin::generate	each side needs a keypair
+fuuin::exchange	requires	fuuin::parse	peer key arrives as text
+fuuin::generate	composes	fuuin::random	key bytes from entropy
+fuuin::generate	guards	fuuin::strength	refuses kinds below the minimum
+fuuin::generate	inverse	fuuin::destroy	key cannot return once gone
+fuuin::hybrid	composes	fuuin::exchange	classical plus post-quantum exchange
+fuuin::hybrid	generalizes	fuuin::quantum_safe?	safe when either part holds
+fuuin::hybrid	requires	fuuin::quantum_safe?	one half must be post-quantum
+fuuin::offer	requires	fuuin::generate	a share of a threshold group
+fuuin::open_as	inverse	fuuin::seal_to	opens with the secret key
+fuuin::open_stream	inverse	fuuin::seal_stream	undoes chunked sealing
+fuuin::open_stream	lifts	fuuin::unseal	chunked opening of streams
+fuuin::parse	inverse	fuuin::render	key to text
+fuuin::parse	requires	fuuin::render	round trip law
+fuuin::peek	guards	fuuin::unseal	learn key id before opening
+fuuin::quantum_safe?	guards	fuuin::generate	filters kinds for long-lived data
+fuuin::random	requires	fuuin::generate	entropy is the base of every key
+fuuin::rebuild	inverse	fuuin::share	split what rebuild joins
+fuuin::rebuild	requires	fuuin::share	needs a threshold of shares
+fuuin::render	inverse	fuuin::parse	key to text
+fuuin::retire	guards	fuuin::rotate	old version retires after rotate
+fuuin::retire	guards	fuuin::seal	retired keys cannot seal
+fuuin::rewrap	composes	fuuin::unlock	unwrap then wrap under new key
+fuuin::rewrap	pairs	fuuin::rotate	rotation moves data keys over
+fuuin::rotate	composes	fuuin::generate	new version of the key
+fuuin::rotate	pairs	fuuin::retire	old version retires after rotation
+fuuin::rotate	requires	fuuin::due?	rotate when policy says so
+fuuin::seal	composes	shomei::mac	tag authenticates ciphertext
+fuuin::seal	inverse	fuuin::unseal	decrypts and authenticates
+fuuin::seal	pairs	fuuin::unseal	every seal has an open
+fuuin::seal	requires	fuuin::random	fresh nonce per message
+fuuin::seal_stream	inverse	fuuin::open_stream	undoes chunked sealing
+fuuin::seal_stream	lifts	fuuin::seal	chunked sealing of streams
+fuuin::seal_to	composes	fuuin::exchange	ephemeral exchange then seal
+fuuin::seal_to	composes	fuuin::seal	payload sealed under derived key
+fuuin::seal_to	inverse	fuuin::open_as	opens with the secret key
+fuuin::share	inverse	fuuin::rebuild	split what rebuild joins
+fuuin::share	requires	fuuin::random	share polynomial needs entropy
+fuuin::share	requires	fuuin::strength	threshold must keep the bits
+fuuin::shield	composes	fuuin::seal	key sealed under key
+fuuin::shield	inverse	fuuin::unwrap	recover the wrapped key
+fuuin::shield	pairs	fuuin::unwrap	every wrap has an unwrap
+fuuin::sign	requires	fuuin::offer	nonces committed in round one
+fuuin::strength	guards	fuuin::generate	names security bits of a request
+fuuin::stretch	pairs	ninshou?::protect	password storage uses stretching
+fuuin::stretch	refines	fuuin::derive	derive from a low-entropy password
+fuuin::unlock	inverse	fuuin::enclose	asks the key service to unwrap
+fuuin::unseal	guards	fuuin::peek	peek chooses the key to open with
+fuuin::unseal	inverse	fuuin::seal	decrypts and authenticates
+fuuin::unwrap	inverse	fuuin::shield	recover the wrapped key
+fuuin::zeroize	guards	fuuin::destroy	memory wiped when a key dies
+fuuin::zeroize	pairs	himitsu::reveal	wipe after plain text use
 gamen?::apply	requires	byouga?::draw	the GPU path of apply
 gamen?::apply	requires	gamen?::diff	patches come from a diff
 gamen?::check	composes	gamen?::contrast	color pairs
@@ -1389,7 +1393,7 @@ himitsu::diff	composes	himitsu::list	names on both sides
 himitsu::diff	pairs	himitsu::materialize	drift then repair
 himitsu::encrypt	composes	shomei::derive	key from a passphrase
 himitsu::encrypt	inverse	himitsu::decrypt	opens what encrypt sealed
-himitsu::generate	composes	fuuin?::random	bytes from entropy
+himitsu::generate	composes	fuuin::random	bytes from entropy
 himitsu::generate	composes	shomei::random	entropy source
 himitsu::generate	pairs	himitsu::rotate	new value for an old name
 himitsu::get	composes	himitsu::read	ref built from store and key
@@ -1408,7 +1412,7 @@ himitsu::materialize	composes	himitsu::plan	runs the planned writes
 himitsu::materialize	composes	himitsu::put	writes each secret
 himitsu::need	refines	himitsu::get	raises when absent
 himitsu::plan	composes	himitsu::diff	declared against stored
-himitsu::put	composes	fuuin?::enclose	stored encrypted at rest
+himitsu::put	composes	fuuin::enclose	stored encrypted at rest
 himitsu::put	inverse	himitsu::delete	delete makes absent what put made
 himitsu::put	pairs	himitsu::get	put then get returns the value
 himitsu::put	pairs	himitsu::versions	each write is a version
@@ -1419,7 +1423,7 @@ himitsu::recipients	guards	himitsu::rekey	see who can open before rekeying
 himitsu::redact	guards	rogu::info	secrets never reach a log line
 himitsu::redact	pairs	himitsu::reveal	masks what reveal exposes
 himitsu::ref	guards	himitsu::read	typed pointer before resolving
-himitsu::rekey	composes	fuuin?::rewrap	new recipients for data keys
+himitsu::rekey	composes	fuuin::rewrap	new recipients for data keys
 himitsu::rekey	composes	himitsu::decrypt	opens under old keys
 himitsu::rekey	composes	himitsu::encrypt	seals under new keys
 himitsu::renew	requires	himitsu::lease	extends a live lease
@@ -1434,10 +1438,10 @@ himitsu::scan	composes	fairu::walk	reads files and history
 himitsu::scan	pairs	himitsu::redact	finds what redact must mask
 himitsu::secret	inverse	himitsu::reveal	plain text from a secret
 himitsu::secret	pairs	himitsu::reveal	the only way in and out
-himitsu::stale?	composes	fuuin?::due?	same rotation policy
+himitsu::stale?	composes	fuuin::due?	same rotation policy
 himitsu::versions	pairs	himitsu::put	each put makes a version
 himitsu::versions	requires	himitsu::put	every put adds a version
-himitsu::with_secrets	composes	fuuin?::zeroize	wipe on exit
+himitsu::with_secrets	composes	fuuin::zeroize	wipe on exit
 himitsu::with_secrets	composes	himitsu::deliver	deliver for the body only
 hinagata?::expand	pairs	genin?::trace	expansion steps are traceable
 hinagata?::expand	requires	koubun?::parse	rewrites forms
@@ -1709,7 +1713,7 @@ joujuu::stop	inverse	joujuu::start	begin versus end
 joujuu::wait	composes	joujuu::info	poll state
 joujuu::wait	pairs	kenkou?::wait	unit state is a probe
 jouka?::bind	refines	jouka?::escape	structured form of escaping
-jouka?::bound	guards	fuuin?::open_stream	decompression and chunk limits
+jouka?::bound	guards	fuuin::open_stream	decompression and chunk limits
 jouka?::bound	guards	jouka?::fits?	size check comes first
 jouka?::canonical	guards	jouka?::contain	normalise before containing
 jouka?::canonical	guards	jouka?::fits?	normalise before matching
@@ -2813,7 +2817,7 @@ mimoto?::principal	requires	mimoto?::info	reads the URI name
 mimoto?::probe	composes	mimoto?::chain_of	connect then verify chain
 mimoto?::probe	composes	mimoto?::expires	report remaining validity
 mimoto?::probe	composes	mimoto?::info	report the chain's fields
-mimoto?::profile	guards	fuuin?::quantum_safe?	level names allowed algorithms
+mimoto?::profile	guards	fuuin::quantum_safe?	level names allowed algorithms
 mimoto?::profile	guards	mimoto?::probe	probe judges against a level
 mimoto?::render	inverse	mimoto?::parse	certificate to text
 mimoto?::renew	composes	mimoto?::issue	new certificate for same key
@@ -2956,12 +2960,12 @@ ninshou?::alive?	guards	ninshou?::touch	touch only when alive
 ninshou?::alive?	requires	ninshou?::start	only sessions that started
 ninshou?::answer?	composes	shomei::verify?	response is a signature
 ninshou?::answer?	pairs	ninshou?::challenge	each challenge answered once
-ninshou?::backup_codes	requires	fuuin?::random	codes need entropy
+ninshou?::backup_codes	requires	fuuin::random	codes need entropy
 ninshou?::caller	composes	tegata::read	identity from a token
 ninshou?::caller	guards	kengen?::permit	identity comes before permission
 ninshou?::caller	requires	ninshou?::alive?	identity from a live session
 ninshou?::challenge	guards	ninshou?::passkey_ask	same fresh nonce rule
-ninshou?::challenge	requires	fuuin?::random	nonce must be unpredictable
+ninshou?::challenge	requires	fuuin::random	nonce must be unpredictable
 ninshou?::code	composes	shomei::mac	HMAC of the time step
 ninshou?::code	pairs	ninshou?::code_valid?	generate and check
 ninshou?::code_valid?	composes	ninshou?::code	compare within the window
@@ -2976,14 +2980,14 @@ ninshou?::matches?	composes	shomei::same?	equal-time comparison
 ninshou?::matches?	inverse	ninshou?::protect	checks a password against its verifier
 ninshou?::passkey_accept	composes	shomei::verify?	attestation signature check
 ninshou?::passkey_accept	pairs	ninshou?::passkey_ask	answers an enrolment request
-ninshou?::passkey_ask	requires	fuuin?::random	challenge must be fresh
+ninshou?::passkey_ask	requires	fuuin::random	challenge must be fresh
 ninshou?::passkey_verify	composes	shomei::verify?	assertion signature check
 ninshou?::passkey_verify	pairs	ninshou?::passkey_ask	answers a sign-in request
 ninshou?::passkey_verify	requires	ninshou?::passkey_accept	needs the enrolled credential
-ninshou?::protect	composes	fuuin?::stretch	slow salted derivation
+ninshou?::protect	composes	fuuin::stretch	slow salted derivation
 ninshou?::protect	inverse	ninshou?::matches?	checks a password against its verifier
 ninshou?::protect	pairs	ninshou?::matches?	store and check
-ninshou?::protect	requires	fuuin?::random	salt from secure entropy
+ninshou?::protect	requires	fuuin::random	salt from secure entropy
 ninshou?::renew	composes	ninshou?::stop	old id is stopped
 ninshou?::renew	requires	ninshou?::start	replaces a live session id
 ninshou?::sign_in	composes	ninshou?::code_valid?	second factor
@@ -2994,7 +2998,7 @@ ninshou?::spend	pairs	ninshou?::backup_codes	a code works once
 ninshou?::stale?	guards	ninshou?::protect	decides when to rehash
 ninshou?::start	inverse	ninshou?::stop	ends what start began
 ninshou?::start	pairs	ninshou?::stop	every session ends
-ninshou?::start	requires	fuuin?::random	session id from entropy
+ninshou?::start	requires	fuuin::random	session id from entropy
 ninshou?::stop	inverse	ninshou?::start	ends what start began
 ninshou?::strike	guards	ninshou?::matches?	count each failed match
 ninshou?::strike	inverse	ninshou?::forgive	clears the count
@@ -3860,7 +3864,7 @@ shomei::derive	composes	shomei::hash	stretched hash
 shomei::equal?	guards	shomei::verify?	constant-time compare
 shomei::equal?	pairs	shomei::hash	compare digests safely
 shomei::fingerprint	composes	shomei::hash	hash of the public key
-shomei::fingerprint	pairs	fuuin?::parse	fingerprint names a parsed key
+shomei::fingerprint	pairs	fuuin::parse	fingerprint names a parsed key
 shomei::fingerprint	requires	shomei::public	names only the public half
 shomei::first_break	composes	shomei::trail	compare stored with recomputed
 shomei::first_break	pairs	shomei::intact?	index form and yes-no form
@@ -3879,7 +3883,7 @@ shomei::head	lifts	shomei::chain	whole chain
 shomei::intact?	composes	shomei::head	recompute and compare head
 shomei::intact?	refines	shomei::first_break	yes when there is no break
 shomei::keypair	pairs	shomei::sign	keys for signing
-shomei::keypair	requires	fuuin?::random	seed must come from secure entropy
+shomei::keypair	requires	fuuin::random	seed must come from secure entropy
 shomei::keypair	requires	shomei::hash	seed to key uses a hash
 shomei::keypair	requires	shomei::random	seed from entropy
 shomei::mac	refines	shomei::hash	a digest that needs a key
@@ -4211,7 +4215,7 @@ tegata::acquire	requires	tegata::discover	token endpoint from discovery
 tegata::api_key	composes	shomei::hash	store hash, not secret
 tegata::api_key	inverse	tegata::api_key_valid?	checks a presented key
 tegata::api_key	pairs	tegata::api_key_valid?	issue and check
-tegata::api_key	requires	fuuin?::random	key from entropy
+tegata::api_key	requires	fuuin::random	key from entropy
 tegata::api_key_valid?	composes	shomei::same?	equal-time comparison
 tegata::api_key_valid?	inverse	tegata::api_key	checks a presented key
 tegata::assertion	generalizes	tegata::read	same checks on a SAML document
@@ -4225,7 +4229,7 @@ tegata::flow_finish	composes	tegata::read	check the returned ID token
 tegata::flow_finish	pairs	tegata::flow_start	redeems what start prepared
 tegata::flow_finish	requires	tegata::discover	endpoints come from discovery
 tegata::flow_start	composes	tegata::pkce	challenge from verifier
-tegata::flow_start	requires	fuuin?::random	state and verifier from entropy
+tegata::flow_start	requires	fuuin::random	state and verifier from entropy
 tegata::introspect	generalizes	tegata::read	asks the issuer instead of verifying locally
 tegata::introspect	pairs	tegata::revoked?	remote versus local state
 tegata::issue	composes	shomei::sign	signature over header and claims
@@ -4350,7 +4354,7 @@ tokumei::count	requires	tokumei::perturb	noise on a count
 tokumei::detokenize	guards	nisshi::audit	each reversal is logged
 tokumei::detokenize	inverse	tokumei::tokenize	returns the original value
 tokumei::epsilon	requires	tokumei::randomize	cost of one answer
-tokumei::erase	composes	fuuin?::destroy	crypto-shred when data is sealed per person
+tokumei::erase	composes	fuuin::destroy	crypto-shred when data is sealed per person
 tokumei::erase	composes	nisshi::audit	a receipt in the audit log
 tokumei::erase	composes	tokumei::locate	find then delete
 tokumei::erase	requires	tokumei::lapsed	erasure is how retention is enforced
@@ -4385,7 +4389,7 @@ tokumei::spot	refines	tokumei::classify	classify inside free text
 tokumei::suppress	guards	tokumei::count	no small groups
 tokumei::suppress	guards	tokumei::private_count	small counts are not published
 tokumei::suppress	requires	toukei::describe	group sizes
-tokumei::tokenize	composes	fuuin?::random	random token
+tokumei::tokenize	composes	fuuin::random	random token
 tokumei::tokenize	inverse	tokumei::detokenize	returns the original value
 tokumei::tokenize	requires	tokumei::pseudonym	stand-in may be random instead
 tokumei::unique_share	guards	tokumei::k_anonymous?	estimate before checking

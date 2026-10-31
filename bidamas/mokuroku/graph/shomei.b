@@ -612,7 +612,7 @@ edge(
 edge(
   "shomei::fingerprint",
   :pairs,
-  "fuuin?::parse",
+  "fuuin::parse",
   "fingerprint names a parsed key"
 )
 
@@ -695,7 +695,7 @@ edge(
 edge(
   "shomei::keypair",
   :requires,
-  "fuuin?::random",
+  "fuuin::random",
   "seed must come from secure entropy"
 )
 

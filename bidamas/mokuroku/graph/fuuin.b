@@ -1,7 +1,21 @@
-space("fuuin?", {status: :provisional})
+space("fuuin", {status: :ratified})
 
 verb(
-  "fuuin?",
+  "fuuin",
+  "combine",
+  {
+    kind: :pure,
+    shape: "combine(parts, opts) -> signature",
+    laterals: %w[capability error validate],
+    fleet: "tameshi",
+    today: "exists:fuuin",
+    wave: 2,
+    origin: "D"
+  }
+)
+
+verb(
+  "fuuin",
   "derive",
   {
     kind: :pure,
@@ -16,7 +30,7 @@ verb(
 )
 
 verb(
-  "fuuin?",
+  "fuuin",
   "destroy",
   {
     kind: :effect,
@@ -31,7 +45,7 @@ verb(
 )
 
 verb(
-  "fuuin?",
+  "fuuin",
   "due?",
   {
     kind: :pure,
@@ -46,7 +60,7 @@ verb(
 )
 
 verb(
-  "fuuin?",
+  "fuuin",
   "enclose",
   {
     kind: :effect,
@@ -61,7 +75,7 @@ verb(
 )
 
 verb(
-  "fuuin?",
+  "fuuin",
   "encrypted?",
   {
     kind: :pure,
@@ -76,7 +90,7 @@ verb(
 )
 
 verb(
-  "fuuin?",
+  "fuuin",
   "exchange",
   {
     kind: :pure,
@@ -91,14 +105,14 @@ verb(
 )
 
 verb(
-  "fuuin?",
+  "fuuin",
   "generate",
   {
     kind: :effect,
     shape: "generate(kind, opts) -> key",
     laterals: %w[capability error],
     fleet: "cofre",
-    today: "absent",
+    today: "partial:fuuin",
     meaning: "new key of a kind from secure entropy",
     wave: 1,
     origin: "D"
@@ -106,7 +120,7 @@ verb(
 )
 
 verb(
-  "fuuin?",
+  "fuuin",
   "hybrid",
   {
     kind: :pure,
@@ -121,7 +135,21 @@ verb(
 )
 
 verb(
-  "fuuin?",
+  "fuuin",
+  "offer",
+  {
+    kind: :effect,
+    shape: "offer(share, data) -> record",
+    laterals: %w[capability error],
+    fleet: "tameshi",
+    today: "exists:fuuin",
+    wave: 2,
+    origin: "D"
+  }
+)
+
+verb(
+  "fuuin",
   "open_as",
   {
     kind: :pure,
@@ -136,7 +164,7 @@ verb(
 )
 
 verb(
-  "fuuin?",
+  "fuuin",
   "open_stream",
   {
     kind: :stream,
@@ -151,7 +179,7 @@ verb(
 )
 
 verb(
-  "fuuin?",
+  "fuuin",
   "parse",
   {
     kind: :pure,
@@ -166,7 +194,7 @@ verb(
 )
 
 verb(
-  "fuuin?",
+  "fuuin",
   "peek",
   {
     kind: :pure,
@@ -181,7 +209,7 @@ verb(
 )
 
 verb(
-  "fuuin?",
+  "fuuin",
   "quantum_safe?",
   {
     kind: :pure,
@@ -196,7 +224,7 @@ verb(
 )
 
 verb(
-  "fuuin?",
+  "fuuin",
   "random",
   {
     kind: :effect,
@@ -211,7 +239,7 @@ verb(
 )
 
 verb(
-  "fuuin?",
+  "fuuin",
   "rebuild",
   {
     kind: :pure,
@@ -226,7 +254,7 @@ verb(
 )
 
 verb(
-  "fuuin?",
+  "fuuin",
   "render",
   {
     kind: :pure,
@@ -241,7 +269,7 @@ verb(
 )
 
 verb(
-  "fuuin?",
+  "fuuin",
   "retire",
   {
     kind: :effect,
@@ -256,7 +284,7 @@ verb(
 )
 
 verb(
-  "fuuin?",
+  "fuuin",
   "rewrap",
   {
     kind: :effect,
@@ -271,7 +299,7 @@ verb(
 )
 
 verb(
-  "fuuin?",
+  "fuuin",
   "rotate",
   {
     kind: :effect,
@@ -286,7 +314,7 @@ verb(
 )
 
 verb(
-  "fuuin?",
+  "fuuin",
   "seal",
   {
     kind: :effect,
@@ -301,7 +329,21 @@ verb(
 )
 
 verb(
-  "fuuin?",
+  "fuuin",
+  "sign",
+  {
+    kind: :effect,
+    shape: "sign(data, share, opts) -> record",
+    laterals: %w[capability error],
+    fleet: "tameshi",
+    today: "exists:fuuin",
+    wave: 2,
+    origin: "D"
+  }
+)
+
+verb(
+  "fuuin",
   "seal_stream",
   {
     kind: :stream,
@@ -316,7 +358,7 @@ verb(
 )
 
 verb(
-  "fuuin?",
+  "fuuin",
   "seal_to",
   {
     kind: :effect,
@@ -331,7 +373,7 @@ verb(
 )
 
 verb(
-  "fuuin?",
+  "fuuin",
   "share",
   {
     kind: :effect,
@@ -346,7 +388,7 @@ verb(
 )
 
 verb(
-  "fuuin?",
+  "fuuin",
   "shield",
   {
     kind: :pure,
@@ -361,7 +403,7 @@ verb(
 )
 
 verb(
-  "fuuin?",
+  "fuuin",
   "strength",
   {
     kind: :pure,
@@ -376,7 +418,7 @@ verb(
 )
 
 verb(
-  "fuuin?",
+  "fuuin",
   "stretch",
   {
     kind: :pure,
@@ -391,7 +433,7 @@ verb(
 )
 
 verb(
-  "fuuin?",
+  "fuuin",
   "unlock",
   {
     kind: :effect,
@@ -406,7 +448,7 @@ verb(
 )
 
 verb(
-  "fuuin?",
+  "fuuin",
   "unseal",
   {
     kind: :pure,
@@ -421,7 +463,7 @@ verb(
 )
 
 verb(
-  "fuuin?",
+  "fuuin",
   "unwrap",
   {
     kind: :pure,
@@ -436,7 +478,7 @@ verb(
 )
 
 verb(
-  "fuuin?",
+  "fuuin",
   "zeroize",
   {
     kind: :effect,
@@ -451,300 +493,284 @@ verb(
 )
 
 edge(
-  "fuuin?::hybrid",
+  "fuuin::hybrid",
   :composes,
-  "fuuin?::exchange",
+  "fuuin::exchange",
   "classical plus post-quantum exchange"
 )
 
 edge(
-  "fuuin?::seal_to",
+  "fuuin::seal_to",
   :composes,
-  "fuuin?::exchange",
+  "fuuin::exchange",
   "ephemeral exchange then seal"
 )
 
+edge("fuuin::enclose", :composes, "fuuin::generate", "fresh data key each time")
+
+edge("fuuin::rotate", :composes, "fuuin::generate", "new version of the key")
+
 edge(
-  "fuuin?::enclose",
-  :composes,
-  "fuuin?::generate",
-  "fresh data key each time"
+  "fuuin::combine",
+  :requires,
+  "fuuin::sign",
+  "a threshold of signature shares"
 )
 
-edge("fuuin?::rotate", :composes, "fuuin?::generate", "new version of the key")
-edge("fuuin?::generate", :composes, "fuuin?::random", "key bytes from entropy")
-edge("fuuin?::enclose", :composes, "fuuin?::seal", "data sealed under data key")
+edge("fuuin::sign", :requires, "fuuin::offer", "nonces committed in round one")
 
 edge(
-  "fuuin?::seal_to",
+  "fuuin::offer",
+  :requires,
+  "fuuin::generate",
+  "a share of a threshold group"
+)
+
+edge(
+  "fuuin::combine",
+  :pairs,
+  "shomei::verify?",
+  "the signature is ordinary Ed25519"
+)
+
+edge("fuuin::generate", :composes, "fuuin::random", "key bytes from entropy")
+edge("fuuin::enclose", :composes, "fuuin::seal", "data sealed under data key")
+
+edge(
+  "fuuin::seal_to",
   :composes,
-  "fuuin?::seal",
+  "fuuin::seal",
   "payload sealed under derived key"
 )
 
-edge("fuuin?::shield", :composes, "fuuin?::seal", "key sealed under key")
+edge("fuuin::shield", :composes, "fuuin::seal", "key sealed under key")
 
 edge(
-  "fuuin?::enclose",
+  "fuuin::enclose",
   :composes,
-  "fuuin?::shield",
+  "fuuin::shield",
   "data key wrapped by managed key"
 )
 
 edge(
-  "fuuin?::rewrap",
+  "fuuin::rewrap",
   :composes,
-  "fuuin?::unlock",
+  "fuuin::unlock",
   "unwrap then wrap under new key"
 )
 
-edge("fuuin?::derive", :composes, "shomei::mac", "extract and expand steps")
-edge("fuuin?::seal", :composes, "shomei::mac", "tag authenticates ciphertext")
+edge("fuuin::derive", :composes, "shomei::mac", "extract and expand steps")
+edge("fuuin::seal", :composes, "shomei::mac", "tag authenticates ciphertext")
 
 edge(
-  "fuuin?::hybrid",
+  "fuuin::hybrid",
   :generalizes,
-  "fuuin?::quantum_safe?",
+  "fuuin::quantum_safe?",
   "safe when either part holds"
 )
 
 edge(
-  "fuuin?::zeroize",
+  "fuuin::zeroize",
   :guards,
-  "fuuin?::destroy",
+  "fuuin::destroy",
   "memory wiped when a key dies"
 )
 
 edge(
-  "fuuin?::enclose",
+  "fuuin::enclose",
   :guards,
-  "fuuin?::due?",
+  "fuuin::due?",
   "policy age checked at lock time"
 )
 
 edge(
-  "fuuin?::quantum_safe?",
+  "fuuin::quantum_safe?",
   :guards,
-  "fuuin?::generate",
+  "fuuin::generate",
   "filters kinds for long-lived data"
 )
 
 edge(
-  "fuuin?::strength",
+  "fuuin::strength",
   :guards,
-  "fuuin?::generate",
+  "fuuin::generate",
   "names security bits of a request"
 )
 
 edge(
-  "fuuin?::unseal",
+  "fuuin::unseal",
   :guards,
-  "fuuin?::peek",
+  "fuuin::peek",
   "peek chooses the key to open with"
 )
 
-edge("fuuin?::due?", :guards, "fuuin?::rotate", "decides when rotation runs")
+edge("fuuin::due?", :guards, "fuuin::rotate", "decides when rotation runs")
 
 edge(
-  "fuuin?::retire",
+  "fuuin::retire",
   :guards,
-  "fuuin?::rotate",
+  "fuuin::rotate",
   "old version retires after rotate"
 )
 
-edge("fuuin?::retire", :guards, "fuuin?::seal", "retired keys cannot seal")
+edge("fuuin::retire", :guards, "fuuin::seal", "retired keys cannot seal")
 
 edge(
-  "fuuin?::generate",
+  "fuuin::generate",
   :guards,
-  "fuuin?::strength",
+  "fuuin::strength",
   "refuses kinds below the minimum"
 )
 
-edge(
-  "fuuin?::encrypted?",
-  :guards,
-  "fuuin?::unseal",
-  "avoid opening plain bytes"
-)
+edge("fuuin::encrypted?", :guards, "fuuin::unseal", "avoid opening plain bytes")
 
-edge("fuuin?::peek", :guards, "fuuin?::unseal", "learn key id before opening")
+edge("fuuin::peek", :guards, "fuuin::unseal", "learn key id before opening")
 
 edge(
-  "fuuin?::generate",
+  "fuuin::generate",
   :inverse,
-  "fuuin?::destroy",
+  "fuuin::destroy",
   "key cannot return once gone"
 )
 
 edge(
-  "fuuin?::unlock",
+  "fuuin::unlock",
   :inverse,
-  "fuuin?::enclose",
+  "fuuin::enclose",
   "asks the key service to unwrap"
 )
 
 edge(
-  "fuuin?::destroy",
+  "fuuin::destroy",
   :inverse,
-  "fuuin?::generate",
+  "fuuin::generate",
   "key cannot return once gone"
 )
 
-edge(
-  "fuuin?::seal_to",
-  :inverse,
-  "fuuin?::open_as",
-  "opens with the secret key"
-)
+edge("fuuin::seal_to", :inverse, "fuuin::open_as", "opens with the secret key")
 
 edge(
-  "fuuin?::seal_stream",
+  "fuuin::seal_stream",
   :inverse,
-  "fuuin?::open_stream",
+  "fuuin::open_stream",
   "undoes chunked sealing"
 )
 
-edge("fuuin?::render", :inverse, "fuuin?::parse", "key to text")
-edge("fuuin?::share", :inverse, "fuuin?::rebuild", "split what rebuild joins")
-edge("fuuin?::parse", :inverse, "fuuin?::render", "key to text")
-edge("fuuin?::unseal", :inverse, "fuuin?::seal", "decrypts and authenticates")
+edge("fuuin::render", :inverse, "fuuin::parse", "key to text")
+edge("fuuin::share", :inverse, "fuuin::rebuild", "split what rebuild joins")
+edge("fuuin::parse", :inverse, "fuuin::render", "key to text")
+edge("fuuin::unseal", :inverse, "fuuin::seal", "decrypts and authenticates")
 
 edge(
-  "fuuin?::open_stream",
+  "fuuin::open_stream",
   :inverse,
-  "fuuin?::seal_stream",
+  "fuuin::seal_stream",
   "undoes chunked sealing"
 )
 
-edge(
-  "fuuin?::open_as",
-  :inverse,
-  "fuuin?::seal_to",
-  "opens with the secret key"
-)
+edge("fuuin::open_as", :inverse, "fuuin::seal_to", "opens with the secret key")
 
-edge("fuuin?::rebuild", :inverse, "fuuin?::share", "split what rebuild joins")
-edge("fuuin?::unwrap", :inverse, "fuuin?::shield", "recover the wrapped key")
+edge("fuuin::rebuild", :inverse, "fuuin::share", "split what rebuild joins")
+edge("fuuin::unwrap", :inverse, "fuuin::shield", "recover the wrapped key")
 
 edge(
-  "fuuin?::enclose",
+  "fuuin::enclose",
   :inverse,
-  "fuuin?::unlock",
+  "fuuin::unlock",
   "asks the key service to unwrap"
 )
 
-edge("fuuin?::seal", :inverse, "fuuin?::unseal", "decrypts and authenticates")
-edge("fuuin?::shield", :inverse, "fuuin?::unwrap", "recover the wrapped key")
+edge("fuuin::seal", :inverse, "fuuin::unseal", "decrypts and authenticates")
+edge("fuuin::shield", :inverse, "fuuin::unwrap", "recover the wrapped key")
+
+edge("fuuin::seal_stream", :lifts, "fuuin::seal", "chunked sealing of streams")
 
 edge(
-  "fuuin?::seal_stream",
+  "fuuin::open_stream",
   :lifts,
-  "fuuin?::seal",
-  "chunked sealing of streams"
-)
-
-edge(
-  "fuuin?::open_stream",
-  :lifts,
-  "fuuin?::unseal",
+  "fuuin::unseal",
   "chunked opening of streams"
 )
 
 edge(
-  "fuuin?::exchange",
+  "fuuin::exchange",
   :pairs,
-  "fuuin?::derive",
+  "fuuin::derive",
   "shared secret then derive keys"
 )
 
-edge(
-  "fuuin?::encrypted?",
-  :pairs,
-  "fuuin?::peek",
-  "detect, then read the header"
-)
+edge("fuuin::encrypted?", :pairs, "fuuin::peek", "detect, then read the header")
 
 edge(
-  "fuuin?::rotate",
+  "fuuin::rotate",
   :pairs,
-  "fuuin?::retire",
+  "fuuin::retire",
   "old version retires after rotation"
 )
 
-edge(
-  "fuuin?::rewrap",
-  :pairs,
-  "fuuin?::rotate",
-  "rotation moves data keys over"
-)
+edge("fuuin::rewrap", :pairs, "fuuin::rotate", "rotation moves data keys over")
 
-edge("fuuin?::seal", :pairs, "fuuin?::unseal", "every seal has an open")
-edge("fuuin?::shield", :pairs, "fuuin?::unwrap", "every wrap has an unwrap")
-edge("fuuin?::zeroize", :pairs, "himitsu::reveal", "wipe after plain text use")
+edge("fuuin::seal", :pairs, "fuuin::unseal", "every seal has an open")
+edge("fuuin::shield", :pairs, "fuuin::unwrap", "every wrap has an unwrap")
+edge("fuuin::zeroize", :pairs, "himitsu::reveal", "wipe after plain text use")
 
 edge(
-  "fuuin?::stretch",
+  "fuuin::stretch",
   :pairs,
   "ninshou?::protect",
   "password storage uses stretching"
 )
 
 edge(
-  "fuuin?::stretch",
+  "fuuin::stretch",
   :refines,
-  "fuuin?::derive",
+  "fuuin::derive",
   "derive from a low-entropy password"
 )
 
-edge("fuuin?::derive", :refines, "shomei::mac", "HKDF is built from keyed hash")
-edge("fuuin?::rotate", :requires, "fuuin?::due?", "rotate when policy says so")
+edge("fuuin::derive", :refines, "shomei::mac", "HKDF is built from keyed hash")
+edge("fuuin::rotate", :requires, "fuuin::due?", "rotate when policy says so")
 
 edge(
-  "fuuin?::exchange",
+  "fuuin::exchange",
   :requires,
-  "fuuin?::generate",
+  "fuuin::generate",
   "each side needs a keypair"
 )
 
 edge(
-  "fuuin?::random",
+  "fuuin::random",
   :requires,
-  "fuuin?::generate",
+  "fuuin::generate",
   "entropy is the base of every key"
 )
 
-edge("fuuin?::exchange", :requires, "fuuin?::parse", "peer key arrives as text")
+edge("fuuin::exchange", :requires, "fuuin::parse", "peer key arrives as text")
 
 edge(
-  "fuuin?::hybrid",
+  "fuuin::hybrid",
   :requires,
-  "fuuin?::quantum_safe?",
+  "fuuin::quantum_safe?",
   "one half must be post-quantum"
 )
 
-edge("fuuin?::seal", :requires, "fuuin?::random", "fresh nonce per message")
+edge("fuuin::seal", :requires, "fuuin::random", "fresh nonce per message")
 
 edge(
-  "fuuin?::share",
+  "fuuin::share",
   :requires,
-  "fuuin?::random",
+  "fuuin::random",
   "share polynomial needs entropy"
 )
 
-edge("fuuin?::parse", :requires, "fuuin?::render", "round trip law")
-edge("fuuin?::destroy", :requires, "fuuin?::retire", "retire before erasing")
+edge("fuuin::parse", :requires, "fuuin::render", "round trip law")
+edge("fuuin::destroy", :requires, "fuuin::retire", "retire before erasing")
+
+edge("fuuin::rebuild", :requires, "fuuin::share", "needs a threshold of shares")
 
 edge(
-  "fuuin?::rebuild",
+  "fuuin::share",
   :requires,
-  "fuuin?::share",
-  "needs a threshold of shares"
-)
-
-edge(
-  "fuuin?::share",
-  :requires,
-  "fuuin?::strength",
+  "fuuin::strength",
   "threshold must keep the bits"
 )

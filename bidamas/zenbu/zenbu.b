@@ -56,6 +56,7 @@ use("danpen")
 use("deeta", [:get_str])
 use("empresa")
 use("fairu")
+use("fuuin")
 use("gamen")
 use("gitto")
 use("gurafu")
@@ -241,6 +242,8 @@ test "every bidama in the distribution answers through this one import"
   assert sutoriimu::api("s", "INFO") == "$JS.API.STREAM.INFO.s"
   assert ibuki::classify({state: :merge}) == :strand
   assert kodou::be32(258) == [0, 0, 1, 2]
+  assert tesuto::raises?(:bad_option, () -> fuuin::generate(:ed25519, {})) ==
+    true
 end
 
 test "four packages compose without the consumer naming any of them"

@@ -457,12 +457,12 @@ edge(
 )
 
 edge("tegata::expired?", :refines, "tegata::read", "expiry check alone")
-edge("tegata::api_key", :requires, "fuuin?::random", "key from entropy")
+edge("tegata::api_key", :requires, "fuuin::random", "key from entropy")
 
 edge(
   "tegata::flow_start",
   :requires,
-  "fuuin?::random",
+  "fuuin::random",
   "state and verifier from entropy"
 )
 

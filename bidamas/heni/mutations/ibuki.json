@@ -130,5 +130,11 @@
     "file": "ibuki.b",
     "find": "ks = take_ints(seed, keys, n)",
     "replace": "ks = take_ints(seed, keys + 5, n)"
+  },
+  {
+    "name": "the synod cannot hold the threshold bundle",
+    "file": "ibuki.b",
+    "find": "ceiling: %w[entropy mpc-threshold network],",
+    "replace": "ceiling: %w[entropy network],"
   }
 ]

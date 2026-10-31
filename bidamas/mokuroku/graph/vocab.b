@@ -704,6 +704,21 @@ vocab(
 )
 
 vocab(
+  "combine",
+  {
+    subject: "parts",
+    args: %w[parts what?],
+    opts: true,
+    returns: "value",
+    raises: %w[refused tampered],
+    kind: :pure,
+    meaning: "one whole value from enough partial values",
+    ref: nil,
+    status: :open
+  }
+)
+
+vocab(
   "command",
   {
     subject: "spec",
@@ -2995,6 +3010,21 @@ vocab(
     meaning: "record or read one measurement",
     ref: nil,
     status: :decided
+  }
+)
+
+vocab(
+  "offer",
+  {
+    subject: "share",
+    args: %w[share data],
+    opts: false,
+    returns: "record",
+    raises: [],
+    kind: :effect,
+    meaning: "a pledge to take part in a joint act over data",
+    ref: nil,
+    status: :open
   }
 )
 

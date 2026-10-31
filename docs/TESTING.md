@@ -73,7 +73,7 @@ to dissolve.
 | `service(...)` | `nix/service.nix`, `docs/SERVICE-ARCHITECTURE.md` | chart, values schema, migrations; `checks.service-<name>-{fresh,chart,serves}` |
 | pre-push gate | `.githooks/pre-push` (4 lines of sh), `gen/prepush.b` `gate_table` | a gate table in blue, scoped to the pushed paths; light gates by default, `BLUE_PREPUSH_FULL=1` all, `BLUE_PREPUSH_OFF=1` none |
 | CI | `.github/workflows/ci.yml` | one `uses:` of substrate's `cargo-ci.yml`; 0 lines of shell; no step calls blue |
-| capabilities | `docs/SAFETY.md` row 8 | eight host effects (process, filesystem, environment, clock, network, entropy, comm-flash, comm-scavenger); `blue run --allow` |
+| capabilities | `docs/SAFETY.md` row 8 | nine host effects (process, filesystem, environment, clock, network, entropy, comm-flash, comm-scavenger, mpc-threshold); `blue run --allow` |
 | absence | `docs/ABSENCE.md` (in flight, other owner) | `Option` and the nil checker rule |
 
 Measured with `blue test --coverage --json` over every bidama on 2026-10-24:

@@ -67,6 +67,8 @@ pub mod spread;
 pub mod stdlib;
 #[cfg(feature = "sys")]
 pub mod sys;
+#[cfg(feature = "sys")]
+pub mod threshold;
 pub mod timings;
 pub mod uses;
 #[cfg(feature = "sys")]
@@ -890,7 +892,7 @@ mod tests {
             let (hold, _, _) = held(&[Capability::Clock], &[]);
             assert_eq!(
                 blue_lang_proc::receipt::canonical(&hold.frame_summary(4)),
-                r#"{"granted":["clock"],"host_io":4,"withheld":["process","filesystem","environment","network","entropy","comm-flash","comm-scavenger"]}"#
+                r#"{"granted":["clock"],"host_io":4,"withheld":["process","filesystem","environment","network","entropy","comm-flash","comm-scavenger","mpc-threshold"]}"#
             );
         }
     }

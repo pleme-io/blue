@@ -3,8 +3,9 @@
 //! A frame that virtualizes a capability grants its names, so a package whose
 //! floor needs the capability resolves under a ceiling that withholds it, but
 //! no call reaches the host: the clock steps, entropy is a seeded stream, the
-//! filesystem lives in memory or nowhere, and the wire's frames go to an
-//! in-process queue. [`Provision::kinds_for`] is exhaustive over
+//! filesystem lives in memory or nowhere, the wire's frames go to an
+//! in-process queue, and the threshold words draw their randomness from a
+//! seeded stream. [`Provision::kinds_for`] is exhaustive over
 //! [`Capability`], so a new capability lands with its answer.
 //!
 //! A provider serves the whole program, or only the packages it names
@@ -38,6 +39,9 @@ pub enum Provision {
     NullSink,
     Loopback {
         channel: Channel,
+    },
+    Seeded {
+        seed: String,
     },
 }
 
@@ -73,6 +77,7 @@ impl Provision {
             Provision::SeededPrng { .. } => Capability::Entropy,
             Provision::InMemoryOverlay | Provision::NullSink => Capability::FileSystem,
             Provision::Loopback { channel } => channel.capability(),
+            Provision::Seeded { .. } => Capability::MpcThreshold,
         }
     }
 
@@ -85,6 +90,7 @@ impl Provision {
             Provision::InMemoryOverlay => "in_memory_overlay",
             Provision::NullSink => "null_sink",
             Provision::Loopback { .. } => "loopback",
+            Provision::Seeded { .. } => "seeded",
         }
     }
 
@@ -97,6 +103,7 @@ impl Provision {
             Provision::InMemoryOverlay => "in-memory-overlay",
             Provision::NullSink => "null-sink",
             Provision::Loopback { .. } => "loopback",
+            Provision::Seeded { .. } => "seeded",
         }
     }
 
@@ -109,6 +116,7 @@ impl Provision {
             Capability::Entropy => &["seeded_prng"],
             Capability::FileSystem => &["in_memory_overlay", "null_sink"],
             Capability::CommFlash | Capability::CommScavenger => &["loopback"],
+            Capability::MpcThreshold => &["seeded"],
             Capability::Process
             | Capability::Environment
             | Capability::Network
@@ -272,6 +280,7 @@ mod tests {
             Provision::Loopback {
                 channel: Channel::Tide,
             },
+            Provision::Seeded { seed: "s".into() },
         ]
     }
 
@@ -360,6 +369,15 @@ mod tests {
             Provision::capability_of("tide_release"),
             Some(Capability::CommScavenger)
         );
+        assert_eq!(
+            Provision::capability_of("threshold_sign"),
+            Some(Capability::MpcThreshold)
+        );
+        assert_eq!(
+            Provision::capability_of("threshold_deal"),
+            Some(Capability::MpcThreshold)
+        );
+        assert_eq!(Provision::capability_of("ed25519_verify"), None);
         assert_eq!(Provision::capability_of("tcp_connect_ms"), None);
         assert_eq!(Provision::capability_of("map"), None);
     }

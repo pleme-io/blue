@@ -477,36 +477,39 @@ E	furagu?	put	effect	put(flag, rule, opts) -> flag	idempotent,log	-	absent	creat
 E	furagu?	ramp	effect	ramp(flag, percent) -> flag	log,switch	-	absent	raise the share of contexts that see it	3		na
 E	furagu?	stale?	effect	stale?(flag, opts) -> Bool	time	-	absent	whether a flag changed nothing for a long time	4	stale?(flag) -> Bool	no
 E	furagu?	watch	stream	watch(flag, f) -> nil	cancel	-	absent	call f when a flag's rule changes	4	watch(flag, f) -> nil	yes
-D	fuuin?	derive	pure	derive(secret, salt, info, opts) -> key	error,validate	-	absent	several independent keys from one secret (HKDF)	1	derive(secret, salt, info, opts) -> key	yes
-D	fuuin?	destroy	effect	destroy(key_id, opts) -> nil	idempotent,log	-	absent	erase key material; data under it is gone for good	3		na
-D	fuuin?	due?	pure	due?(key, policy, now) -> Bool	time	-	absent	key is older than its rotation policy allows	2	due?(key, policy, now) -> Bool	yes
-D	fuuin?	enclose	effect	enclose(data, key_id, opts) -> envelope	capability,error,resource	cofre	absent	envelope encryption: fresh data key wrapped by a managed key	2	enclose(data, key_id, opts) -> envelope	yes
-D	fuuin?	encrypted?	pure	encrypted?(bytes) -> Bool	validate	-	absent	bytes look like one of our envelopes	1		na
-D	fuuin?	exchange	pure	exchange(secret, peer_public) -> key	error,validate	-	absent	shared key from my secret and a peer public key	2		na
-D	fuuin?	generate	effect	generate(kind, opts) -> key	capability,error	cofre	absent	new key of a kind from secure entropy	1	generate(kind, opts) -> key	yes
-D	fuuin?	hybrid	pure	hybrid(classical, post_quantum) -> algorithm	validate	-	absent	pair two schemes so breaking one alone is not enough	4		na
-D	fuuin?	open_as	pure	open_as(envelope, secret, opts) -> bytes	error,validate	-	absent	open an envelope sealed to my public key	2		na
-D	fuuin?	open_stream	stream	open_stream(source, target, key) -> nil	cancel,error,resource	-	absent	open a chunked envelope, failing on the first bad chunk	3		na
-D	fuuin?	parse	pure	parse(text, format) -> key	serialize,validate	-	absent	PEM, JWK or hex text to a key	2	parse(text, format) -> key	yes
-D	fuuin?	peek	pure	peek(envelope) -> record	validate	-	absent	read algorithm and key id without opening	1	peek(envelope) -> record	yes
-D	fuuin?	quantum_safe?	pure	quantum_safe?(algorithm) -> Bool	validate	-	absent	algorithm resists a quantum computer	3		na
-D	fuuin?	random	effect	random(count) -> bytes	capability,error	-	absent	secure random bytes from the host entropy source	1		na
-D	fuuin?	rebuild	pure	rebuild(shares) -> secret	error,validate	tameshi	absent	secret from a threshold of shares	2		na
-D	fuuin?	render	pure	render(key, format) -> text	serialize	-	absent	key to PEM, JWK or hex; secret half only on request	2	render(key, format) -> text	yes
-D	fuuin?	retire	effect	retire(key_id) -> nil	idempotent,log	-	absent	stop a key from sealing new data; old data still opens	2		na
-D	fuuin?	rewrap	effect	rewrap(envelope, key_id) -> envelope	idempotent,resource	-	absent	move the data key to a new key without touching data	2		na
-D	fuuin?	rotate	effect	rotate(key_id, opts) -> key	idempotent,log,time	cofre	absent	new key version; old versions still open old data	2	rotate(key_id, opts) -> key	yes
-D	fuuin?	seal	effect	seal(data, key, opts) -> envelope	capability,error	-	absent	authenticated encryption; any tampering breaks it	1	seal(data, key, opts) -> envelope	yes
-D	fuuin?	seal_stream	stream	seal_stream(source, target, key) -> nil	cancel,error,resource	-	absent	seal data larger than memory in authenticated chunks	3		na
-D	fuuin?	seal_to	effect	seal_to(data, recipient_public, opts) -> envelope	capability,error	-	absent	seal so only the holder of a secret key can open	2		na
-D	fuuin?	share	effect	share(secret, threshold, count) -> [share]	capability,error	tameshi	absent	Shamir shares; any threshold of them rebuild the secret	2		na
-D	fuuin?	shield	pure	shield(key, wrapping_key) -> text	error,validate	-	absent	encrypt one key under another key	2	shield(key, wrapping_key) -> text	yes
-D	fuuin?	strength	pure	strength(key) -> bits	validate	-	absent	security bits a key or parameter set gives	2		na
-D	fuuin?	stretch	pure	stretch(password, salt, opts) -> key	resource,validate	x-crypto	absent	password to key with a memory-hard function	1		na
-D	fuuin?	unlock	effect	unlock(envelope, opts) -> bytes	error,resource	cofre	absent	open an envelope by asking for its data key	2		na
-D	fuuin?	unseal	pure	unseal(envelope, key, opts) -> bytes	error,validate	-	absent	decrypt and check; raises :tampered on a bad tag	1	unseal(envelope, key, opts) -> bytes	yes
-D	fuuin?	unwrap	pure	unwrap(text, wrapping_key) -> key	error,validate	-	absent	recover a key wrapped under another key	2		na
-D	fuuin?	zeroize	effect	zeroize(secret) -> nil	resource	-	absent	overwrite secret bytes in memory (needs runtime support)	3		na
+D	fuuin	combine	pure	combine(parts, opts) -> signature	capability,error,validate	tameshi	exists:fuuin	the group's Ed25519 signature over data, in hex, from at least k signature shares and the commitments they signed for, checked under the group's key before it is answered	2	combine(parts, opts) -> signature	yes
+D	fuuin	derive	pure	derive(secret, salt, info, opts) -> key	error,validate	-	absent	several independent keys from one secret (HKDF)	1	derive(secret, salt, info, opts) -> key	yes
+D	fuuin	destroy	effect	destroy(key_id, opts) -> nil	idempotent,log	-	absent	erase key material; data under it is gone for good	3		na
+D	fuuin	due?	pure	due?(key, policy, now) -> Bool	time	-	absent	key is older than its rotation policy allows	2	due?(key, policy, now) -> Bool	yes
+D	fuuin	enclose	effect	enclose(data, key_id, opts) -> envelope	capability,error,resource	cofre	absent	envelope encryption: fresh data key wrapped by a managed key	2	enclose(data, key_id, opts) -> envelope	yes
+D	fuuin	encrypted?	pure	encrypted?(bytes) -> Bool	validate	-	absent	bytes look like one of our envelopes	1		na
+D	fuuin	exchange	pure	exchange(secret, peer_public) -> key	error,validate	-	absent	shared key from my secret and a peer public key	2		na
+D	fuuin	generate	effect	generate(kind, opts) -> key	capability,error	cofre	partial:fuuin	a new threshold group from secure entropy, `max` shares of which any `min` sign together: {group:, key:, min:, max:, shares:}	1	generate(kind, opts) -> key	yes
+D	fuuin	hybrid	pure	hybrid(classical, post_quantum) -> algorithm	validate	-	absent	pair two schemes so breaking one alone is not enough	4		na
+D	fuuin	offer	effect	offer(share, data) -> record	capability,error	tameshi	exists:fuuin	one share's first round toward signing data, {nonces:, commitment:}	2	offer(share, data) -> record	yes
+D	fuuin	open_as	pure	open_as(envelope, secret, opts) -> bytes	error,validate	-	absent	open an envelope sealed to my public key	2		na
+D	fuuin	open_stream	stream	open_stream(source, target, key) -> nil	cancel,error,resource	-	absent	open a chunked envelope, failing on the first bad chunk	3		na
+D	fuuin	parse	pure	parse(text, format) -> key	serialize,validate	-	absent	PEM, JWK or hex text to a key	2	parse(text, format) -> key	yes
+D	fuuin	peek	pure	peek(envelope) -> record	validate	-	absent	read algorithm and key id without opening	1	peek(envelope) -> record	yes
+D	fuuin	quantum_safe?	pure	quantum_safe?(algorithm) -> Bool	validate	-	absent	algorithm resists a quantum computer	3		na
+D	fuuin	random	effect	random(count) -> bytes	capability,error	-	absent	secure random bytes from the host entropy source	1		na
+D	fuuin	rebuild	pure	rebuild(shares) -> secret	error,validate	tameshi	absent	secret from a threshold of shares	2		na
+D	fuuin	render	pure	render(key, format) -> text	serialize	-	absent	key to PEM, JWK or hex; secret half only on request	2	render(key, format) -> text	yes
+D	fuuin	retire	effect	retire(key_id) -> nil	idempotent,log	-	absent	stop a key from sealing new data; old data still opens	2		na
+D	fuuin	rewrap	effect	rewrap(envelope, key_id) -> envelope	idempotent,resource	-	absent	move the data key to a new key without touching data	2		na
+D	fuuin	rotate	effect	rotate(key_id, opts) -> key	idempotent,log,time	cofre	absent	new key version; old versions still open old data	2	rotate(key_id, opts) -> key	yes
+D	fuuin	seal	effect	seal(data, key, opts) -> envelope	capability,error	-	absent	authenticated encryption; any tampering breaks it	1	seal(data, key, opts) -> envelope	yes
+D	fuuin	seal_stream	stream	seal_stream(source, target, key) -> nil	cancel,error,resource	-	absent	seal data larger than memory in authenticated chunks	3		na
+D	fuuin	seal_to	effect	seal_to(data, recipient_public, opts) -> envelope	capability,error	-	absent	seal so only the holder of a secret key can open	2		na
+D	fuuin	share	effect	share(secret, threshold, count) -> [share]	capability,error	tameshi	absent	Shamir shares; any threshold of them rebuild the secret	2		na
+D	fuuin	shield	pure	shield(key, wrapping_key) -> text	error,validate	-	absent	encrypt one key under another key	2	shield(key, wrapping_key) -> text	yes
+D	fuuin	sign	effect	sign(data, share, opts) -> record	capability,error	tameshi	exists:fuuin	one share's signature share over data, {participant:, hex:}, from the nonces its offer kept and the commitments of the signers, at least the group's k with its own among them	2	sign(data, share, opts) -> record	yes
+D	fuuin	strength	pure	strength(key) -> bits	validate	-	absent	security bits a key or parameter set gives	2		na
+D	fuuin	stretch	pure	stretch(password, salt, opts) -> key	resource,validate	x-crypto	absent	password to key with a memory-hard function	1		na
+D	fuuin	unlock	effect	unlock(envelope, opts) -> bytes	error,resource	cofre	absent	open an envelope by asking for its data key	2		na
+D	fuuin	unseal	pure	unseal(envelope, key, opts) -> bytes	error,validate	-	absent	decrypt and check; raises :tampered on a bad tag	1	unseal(envelope, key, opts) -> bytes	yes
+D	fuuin	unwrap	pure	unwrap(text, wrapping_key) -> key	error,validate	-	absent	recover a key wrapped under another key	2		na
+D	fuuin	zeroize	effect	zeroize(secret) -> nil	resource	-	absent	overwrite secret bytes in memory (needs runtime support)	3		na
 G	gamen?	apply	effect	apply(app, patches) -> nil	idempotent	madori	absent	make a surface show the patches	2	apply(app, patches) -> nil	yes
 G	gamen?	check	pure	check(tree, rules) -> findings	validate	-	exists:gamen	find accessibility and layout faults in a tree	1	check(tree, rules) -> findings	yes
 G	gamen?	choose	effect	choose(items, opts) -> item or nil	deadline	egaku	absent	the human picks from a list	1	choose(items, opts) -> item or nil	yes
@@ -2642,7 +2645,7 @@ F	tsuiseki?	stop	effect	stop(span, opts) -> nil	trace	pleme-observability	absent
 F	tsuiseki?	tree	pure	tree(spans) -> tree	-	-	absent	assemble spans into a parent-child tree	2	tree(spans) -> tree	yes
 E	tsumini?	build	effect	build(spec, opts) -> image	cache,error,process	-	absent	make an image from a spec, no daemon	2	build(spec, opts) -> image	yes
 E	tsumini?	check	effect	check(ref, policy) -> [finding]	validate	lacre	absent	refuse an image holding a shell, root user or extras	2	check(ref, policy) -> [finding]	yes
-E	tsumini?	combine	effect	combine(refs, name) -> digest	idempotent	multi-arch-image-release	absent	one multi-arch index from per-arch images	1		na
+E	tsumini?	combine	effect	combine(refs, name) -> digest	idempotent	multi-arch-image-release	absent	one multi-arch index from per-arch images	1	combine(refs, name) -> digest	yes
 E	tsumini?	copy	effect	copy(from, to, opts) -> digest	idempotent,retry	multi-arch-image-release	absent	move an image between registries without unpacking	1	copy(from, to, opts) -> digest	yes
 E	tsumini?	delete	effect	delete(ref) -> nil	idempotent	-	absent	remove a tag or manifest	2	delete(ref) -> nil	yes
 E	tsumini?	diff	effect	diff(a, b) -> [change]	-	-	absent	files and packages that differ between images	2	diff(a, b) -> [change]	yes

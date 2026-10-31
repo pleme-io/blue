@@ -51,10 +51,11 @@ document lands.
   and every bidama build call `check_stage`
   (`crates/blue-lang-runtime/src/pipeline.rs:458`). An error-severity rule
   stops a program before it runs. 53 B-codes exist (`docs/DIAGNOSTICS.md`).
-- **A closed capability set.** `blue_lang_waku::Capability` has eight host
+- **A closed capability set.** `blue_lang_waku::Capability` has nine host
   effects: process, filesystem, environment, clock, network, entropy,
-  comm-flash, comm-scavenger (`crates/blue-lang-waku/src/capability.rs:116-139`,
-  `host_effects` at `:505`). The set has no `Other(String)` arm.
+  comm-flash, comm-scavenger, mpc-threshold
+  (`crates/blue-lang-waku/src/capability.rs:116-140`, `host_effects` at
+  `:527`). The set has no `Other(String)` arm.
 - **Pure sessions.** `blue eval`, `repl` and `serve` bind every ungranted host
   name to a refusal (`crates/blue-lang-runtime/src/session.rs:744`).
   `--allow` widens the frame. A process the session spawns gets the same
@@ -125,7 +126,7 @@ tier. ⚠️ marks a partial seal. ❌ marks an open row.
 | 5 | Bounds-checked indexing | ✅ memory: no raw index exists; ⚠️ semantics: `nth` out of range is `nil` | row 1 owns the `nil` | unrepresentable (memory) | n/a |
 | 6 | Integer overflow, numeric conversion | ✅ `+ - * abs floor` raise on overflow; `/` by zero raises; `to_int` of a huge float is `nil` | `to_int` → row 1 | runtime-refused | on, no off |
 | 7 | No implicit coercion | ⚠️ operators refuse mixed types; `4 == 4.0` is true; call types are checked only inside typed definitions (B0003–B0005) | call-site checks from any caller when the argument is a literal | runtime-refused → checked-at-expansion | on |
-| 8 | `unsafe` ⇔ declared capability | ⚠️ sessions pure by default; **`blue run --allow` and shebang `--allow` (landed)**; **a breach is fatal: no `rescue` or `ensure` sees it (landed)**; **the wire's two channels are their own capabilities, `comm_flash` and `comm_scavenger` (landed)**; **the Flash rate is the host's, a typed bound refused as a catchable `:rate_limited` (landed)**; **both channels have an in-process loopback provider (landed)**; an undeclared run is still ambient | default flip for scripts, then `posture(reach:)` for bidamas | checked-at-expansion (entry) + runtime-fatal (bidama, process) | declared: on; undeclared: ambient until phase 3 (`--allow host`) |
+| 8 | `unsafe` ⇔ declared capability | ⚠️ sessions pure by default; **`blue run --allow` and shebang `--allow` (landed)**; **a breach is fatal: no `rescue` or `ensure` sees it (landed)**; **the wire's two channels are their own capabilities, `comm_flash` and `comm_scavenger` (landed)**; **the Flash rate is the host's, a typed bound refused as a catchable `:rate_limited` (landed)**; **both channels have an in-process loopback provider (landed)**; **threshold signing is its own capability, `mpc_threshold`, with a seeded provider (landed)**; an undeclared run is still ambient | default flip for scripts, then `posture(reach:)` for bidamas | checked-at-expansion (entry) + runtime-fatal (bidama, process) | declared: on; undeclared: ambient until phase 3 (`--allow host`) |
 | 9 | Memory safety of the host seam | ⚠️ 1 of 18 crates denies `unsafe_code` at its root | workspace `unsafe_code = "deny"`, one `#[allow]` per seam, one seam test | unrepresentable for kiwari → unrepresentable for every crate | on (`#[allow(unsafe_code)]` at a named seam) |
 | 10 | No data races | ✅ share-nothing processes; copy on send; handles refuse to cross | none needed | unrepresentable | n/a |
 | 11 | Panic vs typed refusal | ⚠️ blue faults are catchable; a Rust panic in a native function is not a blue error | one unwind seam at the native-call boundary → `:internal` refusal | open → runtime-refused | on |
@@ -280,7 +281,9 @@ the kebab-case label (`deterministic-stepped`). An unknown `using` is refused
 with the legal ones named. The settings are a map because blue refuses a
 keyword entry in a call without a `**` spread (spec row
 `maps.spread.call.entries_need_a_spread`). `:comm_flash {using: :loopback}` and
-`:comm_scavenger {using: :loopback}` carry the wire's frames in process (below).
+`:comm_scavenger {using: :loopback}` carry the wire's frames in process, and
+`:mpc_threshold {using: :seeded, seed:}` draws every threshold key and nonce
+from a stream keyed by the seed (both below).
 Process, network and environment have no provider (`Provision::kinds_for`). `Provisions::disjoint_from`
 refuses a whole-program provider for a capability `allow` also grants, but
 `blue lock` does not call it yet.
@@ -344,6 +347,35 @@ its own, like the other providers. Tests: `crates/blue-lang-cli/tests/wire.rs`
 the program binds the address a test socket holds, which only an in-process
 link can, and neither that socket nor a second one hears a frame;
 `the_paced_flash_program_replays_over_the_loopback_with_the_schedule_it_had_over_udp`).
+
+**Threshold signing (2026-10-31).** `mpc-threshold` holds the nine
+`threshold_` words (`crates/blue-lang-runtime/src/threshold.rs`): a trusted
+dealer (`threshold_deal`), the three rounds of distributed key generation
+(`threshold_dkg_start`, `threshold_dkg_exchange`, `threshold_dkg_finish`), the
+two signing rounds (`threshold_commit`, `threshold_sign`), aggregation
+(`threshold_aggregate`), and a share's export and import. The protocol is RFC
+9591 FROST over Ed25519 through `frost-ed25519` 3, the crate and the byte
+encodings tameshi 0.1.8's `threshold` module uses, so tameshi reads every
+share and group blue deals and blue signs with shares tameshi deals. The
+module names no item that holds or interpolates a whole key (no
+`keys::reconstruct`, `keys::split` or `SigningKey`). A share is a map whose
+secret is a host handle, so printing it shows `secret: foreign`;
+`threshold_share_export` is the one word that prints it. Nonces are a handle
+that signs once, for the message and the share that made them. The aggregate
+is an ordinary Ed25519 signature, checked under the group key before it is
+answered, so `ed25519_verify` and `shomei::verify?` check it with no
+capability. `virtualize(:mpc_threshold, {using: :seeded, seed:})`
+(`Provision::Seeded`) binds the same words to a BLAKE3 stream keyed by the
+seed, so a run deals and signs the same way twice and reads no host entropy.
+Tests: `crates/blue-lang-cli/tests/synod.rs`
+(`a_threshold_word_outside_a_hold_without_mpc_threshold_is_a_fatal_breach_no_rescue_sees`:
+under `--allow none` and under `--allow entropy --allow network` the run
+exits 77 and no rescue sees the breach;
+`a_two_of_three_group_signs_with_any_two_shares_and_one_share_alone_cannot`;
+`the_seeded_provider_signs_the_same_signature_twice_with_no_host_entropy`;
+`the_lock_records_the_mpc_threshold_bundle_and_refuses_it_past_a_ceiling`;
+the tameshi round trips and the DKG run), spec rows `threshold.*`, and the
+`fuuin` bidama's tests.
 
 **Scoped providers (2026-10-30).** `for: %w[rede]` beside `using` binds the
 provider only for the named packages and every package they `use`. In the
@@ -611,7 +643,7 @@ flowchart TB
     PROC["share-nothing processes"]
   end
   subgraph H["Rust host: the trusted base"]
-    SYS["sys layer: eight host capabilities"]
+    SYS["sys layer: nine host capabilities"]
     SEAMS["unsafe seams: kiwari, alloc, wasm, sigint"]
   end
   SB --> REACH

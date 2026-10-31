@@ -618,7 +618,7 @@ const WORDS: &[Word] = &[
     Word {
         name: "virtualize",
         signature: "virtualize(capability, {using:, for:, …})",
-        doc: "A host capability bound to a pure provider: :clock {using: :deterministic_stepped, at_ms:, step_ms:}, :entropy {using: :seeded_prng, seed:}, :filesystem {using: :in_memory_overlay} (an isolated tree on an empty base; nothing reaches the host) or {using: :null_sink} (every write dropped), :comm_flash or :comm_scavenger {using: :loopback} (frames go to an in-process queue the run's own links read; no socket). `for: %w[pkg]` serves only those packages and what they use; the rest of the program gets the host or a breach. Without `for:` it serves the whole program.",
+        doc: "A host capability bound to a pure provider: :clock {using: :deterministic_stepped, at_ms:, step_ms:}, :entropy {using: :seeded_prng, seed:}, :filesystem {using: :in_memory_overlay} (an isolated tree on an empty base; nothing reaches the host) or {using: :null_sink} (every write dropped), :comm_flash or :comm_scavenger {using: :loopback} (frames go to an in-process queue the run's own links read; no socket), :mpc_threshold {using: :seeded, seed:} (the threshold words draw every nonce and key from a stream keyed by seed, so a run signs the same way twice). `for: %w[pkg]` serves only those packages and what they use; the rest of the program gets the host or a breach. Without `for:` it serves the whole program.",
         min: 2,
         max: 2,
         record: |c, into| {

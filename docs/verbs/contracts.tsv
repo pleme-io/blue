@@ -46,6 +46,7 @@ clear	store	store,prefix?	yes	count		effect	remove every entry, or those under a
 close	handle	handle	yes	nil		effect	release a handle; closing twice is done	-	decided
 closure	lock	lock	no	graph		pure	the dependency graph a lock implies	-	decided
 coalesce	ranges	ranges	no	[range]		pure	join overlapping ranges into disjoint ones	-	decided
+combine	parts	parts,what?	yes	value	refused,tampered	pure	one whole value from enough partial values	-	open
 command	spec	spec,f	no	value		effect	run a program through its declared command line	-	decided
 commit	subject	subject,what?	yes	oid or nil		effect	make staged changes or a position durable	-	decided
 compact	store	store,policy?	yes	count		effect	reclaim space or fold old records	-	decided
@@ -199,6 +200,7 @@ notes	root	root,kind	no	notes		pure	the notes of a scale from a root	-	decided
 now			no	instant		effect	the current instant	§3.5	stdlib
 nth_root	n	n,degree	no	number		pure	the n-th root of a number	-	decided
 observe	subject	~subject,value?,labels?	yes	nil or state		effect	record or read one measurement	-	decided
+offer	share	share,data	no	record		effect	a pledge to take part in a joint act over data	-	open
 offset	subject	subject,key	no	number or nil		pure	a position relative to a reference	-	decided
 on	subject	subject,event,handler	no	subject		pure	attach a handler to an event	-	decided
 open	spec	spec	yes	handle	not_found,permission_denied	effect	open or connect a store, log or session	-	decided

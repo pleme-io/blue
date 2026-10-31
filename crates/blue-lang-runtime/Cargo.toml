@@ -35,6 +35,8 @@ sha2 = { version = "0.10", default-features = false, features = ["std"] }
 sha1 = { version = "0.10", default-features = false, features = ["std"] }
 hmac = { version = "0.12", default-features = false }
 serde_json = "1"
+frost-ed25519 = { version = "3", default-features = false, features = ["serialization"], optional = true }
+rand_core = { version = "0.6", default-features = false, optional = true }
 rnix = { workspace = true }
 quick-xml = { workspace = true }
 rowan = { workspace = true }
@@ -45,7 +47,7 @@ rowan = { workspace = true }
 # OFF by default: the `wasm32-unknown-unknown` consumer must keep its
 # zero-host-import surface, and every sys primitive is a host import. The CLI
 # (the one place a user's machine can supply a process to fork) turns it on.
-sys = []
+sys = ["dep:frost-ed25519", "dep:rand_core"]
 
 [dev-dependencies]
 # Cyclic in dev only, which Cargo allows: the tests need the real filesystem

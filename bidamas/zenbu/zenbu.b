@@ -70,6 +70,7 @@ use("hikisuu")
 use("hizuke", [:is_leap])
 use("hon")
 use("hyouka")
+use("ibuki")
 use("jisho")
 use("jitaku")
 use("junjo", %i[is_sorted sort])
@@ -237,6 +238,7 @@ test "every bidama in the distribution answers through this one import"
   assert gurafu::topo(gurafu::graph([%w[b c], %w[a b]], {})) == %w[a b c]
   assert bunsho::render(bunsho::parse("* a")) == unlines(["- a"])
   assert sutoriimu::api("s", "INFO") == "$JS.API.STREAM.INFO.s"
+  assert ibuki::classify({state: :merge}) == :strand
 end
 
 test "four packages compose without the consumer naming any of them"

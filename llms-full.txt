@@ -221,7 +221,7 @@ rendered:
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-86 packages, 4754 definitions, 1545 tests.
+87 packages, 4784 definitions, 1565 tests.
 
 - [anaritikusu](bidamas/CATALOG.md#anaritikusu) (アナリティクス) — lifecycle analytics: a database of telemetry, standard models and cross-lifecycle joins, generated from lifecycle definitions.
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
@@ -245,6 +245,7 @@ rendered:
 - [hizuke](bidamas/CATALOG.md#hizuke) (日付) — the proleptic Gregorian calendar, as arithmetic.
 - [hon](bidamas/CATALOG.md#hon) (本) — a project's book: its pages, each of one Diátaxis kind, rendered into the files a reader or an agent opens.
 - [hyouka](bidamas/CATALOG.md#hyouka) (評価) — evaluation: Nix's command line as data.
+- [ibuki](bidamas/CATALOG.md#ibuki) (息吹) — the plane an app docks into, as pure decisions: the five structural classes and a docking check over the reach `blue lock` measured, the Flash channel's token bucket, the Tide channel's LEDBAT controller, and a Strand, a last-writer-wins map whose every transition is a hash-linked record of its input and output roots.
 - [jisho](bidamas/CATALOG.md#jisho) (辞書) — dictionaries: maps as values, read and changed by key, each change a new map.
 - [jitaku](bidamas/CATALOG.md#jitaku) (自宅) — a home, declared entry by entry, each refused alone, projected to pleme.lareira.
 - [junjo](bidamas/CATALOG.md#junjo) (順序) — ordering: sorting, searching, selection.

@@ -173,6 +173,18 @@ def host_handle(x, who)
   x
 end
 
+@doc """
+raised: the kind of the error calling `f` raises, or nil when it returns; so a test asks `raised(f) == :bad_option` with no package that reaches the host.
+
+    raised(() -> raise(:hold, "later")) #=> :hold
+"""
+def raised(f)
+  f()
+  nil
+rescue e
+  e.kind
+end
+
 def ok(v)
   {ok: true, value: v}
 end
@@ -294,6 +306,15 @@ test "check returns every finding of every rule, in rule order, and never raises
     [refusal(:too_big, "5 > 2"), refusal(:too_big, "5 > 2")]
   assert kinds(check(4, [small])) == [:too_big]
   assert check([], [(xs) -> xs]) == []
+end
+
+test "raised names the kind an error carries, and nil when nothing is raised"
+  assert raised(() -> 1).nil?
+  assert raised(() -> nil).nil?
+  assert raised(() -> raise(:timeout, "late")) == :timeout
+  assert raised(() -> host_handle(nil, "w")) == :bad_option
+  assert raised(() -> enforce(3, [(_n) -> [refusal(:odd, "odd")]], {})) ==
+    :refused
 end
 
 test "enforce passes a sound subject and returns nil"

@@ -722,6 +722,16 @@
             in pkgs.runCommand "example-frontend" { } ''
               ${lib.concatMapStrings (d: "echo ${d} >> $out\n") (lib.attrValues ex.checks ++ lib.attrValues ex.packages)}
             '';
+
+          # The worked ibuki docking project (examples/docking, theory/IBUKI.md):
+          # a pure ceiling, a stepped clock and a seeded provider scoped to
+          # shomei; its test docks its own lock's capability record as a
+          # crystal, and its app is sealed into an appliance.
+          example-docking =
+            let ex = engine.projectFor { inherit pkgs blue; src = ./examples/docking; appliance = applianceFor system; };
+            in pkgs.runCommand "example-docking" { } ''
+              ${lib.concatMapStrings (d: "echo ${d} >> $out\n") (lib.attrValues ex.checks ++ lib.attrValues ex.packages)}
+            '';
         } // lib.optionalAttrs (ociFor system != null) {
           # The distroless gate's positive control: an image built with a
           # shell must be refused as distroless-static, naming the shell, or

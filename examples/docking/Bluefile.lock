@@ -1,0 +1,86 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:2abf2b436b0c994256b5a87d795f04e8ec91a035222298d68079170be87b9f1f",
+  "manifest": {
+    "schema": 1,
+    "name": "ibuki-docking",
+    "version": "0.1.0",
+    "needs": {},
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {
+      "app": {
+        "file": "app.b",
+        "inputs": [
+          "Bluefile.lock"
+        ]
+      }
+    },
+    "apps": {
+      "pacer": {
+        "file": "app.b"
+      }
+    },
+    "catalog": null,
+    "allow": [],
+    "virtualized": {
+      "clock": {
+        "provider": "deterministic-stepped",
+        "at_ms": 0,
+        "step_ms": 5
+      },
+      "entropy": {
+        "provider": "seeded-prng",
+        "seed": "ibuki-docking",
+        "for": [
+          "shomei"
+        ]
+      }
+    }
+  },
+  "sources": {},
+  "capabilities": {
+    "ceiling": [],
+    "provided": {
+      "clock": {
+        "provider": "deterministic-stepped",
+        "at_ms": 0,
+        "step_ms": 5
+      },
+      "entropy": {
+        "provider": "seeded-prng",
+        "seed": "ibuki-docking",
+        "for": [
+          "shomei"
+        ]
+      }
+    },
+    "floor": [
+      "clock",
+      "entropy"
+    ],
+    "packages": {
+      "deeta": [],
+      "ibuki": [],
+      "ibuki-docking": [
+        "clock"
+      ],
+      "jisho": [],
+      "junjo": [],
+      "kansuu": [],
+      "kazu": [],
+      "kyohi": [],
+      "moji": [],
+      "ran": [],
+      "retsu": [],
+      "ronri": [],
+      "shomei": [
+        "entropy"
+      ],
+      "shuugou": []
+    }
+  }
+}

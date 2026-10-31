@@ -1,0 +1,134 @@
+[
+  {
+    "name": "two parties no longer make an airlock",
+    "file": "ibuki.b",
+    "find": "elsif parties == 2",
+    "replace": "elsif parties == 3"
+  },
+  {
+    "name": "the fourth class takes the wrong numeral",
+    "file": "ibuki.b",
+    "find": "numeral: \"IV\",",
+    "replace": "numeral: \"4\","
+  },
+  {
+    "name": "a scoped provider is credited though a package it does not serve needs it",
+    "file": "ibuki.b",
+    "find": "scope.nil? or subset?(needers, scope)",
+    "replace": "true"
+  },
+  {
+    "name": "admit ignores the class ceiling",
+    "file": "ibuki.b",
+    "find": "ordered(difference(reached, ceiling))",
+    "replace": "ordered(reached)"
+  },
+  {
+    "name": "an airlock frame keeps the disk",
+    "file": "ibuki.b",
+    "find": "ordered(difference(intersection(a, b), [\"filesystem\"]))",
+    "replace": "ordered(intersection(a, b))"
+  },
+  {
+    "name": "the Flash lets one byte past the MTU through",
+    "file": "ibuki.b",
+    "find": "if bytes > b.mtu",
+    "replace": "if bytes > b.mtu + 1"
+  },
+  {
+    "name": "a clock that steps back drains the bucket",
+    "file": "ibuki.b",
+    "find": "elapsed = blue::max(0, now_ms - bucket.at_ms)",
+    "replace": "elapsed = now_ms - bucket.at_ms"
+  },
+  {
+    "name": "refill lets the bucket fill past its burst",
+    "file": "ibuki.b",
+    "find": "    tokens: blue::min(\n      bucket.burst * 1000,\n      bucket.tokens + bucket.rate * elapsed\n    ),",
+    "replace": "    tokens: bucket.tokens + bucket.rate * elapsed,"
+  },
+  {
+    "name": "the wait rounds down and names a time the packet still cannot go",
+    "file": "ibuki.b",
+    "find": "wait_ms: ceiling((cost - b.tokens) / b.rate)",
+    "replace": "wait_ms: floor((cost - b.tokens) / b.rate)"
+  },
+  {
+    "name": "the Tide window may fall under its floor",
+    "file": "ibuki.b",
+    "find": "    {\n      **measured,\n      cwnd: blue::max(\n        lowest,\n        blue::min(grown, flight + t.allowed_increase * t.mss)\n      )\n    }",
+    "replace": "    {**measured, cwnd: blue::min(grown, flight + t.allowed_increase * t.mss)}"
+  },
+  {
+    "name": "the window grows past one packet an ack",
+    "file": "ibuki.b",
+    "find": "blue::min(grown, flight + t.allowed_increase * t.mss)",
+    "replace": "blue::min(grown, flight + 4 * t.allowed_increase * t.mss)"
+  },
+  {
+    "name": "the collapse waits for more than its threshold",
+    "file": "ibuki.b",
+    "find": "q >= t.collapse_ms",
+    "replace": "q > t.collapse_ms"
+  },
+  {
+    "name": "the base delay keeps every minute ever seen",
+    "file": "ibuki.b",
+    "find": "newest(retsu::push(base, [minute, delay]), keep)",
+    "replace": "retsu::push(base, [minute, delay])"
+  },
+  {
+    "name": "a loss takes a third, not a half",
+    "file": "ibuki.b",
+    "find": "floor(t.cwnd / 2)",
+    "replace": "floor(t.cwnd / 3)"
+  },
+  {
+    "name": "the lesser writer wins a tie",
+    "file": "ibuki.b",
+    "find": "compare(a.by, b.by) > 0",
+    "replace": "compare(a.by, b.by) < 0"
+  },
+  {
+    "name": "a tie on stamp and writer goes to the newcomer",
+    "file": "ibuki.b",
+    "find": "compare(json_stringify(a.v), json_stringify(b.v)) > 0",
+    "replace": "true"
+  },
+  {
+    "name": "merge takes every cell of the second map",
+    "file": "ibuki.b",
+    "find": "if wins?(last(e), get(acc, first(e)))",
+    "replace": "if true"
+  },
+  {
+    "name": "a malformed def_hash is accepted",
+    "file": "ibuki.b",
+    "find": "raise(:bad_option, \"a def_hash is b3:<64 hex>, got #{to_s(d)}\")",
+    "replace": "nil"
+  },
+  {
+    "name": "a record's input root is its output root",
+    "file": "ibuki.b",
+    "find": "input_root: state_root(s.state)",
+    "replace": "input_root: state_root(after)"
+  },
+  {
+    "name": "verify trusts each record's prev",
+    "file": "ibuki.b",
+    "find": "(i) -> rs[i].prev == heads[i]",
+    "replace": "(i) -> true"
+  },
+  {
+    "name": "steps count the keys that did not change",
+    "file": "ibuki.b",
+    "find": "get(before, first(e)) != last(e)",
+    "replace": "get(before, first(e)) == last(e)"
+  },
+  {
+    "name": "random maps draw keys past their bound",
+    "file": "ibuki.b",
+    "find": "ks = take_ints(seed, keys, n)",
+    "replace": "ks = take_ints(seed, keys + 5, n)"
+  }
+]

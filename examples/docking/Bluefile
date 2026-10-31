@@ -1,0 +1,28 @@
+# An app docks; it is never installed: the worked ibuki example
+# (theory/IBUKI.md). The root states the ceiling and the providers, `blue lock`
+# proves the join of every package's floor fits under them and records the
+# proof, and `blue bundle` seals the program and that record into an appliance
+# that takes no flags.
+#
+#   blue lock .                      verify the lattice, write the record
+#   blue test app.b                  the app's tests, the breach proof included
+#   blue run app.b                   held to the record: the clock is stepped
+#   blue bundle app.b --runner "$(command -v blue-appliance)" -o pacer
+#
+# The ceiling is pure: no host capability reaches the host. The clock is
+# virtualized to a stepped provider, so the Flash bucket the app paces reads a
+# clock that starts at 0 and advances 5 ms a reading, and every run prints the
+# same lines. Add a host word outside a test block and `blue lock` refuses,
+# naming the package and the capability.
+#
+# A floor counts a whole package: ibuki uses shomei's hashes, and shomei also
+# holds `random`, so shomei's floor names entropy though nothing here calls it.
+# The seeded provider, scoped to shomei, answers that floor without the host.
+package("ibuki-docking", "0.1.0")
+
+allow([])
+virtualize(:clock, {using: :deterministic_stepped, at_ms: 0, step_ms: 5})
+virtualize(:entropy, {using: :seeded_prng, seed: "ibuki-docking", for: %w[shomei]})
+
+check("app", "app.b", ["Bluefile.lock"])
+app("pacer", "app.b")

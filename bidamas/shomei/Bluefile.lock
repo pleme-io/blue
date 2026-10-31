@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:771e42c71e0a557cb2d490efaa2eecbbe20173f72b2aee3c505e0f1b589b5b8b",
+  "bluefile_b3": "b3:83101e458f0b65fd7f34a80711e4c19166ad5f17203a150abd2bbfe23261927a",
   "manifest": {
     "schema": 1,
     "name": "shomei",
@@ -8,9 +8,9 @@
     "needs": {
       "deeta": "^0.1.0",
       "kazu": "^0.1.0",
+      "kyohi": "^0.1.0",
       "moji": "^0.1.0",
-      "retsu": "^0.1.0",
-      "tesuto": "^0.1.0"
+      "retsu": "^0.1.0"
     },
     "when": "anytime",
     "sources": {},

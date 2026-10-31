@@ -8,6 +8,7 @@ locale. A command that fails raises `:git_failed` with what git said.
 """
 
 use("deeta", [:get_or])
+use("kyohi")
 
 use(
   "moji",
@@ -17,6 +18,8 @@ use(
 use("retsu", %i[first is_empty last])
 use("shisutemu")
 use("tesuto", [:scratch])
+
+legacy_names("0.1.3", [%w[raised kyohi::raised]])
 
 def run(repo, args)
   exec_with_env(
@@ -475,13 +478,6 @@ def fixture(name)
   path
 end
 
-def raised(f)
-  f()
-  nil
-rescue e
-  e.kind
-end
-
 def save(repo, name, text, message)
   write_file("#{repo}/#{name}", text)
   commit(repo, message, {paths: [name]})
@@ -510,7 +506,7 @@ test "a repository is read as commits, refs and files"
   assert ancestor?(r, second.oid, first_commit.oid) == false
   assert read(r, "a.txt", {}) == unlines(["two"])
   assert read(r, "a.txt", {at: first_commit.oid}) == unlines(["one"])
-  assert raised(() -> read(r, "gone.txt", {})) != nil
+  assert kyohi::raised(() -> read(r, "gone.txt", {})) != nil
   assert gitto::list(r, {of: :commits, limit: 1}) == [second]
   assert map((c) -> c.subject, gitto::list(r, {of: :commits})) ==
     %w[second first]
@@ -532,7 +528,7 @@ test "info reports the branch, the head and the working tree"
   j = info(r)
   assert j.clean? == false
   assert j.changes == [{path: "b.txt", state: "??"}]
-  assert raised(() -> info("/tmp/blue-gitto-not-a-repo")) != nil
+  assert kyohi::raised(() -> info("/tmp/blue-gitto-not-a-repo")) != nil
 end
 
 test "branches and tags are created once and deleted idempotently"
@@ -543,8 +539,9 @@ test "branches and tags are created once and deleted idempotently"
   assert map((b) -> b.name, gitto::list(r, {of: :branches})) == %w[main topic]
   assert map((t) -> t.name, gitto::list(r, {of: :tags})) == ["v1"]
   assert first(gitto::list(r, {of: :branches})).current == true
-  assert raised(() -> create(r, "topic", c.oid, {})) == :exists
-  assert raised(() -> create(r, "other", "no-such-ref", {})) == :not_found
+  assert kyohi::raised(() -> create(r, "topic", c.oid, {})) == :exists
+  assert kyohi::raised(() -> create(r, "other", "no-such-ref", {})) ==
+    :not_found
   assert delete(r, "topic").nil?
   assert delete(r, "topic").nil?
   assert delete(r, "refs/tags/v1").nil?
@@ -555,15 +552,16 @@ end
 test "an unknown option or list kind is refused by name"
   r = fixture("options")
   save(r, "a.txt", unlines(["one"]), "first")
-  assert raised(() -> gitto::list(r, {of: :commits, limt: 2})) == :bad_option
-  assert raised(() -> gitto::list(r, {of: :stashes})) == :bad_option
-  assert raised(() -> fetch(r, {force: true})) == :bad_option
+  assert kyohi::raised(() -> gitto::list(r, {of: :commits, limt: 2})) ==
+    :bad_option
+  assert kyohi::raised(() -> gitto::list(r, {of: :stashes})) == :bad_option
+  assert kyohi::raised(() -> fetch(r, {force: true})) == :bad_option
 end
 
 test "commit refuses an empty index and takes an author"
   r = fixture("commit")
   save(r, "a.txt", unlines(["one"]), "first")
-  assert raised(() -> commit(r, "nothing", {})) == :empty
+  assert kyohi::raised(() -> commit(r, "nothing", {})) == :empty
   write_file("#{r}/b.txt", unlines(["two"]))
   c = commit(
     r,
@@ -609,8 +607,8 @@ test "a diverged push rebases once and a diverged merge is refused"
   save(origin, "a.txt", unlines(["two"]), "remote")
   save(work, "b.txt", unlines(["mine"]), "local")
   fetch(work, {})
-  assert raised(() -> merge(work, "origin/main", {})) == :conflict
-  assert raised(() -> push(work, {rebase: false})) == :diverged
+  assert kyohi::raised(() -> merge(work, "origin/main", {})) == :conflict
+  assert kyohi::raised(() -> push(work, {rebase: false})) == :diverged
   assert push(work, {}).nil?
   assert map((c) -> c.subject, gitto::list(origin, {of: :commits})) ==
     %w[local remote first]
@@ -633,7 +631,7 @@ end
 test "get refuses an option it does not take"
   r = fixture("get-option")
   save(r, "a.txt", unlines(["one"]), "first")
-  assert raised(() -> get(r, "HEAD", {at: "main"})) == :bad_option
+  assert kyohi::raised(() -> get(r, "HEAD", {at: "main"})) == :bad_option
 end
 
 test "list defaults to every commit, newest first, and takes of, limit and ref"
@@ -674,16 +672,17 @@ test "list of an empty repository is empty, and of a missing one is not_found"
   assert gitto::list(r, {}) == []
   assert gitto::list(r, {of: :branches}) == []
   assert gitto::list(r, {of: :tags}) == []
-  assert raised(() -> gitto::list("/tmp/blue-gitto-not-a-repo-at-all", {})) ==
-    :not_found
-  assert raised(() -> gitto::list(r, {ref: "nope"})) == :not_found
+  assert kyohi::raised(
+    () -> gitto::list("/tmp/blue-gitto-not-a-repo-at-all", {})
+  ) == :not_found
+  assert kyohi::raised(() -> gitto::list(r, {ref: "nope"})) == :not_found
 end
 
 test "list refuses an unknown of and an unknown option"
   r = fixture("list-bad")
   save(r, "a.txt", unlines(["one"]), "first")
-  assert raised(() -> gitto::list(r, {of: :stashes})) == :bad_option
-  assert raised(() -> gitto::list(r, {limt: 2})) == :bad_option
+  assert kyohi::raised(() -> gitto::list(r, {of: :stashes})) == :bad_option
+  assert kyohi::raised(() -> gitto::list(r, {limt: 2})) == :bad_option
 end
 
 test "each verb runs with its options left out as it runs with an empty record"
@@ -704,19 +703,19 @@ test "each verb runs with its options left out as it runs with an empty record"
   assert diff(r, first_commit.oid, second.oid, nil) ==
     diff(r, first_commit.oid, second.oid, {})
   assert create(r, "topic", second.oid) == second.oid
-  assert raised(() -> create(r, "topic", second.oid)) == :exists
+  assert kyohi::raised(() -> create(r, "topic", second.oid)) == :exists
   assert create(r, "other", second.oid, nil) == second.oid
-  assert raised(() -> commit(r, "nothing")) == :empty
-  assert raised(() -> commit(r, "nothing", nil)) == :empty
+  assert kyohi::raised(() -> commit(r, "nothing")) == :empty
+  assert kyohi::raised(() -> commit(r, "nothing", nil)) == :empty
 end
 
 test "an option given to a verb with options left out is still checked"
   r = fixture("optional-bad")
   save(r, "a.txt", unlines(["one"]), "first")
-  assert raised(() -> get(r, "HEAD", {at: "main"})) == :bad_option
-  assert raised(() -> read(r, "a.txt", {when: 1})) == :bad_option
-  assert raised(() -> fetch(r, {force: true})) == :bad_option
-  assert raised(() -> get(r, "HEAD", 1)) != nil
+  assert kyohi::raised(() -> get(r, "HEAD", {at: "main"})) == :bad_option
+  assert kyohi::raised(() -> read(r, "a.txt", {when: 1})) == :bad_option
+  assert kyohi::raised(() -> fetch(r, {force: true})) == :bad_option
+  assert kyohi::raised(() -> get(r, "HEAD", 1)) != nil
 end
 
 test "clone, fetch, merge and push run with their options left out"
@@ -758,12 +757,13 @@ test "a master verb on a gitto subject raises what gitto raises"
   r = fixture("dispatch-raise")
   c = save(r, "a.txt", unlines(["one"]), "first")
   s = in_space("gitto", r)
-  assert raised(() -> blue::create(s, "other", "no-such-ref", {})) == :not_found
+  assert kyohi::raised(() -> blue::create(s, "other", "no-such-ref", {})) ==
+    :not_found
   assert blue::create(s, "topic", c.oid, {}) == c.oid
-  assert raised(() -> blue::create(s, "topic", c.oid, {})) == :exists
-  assert raised(
+  assert kyohi::raised(() -> blue::create(s, "topic", c.oid, {})) == :exists
+  assert kyohi::raised(
     () -> blue::info(in_space("gitto", "/tmp/blue-gitto-not-a-repo"))
   ) != nil
-  assert raised(() -> has?(s, "topic")) == :usage
-  assert raised(() -> need(s, "topic")) == :usage
+  assert kyohi::raised(() -> has?(s, "topic")) == :usage
+  assert kyohi::raised(() -> need(s, "topic")) == :usage
 end

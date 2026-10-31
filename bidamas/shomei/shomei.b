@@ -62,9 +62,9 @@ not say when anything happened; put a timestamp in the payload if it matters.
 
 use("deeta", [:get_or])
 use("kazu", [:max])
+use("kyohi", [:raised])
 use("moji", [:checked])
 use("retsu", %i[first is_empty size])
-use("tesuto", [:raises?])
 
 # ── keys ───────────────────────────────────────────────────────────
 
@@ -702,9 +702,9 @@ test "hash names its algorithm and refuses the ones that are not built"
   assert hash("x", :blake3) == hash_message("x")
   assert hash([120], :blake3) == hash("x", :blake3)
   assert hash("x", :blake3) != hash("y", :blake3)
-  assert raises?(:bad_option, () -> hash("x", :md5))
-  assert raises?(:bad_option, () -> hash("x", nil))
-  assert raises?(:bad_option, () -> hash("x", "sha256"))
+  assert raised(() -> hash("x", :md5)) == :bad_option
+  assert raised(() -> hash("x", nil)) == :bad_option
+  assert raised(() -> hash("x", "sha256")) == :bad_option
 end
 
 test "hash agrees with FIPS 180 for sha1, sha256 and sha512"
@@ -741,10 +741,10 @@ test "hash with key: is the HMAC of RFC 4231 and RFC 2202"
 end
 
 test "hash refuses an unknown option, a keyed blake3 and a key it cannot place"
-  assert raises?(:bad_option, () -> hash("x", :sha256, {keey: "k"}))
-  assert raises?(:bad_option, () -> hash("x", :sha256, {key: "k", extra: 1}))
-  assert raises?(:bad_option, () -> hash("x", :blake3, {key: "k"}))
-  assert raises?(:bad_option, () -> hash("x", :md5, {key: "k"}))
+  assert raised(() -> hash("x", :sha256, {keey: "k"})) == :bad_option
+  assert raised(() -> hash("x", :sha256, {key: "k", extra: 1})) == :bad_option
+  assert raised(() -> hash("x", :blake3, {key: "k"})) == :bad_option
+  assert raised(() -> hash("x", :md5, {key: "k"})) == :bad_option
   assert (hash("x", :sha256, {key: 42}) rescue :raised) == :raised
   assert (hash(nil, :sha256) rescue :raised) == :raised
 end
@@ -756,9 +756,9 @@ test "mac is the keyed digest and refuses the algorithms with no keyed form"
   assert mac("x", "k", :sha1) == hash("x", :sha1, {key: "k"})
   assert mac("x", "k", :sha256) != mac("x", "k2", :sha256)
   assert mac("x", "k", :sha256) != mac("y", "k", :sha256)
-  assert raises?(:bad_option, () -> mac("x", "k", :blake3))
-  assert raises?(:bad_option, () -> mac("x", "k", :md5))
-  assert raises?(:bad_option, () -> mac("x", "k", nil))
+  assert raised(() -> mac("x", "k", :blake3)) == :bad_option
+  assert raised(() -> mac("x", "k", :md5)) == :bad_option
+  assert raised(() -> mac("x", "k", nil)) == :bad_option
   assert (mac("x", nil, :sha256) rescue :raised) == :raised
   assert (mac(nil, "k", :sha256) rescue :raised) == :raised
 end

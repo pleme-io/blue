@@ -32,6 +32,15 @@ row(
 row("json.stringify.map", "json_stringify({a: 1})", value("\"{\\\"a\\\":1}\""))
 
 row(
+  "json.canonical.keeps_an_array_of_pairs",
+  "json_canonical(\"{ \\\"b\\\": [[\\\"k\\\", 1]], \\\"a\\\": 0 }\")",
+  value("\"{\\\"a\\\":0,\\\"b\\\":[[\\\"k\\\",1]]}\""),
+  covers("builtin:json_canonical")
+)
+
+row("json.canonical.bad", "json_canonical(\"{\")", fails(:eval, "json_canonical"))
+
+row(
   "json.get",
   "json_get(json_parse(\"{\\\"a\\\": 1}\"), :a)",
   value("1"),

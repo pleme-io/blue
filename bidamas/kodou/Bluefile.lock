@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:9dcfccc20657e3cd7afd69643c89871c2372ced477e9be9b3465887f3d621b04",
+  "manifest": {
+    "schema": 1,
+    "name": "kodou",
+    "version": "0.1.0",
+    "needs": {
+      "ibuki": "^0.1.0",
+      "jisho": "^0.1.0",
+      "kyohi": "^0.1.0",
+      "moji": "^0.1.0",
+      "retsu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

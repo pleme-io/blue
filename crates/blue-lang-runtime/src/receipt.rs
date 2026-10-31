@@ -222,7 +222,9 @@ mod tests {
                 "environment",
                 "clock",
                 "network",
-                "entropy"
+                "entropy",
+                "comm-flash",
+                "comm-scavenger"
             ])
         );
         assert_eq!(j["frame"]["host_io"], 1, "the ledger's total, as given");

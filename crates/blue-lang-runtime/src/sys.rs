@@ -47,7 +47,8 @@
 //! elapsed_since(start_ns)    → ns since start (from `now_ns`)
 //! ```
 //!
-//! NATS and HTTP are installed here too, from [`crate::net`].
+//! NATS and HTTP are installed here too, from [`crate::net`], and the Flash
+//! and Tide channels of the dual-pulse wire, from [`crate::wire`].
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -66,6 +67,7 @@ pub fn install_sys_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
     install_clock(interp);
     crate::net::install_net(interp);
     crate::entropy::install_entropy(interp);
+    crate::wire::install_wire(interp);
 }
 
 // ── process ──────────────────────────────────────────────────────────────

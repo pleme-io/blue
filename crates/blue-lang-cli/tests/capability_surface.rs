@@ -183,7 +183,7 @@ fn each_host_capability_carries_a_real_bundle_and_a_real_import() {
         .into_iter()
         .map(|c| (c.label(), c.names().len()))
         .collect();
-    assert_eq!(counts.len(), 6, "the floor, 2026-10-23: {counts:?}");
+    assert_eq!(counts.len(), 8, "the floor, 2026-10-30: {counts:?}");
     for (label, n) in &counts {
         assert!(*n > 0, "{label} grants no names");
     }
@@ -217,7 +217,9 @@ fn each_host_capability_carries_a_real_bundle_and_a_real_import() {
             ("network", 23),
             // Since 2026-10-23: random_bytes, the one draw from the system
             // entropy source, so key material and nonces are generated here.
-            ("entropy", 1)
+            ("entropy", 1),
+            ("comm-flash", 5),
+            ("comm-scavenger", 7)
         ]
     );
 }

@@ -9,6 +9,7 @@
 //! ```text
 //! json_parse(s)          → nil / bool / int / float / string / list / alist
 //! json_stringify(v)      → string
+//! json_canonical(text)   → the same document as canonical JSON text
 //! json_get(doc, key)     → value at key, or nil   (doc = alist or Map)
 //! json_get_or(doc, key, default) → value at key, or default
 //! ```
@@ -71,6 +72,17 @@ pub fn install_json_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
     );
 
     interp.register_fn(
+        "json_canonical",
+        Arity::Exact(1),
+        |args: &[Value], _h: &mut H, span| {
+            let s = as_str(&args[0], "json_canonical", span)?;
+            canonical_text(&s)
+                .map(|t| Value::Str(Arc::from(t)))
+                .map_err(|e| EvalError::native_fn("json_canonical", e, span))
+        },
+    );
+
+    interp.register_fn(
         "json_get",
         Arity::Exact(2),
         |args: &[Value], _h: &mut H, span| {
@@ -105,6 +117,24 @@ pub fn install_json_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
             }
         },
     );
+}
+
+pub fn canonical_text(text: &str) -> Result<String, String> {
+    let parsed: JsonValue = serde_json::from_str(text).map_err(|e| e.to_string())?;
+    serde_json::to_string(&sorted(parsed)).map_err(|e| e.to_string())
+}
+
+fn sorted(v: JsonValue) -> JsonValue {
+    match v {
+        JsonValue::Array(xs) => JsonValue::Array(xs.into_iter().map(sorted).collect()),
+        JsonValue::Object(m) => {
+            let mut entries: Vec<(String, JsonValue)> =
+                m.into_iter().map(|(k, v)| (k, sorted(v))).collect();
+            entries.sort_by(|a, b| a.0.cmp(&b.0));
+            JsonValue::Object(entries.into_iter().collect())
+        }
+        other => other,
+    }
 }
 
 /// A document is an alist (non-empty object) or a Map (empty object). Anything
@@ -298,6 +328,23 @@ mod tests {
         let parsed: JsonValue = serde_json::from_str(src).expect("fixture is valid JSON");
         let out = value_to_json(&json_to_value(&parsed));
         assert_eq!(out, parsed, "round-trip changed the document\nin:  {src}");
+    }
+
+    #[test]
+    fn json_canonical_keeps_an_array_of_pairs_that_json_stringify_turns_into_an_object() {
+        let doc = r#"{ "b": 1, "a": [["x", 2]], "c": {"z": null, "y": [1.5, "é/\"\n"]} }"#;
+        let want = r#"{"a":[["x",2]],"b":1,"c":{"y":[1.5,"é/\"\n"],"z":null}}"#;
+        assert_eq!(canonical_text(doc).unwrap(), want);
+        assert_eq!(canonical_text(want).unwrap(), want);
+        assert_eq!(
+            s(r#"json_canonical("{\"b\":[[\"k\",1]],\"a\":0}")"#),
+            r#"{"a":0,"b":[["k",1]]}"#
+        );
+        assert_ne!(
+            s(r#"json_stringify(json_read("{\"b\":[[\"k\",1]],\"a\":0}"))"#),
+            r#"{"a":0,"b":[["k",1]]}"#
+        );
+        assert!(canonical_text("{").is_err());
     }
 
     #[test]

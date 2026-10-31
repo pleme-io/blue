@@ -51,10 +51,10 @@ document lands.
   and every bidama build call `check_stage`
   (`crates/blue-lang-runtime/src/pipeline.rs:458`). An error-severity rule
   stops a program before it runs. 53 B-codes exist (`docs/DIAGNOSTICS.md`).
-- **A closed capability set.** `blue_lang_waku::Capability` has six host
-  effects: process, filesystem, environment, clock, network, entropy
-  (`crates/blue-lang-waku/src/capability.rs:116-137`,
-  `host_effects` at `:428`). The set has no `Other(String)` arm.
+- **A closed capability set.** `blue_lang_waku::Capability` has eight host
+  effects: process, filesystem, environment, clock, network, entropy,
+  comm-flash, comm-scavenger (`crates/blue-lang-waku/src/capability.rs:116-139`,
+  `host_effects` at `:505`). The set has no `Other(String)` arm.
 - **Pure sessions.** `blue eval`, `repl` and `serve` bind every ungranted host
   name to a refusal (`crates/blue-lang-runtime/src/session.rs:744`).
   `--allow` widens the frame. A process the session spawns gets the same
@@ -125,7 +125,7 @@ tier. ⚠️ marks a partial seal. ❌ marks an open row.
 | 5 | Bounds-checked indexing | ✅ memory: no raw index exists; ⚠️ semantics: `nth` out of range is `nil` | row 1 owns the `nil` | unrepresentable (memory) | n/a |
 | 6 | Integer overflow, numeric conversion | ✅ `+ - * abs floor` raise on overflow; `/` by zero raises; `to_int` of a huge float is `nil` | `to_int` → row 1 | runtime-refused | on, no off |
 | 7 | No implicit coercion | ⚠️ operators refuse mixed types; `4 == 4.0` is true; call types are checked only inside typed definitions (B0003–B0005) | call-site checks from any caller when the argument is a literal | runtime-refused → checked-at-expansion | on |
-| 8 | `unsafe` ⇔ declared capability | ⚠️ sessions pure by default; **`blue run --allow` and shebang `--allow` (landed)**; **a breach is fatal: no `rescue` or `ensure` sees it (landed)**; an undeclared run is still ambient | default flip for scripts, then `posture(reach:)` for bidamas | checked-at-expansion (entry) + runtime-fatal (bidama, process) | declared: on; undeclared: ambient until phase 3 (`--allow host`) |
+| 8 | `unsafe` ⇔ declared capability | ⚠️ sessions pure by default; **`blue run --allow` and shebang `--allow` (landed)**; **a breach is fatal: no `rescue` or `ensure` sees it (landed)**; **the wire's two channels are their own capabilities, `comm_flash` and `comm_scavenger` (landed)**; an undeclared run is still ambient | default flip for scripts, then `posture(reach:)` for bidamas | checked-at-expansion (entry) + runtime-fatal (bidama, process) | declared: on; undeclared: ambient until phase 3 (`--allow host`) |
 | 9 | Memory safety of the host seam | ⚠️ 1 of 18 crates denies `unsafe_code` at its root | workspace `unsafe_code = "deny"`, one `#[allow]` per seam, one seam test | unrepresentable for kiwari → unrepresentable for every crate | on (`#[allow(unsafe_code)]` at a named seam) |
 | 10 | No data races | ✅ share-nothing processes; copy on send; handles refuse to cross | none needed | unrepresentable | n/a |
 | 11 | Panic vs typed refusal | ⚠️ blue faults are catchable; a Rust panic in a native function is not a blue error | one unwind seam at the native-call boundary → `:internal` refusal | open → runtime-refused | on |
@@ -279,10 +279,30 @@ write dropped, every read finds nothing). The lock records the provider as
 the kebab-case label (`deterministic-stepped`). An unknown `using` is refused
 with the legal ones named. The settings are a map because blue refuses a
 keyword entry in a call without a `**` spread (spec row
-`maps.spread.call.entries_need_a_spread`). Process, network and environment
-have no provider (`Provision::kinds_for`). `Provisions::disjoint_from`
+`maps.spread.call.entries_need_a_spread`). Process, network, environment and
+the two wire channels have no provider (`Provision::kinds_for`). `Provisions::disjoint_from`
 refuses a whole-program provider for a capability `allow` also grants, but
 `blue lock` does not call it yet.
+
+**The wire (2026-10-30).** The dual-pulse wire is two host capabilities split
+from `network`, so a frame may hold one channel without the other and without
+TCP: `comm-flash` (`flash_open`, `flash_put`, `flash_next`, `flash_stats`,
+`flash_close`) and `comm-scavenger` (the seven `tide_` words), over one UDP
+socket (`crates/blue-lang-runtime/src/wire.rs`). A Bluefile and `--allow`
+name them `comm_flash` and `comm_scavenger` (`Capability::host_named` reads
+the label or its snake case). The host border enforces the framing (0x02
+Flash, 0x01 Tide with an 8-byte send stamp), the 1280-byte MTU (a frame past
+it raises and is not sent), a Flash inbox of 256 frames that drops past it,
+and a Tide send ring and inbox bounded in frames and bytes that evict their
+oldest. The rate is not the border's: `kodou` paces Flash by ibuki's token
+bucket and Tide by ibuki's LEDBAT controller, so a program granted
+`comm_flash` that calls `flash_put` itself is not paced. Tests:
+`crates/blue-lang-cli/tests/wire.rs`
+(`a_frame_without_comm_flash_breaches_with_77_and_sends_nothing`: under
+`--allow comm_scavenger --allow clock` the listener hears the one Tide
+control frame and no Flash frame, the run exits 77; under `--allow none` it
+hears nothing; `blue lock` refuses
+`[kodou: needs 'comm-flash'] violates ceiling [clock, comm-scavenger]`).
 
 **Scoped providers (2026-10-30).** `for: %w[rede]` beside `using` binds the
 provider only for the named packages and every package they `use`. In the
@@ -550,7 +570,7 @@ flowchart TB
     PROC["share-nothing processes"]
   end
   subgraph H["Rust host: the trusted base"]
-    SYS["sys layer: six host capabilities"]
+    SYS["sys layer: eight host capabilities"]
     SEAMS["unsafe seams: kiwari, alloc, wasm, sigint"]
   end
   SB --> REACH

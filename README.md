@@ -239,7 +239,7 @@ rendered:
 
 | | |
 |---|---|
-| Built-in names | 307: 280 functions, 14 special forms, 13 macros |
+| Built-in names | 320: 293 functions, 14 special forms, 13 macros |
 | Surface forms | 30, with 13 operators and 25 reserved words |
 | Check rules | 67: 38 fix themselves, 7 suggest a fix |
 | Bluefile words | 23 |
@@ -250,7 +250,7 @@ rendered:
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-87 packages, 4784 definitions, 1565 tests.
+88 packages, 4819 definitions, 1577 tests.
 
 - [anaritikusu](bidamas/CATALOG.md#anaritikusu) (アナリティクス) — lifecycle analytics: a database of telemetry, standard models and cross-lifecycle joins, generated from lifecycle definitions.
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
@@ -290,6 +290,7 @@ rendered:
 - [kinko](bidamas/CATALOG.md#kinko) (金庫) — a safe: a 1Password account declared as data, each entry refused alone, projected to Terraform JSON.
 - [kirikae](bidamas/CATALOG.md#kirikae) (切り替え) — switching over: whether a system switch must run, may be skipped, or must wait.
 - [kiwari](bidamas/CATALOG.md#kiwari) (木割): one grammar spec, every syntax artifact emitted from it.
+- [kodou](bidamas/CATALOG.md#kodou) (鼓動) — the dual-pulse wire: a Flash channel paced by ibuki's token bucket and a Tide channel paced by ibuki's LEDBAT controller from the one-way delay each acknowledgement measures, over one UDP socket the host frames (0x02 Flash, 0x01 Tide); and the gossip of crash proofs on it: an alert on Flash, the artifact on Tide when a peer asks for it, verified by its content hash and kept in kensa's `kensa-immunity.v1` file.
 - [kousei](bidamas/CATALOG.md#kousei) (構成) — a system composed entry by entry: each entry checked, configured off, tuned or refused alone, then judged into what stands.
 - [koutei](bidamas/CATALOG.md#koutei) (工程) — one step of a pipeline, as GitHub Actions runs it.
 - [kueri](bidamas/CATALOG.md#kueri) (クエリ) — queries: analysis is authored in blue, and SQL is only the rendered bridge to DuckDB.

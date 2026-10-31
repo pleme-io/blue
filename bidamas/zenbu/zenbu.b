@@ -86,6 +86,7 @@ use("kinji")
 use("kinko")
 use("kirikae")
 use("kiwari")
+use("kodou")
 use("kousei")
 use("koutei")
 use("kueri")
@@ -239,6 +240,7 @@ test "every bidama in the distribution answers through this one import"
   assert bunsho::render(bunsho::parse("* a")) == unlines(["- a"])
   assert sutoriimu::api("s", "INFO") == "$JS.API.STREAM.INFO.s"
   assert ibuki::classify({state: :merge}) == :strand
+  assert kodou::be32(258) == [0, 0, 1, 2]
 end
 
 test "four packages compose without the consumer naming any of them"

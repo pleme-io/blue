@@ -53,10 +53,7 @@ pub fn granted(allow: &[String]) -> Result<Vec<Capability>, String> {
         if name == "none" {
             continue;
         }
-        match Capability::host_effects()
-            .into_iter()
-            .find(|c| c.label() == name)
-        {
+        match Capability::host_named(name) {
             Some(c) => granted.push(c),
             None => {
                 return Err(format!(

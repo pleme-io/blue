@@ -47,7 +47,7 @@
 //! | [`Capability::Assertion`] | `blue_lang_syntax::LOWERED_ASSERT`, `LOWERED_ASSERT_PANICS` |
 //! | [`Capability::CoreForms`] | the heads `blue-lang-syntax` lowers control flow to |
 //! | [`Capability::ManifestDeclaration`] | the Bluefile vocabulary (`blue_lang_pkg::bluefile`'s word table) |
-//! | the five host bundles | `blue_lang_runtime::sys`'s four installers and `net`'s |
+//! | the host bundles | `blue_lang_runtime::sys`'s four installers, `net`'s, `entropy`'s and `wire`'s |
 //!
 //! The last row is the one that could rot, and it is gated rather than trusted:
 //! `blue-lang-cli`'s `tests/capability_surface.rs` installs the sys layer into a
@@ -135,6 +135,8 @@ pub enum Capability {
     /// reach another machine.
     Network,
     Entropy,
+    CommFlash,
+    CommScavenger,
 }
 
 /// The wasm import module every host capability lowers into.
@@ -284,6 +286,22 @@ const NETWORK_NAMES: &[&str] = &[
     "resp_close",
 ];
 const ENTROPY_NAMES: &[&str] = &["random_bytes"];
+const COMM_FLASH_NAMES: &[&str] = &[
+    "flash_open",
+    "flash_put",
+    "flash_next",
+    "flash_stats",
+    "flash_close",
+];
+const COMM_SCAVENGER_NAMES: &[&str] = &[
+    "tide_open",
+    "tide_put",
+    "tide_release",
+    "tide_send",
+    "tide_next",
+    "tide_stats",
+    "tide_close",
+];
 /// `blue_lang_runtime::sys::install_clock`, 2026-08-13.
 const CLOCK_NAMES: &[&str] = &[
     "now",
@@ -296,11 +314,12 @@ const CLOCK_NAMES: &[&str] = &[
 ];
 
 impl Capability {
-    /// How many capabilities exist. A **floor with a date**: twelve as of
-    /// 2026-10-23, six pure and six host-effect (eleven until `Entropy`). Stated so a count gate cannot
+    /// How many capabilities exist. A **floor with a date**: fourteen as of
+    /// 2026-10-30, six pure and eight host-effect (twelve until `CommFlash`
+    /// and `CommScavenger`, eleven until `Entropy`). Stated so a count gate cannot
     /// pass over an empty set — `ALL.len() == 0` would satisfy every
     /// "for every capability…" test in this file.
-    pub const COUNT: usize = 12;
+    pub const COUNT: usize = 14;
 
     const FIRST: Self = Capability::CoreForms;
 
@@ -326,7 +345,9 @@ impl Capability {
             Capability::Environment => Some(Capability::Clock),
             Capability::Clock => Some(Capability::Network),
             Capability::Network => Some(Capability::Entropy),
-            Capability::Entropy => None,
+            Capability::Entropy => Some(Capability::CommFlash),
+            Capability::CommFlash => Some(Capability::CommScavenger),
+            Capability::CommScavenger => None,
         }
     }
 
@@ -367,7 +388,17 @@ impl Capability {
             Capability::Clock => "clock",
             Capability::Network => "network",
             Capability::Entropy => "entropy",
+            Capability::CommFlash => "comm-flash",
+            Capability::CommScavenger => "comm-scavenger",
         }
+    }
+
+    #[must_use]
+    pub fn host_named(name: &str) -> Option<Capability> {
+        let name = name.trim_start_matches(':');
+        Self::host_effects()
+            .into_iter()
+            .find(|c| c.label() == name || c.label().replace('-', "_") == name)
     }
 
     /// Exhaustive, no wildcard. The single source both [`Self::names`] and
@@ -386,6 +417,8 @@ impl Capability {
             Capability::Clock => Names::Fixed(CLOCK_NAMES),
             Capability::Network => Names::Fixed(NETWORK_NAMES),
             Capability::Entropy => Names::Fixed(ENTROPY_NAMES),
+            Capability::CommFlash => Names::Fixed(COMM_FLASH_NAMES),
+            Capability::CommScavenger => Names::Fixed(COMM_SCAVENGER_NAMES),
         }
     }
 
@@ -448,6 +481,14 @@ impl Capability {
                 module: HOST_MODULE,
                 field: "entropy",
             }),
+            Capability::CommFlash => Some(Import {
+                module: HOST_MODULE,
+                field: "comm-flash",
+            }),
+            Capability::CommScavenger => Some(Import {
+                module: HOST_MODULE,
+                field: "comm-scavenger",
+            }),
         }
     }
 
@@ -504,8 +545,9 @@ mod tests {
     use super::*;
     use std::collections::BTreeSet;
 
-    /// **The floor, with the date.** Twelve capabilities on 2026-10-23, six
-    /// pure and six host-effect (five until `Entropy`).
+    /// **The floor, with the date.** Fourteen capabilities on 2026-10-30, six
+    /// pure and eight host-effect (six until the two wire channels, five
+    /// until `Entropy`).
     ///
     /// Anti-vacuity for every "for every capability…" test below: each of them
     /// passes trivially over an empty `ALL`, and `ALL` is *derived* from the
@@ -514,11 +556,11 @@ mod tests {
     #[test]
     fn the_universe_is_closed_and_counted() {
         assert_eq!(Capability::ALL.len(), Capability::COUNT);
-        assert_eq!(Capability::COUNT, 12, "the floor, measured 2026-10-23");
+        assert_eq!(Capability::COUNT, 14, "the floor, measured 2026-10-30");
         assert_eq!(
             Capability::host_effects().len(),
-            6,
-            "process, filesystem, environment, clock, network, entropy"
+            8,
+            "process, filesystem, environment, clock, network, entropy, comm-flash, comm-scavenger"
         );
         assert_eq!(
             Capability::ALL
@@ -566,10 +608,11 @@ mod tests {
                 }
             }
         }
-        // The floor: 73 distinct names on 2026-09-23 (66 on 2026-08-13, plus
-        // the seven Bluefile words P1b added).
+        // The floor: 85 distinct names on 2026-10-30 (73 on 2026-09-23, plus
+        // the twelve wire words; 66 on 2026-08-13, plus the seven Bluefile
+        // words P1b added).
         assert!(
-            owner.len() >= 73,
+            owner.len() >= 85,
             "the universe shrank to {} names",
             owner.len()
         );
@@ -654,6 +697,28 @@ mod tests {
     fn labels_are_distinct() {
         let labels: BTreeSet<&str> = Capability::ALL.into_iter().map(Capability::label).collect();
         assert_eq!(labels.len(), Capability::COUNT);
+    }
+
+    #[test]
+    fn a_host_capability_is_named_by_its_label_or_its_snake_case() {
+        for c in Capability::host_effects() {
+            assert_eq!(Capability::host_named(c.label()), Some(c));
+            assert_eq!(
+                Capability::host_named(&format!(":{}", c.label().replace('-', "_"))),
+                Some(c)
+            );
+        }
+        assert_eq!(
+            Capability::host_named("comm_flash"),
+            Some(Capability::CommFlash)
+        );
+        assert_eq!(
+            Capability::host_named("comm-scavenger"),
+            Some(Capability::CommScavenger)
+        );
+        assert_eq!(Capability::host_named("core-forms"), None);
+        assert_eq!(Capability::host_named("comm"), None);
+        assert_eq!(Capability::host_named("comm_tide"), None);
     }
 
     // ── RED RUNS, recorded ────────────────────────────────────────────────

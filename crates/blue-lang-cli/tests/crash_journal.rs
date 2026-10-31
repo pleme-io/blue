@@ -107,7 +107,7 @@ fn a_breach_under_allow_none_writes_a_bluecrash_that_replays_as_the_same_breach(
         serde_json::json!({
             "granted": [],
             "provided": [],
-            "withheld": ["process", "filesystem", "environment", "clock", "network", "entropy"],
+            "withheld": ["process", "filesystem", "environment", "clock", "network", "entropy", "comm-flash", "comm-scavenger"],
         })
     );
     let tape = j["tape"].as_array().expect("tape");

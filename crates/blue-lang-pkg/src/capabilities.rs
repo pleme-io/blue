@@ -35,14 +35,15 @@ pub const HOST_LABELS: &[&str] = &[
     "clock",
     "network",
     "entropy",
+    "comm-flash",
+    "comm-scavenger",
 ];
 
-/// The host capability a Bluefile label names.
+/// The host capability a Bluefile label names: the label, or the label in
+/// snake case as a symbol writes it (`:comm_flash`).
 #[must_use]
 pub fn host_capability(label: &str) -> Option<Capability> {
-    Capability::host_effects()
-        .into_iter()
-        .find(|c| c.label() == label.trim_start_matches(':'))
+    Capability::host_named(label)
 }
 
 /// What a floor counts: the root's `floors(...)`, recorded in the lock as
@@ -1160,6 +1161,11 @@ mod tests {
             "a pure bundle is no host capability"
         );
         assert_eq!(host_capability("disk"), None);
+        assert_eq!(host_capability(":comm_flash"), Some(Capability::CommFlash));
+        assert_eq!(
+            host_capability("comm-scavenger"),
+            Some(Capability::CommScavenger)
+        );
     }
 
     #[test]

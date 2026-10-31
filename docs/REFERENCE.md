@@ -113,7 +113,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-307 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 185 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+320 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 185 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -224,7 +224,7 @@ Higher binding power binds tighter.
 | `reverse` | `reverse(seq)` | 1 | The list or string backwards. Raises on nil. Also defined by `gurafu` (`gurafu::reverse`): a file that lists it gets that one. |
 | `second` | `second(xs)` | 1 | The second element; raises when there is none. |
 | `sort_keyed` | `sort_keyed(key, xs)` | 2 | A stable sort by key(x), under compare's rules; native, so safe at any length. Mixed key kinds raise. |
-| `take` | `take(n, xs)` | 2 | The first n elements, or all of them. The COUNT comes first. |
+| `take` | `take(n, xs)` | 2 | The first n elements, or all of them. The COUNT comes first. Also defined by `kodou` (`kodou::take`): a file that lists it gets that one. |
 | `third` | `third(xs)` | 1 | The third element; raises when there is none. |
 | `zip` | `zip(xs, ys)` | 2 | [[x1, y1], [x2, y2], …], as long as the shorter list. Also defined by `retsu` (`retsu::zip`): a file that lists it gets that one. |
 
@@ -342,6 +342,7 @@ Higher binding power binds tighter.
 
 | name | call | arity | meaning |
 |---|---|---|---|
+| `json_canonical` | `json_canonical(text)` | 1 | The JSON document in text as canonical JSON: every object's keys sorted, no whitespace, numbers and strings as serde_json writes them, so equal documents hash alike. Unlike json_stringify(json_read(text)), an array of [string, value] pairs stays an array. Raises when text is not JSON. |
 | `json_get` | `json_get(obj, key)` | 2 | The field of a parsed JSON object, or nil. Raises when obj is not an object. |
 | `json_get_or` | `json_get_or(obj, key, default)` | 3 | The field of a parsed JSON object, or default. |
 | `json_parse` | `json_parse(text)` | 1 | Parse JSON. An object becomes a list of [key, value] pairs, not a map; read it with json_get or deeta. null is nil. |
@@ -428,6 +429,11 @@ Higher binding power binds tighter.
 
 | name | call | arity | meaning |
 |---|---|---|---|
+| `flash_close` | `flash_close(wire)` | 1 | Close the wire's Flash channel; the socket closes with its last channel. nil. |
+| `flash_next` | `flash_next(wire, timeout_ms)` | 2 | {from:, payload:, bytes:} for the next Flash frame, waiting at most timeout_ms (0 only checks); nil when none came. A datagram that is no frame or no UTF-8 is dropped and counted as malformed. |
+| `flash_open` | `flash_open(addr_or_wire)` | 1 | The Flash channel of a dual-pulse wire: a UDP socket bound to host:port (port 0 picks a free one), or the Flash channel opened on a wire tide_open made, so both share one socket. Needs the comm_flash capability; kodou paces it. |
+| `flash_put` | `flash_put(wire, peer, payload)` | 3 | Send one Flash frame (framing byte 0x02, then the payload) to host:port at once, ahead of any Tide frame still queued: the datagram's bytes. A datagram past 1280 bytes raises and sends nothing; nothing here paces it, kodou::emit does. |
+| `flash_stats` | `flash_stats(wire)` | 1 | {address:, port:, sent:, received:, dropped:, malformed:} of the wire's Flash channel; dropped counts frames past its 256-frame inbox. |
 | `http_listen` | `http_listen(addr)` | 1 | A listening HTTP/1.1 server socket on host:port (port 0 picks a free one). Raises when the address cannot be bound. |
 | `http_listener_port` | `http_listener_port(listener)` | 1 | The TCP port the listener is bound to. |
 | `http_next_request` | `http_next_request(listener, timeout_ms)` | 2 | {method:, path:, query:, headers:, body:, exchange:} for the next request, waiting at most timeout_ms (0 only checks); nil when none came. A malformed request is answered 400 and skipped. Answer it with http_respond. |
@@ -451,6 +457,13 @@ Higher binding power binds tighter.
 | `resp_next` | `resp_next(conn, timeout_ms)` | 2 | The next reply the server pushes (a subscribed connection's messages), waiting at most timeout_ms (0 only checks what has arrived); nil when none came. |
 | `resp_pipeline` | `resp_pipeline(conn, commands)` | 2 | Send every command in one write and return their replies in order. Raises naming the first server error. |
 | `tcp_connect_ms` | `tcp_connect_ms(host, port, timeout_ms)` | 3 | Open one TCP connection to host:port and close it at once: the milliseconds the connect took, the handshake only (name resolution is not counted). A failed connect is an answer, not a raise: [:error, why, detail], why one of :unresolved, :timeout, :refused, :unreachable or :failed. A bad port or timeout raises. |
+| `tide_close` | `tide_close(wire)` | 1 | Close the wire's Tide channel and drop what its ring holds; the socket closes with its last channel. nil. |
+| `tide_next` | `tide_next(wire, timeout_ms)` | 2 | {from:, payload:, bytes:, sent_ms:} for the oldest Tide frame in the inbox, waiting at most timeout_ms (0 only checks); nil when none came. The inbox evicts its oldest frame past its bounds. |
+| `tide_open` | `tide_open(addr_or_wire[, opts])` | 1..2 | The Tide channel of a dual-pulse wire, bound to host:port or joined to a wire flash_open made; opts {ring_frames:, ring_bytes:} hold its send ring and its inbox each to that many frames (64) and bytes (65536, at least 1280). Needs the comm_scavenger capability. |
+| `tide_put` | `tide_put(wire, peer, payload)` | 3 | Queue one Tide frame for host:port in the send ring: how many of the oldest queued frames it evicted to fit. A frame past 1280 bytes with its 9-byte header raises. |
+| `tide_release` | `tide_release(wire, max_bytes, stamp_ms)` | 3 | Send queued Tide frames from the oldest while their datagrams total at most max_bytes, each stamped stamp_ms (framing byte 0x01, the stamp as 8 bytes, then the payload): the bytes sent. kodou passes the window its LEDBAT controller allows. |
+| `tide_send` | `tide_send(wire, peer, payload, stamp_ms)` | 4 | Send one Tide frame at once, past the ring: the datagram's bytes. For an acknowledgement, which no window holds. |
+| `tide_stats` | `tide_stats(wire)` | 1 | {address:, port:, sent:, received:, dropped:, malformed:, queued:, queued_bytes:, evicted:, evicted_in:, ring_frames:, ring_bytes:} of the wire's Tide channel. |
 
 ### Hashing and signatures
 
@@ -502,7 +515,7 @@ Higher binding power binds tighter.
 | `defmigrate` | `defmigrate(target, new_fn[, transform])` | 2..3 | Swap the code of process target, or of every process running that function, at its next boundary without dropping its mailbox; a server's state becomes transform(state). A migration that raises leaves the old code running. Returns [[pid, :ok or [:error, why]], …]. |
 | `demonitor` | `demonitor(ref)` | 1 | Stop a monitor; true. |
 | `exit` | `exit(pid, reason)` | 2 | Send pid an exit signal: it ends with reason unless it traps exits (:normal ends nothing, :kill cannot be trapped). exit(self, r) raises. |
-| `link` | `link(pid)` | 1 | Link to pid: an abnormal exit of either ends the other. false when pid is not alive. Also defined by `raifusaikuru` (`raifusaikuru::link`): a file that lists it gets that one. |
+| `link` | `link(pid)` | 1 | Link to pid: an abnormal exit of either ends the other. false when pid is not alive. Also defined by `kodou` (`kodou::link`), `raifusaikuru` (`raifusaikuru::link`): a file that lists it gets that one. |
 | `monitor` | `monitor(pid)` | 1 | Watch pid and return a ref; its exit arrives as [:down, ref, pid, reason] ([:down, ref, pid, :noproc] if it is gone). |
 | `receive` | `receive([pattern][, timeout_ms][, on_timeout])` | 0..3 | The oldest message matching pattern (:_ matches anything, a list or map matches by shape), waiting for one. After timeout_ms, on_timeout (default nil). Waiting forever with no possible sender raises a deadlock. |
 | `self` | `self` | 0 | This process's pid. The program itself is 0. |

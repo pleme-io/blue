@@ -417,6 +417,7 @@ pub const NAMES: &[NameDoc] = names! {
     Json: "json_parse" "json_parse(text)" "Parse JSON. An object becomes a list of [key, value] pairs, not a map; read it with json_get or deeta. null is nil.";
     Json: "json_read" "json_read(text)" "Parse JSON with every object a map keyed by its field names, read with get and map_entries; an array is a list, null is nil.";
     Json: "json_stringify" "json_stringify(v)" "Compact JSON text, a map's keys sorted, a keyword as its name.";
+    Json: "json_canonical" "json_canonical(text)" "The JSON document in text as canonical JSON: every object's keys sorted, no whitespace, numbers and strings as serde_json writes them, so equal documents hash alike. Unlike json_stringify(json_read(text)), an array of [string, value] pairs stays an array. Raises when text is not JSON.";
     Json: "json_get" "json_get(obj, key)" "The field of a parsed JSON object, or nil. Raises when obj is not an object.";
     Json: "json_get_or" "json_get_or(obj, key, default)" "The field of a parsed JSON object, or default.";
     Nix: "nix_parse" "nix_parse(source)" "Nix source as rnix's lossless syntax tree: {root, errors}. A node is {kind, start, end, children}, a token {kind, start, end, text}; kinds are rnix's names (NODE_ATTR_SET, TOKEN_IDENT), offsets count characters, and each error is {message, start, end}. The nikkusu bidama queries it.";
@@ -492,6 +493,18 @@ pub const NAMES: &[NameDoc] = names! {
     Network: "http_listen" "http_listen(addr)" "A listening HTTP/1.1 server socket on host:port (port 0 picks a free one). Raises when the address cannot be bound.";
     Network: "http_listener_port" "http_listener_port(listener)" "The TCP port the listener is bound to.";
     Network: "http_next_request" "http_next_request(listener, timeout_ms)" "{method:, path:, query:, headers:, body:, exchange:} for the next request, waiting at most timeout_ms (0 only checks); nil when none came. A malformed request is answered 400 and skipped. Answer it with http_respond.";
+    Network: "flash_open" "flash_open(addr_or_wire)" "The Flash channel of a dual-pulse wire: a UDP socket bound to host:port (port 0 picks a free one), or the Flash channel opened on a wire tide_open made, so both share one socket. Needs the comm_flash capability; kodou paces it.";
+    Network: "flash_put" "flash_put(wire, peer, payload)" "Send one Flash frame (framing byte 0x02, then the payload) to host:port at once, ahead of any Tide frame still queued: the datagram's bytes. A datagram past 1280 bytes raises and sends nothing; nothing here paces it, kodou::emit does.";
+    Network: "flash_next" "flash_next(wire, timeout_ms)" "{from:, payload:, bytes:} for the next Flash frame, waiting at most timeout_ms (0 only checks); nil when none came. A datagram that is no frame or no UTF-8 is dropped and counted as malformed.";
+    Network: "flash_stats" "flash_stats(wire)" "{address:, port:, sent:, received:, dropped:, malformed:} of the wire's Flash channel; dropped counts frames past its 256-frame inbox.";
+    Network: "flash_close" "flash_close(wire)" "Close the wire's Flash channel; the socket closes with its last channel. nil.";
+    Network: "tide_open" "tide_open(addr_or_wire[, opts])" "The Tide channel of a dual-pulse wire, bound to host:port or joined to a wire flash_open made; opts {ring_frames:, ring_bytes:} hold its send ring and its inbox each to that many frames (64) and bytes (65536, at least 1280). Needs the comm_scavenger capability.";
+    Network: "tide_put" "tide_put(wire, peer, payload)" "Queue one Tide frame for host:port in the send ring: how many of the oldest queued frames it evicted to fit. A frame past 1280 bytes with its 9-byte header raises.";
+    Network: "tide_release" "tide_release(wire, max_bytes, stamp_ms)" "Send queued Tide frames from the oldest while their datagrams total at most max_bytes, each stamped stamp_ms (framing byte 0x01, the stamp as 8 bytes, then the payload): the bytes sent. kodou passes the window its LEDBAT controller allows.";
+    Network: "tide_send" "tide_send(wire, peer, payload, stamp_ms)" "Send one Tide frame at once, past the ring: the datagram's bytes. For an acknowledgement, which no window holds.";
+    Network: "tide_next" "tide_next(wire, timeout_ms)" "{from:, payload:, bytes:, sent_ms:} for the oldest Tide frame in the inbox, waiting at most timeout_ms (0 only checks); nil when none came. The inbox evicts its oldest frame past its bounds.";
+    Network: "tide_stats" "tide_stats(wire)" "{address:, port:, sent:, received:, dropped:, malformed:, queued:, queued_bytes:, evicted:, evicted_in:, ring_frames:, ring_bytes:} of the wire's Tide channel.";
+    Network: "tide_close" "tide_close(wire)" "Close the wire's Tide channel and drop what its ring holds; the socket closes with its last channel. nil.";
     Network: "http_respond" "http_respond(request, status, headers, body)" "Answer a request from http_next_request once and close its connection; headers as for http_request, body nil or a string. A second answer raises. nil.";
     // ── crypto ────────────────────────────────────────────────────────────
     Crypto: "blake3_hex" "blake3_hex(data)" "The BLAKE3-256 hash of a string or byte list, in lowercase hex. shomei's hash_message wraps it.";

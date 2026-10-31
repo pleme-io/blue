@@ -213,7 +213,7 @@ fn with_client<T>(
     f(&mut client).map_err(|e| EvalError::native_fn(fname, e.to_string(), span))
 }
 
-fn arg_ms(
+pub(crate) fn arg_ms(
     v: &Value,
     fname: &'static str,
     span: Span,
@@ -237,7 +237,7 @@ fn text(bytes: &[u8]) -> Value {
     Value::Str(Arc::from(String::from_utf8_lossy(bytes).as_ref()))
 }
 
-fn record(fields: Vec<(&str, Value)>) -> Value {
+pub(crate) fn record(fields: Vec<(&str, Value)>) -> Value {
     let mut m = Map::new();
     for (k, v) in fields {
         m.insert(MapKey::Keyword(Arc::from(k)), v);

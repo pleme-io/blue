@@ -75,6 +75,8 @@ impl Provision {
             Capability::Process
             | Capability::Environment
             | Capability::Network
+            | Capability::CommFlash
+            | Capability::CommScavenger
             | Capability::CoreForms
             | Capability::Operators
             | Capability::Collections
@@ -267,7 +269,7 @@ mod tests {
     }
 
     #[test]
-    fn only_host_effects_can_be_virtualized_and_not_process_network_or_environment() {
+    fn only_host_effects_can_be_virtualized_and_not_process_network_environment_or_the_wire() {
         for cap in Capability::ALL {
             let can = !Provision::kinds_for(cap).is_empty();
             assert!(!can || cap.is_host_effect(), "{}", cap.label());
@@ -276,6 +278,8 @@ mod tests {
             Capability::Process,
             Capability::Network,
             Capability::Environment,
+            Capability::CommFlash,
+            Capability::CommScavenger,
         ] {
             assert!(Provision::kinds_for(cap).is_empty(), "{}", cap.label());
         }
@@ -285,6 +289,8 @@ mod tests {
             Some(Capability::FileSystem)
         );
         assert_eq!(Provision::capability_of("getenv"), None);
+        assert_eq!(Provision::capability_of("flash_put"), None);
+        assert_eq!(Provision::capability_of("tide_release"), None);
         assert_eq!(Provision::capability_of("map"), None);
     }
 

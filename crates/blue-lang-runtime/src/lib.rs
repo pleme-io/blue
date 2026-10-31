@@ -69,6 +69,8 @@ pub mod stdlib;
 pub mod sys;
 pub mod timings;
 pub mod uses;
+#[cfg(feature = "sys")]
+pub mod wire;
 pub mod xml;
 
 pub use erase::{erase_types, to_sexps};
@@ -846,7 +848,7 @@ mod tests {
             let (hold, _, _) = held(&[Capability::Clock], &[]);
             assert_eq!(
                 blue_lang_proc::receipt::canonical(&hold.frame_summary(4)),
-                r#"{"granted":["clock"],"host_io":4,"withheld":["process","filesystem","environment","network","entropy"]}"#
+                r#"{"granted":["clock"],"host_io":4,"withheld":["process","filesystem","environment","network","entropy","comm-flash","comm-scavenger"]}"#
             );
         }
     }

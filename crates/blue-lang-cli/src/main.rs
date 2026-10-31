@@ -75,6 +75,7 @@ mod deploy;
 mod diagnostics;
 mod doc;
 mod facts;
+mod inputs;
 mod memo;
 mod observe;
 mod prefetch;
@@ -528,7 +529,7 @@ enum Cmd {
 fn main() -> ExitCode {
     // `blue FILE [ARGS]` is `blue run --quiet FILE -- ARGS` (`script`).
     let argv = script::route(std::env::args_os().collect(), &Cli::command());
-    match dispatch(Cli::parse_from(argv)) {
+    let code = match dispatch(Cli::parse_from(argv)) {
         Ok(code) => code,
         Err(e) => {
             eprintln!("blue: {e}");
@@ -537,7 +538,9 @@ fn main() -> ExitCode {
                 _ => ExitCode::FAILURE,
             }
         }
-    }
+    };
+    inputs::release(code != ExitCode::SUCCESS);
+    code
 }
 
 fn failure_code(e: &blue_lang_runtime::RunError) -> ExitCode {
@@ -756,6 +759,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                 blue_lang_runtime::timings::enable();
             }
             sigint::stop();
+            inputs::hold(&file, inputs::Word::Generate)?;
             let project = blue_lang_pkg::capabilities::hold_for(&file).map_err(CliError::Pkg)?;
             let hold = if allow.is_empty() {
                 project
@@ -1231,6 +1235,9 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             facts,
         } => {
             let facts = facts::path(facts);
+            if file.is_file() {
+                inputs::hold(&file, inputs::Word::Check)?;
+            }
             let asked = if allow.is_empty() {
                 None
             } else {

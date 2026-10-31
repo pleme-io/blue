@@ -2274,6 +2274,55 @@ def vocab_tsv(g)
   )
 end
 
+@doc """
+graph_tables: The tables `blue verbs export` writes from a loaded graph, each a file name and the function that renders it.
+
+    map(first, graph_tables) #=> ["verbs.tsv", "edges.tsv", "contracts.tsv"]
+"""
+def graph_tables()
+  [
+    ["verbs.tsv", verbs_tsv],
+    ["edges.tsv", edges_tsv],
+    ["contracts.tsv", vocab_tsv]
+  ]
+end
+
+@doc """
+graph_table: The text of one exported table of a row directory's graph, by its file name, as a Bluefile `generate` writes it; raises naming an unknown table or the graph's first refusal.
+
+    graph_table("/nonexistent", "edges.tsv") #=> "from\trel\tto\twhy\n"
+"""
+def graph_table(dir, name)
+  table = find_first((t) -> first(t) == name, graph_tables)
+  if table.nil?
+    raise(
+      :unknown_table,
+      "#{name} is no table of the verb graph; the tables are #{join(map(first, graph_tables), ", ")}"
+    )
+  end
+  g = graph_load(dir)
+  if not is_empty(g[:refusals])
+    r = first(g[:refusals])
+    raise(:refused, "#{dir}: #{to_s(first(r))}: #{r[1]}")
+  end
+  render = last(table)
+  render(g)
+end
+
+test "every exported table renders from the graph the export reads, and an unknown name is refused naming the tables"
+  dir = "/nonexistent"
+  g = graph_load(dir)
+  assert graph_table(dir, "verbs.tsv") == verbs_tsv(g)
+  assert graph_table(dir, "contracts.tsv") == vocab_tsv(g)
+  e = begin
+    graph_table(dir, "owners.tsv")
+  rescue :unknown_table as refused
+    refused
+  end
+  assert e.kind == :unknown_table
+  assert contains?(e.message, "verbs.tsv, edges.tsv, contracts.tsv")
+end
+
 def row_strings(xs)
   "[#{join(map(scm_string, xs), ", ")}]"
 end

@@ -57,7 +57,7 @@ These commands come from the Bluefile. Run them from the repository root.
 | `blue test gen/test-beside.b` | `checks.test-beside` |
 | `blue test gen/verb-graph.b` | `checks.verb-graph` |
 
-Generated files, never edited by hand: `bidamas/CATALOG.md`, `AGENTS.md`, `docs/BOOK.md`, `CLAUDE.md`, `docs/EXAMPLES.md`, `crates/blue-lang-syntax/src/kigou/tables.rs`, `tree-sitter-blue/queries/folds.scm`, `tree-sitter-blue/grammar.js`, `tree-sitter-blue/queries/highlights.scm`, `tree-sitter-blue/queries/indents.scm`, `tree-sitter-blue/queries/locals.scm`, `tree-sitter-blue/tree-sitter.json`, `crates/blue-lang-kiwari/blue.kiwari.json`, `bidamas/kyasshu/keys/kensa.json`, `llms.txt`, `llms-full.txt`, `bidamas/okite/RULES.md`, `README.md`, `docs/REFERENCE.md`.
+Generated files, never edited by hand: `bidamas/CATALOG.md`, `AGENTS.md`, `docs/BOOK.md`, `CLAUDE.md`, `docs/verbs/contracts.tsv`, `docs/verbs/merged/edges.tsv`, `docs/EXAMPLES.md`, `crates/blue-lang-syntax/src/kigou/tables.rs`, `tree-sitter-blue/queries/folds.scm`, `tree-sitter-blue/grammar.js`, `tree-sitter-blue/queries/highlights.scm`, `tree-sitter-blue/queries/indents.scm`, `tree-sitter-blue/queries/locals.scm`, `tree-sitter-blue/tree-sitter.json`, `crates/blue-lang-kiwari/blue.kiwari.json`, `bidamas/kyasshu/keys/kensa.json`, `llms.txt`, `llms-full.txt`, `bidamas/okite/RULES.md`, `README.md`, `docs/REFERENCE.md`, `docs/verbs/merged/verbs.tsv`.
 
 ## Writing blue programs
 
@@ -124,7 +124,7 @@ file's `Bluefile.lock` records is skipped and named, never chosen.
 | `blue query '(reaches filesystem) (unannotated)' DIR` | every definition a code query matches: `(match PATTERN)` over the resolved tree with bindings, `(reaches CAP)`, `(calls retsu/first)`, `(package P)`, `(longer-than N)`; `--json`; a Bluefile's `query(name, text)` runs as `blue query NAME` ([`docs/DIAGNOSTICS.md`](docs/DIAGNOSTICS.md)) |
 | `blue explain B0001` | what a diagnostic code means; `--list` lists them ([`docs/DIAGNOSTICS.md`](docs/DIAGNOSTICS.md)) |
 | `blue doc NAME` | a builtin, `pkg::name` or bare name: signature, doc line, namespace, tier and an example (a builtin's from its spec row, a definition's from its package's tests); `blue doc PKG` lists a package; `--file F` gives each answer's tier as F reaches it; `--json` |
-| `blue verbs import\|export\|check\|findings` | the verb graph (`bidamas/mokuroku/graph`, `docs/verbs/H/DESIGN.md`): `import` TSVs into its row files, `export` them back (the only writer of TSV), `check` its gates against the recorded baseline (`--record` writes it), `findings --tsv DIR` of a directory of TSVs |
+| `blue verbs import\|export\|check\|findings` | the verb graph (`bidamas/mokuroku/graph`, `docs/verbs/H/DESIGN.md`): `import` TSVs into its row files, `export` them back (the only writer of TSV; the committed tables are Bluefile `generate`s, so `nix run .#regen` refreshes them through it), `check` its gates against the recorded baseline (`--record` writes it), `findings --tsv DIR` of a directory of TSVs |
 | `blue fmt file.b` | print the one formatting, zero-parameter calls bare (it resolves the file to know which); `--write` rewrites, `--check` fails on drift |
 | `blue reference` | the language reference as JSON |
 | `blue eval 'EXPR'` | evaluate once and print the value; `blue eval file.b:LINE:COL` evaluates the top-level form there in that file's context |
@@ -157,9 +157,14 @@ the compiled-in ones from `BLUE_PATH`:
 
 `blue test` is hermetic. It drops the inherited `GIT_DIR`, `GIT_WORK_TREE`
 and their kin, so a fixture repository a test makes is its own, and it
-refuses a write outside the temporary directory (`TMPDIR`). The off switches
-are `BLUE_TEST_ENV=inherit` and `BLUE_TEST_WRITES=anywhere`. A test that
-writes a `.b` file writes it with `write_program`, which formats it (B0064).
+refuses a write outside the temporary directory (`TMPDIR`). A file that a
+Bluefile `check` names reads only the inputs that check declares, under
+`GEN_ROOT`, as `nix flake check` runs it; `blue run` of a `generate` program,
+and so `nix run .#regen`, does the same. A check that passes here passes in
+the sandbox. The off switches are `BLUE_TEST_ENV=inherit`,
+`BLUE_TEST_WRITES=anywhere` and `BLUE_INPUTS=checkout`; a `GEN_ROOT` you set
+yourself wins. A test that writes a `.b` file writes it with `write_program`,
+which formats it (B0064).
 
 ### One way to write each thing
 

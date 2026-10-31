@@ -2,23 +2,22 @@ use(
   "mokuroku",
   %i[
     blue_path_roots
-    edges_tsv
     graph_baseline
     graph_findings
     graph_findings_live
     graph_from_tsv
     graph_load
     graph_shrunk
+    graph_tables
     graph_verdict
     graph_writes
     import_refusals
     untested_probe
-    verbs_tsv
     vocab_tsv
   ]
 )
 
-use("retsu", %i[concat_lists first is_empty size])
+use("retsu", %i[concat_lists first is_empty last size])
 use("shisutemu", %i[status_of stderr_of stdout_of])
 
 def graph_dir_default()
@@ -191,9 +190,13 @@ def do_export(args)
     false
   else
     mkdir_p(out)
-    write_file(path_join(out, "verbs.tsv"), verbs_tsv(g))
-    write_file(path_join(out, "edges.tsv"), edges_tsv(g))
-    write_file(path_join(out, "contracts.tsv"), vocab_tsv(g))
+    map(
+      fn(t)
+        render = last(t)
+        write_file(path_join(out, first(t)), render(g))
+      end,
+      graph_tables
+    )
     write_stdout(
       unlines(
         [

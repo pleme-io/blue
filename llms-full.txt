@@ -221,7 +221,7 @@ rendered:
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-89 packages, 4823 definitions, 1586 tests.
+89 packages, 4825 definitions, 1587 tests.
 
 - [anaritikusu](bidamas/CATALOG.md#anaritikusu) (アナリティクス) — lifecycle analytics: a database of telemetry, standard models and cross-lifecycle joins, generated from lifecycle definitions.
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
@@ -2302,7 +2302,7 @@ and its owning page disagree, the owning page is right: fix this page.
 | `test` block | **An inline unit test, like Rust's `#[test]` in the same file.** A `test "name" … end` block sits beside its code; `blue run` drops it, and `blue test` runs each block in its own forked interpreter. [test-and-doctest.md](docs/howto/test-and-doctest.md) |
 | doctest | **An executable doc example, as in Rust and Elixir.** An indented `expr #=> value` line in a `@doc` is a test, and `blue test` runs it beside the `test` blocks. [test-and-doctest.md](docs/howto/test-and-doctest.md) |
 | `@doc`, `@moduledoc` | **Doc comments as typed values, as in Elixir.** `@moduledoc` opens a bidama with its purpose and an example, and `@doc` documents one definition; B0056–B0060 refuse a missing, empty or restated one. [DIAGNOSTICS.md](docs/DIAGNOSTICS.md) |
-| hermetic `blue test` | **Test isolation from the host.** `blue test` drops the inherited `GIT_DIR` family and refuses a write outside `TMPDIR`; `BLUE_TEST_ENV=inherit` and `BLUE_TEST_WRITES=anywhere` turn each off. [agents.md](docs/agents.md) |
+| hermetic `blue test` | **Test isolation from the host.** `blue test` drops the inherited `GIT_DIR` family, refuses a write outside `TMPDIR`, and gives a Bluefile check only its declared inputs under `GEN_ROOT`, as the nix sandbox does; `BLUE_TEST_ENV=inherit`, `BLUE_TEST_WRITES=anywhere` and `BLUE_INPUTS=checkout` turn each off. [agents.md](docs/agents.md) |
 | tesuto (テスト, *test*) | **Assertion helpers and snapshot tests.** tesuto checks that a function raises a given error kind, and compares a value with its stored snapshot. [NAMES.md](bidamas/NAMES.md) |
 | test-beside | **A coverage gate per definition.** `checks.test-beside` fails when a package has more definitions that no test reaches than its recorded hadome debt; `waive(name, why, until)` excuses one. [TESTING.md](docs/TESTING.md) |
 | heni (変異, *mutation*) | **Mutation testing, like cargo-mutants.** heni changes one literal in a fresh copy of a package and runs its tests, which must fail; each mutation ends caught, survived, refused or blind. [TESTING.md](docs/TESTING.md) |
@@ -2675,7 +2675,7 @@ tier. ⚠️ marks a partial seal. ❌ marks an open row.
 | 15 | Injection | ⚠️ `exec_*` has no shell; `pg_query` binds params; `sh_exec` and `pg_execute` take text | rule: `sh_exec` / `pg_execute` with an interpolated argument | checked-at-expansion | on (`# waive`) |
 | 16 | Blue scripting parity | ⚠️ a script gets the check stage's errors; no warnings, no project rules, ambient capabilities | shebang `--allow` (landed); project rules on `run`; default flip | checked-at-expansion | on |
 | 17 | Module privacy: a package cannot rebind a name outside itself | ✅ runtime: definitions keyed `pkg/name`; ✅ check: a bidama definition never changes an importer's bare builtin call (B0012 only for listed flat-era names, inside their window) | `docs/NAMESPACES.md` | unrepresentable (runtime) + checked-at-expansion | on, no off; the flat-era refusal goes off per name when its `legacy_names` window closes |
-| 18 | Session-mistake hard blocks | ✅ B0061 undeclared-option, B0062 argument-kind, B0063 nullary-as-function, B0064 unformatted-producer (`write_program`); ✅ `gen/retired.b`: a retired word ships its `legacy_names` fixer (prepush); ✅ `blue test` scrubs the inherited git environment and writes only under the temporary root | registry witnesses, spec rows `safety.B0061*`–`safety.B0064*`, `crates/blue-lang-cli/tests/hermetic.rs` | checked-at-expansion (codes), runtime-refused (test writes) | on; `# waive <code>: reason`; `BLUE_TEST_ENV=inherit`, `BLUE_TEST_WRITES=anywhere` |
+| 18 | Session-mistake hard blocks | ✅ B0061 undeclared-option, B0062 argument-kind, B0063 nullary-as-function, B0064 unformatted-producer (`write_program`); ✅ `gen/retired.b`: a retired word ships its `legacy_names` fixer (prepush); ✅ `blue test` scrubs the inherited git environment and writes only under the temporary root; ✅ a Bluefile check under `blue test`, and a generator under `blue run`, reads only its declared inputs, as the nix sandbox gives them | registry witnesses, spec rows `safety.B0061*`–`safety.B0064*`, `crates/blue-lang-cli/tests/hermetic.rs`, `crates/blue-lang-cli/tests/declared_inputs.rs` | checked-at-expansion (codes), runtime-refused (test writes, undeclared inputs) | on; `# waive <code>: reason`; `BLUE_TEST_ENV=inherit`, `BLUE_TEST_WRITES=anywhere`, `BLUE_INPUTS=checkout` |
 
 **Count:** 16 rows. Sealed at their target tier today: 4 (rows 4, 5, 6,
 10; row 5 for memory, its `nil` half belongs to row 1). Partly sealed: 9
@@ -3517,7 +3517,7 @@ file's `Bluefile.lock` records is skipped and named, never chosen.
 | `blue query '(reaches filesystem) (unannotated)' DIR` | every definition a code query matches: `(match PATTERN)` over the resolved tree with bindings, `(reaches CAP)`, `(calls retsu/first)`, `(package P)`, `(longer-than N)`; `--json`; a Bluefile's `query(name, text)` runs as `blue query NAME` ([`docs/DIAGNOSTICS.md`](docs/DIAGNOSTICS.md)) |
 | `blue explain B0001` | what a diagnostic code means; `--list` lists them ([`docs/DIAGNOSTICS.md`](docs/DIAGNOSTICS.md)) |
 | `blue doc NAME` | a builtin, `pkg::name` or bare name: signature, doc line, namespace, tier and an example (a builtin's from its spec row, a definition's from its package's tests); `blue doc PKG` lists a package; `--file F` gives each answer's tier as F reaches it; `--json` |
-| `blue verbs import\|export\|check\|findings` | the verb graph (`bidamas/mokuroku/graph`, `docs/verbs/H/DESIGN.md`): `import` TSVs into its row files, `export` them back (the only writer of TSV), `check` its gates against the recorded baseline (`--record` writes it), `findings --tsv DIR` of a directory of TSVs |
+| `blue verbs import\|export\|check\|findings` | the verb graph (`bidamas/mokuroku/graph`, `docs/verbs/H/DESIGN.md`): `import` TSVs into its row files, `export` them back (the only writer of TSV; the committed tables are Bluefile `generate`s, so `nix run .#regen` refreshes them through it), `check` its gates against the recorded baseline (`--record` writes it), `findings --tsv DIR` of a directory of TSVs |
 | `blue fmt file.b` | print the one formatting, zero-parameter calls bare (it resolves the file to know which); `--write` rewrites, `--check` fails on drift |
 | `blue reference` | the language reference as JSON |
 | `blue eval 'EXPR'` | evaluate once and print the value; `blue eval file.b:LINE:COL` evaluates the top-level form there in that file's context |
@@ -3550,9 +3550,14 @@ the compiled-in ones from `BLUE_PATH`:
 
 `blue test` is hermetic. It drops the inherited `GIT_DIR`, `GIT_WORK_TREE`
 and their kin, so a fixture repository a test makes is its own, and it
-refuses a write outside the temporary directory (`TMPDIR`). The off switches
-are `BLUE_TEST_ENV=inherit` and `BLUE_TEST_WRITES=anywhere`. A test that
-writes a `.b` file writes it with `write_program`, which formats it (B0064).
+refuses a write outside the temporary directory (`TMPDIR`). A file that a
+Bluefile `check` names reads only the inputs that check declares, under
+`GEN_ROOT`, as `nix flake check` runs it; `blue run` of a `generate` program,
+and so `nix run .#regen`, does the same. A check that passes here passes in
+the sandbox. The off switches are `BLUE_TEST_ENV=inherit`,
+`BLUE_TEST_WRITES=anywhere` and `BLUE_INPUTS=checkout`; a `GEN_ROOT` you set
+yourself wins. A test that writes a `.b` file writes it with `write_program`,
+which formats it (B0064).
 
 ### One way to write each thing
 
@@ -3991,7 +3996,7 @@ hit:
   the property. If the red run does not go red, the mutation is wrong or the
   gate is vacuous; find out which.
 
-**CI guards `main`; land with `git land`.** `git land [slug] [--watch]` (`gen/land.b`; `nix develop` sets the alias) pushes HEAD to `land/<slug>`. `.github/workflows/land.yml` runs the `ci` suite on that exact commit and, when it is green, fast-forwards `main` to it and deletes the branch; when `main` moved first the fast-forward is refused, and you rebase and land again. `--dry` lands on `land/dry-<slug>`, where the fast-forward is only rehearsed. A push straight to `main` stays possible.
+**CI guards `main`; land with `git land`.** `git land [slug] [--watch]` (`gen/land.b`; `nix develop` sets the alias) pushes HEAD to `land/<slug>`. `.github/workflows/land.yml` runs the `ci` suite on that exact commit and, when it is green, fast-forwards `main` to it and deletes the branch; when `main` moved first the fast-forward is refused. With `--watch`, a run whose CI jobs are all green and whose fast-forward was refused, while `origin/main` is no longer in HEAD, is rebased onto `origin/main` and landed again, up to `--requeue=N` times (2 by default; `--requeue=0` turns it off, and a rebase that conflicts stops for you). Without `--watch`, you rebase and land again. `--dry` lands on `land/dry-<slug>`, where the fast-forward is only rehearsed. A push straight to `main` stays possible.
 
 **Every push runs a fast local gate first.** `nix develop` sets `core.hooksPath` to `.githooks`, whose `pre-push` runs `gen/prepush.b`: the light gates the changed paths select from `gate_table` (formatting, the changed locks, retired words), in seconds; a path in `every_gate_paths` or one no gate names selects every gate. The heavy gates (`regen`, the gen pin and tie, the sweep of every consumer in `gen/consumers.json`, tests beside, each member compiled alone, the distribution tests, strict conformance) run in CI, or here with `BLUE_PREPUSH_FULL=1`. A clean tree that passed skips its next push. Off: `BLUE_PREPUSH_OFF=1`. What each gate caught and what it costs: [LESSONS.md](docs/LESSONS.md).
 

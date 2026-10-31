@@ -241,8 +241,8 @@ pub struct Generated {
     ///
     /// A generator runs alone in the store, so it can read nothing of the
     /// project unless it is named here; the engine puts exactly these paths
-    /// under `$GEN_ROOT`, and `regen` runs with `$GEN_ROOT` at the project
-    /// root. Named rather than implied so a derivation depends on what the
+    /// under `$GEN_ROOT`, and `blue run` of the program (so `regen`) puts the
+    /// same paths there and no others. Named rather than implied so a derivation depends on what the
     /// program reads and nothing else, and so the freshness check turns red
     /// when an input changes without the file being regenerated. Omitted from
     /// the lock when empty, so every lock written before the field is unchanged.

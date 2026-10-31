@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:de601fea844bb0266d2ad39b0a9bf2b8ffdaf4533becfc6180b938883a32d234",
+  "bluefile_b3": "b3:c20d15637386d45e798a1a4373884e9097f71c36dc31acd64d349273518154f6",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -98,6 +98,20 @@
           "bidamas"
         ]
       },
+      "contracts-table": {
+        "output": "docs/verbs/contracts.tsv",
+        "program": "gen/verbs/contracts.b",
+        "inputs": [
+          "bidamas"
+        ]
+      },
+      "edges-table": {
+        "output": "docs/verbs/merged/edges.tsv",
+        "program": "gen/verbs/edges.b",
+        "inputs": [
+          "bidamas"
+        ]
+      },
       "examples": {
         "output": "docs/EXAMPLES.md",
         "program": "gen/examples.b",
@@ -178,6 +192,13 @@
       "reference": {
         "output": "docs/REFERENCE.md",
         "program": "gen/reference.b",
+        "inputs": [
+          "bidamas"
+        ]
+      },
+      "verbs-table": {
+        "output": "docs/verbs/merged/verbs.tsv",
+        "program": "gen/verbs/verbs.b",
         "inputs": [
           "bidamas"
         ]

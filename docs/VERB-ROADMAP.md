@@ -91,7 +91,7 @@ Each phase ends when its gates are green and the coverage ratchet has moved. A p
 
 1. **TLS.** Build TLS wave 2 as a pure-Rust provider behind `Capability::Network`: no C, rustls with a RustCrypto provider. No process boundary to a TLS proxy. Not started; it belongs to H1.
 2. **Master verbs.** `check`, `advance`, `send`, `on`, `call` and `convert` are master verbs as written in `contracts.tsv`; the ten open contract rows are `decided` (`info` keeps both forms, `merge` is one verb with `gitto::merge` refining it, `apply` stays behind the reconciler, `verify` raises `tampered` and `verify?` is its Bool pair). `check` returns `[finding]`; its raising form is `kyohi::enforce`. Details: `verbs/names/RULINGS.md`.
-3. **Entropy.** `Capability::Entropy` is built (2026-10-23): `random_bytes(n)` from the system source, `shomei::random`, `same?`, `mac` and `hash` for sha1, sha256, sha512 and blake3. `fuuin?` (`generate`, `random`, `derive`) waits for the space-name pass (§1 item 6) and builds on `shomei::random`.
+3. **Entropy.** `Capability::Entropy` is built (2026-10-23): `random_bytes(n)` from the system source, `shomei::random`, `same?`, `mac` and `hash` for sha1, sha256, sha512 and blake3. `fuuin` is ratified (2026-10-31) with the threshold verbs realized (`generate` for a threshold group, `offer`, `sign`, `combine`, over the `mpc_threshold` capability); `random` and `derive` still wait and build on `shomei::random`.
 4. **Space counts.** The naming rulings merge `assaku` into `asshuku` and `hakkou` into `rirezu`; the other overlapping pairs stay split with a stated split (`verbs/names/RULINGS.md`). The remaining review of E and G stays open.
 5. **Scope of `blue_today: rust:<crate>`.** Still open.
 

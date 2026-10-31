@@ -362,12 +362,7 @@ verb(
   }
 )
 
-edge(
-  "ninshou?::protect",
-  :composes,
-  "fuuin?::stretch",
-  "slow salted derivation"
-)
+edge("ninshou?::protect", :composes, "fuuin::stretch", "slow salted derivation")
 
 edge(
   "ninshou?::code_valid?",
@@ -516,35 +511,30 @@ edge(
 
 edge("ninshou?::start", :pairs, "ninshou?::stop", "every session ends")
 
-edge(
-  "ninshou?::backup_codes",
-  :requires,
-  "fuuin?::random",
-  "codes need entropy"
-)
+edge("ninshou?::backup_codes", :requires, "fuuin::random", "codes need entropy")
 
 edge(
   "ninshou?::challenge",
   :requires,
-  "fuuin?::random",
+  "fuuin::random",
   "nonce must be unpredictable"
 )
 
 edge(
   "ninshou?::passkey_ask",
   :requires,
-  "fuuin?::random",
+  "fuuin::random",
   "challenge must be fresh"
 )
 
 edge(
   "ninshou?::protect",
   :requires,
-  "fuuin?::random",
+  "fuuin::random",
   "salt from secure entropy"
 )
 
-edge("ninshou?::start", :requires, "fuuin?::random", "session id from entropy")
+edge("ninshou?::start", :requires, "fuuin::random", "session id from entropy")
 
 edge(
   "ninshou?::caller",

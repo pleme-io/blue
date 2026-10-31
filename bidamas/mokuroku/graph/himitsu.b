@@ -466,18 +466,18 @@ verb(
 )
 
 edge("himitsu::scan", :composes, "fairu::walk", "reads files and history")
-edge("himitsu::stale?", :composes, "fuuin?::due?", "same rotation policy")
-edge("himitsu::put", :composes, "fuuin?::enclose", "stored encrypted at rest")
-edge("himitsu::generate", :composes, "fuuin?::random", "bytes from entropy")
+edge("himitsu::stale?", :composes, "fuuin::due?", "same rotation policy")
+edge("himitsu::put", :composes, "fuuin::enclose", "stored encrypted at rest")
+edge("himitsu::generate", :composes, "fuuin::random", "bytes from entropy")
 
 edge(
   "himitsu::rekey",
   :composes,
-  "fuuin?::rewrap",
+  "fuuin::rewrap",
   "new recipients for data keys"
 )
 
-edge("himitsu::with_secrets", :composes, "fuuin?::zeroize", "wipe on exit")
+edge("himitsu::with_secrets", :composes, "fuuin::zeroize", "wipe on exit")
 edge("himitsu::rekey", :composes, "himitsu::decrypt", "opens under old keys")
 
 edge(

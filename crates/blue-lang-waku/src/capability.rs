@@ -47,7 +47,7 @@
 //! | [`Capability::Assertion`] | `blue_lang_syntax::LOWERED_ASSERT`, `LOWERED_ASSERT_PANICS` |
 //! | [`Capability::CoreForms`] | the heads `blue-lang-syntax` lowers control flow to |
 //! | [`Capability::ManifestDeclaration`] | the Bluefile vocabulary (`blue_lang_pkg::bluefile`'s word table) |
-//! | the host bundles | `blue_lang_runtime::sys`'s four installers, `net`'s, `entropy`'s and `wire`'s |
+//! | the host bundles | `blue_lang_runtime::sys`'s four installers, `net`'s, `entropy`'s, `wire`'s and `threshold`'s |
 //!
 //! The last row is the one that could rot, and it is gated rather than trusted:
 //! `blue-lang-cli`'s `tests/capability_surface.rs` installs the sys layer into a
@@ -137,6 +137,7 @@ pub enum Capability {
     Entropy,
     CommFlash,
     CommScavenger,
+    MpcThreshold,
 }
 
 /// The wasm import module every host capability lowers into.
@@ -302,6 +303,17 @@ const COMM_SCAVENGER_NAMES: &[&str] = &[
     "tide_stats",
     "tide_close",
 ];
+const MPC_THRESHOLD_NAMES: &[&str] = &[
+    "threshold_deal",
+    "threshold_dkg_start",
+    "threshold_dkg_exchange",
+    "threshold_dkg_finish",
+    "threshold_commit",
+    "threshold_sign",
+    "threshold_aggregate",
+    "threshold_share_export",
+    "threshold_share_import",
+];
 /// `blue_lang_runtime::sys::install_clock`, 2026-08-13.
 const CLOCK_NAMES: &[&str] = &[
     "now",
@@ -314,12 +326,13 @@ const CLOCK_NAMES: &[&str] = &[
 ];
 
 impl Capability {
-    /// How many capabilities exist. A **floor with a date**: fourteen as of
-    /// 2026-10-30, six pure and eight host-effect (twelve until `CommFlash`
-    /// and `CommScavenger`, eleven until `Entropy`). Stated so a count gate cannot
+    /// How many capabilities exist. A **floor with a date**: fifteen as of
+    /// 2026-10-31, six pure and nine host-effect (fourteen until
+    /// `MpcThreshold`, twelve until `CommFlash` and `CommScavenger`, eleven
+    /// until `Entropy`). Stated so a count gate cannot
     /// pass over an empty set — `ALL.len() == 0` would satisfy every
     /// "for every capability…" test in this file.
-    pub const COUNT: usize = 14;
+    pub const COUNT: usize = 15;
 
     const FIRST: Self = Capability::CoreForms;
 
@@ -347,7 +360,8 @@ impl Capability {
             Capability::Network => Some(Capability::Entropy),
             Capability::Entropy => Some(Capability::CommFlash),
             Capability::CommFlash => Some(Capability::CommScavenger),
-            Capability::CommScavenger => None,
+            Capability::CommScavenger => Some(Capability::MpcThreshold),
+            Capability::MpcThreshold => None,
         }
     }
 
@@ -390,6 +404,7 @@ impl Capability {
             Capability::Entropy => "entropy",
             Capability::CommFlash => "comm-flash",
             Capability::CommScavenger => "comm-scavenger",
+            Capability::MpcThreshold => "mpc-threshold",
         }
     }
 
@@ -419,6 +434,7 @@ impl Capability {
             Capability::Entropy => Names::Fixed(ENTROPY_NAMES),
             Capability::CommFlash => Names::Fixed(COMM_FLASH_NAMES),
             Capability::CommScavenger => Names::Fixed(COMM_SCAVENGER_NAMES),
+            Capability::MpcThreshold => Names::Fixed(MPC_THRESHOLD_NAMES),
         }
     }
 
@@ -489,6 +505,10 @@ impl Capability {
                 module: HOST_MODULE,
                 field: "comm-scavenger",
             }),
+            Capability::MpcThreshold => Some(Import {
+                module: HOST_MODULE,
+                field: "mpc-threshold",
+            }),
         }
     }
 
@@ -545,9 +565,9 @@ mod tests {
     use super::*;
     use std::collections::BTreeSet;
 
-    /// **The floor, with the date.** Fourteen capabilities on 2026-10-30, six
-    /// pure and eight host-effect (six until the two wire channels, five
-    /// until `Entropy`).
+    /// **The floor, with the date.** Fifteen capabilities on 2026-10-31, six
+    /// pure and nine host-effect (eight until `MpcThreshold`, six until the
+    /// two wire channels, five until `Entropy`).
     ///
     /// Anti-vacuity for every "for every capability…" test below: each of them
     /// passes trivially over an empty `ALL`, and `ALL` is *derived* from the
@@ -556,11 +576,11 @@ mod tests {
     #[test]
     fn the_universe_is_closed_and_counted() {
         assert_eq!(Capability::ALL.len(), Capability::COUNT);
-        assert_eq!(Capability::COUNT, 14, "the floor, measured 2026-10-30");
+        assert_eq!(Capability::COUNT, 15, "the floor, measured 2026-10-31");
         assert_eq!(
             Capability::host_effects().len(),
-            8,
-            "process, filesystem, environment, clock, network, entropy, comm-flash, comm-scavenger"
+            9,
+            "process, filesystem, environment, clock, network, entropy, comm-flash, comm-scavenger, mpc-threshold"
         );
         assert_eq!(
             Capability::ALL
@@ -608,11 +628,11 @@ mod tests {
                 }
             }
         }
-        // The floor: 85 distinct names on 2026-10-30 (73 on 2026-09-23, plus
-        // the twelve wire words; 66 on 2026-08-13, plus the seven Bluefile
-        // words P1b added).
+        // The floor: 94 distinct names on 2026-10-31 (85 on 2026-10-30, plus
+        // the nine threshold words; 73 on 2026-09-23, plus the twelve wire
+        // words; 66 on 2026-08-13, plus the seven Bluefile words P1b added).
         assert!(
-            owner.len() >= 85,
+            owner.len() >= 94,
             "the universe shrank to {} names",
             owner.len()
         );
@@ -716,6 +736,16 @@ mod tests {
             Capability::host_named("comm-scavenger"),
             Some(Capability::CommScavenger)
         );
+        assert_eq!(
+            Capability::host_named(":mpc_threshold"),
+            Some(Capability::MpcThreshold)
+        );
+        assert_eq!(
+            Capability::host_named("mpc-threshold"),
+            Some(Capability::MpcThreshold)
+        );
+        assert_eq!(Capability::host_named("mpc"), None);
+        assert_eq!(Capability::host_named("threshold"), None);
         assert_eq!(Capability::host_named("core-forms"), None);
         assert_eq!(Capability::host_named("comm"), None);
         assert_eq!(Capability::host_named("comm_tide"), None);

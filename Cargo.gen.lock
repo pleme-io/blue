@@ -1,13 +1,13 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "25bd73dd98b16504dd464952ca6e012610cca16093ebbb802313e57c941280be",
+  "cargo_lock_sha256": "8ac21651254d3b7566875a2e69bd410dad2f0315dd4a0a11f0d57cfe7dc0e1de",
   "manifest_sha256": {
     "Cargo.toml": "0175c8271fc2d076ebdca6e267f36725fbb35023022efb8c1b84f624a26d8387",
     "crates/blue-lang-appliance/Cargo.toml": "72da422691d14356450606a218eed12ed6a26ed3a23c64116dc3ef8546937526",
     "crates/blue-lang-art/Cargo.toml": "f6721f78c76a94d4915a455675cd05889176a43212494c53aa8a01dfc9dfe5ee",
     "crates/blue-lang-bidama/Cargo.toml": "7b29108c8c3d40b5cbaf9f427c4f0a0ace1e5b49e02bd7448dcb53d3ee91337f",
     "crates/blue-lang-check/Cargo.toml": "8e11f4b76e3ecef246fcac2ce0521a0960cb03b5d8e5ca996c151862d3eb6c87",
-    "crates/blue-lang-cli/Cargo.toml": "88cd0478354a20ca5323faa2ddfa25aca6b33a13d1f05506fba09e8c62aacd2e",
+    "crates/blue-lang-cli/Cargo.toml": "bdfa55c40336d65fdc7e1ced97efd5baa61a1b5256fe290b6a7d5ab79a358a6c",
     "crates/blue-lang-component/Cargo.toml": "70bb98db843f6b7db73b1541f1e5f3fcdf7b880f3b3cf21bf25384a5ba8e1b52",
     "crates/blue-lang-danpen-diff/Cargo.toml": "b7e792141144a87f38bf6e6f78365ddd1c3feabbae5097bc43e560fc2223dfbf",
     "crates/blue-lang-fmt/Cargo.toml": "4f5c416d0a44933a497ea60c2e0e7d412ac8da28e2cbd646bb45d75c6e07db88",
@@ -18,7 +18,7 @@
     "crates/blue-lang-mondou/Cargo.toml": "637a0cbb6ac275a3478a437406f8fd387a8b5257f755127815a47418b7ad08e5",
     "crates/blue-lang-pkg/Cargo.toml": "1034b636e0112e8a62e7022d5e439b0d7c214a2e50d45744c0153132b4e87350",
     "crates/blue-lang-proc/Cargo.toml": "1cdc3dac59fdf784d6a971b31a9e0cb7555cb3194ced58c77dc32366c50814d1",
-    "crates/blue-lang-runtime/Cargo.toml": "eceaf1b0167ba605332287773930158c62e5d894aa0c3fcfccc5f28abda1bba4",
+    "crates/blue-lang-runtime/Cargo.toml": "4fc66fc259cb32d0a7108c6752b2224cb7cf4686c353a33cac5d6f579209b27d",
     "crates/blue-lang-syntax/Cargo.toml": "9d405348af1d3f57fffd0a73ddf0776a933ce98bfbcaa60c53a1db55db4e75cd",
     "crates/blue-lang-test/Cargo.toml": "df208a871216b2b2374dfa0614ddf42eaa7ba2d801dd6b981cde99ac14709cdb",
     "crates/blue-lang-waku/Cargo.toml": "04ab710d641ebe14de7777553f810c78f8a328357c845f02deed75e859f56de7",
@@ -917,6 +917,13 @@
         "build_dependencies": [],
         "features": [
           "tracing"
+        ]
+      },
+      "base16ct-0.2.0": {
+        "runtime_dependencies": [],
+        "build_dependencies": [],
+        "features": [
+          "alloc"
         ]
       },
       "base64-0.22.1": {
@@ -2040,6 +2047,18 @@
             "tree": "target"
           },
           {
+            "name": "frost_ed25519",
+            "package_key": "frost-ed25519-3.0.0",
+            "kind": "normal",
+            "features": [
+              "serialization"
+            ],
+            "uses_default_features": false,
+            "optional": true,
+            "target": null,
+            "tree": "target"
+          },
+          {
             "name": "hmac",
             "package_key": "hmac-0.12.1",
             "kind": "normal",
@@ -2056,6 +2075,16 @@
             "features": [],
             "uses_default_features": false,
             "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "rand_core",
+            "package_key": "rand_core-0.6.4",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": true,
             "target": null,
             "tree": "target"
           },
@@ -2307,6 +2336,11 @@
         "build_dependencies": [],
         "features": []
       },
+      "byteorder-1.5.0": {
+        "runtime_dependencies": [],
+        "build_dependencies": [],
+        "features": []
+      },
       "bytes-1.12.1": {
         "runtime_dependencies": [],
         "build_dependencies": [],
@@ -2546,6 +2580,22 @@
         "build_dependencies": [],
         "features": []
       },
+      "cobs-0.3.0": {
+        "runtime_dependencies": [
+          {
+            "name": "thiserror",
+            "package_key": "thiserror-2.0.19",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": []
+      },
       "colorchoice-1.0.5": {
         "runtime_dependencies": [],
         "build_dependencies": [],
@@ -2597,6 +2647,11 @@
         ]
       },
       "concolor-query-0.3.3": {
+        "runtime_dependencies": [],
+        "build_dependencies": [],
+        "features": []
+      },
+      "const-crc32-nostd-1.3.1": {
         "runtime_dependencies": [],
         "build_dependencies": [],
         "features": []
@@ -2679,6 +2734,46 @@
           "zeroize"
         ]
       },
+      "derive-getters-0.5.0": {
+        "runtime_dependencies": [
+          {
+            "name": "proc_macro2",
+            "package_key": "proc-macro2-1.0.107",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "quote",
+            "package_key": "quote-1.0.47",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "syn",
+            "package_key": "syn-2.0.119",
+            "kind": "normal",
+            "features": [
+              "extra-traits"
+            ],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": [
+          "default"
+        ]
+      },
       "digest-0.10.7": {
         "runtime_dependencies": [
           {
@@ -2758,6 +2853,24 @@
         ],
         "build_dependencies": [],
         "features": []
+      },
+      "document-features-0.2.12": {
+        "runtime_dependencies": [
+          {
+            "name": "litrs",
+            "package_key": "litrs-1.0.1",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": [
+          "default"
+        ]
       },
       "dyn-clone-1.0.20": {
         "runtime_dependencies": [],
@@ -2853,6 +2966,20 @@
         "features": [
           "std",
           "use_std"
+        ]
+      },
+      "embedded-io-0.4.0": {
+        "runtime_dependencies": [],
+        "build_dependencies": [],
+        "features": [
+          "alloc"
+        ]
+      },
+      "embedded-io-0.6.1": {
+        "runtime_dependencies": [],
+        "build_dependencies": [],
+        "features": [
+          "alloc"
         ]
       },
       "encoding_rs-0.8.35": {
@@ -3025,6 +3152,300 @@
           "alloc",
           "default",
           "std"
+        ]
+      },
+      "frost-core-3.0.0": {
+        "runtime_dependencies": [
+          {
+            "name": "byteorder",
+            "package_key": "byteorder-1.5.0",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "const_crc32",
+            "package_key": "const-crc32-nostd-1.3.1",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "derive_getters",
+            "package_key": "derive-getters-0.5.0",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "host"
+          },
+          {
+            "name": "document_features",
+            "package_key": "document-features-0.2.12",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "host"
+          },
+          {
+            "name": "hex",
+            "package_key": "hex-0.4.3",
+            "kind": "normal",
+            "features": [
+              "alloc"
+            ],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "itertools",
+            "package_key": "itertools-0.14.0",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "postcard",
+            "package_key": "postcard-1.1.3",
+            "kind": "normal",
+            "features": [
+              "alloc"
+            ],
+            "uses_default_features": true,
+            "optional": true,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "rand_core",
+            "package_key": "rand_core-0.6.4",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "serde",
+            "package_key": "serde-1.0.229",
+            "kind": "normal",
+            "features": [
+              "derive"
+            ],
+            "uses_default_features": false,
+            "optional": true,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "serdect",
+            "package_key": "serdect-0.2.0",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": true,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "thiserror",
+            "package_key": "thiserror-2.0.19",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "visibility",
+            "package_key": "visibility-0.1.1",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "host"
+          },
+          {
+            "name": "zeroize",
+            "package_key": "zeroize-1.9.1",
+            "kind": "normal",
+            "features": [
+              "alloc",
+              "derive"
+            ],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "zeroize_derive",
+            "package_key": "zeroize_derive-1.5.0",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "host"
+          }
+        ],
+        "build_dependencies": [],
+        "features": [
+          "internals",
+          "serde",
+          "serialization"
+        ]
+      },
+      "frost-ed25519-3.0.0": {
+        "runtime_dependencies": [
+          {
+            "name": "curve25519_dalek",
+            "package_key": "curve25519-dalek-4.1.3",
+            "kind": "normal",
+            "features": [
+              "rand_core"
+            ],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "document_features",
+            "package_key": "document-features-0.2.12",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "host"
+          },
+          {
+            "name": "frost_core",
+            "package_key": "frost-core-3.0.0",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "frost_rerandomized",
+            "package_key": "frost-rerandomized-3.0.0",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "rand_core",
+            "package_key": "rand_core-0.6.4",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "sha2",
+            "package_key": "sha2-0.10.9",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": [
+          "default",
+          "serde",
+          "serialization"
+        ]
+      },
+      "frost-rerandomized-3.0.0": {
+        "runtime_dependencies": [
+          {
+            "name": "derive_getters",
+            "package_key": "derive-getters-0.5.0",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "host"
+          },
+          {
+            "name": "document_features",
+            "package_key": "document-features-0.2.12",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "host"
+          },
+          {
+            "name": "frost_core",
+            "package_key": "frost-core-3.0.0",
+            "kind": "normal",
+            "features": [
+              "internals"
+            ],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "hex",
+            "package_key": "hex-0.4.3",
+            "kind": "normal",
+            "features": [
+              "alloc"
+            ],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "rand_core",
+            "package_key": "rand_core-0.6.4",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": [
+          "serde",
+          "serialization"
         ]
       },
       "futures-0.3.34": {
@@ -3952,6 +4373,22 @@
         "build_dependencies": [],
         "features": []
       },
+      "hash32-0.2.1": {
+        "runtime_dependencies": [
+          {
+            "name": "byteorder",
+            "package_key": "byteorder-1.5.0",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": []
+      },
       "hashbrown-0.14.5": {
         "runtime_dependencies": [],
         "build_dependencies": [],
@@ -3999,6 +4436,13 @@
         "runtime_dependencies": [],
         "build_dependencies": [],
         "features": []
+      },
+      "hex-0.4.3": {
+        "runtime_dependencies": [],
+        "build_dependencies": [],
+        "features": [
+          "alloc"
+        ]
       },
       "hmac-0.12.1": {
         "runtime_dependencies": [
@@ -5328,6 +5772,11 @@
         "build_dependencies": [],
         "features": []
       },
+      "litrs-1.0.1": {
+        "runtime_dependencies": [],
+        "build_dependencies": [],
+        "features": []
+      },
       "lock_api-0.4.14": {
         "runtime_dependencies": [
           {
@@ -6166,6 +6615,51 @@
         "features": [
           "alloc",
           "std"
+        ]
+      },
+      "postcard-1.1.3": {
+        "runtime_dependencies": [
+          {
+            "name": "cobs",
+            "package_key": "cobs-0.3.0",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "heapless",
+            "package_key": "heapless-0.7.17",
+            "kind": "normal",
+            "features": [
+              "serde"
+            ],
+            "uses_default_features": false,
+            "optional": true,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "serde",
+            "package_key": "serde-1.0.229",
+            "kind": "normal",
+            "features": [
+              "derive"
+            ],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": [
+          "alloc",
+          "default",
+          "heapless",
+          "heapless-cas"
         ]
       },
       "potential_utf-0.1.6": {
@@ -8593,6 +9087,35 @@
         "build_dependencies": [],
         "features": []
       },
+      "serdect-0.2.0": {
+        "runtime_dependencies": [
+          {
+            "name": "base16ct",
+            "package_key": "base16ct-0.2.0",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "serde",
+            "package_key": "serde-1.0.229",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": [
+          "alloc",
+          "default"
+        ]
+      },
       "sha1-0.10.7": {
         "runtime_dependencies": [
           {
@@ -9147,7 +9670,7 @@
           "proc-macro"
         ]
       },
-      "tameshi-0.1.7": {
+      "tameshi-0.1.8": {
         "runtime_dependencies": [
           {
             "name": "axum",
@@ -9214,6 +9737,16 @@
             "tree": "target"
           },
           {
+            "name": "frost_ed25519",
+            "package_key": "frost-ed25519-3.0.0",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
             "name": "futures",
             "package_key": "futures-0.3.34",
             "kind": "normal",
@@ -9229,6 +9762,18 @@
             "kind": "normal",
             "features": [
               "aws"
+            ],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "rand_core",
+            "package_key": "rand_core-0.6.4",
+            "kind": "normal",
+            "features": [
+              "getrandom"
             ],
             "uses_default_features": true,
             "optional": false,
@@ -9372,6 +9917,16 @@
               "serde",
               "v4"
             ],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "zeroize",
+            "package_key": "zeroize-1.9.1",
+            "kind": "normal",
+            "features": [],
             "uses_default_features": true,
             "optional": false,
             "target": null,
@@ -10803,6 +11358,44 @@
         "build_dependencies": [],
         "features": []
       },
+      "visibility-0.1.1": {
+        "runtime_dependencies": [
+          {
+            "name": "proc_macro2",
+            "package_key": "proc-macro2-1.0.107",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "quote",
+            "package_key": "quote-1.0.47",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "syn",
+            "package_key": "syn-2.0.119",
+            "kind": "normal",
+            "features": [
+              "full"
+            ],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": []
+      },
       "wait-timeout-0.2.1": {
         "runtime_dependencies": [
           {
@@ -11123,12 +11716,65 @@
         "features": []
       },
       "zeroize-1.9.1": {
-        "runtime_dependencies": [],
+        "runtime_dependencies": [
+          {
+            "name": "zeroize_derive",
+            "package_key": "zeroize_derive-1.5.0",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": true,
+            "target": null,
+            "tree": "host"
+          }
+        ],
         "build_dependencies": [],
         "features": [
           "alloc",
-          "default"
+          "default",
+          "derive",
+          "zeroize_derive"
         ]
+      },
+      "zeroize_derive-1.5.0": {
+        "runtime_dependencies": [
+          {
+            "name": "proc_macro2",
+            "package_key": "proc-macro2-1.0.107",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "quote",
+            "package_key": "quote-1.0.47",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "syn",
+            "package_key": "syn-2.0.119",
+            "kind": "normal",
+            "features": [
+              "extra-traits",
+              "full",
+              "visit"
+            ],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": []
       },
       "zerotrie-0.2.5": {
         "runtime_dependencies": [
@@ -11472,6 +12118,16 @@
                 "tree": "target"
               },
               {
+                "name": "rand_core",
+                "package_key": "rand_core-0.6.4",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": true,
+                "target": null,
+                "tree": "target"
+              },
+              {
                 "name": "subtle",
                 "package_key": "subtle-2.6.1",
                 "kind": "normal",
@@ -11506,8 +12162,10 @@
             ],
             "features": [
               "alloc",
+              "default",
               "digest",
               "precomputed-tables",
+              "rand_core",
               "zeroize"
             ]
           },
@@ -11526,6 +12184,57 @@
             ],
             "build_dependencies": [],
             "features": []
+          },
+          "heapless-0.7.17": {
+            "runtime_dependencies": [
+              {
+                "name": "hash32",
+                "package_key": "hash32-0.2.1",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "serde",
+                "package_key": "serde-1.0.229",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": true,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "stable_deref_trait",
+                "package_key": "stable_deref_trait-1.2.1",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [
+              {
+                "name": "rustc_version",
+                "package_key": "rustc_version-0.4.1",
+                "kind": "build",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "host"
+              }
+            ],
+            "features": [
+              "atomic-polyfill",
+              "cas",
+              "serde"
+            ]
           },
           "iana-time-zone-0.1.65": {
             "runtime_dependencies": [
@@ -12055,6 +12764,16 @@
                 "tree": "target"
               },
               {
+                "name": "rand_core",
+                "package_key": "rand_core-0.6.4",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": true,
+                "target": null,
+                "tree": "target"
+              },
+              {
                 "name": "subtle",
                 "package_key": "subtle-2.6.1",
                 "kind": "normal",
@@ -12089,9 +12808,62 @@
             ],
             "features": [
               "alloc",
+              "default",
               "digest",
               "precomputed-tables",
+              "rand_core",
               "zeroize"
+            ]
+          },
+          "heapless-0.7.17": {
+            "runtime_dependencies": [
+              {
+                "name": "hash32",
+                "package_key": "hash32-0.2.1",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "serde",
+                "package_key": "serde-1.0.229",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": true,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "stable_deref_trait",
+                "package_key": "stable_deref_trait-1.2.1",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [
+              {
+                "name": "rustc_version",
+                "package_key": "rustc_version-0.4.1",
+                "kind": "build",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "host"
+              }
+            ],
+            "features": [
+              "atomic-polyfill",
+              "cas",
+              "serde"
             ]
           },
           "iana-time-zone-0.1.65": {
@@ -12638,6 +13410,16 @@
                 "tree": "target"
               },
               {
+                "name": "rand_core",
+                "package_key": "rand_core-0.6.4",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": true,
+                "target": null,
+                "tree": "target"
+              },
+              {
                 "name": "subtle",
                 "package_key": "subtle-2.6.1",
                 "kind": "normal",
@@ -12672,9 +13454,62 @@
             ],
             "features": [
               "alloc",
+              "default",
               "digest",
               "precomputed-tables",
+              "rand_core",
               "zeroize"
+            ]
+          },
+          "heapless-0.7.17": {
+            "runtime_dependencies": [
+              {
+                "name": "hash32",
+                "package_key": "hash32-0.2.1",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "serde",
+                "package_key": "serde-1.0.229",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": true,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "stable_deref_trait",
+                "package_key": "stable_deref_trait-1.2.1",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [
+              {
+                "name": "rustc_version",
+                "package_key": "rustc_version-0.4.1",
+                "kind": "build",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "host"
+              }
+            ],
+            "features": [
+              "atomic-polyfill",
+              "cas",
+              "serde"
             ]
           },
           "iana-time-zone-0.1.65": {
@@ -13272,6 +14107,16 @@
                 "tree": "target"
               },
               {
+                "name": "rand_core",
+                "package_key": "rand_core-0.6.4",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": true,
+                "target": null,
+                "tree": "target"
+              },
+              {
                 "name": "subtle",
                 "package_key": "subtle-2.6.1",
                 "kind": "normal",
@@ -13306,8 +14151,10 @@
             ],
             "features": [
               "alloc",
+              "default",
               "digest",
               "precomputed-tables",
+              "rand_core",
               "zeroize"
             ]
           },
@@ -13364,6 +14211,67 @@
             ],
             "build_dependencies": [],
             "features": []
+          },
+          "heapless-0.7.17": {
+            "runtime_dependencies": [
+              {
+                "name": "hash32",
+                "package_key": "hash32-0.2.1",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "serde",
+                "package_key": "serde-1.0.229",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": true,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "spin",
+                "package_key": "spin-0.9.9",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(target_arch = \"x86_64\")",
+                "tree": "target"
+              },
+              {
+                "name": "stable_deref_trait",
+                "package_key": "stable_deref_trait-1.2.1",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [
+              {
+                "name": "rustc_version",
+                "package_key": "rustc_version-0.4.1",
+                "kind": "build",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "host"
+              }
+            ],
+            "features": [
+              "atomic-polyfill",
+              "cas",
+              "serde"
+            ]
           },
           "iana-time-zone-0.1.65": {
             "runtime_dependencies": [
@@ -13690,6 +14598,32 @@
             ],
             "build_dependencies": [],
             "features": []
+          },
+          "spin-0.9.9": {
+            "runtime_dependencies": [
+              {
+                "name": "lock_api_crate",
+                "package_key": "lock_api-0.4.14",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": true,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": [
+              "barrier",
+              "default",
+              "lazy",
+              "lock_api",
+              "lock_api_crate",
+              "mutex",
+              "once",
+              "rwlock",
+              "spin_mutex"
+            ]
           }
         }
       },
@@ -13887,6 +14821,16 @@
                 "tree": "target"
               },
               {
+                "name": "rand_core",
+                "package_key": "rand_core-0.6.4",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": true,
+                "target": null,
+                "tree": "target"
+              },
+              {
                 "name": "subtle",
                 "package_key": "subtle-2.6.1",
                 "kind": "normal",
@@ -13921,8 +14865,10 @@
             ],
             "features": [
               "alloc",
+              "default",
               "digest",
               "precomputed-tables",
+              "rand_core",
               "zeroize"
             ]
           },
@@ -13963,6 +14909,67 @@
             ],
             "build_dependencies": [],
             "features": []
+          },
+          "heapless-0.7.17": {
+            "runtime_dependencies": [
+              {
+                "name": "hash32",
+                "package_key": "hash32-0.2.1",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "serde",
+                "package_key": "serde-1.0.229",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": true,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "spin",
+                "package_key": "spin-0.9.9",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(target_arch = \"x86_64\")",
+                "tree": "target"
+              },
+              {
+                "name": "stable_deref_trait",
+                "package_key": "stable_deref_trait-1.2.1",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [
+              {
+                "name": "rustc_version",
+                "package_key": "rustc_version-0.4.1",
+                "kind": "build",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "host"
+              }
+            ],
+            "features": [
+              "atomic-polyfill",
+              "cas",
+              "serde"
+            ]
           },
           "iana-time-zone-0.1.65": {
             "runtime_dependencies": [],
@@ -14305,6 +15312,32 @@
             ],
             "build_dependencies": [],
             "features": []
+          },
+          "spin-0.9.9": {
+            "runtime_dependencies": [
+              {
+                "name": "lock_api_crate",
+                "package_key": "lock_api-0.4.14",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": true,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": [
+              "barrier",
+              "default",
+              "lazy",
+              "lock_api",
+              "lock_api_crate",
+              "mutex",
+              "once",
+              "rwlock",
+              "spin_mutex"
+            ]
           }
         }
       },
@@ -14502,6 +15535,16 @@
                 "tree": "target"
               },
               {
+                "name": "rand_core",
+                "package_key": "rand_core-0.6.4",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": true,
+                "target": null,
+                "tree": "target"
+              },
+              {
                 "name": "subtle",
                 "package_key": "subtle-2.6.1",
                 "kind": "normal",
@@ -14536,8 +15579,10 @@
             ],
             "features": [
               "alloc",
+              "default",
               "digest",
               "precomputed-tables",
+              "rand_core",
               "zeroize"
             ]
           },
@@ -14578,6 +15623,67 @@
             ],
             "build_dependencies": [],
             "features": []
+          },
+          "heapless-0.7.17": {
+            "runtime_dependencies": [
+              {
+                "name": "hash32",
+                "package_key": "hash32-0.2.1",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "serde",
+                "package_key": "serde-1.0.229",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": true,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "spin",
+                "package_key": "spin-0.9.9",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(target_arch = \"x86_64\")",
+                "tree": "target"
+              },
+              {
+                "name": "stable_deref_trait",
+                "package_key": "stable_deref_trait-1.2.1",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [
+              {
+                "name": "rustc_version",
+                "package_key": "rustc_version-0.4.1",
+                "kind": "build",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "host"
+              }
+            ],
+            "features": [
+              "atomic-polyfill",
+              "cas",
+              "serde"
+            ]
           },
           "iana-time-zone-0.1.65": {
             "runtime_dependencies": [],
@@ -14920,6 +16026,32 @@
             ],
             "build_dependencies": [],
             "features": []
+          },
+          "spin-0.9.9": {
+            "runtime_dependencies": [
+              {
+                "name": "lock_api_crate",
+                "package_key": "lock_api-0.4.14",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": true,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": [
+              "barrier",
+              "default",
+              "lazy",
+              "lock_api",
+              "lock_api_crate",
+              "mutex",
+              "once",
+              "rwlock",
+              "spin_mutex"
+            ]
           }
         }
       }
@@ -14986,6 +16118,9 @@
       "edition": "2021"
     },
     "axum-core-0.5.6": {
+      "edition": "2021"
+    },
+    "base16ct-0.2.0": {
       "edition": "2021"
     },
     "base64-0.22.1": {
@@ -15175,6 +16310,9 @@
     "bytemuck-1.25.2": {
       "edition": "2018"
     },
+    "byteorder-1.5.0": {
+      "edition": "2021"
+    },
     "bytes-1.12.1": {
       "edition": "2021"
     },
@@ -15212,6 +16350,9 @@
     "clap_lex-1.1.0": {
       "edition": "2024"
     },
+    "cobs-0.3.0": {
+      "edition": "2021"
+    },
     "colorchoice-1.0.5": {
       "edition": "2021"
     },
@@ -15219,6 +16360,9 @@
       "edition": "2021"
     },
     "concolor-query-0.3.3": {
+      "edition": "2021"
+    },
+    "const-crc32-nostd-1.3.1": {
       "edition": "2021"
     },
     "const-hex-1.19.3": {
@@ -15259,12 +16403,24 @@
     "der-0.7.10": {
       "edition": "2021"
     },
+    "derive-getters-0.5.0": {
+      "edition": "2021",
+      "proc_macro": true
+    },
     "digest-0.10.7": {
       "edition": "2018"
     },
     "displaydoc-0.2.7": {
       "edition": "2021",
       "proc_macro": true
+    },
+    "document-features-0.2.12": {
+      "edition": "2018",
+      "proc_macro": true,
+      "lib_target": {
+        "name": "document_features",
+        "path": "lib.rs"
+      }
     },
     "dyn-clone-1.0.20": {
       "edition": "2018"
@@ -15276,6 +16432,12 @@
       "edition": "2021"
     },
     "either-1.19.0": {
+      "edition": "2021"
+    },
+    "embedded-io-0.4.0": {
+      "edition": "2021"
+    },
+    "embedded-io-0.6.1": {
       "edition": "2021"
     },
     "encoding_rs-0.8.35": {
@@ -15309,6 +16471,15 @@
     },
     "form_urlencoded-1.2.2": {
       "edition": "2018"
+    },
+    "frost-core-3.0.0": {
+      "edition": "2021"
+    },
+    "frost-ed25519-3.0.0": {
+      "edition": "2021"
+    },
+    "frost-rerandomized-3.0.0": {
+      "edition": "2021"
     },
     "fsevent-sys-4.1.0": {
       "edition": "2018"
@@ -15369,6 +16540,9 @@
     "h2-0.4.20": {
       "edition": "2021"
     },
+    "hash32-0.2.1": {
+      "edition": "2015"
+    },
     "hashbrown-0.14.5": {
       "edition": "2021"
     },
@@ -15378,8 +16552,15 @@
     "hashlink-0.12.2": {
       "edition": "2024"
     },
+    "heapless-0.7.17": {
+      "edition": "2018",
+      "build_script": "build.rs"
+    },
     "heck-0.5.0": {
       "edition": "2021"
+    },
+    "hex-0.4.3": {
+      "edition": "2018"
     },
     "hmac-0.12.1": {
       "edition": "2018"
@@ -15500,6 +16681,9 @@
     "litemap-0.8.3": {
       "edition": "2021"
     },
+    "litrs-1.0.1": {
+      "edition": "2021"
+    },
     "lock_api-0.4.14": {
       "edition": "2021"
     },
@@ -15588,6 +16772,9 @@
       "edition": "2018"
     },
     "pkcs8-0.10.2": {
+      "edition": "2021"
+    },
+    "postcard-1.1.3": {
       "edition": "2021"
     },
     "potential_utf-0.1.6": {
@@ -15815,6 +17002,9 @@
     "serde_urlencoded-0.7.1": {
       "edition": "2018"
     },
+    "serdect-0.2.0": {
+      "edition": "2021"
+    },
     "sha1-0.10.7": {
       "edition": "2018"
     },
@@ -15841,6 +17031,9 @@
     },
     "socket2-0.6.5": {
       "edition": "2021"
+    },
+    "spin-0.9.9": {
+      "edition": "2015"
     },
     "spki-0.7.3": {
       "edition": "2021"
@@ -15870,7 +17063,7 @@
     "synstructure-0.14.0": {
       "edition": "2018"
     },
-    "tameshi-0.1.7": {
+    "tameshi-0.1.8": {
       "edition": "2024",
       "binaries": [
         {
@@ -16033,6 +17226,10 @@
     "version_check-0.9.5": {
       "edition": "2015"
     },
+    "visibility-0.1.1": {
+      "edition": "2021",
+      "proc_macro": true
+    },
     "wait-timeout-0.2.1": {
       "edition": "2015",
       "binaries": [
@@ -16094,6 +17291,10 @@
     },
     "zeroize-1.9.1": {
       "edition": "2024"
+    },
+    "zeroize_derive-1.5.0": {
+      "edition": "2024",
+      "proc_macro": true
     },
     "zerotrie-0.2.5": {
       "edition": "2021"

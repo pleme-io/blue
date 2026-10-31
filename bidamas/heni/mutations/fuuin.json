@@ -1,0 +1,26 @@
+[
+  {
+    "name": "generate deals any kind",
+    "file": "fuuin.b",
+    "find": "  if kind != :threshold\n",
+    "replace": "  if false\n"
+  },
+  {
+    "name": "generate deals min shares instead of max",
+    "file": "fuuin.b",
+    "find": "threshold_deal(opts[:min], opts[:max])",
+    "replace": "threshold_deal(opts[:min], opts[:min])"
+  },
+  {
+    "name": "offer commits to other data",
+    "file": "fuuin.b",
+    "find": "threshold_commit(share, data)",
+    "replace": "threshold_commit(share, \"other\")"
+  },
+  {
+    "name": "combine drops the commitments it was given",
+    "file": "fuuin.b",
+    "find": "threshold_aggregate(opts[:group], opts[:data], opts[:commitments], parts)",
+    "replace": "threshold_aggregate(opts[:group], opts[:data], [], parts)"
+  }
+]

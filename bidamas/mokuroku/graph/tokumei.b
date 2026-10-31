@@ -462,11 +462,11 @@ verb(
 edge(
   "tokumei::erase",
   :composes,
-  "fuuin?::destroy",
+  "fuuin::destroy",
   "crypto-shred when data is sealed per person"
 )
 
-edge("tokumei::tokenize", :composes, "fuuin?::random", "random token")
+edge("tokumei::tokenize", :composes, "fuuin::random", "random token")
 edge("tokumei::erase", :composes, "nisshi::audit", "a receipt in the audit log")
 edge("tokumei::gather", :composes, "nisshi::audit", "each access is logged")
 

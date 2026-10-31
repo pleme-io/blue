@@ -217,18 +217,19 @@ pub fn message_bytes(v: &Value) -> Result<Vec<u8>, CryptoError> {
     }
 }
 
+pub fn hex_vec(v: &Value, what: &'static str) -> Result<Vec<u8>, CryptoError> {
+    match v {
+        Value::Str(s) => decode_hex(s, what),
+        other => Err(CryptoError::NotHexText {
+            what,
+            got: other.type_name(),
+        }),
+    }
+}
+
 /// Decode a hex argument of exactly `N` bytes.
 pub fn hex_array<const N: usize>(v: &Value, what: &'static str) -> Result<[u8; N], CryptoError> {
-    let text = match v {
-        Value::Str(s) => s,
-        other => {
-            return Err(CryptoError::NotHexText {
-                what,
-                got: other.type_name(),
-            })
-        }
-    };
-    let bytes = decode_hex(text, what)?;
+    let bytes = hex_vec(v, what)?;
     <[u8; N]>::try_from(bytes.as_slice()).map_err(|_| CryptoError::WrongLength {
         what,
         expected: N,

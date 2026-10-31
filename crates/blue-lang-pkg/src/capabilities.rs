@@ -37,6 +37,7 @@ pub const HOST_LABELS: &[&str] = &[
     "entropy",
     "comm-flash",
     "comm-scavenger",
+    "mpc-threshold",
 ];
 
 /// The host capability a Bluefile label names: the label, or the label in
@@ -98,8 +99,9 @@ pub fn unit_of(bf: &Bluefile) -> FloorUnit {
 /// `{using: :deterministic_stepped, at_ms:, step_ms:}` (both default 0) for
 /// the clock, `{using: :seeded_prng, seed:}` for entropy,
 /// `{using: :in_memory_overlay}` or `{using: :null_sink}` for the
-/// filesystem, and `{using: :loopback}` for `comm_flash` and
-/// `comm_scavenger`. `for: %w[pkg …]` serves only those packages and every
+/// filesystem, `{using: :loopback}` for `comm_flash` and `comm_scavenger`,
+/// and `{using: :seeded, seed:}` for `mpc_threshold`. `for: %w[pkg …]` serves
+/// only those packages and every
 /// package they use; without it the provider serves the whole program.
 ///
 /// # Errors
@@ -116,7 +118,7 @@ pub fn provision_of(
     let kinds = Provision::kinds_for(cap);
     if kinds.is_empty() {
         return Err(format!(
-            "{} has no pure provider; virtualize clock, entropy, filesystem, comm_flash or comm_scavenger",
+            "{} has no pure provider; virtualize clock, entropy, filesystem, comm_flash, comm_scavenger or mpc_threshold",
             cap.label()
         ));
     }
@@ -197,7 +199,7 @@ pub fn provision_of(
     };
     let takes: &[&str] = match using.as_str() {
         "deterministic_stepped" => &["at_ms", "step_ms"],
-        "seeded_prng" => &["seed"],
+        "seeded_prng" | "seeded" => &["seed"],
         _ => &[],
     };
     if let Some(extra) = fields.keys().find(|k| !takes.contains(&k.as_str())) {
@@ -223,7 +225,10 @@ pub fn provision_of(
             at_ms: int("at_ms")?,
             step_ms: int("step_ms")?,
         },
-        "seeded_prng" => match fields.get("seed") {
+        "seeded_prng" | "seeded" => match fields.get("seed") {
+            Some(Value::Str(s)) if using == "seeded" => Provision::Seeded {
+                seed: s.to_string(),
+            },
             Some(Value::Str(s)) => Provision::SeededPrng {
                 seed: s.to_string(),
             },
@@ -233,7 +238,7 @@ pub fn provision_of(
                     other.type_name()
                 ))
             }
-            None => return Err("seeded_prng needs a `seed`".into()),
+            None => return Err(format!("{using} needs a `seed`")),
         },
         "in_memory_overlay" => Provision::InMemoryOverlay,
         "null_sink" => Provision::NullSink,
@@ -1171,6 +1176,14 @@ mod tests {
             host_capability("comm-scavenger"),
             Some(Capability::CommScavenger)
         );
+        assert_eq!(
+            host_capability(":mpc_threshold"),
+            Some(Capability::MpcThreshold)
+        );
+        assert_eq!(
+            host_capability("mpc-threshold"),
+            Some(Capability::MpcThreshold)
+        );
     }
 
     #[test]
@@ -1321,6 +1334,12 @@ mod tests {
                     channel: blue_lang_waku::Channel::Tide,
                 },
             ),
+            (
+                ":mpc_threshold, {using: :seeded, seed: \"synod\"}",
+                Provision::Seeded {
+                    seed: "synod".into(),
+                },
+            ),
         ];
         for (settings, want) in cases {
             let got = virtualized(settings).unwrap_or_else(|e| panic!("{settings}: {e}"));
@@ -1332,7 +1351,9 @@ mod tests {
             for kind in Provision::kinds_for(cap) {
                 let symbol = cap.label().replace('-', "_");
                 let settings = match *kind {
-                    "seeded_prng" => format!(":{symbol}, {{using: :{kind}, seed: \"s\"}}"),
+                    "seeded_prng" | "seeded" => {
+                        format!(":{symbol}, {{using: :{kind}, seed: \"s\"}}")
+                    }
                     _ => format!(":{symbol}, {{using: :{kind}}}"),
                 };
                 let got = virtualized(&settings).unwrap_or_else(|e| panic!("{settings}: {e}"));
@@ -1395,6 +1416,15 @@ mod tests {
                 ":comm_scavenger, {using: :null_sink}",
                 "`using: :null_sink` is not a comm-scavenger provider; it takes :loopback",
             ),
+            (":mpc_threshold, {using: :seeded}", "seeded needs a `seed`"),
+            (
+                ":mpc_threshold, {using: :seeded_prng, seed: \"s\"}",
+                "`using: :seeded_prng` is not a mpc-threshold provider; it takes :seeded",
+            ),
+            (
+                ":entropy, {using: :seeded, seed: \"s\"}",
+                "`using: :seeded` is not a entropy provider; it takes :seeded_prng",
+            ),
         ] {
             let err = virtualized(settings).expect_err(settings);
             assert!(err.contains(says), "{settings}: {err}");
@@ -1414,6 +1444,7 @@ mod tests {
             Provision::Loopback {
                 channel: blue_lang_waku::Channel::Flash,
             },
+            Provision::Seeded { seed: "s".into() },
         ];
         for p in every {
             let json = serde_json::to_value(Provided::from(p.clone())).unwrap();

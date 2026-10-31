@@ -47,8 +47,9 @@
 //! elapsed_since(start_ns)    → ns since start (from `now_ns`)
 //! ```
 //!
-//! NATS and HTTP are installed here too, from [`crate::net`], and the Flash
-//! and Tide channels of the dual-pulse wire, from [`crate::wire`].
+//! NATS and HTTP are installed here too, from [`crate::net`], the Flash
+//! and Tide channels of the dual-pulse wire, from [`crate::wire`], and the
+//! threshold signing words, from [`crate::threshold`].
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -68,6 +69,7 @@ pub fn install_sys_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
     crate::net::install_net(interp);
     crate::entropy::install_entropy(interp);
     crate::wire::install_wire(interp);
+    crate::threshold::install_threshold(interp);
 }
 
 // ── process ──────────────────────────────────────────────────────────────

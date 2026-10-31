@@ -328,7 +328,7 @@ edge("mimoto?::chain_of", :composes, "shomei::verify?", "each link signature")
 edge(
   "mimoto?::profile",
   :guards,
-  "fuuin?::quantum_safe?",
+  "fuuin::quantum_safe?",
   "level names allowed algorithms"
 )
 

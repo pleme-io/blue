@@ -49,10 +49,15 @@ row(
     [
       "w = flash_open(\"127.0.0.1:0\")",
       "big = join(map((_i) -> \"x\", range(1279)), \"\")",
-      "map((_i) -> flash_put(w, \"127.0.0.1:9\", big), range(20))"
+      "",
+      "begin",
+      "  map((_i) -> flash_put(w, \"127.0.0.1:9\", big), range(20))",
+      "rescue :rate_limited as e",
+      "  [e.kind, contains?(e.message, \"past the wire's rate\")]",
+      "end"
     ]
   ),
-  fails(:eval, "past the wire's rate"),
+  value("[:rate_limited, true]"),
   host()
 )
 

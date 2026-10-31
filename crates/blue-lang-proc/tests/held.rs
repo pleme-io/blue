@@ -215,7 +215,10 @@ fn each_held_incarnation_hands_its_receipt_with_its_own_host_io() {
         counts,
         [(Some("twice"), 2, "normal"), (Some("none"), 0, "normal")]
     );
-    assert_eq!(seen[0].frame.granted, [Capability::FileSystem]);
+    assert_eq!(
+        seen[0].frame.granted,
+        [Capability::FileSystem, Capability::StorageAppend]
+    );
     assert_eq!(io.total(), 2, "the root read nothing");
     let _ = std::fs::remove_dir_all(dir);
 }

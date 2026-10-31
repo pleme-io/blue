@@ -94,5 +94,17 @@
     "file": "kodou.b",
     "find": "      sleep_ms(e.data.wait_ms)\n      flash_put(l.wire, peer, payload)",
     "replace": "      flash_put(l.wire, peer, payload)"
+  },
+  {
+    "name": "kensa cannot name comm-flash",
+    "file": "kodou.b",
+    "find": "    entropy\n    comm-flash\n    comm-scavenger\n",
+    "replace": "    entropy\n    comm-scavenger\n"
+  },
+  {
+    "name": "kensa cannot name comm-scavenger",
+    "file": "kodou.b",
+    "find": "    comm-flash\n    comm-scavenger\n  ]",
+    "replace": "    comm-flash\n  ]"
   }
 ]

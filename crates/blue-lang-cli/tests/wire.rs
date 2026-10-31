@@ -643,9 +643,15 @@ fn digest(entries: &Json) -> String {
 
 const BREACHING: &str = "use(\"shisutemu\", [:read_or])\n\ndef reader(parent)\n  path = receive()\n  send(parent, read_or(path, \"\") rescue \"swallowed\")\nend\n\ndef main()\n  pid = spawn(reader, [self])\n  monitor(pid)\n  send(pid, \"/etc/hosts\")\n  write_stdout(to_s(receive(:_, 5000)))\nend\n";
 
+const FLASH_BREACHING: &str = "use(\"kodou\", [:link])\n\ndef flasher(parent)\n  addr = receive()\n  send(parent, link(addr, {channels: [:flash]}) rescue \"swallowed\")\nend\n\ndef main()\n  pid = spawn(flasher, [self])\n  monitor(pid)\n  send(pid, \"127.0.0.1:0\")\n  write_stdout(to_s(receive(:_, 5000)))\nend\n";
+
 fn fresh_crash(dir: &Path) -> PathBuf {
+    crash_from(dir, BREACHING)
+}
+
+fn crash_from(dir: &Path, program: &str) -> PathBuf {
     let file = dir.join("reader.b");
-    put(&file, BREACHING);
+    put(&file, program);
     let traces = dir.join("traces");
     let o = blue()
         .env("BLUE_TRACE_DIR", &traces)
@@ -665,13 +671,13 @@ fn fresh_crash(dir: &Path) -> PathBuf {
 
 const GOSSIPED: &str = "package(\"wire-gossip\", \"0.1.0\")\nallow(%i[comm_flash comm_scavenger filesystem clock])\nvirtualize(:entropy, {using: :seeded_prng, seed: \"wire\", for: %w[shomei]})\n";
 
-fn gossip(crashes: &[&Path], immunity: &Path) -> String {
+fn gossip(crashes: &[&Path], immunity: &Path, rounds: usize) -> String {
     let reads: Vec<String> = crashes
         .iter()
         .map(|c| format!("read_file(\"{}\")", c.display()))
         .collect();
     format!(
-        "use(\"kodou\", %i[address link node publish step])\nuse(\"retsu\", %i[first last])\n\ndef main()\n  la = link(\"127.0.0.1:0\", {{}})\n  lb = link(\"127.0.0.1:0\", {{}})\n  a = reduce((n, text) -> publish(n, address(lb), text), node(la, \"{a}\"), [{reads}])\n  done = reduce(\n    (acc, _i) -> [step(first(acc), 50, 16), step(last(acc), 50, 16)],\n    [a, node(lb, \"{b}\")],\n    range(8)\n  )\n  b = last(done)\n  write_stdout(json_stringify({{known: b.known, refused: b.refused, wanted: length(map_entries(b.wanted))}}))\nend\n",
+        "use(\"kodou\", %i[address link node publish step])\nuse(\"retsu\", %i[first last])\n\ndef main()\n  la = link(\"127.0.0.1:0\", {{}})\n  lb = link(\"127.0.0.1:0\", {{}})\n  a = reduce((n, text) -> publish(n, address(lb), text), node(la, \"{a}\"), [{reads}])\n  done = reduce(\n    (acc, _i) -> [step(first(acc), 50, 16), step(last(acc), 50, 16)],\n    [a, node(lb, \"{b}\")],\n    range({rounds})\n  )\n  b = last(done)\n  write_stdout(json_stringify({{known: b.known, refused: b.refused, wanted: length(map_entries(b.wanted))}}))\nend\n",
         a = immunity.with_extension("a.json").display(),
         b = immunity.display(),
         reads = reads.join(", ")
@@ -695,7 +701,7 @@ fn a_gossiped_crash_proof_arrives_verifies_and_yields_the_immunity_entry_kensa_r
     let project_dir = project(
         "gossip-node",
         GOSSIPED,
-        &[("first.b", &gossip(&[&fixture], &immunity))],
+        &[("first.b", &gossip(&[&fixture], &immunity, 8))],
     );
 
     let j = run(&project_dir, "first.b");
@@ -707,7 +713,7 @@ fn a_gossiped_crash_proof_arrives_verifies_and_yields_the_immunity_entry_kensa_r
 
     put(
         &project_dir.join("second.b"),
-        &gossip(&[&fresh, &fixture], &immunity),
+        &gossip(&[&fresh, &fixture], &immunity, 8),
     );
     let j = run(&project_dir, "second.b");
     let fresh_text = std::fs::read_to_string(&fresh).expect("crash");
@@ -819,6 +825,119 @@ fn a_gossiped_crash_proof_arrives_verifies_and_yields_the_immunity_entry_kensa_r
                         "crash_hash": fresh_hash,
                         "def_hash": fresh_doc["def_hash"],
                         "capability": "filesystem",
+                    })),
+                "{control}: {row}"
+            );
+        }
+    }
+    let _ = std::fs::remove_dir_all(dir);
+    let _ = std::fs::remove_dir_all(project_dir);
+}
+
+#[test]
+fn a_gossiped_comm_flash_breach_yields_an_immunity_entry_kensa_reads() {
+    let dir = scratch("gossip-flash");
+    let crash = crash_from(&dir, FLASH_BREACHING);
+    let crash_text = std::fs::read_to_string(&crash).expect("crash");
+    let crash_doc: Json = serde_json::from_str(&crash_text).expect("crash json");
+    assert_eq!(
+        crash_doc["violation"]["capability"], "comm-flash",
+        "{crash_doc}"
+    );
+    let crash_hash = b3(canonical(&crash_text).as_bytes());
+
+    let immunity = dir.join("kensa-immunity.json");
+    let project_dir = project(
+        "gossip-flash-node",
+        GOSSIPED,
+        &[("flash.b", &gossip(&[&crash], &immunity, 40))],
+    );
+    let j = run(&project_dir, "flash.b");
+    assert_eq!(j["known"], serde_json::json!([crash_hash]), "{j}");
+    assert_eq!(j["refused"], serde_json::json!([]), "{j}");
+
+    let text = std::fs::read_to_string(&immunity).expect("the immunity file");
+    assert_eq!(text, canonical(&text), "the file is canonical JSON");
+    let file: Json = serde_json::from_str(&text).expect("json");
+    assert_eq!(file["schema"], SCHEMA);
+    assert_eq!(file["digest"], Json::from(digest(&file["entries"])));
+    assert_eq!(
+        file["entries"],
+        serde_json::json!([{
+            "capability": "comm-flash",
+            "class": "LatticeCeilingBreach",
+            "crash_hash": crash_hash,
+            "def_hash": crash_doc["def_hash"],
+            "definition": "%root/flasher",
+            "host": "flash_open",
+        }])
+    );
+
+    if let Some(kensa) = kensa() {
+        let theirs = dir.join("kensa-own.json");
+        let o = Command::new(&kensa)
+            .args(["immunize", "--bluecrash"])
+            .arg(&crash)
+            .arg("--immunity")
+            .arg(&theirs)
+            .env_remove("KENSA_IMMUNITY")
+            .output()
+            .expect("kensa immunize");
+        assert!(o.status.success(), "{}", err(&o));
+        assert_eq!(
+            std::fs::read_to_string(&theirs).expect("kensa's file"),
+            text,
+            "the gossiped file is byte for byte the file kensa immunize writes"
+        );
+        let lock = dir.join("deployment.lock");
+        put(
+            &lock,
+            r#"{"capabilities":{"ceiling":["comm-flash"],"floor":["comm-flash"],"packages":{"app":["comm-flash"]}}}"#,
+        );
+        let defs = dir.join("defs.json");
+        put(
+            &defs,
+            &serde_json::json!([{"key": "%root/flasher", "hash": crash_doc["def_hash"]}])
+                .to_string(),
+        );
+        let ledger = dir.join("ledger.json");
+        put(&ledger, "");
+        let closure = dir.join("closure");
+        put(&closure, "");
+        let o = Command::new(&kensa)
+            .arg("admit")
+            .arg("--lock")
+            .arg(&lock)
+            .arg("--ledger")
+            .arg(&ledger)
+            .args(["--profile", "low", "--json"])
+            .arg("--closure")
+            .arg(&closure)
+            .arg("--immunity")
+            .arg(&immunity)
+            .arg("--defs")
+            .arg(&defs)
+            .output()
+            .expect("kensa admit");
+        let verdict: Json = serde_json::from_str(out(&o).trim())
+            .unwrap_or_else(|e| panic!("{e}: {}{}", out(&o), err(&o)));
+        assert_eq!(verdict["admitted"], false, "{verdict}");
+        for control in ["NIST_SP_800_53R5_IR_4", "NIST_SP_800_53R5_IR_5"] {
+            let row = verdict["controls"]
+                .as_array()
+                .expect("controls")
+                .iter()
+                .find(|r| r["control"] == control)
+                .unwrap_or_else(|| panic!("no {control}: {verdict}"));
+            assert!(
+                row["refusals"]
+                    .as_array()
+                    .expect("refusals")
+                    .contains(&serde_json::json!({
+                        "kind": "immune_crash",
+                        "crash_hash": crash_hash,
+                        "def_hash": crash_doc["def_hash"],
+                        "capability": "comm-flash",
                     })),
                 "{control}: {row}"
             );

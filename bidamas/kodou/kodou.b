@@ -24,10 +24,20 @@ end
 @doc """
 kensa_capabilities: the host capabilities a `kensa-immunity.v1` entry can name; a crash that breached any other is refused, so one entry never makes the whole file unreadable.
 
-    member?("comm-flash", kensa_capabilities) #=> false
+    member?("comm-flash", kensa_capabilities) #=> true
+    member?("gpu", kensa_capabilities) #=> false
 """
 def kensa_capabilities()
-  %w[process filesystem environment clock network entropy]
+  %w[
+    process
+    filesystem
+    environment
+    clock
+    network
+    entropy
+    comm-flash
+    comm-scavenger
+  ]
 end
 
 @doc """
@@ -761,7 +771,10 @@ test "an entry is kensa's shape, keys and all, and a crash it cannot name is ref
     %w[capability class crash_hash def_hash definition host]
   assert e["crash_hash"] == crash_hash(c)
   assert e["host"] == "read_file"
-  assert raised(() -> entry_of(fixture_crash("comm-flash", d))) == :refused
+  assert entry_of(fixture_crash("comm-flash", d))["capability"] == "comm-flash"
+  assert entry_of(fixture_crash("comm-scavenger", d))["capability"] ==
+    "comm-scavenger"
+  assert raised(() -> entry_of(fixture_crash("gpu", d))) == :refused
   assert raised(() -> entry_of(fixture_crash("filesystem", "b3:short"))) ==
     :refused
   assert raised(() -> entry_of(json_canonical("{\"tape\":[]}"))) == :refused
@@ -927,11 +940,17 @@ test "an artifact that does not match its alert or its hash is refused, not immu
     "names a def_hash or class"
   )
   wire = fixture_crash("comm-flash", d)
+  assert refusal_of(
+    wire,
+    crash_hash(wire),
+    json_read(json_stringify(alert_of(wire)))
+  ).nil?
+  unnamed = fixture_crash("gpu", d)
   assert contains?(
     refusal_of(
-      wire,
-      crash_hash(wire),
-      json_read(json_stringify(alert_of(wire)))
+      unnamed,
+      crash_hash(unnamed),
+      json_read(json_stringify(alert_of(unnamed)))
     ),
     "makes no kensa-immunity.v1 entry"
   )

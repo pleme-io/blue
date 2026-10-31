@@ -114,7 +114,11 @@ fn run_tests(name: &str) -> (usize, Vec<String>) {
             .map(|d| d.message.clone())
             .collect::<Vec<_>>()
     );
-    let report = blue_lang_test::run_checked(&checked, None, None);
+    let guard = blue_lang_test::Guard {
+        identify: Some(blue_lang_mondou::def_hash::identify),
+        ..blue_lang_test::Guard::default()
+    };
+    let report = blue_lang_test::run_guarded(&checked, None, None, &guard);
     (
         report.passed,
         report.failures.iter().map(ToString::to_string).collect(),

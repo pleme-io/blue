@@ -18,7 +18,10 @@ end
 
 def fixed?(word, texts)
   any?(
-    (t) -> contains?(t, "legacy_names(") and contains?(t, "[\"#{word}\", "),
+    fn(t)
+      contains?(t, "legacy_names(") and
+        (contains?(t, "[\"#{word}\", ") or contains?(t, "%w[#{word} "))
+    end,
     texts
   )
 end
@@ -144,6 +147,16 @@ test "a word that leaves with its fixer row is not stranded"
     )
   ]
   assert stranded(before, after) == []
+end
+
+test "a word moved to another bidama keeps its two-word row, which the formatter writes with %w"
+  before = [unlines(["def raised(f)", "  f", "end"])]
+  after = [unlines(["legacy_names(\"0.1.3\", [%w[raised kyohi::raised]])"])]
+  assert stranded(before, after) == []
+  assert stranded(
+    before,
+    [unlines(["legacy_names(\"0.1.3\", [%w[raise kyohi::raised]])"])]
+  ) == ["raised"]
 end
 
 test "a word that moves to another file of its package is not stranded"

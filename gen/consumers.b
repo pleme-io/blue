@@ -311,6 +311,31 @@ def unswept(codes, swept)
   reject((c) -> member?(c, swept["codes"] or []), codes)
 end
 
+def known_codes(blue)
+  codes_of(stdout_of(exec_capture(blue, "explain", "--list")))
+end
+
+def unswept_line(missing)
+  "unswept: #{join(missing, ", ")}. Run blue gen/consumers.b sweep --record once every consumer is green at this blue"
+end
+
+def swept(blue)
+  missing = unswept(
+    known_codes(blue),
+    read_registry(read_file(registry_path))[:swept]
+  )
+  if missing == []
+    write_stderr(
+      unlines(
+        ["🟢 consumers: every rule code this blue knows is in the swept set"]
+      )
+    )
+  else
+    write_stderr(unlines(["🔴 consumers: #{unswept_line(missing)}"]))
+    exit_with(1)
+  end
+end
+
 def error_codes(check_out)
   diags = map(
     json_read,
@@ -612,7 +637,7 @@ def sweep(blue, root, clone, record)
   )
   green = judged[:red] == [] and drift == [] and pol[:refused] == []
   if green and record
-    codes = codes_of(stdout_of(exec_capture(blue, "explain", "--list")))
+    codes = known_codes(blue)
     write_file(
       registry_path,
       render_registry(
@@ -755,9 +780,10 @@ def usage()
   write_stderr(
     unlines(
       [
-        "blue gen/consumers.b derive | sweep [--clone DIR] [--record] | fix REPO",
+        "blue gen/consumers.b derive | sweep [--clone DIR] [--record] | swept | fix REPO",
         "  derive  rewrite gen/consumers.json from the workspace (BLUE_CONSUMERS_ROOT)",
         "  sweep   every consumer's .b files through this blue's fmt --check and check",
+        "  swept   every rule code this blue knows is in the recorded swept set; offline, no clone, no fetch",
         "  fix     blue fmt --write one consumer in a worktree, proved by blue erase"
       ]
     )
@@ -779,6 +805,8 @@ def main()
       workspace
     end
     sweep(blue, root, clone, member?("--record", args))
+  elsif verb == "swept"
+    swept(blue)
   elsif verb == "fix" and size(args) == 1
     fix(blue, workspace, args[0])
   else
@@ -1033,19 +1061,22 @@ end
 
 test "every check code this blue knows was swept clean across the registry"
   reg = read_registry(read_file(registry_path))
-  codes = codes_of(stdout_of(exec_capture(self_exe, "explain", "--list")))
+  codes = known_codes(self_exe)
   assert size(codes) > 60
   missing = unswept(codes, reg[:swept])
   if missing != []
-    write_stderr(
-      unlines(
-        [
-          "unswept: #{join(missing, ", ")}. Run blue gen/consumers.b sweep --record once every consumer is green at this blue"
-        ]
-      )
-    )
+    write_stderr(unlines([unswept_line(missing)]))
   end
   assert missing == []
+end
+
+test "a code this blue knows and the swept record lacks is named with the command that records it"
+  missing = unswept(%w[B0001 B0099], {"codes" => ["B0001"]})
+  assert missing == ["B0099"]
+  assert unswept_line(missing) ==
+    "unswept: B0099. Run blue gen/consumers.b sweep --record once every consumer is green at this blue"
+  assert unswept(["B0001"], {"codes" => ["B0001"]}) == []
+  assert unswept(["B0001"], {}) == ["B0001"]
 end
 
 test "the committed registry settles with no refused entry"

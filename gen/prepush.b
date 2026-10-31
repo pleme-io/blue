@@ -12,7 +12,7 @@ push whose paths it reads; a heavy gate runs with BLUE_PREPUSH_FULL=1, and
 otherwise CI runs it when the push lands. The none weight names paths that no
 gate reads.
 
-    map((g) -> get(g, :id), filter((g) -> get(g, :weight) == :light, gate_table)) #=> ["cargo-fmt", "blue-fmt", "locks", "retired"]
+    map((g) -> get(g, :id), filter((g) -> get(g, :weight) == :light, gate_table)) #=> ["cargo-fmt", "blue-fmt", "locks", "retired", "gen-confirm", "swept-codes"]
 """
 def gate_table()
   [
@@ -34,6 +34,18 @@ def gate_table()
       label: "a retired word ships its fixer",
       weight: :light,
       inputs: %w[bidamas/**/*.b gen/retired.b]
+    },
+    {
+      id: "gen-confirm",
+      label: "Cargo.gen.lock fresh (gen confirm)",
+      weight: :light,
+      inputs: %w[Cargo.lock Cargo.gen.lock **/Cargo.toml]
+    },
+    {
+      id: "swept-codes",
+      label: "every rule code is swept across the consumers",
+      weight: :light,
+      inputs: %w[crates/** gen/consumers.b gen/consumers.json]
     },
     {
       id: "regen",
@@ -190,13 +202,34 @@ planned: The gate ids this run judges: every gate with BLUE_PREPUSH_FULL=1,
 else the light gates the selection holds.
 
     planned(["blue-fmt", "regen"], false, gate_table) #=> ["blue-fmt"]
-    count(planned([], true, gate_table)) #=> 12
+    count(planned([], true, gate_table)) #=> 14
 """
 def planned(ids, full, table)
   if full
     map((g) -> g[:id], filter((g) -> g[:weight] != :none, table))
   else
     filter((id) -> weight_of(id, table) == :light, ids)
+  end
+end
+
+@doc """
+skipped: The gate ids BLUE_PREPUSH_SKIP turns off, as a comma-separated list
+of gate ids; each gate's own off switch. Unset or empty skips none. An id the
+table does not hold is refused with the ids it does, so a misspelt id never
+silently runs the gate it meant to skip.
+
+    skipped(nil, gate_table) #=> []
+    skipped("gen-confirm, swept-codes", gate_table) #=> ["gen-confirm", "swept-codes"]
+    skipped("gen-confrim", gate_table) #=> {refused: "gen-confrim"}
+"""
+def skipped(v, table)
+  ids = map((g) -> g[:id], filter((g) -> g[:weight] != :none, table))
+  named = reject((w) -> w == "", map(trim, split(v or "", ",")))
+  unknown = reject((w) -> member?(w, ids), named)
+  if unknown != []
+    {refused: join(unknown, ", ")}
+  else
+    distinct(named)
   end
 end
 
@@ -503,11 +536,31 @@ def gen_pin()
   end
 end
 
-def gen_tie()
+def gen_confirm()
   if not exec_ok?("which", "gen")
     [:blind, unlines(["gen is not on PATH"])]
-  elsif status_of(exec_capture("gen", "confirm")) == 0
-    [:green, ""]
+  else
+    confirmed = exec_capture("gen", "confirm")
+    if status_of(confirmed) == 0
+      [:green, ""]
+    else
+      [
+        :red,
+        unlines(
+          [
+            trim("#{stdout_of(confirmed)}#{stderr_of(confirmed)}"),
+            "Cargo.gen.lock is not tied to Cargo.lock and the manifests. Run gen build . and commit Cargo.gen.lock"
+          ]
+        )
+      ]
+    end
+  end
+end
+
+def gen_tie()
+  confirmed = gen_confirm
+  if first(confirmed) != :red
+    confirmed
   else
     was = lines_of(git(%w[status --porcelain --untracked-files=all]))
     built = exec_capture("gen", "build", ".")
@@ -549,6 +602,17 @@ def main()
     exit_with(0)
   end
   full = full?(getenv("BLUE_PREPUSH_FULL"))
+  skip = skipped(getenv("BLUE_PREPUSH_SKIP"), gate_table)
+  if map?(skip)
+    write_stderr(
+      unlines(
+        [
+          "prepush: BLUE_PREPUSH_SKIP names #{skip[:refused]}, which is no gate; it takes gate ids from: #{join(map((g) -> g[:id], reject((g) -> g[:weight] == :none, gate_table)), ", ")}"
+        ]
+      )
+    )
+    exit_with(2)
+  end
   started = now_ms
   common = trim(git(%w[rev-parse --path-format=absolute --git-common-dir]))
   store = "#{common}/prepush"
@@ -732,6 +796,19 @@ def main()
       (d) -> ["regen #{d}", () -> regen(bin, root, d)],
       filter(regenerates?, dirs)
     ),
+    "gen-confirm" => [
+      ["Cargo.gen.lock fresh (gen confirm)", () -> gen_confirm]
+    ],
+    "swept-codes" => [
+      [
+        "every rule code is swept across the consumers",
+        fn()
+          verdict(
+            exec_capture("#{bin}/blue", "#{root}/gen/consumers.b", "swept")
+          )
+        end
+      ]
+    ],
     "gen-pin" => [["gen is substrate's pin", () -> gen_pin]],
     "consumers" => [
       [
@@ -804,9 +881,9 @@ def main()
       ]
     ]
   }
-  ids = planned(chosen[:ids], full, table)
+  ids = reject((id) -> member?(id, skip), planned(chosen[:ids], full, table))
   gates = flat_map(ids, (id) -> get(runners, id))
-  ci = reject((id) -> member?(id, ids), chosen[:ids])
+  ci = reject((id) -> member?(id, ids) or member?(id, skip), chosen[:ids])
   timings_file = "#{store}/timings"
   timings = if path_exists(timings_file)
     lines_of(read_file(timings_file))
@@ -838,6 +915,11 @@ def main()
   else
     "; CI runs #{join(ci, ", ")} when it lands (git land)"
   end
+  off = if skip == []
+    ""
+  else
+    "; ➖ BLUE_PREPUSH_SKIP turns off #{join(skip, ", ")}"
+  end
   took = if guess.nil?
     "no timing yet"
   else
@@ -846,7 +928,7 @@ def main()
   write_stderr(
     unlines(
       [
-        "prepush (#{mode}): #{why}: #{ran}#{later}; #{took}. BLUE_PREPUSH_FULL=1 runs every gate, BLUE_PREPUSH_OFF=1 none"
+        "prepush (#{mode}): #{why}: #{ran}#{later}#{off}; #{took}. BLUE_PREPUSH_FULL=1 runs every gate, BLUE_PREPUSH_OFF=1 none, BLUE_PREPUSH_SKIP=ID,… the gates named"
       ]
     )
   )
@@ -881,7 +963,7 @@ def main()
   )
   red = map(first, filter((r) -> last(r) == :red, results))
   if red == []
-    if dirty == [] and one_tree
+    if dirty == [] and one_tree and skip == []
       mkdir_p("#{store}/green")
       append_file(
         record,
@@ -899,7 +981,7 @@ def main()
     write_stderr(
       unlines(
         [
-          "🔴 prepush: #{to_s(count(red))} red: #{join(red, "; ")}. Fix it, or skip once with BLUE_PREPUSH_OFF=1 git push"
+          "🔴 prepush: #{to_s(count(red))} red: #{join(red, "; ")}. Fix it, or skip once with BLUE_PREPUSH_SKIP=ID git push (one gate) or BLUE_PREPUSH_OFF=1 git push (every gate)"
         ]
       )
     )
@@ -918,20 +1000,45 @@ test "a Cargo.lock change selects every gate"
   s = selection(["Cargo.lock"], gate_table)
   assert s[:reason] == "Cargo.lock selects every gate"
   assert planned(s[:ids], false, gate_table) ==
-    %w[cargo-fmt blue-fmt locks retired]
-  assert count(s[:ids]) == 12
+    %w[cargo-fmt blue-fmt locks retired gen-confirm swept-codes]
+  assert count(s[:ids]) == 14
 end
 
 test "an unknown path selects every gate"
   s = selection(%w[bidamas/retsu/retsu.b tools/new.toml], gate_table)
   assert s[:reason] == "no gate names tools/new.toml, so every gate runs"
-  assert count(s[:ids]) == 12
+  assert count(s[:ids]) == 14
 end
 
-test "a Rust change selects cargo fmt and the heavy gates"
+test "a Rust change selects cargo fmt, the swept codes and the heavy gates"
   s = selection(["crates/blue-lang-fmt/src/lib.rs"], gate_table)
-  assert planned(s[:ids], false, gate_table) == ["cargo-fmt"]
+  assert planned(s[:ids], false, gate_table) == %w[cargo-fmt swept-codes]
   assert member?("tests", s[:ids])
+end
+
+test "a manifest change runs gen confirm before the push, not only in CI"
+  s = selection(["crates/blue-lang-lsp/Cargo.toml"], gate_table)
+  assert s[:reason] == ""
+  assert planned(s[:ids], false, gate_table) ==
+    %w[cargo-fmt gen-confirm swept-codes]
+  assert member?("gen-tie", s[:ids])
+end
+
+test "a new rule code is judged before the push, by the swept record alone"
+  s = selection(["crates/blue-lang-check/src/lib.rs"], gate_table)
+  assert member?("swept-codes", planned(s[:ids], false, gate_table))
+  c = selection(["gen/consumers.json"], gate_table)
+  assert planned(c[:ids], false, gate_table) == ["swept-codes"]
+end
+
+test "BLUE_PREPUSH_SKIP turns off the gates it names and refuses an id that is no gate"
+  assert skipped(nil, gate_table) == []
+  assert skipped("", gate_table) == []
+  assert skipped("gen-confirm", gate_table) == ["gen-confirm"]
+  assert skipped(" swept-codes ,gen-confirm,swept-codes", gate_table) ==
+    %w[swept-codes gen-confirm]
+  assert skipped("gen-confirm,nope", gate_table) == {refused: "nope"}
+  assert skipped("prose", gate_table) == {refused: "prose"}
 end
 
 test "a recorded green tree skips a push with the same base"

@@ -42,8 +42,8 @@ def classes()
     {
       name: :nomad,
       numeral: "IV",
-      ceiling: %w[clock network],
-      holds: "a process on idle capacity that yields and moves with its code and state"
+      ceiling: %w[clock comm-scavenger network],
+      holds: "a process on idle capacity (spawned scheduling: :idle) that moves with its code, state and waiting messages (evict and accept over the Tide)"
     },
     {
       name: :synod,
@@ -620,7 +620,10 @@ test "the five classes are in order with their numerals and ceilings"
   assert class_named(:airlock).ceiling == %w[clock entropy network]
   assert class_named(:synod).ceiling == %w[entropy mpc-threshold network]
   assert admit(:synod, %w[entropy mpc-threshold network]) == []
+  assert class_named(:nomad).ceiling == %w[clock comm-scavenger network]
+  assert admit(:nomad, %w[clock comm-scavenger]) == []
   assert map(first, admit(:nomad, ["mpc-threshold"])) == [:denied]
+  assert map(first, admit(:strand, ["comm-scavenger"])) == [:denied]
   assert raised(() -> class_named(:planet)) == :not_found
 end
 

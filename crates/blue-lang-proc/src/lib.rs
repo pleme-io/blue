@@ -49,27 +49,53 @@
 //! concept, so [`Strategy`] uses those names rather than inventing a second
 //! set.
 
+#![deny(unsafe_code)]
+
 use std::sync::Arc;
 
 use tatara_lisp_eval::vm::{Budget, Chunk, Progress, Vm, VmError};
-use tatara_lisp_eval::{Interpreter, Value};
+use tatara_lisp_eval::{ErrorObj, EvalError, Interpreter, Value};
 
 pub mod bisect;
 pub mod code;
+pub mod image;
 pub mod mailbox;
 pub mod node;
 pub mod pattern;
 pub mod receipt;
+pub mod scheduling;
+#[cfg(target_vendor = "apple")]
+mod seam;
 pub mod trace;
 pub mod violation;
 pub use bisect::{bisect, Bisected};
 pub use mailbox::{copy_data, deep_copy, install_process_primitives, System};
-pub use node::{install, ClockKind, Meter, Node, NodeConfig, PROCESS_WORDS, ROOT};
+pub use node::{
+    install, Carrier, ClockKind, Meter, Node, NodeConfig, CARRIED_WORDS, PROCESS_WORDS, ROOT,
+};
 pub use receipt::{
     Frame, HostIo, Identities, Place, Places, Receipt, ReceiptSink, Source, Subject,
 };
+pub use scheduling::Scheduling;
 pub use trace::{replay, Journal, Replayed, Trace};
 pub use violation::{Class, Violation};
+
+#[must_use]
+pub fn raised(kind: &str, message: String, data: Value, at: tatara_lisp::Span) -> EvalError {
+    EvalError::User {
+        value: Value::Error(Arc::new(ErrorObj {
+            tag: Arc::from(kind),
+            message: Arc::from(message),
+            data: vec![(Value::Keyword(Arc::from("data")), data)],
+        })),
+        at,
+    }
+}
+
+#[must_use]
+pub fn provided_name(word: &str) -> String {
+    format!("%provided/{word}")
+}
 
 /// A process identifier.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]

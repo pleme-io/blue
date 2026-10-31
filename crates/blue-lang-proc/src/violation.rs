@@ -39,6 +39,18 @@ use crate::trace::TapeEntry;
 /// The kind of the fatal error a capability breach raises.
 pub const BREACH: &str = "capability-breach";
 
+#[must_use]
+pub fn breach(name: &str, cap: Capability, who: &str, at: Span) -> tatara_lisp_eval::EvalError {
+    tatara_lisp_eval::EvalError::fatal(
+        BREACH,
+        format!(
+            "`{name}` reaches the host ({}), which {who} does not grant",
+            cap.label()
+        ),
+        at,
+    )
+}
+
 /// A violation a process exit can be.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Class {

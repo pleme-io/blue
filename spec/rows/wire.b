@@ -158,3 +158,58 @@ row(
   covers("builtin:tide_close"),
   host()
 )
+
+row(
+  "wire.evict.a_server_moves_with_its_waiting_messages",
+  join_lines(
+    [
+      "def h(msg, seen)",
+      "  if msg[0] == :inc",
+      "    append(seen, [msg[1]])",
+      "  else",
+      "    send(msg[1], seen)",
+      "    seen",
+      "  end",
+      "end",
+      "a = tide_open(\"127.0.0.1:0\")",
+      "b = tide_open(\"127.0.0.1:0\")",
+      "s = spawn_server(h, [])",
+      "send(s, [:inc, 1])",
+      "send(s, [:get, self])",
+      "before = receive()",
+      "send(s, [:inc, 2])",
+      "moved = evict(s, a, tide_stats(b).address)",
+      "tide_release(a, 1_000_000, 0)",
+      "p = accept(b, 5000)",
+      "send(p, [:inc, 3])",
+      "send(p, [:get, self])",
+      "[before, receive(), alive?(s), moved.frames > 0]"
+    ]
+  ),
+  value("[[1], [1, 2, 3], false, true]"),
+  covers("builtin:evict"),
+  covers("builtin:accept"),
+  host()
+)
+
+row(
+  "wire.evict.a_plain_process_is_refused",
+  join_lines(
+    [
+      "def w(x)",
+      "  receive()",
+      "end",
+      "a = tide_open(\"127.0.0.1:0\")",
+      "evict(spawn(w, [1]), a, \"127.0.0.1:9\")"
+    ]
+  ),
+  fails(:eval, "not a server"),
+  host()
+)
+
+row(
+  "wire.accept.nothing_came",
+  join_lines(["b = tide_open(\"127.0.0.1:0\")", "accept(b, 0)"]),
+  value("nil"),
+  host()
+)

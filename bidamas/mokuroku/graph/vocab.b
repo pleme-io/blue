@@ -1,4 +1,19 @@
 vocab(
+  "accept",
+  {
+    subject: "listener",
+    args: %w[listener timeout?],
+    opts: true,
+    returns: "handle or nil",
+    raises: ["decode_error"],
+    kind: :effect,
+    meaning: "take the next arrival a listener holds: a connection or a process",
+    ref: nil,
+    status: :open
+  }
+)
+
+vocab(
   "acquire",
   {
     subject: "source",
@@ -1540,6 +1555,21 @@ vocab(
     meaning: "events about a subject",
     ref: nil,
     status: :decided
+  }
+)
+
+vocab(
+  "evict",
+  {
+    subject: "process",
+    args: %w[process wire peer],
+    opts: false,
+    returns: "record",
+    raises: ["not_found"],
+    kind: :effect,
+    meaning: "move a process off its node at a message boundary",
+    ref: nil,
+    status: :open
   }
 )
 

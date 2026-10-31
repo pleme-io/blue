@@ -244,7 +244,7 @@ impl Channel {
     }
 
     #[must_use]
-    pub fn header(self) -> usize {
+    pub const fn header(self) -> usize {
         match self {
             Channel::Tide => 1 + STAMP_BYTES,
             Channel::Flash => 1,
@@ -252,7 +252,7 @@ impl Channel {
     }
 
     #[must_use]
-    pub fn room(self) -> usize {
+    pub const fn room(self) -> usize {
         MTU - self.header()
     }
 
@@ -407,6 +407,29 @@ impl<T> Ring<T> {
     pub fn bounds(&self) -> (usize, usize) {
         (self.max_frames, self.max_bytes)
     }
+
+    #[must_use]
+    pub fn room(&self) -> (usize, usize) {
+        (
+            self.max_frames.saturating_sub(self.items.len()),
+            self.max_bytes.saturating_sub(self.bytes),
+        )
+    }
+
+    pub fn take_where(&mut self, mut wanted: impl FnMut(&T) -> bool) -> Vec<T> {
+        let mut taken = Vec::new();
+        let mut kept = VecDeque::with_capacity(self.items.len());
+        for (item, len) in std::mem::take(&mut self.items) {
+            if wanted(&item) {
+                self.bytes -= len;
+                taken.push(item);
+            } else {
+                kept.push_back((item, len));
+            }
+        }
+        self.items = kept;
+        taken
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -551,6 +574,43 @@ impl Wire {
         ))
     }
 
+    pub fn tide_queue_all(
+        &mut self,
+        peer: SocketAddr,
+        payloads: &[String],
+    ) -> Result<usize, String> {
+        let lens = payloads
+            .iter()
+            .map(|p| encode(Channel::Tide, 0, p.as_bytes()).map(|d| d.len()))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        let bytes: usize = lens.iter().sum();
+        let (frames_free, bytes_free) = self.tide_out.room();
+        if lens.len() > frames_free || bytes > bytes_free {
+            return Err(format!(
+                "{} Tide frames of {bytes} bytes do not fit the send ring, which has room for {frames_free} frames and {bytes_free} bytes; release what is queued, or open the wire with a larger ring_frames: and ring_bytes:",
+                lens.len()
+            ));
+        }
+        for (payload, len) in payloads.iter().zip(lens) {
+            self.tide_out.push(
+                Outgoing {
+                    peer,
+                    payload: payload.as_bytes().to_vec(),
+                },
+                len,
+            );
+        }
+        Ok(bytes)
+    }
+
+    pub fn tide_take(&mut self, prefix: &str, timeout: Duration) -> std::io::Result<Vec<Received>> {
+        self.wait_for(timeout, |w| {
+            Some(w.tide_in.take_where(|r| r.payload.starts_with(prefix))).filter(|t| !t.is_empty())
+        })
+        .map(Option::unwrap_or_default)
+    }
+
     pub fn tide_release(&mut self, max_bytes: usize, stamp_ms: i64) -> Result<usize, String> {
         let mut sent = 0;
         while let Some(len) = self.tide_out.front_len() {
@@ -664,11 +724,19 @@ impl Wire {
         channel: Channel,
         timeout: Duration,
     ) -> std::io::Result<Option<Received>> {
+        self.wait_for(timeout, |w| w.waiting(channel))
+    }
+
+    fn wait_for<T>(
+        &mut self,
+        timeout: Duration,
+        mut found: impl FnMut(&mut Self) -> Option<T>,
+    ) -> std::io::Result<Option<T>> {
         let deadline = Instant::now() + timeout;
         let mut buf = [0u8; MTU + 1];
         loop {
             self.drain()?;
-            if let Some(r) = self.waiting(channel) {
+            if let Some(r) = found(self) {
                 return Ok(Some(r));
             }
             let left = deadline.saturating_duration_since(Instant::now());
@@ -730,23 +798,26 @@ enum Transport {
     Loopback(Arc<LoopbackNet>),
 }
 
+fn peer_of(text: &str, loopback: bool) -> Result<SocketAddr, String> {
+    if let Ok(addr) = text.parse::<SocketAddr>() {
+        return Ok(addr);
+    }
+    if loopback {
+        return Err(format!(
+            "{text} is not an ip:port; a loopback link resolves no name"
+        ));
+    }
+    text.to_socket_addrs()
+        .ok()
+        .and_then(|mut addrs| addrs.next())
+        .ok_or_else(|| format!("{text} is not a host:port this host resolves"))
+}
+
 impl Transport {
     fn peer(&self, v: &Value, fname: &'static str, span: Span) -> Result<SocketAddr, EvalError> {
         let text = arg_str(v, fname, span)?;
-        if let Ok(addr) = text.parse::<SocketAddr>() {
-            return Ok(addr);
-        }
-        let unresolved = |why: &str| EvalError::native_fn(fname, format!("{text} {why}"), span);
-        match self {
-            Transport::Loopback(_) => Err(unresolved(
-                "is not an ip:port; a loopback link resolves no name",
-            )),
-            Transport::Host => text
-                .to_socket_addrs()
-                .ok()
-                .and_then(|mut addrs| addrs.next())
-                .ok_or_else(|| unresolved("is not a host:port this host resolves")),
-        }
+        peer_of(&text, matches!(self, Transport::Loopback(_)))
+            .map_err(|why| EvalError::native_fn(fname, why, span))
     }
 
     fn bind(&self, addr: &str) -> Result<Wire, String> {
@@ -1042,6 +1113,67 @@ fn stats(
         Ok(record(fields))
     })
 }
+
+fn carried<T>(
+    wire: &Value,
+    loopback: bool,
+    f: impl FnOnce(&mut Wire) -> Result<T, String>,
+) -> Result<T, String> {
+    let Value::Foreign(any) = wire else {
+        return Err(format!(
+            "expected a wire from tide_open, got {}",
+            wire.type_name()
+        ));
+    };
+    let h = Arc::downcast::<WireHandle>(any.clone())
+        .map_err(|_| "expected a wire from tide_open, got another handle".to_string())?;
+    let mut guard = locked(&h);
+    let w = guard
+        .as_mut()
+        .filter(|w| w.is_open(Channel::Tide))
+        .ok_or_else(|| "this wire's Tide channel is not open".to_string())?;
+    if loopback && !w.is_loopback() {
+        return Err(
+            "this wire is a host socket, and this channel is provided by the loopback, which reaches no socket"
+                .to_string(),
+        );
+    }
+    f(w)
+}
+
+fn carry_queue(
+    wire: &Value,
+    peer: &Value,
+    frames: &[String],
+    loopback: bool,
+) -> Result<usize, String> {
+    let Value::Str(text) = peer else {
+        return Err(format!("the peer is a host:port, got {}", peer.type_name()));
+    };
+    carried(wire, loopback, |w| {
+        let to = peer_of(text, w.is_loopback())?;
+        w.tide_queue_all(to, frames)
+    })
+}
+
+fn carry_take(
+    wire: &Value,
+    prefix: &str,
+    timeout: Duration,
+    loopback: bool,
+) -> Result<Vec<String>, String> {
+    carried(wire, loopback, |w| {
+        w.tide_take(prefix, timeout)
+            .map(|got| got.into_iter().map(|r| r.payload).collect())
+            .map_err(|e| e.to_string())
+    })
+}
+
+pub const CARRIER: blue_lang_proc::Carrier = blue_lang_proc::Carrier {
+    room: Channel::Tide.room(),
+    queue: carry_queue,
+    take: carry_take,
+};
 
 pub fn install_wire<H: 'static>(interp: &mut Interpreter<H>) {
     install_flash(interp, String::from, &Transport::Host, host_clock());

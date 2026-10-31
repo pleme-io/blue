@@ -285,7 +285,7 @@ impl From<blue_lang_waku::Waku> for Hold {
 /// onto it reach the provider.
 #[must_use]
 pub fn provided_name(word: &str) -> String {
-    format!("%provided/{word}")
+    blue_lang_proc::provided_name(word)
 }
 
 impl Hold {
@@ -489,14 +489,7 @@ pub fn breach(
     who: &str,
     at: tatara_lisp::Span,
 ) -> tatara_lisp_eval::EvalError {
-    tatara_lisp_eval::EvalError::fatal(
-        BREACH,
-        format!(
-            "`{name}` reaches the host ({}), which {who} does not grant",
-            cap.label()
-        ),
-        at,
-    )
+    blue_lang_proc::violation::breach(name, cap, who, at)
 }
 
 /// Is `e` a capability breach?
@@ -553,6 +546,10 @@ fn node_config_under(b: ExecutionBounds) -> blue_lang_proc::NodeConfig {
         quantum: Some(blue_lang_proc::node::DEFAULT_QUANTUM),
     };
     config.meter = Some(memory::METER);
+    #[cfg(feature = "sys")]
+    {
+        config.carrier = Some(wire::CARRIER);
+    }
     config.clock = if cfg!(feature = "sys") {
         blue_lang_proc::ClockKind::Real
     } else {

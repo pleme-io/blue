@@ -20,6 +20,12 @@ serde_json = { workspace = true }
 # name `blue crash` and `blue replay` resolve; the same build as the runtime's.
 blake3 = { version = "1", default-features = false, features = ["std", "pure"] }
 
+[target.'cfg(any(target_os = "linux", target_os = "android"))'.dependencies]
+rustix = { version = "1", default-features = false, features = ["std", "process", "thread"] }
+
+[target.'cfg(target_vendor = "apple")'.dependencies]
+libc = "0.2"
+
 [dev-dependencies]
 # The replay suite pins `Model::BLUE_TODAY.interleaving` against what it
 # demonstrates, so the bīdama ledger cannot drift from the scheduler.

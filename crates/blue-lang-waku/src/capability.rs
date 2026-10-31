@@ -304,6 +304,8 @@ const COMM_SCAVENGER_NAMES: &[&str] = &[
     "tide_next",
     "tide_stats",
     "tide_close",
+    "evict",
+    "accept",
 ];
 const MPC_THRESHOLD_NAMES: &[&str] = &[
     "threshold_deal",

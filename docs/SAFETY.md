@@ -80,18 +80,30 @@ document lands.
   (`crates/blue-lang-pkg/src/bounds.rs`, `ExecutionBounds::meet`).
 - **Share-nothing processes.** Each process owns its interpreter. A message is
   deep-copied, and a function or host handle is refused on send
-  (`crates/blue-lang-proc/src/mailbox.rs:130`, `:215`).
-- **Unsafe Rust.** 18 crates. Four hold `unsafe` in non-test code:
+  (`crates/blue-lang-proc/src/mailbox.rs:130`, `:215`). A process spawned
+  `{scheduling: :idle}` (2026-10-31) runs each slice on a thread of its own
+  that first asks the OS for its lowest priority, while the node waits for
+  the slice, so no two slices of a node run at once
+  (`crates/blue-lang-proc/src/node.rs` `slice_idle`). An evicted server
+  crosses as data only: its state is refused unless it copies as a message
+  does, and its image runs under the accepting node's frame, never more
+  (`crates/blue-lang-proc/src/image.rs`).
+- **Unsafe Rust.** 18 crates. Five hold `unsafe` in non-test code:
   `blue-lang-kiwari` (59 occurrences, one seam,
   `src/lib.rs:18` `#![deny(unsafe_code)]`, `src/ts.rs:13` the one
-  `#[allow]`, `tests/seam.rs` the gate), `blue-lang-runtime`
+  `#[allow]`, `tests/seam.rs` the gate), `blue-lang-proc` (2026-10-31: two
+  calls, `setpriority` and `getpriority` with darwin's per-thread
+  `PRIO_DARWIN_THREAD`, which rustix does not expose; `src/lib.rs`
+  `#![deny(unsafe_code)]`, `src/seam.rs` the one `#[allow]`, compiled on
+  apple targets only, `tests/seam.rs` the gate; Linux sets nice 19 per thread
+  through rustix with no `unsafe`), `blue-lang-runtime`
   (`src/alloc.rs:305`, the counting `GlobalAlloc`, and `:148`, the store
   through an account's interrupt wire), `blue-lang-wasm` (three
   `extern "C"` exports, `src/lib.rs:76,84,123`) and `blue-lang-cli`
   (`src/sigint.rs`, the SIGINT handlers of `repl` and `run`, under a module
   `deny`; an inherited ignore stays ignored). No
-  workspace `[lints]` table exists. Only kiwari denies `unsafe_code` at its
-  crate root, so 17 of 18 crates accept a new `unsafe` block silently.
+  workspace `[lints]` table exists. kiwari and proc deny `unsafe_code` at
+  their crate roots, so 16 of 18 crates accept a new `unsafe` block silently.
 - **Absence.** Another agent writes `docs/ABSENCE.md` (an `Option` bidama and
   a nil checker rule) in parallel. This document points at it and does not
   redesign it.
@@ -132,8 +144,8 @@ tier. ⚠️ marks a partial seal. ❌ marks an open row.
 | 5 | Bounds-checked indexing | ✅ memory: no raw index exists; ⚠️ semantics: `nth` out of range is `nil` | row 1 owns the `nil` | unrepresentable (memory) | n/a |
 | 6 | Integer overflow, numeric conversion | ✅ `+ - * abs floor` raise on overflow; `/` by zero raises; `to_int` of a huge float is `nil` | `to_int` → row 1 | runtime-refused | on, no off |
 | 7 | No implicit coercion | ⚠️ operators refuse mixed types; `4 == 4.0` is true; call types are checked only inside typed definitions (B0003–B0005) | call-site checks from any caller when the argument is a literal | runtime-refused → checked-at-expansion | on |
-| 8 | `unsafe` ⇔ declared capability | ⚠️ sessions pure by default; **`blue run --allow` and shebang `--allow` (landed)**; **a breach is fatal: no `rescue` or `ensure` sees it (landed)**; **the wire's two channels are their own capabilities, `comm_flash` and `comm_scavenger` (landed)**; **the Flash rate is the host's, a typed bound refused as a catchable `:rate_limited` (landed)**; **both channels have an in-process loopback provider (landed)**; **threshold signing is its own capability, `mpc_threshold`, with a seeded provider (landed)**; **an append-only log store is its own capability, `storage_append`, held by `filesystem`, with an in-memory provider (landed)**; an undeclared run is still ambient | default flip for scripts, then `posture(reach:)` for bidamas | checked-at-expansion (entry) + runtime-fatal (bidama, process) | declared: on; undeclared: ambient until phase 3 (`--allow host`) |
-| 9 | Memory safety of the host seam | ⚠️ 1 of 18 crates denies `unsafe_code` at its root | workspace `unsafe_code = "deny"`, one `#[allow]` per seam, one seam test | unrepresentable for kiwari → unrepresentable for every crate | on (`#[allow(unsafe_code)]` at a named seam) |
+| 8 | `unsafe` ⇔ declared capability | ⚠️ sessions pure by default; **`blue run --allow` and shebang `--allow` (landed)**; **a breach is fatal: no `rescue` or `ensure` sees it (landed)**; **the wire's two channels are their own capabilities, `comm_flash` and `comm_scavenger` (landed)**; **the Flash rate is the host's, a typed bound refused as a catchable `:rate_limited` (landed)**; **both channels have an in-process loopback provider (landed)**; **threshold signing is its own capability, `mpc_threshold`, with a seeded provider (landed)**; **an append-only log store is its own capability, `storage_append`, held by `filesystem`, with an in-memory provider (landed)**; **eviction over the Tide (`evict`, `accept`) sits in `comm_scavenger` (landed)**; an undeclared run is still ambient | default flip for scripts, then `posture(reach:)` for bidamas | checked-at-expansion (entry) + runtime-fatal (bidama, process) | declared: on; undeclared: ambient until phase 3 (`--allow host`) |
+| 9 | Memory safety of the host seam | ⚠️ 2 of 18 crates deny `unsafe_code` at their roots (kiwari, proc) | workspace `unsafe_code = "deny"`, one `#[allow]` per seam, one seam test | unrepresentable for kiwari and proc → unrepresentable for every crate | on (`#[allow(unsafe_code)]` at a named seam) |
 | 10 | No data races | ✅ share-nothing processes; copy on send; handles refuse to cross | none needed | unrepresentable | n/a |
 | 11 | Panic vs typed refusal | ⚠️ blue faults are catchable; a Rust panic in a native function is not a blue error | one unwind seam at the native-call boundary → `:internal` refusal | open → runtime-refused | on |
 | 12 | Resource bounds | ⚠️ depth bounded; steps unbounded by default; **live bytes bounded per evaluation and per process (landed: `max_alloc_bytes`, `guest_max_alloc_bytes`)**; **a project bounds its own steps, depth and live bytes with `bounds(...)`, met with the operator's, so it narrows and never widens (landed)**; no wall-clock bound | `max_wall_ms` bound; on for doors that run code they did not write | runtime-refused | memory: off for `run` and `test` (`max_alloc_bytes: null`; it removes working behaviour), 1 GiB for sessions, live evaluation, rules and Bluefiles (`guest_max_alloc_bytes`; `null` lifts it); a project's `bounds`: none until it declares them (drop the word) |

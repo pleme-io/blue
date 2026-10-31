@@ -433,6 +433,50 @@ pub fn form_from_json(j: &Json) -> Result<Spanned, String> {
     Ok(Spanned::new(span, form))
 }
 
+#[must_use]
+pub fn code_to_json(code: &Code) -> Json {
+    json!({
+        "defs": code.defs.iter().map(form_to_json).collect::<Vec<_>>(),
+        "bindings": code.bindings.iter().map(|(n, v)| json!({"name": &**n, "value": value_to_json(v)})).collect::<Vec<_>>(),
+        "start": code.start.as_ref().map_or(Json::Null, form_to_json),
+    })
+}
+
+pub fn code_from_json(code: &Json) -> Result<Code, String> {
+    let mut bindings = Vec::new();
+    for b in code
+        .get("bindings")
+        .and_then(Json::as_array)
+        .cloned()
+        .unwrap_or_default()
+    {
+        let name = b
+            .get("name")
+            .and_then(Json::as_str)
+            .ok_or_else(|| bad("binding"))?;
+        bindings.push((
+            Arc::from(name),
+            value_from_json(b.get("value").unwrap_or(&Json::Null))?,
+        ));
+    }
+    let defs = code
+        .get("defs")
+        .and_then(Json::as_array)
+        .cloned()
+        .unwrap_or_default()
+        .iter()
+        .map(form_from_json)
+        .collect::<Result<_, _>>()?;
+    Ok(Code {
+        defs,
+        bindings,
+        start: match code.get("start") {
+            None | Some(Json::Null) => None,
+            Some(f) => Some(form_from_json(f)?),
+        },
+    })
+}
+
 // ── the trace ──────────────────────────────────────────────────────────────
 
 fn opt(n: Option<usize>) -> Json {
@@ -460,11 +504,7 @@ impl Trace {
             "violation": self.violation.as_ref().map_or(Json::Null, Violation::to_json),
             "budget": { "fuel": opt(self.budget.fuel), "max_depth": opt(self.budget.max_depth), "quantum": opt(self.budget.quantum) },
             "clock": self.clock.label(),
-            "code": {
-                "defs": self.code.defs.iter().map(form_to_json).collect::<Vec<_>>(),
-                "bindings": self.code.bindings.iter().map(|(n, v)| json!({"name": &**n, "value": value_to_json(v)})).collect::<Vec<_>>(),
-                "start": self.code.start.as_ref().map_or(Json::Null, form_to_json),
-            },
+            "code": code_to_json(&self.code),
             "tape": self.tape.iter().map(|e| match (&e.outcome, &e.fatal) {
                 (Ok(v), _) => json!({"call": e.call, "value": value_to_json(v)}),
                 (Err(m), Some(kind)) => {
@@ -508,23 +548,7 @@ impl Trace {
         let field = |k: &str| j.get(k).ok_or_else(|| format!("{FORMAT}: missing `{k}`"));
         let exit = field("exit")?;
         let budget = field("budget")?;
-        let code = field("code")?;
-        let mut bindings = Vec::new();
-        for b in code
-            .get("bindings")
-            .and_then(Json::as_array)
-            .cloned()
-            .unwrap_or_default()
-        {
-            let name = b
-                .get("name")
-                .and_then(Json::as_str)
-                .ok_or_else(|| bad("binding"))?;
-            bindings.push((
-                Arc::from(name),
-                value_from_json(b.get("value").unwrap_or(&Json::Null))?,
-            ));
-        }
+        let code = code_from_json(field("code")?)?;
         let mut tape = Vec::new();
         for e in field("tape")?.as_array().ok_or_else(|| bad("tape"))? {
             let call = e
@@ -585,21 +609,13 @@ impl Trace {
             .and_then(Json::as_str)
             .unwrap_or("")
             .to_string();
-        let defs: Vec<Spanned> = code
-            .get("defs")
-            .and_then(Json::as_array)
-            .cloned()
-            .unwrap_or_default()
-            .iter()
-            .map(form_from_json)
-            .collect::<Result<_, _>>()?;
         let violation = if version >= 3 {
             match j.get("violation") {
                 None | Some(Json::Null) => None,
                 Some(v) => Some(Violation::from_json(v)?),
             }
         } else {
-            Violation::of(&reason_kind, &tape, &defs, &Places::default())
+            Violation::of(&reason_kind, &tape, &code.defs, &Places::default())
         };
         let defined_at = j.get("defined_at").and_then(|p| {
             Some(Place {
@@ -634,14 +650,7 @@ impl Trace {
                 max_depth: opt_from(budget.get("max_depth")),
                 quantum: opt_from(budget.get("quantum")),
             },
-            code: Code {
-                defs,
-                bindings,
-                start: match code.get("start") {
-                    None | Some(Json::Null) => None,
-                    Some(f) => Some(form_from_json(f)?),
-                },
-            },
+            code,
             tape,
             truncated: j.get("truncated").and_then(Json::as_bool).unwrap_or(false),
             schedule,

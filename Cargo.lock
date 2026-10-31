@@ -514,6 +514,8 @@ dependencies = [
  "blue-lang-runtime",
  "blue-lang-syntax",
  "blue-lang-waku",
+ "libc",
+ "rustix",
  "serde_json",
  "tatara-lisp",
  "tatara-lisp-eval",

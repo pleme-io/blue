@@ -639,6 +639,14 @@ mod tests {
             })
             .unwrap();
             provide(&mut interp, &ps);
+            crate::attach_node_held(
+                &mut interp,
+                &crate::Hold {
+                    frame: blue_lang_waku::Waku::bottom(),
+                    provisions: ps.clone(),
+                    bounds: None,
+                },
+            );
             for name in cap.names() {
                 let alias = crate::provided_name(name);
                 assert!(

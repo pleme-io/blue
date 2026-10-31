@@ -1376,7 +1376,7 @@ heddaa (ヘッダー) — header fields as HTTP/2 carries them: HPACK (RFC 7541)
 | `heddaa::table_max(t)` |  |  |  |  |
 | `heddaa::with_limit(t, limit)` |  |  |  |  |
 | `heddaa::keep_step(acc, e, room)` |  |  |  |  |
-| `heddaa::evict(t, room)` |  |  |  |  |
+| `heddaa::evict(t, room)` |  | yes |  |  |
 | `heddaa::insert(t, name, value)` |  |  |  |  |
 | `heddaa::resize(t, max)` |  |  |  |  |
 | `heddaa::lookup(t, index)` |  |  |  |  |

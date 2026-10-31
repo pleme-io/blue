@@ -1,10 +1,12 @@
 region	space	verb	kind	shape	laterals	fleet	blue_today	meaning	wave	contract_shape	conforms
+C	akutaa?	accept	effect	accept(wire, timeout) -> pid or nil	capability,deadline,process	blue	rust:blue-lang-proc	Take in a process another node evicted to this wire and run it here.	0	accept(wire, timeout) -> pid or nil	yes
 C	akutaa?	alive?	effect	alive?(pid) -> Bool	process	-	absent	Whether a process is running.	1	alive?(pid) -> Bool	yes
 C	akutaa?	call	effect	call(pid, request, opts) -> reply	deadline,error,process	blue	rust:blue-lang-proc	Send a request and wait for its reply.	0	call(pid, request, opts) -> reply	yes
 C	akutaa?	cast	effect	cast(pid, request) -> nil	process	blue	rust:blue-lang-proc	Send a request and do not wait.	0		na
 C	akutaa?	child	decl	child(name, f, restart) -> spec	process	blue	rust:blue-lang-proc	One supervised child and when it restarts.	0		na
 C	akutaa?	connect	effect	connect(node) -> nil	capability,process	-	absent	Join another node so pids reach across.	3	connect(node) -> nil	yes
 C	akutaa?	demonitor	effect	demonitor(ref) -> nil	process	-	absent	Stop watching a monitored process.	1		na
+C	akutaa?	evict	effect	evict(pid, wire, peer) -> record	capability,process,serialize	blue	rust:blue-lang-proc	Move a server off its node at a message boundary as frames on a Tide wire.	0	evict(pid, wire, peer) -> record	yes
 C	akutaa?	exit	effect	exit(pid, reason) -> nil	process	blue	rust:blue-lang-proc	Ask a process to end with a reason.	0		na
 C	akutaa?	info	effect	info(pid) -> record	process	-	absent	Mailbox depth, links, status and memory of a process.	1	info(pid) -> record	yes
 C	akutaa?	isolate	pure	isolate(f) -> value	error,process	blue	rust:blue-lang-proc	Run f with private state; return its result or exit reason.	1		na
@@ -2323,7 +2325,7 @@ A	shuugou	symmetric_difference	pure	symmetric_difference(a, b) -> set	-	-	exists
 A	shuugou	union	pure	union(a, b) -> set	-	-	exists:shuugou	members of either set	0	union(a, b) -> set	yes
 H	shuusei	deep_merge	pure	deep_merge(a, b) -> value	-	-	exists:shuusei	Maps merge key by key and everything else is replaced by `b`	0		na
 H	shuusei	put	pure	put(doc, path, value) -> doc	-	-	exists:shuusei	`doc` with `value` at `path`; absent map keys on the way are created	0	put(doc, path, value) -> doc	yes
-C	sokketto?	accept	effect	accept(listener, opts) -> conn	cancel,deadline	blue-lang-runtime	rust:blue-lang-runtime	Take the next incoming connection.	1		na
+C	sokketto?	accept	effect	accept(listener, opts) -> conn	cancel,deadline	blue-lang-runtime	rust:blue-lang-runtime	Take the next incoming connection.	1	accept(listener, opts) -> conn	yes
 C	sokketto?	bind	effect	bind(addr, opts) -> conn	capability,error	-	absent	Bind a datagram socket to receive on.	2	bind(addr, role, scope, opts) -> conn	no
 C	sokketto?	certificate	effect	certificate(host, opts) -> record	error,time	-	absent	The peer certificate chain, expiry and names.	2		na
 C	sokketto?	close	effect	close(conn_or_listener) -> nil	resource	blue-lang-runtime	rust:blue-lang-runtime	Release it; closing twice is done.	1	close(conn_or_listener) -> nil	yes

@@ -88,6 +88,18 @@ fn sys_installed_names() -> BTreeSet<String> {
     after.difference(&before).cloned().collect()
 }
 
+fn host_installed_names() -> BTreeSet<String> {
+    let mut names = sys_installed_names();
+    let mut interp: Interpreter<()> = Interpreter::new();
+    blue_lang_runtime::attach_node(&mut interp);
+    for word in blue_lang_proc::CARRIED_WORDS {
+        if interp.lookup_global(word).is_some() {
+            names.insert((*word).to_string());
+        }
+    }
+    names
+}
+
 /// Anti-vacuity, with the floor and the date: the host layer installs at least
 /// 37 names as of 2026-08-13 (6 process, 20 filesystem, 4 environment,
 /// 7 clock). Every gate below quantifies over this set.
@@ -108,7 +120,7 @@ fn sys_installs_a_measurable_surface() {
 /// runtime is perfectly willing to make.
 #[test]
 fn every_sys_name_is_claimed_by_exactly_one_host_capability() {
-    let installed = sys_installed_names();
+    let installed = host_installed_names();
     let hosts = Capability::host_effects();
 
     let unclaimed: Vec<&String> = installed
@@ -138,7 +150,7 @@ fn every_sys_name_is_claimed_by_exactly_one_host_capability() {
 /// stub `BLUE-EXECUTION.md` §0 says must not exist.
 #[test]
 fn every_host_capability_name_is_installed_by_the_sys_layer() {
-    let installed = sys_installed_names();
+    let installed = host_installed_names();
     for c in Capability::host_effects() {
         for name in c.names() {
             assert!(
@@ -157,7 +169,7 @@ fn every_host_capability_name_is_installed_by_the_sys_layer() {
 /// empty — the design's central claim, inverted.
 #[test]
 fn no_pure_capability_grants_a_host_name() {
-    let installed = sys_installed_names();
+    let installed = host_installed_names();
     for c in Capability::ALL {
         if c.is_host_effect() {
             continue;
@@ -219,7 +231,7 @@ fn each_host_capability_carries_a_real_bundle_and_a_real_import() {
             // entropy source, so key material and nonces are generated here.
             ("entropy", 1),
             ("comm-flash", 5),
-            ("comm-scavenger", 7),
+            ("comm-scavenger", 9),
             ("mpc-threshold", 9),
             ("storage-append", 2)
         ]

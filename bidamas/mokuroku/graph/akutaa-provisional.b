@@ -2,6 +2,21 @@ space("akutaa?", {status: :provisional})
 
 verb(
   "akutaa?",
+  "accept",
+  {
+    kind: :effect,
+    shape: "accept(wire, timeout) -> pid or nil",
+    laterals: %w[capability deadline process],
+    fleet: "blue",
+    today: "rust:blue-lang-proc",
+    meaning: "Take in a process another node evicted to this wire and run it here.",
+    wave: 0,
+    origin: "C"
+  }
+)
+
+verb(
+  "akutaa?",
   "alive?",
   {
     kind: :effect,
@@ -86,6 +101,21 @@ verb(
     today: "absent",
     meaning: "Stop watching a monitored process.",
     wave: 1,
+    origin: "C"
+  }
+)
+
+verb(
+  "akutaa?",
+  "evict",
+  {
+    kind: :effect,
+    shape: "evict(pid, wire, peer) -> record",
+    laterals: %w[capability process serialize],
+    fleet: "blue",
+    today: "rust:blue-lang-proc",
+    meaning: "Move a server off its node at a message boundary as frames on a Tide wire.",
+    wave: 0,
     origin: "C"
   }
 )
@@ -540,7 +570,9 @@ edge("akutaa?::isolate", :composes, "akutaa?::wait", "result back to caller")
 edge("akutaa?::task", :composes, "akutaa?::wait", "result via wait")
 edge("akutaa?::monitor", :generalizes, "akutaa?::link", "one-way observation")
 edge("akutaa?::team", :generalizes, "akutaa?::register", "one name, many pids")
+edge("akutaa?::evict", :inverse, "akutaa?::accept", "a process out and in")
 edge("akutaa?::monitor", :inverse, "akutaa?::demonitor", "watch and stop")
+edge("akutaa?::accept", :inverse, "akutaa?::evict", "a process out and in")
 edge("akutaa?::spawn", :inverse, "akutaa?::kill", "start and end")
 edge("akutaa?::unlink", :inverse, "akutaa?::link", "couple and uncouple")
 edge("akutaa?::demonitor", :inverse, "akutaa?::monitor", "watch and stop")
@@ -647,6 +679,7 @@ edge(
   "lookup of a registered name"
 )
 
+edge("akutaa?::evict", :requires, "akutaa?::spawn", "moves a live process")
 edge("akutaa?::info", :requires, "akutaa?::spawn", "about a live process")
 edge("akutaa?::migrate", :requires, "akutaa?::spawn", "upgrades a live process")
 edge("akutaa?::send", :requires, "akutaa?::spawn", "needs a live pid")

@@ -52,7 +52,7 @@ bidama that does not check does not build.
 | sliding-scale typing; `Seam`; `Stats`; diagnostic spans | `blue-lang-check` |
 | REACH/WHEN/WHERE frame lattice; the closed `Capability` set; `imports_of` | `blue-lang-waku` |
 | package posture floors + resolution | `blue-lang-bidama` |
-| processes, supervision, mailboxes, isolation; the blue-level words (`node`), crash traces and `blue replay` (`trace`), `defmigrate` | `blue-lang-proc` |
+| processes, supervision, mailboxes, isolation; the blue-level words (`node`), crash traces and `blue replay` (`trace`), `defmigrate`; a process's scheduling class and the one darwin priority seam (`scheduling`, `seam`); eviction's `blue-image` and its Tide frames (`image`), carried by the runtime's wire (`wire::CARRIER`) | `blue-lang-proc` |
 | interpreter construction, erasure, pipeline; blue values into Rust `TataraDomain` types (`domain`); BLAKE3 + Ed25519, pure and C-free (`crypto`); NATS and HTTP spoken over std TCP (`net`, host-gated as `Capability::Network`) | `blue-lang-runtime` |
 | one evaluation session — contexts, live redefinition, pure frame, budget, interrupt, expansion (`session`); its JSON-lines protocol (`session::protocol`, `blue serve`); values as blue text (`literal`) | `blue-lang-runtime` |
 | `test`/`assert` runner | `blue-lang-test` |
@@ -200,6 +200,11 @@ not being on crates.io), **no editor answer inside a broken buffer** (the
 LSP answers from the newest revision that parsed until the parser recovers,
 `BLUE-ENGINE.md` E6), **project rules in the editor or as wasm** (`blue check`
 runs them in-process under the rule frame; the LSP does not run them, and the
-ABI is shaped for a wasm module that nothing builds yet), and no **`case`/`when` pattern matching** or **ranges** — the two remaining
+ABI is shaped for a wasm module that nothing builds yet), **no eviction of a
+plain, linked or supervised process** (`evict` moves a server, whose state is a
+value; a plain process's state is its VM frames, and a link or a supervisor
+would hear nothing from a process that left without exiting), **no
+authenticated image** (an image's BLAKE3 name proves it arrived whole, not who
+sent it; it runs under the accepting node's frame, never more), and no **`case`/`when` pattern matching** or **ranges** — the two remaining
 surface gaps a Ruby or Elixir author would reach for. `theory/BLUE.md` §V.26 holds the tier ledger; **do not build against a
 DESIGN-tier row without saying so.**

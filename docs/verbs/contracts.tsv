@@ -1,4 +1,5 @@
 verb	subject	args	opts	returns	raises	kind	meaning	stdlib_ref	status
+accept	listener	listener,timeout?	yes	handle or nil	decode_error	effect	take the next arrival a listener holds: a connection or a process	-	open
 acquire	source	~source,name	yes	lease	timeout	effect	take a lease or credential	-	decided
 add	a	a,b	no	value		pure	a moved or summed by b	§3.5	stdlib
 address	data	data,algorithm?	yes	oid		pure	content address of a value	-	decided
@@ -102,6 +103,7 @@ error	message	message,fields?	no	nil		effect	a structured log line at error leve
 estimate	subject	subject,method?,n?	yes	estimate		pure	a value with its range from a method	-	decided
 eval	flag	flag,context	yes	value		effect	the value of a flag for a context	-	decided
 events	subject	~subject	yes	[event]		effect	events about a subject	-	decided
+evict	process	process,wire,peer	no	record	not_found	effect	move a process off its node at a message boundary	-	open
 exists?	subject	subject	yes	Bool		effect	whether the subject is there; never raises	§3.1	stdlib
 exit_status	kind	kind	no	int		pure	the exit status the ledger gives a kind	-	decided
 expand	subject	subject,by?	yes	value		pure	a short form made long	-	decided

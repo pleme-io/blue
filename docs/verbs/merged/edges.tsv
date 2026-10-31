@@ -1,4 +1,5 @@
 from	rel	to	why
+akutaa?::accept	inverse	akutaa?::evict	a process out and in
 akutaa?::alive?	composes	akutaa?::info	info reduced to a Bool
 akutaa?::call	composes	akutaa?::receive	selective receive of the answer
 akutaa?::call	composes	akutaa?::send	send then wait for reply
@@ -8,6 +9,8 @@ akutaa?::cast	refines	akutaa?::send	fire and forget request
 akutaa?::child	refines	akutaa?::spawn	a spawn the supervisor repeats
 akutaa?::connect	requires	akutaa?::node	joins declared nodes
 akutaa?::demonitor	inverse	akutaa?::monitor	watch and stop
+akutaa?::evict	inverse	akutaa?::accept	a process out and in
+akutaa?::evict	requires	akutaa?::spawn	moves a live process
 akutaa?::exit	refines	akutaa?::send	exit signal with reason
 akutaa?::info	requires	akutaa?::spawn	about a live process
 akutaa?::isolate	composes	akutaa?::spawn	spawn, wait and unwrap

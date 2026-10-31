@@ -6,13 +6,15 @@
 //! interpreter's program runs against, and [`install`] binds its words:
 //!
 //! ```text
-//! spawn(f[, args])            spawn_link(f[, args])      spawn_server(handler, state)
+//! spawn(f[, args][, opts])    spawn_link(f[, args][, opts])
+//! spawn_server(handler, state[, opts])                   opts: {scheduling: :normal | :idle}
 //! send(pid, msg)              receive([pattern][, timeout_ms][, on_timeout])
 //! self()   alive?(pid)        link(pid)  unlink(pid)     monitor(pid)  demonitor(ref)
 //! exit(pid, reason)           trap_exit(flag)
 //! supervisor(strategy, children[, max_restarts])         children(sup)
 //! defmigrate(target, new_fn[, transform])
 //! def_hash(f)
+//! evict(pid, wire, peer)      accept(wire, timeout_ms)   (with a Carrier: comm-scavenger)
 //! ```
 //!
 //! ## The shapes, adopted rather than invented
@@ -61,17 +63,21 @@ use std::time::{Duration, Instant};
 use tatara_lisp::{Span, Spanned};
 use tatara_lisp_eval::ffi::Arity;
 use tatara_lisp_eval::vm::{compile_program, Budget, Chunk, Vm, DEFAULT_MAX_DEPTH};
-use tatara_lisp_eval::{EvalError, Interpreter, Value};
+use tatara_lisp_eval::{EvalError, Interpreter, MapKey, Value};
+
+use blue_lang_waku::Capability;
 
 use crate::code::{self, Code, Entry};
+use crate::image::{self, Arrivals, Image};
 use crate::mailbox::copy_data;
 use crate::pattern;
 use crate::receipt::{
     Frame, HostIo, Identities, Places, Receipt, ReceiptSink, Roots, StateRoot, Subject,
 };
+use crate::scheduling::{self, Scheduling};
 use crate::trace::{Journal, SliceRecord, TapeEntry, Trace};
-use crate::violation::{defined_key, Violation};
-use crate::{ExitReason, Pid, Proc, ProcState, Slice, Strategy};
+use crate::violation::{breach, defined_key, Violation};
+use crate::{provided_name, raised, ExitReason, Pid, Proc, ProcState, Slice, Strategy};
 
 /// The program itself.
 pub const ROOT: Pid = Pid(0);
@@ -122,6 +128,10 @@ pub const PROCESS_WORDS: &[&str] = &[
     "defmigrate",
     "def_hash",
 ];
+
+pub const CARRIED_WORDS: &[&str] = &["evict", "accept"];
+
+pub const EVICTED: &str = "evicted";
 
 /// The word a server's loop waits in. Not spellable, so not in
 /// [`PROCESS_WORDS`].
@@ -247,6 +257,13 @@ pub struct Meter {
     pub charge: fn(i64),
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct Carrier {
+    pub room: usize,
+    pub queue: fn(&Value, &Value, &[String], bool) -> Result<usize, String>,
+    pub take: fn(&Value, &str, Duration, bool) -> Result<Vec<String>, String>,
+}
+
 /// What a node runs its processes under.
 #[derive(Clone)]
 pub struct NodeConfig {
@@ -277,6 +294,7 @@ pub struct NodeConfig {
     /// The allocator meter that holds each process to its live-byte bound;
     /// `None` holds no process to one.
     pub meter: Option<Meter>,
+    pub carrier: Option<Carrier>,
 }
 
 impl NodeConfig {
@@ -303,12 +321,36 @@ impl NodeConfig {
             receipts: None,
             state_root: None,
             meter: None,
+            carrier: None,
         }
     }
 
     fn journals(&self) -> bool {
         self.frame.is_some() && self.journal > 0
     }
+
+    fn carrying(&self) -> Carrying {
+        let cap = Capability::CommScavenger;
+        Carrying {
+            carrier: self.carrier.is_some(),
+            scoped: self.frame.as_ref().is_some_and(|f| {
+                f.provided
+                    .iter()
+                    .any(|p| p.scope.is_some() && p.provision.capability() == cap)
+            }),
+            withheld: self
+                .frame
+                .as_ref()
+                .is_some_and(|f| f.withheld.contains(&cap)),
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+struct Carrying {
+    carrier: bool,
+    scoped: bool,
+    withheld: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -353,6 +395,7 @@ struct Info {
     held: i64,
     /// The live bytes it may hold: its spawner's bound, kept across restarts.
     bound: Option<u64>,
+    scheduling: Scheduling,
 }
 
 impl Info {
@@ -373,6 +416,7 @@ impl Info {
             entered: None,
             held: 0,
             bound: None,
+            scheduling: Scheduling::Normal,
         }
     }
 }
@@ -428,6 +472,8 @@ struct NodeState {
     /// Bytes of the messages children delivered to the root while it waited,
     /// charged to it when its wait returns.
     root_due: i64,
+    evicting: BTreeSet<Pid>,
+    arrivals: Arrivals,
 }
 
 impl NodeState {
@@ -455,7 +501,13 @@ impl NodeState {
             clock: Clock::new(clock),
             root_signal: None,
             root_due: 0,
+            evicting: BTreeSet::new(),
+            arrivals: Arrivals::default(),
         }
+    }
+
+    fn held_at_boundary(&self, pid: Pid) -> bool {
+        self.migrations.contains_key(&pid) || self.evicting.contains(&pid)
     }
 
     fn deliver(&mut self, to: Pid, msg: Value) {
@@ -475,7 +527,7 @@ impl NodeState {
                     || deadline.is_some_and(|d| now >= d)
             }
             Some(Wait::ServerNext) => {
-                mailbox.is_some_and(|b| !b.is_empty()) && !self.migrations.contains_key(&pid)
+                mailbox.is_some_and(|b| !b.is_empty()) && !self.held_at_boundary(pid)
             }
             None => mailbox.is_some_and(|b| !b.is_empty()),
         }
@@ -497,6 +549,7 @@ impl NodeState {
         self.waits.remove(&pid);
         self.tapes.remove(&pid);
         self.journals.remove(&pid);
+        self.evicting.remove(&pid);
     }
 
     /// `pid` took `msg`: keep it among its last `bound`.
@@ -669,9 +722,9 @@ type Word = fn(&Node, Who, &[Value], Span) -> Result<Value, EvalError>;
 
 /// The words, with the arity each is registered under.
 const WORDS: &[(&str, Arity, Word)] = &[
-    ("spawn", Arity::Range(1, 2), w_spawn),
-    ("spawn_link", Arity::Range(1, 2), w_spawn_link),
-    ("spawn_server", Arity::Exact(2), w_spawn_server),
+    ("spawn", Arity::Range(1, 3), w_spawn),
+    ("spawn_link", Arity::Range(1, 3), w_spawn_link),
+    ("spawn_server", Arity::Range(2, 3), w_spawn_server),
     ("send", Arity::Exact(2), w_send),
     ("self", Arity::Exact(0), w_self),
     ("alive?", Arity::Exact(1), w_alive),
@@ -687,13 +740,20 @@ const WORDS: &[(&str, Arity, Word)] = &[
     ("def_hash", Arity::Exact(1), w_def_hash),
 ];
 
+const CARRIED: &[(&str, Arity, Word, Word)] = &[
+    ("evict", Arity::Exact(3), w_evict, w_evict_provided),
+    ("accept", Arity::Exact(2), w_accept, w_accept_provided),
+];
+
 /// Bind the process words into the interpreter that runs a program, against
 /// `node`. The interpreter becomes the node's root.
 pub fn install<H: 'static>(interp: &mut Interpreter<H>, node: Arc<Node>) {
+    let carrying = node.config.carrying();
     let side = Side::Root(node);
     for (name, arity, word) in WORDS {
         register(interp, &side, name, *arity, *word);
     }
+    carry(interp, &side, carrying);
     // The root never parks: its `receive` drives the other processes until
     // it has an answer, so it is an ordinary function on either executor.
     let s = side.clone();
@@ -707,6 +767,46 @@ pub fn install<H: 'static>(interp: &mut Interpreter<H>, node: Arc<Node>) {
     );
 }
 
+fn carry<H: 'static>(interp: &mut Interpreter<H>, side: &Side, carrying: Carrying) {
+    for (name, arity, word, provided) in CARRIED {
+        if !carrying.carrier {
+            if interp.lookup_global(name).is_some() {
+                register_as(interp, side, name, (*name).to_string(), *arity, w_uncarried);
+            }
+            continue;
+        }
+        if carrying.withheld {
+            refuse_as(interp, side, name);
+        } else {
+            register_as(interp, side, name, (*name).to_string(), *arity, *word);
+        }
+        if carrying.scoped {
+            register_as(interp, side, name, provided_name(name), *arity, *provided);
+        }
+    }
+}
+
+fn refuse_as<H: 'static>(interp: &mut Interpreter<H>, side: &Side, name: &'static str) {
+    let who = match side {
+        Side::Root(_) => "this run's frame",
+        Side::Child(_) => "this process's frame",
+    };
+    interp.register_fn(name, Arity::Any, move |_: &[Value], _h: &mut H, span| {
+        Err(breach(name, Capability::CommScavenger, who, span))
+    });
+}
+
+fn register_as<H: 'static>(
+    interp: &mut Interpreter<H>,
+    side: &Side,
+    name: &'static str,
+    bound: String,
+    arity: Arity,
+    word: Word,
+) {
+    bind_word(interp, side, name, bound, arity, word, false);
+}
+
 fn register<H: 'static>(
     interp: &mut Interpreter<H>,
     side: &Side,
@@ -714,15 +814,27 @@ fn register<H: 'static>(
     arity: Arity,
     word: Word,
 ) {
+    bind_word(interp, side, name, name.to_string(), arity, word, true);
+}
+
+fn bind_word<H: 'static>(
+    interp: &mut Interpreter<H>,
+    side: &Side,
+    name: &'static str,
+    bound: String,
+    arity: Arity,
+    word: Word,
+    taped: bool,
+) {
     let side = side.clone();
-    interp.register_fn(name, arity, move |args: &[Value], _h: &mut H, span| {
+    interp.register_fn(bound, arity, move |args: &[Value], _h: &mut H, span| {
         let node = side.node(name, span)?;
         let who = match side {
             Side::Root(_) => Who::Root,
             Side::Child(_) => Who::Child(node.current()),
         };
         let out = word(&node, who, args, span);
-        if let Who::Child(pid) = who {
+        if let (true, Who::Child(pid)) = (taped, who) {
             node.record(pid, name, &out);
         }
         out
@@ -730,11 +842,12 @@ fn register<H: 'static>(
 }
 
 /// The child side of the words, on the prototype every child forks.
-fn install_child(proto: &mut Interpreter<()>, me: &Weak<Node>) {
+fn install_child(proto: &mut Interpreter<()>, me: &Weak<Node>, carrying: Carrying) {
     let side = Side::Child(me.clone());
     for (name, arity, word) in WORDS {
         register(proto, &side, name, *arity, *word);
     }
+    carry(proto, &side, carrying);
 
     // `receive` in a child parks. The two phases are the guarantee
     // `mailbox.rs` describes: readiness MATCHES (`pattern::first_match` takes
@@ -798,8 +911,8 @@ fn install_child(proto: &mut Interpreter<()>, me: &Weak<Node>) {
             let Some(node) = r.upgrade() else { return true };
             let mut st = node.st();
             let pid = st.current;
-            let ready = st.boxes.get(&pid).is_some_and(|b| !b.is_empty())
-                && !st.migrations.contains_key(&pid);
+            let ready =
+                st.boxes.get(&pid).is_some_and(|b| !b.is_empty()) && !st.held_at_boundary(pid);
             if !ready {
                 st.waits.insert(pid, Wait::ServerNext);
             }
@@ -902,7 +1015,7 @@ impl Node {
         self.proto
             .get_or_init(|| {
                 let mut p = (self.config.child)();
-                install_child(&mut p, &self.me);
+                install_child(&mut p, &self.me, self.config.carrying());
                 record_host_names(&mut p, &self.me);
                 Arc::new(p)
             })
@@ -1025,6 +1138,25 @@ impl Node {
         Slice::Exited(reason)
     }
 
+    fn slice_idle(&self, p: &mut Proc<()>) -> Slice {
+        let ran = std::thread::scope(|s| {
+            std::thread::Builder::new()
+                .name("blue-idle".to_string())
+                .stack_size(scheduling::LANE_STACK)
+                .spawn_scoped(s, || scheduling::lower().map(|()| self.slice_held(p)))
+                .map_err(|e| e.to_string())
+                .and_then(|lane| {
+                    lane.join()
+                        .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+                })
+        });
+        ran.unwrap_or_else(|why| {
+            let reason = ExitReason::Crashed(format!("the OS refused the idle class: {why}"));
+            p.state = ProcState::Exited(reason.clone());
+            Slice::Exited(reason)
+        })
+    }
+
     /// Compile `code` and queue a process running it, held to the bound of
     /// the account that spawns it. Building it is charged to no one.
     fn start(
@@ -1033,9 +1165,10 @@ impl Node {
         kind: Kind,
         def_name: Option<String>,
         sup: Option<Pid>,
+        scheduling: Scheduling,
     ) -> Result<Pid, String> {
         let bound = self.config.meter.and_then(|m| (m.bound)());
-        self.apart(|| self.start_unmetered(code, kind, def_name, sup, bound))
+        self.apart(|| self.start_unmetered(code, kind, def_name, sup, bound, scheduling))
             .0
     }
 
@@ -1046,6 +1179,7 @@ impl Node {
         def_name: Option<String>,
         sup: Option<Pid>,
         bound: Option<u64>,
+        scheduling: Scheduling,
     ) -> Result<Pid, String> {
         let chunk = Arc::new(compile(&code.program())?);
         let build = self.builder(&code.bindings);
@@ -1070,6 +1204,7 @@ impl Node {
         info.entered.clone_from(&initial);
         info.initial = initial;
         info.bound = bound;
+        info.scheduling = scheduling;
         st.info.insert(pid, info);
         st.boxes.insert(pid, VecDeque::new());
         st.tapes.insert(pid, Tape::default());
@@ -1108,8 +1243,17 @@ impl Node {
             }
             let pid = sched[idx].pid;
             self.switch(&mut self.st(), pid);
+            let idle = self
+                .st()
+                .info
+                .get(&pid)
+                .is_some_and(|i| i.scheduling == Scheduling::Idle);
             let before = sched[idx].vm.burned();
-            let out = self.slice_held(&mut sched[idx]);
+            let out = if idle {
+                self.slice_idle(&mut sched[idx])
+            } else {
+                self.slice_held(&mut sched[idx])
+            };
             let burned = sched[idx].vm.burned().saturating_sub(before);
             {
                 let mut st = self.st();
@@ -1548,6 +1692,240 @@ impl Node {
         Ok(())
     }
 
+    // ── eviction ───────────────────────────────────────────────────────────
+
+    fn tally(&self) {
+        if self
+            .config
+            .frame
+            .as_ref()
+            .is_some_and(|f| f.granted.contains(&Capability::CommScavenger))
+        {
+            self.config.host_io.tally();
+        }
+    }
+
+    fn carrier(&self, word: &str, span: Span) -> Result<Carrier, EvalError> {
+        self.config
+            .carrier
+            .ok_or_else(|| refuse(word, "this node has no wire to carry a process", span))
+    }
+
+    fn evictable(&self, pid: Pid) -> Result<(), String> {
+        let st = self.st();
+        let info = st
+            .info
+            .get(&pid)
+            .filter(|i| i.live)
+            .ok_or_else(|| format!("no process {}", pid.0))?;
+        if !matches!(info.kind, Kind::Server) {
+            return Err(format!(
+                "process {} is not a server: a plain process keeps its state in its own frames, \
+                 which do not cross a wire; run it with spawn_server to evict it",
+                pid.0
+            ));
+        }
+        if let Some(s) = info.sup {
+            return Err(format!(
+                "process {} is supervised by {}, which restarts it on this node; evict a server \
+                 no supervisor holds",
+                pid.0, s.0
+            ));
+        }
+        if !info.links.is_empty() {
+            return Err(format!(
+                "process {} is linked to {}; unlink it first: an evicted process does not exit, \
+                 so its links would hear nothing",
+                pid.0,
+                info.links
+                    .iter()
+                    .map(|l| l.0.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+        }
+        if st.held_at_boundary(pid) {
+            return Err(format!("process {} is already being moved", pid.0));
+        }
+        Ok(())
+    }
+
+    fn evict(
+        &self,
+        pid: Pid,
+        wire: &Value,
+        peer: &Value,
+        loopback: bool,
+        span: Span,
+    ) -> Result<Value, EvalError> {
+        let word = "evict";
+        let carrier = self.carrier(word, span)?;
+        self.evictable(pid).map_err(|m| refuse(word, m, span))?;
+        self.st().evicting.insert(pid);
+        let parked = self.drive(
+            |st| {
+                if !st.info.contains_key(&pid) {
+                    return Some(false);
+                }
+                matches!(st.waits.get(&pid), Some(Wait::ServerNext)).then_some(true)
+            },
+            None,
+            word,
+            span,
+        );
+        let moved = match parked {
+            Ok(Driven::Done(true)) => self.depart_over(pid, wire, peer, loopback, carrier),
+            Ok(Driven::Done(false)) => Err(format!(
+                "process {} exited before it reached a message boundary",
+                pid.0
+            )),
+            Ok(Driven::Deadlock(_) | Driven::TimedOut) => Err(format!(
+                "process {} is waiting inside its handler and nothing can wake it, so it never \
+                 reached a message boundary",
+                pid.0
+            )),
+            Err(e) => {
+                self.st().evicting.remove(&pid);
+                return Err(e);
+            }
+        };
+        self.st().evicting.remove(&pid);
+        moved.map_err(|m| refuse(word, m, span))
+    }
+
+    fn image_of(&self, pid: Pid) -> Result<Image, String> {
+        let state = lock(&self.sched)
+            .iter()
+            .find(|p| p.pid == pid)
+            .and_then(|p| p.interp.lookup_global("%state"))
+            .unwrap_or(Value::Nil);
+        let state = copy_data(&state).map_err(|kind| {
+            format!(
+                "process {}'s state holds a {kind}, which is not data and does not cross a wire",
+                pid.0
+            )
+        })?;
+        let st = self.st();
+        let info = st.info.get(&pid).ok_or("the process is gone")?;
+        let mut code = info.code.clone();
+        code.bind("%state", state);
+        Ok(Image {
+            definition: info.def_name.clone(),
+            scheduling: info.scheduling,
+            trap_exit: info.trap_exit,
+            code,
+            mailbox: st
+                .boxes
+                .get(&pid)
+                .map(|b| b.iter().cloned().collect())
+                .unwrap_or_default(),
+        })
+    }
+
+    fn depart_over(
+        &self,
+        pid: Pid,
+        wire: &Value,
+        peer: &Value,
+        loopback: bool,
+        carrier: Carrier,
+    ) -> Result<Value, String> {
+        let text = self.image_of(pid)?.text();
+        let id = image::id_of(&text);
+        let frames = image::frames(&id, &text, carrier.room)?;
+        let bytes = (carrier.queue)(wire, peer, &frames, loopback)?;
+        self.depart(pid);
+        Ok(record(&[
+            ("image", Value::Str(Arc::from(format!("b3:{id}")))),
+            ("frames", int(frames.len())),
+            ("bytes", int(bytes)),
+        ]))
+    }
+
+    fn depart(&self, pid: Pid) {
+        lock(&self.sched).retain(|p| p.pid != pid);
+        let mut st = self.st();
+        let monitors = st
+            .info
+            .get_mut(&pid)
+            .map(|i| std::mem::take(&mut i.monitors))
+            .unwrap_or_default();
+        for (r, watcher) in monitors {
+            st.deliver(
+                watcher,
+                Value::list([kw("down"), int(r), int(pid.0), kw(EVICTED)]),
+            );
+        }
+        st.forget(pid);
+        drop(st);
+        self.config.host_io.take(pid);
+    }
+
+    fn accept(
+        &self,
+        wire: &Value,
+        timeout: Duration,
+        loopback: bool,
+        span: Span,
+    ) -> Result<Value, EvalError> {
+        let word = "accept";
+        let carrier = self.carrier(word, span)?;
+        let deadline = Instant::now() + timeout;
+        loop {
+            let left = deadline.saturating_duration_since(Instant::now());
+            let frames = (carrier.take)(wire, image::FRAME, left, loopback)
+                .map_err(|m| refuse(word, m, span))?;
+            let (done, flaw) = {
+                let mut st = self.st();
+                let mut flaw = None;
+                for f in &frames {
+                    if let Err(why) = st.arrivals.file(f) {
+                        flaw.get_or_insert(why);
+                    }
+                }
+                (st.arrivals.complete(), flaw)
+            };
+            match (done, flaw) {
+                (Some(Ok(text)), _) => return self.admit(&text, span),
+                (Some(Err(why)), _) | (None, Some(why)) => {
+                    return Err(raised("decode_error", why, Value::Nil, span))
+                }
+                (None, None) if frames.is_empty() => return Ok(Value::Nil),
+                (None, None) => {}
+            }
+        }
+    }
+
+    fn admit(&self, text: &str, span: Span) -> Result<Value, EvalError> {
+        let (parsed, _) = self.apart(|| Image::parse(text));
+        let image = parsed.map_err(|why| raised("decode_error", why, Value::Nil, span))?;
+        let pid = self
+            .start(
+                image.code,
+                Kind::Server,
+                image.definition,
+                None,
+                image.scheduling,
+            )
+            .map_err(|m| refuse("accept", m, span))?;
+        let (mailbox, bytes) = self.apart(|| {
+            image
+                .mailbox
+                .iter()
+                .filter_map(|m| copy_data(m).ok())
+                .collect::<VecDeque<_>>()
+        });
+        {
+            let mut st = self.st();
+            if let Some(i) = st.info.get_mut(&pid) {
+                i.trap_exit = image.trap_exit;
+            }
+            st.boxes.insert(pid, mailbox);
+        }
+        self.credit(pid, bytes);
+        Ok(int(pid.0))
+    }
+
     // ── traces ─────────────────────────────────────────────────────────────
 
     fn trace_of(&self, st: &mut NodeState, pid: Pid, reason: &ExitReason, value: &Value) -> Trace {
@@ -1843,6 +2221,59 @@ impl Node {
 
 // ── the words ──────────────────────────────────────────────────────────────
 
+fn record(fields: &[(&str, Value)]) -> Value {
+    Value::map(
+        fields
+            .iter()
+            .map(|(k, v)| (MapKey::Keyword(Arc::from(*k)), v.clone())),
+    )
+}
+
+fn spawn_opts(v: Option<&Value>, word: &str, span: Span) -> Result<Scheduling, EvalError> {
+    let m = match v {
+        None | Some(Value::Nil) => return Ok(Scheduling::Normal),
+        Some(Value::Map(m)) => m,
+        Some(other) => {
+            return Err(raised(
+                "bad_option",
+                format!(
+                    "{word}'s options are a map {{{}: …}}, got {}",
+                    scheduling::OPTION,
+                    other.type_name()
+                ),
+                Value::Nil,
+                span,
+            ))
+        }
+    };
+    let mut class = Scheduling::Normal;
+    for (k, val) in m.iter() {
+        let key = match k {
+            MapKey::Keyword(s) | MapKey::Symbol(s) | MapKey::Str(s) => {
+                s.trim_start_matches(':').to_string()
+            }
+            other => other.to_value().to_string(),
+        };
+        if key != scheduling::OPTION {
+            return Err(raised(
+                "bad_option",
+                format!("{word} takes {}:, got {key}:", scheduling::OPTION),
+                Value::Nil,
+                span,
+            ));
+        }
+        class = match val {
+            Value::Keyword(w) => Scheduling::named(w),
+            other => Err(scheduling::Refusal::Unknown(format!(
+                "a {}",
+                other.type_name()
+            ))),
+        }
+        .map_err(|r| raised(r.kind(), r.to_string(), Value::Nil, span))?;
+    }
+    Ok(class)
+}
+
 fn spawn_args(args: &[Value], word: &str, span: Span) -> Result<Vec<Value>, EvalError> {
     match args.get(1) {
         None | Some(Value::Nil) => Ok(Vec::new()),
@@ -1862,24 +2293,30 @@ fn spawn_one(
     sup: Option<Pid>,
     word: &str,
     span: Span,
+    scheduling: Scheduling,
 ) -> Result<Pid, EvalError> {
     let (code, entry) = code::spawn_code(f, args).map_err(|m| refuse(word, m, span))?;
     let def_name = match entry {
         Entry::Named(n) | Entry::Builtin(n) => Some(n),
         Entry::Lambda(_) => None,
     };
-    node.start(code, Kind::Plain, def_name, sup)
+    node.start(code, Kind::Plain, def_name, sup, scheduling)
         .map_err(|m| refuse(word, m, span))
 }
 
 fn w_spawn(node: &Node, _who: Who, args: &[Value], span: Span) -> Result<Value, EvalError> {
     let a = spawn_args(args, "spawn", span)?;
-    Ok(int(spawn_one(node, &args[0], &a, None, "spawn", span)?.0))
+    let class = spawn_opts(args.get(2), "spawn", span)?;
+    Ok(int(spawn_one(
+        node, &args[0], &a, None, "spawn", span, class,
+    )?
+    .0))
 }
 
 fn w_spawn_link(node: &Node, who: Who, args: &[Value], span: Span) -> Result<Value, EvalError> {
     let a = spawn_args(args, "spawn_link", span)?;
-    let pid = spawn_one(node, &args[0], &a, None, "spawn_link", span)?;
+    let class = spawn_opts(args.get(2), "spawn_link", span)?;
+    let pid = spawn_one(node, &args[0], &a, None, "spawn_link", span, class)?;
     let mut st = node.st();
     let me = who.pid();
     if let Some(i) = st.info.get_mut(&me) {
@@ -1908,6 +2345,7 @@ fn w_def_hash(node: &Node, _who: Who, args: &[Value], span: Span) -> Result<Valu
 }
 
 fn w_spawn_server(node: &Node, _who: Who, args: &[Value], span: Span) -> Result<Value, EvalError> {
+    let class = spawn_opts(args.get(2), "spawn_server", span)?;
     Ok(int(server(
         node,
         &args[0],
@@ -1915,6 +2353,7 @@ fn w_spawn_server(node: &Node, _who: Who, args: &[Value], span: Span) -> Result<
         None,
         "spawn_server",
         span,
+        class,
     )?
     .0))
 }
@@ -1926,6 +2365,7 @@ fn server(
     sup: Option<Pid>,
     word: &str,
     span: Span,
+    scheduling: Scheduling,
 ) -> Result<Pid, EvalError> {
     let mut code = code::function_code(handler, "%handler").map_err(|m| refuse(word, m, span))?;
     code.defs.extend(SERVER_LOOP.iter().cloned());
@@ -1938,8 +2378,75 @@ fn server(
         )
     })?;
     code.bind("%state", state);
-    node.start(code, Kind::Server, code::name_of(handler), sup)
+    node.start(code, Kind::Server, code::name_of(handler), sup, scheduling)
         .map_err(|m| refuse(word, m, span))
+}
+
+fn w_evict(node: &Node, who: Who, args: &[Value], span: Span) -> Result<Value, EvalError> {
+    node.tally();
+    evicting(node, who, args, false, span)
+}
+
+fn w_evict_provided(node: &Node, who: Who, args: &[Value], span: Span) -> Result<Value, EvalError> {
+    evicting(node, who, args, true, span)
+}
+
+fn evicting(
+    node: &Node,
+    who: Who,
+    args: &[Value],
+    loopback: bool,
+    span: Span,
+) -> Result<Value, EvalError> {
+    if who != Who::Root {
+        return Err(refuse(
+            "evict",
+            "evict waits for the process to reach a message boundary, and only the program \
+             waits; a process asks the program to evict",
+            span,
+        ));
+    }
+    let pid = pid_arg(&args[0], "evict", span)?;
+    node.evict(pid, &args[1], &args[2], loopback, span)
+}
+
+fn w_accept(node: &Node, _who: Who, args: &[Value], span: Span) -> Result<Value, EvalError> {
+    node.tally();
+    accepting(node, args, false, span)
+}
+
+fn w_accept_provided(
+    node: &Node,
+    _who: Who,
+    args: &[Value],
+    span: Span,
+) -> Result<Value, EvalError> {
+    accepting(node, args, true, span)
+}
+
+fn accepting(node: &Node, args: &[Value], loopback: bool, span: Span) -> Result<Value, EvalError> {
+    let timeout = match &args[1] {
+        Value::Int(n) if *n >= 0 => Duration::from_millis(n.unsigned_abs()),
+        other => {
+            return Err(refuse(
+                "accept",
+                format!(
+                    "the timeout is milliseconds (an Int >= 0), got {}",
+                    other.type_name()
+                ),
+                span,
+            ))
+        }
+    };
+    node.accept(&args[0], timeout, loopback, span)
+}
+
+fn w_uncarried(_node: &Node, _who: Who, _args: &[Value], span: Span) -> Result<Value, EvalError> {
+    Err(refuse(
+        "evict",
+        "this node has no wire to carry a process",
+        span,
+    ))
 }
 
 fn w_send(node: &Node, _who: Who, args: &[Value], span: Span) -> Result<Value, EvalError> {
@@ -2118,9 +2625,15 @@ fn w_supervisor(node: &Node, _who: Who, args: &[Value], span: Span) -> Result<Va
     for spec in specs.iter() {
         let pid = match spec {
             // `[:server, handler, state]`: a supervised spawn_server.
-            Value::List(t) if t.len() == 3 && is_keyword(&t[0], "server") => {
-                server(node, &t[1], &t[2], Some(sup), "supervisor", span)?
-            }
+            Value::List(t) if t.len() == 3 && is_keyword(&t[0], "server") => server(
+                node,
+                &t[1],
+                &t[2],
+                Some(sup),
+                "supervisor",
+                span,
+                Scheduling::Normal,
+            )?,
             Value::List(pair) if pair.len() == 2 && code::is_function(&pair[0]) => {
                 let Value::List(a) = &pair[1] else {
                     return Err(refuse(
@@ -2130,9 +2643,25 @@ fn w_supervisor(node: &Node, _who: Who, args: &[Value], span: Span) -> Result<Va
                     ));
                 };
                 let a: Vec<Value> = a.iter().cloned().collect();
-                spawn_one(node, &pair[0], &a, Some(sup), "supervisor", span)?
+                spawn_one(
+                    node,
+                    &pair[0],
+                    &a,
+                    Some(sup),
+                    "supervisor",
+                    span,
+                    Scheduling::Normal,
+                )?
             }
-            f => spawn_one(node, f, &[], Some(sup), "supervisor", span)?,
+            f => spawn_one(
+                node,
+                f,
+                &[],
+                Some(sup),
+                "supervisor",
+                span,
+                Scheduling::Normal,
+            )?,
         };
         if let Some(Info {
             kind: Kind::Supervisor(s),

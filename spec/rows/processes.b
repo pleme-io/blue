@@ -201,3 +201,61 @@ row(
   covers("builtin:exit_with"),
   host()
 )
+
+row(
+  "processes.spawn_server.idle_answers_as_normal_does",
+  join_lines(
+    [
+      "def h(msg, n)",
+      "  if list?(msg)",
+      "    send(nth(1, msg), n)",
+      "    n",
+      "  else",
+      "    n + msg",
+      "  end",
+      "end",
+      "s = spawn_server(h, 1, {scheduling: :idle})",
+      "send(s, 2)",
+      "send(s, [:get, self])",
+      "receive()"
+    ]
+  ),
+  value("3"),
+  host()
+)
+
+row(
+  "processes.spawn_server.realtime_is_refused_by_name",
+  join_lines(
+    [
+      "def h(msg, n)",
+      "  n",
+      "end",
+      "",
+      "begin",
+      "  spawn_server(h, 0, {scheduling: :realtime})",
+      "rescue :permission_denied as e",
+      "  [e.kind, contains?(e.message, \"privileged\")]",
+      "end"
+    ]
+  ),
+  value("[:permission_denied, true]")
+)
+
+row(
+  "processes.spawn.a_class_blue_does_not_know_is_refused",
+  join_lines(
+    [
+      "def w()",
+      "  1",
+      "end",
+      "",
+      "begin",
+      "  spawn(w, [], {scheduling: :fast})",
+      "rescue :bad_option as e",
+      "  e.kind",
+      "end"
+    ]
+  ),
+  value(":bad_option")
+)

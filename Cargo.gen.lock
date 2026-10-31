@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "b24a6f68ab4652782893da3bf95d751f30fc80e9c0b834b5cfdc754d1d91a6ed",
+  "cargo_lock_sha256": "5f50cbf6449e2605ce42901096fc6075bb1e669dee40b52bd1280be0b442ac13",
   "manifest_sha256": {
     "Cargo.toml": "00afa67a3d7017c2373afa1bab1e47ad1a778fdc877ffc9b3e8f2fbf0ac5ab2b",
     "crates/blue-lang-appliance/Cargo.toml": "72da422691d14356450606a218eed12ed6a26ed3a23c64116dc3ef8546937526",
@@ -17,7 +17,7 @@
     "crates/blue-lang-lsp/Cargo.toml": "6ee650c395599803eaa4f13f2194ea1a1145a5f5f491e27a1e90a95e183fce00",
     "crates/blue-lang-mondou/Cargo.toml": "637a0cbb6ac275a3478a437406f8fd387a8b5257f755127815a47418b7ad08e5",
     "crates/blue-lang-pkg/Cargo.toml": "1034b636e0112e8a62e7022d5e439b0d7c214a2e50d45744c0153132b4e87350",
-    "crates/blue-lang-proc/Cargo.toml": "1cdc3dac59fdf784d6a971b31a9e0cb7555cb3194ced58c77dc32366c50814d1",
+    "crates/blue-lang-proc/Cargo.toml": "52fad15b16abe51edb8c65eeac9947731de5e44b282dea1f563a55169beb39dc",
     "crates/blue-lang-runtime/Cargo.toml": "4fc66fc259cb32d0a7108c6752b2224cb7cf4686c353a33cac5d6f579209b27d",
     "crates/blue-lang-syntax/Cargo.toml": "9d405348af1d3f57fffd0a73ddf0776a933ce98bfbcaa60c53a1db55db4e75cd",
     "crates/blue-lang-test/Cargo.toml": "df208a871216b2b2374dfa0614ddf42eaa7ba2d801dd6b981cde99ac14709cdb",
@@ -1907,65 +1907,6 @@
           "embedded",
           "fixture"
         ]
-      },
-      "blue-lang-proc-0.0.141": {
-        "runtime_dependencies": [
-          {
-            "name": "blake3",
-            "package_key": "blake3-1.8.5",
-            "kind": "normal",
-            "features": [
-              "pure",
-              "std"
-            ],
-            "uses_default_features": false,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "blue_lang_waku",
-            "package_key": "blue-lang-waku-0.0.141",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "serde_json",
-            "package_key": "serde_json-1.0.151",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "tatara_lisp",
-            "package_key": "tatara-lisp-0.4.12",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "tatara_lisp_eval",
-            "package_key": "tatara-lisp-eval-0.4.12",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          }
-        ],
-        "build_dependencies": [],
-        "features": []
       },
       "blue-lang-runtime-0.0.141": {
         "runtime_dependencies": [
@@ -11964,6 +11905,75 @@
               "std"
             ]
           },
+          "blue-lang-proc-0.0.141": {
+            "runtime_dependencies": [
+              {
+                "name": "blake3",
+                "package_key": "blake3-1.8.5",
+                "kind": "normal",
+                "features": [
+                  "pure",
+                  "std"
+                ],
+                "uses_default_features": false,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "blue_lang_waku",
+                "package_key": "blue-lang-waku-0.0.141",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "libc",
+                "package_key": "libc-0.2.191",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(target_vendor = \"apple\")",
+                "tree": "target"
+              },
+              {
+                "name": "serde_json",
+                "package_key": "serde_json-1.0.151",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "tatara_lisp",
+                "package_key": "tatara-lisp-0.4.12",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "tatara_lisp_eval",
+                "package_key": "tatara-lisp-eval-0.4.12",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": []
+          },
           "chacha20-0.10.2": {
             "runtime_dependencies": [
               {
@@ -12464,7 +12474,9 @@
               "alloc",
               "default",
               "fs",
-              "std"
+              "process",
+              "std",
+              "thread"
             ]
           },
           "rustls-native-certs-0.8.5": {
@@ -12647,6 +12659,79 @@
               "std"
             ]
           },
+          "blue-lang-proc-0.0.141": {
+            "runtime_dependencies": [
+              {
+                "name": "blake3",
+                "package_key": "blake3-1.8.5",
+                "kind": "normal",
+                "features": [
+                  "pure",
+                  "std"
+                ],
+                "uses_default_features": false,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "blue_lang_waku",
+                "package_key": "blue-lang-waku-0.0.141",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "rustix",
+                "package_key": "rustix-1.1.4",
+                "kind": "normal",
+                "features": [
+                  "process",
+                  "std",
+                  "thread"
+                ],
+                "uses_default_features": false,
+                "optional": false,
+                "target": "cfg(any(target_os = \"linux\", target_os = \"android\"))",
+                "tree": "target"
+              },
+              {
+                "name": "serde_json",
+                "package_key": "serde_json-1.0.151",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "tatara_lisp",
+                "package_key": "tatara-lisp-0.4.12",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "tatara_lisp_eval",
+                "package_key": "tatara-lisp-eval-0.4.12",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": []
+          },
           "chacha20-0.10.2": {
             "runtime_dependencies": [
               {
@@ -12934,7 +13019,8 @@
               "errno",
               "general",
               "ioctl",
-              "no_std"
+              "no_std",
+              "prctl"
             ]
           },
           "notify-8.2.0": {
@@ -13197,7 +13283,9 @@
               "alloc",
               "default",
               "fs",
-              "std"
+              "process",
+              "std",
+              "thread"
             ]
           },
           "rustls-native-certs-0.8.5": {
@@ -13293,6 +13381,79 @@
               "std"
             ]
           },
+          "blue-lang-proc-0.0.141": {
+            "runtime_dependencies": [
+              {
+                "name": "blake3",
+                "package_key": "blake3-1.8.5",
+                "kind": "normal",
+                "features": [
+                  "pure",
+                  "std"
+                ],
+                "uses_default_features": false,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "blue_lang_waku",
+                "package_key": "blue-lang-waku-0.0.141",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "rustix",
+                "package_key": "rustix-1.1.4",
+                "kind": "normal",
+                "features": [
+                  "process",
+                  "std",
+                  "thread"
+                ],
+                "uses_default_features": false,
+                "optional": false,
+                "target": "cfg(any(target_os = \"linux\", target_os = \"android\"))",
+                "tree": "target"
+              },
+              {
+                "name": "serde_json",
+                "package_key": "serde_json-1.0.151",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "tatara_lisp",
+                "package_key": "tatara-lisp-0.4.12",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "tatara_lisp_eval",
+                "package_key": "tatara-lisp-eval-0.4.12",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": []
+          },
           "chacha20-0.10.2": {
             "runtime_dependencies": [
               {
@@ -13580,7 +13741,8 @@
               "errno",
               "general",
               "ioctl",
-              "no_std"
+              "no_std",
+              "prctl"
             ]
           },
           "notify-8.2.0": {
@@ -13843,7 +14005,9 @@
               "alloc",
               "default",
               "fs",
-              "std"
+              "process",
+              "std",
+              "thread"
             ]
           },
           "rustls-native-certs-0.8.5": {
@@ -13948,6 +14112,75 @@
               "pure",
               "std"
             ]
+          },
+          "blue-lang-proc-0.0.141": {
+            "runtime_dependencies": [
+              {
+                "name": "blake3",
+                "package_key": "blake3-1.8.5",
+                "kind": "normal",
+                "features": [
+                  "pure",
+                  "std"
+                ],
+                "uses_default_features": false,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "blue_lang_waku",
+                "package_key": "blue-lang-waku-0.0.141",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "libc",
+                "package_key": "libc-0.2.191",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(target_vendor = \"apple\")",
+                "tree": "target"
+              },
+              {
+                "name": "serde_json",
+                "package_key": "serde_json-1.0.151",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "tatara_lisp",
+                "package_key": "tatara-lisp-0.4.12",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "tatara_lisp_eval",
+                "package_key": "tatara-lisp-eval-0.4.12",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": []
           },
           "chacha20-0.10.2": {
             "runtime_dependencies": [
@@ -14481,7 +14714,9 @@
               "alloc",
               "default",
               "fs",
-              "std"
+              "process",
+              "std",
+              "thread"
             ]
           },
           "rustls-native-certs-0.8.5": {
@@ -14700,6 +14935,79 @@
               "std"
             ]
           },
+          "blue-lang-proc-0.0.141": {
+            "runtime_dependencies": [
+              {
+                "name": "blake3",
+                "package_key": "blake3-1.8.5",
+                "kind": "normal",
+                "features": [
+                  "pure",
+                  "std"
+                ],
+                "uses_default_features": false,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "blue_lang_waku",
+                "package_key": "blue-lang-waku-0.0.141",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "rustix",
+                "package_key": "rustix-1.1.4",
+                "kind": "normal",
+                "features": [
+                  "process",
+                  "std",
+                  "thread"
+                ],
+                "uses_default_features": false,
+                "optional": false,
+                "target": "cfg(any(target_os = \"linux\", target_os = \"android\"))",
+                "tree": "target"
+              },
+              {
+                "name": "serde_json",
+                "package_key": "serde_json-1.0.151",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "tatara_lisp",
+                "package_key": "tatara-lisp-0.4.12",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "tatara_lisp_eval",
+                "package_key": "tatara-lisp-eval-0.4.12",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": []
+          },
           "chacha20-0.10.2": {
             "runtime_dependencies": [
               {
@@ -15039,7 +15347,8 @@
               "errno",
               "general",
               "ioctl",
-              "no_std"
+              "no_std",
+              "prctl"
             ]
           },
           "notify-8.2.0": {
@@ -15282,7 +15591,9 @@
               "alloc",
               "default",
               "fs",
-              "std"
+              "process",
+              "std",
+              "thread"
             ]
           },
           "rustls-native-certs-0.8.5": {
@@ -15414,6 +15725,79 @@
               "std"
             ]
           },
+          "blue-lang-proc-0.0.141": {
+            "runtime_dependencies": [
+              {
+                "name": "blake3",
+                "package_key": "blake3-1.8.5",
+                "kind": "normal",
+                "features": [
+                  "pure",
+                  "std"
+                ],
+                "uses_default_features": false,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "blue_lang_waku",
+                "package_key": "blue-lang-waku-0.0.141",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "rustix",
+                "package_key": "rustix-1.1.4",
+                "kind": "normal",
+                "features": [
+                  "process",
+                  "std",
+                  "thread"
+                ],
+                "uses_default_features": false,
+                "optional": false,
+                "target": "cfg(any(target_os = \"linux\", target_os = \"android\"))",
+                "tree": "target"
+              },
+              {
+                "name": "serde_json",
+                "package_key": "serde_json-1.0.151",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "tatara_lisp",
+                "package_key": "tatara-lisp-0.4.12",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "tatara_lisp_eval",
+                "package_key": "tatara-lisp-eval-0.4.12",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": []
+          },
           "chacha20-0.10.2": {
             "runtime_dependencies": [
               {
@@ -15753,7 +16137,8 @@
               "errno",
               "general",
               "ioctl",
-              "no_std"
+              "no_std",
+              "prctl"
             ]
           },
           "notify-8.2.0": {
@@ -15996,7 +16381,9 @@
               "alloc",
               "default",
               "fs",
-              "std"
+              "process",
+              "std",
+              "thread"
             ]
           },
           "rustls-native-certs-0.8.5": {

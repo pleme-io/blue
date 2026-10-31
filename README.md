@@ -239,7 +239,7 @@ rendered:
 
 | | |
 |---|---|
-| Built-in names | 332: 305 functions, 14 special forms, 13 macros |
+| Built-in names | 334: 307 functions, 14 special forms, 13 macros |
 | Surface forms | 30, with 13 operators and 25 reserved words |
 | Check rules | 67: 38 fix themselves, 7 suggest a fix |
 | Bluefile words | 24 |
@@ -367,7 +367,12 @@ not being on crates.io), **no editor answer inside a broken buffer** (the
 LSP answers from the newest revision that parsed until the parser recovers,
 `BLUE-ENGINE.md` E6), **project rules in the editor or as wasm** (`blue check`
 runs them in-process under the rule frame; the LSP does not run them, and the
-ABI is shaped for a wasm module that nothing builds yet), and no **`case`/`when` pattern matching** or **ranges** — the two remaining
+ABI is shaped for a wasm module that nothing builds yet), **no eviction of a
+plain, linked or supervised process** (`evict` moves a server, whose state is a
+value; a plain process's state is its VM frames, and a link or a supervisor
+would hear nothing from a process that left without exiting), **no
+authenticated image** (an image's BLAKE3 name proves it arrived whole, not who
+sent it; it runs under the accepting node's frame, never more), and no **`case`/`when` pattern matching** or **ranges** — the two remaining
 surface gaps a Ruby or Elixir author would reach for. `theory/BLUE.md` §V.26 holds the tier ledger; **do not build against a
 DESIGN-tier row without saying so.**
 

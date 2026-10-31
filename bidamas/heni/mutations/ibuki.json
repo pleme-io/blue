@@ -154,5 +154,11 @@
     "file": "ibuki.b",
     "find": "ceiling: [\"storage-append\"],",
     "replace": "ceiling: [\"filesystem\"],"
+  },
+  {
+    "name": "the nomad cannot move over the Tide",
+    "file": "ibuki.b",
+    "find": "ceiling: %w[clock comm-scavenger network],",
+    "replace": "ceiling: %w[clock network],"
   }
 ]

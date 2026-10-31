@@ -113,7 +113,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-330 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 185 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+332 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 185 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -368,6 +368,7 @@ Higher binding power binds tighter.
 | name | call | arity | meaning |
 |---|---|---|---|
 | `append_file` | `append_file(path, text)` | 2 | Add text to the end of the file, creating it; nil. |
+| `append_log` | `append_log(log, record)` | 2 | Add one record, a line of text, to the end of an append-only log, creating the log and its directories; nil. A record holding a newline or not a string raises :bad_option, and a log whose last record is torn raises :parse_error, writing nothing. Needs the storage_append capability, which filesystem holds; nothing in it truncates, overwrites or removes. |
 | `cwd` | `cwd` | 0 | The current directory. |
 | `file_mtime_ms` | `file_mtime_ms(path)` | 1 | The last modification time, in Unix milliseconds. |
 | `file_size` | `file_size(path)` | 1 | The size in bytes. |
@@ -383,6 +384,7 @@ Higher binding power binds tighter.
 | `path_extension` | `path_extension(path)` | 1 | The extension without its dot, or nil. |
 | `path_join` | `path_join(part, more...)` | 1+ | The parts joined with /. |
 | `read_file` | `read_file(path)` | 1 | The file's text. Raises when it cannot be read; shisutemu's read_or(path, default) does not. |
+| `read_log` | `read_log(log)` | 1 | Every record append_log wrote to a log, in order, as strings. An absent log raises :not_found, and one whose last record is torn raises :parse_error. Needs the storage_append capability, which filesystem holds. |
 | `rename_file` | `rename_file(from, to)` | 2 | Move a file, atomically on one filesystem: write a temporary beside to, then rename. |
 | `rm` | `rm(path)` | 1 | Delete a file; raises when it is absent. |
 | `rm_rf` | `rm_rf(path)` | 1 | Delete a file or a directory tree; nil when there is nothing. |
@@ -589,10 +591,10 @@ A Bluefile is a blue program that may call only these words.
 | `needs(name, range)` | A dependency on a package and a version range ("^0.1"); a package's source must use() every package it needs. |
 | `posture(when)` | The posture floor a package requires: "sealed", "preceding" or "anytime". |
 | `reach(capabilities)` | The host capabilities a package may reach (%i[clock]): `blue lock` refuses a reach that misses one its reached definitions name. Under the root's `floors(:package)` it is the package's whole floor and must cover everything its code names. |
-| `allow(capabilities)` | The root's ceiling, the most host authority it grants (%i[filesystem clock]), as `--allow` grants it: every package's floor, joined, must fit under it or a provider, else `blue lock` refuses and names the path; `blue run` holds the program to it. |
+| `allow(capabilities)` | The root's ceiling, the most host authority it grants (%i[filesystem clock]), as `--allow` grants it, with what each implies (filesystem holds storage_append, the append-only logs): every package's floor, joined, must fit under it or a provider, else `blue lock` refuses and names the path; `blue run` holds the program to it. |
 | `floors(unit)` | What `blue lock` counts in a floor: :definition (the default), the host capabilities the definitions the root's code reaches name, through every package it uses; or :package, everything each package in the closure names, whole. The lock records it as the capabilities record's `unit`. |
 | `bounds({steps:, call_depth:, alloc_bytes:})` | The root's own execution bounds, each optional and each a positive integer: `steps` a run (and each test) may take, `call_depth` nested calls alive at once, `alloc_bytes` live bytes one evaluation may hold. `blue lock` records them in the capabilities record; `blue run`, `blue test` and an appliance hold the program to the lesser of each and the operator's BlueConfig bound, so a project narrows a bound and never widens one. |
-| `virtualize(capability, {using:, for:, …})` | A host capability bound to a pure provider: :clock {using: :deterministic_stepped, at_ms:, step_ms:}, :entropy {using: :seeded_prng, seed:}, :filesystem {using: :in_memory_overlay} (an isolated tree on an empty base; nothing reaches the host) or {using: :null_sink} (every write dropped), :comm_flash or :comm_scavenger {using: :loopback} (frames go to an in-process queue the run's own links read; no socket), :mpc_threshold {using: :seeded, seed:} (the threshold words draw every nonce and key from a stream keyed by seed, so a run signs the same way twice). `for: %w[pkg]` serves only those packages and what they use; the rest of the program gets the host or a breach. Without `for:` it serves the whole program. |
+| `virtualize(capability, {using:, for:, …})` | A host capability bound to a pure provider: :clock {using: :deterministic_stepped, at_ms:, step_ms:}, :entropy {using: :seeded_prng, seed:}, :filesystem {using: :in_memory_overlay} (an isolated tree on an empty base; nothing reaches the host) or {using: :null_sink} (every write dropped), :comm_flash or :comm_scavenger {using: :loopback} (frames go to an in-process queue the run's own links read; no socket), :mpc_threshold {using: :seeded, seed:} (the threshold words draw every nonce and key from a stream keyed by seed, so a run signs the same way twice), :storage_append {using: :in_memory} (the append-only logs live in memory; nothing reaches the host). `for: %w[pkg]` serves only those packages and what they use; the rest of the program gets the host or a breach. Without `for:` it serves the whole program. |
 | `source(name, url, dir)` | A named external distribution root, fetched from a flake URL and pinned in Bluefile.lock by `blue lock`. |
 | `packages(dir)` | A local directory whose subdirectories are packages: each is built, tested (`bidama-test-<pkg>`) and gated for collisions. |
 | `run(name, file[, reads])` | A program run as its own cached derivation, writing into $RUN_OUT; `reads` names runs whose outputs it reads. |

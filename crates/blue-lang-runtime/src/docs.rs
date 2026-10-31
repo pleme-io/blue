@@ -447,6 +447,8 @@ pub const NAMES: &[NameDoc] = names! {
     File: "path_dirname" "path_dirname(path)" "Everything before the last component.";
     File: "path_extension" "path_extension(path)" "The extension without its dot, or nil.";
     File: "cwd" "cwd" "The current directory.";
+    File: "append_log" "append_log(log, record)" "Add one record, a line of text, to the end of an append-only log, creating the log and its directories; nil. A record holding a newline or not a string raises :bad_option, and a log whose last record is torn raises :parse_error, writing nothing. Needs the storage_append capability, which filesystem holds; nothing in it truncates, overwrites or removes.";
+    File: "read_log" "read_log(log)" "Every record append_log wrote to a log, in order, as strings. An absent log raises :not_found, and one whose last record is torn raises :parse_error. Needs the storage_append capability, which filesystem holds.";
     // ── processes ─────────────────────────────────────────────────────────
     Process: "exec_capture" "exec_capture(cmd, args...)" "Run a command, no shell: [[:status, n], [:stdout, s], [:stderr, s]]. Read it with shisutemu's status_of and stdout_of.";
     Process: "exec_check" "exec_check(cmd, args...)" "Run a command, no shell; its exit status as an Int. Output passes through.";

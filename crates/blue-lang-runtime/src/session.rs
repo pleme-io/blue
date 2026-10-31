@@ -54,7 +54,8 @@ pub fn pure_frame() -> Waku {
     frame_granting(&[])
 }
 
-/// A frame granting the pure capabilities plus `host`.
+/// A frame granting the pure capabilities plus `host`, and every capability
+/// one of them implies (`filesystem` holds `storage-append`).
 #[must_use]
 pub fn frame_granting(host: &[Capability]) -> Waku {
     Waku {
@@ -62,7 +63,8 @@ pub fn frame_granting(host: &[Capability]) -> Waku {
             Capability::ALL
                 .into_iter()
                 .filter(|c| !c.is_host_effect() || host.contains(c)),
-        ),
+        )
+        .closed(),
         when: When::Anytime,
         place: Where::Process,
     }

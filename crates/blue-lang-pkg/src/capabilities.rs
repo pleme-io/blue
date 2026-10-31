@@ -38,6 +38,7 @@ pub const HOST_LABELS: &[&str] = &[
     "comm-flash",
     "comm-scavenger",
     "mpc-threshold",
+    "storage-append",
 ];
 
 /// The host capability a Bluefile label names: the label, or the label in
@@ -100,9 +101,9 @@ pub fn unit_of(bf: &Bluefile) -> FloorUnit {
 /// the clock, `{using: :seeded_prng, seed:}` for entropy,
 /// `{using: :in_memory_overlay}` or `{using: :null_sink}` for the
 /// filesystem, `{using: :loopback}` for `comm_flash` and `comm_scavenger`,
-/// and `{using: :seeded, seed:}` for `mpc_threshold`. `for: %w[pkg …]` serves
-/// only those packages and every
-/// package they use; without it the provider serves the whole program.
+/// `{using: :seeded, seed:}` for `mpc_threshold`, and `{using: :in_memory}`
+/// for `storage_append`. `for: %w[pkg …]` serves only those packages and
+/// every package they use; without it the provider serves the whole program.
 ///
 /// # Errors
 ///
@@ -118,7 +119,7 @@ pub fn provision_of(
     let kinds = Provision::kinds_for(cap);
     if kinds.is_empty() {
         return Err(format!(
-            "{} has no pure provider; virtualize clock, entropy, filesystem, comm_flash, comm_scavenger or mpc_threshold",
+            "{} has no pure provider; virtualize clock, entropy, filesystem, comm_flash, comm_scavenger, mpc_threshold or storage_append",
             cap.label()
         ));
     }
@@ -242,6 +243,7 @@ pub fn provision_of(
         },
         "in_memory_overlay" => Provision::InMemoryOverlay,
         "null_sink" => Provision::NullSink,
+        "in_memory" => Provision::InMemory,
         "loopback" => match blue_lang_waku::Channel::of(cap) {
             Some(channel) => Provision::Loopback { channel },
             None => return Err(unknown()),
@@ -437,7 +439,12 @@ fn within_declared(
     code: &BTreeSet<Capability>,
     declared: &BTreeSet<Capability>,
 ) -> Result<(), CapabilityError> {
-    let missing: BTreeSet<Capability> = code.difference(declared).copied().collect();
+    let covered = Reach::only(declared.iter().copied()).closed();
+    let missing: BTreeSet<Capability> = code
+        .iter()
+        .filter(|c| !covered.grants(**c))
+        .copied()
+        .collect();
     if missing.is_empty() {
         Ok(())
     } else {
@@ -893,7 +900,9 @@ pub fn provisions_of(bf: &Bluefile) -> Provisions {
 /// Verify `⋁ floors ⊑ ceiling ∨ provided` over `graph`. A scoped provider
 /// counts only for the packages it is for and the packages they use: it is
 /// taken out of their floors before the join, and a package outside it that
-/// needs its capability breaches.
+/// needs its capability breaches. The ceiling grants what each capability it
+/// names implies (`filesystem` holds `storage-append`); the record and a
+/// breach show it as declared.
 ///
 /// # Errors
 ///
@@ -907,8 +916,9 @@ pub fn verify(
     provisions: &Provisions,
 ) -> Result<CapabilityRecord, CapabilityError> {
     let widened = provisions.widen(ceiling);
+    let granting = provisions.widen(&ceiling.closed());
     let bound = Waku {
-        reach: widened.clone(),
+        reach: granting.clone(),
         when: When::Anytime,
         place: Where::Shared,
     };
@@ -998,7 +1008,7 @@ pub fn verify(
                 };
                 for cap in unserved(&name, node)
                     .into_iter()
-                    .filter(|c| !widened.grants(*c))
+                    .filter(|c| !granting.grants(*c))
                 {
                     breaches.push(Breach {
                         path: node
@@ -1038,10 +1048,16 @@ pub fn consistent(bf: &Bluefile, record: Option<&CapabilityRecord>) -> bool {
     let floor: BTreeSet<&String> = r.floor.iter().collect();
     let fits = match &r.ceiling {
         None => true,
-        Some(c) => r
-            .floor
-            .iter()
-            .all(|f| c.contains(f) || r.provided.contains_key(f)),
+        Some(c) => {
+            let granting = reach_of(Some(c)).map(|g| g.closed());
+            r.floor.iter().all(|f| {
+                r.provided.contains_key(f)
+                    || match (&granting, host_capability(f)) {
+                        (Ok(g), Some(cap)) => g.grants(cap),
+                        _ => c.contains(f),
+                    }
+            })
+        }
     };
     declared(bf)
         && r.ceiling == bf.project.allow
@@ -1092,7 +1108,7 @@ pub fn declared(bf: &Bluefile) -> bool {
 pub fn hold_for(entry: &Path) -> Result<Option<blue_lang_runtime::Hold>, String> {
     Ok(held_project(entry)?.map(|bf| blue_lang_runtime::Hold {
         frame: Waku {
-            reach: ceiling_of(&bf),
+            reach: ceiling_of(&bf).closed(),
             when: When::Anytime,
             place: Where::Process,
         },
@@ -1215,6 +1231,62 @@ mod tests {
         assert_eq!(
             host_capability("mpc-threshold"),
             Some(Capability::MpcThreshold)
+        );
+        assert_eq!(
+            host_capability(":storage_append"),
+            Some(Capability::StorageAppend)
+        );
+        assert_eq!(
+            host_capability("storage-append"),
+            Some(Capability::StorageAppend)
+        );
+    }
+
+    fn logging() -> Graph {
+        Graph {
+            root: "app".into(),
+            nodes: BTreeMap::from([
+                ("app".into(), node(&[], &["kiroku"])),
+                ("kiroku".into(), node(&[Capability::StorageAppend], &[])),
+            ]),
+            unit: FloorUnit::Package,
+            definitions: BTreeMap::new(),
+        }
+    }
+
+    #[test]
+    fn a_filesystem_ceiling_holds_an_append_only_floor_and_is_recorded_as_declared() {
+        let none = Provisions::default();
+        for granted in [
+            &[Capability::StorageAppend][..],
+            &[Capability::FileSystem][..],
+        ] {
+            let record = verify(&logging(), &reach(granted), &none).expect("fits");
+            assert_eq!(record.floor, ["storage-append"]);
+            assert_eq!(
+                record.ceiling,
+                Some(granted.iter().map(|c| c.label().to_string()).collect())
+            );
+        }
+        for ceiling in [&[][..], &[Capability::Clock, Capability::Network][..]] {
+            let err = verify(&logging(), &reach(ceiling), &none).expect_err("past it");
+            assert!(
+                err.to_string()
+                    .contains("[kiroku: needs 'storage-append'] violates ceiling"),
+                "{err}"
+            );
+        }
+        let wider = Graph {
+            root: "app".into(),
+            nodes: BTreeMap::from([("app".into(), node(&[Capability::FileSystem], &[]))]),
+            unit: FloorUnit::Package,
+            definitions: BTreeMap::new(),
+        };
+        let err = verify(&wider, &reach(&[Capability::StorageAppend]), &none)
+            .expect_err("the store does not hold the filesystem");
+        assert_eq!(
+            err.to_string(),
+            "[app: needs 'filesystem'] violates ceiling [storage-append]"
         );
     }
 
@@ -1372,6 +1444,7 @@ mod tests {
                     seed: "synod".into(),
                 },
             ),
+            (":storage_append, {using: :in_memory}", Provision::InMemory),
         ];
         for (settings, want) in cases {
             let got = virtualized(settings).unwrap_or_else(|e| panic!("{settings}: {e}"));
@@ -1457,6 +1530,18 @@ mod tests {
                 ":entropy, {using: :seeded, seed: \"s\"}",
                 "`using: :seeded` is not a entropy provider; it takes :seeded_prng",
             ),
+            (
+                ":storage_append, {using: :in_memory_overlay}",
+                "`using: :in_memory_overlay` is not a storage-append provider; it takes :in_memory",
+            ),
+            (
+                ":filesystem, {using: :in_memory}",
+                "`using: :in_memory` is not a filesystem provider; it takes :in_memory_overlay, :null_sink",
+            ),
+            (
+                ":storage_append, {using: :in_memory, seed: \"s\"}",
+                "`seed` is not a in_memory setting; it takes nothing besides `using` and `for`",
+            ),
         ] {
             let err = virtualized(settings).expect_err(settings);
             assert!(err.contains(says), "{settings}: {err}");
@@ -1477,6 +1562,7 @@ mod tests {
                 channel: blue_lang_waku::Channel::Flash,
             },
             Provision::Seeded { seed: "s".into() },
+            Provision::InMemory,
         ];
         for p in every {
             let json = serde_json::to_value(Provided::from(p.clone())).unwrap();
@@ -1649,6 +1735,33 @@ mod tests {
             ),
             "whole packages carry no definition rows"
         );
+    }
+
+    #[test]
+    fn a_record_whose_append_only_floor_sits_under_a_filesystem_ceiling_is_consistent() {
+        let logged = |ceiling: &str| {
+            let bf = crate::read_bluefile(&format!(
+                "package(\"app\", \"0.1.0\")\nallow(%i[{ceiling}])\n"
+            ))
+            .unwrap();
+            let record: CapabilityRecord = serde_json::from_value(serde_json::json!({
+                "ceiling": bf.project.allow.clone(),
+                "unit": "package",
+                "floor": ["storage-append"],
+                "packages": {"app": ["storage-append"]},
+            }))
+            .unwrap();
+            consistent(
+                &crate::read_bluefile(&format!(
+                    "package(\"app\", \"0.1.0\")\nallow(%i[{ceiling}])\nfloors(:package)\n"
+                ))
+                .unwrap(),
+                Some(&record),
+            )
+        };
+        assert!(logged("filesystem"));
+        assert!(logged("storage_append"));
+        assert!(!logged("clock"), "a ceiling without the store or the disk");
     }
 
     #[test]

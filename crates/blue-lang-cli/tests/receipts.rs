@@ -92,6 +92,7 @@ fn a_pure_frames_receipts_count_no_host_io_and_list_every_withheld_capability() 
         "comm-flash",
         "comm-scavenger",
         "mpc-threshold",
+        "storage-append",
     ];
     let got = run_with_receipts(&dir, &["none"], PURE);
     assert_eq!(got.len(), 3, "the run and its two processes: {got:?}");
@@ -152,7 +153,11 @@ fn a_granted_run_counts_each_host_call_and_each_process_its_own() {
     let got = run_with_receipts(&dir, &["filesystem"], &program);
     assert_eq!(got.len(), 2, "{got:?}");
     let (run, child) = (&got[0], &got[1]);
-    assert_eq!(run["frame"]["granted"], serde_json::json!(["filesystem"]));
+    assert_eq!(
+        run["frame"]["granted"],
+        serde_json::json!(["filesystem", "storage-append"]),
+        "filesystem holds the append-only store"
+    );
     assert_eq!(
         run["frame"]["host_io"], 3,
         "two reads at the root, one in the child: {run}"
@@ -164,7 +169,7 @@ fn a_granted_run_counts_each_host_call_and_each_process_its_own() {
     assert_eq!(unheld[0]["frame"]["withheld"], serde_json::json!([]));
     assert_eq!(
         unheld[0]["frame"]["granted"].as_array().map(Vec::len),
-        Some(9)
+        Some(10)
     );
     assert_eq!(unheld[0]["frame"]["host_io"], 3, "{}", unheld[0]);
     let _ = std::fs::remove_dir_all(dir);

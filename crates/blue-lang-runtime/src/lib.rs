@@ -66,6 +66,8 @@ pub mod session;
 pub mod spread;
 pub mod stdlib;
 #[cfg(feature = "sys")]
+pub mod storage;
+#[cfg(feature = "sys")]
 pub mod sys;
 #[cfg(feature = "sys")]
 pub mod threshold;
@@ -948,7 +950,10 @@ mod tests {
             };
             let (hold, mut interp, io) =
                 held(&[Capability::FileSystem], std::slice::from_ref(&scoped));
-            assert_eq!(hold.granted(), [Capability::FileSystem]);
+            assert_eq!(
+                hold.granted(),
+                [Capability::FileSystem, Capability::StorageAppend]
+            );
             assert_eq!(hold.frame().provided, [scoped]);
             let alias = provided_name("read_file");
             assert!(
@@ -1000,8 +1005,35 @@ mod tests {
             let (hold, _, _) = held(&[Capability::Clock], &[]);
             assert_eq!(
                 blue_lang_proc::receipt::canonical(&hold.frame_summary(4)),
-                r#"{"granted":["clock"],"host_io":4,"withheld":["process","filesystem","environment","network","entropy","comm-flash","comm-scavenger","mpc-threshold"]}"#
+                r#"{"granted":["clock"],"host_io":4,"withheld":["process","filesystem","environment","network","entropy","comm-flash","comm-scavenger","mpc-threshold","storage-append"]}"#
             );
+        }
+
+        #[test]
+        fn a_filesystem_hold_holds_the_log_words_and_a_storage_append_hold_holds_only_them() {
+            let (hold, mut interp, io) = held(&[Capability::FileSystem], &[]);
+            assert_eq!(
+                hold.granted(),
+                vec![Capability::FileSystem, Capability::StorageAppend]
+            );
+            assert!(
+                call(&mut interp, "(read_log \"/nonexistent/blue/held.log\")")
+                    .expect_err("absent")
+                    .contains("no such log")
+            );
+            assert_eq!(io.total(), 1, "the log word is shimmed and tallied");
+
+            let (hold, mut interp, _) = held(&[Capability::StorageAppend], &[]);
+            assert_eq!(hold.granted(), vec![Capability::StorageAppend]);
+            assert!(hold.withheld().contains(&Capability::FileSystem));
+            for word in [
+                "(write_file \"x\" \"y\")",
+                "(rm \"x\")",
+                "(append_file \"x\" \"y\")",
+            ] {
+                let e = call(&mut interp, word).expect_err(word);
+                assert!(e.contains("filesystem"), "{word}: {e}");
+            }
         }
     }
 

@@ -227,7 +227,8 @@ mod tests {
                 "entropy",
                 "comm-flash",
                 "comm-scavenger",
-                "mpc-threshold"
+                "mpc-threshold",
+                "storage-append"
             ])
         );
         assert_eq!(j["frame"]["host_io"], 1, "the ledger's total, as given");

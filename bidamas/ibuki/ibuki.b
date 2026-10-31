@@ -30,8 +30,8 @@ def classes()
     {
       name: :strand,
       numeral: "II",
-      ceiling: ["filesystem"],
-      holds: "a convergent state whose transitions are hash-linked records"
+      ceiling: ["storage-append"],
+      holds: "a convergent state whose transitions are hash-linked records, appended to a log and read back"
     },
     {
       name: :airlock,
@@ -175,12 +175,12 @@ def dock(shape, lock)
 end
 
 @doc """
-airlock_frame: the frame two parties meet in: the capabilities both ceilings grant, never the filesystem.
+airlock_frame: the frame two parties meet in: the capabilities both ceilings grant, never the disk, so neither the filesystem nor the append-only store it holds.
 
     airlock_frame(%w[clock filesystem network], %w[network filesystem]) #=> ["network"]
 """
 def airlock_frame(a, b)
-  ordered(difference(intersection(a, b), ["filesystem"]))
+  ordered(difference(intersection(a, b), %w[filesystem storage-append]))
 end
 
 @doc """
@@ -616,6 +616,7 @@ end
 test "the five classes are in order with their numerals and ceilings"
   assert map((c) -> c.numeral, classes) == %w[I II III IV V]
   assert class_named(:crystal).ceiling == []
+  assert class_named(:strand).ceiling == ["storage-append"]
   assert class_named(:airlock).ceiling == %w[clock entropy network]
   assert class_named(:synod).ceiling == %w[entropy mpc-threshold network]
   assert admit(:synod, %w[entropy mpc-threshold network]) == []
@@ -667,7 +668,9 @@ end
 
 test "admit refuses each capability past a class ceiling and nothing within it"
   assert admit(:crystal, []) == []
-  assert admit(:strand, ["filesystem"]) == []
+  assert admit(:strand, ["storage-append"]) == []
+  assert last(first(admit(:strand, ["filesystem"]))) ==
+    "strand reaches filesystem, past its ceiling [\"storage-append\"]"
   assert map(first, admit(:crystal, %w[network clock])) == %i[denied denied]
   assert last(first(admit(:airlock, ["filesystem"]))) ==
     "airlock reaches filesystem, past its ceiling [\"clock\", \"entropy\", \"network\"]"
@@ -681,11 +684,19 @@ test "dock refuses exactly when the measured reach leaves the class ceiling"
     {migrates: true},
     {threshold: [2, 3]}
   ]
-  labels = %w[clock entropy environment filesystem network process]
+  labels = %w[
+    clock
+    entropy
+    environment
+    filesystem
+    network
+    process
+    storage-append
+  ]
   assert every?(
     fn(s)
       shape = shapes[first(take_ints(s, 5, 1))]
-      reached = ordered(map((i) -> labels[i], take_ints(seeds(s, 2)[1], 6, 3)))
+      reached = ordered(map((i) -> labels[i], take_ints(seeds(s, 2)[1], 7, 3)))
       d = dock(shape, {capabilities: {floor: reached}})
       is_empty(d.refusals) == subset?(reached, class_named(d.class).ceiling)
     end,
@@ -701,6 +712,26 @@ test "an airlock frame is the meet of both ceilings without the disk"
   assert subset?(airlock_frame(a, b), a) and subset?(airlock_frame(a, b), b)
   assert airlock_frame([], a) == []
   assert airlock_frame(a, a) == %w[clock network]
+  assert airlock_frame(
+    %w[network storage-append],
+    %w[storage-append network]
+  ) == ["network"]
+end
+
+test "a Strand that appends its records to a log and reads them back docks as a strand, and one that writes the disk does not"
+  logged = dock(
+    {state: :merge},
+    {
+      capabilities: {
+        floor: ["storage-append"],
+        packages: {app: ["storage-append"]}
+      }
+    }
+  )
+  assert logged.class == :strand
+  assert logged.refusals == []
+  disk = dock({state: :merge}, {capabilities: {floor: ["filesystem"]}})
+  assert map(first, disk.refusals) == [:denied]
 end
 
 test "a full Flash bucket sends one burst of MTU packets, then names the wait exactly"

@@ -47,7 +47,7 @@
 //! | [`Capability::Assertion`] | `blue_lang_syntax::LOWERED_ASSERT`, `LOWERED_ASSERT_PANICS` |
 //! | [`Capability::CoreForms`] | the heads `blue-lang-syntax` lowers control flow to |
 //! | [`Capability::ManifestDeclaration`] | the Bluefile vocabulary (`blue_lang_pkg::bluefile`'s word table) |
-//! | the host bundles | `blue_lang_runtime::sys`'s four installers, `net`'s, `entropy`'s, `wire`'s and `threshold`'s |
+//! | the host bundles | `blue_lang_runtime::sys`'s four installers, `net`'s, `entropy`'s, `wire`'s, `threshold`'s and `storage`'s |
 //!
 //! The last row is the one that could rot, and it is gated rather than trusted:
 //! `blue-lang-cli`'s `tests/capability_surface.rs` installs the sys layer into a
@@ -138,6 +138,7 @@ pub enum Capability {
     CommFlash,
     CommScavenger,
     MpcThreshold,
+    StorageAppend,
 }
 
 /// The wasm import module every host capability lowers into.
@@ -315,6 +316,7 @@ const MPC_THRESHOLD_NAMES: &[&str] = &[
     "threshold_share_export",
     "threshold_share_import",
 ];
+const STORAGE_APPEND_NAMES: &[&str] = &["append_log", "read_log"];
 /// `blue_lang_runtime::sys::install_clock`, 2026-08-13.
 const CLOCK_NAMES: &[&str] = &[
     "now",
@@ -327,13 +329,14 @@ const CLOCK_NAMES: &[&str] = &[
 ];
 
 impl Capability {
-    /// How many capabilities exist. A **floor with a date**: fifteen as of
-    /// 2026-10-31, six pure and nine host-effect (fourteen until
-    /// `MpcThreshold`, twelve until `CommFlash` and `CommScavenger`, eleven
-    /// until `Entropy`). Stated so a count gate cannot
+    /// How many capabilities exist. A **floor with a date**: sixteen as of
+    /// 2026-10-31, six pure and ten host-effect (fifteen until
+    /// `StorageAppend`, fourteen until `MpcThreshold`, twelve until
+    /// `CommFlash` and `CommScavenger`, eleven until `Entropy`). Stated so a
+    /// count gate cannot
     /// pass over an empty set — `ALL.len() == 0` would satisfy every
     /// "for every capability…" test in this file.
-    pub const COUNT: usize = 15;
+    pub const COUNT: usize = 16;
 
     const FIRST: Self = Capability::CoreForms;
 
@@ -362,7 +365,8 @@ impl Capability {
             Capability::Entropy => Some(Capability::CommFlash),
             Capability::CommFlash => Some(Capability::CommScavenger),
             Capability::CommScavenger => Some(Capability::MpcThreshold),
-            Capability::MpcThreshold => None,
+            Capability::MpcThreshold => Some(Capability::StorageAppend),
+            Capability::StorageAppend => None,
         }
     }
 
@@ -406,6 +410,7 @@ impl Capability {
             Capability::CommFlash => "comm-flash",
             Capability::CommScavenger => "comm-scavenger",
             Capability::MpcThreshold => "mpc-threshold",
+            Capability::StorageAppend => "storage-append",
         }
     }
 
@@ -436,6 +441,7 @@ impl Capability {
             Capability::CommFlash => Names::Fixed(COMM_FLASH_NAMES),
             Capability::CommScavenger => Names::Fixed(COMM_SCAVENGER_NAMES),
             Capability::MpcThreshold => Names::Fixed(MPC_THRESHOLD_NAMES),
+            Capability::StorageAppend => Names::Fixed(STORAGE_APPEND_NAMES),
         }
     }
 
@@ -510,6 +516,32 @@ impl Capability {
                 module: HOST_MODULE,
                 field: "mpc-threshold",
             }),
+            Capability::StorageAppend => Some(Import {
+                module: HOST_MODULE,
+                field: "storage-append",
+            }),
+        }
+    }
+
+    #[must_use]
+    pub fn implied(self) -> &'static [Capability] {
+        match self {
+            Capability::FileSystem => &[Capability::StorageAppend],
+            Capability::CoreForms
+            | Capability::Operators
+            | Capability::Collections
+            | Capability::Interpolation
+            | Capability::Assertion
+            | Capability::ManifestDeclaration
+            | Capability::Process
+            | Capability::Environment
+            | Capability::Clock
+            | Capability::Network
+            | Capability::Entropy
+            | Capability::CommFlash
+            | Capability::CommScavenger
+            | Capability::MpcThreshold
+            | Capability::StorageAppend => &[],
         }
     }
 
@@ -553,6 +585,25 @@ impl Reach {
     /// doc called that the model's one measured incompleteness and said the fix
     /// needed a closed capability universe blue did not have. It has one now.
     #[must_use]
+    pub fn closed(&self) -> Reach {
+        match self {
+            Reach::Unrestricted => Reach::Unrestricted,
+            Reach::Only(caps) => {
+                let mut out = caps.clone();
+                let mut todo: Vec<Capability> = caps.iter().copied().collect();
+                while let Some(c) = todo.pop() {
+                    for i in c.implied() {
+                        if out.insert(*i) {
+                            todo.push(*i);
+                        }
+                    }
+                }
+                Reach::Only(out)
+            }
+        }
+    }
+
+    #[must_use]
     pub fn grants_any_host_effect(&self) -> bool {
         match self {
             Reach::Unrestricted => true,
@@ -566,9 +617,9 @@ mod tests {
     use super::*;
     use std::collections::BTreeSet;
 
-    /// **The floor, with the date.** Fifteen capabilities on 2026-10-31, six
-    /// pure and nine host-effect (eight until `MpcThreshold`, six until the
-    /// two wire channels, five until `Entropy`).
+    /// **The floor, with the date.** Sixteen capabilities on 2026-10-31, six
+    /// pure and ten host-effect (nine until `StorageAppend`, eight until
+    /// `MpcThreshold`, six until the two wire channels, five until `Entropy`).
     ///
     /// Anti-vacuity for every "for every capability…" test below: each of them
     /// passes trivially over an empty `ALL`, and `ALL` is *derived* from the
@@ -577,11 +628,11 @@ mod tests {
     #[test]
     fn the_universe_is_closed_and_counted() {
         assert_eq!(Capability::ALL.len(), Capability::COUNT);
-        assert_eq!(Capability::COUNT, 15, "the floor, measured 2026-10-31");
+        assert_eq!(Capability::COUNT, 16, "the floor, measured 2026-10-31");
         assert_eq!(
             Capability::host_effects().len(),
-            9,
-            "process, filesystem, environment, clock, network, entropy, comm-flash, comm-scavenger, mpc-threshold"
+            10,
+            "process, filesystem, environment, clock, network, entropy, comm-flash, comm-scavenger, mpc-threshold, storage-append"
         );
         assert_eq!(
             Capability::ALL
@@ -629,11 +680,12 @@ mod tests {
                 }
             }
         }
-        // The floor: 94 distinct names on 2026-10-31 (85 on 2026-10-30, plus
-        // the nine threshold words; 73 on 2026-09-23, plus the twelve wire
-        // words; 66 on 2026-08-13, plus the seven Bluefile words P1b added).
+        // The floor: 96 distinct names on 2026-10-31, the two log words past
+        // the 94 of the threshold words (85 on 2026-10-30; 73 on 2026-09-23,
+        // plus the twelve wire words; 66 on 2026-08-13, plus the seven
+        // Bluefile words P1b added).
         assert!(
-            owner.len() >= 94,
+            owner.len() >= 96,
             "the universe shrank to {} names",
             owner.len()
         );
@@ -745,11 +797,46 @@ mod tests {
             Capability::host_named("mpc-threshold"),
             Some(Capability::MpcThreshold)
         );
+        assert_eq!(
+            Capability::host_named(":storage_append"),
+            Some(Capability::StorageAppend)
+        );
+        assert_eq!(
+            Capability::host_named("storage-append"),
+            Some(Capability::StorageAppend)
+        );
+        assert_eq!(Capability::host_named("storage"), None);
+        assert_eq!(Capability::host_named("append"), None);
         assert_eq!(Capability::host_named("mpc"), None);
         assert_eq!(Capability::host_named("threshold"), None);
         assert_eq!(Capability::host_named("core-forms"), None);
         assert_eq!(Capability::host_named("comm"), None);
         assert_eq!(Capability::host_named("comm_tide"), None);
+    }
+
+    #[test]
+    fn a_grant_of_the_filesystem_holds_the_append_only_store_and_never_the_reverse() {
+        let fs = Reach::only([Capability::FileSystem]).closed();
+        assert!(fs.grants(Capability::StorageAppend));
+        assert!(fs.permits("append_log") && fs.permits("read_log"));
+        let log = Reach::only([Capability::StorageAppend]).closed();
+        assert_eq!(log, Reach::only([Capability::StorageAppend]));
+        for name in ["write_file", "rm", "rm_rf", "rename_file", "append_file"] {
+            assert!(!log.permits(name), "{name}");
+        }
+        assert!(log.leq(&fs) && !fs.leq(&log));
+        assert_eq!(fs.meet(&log), log);
+        assert_eq!(Reach::Unrestricted.closed(), Reach::Unrestricted);
+        assert_eq!(Reach::nothing().closed(), Reach::nothing());
+        for c in Capability::ALL {
+            let once = Reach::only([c]).closed();
+            assert_eq!(once.closed(), once, "{}", c.label());
+            for i in c.implied() {
+                assert!(i.is_host_effect() && c.is_host_effect(), "{}", c.label());
+                assert_ne!(*i, c, "{}", c.label());
+                assert!(!i.implied().contains(&c), "{}", c.label());
+            }
+        }
     }
 
     // ── RED RUNS, recorded ────────────────────────────────────────────────

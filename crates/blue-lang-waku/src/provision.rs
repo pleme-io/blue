@@ -4,8 +4,9 @@
 //! floor needs the capability resolves under a ceiling that withholds it, but
 //! no call reaches the host: the clock steps, entropy is a seeded stream, the
 //! filesystem lives in memory or nowhere, the wire's frames go to an
-//! in-process queue, and the threshold words draw their randomness from a
-//! seeded stream. [`Provision::kinds_for`] is exhaustive over
+//! in-process queue, the threshold words draw their randomness from a
+//! seeded stream, and the append-only logs live in memory.
+//! [`Provision::kinds_for`] is exhaustive over
 //! [`Capability`], so a new capability lands with its answer.
 //!
 //! A provider serves the whole program, or only the packages it names
@@ -43,6 +44,7 @@ pub enum Provision {
     Seeded {
         seed: String,
     },
+    InMemory,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -78,6 +80,7 @@ impl Provision {
             Provision::InMemoryOverlay | Provision::NullSink => Capability::FileSystem,
             Provision::Loopback { channel } => channel.capability(),
             Provision::Seeded { .. } => Capability::MpcThreshold,
+            Provision::InMemory => Capability::StorageAppend,
         }
     }
 
@@ -91,6 +94,7 @@ impl Provision {
             Provision::NullSink => "null_sink",
             Provision::Loopback { .. } => "loopback",
             Provision::Seeded { .. } => "seeded",
+            Provision::InMemory => "in_memory",
         }
     }
 
@@ -104,6 +108,7 @@ impl Provision {
             Provision::NullSink => "null-sink",
             Provision::Loopback { .. } => "loopback",
             Provision::Seeded { .. } => "seeded",
+            Provision::InMemory => "in-memory",
         }
     }
 
@@ -117,6 +122,7 @@ impl Provision {
             Capability::FileSystem => &["in_memory_overlay", "null_sink"],
             Capability::CommFlash | Capability::CommScavenger => &["loopback"],
             Capability::MpcThreshold => &["seeded"],
+            Capability::StorageAppend => &["in_memory"],
             Capability::Process
             | Capability::Environment
             | Capability::Network
@@ -281,6 +287,7 @@ mod tests {
                 channel: Channel::Tide,
             },
             Provision::Seeded { seed: "s".into() },
+            Provision::InMemory,
         ]
     }
 
@@ -377,6 +384,14 @@ mod tests {
             Provision::capability_of("threshold_deal"),
             Some(Capability::MpcThreshold)
         );
+        assert_eq!(
+            Provision::capability_of("append_log"),
+            Some(Capability::StorageAppend)
+        );
+        assert_eq!(
+            Provision::capability_of("read_log"),
+            Some(Capability::StorageAppend)
+        );
         assert_eq!(Provision::capability_of("ed25519_verify"), None);
         assert_eq!(Provision::capability_of("tcp_connect_ms"), None);
         assert_eq!(Provision::capability_of("map"), None);
@@ -436,6 +451,14 @@ mod tests {
             Reach::only([Capability::FileSystem, Capability::Entropy])
         );
         assert_eq!(Provisions::default().widen(&ceiling), ceiling);
+        let mut disk = Provisions::default();
+        disk.add(Provision::InMemoryOverlay).unwrap();
+        assert!(
+            !disk
+                .widen(&Reach::nothing())
+                .grants(Capability::StorageAppend),
+            "a virtual filesystem provides no append-only store: its words stay withheld"
+        );
         let named: Vec<_> = ps.scoped().collect();
         assert_eq!(named.len(), 1);
         assert_eq!(named[0].0, Capability::Clock);

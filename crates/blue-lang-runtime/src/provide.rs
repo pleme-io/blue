@@ -1,8 +1,9 @@
 //! The pure providers a frame binds in place of the host
 //! ([`blue_lang_waku::Provision`]): a deterministic stepped clock, a seeded
 //! PRNG, a filesystem as an in-memory overlay or a null sink, the wire's
-//! two channels over an in-process loopback, and the threshold words over a
-//! seeded stream. Each interpreter gets its own
+//! two channels over an in-process loopback, the threshold words over a
+//! seeded stream, and the append-only logs in memory. Each interpreter gets
+//! its own
 //! provider state, as each process owns its interpreter.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -46,6 +47,7 @@ pub fn provide<H: 'static>(
             Provision::NullSink => filesystem(interp, key, false),
             Provision::Loopback { channel } => links.push((key, *channel)),
             Provision::Seeded { seed } => crate::threshold::provide_seeded(interp, key, seed),
+            Provision::InMemory => crate::storage::provide_in_memory(interp, key),
         }
     }
     if !links.is_empty() {
@@ -199,7 +201,7 @@ impl Tree {
     }
 }
 
-fn absolute(p: &str) -> String {
+pub(crate) fn absolute(p: &str) -> String {
     let parts: Vec<&str> = p
         .split('/')
         .filter(|s| !s.is_empty() && *s != ".")
@@ -624,6 +626,7 @@ mod tests {
                 channel: blue_lang_waku::Channel::Tide,
             },
             Provision::Seeded { seed: "s".into() },
+            Provision::InMemory,
         ] {
             let cap = p.capability();
             let mut interp = crate::interpreter_hostless();

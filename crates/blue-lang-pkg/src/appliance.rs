@@ -254,7 +254,9 @@ pub fn hold_of(policy: Option<&CapabilityRecord>) -> Result<Hold, Refusal> {
     let Some(record) = policy else {
         return Ok(Hold::from(blue_lang_runtime::session::pure_frame()));
     };
-    let reach = reach_of(record.ceiling.as_deref()).map_err(Refusal::Policy)?;
+    let reach = reach_of(record.ceiling.as_deref())
+        .map_err(Refusal::Policy)?
+        .closed();
     let mut provisions = Provisions::default();
     for (label, provided) in &record.provided {
         let cap = provided.provision.capability();
@@ -590,6 +592,17 @@ mod tests {
         );
         assert!(withheld.contains(&"http_request"));
         assert!(withheld.contains(&"getenv"));
+        assert!(
+            !withheld.contains(&"append_log") && !withheld.contains(&"read_log"),
+            "a filesystem ceiling holds the append-only store"
+        );
+
+        let mut store = record.clone();
+        store.ceiling = Some(vec!["storage-append".into()]);
+        let held = hold_of(Some(&store)).unwrap();
+        let withheld: Vec<&str> = held.withheld_host_names().iter().map(|(n, _)| *n).collect();
+        assert!(!withheld.contains(&"append_log"));
+        assert!(withheld.contains(&"write_file") && withheld.contains(&"rm"));
 
         let mut bad = record.clone();
         bad.ceiling = Some(vec!["telepathy".into()]);

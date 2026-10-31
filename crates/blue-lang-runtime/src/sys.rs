@@ -48,8 +48,9 @@
 //! ```
 //!
 //! NATS and HTTP are installed here too, from [`crate::net`], the Flash
-//! and Tide channels of the dual-pulse wire, from [`crate::wire`], and the
-//! threshold signing words, from [`crate::threshold`].
+//! and Tide channels of the dual-pulse wire, from [`crate::wire`], the
+//! threshold signing words, from [`crate::threshold`], and the append-only
+//! log words, from [`crate::storage`].
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -70,6 +71,7 @@ pub fn install_sys_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
     crate::entropy::install_entropy(interp);
     crate::wire::install_wire(interp);
     crate::threshold::install_threshold(interp);
+    crate::storage::install_storage(interp);
 }
 
 // ── process ──────────────────────────────────────────────────────────────
@@ -510,7 +512,11 @@ fn resolved(path: &std::path::Path) -> std::path::PathBuf {
     out
 }
 
-fn writable(path: &str, name: &'static str, span: tatara_lisp::Span) -> Result<(), EvalError> {
+pub(crate) fn writable(
+    path: &str,
+    name: &'static str,
+    span: tatara_lisp::Span,
+) -> Result<(), EvalError> {
     let Some(roots) = write_roots() else {
         return Ok(());
     };

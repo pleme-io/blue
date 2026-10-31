@@ -144,9 +144,11 @@ fn hostile_inputs_return_rather_than_abort() {
         ("deep-blocks", &deep_blocks),
     ];
     for (label, src) in cases {
-        let r = std::panic::catch_unwind(|| {
-            let _ = blue_lang_syntax::lex(src);
-            let _ = blue_lang_syntax::parse_program(src);
+        let r = blue_lang_syntax::test_stack::run(|| {
+            std::panic::catch_unwind(|| {
+                let _ = blue_lang_syntax::lex(src);
+                let _ = blue_lang_syntax::parse_program(src);
+            })
         });
         assert!(
             r.is_ok(),
@@ -315,24 +317,19 @@ fn the_depth_bound_is_taken_from_the_argument_not_the_constant() {
     // run that day) and locally, with no source change behind it. The need
     // is the test's own, so the test states it rather than depending on
     // RUST_MIN_STACK or the build profile.
-    std::thread::Builder::new()
-        .stack_size(64 * 1024 * 1024)
-        .spawn(|| {
-            let deep_n = blue_lang_syntax::MAX_EXPR_DEPTH + 32;
-            let deep = format!("{}1{}", "(".repeat(deep_n), ")".repeat(deep_n));
-            assert!(
-                blue_lang_syntax::parse_program(&deep).is_err(),
-                "precondition: the DEFAULT bound refuses depth MAX + 32"
-            );
-            assert!(
-                blue_lang_syntax::parse_program_with_depth(&deep, deep_n * 4).is_ok(),
-                "a caller-supplied bound above the constant must ADMIT what the \
-                 constant refuses — otherwise the argument is ignored"
-            );
-        })
-        .expect("spawn the deep-parse thread")
-        .join()
-        .expect("the deep-parse assertions hold");
+    blue_lang_syntax::test_stack::run(|| {
+        let deep_n = blue_lang_syntax::MAX_EXPR_DEPTH + 32;
+        let deep = format!("{}1{}", "(".repeat(deep_n), ")".repeat(deep_n));
+        assert!(
+            blue_lang_syntax::parse_program(&deep).is_err(),
+            "precondition: the DEFAULT bound refuses depth MAX + 32"
+        );
+        assert!(
+            blue_lang_syntax::parse_program_with_depth(&deep, deep_n * 4).is_ok(),
+            "a caller-supplied bound above the constant must ADMIT what the \
+             constant refuses — otherwise the argument is ignored"
+        );
+    });
 }
 
 /// The defaulting entry points are the parameterized ones at `MAX_EXPR_DEPTH`.

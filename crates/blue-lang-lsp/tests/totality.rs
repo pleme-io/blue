@@ -192,15 +192,17 @@ fn hostile_sources_do_not_abort_the_lsp() {
         ("deep-parens", deep.as_str()),
         ("deep-blocks", deep_blocks.as_str()),
     ] {
-        let r = std::panic::catch_unwind(|| {
-            let _ = analyse(src);
-            let _ = hover(
-                src,
-                Position {
-                    line: 0,
-                    character: 0,
-                },
-            );
+        let r = blue_lang_syntax::test_stack::run(|| {
+            std::panic::catch_unwind(|| {
+                let _ = analyse(src);
+                let _ = hover(
+                    src,
+                    Position {
+                        line: 0,
+                        character: 0,
+                    },
+                );
+            })
         });
         assert!(r.is_ok(), "PANIC on hostile LSP input `{label}`");
     }

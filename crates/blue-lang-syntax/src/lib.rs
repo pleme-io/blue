@@ -24,6 +24,7 @@ pub mod parse;
 pub mod scope;
 pub mod spelling;
 pub mod test_form;
+pub mod test_stack;
 pub mod words;
 pub mod yakugo;
 

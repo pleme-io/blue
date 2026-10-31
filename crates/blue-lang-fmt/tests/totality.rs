@@ -149,9 +149,11 @@ fn hostile_inputs_do_not_abort_the_formatter() {
         ("deep-parens", deep.as_str()),
         ("deep-blocks", deep_blocks.as_str()),
     ] {
-        let r = std::panic::catch_unwind(|| {
-            let _ = blue_lang_fmt::format_source(src);
-            let _ = blue_lang_fmt::format_source_lossless(src);
+        let r = blue_lang_syntax::test_stack::run(|| {
+            std::panic::catch_unwind(|| {
+                let _ = blue_lang_fmt::format_source(src);
+                let _ = blue_lang_fmt::format_source_lossless(src);
+            })
         });
         assert!(r.is_ok(), "PANIC formatting hostile input `{label}`");
     }

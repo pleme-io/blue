@@ -83,8 +83,10 @@ fn hostile_source_returns_a_run_error_rather_than_aborting() {
         ("deep-parens", deep_parens.as_str()),
         ("deep-blocks", deep_blocks.as_str()),
     ] {
-        let r = std::panic::catch_unwind(|| {
-            let _ = blue_lang_runtime::pipeline::run(src);
+        let r = blue_lang_syntax::test_stack::run(|| {
+            std::panic::catch_unwind(|| {
+                let _ = blue_lang_runtime::pipeline::run(src);
+            })
         });
         assert!(
             r.is_ok(),

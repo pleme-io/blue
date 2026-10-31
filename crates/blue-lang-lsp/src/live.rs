@@ -274,6 +274,7 @@ pub fn witness(
         hold: Some(Hold::from(pure_frame())),
         steps: Some(limits.steps),
         interrupt: Some(Arc::clone(&cancel.interrupt)),
+        max_alloc_bytes: blue_lang_runtime::execution_bounds().guest_max_alloc_bytes,
     };
     let seen = catch_unwind(AssertUnwindSafe(|| {
         let witness = Arc::new(Witness::of_checked(&checked, None));

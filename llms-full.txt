@@ -2563,9 +2563,10 @@ document lands.
   (`crates/blue-lang-syntax/src/parse.rs:688`). Steps unbounded by default;
   sessions take `--budget`; project rules run under 10 000 000 steps
   (`crates/blue-lang-runtime/src/project_rules.rs:53`). Live bytes
-  (2026-10-30): `max_alloc_bytes` for `run`, unbounded by default;
-  `guest_max_alloc_bytes` for sessions, live evaluation and project rules,
-  1 GiB by default (`crates/blue-lang-runtime/src/memory.rs`).
+  (2026-10-30): `max_alloc_bytes` for `run` and `test`, unbounded by
+  default; `guest_max_alloc_bytes` for sessions, live evaluation, project
+  rules and Bluefiles, 1 GiB by default
+  (`crates/blue-lang-runtime/src/memory.rs`).
 - **Share-nothing processes.** Each process owns its interpreter. A message is
   deep-copied, and a function or host handle is refused on send
   (`crates/blue-lang-proc/src/mailbox.rs:130`, `:215`).
@@ -2624,7 +2625,7 @@ tier. ⚠️ marks a partial seal. ❌ marks an open row.
 | 9 | Memory safety of the host seam | ⚠️ 1 of 18 crates denies `unsafe_code` at its root | workspace `unsafe_code = "deny"`, one `#[allow]` per seam, one seam test | unrepresentable for kiwari → unrepresentable for every crate | on (`#[allow(unsafe_code)]` at a named seam) |
 | 10 | No data races | ✅ share-nothing processes; copy on send; handles refuse to cross | none needed | unrepresentable | n/a |
 | 11 | Panic vs typed refusal | ⚠️ blue faults are catchable; a Rust panic in a native function is not a blue error | one unwind seam at the native-call boundary → `:internal` refusal | open → runtime-refused | on |
-| 12 | Resource bounds | ⚠️ depth bounded; steps unbounded by default; **live bytes bounded per evaluation and per process (landed: `max_alloc_bytes`, `guest_max_alloc_bytes`)**; no wall-clock bound | `max_wall_ms` bound; on for doors that run code they did not write | runtime-refused | memory: off for `run` (`max_alloc_bytes: null`; it removes working behaviour), 1 GiB for sessions, live evaluation and rules (`guest_max_alloc_bytes`; `null` lifts it) |
+| 12 | Resource bounds | ⚠️ depth bounded; steps unbounded by default; **live bytes bounded per evaluation and per process (landed: `max_alloc_bytes`, `guest_max_alloc_bytes`)**; no wall-clock bound | `max_wall_ms` bound; on for doors that run code they did not write | runtime-refused | memory: off for `run` and `test` (`max_alloc_bytes: null`; it removes working behaviour), 1 GiB for sessions, live evaluation, rules and Bluefiles (`guest_max_alloc_bytes`; `null` lifts it) |
 | 13 | Supply chain | ⚠️ `Bluefile.lock` holds `bluefile_b3`, version ranges and source NAR hashes; B0019 needs-mismatch | the lock records each resolved bidama's b3; the loader refuses a mismatch | runtime-refused at load | on (`blue lock` rewrites) |
 | 14 | Secrets | ❌ a secret is a plain string; `pg_connect` takes a password in the URL | a secret bidama (named through `naming`): read from a file, opaque, redacted on print, refused on send | open → unrepresentable (print) + checked-at-expansion (literal) | on (`# waive`) |
 | 15 | Injection | ⚠️ `exec_*` has no shell; `pg_query` binds params; `sh_exec` and `pg_execute` take text | rule: `sh_exec` / `pg_execute` with an interpolated argument | checked-at-expansion | on (`# waive`) |
@@ -3202,9 +3203,9 @@ six bounds, each with a shipped overridable default: `solver_max_steps`,
 `max_expr_depth`, the execution budget as `max_call_depth` and
 `max_steps` (depth defaults to tatara-lisp-eval's `DEFAULT_MAX_DEPTH`, steps to
 unbounded, since a default step bound would end runs that work today), and
-live bytes as `max_alloc_bytes` (unbounded, for `blue run`) and
-`guest_max_alloc_bytes` (1 GiB, for sessions, live evaluation and project
-rules; `crates/blue-lang-runtime/src/memory.rs`), all applied to every
+live bytes as `max_alloc_bytes` (unbounded, for `blue run` and `blue test`)
+and `guest_max_alloc_bytes` (1 GiB, for sessions, live evaluation, project
+rules and Bluefiles; `crates/blue-lang-runtime/src/memory.rs`), all applied to every
 interpreter through `blue_lang_runtime::set_execution_bounds`.
 `flake.nix` carries the module trio that deploys them, and `blue config <tier>`
 is the operator surface.

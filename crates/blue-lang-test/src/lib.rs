@@ -770,6 +770,30 @@ pub struct Guard {
     pub steps: Option<usize>,
     /// Set from another thread to halt the run.
     pub interrupt: Option<Arc<AtomicBool>>,
+    /// Live bytes the preamble, and then each test, may hold
+    /// (`blue_lang_runtime::memory`); past it the test fails with
+    /// `memory-exhausted`. `None` is unbounded. `blue test` passes
+    /// `max_alloc_bytes`, live evaluation `guest_max_alloc_bytes`.
+    pub max_alloc_bytes: Option<u64>,
+}
+
+/// `f` on `interp`, held to `bound` live bytes through its interrupt flag;
+/// beside its answer, the bound when it passed it.
+fn memory_held<T>(
+    interp: &mut Interpreter<()>,
+    bound: Option<u64>,
+    f: impl FnOnce(&mut Interpreter<()>) -> T,
+) -> (T, Option<u64>) {
+    let halt = interp.interrupt();
+    blue_lang_runtime::memory::held(bound, &halt, || f(interp))
+}
+
+/// `ended`, or the memory refusal when its evaluation passed `over`.
+fn refused_past<T>(ended: Result<T, String>, over: Option<u64>) -> Result<T, String> {
+    match over {
+        Some(bound) => Err(blue_lang_proc::memory_refusal(bound)),
+        None => ended,
+    }
 }
 
 /// Run the test blocks of a checked program whose name contains `filter`,
@@ -828,8 +852,12 @@ pub fn run_guarded(
         steps: guard.steps,
         interrupt: guard.interrupt.clone(),
     };
-    if let Some(flag) = &guard.interrupt {
-        prototype.set_interrupt(Arc::clone(flag));
+    match &guard.interrupt {
+        Some(flag) => prototype.set_interrupt(Arc::clone(flag)),
+        None if guard.max_alloc_bytes.is_some() => {
+            prototype.set_interrupt(Arc::new(AtomicBool::new(false)));
+        }
+        None => {}
     }
     if let Some(steps) = guard.steps {
         let _ = prototype.set_budget(tatara_lisp_eval::vm::Budget {
@@ -843,13 +871,15 @@ pub fn run_guarded(
     let fault = |interp: &Interpreter<()>, i: usize, e: &tatara_lisp_eval::EvalError| {
         Fault::of(program, &erased, i, e, &interp.take_trace()).to_string()
     };
-    let mut preamble_error = None;
-    for (i, form) in preamble {
-        if let Err(e) = prototype.eval_top_form(&compare_asserts_spanned(form), &mut ()) {
-            preamble_error = Some(fault(&prototype, i, &e));
-            break;
+    let (preamble_error, over) = memory_held(&mut prototype, guard.max_alloc_bytes, |prototype| {
+        for (i, form) in preamble {
+            if let Err(e) = prototype.eval_top_form(&compare_asserts_spanned(form), &mut ()) {
+                return Some(fault(prototype, i, &e));
+            }
         }
-    }
+        None
+    });
+    let mut preamble_error = refused_past(preamble_error.map_or(Ok(()), Err), over).err();
     if preamble_error.is_none() && preamble_rec.failed.load(Ordering::SeqCst) {
         preamble_error = Some("an assertion in the file's preamble failed".to_string());
     }
@@ -875,10 +905,13 @@ pub fn run_guarded(
         let mut interp = prototype.fork();
         install_assert(&mut interp, &rec, &bounds);
         let before = account.host_io.total();
-        let ended = interp
-            .eval_top_form(&compare_asserts_spanned(block.body), &mut ())
-            .map(drop)
-            .map_err(|e| fault(&interp, block.top_level, &e));
+        let (ended, over) = memory_held(&mut interp, guard.max_alloc_bytes, |interp| {
+            interp
+                .eval_top_form(&compare_asserts_spanned(block.body), &mut ())
+                .map(drop)
+                .map_err(|e| fault(interp, block.top_level, &e))
+        });
+        let ended = refused_past(ended, over);
         let ran = Ran {
             name: &block.name,
             top_level: Some(block.top_level),

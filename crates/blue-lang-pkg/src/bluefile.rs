@@ -342,6 +342,11 @@ pub enum BluefileError {
     Parse(String),
     #[error("error evaluating the Bluefile: {0}")]
     Eval(String),
+    /// The manifest held more live bytes than `guest_max_alloc_bytes`:
+    /// resolving a dependency evaluates its manifest, code the resolver did
+    /// not write (`blue_lang_runtime::memory`).
+    #[error("this Bluefile was refused: {}", memory_refusal(.limit))]
+    MemoryExhausted { limit: u64 },
     /// A Bluefile with no `package(...)` call. Rejected rather than defaulted:
     /// a manifest that silently names itself `""` at version `0.0.0` resolves,
     /// and then nothing downstream can tell it apart from a real one.
@@ -1114,6 +1119,10 @@ fn push_once(list: &mut Vec<String>, word: &'static str, value: String) -> Resul
     Ok(())
 }
 
+fn memory_refusal(limit: &u64) -> String {
+    blue_lang_proc::memory_refusal(*limit)
+}
+
 /// The `when` coordinate as a Bluefile spells it. Exhaustive, no wildcard —
 /// the parse below reads this function rather than a second spelling table, so
 /// a posture cannot be written one way and recorded another.
@@ -1198,7 +1207,13 @@ fn evaluate_bluefile(src: &str) -> Result<Bluefile, BluefileError> {
         });
     }
 
-    let evaluated = interp.eval_program(&erased, &mut ());
+    let bound = blue_lang_runtime::execution_bounds().guest_max_alloc_bytes;
+    let (evaluated, over) = blue_lang_runtime::memory::held_on(&mut interp, bound, |interp| {
+        interp.eval_program(&erased, &mut ())
+    });
+    if let Some(limit) = over {
+        return Err(BluefileError::MemoryExhausted { limit });
+    }
     let c = std::mem::take(&mut *collected.lock().expect("manifest lock"));
     // The typed malformation first: it is the REASON evaluation stopped, and
     // the `EvalError` it travelled as is the same fact with its type erased.

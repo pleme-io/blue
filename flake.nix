@@ -124,7 +124,8 @@
         type = types.nullOr types.ints.positive;
         description = ''
           Live bytes one evaluation of code its caller wrote may hold (`blue
-          run`, an appliance, each process it spawns), or null for unbounded.
+          run`, an appliance, each test of `blue test`, each process they
+          spawn), or null for unbounded.
           Past it the run ends in a fatal `memory-exhausted` error and a
           process exits a runaway its supervisor sees.
         '';
@@ -138,7 +139,7 @@
         description = ''
           Live bytes one evaluation may hold at a door that runs code it did
           not write: a session (`eval`, `repl`, `serve`), live evaluation in
-          the editor, a project rule. Null lifts it.
+          the editor, a project rule, a Bluefile. Null lifts it.
         '';
       };
     };

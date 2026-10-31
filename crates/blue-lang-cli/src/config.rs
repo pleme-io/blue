@@ -55,10 +55,10 @@
 //!   is bounded by default and steps (past which programs ran fine) are not.
 //!
 //! * **Memory** — two bounds on live bytes, `max_alloc_bytes` for code the
-//!   caller wrote (`blue run`; unbounded by default, since runs that hold a
-//!   lot worked before) and `guest_max_alloc_bytes` for doors that run code
-//!   they did not write (sessions, live evaluation, project rules; 1 GiB by
-//!   default). Both pass the admission rule: a program under either returns
+//!   caller wrote (`blue run`, `blue test`; unbounded by default, since runs
+//!   that hold a lot worked before) and `guest_max_alloc_bytes` for doors that
+//!   run code they did not write (sessions, live evaluation, project rules, a
+//!   Bluefile; 1 GiB by default). Both pass the admission rule: a program under either returns
 //!   what it always did, and one past it is refused with `memory-exhausted`.
 //!
 //! # Tier honesty
@@ -132,7 +132,8 @@ pub struct BlueConfig {
     pub max_steps: Option<usize>,
 
     /// Live bytes one evaluation of code its caller wrote may hold (`blue
-    /// run`, an appliance, each process it spawns); `null` lifts it.
+    /// run`, an appliance, each test `blue test` runs, each process they
+    /// spawn); `null` lifts it.
     ///
     /// Past it the run ends in a fatal `memory-exhausted` error, which no
     /// `rescue` catches, and a process exits a runaway its supervisor sees.
@@ -142,7 +143,8 @@ pub struct BlueConfig {
 
     /// Live bytes one evaluation may hold at a door that runs code it did not
     /// write: a session (`eval`, `repl`, `serve`), live evaluation in the
-    /// editor, a project rule; `null` lifts it. 1 GiB by default.
+    /// editor, a project rule, a Bluefile (resolving a dependency evaluates
+    /// its manifest); `null` lifts it. 1 GiB by default.
     pub guest_max_alloc_bytes: Option<u64>,
 }
 

@@ -430,6 +430,42 @@ fn test_failure_reports_the_expression_as_written() {
     );
 }
 
+/// **`blue test` holds each test to `max_alloc_bytes`**: tests are code the
+/// author wrote, so they take the run bound, unbounded by default. A test past
+/// the deployed bound fails naming it, its sibling under the bound passes, and
+/// the suite exits non-zero.
+///
+/// Red run (2026-10-30): before `blue test` gave its `Guard` the run bound,
+/// the bounded suite printed `2 passed, 0 failed`.
+#[test]
+fn test_holds_each_test_to_max_alloc_bytes() {
+    let f = write(
+        "test-alloc",
+        "test \"small\"\n  assert length(map((x) -> [x, x], range(0, 10))) == 10\nend\n\ntest \"hog\"\n  assert length(map((x) -> [x, x], range(0, 20000))) == 20000\nend\n",
+    );
+    let shipped = run(&["test", f.to_str().unwrap()]);
+    assert!(
+        shipped.status.success() && stdout(&shipped).contains("2 passed, 0 failed"),
+        "precondition: the shipped default holds a test to nothing: {}{}",
+        stdout(&shipped),
+        stderr(&shipped)
+    );
+    let cfg = write_at("cfg-test-alloc.yaml", "max_alloc_bytes: 1048576\n");
+    let o = run_env(
+        &["test", f.to_str().unwrap()],
+        &[("BLUE_CONFIG", cfg.to_str().unwrap())],
+    );
+    assert!(!o.status.success(), "{}", stdout(&o));
+    assert!(stdout(&o).contains("1 passed, 1 failed"), "{}", stdout(&o));
+    assert!(
+        format!("{}{}", stdout(&o), stderr(&o))
+            .contains("memory-exhausted: live-byte budget of 1048576 exceeded"),
+        "{}{}",
+        stdout(&o),
+        stderr(&o)
+    );
+}
+
 /// A file with no tests is not a pass — the tally says zero AND the exit status
 /// fails, so a mis-typed filename or an un-run suite cannot read as success in
 /// a gate that only reads the status (every `lib.project` check does).
@@ -999,6 +1035,55 @@ fn bluefile_json_refuses_a_misspelled_word_naming_it() {
     assert!(
         o.stdout.is_empty(),
         "nothing may be printed for a refused manifest"
+    );
+}
+
+/// Builds tens of megabytes of nested pairs from the manifest vocabulary
+/// alone: `define`, `if`, the operators and the list constructor.
+const HOG_BLUEFILE: &str = "def grow(n, acc)\n  if n == 0\n    acc\n  else\n    grow(n - 1, [[n, n], acc])\n  end\nend\n\npackage(\"hog\", \"0.1.0\")\nkept = grow(20000, [])\n";
+
+/// **A Bluefile is held to `guest_max_alloc_bytes`**: resolving a dependency
+/// evaluates its manifest, code the resolver did not write. One that holds
+/// more than the deployed guest bound is refused naming it, while a normal one
+/// loads under the same bound and the same hog loads on the shipped default.
+///
+/// Red run (2026-10-30): before `evaluate_bluefile` held the manifest to the
+/// guest bound, the hog printed its manifest JSON under the 1 MiB bound.
+#[test]
+fn a_bluefile_is_held_to_the_guest_bound() {
+    let hog = write_at("bluefile-alloc-hog/Bluefile", HOG_BLUEFILE);
+    let ok = write_at(
+        "bluefile-alloc-ok/Bluefile",
+        "package(\"fine\", \"0.1.0\")\n",
+    );
+    let shipped = run(&["bluefile", "--json", hog.to_str().unwrap()]);
+    assert!(
+        shipped.status.success(),
+        "precondition: the shipped guest bound loads it: {}",
+        stderr(&shipped)
+    );
+    let cfg = write_at(
+        "cfg-bluefile-alloc.yaml",
+        "guest_max_alloc_bytes: 1048576\n",
+    );
+    let env = [("BLUE_CONFIG", cfg.to_str().unwrap())];
+    let loaded = run_env(&["bluefile", "--json", ok.to_str().unwrap()], &env);
+    assert!(loaded.status.success(), "{}", stderr(&loaded));
+    assert!(stdout(&loaded).contains("\"fine\""), "{}", stdout(&loaded));
+    let refused = run_env(&["bluefile", "--json", hog.to_str().unwrap()], &env);
+    assert!(
+        !refused.status.success(),
+        "a Bluefile past the guest bound must not load: {}",
+        stdout(&refused)
+    );
+    assert!(
+        stderr(&refused).contains("memory-exhausted: live-byte budget of 1048576 exceeded"),
+        "{}",
+        stderr(&refused)
+    );
+    assert!(
+        refused.stdout.is_empty(),
+        "nothing printed for a refused manifest"
     );
 }
 

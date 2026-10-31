@@ -523,12 +523,12 @@ pub struct ExecutionBounds {
     /// Evaluation steps per run; `None` is unbounded.
     pub max_steps: Option<usize>,
     /// Live bytes one evaluation of code its caller wrote may hold (`blue
-    /// run`, an appliance); `None` is unbounded. Each process it spawns is
-    /// held to the same bound, on its own account.
+    /// run`, an appliance, each test of `blue test`); `None` is unbounded.
+    /// Each process it spawns is held to the same bound, on its own account.
     pub max_alloc_bytes: Option<u64>,
     /// Live bytes one evaluation may hold at a door that runs code it did not
     /// write: a session (`eval`, `repl`, `serve`), live evaluation in the
-    /// editor, a project rule. `None` is unbounded.
+    /// editor, a project rule, a Bluefile. `None` is unbounded.
     pub guest_max_alloc_bytes: Option<u64>,
 }
 

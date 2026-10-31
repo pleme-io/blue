@@ -76,6 +76,7 @@ pub(crate) fn test(
     };
     let guard = blue_lang_test::Guard {
         hold,
+        max_alloc_bytes: blue_lang_runtime::execution_bounds().max_alloc_bytes,
         ..blue_lang_test::Guard::default()
     };
     let runs = run_files(&files, watch, &guard, facts.is_some())?;

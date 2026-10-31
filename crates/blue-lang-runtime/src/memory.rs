@@ -8,8 +8,8 @@
 //!
 //! | door | bound |
 //! |---|---|
-//! | `blue run`, an appliance, `profile`, `trace` | `max_alloc_bytes`, unbounded by default |
-//! | sessions (`eval`, `repl`, `serve`), live evaluation, project rules | `guest_max_alloc_bytes`, [`GUEST_MAX_ALLOC_BYTES`] by default |
+//! | `blue run`, an appliance, `profile`, `trace`, `blue test` (each test) | `max_alloc_bytes`, unbounded by default |
+//! | sessions (`eval`, `repl`, `serve`), live evaluation and the editor's test witness, project rules, a Bluefile | `guest_max_alloc_bytes`, [`GUEST_MAX_ALLOC_BYTES`] by default |
 //!
 //! The defaults differ for the reason the step bound's do: a run of code its
 //! author wrote that holds a lot of memory worked before this bound existed,

@@ -111,7 +111,7 @@ file's `Bluefile.lock` records is skipped and named, never chosen.
 | `blue receipt verify FILE` | recompute a receipt's name from the BLAKE3 hash of its bytes; any edit fails |
 | `blue new NAME` | a project; `--bidama NAME` a package, `--script NAME.b` an executable script |
 | `blue watch [check\|test\|run] PATH…` | rerun the command on every save (`check` by default) |
-| `blue test file.b` | check it, then run its `test` blocks; a directory runs every file with tests, in parallel; `--filter NAME` keeps tests whose name contains it; `--coverage` lists each definition's calls and the uncovered ones; `--allow CAP` holds the tests to those host capabilities; `--facts FILE` (or `TAMESHI_FACTS`) writes the facts tameshi reads and `blue-test-evidence.json` beside it ([`docs/TESTING.md`](docs/docs/TESTING.md), "Declared controls") |
+| `blue test file.b` | check it, then run its `test` blocks; a directory runs every file with tests, in parallel; `--filter NAME` keeps tests whose name contains it; `--coverage` lists each definition's calls and the uncovered ones; `--allow CAP` holds the tests to those host capabilities; `--facts FILE` (or `TAMESHI_FACTS`) writes the facts tameshi reads and `blue-test-evidence.json` beside it ([`docs/TESTING.md`](docs/TESTING.md#declared-controls-live-2026-10-30)) |
 | `blue profile file.b` | run it and list every function called: calls, inclusive and exclusive time, and allocations made in each |
 | `blue trace NAME file.b` | run it and print each call of `NAME` with its arguments and value |
 | `blue check file.b` | every rule (unbound names with did-you-mean, unused bindings, types, waivers); `--format json` prints one object per diagnostic, `--fix` applies the machine-applicable fixes |

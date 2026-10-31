@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:738933ca19181084b5f21ec8a79855d87bb40af1367902860097742d71bde48c",
+  "bluefile_b3": "b3:de601fea844bb0266d2ad39b0a9bf2b8ffdaf4533becfc6180b938883a32d234",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -37,7 +37,16 @@
       "markdown-laws": {
         "file": "gen/markdown-laws.b",
         "inputs": [
-          "docs"
+          "Bluefile.lock",
+          "docs",
+          "AGENTS.md",
+          "Bluefile",
+          "llms.txt",
+          "bidamas",
+          "crates",
+          "examples",
+          "rules",
+          "spec"
         ]
       },
       "okite-laws": {

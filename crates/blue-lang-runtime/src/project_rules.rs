@@ -38,6 +38,8 @@
 //! failure of the rule, never a crash of the check.
 
 use std::fmt;
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 
 use tatara_lisp::{Sexp, Spanned};
 use tatara_lisp_eval::persist::Map;
@@ -113,8 +115,18 @@ impl fmt::Display for RuleFailure {
 }
 
 /// A rule file, loaded under the rule frame, whose definitions can be called.
+///
+/// Its load (the interpreter it builds included) and each call are also held
+/// to `guest_max_alloc_bytes` ([`crate::memory`]): a rule is code the check
+/// did not write, and one that holds more is [`RuleFailure::Exhausted`] with
+/// `memory-exhausted`.
 pub struct RuleProgram {
     hosted: Hosted<()>,
+    halt: Arc<AtomicBool>,
+}
+
+fn past_memory(bound: u64) -> RuleFailure {
+    RuleFailure::Exhausted(blue_lang_proc::memory_refusal(bound))
 }
 
 fn budget(steps: usize) -> Budget {
@@ -133,8 +145,19 @@ impl RuleProgram {
     /// [`RuleFailure::Escapes`] for a program reaching outside the frame,
     /// [`RuleFailure::Load`] for every other refusal.
     pub fn load(entry: Entry<'_>, loader: &dyn Loader, steps: usize) -> Result<Self, RuleFailure> {
-        match load_hosted_in_frame(entry, loader, &mut (), |_| {}, &permits, budget(steps)) {
-            Ok(hosted) => Ok(Self { hosted }),
+        let halt = Arc::new(AtomicBool::new(false));
+        let bound = crate::execution_bounds().guest_max_alloc_bytes;
+        let own_halt = |interp: &mut tatara_lisp_eval::Interpreter<()>| {
+            interp.set_interrupt(Arc::clone(&halt));
+        };
+        let (loaded, over) = crate::memory::held(bound, &halt, || {
+            load_hosted_in_frame(entry, loader, &mut (), own_halt, &permits, budget(steps))
+        });
+        if let Some(bound) = over {
+            return Err(past_memory(bound));
+        }
+        match loaded {
+            Ok(hosted) => Ok(Self { hosted, halt }),
             Err(FramedError::Escapes { names }) => Err(RuleFailure::Escapes(names)),
             Err(FramedError::Run(e)) => Err(RuleFailure::Load(e.to_string())),
         }
@@ -152,20 +175,25 @@ impl RuleProgram {
         steps: usize,
     ) -> Result<Vec<RawFinding>, RuleFailure> {
         let arg = tatara_lisp_eval::code::spanned_to_value(form);
-        let value = self
-            .hosted
-            .call_budgeted(def, vec![arg], &mut (), budget(steps))
-            .map_err(|e| match e {
-                CallError::Exhausted { .. } => {
-                    RuleFailure::Exhausted(crate::pipeline::display_keys(&e.to_string()))
-                }
-                CallError::Raised { .. } => {
-                    RuleFailure::Raised(crate::pipeline::display_keys(&e.to_string()))
-                }
-                CallError::Undefined(_) | CallError::NotAFunction { .. } => {
-                    RuleFailure::Undefined(e.to_string())
-                }
-            })?;
+        let bound = crate::execution_bounds().guest_max_alloc_bytes;
+        let hosted = &mut self.hosted;
+        let (called, over) = crate::memory::held(bound, &self.halt, || {
+            hosted.call_budgeted(def, vec![arg], &mut (), budget(steps))
+        });
+        if let Some(bound) = over {
+            return Err(past_memory(bound));
+        }
+        let value = called.map_err(|e| match e {
+            CallError::Exhausted { .. } => {
+                RuleFailure::Exhausted(crate::pipeline::display_keys(&e.to_string()))
+            }
+            CallError::Raised { .. } => {
+                RuleFailure::Raised(crate::pipeline::display_keys(&e.to_string()))
+            }
+            CallError::Undefined(_) | CallError::NotAFunction { .. } => {
+                RuleFailure::Undefined(e.to_string())
+            }
+        })?;
         findings_of(&value)
     }
 }

@@ -116,6 +116,31 @@
           observes it but cannot spend past it. A long simulation raises it.
         '';
       };
+      maxAllocBytes = {
+        yaml = "max_alloc_bytes";
+        # Unbounded, for the reason maxSteps is: a run that holds a lot of
+        # memory worked before this bound existed.
+        default = null;
+        type = types.nullOr types.ints.positive;
+        description = ''
+          Live bytes one evaluation of code its caller wrote may hold (`blue
+          run`, an appliance, each process it spawns), or null for unbounded.
+          Past it the run ends in a fatal `memory-exhausted` error and a
+          process exits a runaway its supervisor sees.
+        '';
+      };
+      guestMaxAllocBytes = {
+        yaml = "guest_max_alloc_bytes";
+        # `blue_lang_runtime::memory::GUEST_MAX_ALLOC_BYTES`: 1 GiB, a runaway
+        # guard for code a door did not write, not a quota.
+        default = 1073741824;
+        type = types.nullOr types.ints.positive;
+        description = ''
+          Live bytes one evaluation may hold at a door that runs code it did
+          not write: a session (`eval`, `repl`, `serve`), live evaluation in
+          the editor, a project rule. Null lifts it.
+        '';
+      };
     };
 
     boundOptions = lib.mapAttrs (_: b: mkOption { inherit (b) type default description; }) bounds;
@@ -275,8 +300,10 @@
       #   - execution budget — was unsettled because no default constant
       #     existed; tatara-lisp-eval 0.3.63 gave both executors one, so it is
       #     now two bounds (`max_call_depth`, `max_steps`).
+      #   - memory — two bounds on live bytes (`max_alloc_bytes` for `blue run`,
+      #     `guest_max_alloc_bytes` for doors that run code they did not write).
       #
-      # What is left are four BOUNDS, each with a shipped overridable default in
+      # What is left are six BOUNDS, each with a shipped overridable default in
       # code. Raising either changes no program's meaning — only whether a
       # pathological input is refused — so exposing them cannot freeze a design
       # guess as a public interface, which was the whole objection.

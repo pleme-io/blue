@@ -223,6 +223,26 @@ impl Clock {
 /// A fresh interpreter for a child, before the node adds its words.
 pub type ChildFactory = Arc<dyn Fn() -> Interpreter<()> + Send + Sync>;
 
+/// The host's allocator meter, through which a node holds each process to the
+/// live-byte bound of the evaluation that spawned it (`max_alloc_bytes`).
+///
+/// A process is charged what its own slices leave live and the messages
+/// delivered to it, never what its sender or its spawner holds: a message's
+/// copy belongs to the receiver, and a process's interpreter and code belong
+/// to the node. Past its bound a process exits
+/// [`ExitReason::memory_exhausted`] at the end of the slice that passed it.
+#[derive(Clone, Copy, Debug)]
+pub struct Meter {
+    /// The bound of the account running now: `None` when it has none, or the
+    /// host counts nothing.
+    pub bound: fn() -> Option<u64>,
+    /// Run the closure charged to the account whose live bytes the `i64`
+    /// carries, held to the bound; answers whether it passed the bound.
+    pub charged: fn(&mut i64, Option<u64>, &mut dyn FnMut()) -> bool,
+    /// Charge bytes to the account running now.
+    pub charge: fn(i64),
+}
+
 /// What a node runs its processes under.
 #[derive(Clone)]
 pub struct NodeConfig {
@@ -247,12 +267,15 @@ pub struct NodeConfig {
     pub places: Places,
     /// Where each held process's receipt goes when an incarnation ends.
     pub receipts: Option<ReceiptSink>,
+    /// The allocator meter that holds each process to its live-byte bound;
+    /// `None` holds no process to one.
+    pub meter: Option<Meter>,
 }
 
 impl NodeConfig {
     /// Unbounded fuel, the default depth, [`DEFAULT_QUANTUM`], a virtual
     /// clock, the trace directory [`set_trace_dir`] named, the journal bound
-    /// [`set_journal_bound`] named, no hold and no receipts.
+    /// [`set_journal_bound`] named, no hold, no receipts and no meter.
     #[must_use]
     pub fn new(child: ChildFactory) -> Self {
         Self {
@@ -271,6 +294,7 @@ impl NodeConfig {
             identities: Identities::default(),
             places: Places::default(),
             receipts: None,
+            meter: None,
         }
     }
 
@@ -315,6 +339,10 @@ struct Info {
     snapshot: Option<Value>,
     /// The state a server restarts with.
     initial: Option<Value>,
+    /// Live bytes this incarnation holds ([`Meter`]).
+    held: i64,
+    /// The live bytes it may hold: its spawner's bound, kept across restarts.
+    bound: Option<u64>,
 }
 
 impl Info {
@@ -332,6 +360,8 @@ impl Info {
             live: true,
             snapshot: None,
             initial: None,
+            held: 0,
+            bound: None,
         }
     }
 }
@@ -384,6 +414,9 @@ struct NodeState {
     clock: Clock,
     /// An abnormal exit signal the root did not trap: raised by its next wait.
     root_signal: Option<(Pid, Value)>,
+    /// Bytes of the messages children delivered to the root while it waited,
+    /// charged to it when its wait returns.
+    root_due: i64,
 }
 
 impl NodeState {
@@ -410,6 +443,7 @@ impl NodeState {
             traces: VecDeque::new(),
             clock: Clock::new(clock),
             root_signal: None,
+            root_due: 0,
         }
     }
 
@@ -908,13 +942,98 @@ impl Node {
         self.config.host_io.enter(pid);
     }
 
-    /// Compile `code` and queue a process running it.
+    /// `f` charged to the account `held` carries, held to `bound`, and
+    /// whether it passed the bound; run uncharged with no meter.
+    fn charged<T>(&self, held: &mut i64, bound: Option<u64>, f: impl FnOnce() -> T) -> (T, bool) {
+        let Some(meter) = self.config.meter else {
+            return (f(), false);
+        };
+        let mut f = Some(f);
+        let mut out = None;
+        let over = (meter.charged)(held, bound, &mut || out = f.take().map(|f| f()));
+        match (out, f) {
+            (Some(v), _) => (v, over),
+            (None, Some(f)) => (f(), false),
+            (None, None) => unreachable!("a closure that ran left its value"),
+        }
+    }
+
+    /// `f` charged to no process, and the bytes it left live.
+    fn apart<T>(&self, f: impl FnOnce() -> T) -> (T, i64) {
+        let mut held = 0;
+        let (value, _) = self.charged(&mut held, None, f);
+        (value, held)
+    }
+
+    /// `bytes` now belong to `to`: a message copied into its mailbox.
+    fn credit(&self, to: Pid, bytes: i64) {
+        let Some(meter) = self.config.meter.filter(|_| bytes != 0) else {
+            return;
+        };
+        let mut st = self.st();
+        if to == st.current {
+            drop(st);
+            (meter.charge)(bytes);
+        } else if to == ROOT {
+            st.root_due += bytes;
+        } else if let Some(info) = st.info.get_mut(&to) {
+            info.held += bytes;
+        }
+    }
+
+    /// Charge the root what its children delivered to it while it waited.
+    fn settle_root(&self) {
+        let due = std::mem::take(&mut self.st().root_due);
+        if let (Some(meter), true) = (self.config.meter, due != 0) {
+            (meter.charge)(due);
+        }
+    }
+
+    /// Give `p` one slice charged to its own account; past its bound it exits
+    /// [`ExitReason::memory_exhausted`], whatever the slice did.
+    fn slice_held(&self, p: &mut Proc<()>) -> Slice {
+        let pid = p.pid;
+        let (mut held, bound) = self
+            .st()
+            .info
+            .get(&pid)
+            .map_or((0, None), |i| (i.held, i.bound));
+        let Some(limit) = bound else {
+            return p.slice(&mut ());
+        };
+        let (out, over) = self.charged(&mut held, bound, || p.slice(&mut ()));
+        if let Some(info) = self.st().info.get_mut(&pid) {
+            info.held = held;
+        }
+        if !over {
+            return out;
+        }
+        let reason = ExitReason::memory_exhausted(limit);
+        p.state = ProcState::Exited(reason.clone());
+        Slice::Exited(reason)
+    }
+
+    /// Compile `code` and queue a process running it, held to the bound of
+    /// the account that spawns it. Building it is charged to no one.
     fn start(
         &self,
         code: Code,
         kind: Kind,
         def_name: Option<String>,
         sup: Option<Pid>,
+    ) -> Result<Pid, String> {
+        let bound = self.config.meter.and_then(|m| (m.bound)());
+        self.apart(|| self.start_unmetered(code, kind, def_name, sup, bound))
+            .0
+    }
+
+    fn start_unmetered(
+        &self,
+        code: Code,
+        kind: Kind,
+        def_name: Option<String>,
+        sup: Option<Pid>,
+        bound: Option<u64>,
     ) -> Result<Pid, String> {
         let chunk = Arc::new(compile(&code.program())?);
         let build = self.builder(&code.bindings);
@@ -937,6 +1056,7 @@ impl Node {
         info.sup = sup;
         info.snapshot.clone_from(&initial);
         info.initial = initial;
+        info.bound = bound;
         st.info.insert(pid, info);
         st.boxes.insert(pid, VecDeque::new());
         st.tapes.insert(pid, Tape::default());
@@ -976,7 +1096,7 @@ impl Node {
             let pid = sched[idx].pid;
             self.switch(&mut self.st(), pid);
             let before = sched[idx].vm.burned();
-            let out = sched[idx].slice(&mut ());
+            let out = self.slice_held(&mut sched[idx]);
             let burned = sched[idx].vm.burned().saturating_sub(before);
             {
                 let mut st = self.st();
@@ -1198,6 +1318,7 @@ impl Node {
             st.info.get_mut(&pid).and_then(|info| {
                 info.restarts += 1;
                 info.live = true;
+                info.held = 0;
                 info.snapshot.clone_from(&info.initial);
                 info.chunk.clone()
             })
@@ -1530,7 +1651,23 @@ impl Node {
 
     /// Run the other processes until `goal` answers, `deadline` passes, or
     /// nothing can change.
+    ///
+    /// The scheduling is charged to no one: each slice to its process, the
+    /// node's own work (restarts, traces, reaping) to nobody, and what the
+    /// children sent the root to the root once it has its answer.
     fn drive<T>(
+        &self,
+        goal: impl FnMut(&mut NodeState) -> Option<T>,
+        deadline: Option<u64>,
+        word: &str,
+        span: Span,
+    ) -> Result<Driven<T>, EvalError> {
+        let (driven, _) = self.apart(|| self.drive_unmetered(goal, deadline, word, span));
+        self.settle_root();
+        driven
+    }
+
+    fn drive_unmetered<T>(
         &self,
         mut goal: impl FnMut(&mut NodeState) -> Option<T>,
         deadline: Option<u64>,
@@ -1755,16 +1892,21 @@ fn server(
 
 fn w_send(node: &Node, _who: Who, args: &[Value], span: Span) -> Result<Value, EvalError> {
     let to = pid_arg(&args[0], "send", span)?;
-    let msg = copy_data(&args[1]).map_err(|kind| {
+    let (copied, bytes) = node.apart(|| {
+        copy_data(&args[1]).map(|msg| {
+            // A send to a process that has exited is dropped, as in Erlang: the
+            // sender cannot know, and a send that raised would race the exit.
+            node.st().deliver(to, msg);
+        })
+    });
+    copied.map_err(|kind| {
         refuse(
             "send",
             format!("a message is copied to the receiver, and a {kind} is not data"),
             span,
         )
     })?;
-    // A send to a process that has exited is dropped, as in Erlang: the
-    // sender cannot know, and a send that raised would race the exit.
-    node.st().deliver(to, msg);
+    node.credit(to, bytes);
     Ok(args[1].clone())
 }
 

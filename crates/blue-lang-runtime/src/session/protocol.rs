@@ -230,6 +230,9 @@ fn status<T>(result: &Result<T, Stop>) -> Map<String, Json> {
             "name": name,
         })),
         Err(Stop::Exhausted { limit }) => object(json!({"status": "exhausted", "limit": limit})),
+        Err(Stop::MemoryExhausted { limit }) => {
+            object(json!({"status": crate::memory::MEMORY_EXHAUSTED, "limit": limit}))
+        }
         Err(Stop::Interrupted) => object(json!({"status": "interrupted"})),
     }
 }

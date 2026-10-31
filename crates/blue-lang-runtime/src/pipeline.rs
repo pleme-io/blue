@@ -241,20 +241,44 @@ pub fn run_framed_accounted(
     // Building it is not a stage; nothing is evaluated until `eval_prepared`.
     let (mut interp, mut prepared) = prepared_on(entry, inputs, loader, surface)?;
     hold_to_frame(&mut interp, &mut prepared, hold, account)?;
-    let mut value = crate::timings::stage(crate::timings::Stage::Eval, || {
-        eval_prepared(&mut interp, &prepared, &mut ())
-    })?;
-    if let Some(v) = crate::timings::stage(crate::timings::Stage::Main, || {
-        call_main(&mut interp, &prepared, &mut ())
-    })? {
-        value = v;
-    }
+    let value = evaluate_held(&mut interp, &prepared)?;
     Ok(Run {
         value,
         visited: prepared.visited,
         typed_decls: prepared.typed_decls,
         seams: prepared.seams,
     })
+}
+
+/// A prepared program's top-level forms, then its `main`, held to
+/// `max_alloc_bytes` ([`crate::memory`]).
+fn evaluate_held(
+    interp: &mut tatara_lisp_eval::Interpreter<()>,
+    prepared: &Prepared,
+) -> Result<Value, RunError> {
+    let bound = crate::execution_bounds().max_alloc_bytes;
+    let (outcome, over) = crate::memory::held_on(interp, bound, |interp| {
+        let value = crate::timings::stage(crate::timings::Stage::Eval, || {
+            eval_prepared(interp, prepared, &mut ())
+        })?;
+        Ok(crate::timings::stage(crate::timings::Stage::Main, || {
+            call_main(interp, prepared, &mut ())
+        })?
+        .unwrap_or(value))
+    });
+    refused_past(outcome, over)
+}
+
+/// `outcome`, or the memory refusal when the evaluation passed `over` and
+/// still returned.
+fn refused_past<T>(outcome: Result<T, RunError>, over: Option<u64>) -> Result<T, RunError> {
+    match (outcome, over) {
+        (Ok(_), Some(bound)) => Err(RunError::Eval(Box::new(crate::observe::Fault::unplaced(
+            &crate::memory::refusal(bound),
+            &[],
+        )))),
+        (outcome, _) => outcome,
+    }
 }
 
 /// Bind `hold` into `interp` and its processes, with each scoped provider's
@@ -449,27 +473,32 @@ pub fn run_compiled(
     let account = crate::Account::default();
     hold.bind(&mut interp, who, &account.host_io);
     crate::attach_node_accounted(&mut interp, Some(hold), &account);
-    let fault = |e: &tatara_lisp_eval::EvalError| {
-        RunError::Eval(Box::new(crate::observe::Fault::unplaced(e, erased)))
+    let fault = |e: tatara_lisp_eval::EvalError| {
+        RunError::Eval(Box::new(crate::observe::Fault::unplaced(
+            &crate::memory::named(e),
+            erased,
+        )))
     };
-    let mut value = Value::Nil;
-    for form in erased {
-        value = interp.eval_top_form(form, &mut ()).map_err(|e| fault(&e))?;
-    }
-    if let Some(key) = main {
-        let at = tatara_lisp::Span::synthetic();
-        let call = tatara_lisp::Spanned::new(
-            at,
-            tatara_lisp::SpannedForm::List(vec![tatara_lisp::Spanned::new(
+    let bound = crate::execution_bounds().max_alloc_bytes;
+    let (outcome, over) = crate::memory::held_on(&mut interp, bound, |interp| {
+        let mut value = Value::Nil;
+        for form in erased {
+            value = interp.eval_top_form(form, &mut ()).map_err(fault)?;
+        }
+        if let Some(key) = main {
+            let at = tatara_lisp::Span::synthetic();
+            let call = tatara_lisp::Spanned::new(
                 at,
-                tatara_lisp::SpannedForm::Atom(tatara_lisp::Atom::Symbol(key.to_string())),
-            )]),
-        );
-        value = interp
-            .eval_top_form(&call, &mut ())
-            .map_err(|e| fault(&e))?;
-    }
-    Ok(value)
+                tatara_lisp::SpannedForm::List(vec![tatara_lisp::Spanned::new(
+                    at,
+                    tatara_lisp::SpannedForm::Atom(tatara_lisp::Atom::Symbol(key.to_string())),
+                )]),
+            );
+            value = interp.eval_top_form(&call, &mut ()).map_err(fault)?;
+        }
+        Ok(value)
+    });
+    refused_past(outcome, over)
 }
 
 /// A run watched by a call observer, and the definitions the observer was
@@ -562,16 +591,7 @@ pub fn run_observed_accounted(
         lowered: &prepared.lowered,
         erased: &prepared.erased,
     })));
-    let outcome = crate::timings::stage(crate::timings::Stage::Eval, || {
-        eval_prepared(&mut interp, &prepared, &mut ())
-    })
-    .and_then(|value| {
-        Ok(crate::timings::stage(crate::timings::Stage::Main, || {
-            call_main(&mut interp, &prepared, &mut ())
-        })?
-        .unwrap_or(value))
-    })
-    .map(|value| Run {
+    let outcome = evaluate_held(&mut interp, &prepared).map(|value| Run {
         value,
         visited: prepared.visited,
         typed_decls: prepared.typed_decls,
@@ -1761,7 +1781,7 @@ pub(crate) fn eval_prepared<H: 'static>(
                 program,
                 erased,
                 top_level,
-                &e,
+                &crate::memory::named(e),
                 &interp.take_trace(),
             )))
         })?;
@@ -1827,7 +1847,7 @@ pub(crate) fn call_main<H: 'static>(
             &prepared.program,
             &prepared.erased,
             top_level,
-            &e,
+            &crate::memory::named(e),
             &interp.take_trace(),
         )))
     })

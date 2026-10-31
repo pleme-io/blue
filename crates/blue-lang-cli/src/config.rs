@@ -1,4 +1,4 @@
-//! blue's typed configuration surface — [`shikumi::TieredConfig`], four fields.
+//! blue's typed configuration surface — [`shikumi::TieredConfig`], six fields.
 //!
 //! ```text
 //! blue config bare        # zero-opinion floor
@@ -18,11 +18,11 @@
 //! do exactly that, so preferences do not go in this file.
 //!
 //! Each field also had to already have a **shipped, overridable default in
-//! code**. All four do, and the `prescribed_default()` below returns those
+//! code**. All six do, and the `prescribed_default()` below returns those
 //! constants *by name* rather than copying their values — so the config cannot
 //! drift from what the code actually does.
 //!
-//! # Why these four, and not the three the waiver used to name
+//! # Why these bounds, and not the three the waiver used to name
 //!
 //! blue's `pending-shikumi: M1` waiver claimed three knobs were "blocked on an
 //! unsettled design". Measured 2026-08-01, two of those three are not blocked —
@@ -54,10 +54,17 @@
 //!   program does today, which is why depth (past which blue used to abort)
 //!   is bounded by default and steps (past which programs ran fine) are not.
 //!
+//! * **Memory** — two bounds on live bytes, `max_alloc_bytes` for code the
+//!   caller wrote (`blue run`; unbounded by default, since runs that hold a
+//!   lot worked before) and `guest_max_alloc_bytes` for doors that run code
+//!   they did not write (sessions, live evaluation, project rules; 1 GiB by
+//!   default). Both pass the admission rule: a program under either returns
+//!   what it always did, and one past it is refused with `memory-exhausted`.
+//!
 //! # Tier honesty
 //!
-//! The four-field surface is **only-mitigated** against a fifth knob creeping
-//! in — `the_surface_is_exactly_four_knobs` is an exhaustive destructure, so
+//! The six-field surface is **only-mitigated** against a seventh knob creeping
+//! in — `the_surface_is_exactly_six_knobs` is an exhaustive destructure, so
 //! adding a field is an `E0027` compile error in the test binary rather than
 //! something structurally unrepresentable. It forces acknowledgement, not
 //! justification.
@@ -123,15 +130,31 @@ pub struct BlueConfig {
     /// but cannot spend past it. Unbounded by default, because long runs are
     /// behaviour blue has always had: a host running untrusted code sets it.
     pub max_steps: Option<usize>,
+
+    /// Live bytes one evaluation of code its caller wrote may hold (`blue
+    /// run`, an appliance, each process it spawns); `null` lifts it.
+    ///
+    /// Past it the run ends in a fatal `memory-exhausted` error, which no
+    /// `rescue` catches, and a process exits a runaway its supervisor sees.
+    /// Unbounded by default: a run that holds a lot worked before this bound
+    /// existed.
+    pub max_alloc_bytes: Option<u64>,
+
+    /// Live bytes one evaluation may hold at a door that runs code it did not
+    /// write: a session (`eval`, `repl`, `serve`), live evaluation in the
+    /// editor, a project rule; `null` lifts it. 1 GiB by default.
+    pub guest_max_alloc_bytes: Option<u64>,
 }
 
 impl BlueConfig {
-    /// The two execution bounds, as the runtime takes them.
+    /// The execution bounds, as the runtime takes them.
     #[must_use]
     pub fn execution_bounds(&self) -> blue_lang_runtime::ExecutionBounds {
         blue_lang_runtime::ExecutionBounds {
             max_call_depth: self.max_call_depth,
             max_steps: self.max_steps,
+            max_alloc_bytes: self.max_alloc_bytes,
+            guest_max_alloc_bytes: self.guest_max_alloc_bytes,
         }
     }
 }
@@ -149,6 +172,8 @@ impl TieredConfig for BlueConfig {
             max_expr_depth: 0,
             max_call_depth: 0,
             max_steps: Some(0),
+            max_alloc_bytes: Some(0),
+            guest_max_alloc_bytes: Some(0),
         }
     }
 
@@ -162,6 +187,9 @@ impl TieredConfig for BlueConfig {
             max_expr_depth: blue_lang_syntax::MAX_EXPR_DEPTH,
             max_call_depth: blue_lang_runtime::ExecutionBounds::DEFAULT.max_call_depth,
             max_steps: blue_lang_runtime::ExecutionBounds::DEFAULT.max_steps,
+            max_alloc_bytes: blue_lang_runtime::ExecutionBounds::DEFAULT.max_alloc_bytes,
+            guest_max_alloc_bytes: blue_lang_runtime::ExecutionBounds::DEFAULT
+                .guest_max_alloc_bytes,
         }
     }
 }
@@ -205,26 +233,29 @@ fn tier_from_env() -> ConfigTier {
 mod tests {
     use super::*;
 
-    /// The gate on "exactly four knobs".
+    /// The gate on "exactly six knobs".
     ///
-    /// An exhaustive destructure: a fifth field makes this `E0027 pattern does
+    /// An exhaustive destructure: a seventh field makes this `E0027 pattern does
     /// not mention field`, so the test binary stops compiling and `cargo test`
     /// goes red. Red run recorded 2026-08-01 by adding a `formatter_width`
     /// field — `error[E0027]: pattern does not mention field
     /// `formatter_width`` — then removing it. Re-recorded 2026-09-29: adding
     /// `max_call_depth` and `max_steps` failed it the same way until the
-    /// pattern named them.
+    /// pattern named them. Re-recorded 2026-10-30: adding `max_alloc_bytes`
+    /// and `guest_max_alloc_bytes` failed it the same way.
     ///
     /// Tier-honest: this catches an addition, it does not make one
     /// unrepresentable. Whoever updates the pattern has to have read the rule
     /// in this module's docs, which is the whole mechanism.
     #[test]
-    fn the_surface_is_exactly_four_knobs() {
+    fn the_surface_is_exactly_six_knobs() {
         let BlueConfig {
             solver_max_steps: _,
             max_expr_depth: _,
             max_call_depth: _,
             max_steps: _,
+            max_alloc_bytes: _,
+            guest_max_alloc_bytes: _,
         } = BlueConfig::prescribed_default();
     }
 
@@ -239,6 +270,8 @@ mod tests {
             Some(0),
             "the floor runs nothing, like its siblings"
         );
+        assert_eq!(b.max_alloc_bytes, Some(0));
+        assert_eq!(b.guest_max_alloc_bytes, Some(0));
     }
 
     /// The prescribed tier IS the shipped constants — not a copy of them.
@@ -264,6 +297,19 @@ mod tests {
         assert_eq!(d.max_expr_depth, 256, "the shipped value, pinned");
         assert_eq!(d.max_call_depth, 100_000, "the shipped value, pinned");
         assert_eq!(d.max_steps, None, "the shipped value, pinned");
+        assert_eq!(
+            d.max_alloc_bytes, None,
+            "a default memory bound on `blue run` would end runs that work today"
+        );
+        assert_eq!(
+            d.guest_max_alloc_bytes,
+            Some(blue_lang_runtime::memory::GUEST_MAX_ALLOC_BYTES)
+        );
+        assert_eq!(
+            d.guest_max_alloc_bytes,
+            Some(1 << 30),
+            "the shipped value, pinned"
+        );
     }
 
     #[test]
@@ -318,7 +364,7 @@ mod tests {
             .keys()
             .cloned()
             .collect();
-        assert_eq!(keys.len(), 4, "four knobs, per this module's docs");
+        assert_eq!(keys.len(), 6, "six knobs, per this module's docs");
 
         let flake =
             std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../flake.nix"))
@@ -407,7 +453,9 @@ mod tests {
                 "solver_max_steps",
                 "max_expr_depth",
                 "max_call_depth",
-                "max_steps"
+                "max_steps",
+                "max_alloc_bytes",
+                "guest_max_alloc_bytes"
             ]
         );
 
@@ -432,7 +480,9 @@ mod tests {
                 Some(d.solver_max_steps as i64),
                 Some(d.max_expr_depth as i64),
                 Some(d.max_call_depth as i64),
-                d.max_steps.map(|n| n as i64)
+                d.max_steps.map(|n| n as i64),
+                d.max_alloc_bytes.map(|n| n as i64),
+                d.guest_max_alloc_bytes.map(|n| n as i64)
             ],
             "blue.b must state the shipped defaults"
         );

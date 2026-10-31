@@ -97,6 +97,7 @@ pub enum Verdict {
     Mismatch { got: String, expected: String },
     Volatile { name: String, reach: &'static str },
     Exhausted { limit: usize },
+    MemoryExhausted { limit: u64 },
     Failed(String),
     Cut { after: Duration },
     Panicked(String),
@@ -218,6 +219,7 @@ pub fn evaluate(
             loader,
             interrupt: Arc::clone(&cancel.interrupt),
             live: None,
+            max_alloc_bytes: blue_lang_runtime::execution_bounds().guest_max_alloc_bytes,
         });
         let mut run = Run {
             session,
@@ -539,6 +541,7 @@ impl<'a> Run<'a> {
                 reach: reach.label(),
             }),
             Stop::Exhausted { limit } => Answer::Stopped(Verdict::Exhausted { limit }),
+            Stop::MemoryExhausted { limit } => Answer::Stopped(Verdict::MemoryExhausted { limit }),
             Stop::Error(f) => Answer::Stopped(Verdict::Failed(unplaced(&f.message).to_string())),
         })
     }
@@ -615,6 +618,10 @@ pub fn diagnostics(found: &[Finding], text: &str) -> Vec<Diagnostic> {
                 Verdict::Exhausted { limit } => (
                     Severity::Hint,
                     format!("live evaluation stopped after {limit} steps"),
+                ),
+                Verdict::MemoryExhausted { limit } => (
+                    Severity::Hint,
+                    format!("live evaluation stopped past {limit} live bytes"),
                 ),
                 Verdict::Failed(message) => (Severity::Information, message.clone()),
                 Verdict::Cut { after } => (

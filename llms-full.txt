@@ -2562,7 +2562,10 @@ document lands.
   refused as a catchable error. Parse depth 256
   (`crates/blue-lang-syntax/src/parse.rs:688`). Steps unbounded by default;
   sessions take `--budget`; project rules run under 10 000 000 steps
-  (`crates/blue-lang-runtime/src/project_rules.rs:53`).
+  (`crates/blue-lang-runtime/src/project_rules.rs:53`). Live bytes
+  (2026-10-30): `max_alloc_bytes` for `run`, unbounded by default;
+  `guest_max_alloc_bytes` for sessions, live evaluation and project rules,
+  1 GiB by default (`crates/blue-lang-runtime/src/memory.rs`).
 - **Share-nothing processes.** Each process owns its interpreter. A message is
   deep-copied, and a function or host handle is refused on send
   (`crates/blue-lang-proc/src/mailbox.rs:130`, `:215`).
@@ -2570,7 +2573,8 @@ document lands.
   `blue-lang-kiwari` (59 occurrences, one seam,
   `src/lib.rs:18` `#![deny(unsafe_code)]`, `src/ts.rs:13` the one
   `#[allow]`, `tests/seam.rs` the gate), `blue-lang-runtime`
-  (`src/alloc.rs:114`, the counting `GlobalAlloc`), `blue-lang-wasm` (three
+  (`src/alloc.rs:305`, the counting `GlobalAlloc`, and `:148`, the store
+  through an account's interrupt wire), `blue-lang-wasm` (three
   `extern "C"` exports, `src/lib.rs:76,84,123`) and `blue-lang-cli`
   (`src/sigint.rs`, the SIGINT handlers of `repl` and `run`, under a module
   `deny`; an inherited ignore stays ignored). No
@@ -2620,7 +2624,7 @@ tier. ⚠️ marks a partial seal. ❌ marks an open row.
 | 9 | Memory safety of the host seam | ⚠️ 1 of 18 crates denies `unsafe_code` at its root | workspace `unsafe_code = "deny"`, one `#[allow]` per seam, one seam test | unrepresentable for kiwari → unrepresentable for every crate | on (`#[allow(unsafe_code)]` at a named seam) |
 | 10 | No data races | ✅ share-nothing processes; copy on send; handles refuse to cross | none needed | unrepresentable | n/a |
 | 11 | Panic vs typed refusal | ⚠️ blue faults are catchable; a Rust panic in a native function is not a blue error | one unwind seam at the native-call boundary → `:internal` refusal | open → runtime-refused | on |
-| 12 | Resource bounds | ⚠️ depth bounded; steps unbounded by default; no memory or wall-clock bound | `max_alloc_bytes`, `max_wall_ms` bounds; on for doors that run code they did not write | runtime-refused | off for `run` (it removes working behaviour), on for sessions and rules |
+| 12 | Resource bounds | ⚠️ depth bounded; steps unbounded by default; **live bytes bounded per evaluation and per process (landed: `max_alloc_bytes`, `guest_max_alloc_bytes`)**; no wall-clock bound | `max_wall_ms` bound; on for doors that run code they did not write | runtime-refused | memory: off for `run` (`max_alloc_bytes: null`; it removes working behaviour), 1 GiB for sessions, live evaluation and rules (`guest_max_alloc_bytes`; `null` lifts it) |
 | 13 | Supply chain | ⚠️ `Bluefile.lock` holds `bluefile_b3`, version ranges and source NAR hashes; B0019 needs-mismatch | the lock records each resolved bidama's b3; the loader refuses a mismatch | runtime-refused at load | on (`blue lock` rewrites) |
 | 14 | Secrets | ❌ a secret is a plain string; `pg_connect` takes a password in the URL | a secret bidama (named through `naming`): read from a file, opaque, redacted on print, refused on send | open → unrepresentable (print) + checked-at-expansion (literal) | on (`# waive`) |
 | 15 | Injection | ⚠️ `exec_*` has no shell; `pg_query` binds params; `sh_exec` and `pg_execute` take text | rule: `sh_exec` / `pg_execute` with an interpolated argument | checked-at-expansion | on (`# waive`) |
@@ -2949,9 +2953,23 @@ message, not a blue error with a kind.
 
 **Row 12, resources.** Call depth refuses at 100 000 (measured: "call depth
 budget of 100000 exceeded in `r`"). Steps are unbounded on `run` on purpose
-(`lib.rs:241-251`: a default step bound removed working simulations). The
-counting allocator (`alloc.rs`) measures for `blue profile`; nothing bounds
-memory or time.
+(`lib.rs:241-251`: a default step bound removed working simulations).
+
+Live bytes are bounded through the counting allocator (`alloc.rs`,
+`memory.rs`). An evaluation is charged what its thread allocates and has not
+freed, on an account of its own (`alloc::charged_to`). Each blue process has
+its own account and its spawner's bound, and a message's copy is charged to
+its receiver (`blue_lang_proc::Meter`). The allocation that passes the bound
+sets the root's interrupt, so the tree-walker halts at its next step. The run
+then ends in a fatal `memory-exhausted` that no `rescue` catches, exit 1. A
+process exits `Runaway("memory-exhausted: …")` at the end of its slice; its
+links, monitors, supervisor and crash trace see it. Tests:
+`crates/blue-lang-runtime/tests/memory_bound.rs`, `crates/blue-lang-cli/tests/cli.rs`.
+
+The allocator never fails an allocation, since that aborts. So one native call
+that asks for more than the machine has still aborts. A binary without
+`alloc::Counting` bounds nothing. The forensic class (`SpatialMemoryExhaustion`)
+waits for blue-lang-proc's violation module. Nothing bounds wall-clock time.
 
 **Row 13, supply chain.** `Bluefile.lock` records `bluefile_b3` and each
 source's NAR hash (`crates/blue-lang-pkg/src/lock.rs:118,127`), and a bidama's
@@ -3180,11 +3198,14 @@ Source: `docs/agents.md`
 
 No `pending-shikumi:` — M2 closed 2026-09-29. `BlueConfig`
 (`crates/blue-lang-cli/src/config.rs`) implements `shikumi::TieredConfig` with
-four bounds, each with a shipped overridable default: `solver_max_steps`,
-`max_expr_depth`, and the execution budget as `max_call_depth` and
+six bounds, each with a shipped overridable default: `solver_max_steps`,
+`max_expr_depth`, the execution budget as `max_call_depth` and
 `max_steps` (depth defaults to tatara-lisp-eval's `DEFAULT_MAX_DEPTH`, steps to
-unbounded, since a default step bound would end runs that work today; applied
-to every interpreter through `blue_lang_runtime::set_execution_bounds`).
+unbounded, since a default step bound would end runs that work today), and
+live bytes as `max_alloc_bytes` (unbounded, for `blue run`) and
+`guest_max_alloc_bytes` (1 GiB, for sessions, live evaluation and project
+rules; `crates/blue-lang-runtime/src/memory.rs`), all applied to every
+interpreter through `blue_lang_runtime::set_execution_bounds`.
 `flake.nix` carries the module trio that deploys them, and `blue config <tier>`
 is the operator surface.
 

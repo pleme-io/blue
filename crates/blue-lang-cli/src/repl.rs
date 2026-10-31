@@ -155,6 +155,7 @@ fn describe(stop: &Stop) -> String {
             reach.label()
         ),
         Stop::Exhausted { limit } => format!("exhausted: the budget of {limit} steps ran out"),
+        Stop::MemoryExhausted { limit } => blue_lang_proc::memory_refusal(*limit),
         Stop::Interrupted => "interrupted".to_string(),
     }
 }

@@ -1386,6 +1386,99 @@ fn config_show_prints_the_execution_bounds() {
     let out = stdout(&run(&["config", "default"]));
     assert!(out.contains("max_call_depth: 100000"), "{out}");
     assert!(out.contains("max_steps: null"), "{out}");
+    assert!(out.contains("max_alloc_bytes: null"), "{out}");
+    assert!(out.contains("guest_max_alloc_bytes: 1073741824"), "{out}");
+}
+
+/// Builds tens of megabytes of `[x, x]` pairs and answers how many.
+const PAIRS: &str = "length(map((x) -> [x, x], range(0, 20000)))";
+
+/// **`max_alloc_bytes` is read from the deployed YAML**: a run that holds
+/// more ends in a clean `memory-exhausted` error naming the bound, exit 1,
+/// never an abort.
+///
+/// Red run (2026-10-30): with `BlueConfig::execution_bounds` passing
+/// `max_alloc_bytes: None`, the run printed `20000` and exited 0.
+#[test]
+fn max_alloc_bytes_is_read_from_the_deployed_yaml() {
+    let f = write("alloc-bounded", PAIRS);
+    let cfg = write_at("cfg-alloc.yaml", "max_alloc_bytes: 1048576\n");
+    let o = run_env(
+        &["run", f.to_str().unwrap()],
+        &[("BLUE_CONFIG", cfg.to_str().unwrap())],
+    );
+    assert_eq!(o.status.code(), Some(1), "{}", stderr(&o));
+    assert!(
+        stderr(&o).contains("fatal memory-exhausted: live-byte budget of 1048576 exceeded"),
+        "{}",
+        stderr(&o)
+    );
+}
+
+/// **A run is not held to the bound that holds a session**, and the shipped
+/// default holds a run to nothing: the same program a session refuses at
+/// `guest_max_alloc_bytes` runs to its answer under `blue run`.
+///
+/// Red run (2026-10-30): with `pipeline::evaluate_held` reading
+/// `guest_max_alloc_bytes`, the run failed with ``live-byte budget of 1048576
+/// exceeded``.
+#[test]
+fn a_run_is_not_held_to_the_guest_bound() {
+    let f = write("alloc-default", PAIRS);
+    let cfg = write_at("cfg-guest-alloc.yaml", "guest_max_alloc_bytes: 1048576\n");
+    let env = [("BLUE_CONFIG", cfg.to_str().unwrap())];
+    let evaluated = run_env(&["eval", PAIRS], &env);
+    assert!(
+        !evaluated.status.success()
+            && stderr(&evaluated)
+                .contains("memory-exhausted: live-byte budget of 1048576 exceeded"),
+        "precondition: the session refuses it: {}",
+        stderr(&evaluated)
+    );
+    let ran = run_env(&["run", f.to_str().unwrap()], &env);
+    assert!(ran.status.success(), "{}", stderr(&ran));
+    assert_eq!(stdout(&ran).trim(), "20000");
+    let shipped = run(&["run", f.to_str().unwrap()]);
+    assert!(shipped.status.success(), "{}", stderr(&shipped));
+    assert_eq!(stdout(&shipped).trim(), "20000");
+}
+
+/// **A supervised process past `max_alloc_bytes` exits a runaway its
+/// supervisor restarts, and writes its crash trace**; the root that spawned
+/// it, held to the same bound on its own account, answers.
+#[test]
+fn a_supervised_process_past_max_alloc_bytes_writes_its_trace() {
+    let dir = std::env::temp_dir().join("blue-cli-test-alloc-traces");
+    let _ = std::fs::remove_dir_all(&dir);
+    let f = write(
+        "alloc-supervised",
+        "def hog(n)\n  length(map((x) -> [x, x], range(0, n)))\nend\n\nsup = supervisor(:one_for_one, [[hog, [20000]]], 1)\ns = monitor(sup)\nreceive([:down, s, :_, :_])\n",
+    );
+    let cfg = write_at("cfg-alloc-supervised.yaml", "max_alloc_bytes: 1048576\n");
+    let o = run_env(
+        &["run", f.to_str().unwrap()],
+        &[
+            ("BLUE_CONFIG", cfg.to_str().unwrap()),
+            ("BLUE_TRACE_DIR", dir.to_str().unwrap()),
+        ],
+    );
+    assert!(o.status.success(), "{}", stderr(&o));
+    assert!(stdout(&o).contains(":gave_up"), "{}", stdout(&o));
+    assert!(
+        stderr(&o).contains("memory-exhausted: live-byte budget of 1048576 exceeded"),
+        "{}",
+        stderr(&o)
+    );
+    let traces: Vec<String> = std::fs::read_dir(&dir)
+        .expect("the trace directory")
+        .filter_map(|e| std::fs::read_to_string(e.ok()?.path()).ok())
+        .collect();
+    assert!(
+        traces
+            .iter()
+            .any(|t| t.contains("runaway") && t.contains("memory-exhausted")),
+        "{traces:?}"
+    );
 }
 
 /// **A run longer than 50M steps completes under the default config.**

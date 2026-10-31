@@ -50,6 +50,7 @@ pub mod hosted;
 pub mod inputs;
 pub mod json;
 pub mod literal;
+pub mod memory;
 pub mod messages;
 #[cfg(feature = "sys")]
 pub mod net;
@@ -481,6 +482,7 @@ fn node_config() -> blue_lang_proc::NodeConfig {
         max_depth: Some(b.max_call_depth),
         quantum: Some(blue_lang_proc::node::DEFAULT_QUANTUM),
     };
+    config.meter = Some(memory::METER);
     config.clock = if cfg!(feature = "sys") {
         blue_lang_proc::ClockKind::Real
     } else {
@@ -503,22 +505,31 @@ fn child_interpreter() -> Interpreter<()> {
 /// The execution bounds every interpreter this crate builds runs under.
 static EXECUTION_BOUNDS: std::sync::OnceLock<ExecutionBounds> = std::sync::OnceLock::new();
 
-/// How much a blue program may do before it is refused: nested calls and
-/// evaluation steps.
+/// How much a blue program may do before it is refused: nested calls,
+/// evaluation steps and live bytes.
 ///
-/// Both are BOUNDS in the sense `blue-lang-cli`'s `config` module admits: a
+/// Each is a BOUND in the sense `blue-lang-cli`'s `config` module admits: a
 /// terminating program under bounds above its cost returns the same value, and
 /// one that exceeds either is refused with a catchable `depth-exceeded` or
 /// `fuel-exhausted` error naming the limit and the function — never a process
 /// abort, which is what exceeding the host stack was before tatara-lisp-eval
 /// 0.3.63. The walker and the VM run under the same bounds and refuse with the
-/// same message.
+/// same message. The two memory bounds refuse with a fatal `memory-exhausted`
+/// ([`memory`]); a process past one exits a runaway.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ExecutionBounds {
     /// Nested (non-tail) calls alive at once. Tail calls do not count.
     pub max_call_depth: usize,
     /// Evaluation steps per run; `None` is unbounded.
     pub max_steps: Option<usize>,
+    /// Live bytes one evaluation of code its caller wrote may hold (`blue
+    /// run`, an appliance); `None` is unbounded. Each process it spawns is
+    /// held to the same bound, on its own account.
+    pub max_alloc_bytes: Option<u64>,
+    /// Live bytes one evaluation may hold at a door that runs code it did not
+    /// write: a session (`eval`, `repl`, `serve`), live evaluation in the
+    /// editor, a project rule. `None` is unbounded.
+    pub guest_max_alloc_bytes: Option<u64>,
 }
 
 impl ExecutionBounds {
@@ -532,9 +543,16 @@ impl ExecutionBounds {
     /// 2026-09-29 blue shipped 50M (~3 s) and did exactly that. A host that
     /// runs code it did not write, or a test that must see a runaway end,
     /// sets `max_steps` itself.
+    ///
+    /// Memory follows the same test, door by door: a run holding more than
+    /// any finite count worked, so `max_alloc_bytes` is unbounded; a door
+    /// that runs code it did not write never promised that, so
+    /// `guest_max_alloc_bytes` is [`memory::GUEST_MAX_ALLOC_BYTES`].
     pub const DEFAULT: Self = Self {
         max_call_depth: tatara_lisp_eval::vm::DEFAULT_MAX_DEPTH,
         max_steps: None,
+        max_alloc_bytes: None,
+        guest_max_alloc_bytes: Some(memory::GUEST_MAX_ALLOC_BYTES),
     };
 }
 

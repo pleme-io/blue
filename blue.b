@@ -31,14 +31,17 @@
 #
 # ── THE VALUES ARE THE SHIPPED DEFAULTS ──────────────────────────────────────
 #
-# All four are BOUNDS: raising any changes no program's meaning, only whether a
+# All six are BOUNDS: raising any changes no program's meaning, only whether a
 # pathological input is refused. That is the entire argument for why these
 # knobs are configurable and blue's formatter width and posture ceiling are not
 # — see `crates/blue-lang-cli/src/config.rs`. `max_steps: nil` is unbounded, the
-# default (nil lowers to `Sexp::Nil`, which shikumi maps to absent).
+# default (nil lowers to `Sexp::Nil`, which shikumi maps to absent), and so is
+# `max_alloc_bytes: nil`; `guest_max_alloc_bytes` is 1 GiB.
 {
   solver_max_steps: 100_000,
   max_expr_depth: 256,
   max_call_depth: 100_000,
-  max_steps: nil
+  max_steps: nil,
+  max_alloc_bytes: nil,
+  guest_max_alloc_bytes: 1_073_741_824
 }

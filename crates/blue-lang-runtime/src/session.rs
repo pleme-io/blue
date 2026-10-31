@@ -79,10 +79,14 @@ pub struct Config {
     pub interrupt: Arc<AtomicBool>,
     /// Write output through as it is produced instead of capturing it.
     pub live: Option<Box<dyn Write + Send>>,
+    /// Live bytes each request may hold before it is refused
+    /// ([`Stop::MemoryExhausted`]); `None` is unbounded.
+    pub max_alloc_bytes: Option<u64>,
 }
 
 impl Config {
-    /// A pure session over `loader`, capturing output.
+    /// A pure session over `loader`, capturing output, each request held to
+    /// the process's configured `guest_max_alloc_bytes`.
     #[must_use]
     pub fn new(loader: Box<dyn Loader + Send>) -> Self {
         Self {
@@ -91,6 +95,7 @@ impl Config {
             loader,
             interrupt: Arc::new(AtomicBool::new(false)),
             live: None,
+            max_alloc_bytes: crate::execution_bounds().guest_max_alloc_bytes,
         }
     }
 }
@@ -107,6 +112,10 @@ pub enum Stop {
     /// The step budget ran out.
     Exhausted {
         limit: usize,
+    },
+    /// The request held more than `limit` live bytes (`memory-exhausted`).
+    MemoryExhausted {
+        limit: u64,
     },
     Interrupted,
 }
@@ -254,6 +263,7 @@ pub struct Session {
     host: Host,
     frame: Waku,
     budget: Option<usize>,
+    max_alloc_bytes: Option<u64>,
     loader: Box<dyn Loader + Send>,
     interrupt: Arc<AtomicBool>,
     /// The builtin name table, read once off a pristine interpreter, so a
@@ -280,6 +290,7 @@ impl Session {
             host,
             frame: config.frame,
             budget: config.budget,
+            max_alloc_bytes: config.max_alloc_bytes,
             loader: config.loader,
             interrupt: config.interrupt,
             builtins,
@@ -617,38 +628,49 @@ impl Session {
 
         let mut value = Value::Nil;
         let mut ran: BTreeSet<usize> = BTreeSet::new();
-        let mut failed = None;
-        for &i in &imported {
-            if let Err(e) = self.interp.eval_top_form(&erased[i], &mut self.host) {
-                failed = Some((i, e));
-                break;
+        let interrupt = Arc::clone(&self.interrupt);
+        let (failed, over) = crate::memory::held(self.max_alloc_bytes, &interrupt, || {
+            let mut failed = None;
+            for &i in &imported {
+                if let Err(e) = self.interp.eval_top_form(&erased[i], &mut self.host) {
+                    failed = Some((i, e));
+                    break;
+                }
             }
-        }
-        if failed.is_none() {
-            self.packages.extend(new_packages);
-            for &(order, i) in &asked {
-                let step = match action {
-                    Action::Expand(step) => {
-                        expand_form(&mut self.interp, &mut self.host, &erased[i], step)
-                    }
-                    Action::Evaluate | Action::Load => {
-                        self.interp.eval_top_form(&erased[i], &mut self.host)
-                    }
-                };
-                match step {
-                    Ok(v) => {
-                        value = v;
-                        ran.insert(order);
-                    }
-                    Err(e) => {
-                        failed = Some((i, e));
-                        break;
+            if failed.is_none() {
+                self.packages.extend(new_packages);
+                for &(order, i) in &asked {
+                    let step = match action {
+                        Action::Expand(step) => {
+                            expand_form(&mut self.interp, &mut self.host, &erased[i], step)
+                        }
+                        Action::Evaluate | Action::Load => {
+                            self.interp.eval_top_form(&erased[i], &mut self.host)
+                        }
+                    };
+                    match step {
+                        Ok(v) => {
+                            value = v;
+                            ran.insert(order);
+                        }
+                        Err(e) => {
+                            failed = Some((i, e));
+                            break;
+                        }
                     }
                 }
             }
-        }
-        let stop = failed
-            .map(|(i, e)| self.classify(&e, &program, i, &erased, |span, msg| place(i, span, msg)));
+            failed
+        });
+        let stop = match over {
+            Some(limit) => {
+                let _ = self.interp.take_trace();
+                Some(Stop::MemoryExhausted { limit })
+            }
+            None => failed.map(|(i, e)| {
+                self.classify(&e, &program, i, &erased, |span, msg| place(i, span, msg))
+            }),
+        };
 
         match action {
             Action::Load => ctx.forms = forms.into_iter().map(Form::settled).collect(),

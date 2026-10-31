@@ -64,7 +64,7 @@ pub mod trace;
 pub mod violation;
 pub use bisect::{bisect, Bisected};
 pub use mailbox::{copy_data, deep_copy, install_process_primitives, System};
-pub use node::{install, ClockKind, Node, NodeConfig, PROCESS_WORDS, ROOT};
+pub use node::{install, ClockKind, Meter, Node, NodeConfig, PROCESS_WORDS, ROOT};
 pub use receipt::{
     Frame, HostIo, Identities, Place, Places, Receipt, ReceiptSink, Source, Subject,
 };
@@ -95,7 +95,30 @@ pub enum ExitReason {
     Fatal(String),
 }
 
+/// The kind of the refusal an evaluation or a process meets when it holds more
+/// live bytes than its bound (`max_alloc_bytes`).
+pub const MEMORY_EXHAUSTED: &str = "memory-exhausted";
+
+/// What a memory refusal says: the bound it passed.
+#[must_use]
+pub fn memory_budget(bound: u64) -> String {
+    format!("live-byte budget of {bound} exceeded")
+}
+
+/// A memory refusal as one line: its kind, then [`memory_budget`].
+#[must_use]
+pub fn memory_refusal(bound: u64) -> String {
+    format!("{MEMORY_EXHAUSTED}: {}", memory_budget(bound))
+}
+
 impl ExitReason {
+    /// A process that held more than `bound` live bytes: a runaway, which its
+    /// links, monitors and supervisor see, and a supervisor restarts.
+    #[must_use]
+    pub fn memory_exhausted(bound: u64) -> Self {
+        Self::Runaway(memory_refusal(bound))
+    }
+
     pub fn is_abnormal(&self) -> bool {
         !matches!(self, ExitReason::Normal)
     }

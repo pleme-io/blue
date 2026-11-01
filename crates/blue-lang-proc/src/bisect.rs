@@ -82,6 +82,7 @@ fn with_tape(trace: &Trace, tape: &[(usize, TapeEntry)]) -> Trace {
     let mut t = trace.clone();
     t.tape = tape.iter().map(|(_, e)| e.clone()).collect();
     t.carried = None;
+    t.carried_account = None;
     t
 }
 

@@ -312,7 +312,7 @@ fn a_moved_plain_process_writes_a_bluecrash_that_replays_from_its_start_through_
     let (dir, path, j, said) = crashed_after_moving("replay-plain", LEDGER);
     assert_eq!(said.len(), 3, "{said:?}");
     assert!(said[0].starts_with("b3:") && said[1] == "true" && said[2].contains("fatal"));
-    assert_eq!(j["version"], 4);
+    assert_eq!(j["version"], 5);
     assert_eq!(
         j["carried"]["entries"], 4,
         "now_ms, two receives and a send on the node it left: {}",
@@ -365,6 +365,165 @@ fn a_moved_plain_process_writes_a_bluecrash_that_replays_from_its_start_through_
         err(&o)
     );
     assert!(out(&o).is_empty(), "nothing ran: {}", out(&o));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn a_moved_plain_processs_bluecrash_holds_the_journal_and_host_calls_of_both_wires_and_refuses_a_cut_journal(
+) {
+    let (dir, path, j, said) = crashed_after_moving("replay-account", LEDGER);
+    assert_eq!(
+        j["mailbox"]["recent"],
+        serde_json::json!([{"int": 1}, {"int": 2}, {"str": "/etc/hosts"}]),
+        "1 and 2 were taken before the move, the path after it"
+    );
+    assert_eq!(
+        j["frame"]["host_io"], 2,
+        "a clock reading before the move and one after"
+    );
+    assert_eq!(
+        j["carried_account"]["journal"], 2,
+        "{}",
+        j["carried_account"]
+    );
+    assert_eq!(j["carried_account"]["host_io"], 1);
+    assert_eq!(j["carried_account"]["image"], said[0].as_str());
+
+    let o = replay(&path);
+    let stdout = out(&o);
+    assert!(o.status.success(), "{stdout}{}", err(&o));
+    assert!(
+        stdout.contains(&format!(
+            "carried: its journal's first 2 and its host-call count 1 came in image {}\n",
+            said[0]
+        )) && stdout.contains("mailbox: 3 recent, 0 unconsumed (bound 8)\n")
+            && stdout.ends_with("reproduced\n")
+            && !stdout.contains("not reproduced"),
+        "{stdout}"
+    );
+
+    let mut cut = j.clone();
+    cut["mailbox"]["recent"]
+        .as_array_mut()
+        .expect("recent")
+        .remove(0);
+    let cut_path = dir.join("cut.bluecrash");
+    put(&cut_path, &serde_json::to_string(&cut).expect("json"));
+    let o = replay(&cut_path);
+    assert!(!o.status.success(), "{}", out(&o));
+    assert!(
+        err(&o).contains(&format!(
+            "not replayed: the journal and host-call count carried in image {} do not match: its journal's first 2 and its host-call count 1 hash to b3:",
+            said[0]
+        )),
+        "{}",
+        err(&o)
+    );
+    assert!(out(&o).is_empty(), "nothing ran: {}", out(&o));
+
+    let mut uncounted = j.clone();
+    uncounted["frame"]["host_io"] = serde_json::json!(0);
+    let uncounted_path = dir.join("uncounted.bluecrash");
+    put(
+        &uncounted_path,
+        &serde_json::to_string(&uncounted).expect("json"),
+    );
+    let o = replay(&uncounted_path);
+    assert!(!o.status.success(), "{}", out(&o));
+    assert!(
+        err(&o).contains(&format!(
+            "not replayed: its host-call count is cut: process 2 brought a count of 1 in image {}, and the trace counts 0",
+            said[0]
+        )),
+        "{}",
+        err(&o)
+    );
+    assert!(out(&o).is_empty(), "nothing ran: {}", out(&o));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn a_moved_plain_processs_receipt_counts_the_host_calls_of_both_wires_and_verify_refuses_a_cut_count(
+) {
+    let dir = scratch("receipt-account");
+    let file = dir.join("move.b");
+    put(&file, LEDGER);
+    let receipts = dir.join("receipts");
+    let o = blue(&repo_bidamas().display().to_string())
+        .env("BLUE_TRACE_DIR", dir.join("traces"))
+        .args([
+            "run",
+            "--quiet",
+            "--allow",
+            "comm_scavenger",
+            "--allow",
+            "clock",
+            "--receipts",
+        ])
+        .arg(&receipts)
+        .arg(&file)
+        .output()
+        .expect("blue run");
+    assert!(o.status.success(), "{}{}", out(&o), err(&o));
+    let image = out(&o).split(' ').next().expect("the image").to_string();
+    let carried: Vec<(PathBuf, Json)> = std::fs::read_dir(&receipts)
+        .expect("receipts")
+        .map(|e| e.expect("entry").path())
+        .map(|p| {
+            let j = serde_json::from_slice(&std::fs::read(&p).expect("read")).expect("json");
+            (p, j)
+        })
+        .filter(|(_, j): &(PathBuf, Json)| j.get("carried").is_some())
+        .collect();
+    assert_eq!(
+        carried.len(),
+        1,
+        "only the process that arrived: {carried:?}"
+    );
+    let (path, j) = &carried[0];
+    assert_eq!(j["version"], 4);
+    assert_eq!(
+        j["carried"],
+        serde_json::json!({"host_io": 1, "image": image})
+    );
+    assert_eq!(
+        j["frame"]["host_io"], 2,
+        "the receipt counts the call before the move and the one after"
+    );
+    let verify = |p: &Path| {
+        blue(&repo_bidamas().display().to_string())
+            .args(["receipt", "verify"])
+            .arg(p)
+            .output()
+            .expect("blue receipt verify")
+    };
+    let o = verify(path);
+    assert!(o.status.success(), "{}", err(&o));
+
+    let mut cut = j.clone();
+    cut["frame"]["host_io"] = serde_json::json!(0);
+    let bytes = blue_lang_proc::receipt::canonical(&cut);
+    let renamed = receipts.join(blue_lang_runtime::receipt::name_of(bytes.as_bytes()));
+    put(&renamed, &bytes);
+    let o = verify(&renamed);
+    assert!(!o.status.success(), "{}", out(&o));
+    assert!(
+        err(&o).contains(&format!(
+            "its host-call count is cut: process 2 brought a count of 1 in image {image}, and the receipt counts 0"
+        )),
+        "{}",
+        err(&o)
+    );
+    let mut lowered = j.clone();
+    lowered["carried"]["host_io"] = serde_json::json!(0);
+    let edited = receipts.join("edited.receipt.json");
+    put(&edited, &blue_lang_proc::receipt::canonical(&lowered));
+    let o = verify(&edited);
+    assert!(
+        !o.status.success() && err(&o).contains("but its bytes hash to"),
+        "an edit under the old name is refused by the name: {}",
+        err(&o)
+    );
     let _ = std::fs::remove_dir_all(dir);
 }
 

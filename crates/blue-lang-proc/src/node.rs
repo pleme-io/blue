@@ -77,14 +77,14 @@ use tatara_lisp_eval::{EvalError, Interpreter, MapKey, Value};
 use blue_lang_waku::Capability;
 
 use crate::code::{self, Code, Entry};
-use crate::image::{self, Arrivals, Continuation, Image, Supervision};
+use crate::image::{self, Account, Arrivals, Continuation, Image, Supervision};
 use crate::mailbox::copy_data;
 use crate::pattern;
 use crate::receipt::{
-    Frame, HostIo, Identities, Places, Receipt, ReceiptSink, Roots, StateRoot, Subject,
+    CarriedIo, Frame, HostIo, Identities, Places, Receipt, ReceiptSink, Roots, StateRoot, Subject,
 };
 use crate::scheduling::{self, IdleLane, Scheduling};
-use crate::trace::{Carried, Journal, SliceRecord, TapeEntry, Trace};
+use crate::trace::{Carried, CarriedAccount, Journal, SliceRecord, TapeEntry, Trace};
 use crate::violation::{breach, defined_key, Violation};
 use crate::{provided_name, raised, ExitReason, Pid, Proc, ProcState, Slice, Strategy};
 
@@ -511,6 +511,7 @@ struct NodeState {
     tapes: BTreeMap<Pid, Tape>,
     /// The last messages each held process took, oldest first.
     journals: BTreeMap<Pid, VecDeque<Value>>,
+    accounts: BTreeMap<Pid, CarriedAccount>,
     /// Exit signals sent inside a slice, delivered between slices.
     signals: VecDeque<(Pid, Pid, Value)>,
     migrations: BTreeMap<Pid, Migration>,
@@ -547,6 +548,7 @@ impl NodeState {
             waits: BTreeMap::new(),
             tapes: BTreeMap::new(),
             journals: BTreeMap::new(),
+            accounts: BTreeMap::new(),
             signals: VecDeque::new(),
             migrations: BTreeMap::new(),
             outcomes: BTreeMap::new(),
@@ -664,6 +666,7 @@ impl NodeState {
         self.waits.remove(&pid);
         self.tapes.remove(&pid);
         self.journals.remove(&pid);
+        self.accounts.remove(&pid);
         self.evicting.remove(&pid);
     }
 
@@ -672,6 +675,9 @@ impl NodeState {
         let ring = self.journals.entry(pid).or_default();
         if ring.len() == bound {
             ring.pop_front();
+            if let Some(a) = self.accounts.get_mut(&pid) {
+                a.dropped_oldest(ring);
+            }
         }
         ring.push_back(msg.clone());
     }
@@ -1924,6 +1930,7 @@ impl Node {
             st.waits.remove(&pid);
             st.tapes.insert(pid, Tape::default());
             st.journals.remove(&pid);
+            st.accounts.remove(&pid);
             self.config.host_io.take(pid);
             st.info.get_mut(&pid).map_or((None, None), |info| {
                 info.restarts += 1;
@@ -2307,6 +2314,23 @@ impl Node {
             }),
             _ => None,
         };
+        let tape = st
+            .tapes
+            .get(&pid)
+            .filter(|t| plain && !t.truncated)
+            .map(|t| t.entries.clone());
+        let account = tape
+            .as_ref()
+            .and(self.config.frame.as_ref())
+            .map(|_| Account {
+                host_io: self.config.host_io.of(pid),
+                journal: self.config.journals().then(|| {
+                    st.journals
+                        .get(&pid)
+                        .map(|r| r.iter().cloned().collect())
+                        .unwrap_or_default()
+                }),
+            });
         let mut image = Image {
             definition: info.def_name.clone(),
             scheduling: info.scheduling,
@@ -2320,11 +2344,8 @@ impl Node {
             supervision,
             dispatch_steps: info.asked,
             parked: None,
-            tape: st
-                .tapes
-                .get(&pid)
-                .filter(|t| plain && !t.truncated)
-                .map(|t| t.entries.clone()),
+            tape,
+            account,
         };
         drop(st);
         if plain {
@@ -2454,6 +2475,7 @@ impl Node {
         let (id, frames, bytes) = match queue(&image) {
             Err(_) if image.tape.is_some() => queue(&Image {
                 tape: None,
+                account: None,
                 ..image
             }),
             queued => queued,
@@ -2543,7 +2565,9 @@ impl Node {
         let (parsed, _) = self.apart(|| Image::parse(text));
         let mut image = parsed.map_err(|why| raised("decode_error", why, Value::Nil, span))?;
         let parked = image.parked.take();
-        let tape = Tape::arrived(image.tape.take(), &image::id_of(text));
+        let id = image::id_of(text);
+        let tape = Tape::arrived(image.tape.take(), &id);
+        let account = image.account.take();
         let state = bound_state(&image.code);
         let handed = image.supervision.take();
         if let (Some(s), None) = (&handed, &parked) {
@@ -2617,7 +2641,28 @@ impl Node {
             st.boxes.insert(pid, mailbox);
         }
         self.credit(pid, bytes);
+        if let Some(a) = account {
+            self.brought(pid, a, &id);
+        }
         Ok(int(pid.0))
+    }
+
+    fn brought(&self, pid: Pid, account: Account, image: &str) {
+        if self.config.frame.is_none() {
+            return;
+        }
+        let journal: Option<Vec<Value>> =
+            account.journal.filter(|_| self.config.journals()).map(|j| {
+                let skip = j.len().saturating_sub(self.config.journal);
+                j.into_iter().skip(skip).collect()
+            });
+        let mark = CarriedAccount::of(journal.as_deref(), account.host_io, image);
+        self.config.host_io.carry(pid, account.host_io);
+        let mut st = self.st();
+        if let Some(j) = journal {
+            st.journals.insert(pid, j.into());
+        }
+        st.accounts.insert(pid, mark);
     }
 
     // ── traces ─────────────────────────────────────────────────────────────
@@ -2675,6 +2720,7 @@ impl Node {
             budget: self.config.budget,
             code,
             carried: tape.carried,
+            carried_account: st.accounts.get(&pid).cloned(),
             tape: tape.entries,
             truncated: tape.truncated,
             schedule: st.schedule.iter().cloned().collect(),
@@ -2728,6 +2774,10 @@ impl Node {
             exit_text: crate::trace::reason_text(reason),
             roots,
             steps,
+            carried: st.accounts.get(&pid).map(|a| CarriedIo {
+                image: a.image.clone(),
+                host_io: a.host_io,
+            }),
         })
     }
 

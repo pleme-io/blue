@@ -135,7 +135,33 @@ document lands.
   trace marked truncated, and so does a process whose tape would not fit the
   send ring or the frame limit: the move goes on with the image it had
   before tapes travelled (`depart_over`). Version 1 to 3 images and
-  version 3 traces keep their bytes.
+  version 3 traces keep their bytes. From a held node (2026-11-01) the
+  same image carries the process's mailbox journal and its count of host
+  calls beside its tape, as `blue-image` version 5. On a held node the
+  arrival's journal and count start from them, and the node records the
+  count of journal messages that came, the host-call count, a BLAKE3 hash
+  over both and the image's name; a carried message the journal later
+  drops takes its count and hash with it (`CarriedAccount::dropped_oldest`).
+  A crash there writes `blue-trace` version 5, whose journal and
+  `frame.host_io` cover both nodes, and the arrival's receipt is
+  `blue-receipt` version 4, whose `host_io` counts both and whose
+  `carried` block names what came. `blue replay` refuses, by name and
+  before it runs, a trace whose journal or count is shorter than what came,
+  or whose carried part hashes to another value (`check_carried_account`);
+  `blue receipt verify` refuses a receipt whose count is smaller than what
+  came, and its name refuses any other edit (`receipt::check`). Two moves
+  compose: the last image names everything before it. A version 4 image
+  carries no journal or count and arrives as before. Tests:
+  `crates/blue-lang-proc/tests/nomad.rs`
+  (`a_held_plain_process_that_moves_carries_its_journal_and_host_calls_into_the_trace_and_receipt_of_its_crash`,
+  `a_trace_whose_carried_journal_or_host_count_was_cut_or_edited_is_refused_by_name_and_not_replayed`,
+  `two_moves_compose_into_one_carried_journal_and_host_count_named_by_the_last_image`,
+  `a_carried_message_the_accepting_nodes_journal_drops_takes_its_count_and_hash_with_it`,
+  `an_unheld_move_carries_no_account_and_writes_the_trace_it_wrote_before`),
+  `crates/blue-lang-cli/tests/nomad.rs`
+  (`a_moved_plain_processs_bluecrash_holds_the_journal_and_host_calls_of_both_wires_and_refuses_a_cut_journal`,
+  `a_moved_plain_processs_receipt_counts_the_host_calls_of_both_wires_and_verify_refuses_a_cut_count`),
+  and the `image` and `receipt` units.
 - **Unsafe Rust.** 18 crates. Five hold `unsafe` in non-test code:
   `blue-lang-kiwari` (59 occurrences, one seam,
   `src/lib.rs:18` `#![deny(unsafe_code)]`, `src/ts.rs:13` the one
@@ -589,8 +615,9 @@ reached later breaches and exits 77. nix builds one per Bluefile `app`
 its trace, supervised or not, as `<crash_hash>.bluecrash` into
 `BLUE_TRACE_DIR` (`blue-lang-proc` `node::written`; the name is the next
 note's). The trace is `blue-trace` version 3, or version 4 for a process
-whose tape began on another node (`trace.rs`; versions 1 and 2 still
-read): it names the
+whose tape began on another node, or version 5 for one whose journal and
+host-call count began on another held node (`trace.rs`; versions 1 and 2
+still read): it names the
 spawned definition's `def_hash` as the engine hashes it, `@doc` included
 (`blue_lang_mondou::def_hash::identify`), the hold (granted, provided and
 withheld capabilities, each provider with its `for` scope,
@@ -629,8 +656,10 @@ one's `%provided/<name>`), so a pure frame counts 0 by construction, and the
 node tells the ledger (`blue_lang_proc::HostIo`) which process runs. A
 capability a scoped provider shares with `allow` is granted: code outside
 the scope reaches the host and is counted. A run with no hold
-runs under the top so its calls are counted. `blue receipt verify FILE`
-recomputes the name and refuses any edit. Tests:
+runs under the top so its calls are counted. A plain process that moved
+from a held node counts the calls it made there too, and its receipt is
+version 4 with a `carried` block (the share-nothing note above).
+`blue receipt verify FILE` recomputes the name and refuses any edit. Tests:
 `crates/blue-lang-cli/tests/receipts.rs`
 (`a_pure_frames_receipts_count_no_host_io_and_list_every_withheld_capability`,
 `a_granted_run_counts_each_host_call_and_each_process_its_own`,

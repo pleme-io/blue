@@ -1,9 +1,9 @@
 mod support;
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use blue_lang_proc::image::{self, Arrivals, Image};
-use blue_lang_proc::{install, replay, ClockKind, Node, NodeConfig, Trace};
+use blue_lang_proc::{install, replay, ClockKind, HostIo, Node, NodeConfig, Receipt, Trace};
 use blue_lang_runtime::wire::{host_clock, provide_loopback, LoopbackNet, CARRIER};
 use serde_json::Value as Json;
 use support::{run, show};
@@ -1059,4 +1059,303 @@ fn a_process_that_moved_in_an_image_without_its_tape_still_writes_a_truncated_tr
     assert_eq!(trace.to_json()["version"], 3);
     let r = replay(&trace, blue_lang_runtime::interpreter_hostless());
     assert!(!r.reproduced && r.refused.is_none(), "{r:?}");
+}
+
+type Seen = Arc<Mutex<Vec<Receipt>>>;
+
+fn held_moving(net: &Arc<LoopbackNet>, journal: usize) -> (Interpreter<()>, Arc<Node>, Seen) {
+    let hold = blue_lang_runtime::Hold::from(blue_lang_runtime::session::frame_granting(&[
+        blue_lang_waku::Capability::Clock,
+        blue_lang_waku::Capability::CommScavenger,
+    ]));
+    let io = HostIo::new();
+    let (h, i) = (hold.clone(), io.clone());
+    let mut config = NodeConfig::new(Arc::new(move || {
+        let mut child = blue_lang_runtime::interpreter_hostless();
+        h.bind(&mut child, "this process's frame", &i);
+        child
+    }));
+    config.budget.quantum = Some(50);
+    config.clock = ClockKind::Virtual;
+    config.trace_dir = None;
+    config.carrier = Some(CARRIER);
+    config.frame = Some(hold.frame());
+    config.host_io = io;
+    config.journal = journal;
+    let seen: Seen = Arc::default();
+    let s = Arc::clone(&seen);
+    config.receipts = Some(Arc::new(move |r: &Receipt| {
+        s.lock().expect("receipts").push(r.clone());
+    }));
+    let node = Node::new(config);
+    let mut root = blue_lang_runtime::interpreter_hostless();
+    install(&mut root, node.clone());
+    provide_loopback(
+        &mut root,
+        String::from,
+        blue_lang_waku::Channel::Tide,
+        net,
+        host_clock(),
+    );
+    (root, node, seen)
+}
+
+const WANDER: &str = "\
+def wander(parent)
+  t0 = now_ms()
+  a = receive()
+  send(parent, [:at, a])
+  b = receive()
+  t1 = now_ms()
+  send(parent, [:at, b])
+  c = receive()
+  t2 = now_ms()
+  throw(error(:moved, \"took #{a}, #{b} and #{c}\"))
+end
+";
+
+fn wandered(ports: &[u16], journal: usize) -> (Trace, Vec<String>, Vec<Receipt>) {
+    let net = Arc::new(LoopbackNet::default());
+    let mut nodes: Vec<(Interpreter<()>, Arc<Node>, Seen)> =
+        ports.iter().map(|_| held_moving(&net, journal)).collect();
+    for ((root, _, _), port) in nodes.iter_mut().zip(ports).skip(1) {
+        show(
+            root,
+            &format!("{RESIDENT}w = tide_open(\"127.0.0.1:{port}\")"),
+        );
+    }
+    let last = ports.len() - 1;
+    let mut images = Vec::new();
+    for (i, port) in ports.iter().enumerate().take(last) {
+        let start = if i == 0 {
+            format!("{WANDER}w = tide_open(\"127.0.0.1:{port}\")\np = spawn(wander, [self()])\n")
+        } else {
+            "p = accept(w, 0)\n".to_string()
+        };
+        let image = show(
+            &mut nodes[i].0,
+            &format!(
+                "{start}send(p, {n})\nreceive([:at, {n}])\n\
+                 moved = evict(p, w, \"127.0.0.1:{to}\")\n\
+                 tide_release(w, 1000000, 0)\nmoved.image",
+                n = i + 1,
+                to = ports[i + 1]
+            ),
+        );
+        images.push(image.trim_matches('"').to_string());
+    }
+    let sends: String = (last + 1..=3).map(|n| format!("send(p, {n})\n")).collect();
+    let down = show(
+        &mut nodes[last].0,
+        &format!("p = accept(w, 0)\nmonitor(p)\n{sends}nth(3, receive([:down, :_, :_, :_], 5000))"),
+    );
+    assert!(
+        down.starts_with("(:crashed ") && down.contains("took 1, 2 and 3"),
+        "{down}"
+    );
+    let traces = nodes[last].1.traces();
+    assert_eq!(traces.len(), 1, "{traces:?}");
+    let receipts = nodes[last].2.lock().expect("receipts").clone();
+    (round_trip(&traces[0]), images, receipts)
+}
+
+fn values(xs: &[Value]) -> Vec<String> {
+    xs.iter().map(ToString::to_string).collect()
+}
+
+#[test]
+fn a_held_plain_process_that_moves_carries_its_journal_and_host_calls_into_the_trace_and_receipt_of_its_crash(
+) {
+    let (trace, images, receipts) = wandered(&[7191, 7192], 8);
+    let journal = trace.mailbox.as_ref().expect("a held node keeps a journal");
+    assert_eq!(
+        values(&journal.recent),
+        ["1", "2", "3"],
+        "1 was taken on node a, then 2 and 3 on node b after the receive it parked in; in that order"
+    );
+    assert_eq!(
+        trace.host_io,
+        Some(3),
+        "one clock reading on node a, two on node b"
+    );
+    assert_eq!(receipts.len(), 1, "{receipts:?}");
+    assert_eq!(
+        receipts[0].host_io, 3,
+        "the receipt counts both nodes' calls"
+    );
+    assert!(images[0].starts_with("b3:"), "{images:?}");
+    let came = trace.carried_account.as_ref().expect("a carried account");
+    assert_eq!(
+        (came.journal, came.host_io, came.image.as_str()),
+        (Some(1), 1, images[0].as_str()),
+        "the first journal message and one host call came in the image evict named"
+    );
+    assert_eq!(trace.to_json()["version"], 5);
+    assert_eq!(
+        trace.carried.as_ref().map(|c| c.image.as_str()),
+        Some(images[0].as_str()),
+        "the tape came in the same image"
+    );
+    let r = replay(&trace, blue_lang_runtime::interpreter_hostless());
+    assert!(r.reproduced, "{r:?}");
+    let receipt = receipts[0].to_json();
+    assert_eq!(receipt["version"], 4);
+    assert_eq!(
+        receipt["carried"],
+        serde_json::json!({"host_io": 1, "image": images[0]})
+    );
+    assert_eq!(blue_lang_proc::receipt::check(&receipt), Ok(()));
+}
+
+#[test]
+fn a_trace_whose_carried_journal_or_host_count_was_cut_or_edited_is_refused_by_name_and_not_replayed(
+) {
+    let (trace, images, receipts) = wandered(&[7193, 7194], 8);
+    let image = &images[0];
+    let refused = |t: &Trace| {
+        let r = replay(t, blue_lang_runtime::interpreter_hostless());
+        assert!(!r.reproduced, "{r:?}");
+        assert_eq!(r.consumed, 0, "nothing ran: {r:?}");
+        r.refused.expect("refused")
+    };
+    let mut cut = trace.clone();
+    cut.mailbox.as_mut().expect("journal").recent.clear();
+    assert_eq!(
+        refused(&cut),
+        format!("its mailbox journal is cut: process 2 brought 1 of its messages in image {image}, and the trace keeps 0")
+    );
+    let mut swapped = trace.clone();
+    swapped.mailbox.as_mut().expect("journal").recent.swap(0, 1);
+    let why = refused(&swapped);
+    assert!(
+        why.starts_with(&format!(
+            "the journal and host-call count carried in image {image} do not match: its journal's first 1 and its host-call count 1 hash to b3:"
+        )),
+        "{why}"
+    );
+    let mut forged = trace.clone();
+    forged.mailbox.as_mut().expect("journal").recent[0] = Value::Int(9);
+    assert!(refused(&forged).contains("do not match"));
+    let mut uncounted = trace.clone();
+    uncounted.host_io = Some(0);
+    assert_eq!(
+        refused(&uncounted),
+        format!("its host-call count is cut: process 2 brought a count of 1 in image {image}, and the trace counts 0")
+    );
+    let mut recounted = trace.clone();
+    recounted.carried_account.as_mut().expect("account").host_io = 0;
+    assert!(refused(&recounted).contains("do not match"));
+    let mut after = trace.clone();
+    after.mailbox.as_mut().expect("journal").recent[2] = Value::Int(9);
+    after.host_io = Some(30);
+    let r = replay(&after, blue_lang_runtime::interpreter_hostless());
+    assert!(
+        r.refused.is_none() && r.reproduced,
+        "what the node it crashed on recorded past the carried part is its own: {r:?}"
+    );
+    let mut j = trace.to_json();
+    j.as_object_mut()
+        .expect("an object")
+        .remove("carried_account");
+    assert!(Trace::from_json(&j).is_err_and(|e| e.contains(
+        "blue-trace version 5 carries the journal and host-call count its process brought from another node, and this one carries neither"
+    )));
+    let mut lowered = trace.to_json();
+    lowered["version"] = Json::from(4);
+    assert!(Trace::from_json(&lowered).is_err_and(|e| e.contains(
+        "version 4 carries no journal or host-call count from another node, and this one does"
+    )));
+    for (field, bad, why) in [
+        (
+            "image",
+            Json::from("b3:abcd"),
+            "`carried_account.image` is not a b3: hash",
+        ),
+        (
+            "hash",
+            Json::from("abcd".repeat(16)),
+            "`carried_account.hash` is not a b3: hash",
+        ),
+        (
+            "host_io",
+            Json::from(-1),
+            "`carried_account.host_io` is not a count",
+        ),
+        (
+            "journal",
+            Json::from("1"),
+            "`carried_account.journal` is not a count",
+        ),
+    ] {
+        let mut named = trace.to_json();
+        named["carried_account"][field] = bad;
+        assert!(
+            Trace::from_json(&named).is_err_and(|e| e.contains(why)),
+            "{field}: {:?}",
+            Trace::from_json(&named).err()
+        );
+    }
+    let mut receipt = receipts[0].to_json();
+    receipt["frame"]["host_io"] = Json::from(0);
+    assert_eq!(
+        blue_lang_proc::receipt::check(&receipt),
+        Err(format!("its host-call count is cut: process 2 brought a count of 1 in image {image}, and the receipt counts 0"))
+    );
+}
+
+#[test]
+fn two_moves_compose_into_one_carried_journal_and_host_count_named_by_the_last_image() {
+    let (trace, images, receipts) = wandered(&[7195, 7196, 7197], 8);
+    assert_eq!(images.len(), 2);
+    let journal = trace.mailbox.as_ref().expect("journal");
+    assert_eq!(
+        values(&journal.recent),
+        ["1", "2", "3"],
+        "one message on each node, in order"
+    );
+    assert_eq!(trace.host_io, Some(3), "one clock reading on each node");
+    let came = trace.carried_account.as_ref().expect("a carried account");
+    assert_eq!(
+        (came.journal, came.host_io, came.image.as_str()),
+        (Some(2), 2, images[1].as_str()),
+        "what node a and node b did came in the second image"
+    );
+    assert_eq!(receipts.len(), 1, "{receipts:?}");
+    assert_eq!(receipts[0].host_io, 3);
+    assert_eq!(
+        receipts[0]
+            .carried
+            .as_ref()
+            .map(|c| (c.host_io, c.image.as_str())),
+        Some((2, images[1].as_str()))
+    );
+    let r = replay(&trace, blue_lang_runtime::interpreter_hostless());
+    assert!(r.reproduced, "{r:?}");
+}
+
+#[test]
+fn a_carried_message_the_accepting_nodes_journal_drops_takes_its_count_and_hash_with_it() {
+    let (trace, images, _) = wandered(&[7198, 7199, 7202], 2);
+    let journal = trace.mailbox.as_ref().expect("journal");
+    assert_eq!(
+        values(&journal.recent),
+        ["2", "3"],
+        "a journal of 2 keeps the last two"
+    );
+    let came = trace.carried_account.as_ref().expect("a carried account");
+    assert_eq!(
+        (came.journal, came.host_io, came.image.as_str()),
+        (Some(1), 2, images[1].as_str()),
+        "1 and 2 came, and 1 was dropped for 3; the host calls stay"
+    );
+    let r = replay(&trace, blue_lang_runtime::interpreter_hostless());
+    assert!(r.reproduced, "{r:?}");
+}
+
+#[test]
+fn an_unheld_move_carries_no_account_and_writes_the_trace_it_wrote_before() {
+    let (trace, _) = ledger_moved((7200, 7201));
+    assert!(trace.carried_account.is_none() && trace.mailbox.is_none() && trace.host_io.is_none());
+    assert_eq!(trace.to_json()["version"], 4);
+    assert!(trace.to_json().get("carried_account").is_none());
 }

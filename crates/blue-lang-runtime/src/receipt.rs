@@ -118,6 +118,7 @@ pub fn of_run(hold: &Hold, account: &Account, exit: (&str, String)) -> Receipt {
             .steps
             .as_ref()
             .map(|s| s.load(std::sync::atomic::Ordering::Relaxed)),
+        carried: None,
     }
 }
 

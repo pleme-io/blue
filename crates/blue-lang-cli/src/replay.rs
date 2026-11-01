@@ -111,6 +111,9 @@ pub fn run(path: &Path) -> Result<ExitCode, String> {
             c.entries, c.image
         );
     }
+    if let Some(a) = &trace.carried_account {
+        println!("carried: {} came in image {}", a.summary(), a.image);
+    }
     if let Some(hold) = &trace.hold {
         println!("{}", hold_line(hold));
     }

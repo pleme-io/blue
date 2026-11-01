@@ -48,6 +48,15 @@
 //! start through them, and refuses a trace whose first `n` entries are not
 //! the ones that came. A trace with no carried tape is still version 3.
 //!
+//! Version 5 adds a `carried_account` block, written only for a held process
+//! that arrived from a held node: `{ "image": "b3:…", "host_io": n,
+//! "journal": n, "hash": "b3:…" }`. `host_io` of the frame's host calls and
+//! the first `journal` messages of the mailbox journal's `recent` came in
+//! that image (`journal` is absent when the journal did not come), and
+//! together they hash to `hash` ([`account_hash`]). A replay refuses a trace
+//! whose journal or host-call count is shorter than what came, or whose
+//! carried part hashes to another value. Its `carried` block is optional.
+//!
 //! Version 3 adds the `violation` block ([`crate::violation`]), the span of a
 //! fatal tape entry's call, where the spawned definition is (`defined_at`),
 //! and, under a hold, the receipt's frame block (`frame`, the incarnation's
@@ -75,6 +84,7 @@
 //! The format is versioned; a reader refuses a version it does not know rather
 //! than guessing.
 
+use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
@@ -86,7 +96,7 @@ use tatara_lisp_eval::{ErrorObj, EvalError, Interpreter, MapKey, Value};
 
 use crate::code::Code;
 use crate::node::{host_names, ClockKind, PROCESS_WORDS, SERVER_NEXT};
-use crate::receipt::{canonical, Frame, Place, Places};
+use crate::receipt::{canonical, is_hash, Frame, Place, Places};
 use crate::violation::Violation;
 use crate::{classify, ExitReason};
 
@@ -95,8 +105,9 @@ pub const FORMAT: &str = "blue-trace";
 /// The version this crate writes.
 pub const VERSION: u64 = 3;
 pub const CARRIED: u64 = 4;
+pub const ACCOUNTED: u64 = 5;
 /// Every version this crate reads.
-pub const READS: [u64; 4] = [1, 2, VERSION, CARRIED];
+pub const READS: [u64; 5] = [1, 2, VERSION, CARRIED, ACCOUNTED];
 /// The extension of a fatal exit's trace.
 pub const CRASH_EXTENSION: &str = "bluecrash";
 /// The extension of any other exit's trace.
@@ -165,23 +176,91 @@ impl Carried {
     }
 
     fn from_json(j: &Json) -> Result<Self, String> {
-        let name = |k: &str| {
-            j.get(k)
-                .and_then(Json::as_str)
-                .filter(|h| {
-                    h.strip_prefix("b3:")
-                        .is_some_and(|x| x.len() == 64 && x.bytes().all(|b| b.is_ascii_hexdigit()))
-                })
-                .map(str::to_string)
-                .ok_or_else(|| format!("{FORMAT}: `carried.{k}` is not a b3: hash"))
-        };
         Ok(Self {
             entries: opt_from(j.get("entries"))
                 .ok_or_else(|| format!("{FORMAT}: `carried.entries` is not a count"))?,
-            image: name("image")?,
-            tape: name("tape")?,
+            image: hash_at(j, "carried", "image")?,
+            tape: hash_at(j, "carried", "tape")?,
         })
     }
+}
+
+fn hash_at(j: &Json, block: &str, k: &str) -> Result<String, String> {
+    j.get(k)
+        .and_then(Json::as_str)
+        .filter(|h| is_hash(h))
+        .map(str::to_string)
+        .ok_or_else(|| format!("{FORMAT}: `{block}.{k}` is not a b3: hash"))
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CarriedAccount {
+    pub image: String,
+    pub host_io: u64,
+    pub journal: Option<usize>,
+    pub hash: String,
+}
+
+impl CarriedAccount {
+    #[must_use]
+    pub fn of(journal: Option<&[Value]>, host_io: u64, image: &str) -> Self {
+        Self {
+            image: format!("b3:{image}"),
+            host_io,
+            journal: journal.map(<[Value]>::len),
+            hash: account_hash(journal, host_io),
+        }
+    }
+
+    pub fn dropped_oldest(&mut self, kept: &VecDeque<Value>) {
+        if let Some(n) = self.journal.filter(|n| *n > 0) {
+            let left: Vec<Value> = kept.iter().take(n - 1).cloned().collect();
+            self.journal = Some(left.len());
+            self.hash = account_hash(Some(&left), self.host_io);
+        }
+    }
+
+    fn to_json(&self) -> Json {
+        let mut j = json!({"image": self.image, "host_io": self.host_io, "hash": self.hash});
+        if let Some(n) = self.journal {
+            j["journal"] = json!(n);
+        }
+        j
+    }
+
+    fn from_json(j: &Json) -> Result<Self, String> {
+        let count = |k: &str| format!("{FORMAT}: `carried_account.{k}` is not a count");
+        Ok(Self {
+            image: hash_at(j, "carried_account", "image")?,
+            host_io: j
+                .get("host_io")
+                .and_then(Json::as_u64)
+                .ok_or_else(|| count("host_io"))?,
+            journal: j
+                .get("journal")
+                .map(|n| opt_from(Some(n)).ok_or_else(|| count("journal")))
+                .transpose()?,
+            hash: hash_at(j, "carried_account", "hash")?,
+        })
+    }
+
+    #[must_use]
+    pub fn summary(&self) -> String {
+        let journal = self
+            .journal
+            .map(|n| format!("its journal's first {n} and "))
+            .unwrap_or_default();
+        format!("{journal}its host-call count {}", self.host_io)
+    }
+}
+
+#[must_use]
+pub fn account_hash(journal: Option<&[Value]>, host_io: u64) -> String {
+    let mut j = json!({ "host_io": host_io });
+    if let Some(messages) = journal {
+        j["journal"] = Json::Array(messages.iter().map(value_to_json).collect());
+    }
+    format!("b3:{}", crash_hash(&j))
 }
 
 #[must_use]
@@ -306,6 +385,7 @@ pub struct Trace {
     /// Host calls the incarnation made through granted names, under a hold.
     pub host_io: Option<u64>,
     pub carried: Option<Carried>,
+    pub carried_account: Option<CarriedAccount>,
 }
 
 /// The kind of an abnormal exit, as a trace names it.
@@ -643,6 +723,10 @@ impl Trace {
             j["carried"] = c.to_json();
             j["version"] = json!(CARRIED);
         }
+        if let Some(a) = &self.carried_account {
+            j["carried_account"] = a.to_json();
+            j["version"] = json!(ACCOUNTED);
+        }
         j
     }
 
@@ -659,7 +743,7 @@ impl Trace {
         let version = j.get("version").and_then(Json::as_u64).unwrap_or(0);
         if !READS.contains(&version) {
             return Err(format!(
-                "{FORMAT} version {version}; this blue reads versions 1 to {CARRIED}"
+                "{FORMAT} version {version}; this blue reads versions 1 to {ACCOUNTED}"
             ));
         }
         let carried = match (version, j.get("carried")) {
@@ -668,11 +752,25 @@ impl Trace {
                     "{FORMAT} version {CARRIED} carries a tape from the node its process left, and this one carries none"
                 ))
             }
-            (CARRIED, Some(c)) => Some(Carried::from_json(c)?),
+            (CARRIED | ACCOUNTED, Some(c)) => Some(Carried::from_json(c)?),
             (_, None | Some(Json::Null)) => None,
             (_, Some(_)) => {
                 return Err(format!(
                     "{FORMAT} version {version} carries no tape from another node, and this one does"
+                ))
+            }
+        };
+        let carried_account = match (version, j.get("carried_account")) {
+            (ACCOUNTED, None | Some(Json::Null)) => {
+                return Err(format!(
+                    "{FORMAT} version {ACCOUNTED} carries the journal and host-call count its process brought from another node, and this one carries neither"
+                ))
+            }
+            (ACCOUNTED, Some(a)) => Some(CarriedAccount::from_json(a)?),
+            (_, None | Some(Json::Null)) => None,
+            (_, Some(_)) => {
+                return Err(format!(
+                    "{FORMAT} version {version} carries no journal or host-call count from another node, and this one does"
                 ))
             }
         };
@@ -719,6 +817,7 @@ impl Trace {
         });
         Ok(Self {
             carried,
+            carried_account,
             violation,
             defined_at,
             host_io: j
@@ -797,6 +896,51 @@ impl Trace {
     }
 
     pub fn check_carried(&self) -> Result<(), String> {
+        self.check_carried_tape()?;
+        self.check_carried_account()
+    }
+
+    fn check_carried_account(&self) -> Result<(), String> {
+        let Some(a) = &self.carried_account else {
+            return Ok(());
+        };
+        let recent = self
+            .mailbox
+            .as_ref()
+            .map_or(&[][..], |m| m.recent.as_slice());
+        let journal = a
+            .journal
+            .map(|n| {
+                recent.get(..n).ok_or_else(|| {
+                    format!(
+                        "its mailbox journal is cut: process {} brought {n} of its messages in image {}, and the trace keeps {}",
+                        self.pid,
+                        a.image,
+                        recent.len()
+                    )
+                })
+            })
+            .transpose()?;
+        let counted = self.host_io.unwrap_or(0);
+        if counted < a.host_io {
+            return Err(format!(
+                "its host-call count is cut: process {} brought a count of {} in image {}, and the trace counts {counted}",
+                self.pid, a.host_io, a.image
+            ));
+        }
+        let hash = account_hash(journal, a.host_io);
+        if hash == a.hash {
+            return Ok(());
+        }
+        Err(format!(
+            "the journal and host-call count carried in image {} do not match: {} hash to {hash}, and the node that accepted it recorded {}",
+            a.image,
+            a.summary(),
+            a.hash
+        ))
+    }
+
+    fn check_carried_tape(&self) -> Result<(), String> {
         let Some(c) = &self.carried else {
             return Ok(());
         };

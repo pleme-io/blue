@@ -8,11 +8,16 @@ use support::show;
 use tatara_lisp_eval::Interpreter;
 
 fn moving(net: &Arc<LoopbackNet>) -> (Interpreter<()>, Arc<Node>) {
+    moving_under(net, None)
+}
+
+fn moving_under(net: &Arc<LoopbackNet>, dispatch: Option<usize>) -> (Interpreter<()>, Arc<Node>) {
     let mut config = NodeConfig::new(Arc::new(blue_lang_runtime::interpreter_hostless));
     config.budget.quantum = Some(50);
     config.clock = ClockKind::Virtual;
     config.trace_dir = None;
     config.carrier = Some(CARRIER);
+    config.dispatch_steps = dispatch;
     let node = Node::new(config);
     let mut root = blue_lang_runtime::interpreter_hostless();
     install(&mut root, node.clone());
@@ -152,15 +157,12 @@ fn a_process_eviction_cannot_carry_is_refused_by_name() {
              def idle_loop()\n  receive()\nend\n\
              plain = spawn(idle_loop)\n\
              linked = spawn_server(counter, [])\nlink(linked)\n\
-             sup = supervisor(:one_for_one, [[:server, counter, []]])\n\
-             held = nth(0, children(sup))\n\
              [contains?(why(fn() evict(plain, w, \"127.0.0.1:9\") end), \"not a server\"),\n\
               contains?(why(fn() evict(linked, w, \"127.0.0.1:9\") end), \"is linked to\"),\n\
-              contains?(why(fn() evict(held, w, \"127.0.0.1:9\") end), \"is supervised by\"),\n\
               contains?(why(fn() evict(4242, w, \"127.0.0.1:9\") end), \"no process\")]"
         ),
     );
-    assert_eq!(out, "(#t #t #t #t)");
+    assert_eq!(out, "(#t #t #t)");
 }
 
 #[test]
@@ -250,4 +252,148 @@ fn an_image_whose_bytes_hash_to_another_name_or_a_broken_frame_raises_decode_err
     );
     assert_eq!(broken, ":decode_error");
     assert_eq!(node_b.process_count(), 0, "nothing was admitted");
+}
+
+const KEEPER: &str = "\
+def keeper(msg, seen)
+  if msg == :boom
+    raise(:boom, \"asked to crash\")
+  end
+  if nth(0, msg) == :inc
+    append(seen, [nth(1, msg)])
+  else
+    send(nth(1, msg), [:seen, seen])
+    seen
+  end
+end
+";
+
+#[test]
+fn a_supervised_server_is_handed_over_and_restarts_on_its_new_node_as_its_supervisor_would() {
+    let net = Arc::new(LoopbackNet::default());
+    let (mut a, _) = moving(&net);
+    let (mut b, node_b) = moving(&net);
+    show(&mut b, "w = tide_open(\"127.0.0.1:7072\")");
+    let left = show(
+        &mut a,
+        &format!(
+            "{KEEPER}\
+             w = tide_open(\"127.0.0.1:7071\")\n\
+             sup = supervisor(:one_for_one, [[:server, keeper, [0]]], 2)\n\
+             s = nth(0, children(sup))\n\
+             send(s, :boom)\n\
+             receive(:never, 10, :waited)\n\
+             send(s, [:inc, 1])\nsend(s, [:inc, 2])\n\
+             send(s, [:get, self()])\nbefore = receive()\n\
+             send(s, [:inc, 3])\n\
+             moved = evict(s, w, \"127.0.0.1:7072\")\n\
+             [before, children(sup), alive?(s), tide_release(w, 1000000, 0) == moved.bytes]"
+        ),
+    );
+    assert_eq!(
+        left, "((:seen (0 1 2)) () #f #t)",
+        "the supervisor on node a drops the child it handed over, as it drops one that exits for good"
+    );
+    let arrived = show(
+        &mut b,
+        "p = accept(w, 0)\n\
+         send(p, [:get, self()])\nmoved = receive()\n\
+         send(p, :boom)\nreceive(:never, 10, :waited)\n\
+         send(p, [:get, self()])\nrestarted = receive()\n\
+         send(p, :boom)\nreceive(:never, 10, :waited)\n\
+         [moved, restarted, alive?(p)]",
+    );
+    assert_eq!(
+        arrived, "((:seen (0 1 2 3)) (:seen (0)) #f)",
+        "on node b the server keeps the state it left with and the message queued for it; a crash restarts it from the state its supervisor began it with, not the state it moved with; the restart it spent on node a counts, so with max_restarts 2 the second crash on node b is the one its supervisor gives up on"
+    );
+    assert_eq!(node_b.process_count(), 0);
+}
+
+#[test]
+fn evict_breaks_a_link_with_evicted_for_every_partner_that_traps_exits_and_names_one_that_does_not()
+{
+    let net = Arc::new(LoopbackNet::default());
+    let (mut a, _) = moving(&net);
+    let out = show(
+        &mut a,
+        &format!(
+            "{COUNTER}\
+             def relay(parent)\n  send(parent, [:heard, receive()])\n  relay(parent)\nend\n\
+             def watcher(parent, s)\n  trap_exit(true)\n  link(s)\n  send(parent, :ready)\n  relay(parent)\nend\n\
+             def deaf(parent, s)\n  link(s)\n  send(parent, :ready)\n  receive()\n  unlink(s)\n  send(parent, :unlinked)\n  receive()\nend\n\
+             w = tide_open(\"127.0.0.1:7081\")\n\
+             s = spawn_server(counter, [5])\n\
+             v = spawn(watcher, [self(), s])\nreceive(:ready)\n\
+             d = spawn(deaf, [self(), s])\nreceive(:ready)\n\
+             refused = begin\n  evict(s, w, \"127.0.0.1:7082\")\n  :moved\nrescue e\n  [contains?(e.message, \"is linked to #{{d}},\"), contains?(e.message, \"does not trap exits\")]\nend\n\
+             send(v, :probe)\nfirst = receive([:heard, :_])\n\
+             send(s, [:get, self()])\nstill = receive([:seen, :_])\n\
+             send(d, :unlink)\nreceive(:unlinked)\n\
+             trap_exit(true)\nlink(s)\n\
+             evict(s, w, \"127.0.0.1:7082\")\n\
+             heard = receive([:heard, :_])\n\
+             [refused, first, still, heard, receive([:exit, :_, :_]), alive?(s)]"
+        ),
+    );
+    assert_eq!(
+        out, "((#t #t) (:heard :probe) (:seen (5)) (:heard (:exit 1 :evicted)) (:exit 1 :evicted) #f)",
+        "a partner that does not trap exits refuses the move by name and nothing reaches the one that does; once it unlinks, the watcher and the program, both trapping, each hear [:exit, pid, :evicted]"
+    );
+}
+
+const LONG: &str = "\
+def spin(k)
+  if k == 0
+    0
+  else
+    spin(k - 1)
+  end
+end
+def long(m, n)
+  if m == 0
+    spin(5000)
+    n + 1000
+  else
+    n + m
+  end
+end
+";
+
+#[test]
+fn an_evicted_server_keeps_its_own_dispatch_bound_met_with_the_accepting_nodes() {
+    for (port, accepting, limit) in [
+        (7091, None, 2000),
+        (7093, Some(1500), 1500),
+        (7095, Some(3000), 2000),
+    ] {
+        let net = Arc::new(LoopbackNet::default());
+        let (mut a, _) = moving_under(&net, None);
+        let (mut b, _) = moving_under(&net, accepting);
+        show(
+            &mut b,
+            &format!("w = tide_open(\"127.0.0.1:{}\")", port + 1),
+        );
+        let left = show(
+            &mut a,
+            &format!(
+                "{LONG}w = tide_open(\"127.0.0.1:{port}\")\n\
+                 s = spawn_server(long, 0, {{dispatch_steps: 2000}})\n\
+                 send(s, 1)\n\
+                 evict(s, w, \"127.0.0.1:{}\")\n\
+                 tide_release(w, 1000000, 0) > 0",
+                port + 1
+            ),
+        );
+        assert_eq!(left, "#t");
+        let out = show(
+            &mut b,
+            "p = accept(w, 0)\nmonitor(p)\nsend(p, 0)\nnth(3, receive(:_, 5000))",
+        );
+        assert_eq!(
+            out,
+            format!("(:runaway \"execution budget exhausted: steps per dispatch (limit {limit})\")"),
+            "the server's own {{dispatch_steps: 2000}} travels in its image and meets the accepting node's bound {accepting:?}"
+        );
+    }
 }

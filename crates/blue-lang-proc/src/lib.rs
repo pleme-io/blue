@@ -76,7 +76,7 @@ pub use node::{
 pub use receipt::{
     Frame, HostIo, Identities, Place, Places, Receipt, ReceiptSink, Source, Subject,
 };
-pub use scheduling::Scheduling;
+pub use scheduling::{IdleLane, Scheduling};
 pub use trace::{replay, Journal, Replayed, Trace};
 pub use violation::{Class, Violation};
 

@@ -274,7 +274,7 @@ impl HostIo {
     pub fn tally(&self) {
         let mut l = locked(&self.0);
         l.total += 1;
-        let pid = l.current;
+        let pid = crate::scheduling::lane().unwrap_or(l.current);
         *l.by_pid.entry(pid).or_default() += 1;
     }
 

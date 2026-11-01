@@ -241,3 +241,47 @@ fn a_version_1_trace_is_still_read_and_replayed() {
     let r = replay(&v1, blue_lang_runtime::interpreter_hostless());
     assert!(r.reproduced, "{r:?}");
 }
+
+#[test]
+fn an_idle_process_running_apart_counts_its_host_calls_on_its_own_receipt() {
+    let dir = scratch("idle-io");
+    std::fs::create_dir_all(&dir).expect("dir");
+    let file = dir.join("data");
+    std::fs::write(&file, "data").expect("write");
+    let (mut config, _, io) = held(&[Capability::FileSystem]);
+    let seen: Arc<Mutex<Vec<Receipt>>> = Arc::default();
+    let s = Arc::clone(&seen);
+    config.receipts = Some(Arc::new(move |r: &Receipt| {
+        s.lock().expect("lock").push(r.clone());
+    }));
+    let (mut root, _node) = configure(config);
+    let out = show(
+        &mut root,
+        &format!(
+            "def twice(parent, p)\n  read_file(p)\n  send(parent, read_file(p))\nend\n\
+             def none(parent)\n  send(parent, 1)\nend\n\
+             i = spawn(twice, [self(), \"{0}\"], {{scheduling: :idle}})\nm = monitor(i)\n\
+             spawn(none, [self()])\n\
+             [receive(\"data\", 5000), receive(1, 5000), nth(3, receive([:down, m, :_, :_], 5000))]",
+            file.display()
+        ),
+    );
+    assert_eq!(out, "(\"data\" 1 :normal)", "{out}");
+    let mut counts: Vec<(Option<String>, u64)> = seen
+        .lock()
+        .expect("lock")
+        .iter()
+        .map(|r| (r.definition.clone(), r.host_io))
+        .collect();
+    counts.sort();
+    assert_eq!(
+        counts,
+        [
+            (Some("none".to_string()), 0),
+            (Some("twice".to_string()), 2)
+        ],
+        "the idle process's reads, made on its own thread, are its own"
+    );
+    assert_eq!(io.total(), 2);
+    let _ = std::fs::remove_dir_all(dir);
+}

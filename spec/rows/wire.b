@@ -213,3 +213,74 @@ row(
   value("nil"),
   host()
 )
+
+row(
+  "wire.evict.a_supervised_server_is_handed_over",
+  join_lines(
+    [
+      "def h(msg, seen)",
+      "  if msg == :boom",
+      "    raise(:boom, \"asked to crash\")",
+      "  end",
+      "  if msg[0] == :inc",
+      "    append(seen, [msg[1]])",
+      "  else",
+      "    send(msg[1], seen)",
+      "    seen",
+      "  end",
+      "end",
+      "a = tide_open(\"127.0.0.1:0\")",
+      "b = tide_open(\"127.0.0.1:0\")",
+      "sup = supervisor(:one_for_one, [[:server, h, [0]]])",
+      "s = children(sup)[0]",
+      "send(s, [:inc, 1])",
+      "evict(s, a, tide_stats(b).address)",
+      "tide_release(a, 1_000_000, 0)",
+      "p = accept(b, 5000)",
+      "send(p, [:get, self])",
+      "moved = receive()",
+      "send(p, :boom)",
+      "receive(:never, 50, :waited)",
+      "send(p, [:get, self])",
+      "[moved, receive(), children(sup), alive?(s)]"
+    ]
+  ),
+  value("[[0, 1], [0], [], false]"),
+  host()
+)
+
+row(
+  "wire.evict.a_partner_that_traps_exits_hears_the_link_break",
+  join_lines(
+    [
+      "def h(msg, n)",
+      "  n",
+      "end",
+      "a = tide_open(\"127.0.0.1:0\")",
+      "s = spawn_server(h, 0)",
+      "trap_exit(true)",
+      "link(s)",
+      "evict(s, a, \"127.0.0.1:9\")",
+      "[receive() == [:exit, s, :evicted], alive?(s)]"
+    ]
+  ),
+  value("[true, false]"),
+  host()
+)
+
+row(
+  "wire.evict.a_partner_that_does_not_trap_exits_is_refused",
+  join_lines(
+    [
+      "def h(msg, n)",
+      "  n",
+      "end",
+      "a = tide_open(\"127.0.0.1:0\")",
+      "s = spawn_server(h, 0)",
+      "link(s)",
+      "evict(s, a, \"127.0.0.1:9\")"
+    ]
+  ),
+  fails(:eval, "does not trap exits"),
+  host()
+)

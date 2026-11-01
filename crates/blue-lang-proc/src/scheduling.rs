@@ -1,10 +1,45 @@
+use std::cell::Cell;
 use std::fmt;
+
+use crate::Pid;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Scheduling {
     #[default]
     Normal,
     Idle,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum IdleLane {
+    #[default]
+    Apart,
+    Held,
+}
+
+impl IdleLane {
+    pub const ALL: [IdleLane; 2] = [IdleLane::Apart, IdleLane::Held];
+
+    #[must_use]
+    pub fn label(self) -> &'static str {
+        match self {
+            IdleLane::Apart => "apart",
+            IdleLane::Held => "held",
+        }
+    }
+}
+
+thread_local! {
+    static LANE: Cell<Option<Pid>> = const { Cell::new(None) };
+}
+
+#[must_use]
+pub fn lane() -> Option<Pid> {
+    LANE.with(Cell::get)
+}
+
+pub(crate) fn board(pid: Pid) {
+    LANE.with(|l| l.set(Some(pid)));
 }
 
 pub const PRIVILEGED: &str = "realtime";

@@ -12,6 +12,8 @@ pub const FORMAT: &str = "blue-image";
 
 pub const VERSION: u64 = 1;
 
+pub const HANDED: u64 = 2;
+
 pub const FRAME: &str = "blue-image ";
 
 pub const MAX_FRAMES: usize = 9999;
@@ -29,12 +31,48 @@ pub struct Image {
     pub trap_exit: bool,
     pub code: Code,
     pub mailbox: Vec<Value>,
+    pub supervision: Option<Supervision>,
+    pub dispatch_steps: Option<usize>,
+}
+
+#[derive(Clone, Debug)]
+pub struct Supervision {
+    pub max_restarts: usize,
+    pub restarts: usize,
+    pub initial: Value,
+}
+
+impl Supervision {
+    fn to_json(&self) -> Json {
+        json!({
+            "max_restarts": self.max_restarts,
+            "restarts": self.restarts,
+            "initial": value_to_json(&self.initial),
+        })
+    }
+
+    fn from_json(j: &Json) -> Result<Self, String> {
+        let count = |key: &str| {
+            j.get(key)
+                .and_then(Json::as_u64)
+                .and_then(|n| usize::try_from(n).ok())
+                .ok_or_else(|| format!("{FORMAT}: `supervision` has no `{key}` count"))
+        };
+        Ok(Self {
+            max_restarts: count("max_restarts")?,
+            restarts: count("restarts")?,
+            initial: value_from_json(
+                j.get("initial")
+                    .ok_or_else(|| format!("{FORMAT}: `supervision` has no `initial` state"))?,
+            )?,
+        })
+    }
 }
 
 impl Image {
     #[must_use]
     pub fn to_json(&self) -> Json {
-        json!({
+        let mut j = json!({
             "format": FORMAT,
             "version": VERSION,
             "definition": self.definition,
@@ -42,7 +80,22 @@ impl Image {
             "trap_exit": self.trap_exit,
             "code": code_to_json(&self.code),
             "mailbox": self.mailbox.iter().map(value_to_json).collect::<Vec<_>>(),
-        })
+        });
+        if let Some(s) = &self.supervision {
+            j["supervision"] = s.to_json();
+        }
+        if let Some(n) = self.dispatch_steps {
+            j["dispatch_steps"] = json!(n);
+        }
+        if self.hands_over() {
+            j["version"] = json!(HANDED);
+        }
+        j
+    }
+
+    #[must_use]
+    pub fn hands_over(&self) -> bool {
+        self.supervision.is_some() || self.dispatch_steps.is_some()
     }
 
     pub fn from_json(j: &Json) -> Result<Self, String> {
@@ -50,10 +103,36 @@ impl Image {
             return Err(format!("not a {FORMAT}"));
         }
         let version = j.get("version").and_then(Json::as_u64).unwrap_or(0);
-        if version != VERSION {
+        if version != VERSION && version != HANDED {
             return Err(format!(
-                "{FORMAT} version {version}; this blue reads version {VERSION}"
+                "{FORMAT} version {version}; this blue reads versions {VERSION} and {HANDED}"
             ));
+        }
+        let supervision = j
+            .get("supervision")
+            .map(Supervision::from_json)
+            .transpose()?;
+        let dispatch_steps = j
+            .get("dispatch_steps")
+            .map(|n| {
+                n.as_u64()
+                    .and_then(|n| usize::try_from(n).ok())
+                    .filter(|n| *n > 0)
+                    .ok_or_else(|| format!("{FORMAT}: `dispatch_steps` is not a positive count"))
+            })
+            .transpose()?;
+        match (version, supervision.is_some() || dispatch_steps.is_some()) {
+            (VERSION, true) => {
+                return Err(format!(
+                    "{FORMAT} version {VERSION} carries no supervision or dispatch_steps, and this one does"
+                ))
+            }
+            (HANDED, false) => {
+                return Err(format!(
+                    "{FORMAT} version {HANDED} carries supervision or dispatch_steps, and this one carries neither"
+                ))
+            }
+            _ => {}
         }
         let scheduling = j
             .get("scheduling")
@@ -83,6 +162,8 @@ impl Image {
             trap_exit: j.get("trap_exit").and_then(Json::as_bool).unwrap_or(false),
             code,
             mailbox,
+            supervision,
+            dispatch_steps,
         })
     }
 
@@ -267,6 +348,8 @@ mod tests {
                 start: tatara_lisp::read_spanned("(h 1 2)").expect("reads").pop(),
             },
             mailbox: vec![Value::Int(4), Value::Str("ünï".into())],
+            supervision: None,
+            dispatch_steps: None,
         }
     }
 
@@ -325,6 +408,46 @@ mod tests {
         let lying = frames[1].replacen(&format!(" {:04}\n", frames.len()), " 0099\n", 1);
         assert!(arrivals.file(&lying).is_err());
         assert_eq!(arrivals.waiting(), 0);
+    }
+
+    #[test]
+    fn an_image_that_hands_over_nothing_stays_version_one_and_one_that_does_is_version_two() {
+        let plain = image("x");
+        let text = plain.text();
+        assert!(text.contains("\"version\":1"), "{text}");
+        assert!(
+            !text.contains("supervision") && !text.contains("dispatch_steps"),
+            "{text}"
+        );
+        let mut held = image("x");
+        held.supervision = Some(Supervision {
+            max_restarts: 3,
+            restarts: 1,
+            initial: Value::Str("start".into()),
+        });
+        held.dispatch_steps = Some(2000);
+        let text = held.text();
+        assert!(text.contains("\"version\":2"), "{text}");
+        let back = Image::parse(&text).expect("parses");
+        let s = back.supervision.clone().expect("carried");
+        assert_eq!((s.max_restarts, s.restarts), (3, 1));
+        assert_eq!(s.initial.to_string(), "\"start\"");
+        assert_eq!(back.dispatch_steps, Some(2000));
+        assert_eq!(back.text(), text);
+        let mut bounded = image("x");
+        bounded.dispatch_steps = Some(7);
+        let only = bounded.text();
+        assert!(only.contains("\"version\":2"), "{only}");
+        assert_eq!(Image::parse(&only).expect("parses").dispatch_steps, Some(7));
+        let neither = only.replacen("\"dispatch_steps\":", "\"lost\":", 1);
+        assert!(Image::parse(&neither).is_err_and(|e| e.contains("carries neither")));
+        let carried_one = text.replacen("\"version\":2", "\"version\":1", 1);
+        assert!(Image::parse(&carried_one)
+            .is_err_and(|e| e.contains("carries no supervision or dispatch_steps")));
+        let zero = only.replacen("\"dispatch_steps\":7", "\"dispatch_steps\":0", 1);
+        assert!(Image::parse(&zero).is_err_and(|e| e.contains("not a positive count")));
+        let three = text.replacen("\"version\":2", "\"version\":3", 1);
+        assert!(Image::parse(&three).is_err_and(|e| e.contains("versions 1 and 2")));
     }
 
     #[test]

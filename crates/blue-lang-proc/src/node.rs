@@ -33,7 +33,13 @@
 //!   procs walked in spawn order, a fixed reduction quantum. What a process
 //!   could not replay from its program alone — the messages it received, the
 //!   host values it read, the pids it was handed — is recorded on its tape, and
-//!   a crash writes the tape out ([`crate::trace`]).
+//!   a crash writes the tape out ([`crate::trace`]). An `:idle` process is the
+//!   one exception to the one thread: its slices run on a low-priority thread
+//!   of its own while the node runs the rest ([`IdleLane::Apart`]), so where
+//!   they fall among the others is the OS's choice and not replayable; its
+//!   own crash still replays from its tape. It still acts only while the root
+//!   waits: a word it calls between waits holds until the next one. [`IdleLane::Held`] keeps the whole
+//!   interleaving replayable by waiting for each idle slice.
 //!
 //! ## The root is the program; children are VM processes
 //!
@@ -57,7 +63,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::path::PathBuf;
-use std::sync::{Arc, LazyLock, Mutex, MutexGuard, OnceLock, Weak};
+use std::sync::{mpsc, Arc, Condvar, LazyLock, Mutex, MutexGuard, OnceLock, Weak};
 use std::time::{Duration, Instant};
 
 use tatara_lisp::{Span, Spanned};
@@ -68,13 +74,13 @@ use tatara_lisp_eval::{EvalError, Interpreter, MapKey, Value};
 use blue_lang_waku::Capability;
 
 use crate::code::{self, Code, Entry};
-use crate::image::{self, Arrivals, Image};
+use crate::image::{self, Arrivals, Image, Supervision};
 use crate::mailbox::copy_data;
 use crate::pattern;
 use crate::receipt::{
     Frame, HostIo, Identities, Places, Receipt, ReceiptSink, Roots, StateRoot, Subject,
 };
-use crate::scheduling::{self, Scheduling};
+use crate::scheduling::{self, IdleLane, Scheduling};
 use crate::trace::{Journal, SliceRecord, TapeEntry, Trace};
 use crate::violation::{breach, defined_key, Violation};
 use crate::{provided_name, raised, ExitReason, Pid, Proc, ProcState, Slice, Strategy};
@@ -297,6 +303,7 @@ pub struct NodeConfig {
     pub carrier: Option<Carrier>,
     pub dispatch_steps: Option<usize>,
     pub count_steps: bool,
+    pub idle_lane: IdleLane,
 }
 
 impl NodeConfig {
@@ -326,6 +333,7 @@ impl NodeConfig {
             carrier: None,
             dispatch_steps: None,
             count_steps: false,
+            idle_lane: IdleLane::default(),
         }
     }
 
@@ -404,6 +412,7 @@ struct Info {
     dispatch_from: Option<usize>,
     armed: bool,
     kept: Option<Value>,
+    asked: Option<usize>,
 }
 
 impl Info {
@@ -429,7 +438,16 @@ impl Info {
             dispatch_from: None,
             armed: false,
             kept: None,
+            asked: None,
         }
+    }
+
+    fn ask_dispatch(&mut self, own: Option<usize>) {
+        self.asked = own;
+        self.dispatch = match (self.dispatch, own) {
+            (Some(app), Some(own)) => Some(app.min(own)),
+            (app, own) => app.or(own),
+        };
     }
 }
 
@@ -486,6 +504,9 @@ struct NodeState {
     root_due: i64,
     evicting: BTreeSet<Pid>,
     arrivals: Arrivals,
+    aloft: BTreeSet<Pid>,
+    doomed: BTreeMap<Pid, Value>,
+    recalled: BTreeSet<Pid>,
 }
 
 impl NodeState {
@@ -515,6 +536,48 @@ impl NodeState {
             root_due: 0,
             evicting: BTreeSet::new(),
             arrivals: Arrivals::default(),
+            aloft: BTreeSet::new(),
+            doomed: BTreeMap::new(),
+            recalled: BTreeSet::new(),
+        }
+    }
+
+    fn running(&self) -> Pid {
+        scheduling::lane().unwrap_or(self.current)
+    }
+
+    fn supervisor(&mut self, strategy: Strategy, max_restarts: usize) -> Pid {
+        let sup = Pid(self.next_pid);
+        self.next_pid += 1;
+        self.info.insert(
+            sup,
+            Info::new(Kind::Supervisor(Sup {
+                strategy,
+                max_restarts,
+                children: Vec::new(),
+            })),
+        );
+        self.boxes.insert(sup, VecDeque::new());
+        sup
+    }
+
+    fn enrol(&mut self, sup: Pid, child: Pid) {
+        if let Some(Info {
+            kind: Kind::Supervisor(s),
+            ..
+        }) = self.info.get_mut(&sup)
+        {
+            s.children.push(child);
+        }
+    }
+
+    fn drop_child(&mut self, sup: Pid, child: Pid) {
+        if let Some(Info {
+            kind: Kind::Supervisor(s),
+            ..
+        }) = self.info.get_mut(&sup)
+        {
+            s.children.retain(|c| *c != child);
         }
     }
 
@@ -595,6 +658,50 @@ pub struct Node {
     /// The interpreter every child forks: the host's, plus this node's child
     /// words and host recorders. Built at the first spawn.
     proto: OnceLock<Arc<Interpreter<()>>>,
+    lanes: Mutex<BTreeMap<Pid, mpsc::Sender<Proc<()>>>>,
+    flights: Mutex<mpsc::Receiver<Flight>>,
+    radio: mpsc::Sender<Flight>,
+    gate: Mutex<Gate>,
+    gated: Condvar,
+    rooted: Mutex<Option<Weak<()>>>,
+}
+
+#[derive(Default)]
+struct Gate {
+    driving: usize,
+    inside: usize,
+}
+
+struct Pass<'a>(&'a Node);
+
+impl Drop for Pass<'_> {
+    fn drop(&mut self) {
+        let mut g = lock(&self.0.gate);
+        g.inside -= 1;
+        self.0.gated.notify_all();
+    }
+}
+
+struct Driving<'a>(&'a Node);
+
+impl Drop for Driving<'_> {
+    fn drop(&mut self) {
+        let node = self.0;
+        let mut g = lock(&node.gate);
+        g.driving -= 1;
+        while g.driving == 0 && g.inside > 0 {
+            g = node
+                .gated
+                .wait(g)
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+        }
+    }
+}
+
+enum Flight {
+    Landed(Proc<()>, Slice, usize),
+    Poked,
+    Fell(Box<dyn std::any::Any + Send>),
 }
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -771,6 +878,8 @@ const CARRIED: &[(&str, Arity, Word, Word)] = &[
 /// `node`. The interpreter becomes the node's root.
 pub fn install<H: 'static>(interp: &mut Interpreter<H>, node: Arc<Node>) {
     let carrying = node.config.carrying();
+    let rooted = Arc::new(());
+    *lock(&node.rooted) = Some(Arc::downgrade(&rooted));
     let side = Side::Root(node);
     for (name, arity, word) in WORDS {
         register(interp, &side, name, *arity, *word);
@@ -783,6 +892,7 @@ pub fn install<H: 'static>(interp: &mut Interpreter<H>, node: Arc<Node>) {
         "receive",
         Arity::Range(0, 3),
         move |args: &[Value], _h: &mut H, span| {
+            let _rooted = &rooted;
             let node = s.node("receive", span)?;
             node.receive_root(args, span)
         },
@@ -851,6 +961,7 @@ fn bind_word<H: 'static>(
     let side = side.clone();
     interp.register_fn(bound, arity, move |args: &[Value], _h: &mut H, span| {
         let node = side.node(name, span)?;
+        let _pass = node.pass(name, span)?;
         let who = match side {
             Side::Root(_) => Who::Root,
             Side::Child(_) => Who::Child(node.current()),
@@ -859,6 +970,7 @@ fn bind_word<H: 'static>(
         if let (true, Who::Child(pid)) = (taped, who) {
             node.record(pid, name, &out);
         }
+        node.poke();
         out
     });
 }
@@ -882,12 +994,15 @@ fn install_child(proto: &mut Interpreter<()>, me: &Weak<Node>, carrying: Carryin
         Arity::Range(0, 3),
         move |args: &[Value], _h: &()| {
             let Some(node) = r.upgrade() else { return true };
+            let Ok(_pass) = node.pass("receive", Span::synthetic()) else {
+                return true;
+            };
             let Ok((pattern, timeout, _)) = receive_args(args, Span::synthetic()) else {
                 // Let the call raise the argument error.
                 return true;
             };
             let mut st = node.st();
-            let pid = st.current;
+            let pid = st.running();
             if st
                 .boxes
                 .get(&pid)
@@ -905,10 +1020,11 @@ fn install_child(proto: &mut Interpreter<()>, me: &Weak<Node>, carrying: Carryin
         },
         move |args: &[Value], _h: &mut (), span| {
             let node = Side::Child(c.clone()).node("receive", span)?;
+            let _pass = node.pass("receive", span)?;
             let (pattern, _, default) = receive_args(args, span)?;
             let out = {
                 let mut st = node.st();
-                let pid = st.current;
+                let pid = st.running();
                 st.waits.remove(&pid);
                 let taken = st.boxes.get_mut(&pid).and_then(|b| {
                     let i = pattern::first_match(b, &pattern)?;
@@ -931,8 +1047,11 @@ fn install_child(proto: &mut Interpreter<()>, me: &Weak<Node>, carrying: Carryin
         Arity::Exact(1),
         move |_args: &[Value], _h: &()| {
             let Some(node) = r.upgrade() else { return true };
+            let Ok(_pass) = node.pass(SERVER_NEXT, Span::synthetic()) else {
+                return true;
+            };
             let mut st = node.st();
-            let pid = st.current;
+            let pid = st.running();
             let opens = st.opens_dispatch(pid);
             let ready = !opens
                 && st.boxes.get(&pid).is_some_and(|b| !b.is_empty())
@@ -944,8 +1063,9 @@ fn install_child(proto: &mut Interpreter<()>, me: &Weak<Node>, carrying: Carryin
         },
         move |args: &[Value], _h: &mut (), span| {
             let node = Side::Child(c.clone()).node(SERVER_NEXT, span)?;
+            let _pass = node.pass(SERVER_NEXT, span)?;
             let mut st = node.st();
-            let pid = st.current;
+            let pid = st.running();
             st.waits.remove(&pid);
             let taken = st.boxes.get_mut(&pid).and_then(VecDeque::pop_front);
             node.journal(&mut st, pid, taken.as_ref());
@@ -1007,6 +1127,56 @@ pub fn host_names() -> Vec<&'static str> {
         .collect()
 }
 
+fn unclassed(p: &mut Proc<()>, why: &str) -> Slice {
+    let reason = ExitReason::Crashed(format!("the OS refused the idle class: {why}"));
+    p.state = ProcState::Exited(reason.clone());
+    Slice::Exited(reason)
+}
+
+fn note_slice(st: &mut NodeState, pid: Pid, out: &Slice, burned: usize) {
+    let outcome = match out {
+        Slice::Yielded => "yielded",
+        Slice::Blocked => "blocked",
+        Slice::Done(_) => "done",
+        Slice::Exited(_) => "exited",
+    };
+    if st.schedule.len() == SCHEDULE_RING {
+        st.schedule.pop_front();
+    }
+    st.schedule.push_back(SliceRecord {
+        pid: pid.0,
+        outcome: outcome.to_string(),
+        burned,
+    });
+}
+
+fn fly(me: &Weak<Node>, pid: Pid, queue: &mpsc::Receiver<Proc<()>>, radio: &mpsc::Sender<Flight>) {
+    let lowered = scheduling::lower();
+    scheduling::board(pid);
+    while let Ok(mut p) = queue.recv() {
+        let Some(node) = me.upgrade() else { break };
+        let before = p.vm.burned();
+        let ran = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| match &lowered {
+            Ok(()) => {
+                let out = node.slice_held(&mut p);
+                node.dispatch_held(&mut p, out)
+            }
+            Err(why) => unclassed(&mut p, why),
+        }));
+        let flight = match ran {
+            Ok(out) => {
+                let burned = p.vm.burned().saturating_sub(before);
+                Flight::Landed(p, out, burned)
+            }
+            Err(panic) => Flight::Fell(panic),
+        };
+        drop(node);
+        if radio.send(flight).is_err() {
+            break;
+        }
+    }
+}
+
 /// How a root wait ended.
 enum Driven<T> {
     Done(T),
@@ -1019,12 +1189,19 @@ impl Node {
     #[must_use]
     pub fn new(config: NodeConfig) -> Arc<Self> {
         let clock = config.clock;
+        let (radio, flights) = mpsc::channel();
         Arc::new_cyclic(|me| Self {
             config,
             me: me.clone(),
             state: Mutex::new(NodeState::new(clock)),
             sched: Mutex::new(Vec::new()),
             proto: OnceLock::new(),
+            lanes: Mutex::new(BTreeMap::new()),
+            flights: Mutex::new(flights),
+            radio,
+            gate: Mutex::new(Gate::default()),
+            gated: Condvar::new(),
+            rooted: Mutex::new(None),
         })
     }
 
@@ -1033,7 +1210,40 @@ impl Node {
     }
 
     fn current(&self) -> Pid {
-        self.st().current
+        self.st().running()
+    }
+
+    fn pass(&self, word: &str, span: Span) -> Result<Option<Pass<'_>>, EvalError> {
+        if scheduling::lane().is_none() {
+            return Ok(None);
+        }
+        let mut g = lock(&self.gate);
+        while g.driving == 0 {
+            let rooted = lock(&self.rooted)
+                .as_ref()
+                .is_some_and(|w| w.strong_count() > 0);
+            if !rooted {
+                return Err(refuse(word, "the process's node has shut down", span));
+            }
+            g = self
+                .gated
+                .wait_timeout(g, Duration::from_millis(100))
+                .map_or_else(|e| e.into_inner().0, |(g, _)| g);
+        }
+        g.inside += 1;
+        Ok(Some(Pass(self)))
+    }
+
+    fn driving(&self) -> Driving<'_> {
+        lock(&self.gate).driving += 1;
+        self.gated.notify_all();
+        Driving(self)
+    }
+
+    fn poke(&self) {
+        if scheduling::lane().is_some() {
+            let _ = self.radio.send(Flight::Poked);
+        }
     }
 
     fn proto(&self) -> Arc<Interpreter<()>> {
@@ -1121,7 +1331,7 @@ impl Node {
             return;
         };
         let mut st = self.st();
-        if to == st.current {
+        if to == st.running() {
             drop(st);
             (meter.charge)(bytes);
         } else if to == ROOT {
@@ -1151,9 +1361,10 @@ impl Node {
         let Some(limit) = bound else {
             return p.slice(&mut ());
         };
+        let start = held;
         let (out, over) = self.charged(&mut held, bound, || p.slice(&mut ()));
         if let Some(info) = self.st().info.get_mut(&pid) {
-            info.held = held;
+            info.held += held - start;
         }
         if !over {
             return out;
@@ -1210,11 +1421,136 @@ impl Node {
                         .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
                 })
         });
-        ran.unwrap_or_else(|why| {
-            let reason = ExitReason::Crashed(format!("the OS refused the idle class: {why}"));
-            p.state = ProcState::Exited(reason.clone());
-            Slice::Exited(reason)
-        })
+        ran.unwrap_or_else(|why| unclassed(p, &why))
+    }
+
+    fn launch(&self, p: Proc<()>) {
+        let pid = p.pid;
+        self.st().aloft.insert(pid);
+        let mut p = p;
+        let mut why = String::new();
+        for _ in 0..2 {
+            let lane = {
+                let mut lanes = lock(&self.lanes);
+                match lanes.get(&pid) {
+                    Some(lane) => Ok(lane.clone()),
+                    None => self.lane(pid).inspect(|lane| {
+                        lanes.insert(pid, lane.clone());
+                    }),
+                }
+            };
+            match lane {
+                Ok(lane) => match lane.send(p) {
+                    Ok(()) => return,
+                    Err(mpsc::SendError(back)) => {
+                        lock(&self.lanes).remove(&pid);
+                        why = "its lane closed".to_string();
+                        p = back;
+                    }
+                },
+                Err(e) => {
+                    why = e;
+                    break;
+                }
+            }
+        }
+        let out = unclassed(&mut p, &why);
+        let _ = self.radio.send(Flight::Landed(p, out, 0));
+    }
+
+    fn lane(&self, pid: Pid) -> Result<mpsc::Sender<Proc<()>>, String> {
+        let (work, queue) = mpsc::channel::<Proc<()>>();
+        let me = self.me.clone();
+        let radio = self.radio.clone();
+        std::thread::Builder::new()
+            .name(format!("blue-idle-{}", pid.0))
+            .stack_size(scheduling::LANE_STACK)
+            .spawn(move || fly(&me, pid, &queue, &radio))
+            .map(|_| work)
+            .map_err(|e| e.to_string())
+    }
+
+    fn land(&self, sched: &mut Vec<Proc<()>>) -> bool {
+        let mut any = false;
+        loop {
+            let next = lock(&self.flights).try_recv();
+            let Ok(flight) = next else { return any };
+            any |= self.touch_down(sched, flight);
+        }
+    }
+
+    fn await_flight(&self, sched: &mut Vec<Proc<()>>, limit: Option<Duration>) {
+        let next = {
+            let flights = lock(&self.flights);
+            match limit {
+                Some(d) => flights.recv_timeout(d).ok(),
+                None => flights.recv().ok(),
+            }
+        };
+        if let Some(flight) = next {
+            self.touch_down(sched, flight);
+        }
+        self.land(sched);
+    }
+
+    fn touch_down(&self, sched: &mut Vec<Proc<()>>, flight: Flight) -> bool {
+        let (p, out, burned) = match flight {
+            Flight::Landed(p, out, burned) => (p, out, burned),
+            Flight::Poked => return false,
+            Flight::Fell(panic) => std::panic::resume_unwind(panic),
+        };
+        let pid = p.pid;
+        let (known, doomed, recalled) = {
+            let mut st = self.st();
+            st.aloft.remove(&pid);
+            note_slice(&mut st, pid, &out, burned);
+            (
+                st.info.contains_key(&pid),
+                st.doomed.remove(&pid),
+                st.recalled.remove(&pid),
+            )
+        };
+        if !known {
+            lock(&self.lanes).remove(&pid);
+            return true;
+        }
+        let at = sched.partition_point(|q| q.pid < pid);
+        sched.insert(at, p);
+        if recalled {
+            self.restart(sched, pid);
+        } else {
+            match out {
+                Slice::Yielded | Slice::Blocked => {
+                    if let Some(reason) = doomed {
+                        self.kill(sched, pid, reason);
+                    }
+                }
+                out => self.conclude(sched, pid, out),
+            }
+        }
+        self.adopt(sched);
+        self.process_signals(sched);
+        true
+    }
+
+    fn conclude(&self, sched: &mut Vec<Proc<()>>, pid: Pid, out: Slice) {
+        match out {
+            Slice::Done(v) => self.on_exit(sched, pid, &ExitReason::Normal, kw("normal"), Some(v)),
+            Slice::Exited(r) => {
+                let rv = reason_value(&r);
+                self.on_exit(sched, pid, &r, rv, None);
+            }
+            Slice::Yielded | Slice::Blocked => {}
+        }
+    }
+
+    fn detached(&self, pid: Pid) -> bool {
+        self.config.idle_lane == IdleLane::Apart
+            && self
+                .st()
+                .info
+                .get(&pid)
+                .is_some_and(|i| i.scheduling == Scheduling::Idle)
     }
 
     /// Compile `code` and queue a process running it, held to the bound of
@@ -1301,11 +1637,19 @@ impl Node {
                 }
             }
         }
-        for idx in 0..sched.len() {
+        let mut end = sched.len();
+        let mut idx = 0;
+        while idx < end {
             if !sched[idx].is_runnable() {
+                idx += 1;
                 continue;
             }
             let pid = sched[idx].pid;
+            if self.detached(pid) {
+                self.launch(sched.remove(idx));
+                end -= 1;
+                continue;
+            }
             self.switch(&mut self.st(), pid);
             let idle = self
                 .st()
@@ -1323,33 +1667,12 @@ impl Node {
             {
                 let mut st = self.st();
                 self.switch(&mut st, ROOT);
-                let outcome = match &out {
-                    Slice::Yielded => "yielded",
-                    Slice::Blocked => "blocked",
-                    Slice::Done(_) => "done",
-                    Slice::Exited(_) => "exited",
-                };
-                if st.schedule.len() == SCHEDULE_RING {
-                    st.schedule.pop_front();
-                }
-                st.schedule.push_back(SliceRecord {
-                    pid: pid.0,
-                    outcome: outcome.to_string(),
-                    burned,
-                });
+                note_slice(&mut st, pid, &out, burned);
             }
-            match out {
-                Slice::Done(v) => {
-                    self.on_exit(sched, pid, &ExitReason::Normal, kw("normal"), Some(v))
-                }
-                Slice::Exited(r) => {
-                    let rv = reason_value(&r);
-                    self.on_exit(sched, pid, &r, rv, None);
-                }
-                Slice::Yielded | Slice::Blocked => {}
-            }
+            self.conclude(sched, pid, out);
             self.adopt(sched);
             self.process_signals(sched);
+            idx += 1;
         }
         self.reap(sched);
     }
@@ -1363,6 +1686,10 @@ impl Node {
                 || p.state.is_blocked()
                 || st.info.get(&p.pid).is_some_and(|i| i.sup.is_some())
         });
+        let mut lanes = lock(&self.lanes);
+        if !lanes.is_empty() {
+            lanes.retain(|pid, _| st.aloft.contains(pid) || sched.iter().any(|p| p.pid == *pid));
+        }
     }
 
     fn process_signals(&self, sched: &mut Vec<Proc<()>>) {
@@ -1415,6 +1742,11 @@ impl Node {
         };
         if alive {
             self.on_exit(sched, pid, &killed, reason, None);
+        } else {
+            let mut st = self.st();
+            if st.aloft.contains(&pid) {
+                st.doomed.entry(pid).or_insert(reason);
+            }
         }
     }
 
@@ -1465,11 +1797,8 @@ impl Node {
         let supervised =
             sup.filter(|s| matches!(st.info.get(s).map(|i| &i.kind), Some(Kind::Supervisor(_))));
         if reason.is_fatal() {
-            if let Some(Kind::Supervisor(spec)) = supervised
-                .and_then(|s| st.info.get_mut(&s))
-                .map(|i| &mut i.kind)
-            {
-                spec.children.retain(|c| *c != pid);
+            if let Some(s) = supervised {
+                st.drop_child(s, pid);
             }
             st.forget(pid);
         } else if supervised.is_none() {
@@ -1523,6 +1852,10 @@ impl Node {
     /// the current code, an empty mailbox and an empty tape.
     fn restart(&self, sched: &mut [Proc<()>], pid: Pid) {
         let Some(p) = sched.iter_mut().find(|p| p.pid == pid) else {
+            let mut st = self.st();
+            if st.aloft.contains(&pid) {
+                st.recalled.insert(pid);
+            }
             return;
         };
         let (chunk, kept) = {
@@ -1590,6 +1923,7 @@ impl Node {
             // kill; it is simply forgotten.
             let mut st = self.st();
             if st.info.get(&c).is_some_and(|i| i.sup.is_none())
+                && !st.aloft.contains(&c)
                 && !sched
                     .iter()
                     .any(|p| p.pid == c && (p.is_runnable() || p.state.is_blocked()))
@@ -1797,29 +2131,36 @@ impl Node {
                 pid.0
             ));
         }
-        if let Some(s) = info.sup {
-            return Err(format!(
-                "process {} is supervised by {}, which restarts it on this node; evict a server \
-                 no supervisor holds",
-                pid.0, s.0
-            ));
-        }
-        if !info.links.is_empty() {
-            return Err(format!(
-                "process {} is linked to {}; unlink it first: an evicted process does not exit, \
-                 so its links would hear nothing",
-                pid.0,
-                info.links
-                    .iter()
-                    .map(|l| l.0.to_string())
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ));
-        }
         if st.held_at_boundary(pid) {
             return Err(format!("process {} is already being moved", pid.0));
         }
-        Ok(())
+        drop(st);
+        self.reachable_links(pid)
+    }
+
+    fn reachable_links(&self, pid: Pid) -> Result<(), String> {
+        let st = self.st();
+        let deaf: Vec<String> = st
+            .info
+            .get(&pid)
+            .map(|i| i.links.iter())
+            .into_iter()
+            .flatten()
+            .filter(|l| !st.info.get(l).is_some_and(|i| i.trap_exit))
+            .map(|l| l.0.to_string())
+            .collect();
+        if deaf.is_empty() {
+            return Ok(());
+        }
+        Err(format!(
+            "process {} is linked to {}, which does not trap exits; a link cannot follow a \
+             process to another node, so evict breaks it and tells each partner [:exit, {}, \
+             :{EVICTED}], which a partner hears only when it traps exits: unlink it first, or \
+             trap exits in the partner",
+            pid.0,
+            deaf.join(", "),
+            pid.0
+        ))
     }
 
     fn evict(
@@ -1839,7 +2180,8 @@ impl Node {
                 if !st.info.contains_key(&pid) {
                     return Some(false);
                 }
-                matches!(st.waits.get(&pid), Some(Wait::ServerNext)).then_some(true)
+                (matches!(st.waits.get(&pid), Some(Wait::ServerNext)) && !st.aloft.contains(&pid))
+                    .then_some(true)
             },
             None,
             word,
@@ -1881,6 +2223,14 @@ impl Node {
         let info = st.info.get(&pid).ok_or("the process is gone")?;
         let mut code = info.code.clone();
         code.bind("%state", state);
+        let supervision = match info.sup.and_then(|s| st.info.get(&s)).map(|s| &s.kind) {
+            Some(Kind::Supervisor(spec)) => Some(Supervision {
+                max_restarts: spec.max_restarts,
+                restarts: info.restarts,
+                initial: info.initial.clone().unwrap_or(Value::Nil),
+            }),
+            _ => None,
+        };
         Ok(Image {
             definition: info.def_name.clone(),
             scheduling: info.scheduling,
@@ -1891,6 +2241,8 @@ impl Node {
                 .get(&pid)
                 .map(|b| b.iter().cloned().collect())
                 .unwrap_or_default(),
+            supervision,
+            dispatch_steps: info.asked,
         })
     }
 
@@ -1905,6 +2257,7 @@ impl Node {
         let text = self.image_of(pid)?.text();
         let id = image::id_of(&text);
         let frames = image::frames(&id, &text, carrier.room)?;
+        self.reachable_links(pid)?;
         let bytes = (carrier.queue)(wire, peer, &frames, loopback)?;
         self.depart(pid);
         Ok(record(&[
@@ -1916,17 +2269,36 @@ impl Node {
 
     fn depart(&self, pid: Pid) {
         lock(&self.sched).retain(|p| p.pid != pid);
+        lock(&self.lanes).remove(&pid);
         let mut st = self.st();
-        let monitors = st
+        let (monitors, links, sup) = st
             .info
             .get_mut(&pid)
-            .map(|i| std::mem::take(&mut i.monitors))
+            .map(|i| {
+                (
+                    std::mem::take(&mut i.monitors),
+                    std::mem::take(&mut i.links),
+                    i.sup,
+                )
+            })
             .unwrap_or_default();
         for (r, watcher) in monitors {
             st.deliver(
                 watcher,
                 Value::list([kw("down"), int(r), int(pid.0), kw(EVICTED)]),
             );
+        }
+        for l in links {
+            let trapping = st.info.get_mut(&l).is_some_and(|i| {
+                i.links.remove(&pid);
+                i.trap_exit
+            });
+            if trapping {
+                st.deliver(l, Value::list([kw("exit"), int(pid.0), kw(EVICTED)]));
+            }
+        }
+        if let Some(s) = sup {
+            st.drop_child(s, pid);
         }
         st.forget(pid);
         drop(st);
@@ -1970,16 +2342,43 @@ impl Node {
 
     fn admit(&self, text: &str, span: Span) -> Result<Value, EvalError> {
         let (parsed, _) = self.apart(|| Image::parse(text));
-        let image = parsed.map_err(|why| raised("decode_error", why, Value::Nil, span))?;
-        let pid = self
-            .start(
-                image.code,
-                Kind::Server,
-                image.definition,
-                None,
-                image.scheduling,
-            )
-            .map_err(|m| refuse("accept", m, span))?;
+        let mut image = parsed.map_err(|why| raised("decode_error", why, Value::Nil, span))?;
+        let state = bound_state(&image.code);
+        let handed = image.supervision.take();
+        if let Some(s) = &handed {
+            image.code.bind("%state", s.initial.clone());
+        }
+        let sup = handed
+            .as_ref()
+            .map(|s| self.st().supervisor(Strategy::OneForOne, s.max_restarts));
+        let started = self.start(
+            image.code,
+            Kind::Server,
+            image.definition,
+            sup,
+            image.scheduling,
+        );
+        let pid = match started {
+            Ok(pid) => pid,
+            Err(m) => {
+                if let Some(sup) = sup {
+                    self.st().forget(sup);
+                }
+                return Err(refuse("accept", m, span));
+            }
+        };
+        if let (Some(sup), Some(s)) = (sup, &handed) {
+            let mut st = self.st();
+            st.enrol(sup, pid);
+            if let Some(p) = st.pending.iter_mut().find(|p| p.pid == pid) {
+                p.interp.define_global("%state", state.clone());
+            }
+            if let Some(i) = st.info.get_mut(&pid) {
+                i.restarts = s.restarts;
+                i.snapshot = Some(state.clone());
+                i.entered = Some(state);
+            }
+        }
         let (mailbox, bytes) = self.apart(|| {
             image
                 .mailbox
@@ -1991,6 +2390,7 @@ impl Node {
             let mut st = self.st();
             if let Some(i) = st.info.get_mut(&pid) {
                 i.trap_exit = image.trap_exit;
+                i.ask_dispatch(image.dispatch_steps);
             }
             st.boxes.insert(pid, mailbox);
         }
@@ -2151,7 +2551,9 @@ impl Node {
         word: &str,
         span: Span,
     ) -> Result<Driven<T>, EvalError> {
+        let driving = self.driving();
         let (driven, _) = self.apart(|| self.drive_unmetered(goal, deadline, word, span));
+        drop(driving);
         self.settle_root();
         driven
     }
@@ -2186,6 +2588,9 @@ impl Node {
             if self.apply_migrations(&mut sched) {
                 continue;
             }
+            if self.land(&mut sched) {
+                continue;
+            }
             if self.has_work(&sched) {
                 self.round(&mut sched);
                 continue;
@@ -2199,6 +2604,18 @@ impl Node {
                     (a, b) => a.or(b),
                 }
             };
+            let aloft = {
+                let mut st = self.st();
+                let now = st.clock.now();
+                (!st.aloft.is_empty()).then(|| match st.clock.kind {
+                    ClockKind::Real => next.map(|t| Duration::from_millis(t.saturating_sub(now))),
+                    ClockKind::Virtual => None,
+                })
+            };
+            if let Some(limit) = aloft {
+                self.await_flight(&mut sched, limit);
+                continue;
+            }
             match next {
                 Some(t) => {
                     let pause = self.st().clock.advance_to(t);
@@ -2280,7 +2697,9 @@ impl Node {
     /// process is not among them; its interpreter has been dropped.
     #[must_use]
     pub fn process_count(&self) -> usize {
-        lock(&self.sched).len() + self.st().pending.len()
+        let sched = lock(&self.sched).len();
+        let st = self.st();
+        sched + st.pending.len() + st.aloft.len()
     }
 
     /// The mailbox of `pid`, oldest first. For hosts and tests.
@@ -2295,6 +2714,13 @@ impl Node {
 }
 
 // ── the words ──────────────────────────────────────────────────────────────
+
+fn bound_state(code: &Code) -> Value {
+    code.bindings
+        .iter()
+        .find(|(n, _)| &**n == "%state")
+        .map_or(Value::Nil, |(_, v)| v.clone())
+}
 
 fn record(fields: &[(&str, Value)]) -> Value {
     Value::map(
@@ -2503,10 +2929,7 @@ fn server(
         )
         .map_err(|m| refuse(word, m, span))?;
     if let Some(info) = node.st().info.get_mut(&pid) {
-        info.dispatch = match (info.dispatch, opts.dispatch_steps) {
-            (Some(app), Some(own)) => Some(app.min(own)),
-            (app, own) => app.or(own),
-        };
+        info.ask_dispatch(opts.dispatch_steps);
     }
     Ok(pid)
 }
@@ -2736,21 +3159,7 @@ fn w_supervisor(node: &Node, _who: Who, args: &[Value], span: Span) -> Result<Va
             ))
         }
     };
-    let sup = {
-        let mut st = node.st();
-        let sup = Pid(st.next_pid);
-        st.next_pid += 1;
-        st.info.insert(
-            sup,
-            Info::new(Kind::Supervisor(Sup {
-                strategy,
-                max_restarts,
-                children: Vec::new(),
-            })),
-        );
-        st.boxes.insert(sup, VecDeque::new());
-        sup
-    };
+    let sup = node.st().supervisor(strategy, max_restarts);
     for spec in specs.iter() {
         let pid = match spec {
             // `[:server, handler, state]`: a supervised spawn_server.
@@ -2792,13 +3201,7 @@ fn w_supervisor(node: &Node, _who: Who, args: &[Value], span: Span) -> Result<Va
                 Scheduling::Normal,
             )?,
         };
-        if let Some(Info {
-            kind: Kind::Supervisor(s),
-            ..
-        }) = node.st().info.get_mut(&sup)
-        {
-            s.children.push(pid);
-        }
+        node.st().enrol(sup, pid);
     }
     Ok(int(sup.0))
 }

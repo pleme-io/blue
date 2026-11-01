@@ -100,10 +100,17 @@ document lands.
 - **Share-nothing processes.** Each process owns its interpreter. A message is
   deep-copied, and a function or host handle is refused on send
   (`crates/blue-lang-proc/src/mailbox.rs:130`, `:215`). A process spawned
-  `{scheduling: :idle}` (2026-10-31) runs each slice on a thread of its own
-  that first asks the OS for its lowest priority, while the node waits for
-  the slice, so no two slices of a node run at once
-  (`crates/blue-lang-proc/src/node.rs` `slice_idle`). An evicted server
+  `{scheduling: :idle}` (2026-10-31) runs its slices on a thread of its own
+  that first asks the OS for its lowest priority. The node does not wait for
+  that thread: it runs its other processes while the idle slice waits for a
+  core. Like every process it acts only while the program waits: a word it
+  calls between the program's waits holds until the next one. The idle
+  process still owns its interpreter, and each word it calls
+  names it through the thread it runs on, so its tape, host count and memory
+  account stay its own and a crash replays from its tape alone
+  (`crates/blue-lang-proc/src/node.rs` `launch`, `fly`). `IdleLane::Held`
+  keeps the earlier shape, the node waiting for each idle slice, for a node
+  whose whole interleaving must replay (`slice_idle`). An evicted server
   crosses as data only: its state is refused unless it copies as a message
   does, and its image runs under the accepting node's frame, never more
   (`crates/blue-lang-proc/src/image.rs`).

@@ -1,5 +1,5 @@
 //! A project's own execution bounds: `bounds({steps:, call_depth:,
-//! alloc_bytes:})` in its root Bluefile. `blue lock` records them in the
+//! alloc_bytes:, dispatch_steps:})` in its root Bluefile. `blue lock` records them in the
 //! capabilities record ([`crate::capabilities::CapabilityRecord`]), and every
 //! door that holds the project (`blue run`, `blue test`, an appliance) meets
 //! them with the process's bounds, the operator's `BlueConfig`, so a project
@@ -26,11 +26,14 @@ pub struct Bounds {
     /// Live bytes one evaluation, and each process it spawns, may hold.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub alloc_bytes: Option<NonZeroU64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dispatch_steps: Option<NonZeroUsize>,
 }
 
 impl Bounds {
     /// The keys a Bluefile names the bounds by, in declaration order.
-    pub const KEYS: &'static [&'static str] = &["steps", "call_depth", "alloc_bytes"];
+    pub const KEYS: &'static [&'static str] =
+        &["steps", "call_depth", "alloc_bytes", "dispatch_steps"];
 
     /// The bounds `settings`, a map from [`Self::KEYS`] to positive
     /// integers, declares.
@@ -51,6 +54,7 @@ impl Bounds {
             steps: None,
             call_depth: None,
             alloc_bytes: None,
+            dispatch_steps: None,
         };
         for (k, v) in map.iter() {
             let key = match k {
@@ -88,6 +92,13 @@ impl Bounds {
                         .ok_or_else(too_large)?;
                 }
                 "alloc_bytes" => bounds.alloc_bytes = NonZeroU64::new(positive),
+                "dispatch_steps" => {
+                    bounds.dispatch_steps = usize::try_from(positive)
+                        .ok()
+                        .and_then(NonZeroUsize::new)
+                        .map(Some)
+                        .ok_or_else(too_large)?;
+                }
                 _ => return Err(format!("`{key}` is not a bound; it takes {keys}")),
             }
         }
@@ -100,7 +111,10 @@ impl Bounds {
     /// Does it bound nothing?
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.steps.is_none() && self.call_depth.is_none() && self.alloc_bytes.is_none()
+        self.steps.is_none()
+            && self.call_depth.is_none()
+            && self.alloc_bytes.is_none()
+            && self.dispatch_steps.is_none()
     }
 
     /// The bounds as the runtime meets them with the process's: each key
@@ -111,6 +125,7 @@ impl Bounds {
             max_steps: self.steps.map(NonZeroUsize::get),
             max_call_depth: self.call_depth.map_or(usize::MAX, NonZeroUsize::get),
             max_alloc_bytes: self.alloc_bytes.map(NonZeroU64::get),
+            max_dispatch_steps: self.dispatch_steps.map(NonZeroUsize::get),
             ..ExecutionBounds::UNBOUNDED
         }
     }
@@ -157,13 +172,16 @@ mod tests {
 
     #[test]
     fn a_bound_past_the_operators_does_not_widen_it() {
-        let b = declared("{steps: 1_000_000, call_depth: 1_000_000, alloc_bytes: 1_073_741_824}")
-            .expect("reads");
+        let b = declared(
+            "{steps: 1_000_000, call_depth: 1_000_000, alloc_bytes: 1_073_741_824, dispatch_steps: 1_000_000}",
+        )
+        .expect("reads");
         let operator = ExecutionBounds {
             max_steps: Some(10),
             max_call_depth: 20,
             max_alloc_bytes: Some(30),
             guest_max_alloc_bytes: None,
+            max_dispatch_steps: Some(40),
         };
         assert_eq!(operator.meet(b.execution()), operator);
         assert_eq!(b.execution().meet(operator), operator);
@@ -191,6 +209,37 @@ mod tests {
                 "{src}: {why}"
             );
         }
+    }
+
+    #[test]
+    fn a_dispatch_bound_is_its_own_key_and_meets_as_the_others_do() {
+        let b = declared("{dispatch_steps: 2000}").expect("dispatch alone");
+        assert_eq!(b.dispatch_steps.map(NonZeroUsize::get), Some(2000));
+        assert_eq!((b.steps, b.call_depth, b.alloc_bytes), (None, None, None));
+        assert_eq!(b.execution().max_dispatch_steps, Some(2000));
+        assert_eq!(b.execution().max_steps, None);
+        let narrower = ExecutionBounds {
+            max_dispatch_steps: Some(500),
+            ..ExecutionBounds::DEFAULT
+        };
+        assert_eq!(narrower.meet(b.execution()).max_dispatch_steps, Some(500));
+        assert_eq!(b.execution().meet(narrower).max_dispatch_steps, Some(500));
+        assert_eq!(
+            ExecutionBounds::DEFAULT
+                .meet(b.execution())
+                .max_dispatch_steps,
+            Some(2000)
+        );
+        let why = declared("{dispatch_steps: 0}").expect_err("zero");
+        assert!(
+            why.contains("`dispatch_steps` must be a positive integer, got 0"),
+            "{why}"
+        );
+        assert_eq!(
+            serde_json::to_string(&b).expect("writes"),
+            r#"{"dispatch_steps":2000}"#
+        );
+        assert!(serde_json::from_str::<Bounds>(r#"{"dispatch_steps":0}"#).is_err());
     }
 
     #[test]

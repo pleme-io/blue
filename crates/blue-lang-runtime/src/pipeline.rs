@@ -241,7 +241,7 @@ pub fn run_framed_accounted(
     // Building it is not a stage; nothing is evaluated until `eval_prepared`.
     let (mut interp, mut prepared) = prepared_on(entry, inputs, loader, surface)?;
     hold_to_frame(&mut interp, &mut prepared, hold, account)?;
-    let value = evaluate_held(&mut interp, &prepared, hold)?;
+    let value = evaluate_held(&mut interp, &prepared, hold, account)?;
     Ok(Run {
         value,
         visited: prepared.visited,
@@ -256,6 +256,7 @@ fn evaluate_held(
     interp: &mut tatara_lisp_eval::Interpreter<()>,
     prepared: &Prepared,
     hold: Option<&crate::Hold>,
+    account: &crate::Account,
 ) -> Result<Value, RunError> {
     let bound = crate::execution_bounds_under(hold).max_alloc_bytes;
     let (outcome, over) = crate::memory::held_on(interp, bound, |interp| {
@@ -267,6 +268,12 @@ fn evaluate_held(
         })?
         .unwrap_or(value))
     });
+    if let Some(steps) = &account.steps {
+        steps.store(
+            u64::try_from(interp.steps_spent()).unwrap_or(u64::MAX),
+            std::sync::atomic::Ordering::Relaxed,
+        );
+    }
     refused_past(outcome, over)
 }
 
@@ -591,7 +598,7 @@ pub fn run_observed_accounted(
         lowered: &prepared.lowered,
         erased: &prepared.erased,
     })));
-    let outcome = evaluate_held(&mut interp, &prepared, hold).map(|value| Run {
+    let outcome = evaluate_held(&mut interp, &prepared, hold, account).map(|value| Run {
         value,
         visited: prepared.visited,
         typed_decls: prepared.typed_decls,

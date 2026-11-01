@@ -142,6 +142,12 @@ enum Cmd {
         /// BLAKE3 hash of its bytes; `blue receipt verify` checks one.
         #[arg(long, value_name = "DIR")]
         receipts: Option<PathBuf>,
+        /// With `--receipts`, each receipt also counts the steps its run or
+        /// incarnation spent: `blue-receipt` version 3. Off by default, since
+        /// a count moves with the code blue emits and so renames the receipt;
+        /// the call memo is off under it, so the count is the evaluation's.
+        #[arg(long, requires = "receipts")]
+        receipt_steps: bool,
         /// Do not print the program's final value. An installed command's
         /// output is what it writes (`write_stdout`), not the value its last
         /// expression happens to leave; `mkBlueApp` passes this, so a blue
@@ -739,6 +745,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             inputs,
             allow,
             receipts,
+            receipt_steps,
             quiet,
             format,
             timings,
@@ -766,7 +773,10 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                 })
             };
             let hold = receipt::hold_for(hold, receipts.as_deref());
-            let account = receipt::account(receipts.clone());
+            let mut account = receipt::account(receipts.clone());
+            if receipt_steps {
+                account.steps = Some(std::sync::Arc::default());
+            }
             blue_lang_runtime::sys::set_program_args(args);
             // The SURFACE the program is written in: BLUE_LANG wins, else the
             // host locale. An explicit choice must beat a detected one.
@@ -822,10 +832,14 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                 text: &src,
             };
             let inputs = bind_inputs(&src, &inputs, &cfg)?;
-            let memo = memo::unless_bounded(
-                memo::mode(no_memo, &cfg),
-                hold.as_ref().and_then(|h| h.bounds),
-            );
+            let memo = if receipt_steps {
+                memo::Mode::Off
+            } else {
+                memo::unless_bounded(
+                    memo::mode(no_memo, &cfg),
+                    hold.as_ref().and_then(|h| h.bounds),
+                )
+            };
             let ran = match memo {
                 memo::Mode::Off => blue_lang_runtime::pipeline::run_framed_accounted(
                     entry,

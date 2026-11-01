@@ -243,6 +243,63 @@ row(
 )
 
 row(
+  "processes.spawn_server.dispatch_steps_refuses_a_long_message_and_keeps_the_state",
+  join_lines(
+    [
+      "def spin(k)",
+      "  if k == 0",
+      "    0",
+      "  else",
+      "    spin(k - 1)",
+      "  end",
+      "end",
+      "",
+      "def h(msg, n)",
+      "  if list?(msg)",
+      "    send(nth(0, msg), n)",
+      "    n",
+      "  elsif msg == 0",
+      "    spin(5000)",
+      "    n + 1000",
+      "  else",
+      "    n + msg",
+      "  end",
+      "end",
+      "",
+      "sup = supervisor(:one_for_one, [[:server, h, 0, {dispatch_steps: 2000}]])",
+      "s = nth(0, children(sup))",
+      "send(s, 1)",
+      "send(s, 2)",
+      "monitor(s)",
+      "send(s, 0)",
+      "receive(%i[down _ _ _])",
+      "send(s, 5)",
+      "send(s, [self])",
+      "receive()"
+    ]
+  ),
+  value("8")
+)
+
+row(
+  "processes.spawn_server.dispatch_steps_is_a_positive_integer",
+  join_lines(
+    [
+      "def h(msg, n)",
+      "  n",
+      "end",
+      "",
+      "begin",
+      "  spawn_server(h, 0, {dispatch_steps: 0})",
+      "rescue :bad_option as e",
+      "  e.kind",
+      "end"
+    ]
+  ),
+  value(":bad_option")
+)
+
+row(
   "processes.spawn.a_class_blue_does_not_know_is_refused",
   join_lines(
     [

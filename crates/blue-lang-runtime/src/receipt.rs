@@ -114,6 +114,10 @@ pub fn of_run(hold: &Hold, account: &Account, exit: (&str, String)) -> Receipt {
         exit_kind: exit.0.to_string(),
         exit_text: exit.1,
         roots: None,
+        steps: account
+            .steps
+            .as_ref()
+            .map(|s| s.load(std::sync::atomic::Ordering::Relaxed)),
     }
 }
 

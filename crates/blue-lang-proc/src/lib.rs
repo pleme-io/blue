@@ -137,12 +137,22 @@ pub fn memory_refusal(bound: u64) -> String {
     format!("{MEMORY_EXHAUSTED}: {}", memory_budget(bound))
 }
 
+#[must_use]
+pub fn dispatch_refusal(limit: usize) -> String {
+    format!("execution budget exhausted: steps per dispatch (limit {limit})")
+}
+
 impl ExitReason {
     /// A process that held more than `bound` live bytes: a runaway, which its
     /// links, monitors and supervisor see, and a supervisor restarts.
     #[must_use]
     pub fn memory_exhausted(bound: u64) -> Self {
         Self::Runaway(memory_refusal(bound))
+    }
+
+    #[must_use]
+    pub fn dispatch_exhausted(limit: usize) -> Self {
+        Self::Runaway(dispatch_refusal(limit))
     }
 
     pub fn is_abnormal(&self) -> bool {

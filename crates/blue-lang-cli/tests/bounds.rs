@@ -304,3 +304,64 @@ fn a_process_the_program_spawns_is_held_to_the_projects_step_bound() {
         err(&tested)
     );
 }
+
+fn served(opts: &str) -> String {
+    format!(
+        "def spin(k)\n  if k == 0\n    0\n  else\n    spin(k - 1)\n  end\nend\n\ndef h(m, n)\n  if list?(m)\n    send(first(m), n)\n    n\n  elsif m == 0\n    spin(5000)\n    n + 1000\n  else\n    n + m\n  end\nend\n\ndef main()\n  s = spawn_server(h, 0{opts})\n  monitor(s)\n  send(s, 1)\n  send(s, 0)\n  send(s, [self])\n  receive(:_, 5000)\nend\n"
+    )
+}
+
+#[test]
+fn a_dispatch_bound_the_project_declares_meets_the_one_a_server_is_spawned_with() {
+    let free = project(
+        "dispatch-free",
+        "package(\"srv\", \"0.1.0\")\n",
+        &served(""),
+    );
+    let ran = run(&free, None);
+    assert_eq!(out(&ran).trim(), "1001", "{}", err(&ran));
+
+    let declared = "package(\"srv\", \"0.1.0\")\nbounds({dispatch_steps: 2000})\n";
+    let bounded = project("dispatch-bounded", declared, &served(""));
+    let written: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(bounded.join("Bluefile.lock")).unwrap())
+            .unwrap();
+    assert_eq!(
+        written["capabilities"]["bounds"],
+        serde_json::json!({"dispatch_steps": 2000}),
+        "{written}"
+    );
+    for (opts, limit) in [
+        ("", 2000),
+        (", {dispatch_steps: 1500}", 1500),
+        (", {dispatch_steps: 100_000}", 2000),
+    ] {
+        let dir = project(
+            &format!("dispatch-{limit}-{}", opts.len()),
+            declared,
+            &served(opts),
+        );
+        let ran = run(&dir, None);
+        assert!(
+            out(&ran).contains(&format!(
+                "[:runaway, execution budget exhausted: steps per dispatch (limit {limit})]"
+            )),
+            "{opts}: {}{}",
+            out(&ran),
+            err(&ran)
+        );
+        assert!(!err(&ran).contains("formatted"), "{}", err(&ran));
+    }
+    let narrowed = project(
+        "dispatch-spawned",
+        "package(\"srv\", \"0.1.0\")\n",
+        &served(", {dispatch_steps: 1500}"),
+    );
+    let ran = run(&narrowed, None);
+    assert!(
+        out(&ran).contains("steps per dispatch (limit 1500)"),
+        "{}{}",
+        out(&ran),
+        err(&ran)
+    );
+}

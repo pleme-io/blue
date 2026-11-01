@@ -166,6 +166,7 @@ impl BlueConfig {
             max_steps: self.max_steps,
             max_alloc_bytes: self.max_alloc_bytes,
             guest_max_alloc_bytes: self.guest_max_alloc_bytes,
+            max_dispatch_steps: None,
         }
     }
 }

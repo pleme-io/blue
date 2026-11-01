@@ -73,11 +73,29 @@ document lands.
   default; `guest_max_alloc_bytes` for sessions, live evaluation, project
   rules and Bluefiles, 1 GiB by default
   (`crates/blue-lang-runtime/src/memory.rs`). A project's own (2026-10-31):
-  `bounds({steps:, call_depth:, alloc_bytes:})` in its root Bluefile, each
-  key optional and each a positive integer. `blue lock` records them in the
-  capabilities record, and `blue run`, `blue test` and an appliance hold the
-  program to the lesser of each and the operator's
-  (`crates/blue-lang-pkg/src/bounds.rs`, `ExecutionBounds::meet`).
+  `bounds({steps:, call_depth:, alloc_bytes:, dispatch_steps:})` in its root
+  Bluefile, each key optional and each a positive integer. `blue lock`
+  records them in the capabilities record, and `blue run`, `blue test` and an
+  appliance hold the program to the lesser of each and the operator's
+  (`crates/blue-lang-pkg/src/bounds.rs`, `ExecutionBounds::meet`). Per
+  dispatch (2026-10-31): `dispatch_steps` bounds the steps one message's
+  handler in a `spawn_server` may take, met with the server's own
+  `spawn_server(h, s, {dispatch_steps: n})` (or `[:server, h, s, opts]` under
+  a supervisor), so each only narrows. A bounded server parks once at each
+  boundary, so the node reads its VM's step count there; a dispatch is the
+  steps charged from that boundary to the next. Past the bound the process
+  exits `[:runaway, "execution budget exhausted: steps per dispatch (limit
+  n)"]`, the exit a step bound gives a process, which links, monitors and a
+  supervisor see; its `%state` is put back to the state before that message,
+  so its receipt's `output_root` and a supervised restart start from there
+  rather than from its first state, and a restart empties the mailbox as any
+  restart does. The node checks the count at each slice end and at each
+  boundary, so the decision is exact (refused exactly when the count passes
+  the bound) and a refused handler runs at most one quantum (1000 steps)
+  past it before it stops; what it sent in that window was sent. Absent, no
+  server parks and nothing is checked (`crates/blue-lang-proc/src/node.rs`
+  `dispatch_held`). An evicted server is accepted under the accepting
+  node's bound; its own spawn option does not travel in the image.
 - **Share-nothing processes.** Each process owns its interpreter. A message is
   deep-copied, and a function or host handle is refused on send
   (`crates/blue-lang-proc/src/mailbox.rs:130`, `:215`). A process spawned
@@ -148,7 +166,7 @@ tier. ⚠️ marks a partial seal. ❌ marks an open row.
 | 9 | Memory safety of the host seam | ⚠️ 2 of 18 crates deny `unsafe_code` at their roots (kiwari, proc) | workspace `unsafe_code = "deny"`, one `#[allow]` per seam, one seam test | unrepresentable for kiwari and proc → unrepresentable for every crate | on (`#[allow(unsafe_code)]` at a named seam) |
 | 10 | No data races | ✅ share-nothing processes; copy on send; handles refuse to cross | none needed | unrepresentable | n/a |
 | 11 | Panic vs typed refusal | ⚠️ blue faults are catchable; a Rust panic in a native function is not a blue error | one unwind seam at the native-call boundary → `:internal` refusal | open → runtime-refused | on |
-| 12 | Resource bounds | ⚠️ depth bounded; steps unbounded by default; **live bytes bounded per evaluation and per process (landed: `max_alloc_bytes`, `guest_max_alloc_bytes`)**; **a project bounds its own steps, depth and live bytes with `bounds(...)`, met with the operator's, so it narrows and never widens (landed)**; no wall-clock bound | `max_wall_ms` bound; on for doors that run code they did not write | runtime-refused | memory: off for `run` and `test` (`max_alloc_bytes: null`; it removes working behaviour), 1 GiB for sessions, live evaluation, rules and Bluefiles (`guest_max_alloc_bytes`; `null` lifts it); a project's `bounds`: none until it declares them (drop the word) |
+| 12 | Resource bounds | ⚠️ depth bounded; steps unbounded by default; **live bytes bounded per evaluation and per process (landed: `max_alloc_bytes`, `guest_max_alloc_bytes`)**; **a project bounds its own steps, depth and live bytes with `bounds(...)`, met with the operator's, so it narrows and never widens (landed)**; **a server's steps per message with `dispatch_steps`, in `bounds` and at spawn, met (landed)**; no wall-clock bound | `max_wall_ms` bound; on for doors that run code they did not write | runtime-refused | memory: off for `run` and `test` (`max_alloc_bytes: null`; it removes working behaviour), 1 GiB for sessions, live evaluation, rules and Bluefiles (`guest_max_alloc_bytes`; `null` lifts it); a project's `bounds`: none until it declares them (drop the word) |
 | 13 | Supply chain | ⚠️ `Bluefile.lock` holds `bluefile_b3`, version ranges and source NAR hashes; B0019 needs-mismatch | the lock records each resolved bidama's b3; the loader refuses a mismatch | runtime-refused at load | on (`blue lock` rewrites) |
 | 14 | Secrets | ❌ a secret is a plain string; `pg_connect` takes a password in the URL | a secret bidama (named through `naming`): read from a file, opaque, redacted on print, refused on send | open → unrepresentable (print) + checked-at-expansion (literal) | on (`# waive`) |
 | 15 | Injection | ⚠️ `exec_*` has no shell; `pg_query` binds params; `sh_exec` and `pg_execute` take text | rule: `sh_exec` / `pg_execute` with an interpolated argument | checked-at-expansion | on (`# waive`) |
@@ -550,6 +568,26 @@ bytes), the `fn.def_hash.*` rows in `spec/rows/functions.b`, and ibuki's
 test "a Strand names the engine's def_hash of step when the caller names
 none".
 
+**Step counts (2026-10-31).** `blue run --receipts DIR --receipt-steps`
+writes each receipt as `blue-receipt` version 3: version 1 or 2 with
+`steps`, the steps the incarnation's VM charged (its yields and parks
+included, the unit `bounds({steps:})` holds a process to) or the evaluation
+steps the run's own interpreter spent. Without the flag every receipt keeps
+its version 1 or 2 bytes, because a count moves with the code blue emits: a
+field on every receipt would rename every receipt at each compiler change.
+The memo is off under the flag, so a count is the evaluation's, never a
+cache's. `blue receipt verify` reads versions 1, 2 and 3 and refuses a count
+on version 1 or 2, a version 3 without one, a count that is not a
+non-negative integer, a version 3 with one root, and any other version.
+Tests: `crates/blue-lang-cli/tests/receipts.rs`
+(`with_receipt_steps_each_receipt_counts_the_steps_its_run_or_incarnation_spent`,
+`receipt_verify_reads_versions_1_2_and_3_and_refuses_a_count_or_root_out_of_place`),
+`crates/blue-lang-proc/tests/dispatch.rs`
+(`a_receipt_counts_the_steps_an_incarnation_spent_alike_for_alike_runs`,
+`a_refused_incarnations_receipt_ends_on_the_state_before_the_refused_message`),
+and `blue_lang_proc::receipt::tests` (version 1 and 2 bytes kept, version 3
+with and without roots, each refusal).
+
 **Breach assertions and test evidence (2026-10-30).** A test proves a
 refusal with `assert_panics expr`: the harness turns the function
 `(lambda () expr)` back into code as `spawn` does
@@ -863,6 +901,8 @@ again; a restart spends intensity and then kills innocent siblings).
 | capability lattice in `blue lock`, providers, the project hold | TESTED | `tests/lattice.rs` 6/6, `capabilities.rs` 7, `provide.rs` 5, `provision.rs` 4 |
 | definition floors, `floors(:package)` | TESTED | `tests/lattice.rs` 19/19 (7 red with the default flipped to `:package`, 4 red with `floors(...)` ignored), `capabilities.rs` 16, mondou `reach.rs` 7; cargo mutants over the lattice code, 61 mutants: 7 missed on the first run: 4 closed by tests (a top-level value, a compiled-in package for both units, a declared ceiling with no record), 2 in a bound check since removed (its replacement, mutated to revisit, hangs on the mutual-recursion fixture), 1 equivalent (a guard on the root's own forms); 5 unviable |
 | a project's own bounds, `bounds(...)` | TESTED | `tests/bounds.rs` 6/6 (run, test, `--allow`, a spawned process, a bound past the operator's, the lock and `--confirm`), `blue-lang-appliance` 2 (sealed and applied, steps and live bytes), `bounds.rs` 7; each red with its site reverted: the hold, the test door, the node of a run and of a test, the appliance hold, the meet, the record, `consistent`, the runner's counting allocator, the word |
+| a step bound per dispatch, `dispatch_steps` | TESTED | `blue-lang-proc` `tests/dispatch.rs` 10 (a refused message and the next from the state before it, a monitor's runaway, the meet four ways, a handler within its bound, absent as before, a refusal at the boundary, the receipt's roots, no parks without a bound, refused options), `tests/bounds.rs` the Bluefile key met with the spawn option, `bounds.rs` 8; red before the change (5 of 6, the Bluefile key, the flag) and each red with its site reverted: the meet in the node and in `ExecutionBounds`, the node's wiring, the kept state at restart, the state put back at the refusal, the bound gate on the boundary park |
+| steps in receipts, `--receipt-steps` | TESTED | `tests/receipts.rs` 2, `blue-lang-proc` `tests/dispatch.rs` 2, `receipt::tests` 3; red before the change (the flag unknown) |
 | a breach is fatal (D7) | TESTED | tatara-lisp-eval `no_catch_sees_a_fatal_error_on_the_walker`, `no_handler_sees_a_fatal_error_on_the_vm` (cargo mutants: 7 of 7 caught); `allow.rs` 8/8; `blue-lang-proc` `a_fatal_child_is_*` |
 | rows 4, 5 (memory), 6, 10 | EXISTS | measured behaviour cited above |
 | rows 1, 3, 9, 11–15 gates | DESIGN | phases 1–10 |

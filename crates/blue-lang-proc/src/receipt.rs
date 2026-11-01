@@ -16,7 +16,7 @@
 //! - [`Places`]: each definition key's file and text, read only when a crash
 //!   asks where its breaching call is.
 //!
-//! ## Format `blue-receipt`, versions 1 and 2
+//! ## Format `blue-receipt`, versions 1, 2 and 3
 //!
 //! One canonical JSON object (keys sorted, no whitespace), named by the
 //! BLAKE3 hash of its bytes (`blue_lang_runtime::receipt` writes and
@@ -44,6 +44,18 @@
 //! the last message its handler returned from. A receipt without roots is
 //! version 1, byte for byte as before version 2 existed, so the name of
 //! every receipt a run wrote before stays the name it has.
+//!
+//! Version 3 is version 1 or 2 with `steps`, written only when the run asks
+//! for the count (`blue run --receipt-steps`): the steps the incarnation's
+//! VM charged, or the evaluation steps the run's own interpreter spent.
+//!
+//! ```text
+//! { …, "steps": n, …, "version": 3 }
+//! ```
+//!
+//! A count moves with the compiler's instruction count, so a receipt that
+//! carries one is renamed by any change to the code blue emits; one that
+//! does not ask keeps its version 1 or 2 bytes.
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -59,10 +71,12 @@ pub const FORMAT: &str = "blue-receipt";
 pub const VERSION: u64 = 2;
 /// The version a receipt without state roots carries.
 pub const VERSION_UNROOTED: u64 = 1;
+pub const VERSION_STEPPED: u64 = 3;
 /// Every version [`check`] accepts.
-pub const READS: [u64; 2] = [VERSION_UNROOTED, VERSION];
-/// The keys only a version 2 receipt has.
+pub const READS: [u64; 3] = [VERSION_UNROOTED, VERSION, VERSION_STEPPED];
+/// The keys a server's receipt has from version 2 on.
 pub const ROOT_KEYS: [&str; 2] = ["input_root", "output_root"];
+pub const STEPS_KEY: &str = "steps";
 
 /// The root of a server's state: `b3:` and the BLAKE3 hash of its canonical
 /// JSON. The runtime computes it (`blue_lang_runtime::json::state_root`); a
@@ -88,41 +102,53 @@ fn is_root(text: &str) -> bool {
 
 /// Whether `receipt` has the form its `version` names: version 1 carries no
 /// state root, version 2 carries both, each `b3:` and 64 lowercase hex
-/// digits.
+/// digits, and version 3 carries `steps`, a count, with both roots or
+/// neither.
 ///
 /// # Errors
 ///
-/// Naming a version this blue does not read, or the root that is missing,
-/// present where it may not be, or not a hash.
+/// Naming a version this blue does not read, or the root or count that is
+/// missing, present where it may not be, or not a hash or a count.
 pub fn check(receipt: &Json) -> Result<(), String> {
     let version = receipt.get("version").and_then(Json::as_u64);
-    let rooted = match version {
-        Some(VERSION_UNROOTED) => false,
-        Some(VERSION) => true,
+    let (rooted, stepped) = match version {
+        Some(VERSION_UNROOTED) => (false, false),
+        Some(VERSION) => (true, false),
+        Some(VERSION_STEPPED) => (ROOT_KEYS.iter().any(|k| receipt.get(*k).is_some()), true),
         _ => {
             return Err(format!(
-                "{FORMAT} version {}; this blue reads versions {} to {VERSION}",
+                "{FORMAT} version {}; this blue reads versions {} to {VERSION_STEPPED}",
                 receipt.get("version").unwrap_or(&Json::Null),
                 READS[0]
             ))
         }
     };
+    let v = version.unwrap_or_default();
     for key in ROOT_KEYS {
         match (rooted, receipt.get(key)) {
             (false, None) => {}
             (false, Some(_)) => {
                 return Err(format!(
-                    "a version {VERSION_UNROOTED} receipt carries `{key}`, which only version {VERSION} has"
+                    "a version {v} receipt carries `{key}`, which only a server's receipt of version {VERSION} or {VERSION_STEPPED} has"
                 ))
             }
-            (true, None) => return Err(format!("a version {VERSION} receipt without `{key}`")),
+            (true, None) => return Err(format!("a version {v} receipt without `{key}`")),
             (true, Some(root)) if !root.as_str().is_some_and(is_root) => {
                 return Err(format!("`{key}` is {root}, not b3: and 64 hex digits"))
             }
             (true, Some(_)) => {}
         }
     }
-    Ok(())
+    match (stepped, receipt.get(STEPS_KEY)) {
+        (false, Some(_)) => Err(format!(
+            "a version {v} receipt carries `{STEPS_KEY}`, which only version {VERSION_STEPPED} has"
+        )),
+        (true, None) => Err(format!("a version {v} receipt without `{STEPS_KEY}`")),
+        (true, Some(n)) if n.as_u64().is_none() => {
+            Err(format!("`{STEPS_KEY}` is {n}, not a count"))
+        }
+        _ => Ok(()),
+    }
 }
 
 fn locked<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -436,6 +462,7 @@ pub struct Receipt {
     /// A server incarnation's state roots; `None` for any other subject,
     /// and then the receipt is version 1.
     pub roots: Option<Roots>,
+    pub steps: Option<u64>,
 }
 
 impl Receipt {
@@ -463,6 +490,10 @@ impl Receipt {
             j["version"] = json!(VERSION);
             j["input_root"] = json!(roots.input);
             j["output_root"] = json!(roots.output);
+        }
+        if let Some(steps) = self.steps {
+            j["version"] = json!(VERSION_STEPPED);
+            j[STEPS_KEY] = json!(steps);
         }
         j
     }
@@ -663,6 +694,7 @@ mod tests {
             exit_kind: "normal".into(),
             exit_text: "normal".into(),
             roots: None,
+            steps: None,
         };
         let text = String::from_utf8(r.bytes()).expect("utf8");
         assert!(!text.contains(' ') && !text.contains('\n'), "{text}");
@@ -696,6 +728,7 @@ mod tests {
             exit_kind: "normal".into(),
             exit_text: "normal".into(),
             roots,
+            steps: None,
         }
     }
 
@@ -750,7 +783,7 @@ mod tests {
             &edited(&v1, "input_root", json!(root('a'))),
             "carries `input_root`",
         );
-        refused(&edited(&v1, "version", json!(3)), "reads versions 1 to 2");
+        refused(&edited(&v1, "version", json!(4)), "reads versions 1 to 3");
         refused(
             &edited(&v2, "output_root", json!("b3:00")),
             "not b3: and 64 hex",
@@ -767,6 +800,111 @@ mod tests {
             .as_object_mut()
             .expect("object")
             .remove("version");
-        refused(&unversioned, "reads versions 1 to 2");
+        refused(&unversioned, "reads versions 1 to 3");
+    }
+
+    const V2: &str = r#"{"def_hash":"b3:ab","definition":"%root/w","exit":{"kind":"normal","text":"normal"},"format":"blue-receipt","frame":{"granted":["filesystem"],"host_io":7,"withheld":["process","environment","network","entropy"]},"incarnation":1,"input_root":"b3:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","output_root":"b3:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","pid":2,"provided":[{"at_ms":5,"provider":"deterministic-stepped","step_ms":1},{"for":["kazu"],"provider":"null-sink"}],"subject":"actor","version":2}"#;
+
+    fn rooted() -> Option<Roots> {
+        Some(Roots {
+            input: root('a'),
+            output: root('b'),
+        })
+    }
+
+    fn counted(roots: Option<Roots>, steps: u64) -> Receipt {
+        Receipt {
+            steps: Some(steps),
+            ..actor(roots)
+        }
+    }
+
+    fn uncounted(mut j: Json, version: u64) -> String {
+        j.as_object_mut().expect("object").remove(STEPS_KEY);
+        j["version"] = json!(version);
+        canonical(&j)
+    }
+
+    #[test]
+    fn a_receipt_that_counts_no_steps_keeps_its_version_1_or_2_bytes() {
+        assert_eq!(String::from_utf8(actor(None).bytes()).expect("utf8"), V1);
+        assert_eq!(
+            String::from_utf8(actor(rooted()).bytes()).expect("utf8"),
+            V2
+        );
+        for text in [V1, V2] {
+            let j: Json = serde_json::from_str(text).expect("json");
+            assert_eq!(check(&j), Ok(()), "{text}");
+        }
+    }
+
+    #[test]
+    fn a_receipt_with_steps_is_version_3_and_without_them_its_old_bytes() {
+        let run = counted(None, 42).to_json();
+        assert_eq!(run["version"], VERSION_STEPPED);
+        assert_eq!(run[STEPS_KEY], 42);
+        assert!(run.get("input_root").is_none());
+        assert_eq!(check(&run), Ok(()));
+        assert_eq!(uncounted(run, VERSION_UNROOTED), V1);
+        let server = counted(rooted(), 0).to_json();
+        assert_eq!(server["version"], VERSION_STEPPED);
+        assert_eq!(server[STEPS_KEY], 0);
+        assert_eq!(server["input_root"], root('a'));
+        assert_eq!(check(&server), Ok(()));
+        assert_eq!(uncounted(server, VERSION), V2);
+    }
+
+    #[test]
+    fn check_reads_version_3_and_refuses_a_count_out_of_place() {
+        let refused = |j: &Json, why: &str| {
+            let e = check(j).expect_err(why);
+            assert!(e.contains(why), "{why}: {e}");
+        };
+        let with = |base: Json, key: &str, value: Json| {
+            let mut j = base;
+            j[key] = value;
+            j
+        };
+        let without = |base: Json, key: &str| {
+            let mut j = base;
+            j.as_object_mut().expect("object").remove(key);
+            j
+        };
+        refused(
+            &with(actor(None).to_json(), STEPS_KEY, json!(3)),
+            "carries `steps`",
+        );
+        refused(
+            &with(actor(rooted()).to_json(), STEPS_KEY, json!(3)),
+            "carries `steps`",
+        );
+        refused(
+            &without(counted(None, 1).to_json(), STEPS_KEY),
+            "without `steps`",
+        );
+        refused(
+            &with(counted(None, 1).to_json(), STEPS_KEY, json!(-1)),
+            "not a count",
+        );
+        refused(
+            &with(counted(None, 1).to_json(), STEPS_KEY, json!("1")),
+            "not a count",
+        );
+        refused(
+            &with(counted(None, 1).to_json(), STEPS_KEY, json!(1.5)),
+            "not a count",
+        );
+        refused(
+            &without(counted(rooted(), 1).to_json(), "input_root"),
+            "without `input_root`",
+        );
+        refused(
+            &with(
+                counted(rooted(), 1).to_json(),
+                "output_root",
+                json!("b3:00"),
+            ),
+            "not b3: and 64 hex",
+        );
     }
 }

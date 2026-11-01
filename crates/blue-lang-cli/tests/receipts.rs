@@ -308,6 +308,112 @@ fn verified(dir: &Path, j: &serde_json::Value) -> Output {
         .expect("verify")
 }
 
+fn stepped(name: &str, sends: &[i64]) -> (serde_json::Value, serde_json::Value) {
+    let dir = scratch(name);
+    let file = dir.join("p.b");
+    std::fs::write(&file, server(sends)).expect("program");
+    let into = dir.join("receipts");
+    let o = blue()
+        .args([
+            "run",
+            "--quiet",
+            "--allow",
+            "none",
+            "--receipt-steps",
+            "--receipts",
+        ])
+        .arg(&into)
+        .arg(&file)
+        .output()
+        .expect("blue run");
+    assert!(o.status.success(), "{}", err(&o));
+    let mut got = receipts(&into).into_iter().map(|(_, v)| v);
+    let run = got.next().expect("the run's receipt");
+    let actor = got.next().expect("the server's receipt");
+    assert!(got.next().is_none(), "the run and one incarnation");
+    let _ = std::fs::remove_dir_all(dir);
+    (run, actor)
+}
+
+fn steps(r: &serde_json::Value) -> u64 {
+    r["steps"]
+        .as_u64()
+        .unwrap_or_else(|| panic!("no steps: {r}"))
+}
+
+#[test]
+fn with_receipt_steps_each_receipt_counts_the_steps_its_run_or_incarnation_spent() {
+    let (run, actor) = stepped("steps", &[2, 3]);
+    assert_eq!(
+        (run["subject"].as_str(), actor["subject"].as_str()),
+        (Some("run"), Some("actor"))
+    );
+    for r in [&run, &actor] {
+        assert_eq!(r["version"], 3, "{r}");
+        assert!(steps(r) > 0, "{r}");
+    }
+    assert!(run.get("input_root").is_none(), "{run}");
+    let (unstepped, _) = served("steps-roots", &[2, 3]);
+    assert_eq!(actor["input_root"], unstepped["input_root"], "{actor}");
+    assert_eq!(actor["output_root"], unstepped["output_root"], "{actor}");
+
+    let (run_again, actor_again) = stepped("steps-again", &[2, 3]);
+    assert_eq!(
+        actor_again, actor,
+        "an identical run spends identical steps"
+    );
+    assert_eq!(run_again, run);
+
+    let (run_longer, actor_longer) = stepped("steps-longer", &[2, 3, 4, 5, 6, 7, 8, 9]);
+    assert!(
+        steps(&actor_longer) > steps(&actor),
+        "six more messages: {} against {}",
+        steps(&actor_longer),
+        steps(&actor)
+    );
+    assert!(
+        steps(&run_longer) > steps(&run),
+        "six more sends at the root"
+    );
+}
+
+#[test]
+fn receipt_verify_reads_versions_1_2_and_3_and_refuses_a_count_or_root_out_of_place() {
+    let dir = scratch("versions-3");
+    let (_, v3) = stepped("versions-3-run", &[1]);
+    let o = verified(&dir, &v3);
+    assert!(o.status.success(), "a version 3 receipt: {}", err(&o));
+    let (v2, _) = served("versions-3-v2", &[1]);
+    let mut counted_v2 = v2.clone();
+    counted_v2["steps"] = serde_json::json!(7);
+    let mut uncounted_v3 = v3.clone();
+    uncounted_v3
+        .as_object_mut()
+        .expect("object")
+        .remove("steps");
+    let mut half_rooted_v3 = v3.clone();
+    half_rooted_v3
+        .as_object_mut()
+        .expect("object")
+        .remove("output_root");
+    let mut negative_v3 = v3.clone();
+    negative_v3["steps"] = serde_json::json!(-1);
+    let mut v4 = v3.clone();
+    v4["version"] = serde_json::json!(4);
+    for (j, why) in [
+        (&counted_v2, "carries `steps`"),
+        (&uncounted_v3, "without `steps`"),
+        (&half_rooted_v3, "without `output_root`"),
+        (&negative_v3, "not a count"),
+        (&v4, "reads versions 1 to 3"),
+    ] {
+        let o = verified(&dir, j);
+        assert!(!o.status.success(), "{why}: {j}");
+        assert!(err(&o).contains(why), "{why}: {}", err(&o));
+    }
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 #[test]
 fn receipt_verify_reads_versions_1_and_2_and_refuses_a_root_out_of_place() {
     let dir = scratch("versions");
@@ -325,12 +431,12 @@ fn receipt_verify_reads_versions_1_and_2_and_refuses_a_root_out_of_place() {
     let m = unrooted_v2.as_object_mut().expect("object");
     m.remove("input_root");
     m.remove("output_root");
-    let mut v3 = v2.clone();
-    v3["version"] = serde_json::json!(3);
+    let mut v4 = v2.clone();
+    v4["version"] = serde_json::json!(4);
     for (j, why) in [
         (&rooted_v1, "carries `input_root`"),
         (&unrooted_v2, "without `input_root`"),
-        (&v3, "reads versions 1 to 2"),
+        (&v4, "reads versions 1 to 3"),
     ] {
         let o = verified(&dir, j);
         assert!(!o.status.success(), "{why}: {j}");

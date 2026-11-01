@@ -193,6 +193,7 @@ pub fn attach_node_accounted<H: 'static>(
     if let Some(hold) = hold {
         config.frame = Some(hold.frame());
         config.receipts = account.receipts.clone().map(receipt::sink);
+        config.count_steps = account.steps.is_some();
         config.state_root = Some(json::state_root);
         let held = hold.clone();
         let io = account.host_io.clone();
@@ -222,6 +223,7 @@ pub struct Account {
     pub places: Places,
     /// Where each held process writes its receipt; none are written without.
     pub receipts: Option<std::path::PathBuf>,
+    pub steps: Option<std::sync::Arc<std::sync::atomic::AtomicU64>>,
 }
 
 impl Account {
@@ -546,6 +548,7 @@ fn node_config_under(b: ExecutionBounds) -> blue_lang_proc::NodeConfig {
         quantum: Some(blue_lang_proc::node::DEFAULT_QUANTUM),
     };
     config.meter = Some(memory::METER);
+    config.dispatch_steps = b.max_dispatch_steps;
     #[cfg(feature = "sys")]
     {
         config.carrier = Some(wire::CARRIER);
@@ -597,6 +600,7 @@ pub struct ExecutionBounds {
     /// write: a session (`eval`, `repl`, `serve`), live evaluation in the
     /// editor, a project rule, a Bluefile. `None` is unbounded.
     pub guest_max_alloc_bytes: Option<u64>,
+    pub max_dispatch_steps: Option<usize>,
 }
 
 impl ExecutionBounds {
@@ -620,6 +624,7 @@ impl ExecutionBounds {
         max_steps: None,
         max_alloc_bytes: None,
         guest_max_alloc_bytes: Some(memory::GUEST_MAX_ALLOC_BYTES),
+        max_dispatch_steps: None,
     };
 
     /// No bound at all: what [`Self::meet`] leaves any bounds as, so a
@@ -629,6 +634,7 @@ impl ExecutionBounds {
         max_steps: None,
         max_alloc_bytes: None,
         guest_max_alloc_bytes: None,
+        max_dispatch_steps: None,
     };
 
     /// The lesser of each bound in `self` and `other`, where `None` is no
@@ -640,6 +646,7 @@ impl ExecutionBounds {
             max_steps: lesser(self.max_steps, other.max_steps),
             max_alloc_bytes: lesser(self.max_alloc_bytes, other.max_alloc_bytes),
             guest_max_alloc_bytes: lesser(self.guest_max_alloc_bytes, other.guest_max_alloc_bytes),
+            max_dispatch_steps: lesser(self.max_dispatch_steps, other.max_dispatch_steps),
         }
     }
 

@@ -198,7 +198,7 @@ pub struct Project {
     /// definitions when undeclared ([`crate::capabilities::FloorUnit`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub floors: Option<crate::capabilities::FloorUnit>,
-    /// `bounds({steps:, call_depth:, alloc_bytes:})`: the root's own
+    /// `bounds({steps:, call_depth:, alloc_bytes:, dispatch_steps:})`: the root's own
     /// execution bounds, met with the operator's ([`crate::bounds`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bounds: Option<crate::bounds::Bounds>,
@@ -625,8 +625,8 @@ const WORDS: &[Word] = &[
     },
     Word {
         name: "bounds",
-        signature: "bounds({steps:, call_depth:, alloc_bytes:})",
-        doc: "The root's own execution bounds, each optional and each a positive integer: `steps` a run (and each test) may take, `call_depth` nested calls alive at once, `alloc_bytes` live bytes one evaluation may hold. `blue lock` records them in the capabilities record; `blue run`, `blue test` and an appliance hold the program to the lesser of each and the operator's BlueConfig bound, so a project narrows a bound and never widens one.",
+        signature: "bounds({steps:, call_depth:, alloc_bytes:, dispatch_steps:})",
+        doc: "The root's own execution bounds, each optional and each a positive integer: `steps` a run (and each test) may take, `call_depth` nested calls alive at once, `alloc_bytes` live bytes one evaluation may hold, `dispatch_steps` the steps one message's handler in a spawn_server may take (met with the server's own spawn option). `blue lock` records them in the capabilities record; `blue run`, `blue test` and an appliance hold the program to the lesser of each and the operator's BlueConfig bound, so a project narrows a bound and never widens one.",
         min: 1,
         max: 1,
         record: |c, into| {

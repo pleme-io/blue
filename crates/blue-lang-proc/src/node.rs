@@ -295,6 +295,8 @@ pub struct NodeConfig {
     /// `None` holds no process to one.
     pub meter: Option<Meter>,
     pub carrier: Option<Carrier>,
+    pub dispatch_steps: Option<usize>,
+    pub count_steps: bool,
 }
 
 impl NodeConfig {
@@ -322,6 +324,8 @@ impl NodeConfig {
             state_root: None,
             meter: None,
             carrier: None,
+            dispatch_steps: None,
+            count_steps: false,
         }
     }
 
@@ -396,6 +400,10 @@ struct Info {
     /// The live bytes it may hold: its spawner's bound, kept across restarts.
     bound: Option<u64>,
     scheduling: Scheduling,
+    dispatch: Option<usize>,
+    dispatch_from: Option<usize>,
+    armed: bool,
+    kept: Option<Value>,
 }
 
 impl Info {
@@ -417,6 +425,10 @@ impl Info {
             held: 0,
             bound: None,
             scheduling: Scheduling::Normal,
+            dispatch: None,
+            dispatch_from: None,
+            armed: false,
+            kept: None,
         }
     }
 }
@@ -508,6 +520,16 @@ impl NodeState {
 
     fn held_at_boundary(&self, pid: Pid) -> bool {
         self.migrations.contains_key(&pid) || self.evicting.contains(&pid)
+    }
+
+    fn opens_dispatch(&mut self, pid: Pid) -> bool {
+        match self.info.get_mut(&pid) {
+            Some(info) if info.dispatch.is_some() && !info.armed => {
+                info.armed = true;
+                true
+            }
+            _ => false,
+        }
     }
 
     fn deliver(&mut self, to: Pid, msg: Value) {
@@ -911,8 +933,10 @@ fn install_child(proto: &mut Interpreter<()>, me: &Weak<Node>, carrying: Carryin
             let Some(node) = r.upgrade() else { return true };
             let mut st = node.st();
             let pid = st.current;
-            let ready =
-                st.boxes.get(&pid).is_some_and(|b| !b.is_empty()) && !st.held_at_boundary(pid);
+            let opens = st.opens_dispatch(pid);
+            let ready = !opens
+                && st.boxes.get(&pid).is_some_and(|b| !b.is_empty())
+                && !st.held_at_boundary(pid);
             if !ready {
                 st.waits.insert(pid, Wait::ServerNext);
             }
@@ -930,6 +954,7 @@ fn install_child(proto: &mut Interpreter<()>, me: &Weak<Node>, carrying: Carryin
             // long-lived server's trace is its last message, not its life.
             if let Some(info) = st.info.get_mut(&pid) {
                 info.snapshot = Some(args.first().cloned().unwrap_or(Value::Nil));
+                info.armed = false;
             }
             st.tapes.insert(pid, Tape::default());
             drop(st);
@@ -1138,6 +1163,41 @@ impl Node {
         Slice::Exited(reason)
     }
 
+    fn dispatch_held(&self, p: &mut Proc<()>, out: Slice) -> Slice {
+        if !matches!(out, Slice::Yielded | Slice::Blocked) {
+            return out;
+        }
+        let burned = p.vm.burned();
+        let mut st = self.st();
+        let boundary = matches!(st.waits.get(&p.pid), Some(Wait::ServerNext));
+        let Some(info) = st.info.get_mut(&p.pid) else {
+            return out;
+        };
+        let Some(limit) = info.dispatch else {
+            return out;
+        };
+        if info
+            .dispatch_from
+            .is_some_and(|from| burned.saturating_sub(from) > limit)
+        {
+            info.dispatch_from = None;
+            info.armed = false;
+            info.kept.clone_from(&info.snapshot);
+            let kept = info.kept.clone();
+            drop(st);
+            if let Some(state) = kept {
+                p.interp.define_global("%state", state);
+            }
+            let reason = ExitReason::dispatch_exhausted(limit);
+            p.state = ProcState::Exited(reason.clone());
+            return Slice::Exited(reason);
+        }
+        if boundary {
+            info.dispatch_from = info.armed.then_some(burned);
+        }
+        out
+    }
+
     fn slice_idle(&self, p: &mut Proc<()>) -> Slice {
         let ran = std::thread::scope(|s| {
             std::thread::Builder::new()
@@ -1183,6 +1243,9 @@ impl Node {
     ) -> Result<Pid, String> {
         let chunk = Arc::new(compile(&code.program())?);
         let build = self.builder(&code.bindings);
+        let dispatch = matches!(kind, Kind::Server)
+            .then_some(self.config.dispatch_steps)
+            .flatten();
         let initial = match kind {
             Kind::Server => code
                 .bindings
@@ -1205,6 +1268,7 @@ impl Node {
         info.initial = initial;
         info.bound = bound;
         info.scheduling = scheduling;
+        info.dispatch = dispatch;
         st.info.insert(pid, info);
         st.boxes.insert(pid, VecDeque::new());
         st.tapes.insert(pid, Tape::default());
@@ -1254,6 +1318,7 @@ impl Node {
             } else {
                 self.slice_held(&mut sched[idx])
             };
+            let out = self.dispatch_held(&mut sched[idx], out);
             let burned = sched[idx].vm.burned().saturating_sub(before);
             {
                 let mut st = self.st();
@@ -1460,7 +1525,7 @@ impl Node {
         let Some(p) = sched.iter_mut().find(|p| p.pid == pid) else {
             return;
         };
-        let chunk = {
+        let (chunk, kept) = {
             let mut st = self.st();
             // The messages in flight were addressed to the incarnation that
             // died; replaying them is how a poison message kills a process
@@ -1472,19 +1537,26 @@ impl Node {
             st.tapes.insert(pid, Tape::default());
             st.journals.remove(&pid);
             self.config.host_io.take(pid);
-            st.info.get_mut(&pid).and_then(|info| {
+            st.info.get_mut(&pid).map_or((None, None), |info| {
                 info.restarts += 1;
                 info.live = true;
                 info.held = 0;
-                info.snapshot.clone_from(&info.initial);
-                info.entered.clone_from(&info.initial);
-                info.chunk.clone()
+                info.dispatch_from = None;
+                info.armed = false;
+                let kept = info.kept.take();
+                let state = kept.clone().or_else(|| info.initial.clone());
+                info.snapshot.clone_from(&state);
+                info.entered = state;
+                (info.chunk.clone(), kept)
             })
         };
         if let Some(c) = chunk {
             p.chunk = c;
         }
         p.restart();
+        if let Some(state) = kept {
+            p.interp.define_global("%state", state);
+        }
     }
 
     /// Stop a supervisor: its children first (they are not restarted), then
@@ -2000,11 +2072,13 @@ impl Node {
         let frame = self.config.frame.clone()?;
         self.config.receipts.as_ref()?;
         let info = st.info.get(&pid)?;
+        let proc = sched.iter().find(|p| p.pid == pid);
+        let steps = proc
+            .filter(|_| self.config.count_steps)
+            .map(|p| u64::try_from(p.vm.burned()).unwrap_or(u64::MAX));
         let roots = match (&info.kind, self.config.state_root, &info.entered) {
             (Kind::Server, Some(root), Some(entered)) => {
-                let left = sched
-                    .iter()
-                    .find(|p| p.pid == pid)
+                let left = proc
                     .and_then(|p| p.interp.lookup_global("%state"))
                     .or_else(|| info.snapshot.clone())
                     .unwrap_or(Value::Nil);
@@ -2030,6 +2104,7 @@ impl Node {
             exit_kind: crate::trace::reason_kind(reason).to_string(),
             exit_text: crate::trace::reason_text(reason),
             roots,
+            steps,
         })
     }
 
@@ -2229,9 +2304,44 @@ fn record(fields: &[(&str, Value)]) -> Value {
     )
 }
 
-fn spawn_opts(v: Option<&Value>, word: &str, span: Span) -> Result<Scheduling, EvalError> {
+const DISPATCH_OPTION: &str = "dispatch_steps";
+
+const SPAWN_OPTIONS: &[&str] = &[scheduling::OPTION];
+
+const SERVER_OPTIONS: &[&str] = &[scheduling::OPTION, DISPATCH_OPTION];
+
+#[derive(Clone, Copy, Debug, Default)]
+struct Opts {
+    scheduling: Scheduling,
+    dispatch_steps: Option<usize>,
+}
+
+fn dispatch_steps(v: &Value, span: Span) -> Result<usize, EvalError> {
+    match v {
+        Value::Int(n) if *n > 0 => Ok(usize::try_from(*n).unwrap_or(usize::MAX)),
+        other => Err(raised(
+            "bad_option",
+            format!(
+                "{DISPATCH_OPTION} is a positive integer, got {}",
+                match other {
+                    Value::Int(n) => n.to_string(),
+                    other => other.type_name().to_string(),
+                }
+            ),
+            Value::Nil,
+            span,
+        )),
+    }
+}
+
+fn spawn_opts(
+    v: Option<&Value>,
+    word: &str,
+    takes: &[&str],
+    span: Span,
+) -> Result<Opts, EvalError> {
     let m = match v {
-        None | Some(Value::Nil) => return Ok(Scheduling::Normal),
+        None | Some(Value::Nil) => return Ok(Opts::default()),
         Some(Value::Map(m)) => m,
         Some(other) => {
             return Err(raised(
@@ -2246,7 +2356,7 @@ fn spawn_opts(v: Option<&Value>, word: &str, span: Span) -> Result<Scheduling, E
             ))
         }
     };
-    let mut class = Scheduling::Normal;
+    let mut opts = Opts::default();
     for (k, val) in m.iter() {
         let key = match k {
             MapKey::Keyword(s) | MapKey::Symbol(s) | MapKey::Str(s) => {
@@ -2254,15 +2364,20 @@ fn spawn_opts(v: Option<&Value>, word: &str, span: Span) -> Result<Scheduling, E
             }
             other => other.to_value().to_string(),
         };
-        if key != scheduling::OPTION {
+        if !takes.contains(&key.as_str()) {
+            let named: Vec<String> = takes.iter().map(|t| format!("{t}:")).collect();
             return Err(raised(
                 "bad_option",
-                format!("{word} takes {}:, got {key}:", scheduling::OPTION),
+                format!("{word} takes {}, got {key}:", named.join(" or ")),
                 Value::Nil,
                 span,
             ));
         }
-        class = match val {
+        if key == DISPATCH_OPTION {
+            opts.dispatch_steps = Some(dispatch_steps(val, span)?);
+            continue;
+        }
+        opts.scheduling = match val {
             Value::Keyword(w) => Scheduling::named(w),
             other => Err(scheduling::Refusal::Unknown(format!(
                 "a {}",
@@ -2271,7 +2386,7 @@ fn spawn_opts(v: Option<&Value>, word: &str, span: Span) -> Result<Scheduling, E
         }
         .map_err(|r| raised(r.kind(), r.to_string(), Value::Nil, span))?;
     }
-    Ok(class)
+    Ok(opts)
 }
 
 fn spawn_args(args: &[Value], word: &str, span: Span) -> Result<Vec<Value>, EvalError> {
@@ -2306,7 +2421,7 @@ fn spawn_one(
 
 fn w_spawn(node: &Node, _who: Who, args: &[Value], span: Span) -> Result<Value, EvalError> {
     let a = spawn_args(args, "spawn", span)?;
-    let class = spawn_opts(args.get(2), "spawn", span)?;
+    let class = spawn_opts(args.get(2), "spawn", SPAWN_OPTIONS, span)?.scheduling;
     Ok(int(spawn_one(
         node, &args[0], &a, None, "spawn", span, class,
     )?
@@ -2315,7 +2430,7 @@ fn w_spawn(node: &Node, _who: Who, args: &[Value], span: Span) -> Result<Value, 
 
 fn w_spawn_link(node: &Node, who: Who, args: &[Value], span: Span) -> Result<Value, EvalError> {
     let a = spawn_args(args, "spawn_link", span)?;
-    let class = spawn_opts(args.get(2), "spawn_link", span)?;
+    let class = spawn_opts(args.get(2), "spawn_link", SPAWN_OPTIONS, span)?.scheduling;
     let pid = spawn_one(node, &args[0], &a, None, "spawn_link", span, class)?;
     let mut st = node.st();
     let me = who.pid();
@@ -2345,7 +2460,7 @@ fn w_def_hash(node: &Node, _who: Who, args: &[Value], span: Span) -> Result<Valu
 }
 
 fn w_spawn_server(node: &Node, _who: Who, args: &[Value], span: Span) -> Result<Value, EvalError> {
-    let class = spawn_opts(args.get(2), "spawn_server", span)?;
+    let opts = spawn_opts(args.get(2), "spawn_server", SERVER_OPTIONS, span)?;
     Ok(int(server(
         node,
         &args[0],
@@ -2353,7 +2468,7 @@ fn w_spawn_server(node: &Node, _who: Who, args: &[Value], span: Span) -> Result<
         None,
         "spawn_server",
         span,
-        class,
+        opts,
     )?
     .0))
 }
@@ -2365,7 +2480,7 @@ fn server(
     sup: Option<Pid>,
     word: &str,
     span: Span,
-    scheduling: Scheduling,
+    opts: Opts,
 ) -> Result<Pid, EvalError> {
     let mut code = code::function_code(handler, "%handler").map_err(|m| refuse(word, m, span))?;
     code.defs.extend(SERVER_LOOP.iter().cloned());
@@ -2378,8 +2493,22 @@ fn server(
         )
     })?;
     code.bind("%state", state);
-    node.start(code, Kind::Server, code::name_of(handler), sup, scheduling)
-        .map_err(|m| refuse(word, m, span))
+    let pid = node
+        .start(
+            code,
+            Kind::Server,
+            code::name_of(handler),
+            sup,
+            opts.scheduling,
+        )
+        .map_err(|m| refuse(word, m, span))?;
+    if let Some(info) = node.st().info.get_mut(&pid) {
+        info.dispatch = match (info.dispatch, opts.dispatch_steps) {
+            (Some(app), Some(own)) => Some(app.min(own)),
+            (app, own) => app.or(own),
+        };
+    }
+    Ok(pid)
 }
 
 fn w_evict(node: &Node, who: Who, args: &[Value], span: Span) -> Result<Value, EvalError> {
@@ -2625,14 +2754,14 @@ fn w_supervisor(node: &Node, _who: Who, args: &[Value], span: Span) -> Result<Va
     for spec in specs.iter() {
         let pid = match spec {
             // `[:server, handler, state]`: a supervised spawn_server.
-            Value::List(t) if t.len() == 3 && is_keyword(&t[0], "server") => server(
+            Value::List(t) if (3..=4).contains(&t.len()) && is_keyword(&t[0], "server") => server(
                 node,
                 &t[1],
                 &t[2],
                 Some(sup),
                 "supervisor",
                 span,
-                Scheduling::Normal,
+                spawn_opts(t.get(3), "supervisor", SERVER_OPTIONS, span)?,
             )?,
             Value::List(pair) if pair.len() == 2 && code::is_function(&pair[0]) => {
                 let Value::List(a) = &pair[1] else {

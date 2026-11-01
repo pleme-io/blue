@@ -1,7 +1,7 @@
 use("haibi", %i[files write_tree])
 use("mokuroku", %i[catalog_of registered_only render_markdown])
 use("retsu", %i[concat_lists first flat_map is_empty last])
-use("shisutemu", %i[status_of stdout_of])
+use("shisutemu", %i[blue_exe status_of stdout_of])
 
 # regen: rewrite every file blue generates for this repository, in place.
 #
@@ -39,7 +39,7 @@ end
 # Run one generator with $GEN_OUT set to the output the lock names, so the
 # declaration, not the program's own default, decides where the file goes.
 def regenerate(g)
-  status = exec_check("env", "GEN_OUT=#{g[1]}", "blue", "run", g[2])
+  status = exec_check("env", "GEN_OUT=#{g[1]}", blue_exe, "run", g[2])
   if status != 0
     raise(:regen, "#{g[2]} exited #{to_s(status)}; #{g[1]} was not rewritten")
   end
@@ -160,7 +160,7 @@ workloads = json_get(manifest, :workloads)
 written = if workloads.nil?
   written
 else
-  if exec_check("blue", "workload", "render", "--write") != 0
+  if exec_check(blue_exe, "workload", "render", "--write") != 0
     raise(:regen, "blue workload render --write failed")
   end
   concat_lists(written, map((w) -> json_get(last(w), :output), workloads))
@@ -169,7 +169,7 @@ end
 written = if json_get(manifest, :registries).nil?
   written
 else
-  if exec_check("blue", "registry", "render", "--write") != 0
+  if exec_check(blue_exe, "registry", "render", "--write") != 0
     raise(:regen, "blue registry render --write failed")
   end
   concat_lists(

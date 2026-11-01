@@ -1,4 +1,4 @@
-use("shisutemu", %i[status_of stderr_of])
+use("shisutemu", %i[read_or status_of stderr_of])
 
 def regen_program()
   root = getenv("GEN_ROOT", cwd)
@@ -81,6 +81,60 @@ def regen_in(dir, env)
     "--quiet",
     regen_program
   )
+end
+
+def generating_fixture()
+  dir = path_join(getenv("TMPDIR", "/tmp"), "regen-self-#{to_s(now_ns)}")
+  mkdir_p(path_join(dir, "fake"))
+  write_file(
+    path_join(dir, "Bluefile"),
+    unlines(
+      [
+        "package(\"fixture\", \"0.1.0\")",
+        "generate(\"made\", \"made.txt\", \"gen.b\")"
+      ]
+    )
+  )
+  write_program(
+    path_join(dir, "gen.b"),
+    unlines(["write_file(getenv(\"GEN_OUT\"), \"made\")"])
+  )
+  fake = path_join(dir, "fake/blue")
+  write_file(
+    fake,
+    unlines(["#!/bin/sh", "touch '#{path_join(dir, "fake-ran")}'", "exit 7"])
+  )
+  exec_check("chmod", "+x", fake)
+  if status_of(exec_capture(self_exe, "lock", dir)) != 0
+    raise(:fixture, "blue lock failed in #{dir}")
+  end
+  dir
+end
+
+def fake_first(dir)
+  ["PATH", "#{path_join(dir, "fake")}:#{getenv("PATH")}"]
+end
+
+test "regen spawns the blue running it, not a blue first on PATH"
+  if self_exe != nil
+    dir = generating_fixture
+    cap = regen_in(dir, [fake_first(dir)])
+    assert not path_exists(path_join(dir, "fake-ran"))
+    assert status_of(cap) == 0
+    assert read_or(path_join(dir, "made.txt"), nil) == "made"
+    rm_rf(dir)
+  end
+end
+
+test "BLUE_SPAWN_FROM_PATH=1 spawns the blue on PATH"
+  if self_exe != nil
+    dir = generating_fixture
+    cap = regen_in(dir, [fake_first(dir), %w[BLUE_SPAWN_FROM_PATH 1]])
+    assert status_of(cap) != 0
+    assert path_exists(path_join(dir, "fake-ran"))
+    assert not path_exists(path_join(dir, "made.txt"))
+    rm_rf(dir)
+  end
 end
 
 test "regen refuses a package git does not track, and names its files"

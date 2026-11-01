@@ -49,6 +49,7 @@ checks, and hand-rolling a character class here would drift from it.
 
 use("moji", %i[is_alpha is_blank lines take_chars])
 use("retsu", %i[first is_empty last rest])
+use("settei")
 
 # ── process captures ───────────────────────────────────────────────
 
@@ -103,6 +104,37 @@ def stderr_of(cap)
   else
     ""
   end
+end
+
+@doc """
+spawn_defaults: the settings that choose which blue a blue program spawns. from_path off means the blue running the program; settei lays ~/.config/blue_spawn/blue_spawn.yaml over it, then BLUE_SPAWN_FROM_PATH=1 turns PATH lookup back on.
+
+    spawn_defaults["from_path"] #=> false
+"""
+def spawn_defaults()
+  {"from_path" => false}
+end
+
+@doc """
+blue_from: the blue to spawn given the from_path setting and the running blue's path: `blue` on PATH when from_path is on or there is no running blue, else that path.
+
+    blue_from(false, "/b/blue") #=> "/b/blue"
+"""
+def blue_from(from_path, exe)
+  if from_path or exe.nil?
+    "blue"
+  else
+    exe
+  end
+end
+
+@doc """
+blue_exe: the blue a program spawns to run blue: the blue running it (self_exe), so a generator run by a built blue never reaches an older blue on PATH. `blue` on PATH when self_exe is nil or BLUE_SPAWN_FROM_PATH=1.
+
+    blue_from(true, "/b/blue") #=> "blue"
+"""
+def blue_exe()
+  blue_from(settei::read("blue_spawn", spawn_defaults)["from_path"], self_exe)
 end
 
 # ── filesystem ─────────────────────────────────────────────────────
@@ -258,6 +290,49 @@ def short_rev(rev, n)
     "—"
   else
     take_chars(rev, n)
+  end
+end
+
+test "blue_from takes the running blue unless from_path is on or there is none"
+  assert blue_from(false, "/b/blue") == "/b/blue"
+  assert blue_from(true, "/b/blue") == "blue"
+  assert blue_from(false, nil) == "blue"
+  assert blue_from(true, nil) == "blue"
+  assert spawn_defaults == {"from_path" => false}
+end
+
+test "blue_exe is the running blue, and BLUE_SPAWN_FROM_PATH=1 makes it PATH's"
+  if not settei::read("blue_spawn", spawn_defaults)["from_path"]
+    assert blue_exe == blue_from(false, self_exe)
+  end
+  if self_exe != nil
+    dir = path_join(getenv("TMPDIR", "/tmp"), "shisutemu-#{to_s(now_ns)}")
+    mkdir_p(dir)
+    prog = path_join(dir, "probe.b")
+    write_program(
+      prog,
+      unlines(["use(\"shisutemu\")", "write_stdout(shisutemu::blue_exe)"])
+    )
+    own = exec_with_env([], self_exe, "run", "--quiet", prog)
+    path = exec_with_env(
+      [%w[BLUE_SPAWN_FROM_PATH 1]],
+      self_exe,
+      "run",
+      "--quiet",
+      prog
+    )
+    bad = exec_with_env(
+      [%w[BLUE_SPAWN_FROM_PATH maybe]],
+      self_exe,
+      "run",
+      "--quiet",
+      prog
+    )
+    rm_rf(dir)
+    assert stdout_of(own) == self_exe
+    assert stdout_of(path) == "blue"
+    assert status_of(bad) != 0
+    assert contains?(stderr_of(bad), "BLUE_SPAWN_FROM_PATH")
   end
 end
 

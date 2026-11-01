@@ -36,7 +36,7 @@ use(
 
 use("retsu", %i[first flat_map is_empty last rest size take_n])
 
-use("shisutemu", %i[read_or status_of stderr_of stdout_of])
+use("shisutemu", %i[blue_exe read_or status_of stderr_of stdout_of])
 use("shuugou", %i[frequencies unique])
 
 def fleet_repo(version)
@@ -1821,7 +1821,9 @@ def main()
   root = flags(drop(1, args), {root: ".", error: nil})[:root]
   local = path_join(root, "kijun.b")
   if read_or(local, "") != ""
-    status = exec_check(*append(["blue", "run", "--quiet", local, "--"], args))
+    status = exec_check(
+      *append([blue_exe, "run", "--quiet", local, "--"], args)
+    )
     if status != 0
       raise(:kijun_failed, "kijun.b exited #{to_s(status)}")
     end

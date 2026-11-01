@@ -3,7 +3,7 @@ use("moji", %i[glob_match? take_chars])
 
 use("retsu", %i[all_but_last enumerate first flat_map last reject rest])
 
-use("shisutemu", %i[status_of stderr_of stdout_of])
+use("shisutemu", %i[blue_exe status_of stderr_of stdout_of])
 
 @doc """
 gate_table: Every gate the pre-push hook knows, as data. A gate has an id, a
@@ -476,7 +476,7 @@ def regen(bin, root, dir)
     "env",
     "-C",
     dir,
-    "blue",
+    blue_exe,
     "run",
     "#{root}/gen/regen.b"
   )

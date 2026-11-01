@@ -545,6 +545,7 @@ struct Alsa {
     open: unsafe extern "C" fn(*mut *mut c_void, *const c_char, c_int, c_int) -> c_int,
     set_params:
         unsafe extern "C" fn(*mut c_void, c_int, c_int, c_uint, c_uint, c_int, c_uint) -> c_int,
+    get_params: unsafe extern "C" fn(*mut c_void, *mut c_ulong, *mut c_ulong) -> c_int,
     writei: unsafe extern "C" fn(*mut c_void, *const c_void, c_ulong) -> c_long,
     readi: unsafe extern "C" fn(*mut c_void, *mut c_void, c_ulong) -> c_long,
     recover: unsafe extern "C" fn(*mut c_void, c_int, c_int) -> c_int,
@@ -575,6 +576,7 @@ impl Alsa {
         Ok(Alsa {
             open: lib.symbol("snd_pcm_open")?,
             set_params: lib.symbol("snd_pcm_set_params")?,
+            get_params: lib.symbol("snd_pcm_get_params")?,
             writei: lib.symbol("snd_pcm_writei")?,
             readi: lib.symbol("snd_pcm_readi")?,
             recover: lib.symbol("snd_pcm_recover")?,
@@ -619,7 +621,7 @@ impl Alsa {
         Ok(Pcm { alsa: self, handle })
     }
 
-    fn configure(&self, pcm: &Pcm<'_>, format: Format) -> Result<(), Refusal> {
+    fn configure(&self, pcm: &Pcm<'_>, format: Format) -> Result<c_ulong, Refusal> {
         let st = unsafe {
             (self.set_params)(
                 pcm.handle,
@@ -634,7 +636,13 @@ impl Alsa {
         if st < 0 {
             return Err(self.refusal("snd_pcm_set_params", st));
         }
-        Ok(())
+        let mut buffer: c_ulong = 0;
+        let mut period: c_ulong = 0;
+        let st = unsafe { (self.get_params)(pcm.handle, &mut buffer, &mut period) };
+        if st < 0 {
+            return Err(self.refusal("snd_pcm_get_params", st));
+        }
+        Ok(period.max(1))
     }
 
     fn device_format(&self, input: bool) -> Option<Format> {
@@ -665,6 +673,7 @@ impl Alsa {
         pcm: &Pcm<'_>,
         call: &str,
         format: Format,
+        period: c_ulong,
         samples: usize,
         mut io: impl FnMut(usize, c_ulong) -> c_long,
     ) -> Result<(), Refusal> {
@@ -677,7 +686,9 @@ impl Alsa {
                     "{call} moved {at} of {samples} samples before the deadline"
                 )));
             }
-            let left = c_ulong::try_from((samples - at) / channels).unwrap_or(c_ulong::MAX);
+            let left = c_ulong::try_from((samples - at) / channels)
+                .unwrap_or(c_ulong::MAX)
+                .min(period);
             let n = io(at, left);
             if n == -c_long::from(libc::EAGAIN) {
                 std::thread::sleep(Duration::from_millis(2));
@@ -697,12 +708,13 @@ impl Alsa {
 
     fn play(&self, clip: &Clip) -> Result<(), Refusal> {
         let pcm = self.pcm(PLAYBACK, NONBLOCK)?;
-        self.configure(&pcm, clip.format)?;
+        let period = self.configure(&pcm, clip.format)?;
         let samples = interleaved_f32(clip);
         self.transfer(
             &pcm,
             "snd_pcm_writei",
             clip.format,
+            period,
             samples.len(),
             |at, left| unsafe { (self.writei)(pcm.handle, samples[at..].as_ptr().cast(), left) },
         )?;
@@ -719,12 +731,17 @@ impl Alsa {
 
     fn capture(&self, format: Format, frames: usize) -> Result<Vec<f32>, Refusal> {
         let pcm = self.pcm(CAPTURE, NONBLOCK)?;
-        self.configure(&pcm, format)?;
+        let period = self.configure(&pcm, format)?;
         let mut samples = vec![0f32; frames * usize::from(format.channels)];
         let total = samples.len();
-        self.transfer(&pcm, "snd_pcm_readi", format, total, |at, left| unsafe {
-            (self.readi)(pcm.handle, samples[at..].as_mut_ptr().cast(), left)
-        })?;
+        self.transfer(
+            &pcm,
+            "snd_pcm_readi",
+            format,
+            period,
+            total,
+            |at, left| unsafe { (self.readi)(pcm.handle, samples[at..].as_mut_ptr().cast(), left) },
+        )?;
         Ok(samples)
     }
 }

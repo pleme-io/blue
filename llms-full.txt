@@ -2998,7 +2998,8 @@ they reach a device, so a bad clip, count, format, size, color or handle is
 module, `seam.rs`, which `tests/seam.rs` holds to one. On darwin the seam
 loads AudioToolbox with `dlopen` and plays and captures through AudioQueue,
 reading the default device's rate and channels through AudioObject; on Linux
-it loads ALSA's `libasound.so.2` and uses `snd_pcm_*`. No `-sys` crate, no
+it loads ALSA's `libasound.so.2` and uses `snd_pcm_*`, moving at most one
+period per `snd_pcm_writei` or `snd_pcm_readi`. No `-sys` crate, no
 bindgen, no wrapper such as cpal. `BLUE_AUDIO_LIBRARY` names the library to
 load (a NixOS store path, say). A canvas is drawn on the CPU; `canvas_present`
 sends the frame over a Unix socket (`$BLUE_CANVAS_SOCKET`, else
@@ -3039,9 +3040,15 @@ entry file it is refused before anything runs;
 `a_host_with_no_audio_system_and_no_canvas_server_answers_each_word_with_a_named_refusal`;
 `the_lock_records_each_sense_and_refuses_it_under_a_ceiling_without_it`),
 `crates/blue-lang-senses/tests/` (the seam, absence, and the canvas protocol
-against an in-test server; `device.rs` plays a silent clip on a real speaker
-and is ignored unless run with `--ignored`), the `audio.rs` and `display.rs`
-unit tests, and spec rows `senses.*`.
+against an in-test server; `alsa.rs` plays a stereo clip through nixpkgs'
+libasound into an ALSA `file` device over `null` and captures one from the
+device's input file, sample for sample and longer than the device buffer, and
+answers a card that is not there with `:not_found`; the flake's `alsa` check
+runs it on Linux with `BLUE_REQUIRE_ALSA`, so a libasound that does not load
+is red, never a skip; `device.rs` plays a silent clip on a real speaker and
+captures a tenth of a second from a real microphone, each ignored unless run
+with `--ignored`), the `audio.rs` and `display.rs` unit tests, and spec rows
+`senses.*`.
 
 **Scoped providers (2026-10-30).** `for: %w[rede]` beside `using` binds the
 provider only for the named packages and every package they `use`. In the

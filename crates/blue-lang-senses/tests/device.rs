@@ -20,3 +20,18 @@ fn the_host_output_device_answers_its_format_and_plays_a_silent_clip_to_the_end(
         started.elapsed()
     );
 }
+
+#[test]
+#[ignore = "reaches this host's real microphone, and macOS asks for microphone permission the first time; run with --ignored on a machine with an input device"]
+fn the_host_input_device_answers_its_format_and_captures_a_tenth_of_a_second() {
+    let format = audio::device_format(true)
+        .expect("an audio system")
+        .expect("an input device");
+    assert!(format.rate >= 8000 && format.channels >= 1, "{format:?}");
+    let mono = Format::new(i64::from(format.rate), 1).unwrap();
+    let frames = format.rate as usize / 10;
+    let clip = audio::capture(mono, frames).expect("captures");
+    assert_eq!(clip.format, mono);
+    assert_eq!(clip.frames(), frames);
+    assert_eq!(clip.samples.len(), frames);
+}

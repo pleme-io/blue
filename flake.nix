@@ -596,6 +596,7 @@
           pkgs = pkgsFor system;
           blue = blueFor system;
           bl = import ./bidamas/mk-bidama.nix { inherit (pkgs) lib runCommand symlinkJoin makeWrapper makeBinaryWrapper; inherit blue; };
+          workspaceTests = (import "${substrate}/lib/build/rust/workspace-tests.nix" { inherit lib; }).mkWorkspaceTests pkgs;
         in
         engine.disjoint "check" (engine.disjoint "check" (engine.disjoint "check" existing repository.${system}.checks) native.${system}.checks) ({
           # Every .b file in the repository is in the one layout; each file
@@ -611,7 +612,7 @@
           # the lockfile build path runs no tests. STRICT makes a blind `cli`
           # column red, so the gate cannot pass without the binary it names.
           conformance =
-            (import "${substrate}/lib/build/rust/workspace-tests.nix" { inherit lib; }).mkWorkspaceTests pkgs {
+            workspaceTests {
               src = ./.;
               name = "blue-conformance";
               config = {
@@ -629,7 +630,7 @@
           # nats-server with a PostgreSQL for the outbox (`tests/jetstream.rs`).
           # REQUIRE makes a missing nats-server red rather than a skip.
           network =
-            (import "${substrate}/lib/build/rust/workspace-tests.nix" { inherit lib; }).mkWorkspaceTests pkgs {
+            workspaceTests {
               src = ./.;
               name = "blue-network";
               config = {
@@ -657,7 +658,7 @@
           # tables against parse.rs's. REQUIRE makes a missing parser red
           # rather than a skip.
           kiwari =
-            (import "${substrate}/lib/build/rust/workspace-tests.nix" { inherit lib; }).mkWorkspaceTests pkgs {
+            workspaceTests {
               src = ./.;
               name = "blue-kiwari";
               config = {
@@ -795,6 +796,18 @@
                 shell = true;
               };
             };
+        } // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
+          alsa = workspaceTests {
+            src = ./.;
+            name = "blue-alsa";
+            config = {
+              runs = [ { args = [ "-p" "blue-lang-senses" "--test" "alsa" ]; } ];
+              env = {
+                BLUE_AUDIO_LIBRARY = "${pkgs.alsa-lib}/lib/libasound.so.2";
+                BLUE_REQUIRE_ALSA = "1";
+              };
+            };
+          };
         } // {
           module-surface = import ./nix/module-surface-check.nix {
             inherit lib;

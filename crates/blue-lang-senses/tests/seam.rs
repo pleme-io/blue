@@ -24,7 +24,7 @@ fn exactly_one_module_may_use_unsafe_and_it_is_the_device_seam() {
     );
     assert_eq!(
         seam.matches("unsafe {").count(),
-        38,
+        39,
         "the seam's audited calls: dlopen, dlsym, dlerror, AudioQueue, AudioObject and snd_pcm"
     );
     assert!(

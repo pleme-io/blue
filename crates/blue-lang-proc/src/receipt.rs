@@ -65,6 +65,19 @@
 //! ```text
 //! { …, "carried": { "host_io": n, "image": "b3:…" }, …, "version": 4 }
 //! ```
+//!
+//! Version 5 is version 2 or 3 with `carried`, written only for a
+//! `spawn_server` incarnation that arrived from a held node with its
+//! host-call count and the root of the state it began with there: its
+//! `input_root` is that root, which `carried.input_root` names again, so the
+//! receipt covers the incarnation from its first message on the first node
+//! to its last on the node it ended on. A carried root that is not the
+//! receipt's `input_root` is refused, as is a count smaller than what came.
+//!
+//! ```text
+//! { …, "carried": { "host_io": n, "image": "b3:…", "input_root": "b3:…" },
+//!   "input_root": "b3:…", "output_root": "b3:…", …, "version": 5 }
+//! ```
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -82,8 +95,15 @@ pub const VERSION: u64 = 2;
 pub const VERSION_UNROOTED: u64 = 1;
 pub const VERSION_STEPPED: u64 = 3;
 pub const VERSION_CARRIED: u64 = 4;
+pub const VERSION_CARRIED_ROOTED: u64 = 5;
 /// Every version [`check`] accepts.
-pub const READS: [u64; 4] = [VERSION_UNROOTED, VERSION, VERSION_STEPPED, VERSION_CARRIED];
+pub const READS: [u64; 5] = [
+    VERSION_UNROOTED,
+    VERSION,
+    VERSION_STEPPED,
+    VERSION_CARRIED,
+    VERSION_CARRIED_ROOTED,
+];
 /// The keys a server's receipt has from version 2 on.
 pub const ROOT_KEYS: [&str; 2] = ["input_root", "output_root"];
 pub const STEPS_KEY: &str = "steps";
@@ -93,11 +113,16 @@ pub const CARRIED_KEY: &str = "carried";
 pub struct CarriedIo {
     pub image: String,
     pub host_io: u64,
+    pub input_root: Option<String>,
 }
 
 impl CarriedIo {
     fn to_json(&self) -> Json {
-        json!({"host_io": self.host_io, "image": self.image})
+        let mut j = json!({"host_io": self.host_io, "image": self.image});
+        if let Some(root) = &self.input_root {
+            j["input_root"] = json!(root);
+        }
+        j
     }
 }
 
@@ -126,7 +151,9 @@ pub(crate) fn is_hash(text: &str) -> bool {
 /// Whether `receipt` has the form its `version` names: version 1 carries no
 /// state root, version 2 carries both, each `b3:` and 64 lowercase hex
 /// digits, version 3 carries `steps`, a count, with both roots or neither,
-/// and version 4 carries `carried`, no root, and `steps` or not.
+/// version 4 carries `carried`, no root, and `steps` or not, and version 5
+/// carries both roots and `carried` with the `input_root` the receipt names,
+/// and `steps` or not.
 ///
 /// # Errors
 ///
@@ -144,22 +171,22 @@ pub fn check(receipt: &Json) -> Result<(), String> {
             false,
         ),
         Some(VERSION_CARRIED) => (false, receipt.get(STEPS_KEY).is_some(), true),
+        Some(VERSION_CARRIED_ROOTED) => (true, receipt.get(STEPS_KEY).is_some(), true),
         _ => {
             return Err(format!(
-                "{FORMAT} version {}; this blue reads versions {} to {VERSION_CARRIED}",
+                "{FORMAT} version {}; this blue reads versions {} to {VERSION_CARRIED_ROOTED}",
                 receipt.get("version").unwrap_or(&Json::Null),
                 READS[0]
             ))
         }
     };
     let v = version.unwrap_or_default();
-    check_carried(receipt, v, carried)?;
     for key in ROOT_KEYS {
         match (rooted, receipt.get(key)) {
             (false, None) => {}
             (false, Some(_)) => {
                 return Err(format!(
-                    "a version {v} receipt carries `{key}`, which only a server's receipt of version {VERSION} or {VERSION_STEPPED} has"
+                    "a version {v} receipt carries `{key}`, which only a server's receipt of version {VERSION}, {VERSION_STEPPED} or {VERSION_CARRIED_ROOTED} has"
                 ))
             }
             (true, None) => return Err(format!("a version {v} receipt without `{key}`")),
@@ -169,9 +196,10 @@ pub fn check(receipt: &Json) -> Result<(), String> {
             (true, Some(_)) => {}
         }
     }
+    check_carried(receipt, v, carried, rooted && carried)?;
     match (stepped, receipt.get(STEPS_KEY)) {
         (false, Some(_)) => Err(format!(
-            "a version {v} receipt carries `{STEPS_KEY}`, which only version {VERSION_STEPPED} or {VERSION_CARRIED} has"
+            "a version {v} receipt carries `{STEPS_KEY}`, which only version {VERSION_STEPPED}, {VERSION_CARRIED} or {VERSION_CARRIED_ROOTED} has"
         )),
         (true, None) => Err(format!("a version {v} receipt without `{STEPS_KEY}`")),
         (true, Some(n)) if n.as_u64().is_none() => {
@@ -181,12 +209,12 @@ pub fn check(receipt: &Json) -> Result<(), String> {
     }
 }
 
-fn check_carried(receipt: &Json, v: u64, carried: bool) -> Result<(), String> {
+fn check_carried(receipt: &Json, v: u64, carried: bool, rooted: bool) -> Result<(), String> {
     let c = match (carried, receipt.get(CARRIED_KEY)) {
         (false, None) => return Ok(()),
         (false, Some(_)) => {
             return Err(format!(
-                "a version {v} receipt carries `{CARRIED_KEY}`, which only version {VERSION_CARRIED} has"
+                "a version {v} receipt carries `{CARRIED_KEY}`, which only version {VERSION_CARRIED} or {VERSION_CARRIED_ROOTED} has"
             ))
         }
         (true, None) => return Err(format!("a version {v} receipt without `{CARRIED_KEY}`")),
@@ -213,10 +241,32 @@ fn check_carried(receipt: &Json, v: u64, carried: bool) -> Result<(), String> {
         .and_then(|f| f.get("host_io"))
         .and_then(Json::as_u64)
         .unwrap_or(0);
+    let pid = receipt.get("pid").unwrap_or(&Json::Null);
     if counted < came {
         return Err(format!(
-            "its host-call count is cut: process {} brought a count of {came} in image {image}, and the receipt counts {counted}",
-            receipt.get("pid").unwrap_or(&Json::Null)
+            "its host-call count is cut: process {pid} brought a count of {came} in image {image}, and the receipt counts {counted}"
+        ));
+    }
+    let brought = match (rooted, c.get("input_root")) {
+        (false, None) => return Ok(()),
+        (false, Some(_)) => {
+            return Err(format!(
+                "a version {v} receipt's `{CARRIED_KEY}` names an `input_root`, which only version {VERSION_CARRIED_ROOTED} has"
+            ))
+        }
+        (true, None) => {
+            return Err(format!(
+                "a version {v} receipt whose `{CARRIED_KEY}` names no `input_root`"
+            ))
+        }
+        (true, Some(r)) => r.as_str().filter(|h| is_hash(h)).ok_or_else(|| {
+            format!("`{CARRIED_KEY}.input_root` is {r}, not b3: and 64 hex digits")
+        })?,
+    };
+    let named = receipt.get("input_root").unwrap_or(&Json::Null);
+    if named.as_str() != Some(brought) {
+        return Err(format!(
+            "its input root is not the one it brought: process {pid} brought {brought} in image {image}, and the receipt names {named}"
         ));
     }
     Ok(())
@@ -572,7 +622,11 @@ impl Receipt {
             j[STEPS_KEY] = json!(steps);
         }
         if let Some(c) = &self.carried {
-            j["version"] = json!(VERSION_CARRIED);
+            j["version"] = json!(if c.input_root.is_some() {
+                VERSION_CARRIED_ROOTED
+            } else {
+                VERSION_CARRIED
+            });
             j[CARRIED_KEY] = c.to_json();
         }
         j
@@ -865,7 +919,7 @@ mod tests {
             &edited(&v1, "input_root", json!(root('a'))),
             "carries `input_root`",
         );
-        refused(&edited(&v1, "version", json!(5)), "reads versions 1 to 4");
+        refused(&edited(&v1, "version", json!(6)), "reads versions 1 to 5");
         refused(
             &edited(&v2, "output_root", json!("b3:00")),
             "not b3: and 64 hex",
@@ -882,7 +936,7 @@ mod tests {
             .as_object_mut()
             .expect("object")
             .remove("version");
-        refused(&unversioned, "reads versions 1 to 4");
+        refused(&unversioned, "reads versions 1 to 5");
     }
 
     const V2: &str = r#"{"def_hash":"b3:ab","definition":"%root/w","exit":{"kind":"normal","text":"normal"},"format":"blue-receipt","frame":{"granted":["filesystem"],"host_io":7,"withheld":["process","environment","network","entropy"]},"incarnation":1,"input_root":"b3:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","output_root":"b3:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","pid":2,"provided":[{"at_ms":5,"provider":"deterministic-stepped","step_ms":1},{"for":["kazu"],"provider":"null-sink"}],"subject":"actor","version":2}"#;
@@ -996,6 +1050,7 @@ mod tests {
             carried: Some(CarriedIo {
                 image: root('c'),
                 host_io: came,
+                input_root: None,
             }),
             ..actor(None)
         }
@@ -1039,7 +1094,7 @@ mod tests {
         );
         let mut lowered = j.clone();
         lowered["version"] = json!(VERSION_STEPPED);
-        refused(&lowered, "which only version 4 has");
+        refused(&lowered, "which only version 4 or 5 has");
         let mut bare = j.clone();
         bare.as_object_mut().expect("object").remove(CARRIED_KEY);
         refused(&bare, "a version 4 receipt without `carried`");
@@ -1059,5 +1114,112 @@ mod tests {
             misfit[CARRIED_KEY][key] = bad;
             refused(&misfit, why);
         }
+        let mut named = j.clone();
+        named[CARRIED_KEY]["input_root"] = json!(root('a'));
+        refused(
+            &named,
+            "a version 4 receipt's `carried` names an `input_root`, which only version 5 has",
+        );
+    }
+
+    fn served(host_io: u64, came: u64, brought: &str) -> Receipt {
+        Receipt {
+            host_io,
+            carried: Some(CarriedIo {
+                image: root('c'),
+                host_io: came,
+                input_root: Some(brought.to_string()),
+            }),
+            ..actor(rooted())
+        }
+    }
+
+    #[test]
+    fn a_moved_servers_receipt_is_version_5_and_a_root_it_did_not_bring_is_refused_by_name() {
+        let j = served(7, 3, &root('a')).to_json();
+        assert_eq!(j["version"], VERSION_CARRIED_ROOTED);
+        assert_eq!(
+            j[CARRIED_KEY],
+            json!({"host_io": 3, "image": root('c'), "input_root": root('a')})
+        );
+        assert_eq!(
+            (&j["input_root"], &j["output_root"]),
+            (&json!(root('a')), &json!(root('b')))
+        );
+        assert_eq!(check(&j), Ok(()));
+        let stepped = Receipt {
+            steps: Some(9),
+            ..served(7, 3, &root('a'))
+        }
+        .to_json();
+        assert_eq!(stepped["version"], VERSION_CARRIED_ROOTED);
+        assert_eq!(check(&stepped), Ok(()));
+        let mut uncarried = j.clone();
+        uncarried
+            .as_object_mut()
+            .expect("object")
+            .remove(CARRIED_KEY);
+        uncarried["version"] = json!(VERSION);
+        assert_eq!(
+            canonical(&uncarried),
+            V2,
+            "without the block, the version 2 bytes"
+        );
+        let refused = |j: &Json, why: &str| {
+            let e = check(j).expect_err(why);
+            assert!(e.contains(why), "{why}: {e}");
+        };
+        refused(
+            &served(7, 3, &root('d')).to_json(),
+            &format!(
+                "its input root is not the one it brought: process 2 brought {} in image {}, and the receipt names \"{}\"",
+                root('d'),
+                root('c'),
+                root('a')
+            ),
+        );
+        refused(
+            &served(2, 3, &root('a')).to_json(),
+            &format!(
+                "its host-call count is cut: process 2 brought a count of 3 in image {}, and the receipt counts 2",
+                root('c')
+            ),
+        );
+        let mut lowered = j.clone();
+        lowered["version"] = json!(VERSION_CARRIED);
+        refused(
+            &lowered,
+            "a version 4 receipt carries `input_root`, which only a server's receipt of version 2, 3 or 5 has",
+        );
+        let mut plain = j.clone();
+        plain["version"] = json!(VERSION);
+        refused(
+            &plain,
+            "a version 2 receipt carries `carried`, which only version 4 or 5 has",
+        );
+        let mut bare = j.clone();
+        bare.as_object_mut().expect("object").remove(CARRIED_KEY);
+        refused(&bare, "a version 5 receipt without `carried`");
+        let mut unnamed = j.clone();
+        unnamed[CARRIED_KEY]
+            .as_object_mut()
+            .expect("object")
+            .remove("input_root");
+        refused(
+            &unnamed,
+            "a version 5 receipt whose `carried` names no `input_root`",
+        );
+        let mut unrooted = j.clone();
+        unrooted
+            .as_object_mut()
+            .expect("object")
+            .remove("input_root");
+        refused(&unrooted, "a version 5 receipt without `input_root`");
+        let mut malformed = j.clone();
+        malformed[CARRIED_KEY]["input_root"] = json!("b3:00");
+        refused(
+            &malformed,
+            "`carried.input_root` is \"b3:00\", not b3: and 64 hex digits",
+        );
     }
 }

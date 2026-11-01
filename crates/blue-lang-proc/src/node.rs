@@ -497,6 +497,12 @@ impl Tape {
     }
 }
 
+#[derive(Clone, Debug)]
+struct Brought {
+    mark: CarriedAccount,
+    input_root: Option<String>,
+}
+
 struct NodeState {
     current: Pid,
     next_pid: u64,
@@ -511,7 +517,7 @@ struct NodeState {
     tapes: BTreeMap<Pid, Tape>,
     /// The last messages each held process took, oldest first.
     journals: BTreeMap<Pid, VecDeque<Value>>,
-    accounts: BTreeMap<Pid, CarriedAccount>,
+    accounts: BTreeMap<Pid, Brought>,
     /// Exit signals sent inside a slice, delivered between slices.
     signals: VecDeque<(Pid, Pid, Value)>,
     migrations: BTreeMap<Pid, Migration>,
@@ -676,7 +682,7 @@ impl NodeState {
         if ring.len() == bound {
             ring.pop_front();
             if let Some(a) = self.accounts.get_mut(&pid) {
-                a.dropped_oldest(ring);
+                a.mark.dropped_oldest(ring);
             }
         }
         ring.push_back(msg.clone());
@@ -2319,9 +2325,29 @@ impl Node {
             .get(&pid)
             .filter(|t| plain && !t.truncated)
             .map(|t| t.entries.clone());
-        let account = tape
+        let input_root = (!plain && self.config.frame.is_some())
+            .then(|| {
+                st.accounts
+                    .get(&pid)
+                    .and_then(|b| b.input_root.clone())
+                    .or_else(|| {
+                        self.config
+                            .state_root
+                            .zip(info.entered.as_ref())
+                            .map(|(root, entered)| root(entered))
+                    })
+            })
+            .flatten();
+        let carries = if plain {
+            tape.is_some()
+        } else {
+            input_root.is_some()
+        };
+        let account = self
+            .config
+            .frame
             .as_ref()
-            .and(self.config.frame.as_ref())
+            .filter(|_| carries)
             .map(|_| Account {
                 host_io: self.config.host_io.of(pid),
                 journal: self.config.journals().then(|| {
@@ -2330,6 +2356,7 @@ impl Node {
                         .map(|r| r.iter().cloned().collect())
                         .unwrap_or_default()
                 }),
+                input_root,
             });
         let mut image = Image {
             definition: info.def_name.clone(),
@@ -2473,7 +2500,7 @@ impl Node {
             Ok((id, frames.len(), bytes))
         };
         let (id, frames, bytes) = match queue(&image) {
-            Err(_) if image.tape.is_some() => queue(&Image {
+            Err(_) if image.tape.is_some() || image.account.is_some() => queue(&Image {
                 tape: None,
                 account: None,
                 ..image
@@ -2662,7 +2689,13 @@ impl Node {
         if let Some(j) = journal {
             st.journals.insert(pid, j.into());
         }
-        st.accounts.insert(pid, mark);
+        st.accounts.insert(
+            pid,
+            Brought {
+                mark,
+                input_root: account.input_root,
+            },
+        );
     }
 
     // ── traces ─────────────────────────────────────────────────────────────
@@ -2720,7 +2753,7 @@ impl Node {
             budget: self.config.budget,
             code,
             carried: tape.carried,
-            carried_account: st.accounts.get(&pid).cloned(),
+            carried_account: st.accounts.get(&pid).map(|b| b.mark.clone()),
             tape: tape.entries,
             truncated: tape.truncated,
             schedule: st.schedule.iter().cloned().collect(),
@@ -2745,6 +2778,7 @@ impl Node {
         let steps = proc
             .filter(|_| self.config.count_steps)
             .map(|p| u64::try_from(p.vm.burned()).unwrap_or(u64::MAX));
+        let brought = st.accounts.get(&pid);
         let roots = match (&info.kind, self.config.state_root, &info.entered) {
             (Kind::Server, Some(root), Some(entered)) => {
                 let left = proc
@@ -2752,12 +2786,19 @@ impl Node {
                     .or_else(|| info.snapshot.clone())
                     .unwrap_or(Value::Nil);
                 Some(Roots {
-                    input: root(entered),
+                    input: brought
+                        .and_then(|b| b.input_root.clone())
+                        .unwrap_or_else(|| root(entered)),
                     output: root(&left),
                 })
             }
             _ => None,
         };
+        let carried = brought.map(|b| CarriedIo {
+            image: b.mark.image.clone(),
+            host_io: b.mark.host_io,
+            input_root: b.input_root.clone().filter(|_| roots.is_some()),
+        });
         Some(Receipt {
             subject: Subject::Actor {
                 pid,
@@ -2774,10 +2815,7 @@ impl Node {
             exit_text: crate::trace::reason_text(reason),
             roots,
             steps,
-            carried: st.accounts.get(&pid).map(|a| CarriedIo {
-                image: a.image.clone(),
-                host_io: a.host_io,
-            }),
+            carried,
         })
     }
 

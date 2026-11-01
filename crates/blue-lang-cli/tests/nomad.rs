@@ -533,10 +533,32 @@ fn a_moved_server_writes_a_bluecrash_that_replays_from_its_last_boundary_on_the_
     assert_eq!(said.len(), 3, "{said:?}");
     assert!(said[0].starts_with("b3:") && said[1] == "3" && said[2].contains("fatal"));
     assert_eq!(
-        j["version"], 3,
-        "a server's tape starts at its last boundary, which it reached on the node it moved to, so nothing came with it"
+        j["version"], 5,
+        "its journal and host-call count came with it: {}",
+        j["carried_account"]
     );
-    assert!(j["carried"].is_null());
+    assert!(
+        j["carried"].is_null(),
+        "a server's tape starts at its last boundary, which it reached on the node it moved to, so no tape came with it"
+    );
+    assert_eq!(
+        j["mailbox"]["recent"],
+        serde_json::json!([
+            {"int": 1},
+            {"int": 2},
+            {"list": [{"kw": "get"}, {"int": 0}]},
+            {"int": 4},
+            {"str": "/etc/hosts"}
+        ]),
+        "1, 2 and the question were taken before the move; 4 waited, moved in the image's mailbox and was taken after it, then the path"
+    );
+    assert_eq!(
+        j["frame"]["host_io"], 5,
+        "a clock reading for each message, three before the move and two after"
+    );
+    assert_eq!(j["carried_account"]["journal"], 3);
+    assert_eq!(j["carried_account"]["host_io"], 3);
+    assert_eq!(j["carried_account"]["image"], said[0].as_str());
     let state: Vec<&Json> = j["code"]["bindings"]
         .as_array()
         .expect("bindings")
@@ -551,10 +573,134 @@ fn a_moved_server_writes_a_bluecrash_that_replays_from_its_last_boundary_on_the_
     let recorded = j["exit"]["text"].as_str().expect("text");
     assert!(
         stdout.contains(&format!(
-            "replayed: fatal {recorded} (3 of 3 tape entries)\n"
-        )) && stdout.ends_with("reproduced\n")
+            "carried: its journal's first 3 and its host-call count 3 came in image {}\n",
+            said[0]
+        )) && stdout.contains("mailbox: 5 recent, 0 unconsumed (bound 8)\n")
+            && stdout.contains(&format!(
+                "replayed: fatal {recorded} (3 of 3 tape entries)\n"
+            ))
+            && stdout.ends_with("reproduced\n")
             && !stdout.contains("not reproduced"),
         "{stdout}"
+    );
+
+    let mut cut = j.clone();
+    cut["mailbox"]["recent"]
+        .as_array_mut()
+        .expect("recent")
+        .swap(0, 1);
+    let cut_path = dir.join("swapped.bluecrash");
+    put(&cut_path, &serde_json::to_string(&cut).expect("json"));
+    let o = replay(&cut_path);
+    assert!(!o.status.success(), "{}", out(&o));
+    assert!(
+        err(&o).contains(&format!(
+            "not replayed: the journal and host-call count carried in image {} do not match: its journal's first 3 and its host-call count 3 hash to b3:",
+            said[0]
+        )),
+        "{}",
+        err(&o)
+    );
+    assert!(out(&o).is_empty(), "nothing ran: {}", out(&o));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+fn state_root(n: i64) -> String {
+    blue_lang_runtime::json::state_root(&tatara_lisp_eval::Value::Int(n))
+}
+
+#[test]
+fn a_moved_servers_receipt_begins_at_the_state_it_had_on_the_wire_it_left_and_verify_refuses_another(
+) {
+    let dir = scratch("receipt-server");
+    let file = dir.join("move.b");
+    put(&file, TILL);
+    let receipts = dir.join("receipts");
+    let o = blue(&repo_bidamas().display().to_string())
+        .env("BLUE_TRACE_DIR", dir.join("traces"))
+        .args([
+            "run",
+            "--quiet",
+            "--allow",
+            "comm_scavenger",
+            "--allow",
+            "clock",
+            "--receipts",
+        ])
+        .arg(&receipts)
+        .arg(&file)
+        .output()
+        .expect("blue run");
+    assert!(o.status.success(), "{}{}", out(&o), err(&o));
+    let image = out(&o).split(' ').next().expect("the image").to_string();
+    let carried: Vec<(PathBuf, Json)> = std::fs::read_dir(&receipts)
+        .expect("receipts")
+        .map(|e| e.expect("entry").path())
+        .map(|p| {
+            let j = serde_json::from_slice(&std::fs::read(&p).expect("read")).expect("json");
+            (p, j)
+        })
+        .filter(|(_, j): &(PathBuf, Json)| j.get("carried").is_some())
+        .collect();
+    assert_eq!(
+        carried.len(),
+        1,
+        "only the server that arrived: {carried:?}"
+    );
+    let (path, j) = &carried[0];
+    assert_eq!(j["version"], 5);
+    assert_eq!(
+        j["carried"],
+        serde_json::json!({"host_io": 3, "image": image, "input_root": state_root(0)})
+    );
+    assert_eq!(
+        (&j["input_root"], &j["output_root"]),
+        (&Json::from(state_root(0)), &Json::from(state_root(7))),
+        "0 before its first message on the wire it left, 7 after the last its handler returned from on the wire it reached"
+    );
+    assert_eq!(
+        j["frame"]["host_io"], 5,
+        "three clock readings before the move and two after"
+    );
+    let verify = |p: &Path| {
+        blue(&repo_bidamas().display().to_string())
+            .args(["receipt", "verify"])
+            .arg(p)
+            .output()
+            .expect("blue receipt verify")
+    };
+    let o = verify(path);
+    assert!(o.status.success(), "{}", err(&o));
+
+    let mut arrived = j.clone();
+    arrived["input_root"] = Json::from(state_root(3));
+    let bytes = blue_lang_proc::receipt::canonical(&arrived);
+    let renamed = receipts.join(blue_lang_runtime::receipt::name_of(bytes.as_bytes()));
+    put(&renamed, &bytes);
+    let o = verify(&renamed);
+    assert!(!o.status.success(), "{}", out(&o));
+    assert!(
+        err(&o).contains(&format!(
+            "its input root is not the one it brought: process 2 brought {} in image {image}, and the receipt names \"{}\"",
+            state_root(0),
+            state_root(3)
+        )),
+        "the state it arrived with is not where its incarnation began: {}",
+        err(&o)
+    );
+    let mut cut = j.clone();
+    cut["frame"]["host_io"] = serde_json::json!(2);
+    let bytes = blue_lang_proc::receipt::canonical(&cut);
+    let renamed = receipts.join(blue_lang_runtime::receipt::name_of(bytes.as_bytes()));
+    put(&renamed, &bytes);
+    let o = verify(&renamed);
+    assert!(
+        !o.status.success()
+            && err(&o).contains(&format!(
+                "its host-call count is cut: process 2 brought a count of 3 in image {image}, and the receipt counts 2"
+            )),
+        "{}",
+        err(&o)
     );
     let _ = std::fs::remove_dir_all(dir);
 }

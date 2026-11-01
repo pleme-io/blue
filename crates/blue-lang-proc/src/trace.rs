@@ -55,7 +55,9 @@
 //! that image (`journal` is absent when the journal did not come), and
 //! together they hash to `hash` ([`account_hash`]). A replay refuses a trace
 //! whose journal or host-call count is shorter than what came, or whose
-//! carried part hashes to another value. Its `carried` block is optional.
+//! carried part hashes to another value. Its `carried` block is optional: a
+//! server's trace has none, since its tape starts at its last boundary, and
+//! its block is the same shape as a plain process's.
 //!
 //! Version 3 adds the `violation` block ([`crate::violation`]), the span of a
 //! fatal tape entry's call, where the spawned definition is (`defined_at`),

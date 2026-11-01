@@ -151,16 +151,42 @@ document lands.
   `blue receipt verify` refuses a receipt whose count is smaller than what
   came, and its name refuses any other edit (`receipt::check`). Two moves
   compose: the last image names everything before it. A version 4 image
-  carries no journal or count and arrives as before. Tests:
+  carries no journal or count and arrives as before. A server
+  (2026-11-01) brings its account too, as `blue-image` version 6: its
+  journal, its host-call count and the root of the state its incarnation
+  began with on the first node (`account.input_root`), with no tape, since
+  its tape starts at its last boundary and replay starts there. A server's
+  count never travels without that root, so its receipt cannot sum the
+  calls of an incarnation whose `input_root` begins on the node it moved to:
+  a held node with no state root (none the runtime builds) keeps a server's
+  account node-local, and a journal the send ring cannot hold stays behind
+  with the count and the root, as a plain process's tape does. A crash
+  after the move writes `blue-trace` version 5, the same `carried_account`
+  block with no `carried` tape, checked and refused by name as a plain
+  process's is. The incarnation's receipt is `blue-receipt` version 5:
+  version 2 or 3 with `carried` `{host_io, image, input_root}`, whose
+  `input_root` is the root it brought, its `output_root` the state after
+  its last message on the node it ended on, and its `host_io` the sum.
+  `blue receipt verify` refuses a carried root that is not the receipt's
+  `input_root` and a count smaller than what came (`receipt::check`). A
+  second move hands on the root the first node gave. Version 1 to 5 images,
+  version 4 receipts and every unheld move keep their bytes. Tests:
   `crates/blue-lang-proc/tests/nomad.rs`
   (`a_held_plain_process_that_moves_carries_its_journal_and_host_calls_into_the_trace_and_receipt_of_its_crash`,
   `a_trace_whose_carried_journal_or_host_count_was_cut_or_edited_is_refused_by_name_and_not_replayed`,
   `two_moves_compose_into_one_carried_journal_and_host_count_named_by_the_last_image`,
   `a_carried_message_the_accepting_nodes_journal_drops_takes_its_count_and_hash_with_it`,
-  `an_unheld_move_carries_no_account_and_writes_the_trace_it_wrote_before`),
+  `an_unheld_move_carries_no_account_and_writes_the_trace_it_wrote_before`,
+  `a_held_server_that_moves_carries_its_journal_host_calls_and_input_root_into_the_trace_and_receipt_of_its_crash`,
+  `a_moved_servers_trace_or_receipt_whose_carried_part_was_cut_or_edited_is_refused_by_name`,
+  `two_moves_of_a_server_compose_into_one_account_that_begins_on_the_first_node`,
+  `a_held_server_whose_journal_the_send_ring_cannot_hold_moves_without_it_and_counts_only_where_it_ends`,
+  `a_server_that_crashes_on_the_node_it_moved_to_replays_from_its_last_boundary_there`),
   `crates/blue-lang-cli/tests/nomad.rs`
   (`a_moved_plain_processs_bluecrash_holds_the_journal_and_host_calls_of_both_wires_and_refuses_a_cut_journal`,
-  `a_moved_plain_processs_receipt_counts_the_host_calls_of_both_wires_and_verify_refuses_a_cut_count`),
+  `a_moved_plain_processs_receipt_counts_the_host_calls_of_both_wires_and_verify_refuses_a_cut_count`,
+  `a_moved_server_writes_a_bluecrash_that_replays_from_its_last_boundary_on_the_node_it_reached`,
+  `a_moved_servers_receipt_begins_at_the_state_it_had_on_the_wire_it_left_and_verify_refuses_another`),
   and the `image` and `receipt` units.
 - **Unsafe Rust.** 18 crates. Five hold `unsafe` in non-test code:
   `blue-lang-kiwari` (59 occurrences, one seam,
@@ -658,7 +684,9 @@ capability a scoped provider shares with `allow` is granted: code outside
 the scope reaches the host and is counted. A run with no hold
 runs under the top so its calls are counted. A plain process that moved
 from a held node counts the calls it made there too, and its receipt is
-version 4 with a `carried` block (the share-nothing note above).
+version 4 with a `carried` block; a moved server's is version 5, whose
+`input_root` is the state its incarnation began with on the first node
+(the share-nothing note above).
 `blue receipt verify FILE` recomputes the name and refuses any edit. Tests:
 `crates/blue-lang-cli/tests/receipts.rs`
 (`a_pure_frames_receipts_count_no_host_io_and_list_every_withheld_capability`,
@@ -675,7 +703,9 @@ incarnation's receipt is `blue-receipt` version 2: version 1 with
 `input_root`, the state it began with, and `output_root`, the state after
 the last message its handler returned from, each `b3:` and the BLAKE3 hash
 of the state's canonical JSON (`blue_lang_runtime::json::state_root`, the
-text `json_canonical(json_stringify(state))` gives in blue). Every other
+text `json_canonical(json_stringify(state))` gives in blue). A server that
+moved from a held node begins at the state it had on the first node, in a
+version 5 receipt (the share-nothing note above). Every other
 receipt stays version 1, byte for byte, so no receipt a run wrote before
 changes its name. `blue receipt verify` reads both and refuses a version 1
 with a root, a version 2 without both, a root that is not a hash, and any

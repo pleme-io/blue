@@ -5,7 +5,7 @@ use tatara_lisp_eval::vm::Parked;
 use tatara_lisp_eval::Value;
 
 use crate::code::Code;
-use crate::receipt::canonical;
+use crate::receipt::{canonical, is_hash};
 use crate::scheduling::Scheduling;
 use crate::trace::{
     code_from_json, code_to_json, tape_from_json, tape_to_json, value_from_json, value_to_json,
@@ -23,6 +23,8 @@ pub const PARKED: u64 = 3;
 pub const TAPED: u64 = 4;
 
 pub const ACCOUNTED: u64 = 5;
+
+pub const ROOTED: u64 = 6;
 
 pub const FRAME: &str = "blue-image ";
 
@@ -52,6 +54,7 @@ pub struct Image {
 pub struct Account {
     pub host_io: u64,
     pub journal: Option<Vec<Value>>,
+    pub input_root: Option<String>,
 }
 
 impl Account {
@@ -59,6 +62,9 @@ impl Account {
         let mut j = json!({ "host_io": self.host_io });
         if let Some(messages) = &self.journal {
             j["journal"] = Json::Array(messages.iter().map(value_to_json).collect());
+        }
+        if let Some(root) = &self.input_root {
+            j["input_root"] = json!(root);
         }
         j
     }
@@ -77,6 +83,15 @@ impl Account {
                         .iter()
                         .map(value_from_json)
                         .collect::<Result<Vec<_>, _>>()
+                })
+                .transpose()?,
+            input_root: j
+                .get("input_root")
+                .map(|r| {
+                    r.as_str()
+                        .filter(|r| is_hash(r))
+                        .map(str::to_string)
+                        .ok_or_else(|| format!("{FORMAT}: `account.input_root` is not a b3: hash"))
                 })
                 .transpose()?,
         })
@@ -209,7 +224,11 @@ impl Image {
         }
         if let Some(a) = &self.account {
             j["account"] = a.to_json();
-            j["version"] = json!(ACCOUNTED);
+            j["version"] = json!(if a.input_root.is_some() {
+                ROOTED
+            } else {
+                ACCOUNTED
+            });
         }
         j
     }
@@ -224,23 +243,39 @@ impl Image {
             return Err(format!("not a {FORMAT}"));
         }
         let version = j.get("version").and_then(Json::as_u64).unwrap_or(0);
-        if ![VERSION, HANDED, PARKED, TAPED, ACCOUNTED].contains(&version) {
+        if ![VERSION, HANDED, PARKED, TAPED, ACCOUNTED, ROOTED].contains(&version) {
             return Err(format!(
-                "{FORMAT} version {version}; this blue reads versions {VERSION}, {HANDED}, {PARKED}, {TAPED} and {ACCOUNTED}"
+                "{FORMAT} version {version}; this blue reads versions {VERSION}, {HANDED}, {PARKED}, {TAPED}, {ACCOUNTED} and {ROOTED}"
             ));
         }
         let parked = j.get("parked").map(Continuation::from_json).transpose()?;
         let tape = j.get("tape").map(tape_from_json).transpose()?;
         let account = j.get("account").map(Account::from_json).transpose()?;
-        match (version, account.is_some()) {
-            (ACCOUNTED, false) => {
+        let rooted = account.as_ref().is_some_and(|a| a.input_root.is_some());
+        match (version, account.is_some(), rooted) {
+            (ACCOUNTED, false, _) => {
                 return Err(format!(
                     "{FORMAT} version {ACCOUNTED} carries the journal and host-call count of the process it parks, and this one carries neither"
                 ))
             }
-            (VERSION | HANDED | PARKED | TAPED, true) => {
+            (ROOTED, false, _) => {
+                return Err(format!(
+                    "{FORMAT} version {ROOTED} carries the journal, host-call count and input root of the server it moves, and this one carries none"
+                ))
+            }
+            (ROOTED, true, false) => {
+                return Err(format!(
+                    "{FORMAT} version {ROOTED} carries the input root of the server it moves, and this one carries none"
+                ))
+            }
+            (VERSION | HANDED | PARKED | TAPED, true, _) => {
                 return Err(format!(
                     "{FORMAT} version {version} carries no journal or host-call count, and this one does"
+                ))
+            }
+            (ACCOUNTED, true, true) => {
+                return Err(format!(
+                    "{FORMAT} version {ACCOUNTED} carries no input root, and this one does"
                 ))
             }
             _ => {}
@@ -264,6 +299,16 @@ impl Image {
             parked.is_some(),
             tape.is_some(),
         ) {
+            (ROOTED, _, true, _) => {
+                return Err(format!(
+                    "{FORMAT} version {ROOTED} carries a server between two messages, and this one parks a process"
+                ))
+            }
+            (ROOTED, _, _, true) => {
+                return Err(format!(
+                    "{FORMAT} version {ROOTED} carries no tape, and this one does"
+                ))
+            }
             (VERSION, true, _, _) => {
                 return Err(format!(
                     "{FORMAT} version {VERSION} carries no supervision or dispatch_steps, and this one does"
@@ -621,7 +666,9 @@ mod tests {
         let five = text.replacen("\"version\":2", "\"version\":5", 1);
         assert!(Image::parse(&five).is_err_and(|e| e.contains("this one carries neither")));
         let six = text.replacen("\"version\":2", "\"version\":6", 1);
-        assert!(Image::parse(&six).is_err_and(|e| e.contains("versions 1, 2, 3, 4 and 5")));
+        assert!(Image::parse(&six).is_err_and(|e| e.contains("this one carries none")));
+        let seven = text.replacen("\"version\":2", "\"version\":7", 1);
+        assert!(Image::parse(&seven).is_err_and(|e| e.contains("versions 1, 2, 3, 4, 5 and 6")));
     }
 
     fn parked() -> Continuation {
@@ -848,6 +895,7 @@ mod tests {
         plain.account = Some(Account {
             host_io: 3,
             journal: Some(vec![Value::Int(1), Value::Str("ünï".into())]),
+            input_root: None,
         });
         let text = plain.text();
         assert!(text.contains("\"version\":5"), "{text}");
@@ -868,6 +916,7 @@ mod tests {
         counted.account = Some(Account {
             host_io: 0,
             journal: None,
+            input_root: None,
         });
         let unjournaled = counted.text();
         assert!(
@@ -916,6 +965,141 @@ mod tests {
         assert!(
             Image::parse(&listless).is_err_and(|e| e.contains("`account.journal` is not a list"))
         );
+    }
+
+    fn accounted(journal: Option<Vec<Value>>, input_root: Option<String>) -> Account {
+        Account {
+            host_io: 3,
+            journal,
+            input_root,
+        }
+    }
+
+    #[test]
+    fn an_accounted_image_without_an_input_root_keeps_the_bytes_it_had_before_servers_carried_theirs(
+    ) {
+        let mut plain = image("x");
+        plain.parked = Some(parked());
+        plain.tape = Some(tape());
+        plain.account = Some(accounted(
+            Some(vec![Value::Int(1), Value::Str("ünï".into())]),
+            None,
+        ));
+        let mut handed = plain.clone();
+        handed.supervision = Some(Supervision {
+            max_restarts: 2,
+            restarts: 1,
+            initial: Value::Nil,
+        });
+        let mut counted = plain.clone();
+        counted.account = Some(Account {
+            host_io: 0,
+            journal: None,
+            input_root: None,
+        });
+        assert_eq!(
+            [
+                id_of(&plain.text()),
+                id_of(&handed.text()),
+                id_of(&counted.text())
+            ],
+            [
+                "930fd05c6d0d4dbd4cbc2da4a6804c8d63a76eba58e4a8e1cd46d930547ff36b".to_string(),
+                "b2f81a46fb3d96acaac2246a0c424e6135b40a4b9814854381c320d672eddb86".to_string(),
+                "42d5fb478b583584ac6682229e0429309c59a60050b1b79a8f1fa57d93c77c32".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn a_server_with_its_journal_host_calls_and_input_root_is_version_six_and_every_misfit_is_refused_by_name(
+    ) {
+        let root = format!("b3:{}", "ab".repeat(32));
+        let mut server = image("x");
+        server.supervision = Some(Supervision {
+            max_restarts: 3,
+            restarts: 1,
+            initial: Value::Str("start".into()),
+        });
+        server.dispatch_steps = Some(2000);
+        server.account = Some(accounted(
+            Some(vec![Value::Int(1), Value::Str("ünï".into())]),
+            Some(root.clone()),
+        ));
+        let text = server.text();
+        assert!(text.contains("\"version\":6"), "{text}");
+        assert!(
+            text.contains(&format!("\"input_root\":\"{root}\"")),
+            "{text}"
+        );
+        let back = Image::parse(&text).expect("parses");
+        let account = back.account.clone().expect("carried");
+        assert_eq!(
+            (account.host_io, account.input_root.as_deref()),
+            (3, Some(root.as_str()))
+        );
+        assert_eq!(
+            values(&account.journal.expect("a journal")),
+            ["1", "\"ünï\""]
+        );
+        assert!(back.parked.is_none() && back.tape.is_none());
+        assert_eq!(back.text(), text);
+        let mut bare = image("x");
+        bare.account = Some(accounted(None, Some(root.clone())));
+        let unhanded = bare.text();
+        assert!(
+            unhanded.contains("\"version\":6") && !unhanded.contains("journal"),
+            "an unsupervised server from a node that keeps no journal: {unhanded}"
+        );
+        assert!(Image::parse(&unhanded).is_ok_and(|i| i.supervision.is_none()));
+        for (from, to, refusal) in [
+            (
+                "\"version\":6",
+                "\"version\":5",
+                "version 5 carries no input root, and this one does",
+            ),
+            (
+                "\"version\":6",
+                "\"version\":2",
+                "version 2 carries no journal or host-call count, and this one does",
+            ),
+            (
+                "\"account\":",
+                "\"spent\":",
+                "version 6 carries the journal, host-call count and input root of the server it moves, and this one carries none",
+            ),
+            (
+                "\"input_root\":",
+                "\"output_root\":",
+                "version 6 carries the input root of the server it moves, and this one carries none",
+            ),
+            (
+                root.as_str(),
+                "b3:abcd",
+                "`account.input_root` is not a b3: hash",
+            ),
+        ] {
+            let misfit = text.replacen(from, to, 1);
+            assert_ne!(misfit, text, "{from}");
+            assert!(
+                Image::parse(&misfit).is_err_and(|e| e.contains(refusal)),
+                "{from} -> {to}: {:?}",
+                Image::parse(&misfit).err()
+            );
+        }
+        let mut parks = server.clone();
+        parks.parked = Some(parked());
+        assert!(Image::parse(&parks.text()).is_err_and(|e| e.contains(
+            "version 6 carries a server between two messages, and this one parks a process"
+        )));
+        let mut taped = server.clone();
+        taped.tape = Some(tape());
+        assert!(Image::parse(&taped.text())
+            .is_err_and(|e| e.contains("version 6 carries no tape, and this one does")));
+    }
+
+    fn values(xs: &[Value]) -> Vec<String> {
+        xs.iter().map(ToString::to_string).collect()
     }
 
     #[test]

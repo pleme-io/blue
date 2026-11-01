@@ -201,13 +201,14 @@ not being on crates.io), **no editor answer inside a broken buffer** (the
 LSP answers from the newest revision that parsed until the parser recovers,
 `BLUE-ENGINE.md` E6), **project rules in the editor or as wasm** (`blue check`
 runs them in-process under the rule frame; the LSP does not run them, and the
-ABI is shaped for a wasm module that nothing builds yet), **no account of a moved
-server's life before the move** (a moved plain process's tape travels in its
-image, and from a held node so do its mailbox journal and its count of host
-calls, `blue-image` version 5, so its crash replays from its start and its
-trace and receipt count both nodes; a server's journal, host-call count and
-receipt `input_root` start at the node it moved to, and a plain process whose
-tape stays behind, past its bound or the send ring, brings neither), **no link across nodes** (`evict` breaks a link and
+ABI is shaped for a wasm module that nothing builds yet), **no account of a
+move the send ring cannot carry** (from a held node a moved plain process
+brings its tape, mailbox journal and host-call count, `blue-image` version 5,
+and a moved server its journal, count and the root of the state its
+incarnation began with, version 6, so each crash trace and receipt covers the
+whole incarnation; an account past the tape bound or the send ring stays
+behind, and that process's journal, count and a server's receipt
+`input_root` start at the node it moved to), **no link across nodes** (`evict` breaks a link and
 tells a partner that traps exits; it refuses one that does not), **no
 authenticated image** (an image's BLAKE3 name proves it arrived whole, not who
 sent it; it runs under the accepting node's frame, never more), and no **`case`/`when` pattern matching** or **ranges** — the two remaining

@@ -401,14 +401,14 @@ fn receipt_verify_reads_versions_1_2_and_3_and_refuses_a_count_or_root_out_of_pl
         .remove("output_root");
     let mut negative_v3 = v3.clone();
     negative_v3["steps"] = serde_json::json!(-1);
-    let mut v5 = v3.clone();
-    v5["version"] = serde_json::json!(5);
+    let mut v6 = v3.clone();
+    v6["version"] = serde_json::json!(6);
     for (j, why) in [
         (&counted_v2, "carries `steps`"),
         (&uncounted_v3, "without `steps`"),
         (&half_rooted_v3, "without `output_root`"),
         (&negative_v3, "not a count"),
-        (&v5, "reads versions 1 to 4"),
+        (&v6, "reads versions 1 to 5"),
     ] {
         let o = verified(&dir, j);
         assert!(!o.status.success(), "{why}: {j}");
@@ -434,12 +434,15 @@ fn receipt_verify_reads_versions_1_and_2_and_refuses_a_root_out_of_place() {
     let m = unrooted_v2.as_object_mut().expect("object");
     m.remove("input_root");
     m.remove("output_root");
-    let mut v5 = v2.clone();
-    v5["version"] = serde_json::json!(5);
+    let mut v6 = v2.clone();
+    v6["version"] = serde_json::json!(6);
+    let mut uncarried_v5 = v2.clone();
+    uncarried_v5["version"] = serde_json::json!(5);
     for (j, why) in [
         (&rooted_v1, "carries `input_root`"),
         (&unrooted_v2, "without `input_root`"),
-        (&v5, "reads versions 1 to 4"),
+        (&uncarried_v5, "a version 5 receipt without `carried`"),
+        (&v6, "reads versions 1 to 5"),
     ] {
         let o = verified(&dir, j);
         assert!(!o.status.success(), "{why}: {j}");

@@ -6,7 +6,7 @@ C	akutaa?	cast	effect	cast(pid, request) -> nil	process	blue	rust:blue-lang-proc
 C	akutaa?	child	decl	child(name, f, restart) -> spec	process	blue	rust:blue-lang-proc	One supervised child and when it restarts.	0		na
 C	akutaa?	connect	effect	connect(node) -> nil	capability,process	-	absent	Join another node so pids reach across.	3	connect(node) -> nil	yes
 C	akutaa?	demonitor	effect	demonitor(ref) -> nil	process	-	absent	Stop watching a monitored process.	1		na
-C	akutaa?	evict	effect	evict(pid, wire, peer) -> record	capability,process,serialize	blue	rust:blue-lang-proc	Move a server off its node at a message boundary as frames on a Tide wire.	0	evict(pid, wire, peer) -> record	yes
+C	akutaa?	evict	effect	evict(pid, wire, peer) -> record	capability,process,serialize	blue	rust:blue-lang-proc	Move a server or a plain process off its node at a message boundary as frames on a Tide wire.	0	evict(pid, wire, peer) -> record	yes
 C	akutaa?	exit	effect	exit(pid, reason) -> nil	process	blue	rust:blue-lang-proc	Ask a process to end with a reason.	0		na
 C	akutaa?	info	effect	info(pid) -> record	process	-	absent	Mailbox depth, links, status and memory of a process.	1	info(pid) -> record	yes
 C	akutaa?	isolate	pure	isolate(f) -> value	error,process	blue	rust:blue-lang-proc	Run f with private state; return its result or exit reason.	1		na

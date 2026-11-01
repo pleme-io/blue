@@ -114,7 +114,7 @@ verb(
     laterals: %w[capability process serialize],
     fleet: "blue",
     today: "rust:blue-lang-proc",
-    meaning: "Move a server off its node at a message boundary as frames on a Tide wire.",
+    meaning: "Move a server or a plain process off its node at a message boundary as frames on a Tide wire.",
     wave: 0,
     origin: "C"
   }

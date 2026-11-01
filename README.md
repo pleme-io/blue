@@ -367,11 +367,11 @@ not being on crates.io), **no editor answer inside a broken buffer** (the
 LSP answers from the newest revision that parsed until the parser recovers,
 `BLUE-ENGINE.md` E6), **project rules in the editor or as wasm** (`blue check`
 runs them in-process under the rule frame; the LSP does not run them, and the
-ABI is shaped for a wasm module that nothing builds yet), **no eviction of a
-plain process** (`evict` moves a server, whose state is a value, and hands a
-supervised one's restart to the peer; a plain process's state is its VM
-frames, which tatara-lisp-eval 0.4.12 keeps private and names by a function
-that is not portable), **no link across nodes** (`evict` breaks a link and
+ABI is shaped for a wasm module that nothing builds yet), **no replay of a
+moved plain process** (`evict` carries a plain process parked at `receive` as
+its VM frames, but not its tape: a crash on the node it moved to writes a
+trace marked truncated, which `blue replay` refuses to call reproduced; the
+tape would have to travel in the image), **no link across nodes** (`evict` breaks a link and
 tells a partner that traps exits; it refuses one that does not), **no
 authenticated image** (an image's BLAKE3 name proves it arrived whole, not who
 sent it; it runs under the accepting node's frame, never more), and no **`case`/`when` pattern matching** or **ranges** — the two remaining

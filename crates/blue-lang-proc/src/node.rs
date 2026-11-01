@@ -68,13 +68,16 @@ use std::time::{Duration, Instant};
 
 use tatara_lisp::{Span, Spanned};
 use tatara_lisp_eval::ffi::Arity;
-use tatara_lisp_eval::vm::{compile_program, Budget, Chunk, Vm, DEFAULT_MAX_DEPTH};
+use tatara_lisp_eval::vm::run::CompiledClosure;
+use tatara_lisp_eval::vm::{
+    compile_program, Budget, Chunk, FnRef, ParkError, Vm, DEFAULT_MAX_DEPTH,
+};
 use tatara_lisp_eval::{EvalError, Interpreter, MapKey, Value};
 
 use blue_lang_waku::Capability;
 
 use crate::code::{self, Code, Entry};
-use crate::image::{self, Arrivals, Image, Supervision};
+use crate::image::{self, Arrivals, Continuation, Image, Supervision};
 use crate::mailbox::copy_data;
 use crate::pattern;
 use crate::receipt::{
@@ -585,6 +588,14 @@ impl NodeState {
         self.migrations.contains_key(&pid) || self.evicting.contains(&pid)
     }
 
+    fn held_at_receive(&self, pid: Pid) -> bool {
+        self.evicting.contains(&pid)
+            && self
+                .info
+                .get(&pid)
+                .is_some_and(|i| matches!(i.kind, Kind::Plain))
+    }
+
     fn opens_dispatch(&mut self, pid: Pid) -> bool {
         match self.info.get_mut(&pid) {
             Some(info) if info.dispatch.is_some() && !info.armed => {
@@ -608,8 +619,9 @@ impl NodeState {
         let mailbox = self.boxes.get(&pid);
         match self.waits.get(&pid) {
             Some(Wait::Receive { pattern, deadline }) => {
-                mailbox.is_some_and(|b| pattern::first_match(b, pattern).is_some())
-                    || deadline.is_some_and(|d| now >= d)
+                !self.held_at_receive(pid)
+                    && (mailbox.is_some_and(|b| pattern::first_match(b, pattern).is_some())
+                        || deadline.is_some_and(|d| now >= d))
             }
             Some(Wait::ServerNext) => {
                 mailbox.is_some_and(|b| !b.is_empty()) && !self.held_at_boundary(pid)
@@ -746,6 +758,28 @@ fn written(supervised: bool, reason: &ExitReason) -> bool {
 
 fn refuse(word: &str, msg: impl Into<String>, span: Span) -> EvalError {
     EvalError::native_fn(Arc::<str>::from(word), msg.into(), span)
+}
+
+fn parking(e: &ParkError) -> String {
+    match e {
+        ParkError::NoFrames => "it holds no frames: it has not started, or it has returned".into(),
+        ParkError::NoDataForm { what, at } => format!(
+            "it holds {what} in {at}, which has no data form and does not cross a wire; open it \
+             inside the process once it has moved"
+        ),
+        ParkError::OtherChunk { what, at } => format!(
+            "it runs code it was not spawned with ({what}, {at}), and its image carries only the \
+             code it was spawned with"
+        ),
+        ParkError::ChunkMismatch { parked, chunk } => format!(
+            "its frames were parked in chunk {parked}, and its code compiles here to chunk \
+             {chunk}: this blue compiles it differently from the one it left"
+        ),
+        ParkError::UnknownNative { name } => {
+            format!("it holds the native function `{name}`, which this node does not register")
+        }
+        ParkError::Malformed(why) => format!("its frames are malformed: {why}"),
+    }
 }
 
 fn pid_arg(v: &Value, word: &str, span: Span) -> Result<Pid, EvalError> {
@@ -1003,10 +1037,12 @@ fn install_child(proto: &mut Interpreter<()>, me: &Weak<Node>, carrying: Carryin
             };
             let mut st = node.st();
             let pid = st.running();
-            if st
-                .boxes
-                .get(&pid)
-                .is_some_and(|b| pattern::first_match(b, &pattern).is_some())
+            let held = st.held_at_receive(pid);
+            if !held
+                && st
+                    .boxes
+                    .get(&pid)
+                    .is_some_and(|b| pattern::first_match(b, &pattern).is_some())
             {
                 return true;
             }
@@ -1016,7 +1052,7 @@ fn install_child(proto: &mut Interpreter<()>, me: &Weak<Node>, carrying: Carryin
                 _ => timeout.map(|t| now.saturating_add(t)),
             };
             st.waits.insert(pid, Wait::Receive { pattern, deadline });
-            deadline.is_some_and(|d| now >= d)
+            !held && deadline.is_some_and(|d| now >= d)
         },
         move |args: &[Value], _h: &mut (), span| {
             let node = Side::Child(c.clone()).node("receive", span)?;
@@ -2124,12 +2160,23 @@ impl Node {
             .get(&pid)
             .filter(|i| i.live)
             .ok_or_else(|| format!("no process {}", pid.0))?;
-        if !matches!(info.kind, Kind::Server) {
-            return Err(format!(
-                "process {} is not a server: a plain process keeps its state in its own frames, \
-                 which do not cross a wire; run it with spawn_server to evict it",
-                pid.0
-            ));
+        match info.kind {
+            Kind::Server | Kind::Plain => {}
+            Kind::Root => {
+                return Err(format!(
+                    "process {} is the program: the door runs it on its own evaluator, the \
+                     tree-walker under `blue run`, which this node does not hold, so it has no \
+                     frames to carry; spawn the work as a process and evict that",
+                    pid.0
+                ))
+            }
+            Kind::Supervisor(_) => {
+                return Err(format!(
+                    "process {} is a supervisor: it runs no code of its own to carry; evict its \
+                     children one at a time",
+                    pid.0
+                ))
+            }
         }
         if st.held_at_boundary(pid) {
             return Err(format!("process {} is already being moved", pid.0));
@@ -2177,11 +2224,14 @@ impl Node {
         self.st().evicting.insert(pid);
         let parked = self.drive(
             |st| {
-                if !st.info.contains_key(&pid) {
-                    return Some(false);
-                }
-                (matches!(st.waits.get(&pid), Some(Wait::ServerNext)) && !st.aloft.contains(&pid))
-                    .then_some(true)
+                let info = st.info.get(&pid).filter(|i| i.live);
+                let boundary = match (info.map(|i| &i.kind), st.waits.get(&pid)) {
+                    (None, _) => return Some(false),
+                    (Some(Kind::Server), Some(Wait::ServerNext))
+                    | (Some(Kind::Plain), Some(Wait::Receive { .. })) => true,
+                    _ => false,
+                };
+                (boundary && !st.aloft.contains(&pid)).then_some(true)
             },
             None,
             word,
@@ -2194,9 +2244,13 @@ impl Node {
                 pid.0
             )),
             Ok(Driven::Deadlock(_) | Driven::TimedOut) => Err(format!(
-                "process {} is waiting inside its handler and nothing can wake it, so it never \
-                 reached a message boundary",
-                pid.0
+                "process {} is waiting {} and nothing can wake it, so it never reached a message \
+                 boundary",
+                pid.0,
+                match self.st().info.get(&pid).map(|i| &i.kind) {
+                    Some(Kind::Plain) => "outside receive",
+                    _ => "inside its handler",
+                }
             )),
             Err(e) => {
                 self.st().evicting.remove(&pid);
@@ -2221,8 +2275,11 @@ impl Node {
         })?;
         let st = self.st();
         let info = st.info.get(&pid).ok_or("the process is gone")?;
+        let plain = matches!(info.kind, Kind::Plain);
         let mut code = info.code.clone();
-        code.bind("%state", state);
+        if !plain {
+            code.bind("%state", state);
+        }
         let supervision = match info.sup.and_then(|s| st.info.get(&s)).map(|s| &s.kind) {
             Some(Kind::Supervisor(spec)) => Some(Supervision {
                 max_restarts: spec.max_restarts,
@@ -2231,7 +2288,7 @@ impl Node {
             }),
             _ => None,
         };
-        Ok(Image {
+        let mut image = Image {
             definition: info.def_name.clone(),
             scheduling: info.scheduling,
             trap_exit: info.trap_exit,
@@ -2243,7 +2300,120 @@ impl Node {
                 .unwrap_or_default(),
             supervision,
             dispatch_steps: info.asked,
+            parked: None,
+        };
+        drop(st);
+        if plain {
+            image.parked = Some(self.continuation(pid)?);
+        }
+        Ok(image)
+    }
+
+    fn continuation(&self, pid: Pid) -> Result<Continuation, String> {
+        let sched = lock(&self.sched);
+        let p = sched
+            .iter()
+            .find(|p| p.pid == pid)
+            .ok_or("the process is gone")?;
+        let mut st = self.st();
+        let now = st.clock.now();
+        let wait_ms = match st.waits.get(&pid) {
+            Some(Wait::Receive {
+                deadline: Some(d), ..
+            }) => Some(d.saturating_sub(now)),
+            _ => None,
+        };
+        let info = st.info.get(&pid).ok_or("the process is gone")?;
+        let cannot = |why: String| format!("process {} cannot move: {why}", pid.0);
+        if !info
+            .chunk
+            .as_ref()
+            .is_some_and(|c| Arc::ptr_eq(c, &p.chunk))
+        {
+            return Err(cannot(
+                "a migration replaced its code, and its frames still run the code it had \
+                 before, which its image does not carry; let it restart or finish first"
+                    .to_string(),
+            ));
+        }
+        let vm = p.vm.parked(&p.chunk).map_err(|e| cannot(parking(&e)))?;
+        let functions = info
+            .code
+            .defs
+            .iter()
+            .filter_map(defined_key)
+            .map(|name| {
+                let index = match p.interp.lookup_global(name) {
+                    Some(Value::Foreign(any)) => any
+                        .downcast_ref::<CompiledClosure>()
+                        .filter(|c| {
+                            c.captures.is_empty()
+                                && (Arc::ptr_eq(&c.chunk, &p.chunk)
+                                    || c.chunk.fingerprint() == p.chunk.fingerprint())
+                        })
+                        .map(|c| c.fn_index),
+                    _ => None,
+                };
+                index.map(|i| (name.to_string(), i)).ok_or_else(|| {
+                    cannot(format!(
+                        "its global `{name}` is not the function its code defines"
+                    ))
+                })
+            })
+            .collect::<Result<_, _>>()?;
+        Ok(Continuation {
+            vm,
+            functions,
+            wait_ms,
         })
+    }
+
+    fn resume(&self, pid: Pid, c: &Continuation) -> Result<(), String> {
+        let mut st = self.st();
+        let p = st
+            .pending
+            .iter_mut()
+            .find(|p| p.pid == pid)
+            .ok_or("the process is gone")?;
+        for (name, index) in &c.functions {
+            let body = FnRef::Table(*index)
+                .resolve(&p.chunk)
+                .filter(|f| f.captures.is_empty())
+                .ok_or_else(|| {
+                    format!(
+                        "its function `{name}` names entry {index}, which its code does not define"
+                    )
+                })?;
+            let function = CompiledClosure {
+                body: Arc::new(body.clone()),
+                captures: Vec::new(),
+                chunk: Arc::clone(&p.chunk),
+                globals: p.interp.globals_snapshot().clone(),
+                fn_index: *index,
+            };
+            p.interp
+                .define_global(name.as_str(), Value::Foreign(Arc::new(function)));
+        }
+        p.vm = Vm::from_parked(&c.vm, &p.chunk, &p.interp, self.config.budget)
+            .map_err(|e| parking(&e))?;
+        if let Some(ms) = c.wait_ms {
+            let deadline = st.clock.now().saturating_add(ms);
+            st.waits.insert(
+                pid,
+                Wait::Receive {
+                    pattern: kw(pattern::WILDCARD),
+                    deadline: Some(deadline),
+                },
+            );
+        }
+        st.tapes.insert(
+            pid,
+            Tape {
+                entries: Vec::new(),
+                truncated: true,
+            },
+        );
+        Ok(())
     }
 
     fn depart_over(
@@ -2343,9 +2513,10 @@ impl Node {
     fn admit(&self, text: &str, span: Span) -> Result<Value, EvalError> {
         let (parsed, _) = self.apart(|| Image::parse(text));
         let mut image = parsed.map_err(|why| raised("decode_error", why, Value::Nil, span))?;
+        let parked = image.parked.take();
         let state = bound_state(&image.code);
         let handed = image.supervision.take();
-        if let Some(s) = &handed {
+        if let (Some(s), None) = (&handed, &parked) {
             image.code.bind("%state", s.initial.clone());
         }
         let sup = handed
@@ -2353,12 +2524,29 @@ impl Node {
             .map(|s| self.st().supervisor(Strategy::OneForOne, s.max_restarts));
         let started = self.start(
             image.code,
-            Kind::Server,
+            if parked.is_some() {
+                Kind::Plain
+            } else {
+                Kind::Server
+            },
             image.definition,
             sup,
             image.scheduling,
         );
-        let pid = match started {
+        let resumed = started.and_then(|pid| match &parked {
+            Some(c) => self
+                .apart(|| self.resume(pid, c))
+                .0
+                .map(|()| pid)
+                .map_err(|why| {
+                    let mut st = self.st();
+                    st.pending.retain(|p| p.pid != pid);
+                    st.forget(pid);
+                    format!("the image cannot resume here: {why}")
+                }),
+            None => Ok(pid),
+        });
+        let pid = match resumed {
             Ok(pid) => pid,
             Err(m) => {
                 if let Some(sup) = sup {
@@ -2370,13 +2558,17 @@ impl Node {
         if let (Some(sup), Some(s)) = (sup, &handed) {
             let mut st = self.st();
             st.enrol(sup, pid);
-            if let Some(p) = st.pending.iter_mut().find(|p| p.pid == pid) {
-                p.interp.define_global("%state", state.clone());
+            if parked.is_none() {
+                if let Some(p) = st.pending.iter_mut().find(|p| p.pid == pid) {
+                    p.interp.define_global("%state", state.clone());
+                }
             }
             if let Some(i) = st.info.get_mut(&pid) {
                 i.restarts = s.restarts;
-                i.snapshot = Some(state.clone());
-                i.entered = Some(state);
+                if parked.is_none() {
+                    i.snapshot = Some(state.clone());
+                    i.entered = Some(state);
+                }
             }
         }
         let (mailbox, bytes) = self.apart(|| {

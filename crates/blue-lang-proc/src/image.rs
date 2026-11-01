@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, VecDeque};
 
 use serde_json::{json, Value as Json};
+use tatara_lisp_eval::vm::Parked;
 use tatara_lisp_eval::Value;
 
 use crate::code::Code;
@@ -13,6 +14,8 @@ pub const FORMAT: &str = "blue-image";
 pub const VERSION: u64 = 1;
 
 pub const HANDED: u64 = 2;
+
+pub const PARKED: u64 = 3;
 
 pub const FRAME: &str = "blue-image ";
 
@@ -33,6 +36,68 @@ pub struct Image {
     pub mailbox: Vec<Value>,
     pub supervision: Option<Supervision>,
     pub dispatch_steps: Option<usize>,
+    pub parked: Option<Continuation>,
+}
+
+#[derive(Clone, Debug)]
+pub struct Continuation {
+    pub vm: Parked,
+    pub functions: Vec<(String, usize)>,
+    pub wait_ms: Option<u64>,
+}
+
+impl Continuation {
+    fn to_json(&self) -> Json {
+        let mut j = json!({
+            "vm": serde_json::to_value(&self.vm).unwrap_or(Json::Null),
+            "functions": self
+                .functions
+                .iter()
+                .map(|(name, index)| json!([name, index]))
+                .collect::<Vec<_>>(),
+        });
+        if let Some(ms) = self.wait_ms {
+            j["wait_ms"] = json!(ms);
+        }
+        j
+    }
+
+    fn from_json(j: &Json) -> Result<Self, String> {
+        let vm = j
+            .get("vm")
+            .cloned()
+            .ok_or_else(|| format!("{FORMAT}: `parked` has no `vm`"))
+            .and_then(|vm| {
+                serde_json::from_value(vm)
+                    .map_err(|e| format!("{FORMAT}: `parked.vm` is not a parked VM: {e}"))
+            })?;
+        let functions = j
+            .get("functions")
+            .and_then(Json::as_array)
+            .ok_or_else(|| format!("{FORMAT}: `parked` has no `functions`"))?
+            .iter()
+            .map(|f| match f.as_array().map(Vec::as_slice) {
+                Some([name, index]) => name
+                    .as_str()
+                    .zip(index.as_u64().and_then(|n| usize::try_from(n).ok()))
+                    .map(|(name, index)| (name.to_string(), index)),
+                _ => None,
+            })
+            .map(|f| f.ok_or_else(|| format!("{FORMAT}: a `parked` function is not [name, index]")))
+            .collect::<Result<_, _>>()?;
+        let wait_ms = j
+            .get("wait_ms")
+            .map(|n| {
+                n.as_u64()
+                    .ok_or_else(|| format!("{FORMAT}: `parked.wait_ms` is not a count"))
+            })
+            .transpose()?;
+        Ok(Self {
+            vm,
+            functions,
+            wait_ms,
+        })
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -90,6 +155,10 @@ impl Image {
         if self.hands_over() {
             j["version"] = json!(HANDED);
         }
+        if let Some(c) = &self.parked {
+            j["parked"] = c.to_json();
+            j["version"] = json!(PARKED);
+        }
         j
     }
 
@@ -103,11 +172,12 @@ impl Image {
             return Err(format!("not a {FORMAT}"));
         }
         let version = j.get("version").and_then(Json::as_u64).unwrap_or(0);
-        if version != VERSION && version != HANDED {
+        if ![VERSION, HANDED, PARKED].contains(&version) {
             return Err(format!(
-                "{FORMAT} version {version}; this blue reads versions {VERSION} and {HANDED}"
+                "{FORMAT} version {version}; this blue reads versions {VERSION}, {HANDED} and {PARKED}"
             ));
         }
+        let parked = j.get("parked").map(Continuation::from_json).transpose()?;
         let supervision = j
             .get("supervision")
             .map(Supervision::from_json)
@@ -121,15 +191,29 @@ impl Image {
                     .ok_or_else(|| format!("{FORMAT}: `dispatch_steps` is not a positive count"))
             })
             .transpose()?;
-        match (version, supervision.is_some() || dispatch_steps.is_some()) {
-            (VERSION, true) => {
+        match (
+            version,
+            supervision.is_some() || dispatch_steps.is_some(),
+            parked.is_some(),
+        ) {
+            (VERSION, true, _) => {
                 return Err(format!(
                     "{FORMAT} version {VERSION} carries no supervision or dispatch_steps, and this one does"
                 ))
             }
-            (HANDED, false) => {
+            (VERSION | HANDED, _, true) => {
+                return Err(format!(
+                    "{FORMAT} version {version} carries no parked frames, and this one does"
+                ))
+            }
+            (HANDED, false, _) => {
                 return Err(format!(
                     "{FORMAT} version {HANDED} carries supervision or dispatch_steps, and this one carries neither"
+                ))
+            }
+            (PARKED, _, false) => {
+                return Err(format!(
+                    "{FORMAT} version {PARKED} carries a parked process, and this one carries none"
                 ))
             }
             _ => {}
@@ -164,6 +248,7 @@ impl Image {
             mailbox,
             supervision,
             dispatch_steps,
+            parked,
         })
     }
 
@@ -350,6 +435,7 @@ mod tests {
             mailbox: vec![Value::Int(4), Value::Str("ünï".into())],
             supervision: None,
             dispatch_steps: None,
+            parked: None,
         }
     }
 
@@ -447,7 +533,107 @@ mod tests {
         let zero = only.replacen("\"dispatch_steps\":7", "\"dispatch_steps\":0", 1);
         assert!(Image::parse(&zero).is_err_and(|e| e.contains("not a positive count")));
         let three = text.replacen("\"version\":2", "\"version\":3", 1);
-        assert!(Image::parse(&three).is_err_and(|e| e.contains("versions 1 and 2")));
+        assert!(Image::parse(&three).is_err_and(|e| e.contains("this one carries none")));
+        let four = text.replacen("\"version\":2", "\"version\":4", 1);
+        assert!(Image::parse(&four).is_err_and(|e| e.contains("versions 1, 2 and 3")));
+    }
+
+    fn parked() -> Continuation {
+        use tatara_lisp_eval::vm::{Fingerprint, FnRef, ParkedFrame, ParkedValue};
+        Continuation {
+            vm: Parked {
+                chunk: Fingerprint([7; 32]),
+                stack: vec![
+                    ParkedValue::Float((-0.1_f64).to_bits()),
+                    ParkedValue::Closure {
+                        func: 1,
+                        captures: vec![0],
+                    },
+                    ParkedValue::Native("receive".to_string()),
+                ],
+                frames: vec![ParkedFrame {
+                    func: FnRef::Top,
+                    ip: 4,
+                    locals_base: 0,
+                    stack_base: 1,
+                    captures: Vec::new(),
+                    local_cells: vec![(0, 0)],
+                    handlers: Vec::new(),
+                }],
+                cells: vec![ParkedValue::Str("ünï".to_string())],
+            },
+            functions: vec![("h".to_string(), 0)],
+            wait_ms: Some(400),
+        }
+    }
+
+    #[test]
+    fn a_parked_process_is_version_three_and_every_misfit_is_refused_by_name() {
+        let mut plain = image("x");
+        plain.parked = Some(parked());
+        let text = plain.text();
+        assert!(text.contains("\"version\":3"), "{text}");
+        let back = Image::parse(&text).expect("parses");
+        let c = back.parked.clone().expect("carried");
+        assert_eq!(c.vm, parked().vm);
+        assert_eq!(c.functions, vec![("h".to_string(), 0)]);
+        assert_eq!(c.wait_ms, Some(400));
+        assert_eq!(back.text(), text);
+        let mut handed = plain.clone();
+        handed.supervision = Some(Supervision {
+            max_restarts: 2,
+            restarts: 1,
+            initial: Value::Nil,
+        });
+        let both = handed.text();
+        assert!(both.contains("\"version\":3"), "{both}");
+        assert_eq!(
+            Image::parse(&both)
+                .expect("parses")
+                .supervision
+                .map(|s| s.restarts),
+            Some(1)
+        );
+        let mut forever = plain.clone();
+        forever.parked = Some(Continuation {
+            wait_ms: None,
+            ..parked()
+        });
+        assert!(!forever.text().contains("wait_ms"));
+        for (from, to, refusal) in [
+            ("\"version\":3", "\"version\":1", "carries no parked frames"),
+            ("\"version\":3", "\"version\":2", "carries no parked frames"),
+            ("\"parked\":", "\"lost\":", "this one carries none"),
+            ("[\"h\",0]", "[\"h\"]", "is not [name, index]"),
+            ("\"wait_ms\":400", "\"wait_ms\":-1", "is not a count"),
+            ("\"chunk\":[", "\"chunk\":[\"x\",", "is not a parked VM"),
+        ] {
+            let misfit = text.replacen(from, to, 1);
+            assert_ne!(misfit, text, "{from}");
+            assert!(
+                Image::parse(&misfit).is_err_and(|e| e.contains(refusal)),
+                "{from} -> {to}: {:?}",
+                Image::parse(&misfit).err()
+            );
+        }
+    }
+
+    #[test]
+    fn a_server_image_keeps_the_bytes_it_had_before_plain_processes_moved() {
+        let mut held = image("x");
+        held.supervision = Some(Supervision {
+            max_restarts: 3,
+            restarts: 1,
+            initial: Value::Str("start".into()),
+        });
+        held.dispatch_steps = Some(2000);
+        assert_eq!(
+            [id_of(&image("x").text()), id_of(&held.text())],
+            [
+                "7d088eeaaa698fa76573fa7b49e9b205483c2cee2dd8254878b30b7b2e75028b".to_string(),
+                "5e193f0ea002337e722069705cb1300950a183c6ae532c40f8c5a432e284ea68".to_string()
+            ]
+        );
     }
 
     #[test]

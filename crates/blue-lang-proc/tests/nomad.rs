@@ -12,7 +12,38 @@ fn moving(net: &Arc<LoopbackNet>) -> (Interpreter<()>, Arc<Node>) {
 }
 
 fn moving_under(net: &Arc<LoopbackNet>, dispatch: Option<usize>) -> (Interpreter<()>, Arc<Node>) {
-    let mut config = NodeConfig::new(Arc::new(blue_lang_runtime::interpreter_hostless));
+    moving_with(
+        net,
+        dispatch,
+        Arc::new(blue_lang_runtime::interpreter_hostless),
+    )
+}
+
+fn moving_with_wired_children(net: &Arc<LoopbackNet>) -> (Interpreter<()>, Arc<Node>) {
+    let wired = Arc::clone(net);
+    moving_with(
+        net,
+        None,
+        Arc::new(move || {
+            let mut child = blue_lang_runtime::interpreter_hostless();
+            provide_loopback(
+                &mut child,
+                String::from,
+                blue_lang_waku::Channel::Tide,
+                &wired,
+                host_clock(),
+            );
+            child
+        }),
+    )
+}
+
+fn moving_with(
+    net: &Arc<LoopbackNet>,
+    dispatch: Option<usize>,
+    child: Arc<dyn Fn() -> Interpreter<()> + Send + Sync>,
+) -> (Interpreter<()>, Arc<Node>) {
+    let mut config = NodeConfig::new(child);
     config.budget.quantum = Some(50);
     config.clock = ClockKind::Virtual;
     config.trace_dir = None;
@@ -155,14 +186,310 @@ fn a_process_eviction_cannot_carry_is_refused_by_name() {
              w = tide_open(\"127.0.0.1:7021\")\n\
              def why(f)\n  begin\n    f()\n    :moved\n  rescue e\n    e.message\n  end\nend\n\
              def idle_loop()\n  receive()\nend\n\
-             plain = spawn(idle_loop)\n\
+             def other_loop()\n  receive()\nend\n\
+             migrated = spawn(idle_loop)\n\
+             receive(:never, 10, :waited)\n\
+             defmigrate(migrated, other_loop)\n\
              linked = spawn_server(counter, [])\nlink(linked)\n\
-             [contains?(why(fn() evict(plain, w, \"127.0.0.1:9\") end), \"not a server\"),\n\
+             linked_plain = spawn(idle_loop)\nlink(linked_plain)\n\
+             sup = supervisor(:one_for_one, [idle_loop])\n\
+             [contains?(why(fn() evict(self(), w, \"127.0.0.1:9\") end), \"process 0 is the program: the door runs it on its own evaluator, the tree-walker\"),\n\
+              contains?(why(fn() evict(sup, w, \"127.0.0.1:9\") end), \"is a supervisor\"),\n\
+              contains?(why(fn() evict(migrated, w, \"127.0.0.1:9\") end), \"cannot move: a migration replaced its code\"),\n\
               contains?(why(fn() evict(linked, w, \"127.0.0.1:9\") end), \"is linked to\"),\n\
-              contains?(why(fn() evict(4242, w, \"127.0.0.1:9\") end), \"no process\")]"
+              contains?(why(fn() evict(linked_plain, w, \"127.0.0.1:9\") end), \"is linked to\"),\n\
+              contains?(why(fn() evict(4242, w, \"127.0.0.1:9\") end), \"no process\"),\n\
+              alive?(migrated)]"
         ),
     );
-    assert_eq!(out, "(#t #t #t)");
+    assert_eq!(out, "(#t #t #t #t #t #t #t)");
+}
+
+const TALLY: &str = "\
+def take(parent)
+  m = receive()
+  send(parent, [:took, m, self()])
+  m
+end
+def tally(parent)
+  count = 0
+  seen = []
+  peek = () -> [count, seen]
+  twice = () -> count * 2
+  m = take(parent)
+  count = count + m
+  seen = append(seen, [m])
+  m = take(parent)
+  count = count + m
+  seen = append(seen, [m])
+  m = take(parent)
+  count = count + m
+  seen = append(seen, [m])
+  m = take(parent)
+  count = count + m
+  seen = append(seen, [m])
+  send(receive(), [peek(), twice(), count])
+end
+";
+
+#[test]
+fn a_plain_process_evicted_after_two_messages_keeps_its_frames_and_shared_cells_and_takes_each_message_once(
+) {
+    let net = Arc::new(LoopbackNet::default());
+    let (mut a, node_a) = moving(&net);
+    let (mut b, node_b) = moving(&net);
+    show(
+        &mut b,
+        "w = tide_open(\"127.0.0.1:7102\")\n\
+         def resident()\n  receive()\nend\n\
+         spawn(resident)",
+    );
+    let left = show(
+        &mut a,
+        &format!(
+            "{TALLY}\
+             w = tide_open(\"127.0.0.1:7101\")\n\
+             p = spawn(tally, [self()])\n\
+             send(p, 1)\nsend(p, 2)\n\
+             first = receive([:took, :_, :_])\nsecond = receive([:took, :_, :_])\n\
+             send(p, 3)\n\
+             moved = evict(p, w, \"127.0.0.1:7102\")\n\
+             send(p, 99)\n\
+             [first, second, receive(:_, 0, :none), starts_with?(moved.image, \"b3:\"), tide_release(w, 1000000, 0) == moved.bytes, alive?(p)]"
+        ),
+    );
+    assert_eq!(left, "((:took 1 1) (:took 2 1) :none #t #t #f)");
+    assert_eq!(node_a.process_count(), 0, "the process left node a");
+    let arrived = show(
+        &mut b,
+        "p = accept(w, 0)\n\
+         third = receive([:took, :_, :_])\n\
+         send(p, 4)\n\
+         fourth = receive([:took, :_, :_])\n\
+         send(p, self())\n\
+         [third, fourth, receive(), receive(:_, 0, :none), accept(w, 0)]",
+    );
+    assert_eq!(
+        arrived, "((:took 3 2) (:took 4 2) ((10 (1 2 3 4)) 20 10) :none ())",
+        "node b never defined tally or take: the code came with the frames; 1 and 2 were taken on node a as pid 1, 3 was queued before the move and 4 sent after, both taken on node b as pid 2; count and seen, captured by peek and twice, are one cell each on node b as on node a, so the closures see 10 and the four messages; 99 went to the pid it left"
+    );
+    assert_eq!(node_b.process_count(), 1, "only the resident is left");
+}
+
+#[test]
+fn a_plain_process_moves_on_again_from_the_node_it_arrived_at() {
+    let net = Arc::new(LoopbackNet::default());
+    let (mut a, _) = moving(&net);
+    let (mut b, _) = moving(&net);
+    let (mut c, _) = moving(&net);
+    show(&mut c, "w = tide_open(\"127.0.0.1:7153\")");
+    show(&mut b, "w = tide_open(\"127.0.0.1:7152\")");
+    show(
+        &mut a,
+        &format!(
+            "{TALLY}\
+             w = tide_open(\"127.0.0.1:7151\")\n\
+             p = spawn(tally, [self()])\n\
+             send(p, 1)\nreceive([:took, :_, :_])\n\
+             evict(p, w, \"127.0.0.1:7152\")\n\
+             tide_release(w, 1000000, 0)"
+        ),
+    );
+    let passed = show(
+        &mut b,
+        "p = accept(w, 0)\n\
+         send(p, 2)\ntook = receive([:took, :_, :_])\n\
+         evict(p, w, \"127.0.0.1:7153\")\n\
+         tide_release(w, 1000000, 0)\n\
+         took",
+    );
+    assert_eq!(passed, "(:took 2 1)");
+    let out = show(
+        &mut c,
+        "p = accept(w, 0)\n\
+         send(p, 3)\nsend(p, 4)\n\
+         took = [receive([:took, :_, :_]), receive([:took, :_, :_])]\n\
+         send(p, self())\n\
+         [took, receive()]",
+    );
+    assert_eq!(
+        out, "(((:took 3 1) (:took 4 1)) ((10 (1 2 3 4)) 20 10))",
+        "the frames node b rebuilt name the same chunk its functions run in, so they park again there"
+    );
+}
+
+#[test]
+fn a_plain_process_evicted_while_it_still_runs_stops_at_its_next_receive_and_takes_nothing_more_here(
+) {
+    let net = Arc::new(LoopbackNet::default());
+    let (mut a, _) = moving(&net);
+    let (mut b, _) = moving(&net);
+    show(&mut b, "w = tide_open(\"127.0.0.1:7112\")");
+    let left = show(
+        &mut a,
+        &format!(
+            "{TALLY}\
+             w = tide_open(\"127.0.0.1:7111\")\n\
+             p = spawn(tally, [self()])\n\
+             send(p, 1)\nsend(p, 2)\nsend(p, 3)\n\
+             evict(p, w, \"127.0.0.1:7112\")\n\
+             tide_release(w, 1000000, 0)\n\
+             receive(:_, 0, :none)"
+        ),
+    );
+    assert_eq!(left, ":none", "nothing was taken on node a");
+    let out = show(
+        &mut b,
+        "p = accept(w, 0)\n\
+         took = [receive([:took, :_, :_]), receive([:took, :_, :_]), receive([:took, :_, :_])]\n\
+         send(p, 4)\nreceive([:took, :_, :_])\n\
+         send(p, self())\n\
+         [took, receive()]",
+    );
+    assert_eq!(
+        out,
+        "(((:took 1 1) (:took 2 1) (:took 3 1)) ((10 (1 2 3 4)) 20 10))"
+    );
+}
+
+#[test]
+fn a_plain_process_holding_a_host_handle_is_refused_by_name_and_keeps_running_where_it_was() {
+    let net = Arc::new(LoopbackNet::default());
+    let (mut a, _) = moving_with_wired_children(&net);
+    let out = show(
+        &mut a,
+        "def holder(parent)\n  h = tide_open(\"127.0.0.1:7123\")\n  send(parent, :open)\n  m = receive()\n  send(parent, [:took, m, self(), tide_stats(h).queued])\nend\n\
+         w = tide_open(\"127.0.0.1:7121\")\n\
+         p = spawn(holder, [self()])\n\
+         receive(:open)\n\
+         refused = begin\n  evict(p, w, \"127.0.0.1:7122\")\n  :moved\nrescue e\n  e.message\nend\n\
+         send(p, 5)\n\
+         [contains?(refused, \"process 1 cannot move: it holds a host handle in stack slot \"), contains?(refused, \"which has no data form and does not cross a wire\"), receive([:took, :_, :_, :_]), tide_stats(w).queued, alive?(p)]",
+    );
+    assert_eq!(out, "(#t #t (:took 5 1 0) 0 #f)");
+}
+
+#[test]
+fn an_arrival_holding_a_native_the_accepting_node_lacks_is_refused_by_name_and_admits_nothing() {
+    let net = Arc::new(LoopbackNet::default());
+    let (mut a, _) = moving_with(
+        &net,
+        None,
+        Arc::new(|| {
+            let mut child = blue_lang_runtime::interpreter_hostless();
+            child.register_fn(
+                "only_here",
+                tatara_lisp_eval::ffi::Arity::Exact(0),
+                |_args: &[tatara_lisp_eval::Value], _host: &mut (), _span| {
+                    Ok(tatara_lisp_eval::Value::Int(1))
+                },
+            );
+            child
+        }),
+    );
+    let (mut b, node_b) = moving(&net);
+    show(&mut b, "w = tide_open(\"127.0.0.1:7162\")");
+    show(
+        &mut a,
+        "def keeper(parent)\n  f = only_here\n  send(parent, :ready)\n  send(parent, [receive(), f])\nend\n\
+         w = tide_open(\"127.0.0.1:7161\")\n\
+         p = spawn(keeper, [self()])\n\
+         receive(:ready)\n\
+         evict(p, w, \"127.0.0.1:7162\")\n\
+         tide_release(w, 1000000, 0)",
+    );
+    let out = show(&mut b, "begin\n  accept(w, 0)\nrescue e\n  e.message\nend");
+    assert!(
+        out.contains("the image cannot resume here: it holds the native function `only_here`, which this node does not register"),
+        "{out}"
+    );
+    assert_eq!(node_b.process_count(), 0, "nothing was admitted");
+}
+
+#[test]
+fn a_plain_process_waiting_with_a_timeout_keeps_what_is_left_of_it_on_the_new_node() {
+    let net = Arc::new(LoopbackNet::default());
+    let (mut a, _) = moving(&net);
+    let (mut b, _) = moving(&net);
+    show(&mut b, "w = tide_open(\"127.0.0.1:7132\")");
+    show(
+        &mut a,
+        "def waiter(parent)\n  send(parent, :ready)\n  send(parent, [:woke, receive(:go, 1000, :late), self()])\nend\n\
+         w = tide_open(\"127.0.0.1:7131\")\n\
+         p = spawn(waiter, [self()])\n\
+         receive(:ready)\n\
+         receive(:never, 600, :waited)\n\
+         evict(p, w, \"127.0.0.1:7132\")\n\
+         tide_release(w, 1000000, 0)",
+    );
+    let out = show(
+        &mut b,
+        "p = accept(w, 0)\n\
+         [receive([:woke, :_, :_], 399, :early), receive([:woke, :_, :_], 2, :none)]",
+    );
+    assert_eq!(
+        out, "(:early (:woke :late 1))",
+        "600 of its 1000 ms passed on node a, so it times out 400 ms after it arrives, not 1000"
+    );
+}
+
+const STEPS: &str = "\
+def steps(parent)
+  n = receive()
+  if n == :boom
+    raise(:boom, \"asked to crash\")
+  end
+  send(parent, [:at, n, self()])
+  steps(parent)
+end
+";
+
+#[test]
+fn a_supervised_plain_process_is_handed_over_and_restarts_from_its_code_on_its_new_node() {
+    let net = Arc::new(LoopbackNet::default());
+    let (mut a, _) = moving(&net);
+    let (mut b, node_b) = moving(&net);
+    show(&mut b, "w = tide_open(\"127.0.0.1:7142\")");
+    let left = show(
+        &mut a,
+        &format!(
+            "{STEPS}\
+             w = tide_open(\"127.0.0.1:7141\")\n\
+             sup = supervisor(:one_for_one, [[steps, [self()]]], 2)\n\
+             s = nth(0, children(sup))\n\
+             send(s, :boom)\n\
+             receive(:never, 10, :waited)\n\
+             send(s, 1)\nfirst = receive([:at, :_, :_])\n\
+             send(s, 2)\n\
+             evict(s, w, \"127.0.0.1:7142\")\n\
+             tide_release(w, 1000000, 0)\n\
+             [first, children(sup), alive?(s)]"
+        ),
+    );
+    assert_eq!(left, "((:at 1 2) () #f)");
+    let arrived = show(
+        &mut b,
+        "p = accept(w, 0)\n\
+         moved = receive([:at, :_, :_])\n\
+         send(p, :boom)\nreceive(:never, 10, :waited)\n\
+         send(p, 3)\nrestarted = receive([:at, :_, :_])\n\
+         send(p, :boom)\nreceive(:never, 10, :waited)\n\
+         [moved, restarted, alive?(p)]",
+    );
+    assert_eq!(
+        arrived, "((:at 2 2) (:at 3 2) #f)",
+        "on node b the message queued before the move is taken by the frames that moved; a crash restarts it from its code under a one_for_one supervisor of its own, and the restart it spent on node a counts, so the second crash there is the one its supervisor gives up on"
+    );
+    assert_eq!(node_b.process_count(), 0);
+    assert_eq!(
+        node_b
+            .traces()
+            .iter()
+            .map(|t| t.truncated)
+            .collect::<Vec<_>>(),
+        [true, false],
+        "the incarnation that arrived has no tape from before the move, so its trace says so; the one its supervisor restarted from its code has its whole tape"
+    );
 }
 
 #[test]

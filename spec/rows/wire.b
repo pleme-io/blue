@@ -193,17 +193,60 @@ row(
 )
 
 row(
-  "wire.evict.a_plain_process_is_refused",
+  "wire.evict.a_plain_process_moves_with_its_frames",
   join_lines(
     [
-      "def w(x)",
-      "  receive()",
+      "def tally(parent)",
+      "  count = 0",
+      "  peek = () -> count",
+      "  count = count + receive()",
+      "  send(parent, :took)",
+      "  count = count + receive()",
+      "  send(receive(), [count, peek()])",
       "end",
       "a = tide_open(\"127.0.0.1:0\")",
-      "evict(spawn(w, [1]), a, \"127.0.0.1:9\")"
+      "b = tide_open(\"127.0.0.1:0\")",
+      "p = spawn(tally, [self])",
+      "send(p, 1)",
+      "receive(:took)",
+      "send(p, 2)",
+      "moved = evict(p, a, tide_stats(b).address)",
+      "tide_release(a, 1_000_000, 0)",
+      "q = accept(b, 5000)",
+      "send(q, self)",
+      "[receive(), alive?(p), moved.frames > 0]"
     ]
   ),
-  fails(:eval, "not a server"),
+  value("[[3, 3], false, true]"),
+  host()
+)
+
+row(
+  "wire.evict.a_plain_process_holding_a_host_handle_is_refused",
+  join_lines(
+    [
+      "def holder(parent)",
+      "  w = tide_open(\"127.0.0.1:0\")",
+      "  send(parent, :open)",
+      "  receive()",
+      "  w",
+      "end",
+      "a = tide_open(\"127.0.0.1:0\")",
+      "p = spawn(holder, [self])",
+      "receive(:open)",
+      "evict(p, a, \"127.0.0.1:9\")"
+    ]
+  ),
+  fails(:eval, "holds a host handle"),
+  host()
+)
+
+row(
+  "wire.evict.the_program_is_refused",
+  join_lines(
+    ["a = tide_open(\"127.0.0.1:0\")", "evict(self, a, \"127.0.0.1:9\")"]
+  ),
+  fails(:eval, "the tree-walker"),
   host()
 )
 

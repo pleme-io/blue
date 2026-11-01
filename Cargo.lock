@@ -1876,9 +1876,9 @@ dependencies = [
 
 [[package]]
 name = "monosashi"
-version = "0.4.12"
+version = "0.4.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f359f6b5cfd361135fbf4010dcae4209e44e7f268af828e7d813e078a0524cc8"
+checksum = "24546c97f73a6193a1200810ee58a9d825b94aabf011124da966a1b36a5fb0f9"
 
 [[package]]
 name = "notify"
@@ -3070,18 +3070,18 @@ dependencies = [
 
 [[package]]
 name = "tatara-closed-set"
-version = "0.4.12"
+version = "0.4.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d26b772ad47629e5d986a3e174ac51c94a2b78bfdef9e00660d46117654d834"
+checksum = "ca305fd7c71e4a80f8e1d737855c3cb8930ea6db9dd09d6c27abad93ac0b9729"
 dependencies = [
  "tatara-closed-set-derive",
 ]
 
 [[package]]
 name = "tatara-closed-set-derive"
-version = "0.4.12"
+version = "0.4.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "adc793683b0e4a438d6fc21ef329a85ecdb30f8c79e8e6fb69bf3531917cb52b"
+checksum = "074a6a2211be2edb268c38faadb82311b1a6734d3137ed4ea9bbbdfa48526173"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3090,9 +3090,9 @@ dependencies = [
 
 [[package]]
 name = "tatara-lisp"
-version = "0.4.12"
+version = "0.4.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d66437a4533e8abe45f5dfc5b97505b6c398e7d79dfec54707df068ecd92686"
+checksum = "c1f93c4feecbf53843d41781f9293e6fa18cd51a2d07fac157249db40b4f065c"
 dependencies = [
  "blake3",
  "serde",
@@ -3104,9 +3104,9 @@ dependencies = [
 
 [[package]]
 name = "tatara-lisp-derive"
-version = "0.4.12"
+version = "0.4.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e47eef651714d0610f2e6f3e6029528217b12a85cdbba71ff0df3f784731420d"
+checksum = "b7626ef7227ba32c3a98d60747d118ffe61be4dd26e0f524bfe34fa0a5960003"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3115,12 +3115,14 @@ dependencies = [
 
 [[package]]
 name = "tatara-lisp-eval"
-version = "0.4.12"
+version = "0.4.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bb8bc0c7cc4b86e3e50081d1fb747531132e3f433328bdb59c2e3b50d3654ccb"
+checksum = "3bc1768b66e106da38365cefda1484a3ad9548aaa095aeb06458c2e9ce924328"
 dependencies = [
+ "blake3",
  "imbl",
  "monosashi",
+ "serde",
  "stacker",
  "tatara-closed-set",
  "tatara-lisp",

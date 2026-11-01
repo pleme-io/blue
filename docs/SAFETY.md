@@ -110,10 +110,18 @@ document lands.
   account stay its own and a crash replays from its tape alone
   (`crates/blue-lang-proc/src/node.rs` `launch`, `fly`). `IdleLane::Held`
   keeps the earlier shape, the node waiting for each idle slice, for a node
-  whose whole interleaving must replay (`slice_idle`). An evicted server
-  crosses as data only: its state is refused unless it copies as a message
-  does, and its image runs under the accepting node's frame, never more
-  (`crates/blue-lang-proc/src/image.rs`).
+  whose whole interleaving must replay (`slice_idle`). An evicted process
+  crosses as data only, and its image runs under the accepting node's frame,
+  never more (`crates/blue-lang-proc/src/image.rs`). A server's state is
+  refused unless it copies as a message does. A plain process (2026-10-31)
+  crosses as its VM frames in plain data (tatara-lisp-eval 0.4.13
+  `Vm::parked`): a function is the index of its entry in the code the image
+  carries, a native function is its name, and a host handle, a promise or a
+  tree-walker closure in the frames is refused by name before anything moves
+  (`crates/blue-lang-proc/src/node.rs` `continuation`, `parking`). The
+  accepting node rebuilds the frames against the code it compiles itself and
+  refuses, by name, frames whose chunk fingerprint differs or that hold a
+  native it does not register (`resume`).
 - **Unsafe Rust.** 18 crates. Five hold `unsafe` in non-test code:
   `blue-lang-kiwari` (59 occurrences, one seam,
   `src/lib.rs:18` `#![deny(unsafe_code)]`, `src/ts.rs:13` the one

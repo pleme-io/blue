@@ -533,7 +533,6 @@ dependencies = [
  "blue-lang-syntax",
  "blue-lang-waku",
  "ed25519-dalek",
- "frost-ed25519",
  "hmac",
  "quick-xml 0.38.4",
  "rand_core 0.6.4",
@@ -542,6 +541,7 @@ dependencies = [
  "serde_json",
  "sha1",
  "sha2",
+ "tameshi",
  "tatara-lisp",
  "tatara-lisp-eval",
  "thiserror 2.0.19",
@@ -3029,9 +3029,9 @@ dependencies = [
 
 [[package]]
 name = "tameshi"
-version = "0.1.8"
+version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "88b1837451791577d171896533098db375601f07e9f001f3beac4846d4eca0d4"
+checksum = "11caed638de3b9451b38b3c4bfcc9a8cfd661b96b3254f90f7804e76070a529d"
 dependencies = [
  "axum",
  "blake3",

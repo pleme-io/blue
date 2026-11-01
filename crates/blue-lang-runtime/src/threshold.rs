@@ -1,13 +1,12 @@
-use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
-use frost_ed25519 as frost;
+use tameshi::threshold::keygen::{self, dkg};
+use tameshi::threshold::signing;
+use tameshi::threshold::{GroupKey, KeyShare, ParticipantId, ThresholdError, ThresholdParams};
 use tatara_lisp_eval::ffi::Arity;
 use tatara_lisp_eval::{EvalError, Interpreter, MapKey, Value};
 
-use crate::crypto::{
-    ed25519_verify, encode_hex, hex_vec, message_bytes, KEY_BYTES, SIGNATURE_BYTES,
-};
+use crate::crypto::{encode_hex, hex_vec, message_bytes};
 use crate::errors::{raise_kind, raise_kind_with};
 use crate::net::record;
 use crate::provide::Key;
@@ -77,34 +76,11 @@ fn locked<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
-struct ShareSecret {
-    participant: u16,
-    package: frost::keys::KeyPackage,
-}
+struct Nonces(Mutex<Option<signing::Nonces>>);
 
-struct Pending {
-    participant: u16,
-    digest: [u8; 32],
-    nonces: frost::round1::SigningNonces,
-}
+struct Round1Secret(Mutex<Option<dkg::Round1Secret>>);
 
-struct Nonces(Mutex<Option<Pending>>);
-
-struct Round1State {
-    participant: u16,
-    max: u16,
-    package: frost::keys::dkg::round1::SecretPackage,
-}
-
-struct Round1Secret(Mutex<Option<Round1State>>);
-
-struct Round2State {
-    participant: u16,
-    max: u16,
-    package: frost::keys::dkg::round2::SecretPackage,
-}
-
-struct Round2Secret(Mutex<Option<Round2State>>);
+struct Round2Secret(Mutex<Option<dkg::Round2Secret>>);
 
 fn refused(fname: &'static str, message: String, span: Span) -> EvalError {
     raise_kind("refused", format!("{fname}: {message}"), span)
@@ -114,12 +90,11 @@ fn bad_option(fname: &'static str, message: String, span: Span) -> EvalError {
     raise_kind("bad_option", format!("{fname}: {message}"), span)
 }
 
-fn undecodable(
-    fname: &'static str,
-    what: &str,
-    why: impl std::fmt::Display,
-    span: Span,
-) -> EvalError {
+fn undecodable(fname: &'static str, what: &str, e: ThresholdError, span: Span) -> EvalError {
+    let why = match e {
+        ThresholdError::Protocol(why) => why,
+        other => other.to_string(),
+    };
     raise_kind(
         "decode_error",
         format!("{fname}: the {what} does not decode: {why}"),
@@ -127,8 +102,40 @@ fn undecodable(
     )
 }
 
-fn protocol(fname: &'static str, e: &frost::Error, span: Span) -> EvalError {
-    refused(fname, format!("the threshold protocol refused: {e}"), span)
+fn refusal(fname: &'static str, e: ThresholdError, span: Span) -> EvalError {
+    match e {
+        ThresholdError::InvalidParams { .. } => bad_option(fname, e.to_string(), span),
+        ThresholdError::InvalidShares { culprits } if !culprits.is_empty() => {
+            let culprits: Vec<Value> = culprits.iter().map(|p| int(p.get())).collect();
+            raise_kind_with(
+                "tampered",
+                format!(
+                    "{fname}: signature shares from participants {} do not verify",
+                    to_list(&culprits)
+                ),
+                record(vec![("culprits", Value::list(culprits))]),
+                span,
+            )
+        }
+        ThresholdError::InvalidSignature => raise_kind(
+            "tampered",
+            format!("{fname}: the aggregate is not a valid signature under the group key"),
+            span,
+        ),
+        other => refused(fname, other.to_string(), span),
+    }
+}
+
+fn below(fname: &'static str, what: &str, have: usize, need: u16, span: Span) -> EvalError {
+    raise_kind_with(
+        "refused",
+        format!("{fname}: {have} {what} cannot sign for a group that needs {need}"),
+        record(vec![
+            ("have", int(i64::try_from(have).unwrap_or(i64::MAX))),
+            ("need", int(need)),
+        ]),
+        span,
+    )
 }
 
 fn int(n: impl Into<i64>) -> Value {
@@ -176,18 +183,13 @@ fn index(v: &Value, what: &str, fname: &'static str, span: Span) -> Result<u16, 
     }
 }
 
-fn identifier(participant: u16) -> frost::Identifier {
-    frost::Identifier::try_from(participant).expect("a participant from 1 is a frost identifier")
-}
-
-fn participant_of(id: &frost::Identifier) -> Option<u16> {
-    match id.serialize().as_slice() {
-        [low, high, rest @ ..] if rest.iter().all(|b| *b == 0) => {
-            let p = u16::from_le_bytes([*low, *high]);
-            (p >= 1 && identifier(p) == *id).then_some(p)
-        }
-        _ => None,
-    }
+fn participant(
+    v: &Value,
+    what: &str,
+    fname: &'static str,
+    span: Span,
+) -> Result<ParticipantId, EvalError> {
+    ParticipantId::new(index(v, what, fname, span)?).map_err(|e| refusal(fname, e, span))
 }
 
 fn params(
@@ -195,17 +197,10 @@ fn params(
     max: &Value,
     fname: &'static str,
     span: Span,
-) -> Result<(u16, u16), EvalError> {
+) -> Result<ThresholdParams, EvalError> {
     let k = index(min, "threshold", fname, span)?;
     let n = index(max, "group size", fname, span)?;
-    if k < 2 || k > n {
-        return Err(bad_option(
-            fname,
-            format!("a threshold group needs 2 <= k <= n, got {k}-of-{n}"),
-            span,
-        ));
-    }
-    Ok((k, n))
+    ThresholdParams::new(k, n).map_err(|e| refusal(fname, e, span))
 }
 
 fn hex_of(
@@ -240,21 +235,18 @@ fn foreign<T: Send + Sync + 'static>(v: &Value) -> Option<Arc<T>> {
     }
 }
 
-fn share_value(secret: ShareSecret) -> Result<Value, String> {
-    let key = verifying_hex(secret.package.verifying_key())?;
-    let min = *secret.package.min_signers();
-    let participant = secret.participant;
-    Ok(record(vec![
-        ("participant", int(participant)),
-        ("key", text(key)),
-        ("min", int(min)),
-        ("secret", Value::Foreign(Arc::new(secret))),
-    ]))
+fn share_value(share: KeyShare) -> Value {
+    record(vec![
+        ("participant", int(share.participant().get())),
+        ("key", text(encode_hex(&share.group_key()))),
+        ("min", int(share.min_signers())),
+        ("secret", Value::Foreign(Arc::new(share))),
+    ])
 }
 
-fn share_of(v: &Value, fname: &'static str, span: Span) -> Result<Arc<ShareSecret>, EvalError> {
+fn share_of(v: &Value, fname: &'static str, span: Span) -> Result<Arc<KeyShare>, EvalError> {
     field(v, "secret")
-        .and_then(foreign::<ShareSecret>)
+        .and_then(foreign::<KeyShare>)
         .ok_or_else(|| {
             bad_option(
                 fname,
@@ -267,35 +259,22 @@ fn share_of(v: &Value, fname: &'static str, span: Span) -> Result<Arc<ShareSecre
         })
 }
 
-fn verifying_hex(key: &frost::VerifyingKey) -> Result<String, String> {
-    key.serialize()
-        .map(|b| encode_hex(&b))
-        .map_err(|e| e.to_string())
+fn group_value(group: &GroupKey) -> Result<(String, String), ThresholdError> {
+    Ok((
+        encode_hex(&group.to_bytes()?),
+        encode_hex(&group.verifying_key()),
+    ))
 }
 
-fn group_value(group: &frost::keys::PublicKeyPackage) -> Result<(String, String), String> {
-    let bytes = group.serialize().map_err(|e| e.to_string())?;
-    Ok((encode_hex(&bytes), verifying_hex(group.verifying_key())?))
-}
-
-fn group_of(
+fn request(
+    data: &[u8],
     v: &Value,
     fname: &'static str,
     span: Span,
-) -> Result<frost::keys::PublicKeyPackage, EvalError> {
-    let bytes = hex_of(v, "group", fname, span)?;
-    frost::keys::PublicKeyPackage::deserialize(&bytes)
-        .map_err(|e| undecodable(fname, "group", e, span))
-}
-
-fn commitments_of(
-    v: &Value,
-    fname: &'static str,
-    span: Span,
-) -> Result<BTreeMap<frost::Identifier, frost::round1::SigningCommitments>, EvalError> {
-    let mut by = BTreeMap::new();
+) -> Result<signing::SigningRequest, EvalError> {
+    let mut commitments = Vec::new();
     for c in &list(v, "commitments", fname, span)? {
-        let participant = index(
+        let signer = participant(
             need(c, "participant", "commitment", fname, span)?,
             "participant",
             fname,
@@ -307,153 +286,91 @@ fn commitments_of(
             fname,
             span,
         )?;
-        let commitment = frost::round1::SigningCommitments::deserialize(&bytes)
-            .map_err(|e| undecodable(fname, "commitment", e, span))?;
-        if by.insert(identifier(participant), commitment).is_some() {
-            return Err(refused(
-                fname,
-                format!("participant {participant} commits twice"),
-                span,
-            ));
-        }
+        commitments.push(
+            signing::Commitment::from_bytes(signer, &bytes)
+                .map_err(|e| undecodable(fname, "commitment", e, span))?,
+        );
     }
-    Ok(by)
+    signing::SigningRequest::from_commitments(data, commitments).map_err(|e| match e {
+        ThresholdError::DuplicateParticipant(p) => {
+            refused(fname, format!("participant {p} commits twice"), span)
+        }
+        other => refusal(fname, other, span),
+    })
 }
 
-fn at_least(
-    have: usize,
-    need: u16,
-    what: &str,
+fn broadcasts(
+    v: &Value,
     fname: &'static str,
     span: Span,
-) -> Result<(), EvalError> {
-    if have < usize::from(need) {
-        return Err(raise_kind_with(
-            "refused",
-            format!("{fname}: {have} {what} cannot sign for a group that needs {need}"),
-            record(vec![
-                ("have", int(i64::try_from(have).unwrap_or(i64::MAX))),
-                ("need", int(need)),
-            ]),
-            span,
-        ));
-    }
-    Ok(())
-}
-
-fn digest(message: &[u8]) -> [u8; 32] {
-    *blake3::hash(message).as_bytes()
+) -> Result<Vec<dkg::Round1Package>, EvalError> {
+    list(v, "broadcasts", fname, span)?
+        .iter()
+        .map(|b| {
+            let from = participant(
+                need(b, "from", "broadcast", fname, span)?,
+                "sender",
+                fname,
+                span,
+            )?;
+            let bytes = hex_of(
+                need(b, "package", "broadcast", fname, span)?,
+                "broadcast",
+                fname,
+                span,
+            )?;
+            dkg::Round1Package::from_bytes(from, &bytes)
+                .map_err(|e| undecodable(fname, "broadcast", e, span))
+        })
+        .collect()
 }
 
 fn deal(source: &Source, args: &[Value], span: Span) -> Result<Value, EvalError> {
     const F: &str = "threshold_deal";
-    let (k, n) = params(&args[0], &args[1], F, span)?;
-    let rng = source.draw(F, span)?;
-    let (secret_shares, group) =
-        frost::keys::generate_with_dealer(n, k, frost::keys::IdentifierList::Default, rng)
-            .map_err(|e| protocol(F, &e, span))?;
-    let native = |e: String| EvalError::native_fn(F, e, span);
-    let mut shares = Vec::with_capacity(usize::from(n));
-    for participant in 1..=n {
-        let secret_share = secret_shares
-            .get(&identifier(participant))
-            .ok_or_else(|| native(format!("the dealer made no share for {participant}")))?;
-        let package = frost::keys::KeyPackage::try_from(secret_share.clone())
-            .map_err(|e| protocol(F, &e, span))?;
-        shares.push(
-            share_value(ShareSecret {
-                participant,
-                package,
-            })
-            .map_err(native)?,
-        );
-    }
-    let (group_hex, key) = group_value(&group).map_err(native)?;
+    let params = params(&args[0], &args[1], F, span)?;
+    let mut rng = source.draw(F, span)?;
+    let (shares, group) =
+        keygen::trusted_dealer_with_rng(params, &mut rng).map_err(|e| refusal(F, e, span))?;
+    let (group_hex, key) = group_value(&group).map_err(|e| refusal(F, e, span))?;
     Ok(record(vec![
         ("group", text(group_hex)),
         ("key", text(key)),
-        ("min", int(k)),
-        ("max", int(n)),
-        ("shares", Value::list(shares)),
+        ("min", int(params.min_signers())),
+        ("max", int(params.max_signers())),
+        ("shares", Value::list(shares.into_iter().map(share_value))),
     ]))
 }
 
 fn dkg_start(source: &Source, args: &[Value], span: Span) -> Result<Value, EvalError> {
     const F: &str = "threshold_dkg_start";
-    let participant = index(&args[0], "participant", F, span)?;
-    let (k, n) = params(&args[1], &args[2], F, span)?;
-    if participant > n {
-        return Err(bad_option(
+    let me = participant(&args[0], "participant", F, span)?;
+    let params = params(&args[1], &args[2], F, span)?;
+    let mut rng = source.draw(F, span)?;
+    let (secret, package) = dkg::start_with_rng(me, params, &mut rng).map_err(|e| match e {
+        ThresholdError::UnknownParticipant(p) => bad_option(
             F,
-            format!("participant {participant} is not in a group of {n}"),
+            format!(
+                "participant {p} is not in a group of {}",
+                params.max_signers()
+            ),
             span,
-        ));
-    }
-    let rng = source.draw(F, span)?;
-    let (secret, package) = frost::keys::dkg::part1(identifier(participant), n, k, rng)
-        .map_err(|e| protocol(F, &e, span))?;
-    let bytes = package.serialize().map_err(|e| protocol(F, &e, span))?;
+        ),
+        other => refusal(F, other, span),
+    })?;
+    let bytes = package.to_bytes().map_err(|e| refusal(F, e, span))?;
     Ok(record(vec![
         (
             "secret",
-            Value::Foreign(Arc::new(Round1Secret(Mutex::new(Some(Round1State {
-                participant,
-                max: n,
-                package: secret,
-            }))))),
+            Value::Foreign(Arc::new(Round1Secret(Mutex::new(Some(secret))))),
         ),
         (
             "broadcast",
             record(vec![
-                ("from", int(participant)),
+                ("from", int(me.get())),
                 ("package", text(encode_hex(&bytes))),
             ]),
         ),
     ]))
-}
-
-fn broadcasts_from_others(
-    me: u16,
-    max: u16,
-    v: &Value,
-    fname: &'static str,
-    span: Span,
-) -> Result<BTreeMap<frost::Identifier, frost::keys::dkg::round1::Package>, EvalError> {
-    let mut others = BTreeMap::new();
-    for b in &list(v, "broadcasts", fname, span)? {
-        let from = index(
-            need(b, "from", "broadcast", fname, span)?,
-            "sender",
-            fname,
-            span,
-        )?;
-        if from > max {
-            return Err(refused(
-                fname,
-                format!("participant {from} is not in a group of {max}"),
-                span,
-            ));
-        }
-        if from == me {
-            continue;
-        }
-        let bytes = hex_of(
-            need(b, "package", "broadcast", fname, span)?,
-            "broadcast",
-            fname,
-            span,
-        )?;
-        let package = frost::keys::dkg::round1::Package::deserialize(&bytes)
-            .map_err(|e| undecodable(fname, "broadcast", e, span))?;
-        if others.insert(identifier(from), package).is_some() {
-            return Err(refused(
-                fname,
-                format!("participant {from} broadcasts twice"),
-                span,
-            ));
-        }
-    }
-    Ok(others)
 }
 
 fn dkg_exchange(args: &[Value], span: Span) -> Result<Value, EvalError> {
@@ -472,28 +389,32 @@ fn dkg_exchange(args: &[Value], span: Span) -> Result<Value, EvalError> {
             span,
         )
     })?;
-    let others = broadcasts_from_others(state.participant, state.max, &args[1], F, span)?;
-    let (secret, outgoing) =
-        frost::keys::dkg::part2(state.package, &others).map_err(|e| protocol(F, &e, span))?;
-    let mut sends = Vec::with_capacity(outgoing.len());
-    for to in 1..=state.max {
-        if let Some(package) = outgoing.get(&identifier(to)) {
-            let bytes = package.serialize().map_err(|e| protocol(F, &e, span))?;
-            sends.push(record(vec![
-                ("from", int(state.participant)),
-                ("to", int(to)),
-                ("package", text(encode_hex(&bytes))),
-            ]));
+    let max = state.params().max_signers();
+    let received = broadcasts(&args[1], F, span)?;
+    let (secret, outgoing) = dkg::exchange(state, &received).map_err(|e| match e {
+        ThresholdError::UnknownParticipant(p) => refused(
+            F,
+            format!("participant {p} is not in a group of {max}"),
+            span,
+        ),
+        ThresholdError::DuplicateParticipant(p) => {
+            refused(F, format!("participant {p} broadcasts twice"), span)
         }
+        other => refusal(F, other, span),
+    })?;
+    let mut sends = Vec::with_capacity(outgoing.len());
+    for package in &outgoing {
+        let bytes = package.to_bytes().map_err(|e| refusal(F, e, span))?;
+        sends.push(record(vec![
+            ("from", int(package.from.get())),
+            ("to", int(package.to.get())),
+            ("package", text(encode_hex(&bytes))),
+        ]));
     }
     Ok(record(vec![
         (
             "secret",
-            Value::Foreign(Arc::new(Round2Secret(Mutex::new(Some(Round2State {
-                participant: state.participant,
-                max: state.max,
-                package: secret,
-            }))))),
+            Value::Foreign(Arc::new(Round2Secret(Mutex::new(Some(secret))))),
         ),
         ("sends", Value::list(sends)),
     ]))
@@ -511,39 +432,33 @@ fn dkg_finish(args: &[Value], span: Span) -> Result<Value, EvalError> {
     let state = locked(&handle.0)
         .take()
         .ok_or_else(|| refused(F, "this round two secret already finished".into(), span))?;
-    let others = broadcasts_from_others(state.participant, state.max, &args[1], F, span)?;
-    let mut mine = BTreeMap::new();
+    let me = state.participant();
+    let max = state.params().max_signers();
+    let received = broadcasts(&args[1], F, span)?;
+    let mut mine = Vec::new();
     for s in &list(&args[2], "sends", F, span)? {
-        let to = index(need(s, "to", "send", F, span)?, "recipient", F, span)?;
-        if to != state.participant {
+        let to = participant(need(s, "to", "send", F, span)?, "recipient", F, span)?;
+        if to != me {
             continue;
         }
-        let from = index(need(s, "from", "send", F, span)?, "sender", F, span)?;
-        if from > state.max || from == state.participant {
-            return Err(refused(
-                F,
-                format!("participant {from} cannot send to {to}"),
-                span,
-            ));
-        }
+        let from = participant(need(s, "from", "send", F, span)?, "sender", F, span)?;
         let bytes = hex_of(need(s, "package", "send", F, span)?, "send", F, span)?;
-        let package = frost::keys::dkg::round2::Package::deserialize(&bytes)
-            .map_err(|e| undecodable(F, "send", e, span))?;
-        if mine.insert(identifier(from), package).is_some() {
-            return Err(refused(F, format!("participant {from} sends twice"), span));
-        }
+        mine.push(
+            dkg::Round2Package::from_bytes(from, to, &bytes)
+                .map_err(|e| undecodable(F, "send", e, span))?,
+        );
     }
-    let (package, group) = frost::keys::dkg::part3(&state.package, &others, &mine)
-        .map_err(|e| protocol(F, &e, span))?;
-    let native = |e: String| EvalError::native_fn(F, e, span);
-    let share = share_value(ShareSecret {
-        participant: state.participant,
-        package,
-    })
-    .map_err(native)?;
-    let (group_hex, key) = group_value(&group).map_err(native)?;
+    let (share, group) = dkg::finish(&state, &received, &mine).map_err(|e| match e {
+        ThresholdError::UnknownParticipant(p) => refused(
+            F,
+            format!("participant {p} is not in a group of {max}"),
+            span,
+        ),
+        other => refusal(F, other, span),
+    })?;
+    let (group_hex, key) = group_value(&group).map_err(|e| refusal(F, e, span))?;
     Ok(record(vec![
-        ("share", share),
+        ("share", share_value(share)),
         ("group", text(group_hex)),
         ("key", text(key)),
     ]))
@@ -554,21 +469,17 @@ fn commit(source: &Source, args: &[Value], span: Span) -> Result<Value, EvalErro
     let share = share_of(&args[0], F, span)?;
     let data = message(&args[1], F, span)?;
     let mut rng = source.draw(F, span)?;
-    let (nonces, commitments) = frost::round1::commit(share.package.signing_share(), &mut rng);
-    let bytes = commitments.serialize().map_err(|e| protocol(F, &e, span))?;
+    let (nonces, commitment) = signing::commit_with_rng(&share, &data, &mut rng);
+    let bytes = commitment.to_bytes().map_err(|e| refusal(F, e, span))?;
     Ok(record(vec![
         (
             "nonces",
-            Value::Foreign(Arc::new(Nonces(Mutex::new(Some(Pending {
-                participant: share.participant,
-                digest: digest(&data),
-                nonces,
-            }))))),
+            Value::Foreign(Arc::new(Nonces(Mutex::new(Some(nonces))))),
         ),
         (
             "commitment",
             record(vec![
-                ("participant", int(share.participant)),
+                ("participant", int(commitment.participant.get())),
                 ("hex", text(encode_hex(&bytes))),
             ]),
         ),
@@ -581,7 +492,7 @@ fn sign(args: &[Value], span: Span) -> Result<Value, EvalError> {
     let handle = foreign::<Nonces>(&args[1])
         .ok_or_else(|| bad_option(F, "expected the nonces threshold_commit made".into(), span))?;
     let data = message(&args[2], F, span)?;
-    let commitments = commitments_of(&args[3], F, span)?;
+    let request = request(&data, &args[3], F, span)?;
     let pending = locked(&handle.0).take().ok_or_else(|| {
         refused(
             F,
@@ -589,54 +500,25 @@ fn sign(args: &[Value], span: Span) -> Result<Value, EvalError> {
             span,
         )
     })?;
-    if pending.participant != share.participant || pending.digest != digest(&data) {
-        return Err(refused(
-            F,
-            format!(
-                "participant {} committed to a different signing session",
-                share.participant
-            ),
-            span,
-        ));
-    }
-    at_least(
-        commitments.len(),
-        *share.package.min_signers(),
-        "commitments",
-        F,
-        span,
-    )?;
-    let request = frost::SigningPackage::new(commitments, &data);
-    let signature_share =
-        frost::round2::sign(&request, &pending.nonces, &share.package).map_err(|e| match e {
-            frost::Error::MissingCommitment | frost::Error::IncorrectCommitment => refused(
-                F,
-                format!(
-                    "the commitments do not carry participant {}'s commitment",
-                    share.participant
-                ),
-                span,
-            ),
-            other => protocol(F, &other, span),
-        })?;
+    let part = signing::sign(&request, pending, &share).map_err(|e| match e {
+        ThresholdError::BelowThreshold { have, need } => below(F, "commitments", have, need, span),
+        other => refusal(F, other, span),
+    })?;
     Ok(record(vec![
-        ("participant", int(share.participant)),
-        ("hex", text(encode_hex(&signature_share.serialize()))),
+        ("participant", int(part.participant.get())),
+        ("hex", text(encode_hex(&part.to_bytes()))),
     ]))
 }
 
 fn aggregate(args: &[Value], span: Span) -> Result<Value, EvalError> {
     const F: &str = "threshold_aggregate";
-    let group = group_of(&args[0], F, span)?;
+    let group = GroupKey::from_bytes(&hex_of(&args[0], "group", F, span)?)
+        .map_err(|e| undecodable(F, "group", e, span))?;
     let data = message(&args[1], F, span)?;
-    let commitments = commitments_of(&args[2], F, span)?;
-    let need_k = group
-        .min_signers()
-        .ok_or_else(|| EvalError::native_fn(F, "the group names no threshold", span))?;
-    let mut by = BTreeMap::new();
-    let mut signers = BTreeSet::new();
+    let request = request(&data, &args[2], F, span)?;
+    let mut parts = Vec::new();
     for s in &list(&args[3], "signature shares", F, span)? {
-        let participant = index(
+        let signer = participant(
             need(s, "participant", "signature share", F, span)?,
             "participant",
             F,
@@ -648,63 +530,26 @@ fn aggregate(args: &[Value], span: Span) -> Result<Value, EvalError> {
             F,
             span,
         )?;
-        let share = frost::round2::SignatureShare::deserialize(&bytes)
-            .map_err(|e| undecodable(F, "signature share", e, span))?;
-        if !commitments.contains_key(&identifier(participant)) {
-            return Err(refused(
-                F,
-                format!("participant {participant} signed without a commitment"),
-                span,
-            ));
-        }
-        if by.insert(identifier(participant), share).is_some() {
-            return Err(refused(
-                F,
-                format!("participant {participant} signs twice"),
-                span,
-            ));
-        }
-        signers.insert(participant);
+        parts.push(
+            signing::SignatureShare::from_bytes(signer, &bytes)
+                .map_err(|e| undecodable(F, "signature share", e, span))?,
+        );
     }
-    at_least(by.len(), need_k, "signature shares", F, span)?;
-    let request = frost::SigningPackage::new(commitments, &data);
-    let signature = frost::aggregate(&request, &by, &group).map_err(|e| {
-        let culprits: Vec<Value> = signers
-            .iter()
-            .filter(|p| e.culprits().contains(&identifier(**p)))
-            .map(|p| int(*p))
-            .collect();
-        if culprits.is_empty() {
-            protocol(F, &e, span)
-        } else {
-            raise_kind_with(
-                "tampered",
-                format!(
-                    "{F}: signature shares from participants {} do not verify",
-                    to_list(&culprits)
-                ),
-                record(vec![("culprits", Value::list(culprits))]),
-                span,
-            )
+    let signature = signing::aggregate(&group, &request, &parts).map_err(|e| match e {
+        ThresholdError::BelowThreshold { have, need } => {
+            below(F, "signature shares", have, need, span)
         }
-    })?;
-    let bytes = signature.serialize().map_err(|e| protocol(F, &e, span))?;
-    let sig = <[u8; SIGNATURE_BYTES]>::try_from(bytes.as_slice())
-        .map_err(|_| EvalError::native_fn(F, "an Ed25519 signature is 64 bytes", span))?;
-    let key_bytes = group
-        .verifying_key()
-        .serialize()
-        .map_err(|e| protocol(F, &e, span))?;
-    let key = <[u8; KEY_BYTES]>::try_from(key_bytes.as_slice())
-        .map_err(|_| EvalError::native_fn(F, "an Ed25519 key is 32 bytes", span))?;
-    match ed25519_verify(&key, &data, &sig) {
-        Ok(true) => Ok(text(encode_hex(&sig))),
-        Ok(false) | Err(_) => Err(raise_kind(
-            "tampered",
-            format!("{F}: the aggregate is not a valid signature under the group key"),
+        ThresholdError::UnknownParticipant(p) => refused(
+            F,
+            format!("participant {p} signed without a commitment"),
             span,
-        )),
-    }
+        ),
+        ThresholdError::DuplicateParticipant(p) => {
+            refused(F, format!("participant {p} signs twice"), span)
+        }
+        other => refusal(F, other, span),
+    })?;
+    Ok(text(encode_hex(&signature.to_bytes())))
 }
 
 fn to_list(xs: &[Value]) -> String {
@@ -717,30 +562,22 @@ fn to_list(xs: &[Value]) -> String {
 fn share_export(args: &[Value], span: Span) -> Result<Value, EvalError> {
     const F: &str = "threshold_share_export";
     let share = share_of(&args[0], F, span)?;
-    let bytes = share
-        .package
-        .serialize()
-        .map_err(|e| protocol(F, &e, span))?;
+    let bytes = share.to_bytes().map_err(|e| refusal(F, e, span))?;
     Ok(text(encode_hex(&bytes)))
 }
 
 fn share_import(args: &[Value], span: Span) -> Result<Value, EvalError> {
     const F: &str = "threshold_share_import";
     let bytes = hex_of(&args[0], "share", F, span)?;
-    let package = frost::keys::KeyPackage::deserialize(&bytes)
-        .map_err(|e| undecodable(F, "share", e, span))?;
-    let participant = participant_of(package.identifier()).ok_or_else(|| {
-        refused(
+    let share = KeyShare::from_bytes(&bytes).map_err(|e| match e {
+        ThresholdError::InvalidParticipant(_) => refused(
             F,
             "the share names no participant from 1 to 65535".into(),
             span,
-        )
+        ),
+        other => undecodable(F, "share", other, span),
     })?;
-    share_value(ShareSecret {
-        participant,
-        package,
-    })
-    .map_err(|e| EvalError::native_fn(F, e, span))
+    Ok(share_value(share))
 }
 
 fn install<H: 'static>(interp: &mut Interpreter<H>, key: Key, source: &Source) {
@@ -822,7 +659,8 @@ mod tests {
     #[test]
     fn the_module_names_no_frost_item_that_holds_or_rebuilds_a_whole_key() {
         let source = module_source();
-        assert!(source.contains("frost::keys::generate_with_dealer"));
+        assert!(source.contains("keygen::trusted_dealer_with_rng"));
+        assert!(!source.contains("frost"));
         for item in WHOLE_KEY {
             assert!(!source.contains(item), "{item}");
         }

@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "70b6371ed3fbdb122dc2846771a7a94da3f574da578bc7e93e8805719b4cadda",
+  "cargo_lock_sha256": "13a17e5b3b2878ff1b03d8643436eafbc4495f4501e1d233ca4cfdc4c1d31764",
   "manifest_sha256": {
     "Cargo.toml": "8285f3bad321de7ea419e37260846fb1f8bdbfc345f6423407ce5c78c8a7ab9f",
     "crates/blue-lang-appliance/Cargo.toml": "72da422691d14356450606a218eed12ed6a26ed3a23c64116dc3ef8546937526",
@@ -18,7 +18,7 @@
     "crates/blue-lang-mondou/Cargo.toml": "637a0cbb6ac275a3478a437406f8fd387a8b5257f755127815a47418b7ad08e5",
     "crates/blue-lang-pkg/Cargo.toml": "1034b636e0112e8a62e7022d5e439b0d7c214a2e50d45744c0153132b4e87350",
     "crates/blue-lang-proc/Cargo.toml": "52fad15b16abe51edb8c65eeac9947731de5e44b282dea1f563a55169beb39dc",
-    "crates/blue-lang-runtime/Cargo.toml": "4fc66fc259cb32d0a7108c6752b2224cb7cf4686c353a33cac5d6f579209b27d",
+    "crates/blue-lang-runtime/Cargo.toml": "25fdd97e997bb67aff5a8df8a5e3fbff7894d9ff0dc2729ca4c8e9e4aad8d401",
     "crates/blue-lang-syntax/Cargo.toml": "9d405348af1d3f57fffd0a73ddf0776a933ce98bfbcaa60c53a1db55db4e75cd",
     "crates/blue-lang-test/Cargo.toml": "df208a871216b2b2374dfa0614ddf42eaa7ba2d801dd6b981cde99ac14709cdb",
     "crates/blue-lang-waku/Cargo.toml": "04ab710d641ebe14de7777553f810c78f8a328357c845f02deed75e859f56de7",
@@ -1988,18 +1988,6 @@
             "tree": "target"
           },
           {
-            "name": "frost_ed25519",
-            "package_key": "frost-ed25519-3.0.0",
-            "kind": "normal",
-            "features": [
-              "serialization"
-            ],
-            "uses_default_features": false,
-            "optional": true,
-            "target": null,
-            "tree": "target"
-          },
-          {
             "name": "hmac",
             "package_key": "hmac-0.12.1",
             "kind": "normal",
@@ -2080,6 +2068,18 @@
             ],
             "uses_default_features": false,
             "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "tameshi",
+            "package_key": "tameshi-0.1.9",
+            "kind": "normal",
+            "features": [
+              "threshold"
+            ],
+            "uses_default_features": false,
+            "optional": true,
             "target": null,
             "tree": "target"
           },
@@ -3321,7 +3321,6 @@
         ],
         "build_dependencies": [],
         "features": [
-          "default",
           "serde",
           "serialization"
         ]
@@ -9611,7 +9610,7 @@
           "proc-macro"
         ]
       },
-      "tameshi-0.1.8": {
+      "tameshi-0.1.9": {
         "runtime_dependencies": [
           {
             "name": "axum",
@@ -9619,7 +9618,7 @@
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
-            "optional": false,
+            "optional": true,
             "target": null,
             "tree": "target"
           },
@@ -9641,7 +9640,7 @@
               "serde"
             ],
             "uses_default_features": true,
-            "optional": false,
+            "optional": true,
             "target": null,
             "tree": "target"
           },
@@ -9653,7 +9652,7 @@
               "derive"
             ],
             "uses_default_features": true,
-            "optional": false,
+            "optional": true,
             "target": null,
             "tree": "target"
           },
@@ -9681,9 +9680,11 @@
             "name": "frost_ed25519",
             "package_key": "frost-ed25519-3.0.0",
             "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
+            "features": [
+              "serialization"
+            ],
+            "uses_default_features": false,
+            "optional": true,
             "target": null,
             "tree": "target"
           },
@@ -9693,7 +9694,7 @@
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
-            "optional": false,
+            "optional": true,
             "target": null,
             "tree": "target"
           },
@@ -9705,7 +9706,7 @@
               "aws"
             ],
             "uses_default_features": true,
-            "optional": false,
+            "optional": true,
             "target": null,
             "tree": "target"
           },
@@ -9713,11 +9714,9 @@
             "name": "rand_core",
             "package_key": "rand_core-0.6.4",
             "kind": "normal",
-            "features": [
-              "getrandom"
-            ],
-            "uses_default_features": true,
-            "optional": false,
+            "features": [],
+            "uses_default_features": false,
+            "optional": true,
             "target": null,
             "tree": "target"
           },
@@ -9730,7 +9729,7 @@
               "rustls-tls"
             ],
             "uses_default_features": false,
-            "optional": false,
+            "optional": true,
             "target": null,
             "tree": "target"
           },
@@ -9740,7 +9739,7 @@
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
-            "optional": false,
+            "optional": true,
             "target": null,
             "tree": "target"
           },
@@ -9752,7 +9751,7 @@
               "chrono"
             ],
             "uses_default_features": true,
-            "optional": false,
+            "optional": true,
             "target": null,
             "tree": "target"
           },
@@ -9774,7 +9773,7 @@
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
-            "optional": false,
+            "optional": true,
             "target": null,
             "tree": "target"
           },
@@ -9784,7 +9783,7 @@
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
-            "optional": false,
+            "optional": true,
             "target": null,
             "tree": "target"
           },
@@ -9794,7 +9793,7 @@
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
-            "optional": false,
+            "optional": true,
             "target": null,
             "tree": "target"
           },
@@ -9804,7 +9803,7 @@
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
-            "optional": false,
+            "optional": true,
             "target": null,
             "tree": "target"
           },
@@ -9814,7 +9813,7 @@
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
-            "optional": false,
+            "optional": true,
             "target": null,
             "tree": "target"
           },
@@ -9836,7 +9835,7 @@
               "full"
             ],
             "uses_default_features": true,
-            "optional": false,
+            "optional": true,
             "target": null,
             "tree": "target"
           },
@@ -9846,7 +9845,7 @@
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
-            "optional": false,
+            "optional": true,
             "target": null,
             "tree": "target"
           },
@@ -9859,7 +9858,7 @@
               "v4"
             ],
             "uses_default_features": true,
-            "optional": false,
+            "optional": true,
             "target": null,
             "tree": "target"
           },
@@ -9875,7 +9874,12 @@
           }
         ],
         "build_dependencies": [],
-        "features": []
+        "features": [
+          "default",
+          "full",
+          "os-rng",
+          "threshold"
+        ]
       },
       "tatara-closed-set-0.4.12": {
         "runtime_dependencies": [
@@ -17450,7 +17454,7 @@
     "synstructure-0.14.0": {
       "edition": "2018"
     },
-    "tameshi-0.1.8": {
+    "tameshi-0.1.9": {
       "edition": "2024",
       "binaries": [
         {

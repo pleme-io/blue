@@ -51,12 +51,13 @@ document lands.
   and every bidama build call `check_stage`
   (`crates/blue-lang-runtime/src/pipeline.rs:458`). An error-severity rule
   stops a program before it runs. 53 B-codes exist (`docs/DIAGNOSTICS.md`).
-- **A closed capability set.** `blue_lang_waku::Capability` has ten host
+- **A closed capability set.** `blue_lang_waku::Capability` has thirteen host
   effects: process, filesystem, environment, clock, network, entropy,
-  comm-flash, comm-scavenger, mpc-threshold, storage-append
-  (`crates/blue-lang-waku/src/capability.rs:116-141`, `host_effects` at
-  `:559`). The set has no `Other(String)` arm. One capability implies
-  another: filesystem holds storage-append (`Capability::implied` at `:526`).
+  comm-flash, comm-scavenger, mpc-threshold, storage-append, audio-out,
+  audio-in, display (`crates/blue-lang-waku/src/capability.rs:116-145`,
+  `host_effects` at `:600`). The set has no `Other(String)` arm. One
+  capability implies another: filesystem holds storage-append
+  (`Capability::implied` at `:564`).
 - **Pure sessions.** `blue eval`, `repl` and `serve` bind every ungranted host
   name to a refusal (`crates/blue-lang-runtime/src/session.rs:744`).
   `--allow` widens the frame. A process the session spawns gets the same
@@ -162,8 +163,8 @@ tier. ⚠️ marks a partial seal. ❌ marks an open row.
 | 5 | Bounds-checked indexing | ✅ memory: no raw index exists; ⚠️ semantics: `nth` out of range is `nil` | row 1 owns the `nil` | unrepresentable (memory) | n/a |
 | 6 | Integer overflow, numeric conversion | ✅ `+ - * abs floor` raise on overflow; `/` by zero raises; `to_int` of a huge float is `nil` | `to_int` → row 1 | runtime-refused | on, no off |
 | 7 | No implicit coercion | ⚠️ operators refuse mixed types; `4 == 4.0` is true; call types are checked only inside typed definitions (B0003–B0005) | call-site checks from any caller when the argument is a literal | runtime-refused → checked-at-expansion | on |
-| 8 | `unsafe` ⇔ declared capability | ⚠️ sessions pure by default; **`blue run --allow` and shebang `--allow` (landed)**; **a breach is fatal: no `rescue` or `ensure` sees it (landed)**; **the wire's two channels are their own capabilities, `comm_flash` and `comm_scavenger` (landed)**; **the Flash rate is the host's, a typed bound refused as a catchable `:rate_limited` (landed)**; **both channels have an in-process loopback provider (landed)**; **threshold signing is its own capability, `mpc_threshold`, with a seeded provider (landed)**; **an append-only log store is its own capability, `storage_append`, held by `filesystem`, with an in-memory provider (landed)**; **eviction over the Tide (`evict`, `accept`) sits in `comm_scavenger` (landed)**; an undeclared run is still ambient | default flip for scripts, then `posture(reach:)` for bidamas | checked-at-expansion (entry) + runtime-fatal (bidama, process) | declared: on; undeclared: ambient until phase 3 (`--allow host`) |
-| 9 | Memory safety of the host seam | ⚠️ 2 of 18 crates deny `unsafe_code` at their roots (kiwari, proc) | workspace `unsafe_code = "deny"`, one `#[allow]` per seam, one seam test | unrepresentable for kiwari and proc → unrepresentable for every crate | on (`#[allow(unsafe_code)]` at a named seam) |
+| 8 | `unsafe` ⇔ declared capability | ⚠️ sessions pure by default; **`blue run --allow` and shebang `--allow` (landed)**; **a breach is fatal: no `rescue` or `ensure` sees it (landed)**; **the wire's two channels are their own capabilities, `comm_flash` and `comm_scavenger` (landed)**; **the Flash rate is the host's, a typed bound refused as a catchable `:rate_limited` (landed)**; **both channels have an in-process loopback provider (landed)**; **threshold signing is its own capability, `mpc_threshold`, with a seeded provider (landed)**; **an append-only log store is its own capability, `storage_append`, held by `filesystem`, with an in-memory provider (landed)**; **sound out, sound in and a display canvas are three capabilities, `audio_out`, `audio_in` and `display`, each with a pure provider, and a host without the device answers a named refusal (landed)**; **eviction over the Tide (`evict`, `accept`) sits in `comm_scavenger` (landed)**; an undeclared run is still ambient | default flip for scripts, then `posture(reach:)` for bidamas | checked-at-expansion (entry) + runtime-fatal (bidama, process) | declared: on; undeclared: ambient until phase 3 (`--allow host`) |
+| 9 | Memory safety of the host seam | ⚠️ 3 of 22 crates deny `unsafe_code` at their roots (kiwari, proc, senses) | workspace `unsafe_code = "deny"`, one `#[allow]` per seam, one seam test | unrepresentable for kiwari and proc → unrepresentable for every crate | on (`#[allow(unsafe_code)]` at a named seam) |
 | 10 | No data races | ✅ share-nothing processes; copy on send; handles refuse to cross | none needed | unrepresentable | n/a |
 | 11 | Panic vs typed refusal | ⚠️ blue faults are catchable; a Rust panic in a native function is not a blue error | one unwind seam at the native-call boundary → `:internal` refusal | open → runtime-refused | on |
 | 12 | Resource bounds | ⚠️ depth bounded; steps unbounded by default; **live bytes bounded per evaluation and per process (landed: `max_alloc_bytes`, `guest_max_alloc_bytes`)**; **a project bounds its own steps, depth and live bytes with `bounds(...)`, met with the operator's, so it narrows and never widens (landed)**; **a server's steps per message with `dispatch_steps`, in `bounds` and at spawn, met (landed)**; no wall-clock bound | `max_wall_ms` bound; on for doors that run code they did not write | runtime-refused | memory: off for `run` and `test` (`max_alloc_bytes: null`; it removes working behaviour), 1 GiB for sessions, live evaluation, rules and Bluefiles (`guest_max_alloc_bytes`; `null` lifts it); a project's `bounds`: none until it declares them (drop the word) |
@@ -319,8 +320,12 @@ keyword entry in a call without a `**` spread (spec row
 `maps.spread.call.entries_need_a_spread`). `:comm_flash {using: :loopback}` and
 `:comm_scavenger {using: :loopback}` carry the wire's frames in process, and
 `:mpc_threshold {using: :seeded, seed:}` draws every threshold key and nonce
-from a stream keyed by the seed, and `:storage_append {using: :in_memory}`
-keeps the append-only logs in memory (all below).
+from a stream keyed by the seed, `:storage_append {using: :in_memory}`
+keeps the append-only logs in memory, `:audio_out {using: :recording_sink}`
+keeps every clip played, `:audio_in {using: :seeded_noise, seed:}` captures a
+stream keyed by the seed and `{using: :monitor}` captures what the recording
+sink holds, and `:display {using: :framebuffer}` keeps each canvas in memory
+(all below).
 Process, network and environment have no provider (`Provision::kinds_for`). `Provisions::disjoint_from`
 refuses a whole-program provider for a capability `allow` also grants, but
 `blue lock` does not call it yet.
@@ -444,6 +449,65 @@ exits 77 and no rescue sees it;
 `storage.rs` unit tests, the waku lattice test
 `a_grant_of_the_filesystem_holds_the_append_only_store_and_never_the_reverse`,
 and spec rows `storage.*`.
+
+**The senses (2026-10-31).** Three host bundles reach the devices a program
+hears, speaks and draws through. `audio-out` holds `play_audio(clip)` and
+`audio_out_format`; `audio-in` holds `capture_audio(frames, format)` and
+`audio_in_format`; `display` holds `canvas_open`, `canvas_clear`,
+`canvas_fill_rect`, `canvas_text`, `canvas_present`, `canvas_pixel` and
+`canvas_close` (`crates/blue-lang-runtime/src/audio.rs`, `display.rs`). A clip
+is `{rate:, channels:, samples:}`, the samples interleaved numbers from -1.0 to
+1.0; a format is `{rate:, channels:}`. The words check every argument before
+they reach a device, so a bad clip, count, format, size, color or handle is
+`:bad_option` on every host. **The host routes follow CONTAIN THE C.**
+`crates/blue-lang-senses` denies unsafe code at its root and allows it in one
+module, `seam.rs`, which `tests/seam.rs` holds to one. On darwin the seam
+loads AudioToolbox with `dlopen` and plays and captures through AudioQueue,
+reading the default device's rate and channels through AudioObject; on Linux
+it loads ALSA's `libasound.so.2` and uses `snd_pcm_*`. No `-sys` crate, no
+bindgen, no wrapper such as cpal. `BLUE_AUDIO_LIBRARY` names the library to
+load (a NixOS store path, say). A canvas is drawn on the CPU; `canvas_present`
+sends the frame over a Unix socket (`$BLUE_CANVAS_SOCKET`, else
+`$XDG_RUNTIME_DIR/garasu/canvas.sock`) to a canvas server, in the protocol
+`garasu-canvas/1`: one JSON header line per message (`open` with width,
+height and title; `present` with `format: "rgb8"` and `bytes`, then the
+pixels; `close`), one JSON reply line each. The blue process links no GPU
+stack: the canvas server holds the GPU in its own process. Linking garasu
+(wgpu, winit, glyphon) in process was measured on 2026-10-31 at blue `cd4c183`:
+the release `blue` grew from 20 973 744 to 25 706 128 bytes (+22.6 %) and a cold
+release build from 155 s to 260 s with two jobs, past the 10 % budget, so the
+socket is the route and no feature flag carries the other. The senses as built
+make the release `blue` 21 380 896 bytes (+1.9 %) and leave its cold build at
+152 s. The canvas server is garasu's `garasu-canvas` binary (garasu `01dfb5a`;
+the protocol is written down in garasu `docs/canvas-protocol.md`), which presents
+each frame through garasu's renderer; `garasu-canvas --headless` keeps frames in
+memory for a host with no display.
+**Absence is a named refusal.** A host whose audio library does not load
+answers `:unsupported`, one with no output or input device `:not_found`, and a
+device that stalls past the clip's length plus two seconds `:timeout`;
+`audio_out_format` and `audio_in_format` answer nil. No canvas server listening
+answers `:not_found` naming the socket. **The providers.**
+`virtualize(:audio_out, {using: :recording_sink})` keeps every clip played (at
+most 4 194 304 samples, the oldest dropped first) and reaches no device.
+`virtualize(:audio_in, {using: :seeded_noise, seed:})` answers samples from a
+BLAKE3 stream keyed by the seed, each a 16-bit step, so a run captures the same
+samples twice. `virtualize(:audio_in, {using: :monitor})` answers what the
+run's recording sink holds, in order, then silence, as a sound server's monitor
+source does; with no recording sink it raises `:not_found`. The virtual
+devices report 48 kHz stereo. `virtualize(:display, {using: :framebuffer})`
+keeps each canvas in memory; `canvas_pixel` reads what was last presented.
+Tests: `crates/blue-lang-cli/tests/senses.rs`
+(`every_sense_word_under_a_hold_without_its_bundle_is_a_fatal_breach_no_rescue_sees`:
+each of the eleven words reached through a package under `--allow none` and
+under the other two senses exits 77 and no rescue sees it, and named in the
+entry file it is refused before anything runs;
+`the_virtual_senses_play_into_a_sink_a_monitor_reads_back_and_a_framebuffer_shows_what_was_drawn`;
+`a_host_with_no_audio_system_and_no_canvas_server_answers_each_word_with_a_named_refusal`;
+`the_lock_records_each_sense_and_refuses_it_under_a_ceiling_without_it`),
+`crates/blue-lang-senses/tests/` (the seam, absence, and the canvas protocol
+against an in-test server; `device.rs` plays a silent clip on a real speaker
+and is ignored unless run with `--ignored`), the `audio.rs` and `display.rs`
+unit tests, and spec rows `senses.*`.
 
 **Scoped providers (2026-10-30).** `for: %w[rede]` beside `using` binds the
 provider only for the named packages and every package they `use`. In the

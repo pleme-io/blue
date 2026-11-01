@@ -160,5 +160,23 @@
     "file": "ibuki.b",
     "find": "ceiling: %w[clock comm-scavenger network],",
     "replace": "ceiling: %w[clock network],"
+  },
+  {
+    "name": "the speaker is held by the microphone's bundle",
+    "file": "ibuki.b",
+    "find": "{atom: :audio_speaker, label: \"audio-out\"},",
+    "replace": "{atom: :audio_speaker, label: \"audio-in\"},"
+  },
+  {
+    "name": "the garasu canvas is held by no display",
+    "file": "ibuki.b",
+    "find": "{atom: :garasu_canvas, label: \"display\"}",
+    "replace": "{atom: :garasu_canvas, label: \"gpu\"}"
+  },
+  {
+    "name": "an unknown atom is answered instead of refused",
+    "file": "ibuki.b",
+    "find": "a = retsu::find_first((r) -> r.atom == name, atoms)",
+    "replace": "a = retsu::find_first((r) -> r.atom == name, atoms) or {atom: name, label: nil}"
   }
 ]

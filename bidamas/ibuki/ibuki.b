@@ -71,6 +71,42 @@ def class_named(name)
 end
 
 @doc """
+atoms: the vision's CapSet atoms, in its order, each with the host capability that holds it as `blue lock` records it, nil for the pure atom; the garasu canvas comes from the vision's vocabulary.
+
+    map((a) -> a.label, atoms)[4] #=> "audio-out"
+"""
+def atoms()
+  [
+    {atom: :pure, label: nil},
+    {atom: :clock_read, label: "clock"},
+    {atom: :comm_scavenger, label: "comm-scavenger"},
+    {atom: :comm_flash, label: "comm-flash"},
+    {atom: :audio_speaker, label: "audio-out"},
+    {atom: :audio_mic, label: "audio-in"},
+    {atom: :storage_read, label: "filesystem"},
+    {atom: :storage_append, label: "storage-append"},
+    {atom: :mpc_threshold, label: "mpc-threshold"},
+    {atom: :garasu_canvas, label: "display"}
+  ]
+end
+
+@doc """
+atom_named: the atom record of an atom name, or a :not_found raise naming the atoms.
+
+    atom_named(:audio_mic).label #=> "audio-in"
+"""
+def atom_named(name)
+  a = retsu::find_first((r) -> r.atom == name, atoms)
+  if a.nil?
+    raise(
+      :not_found,
+      "no atom #{to_s(name)}; the atoms are #{to_s(map((r) -> r.atom, atoms))}"
+    )
+  end
+  a
+end
+
+@doc """
 threshold_ok: a k-of-n threshold when 1 <= k <= n and n >= 2, else a :bad_option raise.
 
     threshold_ok([2, 3]) #=> [2, 3]
@@ -705,6 +741,22 @@ test "dock refuses exactly when the measured reach leaves the class ceiling"
     end,
     seeds(31, 60)
   )
+end
+
+test "each vision atom names the host capability that holds it, and the senses hold the speaker, the microphone and the canvas"
+  assert atom_named(:audio_speaker).label == "audio-out"
+  assert atom_named(:audio_mic).label == "audio-in"
+  assert atom_named(:garasu_canvas).label == "display"
+  assert atom_named(:storage_append).label == "storage-append"
+  assert atom_named(:pure).label.nil?
+  assert raised(() -> atom_named(:gpu)) == :not_found
+  held = filter((l) -> not l.nil?, map((a) -> a.label, atoms))
+  assert size(held) == 9
+  assert size(ordered(held)) == size(held)
+  senses = %w[audio-out audio-in display]
+  assert every?((c) -> intersection(c.ceiling, senses) == [], classes)
+  assert map(first, admit(:crystal, ["display"])) == [:denied]
+  assert dock({}, {capabilities: {floor: ["audio-in"]}}).class == :crystal
 end
 
 test "an airlock frame is the meet of both ceilings without the disk"

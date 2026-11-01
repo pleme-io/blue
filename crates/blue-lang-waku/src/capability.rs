@@ -47,7 +47,7 @@
 //! | [`Capability::Assertion`] | `blue_lang_syntax::LOWERED_ASSERT`, `LOWERED_ASSERT_PANICS` |
 //! | [`Capability::CoreForms`] | the heads `blue-lang-syntax` lowers control flow to |
 //! | [`Capability::ManifestDeclaration`] | the Bluefile vocabulary (`blue_lang_pkg::bluefile`'s word table) |
-//! | the host bundles | `blue_lang_runtime::sys`'s four installers, `net`'s, `entropy`'s, `wire`'s, `threshold`'s and `storage`'s |
+//! | the host bundles | `blue_lang_runtime::sys`'s four installers, `net`'s, `entropy`'s, `wire`'s, `threshold`'s, `storage`'s, `audio`'s and `display`'s |
 //!
 //! The last row is the one that could rot, and it is gated rather than trusted:
 //! `blue-lang-cli`'s `tests/capability_surface.rs` installs the sys layer into a
@@ -139,6 +139,9 @@ pub enum Capability {
     CommScavenger,
     MpcThreshold,
     StorageAppend,
+    AudioOut,
+    AudioIn,
+    Display,
 }
 
 /// The wasm import module every host capability lowers into.
@@ -319,6 +322,17 @@ const MPC_THRESHOLD_NAMES: &[&str] = &[
     "threshold_share_import",
 ];
 const STORAGE_APPEND_NAMES: &[&str] = &["append_log", "read_log"];
+const AUDIO_OUT_NAMES: &[&str] = &["play_audio", "audio_out_format"];
+const AUDIO_IN_NAMES: &[&str] = &["capture_audio", "audio_in_format"];
+const DISPLAY_NAMES: &[&str] = &[
+    "canvas_open",
+    "canvas_clear",
+    "canvas_fill_rect",
+    "canvas_text",
+    "canvas_present",
+    "canvas_pixel",
+    "canvas_close",
+];
 /// `blue_lang_runtime::sys::install_clock`, 2026-08-13.
 const CLOCK_NAMES: &[&str] = &[
     "now",
@@ -331,14 +345,14 @@ const CLOCK_NAMES: &[&str] = &[
 ];
 
 impl Capability {
-    /// How many capabilities exist. A **floor with a date**: sixteen as of
-    /// 2026-10-31, six pure and ten host-effect (fifteen until
-    /// `StorageAppend`, fourteen until `MpcThreshold`, twelve until
-    /// `CommFlash` and `CommScavenger`, eleven until `Entropy`). Stated so a
-    /// count gate cannot
+    /// How many capabilities exist. A **floor with a date**: nineteen as of
+    /// 2026-10-31, six pure and thirteen host-effect (sixteen until
+    /// `AudioOut`, `AudioIn` and `Display`, fifteen until `StorageAppend`,
+    /// fourteen until `MpcThreshold`, twelve until `CommFlash` and
+    /// `CommScavenger`, eleven until `Entropy`). Stated so a count gate cannot
     /// pass over an empty set — `ALL.len() == 0` would satisfy every
     /// "for every capability…" test in this file.
-    pub const COUNT: usize = 16;
+    pub const COUNT: usize = 19;
 
     const FIRST: Self = Capability::CoreForms;
 
@@ -368,7 +382,10 @@ impl Capability {
             Capability::CommFlash => Some(Capability::CommScavenger),
             Capability::CommScavenger => Some(Capability::MpcThreshold),
             Capability::MpcThreshold => Some(Capability::StorageAppend),
-            Capability::StorageAppend => None,
+            Capability::StorageAppend => Some(Capability::AudioOut),
+            Capability::AudioOut => Some(Capability::AudioIn),
+            Capability::AudioIn => Some(Capability::Display),
+            Capability::Display => None,
         }
     }
 
@@ -413,6 +430,9 @@ impl Capability {
             Capability::CommScavenger => "comm-scavenger",
             Capability::MpcThreshold => "mpc-threshold",
             Capability::StorageAppend => "storage-append",
+            Capability::AudioOut => "audio-out",
+            Capability::AudioIn => "audio-in",
+            Capability::Display => "display",
         }
     }
 
@@ -444,6 +464,9 @@ impl Capability {
             Capability::CommScavenger => Names::Fixed(COMM_SCAVENGER_NAMES),
             Capability::MpcThreshold => Names::Fixed(MPC_THRESHOLD_NAMES),
             Capability::StorageAppend => Names::Fixed(STORAGE_APPEND_NAMES),
+            Capability::AudioOut => Names::Fixed(AUDIO_OUT_NAMES),
+            Capability::AudioIn => Names::Fixed(AUDIO_IN_NAMES),
+            Capability::Display => Names::Fixed(DISPLAY_NAMES),
         }
     }
 
@@ -522,6 +545,18 @@ impl Capability {
                 module: HOST_MODULE,
                 field: "storage-append",
             }),
+            Capability::AudioOut => Some(Import {
+                module: HOST_MODULE,
+                field: "audio-out",
+            }),
+            Capability::AudioIn => Some(Import {
+                module: HOST_MODULE,
+                field: "audio-in",
+            }),
+            Capability::Display => Some(Import {
+                module: HOST_MODULE,
+                field: "display",
+            }),
         }
     }
 
@@ -543,7 +578,10 @@ impl Capability {
             | Capability::CommFlash
             | Capability::CommScavenger
             | Capability::MpcThreshold
-            | Capability::StorageAppend => &[],
+            | Capability::StorageAppend
+            | Capability::AudioOut
+            | Capability::AudioIn
+            | Capability::Display => &[],
         }
     }
 
@@ -619,9 +657,10 @@ mod tests {
     use super::*;
     use std::collections::BTreeSet;
 
-    /// **The floor, with the date.** Sixteen capabilities on 2026-10-31, six
-    /// pure and ten host-effect (nine until `StorageAppend`, eight until
-    /// `MpcThreshold`, six until the two wire channels, five until `Entropy`).
+    /// **The floor, with the date.** Nineteen capabilities on 2026-10-31, six
+    /// pure and thirteen host-effect (ten until the two audio bundles and the
+    /// display, nine until `StorageAppend`, eight until `MpcThreshold`, six
+    /// until the two wire channels, five until `Entropy`).
     ///
     /// Anti-vacuity for every "for every capability…" test below: each of them
     /// passes trivially over an empty `ALL`, and `ALL` is *derived* from the
@@ -630,11 +669,11 @@ mod tests {
     #[test]
     fn the_universe_is_closed_and_counted() {
         assert_eq!(Capability::ALL.len(), Capability::COUNT);
-        assert_eq!(Capability::COUNT, 16, "the floor, measured 2026-10-31");
+        assert_eq!(Capability::COUNT, 19, "the floor, measured 2026-10-31");
         assert_eq!(
             Capability::host_effects().len(),
-            10,
-            "process, filesystem, environment, clock, network, entropy, comm-flash, comm-scavenger, mpc-threshold, storage-append"
+            13,
+            "process, filesystem, environment, clock, network, entropy, comm-flash, comm-scavenger, mpc-threshold, storage-append, audio-out, audio-in, display"
         );
         assert_eq!(
             Capability::ALL
@@ -682,12 +721,13 @@ mod tests {
                 }
             }
         }
-        // The floor: 96 distinct names on 2026-10-31, the two log words past
-        // the 94 of the threshold words (85 on 2026-10-30; 73 on 2026-09-23,
-        // plus the twelve wire words; 66 on 2026-08-13, plus the seven
-        // Bluefile words P1b added).
+        // The floor: 107 distinct names on 2026-10-31, the four audio and
+        // seven canvas words past the 96 of the log words (94 with the
+        // threshold words; 85 on 2026-10-30; 73 on 2026-09-23, plus the
+        // twelve wire words; 66 on 2026-08-13, plus the seven Bluefile words
+        // P1b added).
         assert!(
-            owner.len() >= 96,
+            owner.len() >= 107,
             "the universe shrank to {} names",
             owner.len()
         );
@@ -809,6 +849,22 @@ mod tests {
         );
         assert_eq!(Capability::host_named("storage"), None);
         assert_eq!(Capability::host_named("append"), None);
+        assert_eq!(
+            Capability::host_named(":audio_out"),
+            Some(Capability::AudioOut)
+        );
+        assert_eq!(
+            Capability::host_named("audio-in"),
+            Some(Capability::AudioIn)
+        );
+        assert_eq!(
+            Capability::host_named(":display"),
+            Some(Capability::Display)
+        );
+        assert_eq!(Capability::host_named("audio"), None);
+        assert_eq!(Capability::host_named("speaker"), None);
+        assert_eq!(Capability::host_named("gpu"), None);
+        assert_eq!(Capability::host_named("canvas"), None);
         assert_eq!(Capability::host_named("mpc"), None);
         assert_eq!(Capability::host_named("threshold"), None);
         assert_eq!(Capability::host_named("core-forms"), None);

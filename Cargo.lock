@@ -530,6 +530,7 @@ dependencies = [
  "blue-lang-fmt",
  "blue-lang-pkg",
  "blue-lang-proc",
+ "blue-lang-senses",
  "blue-lang-syntax",
  "blue-lang-waku",
  "ed25519-dalek",
@@ -545,6 +546,14 @@ dependencies = [
  "tatara-lisp",
  "tatara-lisp-eval",
  "thiserror 2.0.19",
+]
+
+[[package]]
+name = "blue-lang-senses"
+version = "0.0.143"
+dependencies = [
+ "libc",
+ "serde_json",
 ]
 
 [[package]]

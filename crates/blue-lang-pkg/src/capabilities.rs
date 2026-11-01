@@ -39,6 +39,9 @@ pub const HOST_LABELS: &[&str] = &[
     "comm-scavenger",
     "mpc-threshold",
     "storage-append",
+    "audio-out",
+    "audio-in",
+    "display",
 ];
 
 /// The host capability a Bluefile label names: the label, or the label in
@@ -101,9 +104,12 @@ pub fn unit_of(bf: &Bluefile) -> FloorUnit {
 /// the clock, `{using: :seeded_prng, seed:}` for entropy,
 /// `{using: :in_memory_overlay}` or `{using: :null_sink}` for the
 /// filesystem, `{using: :loopback}` for `comm_flash` and `comm_scavenger`,
-/// `{using: :seeded, seed:}` for `mpc_threshold`, and `{using: :in_memory}`
-/// for `storage_append`. `for: %w[pkg …]` serves only those packages and
-/// every package they use; without it the provider serves the whole program.
+/// `{using: :seeded, seed:}` for `mpc_threshold`, `{using: :in_memory}` for
+/// `storage_append`, `{using: :recording_sink}` for `audio_out`,
+/// `{using: :seeded_noise, seed:}` or `{using: :monitor}` for `audio_in`, and
+/// `{using: :framebuffer}` for `display`. `for: %w[pkg …]` serves only those
+/// packages and every package they use; without it the provider serves the
+/// whole program.
 ///
 /// # Errors
 ///
@@ -119,7 +125,7 @@ pub fn provision_of(
     let kinds = Provision::kinds_for(cap);
     if kinds.is_empty() {
         return Err(format!(
-            "{} has no pure provider; virtualize clock, entropy, filesystem, comm_flash, comm_scavenger, mpc_threshold or storage_append",
+            "{} has no pure provider; virtualize clock, entropy, filesystem, comm_flash, comm_scavenger, mpc_threshold, storage_append, audio_out, audio_in or display",
             cap.label()
         ));
     }
@@ -200,7 +206,7 @@ pub fn provision_of(
     };
     let takes: &[&str] = match using.as_str() {
         "deterministic_stepped" => &["at_ms", "step_ms"],
-        "seeded_prng" | "seeded" => &["seed"],
+        "seeded_prng" | "seeded" | "seeded_noise" => &["seed"],
         _ => &[],
     };
     if let Some(extra) = fields.keys().find(|k| !takes.contains(&k.as_str())) {
@@ -226,8 +232,11 @@ pub fn provision_of(
             at_ms: int("at_ms")?,
             step_ms: int("step_ms")?,
         },
-        "seeded_prng" | "seeded" => match fields.get("seed") {
+        "seeded_prng" | "seeded" | "seeded_noise" => match fields.get("seed") {
             Some(Value::Str(s)) if using == "seeded" => Provision::Seeded {
+                seed: s.to_string(),
+            },
+            Some(Value::Str(s)) if using == "seeded_noise" => Provision::SeededNoise {
                 seed: s.to_string(),
             },
             Some(Value::Str(s)) => Provision::SeededPrng {
@@ -244,6 +253,9 @@ pub fn provision_of(
         "in_memory_overlay" => Provision::InMemoryOverlay,
         "null_sink" => Provision::NullSink,
         "in_memory" => Provision::InMemory,
+        "recording_sink" => Provision::RecordingSink,
+        "monitor" => Provision::Monitor,
+        "framebuffer" => Provision::Framebuffer,
         "loopback" => match blue_lang_waku::Channel::of(cap) {
             Some(channel) => Provision::Loopback { channel },
             None => return Err(unknown()),
@@ -1236,10 +1248,82 @@ mod tests {
             host_capability(":storage_append"),
             Some(Capability::StorageAppend)
         );
+        assert_eq!(host_capability(":audio_out"), Some(Capability::AudioOut));
+        assert_eq!(host_capability("audio-in"), Some(Capability::AudioIn));
+        assert_eq!(host_capability(":display"), Some(Capability::Display));
+        assert_eq!(host_capability("audio"), None);
         assert_eq!(
             host_capability("storage-append"),
             Some(Capability::StorageAppend)
         );
+    }
+
+    fn senses() -> Graph {
+        Graph {
+            root: "app".into(),
+            nodes: BTreeMap::from([
+                ("app".into(), node(&[], &["oto", "mimi", "garasu"])),
+                ("oto".into(), node(&[Capability::AudioOut], &[])),
+                ("mimi".into(), node(&[Capability::AudioIn], &[])),
+                ("garasu".into(), node(&[Capability::Display], &[])),
+            ]),
+            unit: FloorUnit::Package,
+            definitions: BTreeMap::new(),
+        }
+    }
+
+    #[test]
+    fn each_sense_is_recorded_under_a_ceiling_that_grants_it_and_refused_under_one_that_does_not() {
+        let none = Provisions::default();
+        let all = [
+            Capability::AudioOut,
+            Capability::AudioIn,
+            Capability::Display,
+        ];
+        let record = verify(&senses(), &reach(&all), &none).expect("fits");
+        assert_eq!(record.floor, ["audio-out", "audio-in", "display"]);
+        assert_eq!(record.packages["oto"], ["audio-out"]);
+        assert_eq!(record.packages["mimi"], ["audio-in"]);
+        assert_eq!(record.packages["garasu"], ["display"]);
+        let err =
+            verify(&senses(), &reach(&[Capability::Clock]), &none).expect_err("past the ceiling");
+        for row in [
+            "[oto: needs 'audio-out']",
+            "[mimi: needs 'audio-in']",
+            "[garasu: needs 'display']",
+        ] {
+            assert!(err.to_string().contains(row), "{row}: {err}");
+        }
+        let err = verify(
+            &senses(),
+            &reach(&[Capability::AudioOut, Capability::AudioIn]),
+            &none,
+        )
+        .expect_err("no display");
+        assert_eq!(
+            err.to_string(),
+            "[app] -> [garasu: needs 'display'] violates ceiling [audio-out, audio-in]"
+        );
+        for c in all {
+            assert!(
+                Reach::only([c]).closed() == Reach::only([c]),
+                "{}",
+                c.label()
+            );
+            assert!(
+                all.iter()
+                    .all(|o| *o == c || !Reach::only([*o]).closed().grants(c)),
+                "no sense holds another: {}",
+                c.label()
+            );
+        }
+        let mut virtual_senses = Provisions::default();
+        virtual_senses.add(Provision::RecordingSink).unwrap();
+        virtual_senses.add(Provision::Monitor).unwrap();
+        virtual_senses.add(Provision::Framebuffer).unwrap();
+        let record = verify(&senses(), &reach(&[]), &virtual_senses).expect("provided");
+        assert_eq!(record.ceiling, Some(Vec::new()));
+        assert_eq!(record.provided.len(), 3);
     }
 
     fn logging() -> Graph {
@@ -1445,6 +1529,16 @@ mod tests {
                 },
             ),
             (":storage_append, {using: :in_memory}", Provision::InMemory),
+            (
+                ":audio_out, {using: :recording_sink}",
+                Provision::RecordingSink,
+            ),
+            (
+                ":audio_in, {using: :seeded_noise, seed: \"hum\"}",
+                Provision::SeededNoise { seed: "hum".into() },
+            ),
+            (":audio_in, {using: :monitor}", Provision::Monitor),
+            (":display, {using: :framebuffer}", Provision::Framebuffer),
         ];
         for (settings, want) in cases {
             let got = virtualized(settings).unwrap_or_else(|e| panic!("{settings}: {e}"));
@@ -1456,7 +1550,7 @@ mod tests {
             for kind in Provision::kinds_for(cap) {
                 let symbol = cap.label().replace('-', "_");
                 let settings = match *kind {
-                    "seeded_prng" | "seeded" => {
+                    "seeded_prng" | "seeded" | "seeded_noise" => {
                         format!(":{symbol}, {{using: :{kind}, seed: \"s\"}}")
                     }
                     _ => format!(":{symbol}, {{using: :{kind}}}"),
@@ -1542,6 +1636,27 @@ mod tests {
                 ":storage_append, {using: :in_memory, seed: \"s\"}",
                 "`seed` is not a in_memory setting; it takes nothing besides `using` and `for`",
             ),
+            (
+                ":audio_out, {using: :monitor}",
+                "`using: :monitor` is not a audio-out provider; it takes :recording_sink",
+            ),
+            (
+                ":audio_in, {using: :recording_sink}",
+                "`using: :recording_sink` is not a audio-in provider; it takes :seeded_noise, :monitor",
+            ),
+            (":audio_in, {using: :seeded_noise}", "seeded_noise needs a `seed`"),
+            (
+                ":audio_in, {using: :seeded, seed: \"s\"}",
+                "`using: :seeded` is not a audio-in provider; it takes :seeded_noise, :monitor",
+            ),
+            (
+                ":display, {using: :framebuffer, width: 4}",
+                "`width` is not a framebuffer setting; it takes nothing besides `using` and `for`",
+            ),
+            (
+                ":display, {using: :in_memory}",
+                "`using: :in_memory` is not a display provider; it takes :framebuffer",
+            ),
         ] {
             let err = virtualized(settings).expect_err(settings);
             assert!(err.contains(says), "{settings}: {err}");
@@ -1563,6 +1678,10 @@ mod tests {
             },
             Provision::Seeded { seed: "s".into() },
             Provision::InMemory,
+            Provision::RecordingSink,
+            Provision::SeededNoise { seed: "s".into() },
+            Provision::Monitor,
+            Provision::Framebuffer,
         ];
         for p in every {
             let json = serde_json::to_value(Provided::from(p.clone())).unwrap();

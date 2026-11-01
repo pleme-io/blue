@@ -35,9 +35,13 @@
 //!    interpreter's own, so the program is that node's root process.
 
 pub mod alloc;
+#[cfg(feature = "sys")]
+pub mod audio;
 pub mod collection;
 pub mod crypto;
 pub mod dispatch;
+#[cfg(feature = "sys")]
+pub mod display;
 pub mod doc_sources;
 pub mod docs;
 pub mod domain;
@@ -1009,8 +1013,47 @@ mod tests {
             let (hold, _, _) = held(&[Capability::Clock], &[]);
             assert_eq!(
                 blue_lang_proc::receipt::canonical(&hold.frame_summary(4)),
-                r#"{"granted":["clock"],"host_io":4,"withheld":["process","filesystem","environment","network","entropy","comm-flash","comm-scavenger","mpc-threshold","storage-append"]}"#
+                r#"{"granted":["clock"],"host_io":4,"withheld":["process","filesystem","environment","network","entropy","comm-flash","comm-scavenger","mpc-threshold","storage-append","audio-out","audio-in","display"]}"#
             );
+        }
+
+        #[test]
+        fn each_sense_is_its_own_hold_and_a_provider_answers_it_uncounted() {
+            let (hold, mut interp, io) = held(&[Capability::AudioOut], &[]);
+            assert_eq!(hold.granted(), vec![Capability::AudioOut]);
+            call(&mut interp, "(audio_out_format)").expect("granted");
+            assert_eq!(io.total(), 1, "the format query is a host call, tallied");
+            for (word, label) in [
+                (
+                    "(capture_audio 1 (hash-map :rate 8000 :channels 1))",
+                    "audio-in",
+                ),
+                ("(audio_in_format)", "audio-in"),
+                ("(canvas_open (hash-map :width 1 :height 1))", "display"),
+            ] {
+                let e = call(&mut interp, word).expect_err(word);
+                assert!(e.contains(label), "{word}: {e}");
+            }
+
+            let framebuffer: Provided = Provision::Framebuffer.into();
+            let (hold, mut interp, io) = held(&[], std::slice::from_ref(&framebuffer));
+            assert!(hold.withheld().contains(&Capability::AudioOut));
+            assert_eq!(
+                call(
+                    &mut interp,
+                    "(begin (define c (canvas_open (hash-map :width 2 :height 2))) (canvas_fill_rect c 0 0 1 1 \"#abcdef\") (canvas_present c) (canvas_pixel c 0 0))"
+                )
+                .expect("provided")
+                .to_string(),
+                "\"#abcdef\""
+            );
+            assert_eq!(io.total(), 0, "a provided word is not a host call");
+            let e = call(
+                &mut interp,
+                "(play_audio (hash-map :rate 8000 :channels 1 :samples (list)))",
+            )
+            .expect_err("withheld");
+            assert!(e.contains("audio-out"), "{e}");
         }
 
         #[test]

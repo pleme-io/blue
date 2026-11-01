@@ -113,7 +113,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-334 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 185 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+345 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 185 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -468,6 +468,22 @@ Higher binding power binds tighter.
 | `tide_send` | `tide_send(wire, peer, payload, stamp_ms)` | 4 | Send one Tide frame at once, past the ring: the datagram's bytes. For an acknowledgement, which no window holds. |
 | `tide_stats` | `tide_stats(wire)` | 1 | {address:, port:, sent:, received:, dropped:, malformed:, queued:, queued_bytes:, evicted:, evicted_in:, ring_frames:, ring_bytes:} of the wire's Tide channel. |
 
+### Sound and display
+
+| name | call | arity | meaning |
+|---|---|---|---|
+| `audio_in_format` | `audio_in_format` | 0 | The default input device's format, {rate:, channels:}, or nil when there is none. Needs the audio_in capability. |
+| `audio_out_format` | `audio_out_format` | 0 | The default output device's format, {rate:, channels:}, or nil when there is none. Needs the audio_out capability. |
+| `canvas_clear` | `canvas_clear(canvas, color)` | 2 | Fill the canvas with a color, "#rgb" or "#rrggbb"; nil. What is drawn shows at the next canvas_present. Needs the display capability. |
+| `canvas_close` | `canvas_close(canvas)` | 1 | Close the canvas; nil. Closing twice is done, and any other word on a closed canvas raises :closed. Needs the display capability. |
+| `canvas_fill_rect` | `canvas_fill_rect(canvas, x, y, width, height, color)` | 6 | Fill a rectangle with its top left at x, y, clipped to the canvas; nil. Needs the display capability. |
+| `canvas_open` | `canvas_open(opts)` | 1 | A black canvas of opts {width:, height:} pixels, 1 to 4096 each, titled opts title: ("blue"), shown by the canvas server listening at $BLUE_CANVAS_SOCKET, else $XDG_RUNTIME_DIR/garasu/canvas.sock. No server listening raises :not_found. Needs the display capability. |
+| `canvas_pixel` | `canvas_pixel(canvas, x, y)` | 3 | The shown color at x, y as "#rrggbb", or nil outside the canvas. Needs the display capability. |
+| `canvas_present` | `canvas_present(canvas)` | 1 | Show what has been drawn: canvas_pixel reads it, and the canvas server receives it. Needs the display capability. |
+| `canvas_text` | `canvas_text(canvas, x, y, text, color)` | 5 | Draw text in an 8 by 8 pixel font with its top left at x, y, one cell a character; a character outside printable ASCII draws as ?. nil. Needs the display capability. |
+| `capture_audio` | `capture_audio(frames, format)` | 2 | Capture frames frames (0 to 16777216) from the default input device in format {rate:, channels:}: a clip {rate:, channels:, samples:}. A bad count or format raises :bad_option; a host with no audio system raises :unsupported, one with no input device :not_found, and a device that stalls :timeout. Needs the audio_in capability. |
+| `play_audio` | `play_audio(clip)` | 1 | Play a clip, {rate:, channels:, samples:} with the samples interleaved numbers from -1.0 to 1.0, on the default output device, and answer nil once it has played. A clip that is not whole frames of such samples raises :bad_option; a host with no audio system raises :unsupported, and one with no output device :not_found. Needs the audio_out capability. |
+
 ### Hashing and signatures
 
 | name | call | arity | meaning |
@@ -566,11 +582,13 @@ Higher binding power binds tighter.
 
 ### Called where written bare
 
-A function that takes no parameters is CALLED where its name is written: `now_ms` is a number, `now_ms()` is the same call in a spelling the check stage refuses in a file (B0023; `blue fmt --write` rewrites it), and `fn() now_ms end` is the function itself as a value. A local or a parameter of the same name is its value, never a call. These 12 built-in names therefore run, with their effects, wherever they are written bare:
+A function that takes no parameters is CALLED where its name is written: `now_ms` is a number, `now_ms()` is the same call in a spelling the check stage refuses in a file (B0023; `blue fmt --write` rewrites it), and `fn() now_ms end` is the function itself as a value. A local or a parameter of the same name is its value, never a call. These 14 built-in names therefore run, with their effects, wherever they are written bare:
 
 | name | meaning |
 |---|---|
 | `argv` | The program's own arguments: what follows the file in blue run file -- a b. |
+| `audio_in_format` | The default input device's format, {rate:, channels:}, or nil when there is none. Needs the audio_in capability. |
+| `audio_out_format` | The default output device's format, {rate:, channels:}, or nil when there is none. Needs the audio_out capability. |
 | `builtin_names` | Every name this reference documents, as strings: what a bare name falls to when no definition or import has it. A catalogue reads it to say which definitions share a builtin's name. |
 | `chain_rules` | Every conversion-chain rewrite the check stage, the formatter and the evaluator share, as [id, slug, outer, soundness, cases] rows; a case is [label, kind or nil, lhs, rhs] with lhs and rhs one-parameter lambda forms for eval. okite's laws evaluate both sides. |
 | `cwd` | The current directory. |
@@ -596,7 +614,7 @@ A Bluefile is a blue program that may call only these words.
 | `allow(capabilities)` | The root's ceiling, the most host authority it grants (%i[filesystem clock]), as `--allow` grants it, with what each implies (filesystem holds storage_append, the append-only logs): every package's floor, joined, must fit under it or a provider, else `blue lock` refuses and names the path; `blue run` holds the program to it. |
 | `floors(unit)` | What `blue lock` counts in a floor: :definition (the default), the host capabilities the definitions the root's code reaches name, through every package it uses; or :package, everything each package in the closure names, whole. The lock records it as the capabilities record's `unit`. |
 | `bounds({steps:, call_depth:, alloc_bytes:, dispatch_steps:})` | The root's own execution bounds, each optional and each a positive integer: `steps` a run (and each test) may take, `call_depth` nested calls alive at once, `alloc_bytes` live bytes one evaluation may hold, `dispatch_steps` the steps one message's handler in a spawn_server may take (met with the server's own spawn option). `blue lock` records them in the capabilities record; `blue run`, `blue test` and an appliance hold the program to the lesser of each and the operator's BlueConfig bound, so a project narrows a bound and never widens one. |
-| `virtualize(capability, {using:, for:, …})` | A host capability bound to a pure provider: :clock {using: :deterministic_stepped, at_ms:, step_ms:}, :entropy {using: :seeded_prng, seed:}, :filesystem {using: :in_memory_overlay} (an isolated tree on an empty base; nothing reaches the host) or {using: :null_sink} (every write dropped), :comm_flash or :comm_scavenger {using: :loopback} (frames go to an in-process queue the run's own links read; no socket), :mpc_threshold {using: :seeded, seed:} (the threshold words draw every nonce and key from a stream keyed by seed, so a run signs the same way twice), :storage_append {using: :in_memory} (the append-only logs live in memory; nothing reaches the host). `for: %w[pkg]` serves only those packages and what they use; the rest of the program gets the host or a breach. Without `for:` it serves the whole program. |
+| `virtualize(capability, {using:, for:, …})` | A host capability bound to a pure provider: :clock {using: :deterministic_stepped, at_ms:, step_ms:}, :entropy {using: :seeded_prng, seed:}, :filesystem {using: :in_memory_overlay} (an isolated tree on an empty base; nothing reaches the host) or {using: :null_sink} (every write dropped), :comm_flash or :comm_scavenger {using: :loopback} (frames go to an in-process queue the run's own links read; no socket), :mpc_threshold {using: :seeded, seed:} (the threshold words draw every nonce and key from a stream keyed by seed, so a run signs the same way twice), :storage_append {using: :in_memory} (the append-only logs live in memory; nothing reaches the host), :audio_out {using: :recording_sink} (every clip played is kept in memory; no device), :audio_in {using: :seeded_noise, seed:} (samples from a stream keyed by seed) or {using: :monitor} (what the run's recording sink holds, then silence), :display {using: :framebuffer} (each canvas lives in memory and canvas_pixel reads what was presented; no canvas server). `for: %w[pkg]` serves only those packages and what they use; the rest of the program gets the host or a breach. Without `for:` it serves the whole program. |
 | `source(name, url, dir)` | A named external distribution root, fetched from a flake URL and pinned in Bluefile.lock by `blue lock`. |
 | `packages(dir)` | A local directory whose subdirectories are packages: each is built, tested (`bidama-test-<pkg>`) and gated for collisions. |
 | `run(name, file[, reads])` | A program run as its own cached derivation, writing into $RUN_OUT; `reads` names runs whose outputs it reads. |

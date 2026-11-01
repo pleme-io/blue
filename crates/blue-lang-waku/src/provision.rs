@@ -5,7 +5,9 @@
 //! no call reaches the host: the clock steps, entropy is a seeded stream, the
 //! filesystem lives in memory or nowhere, the wire's frames go to an
 //! in-process queue, the threshold words draw their randomness from a
-//! seeded stream, and the append-only logs live in memory.
+//! seeded stream, the append-only logs live in memory, played audio goes to
+//! a recording sink, captured audio comes from a seeded source or from that
+//! sink, and a canvas draws into an in-memory framebuffer.
 //! [`Provision::kinds_for`] is exhaustive over
 //! [`Capability`], so a new capability lands with its answer.
 //!
@@ -45,6 +47,12 @@ pub enum Provision {
         seed: String,
     },
     InMemory,
+    RecordingSink,
+    SeededNoise {
+        seed: String,
+    },
+    Monitor,
+    Framebuffer,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -81,6 +89,9 @@ impl Provision {
             Provision::Loopback { channel } => channel.capability(),
             Provision::Seeded { .. } => Capability::MpcThreshold,
             Provision::InMemory => Capability::StorageAppend,
+            Provision::RecordingSink => Capability::AudioOut,
+            Provision::SeededNoise { .. } | Provision::Monitor => Capability::AudioIn,
+            Provision::Framebuffer => Capability::Display,
         }
     }
 
@@ -95,6 +106,10 @@ impl Provision {
             Provision::Loopback { .. } => "loopback",
             Provision::Seeded { .. } => "seeded",
             Provision::InMemory => "in_memory",
+            Provision::RecordingSink => "recording_sink",
+            Provision::SeededNoise { .. } => "seeded_noise",
+            Provision::Monitor => "monitor",
+            Provision::Framebuffer => "framebuffer",
         }
     }
 
@@ -109,6 +124,10 @@ impl Provision {
             Provision::Loopback { .. } => "loopback",
             Provision::Seeded { .. } => "seeded",
             Provision::InMemory => "in-memory",
+            Provision::RecordingSink => "recording-sink",
+            Provision::SeededNoise { .. } => "seeded-noise",
+            Provision::Monitor => "monitor",
+            Provision::Framebuffer => "framebuffer",
         }
     }
 
@@ -123,6 +142,9 @@ impl Provision {
             Capability::CommFlash | Capability::CommScavenger => &["loopback"],
             Capability::MpcThreshold => &["seeded"],
             Capability::StorageAppend => &["in_memory"],
+            Capability::AudioOut => &["recording_sink"],
+            Capability::AudioIn => &["seeded_noise", "monitor"],
+            Capability::Display => &["framebuffer"],
             Capability::Process
             | Capability::Environment
             | Capability::Network
@@ -288,6 +310,10 @@ mod tests {
             },
             Provision::Seeded { seed: "s".into() },
             Provision::InMemory,
+            Provision::RecordingSink,
+            Provision::SeededNoise { seed: "s".into() },
+            Provision::Monitor,
+            Provision::Framebuffer,
         ]
     }
 
@@ -392,6 +418,16 @@ mod tests {
             Provision::capability_of("read_log"),
             Some(Capability::StorageAppend)
         );
+        for (word, cap) in [
+            ("play_audio", Capability::AudioOut),
+            ("audio_out_format", Capability::AudioOut),
+            ("capture_audio", Capability::AudioIn),
+            ("audio_in_format", Capability::AudioIn),
+            ("canvas_open", Capability::Display),
+            ("canvas_pixel", Capability::Display),
+        ] {
+            assert_eq!(Provision::capability_of(word), Some(cap), "{word}");
+        }
         assert_eq!(Provision::capability_of("ed25519_verify"), None);
         assert_eq!(Provision::capability_of("tcp_connect_ms"), None);
         assert_eq!(Provision::capability_of("map"), None);

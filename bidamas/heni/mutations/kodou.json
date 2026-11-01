@@ -110,13 +110,31 @@
   {
     "name": "kensa cannot name mpc-threshold",
     "file": "kodou.b",
-    "find": "    comm-scavenger\n    mpc-threshold\n    storage-append\n  ]",
-    "replace": "    comm-scavenger\n    storage-append\n  ]"
+    "find": "    comm-scavenger\n    mpc-threshold\n    storage-append\n",
+    "replace": "    comm-scavenger\n    storage-append\n"
   },
   {
     "name": "kensa cannot name storage-append",
     "file": "kodou.b",
-    "find": "    mpc-threshold\n    storage-append\n  ]",
-    "replace": "    mpc-threshold\n  ]"
+    "find": "    mpc-threshold\n    storage-append\n    audio-out\n",
+    "replace": "    mpc-threshold\n    audio-out\n"
+  },
+  {
+    "name": "kensa cannot name audio-out",
+    "file": "kodou.b",
+    "find": "    storage-append\n    audio-out\n    audio-in\n",
+    "replace": "    storage-append\n    audio-in\n"
+  },
+  {
+    "name": "kensa cannot name audio-in",
+    "file": "kodou.b",
+    "find": "    audio-out\n    audio-in\n    display\n",
+    "replace": "    audio-out\n    display\n"
+  },
+  {
+    "name": "kensa cannot name display",
+    "file": "kodou.b",
+    "find": "    audio-in\n    display\n  ]",
+    "replace": "    audio-in\n  ]"
   }
 ]

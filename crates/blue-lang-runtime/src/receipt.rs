@@ -232,7 +232,10 @@ mod tests {
                 "comm-flash",
                 "comm-scavenger",
                 "mpc-threshold",
-                "storage-append"
+                "storage-append",
+                "audio-out",
+                "audio-in",
+                "display"
             ])
         );
         assert_eq!(j["frame"]["host_io"], 1, "the ledger's total, as given");

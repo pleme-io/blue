@@ -1,0 +1,15 @@
+[package]
+name = "blue-lang-senses"
+description = "The host devices a blue program hears, speaks and draws through: audio out and audio in over the platform's own sound ABI, loaded with dlopen behind one unsafe seam, and a display canvas drawn on the CPU and presented to a canvas server over a socket."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+serde_json = { workspace = true }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"

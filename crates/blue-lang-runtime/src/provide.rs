@@ -2,8 +2,9 @@
 //! ([`blue_lang_waku::Provision`]): a deterministic stepped clock, a seeded
 //! PRNG, a filesystem as an in-memory overlay or a null sink, the wire's
 //! two channels over an in-process loopback, the threshold words over a
-//! seeded stream, and the append-only logs in memory. Each interpreter gets
-//! its own
+//! seeded stream, the append-only logs in memory, played audio into a
+//! recording sink, captured audio from a seeded stream or from that sink,
+//! and a canvas in an in-memory framebuffer. Each interpreter gets its own
 //! provider state, as each process owns its interpreter.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -29,6 +30,8 @@ pub fn provide<H: 'static>(
 ) -> Option<crate::wire::ClockRead> {
     let mut frame_clock = None;
     let mut links = Vec::new();
+    let mut sink = None;
+    let mut monitors = Vec::new();
     for p in provisions.iter() {
         let key: Key = if p.scope.is_some() {
             crate::provided_name
@@ -48,7 +51,18 @@ pub fn provide<H: 'static>(
             Provision::Loopback { channel } => links.push((key, *channel)),
             Provision::Seeded { seed } => crate::threshold::provide_seeded(interp, key, seed),
             Provision::InMemory => crate::storage::provide_in_memory(interp, key),
+            Provision::RecordingSink => {
+                sink = Some(crate::audio::provide_recording_sink(interp, key));
+            }
+            Provision::SeededNoise { seed } => {
+                crate::audio::provide_seeded_noise(interp, key, seed);
+            }
+            Provision::Monitor => monitors.push(key),
+            Provision::Framebuffer => crate::display::provide_framebuffer(interp, key),
         }
+    }
+    for key in monitors {
+        crate::audio::provide_monitor(interp, key, sink.clone());
     }
     if !links.is_empty() {
         let net = Arc::new(crate::wire::LoopbackNet::default());
@@ -627,6 +641,10 @@ mod tests {
             },
             Provision::Seeded { seed: "s".into() },
             Provision::InMemory,
+            Provision::RecordingSink,
+            Provision::SeededNoise { seed: "s".into() },
+            Provision::Monitor,
+            Provision::Framebuffer,
         ] {
             let cap = p.capability();
             let mut interp = crate::interpreter_hostless();

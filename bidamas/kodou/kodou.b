@@ -39,6 +39,9 @@ def kensa_capabilities()
     comm-scavenger
     mpc-threshold
     storage-append
+    audio-out
+    audio-in
+    display
   ]
 end
 
@@ -780,6 +783,9 @@ test "an entry is kensa's shape, keys and all, and a crash it cannot name is ref
     "mpc-threshold"
   assert entry_of(fixture_crash("storage-append", d))["capability"] ==
     "storage-append"
+  assert entry_of(fixture_crash("audio-out", d))["capability"] == "audio-out"
+  assert entry_of(fixture_crash("audio-in", d))["capability"] == "audio-in"
+  assert entry_of(fixture_crash("display", d))["capability"] == "display"
   assert raised(() -> entry_of(fixture_crash("gpu", d))) == :refused
   assert raised(() -> entry_of(fixture_crash("filesystem", "b3:short"))) ==
     :refused

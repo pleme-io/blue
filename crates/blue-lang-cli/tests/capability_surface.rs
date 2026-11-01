@@ -195,7 +195,7 @@ fn each_host_capability_carries_a_real_bundle_and_a_real_import() {
         .into_iter()
         .map(|c| (c.label(), c.names().len()))
         .collect();
-    assert_eq!(counts.len(), 10, "the floor, 2026-10-31: {counts:?}");
+    assert_eq!(counts.len(), 13, "the floor, 2026-10-31: {counts:?}");
     for (label, n) in &counts {
         assert!(*n > 0, "{label} grants no names");
     }
@@ -233,7 +233,10 @@ fn each_host_capability_carries_a_real_bundle_and_a_real_import() {
             ("comm-flash", 5),
             ("comm-scavenger", 9),
             ("mpc-threshold", 9),
-            ("storage-append", 2)
+            ("storage-append", 2),
+            ("audio-out", 2),
+            ("audio-in", 2),
+            ("display", 7)
         ]
     );
 }

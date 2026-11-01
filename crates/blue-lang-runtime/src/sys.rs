@@ -49,8 +49,9 @@
 //!
 //! NATS and HTTP are installed here too, from [`crate::net`], the Flash
 //! and Tide channels of the dual-pulse wire, from [`crate::wire`], the
-//! threshold signing words, from [`crate::threshold`], and the append-only
-//! log words, from [`crate::storage`].
+//! threshold signing words, from [`crate::threshold`], the append-only
+//! log words, from [`crate::storage`], the audio words, from
+//! [`crate::audio`], and the canvas words, from [`crate::display`].
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -72,6 +73,8 @@ pub fn install_sys_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
     crate::wire::install_wire(interp);
     crate::threshold::install_threshold(interp);
     crate::storage::install_storage(interp);
+    crate::audio::install_audio(interp);
+    crate::display::install_display(interp);
 }
 
 // ── process ──────────────────────────────────────────────────────────────

@@ -53,6 +53,8 @@ pub enum Topic {
     Clock,
     /// NATS and HTTP over TCP.
     Network,
+    /// Sound played and captured, and a canvas drawn and shown.
+    Device,
     Crypto,
     /// Delayed values.
     Lazy,
@@ -86,6 +88,7 @@ impl Topic {
         Topic::Environment,
         Topic::Clock,
         Topic::Network,
+        Topic::Device,
         Topic::Crypto,
         Topic::Output,
         Topic::Lazy,
@@ -115,6 +118,7 @@ impl Topic {
             Topic::Environment => "Environment and arguments",
             Topic::Clock => "Time",
             Topic::Network => "Network",
+            Topic::Device => "Sound and display",
             Topic::Crypto => "Hashing and signatures",
             Topic::Lazy => "Delayed values",
             Topic::Concurrency => "Channels and fibers",
@@ -146,9 +150,12 @@ impl Topic {
             | Topic::Xml
             | Topic::Crypto
             | Topic::Lazy => None,
-            Topic::File | Topic::Process | Topic::Environment | Topic::Clock | Topic::Network => {
-                Some(Effect::Host)
-            }
+            Topic::File
+            | Topic::Process
+            | Topic::Environment
+            | Topic::Clock
+            | Topic::Network
+            | Topic::Device => Some(Effect::Host),
             Topic::Output => Some(Effect::Output),
             Topic::Concurrency => Some(Effect::Concurrency),
             Topic::Actor => Some(Effect::Actor),
@@ -449,6 +456,17 @@ pub const NAMES: &[NameDoc] = names! {
     File: "cwd" "cwd" "The current directory.";
     File: "append_log" "append_log(log, record)" "Add one record, a line of text, to the end of an append-only log, creating the log and its directories; nil. A record holding a newline or not a string raises :bad_option, and a log whose last record is torn raises :parse_error, writing nothing. Needs the storage_append capability, which filesystem holds; nothing in it truncates, overwrites or removes.";
     File: "read_log" "read_log(log)" "Every record append_log wrote to a log, in order, as strings. An absent log raises :not_found, and one whose last record is torn raises :parse_error. Needs the storage_append capability, which filesystem holds.";
+    Device: "play_audio" "play_audio(clip)" "Play a clip, {rate:, channels:, samples:} with the samples interleaved numbers from -1.0 to 1.0, on the default output device, and answer nil once it has played. A clip that is not whole frames of such samples raises :bad_option; a host with no audio system raises :unsupported, and one with no output device :not_found. Needs the audio_out capability.";
+    Device: "audio_out_format" "audio_out_format" "The default output device's format, {rate:, channels:}, or nil when there is none. Needs the audio_out capability.";
+    Device: "capture_audio" "capture_audio(frames, format)" "Capture frames frames (0 to 16777216) from the default input device in format {rate:, channels:}: a clip {rate:, channels:, samples:}. A bad count or format raises :bad_option; a host with no audio system raises :unsupported, one with no input device :not_found, and a device that stalls :timeout. Needs the audio_in capability.";
+    Device: "audio_in_format" "audio_in_format" "The default input device's format, {rate:, channels:}, or nil when there is none. Needs the audio_in capability.";
+    Device: "canvas_open" "canvas_open(opts)" "A black canvas of opts {width:, height:} pixels, 1 to 4096 each, titled opts title: (\"blue\"), shown by the canvas server listening at $BLUE_CANVAS_SOCKET, else $XDG_RUNTIME_DIR/garasu/canvas.sock. No server listening raises :not_found. Needs the display capability.";
+    Device: "canvas_clear" "canvas_clear(canvas, color)" "Fill the canvas with a color, \"#rgb\" or \"#rrggbb\"; nil. What is drawn shows at the next canvas_present. Needs the display capability.";
+    Device: "canvas_fill_rect" "canvas_fill_rect(canvas, x, y, width, height, color)" "Fill a rectangle with its top left at x, y, clipped to the canvas; nil. Needs the display capability.";
+    Device: "canvas_text" "canvas_text(canvas, x, y, text, color)" "Draw text in an 8 by 8 pixel font with its top left at x, y, one cell a character; a character outside printable ASCII draws as ?. nil. Needs the display capability.";
+    Device: "canvas_present" "canvas_present(canvas)" "Show what has been drawn: canvas_pixel reads it, and the canvas server receives it. Needs the display capability.";
+    Device: "canvas_pixel" "canvas_pixel(canvas, x, y)" "The shown color at x, y as \"#rrggbb\", or nil outside the canvas. Needs the display capability.";
+    Device: "canvas_close" "canvas_close(canvas)" "Close the canvas; nil. Closing twice is done, and any other word on a closed canvas raises :closed. Needs the display capability.";
     // ── processes ─────────────────────────────────────────────────────────
     Process: "exec_capture" "exec_capture(cmd, args...)" "Run a command, no shell: [[:status, n], [:stdout, s], [:stderr, s]]. Read it with shisutemu's status_of and stdout_of.";
     Process: "exec_check" "exec_check(cmd, args...)" "Run a command, no shell; its exit status as an Int. Output passes through.";

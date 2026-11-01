@@ -202,3 +202,200 @@ fn an_idle_server_moves_over_the_loopback_tide_under_allow_none_and_touches_no_s
     );
     let _ = std::fs::remove_dir_all(dir);
 }
+
+const LEDGER: &str = r##"use("shisutemu", [:read_or])
+
+def ledger(parent)
+  t0 = now_ms
+  a = receive()
+  b = receive()
+  send(parent, [:took, a + b, t0])
+  c = receive()
+  t1 = now_ms
+  send(parent, [:at, t1])
+  send(parent, read_or(c, "") rescue "swallowed")
+end
+
+def main()
+  a = tide_open("127.0.0.1:0")
+  b = tide_open("127.0.0.1:0")
+  p = spawn(ledger, [self])
+  send(p, 1)
+  send(p, 2)
+  receive(%i[took _ _])
+  moved = evict(p, a, tide_stats(b).address)
+  tide_release(a, 1_000_000, 0)
+  q = accept(b, 5000)
+  monitor(q)
+  send(q, "/etc/hosts")
+  write_stdout("#{moved.image} #{q != p} #{receive(%i[down _ _ _], 5000)[3][0]}")
+end
+"##;
+
+const TILL: &str = r##"use("shisutemu", [:read_or])
+
+def till(msg, total)
+  t = now_ms
+  if integer?(msg)
+    total + msg
+  elsif list?(msg)
+    send(msg[1], [:total, total, t])
+    total
+  else
+    read_or(msg, "") rescue "swallowed"
+  end
+end
+
+def main()
+  a = tide_open("127.0.0.1:0")
+  b = tide_open("127.0.0.1:0")
+  s = spawn_server(till, 0)
+  send(s, 1)
+  send(s, 2)
+  send(s, [:get, self])
+  before = receive(%i[total _ _])
+  send(s, 4)
+  moved = evict(s, a, tide_stats(b).address)
+  tide_release(a, 1_000_000, 0)
+  q = accept(b, 5000)
+  monitor(q)
+  send(q, "/etc/hosts")
+  write_stdout("#{moved.image} #{before[1]} #{receive(%i[down _ _ _], 5000)[3][0]}")
+end
+"##;
+
+fn crashed_after_moving(name: &str, program: &str) -> (PathBuf, PathBuf, Json, Vec<String>) {
+    let dir = scratch(name);
+    let file = dir.join("move.b");
+    put(&file, program);
+    let traces = dir.join("traces");
+    let o = blue(&repo_bidamas().display().to_string())
+        .env("BLUE_TRACE_DIR", &traces)
+        .args([
+            "run",
+            "--quiet",
+            "--allow",
+            "comm_scavenger",
+            "--allow",
+            "clock",
+        ])
+        .arg(&file)
+        .output()
+        .expect("blue run");
+    assert!(o.status.success(), "{}{}", out(&o), err(&o));
+    let said: Vec<String> = out(&o).split(' ').map(str::to_string).collect();
+    let files: Vec<PathBuf> = std::fs::read_dir(&traces)
+        .expect("trace dir")
+        .map(|e| e.expect("entry").path())
+        .collect();
+    assert_eq!(files.len(), 1, "{files:?}");
+    assert_eq!(
+        files[0].extension().and_then(|e| e.to_str()),
+        Some("bluecrash")
+    );
+    std::fs::remove_file(&file).expect("the replay must not need the program");
+    let j = serde_json::from_slice(&std::fs::read(&files[0]).expect("read")).expect("json");
+    (dir, files[0].clone(), j, said)
+}
+
+fn replay(path: &Path) -> Output {
+    blue(&repo_bidamas().display().to_string())
+        .arg("replay")
+        .arg(path)
+        .output()
+        .expect("blue replay")
+}
+
+#[test]
+fn a_moved_plain_process_writes_a_bluecrash_that_replays_from_its_start_through_the_tape_it_carried(
+) {
+    let (dir, path, j, said) = crashed_after_moving("replay-plain", LEDGER);
+    assert_eq!(said.len(), 3, "{said:?}");
+    assert!(said[0].starts_with("b3:") && said[1] == "true" && said[2].contains("fatal"));
+    assert_eq!(j["version"], 4);
+    assert_eq!(
+        j["carried"]["entries"], 4,
+        "now_ms, two receives and a send on the node it left: {}",
+        j["tape"]
+    );
+    assert_eq!(j["carried"]["image"], said[0].as_str());
+    assert_eq!(j["truncated"], false);
+    let calls: Vec<&str> = j["tape"]
+        .as_array()
+        .expect("tape")
+        .iter()
+        .filter_map(|e| e["call"].as_str())
+        .collect();
+    assert_eq!(
+        calls,
+        ["now_ms", "receive", "receive", "send", "receive", "now_ms", "send", "is_file?"],
+    );
+    assert_eq!(j["violation"]["entry"], 7);
+
+    let o = replay(&path);
+    let stdout = out(&o);
+    assert!(o.status.success(), "{stdout}{}", err(&o));
+    let recorded = j["exit"]["text"].as_str().expect("text");
+    assert!(
+        stdout.contains(&format!(
+            "carried: the first 4 tape entries came in image {}\n",
+            said[0]
+        )) && stdout.contains(&format!(
+            "replayed: fatal {recorded} (8 of 8 tape entries)\n"
+        )),
+        "the same breach at the same tape entry: {stdout}"
+    );
+    assert!(
+        stdout.ends_with("reproduced\n") && !stdout.contains("not reproduced"),
+        "{stdout}"
+    );
+
+    let mut cut = j.clone();
+    cut["tape"].as_array_mut().expect("tape").remove(1);
+    let cut_path = dir.join("cut.bluecrash");
+    put(&cut_path, &serde_json::to_string(&cut).expect("json"));
+    let o = replay(&cut_path);
+    assert!(!o.status.success(), "{}", out(&o));
+    assert!(
+        err(&o).contains(&format!(
+            "not replayed: the tape carried in image {} does not match: its first 4 entries hash to b3:",
+            said[0]
+        )),
+        "{}",
+        err(&o)
+    );
+    assert!(out(&o).is_empty(), "nothing ran: {}", out(&o));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn a_moved_server_writes_a_bluecrash_that_replays_from_its_last_boundary_on_the_node_it_reached() {
+    let (dir, path, j, said) = crashed_after_moving("replay-server", TILL);
+    assert_eq!(said.len(), 3, "{said:?}");
+    assert!(said[0].starts_with("b3:") && said[1] == "3" && said[2].contains("fatal"));
+    assert_eq!(
+        j["version"], 3,
+        "a server's tape starts at its last boundary, which it reached on the node it moved to, so nothing came with it"
+    );
+    assert!(j["carried"].is_null());
+    let state: Vec<&Json> = j["code"]["bindings"]
+        .as_array()
+        .expect("bindings")
+        .iter()
+        .filter(|b| b["name"] == "%state")
+        .map(|b| &b["value"])
+        .collect();
+    assert_eq!(state, [&serde_json::json!({"int": 7})]);
+    let o = replay(&path);
+    let stdout = out(&o);
+    assert!(o.status.success(), "{stdout}{}", err(&o));
+    let recorded = j["exit"]["text"].as_str().expect("text");
+    assert!(
+        stdout.contains(&format!(
+            "replayed: fatal {recorded} (3 of 3 tape entries)\n"
+        )) && stdout.ends_with("reproduced\n")
+            && !stdout.contains("not reproduced"),
+        "{stdout}"
+    );
+    let _ = std::fs::remove_dir_all(dir);
+}

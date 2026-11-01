@@ -338,11 +338,11 @@ not being on crates.io), **no editor answer inside a broken buffer** (the
 LSP answers from the newest revision that parsed until the parser recovers,
 `BLUE-ENGINE.md` E6), **project rules in the editor or as wasm** (`blue check`
 runs them in-process under the rule frame; the LSP does not run them, and the
-ABI is shaped for a wasm module that nothing builds yet), **no replay of a
-moved plain process** (`evict` carries a plain process parked at `receive` as
-its VM frames, but not its tape: a crash on the node it moved to writes a
-trace marked truncated, which `blue replay` refuses to call reproduced; the
-tape would have to travel in the image), **no link across nodes** (`evict` breaks a link and
+ABI is shaped for a wasm module that nothing builds yet), **no mailbox
+journal across a move** (a moved plain process's tape travels in its image,
+`blue-image` version 4, and its crash replays from its start through it; the
+journal of the last messages it took and the frame's count of host calls,
+which a held crash prints, hold only what it did on the node it crashed on), **no link across nodes** (`evict` breaks a link and
 tells a partner that traps exits; it refuses one that does not), **no
 authenticated image** (an image's BLAKE3 name proves it arrived whole, not who
 sent it; it runs under the accepting node's frame, never more), and no **`case`/`when` pattern matching** or **ranges** — the two remaining
@@ -2626,7 +2626,21 @@ document lands.
   (`crates/blue-lang-proc/src/node.rs` `continuation`, `parking`). The
   accepting node rebuilds the frames against the code it compiles itself and
   refuses, by name, frames whose chunk fingerprint differs or that hold a
-  native it does not register (`resume`).
+  native it does not register (`resume`). Its tape (2026-11-01) travels in
+  the same image, as `blue-image` version 4: the arrival's tape starts with
+  the carried entries, and the accepting node records their count, their
+  BLAKE3 hash and the image's name. A crash there writes `blue-trace`
+  version 4, which `blue replay` runs from the process's start through the
+  carried entries on one node, and refuses by name, before it runs, when
+  the first entries are not the ones that came, cut or edited
+  (`crates/blue-lang-proc/src/trace.rs` `check_carried`). A server's tape
+  starts at its last boundary, which it reaches on the new node, so a
+  server's image carries none and its trace needs none. An image without a
+  tape, from an older blue or a tape past its bound, still arrives with its
+  trace marked truncated, and so does a process whose tape would not fit the
+  send ring or the frame limit: the move goes on with the image it had
+  before tapes travelled (`depart_over`). Version 1 to 3 images and
+  version 3 traces keep their bytes.
 - **Unsafe Rust.** 18 crates. Five hold `unsafe` in non-test code:
   `blue-lang-kiwari` (59 occurrences, one seam,
   `src/lib.rs:18` `#![deny(unsafe_code)]`, `src/ts.rs:13` the one
@@ -3072,8 +3086,9 @@ reached later breaches and exits 77. nix builds one per Bluefile `app`
 **The crash journal (2026-10-30).** A held process that exits fatal writes
 its trace, supervised or not, as `<crash_hash>.bluecrash` into
 `BLUE_TRACE_DIR` (`blue-lang-proc` `node::written`; the name is the next
-note's). The trace is `blue-trace` version 3 (`trace.rs`; versions 1 and 2
-still read): it names the
+note's). The trace is `blue-trace` version 3, or version 4 for a process
+whose tape began on another node (`trace.rs`; versions 1 and 2 still
+read): it names the
 spawned definition's `def_hash` as the engine hashes it, `@doc` included
 (`blue_lang_mondou::def_hash::identify`), the hold (granted, provided and
 withheld capabilities, each provider with its `for` scope,
@@ -4121,11 +4136,11 @@ not being on crates.io), **no editor answer inside a broken buffer** (the
 LSP answers from the newest revision that parsed until the parser recovers,
 `BLUE-ENGINE.md` E6), **project rules in the editor or as wasm** (`blue check`
 runs them in-process under the rule frame; the LSP does not run them, and the
-ABI is shaped for a wasm module that nothing builds yet), **no replay of a
-moved plain process** (`evict` carries a plain process parked at `receive` as
-its VM frames, but not its tape: a crash on the node it moved to writes a
-trace marked truncated, which `blue replay` refuses to call reproduced; the
-tape would have to travel in the image), **no link across nodes** (`evict` breaks a link and
+ABI is shaped for a wasm module that nothing builds yet), **no mailbox
+journal across a move** (a moved plain process's tape travels in its image,
+`blue-image` version 4, and its crash replays from its start through it; the
+journal of the last messages it took and the frame's count of host calls,
+which a held crash prints, hold only what it did on the node it crashed on), **no link across nodes** (`evict` breaks a link and
 tells a partner that traps exits; it refuses one that does not), **no
 authenticated image** (an image's BLAKE3 name proves it arrived whole, not who
 sent it; it runs under the accepting node's frame, never more), and no **`case`/`when` pattern matching** or **ranges** — the two remaining

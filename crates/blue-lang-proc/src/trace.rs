@@ -41,6 +41,13 @@
 //!   "mailbox": null | { "bound": n, "recent": [VALUE…], "unconsumed": [VALUE…], "unconsumed_total": n } }
 //! ```
 //!
+//! Version 4 is version 3 with a `carried` block, written only for a process
+//! whose tape began on another node: `{ "entries": n, "image": "b3:…",
+//! "tape": "b3:…" }`, the first `n` tape entries came in that `blue-image`
+//! and hash, as tape JSON, to `tape`. A replay runs the process from its
+//! start through them, and refuses a trace whose first `n` entries are not
+//! the ones that came. A trace with no carried tape is still version 3.
+//!
 //! Version 3 adds the `violation` block ([`crate::violation`]), the span of a
 //! fatal tape entry's call, where the spawned definition is (`defined_at`),
 //! and, under a hold, the receipt's frame block (`frame`, the incarnation's
@@ -87,8 +94,9 @@ use crate::{classify, ExitReason};
 pub const FORMAT: &str = "blue-trace";
 /// The version this crate writes.
 pub const VERSION: u64 = 3;
+pub const CARRIED: u64 = 4;
 /// Every version this crate reads.
-pub const READS: [u64; 3] = [1, 2, VERSION];
+pub const READS: [u64; 4] = [1, 2, VERSION, CARRIED];
 /// The extension of a fatal exit's trace.
 pub const CRASH_EXTENSION: &str = "bluecrash";
 /// The extension of any other exit's trace.
@@ -133,6 +141,119 @@ impl TapeEntry {
             at,
         }
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Carried {
+    pub entries: usize,
+    pub image: String,
+    pub tape: String,
+}
+
+impl Carried {
+    #[must_use]
+    pub fn of(entries: &[TapeEntry], image: &str) -> Self {
+        Self {
+            entries: entries.len(),
+            image: format!("b3:{image}"),
+            tape: tape_hash(entries),
+        }
+    }
+
+    fn to_json(&self) -> Json {
+        json!({"entries": self.entries, "image": self.image, "tape": self.tape})
+    }
+
+    fn from_json(j: &Json) -> Result<Self, String> {
+        let name = |k: &str| {
+            j.get(k)
+                .and_then(Json::as_str)
+                .filter(|h| {
+                    h.strip_prefix("b3:")
+                        .is_some_and(|x| x.len() == 64 && x.bytes().all(|b| b.is_ascii_hexdigit()))
+                })
+                .map(str::to_string)
+                .ok_or_else(|| format!("{FORMAT}: `carried.{k}` is not a b3: hash"))
+        };
+        Ok(Self {
+            entries: opt_from(j.get("entries"))
+                .ok_or_else(|| format!("{FORMAT}: `carried.entries` is not a count"))?,
+            image: name("image")?,
+            tape: name("tape")?,
+        })
+    }
+}
+
+#[must_use]
+pub fn entry_to_json(e: &TapeEntry) -> Json {
+    match (&e.outcome, &e.fatal) {
+        (Ok(v), _) => json!({"call": e.call, "value": value_to_json(v)}),
+        (Err(m), Some(kind)) => {
+            let mut fatal = json!({"kind": kind, "message": m});
+            if let Some(s) = e.at {
+                fatal["at"] = json!([s.start, s.end]);
+            }
+            json!({"call": e.call, "fatal": fatal})
+        }
+        (Err(m), None) => json!({"call": e.call, "raised": m}),
+    }
+}
+
+pub fn entry_from_json(e: &Json) -> Result<TapeEntry, String> {
+    let call = e
+        .get("call")
+        .and_then(Json::as_str)
+        .ok_or_else(|| bad("tape entry"))?;
+    let text = |f: &Json, k: &str| {
+        f.get(k)
+            .and_then(Json::as_str)
+            .map(str::to_string)
+            .ok_or_else(|| bad("fatal entry"))
+    };
+    let (outcome, fatal) = match (e.get("fatal"), e.get("raised").and_then(Json::as_str)) {
+        (Some(f), _) => (Err(text(f, "message")?), Some(text(f, "kind")?)),
+        (None, Some(m)) => (Err(m.to_string()), None),
+        (None, None) => (
+            Ok(value_from_json(e.get("value").unwrap_or(&Json::Null))?),
+            None,
+        ),
+    };
+    let at = match e
+        .get("fatal")
+        .and_then(|f| f.get("at"))
+        .and_then(Json::as_array)
+        .map(Vec::as_slice)
+    {
+        Some([s, e]) => match (opt_from(Some(s)), opt_from(Some(e))) {
+            (Some(s), Some(e)) => Some(Span::new(s, e)),
+            _ => return Err(bad("fatal span")),
+        },
+        _ => None,
+    };
+    Ok(TapeEntry {
+        call: call.to_string(),
+        outcome,
+        fatal,
+        at,
+    })
+}
+
+#[must_use]
+pub fn tape_to_json(entries: &[TapeEntry]) -> Json {
+    Json::Array(entries.iter().map(entry_to_json).collect())
+}
+
+pub fn tape_from_json(j: &Json) -> Result<Vec<TapeEntry>, String> {
+    j.as_array()
+        .ok_or_else(|| bad("tape"))?
+        .iter()
+        .map(entry_from_json)
+        .collect()
+}
+
+#[must_use]
+pub fn tape_hash(entries: &[TapeEntry]) -> String {
+    format!("b3:{}", crash_hash(&tape_to_json(entries)))
 }
 
 /// A held process's mailbox at its exit: the last messages it took and the
@@ -184,6 +305,7 @@ pub struct Trace {
     pub defined_at: Option<Place>,
     /// Host calls the incarnation made through granted names, under a hold.
     pub host_io: Option<u64>,
+    pub carried: Option<Carried>,
 }
 
 /// The kind of an abnormal exit, as a trace names it.
@@ -492,7 +614,7 @@ impl Trace {
     /// This trace as `blue-trace` JSON.
     #[must_use]
     pub fn to_json(&self) -> Json {
-        json!({
+        let mut j = json!({
             "format": FORMAT,
             "version": VERSION,
             "pid": self.pid,
@@ -505,17 +627,7 @@ impl Trace {
             "budget": { "fuel": opt(self.budget.fuel), "max_depth": opt(self.budget.max_depth), "quantum": opt(self.budget.quantum) },
             "clock": self.clock.label(),
             "code": code_to_json(&self.code),
-            "tape": self.tape.iter().map(|e| match (&e.outcome, &e.fatal) {
-                (Ok(v), _) => json!({"call": e.call, "value": value_to_json(v)}),
-                (Err(m), Some(kind)) => {
-                    let mut fatal = json!({"kind": kind, "message": m});
-                    if let Some(s) = e.at {
-                        fatal["at"] = json!([s.start, s.end]);
-                    }
-                    json!({"call": e.call, "fatal": fatal})
-                }
-                (Err(m), None) => json!({"call": e.call, "raised": m}),
-            }).collect::<Vec<_>>(),
+            "tape": tape_to_json(&self.tape),
             "truncated": self.truncated,
             "schedule": self.schedule.iter().map(|s| json!({"pid": s.pid, "outcome": s.outcome, "burned": s.burned})).collect::<Vec<_>>(),
             "hold": self.hold.as_ref().map_or(Json::Null, Frame::to_json),
@@ -526,7 +638,12 @@ impl Trace {
                 "unconsumed": m.unconsumed.iter().map(value_to_json).collect::<Vec<_>>(),
                 "unconsumed_total": m.unconsumed_total,
             })),
-        })
+        });
+        if let Some(c) = &self.carried {
+            j["carried"] = c.to_json();
+            j["version"] = json!(CARRIED);
+        }
+        j
     }
 
     /// Read a trace back.
@@ -542,52 +659,28 @@ impl Trace {
         let version = j.get("version").and_then(Json::as_u64).unwrap_or(0);
         if !READS.contains(&version) {
             return Err(format!(
-                "{FORMAT} version {version}; this blue reads versions 1 to {VERSION}"
+                "{FORMAT} version {version}; this blue reads versions 1 to {CARRIED}"
             ));
         }
+        let carried = match (version, j.get("carried")) {
+            (CARRIED, None | Some(Json::Null)) => {
+                return Err(format!(
+                    "{FORMAT} version {CARRIED} carries a tape from the node its process left, and this one carries none"
+                ))
+            }
+            (CARRIED, Some(c)) => Some(Carried::from_json(c)?),
+            (_, None | Some(Json::Null)) => None,
+            (_, Some(_)) => {
+                return Err(format!(
+                    "{FORMAT} version {version} carries no tape from another node, and this one does"
+                ))
+            }
+        };
         let field = |k: &str| j.get(k).ok_or_else(|| format!("{FORMAT}: missing `{k}`"));
         let exit = field("exit")?;
         let budget = field("budget")?;
         let code = code_from_json(field("code")?)?;
-        let mut tape = Vec::new();
-        for e in field("tape")?.as_array().ok_or_else(|| bad("tape"))? {
-            let call = e
-                .get("call")
-                .and_then(Json::as_str)
-                .ok_or_else(|| bad("tape entry"))?;
-            let text = |f: &Json, k: &str| {
-                f.get(k)
-                    .and_then(Json::as_str)
-                    .map(str::to_string)
-                    .ok_or_else(|| bad("fatal entry"))
-            };
-            let (outcome, fatal) = match (e.get("fatal"), e.get("raised").and_then(Json::as_str)) {
-                (Some(f), _) => (Err(text(f, "message")?), Some(text(f, "kind")?)),
-                (None, Some(m)) => (Err(m.to_string()), None),
-                (None, None) => (
-                    Ok(value_from_json(e.get("value").unwrap_or(&Json::Null))?),
-                    None,
-                ),
-            };
-            let at = match e
-                .get("fatal")
-                .and_then(|f| f.get("at"))
-                .and_then(Json::as_array)
-                .map(Vec::as_slice)
-            {
-                Some([s, e]) => match (opt_from(Some(s)), opt_from(Some(e))) {
-                    (Some(s), Some(e)) => Some(Span::new(s, e)),
-                    _ => return Err(bad("fatal span")),
-                },
-                _ => None,
-            };
-            tape.push(TapeEntry {
-                call: call.to_string(),
-                outcome,
-                fatal,
-                at,
-            });
-        }
+        let tape = tape_from_json(field("tape")?)?;
         let schedule = j
             .get("schedule")
             .and_then(Json::as_array)
@@ -625,6 +718,7 @@ impl Trace {
             })
         });
         Ok(Self {
+            carried,
             violation,
             defined_at,
             host_io: j
@@ -702,6 +796,29 @@ impl Trace {
         Self::from_json(&j)
     }
 
+    pub fn check_carried(&self) -> Result<(), String> {
+        let Some(c) = &self.carried else {
+            return Ok(());
+        };
+        let Some(came) = self.tape.get(..c.entries) else {
+            return Err(format!(
+                "its tape is cut: {} entries came with process {} in image {}, and the trace holds {}",
+                c.entries,
+                self.pid,
+                c.image,
+                self.tape.len()
+            ));
+        };
+        let hash = tape_hash(came);
+        if hash == c.tape {
+            return Ok(());
+        }
+        Err(format!(
+            "the tape carried in image {} does not match: its first {} entries hash to {hash}, and the node that accepted it recorded {}",
+            c.image, c.entries, c.tape
+        ))
+    }
+
     /// Write this trace into `dir`, creating it, under its content address
     /// (`<crash_hash>.bluecrash` or `<crash_hash>.json`), and answer the
     /// file's path. The same crash is the same file.
@@ -737,6 +854,7 @@ pub struct Replayed {
     pub tape_len: usize,
     /// Where the replay left the recorded run, if it did.
     pub diverged: Option<String>,
+    pub refused: Option<String>,
 }
 
 struct Cursor {
@@ -821,6 +939,17 @@ fn reader(
 /// same breach at the same tape entry.
 #[must_use]
 pub fn replay(trace: &Trace, mut interp: Interpreter<()>) -> Replayed {
+    if let Err(why) = trace.check_carried() {
+        return Replayed {
+            reproduced: false,
+            kind: "refused".to_string(),
+            text: why.clone(),
+            consumed: 0,
+            tape_len: trace.tape.len(),
+            diverged: None,
+            refused: Some(why),
+        };
+    }
     let cursor = Arc::new(Mutex::new(Cursor {
         tape: trace.tape.clone(),
         pos: 0,
@@ -878,5 +1007,6 @@ pub fn replay(trace: &Trace, mut interp: Interpreter<()>) -> Replayed {
         } else {
             c.diverged.clone()
         },
+        refused: None,
     }
 }

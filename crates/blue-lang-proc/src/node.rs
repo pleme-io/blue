@@ -84,7 +84,7 @@ use crate::receipt::{
     Frame, HostIo, Identities, Places, Receipt, ReceiptSink, Roots, StateRoot, Subject,
 };
 use crate::scheduling::{self, IdleLane, Scheduling};
-use crate::trace::{Journal, SliceRecord, TapeEntry, Trace};
+use crate::trace::{Carried, Journal, SliceRecord, TapeEntry, Trace};
 use crate::violation::{breach, defined_key, Violation};
 use crate::{provided_name, raised, ExitReason, Pid, Proc, ProcState, Slice, Strategy};
 
@@ -477,6 +477,24 @@ struct Migration {
 struct Tape {
     entries: Vec<TapeEntry>,
     truncated: bool,
+    carried: Option<Carried>,
+}
+
+impl Tape {
+    fn arrived(carried: Option<Vec<TapeEntry>>, image: &str) -> Self {
+        match carried {
+            Some(entries) => Self {
+                carried: Some(Carried::of(&entries, image)),
+                entries,
+                truncated: false,
+            },
+            None => Self {
+                entries: Vec::new(),
+                truncated: true,
+                carried: None,
+            },
+        }
+    }
 }
 
 struct NodeState {
@@ -1320,6 +1338,7 @@ impl Node {
             // process from a state it never had.
             tape.truncated = true;
             tape.entries = Vec::new();
+            tape.carried = None;
             return;
         }
         tape.entries.push(TapeEntry::of(call, out));
@@ -2301,6 +2320,11 @@ impl Node {
             supervision,
             dispatch_steps: info.asked,
             parked: None,
+            tape: st
+                .tapes
+                .get(&pid)
+                .filter(|t| plain && !t.truncated)
+                .map(|t| t.entries.clone()),
         };
         drop(st);
         if plain {
@@ -2368,7 +2392,7 @@ impl Node {
         })
     }
 
-    fn resume(&self, pid: Pid, c: &Continuation) -> Result<(), String> {
+    fn resume(&self, pid: Pid, c: &Continuation, tape: Tape) -> Result<(), String> {
         let mut st = self.st();
         let p = st
             .pending
@@ -2406,13 +2430,7 @@ impl Node {
                 },
             );
         }
-        st.tapes.insert(
-            pid,
-            Tape {
-                entries: Vec::new(),
-                truncated: true,
-            },
-        );
+        st.tapes.insert(pid, tape);
         Ok(())
     }
 
@@ -2424,15 +2442,26 @@ impl Node {
         loopback: bool,
         carrier: Carrier,
     ) -> Result<Value, String> {
-        let text = self.image_of(pid)?.text();
-        let id = image::id_of(&text);
-        let frames = image::frames(&id, &text, carrier.room)?;
-        self.reachable_links(pid)?;
-        let bytes = (carrier.queue)(wire, peer, &frames, loopback)?;
+        let image = self.image_of(pid)?;
+        let queue = |image: &Image| -> Result<(String, usize, usize), String> {
+            let text = image.text();
+            let id = image::id_of(&text);
+            let frames = image::frames(&id, &text, carrier.room)?;
+            self.reachable_links(pid)?;
+            let bytes = (carrier.queue)(wire, peer, &frames, loopback)?;
+            Ok((id, frames.len(), bytes))
+        };
+        let (id, frames, bytes) = match queue(&image) {
+            Err(_) if image.tape.is_some() => queue(&Image {
+                tape: None,
+                ..image
+            }),
+            queued => queued,
+        }?;
         self.depart(pid);
         Ok(record(&[
             ("image", Value::Str(Arc::from(format!("b3:{id}")))),
-            ("frames", int(frames.len())),
+            ("frames", int(frames)),
             ("bytes", int(bytes)),
         ]))
     }
@@ -2514,6 +2543,7 @@ impl Node {
         let (parsed, _) = self.apart(|| Image::parse(text));
         let mut image = parsed.map_err(|why| raised("decode_error", why, Value::Nil, span))?;
         let parked = image.parked.take();
+        let tape = Tape::arrived(image.tape.take(), &image::id_of(text));
         let state = bound_state(&image.code);
         let handed = image.supervision.take();
         if let (Some(s), None) = (&handed, &parked) {
@@ -2535,7 +2565,7 @@ impl Node {
         );
         let resumed = started.and_then(|pid| match &parked {
             Some(c) => self
-                .apart(|| self.resume(pid, c))
+                .apart(|| self.resume(pid, c, tape))
                 .0
                 .map(|()| pid)
                 .map_err(|why| {
@@ -2644,6 +2674,7 @@ impl Node {
             reason_kind,
             budget: self.config.budget,
             code,
+            carried: tape.carried,
             tape: tape.entries,
             truncated: tape.truncated,
             schedule: st.schedule.iter().cloned().collect(),

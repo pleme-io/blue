@@ -81,6 +81,7 @@ impl Segments {
 fn with_tape(trace: &Trace, tape: &[(usize, TapeEntry)]) -> Trace {
     let mut t = trace.clone();
     t.tape = tape.iter().map(|(_, e)| e.clone()).collect();
+    t.carried = None;
     t
 }
 
@@ -137,7 +138,7 @@ fn ddmin(n: usize, test: &mut dyn FnMut(&[usize]) -> bool) -> Vec<usize> {
 /// to the crash it recorded: there is then nothing to bisect.
 pub fn bisect(trace: &Trace, fresh: &dyn Fn() -> Interpreter<()>) -> Result<Bisected, String> {
     if trace.truncated {
-        return Err("the tape outgrew its bound, and a replay needs all of it".into());
+        return Err("the tape is not whole (it outgrew its bound, or the process arrived in an image that did not carry it), and a replay needs all of it".into());
     }
     let whole = replay(trace, fresh());
     if !whole.reproduced {

@@ -7,7 +7,10 @@ use tatara_lisp_eval::Value;
 use crate::code::Code;
 use crate::receipt::canonical;
 use crate::scheduling::Scheduling;
-use crate::trace::{code_from_json, code_to_json, value_from_json, value_to_json};
+use crate::trace::{
+    code_from_json, code_to_json, tape_from_json, tape_to_json, value_from_json, value_to_json,
+    TapeEntry,
+};
 
 pub const FORMAT: &str = "blue-image";
 
@@ -16,6 +19,8 @@ pub const VERSION: u64 = 1;
 pub const HANDED: u64 = 2;
 
 pub const PARKED: u64 = 3;
+
+pub const TAPED: u64 = 4;
 
 pub const FRAME: &str = "blue-image ";
 
@@ -37,6 +42,7 @@ pub struct Image {
     pub supervision: Option<Supervision>,
     pub dispatch_steps: Option<usize>,
     pub parked: Option<Continuation>,
+    pub tape: Option<Vec<TapeEntry>>,
 }
 
 #[derive(Clone, Debug)]
@@ -159,6 +165,10 @@ impl Image {
             j["parked"] = c.to_json();
             j["version"] = json!(PARKED);
         }
+        if let Some(t) = &self.tape {
+            j["tape"] = tape_to_json(t);
+            j["version"] = json!(TAPED);
+        }
         j
     }
 
@@ -172,12 +182,13 @@ impl Image {
             return Err(format!("not a {FORMAT}"));
         }
         let version = j.get("version").and_then(Json::as_u64).unwrap_or(0);
-        if ![VERSION, HANDED, PARKED].contains(&version) {
+        if ![VERSION, HANDED, PARKED, TAPED].contains(&version) {
             return Err(format!(
-                "{FORMAT} version {version}; this blue reads versions {VERSION}, {HANDED} and {PARKED}"
+                "{FORMAT} version {version}; this blue reads versions {VERSION}, {HANDED}, {PARKED} and {TAPED}"
             ));
         }
         let parked = j.get("parked").map(Continuation::from_json).transpose()?;
+        let tape = j.get("tape").map(tape_from_json).transpose()?;
         let supervision = j
             .get("supervision")
             .map(Supervision::from_json)
@@ -195,25 +206,36 @@ impl Image {
             version,
             supervision.is_some() || dispatch_steps.is_some(),
             parked.is_some(),
+            tape.is_some(),
         ) {
-            (VERSION, true, _) => {
+            (VERSION, true, _, _) => {
                 return Err(format!(
                     "{FORMAT} version {VERSION} carries no supervision or dispatch_steps, and this one does"
                 ))
             }
-            (VERSION | HANDED, _, true) => {
+            (VERSION | HANDED, _, true, _) => {
                 return Err(format!(
                     "{FORMAT} version {version} carries no parked frames, and this one does"
                 ))
             }
-            (HANDED, false, _) => {
+            (VERSION | HANDED | PARKED, _, _, true) => {
+                return Err(format!(
+                    "{FORMAT} version {version} carries no tape, and this one does"
+                ))
+            }
+            (HANDED, false, _, _) => {
                 return Err(format!(
                     "{FORMAT} version {HANDED} carries supervision or dispatch_steps, and this one carries neither"
                 ))
             }
-            (PARKED, _, false) => {
+            (PARKED | TAPED, _, false, _) => {
                 return Err(format!(
-                    "{FORMAT} version {PARKED} carries a parked process, and this one carries none"
+                    "{FORMAT} version {version} carries a parked process, and this one carries none"
+                ))
+            }
+            (TAPED, _, _, false) => {
+                return Err(format!(
+                    "{FORMAT} version {TAPED} carries the tape of the process it parks, and this one carries none"
                 ))
             }
             _ => {}
@@ -249,6 +271,7 @@ impl Image {
             supervision,
             dispatch_steps,
             parked,
+            tape,
         })
     }
 
@@ -436,6 +459,7 @@ mod tests {
             supervision: None,
             dispatch_steps: None,
             parked: None,
+            tape: None,
         }
     }
 
@@ -535,7 +559,9 @@ mod tests {
         let three = text.replacen("\"version\":2", "\"version\":3", 1);
         assert!(Image::parse(&three).is_err_and(|e| e.contains("this one carries none")));
         let four = text.replacen("\"version\":2", "\"version\":4", 1);
-        assert!(Image::parse(&four).is_err_and(|e| e.contains("versions 1, 2 and 3")));
+        assert!(Image::parse(&four).is_err_and(|e| e.contains("this one carries none")));
+        let five = text.replacen("\"version\":2", "\"version\":5", 1);
+        assert!(Image::parse(&five).is_err_and(|e| e.contains("versions 1, 2, 3 and 4")));
     }
 
     fn parked() -> Continuation {
@@ -634,6 +660,99 @@ mod tests {
                 "5e193f0ea002337e722069705cb1300950a183c6ae532c40f8c5a432e284ea68".to_string()
             ]
         );
+    }
+
+    #[test]
+    fn a_parked_image_without_a_tape_keeps_the_bytes_it_had_before_tapes_moved() {
+        let mut plain = image("x");
+        plain.parked = Some(parked());
+        let mut handed = plain.clone();
+        handed.supervision = Some(Supervision {
+            max_restarts: 2,
+            restarts: 1,
+            initial: Value::Nil,
+        });
+        assert_eq!(
+            [id_of(&plain.text()), id_of(&handed.text())],
+            [
+                "a28420d56bc459a782ae3d6aa0af9b554d39bdb310e8ece73c4d230c1d8a36b5".to_string(),
+                "b0746c35d338e523bb54dfd6e3b2bf955508d5d797007c21b8b963cf924deab2".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn a_parked_process_with_its_tape_is_version_four_and_every_misfit_is_refused_by_name() {
+        let tape = vec![
+            TapeEntry {
+                call: "receive".to_string(),
+                outcome: Ok(Value::Float(f64::NAN)),
+                fatal: None,
+                at: None,
+            },
+            TapeEntry {
+                call: "now_ms".to_string(),
+                outcome: Err("no clock".to_string()),
+                fatal: None,
+                at: None,
+            },
+            TapeEntry {
+                call: "is_file?".to_string(),
+                outcome: Err("`is_file?` reaches the host (filesystem)".to_string()),
+                fatal: Some("capability-breach".to_string()),
+                at: Some(tatara_lisp::Span::new(3, 9)),
+            },
+        ];
+        let mut plain = image("x");
+        plain.parked = Some(parked());
+        plain.tape = Some(tape.clone());
+        let text = plain.text();
+        assert!(text.contains("\"version\":4"), "{text}");
+        let back = Image::parse(&text).expect("parses");
+        assert_eq!(
+            crate::trace::tape_hash(&back.tape.clone().expect("carried")),
+            crate::trace::tape_hash(&tape)
+        );
+        assert!(back.parked.is_some());
+        assert_eq!(back.text(), text);
+        let mut empty = plain.clone();
+        empty.tape = Some(Vec::new());
+        let none_yet = empty.text();
+        assert!(
+            none_yet.contains("\"version\":4") && none_yet.contains("\"tape\":[]"),
+            "a process that took nothing yet carries an empty tape, not none: {none_yet}"
+        );
+        for (from, to, refusal) in [
+            (
+                "\"version\":4",
+                "\"version\":3",
+                "version 3 carries no tape",
+            ),
+            ("\"version\":4", "\"version\":1", "carries no parked frames"),
+            (
+                "\"tape\":",
+                "\"lost\":",
+                "carries the tape of the process it parks",
+            ),
+            (
+                "\"parked\":",
+                "\"gone\":",
+                "version 4 carries a parked process",
+            ),
+            (
+                "\"call\":\"now_ms\"",
+                "\"cell\":\"now_ms\"",
+                "not a blue-trace tape entry",
+            ),
+        ] {
+            let misfit = text.replacen(from, to, 1);
+            assert_ne!(misfit, text, "{from}");
+            assert!(
+                Image::parse(&misfit).is_err_and(|e| e.contains(refusal)),
+                "{from} -> {to}: {:?}",
+                Image::parse(&misfit).err()
+            );
+        }
     }
 
     #[test]

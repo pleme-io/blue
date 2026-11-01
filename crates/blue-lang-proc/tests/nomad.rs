@@ -2,10 +2,12 @@ mod support;
 
 use std::sync::Arc;
 
-use blue_lang_proc::{install, ClockKind, Node, NodeConfig};
+use blue_lang_proc::image::{self, Arrivals, Image};
+use blue_lang_proc::{install, replay, ClockKind, Node, NodeConfig, Trace};
 use blue_lang_runtime::wire::{host_clock, provide_loopback, LoopbackNet, CARRIER};
-use support::show;
-use tatara_lisp_eval::Interpreter;
+use serde_json::Value as Json;
+use support::{run, show};
+use tatara_lisp_eval::{Interpreter, Value};
 
 fn moving(net: &Arc<LoopbackNet>) -> (Interpreter<()>, Arc<Node>) {
     moving_under(net, None)
@@ -481,15 +483,19 @@ fn a_supervised_plain_process_is_handed_over_and_restarts_from_its_code_on_its_n
         "on node b the message queued before the move is taken by the frames that moved; a crash restarts it from its code under a one_for_one supervisor of its own, and the restart it spent on node a counts, so the second crash there is the one its supervisor gives up on"
     );
     assert_eq!(node_b.process_count(), 0);
+    let traces = node_b.traces();
     assert_eq!(
-        node_b
-            .traces()
+        traces
             .iter()
-            .map(|t| t.truncated)
+            .map(|t| (t.truncated, t.carried.as_ref().map(|c| c.entries), t.tape.len()))
             .collect::<Vec<_>>(),
-        [true, false],
-        "the incarnation that arrived has no tape from before the move, so its trace says so; the one its supervisor restarted from its code has its whole tape"
+        [(false, Some(3), 7), (false, None, 4)],
+        "the incarnation that arrived starts its tape with the three entries its incarnation made on node a (receive 1, self, send), then takes 2 and :boom on node b; the one its supervisor restarted from its code starts an empty tape, as a restart empties the mailbox"
     );
+    for t in &traces {
+        let r = replay(&round_trip(t), blue_lang_runtime::interpreter_hostless());
+        assert!(r.reproduced, "{r:?}");
+    }
 }
 
 #[test]
@@ -723,4 +729,334 @@ fn an_evicted_server_keeps_its_own_dispatch_bound_met_with_the_accepting_nodes()
             "the server's own {{dispatch_steps: 2000}} travels in its image and meets the accepting node's bound {accepting:?}"
         );
     }
+}
+
+fn round_trip(t: &Trace) -> Trace {
+    Trace::parse(&String::from_utf8(t.bytes()).expect("utf-8")).expect("a trace")
+}
+
+const LEDGER: &str = "\
+def ledger(parent)
+  t0 = now_ms()
+  a = receive()
+  b = receive()
+  send(parent, [:took, a + b, self()])
+  c = receive()
+  t1 = now_ms()
+  throw(error(:moved, \"took #{a} and #{b} at #{t0} as #{self()}, then #{c} at #{t1}\"))
+end
+";
+
+fn ledger_left(a: &mut Interpreter<()>, from: u16, to: u16) -> String {
+    show(
+        a,
+        &format!(
+            "{LEDGER}\
+             w = tide_open(\"127.0.0.1:{from}\")\n\
+             p = spawn(ledger, [self()])\n\
+             send(p, 1)\nsend(p, 2)\n\
+             receive([:took, :_, :_])\n\
+             moved = evict(p, w, \"127.0.0.1:{to}\")\n\
+             tide_release(w, 1000000, 0)\n\
+             moved.image"
+        ),
+    )
+    .trim_matches('"')
+    .to_string()
+}
+
+fn ledger_crashed(b: &mut Interpreter<()>, node_b: &Node) -> Trace {
+    let down = show(
+        b,
+        "p = accept(w, 0)\nmonitor(p)\nsend(p, 3)\nnth(3, receive(:_, 5000))",
+    );
+    assert!(
+        down.starts_with("(:crashed ")
+            && down.contains("took 1 and 2 at ")
+            && down.contains(" as 2, then 3 at "),
+        "{down}"
+    );
+    let traces = node_b.traces();
+    assert_eq!(traces.len(), 1, "{traces:?}");
+    round_trip(&traces[0])
+}
+
+const RESIDENT: &str = "def resident()\n  receive()\nend\nspawn(resident)\n";
+
+fn ledger_moved(ports: (u16, u16)) -> (Trace, String) {
+    let net = Arc::new(LoopbackNet::default());
+    let (mut a, _) = moving(&net);
+    let (mut b, node_b) = moving(&net);
+    show(
+        &mut b,
+        &format!("{RESIDENT}w = tide_open(\"127.0.0.1:{}\")", ports.1),
+    );
+    let image = ledger_left(&mut a, ports.0, ports.1);
+    (ledger_crashed(&mut b, &node_b), image)
+}
+
+#[test]
+fn a_plain_process_that_crashes_on_the_node_it_moved_to_replays_from_its_start_through_the_tape_it_carried(
+) {
+    let (trace, image) = ledger_moved((7171, 7172));
+    assert!(image.starts_with("b3:"), "{image}");
+    assert!(
+        !trace.truncated,
+        "the tape node a recorded came in the image, so the trace on node b is whole"
+    );
+    let calls: Vec<&str> = trace.tape.iter().map(|e| e.call.as_str()).collect();
+    assert_eq!(
+        calls,
+        ["now_ms", "receive", "receive", "self", "send", "receive", "now_ms", "self"],
+        "five calls on node a, then the receive it parked in and two more on node b"
+    );
+    let carried = trace.carried.as_ref().expect("a carried block");
+    assert_eq!(
+        (carried.entries, carried.image.as_str()),
+        (5, image.as_str()),
+        "the first five entries came in the image evict named"
+    );
+    assert_eq!(trace.to_json()["version"], 4);
+    let r = replay(&trace, blue_lang_runtime::interpreter_hostless());
+    assert!(r.reproduced, "{r:?}");
+    assert_eq!(
+        (r.kind.as_str(), r.consumed, r.tape_len),
+        ("crashed", 8, 8),
+        "the same crash at the same tape entry"
+    );
+    assert_eq!(r.text, trace.reason_text);
+    assert!(
+        r.text.contains(" as 2, then 3 at "),
+        "self() answered 1 on node a and 2 on node b, and the replay read both off the tape: {}",
+        r.text
+    );
+}
+
+#[test]
+fn a_trace_whose_carried_tape_was_cut_or_forged_is_refused_by_name_and_not_replayed() {
+    let (trace, image) = ledger_moved((7173, 7174));
+    let refused = |t: &Trace| {
+        let r = replay(t, blue_lang_runtime::interpreter_hostless());
+        assert!(!r.reproduced, "{r:?}");
+        assert_eq!(r.consumed, 0, "nothing ran: {r:?}");
+        r.refused.expect("refused")
+    };
+    let mut cut = trace.clone();
+    cut.tape.remove(1);
+    let why = refused(&cut);
+    assert!(
+        why.contains(&format!(
+            "the tape carried in image {image} does not match: its first 5 entries hash to b3:"
+        )),
+        "{why}"
+    );
+    let mut short = trace.clone();
+    short.tape.truncate(3);
+    assert_eq!(
+        refused(&short),
+        format!("its tape is cut: 5 entries came with process 2 in image {image}, and the trace holds 3")
+    );
+    let mut forged = trace.clone();
+    forged.tape[2].outcome = Ok(Value::Int(9));
+    assert!(refused(&forged).contains("does not match"));
+    let mut after = trace.clone();
+    after.tape[5].outcome = Ok(Value::Int(9));
+    let r = replay(&after, blue_lang_runtime::interpreter_hostless());
+    assert!(
+        r.refused.is_none() && !r.reproduced,
+        "an edit past the carried part replays and diverges, as any edit to a tape does: {r:?}"
+    );
+    let mut j = trace.to_json();
+    j.as_object_mut().expect("an object").remove("carried");
+    assert!(Trace::from_json(&j).is_err_and(|e| e.contains(
+        "blue-trace version 4 carries a tape from the node its process left, and this one carries none"
+    )));
+    j["version"] = Json::from(3);
+    let unmarked = Trace::from_json(&j).expect("a version 3 trace");
+    assert!(
+        replay(&unmarked, blue_lang_runtime::interpreter_hostless()).reproduced,
+        "the whole tape from the start replays with or without the block that names where it began"
+    );
+    let mut wrong = trace.to_json();
+    wrong["version"] = Json::from(3);
+    assert!(Trace::from_json(&wrong).is_err_and(
+        |e| e.contains("version 3 carries no tape from another node, and this one does")
+    ));
+    for (field, bad) in [
+        ("image", format!("b3:{}", "z".repeat(64))),
+        ("image", "b3:abcd".to_string()),
+        ("tape", "abcd".repeat(16)),
+    ] {
+        let mut named = trace.to_json();
+        named["carried"][field] = Json::from(bad.clone());
+        assert!(
+            Trace::from_json(&named)
+                .is_err_and(|e| e.contains(&format!("`carried.{field}` is not a b3: hash"))),
+            "{field} = {bad}"
+        );
+    }
+}
+
+const TILL: &str = "\
+def till(msg, total)
+  t = now_ms()
+  if msg == :boom
+    throw(error(:boom, \"total #{total} at #{t} as #{self()}\"))
+  end
+  if integer?(msg)
+    total + msg
+  else
+    send(nth(1, msg), [:total, total, t])
+    total
+  end
+end
+";
+
+#[test]
+fn a_server_that_crashes_on_the_node_it_moved_to_replays_from_its_last_boundary_there() {
+    let net = Arc::new(LoopbackNet::default());
+    let (mut a, _) = moving(&net);
+    let (mut b, node_b) = moving(&net);
+    show(
+        &mut b,
+        &format!("{RESIDENT}w = tide_open(\"127.0.0.1:7176\")"),
+    );
+    let left = show(
+        &mut a,
+        &format!(
+            "{TILL}\
+             w = tide_open(\"127.0.0.1:7175\")\n\
+             s = spawn_server(till, 0)\n\
+             send(s, 1)\nsend(s, 2)\n\
+             send(s, [:get, self()])\n\
+             before = receive([:total, :_, :_])\n\
+             send(s, 4)\n\
+             evict(s, w, \"127.0.0.1:7176\")\n\
+             tide_release(w, 1000000, 0) > 0\n\
+             nth(1, before)"
+        ),
+    );
+    assert_eq!(left, "3");
+    let down = show(
+        &mut b,
+        "p = accept(w, 0)\nmonitor(p)\nsend(p, :boom)\nnth(3, receive(:_, 5000))",
+    );
+    assert!(
+        down.starts_with("(:crashed ")
+            && down.contains("total 7 at ")
+            && down.contains(" as 2\\\""),
+        "{down}"
+    );
+    let traces = node_b.traces();
+    assert_eq!(traces.len(), 1, "{traces:?}");
+    let trace = round_trip(&traces[0]);
+    assert!(!trace.truncated);
+    let calls: Vec<&str> = trace.tape.iter().map(|e| e.call.as_str()).collect();
+    assert_eq!(calls, ["%server_next", "now_ms", "self"]);
+    let r = replay(&trace, blue_lang_runtime::interpreter_hostless());
+    assert!(r.reproduced, "{r:?}");
+    assert_eq!((r.kind.as_str(), r.consumed, r.tape_len), ("crashed", 3, 3));
+    assert_eq!(r.text, trace.reason_text);
+}
+
+#[test]
+fn a_plain_process_whose_tape_the_send_ring_cannot_hold_still_moves_and_its_trace_says_the_tape_stayed(
+) {
+    let net = Arc::new(LoopbackNet::default());
+    let (mut a, _) = moving(&net);
+    let (mut b, node_b) = moving(&net);
+    show(
+        &mut b,
+        &format!("{RESIDENT}w = tide_open(\"127.0.0.1:7186\")"),
+    );
+    let left = show(
+        &mut a,
+        "def chatty(parent)\n  map(fn(i) now_ms() end, range(5000))\n  send(parent, :ready)\n  m = receive()\n  throw(error(:moved, \"took #{m}\"))\nend\n\
+         w = tide_open(\"127.0.0.1:7185\", {ring_frames: 64, ring_bytes: 81920})\n\
+         p = spawn(chatty, [self()])\n\
+         receive(:ready)\n\
+         moved = evict(p, w, \"127.0.0.1:7186\")\n\
+         [moved.frames <= 64, tide_release(w, 1000000, 0) == moved.bytes, alive?(p)]",
+    );
+    assert_eq!(
+        left, "(#t #t #f)",
+        "five thousand clock readings do not fit a ring of 64 frames, and the process moves without them, as it did before its tape could travel"
+    );
+    let down = show(
+        &mut b,
+        "p = accept(w, 0)\nmonitor(p)\nsend(p, 5)\nnth(3, receive(:_, 5000))",
+    );
+    assert!(down.contains("took 5"), "{down}");
+    let traces = node_b.traces();
+    assert_eq!(traces.len(), 1, "{traces:?}");
+    let trace = round_trip(&traces[0]);
+    assert!(
+        trace.truncated && trace.carried.is_none(),
+        "the tape stayed behind, and the trace says so"
+    );
+}
+
+fn without_tape(frames: &[String]) -> Vec<String> {
+    let mut arrivals = Arrivals::default();
+    for f in frames {
+        arrivals.file(f).expect("a frame");
+    }
+    let text = arrivals.complete().expect("whole").expect("intact");
+    let mut j: Json = serde_json::from_str(&text).expect("json");
+    let o = j.as_object_mut().expect("an object");
+    o.remove("tape");
+    o.insert("version".to_string(), Json::from(3));
+    let old = Image::from_json(&j).expect("a version 3 image").text();
+    assert!(!old.contains("\"tape\""), "{old}");
+    image::frames(&image::id_of(&old), &old, CARRIER.room).expect("frames")
+}
+
+#[test]
+fn a_process_that_moved_in_an_image_without_its_tape_still_writes_a_truncated_trace() {
+    let net = Arc::new(LoopbackNet::default());
+    let (mut a, _) = moving(&net);
+    let (mut b, node_b) = moving(&net);
+    show(
+        &mut b,
+        &format!("{RESIDENT}w = tide_open(\"127.0.0.1:7179\")"),
+    );
+    show(&mut a, "w2 = tide_open(\"127.0.0.1:7180\")");
+    let _ = ledger_left(&mut a, 7178, 7180);
+    let Value::List(sent) = run(
+        &mut a,
+        "def drain(w, acc)\n  x = tide_next(w, 0)\n  if not x\n    acc\n  else\n    drain(w, append(acc, [x.payload]))\n  end\nend\n\
+         drain(w2, [])",
+    )
+    .expect("frames") else {
+        panic!("not a list of frames");
+    };
+    let sent: Vec<String> = sent
+        .iter()
+        .map(|f| match f {
+            Value::Str(s) => s.to_string(),
+            other => panic!("not a frame: {other}"),
+        })
+        .collect();
+    assert!(!sent.is_empty());
+    a.define_global(
+        "old",
+        Value::list(
+            without_tape(&sent)
+                .into_iter()
+                .map(|f| Value::Str(Arc::from(f))),
+        ),
+    );
+    show(
+        &mut a,
+        "map(fn(f) tide_send(w, \"127.0.0.1:7179\", f, 0) end, old)\ntide_release(w, 1000000, 0)",
+    );
+    let trace = ledger_crashed(&mut b, &node_b);
+    assert!(
+        trace.truncated,
+        "an image that carries no tape leaves the tape on the node it left, and the trace says so"
+    );
+    assert!(trace.carried.is_none() && trace.tape.is_empty());
+    assert_eq!(trace.to_json()["version"], 3);
+    let r = replay(&trace, blue_lang_runtime::interpreter_hostless());
+    assert!(!r.reproduced && r.refused.is_none(), "{r:?}");
 }

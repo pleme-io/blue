@@ -87,6 +87,9 @@ pub fn mailbox_lines(m: &blue_lang_proc::Journal) -> Vec<String> {
 /// Replay `path`; success when the replay ends the way the trace recorded.
 pub fn run(path: &Path) -> Result<ExitCode, String> {
     let trace = crate::crash::load(path)?.trace;
+    trace
+        .check_carried()
+        .map_err(|why| format!("{}: not replayed: {why}", path.display()))?;
     println!(
         "process {}{} incarnation {}: {} tape entries{}",
         trace.pid,
@@ -101,6 +104,12 @@ pub fn run(path: &Path) -> Result<ExitCode, String> {
     );
     if let Some(h) = &trace.def_hash {
         println!("def_hash: {h}");
+    }
+    if let Some(c) = &trace.carried {
+        println!(
+            "carried: the first {} tape entries came in image {}",
+            c.entries, c.image
+        );
     }
     if let Some(hold) = &trace.hold {
         println!("{}", hold_line(hold));
@@ -120,7 +129,9 @@ pub fn run(path: &Path) -> Result<ExitCode, String> {
         println!("diverged: {d}");
     }
     if trace.truncated {
-        println!("not replayable: the tape outgrew its bound, and a replay needs all of it");
+        println!(
+            "not replayable: its tape is not whole (it outgrew its bound, or the process arrived in an image that did not carry it), and a replay needs all of it"
+        );
     }
     if r.reproduced {
         println!("reproduced");

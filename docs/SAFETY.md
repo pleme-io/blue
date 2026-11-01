@@ -121,7 +121,21 @@ document lands.
   (`crates/blue-lang-proc/src/node.rs` `continuation`, `parking`). The
   accepting node rebuilds the frames against the code it compiles itself and
   refuses, by name, frames whose chunk fingerprint differs or that hold a
-  native it does not register (`resume`).
+  native it does not register (`resume`). Its tape (2026-11-01) travels in
+  the same image, as `blue-image` version 4: the arrival's tape starts with
+  the carried entries, and the accepting node records their count, their
+  BLAKE3 hash and the image's name. A crash there writes `blue-trace`
+  version 4, which `blue replay` runs from the process's start through the
+  carried entries on one node, and refuses by name, before it runs, when
+  the first entries are not the ones that came, cut or edited
+  (`crates/blue-lang-proc/src/trace.rs` `check_carried`). A server's tape
+  starts at its last boundary, which it reaches on the new node, so a
+  server's image carries none and its trace needs none. An image without a
+  tape, from an older blue or a tape past its bound, still arrives with its
+  trace marked truncated, and so does a process whose tape would not fit the
+  send ring or the frame limit: the move goes on with the image it had
+  before tapes travelled (`depart_over`). Version 1 to 3 images and
+  version 3 traces keep their bytes.
 - **Unsafe Rust.** 18 crates. Five hold `unsafe` in non-test code:
   `blue-lang-kiwari` (59 occurrences, one seam,
   `src/lib.rs:18` `#![deny(unsafe_code)]`, `src/ts.rs:13` the one
@@ -567,8 +581,9 @@ reached later breaches and exits 77. nix builds one per Bluefile `app`
 **The crash journal (2026-10-30).** A held process that exits fatal writes
 its trace, supervised or not, as `<crash_hash>.bluecrash` into
 `BLUE_TRACE_DIR` (`blue-lang-proc` `node::written`; the name is the next
-note's). The trace is `blue-trace` version 3 (`trace.rs`; versions 1 and 2
-still read): it names the
+note's). The trace is `blue-trace` version 3, or version 4 for a process
+whose tape began on another node (`trace.rs`; versions 1 and 2 still
+read): it names the
 spawned definition's `def_hash` as the engine hashes it, `@doc` included
 (`blue_lang_mondou::def_hash::identify`), the hold (granted, provided and
 withheld capabilities, each provider with its `for` scope,

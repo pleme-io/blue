@@ -674,6 +674,32 @@ def judged(s)
 end
 
 @doc """
+after_wait: the verdict planning continues from: a hand-off when a gitops rev was handed over and nothing was followed, the guard's own when nothing waited, nothing after a followed build went stale, else what the wait ended on, which is nil when the writer cleared and nothing holds the machine.
+
+    after_wait(nil, {result: nil}, nil, "ryn") #=> nil
+    after_wait(nil, {result: {followed: :stale}}, nil, "ryn") #=> nil
+    get(after_wait(nil, {result: {followed: :done, action: :handoff}}, nil, "ryn"), :action) #=> :handoff
+    get(after_wait(nil, nil, {action: :noop}, "ryn"), :action) #=> :noop
+    get(after_wait("abc", nil, nil, "ryn"), :action) #=> :handoff
+"""
+def after_wait(rev, wp, g0, host)
+  r = if wp.nil?
+    nil
+  else
+    wp[:result]
+  end
+  if rev != nil and wp.nil?
+    {action: :handoff, why: handoff_note(rev, host), rev:, plan_ms: 0}
+  elsif wp.nil?
+    g0
+  elsif r != nil and r[:followed] == :stale
+    nil
+  else
+    r
+  end
+end
+
+@doc """
 planned: guard, wait and plan, each told as a phase when the narration is full, and the plan they reach with each phase's time and the fix for a refusal.
 
     get(planned({narrate: :off, flake: "/nonexistent/kirikae", host: "kirikae-no-such-host"}), :action) #=> :refuse
@@ -725,15 +751,7 @@ def planned(s)
     )
     nil
   end
-  g = if rev != nil and wp.nil?
-    {action: :handoff, why: handoff_note(rev, s[:host]), rev:, plan_ms: 0}
-  elsif wp.nil?
-    g0
-  elsif wp[:result][:followed] == :stale
-    nil
-  else
-    wp[:result]
-  end
+  g = after_wait(rev, wp, g0, s[:host])
   off = plan_off?(g, s)
   pp = if off
     tell(s, :skipped, :plan, unplanned_note, nil)

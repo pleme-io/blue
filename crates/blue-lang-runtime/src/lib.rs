@@ -39,6 +39,7 @@ pub mod alloc;
 pub mod audio;
 pub mod collection;
 pub mod crypto;
+pub mod def_hash;
 pub mod dispatch;
 #[cfg(feature = "sys")]
 pub mod display;

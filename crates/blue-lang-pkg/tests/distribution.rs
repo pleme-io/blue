@@ -556,6 +556,96 @@ fn near_duplicate_shapes_only_fall() {
     );
 }
 
+const SHAPE_HASH_GROUPS: usize = 27;
+
+fn shape_hashes() -> std::collections::BTreeMap<String, blue_lang_mondou::def_hash::Shape> {
+    let lp = LoadPath::new([dist()]);
+    let mut out = std::collections::BTreeMap::new();
+    for name in packages() {
+        let path = dist().join(&name).join(format!("{name}.b"));
+        let src = std::fs::read_to_string(&path).expect("source");
+        let checked = blue_lang_runtime::pipeline::check_entry(
+            Entry {
+                path: Some(&path),
+                text: &src,
+            },
+            &lp,
+            None,
+            blue_lang_runtime::pipeline::Checking::Program,
+        )
+        .unwrap_or_else(|e| panic!("{name}: imports must resolve: {e}"));
+        for shape in checked.entry_shapes() {
+            out.insert(shape.key.clone(), shape);
+        }
+    }
+    out
+}
+
+fn hash_groups(
+    shapes: &std::collections::BTreeMap<String, blue_lang_mondou::def_hash::Shape>,
+) -> Vec<Vec<&str>> {
+    let mut groups: std::collections::BTreeMap<_, Vec<&str>> = std::collections::BTreeMap::new();
+    for (key, shape) in shapes {
+        groups.entry(shape.hash).or_default().push(key);
+    }
+    groups.into_values().filter(|g| g.len() > 1).collect()
+}
+
+#[test]
+fn shape_hash_groups_only_fall() {
+    let shapes = shape_hashes();
+    let shared = hash_groups(&shapes);
+    let listing = shared
+        .iter()
+        .map(|g| g.join(" "))
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert_eq!(
+        shared.len(),
+        SHAPE_HASH_GROUPS,
+        "shape_hash groups moved from {SHAPE_HASH_GROUPS} to {}:\n{listing}",
+        shared.len()
+    );
+}
+
+#[test]
+fn shape_hash_stands_on_the_pinned_counts() {
+    let written = shapes();
+    let hashed = shape_hashes();
+    let same_definitions = written.keys().eq(hashed.keys());
+    assert!(
+        same_definitions,
+        "shape_hash and the shape gates measure one corpus"
+    );
+    let mut by_tree: std::collections::BTreeMap<String, Vec<&str>> =
+        std::collections::BTreeMap::new();
+    for (key, s) in &written {
+        by_tree.entry(s.to_string()).or_default().push(key);
+    }
+    let exact: Vec<(&String, &Vec<&str>)> = by_tree.iter().filter(|(_, g)| g.len() > 1).collect();
+    assert_eq!(exact.len(), SHAPE_GROUPS);
+    let near: usize = NEAR.groups(&written).iter().map(|(k, _)| k.len()).sum();
+    assert_eq!(
+        near,
+        if NEAR.enabled {
+            NEAR_SHAPE_DEFINITIONS
+        } else {
+            0
+        }
+    );
+    let split: Vec<String> = exact
+        .iter()
+        .filter(|(tree, g)| {
+            !tree.contains("self/") && g.iter().any(|k| hashed[*k].hash != hashed[g[0]].hash)
+        })
+        .map(|(_, g)| g.join(" "))
+        .collect();
+    assert!(
+        split.is_empty(),
+        "shape_hash splits a closed group the shape gate calls one: {split:?}"
+    );
+}
+
 /// **The ledger records every moved name**, as each bidama's moves
 /// declaration (`legacy_names(since, [[old, "home::new"], …])`) states it.
 ///

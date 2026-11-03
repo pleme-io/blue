@@ -78,14 +78,26 @@ The gaps (`evolution::GAPS`), each a primitive still to build:
 
 ## The reuse ratchets
 
-Two counts over every distribution definition may only fall
+Three counts over every distribution definition may only fall
 (`crates/blue-lang-pkg/tests/distribution.rs`). A move of a twin to one home
 lowers a count. A new copy raises it, and the test fails with the listing.
 
-| gate | what it counts | pin (2026-10-24) | off switch |
+| gate | what it counts | pin (2026-11-03) | off switch |
 |---|---|---|---|
 | `exact_duplicate_shapes_only_fall` | groups of definitions with the same tree, parameters numbered | 18 | none |
-| `near_duplicate_shapes_only_fall` | definitions in a group whose anti-unifier keeps at least 80% of the nodes with at most 2 holes (`blue_lang_check::shape::Near::DEFAULT`) | 257 in 105 groups | `NEAR.enabled = false` |
+| `near_duplicate_shapes_only_fall` | definitions in a group whose anti-unifier keeps at least 80% of the nodes with at most 2 holes (`blue_lang_check::shape::Near::DEFAULT`) | 252 in 103 groups | `NEAR.enabled = false` |
+| `shape_hash_groups_only_fall` | groups of definitions with one `shape_hash`: every local numbered, no `@doc`, an own callee by its hash | 27 | none |
+
+`shape_hash` (`blue_lang_runtime::def_hash::shape_hashes`) is `def_hash` over a
+copy of one namespace's forms with each local numbered in binding order. It
+answers what `def_hash` cannot: `def_hash` holds parameter names and `@doc`, so
+it finds 15 of the distribution's groups and 37 of their members; `shape_hash`
+finds 27 and 135. A reference inside the namespace is the callee's hash, so a
+copy with a renamed helper agrees and one helper name over different helpers
+does not. A reference outside it is its name, so an edit in another bidama
+moves nothing. `shape_hash_stands_on_the_pinned_counts` scans the one corpus
+for all three gates and fails if `shape_hash` splits a closed group the shape
+gate calls one.
 
 The near gate prints each group's shared shape, with `%hN` for each hole.
 That shape is the candidate word, and its holes are the word's parameters.

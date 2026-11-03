@@ -125,7 +125,15 @@ or new row is refused without `--receipt "<why>"`, which stays beside the rows
 as a `# receipt:` line a reviewer reads. `--json` prints one document with the
 rows that broke and each copy's home. `--facts` prints each measured definition
 and exits 0. `checks.reuse-ratchet` (`lib.project`) runs the check on every
-project.
+project, and `pleme-io/actions/blue-reuse` runs it in CI. A project adopts it
+with one command, and the file it writes is the only thing that turns it on:
+
+    blue census --reuse . --record --receipt "first measure"
+
+`blue check --reuse FILE` prints each B0070 in one file, with the word to use
+and its import line, and always exits 0. `blue check --reuse --hook` reads Claude
+Code's PostToolUse JSON from stdin, takes `tool_input.file_path`, stays silent
+unless it ends in `.b` and exists, and exits 0 on every failure of its own.
 
 ## The data laws (B0048–B0052)
 

@@ -445,3 +445,20 @@ fn check_reuse_for_people_prints_the_same_line_and_exits_zero_on_a_missing_file(
     let usage = blue_in(&p.0, &["check"]);
     assert_eq!(code(&usage), 2, "FILE stays required without --hook");
 }
+
+#[test]
+fn a_projects_own_packages_are_found_from_the_tree_with_no_configuration() {
+    let p = Project::new("tree-roots");
+    std::fs::create_dir_all(p.0.join("kit/tool")).expect("mkdir");
+    p.write("kit/tool/tool.b", &format!("{SPREAD}\n{OWN}"));
+    let caller = format!(
+        "use(\"tool\", [:own])\n\n{}\ndef main()\n  write_stdout(to_s(own(1)))\nend\n",
+        SPREAD.replace("spread", "again")
+    );
+    p.write("caller.b", &caller);
+    let doc = census(&p.0, &["--json"]);
+    let doc: serde_json::Value = serde_json::from_str(text(&doc).trim()).expect("one document");
+    assert_eq!(doc["blind"], serde_json::json!([]), "{doc}");
+    assert_eq!(doc["files"], 2);
+    assert_eq!(doc["copies"], 2, "{doc}");
+}

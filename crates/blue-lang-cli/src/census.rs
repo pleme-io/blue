@@ -144,6 +144,34 @@ impl ReuseFact {
     }
 }
 
+fn package_roots(files: &[std::path::PathBuf]) -> Vec<std::path::PathBuf> {
+    let mut roots: Vec<std::path::PathBuf> = files
+        .iter()
+        .filter_map(|f| {
+            let dir = f.parent()?;
+            (dir.file_name()? == f.file_stem()?).then(|| dir.parent().map(Path::to_path_buf))?
+        })
+        .collect();
+    roots.sort();
+    roots.dedup();
+    roots
+}
+
+fn environment_over(files: &[std::path::PathBuf]) -> blue_lang_pkg::load_path::Environment {
+    let mut roots = package_roots(files);
+    roots.extend(
+        std::env::var_os(blue_lang_pkg::load_path::BLUE_PATH)
+            .as_deref()
+            .map_or_else(Vec::new, |v| std::env::split_paths(v).collect()),
+    );
+    blue_lang_pkg::load_path::Environment::from_vars(
+        std::env::join_paths(roots).unwrap_or_default().as_os_str(),
+        std::env::var_os(blue_lang_pkg::load_path::BLUE_DIST)
+            .unwrap_or_default()
+            .as_os_str(),
+    )
+}
+
 #[must_use]
 pub fn reuse_scan(root: &Path) -> ReuseScan {
     let files = blue_lang_pkg::corpus::files(root);
@@ -152,6 +180,7 @@ pub fn reuse_scan(root: &Path) -> ReuseScan {
         ..ReuseScan::default()
     };
     let floor = blue_lang_check::shape::Near::DEFAULT.min_size;
+    let environment = environment_over(&files);
     for path in &files {
         let rel = path
             .strip_prefix(root)
@@ -165,7 +194,7 @@ pub fn reuse_scan(root: &Path) -> ReuseScan {
                 continue;
             }
         };
-        let loader = blue_lang_pkg::load_path::LoadPath::for_entry(path);
+        let loader = environment.load_path(Some(path));
         let checked = match check_entry(
             Entry {
                 path: Some(path),

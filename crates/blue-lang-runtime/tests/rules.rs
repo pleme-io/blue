@@ -322,3 +322,59 @@ fn a_definition_the_evaluator_answers_first_stops_the_run_and_a_builtin_name_alo
     let stale = "# waive B0071: nothing here\ndef own(a)\n  a\nend\n";
     assert_eq!(codes_of(stale), vec![Code::B0008]);
 }
+
+#[test]
+fn the_evaluator_name_rule_fires_exactly_on_the_names_a_definition_loses_to() {
+    let probe = check_entry(
+        Entry::anonymous("1\n"),
+        &blue_lang_runtime::uses::NoLoader,
+        None,
+        Checking::Program,
+    )
+    .expect("checks");
+    let mut names: Vec<String> = probe.names.all().map(|(_, b)| b.name.clone()).collect();
+    names.extend(
+        blue_lang_syntax::LOWERED_HEADS
+            .iter()
+            .map(ToString::to_string),
+    );
+    names.sort();
+    names.dedup();
+    let (mut measured, mut wrong) = (0, Vec::new());
+    for name in &names {
+        let src = format!("def {name}(zzq)\n  :mine\nend\n\n{name}(1)\n");
+        let Ok(checked) = check_entry(
+            Entry::anonymous(&src),
+            &blue_lang_runtime::uses::NoLoader,
+            None,
+            Checking::Program,
+        ) else {
+            continue;
+        };
+        let lowered = checked.lowered();
+        let defines = lowered.first().is_some_and(|f| {
+            f.to_sexp()
+                .to_string()
+                .starts_with(&format!("(define (%root/{name} "))
+        });
+        if !defines {
+            continue;
+        }
+        measured += 1;
+        let call = lowered
+            .last()
+            .map(|f| f.to_sexp().to_string())
+            .unwrap_or_default();
+        let own_wins = call.starts_with(&format!("(%root/{name} "));
+        let fires = checked
+            .outcome
+            .diagnostics
+            .iter()
+            .any(|d| d.code == Code::B0071);
+        if fires == own_wins {
+            wrong.push(format!("{name}: fires {fires}, {call}"));
+        }
+    }
+    assert!(measured > 200, "only {measured} names measured");
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}

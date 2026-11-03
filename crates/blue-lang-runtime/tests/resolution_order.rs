@@ -356,7 +356,8 @@ fn an_imported_list_does_not_capture_the_importers_literal() {
 
 #[test]
 fn an_own_list_does_not_capture_the_entrys_literal() {
-    let src = "def list(x)\n  :defined\nend\n\n[1, 2]\n";
+    let src =
+        "# waive B0071: the literal is what this measures\ndef list(x)\n  :defined\nend\n\n[1, 2]\n";
     assert_eq!(format!("{:?}", value(src, &Mem(&[]))), "[Int(1), Int(2)]");
 }
 

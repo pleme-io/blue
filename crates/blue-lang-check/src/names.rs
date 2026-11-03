@@ -1055,12 +1055,10 @@ impl NameTable {
     #[must_use]
     pub fn answered_before_a_definition(&self, name: &str) -> bool {
         captured_by_lowering(name, Tier::Own)
-            || self.scopes.iter().any(|s| {
-                matches!(
-                    s.namespace,
-                    Namespace::SpecialForm | Namespace::Macro | Namespace::Harness
-                ) && s.get(name).is_some()
-            })
+            || self
+                .scopes
+                .iter()
+                .any(|s| matches!(s.namespace, Namespace::SpecialForm) && s.get(name).is_some())
     }
 
     /// Every name in every scope, with its namespace.

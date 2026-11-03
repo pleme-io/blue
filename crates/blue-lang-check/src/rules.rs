@@ -1464,15 +1464,15 @@ refuses a waiver that suppresses nothing, so one cannot outlive its copy.",
         slug: "evaluator-name",
         severity: Error,
         fix: None,
-        law: "a definition is not named for a word the evaluator answers first: a word syntax lowers to (`list`, `concat`, `apply`, `equal?`, `mod`, `join_lines`, `unlines`, `line_break`), a special form or a builtin macro",
+        law: "a definition is not named for a word the evaluator answers first: a word syntax lowers to (`list`, `concat`, `apply`, `equal?`, `mod`, `join_lines`, `unlines`, `line_break`) or a special form",
         witness: "def apply()\n  1\nend\n",
         ratchet: 0,
         explanation: "\
 A definition named `size` wins: a bare `size` in the file is the definition.
 Some names are different. The parser lowers syntax to `list`, `concat`, `apply`
-and a few more, so the resolver leaves those heads bare; a special form or a
-builtin macro is answered before any value. A bare call under such a name
-reaches the builtin, the definition never runs, and nothing reports it:
+and a few more, so the resolver leaves those heads bare; a special form is
+answered before any value. A bare call under such a name reaches the builtin,
+the definition never runs, and nothing reports it:
 
     def apply()
       1

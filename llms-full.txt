@@ -1804,7 +1804,7 @@ it; `blue explain --list` lists them.
 | B0068 | test-declaration-order | error | a test's declaration is written `satisfies` then `target`, its controls sorted: `{satisfies: %i[nist_ac_6 nist_cm_7], target: f}` |
 | B0069 | test-declaration | error | a test satisfies controls the catalog table names (`:nist_ac_6` is NIST_SP_800_53R5_AC_6) and targets a definition of the program |
 | B0070 | reimplemented-word | warning | a definition of 12 or more nodes is not a catalogue word's shape: it uses the word, or waives this rule with its reason |
-| B0071 | evaluator-name | error | a definition is not named for a word the evaluator answers first: a word syntax lowers to (`list`, `concat`, `apply`, `equal?`, `mod`, `join_lines`, `unlines`, `line_break`), a special form or a builtin macro |
+| B0071 | evaluator-name | error | a definition is not named for a word the evaluator answers first: a word syntax lowers to (`list`, `concat`, `apply`, `equal?`, `mod`, `join_lines`, `unlines`, `line_break`) or a special form |
 
 The registry is the source of truth; a test fails if a code is missing here.
 
@@ -1843,7 +1843,15 @@ or new row is refused without `--receipt "<why>"`, which stays beside the rows
 as a `# receipt:` line a reviewer reads. `--json` prints one document with the
 rows that broke and each copy's home. `--facts` prints each measured definition
 and exits 0. `checks.reuse-ratchet` (`lib.project`) runs the check on every
-project.
+project, and `pleme-io/actions/blue-reuse` runs it in CI. A project adopts it
+with one command, and the file it writes is the only thing that turns it on:
+
+    blue census --reuse . --record --receipt "first measure"
+
+`blue check --reuse FILE` prints each B0070 in one file, with the word to use
+and its import line, and always exits 0. `blue check --reuse --hook` reads Claude
+Code's PostToolUse JSON from stdin, takes `tool_input.file_path`, stays silent
+unless it ends in `.b` and exists, and exits 0 on every failure of its own.
 
 ## The data laws (B0048–B0052)
 

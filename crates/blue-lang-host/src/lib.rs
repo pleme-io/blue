@@ -1,5 +1,5 @@
 pub use blue_lang_host_macros::host;
-pub use blue_lang_runtime::domain::DomainError;
+pub use blue_lang_runtime::domain::{domain_form, DomainError};
 pub use blue_lang_runtime::host_surface::FILE as SURFACE_FILE;
 pub use blue_lang_runtime::hosted::{CallError, FramedError, Hosted};
 pub use blue_lang_runtime::uses::{Entry, Loader, NoLoader};
@@ -13,6 +13,9 @@ pub use tatara_lisp_eval::{
 
 #[cfg(feature = "packages")]
 pub use blue_lang_pkg::embedded::Standard;
+
+#[cfg(feature = "packages")]
+pub mod world;
 
 /// One package compiled into the host, beside the standard distribution.
 ///
@@ -50,6 +53,38 @@ impl Loader for Embedded<'_> {
 
     fn version(&self, package: &str, entry_dir: Option<&std::path::Path>) -> Option<String> {
         Standard.version(package, entry_dir)
+    }
+}
+
+/// One package compiled into the host, over any other loader: every other
+/// name, and every package's `needs` and `version`, is answered by `rest`.
+#[cfg(feature = "packages")]
+#[derive(Clone, Copy)]
+pub struct EmbeddedOver<'a> {
+    pub own: Embedded<'a>,
+    pub rest: &'a dyn Loader,
+}
+
+#[cfg(feature = "packages")]
+impl Loader for EmbeddedOver<'_> {
+    fn load(&self, name: &str) -> Result<Vec<(String, String)>, String> {
+        if name == self.own.name {
+            self.own.load(name)
+        } else {
+            self.rest.load(name)
+        }
+    }
+
+    fn needs(
+        &self,
+        package: &str,
+        entry_dir: Option<&std::path::Path>,
+    ) -> Option<std::collections::BTreeSet<String>> {
+        self.rest.needs(package, entry_dir)
+    }
+
+    fn version(&self, package: &str, entry_dir: Option<&std::path::Path>) -> Option<String> {
+        self.rest.version(package, entry_dir)
     }
 }
 

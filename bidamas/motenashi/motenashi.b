@@ -1,11 +1,15 @@
 @moduledoc """
-motenashi (もてなし) — how a launcher receives a person: a world's look, sections, ranking and bindings as entries, and a provider's answer as rows.
+motenashi (もてなし) — how a host receives a person: a world's look, motion, bindings and commands as entries, each refused alone, and a launcher provider's answer as rows.
 
-A world is a list of entries, each refused alone. A provider is a `.b` file with
-`search(query, limit)` returning rows. Every constructor here is pure and returns
-a plain record, so the host reads the same value a test does.
+A world is a list of entries, each refused alone. A host names the kinds it takes
+with `judged_for`, and `host_kinds` holds the ones every host shares; tobira is
+the launcher `declare` and its schema serve, and mado and any later host take the
+same words. A provider is a `.b` file with `search(query, limit)` returning rows.
+Every constructor here is pure and returns a plain record, so the host reads the
+same value a test does.
 
     declare([look({width: 680}), bind("ctrl+j", :next)]).refusals #=> []
+    judged_for(host_kinds, [motion({speed: 2}), bind("x", "any")]).refusals #=> []
 """
 
 use("kousei", %i[entry field judge list_of one_of required text])
@@ -41,7 +45,16 @@ def spacing(fields)
 end
 
 @doc """
-font: the face and size the launcher draws its text in.
+motion: the host's motion fields: how long and how far its surfaces move.
+
+    motion({speed: 2}).name #=> "motion"
+"""
+def motion(fields)
+  config(:motion, fields)
+end
+
+@doc """
+font: the face and size the host draws its text in.
 
     font("Inter", 17).value #=> {font_family: "Inter", font_size: 17}
 """
@@ -101,6 +114,16 @@ bind: a key chord and the action it runs.
 """
 def bind(chord, action)
   entry(:bind, chord, {action:})
+end
+
+@doc """
+command: a small command of the host, written in blue; `bind` runs it by name, and it calls the function named `call`, by default its own name.
+
+    command("hello", {}).name #=> "hello"
+    command("hello", {call: "greet"}).value #=> {call: "greet"}
+"""
+def command(name, fields)
+  entry(:command, name, fields)
 end
 
 @doc """
@@ -173,7 +196,7 @@ schema: the kinds a world may declare and the fields each takes. A config group'
 """
 def schema()
   {
-    config: [],
+    config: :open,
     without: [],
     font: [field(:font_family, text), field(:font_size, number_field)],
     search_text: [
@@ -194,6 +217,60 @@ def schema()
       field(:deadline_ms, number_field),
       field(:fuel, number_field)
     ]
+  }
+end
+
+@doc """
+declare: a launcher world's entries judged: `accepted`, `off` and `refusals`, each refusal scoped to its entry.
+
+    declare([]).accepted #=> []
+    declare([bind("x", :nope)]).accepted #=> []
+"""
+def declare(entries)
+  judge(schema, entries)
+end
+
+@doc """
+host_kinds: the kinds every host's world takes. A host's own schema checks a config group and a command, and a binding's action is text the host resolves.
+
+    host_kinds[:config] #=> :open
+    size(host_kinds[:bind]) #=> 1
+"""
+def host_kinds()
+  {
+    config: :open,
+    command: :open,
+    font: [field(:font_family, text), field(:font_size, number_field)],
+    bind: [required(field(:action, action_word))]
+  }
+end
+
+@doc """
+action_word: the check of a binding's action in a host world: a word or a text, the host resolves it.
+
+    map(action_word, [:next, "next"]) #=> [nil, nil]
+"""
+def action_word()
+  fn(v)
+    kousei::verdict(
+      keyword?(v) or string?(v) and length(v) > 0,
+      "#{v} is not an action"
+    )
+  end
+end
+
+@doc """
+judged_for: a host's world judged against the kinds it takes, each refusal as a `kind` and a `why`, ready for the host to read.
+
+    judged_for(host_kinds, []).accepted #=> []
+    judged_for(host_kinds, [bind("x", 7)]).refusals[0].kind #=> :invalid
+"""
+def judged_for(kinds, entries)
+  judged = judge(kinds, entries)
+  {
+    accepted: judged[:accepted],
+    off: judged[:off],
+    refusals: map((r) -> {kind: r[0], why: r[1]}, judged[:refusals])
   }
 end
 
@@ -226,21 +303,6 @@ def restored(e)
   else
     e
   end
-end
-
-@doc """
-declare: a world's entries judged: `accepted`, `off` and `refusals`, each refusal scoped to its entry.
-
-    declare([]).accepted #=> []
-    declare([bind("x", :nope)]).accepted #=> []
-"""
-def declare(entries)
-  judged = judge(schema, open_fields(entries))
-  {
-    accepted: map(restored, judged[:accepted]),
-    off: judged[:off],
-    refusals: judged[:refusals]
-  }
 end
 
 @doc """
@@ -348,6 +410,50 @@ test "a config group's fields reach the host untouched, whatever they are"
   d = declare([look({width: "not a number", brand_new_field: 1})])
   assert is_empty(d[:refusals])
   assert d[:accepted][0][:value] == {width: "not a number", brand_new_field: 1}
+end
+
+test "tune lays fields over a config group, and off takes one out"
+  d = declare(
+    [
+      look({width: 680, opacity: 0.9}),
+      spacing({padding: 12}),
+      tune(:config, "appearance", {width: 700}),
+      off(:config, "layout")
+    ]
+  )
+  assert map((e) -> e[:name], d[:accepted]) == ["appearance"]
+  assert d[:accepted][0][:value] == {width: 700, opacity: 0.9}
+  assert map((e) -> e[:name], d[:off]) == ["layout"]
+  assert is_empty(d[:refusals])
+end
+
+test "a host names its kinds, and what it does not name is refused alone"
+  kinds = {**host_kinds, vigy: :open}
+  j = judged_for(
+    kinds,
+    [
+      motion({speed: 2}),
+      font("Inter", 17),
+      font("Twice", 12),
+      bind("cmd+k", :clear),
+      bind("cmd+j", "hello"),
+      bind("cmd+m", 7),
+      command("hello", {}),
+      entry(:vigy, "clock", {every_ms: 1000}),
+      entry(:provider, "notas", {}),
+      42
+    ]
+  )
+  assert map((e) -> e[:name], j[:accepted]) ==
+    %w[motion font cmd+k cmd+j hello clock]
+  assert map((r) -> r[:kind], j[:refusals]) ==
+    %i[invalid duplicate invalid unknown_kind]
+end
+
+test "a host world takes an entry off and keeps it named"
+  j = judged_for(host_kinds, [command("a", {}), off(:command, "a")])
+  assert j[:accepted] == []
+  assert map((e) -> e[:name], j[:off]) == ["a"]
 end
 
 test "off takes a declared provider out and names only what was declared"

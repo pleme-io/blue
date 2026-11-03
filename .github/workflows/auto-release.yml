@@ -84,4 +84,8 @@ jobs:
     # workspaces WITHOUT a shared [workspace.package].version, so it is not
     # this repo either. Pick by workspace shape, not by name similarity.
     uses: pleme-io/substrate/.github/workflows/rust-auto-release.yml@main
+    with:
+      # blue-lang-pkg compiles `bidamas/` into the crate, so a bidama-only
+      # change is a release. The default paths read it as no change.
+      source-paths: "*.rs *.b Bluefile Cargo.toml Cargo.lock"
     secrets: inherit

@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "04c1b06ed60cb24a45e5591bbe028ecb2026bd7f64f27d0f90e37abfc1a49a19",
+  "cargo_lock_sha256": "306df08b52765040b21ae15b5465e501145baf685d7c3b0d7f194d4c537237b9",
   "manifest_sha256": {
     "Cargo.toml": "55682b2df7b36fee1c46b2714ba3ba01f26059b1c58615f2b65df77468b96123",
     "crates/blue-lang-appliance/Cargo.toml": "72da422691d14356450606a218eed12ed6a26ed3a23c64116dc3ef8546937526",
@@ -12,7 +12,7 @@
     "crates/blue-lang-danpen-diff/Cargo.toml": "b7e792141144a87f38bf6e6f78365ddd1c3feabbae5097bc43e560fc2223dfbf",
     "crates/blue-lang-fmt/Cargo.toml": "4f5c416d0a44933a497ea60c2e0e7d412ac8da28e2cbd646bb45d75c6e07db88",
     "crates/blue-lang-host-macros/Cargo.toml": "f8efb27bcf0512036b610e3c3d54b0d237f00c812e8a29e0c3adaaa662e74d60",
-    "crates/blue-lang-host/Cargo.toml": "515be2b89363222cc6fc71b8f74adfe6fa56b92a3f013cac979909eb6a2ecaa2",
+    "crates/blue-lang-host/Cargo.toml": "397f5d3f4efe6ea7ad812e187bb8c35f2db0c67d66182c2b49b92af8fd3debd7",
     "crates/blue-lang-kernel/Cargo.toml": "ade0db0e2d949194ab8c8441e2e8d6dba03a4b60e1587dda9a92441fe4043ba6",
     "crates/blue-lang-kiwari/Cargo.toml": "7061ed32aff7aac13a83517bb14ad40fb0e3b21d5ab948c719236b5f8d39150c",
     "crates/blue-lang-lsp/Cargo.toml": "6ee650c395599803eaa4f13f2194ea1a1145a5f5f491e27a1e90a95e183fce00",
@@ -1393,85 +1393,6 @@
         ],
         "build_dependencies": [],
         "features": []
-      },
-      "blue-lang-host-0.0.150": {
-        "runtime_dependencies": [
-          {
-            "name": "blue_lang_host_macros",
-            "package_key": "blue-lang-host-macros-0.0.150",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "host"
-          },
-          {
-            "name": "blue_lang_pkg",
-            "package_key": "blue-lang-pkg-0.0.150",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "blue_lang_runtime",
-            "package_key": "blue-lang-runtime-0.0.150",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "blue_lang_waku",
-            "package_key": "blue-lang-waku-0.0.150",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "tatara_lisp",
-            "package_key": "tatara-lisp-0.4.13",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "tatara_lisp_eval",
-            "package_key": "tatara-lisp-eval-0.4.13",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "thiserror",
-            "package_key": "thiserror-2.0.19",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          }
-        ],
-        "build_dependencies": [],
-        "features": [
-          "default",
-          "packages"
-        ]
       },
       "blue-lang-host-macros-0.0.150": {
         "runtime_dependencies": [
@@ -11979,6 +11900,107 @@
               "std"
             ]
           },
+          "blue-lang-host-0.0.150": {
+            "runtime_dependencies": [
+              {
+                "name": "blue_lang_host_macros",
+                "package_key": "blue-lang-host-macros-0.0.150",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "host"
+              },
+              {
+                "name": "blue_lang_pkg",
+                "package_key": "blue-lang-pkg-0.0.150",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "blue_lang_runtime",
+                "package_key": "blue-lang-runtime-0.0.150",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "blue_lang_waku",
+                "package_key": "blue-lang-waku-0.0.150",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "serde",
+                "package_key": "serde-1.0.229",
+                "kind": "normal",
+                "features": [
+                  "derive"
+                ],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "serde_json",
+                "package_key": "serde_json-1.0.151",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "tatara_lisp",
+                "package_key": "tatara-lisp-0.4.13",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "tatara_lisp_eval",
+                "package_key": "tatara-lisp-eval-0.4.13",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "thiserror",
+                "package_key": "thiserror-2.0.19",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": [
+              "default",
+              "packages"
+            ]
+          },
           "blue-lang-kernel-0.0.150": {
             "runtime_dependencies": [],
             "build_dependencies": [],
@@ -12738,6 +12760,120 @@
               "std"
             ]
           },
+          "blue-lang-host-0.0.150": {
+            "runtime_dependencies": [
+              {
+                "name": "blue_lang_host_macros",
+                "package_key": "blue-lang-host-macros-0.0.150",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "host"
+              },
+              {
+                "name": "blue_lang_pkg",
+                "package_key": "blue-lang-pkg-0.0.150",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "blue_lang_runtime",
+                "package_key": "blue-lang-runtime-0.0.150",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "blue_lang_waku",
+                "package_key": "blue-lang-waku-0.0.150",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "rustix",
+                "package_key": "rustix-1.1.4",
+                "kind": "normal",
+                "features": [
+                  "process",
+                  "std"
+                ],
+                "uses_default_features": false,
+                "optional": false,
+                "target": "cfg(target_os = \"linux\")",
+                "tree": "target"
+              },
+              {
+                "name": "serde",
+                "package_key": "serde-1.0.229",
+                "kind": "normal",
+                "features": [
+                  "derive"
+                ],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "serde_json",
+                "package_key": "serde_json-1.0.151",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "tatara_lisp",
+                "package_key": "tatara-lisp-0.4.13",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "tatara_lisp_eval",
+                "package_key": "tatara-lisp-eval-0.4.13",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "thiserror",
+                "package_key": "thiserror-2.0.19",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": [
+              "default",
+              "packages"
+            ]
+          },
           "blue-lang-kernel-0.0.150": {
             "runtime_dependencies": [
               {
@@ -13474,6 +13610,120 @@
               "default",
               "pure",
               "std"
+            ]
+          },
+          "blue-lang-host-0.0.150": {
+            "runtime_dependencies": [
+              {
+                "name": "blue_lang_host_macros",
+                "package_key": "blue-lang-host-macros-0.0.150",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "host"
+              },
+              {
+                "name": "blue_lang_pkg",
+                "package_key": "blue-lang-pkg-0.0.150",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "blue_lang_runtime",
+                "package_key": "blue-lang-runtime-0.0.150",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "blue_lang_waku",
+                "package_key": "blue-lang-waku-0.0.150",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "rustix",
+                "package_key": "rustix-1.1.4",
+                "kind": "normal",
+                "features": [
+                  "process",
+                  "std"
+                ],
+                "uses_default_features": false,
+                "optional": false,
+                "target": "cfg(target_os = \"linux\")",
+                "tree": "target"
+              },
+              {
+                "name": "serde",
+                "package_key": "serde-1.0.229",
+                "kind": "normal",
+                "features": [
+                  "derive"
+                ],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "serde_json",
+                "package_key": "serde_json-1.0.151",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "tatara_lisp",
+                "package_key": "tatara-lisp-0.4.13",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "tatara_lisp_eval",
+                "package_key": "tatara-lisp-eval-0.4.13",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "thiserror",
+                "package_key": "thiserror-2.0.19",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": [
+              "default",
+              "packages"
             ]
           },
           "blue-lang-kernel-0.0.150": {
@@ -14222,6 +14472,107 @@
               "default",
               "pure",
               "std"
+            ]
+          },
+          "blue-lang-host-0.0.150": {
+            "runtime_dependencies": [
+              {
+                "name": "blue_lang_host_macros",
+                "package_key": "blue-lang-host-macros-0.0.150",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "host"
+              },
+              {
+                "name": "blue_lang_pkg",
+                "package_key": "blue-lang-pkg-0.0.150",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "blue_lang_runtime",
+                "package_key": "blue-lang-runtime-0.0.150",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "blue_lang_waku",
+                "package_key": "blue-lang-waku-0.0.150",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "serde",
+                "package_key": "serde-1.0.229",
+                "kind": "normal",
+                "features": [
+                  "derive"
+                ],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "serde_json",
+                "package_key": "serde_json-1.0.151",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "tatara_lisp",
+                "package_key": "tatara-lisp-0.4.13",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "tatara_lisp_eval",
+                "package_key": "tatara-lisp-eval-0.4.13",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "thiserror",
+                "package_key": "thiserror-2.0.19",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": [
+              "default",
+              "packages"
             ]
           },
           "blue-lang-kernel-0.0.150": {
@@ -15051,6 +15402,120 @@
               "std"
             ]
           },
+          "blue-lang-host-0.0.150": {
+            "runtime_dependencies": [
+              {
+                "name": "blue_lang_host_macros",
+                "package_key": "blue-lang-host-macros-0.0.150",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "host"
+              },
+              {
+                "name": "blue_lang_pkg",
+                "package_key": "blue-lang-pkg-0.0.150",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "blue_lang_runtime",
+                "package_key": "blue-lang-runtime-0.0.150",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "blue_lang_waku",
+                "package_key": "blue-lang-waku-0.0.150",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "rustix",
+                "package_key": "rustix-1.1.4",
+                "kind": "normal",
+                "features": [
+                  "process",
+                  "std"
+                ],
+                "uses_default_features": false,
+                "optional": false,
+                "target": "cfg(target_os = \"linux\")",
+                "tree": "target"
+              },
+              {
+                "name": "serde",
+                "package_key": "serde-1.0.229",
+                "kind": "normal",
+                "features": [
+                  "derive"
+                ],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "serde_json",
+                "package_key": "serde_json-1.0.151",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "tatara_lisp",
+                "package_key": "tatara-lisp-0.4.13",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "tatara_lisp_eval",
+                "package_key": "tatara-lisp-eval-0.4.13",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "thiserror",
+                "package_key": "thiserror-2.0.19",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": [
+              "default",
+              "packages"
+            ]
+          },
           "blue-lang-kernel-0.0.150": {
             "runtime_dependencies": [
               {
@@ -15855,6 +16320,120 @@
               "default",
               "pure",
               "std"
+            ]
+          },
+          "blue-lang-host-0.0.150": {
+            "runtime_dependencies": [
+              {
+                "name": "blue_lang_host_macros",
+                "package_key": "blue-lang-host-macros-0.0.150",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "host"
+              },
+              {
+                "name": "blue_lang_pkg",
+                "package_key": "blue-lang-pkg-0.0.150",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "blue_lang_runtime",
+                "package_key": "blue-lang-runtime-0.0.150",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "blue_lang_waku",
+                "package_key": "blue-lang-waku-0.0.150",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "rustix",
+                "package_key": "rustix-1.1.4",
+                "kind": "normal",
+                "features": [
+                  "process",
+                  "std"
+                ],
+                "uses_default_features": false,
+                "optional": false,
+                "target": "cfg(target_os = \"linux\")",
+                "tree": "target"
+              },
+              {
+                "name": "serde",
+                "package_key": "serde-1.0.229",
+                "kind": "normal",
+                "features": [
+                  "derive"
+                ],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "serde_json",
+                "package_key": "serde_json-1.0.151",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "tatara_lisp",
+                "package_key": "tatara-lisp-0.4.13",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "tatara_lisp_eval",
+                "package_key": "tatara-lisp-eval-0.4.13",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "thiserror",
+                "package_key": "thiserror-2.0.19",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": [
+              "default",
+              "packages"
             ]
           },
           "blue-lang-kernel-0.0.150": {

@@ -82,13 +82,16 @@ def required(f)
 end
 
 @doc """
-record_whys: Why a record breaks its table: missing required fields, bad values, and keys the table does not know.
+record_whys: Why a record breaks its table: missing required fields, bad values, and keys the table does not know. An `:open` table holds any record, because the host that reads it checks its fields.
 
     record_whys(get(schema_fixture, :plane), "x") #=> ["the value is not a record"]
+    record_whys(:open, {any: 1}) #=> []
 """
 def record_whys(table, m)
   if not map?(m)
     ["the value is not a record"]
+  elsif table == :open
+    []
   else
     keys = map((f) -> f[:key], table)
     known = map(
@@ -112,10 +115,16 @@ def record_whys(table, m)
 end
 
 @doc """
-loosened: A record table that checks only the fields it is given.
+loosened: A record table that checks only the fields it is given. An `:open` table stays open.
+
+    loosened(:open) #=> :open
 """
 def loosened(table)
-  map((f) -> assoc(f, :required, false), table)
+  if table == :open
+    table
+  else
+    map((f) -> assoc(f, :required, false), table)
+  end
 end
 
 def entry(kind, name, value)
@@ -356,6 +365,25 @@ test "a tune lays fields over its entry, and a bad tune is refused alone"
   assert value_of(of_kind(j, :plane)[0])[:surfaces] == %i[ingest ui]
   assert value_of(of_kind(j, :plane)[0])[:listen] == "127.0.0.1:8443"
   assert faults(j) == %i[invalid unknown_entry]
+end
+
+test "an open kind reaches the host whatever its fields, and off, tune and duplicates still judge it"
+  schema = {group: :open}
+  j = judge(
+    schema,
+    [
+      entry(:group, "a", {width: "not a number", brand_new: 1}),
+      entry(:group, "b", {x: 1}),
+      entry(:group, "b", {x: 2}),
+      entry(:group, "c", "no record"),
+      tune(:group, "a", {width: 7}),
+      off(:group, "b")
+    ]
+  )
+  assert map(name_of, j[:accepted]) == ["a"]
+  assert value_of(j[:accepted][0]) == {width: 7, brand_new: 1}
+  assert map(name_of, j[:off]) == ["b"]
+  assert faults(j) == %i[duplicate invalid]
 end
 
 test "unknown fields and missing required fields are reasons, not crashes"

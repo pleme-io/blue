@@ -1,20 +1,20 @@
 [
   {
-    "name": "declare stops opening config groups",
+    "name": "a config group is checked by a table",
     "file": "motenashi.b",
-    "find": "  judged = judge(schema, open_fields(entries))",
-    "replace": "  judged = judge(schema, entries)"
+    "find": "  {\n    config: :open,\n    without: [],",
+    "replace": "  {\n    config: [],\n    without: [],"
   },
   {
-    "name": "declare forgets to restore a group's fields",
+    "name": "judged_for loses what stands",
     "file": "motenashi.b",
-    "find": "    accepted: map(restored, judged[:accepted]),",
-    "replace": "    accepted: judged[:accepted],"
+    "find": "    accepted: judged[:accepted],",
+    "replace": "    accepted: [],"
   },
   {
     "name": "declare drops refusals",
     "file": "motenashi.b",
-    "find": "    refusals: judged[:refusals]",
+    "find": "    refusals: map((r) -> {kind: r[0], why: r[1]}, judged[:refusals])",
     "replace": "    refusals: []"
   },
   {

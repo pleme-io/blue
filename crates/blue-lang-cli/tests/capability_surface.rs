@@ -195,7 +195,7 @@ fn each_host_capability_carries_a_real_bundle_and_a_real_import() {
         .into_iter()
         .map(|c| (c.label(), c.names().len()))
         .collect();
-    assert_eq!(counts.len(), 13, "the floor, 2026-10-31: {counts:?}");
+    assert_eq!(counts.len(), 14, "the floor, 2026-11-03: {counts:?}");
     for (label, n) in &counts {
         assert!(*n > 0, "{label} grants no names");
     }
@@ -212,7 +212,9 @@ fn each_host_capability_carries_a_real_bundle_and_a_real_import() {
             ("process", 9),
             // 21 since 2026-09-27: rename_file, the atomic replace a file
             // another program polls needs (nix's `builders = @file`).
-            ("filesystem", 22),
+            // 25 since 2026-11-03: read_bytes, read_u32s and write_bytes, so a
+            // program reads a kernel's BTF and writes binary.
+            ("filesystem", 25),
             // 5 since 2026-09-27: self_exe, the blue CLI running this program
             // (nil when embedded), so a program that runs blue spawns THIS one.
             ("environment", 5),
@@ -236,7 +238,8 @@ fn each_host_capability_carries_a_real_bundle_and_a_real_import() {
             ("storage-append", 2),
             ("audio-out", 2),
             ("audio-in", 2),
-            ("display", 7)
+            ("display", 7),
+            ("kernel-bpf", 7)
         ]
     );
 }

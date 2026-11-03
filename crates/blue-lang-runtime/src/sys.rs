@@ -73,6 +73,7 @@ pub fn install_sys_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
     crate::wire::install_wire(interp);
     crate::threshold::install_threshold(interp);
     crate::storage::install_storage(interp);
+    crate::kernel::install_kernel(interp);
     crate::audio::install_audio(interp);
     crate::display::install_display(interp);
 }
@@ -552,6 +553,96 @@ fn install_fs<H: 'static>(interp: &mut Interpreter<H>) {
             let contents = std::fs::read_to_string(&*path)
                 .map_err(|e| EvalError::native_fn("read_file", format!("{path}: {e}"), span))?;
             Ok(Value::Str(Arc::from(contents)))
+        },
+    );
+
+    interp.register_fn(
+        "read_bytes",
+        Arity::Range(1, 3),
+        |args: &[Value], _h: &mut H, span| {
+            use std::io::{Read, Seek, SeekFrom};
+            const W: &str = "read_bytes";
+            let path = arg_str(&args[0], W, span)?;
+            let fail = |e: std::io::Error| EvalError::native_fn(W, format!("{path}: {e}"), span);
+            let window = match args {
+                [_] => None,
+                [_, offset, length] => {
+                    let bound = |v: &Value| {
+                        u64::try_from(arg_int(v, W, span)?).map_err(|_| {
+                            EvalError::native_fn(
+                                W,
+                                String::from("an offset or length is not negative"),
+                                span,
+                            )
+                        })
+                    };
+                    Some((bound(offset)?, bound(length)?))
+                }
+                _ => {
+                    return Err(EvalError::native_fn(
+                        W,
+                        String::from("takes a path, or a path, an offset and a length"),
+                        span,
+                    ));
+                }
+            };
+            let bytes = match window {
+                None => std::fs::read(&*path).map_err(fail)?,
+                Some((offset, length)) => {
+                    let mut file = std::fs::File::open(&*path).map_err(fail)?;
+                    file.seek(SeekFrom::Start(offset)).map_err(fail)?;
+                    let mut out = Vec::new();
+                    file.take(length).read_to_end(&mut out).map_err(fail)?;
+                    out
+                }
+            };
+            Ok(Value::list(bytes.iter().map(|b| Value::Int(i64::from(*b)))))
+        },
+    );
+
+    interp.register_fn(
+        "read_u32s",
+        Arity::Exact(3),
+        |args: &[Value], _h: &mut H, span| {
+            use std::io::{Read, Seek, SeekFrom};
+            const W: &str = "read_u32s";
+            let path = arg_str(&args[0], W, span)?;
+            let fail = |e: std::io::Error| EvalError::native_fn(W, format!("{path}: {e}"), span);
+            let bound = |v: &Value| {
+                u64::try_from(arg_int(v, W, span)?).map_err(|_| {
+                    EvalError::native_fn(
+                        W,
+                        String::from("an offset or count is not negative"),
+                        span,
+                    )
+                })
+            };
+            let offset = bound(&args[1])?;
+            let count = bound(&args[2])?;
+            let mut file = std::fs::File::open(&*path).map_err(fail)?;
+            file.seek(SeekFrom::Start(offset)).map_err(fail)?;
+            let mut raw = Vec::new();
+            file.take(count.saturating_mul(4))
+                .read_to_end(&mut raw)
+                .map_err(fail)?;
+            Ok(Value::list(raw.chunks_exact(4).map(|w| {
+                Value::Int(i64::from(u32::from_le_bytes([w[0], w[1], w[2], w[3]])))
+            })))
+        },
+    );
+
+    interp.register_fn(
+        "write_bytes",
+        Arity::Exact(2),
+        |args: &[Value], _h: &mut H, span| {
+            const W: &str = "write_bytes";
+            let path = arg_str(&args[0], W, span)?;
+            writable(&path, W, span)?;
+            let bytes = crate::crypto::message_bytes(&args[1])
+                .map_err(|e| EvalError::native_fn(W, e.to_string(), span))?;
+            std::fs::write(&*path, bytes)
+                .map_err(|e| EvalError::native_fn(W, format!("{path}: {e}"), span))?;
+            Ok(Value::Nil)
         },
     );
 

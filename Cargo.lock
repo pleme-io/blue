@@ -443,6 +443,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "blue-lang-kernel"
+version = "0.0.150"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "blue-lang-kiwari"
 version = "0.0.150"
 dependencies = [
@@ -528,6 +535,7 @@ dependencies = [
  "blake3",
  "blue-lang-check",
  "blue-lang-fmt",
+ "blue-lang-kernel",
  "blue-lang-pkg",
  "blue-lang-proc",
  "blue-lang-senses",

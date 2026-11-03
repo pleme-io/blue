@@ -432,6 +432,187 @@ def yaml(v)
   end
 end
 
+@doc """
+toml_key: a TOML key, quoted when it needs to be.
+
+    toml_key("a") #=> "a"
+    toml_key("a b") #=> "\"a b\""
+"""
+def toml_key(k)
+  yaml_key(k)
+end
+
+@doc """
+table_list?: whether a value is a list TOML writes as an array of tables.
+
+    table_list?([{a: 1}]) #=> true
+    table_list?([1]) #=> false
+"""
+def table_list?(v)
+  list?(v) and v != [] and every?(map?, v)
+end
+
+@doc """
+toml_value: a scalar or a list of scalars as TOML, refused for what TOML cannot hold there.
+
+    toml_value([1, 2], "x") #=> "[1, 2]"
+    (toml_value(nil, "x") rescue :refused) #=> :refused
+"""
+def toml_value(v, name)
+  if v == []
+    "[]"
+  elsif list?(v)
+    "[#{join(map((x) -> toml_value(x, name), v), ", ")}]"
+  elsif map?(v)
+    raise(:render_error, "TOML has no table inside an array here: #{name}")
+  elsif v.nil?
+    raise(:render_error, "TOML has no null: #{name}")
+  else
+    scalar_text(v)
+  end
+end
+
+@doc """
+toml_scalar_lines: `key = value` lines from entries.
+
+    toml_scalar_lines([[:a, 1]]) #=> ["a = 1"]
+"""
+def toml_scalar_lines(rows)
+  map(
+    (e) -> "#{toml_key(first(e))} = #{toml_value(second(e), to_s(first(e)))}",
+    rows
+  )
+end
+
+@doc """
+toml_section: the blocks of one table: its own lines under its header, then the tables below it.
+
+    toml_section([[:a, 1]], [], "") #=> [["a = 1"]]
+"""
+def toml_section(entries, path, header)
+  rows = filter(
+    (e) -> not map?(second(e)) and not table_list?(second(e)),
+    entries
+  )
+  tables = filter((e) -> map?(second(e)), entries)
+  lists = filter((e) -> table_list?(second(e)), entries)
+  own = if path == [] or rows != [] or tables == [] and lists == []
+    if path == []
+      [toml_scalar_lines(rows)]
+    else
+      [append([header], toml_scalar_lines(rows))]
+    end
+  else
+    []
+  end
+  below = flat_map_list(
+    append(
+      map(
+        (e) -> toml_table(second(e), append(path, [toml_key(first(e))])),
+        tables
+      ),
+      map(
+        (e) -> toml_array(second(e), append(path, [toml_key(first(e))])),
+        lists
+      )
+    )
+  )
+  filter((block) -> block != [], append(own, below))
+end
+
+@doc """
+flat_map_list: lists of blocks joined into one list of blocks.
+
+    flat_map_list([[1], [2]]) #=> [1, 2]
+"""
+def flat_map_list(xss)
+  reduce((acc, xs) -> append(acc, xs), [], xss)
+end
+
+@doc """
+toml_table: a map's blocks at a path.
+
+    toml_table({a: 1}, []) #=> [["a = 1"]]
+"""
+def toml_table(m, path)
+  live = filter((e) -> not second(e).nil?, map_entries(m))
+  toml_section(live, path, "[#{join(path, ".")}]")
+end
+
+@doc """
+toml_array: a list of maps as array-of-tables blocks at a path.
+
+    toml_array([{a: 1}], ["r"]) #=> [["[[r]]", "a = 1"]]
+"""
+def toml_array(rows, path)
+  flat_map_list(
+    map(
+      fn(row)
+        live = filter((e) -> not second(e).nil?, map_entries(row))
+        toml_section(live, path, "[[#{join(path, ".")}]]")
+      end,
+      rows
+    )
+  )
+end
+
+@doc """
+toml: a map as TOML text, keys sorted, each nested map a `[table]`, each list of maps an `[[array of tables]]`, an absent value left out. A value TOML cannot hold raises :render_error.
+
+    toml({}) #=> ""
+    toml({a: 1, b: "x"}) #=> "a = 1\nb = \"x\"\n"
+    toml({s: {t: {u: true}}}) #=> "[s.t]\nu = true\n"
+    toml({xs: [1, 2]}) #=> "xs = [1, 2]\n"
+"""
+def toml(v)
+  if not map?(v)
+    raise(:render_error, "TOML's top level is a table, got #{to_s(v)}")
+  end
+  blocks = toml_table(v, [])
+  if blocks == []
+    ""
+  else
+    unlines(
+      [
+        join(
+          map((block) -> join(block, line_break), blocks),
+          "#{line_break}#{line_break}"
+        )
+      ]
+    )
+  end
+end
+
+test "toml writes tables after the scalars that come before them, in sorted key order"
+  got = toml({z: 1, a: {k: "v"}, m: 2, b: {c: {d: 3}}})
+  assert got ==
+    unlines(["m = 2", "z = 1", "", "[a]", "k = \"v\"", "", "[b.c]", "d = 3"])
+end
+
+test "toml writes an array of tables, an empty array and an empty table"
+  assert toml({rows: [{a: 1}, {a: 2}]}) ==
+    unlines(["[[rows]]", "a = 1", "", "[[rows]]", "a = 2"])
+  assert toml({xs: []}) == unlines(["xs = []"])
+  assert toml({t: {}}) == unlines(["[t]"])
+end
+
+test "toml leaves an absent value out, quotes a key that needs it, and escapes a string"
+  assert toml({a: nil, b: 1}) == unlines(["b = 1"])
+  assert toml({"a b" => 1}) == unlines(["\"a b\" = 1"])
+  assert toml({s: "q\"x"}) == unlines(["s = \"q\\\"x\""])
+end
+
+test "toml refuses what TOML cannot hold"
+  top = begin
+    toml([1])
+  rescue :render_error
+    :refused
+  end
+  assert top == :refused
+  assert (toml({xs: [nil]}) rescue :refused) == :refused
+  assert (toml({xs: [1, {a: 1}]}) rescue :refused) == :refused
+end
+
 test "pretty prints maps sorted, lists in order, scalars as JSON"
   assert pretty({}) == unlines(["{}"])
   assert pretty([]) == unlines(["[]"])

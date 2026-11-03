@@ -1,0 +1,50 @@
+[
+  {
+    "name": "the magic is not checked",
+    "file": "btf.b",
+    "find": "if length(bytes) < 24 or bytes_int(bytes, 0, 2) != 60319",
+    "replace": "if false"
+  },
+  {
+    "name": "a struct's members take the wrong width",
+    "file": "btf.b",
+    "find": "  when 4\n    vlen * 3",
+    "replace": "  when 4\n    vlen * 2"
+  },
+  {
+    "name": "a field's bit offset is not divided",
+    "file": "btf.b",
+    "find": "offset: floor(got[:bits] / 8)",
+    "replace": "offset: got[:bits]"
+  },
+  {
+    "name": "an anonymous union is not searched",
+    "file": "btf.b",
+    "find": "elsif m[:name] == \"\"",
+    "replace": "elsif false"
+  },
+  {
+    "name": "an anonymous union's own offset is lost",
+    "file": "btf.b",
+    "find": "{bits: bit_offset(m, flagged) + deeper[:bits], type: deeper[:type]}",
+    "replace": "{bits: deeper[:bits], type: deeper[:type]}"
+  },
+  {
+    "name": "a typedef is not followed",
+    "file": "btf.b",
+    "find": "%i[typedef volatile const restrict type_tag]",
+    "replace": "%i[volatile const restrict type_tag]"
+  },
+  {
+    "name": "a pointer has no size",
+    "file": "btf.b",
+    "find": "  when :ptr\n    8",
+    "replace": "  when :ptr\n    0"
+  },
+  {
+    "name": "find takes any kind",
+    "file": "btf.b",
+    "find": "(id) -> type_at(b, id)[:kind] == kind,",
+    "replace": "(id) -> true,"
+  }
+]

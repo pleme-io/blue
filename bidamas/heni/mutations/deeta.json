@@ -52,5 +52,29 @@
     "file": "deeta.b",
     "find": "if starts_with?(t, \"0o\") and",
     "replace": "if starts_with?(t, \"0q\") and"
+  },
+  {
+    "name": "toml writes a null",
+    "file": "deeta.b",
+    "find": "raise(:render_error, \"TOML has no null: #{name}\")",
+    "replace": "\"null\""
+  },
+  {
+    "name": "toml keeps an absent value",
+    "file": "deeta.b",
+    "find": "live = filter((e) -> not second(e).nil?, map_entries(m))",
+    "replace": "live = map_entries(m)"
+  },
+  {
+    "name": "toml takes a list at the top",
+    "file": "deeta.b",
+    "find": "  if not map?(v)\n    raise(:render_error, \"TOML's top level",
+    "replace": "  if false\n    raise(:render_error, \"TOML's top level"
+  },
+  {
+    "name": "toml writes a nested table's path as its leaf",
+    "file": "deeta.b",
+    "find": "toml_section(live, path, \"[#{join(path, \".\")}]\")",
+    "replace": "toml_section(live, path, \"[#{nth(0, reverse(path))}]\")"
   }
 ]

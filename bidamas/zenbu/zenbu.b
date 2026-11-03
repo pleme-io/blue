@@ -49,7 +49,13 @@ nix consumes blue's own evaluation instead of re-deriving it.
 
 use("anaritikusu")
 use("angou", [:is_prime])
+# waive B0016: zenbu is the facade, and depending on it means depending on baito
+use("baito")
 use("bougyo")
+# waive B0016: zenbu is the facade, and depending on it means depending on bpf
+use("bpf")
+# waive B0016: zenbu is the facade, and depending on it means depending on btf
+use("btf")
 use("bunsho")
 use("chokkan")
 use("danpen")
@@ -75,6 +81,8 @@ use("ibuki")
 use("jisho")
 use("jitaku")
 use("junjo", %i[is_sorted sort])
+# waive B0016: zenbu is the facade, and depending on it means depending on kaaneru
+use("kaaneru")
 use("kakou")
 use("kansuu", [:identity])
 use("kazu", %i[clamp near])

@@ -53,6 +53,8 @@ pub enum Topic {
     Clock,
     /// NATS and HTTP over TCP.
     Network,
+    /// The Linux kernel's own interfaces: bpf(2), perf events, their descriptors.
+    Kernel,
     /// Sound played and captured, and a canvas drawn and shown.
     Device,
     Crypto,
@@ -89,6 +91,7 @@ impl Topic {
         Topic::Clock,
         Topic::Network,
         Topic::Device,
+        Topic::Kernel,
         Topic::Crypto,
         Topic::Output,
         Topic::Lazy,
@@ -119,6 +122,7 @@ impl Topic {
             Topic::Clock => "Time",
             Topic::Network => "Network",
             Topic::Device => "Sound and display",
+            Topic::Kernel => "The Linux kernel",
             Topic::Crypto => "Hashing and signatures",
             Topic::Lazy => "Delayed values",
             Topic::Concurrency => "Channels and fibers",
@@ -155,7 +159,8 @@ impl Topic {
             | Topic::Environment
             | Topic::Clock
             | Topic::Network
-            | Topic::Device => Some(Effect::Host),
+            | Topic::Device
+            | Topic::Kernel => Some(Effect::Host),
             Topic::Output => Some(Effect::Output),
             Topic::Concurrency => Some(Effect::Concurrency),
             Topic::Actor => Some(Effect::Actor),
@@ -242,10 +247,24 @@ pub const NAMES: &[NameDoc] = names! {
     Lisp: "defstrategy" "defstrategy(name, :variant, f, …, :default, g)" "Define name(variant, args...) dispatching to the function under that keyword, or :default.";
     Lisp: "defvisitor" "defvisitor(name, :tag, f, …, :default, g)" "Define name(tagged) dispatching on the first element of a tagged list.";
     Lisp: "defactor" "defactor(name, initial, behaviour)" "A single-threaded actor with a mailbox. Its step message is :step!, which blue cannot spell, so from blue it can only be told, never stepped.";
+    Lisp: "read_forms" "read_forms(text)" "The tatara-lisp forms in text as data: lists, symbols, keywords and literals, what `blue ast --resolved` prints read back. Text that does not read raises :parse_error.";
     Lisp: "defcommand" "defcommand(bus, name, params, body)" "Register a command on a tatara-lisp command bus; params is a Lisp list.";
     Lisp: "defquery" "defquery(bus, name, params, body)" "Register a query on a tatara-lisp command bus; params is a Lisp list.";
     // ── numbers ───────────────────────────────────────────────────────────
     Number: "abs" "abs(x)" "Absolute value, keeping Int or Float.";
+    Number: "bit_and" "bit_and(a, b)" "The bits set in both Ints, over all 64 bits in two's complement.";
+    Number: "bit_or" "bit_or(a, b)" "The bits set in either Int, over all 64 bits in two's complement.";
+    Number: "bit_xor" "bit_xor(a, b)" "The bits set in exactly one Int, over all 64 bits in two's complement.";
+    Number: "bit_not" "bit_not(a)" "Every bit of the Int flipped: bit_not(0) is -1.";
+    Number: "shift_left" "shift_left(a, n)" "The bits of a moved up n places, 0 to 63. Bits past the top are dropped: this word never raises on overflow.";
+    Number: "shift_right" "shift_right(a, n)" "The bits of a moved down n places, 0 to 63, the sign copied in from the top.";
+    Number: "shift_right_logical" "shift_right_logical(a, n)" "The bits of a moved down n places, 0 to 63, zeros moved in from the top.";
+    Number: "wrapping_add" "wrapping_add(a, b)" "a + b modulo 2^64, where + raises on overflow.";
+    Number: "wrapping_sub" "wrapping_sub(a, b)" "a - b modulo 2^64, where - raises on overflow.";
+    Number: "wrapping_mul" "wrapping_mul(a, b)" "a * b modulo 2^64, where * raises on overflow.";
+    Number: "unsigned_less?" "unsigned_less?(a, b)" "Whether a is below b, each read as an unsigned 64-bit value: unsigned_less?(1, -1) is true.";
+    Number: "unsigned_div" "unsigned_div(a, b)" "The whole quotient of a and b, each read as an unsigned 64-bit value. A zero divisor raises :zero_division.";
+    Number: "unsigned_mod" "unsigned_mod(a, b)" "The remainder of a and b, each read as an unsigned 64-bit value. A zero divisor raises :zero_division.";
     Number: "min" "min(x, more...)" "The smallest argument. Takes numbers, not a list: apply(min, xs).";
     Number: "max" "max(x, more...)" "The largest argument. Takes numbers, not a list: apply(max, xs).";
     Number: "inc" "inc(x)" "x + 1.";
@@ -432,6 +451,9 @@ pub const NAMES: &[NameDoc] = names! {
     Xml: "xml_parse" "xml_parse(text)" "Parse an XML document to its root element, a map {name, attributes, children, text}: name keeps its namespace prefix, attributes maps each name to its unescaped value, children lists the child elements, text joins the element's own character data (whitespace between child elements dropped). Comments, processing instructions and the DOCTYPE are dropped. Only the five predefined entities and character references expand: a DTD entity declaration or any other reference raises :xml_refused, so nothing is fetched or multiplied. A document that is not well-formed raises :xml_malformed. The maakuappu bidama queries it.";
     Xml: "xml_render" "xml_render(element)" "An element map as XML text, escaped so xml_parse reads it back equal: attributes in key order, an element with no text and no children as <name/>. A name that is not an XML name, a character XML 1.0 cannot hold or a value of the wrong kind raises :xml_refused.";
     // ── files ─────────────────────────────────────────────────────────────
+    File: "read_bytes" "read_bytes(path[, offset, length])" "The file's bytes as a list of integers 0..255, or the length bytes from offset. Past the end there are fewer, or none. Raises when it cannot be read.";
+    File: "read_u32s" "read_u32s(path, offset, count)" "count little-endian 32-bit integers from offset, as a list; fewer past the end. Raises when the file cannot be read.";
+    File: "write_bytes" "write_bytes(path, bytes)" "Write a byte list or string to path, replacing what is there. Nil.";
     File: "read_file" "read_file(path)" "The file's text. Raises when it cannot be read; shisutemu's read_or(path, default) does not.";
     File: "write_file" "write_file(path, text)" "Replace the file's contents with text; nil.";
     File: "write_program" "write_program(path, text)" "Write a blue program in its canonical form: text through the formatter, then to the file; raises when text does not parse. Every producer of a .b file writes with it (B0064).";
@@ -492,6 +514,13 @@ pub const NAMES: &[NameDoc] = names! {
     Clock: "sleep" "sleep(seconds)" "Pause for whole seconds.";
     Clock: "sleep_ms" "sleep_ms(ms)" "Pause for milliseconds.";
     // ── network ───────────────────────────────────────────────────────────
+    Kernel: "bpf_syscall" "bpf_syscall(command, size, fields, fd_result)" "One bpf(2) call on a struct of size bytes built from fields, each [offset, kind, value]: kind :u8 :u16 :u32 :u64 an integer, :bytes bytes laid in place, :in bytes whose address goes at offset, :out a capacity whose buffer's address goes there, :inout bytes whose buffer comes back, :strings names whose array of pointers' address goes there, :fd a descriptor's number. Answers {ret:, errno:, attr:, out:, fd:}: errno nil on success, attr the struct after the call, out each :out and :inout buffer in order, fd a descriptor when fd_result is true and the call made one. The kernel's refusal is an answer, so a verifier log comes back with it. Off Linux raises :unsupported. Needs the kernel_bpf capability, which holds the kernel: grant it to what would otherwise run as root.";
+    Kernel: "perf_event_open" "perf_event_open(size, fields, pid, cpu, group, flags)" "A perf event descriptor for a struct of size bytes built from fields as bpf_syscall builds its own, a pid and a cpu; group is a descriptor or nil. A refusal raises :kernel_refused with data {errno:}. Off Linux raises :unsupported. Needs the kernel_bpf capability.";
+    Kernel: "fd_ioctl" "fd_ioctl(fd, request, argument)" "ioctl(2) on a kernel descriptor: the call's result. A refusal raises :kernel_refused with data {errno:}. Needs the kernel_bpf capability.";
+    Kernel: "fd_close" "fd_close(fd)" "Close a kernel descriptor now rather than when its last reference goes. A second close does nothing. Nil. Needs the kernel_bpf capability.";
+    Kernel: "fd_number" "fd_number(fd)" "A kernel descriptor's number, nil once it is closed. Needs the kernel_bpf capability.";
+    Kernel: "ringbuf_open" "ringbuf_open(map_fd, size)" "A consumer of a BPF ring buffer map whose size in bytes is a power of two: the map's pages mapped into this process. Off Linux raises :unsupported. Needs the kernel_bpf capability.";
+    Kernel: "ringbuf_next" "ringbuf_next(ring, timeout_ms)" "The next record's bytes, waiting at most timeout_ms (0 only checks); nil when none came. A discarded record is skipped. Needs the kernel_bpf capability.";
     Network: "nats_connect" "nats_connect(url[, timeout_ms])" "A NATS connection to nats://[user:pass@|token@]host[:port] (port 4222), confirmed by a PING before it returns. Plain TCP: a server requiring TLS is refused. Raises when it cannot connect.";
     Network: "nats_publish" "nats_publish(conn, subject, payload[, reply])" "Publish a string to one subject (no wildcards); nil. With reply, the receiver answers there (a JetStream pull names its inbox this way). Also answers the server's pings, so a publish-only loop stays connected.";
     Network: "nats_inbox" "nats_inbox(conn)" "A fresh reply subject unique to this connection, for nats_subscribe and the reply of nats_publish.";

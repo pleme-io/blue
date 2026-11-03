@@ -1,0 +1,44 @@
+[
+  {
+    "name": "alignment rounds down",
+    "file": "baito.b",
+    "find": "  n + alignment - 1 - (n + alignment - 1) % alignment",
+    "replace": "  n - n % alignment"
+  },
+  {
+    "name": "a struct is not rounded up to its widest member",
+    "file": "baito.b",
+    "find": "width: align_up(placed[:end], placed[:alignment])",
+    "replace": "width: placed[:end]"
+  },
+  {
+    "name": "big order writes little",
+    "file": "baito.b",
+    "find": "if order == :big\n    reverse(low_first)",
+    "replace": "if false\n    reverse(low_first)"
+  },
+  {
+    "name": "signed reads read unsigned",
+    "file": "baito.b",
+    "find": "  if sign == true and\n      count < 8 and",
+    "replace": "  if false and\n      count < 8 and"
+  },
+  {
+    "name": "a value too wide is truncated",
+    "file": "baito.b",
+    "find": "if not fits?(value, kind)",
+    "replace": "if false"
+  },
+  {
+    "name": "a short read answers instead of raising",
+    "file": "baito.b",
+    "find": "  if at < 0 or at + count > length(bytes)\n    raise(\n      :decode_error,\n      \"#{to_s(count)} bytes at #{to_s(at)} run past #{to_s(length(bytes))} bytes\"\n    )\n  end\n  positions",
+    "replace": "  if false\n    raise(\n      :decode_error,\n      \"#{to_s(count)} bytes at #{to_s(at)} run past #{to_s(length(bytes))} bytes\"\n    )\n  end\n  positions"
+  },
+  {
+    "name": "text fills the whole field",
+    "file": "baito.b",
+    "find": "if length(bytes) >= count",
+    "replace": "if length(bytes) > count"
+  }
+]

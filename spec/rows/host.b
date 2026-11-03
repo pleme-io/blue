@@ -371,3 +371,22 @@ row(
   covers("builtin:random_bytes"),
   host()
 )
+
+row(
+  "host.bytes.round_trip",
+  join_lines(
+    [
+      "d = path_join(getenv(\"TMPDIR\", \"/tmp\"), \"blue-spec-bytes\")",
+      "rm_rf(d)",
+      "mkdir_p(d)",
+      "f = path_join(d, \"b.bin\")",
+      "write_bytes(f, [0, 255, 7, 128])",
+      "r = [read_bytes(f), read_bytes(f, 1, 2), read_bytes(f, 3, 9), read_bytes(f, 9, 1), read_u32s(f, 0, 2)]",
+      "rm_rf(d)",
+      "r"
+    ]
+  ),
+  value("[[0, 255, 7, 128], [255, 7], [128], [], [2148007680]]"),
+  covers("builtin:read_bytes", "builtin:read_u32s", "builtin:write_bytes"),
+  host()
+)

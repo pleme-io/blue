@@ -42,6 +42,7 @@ pub const HOST_LABELS: &[&str] = &[
     "audio-out",
     "audio-in",
     "display",
+    "kernel-bpf",
 ];
 
 /// The host capability a Bluefile label names: the label, or the label in

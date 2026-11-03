@@ -273,6 +273,61 @@ fn filesystem<H: 'static>(interp: &mut Interpreter<H>, key: Key, keep: bool) {
         },
     );
 
+    let t = Arc::clone(&tree);
+    interp.register_fn(
+        key("read_bytes"),
+        Arity::Range(1, 3),
+        move |a: &[Value], _: &mut H, span| {
+            let p = path_of(&a[0], "read_bytes", span)?;
+            let g = locked(&t);
+            let held = g
+                .files
+                .get(&p)
+                .ok_or_else(|| absent("read_bytes", &p, span))?;
+            let bytes = held.as_bytes();
+            let window = match a {
+                [_, offset, length] => {
+                    let from = usize::try_from(crate::sys::arg_int(offset, "read_bytes", span)?)
+                        .unwrap_or(usize::MAX)
+                        .min(bytes.len());
+                    let count = usize::try_from(crate::sys::arg_int(length, "read_bytes", span)?)
+                        .unwrap_or(0);
+                    &bytes[from..from.saturating_add(count).min(bytes.len())]
+                }
+                _ => bytes,
+            };
+            Ok(Value::list(
+                window.iter().map(|b| Value::Int(i64::from(*b))),
+            ))
+        },
+    );
+
+    let t = Arc::clone(&tree);
+    interp.register_fn(
+        key("read_u32s"),
+        Arity::Exact(3),
+        move |a: &[Value], _: &mut H, span| {
+            let p = path_of(&a[0], "read_u32s", span)?;
+            let g = locked(&t);
+            let held = g
+                .files
+                .get(&p)
+                .ok_or_else(|| absent("read_u32s", &p, span))?;
+            let bytes = held.as_bytes();
+            let from = usize::try_from(crate::sys::arg_int(&a[1], "read_u32s", span)?)
+                .unwrap_or(usize::MAX)
+                .min(bytes.len());
+            let count =
+                usize::try_from(crate::sys::arg_int(&a[2], "read_u32s", span)?).unwrap_or(0);
+            let end = from
+                .saturating_add(count.saturating_mul(4))
+                .min(bytes.len());
+            Ok(Value::list(bytes[from..end].chunks_exact(4).map(|w| {
+                Value::Int(i64::from(u32::from_le_bytes([w[0], w[1], w[2], w[3]])))
+            })))
+        },
+    );
+
     let write = {
         let t = Arc::clone(&tree);
         Arc::new(move |p: String, text: String, append: bool| {
@@ -287,6 +342,27 @@ fn filesystem<H: 'static>(interp: &mut Interpreter<H>, key: Key, keep: bool) {
             }
         })
     };
+    let w = Arc::clone(&write);
+    interp.register_fn(
+        key("write_bytes"),
+        Arity::Exact(2),
+        move |a: &[Value], _: &mut H, span| {
+            let p = path_of(&a[0], "write_bytes", span)?;
+            let bytes = crate::crypto::message_bytes(&a[1])
+                .map_err(|e| EvalError::native_fn("write_bytes", e.to_string(), span))?;
+            let text = String::from_utf8(bytes).map_err(|_| {
+                crate::errors::raise_kind(
+                    "bad_option",
+                    format!(
+                        "write_bytes: {p}: this provider holds text, and these bytes are not UTF-8"
+                    ),
+                    span,
+                )
+            })?;
+            w(p, text, false);
+            Ok(Value::Nil)
+        },
+    );
     let w = Arc::clone(&write);
     interp.register_fn(
         key("write_file"),

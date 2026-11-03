@@ -113,7 +113,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-345 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 185 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+369 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 185 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -140,6 +140,10 @@ Higher binding power binds tighter.
 | `asin` | `asin(x)` | 1 | Arcsine; refuses x outside [-1, 1] rather than returning NaN. |
 | `atan` | `atan(x)` | 1 | Arctangent in radians. |
 | `atan2` | `atan2(y, x)` | 2 | The angle of the point (x, y); y comes first. |
+| `bit_and` | `bit_and(a, b)` | 2 | The bits set in both Ints, over all 64 bits in two's complement. Also defined by `shinsuu` (`shinsuu::bit_and`): a file that lists it gets that one. |
+| `bit_not` | `bit_not(a)` | 1 | Every bit of the Int flipped: bit_not(0) is -1. Also defined by `shinsuu` (`shinsuu::bit_not`): a file that lists it gets that one. |
+| `bit_or` | `bit_or(a, b)` | 2 | The bits set in either Int, over all 64 bits in two's complement. Also defined by `shinsuu` (`shinsuu::bit_or`): a file that lists it gets that one. |
+| `bit_xor` | `bit_xor(a, b)` | 2 | The bits set in exactly one Int, over all 64 bits in two's complement. Also defined by `shinsuu` (`shinsuu::bit_xor`): a file that lists it gets that one. |
 | `ceiling` | `ceiling(x)` | 1 | The smallest Int not below x. |
 | `compare` | `compare(a, b)` | 2 | -1, 0 or 1. Total over two numbers or two strings, which < is not; mixing them raises. |
 | `cos` | `cos(x)` | 1 | Cosine of x radians. |
@@ -158,6 +162,9 @@ Higher binding power binds tighter.
 | `modulo` | `modulo(a, b)` | 2 | The same as mod. |
 | `rem` | `rem(a, b)` | 2 | The same as mod here: mod(-7, 3), modulo and rem are all 2. |
 | `round` | `round(x)` | 1 | The nearest Int, halves away from zero: round(2.5) is 3, round(-2.5) is -3. |
+| `shift_left` | `shift_left(a, n)` | 2 | The bits of a moved up n places, 0 to 63. Bits past the top are dropped: this word never raises on overflow. Also defined by `shinsuu` (`shinsuu::shift_left`): a file that lists it gets that one. |
+| `shift_right` | `shift_right(a, n)` | 2 | The bits of a moved down n places, 0 to 63, the sign copied in from the top. Also defined by `shinsuu` (`shinsuu::shift_right`): a file that lists it gets that one. |
+| `shift_right_logical` | `shift_right_logical(a, n)` | 2 | The bits of a moved down n places, 0 to 63, zeros moved in from the top. |
 | `sin` | `sin(x)` | 1 | Sine of x radians. |
 | `sqrt` | `sqrt(x)` | 1 | Square root, always a Float: sqrt(16) is 4.0, and 4.0 == 4. |
 | `tan` | `tan(x)` | 1 | Tangent of x radians. |
@@ -165,6 +172,12 @@ Higher binding power binds tighter.
 | `to_int` | `to_int(x)` | 1 | An Int from a string or a number, truncating a Float; nil for text that is not an integer ("3.7" too). |
 | `to_int!` | `to_int!(x)` | 1 | Like to_int, but raises instead of returning nil. |
 | `truncate` | `truncate(x)` | 1 | The Int part of x, toward zero: truncate(-2.7) is -2. Also defined by `moji` (`moji::truncate`): a file that lists it gets that one. |
+| `unsigned_div` | `unsigned_div(a, b)` | 2 | The whole quotient of a and b, each read as an unsigned 64-bit value. A zero divisor raises :zero_division. |
+| `unsigned_less?` | `unsigned_less?(a, b)` | 2 | Whether a is below b, each read as an unsigned 64-bit value: unsigned_less?(1, -1) is true. |
+| `unsigned_mod` | `unsigned_mod(a, b)` | 2 | The remainder of a and b, each read as an unsigned 64-bit value. A zero divisor raises :zero_division. |
+| `wrapping_add` | `wrapping_add(a, b)` | 2 | a + b modulo 2^64, where + raises on overflow. |
+| `wrapping_mul` | `wrapping_mul(a, b)` | 2 | a * b modulo 2^64, where * raises on overflow. |
+| `wrapping_sub` | `wrapping_sub(a, b)` | 2 | a - b modulo 2^64, where - raises on overflow. |
 
 ### Strings
 
@@ -251,9 +264,9 @@ Higher binding power binds tighter.
 | `has?` | `has?(store, key, more...)` | 2+ | Whether the key is present. A plain map goes to jisho. Also defined by `jisho` (`jisho::has?`), `kueri` (`kueri::has?`), `settei` (`settei::has?`): a file that lists it gets that one. |
 | `in_space` | `in_space(space, value)` | 2 | The value as a subject of a space: {space: s, of: value}. Master verbs call the space's handler with the value itself. A value already in another space raises :usage. |
 | `info` | `info(subject, more...)` | 1+ | The current state of the subject as a record: in_space("gitto", repo) is the repository's state. Also defined by `gitto` (`gitto::info`), `rogu` (`rogu::info`): a file that lists it gets that one. |
-| `need` | `need(store, key, more...)` | 2+ | One entry, raising :not_found when absent. A plain map goes to jisho. Also defined by `jisho` (`jisho::need`), `settei` (`settei::need`): a file that lists it gets that one. |
+| `need` | `need(store, key, more...)` | 2+ | One entry, raising :not_found when absent. A plain map goes to jisho. Also defined by `btf` (`btf::need`), `jisho` (`jisho::need`), `settei` (`settei::need`): a file that lists it gets that one. |
 | `put` | `put(store, key, value, more...)` | 3+ | Create or replace an entry; a plain map goes to jisho, which returns a new map. Also defined by `ibuki` (`ibuki::put`), `jisho` (`jisho::put`), `keisoku` (`keisoku::put`), `kiibariu` (`kiibariu::put`), `raifusaikuru` (`raifusaikuru::put`), `shuusei` (`shuusei::put`): a file that lists it gets that one. |
-| `read` | `read(source, more...)` | 1+ | The whole content of a source, by the source's space: in_space("gitto", repo) reads a file at a ref. Raises :usage when no space owns the subject or the space has no handler. Also defined by `anaritikusu` (`anaritikusu::read`), `chokkan` (`chokkan::read`), `gitto` (`gitto::read`), `keisoku` (`keisoku::read`), `kyasshu` (`kyasshu::read`), `nikkusu` (`nikkusu::read`), `nisshi` (`nisshi::read`), `settei` (`settei::read`): a file that lists it gets that one. |
+| `read` | `read(source, more...)` | 1+ | The whole content of a source, by the source's space: in_space("gitto", repo) reads a file at a ref. Raises :usage when no space owns the subject or the space has no handler. Also defined by `anaritikusu` (`anaritikusu::read`), `btf` (`btf::read`), `chokkan` (`chokkan::read`), `gitto` (`gitto::read`), `keisoku` (`keisoku::read`), `kyasshu` (`kyasshu::read`), `nikkusu` (`nikkusu::read`), `nisshi` (`nisshi::read`), `settei` (`settei::read`): a file that lists it gets that one. |
 | `space_for` | `space_for(kind, space)` | 2 | Name the space that owns untagged values of a kind: :map, :list, :string, :int, :float, :bool, :keyword or :function. A kind already owned by another space raises :usage. |
 | `space_of` | `space_of(value)` | 1 | The space a master verb would dispatch the value to (its tag, else the owner of its kind), or nil. |
 | `update` | `update(store, key, f, more...)` | 3+ | Replace an entry with f of the old value; raises :not_found when absent. A plain map goes to jisho. Also defined by `jisho` (`jisho::update`): a file that lists it gets that one. |
@@ -272,7 +285,7 @@ Higher binding power binds tighter.
 | `def_hash` | `def_hash(f)` | 1 | The engine's identity of the definition f is bound under, as b3: and 64 hex digits: the hash of its resolved tree and @doc, with each definition it names by that one's hash, so it changes exactly when f or anything f reaches changes, never on a rename. It is the def_hash that run's crash traces and receipts name for f. Nil for a function no definition binds (a lambda, a builtin) and in a door that identifies no program (a session, an appliance); blue run, test, profile and trace identify theirs. Reads no host state; raises unless f is a function. |
 | `every?` | `every?(f, xs)` | 2 | Whether f accepts every element; true for []. |
 | `filter` | `filter(f, xs)` | 2 | The elements f accepts. The FUNCTION comes first. |
-| `find` | `find(xs, f)` | 2 | The first element f accepts, or nil. The COLLECTION comes first; nil is the empty list. find(f, xs) is still answered, because tatara-lisp's state machines and buses call it so. Also defined by `maakuappu` (`maakuappu::find`): a file that lists it gets that one. |
+| `find` | `find(xs, f)` | 2 | The first element f accepts, or nil. The COLLECTION comes first; nil is the empty list. find(f, xs) is still answered, because tatara-lisp's state machines and buses call it so. Also defined by `btf` (`btf::find`), `maakuappu` (`maakuappu::find`): a file that lists it gets that one. |
 | `flat_map` | `flat_map(xs, f)` | 2 | f applied to each element, the lists it returns joined in order (one level); f may return nil for none. The COLLECTION comes first. Also defined by `retsu` (`retsu::flat_map`): a file that lists it gets that one. |
 | `flip` | `flip(f)` | 1 | f with its two arguments swapped. Also defined by `kansuu` (`kansuu::flip`): a file that lists it gets that one. |
 | `foldl` | `foldl(f, init, xs)` | 3 | reduce with an init: f(acc, x) from the left. |
@@ -383,12 +396,15 @@ Higher binding power binds tighter.
 | `path_exists` | `path_exists(path)` | 1 | Whether anything is at path. |
 | `path_extension` | `path_extension(path)` | 1 | The extension without its dot, or nil. |
 | `path_join` | `path_join(part, more...)` | 1+ | The parts joined with /. |
+| `read_bytes` | `read_bytes(path[, offset, length])` | 1..3 | The file's bytes as a list of integers 0..255, or the length bytes from offset. Past the end there are fewer, or none. Raises when it cannot be read. |
 | `read_file` | `read_file(path)` | 1 | The file's text. Raises when it cannot be read; shisutemu's read_or(path, default) does not. |
 | `read_log` | `read_log(log)` | 1 | Every record append_log wrote to a log, in order, as strings. An absent log raises :not_found, and one whose last record is torn raises :parse_error. Needs the storage_append capability, which filesystem holds. |
+| `read_u32s` | `read_u32s(path, offset, count)` | 3 | count little-endian 32-bit integers from offset, as a list; fewer past the end. Raises when the file cannot be read. |
 | `rename_file` | `rename_file(from, to)` | 2 | Move a file, atomically on one filesystem: write a temporary beside to, then rename. |
 | `rm` | `rm(path)` | 1 | Delete a file; raises when it is absent. |
 | `rm_rf` | `rm_rf(path)` | 1 | Delete a file or a directory tree; nil when there is nothing. |
 | `walk_dir` | `walk_dir(root)` | 1 | Every file under root, as paths, in no fixed order: sort before comparing. |
+| `write_bytes` | `write_bytes(path, bytes)` | 2 | Write a byte list or string to path, replacing what is there. Nil. |
 | `write_file` | `write_file(path, text)` | 2 | Replace the file's contents with text; nil. |
 | `write_program` | `write_program(path, text)` | 2 | Write a blue program in its canonical form: text through the formatter, then to the file; raises when text does not parse. Every producer of a .b file writes with it (B0064). |
 
@@ -484,6 +500,18 @@ Higher binding power binds tighter.
 | `capture_audio` | `capture_audio(frames, format)` | 2 | Capture frames frames (0 to 16777216) from the default input device in format {rate:, channels:}: a clip {rate:, channels:, samples:}. A bad count or format raises :bad_option; a host with no audio system raises :unsupported, one with no input device :not_found, and a device that stalls :timeout. Needs the audio_in capability. |
 | `play_audio` | `play_audio(clip)` | 1 | Play a clip, {rate:, channels:, samples:} with the samples interleaved numbers from -1.0 to 1.0, on the default output device, and answer nil once it has played. A clip that is not whole frames of such samples raises :bad_option; a host with no audio system raises :unsupported, and one with no output device :not_found. Needs the audio_out capability. |
 
+### The Linux kernel
+
+| name | call | arity | meaning |
+|---|---|---|---|
+| `bpf_syscall` | `bpf_syscall(command, size, fields, fd_result)` | 4 | One bpf(2) call on a struct of size bytes built from fields, each [offset, kind, value]: kind :u8 :u16 :u32 :u64 an integer, :bytes bytes laid in place, :in bytes whose address goes at offset, :out a capacity whose buffer's address goes there, :inout bytes whose buffer comes back, :strings names whose array of pointers' address goes there, :fd a descriptor's number. Answers {ret:, errno:, attr:, out:, fd:}: errno nil on success, attr the struct after the call, out each :out and :inout buffer in order, fd a descriptor when fd_result is true and the call made one. The kernel's refusal is an answer, so a verifier log comes back with it. Off Linux raises :unsupported. Needs the kernel_bpf capability, which holds the kernel: grant it to what would otherwise run as root. |
+| `fd_close` | `fd_close(fd)` | 1 | Close a kernel descriptor now rather than when its last reference goes. A second close does nothing. Nil. Needs the kernel_bpf capability. |
+| `fd_ioctl` | `fd_ioctl(fd, request, argument)` | 3 | ioctl(2) on a kernel descriptor: the call's result. A refusal raises :kernel_refused with data {errno:}. Needs the kernel_bpf capability. |
+| `fd_number` | `fd_number(fd)` | 1 | A kernel descriptor's number, nil once it is closed. Needs the kernel_bpf capability. |
+| `perf_event_open` | `perf_event_open(size, fields, pid, cpu, group, flags)` | 6 | A perf event descriptor for a struct of size bytes built from fields as bpf_syscall builds its own, a pid and a cpu; group is a descriptor or nil. A refusal raises :kernel_refused with data {errno:}. Off Linux raises :unsupported. Needs the kernel_bpf capability. |
+| `ringbuf_next` | `ringbuf_next(ring, timeout_ms)` | 2 | The next record's bytes, waiting at most timeout_ms (0 only checks); nil when none came. A discarded record is skipped. Needs the kernel_bpf capability. |
+| `ringbuf_open` | `ringbuf_open(map_fd, size)` | 2 | A consumer of a BPF ring buffer map whose size in bytes is a power of two: the map's pages mapped into this process. Off Linux raises :unsupported. Needs the kernel_bpf capability. |
+
 ### Hashing and signatures
 
 | name | call | arity | meaning |
@@ -578,6 +606,7 @@ Higher binding power binds tighter.
 | `letrec` | `(letrec ((f …)) …)` | — | Lisp recursive binding; its binding list has no blue spelling. In blue, use def. |
 | `match` | `(match v (pattern expr) …)` | — | Lisp pattern matching; its patterns have no blue spelling. blue's case compares values and does not destructure. |
 | `provide` | `(provide …)` | — | tatara-lisp's module export. A bidama exports every def. |
+| `read_forms` | `read_forms(text)` | 1 | The tatara-lisp forms in text as data: lists, symbols, keywords and literals, what `blue ast --resolved` prints read back. Text that does not read raises :parse_error. |
 | `require` | `(require …)` | — | tatara-lisp's module loader. In blue, use("pkg") imports a bidama. |
 
 ### Called where written bare

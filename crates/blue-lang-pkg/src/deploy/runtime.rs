@@ -12,16 +12,18 @@ pub enum Effect {
     Entropy,
     Environment,
     Process,
+    KernelBpf,
 }
 
 impl Effect {
-    pub const ALL: [Effect; 6] = [
+    pub const ALL: [Effect; 7] = [
         Effect::Network,
         Effect::Filesystem,
         Effect::Clock,
         Effect::Entropy,
         Effect::Environment,
         Effect::Process,
+        Effect::KernelBpf,
     ];
 
     pub const DEFAULT: [Effect; 4] = [
@@ -40,6 +42,7 @@ impl Effect {
             Effect::Entropy => "entropy",
             Effect::Environment => "environment",
             Effect::Process => "process",
+            Effect::KernelBpf => "kernel_bpf",
         }
     }
 
@@ -55,7 +58,7 @@ impl Effect {
             Effect::Clock => Some("wasi:clocks"),
             Effect::Entropy => Some("wasi:random"),
             Effect::Environment => Some("wasi:cli/environment"),
-            Effect::Process => None,
+            Effect::Process | Effect::KernelBpf => None,
         }
     }
 
@@ -283,6 +286,12 @@ pub fn needs(access: &Access, host: Option<&str>) -> Vec<Need> {
         out.push(Need {
             gap: WasiGap::Process,
             cause: String::from("its access declares the :process effect"),
+        });
+    }
+    if access.allows(Effect::KernelBpf) {
+        out.push(Need {
+            gap: WasiGap::Device,
+            cause: String::from("its access declares the :kernel_bpf effect"),
         });
     }
     if let Some(h) = host {

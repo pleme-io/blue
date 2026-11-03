@@ -37,6 +37,7 @@
 pub mod alloc;
 #[cfg(feature = "sys")]
 pub mod audio;
+pub mod bits;
 pub mod collection;
 pub mod crypto;
 pub mod def_hash;
@@ -54,6 +55,8 @@ pub mod host_surface;
 pub mod hosted;
 pub mod inputs;
 pub mod json;
+#[cfg(feature = "sys")]
+pub mod kernel;
 pub mod literal;
 pub mod memory;
 pub mod messages;
@@ -1015,7 +1018,7 @@ mod tests {
             let (hold, _, _) = held(&[Capability::Clock], &[]);
             assert_eq!(
                 blue_lang_proc::receipt::canonical(&hold.frame_summary(4)),
-                r#"{"granted":["clock"],"host_io":4,"withheld":["process","filesystem","environment","network","entropy","comm-flash","comm-scavenger","mpc-threshold","storage-append","audio-out","audio-in","display"]}"#
+                r#"{"granted":["clock"],"host_io":4,"withheld":["process","filesystem","environment","network","entropy","comm-flash","comm-scavenger","mpc-threshold","storage-append","audio-out","audio-in","display","kernel-bpf"]}"#
             );
         }
 

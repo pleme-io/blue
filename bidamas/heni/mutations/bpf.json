@@ -1,0 +1,128 @@
+[
+  {
+    "name": "encode swaps dst and src nibbles",
+    "file": "bpf.b",
+    "find": "bit_or(bit_and(dst, 15), shift_left(bit_and(src, 15), 4))",
+    "replace": "bit_or(bit_and(src, 15), shift_left(bit_and(dst, 15), 4))"
+  },
+  {
+    "name": "imm64 takes the wrong high half",
+    "file": "bpf.b",
+    "find": "bit_and(shift_right(value, 32), 4_294_967_295)",
+    "replace": "bit_and(shift_right(value, 31), 4_294_967_295)"
+  },
+  {
+    "name": "a label is one slot off",
+    "file": "bpf.b",
+    "find": "at - pc - 1",
+    "replace": "at - pc"
+  },
+  {
+    "name": "a jump past 16 bits is let through",
+    "file": "bpf.b",
+    "find": "if n < -32768 or n > 32767",
+    "replace": "if false"
+  },
+  {
+    "name": "32-bit ALU keeps the upper half",
+    "file": "bpf.b",
+    "find": "low32(alu64_value(op, x, y))",
+    "replace": "alu64_value(op, x, y)"
+  },
+  {
+    "name": "division by zero answers one",
+    "file": "bpf.b",
+    "find": "    if b == 0\n      0\n    else\n      unsigned_div(a, b)",
+    "replace": "    if b == 0\n      1\n    else\n      unsigned_div(a, b)"
+  },
+  {
+    "name": "modulo by zero answers zero",
+    "file": "bpf.b",
+    "find": "    if b == 0\n      a\n    else\n      unsigned_mod(a, b)",
+    "replace": "    if b == 0\n      0\n    else\n      unsigned_mod(a, b)"
+  },
+  {
+    "name": "signed greater reads as less",
+    "file": "bpf.b",
+    "find": "  when :sgt\n    a > b",
+    "replace": "  when :sgt\n    a < b"
+  },
+  {
+    "name": "a load past every region is allowed",
+    "file": "bpf.b",
+    "find": "  if not in_region?(st, addr, count)\n    raise(\n      :bpf_fault,\n      \"a read",
+    "replace": "  if false\n    raise(\n      :bpf_fault,\n      \"a read"
+  },
+  {
+    "name": "a subprogram's exit drops the saved registers",
+    "file": "bpf.b",
+    "find": "(acc, n) -> assoc(acc, n, reg_value(st, n)),\n      {},",
+    "replace": "(acc, n) -> assoc(acc, n, 0),\n      {},"
+  },
+  {
+    "name": "the overflow check tests the wrong sign",
+    "file": "bpf.b",
+    "find": "jump(:slt, 3, 0, \"fault\")",
+    "replace": "jump(:sgt, 3, 0, \"fault\")"
+  },
+  {
+    "name": "equal lowers to not equal",
+    "file": "bpf.b",
+    "find": "gen_compare(st, form, :eq)",
+    "replace": "gen_compare(st, form, :ne)"
+  },
+  {
+    "name": "packet integers read in host order",
+    "file": "bpf.b",
+    "find": "    [swap(:be, 0, count * 8)]",
+    "replace": "    [swap(:le, 0, count * 8)]"
+  },
+  {
+    "name": "the bounds check is off by one",
+    "file": "bpf.b",
+    "find": "alu(:add, 4, literal + count),",
+    "replace": "alu(:add, 4, literal),"
+  },
+  {
+    "name": "a value that may be absent reads as present",
+    "file": "bpf.b",
+    "find": "if st[:t] == :maybe\n    refuse(",
+    "replace": "if false\n    refuse("
+  },
+  {
+    "name": "narrowing holds on the wrong branch",
+    "file": "bpf.b",
+    "find": "if tested != nil and not truth and symbol?(tested)",
+    "replace": "if tested != nil and truth and symbol?(tested)"
+  },
+  {
+    "name": "the stack limit is not the verifier's",
+    "file": "bpf.b",
+    "find": "if at >= 64",
+    "replace": "if at >= 640"
+  },
+  {
+    "name": "the fault path answers zero",
+    "file": "bpf.b",
+    "find": "alu(:mov, 0, opts[:on_fault] or 0)",
+    "replace": "alu(:mov, 0, 0)"
+  },
+  {
+    "name": "recursion in a non-tail position inlines",
+    "file": "bpf.b",
+    "find": "elsif member?(name, st[:calling])",
+    "replace": "elsif false"
+  },
+  {
+    "name": "a kernel field of another size is read anyway",
+    "file": "bpf.b",
+    "find": "      if got[:size] != f[:size]\n",
+    "replace": "      if false\n"
+  },
+  {
+    "name": "a failed kernel read answers zero",
+    "file": "bpf.b",
+    "find": "            call(:probe_read_kernel),\n            jump(:ne, 0, 0, \"fault\"),\n",
+    "replace": "            call(:probe_read_kernel),\n"
+  }
+]

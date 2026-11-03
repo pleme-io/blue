@@ -8,10 +8,10 @@ a plain record, so the host reads the same value a test does.
     declare([look({width: 680}), bind("ctrl+j", :next)]).refusals #=> []
 """
 
-use("gamen", [:rgb])
 use("kousei", %i[entry field judge list_of one_of required text])
 
 use("retsu", %i[is_empty size])
+use("shinsuu", [:parse_int])
 
 @doc """
 config: an entry that sets fields of one config group of the host; the host checks each field alone.
@@ -290,17 +290,35 @@ def run(argv)
 end
 
 @doc """
+channel: the two hex digits at a position of a colour's characters, as a number.
+
+    channel(chars("#ff0000"), 1) #=> 255
+"""
+def channel(cs, at)
+  parse_int(join(take(2, drop(at, cs)), ""), 16)
+end
+
+@doc """
 color: a `#rrggbb` colour as the unit channels a host's config takes. Anything else passes through for the host to refuse alone.
 
     color("#ff0000") #=> [1.0, 0.0, 0.0]
     color("nope") #=> "nope"
 """
 def color(hex_text)
-  c = rgb(hex_text) rescue nil
-  if c.nil?
-    hex_text
+  cs = if string?(hex_text)
+    chars(hex_text)
   else
-    map((channel) -> channel / 255.0, [c[:r], c[:g], c[:b]])
+    []
+  end
+  values = if size(cs) == 7 and cs[0] == "#"
+    map((at) -> channel(cs, at), [1, 3, 5])
+  else
+    []
+  end
+  if size(filter(number?, values)) == 3
+    map((v) -> v / 255.0, values)
+  else
+    hex_text
   end
 end
 
@@ -371,6 +389,9 @@ test "color reads hex to unit channels and passes anything else through"
   c = color("#336699")
   assert c == [0.2, 0.4, 0.6]
   assert color("no") == "no"
+  assert color("#xyz123") == "#xyz123"
+  assert color("#12345") == "#12345"
+  assert color(7) == 7
 end
 
 test "a row keeps its fields and its title wins"

@@ -44,14 +44,14 @@
   {
     "name": "color stops dividing",
     "file": "motenashi.b",
-    "find": "    map((channel) -> channel / 255.0, [c[:r], c[:g], c[:b]])",
-    "replace": "    [c[:r], c[:g], c[:b]]"
+    "find": "    map((v) -> v / 255.0, values)",
+    "replace": "    values"
   },
   {
-    "name": "color refuses by raising",
+    "name": "color lets a bad digit through",
     "file": "motenashi.b",
-    "find": "  c = rgb(hex_text) rescue nil",
-    "replace": "  c = rgb(hex_text)"
+    "find": "  if size(filter(number?, values)) == 3",
+    "replace": "  if size(values) == 3"
   },
   {
     "name": "a row's fields overrule its title",

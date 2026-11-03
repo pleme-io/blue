@@ -128,15 +128,19 @@ split below keeps both away from it:
   namespace, where no daemon on the host sees them.
 
 ```text
-sudo env BLUE_TEST_WRITES=anywhere BLUE_PATH=$PWD/bidamas target/debug/blue test --allow host kernel/suite.b
-
-sudo ip netns add blue_suite
-sudo ip netns exec blue_suite env BLUE_PATH=$PWD/bidamas target/debug/blue test --allow host kernel/net_suite.b
-sudo ip netns del blue_suite
+blue kernel/run.b
 ```
 
-`BLUE_TEST_WRITES` is on the command line because a pin's path lies outside the
-test sandbox. The encoder's check needs only an `llvm-mc`:
+`kernel/run.b` does all of it. It refuses a host whose load is over its core
+count or that has more than four tasks stalled in D state, because a loaded host
+reads as a broken BPF. It builds the checkout's blue at idle priority, runs both
+suites, and fails when a link, a namespace or a pin is left behind. Its settings
+are `kernel-run`'s, through `settei`: `KERNEL_RUN_ADMISSION__ENABLED=false` turns
+the refusal off, `KERNEL_RUN_BUILD__ENABLED=false` the build, and
+`KERNEL_RUN_TOOLS__FROM_NIX=false` the nix lookup of `ip` and `ping`.
+
+Run it detached with a log on a remote host, since a dropped SSH session loses a
+foreground run. The encoder's check needs only an `llvm-mc`:
 
 ```text
 BLUE_PATH=bidamas blue kernel/isa_llvm.b "$(nix build --no-link --print-out-paths nixpkgs#llvmPackages.llvm)/bin/llvm-mc"

@@ -188,6 +188,7 @@ def limit_args(opts)
   end
 end
 
+# waive B0071: every caller writes gitto::list, which a qualifier resolves exactly; the verb graph names this word
 @doc """
 list: branches, tags, commits, remotes or worktrees, chosen by of:
 """

@@ -287,3 +287,38 @@ fn a_waiver_on_an_unwaivable_rule_or_on_nothing_is_refused() {
     assert_eq!(codes_of(unused), vec![Code::B0008]);
     assert!(run(unused).is_err(), "an unused waiver stops the run");
 }
+
+#[test]
+fn a_definition_the_evaluator_answers_first_stops_the_run_and_a_builtin_name_alone_does_not() {
+    let refused = run("def apply()\n  1\nend\n\nx = apply\nto_s(x)\n");
+    match refused {
+        Err(RunError::Types(errors)) => {
+            assert!(errors[0].contains("error[B0071]"), "{errors:?}");
+        }
+        other => panic!("a definition that never runs must stop the run: {other:?}"),
+    }
+    for name in [
+        "list",
+        "concat",
+        "apply",
+        "equal?",
+        "mod",
+        "join_lines",
+        "unlines",
+        "line_break",
+        "when",
+        "try",
+        "let",
+        "lambda",
+        "eval",
+    ] {
+        let src = format!("def {name}(a)\n  a\nend\n");
+        assert_eq!(codes_of(&src), vec![Code::B0071], "{name}");
+    }
+    let own = run("def size(xs)\n  99\nend\n\nsize([1, 2])\n").expect("an own definition wins");
+    assert!(matches!(own.value, tatara_lisp_eval::Value::Int(99)));
+    let waived = "# waive B0071: reached qualified\ndef apply(a)\n  a\nend\n";
+    assert_eq!(codes_of(waived), Vec::<Code>::new());
+    let stale = "# waive B0071: nothing here\ndef own(a)\n  a\nend\n";
+    assert_eq!(codes_of(stale), vec![Code::B0008]);
+}

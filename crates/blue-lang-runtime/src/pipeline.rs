@@ -849,6 +849,11 @@ pub(crate) fn check_stage(
         ));
 
     outcome.diagnostics.extend(doc_diagnostics(program));
+    outcome
+        .diagnostics
+        .extend(blue_lang_check::form_rules::evaluator_names(
+            forms, &is_entry, &table,
+        ));
 
     // Waivers, per file: B0007 for a malformed one, B0008 for one that
     // suppresses nothing.

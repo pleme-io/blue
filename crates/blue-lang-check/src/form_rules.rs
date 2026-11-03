@@ -106,6 +106,40 @@ pub fn check(forms: &[Spanned], is_entry: &dyn Fn(usize) -> bool, script: bool) 
     out
 }
 
+#[must_use]
+pub fn evaluator_names(
+    forms: &[Spanned],
+    is_entry: &dyn Fn(usize) -> bool,
+    table: &crate::names::NameTable,
+) -> Vec<Diagnostic> {
+    let mut out = Vec::new();
+    for (i, form) in forms.iter().enumerate().filter(|(i, _)| is_entry(*i)) {
+        let Some(node) = form
+            .as_list()
+            .and_then(blue_lang_syntax::scope::defined_name_node)
+        else {
+            continue;
+        };
+        let Some(name) = node.as_symbol() else {
+            continue;
+        };
+        if table.answered_before_a_definition(name) {
+            out.push(
+                Diagnostic::new(
+                    Code::B0071,
+                    format!("`{name}` never runs: a bare `{name}` reaches the builtin first"),
+                    node.span,
+                )
+                .at_top_level(i)
+                .with_help(format!(
+                    "rename it; a word only reached as `pkg::{name}` takes `# waive B0071: <reason>`"
+                )),
+            );
+        }
+    }
+    out
+}
+
 fn defined_name(form: &Spanned) -> Option<&str> {
     let items = form.as_list()?;
     if !matches!(

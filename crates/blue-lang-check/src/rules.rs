@@ -1433,6 +1433,32 @@ control enhancement: `:nist_ac_6` is NIST SP 800-53 Rev. 5 AC-6, and
 mapping every door uses. A target is a `def` of the file or of a bidama it
 uses, written as a call would name it: `parse_token`, `moji::split`.",
     }
+    B0071 {
+        slug: "evaluator-name",
+        severity: Error,
+        fix: None,
+        law: "a definition is not named for a word the evaluator answers first: a word syntax lowers to (`list`, `concat`, `apply`, `equal?`, `mod`, `join_lines`, `unlines`, `line_break`), a special form or a builtin macro",
+        witness: "def apply()\n  1\nend\n",
+        ratchet: 0,
+        explanation: "\
+A definition named `size` wins: a bare `size` in the file is the definition.
+Some names are different. The parser lowers syntax to `list`, `concat`, `apply`
+and a few more, so the resolver leaves those heads bare; a special form or a
+builtin macro is answered before any value. A bare call under such a name
+reaches the builtin, the definition never runs, and nothing reports it:
+
+    def apply()
+      1
+    end
+
+    x = apply
+
+Here `x` is the native function and the program exits 0 having done nothing.
+
+Rename the definition. A word only ever reached qualified (`gitto::list`) still
+works, since a qualifier is exact: that case takes `# waive B0071: <reason>`
+above the definition.",
+    }
 }
 
 impl Code {

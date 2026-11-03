@@ -1052,6 +1052,17 @@ impl NameTable {
             .find(|k| kinds.contains(k))
     }
 
+    #[must_use]
+    pub fn answered_before_a_definition(&self, name: &str) -> bool {
+        captured_by_lowering(name, Tier::Own)
+            || self.scopes.iter().any(|s| {
+                matches!(
+                    s.namespace,
+                    Namespace::SpecialForm | Namespace::Macro | Namespace::Harness
+                ) && s.get(name).is_some()
+            })
+    }
+
     /// Every name in every scope, with its namespace.
     pub fn all(&self) -> impl Iterator<Item = (&Namespace, &Binding)> {
         self.scopes

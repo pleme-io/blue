@@ -20,6 +20,7 @@ use std::path::Path;
 use blue_lang_check::{Code, RULES};
 use blue_lang_runtime::pipeline::{check_entry, render, Checking};
 use blue_lang_runtime::uses::Entry;
+use blue_lang_runtime::word_shapes::Standing;
 
 /// What the census counted.
 pub struct Census {
@@ -192,6 +193,21 @@ pub fn reuse_scan(root: &Path) -> ReuseScan {
             let line = text
                 .get(..start)
                 .map_or(1, |head| head.matches('\n').count() + 1);
+            let standing = blue_lang_runtime::word_shapes::standing(&s.hash, &s.key);
+            let (home, fix, word) = match standing {
+                Standing::NoWord => (None, None, false),
+                Standing::OwnWord => (None, None, true),
+                Standing::CopyOf { word, foundation } => (
+                    Some(word.to_string()),
+                    Some(if foundation { "import" } else { "move_down" }),
+                    false,
+                ),
+            };
+            let waived = checked
+                .outcome
+                .waived
+                .iter()
+                .any(|w| w.waiver.code == Code::B0070 && w.waiver.top_level == s.top_level);
             scan.facts.push(ReuseFact {
                 scope: scope.clone(),
                 file: rel.clone(),
@@ -199,12 +215,62 @@ pub fn reuse_scan(root: &Path) -> ReuseScan {
                 name: s.name().to_string(),
                 shape: s.hash.hex(),
                 size: s.size,
-                home: None,
-                fix: None,
-                word: false,
-                waived: false,
+                home,
+                fix,
+                word,
+                waived,
             });
         }
     }
     scan
+}
+
+#[must_use]
+pub fn word_copy_lines(file: &Path) -> Vec<String> {
+    let Ok(text) = std::fs::read_to_string(file) else {
+        return Vec::new();
+    };
+    let loader = blue_lang_pkg::load_path::LoadPath::for_entry(file);
+    let found = blue_lang_runtime::pipeline::word_copies(
+        Entry {
+            path: Some(file),
+            text: &text,
+        },
+        &loader,
+    );
+    found
+        .unwrap_or_default()
+        .iter()
+        .map(|d| {
+            let (line, column) = blue_lang_syntax::Span::line_col(&text, d.span.start);
+            format!(
+                "{}:{line}:{column}: {}: {}",
+                file.display(),
+                d.message,
+                d.help.as_deref().unwrap_or_default()
+            )
+        })
+        .collect()
+}
+
+fn hook_file(input: &str) -> Option<std::path::PathBuf> {
+    let doc: serde_json::Value = serde_json::from_str(input).ok()?;
+    let path = Path::new(doc.get("tool_input")?.get("file_path")?.as_str()?);
+    (path.extension().is_some_and(|x| x == "b") && path.is_file()).then(|| path.to_path_buf())
+}
+
+pub fn reuse_hook() {
+    use std::io::{Read, Write};
+    std::panic::set_hook(Box::new(|_| {}));
+    let _ = std::panic::catch_unwind(|| {
+        let mut input = String::new();
+        let _ = std::io::stdin().read_to_string(&mut input);
+        let Some(file) = hook_file(&input) else {
+            return;
+        };
+        let mut out = std::io::stdout().lock();
+        for line in word_copy_lines(&file) {
+            let _ = writeln!(out, "{line}");
+        }
+    });
 }

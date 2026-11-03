@@ -215,7 +215,20 @@ enum Cmd {
     /// Exits non-zero when any error-severity diagnostic remains. Test blocks
     /// are checked too. `blue explain CODE` says what a code means.
     Check {
-        file: PathBuf,
+        #[arg(required_unless_present = "hook")]
+        file: Option<PathBuf>,
+        #[arg(
+            long,
+            conflicts_with_all = ["fix", "only"],
+            help = "Print only each B0070 in FILE, with the word to use and its import line, one per line, and exit 0"
+        )]
+        reuse: bool,
+        #[arg(
+            long,
+            requires = "reuse",
+            help = "With --reuse: read Claude Code's PostToolUse JSON from stdin instead of FILE, take tool_input.file_path, stay silent unless it ends in .b and exists, and always exit 0"
+        )]
+        hook: bool,
         /// `text` for people; `json` prints one JSON object per diagnostic
         /// per line on stdout (JSON Lines). The fields are documented in
         /// docs/DIAGNOSTICS.md and are stable.
@@ -1044,12 +1057,34 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             Ok(ExitCode::SUCCESS)
         }
 
+        Cmd::Check { hook: true, .. } => {
+            census::reuse_hook();
+            Ok(ExitCode::SUCCESS)
+        }
+
+        Cmd::Check {
+            file: Some(file),
+            reuse: true,
+            ..
+        } => {
+            for line in census::word_copy_lines(&file) {
+                println!("{line}");
+            }
+            Ok(ExitCode::SUCCESS)
+        }
+
         Cmd::Check {
             file,
             format,
             fix,
             only,
-        } => check(&file, format, fix, &only),
+            ..
+        } => check(
+            &file.expect("clap requires a file unless --hook"),
+            format,
+            fix,
+            &only,
+        ),
 
         Cmd::Query { query, paths, json } => query::run(&query, &paths, json),
 

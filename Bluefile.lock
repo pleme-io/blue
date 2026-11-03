@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:c20d15637386d45e798a1a4373884e9097f71c36dc31acd64d349273518154f6",
+  "bluefile_b3": "b3:5133110a0811dd332bfde40d254e62e094b7cf5e2968db250f1707677a52257e",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -199,6 +199,13 @@
       "verbs-table": {
         "output": "docs/verbs/merged/verbs.tsv",
         "program": "gen/verbs/verbs.b",
+        "inputs": [
+          "bidamas"
+        ]
+      },
+      "word-shapes": {
+        "output": "crates/blue-lang-runtime/src/word_shapes/tables.rs",
+        "program": "gen/word-shapes.b",
         "inputs": [
           "bidamas"
         ]

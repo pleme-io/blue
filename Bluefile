@@ -39,6 +39,7 @@ tool("curl")
 # Rust by the `sabi` bidama.
 generate("kigou-tables", "crates/blue-lang-syntax/src/kigou/tables.rs", "crates/blue-lang-syntax/gen/kigou.b")
 generate("okite-rules", "bidamas/okite/RULES.md", "gen/okite-rules.b")
+generate("word-shapes", "crates/blue-lang-runtime/src/word_shapes/tables.rs", "gen/word-shapes.b", ["bidamas"])
 
 # blue's one grammar spec (bidamas/kiwari) and everything emitted from it: the
 # tree-sitter grammar editors build, its queries, and the spec as JSON for

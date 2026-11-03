@@ -869,7 +869,20 @@ pub(crate) fn check_stage(
         waivers.extend(found);
         outcome.diagnostics.extend(malformed);
     }
+    let (reuse_waivers, waivers): (Vec<_>, Vec<_>) = waivers
+        .into_iter()
+        .partition(|w| w.code == blue_lang_check::Code::B0070);
     outcome.waived = blue_lang_check::waiver::apply(&mut outcome.diagnostics, waivers, &is_entry);
+    if with_tests && outcome.ok() {
+        outcome
+            .diagnostics
+            .extend(reimplemented_words(program, &table));
+        outcome.waived.extend(blue_lang_check::waiver::apply(
+            &mut outcome.diagnostics,
+            reuse_waivers,
+            &is_entry,
+        ));
+    }
     if !stored {
         outcome.diagnostics.retain(|d| {
             !matches!(
@@ -907,6 +920,141 @@ fn entry_shapes_of(
 ) -> Vec<crate::def_hash::Shape> {
     crate::def_hash::shape_hashes(&lower(program, names), &|i| {
         program.owner_of(i) == Some(crate::uses::ResolvedProgram::ENTRY)
+    })
+}
+
+fn reimplemented_words(
+    program: &crate::uses::ResolvedProgram,
+    names: &NameTable,
+) -> Vec<blue_lang_check::Diagnostic> {
+    use crate::word_shapes::{standing, Standing};
+    use blue_lang_check::{shape::Near, Code, Diagnostic};
+    entry_shapes_of(program, names)
+        .iter()
+        .filter(|s| s.size >= Near::DEFAULT.min_size)
+        .filter_map(|s| {
+            let Standing::CopyOf { word, foundation } = standing(&s.hash, &s.key) else {
+                return None;
+            };
+            let form = program.forms().get(s.top_level)?;
+            let at = form
+                .as_list()
+                .and_then(blue_lang_syntax::scope::defined_name_node)
+                .map_or(form.span, |n| n.span);
+            let name = s.name();
+            let d = Diagnostic::new(Code::B0070, format!("`{name}` is the shape of `{word}`"), at)
+                .at_top_level(s.top_level);
+            Some(if foundation {
+                let (pkg, bare) = word.split_once("::")?;
+                let d = d.with_help(format!(
+                    "use the word: `use(\"{pkg}\", [:{bare}])`; `blue check --fix` forwards `{name}` to it"
+                ));
+                match forwarding_fix(program, names, s.top_level, word) {
+                    Some(fix) => d.with_fix(fix),
+                    None => d,
+                }
+            } else {
+                let (pkg, bare) = word.split_once("::")?;
+                d.with_help(format!(
+                    "move down: `{word}` is a domain word; move the shape to a foundation bidama, then both use it; until then `use(\"{pkg}\", [:{bare}])`"
+                ))
+            })
+        })
+        .collect()
+}
+
+/// # Errors
+///
+/// A parse or import error, which leaves no program to measure.
+pub fn word_copies(
+    entry: Entry<'_>,
+    loader: &dyn crate::uses::Loader,
+) -> Result<Vec<blue_lang_check::Diagnostic>, RunError> {
+    use crate::uses::ResolvedProgram;
+    let program = parse_and_resolve(entry, loader, None)?;
+    let host = match entry.path {
+        Some(path) => crate::host_surface::near(path)
+            .map_err(|e| RunError::Import(e.to_string()))?
+            .map(|s| s.functions)
+            .unwrap_or_default(),
+        None => Vec::new(),
+    };
+    let builtins = builtin_names_with(&runtime(Inputs::new()), &host);
+    let table = program_names(&program, &builtins);
+    let mut found = reimplemented_words(&program, &table);
+    if let Some(file) = program.file(ResolvedProgram::ENTRY) {
+        let spans: Vec<(usize, tatara_lisp::Span)> = program
+            .forms()
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| program.owner_of(*i) == Some(ResolvedProgram::ENTRY))
+            .map(|(i, f)| (i, f.span))
+            .collect();
+        let (waivers, _) = blue_lang_check::waiver::collect(&file.text, &spans);
+        let reuse = waivers
+            .into_iter()
+            .filter(|w| w.code == blue_lang_check::Code::B0070)
+            .collect();
+        blue_lang_check::waiver::apply(&mut found, reuse, &|_| false);
+    }
+    Ok(found)
+}
+
+fn forwarding_fix(
+    program: &crate::uses::ResolvedProgram,
+    names: &NameTable,
+    top_level: usize,
+    word: &str,
+) -> Option<blue_lang_check::Fix> {
+    let form = program.forms().get(top_level)?;
+    let items = form.as_list()?;
+    if items.first()?.as_symbol()? != "define" {
+        return None;
+    }
+    let params: Vec<&str> = items
+        .get(1)?
+        .as_list()?
+        .iter()
+        .skip(1)
+        .map(tatara_lisp::Spanned::as_symbol)
+        .collect::<Option<_>>()?;
+    if params
+        .iter()
+        .any(|p| p.starts_with('&') || p.ends_with('?') || *p == ".")
+    {
+        return None;
+    }
+    let (first, last) = (items.get(2)?, items.last()?);
+    let span = tatara_lisp::Span {
+        start: first.span.start,
+        end: last.span.end,
+    };
+    let file = program.file(program.owner_of(top_level)?)?;
+    let original = file.text.get(span.start..span.end)?.to_string();
+    let replacement = if params.is_empty() {
+        word.to_string()
+    } else {
+        format!("{word}({})", params.join(", "))
+    };
+    let mut edits = vec![blue_lang_check::Edit {
+        span,
+        original,
+        replacement,
+    }];
+    let (pkg, _) = word.split_once("::")?;
+    let imports = names.imports_of(top_level);
+    if !imports.is_some_and(|i| i.uses.contains(pkg)) {
+        let at = imports.and_then(|i| i.use_at);
+        edits.push(blue_lang_check::Edit {
+            span: tatara_lisp::Span::new(at.unwrap_or(0), at.unwrap_or(0)),
+            original: String::new(),
+            replacement: format!("use(\"{pkg}\")\n{}", if at.is_some() { "" } else { "\n" }),
+        });
+    }
+    Some(blue_lang_check::Fix {
+        message: format!("forward to `{word}`"),
+        edits,
+        applicability: blue_lang_check::Applicability::MachineApplicable,
     })
 }
 

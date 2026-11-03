@@ -1433,6 +1433,33 @@ control enhancement: `:nist_ac_6` is NIST SP 800-53 Rev. 5 AC-6, and
 mapping every door uses. A target is a `def` of the file or of a bidama it
 uses, written as a call would name it: `parse_token`, `moji::split`.",
     }
+    B0070 {
+        slug: "reimplemented-word",
+        severity: Warning,
+        fix: Suggested,
+        law: "a definition of 12 or more nodes is not a catalogue word's shape: it uses the word, or waives this rule with its reason",
+        witness: "def tally(ns)\n  reduce((acc, n) -> acc + n, 0, ns)\nend\n",
+        imports: [("kazu", "def sum(xs)\n  xs\nend\n")],
+        fixes: "def tally(ns)\n  reduce((acc, n) -> acc + n, 0, ns)\nend\n",
+        explanation: "\
+A copy of a word works, and it never gains the word's fixes. This rule reads
+each definition's `shape_hash`, its tree with every local numbered, no `@doc`,
+and an own callee by its hash, against the table the distribution generates
+(`crates/blue-lang-runtime/src/word_shapes/tables.rs`, one home per shape). Below
+12 nodes (`Near::DEFAULT.min_size`) a shape is too small to be a word.
+
+It is a warning: `blue check`, `blue test` and the language server report it,
+and nothing stops. `blue run` does not compute it. `blue census --reuse` counts
+it per package against a baseline that may only fall.
+
+A home in a foundation bidama (kazu, kansuu, deeta, retsu, moji, kyohi, kousei,
+jisho, junjo, shuugou) is the word to use, and `blue check --fix` makes the
+definition forward to it. A home in a domain bidama is the wrong word to
+import: move the shape down to a foundation bidama, then both use it.
+
+A real exception is `# waive B0070: <reason>` above the definition. B0008
+refuses a waiver that suppresses nothing, so one cannot outlive its copy.",
+    }
     B0071 {
         slug: "evaluator-name",
         severity: Error,

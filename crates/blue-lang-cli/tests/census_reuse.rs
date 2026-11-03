@@ -267,3 +267,181 @@ fn the_tools_own_tests_pass() {
     let out = blue_in(&repo(), &["test", &file.display().to_string()]);
     assert_eq!(code(&out), 0, "{}", text(&out));
 }
+
+const TALLY: &str = "def tally(ns)\n  reduce((acc, n) -> acc + n, 0, ns)\nend\n";
+const CODED: &str = "def coded(code, why)\n  if why != nil\n    [code, why]\n  end\nend\n";
+
+fn check_codes(dir: &Path, file: &str) -> (i32, String) {
+    let out = blue_in(dir, &["check", "--format", "json", file]);
+    (code(&out), text(&out))
+}
+
+#[test]
+fn a_copy_of_a_word_names_it_counts_it_and_stops_no_door() {
+    let p = Project::new("word");
+    let src = format!(
+        "{TALLY}\ndef main()\n  write_stdout(to_s(tally([1, 2, 3])))\nend\n\n\
+         test \"tallies\"\n  assert tally([1, 2]) == 3\nend\n"
+    );
+    p.write("one.b", &src);
+    let doc = census(&p.0, &["--json"]);
+    let doc: serde_json::Value = serde_json::from_str(text(&doc).trim()).expect("one document");
+    assert_eq!(doc["copies"], 1);
+    assert_eq!(doc["findings"][0]["home"], "kazu::sum");
+    assert_eq!(doc["findings"][0]["fix"], "import");
+    let (status, shown) = check_codes(&p.0, "one.b");
+    assert_eq!(status, 0, "{shown}");
+    assert!(shown.contains("\"B0070\""), "{shown}");
+    let ran = blue_in(&p.0, &["run", "one.b"]);
+    assert_eq!(code(&ran), 0, "{}", String::from_utf8_lossy(&ran.stderr));
+    assert!(text(&ran).starts_with('6'));
+    assert_eq!(code(&blue_in(&p.0, &["test", "one.b"])), 0);
+}
+
+#[test]
+fn fix_forwards_to_a_foundation_word_in_one_command_and_the_program_is_unchanged() {
+    let p = Project::new("fix");
+    p.write(
+        "one.b",
+        &format!("{TALLY}\ndef main()\n  write_stdout(to_s(tally([1, 2, 3])))\nend\n"),
+    );
+    let fixed = blue_in(&p.0, &["check", "--fix", "one.b"]);
+    assert_eq!(code(&fixed), 0, "{}", text(&fixed));
+    let written = std::fs::read_to_string(p.0.join("one.b")).expect("read");
+    assert!(written.starts_with("use(\"kazu\")\n"), "{written}");
+    assert!(written.contains("  kazu::sum(ns)\n"), "{written}");
+    let (_, shown) = check_codes(&p.0, "one.b");
+    assert!(!shown.contains("B0070"), "{shown}");
+    let ran = blue_in(&p.0, &["run", "one.b"]);
+    assert_eq!(code(&ran), 0, "{}", String::from_utf8_lossy(&ran.stderr));
+    assert!(text(&ran).starts_with('6'));
+}
+
+#[test]
+fn a_domain_home_says_move_down_and_fix_leaves_it_alone() {
+    let p = Project::new("domain");
+    p.write("one.b", CODED);
+    let lines = text(&blue_in(&p.0, &["check", "--reuse", "one.b"]));
+    assert!(lines.contains("shomei::merkle_side"), "{lines}");
+    assert!(lines.contains("move down"), "{lines}");
+    let doc = census(&p.0, &["--json"]);
+    let doc: serde_json::Value = serde_json::from_str(text(&doc).trim()).expect("one document");
+    assert_eq!(doc["findings"][0]["fix"], "move_down");
+    assert_eq!(code(&blue_in(&p.0, &["check", "--fix", "one.b"])), 0);
+    assert_eq!(
+        std::fs::read_to_string(p.0.join("one.b")).expect("read"),
+        CODED
+    );
+}
+
+#[test]
+fn a_waiver_is_honored_by_every_reader_and_refused_when_stale_only_where_the_rule_runs() {
+    let p = Project::new("waiver");
+    p.write(
+        "one.b",
+        &format!("# waive B0070: tally rounds soon, and the word never will\n{TALLY}"),
+    );
+    let plain = blue_in(&p.0, &["check", "one.b"]);
+    assert_eq!(code(&plain), 0, "{}", text(&plain));
+    let told = format!("{}{}", text(&plain), String::from_utf8_lossy(&plain.stderr));
+    assert!(told.contains("waived:             1"), "{told}");
+    assert!(
+        told.contains("warning[B0070]: waived: `tally`"),
+        "listed as waived and nothing else: {told}"
+    );
+    assert_eq!(text(&blue_in(&p.0, &["check", "--reuse", "one.b"])), "");
+    let doc = census(&p.0, &["--json"]);
+    let doc: serde_json::Value = serde_json::from_str(text(&doc).trim()).expect("one document");
+    assert_eq!(doc["copies"], 0);
+    assert_eq!(doc["waived"], 1);
+    let stale = "# waive B0070: nothing to waive\ndef own(z)\n  z\nend\n\n\
+                 def main()\n  write_stdout(to_s(own(1)))\nend\n";
+    p.write("two.b", stale);
+    let (status, shown) = check_codes(&p.0, "two.b");
+    assert_ne!(status, 0, "{shown}");
+    assert!(shown.contains("B0008"), "{shown}");
+    let ran = blue_in(&p.0, &["run", "two.b"]);
+    assert_eq!(code(&ran), 0, "{}", String::from_utf8_lossy(&ran.stderr));
+}
+
+#[test]
+fn a_twin_inside_one_scope_is_no_copy() {
+    let p = Project::new("own-twin");
+    p.write(
+        "one.b",
+        &format!("{SPREAD}\ndef again(zs)\n  map((z) -> z * 2 + 1, zs)\nend\n"),
+    );
+    let doc = census(&p.0, &["--json"]);
+    let doc: serde_json::Value = serde_json::from_str(text(&doc).trim()).expect("one document");
+    assert_eq!(doc["copies"], 0);
+}
+
+fn hook(dir: &Path, stdin: &str) -> Output {
+    use std::io::Write;
+    use std::process::Stdio;
+    let mut child = Command::new(env!("CARGO_BIN_EXE_blue"))
+        .env_remove("BLUE_CONFIG")
+        .env_remove("BLUE_TIER")
+        .env_remove("BLUE_DIST")
+        .env("BLUE_PATH", repo().join("bidamas"))
+        .current_dir(dir)
+        .args(["check", "--reuse", "--hook"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn");
+    child
+        .stdin
+        .take()
+        .expect("stdin")
+        .write_all(stdin.as_bytes())
+        .expect("write");
+    child.wait_with_output().expect("wait")
+}
+
+#[test]
+fn the_hook_prints_one_line_per_finding_and_is_silent_and_green_on_everything_else() {
+    let p = Project::new("hook");
+    p.write("one.b", TALLY);
+    let file = p.0.join("one.b").display().to_string();
+    let found = hook(
+        &p.0,
+        &serde_json::json!({"tool_name": "Edit", "tool_input": {"file_path": file}}).to_string(),
+    );
+    assert_eq!(code(&found), 0);
+    let shown = text(&found);
+    assert_eq!(shown.lines().count(), 1, "{shown}");
+    assert!(shown.contains(&format!("{file}:1:5")), "{shown}");
+    assert!(shown.contains("kazu::sum"), "{shown}");
+    assert!(shown.contains("use(\"kazu\", [:sum])"), "{shown}");
+    p.write("broken.b", "def broken(\n");
+    p.write("notes.txt", TALLY);
+    for silent in [
+        String::new(),
+        "not json".to_string(),
+        "{}".to_string(),
+        serde_json::json!({"tool_input": {}}).to_string(),
+        serde_json::json!({"tool_input": {"file_path": 7}}).to_string(),
+        serde_json::json!({"tool_input": {"file_path": p.0.join("notes.txt")}}).to_string(),
+        serde_json::json!({"tool_input": {"file_path": p.0.join("gone.b")}}).to_string(),
+        serde_json::json!({"tool_input": {"file_path": p.0.join("broken.b")}}).to_string(),
+    ] {
+        let out = hook(&p.0, &silent);
+        assert_eq!(code(&out), 0, "{silent}");
+        assert_eq!(text(&out), "", "{silent}");
+        assert!(out.stderr.is_empty(), "{silent}");
+    }
+}
+
+#[test]
+fn check_reuse_for_people_prints_the_same_line_and_exits_zero_on_a_missing_file() {
+    let p = Project::new("people");
+    p.write("one.b", TALLY);
+    let out = blue_in(&p.0, &["check", "--reuse", "one.b"]);
+    assert_eq!(code(&out), 0);
+    assert!(text(&out).starts_with("one.b:1:5: `tally` is the shape of `kazu::sum`"));
+    assert_eq!(code(&blue_in(&p.0, &["check", "--reuse", "gone.b"])), 0);
+    let usage = blue_in(&p.0, &["check"]);
+    assert_eq!(code(&usage), 2, "FILE stays required without --hook");
+}

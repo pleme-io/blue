@@ -85,6 +85,7 @@ it; `blue explain --list` lists them.
 | B0067 | name-as-string | error | a name a builtin reads as text is a keyword, not a string: `error(:kind, m)`, `json_get(doc, :field)`, `json_get_or(doc, :field, d)` |
 | B0068 | test-declaration-order | error | a test's declaration is written `satisfies` then `target`, its controls sorted: `{satisfies: %i[nist_ac_6 nist_cm_7], target: f}` |
 | B0069 | test-declaration | error | a test satisfies controls the catalog table names (`:nist_ac_6` is NIST_SP_800_53R5_AC_6) and targets a definition of the program |
+| B0070 | reimplemented-word | warning | a definition of 12 or more nodes is not a catalogue word's shape: it uses the word, or waives this rule with its reason |
 | B0071 | evaluator-name | error | a definition is not named for a word the evaluator answers first: a word syntax lowers to (`list`, `concat`, `apply`, `equal?`, `mod`, `join_lines`, `unlines`, `line_break`), a special form or a builtin macro |
 
 The registry is the source of truth; a test fails if a code is missing here.

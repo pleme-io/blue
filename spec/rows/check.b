@@ -686,3 +686,56 @@ row(
   "write_program(\"gate.b\", \"x=1\")",
   diagnoses([])
 )
+
+row(
+  "check.B0070",
+  join_lines(["def tally(ns)", "  reduce((acc, n) -> acc + n, 0, ns)", "end"]),
+  diagnoses(["B0070"]),
+  covers("rule:B0070")
+)
+
+row(
+  "check.B0070.waived",
+  join_lines(
+    [
+      "# waive B0070: tally will round, and the word never will",
+      "def tally(ns)",
+      "  reduce((acc, n) -> acc + n, 0, ns)",
+      "end"
+    ]
+  ),
+  diagnoses([])
+)
+
+row(
+  "check.B0070.stale_waiver",
+  join_lines(["# waive B0070: nothing to waive", "def own(z)", "  z", "end"]),
+  diagnoses(["B0008"])
+)
+
+row(
+  "check.B0071",
+  join_lines(["def apply()", "  1", "end"]),
+  diagnoses(["B0071"]),
+  covers("rule:B0071")
+)
+
+row(
+  "check.B0071.stops_the_run",
+  join_lines(["def apply()", "  1", "end", "", "x = apply", "to_s(x)"]),
+  fails(:check, "B0071")
+)
+
+row(
+  "check.B0071.a_builtin_name_alone_is_no_fault",
+  join_lines(["def size(_xs)", "  99", "end"]),
+  diagnoses([])
+)
+
+row(
+  "check.B0071.waived",
+  join_lines(
+    ["# waive B0071: reached qualified", "def apply(a)", "  a", "end"]
+  ),
+  diagnoses([])
+)

@@ -8,11 +8,12 @@ use("shisutemu", %i[blue_exe status_of stderr_of stdout_of])
 @doc """
 gate_table: Every gate the pre-push hook knows, as data. A gate has an id, a
 label, a weight and the paths it reads, as globs. A light gate runs on every
-push whose paths it reads; a heavy gate runs with BLUE_PREPUSH_FULL=1, and
-otherwise CI runs it when the push lands. The none weight names paths that no
-gate reads.
+push whose paths it reads; a land gate also needs the push to name main or a
+land ref; a heavy gate runs with BLUE_PREPUSH_FULL=1, and otherwise CI runs it
+when the push lands. The none weight names paths that no gate reads.
 
     map((g) -> get(g, :id), filter((g) -> get(g, :weight) == :light, gate_table)) #=> ["cargo-fmt", "blue-fmt", "locks", "retired", "gen-confirm", "swept-codes"]
+    map((g) -> get(g, :id), filter((g) -> get(g, :weight) == :land, gate_table)) #=> ["census", "reuse"]
 """
 def gate_table()
   [
@@ -46,6 +47,18 @@ def gate_table()
       label: "every rule code is swept across the consumers",
       weight: :light,
       inputs: %w[crates/** gen/consumers.b gen/consumers.json]
+    },
+    {
+      id: "census",
+      label: "the census holds its ratchets",
+      weight: :land,
+      inputs: %w[**/*.b crates/blue-lang-check/**]
+    },
+    {
+      id: "reuse",
+      label: "no definition is copied between scopes",
+      weight: :land,
+      inputs: %w[**/*.b reuse.baseline]
     },
     {
       id: "regen",
@@ -160,7 +173,7 @@ selects every gate, or a path no gate names, selects every gate: an unknown
 path fails closed. The answer holds the gate ids in table order, and a reason
 that is empty when the paths chose the gates one by one.
 
-    get(selection(["bidamas/retsu/retsu.b"], gate_table), :ids) #=> ["blue-fmt", "locks", "retired", "regen", "consumers", "test-beside", "tests", "conformance"]
+    get(selection(["bidamas/retsu/retsu.b"], gate_table), :ids) #=> ["blue-fmt", "locks", "retired", "census", "reuse", "regen", "consumers", "test-beside", "tests", "conformance"]
     get(selection(["README.md"], gate_table), :ids) #=> []
 """
 def selection(changed, table)
@@ -199,16 +212,65 @@ end
 
 @doc """
 planned: The gate ids this run judges: every gate with BLUE_PREPUSH_FULL=1,
-else the light gates the selection holds.
+else the light gates the selection holds, and its land gates when the push
+lands.
 
-    planned(["blue-fmt", "regen"], false, gate_table) #=> ["blue-fmt"]
-    count(planned([], true, gate_table)) #=> 14
+    planned(["blue-fmt", "census", "regen"], {full: false, landing: false}, gate_table) #=> ["blue-fmt"]
+    planned(["blue-fmt", "census", "regen"], {full: false, landing: true}, gate_table) #=> ["blue-fmt", "census"]
+    count(planned([], {full: true, landing: false}, gate_table)) #=> 16
 """
-def planned(ids, full, table)
-  if full
+def planned(ids, push, table)
+  weights = if push[:landing]
+    %i[light land]
+  else
+    [:light]
+  end
+  if push[:full]
     map((g) -> g[:id], filter((g) -> g[:weight] != :none, table))
   else
-    filter((id) -> weight_of(id, table) == :light, ids)
+    filter((id) -> member?(weight_of(id, table), weights), ids)
+  end
+end
+
+@doc """
+plain_push: A plain branch push: no BLUE_PREPUSH_FULL, no land ref.
+
+    plain_push[:landing] #=> false
+"""
+def plain_push()
+  {full: false, landing: false}
+end
+
+@doc """
+landing?: Whether a push names main or a land ref, the refs CI judges whole.
+
+    landing?([{local: "1", remote: "0", ref: "refs/heads/land/a/b"}]) #=> true
+    landing?([{local: "1", remote: "0", ref: "refs/heads/main"}]) #=> true
+    landing?([{local: "1", remote: "0", ref: "refs/heads/a/b"}]) #=> false
+    landing?([{local: "1", remote: ""}]) #=> false
+"""
+def landing?(updates)
+  any?(
+    fn(u)
+      r = u[:ref] or ""
+      r == "refs/heads/main" or starts_with?(r, "refs/heads/land/")
+    end,
+    updates
+  )
+end
+
+@doc """
+records_for: The green records that can cover this push. A light record ran no
+land gate, so it never covers a landing.
+
+    records_for(["light k t 1", "land k t 2"], true) #=> ["land k t 2"]
+    records_for(["light k t 1", "land k t 2"], false) #=> ["light k t 1", "land k t 2"]
+"""
+def records_for(lines, landing)
+  if landing
+    reject((l) -> starts_with?(l, "light "), lines)
+  else
+    lines
   end
 end
 
@@ -249,12 +311,15 @@ updates_of: The ref updates git writes to a pre-push hook's stdin, one per
 line as local ref, local sha, remote ref and remote sha; a deleted ref is no
 update to check.
 
-    updates_of("refs/heads/a 1111 refs/heads/a 0000") #=> [{local: "1111", remote: "0000"}]
+    updates_of("refs/heads/a 1111 refs/heads/a 0000") #=> [{local: "1111", remote: "0000", ref: "refs/heads/a"}]
     updates_of("(delete) 0000 refs/heads/a 1111") #=> []
 """
 def updates_of(text)
   rows = filter((w) -> count(w) == 4, map((l) -> split(l, " "), lines_of(text)))
-  map((w) -> {local: w[1], remote: w[3]}, reject((w) -> zero_sha?(w[1]), rows))
+  map(
+    (w) -> {local: w[1], remote: w[3], ref: w[2]},
+    reject((w) -> zero_sha?(w[1]), rows)
+  )
 end
 
 @doc """
@@ -674,8 +739,11 @@ def main()
     whole,
     map((p) -> trim(git(["rev-parse", "#{last(p)}^{tree}"])), pairs)
   )
+  landing = landing?(updates)
   mode = if full
     "full"
+  elsif landing
+    "land"
   else
     "light"
   end
@@ -685,7 +753,12 @@ def main()
   else
     []
   end
-  hit = green_hit(kept, full, key, dirty != [] or not one_tree)
+  hit = green_hit(
+    records_for(kept, landing),
+    full,
+    key,
+    dirty != [] or not one_tree
+  )
   if not hit.nil?
     write_stderr(
       unlines(
@@ -809,6 +882,18 @@ def main()
         end
       ]
     ],
+    "census" => [
+      [
+        "the census holds its ratchets",
+        () -> verdict(exec_capture("#{bin}/blue", "census", root))
+      ]
+    ],
+    "reuse" => [
+      [
+        "no definition is copied between scopes",
+        () -> verdict(exec_capture("#{bin}/blue", "census", "--reuse", root))
+      ]
+    ],
     "gen-pin" => [["gen is substrate's pin", () -> gen_pin]],
     "consumers" => [
       [
@@ -881,7 +966,10 @@ def main()
       ]
     ]
   }
-  ids = reject((id) -> member?(id, skip), planned(chosen[:ids], full, table))
+  ids = reject(
+    (id) -> member?(id, skip),
+    planned(chosen[:ids], {full:, landing:}, table)
+  )
   gates = flat_map(ids, (id) -> get(runners, id))
   ci = reject((id) -> member?(id, ids) or member?(id, skip), chosen[:ids])
   timings_file = "#{store}/timings"
@@ -992,43 +1080,70 @@ end
 test "a .b-only change selects the .b gates and no Rust gate"
   s = selection(%w[bidamas/shuugou/shuugou.b gen/regen.b], gate_table)
   assert s[:reason] == ""
-  assert planned(s[:ids], false, gate_table) == %w[blue-fmt locks retired]
+  assert planned(s[:ids], plain_push, gate_table) == %w[blue-fmt locks retired]
   assert not member?("test-targets", s[:ids])
+end
+
+test "a landing judges the census and the reuse ratchet before CI does"
+  s = selection(["kernel/programs/arith.b"], gate_table)
+  assert not member?("census", planned(s[:ids], plain_push, gate_table))
+  on_land = planned(s[:ids], {full: false, landing: true}, gate_table)
+  assert member?("census", on_land)
+  assert member?("reuse", on_land)
+  assert skipped("census,reuse", gate_table) == %w[census reuse]
+end
+
+test "a light green record never covers a landing"
+  light = ["light t1 2026-10-24T12:00:00Z 3.2"]
+  assert green_hit(records_for(light, false), false, "t1", false) != nil
+  assert green_hit(records_for(light, true), false, "t1", false).nil?
+  land = ["land t1 2026-10-24T12:00:00Z 95.0"]
+  assert green_hit(records_for(land, true), false, "t1", false) != nil
+  assert green_hit(records_for(land, false), false, "t1", false) != nil
+end
+
+test "only main and a land ref land"
+  assert landing?(updates_of("refs/heads/x 1111 refs/heads/land/x 0000"))
+  assert landing?(updates_of("refs/heads/x 1111 refs/heads/land/dry-x 0000"))
+  assert landing?(updates_of("refs/heads/main 1111 refs/heads/main 0000"))
+  assert not landing?(updates_of("refs/heads/x 1111 refs/heads/x 0000"))
+  assert not landing?(updates_of("refs/heads/x 1111 refs/heads/landing/x 0000"))
+  assert not landing?([])
 end
 
 test "a Cargo.lock change selects every gate"
   s = selection(["Cargo.lock"], gate_table)
   assert s[:reason] == "Cargo.lock selects every gate"
-  assert planned(s[:ids], false, gate_table) ==
+  assert planned(s[:ids], plain_push, gate_table) ==
     %w[cargo-fmt blue-fmt locks retired gen-confirm swept-codes]
-  assert count(s[:ids]) == 14
+  assert count(s[:ids]) == 16
 end
 
 test "an unknown path selects every gate"
   s = selection(%w[bidamas/retsu/retsu.b tools/new.toml], gate_table)
   assert s[:reason] == "no gate names tools/new.toml, so every gate runs"
-  assert count(s[:ids]) == 14
+  assert count(s[:ids]) == 16
 end
 
 test "a Rust change selects cargo fmt, the swept codes and the heavy gates"
   s = selection(["crates/blue-lang-fmt/src/lib.rs"], gate_table)
-  assert planned(s[:ids], false, gate_table) == %w[cargo-fmt swept-codes]
+  assert planned(s[:ids], plain_push, gate_table) == %w[cargo-fmt swept-codes]
   assert member?("tests", s[:ids])
 end
 
 test "a manifest change runs gen confirm before the push, not only in CI"
   s = selection(["crates/blue-lang-lsp/Cargo.toml"], gate_table)
   assert s[:reason] == ""
-  assert planned(s[:ids], false, gate_table) ==
+  assert planned(s[:ids], plain_push, gate_table) ==
     %w[cargo-fmt gen-confirm swept-codes]
   assert member?("gen-tie", s[:ids])
 end
 
 test "a new rule code is judged before the push, by the swept record alone"
   s = selection(["crates/blue-lang-check/src/lib.rs"], gate_table)
-  assert member?("swept-codes", planned(s[:ids], false, gate_table))
+  assert member?("swept-codes", planned(s[:ids], plain_push, gate_table))
   c = selection(["gen/consumers.json"], gate_table)
-  assert planned(c[:ids], false, gate_table) == ["swept-codes"]
+  assert planned(c[:ids], plain_push, gate_table) == ["swept-codes"]
 end
 
 test "BLUE_PREPUSH_SKIP turns off the gates it names and refuses an id that is no gate"

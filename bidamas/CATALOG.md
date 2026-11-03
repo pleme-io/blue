@@ -3593,10 +3593,10 @@ motenashi (もてなし) — how a launcher receives a person: a world's look, s
 | `motenashi::tune(kind, name, fields)` |  |  |  | tune: fields laid over an entry declared earlier. |
 | `motenashi::actions` |  |  |  | actions: the words a binding may run. |
 | `motenashi::capabilities` |  |  |  | capabilities: the host capabilities a provider may ask for. |
-| `motenashi::number_field` |  |  |  |  |
+| `motenashi::number_field` |  |  |  | number_field: the check of a field that must be a number. |
 | `motenashi::schema` |  |  |  | schema: the kinds a world may declare and the fields each takes. A config group's own fields are the host's to check. |
-| `motenashi::open_fields(entries)` |  |  |  |  |
-| `motenashi::restored(e)` |  |  |  |  |
+| `motenashi::open_fields(entries)` |  |  |  | open_fields: entries with a config group's fields set aside, so the judge never reads them. |
+| `motenashi::restored(e)` |  |  |  | restored: a judged entry with its config group's fields back in its value. |
 | `motenashi::declare(entries)` |  |  |  | declare: a world's entries judged: `accepted`, `off` and `refusals`, each refusal scoped to its entry. |
 | `motenashi::row(title, fields)` |  |  |  | row: one answer of a provider: its title and any of `subtitle`, `icon`, `score`, `action`. |
 | `motenashi::open_url(url)` |  |  |  | open_url: the action that opens a URL. |

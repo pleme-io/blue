@@ -157,6 +157,11 @@ def capabilities()
   %i[process filesystem environment clock network entropy]
 end
 
+@doc """
+number_field: the check of a field that must be a number.
+
+    map(number_field, [3]) #=> [nil]
+"""
 def number_field()
   (v) -> kousei::verdict(number?(v), "#{v} is not a number")
 end
@@ -192,6 +197,11 @@ def schema()
   }
 end
 
+@doc """
+open_fields: entries with a config group's fields set aside, so the judge never reads them.
+
+    open_fields([look({width: 1})])[0].fields #=> {width: 1}
+"""
 def open_fields(entries)
   map(
     fn(e)
@@ -205,6 +215,11 @@ def open_fields(entries)
   )
 end
 
+@doc """
+restored: a judged entry with its config group's fields back in its value.
+
+    restored({entry: :config, name: "a", value: {}, fields: {b: 1}}).value #=> {b: 1}
+"""
 def restored(e)
   if e[:entry] == :config
     {entry: :config, name: e[:name], value: e[:fields]}

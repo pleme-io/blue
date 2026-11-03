@@ -87,3 +87,124 @@ pub fn take(root: &Path) -> Result<Census, String> {
         findings,
     })
 }
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ReuseFact {
+    pub scope: String,
+    pub file: String,
+    pub line: usize,
+    pub name: String,
+    pub shape: String,
+    pub size: usize,
+    pub home: Option<String>,
+    pub fix: Option<&'static str>,
+    pub word: bool,
+    pub waived: bool,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ReuseScan {
+    pub files: usize,
+    pub definitions: usize,
+    pub facts: Vec<ReuseFact>,
+    pub blind: Vec<(String, String)>,
+}
+
+impl ReuseScan {
+    #[must_use]
+    pub fn to_json(&self) -> serde_json::Value {
+        serde_json::json!({
+            "files": self.files,
+            "definitions": self.definitions,
+            "blind": self.blind.iter().map(|(file, why)| serde_json::json!({
+                "file": file,
+                "why": why,
+            })).collect::<Vec<_>>(),
+            "facts": self.facts.iter().map(ReuseFact::to_json).collect::<Vec<_>>(),
+        })
+    }
+}
+
+impl ReuseFact {
+    #[must_use]
+    pub fn to_json(&self) -> serde_json::Value {
+        serde_json::json!({
+            "scope": self.scope,
+            "file": self.file,
+            "line": self.line,
+            "name": self.name,
+            "shape": self.shape,
+            "size": self.size,
+            "home": self.home,
+            "fix": self.fix,
+            "word": self.word,
+            "waived": self.waived,
+        })
+    }
+}
+
+#[must_use]
+pub fn reuse_scan(root: &Path) -> ReuseScan {
+    let files = blue_lang_pkg::corpus::files(root);
+    let mut scan = ReuseScan {
+        files: files.len(),
+        ..ReuseScan::default()
+    };
+    let floor = blue_lang_check::shape::Near::DEFAULT.min_size;
+    for path in &files {
+        let rel = path
+            .strip_prefix(root)
+            .unwrap_or(path)
+            .display()
+            .to_string();
+        let text = match std::fs::read_to_string(path) {
+            Ok(t) => t,
+            Err(e) => {
+                scan.blind.push((rel, e.to_string()));
+                continue;
+            }
+        };
+        let loader = blue_lang_pkg::load_path::LoadPath::for_entry(path);
+        let checked = match check_entry(
+            Entry {
+                path: Some(path),
+                text: &text,
+            },
+            &loader,
+            None,
+            Checking::WithTests,
+        ) {
+            Ok(c) => c,
+            Err(e) => {
+                scan.blind.push((rel, e.to_string()));
+                continue;
+            }
+        };
+        let package = checked
+            .program
+            .file(blue_lang_runtime::uses::ResolvedProgram::ENTRY)
+            .and_then(|f| f.package.clone());
+        let scope = package.unwrap_or_else(|| format!("%root:{rel}"));
+        let shapes = checked.entry_shapes();
+        scan.definitions += shapes.len();
+        for s in shapes.iter().filter(|s| s.size >= floor) {
+            let start = checked.program.forms()[s.top_level].span.start;
+            let line = text
+                .get(..start)
+                .map_or(1, |head| head.matches('\n').count() + 1);
+            scan.facts.push(ReuseFact {
+                scope: scope.clone(),
+                file: rel.clone(),
+                line,
+                name: s.name().to_string(),
+                shape: s.hash.hex(),
+                size: s.size,
+                home: None,
+                fix: None,
+                word: false,
+                waived: false,
+            });
+        }
+    }
+    scan
+}

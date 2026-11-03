@@ -99,6 +99,32 @@ commit that brings a count to zero sets the row to `Some(0)`, and from then
 on the rule is an error on every door. `blue census --findings` lists each
 finding.
 
+## The reuse ratchet
+
+`blue census --reuse [ROOT]` counts copies per package, against the hadome
+baseline `ROOT/reuse.baseline` (`--baseline FILE` to name another). The tool
+is `crates/blue-lang-cli/blue/reuse.b`, compiled into the binary.
+
+A copy is a definition of 12 or more nodes (`Near::DEFAULT.min_size`) whose
+`shape_hash` is another package's or file's. A row is `reuse-copy: SCOPE N`:
+SCOPE is the package, or `%root:FILE` for a script.
+
+| state | exit | what it does |
+|---|---|---|
+| no baseline | 0 | enforces nothing; prints the measure and the command that adopts it |
+| a row held | 0 | |
+| a row shrank | 0 | reported; `--record` banks it |
+| a row is gone | 0 | advisory; `--record` drops it |
+| a row grew, or a scope has no row | 1 | names the row and the copies inside it; every other row, and `run`, `test` and every build, go on |
+| a file does not load | 0 | `blind: FILE: why`; counted as blind, never as zero |
+
+`--record` writes the measured rows. It banks a fall with no argument; a raised
+or new row is refused without `--receipt "<why>"`, which stays beside the rows
+as a `# receipt:` line a reviewer reads. `--json` prints one document with the
+rows that broke and each copy's home. `--facts` prints each measured definition
+and exits 0. `checks.reuse-ratchet` (`lib.project`) runs the check on every
+project.
+
 ## The data laws (B0048–B0052)
 
 The frontend's data laws (`theory/BLUE-FRONTEND.md` §2) are rows like every

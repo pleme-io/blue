@@ -69,6 +69,7 @@ mod census;
 const MIGRATE: &str = include_str!("../blue/migrate.b");
 
 const VERBS: &str = include_str!("../blue/verbs.b");
+const REUSE: &str = include_str!("../blue/reuse.b");
 mod config;
 mod crash;
 mod deploy;
@@ -313,6 +314,41 @@ enum Cmd {
         root: PathBuf,
         #[arg(long)]
         findings: bool,
+        #[arg(
+            long,
+            help = "Judge definition copies instead: every definition of 12 or more nodes whose shape_hash is another scope's, per package, against the hadome baseline. A grown or new row exits 1; a shrink passes; a gone row is advisory; an absent baseline enforces nothing. docs/DIAGNOSTICS.md, \"The reuse ratchet\""
+        )]
+        reuse: bool,
+        #[arg(
+            long,
+            requires = "reuse",
+            help = "With --reuse: the baseline file (default ROOT/reuse.baseline)"
+        )]
+        baseline: Option<PathBuf>,
+        #[arg(
+            long,
+            requires = "reuse",
+            help = "With --reuse: write the measured rows to the baseline. A raised or new row needs --receipt"
+        )]
+        record: bool,
+        #[arg(
+            long,
+            requires = "record",
+            help = "With --record: why a row rises or is new, kept as a # line in the baseline"
+        )]
+        receipt: Option<String>,
+        #[arg(
+            long,
+            requires = "reuse",
+            help = "With --reuse: one JSON document: rows that broke, every copy with its home, the denominators"
+        )]
+        json: bool,
+        #[arg(
+            long,
+            requires = "reuse",
+            help = "With --reuse: one JSON object per definition of 12 or more nodes, with its shape_hash, and exit 0"
+        )]
+        facts: bool,
     },
     /// Explain a diagnostic code (`blue explain B0001`), or list them all.
     #[command(group(clap::ArgGroup::new("which").required(true).args(["code", "list"])))]
@@ -1170,7 +1206,63 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             Ok(ExitCode::SUCCESS)
         }
 
-        Cmd::Census { root, findings } => {
+        Cmd::Census {
+            root,
+            findings,
+            reuse: true,
+            baseline,
+            record,
+            receipt,
+            json,
+            facts,
+        } => {
+            let scan = census::reuse_scan(&root);
+            if facts {
+                for f in &scan.facts {
+                    println!("{}", f.to_json());
+                }
+                return Ok(ExitCode::SUCCESS);
+            }
+            let path = baseline.unwrap_or_else(|| root.join("reuse.baseline"));
+            let mut args = vec![
+                "--report".to_string(),
+                scan.to_json().to_string(),
+                root.display().to_string(),
+                path.display().to_string(),
+            ];
+            for (on, flag) in [
+                (record, "--record"),
+                (json, "--json"),
+                (findings, "--findings"),
+            ] {
+                if on {
+                    args.push(flag.to_string());
+                }
+            }
+            if let Some(why) = receipt {
+                args.push("--receipt".to_string());
+                args.push(why);
+            }
+            blue_lang_runtime::sys::set_program_args(args);
+            let out = blue_lang_runtime::pipeline::run_in_surface(
+                blue_lang_runtime::uses::Entry {
+                    path: Some(Path::new("crates/blue-lang-cli/blue/reuse.b")),
+                    text: REUSE,
+                },
+                blue_lang_runtime::inputs::Inputs::new(),
+                &blue_lang_pkg::load_path::Environment::from_env().load_path(None),
+                None,
+            )?;
+            Ok(
+                if matches!(out.value, tatara_lisp_eval::Value::Bool(false)) {
+                    ExitCode::FAILURE
+                } else {
+                    ExitCode::SUCCESS
+                },
+            )
+        }
+
+        Cmd::Census { root, findings, .. } => {
             let c = census::take(&root).map_err(CliError::Pkg)?;
             println!("{} file(s)", c.files);
             for r in blue_lang_check::RULES

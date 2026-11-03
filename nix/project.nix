@@ -487,6 +487,9 @@ let
             bluefile = src + "/Bluefile";
             lock = src + "/Bluefile.lock";
           };
+          reuse-ratchet = pkgs.runCommand "reuse-ratchet" { } ''
+            BLUE_PATH=${bl.mkBluePath { inherit bidamas; }} ${blue}/bin/blue census --reuse ${src} > $out
+          '';
         }
         // lib.optionalAttrs (m.catalog != null) {
           bidama-catalog-fresh = bl.mkFreshCheck {

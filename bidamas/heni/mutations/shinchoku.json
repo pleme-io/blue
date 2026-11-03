@@ -1,0 +1,14 @@
+[
+  {
+    "name": "an absent flag reads the first argument",
+    "file": "shinchoku.b",
+    "find": "i = index_of(args, name)\n  if i < 0\n    default",
+    "replace": "i = index_of(args, name)\n  if i.nil?\n    default"
+  },
+  {
+    "name": "no double dash reads every argument as the command",
+    "file": "shinchoku.b",
+    "find": "i = index_of(args, \"--\")\n  if i >= 0",
+    "replace": "i = index_of(args, \"--\")\n  if i != nil"
+  }
+]

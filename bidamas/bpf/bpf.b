@@ -354,7 +354,7 @@ helper_id: the number of a kernel helper, raising on a name the kernel does not 
 """
 def helper_id(name)
   at = index_of(helper_names, name)
-  if at.nil? or at < 0
+  if at < 0
     raise(:bad_option, "no BPF helper #{to_s(name)}")
   end
   at
@@ -2364,7 +2364,7 @@ def with_relocs(insns, relocs, maps)
   reduce(
     fn(acc, reloc)
       at = index_of(map((m) -> m[:name], maps), reloc[:map])
-      if at.nil? or at < 0
+      if at < 0
         raise(
           :bad_option,
           "the program names the map #{to_s(reloc[:map])}, which is not declared"

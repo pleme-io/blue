@@ -239,7 +239,7 @@ def kind_id(table, name)
     raise(:bad_option, "no kernel table #{to_s(table)}")
   end
   at = index_of(names, name)
-  if at.nil? or at < 0
+  if at < 0
     raise(:bad_option, "the kernel's #{to_s(table)} table has no #{to_s(name)}")
   end
   at

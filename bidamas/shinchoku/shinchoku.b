@@ -467,7 +467,7 @@ end
 
 def flag(args, name, default)
   i = index_of(args, name)
-  if i.nil?
+  if i < 0
     default
   else
     args[i + 1]
@@ -476,7 +476,7 @@ end
 
 def after_dashes(args)
   i = index_of(args, "--")
-  if i != nil
+  if i >= 0
     drop(i + 1, args)
   end
 end
@@ -766,6 +766,18 @@ test "reconcile_liveness: the operator's own stalled pass is stalled, with its r
   )
   assert verdict(v) == "stalled"
   assert v[:reason] == "silent Planning"
+end
+
+test "a flag that is absent answers its default, never the first argument"
+  assert flag([], "--running", "0") == "0"
+  assert flag(%w[--window 60], "--running", "0") == "0"
+  assert flag(%w[--running 3], "--running", "0") == "3"
+end
+
+test "no double dash means no command after it"
+  assert after_dashes(%w[a b]).nil?
+  assert after_dashes([]).nil?
+  assert after_dashes(%w[a -- b c]) == %w[b c]
 end
 
 test "the command: an unknown subcommand is a usage error, a known one answers"

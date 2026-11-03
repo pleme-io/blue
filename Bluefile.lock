@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:5133110a0811dd332bfde40d254e62e094b7cf5e2968db250f1707677a52257e",
+  "bluefile_b3": "b3:d03152c8b6318a917fa8c56594c403bd03c82bc3e868e5f4829fd456de0288e0",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -215,6 +215,11 @@
       "R0001": {
         "file": "rules/conventions.b",
         "def": "nil_predicate",
+        "severity": "error"
+      },
+      "R0002": {
+        "file": "rules/conventions.b",
+        "def": "index_nil",
         "severity": "error"
       }
     },

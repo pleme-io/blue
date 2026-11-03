@@ -79,6 +79,7 @@ receipt("docs", %i[nist_sa_5 nist_sa_11])
 # on every file under this directory, under a pure frame
 # (docs/DIAGNOSTICS.md, "Project rules"). The check runs the rules' tests.
 rule("R0001", "rules/conventions.b", "nil_predicate")
+rule("R0002", "rules/conventions.b", "index_nil")
 check("project-rules", "rules/conventions.b")
 
 # The verb graph (bidamas/mokuroku/graph, docs/verbs/H/DESIGN.md): gates G1,

@@ -488,7 +488,7 @@ let
             lock = src + "/Bluefile.lock";
           };
           reuse-ratchet = pkgs.runCommand "reuse-ratchet" { } ''
-            BLUE_PATH=${bl.mkBluePath { inherit bidamas; }} ${blue}/bin/blue census --reuse ${src} > $out
+            BLUE_PATH=${bl.mkBluePath { inherit bidamas; }} ${blue}/bin/blue census --reuse ${src} > $out || { cat $out; exit 1; }
           '';
         }
         // lib.optionalAttrs (m.catalog != null) {

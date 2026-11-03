@@ -98,6 +98,8 @@ use("kyuuji")
 use("maakuappu")
 use("moji", [:empty])
 use("mokuroku", [:md_cell])
+# waive B0016: zenbu is the facade, and depending on it means depending on motenashi
+use("motenashi")
 use("nikkusu")
 use("nisshi")
 # waive B0016: zenbu is the facade, and depending on it means depending on okite

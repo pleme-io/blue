@@ -250,7 +250,7 @@ rendered:
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-89 packages, 4831 definitions, 1590 tests.
+90 packages, 4858 definitions, 1601 tests.
 
 - [anaritikusu](bidamas/CATALOG.md#anaritikusu) (アナリティクス) — lifecycle analytics: a database of telemetry, standard models and cross-lifecycle joins, generated from lifecycle definitions.
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
@@ -302,6 +302,7 @@ rendered:
 - [maakuappu](bidamas/CATALOG.md#maakuappu) (マークアップ) — XML as data: a document parsed by the runtime's xml_parse (quick-xml) into element maps {name, attributes, children, text}, the queries a reader of a scanner export asks of it (children and descendants by name, attributes, text, a path of element names), and the element rendered back with every value escaped. A DTD entity is never expanded or fetched: the document is refused (:xml_refused), and a document that is not well-formed raises :xml_malformed.
 - [moji](bidamas/CATALOG.md#moji) (文字) — strings.
 - [mokuroku](bidamas/CATALOG.md#mokuroku) (目録): the catalogue of what every bidama on a BLUE_PATH provides.
+- [motenashi](bidamas/CATALOG.md#motenashi) (もてなし) — how a launcher receives a person: a world's look, sections, ranking and bindings as entries, and a provider's answer as rows.
 - [nikkusu](bidamas/CATALOG.md#nikkusu) (ニックス) — Nix source as data: rnix's lossless tree from nix_parse, and the queries a linter asks of it (attrpath bindings, calls by head, with scopes, angle paths, option declarations).
 - [nisshi](bidamas/CATALOG.md#nisshi) (日誌) — an event log: append-only JSON Lines, hash-chained, optionally signed, replayed into lifecycle states.
 - [okite](bidamas/CATALOG.md#okite) (掟) — blue's decisions, each enforced by laws written in blue.

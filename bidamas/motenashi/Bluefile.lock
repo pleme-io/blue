@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:46a496a651501537813ecfa7722877465039f65fd33594e3d82f4ccd2b6e1264",
+  "manifest": {
+    "schema": 1,
+    "name": "motenashi",
+    "version": "0.1.0",
+    "needs": {
+      "gamen": "^0.1.0",
+      "kousei": "^0.1.0",
+      "retsu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

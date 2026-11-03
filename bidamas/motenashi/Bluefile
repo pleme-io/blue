@@ -1,0 +1,4 @@
+package("motenashi", "0.1.0")
+needs("gamen", "^0.1")
+needs("kousei", "^0.1")
+needs("retsu", "^0.1")

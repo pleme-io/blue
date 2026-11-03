@@ -1,0 +1,74 @@
+[
+  {
+    "name": "declare stops opening config groups",
+    "file": "motenashi.b",
+    "find": "  judged = judge(schema, open_fields(entries))",
+    "replace": "  judged = judge(schema, entries)"
+  },
+  {
+    "name": "declare forgets to restore a group's fields",
+    "file": "motenashi.b",
+    "find": "    accepted: map(restored, judged[:accepted]),",
+    "replace": "    accepted: judged[:accepted],"
+  },
+  {
+    "name": "declare drops refusals",
+    "file": "motenashi.b",
+    "find": "    refusals: judged[:refusals]",
+    "replace": "    refusals: []"
+  },
+  {
+    "name": "off is lost",
+    "file": "motenashi.b",
+    "find": "    off: judged[:off],",
+    "replace": "    off: [],"
+  },
+  {
+    "name": "a bind takes any action",
+    "file": "motenashi.b",
+    "find": "    bind: [required(field(:action, one_of(actions)))],",
+    "replace": "    bind: [required(field(:action, number_field))],"
+  },
+  {
+    "name": "a provider takes any capability",
+    "file": "motenashi.b",
+    "find": "      field(:allow, list_of(one_of(capabilities))),",
+    "replace": "      field(:allow, number_field),"
+  },
+  {
+    "name": "an action word goes missing",
+    "file": "motenashi.b",
+    "find": "  %i[hide next previous execute delete_back delete_word clear]",
+    "replace": "  %i[hide previous execute delete_back delete_word clear]"
+  },
+  {
+    "name": "color stops dividing",
+    "file": "motenashi.b",
+    "find": "    map((channel) -> channel / 255.0, [c[:r], c[:g], c[:b]])",
+    "replace": "    [c[:r], c[:g], c[:b]]"
+  },
+  {
+    "name": "color refuses by raising",
+    "file": "motenashi.b",
+    "find": "  c = rgb(hex_text) rescue nil",
+    "replace": "  c = rgb(hex_text)"
+  },
+  {
+    "name": "a row's fields overrule its title",
+    "file": "motenashi.b",
+    "find": "  {**fields, title:}",
+    "replace": "  {title:, **fields}"
+  },
+  {
+    "name": "copy loses its text",
+    "file": "motenashi.b",
+    "find": "  {kind: \"copy\", text: words}",
+    "replace": "  {kind: \"copy\", text: nil}"
+  },
+  {
+    "name": "without keeps the wrong name",
+    "file": "motenashi.b",
+    "find": "  entry(:without, to_s(builtin), {})",
+    "replace": "  entry(:without, \"x\", {})"
+  }
+]

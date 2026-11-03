@@ -194,7 +194,7 @@ was rendered. `blue help COMMAND` shows each one's flags.
 | `blue fmt FILE...` | Format a program. |
 | `blue ast FILE` | Print the tatara-lisp form, annotations intact. |
 | `blue erase FILE` | Print the tatara-lisp form after type erasure — what actually runs. |
-| `blue check FILE` | Check a program against every rule in the registry — unbound names, unused bindings, types, waivers — and report the typing analysis. |
+| `blue check [FILE]` | Check a program against every rule in the registry — unbound names, unused bindings, types, waivers — and report the typing analysis. |
 | `blue query QUERY [PATHS]...` | Every definition under PATH (files, or directories of `.b` files; `.` when none) that satisfies QUERY, one line per hit: `file:line:col: definition  name = value…`. |
 | `blue migrate FILES...` | Make every reference each FILE makes to another bidama's definition explicit (`use("retsu", [:first])`, and the bidama's `needs`), keeping a file only when its resolved tree is proven unchanged. |
 | `blue doc [NAME]` | What NAME is: its signature, doc line, namespace, tier and an example, for a builtin, `pkg::name`, or a bare name across the builtins and every bidama on BLUE_PATH; a bidama's name lists the package. |
@@ -241,7 +241,7 @@ rendered:
 |---|---|
 | Built-in names | 345: 318 functions, 14 special forms, 13 macros |
 | Surface forms | 30, with 13 operators and 25 reserved words |
-| Check rules | 67: 38 fix themselves, 7 suggest a fix |
+| Check rules | 69: 38 fix themselves, 8 suggest a fix |
 | Bluefile words | 24 |
 | Commands | 42 |
 
@@ -250,7 +250,7 @@ rendered:
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-89 packages, 4830 definitions, 1590 tests.
+89 packages, 4831 definitions, 1590 tests.
 
 - [anaritikusu](bidamas/CATALOG.md#anaritikusu) (アナリティクス) — lifecycle analytics: a database of telemetry, standard models and cross-lifecycle joins, generated from lifecycle definitions.
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.

@@ -210,6 +210,49 @@ def access_values(svc)
 end
 
 @doc """
+kernel_reach?: whether a service's access declares the `kernel_bpf` effect, so its chart carries what loading a BPF program needs.
+
+    kernel_reach?({"access" => {"effects" => ["kernel_bpf"]}}) #=> true
+    kernel_reach?({}) #=> false
+"""
+def kernel_reach?(svc)
+  member?("kernel_bpf", access_values(svc)["effects"])
+end
+
+@doc """
+pod_security: a pod's user: never root, unless the service reaches the kernel, since Kubernetes grants an added capability to root alone.
+
+    pod_security({})["runAsUser"] #=> 65532
+    pod_security({"access" => {"effects" => ["kernel_bpf"]}})["runAsUser"] #=> 0
+"""
+def pod_security(svc)
+  if kernel_reach?(svc)
+    {"runAsNonRoot" => false, "runAsUser" => 0, "runAsGroup" => 0}
+  else
+    {"runAsNonRoot" => true, "runAsUser" => 65532, "runAsGroup" => 65532}
+  end
+end
+
+@doc """
+container_security: a container's posture: every capability dropped and a read-only root, and for a service that reaches the kernel exactly CAP_BPF, CAP_PERFMON and CAP_NET_ADMIN back. Never privileged and never CAP_SYS_ADMIN.
+
+    container_security({})["capabilities"] #=> {"drop" => ["ALL"]}
+    container_security({"access" => {"effects" => ["kernel_bpf"]}})["capabilities"]["add"] #=> ["BPF", "PERFMON", "NET_ADMIN"]
+"""
+def container_security(svc)
+  capabilities = if kernel_reach?(svc)
+    {"drop" => ["ALL"], "add" => %w[BPF PERFMON NET_ADMIN]}
+  else
+    {"drop" => ["ALL"]}
+  end
+  {
+    "allowPrivilegeEscalation" => false,
+    "readOnlyRootFilesystem" => true,
+    "capabilities" => capabilities
+  }
+end
+
+@doc """
 program_name: the file name of a service's program, `main.b` when it names none.
 
     program_name({"program" => "src/app.b"}) #=> "app.b"
@@ -274,16 +317,8 @@ def values_with(svc, mode)
     "slo" => {"rules" => true, "dashboard" => true},
     "runtime" => runtime_values(svc),
     "access" => access_values(svc),
-    "podSecurityContext" => {
-      "runAsNonRoot" => true,
-      "runAsUser" => 65532,
-      "runAsGroup" => 65532
-    },
-    "securityContext" => {
-      "allowPrivilegeEscalation" => false,
-      "readOnlyRootFilesystem" => true,
-      "capabilities" => {"drop" => ["ALL"]}
-    }
+    "podSecurityContext" => pod_security(svc),
+    "securityContext" => container_security(svc)
   }
   with_sa = if mode == :self
     base
@@ -1325,6 +1360,28 @@ test "a service runs as a wasm component by default: runtime class, closure imag
   vs = values_schema("hello", sample)["properties"]
   assert vs["runtime"]["properties"]["kind"]["default"] == "wasm"
   assert vs["runtime"]["additionalProperties"] == false
+end
+
+test "a service that reaches the kernel gets exactly its capabilities, and no other service gets any"
+  plain = values({"name" => "plain", "port" => 8080, "repository" => "r"})
+  assert plain["securityContext"]["capabilities"]["add"].nil?
+  assert plain["podSecurityContext"]["runAsNonRoot"] == true
+  reach = values(
+    {
+      "name" => "probe",
+      "port" => 8080,
+      "repository" => "r",
+      "access" => {"effects" => %w[network kernel_bpf]},
+      "runtime" => {"kind" => "native", "because" => "device"}
+    }
+  )
+  assert reach["securityContext"]["capabilities"]["add"] ==
+    %w[BPF PERFMON NET_ADMIN]
+  assert reach["securityContext"]["capabilities"]["drop"] == ["ALL"]
+  assert reach["securityContext"]["allowPrivilegeEscalation"] == false
+  assert reach["securityContext"]["readOnlyRootFilesystem"] == true
+  assert reach["podSecurityContext"]["runAsUser"] == 0
+  assert reach["securityContext"]["privileged"].nil?
 end
 
 test "a native service keeps the image from its repository and says why it is native"

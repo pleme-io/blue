@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "8506e872041ac147d5da6c77b8548236641b144ebb015ff54cc9c063686f7213",
+  "cargo_lock_sha256": "04c1b06ed60cb24a45e5591bbe028ecb2026bd7f64f27d0f90e37abfc1a49a19",
   "manifest_sha256": {
-    "Cargo.toml": "34b7a3319856eb32137d8a006392e191538d272d99f6ae4b9a0bd000ab0db5e5",
+    "Cargo.toml": "55682b2df7b36fee1c46b2714ba3ba01f26059b1c58615f2b65df77468b96123",
     "crates/blue-lang-appliance/Cargo.toml": "72da422691d14356450606a218eed12ed6a26ed3a23c64116dc3ef8546937526",
     "crates/blue-lang-art/Cargo.toml": "f6721f78c76a94d4915a455675cd05889176a43212494c53aa8a01dfc9dfe5ee",
     "crates/blue-lang-bidama/Cargo.toml": "7b29108c8c3d40b5cbaf9f427c4f0a0ace1e5b49e02bd7448dcb53d3ee91337f",
@@ -13,12 +13,13 @@
     "crates/blue-lang-fmt/Cargo.toml": "4f5c416d0a44933a497ea60c2e0e7d412ac8da28e2cbd646bb45d75c6e07db88",
     "crates/blue-lang-host-macros/Cargo.toml": "f8efb27bcf0512036b610e3c3d54b0d237f00c812e8a29e0c3adaaa662e74d60",
     "crates/blue-lang-host/Cargo.toml": "515be2b89363222cc6fc71b8f74adfe6fa56b92a3f013cac979909eb6a2ecaa2",
+    "crates/blue-lang-kernel/Cargo.toml": "ade0db0e2d949194ab8c8441e2e8d6dba03a4b60e1587dda9a92441fe4043ba6",
     "crates/blue-lang-kiwari/Cargo.toml": "7061ed32aff7aac13a83517bb14ad40fb0e3b21d5ab948c719236b5f8d39150c",
     "crates/blue-lang-lsp/Cargo.toml": "6ee650c395599803eaa4f13f2194ea1a1145a5f5f491e27a1e90a95e183fce00",
     "crates/blue-lang-mondou/Cargo.toml": "637a0cbb6ac275a3478a437406f8fd387a8b5257f755127815a47418b7ad08e5",
     "crates/blue-lang-pkg/Cargo.toml": "1034b636e0112e8a62e7022d5e439b0d7c214a2e50d45744c0153132b4e87350",
     "crates/blue-lang-proc/Cargo.toml": "52fad15b16abe51edb8c65eeac9947731de5e44b282dea1f563a55169beb39dc",
-    "crates/blue-lang-runtime/Cargo.toml": "2127f2dffc500a8fab42f56d892ba37f271b965c74118d73158516b60199f81e",
+    "crates/blue-lang-runtime/Cargo.toml": "56b943f2b5bfb12687cd912b29de00354ca4c15d7b873093215b405c9fca9670",
     "crates/blue-lang-senses/Cargo.toml": "b8a88a1d21769a74b0210bd6ad3aa3e91cbdb59f7f7f531c569bb20a040eb7f0",
     "crates/blue-lang-syntax/Cargo.toml": "9d405348af1d3f57fffd0a73ddf0776a933ce98bfbcaa60c53a1db55db4e75cd",
     "crates/blue-lang-test/Cargo.toml": "df208a871216b2b2374dfa0614ddf42eaa7ba2d801dd6b981cde99ac14709cdb",
@@ -1941,6 +1942,16 @@
             "features": [],
             "uses_default_features": true,
             "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "blue_lang_kernel",
+            "package_key": "blue-lang-kernel-0.0.150",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": true,
             "target": null,
             "tree": "target"
           },
@@ -11968,6 +11979,11 @@
               "std"
             ]
           },
+          "blue-lang-kernel-0.0.150": {
+            "runtime_dependencies": [],
+            "build_dependencies": [],
+            "features": []
+          },
           "blue-lang-proc-0.0.150": {
             "runtime_dependencies": [
               {
@@ -12722,6 +12738,22 @@
               "std"
             ]
           },
+          "blue-lang-kernel-0.0.150": {
+            "runtime_dependencies": [
+              {
+                "name": "libc",
+                "package_key": "libc-0.2.191",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(target_os = \"linux\")",
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": []
+          },
           "blue-lang-proc-0.0.150": {
             "runtime_dependencies": [
               {
@@ -13443,6 +13475,22 @@
               "pure",
               "std"
             ]
+          },
+          "blue-lang-kernel-0.0.150": {
+            "runtime_dependencies": [
+              {
+                "name": "libc",
+                "package_key": "libc-0.2.191",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(target_os = \"linux\")",
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": []
           },
           "blue-lang-proc-0.0.150": {
             "runtime_dependencies": [
@@ -14175,6 +14223,11 @@
               "pure",
               "std"
             ]
+          },
+          "blue-lang-kernel-0.0.150": {
+            "runtime_dependencies": [],
+            "build_dependencies": [],
+            "features": []
           },
           "blue-lang-proc-0.0.150": {
             "runtime_dependencies": [
@@ -14998,6 +15051,22 @@
               "std"
             ]
           },
+          "blue-lang-kernel-0.0.150": {
+            "runtime_dependencies": [
+              {
+                "name": "libc",
+                "package_key": "libc-0.2.191",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(target_os = \"linux\")",
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": []
+          },
           "blue-lang-proc-0.0.150": {
             "runtime_dependencies": [
               {
@@ -15787,6 +15856,22 @@
               "pure",
               "std"
             ]
+          },
+          "blue-lang-kernel-0.0.150": {
+            "runtime_dependencies": [
+              {
+                "name": "libc",
+                "package_key": "libc-0.2.191",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(target_os = \"linux\")",
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": []
           },
           "blue-lang-proc-0.0.150": {
             "runtime_dependencies": [
@@ -16676,6 +16761,13 @@
       "proc_macro": true,
       "lib_target": {
         "name": "blue_lang_host_macros",
+        "path": "src/lib.rs"
+      }
+    },
+    "blue-lang-kernel-0.0.150": {
+      "edition": "2021",
+      "lib_target": {
+        "name": "blue_lang_kernel",
         "path": "src/lib.rs"
       }
     },

@@ -239,7 +239,7 @@ rendered:
 
 | | |
 |---|---|
-| Built-in names | 345: 318 functions, 14 special forms, 13 macros |
+| Built-in names | 369: 342 functions, 14 special forms, 13 macros |
 | Surface forms | 30, with 13 operators and 25 reserved words |
 | Check rules | 69: 38 fix themselves, 8 suggest a fix |
 | Bluefile words | 24 |
@@ -250,11 +250,14 @@ rendered:
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-90 packages, 4859 definitions, 1601 tests.
+94 packages, 5230 definitions, 1656 tests.
 
 - [anaritikusu](bidamas/CATALOG.md#anaritikusu) (アナリティクス) — lifecycle analytics: a database of telemetry, standard models and cross-lifecycle joins, generated from lifecycle definitions.
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
+- [baito](bidamas/CATALOG.md#baito) (バイト) — bytes as data: integers at a declared width and order, and record layouts that say where each field sits.
 - [bougyo](bidamas/CATALOG.md#bougyo) (防御) — the request-side defence of a service: security headers, a request id, and limits on what a request may be.
+- [bpf](bidamas/CATALOG.md#bpf) — the eBPF instruction set in blue: instructions as values, an assembler that resolves labels and map references, their encoding, their text, and a pure machine that runs them.
+- [btf](bidamas/CATALOG.md#btf) — the BPF Type Format as data: the kernel's own description of its types, read from `/sys/kernel/btf/vmlinux`, so a program finds a hook's id and a field's offset on the kernel it runs on.
 - [bunsho](bidamas/CATALOG.md#bunsho) (文書) — Markdown as a first-class value: `.md` text parsed into one typed tree whose node kinds are the ones CommonMark, GitHub Flavored Markdown and mdast agree on, the tree rendered back in one canonical formatting, and the tree read by node, by kind and by section.
 - [chokkan](bidamas/CATALOG.md#chokkan) (直感) — System One judgment: typed questions in, calibrated answers out.
 - [danpen](bidamas/CATALOG.md#danpen) (断片) — GraphQL in blue: documents parsed into plain records, checked against a schema, composed from fragments, rendered and hashed.
@@ -279,6 +282,7 @@ rendered:
 - [jisho](bidamas/CATALOG.md#jisho) (辞書) — dictionaries: maps as values, read and changed by key, each change a new map.
 - [jitaku](bidamas/CATALOG.md#jitaku) (自宅) — a home, declared entry by entry, each refused alone, projected to pleme.lareira.
 - [junjo](bidamas/CATALOG.md#junjo) (順序) — ordering: sorting, searching, selection.
+- [kaaneru](bidamas/CATALOG.md#kaaneru) (カーネル) — the Linux kernel, spoken from blue: maps, programs, links and ring buffers over `bpf(2)`, with every struct a `baito` layout and no C library in the path.
 - [kakou](bidamas/CATALOG.md#kakou) (加工) — fabrication: folded sheet, cut tube and bent wire, from the dimensions a shop measures to the blanks, cut lists and solids it makes.
 - [kansuu](bidamas/CATALOG.md#kansuu) (関数) — functions about functions.
 - [kazu](bidamas/CATALOG.md#kazu) (数) — numbers.
@@ -446,7 +450,7 @@ Read it in order as [The blue Book](docs/BOOK.md), or open one page:
 ### Explanation
 
 <details>
-<summary>40 pages on why blue is shaped as it is</summary>
+<summary>41 pages on why blue is shaped as it is</summary>
 
 - [ABSENCE — no undeclared nil](docs/ABSENCE.md): no undeclared nil: how blue makes absence a declared, checked state
 - [API-EVOLUTION — the API is a versioned rendering of the one model](docs/API-EVOLUTION.md): the API as a versioned rendering of one model (design)
@@ -462,6 +466,7 @@ Read it in order as [The blue Book](docs/BOOK.md), or open one page:
 - [DOCUMENTATION — every blue project documents itself, and the language has a book](docs/DOCUMENTATION.md): documentation as a battery: one source per fact, a Diátaxis book, rendered README, AGENTS.md and llms.txt (design)
 - [FRONTEND-PLAN — building the blue frontend framework](docs/FRONTEND-PLAN.md): the build plan for blue's frontend framework
 - [HTTP2 — blue speaks HTTP/2 and gRPC itself](docs/HTTP2.md): blue speaks HTTP/2 and gRPC itself (design, phase 1 built)
+- [KERNEL — write only blue for the Linux kernel](docs/KERNEL.md): blue as the whole kernel toolchain, from source to a program the verifier admits, and where each part runs
 - [Lessons behind the agent guide's rules](docs/LESSONS.md): the full story behind each rule the agent page states in short
 - [MARKDOWN — Markdown is a first-class blue value](docs/MARKDOWN.md): Markdown as a first-class blue value: one typed tree, one formatting, checked links, and renderings to Markdown, HTML, PDF and the terminal (design)
 - [Namespaces: a bidama definition stays in its bidama](docs/NAMESPACES.md): a bidama definition stays in its bidama: the rule as built and its gates

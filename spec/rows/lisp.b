@@ -114,3 +114,19 @@ row(
   value("[true, false]"),
   covers("builtin:builtin_names")
 )
+
+row(
+  "lisp.read_forms",
+  join_lines(
+    [
+      "f = read_forms(\"(a 1) 2\")",
+      "[length(f), symbol?(nth(0, nth(0, f))), nth(1, nth(0, f)), nth(1, f)]"
+    ]
+  ),
+  value("[2, true, 1, 2]"),
+  covers("builtin:read_forms")
+)
+
+row("lisp.read_forms.empty", "read_forms(\"\")", value("[]"))
+
+row("lisp.read_forms.bad", "read_forms(\"(a\")", fails(:eval, "read_forms"))

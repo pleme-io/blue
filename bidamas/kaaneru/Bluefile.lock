@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:ee8d17c6325284263824ee39063818dfa203232a7ab347f914dcc5c982e50313",
+  "manifest": {
+    "schema": 1,
+    "name": "kaaneru",
+    "version": "0.1.0",
+    "needs": {
+      "baito": "^0.1.0",
+      "bpf": "^0.1.0",
+      "btf": "^0.1.0",
+      "retsu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null,
+    "reach": [
+      "filesystem",
+      "kernel-bpf"
+    ]
+  },
+  "sources": {}
+}

@@ -1,0 +1,26 @@
+[
+  {
+    "name": "a program's name keeps its dashes",
+    "file": "kaaneru.b",
+    "find": "        95\n",
+    "replace": "        b\n"
+  },
+  {
+    "name": "a name runs past the kernel's limit",
+    "file": "kaaneru.b",
+    "find": "take(15, text_bytes(to_s(name)))",
+    "replace": "take(16, text_bytes(to_s(name)))"
+  },
+  {
+    "name": "an unknown table name answers nil",
+    "file": "kaaneru.b",
+    "find": "if at.nil? or at < 0\n    raise(:bad_option, \"the kernel's",
+    "replace": "if false\n    raise(:bad_option, \"the kernel's"
+  },
+  {
+    "name": "an output buffer goes in as input",
+    "file": "kaaneru.b",
+    "find": "[at, :out, value[:out]]",
+    "replace": "[at, :in, value[:out]]"
+  }
+]

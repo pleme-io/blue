@@ -142,6 +142,7 @@ pub enum Capability {
     AudioOut,
     AudioIn,
     Display,
+    KernelBpf,
 }
 
 /// The wasm import module every host capability lowers into.
@@ -241,7 +242,10 @@ const PROCESS_NAMES: &[&str] = &[
 /// `blue_lang_runtime::sys::install_fs`, 2026-08-13.
 const FILESYSTEM_NAMES: &[&str] = &[
     "read_file",
+    "read_bytes",
+    "read_u32s",
     "write_file",
+    "write_bytes",
     "write_program",
     "append_file",
     "file_size",
@@ -333,6 +337,15 @@ const DISPLAY_NAMES: &[&str] = &[
     "canvas_pixel",
     "canvas_close",
 ];
+const KERNEL_BPF_NAMES: &[&str] = &[
+    "bpf_syscall",
+    "perf_event_open",
+    "fd_ioctl",
+    "fd_close",
+    "fd_number",
+    "ringbuf_open",
+    "ringbuf_next",
+];
 /// `blue_lang_runtime::sys::install_clock`, 2026-08-13.
 const CLOCK_NAMES: &[&str] = &[
     "now",
@@ -345,14 +358,15 @@ const CLOCK_NAMES: &[&str] = &[
 ];
 
 impl Capability {
-    /// How many capabilities exist. A **floor with a date**: nineteen as of
-    /// 2026-10-31, six pure and thirteen host-effect (sixteen until
+    /// How many capabilities exist. A **floor with a date**: twenty as of
+    /// 2026-11-03, six pure and fourteen host-effect (nineteen until
+    /// `KernelBpf`, sixteen until
     /// `AudioOut`, `AudioIn` and `Display`, fifteen until `StorageAppend`,
     /// fourteen until `MpcThreshold`, twelve until `CommFlash` and
     /// `CommScavenger`, eleven until `Entropy`). Stated so a count gate cannot
     /// pass over an empty set — `ALL.len() == 0` would satisfy every
     /// "for every capability…" test in this file.
-    pub const COUNT: usize = 19;
+    pub const COUNT: usize = 20;
 
     const FIRST: Self = Capability::CoreForms;
 
@@ -385,7 +399,8 @@ impl Capability {
             Capability::StorageAppend => Some(Capability::AudioOut),
             Capability::AudioOut => Some(Capability::AudioIn),
             Capability::AudioIn => Some(Capability::Display),
-            Capability::Display => None,
+            Capability::Display => Some(Capability::KernelBpf),
+            Capability::KernelBpf => None,
         }
     }
 
@@ -433,6 +448,7 @@ impl Capability {
             Capability::AudioOut => "audio-out",
             Capability::AudioIn => "audio-in",
             Capability::Display => "display",
+            Capability::KernelBpf => "kernel-bpf",
         }
     }
 
@@ -467,6 +483,7 @@ impl Capability {
             Capability::AudioOut => Names::Fixed(AUDIO_OUT_NAMES),
             Capability::AudioIn => Names::Fixed(AUDIO_IN_NAMES),
             Capability::Display => Names::Fixed(DISPLAY_NAMES),
+            Capability::KernelBpf => Names::Fixed(KERNEL_BPF_NAMES),
         }
     }
 
@@ -557,6 +574,10 @@ impl Capability {
                 module: HOST_MODULE,
                 field: "display",
             }),
+            Capability::KernelBpf => Some(Import {
+                module: HOST_MODULE,
+                field: "kernel-bpf",
+            }),
         }
     }
 
@@ -581,7 +602,8 @@ impl Capability {
             | Capability::StorageAppend
             | Capability::AudioOut
             | Capability::AudioIn
-            | Capability::Display => &[],
+            | Capability::Display
+            | Capability::KernelBpf => &[],
         }
     }
 
@@ -669,10 +691,10 @@ mod tests {
     #[test]
     fn the_universe_is_closed_and_counted() {
         assert_eq!(Capability::ALL.len(), Capability::COUNT);
-        assert_eq!(Capability::COUNT, 19, "the floor, measured 2026-10-31");
+        assert_eq!(Capability::COUNT, 20, "the floor, measured 2026-11-03");
         assert_eq!(
             Capability::host_effects().len(),
-            13,
+            14,
             "process, filesystem, environment, clock, network, entropy, comm-flash, comm-scavenger, mpc-threshold, storage-append, audio-out, audio-in, display"
         );
         assert_eq!(

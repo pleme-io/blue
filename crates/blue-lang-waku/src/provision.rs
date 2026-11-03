@@ -146,6 +146,7 @@ impl Provision {
             Capability::AudioIn => &["seeded_noise", "monitor"],
             Capability::Display => &["framebuffer"],
             Capability::Process
+            | Capability::KernelBpf
             | Capability::Environment
             | Capability::Network
             | Capability::CoreForms

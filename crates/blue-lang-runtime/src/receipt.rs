@@ -236,7 +236,8 @@ mod tests {
                 "storage-append",
                 "audio-out",
                 "audio-in",
-                "display"
+                "display",
+                "kernel-bpf"
             ])
         );
         assert_eq!(j["frame"]["host_io"], 1, "the ledger's total, as given");

@@ -345,6 +345,7 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
     crate::paths::install(interp);
     crate::spread::install(interp);
     crate::collection::install(interp);
+    crate::bits::install(interp);
     // ── text ──────────────────────────────────────────────────────────
 
     // `length` counts CHARACTERS, per Ruby. Also accepts a list, where it is
@@ -708,6 +709,23 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
                 .collect(),
         ))
     });
+
+    interp.register_fn(
+        "read_forms",
+        Arity::Exact(1),
+        |a: &[Value], _h: &mut H, s| {
+            let text = as_str(&a[0], s)?;
+            let forms = tatara_lisp::read_spanned(&text).map_err(|e| {
+                crate::errors::raise_kind("parse_error", format!("read_forms: {e}"), s)
+            })?;
+            Ok(list(
+                forms
+                    .iter()
+                    .map(tatara_lisp_eval::code::spanned_to_value)
+                    .collect(),
+            ))
+        },
+    );
 
     interp.register_fn(
         "text_bytes",

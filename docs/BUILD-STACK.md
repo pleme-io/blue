@@ -64,7 +64,8 @@ the service's `access` and its `host`, never a guess:
 | `:clock`, `:entropy`, `:environment` | `wasi:clocks`, `wasi:random`, `wasi:cli/environment` | wasm |
 | `exec: [...]` or `:process` | none: WASI preview 2 has no process spawn or exec | native, `because: :process` |
 | `host: "<package>"` | none: the program is a native host binary | native, `because: :host_program` |
-| a device, GPU or kernel ABI (CONTAIN THE C) | none | native, `because: :device` (a world fact the access cannot show) |
+| `:kernel_bpf` | none: WASI reaches no kernel ABI | native, `because: :device`, and the chart adds exactly `BPF`, `PERFMON` and `NET_ADMIN` (`KERNEL.md`) |
+| a device, GPU or other kernel ABI (CONTAIN THE C) | none | native, `because: :device` (a world fact the access cannot show) |
 
 The judge refuses each bad entry alone and names it:
 

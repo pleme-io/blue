@@ -738,6 +738,14 @@ mod tests {
     }
 
     #[test]
+    fn a_service_that_reaches_the_kernel_cannot_be_a_wasm_component() {
+        let body = "service(\"hello\", {program: \"hello.b\", repository: \"ghcr.io/pleme-io/hello\", port: 8080, access: {effects: [:network, :kernel_bpf]}})\n";
+        let e = format!("{:?}", read(body).unwrap_err());
+        assert!(e.contains(":kernel_bpf"), "{e}");
+        assert!(e.contains("gap: \"device\""), "{e}");
+    }
+
+    #[test]
     fn native_stands_when_its_named_gap_is_real() {
         let base = "program: \"hello.b\", repository: \"ghcr.io/pleme-io/hello\", port: 8080";
         let cases = [
@@ -750,6 +758,10 @@ mod tests {
                 WasiGap::HostProgram,
             ),
             ("runtime: :native, because: :device", WasiGap::Device),
+            (
+                "access: {effects: [:network, :kernel_bpf]}, runtime: :native, because: :device",
+                WasiGap::Device,
+            ),
         ];
         for (extra, gap) in cases {
             let body = ["service(\"hello\", {", base, ", ", extra, "})\n"].concat();

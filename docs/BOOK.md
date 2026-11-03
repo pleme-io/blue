@@ -1216,6 +1216,7 @@ $ blue test held.b
 - [DOCUMENTATION — every blue project documents itself, and the language has a book](DOCUMENTATION.md): documentation as a battery: one source per fact, a Diátaxis book, rendered README, AGENTS.md and llms.txt (design)
 - [FRONTEND-PLAN — building the blue frontend framework](FRONTEND-PLAN.md): the build plan for blue's frontend framework
 - [HTTP2 — blue speaks HTTP/2 and gRPC itself](HTTP2.md): blue speaks HTTP/2 and gRPC itself (design, phase 1 built)
+- [KERNEL — write only blue for the Linux kernel](KERNEL.md): blue as the whole kernel toolchain, from source to a program the verifier admits, and where each part runs
 - [Lessons behind the agent guide's rules](LESSONS.md): the full story behind each rule the agent page states in short
 - [MARKDOWN — Markdown is a first-class blue value](MARKDOWN.md): Markdown as a first-class blue value: one typed tree, one formatting, checked links, and renderings to Markdown, HTML, PDF and the terminal (design)
 - [Namespaces: a bidama definition stays in its bidama](NAMESPACES.md): a bidama definition stays in its bidama: the rule as built and its gates

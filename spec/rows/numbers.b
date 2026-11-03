@@ -133,3 +133,79 @@ row(
   value("-3"),
   covers("builtin:truncate")
 )
+
+row("numbers.bit_and", "bit_and(12, 10)", value("8"), covers("builtin:bit_and"))
+row("numbers.bit_or", "bit_or(12, 10)", value("14"), covers("builtin:bit_or"))
+row("numbers.bit_xor", "bit_xor(12, 10)", value("6"), covers("builtin:bit_xor"))
+row("numbers.bit_not", "bit_not(0)", value("-1"), covers("builtin:bit_not"))
+
+row(
+  "numbers.shift_left",
+  "[shift_left(1, 4), shift_left(1, 63)]",
+  value("[16, -9223372036854775808]"),
+  covers("builtin:shift_left")
+)
+
+row(
+  "numbers.shift_right",
+  "shift_right(-8, 1)",
+  value("-4"),
+  covers("builtin:shift_right")
+)
+
+row(
+  "numbers.shift_right_logical",
+  "shift_right_logical(-1, 60)",
+  value("15"),
+  covers("builtin:shift_right_logical")
+)
+
+row("numbers.shift.distance", "shift_left(1, 64)", fails(:eval, "0..=63"))
+
+row(
+  "numbers.wrapping_add",
+  "wrapping_add(9223372036854775807, 1)",
+  value("-9223372036854775808"),
+  covers("builtin:wrapping_add")
+)
+
+row(
+  "numbers.wrapping_sub",
+  "wrapping_sub(shift_left(1, 63), 1)",
+  value("9223372036854775807"),
+  covers("builtin:wrapping_sub")
+)
+
+row(
+  "numbers.wrapping_mul",
+  "wrapping_mul(4294967296, 4294967296)",
+  value("0"),
+  covers("builtin:wrapping_mul")
+)
+
+row(
+  "numbers.unsigned_less",
+  "[unsigned_less?(1, -1), unsigned_less?(-1, 1)]",
+  value("[true, false]"),
+  covers("builtin:unsigned_less?")
+)
+
+row(
+  "numbers.unsigned_div",
+  "unsigned_div(-1, 2)",
+  value("9223372036854775807"),
+  covers("builtin:unsigned_div")
+)
+
+row(
+  "numbers.unsigned_mod",
+  "unsigned_mod(-1, 16)",
+  value("15"),
+  covers("builtin:unsigned_mod")
+)
+
+row(
+  "numbers.unsigned_div.zero",
+  "unsigned_div(1, 0)",
+  fails(:eval, "division by zero")
+)

@@ -52,13 +52,14 @@ These commands come from the Bluefile. Run them from the repository root.
 | `blue test gen/heni-gate.b` | `checks.heni-mutations` |
 | `blue test kernel/run.b` | `checks.kernel-run` |
 | `blue test gen/markdown-laws.b` | `checks.markdown-laws` |
+| `blue test gen/merge.b` | `checks.merge-driver` |
 | `blue test gen/okite-laws.b` | `checks.okite-laws` |
 | `blue test rules/conventions.b` | `checks.project-rules` |
 | `blue test gen/regen_test.b` | `checks.regen-untracked` |
 | `blue test gen/test-beside.b` | `checks.test-beside` |
 | `blue test gen/verb-graph.b` | `checks.verb-graph` |
 
-Generated files, never edited by hand: `bidamas/CATALOG.md`, `AGENTS.md`, `docs/BOOK.md`, `CLAUDE.md`, `docs/verbs/contracts.tsv`, `docs/verbs/merged/edges.tsv`, `docs/EXAMPLES.md`, `crates/blue-lang-syntax/src/kigou/tables.rs`, `tree-sitter-blue/queries/folds.scm`, `tree-sitter-blue/grammar.js`, `tree-sitter-blue/queries/highlights.scm`, `tree-sitter-blue/queries/indents.scm`, `tree-sitter-blue/queries/injections.scm`, `tree-sitter-blue/queries/locals.scm`, `tree-sitter-blue/tree-sitter.json`, `crates/blue-lang-kiwari/blue.kiwari.json`, `bidamas/kyasshu/keys/kensa.json`, `llms.txt`, `llms-full.txt`, `bidamas/okite/RULES.md`, `README.md`, `docs/REFERENCE.md`, `docs/verbs/merged/verbs.tsv`, `crates/blue-lang-runtime/src/word_shapes/tables.rs`.
+Generated files, never edited by hand: `bidamas/CATALOG.md`, `AGENTS.md`, `docs/BOOK.md`, `CLAUDE.md`, `docs/verbs/contracts.tsv`, `docs/verbs/merged/edges.tsv`, `docs/EXAMPLES.md`, `.gitattributes`, `crates/blue-lang-syntax/src/kigou/tables.rs`, `tree-sitter-blue/queries/folds.scm`, `tree-sitter-blue/grammar.js`, `tree-sitter-blue/queries/highlights.scm`, `tree-sitter-blue/queries/indents.scm`, `tree-sitter-blue/queries/injections.scm`, `tree-sitter-blue/queries/locals.scm`, `tree-sitter-blue/tree-sitter.json`, `crates/blue-lang-kiwari/blue.kiwari.json`, `bidamas/kyasshu/keys/kensa.json`, `llms.txt`, `llms-full.txt`, `bidamas/okite/RULES.md`, `README.md`, `docs/REFERENCE.md`, `docs/verbs/merged/verbs.tsv`, `crates/blue-lang-runtime/src/word_shapes/tables.rs`.
 
 ## Writing blue programs
 

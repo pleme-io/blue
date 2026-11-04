@@ -1,0 +1,2 @@
+#!/bin/sh
+exec "${0%/*}/blue" run --quiet gen/merge.b -- "$@"

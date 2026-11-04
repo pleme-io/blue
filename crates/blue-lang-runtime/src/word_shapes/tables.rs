@@ -1969,6 +1969,7 @@ pub const WORD_SHAPES: &[(&str, &str, bool)] = &[
     ("79e498fa2c99c27c", "jitaku::hand_over_table", false),
     ("79e57564901df745", "kiwari::blue", false),
     ("7a106690314ee5bb", "hizuke::nth_weekday_of_month", false),
+    ("7a127bf4d6826419", "hon::generated_files", false),
     ("7a1a5314dd3ed8d0", "shinsuu::luhn_valid_digits", false),
     ("7a21c88caacae7f2", "gamen::label_targets", false),
     ("7a2a33d6706d5029", "nikkusu::trivia?", false),

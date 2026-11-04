@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:55d28c26a16a4e59a125de9d08f2620aa8ab8ca7720cf59a0f5113a6d29cd231",
+  "bluefile_b3": "b3:a016eb47c5bf1810e8f83ad8506e6129a4e5b32f15dfdf1ff656b1a122b7a360",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -50,6 +50,13 @@
           "examples",
           "rules",
           "spec"
+        ]
+      },
+      "merge-driver": {
+        "file": "gen/merge.b",
+        "inputs": [
+          "gen/merge.b",
+          "gen/regen.b"
         ]
       },
       "okite-laws": {
@@ -120,6 +127,13 @@
         "program": "gen/examples.b",
         "inputs": [
           "examples"
+        ]
+      },
+      "gitattributes": {
+        "output": ".gitattributes",
+        "program": "gen/gitattributes.b",
+        "inputs": [
+          "Bluefile.lock"
         ]
       },
       "kigou-tables": {

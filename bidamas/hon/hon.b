@@ -570,6 +570,22 @@ def generated_outputs(project)
 end
 
 @doc """
+generated_files: Every file the project's Bluefile renders from its sources:
+the catalogue, when it declares one, and each generated output.
+
+    generated_files({manifest: {"catalog" => "c.md", "generated" => {"r" => {"output" => "r.md"}}}}) #=> ["c.md", "r.md"]
+    generated_files({manifest: {}}) #=> []
+"""
+def generated_files(project)
+  catalog = project[:manifest]["catalog"]
+  if catalog.nil?
+    generated_outputs(project)
+  else
+    append([catalog], generated_outputs(project))
+  end
+end
+
+@doc """
 page_with_role: The project's page whose front matter names `role`, or nil.
 
     page_with_role({pages: []}, "agents") #=> nil

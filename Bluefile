@@ -60,6 +60,7 @@ generate("reference", "docs/REFERENCE.md", "gen/reference.b", ["bidamas"])
 # The golden corpus as one file of examples, from examples/ (a blue project of
 # its own, run by `checks.examples`).
 generate("examples", "docs/EXAMPLES.md", "gen/examples.b", ["examples"])
+generate("gitattributes", ".gitattributes", "gen/gitattributes.b", ["Bluefile.lock"])
 generate("readme", "README.md", "gen/hon/readme.b", ["Bluefile.lock", "docs", "bidamas"])
 generate("agents", "AGENTS.md", "gen/hon/agents.b", ["Bluefile.lock", "docs", "bidamas"])
 generate("claude", "CLAUDE.md", "gen/hon/claude.b", ["Bluefile.lock", "docs", "bidamas"])
@@ -72,6 +73,7 @@ generate("contracts-table", "docs/verbs/contracts.tsv", "gen/verbs/contracts.b",
 generate("kyasshu-keys", "bidamas/kyasshu/keys/kensa.json", "gen/kyasshu-keys.b", ["bidamas/danpen/fixtures/schema/kensa.graphql"])
 check("okite-laws", "gen/okite-laws.b")
 check("regen-untracked", "gen/regen_test.b", ["gen/regen.b"])
+check("merge-driver", "gen/merge.b", ["gen/merge.b", "gen/regen.b"])
 check("docs", "gen/docs.b", ["docs"])
 check("markdown-laws", "gen/markdown-laws.b", ["Bluefile.lock", "docs", "AGENTS.md", "Bluefile", "llms.txt", "bidamas", "crates", "examples", "rules", "spec"])
 receipt("docs", %i[nist_sa_5 nist_sa_11])

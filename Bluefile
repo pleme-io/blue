@@ -75,6 +75,8 @@ generate("kyasshu-keys", "bidamas/kyasshu/keys/kensa.json", "gen/kyasshu-keys.b"
 check("okite-laws", "gen/okite-laws.b")
 check("regen-untracked", "gen/regen_test.b", ["gen/regen.b"])
 check("merge-driver", "gen/merge.b", ["gen/merge.b", "gen/regen.b"])
+check("land", "gen/land.b", ["gen/land.b", "gen/merge.b", "gen/regen.b"])
+check("prepush", "gen/prepush.b", ["Bluefile.lock"])
 check("docs", "gen/docs.b", ["docs"])
 check("markdown-laws", "gen/markdown-laws.b", ["Bluefile.lock", "docs", "AGENTS.md", "Bluefile", "llms.txt", "bidamas", "crates", "examples", "rules", "spec"])
 receipt("docs", %i[nist_sa_5 nist_sa_11])

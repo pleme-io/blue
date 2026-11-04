@@ -33,6 +33,21 @@ def merge_head(environment)
   end
 end
 
+@doc """
+picked_label: The commit a cherry-pick's conflict label names (git passes it as
+%Y): the short name before its parenthesized subject, or nil for a label that
+names none.
+
+    picked_label("8bd5119 (land it)") #=> "8bd5119"
+    picked_label("topic") #=> nil
+    picked_label("") #=> nil
+"""
+def picked_label(label)
+  if contains?(label, " (")
+    first(split(label, " ("))
+  end
+end
+
 def git(args)
   stdout_of(exec_capture("git", *args))
 end
@@ -55,7 +70,25 @@ def as_text(ancestor, ours, theirs)
   )
 end
 
-def their_commit()
+def pick_of(label)
+  short = picked_label(label)
+  on = getenv("BLUE_MERGE_PICK", "on") != "off"
+  if on and not short.nil?
+    found = exec_capture(
+      "git",
+      "rev-parse",
+      "--verify",
+      "-q",
+      "#{short}^{commit}"
+    )
+    if status_of(found) == 0
+      sha = trim(stdout_of(found))
+      [sha, "#{sha}^"]
+    end
+  end
+end
+
+def their_commit(label)
   done = "#{trim(git(%w[rev-parse --path-format=absolute --git-dir]))}/rebase-merge/done"
   if path_exists(done)
     sha = picked(last(tsv_lines(read_file(done))))
@@ -64,7 +97,9 @@ def their_commit()
     end
   else
     sha = merge_head(tsv_lines(stdout_of(exec_capture("env"))))
-    if not sha.nil?
+    if sha.nil?
+      pick_of(label)
+    else
       [sha, nil]
     end
   end
@@ -122,13 +157,14 @@ def regenerate(tree, path)
 end
 
 @doc """
-main: A merge driver for a generated file, as git calls it with %O %A %B %P.
+main: A merge driver for a generated file, as git calls it with %O %A %B %P %Y.
 Text merging a generated file is the wrong question: its sources merged, so
-this regenerates it from the merged tree and leaves that in %A. A commit it
-cannot name (a cherry-pick), a merge of the sources that does not produce a
-tree, or a generator that fails each falls back to the text merge git would
-have run, and says so. `.githooks/config` declares the driver; a clone without
-it merges as text.
+this regenerates it from the merged tree and leaves that in %A. A rebase names
+its commit in `rebase-merge/done`, a merge in GITHEAD_, a cherry-pick in the
+%Y label; BLUE_MERGE_PICK=off ignores the label. A commit it cannot name, a
+merge of the sources that does not produce a tree, or a generator that fails
+each falls back to the text merge git would have run, and says so. `nix
+develop` and `git land` set the driver; a clone without it merges as text.
 """
 def main()
   ancestor = argv_get(0)
@@ -138,7 +174,13 @@ def main()
   if getenv("BLUE_MERGE_NESTED") == "1"
     as_text(ancestor, ours, theirs)
   end
-  pick = their_commit
+  pick = their_commit(
+    if count(argv) > 4
+      argv_get(4)
+    else
+      ""
+    end
+  )
   tree = if pick.nil?
     nil
   else
@@ -256,7 +298,7 @@ def fixture(attributed)
     [
       "config",
       "merge.blue-generated.driver",
-      "#{self_exe} run --quiet #{program("gen/merge.b")} -- %O %A %B %P"
+      "#{self_exe} run --quiet #{program("gen/merge.b")} -- %O %A %B %P %Y"
     ]
   )
   must(dir, %w[add -A])
@@ -311,10 +353,41 @@ test "a rebase regenerates the generated file at the commit it replays"
   end
 end
 
-test "a cherry-pick names no commit, so it merges as text and says so"
+test "a cherry-pick regenerates the generated file from its label's commit"
   if self_exe != nil
     dir = two_branches(true)
     must(dir, %w[checkout -q one])
+    picked_up = in_repo(dir, %w[cherry-pick two])
+    assert status_of(picked_up) == 0
+    assert read_file(path_join(dir, "made.txt")) == unlines(%w[ant base bee])
+    rm_rf(dir)
+  end
+end
+
+test "BLUE_MERGE_PICK=off and a driver with no label both merge a cherry-pick as text and say so"
+  if self_exe != nil
+    dir = two_branches(true)
+    must(
+      dir,
+      [
+        "config",
+        "merge.blue-generated.driver",
+        "env BLUE_MERGE_PICK=off #{self_exe} run --quiet #{program("gen/merge.b")} -- %O %A %B %P %Y"
+      ]
+    )
+    must(dir, %w[checkout -q one])
+    picked_up = in_repo(dir, %w[cherry-pick two])
+    assert status_of(picked_up) != 0
+    assert contains?(stderr_of(picked_up), "merged as text")
+    must(dir, %w[cherry-pick --abort])
+    must(
+      dir,
+      [
+        "config",
+        "merge.blue-generated.driver",
+        "#{self_exe} run --quiet #{program("gen/merge.b")} -- %O %A %B %P"
+      ]
+    )
     picked_up = in_repo(dir, %w[cherry-pick two])
     assert status_of(picked_up) != 0
     assert contains?(stderr_of(picked_up), "merged as text")

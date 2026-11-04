@@ -74,10 +74,10 @@ fn prefix_at(text: &str, offset: usize) -> (Option<String>, String) {
         let qs = q
             .char_indices()
             .rev()
-            .take_while(|(_, c)| word(*c))
+            .take_while(|(_, c)| word(*c) || *c == ':')
             .last()
             .map_or(q.len(), |(i, _)| i);
-        q[qs..].to_string()
+        q[qs..].replace("::", "/")
     });
     (qualifier.filter(|q| !q.is_empty()), prefix)
 }
@@ -311,12 +311,32 @@ impl Engine {
             }
             return;
         }
+        let a = base.or(good).unwrap_or(current);
+        let imports = a.imports();
+        let tail = format!("/{pkg}");
+        let level = imports
+            .iter()
+            .find_map(|i| {
+                let path = if i.alias.as_deref() == Some(pkg) {
+                    Some(i.package.clone())
+                } else if i.package == pkg || i.package.ends_with(&tail) {
+                    Some(i.package.clone())
+                } else {
+                    let below = format!("{}/{pkg}", i.package);
+                    self.package(&current.scope, &below)
+                        .is_ok()
+                        .then_some(below)
+                };
+                path
+            })
+            .unwrap_or_else(|| pkg.to_string());
+        let pkg = level.as_str();
         let Ok(package) = self.package(&current.scope, pkg) else {
             return;
         };
-        let a = base.or(good).unwrap_or(current);
-        let imports = a.imports();
-        let used = imports.iter().any(|i| i.package == pkg)
+        let used = imports
+            .iter()
+            .any(|i| i.package == pkg || pkg.starts_with(&format!("{}/", i.package)))
             || a.own_namespace() == Namespace::Bidama(pkg.to_string());
         if !used && base.is_none() {
             return;

@@ -635,8 +635,13 @@ def sweep(blue, root, clone, record)
       )
     )
   )
-  green = judged[:red] == [] and drift == [] and pol[:refused] == []
-  if green and record
+  told = conclude(
+    judged[:verdicts],
+    size(judged[:red]) + size(drift),
+    pol[:refused] != [],
+    record
+  )
+  if told[:record]
     codes = known_codes(blue)
     write_file(
       registry_path,
@@ -645,18 +650,66 @@ def sweep(blue, root, clone, record)
         {"blue" => blue_rev, "codes" => sort_keyed((c) -> c, codes)}
       )
     )
-    write_stderr(unlines(["🟢 consumers: green; swept codes recorded"]))
-  elsif green
-    write_stderr(unlines(["🟢 consumers: green at this blue"]))
+  end
+  write_stderr(unlines([told[:line]]))
+  if told[:exit] != 0
+    exit_with(told[:exit])
+  end
+end
+
+@doc """
+tally: How many consumers came out in each state.
+
+    tally([{state: :green}, {state: :blind}, {state: :green}]) #=> {green: 2, red: 0, blind: 1}
+"""
+def tally(verdicts)
+  count_of = (state) -> size(filter((v) -> v[:state] == state, verdicts))
+  {green: count_of(:green), red: count_of(:red), blind: count_of(:blind)}
+end
+
+@doc """
+conclude: What a sweep says and does. Green is a measurement: a sweep where no
+consumer measured green is blind, says so, and fails, and `--record` writes only
+when every consumer it could measure was measured.
+
+    conclude([], 0, false, true)[:record] #=> false
+    conclude([{state: :green}], 0, false, true)[:record] #=> true
+"""
+def conclude(verdicts, reds, refused, record)
+  n = tally(verdicts)
+  counts = "#{to_s(n[:green])} green, #{to_s(n[:red])} red, #{to_s(n[:blind])} blind"
+  if reds > 0 or refused
+    {
+      record: false,
+      exit: 1,
+      line: "🔴 consumers: #{to_s(reds)} red at this blue (#{counts}). Write them with blue gen/consumers.b fix REPO, or hold one with level(REPO, :audit, why) in entries"
+    }
+  elsif n[:green] == 0
+    {
+      record: false,
+      exit: 1,
+      line: "➖ consumers: blind (#{counts}): nothing was measured, so this says nothing about this blue; check the root each repository is read from"
+    }
+  elsif n[:blind] > 0 and record
+    {
+      record: false,
+      exit: 1,
+      line: "➖ consumers: not recorded (#{counts}): a blind consumer was not swept"
+    }
+  elsif n[:blind] > 0
+    {
+      record: false,
+      exit: 0,
+      line: "🟡 consumers: #{counts}: a blind consumer says nothing"
+    }
+  elsif record
+    {
+      record: true,
+      exit: 0,
+      line: "🟢 consumers: #{counts}; swept codes recorded"
+    }
   else
-    write_stderr(
-      unlines(
-        [
-          "🔴 consumers: #{to_s(size(judged[:red]) + size(drift))} red at this blue. Write them with blue gen/consumers.b fix REPO, or hold one with level(REPO, :audit, why) in entries"
-        ]
-      )
-    )
-    exit_with(1)
+    {record: false, exit: 0, line: "🟢 consumers: #{counts} at this blue"}
   end
 end
 
@@ -791,6 +844,29 @@ def usage()
   exit_with(64)
 end
 
+@doc """
+clone_root: The directory `--clone` names, or nil when there is none: a missing
+word, or the next flag, is never a directory.
+
+    clone_root(["--clone", "/d", "--record"]) #=> "/d"
+    clone_root(["--clone", "--record"]) #=> nil
+    clone_root(["--clone"]) #=> nil
+    clone_root(["--record"]) #=> nil
+"""
+def clone_root(args)
+  at = position("--clone", args)
+  word = if at.nil? or at < 0
+    nil
+  else
+    args[at + 1] rescue nil
+  end
+  if word.nil? or word == "" or starts_with?(word, "--")
+    nil
+  else
+    word
+  end
+end
+
 def main()
   verb = argv_get(0, "")
   args = drop(1, argv)
@@ -799,12 +875,11 @@ def main()
     write_registry(argv_get(1, workspace))
   elsif verb == "sweep"
     clone = member?("--clone", args)
-    root = if clone
-      args[position("--clone", args) + 1]
-    else
-      workspace
+    root = clone_root(args)
+    if clone and root.nil?
+      usage
     end
-    sweep(blue, root, clone, member?("--record", args))
+    sweep(blue, root or workspace, clone, member?("--record", args))
   elsif verb == "swept"
     swept(blue)
   elsif verb == "fix" and size(args) == 1
@@ -1077,6 +1152,48 @@ test "a code this blue knows and the swept record lacks is named with the comman
     "unswept: B0099. Run blue gen/consumers.b sweep --record once every consumer is green at this blue"
   assert unswept(["B0001"], {"codes" => ["B0001"]}) == []
   assert unswept(["B0001"], {}) == ["B0001"]
+end
+
+test "--clone with no directory, or with a flag where the directory goes, names no root"
+  assert clone_root(%w[--clone --record]).nil?
+  assert clone_root(["--clone"]).nil?
+  assert clone_root(%w[--record --clone]).nil?
+  assert clone_root(["--clone", ""]).nil?
+  assert clone_root(["--record"]).nil?
+  assert clone_root(%w[--clone /d]) == "/d"
+  assert clone_root(%w[--record --clone /d]) == "/d"
+end
+
+test "a sweep that measured nothing is blind, never green, and records nothing"
+  for_all = [{state: :blind}, {state: :blind}]
+  blind = conclude(for_all, 0, false, true)
+  assert not blind[:record]
+  assert blind[:exit] == 1
+  assert contains?(blind[:line], "blind")
+  assert not contains?(blind[:line], "green;")
+  assert not conclude([], 0, false, true)[:record]
+  assert conclude([], 0, false, false)[:exit] == 1
+  assert not conclude([{state: :off}], 0, false, true)[:record]
+end
+
+test "one blind consumer holds the record back, and a whole measurement writes it"
+  some = [{state: :green}, {state: :blind}]
+  assert not conclude(some, 0, false, true)[:record]
+  assert conclude(some, 0, false, true)[:exit] == 1
+  assert conclude(some, 0, false, false)[:exit] == 0
+  whole = [{state: :green}, {state: :off}]
+  assert conclude(whole, 0, false, true)[:record]
+  assert contains?(
+    conclude(whole, 0, false, true)[:line],
+    "1 green, 0 red, 0 blind"
+  )
+end
+
+test "a red consumer or a refused entry fails the sweep and writes nothing"
+  green = [{state: :green}]
+  assert not conclude(green, 1, false, true)[:record]
+  assert conclude(green, 1, false, true)[:exit] == 1
+  assert not conclude(green, 0, true, true)[:record]
 end
 
 test "the committed registry settles with no refused entry"

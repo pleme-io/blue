@@ -66,6 +66,13 @@ row(
 )
 
 row(
+  "parse.qualified_name.deep",
+  "sp_mod::sp_sub::sp_twice",
+  fails(:check, "B0010"),
+  covers("form:a::b::c(x)")
+)
+
+row(
   "parse.words.comma",
   "%w[a, b]",
   fails(:parse, "separated by spaces, not commas")

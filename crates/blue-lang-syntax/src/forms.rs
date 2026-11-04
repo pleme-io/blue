@@ -86,6 +86,11 @@ pub const FORMS: &[Form] = &[
         doc: "A call whose last argument is the map built from `**` spreads and entries, `f(x, {**a, b: 1})` without the braces. Entries after a `**` are the call's last argument, so it cannot also carry a splat `*xs`.",
     },
     Form {
+        example: "a::b::c(x)",
+        lowers_to: "(a/b/c x)",
+        doc: "A qualified name, as deep as the levels of a bidama go: `a::b::c` is `c` in level `a/b`. After `use(\"a/b\")` the same name is also `b::c`; a level below it, `a::b::d::e`, is also `b::d::e` and `d::e`. One symbol in the tree.",
+    },
+    Form {
         example: "x = 5",
         lowers_to: "(define x 5)",
         doc: "A binding, only as a statement. There is no `let`; a binding lasts to the end of its body.",

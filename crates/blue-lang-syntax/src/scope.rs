@@ -44,7 +44,7 @@ pub enum BinderKind {
     Catch,
 }
 
-/// One `use` form, as the file that wrote it declared it.
+/// One import of a `use` form, as the file that wrote it declared it.
 ///
 /// `use("moji")` makes `moji::split` reachable; `use("retsu", [:first,
 /// :size])` also makes `first` and `size` reachable bare. The form stays in
@@ -52,62 +52,219 @@ pub enum BinderKind {
 /// point at it, and evaluates to nothing (`blue_lang_runtime::uses::ResolvedProgram::sexps`).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Import {
+    /// The level's path, one spelling whatever the form wrote: `thing/sub`.
     pub package: String,
     /// The names listed for bare use, each with its `:name` span. Empty for
     /// `use("moji")`.
     pub names: Vec<(String, Span)>,
     /// Whether a list was written at all: `use("x", [])` lists nothing.
     pub listed: bool,
+    /// The second name a `use({s: "thing/sub"})` gives the level.
+    pub alias: Option<String>,
+    /// Whether the form is the one import of a string path, so a fix may
+    /// render it back. Every other spelling is kept as the author wrote it.
+    pub plain: bool,
     /// The whole `use(...)` form.
     pub span: Span,
-    /// The span of the package-name string.
+    /// The span of the path as written.
     pub package_span: Span,
 }
 
-/// Is this form a `use` declaration? If so, what it declares.
-///
-/// `use("name")` or `use("name", [:a, :b])`, the call form only. `use "kazu"`
-/// without parentheses parses as two unrelated top-level atoms (blue has no
-/// paren-less call syntax), which would silently do nothing — so it is not
-/// treated as an import, and the bare symbol `use` then fails as an unbound
-/// name rather than being quietly ignored. A list that holds anything but
-/// `:name` symbols is not a declaration either, for the same reason.
+/// Is this form a `use` declaration? If so, its first import: enough for a
+/// caller asking whether it declares anything. [`use_targets`] is every one.
 #[must_use]
 pub fn use_target(form: &Spanned) -> Option<Import> {
+    use_targets(form).and_then(|mut all| (!all.is_empty()).then(|| all.remove(0)))
+}
+
+/// Is this form a `use` call of any kind, a declaration or a computed one?
+/// `use(*xs)` lowers to `(apply use xs)`, and it is a `use` all the same.
+#[must_use]
+pub fn is_use_call(form: &Spanned) -> bool {
+    use_args(form).is_some()
+}
+
+fn use_args(form: &Spanned) -> Option<(&[Spanned], Span)> {
     let items = form.as_list()?;
-    let (head, arg, list) = match items {
-        [head, arg] => (head, arg, None),
-        [head, arg, list] => (head, arg, Some(list)),
-        _ => return None,
-    };
-    let (SpannedForm::Atom(Atom::Symbol(s)), SpannedForm::Atom(Atom::Str(name))) =
-        (&head.form, &arg.form)
-    else {
-        return None;
-    };
-    if s != "use" {
-        return None;
-    }
-    let mut names = Vec::new();
-    if let Some(list) = list {
-        let parts = list.as_list()?;
-        if parts.first().and_then(Spanned::as_symbol) != Some("list") {
-            return None;
+    match items {
+        [head, rest @ ..] if head.as_symbol() == Some("use") => Some((rest, head.span)),
+        [apply, head, rest @ ..]
+            if apply.as_symbol() == Some("apply") && head.as_symbol() == Some("use") =>
+        {
+            Some((rest, head.span))
         }
-        for p in &parts[1..] {
-            match &p.form {
-                SpannedForm::Atom(Atom::Keyword(k)) => names.push((k.clone(), p.span)),
-                _ => return None,
-            }
-        }
+        _ => None,
     }
-    Some(Import {
-        package: name.clone(),
+}
+
+/// The imports of a `use` form, or `None` when it declares nothing a reader
+/// can know without running it: a computed path, a mixed list, a third
+/// argument. The check stage refuses those (B0073), by name.
+///
+/// One path has one meaning, and these spell it: `"thing/sub"`,
+/// `"thing::sub"`, `%i[thing sub]`, `[:thing, :sub]`, `%w[thing sub]`,
+/// `*%i[thing sub]`, `**%i[thing sub]`. After the path:
+///
+/// - `[:a, :b]`: names listed for bare use;
+/// - `%w[sub other/deep]`: several children, each its own import;
+/// - `{sub: [:a], other: []}`: several children, with their lists.
+///
+/// `use({s: "thing/sub"})` gives each level a second name.
+///
+/// `use "kazu"` without parentheses parses as two unrelated top-level atoms
+/// (blue has no paren-less call syntax), which would silently do nothing —
+/// so it is not treated as an import, and the bare symbol `use` then fails
+/// as an unbound name rather than being quietly ignored.
+#[must_use]
+pub fn use_targets(form: &Spanned) -> Option<Vec<Import>> {
+    let (args, _) = use_args(form)?;
+    let one = |package: String, names, listed, plain, at: Span| Import {
+        package,
         names,
-        listed: list.is_some(),
+        listed,
+        alias: None,
+        plain,
         span: form.span,
-        package_span: arg.span,
-    })
+        package_span: at,
+    };
+    match args {
+        [only] if map_entries(only).is_some() => {
+            let entries = map_entries(only)?;
+            if entries.is_empty() {
+                return None;
+            }
+            entries
+                .iter()
+                .map(|(key, value)| {
+                    let (path, _) = path_of(value)?;
+                    let mut i = one(path, Vec::new(), false, false, value.span);
+                    i.alias = Some(word_of(key)?);
+                    Some(i)
+                })
+                .collect()
+        }
+        [path] => {
+            let (package, plain) = path_of(path)?;
+            Some(vec![one(package, Vec::new(), false, plain, path.span)])
+        }
+        [path, second] => {
+            let (package, plain) = path_of(path)?;
+            if let Some(entries) = map_entries(second) {
+                if entries.is_empty() {
+                    return None;
+                }
+                return entries
+                    .iter()
+                    .map(|(key, value)| {
+                        let child = word_of(key)?;
+                        let names = keywords_of(value)?;
+                        let listed = !names.is_empty();
+                        Some(one(
+                            format!("{package}{QUALIFIER}{child}"),
+                            names,
+                            listed,
+                            false,
+                            key.span,
+                        ))
+                    })
+                    .collect();
+            }
+            let items = list_items(second)?;
+            if !items.is_empty() && items.iter().all(|i| str_of(i).is_some()) {
+                return items
+                    .iter()
+                    .map(|i| {
+                        let child = str_of(i)?;
+                        Some(one(
+                            format!("{package}{QUALIFIER}{child}"),
+                            Vec::new(),
+                            false,
+                            false,
+                            i.span,
+                        ))
+                    })
+                    .collect();
+            }
+            let names = keywords_of(second)?;
+            Some(vec![one(package, names, true, plain, path.span)])
+        }
+        _ => None,
+    }
+}
+
+fn str_of(form: &Spanned) -> Option<String> {
+    match &form.form {
+        SpannedForm::Atom(Atom::Str(s)) => Some(s.clone()),
+        _ => None,
+    }
+}
+
+fn word_of(form: &Spanned) -> Option<String> {
+    match &form.form {
+        SpannedForm::Atom(Atom::Keyword(k) | Atom::Str(k)) => Some(k.clone()),
+        _ => None,
+    }
+}
+
+fn keywords_of(form: &Spanned) -> Option<Vec<(String, Span)>> {
+    list_items(form)?
+        .iter()
+        .map(|p| match &p.form {
+            SpannedForm::Atom(Atom::Keyword(k)) => Some((k.clone(), p.span)),
+            _ => None,
+        })
+        .collect()
+}
+
+fn map_entries(form: &Spanned) -> Option<Vec<(&Spanned, &Spanned)>> {
+    let items = form.as_list()?;
+    if items.first()?.as_symbol() != Some(crate::parse::LOWERED_MAP) {
+        return None;
+    }
+    let rest = &items[1..];
+    (rest.len() % 2 == 0).then(|| rest.chunks(2).map(|c| (&c[0], &c[1])).collect())
+}
+
+/// `(blue-kwargs (blue-splice x))`, what `**x` reads as in an argument.
+fn destructured(form: &Spanned) -> &Spanned {
+    let inner = form.as_list().and_then(|items| match items {
+        [k, x] if k.as_symbol() == Some("blue-kwargs") => x.as_list(),
+        _ => None,
+    });
+    match inner {
+        Some([s, x]) if s.as_symbol() == Some("blue-splice") => x,
+        _ => form,
+    }
+}
+
+/// A path, and whether it is the plain string a fix may render back.
+fn path_of(form: &Spanned) -> Option<(String, bool)> {
+    let form = destructured(form);
+    if let Some(s) = str_of(form) {
+        let path = s.replace("::", QUALIFIER_STR);
+        let plain = path == s;
+        return (!path.is_empty()).then_some((path, plain));
+    }
+    let segments: Vec<String> = list_items(form)?
+        .iter()
+        .map(word_of)
+        .collect::<Option<Vec<_>>>()?;
+    (!segments.is_empty()).then(|| (segments.join(QUALIFIER_STR), false))
+}
+
+const QUALIFIER_STR: &str = "/";
+const QUALIFIER: char = crate::parse::QUALIFIER;
+
+/// The head of the declaration that makes a file its own level:
+/// `namespace()` as the first code of `caixa/extra.b` keeps it out of `caixa`
+/// and makes it `caixa::extra`. It takes no name, so it cannot disagree with
+/// the path.
+pub const LEVEL_MARKER: &str = "namespace";
+
+/// Is this form the `namespace()` declaration?
+#[must_use]
+pub fn is_level_marker(form: &Spanned) -> bool {
+    matches!(form.as_list(), Some([head]) if head.as_symbol() == Some(LEVEL_MARKER))
 }
 
 /// The head of the rename-ledger declaration: `legacy_names("0.1.1", "lc")`.
@@ -540,7 +697,9 @@ impl Walker<'_> {
         }
         // `use("x", [:a])` at the top level is a declaration the resolver
         // consumed, not a call: nothing in it is a reference.
-        if (head == "use" || head == LEGACY_NAMES) && self.depth == 0 {
+        if self.depth == 0
+            && (use_targets(form).is_some() || head == LEGACY_NAMES || is_level_marker(form))
+        {
             self.pass.head(&items[0], head, HeadKind::SpecialForm);
             return;
         }

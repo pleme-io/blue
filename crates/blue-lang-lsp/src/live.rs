@@ -186,6 +186,18 @@ impl Loader for Snapshot {
     fn frontend(&self, _entry: &Path) -> Option<Frontend> {
         self.frontend.clone()
     }
+
+    fn children(&self, name: &str) -> Vec<String> {
+        let below = format!("{name}/");
+        self.packages
+            .keys()
+            .filter(|p| {
+                p.strip_prefix(&below)
+                    .is_some_and(|rest| !rest.contains('/'))
+            })
+            .cloned()
+            .collect()
+    }
 }
 
 /// Evaluate `text`, the document at `path`, in a pure session over `loader`.

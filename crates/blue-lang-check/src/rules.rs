@@ -361,7 +361,7 @@ collision gate already forbids this among its own packages.)",
         slug: "qualifier-not-imported",
         severity: Error,
         fix: Machine,
-        law: "a qualified name's package is one the file `use`s: `retsu::first` needs `use(\"retsu\")`",
+        law: "a qualified name's level is one the file `use`s or one below it: `retsu::first` needs `use(\"retsu\")`",
         witness: "def f(xs)\n  retsu::first(xs)\nend\n",
         waivable: false,
         explanation: "\
@@ -370,6 +370,11 @@ The qualifier must be a bidama the file declares with `use(\"retsu\")`
 (and, inside a bidama, `needs(\"retsu\", …)` in its Bluefile): a file
 reaches only what it says it depends on, so no reference can work by the
 accident of some other file having loaded the package.
+
+A bidama may be a tree. `use(\"thing/sub\")` reaches that level and everything
+below it, by full path or by a path relative to the import: `thing::sub::waka::x`,
+`sub::waka::x`, `waka::x`. A path starting lower than the first step below the
+import reaches nothing, and the help writes the one that does.
 
 To comply, add the `use` — or, if a builtin was meant, write `blue::first`.
 In a script whose program has loaded the bidama, `blue check --fix` adds
@@ -380,7 +385,7 @@ write.",
         slug: "no-such-definition",
         severity: Error,
         fix: Suggested,
-        law: "a qualified name, or a name a `use` lists, is a definition of that package",
+        law: "a qualified name, or a name a `use` lists, is a definition of that level",
         witness: "use(\"kagi_a\")\n\nkagi_a::kagj()\n",
         imports: [("kagi_a", "def kagi()\n  1\nend\n")],
         waivable: false,
@@ -391,7 +396,9 @@ the qualifier is exact, and nothing else is consulted. The same holds for
 `use(\"kazu\", [:first])`, which lists `first` as kazu's.
 
 The help names the bidama that does define it, if one is loaded, and the
-nearest names the qualified bidama has. `blue::name` names a builtin, and
+nearest names the qualified bidama has. On a bidama with levels it also says
+what the level defines and which levels sit below it, and `thing::sub` written
+as a value is told it names a level. `blue::name` names a builtin, and
 is checked against the interpreter's own names.",
     }
     B0012 {
@@ -1507,6 +1514,33 @@ same name, a builtin and a spread (`f(*xs)`) are not.
 
 To comply, pass what the definition takes. A test that shows the refusal is not
 reported (`raises?`). `# waive B0072: reason` keeps one line.",
+    }
+    B0073 {
+        slug: "computed-use",
+        severity: Error,
+        fix: None,
+        law: "a `use` names its path as a literal, so the loader and the check stage read it before the program runs",
+        witness: "path = \"retsu\"\nuse(path)\n",
+        explanation: "\
+Imports are read before anything runs: the loader splices them, the check stage
+resolves every name against them, and `blue lock` joins their capabilities. A
+path held in a variable is known only once the program runs, which is too late
+for all three, so there is one rule: every argument of `use` is a literal.
+
+These all spell one path, and all are literal:
+
+    use(\"thing/sub\")
+    use(\"thing::sub\")
+    use(%i[thing sub])
+    use([:thing, :sub])
+    use(%w[thing sub])
+    use(*%i[thing sub])
+    use(**%i[thing sub])
+
+After the path, `[:a, :b]` lists names, `%w[sub other]` imports several
+children and `{sub: [:a], other: []}` imports them with their lists.
+`use({s: \"thing/sub\"})` gives a level a second name. Each spelling is kept
+as written: no fix rewrites one into another.",
     }
 }
 

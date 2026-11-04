@@ -229,18 +229,24 @@ fn the_reach_walk_and_the_name_table_agree_on_free_names() {
         // resolver), so no interpreter scope binds them; the reach walk
         // reports every head.
         let builtin = |n: &str| {
-            matches!(n, "defmacro" | "define-typed" | "use" | "legacy_names")
-                || table.scopes().iter().any(|s| {
-                    !matches!(
-                        s.namespace,
-                        blue_lang_check::Namespace::File(_) | blue_lang_check::Namespace::Bidama(_)
-                    ) && s.get(n).is_some()
-                })
+            matches!(
+                n,
+                "defmacro" | "define-typed" | "use" | "legacy_names" | "namespace"
+            ) || table.scopes().iter().any(|s| {
+                !matches!(
+                    s.namespace,
+                    blue_lang_check::Namespace::File(_) | blue_lang_check::Namespace::Bidama(_)
+                ) && s.get(n).is_some()
+            })
         };
-        // A qualified name is bound when its package (or `blue`) has it.
+        // A qualified name is bound when its level (or `blue`) has it. A path
+        // relative to an import or a second name names some level; which one
+        // is B0010's to judge, and this walk asks only that a definition exists.
         let qualified_bound = |n: &str| {
             blue_lang_syntax::qualified(n).is_some_and(|(p, x)| {
-                (p == "blue" && builtin(x)) || table.bidama(p).is_some_and(|s| s.get(x).is_some())
+                (p == "blue" && builtin(x))
+                    || table.bidama(p).is_some_and(|s| s.get(x).is_some())
+                    || program_defined.contains(x)
             })
         };
         let reach: BTreeSet<String> = blue_lang_waku::free_names(forms, &|n| {

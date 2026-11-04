@@ -128,3 +128,18 @@ row(
   join_lines(["use(\"sp_uses\")", "sp_twice(1)"]),
   fails(:check, "B0012")
 )
+
+row(
+  "modules.tree.relative_path",
+  join_lines(["use(\"okite/rung\")", "rung::deep::deep_word"]),
+  value(":deep"),
+  covers("okite:D0016"),
+  pending("G16", "wasm")
+)
+
+row(
+  "modules.tree.full_path",
+  join_lines(["use(%i[okite rung])", "okite::rung::deep::floor::floor_word"]),
+  value(":floor"),
+  pending("G16", "wasm")
+)

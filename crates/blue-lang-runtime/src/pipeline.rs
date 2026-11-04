@@ -951,7 +951,7 @@ fn reimplemented_words(
             let d = Diagnostic::new(Code::B0070, format!("`{name}` is the shape of `{word}`"), at)
                 .at_top_level(s.top_level);
             Some(if foundation {
-                let (pkg, bare) = word.split_once("::")?;
+                let (pkg, bare) = word.rsplit_once("::")?;
                 let d = d.with_help(format!(
                     "use the word: `use(\"{pkg}\", [:{bare}])`; `blue check --fix` forwards `{name}` to it"
                 ));
@@ -960,7 +960,7 @@ fn reimplemented_words(
                     None => d,
                 }
             } else {
-                let (pkg, bare) = word.split_once("::")?;
+                let (pkg, bare) = word.rsplit_once("::")?;
                 d.with_help(format!(
                     "move down: `{word}` is a domain word; move the shape to a foundation bidama, then both use it; until then `use(\"{pkg}\", [:{bare}])`"
                 ))
@@ -1213,6 +1213,12 @@ pub fn program_names(program: &crate::uses::ResolvedProgram, builtins: &NameTabl
     for (file, import) in program.imports() {
         let entry = imports.entry(file.index()).or_default();
         entry.add(&import.package, import.names.iter().map(|(n, _)| n.clone()));
+        if let Some(alias) = &import.alias {
+            entry
+                .aliases
+                .entry(alias.clone())
+                .or_insert_with(|| import.package.clone());
+        }
         let at = import.span.start;
         entry.use_at = Some(entry.use_at.map_or(at, |a| a.min(at)));
     }
@@ -1265,6 +1271,13 @@ pub fn program_names(program: &crate::uses::ResolvedProgram, builtins: &NameTabl
                 .insert(import.package.clone());
         }
     }
+    table.attach_levels(
+        program
+            .files()
+            .iter()
+            .filter_map(|f| f.package.clone())
+            .collect(),
+    );
     table.attach_files(form_file, imports);
     table.attach_package_uses(pkg_uses);
     table.attach_needs(program.needs().clone());
@@ -1282,9 +1295,11 @@ pub fn program_names(program: &crate::uses::ResolvedProgram, builtins: &NameTabl
     for f in program.files() {
         if let Some(path) = &f.path {
             file_paths.insert(f.id.index(), canonical(path));
-            if let (Some(pkg), Some(root)) =
-                (&f.package, path.parent().and_then(std::path::Path::parent))
-            {
+            let depth = f
+                .package
+                .as_deref()
+                .map_or(1, |p| p.split(blue_lang_syntax::QUALIFIER).count());
+            if let (Some(pkg), Some(root)) = (&f.package, path.ancestors().nth(depth + 1)) {
                 pkg_roots
                     .entry(pkg.clone())
                     .or_insert_with(|| canonical(root));
@@ -1345,6 +1360,7 @@ pub fn lower_with(
         .map(|(i, (resolved, written))| {
             if crate::uses::use_target(written).is_some()
                 || blue_lang_syntax::scope::legacy_target(written).is_some()
+                || blue_lang_syntax::scope::is_level_marker(written)
             {
                 tatara_lisp::Spanned::new(written.span, tatara_lisp::SpannedForm::Nil)
             } else {

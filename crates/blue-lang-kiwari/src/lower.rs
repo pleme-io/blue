@@ -303,8 +303,8 @@ impl<'a> Lowerer<'a> {
                     .ok_or_else(|| self.err(node, format!("no `{package}` field")))?;
                 let n = Self::field(node, name)
                     .ok_or_else(|| self.err(node, format!("no `{name}` field")))?;
-                let pkg = self.text(p).trim_end_matches(':');
-                vec![sym(&blue_lang_syntax::parse::qualify(pkg, self.text(n)))]
+                let pkg = self.text(p).trim_end_matches(':').replace("::", "/");
+                vec![sym(&blue_lang_syntax::parse::qualify(&pkg, self.text(n)))]
             }
             Template::Callee(field) => {
                 let op = Self::field(node, field)

@@ -40,8 +40,9 @@ pub fn check(
             uses: Vec::new(),
             others: Vec::new(),
         });
-        match scope::use_target(form) {
-            Some(u) => entry.uses.push((i, u)),
+        match scope::use_targets(form) {
+            Some(all) => entry.uses.extend(all.into_iter().map(|u| (i, u))),
+            None if scope::is_level_marker(form) => {}
             None => entry.others.push(i),
         }
     }
@@ -89,7 +90,7 @@ fn sorted_block_fix(fu: &FileUses) -> Option<Fix> {
         .map(|(_, u)| u)
         .collect();
     let distinct: BTreeSet<&str> = block.iter().map(|u| u.package.as_str()).collect();
-    if distinct.len() != block.len() {
+    if distinct.len() != block.len() || block.iter().any(|u| !u.plain) {
         return None;
     }
     let mut order = block.clone();
@@ -123,6 +124,7 @@ fn canonical_imports(fu: &FileUses, out: &mut Vec<Diagnostic>) {
     let first_other = fu.others.first().copied();
     let mut seen: BTreeSet<&str> = BTreeSet::new();
     let mut previous: Option<&str> = None;
+    let mut aliases: BTreeMap<&str, &str> = BTreeMap::new();
     for (i, u) in &fu.uses {
         let at = |msg: String| Diagnostic::new(Code::B0015, msg, u.span).at_top_level(*i);
         if !seen.insert(u.package.as_str()) {
@@ -149,13 +151,22 @@ fn canonical_imports(fu: &FileUses, out: &mut Vec<Diagnostic>) {
             out.push(d);
         }
         previous = Some(u.package.as_str());
+        if let Some(alias) = &u.alias {
+            if let Some(other) = aliases.insert(alias.as_str(), u.package.as_str()) {
+                out.push(at(format!(
+                    "`{alias}` names both `{other}` and `{}` in this file",
+                    u.package
+                )));
+            }
+        }
         let written: Vec<String> = u.names.iter().map(|(n, _)| n.clone()).collect();
         let mut canonical = written.clone();
         canonical.sort();
         canonical.dedup();
         if u.listed && written.is_empty() {
-            out.push(
-                at(format!("`use(\"{}\", [])` lists nothing", u.package)).with_fix(Fix {
+            let d = at(format!("`use(\"{}\", [])` lists nothing", u.package));
+            out.push(if u.plain {
+                d.with_fix(Fix {
                     message: format!("write `use(\"{}\")`", u.package),
                     edits: vec![Edit {
                         span: u.span,
@@ -163,17 +174,20 @@ fn canonical_imports(fu: &FileUses, out: &mut Vec<Diagnostic>) {
                         replacement: render_use(u, &[]),
                     }],
                     applicability: Applicability::MachineApplicable,
-                }),
-            );
+                })
+            } else {
+                d
+            });
         } else if written != canonical {
             // Sorting a list changes nothing a program means, so the fix is
-            // machine-applicable.
-            out.push(
-                at(format!(
-                    "the names `use(\"{}\")` lists are not sorted, or repeat",
-                    u.package
-                ))
-                .with_fix(Fix {
+            // machine-applicable. Only a plain path is rendered back: every
+            // other spelling is the author's to keep.
+            let d = at(format!(
+                "the names `use(\"{}\")` lists are not sorted, or repeat",
+                u.package
+            ));
+            out.push(if u.plain {
+                d.with_fix(Fix {
                     message: "sort the list and drop repeats".to_string(),
                     edits: vec![Edit {
                         span: u.span,
@@ -181,8 +195,10 @@ fn canonical_imports(fu: &FileUses, out: &mut Vec<Diagnostic>) {
                         replacement: render_use(u, &canonical),
                     }],
                     applicability: Applicability::MachineApplicable,
-                }),
-            );
+                })
+            } else {
+                d
+            });
         }
     }
 }
@@ -255,22 +271,26 @@ fn unused_imports(
     }
     for (i, u) in &fu.uses {
         let via = table.imports_of(*i).map(|fi| &fi.via);
-        let any = reached
-            .iter()
-            .any(|(p, _)| *p == u.package || via.is_some_and(|v| v.get(p) == Some(&u.package)));
+        let below = format!("{}{}", u.package, blue_lang_syntax::QUALIFIER);
+        let any = reached.iter().any(|(p, _)| {
+            *p == u.package
+                || p.starts_with(&below)
+                || via.is_some_and(|v| v.get(p) == Some(&u.package))
+        });
         if !any {
-            out.push(
-                Diagnostic::new(
-                    Code::B0016,
-                    format!("nothing in this file reaches `{}`", u.package),
-                    u.span,
-                )
-                .at_top_level(*i)
-                .with_help(format!(
-                    "list the names it uses (`use(\"{0}\", [:name])`) or qualify them (`{0}::name`); remove the `use` if it is not needed",
-                    u.package
-                ))
-                .with_fix(Fix {
+            let d = Diagnostic::new(
+                Code::B0016,
+                format!("nothing in this file reaches `{}`", u.package),
+                u.span,
+            )
+            .at_top_level(*i)
+            .with_help(format!(
+                "list the names it uses (`use(\"{0}\", [:name])`) or qualify them (`{1}::name`); remove the `use` if it is not needed",
+                u.package,
+                blue_lang_syntax::spell_level(&u.package)
+            ));
+            out.push(if u.plain {
+                d.with_fix(Fix {
                     message: format!("remove `use(\"{}\")`", u.package),
                     edits: vec![Edit {
                         span: u.span,
@@ -281,8 +301,10 @@ fn unused_imports(
                         replacement: String::new(),
                     }],
                     applicability: Applicability::MachineApplicable,
-                }),
-            );
+                })
+            } else {
+                d
+            });
             continue;
         }
         for (n, span) in &u.names {
@@ -325,29 +347,44 @@ fn needs_agree(
         let e = per.entry(pkg).or_insert((Vec::new(), any));
         e.0.extend(fu.uses.iter().map(|(i, u)| (*i, u)));
     }
+    let mut tree_uses: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    for (pkg, (uses, _)) in &per {
+        tree_uses
+            .entry(blue_lang_syntax::root_of(pkg).to_string())
+            .or_default()
+            .extend(uses.iter().map(|(_, u)| u.package.clone()));
+    }
     for (pkg, (uses, anchor)) in per {
         let Some(needs) = table.needs_of(&pkg) else {
             continue;
         };
-        let used: BTreeSet<&str> = uses.iter().map(|(_, u)| u.package.as_str()).collect();
+        let root = blue_lang_syntax::root_of(&pkg);
+        let used: BTreeSet<&str> = tree_uses
+            .get(root)
+            .into_iter()
+            .flatten()
+            .map(|p| blue_lang_syntax::root_of(p))
+            .collect();
         for (i, u) in &uses {
-            if !needs.contains(&u.package) {
+            let target = blue_lang_syntax::root_of(&u.package);
+            if target != root && !needs.contains(target) {
                 out.push(
                     Diagnostic::new(
                         Code::B0019,
                         format!(
-                            "bidama `{pkg}` uses `{}`, and its Bluefile.lock does not record it",
-                            u.package
+                            "bidama `{pkg}` uses `{target}`, and its Bluefile.lock does not record it"
                         ),
                         u.span,
                     )
                     .at_top_level(*i)
                     .with_help(format!(
-                        "run `blue check --fix` on the file, or `blue lock` in {pkg}'s directory: the lock derives `{}` from the `use`",
-                        u.package
+                        "run `blue check --fix` on the file, or `blue lock` in {root}'s directory: the lock derives `{target}` from the `use`"
                     )),
                 );
             }
+        }
+        if blue_lang_syntax::is_nested(&pkg) {
+            continue;
         }
         for n in needs.iter().filter(|n| !used.contains(n.as_str())) {
             out.push(

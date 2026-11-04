@@ -231,7 +231,7 @@ impl Alias {
     pub fn spelled(&self, pkg: &str) -> String {
         format!(
             "{}::{}",
-            self.home.as_deref().unwrap_or(pkg),
+            blue_lang_syntax::spell_level(self.home.as_deref().unwrap_or(pkg)),
             self.canonical
         )
     }
@@ -335,6 +335,8 @@ pub struct NameTable {
     /// Each bidama's declared legacy prefix (`legacy_names`).
     legacy_prefix: BTreeMap<String, String>,
     flat_era: BTreeMap<String, BTreeMap<String, bool>>,
+    /// Every level the program loaded, one that defines nothing included.
+    levels: BTreeSet<String>,
     /// Each file's path, and each bidama's distribution root: whether a
     /// reference is inside the distribution a bidama ships in (B0021).
     file_paths: BTreeMap<usize, String>,
@@ -361,6 +363,8 @@ pub struct FileImports {
     /// A bidama reachable only through a facade the file uses, and that
     /// facade: `use("zenbu")` makes `toukei::` reachable.
     pub via: BTreeMap<String, String>,
+    /// A level's second name, from `use({s: "thing/sub"})`.
+    pub aliases: BTreeMap<String, String>,
     /// Where the file's first `use` starts: where a fix adds another.
     pub use_at: Option<usize>,
 }
@@ -376,6 +380,16 @@ impl FileImports {
             }
         }
     }
+}
+
+/// The level a written qualifier names, from one file.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum LevelHit {
+    Level(String),
+    /// Two levels a relative path fits, and nothing says which.
+    Ambiguous(Vec<String>),
+    /// The file reaches no level this qualifier fits.
+    Miss,
 }
 
 /// A "did you mean" candidate: a name, the namespace it lives in, and how far
@@ -795,6 +809,138 @@ impl NameTable {
         out
     }
 
+    /// Record every level the program loaded.
+    pub fn attach_levels(&mut self, levels: BTreeSet<String>) {
+        self.levels = levels;
+    }
+
+    /// Every loaded level, by its full path, sorted.
+    #[must_use]
+    pub fn levels(&self) -> BTreeSet<&str> {
+        self.levels
+            .iter()
+            .map(String::as_str)
+            .chain(self.scopes.iter().filter_map(|s| match &s.namespace {
+                Namespace::Bidama(p) => Some(p.as_str()),
+                _ => None,
+            }))
+            .collect()
+    }
+
+    /// The levels a file of namespace `own` imported, and its own.
+    fn roots_of<'a>(&'a self, own: &'a Namespace, top_level: usize) -> BTreeSet<&'a str> {
+        let mut roots: BTreeSet<&str> = self
+            .imports_of(top_level)
+            .map(|i| i.uses.iter().map(String::as_str).collect())
+            .unwrap_or_default();
+        if let Namespace::Bidama(p) = own {
+            roots.insert(p);
+        }
+        roots
+    }
+
+    /// **The level qualifier `q` names from this file, for name `n`.**
+    ///
+    /// In order: a second name the file gave a level; a level's full path;
+    /// then a path relative to a level the file imported. A relative path is
+    /// the tail of the level's full path, and it starts no lower than the
+    /// first step below the import: after `use("thing/sub")`,
+    /// `thing/sub/waka` is `sub::waka` and `waka`. Several levels fit: the
+    /// one that defines `n` is meant, and two that define it are ambiguous,
+    /// never load order. A full path is exact, so an ambiguity always has a
+    /// way out.
+    #[must_use]
+    pub fn level_of(&self, q: &str, n: &str, own: &Namespace, top_level: usize) -> LevelHit {
+        let (first, rest) = q.split_once('/').map_or((q, None), |(a, b)| (a, Some(b)));
+        if let Some(to) = self
+            .imports_of(top_level)
+            .and_then(|i| i.aliases.get(first))
+        {
+            return LevelHit::Level(rest.map_or_else(|| to.clone(), |r| format!("{to}/{r}")));
+        }
+        let roots = self.roots_of(own, top_level);
+        let known = self.levels();
+        let under =
+            |level: &str, root: &str| level.strip_prefix(root).is_some_and(|r| r.starts_with('/'));
+        if roots.contains(q) || (known.contains(q) && roots.iter().any(|r| under(q, r))) {
+            return LevelHit::Level(q.to_string());
+        }
+        let written: Vec<&str> = q.split('/').collect();
+        let mut fits: BTreeSet<&str> = BTreeSet::new();
+        for root in &roots {
+            let depth = root.split('/').count();
+            for level in known.iter().filter(|l| **l == *root || under(l, root)) {
+                let segments: Vec<&str> = level.split('/').collect();
+                let Some(start) = segments.len().checked_sub(written.len()) else {
+                    continue;
+                };
+                let lowest = if level == root { depth - 1 } else { depth };
+                if segments[start..] == written[..] && start <= lowest {
+                    fits.insert(level);
+                }
+            }
+        }
+        let defining: Vec<&str> = fits
+            .iter()
+            .copied()
+            .filter(|l| self.bidama(l).is_some_and(|s| s.get(n).is_some()))
+            .collect();
+        match (defining.as_slice(), fits.len()) {
+            ([one], _) => LevelHit::Level((*one).to_string()),
+            ([], 0) => LevelHit::Miss,
+            ([], 1) => LevelHit::Level(fits.iter().next().copied().unwrap_or(q).to_string()),
+            ([], _) => LevelHit::Ambiguous(fits.iter().map(ToString::to_string).collect()),
+            (many, _) => LevelHit::Ambiguous(many.iter().map(ToString::to_string).collect()),
+        }
+    }
+
+    /// How a file could reach a level that `q` names the tail of, when `q`
+    /// starts too low: `sub::deep` for `deep` after `use("caixa")`.
+    fn relative_spellings(&self, q: &str, own: &Namespace, top_level: usize) -> Vec<String> {
+        let tail = format!("/{q}");
+        let mut out = BTreeSet::new();
+        for root in self.roots_of(own, top_level) {
+            let below = format!("{root}/");
+            for level in self.levels() {
+                if let (Some(rel), true) = (level.strip_prefix(&below), level.ends_with(&tail)) {
+                    out.insert(blue_lang_syntax::spell_level(rel));
+                }
+            }
+        }
+        out.into_iter().collect()
+    }
+
+    /// What a level holds, for a miss to name: `None` for a bidama with no
+    /// levels, whose miss reads as it always has.
+    fn level_contents(&self, level: &str) -> Option<String> {
+        let below = format!("{level}/");
+        let children: Vec<String> = self
+            .levels()
+            .iter()
+            .filter_map(|l| l.strip_prefix(&below))
+            .filter(|r| !r.contains('/'))
+            .map(|r| format!("`{}::{r}`", blue_lang_syntax::spell_level(level)))
+            .collect();
+        if children.is_empty() && !blue_lang_syntax::is_nested(level) {
+            return None;
+        }
+        let spelled = blue_lang_syntax::spell_level(level);
+        let defs: Vec<String> = self
+            .bidama(level)
+            .map(|s| s.bindings().map(|b| format!("`{}`", b.name)).collect())
+            .unwrap_or_default();
+        let defined = if defs.is_empty() {
+            format!("`{spelled}` defines nothing itself")
+        } else {
+            format!("`{spelled}` defines {}", defs.join(", "))
+        };
+        Some(if children.is_empty() {
+            format!("{defined}, and has no level below it")
+        } else {
+            format!("{defined}; below it: {}", children.join(", "))
+        })
+    }
+
     /// Record each bidama's Bluefile `needs`.
     pub fn attach_needs(&mut self, needs: BTreeMap<String, BTreeSet<String>>) {
         self.needs = needs;
@@ -900,7 +1046,14 @@ impl NameTable {
                     Target::Unbound
                 };
             }
-            let ns = Namespace::Bidama(pkg.to_string());
+            let level = match self.level_of(pkg, n, own, top_level) {
+                LevelHit::Level(l) => l,
+                LevelHit::Ambiguous(ls) => {
+                    return Target::Ambiguous(ls.into_iter().map(Namespace::Bidama).collect())
+                }
+                LevelHit::Miss => pkg.to_string(),
+            };
+            let ns = Namespace::Bidama(level);
             let scope = self.scopes.iter().find(|s| s.namespace == ns);
             return match scope.and_then(|s| s.get(n).map(|b| (s, b))) {
                 Some((s, b)) => Target::Def(s.namespace_of_name(n), b.name.clone()),
@@ -1870,6 +2023,19 @@ impl<'t> Walker<'t> {
             }
             Resolution::Unbound => {}
         }
+        if name == "use" && !opaque {
+            let d = Diagnostic::new(
+                Code::B0073,
+                "this `use` names no path the loader can read before the program runs".to_string(),
+                span,
+            )
+            .at_top_level(self.top_level)
+            .with_help(
+                "write the path as a literal at the top of the file: `use(\"thing/sub\")`, `use(%i[thing sub])`, `use(**%i[thing sub])`; a path held in a variable is known only when the program runs, and imports are read before that",
+            );
+            self.diagnostics.push(d);
+            return;
+        }
         // Names blue cannot spell and no program binds (`a/b` module paths
         // from `require`) are the module system's, not this pass's.
         if name.contains('/') || opaque {
@@ -2181,60 +2347,100 @@ impl Walker<'_> {
         }
         // A bidama may always name itself: `heni::status` inside heni, where
         // a local `status` hides the bare name.
-        let uses = self.own == Namespace::Bidama(pkg.to_string())
-            || self
-                .table
-                .imports_of(self.top_level)
-                .is_some_and(|i| i.uses.contains(pkg));
-        if !uses {
-            let d = Diagnostic::new(
-                Code::B0010,
-                format!("`{pkg}::{n}` is qualified by `{pkg}`, which this file does not `use`"),
-                span,
-            )
-            .at_top_level(self.top_level)
-            .with_help(format!(
-                "add `use(\"{pkg}\")` to the file's imports (and `needs(\"{pkg}\", …)` to its Bluefile, inside a bidama)"
-            ));
-            let d = if matches!(self.own, Namespace::File(_)) && self.table.bidama(pkg).is_some() {
-                let line = format!("use(\"{pkg}\")");
-                let edit = self.use_insertion(self.top_level, &line);
-                d.with_fix(Fix {
-                    message: format!("add `{line}`"),
-                    edits: vec![edit],
-                    applicability: Applicability::MachineApplicable,
-                })
-            } else {
-                d
-            };
-            self.diagnostics.push(d);
-            return;
-        }
-        if self.table.bidama(pkg).is_some_and(|s| s.get(n).is_some()) {
+        let written = blue_lang_syntax::spell_level(pkg);
+        let level = match self.table.level_of(pkg, n, &self.own, self.top_level) {
+            LevelHit::Level(l) => l,
+            LevelHit::Ambiguous(levels) => {
+                let list: Vec<String> = levels
+                    .iter()
+                    .map(|l| format!("`{}::{n}`", blue_lang_syntax::spell_level(l)))
+                    .collect();
+                let d = Diagnostic::new(
+                    Code::B0009,
+                    format!("`{written}::{n}` could be {}", list.join(" or ")),
+                    span,
+                )
+                .at_top_level(self.top_level)
+                .with_help(format!(
+                    "two imports fit `{written}`, and load order never picks; write the full path, {}",
+                    list.join(" or ")
+                ));
+                self.diagnostics.push(d);
+                return;
+            }
+            LevelHit::Miss => {
+                let d = Diagnostic::new(
+                    Code::B0010,
+                    format!(
+                        "`{written}::{n}` is qualified by `{written}`, which this file does not `use`"
+                    ),
+                    span,
+                )
+                .at_top_level(self.top_level);
+                let relative = self
+                    .table
+                    .relative_spellings(pkg, &self.own, self.top_level);
+                let d = if relative.is_empty() {
+                    d.with_help(format!(
+                        "add `use(\"{pkg}\")` to the file's imports (and `needs(\"{}\", …)` to its Bluefile, inside a bidama)",
+                        blue_lang_syntax::root_of(pkg)
+                    ))
+                } else {
+                    let spelled: Vec<String> =
+                        relative.iter().map(|r| format!("`{r}::{n}`")).collect();
+                    d.with_help(format!(
+                        "a path starts at the level below an import: write {}",
+                        spelled.join(" or ")
+                    ))
+                };
+                let d =
+                    if matches!(self.own, Namespace::File(_)) && self.table.bidama(pkg).is_some() {
+                        let line = format!("use(\"{pkg}\")");
+                        let edit = self.use_insertion(self.top_level, &line);
+                        d.with_fix(Fix {
+                            message: format!("add `{line}`"),
+                            edits: vec![edit],
+                            applicability: Applicability::MachineApplicable,
+                        })
+                    } else {
+                        d
+                    };
+                self.diagnostics.push(d);
+                return;
+            }
+        };
+        if self
+            .table
+            .bidama(&level)
+            .is_some_and(|s| s.get(n).is_some())
+        {
             self.resolved += 1;
             let shadowed_by_local =
                 self.locals_in_scope().contains(&n) || blue_lang_syntax::LOWERED_HEADS.contains(&n);
-            if shadowed_by_local {
+            if shadowed_by_local || pkg != level || blue_lang_syntax::is_nested(&level) {
                 // Bare, it would be the local: the qualifier is the only way
-                // to reach the definition here.
-            } else if self.own == Namespace::Bidama(pkg.to_string()) {
+                // to reach the definition here. And a path through a tree, or
+                // a second name, is a spelling the author chose: nothing
+                // rewrites one into another.
+            } else if self.own == Namespace::Bidama(level.clone()) {
                 self.redundant(span, pkg, n, "it is this bidama's own definition");
             } else if self
                 .table
                 .imports_of(self.top_level)
                 .and_then(|i| i.names.get(n))
-                .is_some_and(|ps| ps.len() == 1 && ps[0] == pkg)
+                .is_some_and(|ps| ps.len() == 1 && ps[0] == level)
             {
                 self.redundant(span, pkg, n, "the file lists it from that bidama");
             }
             return;
         }
-        let d = self.no_such_definition(span, pkg, n, true);
+        let d = self.no_such_definition(span, &level, n, true);
         self.diagnostics.push(d);
     }
 
     /// B0018: a qualifier that changes nothing.
     fn redundant(&mut self, span: Span, pkg: &str, n: &str, why: &str) {
+        let pkg = blue_lang_syntax::spell_level(pkg);
         let d = Diagnostic::new(
             Code::B0018,
             format!("`{pkg}::{n}` needs no qualifier: {why}"),
@@ -2255,7 +2461,7 @@ impl Walker<'_> {
 
     fn parenthesized_nullary(&mut self, head: &Spanned, whole: &Spanned, name: &str) {
         let spelled = match blue_lang_syntax::qualified(name) {
-            Some((pkg, n)) => format!("{pkg}::{n}"),
+            Some((pkg, n)) => format!("{}::{n}", blue_lang_syntax::spell_level(pkg)),
             None => name.to_string(),
         };
         let mut d = Diagnostic::new(
@@ -2283,19 +2489,43 @@ impl Walker<'_> {
 
     /// B0011: `pkg` defines no `n`. Suggests the package that does, and the
     /// nearest names `pkg` has.
-    fn no_such_definition(&self, span: Span, pkg: &str, n: &str, qualified: bool) -> Diagnostic {
+    fn no_such_definition(&self, span: Span, level: &str, n: &str, qualified: bool) -> Diagnostic {
+        let spelled_level = blue_lang_syntax::spell_level(level);
+        let pkg = spelled_level.as_str();
+        if self
+            .table
+            .levels()
+            .contains(blue_lang_syntax::qualify(level, n).as_str())
+        {
+            let child = blue_lang_syntax::qualify(level, n);
+            let mut d = Diagnostic::new(
+                Code::B0011,
+                format!("`{pkg}::{n}` is a level, not a definition"),
+                span,
+            )
+            .at_top_level(self.top_level);
+            if let Some(what) = self.table.level_contents(&child) {
+                d = d.with_help(what);
+            }
+            return d;
+        }
+        let contents = self.table.level_contents(level);
+        let with_contents = |help: String| match &contents {
+            Some(c) => format!("{help}; {c}"),
+            None => help,
+        };
         let owners: Vec<&str> = self
             .table
             .scopes()
             .iter()
             .filter_map(|s| match &s.namespace {
-                Namespace::Bidama(p) if p != pkg && s.get(n).is_some() => Some(p.as_str()),
+                Namespace::Bidama(p) if p != level && s.get(n).is_some() => Some(p.as_str()),
                 _ => None,
             })
             .collect();
         let mut near: Vec<(usize, String)> = self
             .table
-            .bidama(pkg)
+            .bidama(level)
             .map(|s| {
                 s.bindings()
                     .filter_map(|b| suggest::closeness(n, &b.name).map(|d| (d, b.name.clone())))
@@ -2311,7 +2541,7 @@ impl Walker<'_> {
         )
         .at_top_level(self.top_level);
         // A closed bridge: the ledger still says what it was renamed to.
-        if let Some(a) = self.table.bidama(pkg).and_then(|s| s.alias_of(n)) {
+        if let Some(a) = self.table.bidama(level).and_then(|s| s.alias_of(n)) {
             let a = a.clone();
             let d = d.with_help(match &a.append {
                 Some(args) => format!(
@@ -2351,18 +2581,25 @@ impl Walker<'_> {
                 None => d,
             };
         }
-        let mut offers: Vec<String> = owners.iter().map(|o| format!("{o}::{n}")).collect();
+        let mut offers: Vec<String> = owners
+            .iter()
+            .map(|o| format!("{}::{n}", blue_lang_syntax::spell_level(o)))
+            .collect();
         offers.extend(near.iter().map(|(_, c)| format!("{pkg}::{c}")));
         d = match (owners.as_slice(), offers.as_slice()) {
-            ([owner, ..], _) => d.with_help(format!("`{n}` is defined in bidama `{owner}`")),
-            (_, []) => d.with_help(format!("nothing in `{pkg}` is close to `{n}`")),
-            (_, many) => d.with_help(format!(
+            ([owner, ..], _) => d.with_help(with_contents(format!(
+                "`{n}` is defined in bidama `{owner}`"
+            ))),
+            (_, []) => d.with_help(with_contents(format!(
+                "nothing in `{pkg}` is close to `{n}`"
+            ))),
+            (_, many) => d.with_help(with_contents(format!(
                 "did you mean {}?",
                 many.iter()
                     .map(|c| format!("`{c}`"))
                     .collect::<Vec<_>>()
                     .join(", ")
-            )),
+            ))),
         };
         if qualified {
             for offer in offers {
@@ -2382,35 +2619,34 @@ impl Walker<'_> {
 
     /// The names a `use` lists must be the package's.
     fn check_import_list(&mut self, form: &Spanned) {
-        let Some(import) = scope::use_target(form) else {
-            return;
-        };
-        for (n, span) in &import.names {
-            if let Some(scope) = self
-                .table
-                .bidama(&import.package)
-                .filter(|s| s.get(n).is_some())
-            {
-                let alias = scope.alias_of(n).filter(|a| a.bridge).cloned();
-                if let Some(a) = alias {
-                    let mut d = self.legacy_diagnostic(
-                        *span,
-                        &import.package,
-                        n,
-                        &a,
-                        format!(":{n}"),
-                        format!(":{}", a.canonical),
-                    );
-                    // A moved name leaves the list: its home is another `use`.
-                    if a.home.is_some() {
-                        d.fixes.clear();
+        for import in scope::use_targets(form).unwrap_or_default() {
+            for (n, span) in &import.names {
+                if let Some(scope) = self
+                    .table
+                    .bidama(&import.package)
+                    .filter(|s| s.get(n).is_some())
+                {
+                    let alias = scope.alias_of(n).filter(|a| a.bridge).cloned();
+                    if let Some(a) = alias {
+                        let mut d = self.legacy_diagnostic(
+                            *span,
+                            &import.package,
+                            n,
+                            &a,
+                            format!(":{n}"),
+                            format!(":{}", a.canonical),
+                        );
+                        // A moved name leaves the list: its home is another `use`.
+                        if a.home.is_some() {
+                            d.fixes.clear();
+                        }
+                        self.diagnostics.push(d);
                     }
-                    self.diagnostics.push(d);
+                    continue;
                 }
-                continue;
+                let d = self.no_such_definition(*span, &import.package, n, false);
+                self.diagnostics.push(d);
             }
-            let d = self.no_such_definition(*span, &import.package, n, false);
-            self.diagnostics.push(d);
         }
     }
 }
@@ -2588,7 +2824,7 @@ impl Scopes for Walker<'_> {
             HeadKind::SpecialForm
                 if !matches!(
                     name,
-                    "define" | "define-typed" | "defmacro" | "use" | "legacy_names"
+                    "define" | "define-typed" | "defmacro" | "use" | "legacy_names" | "namespace"
                 ) =>
             {
                 self.resolved += 1;

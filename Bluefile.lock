@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:3d0d647f1b26572227c8c4ee5c23e4d89d47c5d2a95f17ef7fc07212c6d82d51",
+  "bluefile_b3": "b3:504a5aed4042e1a91ca4ca5bf7098ff56dec8a63f58792a2f8f5c74203961e31",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -43,6 +43,9 @@
           "kernel",
           "bidamas"
         ]
+      },
+      "kernel-new": {
+        "file": "gen/kernel-new.b"
       },
       "kernel-run": {
         "file": "kernel/run.b"

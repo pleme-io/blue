@@ -32,7 +32,7 @@
 //! blue banner                  the wordmark — the blueshift ramp
 //! blue shift   FILE            how far this is shifted, and what is shifting it
 //! blue reference               the language, from its own tables, as JSON
-//! blue new     NAME            a program, `--bidama` or `--script` (`scaffold`)
+//! blue new     NAME            a program, `--bidama`, `--script` or `--kernel` (`scaffold`)
 //! blue watch   [CMD] PATH...   rerun check, test or run on save (`watch`)
 //! blue image build [NAME]      build a Bluefile image through nix: tarball, size, layers
 //! blue workload render [NAME]  a workload's rendered objects; --write rewrites the files
@@ -533,15 +533,19 @@ enum Cmd {
     /// than hand-rolled here — see `config` for what may live in it and why
     /// the surface is two fields.
     Config(shikumi::cli::ConfigShowCommand),
-    /// Start a program (a project with its own bidama), a `--bidama`, or a
-    /// `--script`, each passing `blue test` as written.
+    /// Start a program (a project with its own bidama), a `--bidama`, a
+    /// `--script`, or a `--kernel` program, each passing `blue test` as written.
     New {
         /// The directory to create, or with `--script` the file.
         name: PathBuf,
-        #[arg(long, conflicts_with = "script")]
+        #[arg(long, conflicts_with_all = ["script", "kernel"])]
         bidama: bool,
-        #[arg(long)]
+        #[arg(long, conflicts_with = "kernel")]
         script: bool,
+        /// A kernel program with its loader: `blue test` runs it on the pure
+        /// machine with no kernel, and `--allow kernel_bpf` loads it.
+        #[arg(long)]
+        kernel: bool,
     },
     /// Rerun `check` (the default), `test` or `run` over each PATH whenever a
     /// watched file changes: `blue watch test lib.b`.
@@ -1680,10 +1684,12 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             name,
             bidama,
             script,
+            kernel,
         } => {
-            let shape = match (bidama, script) {
-                (true, _) => scaffold::Shape::Bidama,
-                (_, true) => scaffold::Shape::Script,
+            let shape = match (bidama, script, kernel) {
+                (true, _, _) => scaffold::Shape::Bidama,
+                (_, true, _) => scaffold::Shape::Script,
+                (_, _, true) => scaffold::Shape::Kernel,
                 _ => scaffold::Shape::Program,
             };
             println!("{}", scaffold::new(&name, shape).map_err(CliError::Pkg)?);

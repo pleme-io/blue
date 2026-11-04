@@ -24,6 +24,18 @@ def literal(value)
   end
 end
 
+@doc """
+skip_for: end this test as skipped when `why` names a reason, and go on when it is nil. `blue test` counts it apart from a pass and prints the reason; `BLUE_TEST_SKIP=refuse` makes it a failure.
+
+    skip_for(nil) #=> nil
+    (skip_for("no kernel here") rescue :skipped) #=> :skipped
+"""
+def skip_for(why)
+  if why != nil
+    raise(:test_skipped, why)
+  end
+end
+
 def snapshot_path(opts)
   name = opts[:name]
   if not string?(name) or name == "" or contains?(name, "/")

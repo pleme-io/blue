@@ -478,6 +478,7 @@ stateDiagram-v2
 | coverage gate at enforce with a ratchet | tested, gated | `gen/test-beside.b` (7 tests: red then green on a fixture package; growth, waiver, stale, audit, off, blind); `checks.test-beside`; pre-push gate |
 | recorded debt | live | 210 untested definitions in 42 packages, 2026-10-24; 35 packages at zero |
 | test options map: `satisfies:`, `target:`, `assert_panics`, `blue test --allow`, `--facts` | live | section 4, "Declared controls"; `tests/compliance.rs` (4), `spec/rows/testing.b` (12) |
+| a named skip: `tesuto::skip_for`, `SKIP name: why`, `BLUE_TEST_SKIP=refuse` | live | `crates/blue-lang-test` (the skip is never a pass), `tests/scripts.rs`, `gen/kernel-new.b` |
 | integration-point finding, test options map: `kind:`, `allow:`, `fakes:` | design | section 5, D6 |
 | BDD words beyond `raises?` and `snapshot` | design | section 6 |
 | rendered CI workflow, `blue test .` | design | section 9 |

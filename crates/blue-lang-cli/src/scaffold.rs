@@ -13,6 +13,11 @@
 //!   it inside a distribution's directory.
 //! - **a script** (`blue new --script NAME.b`): one executable file opening
 //!   with `#!/usr/bin/env blue`.
+//! - **a kernel program** (`blue new --kernel NAME`): a Bluefile that allows
+//!   `:kernel_bpf`, and one file holding the program, its loader and its tests.
+//!   `blue test` runs it on the pure machine with no kernel, and names the one
+//!   test that needs a real kernel when it skips. `gen/kernel-new.b` holds the
+//!   template to the kernel words as they change.
 //!
 //! Every file is written in its canonical formatting and every lock is blue's
 //! own evaluation of the Bluefile beside it, so `blue fmt --check`, `blue
@@ -27,6 +32,7 @@ pub enum Shape {
     Program,
     Bidama,
     Script,
+    Kernel,
 }
 
 const FLAKE: &str = r##"{
@@ -94,6 +100,87 @@ use("retsu", [:size])
 write_stdout("hello, #{argv_get(0, "world")} (#{size(argv)} argument(s))\n")
 "##;
 
+const KERNEL_BLUEFILE: &str = r##"# __NAME__'s build facts. After an edit, `blue lock .` rewrites Bluefile.lock.
+package("__NAME__", "0.1.0")
+
+allow(%i[clock environment filesystem kernel_bpf process])
+check("__NAME__", "__NAME__.b", ["__NAME__.b"])
+"##;
+
+const KERNEL: &str = r##"@moduledoc """
+__NAME__: a kernel program and its loader in one file. `count_packets` is the program, `main` loads it onto an interface, and the tests run the same source on the pure machine, and on a real kernel when this host has one. docs/tutorial/first-kernel-program.md explains each part.
+"""
+
+use("bpf", %i[compile declare_map map_add packet_int packet_len xdp_pass])
+use("kaaneru", %i[attached install kernel_absence])
+use("retsu", %i[first repeat])
+use("tesuto", [:skip_for])
+
+COUNTS = declare_map(:counts, :array, 4, 8, 256)
+
+def count_packets(ctx)
+  if packet_len(ctx) >= 34
+    map_add(COUNTS, packet_int(ctx, 23, 1), 1)
+  end
+  xdp_pass
+end
+
+def program()
+  compile("__NAME__.b", {entry: :count_packets, kind: :xdp, on_fault: xdp_pass})
+end
+
+def frame(protocol)
+  append(*[repeat(0, 23), [protocol], repeat(0, 10)])
+end
+
+def interface_index(name)
+  path = "/sys/class/net/#{name}/ifindex"
+  if not path_exists(path)
+    raise(:bad_option, "no interface #{name} on this host")
+  end
+  to_int(trim(read_file(path)))
+end
+
+def main()
+  name = first(argv)
+  if name.nil?
+    raise(:bad_option, "name an interface: blue run --allow host --quiet __NAME__.b -- eth0")
+  end
+  attached(
+    program,
+    {xdp: interface_index(name)},
+    fn(live)
+      sleep_ms(5000)
+      write_stdout("ICMP packets in 5 seconds: #{to_s(kaaneru::map_int(live, :counts, 1))}
+")
+    end
+  )
+end
+
+test "on the machine, a packet of one protocol is counted and passed"
+  p = program
+  st = bpf::run(p, {packet: frame(1), maps: p[:maps]})
+  assert st.ret == xdp_pass
+  assert bpf::map_int(st, :counts, 1) == 1
+  assert bpf::map_int(st, :counts, 6) == 0
+end
+
+test "on the machine, a frame too short for the field is passed and not counted"
+  p = program
+  st = bpf::run(p, {packet: repeat(0, 20), maps: p[:maps]})
+  assert st.ret == xdp_pass
+  assert bpf::map_int(st, :counts, 0) == 0
+end
+
+test "on a real kernel, the program counts what the machine counts"
+  skip_for(kernel_absence)
+  live = install(program)
+  assert kaaneru::run(live[:prog], {packet: frame(1), repeat: 3})[:ret] == xdp_pass
+  assert kaaneru::map_int(live, :counts, 1) == 3
+  assert kaaneru::map_int(live, :counts, 6) == 0
+end
+"##;
+
 /// Make `shape` at `path`, and say what was made and how to run it.
 pub fn new(path: &Path, shape: Shape) -> Result<String, String> {
     if path.exists() {
@@ -117,6 +204,21 @@ pub fn new(path: &Path, shape: Shape) -> Result<String, String> {
             bidama(path, &name)?;
             Ok(format!(
                 "created {p}/: Bluefile, Bluefile.lock, {name}.b\ntest it  blue test {p}/{name}.b",
+                p = path.display()
+            ))
+        }
+        Shape::Kernel => {
+            let name = bidama_name(&file_name)?;
+            let fill = |t: &str| t.replace("__NAME__", &name);
+            std::fs::create_dir_all(path).map_err(|e| format!("{}: {e}", path.display()))?;
+            write(&path.join("Bluefile"), &fill(KERNEL_BLUEFILE))?;
+            write(&path.join("flake.nix"), &fill(FLAKE))?;
+            write(&path.join(format!("{name}.b")), &fill(KERNEL))?;
+            lock(path)?;
+            Ok(format!(
+                "created {p}/: Bluefile, Bluefile.lock, flake.nix, {name}.b\n\
+                 test it  cd {p} && blue test {name}.b\n\
+                 run it   cd {p} && sudo blue run --allow host --quiet {name}.b -- eth0",
                 p = path.display()
             ))
         }

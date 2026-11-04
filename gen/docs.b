@@ -41,7 +41,7 @@ test "every block of every tutorial and how-to runs as the page shows it"
     if found != []
       write_stderr(unlines(found))
     end
-    assert length(runnable) >= 11
+    assert length(runnable) >= 19
     assert found == []
   end
 end

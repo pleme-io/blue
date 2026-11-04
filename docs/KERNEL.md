@@ -8,6 +8,14 @@ summary: blue as the whole kernel toolchain, from source to a program the verifi
 Status: BUILDING, 2026-11-03. §6 states what is built and what is design. Every
 "built" row names the test that shows it.
 
+This page is the reference. To learn by doing, start with
+[the first kernel program](tutorial/first-kernel-program.md), then
+[pick a hook](howto/pick-a-kernel-hook.md),
+[read a kernel field](howto/read-a-kernel-field.md),
+[debug a refusal](howto/debug-a-kernel-refusal.md) and
+[ship a node agent](howto/ship-a-node-agent.md). `blue new --kernel NAME` starts a
+project, and [the examples](EXAMPLES.md) run on the machine anywhere.
+
 ## 1. Destination
 
 A person writes one blue file. Blue compiles it to BPF, loads it, attaches it and
@@ -42,7 +50,7 @@ reason is the named gap `:device`.
 |---|---|---|
 | kernel-side program | BPF bytecode in the kernel; no evaluator, no collector | the verifier admits nothing else |
 | compile, assemble, machine, tests | any host, any rung, including wasm | pure |
-| loader tool, one-shot | `blue run --allow kernel_bpf`, or a shebang with it | the capability is the whole grant, and it is visible at the top of the file |
+| loader tool, one-shot | `blue run --allow kernel_bpf`, or a shebang with it; `--allow host` or more `--allow` flags when it also compiles, since `compile` needs `process` and `filesystem` | the capability is the whole grant for the kernel, and it is visible at the top of the file |
 | node daemon | `service(...)` with `runtime: :native, because: :device`: a nix closure on an engenho node, `mkHardenedImageSet` on a foreign cluster | WASI preview 2 reaches no kernel ABI |
 | sealed daemon | `blue bundle --runner blue-appliance` | held to the capabilities its lock verified, and takes no flags |
 | inside a Rust program | `blue-lang-host` with a `#[host]` block | where Rust already owns the descriptors, as kanshi and engenho do |
@@ -142,6 +150,8 @@ Every "measured on plo" row ran on 6.12.93, 2026-11-03 or 2026-11-04, and every 
 | callback: `func_ref`, `bpf_loop` | built for assembled programs, measured on plo | `kernel/object_suite.b`: kernel and machine both count 3; the compiler has no word for a callback |
 | a kernel matrix in machines, through `vm_check` | built, run on a hosted runner with KVM, 2026-11-04 | `.github/workflows/kernel-matrix.yml`, generated from the Bluefile, on a schedule, by hand, on a `kernel-matrix/**` branch and after a push to main that touches the kernel; never on a land. 6.6.142, 6.12.92 and 7.0.11 each boot and answer 38 of 38 in `kernel/suite.b`, 11 of 11 in `kernel/object_suite.b`, 9 of 9 in `kernel/net_suite.b`, with `kernel/control.b` red in each. Seen red twice: 7.0.11 gave cgroup skb a packet the suite said it would not, and with the division guard off 6.6.142 panicked with a divide error. Off KVM, `checks.vm-kernel-absent` says none of it ran. plo stays the one host for `blue kernel/run.b on HOST` |
 | a check of every kernel file and program, with no kernel | built | `checks.kernel-compile`: 27 files and 21 programs on any host at land time; rule B0072 holds a call to its definition's argument count, which `blue check` did not before |
+| `kaaneru::attached`: load onto one of `hooks`, run a body, close everything, a spec and a kind that do not fit refused before the kernel | built, measured on plo | `kernel/suite.b`, `kernel/net_suite.b`: 12 call sites attach through it, over xdp, tcx, cgroup skb, sock and device, netfilter, fentry, fexit, fmod_ret, lsm and raw tracepoint, and a raise from the body closes the link; tracepoint, kprobe and iter have their own words measured and have not run through it; the refusals are in `bidamas/kaaneru/kaaneru.b` |
+| `blue new --kernel`: a project that passes with no kernel, its real-kernel test skipped by name | built, measured on plo | `gen/kernel-new.b` holds the template to the words; `kernel/suite.b`: `BLUE_TEST_SKIP=refuse` passes on 6.12.93. The tutorial followed as written on plo: 4 of 4 tests as root, 3 ICMP dropped on `lo` in a namespace, ping back after; `EPERM` named as the skip when not root |
 | kanshi's LSM enforcer in blue | built, measured on plo 2026-11-04 scoped to spawned processes, off by default, never run host-wide | kanshi `enforcer/differential.b`: 144 of 144 questions agree with the C's logic, 192 denials all in targets, 5 of 5 mutants caught; kanshi's `CLAUDE.md` says why it stays off |
 
 ## 7. Running the kernel suites

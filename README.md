@@ -224,7 +224,7 @@ was rendered. `blue help COMMAND` shows each one's flags.
 | `blue crash immunize CRASH` | The crash's regression lock: a test that spawns the target, sends it the fewest messages that crashed it and asserts it took them, red until the target is fixed. |
 | `blue receipt verify FILE` | Recompute a receipt's name from its bytes and check its form; any edit fails. |
 | `blue config [TIER]` | Show the bounds `blue` is running with, at any tier. |
-| `blue new NAME` | Start a program (a project with its own bidama), a `--bidama`, or a `--script`, each passing `blue test` as written. |
+| `blue new NAME` | Start a program (a project with its own bidama), a `--bidama`, a `--script`, or a `--kernel` program, each passing `blue test` as written. |
 | `blue watch [CMD] PATH... [-- ARGS]...` | Rerun `check` (the default), `test` or `run` over each PATH whenever a watched file changes: `blue watch test lib.b`. |
 | `blue image build [NAME] [-- NIX_ARGS]...` | Build an `image(...)` through nix and report the tarball, its size and its layers. |
 | `blue workload render [NAME]` | Print a workload's rendered objects, or with `--write` rewrite every workload's committed `output` file. |
@@ -250,7 +250,7 @@ rendered:
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-97 packages, 5461 definitions, 1738 tests.
+97 packages, 5471 definitions, 1742 tests.
 
 - [anaritikusu](bidamas/CATALOG.md#anaritikusu) (アナリティクス) — lifecycle analytics: a database of telemetry, standard models and cross-lifecycle joins, generated from lifecycle definitions.
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
@@ -426,6 +426,7 @@ Read it in order as [The blue Book](docs/BOOK.md), or open one page:
 - [A first program](docs/tutorial/first-program.md): start a program with blue new, change its code, and test it
 - [A first bidama](docs/tutorial/first-bidama.md): write a documented bidama with doctests, read its docs with blue doc, and use it from a program
 - [A first service](docs/tutorial/first-service.md): declare a service in a Bluefile, write its handler and tests, and see what blue renders from it
+- [A first kernel program](docs/tutorial/first-kernel-program.md): start a kernel program with blue new --kernel, test it with no kernel, make it drop ICMP, and load it on Linux
 
 ### How-to guides
 
@@ -438,6 +439,10 @@ Read it in order as [The blue Book](docs/BOOK.md), or open one page:
 - [Supervise processes](docs/howto/supervise-processes.md): start worker processes under a supervisor, crash one, and see its restart strategy bring it back
 - [Virtualize a capability](docs/howto/virtualize-a-capability.md): give a program a stepped clock with the Bluefile word virtualize, so now_ms is the same at every run, and scope it to one package with for:
 - [Test a refusal](docs/howto/test-a-refusal.md): test that code refuses correctly, for an error raised by kind, a kyohi refusal returned as data, and a run held by --allow that breaches with exit 77
+- [Pick a kernel hook](docs/howto/pick-a-kernel-hook.md): choose the kernel hook for a task, compile for its program kind, and attach with one word
+- [Read a kernel field](docs/howto/read-a-kernel-field.md): read a field of a kernel struct at the offset the running kernel states, and test the read on the pure machine
+- [Debug a kernel refusal](docs/howto/debug-a-kernel-refusal.md): find which layer refused a kernel program, the compiler, the machine or the verifier, and read why
+- [Ship a node agent](docs/howto/ship-a-node-agent.md): declare a service that reaches the kernel, see the DaemonSet and exact capabilities blue renders, and test it with no cluster
 
 ### Reference
 

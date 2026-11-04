@@ -92,7 +92,7 @@ pub(crate) fn test(
             .collect();
         crate::facts::write(facts, hold, &evidence).map_err(CliError::Fmt)?;
     }
-    let (mut total, mut passed, mut failed, mut broken) = (0, 0, 0, 0);
+    let (mut total, mut passed, mut failed, mut skipped, mut broken) = (0, 0, 0, 0, 0);
     for run in &runs {
         eprint!("{}", run.errors);
         match &run.report {
@@ -100,14 +100,9 @@ pub(crate) fn test(
                 total += r.total();
                 passed += r.passed;
                 failed += r.failures.len();
+                skipped += r.skipped.len();
                 if tree {
-                    println!(
-                        "{}: {} test(s): {} passed, {} failed",
-                        run.path.display(),
-                        r.total(),
-                        r.passed,
-                        r.failures.len()
-                    );
+                    println!("{}: {}", run.path.display(), r.tally());
                 }
             }
             None => broken += 1,
@@ -116,7 +111,12 @@ pub(crate) fn test(
             print_coverage(&run.path, rows, json)?;
         }
     }
-    let tally = format!("{total} test(s): {passed} passed, {failed} failed");
+    let skips = if skipped > 0 {
+        format!(", {skipped} skipped")
+    } else {
+        String::new()
+    };
+    let tally = format!("{total} test(s): {passed} passed, {failed} failed{skips}");
     if tree {
         let files = runs.len();
         let broken = if broken > 0 {
@@ -189,6 +189,18 @@ fn hermetic() -> Result<(), CliError> {
 
 /// Every `.b` file under `root` with a top-level `test` block, in path order.
 /// Hidden directories, `target` and nix `result` links are not walked.
+/// Whether a skip counts as a failure on this host: `BLUE_TEST_SKIP=refuse`.
+/// The default lets a test name why it cannot run here.
+fn refuse_skips() -> Result<bool, CliError> {
+    match std::env::var("BLUE_TEST_SKIP").as_deref() {
+        Err(_) | Ok("allow") => Ok(false),
+        Ok("refuse") => Ok(true),
+        Ok(other) => Err(CliError::Usage(format!(
+            "BLUE_TEST_SKIP is \"{other}\"; it takes allow (the default) or refuse"
+        ))),
+    }
+}
+
 fn test_files(root: &Path) -> Vec<PathBuf> {
     let mut out = Vec::new();
     let mut seen = std::collections::HashSet::new();
@@ -376,8 +388,15 @@ fn test_file(
     if let Some(w) = &witness {
         crate::witness::finish(w);
     }
+    let mut report = report;
+    if refuse_skips()? {
+        report.refuse_skips();
+    }
     for failure in &report.failures {
         let _ = writeln!(errors, "{failure}");
+    }
+    for skip in &report.skipped {
+        let _ = writeln!(errors, "{skip}");
     }
     Ok(FileRun {
         path: path.to_path_buf(),

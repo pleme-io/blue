@@ -274,10 +274,40 @@ impl std::fmt::Display for Failure {
     }
 }
 
+/// A test that raised `:test_skipped`, the kind `tesuto::skip_for` raises.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Skipped {
+    pub test: String,
+    pub why: String,
+}
+
+impl std::fmt::Display for Skipped {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "SKIP {}: {}", self.test, self.why)
+    }
+}
+
+/// The error kind that says a test cannot run here.
+const SKIP_KIND: &str = "test_skipped";
+
+/// Why a test skipped, when this error is the skip kind.
+fn skip_of(error: &tatara_lisp_eval::EvalError) -> Option<String> {
+    match error {
+        tatara_lisp_eval::EvalError::User {
+            value: Value::Error(e),
+            ..
+        } if &*e.tag == SKIP_KIND => Some(e.message.to_string()),
+        _ => None,
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Report {
     pub passed: usize,
     pub failures: Vec<Failure>,
+    /// Each test that said it cannot run here, and why. Never a pass: the
+    /// tally names them, and `BLUE_TEST_SKIP=refuse` turns each into a failure.
+    pub skipped: Vec<Skipped>,
     /// How many times the file's preamble was evaluated. **One**, regardless
     /// of test count — the tests fork a prototype that already holds it.
     ///
@@ -302,7 +332,32 @@ impl Report {
     }
 
     pub fn total(&self) -> usize {
-        self.passed + self.failures.len()
+        self.passed + self.failures.len() + self.skipped.len()
+    }
+
+    /// The tally a person reads: a skip shows only when there is one.
+    pub fn tally(&self) -> String {
+        let skipped = if self.skipped.is_empty() {
+            String::new()
+        } else {
+            format!(", {} skipped", self.skipped.len())
+        };
+        format!(
+            "{} test(s): {} passed, {} failed{skipped}",
+            self.total(),
+            self.passed,
+            self.failures.len()
+        )
+    }
+
+    /// Each skip as a failure, for a host where every test must run.
+    pub fn refuse_skips(&mut self) {
+        for s in std::mem::take(&mut self.skipped) {
+            self.failures.push(Failure::Errored {
+                test: s.test,
+                error: format!("skipped under BLUE_TEST_SKIP=refuse: {}", s.why),
+            });
+        }
     }
 }
 
@@ -311,13 +366,10 @@ impl std::fmt::Display for Report {
         for failure in &self.failures {
             writeln!(f, "{failure}")?;
         }
-        write!(
-            f,
-            "{} test(s): {} passed, {} failed",
-            self.total(),
-            self.passed,
-            self.failures.len()
-        )
+        for skip in &self.skipped {
+            writeln!(f, "{skip}")?;
+        }
+        write!(f, "{}", self.tally())
     }
 }
 
@@ -370,6 +422,8 @@ struct Recorder {
     broken: Arc<AtomicU64>,
     /// Steps the children `assert_panics` ran spent.
     child_steps: Arc<AtomicU64>,
+    /// Why the test said it cannot run here.
+    skip: Arc<std::sync::Mutex<Option<String>>>,
 }
 
 impl Recorder {
@@ -723,7 +777,15 @@ struct Ran<'a> {
 /// Record a finished test: its failure, if it has one, and its outcome.
 fn finish(report: &mut Report, ran: &Ran<'_>, rec: &Recorder, ended: Result<(), String>) {
     let mut assertions = rec.tally();
+    let skip = rec.skip.lock().ok().and_then(|s| s.clone());
     let passed = match ended {
+        Err(_) if skip.is_some() && !rec.failed.load(Ordering::SeqCst) => {
+            report.skipped.push(Skipped {
+                test: ran.name.to_string(),
+                why: skip.unwrap_or_default(),
+            });
+            false
+        }
         Err(error) => {
             assertions.failed += 1;
             report.failures.push(Failure::Errored {
@@ -947,7 +1009,12 @@ pub fn run_guarded(
             interp
                 .eval_top_form(&compare_asserts_spanned(block.body), &mut ())
                 .map(drop)
-                .map_err(|e| fault(interp, block.top_level, &e))
+                .map_err(|e| {
+                    if let (Some(why), Ok(mut skip)) = (skip_of(&e), rec.skip.lock()) {
+                        *skip = Some(why);
+                    }
+                    fault(interp, block.top_level, &e)
+                })
         });
         let ended = refused_past(ended, over);
         let ran = Ran {
@@ -1360,6 +1427,36 @@ mod tests {
         .expect("checks");
         assert!(checked.outcome.ok(), "{:?}", checked.outcome.diagnostics);
         checked
+    }
+
+    /// `:test_skipped` is its own outcome: never a pass, never a failure, and
+    /// a failed assertion before it stays the failure it was.
+    #[test]
+    fn a_test_that_raises_the_skip_kind_is_counted_apart() {
+        let src = [
+            "test \"it passes\"\n  assert 1 == 1\nend\n\n",
+            "test \"it skips\"\n  raise(:test_skipped, \"no kernel here\")\n  assert 1 == 2\nend\n\n",
+            "test \"it fails first\"\n  assert 1 == 2\n  raise(:test_skipped, \"too late\")\nend\n\n",
+            "test \"another kind is an error\"\n  raise(:other, \"no\")\nend\n",
+        ]
+        .concat();
+        let mut r = run_guarded(&checked(&src), None, None, &Guard::default());
+        assert_eq!(r.passed, 1, "{r}");
+        assert_eq!(r.failures.len(), 2, "{r}");
+        assert_eq!(
+            r.skipped,
+            vec![Skipped {
+                test: "it skips".to_string(),
+                why: "no kernel here".to_string()
+            }]
+        );
+        assert_eq!(r.total(), 4);
+        assert!(!r.outcomes[1].passed);
+        assert_eq!(r.tally(), "4 test(s): 1 passed, 2 failed, 1 skipped");
+        assert!(r.to_string().contains("SKIP it skips: no kernel here"));
+        r.refuse_skips();
+        assert!(r.skipped.is_empty());
+        assert_eq!(r.failures.len(), 3);
     }
 
     #[test]

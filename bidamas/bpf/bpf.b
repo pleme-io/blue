@@ -2679,6 +2679,23 @@ def map_value(st, name, key)
 end
 
 @doc """
+map_int: the integer a machine's map holds for an integer key, nil when it holds none. `kaaneru::map_int` is the same read in the kernel.
+
+    map_int(run(assemble([alu(:mov, 0, 0), exit_program]), {maps: [declare_map(:m, :array, 4, 8, 1)]}), :m, 0) #=> 0
+    map_int(run(assemble([alu(:mov, 0, 0), exit_program]), {maps: [declare_map(:m, :hash, 4, 8, 1)]}), :m, 7).nil? #=> true
+"""
+def map_int(st, name, key)
+  m = find(st[:map_list], (x) -> x[:name] == name)
+  if m.nil?
+    raise(:bad_option, "no map #{to_s(name)}")
+  end
+  value = map_value(st, name, int_bytes(key, m[:key_size]))
+  if value != nil
+    bytes_int(value, 0, m[:value_size])
+  end
+end
+
+@doc """
 run: a program to completion on a fresh machine: the machine at its end, with `ret` the value in r0. A step past `max_steps` (a million, or {max_steps:}) and a fault each raise :bpf_fault.
 
     run(assemble([alu(:mov, 0, 42), exit_program])).ret #=> 42
@@ -5933,16 +5950,34 @@ def bind_fields(program, resolve)
 end
 
 @doc """
+source_path: where `compile` reads a file: under `GEN_ROOT` when a check holds it there, else as given. A file in neither place raises :bpf_compile and names the directory it looked from.
+
+    (source_path("/no/such/file.b") rescue :refused) #=> :refused
+"""
+def source_path(path)
+  held = path_join(getenv("GEN_ROOT", "."), path)
+  found = find([held, path], (p) -> path_exists(p))
+  if found.nil?
+    raise(
+      :bpf_compile,
+      "no file #{path} from #{cwd}: run from the directory that holds it, or declare it in the check's inputs"
+    )
+  end
+  found
+end
+
+@doc """
 compile: a blue file's definition to a kernel program, through the resolved tree `blue ast --resolved` prints, so what compiles has passed every rule the check stage holds. See `compile_forms`.
 
     (compile("/no/such/file.b", {}) rescue :refused) #=> :refused
 """
 def compile(path, opts)
-  checked_run = exec_capture(blue_exe, "check", path)
+  file = source_path(path)
+  checked_run = exec_capture(blue_exe, "check", file)
   if checked_run.status != 0
     raise(:bpf_compile, "#{path} does not check: #{checked_run.stderr}")
   end
-  resolved_run = exec_capture(blue_exe, "ast", "--resolved", path)
+  resolved_run = exec_capture(blue_exe, "ast", "--resolved", file)
   if resolved_run.status != 0
     raise(:bpf_compile, "#{path} does not resolve: #{resolved_run.stderr}")
   end

@@ -334,6 +334,61 @@ fn blue_new_writes_what_passes_its_own_gates() {
     }
 }
 
+/// `blue new --kernel` writes a project whose tests pass with no kernel on any
+/// host, the real-kernel test skipped by name where it cannot run, and a skip
+/// is never a pass: `BLUE_TEST_SKIP=refuse` makes it a failure.
+#[test]
+fn blue_new_kernel_passes_with_no_kernel_and_a_skip_is_named() {
+    let dir = scratch("new-kernel");
+    let new = blue()
+        .current_dir(&dir)
+        .args(["new", "--kernel", "kumo"])
+        .output()
+        .unwrap();
+    assert!(new.status.success(), "{}{}", out(&new), err(&new));
+    let project = dir.join("kumo");
+    let bluefile = std::fs::read_to_string(project.join("Bluefile")).unwrap();
+    assert!(bluefile.contains("kernel_bpf"), "{bluefile}");
+    let test = blue()
+        .current_dir(&project)
+        .args(["test", "kumo.b"])
+        .output()
+        .unwrap();
+    assert!(test.status.success(), "{}{}", out(&test), err(&test));
+    let tally = out(&test);
+    if tally.contains("skipped") {
+        assert!(tally.contains("2 passed, 0 failed, 1 skipped"), "{tally}");
+        assert!(
+            err(&test).contains("SKIP on a real kernel"),
+            "{}",
+            err(&test)
+        );
+        let refused = blue()
+            .current_dir(&project)
+            .env("BLUE_TEST_SKIP", "refuse")
+            .args(["test", "kumo.b"])
+            .output()
+            .unwrap();
+        assert!(!refused.status.success(), "{}", out(&refused));
+    }
+    let bad = blue()
+        .current_dir(&project)
+        .env("BLUE_TEST_SKIP", "maybe")
+        .args(["test", "kumo.b"])
+        .output()
+        .unwrap();
+    assert!(!bad.status.success());
+    assert!(err(&bad).contains("BLUE_TEST_SKIP"), "{}", err(&bad));
+    for refused in [
+        &["new", "--kernel", "--script", "x.b"][..],
+        &["new", "--kernel", "--bidama", "x"],
+        &["new", "--kernel", "kaaneru"],
+    ] {
+        let o = blue().current_dir(&dir).args(refused).output().unwrap();
+        assert!(!o.status.success(), "{refused:?} was accepted");
+    }
+}
+
 /// `blue watch test FILE` runs once, then again after a save, reporting the
 /// new verdict; it is stopped by being killed, as Ctrl-C stops it.
 #[test]

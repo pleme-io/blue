@@ -11,6 +11,7 @@ Read the tutorials and how-to guides in order in [The blue Book](docs/BOOK.md).
 - [A first program](docs/tutorial/first-program.md): start a program with blue new, change its code, and test it
 - [A first bidama](docs/tutorial/first-bidama.md): write a documented bidama with doctests, read its docs with blue doc, and use it from a program
 - [A first service](docs/tutorial/first-service.md): declare a service in a Bluefile, write its handler and tests, and see what blue renders from it
+- [A first kernel program](docs/tutorial/first-kernel-program.md): start a kernel program with blue new --kernel, test it with no kernel, make it drop ICMP, and load it on Linux
 
 ## How-to guides
 
@@ -23,6 +24,10 @@ Read the tutorials and how-to guides in order in [The blue Book](docs/BOOK.md).
 - [Supervise processes](docs/howto/supervise-processes.md): start worker processes under a supervisor, crash one, and see its restart strategy bring it back
 - [Virtualize a capability](docs/howto/virtualize-a-capability.md): give a program a stepped clock with the Bluefile word virtualize, so now_ms is the same at every run, and scope it to one package with for:
 - [Test a refusal](docs/howto/test-a-refusal.md): test that code refuses correctly, for an error raised by kind, a kyohi refusal returned as data, and a run held by --allow that breaches with exit 77
+- [Pick a kernel hook](docs/howto/pick-a-kernel-hook.md): choose the kernel hook for a task, compile for its program kind, and attach with one word
+- [Read a kernel field](docs/howto/read-a-kernel-field.md): read a field of a kernel struct at the offset the running kernel states, and test the read on the pure machine
+- [Debug a kernel refusal](docs/howto/debug-a-kernel-refusal.md): find which layer refused a kernel program, the compiler, the machine or the verifier, and read why
+- [Ship a node agent](docs/howto/ship-a-node-agent.md): declare a service that reaches the kernel, see the DaemonSet and exact capabilities blue renders, and test it with no cluster
 
 ## Reference
 

@@ -98,7 +98,7 @@ file's `Bluefile.lock` records is skipped and named, never chosen.
 | `blue replay TRACE` | run a crashed process again from its trace and say whether it crashed the same way; a fatal exit's `.bluecrash` replays under the hold it recorded; TRACE is a file or its crash hash (`b3:<hex>`, 8 digits at least) |
 | `blue crash dump\|bisect\|immunize CRASH` | a trace by file or crash hash: `dump` what it violated and where (class, host name, capability, file:line:col, hold, exit, mailbox; `--json`); `bisect` it to the fewest messages that replay to the same crash; `immunize` it into a test, red until the target is fixed (`--into FILE`) ([`docs/SAFETY.md`](SAFETY.md), row 8) |
 | `blue receipt verify FILE` | recompute a receipt's name from the BLAKE3 hash of its bytes and check its form: version 1, version 2 with a server's `input_root` and `output_root`, or version 3 with `steps`; any edit fails |
-| `blue new NAME` | a project; `--bidama NAME` a package, `--script NAME.b` an executable script |
+| `blue new NAME` | a project; `--bidama NAME` a package, `--script NAME.b` an executable script, `--kernel NAME` a kernel program with its loader |
 | `blue watch [check\|test\|run] PATH…` | rerun the command on every save (`check` by default) |
 | `blue test file.b` | check it, then run its `test` blocks; a directory runs every file with tests, in parallel; `--filter NAME` keeps tests whose name contains it; `--coverage` lists each definition's calls and the uncovered ones; `--allow CAP` holds the tests to those host capabilities; `--facts FILE` (or `TAMESHI_FACTS`) writes the facts tameshi reads and `blue-test-evidence.json` beside it ([`docs/TESTING.md`](TESTING.md#declared-controls-live-2026-10-30)) |
 | `blue profile file.b` | run it and list every function called: calls, inclusive and exclusive time, and allocations made in each |
@@ -148,6 +148,10 @@ the sandbox. The off switches are `BLUE_TEST_ENV=inherit`,
 `BLUE_TEST_WRITES=anywhere` and `BLUE_INPUTS=checkout`; a `GEN_ROOT` you set
 yourself wins. A test that writes a `.b` file writes it with `write_program`,
 which formats it (B0064).
+
+A test that cannot run here says why with `tesuto::skip_for(why)`. `blue test`
+prints `SKIP name: why` and counts it apart from a pass; `BLUE_TEST_SKIP=refuse`
+makes each skip a failure, for a host where every test must run.
 
 ### One way to write each thing
 
@@ -283,6 +287,28 @@ Tests live beside what they test, and the Bluefile is the pipeline
 (`docs/TESTING.md`). A bidama definition no test reaches fails
 `checks.test-beside` beyond its package's recorded debt; waive one with
 `waive(name, why, until)` in `gen/test-beside.b`, never by deleting the gate.
+
+### Kernel programs
+
+Start at [the first kernel program](tutorial/first-kernel-program.md);
+[`docs/KERNEL.md`](KERNEL.md) is the reference and the ledger of what ran
+where. `blue new --kernel NAME` writes one file holding the program, its loader
+and its tests. These words do most of the work:
+
+| Word | What it does | Needs |
+|---|---|---|
+| `bpf::compile(file, {entry:, kind:, on_fault:})` | one definition to BPF, through the check stage | process |
+| `bpf::run(p, {packet:, maps:})`, `bpf::map_int(st, name, key)` | the pure machine, and a map on it | nothing |
+| `kaaneru::attached(p, spec, body)` | loads onto one of `kaaneru::hooks`, runs `body`, closes everything | `kernel_bpf` |
+| `kaaneru::map_int(live, name, key)` | a map in the kernel, with the machine's arguments | `kernel_bpf` |
+| `kaaneru::kernel_absence` | why a program cannot load here, nil when one can | `kernel_bpf` |
+
+Test on the machine first; it needs no root and runs everywhere. A real-kernel test
+opens with `skip_for(kernel_absence)`. A real kernel means plo, and a loaded plo
+reads as a broken BPF, so follow `docs/KERNEL.md` section 7: work in your own
+directory under `~/scratch`, hold `flock /tmp/blue-kernel.lock`, run at idle
+priority through `blue kernel/run.b`, and read what it left behind. The `kernel`
+skill holds the same rules for an agent.
 
 ### More
 

@@ -41,6 +41,7 @@ use(
     attach_sampling
     attach_tracepoint
     attach_uprobes
+    attached
     close_object
     create_map
     detach
@@ -51,6 +52,7 @@ use(
     load
     map_delete
     map_get
+    map_int
     map_keys
     map_named
     map_put
@@ -652,51 +654,105 @@ test "a kprobe_multi link works where the kernel has FPROBE, and is a named refu
 end
 
 test "fentry found through BTF reads a kernel struct whose offset came from this kernel"
-  table = btf::open(btf::vmlinux_path)
   compiled = compile(
     "kernel/programs/fentry.b",
     {entry: :on_open, kind: :tracing, on_fault: 0}
   )
-  live = install_hook(compiled, table, {fentry: "do_sys_openat2"})
-  ring = open_events(map_named(live, :fentry_events))
-  read_file("/proc/version")
-  got = next_event(ring, 2000)
-  detach(live[:link])
+  got = attached(
+    compiled,
+    {fentry: "do_sys_openat2"},
+    fn(live)
+      ring = open_events(map_named(live, :fentry_events))
+      read_file("/proc/version")
+      next_event(ring, 2000)
+    end
+  )
   assert not got.nil?
   tid = bit_and(bytes_int(got, 0, 8), 4_294_967_295)
   assert bytes_int(got, 8, 8) == tid
 end
 
 test "an LSM program counts this machine's file opens, allowing each"
-  table = btf::open(btf::vmlinux_path)
   compiled = compile(
     "kernel/programs/lsm_count.b",
     {entry: :on_file_open, kind: :lsm, on_fault: 0}
   )
-  live = install_hook(compiled, table, {lsm: "file_open"})
-  read_file("/proc/version")
-  count = bytes_int(map_get(map_named(live, :lsm_opens), int_bytes(0, 4)), 0, 8)
-  detach(live[:link])
+  count = attached(
+    compiled,
+    {lsm: "file_open"},
+    fn(live)
+      read_file("/proc/version")
+      map_int(live, :lsm_opens, 0)
+    end
+  )
   assert count >= 1
 end
 
 test "an LSM program denies exactly this process, and only while its target is set"
-  table = btf::open(btf::vmlinux_path)
   compiled = compile(
     "kernel/programs/lsm_deny.b",
     {entry: :on_file_open, kind: :lsm, on_fault: 0}
   )
-  live = install_hook(compiled, table, {lsm: "file_open"})
-  target = map_named(live, :lsm_target)
-  assert (read_file("/proc/version") rescue :refused) != :refused
-  tid = current_tid
-  map_put(target, int_bytes(0, 4), int_bytes(tid, 8))
-  denied = read_file("/proc/version") rescue :refused
-  map_put(target, int_bytes(0, 4), int_bytes(0, 8))
-  allowed = read_file("/proc/version") rescue :refused
-  detach(live[:link])
-  assert denied == :refused
-  assert allowed != :refused
+  got = attached(
+    compiled,
+    {lsm: "file_open"},
+    fn(live)
+      target = map_named(live, :lsm_target)
+      before = read_file("/proc/version") rescue :refused
+      map_put(target, int_bytes(0, 4), int_bytes(current_tid, 8))
+      denied = read_file("/proc/version") rescue :refused
+      map_put(target, int_bytes(0, 4), int_bytes(0, 8))
+      allowed = read_file("/proc/version") rescue :refused
+      {before:, denied:, allowed:}
+    end
+  )
+  assert got[:before] != :refused
+  assert got[:denied] == :refused
+  assert got[:allowed] != :refused
+end
+
+test "attached takes the program away when its body raises, and hands the raise on"
+  compiled = compile(
+    "kernel/programs/count.b",
+    {entry: :on_event, kind: :raw_tracepoint, on_fault: 0}
+  )
+  seen = nil
+  answer = begin
+    attached(
+      compiled,
+      {raw_tracepoint: "sched_process_exec"},
+      fn(live)
+        set!(seen, live)
+        raise(:from_the_body, "stop")
+      end
+    )
+    :returned
+  rescue :from_the_body
+    :raised
+  end
+  assert answer == :raised
+  assert fd_number(seen[:link][:fd]).nil?
+  assert fd_number(seen[:prog][:fd]).nil?
+  assert fd_number(first(seen[:maps])[:fd]).nil?
+end
+
+test "blue new --kernel makes a project whose every test runs here, none skipped"
+  dir = path_join(getenv("TMPDIR", "/tmp"), "kernel-new-#{to_s(now_ms)}")
+  mkdir_p(dir)
+  project = path_join(dir, "probe")
+  got = begin
+    assert exec_capture(self_exe, "new", "--kernel", project).status == 0
+    exec_with_env(
+      [["GEN_ROOT", project], %w[BLUE_TEST_SKIP refuse]],
+      self_exe,
+      "test",
+      path_join(project, "probe.b")
+    )
+  ensure
+    rm_rf(dir)
+  end
+  assert got.status == 0
+  assert contains?(got.stdout, "3 passed, 0 failed")
 end
 
 def current_tid()
@@ -930,35 +986,31 @@ test "a netfilter program runs on a frame it is given, and decides from the real
 end
 
 test "fexit reads the kernel's own argument and return value at its test function"
-  table = btf::open(btf::vmlinux_path)
-  live = install_hook(
-    compile(
-      "kernel/programs/fexit_args.b",
-      {entry: :on_return, kind: :tracing, on_fault: 0}
-    ),
-    table,
-    {fexit: "bpf_fentry_test1"}
+  compiled = compile(
+    "kernel/programs/fexit_args.b",
+    {entry: :on_return, kind: :tracing, on_fault: 0}
   )
-  seen = map_named(live, :fexit_seen)
-  kaaneru::run(live[:prog], {})
-  arg = bytes_int(map_get(seen, int_bytes(0, 4)), 0, 8)
-  ret = bytes_int(map_get(seen, int_bytes(1, 4)), 0, 8)
-  detach(live[:link])
-  assert [arg, ret] == [1, 2]
+  got = attached(
+    compiled,
+    {fexit: "bpf_fentry_test1"},
+    fn(live)
+      kaaneru::run(live[:prog], {})
+      [map_int(live, :fexit_seen, 0), map_int(live, :fexit_seen, 1)]
+    end
+  )
+  assert got == [1, 2]
 end
 
 test "fmod_ret replaces a kernel function's answer and skips its body"
-  table = btf::open(btf::vmlinux_path)
-  live = install_hook(
-    compile(
-      "kernel/programs/fmod_ret.b",
-      {entry: :replaced, kind: :tracing, on_fault: 0}
-    ),
-    table,
-    {fmod_ret: "bpf_modify_return_test"}
+  compiled = compile(
+    "kernel/programs/fmod_ret.b",
+    {entry: :replaced, kind: :tracing, on_fault: 0}
   )
-  got = kaaneru::run(live[:prog], {})[:ret]
-  detach(live[:link])
+  got = attached(
+    compiled,
+    {fmod_ret: "bpf_modify_return_test"},
+    (live) -> kaaneru::run(live[:prog], {})[:ret]
+  )
   side_effects = 1
   second_function = 29
   assert got == shift_left(side_effects, 16) + 5 + second_function

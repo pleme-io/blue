@@ -18,16 +18,21 @@ Tutorials teach by doing, from an empty directory. How-to guides each do one tas
   - [3. A first program](#3-a-first-program)
   - [4. A first bidama](#4-a-first-bidama)
   - [5. A first service](#5-a-first-service)
+  - [6. A first kernel program](#6-a-first-kernel-program)
 - How-to guides
-  - [6. Write a test and a doctest](#6-write-a-test-and-a-doctest)
-  - [7. Climb the blueshift](#7-climb-the-blueshift)
-  - [8. Declare what a program may touch](#8-declare-what-a-program-may-touch)
-  - [9. Write an action](#9-write-an-action)
-  - [10. Publish a bidama](#10-publish-a-bidama)
-  - [11. Run a pure worker](#11-run-a-pure-worker)
-  - [12. Supervise processes](#12-supervise-processes)
-  - [13. Virtualize a capability](#13-virtualize-a-capability)
-  - [14. Test a refusal](#14-test-a-refusal)
+  - [7. Write a test and a doctest](#7-write-a-test-and-a-doctest)
+  - [8. Climb the blueshift](#8-climb-the-blueshift)
+  - [9. Declare what a program may touch](#9-declare-what-a-program-may-touch)
+  - [10. Write an action](#10-write-an-action)
+  - [11. Publish a bidama](#11-publish-a-bidama)
+  - [12. Run a pure worker](#12-run-a-pure-worker)
+  - [13. Supervise processes](#13-supervise-processes)
+  - [14. Virtualize a capability](#14-virtualize-a-capability)
+  - [15. Test a refusal](#15-test-a-refusal)
+  - [16. Pick a kernel hook](#16-pick-a-kernel-hook)
+  - [17. Read a kernel field](#17-read-a-kernel-field)
+  - [18. Debug a kernel refusal](#18-debug-a-kernel-refusal)
+  - [19. Ship a node agent](#19-ship-a-node-agent)
 - [Reference](#reference)
 - [Explanation](#explanation)
 
@@ -412,9 +417,200 @@ $ nix flake check
 The [how-to guides](howto/test-and-doctest.md) each do one task from
 here.
 
+
+### 6. A first kernel program
+
+A kernel program is a function in blue. Blue compiles it to BPF. The same source
+then runs in two places: a pure machine that needs no kernel, and a real Linux
+kernel. This tutorial writes a program that counts packets by protocol and drops
+ICMP. You need no root and no Linux until the last section.
+
+`blue new --kernel` starts a project that passes its tests as written:
+
+```console
+$ blue new --kernel pkts
+created pkts/: Bluefile, Bluefile.lock, flake.nix, pkts.b
+test it  cd pkts && blue test pkts.b
+run it   cd pkts && sudo blue run --allow host --quiet pkts.b -- eth0
+$ cd pkts
+$ blue test --filter "on the machine" pkts.b
+2 test(s): 2 passed, 0 failed
+```
+
+The `--filter` keeps the two tests that run on the machine. The file holds one
+more test, and that test needs a kernel. Without `--filter`, a host with no kernel
+says which test it skipped and why, and the tally counts it apart from a pass:
+
+```console host
+$ blue test pkts.b
+SKIP on a real kernel, the program counts what the machine counts: no kernel here: this host is not Linux
+3 test(s): 2 passed, 0 failed, 1 skipped
+```
+
+Now make the program drop ICMP. Replace `pkts.b` with this:
+
+```blue file=pkts.b
+use(
+  "bpf",
+  %i[compile declare_map map_add packet_int packet_len xdp_drop xdp_pass]
+)
+
+use("kaaneru", %i[attached install kernel_absence])
+use("retsu", %i[first repeat])
+use("tesuto", [:skip_for])
+
+COUNTS = declare_map(:counts, :array, 4, 8, 256)
+
+ICMP = 1
+
+def filter_packets(ctx)
+  if packet_len(ctx) < 34
+    xdp_pass
+  else
+    protocol = packet_int(ctx, 23, 1)
+    map_add(COUNTS, protocol, 1)
+    if protocol == ICMP
+      xdp_drop
+    else
+      xdp_pass
+    end
+  end
+end
+
+def program()
+  compile("pkts.b", {entry: :filter_packets, kind: :xdp, on_fault: xdp_pass})
+end
+
+def frame(protocol)
+  append(*[repeat(0, 23), [protocol], repeat(0, 10)])
+end
+
+def main()
+  index = to_int(trim(read_file("/sys/class/net/#{first(argv)}/ifindex")))
+  attached(
+    program,
+    {xdp: index},
+    fn(live)
+      sleep_ms(5000)
+      dropped = kaaneru::map_int(live, :counts, ICMP)
+      write_stdout(unlines(["ICMP packets dropped: #{to_s(dropped)}"]))
+    end
+  )
+end
+
+test "on the machine, ICMP is counted and dropped"
+  p = program
+  st = bpf::run(p, {packet: frame(ICMP), maps: p[:maps]})
+  assert st.ret == xdp_drop
+  assert bpf::map_int(st, :counts, ICMP) == 1
+end
+
+test "on the machine, TCP is counted and passed"
+  p = program
+  st = bpf::run(p, {packet: frame(6), maps: p[:maps]})
+  assert st.ret == xdp_pass
+  assert bpf::map_int(st, :counts, 6) == 1
+  assert bpf::map_int(st, :counts, ICMP) == 0
+end
+
+test "on the machine, a frame too short for the field is passed and not counted"
+  p = program
+  st = bpf::run(p, {packet: repeat(0, 20), maps: p[:maps]})
+  assert st.ret == xdp_pass
+  assert bpf::map_int(st, :counts, 0) == 0
+end
+
+test "on a real kernel, the program decides as the machine decides"
+  skip_for(kernel_absence)
+  live = install(program)
+  assert kaaneru::run(live[:prog], {packet: frame(ICMP)})[:ret] == xdp_drop
+  assert kaaneru::run(live[:prog], {packet: frame(6)})[:ret] == xdp_pass
+  assert kaaneru::map_int(live, :counts, ICMP) == 1
+end
+```
+
+Each part has one job:
+
+- `declare_map` states a map's shape: the machine and the kernel read the same
+  shape.
+- `filter_packets` is the kernel program. It runs only when compiled, and the
+  compiler writes the bounds check each packet read needs.
+- `compile` turns it into BPF and checks it first. `on_fault` is what the program
+  answers when a read falls outside the packet.
+- [`bpf::run`](../bidamas/CATALOG.md#bpf) runs the program on the pure machine. [`bpf::map_int`](../bidamas/CATALOG.md#bpf) reads a map on
+  it.
+- `attached` loads the program onto one hook, runs a function, and takes the
+  program away whatever the function does.
+- [`kaaneru::map_int`](../bidamas/CATALOG.md#kaaneru) reads a map in the kernel, with the same arguments.
+
+Run the tests:
+
+```console
+$ blue test --filter "on the machine" pkts.b
+3 test(s): 3 passed, 0 failed
+```
+
+A program the kernel cannot take stops before it reaches the kernel. Blue
+fractions have no BPF form, so this program never compiles:
+
+```blue file=../fraction.b
+use("bpf", [:compile])
+
+def half(_ctx)
+  7 / 2
+end
+
+compile("fraction.b", {entry: :half, kind: :xdp, on_fault: 0})
+```
+
+```console
+$ cd ..
+```
+
+```console fails
+$ blue fraction.b
+bpf_compile
+fraction
+```
+
+#### On a real kernel
+
+This section needs Linux and root. The test that needs a kernel runs the program
+through `BPF_PROG_RUN`, which attaches nothing:
+
+```console host
+$ cd pkts
+$ sudo blue test pkts.b
+4 test(s): 4 passed, 0 failed
+```
+
+To see real packets, make a network namespace, so nothing on your host sees the
+hook. Run the loader in one terminal:
+
+```console host
+$ sudo ip netns add demo
+$ sudo ip netns exec demo ip link set lo up
+$ sudo ip netns exec demo blue run --allow host --quiet pkts.b -- lo
+ICMP packets dropped: 3
+```
+
+While the loader waits five seconds, ping from a second terminal. The pings get
+no answer, and when the loader ends the program is gone:
+
+```console host
+$ sudo ip netns exec demo ping -c 3 -W 1 127.0.0.1
+$ sudo ip netns del demo
+```
+
+Next: [pick a hook](howto/pick-a-kernel-hook.md),
+[read a kernel field](howto/read-a-kernel-field.md),
+[debug a refusal](howto/debug-a-kernel-refusal.md) and
+[ship a node agent](howto/ship-a-node-agent.md). The words and what each has
+been measured on are in [KERNEL.md](KERNEL.md).
+
 ## How-to guides
 
-### 6. Write a test and a doctest
+### 7. Write a test and a doctest
 
 Put a `test` block beside the code it tests, in the same file. `assert`
 fails the test when its expression is false:
@@ -467,11 +663,43 @@ FAIL two and two
   assert 2 + 2 == 5
 ```
 
+A test that cannot run on this host says why, and the tally counts it apart from
+a pass. Here the reason is always there; [`kaaneru::kernel_absence`](../bidamas/CATALOG.md#kaaneru) gives a real one:
+
+```blue file=needs.b
+use("tesuto", [:skip_for])
+
+def why_not()
+  "this host has no such device"
+end
+
+test "it needs a device"
+  skip_for(why_not)
+  assert false
+end
+
+test "it needs nothing"
+  assert true
+end
+```
+
+```console
+$ blue test needs.b
+2 test(s): 1 passed, 0 failed, 1 skipped
+```
+
+On a host where every test must run, make each skip a failure:
+
+```console fails
+$ BLUE_TEST_SKIP=refuse blue test needs.b
+skipped under BLUE_TEST_SKIP=refuse: this host has no such device
+```
+
 `blue test DIR` runs every file under a directory that holds a test, in
 parallel.
 
 
-### 7. Climb the blueshift
+### 8. Climb the blueshift
 
 `blue shift` names the rung a file stands on: dynamic, annotated, checked or
 restricted. You climb by annotating definitions.
@@ -557,7 +785,7 @@ The `pleme-io/actions/blue-shift` action holds a project to a floor rung in
 CI.
 
 
-### 8. Declare what a program may touch
+### 9. Declare what a program may touch
 
 A program that runs with no flag may reach every host capability. `--allow`
 holds a run to the ones you name: `none`, `host`, or any of `process`,
@@ -602,7 +830,7 @@ Every Rust guarantee, the blue gate that matches it and its off switch are in
 [SERVICE-ACCESS.md](SERVICE-ACCESS.md) and not built yet.
 
 
-### 9. Write an action
+### 10. Write an action
 
 A pleme-io action keeps its logic in a `run.b`. The [`koutei`](../bidamas/CATALOG.md#koutei) bidama is that
 file's side of the step: it reads the `INPUT_*` variables, writes outputs and
@@ -662,7 +890,7 @@ runs:
 `pleme-io/actions/blue-shift` is a complete example.
 
 
-### 10. Publish a bidama
+### 11. Publish a bidama
 
 A bidama is reachable when it sits under a `packages` root: a directory of
 packages, each with its own `Bluefile`. A project finds packages through its
@@ -716,7 +944,7 @@ In blue's own distribution, a new package also needs a row in
 [REGISTRY.md](REGISTRY.md).
 
 
-### 11. Run a pure worker
+### 12. Run a pure worker
 
 A pure worker turns data into data. It reads no file, no clock and no
 environment. `--allow none` holds a run to that, and blue proves it before
@@ -790,7 +1018,7 @@ still get the same output at each run, give it a stepped clock:
 names are in [Declare what a program may touch](howto/declare-access.md).
 
 
-### 12. Supervise processes
+### 13. Supervise processes
 
 A supervisor starts child processes and restarts a child that crashes. A
 child is a function that loops on [`receive`](REFERENCE.md#blue-processes-and-supervision). Here each child keeps a running
@@ -897,7 +1125,7 @@ $ blue test tally.b
 ```
 
 
-### 13. Virtualize a capability
+### 14. Virtualize a capability
 
 The Bluefile word `virtualize` binds a host capability to a pure provider.
 With `using: :deterministic_stepped`, the first [`now_ms`](REFERENCE.md#time) is `at_ms`, and each
@@ -1008,7 +1236,7 @@ The other providers are `:seeded_prng` for `:entropy`, and
 `blue reference` lists each one with its options, under `bluefile`.
 
 
-### 14. Test a refusal
+### 15. Test a refusal
 
 Code says no in three ways: it raises an error of a kind, it returns a
 refusal as data, or blue stops a run that reaches past its `--allow`. Each
@@ -1188,6 +1416,434 @@ end
 $ blue test held.b
 3 test(s): 3 passed, 0 failed
 ```
+
+
+### 16. Pick a kernel hook
+
+A hook is where the kernel runs your program. Pick it from what the program must
+see, and compile for the kind that hook takes:
+
+| You want to | Hook spec | Program kind | Target |
+|---|---|---|---|
+| decide about a packet first, at the driver | `{xdp: index}` | `:xdp` | an interface index |
+| decide about a packet at traffic control | `{tcx_ingress: index}`, `{tcx_egress: index}` | `:sched_cls` | an interface index |
+| hold one group of processes to a network rule | `{cgroup_inet_ingress: path}`, `{cgroup_inet_egress: path}` | `:cgroup_skb` | a cgroup directory |
+| refuse a socket or a device to a group of processes | `{cgroup_inet_sock_create: path}`, `{cgroup_device: path}` | `:cgroup_sock`, `:cgroup_device` | a cgroup directory |
+| decide at a netfilter hook | `{netfilter: {family: :ipv4, hook: :local_in, priority: -100}}` | `:netfilter` | the hook's place |
+| count an event the kernel names | `{tracepoint: ["sched", "sched_process_exec"]}`, `{raw_tracepoint: "sched_process_exec"}` | `:tracepoint`, `:raw_tracepoint` | the event |
+| watch a kernel function | `{kprobe: name}`, `{fentry: name}`, `{fexit: name}` | `:kprobe`, `:tracing` | the function |
+| replace a test function's answer | `{fmod_ret: name}` | `:tracing` | the function |
+| deny an operation, such as opening a file | `{lsm: "file_open"}` | `:lsm` | the LSM hook |
+| walk kernel objects | `{iter: "task"}` | `:tracing` | the iterator |
+
+[`kaaneru::hooks`](../bidamas/CATALOG.md#kaaneru) holds this table as data. Each row's kind is checked here against
+it:
+
+```blue file=hooks.b
+use("kaaneru", %i[hook_row hooks])
+use("retsu", [:size])
+
+def kind_of(spec, kind)
+  hook_row({kind:}, spec).kind == kind
+end
+
+test "each spec in the table takes the kind the table names"
+  assert kind_of({xdp: 1}, :xdp)
+  assert kind_of({tcx_ingress: 1}, :sched_cls)
+  assert kind_of({tcx_egress: 1}, :sched_cls)
+  assert kind_of({cgroup_inet_ingress: "/c"}, :cgroup_skb)
+  assert kind_of({cgroup_inet_egress: "/c"}, :cgroup_skb)
+  assert kind_of({cgroup_inet_sock_create: "/c"}, :cgroup_sock)
+  assert kind_of({cgroup_device: "/c"}, :cgroup_device)
+  assert kind_of({netfilter: {}}, :netfilter)
+  assert kind_of({tracepoint: ["a", "b"]}, :tracepoint)
+  assert kind_of({raw_tracepoint: "a"}, :raw_tracepoint)
+  assert kind_of({kprobe: "f"}, :kprobe)
+  assert kind_of({fentry: "f"}, :tracing)
+  assert kind_of({fexit: "f"}, :tracing)
+  assert kind_of({fmod_ret: "f"}, :tracing)
+  assert kind_of({lsm: "file_open"}, :lsm)
+  assert kind_of({iter: "task"}, :tracing)
+end
+
+test "the table is every hook"
+  assert size(hooks) == 16
+end
+```
+
+```console
+$ blue test hooks.b
+2 test(s): 2 passed, 0 failed
+```
+
+Attach with [`kaaneru::attached(compiled, spec, body)`](../bidamas/CATALOG.md#kaaneru). A spec and a kind that do
+not fit stop before any call to the kernel, on any host:
+
+```blue file=wrong.b
+use("kaaneru", [:attached])
+
+attached({kind: :xdp}, {lsm: "file_open"}, (live) -> live)
+```
+
+```console fails
+$ blue wrong.b
+the lsm hook takes a lsm program, and this one is xdp
+```
+
+A spec names one hook, and the refusal lists every hook when it names none or two.
+
+The machine runs a program of any kind that reads its packet or its own memory.
+It cannot run a kernel pointer, so a `:netfilter` program that reads the live
+`sk_buff` is tested on a real kernel. `BPF_PROG_RUN` refuses `:lsm` with
+`ENOTSUPP`, and [`kaaneru::run`](../bidamas/CATALOG.md#kaaneru) runs `:tracing` only at the kernel's test functions:
+a test of those kinds attaches. Which word and which hook each has run on, with
+the test that shows it, is the ledger in [KERNEL.md](KERNEL.md).
+
+Other attachments have their own words, each with a `blue doc` page:
+`attach_uprobes`, `attach_kprobes`, `attach_sampling` and `install_struct_ops`.
+
+
+### 17. Read a kernel field
+
+`kernel_read(pointer, struct, path, size)` reads one field of a kernel struct.
+You name the field. The offset comes from the running kernel's BTF when the program
+loads, so the program does not hold an offset that another kernel moved.
+
+```blue file=whoami.b
+use("bpf", %i[bind_fields compile helper kernel_read])
+
+def task_pid(_ctx)
+  kernel_read(helper(:get_current_task), "task_struct", ["pid"], 4)
+end
+
+def program()
+  compile("whoami.b", {entry: :task_pid, kind: :tracing, on_fault: 0})
+end
+
+def task_at(offset)
+  (_struct, _path) -> {offset:, size: 4}
+end
+
+test "the program names the field it reads"
+  field = program[:fields][0]
+  assert field[:struct] == "task_struct"
+  assert field[:path] == ["pid"]
+end
+
+test "bound to an offset, the program reads the field there"
+  memory = {at: 805_306_368, bytes: [0, 0, 0, 0, 42, 0, 0, 0]}
+  assert bpf::run(bind_fields(program, task_at(4)), {kernel: memory}).ret == 42
+end
+
+test "a read past the struct is the fault answer, never a wrong value"
+  memory = {at: 805_306_368, bytes: [1]}
+  assert bpf::run(bind_fields(program, task_at(4)), {kernel: memory}).ret == 0
+end
+
+test "a field of another size on this kernel refuses to bind"
+  other = (_struct, _path) -> {offset: 4, size: 8}
+  assert (bind_fields(program, other) rescue :refused) == :refused
+end
+```
+
+```console
+$ blue test whoami.b
+4 test(s): 4 passed, 0 failed
+```
+
+The tests give the machine a piece of kernel memory and an offset. `bind_fields`
+does what a load does: it writes each offset into the program, and it refuses a
+field whose size differs from what the program reads.
+
+On a real kernel, `attached` finds the field in this kernel's BTF for you. This
+program counts nothing and only reports. It needs Linux and root:
+
+```blue file=watch.b
+use("baito", [:bytes_int])
+use("bpf", %i[compile declare_map emit helper kernel_read])
+use("kaaneru", %i[attached map_named next_event open_events])
+
+EVENTS = declare_map(:events, :ringbuf, 0, 0, 65536)
+
+def on_open(_ctx)
+  emit(EVENTS, [kernel_read(helper(:get_current_task), "task_struct", ["pid"], 4)])
+  0
+end
+
+def main()
+  compiled = compile("watch.b", {entry: :on_open, kind: :tracing, on_fault: 0})
+  attached(
+    compiled,
+    {fentry: "do_sys_openat2"},
+    fn(live)
+      ring = open_events(map_named(live, :events))
+      read_file("/proc/version")
+      got = next_event(ring, 2000)
+      write_stdout(unlines(["a thread opened a file: #{to_s(bytes_int(got, 0, 8) > 0)}"]))
+    end
+  )
+end
+```
+
+```console host
+$ sudo blue run --allow host --quiet watch.b
+a thread opened a file: true
+```
+
+A struct or a member this kernel does not have raises `:not_found` at load, and
+names it. `blue doc btf::field` shows how to read a field's place by hand.
+
+
+### 18. Debug a kernel refusal
+
+Three layers can say no, and each names its error kind. Find the layer first:
+
+| Error kind | Who says it | When |
+|---|---|---|
+| `:bpf_compile` | blue's compiler | at `compile`, on any host |
+| `:bpf_fault` | the pure machine | at [`bpf::run`](../bidamas/CATALOG.md#bpf), on any host |
+| `:kernel_refused` | the kernel's verifier | at load, on Linux |
+| `:kernel_mismatch` | the loader | a field has another size on this kernel |
+| `:unsupported` | the host | off Linux, at any word that reaches the kernel |
+
+#### The compiler
+
+`:bpf_compile` names the construct. Most refusals come from a value the verifier
+would have to bound. Here `*` has operands of unknown range, and the compiler asks
+you to bound them or to say that wrapping is what you want:
+
+```blue file=product.b
+use("bpf", %i[compile packet_int])
+
+def product(ctx)
+  packet_int(ctx, 0, 8) * packet_int(ctx, 8, 8)
+end
+
+compile("product.b", {entry: :product, kind: :xdp, on_fault: 0})
+```
+
+```console fails
+$ blue product.b
+bpf_compile
+cannot be checked in a kernel program
+```
+
+#### The machine
+
+`:bpf_fault` means an assembled program did something the machine does not allow.
+The machine does not check as much as the verifier does, so this layer finds
+faults and does not promise a load:
+
+```blue file=fault.b
+use("bpf", %i[assemble exit_program load])
+
+def outside()
+  assemble([load(:b, 0, 1, 99999), exit_program])
+end
+
+test "a read outside every region is a fault, and the message says where"
+  got = begin
+    bpf::run(outside)
+  rescue :bpf_fault as e
+    e.message
+  end
+  assert contains?(got, "outside every region")
+end
+```
+
+```console
+$ blue test fault.b
+1 test(s): 1 passed, 0 failed
+```
+
+#### The verifier
+
+`:kernel_refused` carries the errno's name and the verifier's whole log as data:
+`e.data.name` and `e.data.log`. This program reads a register nothing wrote. It
+needs Linux and root:
+
+```blue file=refused.b
+use("bpf", %i[alu assemble exit_program r])
+use("kaaneru")
+
+def main()
+  kaaneru::load(
+    assemble([alu(:mov, 0, r(5)), exit_program]),
+    {kind: :xdp, name: "refused"}
+  )
+rescue :kernel_refused as e
+  write_stdout(unlines([e.data.name, e.data.log]))
+end
+```
+
+```console host
+$ sudo blue run --allow host --quiet refused.b
+EACCES
+0: R1=ctx() R10=fp0
+0: (bf) r0 = r5
+R5 !read_ok
+processed 1 insns (limit 1000000) max_states_per_insn 0 total_states 0 peak_states 0 mark_read 0
+```
+
+Read the log from the end. The last instruction it names is the one that failed,
+and the line after it is the reason. `R5 !read_ok` says that nothing wrote `r5`.
+The lines above show what the verifier knew about each register at each step.
+
+To see the instructions by number, print the program:
+
+```blue file=text.b
+use("bpf", %i[alu assemble disassemble encode exit_program r])
+
+test "the listing numbers each instruction as the log does"
+  listed = disassemble(encode(assemble([alu(:mov, 0, r(5)), exit_program])))
+  assert listed == ["r0 = r5", "exit"]
+end
+```
+
+```console
+$ blue test text.b
+1 test(s): 1 passed, 0 failed
+```
+
+`kernel_absence` says why a host cannot load at all. A test passes it to
+[`tesuto::skip_for`](../bidamas/CATALOG.md#tesuto), so the test is skipped by name and not passed. `BLUE_TEST_SKIP=refuse` turns each skip into a
+failure, for a host where every test must run.
+
+
+### 19. Ship a node agent
+
+A node agent is a service that loads kernel programs on each node. You declare
+the `:kernel_bpf` effect in its `Bluefile`, and blue renders the rest: a DaemonSet,
+`CAP_BPF`, `CAP_PERFMON` and `CAP_NET_ADMIN`, and the `bpffs` and `tracefs` mounts.
+The rendered chart is checked here. No cluster has run it yet, so test it on yours
+first.
+
+```console
+$ mkdir agent
+$ cd agent
+```
+
+```blue file=Bluefile
+package("agent", "0.1.0")
+
+service(
+  "agent",
+  {
+    program: "agent.b",
+    repository: "ghcr.io/example/agent",
+    port: 8080,
+    access: {
+      effects: %i[network clock entropy environment kernel_bpf],
+      host_network: true
+    },
+    runtime: :native,
+    because: :device
+  }
+)
+
+check("agent", "agent.b")
+```
+
+`runtime: :native` with `because: :device` is required: WASI reaches no kernel
+ABI. The program answers health checks like any service. Load your kernel program
+beside `serve_settings` with the words in
+[the first kernel program](tutorial/first-kernel-program.md).
+
+```blue file=agent.b
+use("kyuuji")
+use("settei")
+
+def handle(req)
+  if req[:path] == "/"
+    kyuuji::text(200, unlines(["agent"]))
+  else
+    kyuuji::not_found(req)
+  end
+end
+
+if settei::serving?
+  kyuuji::serve_settings(settei::current, handle)
+end
+
+test "the root answers, and anything else is not found"
+  assert handle(kyuuji::request("GET", "/", ""))[:status] == 200
+  assert handle(kyuuji::request("GET", "/x", ""))[:status] == 404
+end
+```
+
+```console
+$ blue lock .
+./Bluefile.lock: 0 source(s) pinned
+$ blue test agent.b
+1 test(s): 1 passed, 0 failed
+```
+
+This program shows what the declaration renders:
+
+```blue file=../show.b
+use("haibi", %i[container_security files workload_kind])
+use("retsu", [:first])
+
+m = get(json_read(read_file("agent/Bluefile.lock")), "manifest")
+spec = get(get(m, "services"), "agent")
+paths = map(first, files("agent", get(m, "version"), spec))
+write_stdout(unlines(filter((p) -> contains?(p, "daemonset"), paths)))
+write_stdout(unlines([workload_kind(spec)]))
+write_stdout(unlines(container_security(spec)["capabilities"]["add"]))
+```
+
+```console
+$ cd ..
+$ blue show.b
+chart/templates/daemonset.yaml
+DaemonSet
+BPF
+PERFMON
+NET_ADMIN
+```
+
+`host_network` and `per_node` mean nothing without the effect, so a service that
+writes one without `:kernel_bpf` is refused by name when it locks:
+
+```blue file=refused/Bluefile
+package("refused", "0.1.0")
+
+service(
+  "refused",
+  {
+    program: "refused.b",
+    repository: "ghcr.io/example/refused",
+    port: 8080,
+    access: {host_network: true}
+  }
+)
+```
+
+```blue file=refused/refused.b
+def noop()
+  nil
+end
+
+test "it passes"
+  assert noop.nil?
+end
+```
+
+```console fails
+$ blue lock refused
+lacks the :kernel_bpf effect
+```
+
+A real agent adds the one-line `flake.nix` that `blue new --kernel` writes. Then
+nix builds the image and checks the chart against this shape:
+
+```console host
+$ nix flake check
+```
+
+`per_node: false` keeps the service a Deployment. The fields are in
+[SERVICE-ACCESS.md](SERVICE-ACCESS.md), and which capability each kind of hook
+needs is in [KERNEL.md](KERNEL.md) §3.
 
 ## Reference
 

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:d0046f9cdcb94167491c2724ba2d40bfa01bb906588397fb9e106ed191aab467",
+  "bluefile_b3": "b3:1c3f7ebbd0a2ec5cae312b7fd32da3463200732e432985464c74385ec4454d7c",
   "manifest": {
     "schema": 1,
     "name": "blue-examples",
@@ -22,6 +22,18 @@
       },
       "files": {
         "file": "01_files.b"
+      },
+      "kernel-counter": {
+        "file": "14_kernel_counter.b",
+        "inputs": [
+          "14_kernel_counter.b"
+        ]
+      },
+      "kernel-deny": {
+        "file": "15_kernel_deny.b",
+        "inputs": [
+          "15_kernel_deny.b"
+        ]
       },
       "lists-and-maps": {
         "file": "03_lists_and_maps.b"

@@ -15,13 +15,13 @@ use("btf")
 use(
   "kaaneru",
   %i[
-    attach
     attach_cgroup
-    attach_netfilter
+    attached
     detach
     install
     install_struct_ops
     map_get
+    map_int
     map_named
   ]
 )
@@ -83,21 +83,18 @@ end
 
 test "a blue XDP filter attached to a real interface drops ping, counts it, and detaching restores it"
   v = veth_up("x")
-  live = install(
-    compile(
-      "kernel/programs/filter.b",
-      {entry: :filter, kind: :xdp, on_fault: 0}
-    )
+  compiled = compile(
+    "kernel/programs/filter.b",
+    {entry: :filter, kind: :xdp, on_fault: 0}
   )
-  counts = map_named(live, :filter_counts)
   result = begin
     before = ping_works?(v)
-    link = attach(live[:prog], :xdp, v[:ifindex])
-    during = ping_works?(v)
-    seen = bytes_int(map_get(counts, int_bytes(1, 4)), 0, 8)
-    detach(link)
-    after = ping_works?(v)
-    [before, during, seen, after]
+    held = attached(
+      compiled,
+      {xdp: v[:ifindex]},
+      (live) -> [ping_works?(v), map_int(live, :filter_counts, 1)]
+    )
+    [before, first(held), held[1], ping_works?(v)]
   ensure
     veth_down(v)
   end
@@ -109,19 +106,17 @@ end
 
 test "a blue tcx program on ingress drops ping the same way, through a link and no netlink"
   v = veth_up("t")
-  live = install(
-    compile(
-      "kernel/programs/tc_filter.b",
-      {entry: :tc_filter, kind: :sched_cls, on_fault: 0}
-    )
+  compiled = compile(
+    "kernel/programs/tc_filter.b",
+    {entry: :tc_filter, kind: :sched_cls, on_fault: 0}
   )
-  seen = map_named(live, :tc_seen)
   result = begin
-    link = attach(live[:prog], :tcx_ingress, v[:ifindex])
-    during = ping_works?(v)
-    count = bytes_int(map_get(seen, int_bytes(1, 4)), 0, 8)
-    detach(link)
-    [during, count, ping_works?(v)]
+    held = attached(
+      compiled,
+      {tcx_ingress: v[:ifindex]},
+      (live) -> [ping_works?(v), map_int(live, :tc_seen, 1)]
+    )
+    [first(held), held[1], ping_works?(v)]
   ensure
     veth_down(v)
   end
@@ -157,25 +152,27 @@ def ping_status(address)
 end
 
 def l3_decision(attach_kind, tag)
-  live = install(
-    compile(
-      "kernel/programs/l3_filter.b",
-      {entry: :l3_filter, kind: :cgroup_skb, on_fault: 1}
-    ),
-    {attach: attach_kind}
+  compiled = compile(
+    "kernel/programs/l3_filter.b",
+    {entry: :l3_filter, kind: :cgroup_skb, on_fault: 1}
   )
   v = veth_up(tag)
   path = cgroup_up(tag)
-  seen = map_named(live, :l3_seen)
   begin
     before = in_cgroup(path, ping_argv("10.199.77.2"))
-    link = attach_cgroup(live[:prog], attach_kind, path)
-    held = in_cgroup(path, ping_argv("10.199.77.2"))
-    outside = ping_status("10.199.77.2")
-    count = bytes_int(map_get(seen, int_bytes(1, 4)), 0, 8)
-    detach(link)
+    during = attached(
+      compiled,
+      assoc({}, attach_kind, path),
+      fn(live)
+        {
+          held: in_cgroup(path, ping_argv("10.199.77.2")),
+          outside: ping_status("10.199.77.2"),
+          count: map_int(live, :l3_seen, 1)
+        }
+      end
+    )
     after = in_cgroup(path, ping_argv("10.199.77.2"))
-    {before:, held:, outside:, count:, after:}
+    assoc(assoc(during, :before, before), :after, after)
   ensure
     veth_down(v)
     cgroup_down(path)
@@ -201,21 +198,21 @@ test "a cgroup skb program on ingress drops the reply for its own cgroup alone, 
 end
 
 test "a cgroup sock program refuses an ICMP socket inside its cgroup, and nowhere else"
-  live = install(
-    compile(
-      "kernel/programs/cgroup_sock.b",
-      {entry: :no_ping_socket, kind: :cgroup_sock, on_fault: 1}
-    ),
-    {attach: :cgroup_inet_sock_create}
+  compiled = compile(
+    "kernel/programs/cgroup_sock.b",
+    {entry: :no_ping_socket, kind: :cgroup_sock, on_fault: 1}
   )
   path = cgroup_up("s")
   sh("ip", %w[link set lo up])
   got = begin
-    link = attach_cgroup(live[:prog], :cgroup_inet_sock_create, path)
-    held = in_cgroup(path, ping_argv("127.0.0.1"))
-    outside = ping_status("127.0.0.1")
-    detach(link)
-    [held, outside, in_cgroup(path, ping_argv("127.0.0.1"))]
+    during = attached(
+      compiled,
+      {cgroup_inet_sock_create: path},
+      fn(_live)
+        [in_cgroup(path, ping_argv("127.0.0.1")), ping_status("127.0.0.1")]
+      end
+    )
+    append(during, [in_cgroup(path, ping_argv("127.0.0.1"))])
   ensure
     cgroup_down(path)
   end
@@ -225,28 +222,27 @@ test "a cgroup sock program refuses an ICMP socket inside its cgroup, and nowher
 end
 
 test "a cgroup device program denies one device inside its cgroup, allows another, and detach restores it"
-  live = install(
-    compile(
-      "kernel/programs/cgroup_device.b",
-      {entry: :no_dev_zero, kind: :cgroup_device, on_fault: 1}
-    ),
-    {attach: :cgroup_device}
+  compiled = compile(
+    "kernel/programs/cgroup_device.b",
+    {entry: :no_dev_zero, kind: :cgroup_device, on_fault: 1}
   )
   path = cgroup_up("d")
   zero = %w[head -c 1 /dev/zero]
   urandom = %w[head -c 1 /dev/urandom]
   got = begin
-    link = attach_cgroup(live[:prog], :cgroup_device, path)
-    denied = in_cgroup(path, zero)
-    allowed = in_cgroup(path, urandom)
-    outside = exec_capture(*zero).status
-    asked = bytes_int(
-      map_get(map_named(live, :device_asked), int_bytes(0, 4)),
-      0,
-      8
+    during = attached(
+      compiled,
+      {cgroup_device: path},
+      fn(live)
+        {
+          denied: in_cgroup(path, zero),
+          allowed: in_cgroup(path, urandom),
+          outside: exec_capture(*zero).status,
+          asked: map_int(live, :device_asked, 0)
+        }
+      end
     )
-    detach(link)
-    {denied:, allowed:, outside:, asked:, after: in_cgroup(path, zero)}
+    assoc(during, :after, in_cgroup(path, zero))
   ensure
     cgroup_down(path)
   end
@@ -275,13 +271,9 @@ test "a cgroup that does not exist is a named absence, not an attach"
 end
 
 test "a netfilter program in this namespace drops only marked ICMP, decided from the live packet, and detach restores it"
-  table = btf::open(btf::vmlinux_path)
-  live = install(
-    compile(
-      "kernel/programs/nf_filter.b",
-      {entry: :nf_filter, kind: :netfilter, on_fault: 1}
-    ),
-    {btf: table}
+  compiled = compile(
+    "kernel/programs/nf_filter.b",
+    {entry: :nf_filter, kind: :netfilter, on_fault: 1}
   )
   v = veth_up("n")
   ping_ttl = fn(ttl)
@@ -301,15 +293,16 @@ test "a netfilter program in this namespace drops only marked ICMP, decided from
     ).status
   end
   got = begin
-    link = attach_netfilter(
-      live[:prog],
-      {family: :ipv4, hook: :local_in, priority: -100}
+    during = attached(
+      compiled,
+      {netfilter: {family: :ipv4, hook: :local_in, priority: -100}},
+      fn(live)
+        marked = ping_ttl("33")
+        plain = ping_ttl("64")
+        {marked:, plain:, count: map_int(live, :nf_seen, 1)}
+      end
     )
-    marked = ping_ttl("33")
-    plain = ping_ttl("64")
-    count = bytes_int(map_get(map_named(live, :nf_seen), int_bytes(1, 4)), 0, 8)
-    detach(link)
-    {marked:, plain:, count:, after: ping_ttl("33")}
+    assoc(during, :after, ping_ttl("33"))
   ensure
     veth_down(v)
   end

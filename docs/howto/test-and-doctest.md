@@ -57,5 +57,37 @@ FAIL two and two
   assert 2 + 2 == 5
 ```
 
+A test that cannot run on this host says why, and the tally counts it apart from
+a pass. Here the reason is always there; `kaaneru::kernel_absence` gives a real one:
+
+```blue file=needs.b
+use("tesuto", [:skip_for])
+
+def why_not()
+  "this host has no such device"
+end
+
+test "it needs a device"
+  skip_for(why_not)
+  assert false
+end
+
+test "it needs nothing"
+  assert true
+end
+```
+
+```console
+$ blue test needs.b
+2 test(s): 1 passed, 0 failed, 1 skipped
+```
+
+On a host where every test must run, make each skip a failure:
+
+```console fails
+$ BLUE_TEST_SKIP=refuse blue test needs.b
+skipped under BLUE_TEST_SKIP=refuse: this host has no such device
+```
+
 `blue test DIR` runs every file under a directory that holds a test, in
 parallel.

@@ -1,7 +1,7 @@
 @moduledoc """
 kaaneru (カーネル) — the Linux kernel, spoken from blue: maps, programs, links and ring buffers over `bpf(2)`, with every struct a `baito` layout and no C library in the path.
 
-`bpf` builds programs and runs them on a pure machine anywhere; this package loads them into the kernel on Linux. Each attach kind has its word: `attach` for XDP, tcx and what names a descriptor, `attach_cgroup`, `attach_netfilter`, `attach_uprobes`, `attach_kprobes`, `attach_kprobe`, `attach_tracepoint`, `attach_raw_tracepoint`, `attach_sampling`, `install_hook` for fentry, fexit, fmod_ret, LSM and iterators, `install_struct_ops`. Off Linux each call raises :unsupported. A kernel refusal raises :kernel_refused with data {errno:, name:, log:}, the verifier's log included.
+`bpf` builds programs and runs them on a pure machine anywhere; this package loads them into the kernel on Linux. `attached` loads a compiled program onto one of the `hooks`, runs a function while it is there, and takes it away whatever the function does. Each attach kind also has its word: `attach` for XDP, tcx and what names a descriptor, `attach_cgroup`, `attach_netfilter`, `attach_uprobes`, `attach_kprobes`, `attach_kprobe`, `attach_tracepoint`, `attach_raw_tracepoint`, `attach_sampling`, `install_hook` for fentry, fexit, fmod_ret, LSM and iterators, `install_struct_ops`. Off Linux each call raises :unsupported. A kernel refusal raises :kernel_refused with data {errno:, name:, log:}, the verifier's log included.
 
 The words need the `kernel_bpf` capability, which holds the kernel: grant it to what would otherwise run as root. The pure words here (the layouts, `kind_id`, `errno_name`, `struct_fields`) need nothing.
 
@@ -12,7 +12,7 @@ The words need the `kernel_bpf` capability, which holds the kernel: grant it to 
 
 use("baito", %i[bytes_int field_of int_bytes layout offset unpack width])
 
-use("bpf", %i[bind_fields encode_insn map_kinds])
+use("bpf", %i[alu assemble bind_fields encode_insn exit_program map_kinds])
 use("btf")
 use("retsu", %i[first flat_map index_of last repeat size take_while])
 
@@ -797,7 +797,7 @@ end
 @doc """
 patched: a program's instructions with each map reference holding its descriptor's number.
 
-    size(patched({relocs: [], insns: [bpf::exit_program]}, [])) #=> 1
+    size(patched({relocs: [], insns: [exit_program]}, [])) #=> 1
 """
 def patched(program, maps)
   by_slot = reduce(
@@ -979,7 +979,7 @@ end
 @doc """
 load: an assembled program into the kernel: {fd:, kind:, maps:, name:}. `opts` takes {kind:, maps:, name:, license:, attach:, attach_btf_id:, btf_fd:, func_info:, signed_division:}, `kind` a program type such as :xdp, `maps` what `create_map` made, `btf_fd` what `load_btf` made. The verifier runs here, and its log is in the refusal's data. Below 6.12 it first refuses a signed division that can reach the CPU's divide (`division_refusal`); `signed_division: :trust` turns that off for a program whose author has ruled out the lowest value by -1.
 
-    (load(bpf::assemble([]), {kind: :nope}) rescue :refused) #=> :refused
+    (load(assemble([]), {kind: :nope}) rescue :refused) #=> :refused
 """
 def load(program, opts)
   maps = opts[:maps] or []
@@ -1254,6 +1254,169 @@ def open_pinned(path)
     true
   )
   {fd: checked(a, "open_pinned #{path}")[:fd]}
+end
+
+@doc """
+map_int: the integer a map of an installed program holds for an integer key, nil when it holds none. Each width comes from the map's shape. `bpf::map_int` is the same read on the machine.
+
+    (map_int({maps: []}, :m, 0) rescue :refused) #=> :refused
+"""
+def map_int(live, name, key)
+  m = map_named(live, name)
+  if m.nil?
+    raise(:bad_option, "no map #{to_s(name)}")
+  end
+  value = map_get(m, int_bytes(key, m[:key_size]))
+  if value != nil
+    bytes_int(value, 0, m[:value_size])
+  end
+end
+
+@doc """
+kernel_absence: why a program cannot load here, nil when one can: it loads the smallest XDP program and closes it. A test passes the answer to `tesuto::skip_for`.
+
+    (kernel_absence.nil? or string?(kernel_absence)) #=> true
+"""
+def kernel_absence()
+  close_object(
+    load(
+      assemble([alu(:mov, 0, 2), exit_program]),
+      {kind: :xdp, name: "blue_probe"}
+    )
+  )
+  nil
+rescue :unsupported
+  "no kernel here: this host is not Linux"
+rescue :kernel_refused as e
+  "the kernel refused a program with #{e.data.name}: run as root, or with CAP_BPF and CAP_NET_ADMIN"
+end
+
+@doc """
+hooks: every hook `attached` takes, with the program kind it needs and what names its target.
+
+    size(hooks) #=> 16
+    first(hooks).kind #=> :xdp
+"""
+def hooks()
+  [
+    {hook: :xdp, kind: :xdp, target: "an interface index"},
+    {hook: :tcx_ingress, kind: :sched_cls, target: "an interface index"},
+    {hook: :tcx_egress, kind: :sched_cls, target: "an interface index"},
+    {
+      hook: :cgroup_inet_ingress,
+      kind: :cgroup_skb,
+      target: "a cgroup directory"
+    },
+    {
+      hook: :cgroup_inet_egress,
+      kind: :cgroup_skb,
+      target: "a cgroup directory"
+    },
+    {
+      hook: :cgroup_inet_sock_create,
+      kind: :cgroup_sock,
+      target: "a cgroup directory"
+    },
+    {hook: :cgroup_device, kind: :cgroup_device, target: "a cgroup directory"},
+    {hook: :netfilter, kind: :netfilter, target: "{family:, hook:, priority:}"},
+    {hook: :tracepoint, kind: :tracepoint, target: "[category, name]"},
+    {
+      hook: :raw_tracepoint,
+      kind: :raw_tracepoint,
+      target: "a tracepoint's name"
+    },
+    {hook: :kprobe, kind: :kprobe, target: "a kernel function's name"},
+    {hook: :fentry, kind: :tracing, target: "a kernel function's name"},
+    {hook: :fexit, kind: :tracing, target: "a kernel function's name"},
+    {hook: :fmod_ret, kind: :tracing, target: "a kernel function's name"},
+    {hook: :lsm, kind: :lsm, target: "an LSM hook's name"},
+    {hook: :iter, kind: :tracing, target: "an iterator's name"}
+  ]
+end
+
+@doc """
+hook_row: the row of `hooks` that one hook spec names for a compiled program. A spec that names no hook or two, and a program of another kind, each raise :bad_option naming what fits.
+
+    hook_row({kind: :xdp}, {xdp: 3}).hook #=> :xdp
+    (hook_row({kind: :xdp}, {lsm: "file_open"}) rescue :refused) #=> :refused
+    (hook_row({kind: :xdp}, {}) rescue :refused) #=> :refused
+"""
+def hook_row(compiled, spec)
+  named = filter((row) -> get(spec, row[:hook]) != nil, hooks)
+  if size(named) != 1
+    legal = join(map((row) -> to_s(row[:hook]), hooks), ", ")
+    raise(:bad_option, "a hook spec names one of #{legal}")
+  end
+  row = first(named)
+  if compiled[:kind] != row[:kind]
+    raise(
+      :bad_option,
+      "the #{to_s(row[:hook])} hook takes a #{to_s(row[:kind])} program, and this one is #{to_s(compiled[:kind])}"
+    )
+  end
+  row
+end
+
+@doc """
+linked: a loaded program's link to the hook of `row`, for every hook that does not load onto a kernel function.
+
+    (linked({}, {hook: :kprobe}, nil) rescue :refused) #=> :refused
+"""
+def linked(prog, row, target)
+  hook = row[:hook]
+  if row[:target] == "a cgroup directory"
+    attach_cgroup(prog, hook, target)
+  elsif hook == :netfilter
+    attach_netfilter(prog, target)
+  elsif hook == :tracepoint
+    attach_tracepoint(prog, first(target), target[1])
+  elsif hook == :raw_tracepoint
+    attach_raw_tracepoint(prog, target)
+  elsif hook == :kprobe
+    attach_kprobe(prog, target)
+  else
+    attach(prog, hook, target)
+  end
+end
+
+@doc """
+released: an installed program's link, maps, program and BTF closed, each at most once.
+
+    released({maps: []}) #=> nil
+"""
+def released(live)
+  held = append(*[[live[:link], live[:prog], live[:btf]], live[:maps]])
+  map(close_object, filter((object) -> object != nil, held))
+  nil
+end
+
+@doc """
+attached: `compiled` loaded onto one hook while `body` runs on its live record, {prog:, maps:, link:}; the answer is what `body` answers. Whatever `body` does, the link, the maps and the program close. `spec` is one row of `hooks`: {xdp: 3}, {tracepoint: ["sched", "sched_process_exec"]}, {lsm: "file_open"}.
+
+    (attached({kind: :xdp}, {lsm: "file_open"}, (live) -> live) rescue :refused) #=> :refused
+"""
+def attached(compiled, spec, body)
+  row = hook_row(compiled, spec)
+  hook = row[:hook]
+  target = get(spec, hook)
+  live = if member?(hook, %i[fentry fexit fmod_ret lsm iter])
+    install_hook(compiled, btf::open(btf::vmlinux_path), spec)
+  elsif row[:target] == "a cgroup directory"
+    install(compiled, {attach: hook})
+  elsif (compiled[:fields] or []) != []
+    install(compiled, {btf: btf::open(btf::vmlinux_path)})
+  else
+    install(compiled)
+  end
+  held = live
+  begin
+    if live[:link].nil?
+      set!(held, assoc(live, :link, linked(live[:prog], row, target)))
+    end
+    body(held)
+  ensure
+    released(held)
+  end
 end
 
 @doc """
@@ -1908,10 +2071,10 @@ end
 @doc """
 division_site?: whether an instruction is a signed division or remainder whose divisor can be -1: a register, or the immediate -1.
 
-    division_site?(bpf::alu(:sdiv, 0, bpf::r(1))) #=> true
+    division_site?(alu(:sdiv, 0, bpf::r(1))) #=> true
     division_site?(bpf::alu32(:smod, 0, -1)) #=> true
-    division_site?(bpf::alu(:sdiv, 0, 3)) #=> false
-    division_site?(bpf::alu(:div, 0, bpf::r(1))) #=> false
+    division_site?(alu(:sdiv, 0, 3)) #=> false
+    division_site?(alu(:div, 0, bpf::r(1))) #=> false
 """
 def division_site?(i)
   class = bit_and(i[:code], 7)
@@ -1926,9 +2089,9 @@ end
 @doc """
 division_refusal: why this kernel must not load these instructions, or nil. A signed division with a divisor that can be -1 traps the CPU on a kernel below the fix, and the kernel panics. Pure: `mode` is `load`'s `signed_division`, and :trust turns the refusal off.
 
-    division_refusal([bpf::alu(:sdiv, 0, bpf::r(1))], "6.12.93", :refuse) #=> nil
-    division_refusal([bpf::alu(:sdiv, 0, bpf::r(1))], "6.6.142", :trust) #=> nil
-    division_refusal([bpf::alu(:sdiv, 0, 3)], "6.6.142", :refuse) #=> nil
+    division_refusal([alu(:sdiv, 0, bpf::r(1))], "6.12.93", :refuse) #=> nil
+    division_refusal([alu(:sdiv, 0, bpf::r(1))], "6.6.142", :trust) #=> nil
+    division_refusal([alu(:sdiv, 0, 3)], "6.6.142", :refuse) #=> nil
 """
 def division_refusal(insns, release, mode)
   if mode != :trust and any?(division_site?, insns) and division_traps?(release)
@@ -1939,7 +2102,7 @@ end
 @doc """
 refuse_division: raise :division_trap when `division_refusal` has a reason. The release is read only for a program that holds such a division.
 
-    refuse_division([bpf::exit_program], :refuse) #=> nil
+    refuse_division([exit_program], :refuse) #=> nil
 """
 def refuse_division(insns, mode)
   if mode != :trust and any?(division_site?, insns)
@@ -1953,24 +2116,24 @@ def refuse_division(insns, mode)
 end
 
 test "a division that can panic this kernel is refused by name, and every other form loads on"
-  by_reg = bpf::alu(:sdiv, 0, bpf::r(1))
+  by_reg = alu(:sdiv, 0, bpf::r(1))
   floor = "6.6.142"
   assert contains?(division_refusal([by_reg], floor, :refuse), "Linux 6.6.142")
   assert contains?(division_refusal([by_reg], floor, :refuse), "6.12")
   assert division_refusal([bpf::alu32(:smod, 0, bpf::r(1))], floor, :refuse) !=
     nil
-  assert division_refusal([bpf::alu(:smod, 0, -1)], floor, :refuse) != nil
+  assert division_refusal([alu(:smod, 0, -1)], floor, :refuse) != nil
   assert division_refusal([by_reg], "6.12.93", :refuse).nil?
   assert division_refusal([by_reg], floor, :trust).nil?
-  assert division_refusal([bpf::alu(:sdiv, 0, 3)], floor, :refuse).nil?
-  assert division_refusal([bpf::alu(:div, 0, bpf::r(1))], floor, :refuse).nil?
+  assert division_refusal([alu(:sdiv, 0, 3)], floor, :refuse).nil?
+  assert division_refusal([alu(:div, 0, bpf::r(1))], floor, :refuse).nil?
   assert division_refusal([bpf::jump(:eq, 0, 0, 0)], floor, :refuse).nil?
   assert division_refusal([], floor, :refuse).nil?
 end
 
 test "a program with no such division never asks the release"
-  assert refuse_division([bpf::alu(:mov, 0, 2)], :refuse).nil?
-  assert refuse_division([bpf::alu(:sdiv, 0, bpf::r(1))], :trust).nil?
+  assert refuse_division([alu(:mov, 0, 2)], :refuse).nil?
+  assert refuse_division([alu(:sdiv, 0, bpf::r(1))], :trust).nil?
 end
 
 test "division traps below 6.12, and a suffix on the release changes nothing"
@@ -2152,6 +2315,44 @@ test "an executable's entry comes from its own file, and a file that is no ELF r
   rm_rf(dir)
   assert found == 4096
   assert refused == :refused
+end
+
+test "attached refuses a spec and a kind that do not fit before it reaches the kernel"
+  xdp = {kind: :xdp}
+  assert hook_row(xdp, {xdp: 3}).target == "an interface index"
+  e = begin
+    attached(xdp, {lsm: "file_open"}, (_live) -> :ran)
+  rescue :bad_option as refused
+    refused
+  end
+  assert contains?(e.message, "takes a lsm program")
+  assert contains?(e.message, "this one is xdp")
+  none = begin
+    hook_row(xdp, {nope: 1})
+  rescue :bad_option as refused
+    refused
+  end
+  assert contains?(none.message, "fentry")
+  assert (hook_row(xdp, {xdp: 1, lsm: "x"}) rescue :refused) == :refused
+end
+
+test "every hook names a program kind the kernel has"
+  assert filter((row) -> kind_id(:prog, row[:kind]) < 0, hooks) == []
+end
+
+test "released closes nothing it was not given"
+  assert released({maps: []}).nil?
+end
+
+test "attached answers a named absence or refusal when nothing can load, and never runs its body"
+  program = assemble([alu(:mov, 0, 2), exit_program])
+  ran = attached(
+    assoc(program, :kind, :xdp),
+    {xdp: 2_147_483_647},
+    (_live) -> :ran
+  ) rescue
+    :absent
+  assert ran == :absent
 end
 
 test "a hook's spec names its attach type, and an empty one refuses"

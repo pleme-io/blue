@@ -899,18 +899,65 @@ def ext_section_words(s, offsets)
 end
 
 @doc """
-encode_ext: the `.BTF.ext` for these types and names: each of `sections` {section:, funcs: [{at:, type:}]}, `at` in bytes from the section's start. No line info and no CO-RE relocations.
+ext_line_words: one ELF section's line info as words: its name's offset, its count, then `[byte offset, file, text, position]`.
+
+    ext_line_words({section: "xdp", lines: [{at: 0, file: "f", text: "t", pos: 2051}]}, {"xdp" => 1, "f" => 5, "t" => 7}) #=> [1, 1, 0, 5, 7, 2051]
+"""
+def ext_line_words(s, offsets)
+  append(
+    [get(offsets, s[:section]), size(s[:lines])],
+    flat_map(
+      s[:lines],
+      (l) -> [l[:at], get(offsets, l[:file]), get(offsets, l[:text]), l[:pos]]
+    )
+  )
+end
+
+@doc """
+ext_core_words: one ELF section's CO-RE relocations as words: its name's offset, its count, then `[byte offset, type, access text, kind]`.
+
+    ext_core_words({section: "xdp", relos: [{at: 8, type: 2, access: "0:0", kind: 0}]}, {"xdp" => 1, "0:0" => 5}) #=> [1, 1, 8, 2, 5, 0]
+"""
+def ext_core_words(s, offsets)
+  append(
+    [get(offsets, s[:section]), size(s[:relos])],
+    flat_map(
+      s[:relos],
+      (r) -> [r[:at], r[:type], get(offsets, r[:access]), r[:kind]]
+    )
+  )
+end
+
+@doc """
+encode_ext: the `.BTF.ext` for these types and names: each of `sections` {section:, funcs: [{at:, type:}]}, and each of `lines` {section:, lines: [{at:, file:, text:, pos:}]}, and each of `core` {section:, relos: [{at:, type:, access:, kind:}]}, `at` in bytes from the section's start, `pos` the line above ten bits of column.
 
     read_ext(encode_ext([], ["xdp"], [{section: "xdp", funcs: [{at: 0, type: 1}]}]), encode([], ["xdp"])) #=> [{section: "xdp", funcs: [{at: 0, type: 1}]}]
     read_ext(encode_ext([], [], []), encode([])) #=> []
 """
-def encode_ext(types, names, sections)
+def encode_ext(types, names, sections, lines?, core?)
   offsets = strings_of(types, names)[:offsets]
   body = if sections == []
     []
   else
     flat_map(
       append([8], flat_map(sections, (s) -> ext_section_words(s, offsets))),
+      word_bytes
+    )
+  end
+  line_body = if (lines or []) == []
+    []
+  else
+    flat_map(
+      append([16], flat_map(lines, (s) -> ext_line_words(s, offsets))),
+      word_bytes
+    )
+  end
+  after_lines = length(body) + length(line_body)
+  core_body = if (core or []) == []
+    []
+  else
+    flat_map(
+      append([16], flat_map(core, (s) -> ext_core_words(s, offsets))),
       word_bytes
     )
   end
@@ -925,12 +972,12 @@ def encode_ext(types, names, sections)
         func_info_off: 0,
         func_info_len: length(body),
         line_info_off: length(body),
-        line_info_len: 0,
-        core_relo_off: length(body),
-        core_relo_len: 0
+        line_info_len: length(line_body),
+        core_relo_off: after_lines,
+        core_relo_len: length(core_body)
       }
     ),
-    body
+    append(*[body, line_body, core_body])
   )
 end
 
@@ -981,6 +1028,165 @@ def read_ext(bytes, blob)
     while(acc[:at] < count - 4, set!(acc, ext_step(acc, inner, b, record)))
     acc[:sections]
   end
+end
+
+@doc """
+read_lines: a `.BTF.ext`'s line info by section, strings read from the BTF blob beside it, each row {at:, file:, text:, line:, col:}. A record longer than the 16 bytes the kernel reads keeps its first 16.
+
+    read_lines(encode_ext([], [], []), encode([])) #=> []
+"""
+def read_lines(bytes, blob)
+  hdr = word_at(bytes, 4)
+  from = hdr + word_at(bytes, 16)
+  count = word_at(bytes, 20)
+  if count == 0
+    []
+  else
+    b = read(blob)
+    record = word_at(bytes, from)
+    stop = from + count
+    acc = {at: from + 4, sections: []}
+    while(acc[:at] < stop, set!(acc, line_step(acc, bytes, b, record)))
+    acc[:sections]
+  end
+end
+
+@doc """
+line_step: one section of a line info read, and where the next starts.
+
+    line_step({at: 0, sections: []}, append(word_bytes(0), word_bytes(0)), read(encode([])), 16)[:at] #=> 8
+"""
+def line_step(acc, bytes, b, record)
+  at = acc[:at]
+  count = word_at(bytes, at + 4)
+  rows = map(
+    fn(i)
+      row = at + 8 + i * record
+      pos = word_at(bytes, row + 12)
+      {
+        at: word_at(bytes, row),
+        file: name_of(b, word_at(bytes, row + 4)),
+        text: name_of(b, word_at(bytes, row + 8)),
+        line: shift_right_logical(pos, 10),
+        col: bit_and(pos, 1023)
+      }
+    end,
+    range(0, count)
+  )
+  {
+    at: at + 8 + count * record,
+    sections: append(
+      acc[:sections],
+      [{section: name_of(b, word_at(bytes, at)), lines: rows}]
+    )
+  }
+end
+
+@doc """
+read_core: a `.BTF.ext`'s CO-RE relocations by section, each {at:, type:, access:, kind:}. An ext that holds none, or a header too short to, has none.
+
+    read_core(encode_ext([], [], []), encode([])) #=> []
+"""
+def read_core(bytes, blob)
+  hdr = word_at(bytes, 4)
+  if hdr < 32 or word_at(bytes, 28) == 0
+    []
+  else
+    from = hdr + word_at(bytes, 24)
+    record = word_at(bytes, from)
+    b = read(blob)
+    stop = from + word_at(bytes, 28)
+    acc = {at: from + 4, sections: []}
+    while(acc[:at] < stop, set!(acc, core_step(acc, bytes, b, record)))
+    acc[:sections]
+  end
+end
+
+@doc """
+core_step: one section of a CO-RE read, and where the next starts.
+
+    core_step({at: 0, sections: []}, append(word_bytes(0), word_bytes(0)), read(encode([])), 16)[:at] #=> 8
+"""
+def core_step(acc, bytes, b, record)
+  at = acc[:at]
+  count = word_at(bytes, at + 4)
+  rows = map(
+    fn(i)
+      row = at + 8 + i * record
+      {
+        at: word_at(bytes, row),
+        type: word_at(bytes, row + 4),
+        access: name_of(b, word_at(bytes, row + 8)),
+        kind: word_at(bytes, row + 12)
+      }
+    end,
+    range(0, count)
+  )
+  {
+    at: at + 8 + count * record,
+    sections: append(
+      acc[:sections],
+      [{section: name_of(b, word_at(bytes, at)), relos: rows}]
+    )
+  }
+end
+
+test "CO-RE relocations in a BTF.ext sit after line info and read back by section"
+  names = %w[xdp 0:1]
+  types = [
+    int_type("int", 4),
+    sized_type(
+      :struct,
+      "s",
+      8,
+      [{name: "f", type: 1, bits: 0}, {name: "g", type: 1, bits: 32}]
+    )
+  ]
+  ext = encode_ext(
+    types,
+    names,
+    [],
+    [],
+    [{section: "xdp", relos: [{at: 16, type: 2, access: "0:1", kind: 0}]}]
+  )
+  blob = encode(types, names)
+  assert read_core(ext, blob) ==
+    [{section: "xdp", relos: [{at: 16, type: 2, access: "0:1", kind: 0}]}]
+  assert word_at(ext, 28) == 28
+  assert read_lines(ext, blob) == []
+  both = encode_ext(
+    types,
+    append(names, %w[f t]),
+    [],
+    [{section: "xdp", lines: [{at: 0, file: "f", text: "t", pos: 2051}]}],
+    [{section: "xdp", relos: [{at: 16, type: 2, access: "0:1", kind: 0}]}]
+  )
+  whole = encode(types, append(names, %w[f t]))
+  assert size(read_lines(both, whole)) == 1
+  assert size(read_core(both, whole)) == 1
+end
+
+test "line info in a BTF.ext sits after its func_info and reads back by section"
+  names = %w[xdp f.b text]
+  types = [proto_type(0, []), linked_type(:func, "e", 1, :global)]
+  ext = encode_ext(
+    types,
+    names,
+    [{section: "xdp", funcs: [{at: 0, type: 2}]}],
+    [{section: "xdp", lines: [{at: 0, file: "f.b", text: "text", pos: 2051}]}]
+  )
+  blob = encode(types, names)
+  assert read_ext(ext, blob) == [{section: "xdp", funcs: [{at: 0, type: 2}]}]
+  assert read_lines(ext, blob) ==
+    [
+      {
+        section: "xdp",
+        lines: [{at: 0, file: "f.b", text: "text", line: 2, col: 3}]
+      }
+    ]
+  assert word_at(ext, 16) == 20
+  assert word_at(ext, 20) == 28
+  assert word_at(ext, 24) == 48
 end
 
 test "a table of no types reads as empty, and finds nothing"

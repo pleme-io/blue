@@ -40,6 +40,7 @@ def programs()
     ["kernel/programs/nf_filter.b", :nf_filter, :netfilter, 1],
     ["kernel/programs/object.b", :on_packet, :xdp, 0],
     ["kernel/programs/opens.b", :on_open, :kprobe, 0],
+    ["kernel/programs/refused.b", :read_far, :xdp, 0],
     ["kernel/programs/sk_lookup.b", :sk_lookup, :sk_lookup, 1],
     ["kernel/programs/socket_len.b", :socket_len, :socket_filter, 1],
     ["kernel/programs/spin.b", :on_packet, :xdp, 0],

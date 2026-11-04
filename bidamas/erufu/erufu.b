@@ -13,7 +13,8 @@ use("baito", %i[align_up layout pack slice_bytes text_of unpack width])
 
 use("bpf")
 use("btf")
-use("retsu", %i[first flat_map index_of repeat rest size zip])
+use("retsu", %i[first flat_map index_of last repeat rest size zip])
+use("shuugou")
 
 @doc """
 header_layout: `Elf64_Ehdr`.
@@ -598,7 +599,7 @@ def function_at(funcs, slot)
 end
 
 @doc """
-relocated: one instruction as the object holds it, and its relocation: a map reference holds nothing until libbpf gives it a descriptor, a global call holds -1 and names its target, and a reference to a static function names `.text` and holds the place in it.
+relocated: one instruction as the object holds it, and its relocation: a map reference holds nothing until libbpf gives it a descriptor, a reference into a map's value holds its offset, a global call holds -1 and names its target, a reference to a static function names `.text` and holds the place in it, and a kernel field's instruction holds its local offset, which libbpf moves.
 
     relocated(bpf::map_ref(1, :m), 2, {funcs: [], text_from: 9, relocs: {2 => "m"}}).rel #=> {at: 2, symbol: "m", type: :map}
     relocated(bpf::exit_program, 0, {funcs: [], text_from: 9, relocs: {}})[:rel].nil? #=> true
@@ -606,13 +607,16 @@ relocated: one instruction as the object holds it, and its relocation: a map ref
 def relocated(i, slot, world)
   mapped = get(world[:relocs], slot)
   if mapped != nil
-    if i[:src] == 2
-      raise(:bad_option, "an object has no form yet for a map value reference")
-    end
     {
-      insn: assoc(assoc(i, :src, 0), :imm, 0),
+      insn: if i[:src] == 2
+        assoc(assoc(assoc(i, :src, 0), :imm, i[:imm2]), :imm2, 0)
+      else
+        assoc(assoc(i, :src, 0), :imm, 0)
+      end,
       rel: {at: slot, symbol: mapped, type: :map}
     }
+  elsif get(world[:field_offsets] or {}, slot) != nil
+    {insn: assoc(i, :imm, get(world[:field_offsets], slot))}
   elsif i[:code] == 133 and i[:src] == 1
     relocated_call(i, slot, world)
   elsif i[:code] == 24 and i[:src] == 4
@@ -790,33 +794,48 @@ def map_symbols(maps, vars)
 end
 
 @doc """
-object: a compiled or assembled program as an ELF object's bytes, in the shape clang gives the same program: the entry in the section libbpf names its type by, subprograms in `.text`, maps in `.maps`, `license`, `.BTF` and `.BTF.ext`. `opts` takes {section:} for a program whose section names a target, such as "fentry/do_sys_openat2", and {license:}. A program whose fields are not yet bound to a kernel raises, naming `bpf::bind_fields`.
+object: a compiled or assembled program as an ELF object's bytes, in the shape clang gives the same program: the entry in the section libbpf names its type by, subprograms in `.text`, maps in `.maps`, `license`, `.BTF` and `.BTF.ext`. `opts` takes {section:} for a program whose section names a target, such as "fentry/do_sys_openat2", {license:}, and {line_info: false} to leave out the source lines `.BTF.ext` holds by default. {core: false} refuses a program whose kernel fields are unbound, where by default each is a CO-RE relocation libbpf moves to the running kernel's offset. A map a program references by value becomes its own `.data.NAME` section, as libbpf reads global data.
 
     size(object(bpf::assemble([bpf::exit_program]), {section: "xdp"})) > 64 #=> true
     (object(assoc(bpf::assemble([]), :fields, [{}]), {section: "xdp"}) rescue :refused) #=> :refused
 """
 def object(p, opts?)
   given = opts or {}
-  if (p[:fields] or []) != []
+  if (p[:fields] or []) != [] and given[:core] == false
     raise(
       :bad_option,
-      "this program reads kernel fields: bind them first with bpf::bind_fields, as an object here holds no CO-RE relocations"
+      "this program reads kernel fields and {core: false} leaves CO-RE relocations out: bind them first with bpf::bind_fields"
     )
   end
+  by_value = value_maps(p)
+  plain_maps = filter((m) -> not member?(m, by_value), p[:maps] or [])
   kind = p[:kind] or :xdp
   section = given[:section] or bpf::section_name(kind)
   funcs = functions_of(p)
-  maps = p[:maps] or []
+  maps = plain_maps
   shaped = reduce(
     (acc, row) -> assoc(acc, first(row), row[1]),
     p,
-    [[:funcs, funcs], [:kind, kind], [:license, given[:license] or "GPL"]]
+    [
+      [:funcs, funcs],
+      [:kind, kind],
+      [:license, given[:license] or "GPL"],
+      [:maps, plain_maps],
+      [:data_maps, by_value]
+    ]
   )
-  types = bpf::program_btf(shaped)
+  types = bpf::program_btf(
+    if given[:line_info] == false
+      assoc(shaped, :lines, [])
+    else
+      shaped
+    end
+  )
   boundary = split_at(p, funcs)
   world = {
     funcs:,
     text_from: boundary,
+    field_offsets: types[:field_offsets],
     relocs: reduce(
       (acc, r) -> assoc(acc, r[:at], to_s(r[:map])),
       {},
@@ -854,6 +873,7 @@ def object(p, opts?)
       end,
       function_symbols(funcs, p[:slots], section),
       map_symbols(maps, types[:map_vars]),
+      map(data_map_symbol, by_value),
       [
         {
           name: "_license",
@@ -920,6 +940,7 @@ def object(p, opts?)
           }
         ]
       end,
+      map(data_map_part, by_value),
       [
         {
           name: ".BTF",
@@ -939,6 +960,88 @@ def object(p, opts?)
     ]
   )
   encode(sections, symbols)
+end
+
+@doc """
+value_maps: the maps a program holds a reference into, each a one-entry array, which is what libbpf can make from a section. One also named as a map, or of another shape, is refused by name.
+
+    value_maps({insns: [], relocs: [], maps: []}) #=> []
+    size(value_maps(bpf::assemble([bpf::exit_program]))) #=> 0
+    (value_maps(assoc(bpf::assemble([bpf::map_value_ref(1, :m, 0)]), :maps, [bpf::declare_map(:m, :hash, 4, 8, 1)])) rescue :refused) #=> :refused
+"""
+def value_maps(p)
+  placed = placed_rows(p[:insns])
+  named = fn(want)
+    shuugou::unique(
+      map(
+        (r) -> to_s(r[:map]),
+        filter(
+          fn(r)
+            row = find(placed, (x) -> first(x) == r[:at])
+            row != nil and want(row[1][:src] == 2)
+          end,
+          p[:relocs] or []
+        )
+      )
+    )
+  end
+  valued = named((x) -> x)
+  plain = named((x) -> not x)
+  map(
+    fn(name)
+      m = find(p[:maps] or [], (x) -> to_s(x[:name]) == name)
+      if m.nil?
+        raise(
+          :bad_option,
+          "the program references the value of #{name}, which is not among its maps"
+        )
+      elsif member?(name, plain)
+        raise(
+          :bad_option,
+          "an object cannot name #{name} both as a map and by a reference into its value: libbpf reads each from another section"
+        )
+      elsif m[:kind] != :array or m[:max_entries] != 1 or m[:key_size] != 4
+        raise(
+          :bad_option,
+          "a reference into a map's value needs a one-entry array with a 4-byte key in an object, and #{name} is not one"
+        )
+      end
+      m
+    end,
+    valued
+  )
+end
+
+@doc """
+data_map_part: the section a map referenced by value lives in, zero-filled.
+
+    data_map_part(bpf::declare_map(:m, :array, 4, 8, 1)).name #=> ".data.m"
+    size(data_map_part(bpf::declare_map(:m, :array, 4, 8, 1)).bytes) #=> 8
+"""
+def data_map_part(m)
+  {
+    name: bpf::data_map_place(m)[:section],
+    type: :progbits,
+    flags: %i[write alloc],
+    align: 1,
+    bytes: repeat(0, m[:value_size])
+  }
+end
+
+@doc """
+data_map_symbol: the symbol at the start of a map referenced by value.
+
+    data_map_symbol(bpf::declare_map(:m, :array, 4, 8, 1)).size #=> 8
+"""
+def data_map_symbol(m)
+  {
+    name: to_s(m[:name]),
+    bind: :global,
+    type: :object,
+    section: bpf::data_map_place(m)[:section],
+    value: 0,
+    size: m[:value_size]
+  }
 end
 
 @doc """
@@ -962,7 +1065,9 @@ def ext_with_section(types, section, funcs)
     bpf::func_info_sections(
       map((row) -> [first(row), row[1][:type]], zip(funcs, types[:func_info])),
       section
-    )
+    ),
+    bpf::line_info_sections(types[:lines] or [], funcs, section),
+    bpf::core_sections(types[:core_relos] or [], funcs, section)
   )
 end
 
@@ -1179,6 +1284,16 @@ def linked_rel(i, rel, slot, _base, text_base)
     i
   elsif rel[:sym][:section] == ".maps"
     assoc(assoc(i, :src, 1), :map, rel[:sym][:name])
+  elsif i[:code] == 24 and starts_with?(rel[:sym][:section], ".data.")
+    assoc(
+      assoc(
+        assoc(assoc(i, :src, 2), :imm2, i[:imm] + rel[:sym][:value]),
+        :imm,
+        0
+      ),
+      :map,
+      after_data(rel[:sym][:section])
+    )
   elsif i[:code] == 133
     to = floor(rel[:sym][:value] / 8) + i[:imm] + 1 + text_base
     assoc(i, :imm, to - slot - 1)
@@ -1186,11 +1301,148 @@ def linked_rel(i, rel, slot, _base, text_base)
     to = floor((rel[:sym][:value] + i[:imm]) / 8) + text_base
     assoc(assoc(i, :src, 4), :imm, to - slot - 1)
   else
-    raise(
-      :bad_option,
+    assoc(
+      i,
+      :unlinked,
       "a relocation at slot #{to_s(slot)} names #{rel[:symbol]}, which this reader cannot link"
     )
   end
+end
+
+@doc """
+refused_unlinked: nil, or the refusal for an instruction still holding a relocation this reader could not link.
+
+    refused_unlinked([bpf::exit_program]).nil? #=> true
+    (refused_unlinked([{unlinked: "no"}]) rescue :refused) #=> :refused
+"""
+def refused_unlinked(insns)
+  stuck = find(insns, (i) -> i[:unlinked] != nil)
+  if stuck != nil
+    raise(:bad_option, stuck[:unlinked])
+  end
+end
+
+@doc """
+after_data: the map a `.data.NAME` section is.
+
+    after_data(".data.m") #=> "m"
+"""
+def after_data(section)
+  join(drop(2, split(section, ".")), ".")
+end
+
+@doc """
+data_maps_of: the one-entry array each zero-filled `.data.NAME` section of a decoded object is. A section holding other bytes needs its contents written at load, which this reader has no form for, so it is left out and a reference to it is refused when the array is not found.
+
+    data_maps_of({sections: [{name: ".data.m", bytes: [0, 0, 0, 0]}]})[0][:value_size] #=> 4
+    data_maps_of({sections: [{name: ".data.m", bytes: [1]}]}) #=> []
+    data_maps_of({sections: []}) #=> []
+"""
+def data_maps_of(o)
+  map(
+    fn(s)
+      bpf::declare_map(after_data(s[:name]), :array, 4, size(s[:bytes]), 1)
+    end,
+    filter(
+      fn(s)
+        starts_with?(s[:name], ".data.") and
+          filter((b) -> b != 0, s[:bytes]) == []
+      end,
+      o[:sections]
+    )
+  )
+end
+
+@doc """
+fields_of: a decoded object's CO-RE relocations as the fields `bpf::bind_fields` fills: each by its slot in a linked program, its struct and its member names from the object's own BTF. An instruction this linker cannot patch, or a kind other than a byte offset, is refused by name: reading on with the local offset would read the wrong field.
+
+    fields_of({sections: []}, "xdp", 1) #=> []
+"""
+def fields_of(o, section, main_slots)
+  blob = section_of(o, ".BTF")
+  ext = section_of(o, ".BTF.ext")
+  if blob.nil? or ext.nil?
+    []
+  else
+    table = btf::read(blob[:bytes])
+    flat_map(
+      btf::read_core(ext[:bytes], blob[:bytes]),
+      fn(s)
+        base = if s[:section] == section
+          0
+        elsif s[:section] == ".text"
+          main_slots
+        end
+        if base.nil?
+          []
+        else
+          map(
+            (r) -> field_of_core(table, r, base + floor(r[:at] / 8)),
+            s[:relos]
+          )
+        end
+      end
+    )
+  end
+end
+
+@doc """
+field_of_core: one CO-RE relocation as a field. An anonymous member adds nothing to the path, as `btf::field` walks through it.
+
+    (field_of_core(btf::read(btf::encode([])), {kind: 3, access: "0:0", type: 1}, 0) rescue :refused) #=> :refused
+"""
+def field_of_core(table, r, slot)
+  if r[:kind] != 0
+    raise(
+      :bad_option,
+      "a CO-RE relocation of kind #{to_s(r[:kind])} at slot #{to_s(slot)} is not a byte offset, the only kind this reader binds"
+    )
+  end
+  walked = reduce(
+    fn(acc, index)
+      t = btf::resolved(table, acc[:type])
+      m = t[:members][to_int(index)]
+      {
+        type: m[:type],
+        path: if m[:name] == ""
+          acc[:path]
+        else
+          append(acc[:path], [m[:name]])
+        end
+      }
+    end,
+    {type: r[:type], path: []},
+    rest(split(r[:access], ":"))
+  )
+  {
+    at: slot,
+    struct: btf::resolved(table, r[:type])[:name],
+    path: walked[:path],
+    size: btf::size_of(table, walked[:type])
+  }
+end
+
+@doc """
+fields_patchable: the fields of a linked program, refusing one whose instruction holds its offset anywhere but an immediate.
+
+    fields_patchable([], []) #=> []
+    (fields_patchable([{at: 0, struct: "s", path: ["f"]}], [bpf::load(:w, 0, 1, 0)]) rescue :refused) #=> :refused
+"""
+def fields_patchable(fields, insns)
+  rows = placed_rows(insns)
+  map(
+    fn(f)
+      row = find(rows, (x) -> first(x) == f[:at])
+      if row != nil and not member?(row[1][:code], [7, 183])
+        raise(
+          :bad_option,
+          "#{f[:struct]}.#{join(f[:path], ".")} is relocated at an instruction that holds no immediate offset, which this reader cannot bind; bind it with libbpf"
+        )
+      end
+      f
+    end,
+    fields
+  )
 end
 
 @doc """
@@ -1304,28 +1556,218 @@ def info_of(o, section, main_slots)
 end
 
 @doc """
-program_of: a decoded object linked into a program, as libbpf links one: the section named, or the first program section, then the whole of `.text` when anything reaches it. Its maps, functions and BTF come from the object, and a program type its section does not name is nil. An object for another machine raises.
+function_starts: the slots a linked program's functions start at, read from its func_info and its function symbols: the first slot, then each in `.text`, in order. An object that says nothing of `.text` has one function there.
+
+    function_starts({symbols: []}, {funcs: nil}, 2) #=> [0, 2]
+    function_starts({symbols: [{type: :func, section: ".text", value: 16}]}, {funcs: [{at: 2}]}, 2) #=> [0, 2, 4]
+"""
+def function_starts(o, info, main_slots)
+  named = map(
+    (f) -> main_slots + floor(f[:value] / 8),
+    filter((f) -> f[:type] == :func and f[:section] == ".text", o[:symbols])
+  )
+  listed = map(
+    (f) -> f[:at],
+    filter((f) -> f[:at] >= main_slots, info[:funcs] or [])
+  )
+  sort_keyed(
+    (n) -> n,
+    shuugou::unique(append(*[[0, main_slots], named, listed]))
+  )
+end
+
+@doc """
+placed_rows: a program's instructions, each `[slot, instruction]`.
+
+    placed_rows([bpf::imm64(1, 0), bpf::exit_program])[1][0] #=> 2
+    placed_rows([]) #=> []
+"""
+def placed_rows(insns)
+  get(
+    reduce(
+      fn(acc, i)
+        {
+          at: acc[:at] + bpf::slots_of(i),
+          rows: append(acc[:rows], [[acc[:at], i]])
+        }
+      end,
+      {at: 0, rows: []},
+      insns
+    ),
+    :rows
+  )
+end
+
+@doc """
+reference_target: the slot an instruction calls or takes the address of in this program, nil for any other instruction.
+
+    reference_target([2, bpf::call_local(:f)]) #=> 3
+    reference_target([0, bpf::exit_program]).nil? #=> true
+"""
+def reference_target(row)
+  i = row[1]
+  if i[:code] == 133 and i[:src] == 1 or i[:code] == 24 and i[:src] == 4
+    first(row) + 1 + i[:imm]
+  end
+end
+
+@doc """
+start_holding: the function start a slot falls in.
+
+    start_holding([0, 2, 4], 3) #=> 2
+    start_holding([0, 2, 4], 4) #=> 4
+"""
+def start_holding(starts, slot)
+  last(filter((n) -> n <= slot, starts))
+end
+
+@doc """
+reached_starts: the functions a program reaches from its first, by call or by reference.
+
+    reached_starts([0], [[0, bpf::exit_program]]) #=> [0]
+    reached_starts([], []) #=> []
+"""
+def reached_starts(starts, rows)
+  if starts == []
+    []
+  else
+    edges = filter(
+      (e) -> e[1] != nil,
+      map(
+        (row) -> [start_holding(starts, first(row)), reference_target(row)],
+        rows
+      )
+    )
+    walked = reduce(
+      fn(seen, _)
+        shuugou::unique(
+          append(
+            seen,
+            map(
+              (e) -> start_holding(starts, e[1]),
+              filter((e) -> member?(first(e), seen), edges)
+            )
+          )
+        )
+      end,
+      [0],
+      starts
+    )
+    filter((n) -> member?(n, walked), starts)
+  end
+end
+
+@doc """
+slot_after_drop: where a slot lands once only these functions stay: `kept` is each kept function's `[start, end]`.
+
+    slot_after_drop([[0, 2], [4, 6]], 5) #=> 3
+    slot_after_drop([[0, 2]], 1) #=> 1
+"""
+def slot_after_drop(kept, slot)
+  reduce(
+    fn(at, k)
+      if slot >= k[1]
+        at + k[1] - first(k)
+      elsif slot >= first(k)
+        at + slot - first(k)
+      else
+        at
+      end
+    end,
+    0,
+    kept
+  )
+end
+
+@doc """
+linked_only: a linked program with the functions nothing reaches removed, as libbpf links one: each call, reference, relocation and function row moved to its new slot. A program that reaches them all comes back as it was.
+
+    linked_only({insns: [bpf::exit_program], relocs: [], slots: 1}, [0]).slots #=> 1
+"""
+def linked_only(program, starts)
+  rows = placed_rows(program[:insns])
+  stops = append(rest(starts), [program[:slots]])
+  reached = reached_starts(starts, rows)
+  if size(reached) == size(starts)
+    program
+  else
+    kept = filter((k) -> member?(first(k), reached), zip(starts, stops))
+    stays = (slot) -> member?(start_holding(starts, slot), reached)
+    moved = (slot) -> slot_after_drop(kept, slot)
+    moved_row = (f) -> assoc(f, :at, moved(f[:at]))
+    insns = map(
+      fn(row)
+        target = reference_target(row)
+        if target.nil?
+          row[1]
+        else
+          assoc(row[1], :imm, moved(target) - moved(first(row)) - 1)
+        end
+      end,
+      filter((row) -> stays(first(row)), rows)
+    )
+    funcs = if program[:funcs].nil?
+      nil
+    else
+      map(moved_row, filter((f) -> stays(f[:at]), program[:funcs]))
+    end
+    types = if program[:btf].nil?
+      nil
+    else
+      assoc(
+        program[:btf],
+        :func_info,
+        map(moved_row, filter((f) -> stays(f[:at]), program[:btf][:func_info]))
+      )
+    end
+    reduce(
+      (acc, pair) -> assoc(acc, first(pair), pair[1]),
+      program,
+      [
+        [:insns, insns],
+        [
+          :relocs,
+          map(moved_row, filter((r) -> stays(r[:at]), program[:relocs]))
+        ],
+        [
+          :fields,
+          map(moved_row, filter((r) -> stays(r[:at]), program[:fields] or []))
+        ],
+        [:slots, moved(program[:slots])],
+        [:funcs, funcs],
+        [:btf, types]
+      ]
+    )
+  end
+end
+
+@doc """
+program_of: a decoded object linked into a program, as libbpf links one: the section named, or the first program section, then the functions of `.text` it reaches; a function nothing reaches is dropped, where the verifier would refuse it. `opts` {keep_unreached: true} links the whole of `.text` when anything reaches it. Its maps, functions and BTF come from the object, and a program type its section does not name is nil. An object for another machine raises.
 
     bpf::run(program_of(decode(object(bpf::assemble([bpf::alu(:mov, 0, 3), bpf::exit_program]), {section: "xdp"})))).ret #=> 3
     (program_of(assoc_machine(decode(encode([], [])))) rescue :refused) #=> :refused
 """
-def program_of(o, name?)
+def program_of(o, name?, opts?)
   if o[:header][:machine] != 247
     raise(
       :bad_option,
       "this object is for machine #{to_s(o[:header][:machine])}, not BPF"
     )
   end
+  given = opts or {}
   s = entry_section(o, name)
   main_slots = floor(s[:size] / 8)
   rels = o[:rels]
   text = section_of(o, ".text")
   reaches_text = text != nil and
     text[:size] > 0 and
-    filter(
-      (r) -> r[:sym][:section] == ".text",
-      append(get(rels, s[:name]) or [], rels[".text"] or [])
-    ) != []
+    (
+      not given[:keep_unreached] or
+      filter(
+        (r) -> r[:sym][:section] == ".text",
+        append(get(rels, s[:name]) or [], rels[".text"] or [])
+      ) != []
+    )
   main = linked_section(s, rels, 0, main_slots)
   sub = if reaches_text
     linked_section(text, rels, main_slots, main_slots)
@@ -1338,12 +1780,12 @@ def program_of(o, name?)
   else
     filter((f) -> f[:at] < main_slots, info[:func_info])
   end
-  maps = maps_of(o)
+  maps = append(maps_of(o), data_maps_of(o))
   blob = section_of(o, ".BTF")
-  {
+  whole = {
     insns: append(main[:insns], sub[:insns]),
     relocs: append(main[:relocs], sub[:relocs]),
-    fields: [],
+    fields: fields_of(o, s[:name], main_slots),
     slots: main_slots +
       if reaches_text
         floor(text[:size] / 8)
@@ -1379,6 +1821,14 @@ def program_of(o, name?)
       }
     end
   }
+  linked = if given[:keep_unreached] or not reaches_text
+    whole
+  else
+    linked_only(whole, function_starts(o, info, main_slots))
+  end
+  refused_unlinked(linked[:insns])
+  fields_patchable(linked[:fields], linked[:insns])
+  linked
 end
 
 @doc """
@@ -1496,6 +1946,263 @@ test "a static callback is reached through .text, and a reader links it back"
   assert bpf::run(back).ret == 3
 end
 
+test "a kernel field in an object holds its local offset, its relocation reads back, and a reader binds it as bind_fields does"
+  p = assoc(
+    bpf::assemble(
+      [
+        assoc(
+          bpf::alu(:add, 3, 0),
+          :field,
+          {struct: "task", path: ["pid"], size: 4}
+        ),
+        assoc(
+          bpf::alu(:add, 3, 0),
+          :field,
+          {struct: "task", path: ["tgid"], size: 4}
+        ),
+        bpf::exit_program
+      ]
+    ),
+    :kind,
+    :tracing
+  )
+  o = decode(object(p, {section: "fentry/x"}))
+  got = btf::read_core(
+    section_of(o, ".BTF.ext")[:bytes],
+    section_of(o, ".BTF")[:bytes]
+  )
+  assert first(got)[:section] == "fentry/x"
+  assert map((r) -> [r[:at], r[:access], r[:kind]], first(got)[:relos]) ==
+    [[0, "0:0", 0], [8, "0:1", 0]]
+  held = bpf::decode(section_of(o, "fentry/x")[:bytes])
+  assert map((i) -> i[:imm], take(2, held)) == [0, 4]
+  back = program_of(o)
+  assert map((f) -> f[:path], back[:fields]) == [["pid"], ["tgid"]]
+  assert first(back[:fields])[:struct] == "task"
+  assert first(back[:fields])[:size] == 4
+  bound = bpf::bind_fields(
+    back,
+    fn(_s, path)
+      if path == ["pid"]
+        {offset: 100, size: 4}
+      else
+        {offset: 200, size: 4}
+      end
+    end
+  )
+  assert map((i) -> i[:imm], take(2, bound[:insns])) == [100, 200]
+  assert bound[:fields] == []
+end
+
+test "a CO-RE relocation at an instruction with no immediate, or of another kind, stops the reader by name"
+  assert (fields_patchable(
+    [{at: 0, struct: "s", path: ["f"]}],
+    [bpf::load(:w, 0, 1, 0)]
+  ) rescue
+    :refused) == :refused
+  good = fields_patchable(
+    [{at: 0, struct: "s", path: ["f"]}],
+    [bpf::alu(:mov, 1, 4)]
+  )
+  assert size(good) == 1
+  table = btf::read(
+    btf::encode(
+      [
+        btf::int_type("int", 4),
+        btf::sized_type(:struct, "s", 4, [{name: "f", type: 1, bits: 0}])
+      ]
+    )
+  )
+  assert field_of_core(table, {kind: 0, access: "0:0", type: 2}, 3) ==
+    {at: 3, struct: "s", path: ["f"], size: 4}
+  assert (field_of_core(table, {kind: 3, access: "0:0", type: 2}, 3) rescue
+    :refused) == :refused
+end
+
+test "a reference into a map's value becomes a data section libbpf reads, with its offset in the instruction, and reads back"
+  m = bpf::declare_map(:g, :array, 4, 16, 1)
+  p = assoc(
+    assoc(
+      bpf::assemble(
+        [
+          bpf::map_value_ref(1, :g, 8),
+          bpf::load(:dw, 0, 1, 0),
+          bpf::exit_program
+        ]
+      ),
+      :maps,
+      [m]
+    ),
+    :kind,
+    :xdp
+  )
+  o = decode(object(p))
+  part = section_of(o, ".data.g")
+  assert part[:size] == 16
+  assert part[:flags] == 3
+  assert section_of(o, ".maps").nil?
+  rel = first(o[:rels]["xdp"])
+  assert rel[:symbol] == "g"
+  assert rel[:type] == 1
+  held = bpf::decode(section_of(o, "xdp")[:bytes])
+  assert first(held)[:src] == 0
+  assert first(held)[:imm] == 8
+  back = program_of(o)
+  assert first(back[:insns])[:src] == 2
+  assert first(back[:insns])[:imm2] == 8
+  assert first(back[:maps])[:value_size] == 16
+  assert first(back[:relocs])[:map] == "g"
+  assert bpf::encode(back) == bpf::encode(p)
+end
+
+test "a map named both ways, or of a shape libbpf cannot make from a section, refuses by name"
+  both = assoc(
+    bpf::assemble(
+      [bpf::map_value_ref(1, :g, 0), bpf::map_ref(2, :g), bpf::exit_program]
+    ),
+    :maps,
+    [bpf::declare_map(:g, :array, 4, 8, 1)]
+  )
+  assert (object(both, {section: "xdp"}) rescue :refused) == :refused
+  many = assoc(
+    bpf::assemble([bpf::map_value_ref(1, :g, 0), bpf::exit_program]),
+    :maps,
+    [bpf::declare_map(:g, :array, 4, 8, 2)]
+  )
+  assert (object(many, {section: "xdp"}) rescue :refused) == :refused
+end
+
+test "a compiled program's source lines reach .BTF.ext in its object, and the switch leaves them out"
+  q = assoc(
+    bpf::compile_forms(
+      read_forms("(define (%root/e c) (%line 2 3 7))"),
+      {entry: :e, kind: :xdp}
+    ),
+    :source,
+    {file: "f.b", text: ["def e(c)", "  7"]}
+  )
+  o = decode(object(q))
+  got = btf::read_lines(
+    section_of(o, ".BTF.ext")[:bytes],
+    section_of(o, ".BTF")[:bytes]
+  )
+  assert first(first(got)[:lines])[:text] == "  7"
+  off = decode(object(q, {line_info: false}))
+  assert btf::read_lines(
+    section_of(off, ".BTF.ext")[:bytes],
+    section_of(off, ".BTF")[:bytes]
+  ) == []
+end
+
+test "a function nothing reaches is dropped from the link, and the rest still run"
+  p = bpf::with_funcs(
+    bpf::assemble(
+      [
+        bpf::alu(:mov, 1, 40),
+        bpf::call_local(:live),
+        bpf::exit_program,
+        bpf::label(:dead),
+        bpf::alu(:mov, 0, 9),
+        bpf::exit_program,
+        bpf::label(:live),
+        bpf::alu(:mov, 0, bpf::r(1)),
+        bpf::alu(:add, 0, 2),
+        bpf::exit_program
+      ]
+    ),
+    [
+      {name: "e", linkage: :global, params: [:ctx]},
+      {name: "dead", label: :dead, linkage: :global, params: []},
+      {name: "live", label: :live, linkage: :global, params: [:int]}
+    ]
+  )
+  o = decode(object(assoc(p, :kind, :xdp)))
+  back = program_of(o)
+  assert map((f) -> f[:name], back[:funcs]) == %w[e live]
+  assert back[:slots] == 6
+  assert map((f) -> f[:at], back[:btf][:func_info]) == [0, 3]
+  assert bpf::run(back).ret == 42
+  whole = program_of(o, nil, {keep_unreached: true})
+  assert whole[:slots] == 8
+  assert map((f) -> f[:name], whole[:funcs]) == %w[e dead live]
+  assert bpf::run(whole).ret == 42
+end
+
+test "a callback a program reaches only by reference is kept, and a call from a kept function keeps its target"
+  p = bpf::with_funcs(
+    bpf::assemble(
+      [
+        bpf::call_local(:outer),
+        bpf::exit_program,
+        bpf::label(:dead),
+        bpf::alu(:mov, 0, 9),
+        bpf::exit_program,
+        bpf::label(:outer),
+        bpf::alu(:mov, 1, 3),
+        bpf::func_ref(2, :turn),
+        bpf::alu(:mov, 3, 0),
+        bpf::alu(:mov, 4, 0),
+        bpf::call(:loop),
+        bpf::exit_program,
+        bpf::label(:turn),
+        bpf::alu(:mov, 0, 0),
+        bpf::exit_program
+      ]
+    ),
+    [
+      {name: "e", linkage: :global, params: [:ctx]},
+      {name: "dead", label: :dead, linkage: :global, params: []},
+      {name: "outer", label: :outer, linkage: :global, params: []},
+      {name: "turn", label: :turn, linkage: :static, params: %i[int int]}
+    ]
+  )
+  back = program_of(decode(object(assoc(p, :kind, :xdp))))
+  assert map((f) -> f[:name], back[:funcs]) == %w[e outer turn]
+  assert bpf::run(back).ret == 3
+end
+
+test "an object whose program reaches nothing in .text links none of it, and one with no symbols there keeps what it reaches whole"
+  plain = program_of(
+    decode(
+      object(
+        assoc(
+          bpf::assemble([bpf::alu(:mov, 0, 2), bpf::exit_program]),
+          :kind,
+          :xdp
+        )
+      )
+    )
+  )
+  assert plain[:slots] == 2
+  assert function_starts({symbols: []}, {funcs: nil}, 2) == [0, 2]
+  only_dead = bpf::with_funcs(
+    bpf::assemble(
+      [
+        bpf::alu(:mov, 0, 2),
+        bpf::exit_program,
+        bpf::label(:dead),
+        bpf::alu(:mov, 0, 9),
+        bpf::exit_program
+      ]
+    ),
+    [
+      {name: "e", linkage: :global, params: [:ctx]},
+      {name: "dead", label: :dead, linkage: :global, params: []}
+    ]
+  )
+  o = decode(object(assoc(only_dead, :kind, :xdp)))
+  assert program_of(o)[:slots] == 2
+  assert program_of(o, nil, {keep_unreached: true})[:slots] == 2
+end
+
+test "a relocation this reader cannot link stops the link only when the function holding it is reached"
+  row = {sym: {section: ".rodata", value: 0}, symbol: "s"}
+  got = linked_rel(bpf::alu(:mov, 0, 0), row, 3, 0, 9)
+  assert contains?(got[:unlinked], "cannot link")
+  assert (refused_unlinked([got]) rescue :refused) == :refused
+  assert refused_unlinked([bpf::exit_program]).nil?
+end
+
 test "a function list reads in slot order whichever section .BTF.ext names first, as clang writes .text first"
   names = %w[xdp .text]
   types = [
@@ -1544,9 +2251,23 @@ test "bytes that are no ELF, a big-endian ELF, a truncated one and another machi
   assert (program_of(assoc_machine(decode(good))) rescue :refused) == :refused
 end
 
-test "a program with unbound kernel fields, a map value reference and a section that is none each refuse by name"
-  bound = assoc(bpf::assemble([bpf::exit_program]), :fields, [{at: 0}])
-  assert (object(bound, {section: "xdp"}) rescue :refused) == :refused
+test "a program with unbound kernel fields under {core: false}, a reference into no map's value and a section that is none each refuse by name"
+  unbound = assoc(
+    bpf::assemble(
+      [
+        assoc(
+          bpf::alu(:add, 3, 0),
+          :field,
+          {struct: "s", path: ["f"], size: 4}
+        ),
+        bpf::exit_program
+      ]
+    ),
+    :kind,
+    :tracing
+  )
+  assert (object(unbound, {section: "fentry/x", core: false}) rescue
+    :refused) == :refused
   valued = bpf::assemble([bpf::map_value_ref(1, :m, 0), bpf::exit_program])
   assert (object(valued, {section: "xdp"}) rescue :refused) == :refused
   named = bpf::assemble([bpf::map_ref(1, :absent), bpf::exit_program])

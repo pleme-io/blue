@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:cef97c2f31470cf2c587a8f4676ba08c644633a2c3d7039b10cedf3ad91bce59",
+  "bluefile_b3": "b3:0e39a3bfbccacec64c97633bea20f5fffa66d4e8fb0f85b6ea6355bee55c8a3e",
   "manifest": {
     "schema": 1,
     "name": "bpf",
@@ -10,7 +10,8 @@
       "btf": "^0.1.0",
       "jisho": "^0.1.0",
       "retsu": "^0.1.0",
-      "shisutemu": "^0.1.0"
+      "shisutemu": "^0.1.0",
+      "shuugou": "^0.1.0"
     },
     "when": "anytime",
     "sources": {},

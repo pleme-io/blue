@@ -60,6 +60,15 @@ def map_c(m)
 end
 
 @doc """
+data_c: a map a program references by value, in the generated C.
+
+    contains?(data_c(bpf::declare_map(:g, :array, 4, 16, 1)), "char g[16]") #=> true
+"""
+def data_c(m)
+  "char #{to_s(m[:name])}[#{to_s(m[:value_size])}] __attribute__((section(\"#{bpf::data_map_place(m)[:section]}\"), used));"
+end
+
+@doc """
 insn_text: one instruction as assembly, a map or a function by its symbol.
 
     insn_text(bpf::exit_program, 0, {relocs: {}, funcs: []}) #=> "exit"
@@ -124,6 +133,7 @@ source_c: a whole compiled program as C.
 """
 def source_c(p)
   funcs = p[:funcs]
+  by_value = erufu::value_maps(p)
   world = {
     funcs:,
     relocs: reduce(
@@ -164,7 +174,8 @@ def source_c(p)
           "struct bpf_spin_lock { unsigned int val; };",
           "struct blue_locked { struct bpf_spin_lock lock; long long total; };"
         ],
-        map(map_c, p[:maps]),
+        map(map_c, filter((m) -> not member?(m, by_value), p[:maps])),
+        map(data_c, by_value),
         ["char _license[] __attribute__((section(\"license\"), used)) = \"GPL\";"],
         map((f) -> "#{signature_c(f)};", funcs),
         [
@@ -451,6 +462,33 @@ def verdict(name, blue_rows, clang_rows)
 end
 
 @doc """
+line_info_rows: the sections an object's `.BTF.ext` holds source lines for. The lines differ, since blue's name blue's source and clang's its C; the shape must not.
+
+    (line_info_rows({sections: []}) rescue :refused) #=> :refused
+"""
+def line_info_rows(o)
+  rows = btf::read_lines(
+    erufu::section_of(o, ".BTF.ext")[:bytes],
+    erufu::section_of(o, ".BTF")[:bytes]
+  )
+  sorted_rows(map((s) -> s[:section], filter((s) -> s[:lines] != [], rows)))
+end
+
+@doc """
+line_info_verdict: the view of source lines, for a program that has them. An assembled program has no source to name, where clang's C always does.
+
+    line_info_verdict({sections: [{name: ".BTF.ext", bytes: btf::encode_ext([], [], [])}, {name: ".BTF", bytes: btf::encode([])}]}, {sections: []})[:same] #=> true
+"""
+def line_info_verdict(blue_o, clang_o)
+  ours = line_info_rows(blue_o)
+  if ours == []
+    verdict("line_info sections", [], [])
+  else
+    verdict("line_info sections", ours, line_info_rows(clang_o))
+  end
+end
+
+@doc """
 views: every view of two objects, by LLVM's tools and by the BTF each holds.
 
     (views({}, "/no/a.o", "/no/b.o") rescue :refused) #=> :refused
@@ -474,7 +512,8 @@ def views(tools, blue_path, clang_path)
       btf_rows(blue_o, erufu::section_of(blue_o, ".BTF")[:bytes]),
       btf_rows(clang_o, erufu::section_of(clang_o, ".BTF")[:bytes])
     ),
-    verdict("func_info", func_info_rows(blue_o), func_info_rows(clang_o))
+    verdict("func_info", func_info_rows(blue_o), func_info_rows(clang_o)),
+    line_info_verdict(blue_o, clang_o)
   ]
 end
 
@@ -498,18 +537,41 @@ def tampered(bytes, at)
   erufu::replaced(bytes, at, bit_xor(bytes[at], 1))
 end
 
-def main()
-  args = argv
-  tools = {clang: args[0], objdump: args[1], readobj: args[2], readelf: args[3]}
-  dir = path_join(getenv("TMPDIR", "/tmp"), "blue-object-llvm-#{to_s(now_ms)}")
-  mkdir_p(dir)
-  p = bpf::compile(
-    "kernel/programs/object.b",
-    {entry: :on_packet, kind: :xdp, on_fault: 0, global: [:sum_into]}
+@doc """
+value_program: a program that reads through a reference into a map's value, the second shape this oracle holds against clang.
+
+    value_program[:maps][0][:value_size] #=> 16
+"""
+def value_program()
+  assoc(
+    assoc(
+      bpf::with_funcs(
+        bpf::assemble(
+          [
+            bpf::map_value_ref(1, :globals, 0),
+            bpf::load(:dw, 0, 1, 0),
+            bpf::exit_program
+          ]
+        ),
+        [{name: "e", linkage: :global, params: [:ctx]}]
+      ),
+      :maps,
+      [bpf::declare_map(:globals, :array, 4, 16, 1)]
+    ),
+    :kind,
+    :xdp
   )
-  blue_path = path_join(dir, "blue.o")
-  c_path = path_join(dir, "clang.c")
-  clang_path = path_join(dir, "clang.o")
+end
+
+@doc """
+compared: one program built both ways and each view told: whether all of them agree, a tool reads blue's object and a changed instruction is seen.
+
+    (compared({}, "/no/such", "x", bpf::assemble([])) rescue :refused) #=> :refused
+"""
+def compared(tools, dir, label, p)
+  blue_path = path_join(dir, "#{label}_blue.o")
+  c_path = path_join(dir, "#{label}_clang.c")
+  clang_path = path_join(dir, "#{label}_clang.o")
   write_bytes(blue_path, erufu::object(p))
   write_file(c_path, source_c(p))
   built = exec_capture(
@@ -531,12 +593,14 @@ def main()
   map(
     fn(v)
       if v[:same]
-        write_stdout(unlines(["✅ #{v[:name]}: #{to_s(v[:count])} rows agree"]))
+        write_stdout(
+          unlines(["✅ #{label} #{v[:name]}: #{to_s(v[:count])} rows agree"])
+        )
       else
         write_stdout(
           unlines(
             append(
-              ["❌ #{v[:name]}"],
+              ["❌ #{label} #{v[:name]}"],
               append(
                 map((r) -> "  blue:  #{r}", v[:only_blue]),
                 map((r) -> "  clang: #{r}", v[:only_clang])
@@ -551,16 +615,18 @@ def main()
   accepted = tool_verdict(tools[:readelf], ["-a", "--wide", blue_path])
   write_stdout(
     unlines(
-      ["#{if accepted
+      [
+        "#{if accepted
   "✅"
 else
   "❌"
-end} readelf -a: read without a warning"]
+end} #{label} readelf -a: read without a warning"
+      ]
     )
   )
   bytes = read_bytes(blue_path)
   section = erufu::section_of(erufu::decode(bytes), "xdp")
-  bad_path = path_join(dir, "bad.o")
+  bad_path = path_join(dir, "#{label}_bad.o")
   write_bytes(bad_path, tampered(bytes, section[:offset]))
   control = verdict(
     "control",
@@ -578,10 +644,21 @@ end}"
       ]
     )
   )
-  green = filter((v) -> not v[:same], seen) == [] and
-    accepted and
-    not control[:same]
-  if not green
+  filter((v) -> not v[:same], seen) == [] and accepted and not control[:same]
+end
+
+def main()
+  args = argv
+  tools = {clang: args[0], objdump: args[1], readobj: args[2], readelf: args[3]}
+  dir = path_join(getenv("TMPDIR", "/tmp"), "blue-object-llvm-#{to_s(now_ms)}")
+  mkdir_p(dir)
+  compiled = bpf::compile(
+    "kernel/programs/object.b",
+    {entry: :on_packet, kind: :xdp, on_fault: 0, global: [:sum_into]}
+  )
+  green = compared(tools, dir, "compiled", compiled)
+  valued = compared(tools, dir, "value", value_program)
+  if not (green and valued)
     write_stdout(unlines(["kept for reading: #{dir}"]))
     exit_with(1)
   end

@@ -357,7 +357,7 @@ impl<'a> Program<'a> {
         {
             return Callee::Builtin(head);
         }
-        if let Some((pkg, name)) = head.split_once('/') {
+        if let Some((pkg, name)) = head.rsplit_once('/') {
             if pkg == "blue" {
                 return Callee::Builtin(name);
             }

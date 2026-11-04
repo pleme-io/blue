@@ -2179,7 +2179,9 @@ fn atom(a: &Atom) -> Doc {
         // `retsu/first` is the tree of `retsu::first`. Printed as the tree
         // spells it, it would re-parse as a division, `(/ retsu first)`.
         Atom::Symbol(s) => match blue_lang_syntax::qualified(s) {
-            Some((pkg, name)) => Doc::text(format!("{pkg}::{name}")),
+            Some((pkg, name)) => {
+                Doc::text(format!("{}::{name}", blue_lang_syntax::spell_level(pkg)))
+            }
             None => Doc::text(s.clone()),
         },
         Atom::Keyword(k) => Doc::text(format!(":{k}")),

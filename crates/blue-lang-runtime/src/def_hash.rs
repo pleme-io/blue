@@ -646,12 +646,12 @@ pub struct Shape {
 impl Shape {
     #[must_use]
     pub fn name(&self) -> &str {
-        self.key.split_once('/').map_or(&self.key, |(_, n)| n)
+        self.key.rsplit_once('/').map_or(&self.key, |(_, n)| n)
     }
 
     #[must_use]
     pub fn namespace(&self) -> &str {
-        self.key.split_once('/').map_or("", |(ns, _)| ns)
+        self.key.rsplit_once('/').map_or("", |(ns, _)| ns)
     }
 }
 

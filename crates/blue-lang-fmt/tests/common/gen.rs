@@ -85,14 +85,15 @@ pub fn ident() -> impl Strategy<Value = String> {
     "[a-z][a-z_]{0,6}".prop_filter("not reserved", |s| !is_reserved_word(s))
 }
 
-/// `pkg::name`: the qualifier in every position a name can take. The name
-/// side may be a reserved word (`kueri::if`), which is a name only there.
+/// `pkg::name` and `a::b::c::name`: the qualifier in every position a name
+/// can take, at every depth. The name side may be a reserved word
+/// (`kueri::if`), which is a name only there.
 fn qualified() -> impl Strategy<Value = String> {
     (
-        ident(),
+        prop::collection::vec(ident(), 1..4),
         prop_oneof![ident(), Just("if".to_string()), Just("def".to_string())],
     )
-        .prop_map(|(p, n)| format!("{p}::{n}"))
+        .prop_map(|(path, n)| format!("{}::{n}", path.join("::")))
 }
 
 pub fn head() -> impl Strategy<Value = String> {

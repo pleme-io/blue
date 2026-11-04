@@ -127,3 +127,29 @@ fn found_cases_round_trip() {
         round_trips(src).unwrap_or_else(|e| panic!("{src:?}: {e}"));
     }
 }
+
+/// A qualified name prints as written, at every depth, and every spelling of
+/// `use` prints as its own tree: nothing is rewritten into another.
+#[test]
+fn qualified_names_and_use_spellings_round_trip() {
+    for src in [
+        "a::b::c\n",
+        "a::b::c::d(x)\n",
+        "a::b::if(x)\n",
+        "a::b::c.field\n",
+        "use(\"a/b\")\n",
+        "use(\"a::b\")\n",
+        "use(%i[a b])\n",
+        "use(%w[a b])\n",
+        "use(*%i[a b])\n",
+        "use(**%i[a b])\n",
+        "use({s: \"a/b\"})\n",
+        "use(\"a\", %w[b c])\n",
+        "use(\"a\", {b: [:x], c: []})\n",
+        "namespace()\n",
+    ] {
+        assert_eq!(format_source(src).expect(src), src, "{src}");
+        round_trips(src).expect(src);
+    }
+    assert_eq!(format_source("a :: b :: c\n").unwrap(), "a::b::c\n");
+}

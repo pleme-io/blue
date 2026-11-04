@@ -20,8 +20,8 @@ pub fn standing(hash: &crate::def_hash::DefHash, key: &str) -> Standing {
         return Standing::NoWord;
     };
     let (_, word, foundation) = WORD_SHAPES[at];
-    let same_scope = match (word.split_once("::"), key.split_once('/')) {
-        (Some((home, _)), Some((own, _))) => home == own,
+    let same_scope = match (word.rsplit_once("::"), key.rsplit_once('/')) {
+        (Some((home, _)), Some((own, _))) => blue_lang_syntax::spell_level(own) == home,
         _ => false,
     };
     if same_scope {

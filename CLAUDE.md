@@ -104,6 +104,11 @@ with `packages("bidamas")`, its lock, the stub `flake.nix`, the code and tests
 in `bidamas/NAME/NAME.b`, and `main.b` calling it. `blue new --bidama NAME`
 writes a package alone, inside a distribution's directory.
 
+A bidama may be a tree: `use("thing/sub")` loads that level and everything
+below it, and `thing::sub::waka::x` is also `sub::waka::x` and `waka::x`.
+[`docs/NAMESPACES.md`](docs/docs/NAMESPACES.md), "A bidama is a tree", has the whole
+`use` family and the rules.
+
 `use("pkg")` looks in order: the `packages` roots of the project the file
 sits in (the nearest Bluefile above it that declares them), then the roots on
 `BLUE_PATH` (your override), then `BLUE_DIST` (the installed distribution the

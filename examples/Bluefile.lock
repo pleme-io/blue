@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:d0046f9cdcb94167491c2724ba2d40bfa01bb906588397fb9e106ed191aab467",
+  "bluefile_b3": "b3:8d0a7395428504fc40d9ad1a37d1e8a1af39fc9367c6b9de3274fecba870201d",
   "manifest": {
     "schema": 1,
     "name": "blue-examples",
@@ -25,6 +25,9 @@
       },
       "lists-and-maps": {
         "file": "03_lists_and_maps.b"
+      },
+      "namespaces": {
+        "file": "14_namespaces.b"
       },
       "network": {
         "file": "11_network.b"

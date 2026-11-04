@@ -654,7 +654,8 @@ impl Analysis {
         match self.parsed.as_ref() {
             Ok(forms) => forms
                 .iter()
-                .filter_map(blue_lang_syntax::scope::use_target)
+                .filter_map(blue_lang_syntax::scope::use_targets)
+                .flatten()
                 .collect(),
             Err(_) => Vec::new(),
         }

@@ -60,10 +60,10 @@ impl<H: 'static> Hosted<H> {
     /// A qualified `pkg::name` is bidama `pkg`'s definition, exactly as a
     /// program writes it, and `blue::name` is the builtin.
     fn lookup(&self, name: &str) -> Option<Value> {
-        match name.split_once("::") {
+        match name.rsplit_once("::") {
             Some((blue_lang_syntax::BUILTIN_QUALIFIER, bare)) => self.interp.lookup_global(bare),
             Some((pkg, bare)) => self.interp.lookup_global(&blue_lang_check::names::key(
-                &blue_lang_check::Namespace::Bidama(pkg.to_owned()),
+                &blue_lang_check::Namespace::Bidama(pkg.replace("::", "/")),
                 bare,
             )),
             None => self

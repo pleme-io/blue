@@ -215,6 +215,23 @@ let
         (p: lib.nameValuePair p.name (bl.mkBidama { inherit (p) name; inherit all; src = p.root + "/${p.name}"; }))
         found));
       own = lib.getAttrs ownNames bidamas;
+      # The levels below a bidama, each tested by its own file: a directory
+      # holding `<d>/<d>.b`, or a file opening with `namespace()`. A level with
+      # no tests fails its check, as a bidama does.
+      levelsOf = dir: rel:
+        let entries = builtins.readDir dir;
+        in lib.concatMap
+          (e:
+            let
+              sub = dir + "/${e}";
+              at = name: if rel == "" then name else "${rel}/${name}";
+            in
+            if entries.${e} == "directory" && pathExists (sub + "/${e}.b")
+            then [{ path = at e; file = "${at e}/${e}.b"; }] ++ levelsOf sub (at e)
+            else if entries.${e} == "regular" && lib.hasSuffix ".b" e && builtins.elem "namespace()" (lib.splitString "\n" (readFile sub))
+            then [{ path = at (lib.removeSuffix ".b" e); file = at e; }]
+            else [ ])
+          (attrNames entries);
 
       missingNeeds = lib.filter (d: !(bidamas ? ${d})) (attrNames m.needs);
 
@@ -480,6 +497,14 @@ let
             file = "${own.${n}}/${n}/${n}.b";
           })))
           ownNames)
+        // lib.listToAttrs (lib.concatMap
+          (p: map
+            (level: lib.nameValuePair "bidama-test-${p.name}-${lib.replaceStrings [ "/" ] [ "-" ] level.path}" (bl.mkTestCheck (common // {
+              name = "bidama-test-${p.name}-${lib.replaceStrings [ "/" ] [ "-" ] level.path}";
+              file = "${own.${p.name}}/${p.name}/${level.file}";
+            })))
+            (levelsOf (p.root + "/${p.name}") ""))
+          found)
         // lib.listToAttrs (map
           (n: lib.nameValuePair "bidama-form-${n}" own.${n}.formCheck)
           ownNames))

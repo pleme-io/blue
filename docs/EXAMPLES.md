@@ -822,3 +822,327 @@ test "a moved path redirects, a missing one is 404, a wrong method 405"
   assert visit("POST", "/about")[:status] == 405
 end
 ```
+
+## A bidama: `casa`
+
+@moduledoc """
+
+`examples/bidamas/casa/Bluefile`:
+
+```blue
+package("casa", "0.1.0")
+```
+
+`examples/bidamas/casa/casa.b`:
+
+```blue
+@moduledoc """
+casa is a tree: a house of rooms, each room a level of this one bidama.
+
+    endereco #=> "rua 1"
+"""
+
+@doc """
+endereco is the address of the house.
+
+    endereco #=> "rua 1"
+"""
+def endereco()
+  "rua 1"
+end
+
+test "endereco answers from this level"
+  assert endereco == "rua 1"
+end
+```
+
+`examples/bidamas/casa/cozinha/cozinha.b`:
+
+```blue
+@moduledoc """
+casa::cozinha is a level that is a directory.
+
+    casa::cozinha::fogao #=> "fogao"
+"""
+
+@doc """
+fogao is on the kitchen floor.
+
+    fogao #=> "fogao"
+"""
+def fogao()
+  "fogao"
+end
+
+test "fogao answers from this level"
+  assert fogao == "fogao"
+end
+```
+
+`examples/bidamas/casa/cozinha/pia/pia.b`:
+
+```blue
+@moduledoc """
+casa::cozinha::pia is two levels down.
+
+    casa::cozinha::pia::torneira #=> "torneira"
+"""
+
+@doc """
+torneira is on the sink.
+
+    torneira #=> "torneira"
+"""
+def torneira()
+  "torneira"
+end
+
+test "torneira answers from this level"
+  assert torneira == "torneira"
+end
+```
+
+`examples/bidamas/casa/porta.b`:
+
+```blue
+@moduledoc """
+casa::porta is a level that is one file: `namespace()` keeps it out of casa.
+
+    casa::porta::chave #=> "chave"
+"""
+
+namespace()
+
+@doc """
+chave is what opens the door.
+
+    chave #=> "chave"
+"""
+def chave()
+  "chave"
+end
+
+test "chave answers from this level"
+  assert chave == "chave"
+end
+```
+
+`examples/bidamas/casa/quarto/gaveta/fundo/fundo.b`:
+
+```blue
+@moduledoc """
+casa::quarto::gaveta::fundo is as deep as a bidama needs.
+
+    casa::quarto::gaveta::fundo::carta #=> "carta"
+"""
+
+@doc """
+carta is at the bottom of the drawer.
+
+    carta #=> "carta"
+"""
+def carta()
+  "carta"
+end
+
+test "carta answers from this level"
+  assert carta == "carta"
+end
+```
+
+`examples/bidamas/casa/quarto/gaveta/gaveta.b`:
+
+```blue
+@moduledoc """
+casa::quarto::gaveta is three levels down, and the words in it read as data.
+
+    casa::quarto::gaveta::meias #=> {cor: "azul"}
+"""
+
+@doc """
+meias are in the drawer.
+
+    meias #=> {cor: "azul"}
+"""
+def meias()
+  {cor: "azul"}
+end
+
+test "meias answers from this level"
+  assert meias == {cor: "azul"}
+end
+```
+
+`examples/bidamas/casa/quarto/quarto.b`:
+
+```blue
+@moduledoc """
+casa::quarto holds the bed, and a level below it holds the drawer.
+
+    casa::quarto::cama #=> "cama"
+"""
+
+@doc """
+cama is in the bedroom.
+
+    cama #=> "cama"
+"""
+def cama()
+  "cama"
+end
+
+test "cama answers from this level"
+  assert cama == "cama"
+end
+```
+
+`examples/bidamas/casa/sala/luz/luz.b`:
+
+```blue
+@moduledoc """
+casa::sala::luz holds the lamp.
+
+    casa::sala::luz::lampada #=> "lampada"
+"""
+
+@doc """
+lampada is on the ceiling.
+
+    lampada #=> "lampada"
+"""
+def lampada()
+  "lampada"
+end
+
+test "lampada answers from this level"
+  assert lampada == "lampada"
+end
+```
+
+`examples/bidamas/casa/sala/mesa/mesa.b`:
+
+```blue
+@moduledoc """
+casa::sala::mesa holds the plates.
+
+    casa::sala::mesa::pratos #=> "pratos"
+"""
+
+@doc """
+pratos are on the table.
+
+    pratos #=> "pratos"
+"""
+def pratos()
+  "pratos"
+end
+
+test "pratos answers from this level"
+  assert pratos == "pratos"
+end
+```
+
+`examples/bidamas/casa/sala/sala.b`:
+
+```blue
+@moduledoc """
+casa::sala holds the sofa.
+
+    casa::sala::sofa #=> "sofa"
+"""
+
+@doc """
+sofa is in the living room.
+
+    sofa #=> "sofa"
+"""
+def sofa()
+  "sofa"
+end
+
+test "sofa answers from this level"
+  assert sofa == "sofa"
+end
+```
+
+`examples/bidamas/casa/sala/tapete/tapete.b`:
+
+```blue
+@moduledoc """
+casa::sala::tapete holds the pattern.
+
+    casa::sala::tapete::padrao #=> "listras"
+"""
+
+@doc """
+padrao is on the rug.
+
+    padrao #=> "listras"
+"""
+def padrao()
+  "listras"
+end
+
+test "padrao answers from this level"
+  assert padrao == "listras"
+end
+```
+
+## A bidama is a tree
+
+A bidama holds levels, as deep as it needs: a directory `sub/sub.b`, or a file that opens with `namespace()`. `casa::quarto::gaveta::meias` is the full path of a definition three levels down, and it always works. Importing a level brings everything below it into reach by its relative path, so after `use("casa/quarto")` the same name is `quarto::gaveta::meias` and `gaveta::meias`. Two imports that fit one shortcut are an error naming both, never load order. Every level is public, and a level never imports its ancestor.
+
+`use` spells one path many ways, and all of them load the same thing: `"a/b"`, `"a::b"`, `%i[a b]`, `%w[a b]`, `*%i[a b]` and `**%i[a b]`. After the path, `%i[x y]` lists names for bare use, `%w[b c]` imports several children, and `{b: %i[x], c: []}` imports them with their lists. `use({s: "a/b"})` gives a level a second name. A path is always a literal: the loader reads it before the program runs.
+
+`examples/14_namespaces.b`:
+
+```blue
+use("casa")
+use("casa::cozinha")
+use("casa/cozinha/pia", [:torneira])
+use(%i[casa porta])
+use(**%i[casa quarto])
+use({g: "casa/quarto/gaveta"})
+use(%w[casa quarto gaveta fundo])
+use(*%i[casa sala])
+use("casa/sala", ["luz"])
+use("casa/sala", {mesa: [:pratos], tapete: []})
+
+test "the full path works at every depth"
+  assert casa::endereco == "rua 1"
+  assert casa::cozinha::fogao == "fogao"
+  assert casa::cozinha::pia::torneira == "torneira"
+  assert casa::quarto::gaveta::meias.cor == "azul"
+  assert casa::quarto::gaveta::fundo::carta == "carta"
+end
+
+test "a path relative to an import reaches the same definition"
+  assert cozinha::fogao == "fogao"
+  assert quarto::gaveta::meias == casa::quarto::gaveta::meias
+  assert gaveta::meias.cor == "azul"
+  assert gaveta::fundo::carta == "carta"
+  assert fundo::carta == casa::quarto::gaveta::fundo::carta
+end
+
+test "a level may be one file"
+  assert porta::chave == "chave"
+  assert casa::porta::chave == "chave"
+end
+
+test "a listed name is bare, from any depth"
+  assert torneira == "torneira"
+  assert pratos == "pratos"
+end
+
+test "a second name reaches the level and everything below it"
+  assert g::meias.cor == "azul"
+  assert g::fundo::carta == "carta"
+end
+
+test "several children come from one form"
+  assert mesa::pratos == pratos
+  assert tapete::padrao == "listras"
+  assert luz::lampada == "lampada"
+  assert sala::sofa == "sofa"
+end
+```

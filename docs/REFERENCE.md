@@ -25,6 +25,7 @@ Semantics that differ from Ruby are in [`bidamas/okite/RULES.md`](../bidamas/oki
 | `{a:, b:}` | `(hash-map :a a :b b)` | A map whose values are the variables of the same names: `{a:}` is `{a: a}`. Mix it with `{a:, n: 1}`. |
 | `{**a, b: 1}` | `(blue-merge (blue-splice a) (hash-map :b 1))` | A map that inherits every key of a map, `**a`, and lets a later entry override it. nil spreads as an empty map; anything else that is not a map is a type error. The map sibling of the splat `*xs`. |
 | `f(x, **a, b: 1)` | `(f x (blue-kwargs (blue-splice a) (hash-map :b 1)))` | A call whose last argument is the map built from `**` spreads and entries, `f(x, {**a, b: 1})` without the braces. Entries after a `**` are the call's last argument, so it cannot also carry a splat `*xs`. |
+| `a::b::c(x)` | `(a/b/c x)` | A qualified name, as deep as the levels of a bidama go: `a::b::c` is `c` in level `a/b`. After `use("a/b")` the same name is also `b::c`; a level below it, `a::b::d::e`, is also `b::d::e` and `d::e`. One symbol in the tree. |
 | `x = 5` | `(define x 5)` | A binding, only as a statement. There is no `let`; a binding lasts to the end of its body. |
 | `f(x, y)` | `(f x y)` | A call. This is the one form the formatter writes, except for a function that takes no parameters: that is called by its bare name, now_ms, never now_ms() (B0023), and passed as a value as fn() now_ms end. |
 | `f(a, *xs)` | `(apply f a xs)` | A splat: the list's elements are the call's last arguments. The one spelling of apply(f, a, xs) with f a name (B0042). |
@@ -678,8 +679,8 @@ Every rule blue holds, from the registry the check stage runs (`blue explain COD
 | `B0007` | malformed-waiver | a waiver names a known, waivable code and gives a reason: `# waive B0002: <reason>` | refused |
 | `B0008` | unused-waiver | a waiver suppresses at least one diagnostic | refused |
 | `B0009` | ambiguous-name | a name resolves to one definition: no two namespaces in the same resolution tier define it | refused |
-| `B0010` | qualifier-not-imported | a qualified name's package is one the file `use`s: `retsu::first` needs `use("retsu")` | autofix |
-| `B0011` | no-such-definition | a qualified name, or a name a `use` lists, is a definition of that package | suggested |
+| `B0010` | qualifier-not-imported | a qualified name's level is one the file `use`s or one below it: `retsu::first` needs `use("retsu")` | autofix |
+| `B0011` | no-such-definition | a qualified name, or a name a `use` lists, is a definition of that level | suggested |
 | `B0012` | implicit-reference | a bare name that is another bidama's definition is one the file lists: `use("retsu", [:first])`, or written `retsu::first` | autofix |
 | `B0013` | prefixed-definition | a bidama's definition does not spell its bidama: `def parse` in `moji`, never `def moji_parse` | refused |
 | `B0014` | mangled-namespace | a bidama does not prefix nine in ten of its definitions with one short `x_` | refused |
@@ -739,3 +740,4 @@ Every rule blue holds, from the registry the check stage runs (`blue explain COD
 | `B0070` | reimplemented-word | a definition of 12 or more nodes is not a catalogue word's shape: it uses the word, or waives this rule with its reason | suggested |
 | `B0071` | evaluator-name | a definition is not named for a word the evaluator answers first: a word syntax lowers to (`list`, `concat`, `apply`, `equal?`, `mod`, `join_lines`, `unlines`, `line_break`) or a special form | refused |
 | `B0072` | call-arity | a call to a definition passes a number of arguments that definition takes | refused |
+| `B0073` | computed-use | a `use` names its path as a literal, so the loader and the check stage read it before the program runs | refused |

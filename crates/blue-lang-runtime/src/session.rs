@@ -393,9 +393,9 @@ impl Session {
     #[must_use]
     pub fn doc(&self, name: &str, file: Option<&Path>) -> Option<Item> {
         let (table, ctx) = self.table(file);
-        let (want_ns, bare) = match name.split_once("::") {
+        let (want_ns, bare) = match name.rsplit_once("::") {
             Some((blue_lang_syntax::BUILTIN_QUALIFIER, bare)) => (Some(Namespace::Builtin), bare),
-            Some((pkg, bare)) => (Some(Namespace::Bidama(pkg.to_string())), bare),
+            Some((pkg, bare)) => (Some(Namespace::Bidama(pkg.replace("::", "/"))), bare),
             None => (None, name),
         };
         table
@@ -862,7 +862,8 @@ fn split(text: &str) -> Result<Vec<Form>, blue_lang_syntax::ParseError> {
                 .map(|(n, _, _)| n)
                 .collect(),
             is_use: blue_lang_syntax::scope::use_target(form).is_some()
-                || blue_lang_syntax::scope::legacy_target(form).is_some(),
+                || blue_lang_syntax::scope::legacy_target(form).is_some()
+                || blue_lang_syntax::scope::is_level_marker(form),
             fresh: None,
         });
         prev = end;

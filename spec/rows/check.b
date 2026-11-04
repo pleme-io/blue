@@ -751,6 +751,13 @@ row(
 )
 
 row(
+  "check.B0073",
+  join_lines(["path = \"retsu\"", "use(path)"]),
+  diagnoses(["B0073"]),
+  covers("rule:B0073")
+)
+
+row(
   "check.B0071.stops_the_run",
   join_lines(["def apply()", "  1", "end", "", "x = apply", "to_s(x)"]),
   fails(:check, "B0071")

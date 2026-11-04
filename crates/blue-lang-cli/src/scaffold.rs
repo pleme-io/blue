@@ -159,7 +159,7 @@ fn bidama_name(name: &str) -> Result<String, String> {
             "`{name}` cannot name a bidama: `{name}::` names the builtins"
         ));
     }
-    if blue_lang_syntax::qualified(&blue_lang_syntax::qualify(name, "x")).is_none() {
+    if !blue_lang_syntax::is_one_segment(name) {
         return Err(format!(
             "`{name}` cannot name a bidama: use one lowercase identifier, such as `{}`",
             name.replace(['-', '.'], "")

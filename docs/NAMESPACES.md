@@ -19,7 +19,7 @@ the language (operator decision 4, 2026-09-29).
 3. Names the file lists, `use("retsu", [:first])`.
 4. Builtins and master verbs.
 
-`pkg::name` and `blue::name` skip the tiers and are exact.
+`pkg::name`, `a::b::c` and `blue::name` skip the tiers. See "A bidama is a tree".
 
 A bidama definition that shares a builtin's name is legal. It answers in its
 own bidama (tier 2) and in a file that lists it (tier 3). It never answers in
@@ -98,6 +98,93 @@ bidama produces no good behaviour, so it is a bad state, and a bad state is
 never configured. The refusal that remains is configured per name by the
 `legacy_names` list. It goes off when its window closes, and the declaration
 stays as the ledger.
+
+## A bidama is a tree
+
+Operator's instruction, 2026-11-04. This replaces the rule that a name has one
+qualifier. One bidama holds levels, as deep as it needs.
+
+| | |
+|---|---|
+| A level | a directory `sub/` holding `sub/sub.b`, or a file whose first code after `@moduledoc` is `namespace()` |
+| Not a level | a sibling file with no `namespace()`, which stays a part of its parent as it always was; a directory with no `<d>/<d>.b` (`fixtures/`, `mokuroku/graph/`) |
+| The tree | one symbol, `a/b/c/x`, and its runtime key is the same symbol. `qualified()` reads the name as the last segment |
+| Manifest | one Bluefile at the root, so one version and one lock. A level with its own Bluefile is refused. A level's `use` joins the root's `needs`; a `use` inside the tree is not a need |
+| Tests | each level's file holds its own, and `checks.bidama-test-<pkg>-<level>` runs them |
+| Capabilities | every level's reach joins the root's floor in `Bluefile.lock`, and `definitions` names `tree/room/deep::word` |
+
+### Reach
+
+A `use` of a level loads it and every level below it. Then, in order:
+
+1. A second name the file gave a level: `s::x` after `use({s: "thing/sub"})`.
+2. A full path: `thing::sub::waka::x`. It is exact, so every ambiguity has a way out.
+3. A path relative to an import: the tail of the full path, starting no lower
+   than the first step below the import. After `use("thing/sub")`,
+   `thing/sub/waka` is `sub::waka` and `waka`, and `thing/sub/waka/deep` is
+   `waka::deep`, never `deep` (B0010 writes the one that works).
+
+A level reaches below itself with no `use`. Several levels may fit a relative
+path: the one that defines the name is meant, and two that define it are B0009,
+naming both. Load order never picks.
+
+No fix rewrites one of these into another. B0018 fires only on a one-level
+qualifier spelled exactly, as it always has.
+
+### Privacy and re-export
+
+Every level is public: blue has no private definition, and a level adds none. A
+level sees nothing of its parent or siblings without a `use`. A parent does not
+re-export: `use("caixa/sub", [:inner])` inside caixa does not make `caixa::inner`,
+so one definition keeps one key and `rg` finds it. A facade, a level that defines
+nothing, works as it does for a bidama.
+
+### Cycles
+
+A `use` of a level brings every level below it, so a level never imports its
+ancestor, and siblings never import each other in a loop. The resolver refuses
+either with the path: `cyc -> cyc::kid -> cyc`. A cycle among whole one-level
+bidamas still terminates, as it always has.
+
+### One `use` grammar
+
+Every spelling reads to one list of imports (`scope::use_targets`), so the
+loader, the check stage, capability floors and `blue lock` see one thing.
+
+| Spelling | Means |
+|---|---|
+| `use("thing/sub")` | the path |
+| `use("thing::sub")` | the path, as a reference writes it |
+| `use(%i[thing sub])`, `use([:thing, :sub])` | the path as symbols; one tree, the formatter prints `%i` |
+| `use(%w[thing sub])`, `use(["thing", "sub"])` | the path as strings; one tree, the formatter prints `%w` |
+| `use(*%i[thing sub])` | the path spread as a call's arguments |
+| `use(**%i[thing sub])` | the same, destructured. The reader takes `**` on its own in a call only: `**%i[…]` cannot sit before a second argument, so a list goes with `use(%i[thing sub], [:a])` |
+| `use(path, [:a, :b])` | names listed for bare use, from that level |
+| `use(path, %w[sub other/deep])` | several children, each an import. Strings are paths, symbols are names |
+| `use(path, {sub: [:a], other: []})` | several children, with their lists |
+| `use({s: "thing/sub", o: %i[thing other]})` | a second name for each level. The first argument is a map |
+
+Rejected, and why:
+
+- `use(thing::sub)`, a bare path. An argument that looks like a reference and is
+  never evaluated breaks the rule that arguments are data, and `use(thing)`
+  could only be read as a variable.
+- `use("thing", "sub")`. It reads as two imports.
+- `use(:thing, :sub)`. The same, and a symbol in second place means a name.
+- `use("thing/{sub,other}")`. A second grammar inside a string, which neither the
+  formatter nor an editor can see.
+- `{sub: {deep: [:x]}}`, a nested map. A second path syntax inside the map; write
+  two forms.
+- A wildcard, `use("thing/*")`. Adding a definition would change what an
+  importer's bare name means, which is why blue has no glob.
+
+Every argument is a literal, and a computed one is B0073, at the check stage,
+naming why. A level imported twice is B0015, whichever spellings did it.
+
+### Embedding
+
+`Embedded` is one level. A host compiles a tree in by chaining one
+`EmbeddedOver` per level; each answers `children` for the level above it.
 
 ## Rejected alternatives
 

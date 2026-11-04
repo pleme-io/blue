@@ -1762,7 +1762,10 @@ def surface()
                 ),
                 painted(
                   "package",
-                  alias(token(seq([pat(ident), lit("::")])), "package"),
+                  alias(
+                    token(seq([pat("#{ident}(?:::#{ident})*"), lit("::")])),
+                    "package"
+                  ),
                   "module",
                   ""
                 )

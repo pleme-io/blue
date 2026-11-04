@@ -14,11 +14,56 @@ concurrency:
 
 jobs:
   ci:
+    if: ${{ !startsWith(github.ref_name, 'land/prose-') && !startsWith(github.ref_name, 'land/dry-prose-') }}
     uses: ./.github/workflows/ci.yml
     secrets: inherit
 
+  prose:
+    if: ${{ startsWith(github.ref_name, 'land/prose-') || startsWith(github.ref_name, 'land/dry-prose-') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: blue
+        uses: pleme-io/actions/nix-build@main
+        with:
+          flake-ref: ".#default"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: refuse a ref that claims prose over a change that is not
+        id: gates
+        env:
+          BLUE: ${{ steps.blue.outputs.out-path }}/bin/blue
+        run: |
+          [ "$("$BLUE" run --quiet gen/prepush.b -- --scope origin/main HEAD)" = prose ] || { echo "::error::this change is not prose by gen/prepush.b land_scope; land it without the prose- prefix"; exit 1; }
+          echo "checks=$("$BLUE" run --quiet gen/prepush.b -- --prose-gates x86_64-linux)" >> "$GITHUB_OUTPUT"
+          dirname "$BLUE" >> "$GITHUB_PATH"
+      - uses: pleme-io/actions/nix-flake-check@main
+        with:
+          only: ${{ steps.gates.outputs.checks }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  stop-on-red:
+    if: ${{ vars.BLUE_LAND_STOP_ON_RED != 'off' && !startsWith(github.ref_name, 'land/prose-') && !startsWith(github.ref_name, 'land/dry-prose-') }}
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+      - id: blue
+        uses: pleme-io/actions/nix-build@main
+        with:
+          flake-ref: ".#default"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: ${{ steps.blue.outputs.out-path }}/bin/blue run --quiet gen/land.b -- --stop-on-red "$GITHUB_RUN_ID"
+
   fast-forward:
-    needs: ci
+    needs: [ci, prose]
+    if: ${{ !cancelled() && (needs.ci.result == 'success' || needs.prose.result == 'success') }}
     runs-on: ${{ github.event.repository.private && (vars.PRIVATE_BUILDER_RUNNER || 'pleme-private') || 'ubuntu-latest' }}
     permissions:
       contents: write

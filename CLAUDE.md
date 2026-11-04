@@ -54,9 +54,11 @@ These commands come from the Bluefile. Run them from the repository root.
 | `blue test gen/kernel-compile.b` | `checks.kernel-compile` |
 | `blue test gen/kernel-new.b` | `checks.kernel-new` |
 | `blue test kernel/run.b` | `checks.kernel-run` |
+| `blue test gen/land.b` | `checks.land` |
 | `blue test gen/markdown-laws.b` | `checks.markdown-laws` |
 | `blue test gen/merge.b` | `checks.merge-driver` |
 | `blue test gen/okite-laws.b` | `checks.okite-laws` |
+| `blue test gen/prepush.b` | `checks.prepush` |
 | `blue test rules/conventions.b` | `checks.project-rules` |
 | `blue test gen/regen_test.b` | `checks.regen-untracked` |
 | `blue test gen/test-beside.b` | `checks.test-beside` |

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:504a5aed4042e1a91ca4ca5bf7098ff56dec8a63f58792a2f8f5c74203961e31",
+  "bluefile_b3": "b3:62c8dcaaeaa0f7dd992ed179a849cd60ada934f6e878ea963f853d40723d88e3",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -50,6 +50,14 @@
       "kernel-run": {
         "file": "kernel/run.b"
       },
+      "land": {
+        "file": "gen/land.b",
+        "inputs": [
+          "gen/land.b",
+          "gen/merge.b",
+          "gen/regen.b"
+        ]
+      },
       "markdown-laws": {
         "file": "gen/markdown-laws.b",
         "inputs": [
@@ -74,6 +82,12 @@
       },
       "okite-laws": {
         "file": "gen/okite-laws.b"
+      },
+      "prepush": {
+        "file": "gen/prepush.b",
+        "inputs": [
+          "Bluefile.lock"
+        ]
       },
       "project-rules": {
         "file": "rules/conventions.b"

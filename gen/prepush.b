@@ -134,9 +134,131 @@ def gate_table()
       id: "prose",
       label: "prose",
       weight: :none,
-      inputs: %w[**/*.md LICENSE **/.gitignore]
+      inputs: %w[**/*.md LICENSE **/.gitignore llms.txt llms-full.txt]
     }
   ]
+end
+
+@doc """
+prose_paths: The paths a prose landing may change: the root's and the docs'
+markdown, and the generated files that only render them. Every other .md has a
+reader in the code (bidamas/NAMES.md, spec/README.md), so it is not on this list.
+
+    member?("docs/**/*.md", prose_paths) #=> true
+"""
+def prose_paths()
+  %w[*.md docs/*.md docs/**/*.md LICENSE llms.txt llms-full.txt]
+end
+
+@doc """
+prose_readers: The prose paths a Rust test reads, so a change to one runs the
+whole suite. crates/blue-lang-cli/tests/check_json.rs and ast_resolved.rs read
+docs/DIAGNOSTICS.md, and every commit on main still runs the whole suite as the
+backstop that finds a reader added after this list.
+
+    member?("docs/DIAGNOSTICS.md", prose_readers) #=> true
+"""
+def prose_readers()
+  ["docs/DIAGNOSTICS.md"]
+end
+
+@doc """
+land_scope: "prose" when a landing's changed paths can only move the gates that
+read prose, else "whole": every path is on prose_paths, none is on
+prose_readers, and the gate table selects at most regen. An empty change, a path
+no gate names and a path that selects every gate are all "whole", so an unknown
+fails closed.
+
+    land_scope(["docs/TESTING.md", "llms-full.txt"], gate_table) #=> "prose"
+    land_scope(["README.md"], gate_table) #=> "prose"
+    land_scope(["docs/DIAGNOSTICS.md"], gate_table) #=> "whole"
+    land_scope(["docs/verbs/DESIGN.md"], gate_table) #=> "whole"
+    land_scope(["gen/land.b"], gate_table) #=> "whole"
+    land_scope([], gate_table) #=> "whole"
+"""
+def land_scope(changed, table)
+  chosen = selection(changed, table)
+  prose = changed != [] and
+    chosen[:reason] == "" and
+    every?((id) -> id == "regen", chosen[:ids]) and
+    every?(
+      fn(p)
+        any?((g) -> glob_match?(g, p), prose_paths) and
+          not member?(p, prose_readers)
+      end,
+      changed
+    )
+  if prose
+    "prose"
+  else
+    "whole"
+  end
+end
+
+@doc """
+prose_gates: The flake checks that judge a prose landing, from the lock's
+manifest: every generated file's freshness, the catalogue and the root lock, each
+check that declares docs as an input, and each receipt. Declaring a new check
+with docs as an input adds it here.
+
+    prose_gates({"generated" => {"book" => {}}, "checks" => {"docs" => {"inputs" => ["docs"]}, "x" => {"inputs" => ["y"]}}, "receipts" => {"docs" => {}}}) #=> ["generated-book-fresh", "bidama-catalog-fresh", "repository-lock-fresh", "docs", "docs-receipt"]
+"""
+def prose_gates(manifest)
+  flat_map(
+    [
+      map(
+        (e) -> "generated-#{first(e)}-fresh",
+        map_entries(manifest["generated"])
+      ),
+      %w[bidama-catalog-fresh repository-lock-fresh],
+      map(
+        first,
+        filter(
+          fn(e)
+            inputs = last(e)["inputs"]
+            not inputs.nil? and member?("docs", inputs)
+          end,
+          map_entries(manifest["checks"])
+        )
+      ),
+      map((e) -> "#{first(e)}-receipt", map_entries(manifest["receipts"]))
+    ],
+    (part) -> part
+  )
+end
+
+@doc """
+scope_verb: The verbs `git land` and CI ask this file instead of a push:
+`--scope BASE HEAD` prints the landing's scope, `--prose-gates SYSTEM` prints the
+flake attributes that judge a prose landing. Any other first word is a push.
+
+    scope_verb(["--scope", "a", "b"]) #=> :scope
+    scope_verb(["--prose-gates", "x86_64-linux"]) #=> :gates
+    scope_verb(["origin", "git@github.com:pleme-io/blue.git"]) #=> nil
+    scope_verb([]) #=> nil
+"""
+def scope_verb(words)
+  if words == []
+    nil
+  elsif first(words) == "--scope"
+    :scope
+  elsif first(words) == "--prose-gates"
+    :gates
+  end
+end
+
+def answer_scope(words)
+  if scope_verb(words) == :scope
+    changed = lines_of(
+      git(["diff", "--name-only", "#{words[1]}...#{words[2]}"])
+    )
+    write_stdout(unlines([land_scope(changed, gate_table)]))
+  else
+    manifest = json_read(read_file("Bluefile.lock"))["manifest"]
+    write_stdout(
+      join(map((g) -> ".#checks.#{words[1]}.#{g}", prose_gates(manifest)), " ")
+    )
+  end
 end
 
 @doc """
@@ -647,6 +769,10 @@ def gen_tie()
 end
 
 def main()
+  if not scope_verb(argv).nil?
+    answer_scope(argv)
+    exit_with(0)
+  end
   hook = getenv("BLUE_PREPUSH_GLOBAL_HOOK", "")
   fed = if getenv("BLUE_PREPUSH_HOOK") == "1"
     read_file("/dev/stdin")
@@ -1117,6 +1243,50 @@ test "a Cargo.lock change selects every gate"
   assert planned(s[:ids], plain_push, gate_table) ==
     %w[cargo-fmt blue-fmt locks retired gen-confirm swept-codes]
   assert count(s[:ids]) == 16
+end
+
+test "only prose a code path never reads scopes a landing as prose, and an unknown path fails closed"
+  assert land_scope(["docs/COMPOUNDING.md"], gate_table) == "prose"
+  assert land_scope(
+    %w[docs/COMPOUNDING.md llms-full.txt docs/BOOK.md],
+    gate_table
+  ) == "prose"
+  assert land_scope(["docs/DIAGNOSTICS.md"], gate_table) == "whole"
+  assert land_scope(["bidamas/NAMES.md"], gate_table) == "whole"
+  assert land_scope(["spec/README.md"], gate_table) == "whole"
+  assert land_scope(%w[docs/a.md gen/land.b], gate_table) == "whole"
+  assert land_scope(%w[docs/a.md tools/new.toml], gate_table) == "whole"
+  assert land_scope(%w[docs/a.md flake.nix], gate_table) == "whole"
+  assert land_scope([".github/workflows/land.yml"], gate_table) == "whole"
+  assert land_scope([], gate_table) == "whole"
+end
+
+test "the prose gates come from the lock, and the real lock names the gates that read prose"
+  gates = prose_gates(
+    get(
+      json_read(read_file(path_join(getenv("GEN_ROOT", "."), "Bluefile.lock"))),
+      "manifest"
+    )
+  )
+  assert every?(
+    (g) -> member?(g, gates),
+    %w[
+      docs
+      markdown-laws
+      docs-receipt
+      generated-book-fresh
+      generated-llms-full-fresh
+      generated-readme-fresh
+      bidama-catalog-fresh
+    ]
+  )
+  assert not member?("conformance", gates)
+end
+
+test "a hook's remote is no scope verb, so a push stays a push"
+  assert scope_verb(%w[origin git@github.com:pleme-io/blue.git]).nil?
+  assert scope_verb([]).nil?
+  assert scope_verb(%w[--scope a b]) == :scope
 end
 
 test "an unknown path selects every gate"

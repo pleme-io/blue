@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "306df08b52765040b21ae15b5465e501145baf685d7c3b0d7f194d4c537237b9",
+  "cargo_lock_sha256": "b648634f6a380f842b500c57b7aa632ec9ba9bb59a66993e356123bd80efb32d",
   "manifest_sha256": {
-    "Cargo.toml": "55682b2df7b36fee1c46b2714ba3ba01f26059b1c58615f2b65df77468b96123",
+    "Cargo.toml": "26cb695c569e5c8456fbb5179c22542bd2905ce849168cc3b4ea31931556304c",
     "crates/blue-lang-appliance/Cargo.toml": "72da422691d14356450606a218eed12ed6a26ed3a23c64116dc3ef8546937526",
     "crates/blue-lang-art/Cargo.toml": "f6721f78c76a94d4915a455675cd05889176a43212494c53aa8a01dfc9dfe5ee",
     "crates/blue-lang-bidama/Cargo.toml": "7b29108c8c3d40b5cbaf9f427c4f0a0ace1e5b49e02bd7448dcb53d3ee91337f",
@@ -1011,11 +1011,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-appliance-0.0.150": {
+      "blue-lang-appliance-0.0.151": {
         "runtime_dependencies": [
           {
             "name": "blue_lang_pkg",
-            "package_key": "blue-lang-pkg-0.0.150",
+            "package_key": "blue-lang-pkg-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1025,7 +1025,7 @@
           },
           {
             "name": "blue_lang_runtime",
-            "package_key": "blue-lang-runtime-0.0.150",
+            "package_key": "blue-lang-runtime-0.0.151",
             "kind": "normal",
             "features": [
               "sys"
@@ -1039,7 +1039,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-art-0.0.150": {
+      "blue-lang-art-0.0.151": {
         "runtime_dependencies": [
           {
             "name": "irodori",
@@ -1065,11 +1065,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-bidama-0.0.150": {
+      "blue-lang-bidama-0.0.151": {
         "runtime_dependencies": [
           {
             "name": "blue_lang_waku",
-            "package_key": "blue-lang-waku-0.0.150",
+            "package_key": "blue-lang-waku-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1081,11 +1081,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-check-0.0.150": {
+      "blue-lang-check-0.0.151": {
         "runtime_dependencies": [
           {
             "name": "blue_lang_syntax",
-            "package_key": "blue-lang-syntax-0.0.150",
+            "package_key": "blue-lang-syntax-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1107,11 +1107,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-cli-0.0.150": {
+      "blue-lang-cli-0.0.151": {
         "runtime_dependencies": [
           {
             "name": "blue_lang_art",
-            "package_key": "blue-lang-art-0.0.150",
+            "package_key": "blue-lang-art-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1121,7 +1121,7 @@
           },
           {
             "name": "blue_lang_bidama",
-            "package_key": "blue-lang-bidama-0.0.150",
+            "package_key": "blue-lang-bidama-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1131,7 +1131,7 @@
           },
           {
             "name": "blue_lang_check",
-            "package_key": "blue-lang-check-0.0.150",
+            "package_key": "blue-lang-check-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1141,7 +1141,7 @@
           },
           {
             "name": "blue_lang_fmt",
-            "package_key": "blue-lang-fmt-0.0.150",
+            "package_key": "blue-lang-fmt-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1151,7 +1151,7 @@
           },
           {
             "name": "blue_lang_lsp",
-            "package_key": "blue-lang-lsp-0.0.150",
+            "package_key": "blue-lang-lsp-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1161,7 +1161,7 @@
           },
           {
             "name": "blue_lang_mondou",
-            "package_key": "blue-lang-mondou-0.0.150",
+            "package_key": "blue-lang-mondou-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1171,7 +1171,7 @@
           },
           {
             "name": "blue_lang_pkg",
-            "package_key": "blue-lang-pkg-0.0.150",
+            "package_key": "blue-lang-pkg-0.0.151",
             "kind": "normal",
             "features": [
               "embedded"
@@ -1183,7 +1183,7 @@
           },
           {
             "name": "blue_lang_proc",
-            "package_key": "blue-lang-proc-0.0.150",
+            "package_key": "blue-lang-proc-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1193,7 +1193,7 @@
           },
           {
             "name": "blue_lang_runtime",
-            "package_key": "blue-lang-runtime-0.0.150",
+            "package_key": "blue-lang-runtime-0.0.151",
             "kind": "normal",
             "features": [
               "sys"
@@ -1205,7 +1205,7 @@
           },
           {
             "name": "blue_lang_syntax",
-            "package_key": "blue-lang-syntax-0.0.150",
+            "package_key": "blue-lang-syntax-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1215,7 +1215,7 @@
           },
           {
             "name": "blue_lang_test",
-            "package_key": "blue-lang-test-0.0.150",
+            "package_key": "blue-lang-test-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1225,7 +1225,7 @@
           },
           {
             "name": "blue_lang_waku",
-            "package_key": "blue-lang-waku-0.0.150",
+            "package_key": "blue-lang-waku-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1323,11 +1323,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-component-0.0.150": {
+      "blue-lang-component-0.0.151": {
         "runtime_dependencies": [
           {
             "name": "blue_lang_pkg",
-            "package_key": "blue-lang-pkg-0.0.150",
+            "package_key": "blue-lang-pkg-0.0.151",
             "kind": "normal",
             "features": [
               "embedded"
@@ -1339,7 +1339,7 @@
           },
           {
             "name": "blue_lang_runtime",
-            "package_key": "blue-lang-runtime-0.0.150",
+            "package_key": "blue-lang-runtime-0.0.151",
             "kind": "normal",
             "features": [
               "sys"
@@ -1353,16 +1353,16 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-danpen-diff-0.0.150": {
+      "blue-lang-danpen-diff-0.0.151": {
         "runtime_dependencies": [],
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-fmt-0.0.150": {
+      "blue-lang-fmt-0.0.151": {
         "runtime_dependencies": [
           {
             "name": "blue_lang_syntax",
-            "package_key": "blue-lang-syntax-0.0.150",
+            "package_key": "blue-lang-syntax-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1394,7 +1394,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-host-macros-0.0.150": {
+      "blue-lang-host-macros-0.0.151": {
         "runtime_dependencies": [
           {
             "name": "proc_macro2",
@@ -1432,11 +1432,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-kiwari-0.0.150": {
+      "blue-lang-kiwari-0.0.151": {
         "runtime_dependencies": [
           {
             "name": "blue_lang_syntax",
-            "package_key": "blue-lang-syntax-0.0.150",
+            "package_key": "blue-lang-syntax-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1500,11 +1500,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-lsp-0.0.150": {
+      "blue-lang-lsp-0.0.151": {
         "runtime_dependencies": [
           {
             "name": "blue_lang_check",
-            "package_key": "blue-lang-check-0.0.150",
+            "package_key": "blue-lang-check-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1514,7 +1514,7 @@
           },
           {
             "name": "blue_lang_fmt",
-            "package_key": "blue-lang-fmt-0.0.150",
+            "package_key": "blue-lang-fmt-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1524,7 +1524,7 @@
           },
           {
             "name": "blue_lang_mondou",
-            "package_key": "blue-lang-mondou-0.0.150",
+            "package_key": "blue-lang-mondou-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1534,7 +1534,7 @@
           },
           {
             "name": "blue_lang_runtime",
-            "package_key": "blue-lang-runtime-0.0.150",
+            "package_key": "blue-lang-runtime-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1544,7 +1544,7 @@
           },
           {
             "name": "blue_lang_syntax",
-            "package_key": "blue-lang-syntax-0.0.150",
+            "package_key": "blue-lang-syntax-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1554,7 +1554,7 @@
           },
           {
             "name": "blue_lang_test",
-            "package_key": "blue-lang-test-0.0.150",
+            "package_key": "blue-lang-test-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1588,7 +1588,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-mondou-0.0.150": {
+      "blue-lang-mondou-0.0.151": {
         "runtime_dependencies": [
           {
             "name": "blake3",
@@ -1605,7 +1605,7 @@
           },
           {
             "name": "blue_lang_check",
-            "package_key": "blue-lang-check-0.0.150",
+            "package_key": "blue-lang-check-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1615,7 +1615,7 @@
           },
           {
             "name": "blue_lang_fmt",
-            "package_key": "blue-lang-fmt-0.0.150",
+            "package_key": "blue-lang-fmt-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1625,7 +1625,7 @@
           },
           {
             "name": "blue_lang_runtime",
-            "package_key": "blue-lang-runtime-0.0.150",
+            "package_key": "blue-lang-runtime-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1635,7 +1635,7 @@
           },
           {
             "name": "blue_lang_syntax",
-            "package_key": "blue-lang-syntax-0.0.150",
+            "package_key": "blue-lang-syntax-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1645,7 +1645,7 @@
           },
           {
             "name": "blue_lang_waku",
-            "package_key": "blue-lang-waku-0.0.150",
+            "package_key": "blue-lang-waku-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1677,7 +1677,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-pkg-0.0.150": {
+      "blue-lang-pkg-0.0.151": {
         "runtime_dependencies": [
           {
             "name": "blake3",
@@ -1694,7 +1694,7 @@
           },
           {
             "name": "blue_lang_bidama",
-            "package_key": "blue-lang-bidama-0.0.150",
+            "package_key": "blue-lang-bidama-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1704,7 +1704,7 @@
           },
           {
             "name": "blue_lang_check",
-            "package_key": "blue-lang-check-0.0.150",
+            "package_key": "blue-lang-check-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1714,7 +1714,7 @@
           },
           {
             "name": "blue_lang_fmt",
-            "package_key": "blue-lang-fmt-0.0.150",
+            "package_key": "blue-lang-fmt-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1724,7 +1724,7 @@
           },
           {
             "name": "blue_lang_mondou",
-            "package_key": "blue-lang-mondou-0.0.150",
+            "package_key": "blue-lang-mondou-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1734,7 +1734,7 @@
           },
           {
             "name": "blue_lang_proc",
-            "package_key": "blue-lang-proc-0.0.150",
+            "package_key": "blue-lang-proc-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1744,7 +1744,7 @@
           },
           {
             "name": "blue_lang_runtime",
-            "package_key": "blue-lang-runtime-0.0.150",
+            "package_key": "blue-lang-runtime-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1754,7 +1754,7 @@
           },
           {
             "name": "blue_lang_syntax",
-            "package_key": "blue-lang-syntax-0.0.150",
+            "package_key": "blue-lang-syntax-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1764,7 +1764,7 @@
           },
           {
             "name": "blue_lang_waku",
-            "package_key": "blue-lang-waku-0.0.150",
+            "package_key": "blue-lang-waku-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1831,7 +1831,7 @@
           "fixture"
         ]
       },
-      "blue-lang-runtime-0.0.150": {
+      "blue-lang-runtime-0.0.151": {
         "runtime_dependencies": [
           {
             "name": "blake3",
@@ -1848,7 +1848,7 @@
           },
           {
             "name": "blue_lang_check",
-            "package_key": "blue-lang-check-0.0.150",
+            "package_key": "blue-lang-check-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1858,7 +1858,7 @@
           },
           {
             "name": "blue_lang_fmt",
-            "package_key": "blue-lang-fmt-0.0.150",
+            "package_key": "blue-lang-fmt-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1868,7 +1868,7 @@
           },
           {
             "name": "blue_lang_kernel",
-            "package_key": "blue-lang-kernel-0.0.150",
+            "package_key": "blue-lang-kernel-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1878,7 +1878,7 @@
           },
           {
             "name": "blue_lang_proc",
-            "package_key": "blue-lang-proc-0.0.150",
+            "package_key": "blue-lang-proc-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1888,7 +1888,7 @@
           },
           {
             "name": "blue_lang_senses",
-            "package_key": "blue-lang-senses-0.0.150",
+            "package_key": "blue-lang-senses-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1898,7 +1898,7 @@
           },
           {
             "name": "blue_lang_syntax",
-            "package_key": "blue-lang-syntax-0.0.150",
+            "package_key": "blue-lang-syntax-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1908,7 +1908,7 @@
           },
           {
             "name": "blue_lang_waku",
-            "package_key": "blue-lang-waku-0.0.150",
+            "package_key": "blue-lang-waku-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -2062,7 +2062,7 @@
           "sys"
         ]
       },
-      "blue-lang-senses-0.0.150": {
+      "blue-lang-senses-0.0.151": {
         "runtime_dependencies": [
           {
             "name": "libc",
@@ -2088,7 +2088,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-syntax-0.0.150": {
+      "blue-lang-syntax-0.0.151": {
         "runtime_dependencies": [
           {
             "name": "tatara_lisp",
@@ -2104,11 +2104,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-test-0.0.150": {
+      "blue-lang-test-0.0.151": {
         "runtime_dependencies": [
           {
             "name": "blue_lang_fmt",
-            "package_key": "blue-lang-fmt-0.0.150",
+            "package_key": "blue-lang-fmt-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -2118,7 +2118,7 @@
           },
           {
             "name": "blue_lang_proc",
-            "package_key": "blue-lang-proc-0.0.150",
+            "package_key": "blue-lang-proc-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -2128,7 +2128,7 @@
           },
           {
             "name": "blue_lang_runtime",
-            "package_key": "blue-lang-runtime-0.0.150",
+            "package_key": "blue-lang-runtime-0.0.151",
             "kind": "normal",
             "features": [
               "sys"
@@ -2140,7 +2140,7 @@
           },
           {
             "name": "blue_lang_syntax",
-            "package_key": "blue-lang-syntax-0.0.150",
+            "package_key": "blue-lang-syntax-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -2172,11 +2172,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-waku-0.0.150": {
+      "blue-lang-waku-0.0.151": {
         "runtime_dependencies": [
           {
             "name": "blue_lang_syntax",
-            "package_key": "blue-lang-syntax-0.0.150",
+            "package_key": "blue-lang-syntax-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -2210,11 +2210,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-wasm-0.0.150": {
+      "blue-lang-wasm-0.0.151": {
         "runtime_dependencies": [
           {
             "name": "blue_lang_runtime",
-            "package_key": "blue-lang-runtime-0.0.150",
+            "package_key": "blue-lang-runtime-0.0.151",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -2236,7 +2236,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-yaml-diff-0.0.150": {
+      "blue-lang-yaml-diff-0.0.151": {
         "runtime_dependencies": [],
         "build_dependencies": [],
         "features": []
@@ -11900,11 +11900,11 @@
               "std"
             ]
           },
-          "blue-lang-host-0.0.150": {
+          "blue-lang-host-0.0.151": {
             "runtime_dependencies": [
               {
                 "name": "blue_lang_host_macros",
-                "package_key": "blue-lang-host-macros-0.0.150",
+                "package_key": "blue-lang-host-macros-0.0.151",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -11914,7 +11914,7 @@
               },
               {
                 "name": "blue_lang_pkg",
-                "package_key": "blue-lang-pkg-0.0.150",
+                "package_key": "blue-lang-pkg-0.0.151",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -11924,7 +11924,7 @@
               },
               {
                 "name": "blue_lang_runtime",
-                "package_key": "blue-lang-runtime-0.0.150",
+                "package_key": "blue-lang-runtime-0.0.151",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -11934,7 +11934,7 @@
               },
               {
                 "name": "blue_lang_waku",
-                "package_key": "blue-lang-waku-0.0.150",
+                "package_key": "blue-lang-waku-0.0.151",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -12001,12 +12001,12 @@
               "packages"
             ]
           },
-          "blue-lang-kernel-0.0.150": {
+          "blue-lang-kernel-0.0.151": {
             "runtime_dependencies": [],
             "build_dependencies": [],
             "features": []
           },
-          "blue-lang-proc-0.0.150": {
+          "blue-lang-proc-0.0.151": {
             "runtime_dependencies": [
               {
                 "name": "blake3",
@@ -12023,7 +12023,7 @@
               },
               {
                 "name": "blue_lang_waku",
-                "package_key": "blue-lang-waku-0.0.150",
+                "package_key": "blue-lang-waku-0.0.151",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -12760,11 +12760,11 @@
               "std"
             ]
           },
-          "blue-lang-host-0.0.150": {
+          "blue-lang-host-0.0.151": {
             "runtime_dependencies": [
               {
                 "name": "blue_lang_host_macros",
-                "package_key": "blue-lang-host-macros-0.0.150",
+                "package_key": "blue-lang-host-macros-0.0.151",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -12774,7 +12774,7 @@
               },
               {
                 "name": "blue_lang_pkg",
-                "package_key": "blue-lang-pkg-0.0.150",
+                "package_key": "blue-lang-pkg-0.0.151",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -12784,7 +12784,7 @@
               },
               {
                 "name": "blue_lang_runtime",
-                "package_key": "blue-lang-runtime-0.0.150",
+                "package_key": "blue-lang-runtime-0.0.151",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -12794,7 +12794,7 @@
               },
               {
                 "name": "blue_lang_waku",
-                "package_key": "blue-lang-waku-0.0.150",
+                "package_key": "blue-lang-waku-0.0.151",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -12874,7 +12874,7 @@
               "packages"
             ]
           },
-          "blue-lang-kernel-0.0.150": {
+          "blue-lang-kernel-0.0.151": {
             "runtime_dependencies": [
               {
                 "name": "libc",
@@ -12890,7 +12890,7 @@
             "build_dependencies": [],
             "features": []
           },
-          "blue-lang-proc-0.0.150": {
+          "blue-lang-proc-0.0.151": {
             "runtime_dependencies": [
               {
                 "name": "blake3",
@@ -12907,7 +12907,7 @@
               },
               {
                 "name": "blue_lang_waku",
-                "package_key": "blue-lang-waku-0.0.150",
+                "package_key": "blue-lang-waku-0.0.151",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -13612,11 +13612,11 @@
               "std"
             ]
           },
-          "blue-lang-host-0.0.150": {
+          "blue-lang-host-0.0.151": {
             "runtime_dependencies": [
               {
                 "name": "blue_lang_host_macros",
-                "package_key": "blue-lang-host-macros-0.0.150",
+                "package_key": "blue-lang-host-macros-0.0.151",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -13626,7 +13626,7 @@
               },
               {
                 "name": "blue_lang_pkg",
-                "package_key": "blue-lang-pkg-0.0.150",
+                "package_key": "blue-lang-pkg-0.0.151",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -13636,7 +13636,7 @@
               },
               {
                 "name": "blue_lang_runtime",
-                "package_key": "blue-lang-runtime-0.0.150",
+                "package_key": "blue-lang-runtime-0.0.151",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -13646,7 +13646,7 @@
               },
               {
                 "name": "blue_lang_waku",
-                "package_key": "blue-lang-waku-0.0.150",
+                "package_key": "blue-lang-waku-0.0.151",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -13726,7 +13726,7 @@
               "packages"
             ]
           },
-          "blue-lang-kernel-0.0.150": {
+          "blue-lang-kernel-0.0.151": {
             "runtime_dependencies": [
               {
                 "name": "libc",
@@ -13742,7 +13742,7 @@
             "build_dependencies": [],
             "features": []
           },
-          "blue-lang-proc-0.0.150": {
+          "blue-lang-proc-0.0.151": {
             "runtime_dependencies": [
               {
                 "name": "blake3",
@@ -13759,7 +13759,7 @@
               },
               {
                 "name": "blue_lang_waku",
-                "package_key": "blue-lang-waku-0.0.150",
+                "package_key": "blue-lang-waku-0.0.151",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -14474,11 +14474,11 @@
               "std"
             ]
           },
-          "blue-lang-host-0.0.150": {
+          "blue-lang-host-0.0.151": {
             "runtime_dependencies": [
               {
                 "name": "blue_lang_host_macros",
-                "package_key": "blue-lang-host-macros-0.0.150",
+                "package_key": "blue-lang-host-macros-0.0.151",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -14488,7 +14488,7 @@
               },
               {
                 "name": "blue_lang_pkg",
-                "package_key": "blue-lang-pkg-0.0.150",
+                "package_key": "blue-lang-pkg-0.0.151",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -14498,7 +14498,7 @@
               },
               {
                 "name": "blue_lang_runtime",
-                "package_key": "blue-lang-runtime-0.0.150",
+                "package_key": "blue-lang-runtime-0.0.151",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -14508,7 +14508,7 @@
               },
               {
                 "name": "blue_lang_waku",
-                "package_key": "blue-lang-waku-0.0.150",
+                "package_key": "blue-lang-waku-0.0.151",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -14575,12 +14575,12 @@
               "packages"
             ]
           },
-          "blue-lang-kernel-0.0.150": {
+          "blue-lang-kernel-0.0.151": {
             "runtime_dependencies": [],
             "build_dependencies": [],
             "features": []
           },
-          "blue-lang-proc-0.0.150": {
+          "blue-lang-proc-0.0.151": {
             "runtime_dependencies": [
               {
                 "name": "blake3",
@@ -14597,7 +14597,7 @@
               },
               {
                 "name": "blue_lang_waku",
-                "package_key": "blue-lang-waku-0.0.150",
+                "package_key": "blue-lang-waku-0.0.151",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -15402,11 +15402,11 @@
               "std"
             ]
           },
-          "blue-lang-host-0.0.150": {
+          "blue-lang-host-0.0.151": {
             "runtime_dependencies": [
               {
                 "name": "blue_lang_host_macros",
-                "package_key": "blue-lang-host-macros-0.0.150",
+                "package_key": "blue-lang-host-macros-0.0.151",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -15416,7 +15416,7 @@
               },
               {
                 "name": "blue_lang_pkg",
-                "package_key": "blue-lang-pkg-0.0.150",
+                "package_key": "blue-lang-pkg-0.0.151",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -15426,7 +15426,7 @@
               },
               {
                 "name": "blue_lang_runtime",
-                "package_key": "blue-lang-runtime-0.0.150",
+                "package_key": "blue-lang-runtime-0.0.151",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -15436,7 +15436,7 @@
               },
               {
                 "name": "blue_lang_waku",
-                "package_key": "blue-lang-waku-0.0.150",
+                "package_key": "blue-lang-waku-0.0.151",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -15516,7 +15516,7 @@
               "packages"
             ]
           },
-          "blue-lang-kernel-0.0.150": {
+          "blue-lang-kernel-0.0.151": {
             "runtime_dependencies": [
               {
                 "name": "libc",
@@ -15532,7 +15532,7 @@
             "build_dependencies": [],
             "features": []
           },
-          "blue-lang-proc-0.0.150": {
+          "blue-lang-proc-0.0.151": {
             "runtime_dependencies": [
               {
                 "name": "blake3",
@@ -15549,7 +15549,7 @@
               },
               {
                 "name": "blue_lang_waku",
-                "package_key": "blue-lang-waku-0.0.150",
+                "package_key": "blue-lang-waku-0.0.151",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -16322,11 +16322,11 @@
               "std"
             ]
           },
-          "blue-lang-host-0.0.150": {
+          "blue-lang-host-0.0.151": {
             "runtime_dependencies": [
               {
                 "name": "blue_lang_host_macros",
-                "package_key": "blue-lang-host-macros-0.0.150",
+                "package_key": "blue-lang-host-macros-0.0.151",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -16336,7 +16336,7 @@
               },
               {
                 "name": "blue_lang_pkg",
-                "package_key": "blue-lang-pkg-0.0.150",
+                "package_key": "blue-lang-pkg-0.0.151",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -16346,7 +16346,7 @@
               },
               {
                 "name": "blue_lang_runtime",
-                "package_key": "blue-lang-runtime-0.0.150",
+                "package_key": "blue-lang-runtime-0.0.151",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -16356,7 +16356,7 @@
               },
               {
                 "name": "blue_lang_waku",
-                "package_key": "blue-lang-waku-0.0.150",
+                "package_key": "blue-lang-waku-0.0.151",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -16436,7 +16436,7 @@
               "packages"
             ]
           },
-          "blue-lang-kernel-0.0.150": {
+          "blue-lang-kernel-0.0.151": {
             "runtime_dependencies": [
               {
                 "name": "libc",
@@ -16452,7 +16452,7 @@
             "build_dependencies": [],
             "features": []
           },
-          "blue-lang-proc-0.0.150": {
+          "blue-lang-proc-0.0.151": {
             "runtime_dependencies": [
               {
                 "name": "blake3",
@@ -16469,7 +16469,7 @@
               },
               {
                 "name": "blue_lang_waku",
-                "package_key": "blue-lang-waku-0.0.150",
+                "package_key": "blue-lang-waku-0.0.151",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -17265,7 +17265,7 @@
     "block-buffer-0.10.4": {
       "edition": "2018"
     },
-    "blue-lang-appliance-0.0.150": {
+    "blue-lang-appliance-0.0.151": {
       "edition": "2021",
       "binaries": [
         {
@@ -17274,28 +17274,28 @@
         }
       ]
     },
-    "blue-lang-art-0.0.150": {
+    "blue-lang-art-0.0.151": {
       "edition": "2021",
       "lib_target": {
         "name": "blue_lang_art",
         "path": "src/lib.rs"
       }
     },
-    "blue-lang-bidama-0.0.150": {
+    "blue-lang-bidama-0.0.151": {
       "edition": "2021",
       "lib_target": {
         "name": "blue_lang_bidama",
         "path": "src/lib.rs"
       }
     },
-    "blue-lang-check-0.0.150": {
+    "blue-lang-check-0.0.151": {
       "edition": "2021",
       "lib_target": {
         "name": "blue_lang_check",
         "path": "src/lib.rs"
       }
     },
-    "blue-lang-cli-0.0.150": {
+    "blue-lang-cli-0.0.151": {
       "edition": "2021",
       "build_script": "build.rs",
       "binaries": [
@@ -17305,7 +17305,7 @@
         }
       ]
     },
-    "blue-lang-component-0.0.150": {
+    "blue-lang-component-0.0.151": {
       "edition": "2021",
       "binaries": [
         {
@@ -17314,28 +17314,28 @@
         }
       ]
     },
-    "blue-lang-danpen-diff-0.0.150": {
+    "blue-lang-danpen-diff-0.0.151": {
       "edition": "2021",
       "lib_target": {
         "name": "blue_lang_danpen_diff",
         "path": "src/lib.rs"
       }
     },
-    "blue-lang-fmt-0.0.150": {
+    "blue-lang-fmt-0.0.151": {
       "edition": "2021",
       "lib_target": {
         "name": "blue_lang_fmt",
         "path": "src/lib.rs"
       }
     },
-    "blue-lang-host-0.0.150": {
+    "blue-lang-host-0.0.151": {
       "edition": "2021",
       "lib_target": {
         "name": "blue_lang_host",
         "path": "src/lib.rs"
       }
     },
-    "blue-lang-host-macros-0.0.150": {
+    "blue-lang-host-macros-0.0.151": {
       "edition": "2021",
       "proc_macro": true,
       "lib_target": {
@@ -17343,35 +17343,35 @@
         "path": "src/lib.rs"
       }
     },
-    "blue-lang-kernel-0.0.150": {
+    "blue-lang-kernel-0.0.151": {
       "edition": "2021",
       "lib_target": {
         "name": "blue_lang_kernel",
         "path": "src/lib.rs"
       }
     },
-    "blue-lang-kiwari-0.0.150": {
+    "blue-lang-kiwari-0.0.151": {
       "edition": "2021",
       "lib_target": {
         "name": "blue_lang_kiwari",
         "path": "src/lib.rs"
       }
     },
-    "blue-lang-lsp-0.0.150": {
+    "blue-lang-lsp-0.0.151": {
       "edition": "2021",
       "lib_target": {
         "name": "blue_lang_lsp",
         "path": "src/lib.rs"
       }
     },
-    "blue-lang-mondou-0.0.150": {
+    "blue-lang-mondou-0.0.151": {
       "edition": "2021",
       "lib_target": {
         "name": "blue_lang_mondou",
         "path": "src/lib.rs"
       }
     },
-    "blue-lang-pkg-0.0.150": {
+    "blue-lang-pkg-0.0.151": {
       "edition": "2021",
       "build_script": "build.rs",
       "lib_target": {
@@ -17379,56 +17379,56 @@
         "path": "src/lib.rs"
       }
     },
-    "blue-lang-proc-0.0.150": {
+    "blue-lang-proc-0.0.151": {
       "edition": "2021",
       "lib_target": {
         "name": "blue_lang_proc",
         "path": "src/lib.rs"
       }
     },
-    "blue-lang-runtime-0.0.150": {
+    "blue-lang-runtime-0.0.151": {
       "edition": "2021",
       "lib_target": {
         "name": "blue_lang_runtime",
         "path": "src/lib.rs"
       }
     },
-    "blue-lang-senses-0.0.150": {
+    "blue-lang-senses-0.0.151": {
       "edition": "2021",
       "lib_target": {
         "name": "blue_lang_senses",
         "path": "src/lib.rs"
       }
     },
-    "blue-lang-syntax-0.0.150": {
+    "blue-lang-syntax-0.0.151": {
       "edition": "2021",
       "lib_target": {
         "name": "blue_lang_syntax",
         "path": "src/lib.rs"
       }
     },
-    "blue-lang-test-0.0.150": {
+    "blue-lang-test-0.0.151": {
       "edition": "2021",
       "lib_target": {
         "name": "blue_lang_test",
         "path": "src/lib.rs"
       }
     },
-    "blue-lang-waku-0.0.150": {
+    "blue-lang-waku-0.0.151": {
       "edition": "2021",
       "lib_target": {
         "name": "blue_lang_waku",
         "path": "src/lib.rs"
       }
     },
-    "blue-lang-wasm-0.0.150": {
+    "blue-lang-wasm-0.0.151": {
       "edition": "2021",
       "lib_target": {
         "name": "blue_lang_wasm",
         "path": "src/lib.rs"
       }
     },
-    "blue-lang-yaml-diff-0.0.150": {
+    "blue-lang-yaml-diff-0.0.151": {
       "edition": "2021",
       "lib_target": {
         "name": "blue_lang_yaml_diff",

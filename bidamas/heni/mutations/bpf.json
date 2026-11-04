@@ -56,14 +56,14 @@
   {
     "name": "a subprogram's exit drops the saved registers",
     "file": "bpf.b",
-    "find": "(acc, n) -> assoc(acc, n, reg_value(st, n)),\n      {},",
-    "replace": "(acc, n) -> assoc(acc, n, 0),\n      {},"
+    "find": "(acc, n) -> assoc(acc, n, reg_value(st, n)),\n    {},",
+    "replace": "(acc, n) -> assoc(acc, n, 0),\n    {},"
   },
   {
     "name": "the overflow check tests the wrong sign",
     "file": "bpf.b",
-    "find": "jump(:slt, 3, 0, \"fault\")",
-    "replace": "jump(:sgt, 3, 0, \"fault\")"
+    "find": "jump(:slt, 3, 0, fault_label(st))",
+    "replace": "jump(:sgt, 3, 0, fault_label(st))"
   },
   {
     "name": "equal lowers to not equal",
@@ -122,7 +122,7 @@
   {
     "name": "a failed kernel read answers zero",
     "file": "bpf.b",
-    "find": "            call(:probe_read_kernel),\n            jump(:ne, 0, 0, \"fault\"),\n",
+    "find": "            call(:probe_read_kernel),\n            jump(:ne, 0, 0, fault_label(st)),\n",
     "replace": "            call(:probe_read_kernel),\n"
   },
   {
@@ -178,5 +178,95 @@
     "file": "bpf.b",
     "find": "    if member?(kind, skb_kinds) or kind == :flow_dissector\n      [76, 80]",
     "replace": "    if kind == :flow_dissector\n      [76, 80]"
+  },
+  {
+    "name": "a global call is inlined",
+    "file": "bpf.b",
+    "find": "elsif member?(name, st[:globals])",
+    "replace": "elsif false"
+  },
+  {
+    "name": "a subprogram's fault is lost",
+    "file": "bpf.b",
+    "find": "jump(:ne, 1, 0, fault_label(st))",
+    "replace": "jump(:ne, 1, 1, fault_label(st))"
+  },
+  {
+    "name": "a subprogram's fault is not written",
+    "file": "bpf.b",
+    "find": "      store(:dw, 1, 0, 1),\n      label(skip),",
+    "replace": "      label(skip),"
+  },
+  {
+    "name": "the stack chain is not limited",
+    "file": "bpf.b",
+    "find": "if total > 512",
+    "replace": "if false"
+  },
+  {
+    "name": "the entry can be global",
+    "file": "bpf.b",
+    "find": "elsif first(found) == entry[:name]",
+    "replace": "elsif false"
+  },
+  {
+    "name": "a second signature is taken",
+    "file": "bpf.b",
+    "find": "if known[:kinds] != kinds",
+    "replace": "if false"
+  },
+  {
+    "name": "a sixth register is used",
+    "file": "bpf.b",
+    "find": "if count > 5",
+    "replace": "if false"
+  },
+  {
+    "name": "the machine allows a held lock at exit",
+    "file": "bpf.b",
+    "find": "if st[:held] != nil\n    raise(:bpf_fault, \"a function returned holding a spin lock\")\n  elsif",
+    "replace": "if"
+  },
+  {
+    "name": "the machine allows a second lock's call",
+    "file": "bpf.b",
+    "find": "if st[:held] != nil and (i[:src] != 0 or i[:imm] != helper_id(:spin_unlock))",
+    "replace": "if false"
+  },
+  {
+    "name": "the unheld lock is released",
+    "file": "bpf.b",
+    "find": "if st[:held].nil? or st[:held] != reg_value(st, 1)",
+    "replace": "if false"
+  },
+  {
+    "name": "locked_add takes a plain map",
+    "file": "bpf.b",
+    "find": "if m[:lock] != true",
+    "replace": "if false"
+  },
+  {
+    "name": "a locked value reads the lock's word",
+    "file": "bpf.b",
+    "find": "load(:dw, 8, 7, 8),",
+    "replace": "load(:dw, 8, 7, 0),"
+  },
+  {
+    "name": "a callback stop is ignored",
+    "file": "bpf.b",
+    "find": "stop: runs >= call_at[:limit] or reg_value(running, 0) == 1",
+    "replace": "stop: runs >= call_at[:limit]"
+  },
+  {
+    "name": "map types leak to the next map",
+    "file": "bpf.b",
+    "find": "cleared = dissoc(dissoc(assoc(acc, :rows, []), :key), :value)",
+    "replace": "cleared = assoc(acc, :rows, [])"
+  },
+  {
+    "name": "a plain program asks for BTF",
+    "file": "bpf.b",
+    "find": "size(program[:funcs] or []) > 1 or",
+    "replace": "size(program[:funcs] or []) > 0 or"
   }
 ]

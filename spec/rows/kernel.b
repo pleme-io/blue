@@ -65,3 +65,49 @@ row(
   covers("builtin:ringbuf_next"),
   host()
 )
+
+row(
+  "kernel.erufu.round_trip",
+  join_lines(
+    [
+      "use(\"bpf\")",
+      "use(\"erufu\")",
+      "p = bpf::assemble([bpf::alu(:mov, 0, 7), bpf::exit_program])",
+      "bpf::run(erufu::program_of(erufu::decode(erufu::object(p, {section: \"xdp\"})))).ret"
+    ]
+  ),
+  value("7"),
+  pending("G16", "wasm")
+)
+
+row(
+  "kernel.erufu.not_an_object",
+  join_lines(["use(\"erufu\")", "erufu::decode([1, 2, 3])"]),
+  fails(:eval, "not ELF"),
+  pending("G16", "wasm")
+)
+
+row(
+  "kernel.btf.written_reads_back",
+  join_lines(
+    [
+      "use(\"btf\")",
+      "btf::find(btf::read(btf::encode([btf::int_type(\"int\", 4)])), \"int\", :int)"
+    ]
+  ),
+  value("1"),
+  pending("G16", "wasm")
+)
+
+row(
+  "kernel.bpf.global_subprogram",
+  join_lines(
+    [
+      "use(\"bpf\")",
+      "p = bpf::compile_forms(read_forms(\"(define (%root/g a) (+ a 1)) (define (%root/e c) (%root/g 41))\"), {entry: :e, kind: :xdp, on_fault: 9, global: [:g]})",
+      "[length(p[:funcs]), bpf::run(p).ret]"
+    ]
+  ),
+  value("[2, 42]"),
+  pending("G16", "wasm")
+)

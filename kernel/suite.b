@@ -496,6 +496,28 @@ test "one source: the interpreter, the machine and the real kernel agree, and a 
   assert map(first, bad) == []
 end
 
+test "one source with a global subprogram: the interpreter, the machine and the real kernel agree, and a raise inside it is a fault"
+  compiled = compile(
+    "kernel/suite.b",
+    {entry: :mix_entry, kind: :xdp, on_fault: 0, global: [:mix]}
+  )
+  assert size(compiled[:funcs]) == 2
+  live = install(compiled)
+  bad = filter(
+    fn(pair)
+      input = mix_packet(pair)
+      want = interpreted(pair)
+      vm = bpf::run(compiled, {packet: input})
+      in_kernel = kaaneru::run(live[:prog], {packet: input})
+      vm_answer = answer_of(vm[:ret], packet_of(vm))
+      kernel_answer = answer_of(in_kernel[:ret], in_kernel[:packet])
+      not (want == vm_answer and want == kernel_answer)
+    end,
+    mix_inputs
+  )
+  assert map(first, bad) == []
+end
+
 test "a nil answered by the kernel's map narrows as blue narrows it, and tail recursion is a bounded loop"
   compiled = compile(
     "kernel/programs/arith.b",

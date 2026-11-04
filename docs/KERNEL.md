@@ -22,7 +22,8 @@ blue interpreter, a pure machine on any host, and a real kernel.
 | bytes | `baito` | integers at a width and order; record layouts placed as a C struct | nothing |
 | instructions | `bpf` | RFC 9669 instructions as values, assembler, encoder, decoder, text, pure machine | nothing |
 | compiler | `bpf` (`compile`, `compile_forms`) | a restricted blue subset to bytecode, with a report of checks proven and emitted | process, to run `blue ast --resolved` |
-| types | `btf` | the kernel's own types: hook ids, field offsets | filesystem |
+| types | `btf` | the kernel's own types: hook ids, field offsets; a program's own types written, and `.BTF.ext` | filesystem, to read a kernel's |
+| objects | `erufu` | an ELF object written and read, in the shape clang gives the same program | nothing |
 | kernel client | `kaaneru` | maps, programs, links, pins, ring buffers, every attach kind in §6 | `kernel_bpf` |
 | the seam | `blue-lang-kernel` | `bpf(2)`, `perf_event_open(2)`, ioctl, `open(2)` of a descriptor a link names, mmap of the ring | Linux; one `unsafe` module |
 
@@ -62,7 +63,7 @@ Each was read from the kernel source at the named tag, 2026-11-03.
 |---|---|
 | Newest stable 7.3; LTS 6.18, 6.12, 6.6; 7.x has no LTS | the floor is 6.6, and plo's 6.12.93 is the first real target |
 | cpu v4 (`sdiv`, `smod`, `movsx`, `bswap`, signed loads, `gotol`) landed in 6.6 | the compiler may use them at the floor |
-| only the 512-byte stack and 8 frames hold across the range | the compiler inlines every call and holds 64 slots |
+| only the 512-byte stack and 8 frames hold across the range | the compiler inlines every call by default and holds 64 slots; a chain of global subprograms is refused past 512 bytes |
 | a back-edge needs `CAP_BPF` | tail recursion lowers to a loop only for a privileged loader |
 | XDP, tcx, cgroup, fentry, fexit, lsm, iter, netfilter, kprobe_multi, uprobe_multi and struct_ops attach through `BPF_LINK_CREATE` alone at 6.6 | no netlink in the attach path |
 | perf_event, tracepoint and a single kprobe still need a `perf_event_open` descriptor | the seam has that one extra call |
@@ -72,8 +73,10 @@ Each was read from the kernel source at the named tag, 2026-11-03.
 | a netfilter and an sk_lookup program must name their one attach type at load, and a syscall program must load sleepable | `kaaneru::load` sets each; plo answers `EINVAL` without them |
 | a struct_ops program needs no program BTF: its types come from the member it names in the kernel's own; its map must name a BTF object, and any will do | `install_struct_ops` loads `btf::smallest`, one `int`, with the compiler free of BTF generation |
 | `BPF_PROG_RUN` of a netfilter program with no context runs at `local_out`, with the network header unset | a frame read at its network header runs with a `local_in` context |
-| global subprograms, callbacks and spin locks need program BTF; plain programs, ring buffers and maps do not | inlining keeps the first compiler free of BTF generation |
-| `veristat` reads ELF through libbpf | a raw stream needs `erufu` before that tool applies |
+| global subprograms, callbacks and spin locks need program BTF; plain programs, ring buffers and maps do not | a plain program loads with none; `bpf::needs_btf?` says which do |
+| a global subprogram returns one integer, and is verified with its arguments unknown | a fault crosses by a pointer to the caller's slot, null-checked as the verifier asks at 6.6; a range does not cross a call, so `*` on a parameter is refused where the inlined call compiles |
+| a callback must be a static function; `bpf_spin_lock` allows no call but its unlock, and no return with it held | the machine models the same rules, and the kernel's refusals are in the suite |
+| libbpf 1.x reads maps only from BTF in `.maps`, and fills a data section's size and places from the symbols | `erufu` writes them filled, and fills clang's when it reads one |
 | signed programs arrived in 6.18; CO-RE relocations are refused for them at 7.4-rc1 | a signing mode resolves offsets before it signs |
 | Aya's eBPF side still needs nightly and LLVM | no reason to take that path; its userspace is pure Rust, which this seam matches |
 
@@ -129,8 +132,13 @@ Every "measured on plo" row ran on 6.12.93, 2026-11-03 or 2026-11-04.
 | `BPF_PROG_RUN`: netfilter | built, measured on plo; the machine does not apply | `kernel/suite.b`: it decides from a real `sk_buff`, a kernel pointer the machine has no model of |
 | `BPF_PROG_RUN`: tracing, LSM | built, measured on plo | tracing through the fexit row; LSM answers `ENOTSUPP`, a named refusal |
 | `BPF_PROG_RUN`: a cgroup skb's direct packet read | a named refusal on 6.12 | `kernel/suite.b`: the kernel leaves `data_end` unset in this run; the attached row measures the read |
-| ELF object, so `bpftool` and `veristat` apply (`erufu`) | design | |
-| program BTF generation (global subprograms, spin locks) | design | inlining avoids the need today |
+| ELF object, written and read (`erufu`) | built, checked against clang and LLVM, measured on plo | `kernel/object_llvm.b`: sections, symbols, relocations, disassembly, BTF and func_info equal to clang's for one program, `readelf -a` silent, a changed instruction seen; `kernel/object_suite.b`: `bpftool` dumps, loads and runs it, `veristat` verifies it, a clang object loads through blue |
+| not in an object: line info, CO-RE relocations, a map value reference | not built | `erufu::object` refuses unbound fields and a map value reference by name; no line info is written |
+| reading an object: the whole of `.text` is linked | built, with a limit | a function in `.text` nothing reaches makes the verifier refuse the program; libbpf drops it, `erufu::program_of` does not |
+| program BTF: functions, maps, `license`, `.BTF.ext` | built, measured on plo | `btf::encode`, `bpf::program_btf`; `kernel/object_suite.b`: the kernel reports 2 in `nr_func_info` and a `btf_id` |
+| global subprograms in the compiler, by `{global: [...]}`; inlining stays the default | built, measured on plo | `kernel/suite.b`, "one source with a global subprogram": 456 inputs agree in interpreter, machine and kernel, faults included; a static reader loads where a global one is refused |
+| spin lock: `declare_locked`, `locked_add` | built, measured on plo, one CPU at a time | `kernel/object_suite.b`: 1,001 adds counted, machine agrees on the first, the kernel's two refusals seen; contention across CPUs has not run |
+| callback: `func_ref`, `bpf_loop` | built for assembled programs, measured on plo | `kernel/object_suite.b`: kernel and machine both count 3; the compiler has no word for a callback |
 | a kernel matrix in a VM as a nix check | design | until it runs, the kernel words' real behaviour is proven only by running `kernel/suite.b` by hand; their tests beside them reach the refusals |
 | kanshi's LSM enforcer in blue | design | the first real consumer |
 
@@ -147,6 +155,9 @@ split below keeps both away from it:
   to a fresh cgroup named `blue_suite_*`, moved into by a child alone and removed
   after. `ip netns exec` hides the cgroup mount, so the suite mounts cgroup2 in
   the private mount namespace that command makes.
+- `kernel/object_suite.b` loads global subprograms, a spin lock and a callback,
+  and hands blue's objects to `bpftool` and `veristat`. Its one pin is removed
+  whatever the run answers.
 
 ```text
 blue kernel/run.b
@@ -159,8 +170,10 @@ suites, and fails when a link, a namespace, a pin or a test cgroup is left behin
 Its settings are `kernel-run`'s, through `settei`:
 `KERNEL_RUN_ADMISSION__ENABLED=false` turns the refusal off,
 `KERNEL_RUN_BUILD__ENABLED=false` the build, `KERNEL_RUN_TOOLS__FROM_NIX=false`
-the nix lookup of `ip` and `ping`, and `KERNEL_RUN_SUITE__FILTER=fexit` keeps the
-tests whose name holds it.
+the nix lookup of `ip`, `ping` and the object oracles (`bpftool`, `clang`, LLVM's
+tools, `readelf`, and `veristat`, which it builds because nixpkgs does not carry
+it; nothing in blue's build needs these), and `KERNEL_RUN_SUITE__FILTER=fexit`
+keeps the tests whose name holds it.
 
 Run it detached with a log on a remote host, since a dropped SSH session loses a
 foreground run. The encoder's check needs only an `llvm-mc`:

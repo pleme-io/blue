@@ -148,5 +148,17 @@
     "file": "kaaneru.b",
     "find": "wanted = opts[:attach] or only_attach(kind)",
     "replace": "wanted = only_attach(kind) or opts[:attach]"
+  },
+  {
+    "name": "a map's BTF ids are dropped",
+    "file": "kaaneru.b",
+    "find": "if types.nil? or types[:value].nil?",
+    "replace": "if true"
+  },
+  {
+    "name": "func_info records are the wrong size",
+    "file": "kaaneru.b",
+    "find": "[:func_info_cnt, size(rows)]",
+    "replace": "[:func_info_cnt, 0]"
   }
 ]

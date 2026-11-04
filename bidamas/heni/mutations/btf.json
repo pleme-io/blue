@@ -2,8 +2,8 @@
   {
     "name": "the magic is not checked",
     "file": "btf.b",
-    "find": "if length(bytes) < 24 or bytes_int(bytes, 0, 2) != 60319",
-    "replace": "if false"
+    "find": "def header_of(bytes)\n  if length(bytes) < 24 or bytes_int(bytes, 0, 2) != 60319",
+    "replace": "def header_of(bytes)\n  if false"
   },
   {
     "name": "a struct's members take the wrong width",
@@ -50,13 +50,61 @@
   {
     "name": "a member past the struct answers a place",
     "file": "btf.b",
-    "find": "  at = retsu::index_of(map((m) -> m[:name], members), name)\n  if at < 0\n",
-    "replace": "  at = retsu::index_of(map((m) -> m[:name], members), name)\n  if false\n"
+    "find": "  at = index_of(map((m) -> m[:name], members), name)\n  if at < 0\n",
+    "replace": "  at = index_of(map((m) -> m[:name], members), name)\n  if false\n"
   },
   {
     "name": "the smallest blob names no type's string",
     "file": "btf.b",
     "find": "      word_bytes(5),\n      word_bytes(1),\n",
     "replace": "      word_bytes(5),\n      word_bytes(0),\n"
+  },
+  {
+    "name": "a pointer's kind is written as an int",
+    "file": "btf.b",
+    "find": "[0, info_word(:ptr, 0), t[:type]]",
+    "replace": "[0, info_word(:int, 0), t[:type]]"
+  },
+  {
+    "name": "an int's bit count is its bytes",
+    "file": "btf.b",
+    "find": "bit_or(shift_left(encoding, 24), t[:size] * 8)",
+    "replace": "bit_or(shift_left(encoding, 24), t[:size])"
+  },
+  {
+    "name": "interning always adds",
+    "file": "btf.b",
+    "find": "  at = index_of(types, t)\n  if at < 0",
+    "replace": "  at = index_of(types, t)\n  if true"
+  },
+  {
+    "name": "a repeated string gets a second offset",
+    "file": "btf.b",
+    "find": "if get(acc[:offsets], name) != nil\n        acc",
+    "replace": "if false\n        acc"
+  },
+  {
+    "name": "the type section's length is wrong",
+    "file": "btf.b",
+    "find": "type_len: length(body),",
+    "replace": "type_len: length(body) + 4,"
+  },
+  {
+    "name": "a BTF.ext record size is wrong",
+    "file": "btf.b",
+    "find": "append([8], flat_map(sections",
+    "replace": "append([4], flat_map(sections"
+  },
+  {
+    "name": "a linkage reads as static",
+    "file": "btf.b",
+    "find": "  when :global\n    1\n  when :extern",
+    "replace": "  when :global\n    0\n  when :extern"
+  },
+  {
+    "name": "a BTF.ext's magic is not checked",
+    "file": "btf.b",
+    "find": "def read_ext(bytes, blob)\n  if length(bytes) < 24 or bytes_int(bytes, 0, 2) != 60319",
+    "replace": "def read_ext(bytes, blob)\n  if false"
   }
 ]

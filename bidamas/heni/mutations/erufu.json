@@ -1,0 +1,74 @@
+[
+  {
+    "name": "the magic is not checked",
+    "file": "erufu.b",
+    "find": "slice_bytes(bytes, 0, 4) != [127, 69, 76, 70]",
+    "replace": "false"
+  },
+  {
+    "name": "a big-endian object is read",
+    "file": "erufu.b",
+    "find": "if bytes[4] != 2 or bytes[5] != 1",
+    "replace": "if bytes[4] != 2"
+  },
+  {
+    "name": "the machine is not BPF",
+    "file": "erufu.b",
+    "find": "machine: 247,",
+    "replace": "machine: 62,"
+  },
+  {
+    "name": "another machine's object is linked",
+    "file": "erufu.b",
+    "find": "if o[:header][:machine] != 247",
+    "replace": "if false"
+  },
+  {
+    "name": "a global call keeps its offset",
+    "file": "erufu.b",
+    "find": "insn: assoc(i, :imm, -1)",
+    "replace": "insn: i"
+  },
+  {
+    "name": "a map reference keeps its pseudo source",
+    "file": "erufu.b",
+    "find": "insn: assoc(assoc(i, :src, 0), :imm, 0)",
+    "replace": "insn: assoc(i, :imm, 0)"
+  },
+  {
+    "name": "symbols are not ordered locals first",
+    "file": "erufu.b",
+    "find": "    filter((s) -> s[:bind] == :local, symbols),\n    filter((s) -> s[:bind] != :local, symbols)",
+    "replace": "    filter((s) -> s[:bind] != :local, symbols),\n    filter((s) -> s[:bind] == :local, symbols)"
+  },
+  {
+    "name": "a relocation's symbol is off by one",
+    "file": "erufu.b",
+    "find": "shift_left(at + 1, 32)",
+    "replace": "shift_left(at, 32)"
+  },
+  {
+    "name": "the license has no NUL",
+    "file": "erufu.b",
+    "find": "text_bytes(given[:license] or \"GPL\"), [0])",
+    "replace": "text_bytes(given[:license] or \"GPL\"), [])"
+  },
+  {
+    "name": "a linked call forgets where .text landed",
+    "file": "erufu.b",
+    "find": "to = floor(rel[:sym][:value] / 8) + i[:imm] + 1 + text_base",
+    "replace": "to = floor(rel[:sym][:value] / 8) + i[:imm] + 1"
+  },
+  {
+    "name": "unbound fields are written anyway",
+    "file": "erufu.b",
+    "find": "if (p[:fields] or []) != []",
+    "replace": "if false"
+  },
+  {
+    "name": "func_info keeps the order of its sections",
+    "file": "erufu.b",
+    "find": "(r) -> r[:at],\n",
+    "replace": "(r) -> 0,\n"
+  }
+]

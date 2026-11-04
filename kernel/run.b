@@ -8,7 +8,8 @@ inside its own namespace.
 
 Settings are `kernel-run`'s, through `settei`. `admission.enabled` turns the
 refusal off, `build.enabled` the build, `tools.from_nix` the nix lookup of
-`ip` and `ping`, and `suite.filter` keeps the tests whose name holds it.
+`ip`, `ping` and the object oracles, and `suite.filter` keeps the tests whose name
+holds it.
 """
 
 use("gamen", [:show_step])
@@ -160,8 +161,54 @@ def suite_command(file, seconds, blue, env, wanted)
 end
 
 @doc """
-tool_dirs: The directories that hold `ip` and `ping`: nix's when `from_nix`, and
-none when PATH already has them.
+veristat_expression: The nix expression that builds `veristat`, which nixpkgs does
+not carry. It is a test oracle, and nothing in a build needs it.
+
+    contains?(veristat_expression, "libbpf") #=> true
+"""
+def veristat_expression()
+  join(
+    [
+      "let pkgs = (builtins.getFlake \"nixpkgs\").legacyPackages.${builtins.currentSystem}; in",
+      "pkgs.stdenv.mkDerivation {",
+      "pname = \"veristat\"; version = \"0.5.1\";",
+      "src = pkgs.fetchFromGitHub { owner = \"libbpf\"; repo = \"veristat\"; rev = \"v0.5.1\"; fetchSubmodules = true;",
+      "hash = \"sha256-kYAr40GFAd2fn9zyUayHbfImQHLfjp6SO9rZGDA+rAU=\"; };",
+      "nativeBuildInputs = [ pkgs.pkg-config ];",
+      "buildInputs = [ pkgs.elfutils pkgs.zlib pkgs.zstd ];",
+      "hardeningDisable = [ \"all\" ];",
+      "makeFlags = [ \"-C\" \"src\" ];",
+      "installPhase = \"mkdir -p $out/bin; cp src/veristat $out/bin/\";",
+      "}"
+    ],
+    " "
+  )
+end
+
+@doc """
+veristat_dir: The directory that holds a built `veristat`.
+
+    string?(veristat_expression) #=> true
+"""
+def veristat_dir()
+  r = exec_capture(
+    "nix",
+    "build",
+    "--impure",
+    "--no-link",
+    "--print-out-paths",
+    "--expr",
+    veristat_expression
+  )
+  if status_of(r) != 0
+    raise(:missing_tool, "nix cannot build veristat: #{stderr_of(r)}")
+  end
+  "#{trim(stdout_of(r))}/bin"
+end
+
+@doc """
+tool_dirs: The directories that hold `ip`, `ping` and the object suite's oracles:
+nix's when `from_nix`, and none when PATH already has them.
 
     tool_dirs(false) #=> []
 """
@@ -173,12 +220,16 @@ def tool_dirs(from_nix)
       "--no-link",
       "--print-out-paths",
       "nixpkgs#iproute2",
-      "nixpkgs#iputils"
+      "nixpkgs#iputils",
+      "nixpkgs#bpftools",
+      "nixpkgs#llvmPackages.clang-unwrapped",
+      "nixpkgs#llvmPackages.llvm.out",
+      "nixpkgs#binutils-unwrapped.out"
     )
     if status_of(r) != 0
       raise(:missing_tool, "nix cannot supply ip and ping: #{stderr_of(r)}")
     end
-    map((p) -> "#{trim(p)}/bin", rows_of(stdout_of(r)))
+    append(map((p) -> "#{trim(p)}/bin", rows_of(stdout_of(r))), [veristat_dir])
   else
     []
   end
@@ -274,6 +325,31 @@ def main()
               env,
               config[:suite][:filter]
             )
+          )
+        end
+      ],
+      [
+        "kernel/object_suite.b",
+        fn()
+          append(
+            %w[sudo -n],
+            suite_command(
+              "kernel/object_suite.b",
+              config[:suite][:seconds],
+              blue,
+              env
+            )
+          )
+        end
+      ],
+      [
+        "kernel/object_llvm.b",
+        fn()
+          append(
+            ["env"],
+            env,
+            [blue, "run", "--quiet", "--allow", "host", "kernel/object_llvm.b"],
+            %w[clang llvm-objdump llvm-readobj readelf]
           )
         end
       ],

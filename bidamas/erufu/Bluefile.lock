@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:374eb0544a8141c3eefaac1f027ad4a8c71a6a505fac5b74161f2ddf9367399c",
+  "manifest": {
+    "schema": 1,
+    "name": "erufu",
+    "version": "0.1.0",
+    "needs": {
+      "baito": "^0.1.0",
+      "bpf": "^0.1.0",
+      "btf": "^0.1.0",
+      "retsu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

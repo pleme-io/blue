@@ -9,7 +9,8 @@ The encoding is RFC 9669. The kernel, `llvm-mc` and this machine are checked aga
     run(p).ret #=> 2
 """
 
-use("baito", %i[bytes_int int_bytes])
+use("baito", %i[align_up bytes_int int_bytes])
+use("btf")
 use("jisho", [:update])
 use("retsu", %i[first flat_map index_of last repeat rest size zip])
 use("shisutemu", [:blue_exe])
@@ -593,6 +594,16 @@ def call_local(target)
 end
 
 @doc """
+func_ref: a subprogram of this program at a label, into a register, as a callback's argument. A callback needs its program's BTF.
+
+    func_ref(2, :f).src #=> 4
+    func_ref(2, :f).imm2 #=> 0
+"""
+def func_ref(dst, target)
+  wide_ref(dst, 4, :call_target, target)
+end
+
+@doc """
 call_kfunc: a kernel function by its BTF id.
 
     call_kfunc(77).src #=> 2
@@ -688,12 +699,22 @@ def imm64(dst, value)
 end
 
 @doc """
+wide_ref: a two-slot load whose value the loader or the assembler fills in, marked with what it names.
+
+    wide_ref(1, 1, :map, :m).map #=> :m
+    wide_ref(1, 4, :call_target, :f).src #=> 4
+"""
+def wide_ref(dst, source, key, value)
+  assoc(assoc(insn(24, reg_of(dst), source, 0, 0), :imm2, 0), key, value)
+end
+
+@doc """
 map_ref: the map named `name` into a register, resolved when the program is loaded.
 
     map_ref(1, :counts).src #=> 1
 """
 def map_ref(dst, name)
-  assoc(assoc(insn(24, reg_of(dst), 1, 0, 0), :imm2, 0), :map, name)
+  wide_ref(dst, 1, :map, name)
 end
 
 @doc """
@@ -894,7 +915,8 @@ def assemble(items)
     insns: placed[:insns],
     relocs: placed[:relocs],
     fields: placed[:fields],
-    slots: placed[:at]
+    slots: placed[:at],
+    labels:
   }
 end
 
@@ -1891,7 +1913,9 @@ exec_exit: a machine after an exit: done at the top frame, back in its caller ot
     exec_exit(machine(assemble([])))[:done] #=> true
 """
 def exec_exit(st)
-  if st[:frames] == []
+  if st[:held] != nil
+    raise(:bpf_fault, "a function returned holding a spin lock")
+  elsif st[:frames] == []
     assoc(st, :done, true)
   else
     frame = first(st[:frames])
@@ -1905,29 +1929,38 @@ def exec_exit(st)
 end
 
 @doc """
+entered_frame: a machine inside a new frame: a fresh stack, the callee-saved registers kept, and the program counter at the target.
+
+    entered_frame(machine(assemble([])), 5, 7)[:pc] #=> 7
+    size(entered_frame(machine(assemble([])), 5, 7)[:frames]) #=> 1
+"""
+def entered_frame(st, back, target)
+  if size(st[:frames]) >= 8
+    raise(:bpf_fault, "calls nest past eight frames")
+  end
+  depth = size(st[:frames]) + 1
+  top = stack_top - depth * 512
+  saved = reduce(
+    (acc, n) -> assoc(acc, n, reg_value(st, n)),
+    {},
+    [6, 7, 8, 9, 10]
+  )
+  entered = assoc(add_region(st, top - 512, 512), 10, top)
+  framed = assoc(entered, :frames, append([{back:, saved:}], st[:frames]))
+  assoc(framed, :pc, target)
+end
+
+@doc """
 exec_call: a machine after one call: a subprogram entered, or a helper answered and r1 to r5 cleared.
 
     reg_value(exec_call(machine(assemble([])), call(:get_smp_processor_id)), 0) #=> 0
 """
 def exec_call(st, i)
+  if st[:held] != nil and (i[:src] != 0 or i[:imm] != helper_id(:spin_unlock))
+    raise(:bpf_fault, "a call was made while holding a spin lock")
+  end
   if i[:src] == 1
-    if size(st[:frames]) >= 8
-      raise(:bpf_fault, "calls nest past eight frames")
-    end
-    depth = size(st[:frames]) + 1
-    top = stack_top - depth * 512
-    saved = reduce(
-      (acc, n) -> assoc(acc, n, reg_value(st, n)),
-      {},
-      [6, 7, 8, 9, 10]
-    )
-    entered = assoc(add_region(st, top - 512, 512), 10, top)
-    framed = assoc(
-      entered,
-      :frames,
-      append([{back: st[:pc] + 1, saved:}], st[:frames])
-    )
-    assoc(framed, :pc, st[:pc] + 1 + i[:imm])
+    entered_frame(st, st[:pc] + 1, st[:pc] + 1 + i[:imm])
   elsif i[:src] == 2
     raise(:bpf_fault, "the model has no kernel function #{to_s(i[:imm])}")
   else
@@ -2201,10 +2234,84 @@ def read_kernel(st)
 end
 
 @doc """
+spin_lock_taken: a machine holding the lock r1 names. One program runs at a time here, so the lock is never contended; a second lock is a fault, as the verifier refuses one.
+
+    spin_lock_taken(assoc(machine(assemble([])), 1, 7))[:held] #=> 7
+    (spin_lock_taken(spin_lock_taken(machine(assemble([])))) rescue :refused) #=> :refused
+"""
+def spin_lock_taken(st)
+  if st[:held] != nil
+    raise(:bpf_fault, "a second spin lock was taken while one is held")
+  end
+  assoc(assoc(st, :held, reg_value(st, 1)), 0, 0)
+end
+
+@doc """
+spin_lock_given: a machine that gave up the lock r1 names. A lock it does not hold is a fault.
+
+    spin_lock_given(spin_lock_taken(machine(assemble([]))))[:held].nil? #=> true
+    (spin_lock_given(machine(assemble([]))) rescue :refused) #=> :refused
+"""
+def spin_lock_given(st)
+  if st[:held].nil? or st[:held] != reg_value(st, 1)
+    raise(:bpf_fault, "a spin lock was released that is not held")
+  end
+  assoc(assoc(st, :held, nil), 0, 0)
+end
+
+@doc """
+helper_loop: `bpf_loop`: the callback in r2 run with an index and r3, until it answers 1 or r1 is reached; r0 is the runs made.
+
+    reg_value(helper_loop(assoc(machine(assemble([])), 1, 0)), 0) #=> 0
+"""
+def helper_loop(st)
+  limit = reg_value(st, 1)
+  target = reg_value(st, 2)
+  state = reg_value(st, 3)
+  back = st[:pc]
+  depth = size(st[:frames])
+  acc = {st:, runs: 0, stop: limit == 0}
+  while(
+    not acc[:stop],
+    set!(acc, loop_turn(acc, {target:, state:, back:, depth:, limit:}))
+  )
+  assoc(assoc(acc[:st], :pc, back), 0, acc[:runs])
+end
+
+@doc """
+loop_turn: one run of a `bpf_loop` callback, from its frame to its return.
+
+    size(loop_turn({st: machine(assemble([exit_program])), runs: 0}, {target: 0, state: 0, back: 9, depth: 0, limit: 1})[:st][:frames]) #=> 0
+"""
+def loop_turn(acc, call_at)
+  entered = assoc(
+    assoc(
+      entered_frame(acc[:st], call_at[:back], call_at[:target]),
+      1,
+      acc[:runs]
+    ),
+    2,
+    call_at[:state]
+  )
+  table = entered[:by_slot]
+  running = entered
+  while(
+    size(running[:frames]) > call_at[:depth],
+    set!(running, tick(running, table, 1_000_000))
+  )
+  runs = acc[:runs] + 1
+  {
+    st: running,
+    runs:,
+    stop: runs >= call_at[:limit] or reg_value(running, 0) == 1
+  }
+end
+
+@doc """
 model_helper: the machine after one helper, a fault for a helper it does not model.
 
     reg_value(model_helper(machine(assemble([])), :get_smp_processor_id), 0) #=> 0
-    (model_helper(machine(assemble([])), :loop) rescue :refused) #=> :refused
+    (model_helper(machine(assemble([])), :tail_call) rescue :refused) #=> :refused
 """
 def model_helper(st, name)
   case name
@@ -2240,6 +2347,12 @@ def model_helper(st, name)
     ring_submit(st)
   when :ringbuf_discard
     assoc(st, 0, 0)
+  when :spin_lock
+    spin_lock_taken(st)
+  when :spin_unlock
+    spin_lock_given(st)
+  when :loop
+    helper_loop(st)
   else
     raise(:bpf_fault, "the model has no helper #{to_s(name)}")
   end
@@ -2268,6 +2381,8 @@ def step(st, by_slot)
     exec_atomic(st, i)
   elsif cls == 3
     exec_store(st, i)
+  elsif i[:code] == 24 and i[:src] == 4
+    advance(assoc(st, i[:dst], st[:pc] + 1 + i[:imm]), 2)
   elsif i[:code] == 24
     advance(assoc(st, i[:dst], bit_or(i[:imm], shift_left(i[:imm2], 32))), 2)
   else
@@ -2524,6 +2639,16 @@ def declare_map(name, kind, key_size, value_size, max_entries)
 end
 
 @doc """
+declare_locked: a map whose every value is a spin lock and one 8-byte integer, the shape `locked_add` takes. It needs its program's BTF, which `install` makes.
+
+    declare_locked(:m, :array, 4, 1).value_size #=> 16
+    declare_locked(:m, :array, 4, 1).lock #=> true
+"""
+def declare_locked(name, kind, key_size, max_entries)
+  assoc(declare_map(name, kind, key_size, 16, max_entries), :lock, true)
+end
+
+@doc """
 packet_of: the packet as the machine holds it now, from its `data` pointer to its `data_end`.
 
     packet_of(machine(assemble([]), {packet: [1, 2]})) #=> [1, 2]
@@ -2712,6 +2837,15 @@ def emit(_m, _values)
 end
 
 @doc """
+locked_add: in a compiled program, add to a `declare_locked` map's integer under its spin lock, wrapping, and answer the new total; a key the map does not hold is a fault. In the interpreter it raises.
+
+    (locked_add(nil, 0, 1) rescue :compiled) #=> :compiled
+"""
+def locked_add(_m, _key, _n)
+  compiled_only("locked_add")
+end
+
+@doc """
 kernel_read: inside a compiled program, the `size`-byte field a kernel pointer's struct holds, its offset taken from the running kernel's BTF when the program loads. A failed read or a field of another size on this kernel is a fault or a refusal, never a wrong value.
 
     (kernel_read(0, "task_struct", ["pid"], 4) rescue :compiled) #=> :compiled
@@ -2815,6 +2949,15 @@ faulting: a compiler state whose program needs its fault path.
 """
 def faulting(st)
   assoc(st, :faults, true)
+end
+
+@doc """
+fault_label: the label a fault jumps to in the function being compiled.
+
+    fault_label(start_state(:xdp)) #=> "fault"
+"""
+def fault_label(st)
+  st[:fault_to]
 end
 
 @doc """
@@ -3166,7 +3309,9 @@ overflow_check: a compiler state with an overflow test on r3 going to the fault 
     overflow_check(start_state(:xdp), [])[:faults] #=> true
 """
 def overflow_check(st, code)
-  faulting(checked_count(out(st, append(code, [jump(:slt, 3, 0, "fault")]))))
+  faulting(
+    checked_count(out(st, append(code, [jump(:slt, 3, 0, fault_label(st))])))
+  )
 end
 
 @doc """
@@ -3317,7 +3462,9 @@ def gen_shift(st, form, op, word)
   else
     typed(
       faulting(
-        checked_count(out(o, [jump(:gt, 1, 63, "fault"), alu(op, 0, r(1))]))
+        checked_count(
+          out(o, [jump(:gt, 1, 63, fault_label(st)), alu(op, 0, r(1))])
+        )
       ),
       :int
     )
@@ -3337,7 +3484,9 @@ def gen_unsigned_divide(st, form, op, word)
   else
     typed(
       faulting(
-        checked_count(out(o, [jump(:eq, 1, 0, "fault"), alu(op, 0, r(1))]))
+        checked_count(
+          out(o, [jump(:eq, 1, 0, fault_label(st)), alu(op, 0, r(1))])
+        )
       ),
       :int
     )
@@ -3730,9 +3879,294 @@ def gen_call(st, name, args, tail)
     refuse(
       "`#{name}` recurses and not in tail position; a kernel program has no such stack"
     )
+  elsif member?(name, st[:globals])
+    gen_global_call(st, name, f, args)
   else
     gen_inline(st, name, f, args)
   end
+end
+
+@doc """
+argument_held: one argument of a global subprogram, its value kept in a stack slot; a context takes no slot. It adds to `:held_args`, `{t:, slot:}` for each.
+
+    argument_held(assoc(start_state(:xdp), :held_args, []), 7)[:held_args] #=> [{t: :int, slot: 0}]
+    (argument_held(assoc(start_state(:xdp), :held_args, []), form_of("(bpf/map_get)")) rescue :refused) #=> :refused
+"""
+def argument_held(st, arg)
+  value = gen(st, arg, nil)
+  case value[:t]
+  when :ctx
+    update(value, :held_args, (rows) -> append(rows, [{t: :ctx}]))
+  when :int
+    argument_spilled(value)
+  when :bool
+    argument_spilled(value)
+  else
+    refuse(
+      "a global subprogram takes integers, booleans and the context, got #{to_s(value[:t])}"
+    )
+  end
+end
+
+@doc """
+argument_spilled: the value in r0 kept in a new slot as the next argument.
+
+    argument_spilled(typed(assoc(start_state(:xdp), :held_args, []), :int))[:top] #=> 1
+"""
+def argument_spilled(value)
+  held = take_slot(value)
+  at = held[:top] - 1
+  update(
+    out(held, [store(:dw, 10, slot_offset(at), r(0))]),
+    :held_args,
+    (rows) -> append(rows, [{t: value[:t], slot: at}])
+  )
+end
+
+@doc """
+argument_loaded: the instruction that puts a held argument in its register.
+
+    argument_loaded({t: :ctx}, 1).src #=> 6
+    argument_loaded({t: :int, slot: 0}, 2).dst #=> 2
+"""
+def argument_loaded(row, reg)
+  if row[:t] == :ctx
+    alu(:mov, reg, r(6))
+  else
+    load(:dw, reg, 10, slot_offset(row[:slot]))
+  end
+end
+
+@doc """
+sub_label: the label a global subprogram starts at.
+
+    sub_label("%root/f") #=> "sub.f"
+"""
+def sub_label(name)
+  join(["sub", short_name(name)], ".")
+end
+
+@doc """
+gen_global_call: a call to a definition the options name global: its arguments in r1 up, then a real call. A subprogram that can fault gets one more argument, a pointer to a slot it sets, and the caller then faults too.
+
+    p = compile_forms(read_forms("(define (%root/g a) (+ a 1)) (define (%root/e c) (%root/g 41))"), {entry: :e, kind: :xdp, on_fault: 9, global: [:g]})
+    run(p).ret #=> 42
+"""
+def gen_global_call(st, name, f, args)
+  params = f[:params]
+  if size(params) != size(args)
+    refuse(
+      "`#{name}` takes #{to_s(size(params))} arguments, got #{to_s(size(args))}"
+    )
+  end
+  top = st[:top]
+  held = reduce(argument_held, assoc(st, :held_args, []), args)
+  rows = held[:held_args]
+  ready = sub_compiled(
+    dissoc(held, :held_args),
+    name,
+    f,
+    map((a) -> a[:t], rows)
+  )
+  sub = get(ready[:subs], name)
+  count = size(rows) +
+    if sub[:faults]
+      1
+    else
+      0
+    end
+  if count > 5
+    refuse(
+      "`#{name}` takes #{to_s(count)} arguments with its fault pointer; a call passes 5 registers"
+    )
+  end
+  loads = map(
+    (pair) -> argument_loaded(pair[1], first(pair) + 1),
+    zip(range(0, size(rows)), rows)
+  )
+  deep = update(ready, :callee_deep, (d) -> blue::max(d, sub[:deep]))
+  called = if sub[:faults]
+    slotted = take_slot(deep)
+    at = slotted[:top] - 1
+    faulting(
+      out(
+        slotted,
+        [
+          loads,
+          store(:dw, 10, slot_offset(at), 0),
+          fp_at(size(rows) + 1, at),
+          call_local(sub_label(name)),
+          load(:dw, 1, 10, slot_offset(at)),
+          jump(:ne, 1, 0, fault_label(st))
+        ]
+      )
+    )
+  else
+    out(deep, [loads, call_local(sub_label(name))])
+  end
+  typed(assoc(called, :top, top), sub[:ret])
+end
+
+@doc """
+sub_compiled: a compiler state holding a global subprogram's code, compiled once in a frame of its own. Its parameters' kinds are those of its first call; a later call of other kinds is refused.
+
+    get(sub_compiled(start_state(:xdp), "%root/g", {name: "%root/g", params: ["a"], body: 7}, [:int])[:subs], "%root/g")[:ret] #=> :int
+"""
+def sub_compiled(st, name, f, kinds)
+  known = get(st[:subs], name)
+  if known != nil
+    if known[:kinds] != kinds
+      refuse(
+        "`#{name}` is called with #{to_s(kinds)} and #{to_s(known[:kinds])}; a global subprogram has one signature"
+      )
+    end
+    st
+  else
+    sub_built(st, name, f, kinds)
+  end
+end
+
+@doc """
+sub_frame: the place each parameter of a global subprogram has, and what its first instructions keep: {env:, top:, keep:}.
+
+    sub_frame(["a"], [:int])[:env] #=> {"a" => {t: :int, slot: 0}}
+    sub_frame(["c"], [:ctx])[:env] #=> {"c" => {t: :ctx}}
+"""
+def sub_frame(params, kinds)
+  reduce(
+    fn(acc, row)
+      at = first(row)
+      name = row[1]
+      kind = row[2]
+      if kind == :ctx
+        {
+          env: assoc(acc[:env], name, {t: :ctx}),
+          top: acc[:top],
+          keep: append(acc[:keep], [alu(:mov, 6, r(at + 1))])
+        }
+      else
+        {
+          env: assoc(acc[:env], name, {t: kind, slot: acc[:top]}),
+          top: acc[:top] + 1,
+          keep: append(
+            acc[:keep],
+            [store(:dw, 10, slot_offset(acc[:top]), r(at + 1))]
+          )
+        }
+      end
+    end,
+    {env: {}, top: 0, keep: []},
+    map((i) -> [i, params[i], kinds[i]], range(0, size(params)))
+  )
+end
+
+@doc """
+frame_bytes: the stack the verifier counts for a frame of this many slots, each frame at least 32 bytes and rounded up to 32.
+
+    frame_bytes(0) #=> 32
+    frame_bytes(5) #=> 64
+"""
+def frame_bytes(slots)
+  align_up(blue::max(slots * 8, 1), 32)
+end
+
+@doc """
+sub_built: a global subprogram compiled: its body in a fresh frame, and its record in `:subs`.
+
+    size(get(sub_built(start_state(:xdp), "%root/g", {name: "%root/g", params: [], body: 7}, [])[:subs], "%root/g")[:code]) > 0 #=> true
+"""
+def sub_built(st, name, f, kinds)
+  frame = sub_frame(f[:params], kinds)
+  fault_to = "fault.#{short_name(name)}"
+  start = label_name(fresh(st))
+  entered = reduce(
+    (acc, pair) -> assoc(acc, first(pair), pair[1]),
+    fresh(st),
+    [
+      [:code, [label(start)]],
+      [:env, frame[:env]],
+      [:top, frame[:top]],
+      [:high, frame[:top]],
+      [:faults, false],
+      [:fault_to, fault_to],
+      [:callee_deep, 0],
+      [:calling, append(st[:calling], [name])],
+      [:starts, assoc({}, name, start)]
+    ]
+  )
+  body = gen(entered, f[:body], name)
+  if not member?(body[:t], %i[int bool never])
+    refuse(
+      "a global subprogram answers an integer or a boolean, got #{to_s(body[:t])}"
+    )
+  end
+  ret = if body[:t] == :never
+    :int
+  else
+    body[:t]
+  end
+  fault_slot = body[:high]
+  slots = if body[:faults]
+    fault_slot + 1
+  else
+    fault_slot
+  end
+  keep = if body[:faults]
+    append(
+      frame[:keep],
+      [store(:dw, 10, slot_offset(fault_slot), r(size(f[:params]) + 1))]
+    )
+  else
+    frame[:keep]
+  end
+  ending = if body[:faults]
+    skip = "#{fault_to}.out"
+    [
+      exit_program,
+      label(fault_to),
+      load(:dw, 1, 10, slot_offset(fault_slot)),
+      jump(:eq, 1, 0, skip),
+      store(:dw, 1, 0, 1),
+      label(skip),
+      alu(:mov, 0, 0),
+      exit_program
+    ]
+  else
+    [exit_program]
+  end
+  record = {
+    name:,
+    kinds:,
+    ret:,
+    faults: body[:faults],
+    deep: frame_bytes(slots) + body[:callee_deep],
+    code: append(*[[label(sub_label(name))], keep, body[:code], ending])
+  }
+  reduce(
+    (acc, k) -> assoc(acc, k, get(body, k)),
+    assoc(
+      assoc(st, :subs, assoc(body[:subs], name, record)),
+      :sub_order,
+      append(body[:sub_order], [name])
+    ),
+    %i[labels checks proven]
+  )
+end
+
+@doc """
+stack_checked: a frame's total with the deepest chain below it, refused past the 512 bytes the verifier gives one chain of calls.
+
+    stack_checked(32, 64) #=> 96
+    (stack_checked(512, 32) rescue :refused) #=> :refused
+"""
+def stack_checked(own, below)
+  total = own + below
+  if total > 512
+    refuse(
+      "this chain of global subprograms holds #{to_s(total)} bytes of stack; the verifier gives one chain 512"
+    )
+  end
+  total
 end
 
 @doc """
@@ -3950,7 +4384,7 @@ def gen_map_put(st, args)
             fp_at(3, at),
             alu(:mov, 4, 0),
             call(:map_update_elem),
-            jump(:ne, 0, 0, "fault")
+            jump(:ne, 0, 0, fault_label(st))
           ]
         )
       ),
@@ -3999,7 +4433,7 @@ def gen_map_add(st, args)
             fp_at(3, at),
             alu(:mov, 4, 0),
             call(:map_update_elem),
-            jump(:ne, 0, 0, "fault"),
+            jump(:ne, 0, 0, fault_label(st)),
             label(done),
             alu(:mov, 0, 0)
           ]
@@ -4009,6 +4443,53 @@ def gen_map_add(st, args)
       st[:top]
     ),
     :unit
+  )
+end
+
+@doc """
+gen_locked_add: `locked_add`: the value found, its spin lock taken, its integer added to, the lock given back, and the total in r0. r7 and r8 are the two registers a helper leaves alone that nothing else here uses.
+
+    run(compiled_source("(define %root/M (bpf/declare_locked :m :array 4 1)) (define (%root/e c) (begin (bpf/locked_add %root/M 0 40) (bpf/locked_add %root/M 0 2)))"), {maps: [declare_locked(:m, :array, 4, 1)]}).ret #=> 42
+"""
+def gen_locked_add(st, args)
+  m = map_named(st, first(args))
+  if m[:lock] != true
+    refuse(
+      "locked_add takes a map made by declare_locked, and #{to_s(m[:name])} is not"
+    )
+  end
+  keyed = key_on_stack(st, args[1])
+  amount = need_int(gen(keyed, args[2], nil), "the amount of locked_add")
+  held = take_slot(amount)
+  at = held[:top] - 1
+  typed(
+    assoc(
+      faulting(
+        out(
+          held,
+          [
+            store(:dw, 10, slot_offset(at), r(0)),
+            map_ref(1, m[:name]),
+            fp_at(2, keyed[:key_at]),
+            call(:map_lookup_elem),
+            jump(:eq, 0, 0, fault_label(st)),
+            alu(:mov, 7, r(0)),
+            alu(:mov, 1, r(7)),
+            call(:spin_lock),
+            load(:dw, 8, 7, 8),
+            load(:dw, 1, 10, slot_offset(at)),
+            alu(:add, 8, r(1)),
+            store(:dw, 7, 8, r(8)),
+            alu(:mov, 1, r(7)),
+            call(:spin_unlock),
+            alu(:mov, 0, r(8))
+          ]
+        )
+      ),
+      :top,
+      st[:top]
+    ),
+    :int
   )
 end
 
@@ -4192,7 +4673,7 @@ def gen_kernel_read(st, args)
             fp_at(1, at),
             alu(:mov, 2, count),
             call(:probe_read_kernel),
-            jump(:ne, 0, 0, "fault"),
+            jump(:ne, 0, 0, fault_label(st)),
             load(scalar_size(count), 0, 10, slot_offset(at))
           ]
         )
@@ -4255,7 +4736,7 @@ def packet_bounds(st, off_form, count, kind)
               [
                 alu(:mov, 4, r(2)),
                 alu(:add, 4, literal + count),
-                jump(:gt, 4, r(3), "fault"),
+                jump(:gt, 4, r(3), fault_label(st)),
                 alu(:add, 2, literal)
               ]
             )
@@ -4274,11 +4755,11 @@ def packet_bounds(st, off_form, count, kind)
           append(
             base,
             [
-              jump(:gt, 0, 65535, "fault"),
+              jump(:gt, 0, 65535, fault_label(st)),
               alu(:add, 2, r(0)),
               alu(:mov, 4, r(2)),
               alu(:add, 4, count),
-              jump(:gt, 4, r(3), "fault")
+              jump(:gt, 4, r(3), fault_label(st))
             ]
           )
         )
@@ -4415,6 +4896,8 @@ def gen_word(st, word, args)
     gen_map_add(st, args)
   when "map_delete"
     gen_map_delete(st, args)
+  when "locked_add"
+    gen_locked_add(st, args)
   when "emit"
     gen_emit(st, args)
   when "helper"
@@ -4553,6 +5036,8 @@ def declared_map_of(form)
       value_size: form[4],
       max_entries: form[5]
     }
+  elsif head_name(form) == "bpf/declare_locked" and size(form) == 5
+    declare_locked(form[1], form[2], form[3], form[4])
   end
 end
 
@@ -4684,7 +5169,12 @@ def start_state(kind)
     fns: {},
     consts: {},
     map_consts: {},
-    kind:
+    kind:,
+    fault_to: "fault",
+    globals: [],
+    subs: {},
+    sub_order: [],
+    callee_deep: 0
   }
 end
 
@@ -4708,7 +5198,7 @@ def with_map(body)
 end
 
 @doc """
-compile_forms: a resolved program's forms to a kernel program: its assembled instructions, its maps, and a `report` counting the safety checks proven away and the ones emitted. `opts` takes {entry:, kind:, on_fault:}: the definition to compile, the program type, and the value returned on a fault, which is what a raise is at this position. A construct the position has no lowering for raises :bpf_compile naming it.
+compile_forms: a resolved program's forms to a kernel program: its assembled instructions, its maps, its functions, and a `report` counting the safety checks proven away and the ones emitted. `opts` takes {entry:, kind:, on_fault:, global:}: the definition to compile, the program type, the value returned on a fault, which is what a raise is at this position, and the definitions to make real global subprograms, each verified alone, where every other call inlines. A construct the position has no lowering for raises :bpf_compile naming it.
 
     p = compile_forms(read_forms("(define (%root/f ctx) 2)"), {entry: :f, kind: :xdp, on_fault: 0})
     run(p).ret #=> 2
@@ -4741,25 +5231,28 @@ def compile_forms(forms, opts)
       [:calling, [f[:name]]],
       [:fns, top[:fns]],
       [:consts, top[:consts]],
-      [:map_consts, top[:map_consts]]
+      [:map_consts, top[:map_consts]],
+      [:globals, global_names(top, f, opts[:global] or [])]
     ]
   )
   body = gen(st, f[:body], nil)
   if body[:t] != :int and body[:t] != :never
     refuse("a program's entry answers an integer, got #{to_s(body[:t])}")
   end
+  stack_checked(frame_bytes(body[:high]), body[:callee_deep])
   ending = if body[:faults]
     [
       exit_program,
-      label("fault"),
+      label(fault_label(st)),
       alu(:mov, 0, opts[:on_fault] or 0),
       exit_program
     ]
   else
     [exit_program]
   end
-  program = assemble(append(body[:code], ending))
-  apply_shape(
+  subs = map((n) -> get(body[:subs], n), body[:sub_order])
+  program = assemble(append(*[body[:code], ending, map((s) -> s[:code], subs)]))
+  shaped = apply_shape(
     program,
     {
       maps: top[:map_list],
@@ -4770,10 +5263,612 @@ def compile_forms(forms, opts)
         proven: body[:proven],
         slots: body[:high],
         slots_of: 64,
-        insns: program[:slots]
+        insns: program[:slots],
+        subprograms: size(subs)
       }
     }
   )
+  assoc(
+    shaped,
+    :funcs,
+    append(
+      [
+        {
+          name: short_name(f[:name]),
+          at: 0,
+          linkage: :global,
+          params: [:ctx],
+          ret: :int
+        }
+      ],
+      map(
+        fn(s)
+          {
+            name: short_name(s[:name]),
+            at: get(program[:labels], sub_label(s[:name])),
+            linkage: :global,
+            params: sub_params(s),
+            ret: s[:ret]
+          }
+        end,
+        subs
+      )
+    )
+  )
+end
+
+@doc """
+sub_params: a subprogram's parameter kinds as BTF will say them, its fault pointer last.
+
+    sub_params({kinds: [:int], faults: true}) #=> [:int, :fault]
+    sub_params({kinds: [], faults: false}) #=> []
+"""
+def sub_params(s)
+  if s[:faults]
+    append(s[:kinds], [:fault])
+  else
+    s[:kinds]
+  end
+end
+
+@doc """
+global_names: the resolved names of the definitions the options make global, refusing the entry and a name with no definition.
+
+    global_names({fn_names: ["%root/f"]}, {name: "%root/e"}, [:f]) #=> ["%root/f"]
+    global_names({fn_names: []}, {name: "%root/e"}, []) #=> []
+    (global_names({fn_names: []}, {name: "%root/e"}, [:f]) rescue :refused) #=> :refused
+    (global_names({fn_names: ["%root/e"]}, {name: "%root/e"}, [:e]) rescue :refused) #=> :refused
+"""
+def global_names(top, entry, wanted)
+  map(
+    fn(want)
+      found = filter((n) -> short_name(n) == to_s(want), top[:fn_names])
+      if found == []
+        refuse("no definition named #{to_s(want)} to make global")
+      elsif first(found) == entry[:name]
+        refuse(
+          "the entry #{to_s(want)} is the program; it cannot also be a subprogram"
+        )
+      end
+      first(found)
+    end,
+    wanted
+  )
+end
+
+@doc """
+with_funcs: an assembled program told which of its labels start functions, the first at the start: each row {name:, label:, linkage:, params:, ret:}, a :static one being a callback's. The program's BTF follows from this.
+
+    with_funcs(assemble([exit_program, label(:f), exit_program]), [{name: "e", linkage: :global, params: [:ctx]}, {name: "f", label: :f, linkage: :static, params: [:int, :int]}])[:funcs][1][:at] #=> 1
+"""
+def with_funcs(program, rows)
+  assoc(
+    program,
+    :funcs,
+    map(
+      fn(row)
+        at = if row[:label].nil?
+          0
+        else
+          get(program[:labels], row[:label])
+        end
+        if at.nil?
+          raise(:bad_option, "no label #{to_s(row[:label])}")
+        end
+        {
+          name: row[:name],
+          at:,
+          linkage: row[:linkage],
+          params: row[:params],
+          ret: row[:ret] or :int
+        }
+      end,
+      rows
+    )
+  )
+end
+
+@doc """
+map_kinds: `enum bpf_map_type`, each by its number.
+
+    nth(2, map_kinds) #=> :array
+"""
+def map_kinds()
+  %i[
+    unspec
+    hash
+    array
+    prog_array
+    perf_event_array
+    percpu_hash
+    percpu_array
+    stack_trace
+    cgroup_array
+    lru_hash
+    lru_percpu_hash
+    lpm_trie
+    array_of_maps
+    hash_of_maps
+    devmap
+    sockmap
+    cpumap
+    xskmap
+    sockhash
+    cgroup_storage_deprecated
+    reuseport_sockarray
+    percpu_cgroup_storage_deprecated
+    queue
+    stack
+    sk_storage
+    devmap_hash
+    struct_ops
+    ringbuf
+    inode_storage
+    task_storage
+    bloom_filter
+    user_ringbuf
+    cgrp_storage
+    arena
+  ]
+end
+
+@doc """
+needs_btf?: whether a program's load needs its BTF: more than one function, a callback, or a map with a spin lock. A plain program loads with none, as it always has.
+
+    needs_btf?({maps: [], funcs: [{}]}) #=> false
+    needs_btf?({maps: [], funcs: [{}, {}]}) #=> true
+    needs_btf?({maps: [{lock: true}]}) #=> true
+    needs_btf?({}) #=> false
+"""
+def needs_btf?(program)
+  size(program[:funcs] or []) > 1 or
+    filter((m) -> m[:lock] == true, program[:maps] or []) != []
+end
+
+@doc """
+ctx_struct: the kernel's name and size for the context of a program type, and an XDP context's members; nil when this table has none.
+
+    ctx_struct(:xdp)[:name] #=> "xdp_md"
+    ctx_struct(:tracing).nil? #=> true
+"""
+def ctx_struct(kind)
+  case kind
+  when :xdp
+    {
+      name: "xdp_md",
+      size: 24,
+      members: %w[
+        data
+        data_end
+        data_meta
+        ingress_ifindex
+        rx_queue_index
+        egress_ifindex
+      ]
+    }
+  when :sched_cls
+    {name: "__sk_buff", size: 192, members: []}
+  when :sched_act
+    {name: "__sk_buff", size: 192, members: []}
+  when :socket_filter
+    {name: "__sk_buff", size: 192, members: []}
+  end
+end
+
+@doc """
+interned: a BTF table with one more type, and the id in `:id`, for a chain of them.
+
+    interned({types: []}, btf::pointer_to(0)).id #=> 1
+"""
+def interned(acc, t)
+  got = btf::intern(acc[:types], t)
+  assoc(assoc(acc, :types, got[:types]), :id, got[:id])
+end
+
+@doc """
+ctx_pointer: a BTF table holding a pointer to a program type's context; a type with no named context has a pointer to void, which only its entry can take.
+
+    ctx_pointer({types: []}, :tracing).id #=> 1
+    ctx_pointer({types: []}, :xdp).id #=> 3
+"""
+def ctx_pointer(acc, kind)
+  c = ctx_struct(kind)
+  if c.nil?
+    interned(acc, btf::pointer_to(0))
+  else
+    word = interned(acc, btf::int_type("unsigned int", 4, false))
+    members = map(
+      (pair) -> {name: pair[1], type: word[:id], bits: first(pair) * 32},
+      zip(range(0, size(c[:members])), c[:members])
+    )
+    named = interned(
+      word,
+      btf::sized_type(:struct, c[:name], c[:size], members)
+    )
+    interned(named, btf::pointer_to(named[:id]))
+  end
+end
+
+@doc """
+param_type: a BTF table holding the type of one parameter kind, a fault pointer being a pointer to a `long long`.
+
+    param_type({types: []}, :int, :xdp).id #=> 1
+    param_type({types: []}, :fault, :xdp).id #=> 2
+    (param_type({types: []}, :ctx, :tracing) rescue :refused) #=> :refused
+"""
+def param_type(acc, param, kind)
+  case param
+  when :ctx
+    if ctx_struct(kind).nil?
+      refuse(
+        "a subprogram of a #{to_s(kind)} program cannot take the context: BTF has no name for it here"
+      )
+    end
+    ctx_pointer(acc, kind)
+  when :fault
+    word = interned(acc, btf::int_type("long long", 8))
+    interned(word, btf::pointer_to(word[:id]))
+  else
+    interned(acc, btf::int_type("long long", 8))
+  end
+end
+
+@doc """
+func_btf: a BTF table holding one function and its proto; the entry's context may be void, a subprogram's may not.
+
+    func_btf({types: []}, {name: "f", linkage: :global, params: [:int]}, :xdp, false).id #=> 3
+"""
+def func_btf(acc, f, kind, is_entry)
+  params = reduce(
+    fn(got, pair)
+      at = first(pair)
+      param = pair[1]
+      t = if is_entry and param == :ctx
+        ctx_pointer(got, kind)
+      else
+        param_type(got, param, kind)
+      end
+      assoc(
+        t,
+        :rows,
+        append(got[:rows], [{name: "arg#{to_s(at)}", type: t[:id]}])
+      )
+    end,
+    assoc(acc, :rows, []),
+    zip(range(0, size(f[:params])), f[:params])
+  )
+  returning = interned(params, btf::int_type("long long", 8))
+  proto = interned(returning, btf::proto_type(returning[:id], params[:rows]))
+  interned(proto, btf::linked_type(:func, f[:name], proto[:id], f[:linkage]))
+end
+
+@doc """
+map_uint: a BTF table holding the type a BTF-defined map says an integer with: a pointer to an array of that many.
+
+    map_uint({types: []}, 8).id #=> 4
+"""
+def map_uint(acc, value)
+  int_id = interned(acc, btf::int_type("int", 4))
+  index = interned(int_id, btf::int_type("__ARRAY_SIZE_TYPE__", 4))
+  counted = interned(index, btf::array_of(int_id[:id], index[:id], value))
+  interned(counted, btf::pointer_to(counted[:id]))
+end
+
+@doc """
+map_member: a BTF table with one member added to the map struct being built, 64 bits on from the last.
+
+    map_member({types: [], rows: []}, "type", 2)[:rows][0][:name] #=> "type"
+"""
+def map_member(acc, name, value)
+  got = map_uint(acc, value)
+  member = {name:, type: got[:id], bits: size(acc[:rows]) * 64}
+  assoc(got, :rows, append(acc[:rows], [member]))
+end
+
+@doc """
+map_btf: a BTF table holding one map's definition as libbpf reads `.maps`, and its variable: `:var`, and for a map with a spin lock `:key` and `:value`.
+
+    get(map_btf({types: []}, declare_map(:m, :array, 4, 8, 1)), :var) > 0 #=> true
+    map_btf({types: []}, declare_locked(:m, :array, 4, 1))[:value] > 0 #=> true
+"""
+def map_btf(acc, m)
+  kinds_at = index_of(map_kinds, m[:kind])
+  if kinds_at < 0
+    raise(:bad_option, "no map kind #{to_s(m[:kind])}")
+  end
+  cleared = dissoc(dissoc(assoc(acc, :rows, []), :key), :value)
+  started = map_member(cleared, "type", kinds_at)
+  sized = if m[:lock] == true
+    locked_members(started, m)
+  elsif m[:key_size] == 0
+    started
+  else
+    map_member(
+      map_member(started, "key_size", m[:key_size]),
+      "value_size",
+      m[:value_size]
+    )
+  end
+  full = map_member(sized, "max_entries", m[:max_entries])
+  shape = interned(
+    full,
+    btf::sized_type(:struct, "", size(full[:rows]) * 8, full[:rows])
+  )
+  var = interned(
+    shape,
+    btf::linked_type(:var, to_s(m[:name]), shape[:id], :global)
+  )
+  assoc(assoc(var, :var, var[:id]), :var_size, size(full[:rows]) * 8)
+end
+
+@doc """
+locked_members: the key and value members of a map with a spin lock: the value is the kernel's `struct bpf_spin_lock`, padding, then one integer. `:key` and `:value` hold their ids, which the kernel's map takes.
+
+    locked_members({types: [], rows: []}, declare_locked(:m, :array, 4, 1))[:key] > 0 #=> true
+"""
+def locked_members(acc, m)
+  key_type = interned(
+    acc,
+    btf::int_type(key_type_name(m[:key_size]), m[:key_size], false)
+  )
+  word = interned(key_type, btf::int_type("unsigned int", 4, false))
+  lock = interned(
+    word,
+    btf::sized_type(
+      :struct,
+      "bpf_spin_lock",
+      4,
+      [{name: "val", type: word[:id], bits: 0}]
+    )
+  )
+  total = interned(lock, btf::int_type("long long", 8))
+  value = interned(
+    total,
+    btf::sized_type(
+      :struct,
+      "blue_locked",
+      16,
+      [
+        {name: "lock", type: lock[:id], bits: 0},
+        {name: "total", type: total[:id], bits: 64}
+      ]
+    )
+  )
+  key_ptr = interned(value, btf::pointer_to(key_type[:id]))
+  value_ptr = interned(key_ptr, btf::pointer_to(value[:id]))
+  rows = append(
+    acc[:rows],
+    [
+      {name: "key", type: key_ptr[:id], bits: size(acc[:rows]) * 64},
+      {name: "value", type: value_ptr[:id], bits: (size(acc[:rows]) + 1) * 64}
+    ]
+  )
+  assoc(
+    assoc(assoc(value_ptr, :rows, rows), :key, key_type[:id]),
+    :value,
+    value[:id]
+  )
+end
+
+@doc """
+key_type_name: the C name of an unsigned integer of this many bytes, as clang writes it in BTF.
+
+    key_type_name(4) #=> "unsigned int"
+    key_type_name(8) #=> "unsigned long long"
+    (key_type_name(3) rescue :refused) #=> :refused
+"""
+def key_type_name(count)
+  case count
+  when 1
+    "unsigned char"
+  when 2
+    "unsigned short"
+  when 4
+    "unsigned int"
+  when 8
+    "unsigned long long"
+  else
+    refuse("a key here is 1, 2, 4 or 8 bytes, got #{to_s(count)}")
+  end
+end
+
+@doc """
+section_name: the ELF section libbpf reads a program type from; a type it has no name for here raises.
+
+    section_name(:xdp) #=> "xdp"
+    section_name(:sched_cls) #=> "tc"
+    (section_name(:nope) rescue :refused) #=> :refused
+"""
+def section_name(kind)
+  case kind
+  when :xdp
+    "xdp"
+  when :sched_cls
+    "tc"
+  when :socket_filter
+    "socket"
+  when :kprobe
+    "kprobe"
+  when :tracepoint
+    "tracepoint"
+  when :raw_tracepoint
+    "raw_tracepoint"
+  when :tracing
+    "fentry"
+  when :lsm
+    "lsm"
+  else
+    raise(:bad_option, "no ELF section for a #{to_s(kind)} program")
+  end
+end
+
+@doc """
+program_btf: a program's own BTF: {types:, names:, bytes:, ext:, func_info:, map_types:, map_vars:}. `bytes` is the blob for `.BTF` and BTF_LOAD; `ext` the `.BTF.ext`; `func_info` `{at:, type:}` by slot for BPF_PROG_LOAD; `map_types` each map's key and value ids where it has them; `map_vars` each map's variable. A program that came from an object keeps the BTF it came with.
+
+    program_btf(compile_forms(read_forms("(define (%root/e c) 2)"), {entry: :e, kind: :xdp}))[:func_info] #=> [{at: 0, type: 6}]
+    btf::read(program_btf(compile_forms(read_forms("(define (%root/e c) 2)"), {entry: :e, kind: :xdp}))[:bytes])[:count] > 0 #=> true
+"""
+def program_btf(program)
+  if program[:btf] != nil
+    program[:btf]
+  else
+    fresh_btf(program)
+  end
+end
+
+@doc """
+fresh_btf: a compiled or assembled program's BTF, made from its functions and maps.
+
+    fresh_btf({kind: :xdp, maps: [], funcs: []})[:func_info] #=> []
+"""
+def fresh_btf(program)
+  kind = program[:kind]
+  funcs = program[:funcs] or []
+  with_funcs = reduce(
+    fn(acc, row)
+      f = func_btf(acc, row[1], kind, first(row) == 0)
+      assoc(f, :func_ids, append(acc[:func_ids], [f[:id]]))
+    end,
+    {types: [], func_ids: []},
+    zip(range(0, size(funcs)), funcs)
+  )
+  with_maps = reduce(
+    fn(acc, m)
+      got = map_btf(acc, m)
+      assoc(
+        assoc(
+          got,
+          :map_vars,
+          assoc(
+            acc[:map_vars],
+            to_s(m[:name]),
+            {var: got[:var], size: got[:var_size]}
+          )
+        ),
+        :map_types,
+        assoc(
+          acc[:map_types],
+          to_s(m[:name]),
+          {key: got[:key], value: got[:value]}
+        )
+      )
+    end,
+    assoc(assoc(with_funcs, :map_vars, {}), :map_types, {}),
+    program[:maps] or []
+  )
+  sections = license_section(
+    maps_section(with_maps, program[:maps] or []),
+    program[:license] or "GPL"
+  )
+  types = sections[:types]
+  main_section = if funcs == []
+    ".text"
+  else
+    section_name(kind)
+  end
+  names = [main_section, ".text"]
+  func_rows = zip(funcs, with_funcs[:func_ids])
+  ext_sections = func_info_sections(func_rows, main_section)
+  {
+    types:,
+    names:,
+    bytes: btf::encode(types, names),
+    ext: btf::encode_ext(types, names, ext_sections),
+    func_info: map((row) -> {at: first(row)[:at], type: row[1]}, func_rows),
+    map_types: with_maps[:map_types],
+    map_vars: with_maps[:map_vars]
+  }
+end
+
+@doc """
+maps_section: a BTF table with the `.maps` data section over each map's variable, when there are maps.
+
+    maps_section({types: [], map_vars: {}}, [])[:types] #=> []
+"""
+def maps_section(acc, maps)
+  if maps == []
+    acc
+  else
+    placed = reduce(
+      fn(got, m)
+        var = get(acc[:map_vars], to_s(m[:name]))
+        {
+          at: got[:at] + var[:size],
+          vars: append(
+            got[:vars],
+            [{type: var[:var], offset: got[:at], size: var[:size]}]
+          )
+        }
+      end,
+      {at: 0, vars: []},
+      maps
+    )
+    interned(
+      acc,
+      btf::sized_type(:datasec, ".maps", placed[:at], placed[:vars])
+    )
+  end
+end
+
+@doc """
+license_section: a BTF table with the `license` data section over its one variable, as clang writes `_license`.
+
+    btf::type_at(btf::read(btf::encode(license_section({types: []}, "GPL")[:types])), 5).name #=> "license"
+"""
+def license_section(acc, license)
+  count = length(text_bytes(license)) + 1
+  letter = interned(acc, btf::int_type("char", 1))
+  index = interned(letter, btf::int_type("__ARRAY_SIZE_TYPE__", 4))
+  counted = interned(index, btf::array_of(letter[:id], index[:id], count))
+  var = interned(
+    counted,
+    btf::linked_type(:var, "_license", counted[:id], :global)
+  )
+  interned(
+    var,
+    btf::sized_type(
+      :datasec,
+      "license",
+      count,
+      [{type: var[:id], offset: 0, size: count}]
+    )
+  )
+end
+
+@doc """
+func_info_sections: `.BTF.ext`'s view of a program's functions, the first in its own section and the rest in `.text`, each `at` in bytes from its section's start.
+
+    func_info_sections([[{at: 0}, 4]], "xdp") #=> [{section: "xdp", funcs: [{at: 0, type: 4}]}]
+    func_info_sections([], "xdp") #=> []
+    func_info_sections([[{at: 0}, 4], [{at: 3}, 5]], "xdp")[1] #=> {section: ".text", funcs: [{at: 0, type: 5}]}
+"""
+def func_info_sections(rows, section)
+  if rows == []
+    []
+  else
+    subs = rest(rows)
+    from = if subs == []
+      0
+    else
+      first(first(subs))[:at]
+    end
+    entry_row = {at: first(first(rows))[:at] * 8, type: first(rows)[1]}
+    main = {section:, funcs: [entry_row]}
+    if subs == []
+      [main]
+    else
+      [
+        main,
+        {
+          section: ".text",
+          funcs: map(
+            (row) -> {at: (first(row)[:at] - from) * 8, type: row[1]},
+            subs
+          )
+        }
+      ]
+    end
+  end
 end
 
 @doc """
@@ -5172,7 +6267,7 @@ test "an uninitialised escape, a runaway and an unknown helper are faults, not a
     :refused
   assert (run(assemble([label(:top), ja(:top)]), {max_steps: 50}) rescue
     :refused) == :refused
-  assert (run(assemble([call(:loop), exit_program])) rescue :refused) ==
+  assert (run(assemble([call(:tail_call), exit_program])) rescue :refused) ==
     :refused
 end
 
@@ -5217,6 +6312,168 @@ def refusal_of(text)
   nil
 rescue :bpf_compile as e
   e.message
+end
+
+@doc """
+global_program: a compiled program from resolved text, entry `e`, faulting to 9, with these definitions global.
+
+    run(global_program("(define (%root/e c) 1)", [])).ret #=> 1
+"""
+def global_program(text, names)
+  compile_forms(
+    read_forms(text),
+    {entry: :e, kind: :xdp, on_fault: 9, global: names}
+  )
+end
+
+test "a global subprogram answers as the inlined call does, in a function of its own"
+  text = "(define (%root/g a b) (+ a b)) (define (%root/e c) (%root/g 40 2))"
+  inlined = compiled_source(text)
+  called = global_program(text, [:g])
+  assert run(inlined).ret == 42
+  assert run(called).ret == 42
+  assert size(inlined[:funcs]) == 1
+  assert size(called[:funcs]) == 2
+  assert called[:funcs][1][:name] == "g"
+  assert called[:funcs][1][:at] > 0
+  assert called[:report][:subprograms] == 1
+end
+
+test "no global names leave the program byte for byte what it was"
+  text = "(define (%root/g a) (+ a 1)) (define (%root/e c) (%root/g 41))"
+  assert encode(global_program(text, [])) == encode(compiled_source(text))
+  assert not needs_btf?(compiled_source(text))
+  assert needs_btf?(global_program(text, [:g]))
+end
+
+test "a fault inside a global subprogram faults the whole program, as it does inlined"
+  text = "(define (%root/g a) (+ a 9223372036854775807)) (define (%root/e c) (begin (%root/g 1) 2))"
+  assert run(compiled_source(text)).ret == 9
+  assert run(global_program(text, [:g])).ret == 9
+  fine = "(define (%root/g a) (+ a 9223372036854775806)) (define (%root/e c) (begin (%root/g 1) 2))"
+  assert run(global_program(fine, [:g])).ret == 2
+end
+
+test "a fault pointer is passed only to a subprogram that can fault, as a last parameter"
+  safe = global_program(
+    "(define (%root/g a) (bit_and a 1)) (define (%root/e c) (%root/g 3))",
+    [:g]
+  )
+  assert safe[:funcs][1][:params] == [:int]
+  risky = global_program(
+    "(define (%root/g a) (+ a a)) (define (%root/e c) (%root/g 3))",
+    [:g]
+  )
+  assert risky[:funcs][1][:params] == %i[int fault]
+end
+
+test "a global subprogram refuses recursion, a sixth argument, a second signature and the entry"
+  loops = "(define (%root/g a) (+ 1 (%root/g a))) (define (%root/e c) (%root/g 1))"
+  assert (global_program(loops, [:g]) rescue :refused) == :refused
+  many = "(define (%root/g a b c d f h) 1) (define (%root/e x) (%root/g 1 2 3 4 5 6))"
+  assert (global_program(many, [:g]) rescue :refused) == :refused
+  two = "(define (%root/g a) 1) (define (%root/e c) (begin (%root/g 1) (%root/g true)))"
+  assert (global_program(two, [:g]) rescue :refused) == :refused
+  entry = "(define (%root/e c) 1)"
+  assert (global_program(entry, [:e]) rescue :refused) == :refused
+  assert (global_program(entry, [:gone]) rescue :refused) == :refused
+end
+
+test "a chain of frames past 512 bytes of stack is refused before the verifier sees it"
+  assert stack_checked(480, 32) == 512
+  assert (stack_checked(480, 64) rescue :refused) == :refused
+  assert frame_bytes(0) == 32
+  assert frame_bytes(4) == 32
+  assert frame_bytes(5) == 64
+end
+
+test "a spin lock in the machine: added under the lock, and a program that holds it wrongly faults"
+  text = "(define %root/M (bpf/declare_locked :m :array 4 1)) (define (%root/e c) (begin (bpf/locked_add %root/M 0 40) (bpf/locked_add %root/M 0 2)))"
+  maps = [declare_locked(:m, :array, 4, 1)]
+  p = compiled_source(text)
+  got = run(p, {maps:})
+  assert got.ret == 42
+  assert got[:held].nil?
+  assert bytes_int(map_value(got, :m, [0, 0, 0, 0]), 8, 8) == 42
+  assert needs_btf?(p)
+  missing = "(define %root/M (bpf/declare_locked :m :array 4 1)) (define (%root/e c) (bpf/locked_add %root/M 5 1))"
+  assert run(compiled_source(missing), {maps:}).ret == 9
+  plain = "(define %root/M (bpf/declare_map :m :array 4 16 1)) (define (%root/e c) (bpf/locked_add %root/M 0 1))"
+  assert contains?(refusal_of(plain), "declare_locked")
+  never_freed = assemble([alu(:mov, 1, 7), call(:spin_lock), exit_program])
+  assert (run(never_freed) rescue :refused) == :refused
+  inside = assemble(
+    [
+      alu(:mov, 1, 7),
+      alu(:mov, 6, r(1)),
+      call(:spin_lock),
+      call(:get_prandom_u32),
+      alu(:mov, 1, r(6)),
+      call(:spin_unlock),
+      exit_program
+    ]
+  )
+  assert (run(inside) rescue :refused) == :refused
+  unheld = assemble([alu(:mov, 1, 7), call(:spin_unlock), exit_program])
+  assert (run(unheld) rescue :refused) == :refused
+end
+
+test "a callback in the machine runs each turn, stops on 1, and a count of none runs nothing"
+  program = fn(limit, answer)
+    assemble(
+      [
+        alu(:mov, 1, limit),
+        func_ref(2, :turn),
+        alu(:mov, 3, 0),
+        alu(:mov, 4, 0),
+        call(:loop),
+        exit_program,
+        label(:turn),
+        alu(:mov, 0, answer),
+        exit_program
+      ]
+    )
+  end
+  assert run(program(3, 0)).ret == 3
+  assert run(program(3, 1)).ret == 1
+  assert run(program(0, 0)).ret == 0
+end
+
+test "a program's BTF names each function, and its .BTF.ext places each by bytes"
+  p = global_program(
+    "(define (%root/g a) (bit_and a 1)) (define (%root/e c) (%root/g 3))",
+    [:g]
+  )
+  shape = program_btf(p)
+  table = btf::read(shape[:bytes])
+  ids = map((f) -> f[:type], shape[:func_info])
+  assert map((id) -> btf::type_at(table, id)[:name], ids) == %w[e g]
+  assert size(
+    btf::type_at(table, btf::type_at(table, ids[1])[:type])[:params]
+  ) == 1
+  rows = btf::read_ext(shape[:ext], shape[:bytes])
+  assert first(rows)[:section] == "xdp"
+  assert rows[1][:section] == ".text"
+  assert first(rows[1][:funcs])[:at] == 0
+  assert shape[:func_info][1][:at] == p[:funcs][1][:at]
+end
+
+test "a map with a lock has its key and value types in BTF, and a plain one has neither"
+  shape = fresh_btf(
+    {
+      kind: :xdp,
+      funcs: [{name: "e", at: 0, linkage: :global, params: [:ctx]}],
+      maps: [declare_locked(:l, :array, 4, 1), declare_map(:p, :array, 4, 8, 1)]
+    }
+  )
+  table = btf::read(shape[:bytes])
+  types = shape[:map_types]["l"]
+  assert btf::type_at(table, types[:value])[:name] == "blue_locked"
+  assert btf::size_of(table, types[:value]) == 16
+  assert btf::size_of(table, types[:key]) == 4
+  assert shape[:map_types]["p"][:value].nil?
+  assert btf::type_at(table, btf::find(table, ".maps", :datasec))[:size] ==
+    shape[:map_vars]["l"][:size] + shape[:map_vars]["p"][:size]
 end
 
 test "compiled arithmetic answers as blue answers, and a literal's range proves its check away"

@@ -62,6 +62,8 @@ use("chokkan")
 use("danpen")
 use("deeta", [:get_str])
 use("empresa")
+# waive B0016: zenbu is the facade, and depending on it means depending on erufu
+use("erufu")
 use("fairu")
 use("fuuin")
 use("gamen")

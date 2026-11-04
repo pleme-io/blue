@@ -9,8 +9,8 @@ btf — the BPF Type Format as data: the kernel's own description of its types, 
     field(b, "task", ["pid"]).size #=> 4
 """
 
-use("baito", [:bytes_int])
-use("retsu", %i[first flat_map rest size])
+use("baito", %i[bytes_int layout pack width])
+use("retsu", %i[first flat_map index_of rest size])
 
 @doc """
 kinds: BTF's kinds in the order of their numbers, from `include/uapi/linux/btf.h`.
@@ -298,6 +298,35 @@ def type_at(b, id)
         )
       elsif kind == :array
         assoc(assoc(base, :element, words[at + 3]), :count, words[at + 5])
+      elsif kind == :func_proto
+        assoc(
+          base,
+          :params,
+          map(
+            fn(i)
+              {
+                name: name_of(b, words[at + 3 + i * 2]),
+                type: words[at + 4 + i * 2]
+              }
+            end,
+            range(0, vlen)
+          )
+        )
+      elsif kind == :datasec
+        assoc(
+          base,
+          :vars,
+          map(
+            fn(i)
+              {
+                type: words[at + 3 + i * 3],
+                offset: words[at + 4 + i * 3],
+                size: words[at + 5 + i * 3]
+              }
+            end,
+            range(0, vlen)
+          )
+        )
       else
         base
       end
@@ -492,7 +521,7 @@ member_index: a member's place among its struct's own members, what a :struct_op
 """
 def member_index(b, struct_name, name)
   members = type_at(b, need(b, struct_name, :struct))[:members]
-  at = retsu::index_of(map((m) -> m[:name], members), name)
+  at = index_of(map((m) -> m[:name], members), name)
   if at < 0
     raise(:not_found, "#{struct_name} has no member #{name}")
   end
@@ -589,6 +618,371 @@ def sample()
   append(*[header, body, strings])
 end
 
+@doc """
+int_type: an integer type of this many bytes, signed unless the last argument says not.
+
+    int_type("int", 4).size #=> 4
+    int_type("__u32", 4, false).signed #=> false
+"""
+def int_type(name, count, is_signed?)
+  {kind: :int, name:, size: count, signed: is_signed != false}
+end
+
+@doc """
+pointer_to: a pointer to the type with this id; 0 is void.
+
+    pointer_to(3).type #=> 3
+"""
+def pointer_to(id)
+  {kind: :ptr, name: "", type: id}
+end
+
+@doc """
+array_of: an array of `count` elements of a type, its index of a type.
+
+    array_of(1, 2, 8).count #=> 8
+"""
+def array_of(element, index, count)
+  {kind: :array, name: "", element:, index:, count:}
+end
+
+@doc """
+proto_type: a function's type: what it returns and its parameters, each {name:, type:}.
+
+    proto_type(1, []).type #=> 1
+"""
+def proto_type(returns, params)
+  {kind: :func_proto, name: "", type: returns, params:}
+end
+
+@doc """
+sized_type: a type of a size holding rows: :struct, each row {name:, type:, bits:} and an empty name making it anonymous, or :datasec, each row {type:, offset:, size:}.
+
+    sized_type(:struct, "s", 8, []).size #=> 8
+    sized_type(:datasec, ".maps", 0, [])[:vars] #=> []
+"""
+def sized_type(kind, name, count, rows)
+  key = if kind == :datasec
+    :vars
+  else
+    :members
+  end
+  assoc({kind:, name:, size: count}, key, rows)
+end
+
+@doc """
+linked_type: a :func or :var of a name, a type and a linkage: :static, :global or, for a function, :extern.
+
+    linked_type(:func, "f", 2, :global).linkage #=> :global
+    linked_type(:var, "v", 2, :global).type #=> 2
+"""
+def linked_type(kind, name, type_id, linkage)
+  assoc({kind:, name:, type: type_id}, :linkage, linkage)
+end
+
+@doc """
+linkage_number: a linkage's number in BTF; a name that is none raises.
+
+    linkage_number(:global) #=> 1
+    (linkage_number(:weak) rescue :refused) #=> :refused
+"""
+def linkage_number(linkage)
+  case linkage
+  when :static
+    0
+  when :global
+    1
+  when :extern
+    2
+  else
+    raise(:bad_option, "no BTF linkage #{to_s(linkage)}")
+  end
+end
+
+@doc """
+intern: types with one more, or the same types when it is already there: {types:, id:}.
+
+    intern([], int_type("int", 4)).id #=> 1
+    intern([int_type("int", 4)], int_type("int", 4)).id #=> 1
+"""
+def intern(types, t)
+  at = index_of(types, t)
+  if at < 0
+    {types: append(types, [t]), id: size(types) + 1}
+  else
+    {types:, id: at + 1}
+  end
+end
+
+@doc """
+names_in: every name a type holds, in the order the string section lists them.
+
+    names_in(sized_type(:struct, "s", 4, [{name: "a", type: 1, bits: 0}])) #=> ["s", "a"]
+    names_in(pointer_to(1)) #=> []
+"""
+def names_in(t)
+  own = if t[:name] == ""
+    []
+  else
+    [t[:name]]
+  end
+  inner = map((m) -> m[:name], append(t[:members] or [], t[:params] or []))
+  append(own, filter((n) -> n != "", inner))
+end
+
+@doc """
+strings_of: a string section and each name's offset, the empty name first: {bytes:, offsets:}.
+
+    strings_of([], [])[:bytes] #=> [0]
+    get(strings_of([int_type("int", 4)], ["xdp"])[:offsets], "xdp") #=> 5
+"""
+def strings_of(types, names)
+  reduce(
+    fn(acc, name)
+      if get(acc[:offsets], name) != nil
+        acc
+      else
+        {
+          bytes: append(append(acc[:bytes], text_bytes(name)), [0]),
+          offsets: assoc(acc[:offsets], name, length(acc[:bytes]))
+        }
+      end
+    end,
+    {bytes: [0], offsets: {"" => 0}},
+    append(flat_map(types, names_in), names)
+  )
+end
+
+@doc """
+info_word: a type's second word: its kind's number, its count and its flag.
+
+    info_word(:ptr, 0) #=> 33554432
+"""
+def info_word(kind, vlen)
+  bit_or(shift_left(index_of(kinds, kind), 24), vlen)
+end
+
+@doc """
+type_words: one type as its words, each name by its offset in `offsets`. A type of a kind this writer has no form for raises.
+
+    size(type_words(pointer_to(1), {"" => 0})) #=> 3
+    (type_words({kind: :fwd, name: ""}, {"" => 0}) rescue :refused) #=> :refused
+"""
+def type_words(t, offsets)
+  name = get(offsets, t[:name])
+  case t[:kind]
+  when :int
+    encoding = if t[:signed]
+      1
+    else
+      0
+    end
+    [
+      name,
+      info_word(:int, 0),
+      t[:size],
+      bit_or(shift_left(encoding, 24), t[:size] * 8)
+    ]
+  when :ptr
+    [0, info_word(:ptr, 0), t[:type]]
+  when :array
+    [0, info_word(:array, 0), 0, t[:element], t[:index], t[:count]]
+  when :struct
+    append(
+      [name, info_word(:struct, size(t[:members])), t[:size]],
+      flat_map(t[:members], (m) -> [get(offsets, m[:name]), m[:type], m[:bits]])
+    )
+  when :func_proto
+    append(
+      [0, info_word(:func_proto, size(t[:params])), t[:type]],
+      flat_map(t[:params], (p) -> [get(offsets, p[:name]), p[:type]])
+    )
+  when :func
+    [name, info_word(:func, linkage_number(t[:linkage])), t[:type]]
+  when :var
+    [name, info_word(:var, 0), t[:type], linkage_number(t[:linkage])]
+  when :datasec
+    append(
+      [name, info_word(:datasec, size(t[:vars])), t[:size]],
+      flat_map(t[:vars], (v) -> [v[:type], v[:offset], v[:size]])
+    )
+  else
+    raise(:bad_option, "the BTF writer has no form for #{to_s(t[:kind])}")
+  end
+end
+
+@doc """
+header_layout: `struct btf_header`.
+
+    width(header_layout) #=> 24
+"""
+def header_layout()
+  layout(
+    [
+      %i[magic u16],
+      %i[version u8],
+      %i[flags u8],
+      %i[hdr_len u32],
+      %i[type_off u32],
+      %i[type_len u32],
+      %i[str_off u32],
+      %i[str_len u32]
+    ]
+  )
+end
+
+@doc """
+encode: types, each made by the words above and its id its place from 1, as a BTF blob. `names` adds strings no type holds, such as the section names `.BTF.ext` names.
+
+    read(encode([int_type("int", 4)]))[:count] #=> 1
+    read(encode([]))[:count] #=> 0
+"""
+def encode(types, names?)
+  strings = strings_of(types, names or [])
+  body = flat_map(
+    flat_map(types, (t) -> type_words(t, strings[:offsets])),
+    word_bytes
+  )
+  append(
+    *[
+      pack(
+        header_layout,
+        {
+          magic: 60319,
+          version: 1,
+          flags: 0,
+          hdr_len: 24,
+          type_off: 0,
+          type_len: length(body),
+          str_off: length(body),
+          str_len: length(strings[:bytes])
+        }
+      ),
+      body,
+      strings[:bytes]
+    ]
+  )
+end
+
+@doc """
+ext_header_layout: `struct btf_ext_header`, through its CO-RE fields.
+
+    width(ext_header_layout) #=> 32
+"""
+def ext_header_layout()
+  layout(
+    [
+      %i[magic u16],
+      %i[version u8],
+      %i[flags u8],
+      %i[hdr_len u32],
+      %i[func_info_off u32],
+      %i[func_info_len u32],
+      %i[line_info_off u32],
+      %i[line_info_len u32],
+      %i[core_relo_off u32],
+      %i[core_relo_len u32]
+    ]
+  )
+end
+
+@doc """
+ext_section_words: one ELF section's func_info as words: its name's offset, its count, then `[byte offset, type id]`.
+
+    ext_section_words({section: "xdp", funcs: [{at: 0, type: 2}]}, {"xdp" => 1}) #=> [1, 1, 0, 2]
+"""
+def ext_section_words(s, offsets)
+  append(
+    [get(offsets, s[:section]), size(s[:funcs])],
+    flat_map(s[:funcs], (f) -> [f[:at], f[:type]])
+  )
+end
+
+@doc """
+encode_ext: the `.BTF.ext` for these types and names: each of `sections` {section:, funcs: [{at:, type:}]}, `at` in bytes from the section's start. No line info and no CO-RE relocations.
+
+    read_ext(encode_ext([], ["xdp"], [{section: "xdp", funcs: [{at: 0, type: 1}]}]), encode([], ["xdp"])) #=> [{section: "xdp", funcs: [{at: 0, type: 1}]}]
+    read_ext(encode_ext([], [], []), encode([])) #=> []
+"""
+def encode_ext(types, names, sections)
+  offsets = strings_of(types, names)[:offsets]
+  body = if sections == []
+    []
+  else
+    flat_map(
+      append([8], flat_map(sections, (s) -> ext_section_words(s, offsets))),
+      word_bytes
+    )
+  end
+  append(
+    pack(
+      ext_header_layout,
+      {
+        magic: 60319,
+        version: 1,
+        flags: 0,
+        hdr_len: 32,
+        func_info_off: 0,
+        func_info_len: length(body),
+        line_info_off: length(body),
+        line_info_len: 0,
+        core_relo_off: length(body),
+        core_relo_len: 0
+      }
+    ),
+    body
+  )
+end
+
+@doc """
+ext_step: one section of a func_info read, and where the next starts.
+
+    ext_step({at: 0, sections: []}, append(word_bytes(0), word_bytes(0)),{to_name: {0 => ""}}, 8)[:at] #=> 8
+"""
+def ext_step(acc, bytes, b, record)
+  at = acc[:at]
+  count = word_at(bytes, at + 4)
+  funcs = map(
+    fn(i)
+      from = at + 8 + i * record
+      {at: word_at(bytes, from), type: word_at(bytes, from + 4)}
+    end,
+    range(0, count)
+  )
+  {
+    at: at + 8 + count * record,
+    sections: append(
+      acc[:sections],
+      [{section: name_of(b, word_at(bytes, at)), funcs:}]
+    )
+  }
+end
+
+@doc """
+read_ext: a `.BTF.ext`'s func_info by section, names read from the BTF blob beside it. Bytes that are no `.BTF.ext` raise :decode_error.
+
+    read_ext(encode_ext([], [], []), encode([])) #=> []
+    (read_ext([1, 2, 3], encode([])) rescue :refused) #=> :refused
+"""
+def read_ext(bytes, blob)
+  if length(bytes) < 24 or bytes_int(bytes, 0, 2) != 60319
+    raise(:decode_error, "these bytes are not BTF.ext: the magic is not 0xeB9F")
+  end
+  hdr = word_at(bytes, 4)
+  from = hdr + word_at(bytes, 8)
+  count = word_at(bytes, 12)
+  if count == 0
+    []
+  else
+    b = read(blob)
+    record = word_at(bytes, from)
+    acc = {at: 0, sections: []}
+    inner = map((i) -> bytes[from + 4 + i], range(0, count - 4))
+    while(acc[:at] < count - 4, set!(acc, ext_step(acc, inner, b, record)))
+    acc[:sections]
+  end
+end
+
 test "a table of no types reads as empty, and finds nothing"
   empty = append(
     *[
@@ -633,6 +1027,131 @@ test "open reads a file's sections as read reads its bytes"
   assert b[:count] == 6
   assert field(b, "task", ["pid"]).offset == 4
   rm_rf(dir)
+end
+
+test "written types read back: a field, a function's parameters and a section's variables"
+  types = [
+    int_type("int", 4),
+    sized_type(
+      :struct,
+      "task",
+      8,
+      [{name: "a", type: 1, bits: 0}, {name: "b", type: 1, bits: 32}]
+    ),
+    pointer_to(2),
+    proto_type(1, [{name: "ctx", type: 3}]),
+    linked_type(:func, "run", 4, :global),
+    array_of(1, 1, 3),
+    linked_type(:var, "v", 6, :global),
+    sized_type(:datasec, ".maps", 12, [{type: 7, offset: 0, size: 12}])
+  ]
+  b = read(encode(types))
+  assert b[:count] == 8
+  assert field(b, "task", ["b"]).offset == 4
+  assert size_of(b, 6) == 12
+  assert type_at(b, 4)[:params] == [{name: "ctx", type: 3}]
+  assert function_id(b, "run") == 5
+  assert type_at(b, 5)[:vlen] == 1
+  assert type_at(b, 8)[:vars] == [{type: 7, offset: 0, size: 12}]
+  assert find(b, ".maps", :datasec) == 8
+  assert bit_and(
+    type_at(read(encode([int_type("u", 4, false)])), 1)[:vlen],
+    1
+  ) == 0
+end
+
+test "the encoding of one known type is the bytes the format states, checked by hand"
+  assert encode([int_type("int", 4)]) ==
+    [
+      159,
+      235,
+      1,
+      0,
+      24,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      16,
+      0,
+      0,
+      0,
+      16,
+      0,
+      0,
+      0,
+      5,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      4,
+      0,
+      0,
+      0,
+      32,
+      0,
+      0,
+      1,
+      0,
+      105,
+      110,
+      116,
+      0
+    ]
+  assert slice_after_header(encode([int_type("u", 1, false)])) ==
+    [1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 8, 0, 0, 0]
+end
+
+@doc """
+slice_after_header: the first type's sixteen bytes of a blob.
+
+    size(slice_after_header(encode([int_type("u", 1, false)]))) #=> 16
+"""
+def slice_after_header(bytes)
+  map((i) -> bytes[24 + i], range(0, 16))
+end
+
+test "interning keeps one id per type, and an empty string table holds only the empty name"
+  one = intern([], pointer_to(0))
+  again = intern(one[:types], pointer_to(0))
+  other = intern(one[:types], pointer_to(1))
+  assert one[:id] == 1
+  assert again[:id] == 1
+  assert size(again[:types]) == 1
+  assert other[:id] == 2
+  assert strings_of([], [])[:bytes] == [0]
+  assert strings_of([], %w[a a b])[:offsets]["b"] == 3
+end
+
+test "a BTF.ext's func_info reads back by section, in bytes, and an empty one is empty"
+  names = %w[xdp .text]
+  sections = [
+    {section: "xdp", funcs: [{at: 0, type: 2}]},
+    {section: ".text", funcs: [{at: 0, type: 3}, {at: 40, type: 4}]}
+  ]
+  assert read_ext(encode_ext([], names, sections), encode([], names)) ==
+    sections
+  assert read_ext(encode_ext([], [], []), encode([])) == []
+  assert (read_ext([0, 0, 0, 0], encode([])) rescue :refused) == :refused
+  no_magic = map((_i) -> 0, range(0, 32))
+  assert (read_ext(no_magic, encode([])) rescue :refused) == :refused
+end
+
+test "a type the writer has no form for and a linkage that is none each refuse by name"
+  assert (encode([{kind: :fwd, name: "x"}]) rescue :refused) == :refused
+  assert (encode([linked_type(:func, "f", 1, :weak)]) rescue :refused) ==
+    :refused
 end
 
 test "bytes that are no BTF, a field that is absent and a walk into a scalar each refuse by name"

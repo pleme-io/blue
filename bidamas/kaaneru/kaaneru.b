@@ -12,9 +12,11 @@ The words need the `kernel_bpf` capability, which holds the kernel: grant it to 
 
 use("baito", %i[bytes_int field_of int_bytes layout offset unpack width])
 
-use("bpf", %i[bind_fields encode_insn])
+use("bpf", %i[bind_fields encode_insn map_kinds])
 use("btf")
 use("retsu", %i[first flat_map index_of last repeat size take_while])
+
+legacy_names("0.1.0", [%w[map_kinds bpf::map_kinds]])
 
 @doc """
 commands: `enum bpf_cmd`, each by its number.
@@ -60,50 +62,6 @@ def commands()
     link_detach
     prog_bind_map
     token_create
-  ]
-end
-
-@doc """
-map_kinds: `enum bpf_map_type`, each by its number.
-
-    nth(2, map_kinds) #=> :array
-"""
-def map_kinds()
-  %i[
-    unspec
-    hash
-    array
-    prog_array
-    perf_event_array
-    percpu_hash
-    percpu_array
-    stack_trace
-    cgroup_array
-    lru_hash
-    lru_percpu_hash
-    lpm_trie
-    array_of_maps
-    hash_of_maps
-    devmap
-    sockmap
-    cpumap
-    xskmap
-    sockhash
-    cgroup_storage_deprecated
-    reuseport_sockarray
-    percpu_cgroup_storage_deprecated
-    queue
-    stack
-    sk_storage
-    devmap_hash
-    struct_ops
-    ringbuf
-    inode_storage
-    task_storage
-    bloom_filter
-    user_ringbuf
-    cgrp_storage
-    arena
   ]
 end
 
@@ -484,7 +442,19 @@ def prog_info_layout()
       %i[created_by_uid u32],
       %i[nr_map_ids u32],
       %i[map_ids u64],
-      [:name, [:text, 16]]
+      [:name, [:text, 16]],
+      %i[ifindex u32],
+      %i[gpl_compatible u32],
+      %i[netns_dev u64],
+      %i[netns_ino u64],
+      %i[nr_jited_ksyms u32],
+      %i[nr_jited_func_lens u32],
+      %i[jited_ksyms u64],
+      %i[jited_func_lens u64],
+      %i[btf_id u32],
+      %i[func_info_rec_size u32],
+      %i[func_info u64],
+      %i[nr_func_info u32]
     ]
   )
 end
@@ -617,18 +587,28 @@ def btf_load_layout()
 end
 
 @doc """
-load_btf: a BTF blob into the kernel: {fd:}, what `create_map` names as `{btf_object:}`.
+load_btf: a BTF blob into the kernel: {fd:}, what `create_map` names as `{btf_object:}`. Its checker runs here; a refusal names why, the checker's log in its data.
 
-    (load_btf(nil) rescue :refused) #=> :refused
+    (load_btf([1, 2, 3], 0) rescue :other) != nil #=> true
 """
-def load_btf(bytes)
+def load_btf(bytes, log?)
+  size_of_log = log or 262_144
+  logging = if size_of_log == 0
+    []
+  else
+    [
+      [:btf_log_buf, {out: size_of_log}],
+      [:btf_log_size, size_of_log],
+      [:btf_log_level, 1]
+    ]
+  end
   a = call_bpf(
     :btf_load,
     btf_load_layout,
-    [[:btf, {in: bytes}], [:btf_size, size(bytes)]],
+    append([[:btf, {in: bytes}], [:btf_size, length(bytes)]], logging),
     true
   )
-  {fd: checked(a, "load_btf")[:fd]}
+  {fd: checked(a, "load_btf", log_text(a))[:fd]}
 end
 
 @doc """
@@ -640,19 +620,40 @@ def create_map(spec)
   a = call_bpf(
     :map_create,
     map_create_layout,
-    [
-      [:map_type, kind_id(:map, spec[:kind])],
-      [:key_size, spec[:key_size]],
-      [:value_size, spec[:value_size]],
-      [:max_entries, spec[:max_entries]],
-      [:map_flags, spec[:flags] or 0],
-      [:map_name, pack_name(spec[:name])],
-      [:btf_vmlinux_value_type_id, spec[:value_type_id] or 0],
-      [:btf_fd, spec[:btf_object] or 0]
-    ],
+    append(
+      [
+        [:map_type, kind_id(:map, spec[:kind])],
+        [:key_size, spec[:key_size]],
+        [:value_size, spec[:value_size]],
+        [:max_entries, spec[:max_entries]],
+        [:map_flags, spec[:flags] or 0],
+        [:map_name, pack_name(spec[:name])],
+        [:btf_vmlinux_value_type_id, spec[:value_type_id] or 0]
+      ],
+      map_btf_fields(spec)
+    ),
     true
   )
   assoc(spec, :fd, checked(a, "create_map #{to_s(spec[:name])}")[:fd])
+end
+
+@doc """
+map_btf_fields: the fields that tie a map to its types: `{btf_fd:, btf_key:, btf_value:}` in the shape, or the BTF object a struct_ops map names.
+
+    map_btf_fields({}) #=> [[:btf_fd, 0]]
+    map_btf_fields({btf_object: 7}) #=> [[:btf_fd, 7]]
+    size(map_btf_fields({btf_fd: 3, btf_key: 1, btf_value: 2})) #=> 3
+"""
+def map_btf_fields(spec)
+  if spec[:btf_fd].nil?
+    [[:btf_fd, spec[:btf_object] or 0]]
+  else
+    [
+      [:btf_fd, {fd: spec[:btf_fd]}],
+      [:btf_key_type_id, spec[:btf_key]],
+      [:btf_value_type_id, spec[:btf_value]]
+    ]
+  end
 end
 
 @doc """
@@ -869,6 +870,11 @@ def load_fields(kind, encoded, opts, log)
   else
     [[:attach_btf_id, opts[:attach_btf_id]]]
   end
+  types = if opts[:btf_fd].nil?
+    []
+  else
+    func_info_fields(opts[:btf_fd], opts[:func_info] or [])
+  end
   logging = if log == 0
     []
   else
@@ -879,7 +885,7 @@ def load_fields(kind, encoded, opts, log)
   else
     []
   end
-  append(*[base, btf, logging, attach, flags])
+  append(*[base, btf, types, logging, attach, flags])
 end
 
 @doc """
@@ -907,6 +913,29 @@ def attach_number(attach)
   else
     kind_id(:attach, attach)
   end
+end
+
+@doc """
+func_info_fields: the fields that tie a program to its BTF: each function by its slot and type.
+
+    size(func_info_fields(3, [{at: 0, type: 2}])) #=> 4
+    func_info_fields(3, [{at: 0, type: 2}])[3] #=> [:func_info_cnt, 1]
+"""
+def func_info_fields(btf_fd, rows)
+  [
+    [:prog_btf_fd, {fd: btf_fd}],
+    [:func_info_rec_size, 8],
+    [
+      :func_info,
+      {
+        in: flat_map(
+          rows,
+          (f) -> append(int_bytes(f[:at], 4), int_bytes(f[:type], 4))
+        )
+      }
+    ],
+    [:func_info_cnt, size(rows)]
+  ]
 end
 
 @doc """
@@ -948,7 +977,7 @@ def load_attempt(kind, encoded, opts, log)
 end
 
 @doc """
-load: an assembled program into the kernel: {fd:, kind:, maps:, name:}. `opts` takes {kind:, maps:, name:, license:, attach:, attach_btf_id:}, `kind` a program type such as :xdp, `maps` what `create_map` made. The verifier runs here, and its log is in the refusal's data.
+load: an assembled program into the kernel: {fd:, kind:, maps:, name:}. `opts` takes {kind:, maps:, name:, license:, attach:, attach_btf_id:, btf_fd:, func_info:}, `kind` a program type such as :xdp, `maps` what `create_map` made, `btf_fd` what `load_btf` made. The verifier runs here, and its log is in the refusal's data.
 
     (load(bpf::assemble([]), {kind: :nope}) rescue :refused) #=> :refused
 """
@@ -976,7 +1005,16 @@ install: a compiled program into the kernel: its maps created, then the program 
     (install({maps: [bpf::declare_map(:m, :nope, 4, 8, 1)]}) rescue :refused) #=> :refused
 """
 def install(compiled, opts?)
-  maps = map(create_map, compiled[:maps] or [])
+  shape = if bpf::needs_btf?(compiled)
+    bpf::program_btf(compiled)
+  end
+  program_btf = if shape != nil
+    load_btf(shape[:bytes])
+  end
+  maps = map(
+    (m) -> create_map(map_with_types(m, program_btf, shape)),
+    compiled[:maps] or []
+  )
   given = opts or {}
   prog = load(
     fields_bound(compiled, given[:btf]),
@@ -985,10 +1023,39 @@ def install(compiled, opts?)
       maps:,
       name: compiled[:name],
       attach: given[:attach],
-      attach_btf_id: given[:attach_btf_id]
+      attach_btf_id: given[:attach_btf_id],
+      license: compiled[:license],
+      btf_fd: if program_btf != nil
+        program_btf[:fd]
+      end,
+      func_info: if shape != nil
+        shape[:func_info]
+      end
     }
   )
-  {prog:, maps:}
+  {prog:, maps:, btf: program_btf}
+end
+
+@doc """
+map_with_types: a map's shape with its BTF ids, when its program has BTF and names both for it. A plain map of such a program stays plain.
+
+    map_with_types({name: :m}, nil, nil) #=> {name: :m}
+    map_with_types({name: :m}, {fd: 3}, {map_types: {"m" => {key: 1, value: 2}}}).btf_value #=> 2
+    map_with_types({name: :m}, {fd: 3}, {map_types: {"m" => {}}}) #=> {name: :m}
+"""
+def map_with_types(m, program_btf, shape)
+  types = if shape != nil
+    get(shape[:map_types], to_s(m[:name]))
+  end
+  if types.nil? or types[:value].nil?
+    m
+  else
+    assoc(
+      assoc(assoc(m, :btf_fd, program_btf[:fd]), :btf_key, types[:key]),
+      :btf_value,
+      types[:value]
+    )
+  end
 end
 
 @doc """
@@ -1130,6 +1197,15 @@ prog_id: the kernel's id of a loaded program, what `bpftool prog show id` names.
     (prog_id({}) rescue :refused) #=> :refused
 """
 def prog_id(p)
+  prog_info(p)[:id]
+end
+
+@doc """
+prog_info: what the kernel holds of a loaded program: its id, name, `btf_id` and `nr_func_info` among them.
+
+    (prog_info({fd: nil}) rescue :refused) #=> :refused
+"""
+def prog_info(p)
   count = width(prog_info_layout)
   a = checked(
     call_bpf(
@@ -1138,9 +1214,9 @@ def prog_id(p)
       [[:bpf_fd, {fd: p[:fd]}], [:info_len, count], [:info, {out: count}]],
       false
     ),
-    "prog_id"
+    "prog_info"
   )
-  unpack(prog_info_layout, first(a[:out]))[:id]
+  unpack(prog_info_layout, first(a[:out]))
 end
 
 @doc """

@@ -1486,6 +1486,28 @@ Rename the definition. A word only ever reached qualified (`gitto::list`) still
 works, since a qualifier is exact: that case takes `# waive B0071: <reason>`
 above the definition.",
     }
+    B0072 {
+        slug: "call-arity",
+        severity: Error,
+        fix: None,
+        law: "a call to a definition passes a number of arguments that definition takes",
+        witness: "def pair(a, b)\n  [a, b]\nend\n\npair(1)\n",
+        ratchet: 0,
+        explanation: "\
+A definition's parameters state how many arguments it takes: every required
+parameter, plus up to each optional one (`opts?`), or any number past a rest
+parameter. A call with another count raises when it runs, so a branch no test
+reaches carries the fault until the day it runs. A rebase left
+`suite_command` with four arguments after a landing gave it a fifth, in
+`kernel/run.b`'s `main`, which no test calls; it was found when a real kernel
+run stopped there.
+
+Only a call whose target resolves to one definition is judged. A local of the
+same name, a builtin and a spread (`f(*xs)`) are not.
+
+To comply, pass what the definition takes. A test that shows the refusal is not
+reported (`raises?`). `# waive B0072: reason` keeps one line.",
+    }
 }
 
 impl Code {

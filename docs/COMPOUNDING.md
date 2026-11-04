@@ -74,6 +74,7 @@ The gaps (`evolution::GAPS`), each a primitive still to build:
 | B0016 | unused-import | a `use` nothing reaches carries its removal as a fix; a listed name never read carries none yet |
 | B0017 | duplicate-definition | one of two definitions must be renamed, which a person chooses |
 | B0071 | evaluator-name | a definition the evaluator answers before needs a new name, which a person chooses |
+| B0072 | call-arity | a call with the wrong count needs the argument it lacks, which a person chooses |
 | B0020 | package-as-value | a bidama written as a value has no single call it stands for |
 | B0022 | legacy-misuse | the producer's own declaration, fixed where it is declared |
 

@@ -120,7 +120,9 @@ row(
 
 row(
   "fn.rest.too_few",
-  join_lines(["def pack(a, b, *rest)", "  rest", "end", "", "pack(1)"]),
+  join_lines(
+    ["def pack(a, b, *rest)", "  rest", "end", "", "g = pack", "g(1)"]
+  ),
   fails(:eval, "expects at least 2 arguments, got 1"),
   pending("G19", "vm")
 )
@@ -168,7 +170,9 @@ row(
 
 row(
   "fn.optional.too_many",
-  join_lines(["def pick(a, b?)", "  [a, b]", "end", "", "pick(1, 2, 3)"]),
+  join_lines(
+    ["def pick(a, b?)", "  [a, b]", "end", "", "g = pick", "g(1, 2, 3)"]
+  ),
   fails(:eval, "takes 1 to 2 arguments, got 3")
 )
 
@@ -351,8 +355,8 @@ row(
 
 row(
   "fn.arity",
-  join_lines(["def f(a, b)", "  a", "end", "", "f(1)"]),
-  fails(:eval, "f"),
+  join_lines(["def f(a, b)", "  a", "end", "", "g = f", "g(1)"]),
+  fails(:eval, "expects 2 arguments, got 1"),
   pending("G19", "vm")
 )
 

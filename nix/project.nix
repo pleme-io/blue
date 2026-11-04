@@ -52,6 +52,7 @@
 # | `workload(name, spec)` | configured off (refused) unless `legacy.rawWorkloads = true`; then `packages.workload-<name>` (`blue workload render`), `checks.workload-<name>-fresh` |
 # | `service(name, spec)` | `nix/service.nix`: `packages.<name>`, `packages.service-<name>-tree` (haibi), `checks.service-<name>-{fresh,chart,serves}` (+ `-migrations` with a schema); a `runtime: :wasm` service (the default) also `packages.service-<name>-component` (blue's engine component plus the program bundle at `app/`) and `checks.service-<name>-component-serves` (the component under wasmtime answers its probe); on Linux `packages.image-<name>` through `mkHardenedImageSet`, `checks.image-<name>-distroless`, `apps.grype-scan-<name>`; the module trio and `overlays.default` |
 # | `frontend(name, spec)` | `checks.frontend-<name>-declared`: every `views`, `tokens` and `schema` path must exist in the project, and the declaration is written out as JSON; the renderers it lowers to come with FRONTEND-PLAN F11 |
+# | `vm_check(name, spec)` | `nix/vm-check.nix`: on Linux `packages.vm-<name>-<kernel>` (`testers.runNixOSTest`, requiring `kvm` and `nixos-test`: `vm-run.b` runs the control, then the program, and judges the release, the expected text and both exits; its output is the log); everywhere `checks.vm-<name>-absent`, a file saying none of it ran in this check |
 # | `registry(backend, spec)` | `packages.registry-<backend>` (`blue registry render`, judged by `touroku`), `checks.registry-<backend>-fresh` against the committed `output`; `package`'s `visibility` is recorded and read only by `touroku` (docs/REGISTRY.md) |
 # | `source(name, url, dir)` | **refused, not yet lowered** (fetchTree from the lock's pin is the named next step) |
 # | `posture(when)` | nothing: a runtime floor, not a build fact |
@@ -102,7 +103,7 @@ let
   known = [
     "schema" "name" "version" "needs" "when"
     "sources" "packages" "runs" "tools" "checks" "apps" "catalog" "generated"
-    "images" "workloads" "rules" "services" "frontends"
+    "images" "workloads" "rules" "services" "frontends" "vm_checks"
     "visibility" "registries" "reach" "allow" "virtualized" "receipts" "floors"
     "bounds"
   ];
@@ -432,6 +433,8 @@ let
         runner = appliance;
       };
 
+      vms = import ./vm-check.nix { inherit lib pkgs blue src; checks = m.vm_checks or { }; };
+
       lowered = import ./service.nix {
         inherit lib pkgs blue bl common src m name bluePath programFile lockFile imageGate oci moduleTrio chartLibraries component;
       };
@@ -456,7 +459,7 @@ let
       packages = disjoint "package" runs
         (disjoint "package" (catalogue // generatedPackages)
           (disjoint "package" (imagePackages // workloadPackages // registryPackages)
-            (disjoint "package" bundled.packages lowered.packages)));
+            (disjoint "package" vms.packages (disjoint "package" bundled.packages lowered.packages))));
 
       gates =
         lib.optionalAttrs (ownNames != [ ]) ({
@@ -511,6 +514,7 @@ let
         // workloadChecks
         // registryChecks
         // frontendChecks
+        // vms.checks
         // lowered.checks;
 
       # `rule`: the project's rules hold over its own code. `blue check` finds

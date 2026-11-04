@@ -66,14 +66,24 @@ fn write_executable(at: &Path, bytes: &[u8]) {
 }
 
 fn run(exe: &Path, args: &[&str]) -> Output {
-    Command::new(exe)
+    let mut command = Command::new(exe);
+    command
         .args(args)
         .env_remove("BLUE_PATH")
         .env_remove("BLUE_DIST")
         .env_remove("BLUE_CONFIG")
-        .current_dir(std::env::temp_dir())
-        .output()
-        .unwrap()
+        .current_dir(std::env::temp_dir());
+    run_past_busy(&mut command, 50)
+}
+
+fn run_past_busy(command: &mut Command, tries: u32) -> Output {
+    match command.output() {
+        Err(e) if e.kind() == std::io::ErrorKind::ExecutableFileBusy && tries > 0 => {
+            std::thread::sleep(std::time::Duration::from_millis(20));
+            run_past_busy(command, tries - 1)
+        }
+        done => done.unwrap(),
+    }
 }
 
 fn text(bytes: &[u8]) -> String {

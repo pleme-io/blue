@@ -70,6 +70,7 @@ generate("book", "docs/BOOK.md", "gen/hon/book.b", ["Bluefile.lock", "docs", "bi
 generate("verbs-table", "docs/verbs/merged/verbs.tsv", "gen/verbs/verbs.b", ["bidamas"])
 generate("edges-table", "docs/verbs/merged/edges.tsv", "gen/verbs/edges.b", ["bidamas"])
 generate("contracts-table", "docs/verbs/contracts.tsv", "gen/verbs/contracts.b", ["bidamas"])
+generate("kernel-matrix", ".github/workflows/kernel-matrix.yml", "gen/kernel-matrix.b", ["Bluefile.lock"])
 generate("kyasshu-keys", "bidamas/kyasshu/keys/kensa.json", "gen/kyasshu-keys.b", ["bidamas/danpen/fixtures/schema/kensa.graphql"])
 check("okite-laws", "gen/okite-laws.b")
 check("regen-untracked", "gen/regen_test.b", ["gen/regen.b"])
@@ -86,6 +87,50 @@ rule("R0002", "rules/conventions.b", "index_nil")
 check("project-rules", "rules/conventions.b")
 check("kernel-run", "kernel/run.b")
 check("chart-gate", "nix/chart-gate.b")
+check("vm-run", "nix/vm-run.b")
+check("kernel-compile", "gen/kernel-compile.b", ["kernel", "bidamas"])
+
+# Every kernel word against real kernels, in machines: the floor, the line plo
+# runs and nixpkgs' newest, and plo's line with FPROBE on, built from source,
+# the one kernel where kprobe_multi attaches. Packages, so a land never boots
+# one: .github/workflows/kernel-matrix.yml, generated from this, runs them.
+vm_check(
+  "kernel",
+  {
+    program: "kernel/run.b",
+    inputs: ["kernel", "bidamas", "nix/veristat.nix"],
+    expect: ["kernel/suite.b: ", "kernel/net_suite.b: ", "every suite green"],
+    control: {program: "kernel/control.b", expect: ["1 passed, 1 failed"]},
+    params: ["lsm=landlock,yama,bpf"],
+    tools: [
+      "iproute2",
+      "iputils",
+      "bpftools",
+      "llvmPackages.clang-unwrapped",
+      "llvmPackages.llvm",
+      "binutils-unwrapped",
+      "nix/veristat.nix"
+    ],
+    memory_mb: 4096,
+    env: {
+      KERNEL_RUN_ADMISSION__ENABLED: "false",
+      KERNEL_RUN_BUILD__ENABLED: "false",
+      KERNEL_RUN_TOOLS__FROM_NIX: "false",
+      KERNEL_SUITE_KPROBE_MULTI: "EOPNOTSUPP"
+    },
+    kernels: {
+      "6-6" => {package: "linuxPackages_6_6", release: "6.6."},
+      "6-12" => {package: "linuxPackages_6_12", release: "6.12."},
+      "newest" => {package: "linuxPackages_latest", release: "7."},
+      "6-12-fprobe" => {
+        package: "linuxPackages_6_12",
+        release: "6.12.",
+        config: ["FPROBE"],
+        env: {KERNEL_SUITE_KPROBE_MULTI: "attached"}
+      }
+    }
+  }
+)
 
 # The verb graph (bidamas/mokuroku/graph, docs/verbs/H/DESIGN.md): gates G1,
 # G2, G4, G7 and G9 over its rows, held by a hadome baseline of recorded debt,

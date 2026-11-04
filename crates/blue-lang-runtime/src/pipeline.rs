@@ -894,6 +894,7 @@ pub(crate) fn check_stage(
                     | blue_lang_check::Code::B0061
                     | blue_lang_check::Code::B0062
                     | blue_lang_check::Code::B0063
+                    | blue_lang_check::Code::B0072
             )
         });
     }

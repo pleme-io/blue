@@ -977,13 +977,15 @@ def load_attempt(kind, encoded, opts, log)
 end
 
 @doc """
-load: an assembled program into the kernel: {fd:, kind:, maps:, name:}. `opts` takes {kind:, maps:, name:, license:, attach:, attach_btf_id:, btf_fd:, func_info:}, `kind` a program type such as :xdp, `maps` what `create_map` made, `btf_fd` what `load_btf` made. The verifier runs here, and its log is in the refusal's data.
+load: an assembled program into the kernel: {fd:, kind:, maps:, name:}. `opts` takes {kind:, maps:, name:, license:, attach:, attach_btf_id:, btf_fd:, func_info:, signed_division:}, `kind` a program type such as :xdp, `maps` what `create_map` made, `btf_fd` what `load_btf` made. The verifier runs here, and its log is in the refusal's data. Below 6.12 it first refuses a signed division that can reach the CPU's divide (`division_refusal`); `signed_division: :trust` turns that off for a program whose author has ruled out the lowest value by -1.
 
     (load(bpf::assemble([]), {kind: :nope}) rescue :refused) #=> :refused
 """
 def load(program, opts)
   maps = opts[:maps] or []
-  encoded = flat_map(patched(program, maps), encode_insn)
+  insns = patched(program, maps)
+  refuse_division(insns, opts[:signed_division] or :refuse)
+  encoded = flat_map(insns, encode_insn)
   first_try = load_attempt(opts[:kind], encoded, opts, 0)
   a = if first_try[:errno] == 11
     load_attempt(opts[:kind], encoded, opts, 0)
@@ -1019,6 +1021,7 @@ def install(compiled, opts?)
   prog = load(
     fields_bound(compiled, given[:btf]),
     {
+      signed_division: :trust,
       kind: compiled[:kind],
       maps:,
       name: compiled[:name],
@@ -1883,6 +1886,100 @@ kernel_release: the running kernel's release, from procfs.
 """
 def kernel_release()
   trim(read_file("/proc/sys/kernel/osrelease"))
+end
+
+@doc """
+division_traps?: whether a kernel of this release lets `sdiv` or `smod` of the lowest value by -1 reach the CPU's divide, which traps and panics the kernel. Measured: 6.6.142 does, in a machine, and 6.12.93 does not, on plo. Every line between is out of support and counts as trapping. The fix is 7dd34d7b, "bpf: Fix a sdiv overflow issue", in 6.12.
+
+    division_traps?("6.6.142") #=> true
+    division_traps?("6.12.93") #=> false
+    division_traps?("7.0.11") #=> false
+"""
+def division_traps?(release)
+  parts = map(
+    fn(p)
+      to_int(join(take_while((c) -> contains?("0123456789", c), chars(p)), ""))
+    end,
+    take(2, split(release, "."))
+  )
+  parts[0] < 6 or parts[0] == 6 and parts[1] < 12
+end
+
+@doc """
+division_site?: whether an instruction is a signed division or remainder whose divisor can be -1: a register, or the immediate -1.
+
+    division_site?(bpf::alu(:sdiv, 0, bpf::r(1))) #=> true
+    division_site?(bpf::alu32(:smod, 0, -1)) #=> true
+    division_site?(bpf::alu(:sdiv, 0, 3)) #=> false
+    division_site?(bpf::alu(:div, 0, bpf::r(1))) #=> false
+"""
+def division_site?(i)
+  class = bit_and(i[:code], 7)
+  op = bit_and(i[:code], 240)
+  if not member?(class, [4, 7]) or not member?(op, [48, 144]) or i[:off] != 1
+    false
+  else
+    bit_and(i[:code], 8) == 8 or member?(i[:imm], [-1, 4_294_967_295])
+  end
+end
+
+@doc """
+division_refusal: why this kernel must not load these instructions, or nil. A signed division with a divisor that can be -1 traps the CPU on a kernel below the fix, and the kernel panics. Pure: `mode` is `load`'s `signed_division`, and :trust turns the refusal off.
+
+    division_refusal([bpf::alu(:sdiv, 0, bpf::r(1))], "6.12.93", :refuse) #=> nil
+    division_refusal([bpf::alu(:sdiv, 0, bpf::r(1))], "6.6.142", :trust) #=> nil
+    division_refusal([bpf::alu(:sdiv, 0, 3)], "6.6.142", :refuse) #=> nil
+"""
+def division_refusal(insns, release, mode)
+  if mode != :trust and any?(division_site?, insns) and division_traps?(release)
+    "this program can divide the lowest value by -1, which panics Linux #{release}: the fix, 7dd34d7b, is in 6.12. Compile it (the compiler proves its divisor positive), guard the divisor, or load with signed_division: :trust"
+  end
+end
+
+@doc """
+refuse_division: raise :division_trap when `division_refusal` has a reason. The release is read only for a program that holds such a division.
+
+    refuse_division([bpf::exit_program], :refuse) #=> nil
+"""
+def refuse_division(insns, mode)
+  if mode != :trust and any?(division_site?, insns)
+    release = kernel_release
+    why = division_refusal(insns, release, mode)
+    if why != nil
+      raise(:division_trap, why, {data: {release:, fixed_in: "6.12"}})
+    end
+  end
+  nil
+end
+
+test "a division that can panic this kernel is refused by name, and every other form loads on"
+  by_reg = bpf::alu(:sdiv, 0, bpf::r(1))
+  floor = "6.6.142"
+  assert contains?(division_refusal([by_reg], floor, :refuse), "Linux 6.6.142")
+  assert contains?(division_refusal([by_reg], floor, :refuse), "6.12")
+  assert division_refusal([bpf::alu32(:smod, 0, bpf::r(1))], floor, :refuse) !=
+    nil
+  assert division_refusal([bpf::alu(:smod, 0, -1)], floor, :refuse) != nil
+  assert division_refusal([by_reg], "6.12.93", :refuse).nil?
+  assert division_refusal([by_reg], floor, :trust).nil?
+  assert division_refusal([bpf::alu(:sdiv, 0, 3)], floor, :refuse).nil?
+  assert division_refusal([bpf::alu(:div, 0, bpf::r(1))], floor, :refuse).nil?
+  assert division_refusal([bpf::jump(:eq, 0, 0, 0)], floor, :refuse).nil?
+  assert division_refusal([], floor, :refuse).nil?
+end
+
+test "a program with no such division never asks the release"
+  assert refuse_division([bpf::alu(:mov, 0, 2)], :refuse).nil?
+  assert refuse_division([bpf::alu(:sdiv, 0, bpf::r(1))], :trust).nil?
+end
+
+test "division traps below 6.12, and a suffix on the release changes nothing"
+  assert division_traps?("5.15.0")
+  assert division_traps?("6.11.9")
+  assert division_traps?("6.6.142")
+  assert not division_traps?("6.12-rc1")
+  assert not division_traps?("6.18.34")
+  assert not division_traps?("10.0.1")
 end
 
 test "the layouts place every field where the UAPI header does, counted by hand from bpf.h"

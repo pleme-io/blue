@@ -170,6 +170,10 @@ pub struct Project {
     pub rules: BTreeMap<String, Rule>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub frontends: BTreeMap<String, crate::deploy::Frontend>,
+    /// `vm_check(name, spec)`: a program run as root in a booted machine, once
+    /// per kernel it names. Skipped when empty, like `generated`.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub vm_checks: BTreeMap<String, crate::deploy::VmCheck>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub visibility: Option<String>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
@@ -873,6 +877,20 @@ const WORDS: &[Word] = &[
         },
     },
     Word {
+        name: "vm_check",
+        signature: "vm_check(name, spec)",
+        doc: "A program run as root in a booted virtual machine, once per kernel: `program` from the project paths in `inputs`, `kernels` a record of {package: the nixpkgs linuxPackages attribute, release: the prefix `uname -r` must carry, config: kernel options set on, env:}, `expect` the text its output must hold, `control` {program, expect} a test file that must fail in that machine, so a green run cannot be one that ran nothing, plus `params`, `tools` (nixpkgs attributes, or a `.nix` file of the project, on the machine's PATH), `env`, `memory_mb`, `cores` and `seconds`. Lowers on Linux to `packages.vm-<name>-<kernel>`, which needs KVM (`kvm` and `nixos-test` system features), so a land never boots one, and everywhere to `checks.vm-<name>-absent`, whose output says none of it ran there.",
+        min: 2,
+        max: 2,
+        record: |c, into| {
+            let name = c.text(0, "name")?;
+            match crate::deploy::vm_check_of(&name, &c.args[1]) {
+                Ok(check) => insert_once(&mut into.project.vm_checks, c.word, name, check),
+                Err(error) => refuse(into, c.word, name, error),
+            }
+        },
+    },
+    Word {
         name: "registry",
         signature: "registry(backend, spec)",
         doc: "A registry backend the project publishes to (`sui`, `flakehub`): its workflow rendered to the committed `output` (default `.github/workflows/registry-<backend>.yml`) and gated fresh; `enabled: false` keeps it declared and off. The Bluefile and its lock stay the truth (docs/REGISTRY.md).",
@@ -1459,6 +1477,7 @@ mod tests {
             // `rule`, 2026-10-10: a project's own check rules, written in blue.
             .chain(["rule"])
             .chain(["frontend"])
+            .chain(["vm_check"])
             .chain(["registry"])
             .chain(["receipt"])
             .chain(["query"])

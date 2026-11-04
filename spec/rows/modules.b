@@ -57,6 +57,12 @@ row(
   pending("G16", "wasm")
 )
 
+row(
+  "modules.manifest.vm_check_is_a_bluefile_word",
+  "vm_check(\"kernel\", {program: \"run.b\"})",
+  fails(:check, "B0001")
+)
+
 row("modules.use.unbound_without", "sp_twice(4)", fails(:check, "B0001"))
 
 row(

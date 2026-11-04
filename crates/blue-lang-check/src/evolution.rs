@@ -197,6 +197,10 @@ pub const GAPS: &[Gap] = &[
         why: "a definition the evaluator answers before needs a new name, which a person chooses",
     },
     Gap {
+        code: Code::B0072,
+        why: "a call with the wrong count of arguments needs the argument it lacks, which a person chooses",
+    },
+    Gap {
         code: Code::B0020,
         why: "a bidama written as a value has no single call it stands for",
     },

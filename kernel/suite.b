@@ -110,7 +110,13 @@ def in_packet_then(body)
 end
 
 def kernel_out(p)
-  kaaneru::run(load(p, {kind: :xdp, name: "suite"}), {packet:})[:packet]
+  get(
+    kaaneru::run(
+      load(p, {kind: :xdp, name: "suite", signed_division: :trust}),
+      {packet:}
+    ),
+    :packet
+  )
 end
 
 def model_out(p)
@@ -154,6 +160,25 @@ def alu_probe(form, op, pair)
   )
 end
 
+def lowest_by_minus_one?(pair, width)
+  if width == 64
+    first(pair) == shift_left(1, 63) and pair[1] == -1
+  else
+    bit_and(first(pair), 4_294_967_295) == 2_147_483_648 and
+      bit_and(pair[1], 4_294_967_295) == 4_294_967_295
+  end
+end
+
+def traps_here?(op, pair, width)
+  kaaneru::division_traps?(kaaneru::kernel_release) and
+    member?(op, %i[sdiv smod]) and
+    lowest_by_minus_one?(pair, width)
+end
+
+def safe_pairs(op, width)
+  retsu::reject((pair) -> traps_here?(op, pair, width), edge_pairs)
+end
+
 def disagreements(probes)
   filter((row) -> not agree?(row[1]), probes)
 end
@@ -177,7 +202,9 @@ end
 test "the machine and the kernel agree on every 64-bit ALU operation over edge values"
   probes = flat_map(
     regular_ops,
-    (op) -> map((pair) -> [[op, pair], alu_probe(alu, op, pair)], edge_pairs)
+    fn(op)
+      map((pair) -> [[op, pair], alu_probe(alu, op, pair)], safe_pairs(op, 64))
+    end
   )
   bad = disagreements(probes)
   assert map(first, bad) == []
@@ -186,10 +213,54 @@ end
 test "the machine and the kernel agree on every 32-bit ALU operation over edge values"
   probes = flat_map(
     regular_ops,
-    (op) -> map((pair) -> [[op, pair], alu_probe(alu32, op, pair)], edge_pairs)
+    fn(op)
+      map(
+        (pair) -> [[op, pair], alu_probe(alu32, op, pair)],
+        safe_pairs(op, 32)
+      )
+    end
   )
   bad = disagreements(probes)
   assert map(first, bad) == []
+end
+
+def lowest_by_minus_one(form)
+  assemble(
+    in_packet_then(
+      [imm64(0, shift_left(1, 63)), imm64(3, -1), form(:sdiv, 0, r(3))]
+    )
+  )
+end
+
+test "the lowest value by -1 is refused by name where it would panic the kernel, and agrees where it cannot"
+  release = kaaneru::kernel_release
+  mode = if getenv("KERNEL_SUITE_DIVISION_GUARD") == "off"
+    :trust
+  else
+    :refuse
+  end
+  probes = [lowest_by_minus_one(alu), lowest_by_minus_one(alu32)]
+  if kaaneru::division_traps?(release) and mode == :refuse
+    refused = map(
+      fn(p)
+        begin
+          load(p, {kind: :xdp, name: "suite"})
+          nil
+        rescue :division_trap as e
+          e.data.release
+        end
+      end,
+      probes
+    )
+    assert refused == [release, release]
+    write_stderr(
+      unlines(
+        ["skipped on #{release}: sdiv and smod of the lowest value by -1"]
+      )
+    )
+  else
+    assert disagreements(map((p) -> [nil, p], probes)) == []
+  end
 end
 
 test "the machine and the kernel agree on sign extension, negation and byte swaps"
@@ -561,13 +632,23 @@ test "a kprobe_multi link works where the kernel has FPROBE, and is a named refu
     ),
     {attach: :trace_kprobe_multi}
   )
+  ring = open_events(map_named(live, :opens_events))
   answer = begin
-    detach(attach_kprobes(live[:prog], ["do_sys_openat2"]))
-    :attached
+    link = attach_kprobes(live[:prog], ["do_sys_openat2"])
+    read_file("/proc/version")
+    got = next_event(ring, 2000)
+    detach(link)
+    assert not got.nil?
+    "attached"
   rescue :kernel_refused as e
     e.data.name
   end
-  assert member?(answer, [:attached, "EOPNOTSUPP"])
+  want = getenv("KERNEL_SUITE_KPROBE_MULTI")
+  if want.nil?
+    assert member?(answer, %w[attached EOPNOTSUPP])
+  else
+    assert answer == want
+  end
 end
 
 test "fentry found through BTF reads a kernel struct whose offset came from this kernel"
@@ -696,7 +777,15 @@ test "the machine and the kernel agree on every socket-buffer program type over 
   assert got == map((row) -> [first(row), 0], rows)
 end
 
-test "BPF_PROG_RUN leaves a cgroup skb program no packet to read directly, so that read is measured attached"
+def cgroup_skb_reads?(release)
+  if starts_with?(release, "6.6.") or starts_with?(release, "6.12.")
+    false
+  elsif starts_with?(release, "7.")
+    true
+  end
+end
+
+test "BPF_PROG_RUN gives a cgroup skb program a packet to read directly at 7.0.11, and none at 6.6 and 6.12, where that read is measured attached"
   live = install(
     compile(
       "kernel/programs/l3_filter.b",
@@ -704,9 +793,12 @@ test "BPF_PROG_RUN leaves a cgroup skb program no packet to read directly, so th
     )
   )
   got = kaaneru::run(live[:prog], {packet: ip_frame(1, 64, 40)})[:ret]
-  assert got == 1
-  assert bytes_int(map_get(map_named(live, :l3_seen), int_bytes(1, 4)), 0, 8) ==
-    0
+  seen = bytes_int(map_get(map_named(live, :l3_seen), int_bytes(1, 4)), 0, 8)
+  assert [got, seen] == [0, 1] or [got, seen] == [1, 0]
+  reads = cgroup_skb_reads?(kaaneru::kernel_release)
+  if reads != nil
+    assert seen == 1 == reads
+  end
 end
 
 test "a socket-buffer program's map counts in the kernel what the machine counts"

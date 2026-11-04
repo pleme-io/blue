@@ -777,6 +777,11 @@
               ${lib.concatMapStrings (d: "echo ${d} >> $out\n") (lib.attrValues ex.checks ++ lib.attrValues ex.packages)}
             '';
 
+          # `vm_check` on both arms, read back at evaluation: a kernel that boots
+          # is a check that needs KVM, a kernel built from source is a package
+          # alone, and elsewhere there is one check whose name says it is absent.
+          vm-check-lowering = import ./nix/vm-check-lowering.nix { inherit lib pkgs pkgsFor; };
+
           example-frontend =
             let ex = engine.projectFor { inherit pkgs blue; src = ./examples/frontend; };
             in pkgs.runCommand "example-frontend" { } ''

@@ -1,0 +1,49 @@
+jobs:
+  machine:
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: "actions/checkout@v4"
+      - name: "open /dev/kvm"
+        run: "sudo chmod 666 /dev/kvm"
+      - id: "build"
+        uses: "pleme-io/actions/nix-build@main"
+        with:
+          extra-conf: "extra-system-features = kvm nixos-test"
+          flake-ref: ".#${{ matrix.kernel }}"
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+          max-silent-time: "1800"
+      - name: "the kernel booted and its tallies"
+        run: "cat ${{ steps.build.outputs.out-path }}/vm-*.log\ncat ${{ steps.build.outputs.out-path }}/vm-*.log >> \"$GITHUB_STEP_SUMMARY\""
+      - if: "failure()"
+        name: "the machine's log, on a red"
+        run: "nix log .#${{ matrix.kernel }} > \"$RUNNER_TEMP/machine.log\"; cat \"$RUNNER_TEMP/machine.log\""
+    strategy:
+      fail-fast: false
+      matrix:
+        kernel:
+          - "vm-kernel-6-12"
+          - "vm-kernel-6-12-fprobe"
+          - "vm-kernel-6-6"
+          - "vm-kernel-newest"
+    timeout-minutes: 340
+name: "kernel-matrix"
+"on":
+  push:
+    branches:
+      - "main"
+      - "kernel-matrix/**"
+    paths:
+      - "kernel/**"
+      - "bidamas/baito/**"
+      - "bidamas/bpf/**"
+      - "bidamas/btf/**"
+      - "bidamas/erufu/**"
+      - "bidamas/kaaneru/**"
+      - "crates/blue-lang-kernel/**"
+      - "nix/vm-*"
+      - ".github/workflows/kernel-matrix.yml"
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch: {}
+permissions:
+  contents: "read"

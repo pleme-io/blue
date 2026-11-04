@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:4293d5bb4c015dc9c4d444d833d956c6670814213988457bde4d05341a600102",
+  "bluefile_b3": "b3:3d0d647f1b26572227c8c4ee5c23e4d89d47c5d2a95f17ef7fc07212c6d82d51",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -36,6 +36,13 @@
       },
       "heni-mutations": {
         "file": "gen/heni-gate.b"
+      },
+      "kernel-compile": {
+        "file": "gen/kernel-compile.b",
+        "inputs": [
+          "kernel",
+          "bidamas"
+        ]
       },
       "kernel-run": {
         "file": "kernel/run.b"
@@ -79,6 +86,9 @@
       },
       "verb-graph": {
         "file": "gen/verb-graph.b"
+      },
+      "vm-run": {
+        "file": "nix/vm-run.b"
       }
     },
     "apps": {},
@@ -135,6 +145,13 @@
       "gitattributes": {
         "output": ".gitattributes",
         "program": "gen/gitattributes.b",
+        "inputs": [
+          "Bluefile.lock"
+        ]
+      },
+      "kernel-matrix": {
+        "output": ".github/workflows/kernel-matrix.yml",
+        "program": "gen/kernel-matrix.b",
         "inputs": [
           "Bluefile.lock"
         ]
@@ -245,6 +262,72 @@
         "file": "rules/conventions.b",
         "def": "index_nil",
         "severity": "error"
+      }
+    },
+    "vm_checks": {
+      "kernel": {
+        "program": "kernel/run.b",
+        "inputs": [
+          "kernel",
+          "bidamas",
+          "nix/veristat.nix"
+        ],
+        "expect": [
+          "kernel/suite.b: ",
+          "kernel/net_suite.b: ",
+          "every suite green"
+        ],
+        "control": {
+          "program": "kernel/control.b",
+          "expect": [
+            "1 passed, 1 failed"
+          ]
+        },
+        "params": [
+          "lsm=landlock,yama,bpf"
+        ],
+        "tools": [
+          "iproute2",
+          "iputils",
+          "bpftools",
+          "llvmPackages.clang-unwrapped",
+          "llvmPackages.llvm",
+          "binutils-unwrapped",
+          "nix/veristat.nix"
+        ],
+        "env": {
+          "KERNEL_RUN_ADMISSION__ENABLED": "false",
+          "KERNEL_RUN_BUILD__ENABLED": "false",
+          "KERNEL_RUN_TOOLS__FROM_NIX": "false",
+          "KERNEL_SUITE_KPROBE_MULTI": "EOPNOTSUPP"
+        },
+        "memory_mb": 4096,
+        "cores": 2,
+        "seconds": 1800,
+        "kernels": {
+          "6-12": {
+            "package": "linuxPackages_6_12",
+            "release": "6.12."
+          },
+          "6-12-fprobe": {
+            "package": "linuxPackages_6_12",
+            "release": "6.12.",
+            "config": [
+              "FPROBE"
+            ],
+            "env": {
+              "KERNEL_SUITE_KPROBE_MULTI": "attached"
+            }
+          },
+          "6-6": {
+            "package": "linuxPackages_6_6",
+            "release": "6.6."
+          },
+          "newest": {
+            "package": "linuxPackages_latest",
+            "release": "7."
+          }
+        }
       }
     },
     "visibility": "public",

@@ -897,6 +897,7 @@ fn calls(s: &Spanned, cx: &Site<'_>, in_test: bool, out: &mut Vec<Diagnostic>) {
     let in_test = in_test || h == Some("deftest");
     if let Some(h) = h {
         let callee = program.resolve(h, top, locals);
+        arity(h, &callee, s, items.len() - 1, cx, out);
         for j in 0..items.len() - 1 {
             contract(h, &callee, j, &items[1..], cx, out);
         }
@@ -904,6 +905,46 @@ fn calls(s: &Spanned, cx: &Site<'_>, in_test: bool, out: &mut Vec<Diagnostic>) {
     for i in items {
         calls(i, cx, in_test, out);
     }
+}
+
+fn arity(
+    head: &str,
+    callee: &Callee<'_>,
+    call: &Spanned,
+    passed: usize,
+    cx: &Site<'_>,
+    out: &mut Vec<Diagnostic>,
+) {
+    let Callee::Def(d) = callee else { return };
+    let def = &cx.program.defs[*d];
+    let before_rest = def.rest_at.unwrap_or(def.params.len());
+    let least = def.params[..before_rest.min(def.params.len())]
+        .iter()
+        .filter(|p| !p.optional)
+        .count();
+    let most = def.rest_at.map_or(def.params.len(), |_| usize::MAX);
+    if passed >= least && passed <= most {
+        return;
+    }
+    let takes = if most == usize::MAX {
+        format!("at least {least}")
+    } else if least == most {
+        least.to_string()
+    } else {
+        format!("{least} to {most}")
+    };
+    out.push(
+        Diagnostic::new(
+            Code::B0072,
+            format!(
+                "`{}` takes {takes} argument(s), and this call passes {passed}",
+                head.replace('/', "::")
+            ),
+            call.span,
+        )
+        .at_top_level(cx.top)
+        .with_help("pass what the definition takes".to_string()),
+    );
 }
 
 fn contract(
@@ -1283,6 +1324,19 @@ mod tests {
     #[test]
     fn a_nullary_definition_that_returns_a_function_is_passed_bare() {
         let src = "def text()\n  (v) -> v\nend\n\ndef site()\n  router([])\nend\n\nmap(text, [1])\nmap(site, [1])\n";
+        assert!(codes(src).is_empty());
+    }
+
+    #[test]
+    fn a_call_passes_what_its_definition_takes_or_is_named() {
+        let src = "def two(a, b)\n  [a, b]\nend\n\ndef opt(a, b?)\n  [a, b]\nend\n\ntwo(1)\ntwo(1, 2)\ntwo(1, 2, 3)\nopt(1)\nopt(1, 2)\nopt(1, 2, 3)\n";
+        let got: Vec<Code> = codes(src).into_iter().map(|(c, _)| c).collect();
+        assert_eq!(got, vec![Code::B0072, Code::B0072, Code::B0072]);
+    }
+
+    #[test]
+    fn a_local_of_the_same_name_and_a_spread_are_not_judged() {
+        let src = "def two(a, b)\n  [a, b]\nend\n\ndef f(two)\n  two(1)\nend\n\ntwo(*[1, 2])\nf((x) -> x)\n";
         assert!(codes(src).is_empty());
     }
 

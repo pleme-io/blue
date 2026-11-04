@@ -241,8 +241,8 @@ rendered:
 |---|---|
 | Built-in names | 370: 343 functions, 14 special forms, 13 macros |
 | Surface forms | 30, with 13 operators and 25 reserved words |
-| Check rules | 69: 38 fix themselves, 8 suggest a fix |
-| Bluefile words | 24 |
+| Check rules | 70: 38 fix themselves, 8 suggest a fix |
+| Bluefile words | 25 |
 | Commands | 42 |
 
 ## The standard library
@@ -250,7 +250,7 @@ rendered:
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-97 packages, 5457 definitions, 1735 tests.
+97 packages, 5461 definitions, 1738 tests.
 
 - [anaritikusu](bidamas/CATALOG.md#anaritikusu) (アナリティクス) — lifecycle analytics: a database of telemetry, standard models and cross-lifecycle joins, generated from lifecycle definitions.
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.

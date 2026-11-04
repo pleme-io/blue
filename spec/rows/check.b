@@ -714,6 +714,36 @@ row(
 )
 
 row(
+  "check.B0072",
+  join_lines(["def pair(a, b)", "  [a, b]", "end", "", "pair(1)"]),
+  diagnoses(["B0072"]),
+  covers("rule:B0072")
+)
+
+row(
+  "check.B0072.optional_and_rest_take_a_range",
+  join_lines(["def one(a, b?)", "  [a, b]", "end", "", "one(1)", "one(1, 2)"]),
+  diagnoses([])
+)
+
+row(
+  "check.B0072.waived",
+  join_lines(
+    [
+      "def pair(a, b)",
+      "  [a, b]",
+      "end",
+      "",
+      "# waive B0072: shown by a person",
+      "def f()",
+      "  pair(1)",
+      "end"
+    ]
+  ),
+  diagnoses([])
+)
+
+row(
   "check.B0071",
   join_lines(["def apply()", "  1", "end"]),
   diagnoses(["B0071"]),

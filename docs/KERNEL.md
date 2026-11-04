@@ -63,13 +63,14 @@ Each was read from the kernel source at the named tag, 2026-11-03.
 |---|---|
 | Newest stable 7.3; LTS 6.18, 6.12, 6.6; 7.x has no LTS | the floor is 6.6, and plo's 6.12.93 is the first real target |
 | cpu v4 (`sdiv`, `smod`, `movsx`, `bswap`, signed loads, `gotol`) landed in 6.6 | the compiler may use them at the floor |
+| at 6.6.142 `sdiv` and `smod` of the lowest value by -1 reach the CPU's divide: a divide error and a kernel panic, measured in a machine, 2026-11-04; the fix, 7dd34d7b, is in 6.12, and 6.12.92, 6.12.93 and 7.0.11 answer as RFC 9669 states | `kaaneru::load` refuses a register divisor or an immediate -1 below 6.12, naming the release and the fix (`signed_division: :trust` is the off switch); the compiler divides signed only by a divisor it proves positive, so `install` trusts it; `kernel/suite.b` skips the one pair by name |
 | only the 512-byte stack and 8 frames hold across the range | the compiler inlines every call by default and holds 64 slots; a chain of global subprograms is refused past 512 bytes |
 | a back-edge needs `CAP_BPF` | tail recursion lowers to a loop only for a privileged loader |
 | XDP, tcx, cgroup, fentry, fexit, lsm, iter, netfilter, kprobe_multi, uprobe_multi and struct_ops attach through `BPF_LINK_CREATE` alone at 6.6 | no netlink in the attach path |
 | perf_event, tracepoint and a single kprobe still need a `perf_event_open` descriptor | the seam has that one extra call |
 | one program attaches once to one tracepoint, whichever CPU its event names | a second event for it answers `EEXIST`, as measured on plo |
 | `BPF_PROG_RUN` serves XDP, tc, socket filter, cgroup skb, lwt, flow dissector, sk_lookup, netfilter, raw tracepoint and syscall; it refuses LSM; tracing runs only at fixed test functions | those kinds test attach-free; LSM and tracing test attached |
-| `BPF_PROG_RUN` at 6.12 computes `data_end` for tc and lwt, and not for cgroup skb | a cgroup skb program's direct packet read is measured attached; its `len` runs attach-free, as measured on plo |
+| `BPF_PROG_RUN` at 6.6 and 6.12 computes `data_end` for tc and lwt, and not for cgroup skb; at 7.0.11 it does for cgroup skb too | a cgroup skb program's direct packet read is measured attached; its `len` runs attach-free; `kernel/suite.b` holds each measured line to its answer |
 | a netfilter and an sk_lookup program must name their one attach type at load, and a syscall program must load sleepable | `kaaneru::load` sets each; plo answers `EINVAL` without them |
 | a struct_ops program needs no program BTF: its types come from the member it names in the kernel's own; its map must name a BTF object, and any will do | `install_struct_ops` loads `btf::smallest`, one `int`, with the compiler free of BTF generation |
 | `BPF_PROG_RUN` of a netfilter program with no context runs at `local_out`, with the network header unset | a frame read at its network header runs with a `local_in` context |
@@ -96,7 +97,7 @@ Each was read from the kernel source at the named tag, 2026-11-03.
 
 ## 6. Ledger
 
-Every "measured on plo" row ran on 6.12.93, 2026-11-03 or 2026-11-04.
+Every "measured on plo" row ran on 6.12.93, 2026-11-03 or 2026-11-04, and every row in `kernel/suite.b`, `kernel/object_suite.b` and `kernel/net_suite.b` also answers on 6.6.142, 6.12.92 and 7.0.11 through the matrix.
 
 | Item | Tier | Shown by |
 |---|---|---|
@@ -108,7 +109,7 @@ Every "measured on plo" row ran on 6.12.93, 2026-11-03 or 2026-11-04.
 | one source agrees in interpreter, machine and kernel | built, measured on plo | `kernel/suite.b`, "one source": 456 inputs |
 | tracepoint attach and detach | built, measured on plo | `kernel/suite.b` |
 | kprobe through a perf event | built, measured on plo | `kernel/suite.b`; a NixOS 25.11 kernel leaves `CONFIG_FPROBE` off |
-| kprobe_multi | built, and a named refusal on plo | `kernel/suite.b`: answers `EOPNOTSUPP`; the path that succeeds has not run |
+| kprobe_multi | built, and a named refusal on plo, 6.6.142, 6.12.92 and 7.0.11 | `kernel/suite.b`: answers `EOPNOTSUPP`, held there by `vm_check`; the path that succeeds has not run |
 | XDP and tcx on a real interface | built, measured on plo | `kernel/net_suite.b`: ping drops, is counted, returns on detach |
 | `btf`: read a kernel's types, find a hook, a field's offset through anonymous unions | built, measured on plo's 115,470 types | `bidamas/btf/btf.b`; `kernel/suite.b` |
 | fentry found through BTF, a field read at the kernel's own offset | built, measured on plo | `kernel/suite.b`: the field equals the thread id |
@@ -131,7 +132,7 @@ Every "measured on plo" row ran on 6.12.93, 2026-11-03 or 2026-11-04.
 | `BPF_PROG_RUN`: machine and kernel agree | built, measured on plo | `kernel/suite.b`: sched_cls, sched_act, flow dissector, lwt_in, lwt_out, lwt_xmit, socket filter, and cgroup skb on `len`, over 23 frames; sk_lookup, raw tracepoint and syscall over their contexts |
 | `BPF_PROG_RUN`: netfilter | built, measured on plo; the machine does not apply | `kernel/suite.b`: it decides from a real `sk_buff`, a kernel pointer the machine has no model of |
 | `BPF_PROG_RUN`: tracing, LSM | built, measured on plo | tracing through the fexit row; LSM answers `ENOTSUPP`, a named refusal |
-| `BPF_PROG_RUN`: a cgroup skb's direct packet read | a named refusal on 6.12 | `kernel/suite.b`: the kernel leaves `data_end` unset in this run; the attached row measures the read |
+| `BPF_PROG_RUN`: a cgroup skb's direct packet read | a named refusal on 6.6 and 6.12, runs on 7.0.11 | `kernel/suite.b`: the older kernels leave `data_end` unset in this run, and the attached row measures the read there |
 | ELF object, written and read (`erufu`) | built, checked against clang and LLVM, measured on plo | `kernel/object_llvm.b`: sections, symbols, relocations, disassembly, BTF and func_info equal to clang's for one program, `readelf -a` silent, a changed instruction seen; `kernel/object_suite.b`: `bpftool` dumps, loads and runs it, `veristat` verifies it, a clang object loads through blue |
 | not in an object: line info, CO-RE relocations, a map value reference | not built | `erufu::object` refuses unbound fields and a map value reference by name; no line info is written |
 | reading an object: the whole of `.text` is linked | built, with a limit | a function in `.text` nothing reaches makes the verifier refuse the program; libbpf drops it, `erufu::program_of` does not |
@@ -139,7 +140,8 @@ Every "measured on plo" row ran on 6.12.93, 2026-11-03 or 2026-11-04.
 | global subprograms in the compiler, by `{global: [...]}`; inlining stays the default | built, measured on plo | `kernel/suite.b`, "one source with a global subprogram": 456 inputs agree in interpreter, machine and kernel, faults included; a static reader loads where a global one is refused |
 | spin lock: `declare_locked`, `locked_add` | built, measured on plo, one CPU at a time | `kernel/object_suite.b`: 1,001 adds counted, machine agrees on the first, the kernel's two refusals seen; contention across CPUs has not run |
 | callback: `func_ref`, `bpf_loop` | built for assembled programs, measured on plo | `kernel/object_suite.b`: kernel and machine both count 3; the compiler has no word for a callback |
-| a kernel matrix in a VM as a nix check | design | until it runs, the kernel words' real behaviour is proven only by running `kernel/suite.b` by hand; their tests beside them reach the refusals |
+| a kernel matrix in machines, through `vm_check` | built, run on a hosted runner with KVM, 2026-11-04 | `.github/workflows/kernel-matrix.yml`, generated from the Bluefile, on a schedule, by hand, on a `kernel-matrix/**` branch and after a push to main that touches the kernel; never on a land. 6.6.142, 6.12.92 and 7.0.11 each boot and answer 38 of 38 in `kernel/suite.b`, 11 of 11 in `kernel/object_suite.b`, 9 of 9 in `kernel/net_suite.b`, with `kernel/control.b` red in each. Seen red twice: 7.0.11 gave cgroup skb a packet the suite said it would not, and with the division guard off 6.6.142 panicked with a divide error. Off KVM, `checks.vm-kernel-absent` says none of it ran. plo stays the one host for `blue kernel/run.b on HOST` |
+| a check of every kernel file and program, with no kernel | built | `checks.kernel-compile`: 27 files and 21 programs on any host at land time; rule B0072 holds a call to its definition's argument count, which `blue check` did not before |
 | kanshi's LSM enforcer in blue | built, measured on plo 2026-11-04 scoped to spawned processes, off by default, never run host-wide | kanshi `enforcer/differential.b`: 144 of 144 questions agree with the C's logic, 192 denials all in targets, 5 of 5 mutants caught; kanshi's `CLAUDE.md` says why it stays off |
 
 ## 7. Running the kernel suites
@@ -175,8 +177,32 @@ tools, `readelf`, and `veristat`, which it builds because nixpkgs does not carry
 it; nothing in blue's build needs these), and `KERNEL_RUN_SUITE__FILTER=fexit`
 keeps the tests whose name holds it.
 
-Run it detached with a log on a remote host, since a dropped SSH session loses a
-foreground run. The encoder's check needs only an `llvm-mc`:
+Every nix call in a run reads a cache of its own under `target/kernel-run`, since a
+damaged `~/.cache/nix/tarball-cache` stops every `nix develop` that reads it;
+`KERNEL_RUN_BUILD__PRIVATE_CACHE=false` hands it back the host's.
+
+From another machine, one command does the rest:
+
+```text
+blue kernel/run.b on HOST [REF]
+```
+
+It reads admission from the host, brings REF (`HEAD` by default) to the host, by a shallow
+fetch there when origin holds it and as a tree when it does not, so REF needs no
+push, and makes a directory only this run owns under
+`/tmp/blue-kernel-runs`. It starts the run detached under
+`flock /tmp/blue-kernel.lock`, so a dropped session loses nothing, and prints each
+tally as its suite ends. The run builds the tree's blue at idle priority. Once this
+side has read the log's last line, the runner on the host removes its directory;
+with this side gone, it does so after `on.linger_seconds`. A build that fails has
+no runner, and the next run on that host sweeps what it left, as it does for a
+host that rebooted. `KERNEL_RUN_ON__CLEANUP=false` keeps the directory, and the
+`KERNEL_RUN_*` settings on this side reach the host's run, the filter included.
+
+`gen/kernel-compile.b` (`checks.kernel-compile`) holds every file here to the check
+stage and every program to the compiler, with no kernel, on any host, at land time.
+
+The encoder's check needs only an `llvm-mc`:
 
 ```text
 BLUE_PATH=bidamas blue kernel/isa_llvm.b "$(nix build --no-link --print-out-paths nixpkgs#llvmPackages.llvm)/bin/llvm-mc"

@@ -45,10 +45,12 @@ pub mod frontend;
 pub mod render;
 pub mod runtime;
 pub mod service;
+pub mod vm;
 
 pub use frontend::{frontend_of, Frontend};
 pub use runtime::{Access, Effect, Runtime, WasiGap};
 pub use service::{service_of, Service, Setting};
+pub use vm::{vm_check_of, VmCheck, VmControl, VmKernel};
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -279,6 +281,10 @@ pub enum SpecError {
     KernelFieldWithoutKernel { field: &'static str },
     #[error("a service that reaches the kernel runs one pod per node, so `{field}` cannot hold; state `per_node: false` in its access to run it as a Deployment")]
     PerNodeConflict { field: &'static str },
+    #[error("`{field}` must be a positive whole number, got {got}")]
+    VmBound { field: &'static str, got: i64 },
+    #[error("`{got}` is not a kernel config name (upper case, digits and `_`, without CONFIG_)")]
+    VmConfig { got: String },
     #[error("access writes need the :filesystem effect")]
     WritesWithoutFilesystem,
     #[error("a service answers HTTP on its port, and its access lacks the :network effect")]

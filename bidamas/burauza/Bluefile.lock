@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:5d84a3b17e83975d787e5e51c41a03f989820af78988aead878c27c7b3c97856",
+  "manifest": {
+    "schema": 1,
+    "name": "burauza",
+    "version": "0.1.0",
+    "needs": {
+      "gamen": "^0.1.0",
+      "kyohi": "^0.1.0",
+      "moji": "^0.1.0",
+      "retsu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

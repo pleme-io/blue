@@ -1,0 +1,5 @@
+package("burauza", "0.1.0")
+needs("gamen", "^0.1")
+needs("kyohi", "^0.1")
+needs("moji", "^0.1")
+needs("retsu", "^0.1")

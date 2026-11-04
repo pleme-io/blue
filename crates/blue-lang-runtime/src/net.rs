@@ -15,7 +15,7 @@
 //! nats_close(conn)                            → nil
 //! http_request(method, url, headers, body, ms) → {status:, headers:, body:}
 //! tcp_connect_ms(host, port, ms)              → connect time in ms, or [:error, why, detail]
-//! http_listen(addr)                           → listener
+//! http_listen(addr[, opts])                   → listener
 //! http_listener_port(listener)                → the bound port
 //! http_next_request(listener, ms)             → {method:, path:, query:, headers:, body:, exchange:} or nil
 //! http_respond(exchange, status, headers, body) → nil
@@ -530,7 +530,10 @@ fn install_tcp<H: 'static>(interp: &mut Interpreter<H>) {
 
 struct HttpListener(serve::Listener);
 
-struct HttpExchange(Mutex<Option<TcpStream>>);
+struct HttpExchange {
+    stream: Mutex<Option<TcpStream>>,
+    spooled: Option<std::path::PathBuf>,
+}
 
 fn listener(v: &Value, fname: &'static str, span: Span) -> Result<Arc<HttpListener>, EvalError> {
     if let Value::Foreign(any) = v {
@@ -577,13 +580,53 @@ fn pairs(headers: Vec<(String, String)>) -> Value {
     )
 }
 
+fn response_file(body: &Value) -> Option<std::path::PathBuf> {
+    let Value::Map(m) = body else { return None };
+    match m.get(&MapKey::Keyword(Arc::from("file"))) {
+        Some(Value::Str(path)) => Some(std::path::PathBuf::from(path.as_ref())),
+        _ => None,
+    }
+}
+
+fn listen_options(given: Option<&Value>, span: Span) -> Result<serve::ListenOptions, EvalError> {
+    let mut options = serve::ListenOptions::default();
+    let Some(given) = given else {
+        return Ok(options);
+    };
+    let Value::Map(m) = given else {
+        return Err(EvalError::native_fn(
+            "http_listen",
+            format!("options are a record, got {}", given.type_name()),
+            span,
+        ));
+    };
+    if let Some(v) = m.get(&MapKey::Keyword(Arc::from("max_request"))) {
+        let n = arg_int(v, "http_listen", span)?;
+        options.max_request =
+            Some(usize::try_from(n).ok().filter(|n| *n > 0).ok_or_else(|| {
+                EvalError::native_fn(
+                    "http_listen",
+                    format!("max_request {n} is not positive"),
+                    span,
+                )
+            })?);
+    }
+    if let Some(v) = m.get(&MapKey::Keyword(Arc::from("spool"))) {
+        options.spool = Some(std::path::PathBuf::from(
+            arg_str(v, "http_listen", span)?.to_string(),
+        ));
+    }
+    Ok(options)
+}
+
 fn install_serve<H: 'static>(interp: &mut Interpreter<H>) {
     interp.register_fn(
         "http_listen",
-        Arity::Exact(1),
+        Arity::Range(1, 2),
         |args: &[Value], _h: &mut H, span| {
             let addr = arg_str(&args[0], "http_listen", span)?;
-            let l = serve::Listener::bind(&addr)
+            let options = listen_options(args.get(1), span)?;
+            let l = serve::Listener::bind_with(&addr, options)
                 .map_err(|e| EvalError::native_fn("http_listen", e.to_string(), span))?;
             Ok(Value::Foreign(Arc::new(HttpListener(l))))
         },
@@ -610,19 +653,38 @@ fn install_serve<H: 'static>(interp: &mut Interpreter<H>) {
             let next =
                 l.0.next(timeout)
                     .map_err(|e| EvalError::native_fn("http_next_request", e.to_string(), span))?;
-            Ok(next.map_or(Value::Nil, |(req, stream)| {
-                record(vec![
-                    ("method", Value::Str(Arc::from(req.method))),
-                    ("path", Value::Str(Arc::from(req.path))),
-                    ("query", Value::Str(Arc::from(req.query))),
-                    ("headers", pairs(req.headers)),
-                    ("body", text(&req.body)),
-                    (
-                        "exchange",
-                        Value::Foreign(Arc::new(HttpExchange(Mutex::new(Some(stream))))),
-                    ),
-                ])
-            }))
+            let Some((req, stream)) = next else {
+                return Ok(Value::Nil);
+            };
+            let spooled =
+                l.0.spool_body(&req.body)
+                    .map_err(|e| EvalError::native_fn("http_next_request", e.to_string(), span))?;
+            let body = if spooled.is_some() && req.body.len() > serve::MAX_REQUEST {
+                Value::Str(Arc::from(""))
+            } else {
+                text(&req.body)
+            };
+            let mut fields = vec![
+                ("method", Value::Str(Arc::from(req.method))),
+                ("path", Value::Str(Arc::from(req.path))),
+                ("query", Value::Str(Arc::from(req.query))),
+                ("headers", pairs(req.headers)),
+                ("body", body),
+            ];
+            if let Some(path) = &spooled {
+                fields.push((
+                    "body_file",
+                    Value::Str(Arc::from(path.to_string_lossy().as_ref())),
+                ));
+            }
+            fields.push((
+                "exchange",
+                Value::Foreign(Arc::new(HttpExchange {
+                    stream: Mutex::new(Some(stream)),
+                    spooled,
+                })),
+            ));
+            Ok(record(fields))
         },
     );
 
@@ -636,12 +698,13 @@ fn install_serve<H: 'static>(interp: &mut Interpreter<H>) {
                 EvalError::native_fn("http_respond", format!("{status} is not a status"), span)
             })?;
             let headers = headers_arg(&args[2], "http_respond", span)?;
-            let body = match &args[3] {
-                Value::Nil => String::new(),
-                other => arg_str(other, "http_respond", span)?.to_string(),
+            let file = response_file(&args[3]);
+            let body = match (&args[3], &file) {
+                (_, Some(_)) | (Value::Nil, _) => String::new(),
+                (other, None) => arg_str(other, "http_respond", span)?.to_string(),
             };
             let stream = x
-                .0
+                .stream
                 .lock()
                 .map_err(|_| {
                     EvalError::native_fn("http_respond", "the exchange's lock is poisoned", span)
@@ -650,8 +713,14 @@ fn install_serve<H: 'static>(interp: &mut Interpreter<H>) {
                 .ok_or_else(|| {
                     EvalError::native_fn("http_respond", "this request was already answered", span)
                 })?;
-            serve::respond(&stream, status, &headers, body.as_bytes())
-                .map_err(|e| EvalError::native_fn("http_respond", e.to_string(), span))?;
+            let answered = match &file {
+                Some(path) => serve::respond_file(&stream, status, &headers, path),
+                None => serve::respond(&stream, status, &headers, body.as_bytes()),
+            };
+            if let Some(spooled) = &x.spooled {
+                let _ = std::fs::remove_file(spooled);
+            }
+            answered.map_err(|e| EvalError::native_fn("http_respond", e.to_string(), span))?;
             Ok(Value::Nil)
         },
     );

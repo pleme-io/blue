@@ -410,6 +410,7 @@ def tags()
     tag_row(:head, false, []),
     tag_row(:body, false, []),
     tag_row(:title, false, []),
+    tag_row(:canvas, false, %i[width height]),
     tag_row(:meta, true, %i[charset name content]),
     tag_row(:main, false, []),
     tag_row(:header, false, []),
@@ -430,7 +431,7 @@ def tags()
     tag_row(:ul, false, []),
     tag_row(:ol, false, [:start]),
     tag_row(:li, false, []),
-    tag_row(:a, false, %i[href rel]),
+    tag_row(:a, false, %i[href rel download]),
     tag_row(:img, true, %i[src alt width height]),
     tag_row(:figure, false, []),
     tag_row(:figcaption, false, []),
@@ -448,7 +449,7 @@ def tags()
     tag_row(
       :input,
       true,
-      %i[type name value placeholder required disabled checked]
+      %i[type name value placeholder required disabled checked accept]
     ),
     tag_row(:textarea, false, %i[name placeholder required disabled rows]),
     tag_row(:select, false, %i[name required disabled]),
@@ -483,6 +484,8 @@ def attributes()
     attr_row(:aria_expanded, "aria-expanded", :flag, true),
     attr_row(:aria_current, "aria-current", :text, true),
     attr_row(:style, "style", :style, true),
+    attr_row(:data_seam, "data-seam", :text, true),
+    attr_row(:data_value, "data-value", :text, true),
     attr_row(:href, "href", :url, false),
     attr_row(:src, "src", :url, false),
     attr_row(:action, "action", :url, false),
@@ -506,7 +509,9 @@ def attributes()
     attr_row(:scope, "scope", :text, false),
     attr_row(:start, "start", :int, false),
     attr_row(:charset, "charset", :text, false),
-    attr_row(:content, "content", :text, false)
+    attr_row(:content, "content", :text, false),
+    attr_row(:accept, "accept", :text, false),
+    attr_row(:download, "download", :text, false)
   ]
 end
 
@@ -552,6 +557,33 @@ def size_scale()
   ]
 end
 
+@doc """
+measure_scale: the widths a style may name.
+
+    scale_value(measure_scale, :full) #=> "100%"
+"""
+def measure_scale()
+  [[:auto, "auto"], [:full, "100%"], [:narrow, "36rem"], [:page, "60rem"]]
+end
+
+@doc """
+style_words: each style that takes a word, with the words it takes.
+
+    member?(:relative, scale_value(style_words, :position)) #=> true
+"""
+def style_words()
+  [
+    [:position, %i[relative absolute]],
+    [:border_style, %i[solid dashed none]],
+    [:cursor, %i[pointer crosshair grab default]],
+    [:touch_action, %i[none manipulation]],
+    [:font_family, %i[system_ui sans_serif serif monospace]],
+    [:text_decoration, %i[none underline]],
+    [:justify, %i[flex_start center flex_end space_between]],
+    [:display, %i[block inline_block none]]
+  ]
+end
+
 def layouts()
   [
     [:stack, "display:flex;flex-direction:column"],
@@ -579,7 +611,18 @@ def style_props()
     style_row(:color, "color", :color),
     style_row(:background, "background", :color),
     style_row(:border_color, "border-color", :color),
-    style_row(:font_size, "font-size", :size)
+    style_row(:font_size, "font-size", :size),
+    style_row(:radius, "border-radius", :space),
+    style_row(:width, "width", :measure),
+    style_row(:max_width, "max-width", :measure),
+    style_row(:position, "position", :word),
+    style_row(:border_style, "border-style", :word),
+    style_row(:cursor, "cursor", :word),
+    style_row(:touch_action, "touch-action", :word),
+    style_row(:font_family, "font-family", :word),
+    style_row(:text_decoration, "text-decoration", :word),
+    style_row(:justify, "justify-content", :word),
+    style_row(:display, "display", :word)
   ]
 end
 
@@ -774,6 +817,10 @@ def style_faults(value)
           [refusal(:not_a_token, "#{to_s(v)} is not a layout")]
         elsif kind == :align and not member?(v, aligns)
           [refusal(:not_a_token, "#{to_s(v)} is not an alignment")]
+        elsif kind == :measure and scale_value(measure_scale, v).nil?
+          [refusal(:not_a_token, "#{to_s(v)} is not a measure token")]
+        elsif kind == :word and not member?(v, scale_value(style_words, k))
+          [refusal(:not_a_token, "#{to_s(v)} is not a word #{to_s(k)} takes")]
         elsif kind == :columns and not (integer?(v) and v >= 1 and v <= 12)
           [refusal(:not_a_token, "columns is a whole number from 1 to 12")]
         else
@@ -918,11 +965,15 @@ def declarations(value)
         ["#{row[:name]}:repeat(#{to_s(v)},minmax(0,1fr))"]
       elsif kind == :align
         ["#{row[:name]}:#{to_s(v)}"]
+      elsif kind == :word
+        ["#{row[:name]}:#{replace(to_s(v), "_", "-")}"]
       else
         prefix = if kind == :color
           "color"
         elsif kind == :space
           "space"
+        elsif kind == :measure
+          "measure"
         else
           "size"
         end
@@ -953,6 +1004,46 @@ def open_tag(node)
   "<#{to_s(node[:tag])}#{join(attrs, "")}>"
 end
 
+@doc """
+shell_url: a shell url, escaped, refusing one no page should load.
+
+    shell_url(:script, "/app.js") #=> "/app.js"
+"""
+def shell_url(row, url)
+  if not url_ok?(url)
+    raise(
+      :bad_option,
+      "shell #{to_s(row)} takes https, mailto or a relative url"
+    )
+  end
+  escape(url)
+end
+
+@doc """
+shell_tags: the head tags of a page shell, written by the renderer and never by a view.
+
+    shell_tags({}) #=> ""
+"""
+def shell_tags(shell)
+  checked(shell, %i[script manifest icon])
+  links = if shell[:manifest].nil?
+    ""
+  else
+    "<link rel=\"manifest\" href=\"#{shell_url(:manifest, shell[:manifest])}\">"
+  end
+  icon = if shell[:icon].nil?
+    ""
+  else
+    "<link rel=\"apple-touch-icon\" href=\"#{shell_url(:icon, shell[:icon])}\">"
+  end
+  script = if shell[:script].nil?
+    ""
+  else
+    "<script src=\"#{shell_url(:script, shell[:script])}\" defer></script>"
+  end
+  "#{links}#{icon}#{script}"
+end
+
 def html_of(node, path, ctx)
   if node.nil?
     ""
@@ -981,6 +1072,11 @@ def html_of(node, path, ctx)
       else
         ""
       end
+      shell = if tag == :head
+        shell_tags(ctx[:shell] or {})
+      else
+        ""
+      end
       doctype = if tag == :html
         "<!doctype html>"
       else
@@ -989,7 +1085,7 @@ def html_of(node, path, ctx)
       if row[:void]
         "#{doctype}#{open_tag(node)}"
       else
-        "#{doctype}#{open_tag(node)}#{inner}#{head}</#{to_s(tag)}>"
+        "#{doctype}#{open_tag(node)}#{inner}#{head}#{shell}</#{to_s(tag)}>"
       end
     end
   end
@@ -1010,9 +1106,52 @@ def css(theme)
       pairs
     ),
     map((e) -> "--space-#{to_s(first(e))}:#{e[1]}", space_scale),
-    map((e) -> "--size-#{to_s(first(e))}:#{e[1]}", size_scale)
+    map((e) -> "--size-#{to_s(first(e))}:#{e[1]}", size_scale),
+    map((e) -> "--measure-#{to_s(first(e))}:#{e[1]}", measure_scale)
   )
-  ":root{#{join(vars, ";")}}"
+  rules = map(
+    (r) -> "#{r[:select]}{#{join(declarations(r[:style]), ";")}}",
+    theme[:sheet] or []
+  )
+  join(append([":root{#{join(vars, ";")}}"], rules), "")
+end
+
+@doc """
+selector_chars: the characters a sheet selector may hold, none of which ends a rule.
+
+    contains?(selector_chars, "}") #=> false
+"""
+def selector_chars()
+  "abcdefghijklmnopqrstuvwxyz0123456789-_., :"
+end
+
+@doc """
+sheet: A theme carrying element rules, each a selector and a record of token roles.
+
+    sheet(theme({text: "#2e3440"}, :light), [["p", {color: :text}]])[:sheet] #=> [{select: "p", style: {color: :text}}]
+"""
+def sheet(theme, rules)
+  assoc(
+    theme,
+    :sheet,
+    map(
+      fn(r)
+        select = first(r)
+        style = r[1]
+        faults = style_faults(style)
+        if not every?((c) -> contains?(selector_chars, c), chars(select))
+          raise(
+            :bad_option,
+            "selector #{select} holds a character the sheet refuses"
+          )
+        elsif not is_empty(faults)
+          raise(:bad_option, join(map(why, faults), "; "))
+        end
+        {select:, style:}
+      end,
+      rules
+    )
+  )
 end
 
 @doc """
@@ -1022,7 +1161,7 @@ render: tree to html, ansi, svg or widget spec text.
 """
 def render(tree, target, opts?)
   o = opts or {}
-  checked(o, %i[theme refuse])
+  checked(o, %i[theme refuse shell])
   refuse = o[:refuse] or :node
   if target != :html
     raise(
@@ -1037,7 +1176,7 @@ def render(tree, target, opts?)
   if refuse == :page and not is_empty(found)
     raise(:render_error, join(map(why, found), "; "), {data: found})
   end
-  html_of(tree, [], {theme: o[:theme]})
+  html_of(tree, [], {theme: o[:theme], shell: o[:shell]})
 end
 
 def event_key?(key)
@@ -1385,6 +1524,49 @@ def page(spec)
       ),
       view(:body, {}, spec[:body])
     ]
+  )
+end
+
+test "a page shell is the renderer's: a script or link comes from a checked url, never from a view"
+  shell = {
+    script: "/app.js",
+    manifest: "/app.webmanifest",
+    icon: "/icon-192.png"
+  }
+  out = render(view(:head, {}, []), :html, {shell:})
+  assert out ==
+    "<head><link rel=\"manifest\" href=\"/app.webmanifest\"><link rel=\"apple-touch-icon\" href=\"/icon-192.png\"><script src=\"/app.js\" defer></script></head>"
+  assert raised(
+    () -> render(view(:head), :html, {shell: {script: "javascript:x"}})
+  ) != nil
+  assert raised(() -> render(view(:head), :html, {shell: {stray: "/x"}})) != nil
+  assert render(view(:head), :html) == "<head></head>"
+  assert contains?(render(view(:p, {}, ["x"]), :html, {shell:}), "script") ==
+    false
+end
+
+test "a sheet is token roles only: a literal colour and a bad selector are refused alone"
+  t = theme({text: "#2e3440"}, :light)
+  styled_theme = sheet(t, [["p", {color: :text, max_width: :page}]])
+  assert ends_with?(
+    css(styled_theme),
+    "p{color:var(--color-text);max-width:var(--measure-page)}"
+  )
+  assert raised(() -> sheet(t, [["p", {color: "#fff"}]])) != nil
+  assert raised(() -> sheet(t, [["p}x{", {color: :text}]])) != nil
+  assert css(sheet(t, [])) == css(t)
+end
+
+test "a style word outside its row is refused alone"
+  assert member?(
+    :not_a_token,
+    kinds(refusals(view(:p, {style: {position: :fixed}})))
+  )
+  assert render(view(:p, {style: {position: :absolute}}), :html) ==
+    "<p style=\"position:absolute\"></p>"
+  assert member?(
+    :not_a_token,
+    kinds(refusals(view(:p, {style: {width: :huge}})))
   )
 end
 
@@ -2237,7 +2419,7 @@ test "every tag row renders as its own element"
     tags
   )
   assert shown == want
-  assert size(shown) == 49
+  assert size(shown) == 50
   assert render(view(:img, {src: "/a.png", alt: ""}), :html) ==
     "<img alt=\"\" src=\"/a.png\">"
 end
@@ -2515,7 +2697,7 @@ end
 test "css writes a theme as variables and refuses a token that is no role"
   t = theme({text: "#2e3440", text_muted: "#4c566a"}, :light)
   assert css(t) ==
-    ":root{--color-text:#2e3440;--color-text-muted:#4c566a;--space-none:0;--space-xs:0.25rem;--space-sm:0.5rem;--space-md:1rem;--space-lg:1.5rem;--space-xl:2rem;--size-sm:0.875rem;--size-md:1rem;--size-lg:1.25rem;--size-xl:1.5rem;--size-xxl:2rem}"
+    ":root{--color-text:#2e3440;--color-text-muted:#4c566a;--space-none:0;--space-xs:0.25rem;--space-sm:0.5rem;--space-md:1rem;--space-lg:1.5rem;--space-xl:2rem;--size-sm:0.875rem;--size-md:1rem;--size-lg:1.25rem;--size-xl:1.5rem;--size-xxl:2rem;--measure-auto:auto;--measure-full:100%;--measure-narrow:36rem;--measure-page:60rem}"
   assert raised(() -> css(theme({link: "#fff"}, :light))) == :bad_option
   assert render(
     view(:head, {}, [view(:title, {}, ["t"])]),

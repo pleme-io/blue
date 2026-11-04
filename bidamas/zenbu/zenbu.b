@@ -57,6 +57,7 @@ use("bpf")
 # waive B0016: zenbu is the facade, and depending on it means depending on btf
 use("btf")
 use("bunsho")
+use("burauza")
 use("chokkan")
 use("danpen")
 use("deeta", [:get_str])
@@ -241,6 +242,7 @@ test "every bidama in the distribution answers through this one import"
   assert tesuto::raises?(:probe, () -> raise(:probe, "m")) == true
   assert tsuiseki::span("probe", (_s) -> 1, {sink: (_r) -> nil}) == 1
   assert ugoki::sample(ugoki::tween(0, 10, {seconds: 2}), 1) == 5
+  assert burauza::seam_names != []
   assert heddaa::encode_int(1337, 5, 0) == [31, 154, 10]
   assert tajuu::error_code(:cancel) == 8
   assert outou::request(outou::fixture, "{ hero { id } }") ==

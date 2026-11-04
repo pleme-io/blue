@@ -12,7 +12,7 @@ component unless it declares another runtime.
 
 use("deeta", %i[get_or pretty yaml])
 use("kyuuji")
-use("retsu", %i[first last])
+use("retsu", %i[first last rest])
 use("settei", [:env_prefix])
 use("shihyou")
 
@@ -329,10 +329,15 @@ def values_with(svc, mode)
       {"create" => true, "automountServiceAccountToken" => false}
     )
   end
-  with_cache = if cache?(svc)
-    assoc(with_sa, "cache", cache_values(svc))
-  else
+  with_writes = if writes(svc) == []
     with_sa
+  else
+    assoc(with_sa, "persistence", persistence_values(svc))
+  end
+  with_cache = if cache?(svc)
+    assoc(with_writes, "cache", cache_values(svc))
+  else
+    with_writes
   end
   if tables(svc) == []
     with_cache
@@ -404,7 +409,12 @@ def values_schema_with(name, svc, mode)
     "replicaCount",
     replicas
   )
-  with_args = assoc(open, "args", command)
+  with_writes = if writes(svc) == []
+    open
+  else
+    assoc(open, "persistence", persistence_schema)
+  end
+  with_args = assoc(with_writes, "args", command)
   with_library = if mode == :self
     with_args
   else
@@ -679,6 +689,112 @@ def cache_env(p, n)
   ]
 end
 
+@doc """
+writes: the paths a service's access lets it write.
+
+    writes({"access" => {"writes" => ["/data"]}}) #=> ["/data"]
+"""
+def writes(svc)
+  get_or(get_or(svc, "access", {}), "writes", [])
+end
+
+@doc """
+persistence_values: one mount per written path, each with a Kubernetes volume source, `emptyDir` until a release names a lasting one.
+
+    persistence_values({"access" => {"writes" => ["/data"]}}) #=> [{"path" => "/data", "source" => {"emptyDir" => {}}}]
+"""
+def persistence_values(svc)
+  map((p) -> {"path" => p, "source" => {"emptyDir" => {}}}, writes(svc))
+end
+
+@doc """
+persistence_schema: the values schema of the written paths: a path and an open Kubernetes volume source.
+
+    persistence_schema["items"]["required"] #=> ["path", "source"]
+"""
+def persistence_schema()
+  {
+    "type" => "array",
+    "items" => {
+      "type" => "object",
+      "additionalProperties" => false,
+      "required" => %w[path source],
+      "properties" => {
+        "path" => {"type" => "string"},
+        "source" => {"type" => "object"}
+      }
+    }
+  }
+end
+
+@doc """
+writes_mounts: the template lines mounting each written path, beside the cache's secret when it has one.
+
+    first(writes_mounts("y", false)) #=> "          {{- if .Values.persistence }}"
+"""
+def writes_mounts(n, cached)
+  cache_on = "(and .Values.cache .Values.cache.enabled)"
+  append(
+    if cached
+      ["          {{- if or #{cache_on} .Values.persistence }}"]
+    else
+      ["          {{- if .Values.persistence }}"]
+    end,
+    ["          volumeMounts:"],
+    if cached
+      [
+        "            {{- if #{cache_on} }}",
+        "            - name: #{n}-valkey",
+        "              mountPath: #{cache_mount(n)}",
+        "              readOnly: true",
+        "            {{- end }}"
+      ]
+    else
+      []
+    end,
+    [
+      "            {{- range $i, $m := .Values.persistence }}",
+      "            - name: written-{{ $i }}",
+      "              mountPath: {{ $m.path | quote }}",
+      "            {{- end }}",
+      "          {{- end }}"
+    ]
+  )
+end
+
+@doc """
+writes_volumes: the template lines naming each written path's volume source.
+
+    first(writes_volumes("y", false)) #=> "      {{- if .Values.persistence }}"
+"""
+def writes_volumes(n, cached)
+  cache_on = "(and .Values.cache .Values.cache.enabled)"
+  append(
+    if cached
+      ["      {{- if or #{cache_on} .Values.persistence }}"]
+    else
+      ["      {{- if .Values.persistence }}"]
+    end,
+    ["      volumes:"],
+    if cached
+      append(
+        ["        {{- if #{cache_on} }}"],
+        rest(rest(cache_volumes(n))),
+        ["        {{- end }}"]
+      )
+    else
+      []
+    end,
+    [
+      "        {{- range $i, $m := .Values.persistence }}",
+      "        - name: written-{{ $i }}",
+      "          {{- toYaml $m.source | nindent 10 }}",
+      "        {{- end }}",
+      "      {{- end }}"
+    ]
+  )
+end
+
 def cache_mount(n)
   "/var/run/secrets/#{n}-valkey"
 end
@@ -894,7 +1010,9 @@ def deployment_with(n, h, svc)
         "            {{- toYaml . | nindent 12 }}",
         "          {{- end }}"
       ],
-      if cached
+      if writes(svc) != []
+        append(writes_mounts(n, cached), writes_volumes(n, cached))
+      elsif cached
         append(cache_mounts(n), cache_volumes(n))
       else
         []
@@ -1382,6 +1500,27 @@ test "a service that reaches the kernel gets exactly its capabilities, and no ot
   assert reach["securityContext"]["readOnlyRootFilesystem"] == true
   assert reach["podSecurityContext"]["runAsUser"] == 0
   assert reach["securityContext"]["privileged"].nil?
+end
+
+test "a written path is a volume the release chooses, and a service that writes nothing has none"
+  svc = {
+    "port" => 8080,
+    "repository" => "ghcr.io/x/y",
+    "access" => {"writes" => ["/var/lib/y"], "effects" => ["filesystem"]}
+  }
+  v = values(svc)
+  assert v["persistence"] ==
+    [{"path" => "/var/lib/y", "source" => {"emptyDir" => {}}}]
+  page = deployment_with("y", "pleme-lib", svc)
+  assert contains?(page, "mountPath: {{ $m.path | quote }}")
+  assert contains?(page, "toYaml $m.source")
+  plain = {"port" => 8080, "repository" => "ghcr.io/x/y"}
+  assert values(plain)["persistence"].nil?
+  assert contains?(deployment_with("y", "pleme-lib", plain), "persistence") ==
+    false
+  schema = values_schema("y", svc)
+  assert schema["properties"]["persistence"]["items"]["required"] ==
+    %w[path source]
 end
 
 test "a native service keeps the image from its repository and says why it is native"

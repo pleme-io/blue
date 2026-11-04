@@ -1,9 +1,12 @@
 use std::fmt;
-use std::io::{ErrorKind, Read, Write};
+use std::fs::File;
+use std::io::{copy, ErrorKind, Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
-const MAX_REQUEST: usize = 1024 * 1024;
+pub const MAX_REQUEST: usize = 1024 * 1024;
 const READ_MS: u64 = 5_000;
 const ACCEPT_POLL_MS: u64 = 5;
 
@@ -120,6 +123,7 @@ fn reason(status: u16) -> &'static str {
         404 => "Not Found",
         405 => "Method Not Allowed",
         409 => "Conflict",
+        413 => "Content Too Large",
         500 => "Internal Server Error",
         503 => "Service Unavailable",
         _ => "Status",
@@ -128,11 +132,11 @@ fn reason(status: u16) -> &'static str {
 
 const MANAGED: &[&str] = &["content-length", "transfer-encoding", "connection"];
 
-pub fn encode_response(
+fn encode_head(
     status: u16,
     headers: &[(String, String)],
-    body: &[u8],
-) -> Result<Vec<u8>, ServeError> {
+    length: u64,
+) -> Result<String, ServeError> {
     if !(100..1000).contains(&status) {
         return Err(ServeError::Response(format!("{status} is not a status")));
     }
@@ -156,26 +160,51 @@ pub fn encode_response(
         head.push_str(&format!("{name}: {value}\r\n"));
     }
     head.push_str(&format!(
-        "Content-Length: {}\r\nConnection: close\r\n\r\n",
-        body.len()
+        "Content-Length: {length}\r\nConnection: close\r\n\r\n"
     ));
-    let mut out = head.into_bytes();
+    Ok(head)
+}
+
+pub fn encode_response(
+    status: u16,
+    headers: &[(String, String)],
+    body: &[u8],
+) -> Result<Vec<u8>, ServeError> {
+    let mut out = encode_head(status, headers, body.len() as u64)?.into_bytes();
     out.extend_from_slice(body);
     Ok(out)
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct ListenOptions {
+    pub max_request: Option<usize>,
+    pub spool: Option<PathBuf>,
+}
+
 pub struct Listener {
     inner: TcpListener,
+    max_request: usize,
+    spool: Option<PathBuf>,
+    spooled: AtomicU64,
 }
 
 impl Listener {
     pub fn bind(addr: &str) -> Result<Listener, ServeError> {
+        Listener::bind_with(addr, ListenOptions::default())
+    }
+
+    pub fn bind_with(addr: &str, options: ListenOptions) -> Result<Listener, ServeError> {
         let inner =
             TcpListener::bind(addr).map_err(|e| ServeError::Bind(format!("{addr}: {e}")))?;
         inner
             .set_nonblocking(true)
             .map_err(|e| ServeError::Bind(format!("{addr}: {e}")))?;
-        Ok(Listener { inner })
+        Ok(Listener {
+            inner,
+            max_request: options.max_request.unwrap_or(MAX_REQUEST),
+            spool: options.spool,
+            spooled: AtomicU64::new(0),
+        })
     }
 
     pub fn local_addr(&self) -> Result<SocketAddr, ServeError> {
@@ -189,7 +218,7 @@ impl Listener {
         loop {
             match self.inner.accept() {
                 Ok((stream, _)) => {
-                    if let Some(req) = read_request(&stream)? {
+                    if let Some(req) = read_request(&stream, self.max_request)? {
                         return Ok(Some((req, stream)));
                     }
                 }
@@ -206,7 +235,20 @@ impl Listener {
     }
 }
 
-fn read_request(stream: &TcpStream) -> Result<Option<Request>, ServeError> {
+impl Listener {
+    pub fn spool_body(&self, body: &[u8]) -> Result<Option<PathBuf>, ServeError> {
+        let Some(dir) = self.spool.as_ref().filter(|_| !body.is_empty()) else {
+            return Ok(None);
+        };
+        let n = self.spooled.fetch_add(1, Ordering::Relaxed);
+        let path = dir.join(format!("{}-{n}.body", std::process::id()));
+        std::fs::write(&path, body)
+            .map_err(|e| ServeError::Io(format!("spooling a body to {}: {e}", path.display())))?;
+        Ok(Some(path))
+    }
+}
+
+fn read_request(stream: &TcpStream, max_request: usize) -> Result<Option<Request>, ServeError> {
     let mut s = stream;
     s.set_nonblocking(false)
         .and_then(|()| s.set_read_timeout(Some(Duration::from_millis(READ_MS))))
@@ -223,8 +265,8 @@ fn read_request(stream: &TcpStream) -> Result<Option<Request>, ServeError> {
             return Ok(None);
         }
         buf.extend_from_slice(&chunk[..n]);
-        if buf.len() > MAX_REQUEST {
-            let _ = respond(stream, 400, &[], b"request too large");
+        if buf.len() > max_request {
+            let _ = respond(stream, 413, &[], b"request too large");
             return Ok(None);
         }
         match parse_request(&buf) {
@@ -253,9 +295,125 @@ pub fn respond(
     Ok(())
 }
 
+pub fn respond_file(
+    stream: &TcpStream,
+    status: u16,
+    headers: &[(String, String)],
+    path: &Path,
+) -> Result<(), ServeError> {
+    let mut file =
+        File::open(path).map_err(|e| ServeError::Response(format!("{}: {e}", path.display())))?;
+    let length = file
+        .metadata()
+        .map_err(|e| ServeError::Response(format!("{}: {e}", path.display())))?
+        .len();
+    let head = encode_head(status, headers, length)?;
+    let mut s = stream;
+    s.write_all(head.as_bytes())
+        .and_then(|()| copy(&mut file, &mut s).map(|_| ()))
+        .and_then(|()| s.flush())
+        .map_err(|e| ServeError::Io(format!("responding: {e}")))?;
+    let _ = stream.shutdown(std::net::Shutdown::Both);
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn raw_exchange(addr: SocketAddr, wire: Vec<u8>) -> std::thread::JoinHandle<Vec<u8>> {
+        std::thread::spawn(move || {
+            let mut c = TcpStream::connect(addr).unwrap();
+            c.write_all(&wire).unwrap();
+            let mut out = Vec::new();
+            c.read_to_end(&mut out).unwrap();
+            out
+        })
+    }
+
+    fn scratch(name: &str) -> PathBuf {
+        let d = std::env::temp_dir().join(format!("blue-serve-{}-{name}", std::process::id()));
+        std::fs::create_dir_all(&d).unwrap();
+        d
+    }
+
+    #[test]
+    fn a_binary_body_over_the_default_limit_reaches_the_spool_intact() {
+        let dir = scratch("spool");
+        let l = Listener::bind_with(
+            "127.0.0.1:0",
+            ListenOptions {
+                max_request: Some(4 * MAX_REQUEST),
+                spool: Some(dir.clone()),
+            },
+        )
+        .unwrap();
+        let body: Vec<u8> = (0..2 * MAX_REQUEST)
+            .map(|i| (i % 251) as u8 | 0x80)
+            .collect();
+        let mut wire = format!(
+            "POST /up HTTP/1.1\r\nContent-Length: {}\r\n\r\n",
+            body.len()
+        )
+        .into_bytes();
+        wire.extend_from_slice(&body);
+        let client = raw_exchange(l.local_addr().unwrap(), wire);
+        let (req, stream) = l.next(Duration::from_secs(5)).unwrap().unwrap();
+        let path = l.spool_body(&req.body).unwrap().unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), body);
+        respond(&stream, 200, &[], b"ok").unwrap();
+        client.join().unwrap();
+    }
+
+    #[test]
+    fn a_request_past_the_limit_is_answered_413() {
+        let l = Listener::bind_with(
+            "127.0.0.1:0",
+            ListenOptions {
+                max_request: Some(64),
+                spool: None,
+            },
+        )
+        .unwrap();
+        let mut wire = b"POST /up HTTP/1.1\r\nContent-Length: 500\r\n\r\n".to_vec();
+        wire.extend_from_slice(&[b'x'; 500]);
+        let client = raw_exchange(l.local_addr().unwrap(), wire);
+        assert!(l.next(Duration::from_millis(200)).unwrap().is_none());
+        let out = client.join().unwrap();
+        assert!(String::from_utf8_lossy(&out).starts_with("HTTP/1.1 413 "));
+    }
+
+    #[test]
+    fn a_listener_with_no_spool_keeps_a_body_in_memory() {
+        let l = Listener::bind("127.0.0.1:0").unwrap();
+        assert_eq!(l.spool_body(b"x").unwrap(), None);
+    }
+
+    #[test]
+    fn a_file_response_sends_every_byte_with_its_length() {
+        let dir = scratch("file");
+        let path = dir.join("b.bin");
+        let bytes = vec![0xffu8, 0x00, 0xfe, 0x80];
+        std::fs::write(&path, &bytes).unwrap();
+        let l = Listener::bind("127.0.0.1:0").unwrap();
+        let client = raw_exchange(l.local_addr().unwrap(), b"GET /f HTTP/1.1\r\n\r\n".to_vec());
+        let (_req, stream) = l.next(Duration::from_secs(5)).unwrap().unwrap();
+        respond_file(&stream, 200, &[], &path).unwrap();
+        let out = client.join().unwrap();
+        assert!(out.ends_with(&bytes));
+        assert!(String::from_utf8_lossy(&out).contains("Content-Length: 4\r\n"));
+    }
+
+    #[test]
+    fn a_missing_file_is_refused_before_a_byte_is_sent() {
+        let l = Listener::bind("127.0.0.1:0").unwrap();
+        let client = raw_exchange(l.local_addr().unwrap(), b"GET /f HTTP/1.1\r\n\r\n".to_vec());
+        let (_req, stream) = l.next(Duration::from_secs(5)).unwrap().unwrap();
+        assert!(respond_file(&stream, 200, &[], Path::new("/no/such/file")).is_err());
+        respond(&stream, 404, &[], b"gone").unwrap();
+        let out = client.join().unwrap();
+        assert!(String::from_utf8_lossy(&out).starts_with("HTTP/1.1 404 "));
+    }
 
     #[test]
     fn a_request_parses_once_its_body_is_complete() {

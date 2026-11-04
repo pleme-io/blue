@@ -93,6 +93,22 @@ row(
 )
 
 row(
+  "network.http_listen.bad_max_request",
+  "http_listen(\"127.0.0.1:0\", {max_request: 0})",
+  fails(:eval, "max_request 0 is not positive"),
+  covers("builtin:http_listen"),
+  host()
+)
+
+row(
+  "network.http_listen.options_are_a_record",
+  "http_listen(\"127.0.0.1:0\", 5)",
+  fails(:eval, "options are a record"),
+  covers("builtin:http_listen"),
+  host()
+)
+
+row(
   "network.http_listener_port.not_a_listener",
   "http_listener_port(:x)",
   fails(:eval, "expected a listener"),

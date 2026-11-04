@@ -100,7 +100,7 @@ def serve_once(l, health, handler, wait_ms)
     nil
   else
     resp = wire(answer(req, health, handler))
-    http_respond(req, resp[:status], resp[:headers], resp[:body])
+    answer_wire(req, resp)
     write_stderr(
       unlines(["kyuuji: #{req[:method]} #{req[:path]} #{to_s(resp[:status])}"])
     )
@@ -257,7 +257,7 @@ def serve_metered_once(l, health, handler, wait_ms, m, service)
   else
     out = metered(req, health, handler, m, service)
     resp = wire(first(out))
-    http_respond(req, resp[:status], resp[:headers], resp[:body])
+    answer_wire(req, resp)
     write_stderr(
       unlines(["kyuuji: #{req[:method]} #{req[:path]} #{to_s(resp[:status])}"])
     )
@@ -265,8 +265,8 @@ def serve_metered_once(l, health, handler, wait_ms, m, service)
   end
 end
 
-def serve_metered(addr, health, handler, service)
-  l = http_listen(addr)
+def serve_metered(addr, health, handler, service, listening?)
+  l = http_listen(addr, listening or {})
   write_stderr(
     unlines(
       [
@@ -283,8 +283,19 @@ def address(settings)
   "#{listen["host"]}:#{to_s(listen["port"])}"
 end
 
-def serve_settings(settings, handler)
-  serve(address(settings), settings["health"], handler)
+@doc """
+serve_settings: Serve from a service's settings; listening carries http_listen's options.
+
+    (serve_settings({"listen" => {"host" => "no-host", "port" => "x"}, "health" => "/h"}, (r) -> r) rescue :refused) #=> :refused
+"""
+def serve_settings(settings, handler, listening?)
+  serve_metered(
+    address(settings),
+    settings["health"],
+    handler,
+    getenv("BLUE_SERVICE", "blue"),
+    listening
+  )
 end
 
 def request(method, path, query)
@@ -595,13 +606,13 @@ router: Compose routes into one app; overlap is refused.
 def router(routes, opts?)
   o = opts or {}
   stray = filter(
-    (e) -> not member?(first(e), %i[theme hydrate]),
+    (e) -> not member?(first(e), %i[theme hydrate shell]),
     map_entries(o)
   )
   if not is_empty(stray)
     raise(
       :bad_option,
-      "router takes theme: and hydrate:, not #{to_s(first(first(stray)))}"
+      "router takes theme:, hydrate: and shell:, not #{to_s(first(first(stray)))}"
     )
   end
   judged = reduce(
@@ -716,7 +727,7 @@ def page_response(app, tree)
   {
     status: 200,
     headers: {"Content-Type" => "text/html; charset=utf-8"},
-    body: render(tree, :html, {theme:}),
+    body: render(tree, :html, {theme:, shell: o[:shell]}),
     inline: {
       styles: if theme.nil?
         []
@@ -972,6 +983,8 @@ def content_types()
     "css" => "text/css; charset=utf-8",
     "html" => "text/html; charset=utf-8",
     "js" => "text/javascript; charset=utf-8",
+    "pdf" => "application/pdf",
+    "png" => "image/png",
     "json" => "application/json",
     "md" => "text/markdown; charset=utf-8",
     "mjs" => "text/javascript; charset=utf-8",
@@ -1067,13 +1080,45 @@ def file(path, opts?)
   o = opts or {}
   if member?("..", split(path, "/"))
     text(403, unlines(["a path with .. is refused"]))
+  elsif not is_file?(path)
+    text(404, unlines(["no such file"]))
   else
     content = read_file(path) rescue nil
     if content.nil?
-      text(404, unlines(["no such file"]))
+      file_bytes_response(path, o)
     else
       file_response(path, content, o)
     end
+  end
+end
+
+@doc """
+client_holds?: Whether an If-None-Match value names this validator, so the copy the client holds is current.
+
+    client_holds?("\"a\", \"b\"", "\"b\"") #=> true
+    client_holds?(nil, "\"b\"") #=> false
+"""
+def client_holds?(asked, tag)
+  asked != nil and
+    (asked == "*" or member?(tag, map((t) -> blue::trim(t), split(asked, ","))))
+end
+
+@doc """
+file_bytes_response: A response naming a file that is not text, its bytes sent untouched by the listener.
+
+    file_bytes_response("/absent", {status: 1}) rescue :refused #=> :refused
+"""
+def file_bytes_response(path, o)
+  tag = "\"#{to_s(file_size(path))}-#{to_s(file_mtime_ms(path))}\""
+  base = {
+    "Content-Type" => o[:content_type] or content_type_of(path),
+    "ETag" => tag
+  }
+  asked = header(o[:request] or {headers: []}, "if-none-match")
+  if client_holds?(asked, tag)
+    {status: 304, headers: base, body: ""}
+  else
+    {status: 200, headers: base, body: {file: path}}
   end
 end
 
@@ -1087,11 +1132,7 @@ def file_response(path, content, o)
   }
   asked = header(req, "if-none-match")
   spec = header(req, "range")
-  if asked != nil and
-      (
-        asked == "*" or
-        member?(tag, map((t) -> blue::trim(t), split(asked, ",")))
-      )
+  if client_holds?(asked, tag)
     {status: 304, headers: base, body: ""}
   elsif spec.nil?
     {status: 200, headers: base, body: content}
@@ -1230,6 +1271,17 @@ def upgrade(req, f)
   end
 end
 
+@doc """
+answer_wire: Send a response, logging a client that left rather than stopping the loop.
+
+    answer_wire({exchange: :gone, path: "/x"}, {status: 200, headers: {}, body: ""}) #=> nil
+"""
+def answer_wire(req, resp)
+  http_respond(req, resp[:status], resp[:headers], resp[:body])
+rescue e
+  write_stderr(unlines(["kyuuji: answering #{req[:path]}: #{e.message}"]))
+end
+
 def wire(resp)
   if resp[:socket] != nil
     text(
@@ -1325,6 +1377,64 @@ test "an app answers its routes, 404 for no path, 405 with Allow for a wrong met
   assert head[:status] == 200
   assert head[:body] == ""
   assert param(request("GET", "/u/7", "id=9"), "id") == "9"
+end
+
+test "a file that is not text is answered by path, bytes untouched, with its validator"
+  dir = "#{getenv("TMPDIR", "/tmp")}/kyuuji-bytes-#{to_s(now_ms)}"
+  mkdir_p(dir)
+  path = "#{dir}/b.pdf"
+  write_bytes(path, [37, 80, 68, 70, 255, 254, 0, 128])
+  r = file(path)
+  assert r[:status] == 200
+  assert r[:body] == {file: path}
+  assert r[:headers]["Content-Type"] == "application/pdf"
+  again = file(
+    path,
+    {
+      request: with_headers(
+        request("GET", "/", ""),
+        [["if-none-match", r[:headers]["ETag"]]]
+      )
+    }
+  )
+  assert again[:status] == 304
+  assert file("#{dir}/absent.pdf")[:status] == 404
+  assert file("#{dir}/../b.pdf")[:status] == 403
+end
+
+test "a body spooled by the listener is on disk until the request is answered"
+  dir = "#{getenv("TMPDIR", "/tmp")}/kyuuji-spool-#{to_s(now_ms)}"
+  mkdir_p(dir)
+  l = http_listen("127.0.0.1:0", {max_request: 4096, spool: dir})
+  port = http_listener_port(l)
+  me = self
+  spawn(
+    fn()
+      r = begin
+        http_request(
+          "POST",
+          "http://127.0.0.1:#{to_s(port)}/up",
+          nil,
+          "héllo",
+          100
+        )
+      rescue _e
+        "gave up"
+      end
+      send(me, r)
+    end
+  )
+  receive(:_, 2000, :none)
+  req = http_next_request(l, 2000)
+  spooled = req[:body_file]
+  assert read_file(spooled) == "héllo"
+  assert req[:body] == "héllo"
+  answer_wire(req, text(200, "ok"))
+  assert path_exists(spooled) == false
+end
+
+test "answering a client that left never stops the server"
+  assert answer_wire({exchange: :gone, path: "/x"}, text(200, "x")).nil?
 end
 
 test "a view route answers html rendered by gamen, its text escaped"

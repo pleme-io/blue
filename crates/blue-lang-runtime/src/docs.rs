@@ -541,7 +541,7 @@ pub const NAMES: &[NameDoc] = names! {
     Network: "resp_pipeline" "resp_pipeline(conn, commands)" "Send every command in one write and return their replies in order. Raises naming the first server error.";
     Network: "resp_next" "resp_next(conn, timeout_ms)" "The next reply the server pushes (a subscribed connection's messages), waiting at most timeout_ms (0 only checks what has arrived); nil when none came.";
     Network: "resp_close" "resp_close(conn)" "Close the connection; every later call on it raises. nil.";
-    Network: "http_listen" "http_listen(addr)" "A listening HTTP/1.1 server socket on host:port (port 0 picks a free one). Raises when the address cannot be bound.";
+    Network: "http_listen" "http_listen(addr[, opts])" "A listening HTTP/1.1 server socket on host:port (port 0 picks a free one). Raises when the address cannot be bound. opts: max_request (bytes, 1 MiB by default; past it the request is answered 413) and spool (a directory: each body is also written there, whole and byte for byte, named by the request's body_file, and removed once the request is answered).";
     Network: "http_listener_port" "http_listener_port(listener)" "The TCP port the listener is bound to.";
     Network: "http_next_request" "http_next_request(listener, timeout_ms)" "{method:, path:, query:, headers:, body:, exchange:} for the next request, waiting at most timeout_ms (0 only checks); nil when none came. A malformed request is answered 400 and skipped. Answer it with http_respond.";
     Network: "flash_open" "flash_open(addr_or_wire)" "The Flash channel of a dual-pulse wire: a UDP socket bound to host:port (port 0 picks a free one), or the Flash channel opened on a wire tide_open made, so both share one socket. Needs the comm_flash capability; the host holds each wire to the Flash rate and kodou paces under it.";
@@ -556,7 +556,7 @@ pub const NAMES: &[NameDoc] = names! {
     Network: "tide_next" "tide_next(wire, timeout_ms)" "{from:, payload:, bytes:, sent_ms:} for the oldest Tide frame in the inbox, waiting at most timeout_ms (0 only checks); nil when none came. The inbox evicts its oldest frame past its bounds.";
     Network: "tide_stats" "tide_stats(wire)" "{address:, port:, sent:, received:, dropped:, malformed:, queued:, queued_bytes:, evicted:, evicted_in:, ring_frames:, ring_bytes:} of the wire's Tide channel.";
     Network: "tide_close" "tide_close(wire)" "Close the wire's Tide channel and drop what its ring holds; the socket closes with its last channel. nil.";
-    Network: "http_respond" "http_respond(request, status, headers, body)" "Answer a request from http_next_request once and close its connection; headers as for http_request, body nil or a string. A second answer raises. nil.";
+    Network: "http_respond" "http_respond(request, status, headers, body)" "Answer a request from http_next_request once and close its connection; headers as for http_request, body nil, a string, or {file: path}, whose bytes are streamed as they are. A second answer raises. nil.";
     // ── crypto ────────────────────────────────────────────────────────────
     Crypto: "blake3_hex" "blake3_hex(data)" "The BLAKE3-256 hash of a string or byte list, in lowercase hex. shomei's hash_message wraps it.";
     Crypto: "digest_hex" "digest_hex(algorithm, data)" "The digest of a string or byte list in lowercase hex. The algorithm is \"sha1\", \"sha256\", \"sha512\" or \"blake3\" (a string or a keyword); any other name raises. shomei's hash wraps it.";

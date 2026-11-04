@@ -140,7 +140,7 @@ Every "measured on plo" row ran on 6.12.93, 2026-11-03 or 2026-11-04.
 | spin lock: `declare_locked`, `locked_add` | built, measured on plo, one CPU at a time | `kernel/object_suite.b`: 1,001 adds counted, machine agrees on the first, the kernel's two refusals seen; contention across CPUs has not run |
 | callback: `func_ref`, `bpf_loop` | built for assembled programs, measured on plo | `kernel/object_suite.b`: kernel and machine both count 3; the compiler has no word for a callback |
 | a kernel matrix in a VM as a nix check | design | until it runs, the kernel words' real behaviour is proven only by running `kernel/suite.b` by hand; their tests beside them reach the refusals |
-| kanshi's LSM enforcer in blue | design | the first real consumer |
+| kanshi's LSM enforcer in blue | built, measured on plo 2026-11-04 scoped to spawned processes, off by default, never run host-wide | kanshi `enforcer/differential.b`: 144 of 144 questions agree with the C's logic, 192 denials all in targets, 5 of 5 mutants caught; kanshi's `CLAUDE.md` says why it stays off |
 
 ## 7. Running the kernel suites
 

@@ -227,7 +227,7 @@ pub fn display_key(key: &str) -> String {
     if let Some(rest) = key.strip_prefix(&root) {
         rest.to_string()
     } else if let Some((pkg, name)) = blue_lang_syntax::qualified(key) {
-        format!("{pkg}::{name}")
+        format!("{}::{name}", blue_lang_syntax::spell_level(pkg))
     } else {
         key.to_string()
     }

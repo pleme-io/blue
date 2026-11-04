@@ -221,7 +221,7 @@ rendered:
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-98 packages, 5504 definitions, 1747 tests.
+98 packages, 5517 definitions, 1751 tests.
 
 - [anaritikusu](bidamas/CATALOG.md#anaritikusu) (アナリティクス) — lifecycle analytics: a database of telemetry, standard models and cross-lifecycle joins, generated from lifecycle definitions.
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
@@ -2420,8 +2420,8 @@ it; `blue explain --list` lists them.
 | B0007 | malformed-waiver | error | a waiver names a known, waivable code and gives a reason |
 | B0008 | unused-waiver | error | a waiver suppresses at least one diagnostic |
 | B0009 | ambiguous-name | error | no two namespaces in one resolution tier define a name |
-| B0010 | qualifier-not-imported | error | a qualified name's package is one the file `use`s |
-| B0011 | no-such-definition | error | a qualified name, or a name a `use` lists, is a definition of that package |
+| B0010 | qualifier-not-imported | error | a qualified name's level is one the file `use`s or one below it |
+| B0011 | no-such-definition | error | a qualified name, or a name a `use` lists, is a definition of that level |
 | B0012 | implicit-reference | error | a bare name that is another bidama's definition is one the file lists, or is written qualified |
 | B0013 | prefixed-definition | error | a bidama's definition does not spell its bidama |
 | B0014 | mangled-namespace | error | a bidama does not prefix nine in ten of its definitions with one short `x_` |
@@ -2481,6 +2481,7 @@ it; `blue explain --list` lists them.
 | B0070 | reimplemented-word | warning | a definition of 12 or more nodes is not a catalogue word's shape: it uses the word, or waives this rule with its reason |
 | B0071 | evaluator-name | error | a definition is not named for a word the evaluator answers first: a word syntax lowers to (`list`, `concat`, `apply`, `equal?`, `mod`, `join_lines`, `unlines`, `line_break`) or a special form |
 | B0072 | call-arity | error | a call to a definition passes a number of arguments that definition takes |
+| B0073 | computed-use | error | a `use` names its path as a literal, so the loader and the check stage read it before the program runs |
 
 The registry is the source of truth; a test fails if a code is missing here.
 
@@ -2917,7 +2918,7 @@ and its owning page disagree, the owning page is right: fix this page.
 | version solver | **A dependency resolver.** `blue-lang-pkg` searches by backtracking with conflict attribution, not PubGrub, and stops at a step bound. [solve.rs](crates/blue-lang-pkg/src/solve.rs) |
 | `use("pkg")` | **An import.** `use("retsu")` makes `retsu::name` reachable; `use("retsu", [:first])` also binds `first` bare in this file. [NAMESPACES.md](docs/NAMESPACES.md) |
 | namespace | **A module namespace.** Each bidama is a namespace: a file reaches another bidama's definition qualified or listed in `use`, never bare (B0012). [NAMESPACES.md](docs/NAMESPACES.md) |
-| `pkg::name`, `blue::name` | **A qualified name.** A qualified name skips the resolution tiers; `blue::first` names the builtin even past a definition of the same name. [NAMESPACES.md](docs/NAMESPACES.md) |
+| `pkg::name`, `a::b::c`, `blue::name` | **A qualified name, as deep as the levels of a bidama go.** A qualified name skips the resolution tiers; `blue::first` names the builtin even past a definition of the same name. [NAMESPACES.md](docs/NAMESPACES.md) |
 | resolution tiers | **Scope-resolution order.** A bare name is a local, else the file's own bidama's definition, else a listed name, else a builtin or master verb; `blue explain-name` shows each tier. [NAMESPACES.md](docs/NAMESPACES.md) |
 | `legacy_names` | **A deprecated alias with a sunset.** A renamed definition keeps its old name as a bridge until the next minor version, and `blue migrate` rewrites the callers. [NAMESPACES.md](docs/NAMESPACES.md) |
 | `generate` and `nix run .#regen` | **A code-generation target with a freshness check.** `generate(name, output, program)` names a committed file that a blue program writes; `checks.generated-<name>-fresh` fails on a stale copy, and `nix run .#regen` rewrites it. [Bluefile](Bluefile) |
@@ -4368,6 +4369,11 @@ When a script outgrows one file, `blue new NAME` starts a project: a Bluefile
 with `packages("bidamas")`, its lock, the stub `flake.nix`, the code and tests
 in `bidamas/NAME/NAME.b`, and `main.b` calling it. `blue new --bidama NAME`
 writes a package alone, inside a distribution's directory.
+
+A bidama may be a tree: `use("thing/sub")` loads that level and everything
+below it, and `thing::sub::waka::x` is also `sub::waka::x` and `waka::x`.
+[`docs/NAMESPACES.md`](docs/docs/NAMESPACES.md), "A bidama is a tree", has the whole
+`use` family and the rules.
 
 `use("pkg")` looks in order: the `packages` roots of the project the file
 sits in (the nearest Bluefile above it that declares them), then the roots on

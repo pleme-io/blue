@@ -27,8 +27,8 @@ it; `blue explain --list` lists them.
 | B0007 | malformed-waiver | error | a waiver names a known, waivable code and gives a reason |
 | B0008 | unused-waiver | error | a waiver suppresses at least one diagnostic |
 | B0009 | ambiguous-name | error | no two namespaces in one resolution tier define a name |
-| B0010 | qualifier-not-imported | error | a qualified name's package is one the file `use`s |
-| B0011 | no-such-definition | error | a qualified name, or a name a `use` lists, is a definition of that package |
+| B0010 | qualifier-not-imported | error | a qualified name's level is one the file `use`s or one below it |
+| B0011 | no-such-definition | error | a qualified name, or a name a `use` lists, is a definition of that level |
 | B0012 | implicit-reference | error | a bare name that is another bidama's definition is one the file lists, or is written qualified |
 | B0013 | prefixed-definition | error | a bidama's definition does not spell its bidama |
 | B0014 | mangled-namespace | error | a bidama does not prefix nine in ten of its definitions with one short `x_` |
@@ -88,6 +88,7 @@ it; `blue explain --list` lists them.
 | B0070 | reimplemented-word | warning | a definition of 12 or more nodes is not a catalogue word's shape: it uses the word, or waives this rule with its reason |
 | B0071 | evaluator-name | error | a definition is not named for a word the evaluator answers first: a word syntax lowers to (`list`, `concat`, `apply`, `equal?`, `mod`, `join_lines`, `unlines`, `line_break`) or a special form |
 | B0072 | call-arity | error | a call to a definition passes a number of arguments that definition takes |
+| B0073 | computed-use | error | a `use` names its path as a literal, so the loader and the check stage read it before the program runs |
 
 The registry is the source of truth; a test fails if a code is missing here.
 

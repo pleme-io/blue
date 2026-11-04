@@ -289,27 +289,143 @@ package_text: The text of every `.b` file directly in a package directory, joine
 """
 def package_text(dir)
   join(
-    map(
-      (p) -> read_file(p),
-      filter(
-        (p) -> ends_with?(p, ".b") and path_dirname(p) == dir,
-        walk_dir(dir)
+    filter(
+      (t) -> not opens_level?(t),
+      map(
+        (p) -> read_file(p),
+        filter(
+          (p) -> ends_with?(p, ".b") and path_dirname(p) == dir,
+          walk_dir(dir)
+        )
       )
     ),
     line_break
   )
 end
 
+@doc """
+opens_level?: Whether a file's first code line is `namespace()`, which makes it a level of
+its own, never a part of the level around it.
+
+    opens_level?("# a\n\nnamespace()\n") #=> true
+    opens_level?("def f()\n  1\nend\n") #=> false
+"""
+def opens_level?(text)
+  lines = map((l) -> blue::trim(l), split(text, line_break))
+  code = filter(
+    (l) -> l != "" and not starts_with?(l, "#"),
+    past_moduledoc(lines)
+  )
+  code != [] and first(code) == "namespace()"
+end
+
+@doc """
+past_moduledoc: The lines after a file's opening `@moduledoc` block, or every line when it has none.
+
+    past_moduledoc(["@moduledoc", "text", "\"\"\"", "x"]) #=> ["x"]
+    past_moduledoc(["x"]) #=> ["x"]
+"""
+def past_moduledoc(lines)
+  doc = drop_while((l) -> l == "" or starts_with?(l, "#"), lines)
+  if doc != [] and starts_with?(first(doc), "@moduledoc")
+    drop(1, drop_while((l) -> l != "\"\"\"", rest(doc)))
+  else
+    lines
+  end
+end
+
+@doc """
+level_of_file: The level a `.b` file below a bidama's directory belongs to, as its path of
+segments, or nil when it is no level: a part of the bidama itself, or a file
+in a directory such as `fixtures/` that holds no `<d>/<d>.b`.
+
+    level_of_file("/no/such", "/no/such/a/x.b") #=> nil
+"""
+def level_of_file(dir, path)
+  parts = split(join(drop(size(chars(dir)) + 1, chars(path)), ""), "/")
+  chain = take(size(parts) - 1, parts)
+  stem = first(split(last(parts), "."))
+  good = all_levels?(dir, chain)
+  if good and opens_level?(read_file(path))
+    push(chain, stem)
+  elsif good and chain != []
+    chain
+  end
+end
+
+@doc """
+all_levels?: Whether every directory of a chain below `dir` holds its own `<d>/<d>.b`.
+
+    all_levels?("/no/such", []) #=> true
+    all_levels?("/no/such", ["a"]) #=> false
+"""
+def all_levels?(dir, chain)
+  if chain == []
+    true
+  else
+    at = path_join(dir, first(chain))
+    is_file?(path_join(at, "#{first(chain)}.b")) and
+      all_levels?(at, rest(chain))
+  end
+end
+
+@doc """
+level_sources: [segments, text] for every level file below a bidama's directory, sorted by
+path. A bidama with no levels has none, so its catalogue row reads as before.
+
+    level_sources("/no/such") #=> []
+"""
+def level_sources(dir)
+  flat_map(
+    sort_by((p) -> p, filter((p) -> ends_with?(p, ".b"), walk_dir(dir))),
+    fn(p)
+      level = level_of_file(dir, p)
+      if level.nil?
+        []
+      else
+        [[level, read_file(p)]]
+      end
+    end
+  )
+end
+
+@doc """
+level_entries: The catalogue rows of each level's source, every name spelled with its path.
+
+    level_entries([]) #=> []
+    first(first(level_entries([[["a"], "def f(x)\n  x\nend\n"]]))) #=> "a::f"
+"""
+def level_entries(sources)
+  flat_map(
+    sources,
+    fn(s)
+      prefix = join(first(s), "::")
+      map(
+        fn(e)
+          [
+            concat(prefix, "::", first(e)),
+            concat(prefix, "::", e[1]),
+            e[2],
+            e[3]
+          ]
+        end,
+        entries_of_text(s[1])
+      )
+    end
+  )
+end
+
 def package_record(dir)
   manifest = parse_manifest(read_file(concat(dir, "/Bluefile")))
   all_text = package_text(dir)
+  levels = level_sources(dir)
   [
     manifest[0],
     manifest[1],
     manifest[2],
     gloss_of_text(all_text),
-    entries_of_text(all_text),
-    tests_in_text(all_text),
+    concat_lists(entries_of_text(all_text), level_entries(levels)),
+    reduce((n, s) -> n + tests_in_text(s[1]), tests_in_text(all_text), levels),
     legacy_prefix_of_text(all_text),
     dir
   ]
@@ -496,7 +612,9 @@ def other_name(r, e)
     ""
   else
     p = "#{prefix}_"
-    if starts_with?(name, p)
+    if contains?(name, "::")
+      ""
+    elsif starts_with?(name, p)
       "`#{pkg_name(r)}::#{join(drop(size(chars(p)), chars(name)), "")}`"
     else
       "`#{p}#{name}` (old)"
@@ -3342,6 +3460,32 @@ def ut_graph()
       %w[gauge? gauge exists:moji seven]
     ]
   )
+end
+
+test "a file that opens with namespace() is a level, and a data directory is not"
+  dir = path_join(getenv("TMPDIR", "/tmp"), "mokuroku-ut-levels")
+  mkdir_p(dir)
+  write_file(
+    path_join(dir, "Bluefile"),
+    unlines(["package(\"tree\", \"0.1.0\")"])
+  )
+  write_program(path_join(dir, "tree.b"), unlines(["def top(a)", "  a", "end"]))
+  write_program(
+    path_join(dir, "door.b"),
+    unlines(["namespace()", "", "def key(a)", "  a", "end"])
+  )
+  mkdir_p(path_join(dir, "room"))
+  write_program(
+    path_join(dir, "room/room.b"),
+    unlines(["def bed(a)", "  a", "end"])
+  )
+  mkdir_p(path_join(dir, "fixtures"))
+  write_program(
+    path_join(dir, "fixtures/data.b"),
+    unlines(["def nope(a)", "  a", "end"])
+  )
+  names = map((e) -> first(e), pkg_entries(package_record(dir)))
+  assert sort_by((n) -> n, names) == %w[door::key room::bed top]
 end
 
 test "code_tokens splits on punctuation and keeps ? and ! and a qualified name whole"

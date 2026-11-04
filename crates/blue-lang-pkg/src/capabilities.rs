@@ -674,17 +674,18 @@ fn reached_definitions(
         let forms =
             blue_lang_mondou::reach::form_reach(&blue_lang_runtime::erase_types(&lowered), &hashes);
         let own = |i: usize| program.owner_of(i) == Some(ResolvedProgram::ENTRY);
-        let package_of = |i: usize| match namespace_of(program, i) {
+        let level_of = |i: usize| match namespace_of(program, i) {
             blue_lang_check::Namespace::Bidama(p) if !own(i) => p,
             _ => root.to_string(),
         };
+        let package_of = |i: usize| blue_lang_syntax::root_of(&level_of(i)).to_string();
         let label_of = |i: usize| {
-            let package = package_of(i);
+            let package = level_of(i);
             match hashes.at(i) {
                 Some(def) => {
                     let name = def
                         .key
-                        .split_once(blue_lang_syntax::QUALIFIER)
+                        .rsplit_once(blue_lang_syntax::QUALIFIER)
                         .map_or(def.key.as_str(), |(_, n)| n);
                     format!("{package}::{name}")
                 }
@@ -1076,7 +1077,10 @@ fn evidenced(r: &CapabilityRecord) -> bool {
                 let package = definition
                     .split_once("::")
                     .map_or(definition.as_str(), |(p, _)| p);
-                joined.entry(package).or_default().extend(caps);
+                joined
+                    .entry(blue_lang_syntax::root_of(package))
+                    .or_default()
+                    .extend(caps);
             }
             joined.keys().all(|p| r.packages.contains_key(*p))
                 && r.packages.iter().all(|(p, floor)| {

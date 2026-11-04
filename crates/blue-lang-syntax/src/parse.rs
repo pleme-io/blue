@@ -696,20 +696,47 @@ pub const QUALIFIER: char = '/';
 /// `count`, whatever a program defines. No package may be named it.
 pub const BUILTIN_QUALIFIER: &str = "blue";
 
-/// The AST symbol for `pkg::name`.
+/// The AST symbol for `pkg::name`. `pkg` may be a path of levels:
+/// `qualify("caixa/sub", "inner")` is the tree of `caixa::sub::inner`.
 #[must_use]
 pub fn qualify(pkg: &str, name: &str) -> String {
     format!("{pkg}{QUALIFIER}{name}")
 }
 
+/// A level's path as the surface writes it: `caixa/sub` is `caixa::sub`.
+#[must_use]
+pub fn spell_level(level: &str) -> String {
+    level.replace(QUALIFIER, "::")
+}
+
+/// The bidama a level belongs to: the first segment of its path.
+#[must_use]
+pub fn root_of(level: &str) -> &str {
+    level.split(QUALIFIER).next().unwrap_or(level)
+}
+
+/// Is `level` a path below a root, not a bidama of its own?
+#[must_use]
+pub fn is_nested(level: &str) -> bool {
+    level.contains(QUALIFIER)
+}
+
+/// Is `name` one identifier, the only shape a bidama's own name may take?
+#[must_use]
+pub fn is_one_segment(name: &str) -> bool {
+    qualified(&qualify(name, "x")).is_some_and(|(p, _)| !is_nested(p))
+}
+
 /// `retsu/first` → `Some(("retsu", "first"))`: the package and the name of a
-/// qualified symbol. `None` for every other symbol, `/` (division) included.
+/// qualified symbol, and `a/b/c` → `Some(("a/b", "c"))`: the level is every
+/// segment but the last. `None` for every other symbol, `/` (division)
+/// included.
 ///
 /// The ONE reader of the shape, so the formatter, the name table and the
 /// runtime's renderer cannot disagree about what counts as qualified.
 #[must_use]
 pub fn qualified(sym: &str) -> Option<(&str, &str)> {
-    let (pkg, name) = sym.split_once(QUALIFIER)?;
+    let (pkg, name) = sym.rsplit_once(QUALIFIER)?;
     let ident = |s: &str| {
         matches!(
             lex(s).as_deref(),
@@ -717,7 +744,10 @@ pub fn qualified(sym: &str) -> Option<(&str, &str)> {
         )
     };
     let named = |s: &str| ident(s) || matches!(s, "true" | "false" | "nil");
-    (ident(pkg) && !is_reserved_word(pkg) && named(name)).then_some((pkg, name))
+    let level = pkg
+        .split(QUALIFIER)
+        .all(|seg| ident(seg) && !is_reserved_word(seg));
+    (level && named(name)).then_some((pkg, name))
 }
 
 /// One line for a reader on each reserved word: what it writes, and the shape.
@@ -1712,9 +1742,10 @@ impl Parser {
     ///
     /// After `::` any identifier is a name, reserved words included:
     /// `kueri::if` names kueri's definition, never the `if` form, because a
-    /// reserved word is reserved only where it could start a form. The
-    /// package side is never a reserved word, and a name has exactly one
-    /// qualifier (`a::b::c` is refused), since a package is one level deep.
+    /// reserved word is reserved only where it could start a form. Every
+    /// level before the last `::` is a path segment (`caixa::sub::inner` is
+    /// the one symbol `caixa/sub/inner`), and a segment is never a reserved
+    /// word.
     fn qualified_name(&mut self, pkg_span: Span, pkg: &str) -> Result<Spanned, Fail> {
         if is_reserved_word(pkg) {
             return Err(fail(
@@ -1722,30 +1753,40 @@ impl Parser {
                 pkg_span,
             ));
         }
-        self.bump(); // ::
-        let name_span = self.peek_span();
-        let name = match self.bump() {
-            TokenKind::Ident(n) => n,
-            // `true`, `false` and `nil` lex as their own tokens.
-            TokenKind::True => "true".to_string(),
-            TokenKind::False => "false".to_string(),
-            TokenKind::Nil => "nil".to_string(),
-            other => {
-                return Err(fail(
-                    format!("expected a name after `{pkg}::`, found {other}"),
-                    name_span,
-                ))
+        let mut path = pkg.to_string();
+        loop {
+            self.bump(); // ::
+            let name_span = self.peek_span();
+            let name = match self.bump() {
+                TokenKind::Ident(n) => n,
+                // `true`, `false` and `nil` lex as their own tokens.
+                TokenKind::True => "true".to_string(),
+                TokenKind::False => "false".to_string(),
+                TokenKind::Nil => "nil".to_string(),
+                other => {
+                    return Err(fail(
+                        format!(
+                            "expected a name after `{}::`, found {other}",
+                            spell_level(&path)
+                        ),
+                        name_span,
+                    ))
+                }
+            };
+            if !self.at(&TokenKind::PathSep) {
+                return Ok(sym_at(
+                    self.span_since(pkg_span.start),
+                    &qualify(&path, &name),
+                ));
             }
-        };
-        if self.at(&TokenKind::PathSep) {
-            return Err(self.error(format!(
-                "a qualified name has one qualifier: `package::name`, and `{pkg}::{name}::…` has two"
-            )));
+            if is_reserved_word(&name) {
+                return Err(fail(
+                    format!("`{name}` is a reserved word and cannot name a level"),
+                    name_span,
+                ));
+            }
+            path = qualify(&path, &name);
         }
-        Ok(sym_at(
-            self.span_since(pkg_span.start),
-            &qualify(pkg, &name),
-        ))
     }
 
     /// After a `.`: `recv.name` or `recv.name(args)`.
@@ -3842,12 +3883,22 @@ mod tests {
     }
 
     #[test]
-    fn a_qualified_name_has_exactly_one_qualifier() {
+    fn a_qualified_name_reads_as_deep_as_it_is_written() {
+        assert_eq!(q("a::b::c"), "a/b/c");
+        assert_eq!(q("a::b::c::d(x)"), "(a/b/c/d x)");
+        assert_eq!(q("a :: b :: c"), "a/b/c");
+        assert_eq!(q("a::b::if(x)"), "(a/b/if x)");
+        assert_eq!(q("a::b::nil"), "a/b/nil");
+    }
+
+    #[test]
+    fn a_qualified_name_refuses_what_no_path_can_spell() {
         for (src, says) in [
             ("::first(xs)", "`package::name`"),
-            ("a::b::c", "one qualifier"),
             ("if::x", "reserved word"),
+            ("a::if::x", "reserved word"),
             ("retsu::1", "expected a name after `retsu::`"),
+            ("a::b::1", "expected a name after `a::b::`"),
         ] {
             let e = parse_program(src).expect_err(src);
             assert!(e.message.contains(says), "{src}: {}", e.message);
@@ -3861,7 +3912,11 @@ mod tests {
         assert_eq!(qualified("retsu/first"), Some(("retsu", "first")));
         assert_eq!(qualified("kueri/if"), Some(("kueri", "if")));
         assert_eq!(qualified("nisshi/pair?"), Some(("nisshi", "pair?")));
-        for not in ["/", "a/", "/a", "a/b/c", "if/x", "hash-map", "a"] {
+        assert_eq!(qualified("a/b/c"), Some(("a/b", "c")));
+        assert_eq!(qualified("a/b/c/if"), Some(("a/b/c", "if")));
+        for not in [
+            "/", "a/", "/a", "a//b", "if/x", "a/if/x", "%root/x", "hash-map", "a",
+        ] {
             assert_eq!(qualified(not), None, "{not}");
         }
         assert!(is_callable_name("kueri/if"));

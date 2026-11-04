@@ -563,19 +563,28 @@ fn shape_hashes() -> std::collections::BTreeMap<String, blue_lang_mondou::def_ha
     let mut out = std::collections::BTreeMap::new();
     for name in packages() {
         let path = dist().join(&name).join(format!("{name}.b"));
-        let src = std::fs::read_to_string(&path).expect("source");
-        let checked = blue_lang_runtime::pipeline::check_entry(
-            Entry {
-                path: Some(&path),
-                text: &src,
-            },
-            &lp,
-            None,
-            blue_lang_runtime::pipeline::Checking::Program,
-        )
-        .unwrap_or_else(|e| panic!("{name}: imports must resolve: {e}"));
-        for shape in checked.entry_shapes() {
-            out.insert(shape.key.clone(), shape);
+        let mut files = vec![path];
+        let mut levels = lp.children(&name);
+        while let Some(level) = levels.pop() {
+            let stem = level.rsplit('/').next().expect("a level has a name");
+            files.push(dist().join(&level).join(format!("{stem}.b")));
+            levels.extend(lp.children(&level));
+        }
+        for path in files {
+            let src = std::fs::read_to_string(&path).expect("source");
+            let checked = blue_lang_runtime::pipeline::check_entry(
+                Entry {
+                    path: Some(&path),
+                    text: &src,
+                },
+                &lp,
+                None,
+                blue_lang_runtime::pipeline::Checking::Program,
+            )
+            .unwrap_or_else(|e| panic!("{name}: imports must resolve: {e}"));
+            for shape in checked.entry_shapes() {
+                out.insert(shape.key.clone(), shape);
+            }
         }
     }
     out

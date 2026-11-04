@@ -85,6 +85,12 @@ row(
   formats(unlines(["use(\"sp_mod\")", "sp_mod::sp_twice(2)"]))
 )
 
+row(
+  "fmt.qualified_name.deep",
+  join_lines(["a :: b :: c(2)"]),
+  formats(unlines(["a::b::c(2)"]))
+)
+
 row("fmt.words.strings", "[\"a\", \"b\"]", formats(unlines(["%w[a b]"])))
 row("fmt.words.keywords", "[:a, :b?]", formats(unlines(["%i[a b?]"])))
 row("fmt.words.one_stays", "[\"a\"]", formats(unlines(["[\"a\"]"])))

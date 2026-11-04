@@ -1,4 +1,5 @@
 use("hon", [:front_matter_text])
+use("junjo", [:sort_by])
 use("moji", %i[includes is_blank lines squish strip_prefix trim])
 
 use("retsu", %i[concat_lists drop_while first flat_map last rest take_while])
@@ -66,18 +67,40 @@ def uses?(text, pkg)
   includes(text, "use(\"#{pkg}\")")
 end
 
+# Every other source of the bidama, its levels at any depth, each under its
+# path. A bidama with one file shows nothing more.
+def level_sections(name, dir)
+  own = path_join(dir, "#{name}.b")
+  sources = sort_by(
+    (p) -> p,
+    filter((p) -> ends_with?(p, ".b") and p != own, walk_dir(dir))
+  )
+  flat_map(
+    sources,
+    fn(p)
+      [
+        "`examples/bidamas/#{name}/#{strip_prefix(p, "#{dir}/")}`:",
+        fenced("blue", read_file(p))
+      ]
+    end
+  )
+end
+
 def package_section(dir)
   name = path_basename(dir)
   source = read_file(path_join(dir, "#{name}.b"))
   gloss = uncomment(first(lines(source)))
-  [
-    "## A bidama: `#{name}`",
-    gloss,
-    "`examples/bidamas/#{name}/Bluefile`:",
-    fenced("blue", read_file(path_join(dir, "Bluefile"))),
-    "`examples/bidamas/#{name}/#{name}.b`:",
-    fenced("blue", source)
-  ]
+  concat_lists(
+    [
+      "## A bidama: `#{name}`",
+      gloss,
+      "`examples/bidamas/#{name}/Bluefile`:",
+      fenced("blue", read_file(path_join(dir, "Bluefile"))),
+      "`examples/bidamas/#{name}/#{name}.b`:",
+      fenced("blue", source)
+    ],
+    level_sections(name, dir)
+  )
 end
 
 def example_section(path)

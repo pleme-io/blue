@@ -96,7 +96,7 @@ impl Analysis {
             if found.is_some() {
                 return found;
             }
-            if let Some(import) = blue_lang_syntax::scope::use_target(form) {
+            for import in blue_lang_syntax::scope::use_targets(form).unwrap_or_default() {
                 if within(import.package_span) {
                     return Some((Symbol::Package(import.package), import.package_span));
                 }
@@ -212,7 +212,7 @@ impl Analysis {
             out.push((Located { file, span }, reference.written.clone()));
         }
         for (i, form) in c.program.forms().iter().enumerate() {
-            if let Some(import) = blue_lang_syntax::scope::use_target(form) {
+            for import in blue_lang_syntax::scope::use_targets(form).unwrap_or_default() {
                 if ns == &Namespace::Bidama(import.package.clone()) {
                     for (n, s) in &import.names {
                         if n == name {

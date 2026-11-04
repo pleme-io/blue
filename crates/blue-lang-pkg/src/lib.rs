@@ -47,6 +47,7 @@ pub mod embedded;
 /// checkout, not a package server. See the module docs for what it does and
 /// does NOT claim.
 pub mod git_registry;
+pub mod levels;
 pub mod load_path;
 /// `Bluefile.lock` — the evaluated manifest, committed so nix reads blue's
 /// evaluation instead of re-deriving it. `theory/BLUE-STRUCTURE.md` §5.1.

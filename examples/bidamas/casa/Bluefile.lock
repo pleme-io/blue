@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:ac75bdab180cb2032068d7cdb58dd7cff67d05e2c286e7abd1eb53ce5e839f3d",
+  "manifest": {
+    "schema": 1,
+    "name": "casa",
+    "version": "0.1.0",
+    "needs": {},
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

@@ -69,9 +69,9 @@ fn with_hint(message: String, hint: Option<String>) -> String {
 }
 
 fn spelled(key: &str) -> String {
-    match key.split_once('/') {
+    match key.rsplit_once('/') {
         Some((blue_lang_check::names::ROOT_QUALIFIER, n)) => n.to_string(),
-        Some((pkg, n)) => format!("{pkg}::{n}"),
+        Some((pkg, n)) => format!("{}::{n}", blue_lang_syntax::spell_level(pkg)),
         None => key.to_string(),
     }
 }

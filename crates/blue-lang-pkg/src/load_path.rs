@@ -344,7 +344,7 @@ impl LoadPath {
         let range = self.required.get(name);
         for (root, channel) in self.roots.iter().zip(&self.channels) {
             let dir = root.join(name);
-            if !dir.is_dir() {
+            if !dir.is_dir() && !(blue_lang_syntax::is_nested(name) && level_file(&dir).is_some()) {
                 continue;
             }
             if *channel == Channel::Project {
@@ -501,9 +501,46 @@ fn relative(root: &Path, project: &Path) -> String {
 /// project does. A project may be named like a bidama (`nupastel`); its
 /// `packages` still say it is the project.
 pub(crate) fn bidama_of(bf: &crate::Bluefile) -> Option<&str> {
-    let one_identifier =
-        blue_lang_syntax::qualified(&blue_lang_syntax::qualify(&bf.name, "x")).is_some();
-    (one_identifier && bf.project.packages.is_empty()).then_some(bf.name.as_str())
+    (blue_lang_syntax::is_one_segment(&bf.name) && bf.project.packages.is_empty())
+        .then_some(bf.name.as_str())
+}
+
+/// Is `dir` a level of the bidama around it? It holds `<dir>/<dir>.b`, the
+/// layout every bidama has. A `fixtures/` or a directory of data is not one,
+/// and nothing loads it by accident.
+#[must_use]
+pub fn is_level_dir(dir: &Path) -> bool {
+    dir.file_name().and_then(|n| n.to_str()).is_some_and(|n| {
+        blue_lang_syntax::is_one_segment(n) && dir.join(format!("{n}.b")).is_file()
+    })
+}
+
+/// The levels one step below the directory of level `name`: its level
+/// directories, and its files that open with `namespace()`. Sorted.
+fn levels_in(name: &str, dir: &Path) -> Vec<String> {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    let mut out: Vec<String> = entries
+        .filter_map(Result::ok)
+        .filter_map(|e| {
+            let path = e.path();
+            let stem = path.file_stem().and_then(|n| n.to_str())?.to_string();
+            let own_file = path.extension().and_then(|x| x.to_str()) == Some("b")
+                && std::fs::read_to_string(&path).is_ok_and(|t| crate::levels::declares_level(&t));
+            (is_level_dir(&path) || own_file).then(|| format!("{name}/{stem}"))
+        })
+        .collect();
+    out.sort();
+    out.dedup();
+    out
+}
+
+/// A nested name's root directory: `caixa/sub/deep` under the root that holds
+/// `caixa`, when that directory is a bidama.
+fn level_file(dir: &Path) -> Option<PathBuf> {
+    let file = dir.with_extension("b");
+    file.is_file().then_some(file)
 }
 
 /// The package roots of the project a file at `entry` belongs to.
@@ -550,7 +587,9 @@ pub fn project_roots(entry: &Path) -> Vec<PathBuf> {
     roots
 }
 
-/// Read every `.b` file in a package directory, sorted by filename.
+/// Read every `.b` file in a package directory, sorted by filename. A file
+/// that opens with `namespace()` is the level of its own name, never a part
+/// of this one.
 ///
 /// Sorted because `read_dir` order is filesystem-dependent, and a package
 /// whose definitions load in a different order on a different machine is the
@@ -569,6 +608,9 @@ fn read_sources(dir: &Path) -> Result<Vec<(String, String)>, String> {
             .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
         // A dependency compiles as written: its form is its producer's, and
         // the loader never writes. `crate::canonical` holds the rule.
+        if crate::levels::declares_level(&src) {
+            continue;
+        }
         let src = crate::canonical::admit_dependency(&path, src).map_err(|e| e.to_string())?;
         out.push((path.display().to_string(), src));
     }
@@ -584,6 +626,9 @@ impl Loader for LoadPath {
             Some(Found::Dir(d)) => d,
             None => return Err(self.not_found(name, &selection.skipped)),
         };
+        if !dir.is_dir() {
+            return load_level_file(name, &dir);
+        }
 
         // A package is what its Bluefile says it is: `use("x")` loading a
         // directory whose Bluefile declares `package("y")` would put y's
@@ -595,6 +640,12 @@ impl Loader for LoadPath {
         }
         if let Ok(text) = std::fs::read_to_string(dir.join("Bluefile")) {
             if let Ok(bf) = crate::bluefile::read_bluefile(&text) {
+                if blue_lang_syntax::is_nested(name) {
+                    return Err(format!(
+                        "level \"{name}\" at {} has a Bluefile of its own: one bidama has one Bluefile, at its root, and a level below it has none",
+                        dir.display()
+                    ));
+                }
                 if bf.name != name {
                     return Err(format!(
                         "bidama \"{name}\" at {} declares package(\"{}\"): a package's directory and its Bluefile name it the same",
@@ -617,7 +668,18 @@ impl Loader for LoadPath {
         Ok(sources)
     }
 
+    fn children(&self, name: &str) -> Vec<String> {
+        match self.select(name).found {
+            Some(Found::Dir(d)) => levels_in(name, &d),
+            Some(Found::Standard) => crate::embedded::Standard.children(name),
+            None => Vec::new(),
+        }
+    }
+
     fn needs(&self, package: &str, entry_dir: Option<&Path>) -> Option<BTreeSet<String>> {
+        if blue_lang_syntax::is_nested(package) {
+            return self.needs(blue_lang_syntax::root_of(package), None);
+        }
         let dir = match (entry_dir, self.select(package).found) {
             (Some(d), _) => d.to_path_buf(),
             (None, Some(Found::Standard)) => return crate::embedded::Standard.needs(package, None),
@@ -633,6 +695,9 @@ impl Loader for LoadPath {
     }
 
     fn version(&self, package: &str, entry_dir: Option<&Path>) -> Option<String> {
+        if blue_lang_syntax::is_nested(package) {
+            return self.version(blue_lang_syntax::root_of(package), None);
+        }
         let dir = match (entry_dir, self.select(package).found) {
             (Some(d), _) => d.to_path_buf(),
             (None, Some(Found::Standard)) => {
@@ -685,10 +750,52 @@ impl Loader for LoadPath {
             .parent()
             .filter(|d| !d.as_os_str().is_empty())
             .unwrap_or(Path::new("."));
-        let text = std::fs::read_to_string(dir.join("Bluefile")).ok()?;
-        let bf = crate::bluefile::read_bluefile(&text).ok()?;
-        bidama_of(&bf).map(str::to_string)
+        if let Ok(text) = std::fs::read_to_string(dir.join("Bluefile")) {
+            let bf = crate::bluefile::read_bluefile(&text).ok()?;
+            let own = bidama_of(&bf).map(str::to_string)?;
+            let text = std::fs::read_to_string(path).unwrap_or_default();
+            if crate::levels::declares_level(&text) {
+                let stem = path.file_stem()?.to_str()?;
+                return Some(format!("{own}/{stem}"));
+            }
+            return Some(own);
+        }
+        let canonical = dir.canonicalize().ok()?;
+        let parent = canonical.parent()?;
+        if !is_level_dir(&canonical) {
+            return None;
+        }
+        let up =
+            self.entry_package(&parent.join(format!("{}.b", parent.file_name()?.to_str()?)))?;
+        let level = format!("{up}/{}", canonical.file_name()?.to_str()?);
+        let text = std::fs::read_to_string(path).unwrap_or_default();
+        if crate::levels::declares_level(&text) {
+            let stem = path.file_stem()?.to_str()?;
+            return Some(format!("{level}/{stem}"));
+        }
+        Some(level)
     }
+}
+
+/// A level that is one file, `caixa/extra.b`. It must say so, or it is a part
+/// of `caixa`: `use("caixa/extra")` on such a file names both facts.
+fn load_level_file(name: &str, stem: &Path) -> Result<Vec<(String, String)>, String> {
+    let path = stem.with_extension("b");
+    let src = std::fs::read_to_string(&path)
+        .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+    if !crate::levels::declares_level(&src) {
+        return Err(format!(
+            "{} is a part of `{}`, not a level of its own: its definitions are reached through `{}`. Open it with `namespace()` to make it `{}`, or move it to {}/{}.b",
+            path.display(),
+            blue_lang_syntax::spell_level(name.rsplit_once('/').map_or(name, |(p, _)| p)),
+            blue_lang_syntax::spell_level(name.rsplit_once('/').map_or(name, |(p, _)| p)),
+            blue_lang_syntax::spell_level(name),
+            stem.display(),
+            name.rsplit('/').next().unwrap_or(name)
+        ));
+    }
+    let src = crate::canonical::admit_dependency(&path, src).map_err(|e| e.to_string())?;
+    Ok(vec![(path.display().to_string(), src)])
 }
 
 #[cfg(test)]

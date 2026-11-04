@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:a016eb47c5bf1810e8f83ad8506e6129a4e5b32f15dfdf1ff656b1a122b7a360",
+  "bluefile_b3": "b3:4293d5bb4c015dc9c4d444d833d956c6670814213988457bde4d05341a600102",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -19,6 +19,9 @@
       "curl"
     ],
     "checks": {
+      "chart-gate": {
+        "file": "nix/chart-gate.b"
+      },
       "consumers": {
         "file": "gen/consumers.b",
         "inputs": [

@@ -64,7 +64,7 @@ the service's `access` and its `host`, never a guess:
 | `:clock`, `:entropy`, `:environment` | `wasi:clocks`, `wasi:random`, `wasi:cli/environment` | wasm |
 | `exec: [...]` or `:process` | none: WASI preview 2 has no process spawn or exec | native, `because: :process` |
 | `host: "<package>"` | none: the program is a native host binary | native, `because: :host_program` |
-| `:kernel_bpf` | none: WASI reaches no kernel ABI | native, `because: :device`, and the chart adds exactly `BPF`, `PERFMON` and `NET_ADMIN` (`KERNEL.md`) |
+| `:kernel_bpf` | none: WASI reaches no kernel ABI | native, `because: :device`, and the chart is a DaemonSet with exactly `BPF`, `PERFMON` and `NET_ADMIN`, bpffs and a read-only tracefs (`KERNEL.md`) |
 | a device, GPU or other kernel ABI (CONTAIN THE C) | none | native, `because: :device` (a world fact the access cannot show) |
 
 The judge refuses each bad entry alone and names it:
@@ -87,7 +87,7 @@ schema, config and migration into `deploy/<service>/`; the chart gains:
 
 | Piece | wasm rung | native rung |
 |---|---|---|
-| workload (S4) | a Deployment with `pleme-lib.runtimeclass` (`runtimeClassName: wasm`), image `pleme-lib.wasm-component.image` (`nix:<closure>`), annotations `pleme-lib.wasm-component.annotations` (`blue.pleme.io/access`, `wasm.pleme.io/app`) | a Deployment of the nix closure or the image; annotation `blue.pleme.io/native-because` |
+| workload (S4) | a Deployment with `pleme-lib.runtimeclass` (`runtimeClassName: wasm`), image `pleme-lib.wasm-component.image` (`nix:<closure>`), annotations `pleme-lib.wasm-component.annotations` (`blue.pleme.io/access`, `wasm.pleme.io/app`) | a Deployment of the nix closure or the image, or for `:kernel_bpf` a DaemonSet; annotation `blue.pleme.io/native-because` |
 | access | `SERVICE-ACCESS.md` §4: NetworkPolicy egress, read-only volumes for `reads`, nothing writable unless `writes` names it | the same |
 | values schema | generated, closed (`additionalProperties: false`) | the same |
 | Flux | a `HelmRelease` and `Kustomization` per `placement`, rendered in the GitOps repo from the pinned service flake (`SERVICE-ACCESS.md` §5) | the same |
@@ -100,7 +100,7 @@ lowers through `blue.lib.project` to substrate's nix (`lib/service/helm-build.ni
 | Bluefile word or field | Describes | Lowers to |
 |---|---|---|
 | `service(name, {...})` | the program, port, probes, config | haibi's chart (values plus pleme-lib `include`s) |
-| `access: {effects, egress, reads, writes, listen, exec}` | what it may touch (`SERVICE-ACCESS.md` §3) | pleme-lib access network policy and volumes; the engine posture; unit sandbox |
+| `access: {effects, egress, reads, writes, listen, exec, host_network, per_node}` | what it may touch (`SERVICE-ACCESS.md` §3) | pleme-lib access network policy and volumes; the engine posture; unit sandbox |
 | `runtime: :native, because: :process` (absent: wasm) | the runtime rung (§2) | `packages.service-<name>-component` and the wasm workload, or the native workload; `checks.service-<name>-component-serves` runs the component under wasmtime |
 | `schema: {...}` / `model(...)` | its data | DDL and the shinka migration |
 | `cache: {...}`, `secrets: [...]` | bindings | pleme-cache values; pleme-lib typed secret refs |

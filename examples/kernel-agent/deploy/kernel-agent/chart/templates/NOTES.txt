@@ -1,0 +1,2 @@
+{{ include "pleme-lib.fullname" . }} answers HTTP on port {{ .Values.listen.port }}; its health is {{ .Values.health }}.
+Settings reach it as KERNEL_AGENT_* environment variables, the shikumi env tier over its baked defaults.

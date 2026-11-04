@@ -110,6 +110,15 @@ let
       wasm = (spec.runtime.kind or "wasm") == "wasm";
       chart = "chart${lib.optionalString wasm " --set runtime.component.closure=/nix/store/00000000000000000000000000000000-${sn}-component"}";
       withDb = (spec.schema or { }) != { };
+      access = spec.access or { };
+      kernel = lib.elem "kernel_bpf" (access.effects or [ ]);
+      perNode = kernel && (access.per_node or true);
+      kind = if perNode then "DaemonSet" else "Deployment";
+      declared = lib.concatStringsSep " " [
+        (if kernel then "kernel" else "plain")
+        (if access.host_network or false then "host_network" else "own_network")
+        (if perNode then "per_node" else "one_set")
+      ];
     in
     pkgs.runCommand "service-${sn}-chart" { nativeBuildInputs = [ pkgs.kubernetes-helm ]; } (''
       export HOME=$TMPDIR
@@ -136,7 +145,8 @@ let
         exit 1
       fi
     '' + ''
-      grep -q '^kind: Deployment$' rendered.yaml
+      grep -q '^kind: ${kind}$' rendered.yaml
+      BLUE_PATH=${bluePath} ${blue}/bin/blue run --quiet ${./chart-gate.b} -- rendered.yaml ${declared}
       grep -q '^kind: Service$' rendered.yaml
       grep -q '^kind: "PrometheusRule"$' rendered.yaml
       grep -q 'alert: "SloAvailabilityBurn1h"' rendered.yaml
@@ -170,6 +180,24 @@ let
       grep -q 'database.host is required' db.log
       helm template t ${chart} --set database.enabled=true --set database.host=pg --set database.credentialsSecret=pg > db.yaml
       grep -q '^kind: DatabaseMigration$' db.yaml
+    '' + ''
+    '' + lib.optionalString kernel ''
+      if helm template t ${chart} --set 'securityContext.capabilities.add={BPF,PERFMON,NET_ADMIN,SYS_ADMIN}' > /dev/null 2> widened.log; then
+        echo "service-${sn}-chart: a release widened a kernel service's capabilities" >&2
+        exit 1
+      fi
+      grep -q 'securityContext' widened.log
+      if helm template t ${chart} --set securityContext.privileged=true > /dev/null 2> privileged.log; then
+        echo "service-${sn}-chart: a release made a kernel service privileged" >&2
+        exit 1
+      fi
+      grep -q 'securityContext' privileged.log
+    '' + lib.optionalString perNode ''
+      if helm template t ${chart} --set replicaCount=3 > /dev/null 2> replicas.log; then
+        echo "service-${sn}-chart: a per-node service took a replica count" >&2
+        exit 1
+      fi
+      grep -q "additional properties 'replicaCount' not allowed" replicas.log
     '' + ''
       cp rendered.yaml $out
     '');

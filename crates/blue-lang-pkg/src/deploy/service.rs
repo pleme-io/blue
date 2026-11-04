@@ -401,6 +401,14 @@ pub fn service_of(name: &str, spec: &Value) -> Result<Service, SpecError> {
     let cache = cache_of(s.get("cache"))?;
     let access = access_of(s.get("access"), port)?;
     let runtime = runtime_of(s.get("runtime"), s.get("because"), &access, host.as_deref())?;
+    if access.runs_per_node() {
+        if s.get("replicas").is_some() {
+            return Err(SpecError::PerNodeConflict { field: "replicas" });
+        }
+        if !schema.is_empty() {
+            return Err(SpecError::PerNodeConflict { field: "schema" });
+        }
+    }
 
     let output = match s.text("output")? {
         Some(o) => project_path("output", o)?,
@@ -743,6 +751,70 @@ mod tests {
         let e = format!("{:?}", read(body).unwrap_err());
         assert!(e.contains(":kernel_bpf"), "{e}");
         assert!(e.contains("gap: \"device\""), "{e}");
+    }
+
+    const KERNEL: &str = "program: \"hello.b\", repository: \"ghcr.io/pleme-io/hello\", port: 8080, runtime: :native, because: :device";
+
+    #[test]
+    fn a_kernel_service_runs_per_node_unless_its_access_says_not() {
+        let plain = read(
+            &[
+                "service(\"hello\", {",
+                KERNEL,
+                ", access: {effects: [:network, :kernel_bpf]}})\n",
+            ]
+            .concat(),
+        )
+        .unwrap();
+        let s = &plain.services["hello"];
+        assert!(s.access.runs_per_node());
+        assert!(!s.access.host_network);
+        let json = serde_json::to_string(s).unwrap();
+        assert!(
+            !json.contains("host_network") && !json.contains("per_node"),
+            "{json}"
+        );
+        let hosted = read(
+            &["service(\"hello\", {", KERNEL, ", access: {effects: [:network, :kernel_bpf], host_network: true, per_node: false}, replicas: 2})\n"]
+                .concat(),
+        )
+        .unwrap();
+        let s = &hosted.services["hello"];
+        assert!(s.access.host_network);
+        assert!(!s.access.runs_per_node());
+        assert_eq!(s.replicas, 2);
+        let back: Service = serde_json::from_str(&serde_json::to_string(s).unwrap()).unwrap();
+        assert_eq!(&back, s);
+    }
+
+    #[test]
+    fn a_field_that_only_a_kernel_pod_can_use_is_refused_alone_elsewhere() {
+        let base = "program: \"hello.b\", repository: \"ghcr.io/pleme-io/hello\", port: 8080";
+        let cases = [
+            (
+                "access: {host_network: true}",
+                "lacks the :kernel_bpf effect",
+            ),
+            ("access: {per_node: true}", "lacks the :kernel_bpf effect"),
+            ("access: {host_network: 1}", "host_network"),
+        ];
+        for (extra, needle) in cases {
+            let body = ["service(\"hello\", {", base, ", ", extra, "})\n"].concat();
+            let errs = refused(&body);
+            assert!(errs.iter().any(|e| e.contains(needle)), "{extra}: {errs:?}");
+        }
+    }
+
+    #[test]
+    fn a_per_node_service_takes_no_replicas_and_no_tables() {
+        let access = ", access: {effects: [:network, :kernel_bpf]}";
+        for (extra, needle) in [
+            (", replicas: 2", "`replicas` cannot hold"),
+            (", schema: {t: {c: \"text\"}}", "`schema` cannot hold"),
+        ] {
+            let errs = refused(&["service(\"hello\", {", KERNEL, access, extra, "})\n"].concat());
+            assert!(errs.iter().any(|e| e.contains(needle)), "{extra}: {errs:?}");
+        }
     }
 
     #[test]

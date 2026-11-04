@@ -1,0 +1,18 @@
+package("blue-kernel-agent", "0.1.0")
+
+service(
+  "kernel-agent",
+  {
+    program: "agent.b",
+    repository: "ghcr.io/pleme-io/blue",
+    port: 18081,
+    access: {
+      effects: %i[network clock entropy environment kernel_bpf],
+      host_network: true
+    },
+    runtime: :native,
+    because: :device
+  }
+)
+
+check("agent", "agent.b")

@@ -1,0 +1,55 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:5607fc25ae710a85bf5b2ec6db15cec38b6e39dafc43051b4054dd85d8153062",
+  "manifest": {
+    "schema": 1,
+    "name": "blue-kernel-agent",
+    "version": "0.1.0",
+    "needs": {},
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {
+      "agent": {
+        "file": "agent.b"
+      }
+    },
+    "apps": {},
+    "catalog": null,
+    "services": {
+      "kernel-agent": {
+        "program": "agent.b",
+        "repository": "ghcr.io/pleme-io/blue",
+        "port": 18081,
+        "probe": "/healthz",
+        "namespace": "kernel-agent",
+        "replicas": 1,
+        "access": {
+          "effects": [
+            "network",
+            "clock",
+            "entropy",
+            "environment",
+            "kernel_bpf"
+          ],
+          "egress": [],
+          "reads": [],
+          "writes": [],
+          "listen": [
+            18081
+          ],
+          "exec": [],
+          "host_network": true
+        },
+        "runtime": {
+          "kind": "native",
+          "because": "device"
+        },
+        "output": "deploy/kernel-agent"
+      }
+    }
+  },
+  "sources": {}
+}

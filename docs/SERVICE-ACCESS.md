@@ -68,6 +68,8 @@ service("kensa", {
 | `writes` | writable paths | none |
 | `listen` | ports | the ports the service declares |
 | `exec` | programs it may run | none |
+| `host_network` | the pod joins the node's network namespace; only with `:kernel_bpf` | false |
+| `per_node` | `false` keeps a `:kernel_bpf` service a Deployment; only with `:kernel_bpf` | true: one pod per node, a DaemonSet |
 
 Each field is judged alone; a bad field is refused with its reason and its
 siblings stand.
@@ -80,6 +82,8 @@ siblings stand.
 | `egress` is not empty and `effects` lacks `:network` | same |
 | a path in `reads` or `writes` is relative or under `/nix/store` | not a mount point |
 | `effects` names a pure capability (`:collections`) | pure capabilities are always granted; naming one is a misreading |
+| `host_network` or `per_node` is written and `effects` lacks `:kernel_bpf` | nothing else renders them, so the field would do nothing |
+| `replicas` or `schema` is written on a service that runs per node | a DaemonSet has no replica count, and a migration waits on a Deployment |
 
 `effects` is the Bluefile `posture(reach:)` coordinate, closed by `Capability`,
 so a misspelled effect is a parse failure, not a silent grant.
@@ -95,6 +99,7 @@ does not compile until every layer says what it does with it.
 | Blue engine | `Load::posture(effects)` | the effect's words are bound as refusals; a call raises `this program's posture refuses <effect>` | ✅ A0 |
 | systemd (NixOS trio, HM user unit) | `ProtectSystem=strict`, `ProtectHome=yes`, `PrivateTmp=yes`, `ReadOnlyPaths=` reads, `ReadWritePaths=` writes, `NoNewPrivileges=yes`, `CapabilityBoundingSet=`, `RestrictAddressFamilies=`, `IPAddressDeny=any` + `IPAddressAllow=` egress, `SystemCallFilter=@system-service` | filesystem: no `ReadWritePaths`; network: `PrivateNetwork=yes`; process: `~@process` minus what the runtime needs | ❌ A3 |
 | launchd (darwin trio) | a sandbox profile (`sandbox-exec`) with `deny default`, file reads and writes and network from the access | the matching `deny` | ❌ A3; typed weaker: launchd has no mount namespace |
+| Helm chart, `:kernel_bpf` | a DaemonSet (`per_node: false`: a Deployment); `hostNetwork` where declared; bpffs at `/sys/fs/bpf` and a read-only tracefs at `/sys/kernel/tracing` as `hostPath` mounts; exactly `BPF`, `PERFMON` and `NET_ADMIN`; the values schema holds the pod and container posture as `const`, so a release cannot widen it | no mount, no capability, no `hostNetwork` | ✅ rendered and gated by `nix/chart-gate.b`, `checks.example-kernel-agent`; no release uses it |
 | Helm chart | `readOnlyRootFilesystem` (exists), an `emptyDir` or PVC only for each `writes` path, read-only volumes for `reads`, `NetworkPolicy` egress from `egress` (DNS + each peer), ingress from `listen`, `automountServiceAccountToken: false` unless egress names the API server, `seccompProfile: RuntimeDefault`, `capabilities.drop: [ALL]` | filesystem: no writable volume; network: egress `[]` | ❌ A2 |
 | Image | closure gate: with `:process` refused, the closure holds no shell and no exec helper; with `writes` empty, no writable directory is created | the gate refuses the image | ❌ A4 |
 | Rust host | the host's config is checked against the access at start: a store dir, a ledger file or a `local://` transport that names a path outside `writes` is refused alone | the entry is refused; siblings run | ❌ A6 |
@@ -159,6 +164,7 @@ Each step ends with blue's checks green and a red-then-green test.
 | Engine posture (`Load::posture`, `refused_by`) | tested (`b21d99b`) |
 | kensa engine under `posture(&[])` | tested (`kensa@872cc76`) |
 | `access` declaration | design |
-| Chart, unit, image, host renderers | design |
+| Chart renderer for `:kernel_bpf`: DaemonSet, host network, bpffs, tracefs, exact capabilities | built, not deployed (`KERNEL.md` §6) |
+| Chart, unit, image, host renderers, for every other access | design |
 | Trio for `host` services | design |
 | GitOps rendering | design |

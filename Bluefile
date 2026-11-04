@@ -85,6 +85,7 @@ rule("R0001", "rules/conventions.b", "nil_predicate")
 rule("R0002", "rules/conventions.b", "index_nil")
 check("project-rules", "rules/conventions.b")
 check("kernel-run", "kernel/run.b")
+check("chart-gate", "nix/chart-gate.b")
 
 # The verb graph (bidamas/mokuroku/graph, docs/verbs/H/DESIGN.md): gates G1,
 # G2, G4, G7 and G9 over its rows, held by a hadome baseline of recorded debt,

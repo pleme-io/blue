@@ -12,7 +12,7 @@ component unless it declares another runtime.
 
 use("deeta", %i[get_or pretty yaml])
 use("kyuuji")
-use("retsu", %i[first last rest])
+use("retsu", %i[first flat_map last take_while])
 use("settei", [:env_prefix])
 use("shihyou")
 
@@ -220,6 +220,134 @@ def kernel_reach?(svc)
 end
 
 @doc """
+per_node?: whether a service runs one pod on every node. A service that reaches the kernel does, unless its access states `per_node: false`.
+
+    per_node?({"access" => {"effects" => ["kernel_bpf"]}}) #=> true
+    per_node?({"access" => {"effects" => ["kernel_bpf"], "per_node" => false}}) #=> false
+    per_node?({}) #=> false
+"""
+def per_node?(svc)
+  kernel_reach?(svc) and get_or(get_or(svc, "access", {}), "per_node", true)
+end
+
+@doc """
+host_network?: whether a service declares the node's network namespace.
+
+    host_network?({"access" => {"host_network" => true}}) #=> true
+    host_network?({}) #=> false
+"""
+def host_network?(svc)
+  get_or(get_or(svc, "access", {}), "host_network", false)
+end
+
+@doc """
+workload_kind: the object that runs a service's pods.
+
+    workload_kind({}) #=> "Deployment"
+    workload_kind({"access" => {"effects" => ["kernel_bpf"]}}) #=> "DaemonSet"
+"""
+def workload_kind(svc)
+  if per_node?(svc)
+    "DaemonSet"
+  else
+    "Deployment"
+  end
+end
+
+@doc """
+workload_template: the path of the template that renders a service's workload.
+
+    workload_template({}) #=> "chart/templates/deployment.yaml"
+    workload_template({"access" => {"effects" => ["kernel_bpf"]}}) #=> "chart/templates/daemonset.yaml"
+"""
+def workload_template(svc)
+  "chart/templates/#{downcase(workload_kind(svc))}.yaml"
+end
+
+@doc """
+kernel_mounts: the host paths a pod that loads kernel programs needs: bpffs to pin into, tracefs read-only to find a tracepoint's id. Propagation stays HostToContainer, since Kubernetes grants Bidirectional to a privileged container alone.
+
+    map((m) -> m[:name], kernel_mounts) #=> ["bpffs", "tracefs"]
+"""
+def kernel_mounts()
+  [
+    {
+      name: "bpffs",
+      path: "/sys/fs/bpf",
+      rows: ["              mountPropagation: HostToContainer"]
+    },
+    {
+      name: "tracefs",
+      path: "/sys/kernel/tracing",
+      rows: ["              readOnly: true"]
+    }
+  ]
+end
+
+@doc """
+kernel_mount_rows: the container's volumeMounts entries for a service that reaches the kernel, and none for any other.
+
+    kernel_mount_rows({}) #=> []
+    first(kernel_mount_rows({"access" => {"effects" => ["kernel_bpf"]}})) #=> "            - name: bpffs"
+"""
+def kernel_mount_rows(svc)
+  if kernel_reach?(svc)
+    flat_map(
+      kernel_mounts,
+      fn(m)
+        append(
+          [
+            "            - name: #{m[:name]}",
+            "              mountPath: #{m[:path]}"
+          ],
+          m[:rows]
+        )
+      end
+    )
+  else
+    []
+  end
+end
+
+@doc """
+kernel_volume_rows: the pod's volumes entries for a service that reaches the kernel: each a hostPath that must already exist, so a node without it fails the pod rather than making an empty directory.
+
+    kernel_volume_rows({}) #=> []
+    kernel_volume_rows({"access" => {"effects" => ["kernel_bpf"]}})[2] #=> "            path: /sys/fs/bpf"
+"""
+def kernel_volume_rows(svc)
+  if kernel_reach?(svc)
+    flat_map(
+      kernel_mounts,
+      fn(m)
+        [
+          "        - name: #{m[:name]}",
+          "          hostPath:",
+          "            path: #{m[:path]}",
+          "            type: Directory"
+        ]
+      end
+    )
+  else
+    []
+  end
+end
+
+@doc """
+host_network_rows: the pod lines that join the node's network, and the DNS policy that keeps cluster names resolving there.
+
+    host_network_rows({}) #=> []
+    first(host_network_rows({"access" => {"host_network" => true}})) #=> "      hostNetwork: true"
+"""
+def host_network_rows(svc)
+  if host_network?(svc)
+    ["      hostNetwork: true", "      dnsPolicy: ClusterFirstWithHostNet"]
+  else
+    []
+  end
+end
+
+@doc """
 pod_security: a pod's user: never root, unless the service reaches the kernel, since Kubernetes grants an added capability to root alone.
 
     pod_security({})["runAsUser"] #=> 65532
@@ -295,7 +423,6 @@ end
 def values_with(svc, mode)
   d = defaults(svc)
   base = {
-    "replicaCount" => get_or(svc, "replicas", 1),
     "image" => {
       "repository" => svc["repository"],
       "tag" => "",
@@ -320,11 +447,16 @@ def values_with(svc, mode)
     "podSecurityContext" => pod_security(svc),
     "securityContext" => container_security(svc)
   }
-  with_sa = if mode == :self
+  with_replicas = if per_node?(svc)
     base
   else
+    assoc(base, "replicaCount", get_or(svc, "replicas", 1))
+  end
+  with_sa = if mode == :self
+    with_replicas
+  else
     assoc(
-      base,
+      with_replicas,
       "serviceAccount",
       {"create" => true, "automountServiceAccountToken" => false}
     )
@@ -387,32 +519,40 @@ def values_schema_with(name, svc, mode)
     }
   }
   command = {"type" => "array", "items" => {"type" => "string"}}
-  replicas = assoc(props["replicaCount"], "minimum", 0)
+  held = if kernel_reach?(svc)
+    {
+      pod: {"const" => v["podSecurityContext"]},
+      container: {"const" => v["securityContext"]}
+    }
+  else
+    {pod: kube_object, container: kube_object}
+  end
   open = assoc(
     assoc(
       assoc(
         assoc(
-          assoc(
-            assoc(props, "podAnnotations", string_map),
-            "podSecurityContext",
-            kube_object
-          ),
-          "securityContext",
-          kube_object
+          assoc(props, "podAnnotations", string_map),
+          "podSecurityContext",
+          held[:pod]
         ),
-        "resources",
-        resources
+        "securityContext",
+        held[:container]
       ),
-      "command",
-      command
+      "resources",
+      resources
     ),
-    "replicaCount",
-    replicas
+    "command",
+    command
   )
-  with_writes = if writes(svc) == []
+  with_replicas = if props["replicaCount"].nil?
     open
   else
-    assoc(open, "persistence", persistence_schema)
+    assoc(open, "replicaCount", assoc(props["replicaCount"], "minimum", 0))
+  end
+  with_writes = if writes(svc) == []
+    with_replicas
+  else
+    assoc(with_replicas, "persistence", persistence_schema)
   end
   with_args = assoc(with_writes, "args", command)
   with_library = if mode == :self
@@ -728,37 +868,53 @@ def persistence_schema()
 end
 
 @doc """
+written_mounts: the template rows mounting each path a service writes; none for a service that writes nothing.
+
+    written_mounts({}) #=> []
+"""
+def written_mounts(svc)
+  if writes(svc) == []
+    []
+  else
+    [
+      "            {{- range $i, $m := .Values.persistence }}",
+      "            - name: written-{{ $i }}",
+      "              mountPath: {{ $m.path | quote }}",
+      "            {{- end }}"
+    ]
+  end
+end
+
+@doc """
+written_volumes: the template rows naming each written path's volume source; none for a service that writes nothing.
+
+    written_volumes({}) #=> []
+"""
+def written_volumes(svc)
+  if writes(svc) == []
+    []
+  else
+    [
+      "        {{- range $i, $m := .Values.persistence }}",
+      "        - name: written-{{ $i }}",
+      "          {{- toYaml $m.source | nindent 10 }}",
+      "        {{- end }}"
+    ]
+  end
+end
+
+@doc """
 writes_mounts: the template lines mounting each written path, beside the cache's secret when it has one.
 
     first(writes_mounts("y", false)) #=> "          {{- if .Values.persistence }}"
 """
 def writes_mounts(n, cached)
-  cache_on = "(and .Values.cache .Values.cache.enabled)"
-  append(
-    if cached
-      ["          {{- if or #{cache_on} .Values.persistence }}"]
-    else
-      ["          {{- if .Values.persistence }}"]
-    end,
-    ["          volumeMounts:"],
-    if cached
-      [
-        "            {{- if #{cache_on} }}",
-        "            - name: #{n}-valkey",
-        "              mountPath: #{cache_mount(n)}",
-        "              readOnly: true",
-        "            {{- end }}"
-      ]
-    else
-      []
-    end,
-    [
-      "            {{- range $i, $m := .Values.persistence }}",
-      "            - name: written-{{ $i }}",
-      "              mountPath: {{ $m.path | quote }}",
-      "            {{- end }}",
-      "          {{- end }}"
-    ]
+  listed_rows(
+    "          volumeMounts:",
+    [],
+    cache_mounts(n),
+    cached,
+    written_mounts({"access" => {"writes" => ["/"]}})
   )
 end
 
@@ -768,30 +924,12 @@ writes_volumes: the template lines naming each written path's volume source.
     first(writes_volumes("y", false)) #=> "      {{- if .Values.persistence }}"
 """
 def writes_volumes(n, cached)
-  cache_on = "(and .Values.cache .Values.cache.enabled)"
-  append(
-    if cached
-      ["      {{- if or #{cache_on} .Values.persistence }}"]
-    else
-      ["      {{- if .Values.persistence }}"]
-    end,
-    ["      volumes:"],
-    if cached
-      append(
-        ["        {{- if #{cache_on} }}"],
-        rest(rest(cache_volumes(n))),
-        ["        {{- end }}"]
-      )
-    else
-      []
-    end,
-    [
-      "        {{- range $i, $m := .Values.persistence }}",
-      "        - name: written-{{ $i }}",
-      "          {{- toYaml $m.source | nindent 10 }}",
-      "        {{- end }}",
-      "      {{- end }}"
-    ]
+  listed_rows(
+    "      volumes:",
+    [],
+    cache_volumes(n),
+    cached,
+    written_volumes({"access" => {"writes" => ["/"]}})
   )
 end
 
@@ -801,27 +939,57 @@ end
 
 def cache_mounts(n)
   [
-    "          {{- if and .Values.cache .Values.cache.enabled }}",
-    "          volumeMounts:",
     "            - name: #{n}-valkey",
     "              mountPath: #{cache_mount(n)}",
-    "              readOnly: true",
-    "          {{- end }}"
+    "              readOnly: true"
   ]
 end
 
 def cache_volumes(n)
   [
-    "      {{- if and .Values.cache .Values.cache.enabled }}",
-    "      volumes:",
     "        - name: #{n}-valkey",
     "          secret:",
     "            secretName: {{ required \"cache.passwordSecret is required when cache.enabled is true\" .Values.cache.passwordSecret | quote }}",
     "            items:",
     "              - key: {{ .Values.cache.passwordKey | quote }}",
-    "                path: password",
-    "      {{- end }}"
+    "                path: password"
   ]
+end
+
+@doc """
+listed_rows: a list key in a template, written once, with the rows that always hold, the rows that hold only while the cache is on, and the rows for written paths. With no fixed rows the whole key waits on what can fill it, so a chart with nothing to list renders no empty key.
+
+    listed_rows("volumes:", [], [], false, []) #=> []
+    listed_rows("  mounts:", ["  - a"], [], false, []) #=> ["  mounts:", "  - a"]
+    last(listed_rows("  mounts:", ["  - a"], ["  - b"], true, [])) #=> "  {{- end }}"
+    first(listed_rows("  mounts:", [], [], false, ["  - w"])) #=> "  {{- if .Values.persistence }}"
+"""
+def listed_rows(key, fixed, cached, on, written)
+  pad = join(take_while((c) -> c == " ", chars(key)), "")
+  cache_on = "and .Values.cache .Values.cache.enabled"
+  gate = "#{pad}{{- if #{cache_on} }}"
+  close = "#{pad}{{- end }}"
+  cache_rows = if on
+    append([gate], cached, [close])
+  else
+    []
+  end
+  if fixed != []
+    append([key], fixed, cache_rows, written)
+  elsif on and written != []
+    append(
+      ["#{pad}{{- if or (#{cache_on}) .Values.persistence }}", key],
+      cache_rows,
+      written,
+      [close]
+    )
+  elsif written != []
+    append(["#{pad}{{- if .Values.persistence }}", key], written, [close])
+  elsif on
+    append([gate, key], cached, [close])
+  else
+    []
+  end
 end
 
 @doc """
@@ -916,20 +1084,27 @@ def deployment_with(n, h, svc)
   p = env_prefix(n)
   cached = cache?(svc)
   on_lib = h == "pleme-lib"
+  per_node = per_node?(svc)
   wasm = wasm?(svc)
   lines(
     append(
       runtime_head(on_lib),
       [
         "apiVersion: apps/v1",
-        "kind: Deployment",
+        "kind: #{workload_kind(svc)}",
         "metadata:",
         "  name: {{ include \"#{h}.fullname\" . }}",
         "  namespace: {{ .Release.Namespace }}",
         "  labels:",
         "    {{- include \"#{h}.labels\" . | nindent 4 }}",
-        "spec:",
-        "  replicas: {{ .Values.replicaCount }}",
+        "spec:"
+      ],
+      if per_node
+        []
+      else
+        ["  replicas: {{ .Values.replicaCount }}"]
+      end,
+      [
         "  selector:",
         "    matchLabels:",
         "      {{- include \"#{h}.selectorLabels\" . | nindent 6 }}",
@@ -941,6 +1116,7 @@ def deployment_with(n, h, svc)
       pod_annotations(on_lib),
       ["    spec:"],
       runtime_class(on_lib),
+      host_network_rows(svc),
       [
         "      serviceAccountName: {{ include \"#{h}.fullname\" . }}",
         "      automountServiceAccountToken: false",
@@ -1010,13 +1186,20 @@ def deployment_with(n, h, svc)
         "            {{- toYaml . | nindent 12 }}",
         "          {{- end }}"
       ],
-      if writes(svc) != []
-        append(writes_mounts(n, cached), writes_volumes(n, cached))
-      elsif cached
-        append(cache_mounts(n), cache_volumes(n))
-      else
-        []
-      end,
+      listed_rows(
+        "          volumeMounts:",
+        kernel_mount_rows(svc),
+        cache_mounts(n),
+        cached,
+        written_mounts(svc)
+      ),
+      listed_rows(
+        "      volumes:",
+        kernel_volume_rows(svc),
+        cache_volumes(n),
+        cached,
+        written_volumes(svc)
+      ),
       env_template(n)
     )
   )
@@ -1183,7 +1366,7 @@ def files_with(name, version, svc, mode)
     ["chart/Chart.yaml", chart_yaml(name, version, mode)],
     ["chart/values.yaml", yaml(values_with(svc, mode))],
     ["chart/values.schema.json", pretty(values_schema_with(name, svc, mode))],
-    ["chart/templates/deployment.yaml", deployment_with(name, h, svc)],
+    [workload_template(svc), deployment_with(name, h, svc)],
     ["chart/templates/NOTES.txt", notes(name, h)],
     ["chart/templates/slo-rules.yaml", slo_rules(name, svc)],
     ["chart/templates/dashboard.yaml", dashboard_map(name)],
@@ -1521,6 +1704,137 @@ test "a written path is a volume the release chooses, and a service that writes 
   schema = values_schema("y", svc)
   assert schema["properties"]["persistence"]["items"]["required"] ==
     %w[path source]
+end
+
+@doc """
+kernel_service: a declaration that reaches the kernel, with the access fields a test names.
+
+    kernel_service({})["runtime"]["because"] #=> "device"
+"""
+def kernel_service(access)
+  {
+    "port" => 8080,
+    "repository" => "r",
+    "access" => assoc(access, "effects", %w[network kernel_bpf]),
+    "runtime" => {"kind" => "native", "because" => "device"}
+  }
+end
+
+test "a service that reaches the kernel renders a DaemonSet with no replica count, and one that states per_node false keeps its Deployment"
+  agent = kernel_service({})
+  d = deployment_with("agent", "pleme-lib", agent)
+  assert contains?(d, "kind: DaemonSet")
+  assert not contains?(d, "kind: Deployment")
+  assert not contains?(d, "replicas:")
+  assert values(agent)["replicaCount"].nil?
+  assert values_schema("agent", agent)["properties"]["replicaCount"].nil?
+  paths = map((f) -> first(f), files("agent", "0.1.0", agent))
+  assert member?("chart/templates/daemonset.yaml", paths)
+  assert not member?("chart/templates/deployment.yaml", paths)
+  held = kernel_service({"per_node" => false})
+  kept = deployment_with("agent", "pleme-lib", held)
+  assert contains?(kept, "kind: Deployment")
+  assert contains?(kept, "replicas: {{ .Values.replicaCount }}")
+  assert contains?(kept, "name: bpffs")
+  assert values(held)["replicaCount"] == 1
+end
+
+test "a pod that loads kernel programs mounts bpffs and a read-only tracefs from the host, and no other pod mounts either"
+  d = deployment_with("agent", "pleme-lib", kernel_service({}))
+  assert contains?(
+    d,
+    join_lines(
+      [
+        "            - name: bpffs",
+        "              mountPath: /sys/fs/bpf",
+        "              mountPropagation: HostToContainer",
+        "            - name: tracefs",
+        "              mountPath: /sys/kernel/tracing",
+        "              readOnly: true"
+      ]
+    )
+  )
+  assert contains?(
+    d,
+    join_lines(
+      [
+        "        - name: bpffs",
+        "          hostPath:",
+        "            path: /sys/fs/bpf",
+        "            type: Directory",
+        "        - name: tracefs",
+        "          hostPath:",
+        "            path: /sys/kernel/tracing",
+        "            type: Directory"
+      ]
+    )
+  )
+  assert not contains?(d, "Bidirectional")
+  plain = deployment_with("hello", "pleme-lib", sample)
+  assert not contains?(plain, "hostPath")
+  assert not contains?(plain, "volumeMounts")
+end
+
+test "host network appears where the access declares it, with the DNS policy it needs, and nowhere else"
+  on = deployment_with(
+    "agent",
+    "pleme-lib",
+    kernel_service({"host_network" => true})
+  )
+  assert contains?(
+    on,
+    join_lines(
+      ["      hostNetwork: true", "      dnsPolicy: ClusterFirstWithHostNet"]
+    )
+  )
+  off = deployment_with("agent", "pleme-lib", kernel_service({}))
+  assert not contains?(off, "hostNetwork")
+  assert not contains?(off, "dnsPolicy")
+end
+
+test "a release cannot widen what a kernel service's chart holds"
+  schema = values_schema("agent", kernel_service({}))["properties"]
+  assert schema["securityContext"]["const"]["capabilities"]["add"] ==
+    %w[BPF PERFMON NET_ADMIN]
+  assert schema["podSecurityContext"]["const"]["runAsUser"] == 0
+  plain = values_schema("hello", sample)["properties"]
+  assert plain["securityContext"]["const"].nil?
+end
+
+test "kernel mounts, a cache and written paths share one key per list"
+  svc = assoc(kernel_service({"writes" => ["/var/lib/y"]}), "cache", {})
+  d = deployment_with("agent", "pleme-lib", svc)
+  assert count(split(d, "volumeMounts:")) == 2
+  assert count(split(d, "      volumes:")) == 2
+  assert contains?(d, "name: bpffs")
+  assert contains?(d, "name: agent-valkey")
+  assert contains?(d, "name: written-{{ $i }}")
+  assert contains?(d, "secretName: {{ required")
+end
+
+test "a written path with a cache and no kernel reach waits on either"
+  svc = {
+    "port" => 8080,
+    "repository" => "r",
+    "cache" => {},
+    "access" => {"writes" => ["/var/lib/y"], "effects" => ["filesystem"]}
+  }
+  d = deployment_with("y", "pleme-lib", svc)
+  assert contains?(
+    d,
+    "{{- if or (and .Values.cache .Values.cache.enabled) .Values.persistence }}"
+  )
+  assert count(split(d, "volumeMounts:")) == 2
+  assert contains?(d, "secretName: {{ required")
+end
+
+test "a kernel service with a cache keeps its mounts beside the cache's, each list one key"
+  svc = assoc(kernel_service({}), "cache", {})
+  d = deployment_with("agent", "pleme-lib", svc)
+  assert count(split(d, "volumeMounts:")) == 2
+  assert count(split(d, "      volumes:")) == 2
+  assert contains?(d, "name: agent-valkey")
+  assert contains?(d, "name: bpffs")
 end
 
 test "a native service keeps the image from its repository and says why it is native"

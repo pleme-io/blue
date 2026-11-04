@@ -47,6 +47,7 @@ These commands come from the Bluefile. Run them from the repository root.
 | `nix flake check` | every check the Bluefile declares, and the gates every blue project gets |
 | `nix run .#regen` | rewrites every generated file in place |
 | `blue lock .` | rewrites `Bluefile.lock` after an edit to the `Bluefile` |
+| `blue test nix/chart-gate.b` | `checks.chart-gate` |
 | `blue test gen/consumers.b` | `checks.consumers` |
 | `blue test gen/docs.b` | `checks.docs` |
 | `blue test gen/heni-gate.b` | `checks.heni-mutations` |

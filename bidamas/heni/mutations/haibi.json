@@ -1,0 +1,62 @@
+[
+  {
+    "name": "written paths vanish beside kernel mounts",
+    "file": "haibi.b",
+    "find": "append([key], fixed, cache_rows, written)",
+    "replace": "append([key], fixed, cache_rows)"
+  },
+  {
+    "name": "a cache's rows vanish beside written paths",
+    "file": "haibi.b",
+    "find": "      cache_rows,\n      written,\n      [close]",
+    "replace": "      written,\n      [close]"
+  },
+  {
+    "name": "a kernel service gains CAP_SYS_ADMIN",
+    "file": "haibi.b",
+    "find": "{\"drop\" => [\"ALL\"], \"add\" => %w[BPF PERFMON NET_ADMIN]}",
+    "replace": "{\"drop\" => [\"ALL\"], \"add\" => %w[BPF PERFMON NET_ADMIN SYS_ADMIN]}"
+  },
+  {
+    "name": "bpffs is not mounted",
+    "file": "haibi.b",
+    "find": "      name: \"bpffs\",\n      path: \"/sys/fs/bpf\",",
+    "replace": "      name: \"bpffs\",\n      path: \"/var/bpf\","
+  },
+  {
+    "name": "tracefs is mounted writable",
+    "file": "haibi.b",
+    "find": "      rows: [\"              readOnly: true\"]\n",
+    "replace": "      rows: []\n"
+  },
+  {
+    "name": "a per-node service renders as a Deployment",
+    "file": "haibi.b",
+    "find": "  if per_node?(svc)\n    \"DaemonSet\"",
+    "replace": "  if false\n    \"DaemonSet\""
+  },
+  {
+    "name": "per_node false is ignored",
+    "file": "haibi.b",
+    "find": "get_or(get_or(svc, \"access\", {}), \"per_node\", true)",
+    "replace": "true"
+  },
+  {
+    "name": "host network is on for every kernel service",
+    "file": "haibi.b",
+    "find": "  if host_network?(svc)\n    [\"      hostNetwork: true\"",
+    "replace": "  if true\n    [\"      hostNetwork: true\""
+  },
+  {
+    "name": "a release can change a kernel service's posture",
+    "file": "haibi.b",
+    "find": "container: {\"const\" => v[\"securityContext\"]}",
+    "replace": "container: kube_object"
+  },
+  {
+    "name": "a per-node service keeps a replica count",
+    "file": "haibi.b",
+    "find": "  with_replicas = if per_node?(svc)\n    base",
+    "replace": "  with_replicas = if false\n    base"
+  }
+]

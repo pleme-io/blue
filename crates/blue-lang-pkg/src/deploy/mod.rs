@@ -269,12 +269,16 @@ pub enum SpecError {
     ColumnType { column: String, got: String },
     #[error("`{name}` is both a service and an image, and both build `image-{name}`")]
     ServiceIsImage { name: String },
-    #[error("`{got}` is not an effect; the effects are network, filesystem, clock, entropy, environment and process")]
+    #[error("`{got}` is not an effect; the effects are network, filesystem, clock, entropy, environment, process and kernel_bpf")]
     AccessEffect { got: String },
     #[error("access egress `{got}` is not host:port")]
     AccessPeer { got: String },
     #[error("`{field}` entries are absolute paths with no `..`, got `{got}`")]
     AccessPath { field: &'static str, got: String },
+    #[error("access `{field}` shapes a pod that loads kernel programs, and this access lacks the :kernel_bpf effect")]
+    KernelFieldWithoutKernel { field: &'static str },
+    #[error("a service that reaches the kernel runs one pod per node, so `{field}` cannot hold; state `per_node: false` in its access to run it as a Deployment")]
+    PerNodeConflict { field: &'static str },
     #[error("access writes need the :filesystem effect")]
     WritesWithoutFilesystem,
     #[error("a service answers HTTP on its port, and its access lacks the :network effect")]

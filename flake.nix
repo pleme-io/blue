@@ -767,6 +767,16 @@
               ${lib.concatMapStrings (d: "echo ${d} >> $out\n") (lib.attrValues ex.checks ++ lib.attrValues ex.packages)}
             '';
 
+          # A service that reaches the kernel, read back from its rendered chart
+          # (`nix/chart-gate.b`): a DaemonSet with host network, bpffs, tracefs
+          # and exactly its capabilities, and a release that cannot widen them.
+          # It loads no program, so it needs no KVM.
+          example-kernel-agent =
+            let ex = engine.projectFor { inherit pkgs blue moduleTrio chartLibraries; src = ./examples/kernel-agent; oci = ociFor system; };
+            in pkgs.runCommand "example-kernel-agent" { } ''
+              ${lib.concatMapStrings (d: "echo ${d} >> $out\n") (lib.attrValues ex.checks ++ lib.attrValues ex.packages)}
+            '';
+
           example-frontend =
             let ex = engine.projectFor { inherit pkgs blue; src = ./examples/frontend; };
             in pkgs.runCommand "example-frontend" { } ''

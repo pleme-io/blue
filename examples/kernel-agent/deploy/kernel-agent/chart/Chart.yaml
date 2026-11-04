@@ -1,0 +1,10 @@
+apiVersion: "v2"
+appVersion: "0.1.0"
+dependencies:
+  - name: "pleme-lib"
+    repository: "oci://ghcr.io/pleme-io/charts"
+    version: ">=0.53.0"
+description: "kernel-agent, rendered by blue from its Bluefile service declaration"
+name: "kernel-agent"
+type: "application"
+version: "0.1.0"

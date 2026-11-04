@@ -1,0 +1,116 @@
+{{- include "pleme-lib.wasm-component.validate" . }}
+{{- $peers := list }}
+{{- if and .Values.database .Values.database.enabled }}
+{{- $peers = append $peers (printf "%s:%v" .Values.database.host .Values.database.port) }}
+{{- end }}
+{{- if and .Values.cache .Values.cache.enabled }}
+{{- $peers = append $peers (printf "%s:%v" .Values.cache.host .Values.cache.port) }}
+{{- end }}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "pleme-lib.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "pleme-lib.selectorLabels" . | nindent 8 }}
+      annotations:
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- include "pleme-lib.wasm-component.annotations" (dict "ctx" . "extraEgress" $peers) | nindent 8 }}
+    spec:
+      {{- include "pleme-lib.runtimeclass" . | nindent 6 }}
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      serviceAccountName: {{ include "pleme-lib.fullname" . }}
+      automountServiceAccountToken: false
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: kernel-agent
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.command }}
+          command:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.args }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            - name: BLUE_SERVICE
+              value: "kernel-agent"
+            - name: KERNEL_AGENT_LISTEN__HOST
+              value: {{ .Values.listen.host | quote }}
+            - name: KERNEL_AGENT_LISTEN__PORT
+              value: {{ .Values.listen.port | quote }}
+            - name: KERNEL_AGENT_HEALTH
+              value: {{ .Values.health | quote }}
+            {{- if and .Values.database .Values.database.enabled }}
+            - name: KERNEL_AGENT_DATABASE__URL
+              value: {{ printf "postgres://%s@%s:%v/%s" .Values.database.username .Values.database.host .Values.database.port .Values.database.name | quote }}
+            {{- end }}
+            {{- with include "kernel-agent.env" (list "KERNEL_AGENT_" .Values.config) | trim }}
+            {{- . | nindent 12 }}
+            {{- end }}
+            {{- with include "kernel-agent.env" (list "KERNEL_AGENT_FLAGS__" .Values.flags) | trim }}
+            {{- . | nindent 12 }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.listen.port }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.health | quote }}
+              port: http
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.health | quote }}
+              port: http
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: bpffs
+              mountPath: /sys/fs/bpf
+              mountPropagation: HostToContainer
+            - name: tracefs
+              mountPath: /sys/kernel/tracing
+              readOnly: true
+      volumes:
+        - name: bpffs
+          hostPath:
+            path: /sys/fs/bpf
+            type: Directory
+        - name: tracefs
+          hostPath:
+            path: /sys/kernel/tracing
+            type: Directory
+{{- define "kernel-agent.env" }}
+{{- $prefix := index . 0 }}
+{{- range $k, $v := index . 1 }}
+{{- if kindIs "map" $v }}
+{{- include "kernel-agent.env" (list (printf "%s%s__" $prefix (upper $k)) $v) }}
+{{- else if not (kindIs "invalid" $v) }}
+- name: {{ printf "%s%s" $prefix (upper $k) }}
+  value: {{ if kindIs "slice" $v }}{{ $v | toJson | quote }}{{ else }}{{ $v | toString | quote }}{{ end }}
+{{- end }}
+{{- end }}
+{{- end }}

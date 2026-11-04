@@ -89,9 +89,22 @@ pub struct Access {
     pub writes: Vec<String>,
     pub listen: Vec<u16>,
     pub exec: Vec<String>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub host_network: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub per_node: Option<bool>,
 }
 
-pub const ACCESS_FIELDS: &[&str] = &["effects", "egress", "reads", "writes", "listen", "exec"];
+pub const ACCESS_FIELDS: &[&str] = &[
+    "effects",
+    "egress",
+    "reads",
+    "writes",
+    "listen",
+    "exec",
+    "host_network",
+    "per_node",
+];
 
 impl Default for Access {
     fn default() -> Self {
@@ -102,6 +115,8 @@ impl Default for Access {
             writes: Vec::new(),
             listen: Vec::new(),
             exec: Vec::new(),
+            host_network: false,
+            per_node: None,
         }
     }
 }
@@ -116,12 +131,19 @@ impl Access {
             writes: Vec::new(),
             listen: vec![port],
             exec: Vec::new(),
+            host_network: false,
+            per_node: None,
         }
     }
 
     #[must_use]
     pub fn allows(&self, e: Effect) -> bool {
         self.effects.contains(&e)
+    }
+
+    #[must_use]
+    pub fn runs_per_node(&self) -> bool {
+        self.allows(Effect::KernelBpf) && self.per_node != Some(false)
     }
 }
 
@@ -189,6 +211,8 @@ pub fn access_of(v: Option<&Value>, port: u16) -> Result<Access, SpecError> {
             .collect::<Result<Vec<_>, _>>()?,
     };
     let exec = s.texts("exec")?;
+    let host_network = s.flag("host_network")?;
+    let per_node = s.get("per_node").map(|_| s.flag("per_node")).transpose()?;
     let access = Access {
         effects,
         egress,
@@ -196,7 +220,19 @@ pub fn access_of(v: Option<&Value>, port: u16) -> Result<Access, SpecError> {
         writes,
         listen,
         exec,
+        host_network,
+        per_node,
     };
+    if !access.allows(Effect::KernelBpf) {
+        if access.host_network {
+            return Err(SpecError::KernelFieldWithoutKernel {
+                field: "host_network",
+            });
+        }
+        if access.per_node.is_some() {
+            return Err(SpecError::KernelFieldWithoutKernel { field: "per_node" });
+        }
+    }
     if !access.writes.is_empty() && !access.allows(Effect::Filesystem) {
         return Err(SpecError::WritesWithoutFilesystem);
     }

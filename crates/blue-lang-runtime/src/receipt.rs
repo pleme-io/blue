@@ -223,22 +223,7 @@ mod tests {
         assert_eq!(j["frame"]["granted"], serde_json::json!([]));
         assert_eq!(
             j["frame"]["withheld"],
-            serde_json::json!([
-                "process",
-                "filesystem",
-                "environment",
-                "clock",
-                "network",
-                "entropy",
-                "comm-flash",
-                "comm-scavenger",
-                "mpc-threshold",
-                "storage-append",
-                "audio-out",
-                "audio-in",
-                "display",
-                "kernel-bpf"
-            ])
+            serde_json::json!(blue_lang_waku::Capability::HOST_LABELS)
         );
         assert_eq!(j["frame"]["host_io"], 1, "the ledger's total, as given");
     }

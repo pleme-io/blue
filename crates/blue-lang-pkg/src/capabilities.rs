@@ -28,22 +28,7 @@ use crate::Bluefile;
 
 /// The labels a Bluefile names host capabilities by, in `Capability::ALL`
 /// order.
-pub const HOST_LABELS: &[&str] = &[
-    "process",
-    "filesystem",
-    "environment",
-    "clock",
-    "network",
-    "entropy",
-    "comm-flash",
-    "comm-scavenger",
-    "mpc-threshold",
-    "storage-append",
-    "audio-out",
-    "audio-in",
-    "display",
-    "kernel-bpf",
-];
+pub const HOST_LABELS: &[&str] = Capability::HOST_LABELS;
 
 /// The host capability a Bluefile label names: the label, or the label in
 /// snake case as a symbol writes it (`:comm_flash`).

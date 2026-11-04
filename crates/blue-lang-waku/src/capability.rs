@@ -11,11 +11,9 @@
 //!   lowering could only ever be a hand-maintained list that drifts.
 //!
 //! Both are gone for the same reason: **[`Capability`] is closed.** There is no
-//! `Other(String)` arm, and every function that reads a capability is an
-//! exhaustive `match` with **no wildcard arm** — `next`, [`Capability::label`],
-//! `names_source` and [`Capability::import`]. Adding a variant is an `E0004`
-//! four times over, which is the whole point of closing the type: a capability
-//! that lands without an import lowering **cannot compile**.
+//! `Other(String)` arm, and the type and every reading of it are generated from
+//! one table, each reading an exhaustive `match`. A capability is one row, and a
+//! row cannot omit its label, import, names, implications or providers.
 //!
 //! ## A capability is a BUNDLE OF NAMES, and that is a correction
 //!
@@ -57,92 +55,79 @@
 
 use crate::Reach;
 
-/// One thing a frame may grant the right to **name**.
-///
-/// **Closed by construction.** There is no `Other(String)`, and there will not
-/// be one: the arm would restore every property this type exists to remove.
-/// Adding a capability means adding four arms and one row to the chain below,
-/// and the compiler asks for all five.
-///
-/// The ordering is deliberate and load-bearing in exactly one place: the pure
-/// bundles come first, so [`crate::imports_of`] emits a stable table.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Capability {
-    // ── pure: named inside the module, lowering to NO import ──────────────
-    /// The heads blue lowers control flow to.
-    ///
-    /// These are `match` arms in tatara's evaluator rather than bindings, so
-    /// omitting one would not actually withhold it — they are here because
-    /// `check_reach` reports a head like any other symbol and the frame has to
-    /// answer. See `crate::walk_binder`'s note on why that question is left
-    /// open there.
-    CoreForms,
-    /// Every callee in `blue_lang_syntax::INFIX`, **read from that table**.
-    ///
-    /// The repo's rule is that `INFIX` is one table and both directions read
-    /// it. A hand-copied operator list here would be the third copy that
-    /// disagreed — which is exactly how `==` shipped with a precedence and no
-    /// callee.
-    Operators,
-    /// The pure aggregate constructors: the list constructor and the callee a
-    /// `{...}` literal lowers to.
-    Collections,
-    /// The callee string interpolation lowers to.
-    Interpolation,
-    /// The callee `assert e` lowers to.
-    ///
-    /// Blue **owns** this name rather than delegating it — the runtime must not
-    /// bind it, which `blue-lang-test`'s `no_lowered_name_is_shadowed_by_the_runtime`
-    /// gates. Granting it is granting the right to *name* it, which is a
-    /// different question from who defines it.
-    Assertion,
-    /// The words a Bluefile is *for* — the project facts a manifest records.
-    ///
-    /// `package`/`needs`/`posture` since the Bluefile landed; `source`,
-    /// `packages`, `run`, `tool`, `check`, `app` and `catalog` since
-    /// `theory/BLUE-STRUCTURE.md` P1b (2026-09-23), so a project states every
-    /// fact its build needs without writing nix. Each name has exactly one
-    /// recorder in `blue_lang_pkg::bluefile`, and a gate there fails if the
-    /// two lists disagree in either direction.
-    ManifestDeclaration,
+macro_rules! capability_table {
+    (
+        pure { $( $(#[$pure_meta:meta])* $pure:ident $pure_label:literal => $pure_names:expr; )+ }
+        host { $( $(#[$host_meta:meta])* $host:ident $host_label:literal import $field:literal => $host_names:expr, implies [$($implied:ident),*], providers [$($provider:literal),*]; )+ }
+    ) => {
+        /// One thing a frame may grant the right to **name**.
+        ///
+        /// **Closed by construction.** There is no `Other(String)`, and there will not
+        /// be one: the arm would restore every property this type exists to remove.
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub enum Capability {
+            $( $(#[$pure_meta])* $pure, )+
+            $( $(#[$host_meta])* $host, )+
+        }
 
-    // ── host effects: each lowers to exactly one import ───────────────────
-    /// Running another program. `blue_lang_runtime::sys::install_process`.
-    ///
-    /// Note for whoever wires the engine border (M2): **WASI has no subprocess
-    /// spawn at any preview level**, so this capability has no WASI lowering to
-    /// inherit. Its import is blue's own, which is why [`HOST_MODULE`] is a blue
-    /// module name and not `wasi_snapshot_preview1`.
-    Process,
-    /// The filesystem. `blue_lang_runtime::sys::install_fs`.
-    ///
-    /// At the granularity the runtime itself groups. Four of its names
-    /// (`path_join`, `path_basename`, `path_dirname`, `path_extension`) are
-    /// pure string arithmetic that happens to live in the fs installer — they
-    /// are host-gated in blue's actual build, so classifying them here is what
-    /// is true rather than what is tidy. Splitting read from write is a later
-    /// variant, and adding one is safe precisely because of the `E0004`.
-    FileSystem,
-    /// The environment and the argument vector. `…::install_env`.
-    Environment,
-    /// Time and sleeping. `…::install_clock`.
-    Clock,
-    /// Sockets: NATS and HTTP over TCP. `blue_lang_runtime::net::install_net`,
-    /// called from the sys installer.
-    ///
-    /// Distinct from [`Capability::Process`] and [`Capability::FileSystem`]
-    /// because a frame that may read files has not thereby been allowed to
-    /// reach another machine.
-    Network,
-    Entropy,
-    CommFlash,
-    CommScavenger,
-    MpcThreshold,
-    StorageAppend,
-    AudioOut,
-    AudioIn,
-    Display,
-    KernelBpf,
+        impl Capability {
+            /// How many capabilities the table holds.
+            pub const COUNT: usize = Self::ALL.len();
+
+            /// Every capability, in table order.
+            pub const ALL: [Capability; [$(stringify!($pure),)+ $(stringify!($host),)+].len()] =
+                [$(Capability::$pure,)+ $(Capability::$host,)+];
+
+            /// Every host capability's label, in table order.
+            pub const HOST_LABELS: &'static [&'static str] = &[$($host_label,)+];
+
+            /// How the capability reads to an operator.
+            #[must_use]
+            pub fn label(self) -> &'static str {
+                match self {
+                    $(Capability::$pure => $pure_label,)+
+                    $(Capability::$host => $host_label,)+
+                }
+            }
+
+            fn names_source(self) -> Names {
+                match self {
+                    $(Capability::$pure => $pure_names,)+
+                    $(Capability::$host => Names::Fixed($host_names),)+
+                }
+            }
+
+            /// **The lowering.** The import a module minted from a frame granting this
+            /// capability must carry, and `None` for a capability that reaches no host:
+            /// there is nothing to import for arithmetic.
+            #[must_use]
+            pub fn import(self) -> Option<Import> {
+                match self {
+                    $(Capability::$pure => None,)+
+                    $(Capability::$host => Some(Import { module: HOST_MODULE, field: $field }),)+
+                }
+            }
+
+            /// The capabilities a grant of this one holds as well.
+            #[must_use]
+            pub fn implied(self) -> &'static [Capability] {
+                match self {
+                    $(Capability::$pure => &[],)+
+                    $(Capability::$host => &[$(Capability::$implied),*],)+
+                }
+            }
+
+            /// The providers this capability can be bound to; empty for one blue
+            /// cannot provide without the host.
+            #[must_use]
+            pub fn provider_kinds(self) -> &'static [&'static str] {
+                match self {
+                    $(Capability::$pure => &[],)+
+                    $(Capability::$host => &[$($provider),*],)+
+                }
+            }
+        }
+    };
 }
 
 /// The wasm import module every host capability lowers into.
@@ -358,134 +343,99 @@ const CLOCK_NAMES: &[&str] = &[
     "elapsed_since",
 ];
 
+/// **The capability table, the one source.** A capability is one row: its
+/// variant, label, import field, names, what it implies and who can provide it.
+/// The enum, [`Capability::ALL`], [`Capability::COUNT`], [`Capability::HOST_LABELS`]
+/// and every reading below are generated from these rows, so a new capability
+/// is one row and every test judges the table rather than a number.
+///
+/// The pure rows come first, so [`crate::imports_of`] emits a stable table.
+capability_table! {
+    pure {
+        /// The heads blue lowers control flow to.
+        ///
+        /// These are `match` arms in tatara's evaluator rather than bindings, so
+        /// omitting one would not actually withhold it — they are here because
+        /// `check_reach` reports a head like any other symbol and the frame has to
+        /// answer. See `crate::walk_binder`'s note on why that question is left
+        /// open there.
+        CoreForms "core-forms" => Names::Fixed(CORE_FORM_NAMES);
+        /// Every callee in `blue_lang_syntax::INFIX`, **read from that table**.
+        ///
+        /// The repo's rule is that `INFIX` is one table and both directions read
+        /// it. A hand-copied operator list here would be the third copy that
+        /// disagreed — which is exactly how `==` shipped with a precedence and no
+        /// callee.
+        Operators "operators" => Names::InfixCallees;
+        /// The pure aggregate constructors: the list constructor and the callee a
+        /// `{...}` literal lowers to.
+        Collections "collections" => Names::Fixed(COLLECTION_NAMES);
+        /// The callee string interpolation lowers to.
+        Interpolation "interpolation" => Names::Fixed(INTERPOLATION_NAMES);
+        /// The callee `assert e` lowers to.
+        ///
+        /// Blue **owns** this name rather than delegating it — the runtime must not
+        /// bind it, which `blue-lang-test`'s `no_lowered_name_is_shadowed_by_the_runtime`
+        /// gates. Granting it is granting the right to *name* it, which is a
+        /// different question from who defines it.
+        Assertion "assertion" => Names::Fixed(ASSERTION_NAMES);
+        /// The words a Bluefile is *for* — the project facts a manifest records.
+        ///
+        /// `package`/`needs`/`posture` since the Bluefile landed; `source`,
+        /// `packages`, `run`, `tool`, `check`, `app` and `catalog` since
+        /// `theory/BLUE-STRUCTURE.md` P1b (2026-09-23), so a project states every
+        /// fact its build needs without writing nix. Each name has exactly one
+        /// recorder in `blue_lang_pkg::bluefile`, and a gate there fails if the
+        /// two lists disagree in either direction.
+        ManifestDeclaration "manifest-declaration" => Names::Fixed(MANIFEST_NAMES);
+    }
+    host {
+        /// Running another program. `blue_lang_runtime::sys::install_process`.
+        ///
+        /// Note for whoever wires the engine border (M2): **WASI has no subprocess
+        /// spawn at any preview level**, so this capability has no WASI lowering to
+        /// inherit. Its import is blue's own, which is why [`HOST_MODULE`] is a blue
+        /// module name and not `wasi_snapshot_preview1`.
+        Process "process" import "process" => PROCESS_NAMES, implies [], providers [];
+        /// The filesystem. `blue_lang_runtime::sys::install_fs`.
+        ///
+        /// At the granularity the runtime itself groups. Four of its names
+        /// (`path_join`, `path_basename`, `path_dirname`, `path_extension`) are
+        /// pure string arithmetic that happens to live in the fs installer — they
+        /// are host-gated in blue's actual build, so classifying them here is what
+        /// is true rather than what is tidy. Splitting read from write is a later
+        /// variant, and adding one is safe precisely because of the `E0004`.
+        FileSystem "filesystem" import "fs" => FILESYSTEM_NAMES, implies [StorageAppend], providers ["in_memory_overlay", "null_sink"];
+        /// The environment and the argument vector. `…::install_env`.
+        Environment "environment" import "env" => ENVIRONMENT_NAMES, implies [], providers [];
+        /// Time and sleeping. `…::install_clock`.
+        Clock "clock" import "clock" => CLOCK_NAMES, implies [], providers ["deterministic_stepped"];
+        /// Sockets: NATS and HTTP over TCP. `blue_lang_runtime::net::install_net`,
+        /// called from the sys installer.
+        ///
+        /// Distinct from [`Capability::Process`] and [`Capability::FileSystem`]
+        /// because a frame that may read files has not thereby been allowed to
+        /// reach another machine.
+        Network "network" import "net" => NETWORK_NAMES, implies [], providers [];
+        Entropy "entropy" import "entropy" => ENTROPY_NAMES, implies [], providers ["seeded_prng"];
+        CommFlash "comm-flash" import "comm-flash" => COMM_FLASH_NAMES, implies [], providers ["loopback"];
+        CommScavenger "comm-scavenger" import "comm-scavenger" => COMM_SCAVENGER_NAMES, implies [], providers ["loopback"];
+        MpcThreshold "mpc-threshold" import "mpc-threshold" => MPC_THRESHOLD_NAMES, implies [], providers ["seeded"];
+        StorageAppend "storage-append" import "storage-append" => STORAGE_APPEND_NAMES, implies [], providers ["in_memory"];
+        AudioOut "audio-out" import "audio-out" => AUDIO_OUT_NAMES, implies [], providers ["recording_sink"];
+        AudioIn "audio-in" import "audio-in" => AUDIO_IN_NAMES, implies [], providers ["seeded_noise", "monitor"];
+        Display "display" import "display" => DISPLAY_NAMES, implies [], providers ["framebuffer"];
+        KernelBpf "kernel-bpf" import "kernel-bpf" => KERNEL_BPF_NAMES, implies [], providers [];
+    }
+}
+
 impl Capability {
-    /// How many capabilities exist. A **floor with a date**: twenty as of
-    /// 2026-11-03, six pure and fourteen host-effect (nineteen until
-    /// `KernelBpf`, sixteen until
-    /// `AudioOut`, `AudioIn` and `Display`, fifteen until `StorageAppend`,
-    /// fourteen until `MpcThreshold`, twelve until `CommFlash` and
-    /// `CommScavenger`, eleven until `Entropy`). Stated so a count gate cannot
-    /// pass over an empty set — `ALL.len() == 0` would satisfy every
-    /// "for every capability…" test in this file.
-    pub const COUNT: usize = 20;
-
-    const FIRST: Self = Capability::CoreForms;
-
-    /// Every capability, **derived from the chain below rather than listed**.
-    ///
-    /// Same shape as `blue_lang_bidama::quality::Quality::chain` — a hand-listed
-    /// `ALL` is a second place a variant can be forgotten, and the forgetting is
-    /// silent. This is the *second* use of that shape in the workspace; a third
-    /// earns the extraction into a shared macro.
-    pub const ALL: [Capability; Self::COUNT] = Self::chain();
-
-    /// The successor in `ALL` order. Exhaustive, no wildcard.
-    const fn next(self) -> Option<Self> {
-        match self {
-            Capability::CoreForms => Some(Capability::Operators),
-            Capability::Operators => Some(Capability::Collections),
-            Capability::Collections => Some(Capability::Interpolation),
-            Capability::Interpolation => Some(Capability::Assertion),
-            Capability::Assertion => Some(Capability::ManifestDeclaration),
-            Capability::ManifestDeclaration => Some(Capability::Process),
-            Capability::Process => Some(Capability::FileSystem),
-            Capability::FileSystem => Some(Capability::Environment),
-            Capability::Environment => Some(Capability::Clock),
-            Capability::Clock => Some(Capability::Network),
-            Capability::Network => Some(Capability::Entropy),
-            Capability::Entropy => Some(Capability::CommFlash),
-            Capability::CommFlash => Some(Capability::CommScavenger),
-            Capability::CommScavenger => Some(Capability::MpcThreshold),
-            Capability::MpcThreshold => Some(Capability::StorageAppend),
-            Capability::StorageAppend => Some(Capability::AudioOut),
-            Capability::AudioOut => Some(Capability::AudioIn),
-            Capability::AudioIn => Some(Capability::Display),
-            Capability::Display => Some(Capability::KernelBpf),
-            Capability::KernelBpf => None,
-        }
-    }
-
-    const fn chain() -> [Capability; Self::COUNT] {
-        let mut out = [Self::FIRST; Self::COUNT];
-        let mut i = 1;
-        while i < Self::COUNT {
-            out[i] = match out[i - 1].next() {
-                Some(c) => c,
-                None => panic!("the `next` chain is shorter than `Capability::COUNT`"),
-            };
-            i += 1;
-        }
-        // `.is_none()` rather than `matches!(…, None)`: the sibling this shape
-        // was taken from writes the latter and carries a clippy
-        // `redundant_pattern_matching` warning for it. Copying a pattern is not
-        // a reason to copy its lint.
-        assert!(
-            out[Self::COUNT - 1].next().is_none(),
-            "the `next` chain is longer than `Capability::COUNT` — a capability has no slot in `ALL`"
-        );
-        out
-    }
-
-    /// How the capability reads to an operator. Exhaustive, no wildcard.
-    #[must_use]
-    pub fn label(self) -> &'static str {
-        match self {
-            Capability::CoreForms => "core-forms",
-            Capability::Operators => "operators",
-            Capability::Collections => "collections",
-            Capability::Interpolation => "interpolation",
-            Capability::Assertion => "assertion",
-            Capability::ManifestDeclaration => "manifest-declaration",
-            Capability::Process => "process",
-            Capability::FileSystem => "filesystem",
-            Capability::Environment => "environment",
-            Capability::Clock => "clock",
-            Capability::Network => "network",
-            Capability::Entropy => "entropy",
-            Capability::CommFlash => "comm-flash",
-            Capability::CommScavenger => "comm-scavenger",
-            Capability::MpcThreshold => "mpc-threshold",
-            Capability::StorageAppend => "storage-append",
-            Capability::AudioOut => "audio-out",
-            Capability::AudioIn => "audio-in",
-            Capability::Display => "display",
-            Capability::KernelBpf => "kernel-bpf",
-        }
-    }
-
     #[must_use]
     pub fn host_named(name: &str) -> Option<Capability> {
         let name = name.trim_start_matches(':');
         Self::host_effects()
             .into_iter()
             .find(|c| c.label() == name || c.label().replace('-', "_") == name)
-    }
-
-    /// Exhaustive, no wildcard. The single source both [`Self::names`] and
-    /// [`Self::grants`] read.
-    fn names_source(self) -> Names {
-        match self {
-            Capability::CoreForms => Names::Fixed(CORE_FORM_NAMES),
-            Capability::Operators => Names::InfixCallees,
-            Capability::Collections => Names::Fixed(COLLECTION_NAMES),
-            Capability::Interpolation => Names::Fixed(INTERPOLATION_NAMES),
-            Capability::Assertion => Names::Fixed(ASSERTION_NAMES),
-            Capability::ManifestDeclaration => Names::Fixed(MANIFEST_NAMES),
-            Capability::Process => Names::Fixed(PROCESS_NAMES),
-            Capability::FileSystem => Names::Fixed(FILESYSTEM_NAMES),
-            Capability::Environment => Names::Fixed(ENVIRONMENT_NAMES),
-            Capability::Clock => Names::Fixed(CLOCK_NAMES),
-            Capability::Network => Names::Fixed(NETWORK_NAMES),
-            Capability::Entropy => Names::Fixed(ENTROPY_NAMES),
-            Capability::CommFlash => Names::Fixed(COMM_FLASH_NAMES),
-            Capability::CommScavenger => Names::Fixed(COMM_SCAVENGER_NAMES),
-            Capability::MpcThreshold => Names::Fixed(MPC_THRESHOLD_NAMES),
-            Capability::StorageAppend => Names::Fixed(STORAGE_APPEND_NAMES),
-            Capability::AudioOut => Names::Fixed(AUDIO_OUT_NAMES),
-            Capability::AudioIn => Names::Fixed(AUDIO_IN_NAMES),
-            Capability::Display => Names::Fixed(DISPLAY_NAMES),
-            Capability::KernelBpf => Names::Fixed(KERNEL_BPF_NAMES),
-        }
     }
 
     /// Every identifier this capability grants the right to name.
@@ -503,108 +453,6 @@ impl Capability {
         match self.names_source() {
             Names::Fixed(list) => list.contains(&name),
             Names::InfixCallees => blue_lang_syntax::INFIX.iter().any(|i| i.callee == name),
-        }
-    }
-
-    /// **The lowering.** The import a module minted from a frame granting this
-    /// capability must carry — and `None` for a capability that reaches no
-    /// host, which is not a placeholder but the answer: there is nothing to
-    /// import for arithmetic.
-    ///
-    /// Exhaustive, no wildcard, and this is the arm the design turns on. A new
-    /// capability landing with no import decision is `E0004` here — the
-    /// mechanism that makes the table *derived* rather than *maintained*.
-    #[must_use]
-    pub fn import(self) -> Option<Import> {
-        match self {
-            Capability::CoreForms
-            | Capability::Operators
-            | Capability::Collections
-            | Capability::Interpolation
-            | Capability::Assertion
-            | Capability::ManifestDeclaration => None,
-            Capability::Process => Some(Import {
-                module: HOST_MODULE,
-                field: "process",
-            }),
-            Capability::FileSystem => Some(Import {
-                module: HOST_MODULE,
-                field: "fs",
-            }),
-            Capability::Environment => Some(Import {
-                module: HOST_MODULE,
-                field: "env",
-            }),
-            Capability::Clock => Some(Import {
-                module: HOST_MODULE,
-                field: "clock",
-            }),
-            Capability::Network => Some(Import {
-                module: HOST_MODULE,
-                field: "net",
-            }),
-            Capability::Entropy => Some(Import {
-                module: HOST_MODULE,
-                field: "entropy",
-            }),
-            Capability::CommFlash => Some(Import {
-                module: HOST_MODULE,
-                field: "comm-flash",
-            }),
-            Capability::CommScavenger => Some(Import {
-                module: HOST_MODULE,
-                field: "comm-scavenger",
-            }),
-            Capability::MpcThreshold => Some(Import {
-                module: HOST_MODULE,
-                field: "mpc-threshold",
-            }),
-            Capability::StorageAppend => Some(Import {
-                module: HOST_MODULE,
-                field: "storage-append",
-            }),
-            Capability::AudioOut => Some(Import {
-                module: HOST_MODULE,
-                field: "audio-out",
-            }),
-            Capability::AudioIn => Some(Import {
-                module: HOST_MODULE,
-                field: "audio-in",
-            }),
-            Capability::Display => Some(Import {
-                module: HOST_MODULE,
-                field: "display",
-            }),
-            Capability::KernelBpf => Some(Import {
-                module: HOST_MODULE,
-                field: "kernel-bpf",
-            }),
-        }
-    }
-
-    #[must_use]
-    pub fn implied(self) -> &'static [Capability] {
-        match self {
-            Capability::FileSystem => &[Capability::StorageAppend],
-            Capability::CoreForms
-            | Capability::Operators
-            | Capability::Collections
-            | Capability::Interpolation
-            | Capability::Assertion
-            | Capability::ManifestDeclaration
-            | Capability::Process
-            | Capability::Environment
-            | Capability::Clock
-            | Capability::Network
-            | Capability::Entropy
-            | Capability::CommFlash
-            | Capability::CommScavenger
-            | Capability::MpcThreshold
-            | Capability::StorageAppend
-            | Capability::AudioOut
-            | Capability::AudioIn
-            | Capability::Display
-            | Capability::KernelBpf => &[],
         }
     }
 
@@ -680,30 +528,28 @@ mod tests {
     use super::*;
     use std::collections::BTreeSet;
 
-    /// **The floor, with the date.** Nineteen capabilities on 2026-10-31, six
-    /// pure and thirteen host-effect (ten until the two audio bundles and the
-    /// display, nine until `StorageAppend`, eight until `MpcThreshold`, six
-    /// until the two wire channels, five until `Entropy`).
-    ///
-    /// Anti-vacuity for every "for every capability…" test below: each of them
-    /// passes trivially over an empty `ALL`, and `ALL` is *derived* from the
-    /// `next` chain, so a mis-edited chain could shrink it without any other
-    /// test noticing.
+    /// Anti-vacuity for every "for every capability…" test below, each of which
+    /// passes trivially over an empty `ALL`. Floors, so a new row needs no edit
+    /// here; the pure and host parts add up, and the labels are the table's.
     #[test]
     fn the_universe_is_closed_and_counted() {
         assert_eq!(Capability::ALL.len(), Capability::COUNT);
-        assert_eq!(Capability::COUNT, 20, "the floor, measured 2026-11-03");
-        assert_eq!(
-            Capability::host_effects().len(),
-            14,
-            "process, filesystem, environment, clock, network, entropy, comm-flash, comm-scavenger, mpc-threshold, storage-append, audio-out, audio-in, display"
-        );
-        assert_eq!(
+        let host = Capability::host_effects();
+        assert!(host.len() >= 14, "the host rows shrank to {}", host.len());
+        let pure = Capability::ALL
+            .into_iter()
+            .filter(|c| !c.is_host_effect())
+            .count();
+        assert!(pure >= 6, "the pure rows shrank to {pure}");
+        assert_eq!(pure + host.len(), Capability::COUNT);
+        let labels: Vec<&str> = host.iter().map(|c| c.label()).collect();
+        assert_eq!(labels, Capability::HOST_LABELS);
+        assert!(
             Capability::ALL
                 .into_iter()
-                .filter(|c| !c.is_host_effect())
-                .count(),
-            6
+                .take(pure)
+                .all(|c| !c.is_host_effect()),
+            "the pure rows come first, so an import table stays stable"
         );
     }
 
@@ -924,30 +770,12 @@ mod tests {
     //
     // 1. **A misspelled capability does not type-check.**
     //    `Reach::only(["read-flie"])` was legal before M0. Verified 2026-08-13
-    //    by adding exactly that line to `imports::tests`:
+    //    by adding exactly that line to `imports::tests`: `E0271`, expected
+    //    `Capability`, found `&str`. Reverted.
     //
-    //        error[E0271]: type mismatch resolving
-    //          `<[&str; 1] as IntoIterator>::Item == Capability`
-    //          expected `Capability`, found `&str`
-    //
-    //    There is no runtime test for this and there cannot be one: the failure
-    //    is the absence of a constructor, not a rejected value. The same error
-    //    appeared unprompted at four call sites in `blue-lang-bidama` during the
-    //    migration, which is the same evidence from a direction nobody staged.
-    //    Reverted.
-    //
-    // 2. **A capability without an import lowering fails the build.** Verified
-    //    2026-08-13: adding `Capability::RandomBytes` to the enum and nothing
-    //    else produced `E0004: non-exhaustive patterns: `Capability::RandomBytes`
-    //    not covered` at FOUR sites — `next` (:235), `label` (:273),
-    //    `names_source` (:290) and `import` (:332) — so the variant cannot reach
-    //    `imports_of` without a decision having been made about it. Reverted.
-    //
-    // 3. **The chain is not decorative.** Verified 2026-08-13: changing the
-    //    `Capability::Environment => Some(Capability::Clock)` row to `None`
-    //    failed the `const` evaluation of `chain()` —
-    //    `error[E0080]: evaluation panicked: the `next` chain is shorter than
-    //    `Capability::COUNT`` — at compile time, not in a test. Reverted.
+    // 2. **A row cannot omit a decision.** Verified 2026-11-04: a host row with
+    //    no `import` fails the table's macro at compile time with no rule
+    //    expected; a variant with no row does not exist. Reverted.
     //
     // Red runs 4–5 (the derivation) are recorded in `crate::imports`; 6–9 (the
     // pure/host classification, checked against a real interpreter) in

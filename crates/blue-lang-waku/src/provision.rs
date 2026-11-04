@@ -135,27 +135,7 @@ impl Provision {
     /// a capability blue cannot provide without the host.
     #[must_use]
     pub fn kinds_for(cap: Capability) -> &'static [&'static str] {
-        match cap {
-            Capability::Clock => &["deterministic_stepped"],
-            Capability::Entropy => &["seeded_prng"],
-            Capability::FileSystem => &["in_memory_overlay", "null_sink"],
-            Capability::CommFlash | Capability::CommScavenger => &["loopback"],
-            Capability::MpcThreshold => &["seeded"],
-            Capability::StorageAppend => &["in_memory"],
-            Capability::AudioOut => &["recording_sink"],
-            Capability::AudioIn => &["seeded_noise", "monitor"],
-            Capability::Display => &["framebuffer"],
-            Capability::Process
-            | Capability::KernelBpf
-            | Capability::Environment
-            | Capability::Network
-            | Capability::CoreForms
-            | Capability::Operators
-            | Capability::Collections
-            | Capability::Interpolation
-            | Capability::Assertion
-            | Capability::ManifestDeclaration => &[],
-        }
+        cap.provider_kinds()
     }
 
     /// The capability whose provider answers the host name `name`, if any.

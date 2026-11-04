@@ -1016,9 +1016,17 @@ mod tests {
         #[test]
         fn the_frame_summary_is_exactly_granted_withheld_and_host_io() {
             let (hold, _, _) = held(&[Capability::Clock], &[]);
+            let withheld: Vec<String> = Capability::host_effects()
+                .into_iter()
+                .filter(|c| *c != Capability::Clock)
+                .map(|c| format!("\"{}\"", c.label()))
+                .collect();
             assert_eq!(
                 blue_lang_proc::receipt::canonical(&hold.frame_summary(4)),
-                r#"{"granted":["clock"],"host_io":4,"withheld":["process","filesystem","environment","network","entropy","comm-flash","comm-scavenger","mpc-threshold","storage-append","audio-out","audio-in","display","kernel-bpf"]}"#
+                format!(
+                    "{{\"granted\":[\"clock\"],\"host_io\":4,\"withheld\":[{}]}}",
+                    withheld.join(",")
+                )
             );
         }
 

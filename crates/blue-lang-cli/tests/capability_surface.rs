@@ -185,63 +185,28 @@ fn no_pure_capability_grants_a_host_name() {
     }
 }
 
-/// Every host capability's bundle is non-empty and its import is distinct.
+/// Every host capability's bundle is non-empty, and each holds exactly the names
+/// a real interpreter binds and it alone grants.
 ///
-/// Anti-vacuity for the two direction gates: both quantify over
-/// `c.names()`, and both pass trivially over a bundle that grants nothing.
+/// Anti-vacuity for the two direction gates: both quantify over `c.names()`, and
+/// both pass trivially over a bundle that grants nothing. The numbers come from
+/// the installed interpreter, so a new word or capability needs no edit here: a
+/// word with no claim or a claim with no word is red in the gates above.
 #[test]
 fn each_host_capability_carries_a_real_bundle_and_a_real_import() {
-    let counts: Vec<(&str, usize)> = Capability::host_effects()
-        .into_iter()
-        .map(|c| (c.label(), c.names().len()))
-        .collect();
-    assert_eq!(counts.len(), 14, "the floor, 2026-11-03: {counts:?}");
-    for (label, n) in &counts {
-        assert!(*n > 0, "{label} grants no names");
+    let installed = host_installed_names();
+    let hosts = Capability::host_effects();
+    assert!(hosts.len() >= 14, "the host rows shrank to {}", hosts.len());
+    for c in hosts {
+        let measured = installed.iter().filter(|n| c.grants(n)).count();
+        assert!(measured > 0, "{} grants no names", c.label());
+        assert_eq!(
+            measured,
+            c.names().len(),
+            "{} claims a name twice or claims one nothing installs",
+            c.label()
+        );
     }
-    // The measured shape of `blue_lang_runtime::sys`'s four installers on
-    // 2026-08-13. A change to the runtime moves these, and moving them is a
-    // decision rather than a slip.
-    assert_eq!(
-        counts,
-        vec![
-            // 8 since 2026-10-18: exit_with, so a command ends with the
-            // status its caller branches on (kirikae's hold is 75). 7 since
-            // 2026-10-08: exec_into, so a blue wrapper hands its process to
-            // the command it wraps (keiyu).
-            ("process", 9),
-            // 21 since 2026-09-27: rename_file, the atomic replace a file
-            // another program polls needs (nix's `builders = @file`).
-            // 25 since 2026-11-03: read_bytes, read_u32s and write_bytes, so a
-            // program reads a kernel's BTF and writes binary.
-            ("filesystem", 25),
-            // 5 since 2026-09-27: self_exe, the blue CLI running this program
-            // (nil when embedded), so a program that runs blue spawns THIS one.
-            ("environment", 5),
-            ("clock", 7),
-            // Since 2026-10-10: NATS (connect, publish, request, subscribe,
-            // next_message, unsubscribe, close) and http_request, so a blue
-            // daemon drives a message bus and calls an HTTP API; 12 with
-            // http_listen, http_listener_port, http_next_request and
-            // http_respond, so a blue service answers HTTP; 16 with the
-            // four pg_ words, so it reads and writes PostgreSQL; 17 since
-            // 2026-10-24 with tcp_connect_ms, so a prober times a path; 22
-            // since 2026-10-27 with the five resp_ words (Valkey and Redis);
-            // 23 with nats_inbox, the reply subject a JetStream pull names.
-            ("network", 23),
-            // Since 2026-10-23: random_bytes, the one draw from the system
-            // entropy source, so key material and nonces are generated here.
-            ("entropy", 1),
-            ("comm-flash", 5),
-            ("comm-scavenger", 9),
-            ("mpc-threshold", 9),
-            ("storage-append", 2),
-            ("audio-out", 2),
-            ("audio-in", 2),
-            ("display", 7),
-            ("kernel-bpf", 8)
-        ]
-    );
 }
 
 /// **`interpreter_hostless` is not hostless when the `sys` feature is on.**

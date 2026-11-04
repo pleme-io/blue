@@ -82,22 +82,7 @@ const PURE: &str = "use(\"shisutemu\", [:read_or])\n\ndef double(parent, n)\n  s
 #[test]
 fn a_pure_frames_receipts_count_no_host_io_and_list_every_withheld_capability() {
     let dir = scratch("pure");
-    let all = [
-        "process",
-        "filesystem",
-        "environment",
-        "clock",
-        "network",
-        "entropy",
-        "comm-flash",
-        "comm-scavenger",
-        "mpc-threshold",
-        "storage-append",
-        "audio-out",
-        "audio-in",
-        "display",
-        "kernel-bpf",
-    ];
+    let all = blue_lang_waku::Capability::HOST_LABELS;
     let got = run_with_receipts(&dir, &["none"], PURE);
     assert_eq!(got.len(), 3, "the run and its two processes: {got:?}");
     for r in &got {
@@ -173,7 +158,7 @@ fn a_granted_run_counts_each_host_call_and_each_process_its_own() {
     assert_eq!(unheld[0]["frame"]["withheld"], serde_json::json!([]));
     assert_eq!(
         unheld[0]["frame"]["granted"].as_array().map(Vec::len),
-        Some(14)
+        Some(blue_lang_waku::Capability::HOST_LABELS.len())
     );
     assert_eq!(unheld[0]["frame"]["host_io"], 3, "{}", unheld[0]);
     let _ = std::fs::remove_dir_all(dir);

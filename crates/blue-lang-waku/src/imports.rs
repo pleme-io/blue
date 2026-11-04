@@ -98,19 +98,12 @@ mod tests {
     fn the_top_frame_derives_every_host_import() {
         let table = imports_of(&Waku::top());
         assert_eq!(table.len(), Capability::host_effects().len());
-        assert_eq!(
-            table.len(),
-            14,
-            "the floor, 2026-11-03 (13 until KernelBpf, 10 until AudioOut, AudioIn and Display, 9 until StorageAppend, 8 until MpcThreshold, 6 until the wire channels, 5 until Entropy)"
-        );
+        assert!(table.len() >= 14, "the host rows shrank to {}", table.len());
     }
 
     /// **The totality gate, over every subset of the universe.**
     ///
-    /// 2^20 = 1048576 frames (2^19 until `KernelBpf`, 2^16 until `AudioOut`, `AudioIn` and `Display`,
-    /// 2^15 until `StorageAppend`, 2^14 until `MpcThreshold`, 2^12 until the
-    /// wire channels, 2^11 until `Entropy`),
-    /// each compared against an
+    /// 2^`Capability::COUNT` frames, each compared against an
     /// *independently computed* expectation — the subset intersected with the
     /// host effects — rather than
     /// against `imports_of` itself. A hand-listed table passes the count tests
@@ -200,7 +193,7 @@ mod tests {
         let open = Waku::top();
         let narrowed = open.narrow(&frame([Capability::Operators]));
         assert_eq!(imports_of(&open).len(), Capability::host_effects().len());
-        assert_eq!(imports_of(&open).len(), 14);
+        assert_eq!(imports_of(&open).len(), Capability::host_effects().len());
         assert!(
             imports_of(&narrowed).is_empty(),
             "narrowing to a pure bundle must close every import"

@@ -441,7 +441,7 @@ Higher binding power binds tighter.
 | `now_ms` | `now_ms` | 0 | Unix time in milliseconds. |
 | `now_ns` | `now_ns` | 0 | Unix time in nanoseconds. |
 | `now_rfc3339` | `now_rfc3339` | 0 | The current UTC time as RFC 3339 text. |
-| `sleep` | `sleep(seconds)` | 1 | Pause for whole seconds. |
+| `sleep` | `sleep(seconds)` | 1 | Pause for whole seconds. Also defined by `kurashi` (`kurashi::sleep`): a file that lists it gets that one. |
 | `sleep_ms` | `sleep_ms(ms)` | 1 | Pause for milliseconds. |
 
 ### Network

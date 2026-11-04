@@ -1,0 +1,25 @@
+[package]
+name = "blue-lang-worker"
+description = "A supervised child that runs blue for a host that must not hold an interpreter: one wire, deadlines, and every failure as a typed refusal."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[[bin]]
+name = "blue-lang-worker"
+path = "src/main.rs"
+
+[dependencies]
+blue-lang-host = { workspace = true }
+blue-lang-pkg = { workspace = true, features = ["embedded"] }
+blue-lang-runtime = { workspace = true, features = ["sys"] }
+tatara-lisp-eval = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+rustix = { version = "1", default-features = false, features = ["std", "process"] }

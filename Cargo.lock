@@ -616,6 +616,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "blue-lang-worker"
+version = "0.0.151"
+dependencies = [
+ "blue-lang-host",
+ "blue-lang-pkg",
+ "blue-lang-runtime",
+ "rustix",
+ "serde",
+ "serde_json",
+ "tatara-lisp-eval",
+]
+
+[[package]]
 name = "blue-lang-yaml-diff"
 version = "0.0.151"
 dependencies = [

@@ -250,7 +250,7 @@ rendered:
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-94 packages, 5235 definitions, 1662 tests.
+95 packages, 5261 definitions, 1676 tests.
 
 - [anaritikusu](bidamas/CATALOG.md#anaritikusu) (アナリティクス) — lifecycle analytics: a database of telemetry, standard models and cross-lifecycle joins, generated from lifecycle definitions.
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
@@ -300,6 +300,7 @@ rendered:
 - [koutei](bidamas/CATALOG.md#koutei) (工程) — one step of a pipeline, as GitHub Actions runs it.
 - [kueri](bidamas/CATALOG.md#kueri) (クエリ) — queries: analysis is authored in blue, and SQL is only the rendered bridge to DuckDB.
 - [kumiawase](bidamas/CATALOG.md#kumiawase) (組み合わせ) — counting without enumerating.
+- [kurashi](bidamas/CATALOG.md#kurashi) (暮らし) — how a person lives on a desktop seat: their keys, named commands, bar modules, look, idle, lock and notes as entries, each refused alone.
 - [kyasshu](bidamas/CATALOG.md#kyasshu) (キャッシュ) — cache: the normalized entity store of the frontend data runtime.
 - [kyohi](bidamas/CATALOG.md#kyohi) (拒否) — refusals, as data.
 - [kyuuji](bidamas/CATALOG.md#kyuuji) (給仕) — serving: an HTTP/1.1 service over the runtime's `http_listen`.

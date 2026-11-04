@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:d869d956caff5e6ee8461157f828190ce1ff4033389465b7c5ab4a1ed9c61dcd",
+  "manifest": {
+    "schema": 1,
+    "name": "kurashi",
+    "version": "0.1.0",
+    "needs": {
+      "kousei": "^0.1.0",
+      "retsu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

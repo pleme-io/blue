@@ -100,6 +100,8 @@ use("kousei")
 use("koutei")
 use("kueri")
 use("kumiawase", [:combinations])
+# waive B0016: zenbu is the facade, and depending on it means depending on kurashi
+use("kurashi")
 use("kyasshu")
 use("kyohi")
 use("kyuuji")

@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "b648634f6a380f842b500c57b7aa632ec9ba9bb59a66993e356123bd80efb32d",
+  "cargo_lock_sha256": "a6bad30944dd311fa1644a907900315cb7dc3e6cbaf1077d042b7f27eb8367bc",
   "manifest_sha256": {
-    "Cargo.toml": "26cb695c569e5c8456fbb5179c22542bd2905ce849168cc3b4ea31931556304c",
+    "Cargo.toml": "072884543a2a6103f70150a9f2a0f43b2bbb41db3f282b85ffe41d7e1dd86454",
     "crates/blue-lang-appliance/Cargo.toml": "72da422691d14356450606a218eed12ed6a26ed3a23c64116dc3ef8546937526",
     "crates/blue-lang-art/Cargo.toml": "f6721f78c76a94d4915a455675cd05889176a43212494c53aa8a01dfc9dfe5ee",
     "crates/blue-lang-bidama/Cargo.toml": "7b29108c8c3d40b5cbaf9f427c4f0a0ace1e5b49e02bd7448dcb53d3ee91337f",
@@ -25,6 +25,7 @@
     "crates/blue-lang-test/Cargo.toml": "df208a871216b2b2374dfa0614ddf42eaa7ba2d801dd6b981cde99ac14709cdb",
     "crates/blue-lang-waku/Cargo.toml": "04ab710d641ebe14de7777553f810c78f8a328357c845f02deed75e859f56de7",
     "crates/blue-lang-wasm/Cargo.toml": "7ab5e1b7832f36ce7932147f98e193c0d626813528f2d85280ac1aa8b070a1a0",
+    "crates/blue-lang-worker/Cargo.toml": "7e4ed5e9ee691923c00d88804b0a4cad17ae5fe2bf29ec3d90ca64c11a52c20c",
     "crates/blue-lang-yaml-diff/Cargo.toml": "2aaacab66724df4d7d7e6065adcfa1d6c2aa330596abd1012f3c3e38a16eedbf"
   },
   "target_resolves": {
@@ -12075,6 +12076,78 @@
             "build_dependencies": [],
             "features": []
           },
+          "blue-lang-worker-0.0.151": {
+            "runtime_dependencies": [
+              {
+                "name": "blue_lang_host",
+                "package_key": "blue-lang-host-0.0.151",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "blue_lang_pkg",
+                "package_key": "blue-lang-pkg-0.0.151",
+                "kind": "normal",
+                "features": [
+                  "embedded"
+                ],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "blue_lang_runtime",
+                "package_key": "blue-lang-runtime-0.0.151",
+                "kind": "normal",
+                "features": [
+                  "sys"
+                ],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "serde",
+                "package_key": "serde-1.0.229",
+                "kind": "normal",
+                "features": [
+                  "derive"
+                ],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "serde_json",
+                "package_key": "serde_json-1.0.151",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "tatara_lisp_eval",
+                "package_key": "tatara-lisp-eval-0.4.13",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": []
+          },
           "chacha20-0.10.2": {
             "runtime_dependencies": [
               {
@@ -12963,6 +13036,91 @@
             "build_dependencies": [],
             "features": []
           },
+          "blue-lang-worker-0.0.151": {
+            "runtime_dependencies": [
+              {
+                "name": "blue_lang_host",
+                "package_key": "blue-lang-host-0.0.151",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "blue_lang_pkg",
+                "package_key": "blue-lang-pkg-0.0.151",
+                "kind": "normal",
+                "features": [
+                  "embedded"
+                ],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "blue_lang_runtime",
+                "package_key": "blue-lang-runtime-0.0.151",
+                "kind": "normal",
+                "features": [
+                  "sys"
+                ],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "rustix",
+                "package_key": "rustix-1.1.4",
+                "kind": "normal",
+                "features": [
+                  "process",
+                  "std"
+                ],
+                "uses_default_features": false,
+                "optional": false,
+                "target": "cfg(target_os = \"linux\")",
+                "tree": "target"
+              },
+              {
+                "name": "serde",
+                "package_key": "serde-1.0.229",
+                "kind": "normal",
+                "features": [
+                  "derive"
+                ],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "serde_json",
+                "package_key": "serde_json-1.0.151",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "tatara_lisp_eval",
+                "package_key": "tatara-lisp-eval-0.4.13",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": []
+          },
           "chacha20-0.10.2": {
             "runtime_dependencies": [
               {
@@ -13815,6 +13973,91 @@
             "build_dependencies": [],
             "features": []
           },
+          "blue-lang-worker-0.0.151": {
+            "runtime_dependencies": [
+              {
+                "name": "blue_lang_host",
+                "package_key": "blue-lang-host-0.0.151",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "blue_lang_pkg",
+                "package_key": "blue-lang-pkg-0.0.151",
+                "kind": "normal",
+                "features": [
+                  "embedded"
+                ],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "blue_lang_runtime",
+                "package_key": "blue-lang-runtime-0.0.151",
+                "kind": "normal",
+                "features": [
+                  "sys"
+                ],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "rustix",
+                "package_key": "rustix-1.1.4",
+                "kind": "normal",
+                "features": [
+                  "process",
+                  "std"
+                ],
+                "uses_default_features": false,
+                "optional": false,
+                "target": "cfg(target_os = \"linux\")",
+                "tree": "target"
+              },
+              {
+                "name": "serde",
+                "package_key": "serde-1.0.229",
+                "kind": "normal",
+                "features": [
+                  "derive"
+                ],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "serde_json",
+                "package_key": "serde_json-1.0.151",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "tatara_lisp_eval",
+                "package_key": "tatara-lisp-eval-0.4.13",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": []
+          },
           "chacha20-0.10.2": {
             "runtime_dependencies": [
               {
@@ -14628,6 +14871,78 @@
               {
                 "name": "tatara_lisp",
                 "package_key": "tatara-lisp-0.4.13",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "tatara_lisp_eval",
+                "package_key": "tatara-lisp-eval-0.4.13",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": []
+          },
+          "blue-lang-worker-0.0.151": {
+            "runtime_dependencies": [
+              {
+                "name": "blue_lang_host",
+                "package_key": "blue-lang-host-0.0.151",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "blue_lang_pkg",
+                "package_key": "blue-lang-pkg-0.0.151",
+                "kind": "normal",
+                "features": [
+                  "embedded"
+                ],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "blue_lang_runtime",
+                "package_key": "blue-lang-runtime-0.0.151",
+                "kind": "normal",
+                "features": [
+                  "sys"
+                ],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "serde",
+                "package_key": "serde-1.0.229",
+                "kind": "normal",
+                "features": [
+                  "derive"
+                ],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "serde_json",
+                "package_key": "serde_json-1.0.151",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -15605,6 +15920,91 @@
             "build_dependencies": [],
             "features": []
           },
+          "blue-lang-worker-0.0.151": {
+            "runtime_dependencies": [
+              {
+                "name": "blue_lang_host",
+                "package_key": "blue-lang-host-0.0.151",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "blue_lang_pkg",
+                "package_key": "blue-lang-pkg-0.0.151",
+                "kind": "normal",
+                "features": [
+                  "embedded"
+                ],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "blue_lang_runtime",
+                "package_key": "blue-lang-runtime-0.0.151",
+                "kind": "normal",
+                "features": [
+                  "sys"
+                ],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "rustix",
+                "package_key": "rustix-1.1.4",
+                "kind": "normal",
+                "features": [
+                  "process",
+                  "std"
+                ],
+                "uses_default_features": false,
+                "optional": false,
+                "target": "cfg(target_os = \"linux\")",
+                "tree": "target"
+              },
+              {
+                "name": "serde",
+                "package_key": "serde-1.0.229",
+                "kind": "normal",
+                "features": [
+                  "derive"
+                ],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "serde_json",
+                "package_key": "serde_json-1.0.151",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "tatara_lisp_eval",
+                "package_key": "tatara-lisp-eval-0.4.13",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": []
+          },
           "chacha20-0.10.2": {
             "runtime_dependencies": [
               {
@@ -16504,6 +16904,91 @@
               {
                 "name": "tatara_lisp",
                 "package_key": "tatara-lisp-0.4.13",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "tatara_lisp_eval",
+                "package_key": "tatara-lisp-eval-0.4.13",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": []
+          },
+          "blue-lang-worker-0.0.151": {
+            "runtime_dependencies": [
+              {
+                "name": "blue_lang_host",
+                "package_key": "blue-lang-host-0.0.151",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "blue_lang_pkg",
+                "package_key": "blue-lang-pkg-0.0.151",
+                "kind": "normal",
+                "features": [
+                  "embedded"
+                ],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "blue_lang_runtime",
+                "package_key": "blue-lang-runtime-0.0.151",
+                "kind": "normal",
+                "features": [
+                  "sys"
+                ],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "rustix",
+                "package_key": "rustix-1.1.4",
+                "kind": "normal",
+                "features": [
+                  "process",
+                  "std"
+                ],
+                "uses_default_features": false,
+                "optional": false,
+                "target": "cfg(target_os = \"linux\")",
+                "tree": "target"
+              },
+              {
+                "name": "serde",
+                "package_key": "serde-1.0.229",
+                "kind": "normal",
+                "features": [
+                  "derive"
+                ],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "serde_json",
+                "package_key": "serde_json-1.0.151",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -17427,6 +17912,19 @@
         "name": "blue_lang_wasm",
         "path": "src/lib.rs"
       }
+    },
+    "blue-lang-worker-0.0.151": {
+      "edition": "2021",
+      "lib_target": {
+        "name": "blue_lang_worker",
+        "path": "src/lib.rs"
+      },
+      "binaries": [
+        {
+          "name": "blue-lang-worker",
+          "path": "src/main.rs"
+        }
+      ]
     },
     "blue-lang-yaml-diff-0.0.151": {
       "edition": "2021",

@@ -144,6 +144,15 @@ def value_of(e)
 end
 
 @doc """
+config: An entry that sets fields of one config group of the host; the host checks each field alone.
+
+    config(:layout, {padding: 12}).value #=> {padding: 12}
+"""
+def config(group, fields)
+  entry(:config, to_s(group), fields)
+end
+
+@doc """
 off: Declared, and configured off: it stays in the declaration and does nothing.
 """
 def off(kind, name)
@@ -339,6 +348,13 @@ test "a bad entry is refused alone and its siblings stand"
   assert size(j[:accepted]) == 3
   assert faults(j) == %i[invalid invalid invalid unknown_kind duplicate]
   assert value_of(j[:accepted][2]) == {enabled: true}
+end
+
+test "a config entry names its group as text and carries its fields whole"
+  e = config(:layout, {padding: 12, unknown: "kept"})
+  assert kind_of(e) == :config
+  assert name_of(e) == "layout"
+  assert value_of(e) == {padding: 12, unknown: "kept"}
 end
 
 test "off keeps the entry declared and out of what is accepted"

@@ -23,7 +23,7 @@ config: an entry that sets fields of one config group of the host; the host chec
     config(:layout, {padding: 12}).value #=> {padding: 12}
 """
 def config(group, fields)
-  entry(:config, to_s(group), fields)
+  kousei::config(group, fields)
 end
 
 @doc """

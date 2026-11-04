@@ -1,0 +1,74 @@
+[
+  {
+    "name": "declare stops setting a group's fields aside",
+    "find": "  judged = judge(schema, open_fields(entries))",
+    "replace": "  judged = judge(schema, entries)",
+    "file": "kurashi.b"
+  },
+  {
+    "name": "declare forgets to restore them",
+    "find": "  standing = standing_commands(map(restored, judged[:accepted]))",
+    "replace": "  standing = standing_commands(judged[:accepted])",
+    "file": "kurashi.b"
+  },
+  {
+    "name": "a bad command stands",
+    "find": "    accepted: standing[:accepted],",
+    "replace": "    accepted: judged[:accepted],",
+    "file": "kurashi.b"
+  },
+  {
+    "name": "a bad command's refusal is lost",
+    "find": "refusals: append(judged[:refusals], standing[:refusals])",
+    "replace": "refusals: judged[:refusals]",
+    "file": "kurashi.b"
+  },
+  {
+    "name": "the judge's refusals are lost",
+    "find": "refusals: append(judged[:refusals], standing[:refusals])",
+    "replace": "refusals: standing[:refusals]",
+    "file": "kurashi.b"
+  },
+  {
+    "name": "off is lost",
+    "find": "    off: judged[:off],",
+    "replace": "    off: [],",
+    "file": "kurashi.b"
+  },
+  {
+    "name": "a bind takes any action",
+    "find": "bind: [required(field(:action, text)), field(:locked, flag)],",
+    "replace": "bind: [field(:action, flag), field(:locked, flag)],",
+    "file": "kurashi.b"
+  },
+  {
+    "name": "a chord loses its locked flag",
+    "find": "  entry(:bind, chord, {**opts, action: word})",
+    "replace": "  entry(:bind, chord, {action: word})",
+    "file": "kurashi.b"
+  },
+  {
+    "name": "an action word stays a keyword",
+    "find": "word = if keyword?(action)",
+    "replace": "word = if false",
+    "file": "kurashi.b"
+  },
+  {
+    "name": "a bar module allows any capability",
+    "find": "field(:allow, list_of(one_of(capabilities))),",
+    "replace": "field(:allow, list_of(text)),",
+    "file": "kurashi.b"
+  },
+  {
+    "name": "swaylock draws the wrong field",
+    "find": "  field = nord(field_band)",
+    "replace": "  field = nord(:snow2)",
+    "file": "kurashi.b"
+  },
+  {
+    "name": "a command kind goes unchecked",
+    "find": "    if is_empty(rows)\n      \"#{action[:kind]} is no command kind\"",
+    "replace": "    if false\n      \"#{action[:kind]} is no command kind\"",
+    "file": "kurashi.b"
+  }
+]

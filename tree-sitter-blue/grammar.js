@@ -39,7 +39,7 @@ module.exports = grammar({
     pair: $ => seq(field('key', $.label), repeat($._newline), field('value', $._expression)),
     rocket_pair: $ => seq(field('key', $._expression), repeat($._newline), '=>', repeat($._newline), field('value', $._expression)),
     label: $ => token(seq(/(?:[A-Za-z_]|[^\x00-\x7F\p{White_Space}\p{Cc}∨∧≡≠≤≥−×÷−¬])[A-Za-z0-9_\u{80}-\u{10FFFF}]*[?!]?/u, ':')),
-    qualified_name: $ => seq(choice(seq(field('package', $.identifier), '::'), field('package', alias(token(seq(/(?:[A-Za-z_]|[^\x00-\x7F\p{White_Space}\p{Cc}∨∧≡≠≤≥−×÷−¬])[A-Za-z0-9_\u{80}-\u{10FFFF}]*[?!]?/u, '::')), $.package))), field('name', choice($.identifier, $.true, $.false, $.nil))),
+    qualified_name: $ => seq(choice(seq(field('package', $.identifier), '::'), field('package', alias(token(seq(/(?:[A-Za-z_]|[^\x00-\x7F\p{White_Space}\p{Cc}∨∧≡≠≤≥−×÷−¬])[A-Za-z0-9_\u{80}-\u{10FFFF}]*[?!]?(?:::(?:[A-Za-z_]|[^\x00-\x7F\p{White_Space}\p{Cc}∨∧≡≠≤≥−×÷−¬])[A-Za-z0-9_\u{80}-\u{10FFFF}]*[?!]?)*/u, '::')), $.package))), field('name', choice($.identifier, $.true, $.false, $.nil))),
     integer: $ => /[0-9][0-9_]*/u,
     float: $ => token(choice(/[0-9][0-9_]*\.[0-9][0-9_]*([eE][+-]?[0-9][0-9_]*)?/u, /[0-9][0-9_]*[eE][+-]?[0-9][0-9_]*/u)),
     symbol: $ => token(seq(':', /(?:[A-Za-z_]|[^\x00-\x7F\p{White_Space}\p{Cc}∨∧≡≠≤≥−×÷−¬])[A-Za-z0-9_\u{80}-\u{10FFFF}]*[?!]?/u)),

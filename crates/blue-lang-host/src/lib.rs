@@ -54,6 +54,10 @@ impl Loader for Embedded<'_> {
     fn version(&self, package: &str, entry_dir: Option<&std::path::Path>) -> Option<String> {
         Standard.version(package, entry_dir)
     }
+
+    fn children(&self, name: &str) -> Vec<String> {
+        Standard.children(name)
+    }
 }
 
 /// One package compiled into the host, over any other loader: every other
@@ -85,6 +89,22 @@ impl Loader for EmbeddedOver<'_> {
 
     fn version(&self, package: &str, entry_dir: Option<&std::path::Path>) -> Option<String> {
         self.rest.version(package, entry_dir)
+    }
+
+    /// A level compiled in this way is a child of the level above it, so a
+    /// chain of these holds a whole tree.
+    fn children(&self, name: &str) -> Vec<String> {
+        let mut out = self.rest.children(name);
+        let own = self.own.name;
+        if own
+            .rsplit_once('/')
+            .is_some_and(|(parent, _)| parent == name)
+            && !out.iter().any(|c| c == own)
+        {
+            out.push(own.to_string());
+            out.sort();
+        }
+        out
     }
 }
 

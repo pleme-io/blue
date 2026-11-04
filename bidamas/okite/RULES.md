@@ -21,3 +21,4 @@ the build.
 - **D0013** A conversion chain is simplified only by a row of chain_rules, and a row gives the chain's own value, or its refusal, for every value.
 - **D0014** `kyohi::check` returns every finding and never raises; `kyohi::enforce` raises them as one error: kind from opts (`:first` or `:refused`), whys joined.
 - **D0015** A string and a keyword are different values ("a" != :a); error, json_get and json_get_or read either as text, and there a name is a keyword.
+- **D0016** A bidama is a tree: `a::b::c::x` reaches any depth, and `use("a/b")` also brings `b::c::x` and `c::x`. Every path spelling loads one thing.

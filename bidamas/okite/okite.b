@@ -18,10 +18,50 @@ where a decision here records a deviation. Knowing Ruby is knowing blue.
 use("junjo", [:sort])
 use("kyohi")
 use("moji", [:lines])
+use("okite/rung")
+use("okite/rung/deep", [:deep_word])
+use({r: "okite/rung/deep/floor"})
 use("ran", %i[next_bool next_seed next_uniform pick])
 use("retsu", %i[contains first flat_map index_of is_empty rest size])
 
 legacy_names("0.1.1", "ok")
+
+# ── levels: this bidama is a tree, so its laws read through one ───────────
+#
+# `okite/rung`, `okite/rung/deep` and `okite/rung/deep/floor` are real levels,
+# loaded by the same path every program takes.
+
+@doc """
+law_full_path_reaches_every_depth holds that a full path names a definition at each depth of this bidama.
+
+    law_full_path_reaches_every_depth #=> true
+"""
+def law_full_path_reaches_every_depth()
+  okite::rung::rung_word == :rung and
+    okite::rung::deep::deep_depth == :two_down and
+    okite::rung::deep::floor::floor_word == :floor
+end
+
+@doc """
+law_relative_path_is_the_same_definition holds that a path relative to an import is the definition its full path names.
+
+    law_relative_path_is_the_same_definition #=> true
+"""
+def law_relative_path_is_the_same_definition()
+  rung::rung_word == okite::rung::rung_word and
+    deep::deep_depth == okite::rung::deep::deep_depth and
+    rung::deep::floor::floor_word == okite::rung::deep::floor::floor_word and
+    deep::floor::floor_word == okite::rung::deep::floor::floor_word
+end
+
+@doc """
+law_listed_and_second_names holds that a listed name and a second name each reach their level.
+
+    law_listed_and_second_names #=> true
+"""
+def law_listed_and_second_names()
+  deep_word == :deep and r::floor_word == :floor
+end
 
 # ── generated values ───────────────────────────────────────────────────────
 #
@@ -579,6 +619,26 @@ def decisions()
       laws: [
         ["a string is not a keyword", () -> law_string_is_not_keyword],
         ["text names take either", () -> law_text_names_take_either]
+      ]
+    },
+    {
+      id: "D0016",
+      date: "2026-11-04",
+      rule: "A bidama is a tree: `a::b::c::x` reaches any depth, and `use(\"a/b\")` also brings `b::c::x` and `c::x`. Every path spelling loads one thing.",
+      why: "The operator's instruction of 2026-11-04: a name has as many qualifiers as the tree has levels, and shortcuts are for the author. Two imports that fit one shortcut are refused, never decided by load order.",
+      laws: [
+        [
+          "a full path reaches every depth",
+          () -> law_full_path_reaches_every_depth
+        ],
+        [
+          "a relative path is the same definition",
+          () -> law_relative_path_is_the_same_definition
+        ],
+        [
+          "a listed name and a second name reach their level",
+          () -> law_listed_and_second_names
+        ]
       ]
     }
   ]

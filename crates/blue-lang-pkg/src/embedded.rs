@@ -37,10 +37,14 @@ impl Standard {
         PACKAGES.is_empty()
     }
 
-    /// The package names, sorted.
+    /// The package names, sorted: every bidama, without the levels below it.
     #[must_use]
     pub fn names(self) -> Vec<&'static str> {
-        PACKAGES.iter().map(|(n, _, _)| *n).collect()
+        PACKAGES
+            .iter()
+            .map(|(n, _, _)| *n)
+            .filter(|n| !blue_lang_syntax::is_nested(n))
+            .collect()
     }
 
     /// Whether `name` is compiled in.
@@ -75,9 +79,29 @@ impl Loader for Standard {
 
     fn needs(&self, package: &str, _entry_dir: Option<&Path>) -> Option<BTreeSet<String>> {
         let (_, _, files) = PACKAGES.iter().find(|(n, _, _)| *n == package)?;
-        let mut used = crate::needs::uses_in(files.iter().map(|(_, t)| *t));
-        used.remove(package);
+        let root = blue_lang_syntax::root_of(package);
+        let below = format!("{root}/");
+        let mut used = crate::needs::uses_in(
+            PACKAGES
+                .iter()
+                .filter(|(n, _, _)| *n == root || n.starts_with(&below))
+                .flat_map(|(_, _, fs)| fs.iter().map(|(_, t)| *t))
+                .chain(files.iter().map(|(_, t)| *t)),
+        );
+        used.remove(root);
         Some(used)
+    }
+
+    fn children(&self, name: &str) -> Vec<String> {
+        let below = format!("{name}/");
+        let mut out: Vec<String> = PACKAGES
+            .iter()
+            .filter_map(|(n, _, _)| n.strip_prefix(&below).map(|rest| (*n, rest)))
+            .filter(|(_, rest)| !rest.contains('/'))
+            .map(|(n, _)| n.to_string())
+            .collect();
+        out.sort();
+        out
     }
 
     fn version(&self, package: &str, _entry_dir: Option<&Path>) -> Option<String> {
@@ -106,6 +130,24 @@ mod tests {
             .load("no-such-bidama")
             .unwrap_err()
             .contains("no-such-bidama"));
+    }
+
+    /// A tree compiles in level by level, under its root's Bluefile. okite's
+    /// laws read through `okite/rung`, so this is the real distribution.
+    #[test]
+    fn a_tree_is_compiled_in_level_by_level() {
+        assert!(!Standard.names().iter().any(|n| n.contains('/')));
+        assert_eq!(Standard.children("okite"), ["okite/rung"]);
+        assert_eq!(Standard.children("okite/rung"), ["okite/rung/deep"]);
+        assert!(Standard.children("retsu").is_empty());
+        assert_eq!(
+            Standard.version("okite/rung", None),
+            Standard.version("okite", None)
+        );
+        let deep = Standard.load("okite/rung/deep").unwrap();
+        assert!(deep
+            .iter()
+            .any(|(l, t)| l.ends_with("deep.b") && t.contains("deep_word")));
     }
 
     /// The compiled-in Bluefile is the one on disk: kazu needs nothing and

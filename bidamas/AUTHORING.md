@@ -158,6 +158,11 @@ builtin unless a file lists yours.
 
 ## Each bidama is a namespace
 
+A bidama may also be a tree of them: a directory `sub/sub.b`, or a file opening
+with `namespace()`, is a level, reached as `pkg::sub::name` and, after
+`use("pkg/sub")`, as `sub::name`. The rules and the whole `use` family are
+[`docs/NAMESPACES.md`](../docs/NAMESPACES.md), "A bidama is a tree".
+
 Every definition lives in its bidama's namespace, and is keyed by it at run
 time (`kueri/join`), so two bidamas may define one name and neither replaces
 the other, or a builtin, for anyone else.

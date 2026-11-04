@@ -235,6 +235,10 @@ impl Loader for MemoLoader<'_> {
         self.engine.loader(self.scope).frontend(entry)
     }
 
+    fn children(&self, name: &str) -> Vec<String> {
+        self.engine.loader(self.scope).children(name)
+    }
+
     fn entry_package(&self, path: &Path) -> Option<String> {
         let dir = path.parent().unwrap_or(Path::new("")).to_path_buf();
         if let Some(hit) = self.engine.memo.entry_packages.borrow().get(&dir) {

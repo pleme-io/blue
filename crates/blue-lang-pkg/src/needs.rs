@@ -12,8 +12,9 @@ pub fn uses_in<'a>(sources: impl IntoIterator<Item = &'a str>) -> BTreeSet<Strin
         .flat_map(|forms| {
             forms
                 .iter()
-                .filter_map(blue_lang_syntax::scope::use_target)
-                .map(|i| i.package)
+                .filter_map(blue_lang_syntax::scope::use_targets)
+                .flatten()
+                .map(|i| blue_lang_syntax::root_of(&i.package).to_string())
                 .collect::<Vec<_>>()
         })
         .collect()
@@ -21,16 +22,25 @@ pub fn uses_in<'a>(sources: impl IntoIterator<Item = &'a str>) -> BTreeSet<Strin
 
 #[must_use]
 pub fn used_by(dir: &Path) -> BTreeSet<String> {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return BTreeSet::new();
-    };
-    let texts: Vec<String> = entries
-        .filter_map(Result::ok)
-        .map(|e| e.path())
-        .filter(|p| p.extension().and_then(|e| e.to_str()) == Some("b"))
-        .filter_map(|p| std::fs::read_to_string(p).ok())
-        .collect();
+    let mut texts = Vec::new();
+    level_texts(dir, &mut texts);
     uses_in(texts.iter().map(String::as_str))
+}
+
+/// The text of every `.b` file of a bidama: its directory, and every level
+/// directory below it, however deep. One bidama, one manifest, so its levels'
+/// imports join in its `needs`.
+fn level_texts(dir: &Path, out: &mut Vec<String>) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for path in entries.filter_map(Result::ok).map(|e| e.path()) {
+        if path.extension().and_then(|e| e.to_str()) == Some("b") {
+            out.extend(std::fs::read_to_string(&path));
+        } else if crate::load_path::is_level_dir(&path) {
+            level_texts(&path, out);
+        }
+    }
 }
 
 #[must_use]

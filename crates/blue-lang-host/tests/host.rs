@@ -410,3 +410,47 @@ fn an_embedded_package_loads_beside_the_standard_distribution() {
         .to_string();
     assert!(missing.contains("no_such_bidama"), "{missing}");
 }
+
+/// A host compiles a tree in by chaining one [`EmbeddedOver`] per level, and
+/// a program reaches it as it reaches a tree on disk.
+#[test]
+fn an_embedded_tree_is_reached_by_full_and_relative_paths() {
+    use blue_lang_host::{Embedded, EmbeddedOver, Standard};
+    let deep = Embedded {
+        name: "tree/sub/deep",
+        files: &[("tree/sub/deep/deep.b", "def bottom()\n  \"bottom\"\nend\n")],
+    };
+    let sub = Embedded {
+        name: "tree/sub",
+        files: &[("tree/sub/sub.b", "def inner()\n  \"inner\"\nend\n")],
+    };
+    let root = Embedded {
+        name: "tree",
+        files: &[("tree/tree.b", "def top()\n  \"top\"\nend\n")],
+    };
+    let over_standard = EmbeddedOver {
+        own: deep,
+        rest: &Standard,
+    };
+    let over_deep = EmbeddedOver {
+        own: sub,
+        rest: &over_standard,
+    };
+    let loader = EmbeddedOver {
+        own: root,
+        rest: &over_deep,
+    };
+    let src = "use(\"tree\")\n\ndef all()\n  [tree::top, tree::sub::inner, sub::deep::bottom, tree::sub::deep::bottom]\nend\n";
+    let mut host = ();
+    let mut p = Program::<()>::builder(Entry::anonymous(src))
+        .loader(&loader)
+        .posture(&[])
+        .load(&mut host)
+        .expect("a chain of embedded levels loads as one tree");
+    let said: Vec<String> = p.call("all", Vec::<Value>::new(), &mut host).unwrap();
+    assert_eq!(said, ["top", "inner", "bottom", "bottom"]);
+    let one: String = p
+        .call("tree::sub::inner", Vec::<Value>::new(), &mut host)
+        .unwrap();
+    assert_eq!(one, "inner");
+}

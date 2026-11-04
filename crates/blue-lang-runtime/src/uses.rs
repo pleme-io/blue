@@ -123,6 +123,13 @@ pub trait Loader {
     fn frontend(&self, _entry: &Path) -> Option<Frontend> {
         None
     }
+
+    /// The levels one step below `name`, by their full paths, sorted: what a
+    /// `use` of `name` brings into reach with it. A bidama with no levels has
+    /// none, which is this default.
+    fn children(&self, _name: &str) -> Vec<String> {
+        Vec::new()
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -335,7 +342,10 @@ impl ResolvedProgram {
         self.forms
             .iter()
             .map(|f| {
-                if use_target(f).is_some() || blue_lang_syntax::scope::legacy_target(f).is_some() {
+                if use_target(f).is_some()
+                    || blue_lang_syntax::scope::legacy_target(f).is_some()
+                    || blue_lang_syntax::scope::is_level_marker(f)
+                {
                     Sexp::Nil
                 } else {
                     f.to_sexp()
@@ -363,12 +373,20 @@ impl ResolvedProgram {
     }
 
     /// `named` and every bidama a file of theirs reaches through `use`,
-    /// transitively.
+    /// transitively, with every level below each that this program loaded.
     #[must_use]
     pub fn reached_from(&self, named: &BTreeSet<String>) -> BTreeSet<String> {
         let mut out = named.clone();
         let mut pending: Vec<String> = named.iter().cloned().collect();
         while let Some(at) = pending.pop() {
+            let below = format!("{at}{}", blue_lang_syntax::QUALIFIER);
+            for f in &self.files {
+                if let Some(p) = f.package.as_ref().filter(|p| p.starts_with(&below)) {
+                    if out.insert(p.clone()) {
+                        pending.push(p.clone());
+                    }
+                }
+            }
             for (owner, import) in &self.imports {
                 let from = self.file(*owner).and_then(|f| f.package.as_deref());
                 if from == Some(at.as_str()) && out.insert(import.package.clone()) {
@@ -522,7 +540,7 @@ impl std::fmt::Display for Located<'_> {
     }
 }
 
-pub use blue_lang_syntax::scope::{use_target, Import};
+pub use blue_lang_syntax::scope::{use_target, use_targets, Import};
 
 /// Is this form a lowered `test` block?
 ///
@@ -551,7 +569,10 @@ pub fn is_test_form(form: &Spanned) -> bool {
 /// best wasted work and at worst two distinct copies of anything stateful.
 /// That same visited-set is what makes a dependency CYCLE terminate: the
 /// second visit is a no-op rather than infinite recursion, so a cyclic
-/// distribution loads and runs instead of hanging.
+/// distribution loads and runs instead of hanging. A cycle through a level
+/// below a bidama is refused instead, with its path: a `use` of a level
+/// brings everything below it, so a level that imports its own ancestor has
+/// no order to load in.
 ///
 /// The result carries **which file each top-level form came from** — see
 /// [`ResolvedProgram`] for why that is per top-level form and not per node.
@@ -582,6 +603,11 @@ pub fn resolve_uses(
             out.versions.insert(p.clone(), v);
         }
     }
+    if let Some(p) = &package {
+        for child in loader.children(p) {
+            load_level(&child, loader, &mut out, &mut seen, &[])?;
+        }
+    }
     expand(
         forms,
         ResolvedProgram::ENTRY,
@@ -593,6 +619,90 @@ pub fn resolve_uses(
     Ok(out)
 }
 
+/// The path of the cycle a `use` of `name` would close, when one level of it
+/// lies below a bidama. A cycle among whole bidamas stays a no-op.
+fn level_cycle(name: &str, out: &ResolvedProgram, chain: &[String]) -> Option<String> {
+    let stack: Vec<&str> = out.files[ResolvedProgram::ENTRY.0]
+        .package
+        .iter()
+        .map(String::as_str)
+        .chain(chain.iter().map(String::as_str))
+        .collect();
+    let at = stack.iter().position(|s| *s == name)?;
+    let cycle = &stack[at..];
+    cycle
+        .iter()
+        .any(|l| blue_lang_syntax::is_nested(l))
+        .then(|| {
+            let path: Vec<String> = cycle
+                .iter()
+                .chain(std::iter::once(&name))
+                .map(|l| blue_lang_syntax::spell_level(l))
+                .collect();
+            format!(
+                "a cycle between levels: {}. A `use` of a level brings every level below it, so a level never imports its ancestor; move what they share to a level both can `use`",
+                path.join(" -> ")
+            )
+        })
+}
+
+fn load_level(
+    name: &str,
+    loader: &dyn Loader,
+    out: &mut ResolvedProgram,
+    seen: &mut BTreeSet<String>,
+    chain: &[String],
+) -> Result<(), String> {
+    if let Some(cycle) = level_cycle(name, out, chain) {
+        return Err(cycle);
+    }
+    if !seen.insert(name.to_owned()) {
+        return Ok(());
+    }
+    let sources = loader.load(name).map_err(|e| describe(chain, name, &e))?;
+    if let Some(n) = loader.needs(name, None) {
+        out.needs.insert(name.to_owned(), n);
+    }
+    if let Some(v) = loader.version(name, None) {
+        out.versions.insert(name.to_owned(), v);
+    }
+    let mut inner_chain = chain.to_vec();
+    inner_chain.push(name.to_owned());
+
+    for (label, src) in sources {
+        // `parse_program_tree`, not `parse_program`. The spanless door
+        // discarded every imported position one line after the text
+        // arrived, so an imported type error had nothing to report but a
+        // message — see `ResolvedProgram`.
+        let parsed = loader
+            .parse(&src)
+            .map_err(|e| describe(chain, name, &format!("{label}: {e}")))?;
+        // An imported package's TEST blocks do not come along.
+        //
+        // A dependency's tests are not the importer's to run, and trying
+        // is not merely untidy — it is a hard failure. `test` lowers to
+        // `deftest`, which only the test harness binds, so the ordinary
+        // evaluator sees an unbound symbol. Measured, the moment kazu
+        // gained test blocks: every program importing it died with
+        // `unbound symbol: deftest`, pointing at a line the importer never
+        // wrote.
+        //
+        // Dropping them here also makes the distribution gate honest for
+        // free: `blue test kikagaku.b` now reports kikagaku's tests
+        // rather than kikagaku's plus everything it transitively imports.
+        let parsed: Vec<Spanned> = parsed.into_iter().filter(|f| !is_test_form(f)).collect();
+        // Interned AFTER parsing, so a package that does not parse never
+        // becomes a file in the table — and BEFORE the recursion, because
+        // every form below belongs to this file, not to the importer's.
+        let id = out.intern(Some(PathBuf::from(label)), Some(name.to_owned()), src);
+        expand(parsed, id, loader, out, seen, &inner_chain)?;
+    }
+    for child in loader.children(name) {
+        load_level(&child, loader, out, seen, &inner_chain)?;
+    }
+    Ok(())
+}
+
 fn expand(
     forms: Vec<Spanned>,
     owner: FileId,
@@ -602,58 +712,19 @@ fn expand(
     chain: &[String],
 ) -> Result<(), String> {
     for form in forms {
-        let Some(import) = use_target(&form) else {
+        let Some(imports) = use_targets(&form) else {
             // The file boundary is erased HERE — this is the append that used
             // to make every form indistinguishable from every other. Each one
             // now carries the file it came from, which is the whole fix.
             out.push(form, owner);
             continue;
         };
-        let name = import.package.clone();
-        out.imports.push((owner, import));
-        if !seen.insert(name.clone()) {
-            // Loaded already: the declaration stays, for the check stage.
-            out.push(form, owner);
-            continue;
-        }
-
-        let sources = loader.load(&name).map_err(|e| describe(chain, &name, &e))?;
-        if let Some(n) = loader.needs(&name, None) {
-            out.needs.insert(name.clone(), n);
-        }
-        if let Some(v) = loader.version(&name, None) {
-            out.versions.insert(name.clone(), v);
-        }
-        let mut inner_chain = chain.to_vec();
-        inner_chain.push(name.clone());
-
-        for (label, src) in sources {
-            // `parse_program_tree`, not `parse_program`. The spanless door
-            // discarded every imported position one line after the text
-            // arrived, so an imported type error had nothing to report but a
-            // message — see `ResolvedProgram`.
-            let parsed = loader
-                .parse(&src)
-                .map_err(|e| describe(chain, &name, &format!("{label}: {e}")))?;
-            // An imported package's TEST blocks do not come along.
-            //
-            // A dependency's tests are not the importer's to run, and trying
-            // is not merely untidy — it is a hard failure. `test` lowers to
-            // `deftest`, which only the test harness binds, so the ordinary
-            // evaluator sees an unbound symbol. Measured, the moment kazu
-            // gained test blocks: every program importing it died with
-            // `unbound symbol: deftest`, pointing at a line the importer never
-            // wrote.
-            //
-            // Dropping them here also makes the distribution gate honest for
-            // free: `blue test kikagaku.b` now reports kikagaku's tests
-            // rather than kikagaku's plus everything it transitively imports.
-            let parsed: Vec<Spanned> = parsed.into_iter().filter(|f| !is_test_form(f)).collect();
-            // Interned AFTER parsing, so a package that does not parse never
-            // becomes a file in the table — and BEFORE the recursion, because
-            // every form below belongs to this file, not to the importer's.
-            let id = out.intern(Some(PathBuf::from(label)), Some(name.clone()), src);
-            expand(parsed, id, loader, out, seen, &inner_chain)?;
+        for import in imports {
+            let name = import.package.clone();
+            out.imports.push((owner, import));
+            // Loaded already, it is a no-op, and the declaration stays for
+            // the check stage.
+            load_level(&name, loader, out, seen, chain)?;
         }
         // The declaration itself, after the forms it brought in.
         out.push(form, owner);

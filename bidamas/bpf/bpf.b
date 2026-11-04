@@ -2294,12 +2294,66 @@ def slot_table(insns)
 end
 
 @doc """
-packet_ready: a machine holding a packet behind `xdp_md`.
+skb_kinds: the program types whose context is a `__sk_buff`.
+
+    member?(:cgroup_skb, skb_kinds) #=> true
+    member?(:xdp, skb_kinds) #=> false
+"""
+def skb_kinds()
+  %i[socket_filter sched_cls sched_act cgroup_skb lwt_in lwt_out lwt_xmit]
+end
+
+@doc """
+network_layer?: whether the kernel hands this program type a packet from its network header: its Ethernet header is pulled first, so a program sees 14 bytes less and an IPv4 header at offset 0.
+
+    network_layer?(:cgroup_skb) #=> true
+    network_layer?(:sched_cls) #=> false
+    network_layer?(:xdp) #=> false
+"""
+def network_layer?(kind)
+  member?(kind, skb_kinds) and not member?(kind, %i[sched_cls sched_act])
+end
+
+@doc """
+packet_view: the bytes of a frame that a program of this type sees.
+
+    packet_view(:xdp, [1, 2]) #=> [1, 2]
+    size(packet_view(:lwt_in, repeat(0, 20))) #=> 6
+    packet_view(:lwt_in, [1]) #=> []
+"""
+def packet_view(kind, frame)
+  if network_layer?(kind)
+    drop(14, frame)
+  else
+    frame
+  end
+end
+
+@doc """
+data_fields: where a machine holds a packet's `data` and `data_end` for this program type.
+
+    data_fields(:xdp) #=> [0, 4]
+    data_fields(:socket_filter) #=> [76, 80]
+    data_fields(:flow_dissector) #=> [76, 80]
+"""
+def data_fields(kind)
+  if member?(kind, skb_kinds) or kind == :flow_dissector
+    [76, 80]
+  else
+    [0, 4]
+  end
+end
+
+@doc """
+packet_ready: a machine holding a packet behind the context its program type reads: `xdp_md` for XDP, a `__sk_buff` with its `len` and `protocol` for a socket buffer's.
 
     packet_of(packet_ready(machine(assemble([]), {ctx: []}), [1])) #=> [1]
+    packet_of(packet_ready(machine(assemble([]), {ctx: []}), repeat(0, 15), :cgroup_skb)) #=> [0]
 """
-def packet_ready(st, packet)
-  bytes = packet or []
+def packet_ready(st, packet, kind?)
+  held = kind or :xdp
+  fields = data_fields(held)
+  bytes = packet_view(held, packet or [])
   count = length(bytes)
   head = 256
   data = packet_base + head
@@ -2309,14 +2363,39 @@ def packet_ready(st, packet)
     data,
     bytes
   )
-  framed = add_region(placed, ctx_base, 24)
+  framed = assoc(add_region(placed, ctx_base, 184), :fields, fields)
   ready = write_mem(
-    write_mem(write_mem(framed, ctx_base, 4, data), ctx_base + 4, 4, end_at),
+    write_mem(
+      write_mem(framed, ctx_base + first(fields), 4, data),
+      ctx_base + fields[1],
+      4,
+      end_at
+    ),
     ctx_base + 8,
     4,
     data
   )
-  assoc(ready, 1, ctx_base)
+  assoc(skb_ready(ready, held, packet or [], count), 1, ctx_base)
+end
+
+@doc """
+skb_ready: a machine whose `__sk_buff` holds the frame's length and protocol, as the kernel's test run fills them. Any other context is as it was.
+
+    read_mem(skb_ready(add_region(machine(assemble([])), ctx_base, 184), :lwt_in, [], 7), ctx_base, 4) #=> 7
+    skb_ready(machine(assemble([]))[:mem], :xdp, [], 7) == machine(assemble([]))[:mem] #=> true
+"""
+def skb_ready(st, kind, frame, count)
+  if not member?(kind, skb_kinds)
+    st
+  elsif size(frame) < 14
+    write_mem(st, ctx_base, 4, count)
+  else
+    write_bytes_at(
+      write_mem(st, ctx_base, 4, count),
+      ctx_base + 16,
+      take(2, drop(12, frame))
+    )
+  end
 end
 
 @doc """
@@ -2379,7 +2458,7 @@ def with_relocs(insns, relocs, maps)
 end
 
 @doc """
-machine: a machine ready to run a program: {packet:} gives an XDP program a packet behind `xdp_md`, {ctx:} gives any other program its context bytes, {maps:} the map specs `declare_map` makes, and {seed:, now_ns:, pid_tgid:, uid_gid:} what the helpers read.
+machine: a machine ready to run a program: {packet:} gives a program the frame through the context its type reads (`{kind:}` or the program's own, XDP when neither says), {ctx:} gives any other program its context bytes, {maps:} the map specs `declare_map` makes, and {seed:, now_ns:, pid_tgid:, uid_gid:} what the helpers read.
 
     machine(assemble([exit_program]))[:pc] #=> 0
 """
@@ -2426,7 +2505,7 @@ def machine(program, input?)
   entered = if opts[:ctx] != nil
     ctx_ready(with_kernel, opts[:ctx])
   else
-    packet_ready(with_kernel, opts[:packet])
+    packet_ready(with_kernel, opts[:packet], opts[:kind] or program[:kind])
   end
   assoc(
     entered,
@@ -2450,8 +2529,9 @@ packet_of: the packet as the machine holds it now, from its `data` pointer to it
     packet_of(machine(assemble([]), {packet: [1, 2]})) #=> [1, 2]
 """
 def packet_of(st)
-  from = read_mem(st, ctx_base, 4)
-  to = read_mem(st, ctx_base + 4, 4)
+  fields = st[:fields] or [0, 4]
+  from = read_mem(st, ctx_base + first(fields), 4)
+  to = read_mem(st, ctx_base + fields[1], 4)
   read_bytes_at(st, from, to - from)
 end
 
@@ -4212,17 +4292,24 @@ packet_fields: where a program type's context holds `data` and `data_end`.
 
     packet_fields(:xdp) #=> [0, 4]
     packet_fields(:sched_cls) #=> [76, 80]
+    packet_fields(:lwt_xmit) #=> [76, 80]
+    packet_fields(:flow_dissector) #=> [76, 80]
+    (packet_fields(:socket_filter) rescue :refused) #=> :refused
 """
 def packet_fields(kind)
   case kind
   when :xdp
     [0, 4]
-  when :sched_cls
-    [76, 80]
-  when :cgroup_skb
-    [76, 80]
+  when :socket_filter
+    refuse("a socket filter has no direct packet: read `len` and `protocol` with ctx_int")
   else
-    refuse("a #{to_s(kind)} program has no packet here; read it with a helper")
+    if member?(kind, skb_kinds) or kind == :flow_dissector
+      [76, 80]
+    else
+      refuse(
+        "a #{to_s(kind)} program has no packet here; read it with a helper"
+      )
+    end
   end
 end
 
@@ -4765,6 +4852,49 @@ def compile(path, opts)
     raise(:bpf_compile, "#{path} does not resolve: #{resolved_run.stderr}")
   end
   compile_forms(read_forms(resolved_run.stdout), opts)
+end
+
+test "a frame reaches a program through the context its type reads"
+  frame = append(repeat(0, 12), [8, 0, 69, 9])
+  len_of = fn(kind)
+    read_mem(machine(assemble([]), {packet: frame, kind:}), ctx_base, 4)
+  end
+  assert packet_of(machine(assemble([]), {packet: frame, kind: :sched_cls})) ==
+    frame
+  assert packet_of(
+    machine(assemble([]), {packet: frame, kind: :flow_dissector})
+  ) == frame
+  assert packet_of(machine(assemble([]), {packet: frame, kind: :cgroup_skb})) ==
+    [69, 9]
+  assert packet_of(machine(assemble([]), {packet: frame})) == frame
+  assert len_of(:lwt_in) == 2
+  assert len_of(:sched_cls) == size(frame)
+  st = machine(assemble([]), {packet: frame, kind: :socket_filter})
+  assert read_mem(st, ctx_base + 16, 2) == 8
+  assert read_mem(st, ctx_base + 17, 1) == 0
+  assert packet_of(machine(assemble([]), {packet: [], kind: :lwt_out})) == []
+  assert packet_of(
+    machine(assemble([]), {packet: [1], kind: :socket_filter})
+  ) == []
+end
+
+test "a compiled socket-buffer program reads its packet at the kernel's fields, and a socket filter is told to read its length"
+  p = compile_forms(
+    read_forms("(define (%root/e c) (bpf/packet_int c 0 1))"),
+    {entry: :e, kind: :lwt_xmit, on_fault: 9}
+  )
+  assert run(p, {packet: append(repeat(0, 14), [7])}).ret == 7
+  assert run(p, {packet: repeat(0, 14)}).ret == 9
+  filter_program = compile_forms(
+    read_forms("(define (%root/e c) (bpf/ctx_int c 0 4))"),
+    {entry: :e, kind: :socket_filter, on_fault: 9}
+  )
+  assert run(filter_program, {packet: repeat(0, 20)}).ret == 6
+  assert (compile_forms(
+    read_forms("(define (%root/e c) (bpf/packet_int c 0 1))"),
+    {entry: :e, kind: :socket_filter}
+  ) rescue
+    :refused) == :refused
 end
 
 test "an empty program assembles to nothing and encodes to nothing"

@@ -124,5 +124,59 @@
     "file": "bpf.b",
     "find": "            call(:probe_read_kernel),\n            jump(:ne, 0, 0, \"fault\"),\n",
     "replace": "            call(:probe_read_kernel),\n"
+  },
+  {
+    "name": "every socket-buffer type keeps its Ethernet header",
+    "file": "bpf.b",
+    "find": "member?(kind, skb_kinds) and not member?(kind, %i[sched_cls sched_act])",
+    "replace": "member?(kind, skb_kinds)"
+  },
+  {
+    "name": "the tc types lose their Ethernet header",
+    "file": "bpf.b",
+    "find": "member?(kind, skb_kinds) and not member?(kind, %i[sched_cls sched_act])",
+    "replace": "member?(kind, skb_kinds) or kind == :sched_cls"
+  },
+  {
+    "name": "a network-layer view pulls too little",
+    "file": "bpf.b",
+    "find": "    drop(14, frame)\n",
+    "replace": "    drop(13, frame)\n"
+  },
+  {
+    "name": "a socket buffer holds data where XDP does",
+    "file": "bpf.b",
+    "find": "  if member?(kind, skb_kinds) or kind == :flow_dissector\n    [76, 80]\n  else\n    [0, 4]",
+    "replace": "  if false\n    [76, 80]\n  else\n    [0, 4]"
+  },
+  {
+    "name": "a flow dissector's packet is at XDP's fields",
+    "file": "bpf.b",
+    "find": "  if member?(kind, skb_kinds) or kind == :flow_dissector\n    [76, 80]\n  else\n    [0, 4]",
+    "replace": "  if member?(kind, skb_kinds)\n    [76, 80]\n  else\n    [0, 4]"
+  },
+  {
+    "name": "a socket buffer's protocol sits elsewhere",
+    "file": "bpf.b",
+    "find": "      ctx_base + 16,\n",
+    "replace": "      ctx_base + 20,\n"
+  },
+  {
+    "name": "a socket buffer's protocol is read from the wrong bytes",
+    "file": "bpf.b",
+    "find": "take(2, drop(12, frame))",
+    "replace": "take(2, drop(10, frame))"
+  },
+  {
+    "name": "a socket filter is offered a packet",
+    "file": "bpf.b",
+    "find": "  when :socket_filter\n    refuse(\"a socket filter has no direct packet: read `len` and `protocol` with ctx_int\")\n",
+    "replace": ""
+  },
+  {
+    "name": "an lwt program has no packet",
+    "file": "bpf.b",
+    "find": "    if member?(kind, skb_kinds) or kind == :flow_dissector\n      [76, 80]",
+    "replace": "    if kind == :flow_dissector\n      [76, 80]"
   }
 ]

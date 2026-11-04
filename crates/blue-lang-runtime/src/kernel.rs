@@ -207,6 +207,16 @@ pub fn install_kernel<H: 'static>(interp: &mut Interpreter<H>) {
         },
     );
     interp.register_fn(
+        "fd_open",
+        Arity::Exact(1),
+        |a: &[Value], _: &mut H, span| {
+            const W: &str = "fd_open";
+            blue_lang_kernel::open_read(&crate::sys::arg_str(&a[0], W, span)?)
+                .map(|fd| Value::Foreign(Arc::new(fd)))
+                .map_err(|r| refused(&r, span))
+        },
+    );
+    interp.register_fn(
         "fd_ioctl",
         Arity::Exact(3),
         |a: &[Value], _: &mut H, span| {

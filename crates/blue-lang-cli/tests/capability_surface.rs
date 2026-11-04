@@ -239,7 +239,7 @@ fn each_host_capability_carries_a_real_bundle_and_a_real_import() {
             ("audio-out", 2),
             ("audio-in", 2),
             ("display", 7),
-            ("kernel-bpf", 7)
+            ("kernel-bpf", 8)
         ]
     );
 }

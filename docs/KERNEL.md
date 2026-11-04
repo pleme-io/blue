@@ -23,8 +23,8 @@ blue interpreter, a pure machine on any host, and a real kernel.
 | instructions | `bpf` | RFC 9669 instructions as values, assembler, encoder, decoder, text, pure machine | nothing |
 | compiler | `bpf` (`compile`, `compile_forms`) | a restricted blue subset to bytecode, with a report of checks proven and emitted | process, to run `blue ast --resolved` |
 | types | `btf` | the kernel's own types: hook ids, field offsets | filesystem |
-| kernel client | `kaaneru` | maps, programs, links, pins, ring buffers, tracepoints, kprobes, fentry, LSM | `kernel_bpf` |
-| the seam | `blue-lang-kernel` | `bpf(2)`, `perf_event_open(2)`, ioctl, mmap of the ring | Linux; one `unsafe` module |
+| kernel client | `kaaneru` | maps, programs, links, pins, ring buffers, every attach kind in §6 | `kernel_bpf` |
+| the seam | `blue-lang-kernel` | `bpf(2)`, `perf_event_open(2)`, ioctl, `open(2)` of a descriptor a link names, mmap of the ring | Linux; one `unsafe` module |
 
 The seam knows no BPF. It takes a struct size and a list of fields: integers,
 raw bytes, buffers whose address goes in the struct, and descriptors. Every
@@ -68,6 +68,10 @@ Each was read from the kernel source at the named tag, 2026-11-03.
 | perf_event, tracepoint and a single kprobe still need a `perf_event_open` descriptor | the seam has that one extra call |
 | one program attaches once to one tracepoint, whichever CPU its event names | a second event for it answers `EEXIST`, as measured on plo |
 | `BPF_PROG_RUN` serves XDP, tc, socket filter, cgroup skb, lwt, flow dissector, sk_lookup, netfilter, raw tracepoint and syscall; it refuses LSM; tracing runs only at fixed test functions | those kinds test attach-free; LSM and tracing test attached |
+| `BPF_PROG_RUN` at 6.12 computes `data_end` for tc and lwt, and not for cgroup skb | a cgroup skb program's direct packet read is measured attached; its `len` runs attach-free, as measured on plo |
+| a netfilter and an sk_lookup program must name their one attach type at load, and a syscall program must load sleepable | `kaaneru::load` sets each; plo answers `EINVAL` without them |
+| a struct_ops program needs no program BTF: its types come from the member it names in the kernel's own; its map must name a BTF object, and any will do | `install_struct_ops` loads `btf::smallest`, one `int`, with the compiler free of BTF generation |
+| `BPF_PROG_RUN` of a netfilter program with no context runs at `local_out`, with the network header unset | a frame read at its network header runs with a `local_in` context |
 | global subprograms, callbacks and spin locks need program BTF; plain programs, ring buffers and maps do not | inlining keeps the first compiler free of BTF generation |
 | `veristat` reads ELF through libbpf | a raw stream needs `erufu` before that tool applies |
 | signed programs arrived in 6.18; CO-RE relocations are refused for them at 7.4-rc1 | a signing mode resolves offsets before it signs |
@@ -89,7 +93,7 @@ Each was read from the kernel source at the named tag, 2026-11-03.
 
 ## 6. Ledger
 
-Every "measured on plo" row ran on 6.12.93, 2026-11-03.
+Every "measured on plo" row ran on 6.12.93, 2026-11-03 or 2026-11-04.
 
 | Item | Tier | Shown by |
 |---|---|---|
@@ -110,7 +114,21 @@ Every "measured on plo" row ran on 6.12.93, 2026-11-03.
 | `:kernel_bpf` forces the native rung | built | `deploy::service` tests |
 | chart: exact capabilities for a service that reaches the kernel | built, not deployed | `bidamas/haibi/haibi.b`; no release uses it |
 | chart: DaemonSet, host network, bpffs and tracefs mounts | design | a node agent needs them |
-| cgroup and netfilter attach | written, not run | `kaaneru::attach` takes them; a cgroup descriptor has no word yet |
+| cgroup v2 descriptor, a named absence off a v2 directory | built, measured on plo | `kaaneru::open_cgroup`; `kernel/net_suite.b`: `:cgroup_absent` |
+| cgroup skb, egress and ingress, through a link | built, measured on plo | `kernel/net_suite.b`: a fresh test cgroup's ping drops and is counted, ping outside it passes, detach restores it |
+| cgroup sock_create through a link | built, measured on plo | `kernel/net_suite.b`: an ICMP socket is refused in the test cgroup alone |
+| cgroup device through a link | built, measured on plo | `kernel/net_suite.b`: `/dev/zero` is denied in the test cgroup, `/dev/urandom` is not |
+| netfilter in a network namespace | built, measured on plo | `kernel/net_suite.b`: `local_in` drops ICMP of one TTL read from the live `sk_buff`, passes another, detach restores it |
+| fexit, fmod_ret at the kernel's test functions | built, measured on plo | `kernel/suite.b`: fexit reads argument 1 and return 2 of `bpf_fentry_test1`; fmod_ret's 5 replaces `bpf_modify_return_test` and skips its side effect |
+| task iterator, read back through a pin | built, measured on plo | `kernel/suite.b`: the output holds this thread's id and pid 1 |
+| uprobe_multi on an executable's entry | built, measured on plo | `kernel/suite.b`: a private copy of `head` counts once per exec, the original not at all, nothing after detach |
+| raw tracepoint attach | built, measured on plo | `kernel/suite.b`: counts exec, nothing after detach |
+| perf_event on the CPU clock | built, measured on plo | `kernel/suite.b`: counts on CPU 0, nothing after detach |
+| struct_ops: a TCP congestion control in blue | built, measured on plo | `kernel/net_suite.b`: its name is listed while the link lives, `init` runs for a real connection on a namespace route, and detach removes it. It registers system-wide; only a route in the suite's namespace selects it |
+| `BPF_PROG_RUN`: machine and kernel agree | built, measured on plo | `kernel/suite.b`: sched_cls, sched_act, flow dissector, lwt_in, lwt_out, lwt_xmit, socket filter, and cgroup skb on `len`, over 23 frames; sk_lookup, raw tracepoint and syscall over their contexts |
+| `BPF_PROG_RUN`: netfilter | built, measured on plo; the machine does not apply | `kernel/suite.b`: it decides from a real `sk_buff`, a kernel pointer the machine has no model of |
+| `BPF_PROG_RUN`: tracing, LSM | built, measured on plo | tracing through the fexit row; LSM answers `ENOTSUPP`, a named refusal |
+| `BPF_PROG_RUN`: a cgroup skb's direct packet read | a named refusal on 6.12 | `kernel/suite.b`: the kernel leaves `data_end` unset in this run; the attached row measures the read |
 | ELF object, so `bpftool` and `veristat` apply (`erufu`) | design | |
 | program BTF generation (global subprograms, spin locks) | design | inlining avoids the need today |
 | a kernel matrix in a VM as a nix check | design | until it runs, the kernel words' real behaviour is proven only by running `kernel/suite.b` by hand; their tests beside them reach the refusals |
@@ -125,7 +143,10 @@ split below keeps both away from it:
 - `kernel/suite.b` attaches read-only tracepoints and kprobes, and an LSM program
   that denies only its own process. It removes the one pin it makes.
 - `kernel/net_suite.b` makes interfaces, so it runs inside a private network
-  namespace, where no daemon on the host sees them.
+  namespace, where no daemon on the host sees them. Its cgroup tests attach only
+  to a fresh cgroup named `blue_suite_*`, moved into by a child alone and removed
+  after. `ip netns exec` hides the cgroup mount, so the suite mounts cgroup2 in
+  the private mount namespace that command makes.
 
 ```text
 blue kernel/run.b
@@ -134,10 +155,12 @@ blue kernel/run.b
 `kernel/run.b` does all of it. It refuses a host whose load is over its core
 count or that has more than four tasks stalled in D state, because a loaded host
 reads as a broken BPF. It builds the checkout's blue at idle priority, runs both
-suites, and fails when a link, a namespace or a pin is left behind. Its settings
-are `kernel-run`'s, through `settei`: `KERNEL_RUN_ADMISSION__ENABLED=false` turns
-the refusal off, `KERNEL_RUN_BUILD__ENABLED=false` the build, and
-`KERNEL_RUN_TOOLS__FROM_NIX=false` the nix lookup of `ip` and `ping`.
+suites, and fails when a link, a namespace, a pin or a test cgroup is left behind.
+Its settings are `kernel-run`'s, through `settei`:
+`KERNEL_RUN_ADMISSION__ENABLED=false` turns the refusal off,
+`KERNEL_RUN_BUILD__ENABLED=false` the build, `KERNEL_RUN_TOOLS__FROM_NIX=false`
+the nix lookup of `ip` and `ping`, and `KERNEL_RUN_SUITE__FILTER=fexit` keeps the
+tests whose name holds it.
 
 Run it detached with a log on a remote host, since a dropped SSH session loses a
 foreground run. The encoder's check needs only an `llvm-mc`:

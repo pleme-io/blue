@@ -22,5 +22,131 @@
     "file": "kaaneru.b",
     "find": "[at, :out, value[:out]]",
     "replace": "[at, :in, value[:out]]"
+  },
+  {
+    "name": "a path is taken for a cgroup unasked",
+    "file": "kaaneru.b",
+    "find": "if not path_exists(path_join(path, \"cgroup.controllers\"))",
+    "replace": "if false"
+  },
+  {
+    "name": "ipv6 takes ipv4's number",
+    "file": "kaaneru.b",
+    "find": "  when :ipv6\n    10",
+    "replace": "  when :ipv6\n    2"
+  },
+  {
+    "name": "a netfilter hook's number shifts",
+    "file": "kaaneru.b",
+    "find": "%i[prerouting local_in forward local_out postrouting]",
+    "replace": "%i[local_in prerouting forward local_out postrouting]"
+  },
+  {
+    "name": "a syscall program loads without its flag",
+    "file": "kaaneru.b",
+    "find": "flags = if kind == :syscall\n",
+    "replace": "flags = if false\n"
+  },
+  {
+    "name": "sleepable is another flag",
+    "file": "kaaneru.b",
+    "find": "def sleepable()\n  16",
+    "replace": "def sleepable()\n  8"
+  },
+  {
+    "name": "a syscall run asks for a second buffer",
+    "file": "kaaneru.b",
+    "find": "  elsif kind == :syscall\n    [[:ctx_size_in, count]",
+    "replace": "  elsif false\n    [[:ctx_size_in, count]"
+  },
+  {
+    "name": "a raw tracepoint run asks for a context back",
+    "file": "kaaneru.b",
+    "find": "  elsif kind == :raw_tracepoint\n    [[:ctx_size_in, count]",
+    "replace": "  elsif false\n    [[:ctx_size_in, count]"
+  },
+  {
+    "name": "an entry is its address, not its place in the file",
+    "file": "kaaneru.b",
+    "find": "entry - bytes_int(table, holding + 16, 8) + bytes_int(table, holding + 8, 8)",
+    "replace": "entry"
+  },
+  {
+    "name": "any segment places the entry",
+    "file": "kaaneru.b",
+    "find": "bytes_int(table, at, 4) == 1 and",
+    "replace": "true and"
+  },
+  {
+    "name": "a segment holds its own end",
+    "file": "kaaneru.b",
+    "find": "entry < from + bytes_int(table, at + 32, 8)",
+    "replace": "entry <= from + bytes_int(table, at + 32, 8)"
+  },
+  {
+    "name": "a file that is no ELF is read as one",
+    "file": "kaaneru.b",
+    "find": "if take(5, head) != [127, 69, 76, 70, 2]",
+    "replace": "if false"
+  },
+  {
+    "name": "a part written into a value does not replace",
+    "file": "kaaneru.b",
+    "find": "drop(at + size(part), bytes)",
+    "replace": "drop(at, bytes)"
+  },
+  {
+    "name": "an integer member takes eight bytes",
+    "file": "kaaneru.b",
+    "find": "        int_bytes(value, 4)\n",
+    "replace": "        int_bytes(value, 8)\n"
+  },
+  {
+    "name": "a member's offset forgets the value's head",
+    "file": "kaaneru.b",
+    "find": "at = shape[:data] + btf::field",
+    "replace": "at = btf::field"
+  },
+  {
+    "name": "a shared map is made twice",
+    "file": "kaaneru.b",
+    "find": "if find(kept, (x) -> x[:name] == m[:name]).nil?",
+    "replace": "if true"
+  },
+  {
+    "name": "the link flag is another flag",
+    "file": "kaaneru.b",
+    "find": "def struct_ops_flag_link()\n  8192",
+    "replace": "def struct_ops_flag_link()\n  4096"
+  },
+  {
+    "name": "a member index is looked up as a name",
+    "file": "kaaneru.b",
+    "find": "  if integer?(attach)\n",
+    "replace": "  if false\n"
+  },
+  {
+    "name": "fmod_ret takes fexit's attach type",
+    "file": "kaaneru.b",
+    "find": "{kind: :modify_return,",
+    "replace": "{kind: :trace_fexit,"
+  },
+  {
+    "name": "an iterator loses its prefix",
+    "file": "kaaneru.b",
+    "find": "\"bpf_iter_#{spec[:iter]}\"",
+    "replace": "\"#{spec[:iter]}\""
+  },
+  {
+    "name": "netfilter loads with no attach type",
+    "file": "kaaneru.b",
+    "find": "if member?(kind, %i[netfilter sk_lookup])",
+    "replace": "if member?(kind, %i[sk_lookup])"
+  },
+  {
+    "name": "a kind's own attach beats the one named",
+    "file": "kaaneru.b",
+    "find": "wanted = opts[:attach] or only_attach(kind)",
+    "replace": "wanted = only_attach(kind) or opts[:attach]"
   }
 ]

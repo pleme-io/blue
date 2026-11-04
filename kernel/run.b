@@ -7,8 +7,8 @@ inside its own namespace.
     blue kernel/run.b
 
 Settings are `kernel-run`'s, through `settei`. `admission.enabled` turns the
-refusal off, `build.enabled` the build, and `tools.from_nix` the nix lookup of
-`ip` and `ping`.
+refusal off, `build.enabled` the build, `tools.from_nix` the nix lookup of
+`ip` and `ping`, and `suite.filter` keeps the tests whose name holds it.
 """
 
 use("gamen", [:show_step])
@@ -31,7 +31,7 @@ def config_defaults()
     admission: {enabled: true, load_per_core: 1, max_stalled: 4},
     build: {enabled: true, jobs: 3},
     tools: {from_nix: true},
-    suite: {seconds: 900, net_seconds: 200}
+    suite: {seconds: 900, net_seconds: 300, filter: ""}
   }
 end
 
@@ -78,26 +78,30 @@ def stalled_of(states)
 end
 
 @doc """
-footprint: What the suites can leave behind, as counts.
+footprint: What the suites can leave behind, as counts. A test cgroup is one the
+suites name, since the host makes its own.
 
-    footprint("lo\neth0\n", "", "x\n") #=> {links: 2, netns: 0, pins: 1}
+    footprint("lo\neth0\n", "", "x\n", "blue_suite_a\ninit.scope\n") #=> {links: 2, netns: 0, pins: 1, cgroups: 1}
 """
-def footprint(links, netns, pins)
+def footprint(links, netns, pins, cgroups)
   {
     links: count(rows_of(links)),
     netns: count(rows_of(netns)),
-    pins: count(rows_of(pins))
+    pins: count(rows_of(pins)),
+    cgroups: count(
+      filter((l) -> starts_with?(l, "blue_suite"), rows_of(cgroups))
+    )
   }
 end
 
 @doc """
 left_behind: The kinds a run added to the host.
 
-    left_behind({links: 4, netns: 0, pins: 0}, {links: 4, netns: 0, pins: 0}) #=> []
-    left_behind({links: 4, netns: 0, pins: 0}, {links: 5, netns: 0, pins: 1}) #=> [:links, :pins]
+    left_behind({links: 4, netns: 0, pins: 0, cgroups: 0}, {links: 4, netns: 0, pins: 0, cgroups: 0}) #=> []
+    left_behind({links: 4, netns: 0, pins: 0, cgroups: 0}, {links: 5, netns: 0, pins: 1, cgroups: 1}) #=> [:links, :pins, :cgroups]
 """
 def left_behind(before, after)
-  filter((k) -> get(after, k) > get(before, k), %i[links netns pins])
+  filter((k) -> get(after, k) > get(before, k), %i[links netns pins cgroups])
 end
 
 @doc """
@@ -130,19 +134,28 @@ end
 
 @doc """
 suite_command: One suite under `blue test`, bounded, at low priority, in the
-environment given.
+environment given, with the tests a filter keeps.
 
-    last(suite_command("kernel/suite.b", 900, "blue", ["A=1"])) #=> "kernel/suite.b"
-    first(suite_command("x.b", 9, "blue", ["A=1"])) #=> "env"
+    last(suite_command("kernel/suite.b", 900, "blue", ["A=1"], "")) #=> "kernel/suite.b"
+    first(suite_command("x.b", 9, "blue", ["A=1"], "")) #=> "env"
+    member?("--filter", suite_command("x.b", 9, "blue", [], "fexit")) #=> true
 """
-def suite_command(file, seconds, blue, env)
+def suite_command(file, seconds, blue, env, wanted)
+  keep = if wanted == ""
+    []
+  else
+    ["--filter", wanted]
+  end
   append(
-    ["env"],
-    env,
-    %w[nice -n 10 timeout],
-    [to_s(seconds), blue],
-    %w[test --allow host],
-    [file]
+    *[
+      ["env"],
+      env,
+      %w[nice -n 10 timeout],
+      [to_s(seconds), blue],
+      %w[test --allow host],
+      keep,
+      [file]
+    ]
   )
 end
 
@@ -236,7 +249,8 @@ def main()
     footprint(
       stdout_of(exec_capture(ip, "-br", "link")),
       stdout_of(exec_capture(ip, "netns", "list")),
-      stdout_of(exec_capture("sudo", "-n", "ls", "/sys/fs/bpf"))
+      stdout_of(exec_capture("sudo", "-n", "ls", "/sys/fs/bpf")),
+      stdout_of(exec_capture("ls", "/sys/fs/cgroup"))
     )
   end
   before = measure()
@@ -253,7 +267,13 @@ def main()
         fn()
           append(
             %w[sudo -n],
-            suite_command("kernel/suite.b", config[:suite][:seconds], blue, env)
+            suite_command(
+              "kernel/suite.b",
+              config[:suite][:seconds],
+              blue,
+              env,
+              config[:suite][:filter]
+            )
           )
         end
       ],
@@ -267,7 +287,8 @@ def main()
               "kernel/net_suite.b",
               config[:suite][:net_seconds],
               blue,
-              env
+              env,
+              config[:suite][:filter]
             )
           )
         end
@@ -298,7 +319,7 @@ def main()
   write_stdout(
     unlines(
       [
-        "links #{to_s(after[:links])} netns #{to_s(after[:netns])} pins #{to_s(after[:pins])}"
+        "links #{to_s(after[:links])} netns #{to_s(after[:netns])} pins #{to_s(after[:pins])} cgroups #{to_s(after[:cgroups])}"
       ]
     )
   )
@@ -332,10 +353,11 @@ test "no tasks stalled and an empty listing count nothing"
 end
 
 test "what a run adds is named, and what it removes is not"
-  was = {links: 4, netns: 1, pins: 2}
+  was = {links: 4, netns: 1, pins: 2, cgroups: 0}
   assert left_behind(was, was) == []
-  assert left_behind(was, {links: 3, netns: 0, pins: 0}) == []
-  assert left_behind(was, {links: 4, netns: 2, pins: 2}) == [:netns]
+  assert left_behind(was, {links: 3, netns: 0, pins: 0, cgroups: 0}) == []
+  assert left_behind(was, {links: 4, netns: 2, pins: 2, cgroups: 0}) == [:netns]
+  assert left_behind(was, assoc(was, :cgroups, 1)) == [:cgroups]
 end
 
 test "a suite's tally is its last, and a log with none has none"
@@ -346,7 +368,9 @@ test "a suite's tally is its last, and a log with none has none"
 end
 
 test "a suite runs bounded, at low priority, in the environment it was given"
-  c = suite_command("kernel/suite.b", 900, "/b/blue", %w[A=1 B=2])
+  assert not member?("--filter", suite_command("x.b", 9, "b", [], ""))
+  assert member?("fexit", suite_command("x.b", 9, "b", [], "fexit"))
+  c = suite_command("kernel/suite.b", 900, "/b/blue", %w[A=1 B=2], "")
   assert first(c) == "env"
   assert member?("A=1", c)
   assert member?("900", c)

@@ -46,5 +46,17 @@
     "file": "btf.b",
     "find": "(id) -> type_at(b, id)[:kind] == kind,",
     "replace": "(id) -> true,"
+  },
+  {
+    "name": "a member past the struct answers a place",
+    "file": "btf.b",
+    "find": "  at = retsu::index_of(map((m) -> m[:name], members), name)\n  if at < 0\n",
+    "replace": "  at = retsu::index_of(map((m) -> m[:name], members), name)\n  if false\n"
+  },
+  {
+    "name": "the smallest blob names no type's string",
+    "file": "btf.b",
+    "find": "      word_bytes(5),\n      word_bytes(1),\n",
+    "replace": "      word_bytes(5),\n      word_bytes(0),\n"
   }
 ]

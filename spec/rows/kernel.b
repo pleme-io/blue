@@ -19,6 +19,14 @@ row(
 )
 
 row(
+  "kernel.fd_open.bad_path",
+  "fd_open(3)",
+  fails(:eval, "fd_open"),
+  covers("builtin:fd_open"),
+  host()
+)
+
+row(
   "kernel.fd_ioctl.bad_fd",
   "fd_ioctl(3, 0, 0)",
   fails(:eval, "kernel file descriptor"),

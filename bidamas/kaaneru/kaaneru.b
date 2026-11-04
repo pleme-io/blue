@@ -1,7 +1,7 @@
 @moduledoc """
 kaaneru (カーネル) — the Linux kernel, spoken from blue: maps, programs, links and ring buffers over `bpf(2)`, with every struct a `baito` layout and no C library in the path.
 
-`bpf` builds programs and runs them on a pure machine anywhere; this package loads them into the kernel on Linux. Off Linux each call raises :unsupported. A kernel refusal raises :kernel_refused with data {errno:, name:, log:}, the verifier's log included.
+`bpf` builds programs and runs them on a pure machine anywhere; this package loads them into the kernel on Linux. Each attach kind has its word: `attach` for XDP, tcx and what names a descriptor, `attach_cgroup`, `attach_netfilter`, `attach_uprobes`, `attach_kprobes`, `attach_kprobe`, `attach_tracepoint`, `attach_raw_tracepoint`, `attach_sampling`, `install_hook` for fentry, fexit, fmod_ret, LSM and iterators, `install_struct_ops`. Off Linux each call raises :unsupported. A kernel refusal raises :kernel_refused with data {errno:, name:, log:}, the verifier's log included.
 
 The words need the `kernel_bpf` capability, which holds the kernel: grant it to what would otherwise run as root. The pure words here (the layouts, `kind_id`, `errno_name`, `struct_fields`) need nothing.
 
@@ -10,10 +10,11 @@ The words need the `kernel_bpf` capability, which holds the kernel: grant it to 
     width(prog_load_layout) #=> 152
 """
 
-use("baito", %i[field_of layout offset unpack width])
+use("baito", %i[bytes_int field_of int_bytes layout offset unpack width])
+
 use("bpf", %i[bind_fields encode_insn])
 use("btf")
-use("retsu", %i[first flat_map index_of last size take_while])
+use("retsu", %i[first flat_map index_of last repeat size take_while])
 
 @doc """
 commands: `enum bpf_cmd`, each by its number.
@@ -280,6 +281,15 @@ def errno_name(n)
   else
     row[1]
   end
+end
+
+@doc """
+sleepable: `BPF_F_SLEEPABLE`, which a :syscall program must load with.
+
+    sleepable #=> 16
+"""
+def sleepable()
+  16
 end
 
 @doc """
@@ -586,7 +596,43 @@ def call_bpf(command, l, pairs, fd_result)
 end
 
 @doc """
-create_map: a kernel map from a `bpf::declare_map` shape: the shape plus {fd:}. `{flags:}` in the shape sets `map_flags`.
+btf_load_layout: `union bpf_attr` as BPF_BTF_LOAD reads it.
+
+    width(btf_load_layout) #=> 40
+    offset(btf_load_layout, :btf_size) #=> 16
+"""
+def btf_load_layout()
+  layout(
+    [
+      %i[btf u64],
+      %i[btf_log_buf u64],
+      %i[btf_size u32],
+      %i[btf_log_size u32],
+      %i[btf_log_level u32],
+      %i[btf_log_true_size u32],
+      %i[btf_flags u32],
+      %i[btf_token_fd i32]
+    ]
+  )
+end
+
+@doc """
+load_btf: a BTF blob into the kernel: {fd:}, what `create_map` names as `{btf_object:}`.
+
+    (load_btf(nil) rescue :refused) #=> :refused
+"""
+def load_btf(bytes)
+  a = call_bpf(
+    :btf_load,
+    btf_load_layout,
+    [[:btf, {in: bytes}], [:btf_size, size(bytes)]],
+    true
+  )
+  {fd: checked(a, "load_btf")[:fd]}
+end
+
+@doc """
+create_map: a kernel map from a `bpf::declare_map` shape: the shape plus {fd:}. `{flags:}` in the shape sets `map_flags`, and `{value_type_id:, btf_object:}` name the kernel's type a :struct_ops map holds and the BTF object `load_btf` made for it.
 
     (create_map(bpf::declare_map(:m, :nope, 4, 8, 1)) rescue :refused) #=> :refused
 """
@@ -600,7 +646,9 @@ def create_map(spec)
       [:value_size, spec[:value_size]],
       [:max_entries, spec[:max_entries]],
       [:map_flags, spec[:flags] or 0],
-      [:map_name, pack_name(spec[:name])]
+      [:map_name, pack_name(spec[:name])],
+      [:btf_vmlinux_value_type_id, spec[:value_type_id] or 0],
+      [:btf_fd, spec[:btf_object] or 0]
     ],
     true
   )
@@ -799,6 +847,8 @@ end
 load_fields: BPF_PROG_LOAD's record for a program's bytes.
 
     first(load_fields(:xdp, [], {}, 0)) #=> [:prog_type, 6]
+    last(load_fields(:syscall, [], {}, 0)) #=> [:prog_flags, 16]
+    last(load_fields(:struct_ops, [], {attach: 3}, 0)) #=> [:expected_attach_type, 3]
 """
 def load_fields(kind, encoded, opts, log)
   base = [
@@ -808,10 +858,11 @@ def load_fields(kind, encoded, opts, log)
     [:license, {in: append(text_bytes(opts[:license] or "GPL"), [0])}],
     [:prog_name, pack_name(opts[:name] or "blue")]
   ]
-  attach = if opts[:attach].nil?
+  wanted = opts[:attach] or only_attach(kind)
+  attach = if wanted.nil?
     []
   else
-    [[:expected_attach_type, kind_id(:attach, opts[:attach])]]
+    [[:expected_attach_type, attach_number(wanted)]]
   end
   btf = if opts[:attach_btf_id].nil?
     []
@@ -823,7 +874,39 @@ def load_fields(kind, encoded, opts, log)
   else
     [[:log_level, 1], [:log_size, log], [:log_buf, {out: log}]]
   end
-  append(*[base, attach, btf, logging])
+  flags = if kind == :syscall
+    [[:prog_flags, sleepable]]
+  else
+    []
+  end
+  append(*[base, btf, logging, attach, flags])
+end
+
+@doc """
+only_attach: the attach type a program kind must name at load because the kernel allows it no other, nil for a kind that names none or several.
+
+    only_attach(:netfilter) #=> :netfilter
+    only_attach(:sk_lookup) #=> :sk_lookup
+    only_attach(:xdp).nil? #=> true
+"""
+def only_attach(kind)
+  if member?(kind, %i[netfilter sk_lookup])
+    kind
+  end
+end
+
+@doc """
+attach_number: what `expected_attach_type` holds: an attach type's number, or a :struct_ops program's member index as given.
+
+    attach_number(:xdp) #=> 37
+    attach_number(3) #=> 3
+"""
+def attach_number(attach)
+  if integer?(attach)
+    attach
+  else
+    kind_id(:attach, attach)
+  end
 end
 
 @doc """
@@ -909,9 +992,11 @@ def install(compiled, opts?)
 end
 
 @doc """
-hook_of: the attach type and BTF id a hook's spec names.
+hook_of: the attach type and BTF id a hook's spec names: {fentry:}, {fexit:} or {fmod_ret:} a kernel function, {lsm:} a hook, {iter:} an iterator such as "task".
 
     hook_of(btf::read(btf::sample), {fentry: "run"}).id #=> 5
+    hook_of(btf::read(btf::sample), {fexit: "run"}).kind #=> :trace_fexit
+    hook_of(btf::read(btf::sample), {fmod_ret: "run"}).kind #=> :modify_return
     (hook_of(btf::read(btf::sample), {}) rescue :refused) #=> :refused
 """
 def hook_of(table, spec)
@@ -919,15 +1004,22 @@ def hook_of(table, spec)
     {kind: :trace_fentry, id: btf::function_id(table, spec[:fentry])}
   elsif spec[:fexit] != nil
     {kind: :trace_fexit, id: btf::function_id(table, spec[:fexit])}
+  elsif spec[:fmod_ret] != nil
+    {kind: :modify_return, id: btf::function_id(table, spec[:fmod_ret])}
   elsif spec[:lsm] != nil
     {kind: :lsm_mac, id: btf::function_id(table, "bpf_lsm_#{spec[:lsm]}")}
+  elsif spec[:iter] != nil
+    {kind: :trace_iter, id: btf::function_id(table, "bpf_iter_#{spec[:iter]}")}
   else
-    raise(:bad_option, "a hook is {fentry:}, {fexit:} or {lsm:}")
+    raise(
+      :bad_option,
+      "a hook is {fentry:}, {fexit:}, {fmod_ret:}, {lsm:} or {iter:}"
+    )
   end
 end
 
 @doc """
-install_hook: a compiled :tracing or :lsm program loaded onto a kernel function and attached: `spec` {fentry: name}, {fexit: name} or {lsm: hook}, the target found in `table`, this kernel's BTF. {prog:, maps:, link:}. The attachment needs no netlink and no perf event.
+install_hook: a compiled :tracing or :lsm program loaded onto a kernel function and attached: `spec` {fentry: name}, {fexit: name}, {fmod_ret: name}, {lsm: hook} or {iter: name}, the target found in `table`, this kernel's BTF. {prog:, maps:, link:}. The attachment needs no netlink and no perf event.
 
     hook_of(btf::read(btf::sample), {fentry: "run"}).id #=> 5
     hook_of(btf::read(btf::sample), {fentry: "run"}).kind #=> :trace_fentry
@@ -956,7 +1048,33 @@ def map_named(installed, name)
 end
 
 @doc """
-run: a loaded program once through BPF_PROG_RUN, attached to nothing: {ret:, packet:, ctx:, duration_ns:}. `input` takes {packet:, ctx:, repeat:}, each packet at least 14 bytes for XDP.
+context_fields: BPF_PROG_RUN's context fields for a program kind. A :raw_tracepoint takes its arguments in and answers none, a :syscall program's context comes back in place, and the rest name a second buffer for the answer.
+
+    size(context_fields(:xdp, [1])) #=> 4
+    size(context_fields(:raw_tracepoint, [1])) #=> 2
+    context_fields(:syscall, [1])[1] #=> [:ctx_in, {inout: [1]}]
+    context_fields(:xdp, []) #=> []
+"""
+def context_fields(kind, ctx)
+  count = length(ctx)
+  if ctx == []
+    []
+  elsif kind == :syscall
+    [[:ctx_size_in, count], [:ctx_in, {inout: ctx}]]
+  elsif kind == :raw_tracepoint
+    [[:ctx_size_in, count], [:ctx_in, {in: ctx}]]
+  else
+    [
+      [:ctx_size_in, count],
+      [:ctx_size_out, count],
+      [:ctx_in, {in: ctx}],
+      [:ctx_out, {out: count}]
+    ]
+  end
+end
+
+@doc """
+run: a loaded program once through BPF_PROG_RUN, attached to nothing: {ret:, packet:, ctx:, duration_ns:}. `input` takes {packet:, ctx:, repeat:}, each packet at least 14 bytes. A kernel gives no such run to an :lsm program, and runs a :tracing one by calling its own test functions.
 
     (run({}, {}) rescue :refused) #=> :refused
 """
@@ -977,16 +1095,7 @@ def run(p, input)
           [:data_out, {out: room}]
         ]
       end,
-      if ctx == []
-        []
-      else
-        [
-          [:ctx_size_in, length(ctx)],
-          [:ctx_size_out, length(ctx)],
-          [:ctx_in, {in: ctx}],
-          [:ctx_out, {out: length(ctx)}]
-        ]
-      end,
+      context_fields(p[:kind], ctx),
       if input[:repeat].nil?
         []
       else
@@ -1006,7 +1115,7 @@ def run(p, input)
     else
       take(back[:data_size_out], first(a[:out]))
     end,
-    ctx: if ctx == []
+    ctx: if ctx == [] or p[:kind] == :raw_tracepoint
       []
     else
       last(a[:out])
@@ -1114,6 +1223,370 @@ def attach(p, kind, target?, opts?)
     true
   )
   {fd: checked(a, "attach #{to_s(kind)}")[:fd], kind:}
+end
+
+@doc """
+open_cgroup: a descriptor on a cgroup v2 directory, what a cgroup program attaches to. A path with no `cgroup.controllers` raises :cgroup_absent: cgroup v2 is not mounted there, or no such cgroup exists.
+
+    (open_cgroup("/no/such/cgroup") rescue :absent) #=> :absent
+"""
+def open_cgroup(path)
+  if not path_exists(path_join(path, "cgroup.controllers"))
+    raise(:cgroup_absent, "#{path} is no cgroup v2 directory")
+  end
+  {fd: fd_open(path), path:}
+end
+
+@doc """
+attach_cgroup: a loaded program to the cgroup at `path` through BPF_LINK_CREATE: `kind` an attach type such as :cgroup_inet_egress, :cgroup_inet_sock_create or :cgroup_device. The link holds the cgroup, so its descriptor closes here.
+
+    (attach_cgroup({}, :cgroup_device, "/no/such/cgroup") rescue :absent) #=> :absent
+"""
+def attach_cgroup(p, kind, path)
+  cgroup = open_cgroup(path)
+  begin
+    attach(p, kind, cgroup)
+  ensure
+    close_object(cgroup)
+  end
+end
+
+@doc """
+netfilter_layout: `union bpf_attr` as BPF_LINK_CREATE reads it for a netfilter hook.
+
+    width(netfilter_layout) #=> 32
+    offset(netfilter_layout, :priority) #=> 24
+"""
+def netfilter_layout()
+  layout(
+    [
+      %i[prog_fd u32],
+      %i[target_fd u32],
+      %i[attach_type u32],
+      %i[flags u32],
+      %i[pf u32],
+      %i[hooknum u32],
+      %i[priority i32],
+      %i[nf_flags u32]
+    ]
+  )
+end
+
+@doc """
+netfilter_family: the kernel's number for a netfilter family, :ipv4 or :ipv6.
+
+    netfilter_family(:ipv4) #=> 2
+    netfilter_family(:ipv6) #=> 10
+    (netfilter_family(:nope) rescue :refused) #=> :refused
+"""
+def netfilter_family(family)
+  case family
+  when :ipv4
+    2
+  when :ipv6
+    10
+  else
+    raise(:bad_option, "a netfilter family is :ipv4 or :ipv6")
+  end
+end
+
+@doc """
+netfilter_hook: the kernel's number for a netfilter hook.
+
+    netfilter_hook(:prerouting) #=> 0
+    netfilter_hook(:local_in) #=> 1
+    (netfilter_hook(:nope) rescue :refused) #=> :refused
+"""
+def netfilter_hook(hook)
+  at = index_of(%i[prerouting local_in forward local_out postrouting], hook)
+  if at < 0
+    raise(:bad_option, "no netfilter hook #{to_s(hook)}")
+  end
+  at
+end
+
+@doc """
+attach_netfilter: a :netfilter program to a hook of the current network namespace: `spec` {family:, hook:, priority:}. The program answers 1 to accept a packet and 0 to drop it.
+
+    (attach_netfilter({}, {family: :nope}) rescue :refused) #=> :refused
+"""
+def attach_netfilter(p, spec)
+  a = call_bpf(
+    :link_create,
+    netfilter_layout,
+    [
+      [:prog_fd, {fd: p[:fd]}],
+      [:attach_type, kind_id(:attach, :netfilter)],
+      [:pf, netfilter_family(spec[:family])],
+      [:hooknum, netfilter_hook(spec[:hook])],
+      [:priority, spec[:priority]]
+    ],
+    true
+  )
+  {fd: checked(a, "attach_netfilter")[:fd], kind: :netfilter}
+end
+
+@doc """
+uprobe_multi_layout: `union bpf_attr` as BPF_LINK_CREATE reads it for uprobe_multi.
+
+    width(uprobe_multi_layout) #=> 64
+    offset(uprobe_multi_layout, :pid) #=> 56
+"""
+def uprobe_multi_layout()
+  layout(
+    [
+      %i[prog_fd u32],
+      %i[target_fd u32],
+      %i[attach_type u32],
+      %i[flags u32],
+      %i[path u64],
+      %i[offsets u64],
+      %i[ref_ctr_offsets u64],
+      %i[cookies u64],
+      %i[cnt u32],
+      %i[uprobe_flags u32],
+      %i[pid u32]
+    ]
+  )
+end
+
+@doc """
+attach_uprobes: a kprobe program to file offsets in an executable through one uprobe_multi link, as `install` made it with {attach: :trace_uprobe_multi}. `opts` {retprobe: true} fires on return, and {pid:} holds it to one process. `entry_offset_of` finds an executable's first instruction.
+
+    (attach_uprobes({}, "/no/such/file", []) rescue :refused) #=> :refused
+"""
+def attach_uprobes(p, path, offsets, opts?)
+  o = opts or {}
+  flags = if o[:retprobe] == true
+    1
+  else
+    0
+  end
+  a = call_bpf(
+    :link_create,
+    uprobe_multi_layout,
+    [
+      [:prog_fd, {fd: p[:fd]}],
+      [:attach_type, kind_id(:attach, :trace_uprobe_multi)],
+      [:path, {in: append(text_bytes(path), [0])}],
+      [:offsets, {in: flat_map(offsets, (at) -> int_bytes(at, 8))}],
+      [:cnt, size(offsets)],
+      [:uprobe_flags, flags],
+      [:pid, o[:pid] or 0]
+    ],
+    true
+  )
+  {fd: checked(a, "attach_uprobes")[:fd], kind: :trace_uprobe_multi}
+end
+
+@doc """
+entry_offset: the file offset of a 64-bit ELF's first instruction, from its 64-byte header and its program headers: the `PT_LOAD` segment that holds the entry address places it. An entry no segment holds raises.
+
+    head = append(repeat(0, 24), int_bytes(4096, 8), repeat(0, 32))
+    table = append(int_bytes(1, 8), int_bytes(512, 8), int_bytes(4000, 8), repeat(0, 8), int_bytes(200, 8), repeat(0, 16))
+    entry_offset(head, table, 56, 1) #=> 608
+"""
+def entry_offset(head, table, entry_size, count)
+  entry = bytes_int(head, 24, 8)
+  holding = find(
+    map((i) -> i * entry_size, range(0, count)),
+    fn(at)
+      from = bytes_int(table, at + 16, 8)
+      bytes_int(table, at, 4) == 1 and
+        entry >= from and
+        entry < from + bytes_int(table, at + 32, 8)
+    end
+  )
+  if holding.nil?
+    raise(
+      :bad_option,
+      "no loaded segment holds the entry address #{to_s(entry)}"
+    )
+  end
+  entry - bytes_int(table, holding + 16, 8) + bytes_int(table, holding + 8, 8)
+end
+
+@doc """
+entry_offset_of: the file offset of an executable's first instruction, what `attach_uprobes` takes. A file that is no 64-bit ELF raises.
+
+    (entry_offset_of("/no/such/file") rescue :refused) #=> :refused
+"""
+def entry_offset_of(path)
+  head = read_bytes(path, 0, 64)
+  if take(5, head) != [127, 69, 76, 70, 2]
+    raise(:bad_option, "#{path} is no 64-bit ELF")
+  end
+  entry_size = bytes_int(head, 54, 2)
+  count = bytes_int(head, 56, 2)
+  entry_offset(
+    head,
+    read_bytes(path, bytes_int(head, 32, 8), entry_size * count),
+    entry_size,
+    count
+  )
+end
+
+@doc """
+iterate: what an iterator program writes for one run: the link pinned at `path` under a bpffs, read to its end, and unpinned. `install_hook` with {iter: name} makes the link.
+
+    (iterate({}, "/no/such/pin") rescue :refused) #=> :refused
+"""
+def iterate(link, path)
+  pin(link, path)
+  begin
+    read_bytes(path)
+  ensure
+    rm(path)
+  end
+end
+
+@doc """
+attach_sampling: a :perf_event program run on CPU 0 every `period_ns` of its clock, through one software perf event and a link on it. `detach` ends both.
+
+    (attach_sampling({}, 1000000) rescue :refused) #=> :refused
+"""
+def attach_sampling(p, period_ns)
+  attach_event(
+    p,
+    [
+      [:type, 1],
+      [:size, width(perf_attr_layout)],
+      [:config, 0],
+      [:sample_period, period_ns]
+    ]
+  )
+end
+
+@doc """
+struct_ops_flag_link: `BPF_F_LINK`: a :struct_ops map whose registration a link holds, so closing the link ends it.
+
+    struct_ops_flag_link #=> 8192
+"""
+def struct_ops_flag_link()
+  8192
+end
+
+@doc """
+placed_at: bytes with a run of them written at an offset.
+
+    placed_at([0, 0, 0, 0], 1, [7, 8]) #=> [0, 7, 8, 0]
+"""
+def placed_at(bytes, at, part)
+  append(*[take(at, bytes), part, drop(at + size(part), bytes)])
+end
+
+@doc """
+struct_ops_value: the bytes of a `bpf_struct_ops_<ops>` map value: each program's descriptor number at its member's offset, and each given value at its own, a text as its bytes and an integer as four.
+
+    t = btf::read(btf::sample)
+    size(struct_ops_value(t, {size: 8, data: 0}, "task", [["state", 7]])) #=> 8
+    first(struct_ops_value(t, {size: 8, data: 0}, "task", [["state", 7]])) #=> 7
+"""
+def struct_ops_value(table, shape, ops, members)
+  reduce(
+    fn(bytes, member)
+      at = shape[:data] + btf::field(table, ops, [first(member)])[:offset]
+      value = member[1]
+      part = if string?(value)
+        text_bytes(value)
+      else
+        int_bytes(value, 4)
+      end
+      placed_at(bytes, at, part)
+    end,
+    map((_i) -> 0, range(0, shape[:size])),
+    members
+  )
+end
+
+@doc """
+install_struct_ops: a kernel operations table implemented in blue, registered through one link, its map naming a one-type BTF object since the kernel asks for one: `spec` {ops:, name:, programs:, values:}. `ops` names the kernel's struct such as "tcp_congestion_ops", `programs` pairs each member with what `compile` made for kind :struct_ops, and `values` pairs each other member with its text or integer. The maps the programs name are made once and shared. {maps:, programs:, table:, link:}; `detach` of the link unregisters it. A program needs no BTF of its own: a member's types come from the kernel's.
+
+    (install_struct_ops(btf::read(btf::sample), {ops: "nothing"}) rescue :refused) #=> :refused
+"""
+def install_struct_ops(table, spec)
+  ops = spec[:ops]
+  ops_id = btf::need(table, ops, :struct)
+  value_name = "bpf_struct_ops_#{ops}"
+  value_id = btf::need(table, value_name, :struct)
+  given = flat_map(spec[:programs], (p) -> p[1][:maps] or [])
+  maps = map(create_map, unique_by_name(given))
+  programs = map(
+    fn(p)
+      [
+        first(p),
+        load(
+          fields_bound(p[1], table),
+          {
+            kind: :struct_ops,
+            maps:,
+            name: first(p),
+            attach: btf::member_index(table, ops, first(p)),
+            attach_btf_id: ops_id
+          }
+        )
+      ]
+    end,
+    spec[:programs]
+  )
+  value_size = btf::size_of(table, value_id)
+  btf_object = load_btf(btf::smallest)
+  holder = begin
+    create_map(
+      assoc(
+        assoc(
+          assoc(
+            bpf::declare_map(spec[:name], :struct_ops, 4, value_size, 1),
+            :flags,
+            struct_ops_flag_link
+          ),
+          :value_type_id,
+          value_id
+        ),
+        :btf_object,
+        {fd: btf_object[:fd]}
+      )
+    )
+  ensure
+    close_object(btf_object)
+  end
+  map_put(
+    holder,
+    int_bytes(0, 4),
+    struct_ops_value(
+      table,
+      {
+        size: value_size,
+        data: btf::field(table, value_name, ["data"])[:offset]
+      },
+      ops,
+      append(
+        spec[:values] or [],
+        map((p) -> [first(p), fd_number(last(p)[:fd])], programs)
+      )
+    )
+  )
+  {maps:, programs:, table: holder, link: attach(holder, :struct_ops)}
+end
+
+@doc """
+unique_by_name: map shapes with each name once, the first of each kept.
+
+    size(unique_by_name([{name: :a}, {name: :a}, {name: :b}])) #=> 2
+    unique_by_name([]) #=> []
+"""
+def unique_by_name(specs)
+  reduce(
+    fn(kept, m)
+      if find(kept, (x) -> x[:name] == m[:name]).nil?
+        append(kept, [m])
+      else
+        kept
+      end
+    end,
+    [],
+    specs
+  )
 end
 
 @doc """
@@ -1383,4 +1856,156 @@ end
 
 test "off Linux the kernel words raise a named absence, on Linux a closed table name still refuses first"
   assert (kind_id(:command, :nope) rescue :refused) == :refused
+end
+
+test "the attach layouts place every field where the UAPI header does"
+  assert offset(netfilter_layout, :pf) == 16
+  assert offset(netfilter_layout, :hooknum) == 20
+  assert offset(netfilter_layout, :priority) == 24
+  assert offset(uprobe_multi_layout, :path) == 16
+  assert offset(uprobe_multi_layout, :offsets) == 24
+  assert offset(uprobe_multi_layout, :cnt) == 48
+  assert offset(uprobe_multi_layout, :uprobe_flags) == 52
+  assert offset(uprobe_multi_layout, :pid) == 56
+end
+
+test "a path that is no cgroup is a named absence, before any call to the kernel"
+  got = begin
+    open_cgroup("/no/such/cgroup")
+  rescue :cgroup_absent as e
+    e.message
+  end
+  assert contains?(got, "/no/such/cgroup")
+  assert (attach_cgroup({}, :cgroup_device, "/") rescue :refused) == :refused
+end
+
+test "a netfilter spec names a known family and hook, and refuses any other"
+  assert netfilter_family(:ipv6) == 10
+  assert netfilter_hook(:postrouting) == 4
+  assert (netfilter_family(:ipx) rescue :refused) == :refused
+  assert (netfilter_hook(:later) rescue :refused) == :refused
+end
+
+test "a kind the kernel ties to one attach type names it at load unasked, and a named one wins"
+  assert member?(
+    [:expected_attach_type, 45],
+    load_fields(:netfilter, [], {}, 0)
+  )
+  assert member?(
+    [:expected_attach_type, 36],
+    load_fields(:sk_lookup, [], {}, 0)
+  )
+  assert member?(
+    [:expected_attach_type, 37],
+    load_fields(:netfilter, [], {attach: :xdp}, 0)
+  )
+  assert map(first, load_fields(:xdp, [], {}, 0)) ==
+    %i[prog_type insn_cnt insns license prog_name]
+end
+
+test "BPF_BTF_LOAD's layout places every field where the UAPI header does"
+  assert offset(btf_load_layout, :btf_log_buf) == 8
+  assert offset(btf_load_layout, :btf_log_size) == 20
+  assert offset(btf_load_layout, :btf_token_fd) == 36
+end
+
+test "a :syscall program loads sleepable, and no other kind does"
+  assert member?([:prog_flags, 16], load_fields(:syscall, [], {}, 0))
+  assert not member?([:prog_flags, 16], load_fields(:xdp, [], {}, 0))
+end
+
+test "BPF_PROG_RUN's context follows what each kernel kind allows"
+  assert context_fields(:sk_lookup, []) == []
+  out = (name, kind) -> member?(name, map(first, context_fields(kind, [1])))
+  assert out(:ctx_out, :sk_lookup)
+  assert not out(:ctx_out, :syscall)
+  assert not out(:ctx_out, :raw_tracepoint)
+  assert context_fields(:raw_tracepoint, [1])[1] == [:ctx_in, {in: [1]}]
+end
+
+test "an executable's entry is placed by the segment that holds it, and none holding it refuses"
+  head = append(repeat(0, 24), int_bytes(4096, 8), repeat(0, 32))
+  row = fn(kind, offs, addr, sz)
+    append(
+      *[
+        int_bytes(kind, 8),
+        int_bytes(offs, 8),
+        int_bytes(addr, 8),
+        repeat(0, 8),
+        int_bytes(sz, 8),
+        repeat(0, 16)
+      ]
+    )
+  end
+  skipped = row(6, 900, 0, 9000)
+  low = row(1, 0, 0, 4096)
+  held = row(1, 512, 4000, 200)
+  assert entry_offset(head, append(*[skipped, low, held]), 56, 3) == 608
+  assert (entry_offset(head, low, 56, 1) rescue :refused) == :refused
+  assert (entry_offset(head, [], 56, 0) rescue :refused) == :refused
+end
+
+test "an executable's entry comes from its own file, and a file that is no ELF refuses"
+  dir = path_join(getenv("TMPDIR", "/tmp"), "kaaneru-elf-#{to_s(now_ms)}")
+  mkdir_p(dir)
+  elf = path_join(dir, "program")
+  plain = path_join(dir, "plain")
+  low = append(
+    *[
+      int_bytes(1, 8),
+      int_bytes(0, 8),
+      int_bytes(0, 8),
+      repeat(0, 8),
+      int_bytes(8192, 8),
+      repeat(0, 16)
+    ]
+  )
+  head = append(
+    *[
+      [127, 69, 76, 70, 2],
+      repeat(0, 19),
+      int_bytes(4096, 8),
+      int_bytes(64, 8),
+      repeat(0, 14),
+      int_bytes(56, 2),
+      int_bytes(1, 2),
+      repeat(0, 6)
+    ]
+  )
+  write_bytes(elf, append(head, low))
+  write_bytes(plain, append(append([127, 69, 76, 70, 1], drop(5, head)), low))
+  found = entry_offset_of(elf)
+  refused = entry_offset_of(plain) rescue :refused
+  rm_rf(dir)
+  assert found == 4096
+  assert refused == :refused
+end
+
+test "a hook's spec names its attach type, and an empty one refuses"
+  t = btf::read(btf::sample)
+  assert (hook_of(t, {lsm: "run"}) rescue :refused) == :refused
+  assert hook_of(t, {fexit: "run"}).id == 5
+  assert (hook_of(t, {iter: "run"}) rescue :refused) == :refused
+  assert (hook_of(t, {}) rescue :refused) == :refused
+end
+
+test "a struct_ops value holds each program and value at its member, and the rest zero"
+  t = btf::read(btf::sample)
+  bytes = struct_ops_value(
+    t,
+    {size: 16, data: 4},
+    "task",
+    [%w[pid ab], ["state", 9]]
+  )
+  assert size(bytes) == 16
+  assert bytes == [0, 0, 0, 0, 9, 0, 0, 0, 97, 98, 0, 0, 0, 0, 0, 0]
+  assert placed_at([1, 2], 0, []) == [1, 2]
+end
+
+test "maps shared by a table's programs are made once"
+  assert map(
+    (m) -> m[:name],
+    unique_by_name([{name: :a, n: 1}, {name: :b}, {name: :a, n: 2}])
+  ) == %i[a b]
+  assert first(unique_by_name([{name: :a, n: 1}, {name: :a, n: 2}]))[:n] == 1
 end

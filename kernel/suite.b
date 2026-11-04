@@ -37,11 +37,15 @@ use(
   %i[
     attach_kprobe
     attach_kprobes
+    attach_raw_tracepoint
+    attach_sampling
     attach_tracepoint
+    attach_uprobes
     close_object
     create_map
     detach
     drain
+    entry_offset_of
     install
     install_hook
     load
@@ -612,4 +616,367 @@ test "compile refuses a file that does not check, naming why"
   end
   rm_rf(dir)
   assert contains?(refused, "does not check")
+end
+
+def ip_frame(proto, ttl, pad)
+  append(
+    *[
+      repeat(0, 12),
+      [8, 0, 69],
+      repeat(0, 7),
+      [ttl, proto],
+      repeat(0, 10),
+      repeat(0, pad)
+    ]
+  )
+end
+
+def other_frame(pad)
+  append(*[repeat(0, 12), [18, 52], repeat(0, pad)])
+end
+
+def frames()
+  append(
+    flat_map(
+      [1, 6, 17, 255],
+      (proto) -> map((pad) -> ip_frame(proto, 64, pad), [0, 1, 40, 200])
+    ),
+    map(other_frame, [0, 1, 5, 19, 20, 21, 64])
+  )
+end
+
+def parity_row(kind, file, entry)
+  compiled = compile(file, {entry:, kind:, on_fault: 1})
+  live = install(compiled)
+  bad = filter(
+    fn(frame)
+      kernel = kaaneru::run(live[:prog], {packet: frame})[:ret]
+      model = bpf::run(compiled, {packet: frame, maps: compiled[:maps]})[:ret]
+      kernel != model
+    end,
+    frames
+  )
+  [kind, size(bad)]
+end
+
+test "the machine and the kernel agree on every socket-buffer program type over one set of frames"
+  rows = [
+    [:sched_cls, "kernel/programs/tc_filter.b", :tc_filter],
+    [:sched_act, "kernel/programs/tc_filter.b", :tc_filter],
+    [:flow_dissector, "kernel/programs/tc_filter.b", :tc_filter],
+    [:cgroup_skb, "kernel/programs/socket_len.b", :short_frame],
+    [:lwt_in, "kernel/programs/l3_filter.b", :l3_filter],
+    [:lwt_out, "kernel/programs/l3_filter.b", :l3_filter],
+    [:lwt_xmit, "kernel/programs/l3_filter.b", :l3_filter],
+    [:socket_filter, "kernel/programs/socket_len.b", :socket_len]
+  ]
+  got = map((row) -> parity_row(*row), rows)
+  assert got == map((row) -> [first(row), 0], rows)
+end
+
+test "BPF_PROG_RUN leaves a cgroup skb program no packet to read directly, so that read is measured attached"
+  live = install(
+    compile(
+      "kernel/programs/l3_filter.b",
+      {entry: :l3_filter, kind: :cgroup_skb, on_fault: 1}
+    )
+  )
+  got = kaaneru::run(live[:prog], {packet: ip_frame(1, 64, 40)})[:ret]
+  assert got == 1
+  assert bytes_int(map_get(map_named(live, :l3_seen), int_bytes(1, 4)), 0, 8) ==
+    0
+end
+
+test "a socket-buffer program's map counts in the kernel what the machine counts"
+  compiled = compile(
+    "kernel/programs/l3_filter.b",
+    {entry: :l3_filter, kind: :lwt_in, on_fault: 1}
+  )
+  live = install(compiled)
+  seen = map_named(live, :l3_seen)
+  map((f) -> kaaneru::run(live[:prog], {packet: f}), frames)
+  key = int_bytes(1, 4)
+  model = reduce(
+    fn(acc, f)
+      st = bpf::run(compiled, {packet: f, maps: compiled[:maps]})
+      acc + bytes_int(bpf::map_value(st, :l3_seen, key), 0, 8)
+    end,
+    0,
+    frames
+  )
+  assert bytes_int(map_get(seen, key), 0, 8) == model
+  assert model == 4
+end
+
+def lookup_ctx(family, protocol, port)
+  append(
+    *[
+      repeat(0, 8),
+      int_bytes(family, 4),
+      int_bytes(protocol, 4),
+      repeat(0, 44),
+      int_bytes(port, 4),
+      repeat(0, 8)
+    ]
+  )
+end
+
+test "an sk_lookup program decides on its context in the machine and the kernel alike"
+  compiled = compile(
+    "kernel/programs/sk_lookup.b",
+    {entry: :sk_lookup, kind: :sk_lookup, on_fault: 1}
+  )
+  live = install(compiled)
+  cases = [[2, 6, 80, 0], [2, 6, 81, 1], [2, 17, 80, 1], [10, 6, 80, 1]]
+  got = map(
+    fn(c)
+      ctx = lookup_ctx(c[0], c[1], c[2])
+      [
+        kaaneru::run(live[:prog], {ctx:})[:ret],
+        bpf::run(compiled, {ctx:})[:ret],
+        c[3]
+      ]
+    end,
+    cases
+  )
+  assert got == map((c) -> [c[3], c[3], c[3]], cases)
+end
+
+test "a raw tracepoint program runs on arguments it is given, and the machine agrees"
+  compiled = compile(
+    "kernel/programs/args.b",
+    {entry: :sum_args, kind: :raw_tracepoint, on_fault: 0}
+  )
+  live = install(compiled)
+  got = map(
+    fn(pair)
+      ctx = append(int_bytes(first(pair), 8), int_bytes(pair[1], 8))
+      [
+        kaaneru::run(live[:prog], {ctx:})[:ret],
+        bpf::run(compiled, {ctx:})[:ret],
+        first(pair) + pair[1]
+      ]
+    end,
+    [[1, 2], [0, 0], [40, 2]]
+  )
+  assert got == [[3, 3, 3], [0, 0, 0], [42, 42, 42]]
+end
+
+test "a syscall program runs sleepable on its context, and its writes come back"
+  compiled = compile(
+    "kernel/programs/args.b",
+    {entry: :sum_words, kind: :syscall, on_fault: 0}
+  )
+  live = install(compiled)
+  ctx = append(int_bytes(30, 4), int_bytes(12, 4))
+  assert kaaneru::run(live[:prog], {ctx:})[:ret] == 42
+  assert bpf::run(compiled, {ctx:})[:ret] == 42
+  writer = assemble(
+    [
+      bpf::load(:w, 2, 1, 0),
+      alu(:add, 2, 1),
+      store(:w, 1, 4, r(2)),
+      alu(:mov, 0, 7),
+      exit_program
+    ]
+  )
+  answer = kaaneru::run(
+    load(writer, {kind: :syscall, name: "suite_sys"}),
+    {ctx:}
+  )
+  assert answer[:ret] == 7
+  assert bytes_int(answer[:ctx], 4, 4) == 31
+end
+
+test "a netfilter program runs on a frame it is given, and decides from the real socket buffer"
+  table = btf::open(btf::vmlinux_path)
+  live = install(
+    compile(
+      "kernel/programs/nf_filter.b",
+      {entry: :nf_filter, kind: :netfilter, on_fault: 1}
+    ),
+    {btf: table}
+  )
+  local_in = append([1, 2], repeat(0, 46))
+  ret = fn(proto, ttl)
+    get(
+      kaaneru::run(
+        live[:prog],
+        {packet: ip_frame(proto, ttl, 20), ctx: local_in}
+      ),
+      :ret
+    )
+  end
+  assert ret(1, 33) == 0
+  assert ret(1, 34) == 1
+  assert ret(6, 33) == 1
+  seen = map_named(live, :nf_seen)
+  assert bytes_int(map_get(seen, int_bytes(1, 4)), 0, 8) == 2
+  assert bytes_int(map_get(seen, int_bytes(6, 4)), 0, 8) == 1
+end
+
+test "fexit reads the kernel's own argument and return value at its test function"
+  table = btf::open(btf::vmlinux_path)
+  live = install_hook(
+    compile(
+      "kernel/programs/fexit_args.b",
+      {entry: :on_return, kind: :tracing, on_fault: 0}
+    ),
+    table,
+    {fexit: "bpf_fentry_test1"}
+  )
+  seen = map_named(live, :fexit_seen)
+  kaaneru::run(live[:prog], {})
+  arg = bytes_int(map_get(seen, int_bytes(0, 4)), 0, 8)
+  ret = bytes_int(map_get(seen, int_bytes(1, 4)), 0, 8)
+  detach(live[:link])
+  assert [arg, ret] == [1, 2]
+end
+
+test "fmod_ret replaces a kernel function's answer and skips its body"
+  table = btf::open(btf::vmlinux_path)
+  live = install_hook(
+    compile(
+      "kernel/programs/fmod_ret.b",
+      {entry: :replaced, kind: :tracing, on_fault: 0}
+    ),
+    table,
+    {fmod_ret: "bpf_modify_return_test"}
+  )
+  got = kaaneru::run(live[:prog], {})[:ret]
+  detach(live[:link])
+  side_effects = 1
+  second_function = 29
+  assert got == shift_left(side_effects, 16) + 5 + second_function
+end
+
+test "an LSM program has no BPF_PROG_RUN, and the refusal names it"
+  table = btf::open(btf::vmlinux_path)
+  live = install_hook(
+    compile(
+      "kernel/programs/count.b",
+      {entry: :on_event, kind: :lsm, on_fault: 0}
+    ),
+    table,
+    {lsm: "file_open"}
+  )
+  got = begin
+    kaaneru::run(live[:prog], {ctx: repeat(0, 8)})
+    :ran
+  rescue :kernel_refused as e
+    e.data.name
+  end
+  detach(live[:link])
+  assert got == "ENOTSUPP"
+end
+
+def task_ids_program(pid_offset)
+  assemble(
+    [
+      bpf::load(:dw, 6, 1, 0),
+      bpf::load(:dw, 7, 1, 8),
+      jump(:eq, 7, 0, :out),
+      bpf::load(:dw, 1, 6, 0),
+      bpf::load(:w, 8, 7, pid_offset),
+      store(:w, 10, -4, r(8)),
+      alu(:mov, 2, r(10)),
+      alu(:add, 2, -4),
+      alu(:mov, 3, 4),
+      call(:seq_write),
+      label(:out),
+      alu(:mov, 0, 0),
+      exit_program
+    ]
+  )
+end
+
+test "a task iterator lists this very thread through a pin read back"
+  table = btf::open(btf::vmlinux_path)
+  compiled = assoc(
+    assoc(
+      task_ids_program(btf::field(table, "task_struct", ["pid"])[:offset]),
+      :kind,
+      :tracing
+    ),
+    :name,
+    "suite_tasks"
+  )
+  live = install_hook(compiled, table, {iter: "task"})
+  path = "/sys/fs/bpf/blue_suite_iter_#{to_s(now_ms)}"
+  bytes = kaaneru::iterate(live[:link], path)
+  detach(live[:link])
+  ids = map((i) -> bytes_int(bytes, i * 4, 4), range(0, floor(size(bytes) / 4)))
+  assert size(bytes) % 4 == 0
+  assert member?(current_tid, ids)
+  assert member?(1, ids)
+  assert not path_exists(path)
+end
+
+test "a raw tracepoint program sees this machine exec, and detach ends it"
+  live = install(
+    compile(
+      "kernel/programs/count.b",
+      {entry: :on_event, kind: :raw_tracepoint, on_fault: 0}
+    )
+  )
+  hits = map_named(live, :hits)
+  key = int_bytes(0, 4)
+  link = attach_raw_tracepoint(live[:prog], "sched_process_exec")
+  exec_capture("true")
+  during = bytes_int(map_get(hits, key), 0, 8)
+  detach(link)
+  sleep_ms(50)
+  settled = bytes_int(map_get(hits, key), 0, 8)
+  exec_capture("true")
+  sleep_ms(50)
+  assert during >= 1
+  assert bytes_int(map_get(hits, key), 0, 8) == settled
+end
+
+test "a perf_event program runs on the CPU's clock, and detach ends it"
+  live = install(
+    compile(
+      "kernel/programs/count.b",
+      {entry: :on_event, kind: :perf_event, on_fault: 0}
+    )
+  )
+  hits = map_named(live, :hits)
+  key = int_bytes(0, 4)
+  link = attach_sampling(live[:prog], 1_000_000)
+  sleep_ms(200)
+  detach(link)
+  sleep_ms(20)
+  settled = bytes_int(map_get(hits, key), 0, 8)
+  sleep_ms(100)
+  assert settled >= 1
+  assert bytes_int(map_get(hits, key), 0, 8) == settled
+end
+
+test "a uprobe_multi link counts an executable's own start, and only while it holds"
+  dir = path_join(getenv("TMPDIR", "/tmp"), "blue_suite_uprobe_#{to_s(now_ms)}")
+  mkdir_p(dir)
+  here = path_join(dir, "head")
+  source = trim(exec_capture("sh", "-c", "command -v head").stdout)
+  exec_capture("cp", "-L", source, here)
+  live = install(
+    compile(
+      "kernel/programs/count.b",
+      {entry: :on_event, kind: :kprobe, on_fault: 0}
+    ),
+    {attach: :trace_uprobe_multi}
+  )
+  hits = map_named(live, :hits)
+  key = int_bytes(0, 4)
+  result = begin
+    link = attach_uprobes(live[:prog], here, [entry_offset_of(here)])
+    ran = exec_capture(here, "--version").status
+    exec_capture(source, "--version")
+    during = bytes_int(map_get(hits, key), 0, 8)
+    detach(link)
+    exec_capture(here, "--version")
+    [ran, during, bytes_int(map_get(hits, key), 0, 8)]
+  ensure
+    rm_rf(dir)
+  end
+  assert result == [0, 1, 1]
 end

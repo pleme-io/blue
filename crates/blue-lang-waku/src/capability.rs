@@ -340,6 +340,7 @@ const DISPLAY_NAMES: &[&str] = &[
 const KERNEL_BPF_NAMES: &[&str] = &[
     "bpf_syscall",
     "perf_event_open",
+    "fd_open",
     "fd_ioctl",
     "fd_close",
     "fd_number",

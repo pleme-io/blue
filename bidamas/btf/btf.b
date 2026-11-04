@@ -485,6 +485,47 @@ def function_id(b, name)
 end
 
 @doc """
+member_index: a member's place among its struct's own members, what a :struct_ops program names at load. A struct with no such member raises.
+
+    member_index(read(sample), "task", "pid") #=> 1
+    (member_index(read(sample), "task", "nope") rescue :refused) #=> :refused
+"""
+def member_index(b, struct_name, name)
+  members = type_at(b, need(b, struct_name, :struct))[:members]
+  at = retsu::index_of(map((m) -> m[:name], members), name)
+  if at < 0
+    raise(:not_found, "#{struct_name} has no member #{name}")
+  end
+  at
+end
+
+@doc """
+smallest: the smallest BTF blob a kernel takes: one `int`. A :struct_ops map must name a BTF object of its own, whatever its value's type.
+
+    size(smallest) #=> 45
+    type_at(read(smallest), 1).name #=> "int"
+"""
+def smallest()
+  append(
+    *[
+      [159, 235, 1, 0],
+      word_bytes(24),
+      word_bytes(0),
+      word_bytes(16),
+      word_bytes(16),
+      word_bytes(5),
+      word_bytes(1),
+      word_bytes(shift_left(1, 24)),
+      word_bytes(4),
+      word_bytes(32),
+      [0],
+      text_bytes("int"),
+      [0]
+    ]
+  )
+end
+
+@doc """
 word_bytes: a word's four little-endian bytes.
 
     word_bytes(258) #=> [2, 1, 0, 0]

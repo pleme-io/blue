@@ -113,7 +113,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-369 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 185 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+370 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 185 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -222,7 +222,7 @@ Higher binding power binds tighter.
 | `frequencies` | `frequencies(xs)` | 1 | A map from each element to how many times it occurs. Also defined by `shuugou` (`shuugou::frequencies`): a file that lists it gets that one. |
 | `interleave` | `interleave(xs, ys)` | 2 | [x1, y1, x2, y2, …], as long as the shorter list allows. Also defined by `retsu` (`retsu::interleave`): a file that lists it gets that one. |
 | `intersperse` | `intersperse(sep, xs)` | 2 | xs with sep between each pair. The SEPARATOR comes first. |
-| `iterate` | `iterate(f, x, n)` | 3 | [x, f(x), f(f(x)), …], n elements. |
+| `iterate` | `iterate(f, x, n)` | 3 | [x, f(x), f(f(x)), …], n elements. Also defined by `kaaneru` (`kaaneru::iterate`): a file that lists it gets that one. |
 | `last` | `last(xs)` | 1 | The last element; raises on []. retsu's last answers nil. Also defined by `retsu` (`retsu::last`): a file that lists it gets that one. |
 | `length` | `length(seq)` | 1 | The length of a list or string. Raises on nil: retsu's size(xs) is total. |
 | `list` | `list(xs...)` | any | A list of the arguments. Written [a, b]. Also defined by `gitto` (`gitto::list`): a file that lists it gets that one. |
@@ -508,6 +508,7 @@ Higher binding power binds tighter.
 | `fd_close` | `fd_close(fd)` | 1 | Close a kernel descriptor now rather than when its last reference goes. A second close does nothing. Nil. Needs the kernel_bpf capability. |
 | `fd_ioctl` | `fd_ioctl(fd, request, argument)` | 3 | ioctl(2) on a kernel descriptor: the call's result. A refusal raises :kernel_refused with data {errno:}. Needs the kernel_bpf capability. |
 | `fd_number` | `fd_number(fd)` | 1 | A kernel descriptor's number, nil once it is closed. Needs the kernel_bpf capability. |
+| `fd_open` | `fd_open(path)` | 1 | A kernel descriptor on a path, opened read-only: a cgroup directory, a network namespace file. A refusal raises :kernel_refused with data {errno:}. Needs the kernel_bpf capability. |
 | `perf_event_open` | `perf_event_open(size, fields, pid, cpu, group, flags)` | 6 | A perf event descriptor for a struct of size bytes built from fields as bpf_syscall builds its own, a pid and a cpu; group is a descriptor or nil. A refusal raises :kernel_refused with data {errno:}. Off Linux raises :unsupported. Needs the kernel_bpf capability. |
 | `ringbuf_next` | `ringbuf_next(ring, timeout_ms)` | 2 | The next record's bytes, waiting at most timeout_ms (0 only checks); nil when none came. A discarded record is skipped. Needs the kernel_bpf capability. |
 | `ringbuf_open` | `ringbuf_open(map_fd, size)` | 2 | A consumer of a BPF ring buffer map whose size in bytes is a power of two: the map's pages mapped into this process. Off Linux raises :unsupported. Needs the kernel_bpf capability. |

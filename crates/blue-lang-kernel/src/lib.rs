@@ -251,6 +251,25 @@ pub fn perf_event_open(
     }
 }
 
+pub fn open_read(path: &str) -> Result<Fd, Refusal> {
+    const WORD: &str = "fd_open";
+    #[cfg(target_os = "linux")]
+    {
+        use std::os::fd::IntoRawFd;
+        std::fs::File::open(path)
+            .map(|file| Fd::owning(file.into_raw_fd()))
+            .map_err(|e| Refusal::Errno {
+                word: WORD,
+                errno: e.raw_os_error().unwrap_or(libc::EIO),
+            })
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = path;
+        Err(Refusal::Absent(WORD))
+    }
+}
+
 pub fn ioctl(fd: &Fd, request: u64, argument: u64) -> Result<i64, Refusal> {
     const WORD: &str = "fd_ioctl";
     #[cfg(target_os = "linux")]
@@ -457,6 +476,20 @@ mod tests {
         assert!(e.to_string().contains("power of two"), "{e}");
     }
 
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn on_linux_a_directory_opens_and_a_missing_path_answers_its_errno() {
+        let dir = open_read("/").expect("the root directory opens");
+        assert!(dir.number().is_some());
+        assert_eq!(
+            open_read("/no/such/path").map(|_| ()),
+            Err(Refusal::Errno {
+                word: "fd_open",
+                errno: libc::ENOENT
+            })
+        );
+    }
+
     #[cfg(not(target_os = "linux"))]
     #[test]
     fn off_linux_every_call_is_a_named_absence() {
@@ -468,6 +501,7 @@ mod tests {
             perf_event_open(8, &[], 0, 0, None, 0).unwrap_err(),
             Refusal::Absent("perf_event_open")
         );
+        assert_eq!(open_read("/").map(|_| ()), Err(Refusal::Absent("fd_open")));
     }
 
     #[cfg(target_os = "linux")]

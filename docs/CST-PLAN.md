@@ -151,10 +151,11 @@ is covered by at least one `FORMS` row, `INFIX` row or keyword, and each
 `FORMS` example parses to a statement of the kind its row names. A missing row
 is red, as `every_form_lowers_as_its_row_says` (`forms.rs:185`) is red today.
 
-**Measured gap.** `kiwari` has no rule for `@doc` and `@moduledoc`
-(`grep` finds none in `tree-sitter-blue/grammar.js`; `crates/blue-lang-syntax/src/doc.rs`
-lowers them). P1 adds a `documentation` rule to `kiwari` first, with its
-template. Verify how the differential handles these files before P1.
+**Closed gap.** `kiwari` has the `moduledoc`, `documented` and `doc` rules, with
+a doc's text parsed into prose, blank, indented and example lines
+(`doc_rules`), and each lowers as `crates/blue-lang-syntax/src/doc.rs` does: a
+documented definition to the definition, a module doc to nothing. The
+differential drops a module doc from the top-level forms it compares.
 
 ### 3.3 Tokens and trivia
 

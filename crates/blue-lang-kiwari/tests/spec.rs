@@ -123,3 +123,11 @@ fn the_lowered_names_are_the_parser_s() {
         );
     }
 }
+
+#[test]
+fn a_module_doc_means_no_form_and_a_documented_definition_means_its_definition() {
+    let s = spec();
+    assert!(s.means_nothing("moduledoc"));
+    assert!(!s.means_nothing("documented"));
+    assert!(!s.means_nothing("no_such_node"));
+}

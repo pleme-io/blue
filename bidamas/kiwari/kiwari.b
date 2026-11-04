@@ -14,7 +14,8 @@ below; every artifact a tool wants is rendered from that one value:
   folds.scm          folds(g)               from the rules a closer ends
   indents.scm        indents(g)             the same rules, closers, arms
   locals.scm         locals(g)              from scopes and definitions
-  *.kiwari.json      spec_json(g)           operators, keywords and each
+  injections.scm     injections(g)          from the injections it declares
+  *.kiwari.json     spec_json(g)           operators, keywords and each
                                             rule's lowering, for Rust
 
 Each rule carries how its node LOWERS to the language's tree (a template:
@@ -29,7 +30,7 @@ each renderer arm sits beside the constructor it reads.
     parts(choice([])) #=> []
 """
 
-use("retsu", %i[concat_lists contains first flat_map is_empty last])
+use("retsu", %i[concat_lists contains first flat_map is_empty last size])
 
 # ── the vocabulary ─────────────────────────────────────────────────────────
 
@@ -567,6 +568,108 @@ def locals(grammar)
   )
 end
 
+@doc """
+inject: An injection: the nodes whose text is another language's source, the
+parent they must sit in (nil for anywhere), the language, and its settings:
+`combined` parses every match in a file as one document, `skip` drops that
+many leading characters of the node.
+
+    inject(["a"], nil, "markdown", {})[:language] #=> "markdown"
+"""
+def inject(nodes, within, language, settings)
+  {nodes:, within:, language:, settings:}
+end
+
+@doc """
+node_names: The name of every node a grammar's rules make.
+
+    node_names(tiny([rule("word", pat("a"), nil)], [])) #=> ["word"]
+"""
+def node_names(g)
+  filter((n) -> not n.nil?, map((r) -> node_name(g, r), g[:rules]))
+end
+
+@doc """
+injection_nodes: The query pattern for `nodes`: bare for one, a choice for more.
+
+    injection_nodes(["a"]) #=> "(a)"
+    injection_nodes(["a", "b"]) #=> "[(a) (b)]"
+"""
+def injection_nodes(nodes)
+  if size(nodes) == 1
+    "(#{first(nodes)})"
+  else
+    "[#{join(map((n) -> "(#{n})", nodes), " ")}]"
+  end
+end
+
+@doc """
+injection_line: One injection as one query pattern, its parent, offset and
+combination each written only when the injection states it.
+
+    injection_line(inject(["a"], nil, "blue", {})) #=> "((a) @injection.content (#set! injection.language \"blue\"))"
+"""
+def injection_line(i)
+  captured = "#{injection_nodes(i[:nodes])} @injection.content"
+  pattern = if i[:within].nil?
+    captured
+  else
+    "(#{i[:within]} #{captured})"
+  end
+  settings = i[:settings]
+  skip = if settings[:skip].nil?
+    []
+  else
+    ["(#offset! @injection.content 0 #{to_s(settings[:skip])} 0 0)"]
+  end
+  combined = if settings[:combined] == true
+    ["(#set! injection.combined)"]
+  else
+    []
+  end
+  parts = append(
+    [pattern],
+    skip,
+    ["(#set! injection.language #{scm_string(i[:language])})"],
+    combined
+  )
+  "(#{join(parts, " ")})"
+end
+
+@doc """
+injections: One pattern per injection the grammar declares. A node no rule makes is
+refused, so an injection cannot outlive the rule it reads.
+
+    contains?(injections(blue), "injection.language \"markdown\"") #=> true
+"""
+def injections(grammar)
+  g = checked(grammar)
+  rows = if g[:injections].nil?
+    []
+  else
+    g[:injections]
+  end
+  known = node_names(g)
+  named = flat_map(
+    rows,
+    fn(i)
+      if i[:within].nil?
+        i[:nodes]
+      else
+        concat_lists([i[:within]], i[:nodes])
+      end
+    end
+  )
+  unknown = filter((n) -> not member?(n, known), distinct(named))
+  if not is_empty(unknown)
+    raise(:kiwari_injection, "injections name no node: #{join(unknown, " ")}")
+  end
+  query_lines(
+    "; Text that is another language's source: a doc's prose is Markdown, its examples blue.",
+    map(injection_line, rows)
+  )
+end
+
 # ── the spec for Rust ──────────────────────────────────────────────────────
 
 def spec_json(grammar)
@@ -597,6 +700,7 @@ def artifacts(g)
     ["folds.scm", () -> folds(g)],
     ["indents.scm", () -> indents(g)],
     ["locals.scm", () -> locals(g)],
+    ["injections.scm", () -> injections(g)],
     ["#{g[:name]}.kiwari.json", () -> unlines([spec_json(g)])]
   ]
 end
@@ -914,7 +1018,170 @@ def if_lowering(condition)
   ["list", %w[sym if], condition, nil_or("consequence"), %w[field? alternative]]
 end
 
+@doc """
+doc_char: One character of a doc text's line, read so that no run of three `"`
+can form: blue refuses a text that holds three in a row (lex.rs `lex_doc`).
+
+    contains?(doc_char, "[^") #=> true
+"""
+def doc_char()
+  "(?:[^\"\\n]|\"[^\"\\n]|\"\"[^\"\\n])"
+end
+
+@doc """
+doc_rest: The rest of a doc line after its first character.
+
+    starts_with?(doc_rest, doc_char) #=> true
+"""
+def doc_rest()
+  "#{doc_char}*\"{0,2}"
+end
+
+@doc """
+doc_first: A doc line's first character after its indentation: not blank.
+
+    contains?(doc_first, "[^ \\t\\r\\n") #=> true
+"""
+def doc_first()
+  "(?:[^ \\t\\r\\n\"]|\"[^\"\\n]|\"\"[^\"\\n])"
+end
+
+@doc """
+doc_line_pattern: A whole doc line after `indent`, through its newline.
+
+    starts_with?(doc_line_pattern("[ ]+"), "[ ]+") #=> true
+"""
+def doc_line_pattern(indent)
+  "#{indent}(?:#{doc_first}#{doc_rest}|\"{1,2})\\n"
+end
+
+@doc """
+doc_check_pattern: An indented line that holds an expression, a ` #=> ` and a
+value: a doctest's check (doc.rs `examples` splits it at its last ` #=> `).
+
+    contains?(doc_check_pattern, " #=> ") #=> true
+"""
+def doc_check_pattern()
+  "[ \\t]+#{doc_first}#{doc_rest} #=> #{doc_rest}\\n"
+end
+
+@doc """
+doc_rules: `@moduledoc` and `@doc` (doc.rs): a heredoc whose lines are prose,
+blank, or indented, and an indented paragraph holding a check is an example. A
+documented definition lowers to the definition, and a module doc to nothing,
+as `parse_program` strips both. The closer and the blank line are plain tokens
+that the whitespace extra may precede, never immediate tokens that hold the
+whitespace themselves: tree-sitter merges such a token's lexical state with
+the states of the operators, and then ` *` lexes with its space (55 files of
+the differential, 2026-11-03).
+
+    doc_rules[0][:name] #=> "moduledoc"
+"""
+def doc_rules()
+  sep = choice([ref("doc_line"), ref("doc_blank")])
+  paragraph = choice([ref("doc_example"), ref("doc_block")])
+  [
+    rule(
+      "moduledoc",
+      seq([lit("@moduledoc"), field("text", ref("doc_text"))]),
+      ["seq"]
+    ),
+    rule(
+      "documented",
+      seq(
+        [
+          field("doc", ref("doc")),
+          rep1(ref("_newline")),
+          field(
+            "definition",
+            choice([ref("def"), ref("defmacro"), ref("binding")])
+          )
+        ]
+      ),
+      %w[field definition]
+    ),
+    rule("doc", seq([lit("@doc"), field("text", ref("doc_text"))]), nil),
+    rule(
+      "doc_text",
+      seq([ref("doc_open"), opt(ref("doc_content")), ref("doc_close")]),
+      nil
+    ),
+    with(
+      rule("doc_open", token(pat("\"\"\"[ \\t\\r]*\\n")), nil),
+      :role,
+      "punctuation.delimiter.documentation"
+    ),
+    with(
+      rule("doc_close", token(pat("\"\"\"")), nil),
+      :role,
+      "punctuation.delimiter.documentation"
+    ),
+    rule(
+      "doc_content",
+      choice([seq([paragraph, opt(ref("_doc_after"))]), ref("_doc_after")]),
+      nil
+    ),
+    rule(
+      "_doc_after",
+      seq([rep1(sep), opt(seq([paragraph, opt(ref("_doc_after"))]))]),
+      nil
+    ),
+    with(
+      rule("doc_line", immediate(prec(1, pat(doc_line_pattern("")))), nil),
+      :role,
+      "comment.documentation"
+    ),
+    rule("doc_blank", token(pat("\\n")), nil),
+    rule("doc_code", immediate(prec(1, pat(doc_line_pattern("[ \\t]+")))), nil),
+    rule("doc_check", immediate(prec(2, pat(doc_check_pattern))), nil),
+    rule(
+      "doc_example",
+      seq(
+        [
+          rep(ref("doc_code")),
+          ref("doc_check"),
+          rep(choice([ref("doc_code"), ref("doc_check")]))
+        ]
+      ),
+      nil
+    ),
+    with(
+      rule("doc_block", rep1(ref("doc_code")), nil),
+      :role,
+      "markup.raw.block"
+    )
+  ]
+end
+
+@doc """
+module_body: What a file holds: top-level statements, a `@moduledoc` first if
+it has one, as `parse.rs` refuses one anywhere else.
+
+    module_body[:kind] #=> :choice
+"""
+def module_body()
+  top = ref("_top_statement")
+  choice(
+    [
+      lines(top),
+      seq(
+        [ref("moduledoc"), opt(seq([rep1(ref("_newline")), opt(lines(top))]))]
+      )
+    ]
+  )
+end
+
+@doc """
+blue: blue's grammar: its surface and its documentation.
+
+    blue[:name] #=> "blue"
+"""
 def blue()
+  g = surface
+  assoc(g, :rules, concat_lists(g[:rules], doc_rules))
+end
+
+def surface()
   aliases = filter(
     (a) -> not member?(a, %w[|| && !]),
     flat_map(concat_lists(infix_rows, unary_rows), (r) -> r[:aliases])
@@ -933,7 +1200,7 @@ def blue()
     description: "blue, emitted from its one grammar spec (kiwari)",
     repository: "https://github.com/pleme-io/blue",
     word: "identifier",
-    extras: [pat("[ \\t\\r]"), ref("comment"), ref("moduledoc")],
+    extras: [pat("[ \\t\\r]"), ref("comment"), ref("expectation")],
     conflicts: [
       %w[_primary _arrow_parameters],
       %w[_arrow_parameters _plain_parameters],
@@ -963,6 +1230,16 @@ def blue()
       block: %w[do end else elsif rescue ensure true false nil]
     },
     closers: ["end", ")", "]", "}"],
+    injections: [
+      inject(
+        %w[doc_line doc_blank doc_block],
+        nil,
+        "markdown",
+        {combined: true}
+      ),
+      inject(%w[doc_code doc_check], "doc_example", "blue", {}),
+      inject(["expectation"], nil, "blue", {skip: 3})
+    ],
     keywords_painted: [
       %w[if keyword.conditional],
       %w[unless keyword.conditional],
@@ -989,7 +1266,9 @@ def blue()
       %w[not keyword.operator],
       ["true", ""],
       ["false", ""],
-      ["nil", ""]
+      ["nil", ""],
+      %w[@doc attribute.documentation],
+      %w[@moduledoc attribute.documentation]
     ],
     punctuation: [
       %w[( punctuation.bracket],
@@ -1008,66 +1287,40 @@ def blue()
       %w[-> operator],
       [":", ""],
       ["#", ""],
+      ["#=>", ""],
       ["\"", ""],
       [line_break, ""]
     ],
     rules: [
-      rule("source_file", opt(block(ref("_statement"))), ["named"]),
+      rule(
+        "source_file",
+        opt(
+          choice([seq([rep1(ref("_newline")), opt(module_body)]), module_body])
+        ),
+        ["named"]
+      ),
       rule("_newline", lit(line_break), nil),
       with(
-        rule("comment", token(seq([lit("#"), pat("[^\\n]*")])), nil),
-        :role,
-        "comment"
-      ),
-      # `@moduledoc """` … `"""` documents the file and needs nothing after it,
-      # and blue's compared forms hold no node for it: an extra. Its text holds
-      # no `"""` (lex.rs `lex_doc`).
-      with(
-        rule(
-          "moduledoc",
-          token(pat("@moduledoc[ \\t]*\"\"\"([^\"]|\"[^\"]|\"\"[^\"])*\"\"\"")),
-          nil
-        ),
+        rule("comment", token(prec(-1, seq([lit("#"), pat("[^\\n]*")]))), nil),
         :role,
         "comment"
       ),
       with(
-        rule(
-          "doc",
-          token(pat("@doc[ \\t]*\"\"\"([^\"]|\"[^\"]|\"\"[^\"])*\"\"\"")),
-          nil
-        ),
+        rule("expectation", token(seq([lit("#=>"), pat("[^\\n]*")])), nil),
         :role,
-        "comment"
+        "punctuation.special.doctest"
+      ),
+      rule(
+        "_top_statement",
+        choice([ref("documented"), ref("_statement")]),
+        nil
       ),
       with(
         with(rule("identifier", pat(ident), ["symbol"]), :role, "variable"),
         :reference,
         true
       ),
-      rule(
-        "_statement",
-        choice([ref("documented"), ref("binding"), ref("_expression")]),
-        nil
-      ),
-      # `@doc` belongs to the definition below it (parse.rs: "documents the
-      # definition below it: a `def`, a `defmacro` or a top-level
-      # `name = value`"); it lowers to that definition, which is all blue's
-      # compared forms hold.
-      rule(
-        "documented",
-        seq(
-          [
-            field("doc", ref("doc")),
-            rep1(ref("_newline")),
-            field(
-              "definition",
-              choice([ref("def"), ref("defmacro"), ref("binding")])
-            )
-          ]
-        ),
-        %w[field definition]
-      ),
+      rule("_statement", choice([ref("binding"), ref("_expression")]), nil),
       # `x = v` is a statement, never an expression (parse.rs `statement`).
       rule(
         "binding",
@@ -2058,8 +2311,7 @@ test "every visible rule of blue's lowers, but the parts its parent reads"
   assert parts ==
     %w[
       comment
-      moduledoc
-      doc
+      expectation
       rescue_clause
       rescue_all
       ensure_clause
@@ -2067,7 +2319,66 @@ test "every visible rule of blue's lowers, but the parts its parent reads"
       escape_sequence
       typed_parameter
       when
+      doc
+      doc_text
+      doc_open
+      doc_close
+      doc_content
+      doc_line
+      doc_blank
+      doc_code
+      doc_check
+      doc_example
+      doc_block
     ]
+end
+
+test "a doc's prose is injected as Markdown and its examples as blue"
+  q = injections(blue)
+  assert contains?(
+    q,
+    "([(doc_line) (doc_blank) (doc_block)] @injection.content (#set! injection.language \"markdown\") (#set! injection.combined))"
+  )
+  assert contains?(
+    q,
+    "((doc_example [(doc_code) (doc_check)] @injection.content) (#set! injection.language \"blue\"))"
+  )
+  assert contains?(
+    q,
+    "((expectation) @injection.content (#offset! @injection.content 0 3 0 0) (#set! injection.language \"blue\"))"
+  )
+end
+
+test "an injection naming a node no rule makes is refused, and no injections render a header alone"
+  g = assoc(blue, :injections, [inject(["doc_lines"], nil, "markdown", {})])
+  assert begin
+    injections(g)
+  rescue e
+    error?(e)
+  end == true
+  assert injections(assoc(blue, :injections, [])) ==
+    unlines(
+      [
+        generated_by(";"),
+        "; Text that is another language's source: a doc's prose is Markdown, its examples blue."
+      ]
+    )
+end
+
+test "a documented definition lowers to the definition and a module doc to nothing"
+  rows = filter(
+    (r) -> member?(r[:name], %w[moduledoc documented]),
+    blue[:rules]
+  )
+  assert map((r) -> r[:lower], rows) == [["seq"], %w[field definition]]
+end
+
+test "the doc markers and delimiters are painted, and an expectation is not a comment"
+  h = highlights(blue)
+  assert contains?(h, "[\"@moduledoc\" \"@doc\"] @attribute.documentation")
+  assert contains?(h, "(doc_line) @comment.documentation")
+  assert contains?(h, "(doc_open) @punctuation.delimiter.documentation")
+  assert contains?(h, "(expectation) @punctuation.special.doctest")
 end
 
 test "a literal with no role is refused by every renderer"

@@ -250,7 +250,7 @@ rendered:
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-95 packages, 5261 definitions, 1676 tests.
+95 packages, 5274 definitions, 1680 tests.
 
 - [anaritikusu](bidamas/CATALOG.md#anaritikusu) (アナリティクス) — lifecycle analytics: a database of telemetry, standard models and cross-lifecycle joins, generated from lifecycle definitions.
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.

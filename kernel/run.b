@@ -337,7 +337,8 @@ def main()
               "kernel/object_suite.b",
               config[:suite][:seconds],
               blue,
-              env
+              env,
+              config[:suite][:filter]
             )
           )
         end

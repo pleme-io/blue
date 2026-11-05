@@ -271,13 +271,24 @@ there is an odd number of points. That exclusion is Tukey's convention and
 it is what makes q1/q3 land where a boxplot draws them.
 """
 def lower_half(xs)
-  s = sort(xs)
-  take(floor(size(s) / 2), s)
+  sorted_half(xs, (n, s) -> take(n, s), floor)
 end
 
 def upper_half(xs)
+  sorted_half(xs, (n, s) -> drop(n, s), ceiling)
+end
+
+@doc """
+sorted_half: `cut(snap(size / 2), sorted xs)`, the one shape of both halves.
+
+`cut` is take or drop and `snap` is floor or ceiling, so an odd middle
+element lands in neither half.
+
+    sorted_half([3, 1, 2], (n, s) -> take(n, s), floor) #=> [1]
+"""
+def sorted_half(xs, cut, snap)
   s = sort(xs)
-  drop(ceiling(size(s) / 2), s)
+  cut(snap(size(s) / 2), s)
 end
 
 @doc """
@@ -294,16 +305,20 @@ A one-element list has no half to take a median of; it falls back to the
 whole list, so q1 == q3 == that element rather than an index error.
 """
 def q1(xs)
-  h = lower_half(xs)
-  if is_empty(h)
-    median_or_zero(xs)
-  else
-    median(h)
-  end
+  half_median(xs, lower_half)
 end
 
 def q3(xs)
-  h = upper_half(xs)
+  half_median(xs, upper_half)
+end
+
+@doc """
+half_median: the median of `half(xs)`, or of the whole list when that half is empty.
+
+    half_median([1, 2, 3, 4], upper_half) #=> 3.5
+"""
+def half_median(xs, half)
+  h = half(xs)
   if is_empty(h)
     median_or_zero(xs)
   else
@@ -972,4 +987,21 @@ test "zscore centres the list on zero"
   assert abs(sum(z)) < 0.000001
   assert z[1] == 0
   assert zscore([]) == []
+end
+
+test "sorted_half cuts the sorted list and names both halves"
+  assert sorted_half([], (n, s) -> take(n, s), floor) == []
+  assert sorted_half([1, 2, 3, 4], (n, s) -> drop(n, s), (x) -> x) == [3, 4]
+  assert sorted_half([5, 1, 4, 2, 3], (n, s) -> drop(n, s), ceiling) == [4, 5]
+  assert lower_half([5, 1, 4, 2, 3]) == [1, 2]
+  assert upper_half([5, 1, 4, 2, 3]) == [4, 5]
+end
+
+test "half_median falls back to the whole list and names q1 and q3"
+  assert half_median([], lower_half) == 0
+  assert half_median([7], upper_half) == 7
+  assert half_median([1, 2, 3, 4], (xs) -> xs) == 2.5
+  assert half_median([1, 2, 3, 4, 5, 6, 7], lower_half) == 2
+  assert q1([1, 2, 3, 4, 5, 6, 7]) == 2
+  assert q3([1, 2, 3, 4, 5, 6, 7]) == 6
 end

@@ -99,11 +99,13 @@ duplicates: 252 definitions in 103 groups. Print the groups with
 Land each with `git land`, rebased onto the newest main, after
 `cargo test --workspace --exclude blue-lang-wasm`.
 
-| # | Branch | Head | What it holds | State |
-|---|---|---|---|---|
-| 1 | `namespaces/nested-land` | `6f7a35f0` | the tree feature (`57a545d6`, rebased onto `82aae46a`) and the fix for its two red gates (CI 2026-11-05T02:11Z): a docs link and R0002 in `gen/consumers.b` | prepush green; workspace suite not yet run after the rebase |
-| 2 | `bidamas/exact-copies` | `526129316` | the 10 census copies and 3 in-package twins, each removed word with a `legacy_names` or retired row; new `retsu::index_of_at`, `kueri::names_of`; pins SHAPE_GROUPS 18→16, NEAR 252→235, SHAPE_HASH 27→16 | 2,140 workspace tests green on its base (`fb0ac803`); rebase onto 1 |
-| 3 | `blue/package-rename-bridge` | `0d033196` | B0074 moved-package: `legacy_packages(since, [["bpf", "kaaneru/bpf"]])` in the new root's Bluefile, `blue check --fix` rewriting `use`, qualifiers and `needs` | 2,164 green, 5 red runs; stacked on `57a545d6`, so rebase onto 1; run `blue gen/consumers.b sweep --record` before landing (prepush `swept-codes` was skipped) |
+Rebased 2026-11-05 onto `6bc101f9` as one stack, each step's workspace suite
+green (160 test binaries): `namespaces/nested-rebase` (the tree feature, plus
+`Program::is_current` seeing a new level, plus a strict `check_corpus`),
+`bidamas/exact-copies-rebase`, then `blue/package-rename-rebase` (B0021 a
+warning for a caller of the compiled-in distribution, the bridge, a consumer
+sweep of 23 green), then `namespaces/tree-mitoshi` (tree 1 below). Landing
+order is that order.
 
 Decided from 2: `moji` needs `junjo`, which needs `ronri`. Both depend only on
 foundations and join the list in section 1. Moving `sort` below them would copy
@@ -120,7 +122,7 @@ landing, with a `legacy_packages` row per moved package:
 
 | Order | Root | Children | Fleet consumers to fix |
 |---|---|---|---|
-| 1 | `mitoshi` 見通し (alt. `mimamori`) | rogu, tsuiseki, keisoku | none |
+| 1 ✅ | `mitoshi` 見通し | rogu, tsuiseki, keisoku | none |
 | 2 | `chozou` 貯蔵 (alt. `takuwae`) | teeburu, kiibariu, sutoriimu | ola-mundo (1 use) |
 | 3 | `suugaku` 数学 | gyouretsu, kinji, kumiawase, toukei, ryouiki, tokumei | makoto (18 use), nupastel |
 | 4 | `koubou` 工房 | kikagaku, rittai, zumen, kakou | nupastel (5 use) |
@@ -134,10 +136,19 @@ landing, with a `legacy_packages` row per moved package:
 Rejected root names: `souko` (reserved for object stores), `madoguchi`
 (escriba), `uketsuke` (spent), `sengen` (substring in engenho), `keika`
 (prefix of `keikaku`). Flat: the foundations of section 1 plus `shuugou`,
-`ronri`, `junjo`, and every package with no family. Before the first move, fix
-the Bluefile drift the design found: undeclared imports in erufu, fuuin, gurafu,
-happa, ibuki, kiibariu, kodou, sutoriimu, teeburu, and bpf→btf, keisoku→rogu,
-tehai→tesuto, anaritikusu→tesuto.
+`ronri`, `junjo`, and every package with no family. The "Bluefile drift" the
+design listed is not drift: `blue lock` derives `needs` from the `use` forms,
+a Bluefile row only narrows a range, and B0019 gates the lock.
+
+Moving a family, as tree 1 did: `git mv` each package under the root and
+delete its Bluefile and lock (a level has none); write the root's Bluefile with
+`legacy_packages`; `blue check --fix` each level (it relocks the root); edit
+`zenbu` by hand to `use` the root; one NAMES.md row for the tree; `blue lock`,
+`gen/regen.b`, the distribution suite and a consumer sweep. Tree 1 found four
+defects, each fixed with a red test: `--fix` on a level read a Bluefile beside
+the file; the distribution gate ran no level's tests; mokuroku keyed verbs by
+package only; a B0015 reorder parted a waiver from its `use`, after which
+`--fix` deleted waived imports from `zenbu`.
 
 ### After the trees
 

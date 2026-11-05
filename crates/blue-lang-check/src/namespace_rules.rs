@@ -229,7 +229,7 @@ fn canonical_imports(fu: &FileUses, out: &mut Vec<Diagnostic>) {
                 ))
                 .with_help("move every `use` to the top of the file, before any other form"),
             );
-        } else if previous.is_some_and(|p| p > u.package.as_str()) {
+        } else if u.plain && previous.is_some_and(|p| p > u.package.as_str()) {
             let mut d = at(format!("`use(\"{}\")` is out of order", u.package))
                 .with_help("sort the file's `use` forms by package name");
             if let Some(fix) = &sorted_fix {
@@ -237,7 +237,9 @@ fn canonical_imports(fu: &FileUses, out: &mut Vec<Diagnostic>) {
             }
             out.push(d);
         }
-        previous = Some(u.package.as_str());
+        if u.plain {
+            previous = Some(u.package.as_str());
+        }
         if let Some(alias) = &u.alias {
             if let Some(other) = aliases.insert(alias.as_str(), u.package.as_str()) {
                 out.push(at(format!(

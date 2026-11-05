@@ -667,6 +667,32 @@ fn a_moved_bidama_bridges_to_its_level_and_fix_writes_the_new_path() {
 /// Red run (2026-11-05), the resolver's `loader.moved` lookup disabled: no
 /// B0074 at all (`left: 0, right: 3`).
 #[test]
+fn imports_through_a_bridge_are_ordered_as_written() {
+    let root: PathBuf =
+        std::env::temp_dir().join(format!("blue-bridge-order-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    let dist = root.join("bidamas");
+    kroot(&dist, "0.2.0");
+    bidama(
+        &dist,
+        "kc",
+        "package(\"kc\", \"0.1.0\")\n",
+        "def c()\n  3\nend\n",
+    );
+    let caller = root.join("app/main.b");
+    write(
+        &caller,
+        "use(\"kb\")\nuse(\"kc\")\n\nprint(kb::compile + kc::c)\n",
+    );
+
+    let (code, json) = check(&dist, &caller, &[]);
+    assert_eq!(code, 0, "{json}");
+    assert_eq!(codes(&json, "B0015"), 0, "{json}");
+    assert!(codes(&json, "B0074") > 0, "{json}");
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
 fn a_consumer_bidamas_needs_row_moves_with_the_bidama() {
     let root: PathBuf =
         std::env::temp_dir().join(format!("blue-moved-needs-{}", std::process::id()));

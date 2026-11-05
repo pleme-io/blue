@@ -290,9 +290,9 @@ row(
   "data.B0048",
   join_lines(
     [
-      "use(\"danpen\")",
+      "use(\"toriyose/danpen\")",
       "",
-      "card = danpen::fragment(:user_card, {on: \"User\", fields: %i[id name]})",
+      "card = toriyose::danpen::fragment(:user_card, {on: \"User\", fields: %i[id name]})",
       "",
       "def user_card(user: UserCard)",
       "  user.tone",
@@ -307,11 +307,11 @@ row(
   "data.B0048.child",
   join_lines(
     [
-      "use(\"danpen\")",
+      "use(\"toriyose/danpen\")",
       "",
-      "card = danpen::fragment(:user_card, {on: \"User\", fields: %i[id name]})",
+      "card = toriyose::danpen::fragment(:user_card, {on: \"User\", fields: %i[id name]})",
       "",
-      "page = danpen::fragment(:page, {on: \"Query\", fields: [{me: [\"...user_card\"]}]})",
+      "page = toriyose::danpen::fragment(:page, {on: \"Query\", fields: [{me: [\"...user_card\"]}]})",
       "",
       "def page(data: Page)",
       "  data.me.name",
@@ -325,9 +325,9 @@ row(
   "data.B0048.declared",
   join_lines(
     [
-      "use(\"danpen\")",
+      "use(\"toriyose/danpen\")",
       "",
-      "card = danpen::fragment(:user_card, {on: \"User\", fields: %i[id name]})",
+      "card = toriyose::danpen::fragment(:user_card, {on: \"User\", fields: %i[id name]})",
       "",
       "def user_card(user: UserCard)",
       "  [user.id, user[:name], user.__typename]",
@@ -341,11 +341,11 @@ row(
   "data.B0049",
   join_lines(
     [
-      "use(\"danpen\")",
+      "use(\"toriyose/danpen\")",
       "",
-      "card = danpen::fragment(:user_card, {on: \"User\", fields: %i[id name]})",
+      "card = toriyose::danpen::fragment(:user_card, {on: \"User\", fields: %i[id name]})",
       "",
-      "page = danpen::fragment(:page, {on: \"Query\", fields: [{me: [:id]}]})",
+      "page = toriyose::danpen::fragment(:page, {on: \"Query\", fields: [{me: [:id]}]})",
       "",
       "def user_card(user: UserCard)",
       "  user.name",
@@ -364,9 +364,9 @@ row(
   "data.B0049.unknown",
   join_lines(
     [
-      "use(\"danpen\")",
+      "use(\"toriyose/danpen\")",
       "",
-      "page = danpen::fragment(:page, {on: \"Query\", fields: [{me: [\"...nobody\"]}]})"
+      "page = toriyose::danpen::fragment(:page, {on: \"Query\", fields: [{me: [\"...nobody\"]}]})"
     ]
   ),
   diagnoses(["B0049"])
@@ -376,11 +376,11 @@ row(
   "data.B0049.composed",
   join_lines(
     [
-      "use(\"danpen\")",
+      "use(\"toriyose/danpen\")",
       "",
-      "card = danpen::fragment(:user_card, {on: \"User\", fields: %i[id name]})",
+      "card = toriyose::danpen::fragment(:user_card, {on: \"User\", fields: %i[id name]})",
       "",
-      "page = danpen::fragment(:page, {on: \"Query\", fields: [{me: [\"...user_card\"]}]})",
+      "page = toriyose::danpen::fragment(:page, {on: \"Query\", fields: [{me: [\"...user_card\"]}]})",
       "",
       "def user_card(user: UserCard)",
       "  user.name",
@@ -398,9 +398,9 @@ row(
   "data.B0050",
   join_lines(
     [
-      "use(\"danpen\")",
+      "use(\"toriyose/danpen\")",
       "",
-      "card = danpen::fragment(:user_card, {on: \"User\", fields: %i[id nmae]})"
+      "card = toriyose::danpen::fragment(:user_card, {on: \"User\", fields: %i[id nmae]})"
     ]
   ),
   diagnoses(["B0050"]),
@@ -412,9 +412,9 @@ row(
   "data.B0050.type",
   join_lines(
     [
-      "use(\"danpen\")",
+      "use(\"toriyose/danpen\")",
       "",
-      "card = danpen::fragment(:user_card, {on: \"Person\", fields: [:id]})"
+      "card = toriyose::danpen::fragment(:user_card, {on: \"Person\", fields: [:id]})"
     ]
   ),
   diagnoses(["B0050"]),
@@ -438,9 +438,9 @@ row(
   "data.B0050.holds",
   join_lines(
     [
-      "use(\"danpen\")",
+      "use(\"toriyose/danpen\")",
       "",
-      "card = danpen::fragment(:user_card, {on: \"User\", fields: %i[id name]})"
+      "card = toriyose::danpen::fragment(:user_card, {on: \"User\", fields: %i[id name]})"
     ]
   ),
   diagnoses([]),

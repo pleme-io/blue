@@ -428,7 +428,7 @@ def any(preds)
   [:any, as_list(preds)]
 end
 
-# waive B0013: `not` is a builtin raifusaikuru also uses, so the prefix stays; raifusaikuru::not names it too
+# waive B0013: `not` is a builtin raifusaikuru also uses, so the prefix stays; isshou::raifusaikuru::not names it too
 @doc """
 lc_not: The predicate does not hold. The negation of unknown is unknown.
 """
@@ -616,7 +616,7 @@ A permit log's event and rows are added to events and edges here, before
 validation, so they are checked like any the author wrote.
 """
 def parse(name, clauses)
-  flat = raifusaikuru::flat(clauses)
+  flat = isshou::raifusaikuru::flat(clauses)
   states = flat_map(tagged(flat, :lc_states), (c) -> c[1])
   starts = map((c) -> c[1], tagged(flat, :lc_start))
   terminals = flat_map(tagged(flat, :lc_terminals), (c) -> c[1])
@@ -1698,7 +1698,7 @@ end
 
 # ── the definition ─────────────────────────────────────────────────────────
 
-# waive B0013: `define` is a builtin raifusaikuru also uses, so the prefix stays; raifusaikuru::define names it too
+# waive B0013: `define` is a builtin raifusaikuru also uses, so the prefix stays; isshou::raifusaikuru::define names it too
 @doc """
 lc_define: Build a lifecycle definition from clauses, or throw :raifusaikuru_definition
 naming every problem. Only a built definition is accepted by the fold, the
@@ -1716,7 +1716,7 @@ def lc_define(name, clauses)
   cons(:lc_def, rest(p))
 end
 
-# waive B0013: `require` is a builtin raifusaikuru also uses, so the prefix stays; raifusaikuru::require names it too
+# waive B0013: `require` is a builtin raifusaikuru also uses, so the prefix stays; isshou::raifusaikuru::require names it too
 def lc_require(d)
   if (list?(d) and is_empty(d) == false and first(d) == :lc_def) == false
     raise(
@@ -1978,7 +1978,7 @@ def step(d, s, ev)
   lc_apply(d, s, ev, judge(d, s, ev))
 end
 
-# waive B0013: `apply` is a builtin raifusaikuru also uses, so the prefix stays; raifusaikuru::apply names it too
+# waive B0013: `apply` is a builtin raifusaikuru also uses, so the prefix stays; isshou::raifusaikuru::apply names it too
 @doc """
 lc_apply: The state after an event lc_judge has already decided: the second half of
 lc_step, shared with lc_admit_step so a judgement is made once.
@@ -1989,26 +1989,26 @@ def lc_apply(_d, s, ev, j)
     [
       :lc_state,
       phase(s),
-      raifusaikuru::fields(s),
+      isshou::raifusaikuru::fields(s),
       pos + 1,
       as_of(s),
       push(refused(s), [pos, ev_type(ev), j[1], j[2]]),
-      raifusaikuru::breaches(s)
+      isshou::raifusaikuru::breaches(s)
     ]
   else
     e = j[1]
     fields = reduce(
       (fs, eff) -> effect(fs, eff, ev),
-      raifusaikuru::fields(s),
+      isshou::raifusaikuru::fields(s),
       e[4]
     )
     breaches = if first(j) == :breach
       push(
-        raifusaikuru::breaches(s),
+        isshou::raifusaikuru::breaches(s),
         [pos, ev_type(ev), e[5], refused_rules(j[2])]
       )
     else
-      raifusaikuru::breaches(s)
+      isshou::raifusaikuru::breaches(s)
     end
     [:lc_state, e[3], fields, pos + 1, ev_time(ev), refused(s), breaches]
   end
@@ -2117,7 +2117,7 @@ def k_not(v)
   end
 end
 
-# waive B0013: `compare` is a builtin raifusaikuru also uses, so the prefix stays; raifusaikuru::compare names it too
+# waive B0013: `compare` is a builtin raifusaikuru also uses, so the prefix stays; isshou::raifusaikuru::compare names it too
 def lc_compare(op, v, limit)
   if op == :lt
     v < limit
@@ -2130,7 +2130,7 @@ def lc_compare(op, v, limit)
   end
 end
 
-# waive B0013: `eval` is a builtin raifusaikuru also uses, so the prefix stays; raifusaikuru::eval names it too
+# waive B0013: `eval` is a builtin raifusaikuru also uses, so the prefix stays; isshou::raifusaikuru::eval names it too
 @doc """
 lc_eval: A predicate over a state at time `now`: :yes, :no or :unknown. A comparison
 over an absent or non-numeric field is :unknown, never :yes or :no.
@@ -2999,7 +2999,7 @@ test "a logged permit is an event: a no-op in every non-terminal state, refused 
   s = state_of(d, example_log)
   ev = permit_event(d, permit_for(d, s, :use, 3000), "device-7")
   assert ev ==
-    raifusaikuru::ev(
+    isshou::raifusaikuru::ev(
       :permit,
       3000,
       [
@@ -3015,14 +3015,14 @@ test "a logged permit is an event: a no-op in every non-terminal state, refused 
     [phase(s), fields(s), refused(s), breaches(s), seq(s) + 1]
   # Controls: a terminal entity cannot be issued one; a definition that does
   # not log the capability cannot render one; and a log needs a permit.
-  spent = resume(d, s, [raifusaikuru::ev(:finish, 3100, [])])
+  spent = resume(d, s, [isshou::raifusaikuru::ev(:finish, 3100, [])])
   assert refusal_kind(
     last(
       refused(
         step(
           d,
           spent,
-          raifusaikuru::ev(
+          isshou::raifusaikuru::ev(
             :permit,
             3200,
             [[:subject, "d"], [:not_after, 1], [:basis, 1], ["uses_left", 1]]

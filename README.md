@@ -250,9 +250,8 @@ rendered:
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-70 packages, 5502 definitions, 1760 tests.
+66 packages, 5502 definitions, 1763 tests.
 
-- [anaritikusu](bidamas/CATALOG.md#anaritikusu) (アナリティクス) — lifecycle analytics: a database of telemetry, standard models and cross-lifecycle joins, generated from lifecycle definitions.
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
 - [baito](bidamas/CATALOG.md#baito) (バイト) — bytes as data: integers at a declared width and order, and record layouts that say where each field sits.
 - [bpf](bidamas/CATALOG.md#bpf) — the eBPF instruction set in blue: instructions as values, an assembler that resolves labels and map references, their encoding, their text, and a pure machine that runs them.
@@ -261,7 +260,6 @@ rendered:
 - [burauza](bidamas/CATALOG.md#burauza) (ブラウザ) — the browser: what a blue page needs from the browser, generated.
 - [chokkan](bidamas/CATALOG.md#chokkan) (直感) — System One judgment: typed questions in, calibrated answers out.
 - [chozou](bidamas/CATALOG.md#chozou) (貯蔵, storage) — what a service keeps and reads back.
-- [danpen](bidamas/CATALOG.md#danpen) (断片) — GraphQL in blue: documents parsed into plain records, checked against a schema, composed from fragments, rendered and hashed.
 - [deeta](bidamas/CATALOG.md#deeta) (データ) — JSON data, read safely.
 - [eigyou](bidamas/CATALOG.md#eigyou) (営業, open for business) — what a running service answers, guards and reports.
 - [erufu](bidamas/CATALOG.md#erufu) — an ELF relocatable object as data: written from a compiled kernel program, and read back, so `bpftool`, `veristat`, `llvm-objdump` and `readelf` apply to what blue compiles, and blue can read what clang compiles.
@@ -277,6 +275,7 @@ rendered:
 - [hizuke](bidamas/CATALOG.md#hizuke) (日付) — the proleptic Gregorian calendar, as arithmetic.
 - [hon](bidamas/CATALOG.md#hon) (本) — a project's book: its pages, each of one Diátaxis kind, rendered into the files a reader or an agent opens.
 - [ibuki](bidamas/CATALOG.md#ibuki) (息吹) — the plane an app docks into, as pure decisions: the five structural classes and a docking check over the reach `blue lock` measured, the Flash channel's token bucket, the Tide channel's LEDBAT controller, and a Strand, a last-writer-wins map whose every transition is a hash-linked record of its input and output roots.
+- [isshou](bidamas/CATALOG.md#isshou) (一生, a lifetime) — what a thing goes through, recorded and read back.
 - [jisho](bidamas/CATALOG.md#jisho) (辞書) — dictionaries: maps as values, read and changed by key, each change a new map.
 - [junjo](bidamas/CATALOG.md#junjo) (順序) — ordering: sorting, searching, selection.
 - [kaaneru](bidamas/CATALOG.md#kaaneru) (カーネル) — the Linux kernel, spoken from blue: maps, programs, links and ring buffers over `bpf(2)`, with every struct a `baito` layout and no C library in the path.
@@ -290,17 +289,13 @@ rendered:
 - [kousei](bidamas/CATALOG.md#kousei) (構成) — a system composed entry by entry: each entry checked, configured off, tuned or refused alone, then judged into what stands.
 - [koutei](bidamas/CATALOG.md#koutei) (工程) — one step of a pipeline, as GitHub Actions runs it.
 - [kueri](bidamas/CATALOG.md#kueri) (クエリ) — queries: analysis is authored in blue, and SQL is only the rendered bridge to DuckDB.
-- [kyasshu](bidamas/CATALOG.md#kyasshu) (キャッシュ) — cache: the normalized entity store of the frontend data runtime.
 - [kyohi](bidamas/CATALOG.md#kyohi) (拒否) — refusals, as data.
 - [maakuappu](bidamas/CATALOG.md#maakuappu) (マークアップ) — XML as data: a document parsed by the runtime's xml_parse (quick-xml) into element maps {name, attributes, children, text}, the queries a reader of a scanner export asks of it (children and descendants by name, attributes, text, a path of element names), and the element rendered back with every value escaped. A DTD entity is never expanded or fetched: the document is refused (:xml_refused), and a document that is not well-formed raises :xml_malformed.
 - [mitoshi](bidamas/CATALOG.md#mitoshi) (見通し, a clear view ahead) — what a running program shows of itself.
 - [moji](bidamas/CATALOG.md#moji) (文字) — strings.
 - [mokuroku](bidamas/CATALOG.md#mokuroku) (目録): the catalogue of what every bidama on a BLUE_PATH provides.
-- [nisshi](bidamas/CATALOG.md#nisshi) (日誌) — an event log: append-only JSON Lines, hash-chained, optionally signed, replayed into lifecycle states.
 - [okite](bidamas/CATALOG.md#okite) (掟) — blue's decisions, each enforced by laws written in blue.
 - [ongaku](bidamas/CATALOG.md#ongaku) (音楽) — twelve-tone music theory, as arithmetic on semitones.
-- [outou](bidamas/CATALOG.md#outou) (応答) — a GraphQL request answered: a schema of blue resolvers, execution to {data, errors}, introspection and subscription events, over danpen's documents.
-- [raifusaikuru](bidamas/CATALOG.md#raifusaikuru) (ライフサイクル) — lifecycles: event-sourced states, guards that name the rule and the task, and permit limits.
 - [ran](bidamas/CATALOG.md#ran) (乱) — deterministic pseudo-randomness.
 - [retsu](bidamas/CATALOG.md#retsu) (列) — lists, made TOTAL.
 - [ronri](bidamas/CATALOG.md#ronri) (論理) — predicates, and the algebra over them.
@@ -318,6 +313,7 @@ rendered:
 - [suugaku](bidamas/CATALOG.md#suugaku) (数学, mathematics) — numbers worked over as a discipline.
 - [tesuto](bidamas/CATALOG.md#tesuto) (テスト) — testing: errors and snapshots as assertions, and the policy that holds every definition to a test beside it.
 - [todokede](bidamas/CATALOG.md#todokede) (届出, filings) — what a person or a company declares as entries.
+- [toriyose](bidamas/CATALOG.md#toriyose) (取り寄せ, fetching on order) — what a frontend asks for and keeps.
 - [touroku](bidamas/CATALOG.md#touroku) (登録) — registry: a project published to and resolved from registry backends, each a rendering of the Bluefile, never its truth.
 - [ugoki](bidamas/CATALOG.md#ugoki) (動き) — motion: how a value moves over time.
 - [ukai](bidamas/CATALOG.md#ukai) (迂回) — a detour: keep an overlay VPN reaching its control plane and relays while a full-tunnel corporate VPN owns the default route.

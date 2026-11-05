@@ -52,11 +52,11 @@ end
 def recorded()
   unlines(
     [
-      "untested: danpen 1",
       "untested: deeta 3",
       "untested: eigyou 5",
       "untested: gitto 1",
       "untested: heni 2",
+      "untested: isshou 25",
       "untested: kakehashi 35",
       "untested: keiyu 1",
       "untested: kiwari 14",
@@ -66,8 +66,6 @@ def recorded()
       "untested: mitoshi 11",
       "untested: mokuroku 8",
       "untested: okite 1",
-      "untested: outou 11",
-      "untested: raifusaikuru 25",
       "untested: retsu 2",
       "untested: sabi 2",
       "untested: settei 5",
@@ -75,6 +73,7 @@ def recorded()
       "untested: shinsuu 1",
       "untested: suugaku 4",
       "untested: todokede 18",
+      "untested: toriyose 12",
       "untested: touroku 3",
       "untested: ukai 16"
     ]

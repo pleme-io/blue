@@ -71,7 +71,7 @@ generate("verbs-table", "docs/verbs/merged/verbs.tsv", "gen/verbs/verbs.b", ["bi
 generate("edges-table", "docs/verbs/merged/edges.tsv", "gen/verbs/edges.b", ["bidamas"])
 generate("contracts-table", "docs/verbs/contracts.tsv", "gen/verbs/contracts.b", ["bidamas"])
 generate("kernel-matrix", ".github/workflows/kernel-matrix.yml", "gen/kernel-matrix.b", ["Bluefile.lock"])
-generate("kyasshu-keys", "bidamas/kyasshu/keys/kensa.json", "gen/kyasshu-keys.b", ["bidamas/danpen/fixtures/schema/kensa.graphql"])
+generate("kyasshu-keys", "bidamas/toriyose/kyasshu/keys/kensa.json", "gen/kyasshu-keys.b", ["bidamas/toriyose/danpen/fixtures/schema/kensa.graphql"])
 check("okite-laws", "gen/okite-laws.b")
 check("regen-untracked", "gen/regen_test.b", ["gen/regen.b"])
 check("merge-driver", "gen/merge.b", ["gen/merge.b", "gen/regen.b"])

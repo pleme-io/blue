@@ -15,7 +15,9 @@ create or replace table ublocks as
 select pkg, unnest(regexp_extract_all(chr(10) || content, '\ntest "[^\n]*\n(?s:.*?)\nend', 0)) as body from usrc;
 
 create or replace table utokens as
-select distinct pkg, unnest(regexp_extract_all(regexp_replace(regexp_replace(body, '"[^"\n]*"', '', 'g'), '#[^\n]*', '', 'g'), '[A-Za-z0-9_?!]+(::[A-Za-z0-9_?!]+)?', 0)) as tok from ublocks;
+select distinct pkg, regexp_extract(tok, '([A-Za-z0-9_?!]+(::[A-Za-z0-9_?!]+)?)$', 1) as tok from (
+  select pkg, unnest(regexp_extract_all(regexp_replace(regexp_replace(body, '"[^"\n]*"', '', 'g'), '#[^\n]*', '', 'g'), '[A-Za-z0-9_?!]+(::[A-Za-z0-9_?!]+)*', 0)) as tok from ublocks
+);
 
 create or replace table uexists as
 select space, verb, space || '::' || verb as node, p.prefix from uv left join uprefix p on p.pkg = uv.space

@@ -90,6 +90,9 @@ it; `blue explain --list` lists them.
 | B0072 | call-arity | error | a call to a definition passes a number of arguments that definition takes |
 | B0073 | computed-use | error | a `use` names its path as a literal, so the loader and the check stage read it before the program runs |
 | B0074 | moved-package | error | a bidama that moved into another bidama's tree is used by its new path; the old name is a bridge that closes at the root's next minor version |
+| B0076 | non-canonical-reference | error | a qualified name is written by the full path of the level that defines it, so one definition has one spelling and `rg` finds every caller |
+| B0077 | non-canonical-use | error | an import is written `use("a/b")` or `use("a/b", [:x])`: one level, its path as a slash string |
+| B0078 | redundant-use | error | a file imports a tree once: a `use` that lists nothing, of a level below another `use` of the file, adds nothing |
 
 The registry is the source of truth; a test fails if a code is missing here.
 
@@ -461,13 +464,13 @@ Over blue's own standard bidamas (2026-10-28, 255 files):
 
 ```text
 $ blue query '(reaches filesystem)' bidamas
-bidamas/anaritikusu/anaritikusu.b:2131:1: write_history  filesystem via write_file
-bidamas/anaritikusu/anaritikusu.b:2488:1: example_append  filesystem via nisshi/el_append -> nisshi/write -> append_file
+bidamas/isshou/anaritikusu/anaritikusu.b:2131:1: write_history  filesystem via write_file
+bidamas/isshou/anaritikusu/anaritikusu.b:2488:1: example_append  filesystem via nisshi/el_append -> nisshi/write -> append_file
 …
 146 hit(s) in 255 file(s)
 
 $ blue query '(match `(retsu/first ,xs))' bidamas/zumen
-bidamas/zumen/zumen.b:147:14: layer_names  xs = l
+bidamas/koubou/zumen/zumen.b:147:14: layer_names  xs = l
 1 hit(s) in 1 file(s)
 ```
 

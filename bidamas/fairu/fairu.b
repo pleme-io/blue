@@ -25,6 +25,19 @@ def absolute(path)
 end
 
 @doc """
+on_blue_path: every existing path `rel` names below a bidama root: each BLUE_PATH entry, then `bidamas/` and `../../bidamas/` under the current directory, then the current directory. Where a bidama's test finds its fixtures, wherever blue runs it.
+
+    on_blue_path("no/such/fixture") #=> []
+"""
+def on_blue_path(rel)
+  roots = concat_lists(
+    filter((r) -> r != "", split(getenv("BLUE_PATH", ""), ":")),
+    [path_join(cwd, "bidamas"), path_join(cwd, "../../bidamas"), cwd]
+  )
+  filter(path_exists, map((r) -> path_join(r, rel), roots))
+end
+
+@doc """
 home: the home directory of the user.
 
     home #=> getenv("HOME")
@@ -161,4 +174,12 @@ test "stem drops only the final extension"
   assert stem("Makefile") == "Makefile"
   assert stem("/x/.bashrc") == ".bashrc"
   assert stem("dir/") == "dir"
+end
+
+test "on_blue_path finds a file below the bidama roots and nothing that is not there"
+  assert any?(
+    (p) -> ends_with?(p, "fairu/fairu.b"),
+    on_blue_path("fairu/fairu.b")
+  )
+  assert on_blue_path("fairu/no-such-file.b") == []
 end

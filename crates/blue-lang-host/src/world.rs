@@ -117,7 +117,7 @@ pub fn judged<H: Host + Default>(file: &Path, spec: &Spec<'_>) -> Result<Value, 
         .call_budgeted(spec.call, Vec::new(), &mut host, budget(spec.fuel))
         .map_err(|e| Refusal::from(&e))?;
     let source = format!(
-        "use(\"motenashi\", %i[host_kinds judged_for schema])\n\ndef judged(entries)\n  judged_for({}, entries)\nend\n",
+        "use(\"todokede/motenashi\", %i[host_kinds judged_for schema])\n\ndef judged(entries)\n  judged_for({}, entries)\nend\n",
         spec.kinds
     );
     let loader = Environment::from_env().load_path(None);

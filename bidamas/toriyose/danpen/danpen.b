@@ -12,6 +12,7 @@ persisted-operation id of that text.
 """
 
 use("deeta", [:get_or])
+use("fairu")
 use("kiwari")
 use("kyohi", [:raised])
 use("moji", %i[capitalize checked])
@@ -3575,14 +3576,7 @@ def table_text(document)
 end
 
 def fixtures(dir)
-  roots = append(
-    split(getenv("BLUE_PATH", ""), ":"),
-    [path_join(cwd, "bidamas"), path_join(cwd, "../../bidamas"), cwd]
-  )
-  hits = filter(
-    (p) -> is_dir?(p),
-    map((r) -> path_join(r, "danpen/fixtures/#{dir}"), roots)
-  )
+  hits = filter(is_dir?, fairu::on_blue_path("toriyose/danpen/fixtures/#{dir}"))
   if is_empty(hits)
     raise(:no_fixture, dir)
   end

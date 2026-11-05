@@ -5,6 +5,7 @@ ukai (迂回) — a detour: keep an overlay VPN reaching its control plane and r
 """
 
 use("deeta", %i[as_json get_str])
+use("fairu")
 use("kyohi", [:ok])
 use("retsu", %i[first is_empty last rest size])
 use("shisutemu", %i[read_or status_of stderr_of stdout_of])
@@ -855,14 +856,7 @@ def main()
 end
 
 def fixture(name)
-  roots = append(
-    split(getenv("BLUE_PATH", ""), ":"),
-    [path_join(cwd, "bidamas"), path_join(cwd, "../../bidamas")]
-  )
-  hits = filter(
-    (p) -> is_file?(p),
-    map((r) -> path_join(r, "ukai/fixtures/#{name}"), roots)
-  )
+  hits = filter(is_file?, fairu::on_blue_path("ukai/fixtures/#{name}"))
   if is_empty(hits)
     raise(:no_fixture, name)
   else

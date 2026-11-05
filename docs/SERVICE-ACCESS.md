@@ -38,7 +38,7 @@ Bluefile and a reviewed diff everywhere else.
 | Engine posture: `Load::posture(allowed)` binds every host effect not allowed as a refusal; `refused_by` derives the set | `crates/blue-lang-host/src/lib.rs` (`b21d99b`), `tests/host.rs` | built 2026-10-27; kensa loads with `posture(&[])` (`kensa@872cc76`) |
 | Bluefile `posture(when:)`; `posture(reach:)` named as a plain to-do | `crates/blue-lang-pkg/src/bluefile.rs:7`, `:76-81` | `when` only |
 | Service lowering: chart, config, DDL, app, image, checks `-fresh`, `-chart`, `-serves`, `-migrations`, `-trio`, `-distroless` | `nix/service.nix`, `nix/project.nix:53` | exists |
-| Chart container: `readOnlyRootFilesystem: true`, non-root | `bidamas/haibi/haibi.b:192-194`, `crates/blue-lang-pkg/src/deploy/render.rs:553` | exists; no NetworkPolicy, no egress scope |
+| Chart container: `readOnlyRootFilesystem: true`, non-root | `bidamas/eigyou/haibi/haibi.b:192-194`, `crates/blue-lang-pkg/src/deploy/render.rs:553` | exists; no NetworkPolicy, no egress scope |
 | Module trio for a service | `nix/service.nix:161-170` → substrate `lib/module-trio.nix` `mkModuleTrio` (`kind = "service"`) | exists for blue-built services; **a `host` service gets none** (`service.nix:8` filters `own`); no sandbox fields are rendered |
 | systemd hardening fields in substrate | `substrate/lib/iroha/service-module.nix` (`ProtectSystem`, `NoNewPrivileges`, tests at `tests/service-module.nix:103`) | exists, not fed by blue |
 | Hardened distroless image | substrate `mkHardenedImageSet` via `nix/image.nix` | exists; nothing ties its closure to the access |

@@ -475,7 +475,7 @@ fn every_legacy_prefix_is_in_the_ledger() {
 /// Exact-duplicate SHAPES: two definitions whose bodies are the same tree once
 /// their parameters are numbered and their own package's qualifier is read as
 /// `self`. Measured on the resolved tree, so `join` and `blue::join` are one
-/// word and `kinji::refusal_kind` and `kueri::refusal_kind` are each `self`'s.
+/// word and `suugaku::kinji::refusal_kind` and `kueri::refusal_kind` are each `self`'s.
 /// A group is a shape two or more definitions share.
 ///
 /// The count is pinned: moving a twin to one home lowers it, and a new copy

@@ -62,7 +62,7 @@ fn a_world_is_judged_and_each_bad_entry_is_refused_alone() {
     let dir = scratch("judged");
     let path = file(
         &dir,
-        "use(\"motenashi\", %i[bind command look motion])\n\ndef host()\n  [look({width: 7}), motion({speed: 2}), bind(\"x\", 9), command(\"hi\", {}), 42]\nend\n",
+        "use(\"todokede/motenashi\", %i[bind command look motion])\n\ndef host()\n  [look({width: 7}), motion({speed: 2}), bind(\"x\", 9), command(\"hi\", {}), 42]\nend\n",
     );
     let judged = world::judged::<()>(&path, &SPEC).unwrap();
     let names: Vec<Value> = world::listed(&judged, "accepted")
@@ -133,7 +133,7 @@ fn the_real_child_answers_through_read() {
     let dir = scratch("child");
     let path = file(
         &dir,
-        "use(\"motenashi\", [:look])\n\ndef host()\n  [look({width: 7})]\nend\n",
+        "use(\"todokede/motenashi\", [:look])\n\ndef host()\n  [look({width: 7})]\nend\n",
     );
     let load = world::read(child(path.to_str().unwrap()), &path, world::READ_LIMIT);
     let Load::Judged(judged) = load else {

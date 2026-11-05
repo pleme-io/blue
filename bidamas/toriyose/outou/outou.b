@@ -14,7 +14,6 @@ and the query root from an entity map, as a pure function, so a model
 renders straight into a schema.
 """
 
-use("danpen")
 use("jisho", [:has?])
 use("kyohi", %i[ok ok? refusal refusal_of refused value why])
 use("moji", [:starts_with])
@@ -37,12 +36,16 @@ use(
   ]
 )
 
+use("toriyose/danpen")
+
+legacy_names("0.1.2", [%w[render_ast toriyose::danpen::render_value]])
+
 def errors_of(result)
   why(refusal_of(result))
 end
 
 def type_ref(text)
-  op = first(danpen::parse("query ($t: #{text}) { a }").definitions)
+  op = first(toriyose::danpen::parse("query ($t: #{text}) { a }").definitions)
   first(op.variables).type
 end
 
@@ -287,11 +290,11 @@ def kind_named(types, name)
 end
 
 def ref_whys(types, owner, ref, ok_kind)
-  k = kind_named(types, danpen::base_name(ref))
+  k = kind_named(types, toriyose::danpen::base_name(ref))
   if k.nil?
-    ["#{owner} refers to the unknown type #{danpen::base_name(ref)}"]
+    ["#{owner} refers to the unknown type #{toriyose::danpen::base_name(ref)}"]
   elsif not ok_kind(k)
-    ["#{owner} cannot have the type #{danpen::base_name(ref)}"]
+    ["#{owner} cannot have the type #{toriyose::danpen::base_name(ref)}"]
   else
     []
   end
@@ -881,7 +884,7 @@ def coerce_input(sc, ref, v)
     if v.nil?
       raise(
         :coerce,
-        "Expected non-nullable type \"#{danpen::type_text(ref)}\" not to be null."
+        "Expected non-nullable type \"#{toriyose::danpen::type_text(ref)}\" not to be null."
       )
     end
     coerce_input(sc, ref.of, v)
@@ -941,7 +944,7 @@ def coerce_input_object(sc, t, v)
       elsif non_null?(f.type)
         raise(
           :coerce,
-          "Field \"#{t.name}.#{f.name}\" of required type \"#{danpen::type_text(f.type)}\" was not provided."
+          "Field \"#{t.name}.#{f.name}\" of required type \"#{toriyose::danpen::type_text(f.type)}\" was not provided."
         )
       else
         acc
@@ -950,10 +953,6 @@ def coerce_input_object(sc, t, v)
     {},
     t.fields
   )
-end
-
-def render_ast(ast)
-  danpen::value_text(nil, ast)
 end
 
 def ast_value(ast)
@@ -987,7 +986,7 @@ def literal_scalar(t, ast, vars)
     else
       raise(
         :coerce,
-        "Int cannot represent non-integer value: #{render_ast(ast)}"
+        "Int cannot represent non-integer value: #{toriyose::danpen::render_value(ast)}"
       )
     end
   when "Float"
@@ -996,7 +995,7 @@ def literal_scalar(t, ast, vars)
     else
       raise(
         :coerce,
-        "Float cannot represent non numeric value: #{render_ast(ast)}"
+        "Float cannot represent non numeric value: #{toriyose::danpen::render_value(ast)}"
       )
     end
   when "String"
@@ -1005,7 +1004,7 @@ def literal_scalar(t, ast, vars)
     else
       raise(
         :coerce,
-        "String cannot represent a non string value: #{render_ast(ast)}"
+        "String cannot represent a non string value: #{toriyose::danpen::render_value(ast)}"
       )
     end
   when "Boolean"
@@ -1014,7 +1013,7 @@ def literal_scalar(t, ast, vars)
     else
       raise(
         :coerce,
-        "Boolean cannot represent a non boolean value: #{render_ast(ast)}"
+        "Boolean cannot represent a non boolean value: #{toriyose::danpen::render_value(ast)}"
       )
     end
   when "ID"
@@ -1023,7 +1022,10 @@ def literal_scalar(t, ast, vars)
     elsif k == :int
       ast.text
     else
-      raise(:coerce, "ID cannot represent value: #{render_ast(ast)}")
+      raise(
+        :coerce,
+        "ID cannot represent value: #{toriyose::danpen::render_value(ast)}"
+      )
     end
   else
     coerce_scalar_input(t, plain_value(ast, vars))
@@ -1054,7 +1056,7 @@ def value_from_ast(sc, ref, ast, vars)
     if v.nil? and non_null?(ref)
       raise(
         :coerce,
-        "Expected non-nullable type \"#{danpen::type_text(ref)}\" not to be null."
+        "Expected non-nullable type \"#{toriyose::danpen::type_text(ref)}\" not to be null."
       )
     end
     v
@@ -1062,7 +1064,7 @@ def value_from_ast(sc, ref, ast, vars)
     if ast.kind == :null
       raise(
         :coerce,
-        "Expected value of type \"#{danpen::type_text(ref)}\", found null."
+        "Expected value of type \"#{toriyose::danpen::type_text(ref)}\", found null."
       )
     end
     value_from_ast(sc, ref.of, ast, vars)
@@ -1089,7 +1091,7 @@ def named_from_ast(sc, t, ast, vars)
     else
       raise(
         :coerce,
-        "Enum \"#{t.name}\" cannot represent value: #{render_ast(ast)}"
+        "Enum \"#{t.name}\" cannot represent value: #{toriyose::danpen::render_value(ast)}"
       )
     end
   else
@@ -1101,7 +1103,7 @@ def object_from_ast(sc, t, ast, vars)
   if ast.kind != :object
     raise(
       :coerce,
-      "Expected value of type \"#{t.name}\", found #{render_ast(ast)}."
+      "Expected value of type \"#{t.name}\", found #{toriyose::danpen::render_value(ast)}."
     )
   end
   map(
@@ -1129,7 +1131,7 @@ def object_from_ast(sc, t, ast, vars)
       elsif non_null?(f.type)
         raise(
           :coerce,
-          "Field \"#{t.name}.#{f.name}\" of required type \"#{danpen::type_text(f.type)}\" was not provided."
+          "Field \"#{t.name}.#{f.name}\" of required type \"#{toriyose::danpen::type_text(f.type)}\" was not provided."
         )
       else
         acc
@@ -1180,9 +1182,9 @@ def coerce_arguments(sc, defs, nodes, vars)
           raise(
             :coerce,
             if missing_var
-              "Argument \"#{d.name}\" of required type \"#{danpen::type_text(d.type)}\" was provided the variable \"$#{node.value.name}\" which was not provided a runtime value."
+              "Argument \"#{d.name}\" of required type \"#{toriyose::danpen::type_text(d.type)}\" was provided the variable \"$#{node.value.name}\" which was not provided a runtime value."
             else
-              "Argument \"#{d.name}\" of required type \"#{danpen::type_text(d.type)}\" was not provided."
+              "Argument \"#{d.name}\" of required type \"#{toriyose::danpen::type_text(d.type)}\" was not provided."
             end
           )
         else
@@ -1194,7 +1196,7 @@ def coerce_arguments(sc, defs, nodes, vars)
         rescue :coerce as e
           raise(
             :coerce,
-            "Argument \"#{d.name}\" has invalid value #{render_ast(node.value)}: #{e.message}"
+            "Argument \"#{d.name}\" has invalid value #{toriyose::danpen::render_value(node.value)}: #{e.message}"
           )
         end
       end
@@ -1213,10 +1215,10 @@ def coerce_variables(sc, op, given)
       fault = fn(message)
         {**acc, errors: append(acc.errors, [gql_error(message, loc_of(vd))])}
       end
-      if lookup(sc, danpen::base_name(ref)).nil? or
-          not input_kind?(lookup(sc, danpen::base_name(ref)).kind)
+      if lookup(sc, toriyose::danpen::base_name(ref)).nil? or
+          not input_kind?(lookup(sc, toriyose::danpen::base_name(ref)).kind)
         fault(
-          "Variable \"$#{name}\" expected value of type \"#{danpen::type_text(ref)}\" which cannot be used as an input type."
+          "Variable \"$#{name}\" expected value of type \"#{toriyose::danpen::type_text(ref)}\" which cannot be used as an input type."
         )
       elsif not first(e) and vd.default != nil
         {
@@ -1229,11 +1231,11 @@ def coerce_variables(sc, op, given)
         }
       elsif non_null?(ref) and not first(e)
         fault(
-          "Variable \"$#{name}\" of required type \"#{danpen::type_text(ref)}\" was not provided."
+          "Variable \"$#{name}\" of required type \"#{toriyose::danpen::type_text(ref)}\" was not provided."
         )
       elsif non_null?(ref) and e[1].nil?
         fault(
-          "Variable \"$#{name}\" of non-null type \"#{danpen::type_text(ref)}\" must not be null."
+          "Variable \"$#{name}\" of non-null type \"#{toriyose::danpen::type_text(ref)}\" must not be null."
         )
       elsif not first(e)
         acc
@@ -1703,7 +1705,7 @@ def gql_error(message, locations)
 end
 
 def parse(text)
-  ok(danpen::parse(text, {spans: true}))
+  ok(toriyose::danpen::parse(text, {spans: true}))
 rescue :parse_error as e
   refused(
     refusal(:parse_error, [gql_error("Syntax Error: #{e.message}", [e.data])])
@@ -1729,7 +1731,7 @@ def arg_text(sc, a)
   else
     ""
   end
-  "#{a.name}: #{danpen::type_text(a.type)}#{default}"
+  "#{a.name}: #{toriyose::danpen::type_text(a.type)}#{default}"
 end
 
 def args_text(sc, args)
@@ -1741,7 +1743,7 @@ def args_text(sc, args)
 end
 
 def field_text(sc, f)
-  "  #{f.name}#{args_text(sc, f.args)}: #{danpen::type_text(f.type)}#{deprecated_text(f.deprecated)}"
+  "  #{f.name}#{args_text(sc, f.args)}: #{toriyose::danpen::type_text(f.type)}#{deprecated_text(f.deprecated)}"
 end
 
 def braced_lines(lines)
@@ -1806,7 +1808,7 @@ end
 def findings(doc, sc)
   map(
     (f) -> {message: f.message, locations: loc_of(f), rule: f.rule},
-    danpen::check(doc, sdl(sc))
+    toriyose::danpen::check(doc, sdl(sc))
   )
 end
 
@@ -2228,7 +2230,7 @@ test "a schema is a value: built-ins joined, references checked, deprecations ke
   assert field_def(sc, "Droid", "legacyCode").deprecated ==
     "Use primaryFunction."
   assert field_def(sc, "Query", "old").deprecated == "No longer supported"
-  assert danpen::type_text(type_ref("[[Int!]]!")) == "[[Int!]]!"
+  assert toriyose::danpen::type_text(type_ref("[[Int!]]!")) == "[[Int!]]!"
   assert possible_types(sc, "Character") == %w[Droid Human]
   bad = begin
     schema(
@@ -2276,7 +2278,10 @@ test "a schema derives from a model's entities, pure, refusing a bad field alone
   assert from_model(m) == d
   assert map((t) -> t.name, d.types) == %w[Control Evidence Query DateTime]
   c = first(d.types)
-  assert map((f) -> "#{f.name}: #{danpen::type_text(f.type)}", c.fields) ==
+  assert map(
+    (f) -> "#{f.name}: #{toriyose::danpen::type_text(f.type)}",
+    c.fields
+  ) ==
     [
       "id: ID!",
       "title: String!",
@@ -2713,5 +2718,5 @@ test "the schema renders as SDL that danpen reads back"
   assert contains?(text, "height(unit: Unit = METER): Float")
   assert contains?(text, "type Human implements Character {")
   assert contains?(text, "union SearchResult = Human | Droid")
-  assert danpen::check(text) == []
+  assert toriyose::danpen::check(text) == []
 end

@@ -264,13 +264,13 @@ fn eval(src: &str) -> Result<String, String> {
 fn granularity_holds_at_the_import_plane_too() {
     // In closure: kumiawase's own function.
     assert_eq!(
-        eval("use(\"kumiawase\", [:factorial])\nfactorial(5)").expect("kumiawase must import"),
+        eval("use(\"suugaku/kumiawase\", [:factorial])\nfactorial(5)").expect("kumiawase must import"),
         "Int(120)"
     );
 
     // THE CONTROL. `median` lives only in toukei, which is outside
     // kumiawase's closure, so this must fail as an unbound name.
-    let err = eval("use(\"kumiawase\")\nmedian([1, 2, 3])").expect_err(
+    let err = eval("use(\"suugaku/kumiawase\")\nmedian([1, 2, 3])").expect_err(
         "median resolved under a kumiawase-only import — either it is ambient \
          (making the facade assertion below vacuous) or the fine-grained import \
          is pulling the whole distribution",

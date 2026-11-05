@@ -282,11 +282,11 @@ n_unpermitted_<c> comes back as a list, not as its text "[quality_ok]".)
 
 use("deeta", [:as_json])
 
+use("isshou/nisshi", %i[el_append el_def])
+
+use("isshou/raifusaikuru", [:lc_define])
+
 use("kueri", %i[q_and q_cast q_filter q_get q_if q_join q_max q_min q_or])
-
-use("nisshi", %i[el_append el_def])
-
-use("raifusaikuru", [:lc_define])
 
 use(
   "retsu",
@@ -319,7 +319,7 @@ legacy_names("0.1.1", "la")
 n: A generated relation's name: the lifecycle's name, then `suffix`.
 """
 def n(d, suffix)
-  "#{raifusaikuru::text(raifusaikuru::name(d))}_#{suffix}"
+  "#{isshou::raifusaikuru::text(isshou::raifusaikuru::name(d))}_#{suffix}"
 end
 
 @doc """
@@ -410,7 +410,7 @@ effects: Every effect of every row: [:set f k], [:put f v], [:add f n], [:add_ke
 k], [:stamp f].
 """
 def effects(d)
-  flat_map(raifusaikuru::d_edges(d), (e) -> e[4])
+  flat_map(isshou::raifusaikuru::d_edges(d), (e) -> e[4])
 end
 
 @doc """
@@ -418,8 +418,8 @@ atoms: Every atomic predicate of every rule of every guard.
 """
 def atoms(d)
   flat_map(
-    raifusaikuru::d_guards(d),
-    (g) -> flat_map(g[2], (r) -> raifusaikuru::atoms(r[2]))
+    isshou::raifusaikuru::d_guards(d),
+    (g) -> flat_map(g[2], (r) -> isshou::raifusaikuru::atoms(r[2]))
   )
 end
 
@@ -427,13 +427,16 @@ end
 field_evidence: The types the definition's constants and clocks give field `f`.
 """
 def field_evidence(d, f)
-  effects = map(effect_type, filter((x) -> x[1] == f, anaritikusu::effects(d)))
+  effects = map(
+    effect_type,
+    filter((x) -> x[1] == f, isshou::anaritikusu::effects(d))
+  )
   atoms = map(
     atom_type,
-    filter((a) -> first(a) != :in and a[1] == f, anaritikusu::atoms(d))
+    filter((a) -> first(a) != :in and a[1] == f, isshou::anaritikusu::atoms(d))
   )
   cons(
-    lit_type(lookup(raifusaikuru::d_fields(d), f)),
+    lit_type(lookup(isshou::raifusaikuru::d_fields(d), f)),
     concat_lists(effects, atoms)
   )
 end
@@ -470,7 +473,9 @@ def needs_number?(d, f)
   ) > 0
   compared or
     counted or
-    numeric?(merge(field_evidence(d, f), "field #{raifusaikuru::show(f)}"))
+    numeric?(
+      merge(field_evidence(d, f), "field #{isshou::raifusaikuru::show(f)}")
+    )
 end
 
 @doc """
@@ -480,7 +485,7 @@ def flows_of_key(d, k)
   filter(
     fn(x)
       (first(x) == :set or first(x) == :add_key) and
-        raifusaikuru::text(x[2]) == raifusaikuru::text(k)
+        isshou::raifusaikuru::text(x[2]) == isshou::raifusaikuru::text(k)
     end,
     effects(d)
   )
@@ -491,16 +496,19 @@ permit_key_types: A logged permit's key types by text: subject is text, the limi
 numbers.
 """
 def permit_key_types(d)
-  logged = map((l) -> l[1], raifusaikuru::d_permit_logs(d))
+  logged = map((l) -> l[1], isshou::raifusaikuru::d_permit_logs(d))
   keys = flat_map(
-    filter((e) -> contains(logged, first(e)), raifusaikuru::d_events(d)),
+    filter(
+      (e) -> contains(logged, first(e)),
+      isshou::raifusaikuru::d_events(d)
+    ),
     (e) -> as_list(e[1])
   )
-  map((k) -> [raifusaikuru::text(k), permit_key_type(k)], keys)
+  map((k) -> [isshou::raifusaikuru::text(k), permit_key_type(k)], keys)
 end
 
 def permit_key_type(k)
-  if raifusaikuru::text(k) == "subject"
+  if isshou::raifusaikuru::text(k) == "subject"
     :varchar
   else
     :bigint
@@ -511,7 +519,7 @@ end
 key_type: A payload key's column type (see "Types, derived").
 """
 def key_type(d, k)
-  fixed = lookup(permit_key_types(d), raifusaikuru::text(k))
+  fixed = lookup(permit_key_types(d), isshou::raifusaikuru::text(k))
   if fixed != nil
     fixed
   else
@@ -524,7 +532,7 @@ def key_type(d, k)
     else
       t = merge(
         flat_map(targets, (f) -> field_evidence(d, f)),
-        "payload key #{raifusaikuru::show(k)}"
+        "payload key #{isshou::raifusaikuru::show(k)}"
       )
       if t.nil?
         :varchar
@@ -548,7 +556,7 @@ def field_type(d, f)
   )
   t = merge(
     concat_lists(field_evidence(d, f), keys),
-    "field #{raifusaikuru::show(f)} of #{raifusaikuru::show(raifusaikuru::name(d))}"
+    "field #{isshou::raifusaikuru::show(f)} of #{isshou::raifusaikuru::show(isshou::raifusaikuru::name(d))}"
   )
   if t != nil
     t
@@ -565,8 +573,8 @@ first: the event table's columns after the record's.
 """
 def keys(d)
   unique_by(
-    (k) -> raifusaikuru::text(k),
-    flat_map(raifusaikuru::d_events(d), (e) -> as_list(e[1]))
+    (k) -> isshou::raifusaikuru::text(k),
+    flat_map(isshou::raifusaikuru::d_events(d), (e) -> as_list(e[1]))
   )
 end
 
@@ -574,7 +582,7 @@ end
 key_types: [name, type] for every payload key, the name as text.
 """
 def key_types(d)
-  map((k) -> [raifusaikuru::text(k), key_type(d, k)], keys(d))
+  map((k) -> [isshou::raifusaikuru::text(k), key_type(d, k)], keys(d))
 end
 
 @doc """
@@ -584,8 +592,8 @@ field_types: [name, type] for every field, in declaration order, the name as tex
 """
 def field_types(d)
   map(
-    (f) -> [raifusaikuru::text(f), field_type(d, f)],
-    raifusaikuru::d_field_names(d)
+    (f) -> [isshou::raifusaikuru::text(f), field_type(d, f)],
+    isshou::raifusaikuru::d_field_names(d)
   )
 end
 
@@ -659,27 +667,30 @@ check_names: Refuse a definition whose keys or fields would take a generated col
 name, or share a text with each other.
 """
 def check_names(d)
-  keys = map((k) -> raifusaikuru::text(k), anaritikusu::keys(d))
-  fields = map((f) -> raifusaikuru::text(f), raifusaikuru::d_field_names(d))
+  keys = map((k) -> isshou::raifusaikuru::text(k), isshou::anaritikusu::keys(d))
+  fields = map(
+    (f) -> isshou::raifusaikuru::text(f),
+    isshou::raifusaikuru::d_field_names(d)
+  )
   taken_keys = filter((k) -> contains(record_names, k), keys)
   taken_fields = filter((f) -> contains(state_names, f), fields)
   dupes = unique(filter((f) -> count_of(fields, f) > 1, fields))
   if is_empty(taken_keys) == false
     raise(
       :anaritikusu_schema,
-      "#{raifusaikuru::show(raifusaikuru::name(d))}: payload key #{join(taken_keys, ", ")} is a record column's name (#{join(record_names, ", ")}); rename the key"
+      "#{isshou::raifusaikuru::show(isshou::raifusaikuru::name(d))}: payload key #{join(taken_keys, ", ")} is a record column's name (#{join(record_names, ", ")}); rename the key"
     )
   end
   if is_empty(taken_fields) == false
     raise(
       :anaritikusu_schema,
-      "#{raifusaikuru::show(raifusaikuru::name(d))}: field #{join(taken_fields, ", ")} is a state column's name (#{join(state_names, ", ")}); rename the field"
+      "#{isshou::raifusaikuru::show(isshou::raifusaikuru::name(d))}: field #{join(taken_fields, ", ")} is a state column's name (#{join(state_names, ", ")}); rename the field"
     )
   end
   if is_empty(dupes) == false
     raise(
       :anaritikusu_schema,
-      "#{raifusaikuru::show(raifusaikuru::name(d))}: two fields are named #{join(dupes, ", ")} as text"
+      "#{isshou::raifusaikuru::show(isshou::raifusaikuru::name(d))}: two fields are named #{join(dupes, ", ")} as text"
     )
   end
   d
@@ -692,11 +703,11 @@ binding: One lifecycle to analyse: its definition, the path of its nisshi stream
 and the path its history (the state after every record) is written to.
 """
 def binding(d, stream, history)
-  raifusaikuru::name(d)
+  isshou::raifusaikuru::name(d)
   {def: d, stream:, history:}
 end
 
-# waive B0013: `def` is a reserved word, so the prefix stays; anaritikusu::def names it too
+# waive B0013: `def` is a reserved word, so the prefix stays; isshou::anaritikusu::def names it too
 def la_def(b)
   b[:def]
 end
@@ -787,7 +798,7 @@ def text_or_nil(x)
   if x.nil?
     nil
   else
-    raifusaikuru::text(x)
+    isshou::raifusaikuru::text(x)
   end
 end
 
@@ -799,13 +810,13 @@ def edges_rel(d)
   rows = map(
     fn(e)
       [
-        raifusaikuru::text(e[1]),
-        raifusaikuru::text(e[2]),
-        raifusaikuru::text(e[3]),
+        isshou::raifusaikuru::text(e[1]),
+        isshou::raifusaikuru::text(e[2]),
+        isshou::raifusaikuru::text(e[3]),
         text_or_nil(e[5])
       ]
     end,
-    raifusaikuru::d_edges(d)
+    isshou::raifusaikuru::d_edges(d)
   )
   kueri::values(
     {
@@ -828,7 +839,7 @@ neither names one).
 """
 def rules_rel(d)
   rows = flat_map(
-    raifusaikuru::d_guards(d),
+    isshou::raifusaikuru::d_guards(d),
     (g) -> map((r) -> rule_row(g, r), g[2])
   )
   kueri::values(
@@ -847,20 +858,20 @@ def rules_rel(d)
 end
 
 def rule_row(g, r)
-  t = raifusaikuru::task_or(r, g[3])
+  t = isshou::raifusaikuru::task_or(r, g[3])
   task = if t.nil?
     [nil, nil]
   else
     [
-      raifusaikuru::text(raifusaikuru::task_name(t)),
-      raifusaikuru::task_escalate_after(t)
+      isshou::raifusaikuru::text(isshou::raifusaikuru::task_name(t)),
+      isshou::raifusaikuru::task_escalate_after(t)
     ]
   end
   concat_lists(
     [
-      raifusaikuru::text(g[1]),
-      raifusaikuru::text(r[1]),
-      raifusaikuru::pred_text(r[2])
+      isshou::raifusaikuru::text(g[1]),
+      isshou::raifusaikuru::text(r[1]),
+      isshou::raifusaikuru::pred_text(r[2])
     ],
     task
   )
@@ -871,7 +882,7 @@ task_evidence_rel: Every task any rule may ask for, one row per evidence kind th
 """
 def task_evidence_rel(d)
   tasks = flat_map(
-    raifusaikuru::d_guards(d),
+    isshou::raifusaikuru::d_guards(d),
     (g) -> filter((t) -> t != nil, cons(g[3], map((r) -> r[3], g[2])))
   )
   rows = unique(
@@ -881,11 +892,11 @@ def task_evidence_rel(d)
         map(
           fn(k)
             [
-              raifusaikuru::text(raifusaikuru::task_name(t)),
-              raifusaikuru::text(k)
+              isshou::raifusaikuru::text(isshou::raifusaikuru::task_name(t)),
+              isshou::raifusaikuru::text(k)
             ]
           end,
-          raifusaikuru::task_evidence(t)
+          isshou::raifusaikuru::task_evidence(t)
         )
       end
     )
@@ -952,7 +963,9 @@ end
 steps_model: Records and states joined, with the phase each record found its entity in.
 """
 def steps_model(d, events, states)
-  start = raifusaikuru::text(raifusaikuru::phase(raifusaikuru::initial(d)))
+  start = isshou::raifusaikuru::text(
+    isshou::raifusaikuru::phase(isshou::raifusaikuru::initial(d))
+  )
   view(
     d,
     "steps",
@@ -1346,9 +1359,9 @@ end
 count_keys: The counted fields of a capability's permit, as their log keys.
 """
 def count_keys(d, capability)
-  pm = find_first((p) -> p[1] == capability, raifusaikuru::d_permits(d))
+  pm = find_first((p) -> p[1] == capability, isshou::raifusaikuru::d_permits(d))
   map(
-    (t) -> raifusaikuru::permit_count_key(t[1]),
+    (t) -> isshou::raifusaikuru::permit_count_key(t[1]),
     filter((t) -> first(t) == :counted, as_list(pm[2]))
   )
 end
@@ -1359,7 +1372,7 @@ joined.
 """
 def permit_models(d, log, events, steps, gates)
   cap = first(log)
-  c = raifusaikuru::text(cap)
+  c = isshou::raifusaikuru::text(cap)
   counts = count_keys(d, cap)
   permits = view(
     d,
@@ -1368,7 +1381,7 @@ def permit_models(d, log, events, steps, gates)
     [
       q_filter(
         q_and(
-          kueri::eq(:type, raifusaikuru::text(log[1])),
+          kueri::eq(:type, isshou::raifusaikuru::text(log[1])),
           kueri::eq(:status, "admitted")
         )
       ),
@@ -1481,7 +1494,7 @@ only; this is where a use outside every window, and a breach inside one, are
 seen. The first reason that applies, in that order.
 """
 def unpermitted_models(d, log, events, steps, gates)
-  c = raifusaikuru::text(first(log))
+  c = isshou::raifusaikuru::text(first(log))
   granted = view(
     d,
     "granted_#{c}",
@@ -1489,7 +1502,7 @@ def unpermitted_models(d, log, events, steps, gates)
     [
       q_filter(
         q_and(
-          kueri::eq(:type, raifusaikuru::text(log[1])),
+          kueri::eq(:type, isshou::raifusaikuru::text(log[1])),
           kueri::eq(:status, "admitted")
         )
       ),
@@ -1548,8 +1561,8 @@ and then its elapsed time runs to `now`, like an open task's. over_limit is
 the elapsed time past the declared limit (NULL with no limit, or abandoned).
 """
 def span_models(d, sp, steps, current, now)
-  s = raifusaikuru::text(raifusaikuru::span_name(sp))
-  limit = raifusaikuru::span_limit(sp)
+  s = isshou::raifusaikuru::text(isshou::raifusaikuru::span_name(sp))
+  limit = isshou::raifusaikuru::span_limit(sp)
   first_row = [
     kueri::derive(:la_first, kueri::row_number([:entity], [:seq])),
     q_filter(kueri::eq(:la_first, 1))
@@ -1562,7 +1575,10 @@ def span_models(d, sp, steps, current, now)
       [
         [
           q_filter(
-            kueri::eq(:phase, raifusaikuru::text(raifusaikuru::span_from(sp)))
+            kueri::eq(
+              :phase,
+              isshou::raifusaikuru::text(isshou::raifusaikuru::span_from(sp))
+            )
           )
         ],
         first_row,
@@ -1582,7 +1598,10 @@ def span_models(d, sp, steps, current, now)
       [
         [
           q_filter(
-            kueri::eq(:phase, raifusaikuru::text(raifusaikuru::span_to(sp)))
+            kueri::eq(
+              :phase,
+              isshou::raifusaikuru::text(isshou::raifusaikuru::span_to(sp))
+            )
           ),
           q_join(starts, [:entity]),
           q_filter(kueri::gt(:seq, :from_seq))
@@ -1598,9 +1617,9 @@ def span_models(d, sp, steps, current, now)
   )
   # After the join with the current state, :phase is the entity's phase now.
   ended = reduce(
-    (acc, t) -> q_or(acc, kueri::eq(:phase, raifusaikuru::text(t))),
+    (acc, t) -> q_or(acc, kueri::eq(:phase, isshou::raifusaikuru::text(t))),
     kueri::lit(false),
-    raifusaikuru::d_terminals(d)
+    isshou::raifusaikuru::d_terminals(d)
   )
   state = q_if(
     kueri::not_null(:to_seq),
@@ -1707,12 +1726,12 @@ def lifecycle_models(b, now)
   closes = task_closes_model(d, asks, evidence_events)
   tasks = tasks_model(d, closes, now)
   permits = flat_map(
-    raifusaikuru::d_permit_logs(d),
+    isshou::raifusaikuru::d_permit_logs(d),
     (l) -> permit_models(d, l, events, steps, gates)
   )
   current = current_state_model(d, steps)
   spans = flat_map(
-    raifusaikuru::d_spans(d),
+    isshou::raifusaikuru::d_spans(d),
     (sp) -> span_models(d, sp, steps, current, now)
   )
   flatten1(
@@ -1751,21 +1770,21 @@ target: The binding whose lifecycle is named `target`, or a refusal naming the l
 def target(bindings, a, role, target)
   hit = find_first(
     fn(b)
-      raifusaikuru::text(raifusaikuru::name(la_def(b))) ==
-        raifusaikuru::text(target)
+      isshou::raifusaikuru::text(isshou::raifusaikuru::name(la_def(b))) ==
+        isshou::raifusaikuru::text(target)
     end,
     bindings
   )
   if hit.nil?
     raise(
       :anaritikusu_schema,
-      "#{raifusaikuru::show(raifusaikuru::name(la_def(a)))} links #{raifusaikuru::show(role)} to lifecycle #{raifusaikuru::show(target)}, which is not among the lifecycles given (#{join(map((b) -> raifusaikuru::text(raifusaikuru::name(la_def(b))), bindings), ", ")})"
+      "#{isshou::raifusaikuru::show(isshou::raifusaikuru::name(la_def(a)))} links #{isshou::raifusaikuru::show(role)} to lifecycle #{isshou::raifusaikuru::show(target)}, which is not among the lifecycles given (#{join(map((b) -> isshou::raifusaikuru::text(isshou::raifusaikuru::name(la_def(b))), bindings), ", ")})"
     )
   end
   hit
 end
 
-# waive B0013: `find` is a builtin anaritikusu also uses, so the prefix stays; anaritikusu::find names it too
+# waive B0013: `find` is a builtin anaritikusu also uses, so the prefix stays; isshou::anaritikusu::find names it too
 @doc """
 la_find: A model of this set, by name.
 """
@@ -1782,7 +1801,7 @@ link_rows_model: A's records carrying a link of kind `role`: one row per link, t
 id in the column named for the role.
 """
 def link_rows_model(ad, role, a_events)
-  r = raifusaikuru::text(role)
+  r = isshou::raifusaikuru::text(role)
   view(
     ad,
     "#{r}_links",
@@ -1814,7 +1833,7 @@ covers) it would take either. Measured 2026-09-25: NuPastel's bench day had
 9 orders joined to the state before their own load.
 """
 def link_state_model(ad, role, bd, b_steps)
-  r = raifusaikuru::text(role)
+  r = isshou::raifusaikuru::text(role)
   fields = map((f) -> kueri::as("#{r}_#{f}", kueri::c(f)), field_names(bd))
   view(
     ad,
@@ -1845,7 +1864,7 @@ end
 link_state_names: The columns a one-hop link view returns, after A's own.
 """
 def link_state_names(role, bd)
-  r = raifusaikuru::text(role)
+  r = isshou::raifusaikuru::text(role)
   concat_lists(
     ["#{r}_seq", "#{r}_phase"],
     map((f) -> "#{r}_#{f}", field_names(bd))
@@ -1856,7 +1875,7 @@ end
 link_model: Each link with the linked entity's state as of the record's time.
 """
 def link_model(ad, role, bd, rows, state)
-  r = raifusaikuru::text(role)
+  r = isshou::raifusaikuru::text(role)
   view(
     ad,
     r,
@@ -1874,7 +1893,7 @@ def link_model(ad, role, bd, rows, state)
 end
 
 def link_coverage_model(ad, role, link)
-  r = raifusaikuru::text(role)
+  r = isshou::raifusaikuru::text(role)
   view(
     ad,
     "#{r}_coverage",
@@ -1919,8 +1938,8 @@ def chain_models(bindings, models, a, l1, l2)
   cd = la_def(
     target(bindings, target(bindings, a, first(l1), l1[1]), first(l2), l2[1])
   )
-  r1 = raifusaikuru::text(first(l1))
-  r2 = raifusaikuru::text(first(l2))
+  r1 = isshou::raifusaikuru::text(first(l1))
+  r2 = isshou::raifusaikuru::text(first(l2))
   b_link = la_find(models, n(bd, r2))
   c_cols = concat_lists([r2], link_state_names(first(l2), cd))
   via = view(
@@ -1979,7 +1998,10 @@ lifecycle not given, and any two generated relations with one name.
 """
 def models(bindings, now)
   bs = as_list(bindings)
-  names = map((b) -> raifusaikuru::text(raifusaikuru::name(la_def(b))), bs)
+  names = map(
+    (b) -> isshou::raifusaikuru::text(isshou::raifusaikuru::name(la_def(b))),
+    bs
+  )
   dup = unique(filter((n) -> count_of(names, n) > 1, names))
   if is_empty(dup) == false
     raise(:anaritikusu_schema, "two lifecycles are named #{join(dup, ", ")}")
@@ -1987,7 +2009,7 @@ def models(bindings, now)
   if integer?(now) == false
     raise(
       :anaritikusu_schema,
-      "now is a whole-number time on the lifecycles' clock, not #{raifusaikuru::show(now)}"
+      "now is a whole-number time on the lifecycles' clock, not #{isshou::raifusaikuru::show(now)}"
     )
   end
   own = flat_map(bs, (b) -> lifecycle_models(b, now))
@@ -1995,7 +2017,7 @@ def models(bindings, now)
     bs,
     fn(b)
       flat_map(
-        raifusaikuru::d_links(la_def(b)),
+        isshou::raifusaikuru::d_links(la_def(b)),
         (l) -> link_models(bs, own, b, l)
       )
     end
@@ -2005,7 +2027,7 @@ def models(bindings, now)
     bs,
     fn(b)
       flat_map(
-        raifusaikuru::d_links(la_def(b)),
+        isshou::raifusaikuru::d_links(la_def(b)),
         (l1) -> chains_from(bs, both, b, l1)
       )
     end
@@ -2025,7 +2047,7 @@ end
 def chains_from(bindings, models, a, l1)
   bd = la_def(target(bindings, a, first(l1), l1[1]))
   flat_map(
-    raifusaikuru::d_links(bd),
+    isshou::raifusaikuru::d_links(bd),
     (l2) -> chain_models(bindings, models, a, l1, l2)
   )
 end
@@ -2063,7 +2085,7 @@ def json_value(v)
   if v.nil?
     nil
   elsif keyword?(v)
-    raifusaikuru::text(v)
+    isshou::raifusaikuru::text(v)
   elsif list?(v)
     map(json_value, v)
   else
@@ -2077,44 +2099,51 @@ found on it — a breach (the guard refused an event it applied) or a
 refusal of an admitted record. Canonical JSON, keys in code-point order.
 """
 def history_line(r, s)
-  pos = raifusaikuru::seq(s) - 1
-  folded = nisshi::rec_admitted?(r)
-  b = last(raifusaikuru::breaches(s))
-  rf = last(raifusaikuru::refused(s))
-  breach = if folded and b != nil and raifusaikuru::breach_position(b) == pos
+  pos = isshou::raifusaikuru::seq(s) - 1
+  folded = isshou::nisshi::rec_admitted?(r)
+  b = last(isshou::raifusaikuru::breaches(s))
+  rf = last(isshou::raifusaikuru::refused(s))
+  breach = if folded and
+      b != nil and
+      isshou::raifusaikuru::breach_position(b) == pos
     b
   end
   refusal = if folded and
       rf != nil and
-      raifusaikuru::refusal_position(rf) == pos
-    raifusaikuru::text(raifusaikuru::refusal_kind(rf))
+      isshou::raifusaikuru::refusal_position(rf) == pos
+    isshou::raifusaikuru::text(isshou::raifusaikuru::refusal_kind(rf))
   end
   rules = if breach.nil?
     nil
   else
-    map((x) -> raifusaikuru::text(x), raifusaikuru::breach_rules(breach))
+    map(
+      (x) -> isshou::raifusaikuru::text(x),
+      isshou::raifusaikuru::breach_rules(breach)
+    )
   end
   capability = if breach.nil?
     nil
   else
-    raifusaikuru::text(raifusaikuru::breach_capability(breach))
+    isshou::raifusaikuru::text(isshou::raifusaikuru::breach_capability(breach))
   end
-  fields = if is_empty(raifusaikuru::fields(s))
+  fields = if is_empty(isshou::raifusaikuru::fields(s))
     ""
   else
-    ",\"fields\":#{nisshi::canon_object(map((kv) -> [raifusaikuru::text(first(kv)), json_value(kv[1])], raifusaikuru::fields(s)))}"
+    ",\"fields\":#{isshou::nisshi::canon_object(map((kv) -> [isshou::raifusaikuru::text(first(kv)), json_value(kv[1])], isshou::raifusaikuru::fields(s)))}"
   end
   # The keys are fixed, so they are written in code-point order here rather
   # than sorted per line (the benchmark's hot path; el_canon_object still
   # orders the fields, whose names are the definition's).
-  "{\"breach\":#{nisshi::canon(rules)},\"breach_capability\":#{nisshi::canon(capability)},\"entity\":#{json_stringify(nisshi::rec_entity(r))}#{fields},\"phase\":#{json_stringify(raifusaikuru::text(raifusaikuru::phase(s)))},\"replay_refusal\":#{nisshi::canon(refusal)},\"seq\":#{to_s(nisshi::rec_seq(r))}}"
+  "{\"breach\":#{isshou::nisshi::canon(rules)},\"breach_capability\":#{isshou::nisshi::canon(capability)},\"entity\":#{json_stringify(isshou::nisshi::rec_entity(r))}#{fields},\"phase\":#{json_stringify(isshou::raifusaikuru::text(isshou::raifusaikuru::phase(s)))},\"replay_refusal\":#{isshou::nisshi::canon(refusal)},\"seq\":#{to_s(isshou::nisshi::rec_seq(r))}}"
 end
 
 @doc """
 history_text: The history of a log value that was read: one line per record. Pure.
 """
 def history_text(log)
-  unlines(map((x) -> history_line(first(x), x[1]), nisshi::history(log)))
+  unlines(
+    map((x) -> history_line(first(x), x[1]), isshou::nisshi::history(log))
+  )
 end
 
 @doc """
@@ -2132,7 +2161,7 @@ stream: A stream to analyse: its definition, its path and its label (the genesis
 nisshi hashes it under).
 """
 def stream(d, path, label)
-  raifusaikuru::name(d)
+  isshou::raifusaikuru::name(d)
   {def: d, path:, label:}
 end
 
@@ -2147,7 +2176,7 @@ def bindings(dir, streams)
         s[:path],
         path_join(
           dir,
-          "#{raifusaikuru::text(raifusaikuru::name(s[:def]))}.history.jsonl"
+          "#{isshou::raifusaikuru::text(isshou::raifusaikuru::name(s[:def]))}.history.jsonl"
         )
       )
     end,
@@ -2162,8 +2191,8 @@ chain throws :anaritikusu_broken), write each history, write the script
 lifecycles.duckdb. Returns the database's path.
 """
 def build(dir, streams, now)
-  bindings = anaritikusu::bindings(dir, streams)
-  script = anaritikusu::script(bindings, now)
+  bindings = isshou::anaritikusu::bindings(dir, streams)
+  script = isshou::anaritikusu::script(bindings, now)
   map((s) -> build_history(dir, s), as_list(streams))
   write_file(path_join(dir, "lifecycles.sql"), script)
   db = path_join(dir, "lifecycles.duckdb")
@@ -2176,17 +2205,20 @@ end
 
 def build_history(dir, s)
   d = s[:def]
-  log = nisshi::read(s[:path], s[:label], d)
-  rep = nisshi::verify(log, nil, nil)
-  if nisshi::intact?(rep) == false
+  log = isshou::nisshi::read(s[:path], s[:label], d)
+  rep = isshou::nisshi::verify(log, nil, nil)
+  if isshou::nisshi::intact?(rep) == false
     raise(
       :anaritikusu_broken,
-      "#{s[:path]}: position #{to_s(nisshi::break_position(rep))}, #{to_s(nisshi::break_kind(rep))}: #{nisshi::break_why(rep)}"
+      "#{s[:path]}: position #{to_s(isshou::nisshi::break_position(rep))}, #{to_s(isshou::nisshi::break_kind(rep))}: #{isshou::nisshi::break_why(rep)}"
     )
   end
   write_history(
     log,
-    path_join(dir, "#{raifusaikuru::text(raifusaikuru::name(d))}.history.jsonl")
+    path_join(
+      dir,
+      "#{isshou::raifusaikuru::text(isshou::raifusaikuru::name(d))}.history.jsonl"
+    )
   )
 end
 
@@ -2218,8 +2250,8 @@ def example_consumable()
   lc_define(
     :consumable,
     push(
-      raifusaikuru::example_consumable_clauses,
-      raifusaikuru::permit_log(:use, :permit)
+      isshou::raifusaikuru::example_consumable_clauses,
+      isshou::raifusaikuru::permit_log(:use, :permit)
     )
   )
 end
@@ -2232,8 +2264,8 @@ def example_consumable_strict()
   clauses = map(
     example_tighten,
     push(
-      raifusaikuru::example_consumable_clauses,
-      raifusaikuru::permit_log(:use, :permit)
+      isshou::raifusaikuru::example_consumable_clauses,
+      isshou::raifusaikuru::permit_log(:use, :permit)
     )
   )
   lc_define(:consumable, clauses)
@@ -2249,7 +2281,10 @@ end
 
 def example_tighten_rule(r)
   if r[1] == :uses_left
-    raifusaikuru::rule(:uses_left, raifusaikuru::below(:uses, 3))
+    isshou::raifusaikuru::rule(
+      :uses_left,
+      isshou::raifusaikuru::below(:uses, 3)
+    )
   else
     r
   end
@@ -2262,29 +2297,32 @@ def example_portion()
   lc_define(
     :portion,
     [
-      raifusaikuru::states(%i[new made served wasted]),
-      raifusaikuru::start(:new),
-      raifusaikuru::terminals(%i[served wasted]),
-      raifusaikuru::field(:grams, 0),
-      raifusaikuru::field(:made_at, nil),
-      raifusaikuru::field(:served_at, nil),
-      raifusaikuru::event(:make, [:grams]),
-      raifusaikuru::event(:serve, []),
-      raifusaikuru::event(:waste, []),
-      raifusaikuru::on(
+      isshou::raifusaikuru::states(%i[new made served wasted]),
+      isshou::raifusaikuru::start(:new),
+      isshou::raifusaikuru::terminals(%i[served wasted]),
+      isshou::raifusaikuru::field(:grams, 0),
+      isshou::raifusaikuru::field(:made_at, nil),
+      isshou::raifusaikuru::field(:served_at, nil),
+      isshou::raifusaikuru::event(:make, [:grams]),
+      isshou::raifusaikuru::event(:serve, []),
+      isshou::raifusaikuru::event(:waste, []),
+      isshou::raifusaikuru::on(
         :new,
         :make,
         :made,
-        [raifusaikuru::set(:grams, :grams), raifusaikuru::stamp(:made_at)]
+        [
+          isshou::raifusaikuru::set(:grams, :grams),
+          isshou::raifusaikuru::stamp(:made_at)
+        ]
       ),
-      raifusaikuru::on(
+      isshou::raifusaikuru::on(
         :made,
         :serve,
         :served,
-        [raifusaikuru::stamp(:served_at)]
+        [isshou::raifusaikuru::stamp(:served_at)]
       ),
-      raifusaikuru::on(:made, :waste, :wasted, []),
-      raifusaikuru::link(:item, :consumable)
+      isshou::raifusaikuru::on(:made, :waste, :wasted, []),
+      isshou::raifusaikuru::link(:item, :consumable)
     ]
   )
 end
@@ -2296,40 +2334,40 @@ def example_order()
   lc_define(
     :order,
     [
-      raifusaikuru::states(%i[new placed ready delivered cancelled]),
-      raifusaikuru::start(:new),
-      raifusaikuru::terminals(%i[delivered cancelled]),
-      raifusaikuru::field(:portions, 0),
-      raifusaikuru::field(:placed_at, nil),
-      raifusaikuru::field(:delivered_at, nil),
-      raifusaikuru::event(:place, []),
-      raifusaikuru::event(:add_portion, []),
-      raifusaikuru::event(:ready, []),
-      raifusaikuru::event(:deliver, []),
-      raifusaikuru::event(:cancel, []),
-      raifusaikuru::on(
+      isshou::raifusaikuru::states(%i[new placed ready delivered cancelled]),
+      isshou::raifusaikuru::start(:new),
+      isshou::raifusaikuru::terminals(%i[delivered cancelled]),
+      isshou::raifusaikuru::field(:portions, 0),
+      isshou::raifusaikuru::field(:placed_at, nil),
+      isshou::raifusaikuru::field(:delivered_at, nil),
+      isshou::raifusaikuru::event(:place, []),
+      isshou::raifusaikuru::event(:add_portion, []),
+      isshou::raifusaikuru::event(:ready, []),
+      isshou::raifusaikuru::event(:deliver, []),
+      isshou::raifusaikuru::event(:cancel, []),
+      isshou::raifusaikuru::on(
         :new,
         :place,
         :placed,
-        [raifusaikuru::stamp(:placed_at)]
+        [isshou::raifusaikuru::stamp(:placed_at)]
       ),
-      raifusaikuru::on(
+      isshou::raifusaikuru::on(
         :placed,
         :add_portion,
         :stay,
-        [raifusaikuru::add(:portions, 1)]
+        [isshou::raifusaikuru::add(:portions, 1)]
       ),
-      raifusaikuru::on(:placed, :ready, :ready, []),
-      raifusaikuru::on(
+      isshou::raifusaikuru::on(:placed, :ready, :ready, []),
+      isshou::raifusaikuru::on(
         :ready,
         :deliver,
         :delivered,
-        [raifusaikuru::stamp(:delivered_at)]
+        [isshou::raifusaikuru::stamp(:delivered_at)]
       ),
-      raifusaikuru::on_each(%i[placed ready], :cancel, :cancelled, []),
-      raifusaikuru::link(:portion, :portion),
-      raifusaikuru::span(:lead, :placed, :delivered, 2000),
-      raifusaikuru::span(:ready_to_door, :ready, :delivered, nil)
+      isshou::raifusaikuru::on_each(%i[placed ready], :cancel, :cancelled, []),
+      isshou::raifusaikuru::link(:portion, :portion),
+      isshou::raifusaikuru::span(:lead, :placed, :delivered, 2000),
+      isshou::raifusaikuru::span(:ready_to_door, :ready, :delivered, nil)
     ]
   )
 end
@@ -2344,102 +2382,102 @@ def example_day()
     [
       :consumable,
       "item-1",
-      raifusaikuru::ev(:reading, 28800, [[:value, 10]]),
+      isshou::raifusaikuru::ev(:reading, 28800, [[:value, 10]]),
       []
     ],
     [
       :consumable,
       "item-2",
-      raifusaikuru::ev(:reading, 28900, [[:value, 10]]),
+      isshou::raifusaikuru::ev(:reading, 28900, [[:value, 10]]),
       []
     ],
-    [:consumable, "item-1", raifusaikuru::ev(:open, 29000, []), []],
+    [:consumable, "item-1", isshou::raifusaikuru::ev(:open, 29000, []), []],
     [:consumable, "item-1", [:la_permit, 29100, "device-1"], []],
-    [:order, "o-1", raifusaikuru::ev(:place, 29100, []), []],
-    [:consumable, "item-1", raifusaikuru::ev(:use, 29200, []), []],
+    [:order, "o-1", isshou::raifusaikuru::ev(:place, 29100, []), []],
+    [:consumable, "item-1", isshou::raifusaikuru::ev(:use, 29200, []), []],
     [
       :portion,
       "p-1",
-      raifusaikuru::ev(:make, 29250, [[:grams, 120]]),
+      isshou::raifusaikuru::ev(:make, 29250, [[:grams, 120]]),
       [[:item, "item-1"], [:lot, "L-7"]]
     ],
-    [:consumable, "item-1", raifusaikuru::ev(:use, 29300, []), []],
-    [:consumable, "item-1", raifusaikuru::ev(:use, 29400, []), []],
-    [:portion, "p-1", raifusaikuru::ev(:serve, 29400, []), []],
+    [:consumable, "item-1", isshou::raifusaikuru::ev(:use, 29300, []), []],
+    [:consumable, "item-1", isshou::raifusaikuru::ev(:use, 29400, []), []],
+    [:portion, "p-1", isshou::raifusaikuru::ev(:serve, 29400, []), []],
     [
       :order,
       "o-1",
-      raifusaikuru::ev(:add_portion, 29450, []),
+      isshou::raifusaikuru::ev(:add_portion, 29450, []),
       [[:portion, "p-1"]]
     ],
-    [:consumable, "item-2", raifusaikuru::ev(:open, 29500, []), []],
+    [:consumable, "item-2", isshou::raifusaikuru::ev(:open, 29500, []), []],
     [:consumable, "item-2", [:la_permit, 29550, "device-2"], []],
-    [:consumable, "item-2", raifusaikuru::ev(:use, 29600, []), []],
+    [:consumable, "item-2", isshou::raifusaikuru::ev(:use, 29600, []), []],
     [
       :portion,
       "p-3",
-      raifusaikuru::ev(:make, 29650, [[:grams, 130]]),
+      isshou::raifusaikuru::ev(:make, 29650, [[:grams, 130]]),
       [[:item, "item-2"]]
     ],
-    [:consumable, "item-2", raifusaikuru::ev(:open, 29700, []), []],
+    [:consumable, "item-2", isshou::raifusaikuru::ev(:open, 29700, []), []],
     [
       :consumable,
       "item-1",
-      raifusaikuru::ev(:reading, 30000, [[:value, 26]]),
+      isshou::raifusaikuru::ev(:reading, 30000, [[:value, 26]]),
       []
     ],
-    [:consumable, "item-3", raifusaikuru::ev(:discard, 30000, []), []],
-    [:order, "o-2", raifusaikuru::ev(:place, 30000, []), []],
+    [:consumable, "item-3", isshou::raifusaikuru::ev(:discard, 30000, []), []],
+    [:order, "o-2", isshou::raifusaikuru::ev(:place, 30000, []), []],
     [
       :portion,
       "p-2",
-      raifusaikuru::ev(:make, 30050, [[:grams, 110]]),
+      isshou::raifusaikuru::ev(:make, 30050, [[:grams, 110]]),
       [[:item, "item-1"]]
     ],
-    [:consumable, "item-1", raifusaikuru::ev(:use, 30100, []), []],
-    [:consumable, "item-3", raifusaikuru::ev(:polish, 30100, []), []],
+    [:consumable, "item-1", isshou::raifusaikuru::ev(:use, 30100, []), []],
+    [:consumable, "item-3", isshou::raifusaikuru::ev(:polish, 30100, []), []],
     [
       :order,
       "o-2",
-      raifusaikuru::ev(:add_portion, 30100, []),
+      isshou::raifusaikuru::ev(:add_portion, 30100, []),
       [[:portion, "p-2"]]
     ],
-    [:portion, "p-2", raifusaikuru::ev(:waste, 30500, []), []],
-    [:order, "o-2", raifusaikuru::ev(:cancel, 30600, []), []],
+    [:portion, "p-2", isshou::raifusaikuru::ev(:waste, 30500, []), []],
+    [:order, "o-2", isshou::raifusaikuru::ev(:cancel, 30600, []), []],
     [
       :consumable,
       "item-1",
-      raifusaikuru::ev(:reading, 31000, [[:value, 12]]),
+      isshou::raifusaikuru::ev(:reading, 31000, [[:value, 12]]),
       []
     ],
-    [:portion, "p-3", raifusaikuru::ev(:serve, 31000, []), []],
+    [:portion, "p-3", isshou::raifusaikuru::ev(:serve, 31000, []), []],
     [
       :order,
       "o-1",
-      raifusaikuru::ev(:add_portion, 31050, []),
+      isshou::raifusaikuru::ev(:add_portion, 31050, []),
       [[:portion, "p-3"]]
     ],
-    [:consumable, "item-1", raifusaikuru::ev(:use, 31100, []), []],
-    [:order, "o-1", raifusaikuru::ev(:ready, 31200, []), []],
-    [:order, "o-1", raifusaikuru::ev(:deliver, 31500, []), []],
-    [:consumable, "item-1", raifusaikuru::ev(:finish, 32000, []), []],
+    [:consumable, "item-1", isshou::raifusaikuru::ev(:use, 31100, []), []],
+    [:order, "o-1", isshou::raifusaikuru::ev(:ready, 31200, []), []],
+    [:order, "o-1", isshou::raifusaikuru::ev(:deliver, 31500, []), []],
+    [:consumable, "item-1", isshou::raifusaikuru::ev(:finish, 32000, []), []],
     [
       :portion,
       "p-4",
-      raifusaikuru::ev(:make, 33000, [[:grams, 100]]),
+      isshou::raifusaikuru::ev(:make, 33000, [[:grams, 100]]),
       [[:item, "item-9"]]
     ],
-    [:order, "o-3", raifusaikuru::ev(:place, 33100, []), []],
-    [:portion, "p-4", raifusaikuru::ev(:serve, 33500, []), []],
+    [:order, "o-3", isshou::raifusaikuru::ev(:place, 33100, []), []],
+    [:portion, "p-4", isshou::raifusaikuru::ev(:serve, 33500, []), []],
     [
       :order,
       "o-3",
-      raifusaikuru::ev(:add_portion, 33600, []),
+      isshou::raifusaikuru::ev(:add_portion, 33600, []),
       [[:portion, "p-4"]]
     ],
-    [:order, "o-3", raifusaikuru::ev(:deliver, 33700, []), []],
-    [:consumable, "item-2", raifusaikuru::ev(:use, 40000, []), []],
-    [:consumable, "item-2", raifusaikuru::ev(:use, 44000, []), []]
+    [:order, "o-3", isshou::raifusaikuru::ev(:deliver, 33700, []), []],
+    [:consumable, "item-2", isshou::raifusaikuru::ev(:use, 40000, []), []],
+    [:consumable, "item-2", isshou::raifusaikuru::ev(:use, 44000, []), []]
   ]
 end
 
@@ -2453,8 +2491,11 @@ def example_streams(dir)
     fn(d)
       stream(
         d,
-        path_join(dir, "#{raifusaikuru::text(raifusaikuru::name(d))}.jsonl"),
-        "anaritikusu-example/#{raifusaikuru::text(raifusaikuru::name(d))}"
+        path_join(
+          dir,
+          "#{isshou::raifusaikuru::text(isshou::raifusaikuru::name(d))}.jsonl"
+        ),
+        "anaritikusu-example/#{isshou::raifusaikuru::text(isshou::raifusaikuru::name(d))}"
       )
     end,
     defs
@@ -2463,8 +2504,8 @@ def example_streams(dir)
     fn(m, s)
       assoc(
         m,
-        raifusaikuru::text(raifusaikuru::name(s[:def])),
-        nisshi::read(s[:path], s[:label], s[:def])
+        isshou::raifusaikuru::text(isshou::raifusaikuru::name(s[:def])),
+        isshou::nisshi::read(s[:path], s[:label], s[:def])
       )
     end,
     {},
@@ -2475,7 +2516,7 @@ def example_streams(dir)
 end
 
 def example_append(logs, x)
-  kind = raifusaikuru::text(first(x))
+  kind = isshou::raifusaikuru::text(first(x))
   log = get(logs, kind)
   ev = example_event(log, x[1], x[2])
   assoc(logs, kind, el_append(log, x[1], ev, x[3]))
@@ -2484,9 +2525,14 @@ end
 def example_event(log, entity, ev)
   if first(ev) == :la_permit
     d = el_def(log)
-    raifusaikuru::permit_event(
+    isshou::raifusaikuru::permit_event(
       d,
-      raifusaikuru::permit_for(d, nisshi::state(log, entity), :use, ev[1]),
+      isshou::raifusaikuru::permit_for(
+        d,
+        isshou::nisshi::state(log, entity),
+        :use,
+        ev[1]
+      ),
       ev[2]
     )
   else
@@ -2566,11 +2612,11 @@ test "the telemetry schema is derived from the definition: the record's columns,
   bare = lc_define(
     :bare,
     [
-      raifusaikuru::states(%i[a b]),
-      raifusaikuru::start(:a),
-      raifusaikuru::terminals([:b]),
-      raifusaikuru::event(:go, []),
-      raifusaikuru::on(:a, :go, :b, [])
+      isshou::raifusaikuru::states(%i[a b]),
+      isshou::raifusaikuru::start(:a),
+      isshou::raifusaikuru::terminals([:b]),
+      isshou::raifusaikuru::event(:go, []),
+      isshou::raifusaikuru::on(:a, :go, :b, [])
     ]
   )
   assert size(event_columns(bare)) == 11
@@ -2580,12 +2626,17 @@ test "the telemetry schema is derived from the definition: the record's columns,
   noted = lc_define(
     :noted,
     [
-      raifusaikuru::states(%i[a b]),
-      raifusaikuru::start(:a),
-      raifusaikuru::terminals([:b]),
-      raifusaikuru::field(:note, nil),
-      raifusaikuru::event(:go, [:note]),
-      raifusaikuru::on(:a, :go, :b, [raifusaikuru::set(:note, :note)])
+      isshou::raifusaikuru::states(%i[a b]),
+      isshou::raifusaikuru::start(:a),
+      isshou::raifusaikuru::terminals([:b]),
+      isshou::raifusaikuru::field(:note, nil),
+      isshou::raifusaikuru::event(:go, [:note]),
+      isshou::raifusaikuru::on(
+        :a,
+        :go,
+        :b,
+        [isshou::raifusaikuru::set(:note, :note)]
+      )
     ]
   )
   assert key_types(noted) == [["note", :varchar]]
@@ -2594,11 +2645,11 @@ test "the telemetry schema is derived from the definition: the record's columns,
   clash = lc_define(
     :clash,
     [
-      raifusaikuru::states(%i[a b]),
-      raifusaikuru::start(:a),
-      raifusaikuru::terminals([:b]),
-      raifusaikuru::event(:go, [:time]),
-      raifusaikuru::on(:a, :go, :b, [])
+      isshou::raifusaikuru::states(%i[a b]),
+      isshou::raifusaikuru::start(:a),
+      isshou::raifusaikuru::terminals([:b]),
+      isshou::raifusaikuru::event(:go, [:time]),
+      isshou::raifusaikuru::on(:a, :go, :b, [])
     ]
   )
   assert error?(
@@ -2611,12 +2662,12 @@ test "the telemetry schema is derived from the definition: the record's columns,
   phased = lc_define(
     :phased,
     [
-      raifusaikuru::states(%i[a b]),
-      raifusaikuru::start(:a),
-      raifusaikuru::terminals([:b]),
-      raifusaikuru::field(:phase, nil),
-      raifusaikuru::event(:go, []),
-      raifusaikuru::on(:a, :go, :b, [])
+      isshou::raifusaikuru::states(%i[a b]),
+      isshou::raifusaikuru::start(:a),
+      isshou::raifusaikuru::terminals([:b]),
+      isshou::raifusaikuru::field(:phase, nil),
+      isshou::raifusaikuru::event(:go, []),
+      isshou::raifusaikuru::on(:a, :go, :b, [])
     ]
   )
   assert error?(
@@ -2629,12 +2680,17 @@ test "the telemetry schema is derived from the definition: the record's columns,
   mixed = lc_define(
     :mixed,
     [
-      raifusaikuru::states(%i[a b]),
-      raifusaikuru::start(:a),
-      raifusaikuru::terminals([:b]),
-      raifusaikuru::field(:x, 0),
-      raifusaikuru::event(:go, []),
-      raifusaikuru::on(:a, :go, :b, [raifusaikuru::put(:x, "high")])
+      isshou::raifusaikuru::states(%i[a b]),
+      isshou::raifusaikuru::start(:a),
+      isshou::raifusaikuru::terminals([:b]),
+      isshou::raifusaikuru::field(:x, 0),
+      isshou::raifusaikuru::event(:go, []),
+      isshou::raifusaikuru::on(
+        :a,
+        :go,
+        :b,
+        [isshou::raifusaikuru::put(:x, "high")]
+      )
     ]
   )
   assert error?(
@@ -2651,18 +2707,18 @@ test "the history is the fold's state after every record, and names what the rep
   dir = test_dir("history")
   p = path_join(dir, "c.jsonl")
   # The empty case: no stream, no history.
-  assert history_text(nisshi::read(p, "t", d)) == ""
-  nisshi::append_all(
-    nisshi::read(p, "t", d),
+  assert history_text(isshou::nisshi::read(p, "t", d)) == ""
+  isshou::nisshi::append_all(
+    isshou::nisshi::read(p, "t", d),
     [
-      ["item-1", raifusaikuru::ev(:open, 1000, []), []],
-      ["item-1", raifusaikuru::ev(:reading, 1100, [[:value, 26]]), []],
-      ["item-1", raifusaikuru::ev(:use, 1200, []), []],
-      ["item-1", raifusaikuru::ev(:use, 1300, []), []]
+      ["item-1", isshou::raifusaikuru::ev(:open, 1000, []), []],
+      ["item-1", isshou::raifusaikuru::ev(:reading, 1100, [[:value, 26]]), []],
+      ["item-1", isshou::raifusaikuru::ev(:use, 1200, []), []],
+      ["item-1", isshou::raifusaikuru::ev(:use, 1300, []), []]
     ]
   )
-  log = nisshi::read(p, "t", d)
-  lines = nisshi::lines(history_text(log))
+  log = isshou::nisshi::read(p, "t", d)
+  lines = isshou::nisshi::lines(history_text(log))
   # By hand: open, a reading of 26, then two uses the guard refuses
   # (quality_ok), written refused: the state after each use is the state
   # before it, and nothing is a breach.
@@ -2677,35 +2733,37 @@ test "the history is the fold's state after every record, and names what the rep
   closed = lc_define(
     :consumable,
     [
-      raifusaikuru::states(%i[sealed gone]),
-      raifusaikuru::start(:sealed),
-      raifusaikuru::terminals([:gone]),
-      raifusaikuru::event(:open, []),
-      raifusaikuru::event(:reading, [:value]),
-      raifusaikuru::event(:use, []),
-      raifusaikuru::on(:sealed, :reading, :gone, [])
+      isshou::raifusaikuru::states(%i[sealed gone]),
+      isshou::raifusaikuru::start(:sealed),
+      isshou::raifusaikuru::terminals([:gone]),
+      isshou::raifusaikuru::event(:open, []),
+      isshou::raifusaikuru::event(:reading, [:value]),
+      isshou::raifusaikuru::event(:use, []),
+      isshou::raifusaikuru::on(:sealed, :reading, :gone, [])
     ]
   )
-  first_line = first(nisshi::lines(history_text(nisshi::read(p, "t", closed))))
+  first_line = first(
+    isshou::nisshi::lines(history_text(isshou::nisshi::read(p, "t", closed)))
+  )
   assert contains?(first_line, "\"replay_refusal\":\"no_edge\"")
   assert contains?(first_line, "\"phase\":\"sealed\"")
   # The control: the tightened guard turns an applied event into a breach
   # (the strict example allows 3 uses; this stream has none admitted, so a
   # stream with four admitted uses is written first).
   q = path_join(dir, "s.jsonl")
-  nisshi::append_all(
-    nisshi::read(q, "t", d),
+  isshou::nisshi::append_all(
+    isshou::nisshi::read(q, "t", d),
     [
-      ["item-1", raifusaikuru::ev(:reading, 1000, [[:value, 10]]), []],
-      ["item-1", raifusaikuru::ev(:open, 1100, []), []],
-      ["item-1", raifusaikuru::ev(:use, 1200, []), []],
-      ["item-1", raifusaikuru::ev(:use, 1300, []), []],
-      ["item-1", raifusaikuru::ev(:use, 1400, []), []],
-      ["item-1", raifusaikuru::ev(:use, 1500, []), []]
+      ["item-1", isshou::raifusaikuru::ev(:reading, 1000, [[:value, 10]]), []],
+      ["item-1", isshou::raifusaikuru::ev(:open, 1100, []), []],
+      ["item-1", isshou::raifusaikuru::ev(:use, 1200, []), []],
+      ["item-1", isshou::raifusaikuru::ev(:use, 1300, []), []],
+      ["item-1", isshou::raifusaikuru::ev(:use, 1400, []), []],
+      ["item-1", isshou::raifusaikuru::ev(:use, 1500, []), []]
     ]
   )
-  strict = nisshi::lines(
-    history_text(nisshi::read(q, "t", example_consumable_strict))
+  strict = isshou::nisshi::lines(
+    history_text(isshou::nisshi::read(q, "t", example_consumable_strict))
   )
   assert map(
     fn(l)
@@ -3157,40 +3215,60 @@ test "observed breaches and uses no permit covered: each found, with the reason,
   dir = test_dir("observed")
   d = example_consumable
   s = stream(d, path_join(dir, "consumable.jsonl"), "anaritikusu-observed")
-  log0 = nisshi::read(s[:path], s[:label], d)
+  log0 = isshou::nisshi::read(s[:path], s[:label], d)
   # item-a, seq in brackets: [0] reading 10 at 1000, [1] open 1100, [2] a use
   # OBSERVED at 1200 before any permit (the guard holds, so no breach),
   # [3] a permit at 1300, [4] a use at 1400, [5] a reading of 26 at 1500,
   # [6] a use OBSERVED at 1600 (quality_ok refuses: a breach), [7] a use
   # ATTEMPTED at 9000 (refused), [8] a use OBSERVED at 9100 (a breach again).
-  l1 = nisshi::append_all(
+  l1 = isshou::nisshi::append_all(
     log0,
     [
-      ["item-a", raifusaikuru::ev(:reading, 1000, [[:value, 10]]), []],
-      ["item-a", raifusaikuru::ev(:open, 1100, []), []]
+      ["item-a", isshou::raifusaikuru::ev(:reading, 1000, [[:value, 10]]), []],
+      ["item-a", isshou::raifusaikuru::ev(:open, 1100, []), []]
     ]
   )
-  l2 = nisshi::observe(l1, "item-a", raifusaikuru::ev(:use, 1200, []), [])
+  l2 = isshou::nisshi::observe(
+    l1,
+    "item-a",
+    isshou::raifusaikuru::ev(:use, 1200, []),
+    []
+  )
   l3 = el_append(
     l2,
     "item-a",
-    raifusaikuru::permit_event(
+    isshou::raifusaikuru::permit_event(
       d,
-      raifusaikuru::permit_for(d, nisshi::state(l2, "item-a"), :use, 1300),
+      isshou::raifusaikuru::permit_for(
+        d,
+        isshou::nisshi::state(l2, "item-a"),
+        :use,
+        1300
+      ),
       "dev"
     ),
     []
   )
-  l4 = nisshi::append_all(
+  l4 = isshou::nisshi::append_all(
     l3,
     [
-      ["item-a", raifusaikuru::ev(:use, 1400, []), []],
-      ["item-a", raifusaikuru::ev(:reading, 1500, [[:value, 26]]), []]
+      ["item-a", isshou::raifusaikuru::ev(:use, 1400, []), []],
+      ["item-a", isshou::raifusaikuru::ev(:reading, 1500, [[:value, 26]]), []]
     ]
   )
-  l5 = nisshi::observe(l4, "item-a", raifusaikuru::ev(:use, 1600, []), [])
-  l6 = el_append(l5, "item-a", raifusaikuru::ev(:use, 9000, []), [])
-  nisshi::observe(l6, "item-a", raifusaikuru::ev(:use, 9100, []), [])
+  l5 = isshou::nisshi::observe(
+    l4,
+    "item-a",
+    isshou::raifusaikuru::ev(:use, 1600, []),
+    []
+  )
+  l6 = el_append(l5, "item-a", isshou::raifusaikuru::ev(:use, 9000, []), [])
+  isshou::nisshi::observe(
+    l6,
+    "item-a",
+    isshou::raifusaikuru::ev(:use, 9100, []),
+    []
+  )
   now = 20000
   db = build(dir, [s], now)
   ms = models(bindings(dir, [s]), now)
@@ -3232,32 +3310,37 @@ test "observed breaches and uses no permit covered: each found, with the reason,
   # permit is left uncovered.
   dir2 = test_dir("attempted")
   s2 = stream(d, path_join(dir2, "consumable.jsonl"), "anaritikusu-observed")
-  m1 = nisshi::append_all(
-    nisshi::read(s2[:path], s2[:label], d),
+  m1 = isshou::nisshi::append_all(
+    isshou::nisshi::read(s2[:path], s2[:label], d),
     [
-      ["item-a", raifusaikuru::ev(:reading, 1000, [[:value, 10]]), []],
-      ["item-a", raifusaikuru::ev(:open, 1100, []), []],
-      ["item-a", raifusaikuru::ev(:use, 1200, []), []]
+      ["item-a", isshou::raifusaikuru::ev(:reading, 1000, [[:value, 10]]), []],
+      ["item-a", isshou::raifusaikuru::ev(:open, 1100, []), []],
+      ["item-a", isshou::raifusaikuru::ev(:use, 1200, []), []]
     ]
   )
   m2 = el_append(
     m1,
     "item-a",
-    raifusaikuru::permit_event(
+    isshou::raifusaikuru::permit_event(
       d,
-      raifusaikuru::permit_for(d, nisshi::state(m1, "item-a"), :use, 1300),
+      isshou::raifusaikuru::permit_for(
+        d,
+        isshou::nisshi::state(m1, "item-a"),
+        :use,
+        1300
+      ),
       "dev"
     ),
     []
   )
-  nisshi::append_all(
+  isshou::nisshi::append_all(
     m2,
     [
-      ["item-a", raifusaikuru::ev(:use, 1400, []), []],
-      ["item-a", raifusaikuru::ev(:reading, 1500, [[:value, 26]]), []],
-      ["item-a", raifusaikuru::ev(:use, 1600, []), []],
-      ["item-a", raifusaikuru::ev(:use, 9000, []), []],
-      ["item-a", raifusaikuru::ev(:use, 9100, []), []]
+      ["item-a", isshou::raifusaikuru::ev(:use, 1400, []), []],
+      ["item-a", isshou::raifusaikuru::ev(:reading, 1500, [[:value, 26]]), []],
+      ["item-a", isshou::raifusaikuru::ev(:use, 1600, []), []],
+      ["item-a", isshou::raifusaikuru::ev(:use, 9000, []), []],
+      ["item-a", isshou::raifusaikuru::ev(:use, 9100, []), []]
     ]
   )
   db2 = build(dir2, [s2], now)
@@ -3277,7 +3360,7 @@ example_differential: nisshi's replay and the database agree on every entity's p
 """
 def example_differential(db, ms, s)
   d = s[:def]
-  nf = size(raifusaikuru::d_field_names(d))
+  nf = size(isshou::raifusaikuru::d_field_names(d))
   fold = map(
     fn(es)
       norm_rows(
@@ -3285,14 +3368,14 @@ def example_differential(db, ms, s)
           cons(
             first(es),
             cons(
-              raifusaikuru::text(raifusaikuru::phase(es[1])),
-              map((kv) -> kv[1], raifusaikuru::fields(es[1]))
+              isshou::raifusaikuru::text(isshou::raifusaikuru::phase(es[1])),
+              map((kv) -> kv[1], isshou::raifusaikuru::fields(es[1]))
             )
           )
         ]
       )
     end,
-    nisshi::states(nisshi::read(s[:path], s[:label], d))
+    isshou::nisshi::states(isshou::nisshi::read(s[:path], s[:label], d))
   )
   sql = map(
     (r) -> take_n(r, 2 + nf),
@@ -3301,7 +3384,7 @@ def example_differential(db, ms, s)
   if set_equal(map((x) -> first(x), fold), sql) == false
     raise(
       :anaritikusu_test,
-      "#{raifusaikuru::text(raifusaikuru::name(d))}: the database's current state differs from nisshi's replay"
+      "#{isshou::raifusaikuru::text(isshou::raifusaikuru::name(d))}: the database's current state differs from nisshi's replay"
     )
   end
   size(sql)
@@ -3337,7 +3420,8 @@ test "a stricter reader: an applied event becomes a breach, and asks for its tas
 end
 
 def example_restrict(s)
-  if raifusaikuru::text(raifusaikuru::name(s[:def])) == "consumable"
+  if isshou::raifusaikuru::text(isshou::raifusaikuru::name(s[:def])) ==
+      "consumable"
     stream(example_consumable_strict, s[:path], s[:label])
   else
     s
@@ -3379,12 +3463,12 @@ test "the set is refused where it cannot be generated, and a broken stream is re
   evented = lc_define(
     :portion,
     [
-      raifusaikuru::states(%i[a b]),
-      raifusaikuru::start(:a),
-      raifusaikuru::terminals([:b]),
-      raifusaikuru::event(:go, []),
-      raifusaikuru::on(:a, :go, :b, []),
-      raifusaikuru::link(:events, :consumable)
+      isshou::raifusaikuru::states(%i[a b]),
+      isshou::raifusaikuru::start(:a),
+      isshou::raifusaikuru::terminals([:b]),
+      isshou::raifusaikuru::event(:go, []),
+      isshou::raifusaikuru::on(:a, :go, :b, []),
+      isshou::raifusaikuru::link(:events, :consumable)
     ]
   )
   assert error?(
@@ -3425,26 +3509,26 @@ test "as of, with two records of the linked entity in one second: the state afte
   # 1200. p-t is made at 1200 and p-u at 1300, each linking item-t. By hand:
   # both see item-t after [3], two uses, whichever order the database keeps
   # the two 1200 records in.
-  nisshi::append_all(
-    nisshi::read(sc[:path], sc[:label], d),
+  isshou::nisshi::append_all(
+    isshou::nisshi::read(sc[:path], sc[:label], d),
     [
-      ["item-t", raifusaikuru::ev(:reading, 1000, [[:value, 10]]), []],
-      ["item-t", raifusaikuru::ev(:open, 1100, []), []],
-      ["item-t", raifusaikuru::ev(:use, 1200, []), []],
-      ["item-t", raifusaikuru::ev(:use, 1200, []), []]
+      ["item-t", isshou::raifusaikuru::ev(:reading, 1000, [[:value, 10]]), []],
+      ["item-t", isshou::raifusaikuru::ev(:open, 1100, []), []],
+      ["item-t", isshou::raifusaikuru::ev(:use, 1200, []), []],
+      ["item-t", isshou::raifusaikuru::ev(:use, 1200, []), []]
     ]
   )
-  nisshi::append_all(
-    nisshi::read(sp[:path], sp[:label], p),
+  isshou::nisshi::append_all(
+    isshou::nisshi::read(sp[:path], sp[:label], p),
     [
       [
         "p-t",
-        raifusaikuru::ev(:make, 1200, [[:grams, 100]]),
+        isshou::raifusaikuru::ev(:make, 1200, [[:grams, 100]]),
         [[:item, "item-t"]]
       ],
       [
         "p-u",
-        raifusaikuru::ev(:make, 1300, [[:grams, 90]]),
+        isshou::raifusaikuru::ev(:make, 1300, [[:grams, 90]]),
         [[:item, "item-t"]]
       ]
     ]

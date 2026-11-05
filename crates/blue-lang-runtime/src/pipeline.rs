@@ -1341,7 +1341,7 @@ pub fn program_names(program: &crate::uses::ResolvedProgram, builtins: &NameTabl
     }
     // A FACADE — a bidama that defines nothing and `use`s others (zenbu) —
     // exists so a consumer can depend on "everything": `use("zenbu")` makes
-    // every member's QUALIFIER reachable (`toukei::median`), never a bare
+    // every member's QUALIFIER reachable (`suugaku::toukei::median`), never a bare
     // name. Followed to a fixpoint, so a facade of facades works too.
     let facade_uses =
         |pkg: &str,

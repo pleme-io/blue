@@ -357,7 +357,7 @@ one declaration.
 
 | Target | Renderer today | Gap |
 |---|---|---|
-| Helm chart | `bidamas/haibi/haibi.b:768` `files_with` | CR templates are string lines |
+| Helm chart | `bidamas/eigyou/haibi/haibi.b:768` `files_with` | CR templates are string lines |
 | values.schema.json | `haibi.b:232` | helm-forge renders the same kind in Rust |
 | config defaults + schema | `haibi.b:100`, `:811` | none |
 | SQL DDL | `haibi.b:321`, `:360` | no ALTER plan |

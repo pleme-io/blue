@@ -47,7 +47,6 @@ fix is the `blue bluefile --deps --json` subcommand `mk-bidama.nix` names, so
 nix consumes blue's own evaluation instead of re-deriving it.
 """
 
-use("anaritikusu")
 use("angou", [:is_prime])
 # waive B0016: zenbu is the facade, and depending on it means depending on baito
 use("baito")
@@ -59,7 +58,6 @@ use("bunsho")
 use("burauza")
 use("chokkan")
 use("chozou")
-use("danpen")
 use("deeta", [:get_str])
 use("eigyou")
 # waive B0016: zenbu is the facade, and depending on it means depending on erufu
@@ -77,6 +75,8 @@ use("hikisuu")
 use("hizuke", [:is_leap])
 use("hon")
 use("ibuki")
+use("isshou")
+# waive B0016: zenbu is the facade, and depending on it means depending on jisho
 use("jisho")
 use("junjo", %i[is_sorted sort])
 # waive B0016: zenbu is the facade, and depending on it means depending on kaaneru
@@ -92,18 +92,14 @@ use("koubou/kikagaku", [:manhattan])
 use("kousei")
 use("koutei")
 use("kueri")
-use("kyasshu")
 use("kyohi")
 use("maakuappu")
 use("mitoshi")
 use("moji", [:empty])
 use("mokuroku", [:md_cell])
-use("nisshi")
 # waive B0016: zenbu is the facade, and depending on it means depending on okite
 use("okite")
 use("ongaku", [:major_triad])
-use("outou")
-use("raifusaikuru")
 use("ran", [:take_ints])
 use("retsu", %i[contains size])
 use("ronri", [:every])
@@ -127,6 +123,7 @@ use("suugaku/tokumei", [:suppress_small])
 use("suugaku/toukei", %i[mean median])
 use("tesuto")
 use("todokede")
+use("toriyose")
 use("touroku")
 use("ugoki")
 use("ukai", [:decide])
@@ -139,7 +136,7 @@ test "every bidama in the distribution answers through this one import"
   #
   # The distinguishing case for a facade is a MISSING ARM, so the value of this
   # block is that it has as many lines as the Bluefile has `needs`.
-  assert anaritikusu::lit_type(1) == :bigint
+  assert isshou::anaritikusu::lit_type(1) == :bigint
   assert is_prime(97) == true
   assert get_str(json_parse("{\"a\":\"x\"}"), "a", "d") == "x"
   assert dot([1, 2, 3], [4, 5, 6]) == 32
@@ -153,10 +150,11 @@ test "every bidama in the distribution answers through this one import"
   assert kiwari::unpainted(kiwari::blue) == []
   assert koutei::input_key("cache-url") == "INPUT_CACHE_URL"
   assert hon::heading_anchor("1. Install blue") == "1-install-blue"
-  assert danpen::render(danpen::parse("{a}")) == unlines(["{", "  a", "}"])
+  assert toriyose::danpen::render(toriyose::danpen::parse("{a}")) ==
+    unlines(["{", "  a", "}"])
   assert kousei::name_of(kousei::entry(:plane, "edge", {})) == "edge"
   assert kueri::ident("order") == "\"order\""
-  assert kyasshu::key(["User", 7]) == "User:7"
+  assert toriyose::kyasshu::key(["User", 7]) == "User:7"
   assert kyohi::kind(kyohi::refusal(:late, "why")) == :late
   assert combinations(52, 5) == 2_598_960
   assert eigyou::kyuuji::address({"listen" => {"host" => "h", "port" => 1}}) ==
@@ -168,9 +166,9 @@ test "every bidama in the distribution answers through this one import"
   assert chozou::teeburu::quoted("t") == "\"t\""
   assert empty("") == true
   assert md_cell("a|b") == "a\\|b"
-  assert nisshi::format == "nisshi/1"
+  assert isshou::nisshi::format == "nisshi/1"
   assert major_triad(0) == [0, 4, 7]
-  assert raifusaikuru::hours(2) == 7200
+  assert isshou::raifusaikuru::hours(2) == 7200
   assert take_ints(42, 100, 5) == take_ints(42, 100, 5)
   assert koubou::rittai::z([1, 2, 3]) == 3
   assert mitoshi::rogu::levels == %i[debug info warn error]
@@ -233,8 +231,10 @@ test "every bidama in the distribution answers through this one import"
   assert burauza::seam_names != []
   assert eigyou::heddaa::encode_int(1337, 5, 0) == [31, 154, 10]
   assert eigyou::tajuu::error_code(:cancel) == 8
-  assert outou::request(outou::fixture, "{ hero { id } }") ==
-    {data: {"hero" => {"id" => "2001"}}}
+  assert toriyose::outou::request(
+    toriyose::outou::fixture,
+    "{ hero { id } }"
+  ) == {data: {"hero" => {"id" => "2001"}}}
   assert touroku::visibility_of({}) == "private"
   assert chozou::kiibariu::versioned_key("o", "h", :order, 1) == "o:vh:order:1"
   assert happa::key("aws_instance.web[3]") == {kind: :keyed, value: "3"}

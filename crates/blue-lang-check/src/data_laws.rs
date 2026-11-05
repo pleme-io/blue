@@ -566,7 +566,7 @@ fn query_text(s: &Spanned, top: usize, out: &mut Vec<Diagnostic>) {
                 s.span,
             )
             .at_top_level(top)
-            .with_help("declare a fragment on the root type and let danpen::compose write the operation; hanabi receives its hash"),
+            .with_help("declare a fragment on the root type and let toriyose::danpen::compose write the operation; hanabi receives its hash"),
         );
     }
 }
@@ -582,7 +582,7 @@ mod tests {
     #[test]
     fn a_fragment_is_read_from_its_declaration() {
         let f = Fragments::collect(&forms(
-            "card = danpen::fragment(:user_card, {on: \"User\", fields: [:id, \"...face\", {avatar: [:url]}]})\n",
+            "card = toriyose::danpen::fragment(:user_card, {on: \"User\", fields: [:id, \"...face\", {avatar: [:url]}]})\n",
         ));
         let card = f.get("user_card").unwrap();
         assert_eq!(card.on, "User");

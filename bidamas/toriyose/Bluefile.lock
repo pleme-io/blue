@@ -1,0 +1,48 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:9af0c35b9b806def329c72da6634a7dbd5daa73b6756cd09a8fab48196ecd51f",
+  "manifest": {
+    "schema": 1,
+    "name": "toriyose",
+    "version": "0.1.2",
+    "needs": {
+      "deeta": "^0.1.0",
+      "eigyou": "^0.1.0",
+      "fairu": "^0.1.0",
+      "gamen": "^0.1.0",
+      "isshou": "^0.1.0",
+      "jisho": "^0.1.0",
+      "kiwari": "^0.1.0",
+      "kousei": "^0.1.0",
+      "kyohi": "^0.1.0",
+      "moji": "^0.1.0",
+      "ran": "^0.1.0",
+      "retsu": "^0.1.0",
+      "shomei": "^0.1.0",
+      "tesuto": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null,
+    "legacy_packages": {
+      "danpen": {
+        "since": "0.1.2",
+        "to": "toriyose/danpen"
+      },
+      "kyasshu": {
+        "since": "0.1.2",
+        "to": "toriyose/kyasshu"
+      },
+      "outou": {
+        "since": "0.1.2",
+        "to": "toriyose/outou"
+      }
+    }
+  },
+  "sources": {}
+}

@@ -1,12 +1,12 @@
-use("danpen")
 use("gamen", [:labels])
+use("toriyose/danpen")
 
-card = danpen::fragment(
+card = toriyose::danpen::fragment(
   :user_card,
   {on: "User", fields: [:name, :tone, {avatar: [:url]}]}
 )
 
-page = danpen::fragment(
+page = toriyose::danpen::fragment(
   :profile,
   {on: "Query", fields: [{user: [:id, "...user_card"]}]}
 )
@@ -27,11 +27,14 @@ test "a profile renders the card from the one response"
 end
 
 test "the operation is the union of the view's and the card's fragments"
-  op = danpen::render(danpen::compose(page, [card]), :compact)
+  op = toriyose::danpen::render(
+    toriyose::danpen::compose(page, [card]),
+    :compact
+  )
   assert starts_with?(
     op,
     "query Profile { ...profile } fragment profile on Query"
   )
-  assert danpen::hash(danpen::compose(page, [card])) ==
-    danpen::hash(danpen::parse(op))
+  assert toriyose::danpen::hash(toriyose::danpen::compose(page, [card])) ==
+    toriyose::danpen::hash(toriyose::danpen::parse(op))
 end

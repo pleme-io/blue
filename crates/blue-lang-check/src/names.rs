@@ -394,7 +394,7 @@ pub struct FileImports {
     /// A listed name, and every package that lists it.
     pub names: BTreeMap<String, Vec<String>>,
     /// A bidama reachable only through a facade the file uses, and that
-    /// facade: `use("zenbu")` makes `toukei::` reachable.
+    /// facade: `use("zenbu")` makes `suugaku::toukei::` reachable.
     pub via: BTreeMap<String, String>,
     /// A level's second name, from `use({s: "thing/sub"})`.
     pub aliases: BTreeMap<String, String>,

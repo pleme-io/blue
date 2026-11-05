@@ -124,7 +124,7 @@ fn a_bridge_into_the_compiled_in_distribution_warns_a_caller_on_disk() {
     let caller = root.join("app/main.b");
     write(
         &caller,
-        "use(\"toukei\", [:total])\n\nprint(total([1, 2]))\n",
+        "use(\"suugaku/toukei\", [:total])\n\nprint(total([1, 2]))\n",
     );
     let out = Command::new(env!("CARGO_BIN_EXE_blue"))
         .env_remove("BLUE_PATH")

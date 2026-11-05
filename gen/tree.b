@@ -258,7 +258,7 @@ def callers_of(children)
         names_a_child?(read_file(p), children)
     end,
     retsu::flat_map(
-      filter(is_dir?, %w[bidamas gen examples nix native]),
+      filter(is_dir?, %w[bidamas gen examples nix native crates spec]),
       walk_dir
     )
   )
@@ -330,6 +330,94 @@ def mutation_sets(root, children)
   )
 end
 
+@doc """
+moved_paths: text with each `bidamas/<child>/` written `bidamas/<root>/<child>/`.
+
+    moved_paths("see bidamas/kid/x.b and bidamas/fam/kid/y", "fam", ["kid"]) #=> "see bidamas/fam/kid/x.b and bidamas/fam/kid/y"
+"""
+def moved_paths(text, root, children)
+  reduce(
+    (acc, c) -> replace(acc, "bidamas/#{c}/", "bidamas/#{root}/#{c}/"),
+    text,
+    children
+  )
+end
+
+@doc """
+embedded_uses: text with each `use` of a child written by its level path, as
+code (`use("kid"`) and inside a string (`use(\\"kid\\"`), so a program held in
+a string follows the move as code does.
+
+    embedded_uses("no import here", "fam", ["kid"]) #=> "no import here"
+"""
+def embedded_uses(text, root, children)
+  reduce(
+    fn(acc, c)
+      reduce(
+        fn(t, q)
+          replace(
+            replace(t, "use(#{q}#{c}#{q}", "use(#{q}#{root}/#{c}#{q}"),
+            "use(#{q}#{c}/",
+            "use(#{q}#{root}/#{c}/"
+          )
+        end,
+        acc,
+        ["\"", "\\\""]
+      )
+    end,
+    text,
+    children
+  )
+end
+
+def strings(root, children)
+  map(
+    fn(p)
+      text = read_file(p)
+      moved = rehome(embedded_uses(text, root, children), root, children)
+      if moved != text
+        write_file(p, moved)
+      end
+    end,
+    filter(
+      (p) -> ends_with?(p, ".rs") or starts_with?(p, "spec/"),
+      tracked_text
+    )
+  )
+end
+
+def tracked_text()
+  out = shisutemu::stdout_of(
+    must(exec_capture("git", "ls-files"), "git ls-files")
+  )
+  filter(
+    fn(p)
+      not ends_with?(p, ".lock") and
+        not ends_with?(p, "CATALOG.md") and
+        not contains?(p, "llms") and
+        not member?(p, %w[AGENTS.md CLAUDE.md]) and
+        any?(
+          (x) -> ends_with?(p, x),
+          %w[.b .rs .md .nix .json Bluefile .yml .tsv]
+        )
+    end,
+    filter((p) -> p != "", lines(out))
+  )
+end
+
+def paths(root, children)
+  map(
+    fn(p)
+      text = read_file(p)
+      moved = moved_paths(text, root, children)
+      if moved != text
+        write_file(p, moved)
+      end
+    end,
+    tracked_text
+  )
+end
+
 def rewrite_callers(blue, root, children)
   callers = callers_of(children)
   map(
@@ -337,6 +425,7 @@ def rewrite_callers(blue, root, children)
       exec_capture(blue, "check", "--fix", "--only", "B0074", p)
       write_file(p, rehome(read_file(p), root, children))
       exec_capture(blue, "check", "--fix", "--only", "B0015", p)
+      exec_capture(blue, "fmt", "--write", p)
     end,
     callers
   )
@@ -425,6 +514,8 @@ def move(blue, root, children)
   facade(root, children)
   debt(root, children)
   mutation_sets(root, children)
+  paths(root, children)
+  strings(root, children)
   must(exec_capture(blue, "lock", dir, "bidamas/zenbu"), "blue lock #{dir}")
   write_stderr(
     unlines(
@@ -447,6 +538,8 @@ def main()
   elsif verb == "gates" and size(argv) >= 3
     debt(argv_get(1), drop(2, argv))
     mutation_sets(argv_get(1), drop(2, argv))
+    paths(argv_get(1), drop(2, argv))
+    strings(argv_get(1), drop(2, argv))
   elsif verb == "rehome" and size(argv) >= 3
     map(
       (p) -> write_file(p, rehome(read_file(p), argv_get(1), drop(2, argv))),
@@ -538,4 +631,13 @@ test "a family's test debt folds into one row for its root, in sorted place"
       "      \"untested: z 3\""
     ]
   assert debt_rows(rows, "f", ["q"]) == rows
+end
+
+test "a use held in a string or in code follows the move"
+  assert embedded_uses("use(\"kid\")", "fam", ["kid"]) == "use(\"fam/kid\")"
+  assert embedded_uses("\"use(\\\"kid\\\", [:x])\"", "fam", ["kid"]) ==
+    "\"use(\\\"fam/kid\\\", [:x])\""
+  assert embedded_uses("use(\"kid/sub\")", "fam", ["kid"]) ==
+    "use(\"fam/kid/sub\")"
+  assert embedded_uses("use(\"kidney\")", "fam", ["kid"]) == "use(\"kidney\")"
 end

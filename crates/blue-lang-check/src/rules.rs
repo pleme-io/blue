@@ -589,7 +589,7 @@ division; neither names retsu's `first`. blue qualifies with `::`:
 A bidama that stripped its hand-made prefix (`lc_hours` became `hours`)
 declares the old spelling with `legacy_names(\"0.1.1\", \"lc\")`, so a caller
 written against the old name still resolves — to the same definition, the
-one `raifusaikuru::hours` names — while the bridge is open: from `since` to
+one `isshou::raifusaikuru::hours` names — while the bridge is open: from `since` to
 the next minor version.
 
 A reference through the bridge is this rule. Its severity is derived, never
@@ -601,7 +601,7 @@ machine-applicable fix, read from the ledger the declaration keeps.
 
 A definition MOVED to another bidama — a twin given one home rather than
 copied — is declared the same way, by the bidama it left:
-`legacy_names(\"0.1.2\", [[\"opt\", \"deeta::get_or\"]])`. `kinji::opt`
+`legacy_names(\"0.1.2\", [[\"opt\", \"deeta::get_or\"]])`. `suugaku::kinji::opt`
 then resolves to `deeta::get_or` over the same window and under the same
 severity, and the fix writes the new home qualified, adding the `use` the
 file lacks.",
@@ -1019,13 +1019,13 @@ answers `.nil?` with that key's value.",
         severity: Error,
         fix: Suggested,
         law: "a fragment ref is read only for the fields its fragment declares; a parent never reads a child's field",
-        witness: "use(\"danpen\")\n\ncard = danpen::fragment(:user_card, {on: \"User\", fields: [:id]})\n\ndef user_card(user: UserCard)\n  user.name\nend\n",
+        witness: "use(\"toriyose/danpen\")\n\ncard = toriyose::danpen::fragment(:user_card, {on: \"User\", fields: [:id]})\n\ndef user_card(user: UserCard)\n  user.name\nend\n",
         imports: [("danpen", "def fragment(name, spec)\n  [name, spec]\nend\n")],
         waivable: false,
         ratchet: 0,
         explanation: "\
 A parameter whose type names a fragment receives a fragment ref:
-`danpen::fragment(:user_card, …)` declares the type `UserCard`, and
+`toriyose::danpen::fragment(:user_card, …)` declares the type `UserCard`, and
 `def user_card(user: UserCard)` reads `user` through it. Only the fields the
 fragment lists can be read, by `user.name` or `get(user, :name)`; a nested
 selection gives a ref to that selection.
@@ -1043,13 +1043,13 @@ the component whose fragment declares it. The suggestion adds the field.",
         severity: Error,
         fix: Machine,
         law: "a view's operation is the union of the fragments of the components it renders: a ref passed to a component comes from a selection that spreads its fragment, and every spread names a declared fragment",
-        witness: "use(\"danpen\")\n\ncard = danpen::fragment(:user_card, {on: \"User\", fields: [:id]})\n\npage = danpen::fragment(:profile, {on: \"Query\", fields: [{user: [:id]}]})\n\ndef user_card(user: UserCard)\n  user.id\nend\n\ndef profile(data: Profile)\n  user_card(data.user)\nend\n",
+        witness: "use(\"toriyose/danpen\")\n\ncard = toriyose::danpen::fragment(:user_card, {on: \"User\", fields: [:id]})\n\npage = toriyose::danpen::fragment(:profile, {on: \"Query\", fields: [{user: [:id]}]})\n\ndef user_card(user: UserCard)\n  user.id\nend\n\ndef profile(data: Profile)\n  user_card(data.user)\nend\n",
         imports: [("danpen", "def fragment(name, spec)\n  [name, spec]\nend\n")],
         waivable: false,
         explanation: "\
 Nobody writes a query. A view declares a fragment on the root type, each
 component declares its own, and the view's operation is their union
-(`danpen::compose`). For the union to hold, the selection a view passes to a
+(`toriyose::danpen::compose`). For the union to hold, the selection a view passes to a
 component must spread that component's fragment: `{user: [\"...user_card\"]}`
 before `user_card(data.user)`. Otherwise the component is handed data
 fetched for somebody else.
@@ -1064,14 +1064,14 @@ The fix adds the spread to the selection the value comes from.",
         severity: Error,
         fix: None,
         law: "every fragment's type and field, and every `labels` enum and key, is in the frontend's schema",
-        witness: "use(\"danpen\")\n\ncard = danpen::fragment(:user_card, {on: \"User\", fields: %i[id nmae]})\n",
+        witness: "use(\"toriyose/danpen\")\n\ncard = toriyose::danpen::fragment(:user_card, {on: \"User\", fields: %i[id nmae]})\n",
         imports: [("danpen", "def fragment(name, spec)\n  [name, spec]\nend\n")],
         waivable: false,
         frontend: "{types: {\"User\" => {\"id\" => \"ID\", \"name\" => \"String\"}}, enums: {}}\n",
         explanation: "\
 A frontend names its GraphQL SDL (`frontend(name, {schema: \"schema.graphql\"})`)
 and generates a table from it (`generate(name, output, program,
-[\"schema.graphql\"])`, the program calling `danpen::table_text`). The check
+[\"schema.graphql\"])`, the program calling `toriyose::danpen::table_text`). The check
 stage reads that table and refuses a fragment `on:` a type the SDL lacks, a
 field its type does not define, a `labels` call on an enum the SDL lacks and
 a label keyed by a value the enum does not have.
@@ -1117,8 +1117,8 @@ In a file a `frontend(...)` names as a view, a string that starts with
 `query`, `mutation` or `subscription` and holds a selection is hand-written
 operation text, which neither composition nor the hash table can see.
 
-To comply, declare a fragment on the root type and let `danpen::compose` and
-`danpen::hash` produce the operation and its id. GraphQL text in danpen's own
+To comply, declare a fragment on the root type and let `toriyose::danpen::compose` and
+`toriyose::danpen::hash` produce the operation and its id. GraphQL text in danpen's own
 tests and in fixtures is not a view and is not reported.",
     }
     B0053 {
@@ -1150,7 +1150,7 @@ that is there only for the error it may raise. docs/SAFETY.md, row 2.",
         fix: Machine,
         law: "a bidama's public definition has a `@doc` whose first sentence starts with its name",
         witness: "@moduledoc \"\"\"\nkagi holds one value.\n\n    kagi #=> 1\n\"\"\"\n\ndef kagi()\n  1\nend\n",
-        ratchet: 2818,
+        ratchet: 2817,
         package: "kagi",
         explanation: "\
 A reader of one bidama should be proficient in it, so every definition a `use`

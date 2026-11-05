@@ -1,0 +1,2 @@
+package("toriyose", "0.1.2")
+legacy_packages("0.1.2", [["danpen", "toriyose/danpen"], ["outou", "toriyose/outou"], ["kyasshu", "toriyose/kyasshu"]])

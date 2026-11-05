@@ -50,7 +50,7 @@ rustls today carries C or assembly.
 | Processes | `crates/blue-lang-proc/src/lib.rs:373` `Supervisor`; `BLUE-GAPS.md:851`: the root is not preempted, and a blocking host call blocks the node | a socket that feeds a mailbox |
 | Bytes | a byte is an Int in a list; `crypto.rs:198` `message_bytes` reads a string or a byte list | until this change, no text to bytes and back (now `text_bytes`, `bytes_text`, `stdlib.rs:570`, `:584`) |
 | Bits | `bidamas/shinsuu`: `bit_at`, `shift_left`, `shift_right`, by arithmetic; blue has no bitwise operator | native bit operators |
-| An HTTP server loop | `bidamas/kyuuji/kyuuji.b:201`, `while` over `http_next_request` | a loop over many connections |
+| An HTTP server loop | `bidamas/eigyou/kyuuji/kyuuji.b:201`, `while` over `http_next_request` | a loop over many connections |
 | The verb graph | `docs/verbs/merged/verbs.tsv:2299` `sokketto?::wait(conns, opts) -> [ready conn]`, `:2296` `sokketto?::secure`, `:1181` `keiyaku?::frame` (length prefix), `:2204` `shinsuu::to_varint` | none of them built |
 | Rust HTTP/2 in the fleet | kensa: `axum 0.8`, `tonic 0.12` behind the `grpc` feature (`kensa/Cargo.toml:28`, `:80`), `hyper 1.9.0`, `h2 0.4.20`, `rustls 0.23.46` in `kensa/Cargo.lock`; tend: `hyper 1.12.0` (server, http1), `h2 0.4.20`, `rustls 0.23.46` | a blue service on any of them |
 

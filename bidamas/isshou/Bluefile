@@ -1,0 +1,2 @@
+package("isshou", "0.1.3")
+legacy_packages("0.1.3", [["raifusaikuru", "isshou/raifusaikuru"], ["nisshi", "isshou/nisshi"], ["anaritikusu", "isshou/anaritikusu"]])

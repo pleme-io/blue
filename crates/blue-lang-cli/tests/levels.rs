@@ -63,14 +63,19 @@ fn directories_and_files_are_levels_and_a_part_stays_a_part() {
     let dir = tree("shape", PROJECT, PURE);
     put(
         &dir.join("main.b"),
-        "use(\"tree\")\n\nwrite_stdout(concat(tree::top, tree::merged, door::key, tree::door::key, room::bed, tree::room::deep::word, room::deep::word))\n",
+        "use(\"tree\")\n\nwrite_stdout(concat(tree::top, tree::merged, tree::door::key, tree::room::bed, tree::room::deep::word))\n",
     );
     let o = blue().current_dir(&dir).args(["main.b"]).output().unwrap();
     assert!(o.status.success(), "{}", say(&o));
-    assert_eq!(
-        String::from_utf8_lossy(&o.stdout),
-        "topmergedkeykeybeddeepdeep"
+    assert_eq!(String::from_utf8_lossy(&o.stdout), "topmergedkeybeddeep");
+
+    put(
+        &dir.join("tail.b"),
+        "use(\"tree\")\n\nwrite_stdout(room::deep::word)\n",
     );
+    let o = blue().current_dir(&dir).args(["tail.b"]).output().unwrap();
+    assert!(!o.status.success(), "{}", say(&o));
+    assert!(say(&o).contains("B0076"), "{}", say(&o));
 
     put(&dir.join("bad.b"), "use(\"tree/part\")\n\n1\n");
     let o = blue()

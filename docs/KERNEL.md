@@ -124,7 +124,7 @@ Every "measured on plo" row ran on 6.12.93, 2026-11-03 or 2026-11-04, and every 
 | LSM program that counts, and one that denies only its target | built, measured on plo | `kernel/suite.b` |
 | a field of another size on this kernel refuses at load | built | `bpf::bind_fields` |
 | `:kernel_bpf` forces the native rung | built | `deploy::service` tests |
-| chart: exact capabilities for a service that reaches the kernel | built, not deployed | `bidamas/haibi/haibi.b`; `nix/chart-gate.b`; the values schema holds them as `const`; no release uses it |
+| chart: exact capabilities for a service that reaches the kernel | built, not deployed | `bidamas/eigyou/haibi/haibi.b`; `nix/chart-gate.b`; the values schema holds them as `const`; no release uses it |
 | chart: DaemonSet, host network, bpffs and tracefs mounts | built, not deployed | `examples/kernel-agent`: `helm lint --strict`, render and `nix/chart-gate.b`, each widened capability and missing mount red; no cluster has run it |
 | cgroup v2 descriptor, a named absence off a v2 directory | built, measured on plo | `kaaneru::open_cgroup`; `kernel/net_suite.b`: `:cgroup_absent` |
 | cgroup skb, egress and ingress, through a link | built, measured on plo | `kernel/net_suite.b`: a fresh test cgroup's ping drops and is counted, ping outside it passes, detach restores it |

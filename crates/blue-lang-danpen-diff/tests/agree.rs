@@ -10,7 +10,7 @@ fn root() -> PathBuf {
 }
 
 fn fixtures() -> PathBuf {
-    root().join("bidamas/danpen/fixtures")
+    root().join("bidamas/toriyose/danpen/fixtures")
 }
 
 fn graphql_files(dir: &Path) -> Vec<PathBuf> {

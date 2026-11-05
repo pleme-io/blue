@@ -11,17 +11,18 @@ rolls it back, and `request` asks a server by persisted hash only.
     key(["User", 7]) #=> "User:7"
 """
 
-use("danpen")
 use("deeta", [:get_or])
 use("eigyou/tsuushin")
+use("fairu")
 use("gamen")
+use("isshou/raifusaikuru")
 use("kousei")
 use("kyohi", [:refusal])
 use("moji", [:checked])
-use("raifusaikuru")
 use("ran")
 use("retsu", %i[find_first first is_empty push size])
 use("tesuto", [:raises?])
+use("toriyose/danpen")
 
 def key_format()
   "kyasshu-keys/1"
@@ -80,14 +81,14 @@ end
 schema: the entity key table a GraphQL schema implies.
 """
 def schema(subject)
-  table_of(danpen::schema_of(subject))
+  table_of(toriyose::danpen::schema_of(subject))
 end
 
 def context(schema)
   if table?(schema)
     {table: schema, types: nil}
   else
-    s = danpen::schema_of(schema)
+    s = toriyose::danpen::schema_of(schema)
     {table: table_of(s), types: s}
   end
 end
@@ -121,12 +122,12 @@ def field_type(ctx, parent, name)
   f = if s.nil? or parent.nil?
     nil
   else
-    danpen::field_def(s, parent, name, false)
+    toriyose::danpen::field_def(s, parent, name, false)
   end
   if f.nil?
     nil
   else
-    danpen::base_name(f[:type])
+    toriyose::danpen::base_name(f[:type])
   end
 end
 
@@ -300,7 +301,7 @@ def fetched(v, o)
   if null_at?(o)
     nil
   else
-    danpen::select_into(
+    toriyose::danpen::select_into(
       start_value(v, o[:at]),
       selections_of(o[:fragment]),
       hooks(v)
@@ -579,16 +580,16 @@ def touched(patch)
 end
 
 def write_machine()
-  raifusaikuru::lc_define(
+  isshou::raifusaikuru::lc_define(
     :optimistic_write,
     [
-      raifusaikuru::states(%i[pending confirmed rolled_back]),
-      raifusaikuru::start(:pending),
-      raifusaikuru::terminals(%i[confirmed rolled_back]),
-      raifusaikuru::event(:confirm, []),
-      raifusaikuru::event(:roll_back, []),
-      raifusaikuru::on(:pending, :confirm, :confirmed, []),
-      raifusaikuru::on(:pending, :roll_back, :rolled_back, [])
+      isshou::raifusaikuru::states(%i[pending confirmed rolled_back]),
+      isshou::raifusaikuru::start(:pending),
+      isshou::raifusaikuru::terminals(%i[confirmed rolled_back]),
+      isshou::raifusaikuru::event(:confirm, []),
+      isshou::raifusaikuru::event(:roll_back, []),
+      isshou::raifusaikuru::on(:pending, :confirm, :confirmed, []),
+      isshou::raifusaikuru::on(:pending, :roll_back, :rolled_back, [])
     ]
   )
 end
@@ -624,7 +625,7 @@ def write(store, change)
         id:,
         mutation: m,
         patch: assoc(patch, :writes, []),
-        state: raifusaikuru::initial(write_machine)
+        state: isshou::raifusaikuru::initial(write_machine)
       }
     )
   )
@@ -650,19 +651,19 @@ def settle(store, id, outcome)
   if w.nil?
     raise(:conflict, "settle: no pending write #{to_s(id)}")
   end
-  step = raifusaikuru::admit_step(
+  step = isshou::raifusaikuru::admit_step(
     write_machine,
     w[:state],
-    raifusaikuru::ev(event, 0, [])
+    isshou::raifusaikuru::ev(event, 0, [])
   )
-  if not raifusaikuru::admitted?(first(step))
+  if not isshou::raifusaikuru::admitted?(first(step))
     raise(
       :conflict,
-      "settle: write #{to_s(id)} cannot #{to_s(event)} from #{to_s(raifusaikuru::phase(w[:state]))}"
+      "settle: write #{to_s(id)} cannot #{to_s(event)} from #{to_s(isshou::raifusaikuru::phase(w[:state]))}"
     )
   end
   rest = filter((x) -> x[:id] != id, writes)
-  if raifusaikuru::phase(second(step)) == :confirmed
+  if isshou::raifusaikuru::phase(second(step)) == :confirmed
     assoc(merge(assoc(store, :writes, []), w[:patch]), :writes, rest)
   else
     assoc(store, :writes, rest)
@@ -673,7 +674,10 @@ def persisted_body(doc, variables)
   op = find_first((d) -> d[:kind] == :operation, doc[:definitions])
   body = {
     "extensions" => {
-      "persistedQuery" => {"version" => 1, "sha256Hash" => danpen::hash(doc)}
+      "persistedQuery" => {
+        "version" => 1,
+        "sha256Hash" => toriyose::danpen::hash(doc)
+      }
     },
     "variables" => variables or {}
   }
@@ -693,7 +697,7 @@ def request(target, input, opts?)
   if i[:operation].nil?
     raise(:bad_option, "request: operation: is the document to run")
   end
-  doc = danpen::as_document(i[:operation])
+  doc = toriyose::danpen::as_document(i[:operation])
   r = eigyou::tsuushin::request(
     "POST",
     target,
@@ -717,8 +721,8 @@ def request(target, input, opts?)
   if any?((e) -> e["message"] == "PersistedQueryNotFound", errors)
     raise(
       :not_persisted,
-      "request: #{target} holds no operation #{danpen::hash(doc)}, and no query text is sent",
-      {data: danpen::hash(doc)}
+      "request: #{target} holds no operation #{toriyose::danpen::hash(doc)}, and no query text is sent",
+      {data: toriyose::danpen::hash(doc)}
     )
   end
   if reply["data"].nil? and not is_empty(errors)
@@ -745,18 +749,18 @@ def sdl()
 end
 
 def user_card()
-  danpen::fragment(:user_card, {on: "User", fields: %i[id name]})
+  toriyose::danpen::fragment(:user_card, {on: "User", fields: %i[id name]})
 end
 
 def comment_item()
-  danpen::fragment(
+  toriyose::danpen::fragment(
     :comment_item,
     {on: "Comment", fields: [:id, :body, {author: ["...user_card"]}]}
   )
 end
 
 def post_page()
-  danpen::fragment(
+  toriyose::danpen::fragment(
     :post_page,
     {
       on: "Post",
@@ -771,8 +775,8 @@ def post_page()
 end
 
 def page_query()
-  danpen::compose(
-    danpen::parse("query Post($id: ID!) { post(id: $id) { ...post_page } }"),
+  toriyose::danpen::compose(
+    toriyose::danpen::parse("query Post($id: ID!) { post(id: $id) { ...post_page } }"),
     [post_page, comment_item, user_card]
   )
 end
@@ -884,7 +888,7 @@ end
 
 def posts_query()
   operation_of(
-    danpen::parse("{ posts { id title author { id name } comments { id body author { id name } } } }")
+    toriyose::danpen::parse("{ posts { id title author { id name } comments { id body author { id name } } } }")
   )
 end
 
@@ -1045,18 +1049,14 @@ test "schema keys every object type with an id, and the generated table is kensa
     {"Comment" => ["id"], "Post" => ["id"], "User" => ["id"]}
   assert t[:separator] == ":"
   assert t[:format] == "kyasshu-keys/1"
-  assert schema(danpen::parse(sdl)) == t
+  assert schema(toriyose::danpen::parse(sdl)) == t
   kensa = find_first(
     (f) -> ends_with?(first(f), "/kensa.graphql"),
-    danpen::fixtures("schema")
-  )
-  roots = append(
-    split(getenv("BLUE_PATH", ""), ":"),
-    [path_join(cwd, "bidamas"), cwd]
+    toriyose::danpen::fixtures("schema")
   )
   generated = find_first(
     is_file?,
-    map((r) -> path_join(r, "kyasshu/keys/kensa.json"), roots)
+    fairu::on_blue_path("toriyose/kyasshu/keys/kensa.json")
   )
   assert read_file(generated) ==
     unlines([json_stringify(schema(second(kensa)))])
@@ -1124,7 +1124,7 @@ test "normalize then read gives back what the query selects, for any response"
     fn(seed)
       r = drawn_response(seed)
       unref(read(normalize(r, sdl), {fragment: q})) ==
-        danpen::select(r["data"], q)
+        toriyose::danpen::select(r["data"], q)
     end,
     range(0, 120)
   )
@@ -1140,7 +1140,10 @@ end
 test "a read misses when the store lacks an entity or a field"
   s = normalize(response, sdl)
   assert read(s, {fragment: user_card, at: "User:nobody"}).nil?
-  wide = danpen::fragment(:wide, {on: "User", fields: %i[id name email]})
+  wide = toriyose::danpen::fragment(
+    :wide,
+    {on: "User", fields: %i[id name email]}
+  )
   assert read(s, {fragment: wide, at: "User:u7"}).nil?
   assert read(nil, {fragment: user_card}).nil?
   assert read(s, {fragment: operation_of(page_query), at: nil}).nil?
@@ -1279,19 +1282,26 @@ end
 
 test "the write machine has no way out of a settled state"
   d = write_machine
-  rolled = raifusaikuru::state_of(d, [raifusaikuru::ev(:roll_back, 0, [])])
-  assert raifusaikuru::phase(rolled) == :rolled_back
-  assert raifusaikuru::admitted?(
-    raifusaikuru::admit(d, rolled, raifusaikuru::ev(:confirm, 0, []))
-  ) == false
-  assert raifusaikuru::admitted?(
-    raifusaikuru::admit(
+  rolled = isshou::raifusaikuru::state_of(
+    d,
+    [isshou::raifusaikuru::ev(:roll_back, 0, [])]
+  )
+  assert isshou::raifusaikuru::phase(rolled) == :rolled_back
+  assert isshou::raifusaikuru::admitted?(
+    isshou::raifusaikuru::admit(
       d,
-      raifusaikuru::initial(d),
-      raifusaikuru::ev(:confirm, 0, [])
+      rolled,
+      isshou::raifusaikuru::ev(:confirm, 0, [])
+    )
+  ) == false
+  assert isshou::raifusaikuru::admitted?(
+    isshou::raifusaikuru::admit(
+      d,
+      isshou::raifusaikuru::initial(d),
+      isshou::raifusaikuru::ev(:confirm, 0, [])
     )
   )
-  assert raifusaikuru::phase(
+  assert isshou::raifusaikuru::phase(
     get(
       first(
         get(
@@ -1329,7 +1339,7 @@ test "request posts the persisted hash and no query text through tsuushin"
   )
   sent = r["sent"]
   assert sent["extensions"]["persistedQuery"]["sha256Hash"] ==
-    danpen::hash(page_query)
+    toriyose::danpen::hash(page_query)
   assert sent["extensions"]["persistedQuery"]["version"] == 1
   assert sent["query"].nil?
   assert sent["operationName"] == "Post"
@@ -1392,7 +1402,7 @@ end
 
 def persisted?(body)
   body["extensions"]["persistedQuery"]["sha256Hash"] ==
-    danpen::hash(page_query) and body["query"].nil?
+    toriyose::danpen::hash(page_query) and body["query"].nil?
 end
 
 test "an SSR page with nested fragments renders from one request"

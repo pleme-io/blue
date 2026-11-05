@@ -1,4 +1,4 @@
-use("danpen")
+use("toriyose/danpen")
 
 def printed(text, compact)
   format = if compact
@@ -6,7 +6,7 @@ def printed(text, compact)
   else
     :graphql
   end
-  danpen::render(danpen::parse(text), format)
+  toriyose::danpen::render(toriyose::danpen::parse(text), format)
 rescue e
   "!#{e.kind}: #{e.message}"
 end
@@ -16,17 +16,17 @@ def shown(findings)
 end
 
 def schema_findings(text)
-  shown(danpen::check(danpen::parse(text)))
+  shown(toriyose::danpen::check(toriyose::danpen::parse(text)))
 rescue e
   ["#{e.kind}: #{e.message}"]
 end
 
 def prepared(text)
-  danpen::schema_of(danpen::parse(text))
+  toriyose::danpen::schema_of(toriyose::danpen::parse(text))
 end
 
 def document_findings(text, schema)
-  shown(danpen::check(danpen::parse(text), schema))
+  shown(toriyose::danpen::check(toriyose::danpen::parse(text), schema))
 rescue e
   ["#{e.kind}: #{e.message}"]
 end

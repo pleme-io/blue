@@ -48,6 +48,7 @@ use(
     jump32
     label
     load_signed
+    loop_fold
     map_ref
     neg
     packet_int
@@ -79,6 +80,24 @@ def mix(a, b)
   else
     a + b
   end
+end
+
+def fold_step(i, acc)
+  bit_xor(acc + i, shift_left(i, 3))
+end
+
+def fold_packet(a, b)
+  loop_fold(bit_and(b, 255), a, fold_step)
+end
+
+def fold_entry(ctx)
+  packet_put(
+    ctx,
+    16,
+    8,
+    fold_packet(packet_int(ctx, 0, 8), packet_int(ctx, 8, 8))
+  )
+  xdp_pass
 end
 
 def mix_entry(ctx)
@@ -572,6 +591,37 @@ test "one source: the interpreter, the machine and the real kernel agree, and a 
     mix_inputs
   )
   assert map(first, bad) == []
+end
+
+test "one source with a callback: the interpreter, the machine and the real kernel agree, and a raise inside it is a fault"
+  compiled = compile(
+    "kernel/suite.b",
+    {entry: :fold_entry, kind: :xdp, on_fault: 0}
+  )
+  assert size(compiled[:funcs]) == 2
+  assert compiled[:funcs][1][:linkage] == :static
+  live = install(compiled)
+  bad = filter(
+    fn(pair)
+      input = mix_packet(pair)
+      want = {ret: xdp_pass, out: fold_packet(first(pair), pair[1])} rescue
+        {ret: 0}
+      vm = kaaneru::bpf::run(compiled, {packet: input})
+      in_kernel = kaaneru::run(live[:prog], {packet: input})
+      vm_answer = answer_of(vm[:ret], packet_of(vm))
+      kernel_answer = answer_of(in_kernel[:ret], in_kernel[:packet])
+      not (want == vm_answer and want == kernel_answer)
+    end,
+    mix_inputs
+  )
+  assert map(first, bad) == []
+  faulted = filter(
+    fn(p)
+      ({ret: 1, out: fold_packet(first(p), p[1])} rescue {ret: 0})[:ret] == 0
+    end,
+    mix_inputs
+  )
+  assert faulted != []
 end
 
 test "one source with a global subprogram: the interpreter, the machine and the real kernel agree, and a raise inside it is a fault"

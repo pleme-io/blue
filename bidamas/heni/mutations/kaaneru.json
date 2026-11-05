@@ -160,5 +160,35 @@
     "file": "kaaneru.b",
     "find": "[:func_info_cnt, size(rows)]",
     "replace": "[:func_info_cnt, 0]"
+  },
+  {
+    "name": "the tally reads as the reason",
+    "file": "kaaneru.b",
+    "find": "      starts_with?(r, \"processed \") or\n",
+    "replace": "      false or\n"
+  },
+  {
+    "name": "a register line reads as an instruction",
+    "file": "kaaneru.b",
+    "find": "size(parts) > 1 and to_int(first(parts)) != nil",
+    "replace": "to_int(first(split(row, \":\"))) != nil"
+  },
+  {
+    "name": "the first instruction reads as the refused one",
+    "file": "kaaneru.b",
+    "find": "first(pair)\n      else\n        acc",
+    "replace": "acc or first(pair)\n      else\n        acc"
+  },
+  {
+    "name": "a line record is too short",
+    "file": "kaaneru.b",
+    "find": "[:line_info_rec_size, 16],",
+    "replace": "[:line_info_rec_size, 8],"
+  },
+  {
+    "name": "a refusal drops its source",
+    "file": "kaaneru.b",
+    "find": "    bpf::source_at(program, said[:insn])",
+    "replace": "    nil"
   }
 ]

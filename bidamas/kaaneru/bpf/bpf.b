@@ -13,7 +13,9 @@ use("baito", %i[align_up bytes_int int_bytes])
 use("jisho", [:update])
 use("kaaneru/btf")
 use("retsu", %i[first flat_map index_of last repeat rest size zip])
+
 use("shisutemu", [:blue_exe])
+use("shuugou")
 
 @doc """
 op_table: the number a name has in a table of rows, raising on a name the table lacks.
@@ -764,19 +766,29 @@ def wide?(i)
 end
 
 @doc """
-slots_of: the slots an item takes: two for `imm64`, none for a label.
+slots_of: the slots an item takes: two for `imm64`, none for a label or a source line mark.
 
     slots_of(imm64(1, 5)) #=> 2
     slots_of(label(:a)) #=> 0
+    slots_of(line_mark(3, 1)) #=> 0
 """
 def slots_of(i)
-  if i[:label] != nil
+  if i[:label] != nil or i[:source_line] != nil
     0
   elsif wide?(i)
     2
   else
     1
   end
+end
+
+@doc """
+line_mark: a position in source the following instructions came from. It takes no slot.
+
+    line_mark(3, 5).source_line #=> 3
+"""
+def line_mark(line, col)
+  {source_line: line, source_col: col}
 end
 
 @doc """
@@ -875,7 +887,7 @@ def resolved(i, labels, pc)
 end
 
 @doc """
-assemble: instructions and labels, nested lists flattened, to a program: labels resolved to offsets and each map reference recorded as a relocation {at:, map:}, `at` counted in slots.
+assemble: instructions and labels, nested lists flattened, to a program: labels resolved to offsets, each map reference recorded as a relocation {at:, map:}, `at` counted in slots, and each `line_mark` recorded in `lines` as {at:, line:, col:}.
 
     assemble([ja(:out), label(:out), exit_program])[:insns][0][:off] #=> 0
     assemble([map_ref(1, :m), exit_program])[:relocs] #=> [{at: 0, map: :m}]
@@ -888,6 +900,15 @@ def assemble(items)
     fn(acc, i)
       if i[:label] != nil
         acc
+      elsif i[:source_line] != nil
+        assoc(
+          acc,
+          :lines,
+          append(
+            acc[:lines],
+            [{at: acc[:at], line: i[:source_line], col: i[:source_col]}]
+          )
+        )
       else
         fixed = resolved(i, labels, acc[:at])
         relocs = if i[:map] != nil
@@ -904,17 +925,19 @@ def assemble(items)
           at: acc[:at] + slots_of(i),
           insns: append(acc[:insns], [dissoc(dissoc(fixed, :map), :field)]),
           relocs:,
-          fields:
+          fields:,
+          lines: acc[:lines]
         }
       end
     end,
-    {at: 0, insns: [], relocs: [], fields: []},
+    {at: 0, insns: [], relocs: [], fields: [], lines: []},
     flat
   )
   {
     insns: placed[:insns],
     relocs: placed[:relocs],
     fields: placed[:fields],
+    lines: placed[:lines],
     slots: placed[:at],
     labels:
   }
@@ -2383,6 +2406,15 @@ def step(st, by_slot)
     exec_store(st, i)
   elsif i[:code] == 24 and i[:src] == 4
     advance(assoc(st, i[:dst], st[:pc] + 1 + i[:imm]), 2)
+  elsif i[:code] == 24 and i[:src] == 2
+    advance(
+      assoc(
+        st,
+        i[:dst],
+        value_of(st, map_of(st, i[:imm]), repeat(0, 4)) + i[:imm2]
+      ),
+      2
+    )
   elsif i[:code] == 24
     advance(assoc(st, i[:dst], bit_or(i[:imm], shift_left(i[:imm2], 32))), 2)
   else
@@ -4095,22 +4127,7 @@ sub_built: a global subprogram compiled: its body in a fresh frame, and its reco
 def sub_built(st, name, f, kinds)
   frame = sub_frame(f[:params], kinds)
   fault_to = "fault.#{short_name(name)}"
-  start = label_name(fresh(st))
-  entered = reduce(
-    (acc, pair) -> assoc(acc, first(pair), pair[1]),
-    fresh(st),
-    [
-      [:code, [label(start)]],
-      [:env, frame[:env]],
-      [:top, frame[:top]],
-      [:high, frame[:top]],
-      [:faults, false],
-      [:fault_to, fault_to],
-      [:callee_deep, 0],
-      [:calling, append(st[:calling], [name])],
-      [:starts, assoc({}, name, start)]
-    ]
-  )
+  entered = sub_entered(st, name, frame[:env], frame[:top], fault_to)
   body = gen(entered, f[:body], name)
   if not member?(body[:t], %i[int bool never])
     refuse(
@@ -4151,22 +4168,218 @@ def sub_built(st, name, f, kinds)
   else
     [exit_program]
   end
-  record = {
-    name:,
-    kinds:,
-    ret:,
-    faults: body[:faults],
-    deep: frame_bytes(slots) + body[:callee_deep],
-    code: append(*[[label(sub_label(name))], keep, body[:code], ending])
-  }
+  sub_recorded(
+    st,
+    body,
+    {
+      name:,
+      kinds:,
+      ret:,
+      faults: body[:faults],
+      deep: frame_bytes(slots) + body[:callee_deep],
+      code: append(*[[label(sub_label(name))], keep, body[:code], ending])
+    }
+  )
+end
+
+@doc """
+sub_entered: a compiler state at the start of a subprogram's body: a fresh frame with these locals, its own fault label, and only itself to tail-call.
+
+    sub_entered(start_state(:xdp), "%root/g", {}, 2, "fault.g")[:top] #=> 2
+    sub_entered(start_state(:xdp), "%root/g", {}, 2, "fault.g")[:calling] #=> ["%root/g"]
+"""
+def sub_entered(st, name, env, top, fault_to)
+  start = label_name(fresh(st))
+  reduce(
+    (acc, pair) -> assoc(acc, first(pair), pair[1]),
+    fresh(st),
+    [
+      [:code, [label(start)]],
+      [:env, env],
+      [:top, top],
+      [:high, top],
+      [:faults, false],
+      [:fault_to, fault_to],
+      [:callee_deep, 0],
+      [:calling, append(st[:calling], [name])],
+      [:starts, assoc({}, name, start)],
+      [:line, nil]
+    ]
+  )
+end
+
+@doc """
+sub_recorded: a compiler state holding a compiled subprogram's record, with the counts its body raised.
+
+    get(sub_recorded(start_state(:xdp), start_state(:xdp), {name: "g"})[:subs], "g")[:name] #=> "g"
+"""
+def sub_recorded(st, body, record)
   reduce(
     (acc, k) -> assoc(acc, k, get(body, k)),
     assoc(
-      assoc(st, :subs, assoc(body[:subs], name, record)),
+      assoc(st, :subs, assoc(body[:subs], record[:name], record)),
       :sub_order,
-      append(body[:sub_order], [name])
+      append(body[:sub_order], [record[:name]])
     ),
     %i[labels checks proven]
+  )
+end
+
+@doc """
+max_loops: the most turns `bpf_loop` takes, the kernel's `BPF_MAX_LOOPS`.
+
+    max_loops #=> 8388608
+"""
+def max_loops()
+  8_388_608
+end
+
+@doc """
+loop_fold: `step(i, acc)` run for each `i` from 0 below `n`, each answer the next `acc`, the last the answer. In a kernel program it is `bpf_loop` with `step` a callback, in the interpreter a fold, and both raise past `bpf_loop`'s limit. `step` is a top-level definition of two parameters, and in a kernel program it reaches maps and locals, never the packet.
+
+    loop_fold(4, 0, (i, acc) -> acc + i) #=> 6
+    loop_fold(0, 7, (i, acc) -> acc + i) #=> 7
+    (loop_fold(-1, 0, (i, acc) -> acc + i) rescue :refused) #=> :refused
+    (loop_fold(max_loops + 1, 0, (i, acc) -> acc + i) rescue :refused) #=> :refused
+"""
+def loop_fold(n, init, step)
+  if n < 0 or n > max_loops
+    raise(
+      :bpf_fault,
+      "bpf_loop takes 0 to #{to_s(max_loops)} turns, got #{to_s(n)}"
+    )
+  end
+  reduce((acc, i) -> step(i, acc), init, range(0, n))
+end
+
+@doc """
+callback_built: a `loop_fold` step compiled as a static function: `i` in r1 and a pointer to the caller's `[acc, fault]` in r2. Its answer goes to `acc` and it returns 0; a fault sets `fault` and returns 1, which stops the loop.
+
+    get(callback_built(start_state(:xdp), "%root/s", {name: "%root/s", params: ["i", "a"], body: 7})[:subs], "%root/s")[:linkage] #=> :static
+"""
+def callback_built(st, name, f)
+  env = assoc(
+    assoc({}, first(f[:params]), {t: :int, slot: 0}),
+    f[:params][1],
+    {t: :int, slot: 1}
+  )
+  fault_to = "fault.#{short_name(name)}"
+  body = gen(sub_entered(st, name, env, 3, fault_to), f[:body], name)
+  if body[:t] != :int and body[:t] != :never
+    refuse("a loop_fold step answers an integer, got #{to_s(body[:t])}")
+  end
+  state_at = slot_offset(2)
+  keep = [
+    store(:dw, 10, slot_offset(0), r(1)),
+    store(:dw, 10, state_at, r(2)),
+    load(:dw, 1, 2, 0),
+    store(:dw, 10, slot_offset(1), r(1))
+  ]
+  ending = [
+    load(:dw, 1, 10, state_at),
+    store(:dw, 1, 0, r(0)),
+    alu(:mov, 0, 0),
+    exit_program,
+    if body[:faults]
+      [
+        label(fault_to),
+        load(:dw, 1, 10, state_at),
+        store(:dw, 1, 8, 1),
+        alu(:mov, 0, 1),
+        exit_program
+      ]
+    else
+      []
+    end
+  ]
+  sub_recorded(
+    st,
+    body,
+    {
+      name:,
+      kinds: %i[int int],
+      ret: :int,
+      linkage: :static,
+      faults: false,
+      deep: frame_bytes(body[:high]) + body[:callee_deep],
+      code: append(*[[label(sub_label(name))], keep, body[:code], ending])
+    }
+  )
+end
+
+@doc """
+callback_ready: a compiler state holding the callback `step` names, compiled once. A definition cannot be both a global subprogram and a callback, since it has one signature.
+
+    (callback_ready(start_state(:xdp), 7) rescue :refused) #=> :refused
+    (callback_ready(start_state(:xdp), form_of("%root/none")) rescue :refused) #=> :refused
+"""
+def callback_ready(st, step)
+  if not symbol?(step)
+    refuse("loop_fold takes the name of a top-level definition as its step")
+  end
+  name = name_of(step)
+  f = get(st[:fns], name)
+  if f.nil?
+    refuse("loop_fold's step `#{name}` is no definition of this file")
+  elsif size(f[:params]) != 2
+    refuse(
+      "loop_fold's step takes the index and the value, got #{to_s(size(f[:params]))} parameters"
+    )
+  elsif index_of(st[:calling], name) >= 0
+    refuse("loop_fold's step `#{name}` is the function calling it")
+  end
+  known = get(st[:subs], name)
+  if known.nil?
+    callback_built(st, name, f)
+  elsif known[:linkage] != :static
+    refuse(
+      "`#{name}` is a global subprogram and a loop_fold step; it has one signature"
+    )
+  else
+    st
+  end
+end
+
+@doc """
+gen_loop_fold: `loop_fold`: the turns checked against `bpf_loop`'s limit, the value and fault flag in two adjacent slots the callback writes through a pointer, then the helper. A count past the limit and a fault in the step are this program's fault.
+
+    run(compile_forms(read_forms("(define (%root/s i a) (+ a i)) (define (%root/e c) (bpf/loop_fold 4 0 %root/s))"), {entry: :e, kind: :xdp})).ret #=> 6
+"""
+def gen_loop_fold(st, args)
+  turns = need_int(gen(st, first(args), nil), "the turns of loop_fold")
+  with_turns = take_slot(turns)
+  turns_at = with_turns[:top] - 1
+  counted = out(with_turns, [store(:dw, 10, slot_offset(turns_at), r(0))])
+  start = need_int(gen(counted, args[1], nil), "the start of loop_fold")
+  flag = take_slot(start)
+  flag_at = flag[:top] - 1
+  value = take_slot(flag)
+  value_at = value[:top] - 1
+  ready = callback_ready(value, args[2])
+  sub = get(ready[:subs], name_of(args[2]))
+  called = out(
+    ready,
+    [
+      store(:dw, 10, slot_offset(value_at), r(0)),
+      store(:dw, 10, slot_offset(flag_at), 0),
+      load(:dw, 1, 10, slot_offset(turns_at)),
+      jump(:gt, 1, max_loops, fault_label(st)),
+      func_ref(2, sub_label(name_of(args[2]))),
+      fp_at(3, value_at),
+      alu(:mov, 4, 0),
+      call(:loop),
+      load(:dw, 1, 10, slot_offset(flag_at)),
+      jump(:ne, 1, 0, fault_label(st)),
+      load(:dw, 0, 10, slot_offset(value_at))
+    ]
+  )
+  typed(
+    assoc(
+      update(faulting(called), :callee_deep, (d) -> blue::max(d, sub[:deep])),
+      :top,
+      st[:top]
+    ),
+    :int
   )
 end
 
@@ -4915,12 +5128,34 @@ def gen_word(st, word, args)
     gen_map_delete(st, args)
   when "locked_add"
     gen_locked_add(st, args)
+  when "loop_fold"
+    gen_loop_fold(st, args)
   when "emit"
     gen_emit(st, args)
   when "helper"
     gen_helper(st, args)
   else
     refuse("kaaneru::bpf::#{word} has no lowering inside a kernel program")
+  end
+end
+
+@doc """
+gen_at: a statement `blue ast --lines` marked, its code placed at its source line. The code after it is back at the line around it, so an inlined call does not move its caller.
+
+    gen_at(start_state(:xdp), form_of("(%line 4 2 7)"), nil)[:line] == nil #=> true
+    size(filter((i) -> i[:source_line] != nil, gen_at(start_state(:xdp), form_of("(%line 4 2 7)"), nil)[:code])) #=> 1
+"""
+def gen_at(st, form, tail)
+  outer = st[:line]
+  inner = gen(
+    assoc(out(st, [line_mark(form[1], form[2])]), :line, [form[1], form[2]]),
+    form[3],
+    tail
+  )
+  if outer.nil?
+    assoc(inner, :line, nil)
+  else
+    assoc(out(inner, [line_mark(first(outer), outer[1])]), :line, outer)
   end
 end
 
@@ -4934,6 +5169,8 @@ def gen_list(st, form, tail)
   args = rest(form)
   word = word_of(or_empty(name))
   case name
+  when "%line"
+    gen_at(st, form, tail)
   when "if"
     gen_if(st, form, tail)
   when "begin"
@@ -5215,6 +5452,19 @@ def with_map(body)
 end
 
 @doc """
+source_form: the file a marked tree names and its lines, from its `(%source PATH LINE ...)` form; nil for a tree with none.
+
+    source_form(read_forms("(%source \"f.b\" \"a\" \"b\")")) #=> {file: "f.b", text: ["a", "b"]}
+    source_form(read_forms("(define x 1)")).nil? #=> true
+"""
+def source_form(forms)
+  found = first(filter((f) -> head_name(f) == "%source", forms))
+  if found != nil
+    {file: found[1], text: rest(rest(found))}
+  end
+end
+
+@doc """
 compile_forms: a resolved program's forms to a kernel program: its assembled instructions, its maps, its functions, and a `report` counting the safety checks proven away and the ones emitted. `opts` takes {entry:, kind:, on_fault:, global:}: the definition to compile, the program type, the value returned on a fault, which is what a raise is at this position, and the definitions to make real global subprograms, each verified alone, where every other call inlines. A construct the position has no lowering for raises :bpf_compile naming it.
 
     p = compile_forms(read_forms("(define (%root/f ctx) 2)"), {entry: :f, kind: :xdp, on_fault: 0})
@@ -5275,6 +5525,7 @@ def compile_forms(forms, opts)
       maps: top[:map_list],
       kind: opts[:kind],
       name: short_name(f[:name]),
+      source: source_form(forms),
       report: {
         checks: body[:checks],
         proven: body[:proven],
@@ -5303,7 +5554,7 @@ def compile_forms(forms, opts)
           {
             name: short_name(s[:name]),
             at: get(program[:labels], sub_label(s[:name])),
-            linkage: :global,
+            linkage: s[:linkage] or :global,
             params: sub_params(s),
             ret: s[:ret]
           }
@@ -5783,27 +6034,216 @@ def fresh_btf(program)
     program[:maps] or []
   )
   sections = license_section(
-    maps_section(with_maps, program[:maps] or []),
+    data_maps_section(
+      maps_section(with_maps, program[:maps] or []),
+      program[:data_maps] or []
+    ),
     program[:license] or "GPL"
   )
-  types = sections[:types]
+  core = core_types(sections, program[:fields] or [])
+  types = core[:types]
   main_section = if funcs == []
     ".text"
   else
     section_name(kind)
   end
-  names = [main_section, ".text"]
+  lines = line_rows(program)
+  names = append(
+    *[
+      [main_section, ".text"],
+      line_strings(lines),
+      map((r) -> r[:access], core[:relos])
+    ]
+  )
   func_rows = zip(funcs, with_funcs[:func_ids])
   ext_sections = func_info_sections(func_rows, main_section)
+  ext_lines = line_info_sections(lines, funcs, main_section)
+  ext_core = core_sections(core[:relos], funcs, main_section)
   {
     types:,
     names:,
     bytes: kaaneru::btf::encode(types, names),
-    ext: kaaneru::btf::encode_ext(types, names, ext_sections),
+    ext: kaaneru::btf::encode_ext(
+      types,
+      names,
+      ext_sections,
+      ext_lines,
+      ext_core
+    ),
+    core_relos: core[:relos],
+    field_offsets: core[:offsets],
     func_info: map((row) -> {at: first(row)[:at], type: row[1]}, func_rows),
+    line_info: line_info_rows(
+      lines,
+      kaaneru::btf::strings_of(types, names)[:offsets]
+    ),
+    lines:,
     map_types: with_maps[:map_types],
     map_vars: with_maps[:map_vars]
   }
+end
+
+@doc """
+source_text: one line of a program's source, empty when the program has none there.
+
+    source_text({source: {text: ["a", "b"]}}, 2) #=> "b"
+    source_text({}, 2) #=> ""
+"""
+def source_text(program, line)
+  text = (program[:source] or {})[:text] or []
+  if line >= 1 and line <= size(text)
+    text[line - 1]
+  else
+    ""
+  end
+end
+
+@doc """
+line_rows: a program's source lines as the kernel holds them: one row a slot in rising order, the last mark at a slot winning, the first slot and each function's start always covered, by the function's first mark. Each row is {at:, line:, col:, file:, text:}. A program with no marks has none.
+
+    line_rows({lines: []}) #=> []
+    map((r) -> r[:at], line_rows({lines: [{at: 1, line: 2, col: 1}], funcs: [{at: 0}]})) #=> [0, 1]
+    map((r) -> r[:line], line_rows({lines: [{at: 0, line: 2, col: 1}, {at: 0, line: 3, col: 1}], funcs: []})) #=> [3]
+    map((r) -> r[:at], line_rows({lines: [{at: 0, line: 2, col: 1}, {at: 4, line: 3, col: 1}], funcs: [{at: 0}, {at: 2}]})) #=> [0, 2, 4]
+"""
+def line_rows(program)
+  marks = program[:lines] or []
+  if marks == []
+    []
+  else
+    final = reduce(
+      fn(acc, m)
+        kept = retsu::reject((r) -> r[:at] == m[:at], acc)
+        append(kept, [m])
+      end,
+      [],
+      sort_keyed((m) -> m[:at], marks)
+    )
+    wanted = append([0], map((f) -> f[:at], program[:funcs] or []))
+    filled = reduce(
+      fn(acc, at)
+        if filter((r) -> r[:at] == at, acc) != []
+          acc
+        else
+          after = filter((r) -> r[:at] > at, final)
+          before = filter((r) -> r[:at] < at, final)
+          later = filter((n) -> n > at, wanted)
+          ends_at = if later == []
+            nil
+          else
+            apply(blue::min, later)
+          end
+          from = if after != [] and
+              (ends_at.nil? or first(after)[:at] < ends_at)
+            first(after)
+          else
+            last(before)
+          end
+          append(acc, [assoc(from, :at, at)])
+        end
+      end,
+      final,
+      wanted
+    )
+    file = (program[:source] or {})[:file] or "blue"
+    map(
+      fn(r)
+        assoc(assoc(r, :file, file), :text, source_text(program, r[:line]))
+      end,
+      sort_keyed((r) -> r[:at], filled)
+    )
+  end
+end
+
+@doc """
+line_strings: the strings BTF must hold for these rows.
+
+    line_strings([{file: "f.b", text: "x = 1"}]) #=> ["f.b", "x = 1"]
+    line_strings([]) #=> []
+"""
+def line_strings(rows)
+  flat_map(rows, (r) -> [r[:file], r[:text]])
+end
+
+@doc """
+line_col_word: a position as `bpf_line_info` packs it, the line above ten bits of column.
+
+    line_col_word(2, 3) #=> 2051
+"""
+def line_col_word(line, col)
+  bit_or(shift_left(line, 10), bit_and(col, 1023))
+end
+
+@doc """
+line_info_rows: rows as BPF_PROG_LOAD reads them: each `at` a slot, its strings by their offsets in the program's BTF.
+
+    line_info_rows([{at: 1, line: 2, col: 3, file: "f", text: "t"}], {"f" => 1, "t" => 3}) #=> [{at: 1, file: 1, text: 3, pos: 2051}]
+"""
+def line_info_rows(rows, offsets)
+  map(
+    fn(r)
+      {
+        at: r[:at],
+        file: get(offsets, r[:file]),
+        text: get(offsets, r[:text]),
+        pos: line_col_word(r[:line], r[:col])
+      }
+    end,
+    rows
+  )
+end
+
+@doc """
+line_info_sections: `.BTF.ext`'s view of a program's source lines, the entry's in its own section and the rest in `.text`, each `at` in bytes from its section's start.
+
+    line_info_sections([], [], "xdp") #=> []
+    line_info_sections([{at: 0, file: "f", text: "t", line: 2, col: 3}], [{at: 0}], "xdp")[0][:section] #=> "xdp"
+    line_info_sections([{at: 0, file: "f", text: "t", line: 1, col: 1}, {at: 3, file: "f", text: "t", line: 2, col: 1}], [{at: 0}, {at: 3}], "xdp")[1][:lines][0][:at] #=> 0
+"""
+def line_info_sections(rows, funcs, section)
+  if rows == []
+    []
+  else
+    from = if size(funcs) > 1
+      funcs[1][:at]
+    end
+    held = fn(in_text)
+      filter((r) -> (from != nil and r[:at] >= from) == in_text, rows)
+    end
+    placed = fn(r, base)
+      {
+        at: (r[:at] - base) * 8,
+        file: r[:file],
+        text: r[:text],
+        pos: line_col_word(r[:line], r[:col])
+      }
+    end
+    main = {section:, lines: map((r) -> placed(r, 0), held(false))}
+    if from.nil?
+      [main]
+    else
+      [main, {section: ".text", lines: map((r) -> placed(r, from), held(true))}]
+    end
+  end
+end
+
+@doc """
+source_at: where a slot of a compiled program came from: {file:, line:, col:, text:} of the last row at or before it, nil for a program that knows no lines.
+
+    source_at({lines: [], funcs: []}, 3).nil? #=> true
+    source_at({lines: [{at: 0, line: 2, col: 1}, {at: 2, line: 7, col: 3}], funcs: [], source: {file: "f.b", text: []}}, 3)[:line] #=> 7
+"""
+def source_at(program, slot)
+  rows = filter((r) -> r[:at] <= slot, line_rows(program))
+  if rows != []
+    found = last(rows)
+    {
+      file: found[:file],
+      line: found[:line],
+      col: found[:col],
+      text: found[:text]
+    }
+  end
 end
 
 @doc """
@@ -5842,7 +6282,15 @@ license_section: a BTF table with the `license` data section over its one variab
     kaaneru::btf::type_at(kaaneru::btf::read(kaaneru::btf::encode(license_section({types: []}, "GPL")[:types])), 5).name #=> "license"
 """
 def license_section(acc, license)
-  count = length(text_bytes(license)) + 1
+  bytes_section(acc, "license", "_license", length(text_bytes(license)) + 1)
+end
+
+@doc """
+bytes_section: a BTF table with a data section over one variable, `char name[count]`, as clang writes it.
+
+    kaaneru::btf::type_at(kaaneru::btf::read(kaaneru::btf::encode(bytes_section({types: []}, ".data.m", "m", 16)[:types])), 5).name #=> ".data.m"
+"""
+def bytes_section(acc, section, name, count)
   letter = interned(acc, kaaneru::btf::int_type("char", 1))
   index = interned(letter, kaaneru::btf::int_type("__ARRAY_SIZE_TYPE__", 4))
   counted = interned(
@@ -5851,17 +6299,182 @@ def license_section(acc, license)
   )
   var = interned(
     counted,
-    kaaneru::btf::linked_type(:var, "_license", counted[:id], :global)
+    kaaneru::btf::linked_type(:var, name, counted[:id], :global)
   )
   interned(
     var,
     kaaneru::btf::sized_type(
       :datasec,
-      "license",
+      section,
       count,
       [{type: var[:id], offset: 0, size: count}]
     )
   )
+end
+
+@doc """
+data_map_place: where a map a program references by value lives in an object, as libbpf reads global data: {section:, name:, size:}.
+
+    data_map_place(declare_map(:m, :array, 4, 16, 1)) #=> {section: ".data.m", name: "m", size: 16}
+"""
+def data_map_place(m)
+  name = to_s(m[:name])
+  {section: ".data.#{name}", name:, size: m[:value_size]}
+end
+
+@doc """
+data_maps_section: a BTF table with a data section over each map a program references by value.
+
+    data_maps_section({types: []}, [])[:types] #=> []
+"""
+def data_maps_section(acc, maps)
+  reduce(
+    fn(got, m)
+      bytes_section(
+        got,
+        data_map_place(m)[:section],
+        data_map_place(m)[:name],
+        data_map_place(m)[:size]
+      )
+    end,
+    acc,
+    maps
+  )
+end
+
+@doc """
+core_tree: a BTF table with one local struct built from the field paths under it, as CO-RE reads them: `rows` are {path:, size:, at:}. `:id` is the struct, `:size` its bytes, and `:placed` each row with its member indexes and its offset. A path that is both a field and a struct is refused by name.
+
+    core_tree({types: []}, "s", [{path: ["f"], size: 4, at: 2}]).placed #=> [{at: 2, indexes: [0], offset: 0}]
+    core_tree({types: []}, "s", [{path: ["f"], size: 4, at: 2}, {path: ["g"], size: 8, at: 9}]).placed[1] #=> {at: 9, indexes: [1], offset: 8}
+    core_tree({types: []}, "s", [{path: ["a", "b"], size: 4, at: 2}]).placed #=> [{at: 2, indexes: [0, 0], offset: 0}]
+"""
+def core_tree(acc, name, rows)
+  heads = shuugou::unique(map((r) -> first(r[:path]), rows))
+  built = reduce(
+    fn(got, row)
+      index = first(row)
+      head = row[1]
+      under = filter((r) -> first(r[:path]) == head, rows)
+      inner = map((r) -> assoc(r, :path, rest(r[:path])), under)
+      leaves = filter((r) -> r[:path] == [], inner)
+      member = if leaves == []
+        core_tree(got, "", inner)
+      elsif size(leaves) != size(inner)
+        refuse("#{head} is read as a field and as a struct")
+      else
+        leaf = first(leaves)
+        typed_leaf = interned(
+          got,
+          kaaneru::btf::int_type(key_type_name(leaf[:size]), leaf[:size], false)
+        )
+        assoc(
+          assoc(typed_leaf, :size, leaf[:size]),
+          :placed,
+          map((r) -> {at: r[:at], indexes: [], offset: 0}, leaves)
+        )
+      end
+      at = align_up(got[:offset], blue::min(member[:size], 8))
+      {
+        types: member[:types],
+        offset: at + member[:size],
+        members: append(
+          got[:members],
+          [{name: head, type: member[:id], bits: at * 8}]
+        ),
+        placed: append(
+          got[:placed],
+          map(
+            fn(p)
+              {
+                at: p[:at],
+                indexes: append([index], p[:indexes]),
+                offset: p[:offset] + at
+              }
+            end,
+            member[:placed]
+          )
+        )
+      }
+    end,
+    {types: acc[:types], offset: 0, members: [], placed: []},
+    zip(range(0, size(heads)), heads)
+  )
+  whole = align_up(built[:offset], 8)
+  got = interned(
+    assoc(acc, :types, built[:types]),
+    kaaneru::btf::sized_type(:struct, name, whole, built[:members])
+  )
+  assoc(assoc(got, :size, whole), :placed, built[:placed])
+end
+
+@doc """
+core_types: a BTF table with a local struct for each kernel struct a program reads, `:relos` each read as a CO-RE byte-offset relocation by slot, and `:offsets` the local offset each slot holds in an object. libbpf moves each to the running kernel's offset when it loads.
+
+    core_types({types: []}, []).relos #=> []
+    core_types({types: []}, [{struct: "s", path: ["f"], size: 4, at: 3}]).relos[0][:access] #=> "0:0"
+    core_types({types: []}, [{struct: "s", path: ["f"], size: 4, at: 3}]).offsets #=> {3 => 0}
+"""
+def core_types(acc, fields)
+  structs = shuugou::unique(map((f) -> f[:struct], fields))
+  reduce(
+    fn(got, name)
+      tree = core_tree(got, name, filter((f) -> f[:struct] == name, fields))
+      {
+        types: tree[:types],
+        relos: append(
+          got[:relos],
+          map(
+            fn(p)
+              {
+                at: p[:at],
+                type: tree[:id],
+                access: "0:#{join(map(to_s, p[:indexes]), ":")}",
+                kind: 0
+              }
+            end,
+            tree[:placed]
+          )
+        ),
+        offsets: reduce(
+          (m, p) -> assoc(m, p[:at], p[:offset]),
+          got[:offsets],
+          tree[:placed]
+        )
+      }
+    end,
+    assoc(assoc(acc, :relos, []), :offsets, {}),
+    structs
+  )
+end
+
+@doc """
+core_sections: `.BTF.ext`'s view of a program's CO-RE relocations, the entry's in its own section and the rest in `.text`, each `at` in bytes from its section's start.
+
+    core_sections([], [], "xdp") #=> []
+    core_sections([{at: 2, type: 3, access: "0:0", kind: 0}], [{at: 0}], "xdp") #=> [{section: "xdp", relos: [{at: 16, type: 3, access: "0:0", kind: 0}]}]
+"""
+def core_sections(relos, funcs, section)
+  if relos == []
+    []
+  else
+    from = if size(funcs) > 1
+      funcs[1][:at]
+    end
+    placed = fn(in_text, base)
+      map(
+        (r) -> assoc(r, :at, (r[:at] - base) * 8),
+        filter((r) -> (from != nil and r[:at] >= from) == in_text, relos)
+      )
+    end
+    filter(
+      (s) -> s[:relos] != [],
+      [
+        {section:, relos: placed(false, 0)},
+        {section: ".text", relos: placed(true, from or 0)}
+      ]
+    )
+  end
 end
 
 @doc """
@@ -5909,7 +6522,7 @@ def apply_shape(program, extra)
   reduce(
     (acc, k) -> assoc(acc, k, get(extra, k)),
     program,
-    %i[maps kind name report]
+    %i[maps kind name report source]
   )
 end
 
@@ -5979,7 +6592,7 @@ def source_path(path)
 end
 
 @doc """
-compile: a blue file's definition to a kernel program, through the resolved tree `blue ast --resolved` prints, so what compiles has passed every rule the check stage holds. See `compile_forms`.
+compile: a blue file's definition to a kernel program, through the resolved tree `blue ast --resolved --lines` prints, so what compiles has passed every rule the check stage holds, and each instruction knows its source line. {lines: false} compiles with no line marks. See `compile_forms`.
 
     (compile("/no/such/file.b", {}) rescue :refused) #=> :refused
 """
@@ -5989,11 +6602,190 @@ def compile(path, opts)
   if checked_run.status != 0
     raise(:bpf_compile, "#{path} does not check: #{checked_run.stderr}")
   end
-  resolved_run = exec_capture(blue_exe, "ast", "--resolved", file)
+  marked = opts[:lines] != false
+  resolved_run = if marked
+    exec_capture(blue_exe, "ast", "--resolved", "--lines", file)
+  else
+    exec_capture(blue_exe, "ast", "--resolved", file)
+  end
   if resolved_run.status != 0
     raise(:bpf_compile, "#{path} does not resolve: #{resolved_run.stderr}")
   end
   compile_forms(read_forms(resolved_run.stdout), opts)
+end
+
+test "a reference into a map's value reads and writes that value in the machine"
+  p = assoc(
+    assemble(
+      [
+        map_value_ref(1, :g, 8),
+        store(:dw, 1, 0, 40),
+        map_value_ref(2, :g, 8),
+        load(:dw, 0, 2, 0),
+        alu(:add, 0, 2),
+        exit_program
+      ]
+    ),
+    :maps,
+    [declare_map(:g, :array, 4, 16, 1)]
+  )
+  assert run(p, {maps: p[:maps]}).ret == 42
+end
+
+test "a tree's source form reaches the program, and each statement's text comes from it"
+  text = "(%source \"f.b\" \"def e(c)\" \"  7\") (define (%root/e c) (%line 2 3 7))"
+  q = compile_forms(read_forms(text), {entry: :e, kind: :xdp})
+  assert q[:source] == {file: "f.b", text: ["def e(c)", "  7"]}
+  assert source_at(q, 1) == {file: "f.b", line: 2, col: 3, text: "  7"}
+end
+
+test "a statement's code carries its source line, and a marked program runs and encodes as an unmarked one"
+  plain = "(define (%root/e c) (begin (define x 40) (+ x 2)))"
+  lined = "(define (%root/e c) (%line 1 1 (begin (%line 2 3 (define x 40)) (%line 3 3 (+ x 2)))))"
+  p = compile_forms(read_forms(plain), {entry: :e, kind: :xdp})
+  q = compile_forms(read_forms(lined), {entry: :e, kind: :xdp})
+  assert encode(p) == encode(q)
+  assert p[:lines] == []
+  assert map((l) -> l[:line], line_rows(q)) == [2, 2, 3, 1]
+  assert run(q).ret == 42
+  assert source_at(q, 1)[:line] == 2
+  assert source_at(p, 1).nil?
+end
+
+test "an inlined call's lines are its own, and its caller's code returns to the caller's line"
+  text = "(define (%root/g a) (%line 9 3 (+ a 1))) (define (%root/e c) (%line 2 3 (begin (%line 3 3 (define x (%root/g 1))) (%line 4 3 (+ x 2)))))"
+  q = compile_forms(read_forms(text), {entry: :e, kind: :xdp})
+  got = map((l) -> l[:line], line_rows(q))
+  assert member?(9, got)
+  assert index_of(got, 3) > index_of(got, 9) or got[0] == 3
+  assert member?(4, got)
+  assert run(q).ret == 4
+end
+
+test "a global subprogram starts with a line of its own, in .text"
+  text = "(define (%root/g a) (%line 9 3 (+ a 1))) (define (%root/e c) (%line 2 3 (%root/g 1)))"
+  q = compile_forms(read_forms(text), {entry: :e, kind: :xdp, global: [:g]})
+  at = q[:funcs][1][:at]
+  assert source_at(q, at)[:line] == 9
+  sections = line_info_sections(line_rows(q), q[:funcs], "xdp")
+  assert sections[1][:section] == ".text"
+  assert first(sections[1][:lines])[:at] == 0
+  assert first(sections[1][:lines])[:pos] == line_col_word(9, 3)
+  assert filter((r) -> r[:at] >= at and r[:line] != 9, line_rows(q)) == []
+end
+
+test "line info in .BTF.ext reads back as written, and a program with no lines writes none"
+  text = "(define (%root/e c) (%line 2 3 7))"
+  q = assoc(
+    compile_forms(read_forms(text), {entry: :e, kind: :xdp}),
+    :source,
+    {file: "f.b", text: ["def e(c)", "  7"]}
+  )
+  shape = program_btf(q)
+  got = kaaneru::btf::read_lines(shape[:ext], shape[:bytes])
+  assert first(got)[:section] == "xdp"
+  assert first(first(got)[:lines])[:file] == "f.b"
+  assert first(first(got)[:lines])[:text] == "  7"
+  assert first(first(got)[:lines])[:line] == 2
+  assert first(first(got)[:lines])[:col] == 3
+  assert shape[:line_info][0][:at] == 0
+  bare = program_btf(
+    compile_forms(read_forms("(define (%root/e c) 7)"), {entry: :e, kind: :xdp})
+  )
+  assert kaaneru::btf::read_lines(bare[:ext], bare[:bytes]) == []
+  assert bare[:line_info] == []
+end
+
+test "loop_fold in the machine answers as the interpreter does, a fault in its step faults the program, and past the limit is a fault"
+  text = "(define (%root/s i a) (+ a (bit_and (wrapping_mul i 2) 1023))) (define (%root/e c) (bpf/loop_fold (bpf/ctx_int c 0 1) 5 %root/s))"
+  q = compile_forms(
+    read_forms(text),
+    {entry: :e, kind: :tracepoint, on_fault: 99}
+  )
+  assert map((f) -> f[:linkage], q[:funcs]) == %i[global static]
+  assert map((f) -> f[:params], q[:funcs])[1] == %i[int int]
+  assert needs_btf?(q)
+  map(
+    fn(n)
+      assert run(q, {ctx: [n]}).ret ==
+        loop_fold(n, 5, (i, a) -> a + bit_and(wrapping_mul(i, 2), 1023))
+    end,
+    [0, 1, 2, 3, 9, 255]
+  )
+  bad = "(define (%root/s i a) (+ a 9223372036854775807)) (define (%root/e c) (bpf/loop_fold 9 1 %root/s))"
+  assert run(
+    compile_forms(read_forms(bad), {entry: :e, kind: :xdp, on_fault: 99})
+  ).ret == 99
+  ok = "(define (%root/s i a) (+ a 1)) (define (%root/e c) (bpf/loop_fold 9 0 %root/s))"
+  assert run(
+    compile_forms(read_forms(ok), {entry: :e, kind: :xdp, on_fault: 99})
+  ).ret == 9
+  past = "(define (%root/s i a) a) (define (%root/e c) (bpf/loop_fold (bpf/ctx_int c 0 8) 7 %root/s))"
+  over = int_bytes(max_loops + 1, 8)
+  assert run(
+    compile_forms(
+      read_forms(past),
+      {entry: :e, kind: :tracepoint, on_fault: 99}
+    ),
+    {ctx: over}
+  ).ret == 99
+end
+
+test "loop_fold refuses by name: a step that is no definition, of another shape, the caller itself, or also a global subprogram"
+  refused = fn(text, opts)
+    (compile_forms(read_forms(text), opts) rescue :refused) == :refused
+  end
+  base = {entry: :e, kind: :xdp}
+  assert refused(
+    "(define (%root/e c) (bpf/loop_fold 1 0 (lambda (i a) a)))",
+    base
+  )
+  assert refused("(define (%root/e c) (bpf/loop_fold 1 0 %root/none))", base)
+  assert refused(
+    "(define (%root/s i) i) (define (%root/e c) (bpf/loop_fold 1 0 %root/s))",
+    base
+  )
+  assert refused(
+    "(define (%root/s i a) (bpf/loop_fold 1 0 %root/s)) (define (%root/e c) (bpf/loop_fold 1 0 %root/s))",
+    base
+  )
+  assert refused(
+    "(define (%root/s i a) a) (define (%root/e c) (begin (%root/s 1 2) (bpf/loop_fold 1 0 %root/s)))",
+    assoc(base, :global, [:s])
+  )
+  assert not refused(
+    "(define (%root/s i a) a) (define (%root/e c) (+ (bpf/loop_fold 1 0 %root/s) (bpf/loop_fold 2 0 %root/s)))",
+    base
+  )
+end
+
+test "a kernel field becomes a local struct, a byte-offset relocation and an access text libbpf reads"
+  fields = [
+    {struct: "task_struct", path: ["pid"], size: 4, at: 5},
+    {struct: "task_struct", path: ["tgid"], size: 4, at: 9},
+    {struct: "task_struct", path: %w[cred uid], size: 8, at: 14},
+    {struct: "file", path: ["f_mode"], size: 4, at: 20}
+  ]
+  got = core_types({types: []}, fields)
+  assert map((r) -> r[:access], got[:relos]) == %w[0:0 0:1 0:2:0 0:0]
+  assert map((r) -> r[:at], got[:relos]) == [5, 9, 14, 20]
+  assert get(got[:offsets], 9) == 4
+  assert get(got[:offsets], 14) == 8
+  table = kaaneru::btf::read(kaaneru::btf::encode(got[:types]))
+  task = kaaneru::btf::find(table, "task_struct", :struct)
+  assert kaaneru::btf::field(table, "task_struct", ["tgid"])[:offset] == 4
+  assert kaaneru::btf::field(table, "task_struct", %w[cred uid])[:offset] == 8
+  assert kaaneru::btf::field(table, "task_struct", %w[cred uid])[:size] == 8
+  assert first(got[:relos])[:type] == task
+  assert (core_types(
+    {types: []},
+    [
+      {struct: "s", path: ["a"], size: 4, at: 1},
+      {struct: "s", path: %w[a b], size: 4, at: 2}
+    ]
+  ) rescue
+    :refused) == :refused
+  assert core_types({types: []}, [])[:types] == []
 end
 
 test "a frame reaches a program through the context its type reads"

@@ -106,5 +106,29 @@
     "file": "btf.b",
     "find": "def read_ext(bytes, blob)\n  if length(bytes) < 24 or bytes_int(bytes, 0, 2) != 60319",
     "replace": "def read_ext(bytes, blob)\n  if false"
+  },
+  {
+    "name": "a line is read short",
+    "file": "btf.b",
+    "find": "line: shift_right_logical(pos, 10),",
+    "replace": "line: shift_right_logical(pos, 9),"
+  },
+  {
+    "name": "line info has no length",
+    "file": "btf.b",
+    "find": "line_info_len: length(line_body),",
+    "replace": "line_info_len: 0,"
+  },
+  {
+    "name": "CO-RE sits over line info",
+    "file": "btf.b",
+    "find": "core_relo_off: after_lines,",
+    "replace": "core_relo_off: length(body),"
+  },
+  {
+    "name": "CO-RE has no length",
+    "file": "btf.b",
+    "find": "core_relo_len: length(core_body)",
+    "replace": "core_relo_len: 0"
   }
 ]

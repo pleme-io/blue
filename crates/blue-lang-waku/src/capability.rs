@@ -13,7 +13,8 @@
 //! Both are gone for the same reason: **[`Capability`] is closed.** There is no
 //! `Other(String)` arm, and the type and every reading of it are generated from
 //! one table, each reading an exhaustive `match`. A capability is one row, and a
-//! row cannot omit its label, import, names, implications or providers.
+//! row cannot omit its label, import, names, implications or providers. The pure
+//! rows come first, so [`crate::imports_of`] emits a stable table.
 //!
 //! ## A capability is a BUNDLE OF NAMES, and that is a correction
 //!
@@ -345,13 +346,6 @@ const CLOCK_NAMES: &[&str] = &[
     "elapsed_since",
 ];
 
-/// **The capability table, the one source.** A capability is one row: its
-/// variant, label, import field, names, what it implies and who can provide it.
-/// The enum, [`Capability::ALL`], [`Capability::COUNT`], [`Capability::HOST_LABELS`]
-/// and every reading below are generated from these rows, so a new capability
-/// is one row and every test judges the table rather than a number.
-///
-/// The pure rows come first, so [`crate::imports_of`] emits a stable table.
 capability_table! {
     pure {
         /// The heads blue lowers control flow to.

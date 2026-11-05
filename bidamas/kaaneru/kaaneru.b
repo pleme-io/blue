@@ -458,7 +458,13 @@ def prog_info_layout()
       %i[btf_id u32],
       %i[func_info_rec_size u32],
       %i[func_info u64],
-      %i[nr_func_info u32]
+      %i[nr_func_info u32],
+      %i[nr_line_info u32],
+      %i[line_info u64],
+      %i[jited_line_info u64],
+      %i[nr_jited_line_info u32],
+      %i[line_info_rec_size u32],
+      %i[jited_line_info_rec_size u32]
     ]
   )
 end
@@ -877,7 +883,10 @@ def load_fields(kind, encoded, opts, log)
   types = if opts[:btf_fd].nil?
     []
   else
-    func_info_fields(opts[:btf_fd], opts[:func_info] or [])
+    append(
+      func_info_fields(opts[:btf_fd], opts[:func_info] or []),
+      line_info_fields(opts[:line_info] or [])
+    )
   end
   logging = if log == 0
     []
@@ -943,6 +952,111 @@ def func_info_fields(btf_fd, rows)
 end
 
 @doc """
+line_info_fields: the fields that give a loaded program its source lines: each row by its slot and its strings' offsets in the program's BTF. No rows, no fields.
+
+    line_info_fields([]) #=> []
+    line_info_fields([{at: 0, file: 1, text: 2, pos: 2051}])[2] #=> [:line_info_cnt, 1]
+"""
+def line_info_fields(rows)
+  if rows == []
+    []
+  else
+    [
+      [:line_info_rec_size, 16],
+      [
+        :line_info,
+        {
+          in: flat_map(
+            rows,
+            fn(r)
+              append(
+                *[
+                  int_bytes(r[:at], 4),
+                  int_bytes(r[:file], 4),
+                  int_bytes(r[:text], 4),
+                  int_bytes(r[:pos], 4)
+                ]
+              )
+            end
+          )
+        }
+      ],
+      [:line_info_cnt, size(rows)]
+    ]
+  end
+end
+
+@doc """
+insn_line?: whether a verifier log line is one instruction, `12: (bf) r1 = r2`.
+
+    insn_line?("12: (bf) r1 = r2") #=> true
+    insn_line?("12: R1=ctx()") #=> false
+    insn_line?("; x = 1 @ f.b:3") #=> false
+"""
+def insn_line?(row)
+  parts = split(row, ": (")
+  size(parts) > 1 and to_int(first(parts)) != nil
+end
+
+@doc """
+verifier_said: what a verifier log says of its refusal: {insn:, reason:}, `insn` the slot it last read, nil when it read none, and `reason` the lines after it, without the source lines and tallies around them. The kernel keeps only the failing path in the log, so the last instruction is the one refused.
+
+    verifier_said("0: (b7) r0 = 0\n1: (95) exit\nR0 is bad\nprocessed 2 insns\n") #=> {insn: 1, reason: "R0 is bad"}
+    verifier_said("") #=> {insn: nil, reason: ""}
+    verifier_said("BPF program is too large.\n")[:reason] #=> "BPF program is too large."
+"""
+def verifier_said(log)
+  rows = filter((r) -> trim(r) != "", split(log, line_break))
+  at = reduce(
+    fn(acc, pair)
+      if insn_line?(pair[1])
+        first(pair)
+      else
+        acc
+      end
+    end,
+    nil,
+    retsu::zip(range(0, size(rows)), rows)
+  )
+  told = if at.nil?
+    rows
+  else
+    drop(at + 1, rows)
+  end
+  said = retsu::reject(
+    fn(r)
+      starts_with?(r, "processed ") or
+        starts_with?(r, "; ") or
+        starts_with?(r, "verification time")
+    end,
+    told
+  )
+  {
+    insn: if at != nil
+      to_int(first(split(rows[at], ":")))
+    end,
+    reason: join(said, "; ")
+  }
+end
+
+@doc """
+source_words: a refusal's place as a message reads it: `file:line:col`, or the slot when no source is known.
+
+    source_words({file: "f.b", line: 3, col: 5}, 9) #=> "f.b:3:5"
+    source_words(nil, 9) #=> "instruction 9"
+    source_words(nil, nil) #=> "the program"
+"""
+def source_words(at, insn)
+  if at != nil
+    "#{at[:file]}:#{to_s(at[:line])}:#{to_s(at[:col])}"
+  elsif insn != nil
+    "instruction #{to_s(insn)}"
+  else
+    "the program"
+  end
+end
+
+@doc """
 log_text: the verifier's log from an answer, empty when there is none.
 
     log_text({out: [[97, 0]]}) #=> "a"
@@ -1000,9 +1114,39 @@ def load(program, opts)
     {fd: a[:fd], kind: opts[:kind], maps:, name: opts[:name]}
   else
     logged = load_attempt(opts[:kind], encoded, opts, 262_144)
-    checked(logged, "load #{to_s(opts[:name])}", log_text(logged))
+    if logged[:errno] != nil
+      refused_load(logged, opts[:name], program)
+    end
     {fd: logged[:fd], kind: opts[:kind], maps:, name: opts[:name]}
   end
+end
+
+@doc """
+refused_load: the refusal for a load the verifier turned down: the blue line and the reason in its message, and {insn:, reason:, at:} with the log in its data. `at` is {file:, line:, col:, text:}, nil for a program that knows no lines.
+
+    (refused_load({errno: 13, out: []}, "p", {lines: [], funcs: []}) rescue :refused) #=> :refused
+"""
+def refused_load(answer, name, program)
+  log = log_text(answer)
+  said = verifier_said(log)
+  at = if said[:insn] != nil
+    kaaneru::bpf::source_at(program, said[:insn])
+  end
+  raise(
+    :kernel_refused,
+    "load #{to_s(name)}: #{errno_name(answer[:errno])} at #{source_words(at, said[:insn])}: #{said[:reason]}",
+    {
+      data: assoc(
+        assoc(
+          assoc(refused_data(answer, log), :insn, said[:insn]),
+          :reason,
+          said[:reason]
+        ),
+        :at,
+        at
+      )
+    }
+  )
 end
 
 @doc """
@@ -1022,25 +1166,60 @@ def install(compiled, opts?)
     compiled[:maps] or []
   )
   given = opts or {}
-  prog = load(
-    fields_bound(compiled, given[:btf]),
-    {
-      signed_division: :trust,
-      kind: compiled[:kind],
-      maps:,
-      name: compiled[:name],
-      attach: given[:attach],
-      attach_btf_id: given[:attach_btf_id],
-      license: compiled[:license],
-      btf_fd: if program_btf != nil
-        program_btf[:fd]
-      end,
-      func_info: if shape != nil
-        shape[:func_info]
+  held = fields_bound(compiled, given[:btf])
+  plain = {
+    signed_division: :trust,
+    kind: compiled[:kind],
+    maps:,
+    name: compiled[:name],
+    attach: given[:attach],
+    attach_btf_id: given[:attach_btf_id],
+    license: compiled[:license]
+  }
+  prog = begin
+    load(
+      held,
+      if shape != nil
+        with_program_btf(plain, program_btf, shape)
+      else
+        plain
       end
-    }
-  )
+    )
+  rescue :kernel_refused as e
+    if shape.nil? and (compiled[:lines] or []) != []
+      load_with_lines(held, plain, compiled)
+    else
+      raise(e)
+    end
+  end
   {prog:, maps:, btf: program_btf}
+end
+
+@doc """
+with_program_btf: load options with a program's BTF, its functions and its source lines.
+
+    with_program_btf({}, {fd: 3}, {func_info: [], line_info: []})[:btf_fd] #=> 3
+"""
+def with_program_btf(opts, program_btf, shape)
+  reduce(
+    (acc, pair) -> assoc(acc, first(pair), pair[1]),
+    opts,
+    [
+      [:btf_fd, program_btf[:fd]],
+      [:func_info, shape[:func_info]],
+      [:line_info, shape[:line_info]]
+    ]
+  )
+end
+
+@doc """
+load_with_lines: a refused plain program loaded again with its BTF and source lines, so the verifier's own log names blue's lines. A plain program that loads carries no BTF; this is the one path that gives it some. The answer stays the kernel's: a second refusal raises with the richer log, and an acceptance is the program.
+
+    (load_with_lines({insns: []}, {kind: :nope}, {kind: :xdp, funcs: [], maps: [], lines: []}) rescue :refused) #=> :refused
+"""
+def load_with_lines(program, opts, compiled)
+  shape = kaaneru::bpf::program_btf(compiled)
+  load(program, with_program_btf(opts, load_btf(shape[:bytes]), shape))
 end
 
 @doc """
@@ -2174,6 +2353,80 @@ test "division traps below 6.12, and a suffix on the release changes nothing"
   assert not division_traps?("6.12-rc1")
   assert not division_traps?("6.18.34")
   assert not division_traps?("10.0.1")
+end
+
+test "a refusal's message names the blue line and the reason the log gave, and its data holds both"
+  text = unlines(
+    [
+      "0: (b7) r0 = 0",
+      "1: (61) r0 = *(u32 *)(r6 +1000)",
+      "invalid bpf_context access off=1000 size=4",
+      "processed 2 insns (limit 1000000)"
+    ]
+  )
+  program = {
+    lines: [{at: 0, line: 3, col: 3}, {at: 1, line: 7, col: 5}],
+    funcs: [],
+    source: {file: "f.b", text: ["", "", "", "", "", "", "  far = 1"]}
+  }
+  answer = {errno: 13, out: [text_bytes(text)]}
+  caught = begin
+    refused_load(answer, "p", program)
+    nil
+  rescue :kernel_refused as e
+    e
+  end
+  assert caught.message ==
+    "load p: EACCES at f.b:7:5: invalid bpf_context access off=1000 size=4"
+  assert caught.data.insn == 1
+  assert caught.data.at.text == "  far = 1"
+  bare = begin
+    refused_load(answer, "p", {lines: [], funcs: []})
+    nil
+  rescue :kernel_refused as e
+    e
+  end
+  assert contains?(bare.message, "at instruction 1:")
+  assert bare.data.at.nil?
+end
+
+test "a verifier log with a register line after its instruction keeps the last instruction and drops source lines"
+  log = unlines(
+    [
+      "0: R1=ctx() R10=fp0",
+      "; x @ f.b:2",
+      "0: (bf) r6 = r1",
+      "1: (61) r0 = *(u8 *)(r6 +0)",
+      "R6 bad",
+      "R0 worse",
+      "; y @ f.b:3",
+      "processed 2 insns"
+    ]
+  )
+  got = verifier_said(log)
+  assert got[:insn] == 1
+  assert got[:reason] == "R6 bad; R0 worse"
+end
+
+test "line info for BPF_PROG_LOAD is 16 bytes a row, in the order the kernel reads"
+  fields = line_info_fields([{at: 2, file: 1, text: 3, pos: 2051}])
+  assert first(fields) == [:line_info_rec_size, 16]
+  assert fields[1][1][:in] ==
+    append(
+      *[int_bytes(2, 4), int_bytes(1, 4), int_bytes(3, 4), int_bytes(2051, 4)]
+    )
+  assert size(
+    load_fields(
+      :xdp,
+      [],
+      {btf_fd: 3, line_info: [{at: 0, file: 1, text: 2, pos: 3}]},
+      0
+    )
+  ) > 3
+  assert filter(
+    (f) -> first(f) == :line_info_cnt,
+    load_fields(:xdp, [], {}, 0)
+  ) == []
 end
 
 test "the layouts place every field where the UAPI header does, counted by hand from bpf.h"

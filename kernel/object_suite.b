@@ -31,7 +31,7 @@ use(
   ]
 )
 
-use("retsu", %i[first repeat size])
+use("retsu", %i[first flat_map repeat size])
 
 def scratch_dir()
   dir = path_join(getenv("TMPDIR", "/tmp"), "blue-object-#{to_s(now_ms)}")
@@ -342,6 +342,301 @@ test "an object clang built reads back and loads through blue, and answers as bl
   assert kaaneru::run(live[:prog], {packet: repeat(0, 64)})[:ret] == 2
   values = map_get(map_named(live, "locks"), int_bytes(0, 4))
   assert bytes_int(values, 8, 8) == 1
+  rm_rf(dir)
+end
+
+test "a clang object with a function nothing reaches loads through blue, and linking all of .text is what the verifier refuses"
+  dir = scratch_dir
+  source = path_join(dir, "dead.c")
+  path = path_join(dir, "dead.o")
+  write_file(
+    source,
+    unlines(
+      [
+        "struct xdp_md { unsigned int data; };",
+        "char _license[] __attribute__((section(\"license\"), used)) = \"GPL\";",
+        "__attribute__((noinline)) int unreached(int a) { return a * *(volatile int *) 0; }",
+        "__attribute__((noinline)) int add(int a) { return a + 40; }",
+        "__attribute__((section(\"xdp\"), used)) int entry(struct xdp_md *ctx) {",
+        "  return add(2) == 42 ? 2 : 0;",
+        "}"
+      ]
+    )
+  )
+  tool("clang", ["-target", "bpf", "-O2", "-g", "-c", source, "-o", path])
+  o = kaaneru::erufu::decode(read_bytes(path))
+  back = kaaneru::erufu::program_of(o)
+  assert map((f) -> f[:name], back[:funcs]) == %w[entry add]
+  live = install(back)
+  assert kaaneru::run(live[:prog], {packet: repeat(0, 64)})[:ret] == 2
+  whole = kaaneru::erufu::program_of(o, nil, {keep_unreached: true})
+  assert size(whole[:funcs]) == 3
+  refusal = begin
+    install(whole)
+    "loaded"
+  rescue :kernel_refused as e
+    e.data.log
+  end
+  assert contains?(refusal, "func_info")
+  rm_rf(dir)
+end
+
+test "a refusal names the blue line and the reason, and the verifier's own log holds the source"
+  compiled = compile(
+    "kernel/programs/refused.b",
+    {entry: :read_far, kind: :xdp}
+  )
+  caught = begin
+    install(compiled)
+    nil
+  rescue :kernel_refused as e
+    e
+  end
+  assert contains?(caught.message, "kernel/programs/refused.b:11")
+  assert contains?(caught.message, "invalid bpf_context access")
+  assert caught.data.at.line == 11
+  assert contains?(caught.data.at.text, "ctx_int(c, 1000, 4)")
+  assert caught.data.reason == "invalid bpf_context access off=1000 size=4"
+  assert contains?(caught.data.log, "ctx_int(c, 1000, 4) @ refused.b:11")
+end
+
+test "with lines off the refusal holds an instruction and no source, as a program with no lines has"
+  compiled = compile(
+    "kernel/programs/refused.b",
+    {entry: :read_far, kind: :xdp, lines: false}
+  )
+  caught = begin
+    install(compiled)
+    nil
+  rescue :kernel_refused as e
+    e
+  end
+  assert contains?(caught.message, "instruction")
+  assert caught.data.at.nil?
+  assert not contains?(caught.data.log, "@ refused.b")
+end
+
+test "a program that loads stays plain: no BTF and no lines, though it knows them"
+  compiled = compile(
+    "kernel/suite.b",
+    {entry: :mix_entry, kind: :xdp, on_fault: 0}
+  )
+  assert compiled[:lines] != []
+  info = prog_info(install(compiled)[:prog])
+  assert info[:btf_id] == 0
+  assert info[:nr_line_info] == 0
+end
+
+test "a program with BTF loads with its source lines, and bpftool reads them back from the kernel and from its object"
+  compiled = compile(
+    "kernel/programs/object.b",
+    {entry: :on_packet, kind: :xdp, on_fault: 0, global: [:sum_into]}
+  )
+  info = prog_info(install(compiled)[:prog])
+  assert info[:nr_line_info] > 0
+  dir = scratch_dir
+  path = path_join(dir, "lined.o")
+  write_bytes(path, kaaneru::erufu::object(compiled))
+  pin = "/sys/fs/bpf/blue_lined_#{to_s(now_ms)}"
+  tool("bpftool", ["prog", "load", path, pin])
+  said = begin
+    tool("bpftool", ["prog", "dump", "xlated", "pinned", pin, "linum"]).stdout
+  ensure
+    rm(pin)
+  end
+  assert contains?(said, "sum_into")
+  assert contains?(said, "kernel/programs/object.b")
+  assert contains?(said, "[file:kernel/programs/object.b line_num:")
+  rm_rf(dir)
+end
+
+def field_object(dir)
+  path = path_join(dir, "core.o")
+  write_bytes(
+    path,
+    kaaneru::erufu::object(
+      compile(
+        "kernel/programs/fentry.b",
+        {entry: :on_open, kind: :tracing, on_fault: 0}
+      ),
+      {section: "fentry/do_sys_openat2"}
+    )
+  )
+  path
+end
+
+def xlated_of(path, extra)
+  pin = "/sys/fs/bpf/blue_core_#{to_s(now_ms)}"
+  tool("bpftool", append(append(["prog", "load", path, pin], extra), []))
+  begin
+    tool("bpftool", ["prog", "dump", "xlated", "pinned", pin]).stdout
+  ensure
+    rm(pin)
+  end
+end
+
+test "one object holds a CO-RE relocation for an unbound field: libbpf moves it to this kernel's offset, and to another kernel's from that kernel's BTF"
+  dir = scratch_dir
+  path = field_object(dir)
+  table = kaaneru::btf::open(kaaneru::btf::vmlinux_path)
+  here = kaaneru::btf::field(table, "task_struct", ["pid"])[:offset]
+  assert here > 0
+  o = kaaneru::erufu::decode(read_bytes(path))
+  relos = kaaneru::btf::read_core(
+    kaaneru::erufu::section_of(o, ".BTF.ext")[:bytes],
+    kaaneru::erufu::section_of(o, ".BTF")[:bytes]
+  )
+  assert first(first(relos)[:relos])[:access] == "0:0"
+  assert contains?(xlated_of(path, []), "r3 += #{to_s(here)}")
+  other_path = path_join(dir, "other.btf")
+  word = kaaneru::btf::int_type("int", 4)
+  write_bytes(
+    other_path,
+    kaaneru::btf::encode(
+      [
+        word,
+        kaaneru::btf::sized_type(
+          :struct,
+          "task_struct",
+          16,
+          [{name: "pid", type: 1, bits: 96}]
+        )
+      ]
+    )
+  )
+  other = xlated_of(path, ["kernel_btf", other_path])
+  assert contains?(other, "r3 += 12")
+  assert not contains?(other, "r3 += #{to_s(here)}")
+  rm_rf(dir)
+end
+
+test "a clang object's CO-RE record for the same field equals blue's, and blue reads its own and clang's and binds them to this kernel"
+  dir = scratch_dir
+  source = path_join(dir, "core.c")
+  clang_path = path_join(dir, "core_clang.o")
+  write_file(
+    source,
+    unlines(
+      [
+        "struct task_struct { int pid; } __attribute__((preserve_access_index));",
+        "char _license[] __attribute__((section(\"license\"), used)) = \"GPL\";",
+        "static long (*probe_read)(void *, unsigned int, const void *) = (void *) 113;",
+        "static void *(*current_task)(void) = (void *) 35;",
+        "__attribute__((section(\"fentry/do_sys_openat2\"), used)) int on_open(void *ctx) {",
+        "  struct task_struct *t = current_task();",
+        "  int v = 0;",
+        "  probe_read(&v, 4, &t->pid);",
+        "  return 0;",
+        "}"
+      ]
+    )
+  )
+  tool("clang", ["-target", "bpf", "-O2", "-g", "-c", source, "-o", clang_path])
+  said = fn(path)
+    o = kaaneru::erufu::decode(read_bytes(path))
+    blob = kaaneru::erufu::section_of(o, ".BTF")[:bytes]
+    t = kaaneru::btf::read(blob)
+    map(
+      (r) -> [kaaneru::btf::resolved(t, r[:type])[:name], r[:access], r[:kind]],
+      flat_map(
+        kaaneru::btf::read_core(
+          kaaneru::erufu::section_of(o, ".BTF.ext")[:bytes],
+          blob
+        ),
+        (s) -> s[:relos]
+      )
+    )
+  end
+  blue_path = field_object(dir)
+  assert said(blue_path) == said(clang_path)
+  assert said(blue_path) == [["task_struct", "0:0", 0]]
+  table = kaaneru::btf::open(kaaneru::btf::vmlinux_path)
+  map(
+    fn(path)
+      back = kaaneru::erufu::program_of(
+        kaaneru::erufu::decode(read_bytes(path))
+      )
+      assert map((f) -> f[:path], back[:fields]) == [["pid"]]
+      assert get(
+        kaaneru::install_hook(back, table, {fentry: "do_sys_openat2"})[:prog],
+        :fd
+      ) != nil
+    end,
+    [blue_path, clang_path]
+  )
+  rm_rf(dir)
+end
+
+def value_program()
+  assoc(
+    assoc(
+      assemble(
+        [
+          kaaneru::bpf::map_value_ref(1, :globals, 8),
+          store(:dw, 1, 0, 40),
+          kaaneru::bpf::load(:dw, 0, 1, 0),
+          alu(:add, 0, 2),
+          exit_program
+        ]
+      ),
+      :maps,
+      [declare_map(:globals, :array, 4, 16, 1)]
+    ),
+    :kind,
+    :xdp
+  )
+end
+
+test "a reference into a map's value in an object: libbpf loads it and it runs, blue reads it back and runs it, and the machine agrees"
+  p = value_program
+  dir = scratch_dir
+  path = path_join(dir, "value.o")
+  write_bytes(path, kaaneru::erufu::object(p))
+  pin = "/sys/fs/bpf/blue_value_#{to_s(now_ms)}"
+  tool("bpftool", ["prog", "load", path, pin])
+  input = path_join(dir, "in")
+  output = path_join(dir, "out")
+  write_bytes(input, repeat(0, 64))
+  said = begin
+    bpftool_run(pin, input, output)
+  ensure
+    rm(pin)
+  end
+  assert contains?(said, "Return value: 42,")
+  back = kaaneru::erufu::program_of(kaaneru::erufu::decode(read_bytes(path)))
+  live = install(back)
+  assert kaaneru::run(live[:prog], {packet: repeat(0, 64)})[:ret] == 42
+  values = map_get(map_named(live, "globals"), int_bytes(0, 4))
+  assert bytes_int(values, 8, 8) == 40
+  assert kaaneru::bpf::run(p, {maps: p[:maps]}).ret == 42
+  rm_rf(dir)
+end
+
+test "a compiled callback in an object: bpftool loads it and it answers as blue's own load does"
+  compiled = compile(
+    "kernel/suite.b",
+    {entry: :fold_entry, kind: :xdp, on_fault: 0}
+  )
+  dir = scratch_dir
+  path = path_join(dir, "fold.o")
+  write_bytes(path, kaaneru::erufu::object(compiled))
+  dumped = tool("bpftool", ["btf", "dump", "file", path]).stdout
+  assert contains?(dumped, "FUNC 'fold_step' type_id=")
+  assert contains?(dumped, "linkage=static")
+  pin = "/sys/fs/bpf/blue_fold_#{to_s(now_ms)}"
+  tool("bpftool", ["prog", "load", path, pin])
+  input = path_join(dir, "in")
+  output = path_join(dir, "out")
+  write_bytes(input, pair_packet(40, 3))
+  said = begin
+    bpftool_run(pin, input, output)
+  ensure
+    rm(pin)
+  end
+  assert contains?(said, "Return value: 2,")
+  live = install(compiled)
+  in_kernel = kaaneru::run(live[:prog], {packet: pair_packet(40, 3)})
+  assert read_bytes(output) == in_kernel[:packet]
   rm_rf(dir)
 end
 

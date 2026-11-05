@@ -32,8 +32,8 @@
   {
     "name": "a map reference keeps its pseudo source",
     "file": "erufu.b",
-    "find": "insn: assoc(assoc(i, :src, 0), :imm, 0)",
-    "replace": "insn: assoc(i, :imm, 0)"
+    "find": "        assoc(assoc(i, :src, 0), :imm, 0)\n",
+    "replace": "        assoc(i, :imm, 0)\n"
   },
   {
     "name": "symbols are not ordered locals first",
@@ -70,5 +70,95 @@
     "file": "erufu.b",
     "find": "(r) -> r[:at],\n",
     "replace": "(r) -> 0,\n"
+  },
+  {
+    "name": "a function nothing reaches stays",
+    "file": "erufu.b",
+    "find": "linked = if given[:keep_unreached] or not reaches_text",
+    "replace": "linked = if true"
+  },
+  {
+    "name": "a reference does not keep its target",
+    "file": "erufu.b",
+    "find": "if i[:code] == 133 and i[:src] == 1 or i[:code] == 24 and i[:src] == 4",
+    "replace": "if i[:code] == 133 and i[:src] == 1"
+  },
+  {
+    "name": "a dropped function leaves its callers' offsets",
+    "file": "erufu.b",
+    "find": "assoc(row[1], :imm, moved(target) - moved(first(row)) - 1)",
+    "replace": "row[1]"
+  },
+  {
+    "name": "a reader ignores the switch that keeps every function",
+    "file": "erufu.b",
+    "find": "      not given[:keep_unreached] or\n",
+    "replace": "      true or\n"
+  },
+  {
+    "name": "a reference into a value holds no offset",
+    "file": "erufu.b",
+    "find": "assoc(assoc(assoc(i, :src, 0), :imm, i[:imm2]), :imm2, 0)",
+    "replace": "assoc(assoc(i, :src, 0), :imm, 0)"
+  },
+  {
+    "name": "a kernel field holds no local offset",
+    "file": "erufu.b",
+    "find": "{insn: assoc(i, :imm, get(world[:field_offsets], slot))}",
+    "replace": "{insn: i}"
+  },
+  {
+    "name": "a CO-RE relocation of another kind is read",
+    "file": "erufu.b",
+    "find": "if r[:kind] != 0",
+    "replace": "if false"
+  },
+  {
+    "name": "a relocation at no immediate is read",
+    "file": "erufu.b",
+    "find": "not member?(row[1][:code], [7, 183])",
+    "replace": "false"
+  },
+  {
+    "name": "a map named both ways is written",
+    "file": "erufu.b",
+    "find": "elsif member?(name, plain)",
+    "replace": "elsif false"
+  },
+  {
+    "name": "a value map of any shape is written",
+    "file": "erufu.b",
+    "find": "elsif m[:kind] != :array or m[:max_entries] != 1 or m[:key_size] != 4",
+    "replace": "elsif false"
+  },
+  {
+    "name": "an object holds no source lines",
+    "file": "erufu.b",
+    "find": "bpf::line_info_sections(types[:lines] or [], funcs, section),",
+    "replace": "[],"
+  },
+  {
+    "name": "an object holds no CO-RE relocations",
+    "file": "erufu.b",
+    "find": "bpf::core_sections(types[:core_relos] or [], funcs, section)",
+    "replace": "[]"
+  },
+  {
+    "name": "the line info switch does nothing",
+    "file": "erufu.b",
+    "find": "if given[:line_info] == false",
+    "replace": "if false"
+  },
+  {
+    "name": "the CO-RE switch does nothing",
+    "file": "erufu.b",
+    "find": "if (p[:fields] or []) != [] and given[:core] == false",
+    "replace": "if false"
+  },
+  {
+    "name": "a stuck relocation goes on",
+    "file": "erufu.b",
+    "find": "if stuck != nil",
+    "replace": "if false"
   }
 ]

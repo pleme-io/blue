@@ -188,8 +188,8 @@
   {
     "name": "a subprogram's fault is lost",
     "file": "bpf.b",
-    "find": "jump(:ne, 1, 0, fault_label(st))",
-    "replace": "jump(:ne, 1, 1, fault_label(st))"
+    "find": "load(:dw, 1, 10, slot_offset(at)),\n          jump(:ne, 1, 0, fault_label(st))",
+    "replace": "load(:dw, 1, 10, slot_offset(at)),\n          jump(:ne, 1, 1, fault_label(st))"
   },
   {
     "name": "a subprogram's fault is not written",
@@ -268,5 +268,101 @@
     "file": "bpf.b",
     "find": "size(program[:funcs] or []) > 1 or",
     "replace": "size(program[:funcs] or []) > 0 or"
+  },
+  {
+    "name": "a position loses its line",
+    "file": "bpf.b",
+    "find": "bit_or(shift_left(line, 10), bit_and(col, 1023))",
+    "replace": "bit_or(shift_left(line, 11), bit_and(col, 1023))"
+  },
+  {
+    "name": "the first mark at a slot wins",
+    "file": "bpf.b",
+    "find": "kept = retsu::reject((r) -> r[:at] == m[:at], acc)",
+    "replace": "kept = acc"
+  },
+  {
+    "name": "a function's start has no line",
+    "file": "bpf.b",
+    "find": "wanted = append([0], map((f) -> f[:at], program[:funcs] or []))",
+    "replace": "wanted = [0]"
+  },
+  {
+    "name": "code after a call stays at the callee's line",
+    "file": "bpf.b",
+    "find": "assoc(out(inner, [line_mark(first(outer), outer[1])]), :line, outer)",
+    "replace": "inner"
+  },
+  {
+    "name": "a subprogram inherits its caller's line",
+    "file": "bpf.b",
+    "find": "[:line, nil]",
+    "replace": "[:line, st[:line]]"
+  },
+  {
+    "name": "a fault in a step is not told",
+    "file": "bpf.b",
+    "find": "store(:dw, 1, 8, 1),",
+    "replace": "alu(:mov, 1, 0),"
+  },
+  {
+    "name": "a fault in a step does not stop the program",
+    "file": "bpf.b",
+    "find": "jump(:ne, 1, 0, fault_label(st)),\n      load(:dw, 0, 10, slot_offset(value_at))",
+    "replace": "load(:dw, 0, 10, slot_offset(value_at))"
+  },
+  {
+    "name": "past the limit is not a fault",
+    "file": "bpf.b",
+    "find": "jump(:gt, 1, max_loops, fault_label(st)),",
+    "replace": "jump(:gt, 1, max_loops + max_loops, fault_label(st)),"
+  },
+  {
+    "name": "the interpreter takes any count",
+    "file": "bpf.b",
+    "find": "if n < 0 or n > max_loops",
+    "replace": "if false"
+  },
+  {
+    "name": "a step of any shape is taken",
+    "file": "bpf.b",
+    "find": "elsif size(f[:params]) != 2",
+    "replace": "elsif false"
+  },
+  {
+    "name": "a global subprogram is also a step",
+    "file": "bpf.b",
+    "find": "elsif known[:linkage] != :static",
+    "replace": "elsif false"
+  },
+  {
+    "name": "a local offset is unaligned",
+    "file": "bpf.b",
+    "find": "at = align_up(got[:offset], blue::min(member[:size], 8))",
+    "replace": "at = got[:offset]"
+  },
+  {
+    "name": "an access text starts wrong",
+    "file": "bpf.b",
+    "find": "access: \"0:#{join(map(to_s, p[:indexes]), \":\")}\"",
+    "replace": "access: \"1:#{join(map(to_s, p[:indexes]), \":\")}\""
+  },
+  {
+    "name": "a relocation is counted in slots",
+    "file": "bpf.b",
+    "find": "(r) -> assoc(r, :at, (r[:at] - base) * 8)",
+    "replace": "(r) -> assoc(r, :at, r[:at] - base)"
+  },
+  {
+    "name": "a value reference reads no map",
+    "file": "bpf.b",
+    "find": "value_of(st, map_of(st, i[:imm]), repeat(0, 4)) + i[:imm2]",
+    "replace": "i[:imm2]"
+  },
+  {
+    "name": "the tree's source is dropped",
+    "file": "bpf.b",
+    "find": "source: source_form(forms),",
+    "replace": "source: nil,"
   }
 ]

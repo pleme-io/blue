@@ -9,7 +9,8 @@
       "baito": "^0.1.0",
       "jisho": "^0.1.0",
       "retsu": "^0.1.0",
-      "shisutemu": "^0.1.0"
+      "shisutemu": "^0.1.0",
+      "shuugou": "^0.1.0"
     },
     "when": "anytime",
     "sources": {},

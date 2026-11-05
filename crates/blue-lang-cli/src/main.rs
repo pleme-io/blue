@@ -89,6 +89,7 @@ mod replay;
 mod scaffold;
 mod script;
 mod sigint;
+mod source_lines;
 mod watch;
 mod witness;
 
@@ -195,12 +196,16 @@ enum Cmd {
     /// reference to what per-bidama namespaces bind it to (a builtin stays
     /// bare). `--json` adds, per reference, what today's flat rule and the
     /// namespace rule each bind it to — the data a migration is proven on.
+    /// `--lines` wraps each statement of the resolved tree as `(%line LINE COLUMN
+    /// form)`, what a compiler that names source lines reads.
     Ast {
         file: PathBuf,
         #[arg(long)]
         resolved: bool,
         #[arg(long, requires = "resolved")]
         json: bool,
+        #[arg(long, requires = "resolved")]
+        lines: bool,
     },
     /// Print the tatara-lisp form after type erasure — what actually runs.
     Erase { file: PathBuf },
@@ -1027,7 +1032,9 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             Ok(ExitCode::SUCCESS)
         }
 
-        Cmd::Ast { file, json, .. } => {
+        Cmd::Ast {
+            file, json, lines, ..
+        } => {
             use blue_lang_runtime::pipeline::{check_entry, Checking};
             let loader = blue_lang_pkg::load_path::LoadPath::for_entry(&file);
             let src = read(&file)?;
@@ -1048,11 +1055,20 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                     checked.program.forms(),
                     blue_lang_check::names::Rule::Namespaced,
                 );
+                if lines {
+                    let path = file.display().to_string();
+                    println!("{}", source_lines::source_form(&path, &src));
+                }
                 for (i, form) in tree.iter().enumerate() {
                     if checked.program.owner_of(i)
                         == Some(blue_lang_runtime::uses::ResolvedProgram::ENTRY)
                     {
-                        println!("{}", form.to_sexp());
+                        if lines {
+                            let marked = source_lines::with_source_lines(form.clone(), &src);
+                            println!("{}", marked.to_sexp());
+                        } else {
+                            println!("{}", form.to_sexp());
+                        }
                     }
                 }
             }

@@ -1299,7 +1299,9 @@ pub fn program_names(program: &crate::uses::ResolvedProgram, builtins: &NameTabl
                 .package
                 .as_deref()
                 .map_or(1, |p| p.split(blue_lang_syntax::QUALIFIER).count());
-            if let (Some(pkg), Some(root)) = (&f.package, path.ancestors().nth(depth + 1)) {
+            if let (Some(pkg), Some(root), true) =
+                (&f.package, path.ancestors().nth(depth + 1), path.exists())
+            {
                 pkg_roots
                     .entry(pkg.clone())
                     .or_insert_with(|| canonical(root));

@@ -117,6 +117,30 @@ fn the_bridge_warns_outside_refuses_inside_and_closes_at_the_next_minor() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
+#[test]
+fn a_bridge_into_the_compiled_in_distribution_warns_a_caller_on_disk() {
+    let root: PathBuf = std::env::temp_dir().join(format!("blue-embedded-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    let caller = root.join("app/main.b");
+    write(&caller, "use(\"toukei\", [:total])\n\nprint(total([1, 2]))\n");
+    let out = Command::new(env!("CARGO_BIN_EXE_blue"))
+        .env_remove("BLUE_PATH")
+        .env_remove("BLUE_CONFIG")
+        .env_remove("BLUE_TIER")
+        .current_dir(&root)
+        .args(["check", "--format", "json"])
+        .arg(&caller)
+        .output()
+        .expect("spawn");
+    let json = String::from_utf8_lossy(&out.stdout).into_owned();
+    assert_eq!(out.status.code(), Some(0), "{json}");
+    assert!(
+        json.contains("\"code\":\"B0021\"") && json.contains("\"severity\":\"warning\""),
+        "{json}"
+    );
+    let _ = std::fs::remove_dir_all(&root);
+}
+
 fn moved(dist: &Path, version: &str) {
     bidama(
         dist,

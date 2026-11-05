@@ -506,7 +506,8 @@ impl NameTable {
             self.pkg_roots.get(pkg),
         ) {
             (Some(file), Some(root)) => file.starts_with(root.as_str()),
-            _ => true,
+            (Some(_), None) => false,
+            (None, _) => true,
         }
     }
 

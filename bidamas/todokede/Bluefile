@@ -1,0 +1,2 @@
+package("todokede", "0.1.2")
+legacy_packages("0.1.2", [["jitaku", "todokede/jitaku"], ["kurashi", "todokede/kurashi"], ["motenashi", "todokede/motenashi"], ["empresa", "todokede/empresa"], ["kinko", "todokede/kinko"]])

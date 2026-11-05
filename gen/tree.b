@@ -108,7 +108,17 @@ def with_root_row(lines, head, root, children, entry)
       filter((l) -> child_row?(l) and not ends_with?(l, "\")"), lines)
     )
   )
-  kept = filter((l) -> not child_row?(l), lines)
+  kept = reduce(
+    fn(acc, l)
+      if child_row?(l)
+        first(peel_waivers(acc, []))
+      else
+        concat_lists(acc, [l])
+      end
+    end,
+    [],
+    lines
+  )
   before = take_while(
     fn(l)
       n = row_name(l, head)
@@ -388,6 +398,14 @@ test "the root's row replaces its children's, before the waiver of the row after
   listing = ["use(\"a\")", "use(\"f/k\", [:x])", "use(\"g\")"]
   assert with_root_row(listing, "use(", "f", ["k"], "use(\"f\")") ==
     ["use(\"a\")", "use(\"f\")", "use(\"f/k\", [:x])", "use(\"g\")"]
+  waived = [
+    "use(\"a\")",
+    "# waive B0016: kept for k",
+    "use(\"k\")",
+    "use(\"g\")"
+  ]
+  assert with_root_row(waived, "use(", "f", ["k"], "use(\"f\")") ==
+    ["use(\"a\")", "use(\"f\")", "use(\"g\")"]
   needs = [
     "needs(\"a\", \"^0.1\")",
     "needs(\"f\", \"^0.1.0\")",

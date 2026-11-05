@@ -62,7 +62,6 @@ use("chokkan")
 use("chozou")
 use("danpen")
 use("deeta", [:get_str])
-use("empresa")
 # waive B0016: zenbu is the facade, and depending on it means depending on erufu
 use("erufu")
 use("fairu")
@@ -82,7 +81,6 @@ use("hon")
 use("hyouka")
 use("ibuki")
 use("jisho")
-use("jitaku")
 use("junjo", %i[is_sorted sort])
 # waive B0016: zenbu is the facade, and depending on it means depending on kaaneru
 use("kaaneru")
@@ -90,7 +88,6 @@ use("kansuu", [:identity])
 use("kazu", %i[clamp near])
 use("keiyu", [:relay_env])
 use("kijun")
-use("kinko")
 use("kirikae")
 use("kiwari")
 use("kodou")
@@ -99,8 +96,6 @@ use("koubou/kikagaku", [:manhattan])
 use("kousei")
 use("koutei")
 use("kueri")
-# waive B0016: zenbu is the facade, and depending on it means depending on kurashi
-use("kurashi")
 use("kyasshu")
 use("kyohi")
 use("kyuuji")
@@ -108,8 +103,6 @@ use("maakuappu")
 use("mitoshi")
 use("moji", [:empty])
 use("mokuroku", [:md_cell])
-# waive B0016: zenbu is the facade, and depending on it means depending on motenashi
-use("motenashi")
 use("nikkusu")
 use("nisshi")
 # waive B0016: zenbu is the facade, and depending on it means depending on okite
@@ -144,6 +137,7 @@ use("suugaku/toukei", %i[mean median])
 use("tajuu")
 use("tehai")
 use("tesuto")
+use("todokede")
 use("touroku")
 use("tsuushin")
 use("ugoki")
@@ -218,9 +212,9 @@ test "every bidama in the distribution answers through this one import"
     "k"
   ) == 5
   assert chokkan::margin([["a", 0.75], ["b", 0.25]]) == 0.5
-  assert jitaku::to_json([]) == "{\"enable\":true}"
-  assert kinko::interval_s("families", 16) == 2765
-  assert empresa::slug?("acme-org")
+  assert todokede::jitaku::to_json([]) == "{\"enable\":true}"
+  assert todokede::kinko::interval_s("families", 16) == 2765
+  assert todokede::empresa::slug?("acme-org")
   assert blue::get(shinchoku::agents_allowed(29, 14, 4000, 0), :allowed) == 0
   assert blue::get(kijun::fleet_repo(1), :standard) == "fleet-repo"
   assert nikkusu::kind(blue::get(nikkusu::read("{ }"), :root)) == "NODE_ROOT"

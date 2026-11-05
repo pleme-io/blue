@@ -1,0 +1,50 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:0dead894f01190c8eee823f29420d5e71d7cac7f62b3c4ac7d94b7b068717b00",
+  "manifest": {
+    "schema": 1,
+    "name": "todokede",
+    "version": "0.1.2",
+    "needs": {
+      "deeta": "^0.1.0",
+      "kousei": "^0.1.0",
+      "kyohi": "^0.1.0",
+      "moji": "^0.1.0",
+      "retsu": "^0.1.0",
+      "ronri": "^0.1.0",
+      "shinsuu": "^0.1.0",
+      "shuugou": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null,
+    "legacy_packages": {
+      "empresa": {
+        "since": "0.1.2",
+        "to": "todokede/empresa"
+      },
+      "jitaku": {
+        "since": "0.1.2",
+        "to": "todokede/jitaku"
+      },
+      "kinko": {
+        "since": "0.1.2",
+        "to": "todokede/kinko"
+      },
+      "kurashi": {
+        "since": "0.1.2",
+        "to": "todokede/kurashi"
+      },
+      "motenashi": {
+        "since": "0.1.2",
+        "to": "todokede/motenashi"
+      }
+    }
+  },
+  "sources": {}
+}

@@ -100,7 +100,7 @@ end
 
 test "a shape only domain bidamas hold has the first as its home, marked domain"
   rows = rows_of([fact("shomei", "side", "bb"), fact("empresa", "pair", "bb")])
-  assert first(rows) == ["bb", "empresa::pair", false]
+  assert first(rows) == ["bb", "todokede::empresa::pair", false]
 end
 
 test "rows are sorted by shape, and a shape is cut to sixteen digits"

@@ -15,9 +15,12 @@ Appendix A (static table), Appendix B (Huffman code), Appendix C (examples).
     huffman_encode("") #=> []
 """
 
+use("jisho", [:merge])
 use("kyohi", %i[and_then ok ok? refusal refusal_of refused value])
 use("retsu", %i[first is_empty size slice])
 use("shinsuu", %i[bit_at bytes_hex hex_bytes shift_left shift_right])
+
+legacy_names("0.1.1", [%w[merge_state jisho::merge]])
 
 huffman_codes = [
   [8184, 13],
@@ -604,7 +607,7 @@ def add_field(st, f, next, sensitive)
   else
     st[:sensitive]
   end
-  merge_state(
+  merge(
     st,
     {
       fields: append(st[:fields], [f]),
@@ -613,10 +616,6 @@ def add_field(st, f, next, sensitive)
       open: false
     }
   )
-end
-
-def merge_state(st, changes)
-  reduce((m, kv) -> assoc(m, first(kv), kv[1]), st, map_entries(changes))
 end
 
 def indexed_field(st, index, next)
@@ -672,7 +671,7 @@ def apply_update(st, n, next)
   if n > t[:limit]
     broken("table size #{n} is over the limit #{t[:limit]}")
   else
-    ok(merge_state(st, {table: evict(assoc(t, :max, n), n), pos: next}))
+    ok(merge(st, {table: evict(assoc(t, :max, n), n), pos: next}))
   end
 end
 

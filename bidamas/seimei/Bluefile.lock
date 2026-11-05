@@ -1,12 +1,14 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:388568674e6c097c57241bd3e3f8ad490c45ca03578a08d6d5101480b870b5db",
+  "bluefile_b3": "b3:a2d76dc1161eda42fc9417ddac19b1be43920da84f0262cbb2798c81b867f5d1",
   "manifest": {
     "schema": 1,
     "name": "seimei",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "needs": {
-      "retsu": "^0.1.0"
+      "kansuu": "^0.1.0",
+      "retsu": "^0.1.0",
+      "shinsuu": "^0.1.0"
     },
     "when": "anytime",
     "sources": {},

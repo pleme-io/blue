@@ -1,4 +1,4 @@
-package("rittai", "0.1.1")
+package("rittai", "0.1.2")
 needs("retsu", "^0.1")
 needs("kazu", "^0.1")
 needs("gyouretsu", "^0.1")

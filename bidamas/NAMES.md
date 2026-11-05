@@ -103,9 +103,11 @@ replacement (`docs/COMPOUNDING.md`).
 
 | bidama | old | new | since |
 |---|---|---|---|
+| `angou` | `find_index_of` | `retsu::index_of_at` | 0.1.1 |
 | `bougyo` | `request_header` | `kyuuji::header` | 0.1.1 |
 | `gitto` | `raised` | `kyohi::raised` | 0.1.3 |
 | `happa` | `text_of` | `moji::text_of` | 0.1.1 |
+| `heddaa` | `merge_state` | `jisho::merge` | 0.1.1 |
 | `jitaku` | `unrefused` | `kyohi::standing` | 0.1.1 |
 | `kaaneru` | `map_kinds` | `bpf::map_kinds` | 0.1.0 |
 | `kakou` | `opt` | `deeta::get_or` | 0.1.2 |
@@ -117,8 +119,19 @@ replacement (`docs/COMPOUNDING.md`).
 | `kueri` | `refusal_why` | `kyohi::why` | 0.1.2 |
 | `kyohi` | `findings` | `kyohi::check` | 0.1.2 |
 | `kyohi` | `refuse` | `kyohi::enforce` | 0.1.2 |
+| `moji` | `insert_text` | `junjo::insert_ordered` | 0.1.1 |
+| `moji` | `sort_strings` | `junjo::sort` | 0.1.1 |
 | `nisshi` | `refusal_detail` | `kyohi::why` | 0.1.2 |
 | `nisshi` | `refusal_kind` | `kyohi::kind` | 0.1.2 |
+| `ran` | `total_weight` | `kazu::sum` | 0.1.1 |
+| `rittai` | `index_edges` | `kikagaku::polygon_edges` | 0.1.2 |
+| `seimei` | `after_with` | `kansuu::iterate_n` | 0.1.1 |
+| `seimei` | `bit_of` | `shinsuu::bit_at` | 0.1.1 |
+| `shinsuu` | `value_index` | `retsu::index_of_at` | 0.1.3 |
+| `shuusei` | `contains_claim?` | `retsu::contains` | 0.1.1 |
+| `shuusei` | `contains_pair?` | `retsu::contains` | 0.1.1 |
+| `souji` | `sum` | `kazu::sum` | 0.1.2 |
+| `toukei` | `total` | `kazu::sum` | 0.1.1 |
 | `zumen` | `opt_lines` | `shuugou::as_set` | 0.1.2 |
 
 ## The ledger

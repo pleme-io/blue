@@ -1,2 +1,4 @@
-package("seimei", "0.1.0")
+package("seimei", "0.1.1")
 needs("retsu", "^0.1")
+needs("kansuu", "^0.1")
+needs("shinsuu", "^0.1")

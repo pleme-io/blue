@@ -53,8 +53,14 @@ ones this package imports.
     size("") #=> 0
 """
 
+use("junjo", [:sort])
 use("kazu", [:min])
 use("retsu", %i[first is_empty repeat rest])
+
+legacy_names(
+  "0.1.1",
+  [%w[insert_text junjo::insert_ordered], %w[sort_strings junjo::sort]]
+)
 
 def empty(s)
   length(s) == 0
@@ -764,33 +770,6 @@ def sorts_before(a, b)
   compare(a, b) < 0
 end
 
-def insert_text(x, xs)
-  if is_empty(xs)
-    [x]
-  elsif compare(x, first(xs)) <= 0
-    cons(x, xs)
-  else
-    cons(first(xs), insert_text(x, rest(xs)))
-  end
-end
-
-@doc """
-sort_strings: Sort a list of strings, stably.
-
-`junjo.sort` cannot do this: it is phrased in `<=`, which raises on strings.
-Insertion sort keeps equal elements in input order, so sorting by one key
-does not scramble an earlier sort by another.
-
-    sort_strings([]) #=> []
-"""
-def sort_strings(xs)
-  if is_empty(xs)
-    []
-  else
-    insert_text(first(xs), sort_strings(rest(xs)))
-  end
-end
-
 @doc """
 upper_snake: a name written with hyphens or spaces, as one upper-case word joined
 by underscores: the shape of an environment variable.
@@ -1308,18 +1287,18 @@ test "sorts_before goes through compare, because < raises on strings"
   assert sorts_before("Z", "a") == true
 end
 
-test "sort_strings sorts what junjo.sort cannot"
-  assert sort_strings(%w[c a b]) == %w[a b c]
-  assert sort_strings([]) == []
-  assert sort_strings(["only"]) == ["only"]
+test "junjo's sort orders strings as sorts_before does"
+  assert sort(%w[c a b]) == %w[a b c]
+  assert sort([]) == []
+  assert sort(["only"]) == ["only"]
   # Duplicates survive — a set-like sort would silently drop one.
-  assert sort_strings(%w[b a b]) == %w[a b b]
+  assert sort(%w[b a b]) == %w[a b b]
   # Already sorted stays put, and sorting twice changes nothing.
-  assert sort_strings(sort_strings(%w[c a])) == sort_strings(%w[c a])
+  assert sort(sort(%w[c a])) == sort(%w[c a])
   # nil is the other empty, and it must not reach the recursion.
-  assert sort_strings(blue::rest(["x"])) == []
+  assert sort(blue::rest(["x"])) == []
   # Capitals first, consistent with sorts_before.
-  assert sort_strings(%w[b A]) == %w[A b]
+  assert sort(%w[b A]) == %w[A b]
 end
 
 test "before_first and after_first keep the rest of the value intact"

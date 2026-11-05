@@ -446,7 +446,7 @@ fn every_legacy_prefix_is_in_the_ledger() {
 ///
 /// The count is pinned: moving a twin to one home lowers it, and a new copy
 /// raises it and fails here. Lower the pin when a move lands; never raise it.
-const SHAPE_GROUPS: usize = 18;
+const SHAPE_GROUPS: usize = 16;
 
 /// Every package's definitions, keyed `pkg/name`, to their shape.
 fn shapes() -> std::collections::BTreeMap<String, tatara_lisp::Sexp> {
@@ -533,7 +533,7 @@ fn exact_duplicate_shapes_only_fall() {
 }
 
 const NEAR: blue_lang_check::shape::Near = blue_lang_check::shape::Near::DEFAULT;
-const NEAR_SHAPE_DEFINITIONS: usize = 252;
+const NEAR_SHAPE_DEFINITIONS: usize = 235;
 
 #[test]
 fn near_duplicate_shapes_only_fall() {
@@ -556,7 +556,7 @@ fn near_duplicate_shapes_only_fall() {
     );
 }
 
-const SHAPE_HASH_GROUPS: usize = 27;
+const SHAPE_HASH_GROUPS: usize = 16;
 
 fn shape_hashes() -> std::collections::BTreeMap<String, blue_lang_mondou::def_hash::Shape> {
     let lp = LoadPath::new([dist()]);

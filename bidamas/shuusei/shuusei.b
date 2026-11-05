@@ -23,7 +23,12 @@ use(
 
 use("kyohi", [:kinds])
 
-use("retsu", %i[first rest size])
+use("retsu", %i[contains first rest size])
+
+legacy_names(
+  "0.1.1",
+  [%w[contains_claim? retsu::contains], %w[contains_pair? retsu::contains]]
+)
 
 def segments(path)
   split(path, ".")
@@ -288,7 +293,7 @@ def one_step(keyer, state, e)
       state,
       refuse(:unknown_target, e, "no object #{target_of(v)} in the set")
     )
-  elsif contains_claim?(claimed, claim_of(v))
+  elsif contains(claimed, claim_of(v))
     refused_step(
       state,
       refuse(
@@ -318,10 +323,6 @@ end
 
 def refused_step(state, r)
   assoc(state, :refusals, append(state[:refusals], [r]))
-end
-
-def contains_claim?(claims, claim)
-  size(filter((c) -> c == claim, claims)) > 0
 end
 
 @doc """
@@ -644,15 +645,11 @@ test "changed names the objects that were added, removed or changed, and nothing
     {"kind" => "ConfigMap", "metadata" => {"name" => "c"}}
   ]
   c = changed(before, after, object_key)
-  assert contains_pair?(c, ["[\"Deployment\", \"shop\", \"web\"]", :changed])
-  assert contains_pair?(c, ["[\"Service\", \"shop\", \"web\"]", :removed])
-  assert contains_pair?(c, ["[\"ConfigMap\", \"\", \"c\"]", :added])
+  assert contains(c, ["[\"Deployment\", \"shop\", \"web\"]", :changed])
+  assert contains(c, ["[\"Service\", \"shop\", \"web\"]", :removed])
+  assert contains(c, ["[\"ConfigMap\", \"\", \"c\"]", :added])
   assert size(c) == 3
   assert changed(before, before, object_key) == []
-end
-
-def contains_pair?(xs, pair)
-  size(filter((x) -> x == pair, xs)) > 0
 end
 
 test "a List document reads into objects and shows back as the same List"

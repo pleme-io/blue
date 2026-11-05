@@ -1,4 +1,5 @@
-package("souji", "0.1.1")
+package("souji", "0.1.2")
 needs("hikisuu", "^0.1")
 needs("retsu", "^0.1")
 needs("shisutemu", "^0.1")
+needs("kazu", "^0.1")

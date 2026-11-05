@@ -492,6 +492,14 @@ impl Loader for View<'_> {
         self.inner.version(package, entry_dir)
     }
 
+    fn children(&self, name: &str) -> Vec<String> {
+        self.inner.children(name)
+    }
+
+    fn moved(&self, name: &str) -> Option<blue_lang_runtime::uses::PackageMove> {
+        self.inner.moved(name)
+    }
+
     fn frontend(&self, entry: &Path) -> Option<blue_lang_runtime::uses::Frontend> {
         match self.table {
             Some(t) => Some(blue_lang_runtime::uses::Frontend {

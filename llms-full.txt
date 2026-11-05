@@ -2482,6 +2482,7 @@ it; `blue explain --list` lists them.
 | B0071 | evaluator-name | error | a definition is not named for a word the evaluator answers first: a word syntax lowers to (`list`, `concat`, `apply`, `equal?`, `mod`, `join_lines`, `unlines`, `line_break`) or a special form |
 | B0072 | call-arity | error | a call to a definition passes a number of arguments that definition takes |
 | B0073 | computed-use | error | a `use` names its path as a literal, so the loader and the check stage read it before the program runs |
+| B0074 | moved-package | error | a bidama that moved into another bidama's tree is used by its new path; the old name is a bridge that closes at the root's next minor version |
 
 The registry is the source of truth; a test fails if a code is missing here.
 

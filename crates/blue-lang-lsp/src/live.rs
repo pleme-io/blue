@@ -128,6 +128,7 @@ pub struct Snapshot {
     needs: BTreeMap<String, BTreeSet<String>>,
     versions: BTreeMap<String, String>,
     frontend: Option<Frontend>,
+    moved: BTreeMap<String, blue_lang_runtime::uses::PackageMove>,
 }
 
 impl Snapshot {
@@ -160,6 +161,11 @@ impl Snapshot {
             needs: program.needs().clone(),
             versions: program.versions().clone(),
             frontend: program.frontend().cloned(),
+            moved: program
+                .bridged()
+                .iter()
+                .map(|b| (b.moved.old.clone(), b.moved.clone()))
+                .collect(),
         }
     }
 }
@@ -185,6 +191,10 @@ impl Loader for Snapshot {
 
     fn frontend(&self, _entry: &Path) -> Option<Frontend> {
         self.frontend.clone()
+    }
+
+    fn moved(&self, name: &str) -> Option<blue_lang_runtime::uses::PackageMove> {
+        self.moved.get(name).cloned()
     }
 
     fn children(&self, name: &str) -> Vec<String> {

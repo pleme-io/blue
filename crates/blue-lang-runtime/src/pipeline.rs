@@ -1222,6 +1222,18 @@ pub fn program_names(program: &crate::uses::ResolvedProgram, builtins: &NameTabl
         let at = import.span.start;
         entry.use_at = Some(entry.use_at.map_or(at, |a| a.min(at)));
     }
+    // A moved bidama's old name qualifies what it loaded: `bpf::x` after
+    // `use("bpf")` is `kaaneru::bpf::x` while the bridge stands (B0074).
+    for b in program.bridged() {
+        if let Some((file, _)) = program.imports().get(b.import) {
+            imports
+                .entry(file.index())
+                .or_default()
+                .aliases
+                .entry(b.moved.old.clone())
+                .or_insert_with(|| b.moved.new.clone());
+        }
+    }
     // A FACADE — a bidama that defines nothing and `use`s others (zenbu) —
     // exists so a consumer can depend on "everything": `use("zenbu")` makes
     // every member's QUALIFIER reachable (`toukei::median`), never a bare
@@ -1281,6 +1293,7 @@ pub fn program_names(program: &crate::uses::ResolvedProgram, builtins: &NameTabl
     table.attach_files(form_file, imports);
     table.attach_package_uses(pkg_uses);
     table.attach_needs(program.needs().clone());
+    table.attach_bridges(package_bridges(program));
     // Where each file lives and which distribution each bidama ships in: a
     // bridge reference (B0021) is an error inside the bidama's own
     // distribution and a warning outside it.
@@ -1314,6 +1327,35 @@ pub fn program_names(program: &crate::uses::ResolvedProgram, builtins: &NameTabl
         versions.get(p).cloned()
     });
     table
+}
+
+/// Each import the resolver loaded through a moved bidama's bridge, at the
+/// `use` form that wrote it.
+fn package_bridges(
+    program: &crate::uses::ResolvedProgram,
+) -> Vec<blue_lang_check::names::PackageBridge> {
+    program
+        .bridged()
+        .iter()
+        .filter_map(|b| {
+            let (file, import) = program.imports().get(b.import)?;
+            let top_level = (0..program.forms().len()).find(|i| {
+                program.owner_of(*i) == Some(*file) && program.forms()[*i].span == import.span
+            })?;
+            Some(blue_lang_check::names::PackageBridge {
+                top_level,
+                written: b.written.clone(),
+                to: import.package.clone(),
+                old: b.moved.old.clone(),
+                new: b.moved.new.clone(),
+                since: b.moved.since.clone(),
+                open: blue_lang_check::names::bridge_open(
+                    &b.moved.since,
+                    b.moved.version.as_deref(),
+                ),
+            })
+        })
+        .collect()
 }
 
 /// The forms the evaluator runs, from a checked program: every `use`

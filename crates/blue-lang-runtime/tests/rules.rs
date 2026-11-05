@@ -60,6 +60,22 @@ impl Loader for Imports {
         Some("0.1.1".to_string())
     }
 
+    /// A name no witness bidama is, whose last segment one witness level
+    /// is, moved there at 0.1.1: B0074's `bpf` is `kaaneru/bpf`.
+    fn moved(&self, name: &str) -> Option<blue_lang_runtime::uses::PackageMove> {
+        if self.0.iter().any(|(n, _)| *n == name) {
+            return None;
+        }
+        let tail = format!("/{name}");
+        let (new, _) = self.0.iter().find(|(n, _)| n.ends_with(&tail))?;
+        Some(blue_lang_runtime::uses::PackageMove {
+            old: name.to_string(),
+            new: (*new).to_string(),
+            since: "0.1.1".to_string(),
+            version: Some("0.1.1".to_string()),
+        })
+    }
+
     /// A rule that judges a bidama's own file has its witness checked as
     /// that bidama's source.
     fn entry_package(&self, _path: &std::path::Path) -> Option<String> {

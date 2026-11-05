@@ -758,6 +758,19 @@ row(
 )
 
 row(
+  "check.B0074",
+  join_lines(["use(\"sp_moved\", [:sp_one])", "sp_one"]),
+  diagnoses(["B0074"]),
+  covers("rule:B0074")
+)
+
+row(
+  "check.B0074.qualifier",
+  join_lines(["use(\"sp_moved\")", "sp_moved::sp_one"]),
+  diagnoses(%w[B0074 B0074])
+)
+
+row(
   "check.B0071.stops_the_run",
   join_lines(["def apply()", "  1", "end", "", "x = apply", "to_s(x)"]),
   fails(:check, "B0071")

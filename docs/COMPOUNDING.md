@@ -55,6 +55,7 @@ Three places hold what blue knows about its own evolution. Each is gated.
 |---|---|---|
 | a new rule | its registry row (`crates/blue-lang-check/src/rules.rs`): `fix: Machine` and `ratchet: 0` | `every_evolution_error_ships_its_fixer_or_is_a_named_gap`: every ratcheted error rule ships a machine fix or has a row in `evolution::GAPS` |
 | a renamed or moved word | the producer's `legacy_names(since, prefix)` or `legacy_names(since, [[old, "home::new"]])` | B0021 / B0022 and `tests/legacy_names.rs` |
+| a bidama moved into another's tree | the new root's Bluefile: `legacy_packages(since, [[old, "root/level"]])` | B0074, its Bluefile refusals (`a_root_declares_the_bidamas_that_moved_into_it`) and `tests/legacy_names.rs` |
 | a retired word whose replacement takes more arguments | a three-string row: `legacy_names(since, [[old, "home::new", "args"]])` | `a_retired_word_is_refused_and_fixed_with_its_new_arguments` |
 
 A retired word never resolves, so the break comes with the upgrade. Its

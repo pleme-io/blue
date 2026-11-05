@@ -27,6 +27,26 @@ pub fn used_by(dir: &Path) -> BTreeSet<String> {
     uses_in(texts.iter().map(String::as_str))
 }
 
+/// The bidama `name` names now: the root it moved into, when a root
+/// declares the move (`legacy_packages`), else itself.
+#[must_use]
+pub fn named_now(name: &str, loader: &dyn Loader) -> String {
+    loader.moved(name).map_or_else(
+        || name.to_string(),
+        |m| blue_lang_syntax::root_of(&m.new).to_string(),
+    )
+}
+
+/// [`used_by`], each moved bidama by the root it moved into: a file still
+/// on `use("bpf")` needs `kaaneru` once `bpf` is `kaaneru/bpf`.
+#[must_use]
+pub fn used_through(dir: &Path, loader: &dyn Loader) -> BTreeSet<String> {
+    used_by(dir)
+        .into_iter()
+        .map(|n| named_now(&n, loader))
+        .collect()
+}
+
 /// The text of every `.b` file of a bidama: its directory, and every level
 /// directory below it, however deep. One bidama, one manifest, so its levels'
 /// imports join in its `needs`.
@@ -94,7 +114,7 @@ pub fn derive(
     if crate::load_path::bidama_of(bf).is_none() {
         return Ok(bf.manifest.needs.clone());
     }
-    let mut used = used_by(dir);
+    let mut used = used_through(dir, loader);
     used.remove(&bf.name);
     let mut err = NeedsError {
         bluefile: dir.join(crate::MANIFEST_FILE),
@@ -102,7 +122,7 @@ pub fn derive(
             .manifest
             .needs
             .keys()
-            .filter(|n| !used.contains(*n))
+            .filter(|n| !used.contains(&named_now(n, loader)))
             .cloned()
             .collect(),
         absent: Vec::new(),
@@ -134,6 +154,9 @@ pub fn derive(
 pub struct Pruned {
     pub bluefile: String,
     pub removed: Vec<String>,
+    /// Rows of a moved bidama, rewritten to the root it moved into:
+    /// `(old, root)`.
+    pub renamed: Vec<(String, String)>,
 }
 
 fn needs_line(line: &str) -> Option<String> {
@@ -141,7 +164,11 @@ fn needs_line(line: &str) -> Option<String> {
     Some(rest.split('"').next()?.to_string())
 }
 
-pub fn prune(dir: &Path) -> Result<Option<Pruned>, String> {
+/// The Bluefile of the bidama at `dir` with its `needs` rows brought to what
+/// its files use: a row nothing uses is removed, and a row naming a bidama
+/// that moved into a root the files use (B0074) is rewritten to the root's,
+/// at the root's compatible range. `None` when every row already agrees.
+pub fn prune(dir: &Path, loader: &dyn Loader) -> Result<Option<Pruned>, String> {
     let path = dir.join(crate::MANIFEST_FILE);
     let text = std::fs::read_to_string(&path)
         .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
@@ -149,24 +176,50 @@ pub fn prune(dir: &Path) -> Result<Option<Pruned>, String> {
     if crate::load_path::bidama_of(&bf).is_none() {
         return Ok(None);
     }
-    let used = used_by(dir);
-    let removed: Vec<String> = bf
-        .manifest
-        .needs
-        .keys()
-        .filter(|n| !used.contains(*n))
-        .cloned()
-        .collect();
-    if removed.is_empty() {
+    let used = used_through(dir, loader);
+    let mut removed = Vec::new();
+    let mut renamed: Vec<(String, String)> = Vec::new();
+    for n in bf.manifest.needs.keys() {
+        let now = named_now(n, loader);
+        let taken = bf.manifest.needs.contains_key(&now) || renamed.iter().any(|(_, r)| *r == now);
+        if now != *n && used.contains(&now) && !taken {
+            renamed.push((n.clone(), now));
+        } else if now != *n || !used.contains(n) {
+            removed.push(n.clone());
+        }
+    }
+    if removed.is_empty() && renamed.is_empty() {
         return Ok(None);
     }
+    let row = |old: &str| -> Option<String> {
+        let (_, root) = renamed.iter().find(|(o, _)| o == old)?;
+        let range = loader
+            .version(root, None)
+            .and_then(|v| Version::parse(&v).ok())
+            .map_or_else(|| "*".to_string(), |v| compatible(v).to_string());
+        Some(format!("needs(\"{root}\", \"{range}\")"))
+    };
     let mut bluefile = text
         .lines()
-        .filter(|l| needs_line(l).is_none_or(|n| !removed.contains(&n)))
+        .filter_map(|l| match needs_line(l) {
+            Some(n) if removed.contains(&n) => None,
+            Some(n) => Some(row(&n).map_or_else(
+                || l.to_string(),
+                |r| {
+                    let indent = &l[..l.len() - l.trim_start().len()];
+                    format!("{indent}{r}")
+                },
+            )),
+            None => Some(l.to_string()),
+        })
         .collect::<Vec<_>>()
         .join("\n");
     bluefile.push('\n');
-    Ok(Some(Pruned { bluefile, removed }))
+    Ok(Some(Pruned {
+        bluefile,
+        removed,
+        renamed,
+    }))
 }
 
 #[cfg(test)]
@@ -238,11 +291,58 @@ mod tests {
             msg.contains("delete the row") && msg.contains("remove the `use`"),
             "{msg}"
         );
-        let pruned = prune(&root.join("dist/user")).unwrap().expect("a row goes");
+        let lp = crate::load_path::LoadPath::new([root.join("dist")]);
+        let pruned = prune(&root.join("dist/user"), &lp)
+            .unwrap()
+            .expect("a row goes");
         assert_eq!(pruned.removed, vec!["gone".to_string()]);
         assert_eq!(
             pruned.bluefile,
             "package(\"user\", \"0.1.0\")\ntool(\"git\")\n"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// **A row naming a moved bidama becomes the root's row.** `bpf` moved
+    /// into `kaaneru` (`legacy_packages`): a user still on `use("bpf")`
+    /// derives `kaaneru`, and `prune` writes `needs("kaaneru", "^0.2.0")`
+    /// where `needs("bpf", "^0.1")` was, once the `use` says so too.
+    ///
+    /// Red run (2026-11-05), the rename branch of `prune` disabled:
+    /// `left: [], right: [("bpf", "kaaneru")]`.
+    #[test]
+    fn a_row_of_a_moved_bidama_is_the_roots_row() {
+        let moved = "package(\"kaaneru\", \"0.2.1\")\nlegacy_packages(\"0.2.0\", [[\"bpf\", \"kaaneru/bpf\"]])\n";
+        let root = dir(
+            "moved",
+            &[
+                ("dist/kaaneru/Bluefile", moved),
+                ("dist/kaaneru/kaaneru.b", "def k()\n  1\nend\n"),
+                ("dist/kaaneru/bpf/bpf.b", "def compile()\n  1\nend\n"),
+                (
+                    "dist/user/Bluefile",
+                    "package(\"user\", \"0.1.0\")\n  needs(\"bpf\", \"^0.1\")\n",
+                ),
+                ("dist/user/user.b", "use(\"bpf\")\n\nbpf::compile\n"),
+            ],
+        );
+        let got = derived(&root, "user").unwrap();
+        assert_eq!(got.keys().collect::<Vec<_>>(), ["kaaneru"]);
+        assert_eq!(got["kaaneru"], "^0.2.0");
+        let lp = crate::load_path::LoadPath::new([root.join("dist")]);
+        std::fs::write(
+            root.join("dist/user/user.b"),
+            "use(\"kaaneru/bpf\")\n\nkaaneru::bpf::compile\n",
+        )
+        .unwrap();
+        let pruned = prune(&root.join("dist/user"), &lp)
+            .unwrap()
+            .expect("the row moves");
+        assert_eq!(pruned.renamed, [("bpf".to_string(), "kaaneru".to_string())]);
+        assert!(pruned.removed.is_empty());
+        assert_eq!(
+            pruned.bluefile,
+            "package(\"user\", \"0.1.0\")\n  needs(\"kaaneru\", \"^0.2.0\")\n"
         );
         let _ = std::fs::remove_dir_all(&root);
     }

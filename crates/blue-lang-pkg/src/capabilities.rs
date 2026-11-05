@@ -480,7 +480,7 @@ struct Member {
 /// always was; under [`FloorUnit::Definition`] its own `use`s are followed,
 /// since its definitions are read like any other.
 fn closure(dir: &Path, root: &Bluefile, loader: &LoadPath, unit: FloorUnit) -> Vec<Member> {
-    let root_needs: Vec<String> = crate::needs::used_by(dir)
+    let root_needs: Vec<String> = crate::needs::used_through(dir, loader)
         .into_iter()
         .filter(|n| *n != root.name)
         .collect();
@@ -501,7 +501,7 @@ fn closure(dir: &Path, root: &Bluefile, loader: &LoadPath, unit: FloorUnit) -> V
                 let bluefile = std::fs::read_to_string(pkg.join(crate::MANIFEST_FILE))
                     .ok()
                     .and_then(|t| crate::read_bluefile(&t).ok());
-                let needs: Vec<String> = crate::needs::used_by(&pkg)
+                let needs: Vec<String> = crate::needs::used_through(&pkg, loader)
                     .into_iter()
                     .filter(|n| *n != name)
                     .collect();

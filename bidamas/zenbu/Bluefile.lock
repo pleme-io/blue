@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:f30bc0d1f6c07e048a7d9fdcfbaed2c5eabe5285dfe88d21f2dcb4edc57d0af7",
+  "bluefile_b3": "b3:9ab2e825e45da615cd3ae50d0af2ac7146ca0de20ab0a9a2437f71405dcf8357",
   "manifest": {
     "schema": 1,
     "name": "zenbu",
@@ -39,16 +39,15 @@
       "jitaku": "^0.1.0",
       "junjo": "^0.1.0",
       "kaaneru": "^0.1.0",
-      "kakou": "^0.1.0",
       "kansuu": "^0.1.0",
       "kazu": "^0.1.0",
       "keiyu": "^0.1.0",
       "kijun": "^0.1.0",
-      "kikagaku": "^0.1.0",
       "kinko": "^0.1.0",
       "kirikae": "^0.1.0",
       "kiwari": "^0.1.0",
       "kodou": "^0.1.0",
+      "koubou": "^0.1.0",
       "kousei": "^0.1.0",
       "koutei": "^0.1.0",
       "kueri": "^0.1.0",
@@ -69,7 +68,6 @@
       "raifusaikuru": "^0.1.0",
       "ran": "^0.1.0",
       "retsu": "^0.1.0",
-      "rittai": "^0.1.0",
       "ronri": "^0.1.0",
       "sabi": "^0.1.0",
       "saishikou": "^0.1.0",
@@ -92,8 +90,7 @@
       "touroku": "^0.1.0",
       "tsuushin": "^0.1.0",
       "ugoki": "^0.1.0",
-      "ukai": "^0.1.0",
-      "zumen": "^0.1.0"
+      "ukai": "^0.1.0"
     },
     "when": "anytime",
     "sources": {},

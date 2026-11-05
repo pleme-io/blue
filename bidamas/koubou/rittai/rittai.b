@@ -20,7 +20,7 @@ use("junjo", [:sort_by])
 use("kazu", %i[abs clamp max max_of min min_of near near_within sum])
 
 use(
-  "kikagaku",
+  "koubou/kikagaku",
   %i[
     ccw_polygon
     circle_polygon
@@ -84,7 +84,7 @@ use(
 
 legacy_names("0.1.1", "rt")
 
-legacy_names("0.1.2", [%w[index_edges kikagaku::polygon_edges]])
+legacy_names("0.1.2", [%w[index_edges koubou::kikagaku::polygon_edges]])
 
 # ── points and directions ────────────────────────────────────────────
 
@@ -188,12 +188,12 @@ def translation(t)
   pose(identity_matrix(3), t)
 end
 
-# waive B0013: `apply` is a builtin rittai also uses, so the prefix stays; rittai::apply names it too
+# waive B0013: `apply` is a builtin rittai also uses, so the prefix stays; koubou::rittai::apply names it too
 def rt_apply(pose, p)
   vadd(mvmul(pose_rotation(pose), p), pose_translation(pose))
 end
 
-# waive B0013: `compose` is a builtin rittai also uses, so the prefix stays; rittai::compose names it too
+# waive B0013: `compose` is a builtin rittai also uses, so the prefix stays; koubou::rittai::compose names it too
 @doc """
 rt_compose: First b, then a: rt_apply(rt_compose(a, b), p) == rt_apply(a, rt_apply(b, p)).
 """
@@ -209,7 +209,7 @@ inverse: The inverse pose. A rotation's inverse is its transpose.
 """
 def inverse(pose)
   rt = transpose(pose_rotation(pose))
-  rittai::pose(rt, scale(-1, mvmul(rt, pose_translation(pose))))
+  koubou::rittai::pose(rt, scale(-1, mvmul(rt, pose_translation(pose))))
 end
 
 @doc """
@@ -368,7 +368,7 @@ end
 
 def mesh_refusals(m)
   n = size(vertices(m))
-  faces = rittai::faces(m)
+  faces = koubou::rittai::faces(m)
   if is_empty(faces)
     [[:rittai_mesh, "the mesh has no faces"]]
   else
@@ -550,7 +550,7 @@ def count_of(table, k)
   end
 end
 
-# waive B0013: `distinct` is a builtin rittai also uses, so the prefix stays; rittai::distinct names it too
+# waive B0013: `distinct` is a builtin rittai also uses, so the prefix stays; koubou::rittai::distinct names it too
 def rt_distinct(keys, _table)
   reverse(reduce(distinct_step, {seen: {}, out: []}, keys)[:out])
 end

@@ -1,0 +1,2 @@
+package("koubou", "0.1.2")
+legacy_packages("0.1.2", [["kikagaku", "koubou/kikagaku"], ["rittai", "koubou/rittai"], ["zumen", "koubou/zumen"], ["kakou", "koubou/kakou"]])

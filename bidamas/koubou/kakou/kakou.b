@@ -31,7 +31,7 @@ use("deeta", [:get_or])
 use("kazu", %i[abs max near near_within square sum])
 
 use(
-  "kikagaku",
+  "koubou/kikagaku",
   %i[
     arc_points
     boundary_gap
@@ -52,6 +52,10 @@ use(
   ]
 )
 
+use("koubou/rittai")
+
+use("koubou/zumen")
+
 use(
   "retsu",
   %i[
@@ -69,8 +73,6 @@ use(
   ]
 )
 
-use("rittai")
-
 use(
   "suugaku/gyouretsu",
   %i[
@@ -86,22 +88,19 @@ use(
   ]
 )
 
-use("zumen")
-
 legacy_names("0.1.1", "kk")
 
-legacy_names("0.1.2", [%w[opt deeta::get_or]])
-
-def rad(deg)
-  deg * pi / 180
-end
+legacy_names(
+  "0.1.2",
+  [%w[opt deeta::get_or], %w[rad koubou::kikagaku::radians]]
+)
 
 def bend_allowance(angle_deg, r, t, k)
-  rad(angle_deg) * (r + k * t)
+  koubou::kikagaku::radians(angle_deg) * (r + k * t)
 end
 
 def outside_setback(angle_deg, r, t)
-  tan(rad(angle_deg) / 2) * (r + t)
+  tan(koubou::kikagaku::radians(angle_deg) / 2) * (r + t)
 end
 
 def bend_deduction(angle_deg, r, t, k)
@@ -116,7 +115,7 @@ flat length by exactly one bend deduction.
 def k_from_test_bend(flat_length, leg1, leg2, angle_deg, r, t)
   bd = leg1 + leg2 - flat_length
   ba = 2 * outside_setback(angle_deg, r, t) - bd
-  (ba / rad(angle_deg) - r) / t
+  (ba / koubou::kikagaku::radians(angle_deg) - r) / t
 end
 
 # ── materials ────────────────────────────────────────────────────────
@@ -369,18 +368,28 @@ def blank_entities(part, text_h)
   lo = bb[0]
   hi = bb[1]
   dims = concat_lists(
-    zumen::dim([px(lo), py(lo)], [px(hi), py(lo)], -(3 * text_h), text_h),
-    zumen::dim([px(hi), py(lo)], [px(hi), py(hi)], -(3 * text_h), text_h)
+    koubou::zumen::dim(
+      [px(lo), py(lo)],
+      [px(hi), py(lo)],
+      -(3 * text_h),
+      text_h
+    ),
+    koubou::zumen::dim(
+      [px(hi), py(lo)],
+      [px(hi), py(hi)],
+      -(3 * text_h),
+      text_h
+    )
   )
-  concat_lists(zumen::region(blank), concat_lists(bends, dims))
+  concat_lists(koubou::zumen::region(blank), concat_lists(bends, dims))
 end
 
 def bend_entities(b, text_h)
   c = b[:centre]
-  label = "#{upcase(to_s(b[:direction]))} #{zumen::num(b[:angle])} DEG R#{zumen::num(b[:radius])}"
+  label = "#{upcase(to_s(b[:direction]))} #{koubou::zumen::num(b[:angle])} DEG R#{koubou::zumen::num(b[:radius])}"
   [
-    zumen::line(c[0], c[1], "BEND"),
-    zumen::text(
+    koubou::zumen::line(c[0], c[1], "BEND"),
+    koubou::zumen::text(
       vadd(midpoint(c[0], c[1]), [text_h * 0.5, text_h * 0.5]),
       text_h * 0.8,
       label,
@@ -413,11 +422,20 @@ def folded_mesh(part)
   )
   walls = flat_map(
     part[:flanges],
-    (f) -> rittai::extrude_wall_faces(base_region, 0, index_of(sides, f[:side]))
+    fn(f)
+      koubou::rittai::extrude_wall_faces(
+        base_region,
+        0,
+        index_of(sides, f[:side])
+      )
+    end
   )
-  base = rittai::drop_faces(rittai::extrude(base_region, t), walls)
-  rittai::weld(
-    rittai::merge(
+  base = koubou::rittai::drop_faces(
+    koubou::rittai::extrude(base_region, t),
+    walls
+  )
+  koubou::rittai::weld(
+    koubou::rittai::merge(
       concat_lists([base], map((f) -> flange_mesh(part, b, f), part[:flanges]))
     )
   )
@@ -427,7 +445,7 @@ def flange_section(part, f)
   t = part[:thickness]
   r = f[:radius]
   n = part[:arc_segments]
-  a_end = rad(f[:angle]) - pi / 2
+  a_end = koubou::kikagaku::radians(f[:angle]) - pi / 2
   inner = arc_points([0, t + r], r, -(pi / 2), a_end, n)
   outer = arc_points([0, t + r], r + t, -(pi / 2), a_end, n)
   run = flange_run(part, f)
@@ -453,11 +471,11 @@ def flange_mesh(part, b, f)
   len = distance(seg[0], seg[1])
   rot = transpose([out, up, along])
   section = region(flange_section(part, f), [])
-  rittai::transform(
-    rittai::pose(rot, [px(start), py(start), 0]),
-    rittai::drop_faces(
-      rittai::extrude(section, len),
-      rittai::extrude_wall_faces(section, 0, seam_edge(section))
+  koubou::rittai::transform(
+    koubou::rittai::pose(rot, [px(start), py(start), 0]),
+    koubou::rittai::drop_faces(
+      koubou::rittai::extrude(section, len),
+      koubou::rittai::extrude_wall_faces(section, 0, seam_edge(section))
     )
   )
 end
@@ -522,8 +540,8 @@ end
 def shape_refusals(part)
   fl = part[:flanges]
   sides = map((f) -> f[:side], fl)
-  unknown = filter((s) -> contains(kakou::sides, s) == false, sides)
-  twice = filter((s) -> count_of(sides, s) > 1, kakou::sides)
+  unknown = filter((s) -> contains(koubou::kakou::sides, s) == false, sides)
+  twice = filter((s) -> count_of(sides, s) > 1, koubou::kakou::sides)
   angles = filter((f) -> f[:angle] <= 0 or f[:angle] >= 180, fl)
   concat_lists(
     map(
@@ -619,7 +637,7 @@ end
 
 def sheet_size_refusals(part, rules)
   s = blank_size(part)
-  fits = some((sh) -> kakou::fits(s, sh), rule(rules, :sheets)) == true
+  fits = some((sh) -> koubou::kakou::fits(s, sh), rule(rules, :sheets)) == true
   if fits
     []
   else
@@ -722,9 +740,9 @@ def member_length(m)
 end
 
 def member_mesh(m, n)
-  rittai::transform(
-    rittai::pose_along(m[:from], m[:to]),
-    rittai::extrude(section(m[:stock], n), member_length(m))
+  koubou::rittai::transform(
+    koubou::rittai::pose_along(m[:from], m[:to]),
+    koubou::rittai::extrude(section(m[:stock], n), member_length(m))
   )
 end
 
@@ -782,7 +800,7 @@ def wire_length(w)
 end
 
 def wire_mesh(w, n)
-  rittai::sweep(circle_polygon([0, 0], w[:d] / 2, n), w[:path])
+  koubou::rittai::sweep(circle_polygon([0, 0], w[:d] / 2, n), w[:path])
 end
 
 def wire_refusals(w)
@@ -857,9 +875,9 @@ test "a U channel's flat length is the sum of its outside legs less two bend ded
 end
 
 test "a tray's folded solid is closed, and its volume adds up by parts"
-  tray = kakou::tray
+  tray = koubou::kakou::tray
   m = folded_mesh(tray)
-  assert is_empty(rittai::mesh_refusals(m)) == true
+  assert is_empty(koubou::rittai::mesh_refusals(m)) == true
   # Independently: the base plate is its flat area times T; each flange is
   # the polygonal annular sector (n/2) sin(A/n) ((R+T)^2 - R^2) plus its
   # straight run times T, over the bend line's length.
@@ -870,15 +888,16 @@ test "a tray's folded solid is closed, and its volume adds up by parts"
   sector = 12 / 2.0 * sin(pi / 2 / 12) * (square(3.0) - square(1.5))
   run = 40 - 3
   flange_v = 2 * bw * (sector + run * 1.5) + 2 * bd * (sector + run * 1.5)
-  assert near_within(rittai::volume(m), base_v + flange_v, 0.001) == true
+  assert near_within(koubou::rittai::volume(m), base_v + flange_v, 0.001) ==
+    true
   # The folded part stands 40 high and 300 x 200 outside: its bounding box
   # is the outside dimensions.
-  bb = rittai::bounds(m)
+  bb = koubou::rittai::bounds(m)
   assert vector_near(vsub(bb[1], bb[0]), [300, 200, 40]) == true
 end
 
 test "a flat pattern: the blank's outline, its bend lines, and its mass"
-  tray = kakou::tray
+  tray = koubou::kakou::tray
   fp = flat_pattern(tray)
   assert size(fp[:bends]) == 4
   assert is_empty(region_refusals(fp[:blank])) == true
@@ -897,25 +916,35 @@ end
 
 test "a blank's drawing: outline, holes, one labelled bend line per flange, two dimensions"
   es = blank_entities(tray, 3.5)
-  assert size(filter((e) -> zumen::layer(e) == "OUTLINE", es)) == 1
-  assert size(filter((e) -> zumen::layer(e) == "HOLES", es)) == 1
+  assert size(filter((e) -> koubou::zumen::layer(e) == "OUTLINE", es)) == 1
+  assert size(filter((e) -> koubou::zumen::layer(e) == "HOLES", es)) == 1
   bend_lines = filter(
-    (e) -> zumen::layer(e) == "BEND" and zumen::kind(e) == :line,
+    fn(e)
+      koubou::zumen::layer(e) == "BEND" and koubou::zumen::kind(e) == :line
+    end,
     es
   )
   assert size(bend_lines) == 4
   assert contains(
-    map((e) -> e[:s], filter((e) -> zumen::kind(e) == :text, es)),
+    map((e) -> e[:s], filter((e) -> koubou::zumen::kind(e) == :text, es)),
     "UP 90 DEG R1.5"
   ) == true
   # The dimensions read the blank's size, to one decimal.
   s = blank_size(tray)
   texts = map(
     (e) -> e[:s],
-    filter((e) -> zumen::layer(e) == "DIM" and zumen::kind(e) == :text, es)
+    filter(
+      fn(e)
+        koubou::zumen::layer(e) == "DIM" and koubou::zumen::kind(e) == :text
+      end,
+      es
+    )
   )
   assert texts ==
-    [zumen::num(round(px(s) * 10) / 10), zumen::num(round(py(s) * 10) / 10)]
+    [
+      koubou::zumen::num(round(px(s) * 10) / 10),
+      koubou::zumen::num(round(py(s) * 10) / 10)
+    ]
 end
 
 test "the shop's limits refuse, each naming its rule"
@@ -990,9 +1019,9 @@ test "a tube member: its cut list, its solid, its mass"
   assert row[:stock] == "tube 30x30x1.2"
   assert near(row[:length], 600) == true
   mesh = member_mesh(m, 16)
-  assert is_empty(rittai::mesh_refusals(mesh)) == true
+  assert is_empty(koubou::rittai::mesh_refusals(mesh)) == true
   # Section 30^2 - 27.6^2 = 138.24 mm^2, times 600, is 82944 mm^3.
-  assert near(rittai::volume(mesh), 82944) == true
+  assert near(koubou::rittai::volume(mesh), 82944) == true
   assert near(member_mass_g(m, 16), 82944 * 7.99 / 1000) == true
 end
 
@@ -1003,7 +1032,7 @@ test "a bent wire: its developed length by hand, and a refused radius"
   # The empty case: a straight wire's developed length is its length.
   assert near(wire_length(wire("rod", 3, [[0, 0, 0], [0, 0, 80]], 5)), 80) ==
     true
-  assert is_empty(rittai::mesh_refusals(wire_mesh(w, 12))) == true
+  assert is_empty(koubou::rittai::mesh_refusals(wire_mesh(w, 12))) == true
   assert map(
     (r) -> r[0],
     wire_refusals(wire("kink", 3, [[0, 0, 0], [0, 0, 10], [10, 0, 10]], 1))

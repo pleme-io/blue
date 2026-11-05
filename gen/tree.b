@@ -147,9 +147,25 @@ ledger_rows: the ledger with each child's row folded into one row for the root, 
 def ledger_rows(rows, root, kanji, date, gloss, sweep, children)
   h = position("## The ledger", rows) + 1
   concat_lists(
-    take(h, rows),
+    map((l) -> keyed_under(l, root, children), take(h, rows)),
     fold_rows(drop(h, rows), root, kanji, date, gloss, sweep, children)
   )
+end
+
+@doc """
+keyed_under: a prefix or moved-name row of a child, keyed by its level path, its targets rehomed; any other line as it is.
+
+    keyed_under("| `k` | `old` | `k::new` | 0.1.1 |", "f", ["k"]) #=> "| `f/k` | `old` | `f::k::new` | 0.1.1 |"
+    keyed_under("| `z` | `old` | `k::new` | 0.1.1 |", "f", ["k"]) #=> "| `z` | `old` | `k::new` | 0.1.1 |"
+"""
+def keyed_under(line, root, children)
+  child = retsu::find_first((c) -> starts_with?(line, "| `#{c}` |"), children)
+  if child.nil?
+    line
+  else
+    rest = after_first(line, "| `#{child}` |")
+    "| `#{root}/#{child}` |#{rehome(rest, root, children)}"
+  end
 end
 
 def fold_rows(rows, root, kanji, date, gloss, sweep, children)
@@ -182,6 +198,56 @@ def ledger(root, kanji, date, gloss, sweep, children)
         children
       )
     )
+  )
+end
+
+@doc """
+rehome: text with every `child::` that starts a path written `root::child::`, so
+the strings a fix cannot see (a `legacy_names` target, a doc's example) follow the move.
+
+    rehome("see `kid::go` and fam::kid::x", "fam", ["kid"]) #=> "see `fam::kid::go` and fam::kid::x"
+"""
+def rehome(text, root, children)
+  reduce(
+    fn(acc, c)
+      pieces = split(acc, "#{c}::")
+      reduce(
+        fn(out, piece)
+          tail = chars(out)
+          starts_path = tail == [] or
+            not member?(
+              last(tail),
+              chars("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_:/")
+            )
+          if starts_path
+            "#{out}#{root}::#{c}::#{piece}"
+          else
+            "#{out}#{c}::#{piece}"
+          end
+        end,
+        first(pieces),
+        drop(1, pieces)
+      )
+    end,
+    text,
+    children
+  )
+end
+
+@doc """
+callers_of: every `.b` file under bidamas/ and gen/ that names a child, the verb graph's rows aside: they name spaces, not paths.
+
+    callers_of([]) #=> []
+"""
+def callers_of(children)
+  filter(
+    fn(p)
+      ends_with?(p, ".b") and
+        not contains?(p, "/target/") and
+        not contains?(p, "mokuroku/graph/") and
+        names_a_child?(read_file(p), children)
+    end,
+    concat_lists(walk_dir("bidamas"), walk_dir("gen"))
   )
 end
 
@@ -263,17 +329,11 @@ def move(blue, root, children)
       )
     )
   end
-  callers = filter(
-    fn(p)
-      ends_with?(p, ".b") and
-        not contains?(p, "/target/") and
-        names_a_child?(read_file(p), children)
-    end,
-    concat_lists(walk_dir("bidamas"), walk_dir("gen"))
-  )
+  callers = callers_of(children)
   map(
     fn(p)
       exec_capture(blue, "check", "--fix", "--only", "B0074", p)
+      write_file(p, rehome(read_file(p), root, children))
       exec_capture(blue, "check", "--fix", "--only", "B0015", p)
     end,
     callers
@@ -296,6 +356,11 @@ def main()
     move(getenv("BLUE", "blue"), argv_get(1), drop(2, argv))
   elsif verb == "facade" and size(argv) >= 3
     facade(argv_get(1), drop(2, argv))
+  elsif verb == "rehome" and size(argv) >= 3
+    map(
+      (p) -> write_file(p, rehome(read_file(p), argv_get(1), drop(2, argv))),
+      callers_of(drop(2, argv))
+    )
   elsif verb == "ledger" and size(argv) >= 7
     ledger(
       argv_get(1),
@@ -354,7 +419,7 @@ test "a family's ledger rows fold into one row where the first stood"
     %w[a b]
   )
   assert size(folded) == 4
-  assert take(2, folded) == prefixes
+  assert take(2, folded) == ["| `r/a` | `a_` | 0.1.1 |", "## The ledger"]
   assert folded[2] ==
     "| `r` | ア | root. Its levels: `a` (エー, aye), `b` (ビー, bee) | 2026-11-05 | KEEP | new sweep |"
   assert last(folded) == rows[1]

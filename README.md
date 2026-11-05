@@ -250,7 +250,7 @@ rendered:
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-89 packages, 5503 definitions, 1753 tests.
+86 packages, 5502 definitions, 1753 tests.
 
 - [anaritikusu](bidamas/CATALOG.md#anaritikusu) (アナリティクス) — lifecycle analytics: a database of telemetry, standard models and cross-lifecycle joins, generated from lifecycle definitions.
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
@@ -285,16 +285,15 @@ rendered:
 - [jitaku](bidamas/CATALOG.md#jitaku) (自宅) — a home, declared entry by entry, each refused alone, projected to pleme.lareira.
 - [junjo](bidamas/CATALOG.md#junjo) (順序) — ordering: sorting, searching, selection.
 - [kaaneru](bidamas/CATALOG.md#kaaneru) (カーネル) — the Linux kernel, spoken from blue: maps, programs, links and ring buffers over `bpf(2)`, with every struct a `baito` layout and no C library in the path.
-- [kakou](bidamas/CATALOG.md#kakou) (加工) — fabrication: folded sheet, cut tube and bent wire, from the dimensions a shop measures to the blanks, cut lists and solids it makes.
 - [kansuu](bidamas/CATALOG.md#kansuu) (関数) — functions about functions.
 - [kazu](bidamas/CATALOG.md#kazu) (数) — numbers.
 - [keiyu](bidamas/CATALOG.md#keiyu) (経由) — by way of: run one command with a proxy set for it alone.
 - [kijun](bidamas/CATALOG.md#kijun) (基準) — the standard a private nix fleet repo is held to, as data: layout, expression and evaluated-tree rules, per-entry waivers, and a baseline ratchet.
-- [kikagaku](bidamas/CATALOG.md#kikagaku) (幾何学) — plane geometry on [x, y] points.
 - [kinko](bidamas/CATALOG.md#kinko) (金庫) — a safe: a 1Password account declared as data, each entry refused alone, projected to Terraform JSON.
 - [kirikae](bidamas/CATALOG.md#kirikae) (切り替え) — switching over: whether a system switch must run, may be skipped, or must wait.
 - [kiwari](bidamas/CATALOG.md#kiwari) (木割): one grammar spec, every syntax artifact emitted from it.
 - [kodou](bidamas/CATALOG.md#kodou) (鼓動) — the dual-pulse wire: a Flash channel paced by ibuki's token bucket and a Tide channel paced by ibuki's LEDBAT controller from the one-way delay each acknowledgement measures, over one UDP socket the host frames (0x02 Flash, 0x01 Tide); and the gossip of crash proofs on it: an alert on Flash, the artifact on Tide when a peer asks for it, verified by its content hash and kept in kensa's `kensa-immunity.v1` file.
+- [koubou](bidamas/CATALOG.md#koubou) (工房, workshop) — shapes made, measured and cut.
 - [kousei](bidamas/CATALOG.md#kousei) (構成) — a system composed entry by entry: each entry checked, configured off, tuned or refused alone, then judged into what stands.
 - [koutei](bidamas/CATALOG.md#koutei) (工程) — one step of a pipeline, as GitHub Actions runs it.
 - [kueri](bidamas/CATALOG.md#kueri) (クエリ) — queries: analysis is authored in blue, and SQL is only the rendered bridge to DuckDB.
@@ -315,7 +314,6 @@ rendered:
 - [raifusaikuru](bidamas/CATALOG.md#raifusaikuru) (ライフサイクル) — lifecycles: event-sourced states, guards that name the rule and the task, and permit limits.
 - [ran](bidamas/CATALOG.md#ran) (乱) — deterministic pseudo-randomness.
 - [retsu](bidamas/CATALOG.md#retsu) (列) — lists, made TOTAL.
-- [rittai](bidamas/CATALOG.md#rittai) (立体) — solids: poses, triangle meshes built by extrusion and sweep, their validity, volume and centroid, and STL.
 - [ronri](bidamas/CATALOG.md#ronri) (論理) — predicates, and the algebra over them.
 - [sabi](bidamas/CATALOG.md#sabi) (錆): Rust source from blue data. Build the items as values, render once.
 - [saishikou](bidamas/CATALOG.md#saishikou) (再試行) — retrying a step that can fail for a moment.
@@ -340,7 +338,6 @@ rendered:
 - [ugoki](bidamas/CATALOG.md#ugoki) (動き) — motion: how a value moves over time.
 - [ukai](bidamas/CATALOG.md#ukai) (迂回) — a detour: keep an overlay VPN reaching its control plane and relays while a full-tunnel corporate VPN owns the default route.
 - [zenbu](bidamas/CATALOG.md#zenbu) (全部) — the whole distribution, as ONE dependency.
-- [zumen](bidamas/CATALOG.md#zumen) (図面) — technical drawings: 2-D entities on layers, sheets with a title block, feature-edge views of solids, written as DXF R12 and SVG.
 
 </details>
 

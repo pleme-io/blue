@@ -86,16 +86,16 @@ use("jitaku")
 use("junjo", %i[is_sorted sort])
 # waive B0016: zenbu is the facade, and depending on it means depending on kaaneru
 use("kaaneru")
-use("kakou")
 use("kansuu", [:identity])
 use("kazu", %i[clamp near])
 use("keiyu", [:relay_env])
 use("kijun")
-use("kikagaku", [:manhattan])
 use("kinko")
 use("kirikae")
 use("kiwari")
 use("kodou")
+use("koubou")
+use("koubou/kikagaku", [:manhattan])
 use("kousei")
 use("koutei")
 use("kueri")
@@ -119,7 +119,6 @@ use("outou")
 use("raifusaikuru")
 use("ran", [:take_ints])
 use("retsu", %i[contains size])
-use("rittai")
 use("ronri", [:every])
 use("sabi")
 use("saishikou")
@@ -149,7 +148,6 @@ use("touroku")
 use("tsuushin")
 use("ugoki")
 use("ukai", [:decide])
-use("zumen")
 
 test "every bidama in the distribution answers through this one import"
   # One probe per package, in the manifest's order. These are not behaviour
@@ -167,7 +165,7 @@ test "every bidama in the distribution answers through this one import"
   assert sort([3, 1, 2]) == [1, 2, 3]
   assert identity(7) == 7
   assert clamp(99, 1, 10) == 10
-  assert near(kakou::outside_setback(90, 1, 1), 2) == true
+  assert near(koubou::kakou::outside_setback(90, 1, 1), 2) == true
   assert manhattan([0, 0], [3, 4]) == 7
   assert near(suugaku::kinji::trapz([0, 1, 3], [0, 2, 6]), 9) == true
   assert kiwari::unpainted(kiwari::blue) == []
@@ -191,7 +189,7 @@ test "every bidama in the distribution answers through this one import"
   assert major_triad(0) == [0, 4, 7]
   assert raifusaikuru::hours(2) == 7200
   assert take_ints(42, 100, 5) == take_ints(42, 100, 5)
-  assert rittai::z([1, 2, 3]) == 3
+  assert koubou::rittai::z([1, 2, 3]) == 3
   assert rogu::levels == %i[debug info warn error]
   assert size([1, 2, 3]) == 3
   assert every((v) -> v > 0, [1, 2, 3]) == true
@@ -206,7 +204,7 @@ test "every bidama in the distribution answers through this one import"
   assert contains([1, 2, 3], 2) == true
   assert suppress_small(3, 5).nil?
   assert near(mean([2, 4, 6]), 4) == true
-  assert zumen::num(1.5) == "1.5"
+  assert koubou::zumen::num(1.5) == "1.5"
   assert blue::get(
     tehai::machine("ssh://root@plo x86_64-linux - 8 8 - - -"),
     :host

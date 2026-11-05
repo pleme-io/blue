@@ -17,7 +17,7 @@ Written for nupastel docs/plans/design-pipeline.md, step 6.
 use("kazu", %i[abs max min mod_positive near sum])
 
 use(
-  "kikagaku",
+  "koubou/kikagaku",
   %i[
     bounding_box
     circle_polygon
@@ -31,6 +31,8 @@ use(
   ]
 )
 
+use("koubou/rittai")
+
 use("maakuappu")
 
 use("moji", %i[includes pad_left take_chars])
@@ -39,8 +41,6 @@ use(
   "retsu",
   %i[concat_lists contains first flat_map indexes is_empty last size take_n]
 )
-
-use("rittai")
 
 use("ronri", [:every])
 use("shuugou", [:as_set])
@@ -297,19 +297,19 @@ project: feature-edge view of a solid.
 """
 def project(p, view)
   if view == :top
-    [rittai::x(p), rittai::y(p)]
+    [koubou::rittai::x(p), koubou::rittai::y(p)]
   elsif view == :front
-    [rittai::x(p), rittai::z(p)]
+    [koubou::rittai::x(p), koubou::rittai::z(p)]
   else
-    [rittai::y(p), rittai::z(p)]
+    [koubou::rittai::y(p), koubou::rittai::z(p)]
   end
 end
 
 def view(mesh, view)
-  m = rittai::weld(mesh)
-  vs = rittai::vertices(m)
-  faces = rittai::faces(m)
-  normals = map((f) -> rittai::face_normal(m, f), faces)
+  m = koubou::rittai::weld(mesh)
+  vs = koubou::rittai::vertices(m)
+  faces = koubou::rittai::faces(m)
+  normals = map((f) -> koubou::rittai::face_normal(m, f), faces)
   table = reduce((acc, i) -> edge_faces(acc, faces[i], i), {}, indexes(faces))
   keys = distinct_keys(faces)
   drawn = filter((k) -> feature?(get(table, k), normals), keys)
@@ -423,10 +423,10 @@ def dxf(entities)
     [0, "ENDTAB"]
   ]
   layers = concat_lists(
-    [[0, "TABLE"], [2, "LAYER"], [70, size(zumen::layers)]],
+    [[0, "TABLE"], [2, "LAYER"], [70, size(koubou::zumen::layers)]],
     concat_lists(
       flat_map(
-        zumen::layers,
+        koubou::zumen::layers,
         (l) -> [[0, "LAYER"], [2, l[0]], [70, 0], [62, l[1]], [6, l[2]]]
       ),
       [[0, "ENDTAB"]]
@@ -579,7 +579,7 @@ end
 
 # ── tests ────────────────────────────────────────────────────────────
 
-# waive B0013: `count` is a builtin zumen also uses, so the prefix stays; zumen::count names it too
+# waive B0013: `count` is a builtin zumen also uses, so the prefix stays; koubou::zumen::count names it too
 @doc """
 zu_count: How many (0, kind) pairs the DXF text holds: group code 0 starts a
 record, so this counts records of that kind and not the same word used as a
@@ -615,7 +615,7 @@ test "an empty drawing is still a whole DXF"
 end
 
 test "every entity is written once, of its own kind, on a declared layer"
-  plate = kikagaku::region(
+  plate = koubou::kikagaku::region(
     rect_polygon(0, 0, 100, 50),
     [circle_polygon([25, 25], 5, 16)]
   )
@@ -661,7 +661,7 @@ test "SVG: y is flipped, the scale is 1:1 in mm, text is escaped"
 end
 
 test "a view of a box draws its twelve edges and no diagonals"
-  v = view(rittai::box(20, 30, 40), :front)
+  v = view(koubou::rittai::box(20, 30, 40), :front)
   assert size(v) == 12
   assert every((e) -> layer(e) == "VIEW", v) == true
   bb = bounds(v)

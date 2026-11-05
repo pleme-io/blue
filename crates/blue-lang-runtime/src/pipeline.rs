@@ -630,6 +630,11 @@ impl Prepared {
         &self.erased
     }
 
+    /// Every file the program was resolved from, the entry first.
+    pub(crate) fn files(&self) -> &[crate::uses::SourceFile] {
+        self.program.files()
+    }
+
     /// The entry file's namespace.
     pub(crate) fn entry_namespace(&self) -> Namespace {
         let first = (0..self.program.forms().len())

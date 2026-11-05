@@ -108,6 +108,84 @@ impl<H: 'static> Hosted<H> {
     }
 }
 
+/// A program past every stage before evaluation, held to be evaluated many
+/// times: [`prepare_program`] once, then [`load_program`] per call. Cloning
+/// shares it.
+#[derive(Clone)]
+pub struct Program(Arc<crate::pipeline::Prepared>);
+
+impl Program {
+    /// Whether `loader` still serves every imported bidama exactly as this
+    /// program was prepared from: the same files, the same text.
+    #[must_use]
+    pub fn is_current(&self, loader: &dyn Loader) -> bool {
+        let mut held: std::collections::BTreeMap<&str, Vec<&str>> =
+            std::collections::BTreeMap::new();
+        for f in self
+            .0
+            .files()
+            .iter()
+            .filter(|f| f.id != crate::uses::ResolvedProgram::ENTRY)
+        {
+            if let Some(p) = &f.package {
+                held.entry(p.as_str()).or_default().push(f.text.as_str());
+            }
+        }
+        held.into_iter().all(|(package, mut texts)| {
+            let Ok(served) = loader.load(package) else {
+                return false;
+            };
+            let mut served: Vec<&str> = served.iter().map(|(_, t)| t.as_str()).collect();
+            texts.sort_unstable();
+            served.sort_unstable();
+            texts == served
+        })
+    }
+}
+
+/// Parse, resolve, check and erase `entry` against the names `install`
+/// gives an interpreter over `H`, evaluating nothing. A host that loads the
+/// same program for many calls prepares it once.
+///
+/// # Errors
+///
+/// The parse, import and type errors of [`load_hosted`].
+pub fn prepare_program<H: 'static>(
+    entry: Entry<'_>,
+    loader: &dyn Loader,
+    host: &mut H,
+    install: impl FnOnce(&mut Interpreter<H>),
+) -> Result<Program, RunError> {
+    let mut interp = crate::interpreter(host);
+    install(&mut interp);
+    Ok(Program(Arc::new(prepare(
+        entry,
+        loader,
+        None,
+        &builtin_names(&interp),
+    )?)))
+}
+
+/// [`load_hosted`] for a [`Program`] already prepared: build the
+/// interpreter, let `install` register the host's primitives, evaluate the
+/// top-level forms with `host`. `install` registers the names it did when the
+/// program was prepared.
+///
+/// # Errors
+///
+/// The runtime errors of the top-level forms.
+pub fn load_program<H: 'static>(
+    program: &Program,
+    host: &mut H,
+    install: impl FnOnce(&mut Interpreter<H>),
+) -> Result<Hosted<H>, RunError> {
+    let mut interp = crate::interpreter(host);
+    install(&mut interp);
+    eval_prepared(&mut interp, &program.0, host)?;
+    let entry = program.0.entry_namespace();
+    Ok(Hosted { interp, entry })
+}
+
 /// Why a framed load ([`load_hosted_in_frame`]) refused a program.
 #[derive(Debug, thiserror::Error)]
 pub enum FramedError {
@@ -380,6 +458,83 @@ mod tests {
             .unwrap_err()
             .to_string();
         assert!(err.contains("no function named tama::absent"), "{err}");
+    }
+
+    fn tama(src: &'static str) -> crate::uses::tests::MemLoader {
+        crate::uses::tests::MemLoader([("tama", src)].into_iter().collect())
+    }
+
+    #[test]
+    fn a_program_prepared_once_loads_fresh_for_each_call() {
+        fn shared<T: Send + Sync + 'static>(_: &T) {}
+        let loader =
+            tama("def exports()\n  note(\"loaded\")\n  \"tama rows\"\nend\nnote(\"top\")\n");
+        let program = prepare_program(
+            Entry::anonymous("use(\"tama\")\n"),
+            &loader,
+            &mut Notes::default(),
+            install,
+        )
+        .unwrap();
+        shared(&program);
+        for _ in 0..2 {
+            let mut host = Notes::default();
+            let mut p = load_program(&program, &mut host, install).unwrap();
+            let v = p.call("tama::exports", vec![], &mut host).unwrap();
+            assert_eq!(as_text(&v), "tama rows");
+            assert_eq!(host.0, vec!["top".to_owned(), "loaded".to_owned()]);
+        }
+    }
+
+    #[test]
+    fn preparing_runs_nothing_and_refuses_what_load_hosted_refuses() {
+        let mut host = Notes::default();
+        let ok = prepare_program(
+            Entry::anonymous("note(\"top level ran\")\n"),
+            &NoLoader,
+            &mut host,
+            install,
+        );
+        assert!(ok.is_ok());
+        assert!(host.0.is_empty(), "preparing evaluates no form");
+        let src = "note(\"top level ran\")\ndef f(x: Int) -> Int\n  \"no\"\nend\n";
+        let err = prepare_program(Entry::anonymous(src), &NoLoader, &mut host, install)
+            .err()
+            .expect("refused")
+            .to_string();
+        assert!(err.contains("error[B0003]"), "{err}");
+        let unknown = prepare_program(
+            Entry::anonymous("def f()\n  shout(1)\nend\n"),
+            &NoLoader,
+            &mut host,
+            |_: &mut Interpreter<Notes>| {},
+        );
+        assert!(
+            unknown.is_err(),
+            "a name only install binds is unknown without it"
+        );
+    }
+
+    #[test]
+    fn a_program_is_current_while_its_bidamas_are_served_unchanged() {
+        let program = prepare_program(
+            Entry::anonymous("use(\"tama\")\n"),
+            &tama("def a()\n  1\nend\n"),
+            &mut Notes::default(),
+            install,
+        )
+        .unwrap();
+        assert!(program.is_current(&tama("def a()\n  1\nend\n")));
+        assert!(!program.is_current(&tama("def a()\n  2\nend\n")));
+        assert!(!program.is_current(&NoLoader));
+        let alone = prepare_program(
+            Entry::anonymous("def a()\n  1\nend\n"),
+            &NoLoader,
+            &mut Notes::default(),
+            install,
+        )
+        .unwrap();
+        assert!(alone.is_current(&NoLoader));
     }
 
     #[test]

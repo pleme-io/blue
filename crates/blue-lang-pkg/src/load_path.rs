@@ -367,7 +367,7 @@ impl LoadPath {
             }
         }
         let s = crate::embedded::Standard;
-        if self.standard && s.has(name) {
+        if self.standard && s.has(name) && self.root_move(name).is_none() {
             let v = s.version(name, None).and_then(|v| Version::parse(&v).ok());
             match (range, v) {
                 (Some(r), Some(v)) if !r.contains(v) => skipped.push(format!(
@@ -385,6 +385,27 @@ impl LoadPath {
             found: None,
             skipped,
         }
+    }
+
+    /// A move of `name` a root's Bluefile declares (`legacy_packages`), the
+    /// first root in search order answering. A root's move outranks the
+    /// standard distribution's copy of the old name, as a root's bidama does.
+    fn root_move(&self, name: &str) -> Option<blue_lang_runtime::uses::PackageMove> {
+        if blue_lang_syntax::is_nested(name) {
+            return None;
+        }
+        self.roots.iter().find_map(|root| {
+            let mut dirs: Vec<PathBuf> = std::fs::read_dir(root)
+                .ok()?
+                .filter_map(Result::ok)
+                .map(|e| e.path())
+                .collect();
+            dirs.sort();
+            dirs.iter().find_map(|d| {
+                let text = std::fs::read_to_string(d.join(crate::MANIFEST_FILE)).ok()?;
+                package_move(name, &crate::bluefile::read_bluefile(&text).ok()?)
+            })
+        })
     }
 
     /// The directory holding `name`, or `None` (also when the compiled-in
@@ -730,19 +751,8 @@ impl Loader for LoadPath {
         if blue_lang_syntax::is_nested(name) || self.select(name).found.is_some() {
             return None;
         }
-        for root in &self.roots {
-            let Ok(entries) = std::fs::read_dir(root) else {
-                continue;
-            };
-            let mut dirs: Vec<PathBuf> = entries.filter_map(Result::ok).map(|e| e.path()).collect();
-            dirs.sort();
-            let found = dirs.iter().find_map(|d| {
-                let text = std::fs::read_to_string(d.join(crate::MANIFEST_FILE)).ok()?;
-                package_move(name, &crate::bluefile::read_bluefile(&text).ok()?)
-            });
-            if found.is_some() {
-                return found;
-            }
+        if let Some(found) = self.root_move(name) {
+            return Some(found);
         }
         if self.standard {
             return crate::embedded::Standard.moved(name);
@@ -863,6 +873,28 @@ mod tests {
             let sources = lp.load(pkg).unwrap_or_else(|e| panic!("{pkg}: {e}"));
             assert!(!sources.is_empty(), "{pkg} loaded zero sources");
         }
+    }
+
+    #[cfg(feature = "embedded")]
+    #[test]
+    fn a_roots_move_outranks_the_standard_copy_of_the_old_name() {
+        let root = tree(
+            "root-move",
+            &[
+                (
+                    "fam/Bluefile",
+                    "package(\"fam\", \"0.1.0\")\nlegacy_packages(\"0.1.0\", [[\"kazu\", \"fam/kazu\"]])\n",
+                ),
+                ("fam/fam.b", ""),
+                ("fam/kazu/kazu.b", "def one()\n  1\nend\n"),
+            ],
+        );
+        let lp = LoadPath::new([root.clone()]).with_standard();
+        assert!(lp.select("kazu").found.is_none());
+        let moved = blue_lang_runtime::uses::Loader::moved(&lp, "kazu").expect("a move");
+        assert_eq!(moved.new, "fam/kazu");
+        assert!(crate::embedded::Standard.has("kazu"));
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]

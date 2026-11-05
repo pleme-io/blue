@@ -465,6 +465,71 @@ fn fix_never_parts_a_waiver_from_the_use_it_covers() {
 }
 
 #[test]
+fn fix_sorts_a_multi_line_use_and_its_waiver_travels_with_it() {
+    let root: PathBuf = std::env::temp_dir().join(format!("blue-sort-uses-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    let dist = root.join("bidamas");
+    bidama(
+        &dist,
+        "aa",
+        "package(\"aa\", \"0.1.0\")\n",
+        "def x()\n  1\nend\n",
+    );
+    bidama(
+        &dist,
+        "mm",
+        "package(\"mm\", \"0.1.0\")\n",
+        "def w()\n  3\nend\n",
+    );
+    let names: Vec<String> = [
+        "albatross",
+        "buttercup",
+        "chrysalis",
+        "dandelion",
+        "evergreen",
+        "firefly",
+        "gooseberry",
+        "honeysuckle",
+        "inkwell",
+    ]
+    .iter()
+    .map(ToString::to_string)
+    .collect();
+    bidama(
+        &dist,
+        "zz",
+        "package(\"zz\", \"0.1.0\")\n",
+        &names
+            .iter()
+            .map(|n| format!("def {n}()\n  1\nend\n"))
+            .collect::<Vec<_>>()
+            .join("\n"),
+    );
+    let listed = names
+        .iter()
+        .map(|n| format!("    {n}\n"))
+        .collect::<String>();
+    let zz = format!("use(\n  \"zz\",\n  %i[\n{listed}  ]\n)");
+    let sum = names.join(" + ");
+    let file = root.join("app/main.b");
+    write(
+        &file,
+        &format!("# waive B0016: a facade keeps mm\nuse(\"mm\")\n\n{zz}\n\nuse(\"aa\")\n\nprint(aa::x + {sum})\n"),
+    );
+
+    let (code, json) = check(&dist, &file, &["--fix"]);
+    assert_eq!(code, 0, "{json}");
+    let after = std::fs::read_to_string(&file).expect("read");
+    assert!(
+        after.starts_with(&format!(
+            "use(\"aa\")\n\n# waive B0016: a facade keeps mm\nuse(\"mm\")\n\n{zz}\n"
+        )),
+        "{after}"
+    );
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
 fn a_moved_name_can_name_a_level_as_its_home() {
     let root: PathBuf =
         std::env::temp_dir().join(format!("blue-level-home-{}", std::process::id()));

@@ -777,6 +777,68 @@ pub(crate) fn parse_and_resolve(
     })
 }
 
+/// The start of `span` widened over the comment lines directly above it:
+/// the text that travels with a top-level form when it moves.
+fn with_leading_comments(text: &str, span: tatara_lisp::Span) -> tatara_lisp::Span {
+    let mut start = span.start;
+    loop {
+        let head = &text[..start];
+        let line_start = head.trim_end_matches(' ').len();
+        if line_start == 0 || !head[..line_start].ends_with('\n') {
+            break;
+        }
+        let before = &head[..line_start - 1];
+        let prev = before.rfind('\n').map_or(0, |i| i + 1);
+        if before[prev..].trim_start().starts_with('#') {
+            start = prev;
+        } else {
+            break;
+        }
+    }
+    tatara_lisp::Span::new(start, span.end)
+}
+
+/// A B0015 reorder rewritten from the file's own text: each slot takes the
+/// `use` that sorts there exactly as written, its comments with it, so a
+/// multi-line `use` moves, and a waiver stays on the form it names.
+fn reorder_as_written(
+    fix: &blue_lang_check::Fix,
+    text: &str,
+    uses: &[(String, tatara_lisp::Span)],
+) -> blue_lang_check::Fix {
+    let whole = |package: &str| {
+        uses.iter()
+            .find(|(p, _)| p == package)
+            .map(|(_, s)| with_leading_comments(text, *s))
+    };
+    let package_of = |rendered: &str| {
+        rendered
+            .strip_prefix("use(\"")
+            .and_then(|r| r.split('"').next())
+            .map(str::to_string)
+    };
+    let edits: Option<Vec<blue_lang_check::Edit>> = fix
+        .edits
+        .iter()
+        .map(|e| {
+            let slot = whole(&package_of(&e.original)?)?;
+            let target = whole(&package_of(&e.replacement)?)?;
+            Some(blue_lang_check::Edit {
+                span: slot,
+                original: text.get(slot.start..slot.end)?.to_string(),
+                replacement: text.get(target.start..target.end)?.to_string(),
+            })
+        })
+        .collect();
+    edits.map_or_else(
+        || fix.clone(),
+        |edits| blue_lang_check::Fix {
+            edits,
+            ..fix.clone()
+        },
+    )
+}
+
 /// **The check stage**: every rule in `blue_lang_check::RULES`, over a
 /// resolved program, with waivers applied.
 ///
@@ -874,28 +936,27 @@ pub(crate) fn check_stage(
         waivers.extend(found);
         outcome.diagnostics.extend(malformed);
     }
-    let waived_spans: Vec<(Option<crate::uses::FileId>, tatara_lisp::Span)> = waivers
-        .iter()
-        .filter_map(|w| {
-            forms
-                .get(w.top_level)
-                .map(|f| (program.owner_of(w.top_level), f.span))
-        })
-        .collect();
     for d in outcome
         .diagnostics
         .iter_mut()
         .filter(|d| d.code == blue_lang_check::Code::B0015)
     {
-        let file = program.owner_of(d.top_level);
+        let owner = program.owner_of(d.top_level);
+        let Some(file) = program.files().iter().find(|f| Some(f.id) == owner) else {
+            continue;
+        };
+        let uses: Vec<(String, tatara_lisp::Span)> = (0..forms.len())
+            .filter(|i| program.owner_of(*i) == owner)
+            .filter_map(|i| {
+                let imports = blue_lang_syntax::scope::use_targets(&forms[i])?;
+                let [one] = imports.as_slice() else {
+                    return None;
+                };
+                Some((one.package.clone(), forms[i].span))
+            })
+            .collect();
         for fix in &mut d.fixes {
-            if fix
-                .edits
-                .iter()
-                .any(|e| e.original != e.replacement && waived_spans.contains(&(file, e.span)))
-            {
-                fix.applicability = blue_lang_check::Applicability::MaybeIncorrect;
-            }
+            *fix = reorder_as_written(fix, &file.text, &uses);
         }
     }
     let (reuse_waivers, waivers): (Vec<_>, Vec<_>) = waivers

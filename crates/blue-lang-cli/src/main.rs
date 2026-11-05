@@ -1863,9 +1863,12 @@ fn check(file: &Path, format: Format, fix: bool, only: &[String]) -> Result<Exit
     }
     if fix
         && (only.is_empty()
-            || only
-                .iter()
-                .any(|c| matches!(c, blue_lang_check::Code::B0019 | blue_lang_check::Code::B0074)))
+            || only.iter().any(|c| {
+                matches!(
+                    c,
+                    blue_lang_check::Code::B0019 | blue_lang_check::Code::B0074
+                )
+            }))
         && blue_lang_runtime::uses::Loader::entry_package(&loader, file).is_some()
     {
         let dir = manifest_dir_of(file);

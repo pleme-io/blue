@@ -1,8 +1,0 @@
-package("kakou", "0.1.2")
-needs("retsu", "^0.1")
-needs("kazu", "^0.1")
-needs("suugaku", "^0.1.0")
-needs("kikagaku", "^0.1")
-needs("rittai", "^0.1")
-needs("zumen", "^0.1")
-needs("deeta", "^0.1")

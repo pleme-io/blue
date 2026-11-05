@@ -221,7 +221,7 @@ rendered:
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-96 packages, 5503 definitions, 1753 tests.
+94 packages, 5503 definitions, 1753 tests.
 
 - [anaritikusu](bidamas/CATALOG.md#anaritikusu) (アナリティクス) — lifecycle analytics: a database of telemetry, standard models and cross-lifecycle joins, generated from lifecycle definitions.
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
@@ -232,6 +232,7 @@ rendered:
 - [bunsho](bidamas/CATALOG.md#bunsho) (文書) — Markdown as a first-class value: `.md` text parsed into one typed tree whose node kinds are the ones CommonMark, GitHub Flavored Markdown and mdast agree on, the tree rendered back in one canonical formatting, and the tree read by node, by kind and by section.
 - [burauza](bidamas/CATALOG.md#burauza) (ブラウザ) — the browser: what a blue page needs from the browser, generated.
 - [chokkan](bidamas/CATALOG.md#chokkan) (直感) — System One judgment: typed questions in, calibrated answers out.
+- [chozou](bidamas/CATALOG.md#chozou) (貯蔵, storage) — what a service keeps and reads back.
 - [danpen](bidamas/CATALOG.md#danpen) (断片) — GraphQL in blue: documents parsed into plain records, checked against a schema, composed from fragments, rendered and hashed.
 - [deeta](bidamas/CATALOG.md#deeta) (データ) — JSON data, read safely.
 - [empresa](bidamas/CATALOG.md#empresa) (会社) — a company declared as data: domains, mail, sites and a GitHub org, each entry refused alone, projected to the variables its infrastructure applies.
@@ -260,7 +261,6 @@ rendered:
 - [kansuu](bidamas/CATALOG.md#kansuu) (関数) — functions about functions.
 - [kazu](bidamas/CATALOG.md#kazu) (数) — numbers.
 - [keiyu](bidamas/CATALOG.md#keiyu) (経由) — by way of: run one command with a proxy set for it alone.
-- [kiibariu](bidamas/CATALOG.md#kiibariu) (キーバリュー) — Valkey and Redis over the runtime's RESP words.
 - [kijun](bidamas/CATALOG.md#kijun) (基準) — the standard a private nix fleet repo is held to, as data: layout, expression and evaluated-tree rules, per-entry waivers, and a baseline ratchet.
 - [kikagaku](bidamas/CATALOG.md#kikagaku) (幾何学) — plane geometry on [x, y] points.
 - [kinji](bidamas/CATALOG.md#kinji) (近似) — approximation: numerical methods: ODEs, roots, minimisation, least squares, interpolation and quadrature.
@@ -306,9 +306,7 @@ rendered:
 - [shuugou](bidamas/CATALOG.md#shuugou) (集合) — sets, over plain lists.
 - [shuusei](bidamas/CATALOG.md#shuusei) (修正) — amending declared data: put a value at a path, delete it, merge into it, upsert a list element, and amend a keyed set of objects by judged patch entries.
 - [souji](bidamas/CATALOG.md#souji) (掃除) — cleaning a node: Rust target/ directories nobody is building in, and nix store paths nothing refers to, with a dry run first.
-- [sutoriimu](bidamas/CATALOG.md#sutoriimu) (ストリーム) — NATS JetStream over the runtime's NATS words.
 - [tajuu](bidamas/CATALOG.md#tajuu) (多重) — multiplexing: HTTP/2's frames and the streams they carry
-- [teeburu](bidamas/CATALOG.md#teeburu) (テーブル) — a service's tables: rows over the runtime's pg_ words, and versioned data models that evolve in pure blue.
 - [tehai](bidamas/CATALOG.md#tehai) (手配) — which nix remote builders can take work right now: every declared machine checked, and only the live ones written where nix reads them.
 - [tesuto](bidamas/CATALOG.md#tesuto) (テスト) — testing: errors and snapshots as assertions, and the policy that holds every definition to a test beside it.
 - [tokumei](bidamas/CATALOG.md#tokumei) (匿名) — anonymity: learn what a group is without exposing anyone in it.

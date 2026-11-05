@@ -16,10 +16,10 @@ each key's TTL (upgrade_eager).
     versioned_key("orders", "3f2a", :order, 7) #=> "orders:v3f2a:order:7"
 """
 
+use("chozou/teeburu")
 use("kyohi", %i[host_handle raised])
 use("moji", %i[checked drop_chars])
 use("retsu", %i[first is_empty size])
-use("teeburu")
 
 @doc """
 default_port: the port Valkey and Redis listen on.
@@ -296,7 +296,7 @@ of_type?: whether a value is of a schema field type, judged by teeburu's strict 
     of_type?(:int, "1") #=> false
 """
 def of_type?(type, v)
-  teeburu::holds?(type, v)
+  chozou::teeburu::holds?(type, v)
 end
 
 @doc """
@@ -305,7 +305,7 @@ check: the record when it holds to a strict schema (teeburu::kv_check: every fie
     check({fields: {"n" => :int}}, {"n" => 1}) #=> {"n" => 1}
 """
 def check(schema, rec)
-  teeburu::kv_check(schema, rec)
+  chozou::teeburu::kv_check(schema, rec)
 end
 
 @doc """

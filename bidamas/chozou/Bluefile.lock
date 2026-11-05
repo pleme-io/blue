@@ -1,0 +1,40 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:2659e5cec2d9a7ca34a9668b54c9655dc604f08270620530f3885b76b1b9d416",
+  "manifest": {
+    "schema": 1,
+    "name": "chozou",
+    "version": "0.1.0",
+    "needs": {
+      "kueri": "^0.1.0",
+      "kyohi": "^0.1.0",
+      "maakuappu": "^0.1.0",
+      "moji": "^0.1.0",
+      "retsu": "^0.1.0",
+      "tesuto": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null,
+    "legacy_packages": {
+      "kiibariu": {
+        "since": "0.1.0",
+        "to": "chozou/kiibariu"
+      },
+      "sutoriimu": {
+        "since": "0.1.0",
+        "to": "chozou/sutoriimu"
+      },
+      "teeburu": {
+        "since": "0.1.0",
+        "to": "chozou/teeburu"
+      }
+    }
+  },
+  "sources": {}
+}

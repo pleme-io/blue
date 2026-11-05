@@ -1,0 +1,2 @@
+package("chozou", "0.1.0")
+legacy_packages("0.1.0", [["teeburu", "chozou/teeburu"], ["kiibariu", "chozou/kiibariu"], ["sutoriimu", "chozou/sutoriimu"]])

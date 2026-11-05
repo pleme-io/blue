@@ -59,6 +59,7 @@ use("btf")
 use("bunsho")
 use("burauza")
 use("chokkan")
+use("chozou")
 use("danpen")
 use("deeta", [:get_str])
 use("empresa")
@@ -90,7 +91,6 @@ use("kakou")
 use("kansuu", [:identity])
 use("kazu", %i[clamp near])
 use("keiyu", [:relay_env])
-use("kiibariu")
 use("kijun")
 use("kikagaku", [:manhattan])
 use("kinji")
@@ -140,9 +140,7 @@ use("shomei", [:hash_message])
 use("shuugou")
 use("shuusei")
 use("souji")
-use("sutoriimu")
 use("tajuu")
-use("teeburu")
 use("tehai")
 use("tesuto")
 use("tokumei", [:suppress_small])
@@ -186,7 +184,7 @@ test "every bidama in the distribution answers through this one import"
     haibi::column_sql("text?") == ["text", true]
   assert settei::env_prefix("a-b") == "A_B_"
   assert blue::get(shihyou::defaults, "availability") == 99.5
-  assert teeburu::quoted("t") == "\"t\""
+  assert chozou::teeburu::quoted("t") == "\"t\""
   assert empty("") == true
   assert md_cell("a|b") == "a\\|b"
   assert nisshi::format == "nisshi/1"
@@ -250,12 +248,12 @@ test "every bidama in the distribution answers through this one import"
   assert outou::request(outou::fixture, "{ hero { id } }") ==
     {data: {"hero" => {"id" => "2001"}}}
   assert touroku::visibility_of({}) == "private"
-  assert kiibariu::versioned_key("o", "h", :order, 1) == "o:vh:order:1"
+  assert chozou::kiibariu::versioned_key("o", "h", :order, 1) == "o:vh:order:1"
   assert happa::key("aws_instance.web[3]") == {kind: :keyed, value: "3"}
   assert happa::ref("aws_vpc", "main", "id") == "${aws_vpc.main.id}"
   assert gurafu::topo(gurafu::graph([%w[b c], %w[a b]], {})) == %w[a b c]
   assert bunsho::render(bunsho::parse("* a")) == unlines(["- a"])
-  assert sutoriimu::api("s", "INFO") == "$JS.API.STREAM.INFO.s"
+  assert chozou::sutoriimu::api("s", "INFO") == "$JS.API.STREAM.INFO.s"
   assert ibuki::classify({state: :merge}) == :strand
   assert kodou::be32(258) == [0, 0, 1, 2]
   assert tesuto::raises?(:bad_option, () -> fuuin::generate(:ed25519, {})) ==

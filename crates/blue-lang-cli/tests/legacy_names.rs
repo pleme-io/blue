@@ -430,6 +430,27 @@ fn kroot(dist: &Path, version: &str) {
     );
 }
 
+#[test]
+fn fix_on_a_level_relocks_the_root_it_lives_under() {
+    let root: PathBuf =
+        std::env::temp_dir().join(format!("blue-moved-level-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    let dist = root.join("bidamas");
+    kroot(&dist, "0.2.0");
+    let level = dist.join("kroot/kc/kc.b");
+    write(&level, "use(\"kb\")\n\ndef two()\n  kb::compile + 1\nend\n");
+
+    let (code, json) = check(&dist, &level, &["--fix"]);
+    assert_eq!(code, 0, "{json}");
+    assert_eq!(
+        std::fs::read_to_string(&level).expect("read"),
+        "use(\"kroot/kb\")\n\ndef two()\n  kroot::kb::compile + 1\nend\n"
+    );
+    assert!(!dist.join("kroot/kc/Bluefile.lock").exists());
+    assert!(dist.join("kroot/Bluefile.lock").is_file());
+    let _ = std::fs::remove_dir_all(&root);
+}
+
 fn codes(json: &str, code: &str) -> usize {
     json.matches(&format!("\"code\":\"{code}\"")).count()
 }

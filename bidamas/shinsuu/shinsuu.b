@@ -8,7 +8,7 @@ implementation looks right and is wrong for exactly one input.
     popcount(0) #=> 0
 """
 
-use("kazu", %i[max min])
+use("kazu", %i[max min sum])
 use("retsu", %i[first index_of_at is_empty push repeat rest size])
 
 legacy_names("0.1.3", [%w[value_index retsu::index_of_at]])
@@ -21,18 +21,38 @@ end
 to_base: write a number in a base.
 """
 def to_base(n, base)
-  if n == 0
-    "0"
-  else
-    join(reverse(to_base_digits(n, base)), "")
-  end
+  base_text_in(digits, n, base)
 end
 
 def to_base_digits(n, base)
+  base_digits_in(digits, n, base)
+end
+
+@doc """
+base_text_in(alphabet, n, base) writes n in base, most significant digit
+first, each digit the alphabet's character at its value; zero is "0".
+
+    base_text_in(%w[0 1], 6, 2) #=> "110"
+"""
+def base_text_in(alphabet, n, base)
+  if n == 0
+    "0"
+  else
+    join(reverse(base_digits_in(alphabet, n, base)), "")
+  end
+end
+
+@doc """
+base_digits_in(alphabet, n, base) is the characters of n in base, least
+significant first, and none for zero.
+
+    base_digits_in(%w[0 1], 6, 2) #=> ["0", "1", "1"]
+"""
+def base_digits_in(alphabet, n, base)
   if n < 1
     []
   else
-    cons(digits[n % base], to_base_digits(floor(n / base), base))
+    cons(alphabet[n % base], base_digits_in(alphabet, floor(n / base), base))
   end
 end
 
@@ -75,7 +95,7 @@ def digits_of(n)
 end
 
 def digit_sum(n)
-  reduce((a, b) -> a + b, 0, digits_of(n))
+  sum(digits_of(n))
 end
 
 @doc """
@@ -219,15 +239,25 @@ def bits_not(bs)
 end
 
 def bit_and(a, b)
-  from_bits(bits_and(bits_of(a), bits_of(b)))
+  bitwise(bits_and, a, b)
 end
 
 def bit_or(a, b)
-  from_bits(bits_or(bits_of(a), bits_of(b)))
+  bitwise(bits_or, a, b)
 end
 
 def bit_xor(a, b)
-  from_bits(bits_xor(bits_of(a), bits_of(b)))
+  bitwise(bits_xor, a, b)
+end
+
+@doc """
+bitwise(op, a, b) applies op, a function of two bit lists, to the bits of a
+and b and reads the result back as a number.
+
+    bitwise(bits_or, 12, 10) #=> 14
+"""
+def bitwise(op, a, b)
+  from_bits(op(bits_of(a), bits_of(b)))
 end
 
 @doc """
@@ -266,7 +296,7 @@ popcount: how many bits are set in a number.
     popcount(0) #=> 0
 """
 def popcount(n)
-  reduce((a, b) -> a + b, 0, bits_of(n))
+  sum(bits_of(n))
 end
 
 @doc """
@@ -797,19 +827,11 @@ def digit_value36(ch)
 end
 
 def to_base_n(n, base)
-  if n == 0
-    "0"
-  else
-    join(reverse(to_base_n_digits(n, base)), "")
-  end
+  base_text_in(digits36, n, base)
 end
 
 def to_base_n_digits(n, base)
-  if n < 1
-    []
-  else
-    cons(digits36[n % base], to_base_n_digits(floor(n / base), base))
-  end
+  base_digits_in(digits36, n, base)
 end
 
 def to_base36(n)
@@ -1286,4 +1308,22 @@ test "luhn? accepts a valid number and rejects a changed digit"
   assert luhn?(79_927_398_713)
   assert not luhn?(79_927_398_710)
   assert luhn?(0)
+end
+
+test "base_text_in and base_digits_in write with the alphabet given"
+  bin = %w[0 1]
+  assert base_text_in(bin, 0, 2) == "0"
+  assert base_digits_in(bin, 0, 2) == []
+  assert base_text_in(digits, 255, 16) == to_base(255, 16)
+  assert base_text_in(bin, 6, 2) == "110"
+  assert base_digits_in(bin, 6, 2) == %w[0 1 1]
+  assert base_text_in(%w[x y z], 5, 3) == "yz"
+end
+
+test "bitwise reads op's bits back as a number"
+  assert bitwise(bits_and, 0, 0) == 0
+  assert bitwise((a, _b) -> a, 13, 2) == 13
+  assert bitwise(bits_or, 12, 10) == 14
+  assert bitwise(bits_and, 12, 10) == 8
+  assert bitwise(bits_xor, 12, 10) == 6
 end

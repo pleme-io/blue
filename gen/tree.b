@@ -101,6 +101,7 @@ one row for the root in sorted place, before the waivers of the row it precedes.
 def with_root_row(lines, head, root, children, entry)
   gone = concat_lists(children, map((c) -> "#{root}/#{c}", children))
   child_row? = (l) -> member?(row_name(l, head), gone)
+  lines = filter((l) -> row_name(l, head) != root, lines)
   listed = sort(
     map(
       (l) -> "#{head}\"#{root}/#{after_first(after_first(l, "\""), "/")}",
@@ -324,6 +325,7 @@ test "the root's row replaces its children's, before the waiver of the row after
     ["use(\"a\")", "use(\"f\")", "use(\"f/k\", [:x])", "use(\"g\")"]
   needs = [
     "needs(\"a\", \"^0.1\")",
+    "needs(\"f\", \"^0.1.0\")",
     "needs(\"k\", \"^0.1\")",
     "needs(\"z\", \"^0.1\")"
   ]

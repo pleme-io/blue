@@ -129,11 +129,54 @@ def copy(src, dest)
 end
 
 @doc """
-fresh: A fresh root holding one copy of the package: <tmp>/heni-<now>-<tag>/<name>.
+tree_root: the bidama a package directory belongs to: the nearest directory at or above it holding a Bluefile, so a level is copied with its root.
+
+    tree_root("/no/such/place") #=> "/no/such/place"
+"""
+def tree_root(dir)
+  found = bluefile_at_or_above(dir)
+  if found.nil?
+    dir
+  else
+    found
+  end
+end
+
+@doc """
+bluefile_at_or_above: the nearest directory at or above `dir` that holds a Bluefile, or nil when none does.
+
+    bluefile_at_or_above("/no/such/place") #=> nil
+"""
+def bluefile_at_or_above(dir)
+  if is_file?(path_join(dir, "Bluefile"))
+    dir
+  else
+    up = path_dirname(dir)
+    if up == dir or up == "" or up == "." or up == "/"
+      nil
+    else
+      bluefile_at_or_above(up)
+    end
+  end
+end
+
+@doc """
+level_path: a package directory's path below the directory its bidama sits in: `kazu` for a bidama, `tree/kid` for a level.
+
+    level_path("/no/such/kazu") #=> "kazu"
+"""
+def level_path(pkg_dir)
+  root = tree_root(pkg_dir)
+  concat(package_name(root), replace(pkg_dir, root, ""))
+end
+
+@doc """
+fresh: A fresh root holding one copy of the bidama the package belongs to, its whole tree: <tmp>/heni-<now>-<tag>/<bidama>.
 """
 def fresh(pkg_dir, tmp, tag)
   root = path_join(tmp, "heni-#{to_s(now_ms)}-#{tag}")
-  copy(pkg_dir, path_join(root, package_name(pkg_dir)))
+  bidama = tree_root(pkg_dir)
+  copy(bidama, path_join(root, package_name(bidama)))
   root
 end
 
@@ -181,14 +224,15 @@ def run(spec)
     )
   end
   tmp = spec[:tmp]
+  level = level_path(pkg)
   control_root = fresh(pkg, tmp, "control")
-  control = status(hn_test(blue, control_root, name, test_file))
+  control = status(hn_test(blue, control_root, level, test_file))
   rm_rf(control_root)
   if control != 0
     {control:, results: [], caught: 0, survived: 0, refused: 0, blind: 0}
   else
     results = map(
-      (p) -> one(spec, name, test_file, p[0], p[1]),
+      (p) -> one(spec, level, test_file, p[0], p[1]),
       enumerate(spec[:mutations])
     )
     {

@@ -239,14 +239,28 @@ fn the_reach_walk_and_the_name_table_agree_on_free_names() {
                 ) && s.get(n).is_some()
             })
         };
-        // A qualified name is bound when its level (or `blue`) has it. A path
-        // relative to an import or a second name names some level; which one
-        // is B0010's to judge, and this walk asks only that a definition exists.
+        let levels = table.levels();
+        let second_names: BTreeSet<(&str, &str)> = (0..forms.len())
+            .filter_map(|i| table.imports_of(i))
+            .flat_map(|i| i.aliases.iter().map(|(a, to)| (a.as_str(), to.as_str())))
+            .collect();
+        let defines =
+            |level: &str, x: &str| table.bidama(level).is_some_and(|s| s.get(x).is_some());
         let qualified_bound = |n: &str| {
             blue_lang_syntax::qualified(n).is_some_and(|(p, x)| {
+                let (first, rest) = p.split_once('/').map_or((p, None), |(a, b)| (a, Some(b)));
                 (p == "blue" && builtin(x))
-                    || table.bidama(p).is_some_and(|s| s.get(x).is_some())
-                    || program_defined.contains(x)
+                    || levels.iter().any(|l| {
+                        (*l == p || l.strip_suffix(p).is_some_and(|head| head.ends_with('/')))
+                            && defines(l, x)
+                    })
+                    || second_names.iter().any(|(a, to)| {
+                        *a == first
+                            && defines(
+                                &rest.map_or_else(|| (*to).to_owned(), |r| format!("{to}/{r}")),
+                                x,
+                            )
+                    })
             })
         };
         let reach: BTreeSet<String> = blue_lang_waku::free_names(forms, &|n| {

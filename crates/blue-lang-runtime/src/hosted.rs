@@ -116,30 +116,40 @@ pub struct Program(Arc<crate::pipeline::Prepared>);
 
 impl Program {
     /// Whether `loader` still serves every imported bidama exactly as this
-    /// program was prepared from: the same files, the same text.
+    /// program was prepared from: the same files, the same text, the same
+    /// levels below it. A level added under a held bidama is in reach of its
+    /// `use`, so the program is stale though no held file changed.
     #[must_use]
     pub fn is_current(&self, loader: &dyn Loader) -> bool {
         let mut held: std::collections::BTreeMap<&str, Vec<&str>> =
             std::collections::BTreeMap::new();
-        for f in self
-            .0
-            .files()
-            .iter()
-            .filter(|f| f.id != crate::uses::ResolvedProgram::ENTRY)
-        {
+        let mut entry_package = None;
+        for f in self.0.files() {
             if let Some(p) = &f.package {
-                held.entry(p.as_str()).or_default().push(f.text.as_str());
+                if f.id == crate::uses::ResolvedProgram::ENTRY {
+                    entry_package = Some(p.as_str());
+                } else {
+                    held.entry(p.as_str()).or_default().push(f.text.as_str());
+                }
             }
         }
-        held.into_iter().all(|(package, mut texts)| {
-            let Ok(served) = loader.load(package) else {
-                return false;
-            };
-            let mut served: Vec<&str> = served.iter().map(|(_, t)| t.as_str()).collect();
-            texts.sort_unstable();
-            served.sort_unstable();
-            texts == served
-        })
+        let levels_held = |package: &str| {
+            loader
+                .children(package)
+                .iter()
+                .all(|c| held.contains_key(c.as_str()))
+        };
+        entry_package.is_none_or(levels_held)
+            && held.iter().all(|(package, texts)| {
+                let Ok(served) = loader.load(package) else {
+                    return false;
+                };
+                let mut texts = texts.clone();
+                let mut served: Vec<&str> = served.iter().map(|(_, t)| t.as_str()).collect();
+                texts.sort_unstable();
+                served.sort_unstable();
+                texts == served && levels_held(package)
+            })
     }
 }
 
@@ -597,6 +607,56 @@ mod tests {
         )
         .unwrap();
         assert!(alone.is_current(&NoLoader));
+    }
+
+    struct Tree(crate::uses::tests::MemLoader, Vec<&'static str>);
+
+    impl Loader for Tree {
+        fn load(&self, name: &str) -> Result<Vec<(String, String)>, String> {
+            self.0.load(name)
+        }
+
+        fn children(&self, name: &str) -> Vec<String> {
+            self.1
+                .iter()
+                .filter(|c| c.rsplit_once('/').is_some_and(|(parent, _)| parent == name))
+                .map(|c| (*c).to_owned())
+                .collect()
+        }
+    }
+
+    #[test]
+    fn a_program_is_stale_when_a_level_appears_or_goes_below_a_held_bidama() {
+        let tree = |levels: Vec<&'static str>| {
+            Tree(
+                crate::uses::tests::MemLoader(
+                    [
+                        ("tama", "def a()\n  1\nend\n"),
+                        ("tama/sub", "namespace()\ndef b()\n  2\nend\n"),
+                        ("tama/new", "namespace()\ndef c()\n  3\nend\n"),
+                    ]
+                    .into_iter()
+                    .collect(),
+                ),
+                levels,
+            )
+        };
+        let program = prepare_program(
+            Entry::anonymous("use(\"tama\")\n"),
+            &tree(vec!["tama/sub"]),
+            &mut Notes::default(),
+            install,
+        )
+        .unwrap();
+        assert!(program.is_current(&tree(vec!["tama/sub"])));
+        assert!(
+            !program.is_current(&tree(vec!["tama/new", "tama/sub"])),
+            "a new level is in reach of the use, so the held program is stale"
+        );
+        assert!(
+            !program.is_current(&tama("def a()\n  1\nend\n")),
+            "the held level is no longer served"
+        );
     }
 
     #[test]

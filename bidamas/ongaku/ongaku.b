@@ -56,15 +56,15 @@ def minor_scale(root)
 end
 
 def major_triad(root)
-  [root, transpose_note(root, 4), transpose_note(root, 7)]
+  chord_from_root(root, [0, 4, 7])
 end
 
 def minor_triad(root)
-  [root, transpose_note(root, 3), transpose_note(root, 7)]
+  chord_from_root(root, [0, 3, 7])
 end
 
 def dominant_seventh(root)
-  push(major_triad(root), transpose_note(root, 10))
+  chord_from_root(root, [0, 4, 7, 10])
 end
 
 def interval_name(semitones)
@@ -222,11 +222,11 @@ ways to stack two thirds: major+minor, minor+major, minor+minor, major+major.
     diminished_triad(11) #=> [11, 2, 5]
 """
 def diminished_triad(root)
-  [root, transpose_note(root, 3), transpose_note(root, 6)]
+  chord_from_root(root, [0, 3, 6])
 end
 
 def augmented_triad(root)
-  [root, transpose_note(root, 4), transpose_note(root, 8)]
+  chord_from_root(root, [0, 4, 8])
 end
 
 @doc """
@@ -234,19 +234,19 @@ sus2_triad: Suspensions are not a third quality — they have no third at all, w
 point of them, and why they are here rather than in the quality list above.
 """
 def sus2_triad(root)
-  [root, transpose_note(root, 2), transpose_note(root, 7)]
+  chord_from_root(root, [0, 2, 7])
 end
 
 def sus4_triad(root)
-  [root, transpose_note(root, 5), transpose_note(root, 7)]
+  chord_from_root(root, [0, 5, 7])
 end
 
 def major_seventh(root)
-  push(major_triad(root), transpose_note(root, 11))
+  chord_from_root(root, [0, 4, 7, 11])
 end
 
 def minor_seventh(root)
-  push(minor_triad(root), transpose_note(root, 10))
+  chord_from_root(root, [0, 3, 7, 10])
 end
 
 @doc """
@@ -256,7 +256,7 @@ half-diminished because only the fifth is diminished; the seventh is not.
     half_diminished_seventh(0) #=> [0, 3, 6, 10]
 """
 def half_diminished_seventh(root)
-  push(diminished_triad(root), transpose_note(root, 10))
+  chord_from_root(root, [0, 3, 6, 10])
 end
 
 @doc """
@@ -266,7 +266,7 @@ of it is another diminished seventh, and there are only three distinct ones.
     diminished_seventh(0) #=> [0, 3, 6, 9]
 """
 def diminished_seventh(root)
-  push(diminished_triad(root), transpose_note(root, 9))
+  chord_from_root(root, [0, 3, 6, 9])
 end
 
 @doc """
@@ -274,15 +274,15 @@ minor_major_seventh: The tonic seventh of harmonic minor — minor triad under a
 which is the raised leading tone showing up as a chord tone.
 """
 def minor_major_seventh(root)
-  push(minor_triad(root), transpose_note(root, 11))
+  chord_from_root(root, [0, 3, 7, 11])
 end
 
 def augmented_major_seventh(root)
-  push(augmented_triad(root), transpose_note(root, 11))
+  chord_from_root(root, [0, 4, 8, 11])
 end
 
 def augmented_seventh(root)
-  push(augmented_triad(root), transpose_note(root, 10))
+  chord_from_root(root, [0, 4, 8, 10])
 end
 
 @doc """
@@ -300,6 +300,11 @@ def chord_intervals(notes)
   end
 end
 
+@doc """
+chord_from_root: A chord as a root and its shape: each interval above the root, as a pitch class.
+
+    chord_from_root(11, [0, 3, 6]) #=> diminished_triad(11)
+"""
 def chord_from_root(root, intervals)
   map((s) -> transpose_note(root, s), intervals)
 end
@@ -326,8 +331,17 @@ def triad_quality_names()
   %w[major minor diminished augmented sus2 sus4]
 end
 
+@doc """
+quality_in: The name a table gives the shape of these notes, or "unknown".
+
+    quality_in([0, 4, 7], triad_shapes, triad_quality_names) #=> "major"
+"""
+def quality_in(notes, shapes, names)
+  quality_of_shape(chord_intervals(notes), shapes, names)
+end
+
 def triad_quality(notes)
-  quality_of_shape(chord_intervals(notes), triad_shapes, triad_quality_names)
+  quality_in(notes, triad_shapes, triad_quality_names)
 end
 
 def seventh_shapes()
@@ -357,11 +371,7 @@ def seventh_quality_names()
 end
 
 def seventh_quality(notes)
-  quality_of_shape(
-    chord_intervals(notes),
-    seventh_shapes,
-    seventh_quality_names
-  )
+  quality_in(notes, seventh_shapes, seventh_quality_names)
 end
 
 @doc """
@@ -596,17 +606,20 @@ of a key, derived rather than recited.
     scale_triad_qualities(major_scale(0)) #=> ["major", "minor", "minor", "major", "major", "minor", "diminished"]
 """
 def scale_triad_qualities(scale)
-  map(
-    (d) -> triad_quality(scale_triad(scale, d)),
-    range(0, size(scale_tones(scale)))
-  )
+  scale_qualities(scale, scale_triad, triad_quality)
 end
 
 def scale_seventh_qualities(scale)
-  map(
-    (d) -> seventh_quality(scale_seventh(scale, d)),
-    range(0, size(scale_tones(scale)))
-  )
+  scale_qualities(scale, scale_seventh, seventh_quality)
+end
+
+@doc """
+scale_qualities: For every degree of a scale, the chord `build` stacks on it, named by `classify`.
+
+    scale_qualities([], scale_triad, triad_quality) #=> []
+"""
+def scale_qualities(scale, build, classify)
+  map((d) -> classify(build(scale, d)), range(0, size(scale_tones(scale))))
 end
 
 # --- keys, and the circle of fifths -------------------------------------------
@@ -821,6 +834,23 @@ test "triads and sevenths"
   assert major_triad(0) == [0, 4, 7]
   assert minor_triad(9) == [9, 0, 4]
   assert dominant_seventh(7) == [7, 11, 2, 5]
+end
+
+test "chord_from_root, quality_in and scale_qualities are the words the chord tables share"
+  assert chord_from_root(5, []) == []
+  assert chord_from_root(0, [0, 4, 7]) == [0, 4, 7]
+  assert chord_from_root(9, [0, 3, 6, 10]) == half_diminished_seventh(9)
+  assert chord_from_root(7, [0, 4, 7, 10]) == [7, 11, 2, 5]
+  assert major_seventh(0) == push(major_triad(0), 11)
+  assert augmented_seventh(2) == push(augmented_triad(2), 0)
+  assert quality_in([], triad_shapes, triad_quality_names) == "unknown"
+  assert quality_in(minor_seventh(4), seventh_shapes, seventh_quality_names) ==
+    seventh_quality(minor_seventh(4))
+  assert quality_in(sus4_triad(2), triad_shapes, triad_quality_names) == "sus4"
+  assert scale_qualities(major_scale(0), scale_triad, triad_quality) ==
+    scale_triad_qualities(major_scale(0))
+  assert scale_qualities(major_scale(0), scale_seventh, seventh_quality)[4] ==
+    "dominant seventh"
 end
 
 test "interval names"

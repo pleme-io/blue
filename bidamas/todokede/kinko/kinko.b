@@ -94,8 +94,17 @@ def bundles()
   ]
 end
 
+@doc """
+row_value: The second cell of the first `[key, value]` row whose key is `key`, nil when no row has it.
+
+    row_value([["view", 1], ["edit", 2]], "edit") #=> 2
+"""
+def row_value(rows, key)
+  first(filter((r) -> first(r) == key, rows))[1]
+end
+
 def bundle(name)
-  first(filter((b) -> first(b) == name, bundles))[1]
+  row_value(bundles, name)
 end
 
 def lookup(name)
@@ -209,14 +218,21 @@ def key_chars()
   "abcdefghijklmnopqrstuvwxyz0123456789_"
 end
 
+@doc """
+token?: True when `v` is a non-empty string made only of the characters in `alphabet`.
+
+    token?("ab_1", "ab1_") #=> true
+"""
+def token?(v, alphabet)
+  string?(v) and length(v) > 0 and made_of(v, alphabet)
+end
+
 def key?(v)
-  string?(v) and length(v) > 0 and made_of(v, key_chars)
+  token?(v, key_chars)
 end
 
 def group_id?(v)
-  string?(v) and
-    length(v) > 0 and
-    made_of(v, "abcdefghijklmnopqrstuvwxyz0123456789")
+  token?(v, "abcdefghijklmnopqrstuvwxyz0123456789")
 end
 
 def vault(key, title)
@@ -578,6 +594,24 @@ test "an empty account on a known tier stands, empty, with only the providers"
   assert to_json(a) ==
     "{\"provider\":{\"onepassword\":{},\"opadmin\":{}},\"terraform\":{\"required_providers\":{\"onepassword\":{\"source\":\"1Password/onepassword\"},\"opadmin\":{\"source\":\"registry.opentofu.org/pleme-io/opadmin\"}}}}"
   assert kinds(judge(account("enterprise", [], [])).refusals) == [:unknown_tier]
+end
+
+test "row_value reads the value of the first row with a key"
+  assert row_value([], "view").nil?
+  assert row_value([["view", 1]], "view") == 1
+  assert row_value([["view", 1], ["view", 2], ["edit", 3]], "view") == 1
+  assert row_value([["view", 1]], "edit").nil?
+  assert bundle("manage") == ["manage_vault"]
+end
+
+test "token? holds for a non-empty string over an alphabet"
+  assert not token?("", "ab")
+  assert not token?(nil, "ab")
+  assert token?("ab", "ab")
+  assert not token?("abc", "ab")
+  assert key?("vault_1")
+  assert not group_id?("vault_1")
+  assert group_id?("g7")
 end
 
 test "the table covers every SDK bit once and round-trips"

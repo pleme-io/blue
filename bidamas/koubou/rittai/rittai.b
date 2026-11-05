@@ -556,8 +556,21 @@ def rt_distinct(keys, _table)
 end
 
 def distinct_step(acc, k)
+  seen_step(acc, k, :out)
+end
+
+@doc """
+seen_step: a reduce step that marks `k` seen and prepends it to the list at `field`, once.
+
+    seen_step({seen: {a: true}, out: [:a]}, :a, :out) #=> {seen: {a: true}, out: [:a]}
+"""
+def seen_step(acc, k, field)
   if get(acc[:seen], k).nil?
-    {seen: assoc(acc[:seen], k, true), out: concat_lists([k], acc[:out])}
+    assoc(
+      assoc(acc, :seen, assoc(acc[:seen], k, true)),
+      field,
+      concat_lists([k], get(acc, field))
+    )
   else
     acc
   end
@@ -1115,4 +1128,16 @@ end
 test "turn reads the polygon's own order, not the point list's"
   assert turn(square_points, [0, 2, 1], 1) == -1
   assert turn(square_points, [0, 1, 2], 1) == 1
+end
+
+test "seen_step keeps the first of each key at the named field"
+  start = {seen: {}, keys: []}
+  assert reduce((a, k) -> seen_step(a, k, :keys), start, []) == start
+  once = seen_step(start, "e", :keys)
+  assert seen_step(once, "e", :keys) == once
+  assert get(
+    reduce((a, k) -> seen_step(a, k, :keys), start, %w[a b a c b]),
+    :keys
+  ) == %w[c b a]
+  assert distinct_step({seen: {}, out: []}, 3) == {seen: {3 => true}, out: [3]}
 end

@@ -351,11 +351,7 @@ def distinct_keys(faces)
 end
 
 def note_key(acc, k)
-  if get(acc[:seen], k).nil?
-    {seen: assoc(acc[:seen], k, true), keys: concat_lists([k], acc[:keys])}
-  else
-    acc
-  end
+  koubou::rittai::seen_step(acc, k, :keys)
 end
 
 def feature?(fs, normals)

@@ -73,16 +73,7 @@ polygon_area: Shoelace formula: works for any simple polygon, convex or not.
     polygon_area([[0, 0], [1, 0], [1, 1], [0, 1]]) #=> 1
 """
 def polygon_area(pts)
-  n = size(pts)
-  s = reduce(
-    fn(acc, i)
-      acc +
-        (px(pts[i]) * py(pts[(i + 1) % n]) - px(pts[(i + 1) % n]) * py(pts[i]))
-    end,
-    0,
-    range(0, n)
-  )
-  abs(s) / 2
+  abs(signed_area(pts))
 end
 
 @doc """
@@ -828,15 +819,20 @@ end
 ccw_polygon: The same polygon wound counter-clockwise, or clockwise.
 """
 def ccw_polygon(pts)
-  if winding(pts) < 0
-    reverse(pts)
-  else
-    pts
-  end
+  wound(pts, 1)
 end
 
 def cw_polygon(pts)
-  if winding(pts) > 0
+  wound(pts, -1)
+end
+
+@doc """
+wound: the same polygon wound `w` (1 counter-clockwise, -1 clockwise), reversed only when it runs the other way.
+
+    wound([[0, 0], [0, 1], [1, 0]], 1) #=> [[1, 0], [0, 1], [0, 0]]
+"""
+def wound(pts, w)
+  if winding(pts) == -w
     reverse(pts)
   else
     pts
@@ -1467,4 +1463,22 @@ test "overlap? is true for shared area and false for a gap"
   assert overlap?(square, [[1, 1], [3, 1], [3, 3], [1, 3]])
   assert overlap?(square, [[0.5, 0.5], [1, 0.5], [1, 1], [0.5, 1]])
   assert not overlap?(square, [[5, 5], [6, 5], [6, 6], [5, 6]])
+end
+
+test "wound reverses only a polygon running the other way"
+  assert wound([], 1) == []
+  ccw = [[0, 0], [1, 0], [0, 1]]
+  assert wound(ccw, 1) == ccw
+  assert wound(ccw, -1) == reverse(ccw)
+  assert wound([[0, 0], [1, 1], [2, 2]], -1) == [[0, 0], [1, 1], [2, 2]]
+  assert ccw_polygon(reverse(ccw)) == ccw
+  assert cw_polygon(ccw) == reverse(ccw)
+end
+
+test "polygon_area is the size of signed_area in either winding"
+  assert polygon_area([]) == 0
+  sq = [[0, 0], [2, 0], [2, 2], [0, 2]]
+  assert signed_area(sq) == 4
+  assert signed_area(reverse(sq)) == -4
+  assert polygon_area(reverse(sq)) == 4
 end

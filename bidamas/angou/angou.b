@@ -16,7 +16,9 @@ Use them to learn the shape of the problem; never to keep a secret.
     factor(0) #=> []
 """
 
-use("kazu", [:max])
+use("kazu", %i[max sum])
+
+use("moji", [:map_chars])
 
 use(
   "retsu",
@@ -286,7 +288,7 @@ sum_of_divisors: sigma(n), counting n itself — the convention every table uses
     sum_of_divisors(6) #=> 12
 """
 def sum_of_divisors(n)
-  reduce((a, b) -> a + b, 0, divisors(n))
+  sum(divisors(n))
 end
 
 @doc """
@@ -298,15 +300,25 @@ and either one alone lets that through.
     is_perfect(6) #=> true
 """
 def is_perfect(n)
-  n > 0 and sum_of_divisors(n) == 2 * n
+  divisor_sum_is((a, b) -> a == b, n)
 end
 
 def is_abundant(n)
-  n > 0 and sum_of_divisors(n) > 2 * n
+  divisor_sum_is((a, b) -> a > b, n)
 end
 
 def is_deficient(n)
-  n > 0 and sum_of_divisors(n) < 2 * n
+  divisor_sum_is((a, b) -> a < b, n)
+end
+
+@doc """
+divisor_sum_is(op, n) says whether n is positive and op holds of sigma(n) and
+2n, the test that names a number perfect, abundant or deficient.
+
+    divisor_sum_is((a, b) -> a > b, 12) #=> true
+"""
+def divisor_sum_is(op, n)
+  n > 0 and op(sum_of_divisors(n), 2 * n)
 end
 
 @doc """
@@ -500,7 +512,7 @@ only property worth asserting is that it is its own inverse.
     atbash("") #=> ""
 """
 def atbash(text)
-  join(map(atbash_char, chars(text)), "")
+  map_chars(atbash_char, text)
 end
 
 def atbash_char(ch)
@@ -1095,4 +1107,13 @@ test "frequency counts a to z and nothing else"
   assert f[2] == 0
   assert frequency("") == frequency("123")
   assert frequency("")[0] == 0
+end
+
+test "divisor_sum_is compares sigma(n) with 2n for positive n"
+  always = (_a, _b) -> true
+  assert divisor_sum_is(always, 0) == false
+  assert divisor_sum_is(always, 1) == true
+  assert divisor_sum_is((a, b) -> a == b, 28) == true
+  assert divisor_sum_is((a, b) -> a > b, 12) == true
+  assert divisor_sum_is((a, b) -> a < b, 12) == false
 end

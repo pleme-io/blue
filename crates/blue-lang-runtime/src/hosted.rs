@@ -186,6 +186,68 @@ pub fn load_program<H: 'static>(
     Ok(Hosted { interp, entry })
 }
 
+/// Prepared programs a host keeps across calls, keyed by entry: a program is
+/// prepared again when its entry text changes or a bidama it imports is no
+/// longer served as it was. One entry per file path; entries with no path
+/// are kept by text. Shared across threads.
+#[derive(Default)]
+pub struct Programs(
+    std::sync::Mutex<std::collections::HashMap<(Option<std::path::PathBuf>, String), Program>>,
+);
+
+impl Programs {
+    /// The held program for `entry` while [`Program::is_current`], else
+    /// [`prepare_program`] it and hold that.
+    ///
+    /// # Errors
+    ///
+    /// The errors of [`prepare_program`]; a refused program is not held.
+    pub fn prepare<H: 'static>(
+        &self,
+        entry: Entry<'_>,
+        loader: &dyn Loader,
+        host: &mut H,
+        install: impl FnOnce(&mut Interpreter<H>),
+    ) -> Result<Program, RunError> {
+        let key = (
+            entry.path.map(std::path::Path::to_path_buf),
+            entry.text.to_owned(),
+        );
+        let held = self.held().get(&key).cloned();
+        if let Some(p) = held.filter(|p| p.is_current(loader)) {
+            return Ok(p);
+        }
+        let fresh = prepare_program(entry, loader, host, install)?;
+        let mut held = self.held();
+        held.retain(|k, _| k.0.is_none() || k.0 != key.0);
+        held.insert(key, fresh.clone());
+        Ok(fresh)
+    }
+
+    /// How many programs are held.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.held().len()
+    }
+
+    /// Whether no program is held.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    fn held(
+        &self,
+    ) -> std::sync::MutexGuard<
+        '_,
+        std::collections::HashMap<(Option<std::path::PathBuf>, String), Program>,
+    > {
+        self.0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+}
+
 /// Why a framed load ([`load_hosted_in_frame`]) refused a program.
 #[derive(Debug, thiserror::Error)]
 pub enum FramedError {
@@ -535,6 +597,47 @@ mod tests {
         )
         .unwrap();
         assert!(alone.is_current(&NoLoader));
+    }
+
+    #[test]
+    fn programs_prepare_an_entry_once_while_it_and_its_bidamas_hold() {
+        let programs = Programs::default();
+        let prepares = std::cell::Cell::new(0);
+        let get = |text: &str, path: Option<&std::path::Path>, loader: &dyn Loader| {
+            programs
+                .prepare(
+                    Entry { path, text },
+                    loader,
+                    &mut Notes::default(),
+                    |i: &mut Interpreter<Notes>| {
+                        prepares.set(prepares.get() + 1);
+                        install(i);
+                    },
+                )
+                .is_ok()
+        };
+        let v1 = tama("def a()\n  1\nend\n");
+        let v2 = tama("def a()\n  2\nend\n");
+        assert!(get("use(\"tama\")\n", None, &v1));
+        assert!(get("use(\"tama\")\n", None, &v1));
+        assert_eq!(prepares.get(), 1, "an unchanged entry is prepared once");
+        assert!(get("use(\"tama\")\n", None, &v2));
+        assert_eq!(prepares.get(), 2, "a changed bidama prepares again");
+        let file = std::path::Path::new("/x.b");
+        assert!(get("def f()\n  1\nend\n", Some(file), &NoLoader));
+        assert!(get("def f()\n  2\nend\n", Some(file), &NoLoader));
+        assert_eq!(prepares.get(), 4, "an edited file prepares again");
+        assert_eq!(
+            programs.len(),
+            2,
+            "one program per path, the edit replacing it"
+        );
+        assert!(!get(
+            "def f(x: Int) -> Int\n  \"no\"\nend\n",
+            None,
+            &NoLoader
+        ));
+        assert_eq!(programs.len(), 2, "a refused program is not held");
     }
 
     #[test]

@@ -2,7 +2,9 @@ create or replace table uv as
 select * from read_csv(getenv('VERBS_TSV'), delim='\t', header=true, quote='', escape='', all_varchar=true);
 
 create or replace table usrc as
-select split_part(filename, '/', -2) as pkg, content from read_text('bidamas/*/*.b');
+select split_part(filename, '/', -2) as pkg, content from read_text('bidamas/**/*.b')
+where regexp_matches(filename, '^bidamas/[^/]+/[^/]+\.b$')
+   or split_part(filename, '/', -2) || '.b' = split_part(filename, '/', -1);
 
 create or replace table uprefix as
 select pkg, any_value(p) as prefix from (

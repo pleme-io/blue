@@ -113,7 +113,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-370 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 185 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+371 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 185 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -362,6 +362,7 @@ Higher binding power binds tighter.
 | `json_parse` | `json_parse(text)` | 1 | Parse JSON. An object becomes a list of [key, value] pairs, not a map; read it with json_get or deeta. null is nil. |
 | `json_read` | `json_read(text)` | 1 | Parse JSON with every object a map keyed by its field names, read with get and map_entries; an array is a list, null is nil. |
 | `json_stringify` | `json_stringify(v)` | 1 | Compact JSON text, a map's keys sorted, a keyword as its name. |
+| `json_write` | `json_write(v)` | 1 | Compact JSON text where a list is always an array and a map is always an object, the inverse of json_read: an array of [string, value] pairs stays an array, a map's keys sorted, a keyword as its name. |
 
 ### Nix source
 

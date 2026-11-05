@@ -9,6 +9,7 @@
 //! ```text
 //! json_parse(s)          → nil / bool / int / float / string / list / alist
 //! json_stringify(v)      → string
+//! json_write(v)          → string, a list always an array, a map an object
 //! json_canonical(text)   → the same document as canonical JSON text
 //! json_get(doc, key)     → value at key, or nil   (doc = alist or Map)
 //! json_get_or(doc, key, default) → value at key, or default
@@ -67,6 +68,16 @@ pub fn install_json_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
         |args: &[Value], _h: &mut H, span| {
             let s = serde_json::to_string(&value_to_json(&args[0]))
                 .map_err(|e| EvalError::native_fn("json_stringify", e.to_string(), span))?;
+            Ok(Value::Str(Arc::from(s)))
+        },
+    );
+
+    interp.register_fn(
+        "json_write",
+        Arity::Exact(1),
+        |args: &[Value], _h: &mut H, span| {
+            let s = serde_json::to_string(&value_to_json_strict(&args[0]))
+                .map_err(|e| EvalError::native_fn("json_write", e.to_string(), span))?;
             Ok(Value::Str(Arc::from(s)))
         },
     );
@@ -279,6 +290,19 @@ pub fn value_to_json(v: &Value) -> JsonValue {
     }
 }
 
+#[must_use]
+pub fn value_to_json_strict(v: &Value) -> JsonValue {
+    match v {
+        Value::List(xs) => JsonValue::Array(xs.iter().map(value_to_json_strict).collect()),
+        Value::Map(m) => JsonValue::Object(
+            m.iter()
+                .map(|(k, v)| (map_key_to_json_key(k), value_to_json_strict(v)))
+                .collect(),
+        ),
+        other => value_to_json(other),
+    }
+}
+
 fn map_key_to_json_key(k: &MapKey) -> String {
     match k {
         MapKey::Str(s) | MapKey::Symbol(s) | MapKey::Keyword(s) => s.as_ref().to_owned(),
@@ -355,6 +379,24 @@ mod tests {
             r#"{"a":0,"b":[["k",1]]}"#
         );
         assert!(canonical_text("{").is_err());
+    }
+
+    #[test]
+    fn json_write_keeps_a_list_of_pairs_an_array() {
+        assert_eq!(
+            s(r#"json_write([["az", "logout"], ["az", "login"]])"#),
+            r#"[["az","logout"],["az","login"]]"#
+        );
+        assert_eq!(s(r#"json_write([["label", "x"]])"#), r#"[["label","x"]]"#);
+        assert_eq!(
+            s(r#"json_write({steps: [["a", "b"]], facts: {}})"#),
+            r#"{"facts":{},"steps":[["a","b"]]}"#
+        );
+        let doc = r#"{"a":0,"b":[["k",1]],"c":{"d":[{"e":null}]}}"#;
+        let mut src = String::from("json_write(json_read(");
+        src.push_str(&serde_json::to_string(doc).unwrap());
+        src.push_str("))");
+        assert_eq!(canonical_text(&s(&src)).unwrap(), doc);
     }
 
     #[test]

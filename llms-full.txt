@@ -210,7 +210,7 @@ rendered:
 
 | | |
 |---|---|
-| Built-in names | 370: 343 functions, 14 special forms, 13 macros |
+| Built-in names | 371: 344 functions, 14 special forms, 13 macros |
 | Surface forms | 30, with 13 operators and 25 reserved words |
 | Check rules | 70: 38 fix themselves, 8 suggest a fix |
 | Bluefile words | 25 |
@@ -221,7 +221,7 @@ rendered:
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-97 packages, 5471 definitions, 1742 tests.
+98 packages, 5504 definitions, 1747 tests.
 
 - [anaritikusu](bidamas/CATALOG.md#anaritikusu) (アナリティクス) — lifecycle analytics: a database of telemetry, standard models and cross-lifecycle joins, generated from lifecycle definitions.
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
@@ -299,6 +299,7 @@ rendered:
 - [settei](bidamas/CATALOG.md#settei) (設定) — configuration, blue's shikumi: a record of defaults grouped by concern, resolved by read(app, defaults) from the defaults, then ~/.config/<app>/<app>.yaml (or <APP>_CONFIG), then <APP>_<GROUP>__<KEY> in the environment, each value typed by its default and a wrong type refused. The resolved record is read by dotted path; a misspelt path raises and names the fields that exist.
 - [shihyou](bidamas/CATALOG.md#shihyou) (指標) — indicator: a service's SLO as data, projected to the rules and the dashboard that watch it.
 - [shinchoku](bidamas/CATALOG.md#shinchoku) (進捗) — progress: operational probes that judge by progress over a window, never by one reading.
+- [shinsatsu](bidamas/CATALOG.md#shinsatsu) (診察) — the credential doctor: a provider, the failure classes its credential helper can show, and for each class a diagnosis, the remediation steps and a verify step. A new provider or a new failure class is a declaration.
 - [shinsuu](bidamas/CATALOG.md#shinsuu) (進数) — base conversion and checksums.
 - [shisei](bidamas/CATALOG.md#shisei) (姿勢) — a service's posture: postures declared as kousei entries, each on by default, each configured off or tuned, each refused alone.
 - [shisutemu](bidamas/CATALOG.md#shisutemu) (システム) — the system.

@@ -444,6 +444,7 @@ pub const NAMES: &[NameDoc] = names! {
     Json: "json_parse" "json_parse(text)" "Parse JSON. An object becomes a list of [key, value] pairs, not a map; read it with json_get or deeta. null is nil.";
     Json: "json_read" "json_read(text)" "Parse JSON with every object a map keyed by its field names, read with get and map_entries; an array is a list, null is nil.";
     Json: "json_stringify" "json_stringify(v)" "Compact JSON text, a map's keys sorted, a keyword as its name.";
+    Json: "json_write" "json_write(v)" "Compact JSON text where a list is always an array and a map is always an object, the inverse of json_read: an array of [string, value] pairs stays an array, a map's keys sorted, a keyword as its name.";
     Json: "json_canonical" "json_canonical(text)" "The JSON document in text as canonical JSON: every object's keys sorted, no whitespace, numbers and strings as serde_json writes them, so equal documents hash alike. Unlike json_stringify(json_read(text)), an array of [string, value] pairs stays an array. Raises when text is not JSON.";
     Json: "json_get" "json_get(obj, key)" "The field of a parsed JSON object, or nil. Raises when obj is not an object.";
     Json: "json_get_or" "json_get_or(obj, key, default)" "The field of a parsed JSON object, or default.";

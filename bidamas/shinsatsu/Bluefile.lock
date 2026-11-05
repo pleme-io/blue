@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:f149d81bb82cbced8aff5ceef4150acf0400dd59fa606b313cde509ff734ade4",
+  "manifest": {
+    "schema": 1,
+    "name": "shinsatsu",
+    "version": "0.1.0",
+    "needs": {
+      "moji": "^0.1.0",
+      "retsu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

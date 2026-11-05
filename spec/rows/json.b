@@ -32,6 +32,19 @@ row(
 row("json.stringify.map", "json_stringify({a: 1})", value("\"{\\\"a\\\":1}\""))
 
 row(
+  "json.write.keeps_an_array_of_pairs",
+  "json_write([[\"az\", \"logout\"], [\"az\", \"login\"]])",
+  value("\"[[\\\"az\\\",\\\"logout\\\"],[\\\"az\\\",\\\"login\\\"]]\""),
+  covers("builtin:json_write")
+)
+
+row(
+  "json.write.map",
+  "json_write({a: [[\"k\", 1]]})",
+  value("\"{\\\"a\\\":[[\\\"k\\\",1]]}\"")
+)
+
+row(
   "json.canonical.keeps_an_array_of_pairs",
   "json_canonical(\"{ \\\"b\\\": [[\\\"k\\\", 1]], \\\"a\\\": 0 }\")",
   value("\"{\\\"a\\\":0,\\\"b\\\":[[\\\"k\\\",1]]}\""),

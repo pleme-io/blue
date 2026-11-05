@@ -132,6 +132,7 @@ use("seimei", [:life_step])
 use("settei")
 use("shihyou")
 use("shinchoku")
+use("shinsatsu")
 use("shinsuu", [:to_hex])
 use("shisei")
 use("shisutemu", [:age_s])
@@ -233,6 +234,7 @@ test "every bidama in the distribution answers through this one import"
   assert hyouka::installable(".", "x") == ".#x"
   assert kirikae::attr_for("darwin", "ryn") == "darwinConfigurations.ryn.system"
   assert shisei::stack([], (r) -> r)(1) == 1
+  assert shinsatsu::incomplete == []
   assert bougyo::safe_id?("abc-1", 64)
   assert fairu::stem("a/b.txt") == "b"
   assert gitto::ref_of("v1", :tag) == "refs/tags/v1"

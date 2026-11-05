@@ -283,15 +283,7 @@ The seeds are the entire difference, which is why they share a step shape.
     lucas(0) #=> 2
 """
 def lucas(n)
-  lucas_onward(n, 2, 1)
-end
-
-def lucas_onward(n, a, b)
-  if n < 1
-    a
-  else
-    lucas_onward(n - 1, b, a + b)
-  end
+  fib_onward(n, 2, 1)
 end
 
 @doc """

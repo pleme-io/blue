@@ -1,3 +1,4 @@
-package("moji", "0.1.0")
+package("moji", "0.1.1")
 needs("retsu", "^0.1")
 needs("kazu", "^0.1")
+needs("junjo", "^0.1")

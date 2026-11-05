@@ -9,13 +9,11 @@ truncates is worse than none, because every number it returns is plausible.
 """
 
 use("junjo", [:sort])
-use("kazu", %i[abs min near pow])
+use("kazu", %i[abs min near pow sum])
 use("retsu", %i[contains first indexes is_empty last size zip_with])
 use("shuugou", [:unique])
 
-def total(xs)
-  reduce((a, b) -> a + b, 0, xs)
-end
+legacy_names("0.1.1", [%w[total kazu::sum]])
 
 @doc """
 mean: arithmetic average; empty raises.
@@ -23,7 +21,7 @@ mean: arithmetic average; empty raises.
     mean([1, 2]) #=> 1.5
 """
 def mean(xs)
-  total(xs) / size(xs)
+  sum(xs) / size(xs)
 end
 
 @doc """
@@ -54,7 +52,7 @@ variance: mean squared distance from the mean.
 """
 def variance(xs)
   m = mean(xs)
-  total(map((x) -> (x - m) * (x - m), xs)) / size(xs)
+  sum(map((x) -> (x - m) * (x - m), xs)) / size(xs)
 end
 
 @doc """
@@ -111,7 +109,7 @@ wrong. Every dispersion measure below is this divided by something.
 """
 def sum_of_squares(xs)
   m = mean_or_zero(xs)
-  total(map((x) -> (x - m) * (x - m), xs))
+  sum(map((x) -> (x - m) * (x - m), xs))
 end
 
 @doc """
@@ -170,7 +168,7 @@ def mean_absolute_deviation(xs)
     0
   else
     m = mean(xs)
-    total(map((x) -> abs(x - m), xs)) / size(xs)
+    sum(map((x) -> abs(x - m), xs)) / size(xs)
   end
 end
 
@@ -186,7 +184,7 @@ def geometric_mean(xs)
   if is_empty(xs)
     0
   else
-    exp(total(map((x) -> log(x), xs)) / size(xs))
+    exp(sum(map((x) -> log(x), xs)) / size(xs))
   end
 end
 
@@ -200,7 +198,7 @@ def harmonic_mean(xs)
   if is_empty(xs)
     0
   else
-    size(xs) / total(map((x) -> 1 / x, xs))
+    size(xs) / sum(map((x) -> 1 / x, xs))
   end
 end
 
@@ -213,11 +211,11 @@ tail rather than reading past the end.
     weighted_mean([1, 2], [0, 0]) #=> 0
 """
 def weighted_mean(xs, ws)
-  w = total(ws)
+  w = sum(ws)
   if near(w, 0)
     0
   else
-    total(zip_with((x, k) -> x * k, xs, ws)) / w
+    sum(zip_with((x, k) -> x * k, xs, ws)) / w
   end
 end
 
@@ -387,7 +385,7 @@ def covariance(xs, ys)
   else
     mx = mean(take(n, xs))
     my = mean(take(n, ys))
-    total(zip_with((x, y) -> (x - mx) * (y - my), xs, ys)) / n
+    sum(zip_with((x, y) -> (x - mx) * (y - my), xs, ys)) / n
   end
 end
 
@@ -457,13 +455,13 @@ end
 
 @doc """
 cumulative_sum: Running totals, ONE PER INPUT ELEMENT — so the last entry is exactly
-`total(xs)`. That identity is the thing to check: an off-by-one in the
+`sum(xs)`. That identity is the thing to check: an off-by-one in the
 window shows up there before it shows up anywhere else.
 
     cumulative_sum([]) #=> []
 """
 def cumulative_sum(xs)
-  map((i) -> total(take(i + 1, xs)), indexes(xs))
+  map((i) -> sum(take(i + 1, xs)), indexes(xs))
 end
 
 @doc """
@@ -503,7 +501,7 @@ def skewness(xs)
     if near(s, 0)
       0
     else
-      total(map((x) -> pow((x - m) / s, 3), xs)) / size(xs)
+      sum(map((x) -> pow((x - m) / s, 3), xs)) / size(xs)
     end
   end
 end
@@ -528,7 +526,7 @@ def excess_kurtosis(xs)
     if near(s, 0)
       0
     else
-      total(map((x) -> pow((x - m) / s, 4), xs)) / size(xs) - 3
+      sum(map((x) -> pow((x - m) / s, 4), xs)) / size(xs) - 3
     end
   end
 end
@@ -855,7 +853,7 @@ test "cumulative_sum ends at the total"
   assert cumulative_sum([5]) == [5]
   # The identity: last entry is the whole sum, and length is preserved.
   xs = [4, -2, 9, 1]
-  assert last(cumulative_sum(xs)) == total(xs)
+  assert last(cumulative_sum(xs)) == sum(xs)
   assert size(cumulative_sum(xs)) == size(xs)
 end
 
@@ -923,7 +921,7 @@ test "frequency_table account for every element exactly once"
   assert frequency_table([]) == []
   # The identity: the counts must sum back to the size of the input.
   xs = [5, 3, 5, 5, 1, 3, 9]
-  assert total(map((p) -> p[1], frequency_table(xs))) == size(xs)
+  assert sum(map((p) -> p[1], frequency_table(xs))) == size(xs)
   assert size(frequency_table(xs)) == size(unique(xs))
 end
 
@@ -971,7 +969,7 @@ end
 test "zscore centres the list on zero"
   z = zscore([1, 2, 3])
   assert size(z) == 3
-  assert abs(total(z)) < 0.000001
+  assert abs(sum(z)) < 0.000001
   assert z[1] == 0
   assert zscore([]) == []
 end

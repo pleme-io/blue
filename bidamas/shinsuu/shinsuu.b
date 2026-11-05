@@ -9,7 +9,9 @@ implementation looks right and is wrong for exactly one input.
 """
 
 use("kazu", %i[max min])
-use("retsu", %i[first is_empty push repeat rest size])
+use("retsu", %i[first index_of_at is_empty push repeat rest size])
+
+legacy_names("0.1.3", [%w[value_index retsu::index_of_at]])
 
 def digits()
   %w[0 1 2 3 4 5 6 7 8 9 a b c d e f]
@@ -47,17 +49,7 @@ def to_octal(n)
 end
 
 def digit_value(ch)
-  value_index(digits, ch, 0)
-end
-
-def value_index(xs, v, i)
-  if i >= size(xs)
-    -1
-  elsif xs[i] == v
-    i
-  else
-    value_index(xs, v, i + 1)
-  end
+  index_of_at(digits, ch, 0)
 end
 
 @doc """
@@ -801,7 +793,7 @@ def digits36()
 end
 
 def digit_value36(ch)
-  value_index(digits36, downcase(ch), 0)
+  index_of_at(digits36, downcase(ch), 0)
 end
 
 def to_base_n(n, base)

@@ -221,7 +221,7 @@ rendered:
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-98 packages, 5517 definitions, 1751 tests.
+98 packages, 5503 definitions, 1752 tests.
 
 - [anaritikusu](bidamas/CATALOG.md#anaritikusu) (アナリティクス) — lifecycle analytics: a database of telemetry, standard models and cross-lifecycle joins, generated from lifecycle definitions.
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
@@ -4372,7 +4372,7 @@ writes a package alone, inside a distribution's directory.
 
 A bidama may be a tree: `use("thing/sub")` loads that level and everything
 below it, and `thing::sub::waka::x` is also `sub::waka::x` and `waka::x`.
-[`docs/NAMESPACES.md`](docs/docs/NAMESPACES.md), "A bidama is a tree", has the whole
+[`docs/NAMESPACES.md`](docs/NAMESPACES.md#a-bidama-is-a-tree), "A bidama is a tree", has the whole
 `use` family and the rules.
 
 `use("pkg")` looks in order: the `packages` roots of the project the file

@@ -1,10 +1,10 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:334ca6bb008a9f5bbba8e2747bd8fe27abdf6547892f5b9ddcb218edf7e2b843",
+  "bluefile_b3": "b3:9b8521575eab96e6b0369ee6bff368c220b753ce99df641df5049100fa87291e",
   "manifest": {
     "schema": 1,
     "name": "ran",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "needs": {
       "junjo": "^0.1.0",
       "kazu": "^0.1.0",

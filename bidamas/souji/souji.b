@@ -25,11 +25,14 @@ the logic is blue.
 """
 
 use("hikisuu")
+use("kazu", [:sum])
 use("retsu", %i[concat_lists first flat_map is_empty size])
 
 use("shisutemu", %i[last_nonempty_line status_of stderr_of stdout_of])
 
 legacy_names("0.1.1", "sj")
+
+legacy_names("0.1.2", [%w[sum kazu::sum]])
 
 # ── arguments ────────────────────────────────────────────────────────
 
@@ -157,10 +160,6 @@ def rust(opts)
     map((r) -> rm_rf(r[:path]), gone)
   end
   {rows:, removed: gone, kib: sum(map((r) -> r[:kib], gone))}
-end
-
-def sum(xs)
-  reduce((a, x) -> a + x, 0, xs)
 end
 
 # ── nix ──────────────────────────────────────────────────────────────

@@ -1,2 +1,2 @@
-package("kumiawase", "0.1.0")
+package("kumiawase", "0.1.1")
 needs("kazu", "^0.1")

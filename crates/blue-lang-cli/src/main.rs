@@ -690,6 +690,17 @@ fn dir_of(file: &Path) -> PathBuf {
         .to_path_buf()
 }
 
+/// The directory of the Bluefile a file answers to: a level has none of its
+/// own, so its root's.
+fn manifest_dir_of(file: &Path) -> PathBuf {
+    let dir = dir_of(file);
+    std::fs::canonicalize(&dir)
+        .unwrap_or_else(|_| dir.clone())
+        .ancestors()
+        .find(|d| d.join(blue_lang_pkg::MANIFEST_FILE).is_file())
+        .map_or(dir, Path::to_path_buf)
+}
+
 fn read_bytes(path: &Path) -> Result<Vec<u8>, CliError> {
     std::fs::read(path).map_err(|source| CliError::Read {
         path: path.display().to_string(),
@@ -1854,7 +1865,7 @@ fn check(file: &Path, format: Format, fix: bool, only: &[String]) -> Result<Exit
         && only.is_empty()
         && blue_lang_runtime::uses::Loader::entry_package(&loader, file).is_some()
     {
-        let dir = dir_of(file);
+        let dir = manifest_dir_of(file);
         let disagrees = checked.outcome.diagnostics.iter().any(|d| {
             matches!(
                 d.code,

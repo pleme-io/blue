@@ -149,7 +149,12 @@ legacy_names("0.1.1", "q")
 
 legacy_names(
   "0.1.2",
-  [%w[refusal_kind kyohi::kind], %w[refusal_why kyohi::why]]
+  [
+    ["col_names", "kueri::names_of", ""],
+    ["key_names", "kueri::names_of", ""],
+    %w[refusal_kind kyohi::kind],
+    %w[refusal_why kyohi::why]
+  ]
 )
 
 # ── names and literals ─────────────────────────────────────────────────────

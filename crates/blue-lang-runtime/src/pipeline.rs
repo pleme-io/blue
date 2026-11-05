@@ -874,6 +874,30 @@ pub(crate) fn check_stage(
         waivers.extend(found);
         outcome.diagnostics.extend(malformed);
     }
+    let waived_spans: Vec<(Option<crate::uses::FileId>, tatara_lisp::Span)> = waivers
+        .iter()
+        .filter_map(|w| {
+            forms
+                .get(w.top_level)
+                .map(|f| (program.owner_of(w.top_level), f.span))
+        })
+        .collect();
+    for d in outcome
+        .diagnostics
+        .iter_mut()
+        .filter(|d| d.code == blue_lang_check::Code::B0015)
+    {
+        let file = program.owner_of(d.top_level);
+        for fix in &mut d.fixes {
+            if fix
+                .edits
+                .iter()
+                .any(|e| e.original != e.replacement && waived_spans.contains(&(file, e.span)))
+            {
+                fix.applicability = blue_lang_check::Applicability::MaybeIncorrect;
+            }
+        }
+    }
     let (reuse_waivers, waivers): (Vec<_>, Vec<_>) = waivers
         .into_iter()
         .partition(|w| w.code == blue_lang_check::Code::B0070);

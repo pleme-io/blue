@@ -122,7 +122,10 @@ fn a_bridge_into_the_compiled_in_distribution_warns_a_caller_on_disk() {
     let root: PathBuf = std::env::temp_dir().join(format!("blue-embedded-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
     let caller = root.join("app/main.b");
-    write(&caller, "use(\"toukei\", [:total])\n\nprint(total([1, 2]))\n");
+    write(
+        &caller,
+        "use(\"toukei\", [:total])\n\nprint(total([1, 2]))\n",
+    );
     let out = Command::new(env!("CARGO_BIN_EXE_blue"))
         .env_remove("BLUE_PATH")
         .env_remove("BLUE_CONFIG")
@@ -428,6 +431,37 @@ fn kroot(dist: &Path, version: &str) {
         ),
         "def tag()\n  1\nend\n",
     );
+}
+
+#[test]
+fn fix_never_parts_a_waiver_from_the_use_it_covers() {
+    let root: PathBuf =
+        std::env::temp_dir().join(format!("blue-waived-use-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    let dist = root.join("bidamas");
+    bidama(
+        &dist,
+        "aa",
+        "package(\"aa\", \"0.1.0\")\n",
+        "def x()\n  1\nend\n",
+    );
+    bidama(
+        &dist,
+        "zz",
+        "package(\"zz\", \"0.1.0\")\n",
+        "def y()\n  2\nend\n",
+    );
+    let file = root.join("app/main.b");
+    let src = "# waive B0016: a facade keeps zz\nuse(\"zz\")\nuse(\"aa\")\n\nprint(aa::x)\n";
+    write(&file, src);
+
+    let _ = check(&dist, &file, &["--fix"]);
+    let after = std::fs::read_to_string(&file).expect("read");
+    assert!(
+        after.contains("# waive B0016: a facade keeps zz\nuse(\"zz\")"),
+        "{after}"
+    );
+    let _ = std::fs::remove_dir_all(&root);
 }
 
 #[test]

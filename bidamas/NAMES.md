@@ -115,8 +115,11 @@ replacement (`docs/COMPOUNDING.md`).
 | `kinji` | `refusal` | `kyohi::refusal` | 0.1.2 |
 | `kinji` | `refusal_kind` | `kyohi::kind` | 0.1.2 |
 | `kinji` | `refusal_why` | `kyohi::why` | 0.1.2 |
+| `kueri` | `col_names` | `kueri::names_of` | 0.1.2 |
+| `kueri` | `key_names` | `kueri::names_of` | 0.1.2 |
 | `kueri` | `refusal_kind` | `kyohi::kind` | 0.1.2 |
 | `kueri` | `refusal_why` | `kyohi::why` | 0.1.2 |
+| `kumiawase` | `lucas_onward` | `kumiawase::fib_onward` | 0.1.1 |
 | `kyohi` | `findings` | `kyohi::check` | 0.1.2 |
 | `kyohi` | `refuse` | `kyohi::enforce` | 0.1.2 |
 | `moji` | `insert_text` | `junjo::insert_ordered` | 0.1.1 |

@@ -488,17 +488,24 @@ end
 pkg_legacy_prefix: The prefix the package's definitions once carried (`legacy_names`), or nil.
 """
 def pkg_legacy_prefix(r)
-  if size(r) > 6
-    r[6]
-  end
+  pkg_optional(r, 6)
 end
 
 @doc """
 pkg_dir: The directory the package was read from, or nil for a record built by hand.
 """
 def pkg_dir(r)
-  if size(r) > 7
-    r[7]
+  pkg_optional(r, 7)
+end
+
+@doc """
+pkg_optional: The optional slot i of a package record, or nil when the record stops before it.
+
+    pkg_optional(["p", "1"], 6) #=> nil
+"""
+def pkg_optional(r, i)
+  if size(r) > i
+    r[i]
   end
 end
 
@@ -2442,6 +2449,15 @@ def graph_table(dir, name)
   end
   render = last(table)
   render(g)
+end
+
+test "pkg_optional reads a trailing slot only when the record carries it"
+  assert pkg_optional([], 0).nil?
+  assert pkg_optional(%w[a b c], 1) == "b"
+  r = ["p", "1", [], [], [], [], "old_", "/x"]
+  assert pkg_optional(r, 6) == pkg_legacy_prefix(r)
+  assert pkg_dir(r) == "/x"
+  assert pkg_dir(["p", "1", [], [], [], [], "old_"]).nil?
 end
 
 test "every exported table renders from the graph the export reads, and an unknown name is refused naming the tables"

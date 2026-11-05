@@ -16,8 +16,8 @@ trees add a second axis (section 6). Pick up from section 6.
 ## 1. Destination
 
 Every recurring shape is one word in the lowest bidama that can own it, and every
-other bidama imports it. Foundations (`kazu`, `kansuu`, `deeta`, `retsu`, `moji`,
-`kyohi`, `kousei`, `jisho`) depend only on each other. Service batteries depend on
+other bidama imports it. Foundations (`kazu`, `kansuu`, `deeta`, `retsu`, `ronri`,
+`junjo`, `moji`, `kyohi`, `kousei`, `jisho`) depend only on each other. Service batteries depend on
 each other where they meet (retry under supervision, rate limits in the request
 path). A domain every service needs has a bidama before a second service writes it
 by hand. The near-duplicate pin only falls.
@@ -105,9 +105,9 @@ Land each with `git land`, rebased onto the newest main, after
 | 2 | `bidamas/exact-copies` | `526129316` | the 10 census copies and 3 in-package twins, each removed word with a `legacy_names` or retired row; new `retsu::index_of_at`, `kueri::names_of`; pins SHAPE_GROUPS 18→16, NEAR 252→235, SHAPE_HASH 27→16 | 2,140 workspace tests green on its base (`fb0ac803`); rebase onto 1 |
 | 3 | `blue/package-rename-bridge` | `0d033196` | B0074 moved-package: `legacy_packages(since, [["bpf", "kaaneru/bpf"]])` in the new root's Bluefile, `blue check --fix` rewriting `use`, qualifiers and `needs` | 2,164 green, 5 red runs; stacked on `57a545d6`, so rebase onto 1; run `blue gen/consumers.b sweep --record` before landing (prepush `swept-codes` was skipped) |
 
-Open from 2: `moji` (a foundation) now needs `junjo`, which needs `ronri` and
-`kansuu`. Decide: add `junjo` and `ronri` to the foundation list in section 1,
-or move `sort` and `insert_ordered` down. Open from 3: a `use` spelled
+Decided from 2: `moji` needs `junjo`, which needs `ronri`. Both depend only on
+foundations and join the list in section 1. Moving `sort` below them would copy
+it. Open from 3: a `use` spelled
 `%i[bpf]` keeps its diagnostic without a fix; nix, the solver, the registry and
 `confirm_dir` do not follow a move yet.
 

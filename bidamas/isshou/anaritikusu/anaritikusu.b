@@ -703,8 +703,17 @@ binding: One lifecycle to analyse: its definition, the path of its nisshi stream
 and the path its history (the state after every record) is written to.
 """
 def binding(d, stream, history)
+  def_entry(d, :stream, stream, :history, history)
+end
+
+@doc """
+def_entry: A definition, refused unless it names itself, with two more named slots.
+
+    def_entry(isshou::raifusaikuru::example_consumable, :a, 1, :b, 2)[:b] #=> 2
+"""
+def def_entry(d, ka, a, kb, b)
   isshou::raifusaikuru::name(d)
-  {def: d, stream:, history:}
+  {def: d, ka => a, kb => b}
 end
 
 # waive B0013: `def` is a reserved word, so the prefix stays; isshou::anaritikusu::def names it too
@@ -2161,8 +2170,7 @@ stream: A stream to analyse: its definition, its path and its label (the genesis
 nisshi hashes it under).
 """
 def stream(d, path, label)
-  isshou::raifusaikuru::name(d)
-  {def: d, path:, label:}
+  def_entry(d, :path, path, :label, label)
 end
 
 @doc """
@@ -3540,4 +3548,21 @@ test "as of, with two records of the linked entity in one second: the state afte
     norm_rows(read(db, la_find(ms, "portion_item")))
   ) == norm_rows([["p-t", 3, 2], ["p-u", 3, 2]])
   rm_rf(dir)
+end
+
+test "def_entry on the empty case: a definition with nothing in its slots"
+  d = isshou::raifusaikuru::example_consumable
+  assert def_entry(d, :a, nil, :b, nil) == {def: d, a: nil, b: nil}
+end
+
+test "def_entry as identity: binding and stream are one call each"
+  d = isshou::raifusaikuru::example_consumable
+  assert binding(d, "s", "h") == def_entry(d, :stream, "s", :history, "h")
+  assert stream(d, "p", "l") == def_entry(d, :path, "p", :label, "l")
+end
+
+test "def_entry on a known value"
+  d = isshou::raifusaikuru::example_consumable
+  assert binding(d, "s", "h") == {def: d, stream: "s", history: "h"}
+  assert stream(d, "p", "l")[:label] == "l"
 end

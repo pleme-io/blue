@@ -101,11 +101,20 @@ def fleet_repo(version)
 end
 
 def allow_top(cfg, entries)
-  assoc(cfg, :top, append(cfg[:top], entries))
+  append_field(cfg, :top, entries)
 end
 
 def configurations(cfg, names)
-  assoc(cfg, :configurations, append(cfg[:configurations], names))
+  append_field(cfg, :configurations, names)
+end
+
+@doc """
+append_field: `cfg` with `xs` appended to the list at `key`.
+
+    append_field({top: ["a"]}, :top, ["b"]) #=> {top: ["a", "b"]}
+"""
+def append_field(cfg, key, xs)
+  assoc(cfg, key, append(get(cfg, key), xs))
 end
 
 @doc """
@@ -1262,7 +1271,16 @@ def waived?(ws, x)
 end
 
 def tier_of(id)
-  first(filter((r) -> r[:id] == id, rules))[:tier]
+  rule_field(id, :tier)
+end
+
+@doc """
+rule_field: the value at `key` of the rule whose id is `id`; an unknown id raises.
+
+    rule_field("trio/every-concept", :tier) #=> :gate
+"""
+def rule_field(id, key)
+  get(first(filter((r) -> r[:id] == id, rules)), key)
 end
 
 def key_of(x)
@@ -1648,7 +1666,7 @@ def plain(x)
 end
 
 def plane_of(id)
-  first(filter((r) -> r[:id] == id, rules))[:plane]
+  rule_field(id, :plane)
 end
 
 def plane_counts(result, timing)
@@ -2577,4 +2595,22 @@ test "arguments: a command is required and flags are read"
   a = parse_args(%w[check --json --root /r --tree])
   assert [a[:json], a[:root], a[:tree]] == [true, "/r", true]
   assert parse_args(%w[check --root])[:error] != nil
+end
+
+test "append_field grows one list and leaves the rest of the config"
+  assert append_field({top: []}, :top, []) == {top: []}
+  cfg = {top: ["a"], configurations: []}
+  assert append_field(cfg, :top, []) == cfg
+  assert append_field(cfg, :top, %w[b c]) ==
+    {top: %w[a b c], configurations: []}
+  assert allow_top(cfg, ["b"]) == append_field(cfg, :top, ["b"])
+  assert configurations(cfg, ["plo"])[:configurations] == ["plo"]
+end
+
+test "rule_field reads one field of a rule by id"
+  assert (rule_field("no-such-rule", :tier) rescue :unknown) == :unknown
+  assert rule_field("trio/every-concept", :id) == "trio/every-concept"
+  assert rule_field("trio/every-concept", :plane) == :layout
+  assert tier_of("trio/every-concept") == :gate
+  assert plane_of("trio/every-concept") == :layout
 end

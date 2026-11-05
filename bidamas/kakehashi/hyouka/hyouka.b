@@ -129,14 +129,29 @@ def answer(out, read)
 end
 
 def eval_json(inst, extra)
-  answer(
-    run_nix(concat_lists(["eval", "--json", inst], extra)),
-    (t) -> json_parse(t)
-  )
+  eval_with("--json", inst, extra, (t) -> json_parse(t))
 end
 
 def eval_raw(inst, extra)
-  answer(run_nix(concat_lists(["eval", "--raw", inst], extra)), (t) -> t)
+  eval_with("--raw", inst, extra, (t) -> t)
+end
+
+@doc """
+eval_args: the arguments of `nix eval` printing `inst` in the format `flag`, then `extra`.
+
+    eval_args("--raw", "f#a", ["--impure"]) #=> ["eval", "--raw", "f#a", "--impure"]
+"""
+def eval_args(flag, inst, extra)
+  concat_lists(["eval", flag, inst], extra)
+end
+
+@doc """
+eval_with: run `nix eval` with `eval_args` and answer what `read` makes of its output.
+
+    ok?(eval_with("--raw", "/nonexistent/hyouka#a", [], (t) -> t)) #=> false
+"""
+def eval_with(flag, inst, extra, read)
+  answer(run_nix(eval_args(flag, inst, extra)), read)
 end
 
 def target_of(o)
@@ -333,4 +348,18 @@ test "results carry a value or a refusal, never both"
   assert first(refusal_of(d)) == :unstartable
   assert installable(".", "darwinConfigurations.ryn.system") ==
     ".#darwinConfigurations.ryn.system"
+end
+
+test "eval_args puts the format flag before the installable and the extras after"
+  assert eval_args("--json", "f#a", []) == ["eval", "--json", "f#a"]
+  assert eval_args("--raw", "", []) == ["eval", "--raw", ""]
+  assert eval_args("--raw", "f#a", %w[--impure --offline]) ==
+    ["eval", "--raw", "f#a", "--impure", "--offline"]
+end
+
+test "eval_with refuses an installable nix cannot read"
+  assert not ok?(
+    eval_with("--json", "/nonexistent/hyouka#a", [], (t) -> json_parse(t))
+  )
+  assert not ok?(eval_raw("/nonexistent/hyouka#a", []))
 end

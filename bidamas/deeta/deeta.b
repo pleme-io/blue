@@ -94,12 +94,7 @@ so the value's type is checked here instead.
     get_str("not a doc", "k", "d") #=> "d"
 """
 def get_str(doc, key, default)
-  v = as_json(doc, key)
-  if string?(v)
-    v
-  else
-    default
-  end
+  get_if(doc, key, string?, default)
 end
 
 @doc """
@@ -111,12 +106,7 @@ that accepts both.
     get_int(nil, "k", 7) #=> 7
 """
 def get_int(doc, key, default)
-  v = as_json(doc, key)
-  if integer?(v)
-    v
-  else
-    default
-  end
+  get_if(doc, key, integer?, default)
 end
 
 @doc """
@@ -126,8 +116,18 @@ a number.
     get_number(42, "k", 0) #=> 0
 """
 def get_number(doc, key, default)
+  get_if(doc, key, number?, default)
+end
+
+@doc """
+get_if(doc, key, pred, default) is the value at key when pred holds of it, and
+default otherwise, for a missing field, a null and a non-document too.
+
+    get_if(json_parse("{\"n\":3}"), "n", integer?, 0) #=> 3
+"""
+def get_if(doc, key, pred, default)
   v = as_json(doc, key)
-  if number?(v)
+  if pred(v)
     v
   else
     default
@@ -2065,4 +2065,13 @@ end
 test "parse :json reads JSON into maps, as json_read does"
   assert parse("{\"a\": [1, null]}", :json) == {"a" => [1, nil]}
   assert parse("{\"a\": [1, null]}", :yaml) == {"a" => [1, nil]}
+end
+
+test "get_if keeps the value only when pred holds"
+  doc = json_parse("{\"n\":3,\"f\":3.5,\"k\":\"v\",\"z\":null}")
+  assert get_if(nil, "k", string?, "d") == "d"
+  assert get_if(doc, "k", (_v) -> true, "d") == "v"
+  assert get_if(doc, "n", integer?, 0) == 3
+  assert get_if(doc, "f", integer?, 0) == 0
+  assert get_if(doc, "z", (v) -> not v.nil?, 7) == 7
 end

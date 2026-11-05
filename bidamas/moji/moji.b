@@ -242,7 +242,16 @@ rather than an oversight.
     before_first("", "=") #=> ""
 """
 def before_first(s, sep)
-  i = char_index(s, sep)
+  before_cut(s, char_index(s, sep))
+end
+
+@doc """
+before_cut(s, i) is s up to the character index i, or the whole of s when i
+is below zero, the answer of a search that found nothing.
+
+    before_cut("key=value", 3) #=> "key"
+"""
+def before_cut(s, i)
   if i < 0
     s
   else
@@ -250,13 +259,22 @@ def before_first(s, sep)
   end
 end
 
-def after_first(s, sep)
-  i = char_index(s, sep)
+@doc """
+after_cut(s, sep, i) is s after the sep found at character index i, or the
+empty string when i is below zero, the answer of a search that found nothing.
+
+    after_cut("key=value", "=", 3) #=> "value"
+"""
+def after_cut(s, sep, i)
   if i < 0
     ""
   else
     drop_chars(s, i + length(sep))
   end
+end
+
+def after_first(s, sep)
+  after_cut(s, sep, char_index(s, sep))
 end
 
 @doc """
@@ -267,21 +285,11 @@ after_first would have answered "tar.gz".
     before_last("a.tar.gz", ".") #=> "a.tar"
 """
 def before_last(s, sep)
-  i = last_char_index(s, sep)
-  if i < 0
-    s
-  else
-    take_chars(s, i)
-  end
+  before_cut(s, last_char_index(s, sep))
 end
 
 def after_last(s, sep)
-  i = last_char_index(s, sep)
-  if i < 0
-    ""
-  else
-    drop_chars(s, i + length(sep))
-  end
+  after_cut(s, sep, last_char_index(s, sep))
 end
 
 def common_prefix_from(a, b, i)
@@ -672,7 +680,16 @@ punctuation, kana — pass through, which is what makes it self-inverse.
     swap_case("") #=> ""
 """
 def swap_case(s)
-  join(map(swap_char, chars(s)), "")
+  map_chars(swap_char, s)
+end
+
+@doc """
+map_chars(f, s) is the string made of f applied to each character of s.
+
+    map_chars(upcase, "ab") #=> "AB"
+"""
+def map_chars(f, s)
+  join(map(f, chars(s)), "")
 end
 
 # ── character-class predicates ─────────────────────────────────────
@@ -739,11 +756,21 @@ string of digits instead of both true.
     is_upper("") #=> false
 """
 def is_upper(s)
-  s == upcase(s) and s != downcase(s)
+  in_case(s, upcase, downcase)
 end
 
 def is_lower(s)
-  s == downcase(s) and s != upcase(s)
+  in_case(s, downcase, upcase)
+end
+
+@doc """
+in_case(s, to, other) says whether s is already what to makes of it and is
+changed by other, so a string with no letters is in neither case.
+
+    in_case("AB", upcase, downcase) #=> true
+"""
+def in_case(s, to, other)
+  s == to(s) and s != other(s)
 end
 
 # ── ordering ───────────────────────────────────────────────────────
@@ -1414,4 +1441,29 @@ test "glob_match? reads * within a segment, ** across them, ? as one character"
   assert glob_match?("", "") == true
   assert glob_match?("", "a") == false
   assert glob_match?("**", "") == true
+end
+
+test "before_cut and after_cut split at a found index"
+  assert before_cut("", -1) == ""
+  assert after_cut("", "=", -1) == ""
+  assert before_cut("abc", -1) == "abc"
+  assert after_cut("abc", "=", -1) == ""
+  assert before_cut("key=value", 3) == "key"
+  assert after_cut("key=value", "=", 3) == "value"
+  assert after_cut("a::b", "::", 1) == "b"
+end
+
+test "in_case holds when to keeps s and other changes it"
+  assert in_case("", upcase, downcase) == false
+  assert in_case("AB", upcase, downcase) == true
+  assert in_case("Ab", upcase, downcase) == false
+  assert in_case("12", upcase, downcase) == false
+  assert in_case("ab", downcase, upcase) == true
+end
+
+test "map_chars rebuilds the string"
+  assert map_chars(upcase, "") == ""
+  assert map_chars((c) -> c, "abc") == "abc"
+  assert map_chars(upcase, "ab") == "AB"
+  assert map_chars((c) -> concat(c, c), "ab") == "aabb"
 end

@@ -1369,7 +1369,7 @@ def doc_meaning(verb, lines)
 end
 
 @doc """
-verb_meanings: the meaning every documented definition of a root's bidamas gives, keyed `bidama::name`.
+verb_meanings: the meaning every documented definition of a root's bidamas gives, keyed `bidama::name`, a level's by its last segment, the space a verb row names.
 
     verb_meanings("/nonexistent") #=> {}
 """
@@ -1381,7 +1381,13 @@ def verb_meanings(root)
           if is_empty(e[2])
             m
           else
-            assoc(m, "#{pkg_name(r)}::#{first(e)}", doc_meaning(first(e), e[2]))
+            parts = split("#{pkg_name(r)}::#{first(e)}", "::")
+            verb = last(parts)
+            assoc(
+              m,
+              "#{parts[size(parts) - 2]}::#{verb}",
+              doc_meaning(verb, e[2])
+            )
           end
         end,
         acc,
@@ -1976,14 +1982,19 @@ def corpus_packages(roots)
   flat_map(
     roots,
     fn(root)
-      map(
+      flat_map(
+        package_dirs(root),
         fn(dir)
-          [
-            first(parse_manifest(read_file(concat(dir, "/Bluefile")))),
-            package_text(dir)
-          ]
-        end,
-        package_dirs(root)
+          concat_lists(
+            [
+              [
+                first(parse_manifest(read_file(concat(dir, "/Bluefile")))),
+                package_text(dir)
+              ]
+            ],
+            map((s) -> [last(first(s)), s[1]], level_sources(dir))
+          )
+        end
       )
     end
   )
@@ -3596,6 +3607,42 @@ test "corpus_packages reads each package's name and text from a root, and the pr
   rm_rf(root)
   r = untested_probe(g, []) rescue "caught"
   assert r == "caught"
+end
+
+test "a level's verbs are read under its last segment, for tests and for meanings"
+  root = path_join(
+    getenv("TMPDIR", "/tmp"),
+    "mokuroku-lv-#{blake3_hex("g11-level")}"
+  )
+  rm_rf(root)
+  mkdir_p(path_join(root, "fam/kid"))
+  write_file(
+    path_join(root, "fam/Bluefile"),
+    unlines(["package(\"fam\", \"0.1.0\")"])
+  )
+  write_program(path_join(root, "fam/fam.b"), "")
+  write_program(
+    path_join(root, "fam/kid/kid.b"),
+    unlines(
+      [
+        "@doc \"\"\"",
+        "go: send it on.",
+        "\"\"\"",
+        "def go(x)",
+        "  x",
+        "end",
+        "",
+        "test \"go\"",
+        "  assert go(1) == 1",
+        "end"
+      ]
+    )
+  )
+  assert map(first, corpus_packages([root])) == %w[fam kid]
+  g = ux_graph([%w[kid go exists:kid one], %w[kid stop exists:kid two]])
+  assert map((f) -> f[:subject], untested_probe(g, [root])) == ["kid::stop"]
+  assert verb_meanings(root)["kid::go"] == "send it on"
+  rm_rf(root)
 end
 
 test "a comment after code, or alone on a line, names no token"

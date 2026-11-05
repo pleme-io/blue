@@ -11,9 +11,9 @@ answers the samples, and `exposition` writes them as /metrics serves them.
 
 use("jisho")
 use("kyohi", [:raised])
+use("mitoshi/rogu")
 use("moji", %i[checked lines])
 use("retsu", %i[count_where enumerate first is_empty rest zip])
-use("rogu")
 
 def name_ok?(name)
   string?(name) and name != "" and not contains?(name, " ")
@@ -362,7 +362,7 @@ endpoint: a /metrics handler over instruments, or nil when observe turns metrics
     endpoint({metrics: :off}, []) #=> nil
 """
 def endpoint(observe, instruments)
-  if rogu::on?(observe, :metrics)
+  if mitoshi::rogu::on?(observe, :metrics)
     fn(_req)
       {
         status: 200,

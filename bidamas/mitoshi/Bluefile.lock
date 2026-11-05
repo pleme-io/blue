@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:ea1ea8eeaf187271607e1068cde2cbedb964d690058f303ad88516919d40bbde",
+  "manifest": {
+    "schema": 1,
+    "name": "mitoshi",
+    "version": "0.1.0",
+    "needs": {
+      "jisho": "^0.1.0",
+      "kyohi": "^0.1.0",
+      "moji": "^0.1.0",
+      "retsu": "^0.1.0",
+      "shisutemu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null,
+    "legacy_packages": {
+      "keisoku": {
+        "since": "0.1.0",
+        "to": "mitoshi/keisoku"
+      },
+      "rogu": {
+        "since": "0.1.0",
+        "to": "mitoshi/rogu"
+      },
+      "tsuiseki": {
+        "since": "0.1.0",
+        "to": "mitoshi/tsuiseki"
+      }
+    }
+  },
+  "sources": {}
+}

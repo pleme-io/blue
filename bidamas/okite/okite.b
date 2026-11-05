@@ -179,6 +179,87 @@ end
 
 # ── laws ───────────────────────────────────────────────────────────────────
 
+record law_a(x, y)
+
+record law_b(x, y)
+
+record law_typed(n: Int, inner: law_a)
+
+def law_record_equality_includes_the_name()
+  all(
+    fn(p)
+      law_a(p[0], p[1]) == law_a(p[0], p[1]) and
+        law_a(p[0], p[1]) != law_b(p[0], p[1]) and
+        law_a(p[0], p[1]) != {x: p[0], y: p[1]} and
+        law_a(p[0], p[1]) == law_a({y: p[1], x: p[0]})
+    end,
+    pairs(31, 200)
+  )
+end
+
+def law_record_predicate_is_the_name_and_the_fields()
+  all(
+    fn(p)
+      a = law_a(p[0], p[1])
+      law_a?(a) and
+        not law_b?(a) and
+        not law_a?({x: p[0], y: p[1]}) and
+        not law_a?(assoc(a, :z, 1)) and
+        record_name(assoc(a, :z, 1)).nil? and
+        record_name(dissoc(a, :y)).nil? and
+        record_name({**a, z: 1}).nil? and
+        not law_a?(p[0])
+    end,
+    pairs(32, 200)
+  )
+end
+
+def law_record_update_is_a_copy()
+  all(
+    fn(p)
+      a = law_a(p[0], 0)
+      b = law_a(**a, x: p[1])
+      b.x == p[1] and a.x == p[0] and b.y == 0
+    end,
+    pairs(33, 200)
+  )
+end
+
+def law_record_refuses_by_name()
+  make = law_a
+  typed = law_typed
+  refusal = fn(f)
+    begin
+      f()
+      nil
+    rescue :record as e
+      e.data
+    end
+  end
+  refusal(() -> make({x: 1, z: 2})) ==
+    {
+      record: "okite::law_a",
+      missing: [:y],
+      unknown: [:z]
+    } and
+    refusal(() -> make(1)).missing ==
+      [:y] and
+    (typed("s", law_a(1, 2)) rescue :refused) ==
+      :refused and (typed(1, law_b(1, 2)) rescue :refused) == :refused
+end
+
+def law_record_crosses_json()
+  a = law_typed(1, law_a([1, nil], "s"))
+  json_read(json_stringify(a)) == a and
+    law_typed?(json_read(json_stringify(a))) and
+    json_get(json_parse(json_stringify(a)), "$record") ==
+      "okite::law_typed(inner,n)"
+end
+
+def law_record_prints_its_call()
+  to_s(law_a(1, [2])) == "okite::law_a({x: 1, y: [2]})"
+end
+
 def law_equal_reflexive()
   all((v) -> v == v, values(11, 300))
 end
@@ -645,6 +726,26 @@ def decisions()
           () -> law_one_use_reaches_every_level_below
         ],
         ["a listed name is bare", () -> law_listed_name_is_bare]
+      ]
+    },
+    {
+      id: "D0017",
+      date: "2026-11-04",
+      rule: "`record point(x, y)` is a map carrying its name and fields under \"$record\": == includes them, json_read restores them; a map whose keys stop matching is plain.",
+      why: "The operator: a structure one line long that stays data. A map already prints, compares, spawns and crosses JSON, so the name is the one thing added; the theory's `record` (G2) keeps its word, and a field is read with the dot that exists.",
+      laws: [
+        [
+          "equality includes the name",
+          () -> law_record_equality_includes_the_name
+        ],
+        [
+          "the predicate is the name and the fields",
+          () -> law_record_predicate_is_the_name_and_the_fields
+        ],
+        ["an update is a copy", () -> law_record_update_is_a_copy],
+        ["a field is refused by name", () -> law_record_refuses_by_name],
+        ["json_read restores the name", () -> law_record_crosses_json],
+        ["to_s prints the call", () -> law_record_prints_its_call]
       ]
     }
   ]

@@ -1018,6 +1018,11 @@ impl<'s> Renderer<'s> {
             Some("lambda") if items.len() == 3 && is_params(&items[1]) => {
                 return self.lambda_form(s, items, min_prec)
             }
+            Some(blue_lang_syntax::record::LOWERED_RECORD) => {
+                if let Some(record) = blue_lang_syntax::record::record_parts(s) {
+                    return self.record_form(s, &record);
+                }
+            }
             // (defmacro name (params) body)
             //
             // Note the shape differs from `define`: the name is a bare
@@ -1682,6 +1687,25 @@ impl<'s> Renderer<'s> {
         self.block(s, header, body)
     }
 
+    fn record_form(&self, s: &Spanned, record: &blue_lang_syntax::record::Record<'_>) -> Doc {
+        let spans: Vec<Span> = record.fields.iter().map(|f| f.node.span).collect();
+        let (lo, hi) = self.inside(s, b'(', b')');
+        let u = self.units(record.name.span.end.max(lo), hi, &spans);
+        let docs = record
+            .fields
+            .iter()
+            .map(|f| {
+                let ty = f.ty.and_then(|t| render_ty(&t.to_sexp()));
+                Doc::text(match ty {
+                    Some(t) => format!("{}: {t}", f.name),
+                    None => f.name.to_string(),
+                })
+            })
+            .collect();
+        let head = format!("record {}", record.name.as_symbol().unwrap_or("_"));
+        Doc::text(head).concat(self.seq("(", ")", &u, docs))
+    }
+
     /// `def name(params…)` from a signature node `(name p…)`.
     fn signature(&self, node: &Spanned, sig: &[Spanned]) -> Doc {
         let mut head = String::from("def ");
@@ -2258,7 +2282,10 @@ fn render_float(f: f64) -> String {
 fn render_ty(t: &Sexp) -> Option<String> {
     match t {
         Sexp::Atom(Atom::Symbol(n)) if &**n == "dyn" => None,
-        Sexp::Atom(Atom::Symbol(n)) => Some(n.to_string()),
+        Sexp::Atom(Atom::Symbol(n)) => Some(match blue_lang_syntax::qualified(n) {
+            Some((pkg, name)) => format!("{pkg}::{name}"),
+            None => n.to_string(),
+        }),
         Sexp::List(items) if !items.is_empty() => {
             let head = sym_name(&items[0])?;
             let args: Vec<String> = items[1..]

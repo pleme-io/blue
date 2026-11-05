@@ -70,6 +70,7 @@ pub mod project_rules;
 #[cfg(feature = "sys")]
 pub mod provide;
 pub mod receipt;
+pub mod record;
 pub mod session;
 pub mod spread;
 pub mod stdlib;

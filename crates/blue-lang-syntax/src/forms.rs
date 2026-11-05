@@ -91,6 +91,11 @@ pub const FORMS: &[Form] = &[
         doc: "A qualified name, as deep as the levels of a bidama go: `a::b::c` is `c` in level `a/b`. After `use(\"a/b\")` the same name is also `b::c`; a level below it, `a::b::d::e`, is also `b::d::e` and `d::e`. One symbol in the tree.",
     },
     Form {
+        example: "record point(x, y: Int)",
+        lowers_to: "(blue-record point point? :x (:y Int))",
+        doc: "A named structure, at a file's top level: point(1, 2) and point({x: 1, y: 2}) construct one, refusing a missing or unknown field at check and at run time, point?(v) is its predicate, p.x reads a field, point(**p, x: 3) is an updated copy. A value is a map carrying its name: == includes the name, and it crosses JSON as {\"$record\": \"point(x,y)\", ...}. A map whose keys no longer match that name, after assoc or a spread, is a plain map. A field type is Int, Float, Str, Bool, Sym, Nil, Map, List(T) or a record, checked at construction. struct and class are refused, naming this.",
+    },
+    Form {
         example: "x = 5",
         lowers_to: "(define x 5)",
         doc: "A binding, only as a statement. There is no `let`; a binding lasts to the end of its body.",

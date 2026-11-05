@@ -100,7 +100,10 @@ pub fn check_file(
 
 fn name_span(def: &Spanned) -> Option<Span> {
     let items = def.as_list()?;
-    if items.first()?.as_symbol()? == "defmacro" {
+    if matches!(
+        items.first()?.as_symbol()?,
+        "defmacro" | blue_lang_syntax::record::LOWERED_RECORD
+    ) {
         return Some(items.get(1)?.span);
     }
     Some(blue_lang_syntax::scope::defined_name_node(items)?.span)

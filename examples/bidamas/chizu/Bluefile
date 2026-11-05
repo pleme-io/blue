@@ -1,0 +1,4 @@
+# The example bidama of records: a declaration another file reaches as
+# chizu::point(...) or with a listed name. `blue lock examples/bidamas/chizu`
+# writes the Bluefile.lock beside it; commit both.
+package("chizu", "0.1.0")

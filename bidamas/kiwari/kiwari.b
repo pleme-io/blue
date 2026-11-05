@@ -1103,7 +1103,7 @@ def doc_rules()
           rep1(ref("_newline")),
           field(
             "definition",
-            choice([ref("def"), ref("defmacro"), ref("binding")])
+            choice([ref("def"), ref("defmacro"), ref("record"), ref("binding")])
           )
         ]
       ),
@@ -1321,8 +1321,45 @@ def surface()
       ),
       rule(
         "_top_statement",
-        choice([ref("documented"), ref("_statement")]),
+        choice([ref("documented"), ref("record"), ref("_statement")]),
         nil
+      ),
+      with(
+        rule("record_head", token(pat("record[ \\t]+#{ident}")), nil),
+        :role,
+        "keyword"
+      ),
+      rule(
+        "record",
+        seq(
+          [
+            field("head", ref("record_head")),
+            lit("("),
+            nl,
+            comma_sep(
+              field(
+                "fields",
+                choice([ref("identifier"), ref("typed_parameter")])
+              )
+            ),
+            lit(")")
+          ]
+        ),
+        [
+          "list",
+          %w[sym blue-record],
+          %w[record_head head],
+          [
+            "each",
+            ["fields"],
+            [
+              "if_kind",
+              "identifier",
+              ["keyword"],
+              ["list", ["each", ["name"], ["keyword"]], %w[field type]]
+            ]
+          ]
+        ]
       ),
       with(
         with(rule("identifier", pat(ident), ["symbol"]), :role, "variable"),
@@ -2024,7 +2061,12 @@ def surface()
           0,
           seq(
             [
-              painted("name", ref("identifier"), "type", ""),
+              painted(
+                "name",
+                choice([ref("identifier"), ref("qualified_name")]),
+                "type",
+                ""
+              ),
               opt(field("arguments", ref("arguments")))
             ]
           )
@@ -2332,6 +2374,7 @@ test "every visible rule of blue's lowers, but the parts its parent reads"
     %w[
       comment
       expectation
+      record_head
       rescue_clause
       rescue_all
       ensure_clause

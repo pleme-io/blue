@@ -280,7 +280,9 @@ mechanism. The decided one is `@doc` and `@moduledoc` with a doctested example
 
 ## Name the fields
 
-A function that returns a record as a list exports accessors (`pkg_name(r)`,
+A structure with named fields is `record point(x, y)` (okite D0016): the
+constructor, predicate and dot come with it, and a call missing a field does
+not compile. A function that returns a record as a list exports accessors (`pkg_name(r)`,
 `conduct_of(p)`), and one that returns a row exports its column names
 (`keishou::metric_names`). Consumers then never write `nth(4, r)` or hard-code
 how many columns there are, so adding a field breaks nothing silently.

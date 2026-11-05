@@ -247,6 +247,12 @@ impl<'a> Lowerer<'a> {
                     .unwrap_or(t);
                 vec![Sexp::Atom(Atom::Keyword(name.to_string()))]
             }
+            Template::RecordHead(field) => {
+                let head = Self::field(node, field)
+                    .ok_or_else(|| self.err(node, format!("no `{field}` field")))?;
+                let name = self.text(head).split_whitespace().last().unwrap_or("");
+                vec![sym(name), sym(&format!("{name}?"))]
+            }
             Template::Lexeme => match self.token(node)? {
                 TokenKind::Int(v) => vec![Sexp::Atom(Atom::Int(v))],
                 TokenKind::Float(v) => vec![Sexp::Atom(Atom::Float(v))],

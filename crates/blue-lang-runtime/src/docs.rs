@@ -369,6 +369,8 @@ pub const NAMES: &[NameDoc] = names! {
     Map: "dig" "dig(tree, keys...)" "The value at the path of keys through nested maps and lists, or nil at the first step that is absent or cannot be entered. A list takes an Int index, negative from the end; dig(tree) is tree.";
     Map: "bury" "bury(tree, keys..., value)" "A new tree with value at the path of keys, every missing level made as a map. Refuses with :bad_path when a value on the way is neither nil, a map nor a list, so data is never replaced silently; a list index may be one past the end; bury(tree, value) is value.";
     Map: "zipmap" "zipmap(keys, values)" "A map pairing keys with values, as long as the shorter list.";
+    Map: "record_name" "record_name(v)" "The name a record carries, `pkg::point` for one a bidama declares; nil for any other value.";
+    Map: "record_fields" "record_fields(r)" "A record's fields as a plain map, without its name: the map a service writes when its JSON carries no name. Anything but a record raises.";
     Map: "map_entries" "map_entries(m)" "Every [key, value] pair of a map, ordered by key under compare's rules; [] for nil. Mixed key kinds raise.";
     // ── functions ─────────────────────────────────────────────────────────
     Function: "map" "map(f, xs, more...)" "f applied to each element; with two lists, f(x, y) pairwise. The FUNCTION comes first. nil maps to [].";

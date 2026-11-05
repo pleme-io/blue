@@ -26,6 +26,7 @@ Semantics that differ from Ruby are in [`bidamas/okite/RULES.md`](../bidamas/oki
 | `{**a, b: 1}` | `(blue-merge (blue-splice a) (hash-map :b 1))` | A map that inherits every key of a map, `**a`, and lets a later entry override it. nil spreads as an empty map; anything else that is not a map is a type error. The map sibling of the splat `*xs`. |
 | `f(x, **a, b: 1)` | `(f x (blue-kwargs (blue-splice a) (hash-map :b 1)))` | A call whose last argument is the map built from `**` spreads and entries, `f(x, {**a, b: 1})` without the braces. Entries after a `**` are the call's last argument, so it cannot also carry a splat `*xs`. |
 | `a::b::c(x)` | `(a/b/c x)` | A qualified name, as deep as the levels of a bidama go: `a::b::c` is `c` in level `a/b`. After `use("a/b")` the same name is also `b::c`; a level below it, `a::b::d::e`, is also `b::d::e` and `d::e`. One symbol in the tree. |
+| `record point(x, y: Int)` | `(blue-record point point? :x (:y Int))` | A named structure, at a file's top level: point(1, 2) and point({x: 1, y: 2}) construct one, refusing a missing or unknown field at check and at run time, point?(v) is its predicate, p.x reads a field, point(**p, x: 3) is an updated copy. A value is a map carrying its name: == includes the name, and it crosses JSON as {"$record": "point(x,y)", ...}. A map whose keys no longer match that name, after assoc or a spread, is a plain map. A field type is Int, Float, Str, Bool, Sym, Nil, Map, List(T) or a record, checked at construction. struct and class are refused, naming this. |
 | `x = 5` | `(define x 5)` | A binding, only as a statement. There is no `let`; a binding lasts to the end of its body. |
 | `f(x, y)` | `(f x y)` | A call. This is the one form the formatter writes, except for a function that takes no parameters: that is called by its bare name, now_ms, never now_ms() (B0023), and passed as a value as fn() now_ms end. |
 | `f(a, *xs)` | `(apply f a xs)` | A splat: the list's elements are the call's last arguments. The one spelling of apply(f, a, xs) with f a name (B0042). |
@@ -98,7 +99,7 @@ Higher binding power binds tighter.
 | `assert` | `assert expr`: inside a test, fail it unless `expr` is truthy; the failure quotes the expression. |
 | `assert_panics` | `assert_panics expr`: inside a test, pass only when `expr`, run in a child held to a pure frame, ends on a capability breach with no host call made. |
 | `fn` | `fn(x) x * 2 end`: an anonymous function, a value. Blue has no brace or do blocks. |
-| `case` | `case v when 1 … when 2 … else … end`: compares with `==`; it does not destructure. |
+| `case` | `case v when 1 … when 2 … else … end`: compares with `==`; `when point?` takes a value of a record the program declares. It does not destructure. |
 | `do` | Reserved and refused: blue has no do-blocks. Pass `fn(x) … end` instead. |
 | `end` | Closes `def`, `defmacro`, `if`, `case`, `fn`, `test` and `quote`. |
 | `else` | The branch of `if` or `case` taken when nothing before it matched. |
@@ -114,7 +115,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-371 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 185 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+373 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 188 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -252,6 +253,8 @@ Higher binding power binds tighter.
 | `dissoc` | `dissoc(m, k)` | 2 | A new map without k; unchanged when k is absent. |
 | `get` | `get(m, k)` | 2 | The value at key k, or nil. Raises on nil and on a list. Also defined by `gitto` (`gitto::get`): a file that lists it gets that one. |
 | `map_entries` | `map_entries(m)` | 1 | Every [key, value] pair of a map, ordered by key under compare's rules; [] for nil. Mixed key kinds raise. |
+| `record_fields` | `record_fields(r)` | 1 | A record's fields as a plain map, without its name: the map a service writes when its JSON carries no name. Anything but a record raises. |
+| `record_name` | `record_name(v)` | 1 | The name a record carries, `pkg::point` for one a bidama declares; nil for any other value. |
 | `zipmap` | `zipmap(keys, values)` | 2 | A map pairing keys with values, as long as the shorter list. |
 
 ### Master verbs
@@ -747,3 +750,4 @@ Every rule blue holds, from the registry the check stage runs (`blue explain COD
 | `B0076` | non-canonical-reference | a qualified name is written by the full path of the level that defines it, so one definition has one spelling and `rg` finds every caller | autofix |
 | `B0077` | non-canonical-use | an import is written `use("a/b")` or `use("a/b", [:x])`: one level, its path as a slash string | autofix |
 | `B0078` | redundant-use | a file imports a tree once: a `use` that lists nothing, of a level below another `use` of the file, adds nothing | autofix |
+| `B0079` | record-fields | a call of a record's constructor gives every field and no other, and a literal in a typed field has that type | refused |

@@ -500,6 +500,12 @@ pub fn definition_nodes<'a>(form: &'a Spanned, out: &mut dyn FnMut(&'a Spanned, 
                 out(n, HeadKind::Macro);
             }
         }
+        Some(crate::record::LOWERED_RECORD) => {
+            if let Some(r) = crate::record::record_parts(form) {
+                out(r.name, HeadKind::Value);
+                out(r.predicate, HeadKind::Value);
+            }
+        }
         Some("define" | "define-typed") => {
             if let Some(n) = defined_name_node(items) {
                 out(n, HeadKind::Value);
@@ -715,6 +721,16 @@ impl Walker<'_> {
             && (use_targets(form).is_some() || head == LEGACY_NAMES || is_level_marker(form))
         {
             self.pass.head(&items[0], head, HeadKind::SpecialForm);
+            return;
+        }
+        if head == crate::record::LOWERED_RECORD {
+            if let Some(r) = crate::record::record_parts(form) {
+                for ty in r.fields.iter().filter_map(|f| f.ty) {
+                    crate::record::type_references(ty, &mut |t| {
+                        self.pass.place(t, t.as_symbol().unwrap_or("_"), opaque);
+                    });
+                }
+            }
             return;
         }
         // `define-typed` is erased before evaluation; its shape is `define`'s

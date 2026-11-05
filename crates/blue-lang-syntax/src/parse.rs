@@ -777,7 +777,7 @@ pub fn keyword_doc(word: &str) -> &'static str {
         "assert" => "`assert expr`: inside a test, fail it unless `expr` is truthy; the failure quotes the expression.",
         "assert_panics" => "`assert_panics expr`: inside a test, pass only when `expr`, run in a child held to a pure frame, ends on a capability breach with no host call made.",
         "fn" => "`fn(x) x * 2 end`: an anonymous function, a value. Blue has no brace or do blocks.",
-        "case" => "`case v when 1 … when 2 … else … end`: compares with `==`; it does not destructure.",
+        "case" => "`case v when 1 … when 2 … else … end`: compares with `==`; `when point?` takes a value of a record the program declares. It does not destructure.",
         "do" => "Reserved and refused: blue has no do-blocks. Pass `fn(x) … end` instead.",
         "end" => "Closes `def`, `defmacro`, `if`, `case`, `fn`, `test` and `quote`.",
         "else" => "The branch of `if` or `case` taken when nothing before it matched.",
@@ -1037,7 +1037,7 @@ impl Parser {
         self.end_of_statement(&[])?;
         if !crate::doc::is_definition(&def) {
             return Err(fail(
-                "`@doc` documents the definition below it: a `def`, a `defmacro` or a \
+                "`@doc` documents the definition below it: a `def`, a `defmacro`, a `record` or a \
                  top-level `name = value`",
                 span,
             ));
@@ -1167,6 +1167,9 @@ impl Parser {
     }
 
     fn statement_inner(&mut self) -> Result<Spanned, Fail> {
+        if let Some(record) = self.record_statement()? {
+            return Ok(record);
+        }
         if let TokenKind::Ident(name) = self.peek().clone() {
             if self.peek_at(1) == "=" && !is_reserved_word(&name) {
                 let name_span = self.peek_span();
@@ -1194,6 +1197,107 @@ impl Parser {
             }
         }
         Ok(e)
+    }
+
+    fn record_statement(&mut self) -> Result<Option<Spanned>, Fail> {
+        let head = self.peek_span();
+        let TokenKind::Ident(word) = self.peek().clone() else {
+            return Ok(None);
+        };
+        let Some(TokenKind::Ident(name)) = self.toks.get(self.pos + 1).map(|t| t.kind.clone())
+        else {
+            return Ok(None);
+        };
+        if is_reserved_word(&name) || matches!(name.as_str(), "when" | "as") {
+            return Ok(None);
+        }
+        if crate::record::RECORD_ALIASES.contains(&word.as_str()) {
+            return Err(fail(
+                format!(
+                    "blue has no `{word}`: a named structure is `record {}(x, y)`",
+                    name.to_lowercase()
+                ),
+                head,
+            ));
+        }
+        if word != "record" {
+            return Ok(None);
+        }
+        if self.depth > 1 {
+            return Err(fail(
+                format!("`record {name}` is a declaration of the top level of a file"),
+                head,
+            ));
+        }
+        self.bump();
+        let name_span = self.peek_span();
+        self.bump();
+        if name.ends_with(['?', '!']) {
+            return Err(fail(
+                format!("a record name ends in neither `?` nor `!`: `{name}` is its constructor, and blue writes its predicate"),
+                name_span,
+            ));
+        }
+        self.expect(
+            &TokenKind::LParen,
+            "`(` and the fields after the record's name",
+        )?;
+        let mut items = vec![
+            sym_at(head, crate::record::LOWERED_RECORD),
+            sym_at(name_span, &name),
+            sym_at(name_span, &format!("{name}?")),
+        ];
+        let mut seen: Vec<String> = Vec::new();
+        self.skip_newlines();
+        while !self.eat(&TokenKind::RParen) {
+            items.push(self.record_field(&mut seen)?);
+            self.skip_newlines();
+            if self.eat(&TokenKind::Comma) {
+                if self.trailing_comma(&TokenKind::RParen) {
+                    break;
+                }
+                continue;
+            }
+            self.expect(&TokenKind::RParen, "`,` or `)`")?;
+            break;
+        }
+        if seen.is_empty() {
+            return Err(fail(
+                format!("`record {name}` names no field; a value with none is a keyword, :{name}"),
+                name_span,
+            ));
+        }
+        Ok(Some(list_at(self.span_since(head.start), items)))
+    }
+
+    fn record_field(&mut self, seen: &mut Vec<String>) -> Result<Spanned, Fail> {
+        let at = self.peek_span();
+        let (field, typed) = match self.bump() {
+            TokenKind::Ident(p) => (p, false),
+            TokenKind::Label(p) => (p, true),
+            other => return Err(fail(format!("expected a field name, found {other}"), at)),
+        };
+        self.not_reserved(&field, at, "a field name")?;
+        if field.ends_with(['?', '!']) {
+            return Err(fail(
+                format!("a field name ends in neither `?` nor `!`, and `{field}` does: every field is required"),
+                at,
+            ));
+        }
+        if seen.contains(&field) {
+            return Err(fail(format!("the field `{field}` is named twice"), at));
+        }
+        seen.push(field.clone());
+        let name = Spanned::new(at, SpannedForm::Atom(Atom::Keyword(field)));
+        if !typed {
+            return Ok(name);
+        }
+        self.skip_newlines();
+        let ty = self.type_expr()?;
+        if ty.as_symbol() == Some("dyn") {
+            return Ok(name);
+        }
+        Ok(list_at(self.span_since(at.start), vec![name, ty]))
     }
 
     /// The token `n` positions ahead, for the two-token lookahead a binding
@@ -3275,6 +3379,9 @@ impl Parser {
             }
         };
         self.not_reserved(&name, name_span, "a type name")?;
+        if self.at(&TokenKind::PathSep) {
+            return self.qualified_name(name_span, &name);
+        }
         if self.at(&TokenKind::LParen) {
             self.bump();
             self.skip_newlines();

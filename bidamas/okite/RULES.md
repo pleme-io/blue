@@ -22,3 +22,4 @@ the build.
 - **D0014** `kyohi::check` returns every finding and never raises; `kyohi::enforce` raises them as one error: kind from opts (`:first` or `:refused`), whys joined.
 - **D0015** A string and a keyword are different values ("a" != :a); error, json_get and json_get_or read either as text, and there a name is a keyword.
 - **D0016** A bidama is a tree; a name has one spelling, its full path `a::b::x` or bare when listed. One `use("a/b")` per tree brings every level below.
+- **D0017** `record point(x, y)` is a map carrying its name and fields under "$record": == includes them, json_read restores them; a map whose keys stop matching is plain.

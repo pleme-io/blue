@@ -946,3 +946,33 @@ fn a_gossiped_comm_flash_breach_yields_an_immunity_entry_kensa_reads() {
     let _ = std::fs::remove_dir_all(dir);
     let _ = std::fs::remove_dir_all(project_dir);
 }
+
+#[test]
+fn a_record_crosses_the_wire_as_json_and_comes_back_equal() {
+    let dir = scratch("record");
+    let file = dir.join("record.b");
+    put(
+        &file,
+        r#"record point(x: Int, y: Int)
+
+record seg(a: point, b: point)
+
+def main()
+  a = flash_open("127.0.0.1:0")
+  b = flash_open("127.0.0.1:0")
+  s = seg(point(1, 2), point(3, 4))
+  flash_put(a, flash_stats(b).address, json_stringify(s))
+  got = json_read(flash_next(b, 2000).payload)
+  write_stdout(to_s([got == s, seg?(got), got.b.y]))
+end
+"#,
+    );
+    let o = blue()
+        .arg("run")
+        .arg("--quiet")
+        .arg(&file)
+        .output()
+        .expect("blue runs");
+    assert!(o.status.success(), "{}", err(&o));
+    assert_eq!(out(&o), "[true, true, 4]");
+}

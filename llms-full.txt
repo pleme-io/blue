@@ -212,9 +212,9 @@ rendered:
 
 | | |
 |---|---|
-| Built-in names | 371: 344 functions, 14 special forms, 13 macros |
-| Surface forms | 31, with 13 operators and 25 reserved words |
-| Check rules | 75: 42 fix themselves, 8 suggest a fix |
+| Built-in names | 373: 346 functions, 14 special forms, 13 macros |
+| Surface forms | 32, with 13 operators and 25 reserved words |
+| Check rules | 76: 42 fix themselves, 8 suggest a fix |
 | Bluefile words | 26 |
 | Commands | 44 |
 
@@ -223,7 +223,7 @@ rendered:
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-65 packages, 5702 definitions, 1900 tests.
+65 packages, 5708 definitions, 1900 tests.
 
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
 - [baito](bidamas/CATALOG.md#baito) (バイト) — bytes as data: integers at a declared width and order, and record layouts that say where each field sits.
@@ -2319,6 +2319,11 @@ and the refusals. `blue explain CODE` prints each row.
   the stack, and exits 1. The error value's fields: `e.kind`, `e.message`,
   `e.data`, `e.cause`, `e.trace` (the raise site, `file:line`); `"#{e}"` is
   `kind: message (at file:line)`.
+- **Declared records**: `record point(x, y: Int)` at a file's top level is the
+  one spelling of a named structure; `struct` and `class` before a name are parse
+  errors naming it. By name is the map a call already takes, `point({x: 1, y: 2})`,
+  and an update is the spread a call already takes, `point(**p, x: 3)`, so the
+  form adds no second call spelling (okite D0017, B0079).
 - **Records**: `x.name` without parentheses reads a field: a map's keyword or
   string key, a keyed list (`exec_capture`'s `[[:status, n], …]`, a parsed JSON
   object), or an error's field. A missing field raises naming the fields there
@@ -4575,6 +4580,15 @@ Each one was checked against the runtime.
   ignores the error is written `rescue _` (B0038). Retry a flaky step with
   `saishikou::retrying({times: 3, wait_ms: 500}, fn() fetch(url) end)`.
   Return refusals as data (`kyohi`) where a caller must branch on several.
+- **A named structure is `record point(x, y)`,** at a file's top level:
+  `point(1, 2)` or `point({x: 1, y: 2})` constructs one, `point?(v)` tells it
+  from any other map, `p.x` reads a field and `point(**p, x: 3)` is an updated
+  copy. A missing or unknown field stops at the check stage (B0079), or raises
+  `:record` naming it when only the run can see it. A record is a map carrying
+  its name: `==` includes the name, `to_s` prints the call, and JSON carries
+  name and fields as `"$record": "point(x,y)"`, which `json_read` restores. A
+  map whose keys stop matching that, after `assoc` adds one, is a plain map
+  (okite D0017).
 - **`x.name` reads a field; it is not a call.** It reads a map's key, a
   keyed list (`exec_capture(...)` gives `cap.status`, `cap.stdout`), a
   parsed JSON object (`doc.spec`) or an error's field, and raises naming the

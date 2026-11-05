@@ -617,7 +617,7 @@ fn is_function_def(form: &Spanned) -> bool {
     form.as_list()
         .is_some_and(|items| match items.first().and_then(Spanned::as_symbol) {
             Some("define" | "define-typed") => items.get(1).is_some_and(|t| t.as_list().is_some()),
-            Some("defmacro") => true,
+            Some("defmacro" | blue_lang_syntax::record::LOWERED_RECORD) => true,
             _ => false,
         })
 }

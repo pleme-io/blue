@@ -34,6 +34,7 @@
 
 use std::sync::Arc;
 
+use blue_lang_syntax::record::RECORD_TAG;
 use serde_json::Value as JsonValue;
 use tatara_lisp_eval::ffi::Arity;
 use tatara_lisp_eval::{EvalError, Interpreter, MapKey, Value};
@@ -218,9 +219,22 @@ pub fn json_to_value(j: &JsonValue) -> Value {
     }
 }
 
+fn carries_its_fields(m: &serde_json::Map<String, JsonValue>) -> bool {
+    let Some(JsonValue::String(tag)) = m.get(RECORD_TAG) else {
+        return false;
+    };
+    crate::record::split_tag(tag).is_some_and(|(_, fields)| {
+        m.len() == fields.len() + 1 && fields.iter().all(|f| m.contains_key(*f))
+    })
+}
+
 pub fn json_to_maps(j: &JsonValue) -> Value {
     match j {
         JsonValue::Array(xs) => Value::list(xs.iter().map(json_to_maps)),
+        JsonValue::Object(m) if carries_its_fields(m) => Value::map(
+            m.iter()
+                .map(|(k, v)| (MapKey::Keyword(Arc::from(k.as_str())), json_to_maps(v))),
+        ),
         JsonValue::Object(m) => Value::map(
             m.iter()
                 .map(|(k, v)| (MapKey::Str(Arc::from(k.as_str())), json_to_maps(v))),

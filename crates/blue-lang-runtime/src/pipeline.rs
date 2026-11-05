@@ -922,6 +922,11 @@ pub(crate) fn check_stage(
             crate::docs::signatures(),
         ));
 
+    outcome
+        .diagnostics
+        .extend(blue_lang_check::records::check(forms, &table, &|i| {
+            namespace_of(program, i)
+        }));
     outcome.diagnostics.extend(doc_diagnostics(program));
     outcome
         .diagnostics

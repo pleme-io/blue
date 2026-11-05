@@ -98,6 +98,11 @@ and the refusals. `blue explain CODE` prints each row.
   the stack, and exits 1. The error value's fields: `e.kind`, `e.message`,
   `e.data`, `e.cause`, `e.trace` (the raise site, `file:line`); `"#{e}"` is
   `kind: message (at file:line)`.
+- **Declared records**: `record point(x, y: Int)` at a file's top level is the
+  one spelling of a named structure; `struct` and `class` before a name are parse
+  errors naming it. By name is the map a call already takes, `point({x: 1, y: 2})`,
+  and an update is the spread a call already takes, `point(**p, x: 3)`, so the
+  form adds no second call spelling (okite D0017, B0079).
 - **Records**: `x.name` without parentheses reads a field: a map's keyword or
   string key, a keyed list (`exec_capture`'s `[[:status, n], …]`, a parsed JSON
   object), or an error's field. A missing field raises naming the fields there

@@ -144,12 +144,19 @@ fn defined_name(form: &Spanned) -> Option<&str> {
     let items = form.as_list()?;
     if !matches!(
         items.first().and_then(Spanned::as_symbol),
-        Some("define" | "define-typed" | "defmacro")
+        Some("define" | "define-typed" | "defmacro" | blue_lang_syntax::record::LOWERED_RECORD)
     ) {
         return None;
     }
     match items.get(1)? {
-        s if s.as_symbol().is_some() && items[0].as_symbol() == Some("defmacro") => s.as_symbol(),
+        s if s.as_symbol().is_some()
+            && matches!(
+                items[0].as_symbol(),
+                Some("defmacro" | blue_lang_syntax::record::LOWERED_RECORD)
+            ) =>
+        {
+            s.as_symbol()
+        }
         s => s.as_list()?.first()?.as_symbol(),
     }
 }
@@ -503,7 +510,11 @@ fn names(form: &Spanned, top: usize, out: &mut Vec<Diagnostic>) {
     };
     let head = items.first().and_then(Spanned::as_symbol);
     let mut check = |n: &Spanned| {
-        if let Some(name) = n.as_symbol() {
+        let written = match &n.form {
+            SpannedForm::Atom(tatara_lisp::Atom::Keyword(k)) => Some(k.as_str()),
+            _ => n.as_symbol(),
+        };
+        if let Some(name) = written {
             if blue_lang_syntax::qualified(name).is_none() && !snake(name) {
                 out.push(
                     Diagnostic::new(
@@ -542,6 +553,18 @@ fn names(form: &Spanned, top: usize, out: &mut Vec<Diagnostic>) {
             for p in items[2].as_list().unwrap_or(&[]) {
                 check(p);
             }
+        }
+        Some(blue_lang_syntax::record::LOWERED_RECORD) => {
+            if let Some(r) = blue_lang_syntax::record::record_parts(form) {
+                check(r.name);
+                for f in &r.fields {
+                    match f.node.as_list() {
+                        Some([name, _]) => check(name),
+                        _ => check(f.node),
+                    }
+                }
+            }
+            return;
         }
         _ => {}
     }

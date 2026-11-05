@@ -89,6 +89,10 @@ const FOUND: &[&str] = &[
     "(-a) |> f",
     "{a: a(a, *[:a, :a])}",
     "a = a or begin\na = \"a#{\"}\\n{\"}b\"\nrescue a\na\nend",
+    "record p(x, y)",
+    "record p(x: Int, y: List(Str), z: geo::point)",
+    "record p(\n  x,\n  y: Int\n)",
+    "record p(x: dyn)",
 ];
 
 /// Every accepted source, formatted, parses back to the same tree.
@@ -152,4 +156,16 @@ fn qualified_names_and_use_spellings_round_trip() {
         round_trips(src).expect(src);
     }
     assert_eq!(format_source("a :: b :: c\n").unwrap(), "a::b::c\n");
+}
+
+#[test]
+fn a_documented_record_keeps_its_doc_through_the_door_a_file_goes_through() {
+    let src = "@doc \"\"\"\np is a place.\n\"\"\"\nrecord p(x)\n";
+    assert_eq!(format_source_lossless(src).unwrap(), src);
+}
+
+#[test]
+fn a_comment_inside_a_record_stays_where_it_is() {
+    let src = "record p(\n  # the first\n  x,\n  y: Int # the second\n)\n";
+    assert_eq!(format_source_lossless(src).unwrap(), src);
 }

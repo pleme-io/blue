@@ -21,6 +21,7 @@ pub mod forms;
 pub mod kigou;
 pub mod lex;
 pub mod parse;
+pub mod record;
 pub mod scope;
 pub mod spelling;
 pub mod test_form;

@@ -285,12 +285,17 @@ fn literal(v: &Value) -> String {
             format!("[{}]", parts.join(", "))
         }
         Value::Map(m) => {
+            let tag = crate::record::name_of(v);
             let mut entries: Vec<String> = m
                 .iter()
+                .filter(|(k, _)| tag.is_none() || !crate::record::is_tag_key(k))
                 .map(|(k, v)| format!("{} {}", key_text(k), literal(v)))
                 .collect();
             entries.sort();
-            format!("{{{}}}", entries.join(", "))
+            match tag {
+                Some(name) => format!("{name}({{{}}})", entries.join(", ")),
+                None => format!("{{{}}}", entries.join(", ")),
+            }
         }
         other => other.type_name().to_string(),
     }
@@ -344,6 +349,7 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
     crate::errors::install(interp);
     crate::paths::install(interp);
     crate::spread::install(interp);
+    crate::record::install(interp);
     crate::collection::install(interp);
     crate::bits::install(interp);
     // ── text ──────────────────────────────────────────────────────────

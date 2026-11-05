@@ -220,6 +220,9 @@ fn field(v: &Value, name: &str, sp: tatara_lisp::Span) -> Result<Value, EvalErro
                     let mut fields: Vec<String> = m
                         .iter()
                         .filter_map(|(k, _)| match k {
+                            MapKey::Keyword(s) if &**s == blue_lang_syntax::record::RECORD_TAG => {
+                                None
+                            }
                             MapKey::Keyword(s) | MapKey::Str(s) => Some(s.to_string()),
                             _ => None,
                         })

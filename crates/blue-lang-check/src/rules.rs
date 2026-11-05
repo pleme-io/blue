@@ -1635,6 +1635,31 @@ thing, and a reader cannot tell which one the file needs. A `use` that lists
 names (`use(\"tree/kid\", [:x])`) does add something, the bare names, and stays.
 `blue check --fix` removes the redundant one.",
     }
+    B0079 {
+        slug: "record-fields",
+        severity: Error,
+        fix: None,
+        law: "a call of a record's constructor gives every field and no other, and a literal in a typed field has that type",
+        witness: "record point(x, y)\npoint(1)\n",
+        waivable: false,
+        explanation: "\
+`record point(x, y)` declares its fields, so a call that misses one, names one
+it does not have, or puts a literal of the wrong type in a typed field cannot
+work. The check stage refuses it, with the declaration in another bidama or in
+this file:
+
+    record point(x, y)
+
+    point(1)
+    point({x: 1, z: 2})
+
+The check reads the resolved tree, so `geo::point(1)` is the same finding and a
+local named `point` is none. A value it cannot see (a variable, a spread
+`**p`) is checked when the record is built, which raises `:record` naming the
+same fields: an update `point(**p, z: 2)` is refused here for `z`, and at run
+time if `p` is another record. There is no fix to apply: which field the call
+meant is the author's.",
+    }
 }
 
 impl Code {

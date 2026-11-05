@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:dd114e2608d83b6dc193ad0e803fd8939ee3c281df69b54fd1b9f241f6b3d57c",
+  "manifest": {
+    "schema": 1,
+    "name": "chizu",
+    "version": "0.1.0",
+    "needs": {},
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

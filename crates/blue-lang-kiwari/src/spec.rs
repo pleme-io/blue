@@ -178,6 +178,7 @@ pub enum Template {
     },
     SymbolOf(String),
     Keyword,
+    RecordHead(String),
     Lexeme,
     Interpolate {
         join: String,
@@ -333,6 +334,10 @@ impl Template {
             "symbol_of" => {
                 arity(1)?;
                 Self::SymbolOf(s(arg(0)?, "a field")?)
+            }
+            "record_head" => {
+                arity(1)?;
+                Self::RecordHead(s(arg(0)?, "a field")?)
             }
             "keyword" => {
                 arity(0)?;

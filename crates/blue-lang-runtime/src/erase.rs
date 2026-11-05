@@ -63,7 +63,7 @@ const REST_NAME: &str = "%rest";
 /// the far end must not, because that projection is where the position dies.
 #[must_use]
 pub fn erase_types(forms: &[Spanned]) -> Vec<Spanned> {
-    forms.iter().map(erase_form).collect()
+    crate::record::lower_records(forms.iter().map(erase_form).collect())
 }
 
 fn erase_form(s: &Spanned) -> Spanned {

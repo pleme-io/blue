@@ -142,6 +142,9 @@ pub fn defined(form: &Spanned) -> Option<(&str, DefKind)> {
     let items = form.as_list()?;
     match items.first()?.as_symbol()? {
         "defmacro" => Some((items.get(1)?.as_symbol()?, DefKind::Macro)),
+        blue_lang_syntax::record::LOWERED_RECORD => {
+            Some((items.get(1)?.as_symbol()?, DefKind::Value))
+        }
         "define" | "define-typed" => {
             let node = blue_lang_syntax::scope::defined_name_node(items)?;
             let function = items[1].as_list().is_some()

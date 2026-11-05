@@ -234,6 +234,15 @@ Each one was checked against the runtime.
   ignores the error is written `rescue _` (B0038). Retry a flaky step with
   `saishikou::retrying({times: 3, wait_ms: 500}, fn() fetch(url) end)`.
   Return refusals as data (`kyohi`) where a caller must branch on several.
+- **A named structure is `record point(x, y)`,** at a file's top level:
+  `point(1, 2)` or `point({x: 1, y: 2})` constructs one, `point?(v)` tells it
+  from any other map, `p.x` reads a field and `point(**p, x: 3)` is an updated
+  copy. A missing or unknown field stops at the check stage (B0079), or raises
+  `:record` naming it when only the run can see it. A record is a map carrying
+  its name: `==` includes the name, `to_s` prints the call, and JSON carries
+  name and fields as `"$record": "point(x,y)"`, which `json_read` restores. A
+  map whose keys stop matching that, after `assoc` adds one, is a plain map
+  (okite D0017).
 - **`x.name` reads a field; it is not a call.** It reads a map's key, a
   keyed list (`exec_capture(...)` gives `cap.status`, `cap.stdout`), a
   parsed JSON object (`doc.spec`) or an error's field, and raises naming the

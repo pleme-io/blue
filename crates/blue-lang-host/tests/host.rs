@@ -454,3 +454,39 @@ fn an_embedded_tree_is_reached_by_full_and_relative_paths() {
         .unwrap();
     assert_eq!(one, "inner");
 }
+
+#[test]
+fn a_record_declared_in_an_embedded_package_runs_under_an_empty_posture() {
+    use blue_lang_host::Embedded;
+    const PKG: &str = "record point(x: Int, y: Int)\n\nrecord seg(a: point, b: point)\n";
+    let embedded = Embedded {
+        name: "geo",
+        files: &[("geo/geo.b", PKG)],
+    };
+    let src = "use(\"geo\", [:point])\n\nrecord tag(at: point, name: Str)\n\ndef text()\n  to_s(tag(point(**point(1, 2), x: 9), \"a\"))\nend\n\ndef round()\n  t = geo::seg(point(1, 2), point({x: 3, y: 4}))\n  geo::seg?(json_read(json_stringify(t))) and json_read(json_stringify(t)) == t\nend\n\ndef refuse(v)\n  f = point\n  f(v, 2)\nend\n";
+    let mut host = ();
+    let mut p = Program::<()>::builder(Entry::anonymous(src))
+        .loader(&embedded)
+        .posture(&[])
+        .load(&mut host)
+        .expect("a record needs no capability");
+    let text: String = p.call("text", Vec::<Value>::new(), &mut host).unwrap();
+    assert_eq!(text, "tag({at: geo::point({x: 9, y: 2}), name: \"a\"})");
+    let round: bool = p.call("round", Vec::<Value>::new(), &mut host).unwrap();
+    assert!(round);
+    let refused = p
+        .call::<Value>("refuse", vec![Value::Str("s".into())], &mut host)
+        .unwrap_err()
+        .to_string();
+    assert!(refused.contains("`x` is Int"), "{refused}");
+    let bad = Program::<()>::builder(Entry::anonymous(
+        "use(\"geo\")\n\ndef f()\n  geo::point(1)\nend\n",
+    ))
+    .loader(&embedded)
+    .posture(&[])
+    .load(&mut host)
+    .err()
+    .expect("the check stage holds at this door too")
+    .to_string();
+    assert!(bad.contains("B0079"), "{bad}");
+}

@@ -24,6 +24,7 @@ pub const SEED: &[&str] = &[
     "-x",
     "!x",
     "defmacro m(a)\n  quote\n    unquote(a)\n  end\nend",
+    "record r(a, b: Int)",
 ];
 
 fn heads(s: &Sexp, out: &mut BTreeSet<String>) {
@@ -202,6 +203,8 @@ pub fn expr() -> impl Strategy<Value = String> {
                 .prop_map(|(n, p, b)| format!("def {n}({})\n{b}\nend", p.join(", "))),
             (ident(), body(e.clone()))
                 .prop_map(|(n, b)| format!("def {n}(a: Int) -> Int\n{b}\nend")),
+            (ident(), prop::collection::vec(ident(), 1..3), ty())
+                .prop_map(|(n, f, t)| format!("record {n}({}, last: {t})", f.join(", "))),
             (string(), body(e.clone())).prop_map(|(n, b)| format!("test {n}\n{b}\nend")),
             e.clone().prop_map(|x| format!("assert {x}")),
             body(e.clone()).prop_map(|b| format!("quote\n{b}\nend")),

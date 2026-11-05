@@ -12,9 +12,9 @@ traces on.
 
 use("jisho", %i[delete has? merge])
 use("kyohi", [:raised])
+use("mitoshi/rogu")
 use("moji", [:take_chars])
 use("retsu", [:first])
-use("rogu")
 
 def reserved()
   %i[parent sink]
@@ -77,7 +77,7 @@ end
 def emit(s, attrs)
   sink = (attrs or {})[:sink]
   if sink.nil?
-    rogu::info("span", s)
+    mitoshi::rogu::info("span", s)
   else
     sink(s)
   end
@@ -115,9 +115,9 @@ otlp_endpoint: where spans ship: observe's otlp_endpoint, else OTEL_EXPORTER_OTL
     otlp_endpoint({traces: :off}) #=> nil
 """
 def otlp_endpoint(observe)
-  if rogu::on?(observe, :traces)
-    rogu::given((observe or {})[:otlp_endpoint]) or
-      rogu::given(getenv("OTEL_EXPORTER_OTLP_ENDPOINT"))
+  if mitoshi::rogu::on?(observe, :traces)
+    mitoshi::rogu::given((observe or {})[:otlp_endpoint]) or
+      mitoshi::rogu::given(getenv("OTEL_EXPORTER_OTLP_ENDPOINT"))
   end
 end
 
@@ -200,7 +200,7 @@ def ship(url, service, spans)
   )
   true
 rescue e
-  rogu::warn("trace export failed", {error: e, endpoint: url})
+  mitoshi::rogu::warn("trace export failed", {error: e, endpoint: url})
   false
 end
 
@@ -210,7 +210,7 @@ exporter: the span sink observe asks for: OTLP/HTTP when traces are on and an en
     exporter({traces: :off}, "s")(1) #=> nil
 """
 def exporter(observe, service)
-  if not rogu::on?(observe, :traces)
+  if not mitoshi::rogu::on?(observe, :traces)
     (_s) -> nil
   else
     url = otlp_endpoint(observe)

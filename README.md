@@ -241,8 +241,8 @@ rendered:
 |---|---|
 | Built-in names | 371: 344 functions, 14 special forms, 13 macros |
 | Surface forms | 31, with 13 operators and 25 reserved words |
-| Check rules | 71: 38 fix themselves, 8 suggest a fix |
-| Bluefile words | 25 |
+| Check rules | 72: 39 fix themselves, 8 suggest a fix |
+| Bluefile words | 26 |
 | Commands | 42 |
 
 ## The standard library
@@ -250,7 +250,7 @@ rendered:
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-98 packages, 5503 definitions, 1752 tests.
+96 packages, 5503 definitions, 1753 tests.
 
 - [anaritikusu](bidamas/CATALOG.md#anaritikusu) (アナリティクス) — lifecycle analytics: a database of telemetry, standard models and cross-lifecycle joins, generated from lifecycle definitions.
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
@@ -288,7 +288,6 @@ rendered:
 - [kakou](bidamas/CATALOG.md#kakou) (加工) — fabrication: folded sheet, cut tube and bent wire, from the dimensions a shop measures to the blanks, cut lists and solids it makes.
 - [kansuu](bidamas/CATALOG.md#kansuu) (関数) — functions about functions.
 - [kazu](bidamas/CATALOG.md#kazu) (数) — numbers.
-- [keisoku](bidamas/CATALOG.md#keisoku) (計測) — measurement: the instruments a program keeps while it runs, and their samples in the Prometheus text format.
 - [keiyu](bidamas/CATALOG.md#keiyu) (経由) — by way of: run one command with a proxy set for it alone.
 - [kiibariu](bidamas/CATALOG.md#kiibariu) (キーバリュー) — Valkey and Redis over the runtime's RESP words.
 - [kijun](bidamas/CATALOG.md#kijun) (基準) — the standard a private nix fleet repo is held to, as data: layout, expression and evaluated-tree rules, per-entry waivers, and a baseline ratchet.
@@ -307,6 +306,7 @@ rendered:
 - [kyohi](bidamas/CATALOG.md#kyohi) (拒否) — refusals, as data.
 - [kyuuji](bidamas/CATALOG.md#kyuuji) (給仕) — serving: an HTTP/1.1 service over the runtime's `http_listen`.
 - [maakuappu](bidamas/CATALOG.md#maakuappu) (マークアップ) — XML as data: a document parsed by the runtime's xml_parse (quick-xml) into element maps {name, attributes, children, text}, the queries a reader of a scanner export asks of it (children and descendants by name, attributes, text, a path of element names), and the element rendered back with every value escaped. A DTD entity is never expanded or fetched: the document is refused (:xml_refused), and a document that is not well-formed raises :xml_malformed.
+- [mitoshi](bidamas/CATALOG.md#mitoshi) (見通し, a clear view ahead) — what a running program shows of itself.
 - [moji](bidamas/CATALOG.md#moji) (文字) — strings.
 - [mokuroku](bidamas/CATALOG.md#mokuroku) (目録): the catalogue of what every bidama on a BLUE_PATH provides.
 - [motenashi](bidamas/CATALOG.md#motenashi) (もてなし) — how a host receives a person: a world's look, motion, bindings and commands as entries, each refused alone, and a launcher provider's answer as rows.
@@ -319,7 +319,6 @@ rendered:
 - [ran](bidamas/CATALOG.md#ran) (乱) — deterministic pseudo-randomness.
 - [retsu](bidamas/CATALOG.md#retsu) (列) — lists, made TOTAL.
 - [rittai](bidamas/CATALOG.md#rittai) (立体) — solids: poses, triangle meshes built by extrusion and sweep, their validity, volume and centroid, and STL.
-- [rogu](bidamas/CATALOG.md#rogu) (ログ) — logging: one structured line per call, JSON on stderr.
 - [ronri](bidamas/CATALOG.md#ronri) (論理) — predicates, and the algebra over them.
 - [ryouiki](bidamas/CATALOG.md#ryouiki) (領域) — region: which region of the inputs produces an outcome.
 - [sabi](bidamas/CATALOG.md#sabi) (錆): Rust source from blue data. Build the items as values, render once.
@@ -344,7 +343,6 @@ rendered:
 - [tokumei](bidamas/CATALOG.md#tokumei) (匿名) — anonymity: learn what a group is without exposing anyone in it.
 - [toukei](bidamas/CATALOG.md#toukei) (統計) — descriptive statistics.
 - [touroku](bidamas/CATALOG.md#touroku) (登録) — registry: a project published to and resolved from registry backends, each a rendering of the Bluefile, never its truth.
-- [tsuiseki](bidamas/CATALOG.md#tsuiseki) (追跡) — tracing: spans run around functions and written to the log, a sink or an OTLP collector.
 - [tsuushin](bidamas/CATALOG.md#tsuushin) (通信) — communication: what two programs say to each other.
 - [ugoki](bidamas/CATALOG.md#ugoki) (動き) — motion: how a value moves over time.
 - [ukai](bidamas/CATALOG.md#ukai) (迂回) — a detour: keep an overlay VPN reaching its control plane and relays while a full-tunnel corporate VPN owns the default route.

@@ -1,0 +1,5 @@
+package("mitoshi", "0.1.0")
+legacy_packages(
+  "0.1.0",
+  [["rogu", "mitoshi/rogu"], ["tsuiseki", "mitoshi/tsuiseki"], ["keisoku", "mitoshi/keisoku"]]
+)

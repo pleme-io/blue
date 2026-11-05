@@ -58,6 +58,42 @@ fn packages() -> Vec<String> {
     names
 }
 
+fn node_source(name: &str) -> PathBuf {
+    let file = name.rsplit('/').next().unwrap_or(name);
+    dist().join(name).join(format!("{file}.b"))
+}
+
+fn levels_below(name: &str) -> Vec<String> {
+    let Ok(dir) = std::fs::read_dir(dist().join(name)) else {
+        return Vec::new();
+    };
+    let mut found: Vec<String> = dir
+        .filter_map(Result::ok)
+        .filter_map(|e| e.file_name().into_string().ok())
+        .map(|d| format!("{name}/{d}"))
+        .filter(|level| node_source(level).is_file())
+        .collect();
+    found.sort();
+    found
+        .into_iter()
+        .flat_map(|level| {
+            let below = levels_below(&level);
+            std::iter::once(level).chain(below)
+        })
+        .collect()
+}
+
+/// Every package and every level below it: what holds tests.
+fn tree_nodes() -> Vec<String> {
+    packages()
+        .into_iter()
+        .flat_map(|p| {
+            let below = levels_below(&p);
+            std::iter::once(p).chain(below)
+        })
+        .collect()
+}
+
 /// How many `test` blocks a package declares IN ITS OWN SOURCE.
 ///
 /// Counted before imports are resolved, and that is the entire point. The
@@ -71,7 +107,7 @@ fn packages() -> Vec<String> {
 /// A gate that only catches the leaf packages is worse than none — it reports
 /// coverage it never measured.
 fn own_test_count(name: &str) -> usize {
-    let src = std::fs::read_to_string(dist().join(name).join(format!("{name}.b")))
+    let src = std::fs::read_to_string(node_source(name))
         .unwrap_or_else(|e| panic!("{name} source unreadable: {e}"));
     let forms = blue_lang_runtime::pipeline::parse(&src)
         .unwrap_or_else(|e| panic!("{name} must parse: {e}"));
@@ -94,7 +130,7 @@ fn run_tests(name: &str) -> (usize, Vec<String>) {
     // runs a package: its tests exercise its dependencies' functions, and
     // what runs is the resolved tree, every definition at its namespaced key.
     // The entry is the package's own file, so it is checked as the bidama.
-    let path = dist().join(name).join(format!("{name}.b"));
+    let path = node_source(name);
     let checked = blue_lang_runtime::pipeline::check_entry(
         Entry {
             path: Some(&path),
@@ -162,10 +198,10 @@ fn every_bidama_passes_its_own_tests() {
 }
 
 fn every_bidama_passes_its_own_tests_inner() {
-    let pkgs = packages();
+    let pkgs = tree_nodes();
     assert!(
         pkgs.len() >= 98,
-        "found {} bidamas; this asserts a FLOOR because a gate that walks a \
+        "found {} bidamas and levels; this asserts a FLOOR because a gate that walks a \
          directory passes vacuously when the directory is empty: {pkgs:?}",
         pkgs.len()
     );
@@ -179,7 +215,7 @@ fn every_bidama_passes_its_own_tests_inner() {
         // `moji` shipped that way and read as green, because zero failures is
         // zero failures — and `kikagaku` would have too, hidden behind its
         // dependencies' tests, until this counted own-source blocks.
-        if own_test_count(name) == 0 {
+        if own_test_count(name) == 0 && levels_below(name).is_empty() {
             broken.push(format!("{name}: ZERO tests of its own — untested"));
         }
         for f in failures {

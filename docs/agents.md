@@ -84,7 +84,7 @@ writes a package alone, inside a distribution's directory.
 
 A bidama may be a tree: `use("thing/sub")` loads that level and everything
 below it, and `thing::sub::waka::x` is also `sub::waka::x` and `waka::x`.
-[`docs/NAMESPACES.md`](docs/NAMESPACES.md), "A bidama is a tree", has the whole
+[`docs/NAMESPACES.md`](NAMESPACES.md#a-bidama-is-a-tree), "A bidama is a tree", has the whole
 `use` family and the rules.
 
 `use("pkg")` looks in order: the `packages` roots of the project the file

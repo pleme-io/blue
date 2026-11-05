@@ -41,7 +41,16 @@ pub fn check(
             others: Vec::new(),
         });
         match scope::use_targets(form) {
-            Some(all) => entry.uses.extend(all.into_iter().map(|u| (i, u))),
+            // An import that crossed a moved bidama's bridge means the level
+            // it loaded: B0074 rewrites its spelling, so no other rule
+            // renders it back.
+            Some(all) => entry.uses.extend(all.into_iter().map(|mut u| {
+                if let Some(b) = table.bridge_of(i, &u.package) {
+                    u.package.clone_from(&b.to);
+                    u.plain = false;
+                }
+                (i, u)
+            })),
             None if scope::is_level_marker(form) => {}
             None => entry.others.push(i),
         }
@@ -60,6 +69,8 @@ pub fn check(
             unused_imports(*file, fu, forms, table, references, &mut out);
         }
     }
+    crate::package_moves::check(forms, table, references, &mut out);
+    crate::package_moves::needs_row(forms, table, namespace_of, &mut out);
     needs_agree(&files, table, namespace_of, &mut out);
     definitions(forms, table, namespace_of, &mut out);
     out
@@ -354,11 +365,22 @@ fn needs_agree(
             .or_default()
             .extend(uses.iter().map(|(_, u)| u.package.clone()));
     }
+    // A row that names a moved bidama by its old name is B0074's, and needs
+    // its root here.
+    let old_names = crate::package_moves::needed_by_old_name(table, namespace_of);
     for (pkg, (uses, anchor)) in per {
         let Some(needs) = table.needs_of(&pkg) else {
             continue;
         };
         let root = blue_lang_syntax::root_of(&pkg);
+        let needs: BTreeSet<String> = match old_names.get(root) {
+            Some(moved) => needs
+                .iter()
+                .map(|n| moved.get(n).unwrap_or(n).clone())
+                .collect(),
+            None => needs.clone(),
+        };
+        let needs = &needs;
         let used: BTreeSet<&str> = tree_uses
             .get(root)
             .into_iter()

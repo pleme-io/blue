@@ -1849,26 +1849,29 @@ fn check(file: &Path, format: Format, fix: bool, only: &[String]) -> Result<Exit
         && blue_lang_runtime::uses::Loader::entry_package(&loader, file).is_some()
     {
         let dir = dir_of(file);
-        let disagrees = checked
-            .outcome
-            .diagnostics
-            .iter()
-            .any(|d| d.code == blue_lang_check::Code::B0019);
+        let disagrees = checked.outcome.diagnostics.iter().any(|d| {
+            matches!(
+                d.code,
+                blue_lang_check::Code::B0019 | blue_lang_check::Code::B0074
+            )
+        });
         let stale = matches!(
             blue_lang_pkg::lock::confirm_dir(&dir)?,
             Freshness::Stale { reason } if reason != blue_lang_pkg::lock::Staleness::Missing
         );
         if disagrees || stale {
             let bluefile = dir.join(blue_lang_pkg::MANIFEST_FILE);
-            let removed = match blue_lang_pkg::needs::prune(&dir).map_err(CliError::Pkg)? {
+            let (removed, renamed) = match blue_lang_pkg::needs::prune(&dir, &loader)
+                .map_err(CliError::Pkg)?
+            {
                 Some(p) => {
                     std::fs::write(&bluefile, &p.bluefile).map_err(|source| CliError::Write {
                         path: bluefile.display().to_string(),
                         source,
                     })?;
-                    p.removed
+                    (p.removed, p.renamed)
                 }
-                None => Vec::new(),
+                None => (Vec::new(), Vec::new()),
             };
             let lock = blue_lang_pkg::lock::lock_dir(&dir, &prefetch::NixPrefetch)?;
             let lock_path = dir.join(LOCK_FILE);
@@ -1879,7 +1882,7 @@ fn check(file: &Path, format: Format, fix: bool, only: &[String]) -> Result<Exit
                 }
             })?;
             eprintln!(
-                "blue: {}: unused needs rows removed {removed:?}; relocked {} (needs {:?})",
+                "blue: {}: unused needs rows removed {removed:?}, moved rows rewritten {renamed:?}; relocked {} (needs {:?})",
                 bluefile.display(),
                 lock_path.display(),
                 lock.manifest.needs.keys().collect::<Vec<_>>()

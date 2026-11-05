@@ -58,6 +58,13 @@ impl Loader for Embedded<'_> {
     fn children(&self, name: &str) -> Vec<String> {
         Standard.children(name)
     }
+
+    fn moved(&self, name: &str) -> Option<blue_lang_runtime::uses::PackageMove> {
+        if name == self.name {
+            return None;
+        }
+        Standard.moved(name)
+    }
 }
 
 /// One package compiled into the host, over any other loader: every other
@@ -89,6 +96,13 @@ impl Loader for EmbeddedOver<'_> {
 
     fn version(&self, package: &str, entry_dir: Option<&std::path::Path>) -> Option<String> {
         self.rest.version(package, entry_dir)
+    }
+
+    fn moved(&self, name: &str) -> Option<blue_lang_runtime::uses::PackageMove> {
+        if name == self.own.name {
+            return None;
+        }
+        self.rest.moved(name)
     }
 
     /// A level compiled in this way is a child of the level above it, so a

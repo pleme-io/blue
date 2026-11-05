@@ -107,6 +107,16 @@ impl Loader for Standard {
     fn version(&self, package: &str, _entry_dir: Option<&Path>) -> Option<String> {
         Some(self.bluefile(package)?.version.to_string())
     }
+
+    fn moved(&self, name: &str) -> Option<blue_lang_runtime::uses::PackageMove> {
+        if self.has(name) {
+            return None;
+        }
+        self.names()
+            .into_iter()
+            .filter_map(|root| self.bluefile(root))
+            .find_map(|bf| crate::load_path::package_move(name, &bf))
+    }
 }
 
 #[cfg(all(test, feature = "embedded"))]

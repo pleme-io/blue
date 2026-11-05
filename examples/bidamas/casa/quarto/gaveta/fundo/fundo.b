@@ -1,7 +1,7 @@
 @moduledoc """
 casa::quarto::gaveta::fundo is as deep as a bidama needs.
 
-    casa::quarto::gaveta::fundo::carta #=> "carta"
+    carta #=> "carta"
 """
 
 @doc """

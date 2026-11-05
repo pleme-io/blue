@@ -41,6 +41,13 @@ pub fn check(
             others: Vec::new(),
         });
         match scope::use_targets(form) {
+            Some(all)
+                if !scope::is_canonical_use(form)
+                    && !all.iter().any(|u| table.bridge_of(i, &u.package).is_some()) =>
+            {
+                out.push(non_canonical_use(i, form, &all));
+                entry.uses.extend(all.into_iter().map(|u| (i, u)));
+            }
             // An import that crossed a moved bidama's bridge means the level
             // it loaded: B0074 rewrites its spelling, so no other rule
             // renders it back.
@@ -57,6 +64,7 @@ pub fn check(
     }
     for (file, fu) in &files {
         canonical_imports(fu, &mut out);
+        redundant_uses(fu, forms, &mut out);
         // Only a file checked whole — its test blocks included, which an
         // imported bidama's are not — can say a listed name is never read.
         let whole = fu
@@ -74,6 +82,74 @@ pub fn check(
     needs_agree(&files, table, namespace_of, &mut out);
     definitions(forms, table, namespace_of, &mut out);
     out
+}
+
+/// B0078: a `use` of a level that lists nothing, in a file that already uses
+/// an ancestor of it: the ancestor's `use` brings it, so this one adds nothing.
+fn redundant_uses(fu: &FileUses, forms: &[Spanned], out: &mut Vec<Diagnostic>) {
+    for (i, u) in &fu.uses {
+        if u.listed {
+            continue;
+        }
+        let Some(ancestor) = fu.uses.iter().map(|(_, a)| a.package.as_str()).find(|a| {
+            u.package
+                .strip_prefix(a)
+                .is_some_and(|rest| rest.starts_with(blue_lang_syntax::parse::QUALIFIER))
+        }) else {
+            continue;
+        };
+        let Some(form) = forms.get(*i) else {
+            continue;
+        };
+        out.push(
+            Diagnostic::new(
+                Code::B0078,
+                format!(
+                    "`use(\"{}\")` adds nothing: `use(\"{ancestor}\")` already brings every level below it",
+                    u.package
+                ),
+                form.span,
+            )
+            .at_top_level(*i)
+            .with_fix(Fix {
+                message: format!("remove `use(\"{}\")`", u.package),
+                edits: vec![Edit {
+                    span: form.span,
+                    original: String::new(),
+                    replacement: String::new(),
+                }],
+                applicability: Applicability::MachineApplicable,
+            }),
+        );
+    }
+}
+
+/// B0077: a `use` written any way but `use("a/b")` or `use("a/b", [:x])`.
+/// The fix writes one canonical `use` per level the form imports; the text it
+/// replaces is the form's own, filled in by the pipeline that holds it.
+fn non_canonical_use(top_level: usize, form: &Spanned, imports: &[Import]) -> Diagnostic {
+    let canonical: Vec<String> = imports
+        .iter()
+        .map(|u| {
+            let names: Vec<String> = u.names.iter().map(|(n, _)| n.clone()).collect();
+            render_use(u, &names)
+        })
+        .collect();
+    Diagnostic::new(
+        Code::B0077,
+        format!("a `use` is written `{}`", canonical.join("` and `")),
+        form.span,
+    )
+    .at_top_level(top_level)
+    .with_fix(Fix {
+        message: format!("write `{}`", canonical.join("` and `")),
+        edits: vec![Edit {
+            span: form.span,
+            original: String::new(),
+            replacement: canonical.join("\n"),
+        }],
+        applicability: Applicability::MachineApplicable,
+    })
 }
 
 /// How `use("pkg", [:a, :b])` is written, canonically.

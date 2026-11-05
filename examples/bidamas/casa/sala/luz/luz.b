@@ -1,7 +1,7 @@
 @moduledoc """
 casa::sala::luz holds the lamp.
 
-    casa::sala::luz::lampada #=> "lampada"
+    lampada #=> "lampada"
 """
 
 @doc """

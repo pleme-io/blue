@@ -11,15 +11,15 @@ response headers are a map. The posture builders take no arguments, so a
 service lists them as `[headers_posture, request_id_posture, limits_posture]`.
 """
 
+use("eigyou/kyuuji", %i[header route_methods])
+use("eigyou/shisei", %i[gated posture serving])
 use("gamen")
 use("kousei", %i[field int_in list_of off one_of text tune])
-use("kyuuji", %i[header route_methods])
 use("moji", [:lower])
 use("retsu", %i[contains first is_empty size])
 use("shinsuu", %i[bytes_base64 hex_bytes])
-use("shisei", %i[gated posture serving])
 
-legacy_names("0.1.1", [%w[request_header kyuuji::header]])
+legacy_names("0.1.1", [%w[request_header eigyou::kyuuji::header]])
 
 @doc """
 has_header?: Whether the response already sets a header, whatever the case of its name.
@@ -335,9 +335,9 @@ end
 
 test "a kyuuji view route served through bougyo carries the hash of its theme's style"
   t = gamen::theme({text: "#2e3440"}, :light)
-  app = kyuuji::router(
+  app = eigyou::kyuuji::router(
     [
-      kyuuji::route(
+      eigyou::kyuuji::route(
         "GET",
         "/",
         (_req) -> gamen::page({title: "x", body: [gamen::view(:p, {}, ["hi"])]})
@@ -345,7 +345,7 @@ test "a kyuuji view route served through bougyo carries the hash of its theme's 
     ],
     {theme: t}
   )
-  h = defended([], quiet, (req) -> kyuuji::dispatch(app, req))[:handler]
+  h = defended([], quiet, (req) -> eigyou::kyuuji::dispatch(app, req))[:handler]
   r = h(get_req("/", [], ""))
   assert r[:status] == 200
   assert contains?(r[:body], "<p>hi</p>")

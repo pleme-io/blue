@@ -241,7 +241,7 @@ rendered:
 |---|---|
 | Built-in names | 371: 344 functions, 14 special forms, 13 macros |
 | Surface forms | 31, with 13 operators and 25 reserved words |
-| Check rules | 72: 39 fix themselves, 8 suggest a fix |
+| Check rules | 75: 42 fix themselves, 8 suggest a fix |
 | Bluefile words | 26 |
 | Commands | 42 |
 
@@ -250,12 +250,11 @@ rendered:
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-77 packages, 5502 definitions, 1759 tests.
+70 packages, 5502 definitions, 1760 tests.
 
 - [anaritikusu](bidamas/CATALOG.md#anaritikusu) (アナリティクス) — lifecycle analytics: a database of telemetry, standard models and cross-lifecycle joins, generated from lifecycle definitions.
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
 - [baito](bidamas/CATALOG.md#baito) (バイト) — bytes as data: integers at a declared width and order, and record layouts that say where each field sits.
-- [bougyo](bidamas/CATALOG.md#bougyo) (防御) — the request-side defence of a service: security headers, a request id, and limits on what a request may be.
 - [bpf](bidamas/CATALOG.md#bpf) — the eBPF instruction set in blue: instructions as values, an assembler that resolves labels and map references, their encoding, their text, and a pure machine that runs them.
 - [btf](bidamas/CATALOG.md#btf) — the BPF Type Format as data: the kernel's own description of its types, read from `/sys/kernel/btf/vmlinux`, so a program finds a hook's id and a field's offset on the kernel it runs on.
 - [bunsho](bidamas/CATALOG.md#bunsho) (文書) — Markdown as a first-class value: `.md` text parsed into one typed tree whose node kinds are the ones CommonMark, GitHub Flavored Markdown and mdast agree on, the tree rendered back in one canonical formatting, and the tree read by node, by kind and by section.
@@ -264,6 +263,7 @@ rendered:
 - [chozou](bidamas/CATALOG.md#chozou) (貯蔵, storage) — what a service keeps and reads back.
 - [danpen](bidamas/CATALOG.md#danpen) (断片) — GraphQL in blue: documents parsed into plain records, checked against a schema, composed from fragments, rendered and hashed.
 - [deeta](bidamas/CATALOG.md#deeta) (データ) — JSON data, read safely.
+- [eigyou](bidamas/CATALOG.md#eigyou) (営業, open for business) — what a running service answers, guards and reports.
 - [erufu](bidamas/CATALOG.md#erufu) — an ELF relocatable object as data: written from a compiled kernel program, and read back, so `bpftool`, `veristat`, `llvm-objdump` and `readelf` apply to what blue compiles, and blue can read what clang compiles.
 - [fairu](bidamas/CATALOG.md#fairu) (ファイル) — files: paths and the files they name.
 - [fuuin](bidamas/CATALOG.md#fuuin) (封印) — k-of-n threshold signing: a group whose key no one share holds, signed by any k of its n shares in two rounds, RFC 9591 FROST over Ed25519.
@@ -271,9 +271,7 @@ rendered:
 - [gitto](bidamas/CATALOG.md#gitto) (ギット) — git, as verbs: a repository read as commits, refs, branches and files, and written by commit, fetch, merge, push and clone.
 - [gurafu](bidamas/CATALOG.md#gurafu) (グラフ) — directed graphs as values: build them, ask them, order them.
 - [hadome](bidamas/CATALOG.md#hadome) (歯止め) — a baseline ratchet: recorded debt may shrink or hold, never grow.
-- [haibi](bidamas/CATALOG.md#haibi) (配備) — deployment: a Bluefile `service` rendered into everything that ships it.
 - [happa](bidamas/CATALOG.md#happa) (葉っぱ) — a template's leaves: their declaration, split, graph, change, schedule and verdicts, as pure decisions.
-- [heddaa](bidamas/CATALOG.md#heddaa) (ヘッダー) — header fields as HTTP/2 carries them: HPACK (RFC 7541).
 - [heni](bidamas/CATALOG.md#heni) (変異) — mutation testing for a blue package: each mutation changes one literal in a fresh copy of the package, runs its tests, and must make them fail.
 - [hikisuu](bidamas/CATALOG.md#hikisuu) (引数) — command-line arguments: one declared spec is parsed into a record, rendered as help, and answered as shell completion.
 - [hizuke](bidamas/CATALOG.md#hizuke) (日付) — the proleptic Gregorian calendar, as arithmetic.
@@ -294,7 +292,6 @@ rendered:
 - [kueri](bidamas/CATALOG.md#kueri) (クエリ) — queries: analysis is authored in blue, and SQL is only the rendered bridge to DuckDB.
 - [kyasshu](bidamas/CATALOG.md#kyasshu) (キャッシュ) — cache: the normalized entity store of the frontend data runtime.
 - [kyohi](bidamas/CATALOG.md#kyohi) (拒否) — refusals, as data.
-- [kyuuji](bidamas/CATALOG.md#kyuuji) (給仕) — serving: an HTTP/1.1 service over the runtime's `http_listen`.
 - [maakuappu](bidamas/CATALOG.md#maakuappu) (マークアップ) — XML as data: a document parsed by the runtime's xml_parse (quick-xml) into element maps {name, attributes, children, text}, the queries a reader of a scanner export asks of it (children and descendants by name, attributes, text, a path of element names), and the element rendered back with every value escaped. A DTD entity is never expanded or fetched: the document is refused (:xml_refused), and a document that is not well-formed raises :xml_malformed.
 - [mitoshi](bidamas/CATALOG.md#mitoshi) (見通し, a clear view ahead) — what a running program shows of itself.
 - [moji](bidamas/CATALOG.md#moji) (文字) — strings.
@@ -311,21 +308,17 @@ rendered:
 - [saishikou](bidamas/CATALOG.md#saishikou) (再試行) — retrying a step that can fail for a moment.
 - [seimei](bidamas/CATALOG.md#seimei) (生命) — cellular automata: elementary rules, and Life.
 - [settei](bidamas/CATALOG.md#settei) (設定) — configuration, blue's shikumi: a record of defaults grouped by concern, resolved by read(app, defaults) from the defaults, then ~/.config/<app>/<app>.yaml (or <APP>_CONFIG), then <APP>_<GROUP>__<KEY> in the environment, each value typed by its default and a wrong type refused. The resolved record is read by dotted path; a misspelt path raises and names the fields that exist.
-- [shihyou](bidamas/CATALOG.md#shihyou) (指標) — indicator: a service's SLO as data, projected to the rules and the dashboard that watch it.
 - [shinchoku](bidamas/CATALOG.md#shinchoku) (進捗) — progress: operational probes that judge by progress over a window, never by one reading.
 - [shinsatsu](bidamas/CATALOG.md#shinsatsu) (診察) — the credential doctor: a provider, the failure classes its credential helper can show, and for each class a diagnosis, the remediation steps and a verify step. A new provider or a new failure class is a declaration.
 - [shinsuu](bidamas/CATALOG.md#shinsuu) (進数) — base conversion and checksums.
-- [shisei](bidamas/CATALOG.md#shisei) (姿勢) — a service's posture: postures declared as kousei entries, each on by default, each configured off or tuned, each refused alone.
 - [shisutemu](bidamas/CATALOG.md#shisutemu) (システム) — the system.
 - [shomei](bidamas/CATALOG.md#shomei) (署名) — signatures and hash chains: Ed25519 and BLAKE3, for real.
 - [shuugou](bidamas/CATALOG.md#shuugou) (集合) — sets, over plain lists.
 - [shuusei](bidamas/CATALOG.md#shuusei) (修正) — amending declared data: put a value at a path, delete it, merge into it, upsert a list element, and amend a keyed set of objects by judged patch entries.
 - [suugaku](bidamas/CATALOG.md#suugaku) (数学, mathematics) — numbers worked over as a discipline.
-- [tajuu](bidamas/CATALOG.md#tajuu) (多重) — multiplexing: HTTP/2's frames and the streams they carry
 - [tesuto](bidamas/CATALOG.md#tesuto) (テスト) — testing: errors and snapshots as assertions, and the policy that holds every definition to a test beside it.
 - [todokede](bidamas/CATALOG.md#todokede) (届出, filings) — what a person or a company declares as entries.
 - [touroku](bidamas/CATALOG.md#touroku) (登録) — registry: a project published to and resolved from registry backends, each a rendering of the Bluefile, never its truth.
-- [tsuushin](bidamas/CATALOG.md#tsuushin) (通信) — communication: what two programs say to each other.
 - [ugoki](bidamas/CATALOG.md#ugoki) (動き) — motion: how a value moves over time.
 - [ukai](bidamas/CATALOG.md#ukai) (迂回) — a detour: keep an overlay VPN reaching its control plane and relays while a full-tunnel corporate VPN owns the default route.
 - [zenbu](bidamas/CATALOG.md#zenbu) (全部) — the whole distribution, as ONE dependency.

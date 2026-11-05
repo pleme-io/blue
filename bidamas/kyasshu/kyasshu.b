@@ -13,6 +13,7 @@ rolls it back, and `request` asks a server by persisted hash only.
 
 use("danpen")
 use("deeta", [:get_or])
+use("eigyou/tsuushin")
 use("gamen")
 use("kousei")
 use("kyohi", [:refusal])
@@ -21,7 +22,6 @@ use("raifusaikuru")
 use("ran")
 use("retsu", %i[find_first first is_empty push size])
 use("tesuto", [:raises?])
-use("tsuushin")
 
 def key_format()
   "kyasshu-keys/1"
@@ -694,7 +694,7 @@ def request(target, input, opts?)
     raise(:bad_option, "request: operation: is the document to run")
   end
   doc = danpen::as_document(i[:operation])
-  r = tsuushin::request(
+  r = eigyou::tsuushin::request(
     "POST",
     target,
     {

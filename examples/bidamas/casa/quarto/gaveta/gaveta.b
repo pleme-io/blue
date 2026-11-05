@@ -1,7 +1,7 @@
 @moduledoc """
 casa::quarto::gaveta is three levels down, and the words in it read as data.
 
-    casa::quarto::gaveta::meias #=> {cor: "azul"}
+    meias #=> {cor: "azul"}
 """
 
 @doc """

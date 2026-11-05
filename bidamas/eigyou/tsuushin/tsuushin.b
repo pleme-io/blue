@@ -9,8 +9,8 @@ status is data.
     join("http://a.com/b/c/d", "../g") #=> "http://a.com/b/g"
 """
 
+use("eigyou/kyuuji", [:route_methods])
 use("kyohi", [:raised])
-use("kyuuji", [:route_methods])
 
 use(
   "moji",
@@ -74,7 +74,7 @@ def split_host_port(hostport)
   if starts_with(hostport, "[")
     close = char_index(hostport, "]")
     if close < 0
-      raise(:parse_error, "tsuushin::parse: unclosed [ in #{hostport}")
+      raise(:parse_error, "eigyou::tsuushin::parse: unclosed [ in #{hostport}")
     end
     after = drop_chars(hostport, close + 1)
     [take_chars(hostport, close + 1), after_first(after, ":")]
@@ -91,7 +91,7 @@ def port_of(text)
       to_int(text) <= 65535
     to_int(text)
   else
-    raise(:parse_error, "tsuushin::parse: bad port #{text}")
+    raise(:parse_error, "eigyou::tsuushin::parse: bad port #{text}")
   end
 end
 
@@ -109,10 +109,10 @@ parse: URL text to scheme, host, path, query record.
 """
 def parse(text, format)
   if format != :url
-    raise(:parse_error, "tsuushin::parse: format #{format} is not :url")
+    raise(:parse_error, "eigyou::tsuushin::parse: format #{format} is not :url")
   end
   if not absolute_url?(text)
-    raise(:parse_error, "tsuushin::parse: no scheme:// in #{text}")
+    raise(:parse_error, "eigyou::tsuushin::parse: no scheme:// in #{text}")
   end
   i = char_index(text, "://")
   scheme = lower(take_chars(text, i))
@@ -126,7 +126,7 @@ def parse(text, format)
   hp = split_host_port(ui[1])
   host = lower(first(hp))
   if host == ""
-    raise(:parse_error, "tsuushin::parse: no host in #{text}")
+    raise(:parse_error, "eigyou::tsuushin::parse: no host in #{text}")
   end
   {
     "scheme" => scheme,
@@ -164,7 +164,10 @@ render: URL record to canonical text.
 """
 def render(u, format)
   if format != :url
-    raise(:render_error, "tsuushin::render: format #{format} is not :url")
+    raise(
+      :render_error,
+      "eigyou::tsuushin::render: format #{format} is not :url"
+    )
   end
   "#{u["scheme"]}://#{authority_text(u)}#{u["path"]}#{marked("?", u["query"], "")}#{marked("#", u["fragment"], "")}"
 end

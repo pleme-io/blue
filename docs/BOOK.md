@@ -323,7 +323,7 @@ check("hello", "hello.b")
 ```
 
 The program answers `GET /`. [`settei`](../bidamas/CATALOG.md#settei) reads the settings the declaration
-gives it, and [`kyuuji`](../bidamas/CATALOG.md#kyuuji) serves HTTP:
+gives it, and `kyuuji` serves HTTP:
 
 ```blue file=hello.b
 use("kyuuji")
@@ -377,7 +377,7 @@ $ blue test hello.b
 2 test(s): 2 passed, 0 failed
 ```
 
-The [`haibi`](../bidamas/CATALOG.md#haibi) bidama renders the declaration into everything that ships the
+The `haibi` bidama renders the declaration into everything that ships the
 service. This program lists the files it would write:
 
 ```blue file=../show.b

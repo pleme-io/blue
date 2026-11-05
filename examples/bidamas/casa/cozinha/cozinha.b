@@ -1,7 +1,7 @@
 @moduledoc """
 casa::cozinha is a level that is a directory.
 
-    casa::cozinha::fogao #=> "fogao"
+    fogao #=> "fogao"
 """
 
 @doc """

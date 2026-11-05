@@ -11,7 +11,7 @@ series.
 """
 
 use("deeta", [:get_or])
-use("kyuuji")
+use("eigyou/kyuuji")
 use("retsu", %i[first rest])
 
 def defaults()
@@ -44,12 +44,12 @@ def objectives(svc)
     end
   )
   le = le_of(o["latency_ms"])
-  if member?(le, map((b) -> to_s(b), kyuuji::latency_bounds))
+  if member?(le, map((b) -> to_s(b), eigyou::kyuuji::latency_bounds))
     o
   else
     raise(
       :latency_bound,
-      "slo latency_ms #{to_s(o["latency_ms"])} is no histogram bound; the bounds are #{join(map((b) -> to_s(round(b * 1000)), kyuuji::latency_bounds), ", ")} ms"
+      "slo latency_ms #{to_s(o["latency_ms"])} is no histogram bound; the bounds are #{join(map((b) -> to_s(round(b * 1000)), eigyou::kyuuji::latency_bounds), ", ")} ms"
     )
   end
 end
@@ -333,7 +333,7 @@ def entry(name, version, svc)
       {
         "name" => "metrics",
         "port" => svc["port"],
-        "path" => kyuuji::metrics_path
+        "path" => eigyou::kyuuji::metrics_path
       }
     ],
     "slo" => objectives(svc),

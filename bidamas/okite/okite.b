@@ -20,11 +20,23 @@ use("kyohi")
 use("moji", [:lines])
 use("okite/rung")
 use("okite/rung/deep", [:deep_word])
-use({r: "okite/rung/deep/floor"})
+
 use("ran", %i[next_bool next_seed next_uniform pick])
 use("retsu", %i[contains first flat_map index_of is_empty rest size])
 
 legacy_names("0.1.1", "ok")
+
+legacy_names(
+  "0.1.1",
+  [
+    [
+      "law_relative_path_is_the_same_definition",
+      "okite::law_one_use_reaches_every_level_below",
+      ""
+    ],
+    ["law_listed_and_second_names", "okite::law_listed_name_is_bare", ""]
+  ]
+)
 
 # ── levels: this bidama is a tree, so its laws read through one ───────────
 #
@@ -43,24 +55,21 @@ def law_full_path_reaches_every_depth()
 end
 
 @doc """
-law_relative_path_is_the_same_definition holds that a path relative to an import is the definition its full path names.
+law_one_use_reaches_every_level_below holds that `use("okite/rung")` alone brings `okite/rung/deep/floor`, two levels down, by its full path.
 
-    law_relative_path_is_the_same_definition #=> true
+    law_one_use_reaches_every_level_below #=> true
 """
-def law_relative_path_is_the_same_definition()
-  rung::rung_word == okite::rung::rung_word and
-    deep::deep_depth == okite::rung::deep::deep_depth and
-    rung::deep::floor::floor_word == okite::rung::deep::floor::floor_word and
-    deep::floor::floor_word == okite::rung::deep::floor::floor_word
+def law_one_use_reaches_every_level_below()
+  okite::rung::deep::floor::floor_word == :floor
 end
 
 @doc """
-law_listed_and_second_names holds that a listed name and a second name each reach their level.
+law_listed_name_is_bare holds that a name the file lists from a level is written bare.
 
-    law_listed_and_second_names #=> true
+    law_listed_name_is_bare #=> true
 """
-def law_listed_and_second_names()
-  deep_word == :deep and r::floor_word == :floor
+def law_listed_name_is_bare()
+  deep_word == :deep
 end
 
 # ── generated values ───────────────────────────────────────────────────────
@@ -624,21 +633,18 @@ def decisions()
     {
       id: "D0016",
       date: "2026-11-04",
-      rule: "A bidama is a tree: `a::b::c::x` reaches any depth, and `use(\"a/b\")` also brings `b::c::x` and `c::x`. Every path spelling loads one thing.",
-      why: "The operator's instruction of 2026-11-04: a name has as many qualifiers as the tree has levels, and shortcuts are for the author. Two imports that fit one shortcut are refused, never decided by load order.",
+      rule: "A bidama is a tree; a name has one spelling, its full path `a::b::x` or bare when listed. One `use(\"a/b\")` per tree brings every level below.",
+      why: "The operator's instruction of 2026-11-04 made a name as deep as its tree; the operator's of 2026-11-05 made it predictable: one definition, one spelling, so a reader needs no imports to read a name and `rg` finds every caller. Relative tails and second names were spellings, not meanings, and are refused with a fix.",
       laws: [
         [
           "a full path reaches every depth",
           () -> law_full_path_reaches_every_depth
         ],
         [
-          "a relative path is the same definition",
-          () -> law_relative_path_is_the_same_definition
+          "one use reaches every level below it",
+          () -> law_one_use_reaches_every_level_below
         ],
-        [
-          "a listed name and a second name reach their level",
-          () -> law_listed_and_second_names
-        ]
+        ["a listed name is bare", () -> law_listed_name_is_bare]
       ]
     }
   ]

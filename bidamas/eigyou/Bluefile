@@ -1,0 +1,2 @@
+package("eigyou", "0.1.1")
+legacy_packages("0.1.1", [["kyuuji", "eigyou/kyuuji"], ["bougyo", "eigyou/bougyo"], ["shisei", "eigyou/shisei"], ["tsuushin", "eigyou/tsuushin"], ["heddaa", "eigyou/heddaa"], ["tajuu", "eigyou/tajuu"], ["shihyou", "eigyou/shihyou"], ["haibi", "eigyou/haibi"]])

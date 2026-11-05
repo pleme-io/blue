@@ -11,10 +11,10 @@ component unless it declares another runtime.
 """
 
 use("deeta", %i[get_or pretty yaml])
-use("kyuuji")
+use("eigyou/kyuuji")
+use("eigyou/shihyou")
 use("retsu", %i[first flat_map last take_while])
 use("settei", [:env_prefix])
-use("shihyou")
 
 def entries_of(m)
   if m.nil?
@@ -439,7 +439,7 @@ def values_with(svc, mode)
     "podAnnotations" => {
       "prometheus.io/scrape" => "true",
       "prometheus.io/port" => to_s(svc["port"]),
-      "prometheus.io/path" => kyuuji::metrics_path
+      "prometheus.io/path" => eigyou::kyuuji::metrics_path
     },
     "slo" => {"rules" => true, "dashboard" => true},
     "runtime" => runtime_values(svc),
@@ -1295,7 +1295,7 @@ def notes(n, h)
 end
 
 def slo_rules(name, svc)
-  r = shihyou::rules(name, svc)
+  r = eigyou::shihyou::rules(name, svc)
   m = assoc(r["metadata"], "namespace", "{{ .Release.Namespace }}")
   unlines(
     [
@@ -1327,7 +1327,7 @@ def dashboard_map(name)
 end
 
 def catalog_entry(name, version, svc)
-  shihyou::entry(name, version, svc)
+  eigyou::shihyou::entry(name, version, svc)
 end
 
 def files(name, version, svc)
@@ -1370,7 +1370,10 @@ def files_with(name, version, svc, mode)
     ["chart/templates/NOTES.txt", notes(name, h)],
     ["chart/templates/slo-rules.yaml", slo_rules(name, svc)],
     ["chart/templates/dashboard.yaml", dashboard_map(name)],
-    ["chart/files/dashboard.json", pretty(shihyou::dashboard(name, svc))]
+    [
+      "chart/files/dashboard.json",
+      pretty(eigyou::shihyou::dashboard(name, svc))
+    ]
   ]
   db = if tables(svc) == []
     []

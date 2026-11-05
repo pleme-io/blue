@@ -1,8 +1,8 @@
-use("kyuuji")
+use("eigyou/kyuuji")
 use("settei")
 
 def greeting(s, req)
-  who = kyuuji::query_param(req, "who")
+  who = eigyou::kyuuji::query_param(req, "who")
   subject = if who.nil?
     settei::setting(s, "subject")
   else
@@ -18,15 +18,15 @@ end
 
 def handle(s, req)
   if req[:path] == "/"
-    kyuuji::text(200, unlines([greeting(s, req)]))
+    eigyou::kyuuji::text(200, unlines([greeting(s, req)]))
   else
-    kyuuji::not_found(req)
+    eigyou::kyuuji::not_found(req)
   end
 end
 
 if settei::serving?
   s = settei::current
-  kyuuji::serve_settings(s, (req) -> handle(s, req))
+  eigyou::kyuuji::serve_settings(s, (req) -> handle(s, req))
 end
 
 def settings(shout)
@@ -34,18 +34,22 @@ def settings(shout)
 end
 
 test "the root greets the configured subject, or the one asked for"
-  assert greeting(settings(false), kyuuji::request("GET", "/", "")) ==
+  assert greeting(settings(false), eigyou::kyuuji::request("GET", "/", "")) ==
     "hello, world"
-  assert greeting(settings(false), kyuuji::request("GET", "/", "who=blue")) ==
-    "hello, blue"
+  assert greeting(
+    settings(false),
+    eigyou::kyuuji::request("GET", "/", "who=blue")
+  ) == "hello, blue"
 end
 
 test "the shout flag turns the greeting up"
-  assert greeting(settings(true), kyuuji::request("GET", "/", "")) ==
+  assert greeting(settings(true), eigyou::kyuuji::request("GET", "/", "")) ==
     "HELLO, WORLD"
 end
 
 test "anything but the root is not found"
-  assert handle(settings(false), kyuuji::request("GET", "/x", ""))[:status] ==
-    404
+  assert get(
+    handle(settings(false), eigyou::kyuuji::request("GET", "/x", "")),
+    :status
+  ) == 404
 end

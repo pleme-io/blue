@@ -245,7 +245,7 @@ def rehome(text, root, children)
 end
 
 @doc """
-callers_of: every `.b` file under bidamas/ and gen/ that names a child, the verb graph's rows aside: they name spaces, not paths.
+callers_of: every `.b` file under bidamas/, gen/, examples/, nix/ and native/ that names a child, the verb graph's rows aside: they name spaces, not paths.
 
     callers_of([]) #=> []
 """
@@ -257,8 +257,90 @@ def callers_of(children)
         not contains?(p, "mokuroku/graph/") and
         names_a_child?(read_file(p), children)
     end,
-    concat_lists(walk_dir("bidamas"), walk_dir("gen"))
+    retsu::flat_map(
+      filter(is_dir?, %w[bidamas gen examples nix native]),
+      walk_dir
+    )
   )
+end
+
+@doc """
+debt_rows: test-beside's recorded rows with each child's `untested: c N` folded
+into one row for the root, holding their sum, in sorted place.
+
+    debt_rows(["def recorded()"], "f", ["k"]) #=> ["def recorded()"]
+"""
+def debt_rows(lines, root, children)
+  count = fn(l)
+    words = split(after_first(l, "untested: "), " ")
+    if member?(first(words), children)
+      to_int(before_first(words[1], "\""))
+    else
+      0
+    end
+  end
+  child? = (l) -> contains?(l, "\"untested: ") and count(l) > 0
+  total = reduce((acc, l) -> acc + count(l), 0, lines)
+  kept = filter((l) -> not child?(l), lines)
+  if total == 0
+    kept
+  else
+    row = "      \"untested: #{root} #{to_s(total)}\","
+    at = size(
+      take_while(
+        fn(l)
+          not contains?(l, "\"untested: ") or
+            first(
+              sort([before_first(after_first(l, "untested: "), " "), root])
+            ) != root
+        end,
+        kept
+      )
+    )
+    concat_lists(take(at, kept), concat_lists([row], drop(at, kept)))
+  end
+end
+
+def debt(root, children)
+  path = "gen/test-beside.b"
+  write_program(
+    path,
+    unlines(debt_rows(lines(read_file(path)), root, children))
+  )
+end
+
+def mutation_sets(root, children)
+  dir = "bidamas/heni/mutations"
+  map(
+    fn(c)
+      from = path_join(dir, "#{c}.json")
+      if is_file?(from)
+        mkdir_p(path_join(dir, root))
+        must(
+          exec_capture("git", "mv", from, path_join(dir, "#{root}/#{c}.json")),
+          "git mv #{from}"
+        )
+      end
+    end,
+    children
+  )
+  map(
+    (p) -> write_file(p, rehome(read_file(p), root, children)),
+    filter((p) -> ends_with?(p, ".json"), walk_dir(dir))
+  )
+end
+
+def rewrite_callers(blue, root, children)
+  callers = callers_of(children)
+  map(
+    fn(p)
+      exec_capture(blue, "check", "--fix", "--only", "B0074", p)
+      write_file(p, rehome(read_file(p), root, children))
+      exec_capture(blue, "check", "--fix", "--only", "B0015", p)
+    end,
+    callers
+  )
+  callers
 end
 
 def facade(root, children)
@@ -339,16 +421,10 @@ def move(blue, root, children)
       )
     )
   end
-  callers = callers_of(children)
-  map(
-    fn(p)
-      exec_capture(blue, "check", "--fix", "--only", "B0074", p)
-      write_file(p, rehome(read_file(p), root, children))
-      exec_capture(blue, "check", "--fix", "--only", "B0015", p)
-    end,
-    callers
-  )
+  callers = rewrite_callers(blue, root, children)
   facade(root, children)
+  debt(root, children)
+  mutation_sets(root, children)
   must(exec_capture(blue, "lock", dir, "bidamas/zenbu"), "blue lock #{dir}")
   write_stderr(
     unlines(
@@ -366,6 +442,11 @@ def main()
     move(getenv("BLUE", "blue"), argv_get(1), drop(2, argv))
   elsif verb == "facade" and size(argv) >= 3
     facade(argv_get(1), drop(2, argv))
+  elsif verb == "callers" and size(argv) >= 3
+    rewrite_callers(getenv("BLUE", "blue"), argv_get(1), drop(2, argv))
+  elsif verb == "gates" and size(argv) >= 3
+    debt(argv_get(1), drop(2, argv))
+    mutation_sets(argv_get(1), drop(2, argv))
   elsif verb == "rehome" and size(argv) >= 3
     map(
       (p) -> write_file(p, rehome(read_file(p), argv_get(1), drop(2, argv))),
@@ -441,4 +522,20 @@ test "a family's ledger rows fold into one row where the first stood"
   assert folded[2] ==
     "| `r` | ア | root. Its levels: `a` (エー, aye), `b` (ビー, bee) | 2026-11-05 | KEEP | new sweep |"
   assert last(folded) == rows[1]
+end
+
+test "a family's test debt folds into one row for its root, in sorted place"
+  rows = [
+    "      \"untested: a 1\",",
+    "      \"untested: k 2\",",
+    "      \"untested: m 4\",",
+    "      \"untested: z 3\""
+  ]
+  assert debt_rows(rows, "f", %w[k m]) ==
+    [
+      "      \"untested: a 1\",",
+      "      \"untested: f 6\",",
+      "      \"untested: z 3\""
+    ]
+  assert debt_rows(rows, "f", ["q"]) == rows
 end

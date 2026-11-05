@@ -1575,6 +1575,62 @@ string literal; any other spelling is the author's to rewrite) and
 is told so at the `use`, and the same command writes the root's row,
 `needs(\"kaaneru\", \"^0.2\")`, and relocks.",
     }
+    B0076 {
+        slug: "non-canonical-reference",
+        severity: Error,
+        fix: Machine,
+        law: "a qualified name is written by the full path of the level that defines it, so one definition has one spelling and `rg` finds every caller",
+        witness: "use(\"tree\")\n\nkid::x\n",
+        imports: [("tree/kid", "def x()\n  1\nend\n")],
+        waivable: false,
+        ratchet: 0,
+        explanation: "\
+A `use` of a level brings every level below it into reach, and a reference
+could name one by a tail of its path (`kid::x` after `use(\"tree\")`) or by a
+second name (`k::x` after `use({k: \"tree/kid\"})`). Each is one meaning, but
+several spellings of one word: a reader must know the file's imports to know
+what `kid::x` is, and a search for `tree::kid::x` misses it.
+
+One spelling: the full path, `tree::kid::x`, whatever the `use` was. A bare
+name stays bare where the file lists it or the level defines it (B0018 strips
+a qualifier there). `blue check --fix` writes the full path.",
+    }
+    B0077 {
+        slug: "non-canonical-use",
+        severity: Error,
+        fix: Machine,
+        law: "an import is written `use(\"a/b\")` or `use(\"a/b\", [:x])`: one level, its path as a slash string",
+        witness: "use(%i[tree kid])\n\ntree::kid::x\n",
+        imports: [("tree/kid", "def x()\n  1\nend\n")],
+        waivable: false,
+        ratchet: 0,
+        explanation: "\
+The reader accepts a path as `\"a::b\"`, `%i[a b]`, `%w[a b]` or a spread, and a
+form that imports several children (`use(\"a\", %w[b c])`, `use(\"a\", {b: []})`)
+or gives a level a second name (`use({s: \"a/b\"})`). Each loads the same
+levels, so each is one meaning written many ways, and a reader or a search
+for `use(\"a/b\")` cannot rely on one shape.
+
+One way: one `use` per level, the path a string with `/`, then the names it
+lists. `blue check --fix` writes one canonical `use` for each level the form
+imported, and B0015 sorts them.",
+    }
+    B0078 {
+        slug: "redundant-use",
+        severity: Error,
+        fix: Machine,
+        law: "a file imports a tree once: a `use` that lists nothing, of a level below another `use` of the file, adds nothing",
+        witness: "use(\"tree\")\nuse(\"tree/kid\")\n\ntree::kid::x\n",
+        imports: [("tree/kid", "def x()\n  1\nend\n")],
+        waivable: false,
+        ratchet: 0,
+        explanation: "\
+A `use` of a level brings every level below it into reach, so after
+`use(\"tree\")` a plain `use(\"tree/kid\")` loads nothing new: two lines say one
+thing, and a reader cannot tell which one the file needs. A `use` that lists
+names (`use(\"tree/kid\", [:x])`) does add something, the bare names, and stays.
+`blue check --fix` removes the redundant one.",
+    }
 }
 
 impl Code {

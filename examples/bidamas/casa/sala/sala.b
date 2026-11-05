@@ -1,7 +1,7 @@
 @moduledoc """
 casa::sala holds the sofa.
 
-    casa::sala::sofa #=> "sofa"
+    sofa #=> "sofa"
 """
 
 @doc """

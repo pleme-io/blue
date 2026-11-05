@@ -1,7 +1,7 @@
 @moduledoc """
 casa::quarto holds the bed, and a level below it holds the drawer.
 
-    casa::quarto::cama #=> "cama"
+    cama #=> "cama"
 """
 
 @doc """

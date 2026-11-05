@@ -113,23 +113,28 @@ qualifier. One bidama holds levels, as deep as it needs.
 | Tests | each level's file holds its own, and `checks.bidama-test-<pkg>-<level>` runs them |
 | Capabilities | every level's reach joins the root's floor in `Bluefile.lock`, and `definitions` names `tree/room/deep::word` |
 
-### Reach
+### One spelling (operator, 2026-11-05)
 
-A `use` of a level loads it and every level below it. Then, in order:
+A name has one spelling, so a reader needs no imports to read it and `rg`
+finds every caller:
 
-1. A second name the file gave a level: `s::x` after `use({s: "thing/sub"})`.
-2. A full path: `thing::sub::waka::x`. It is exact, so every ambiguity has a way out.
-3. A path relative to an import: the tail of the full path, starting no lower
-   than the first step below the import. After `use("thing/sub")`,
-   `thing/sub/waka` is `sub::waka` and `waka`, and `thing/sub/waka/deep` is
-   `waka::deep`, never `deep` (B0010 writes the one that works).
+| Where | Spelling | Refused otherwise by |
+|---|---|---|
+| a definition of the file's own level | bare, `x` | B0018 |
+| a name the file lists, `use("a/b", [:x])` | bare, `x` | B0018 |
+| every other definition | the full path of its level, `a::b::x` | B0076 |
+| an import | `use("a/b")` or `use("a/b", [:x])`: a slash string, one level | B0077 |
+| a tree | imported once: a `use` of an ancestor brings every level below | B0078 |
 
-A level reaches below itself with no `use`. Several levels may fit a relative
-path: the one that defines the name is meant, and two that define it are B0009,
-naming both. Load order never picks.
+`blue check --fix` writes each canonical form. A level reaches below itself
+with no `use`, and a `use` of a level loads it and every level below it.
 
-No fix rewrites one of these into another. B0018 fires only on a one-level
-qualifier spelled exactly, as it always has.
+The reader still parses a path written `"a::b"`, `%i[a b]`, `%w[a b]` or as a
+spread, a form that imports several children, a second name
+(`use({s: "a/b"})`) and a tail of a path (`b::x` after `use("a")`). Each is one
+meaning, so each loads and resolves, and each is a check-stage error whose fix
+writes the one spelling. Before 2026-11-05 these were accepted as the author's
+choice; a search for a caller missed every one.
 
 ### Privacy and re-export
 
@@ -177,7 +182,9 @@ bidamas still terminates, as it always has.
 ### One `use` grammar
 
 Every spelling reads to one list of imports (`scope::use_targets`), so the
-loader, the check stage, capability floors and `blue lock` see one thing.
+loader, the check stage, capability floors and `blue lock` see one thing. The
+canonical spelling is the first row; every other row is B0077, and its fix
+writes one canonical `use` per level.
 
 | Spelling | Means |
 |---|---|

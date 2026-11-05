@@ -817,6 +817,13 @@ fn reorder_as_written(
             .and_then(|r| r.split('"').next())
             .map(str::to_string)
     };
+    let moves_a_use = fix
+        .edits
+        .iter()
+        .any(|e| package_of(&e.original) != package_of(&e.replacement));
+    if !moves_a_use {
+        return fix.clone();
+    }
     let edits: Option<Vec<blue_lang_check::Edit>> = fix
         .edits
         .iter()
@@ -957,6 +964,19 @@ pub(crate) fn check_stage(
             .collect();
         for fix in &mut d.fixes {
             *fix = reorder_as_written(fix, &file.text, &uses);
+        }
+    }
+    for d in &mut outcome.diagnostics {
+        let owner = program.owner_of(d.top_level);
+        let Some(file) = program.files().iter().find(|f| Some(f.id) == owner) else {
+            continue;
+        };
+        for e in d.fixes.iter_mut().flat_map(|f| f.edits.iter_mut()) {
+            if e.original.is_empty() && e.span.start < e.span.end {
+                if let Some(text) = file.text.get(e.span.start..e.span.end) {
+                    e.original = text.to_string();
+                }
+            }
         }
     }
     let (reuse_waivers, waivers): (Vec<_>, Vec<_>) = waivers

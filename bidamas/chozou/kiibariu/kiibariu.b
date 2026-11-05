@@ -300,7 +300,7 @@ def of_type?(type, v)
 end
 
 @doc """
-check: the record when it holds to a strict schema (teeburu::kv_check: every field present and typed, no field the schema does not declare unless `strict: false`), else one :bad_value raise naming every finding.
+check: the record when it holds to a strict schema (chozou::teeburu::kv_check: every field present and typed, no field the schema does not declare unless `strict: false`), else one :bad_value raise naming every finding.
 
     check({fields: {"n" => :int}}, {"n" => 1}) #=> {"n" => 1}
 """

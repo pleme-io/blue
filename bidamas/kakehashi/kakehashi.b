@@ -7,11 +7,13 @@ Six levels: `kakehashi/nikkusu` (Nix as verbs), `kakehashi/hyouka` (evaluation),
 standard), `kakehashi/tehai` (live builders and substituters) and
 `kakehashi/souji` (cleaning stores and targets). The root defines nothing; a
 `use("kakehashi")` brings all six.
+
+    kakehashi::hyouka::installable(".", "x") #=> ".#x"
 """
 
 test "the root reaches each of its levels by the path below it"
-  assert kijun::fleet_repo(1)[:standard] == "fleet-repo"
-  assert hyouka::installable(".", "x") == ".#x"
-  assert tehai::le_bytes(258, 3) == [2, 1, 0]
-  assert procedure?(souji::perform)
+  assert kakehashi::kijun::fleet_repo(1)[:standard] == "fleet-repo"
+  assert kakehashi::hyouka::installable(".", "x") == ".#x"
+  assert kakehashi::tehai::le_bytes(258, 3) == [2, 1, 0]
+  assert procedure?(kakehashi::souji::perform)
 end

@@ -1,7 +1,7 @@
 @moduledoc """
 casa::sala::mesa holds the plates.
 
-    casa::sala::mesa::pratos #=> "pratos"
+    pratos #=> "pratos"
 """
 
 @doc """

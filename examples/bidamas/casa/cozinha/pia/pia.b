@@ -1,7 +1,7 @@
 @moduledoc """
 casa::cozinha::pia is two levels down.
 
-    casa::cozinha::pia::torneira #=> "torneira"
+    torneira #=> "torneira"
 """
 
 @doc """

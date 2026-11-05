@@ -1,7 +1,7 @@
 @moduledoc """
 casa::sala::tapete holds the pattern.
 
-    casa::sala::tapete::padrao #=> "listras"
+    padrao #=> "listras"
 """
 
 @doc """

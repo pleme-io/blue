@@ -1,4 +1,4 @@
-use("haibi")
+use("eigyou/haibi")
 
 lock = json_read(read_file(argv_get(0)))
 manifest = lock["manifest"]
@@ -9,4 +9,7 @@ if svc.nil?
   raise(:no_service, "the lock declares no service #{name}")
 end
 
-haibi::write_tree(argv_get(2), haibi::files(name, manifest["version"], svc))
+eigyou::haibi::write_tree(
+  argv_get(2),
+  eigyou::haibi::files(name, manifest["version"], svc)
+)

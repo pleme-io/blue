@@ -994,6 +994,13 @@ impl NameTable {
             .find(|b| b.top_level == top_level && b.written == written)
     }
 
+    /// Whether some `use` of the program crossed a bridge written `written`:
+    /// a qualifier through that old name is B0074's to rewrite.
+    #[must_use]
+    pub fn is_bridged_name(&self, written: &str) -> bool {
+        self.bridges.iter().any(|b| b.written == written)
+    }
+
     /// Record each bidama's Bluefile `needs`.
     pub fn attach_needs(&mut self, needs: BTreeMap<String, BTreeSet<String>>) {
         self.needs = needs;
@@ -2471,11 +2478,11 @@ impl Walker<'_> {
             self.resolved += 1;
             let shadowed_by_local =
                 self.locals_in_scope().contains(&n) || blue_lang_syntax::LOWERED_HEADS.contains(&n);
-            if shadowed_by_local || pkg != level || blue_lang_syntax::is_nested(&level) {
-                // Bare, it would be the local: the qualifier is the only way
-                // to reach the definition here. And a path through a tree, or
-                // a second name, is a spelling the author chose: nothing
-                // rewrites one into another.
+            if pkg != level {
+                if !self.table.is_bridged_name(blue_lang_syntax::root_of(pkg)) {
+                    self.non_canonical(span, pkg, &level, n);
+                }
+            } else if shadowed_by_local {
             } else if self.own == Namespace::Bidama(level.clone()) {
                 self.redundant(span, pkg, n, "it is this bidama's own definition");
             } else if self
@@ -2489,6 +2496,28 @@ impl Walker<'_> {
             return;
         }
         let d = self.no_such_definition(span, &level, n, true);
+        self.diagnostics.push(d);
+    }
+
+    /// B0076: a qualifier that is not the full path of the level it reaches.
+    fn non_canonical(&mut self, span: Span, written: &str, level: &str, n: &str) {
+        let written = blue_lang_syntax::spell_level(written);
+        let full = format!("{}::{n}", blue_lang_syntax::spell_level(level));
+        let d = Diagnostic::new(
+            Code::B0076,
+            format!("`{written}::{n}` is written `{full}`: a qualified name is the full path of its level"),
+            span,
+        )
+        .at_top_level(self.top_level)
+        .with_fix(Fix {
+            message: format!("write `{full}`"),
+            edits: vec![Edit {
+                span,
+                original: format!("{written}::{n}"),
+                replacement: full,
+            }],
+            applicability: Applicability::MachineApplicable,
+        });
         self.diagnostics.push(d);
     }
 

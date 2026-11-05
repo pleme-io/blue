@@ -51,7 +51,6 @@ use("anaritikusu")
 use("angou", [:is_prime])
 # waive B0016: zenbu is the facade, and depending on it means depending on baito
 use("baito")
-use("bougyo")
 # waive B0016: zenbu is the facade, and depending on it means depending on bpf
 use("bpf")
 # waive B0016: zenbu is the facade, and depending on it means depending on btf
@@ -62,6 +61,7 @@ use("chokkan")
 use("chozou")
 use("danpen")
 use("deeta", [:get_str])
+use("eigyou")
 # waive B0016: zenbu is the facade, and depending on it means depending on erufu
 use("erufu")
 use("fairu")
@@ -70,9 +70,7 @@ use("gamen")
 use("gitto")
 use("gurafu")
 use("hadome")
-use("haibi")
 use("happa")
-use("heddaa")
 # waive B0016: zenbu is the facade, and depending on it means depending on heni
 use("heni")
 use("hikisuu")
@@ -96,7 +94,6 @@ use("koutei")
 use("kueri")
 use("kyasshu")
 use("kyohi")
-use("kyuuji")
 use("maakuappu")
 use("mitoshi")
 use("moji", [:empty])
@@ -114,11 +111,9 @@ use("sabi")
 use("saishikou")
 use("seimei", [:life_step])
 use("settei")
-use("shihyou")
 use("shinchoku")
 use("shinsatsu")
 use("shinsuu", [:to_hex])
-use("shisei")
 use("shisutemu", [:age_s])
 use("shomei", [:hash_message])
 # waive B0016: zenbu is the facade, and depending on it means depending on shuugou
@@ -130,11 +125,9 @@ use("suugaku/kumiawase", [:combinations])
 use("suugaku/ryouiki", [:box_around])
 use("suugaku/tokumei", [:suppress_small])
 use("suugaku/toukei", %i[mean median])
-use("tajuu")
 use("tesuto")
 use("todokede")
 use("touroku")
-use("tsuushin")
 use("ugoki")
 use("ukai", [:decide])
 
@@ -166,11 +159,12 @@ test "every bidama in the distribution answers through this one import"
   assert kyasshu::key(["User", 7]) == "User:7"
   assert kyohi::kind(kyohi::refusal(:late, "why")) == :late
   assert combinations(52, 5) == 2_598_960
-  assert kyuuji::address({"listen" => {"host" => "h", "port" => 1}}) == "h:1"
-  assert haibi::column_sql("text?") == ["double precision", true] or
-    haibi::column_sql("text?") == ["text", true]
+  assert eigyou::kyuuji::address({"listen" => {"host" => "h", "port" => 1}}) ==
+    "h:1"
+  assert eigyou::haibi::column_sql("text?") == ["double precision", true] or
+    eigyou::haibi::column_sql("text?") == ["text", true]
   assert settei::env_prefix("a-b") == "A_B_"
-  assert blue::get(shihyou::defaults, "availability") == 99.5
+  assert blue::get(eigyou::shihyou::defaults, "availability") == 99.5
   assert chozou::teeburu::quoted("t") == "\"t\""
   assert empty("") == true
   assert md_cell("a|b") == "a\\|b"
@@ -179,7 +173,7 @@ test "every bidama in the distribution answers through this one import"
   assert raifusaikuru::hours(2) == 7200
   assert take_ints(42, 100, 5) == take_ints(42, 100, 5)
   assert koubou::rittai::z([1, 2, 3]) == 3
-  assert rogu::levels == %i[debug info warn error]
+  assert mitoshi::rogu::levels == %i[debug info warn error]
   assert size([1, 2, 3]) == 3
   assert every((v) -> v > 0, [1, 2, 3]) == true
   assert box_around([[1, 2], [3, 0]]) == [[1, 3], [0, 2]]
@@ -222,22 +216,23 @@ test "every bidama in the distribution answers through this one import"
   assert kakehashi::hyouka::installable(".", "x") == ".#x"
   assert kakehashi::kirikae::attr_for("darwin", "ryn") ==
     "darwinConfigurations.ryn.system"
-  assert shisei::stack([], (r) -> r)(1) == 1
+  assert eigyou::shisei::stack([], (r) -> r)(1) == 1
   assert shinsatsu::incomplete == []
-  assert bougyo::safe_id?("abc-1", 64)
+  assert eigyou::bougyo::safe_id?("abc-1", 64)
   assert fairu::stem("a/b.txt") == "b"
   assert gitto::ref_of("v1", :tag) == "refs/tags/v1"
-  assert rogu::level_of("warn") == :warn
-  assert tsuushin::join("http://a.com/b/c", "../d") == "http://a.com/d"
+  assert mitoshi::rogu::level_of("warn") == :warn
+  assert eigyou::tsuushin::join("http://a.com/b/c", "../d") == "http://a.com/d"
   assert shuusei::put({}, "a.b", 1) == {"a" => {"b" => 1}}
   assert gamen::contrast("#000000", "#ffffff") > 20
-  assert keisoku::read(keisoku::counter("probe", {}), {}) == []
+  assert mitoshi::keisoku::read(mitoshi::keisoku::counter("probe", {}), {}) ==
+    []
   assert tesuto::raises?(:probe, () -> raise(:probe, "m")) == true
-  assert tsuiseki::span("probe", (_s) -> 1, {sink: (_r) -> nil}) == 1
+  assert mitoshi::tsuiseki::span("probe", (_s) -> 1, {sink: (_r) -> nil}) == 1
   assert ugoki::sample(ugoki::tween(0, 10, {seconds: 2}), 1) == 5
   assert burauza::seam_names != []
-  assert heddaa::encode_int(1337, 5, 0) == [31, 154, 10]
-  assert tajuu::error_code(:cancel) == 8
+  assert eigyou::heddaa::encode_int(1337, 5, 0) == [31, 154, 10]
+  assert eigyou::tajuu::error_code(:cancel) == 8
   assert outou::request(outou::fixture, "{ hero { id } }") ==
     {data: {"hero" => {"id" => "2001"}}}
   assert touroku::visibility_of({}) == "private"

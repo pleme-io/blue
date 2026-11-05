@@ -336,7 +336,7 @@ test "stderr gets one JSON line per call and stdout gets nothing"
   if self_exe != nil
     cap = probe(
       [%w[BLUE_LOG debug]],
-      "rogu::info(\"pinned\", {rev: \"abc\", n: 2})"
+      "mitoshi::rogu::info(\"pinned\", {rev: \"abc\", n: 2})"
     )
     assert status_of(cap) == 0
     assert stdout_of(cap) == ""
@@ -357,10 +357,10 @@ test "each verb writes its own level when everything is on"
       [%w[BLUE_LOG debug]],
       join_lines(
         [
-          "rogu::debug(\"a\", {})",
-          "rogu::info(\"b\", {})",
-          "rogu::warn(\"c\", {})",
-          "rogu::error(\"d\", {})"
+          "mitoshi::rogu::debug(\"a\", {})",
+          "mitoshi::rogu::info(\"b\", {})",
+          "mitoshi::rogu::warn(\"c\", {})",
+          "mitoshi::rogu::error(\"d\", {})"
         ]
       )
     )
@@ -373,10 +373,10 @@ test "BLUE_LOG filters: warn drops debug and info, error keeps only error"
   if self_exe != nil
     body = join_lines(
       [
-        "rogu::debug(\"a\", {})",
-        "rogu::info(\"b\", {})",
-        "rogu::warn(\"c\", {})",
-        "rogu::error(\"d\", {})"
+        "mitoshi::rogu::debug(\"a\", {})",
+        "mitoshi::rogu::info(\"b\", {})",
+        "mitoshi::rogu::warn(\"c\", {})",
+        "mitoshi::rogu::error(\"d\", {})"
       ]
     )
     warn_run = probe([%w[BLUE_LOG warn]], body)
@@ -388,7 +388,9 @@ end
 
 test "with BLUE_LOG unset or empty the default is info"
   if self_exe != nil
-    body = join_lines(["rogu::debug(\"a\", {})", "rogu::info(\"b\", {})"])
+    body = join_lines(
+      ["mitoshi::rogu::debug(\"a\", {})", "mitoshi::rogu::info(\"b\", {})"]
+    )
     cap = probe([["BLUE_LOG", ""]], body)
     assert map((r) -> r["message"], written(cap)) == ["b"]
   end
@@ -396,7 +398,7 @@ end
 
 test "a call under a bad BLUE_LOG fails loudly and writes no line"
   if self_exe != nil
-    cap = probe([%w[BLUE_LOG verbose]], "rogu::info(\"x\", {})")
+    cap = probe([%w[BLUE_LOG verbose]], "mitoshi::rogu::info(\"x\", {})")
     assert status_of(cap) != 0
     assert contains?(stderr_of(cap), "BLUE_LOG is verbose") == true
     assert contains?(stderr_of(cap), "\"level\"") == false
@@ -405,7 +407,7 @@ end
 
 test "enabled? in a child follows BLUE_LOG"
   if self_exe != nil
-    body = "write_stdout(to_s([rogu::enabled?(:debug), rogu::enabled?(:info), rogu::enabled?(:warn), rogu::enabled?(:error)]))"
+    body = "write_stdout(to_s([mitoshi::rogu::enabled?(:debug), mitoshi::rogu::enabled?(:info), mitoshi::rogu::enabled?(:warn), mitoshi::rogu::enabled?(:error)]))"
     assert stdout_of(probe([%w[BLUE_LOG debug]], body)) ==
       "[true, true, true, true]"
     assert stdout_of(probe([%w[BLUE_LOG warn]], body)) ==
@@ -419,7 +421,7 @@ test "with carries base fields on every line, and a call's own fields win"
   if self_exe != nil
     body = join_lines(
       [
-        "l = rogu::with({svc: \"api\", n: 1})",
+        "l = mitoshi::rogu::with({svc: \"api\", n: 1})",
         "get(l, :info)(\"up\", {n: 2, extra: true})",
         "get(l, :debug)(\"hidden\", {})",
         "get(l, :error)(\"down\", nil)"

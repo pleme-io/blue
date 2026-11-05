@@ -1950,7 +1950,13 @@ def test_corpus(packages)
       toks
     ),
     qualified: blue::frequencies(
-      filter((t) -> contains?(t, token_glue), flat_map(toks, (t) -> t[1]))
+      map(
+        fn(t)
+          parts = split(t, token_glue)
+          join(drop(size(parts) - 2, parts), token_glue)
+        end,
+        filter((t) -> contains?(t, token_glue), flat_map(toks, (t) -> t[1]))
+      )
     ),
     prefixes: legacy_prefixes(packages)
   }
@@ -3642,6 +3648,11 @@ test "a level's verbs are read under its last segment, for tests and for meaning
   g = ux_graph([%w[kid go exists:kid one], %w[kid stop exists:kid two]])
   assert map((f) -> f[:subject], untested_probe(g, [root])) == ["kid::stop"]
   assert verb_meanings(root)["kid::go"] == "send it on"
+  write_program(
+    path_join(root, "fam/fam.b"),
+    unlines(["test \"stop\"", "  assert fam::kid::stop(1) == 1", "end"])
+  )
+  assert untested_probe(g, [root]) == []
   rm_rf(root)
 end
 

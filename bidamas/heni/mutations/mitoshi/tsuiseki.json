@@ -86,8 +86,8 @@
   {
     "name": "sink used",
     "file": "tsuiseki.b",
-    "find": "  if sink.nil?\n    rogu::info",
-    "replace": "  if true\n    rogu::info"
+    "find": "  if sink.nil?\n    mitoshi::rogu::info",
+    "replace": "  if true\n    mitoshi::rogu::info"
   },
   {
     "name": "reraise",

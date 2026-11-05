@@ -1,12 +1,16 @@
 # A web site rendered on the server
 #
 # BLUE_SITE=127.0.0.1:8080 blue run examples/13_web_site.b serves it.
-use("bougyo", [:defended])
+use("eigyou/bougyo", [:defended])
+
+use(
+  "eigyou/kyuuji",
+  %i[answer dispatch param redirect request route router serve]
+)
+
+use("eigyou/shisei", [:silent])
+
 use("gamen", %i[page theme view])
-
-use("kyuuji", %i[answer dispatch param redirect request route router serve])
-
-use("shisei", [:silent])
 
 def shell(title, body)
   page(

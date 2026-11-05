@@ -192,6 +192,20 @@ pub fn use_targets(form: &Spanned) -> Option<Vec<Import>> {
     }
 }
 
+/// Is this `use` written the one way: `use("a/b")` or `use("a/b", [:x])`, a
+/// slash path as a string literal, one level, no second name, no spread?
+#[must_use]
+pub fn is_canonical_use(form: &Spanned) -> bool {
+    let direct = form
+        .as_list()
+        .and_then(|items| items.first())
+        .is_some_and(|head| head.as_symbol() == Some("use"));
+    direct
+        && use_targets(form).is_some_and(|imports| {
+            imports.len() == 1 && imports.iter().all(|i| i.plain && i.alias.is_none())
+        })
+}
+
 fn str_of(form: &Spanned) -> Option<String> {
     match &form.form {
         SpannedForm::Atom(Atom::Str(s)) => Some(s.clone()),

@@ -771,6 +771,39 @@ row(
 )
 
 row(
+  "check.B0076",
+  join_lines(["use(\"sp_tree\")", "sp_moved::sp_one"]),
+  diagnoses(["B0076"]),
+  covers("rule:B0076")
+)
+
+row(
+  "check.B0076.full_path_is_clean",
+  join_lines(["use(\"sp_tree\")", "sp_tree::sp_moved::sp_one"]),
+  diagnoses([])
+)
+
+row(
+  "check.B0077",
+  join_lines(["use(%i[sp_tree sp_moved])", "sp_tree::sp_moved::sp_one"]),
+  diagnoses(["B0077"]),
+  covers("rule:B0077")
+)
+
+row(
+  "check.B0078",
+  join_lines(
+    [
+      "use(\"sp_tree\")",
+      "use(\"sp_tree/sp_moved\")",
+      "sp_tree::sp_moved::sp_one"
+    ]
+  ),
+  diagnoses(["B0078"]),
+  covers("rule:B0078")
+)
+
+row(
   "check.B0071.stops_the_run",
   join_lines(["def apply()", "  1", "end", "", "x = apply", "to_s(x)"]),
   fails(:check, "B0071")

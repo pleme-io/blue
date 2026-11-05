@@ -42,7 +42,7 @@ end
 pipe(f, g) applies f FIRST — reading order.
 """
 def pipe(f, g)
-  (x) -> g(f(x))
+  compose(g, f)
 end
 
 @doc """
@@ -73,7 +73,7 @@ def compose3(f, g, h)
 end
 
 def pipe3(f, g, h)
-  (x) -> h(g(f(x)))
+  compose3(h, g, f)
 end
 
 @doc """
@@ -85,7 +85,7 @@ building a pipeline from data (a config, a list of enabled transforms) can
 therefore hand over an empty list without a guard at the call site.
 """
 def pipe_all(fs)
-  reduce((acc, f) -> (x) -> f(acc(x)), identity, fs)
+  compose_all(reverse(fs))
 end
 
 @doc """
@@ -150,7 +150,17 @@ the value so it can be handed straight to `map` — building a row per element
 from a list of column functions is the reason it exists.
 """
 def juxt(fs)
-  (x) -> map((f) -> f(x), fs)
+  juxt_with(map, fs)
+end
+
+@doc """
+juxt_with(q, fs) returns a function of x that hands q the list fs and a
+function calling each f on x, so q decides how the results combine.
+
+    juxt_with(map, [(n) -> n + 1, (n) -> n * 2])(3) #=> [4, 6]
+"""
+def juxt_with(q, fs)
+  (x) -> q((f) -> f(x), fs)
 end
 
 @doc """
@@ -158,7 +168,7 @@ both_results: The two-function case, named, because a pair is what most callers 
 [f, g] spelled as a list is one bracket of noise per use site.
 """
 def both_results(f, g)
-  (x) -> [f(x), g(x)]
+  fork((a, b) -> [a, b], f, g)
 end
 
 @doc """
@@ -491,4 +501,14 @@ test "on applies the key function before the operator"
   assert by_size(-7, 3) == 7
   # key = identity degenerates to the bare operator
   assert on(sub, identity)(10, 4) == sub(10, 4)
+end
+
+test "juxt_with lets the collector decide"
+  inc = (n) -> n + 1
+  assert juxt_with(map, [])(5) == []
+  assert juxt_with(map, [identity])(5) == [5]
+  assert juxt_with(map, [inc, (n) -> n * 2])(3) == [4, 6]
+  total = (g, fs) -> reduce((acc, f) -> acc + g(f), 0, fs)
+  assert juxt_with(total, [inc, (n) -> n * 2])(3) == 10
+  assert juxt_with(map, [inc])(1) == juxt([inc])(1)
 end

@@ -12,6 +12,7 @@ its accessibility faults. On the terminal, `show` writes styled text, and
 """
 
 use("jisho")
+use("kazu", [:near_within])
 use("kyohi", %i[kind kinds raised refusal why])
 use("moji", %i[checked trim])
 use("retsu", %i[count_where find_first first flat_map is_empty size])
@@ -390,7 +391,7 @@ def show_step(s, opts)
 end
 
 def close?(a, b)
-  blue::abs(a - b) < 0.001
+  near_within(a, b, 0.001)
 end
 
 def collect(opts, node)
@@ -669,16 +670,25 @@ def roles()
   ]
 end
 
+@doc """
+row_where: The first row of a table whose `field` holds `value`, or nil.
+
+    row_where([{key: :a}, {key: :b}], :key, :b) #=> {key: :b}
+"""
+def row_where(rows, field, value)
+  find_first((r) -> get(r, field) == value, rows)
+end
+
 def tag_of(tag)
-  find_first((r) -> r[:tag] == tag, tags)
+  row_where(tags, :tag, tag)
 end
 
 def attr_of(key)
-  find_first((r) -> r[:key] == key, attributes)
+  row_where(attributes, :key, key)
 end
 
 def style_of(key)
-  find_first((r) -> r[:key] == key, style_props)
+  row_where(style_props, :key, key)
 end
 
 def scale_value(scale, key)
@@ -749,8 +759,17 @@ def where(path)
   end
 end
 
+@doc """
+map_with?: The value is a map that carries the key: how a node says which kind it is.
+
+    map_with?({tag: :p}, :tag) #=> true
+"""
+def map_with?(x, key)
+  map?(x) and jisho::has?(x, key)
+end
+
 def element?(node)
-  map?(node) and jisho::has?(node, :tag)
+  map_with?(node, :tag)
 end
 
 def text_node?(node)
@@ -1223,7 +1242,7 @@ def element(tag, props, children)
 end
 
 def component?(kind)
-  map?(kind) and jisho::has?(kind, :component)
+  map_with?(kind, :component)
 end
 
 @doc """
@@ -1525,6 +1544,16 @@ def page(spec)
       view(:body, {}, spec[:body])
     ]
   )
+end
+
+test "row_where and map_with? are the lookups the table words share"
+  assert row_where([], :key, :a).nil?
+  assert row_where(tags, :tag, :p) == tag_of(:p)
+  assert row_where(style_props, :key, :nope).nil?
+  assert row_where([{key: :a, n: 1}, {key: :a, n: 2}], :key, :a)[:n] == 1
+  assert map_with?({}, :tag) == false
+  assert map_with?([:tag], :tag) == false
+  assert map_with?(view(:p, {}, []), :tag) == element?(view(:p, {}, []))
 end
 
 test "a page shell is the renderer's: a script or link comes from a checked url, never from a view"

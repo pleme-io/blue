@@ -203,7 +203,18 @@ def variant(name, doc)
 end
 
 def enum(name, derives, variants, doc)
-  {kind: :enum, name:, derives:, variants:, doc:}
+  derived_item(:enum, name, derives, :variants, variants, doc)
+end
+
+@doc """
+derived_item(kind, name, derives, part, members, doc) is an item of kind
+that carries derives and keeps its members under the key part, the shape enum
+and struct share.
+
+    derived_item(:enum, "E", [], :variants, [], [])[:variants] #=> []
+"""
+def derived_item(kind, name, derives, part, members, doc)
+  assoc({kind:, name:, derives:, doc:}, part, members)
 end
 
 def field(name, ty, doc)
@@ -211,7 +222,7 @@ def field(name, ty, doc)
 end
 
 def struct(name, derives, fields, doc)
-  {kind: :struct, name:, derives:, fields:, doc:}
+  derived_item(:struct, name, derives, :fields, fields, doc)
 end
 
 def param(name, ty)
@@ -577,4 +588,13 @@ test "an empty doc emits no doc lines, and an empty doc line keeps the marker"
   assert render_item(rs_const("N", ty("i64"), int(3), [])) ==
     "pub const N: i64 = 3;"
   assert doc_lines(["a", "", "b"], 0, "///") == ["/// a", "///", "/// b"]
+end
+
+test "derived_item keeps its members under the part named"
+  assert derived_item(:enum, "E", [], :variants, [], [])[:variants] == []
+  assert enum("E", ["Debug"], [], []) ==
+    {kind: :enum, name: "E", derives: ["Debug"], variants: [], doc: []}
+  assert struct("P", [], [field("x", "i64", [])], ["a"])[:fields] ==
+    [field("x", "i64", [])]
+  assert derived_item(:struct, "P", [], :fields, [], [])[:kind] == :struct
 end

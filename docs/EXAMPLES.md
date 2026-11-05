@@ -875,6 +875,47 @@ test "a map no program declared is refused by name"
 end
 ```
 
+## A security hook that denies, tested with no kernel
+
+An LSM program answers for one operation: 0 allows it and a negative errno denies it. The machine takes the identity a test gives it. On Linux, `kaaneru::attached(program, {lsm: "file_open"}, body)` holds the hook while `body` runs, and takes it away whatever `body` does.
+
+`examples/15_kernel_deny.b`:
+
+```blue
+use("bpf", %i[compile helper])
+
+EPERM = 1
+
+THREAD = 4242
+
+def deny_one_thread(_ctx)
+  if bit_and(helper(:get_current_pid_tgid), 4_294_967_295) == THREAD
+    -EPERM
+  else
+    0
+  end
+end
+
+def program()
+  compile(
+    "15_kernel_deny.b",
+    {entry: :deny_one_thread, kind: :lsm, on_fault: 0}
+  )
+end
+
+def answer_for(thread)
+  bpf::run(program, {ctx: [0, 0, 0, 0, 0, 0, 0, 0], pid_tgid: thread}).ret
+end
+
+test "the target thread is denied"
+  assert answer_for(THREAD) == -EPERM
+end
+
+test "any other thread is allowed"
+  assert answer_for(THREAD + 1) == 0
+end
+```
+
 ## A bidama: `casa`
 
 @moduledoc """
@@ -1146,7 +1187,7 @@ A bidama holds levels, as deep as it needs: a directory `sub/sub.b`, or a file t
 
 `use` spells one path many ways, and all of them load the same thing: `"a/b"`, `"a::b"`, `%i[a b]`, `%w[a b]`, `*%i[a b]` and `**%i[a b]`. After the path, `%i[x y]` lists names for bare use, `%w[b c]` imports several children, and `{b: %i[x], c: []}` imports them with their lists. `use({s: "a/b"})` gives a level a second name. A path is always a literal: the loader reads it before the program runs.
 
-`examples/14_namespaces.b`:
+`examples/16_namespaces.b`:
 
 ```blue
 use("casa")
@@ -1196,46 +1237,5 @@ test "several children come from one form"
   assert tapete::padrao == "listras"
   assert luz::lampada == "lampada"
   assert sala::sofa == "sofa"
-end
-```
-
-## A security hook that denies, tested with no kernel
-
-An LSM program answers for one operation: 0 allows it and a negative errno denies it. The machine takes the identity a test gives it. On Linux, `kaaneru::attached(program, {lsm: "file_open"}, body)` holds the hook while `body` runs, and takes it away whatever `body` does.
-
-`examples/15_kernel_deny.b`:
-
-```blue
-use("bpf", %i[compile helper])
-
-EPERM = 1
-
-THREAD = 4242
-
-def deny_one_thread(_ctx)
-  if bit_and(helper(:get_current_pid_tgid), 4_294_967_295) == THREAD
-    -EPERM
-  else
-    0
-  end
-end
-
-def program()
-  compile(
-    "15_kernel_deny.b",
-    {entry: :deny_one_thread, kind: :lsm, on_fault: 0}
-  )
-end
-
-def answer_for(thread)
-  bpf::run(program, {ctx: [0, 0, 0, 0, 0, 0, 0, 0], pid_tgid: thread}).ret
-end
-
-test "the target thread is denied"
-  assert answer_for(THREAD) == -EPERM
-end
-
-test "any other thread is allowed"
-  assert answer_for(THREAD + 1) == 0
 end
 ```

@@ -855,7 +855,7 @@ word, or the next flag, is never a directory.
 """
 def clone_root(args)
   at = position("--clone", args)
-  word = if at.nil? or at < 0
+  word = if at < 0
     nil
   else
     args[at + 1] rescue nil

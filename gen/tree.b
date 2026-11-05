@@ -24,15 +24,40 @@ end
 @doc """
 root_bluefile: the Bluefile of a new root over its children, at 0.1.0.
 
-    starts_with?(root_bluefile("fam", ["a"]), "package(") #=> true
+    starts_with?(root_bluefile("fam", ["a"], "0.1.2"), "package(") #=> true
 """
-def root_bluefile(root, children)
+def root_bluefile(root, children, version)
   unlines(
     [
-      "package(\"#{root}\", \"0.1.0\")",
-      "legacy_packages(\"0.1.0\", #{legacy_rows(root, children)})"
+      "package(\"#{root}\", \"#{version}\")",
+      "legacy_packages(\"#{version}\", #{legacy_rows(root, children)})"
     ]
   )
+end
+
+@doc """
+version_rank: a version as one number that orders as the version does.
+
+    version_rank("0.1.10") > version_rank("0.1.9") #=> true
+"""
+def version_rank(v)
+  parts = map(to_int, split(v, "."))
+  parts[0] * 1_000_000 + parts[1] * 1000 + parts[2]
+end
+
+@doc """
+root_version: the version a root takes over its children: the highest, so
+every child's `legacy_names` window stays open under it.
+
+    root_version(%w[0.1.0 0.1.2 0.1.1]) #=> "0.1.2"
+"""
+def root_version(versions)
+  last(junjo::sort_by(version_rank, versions))
+end
+
+def package_version(dir)
+  text = read_file(path_join(dir, "Bluefile"))
+  before_first(after_first(after_first(text, ","), "\""), "\"")
 end
 
 @doc """
@@ -75,7 +100,14 @@ one row for the root in sorted place, before the waivers of the row it precedes.
 """
 def with_root_row(lines, head, root, children, entry)
   gone = concat_lists(children, map((c) -> "#{root}/#{c}", children))
-  kept = filter((l) -> not member?(row_name(l, head), gone), lines)
+  child_row? = (l) -> member?(row_name(l, head), gone)
+  listed = sort(
+    map(
+      (l) -> "#{head}\"#{root}/#{after_first(after_first(l, "\""), "/")}",
+      filter((l) -> child_row?(l) and not ends_with?(l, "\")"), lines)
+    )
+  )
+  kept = filter((l) -> not child_row?(l), lines)
   before = take_while(
     fn(l)
       n = row_name(l, head)
@@ -90,7 +122,7 @@ def with_root_row(lines, head, root, children, entry)
   concat_lists(
     first(split_at),
     concat_lists(
-      [entry],
+      concat_lists([entry], listed),
       concat_lists(last(split_at), drop(size(before), kept))
     )
   )
@@ -112,6 +144,14 @@ ledger_rows: the ledger with each child's row folded into one row for the root, 
     ledger_rows(["x"], "r", "ア", "2026", "g", "s", ["c"]) #=> ["x"]
 """
 def ledger_rows(rows, root, kanji, date, gloss, sweep, children)
+  h = position("## The ledger", rows) + 1
+  concat_lists(
+    take(h, rows),
+    fold_rows(drop(h, rows), root, kanji, date, gloss, sweep, children)
+  )
+end
+
+def fold_rows(rows, root, kanji, date, gloss, sweep, children)
   mine = (l) -> any?((c) -> starts_with?(l, "| `#{c}` |"), children)
   notes = map(level_note, filter(mine, rows))
   if notes == []
@@ -192,6 +232,9 @@ def move(blue, root, children)
     exit_with(1)
   end
   mkdir_p(dir)
+  version = root_version(
+    map((c) -> package_version(path_join("bidamas", c)), children)
+  )
   map(
     fn(c)
       from = path_join("bidamas", c)
@@ -210,7 +253,7 @@ def move(blue, root, children)
     end,
     children
   )
-  write_file(path_join(dir, "Bluefile"), root_bluefile(root, children))
+  write_file(path_join(dir, "Bluefile"), root_bluefile(root, children, version))
   if not is_file?(path_join(dir, "#{root}.b"))
     write_program(
       path_join(dir, "#{root}.b"),
@@ -276,6 +319,9 @@ test "the root's row replaces its children's, before the waiver of the row after
   rows = ["use(\"a\")", "use(\"f/k\")", "# waive B0016: kept", "use(\"z\")"]
   assert with_root_row(rows, "use(", "f", ["k"], "use(\"f\")") ==
     ["use(\"a\")", "use(\"f\")", "# waive B0016: kept", "use(\"z\")"]
+  listing = ["use(\"a\")", "use(\"f/k\", [:x])", "use(\"g\")"]
+  assert with_root_row(listing, "use(", "f", ["k"], "use(\"f\")") ==
+    ["use(\"a\")", "use(\"f\")", "use(\"f/k\", [:x])", "use(\"g\")"]
   needs = [
     "needs(\"a\", \"^0.1\")",
     "needs(\"k\", \"^0.1\")",
@@ -290,13 +336,14 @@ test "the root's row replaces its children's, before the waiver of the row after
 end
 
 test "a family's ledger rows fold into one row where the first stood"
+  prefixes = ["| `a` | `a_` | 0.1.1 |", "## The ledger"]
   rows = [
     "| `a` | エー | aye — the first | 2026-10-01 | KEEP | swept |",
     "| `m` | エム | em — between | 2026-10-01 | KEEP | swept |",
     "| `b` | ビー | bee — the second | 2026-10-02 | KEEP | swept |"
   ]
   folded = ledger_rows(
-    rows,
+    concat_lists(prefixes, rows),
     "r",
     "ア",
     "2026-11-05",
@@ -304,8 +351,9 @@ test "a family's ledger rows fold into one row where the first stood"
     "new sweep",
     %w[a b]
   )
-  assert size(folded) == 2
-  assert first(folded) ==
+  assert size(folded) == 4
+  assert take(2, folded) == prefixes
+  assert folded[2] ==
     "| `r` | ア | root. Its levels: `a` (エー, aye), `b` (ビー, bee) | 2026-11-05 | KEEP | new sweep |"
   assert last(folded) == rows[1]
 end

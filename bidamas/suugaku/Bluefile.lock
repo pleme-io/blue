@@ -1,0 +1,53 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:4fa58daba5055ba33e48ec4e3c147d68932e91df912485c9be4b2d596fc9c888",
+  "manifest": {
+    "schema": 1,
+    "name": "suugaku",
+    "version": "0.1.2",
+    "needs": {
+      "deeta": "^0.1.0",
+      "junjo": "^0.1.0",
+      "kazu": "^0.1.0",
+      "kyohi": "^0.1.0",
+      "ran": "^0.1.0",
+      "retsu": "^0.1.0",
+      "shuugou": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null,
+    "legacy_packages": {
+      "gyouretsu": {
+        "since": "0.1.2",
+        "to": "suugaku/gyouretsu"
+      },
+      "kinji": {
+        "since": "0.1.2",
+        "to": "suugaku/kinji"
+      },
+      "kumiawase": {
+        "since": "0.1.2",
+        "to": "suugaku/kumiawase"
+      },
+      "ryouiki": {
+        "since": "0.1.2",
+        "to": "suugaku/ryouiki"
+      },
+      "tokumei": {
+        "since": "0.1.2",
+        "to": "suugaku/tokumei"
+      },
+      "toukei": {
+        "since": "0.1.2",
+        "to": "suugaku/toukei"
+      }
+    }
+  },
+  "sources": {}
+}

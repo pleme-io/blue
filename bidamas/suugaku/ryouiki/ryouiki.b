@@ -28,7 +28,7 @@ use("junjo", %i[sort sort_by])
 use("kazu", %i[max sum])
 use("ran", %i[next_float stream_seed])
 use("retsu", %i[concat_lists first flat_map is_empty last size])
-use("toukei", %i[largest mean percentile smallest])
+use("suugaku/toukei", %i[largest mean percentile smallest])
 
 @doc """
 box_around: The box around every point: [min, max] of each input.

@@ -26,7 +26,7 @@ the caller's, and privacy that is spent on a decision stays spent.
 use("kazu", %i[abs clamp max])
 use("ran", %i[next_float stream_seed])
 use("retsu", [:size])
-use("toukei", [:mean])
+use("suugaku/toukei", [:mean])
 
 # ── forced response ────────────────────────────────────────────────────────
 

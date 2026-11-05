@@ -642,5 +642,21 @@ fn a_consumer_bidamas_needs_row_moves_with_the_bidama() {
     let (code, json) = check(&dist, &source, &[]);
     assert_eq!(code, 0, "{json}");
     assert!(!json.contains("\"code\""), "{json}");
+
+    write(
+        &user.join("Bluefile"),
+        "package(\"user\", \"0.1.0\")\nneeds(\"kb\", \"^0.1\")\n",
+    );
+    write(
+        &source,
+        &format!("use(\"kb\")\n\n{doc}def build()\n  kb::compile\nend\n"),
+    );
+    let (code, json) = check(&dist, &source, &["--fix", "--only", "B0074"]);
+    assert_eq!(code, 0, "{json}");
+    assert_eq!(
+        std::fs::read_to_string(user.join("Bluefile")).expect("read"),
+        "package(\"user\", \"0.1.0\")\nneeds(\"kroot\", \"^0.2.0\")\n",
+        "--only B0074 moves the needs row with the use"
+    );
     let _ = std::fs::remove_dir_all(&root);
 }

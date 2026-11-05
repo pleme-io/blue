@@ -18,22 +18,6 @@ measured temperature curve.
 
 use("deeta", [:get_or])
 
-use(
-  "gyouretsu",
-  %i[
-    dot
-    matmul
-    mvmul
-    scale
-    solve_gauss
-    transpose
-    vadd
-    vdistance
-    vector_near
-    vsub
-  ]
-)
-
 use("junjo", %i[is_strictly_sorted sort_stable_by upper_bound])
 use("kazu", %i[abs clamp lerp max min near near_within square])
 
@@ -52,6 +36,22 @@ use(
     rest
     size
     update_at
+  ]
+)
+
+use(
+  "suugaku/gyouretsu",
+  %i[
+    dot
+    matmul
+    mvmul
+    scale
+    solve_gauss
+    transpose
+    vadd
+    vdistance
+    vector_near
+    vsub
   ]
 )
 

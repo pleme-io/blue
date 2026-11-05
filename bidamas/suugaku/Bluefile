@@ -1,0 +1,2 @@
+package("suugaku", "0.1.2")
+legacy_packages("0.1.2", [["gyouretsu", "suugaku/gyouretsu"], ["kinji", "suugaku/kinji"], ["kumiawase", "suugaku/kumiawase"], ["toukei", "suugaku/toukei"], ["ryouiki", "suugaku/ryouiki"], ["tokumei", "suugaku/tokumei"]])

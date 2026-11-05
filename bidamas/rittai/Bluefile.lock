@@ -1,16 +1,16 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:409bdda2afc133d682bce7681d8ae853ef40515ab85a3afaf98ee37ccc428f37",
+  "bluefile_b3": "b3:f06dcf6e4dcd3a1b700efb3d2d19d1c468f60352ce8748776123367992dc0d10",
   "manifest": {
     "schema": 1,
     "name": "rittai",
     "version": "0.1.2",
     "needs": {
-      "gyouretsu": "^0.1.0",
       "junjo": "^0.1.0",
       "kazu": "^0.1.0",
       "kikagaku": "^0.1.0",
-      "retsu": "^0.1.0"
+      "retsu": "^0.1.0",
+      "suugaku": "^0.1.0"
     },
     "when": "anytime",
     "sources": {},

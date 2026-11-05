@@ -288,12 +288,10 @@ fn every_declared_dependency_is_actually_imported() {
         let source = std::fs::read_to_string(dir.join(format!("{name}.b"))).expect("source");
         for chunk in manifest.split("needs(\"").skip(1) {
             let dep = chunk.split('"').next().unwrap_or_default();
+            let flat = source.split_whitespace().collect::<String>();
             assert!(
-                // `use("dep")` or `use("dep", [:names])`, however it wraps.
-                source
-                    .split_whitespace()
-                    .collect::<String>()
-                    .contains(&format!("use(\"{dep}\"")),
+                // `use("dep")`, `use("dep", [:names])` or a level, `use("dep/sub")`.
+                flat.contains(&format!("use(\"{dep}\"")) || flat.contains(&format!("use(\"{dep}/")),
                 "{name} declares needs(\"{dep}\") but never writes use(\"{dep}\") — \
                  the manifest claims a dependency the code does not have"
             );
@@ -701,16 +699,18 @@ fn every_moved_name_is_in_the_ledger() {
     use blue_lang_syntax::scope::{legacy_target, LegacyKind};
     let ledger = std::fs::read_to_string(dist().join("NAMES.md")).expect("NAMES.md");
     let mut declared = Vec::new();
-    for name in packages() {
-        let src =
-            std::fs::read_to_string(dist().join(&name).join(format!("{name}.b"))).expect("source");
+    for name in tree_nodes() {
+        let src = std::fs::read_to_string(node_source(&name)).expect("source");
         let forms = blue_lang_syntax::parse::parse_program_tree(&src).expect("parses");
         for decl in forms.iter().filter_map(legacy_target) {
             if let LegacyKind::Moved(moves) = decl.kind {
                 for m in moves {
                     declared.push(format!(
                         "| `{name}` | `{}` | `{}::{}` | {} |",
-                        m.old, m.home, m.new, decl.since
+                        m.old,
+                        blue_lang_syntax::spell_level(&m.home),
+                        m.new,
+                        decl.since
                     ));
                 }
             }

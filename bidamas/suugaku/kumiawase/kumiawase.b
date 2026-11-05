@@ -11,7 +11,7 @@ library and a very slow list library.
 
 use("kazu", %i[abs is_zero max_of sum])
 
-legacy_names("0.1.1", [["lucas_onward", "kumiawase::fib_onward", ""]])
+legacy_names("0.1.1", [["lucas_onward", "suugaku::kumiawase::fib_onward", ""]])
 
 @doc """
 factorial: product of 1 up to n.

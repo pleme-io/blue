@@ -28,21 +28,6 @@ kk_k_from_test_bend.
 
 use("deeta", [:get_or])
 
-use(
-  "gyouretsu",
-  %i[
-    angle_between
-    cross_product
-    dot
-    scale
-    transpose
-    vadd
-    vdistance
-    vector_near
-    vsub
-  ]
-)
-
 use("kazu", %i[abs max near near_within square sum])
 
 use(
@@ -85,6 +70,21 @@ use(
 )
 
 use("rittai")
+
+use(
+  "suugaku/gyouretsu",
+  %i[
+    angle_between
+    cross_product
+    dot
+    scale
+    transpose
+    vadd
+    vdistance
+    vector_near
+    vsub
+  ]
+)
 
 use("zumen")
 

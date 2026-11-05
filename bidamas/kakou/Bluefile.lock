@@ -1,17 +1,17 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:b7d1c6aca91f13efa4bd966d37990e50bcefec18c2d3c347cbf67a81b08d7c5b",
+  "bluefile_b3": "b3:7a42e34fff55907eecac36fc4f55b3f87ccfd0366dcfbca53753032062aa9a25",
   "manifest": {
     "schema": 1,
     "name": "kakou",
     "version": "0.1.2",
     "needs": {
       "deeta": "^0.1.0",
-      "gyouretsu": "^0.1.0",
       "kazu": "^0.1.0",
       "kikagaku": "^0.1.0",
       "retsu": "^0.1.0",
       "rittai": "^0.1.0",
+      "suugaku": "^0.1.0",
       "zumen": "^0.1.0"
     },
     "when": "anytime",

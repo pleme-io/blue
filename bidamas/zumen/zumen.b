@@ -14,7 +14,6 @@ Written for nupastel docs/plans/design-pipeline.md, step 6.
     num(2) #=> "2"
 """
 
-use("gyouretsu", %i[dot magnitude scale vadd vector_near vsub])
 use("kazu", %i[abs max min mod_positive near sum])
 
 use(
@@ -45,6 +44,7 @@ use("rittai")
 
 use("ronri", [:every])
 use("shuugou", [:as_set])
+use("suugaku/gyouretsu", %i[dot magnitude scale vadd vector_near vsub])
 
 legacy_names("0.1.1", "zu")
 

@@ -15,28 +15,6 @@ Written for nupastel docs/plans/design-pipeline.md, step 4.
     turn(square_points, [0, 1, 2], 1) #=> 1
 """
 
-use(
-  "gyouretsu",
-  %i[
-    cross_product
-    dot
-    identity_matrix
-    is_orthogonal
-    is_zero_vector
-    madd
-    magnitude
-    matmul
-    mscale
-    mvmul
-    normalize
-    scale
-    transpose
-    vadd
-    vector_near
-    vsub
-  ]
-)
-
 use("junjo", [:sort_by])
 
 use("kazu", %i[abs clamp max max_of min min_of near near_within sum])
@@ -79,6 +57,28 @@ use(
     rest
     size
     take_n
+  ]
+)
+
+use(
+  "suugaku/gyouretsu",
+  %i[
+    cross_product
+    dot
+    identity_matrix
+    is_orthogonal
+    is_zero_vector
+    madd
+    magnitude
+    matmul
+    mscale
+    mvmul
+    normalize
+    scale
+    transpose
+    vadd
+    vector_near
+    vsub
   ]
 )
 

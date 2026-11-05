@@ -47,6 +47,7 @@ checks, and hand-rolling a character class here would drift from it.
     age_s(0) #=> "0s"
 """
 
+use("deeta", [:get_str])
 use("moji", %i[is_alpha is_blank lines take_chars])
 use("retsu", %i[first is_empty last rest])
 use("settei")
@@ -78,15 +79,7 @@ stdout_of: The captured stdout; "" when absent or not a capture.
     stdout_of(nil) #=> ""
 """
 def stdout_of(cap)
-  v = nil
-  if not null?(cap) and list?(cap)
-    v = json_get(cap, :stdout)
-  end
-  if string?(v)
-    v
-  else
-    ""
-  end
+  get_str(cap, :stdout, "")
 end
 
 @doc """
@@ -95,15 +88,7 @@ stderr_of: The captured stderr; "" when absent or not a capture.
     stderr_of(42) #=> ""
 """
 def stderr_of(cap)
-  v = nil
-  if not null?(cap) and list?(cap)
-    v = json_get(cap, :stderr)
-  end
-  if string?(v)
-    v
-  else
-    ""
-  end
+  get_str(cap, :stderr, "")
 end
 
 @doc """

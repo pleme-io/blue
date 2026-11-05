@@ -1978,7 +1978,8 @@ impl<'t> Walker<'t> {
         let (new, since) = (&alias.canonical, &alias.since);
         let message = match &alias.home {
             Some(home) => format!(
-                "`{old}` is the old name of `{home}::{new}`, moved out of bidama `{pkg}` in {since}"
+                "`{old}` is the old name of `{}::{new}`, moved out of bidama `{pkg}` in {since}",
+                blue_lang_syntax::spell_level(home)
             ),
             None => {
                 format!("`{old}` is the old name of bidama `{pkg}`'s `{new}` (renamed in {since})")

@@ -465,6 +465,44 @@ fn fix_never_parts_a_waiver_from_the_use_it_covers() {
 }
 
 #[test]
+fn a_moved_name_can_name_a_level_as_its_home() {
+    let root: PathBuf =
+        std::env::temp_dir().join(format!("blue-level-home-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    let dist = root.join("bidamas");
+    bidama(&dist, "fam", "package(\"fam\", \"0.1.1\")\n", "");
+    let level = dist.join("fam/k/k.b");
+    write(
+        &level,
+        "legacy_names(\"0.1.1\", [[\"old\", \"fam::k::new\", \"\"]])\n\ndef new()\n  1\nend\n",
+    );
+    let fmt = blue(&dist)
+        .args(["fmt", "--write"])
+        .arg(&level)
+        .output()
+        .expect("fmt");
+    assert!(
+        fmt.status.success(),
+        "{}",
+        String::from_utf8_lossy(&fmt.stderr)
+    );
+    let out = blue(&dist)
+        .arg("lock")
+        .arg(dist.join("fam"))
+        .output()
+        .expect("lock");
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    let (code, json) = check(&dist, &level, &[]);
+    assert_eq!(code, 0, "{json}");
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
 fn fix_on_a_level_relocks_the_root_it_lives_under() {
     let root: PathBuf =
         std::env::temp_dir().join(format!("blue-moved-level-{}", std::process::id()));

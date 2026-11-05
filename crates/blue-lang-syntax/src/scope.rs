@@ -364,9 +364,9 @@ pub fn legacy_target(form: &Spanned) -> Option<Legacy> {
                 };
                 let (old, target) = (str_of(old)?, str_of(target)?);
                 let (home, new) = target
-                    .split_once("::")
+                    .rsplit_once("::")
                     .map_or((String::new(), target.clone()), |(h, n)| {
-                        (h.to_string(), n.to_string())
+                        (h.replace("::", "/"), n.to_string())
                     });
                 Some(Moved {
                     old,

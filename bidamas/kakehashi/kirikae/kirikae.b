@@ -20,7 +20,7 @@ use(
 )
 
 use(
-  "hyouka",
+  "kakehashi/hyouka",
   %i[first_out installable plan_build resolve store_hash store_name store_path?]
 )
 

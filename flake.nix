@@ -504,14 +504,14 @@
       # is a row. `tools` are what the program execs (suffixed to PATH, so a
       # node's own copy wins).
       commands = {
-        souji = { entry = "main"; tools = _: [ ]; }; # clean nix and Rust targets
+        souji = { level = "kakehashi/souji"; entry = "main"; tools = _: [ ]; }; # clean nix and Rust targets
         heni = { entry = "main"; tools = _: [ ]; }; # mutation testing for a blue package
         # macOS keeps /usr/bin/ssh, which reads /etc/ssh/ssh_config as nix does.
-        tehai = { entry = "main"; tools = pkgs: lib.optionals pkgs.stdenv.isLinux [ pkgs.openssh pkgs.curl ]; }; # live nix builders and substituters
+        tehai = { level = "kakehashi/tehai"; entry = "main"; tools = pkgs: lib.optionals pkgs.stdenv.isLinux [ pkgs.openssh pkgs.curl ]; }; # live nix builders and substituters
         keiyu = { entry = "main"; tools = _: [ ]; };
         ukai = { entry = "main"; tools = pkgs: lib.optionals pkgs.stdenv.isLinux [ pkgs.iproute2 pkgs.tailscale ]; };
-        kijun = { entry = "main"; tools = pkgs: [ pkgs.git ]; };
-        kirikae = { entry = "main"; tools = _: [ ]; };
+        kijun = { level = "kakehashi/kijun"; entry = "main"; tools = pkgs: [ pkgs.git ]; };
+        kirikae = { level = "kakehashi/kirikae"; entry = "main"; tools = _: [ ]; };
         shinchoku = { entry = "main"; tools = _: [ ]; };
       };
 
@@ -529,7 +529,7 @@
         }
         // lib.mapAttrs (name: c: blueApp {
           inherit name;
-          source = "use(\"${name}\", [:${c.entry}])\n${c.entry}\n";
+          source = "use(\"${c.level or name}\", [:${c.entry}])\n${c.entry}\n";
           tools = c.tools pkgs;
         }) commands;
 

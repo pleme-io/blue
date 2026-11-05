@@ -6,11 +6,9 @@ kijun (基準) — the standard a private nix fleet repo is held to, as data: la
 
 use("deeta", %i[as_json get_str])
 use("hadome")
-use("kyohi", [:refusal])
-use("moji", %i[after_first before_first glob_match? lines trim])
 
 use(
-  "nikkusu",
+  "kakehashi/nikkusu",
   %i[
     angle_paths
     args_of
@@ -33,6 +31,10 @@ use(
     string_content
   ]
 )
+
+use("kyohi", [:refusal])
+
+use("moji", %i[after_first before_first glob_match? lines trim])
 
 use("retsu", %i[first flat_map is_empty last rest size take_n])
 
@@ -191,7 +193,7 @@ def declared_nodes(repo)
   cfg = repo[:config]
   path = cfg[:registry]
   if member?(path, repo[:files])
-    doc = nikkusu::read(source_of(repo, path))
+    doc = kakehashi::nikkusu::read(source_of(repo, path))
     filter(
       (d) -> d != nil,
       map(
@@ -268,7 +270,7 @@ end
 
 def trio_calls(repo, path)
   named(
-    calls(nikkusu::read(source_of(repo, path))[:root]),
+    calls(kakehashi::nikkusu::read(source_of(repo, path))[:root]),
     repo[:config][:trio_factory]
   )
 end
@@ -335,7 +337,7 @@ end
 def check_reachable(repo)
   files = repo[:files]
   routes = map(
-    (p) -> code(nikkusu::read(source_of(repo, p))[:root]),
+    (p) -> code(kakehashi::nikkusu::read(source_of(repo, p))[:root]),
     route_files(repo)
   )
   map(
@@ -825,7 +827,7 @@ def overlay_units(repo)
       nix_under(repo[:files], "overlays/")
     ),
     fn(p)
-      set = returned_set(nikkusu::read(source_of(repo, p))[:root])
+      set = returned_set(kakehashi::nikkusu::read(source_of(repo, p))[:root])
       if set.nil?
         []
       else
@@ -1188,7 +1190,7 @@ def in_scope?(r, path)
 end
 
 def file_facts(path, source)
-  doc = nikkusu::read(source)
+  doc = kakehashi::nikkusu::read(source)
   {
     path:,
     doc:,
@@ -2386,8 +2388,9 @@ test "a trio file renders itself, and the factory proves every kind but a regist
   end
   assert subjects("layout/shared-reachable") == ["x"]
   assert subjects("layout/shared-has-proof") == %w[r x]
-  assert spec_kind(first(calls(nikkusu::read("f { kind = k; }")[:root]))) ==
-    "computed"
+  assert spec_kind(
+    first(calls(kakehashi::nikkusu::read("f { kind = k; }")[:root]))
+  ) == "computed"
 end
 
 test "an uncatchable failure is located at its option's tag, and the error is its last line"

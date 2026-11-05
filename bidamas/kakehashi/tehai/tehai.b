@@ -387,8 +387,11 @@ def run(declared_path, live_path, state_path, timeout_s, ssh)
     (m) -> {line: m[:line], why: m[:why]},
     filter((m) -> m[:ok] == false, machines)
   )
-  checked = map((m) -> tehai::checked(m, probe(m, timeout_s, ssh)), good)
-  states = tehai::states(checked, read_previous(state_path), now)
+  checked = map(
+    (m) -> kakehashi::tehai::checked(m, probe(m, timeout_s, ssh)),
+    good
+  )
+  states = kakehashi::tehai::states(checked, read_previous(state_path), now)
   mkdir_p(path_dirname(live_path))
   write_atomic(live_path, live_text(checked))
   record = {
@@ -506,10 +509,10 @@ def run_substituters(declared_path, live_path, state_path, timeout_s, curl)
     filter((s) -> s[:ok] == false, declared)
   )
   checked = map(
-    (s) -> tehai::checked(s, probe_substituter(s, timeout_s, curl)),
+    (s) -> kakehashi::tehai::checked(s, probe_substituter(s, timeout_s, curl)),
     good
   )
-  states = tehai::states(checked, read_previous(state_path), now)
+  states = kakehashi::tehai::states(checked, read_previous(state_path), now)
   mkdir_p(path_dirname(live_path))
   write_atomic(live_path, substituters_text(checked))
   record = {
@@ -608,13 +611,13 @@ end
 test "only live machines are written, each line exactly as declared"
   ms = filter((m) -> m[:ok], parse(sample))
   checked = [
-    tehai::checked(ms[0], [false, "Connection timed out"]),
-    tehai::checked(ms[1], [true, "nix-store (Nix) 2.31.5"])
+    kakehashi::tehai::checked(ms[0], [false, "Connection timed out"]),
+    kakehashi::tehai::checked(ms[1], [true, "nix-store (Nix) 2.31.5"])
   ]
   assert live_text(checked) ==
     unlines(["ssh://root@plo x86_64-linux - 8 8 - - -"])
   # None live: an empty file, so nix builds locally rather than timing out.
-  assert live_text([tehai::checked(ms[0], [false, "down"])]) == ""
+  assert live_text([kakehashi::tehai::checked(ms[0], [false, "down"])]) == ""
 end
 
 test "since carries forward while a machine's state holds, and resets when it flips"
@@ -758,13 +761,15 @@ end
 test "substituters: only the live ones are written, as one extra-substituters line"
   ss = parse_substituters(unlines(%w[http://a:1 http://b:2?priority=29]))
   checked = [
-    tehai::checked(ss[0], [false, "Connection timed out"]),
-    tehai::checked(ss[1], [true, "StoreDir: /nix/store"])
+    kakehashi::tehai::checked(ss[0], [false, "Connection timed out"]),
+    kakehashi::tehai::checked(ss[1], [true, "StoreDir: /nix/store"])
   ]
   assert substituters_text(checked) ==
     unlines(["extra-substituters = http://b:2?priority=29"])
   # None live: an empty fragment, so nix lists no peer at all.
-  assert substituters_text([tehai::checked(ss[0], [false, "down"])]) == ""
+  assert substituters_text(
+    [kakehashi::tehai::checked(ss[0], [false, "down"])]
+  ) == ""
 end
 
 test "probe_substituter is up only when the far side answers as a nix cache"

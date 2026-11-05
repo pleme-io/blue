@@ -33,8 +33,8 @@ def specs()
 end
 
 def package_of(spec_path)
-  stem = replace(last(split(spec_path, "/")), ".json", "")
-  path_join(bidamas_root, stem)
+  under = last(split(spec_path, "heni/mutations/"))
+  path_join(bidamas_root, replace(under, ".json", ""))
 end
 
 def report(spec_path)
@@ -68,4 +68,6 @@ end
 test "a mutation file names the package it mutates"
   assert package_of("heni/mutations/shuusei.json") ==
     path_join(bidamas_root, "shuusei")
+  assert package_of("bidamas/heni/mutations/mitoshi/keisoku.json") ==
+    path_join(bidamas_root, "mitoshi/keisoku")
 end

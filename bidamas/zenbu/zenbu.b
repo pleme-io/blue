@@ -78,17 +78,15 @@ use("heni")
 use("hikisuu")
 use("hizuke", [:is_leap])
 use("hon")
-use("hyouka")
 use("ibuki")
 use("jisho")
 use("junjo", %i[is_sorted sort])
 # waive B0016: zenbu is the facade, and depending on it means depending on kaaneru
 use("kaaneru")
+use("kakehashi")
 use("kansuu", [:identity])
 use("kazu", %i[clamp near])
 use("keiyu", [:relay_env])
-use("kijun")
-use("kirikae")
 use("kiwari")
 use("kodou")
 use("koubou")
@@ -103,7 +101,6 @@ use("maakuappu")
 use("mitoshi")
 use("moji", [:empty])
 use("mokuroku", [:md_cell])
-use("nikkusu")
 use("nisshi")
 # waive B0016: zenbu is the facade, and depending on it means depending on okite
 use("okite")
@@ -127,7 +124,6 @@ use("shomei", [:hash_message])
 # waive B0016: zenbu is the facade, and depending on it means depending on shuugou
 use("shuugou")
 use("shuusei")
-use("souji")
 use("suugaku")
 use("suugaku/gyouretsu", [:dot])
 use("suugaku/kumiawase", [:combinations])
@@ -135,7 +131,6 @@ use("suugaku/ryouiki", [:box_around])
 use("suugaku/tokumei", [:suppress_small])
 use("suugaku/toukei", %i[mean median])
 use("tajuu")
-use("tehai")
 use("tesuto")
 use("todokede")
 use("touroku")
@@ -200,10 +195,13 @@ test "every bidama in the distribution answers through this one import"
   assert near(mean([2, 4, 6]), 4) == true
   assert koubou::zumen::num(1.5) == "1.5"
   assert blue::get(
-    tehai::machine("ssh://root@plo x86_64-linux - 8 8 - - -"),
+    kakehashi::tehai::machine("ssh://root@plo x86_64-linux - 8 8 - - -"),
     :host
   ) == "plo"
-  assert blue::get(hikisuu::parse(["nix"], souji::cli), :older_than_days) == 14
+  assert blue::get(
+    hikisuu::parse(["nix"], kakehashi::souji::cli),
+    :older_than_days
+  ) == 14
   assert blue::get(decide({corp: :absent}), :kind) == :noop
   assert size(relay_env("socks5h://r:1")) == 6
   assert hadome::recorded(
@@ -216,11 +214,14 @@ test "every bidama in the distribution answers through this one import"
   assert todokede::kinko::interval_s("families", 16) == 2765
   assert todokede::empresa::slug?("acme-org")
   assert blue::get(shinchoku::agents_allowed(29, 14, 4000, 0), :allowed) == 0
-  assert blue::get(kijun::fleet_repo(1), :standard) == "fleet-repo"
-  assert nikkusu::kind(blue::get(nikkusu::read("{ }"), :root)) == "NODE_ROOT"
+  assert blue::get(kakehashi::kijun::fleet_repo(1), :standard) == "fleet-repo"
+  assert kakehashi::nikkusu::kind(
+    blue::get(kakehashi::nikkusu::read("{ }"), :root)
+  ) == "NODE_ROOT"
   assert maakuappu::attr(maakuappu::parse("<r a=\"1\"/>"), "a") == "1"
-  assert hyouka::installable(".", "x") == ".#x"
-  assert kirikae::attr_for("darwin", "ryn") == "darwinConfigurations.ryn.system"
+  assert kakehashi::hyouka::installable(".", "x") == ".#x"
+  assert kakehashi::kirikae::attr_for("darwin", "ryn") ==
+    "darwinConfigurations.ryn.system"
   assert shisei::stack([], (r) -> r)(1) == 1
   assert shinsatsu::incomplete == []
   assert bougyo::safe_id?("abc-1", 64)

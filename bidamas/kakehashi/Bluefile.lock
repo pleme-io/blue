@@ -1,0 +1,59 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:2397575ba052ba4fb00b4136290fea012ec3194669e478cfa9ade8289590336f",
+  "manifest": {
+    "schema": 1,
+    "name": "kakehashi",
+    "version": "0.1.2",
+    "needs": {
+      "deeta": "^0.1.0",
+      "gamen": "^0.1.0",
+      "hadome": "^0.1.0",
+      "hikisuu": "^0.1.0",
+      "junjo": "^0.1.0",
+      "kazu": "^0.1.0",
+      "kyohi": "^0.1.0",
+      "moji": "^0.1.0",
+      "retsu": "^0.1.0",
+      "settei": "^0.1.0",
+      "shisutemu": "^0.1.0",
+      "shuugou": "^0.1.0",
+      "tesuto": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null,
+    "legacy_packages": {
+      "hyouka": {
+        "since": "0.1.2",
+        "to": "kakehashi/hyouka"
+      },
+      "kijun": {
+        "since": "0.1.2",
+        "to": "kakehashi/kijun"
+      },
+      "kirikae": {
+        "since": "0.1.2",
+        "to": "kakehashi/kirikae"
+      },
+      "nikkusu": {
+        "since": "0.1.2",
+        "to": "kakehashi/nikkusu"
+      },
+      "souji": {
+        "since": "0.1.2",
+        "to": "kakehashi/souji"
+      },
+      "tehai": {
+        "since": "0.1.2",
+        "to": "kakehashi/tehai"
+      }
+    }
+  },
+  "sources": {}
+}

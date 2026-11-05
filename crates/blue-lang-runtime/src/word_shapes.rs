@@ -21,7 +21,9 @@ pub fn standing(hash: &crate::def_hash::DefHash, key: &str) -> Standing {
     };
     let (_, word, foundation) = WORD_SHAPES[at];
     let same_scope = match (word.rsplit_once("::"), key.rsplit_once('/')) {
-        (Some((home, _)), Some((own, _))) => blue_lang_syntax::spell_level(own) == home,
+        (Some((home, _)), Some((own, _))) => {
+            blue_lang_syntax::spell_level(own) == blue_lang_syntax::spell_level(home)
+        }
         _ => false,
     };
     if same_scope {
@@ -69,6 +71,24 @@ mod tests {
         assert_eq!(
             standing(&DefHash([255; 32]), "%root/tally"),
             Standing::NoWord
+        );
+    }
+
+    #[test]
+    fn a_level_word_is_its_own_level_s() {
+        let (hex, word, foundation) = *WORD_SHAPES
+            .iter()
+            .find(|(_, w, _)| w.split_once("::").is_some_and(|(h, _)| h.contains('/')))
+            .expect("a level word in the table");
+        let (home, name) = word.rsplit_once("::").expect("a word");
+        let hash = hash_of(hex);
+        assert_eq!(
+            standing(&hash, &format!("{home}/{name}")),
+            Standing::OwnWord
+        );
+        assert_eq!(
+            standing(&hash, &format!("{}/{name}", home.replace('/', "-"))),
+            Standing::CopyOf { word, foundation }
         );
     }
 }

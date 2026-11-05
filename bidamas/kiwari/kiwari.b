@@ -134,16 +134,25 @@ def immediate(item)
   {kind: :immediate, item:}
 end
 
+@doc """
+prec_with: A precedence wrapper with its associativity named: `:none`, `:left` or `:right`.
+
+    prec_with(:left, 2, lit("a")) #=> prec_left(2, lit("a"))
+"""
+def prec_with(assoc, n, item)
+  {kind: :prec, assoc:, level: n, item:}
+end
+
 def prec(n, item)
-  {kind: :prec, assoc: :none, level: n, item:}
+  prec_with(:none, n, item)
 end
 
 def prec_left(n, item)
-  {kind: :prec, assoc: :left, level: n, item:}
+  prec_with(:left, n, item)
 end
 
 def prec_right(n, item)
-  {kind: :prec, assoc: :right, level: n, item:}
+  prec_with(:right, n, item)
 end
 
 @doc """
@@ -2281,6 +2290,14 @@ def tiny(rules, punctuation)
     punctuation:,
     rules:
   }
+end
+
+test "prec_with names the associativity the three precedence words fix"
+  assert prec_with(:none, 0, seq([])) == prec(0, seq([]))
+  assert prec_with(:right, 3, ref("x")) == prec_right(3, ref("x"))
+  assert prec_with(:left, 2, lit("a")) ==
+    {kind: :prec, assoc: :left, level: 2, item: lit("a")}
+  assert js(prec_with(:left, 2, ref("x"))) == "prec.left(2, $.x)"
 end
 
 test "a grammar with no rules renders the frame and nothing in it"

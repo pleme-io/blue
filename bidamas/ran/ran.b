@@ -15,7 +15,7 @@ repeatable", never "secure".
 """
 
 use("junjo", [:sort])
-use("kazu", %i[abs max_of min_of near near_within])
+use("kazu", %i[abs max_of min_of near near_within sum])
 
 use(
   "retsu",
@@ -36,6 +36,8 @@ use(
 
 use("ronri", %i[any every])
 use("shuugou", %i[intersection subset unique])
+
+legacy_names("0.1.1", [%w[total_weight kazu::sum]])
 
 def next_seed(seed)
   (1_664_525 * seed + 1_013_904_223) % 4_294_967_296
@@ -254,10 +256,6 @@ def sample_n(seed, xs, n)
   take_n(shuffle(seed, xs), n)
 end
 
-def total_weight(ws)
-  reduce((a, b) -> a + b, 0, ws)
-end
-
 @doc """
 weight_walk: Walk the weights subtracting as we go — the inverse-CDF pick.
 
@@ -285,7 +283,7 @@ pinned by a test rather than left to be discovered.
     weighted_choice(4, ["only"], [1]) #=> "only"
 """
 def weighted_choice(seed, xs, ws)
-  weight_walk(xs, ws, next_float(seed) * total_weight(ws))
+  weight_walk(xs, ws, next_float(seed) * sum(ws))
 end
 
 @doc """

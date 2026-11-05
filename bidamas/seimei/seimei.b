@@ -8,9 +8,18 @@ expressed in about forty lines of blue.
     density([]) #=> 0
 """
 
+use("kansuu", [:iterate_n])
+
 use(
   "retsu",
   %i[as_list contains find_first first flatten1 is_empty last size slice]
+)
+
+use("shinsuu", [:bit_at])
+
+legacy_names(
+  "0.1.1",
+  [%w[after_with kansuu::iterate_n], %w[bit_of shinsuu::bit_at]]
 )
 
 @doc """
@@ -19,11 +28,7 @@ neighbourhood read as a binary index.
 """
 def elementary_step_cell(rule, l, c, r)
   idx = l * 4 + c * 2 + r
-  bit_of(rule, idx)
-end
-
-def bit_of(n, i)
-  floor(n / expt(2, i)) % 2
+  bit_at(rule, idx)
 end
 
 @doc """
@@ -105,10 +110,10 @@ end
 
 test "rule bits are read correctly"
   # Rule 110 in binary is 01101110.
-  assert bit_of(110, 0) == 0
-  assert bit_of(110, 1) == 1
-  assert bit_of(110, 6) == 1
-  assert bit_of(110, 7) == 0
+  assert bit_at(110, 0) == 0
+  assert bit_at(110, 1) == 1
+  assert bit_at(110, 6) == 1
+  assert bit_at(110, 7) == 0
 end
 
 test "rule 90 builds a Sierpinski row from a single cell"
@@ -259,20 +264,6 @@ end
 # ---------------------------------------------------------------------------
 # Running Life forward, and the questions asked of a running pattern.
 
-@doc """
-after_with: Iteration, once, for every rule set in this package. A step function is the
-whole of an automaton — Life, Life-on-a-torus, Seeds and Brian's Brain all
-differ only in that one argument, so running, recording and period-finding
-are written against `f` and never per rule.
-"""
-def after_with(f, grid, gens)
-  if gens < 1
-    grid
-  else
-    after_with(f, f(grid), gens - 1)
-  end
-end
-
 def run_with(f, grid, gens)
   if gens < 1
     [grid]
@@ -286,7 +277,7 @@ life_after: The state after n generations. life_run keeps the history; this keep
 the answer, which is what every identity test below actually compares.
 """
 def life_after(grid, gens)
-  after_with(life_step, grid, gens)
+  iterate_n(life_step, grid, gens)
 end
 
 def life_run(grid, gens)
@@ -428,7 +419,7 @@ def life_step_toroidal(grid)
 end
 
 def life_after_toroidal(grid, gens)
-  after_with(life_step_toroidal, grid, gens)
+  iterate_n(life_step_toroidal, grid, gens)
 end
 
 def neighbours_toroidal(grid, r, c)
@@ -802,7 +793,7 @@ test "Brian's Brain fires, then cools, whatever the neighbours say"
   # that catches a Brain implemented by pasting Life's survival rule in.
   full = [[1, 1, 1], [1, 1, 1], [1, 1, 1]]
   assert brain_step(full) == [[2, 2, 2], [2, 2, 2], [2, 2, 2]]
-  assert after_with(brain_step, full, 2) == blank_grid(3, 3)
+  assert iterate_n(brain_step, full, 2) == blank_grid(3, 3)
   # Refractory cells must not be counted as firing when a birth is decided.
   d = life_from_coords(5, 5, [[2, 1], [2, 2]])
   n = brain_step(d)
@@ -815,7 +806,7 @@ test "the generic runner drives any of the rule sets"
   # One iterator, four automata: if this drifts apart, life_after and its
   # siblings have quietly become four copies of the same loop again.
   blinker = [[0, 0, 0], [1, 1, 1], [0, 0, 0]]
-  assert after_with(life_step, blinker, 2) == blinker
+  assert iterate_n(life_step, blinker, 2) == blinker
   assert size(run_with(seeds_step, blinker, 3)) == 4
   assert period_with(life_step, blinker, 4) == 2
   # A rule with no fixed point inside the bound answers 0 rather than looping.

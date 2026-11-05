@@ -27,6 +27,7 @@ use(
     first
     flat_map
     index_of
+    index_of_at
     indexes
     is_empty
     push
@@ -34,6 +35,8 @@ use(
     size
   ]
 )
+
+legacy_names("0.1.1", [%w[find_index_of retsu::index_of_at]])
 
 def is_prime(n)
   if n < 2
@@ -412,17 +415,7 @@ def alphabet()
 end
 
 def letter_index(ch)
-  find_index_of(alphabet, ch, 0)
-end
-
-def find_index_of(xs, v, i)
-  if i >= size(xs)
-    -1
-  elsif xs[i] == v
-    i
-  else
-    find_index_of(xs, v, i + 1)
-  end
+  index_of_at(alphabet, ch, 0)
 end
 
 @doc """

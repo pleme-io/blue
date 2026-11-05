@@ -421,8 +421,11 @@ def col(name, t)
   {kind: :coldef, name: kueri::name(name), type: type(t)}
 end
 
-def col_names(cols)
-  map((c) -> blue::get(c, :name), as_list(cols))
+@doc """
+names_of: The `:name` of each declared column or sort key, in order.
+"""
+def names_of(xs)
+  map((x) -> blue::get(x, :name), as_list(xs))
 end
 
 # ── expressions ────────────────────────────────────────────────────────────
@@ -749,10 +752,6 @@ end
 
 def desc(name)
   {kind: :key, name: kueri::name(name), desc: true}
-end
-
-def key_names(keys)
-  map((k) -> blue::get(k, :name), as_list(keys))
 end
 
 # ── relations ──────────────────────────────────────────────────────────────
@@ -1164,9 +1163,9 @@ def node_refs(n)
   if k == :col
     [blue::get(n, :name)]
   elsif k == :agg
-    key_names(blue::get(n, :order))
+    names_of(blue::get(n, :order))
   elsif k == :win
-    concat_lists(blue::get(n, :partition), key_names(blue::get(n, :order)))
+    concat_lists(blue::get(n, :partition), names_of(blue::get(n, :order)))
   else
     []
   end
@@ -1428,7 +1427,7 @@ def stage_refusals(stage, cols, where, next_kind)
     end
     concat_lists(
       discarded,
-      unknown_refusals(key_names(blue::get(stage, :keys)), cols, where)
+      unknown_refusals(names_of(blue::get(stage, :keys)), cols, where)
     )
   else
     []
@@ -1543,7 +1542,7 @@ model_columns: What a downstream model sees: the contract when declared, the inf
 otherwise.
 """
 def model_columns(model)
-  cn = col_names(blue::get(model, :contract))
+  cn = names_of(blue::get(model, :contract))
   if is_empty(cn) == false
     cn
   elsif blue::get(model, :known) != nil
@@ -1555,11 +1554,11 @@ end
 
 def rel_columns(rel)
   if blue::get(rel, :kind) == :raw
-    col_names(blue::get(rel, :columns))
+    names_of(blue::get(rel, :columns))
   else
     t = blue::get(rel, :target)
     if blue::get(t, :kind) == :source
-      col_names(blue::get(t, :columns))
+      names_of(blue::get(t, :columns))
     else
       model_columns(t)
     end
@@ -1643,7 +1642,7 @@ def reach_refusals(model)
 end
 
 def contract_refusals(model, out)
-  cn = col_names(blue::get(model, :contract))
+  cn = names_of(blue::get(model, :contract))
   if is_empty(cn) or out.nil? or equal_lists(cn, out)
     []
   else
@@ -1985,12 +1984,12 @@ def lock_order(model, b, dialect)
     b
   else
     keys = blue::get(b, :order)
-    have = key_names(keys)
+    have = names_of(keys)
     extra = map(
       key,
       blue::filter(
         (n) -> contains(have, n) == false,
-        col_names(blue::get(model, :contract))
+        names_of(blue::get(model, :contract))
       )
     )
     total = concat_lists(keys, extra)
@@ -2000,7 +1999,7 @@ def lock_order(model, b, dialect)
       :order_all,
       dialect == :duckdb and
         all_asc and
-        equal_lists(key_names(total), col_names(blue::get(model, :contract)))
+        equal_lists(names_of(total), names_of(blue::get(model, :contract)))
     )
   end
 end
@@ -3685,7 +3684,7 @@ test "end to end: both dialects' SQL, over fixture files, gives the known levera
     duckdb(blue::join(push(loads(m), render(m, d)), unlines([";"])))
   end
   lev = example_leverage
-  lev_names = col_names(blue::get(lev, :contract))
+  lev_names = names_of(blue::get(lev, :contract))
   # Per length: max keep without and with enforcement, their rounded
   # difference, the widest spread. 1000 has no unenforced row: NULL, not 0.
   lev_known = [
@@ -3698,7 +3697,7 @@ test "end to end: both dialects' SQL, over fixture files, gives the known levera
   assert row_values(run(lev, :duckdb), lev_names) == lev_known
   assert row_values(run(lev, :core), lev_names) == lev_known
   tip = example_tipping
-  tip_names = col_names(blue::get(tip, :contract))
+  tip_names = names_of(blue::get(tip, :contract))
   # Cell 2's mean 0.8996 rounds to 0.9 and counts; cell 5's 0.89 does not.
   # Horizon 500 never reaches 90%: NULL tipping, zero bimodal levels.
   tip_known = [[5, 0.5, 1], [50, 1.0, 2], [500, nil, 0]]

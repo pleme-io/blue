@@ -1,11 +1,12 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:f85cddffb717d3dd03ca766a33b2e217c484756dde72c22d02481edee0513372",
+  "bluefile_b3": "b3:f95231b6b23d966ee499401c7518f692d6a2037a6d91e4757b349da88f64ad56",
   "manifest": {
     "schema": 1,
     "name": "heddaa",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "needs": {
+      "jisho": "^0.1.0",
       "kyohi": "^0.1.0",
       "retsu": "^0.1.0",
       "shinsuu": "^0.1.0"

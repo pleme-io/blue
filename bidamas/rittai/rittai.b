@@ -49,6 +49,7 @@ use(
     cross
     distance_squared
     pi
+    polygon_edges
     px
     py
     rect_polygon
@@ -82,6 +83,8 @@ use(
 )
 
 legacy_names("0.1.1", "rt")
+
+legacy_names("0.1.2", [%w[index_edges kikagaku::polygon_edges]])
 
 # ── points and directions ────────────────────────────────────────────
 
@@ -617,7 +620,7 @@ segment reaches without crossing any edge.
 def bridge(pts, poly, h, holes)
   m = rightmost(pts, h)
   cands = sort_by((i) -> distance_squared(pts[i], pts[m]), poly)
-  edges = concat_lists(index_edges(poly), flat_map(holes, index_edges))
+  edges = concat_lists(polygon_edges(poly), flat_map(holes, polygon_edges))
   p = find_first((i) -> visible(pts, m, i, edges), cands)
   at = index_of(poly, p)
   k = index_of(h, m)
@@ -640,11 +643,6 @@ def rightmost(pts, loop)
     first(loop),
     loop
   )
-end
-
-def index_edges(loop)
-  n = size(loop)
-  map((j) -> [loop[j], loop[(j + 1) % n]], range(0, n))
 end
 
 @doc """
@@ -796,7 +794,7 @@ a, bottom b, top b, then bottom a, top b, top a.
 """
 def loop_sides(loop, n)
   flat_map(
-    index_edges(loop),
+    polygon_edges(loop),
     (e) -> [[e[0], e[1], e[1] + n], [e[0], e[1] + n, e[0] + n]]
   )
 end

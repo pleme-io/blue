@@ -286,6 +286,21 @@ def index_of_from(xs, v, i)
   end
 end
 
+@doc """
+index_of_at: Position of the first `v` at index `i` or later, or 0 - 1 when absent.
+
+    index_of_at(%w[a b a], "a", 1) #=> 2
+"""
+def index_of_at(xs, v, i)
+  if i >= size(xs)
+    -1
+  elsif xs[i] == v
+    i
+  else
+    index_of_at(xs, v, i + 1)
+  end
+end
+
 def contains(xs, v)
   member?(v, as_list(xs))
 end
@@ -326,6 +341,14 @@ test "all_but_last, including the sizes that have no last"
   assert all_but_last([]) == []
   # It is the complement of `last`, so the two reassemble the original.
   assert push(all_but_last([1, 2, 3]), last([1, 2, 3])) == [1, 2, 3]
+end
+
+test "index_of_at scans from its start index"
+  assert index_of_at(%w[a b a], "a", 0) == 0
+  assert index_of_at(%w[a b a], "a", 1) == 2
+  assert index_of_at(%w[a b a], "c", 0) == -1
+  assert index_of_at(%w[a b], "a", 2) == -1
+  assert index_of_at([], 5, 0) == -1
 end
 
 test "index_of reports absence as a number, not nil"

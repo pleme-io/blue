@@ -43,6 +43,7 @@ pub mod fixes;
 pub mod form_rules;
 pub mod names;
 pub mod namespace_rules;
+mod package_moves;
 pub mod project;
 pub mod respell;
 pub mod rules;

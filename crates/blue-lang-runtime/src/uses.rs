@@ -130,6 +130,52 @@ pub trait Loader {
     fn children(&self, _name: &str) -> Vec<String> {
         Vec::new()
     }
+
+    /// Where bidama `name` moved, when it no longer loads under that name and
+    /// the root it moved into declares the move in its Bluefile
+    /// (`legacy_packages(since, [["bpf", "kaaneru/bpf"]])`). A `use` of the old
+    /// name then loads the new path, and the check stage reports B0074 with
+    /// the fix. A loader that cannot enumerate Bluefiles knows of no move,
+    /// which is this default.
+    fn moved(&self, _name: &str) -> Option<PackageMove> {
+        None
+    }
+}
+
+/// A bidama that moved into another bidama's tree, as the root it moved into
+/// declares it: `old` was a bidama of its own, `new` is the level it is now
+/// (`kaaneru/bpf`), from the root's version `since`. `version` is the root's
+/// version now, when the loader can read it; the bridge is open while it is
+/// at least `since` and below the next minor, and kept open when unknown.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PackageMove {
+    pub old: String,
+    pub new: String,
+    pub since: String,
+    pub version: Option<String>,
+}
+
+/// One `use` the resolver loaded through a [`PackageMove`]: the import at
+/// `import` in [`ResolvedProgram::imports`], which the file wrote as
+/// `written` and which now names the moved level.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Bridged {
+    pub import: usize,
+    pub written: String,
+    pub moved: PackageMove,
+}
+
+/// The path `package` names after a move of its root: `bpf/sub` is
+/// `kaaneru/bpf/sub` once `bpf` is `kaaneru/bpf`.
+#[must_use]
+pub fn moved_path(package: &str, moved: &PackageMove) -> String {
+    match package.strip_prefix(moved.old.as_str()) {
+        Some("") => moved.new.clone(),
+        Some(rest) if rest.starts_with(blue_lang_syntax::QUALIFIER) => {
+            format!("{}{rest}", moved.new)
+        }
+        _ => package.to_string(),
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -277,6 +323,7 @@ pub struct ResolvedProgram {
     needs: std::collections::BTreeMap<String, BTreeSet<String>>,
     versions: std::collections::BTreeMap<String, String>,
     frontend: Option<Frontend>,
+    bridged: Vec<Bridged>,
 }
 
 impl ResolvedProgram {
@@ -292,6 +339,7 @@ impl ResolvedProgram {
             needs: std::collections::BTreeMap::new(),
             versions: std::collections::BTreeMap::new(),
             frontend: None,
+            bridged: Vec::new(),
         };
         let id = program.intern(
             entry.path.map(Path::to_path_buf),
@@ -370,6 +418,13 @@ impl ResolvedProgram {
     #[must_use]
     pub fn imports(&self) -> &[(FileId, Import)] {
         &self.imports
+    }
+
+    /// Every import the resolver loaded through a moved bidama's bridge
+    /// ([`Loader::moved`]). Its entry in [`Self::imports`] names the new path.
+    #[must_use]
+    pub fn bridged(&self) -> &[Bridged] {
+        &self.bridged
     }
 
     /// `named` and every bidama a file of theirs reaches through `use`,
@@ -719,7 +774,17 @@ fn expand(
             out.push(form, owner);
             continue;
         };
-        for import in imports {
+        for mut import in imports {
+            let root = blue_lang_syntax::root_of(&import.package);
+            if let Some(moved) = loader.moved(root) {
+                let to = moved_path(&import.package, &moved);
+                let written = std::mem::replace(&mut import.package, to);
+                out.bridged.push(Bridged {
+                    import: out.imports.len(),
+                    written,
+                    moved,
+                });
+            }
             let name = import.package.clone();
             out.imports.push((owner, import));
             // Loaded already, it is a no-op, and the declaration stays for
@@ -1211,6 +1276,59 @@ pub(crate) mod tests {
         assert!(
             !rendered.contains(":1:1"),
             "an unowned diagnostic borrowed a position from somewhere: {rendered}"
+        );
+    }
+
+    /// A distribution where `bpf` moved into `kaaneru` as `kaaneru/bpf`.
+    struct Moved(MemLoader);
+
+    impl Loader for Moved {
+        fn load(&self, name: &str) -> Result<Vec<(String, String)>, String> {
+            self.0.load(name)
+        }
+
+        fn moved(&self, name: &str) -> Option<PackageMove> {
+            (name == "bpf").then(|| PackageMove {
+                old: "bpf".into(),
+                new: "kaaneru/bpf".into(),
+                since: "0.2.0".into(),
+                version: Some("0.2.0".into()),
+            })
+        }
+    }
+
+    /// **A `use` of a moved bidama loads where it moved.** The import names
+    /// the new path, and the bridge records what the file wrote, so the
+    /// check stage can say so and rewrite it.
+    ///
+    /// Red run (2026-11-05), the `loader.moved` lookup in `expand` removed:
+    /// `no bidama named "bpf"`.
+    #[test]
+    fn a_use_of_a_moved_bidama_loads_its_new_path_and_records_the_bridge() {
+        let loader = Moved(MemLoader(BTreeMap::from([
+            ("kaaneru/bpf", "def compile()\n  1\nend"),
+            ("kaaneru/bpf/asm", "def op()\n  2\nend"),
+        ])));
+        let out = resolve("use(\"bpf\")\nuse(\"bpf/asm\")\n\nbpf::compile", &loader)
+            .expect("the bridge resolves");
+        let packages: Vec<&str> = out
+            .imports()
+            .iter()
+            .map(|(_, i)| i.package.as_str())
+            .collect();
+        assert_eq!(packages, ["kaaneru/bpf", "kaaneru/bpf/asm"]);
+        let written: Vec<(usize, &str)> = out
+            .bridged()
+            .iter()
+            .map(|b| (b.import, b.written.as_str()))
+            .collect();
+        assert_eq!(written, [(0, "bpf"), (1, "bpf/asm")]);
+        let unmoved = resolve("use(\"kaaneru/bpf\")", &loader).expect("resolves");
+        assert!(unmoved.bridged().is_empty());
+        assert_eq!(
+            moved_path("bpfx", &out.bridged()[0].moved),
+            "bpfx",
+            "only the whole segment moves"
         );
     }
 }

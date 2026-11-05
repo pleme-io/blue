@@ -618,6 +618,20 @@ fn read_sources(dir: &Path) -> Result<Vec<(String, String)>, String> {
     Ok(out)
 }
 
+/// The move of bidama `name` that root `bf` declares, if it declares one.
+pub(crate) fn package_move(
+    name: &str,
+    bf: &crate::Bluefile,
+) -> Option<blue_lang_runtime::uses::PackageMove> {
+    let m = bf.project.legacy_packages.get(name)?;
+    Some(blue_lang_runtime::uses::PackageMove {
+        old: name.to_string(),
+        new: m.to.clone(),
+        since: m.since.clone(),
+        version: Some(bf.version.to_string()),
+    })
+}
+
 impl Loader for LoadPath {
     fn load(&self, name: &str) -> Result<Vec<(String, String)>, String> {
         let selection = self.select(name);
@@ -707,6 +721,33 @@ impl Loader for LoadPath {
             (None, None) => return None,
         };
         version_at(&dir).map(|v| v.to_string())
+    }
+
+    /// A bidama no root holds, which a root's Bluefile declares it moved
+    /// into (`legacy_packages`). The first root to declare it answers, in
+    /// search order, then the standard distribution.
+    fn moved(&self, name: &str) -> Option<blue_lang_runtime::uses::PackageMove> {
+        if blue_lang_syntax::is_nested(name) || self.select(name).found.is_some() {
+            return None;
+        }
+        for root in &self.roots {
+            let Ok(entries) = std::fs::read_dir(root) else {
+                continue;
+            };
+            let mut dirs: Vec<PathBuf> = entries.filter_map(Result::ok).map(|e| e.path()).collect();
+            dirs.sort();
+            let found = dirs.iter().find_map(|d| {
+                let text = std::fs::read_to_string(d.join(crate::MANIFEST_FILE)).ok()?;
+                package_move(name, &crate::bluefile::read_bluefile(&text).ok()?)
+            });
+            if found.is_some() {
+                return found;
+            }
+        }
+        if self.standard {
+            return crate::embedded::Standard.moved(name);
+        }
+        None
     }
 
     /// Every bidama a root holds (a directory with a Bluefile), then, when

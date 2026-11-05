@@ -139,6 +139,34 @@ re-export: `use("caixa/sub", [:inner])` inside caixa does not make `caixa::inner
 so one definition keeps one key and `rg` finds it. A facade, a level that defines
 nothing, works as it does for a bidama.
 
+### A bidama moves into a tree
+
+A flat bidama can become a level of another: `bpf` becomes `kaaneru/bpf`. The
+root it moves into declares the move in its Bluefile, the package twin of
+`legacy_names`:
+
+```ruby
+package("kaaneru", "0.2.0")
+legacy_packages("0.2.0", [["bpf", "kaaneru/bpf"]])
+```
+
+From `since` to the root's next minor version, the bridge is open. A loader
+that finds no bidama `bpf` asks the roots on its path whether one moved it
+(`Loader::moved`), and loads `use("bpf")`, `use("bpf", [:compile])` and
+`use("bpf/asm")` as `kaaneru/bpf` and below. `bpf::compile` reaches
+`kaaneru::bpf::compile`. Each such `use`, and each qualifier written through
+the old name, is B0074. It is a warning outside kaaneru's distribution while
+the bridge is open, an error inside it, and an error once the bridge has
+closed. The row stays in the Bluefile as the ledger, so a closed bridge still
+names the move and still carries the fix. `blue check --fix` writes
+`use("kaaneru/bpf")` and `kaaneru::bpf::compile`. In a bidama that still
+`needs("bpf", …)`, it also writes `needs("kaaneru", "^0.2.0")` and relocks.
+`blue lock` derives `kaaneru` from a `use` still on the old name.
+
+The Bluefile refuses a row that cannot mean one thing: an old name of more
+than one segment or the root's own name, a new path that is not a level of
+this root, and a `since` the root has not reached.
+
 ### Cycles
 
 A `use` of a level brings every level below it, so a level never imports its

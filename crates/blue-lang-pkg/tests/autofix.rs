@@ -5,6 +5,12 @@ use std::path::Path;
 
 const FIRST_SPELLING_RULE: &str = "B0023";
 
+/// Machine-fixed rules past the first spelling rule whose fix is an edit the
+/// diagnostic carries, which `blue check --fix` applies, not a spelling
+/// `blue fmt --write` derives: B0074 rewrites a moved bidama's path, read
+/// from the root's Bluefile, as B0021 rewrites a renamed word.
+const CHECK_FIX_RULES: &[Code] = &[Code::B0074];
+
 struct Imports(
     &'static [(&'static str, &'static str)],
     Option<&'static str>,
@@ -77,6 +83,7 @@ fn every_machine_fixed_spelling_rule_is_fixed_by_fmt_write() {
             && r.code.as_str() >= FIRST_SPELLING_RULE
             && !blue_lang_check::data_laws::CODES.contains(&r.code)
             && r.package.is_none()
+            && !CHECK_FIX_RULES.contains(&r.code)
     }) {
         let loader = Imports(r.imports, r.frontend, None);
         let path = Path::new("witness.b");

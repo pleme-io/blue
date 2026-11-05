@@ -415,3 +415,139 @@ fn a_flat_era_entry_that_cannot_mean_one_thing_is_refused_alone() {
     assert!(json.contains("`first` is bidama `sh`'s"), "{json}");
     let _ = std::fs::remove_dir_all(&root);
 }
+
+/// `kb`, moved into `kroot` as the level `kroot/kb`, at kroot's
+/// `version`: the root declares the move in its Bluefile.
+fn kroot(dist: &Path, version: &str) {
+    write(&dist.join("kroot/kb/kb.b"), "def compile()\n  7\nend\n");
+    bidama(
+        dist,
+        "kroot",
+        &format!(
+            "package(\"kroot\", \"{version}\")\nlegacy_packages(\"0.2.0\", [[\"kb\", \"kroot/kb\"]])\n"
+        ),
+        "def tag()\n  1\nend\n",
+    );
+}
+
+fn codes(json: &str, code: &str) -> usize {
+    json.matches(&format!("\"code\":\"{code}\"")).count()
+}
+
+/// **A bidama moved into a tree keeps its old name as a bridge** (B0074).
+/// The flat bidama `kb` became the level `kroot/kb`, and kroot's
+/// Bluefile declares `legacy_packages("0.2.0", [["kb", "kroot/kb"]])`. A
+/// consumer still writing `use("kb")` and `kb::compile` resolves and runs,
+/// with a warning at the `use` and at the qualifier; `blue check --fix`
+/// writes `use("kroot/kb")` and `kroot::kb::compile`, and the result
+/// checks clean. Inside kroot's distribution the same file is an error, and
+/// at 0.3.0 the bridge has closed: an error everywhere, with the same fix.
+///
+/// Red run (2026-11-05), `LoadPath::moved` answering nothing: the first
+/// `blue check` exits 1 (`left: 1, right: 0`), since `kb` no longer loads.
+#[test]
+fn a_moved_bidama_bridges_to_its_level_and_fix_writes_the_new_path() {
+    let root: PathBuf = std::env::temp_dir().join(format!("blue-moved-pkg-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    let dist = root.join("bidamas");
+    kroot(&dist, "0.2.0");
+    let caller = "use(\"kb\")\n\nprint(kb::compile)\n";
+    let fixed = "use(\"kroot/kb\")\n\nprint(kroot::kb::compile)\n";
+    let outside = root.join("app/main.b");
+    write(&outside, caller);
+    let inside = dist.join("user.b");
+    write(&inside, caller);
+
+    let (code, json) = check(&dist, &outside, &[]);
+    assert_eq!(code, 0, "{json}");
+    assert_eq!(codes(&json, "B0074"), 2, "{json}");
+    assert!(json.contains("\"severity\":\"warning\""), "{json}");
+    assert!(
+        json.contains("`kb` is the old name of `kroot::kb`, moved into bidama `kroot` in 0.2.0"),
+        "{json}"
+    );
+    let run = blue(&dist).arg("run").arg(&outside).output().expect("run");
+    assert!(
+        run.status.success(),
+        "{}",
+        String::from_utf8_lossy(&run.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&run.stdout).lines().next(),
+        Some("7")
+    );
+
+    let (code, json) = check(&dist, &inside, &[]);
+    assert_eq!(code, 1, "{json}");
+    assert!(json.contains("\"severity\":\"error\""), "{json}");
+
+    let (code, json) = check(&dist, &outside, &["--fix"]);
+    assert_eq!(code, 0, "{json}");
+    assert_eq!(std::fs::read_to_string(&outside).expect("read"), fixed);
+    let (code, json) = check(&dist, &outside, &[]);
+    assert_eq!(code, 0, "{json}");
+    assert!(!json.contains("\"code\""), "{json}");
+
+    // 0.3.0: closed. The ledger still names the move, and the fix still applies.
+    write(&outside, caller);
+    kroot(&dist, "0.3.0");
+    let (code, json) = check(&dist, &outside, &[]);
+    assert_eq!(code, 1, "{json}");
+    assert_eq!(codes(&json, "B0074"), 2, "{json}");
+    assert!(json.contains("the bridge has closed"), "{json}");
+    let (code, json) = check(&dist, &outside, &["--fix"]);
+    assert_eq!(code, 0, "{json}");
+    assert_eq!(std::fs::read_to_string(&outside).expect("read"), fixed);
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// **A consumer bidama's `needs` row follows the move.** `user` needs
+/// `kb` by its old name; `blue check` says so at the `use`, and `blue check
+/// --fix` rewrites the source and the row, `needs("kroot", "^0.2.0")`, and
+/// relocks, after which the bidama checks clean.
+///
+/// Red run (2026-11-05), the resolver's `loader.moved` lookup disabled: no
+/// B0074 at all (`left: 0, right: 3`).
+#[test]
+fn a_consumer_bidamas_needs_row_moves_with_the_bidama() {
+    let root: PathBuf =
+        std::env::temp_dir().join(format!("blue-moved-needs-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    let dist = root.join("bidamas");
+    kroot(&dist, "0.2.0");
+    let user = dist.join("user");
+    write(
+        &user.join("Bluefile"),
+        "package(\"user\", \"0.1.0\")\nneeds(\"kb\", \"^0.1\")\n",
+    );
+    let source = user.join("user.b");
+    let doc = "@doc \"\"\"\nbuild: The program, compiled.\n\"\"\"\n";
+    write(
+        &source,
+        &format!("use(\"kb\")\n\n{doc}def build()\n  kb::compile\nend\n"),
+    );
+
+    let (code, json) = check(&dist, &source, &[]);
+    assert_eq!(code, 1, "{json}");
+    assert_eq!(codes(&json, "B0074"), 3, "{json}");
+    assert_eq!(codes(&json, "B0019"), 0, "{json}");
+    assert!(
+        json.contains("bidama `user`'s Bluefile needs `kb`, which moved into bidama `kroot`"),
+        "{json}"
+    );
+
+    let (code, json) = check(&dist, &source, &["--fix"]);
+    assert_eq!(code, 0, "{json}");
+    assert_eq!(
+        std::fs::read_to_string(&source).expect("read"),
+        format!("use(\"kroot/kb\")\n\n{doc}def build()\n  kroot::kb::compile\nend\n")
+    );
+    assert_eq!(
+        std::fs::read_to_string(user.join("Bluefile")).expect("read"),
+        "package(\"user\", \"0.1.0\")\nneeds(\"kroot\", \"^0.2.0\")\n"
+    );
+    let (code, json) = check(&dist, &source, &[]);
+    assert_eq!(code, 0, "{json}");
+    assert!(!json.contains("\"code\""), "{json}");
+    let _ = std::fs::remove_dir_all(&root);
+}

@@ -1,0 +1,3 @@
+# A root a flat bidama moved into (B0074): sp_moved is now sp_tree/sp_moved.
+package("sp_tree", "0.1.0")
+legacy_packages("0.1.0", [%w[sp_moved sp_tree/sp_moved]])

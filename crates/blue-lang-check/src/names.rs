@@ -344,6 +344,39 @@ pub struct NameTable {
     /// B0022 findings from [`NameTable::apply_legacy`], reported by the check.
     legacy_findings: Vec<Diagnostic>,
     spelled_bare: Option<BTreeSet<String>>,
+    /// The `use` forms loaded through a moved bidama's bridge (B0074).
+    bridges: Vec<PackageBridge>,
+}
+
+/// One import the resolver loaded through a moved bidama's bridge: the root
+/// it moved into declares `legacy_packages(since, [[old, new]])`, and the
+/// file still writes `old`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PackageBridge {
+    /// The `use` form.
+    pub top_level: usize,
+    /// The path as the file wrote it: `bpf`, `bpf/asm`.
+    pub written: String,
+    /// The path it loaded: `kaaneru/bpf`, `kaaneru/bpf/asm`.
+    pub to: String,
+    /// The bidama that moved, and the level it is now.
+    pub old: String,
+    pub new: String,
+    pub since: String,
+    /// Whether the window is open: the root is at `since` or later and below
+    /// the next minor, or its version is unknown.
+    pub open: bool,
+}
+
+/// Is a bridge dated `since` open at version `now`? From `since` to the next
+/// minor, and open when either version cannot be read, as a loader with no
+/// versions keeps every window open.
+#[must_use]
+pub fn bridge_open(since: &str, now: Option<&str>) -> bool {
+    match (version(since), now.and_then(version)) {
+        (Some(since), Some(now)) => since <= now && now < (since.0, since.1 + 1, 0),
+        _ => true,
+    }
 }
 
 /// `a.b.c` as numbers; `None` for anything else.
@@ -940,6 +973,25 @@ impl NameTable {
         } else {
             format!("{defined}; below it: {}", children.join(", "))
         })
+    }
+
+    /// Record the imports loaded through a moved bidama's bridge.
+    pub fn attach_bridges(&mut self, bridges: Vec<PackageBridge>) {
+        self.bridges = bridges;
+    }
+
+    /// Every import loaded through a moved bidama's bridge.
+    #[must_use]
+    pub fn bridges(&self) -> &[PackageBridge] {
+        &self.bridges
+    }
+
+    /// The bridge the `use` form `top_level` crossed for the path it wrote.
+    #[must_use]
+    pub fn bridge_of(&self, top_level: usize, written: &str) -> Option<&PackageBridge> {
+        self.bridges
+            .iter()
+            .find(|b| b.top_level == top_level && b.written == written)
     }
 
     /// Record each bidama's Bluefile `needs`.
@@ -2620,7 +2672,11 @@ impl Walker<'_> {
 
     /// The names a `use` lists must be the package's.
     fn check_import_list(&mut self, form: &Spanned) {
-        for import in scope::use_targets(form).unwrap_or_default() {
+        for mut import in scope::use_targets(form).unwrap_or_default() {
+            // A moved bidama's list is read where it moved (B0074).
+            if let Some(b) = self.table.bridge_of(self.top_level, &import.package) {
+                import.package.clone_from(&b.to);
+            }
             for (n, span) in &import.names {
                 if let Some(scope) = self
                     .table
@@ -2896,6 +2952,19 @@ mod tests {
 
     fn text(src: &str, span: Span) -> &str {
         &src[span.start..span.end]
+    }
+
+    /// A moved bidama's bridge is open from `since` to the next minor, and
+    /// open when the root's version cannot be read.
+    ///
+    /// Red run (2026-11-05), the upper bound dropped: `0.3.0` read as open.
+    #[test]
+    fn a_package_bridge_is_open_until_the_next_minor() {
+        assert!(bridge_open("0.2.0", Some("0.2.0")));
+        assert!(bridge_open("0.2.0", Some("0.2.9")));
+        assert!(!bridge_open("0.2.0", Some("0.3.0")));
+        assert!(!bridge_open("0.2.0", Some("0.1.9")));
+        assert!(bridge_open("0.2.0", None));
     }
 
     /// The motivating case: a typo in a function nothing calls.

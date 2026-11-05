@@ -206,6 +206,20 @@ pub struct Project {
     /// execution bounds, met with the operator's ([`crate::bounds`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bounds: Option<crate::bounds::Bounds>,
+    /// `legacy_packages(since, [[old, "root/level"]])`: bidamas that moved
+    /// into this one's tree, keyed by their old name. A `use` of the old name
+    /// loads the level while the bridge is open (B0074). Skipped when empty,
+    /// like `generated`.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub legacy_packages: BTreeMap<String, MovedPackage>,
+}
+
+/// Where a bidama moved, and from which version of the root it moved into.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MovedPackage {
+    pub since: String,
+    /// The level it is now, `root/level`.
+    pub to: String,
 }
 
 pub const VISIBILITIES: &[&str] = &["public", "unlisted", "private"];
@@ -463,6 +477,11 @@ pub enum Malformed {
     /// positive integer.
     #[error("`{word}`: {why}")]
     Bounds { word: &'static str, why: String },
+    /// A move that cannot mean one thing: an old name that is not one
+    /// segment, a new path outside this root, a `since` the root has not
+    /// reached.
+    #[error("`{word}`: {why}")]
+    Moved { word: &'static str, why: String },
 }
 
 /// The frame a Bluefile is evaluated in.
@@ -661,6 +680,42 @@ const WORDS: &[Word] = &[
                 cap.label().to_string(),
                 provision,
             )
+        },
+    },
+    Word {
+        name: "legacy_packages",
+        signature: "legacy_packages(since, [[old, \"root/level\"], …])",
+        doc: "Bidamas that moved into this one's tree, the package twin of `legacy_names`: from version `since`, `use(old)` and `old::x` load the level `root/level` and are B0074, a warning outside this root's distribution until its next minor version, with the fix `blue check --fix` applies. `old` is one segment and no longer a bidama; the level is below this package. The row stays as the ledger once the bridge closes.",
+        min: 2,
+        max: 2,
+        record: |c, into| {
+            let since = c.text(0, "since")?;
+            let bad = |why: String| Malformed::Moved { word: c.word, why };
+            if Version::parse(&since).is_err() {
+                return Err(bad(format!("`since` must be a version `a.b.c`, got `{since}`")));
+            }
+            for (old, to) in c.pairs(1, "moves")? {
+                let to = to.replace("::", "/");
+                if !blue_lang_syntax::is_one_segment(&old) {
+                    return Err(bad(format!("`{old}` must be a bidama's name, one segment")));
+                }
+                let segments_ok = to.split('/').all(blue_lang_syntax::is_one_segment);
+                if !blue_lang_syntax::is_nested(&to) || !segments_ok {
+                    return Err(bad(format!(
+                        "`{old}` moves to `{to}`, which is not a level `root/level`"
+                    )));
+                }
+                insert_once(
+                    &mut into.project.legacy_packages,
+                    c.word,
+                    old,
+                    MovedPackage {
+                        since: since.clone(),
+                        to,
+                    },
+                )?;
+            }
+            Ok(())
         },
     },
     Word {
@@ -1099,6 +1154,24 @@ impl Call<'_> {
             .collect()
     }
 
+    /// A list of `[a, b]` string pairs.
+    fn pairs(&self, i: usize, param: &'static str) -> Result<Vec<(String, String)>, Malformed> {
+        let expected = "a list of [old, new] string pairs";
+        let Value::List(items) = &self.args[i] else {
+            return Err(self.type_error(i, param, expected));
+        };
+        items
+            .iter()
+            .map(|v| match v {
+                Value::List(pair) => match pair.iter().collect::<Vec<_>>().as_slice() {
+                    [Value::Str(a), Value::Str(b)] => Ok((a.to_string(), b.to_string())),
+                    _ => Err(self.type_error(i, param, expected)),
+                },
+                _ => Err(self.type_error(i, param, expected)),
+            })
+            .collect()
+    }
+
     /// A list of strings.
     fn names(&self, i: usize, param: &'static str) -> Result<Vec<String>, Malformed> {
         let expected = "a list of strings";
@@ -1277,6 +1350,7 @@ fn evaluate_bluefile(src: &str) -> Result<Bluefile, BluefileError> {
     }
 
     check_project(&c.project)?;
+    check_moves(&name, version, &c.project)?;
 
     let refused_images = c
         .refused
@@ -1298,6 +1372,33 @@ fn evaluate_bluefile(src: &str) -> Result<Bluefile, BluefileError> {
         floor,
         project: c.project,
     })
+}
+
+/// Every `legacy_packages` row moves a bidama into THIS root, from a
+/// version it has reached, and never moves the root itself.
+fn check_moves(name: &str, version: Version, project: &Project) -> Result<(), Malformed> {
+    let bad = |why: String| Malformed::Moved {
+        word: "legacy_packages",
+        why,
+    };
+    for (old, m) in &project.legacy_packages {
+        if old == name {
+            return Err(bad(format!("`{old}` is this bidama's own name")));
+        }
+        if blue_lang_syntax::root_of(&m.to) != name {
+            return Err(bad(format!(
+                "`{old}` moves to `{}`, outside this bidama `{name}`",
+                m.to
+            )));
+        }
+        if Version::parse(&m.since).is_ok_and(|since| since > version) {
+            return Err(bad(format!(
+                "`{old}` moved in {}, and bidama `{name}` is at {version}",
+                m.since
+            )));
+        }
+    }
+    Ok(())
 }
 
 /// The facts that span more than one call, checked once the whole manifest
@@ -1482,6 +1583,8 @@ mod tests {
             .chain(["receipt"])
             .chain(["query"])
             .chain(["reach", "allow", "virtualize", "floors", "bounds"])
+            // 2026-11-05: a bidama moved into this root's tree (B0074).
+            .chain(["legacy_packages"])
             // P1b's list argument, 2026-09-23 — `Capability::Collections`.
             .chain(["list", blue_lang_syntax::LOWERED_MAP])
             .chain([
@@ -1516,6 +1619,54 @@ mod tests {
         let f = manifest_frame();
         for name in ["read_file", "rm_rf", "exec_capture", "getenv", "now"] {
             assert!(!f.reach.permits(name), "the frame permits `{name}`");
+        }
+    }
+
+    /// **A root declares the bidamas that moved into it** (B0074), each
+    /// refused by name when it cannot mean one thing.
+    ///
+    /// Red run (2026-11-05), `check_moves` not called: the move to
+    /// `other/bpf` and the one dated 0.3.0 read as accepted.
+    #[test]
+    fn a_root_declares_the_bidamas_that_moved_into_it() {
+        let b = read_bluefile(
+            "package(\"kaaneru\", \"0.2.0\")\nlegacy_packages(\"0.2.0\", [[\"bpf\", \"kaaneru::bpf\"], [\"asm\", \"kaaneru/bpf/asm\"]])\n",
+        )
+        .expect("read");
+        let moved: Vec<(&str, &str, &str)> = b
+            .project
+            .legacy_packages
+            .iter()
+            .map(|(old, m)| (old.as_str(), m.to.as_str(), m.since.as_str()))
+            .collect();
+        assert_eq!(
+            moved,
+            [
+                ("asm", "kaaneru/bpf/asm", "0.2.0"),
+                ("bpf", "kaaneru/bpf", "0.2.0")
+            ]
+        );
+        for (moves, why) in [
+            (
+                "\"0.2.0\", [[\"bpf\", \"other/bpf\"]]",
+                "outside this bidama",
+            ),
+            ("\"0.3.0\", [[\"bpf\", \"kaaneru/bpf\"]]", "is at 0.2.0"),
+            ("\"0.2.0\", [[\"kaaneru\", \"kaaneru/k\"]]", "own name"),
+            ("\"0.2.0\", [[\"a/b\", \"kaaneru/b\"]]", "one segment"),
+            ("\"0.2.0\", [[\"bpf\", \"kaaneru\"]]", "not a level"),
+            ("\"soon\", [[\"bpf\", \"kaaneru/bpf\"]]", "a version"),
+            (
+                "\"0.2.0\", [[\"bpf\", \"kaaneru/bpf\"], [\"bpf\", \"kaaneru/b\"]]",
+                "twice",
+            ),
+        ] {
+            let e = read_bluefile(&format!(
+                "package(\"kaaneru\", \"0.2.0\")\nlegacy_packages({moves})\n"
+            ))
+            .expect_err(moves)
+            .to_string();
+            assert!(e.contains(why), "{moves}: {e}");
         }
     }
 

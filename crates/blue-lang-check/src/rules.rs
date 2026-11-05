@@ -1542,6 +1542,39 @@ children and `{sub: [:a], other: []}` imports them with their lists.
 `use({s: \"thing/sub\"})` gives a level a second name. Each spelling is kept
 as written: no fix rewrites one into another.",
     }
+    B0074 {
+        slug: "moved-package",
+        severity: Error,
+        fix: Machine,
+        law: "a bidama that moved into another bidama's tree is used by its new path; the old name is a bridge that closes at the root's next minor version",
+        witness: "use(\"bpf\", [:compile])\n\ncompile\n",
+        imports: [("kaaneru/bpf", "def compile()\n  1\nend\n")],
+        waivable: false,
+        ratchet: 0,
+        explanation: "\
+A bidama can move into another's tree: the flat bidama `bpf` becomes the
+level `kaaneru/bpf`. The root it moved into declares the move in its
+Bluefile, the package twin of `legacy_names`:
+
+    legacy_packages(\"0.2.0\", [[\"bpf\", \"kaaneru/bpf\"]])
+
+While the bridge is open, from `since` to the root's next minor version,
+`use(\"bpf\")`, `use(\"bpf\", [:compile])` and `use(\"bpf/asm\")` load the new
+path, and `bpf::compile` reaches `kaaneru::bpf::compile`, so no consumer
+breaks in the release that moves it. Each such `use`, and each qualifier
+written through the old name, is this rule. Its severity is derived, as
+B0021's is: an ERROR inside the distribution the root ships in, a WARNING for
+any other caller while the window is open, and an ERROR once it has closed.
+The ledger stays in the root's Bluefile, so a closed bridge still names the
+move and still carries the fix; a dependency still on the old name compiles
+as written, because form is its producer's to judge.
+
+`blue check --fix FILE` writes `use(\"kaaneru/bpf\")` (a path written as a
+string literal; any other spelling is the author's to rewrite) and
+`kaaneru::bpf::compile`. A bidama whose Bluefile still `needs(\"bpf\", …)`
+is told so at the `use`, and the same command writes the root's row,
+`needs(\"kaaneru\", \"^0.2\")`, and relocks.",
+    }
 }
 
 impl Code {

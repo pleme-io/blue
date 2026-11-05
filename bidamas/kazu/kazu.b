@@ -267,6 +267,16 @@ def digit_count(n)
   end
 end
 
+@doc """
+fold(xs, init, op) combines the items of xs from the left with op, starting
+from init.
+
+    fold([1, 2, 3], 0, (a, b) -> a + b) #=> 6
+"""
+def fold(xs, init, op)
+  reduce(op, init, xs)
+end
+
 # --- folds over a list of numbers -------------------------------------------
 #
 # All five are written with `reduce` and never with `length`/`car`/`cdr`,
@@ -282,7 +292,7 @@ sum: total of a list.
     sum([]) #=> 0
 """
 def sum(xs)
-  reduce((a, b) -> a + b, 0, xs)
+  fold(xs, 0, (a, b) -> a + b)
 end
 
 @doc """
@@ -292,7 +302,7 @@ answer zero.
     product([]) #=> 1
 """
 def product(xs)
-  reduce((a, b) -> a * b, 1, xs)
+  fold(xs, 1, (a, b) -> a * b)
 end
 
 @doc """
@@ -303,30 +313,30 @@ minimum of nothing; here the empty list answers nil, which a caller can test.
     min_of([5]) #=> 5
 """
 def min_of(xs)
-  reduce(
-    fn(acc, x)
-      if acc.nil?
-        x
-      else
-        min(acc, x)
-      end
-    end,
-    nil,
-    xs
-  )
+  extreme_of(xs, min)
 end
 
 def max_of(xs)
-  reduce(
+  extreme_of(xs, max)
+end
+
+@doc """
+extreme_of(xs, pick) keeps, of each pair, the item pick returns, and answers
+nil for an empty list.
+
+    extreme_of([3, 9, 4], max) #=> 9
+"""
+def extreme_of(xs, pick)
+  fold(
+    xs,
+    nil,
     fn(acc, x)
       if acc.nil?
         x
       else
-        max(acc, x)
+        pick(acc, x)
       end
-    end,
-    nil,
-    xs
+    end
   )
 end
 
@@ -338,11 +348,11 @@ fold. Swapping them silently returns 1 from every gcd and 0 from every lcm.
     gcd_of([]) #=> 0
 """
 def gcd_of(xs)
-  reduce((a, b) -> gcd(a, b), 0, xs)
+  fold(xs, 0, (a, b) -> gcd(a, b))
 end
 
 def lcm_of(xs)
-  reduce((a, b) -> lcm(a, b), 1, xs)
+  fold(xs, 1, (a, b) -> lcm(a, b))
 end
 
 # --- interpolation, rounding, ratios ----------------------------------------
@@ -652,4 +662,20 @@ test "signum is minus one, zero or one"
   assert signum(0) == 0
   assert signum(7) == 1
   assert signum(-0.5) == -1
+end
+
+test "fold combines from the left"
+  sub = (a, b) -> a - b
+  assert fold([], 7, sub) == 7
+  assert fold([4], 0, (_a, b) -> b) == 4
+  assert fold([1, 2, 3], 0, (a, b) -> a + b) == 6
+  assert fold([1, 2, 3], 10, sub) == 4
+end
+
+test "extreme_of keeps what pick keeps"
+  assert extreme_of([], max).nil?
+  assert extreme_of([5], (a, _b) -> a) == 5
+  assert extreme_of([3, 9, 4], max) == 9
+  farther = (a, b) -> max(abs(a), abs(b))
+  assert extreme_of([4, -9, 2], farther) == 9
 end

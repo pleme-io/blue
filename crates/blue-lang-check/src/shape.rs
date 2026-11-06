@@ -162,6 +162,23 @@ pub struct Near {
     pub max_holes: usize,
     pub min_size: usize,
     pub min_shared_pct: usize,
+    pub count_forwards: bool,
+}
+
+/// Whether a generalized shape is one call of a named word: the group's
+/// members already share that word and differ only in what they pass it.
+#[must_use]
+pub fn forwards(tree: &Sexp) -> bool {
+    let Sexp::List(term) = tree else {
+        return false;
+    };
+    let Some(Sexp::List(body)) = term.get(1) else {
+        return false;
+    };
+    let [Sexp::List(call)] = body.as_slice() else {
+        return false;
+    };
+    matches!(call.first(), Some(Sexp::Atom(Atom::Symbol(head))) if head.contains('/') && !head.starts_with('%'))
 }
 
 impl Near {
@@ -170,6 +187,7 @@ impl Near {
         max_holes: 2,
         min_size: 12,
         min_shared_pct: 80,
+        count_forwards: false,
     };
 
     pub fn admits(&self, a: &Sexp, b: &Sexp) -> Option<Generalization> {
@@ -238,7 +256,8 @@ impl Near {
             .filter_map(|c| {
                 let terms: Vec<Sexp> = c.iter().map(|&i| shapes[keys[i]].clone()).collect();
                 let g = generalize(&terms)?;
-                Some((c.iter().map(|&i| keys[i]).collect(), g))
+                (self.count_forwards || !forwards(&g.tree))
+                    .then(|| (c.iter().map(|&i| keys[i]).collect(), g))
             })
             .collect()
     }
@@ -318,6 +337,44 @@ mod tests {
         assert!(near.admits(&a, &b).is_some());
         assert!(near.admits(&a, &c).is_none());
         assert!(near.admits(&a, &a).is_none());
+    }
+
+    #[test]
+    fn calls_of_one_named_word_are_reuse_and_counted_only_when_asked() {
+        let near = Near {
+            min_size: 4,
+            min_shared_pct: 50,
+            ..Near::DEFAULT
+        };
+        let wrappers = BTreeMap::from([
+            (
+                "kazu/sum".to_owned(),
+                t("(1 ((self/fold %p0 0 (lambda (a b) (+ a b)))))"),
+            ),
+            (
+                "kazu/product".to_owned(),
+                t("(1 ((self/fold %p0 1 (lambda (a b) (* a b)))))"),
+            ),
+        ]);
+        assert!(near.groups(&wrappers).is_empty());
+        let counting = Near {
+            count_forwards: true,
+            ..near
+        };
+        assert_eq!(counting.groups(&wrappers).len(), 1);
+        let copies = BTreeMap::from([
+            (
+                "a/sum".to_owned(),
+                t("(1 ((reduce (lambda (a b) (+ a b)) 0 %p0)))"),
+            ),
+            (
+                "b/product".to_owned(),
+                t("(1 ((reduce (lambda (a b) (* a b)) 1 %p0)))"),
+            ),
+        ]);
+        assert_eq!(near.groups(&copies).len(), 1);
+        assert!(!forwards(&t("(1 ((%h0 %p0 1)))")));
+        assert!(!forwards(&t("(1 ((self/f %p0) (self/g %p0)))")));
     }
 
     #[test]

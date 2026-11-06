@@ -99,8 +99,12 @@ duplicates: 252 definitions in 103 groups. Print the groups with
 Landed: the tree feature, trees 1 to 9, and one spelling per name (B0076 a
 qualified name is its full path, B0077 one `use("a/b")` per tree, B0078 a
 redundant use, each with a fix). 5,572 definitions in 280 files. Exact copies:
-0 against `reuse.baseline`. Near duplicates: 65 definitions
-(`NEAR_SHAPE_DEFINITIONS`), down from 252. The reuse census now reads a word
+0 against `reuse.baseline`. Near duplicates: 24 definitions in 11 groups
+(`NEAR_SHAPE_DEFINITIONS`), down from 252. A group whose shared shape is one call
+of a named word (`self/fold`, `kansuu/maybe`) is reuse already made and is not
+counted (`Near::count_forwards` turns that back on). The 11 left share a shape
+and not a meaning: `ronri/both` and `either` short-circuit differently,
+`kazu/in_range` and `ukai/corp_iface?` only both hold two tests. The reuse census now reads a word
 through a one-call wrapper to a sibling, so `kazu::sum` written as `fold` still
 names a `reduce` copy of it; the exact and near duplicate gates read the written
 shape, where a wrapper is reuse.
@@ -115,11 +119,9 @@ Open, in order:
   and a `use` of moji turns 53 of deeta's bare `first`, `rest`, `last` and `max`
   calls into B0012 until the retsu and kazu `legacy_names` windows close at
   0.2.0.
-- The remaining 65 near duplicates, listed by the distribution test with the pin
-  at 0. A foundation takes a new edge only when it is worth every consumer's
-  closure: `retsu::size` keeps its own nil check, and `granularity` holds retsu
-  at kazu.
-- `angou`'s atbash onto `moji::map_chars`, then the `zenbu` jisho waiver goes.
+- A foundation takes a new edge only when it is worth every consumer's closure:
+  `retsu::size` keeps its own nil check (`granularity` holds retsu at kazu), and
+  `angou::atbash` keeps its own join rather than load moji.
 - Remote branches `namespaces/nested`, `namespaces/nested-land`,
   `land/namespaces/nested` and `namespaces/tree-mitoshi` hold handoff and draft
   commits main does not have; they are superseded and wait for the operator to
@@ -173,7 +175,6 @@ package only; a B0015 reorder parted a waiver from its `use`, after which
 
 ### After the trees
 
-Sections 2 to 5 stand for what is left: the 65 near duplicates fall onto one
-word each (C2, C3), then the new bidamas (C4). The arnes copies
+Sections 2 and 3 are done; section 4's new bidamas (C4) stand. The arnes copies
 `wariate::bump` (home `toriyose::danpen::deeper`, now `kansuu::maybe`) and
 `yushutsu::column` (home `suugaku::gyouretsu::col`) move to a foundation word.

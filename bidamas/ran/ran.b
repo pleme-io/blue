@@ -149,11 +149,7 @@ def roll(seed, sides)
 end
 
 def roll_dice(seed, count, sides)
-  if count < 1
-    []
-  else
-    cons(roll(seed, sides), roll_dice(next_seed(seed), count - 1, sides))
-  end
+  draws(seed, count, (s) -> roll(s, sides))
 end
 
 def roll_sum(seed, count, sides)

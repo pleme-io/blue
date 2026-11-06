@@ -109,7 +109,24 @@ push_at: A new map whose list at key k gains v at its end; an absent key starts 
     push_at({}, :seen, 1) #=> {seen: [1]}
 """
 def push_at(m, k, v)
-  assoc(m, k, append(get(m, k), [v]))
+  append_at(m, k, [v])
+end
+
+@doc """
+append_at: A new map whose list at key k gains every item of xs at its end; an absent key starts the list.
+
+    append_at({seen: [1]}, :seen, [2, 3]) #=> {seen: [1, 2, 3]}
+    append_at({}, :seen, []) #=> {seen: []}
+"""
+def append_at(m, k, xs)
+  assoc(m, k, append(get(m, k), xs))
+end
+
+test "append_at extends the list at a key and starts an absent one"
+  assert append_at({}, :seen, []) == {seen: []}
+  assert append_at({seen: [1]}, :seen, []) == {seen: [1]}
+  assert append_at({seen: [1]}, :seen, [2, 3]) == {seen: [1, 2, 3]}
+  assert append_at({a: [0]}, :b, [9]) == {a: [0], b: [9]}
 end
 
 def from_entries(pairs)

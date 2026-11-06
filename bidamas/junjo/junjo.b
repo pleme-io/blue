@@ -247,13 +247,7 @@ in front of the ties already there, so building a sort by inserting each head
 into a sorted tail leaves the input order of equals intact.
 """
 def insert_sorted_by(key, x, xs)
-  if is_empty(xs)
-    [x]
-  elsif compare(key(x), key(first(xs))) <= 0
-    cons(x, xs)
-  else
-    cons(first(xs), insert_sorted_by(key, x, rest(xs)))
-  end
+  insert_with((a, b) -> compare(key(a), key(b)), x, xs)
 end
 
 @doc """
@@ -265,11 +259,7 @@ BEFORE it. That is fine when the key is the whole value, and wrong the moment
 a record carries anything the key does not look at.
 """
 def sort_stable_by(key, xs)
-  if is_empty(xs)
-    []
-  else
-    insert_sorted_by(key, first(xs), sort_stable_by(key, rest(xs)))
-  end
+  sort_with((a, b) -> compare(key(a), key(b)), xs)
 end
 
 @doc """

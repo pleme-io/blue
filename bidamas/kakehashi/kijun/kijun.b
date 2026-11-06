@@ -7,6 +7,8 @@ kijun (基準) — the standard a private nix fleet repo is held to, as data: la
 use("deeta", %i[as_json get_str])
 use("hadome")
 
+use("jisho", [:append_at])
+
 use(
   "kakehashi/nikkusu",
   %i[
@@ -114,7 +116,7 @@ append_field: `cfg` with `xs` appended to the list at `key`.
     append_field({top: ["a"]}, :top, ["b"]) #=> {top: ["a", "b"]}
 """
 def append_field(cfg, key, xs)
-  assoc(cfg, key, append(get(cfg, key), xs))
+  append_at(cfg, key, xs)
 end
 
 @doc """

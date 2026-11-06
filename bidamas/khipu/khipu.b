@@ -6,7 +6,7 @@ khipu — blue's knowledge graph (docs/KHIPU.md): RDF terms as a closed sum, qua
 
 use("deeta", %i[code_point_text radix_value])
 use("kyohi", [:raised])
-use("moji", [:is_hex])
+use("moji", %i[is_hex take_chars])
 use("retsu", %i[first size])
 
 XSD_STRING = "http://www.w3.org/2001/XMLSchema#string"
@@ -188,7 +188,7 @@ def write_term(t, scope)
     if t[:scope] == scope
       "_:#{t[:label]}"
     else
-      "_:s#{take_text(blake3_hex(t[:scope]), 8)}#{t[:label]}"
+      "_:s#{take_chars(blake3_hex(t[:scope]), 8)}#{t[:label]}"
     end
   elsif kind == :plain
     "\"#{escaped(t[:value])}\""
@@ -197,10 +197,6 @@ def write_term(t, scope)
   else
     "\"#{escaped(t[:value])}\"^^<#{t[:datatype]}>"
   end
-end
-
-def take_text(s, n)
-  join(take(n, chars(s)), "")
 end
 
 @doc """

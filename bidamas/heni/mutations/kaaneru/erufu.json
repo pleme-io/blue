@@ -134,13 +134,13 @@
   {
     "name": "an object holds no source lines",
     "file": "erufu.b",
-    "find": "bpf::line_info_sections(types[:lines] or [], funcs, section),",
+    "find": "kaaneru::bpf::line_info_sections(types[:lines] or [], funcs, section),",
     "replace": "[],"
   },
   {
     "name": "an object holds no CO-RE relocations",
     "file": "erufu.b",
-    "find": "bpf::core_sections(types[:core_relos] or [], funcs, section)",
+    "find": "kaaneru::bpf::core_sections(types[:core_relos] or [], funcs, section)",
     "replace": "[]"
   },
   {

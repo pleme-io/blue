@@ -392,6 +392,10 @@ package carries its self-references into the tree. `move` runs it; the verb
 repairs a tree whose slash-form self-references an earlier move missed.
 """
 def selfmove(root, children)
+  sets = filter(
+    (p) -> ends_with?(p, ".json"),
+    walk_dir("bidamas/heni/mutations")
+  )
   map(
     fn(p)
       text = read_file(p)
@@ -400,7 +404,7 @@ def selfmove(root, children)
         write_file(p, moved)
       end
     end,
-    tree_files(root)
+    append(tree_files(root), sets)
   )
 end
 

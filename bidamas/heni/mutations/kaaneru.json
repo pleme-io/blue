@@ -188,7 +188,7 @@
   {
     "name": "a refusal drops its source",
     "file": "kaaneru.b",
-    "find": "    bpf::source_at(program, said[:insn])",
+    "find": "    kaaneru::bpf::source_at(program, said[:insn])",
     "replace": "    nil"
   }
 ]

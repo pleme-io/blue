@@ -15,6 +15,7 @@ stand are applied in order; a refused one changes nothing.
 """
 
 use("deeta", [:json_at])
+use("jisho", [:push_at])
 
 use(
   "kousei",
@@ -322,7 +323,7 @@ def one_step(keyer, state, e)
 end
 
 def refused_step(state, r)
-  assoc(state, :refusals, append(state[:refusals], [r]))
+  push_at(state, :refusals, r)
 end
 
 @doc """
@@ -688,4 +689,9 @@ test "deep_merge leaves both inputs as they were"
   assert a == {"a" => {"x" => 1}}
   assert b == {"a" => {"y" => 2}}
   assert m == {"a" => {"x" => 1, "y" => 2}}
+end
+
+test "refused_step records a refusal at the end"
+  assert refused_step({}, :a) == {refusals: [:a]}
+  assert refused_step({refusals: [:a]}, :b) == {refusals: %i[a b]}
 end

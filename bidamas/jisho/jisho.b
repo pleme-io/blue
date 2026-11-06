@@ -103,6 +103,15 @@ def get_any(m, keys)
   end
 end
 
+@doc """
+push_at: A new map whose list at key k gains v at its end; an absent key starts the list.
+
+    push_at({}, :seen, 1) #=> {seen: [1]}
+"""
+def push_at(m, k, v)
+  assoc(m, k, append(get(m, k), [v]))
+end
+
 def from_entries(pairs)
   zipmap(map(first, pairs), map((e) -> e[1], pairs))
 end
@@ -176,6 +185,14 @@ test "get_any answers the first key that holds a value"
   assert get_any({a: 1, b: 2}, %i[a b]) == 1
   assert get_any({a: nil, b: 2}, %i[a b]) == 2
   assert get_any({a: false, b: 2}, %i[a b]) == false
+end
+
+test "push_at appends to the list at a key and leaves the original"
+  m = {seen: [1]}
+  assert push_at({}, :seen, 1) == {seen: [1]}
+  assert push_at(m, :seen, 2) == {seen: [1, 2]}
+  assert m == {seen: [1]}
+  assert push_at({n: 0}, :seen, [3]) == {n: 0, seen: [[3]]}
 end
 
 test "from_entries inverts entries"

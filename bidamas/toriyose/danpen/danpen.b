@@ -13,7 +13,7 @@ persisted-operation id of that text.
 
 use("deeta", [:get_or])
 use("fairu")
-use("jisho", [:get_any])
+use("jisho", %i[get_any push_at])
 use("kansuu", [:maybe])
 use("kiwari")
 use("kyohi", [:raised])
@@ -2085,7 +2085,7 @@ def add_extension(state, d)
 end
 
 def note(state, f)
-  assoc(state, :problems, append(state[:problems], [f]))
+  push_at(state, :problems, f)
 end
 
 def builtins()
@@ -4175,4 +4175,9 @@ end
 test "pad indents two spaces a level"
   assert pad(0) == ""
   assert pad(2) == "    "
+end
+
+test "note records a problem at the end"
+  assert note({}, "x") == {problems: ["x"]}
+  assert note({problems: ["x"]}, "y") == {problems: %w[x y]}
 end

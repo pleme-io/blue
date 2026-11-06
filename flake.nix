@@ -694,6 +694,15 @@
           # A bidama whose code does not check does not build.
           bidama-check-refuses = bl.mkCheckRefusalCheck { inherit blue; };
 
+          bidamas-floor =
+            let
+              floor = import ./bidamas/floor.nix;
+              count = bl.treeNodeCount ./bidamas;
+            in
+            assert lib.assertMsg (count >= floor)
+              "bidamas: only ${toString count} package(s) and level(s) found, expected >= ${toString floor} (bidamas/floor.nix); refusing a thinned distribution";
+            pkgs.runCommand "bidamas-floor" { } "echo ${toString count} > $out";
+
           # A caller's BLUE_PATH overrides the wrapper's pinned distribution.
           blue-path-override = bl.mkOverrideCheck { inherit blue; inherit (repository.${system}) bidamas; };
 

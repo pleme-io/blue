@@ -98,7 +98,7 @@
         # `find | wc -l` inside the build until 2026-09-27.
         bidamas =
           let
-            floor = 112;
+            floor = import ./floor.nix;
             count = (bidamaLib pkgs).treeNodeCount ./.;
           in
           assert pkgs.lib.assertMsg (count >= floor)

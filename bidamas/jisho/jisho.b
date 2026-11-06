@@ -9,7 +9,7 @@ reach jisho for a plain map.
     merge({"a" => 1, "b" => 2}, {"b" => 3}) #=> {"a" => 1, "b" => 3}
 """
 
-use("retsu", %i[first is_empty])
+use("retsu", %i[first is_empty rest])
 
 def keys(m)
   map(first, map_entries(m))
@@ -89,6 +89,20 @@ def select(m, wanted)
   )
 end
 
+@doc """
+get_any: The value at the first of `keys` that holds one, or nil; a field read under its preferred name, then its fallbacks.
+
+    get_any({b: 2}, %i[a b]) #=> 2
+"""
+def get_any(m, keys)
+  v = get(m, first(keys))
+  if v.nil? and not is_empty(keys)
+    get_any(m, rest(keys))
+  else
+    v
+  end
+end
+
 def from_entries(pairs)
   zipmap(map(first, pairs), map((e) -> e[1], pairs))
 end
@@ -154,6 +168,14 @@ test "select keeps listed keys that exist and merge lets b win"
   assert merge({"a" => 1, "b" => 2}, {"b" => 3, "c" => 4}) ==
     {"a" => 1, "b" => 3, "c" => 4}
   assert merge({}, {}) == {}
+end
+
+test "get_any answers the first key that holds a value"
+  assert get_any({}, %i[a b]).nil?
+  assert get_any({a: 1}, []).nil?
+  assert get_any({a: 1, b: 2}, %i[a b]) == 1
+  assert get_any({a: nil, b: 2}, %i[a b]) == 2
+  assert get_any({a: false, b: 2}, %i[a b]) == false
 end
 
 test "from_entries inverts entries"

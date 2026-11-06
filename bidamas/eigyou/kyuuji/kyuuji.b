@@ -12,6 +12,7 @@ serves request counts and latencies as Prometheus text.
 """
 
 use("gamen", %i[css element? render url_ok?])
+use("jisho", [:get_any])
 
 use("kousei", %i[field flag int_in list_of one_of overlay record_whys required])
 
@@ -529,7 +530,7 @@ def segment(part)
 end
 
 def bound_name(s)
-  s[:param] or s[:rest]
+  get_any(s, %i[param rest])
 end
 
 def route_fault(r)
@@ -1684,4 +1685,10 @@ test "serve_once answers a router app over a socket, view routes included"
   assert served("/u/7", "/healthz", site) == 200
   assert served("/page", "/healthz", site) == 200
   assert served("/nope", "/healthz", site) == 404
+end
+
+test "bound_name reads the param, then the rest"
+  assert bound_name({}).nil?
+  assert bound_name({param: "id"}) == "id"
+  assert bound_name({rest: "path"}) == "path"
 end

@@ -13,6 +13,7 @@ persisted-operation id of that text.
 
 use("deeta", [:get_or])
 use("fairu")
+use("jisho", [:get_any])
 use("kansuu", [:maybe])
 use("kiwari")
 use("kyohi", [:raised])
@@ -3471,7 +3472,7 @@ def compose(first, second)
 end
 
 def response_key(sel)
-  sel[:alias] or sel[:name]
+  get_any(sel, %i[alias name])
 end
 
 def plain_hooks()
@@ -4164,4 +4165,9 @@ test "deeper and definitions_of pass nil through"
   assert deeper(0) == 1
   assert definitions_of(nil) == []
   assert definitions_of({definitions: [1]}) == [1]
+end
+
+test "response_key is the alias, else the field name"
+  assert response_key({name: "a"}) == "a"
+  assert response_key({alias: "b", name: "a"}) == "b"
 end

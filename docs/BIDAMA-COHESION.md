@@ -94,18 +94,36 @@ duplicates: 252 definitions in 103 groups. Print the groups with
 `NEAR_SHAPE_DEFINITIONS = 0` in `crates/blue-lang-pkg/tests/distribution.rs` and
 `cargo test -p blue-lang-pkg --test distribution near_duplicate_shapes_only_fall`.
 
-### Branches, in landing order
+### State at `5805e0d1` (main, 2026-11-06)
 
-Land each with `git land`, rebased onto the newest main, after
-`cargo test --workspace --exclude blue-lang-wasm`.
+Landed: the tree feature, trees 1 to 9, and one spelling per name (B0076 a
+qualified name is its full path, B0077 one `use("a/b")` per tree, B0078 a
+redundant use, each with a fix). 5,572 definitions in 280 files. Exact copies:
+0 against `reuse.baseline`. Near duplicates: 65 definitions
+(`NEAR_SHAPE_DEFINITIONS`), down from 252. The reuse census now reads a word
+through a one-call wrapper to a sibling, so `kazu::sum` written as `fold` still
+names a `reduce` copy of it; the exact and near duplicate gates read the written
+shape, where a wrapper is reuse.
 
-Rebased 2026-11-05 onto `6bc101f9` as one stack, each step's workspace suite
-green (160 test binaries): `namespaces/nested-rebase` (the tree feature, plus
-`Program::is_current` seeing a new level, plus a strict `check_corpus`),
-`bidamas/exact-copies-rebase`, then `blue/package-rename-rebase` (B0021 a
-warning for a caller of the compiled-in distribution, the bridge, a consumer
-sweep of 23 green), then `namespaces/tree-mitoshi` (tree 1 below). Landing
-order is that order.
+Open, in order:
+
+- Tree 10, `kaaneru`, after the kernel branches (`kernel/fc-work`,
+  `kernel/kprobe-multi-row`, `land/fc-objects`) land; `gen/tree.b move` refuses
+  a root that has its own Bluefile, so its `legacy_packages` rows are written by
+  hand.
+- `deeta/line_breaks` and `moji::repeated` are one word; deeta needs nothing,
+  and a `use` of moji turns 53 of deeta's bare `first`, `rest`, `last` and `max`
+  calls into B0012 until the retsu and kazu `legacy_names` windows close at
+  0.2.0.
+- The remaining 65 near duplicates, listed by the distribution test with the pin
+  at 0. A foundation takes a new edge only when it is worth every consumer's
+  closure: `retsu::size` keeps its own nil check, and `granularity` holds retsu
+  at kazu.
+- `angou`'s atbash onto `moji::map_chars`, then the `zenbu` jisho waiver goes.
+- Remote branches `namespaces/nested`, `namespaces/nested-land`,
+  `land/namespaces/nested` and `namespaces/tree-mitoshi` hold handoff and draft
+  commits main does not have; they are superseded and wait for the operator to
+  drop them.
 
 Decided from 2: `moji` needs `junjo`, which needs `ronri`. Both depend only on
 foundations and join the list in section 1. Moving `sort` below them would copy
@@ -123,15 +141,18 @@ landing, with a `legacy_packages` row per moved package:
 | Order | Root | Children | Fleet consumers to fix |
 |---|---|---|---|
 | 1 ✅ | `mitoshi` 見通し | rogu, tsuiseki, keisoku | none |
-| 2 | `chozou` 貯蔵 (alt. `takuwae`) | teeburu, kiibariu, sutoriimu | ola-mundo (1 use) |
-| 3 | `suugaku` 数学 | gyouretsu, kinji, kumiawase, toukei, ryouiki, tokumei | makoto (18 use), nupastel |
-| 4 | `koubou` 工房 | kikagaku, rittai, zumen, kakou | nupastel (5 use) |
-| 5 | `todokede` 届出 | jitaku, kurashi, motenashi, empresa, kinko | nix (3 use) |
-| 6 | `kakehashi` 架け橋 (alt. `fushin`) | nikkusu, hyouka, kirikae, kijun, tehai, souji | nix, substrate, blackmatter-akeyless |
-| 7 | `eigyou` 営業 | kyuuji, bougyo, shisei, tsuushin, heddaa, tajuu, shihyou, haibi | rubrica, ola-mundo |
-| 8 | `isshou` 一生 | raifusaikuru, nisshi, anaritikusu | nupastel (11 use, 11 needs) |
-| 9 | `toriyose` 取り寄せ | danpen, outou, kyasshu | none |
-| 10 | `kaaneru` (exists) | bpf, btf, erufu | kanshi; LAST, kernel work is live (`land/fc-objects`) |
+| 2 ✅ | `chozou` 貯蔵 (alt. `takuwae`) | teeburu, kiibariu, sutoriimu | ola-mundo (1 use) |
+| 3 ✅ | `suugaku` 数学 | gyouretsu, kinji, kumiawase, toukei, ryouiki, tokumei | makoto (18 use), nupastel |
+| 4 ✅ | `koubou` 工房 | kikagaku, rittai, zumen, kakou | nupastel (5 use) |
+| 5 ✅ | `todokede` 届出 | jitaku, kurashi, motenashi, empresa, kinko | nix (3 use) |
+| 6 ✅ | `kakehashi` 架け橋 (alt. `fushin`) | nikkusu, hyouka, kirikae, kijun, tehai, souji | nix, substrate, blackmatter-akeyless |
+| 7 ✅ | `eigyou` 営業 | kyuuji, bougyo, shisei, tsuushin, heddaa, tajuu, shihyou, haibi | rubrica, ola-mundo |
+| 8 ✅ | `isshou` 一生 | raifusaikuru, nisshi, anaritikusu | nupastel (11 use, 11 needs) |
+| 9 ✅ | `toriyose` 取り寄せ | danpen, outou, kyasshu | none |
+| 10 ⏳ | `kaaneru` (exists) | bpf, btf, erufu | kanshi; LAST, kernel work is live (`land/fc-objects`) |
+
+The consumers named here warn (B0021) until each moves to the new paths:
+`blue gen/consumers.b fix <repo>` rewrites one.
 
 Rejected root names: `souko` (reserved for object stores), `madoguchi`
 (escriba), `uketsuke` (spent), `sengen` (substring in engenho), `keika`
@@ -152,7 +173,7 @@ package only; a B0015 reorder parted a waiver from its `use`, after which
 
 ### After the trees
 
-Sections 2 to 5 stand: the 235 near duplicates fall onto one word each (C2,
-C3), then the new bidamas (C4). The arnes copies `wariate::bump` (home
-`danpen::deeper`) and `yushutsu::column` (home `gyouretsu::col`) move to a
-foundation word once those land.
+Sections 2 to 5 stand for what is left: the 65 near duplicates fall onto one
+word each (C2, C3), then the new bidamas (C4). The arnes copies
+`wariate::bump` (home `toriyose::danpen::deeper`, now `kansuu::maybe`) and
+`yushutsu::column` (home `suugaku::gyouretsu::col`) move to a foundation word.

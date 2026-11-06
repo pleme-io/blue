@@ -4343,7 +4343,7 @@ end
 @doc """
 gen_loop_fold: `loop_fold`: the turns checked against `bpf_loop`'s limit, the value and fault flag in two adjacent slots the callback writes through a pointer, then the helper. A count past the limit and a fault in the step are this program's fault.
 
-    run(compile_forms(read_forms("(define (%root/s i a) (+ a i)) (define (%root/e c) (bpf/loop_fold 4 0 %root/s))"), {entry: :e, kind: :xdp})).ret #=> 6
+    run(compile_forms(read_forms("(define (%root/s i a) (+ a i)) (define (%root/e c) (kaaneru/bpf/loop_fold 4 0 %root/s))"), {entry: :e, kind: :xdp})).ret #=> 6
 """
 def gen_loop_fold(st, args)
   turns = need_int(gen(st, first(args), nil), "the turns of loop_fold")
@@ -6697,7 +6697,7 @@ test "line info in .BTF.ext reads back as written, and a program with no lines w
 end
 
 test "loop_fold in the machine answers as the interpreter does, a fault in its step faults the program, and past the limit is a fault"
-  text = "(define (%root/s i a) (+ a (bit_and (wrapping_mul i 2) 1023))) (define (%root/e c) (bpf/loop_fold (bpf/ctx_int c 0 1) 5 %root/s))"
+  text = "(define (%root/s i a) (+ a (bit_and (wrapping_mul i 2) 1023))) (define (%root/e c) (kaaneru/bpf/loop_fold (kaaneru/bpf/ctx_int c 0 1) 5 %root/s))"
   q = compile_forms(
     read_forms(text),
     {entry: :e, kind: :tracepoint, on_fault: 99}
@@ -6712,15 +6712,15 @@ test "loop_fold in the machine answers as the interpreter does, a fault in its s
     end,
     [0, 1, 2, 3, 9, 255]
   )
-  bad = "(define (%root/s i a) (+ a 9223372036854775807)) (define (%root/e c) (bpf/loop_fold 9 1 %root/s))"
+  bad = "(define (%root/s i a) (+ a 9223372036854775807)) (define (%root/e c) (kaaneru/bpf/loop_fold 9 1 %root/s))"
   assert run(
     compile_forms(read_forms(bad), {entry: :e, kind: :xdp, on_fault: 99})
   ).ret == 99
-  ok = "(define (%root/s i a) (+ a 1)) (define (%root/e c) (bpf/loop_fold 9 0 %root/s))"
+  ok = "(define (%root/s i a) (+ a 1)) (define (%root/e c) (kaaneru/bpf/loop_fold 9 0 %root/s))"
   assert run(
     compile_forms(read_forms(ok), {entry: :e, kind: :xdp, on_fault: 99})
   ).ret == 9
-  past = "(define (%root/s i a) a) (define (%root/e c) (bpf/loop_fold (bpf/ctx_int c 0 8) 7 %root/s))"
+  past = "(define (%root/s i a) a) (define (%root/e c) (kaaneru/bpf/loop_fold (kaaneru/bpf/ctx_int c 0 8) 7 %root/s))"
   over = int_bytes(max_loops + 1, 8)
   assert run(
     compile_forms(
@@ -6737,24 +6737,24 @@ test "loop_fold refuses by name: a step that is no definition, of another shape,
   end
   base = {entry: :e, kind: :xdp}
   assert refused(
-    "(define (%root/e c) (bpf/loop_fold 1 0 (lambda (i a) a)))",
+    "(define (%root/e c) (kaaneru/bpf/loop_fold 1 0 (lambda (i a) a)))",
     base
   )
-  assert refused("(define (%root/e c) (bpf/loop_fold 1 0 %root/none))", base)
+  assert refused("(define (%root/e c) (kaaneru/bpf/loop_fold 1 0 %root/none))", base)
   assert refused(
-    "(define (%root/s i) i) (define (%root/e c) (bpf/loop_fold 1 0 %root/s))",
-    base
-  )
-  assert refused(
-    "(define (%root/s i a) (bpf/loop_fold 1 0 %root/s)) (define (%root/e c) (bpf/loop_fold 1 0 %root/s))",
+    "(define (%root/s i) i) (define (%root/e c) (kaaneru/bpf/loop_fold 1 0 %root/s))",
     base
   )
   assert refused(
-    "(define (%root/s i a) a) (define (%root/e c) (begin (%root/s 1 2) (bpf/loop_fold 1 0 %root/s)))",
+    "(define (%root/s i a) (kaaneru/bpf/loop_fold 1 0 %root/s)) (define (%root/e c) (kaaneru/bpf/loop_fold 1 0 %root/s))",
+    base
+  )
+  assert refused(
+    "(define (%root/s i a) a) (define (%root/e c) (begin (%root/s 1 2) (kaaneru/bpf/loop_fold 1 0 %root/s)))",
     assoc(base, :global, [:s])
   )
   assert not refused(
-    "(define (%root/s i a) a) (define (%root/e c) (+ (bpf/loop_fold 1 0 %root/s) (bpf/loop_fold 2 0 %root/s)))",
+    "(define (%root/s i a) a) (define (%root/e c) (+ (kaaneru/bpf/loop_fold 1 0 %root/s) (kaaneru/bpf/loop_fold 2 0 %root/s)))",
     base
   )
 end

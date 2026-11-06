@@ -281,12 +281,7 @@ def composite_kind?(k)
 end
 
 def kind_named(types, name)
-  t = get(types, name)
-  if t.nil?
-    nil
-  else
-    t.kind
-  end
+  toriyose::danpen::kind_in(types, name)
 end
 
 def ref_whys(types, owner, ref, ok_kind)
@@ -1255,11 +1250,11 @@ def coerce_variables(sc, op, given)
 end
 
 def operations(doc)
-  filter((d) -> d.kind == :operation, doc.definitions)
+  toriyose::danpen::definitions_of_kind(doc, :operation)
 end
 
 def fragment_defs(doc)
-  filter((d) -> d.kind == :fragment, doc.definitions)
+  toriyose::danpen::definitions_of_kind(doc, :fragment)
 end
 
 def fragments_of(doc)
@@ -1295,7 +1290,7 @@ def operation_of(doc, name)
 end
 
 def response_key(node)
-  node.alias or node.name
+  toriyose::danpen::response_key(node)
 end
 
 def directive_value(env, dirs, name)

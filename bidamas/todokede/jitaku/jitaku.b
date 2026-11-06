@@ -9,6 +9,8 @@ nix module takes, from the entries that stand; `refusals` names the rest.
     accepted([]) #=> []
 """
 
+use("jisho")
+
 use(
   "kousei",
   %i[entry flag int_in kind_of name_of required text value_of verdict where]
@@ -22,22 +24,26 @@ legacy_names("0.1.1", [%w[unrefused kyohi::standing]])
 
 # ── checks: a check is fn(value) answering nil, or why the value is wrong ──
 
-def number_in(lo, hi)
+@doc """
+bounded: A check that `v` passes `is` and lies in `lo..hi`; its why names `v` as not `noun` in the range.
+
+    bounded(number?, "a number", 0, 1)(2) #=> "2 is not a number in 0..1"
+"""
+def bounded(is, noun, lo, hi)
   fn(v)
     verdict(
-      number?(v) and v >= lo and v <= hi,
-      "#{v} is not a number in #{lo}..#{hi}"
+      is(v) and v >= lo and v <= hi,
+      "#{v} is not #{noun} in #{lo}..#{hi}"
     )
   end
 end
 
+def number_in(lo, hi)
+  bounded(number?, "a number", lo, hi)
+end
+
 def float_in(lo, hi)
-  fn(v)
-    verdict(
-      float?(v) and v >= lo and v <= hi,
-      "#{v} is not a float in #{lo}..#{hi}"
-    )
-  end
+  bounded(float?, "a float", lo, hi)
 end
 
 def one_of(choices)
@@ -134,24 +140,27 @@ def first_why(check, xs)
   end
 end
 
-def list_of(check)
+@doc """
+list_where: A check that `v` is a list that `fits` and whose every element passes `check`; a list that does not fit is not `noun`.
+
+    list_where((v) -> size(v) == 2, "two values", int_in(0, 9))([1]) #=> "[1] is not two values"
+"""
+def list_where(fits, noun, check)
   fn(v)
-    if v != nil and list?(v) and not map?(v)
+    if v != nil and list?(v) and fits(v)
       first_why(check, v)
     else
-      "#{v} is not a list"
+      "#{v} is not #{noun}"
     end
   end
 end
 
+def list_of(check)
+  list_where((v) -> not map?(v), "a list", check)
+end
+
 def three_of(check)
-  fn(v)
-    if v != nil and list?(v) and size(v) == 3
-      first_why(check, v)
-    else
-      "#{v} is not three values"
-    end
-  end
+  list_where((v) -> size(v) == 3, "three values", check)
 end
 
 # ── records: a table of fields, read once to check and once to project ─────
@@ -353,7 +362,7 @@ def device_row()
 end
 
 def device_render(rows)
-  reduce((acc, r) -> assoc(acc, first(r), device_of(r)), {}, rows)
+  jisho::from_entries(map((r) -> [first(r), device_of(r)], rows))
 end
 
 def device_of(r)
@@ -1279,6 +1288,34 @@ end
 
 def mood_doc(entries, name)
   json_get(json_get(json_get(home_doc(entries), :homeAssistant), :moods), name)
+end
+
+test "bounded checks a kind and a range, and names both in its why"
+  assert bounded(number?, "a number", 0, 1)(0.5).nil?
+  assert bounded(number?, "a number", 0, 1)(1).nil?
+  assert bounded(number?, "a number", 0, 1)(2) == "2 is not a number in 0..1"
+  assert bounded(float?, "a float", 0, 1)(1) == "1 is not a float in 0..1"
+  assert number_in(0, 9)(3).nil?
+  assert float_in(0, 1)(0.5).nil?
+end
+
+test "list_where checks a list's shape and then each element"
+  two = list_where((v) -> size(v) == 2, "two values", int_in(0, 9))
+  assert two([1, 2]).nil?
+  assert two(nil) == " is not two values"
+  assert two([1]) == "[1] is not two values"
+  assert two([1, 20]) == "20 is not a whole number in 0..9"
+  assert list_of(int_in(0, 9))([]).nil?
+  assert three_of(int_in(0, 9))([1, 2]) == "[1, 2] is not three values"
+end
+
+test "device_render keys each device row by its name"
+  assert device_render([]) == {}
+  assert device_render([%w[tv 10.0.0.2], ["hub", "10.0.0.3", 8123]]) ==
+    {
+      "tv" => {"host" => "10.0.0.2"},
+      "hub" => {"host" => "10.0.0.3", "port" => 8123}
+    }
 end
 
 test "an empty home is on, and refused only for the site it lacks"

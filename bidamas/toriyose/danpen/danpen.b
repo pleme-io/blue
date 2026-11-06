@@ -622,20 +622,25 @@ def token_at(x, i, c, line, col)
   end
 end
 
-def name_end(x, i)
-  if i < x[:n] and get(x[:part], at(x, i))
-    name_end(x, i + 1)
+@doc """
+span_end: The index after the run of characters from `i` that the lexer's character set `set` (`:part`, `:digit`, ...) holds.
+
+    span_end({cs: ["1", "2", "a"], n: 3, digit: {"1" => true, "2" => true}}, 0, :digit) #=> 2
+"""
+def span_end(x, i, set)
+  if i < x[:n] and get(get(x, set), at(x, i))
+    span_end(x, i + 1, set)
   else
     i
   end
 end
 
+def name_end(x, i)
+  span_end(x, i, :part)
+end
+
 def digits_end(x, i)
-  if i < x[:n] and get(x[:digit], at(x, i))
-    digits_end(x, i + 1)
-  else
-    i
-  end
+  span_end(x, i, :digit)
 end
 
 def number_at(x, i, line, col)
@@ -893,30 +898,43 @@ def fail(p, i, wanted)
   lex_error(t[:line], t[:col], "expected #{wanted}, found #{shown(t)}")
 end
 
-def punct?(p, i, v)
+@doc """
+tok_is?: True when the token at `i` is of `kind` and reads `v`.
+
+    tok_is?({toks: [{kind: :punct, value: "{"}], n: 1}, 0, :punct, "{") #=> true
+"""
+def tok_is?(p, i, kind, v)
   t = tok(p, i)
-  t[:kind] == :punct and t[:value] == v
+  t[:kind] == kind and t[:value] == v
+end
+
+@doc """
+consume: The index after the token at `i` when it is of `kind` and reads `v`; otherwise a parse error naming `v`.
+
+    consume({toks: [{kind: :name, value: "query"}], n: 1}, 0, :name, "query") #=> 1
+"""
+def consume(p, i, kind, v)
+  if tok_is?(p, i, kind, v)
+    i + 1
+  else
+    fail(p, i, json_stringify(v))
+  end
+end
+
+def punct?(p, i, v)
+  tok_is?(p, i, :punct, v)
 end
 
 def word?(p, i, v)
-  t = tok(p, i)
-  t[:kind] == :name and t[:value] == v
+  tok_is?(p, i, :name, v)
 end
 
 def expect(p, i, v)
-  if punct?(p, i, v)
-    i + 1
-  else
-    fail(p, i, json_stringify(v))
-  end
+  consume(p, i, :punct, v)
 end
 
 def keyword(p, i, v)
-  if word?(p, i, v)
-    i + 1
-  else
-    fail(p, i, json_stringify(v))
-  end
+  consume(p, i, :name, v)
 end
 
 def name_at(p, i)
@@ -2171,13 +2189,22 @@ def base_name(t)
   end
 end
 
-def kind_of(s, name)
-  t = type_named(s, name)
+@doc """
+kind_in: The kind of the type `name` in a table of types by name, nil when the table has no such type.
+
+    kind_in({"Q" => {kind: :object}}, "Q") #=> :object
+"""
+def kind_in(types, name)
+  t = get(types, name)
   if t.nil?
     nil
   else
     t[:kind]
   end
+end
+
+def kind_of(s, name)
+  kind_in(s[:types], name)
 end
 
 def input_kind?(k)
@@ -3362,11 +3389,20 @@ def fragment(name, spec)
   }
 end
 
+@doc """
+definitions_of_kind: The definitions of a parsed document whose kind is `kind`, in document order.
+
+    map((d) -> d[:name], definitions_of_kind(parse("query A { a } fragment f on Q { a }"), :operation)) #=> ["A"]
+"""
+def definitions_of_kind(doc, kind)
+  filter((d) -> d[:kind] == kind, doc[:definitions])
+end
+
 def fragments_of(x)
   if list?(x)
     x
   else
-    filter((d) -> d[:kind] == :fragment, as_document(x)[:definitions])
+    definitions_of_kind(as_document(x), :fragment)
   end
 end
 
@@ -3699,6 +3735,50 @@ test "parse reads an operation into records"
   assert f[:name] == "hero"
   assert first(f[:arguments])[:value] == {kind: :var, name: "e"}
   assert first(op[:directives])[:name] == "cached"
+end
+
+test "span_end stops at the first character its table lacks"
+  x = {
+    cs: ["a", "b", "1", " "],
+    n: 4,
+    part: {"a" => true, "b" => true, "1" => true},
+    digit: {"1" => true}
+  }
+  assert span_end({cs: [], n: 0, digit: {}}, 0, :digit) == 0
+  assert span_end(x, 0, :digit) == 0
+  assert span_end(x, 0, :part) == 3
+  assert span_end(x, 2, :digit) == 3
+  assert name_end(x, 0) == 3
+  assert digits_end(x, 2) == 3
+end
+
+test "tok_is? and consume read one token of a kind"
+  p = {toks: [{kind: :punct, value: "{"}, {kind: :name, value: "query"}], n: 2}
+  assert tok_is?(p, 0, :punct, "{")
+  assert not tok_is?(p, 0, :name, "{")
+  assert not tok_is?({toks: [], n: 0}, 0, :punct, "{")
+  assert consume(p, 0, :punct, "{") == 1
+  assert consume(p, 1, :name, "query") == 2
+  assert expect(p, 0, "{") == 1
+  assert keyword(p, 1, "query") == 2
+  assert raised(() -> consume(p, 0, :name, "{")) == :parse_error
+  assert raised(() -> consume({toks: [], n: 0}, 0, :punct, "}")) == :parse_error
+end
+
+test "kind_in reads a type's kind by name"
+  assert kind_in({}, "Q").nil?
+  assert kind_in({"Q" => {kind: :object}}, "Q") == :object
+  assert kind_in({"Q" => {kind: :object}}, "R").nil?
+  assert kind_of({types: {"E" => {kind: :enum}}}, "E") == :enum
+end
+
+test "definitions_of_kind keeps the definitions of one kind in order"
+  d = parse("query A { a } fragment f on Q { a } query B { b }")
+  assert definitions_of_kind({definitions: []}, :operation) == []
+  assert map((x) -> x[:name], definitions_of_kind(d, :operation)) == %w[A B]
+  assert map((x) -> x[:name], definitions_of_kind(d, :fragment)) == ["f"]
+  assert length(definitions_of_kind(d, :operation)) + 1 ==
+    length(d[:definitions])
 end
 
 test "parse refuses malformed text with its line and column"

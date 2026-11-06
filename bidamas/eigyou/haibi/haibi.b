@@ -13,6 +13,7 @@ component unless it declares another runtime.
 use("deeta", %i[get_or pretty yaml])
 use("eigyou/kyuuji")
 use("eigyou/shihyou")
+use("jisho")
 use("retsu", %i[first flat_map last take_while])
 use("settei", [:env_prefix])
 
@@ -25,7 +26,7 @@ def entries_of(m)
 end
 
 def from_entries(es)
-  reduce((acc, e) -> assoc(acc, first(e), second(e)), {}, es)
+  jisho::from_entries(es)
 end
 
 def defaults(svc)

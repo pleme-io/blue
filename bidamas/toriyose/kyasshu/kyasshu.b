@@ -783,7 +783,7 @@ def page_query()
 end
 
 def operation_of(doc)
-  find_first((d) -> d[:kind] == :operation, doc[:definitions])
+  first(toriyose::danpen::definitions_of_kind(doc, :operation))
 end
 
 def ada()

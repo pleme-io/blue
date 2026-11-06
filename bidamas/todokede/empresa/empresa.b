@@ -16,6 +16,7 @@ use("kyohi", %i[kinds refusal standing])
 use("moji", [:made_of])
 use("retsu", %i[contains first flat_map is_empty last size])
 use("ronri", [:every])
+use("todokede/kinko", [:row_value])
 
 def slug_chars()
   "abcdefghijklmnopqrstuvwxyz0123456789-"
@@ -758,7 +759,7 @@ def team_rows(ts)
 end
 
 def permission_name(p)
-  first(filter((e) -> first(e) == p, permissions))[1]
+  row_value(permissions, p)
 end
 
 def grant_rows(rs, ts)

@@ -1327,3 +1327,16 @@ test "bitwise reads op's bits back as a number"
   assert bitwise(bits_and, 12, 10) == 8
   assert bitwise(bits_xor, 12, 10) == 6
 end
+
+test "the digit-list words hold the text words' digits, least significant first"
+  assert join(reverse(to_base_digits(10, 2)), "") == to_base(10, 2)
+  assert join(reverse(to_base_n_digits(35, 36)), "") == to_base_n(35, 36)
+  assert to_base_digits(6, 2) == %w[0 1 1]
+  assert to_base_digits(0, 2) == []
+end
+
+test "roman_value reads one numeral in either case"
+  assert roman_value("x") == 10
+  assert roman_value("M") == 1000
+  assert roman_value("i") == roman_value("I")
+end

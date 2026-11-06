@@ -898,3 +898,9 @@ test "nth_by and take_by read the ordered list"
   assert take_by(sort, 2, [3, 1, 2]) == [1, 2]
   assert take_by(sort, 0, [3]) == []
 end
+
+test "insert_lex places a list by lexical order"
+  assert insert_lex([1, 2], [[1, 1], [1, 3]]) == [[1, 1], [1, 2], [1, 3]]
+  assert insert_lex([0], []) == [[0]]
+  assert insert_lex([9], [[1]]) == [[1], [9]]
+end

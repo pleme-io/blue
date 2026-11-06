@@ -2,4 +2,3 @@
 reuse-copy: %root:examples/05_errors.b 1
 reuse-copy: %root:gen/prepush.b 1
 reuse-copy: %root:gen/retired.b 1
-reuse-copy: %root:spec/docs.b 1

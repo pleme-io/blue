@@ -13,6 +13,7 @@ persisted-operation id of that text.
 
 use("deeta", [:get_or])
 use("fairu")
+use("kansuu", [:maybe])
 use("kiwari")
 use("kyohi", [:raised])
 use("moji", %i[capitalize checked])
@@ -1550,11 +1551,7 @@ def pad(ind)
 end
 
 def deeper(ind)
-  if ind.nil?
-    nil
-  else
-    ind + 1
-  end
+  maybe(ind, nil, (i) -> i + 1)
 end
 
 def nl(ind, space)
@@ -1998,11 +1995,7 @@ def type_kinds()
 end
 
 def definitions_of(schema)
-  if schema.nil?
-    []
-  else
-    schema[:definitions]
-  end
+  maybe(schema, [], (s) -> s[:definitions])
 end
 
 def merged(base, ext)
@@ -4164,4 +4157,11 @@ test "each invalid document is found by the rule it is named for"
   )
   assert map((f) -> path_basename(first(f)), missed) == []
   assert length(docs) >= 31
+end
+
+test "deeper and definitions_of pass nil through"
+  assert deeper(nil).nil?
+  assert deeper(0) == 1
+  assert definitions_of(nil) == []
+  assert definitions_of({definitions: [1]}) == [1]
 end

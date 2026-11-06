@@ -271,6 +271,7 @@ its list with cons and is quadratic (~0.2 s at 10,000).
 use("deeta", %i[as_json get_int get_str is_doc])
 use("isshou/raifusaikuru", %i[int_at_least? lc_define])
 use("junjo", [:sort_stable_by])
+use("kansuu", [:maybe])
 
 use("kyohi")
 
@@ -711,11 +712,7 @@ def line_text(t, prev, hash, sig)
 end
 
 def sig_text(sig)
-  if sig.nil?
-    "null"
-  else
-    json_stringify(sig)
-  end
+  maybe(sig, "null", json_stringify)
 end
 
 def status_for(refusal)
@@ -1523,11 +1520,7 @@ def state_after(state, judged, refusal)
 end
 
 def sign(secret, hash)
-  if secret.nil?
-    nil
-  else
-    sign_message(secret, hash)
-  end
+  maybe(secret, nil, (s) -> sign_message(s, hash))
 end
 
 def bytes_on_disk(path)
@@ -2785,4 +2778,13 @@ test "list_of? and natural? on known values"
   assert natural?(0)
   assert natural?(-1) == false
   assert natural?(2.5) == false
+end
+
+test "sign and sig_text treat a nil key or signature as absent"
+  k = signing_keypair("9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60")
+  h = "00"
+  assert sign(nil, h).nil?
+  assert sign(keypair_secret(k), h) == sign_message(keypair_secret(k), h)
+  assert sig_text(nil) == "null"
+  assert sig_text("ab") == "\"ab\""
 end

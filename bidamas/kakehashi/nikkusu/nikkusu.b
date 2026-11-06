@@ -5,6 +5,7 @@ nikkusu (ニックス) — Nix source as data: rnix's lossless tree from nix_par
 """
 
 use("junjo", [:upper_bound])
+use("kansuu", [:maybe])
 use("retsu", %i[first flat_map is_empty last rest running_sum size])
 
 @doc """
@@ -24,11 +25,7 @@ def read(source)
 end
 
 def kind(n)
-  if n.nil?
-    nil
-  else
-    n[:kind]
-  end
+  maybe(n, nil, (m) -> m[:kind])
 end
 
 def token?(n)

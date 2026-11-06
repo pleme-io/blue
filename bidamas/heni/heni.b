@@ -30,6 +30,7 @@ survives, is refused, or is blind (its tests could not be started).
 
 use("deeta", [:get_str])
 use("hikisuu")
+use("kansuu", [:maybe])
 use("moji", %i[occurrences replace_first strip_prefix])
 
 use("retsu", %i[count_where enumerate is_empty last])
@@ -196,11 +197,7 @@ def hn_test(blue, root, name, test_file)
 end
 
 def status(cap)
-  if cap.nil?
-    nil
-  else
-    status_of(cap)
-  end
+  maybe(cap, nil, status_of)
 end
 
 # ── a whole run ──────────────────────────────────────────────────────
@@ -481,4 +478,9 @@ def end_to_end()
   assert is_empty(bad[:results]) == true
   rm_rf(tmp)
   true
+end
+
+test "status is nil without a capture and the capture's status with one"
+  assert status(nil).nil?
+  assert status([]) == 0
 end

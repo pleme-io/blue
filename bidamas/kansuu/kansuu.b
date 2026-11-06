@@ -216,6 +216,19 @@ def apply_when(p, f)
   end
 end
 
+@doc """
+maybe: `default` when x is nil, else f(x); the nil check every optional value needs, written once.
+
+    maybe(nil, 0, (n) -> n + 1) #=> 0
+"""
+def maybe(x, default, f)
+  if x.nil?
+    default
+  else
+    f(x)
+  end
+end
+
 # ---- fixpoints, memo-free -------------------------------------------------
 #
 # No cache anywhere: nothing is keyed on a value's equality and nothing grows.
@@ -425,6 +438,16 @@ test "apply_when transforms only where the predicate holds"
   assert halve_evens(7) == 7
   # outside the predicate it IS the identity, which is what makes it iterable
   assert map(halve_evens, [1, 2, 3, 4]) == [1, 1, 3, 2]
+end
+
+test "maybe answers the default only for nil"
+  inc = (n) -> n + 1
+  assert maybe(nil, 0, inc) == 0
+  assert maybe(nil, nil, inc).nil?
+  assert maybe(4, 0, inc) == 5
+  assert maybe(false, 0, (b) -> not b) == true
+  assert maybe([], 9, identity) == []
+  assert maybe(3, 0, identity) == 3
 end
 
 test "until_stable reaches a fixed point and reports the last value otherwise"

@@ -10,6 +10,7 @@ word is pure: no clock, no host.
 """
 
 use("jisho")
+use("kansuu", [:maybe])
 use("kazu", %i[abs clamp lerp near_within])
 use("kyohi", [:raised])
 use("moji", [:checked])
@@ -273,11 +274,7 @@ def sample(m, t)
 end
 
 def elapsed(state)
-  if state.nil?
-    0
-  else
-    state[:t]
-  end
+  maybe(state, 0, (s) -> s[:t])
 end
 
 @doc """
@@ -573,4 +570,9 @@ test "a spring crossing its target at speed is not settled"
   assert abs(sample(bouncy, 0.16789) - 1) < 0.001
   assert settled?(bouncy, {t: 0.16789}) == false
   assert settled?(bouncy, {t: 500}) == true
+end
+
+test "elapsed is zero before a state exists"
+  assert elapsed(nil) == 0
+  assert elapsed({t: 120}) == 120
 end

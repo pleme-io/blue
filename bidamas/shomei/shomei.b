@@ -61,6 +61,7 @@ not say when anything happened; put a timestamp in the payload if it matters.
 """
 
 use("deeta", [:get_or])
+use("kansuu", [:maybe])
 use("kazu", [:max])
 use("kyohi", [:raised])
 use("moji", [:checked])
@@ -373,11 +374,7 @@ def merkle_side(side, h)
 end
 
 def merkle_push(step, acc)
-  if step.nil?
-    acc
-  else
-    cons(step, acc)
-  end
+  maybe(step, acc, (s) -> cons(s, acc))
 end
 
 @doc """
@@ -967,4 +964,10 @@ test "public is the second half of the keypair"
   assert public(kp) == kp[1]
   assert public(kp) ==
     "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a"
+end
+
+test "merkle_push skips a nil step"
+  assert merkle_push(nil, []) == []
+  assert merkle_push(nil, ["a"]) == ["a"]
+  assert merkle_push("b", ["a"]) == %w[b a]
 end

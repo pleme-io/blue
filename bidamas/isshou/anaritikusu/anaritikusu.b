@@ -286,6 +286,8 @@ use("isshou/nisshi", %i[el_append el_def])
 
 use("isshou/raifusaikuru", [:lc_define])
 
+use("kansuu", %i[apply_when maybe])
+
 use("kueri", %i[q_and q_cast q_filter q_get q_if q_join q_max q_min q_or])
 
 use(
@@ -804,11 +806,7 @@ end
 # ── the definition, as rows ────────────────────────────────────────────────
 
 def text_or_nil(x)
-  if x.nil?
-    nil
-  else
-    isshou::raifusaikuru::text(x)
-  end
+  maybe(x, nil, isshou::raifusaikuru::text)
 end
 
 @doc """
@@ -2560,11 +2558,7 @@ norm: A value as the tests compare it: numbers as floats (DuckDB answers 12.0
 where the fold holds 12).
 """
 def norm(v)
-  if number?(v)
-    to_float(v)
-  else
-    v
-  end
+  apply_when(number?, to_float)(v)
 end
 
 def norm_rows(rows)
@@ -3565,4 +3559,13 @@ test "def_entry on a known value"
   d = isshou::raifusaikuru::example_consumable
   assert binding(d, "s", "h") == {def: d, stream: "s", history: "h"}
   assert stream(d, "p", "l")[:label] == "l"
+end
+
+test "text_or_nil keeps nil and names the rest; norm floats only numbers"
+  assert text_or_nil(nil).nil?
+  assert text_or_nil(:open) == "open"
+  assert norm(12) == 12.0
+  assert to_s(norm(12)) == "12.0"
+  assert norm("12") == "12"
+  assert norm(nil).nil?
 end

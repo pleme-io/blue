@@ -25,6 +25,7 @@ lands this is a WORKAROUND at the library layer, not a repair of the cause —
     size([]) #=> 0
 """
 
+use("kansuu", [:maybe])
 use("kazu", %i[clamp min])
 
 legacy_names("0.1.0", %i[first flat_map interleave last partition rest zip])
@@ -35,11 +36,7 @@ size: Total length: nil counts as empty rather than erroring.
     size([]) #=> 0
 """
 def size(xs)
-  if xs.nil?
-    0
-  else
-    length(xs)
-  end
+  maybe(xs, 0, length)
 end
 
 def is_empty(xs)

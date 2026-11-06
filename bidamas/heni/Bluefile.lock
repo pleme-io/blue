@@ -8,6 +8,7 @@
     "needs": {
       "deeta": "^0.1.0",
       "hikisuu": "^0.1.0",
+      "kansuu": "^0.1.0",
       "moji": "^0.1.0",
       "retsu": "^0.1.0",
       "shisutemu": "^0.1.0"

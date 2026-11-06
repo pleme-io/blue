@@ -311,7 +311,10 @@ row(
       "",
       "card = toriyose::danpen::fragment(:user_card, {on: \"User\", fields: %i[id name]})",
       "",
-      "page = toriyose::danpen::fragment(:page, {on: \"Query\", fields: [{me: [\"...user_card\"]}]})",
+      "page = toriyose::danpen::fragment(",
+      "  :page,",
+      "  {on: \"Query\", fields: [{me: [\"...user_card\"]}]}",
+      ")",
       "",
       "def page(data: Page)",
       "  data.me.name",
@@ -366,7 +369,10 @@ row(
     [
       "use(\"toriyose/danpen\")",
       "",
-      "page = toriyose::danpen::fragment(:page, {on: \"Query\", fields: [{me: [\"...nobody\"]}]})"
+      "page = toriyose::danpen::fragment(",
+      "  :page,",
+      "  {on: \"Query\", fields: [{me: [\"...nobody\"]}]}",
+      ")"
     ]
   ),
   diagnoses(["B0049"])
@@ -380,7 +386,10 @@ row(
       "",
       "card = toriyose::danpen::fragment(:user_card, {on: \"User\", fields: %i[id name]})",
       "",
-      "page = toriyose::danpen::fragment(:page, {on: \"Query\", fields: [{me: [\"...user_card\"]}]})",
+      "page = toriyose::danpen::fragment(",
+      "  :page,",
+      "  {on: \"Query\", fields: [{me: [\"...user_card\"]}]}",
+      ")",
       "",
       "def user_card(user: UserCard)",
       "  user.name",

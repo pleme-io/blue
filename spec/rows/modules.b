@@ -132,14 +132,19 @@ row(
 row(
   "modules.tree.relative_path",
   join_lines(["use(\"okite/rung\")", "rung::deep::deep_word"]),
-  value(":deep"),
+  fails(:check, "B0076")
+)
+
+row(
+  "modules.tree.full_path",
+  join_lines(["use(\"okite/rung\")", "okite::rung::deep::floor::floor_word"]),
+  value(":floor"),
   covers("okite:D0016"),
   pending("G16", "wasm")
 )
 
 row(
-  "modules.tree.full_path",
+  "modules.tree.split_use",
   join_lines(["use(%i[okite rung])", "okite::rung::deep::floor::floor_word"]),
-  value(":floor"),
-  pending("G16", "wasm")
+  fails(:check, "B0077")
 )

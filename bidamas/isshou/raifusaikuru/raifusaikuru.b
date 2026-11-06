@@ -169,6 +169,7 @@ use(
     contains
     count_of
     drop_n
+    filter_where
     find_first
     first
     flat_map
@@ -586,7 +587,7 @@ def flat_one(c)
 end
 
 def tagged(flat, tag)
-  filter((c) -> first(c) == tag, flat)
+  filter_where(flat, first, tag)
 end
 
 def known_tags()
@@ -3250,4 +3251,10 @@ test "the general words on known values"
   assert k_and(%i[yes no unknown]) == :no
   assert k_or(%i[no unknown]) == :unknown
   assert k_or(%i[no yes]) == :yes
+end
+
+test "tagged keeps the clauses that carry the tag"
+  assert tagged([], :lc_start) == []
+  assert tagged([[:lc_start, 1], [:lc_rule, 2], [:lc_start, 3]], :lc_start) ==
+    [[:lc_start, 1], [:lc_start, 3]]
 end

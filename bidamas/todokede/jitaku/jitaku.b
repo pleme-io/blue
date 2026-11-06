@@ -18,7 +18,11 @@ use(
 
 use("kyohi", %i[kinds refusal])
 use("moji", %i[is_hex made_of strip_prefix])
-use("retsu", %i[contains first flat_map index_of is_empty last size])
+
+use(
+  "retsu",
+  %i[contains filter_where first flat_map index_of is_empty last size]
+)
 
 legacy_names("0.1.1", [%w[unrefused kyohi::standing]])
 
@@ -1103,7 +1107,7 @@ end
 # ── the projection: pleme.lareira's attribute set ──────────────────────────
 
 def of_kind(es, kind)
-  filter((e) -> kind_of(e) == kind, es)
+  filter_where(es, kind_of, kind)
 end
 
 @doc """
@@ -1506,4 +1510,11 @@ test "first_why, one_of and refuse_entry answer as kousei's words do"
   e = entry(:light, "hall", {})
   assert refuse_entry(:invalid, e, "dark") ==
     kousei::refuse(:invalid, e, "dark")
+end
+
+test "of_kind keeps the entries of one kind"
+  a = entry(:light, "hall", {})
+  b = entry(:speaker, "den", {})
+  assert of_kind([], :light) == []
+  assert of_kind([a, b], :light) == [a]
 end

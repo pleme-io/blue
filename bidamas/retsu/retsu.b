@@ -331,6 +331,24 @@ def without(xs, v)
   filter((x) -> x != v, xs)
 end
 
+@doc """
+filter_where: The items whose f(item) equals v, in order; rows selected by one field.
+
+    filter_where([[:a, 1], [:b, 2], [:a, 3]], first, :a) #=> [[:a, 1], [:a, 3]]
+"""
+def filter_where(xs, f, v)
+  filter((x) -> f(x) == v, xs)
+end
+
+test "filter_where keeps the items whose key equals the value"
+  assert filter_where([], first, :a) == []
+  assert filter_where(nil, first, :a) == []
+  assert filter_where([[:a, 1], [:b, 2], [:a, 3]], first, :a) ==
+    [[:a, 1], [:a, 3]]
+  assert filter_where([1, 2, 3], (n) -> n, 9) == []
+  assert filter_where([1, 2, 3], (_n) -> 0, 0) == [1, 2, 3]
+end
+
 test "take_n and drop_n are total where take and drop are ordered the other way"
   assert take_n([1, 2, 3], 2) == [1, 2]
   assert drop_n([1, 2, 3], 2) == [3]

@@ -9,7 +9,7 @@ stand, so one typo never takes a whole declaration down.
 """
 
 use("kyohi", %i[refusal standing])
-use("retsu", %i[contains flat_map index_of is_empty size])
+use("retsu", %i[contains flat_map index_of is_empty size zip_with])
 
 @doc """
 verdict: nil when ok, else why.
@@ -241,7 +241,7 @@ def tuned(e, tunes)
 end
 
 def zipped(xs, ys)
-  map((i) -> append(xs[i], ys[i]), range(0, size(xs)))
+  zip_with(append, xs, ys)
 end
 
 @doc """
@@ -409,4 +409,9 @@ test "unknown fields and missing required fields are reasons, not crashes"
     ["port is not a field"]
   assert record_whys(schema_fixture[:plane], "x") ==
     ["the value is not a record"]
+end
+
+test "zipped joins two lists of marks position by position"
+  assert zipped([], []) == []
+  assert zipped([[1], []], [[2], [3]]) == [[1, 2], [3]]
 end

@@ -13,7 +13,7 @@ use("kazu", %i[abs clamp even min near near_within pow sum])
 
 use(
   "retsu",
-  %i[concat_lists first indexes is_empty push remove_at size update_at]
+  %i[concat_lists first indexes is_empty push remove_at size update_at zip_with]
 )
 
 @doc """
@@ -35,11 +35,11 @@ def scale(k, v)
 end
 
 def vadd(a, b)
-  map((i) -> a[i] + b[i], range(0, length(a)))
+  zip_with((x, y) -> x + y, a, b)
 end
 
 def vsub(a, b)
-  map((i) -> a[i] - b[i], range(0, length(a)))
+  zip_with((x, y) -> x - y, a, b)
 end
 
 def magnitude(v)

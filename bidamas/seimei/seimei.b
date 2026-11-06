@@ -12,7 +12,7 @@ use("kansuu", [:iterate_n])
 
 use(
   "retsu",
-  %i[as_list contains find_first first flatten1 is_empty last size slice]
+  %i[as_list contains find_first first flatten1 grid is_empty last size slice]
 )
 
 use("shinsuu", [:bit_at])
@@ -178,7 +178,7 @@ def grid_cols(grid)
 end
 
 def blank_grid(rows, cols)
-  map((_r) -> map((_c) -> 0, range(0, cols)), range(0, rows))
+  grid(rows, cols, 0)
 end
 
 @doc """
@@ -823,4 +823,9 @@ test "grid_step asks cell for every position"
   assert grid_step([[1, 0]], flip) == [[0, 1]]
   assert grid_step([[0, 0], [0, 0]], (_g, r, c) -> r * 2 + c) ==
     [[0, 1], [2, 3]]
+end
+
+test "blank_grid is a board of dead cells"
+  assert blank_grid(0, 3) == []
+  assert blank_grid(2, 3) == [[0, 0, 0], [0, 0, 0]]
 end

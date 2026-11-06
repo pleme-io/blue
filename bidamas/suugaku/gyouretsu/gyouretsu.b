@@ -13,7 +13,18 @@ use("kazu", %i[abs clamp even min near near_within pow sum])
 
 use(
   "retsu",
-  %i[concat_lists first indexes is_empty push remove_at size update_at zip_with]
+  %i[
+    concat_lists
+    first
+    grid
+    indexes
+    is_empty
+    push
+    remove_at
+    size
+    update_at
+    zip_with
+  ]
 )
 
 @doc """
@@ -301,7 +312,7 @@ end
 # --- matrix construction and arithmetic --------------------------------------
 
 def filled(r, c, v)
-  map((_i) -> map((_j) -> v, range(0, c)), range(0, r))
+  grid(r, c, v)
 end
 
 @doc """
@@ -995,4 +1006,10 @@ test "rowwise pairs rows by index and names madd and msub"
   assert rowwise(vsub, [[5, 7]], [[1, 2]]) == [[4, 5]]
   assert madd([[1, 2]], [[3, 4]]) == rowwise(vadd, [[1, 2]], [[3, 4]])
   assert msub([[1, 2]], [[3, 4]]) == [[-2, -2]]
+end
+
+test "filled builds an r by c matrix of v"
+  assert filled(0, 2, 1) == []
+  assert filled(2, 2, 1) == [[1, 1], [1, 1]]
+  assert zeros(1, 2) == [[0, 0]]
 end

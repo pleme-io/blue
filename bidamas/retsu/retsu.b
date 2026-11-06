@@ -135,6 +135,22 @@ def repeat(v, n)
   map((_i) -> v, range(0, n))
 end
 
+@doc """
+grid: A list of `rows` lists, each of `cols` copies of v; a blank board or a filled matrix.
+
+    grid(2, 3, 0) #=> [[0, 0, 0], [0, 0, 0]]
+"""
+def grid(rows, cols, v)
+  map((_r) -> map((_c) -> v, range(0, cols)), range(0, rows))
+end
+
+test "grid builds rows of copies, empty at zero rows"
+  assert grid(0, 3, 0) == []
+  assert grid(2, 0, 0) == [[], []]
+  assert grid(2, 3, 0) == [[0, 0, 0], [0, 0, 0]]
+  assert grid(1, 2, :x) == [repeat(:x, 2)]
+end
+
 def sum_to(n)
   if n < 1
     0

@@ -63,6 +63,7 @@
 //! between them *is* the sliding scale, and being able to print both sides of
 //! it is how a reader sees that annotations are consumed rather than carried.
 
+mod arika;
 mod census;
 
 /// `blue migrate`'s program: blue, over builtins only.
@@ -527,6 +528,13 @@ enum Cmd {
         #[command(subcommand)]
         cmd: crash::CrashCmd,
     },
+    #[command(
+        about = "arika, blue's word search: the word a draft already is (like), or a word by name (word)"
+    )]
+    Arika {
+        #[command(subcommand)]
+        cmd: arika::ArikaCmd,
+    },
     /// Execution receipts `blue run --receipts DIR` writes.
     Receipt {
         #[command(subcommand)]
@@ -811,6 +819,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             .and_then(|path| replay::run(&path))
             .map_err(CliError::Fmt),
         Cmd::Crash { cmd } => crash::run(cmd).map_err(CliError::Fmt),
+        Cmd::Arika { cmd } => arika::run(cmd).map_err(CliError::Fmt),
         Cmd::Receipt { cmd } => Ok(receipt::run(cmd)),
         Cmd::Run {
             file,

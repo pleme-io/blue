@@ -81,10 +81,13 @@ names in [`docs/REFERENCE.md`](docs/REFERENCE.md) (built-ins, operators,
 syntax) and [`bidamas/CATALOG.md`](bidamas/CATALOG.md) (every bidama
 definition). Both are generated from the implementation and gated fresh.
 
-Before you write a `def`, ask whether blue already has the word. arika
-([`docs/ARIKA.md`](docs/ARIKA.md), DESIGN) will answer that by shape with
-`blue arika like FILE`. Until it ships, search `bidamas/CATALOG.md`, and
-`blue check --reuse` (B0070) names the word a copy repeats.
+Before you write a `def`, ask whether blue already has the word.
+`blue arika word NAME` finds a word by name, old spelling or gloss.
+`blue arika like FILE[:LINE]` names the word a draft already is: an exact
+copy (T0), the same code (T1), or the same code through a wrapper (T2), with
+its id and import line ([`docs/ARIKA.md`](docs/ARIKA.md), Phase 1). The
+PreToolUse hook says the same before a `.b` write, and B0070
+(`blue check --reuse`) says it after.
 
 ### A file is a program; a project is one command away
 

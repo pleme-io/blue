@@ -157,7 +157,9 @@ fn package_roots(files: &[std::path::PathBuf]) -> Vec<std::path::PathBuf> {
     roots
 }
 
-fn environment_over(files: &[std::path::PathBuf]) -> blue_lang_pkg::load_path::Environment {
+pub(crate) fn environment_over(
+    files: &[std::path::PathBuf],
+) -> blue_lang_pkg::load_path::Environment {
     let mut roots = package_roots(files);
     roots.extend(
         std::env::var_os(blue_lang_pkg::load_path::BLUE_PATH)

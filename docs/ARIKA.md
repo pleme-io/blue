@@ -1,11 +1,14 @@
 ---
 kind: explanation
-summary: arika, blue's word search, DESIGN: the recon, phases, gates with red runs, risks and every surface that names it
+summary: arika, blue's word search, Phase 1 built and the rest DESIGN: the recon, phases, gates with red runs, risks and every surface that names it
 ---
 
 # arika (在り処): the design of record
 
-**Tier: DESIGN (2026-11-06). No code exists.** The spec (data model, tier
+**Tier (2026-11-06): Phase 1 BUILT, Phases 2-7 DESIGN.** Phase 1 is
+`crates/blue-lang-cli/src/arika.rs` (the facts, from the engine) and the
+embedded `crates/blue-lang-cli/blue/arika.b` (ranking and every answer's
+text), locked by `crates/blue-lang-cli/tests/arika.rs`. The spec (data model, tier
 ladder, proofs, schema, prior art) is `theory/ARIKA.md`. This file holds what
 an agent needs to build and maintain arika: the recon with paths, the phases,
 the gates with their red runs, the risks, and every surface that names arika.
@@ -13,18 +16,31 @@ The roadmap row is the arika track in [`ROADMAP.md`](ROADMAP.md).
 
 Every "today" claim was read at blue `6434ce31` on 2026-11-06.
 
-## How to ask (once it ships)
+## How to ask
 
-| Face | Call | Phase |
+| Face | Call | Phase | Tier |
+|---|---|---|---|
+| CLI | `blue arika like FILE[:LINE]`, `blue arika word NAME`, each with `--json` | 1 | BUILT |
+| CLI | `blue arika find "intent"`, `uses ID`, `changed PKG --since V`, `groups` | 3 | DESIGN |
+| Hook | `blue arika like --hook` on a `.b` Write, Edit or MultiEdit, before the write, advisory | 1 | BUILT |
+| MCP | `blue_word_like`, `blue_word_find`, `blue_word_get`, `blue_word_uses`, `blue_word_changes` | 5 | DESIGN |
+| GraphQL | `POST /graphql` on the arika service on ryn's engenho | 5 | DESIGN |
+
+## What Phase 1 answers, and what it cannot see
+
+| Question | How | Tier |
 |---|---|---|
-| CLI | `blue arika like FILE[:LINE]`, `blue arika word NAME` | 1 |
-| CLI | `blue arika find "intent"`, `uses ID`, `changed PKG --since V`, `groups` | 3 |
-| Hook | `blue arika like --hook` on a `.b` Write or Edit, advisory | 1 |
-| MCP | `blue_word_like`, `blue_word_find`, `blue_word_get`, `blue_word_uses`, `blue_word_changes` | 5 |
-| GraphQL | `POST /graphql` on the arika service on ryn's engenho | 5 |
+| T0: an exact copy, docs included | the draft's `def_hash` (`blue_lang_mondou::hash_checked`) equals the home's, the home checked in process | proved by test, red run: invert the comparison |
+| T1: the same code, other local names | the draft's written shape equals the home's written shape | proved by test |
+| T2: the same code through a wrapper | the computed shape hits `WORD_SHAPES`, the table B0070 reads | G4: `arika_and_b0070_name_the_same_word_g4`, red run: match on the written shape |
+| T5: a word by name, old spelling, part or gloss | `WORD_SHAPES` words, every package's `legacy_names` moves, and `CATALOG.md` rows | proved by test; a missing catalogue is `blind`, never empty |
+| a readable id | `blue:blue:<word>@<12 hex of def_hash>`; the repo is always `blue`, because `WORD_SHAPES` spans blue's bidamas only | proved by test |
+| the hook | lowers the draft a Write, Edit or MultiEdit would leave, prints advice, exits 0 | test, red run: ignore the Edit |
 
-Until Phase 1 ships, an agent searches `bidamas/CATALOG.md` before a `def`,
-and `blue check --reuse` (B0070) names a copy after the write.
+Blind spot, shared with B0070: a home word's computed shape inlines the
+forwards defined in its own file. A copy that calls the same helper by import
+(`rest(scan(...))` for `retsu::running_sum`) has a different shape and is not
+named. Phase 2's emitter and Phase 3's T3 witnesses are where that closes.
 
 **A repo opts out** with `arika(false)` in its Bluefile. That configures the
 `arika` output off. It deletes nothing.
@@ -78,7 +94,7 @@ verified on 2026-11-06. Phases 1-4 need no engenho.
 | G1 `arika-fresh` | committed `SNAPSHOT.json` root equals the nix-built root | edit a def, do not regenerate |
 | G2 `arika-coverage` | leaves equal every definition the engine sees (5,573 functions in `bidamas/`, 2026-11-06) | drop one leaf in the emitter |
 | G3 `arika-word-shapes-parity` | each `WORD_SHAPES` prefix matches a shape row with the same home | corrupt one table row |
-| G4 `arika-b0070-parity` | `like` at T1/T2, B0070 and the hook name the same word | change the hook's lowering environment |
+| G4 `arika-b0070-parity` (BUILT: `crates/blue-lang-cli/tests/arika.rs`) | `like` and B0070 name the same word for every definition of 12 nodes or more; below that B0070 is silent by design and `like` still answers | match on the written shape instead of the computed one: G4 and two more tests go red |
 | G5 `arika-queries` | the golden questions keep their top hit, on CLI and service | remove one gloss |
 | G6 `arika-proof` | proofs verify; tameshi RFC 9162 vectors pass in blue | flip one leaf byte |
 | G7 `arika-consistency` | snapshot n+1 extends n; `seq` grows | reuse a `seq` |
@@ -128,7 +144,9 @@ These are recorded in [`ROADMAP.md`](ROADMAP.md) § Rulings.
 | org pointer | `blackmatter-pleme/docs/pleme-io-CLAUDE.md` HOUSE STYLE "Find before you write blue" | advisory |
 | knowledge note | `nix/docs/knowledge/pleme-io/blue/` | recall |
 | repo declaration | `pangea-architectures/workspaces/pleme-io-opensource/org.yaml` | declared, not applied |
-| still to come | PreToolUse hook (Phase 1), `mcpServers.arika` (Phase 5), engenho release in `nix/nodes/ryn` (Phase 5), B0070's explanation naming arika (Phase 1) | — |
+| CLI + rule | `crates/blue-lang-cli/src/arika.rs`, `crates/blue-lang-cli/blue/arika.b`; B0070's explanation names arika | built |
+| PreToolUse hook | `blackmatter-pleme/module/default.nix`, `blue arika like --hook` on `Edit\|Write\|MultiEdit` | built |
+| still to come | `mcpServers.arika` (Phase 5), engenho release in `nix/nodes/ryn` (Phase 5) | — |
 
 When a phase ships, update its row here, the roadmap tier, the skill text and
 the knowledge note in the same pass.

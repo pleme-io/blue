@@ -1465,7 +1465,11 @@ definition forward to it. A home in a domain bidama is the wrong word to
 import: move the shape down to a foundation bidama, then both use it.
 
 A real exception is `# waive B0070: <reason>` above the definition. B0008
-refuses a waiver that suppresses nothing, so one cannot outlive its copy.",
+refuses a waiver that suppresses nothing, so one cannot outlive its copy.
+
+This rule answers after the write. arika answers before it, from the same
+table: `blue arika like FILE[:LINE]` names the word a draft already is, and
+`blue arika word NAME` finds one by name (docs/ARIKA.md).",
     }
     B0071 {
         slug: "evaluator-name",

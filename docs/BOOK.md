@@ -1861,7 +1861,7 @@ needs is in [KERNEL.md](KERNEL.md) §3.
 
 - [ABSENCE — no undeclared nil](ABSENCE.md): no undeclared nil: how blue makes absence a declared, checked state
 - [API-EVOLUTION — the API is a versioned rendering of the one model](API-EVOLUTION.md): the API as a versioned rendering of one model (design)
-- [arika (在り処): the design of record](ARIKA.md): arika, blue's word search, DESIGN: the recon, phases, gates with red runs, risks and every surface that names it
+- [arika (在り処): the design of record](ARIKA.md): arika, blue's word search, Phase 1 built and the rest DESIGN: the recon, phases, gates with red runs, risks and every surface that names it
 - [BIDAMA-COHESION — one word per job, foundations below, a complete vocabulary](BIDAMA-COHESION.md): one word per job, foundations below, a complete vocabulary across the bidamas (plan)
 - [BUILD-ASSURANCE — what a blue build proves, how fast, and from which cache](BUILD-ASSURANCE.md): what a blue build proves, how fast, and from which cache (design)
 - [BUILD-STACK — the default platform for a blue service, from Bluefile to a running node](BUILD-STACK.md): the default platform for a blue service, from Bluefile to a running node (design)

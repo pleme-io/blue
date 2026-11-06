@@ -46,7 +46,7 @@ Read the tutorials and how-to guides in order in [The blue Book](docs/BOOK.md).
 
 - [ABSENCE — no undeclared nil](docs/ABSENCE.md): no undeclared nil: how blue makes absence a declared, checked state
 - [API-EVOLUTION — the API is a versioned rendering of the one model](docs/API-EVOLUTION.md): the API as a versioned rendering of one model (design)
-- [arika (在り処): the design of record](docs/ARIKA.md): arika, blue's word search, DESIGN: the recon, phases, gates with red runs, risks and every surface that names it
+- [arika (在り処): the design of record](docs/ARIKA.md): arika, blue's word search, Phase 1 built and the rest DESIGN: the recon, phases, gates with red runs, risks and every surface that names it
 - [BIDAMA-COHESION — one word per job, foundations below, a complete vocabulary](docs/BIDAMA-COHESION.md): one word per job, foundations below, a complete vocabulary across the bidamas (plan)
 - [BUILD-ASSURANCE — what a blue build proves, how fast, and from which cache](docs/BUILD-ASSURANCE.md): what a blue build proves, how fast, and from which cache (design)
 - [BUILD-STACK — the default platform for a blue service, from Bluefile to a running node](docs/BUILD-STACK.md): the default platform for a blue service, from Bluefile to a running node (design)

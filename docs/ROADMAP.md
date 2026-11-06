@@ -21,7 +21,7 @@ Seeded 2026-11-06 at blue `6434ce31`.
 
 | Track | Design doc | Tier | Next step | Depends on | Done gate |
 |---|---|---|---|---|---|
-| **arika**: blue's word search | [`ARIKA.md`](ARIKA.md), `theory/ARIKA.md` | DESIGN | Phase 1: `blue arika like` + the PreToolUse hook, gated by G4 | namespaces (tree paths in IDs); verbs (the `sakuin` space for T5) | G1-G8 green on main; a session on ryn answers the golden set through `blue_word_*` |
+| **arika**: blue's word search | [`ARIKA.md`](ARIKA.md), `theory/ARIKA.md` | Phase 1 BUILT, the rest DESIGN | Phase 2: `blue arika emit` and `SNAPSHOT.json` | namespaces (tree paths in IDs); verbs (the `sakuin` space for T5) | G1-G8 green on main; a session on ryn answers the golden set through `blue_word_*` |
 | namespaces | [`NAMESPACES.md`](NAMESPACES.md), `theory/BLUE-NAMESPACES.md` | UNRECONCILED | reconcile against main | — | B0076-B0078 at error with corpus count 0 |
 | absence | [`ABSENCE.md`](ABSENCE.md) | UNRECONCILED | reconcile against main | — | the doc's seal tier row |
 | safety | [`SAFETY.md`](SAFETY.md) | UNRECONCILED | reconcile against main; add the blackhole row (§ Rulings R3) | — | each SAFETY row at its stated seal tier |
@@ -46,7 +46,7 @@ Rungs (owners, gates and exits are in [`ARIKA.md`](ARIKA.md) § Phases):
 
 | Rung | Content | Tier |
 |---|---|---|
-| 1 | `blue arika like` / `word`, PreToolUse hook, `bidama` skill step 1 | DESIGN |
+| 1 | `blue arika like` / `word`, PreToolUse hook, `bidama` skill step 1 | BUILT (G4 in `crates/blue-lang-cli/tests/arika.rs`) |
 | 2 | fact emitter, Merkle words, `SNAPSHOT.json`, `arika` nix output | DESIGN |
 | 3 | Parquet plane, full CLI, T3 witnesses, CATALOG.md from facts | DESIGN |
 | 4 | codesearch indexes `.b` | DESIGN |

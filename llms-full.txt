@@ -193,6 +193,8 @@ was rendered. `blue help COMMAND` shows each one's flags.
 | `blue crash dump CRASH` | What a crash violated and where: its class, the host name and capability a breach demanded, the breaching call's file, line and column, the hold, the exit and the mailbox. |
 | `blue crash bisect CRASH` | The fewest messages the process took that still replay to the same crash, found by delta debugging against deterministic replay; the reduced trace is written beside the original under its own hash. |
 | `blue crash immunize CRASH` | The crash's regression lock: a test that spawns the target, sends it the fewest messages that crashed it and asserts it took them, red until the target is fixed. |
+| `blue arika like [FILE[:LINE]]` | The words a draft already is: each definition of FILE (or the one at FILE:LINE) matched to a blue word by def hash (T0), written shape (T1) and shape through a wrapper (T2), with the word's id and import line. |
+| `blue arika word NAME` | Find a blue word by NAME: its canonical spelling, an old spelling's new home, and catalogue glosses that mention NAME (T5). |
 | `blue receipt verify FILE` | Recompute a receipt's name from its bytes and check its form; any edit fails. |
 | `blue config [TIER]` | Show the bounds `blue` is running with, at any tier. |
 | `blue new NAME` | Start a program (a project with its own bidama), a `--bidama`, a `--script`, or a `--kernel` program, each passing `blue test` as written. |
@@ -214,7 +216,7 @@ rendered:
 | Surface forms | 31, with 13 operators and 25 reserved words |
 | Check rules | 75: 42 fix themselves, 8 suggest a fix |
 | Bluefile words | 26 |
-| Commands | 42 |
+| Commands | 44 |
 
 ## The standard library
 
@@ -3211,7 +3213,7 @@ Seeded 2026-11-06 at blue `6434ce31`.
 
 | Track | Design doc | Tier | Next step | Depends on | Done gate |
 |---|---|---|---|---|---|
-| **arika**: blue's word search | [`ARIKA.md`](docs/ARIKA.md), `theory/ARIKA.md` | DESIGN | Phase 1: `blue arika like` + the PreToolUse hook, gated by G4 | namespaces (tree paths in IDs); verbs (the `sakuin` space for T5) | G1-G8 green on main; a session on ryn answers the golden set through `blue_word_*` |
+| **arika**: blue's word search | [`ARIKA.md`](docs/ARIKA.md), `theory/ARIKA.md` | Phase 1 BUILT, the rest DESIGN | Phase 2: `blue arika emit` and `SNAPSHOT.json` | namespaces (tree paths in IDs); verbs (the `sakuin` space for T5) | G1-G8 green on main; a session on ryn answers the golden set through `blue_word_*` |
 | namespaces | [`NAMESPACES.md`](docs/NAMESPACES.md), `theory/BLUE-NAMESPACES.md` | UNRECONCILED | reconcile against main | — | B0076-B0078 at error with corpus count 0 |
 | absence | [`ABSENCE.md`](docs/ABSENCE.md) | UNRECONCILED | reconcile against main | — | the doc's seal tier row |
 | safety | [`SAFETY.md`](docs/SAFETY.md) | UNRECONCILED | reconcile against main; add the blackhole row (§ Rulings R3) | — | each SAFETY row at its stated seal tier |
@@ -3236,7 +3238,7 @@ Rungs (owners, gates and exits are in [`ARIKA.md`](docs/ARIKA.md) § Phases):
 
 | Rung | Content | Tier |
 |---|---|---|
-| 1 | `blue arika like` / `word`, PreToolUse hook, `bidama` skill step 1 | DESIGN |
+| 1 | `blue arika like` / `word`, PreToolUse hook, `bidama` skill step 1 | BUILT (G4 in `crates/blue-lang-cli/tests/arika.rs`) |
 | 2 | fact emitter, Merkle words, `SNAPSHOT.json`, `arika` nix output | DESIGN |
 | 3 | Parquet plane, full CLI, T3 witnesses, CATALOG.md from facts | DESIGN |
 | 4 | codesearch indexes `.b` | DESIGN |
@@ -4389,10 +4391,13 @@ names in [`docs/REFERENCE.md`](docs/REFERENCE.md) (built-ins, operators,
 syntax) and [`bidamas/CATALOG.md`](bidamas/CATALOG.md) (every bidama
 definition). Both are generated from the implementation and gated fresh.
 
-Before you write a `def`, ask whether blue already has the word. arika
-([`docs/ARIKA.md`](docs/ARIKA.md), DESIGN) will answer that by shape with
-`blue arika like FILE`. Until it ships, search `bidamas/CATALOG.md`, and
-`blue check --reuse` (B0070) names the word a copy repeats.
+Before you write a `def`, ask whether blue already has the word.
+`blue arika word NAME` finds a word by name, old spelling or gloss.
+`blue arika like FILE[:LINE]` names the word a draft already is: an exact
+copy (T0), the same code (T1), or the same code through a wrapper (T2), with
+its id and import line ([`docs/ARIKA.md`](docs/ARIKA.md), Phase 1). The
+PreToolUse hook says the same before a `.b` write, and B0070
+(`blue check --reuse`) says it after.
 
 ### A file is a program; a project is one command away
 

@@ -15,6 +15,7 @@ renders straight into a schema.
 """
 
 use("jisho", [:has?])
+use("kansuu", [:apply_when])
 use("kyohi", %i[ok ok? refusal refusal_of refused value why])
 use("moji", [:starts_with])
 
@@ -62,11 +63,7 @@ def non_null(ref)
 end
 
 def as_ref(ref)
-  if string?(ref)
-    type_ref(ref)
-  else
-    ref
-  end
+  apply_when(string?, type_ref)(ref)
 end
 
 def non_null?(ref)
@@ -120,11 +117,7 @@ def enum_value(name, opts?)
 end
 
 def as_enum_value(v)
-  if string?(v)
-    enum_value(v)
-  else
-    v
-  end
+  apply_when(string?, enum_value)(v)
 end
 
 def indexed(fields)
@@ -2714,4 +2707,11 @@ test "the schema renders as SDL that danpen reads back"
   assert contains?(text, "type Human implements Character {")
   assert contains?(text, "union SearchResult = Human | Droid")
   assert toriyose::danpen::check(text) == []
+end
+
+test "as_enum_value and as_ref read text and keep built values"
+  assert as_enum_value("RED")[:name] == "RED"
+  assert as_enum_value({name: "RED"}) == {name: "RED"}
+  assert as_ref("Int") == type_ref("Int")
+  assert as_ref(nil).nil?
 end

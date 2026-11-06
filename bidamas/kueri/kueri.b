@@ -118,6 +118,7 @@ M0). Near-misses, deliberately not merged: dialeto's relational sub-IR
 """
 
 use("deeta", [:as_json])
+use("kansuu", [:apply_when])
 use("kazu")
 use("kyohi", [:enforce])
 use("moji", %i[char_at made_of strip_suffix trim])
@@ -163,11 +164,7 @@ legacy_names(
 name: A name as text: a keyword's name, or the string itself.
 """
 def name(x)
-  if keyword?(x)
-    to_s(x)
-  else
-    x
-  end
+  apply_when(keyword?, to_s)(x)
 end
 
 @doc """
@@ -4342,4 +4339,10 @@ test "window renders as OVER with its partition and its order"
   )
   n = lj_model(example_steps, derive(:r, window("rank", [], [], [])))
   assert contains?(render(n, :core), "rank() OVER () AS r")
+end
+
+test "name spells a keyword as text and leaves the rest"
+  assert name(:id) == "id"
+  assert name("id") == "id"
+  assert name(nil).nil?
 end

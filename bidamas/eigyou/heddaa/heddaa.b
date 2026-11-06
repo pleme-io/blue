@@ -16,6 +16,7 @@ Appendix A (static table), Appendix B (Huffman code), Appendix C (examples).
 """
 
 use("jisho", [:merge])
+use("kansuu", [:apply_when])
 use("kyohi", %i[and_then ok ok? refusal refusal_of refused value])
 use("retsu", %i[first is_empty size slice])
 use("shinsuu", %i[bit_at bytes_hex hex_bytes shift_left shift_right])
@@ -367,11 +368,7 @@ def broken(why)
 end
 
 def octets(x)
-  if string?(x)
-    text_bytes(x)
-  else
-    x
-  end
+  apply_when(string?, text_bytes)(x)
 end
 
 def field_part(bytes)
@@ -1053,4 +1050,10 @@ end
 
 def repeat_text(s, n)
   join(map((_i) -> s, range(0, n)), "")
+end
+
+test "octets turns text into bytes and leaves bytes alone"
+  assert octets("") == []
+  assert octets("ab") == [97, 98]
+  assert octets([1, 2]) == [1, 2]
 end

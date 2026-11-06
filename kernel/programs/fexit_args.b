@@ -1,4 +1,4 @@
-use("bpf", %i[ctx_int declare_map map_put])
+use("kaaneru/bpf", %i[ctx_int declare_map map_put])
 
 SEEN = declare_map(:fexit_seen, :array, 4, 8, 2)
 

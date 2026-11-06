@@ -1,4 +1,4 @@
-use("bpf", %i[declare_map helper map_get])
+use("kaaneru/bpf", %i[declare_map helper map_get])
 
 TARGET = declare_map(:lsm_target, :array, 4, 8, 1)
 

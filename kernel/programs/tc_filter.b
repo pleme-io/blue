@@ -1,4 +1,4 @@
-use("bpf", %i[declare_map map_add packet_int packet_len])
+use("kaaneru/bpf", %i[declare_map map_add packet_int packet_len])
 
 SEEN = declare_map(:tc_seen, :array, 4, 8, 256)
 

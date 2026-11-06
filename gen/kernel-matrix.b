@@ -57,9 +57,9 @@ def workflow(kernels)
       %w[
         kernel/**
         bidamas/baito/**
-        bidamas/bpf/**
-        bidamas/btf/**
-        bidamas/erufu/**
+        bidamas/kaaneru/bpf/**
+        bidamas/kaaneru/btf/**
+        bidamas/kaaneru/erufu/**
         bidamas/kaaneru/**
         crates/blue-lang-kernel/**
         nix/vm-*

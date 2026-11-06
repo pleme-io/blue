@@ -1,4 +1,4 @@
-use("bpf", [:ctx_int])
+use("kaaneru/bpf", [:ctx_int])
 
 def socket_len(ctx)
   ctx_int(ctx, 0, 4)

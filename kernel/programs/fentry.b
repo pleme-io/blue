@@ -1,4 +1,4 @@
-use("bpf", %i[declare_map emit helper kernel_read])
+use("kaaneru/bpf", %i[declare_map emit helper kernel_read])
 
 EVENTS = declare_map(:fentry_events, :ringbuf, 0, 0, 65536)
 

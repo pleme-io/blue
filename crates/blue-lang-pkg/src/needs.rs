@@ -38,7 +38,7 @@ pub fn named_now(name: &str, loader: &dyn Loader) -> String {
 }
 
 /// [`used_by`], each moved bidama by the root it moved into: a file still
-/// on `use("bpf")` needs `kaaneru` once `bpf` is `kaaneru/bpf`.
+/// on `use("kaaneru/bpf")` needs `kaaneru` once `bpf` is `kaaneru/bpf`.
 #[must_use]
 pub fn used_through(dir: &Path, loader: &dyn Loader) -> BTreeSet<String> {
     used_by(dir)
@@ -304,7 +304,7 @@ mod tests {
     }
 
     /// **A row naming a moved bidama becomes the root's row.** `bpf` moved
-    /// into `kaaneru` (`legacy_packages`): a user still on `use("bpf")`
+    /// into `kaaneru` (`legacy_packages`): a user still on `use("kaaneru/bpf")`
     /// derives `kaaneru`, and `prune` writes `needs("kaaneru", "^0.2.0")`
     /// where `needs("bpf", "^0.1")` was, once the `use` says so too.
     ///
@@ -323,7 +323,7 @@ mod tests {
                     "dist/user/Bluefile",
                     "package(\"user\", \"0.1.0\")\n  needs(\"bpf\", \"^0.1\")\n",
                 ),
-                ("dist/user/user.b", "use(\"bpf\")\n\nbpf::compile\n"),
+                ("dist/user/user.b", "use(\"kaaneru/bpf\")\n\nkaaneru::bpf::compile\n"),
             ],
         );
         let got = derived(&root, "user").unwrap();

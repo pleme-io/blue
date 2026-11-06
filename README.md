@@ -250,19 +250,16 @@ rendered:
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-66 packages, 5573 definitions, 1857 tests.
+63 packages, 5575 definitions, 1857 tests.
 
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
 - [baito](bidamas/CATALOG.md#baito) (バイト) — bytes as data: integers at a declared width and order, and record layouts that say where each field sits.
-- [bpf](bidamas/CATALOG.md#bpf) — the eBPF instruction set in blue: instructions as values, an assembler that resolves labels and map references, their encoding, their text, and a pure machine that runs them.
-- [btf](bidamas/CATALOG.md#btf) — the BPF Type Format as data: the kernel's own description of its types, read from `/sys/kernel/btf/vmlinux`, so a program finds a hook's id and a field's offset on the kernel it runs on.
 - [bunsho](bidamas/CATALOG.md#bunsho) (文書) — Markdown as a first-class value: `.md` text parsed into one typed tree whose node kinds are the ones CommonMark, GitHub Flavored Markdown and mdast agree on, the tree rendered back in one canonical formatting, and the tree read by node, by kind and by section.
 - [burauza](bidamas/CATALOG.md#burauza) (ブラウザ) — the browser: what a blue page needs from the browser, generated.
 - [chokkan](bidamas/CATALOG.md#chokkan) (直感) — System One judgment: typed questions in, calibrated answers out.
 - [chozou](bidamas/CATALOG.md#chozou) (貯蔵, storage) — what a service keeps and reads back.
 - [deeta](bidamas/CATALOG.md#deeta) (データ) — JSON data, read safely.
 - [eigyou](bidamas/CATALOG.md#eigyou) (営業, open for business) — what a running service answers, guards and reports.
-- [erufu](bidamas/CATALOG.md#erufu) — an ELF relocatable object as data: written from a compiled kernel program, and read back, so `bpftool`, `veristat`, `llvm-objdump` and `readelf` apply to what blue compiles, and blue can read what clang compiles.
 - [fairu](bidamas/CATALOG.md#fairu) (ファイル) — files: paths and the files they name.
 - [fuuin](bidamas/CATALOG.md#fuuin) (封印) — k-of-n threshold signing: a group whose key no one share holds, signed by any k of its n shares in two rounds, RFC 9591 FROST over Ed25519.
 - [gamen](bidamas/CATALOG.md#gamen) (画面) — screen: what a program shows, as values: colors and themes, UI trees rendered to HTML, and styled text, tables and trees on the terminal.

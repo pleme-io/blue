@@ -8,10 +8,6 @@ The kernel tests that need a network: run inside a private network namespace, so
 
 use("baito", %i[bytes_int int_bytes])
 
-use("bpf", [:compile])
-
-use("btf")
-
 use(
   "kaaneru",
   %i[
@@ -25,6 +21,8 @@ use(
     map_named
   ]
 )
+
+use("kaaneru/bpf", [:compile])
 
 use("retsu", [:first])
 
@@ -337,7 +335,7 @@ def cc_programs()
 end
 
 test "a TCP congestion control written in blue registers through a struct_ops link, runs for a real connection, and detach removes it"
-  table = btf::open(btf::vmlinux_path)
+  table = kaaneru::btf::open(kaaneru::btf::vmlinux_path)
   name = "blue_cc_#{to_s(now_ms % 100_000)}"
   sh("ip", %w[link set lo up])
   live = install_struct_ops(

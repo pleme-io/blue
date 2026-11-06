@@ -1,4 +1,7 @@
-use("bpf", %i[declare_map map_add packet_int packet_len xdp_drop xdp_pass])
+use(
+  "kaaneru/bpf",
+  %i[declare_map map_add packet_int packet_len xdp_drop xdp_pass]
+)
 
 COUNTS = declare_map(:filter_counts, :array, 4, 8, 256)
 

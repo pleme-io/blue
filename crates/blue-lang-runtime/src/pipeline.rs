@@ -1336,8 +1336,8 @@ pub fn program_names(program: &crate::uses::ResolvedProgram, builtins: &NameTabl
         let at = import.span.start;
         entry.use_at = Some(entry.use_at.map_or(at, |a| a.min(at)));
     }
-    // A moved bidama's old name qualifies what it loaded: `bpf::x` after
-    // `use("bpf")` is `kaaneru::bpf::x` while the bridge stands (B0074).
+    // A moved bidama's old name qualifies what it loaded: `kaaneru::bpf::x` after
+    // `use("kaaneru/bpf")` is `kaaneru::bpf::x` while the bridge stands (B0074).
     for b in program.bridged() {
         if let Some((file, _)) = program.imports().get(b.import) {
             imports

@@ -1,38 +1,6 @@
 use("baito", %i[bytes_int int_bytes])
 
 use(
-  "bpf",
-  %i[
-    alu
-    alu32
-    assemble
-    atomic
-    call
-    compile
-    declare_map
-    exit_program
-    imm64
-    jump
-    jump32
-    label
-    load_signed
-    map_ref
-    neg
-    packet_int
-    packet_of
-    packet_put
-    r
-    regular_ops
-    store
-    swap
-    xdp_drop
-    xdp_pass
-  ]
-)
-
-use("btf")
-
-use(
   "kaaneru",
   %i[
     attach_kprobe
@@ -61,6 +29,36 @@ use(
     open_pinned
     pin
     prog_id
+  ]
+)
+
+use(
+  "kaaneru/bpf",
+  %i[
+    alu
+    alu32
+    assemble
+    atomic
+    call
+    compile
+    declare_map
+    exit_program
+    imm64
+    jump
+    jump32
+    label
+    load_signed
+    map_ref
+    neg
+    packet_int
+    packet_of
+    packet_put
+    r
+    regular_ops
+    store
+    swap
+    xdp_drop
+    xdp_pass
   ]
 )
 
@@ -98,8 +96,8 @@ end
 
 def in_packet_then(body)
   [
-    bpf::load(:w, 6, 1, 0),
-    bpf::load(:w, 7, 1, 4),
+    kaaneru::bpf::load(:w, 6, 1, 0),
+    kaaneru::bpf::load(:w, 7, 1, 4),
     alu(:mov, 2, r(6)),
     alu(:add, 2, 8),
     jump(:gt, 2, r(7), :out),
@@ -122,7 +120,7 @@ def kernel_out(p)
 end
 
 def model_out(p)
-  packet_of(bpf::run(p, {packet:}))
+  packet_of(kaaneru::bpf::run(p, {packet:}))
 end
 
 def agree?(p)
@@ -331,10 +329,14 @@ test "the machine and the kernel agree on loads, stores and atomics at every wid
     fn(sz)
       [
         in_packet_then(
-          [imm64(3, value), store(sz, 6, 0, r(3)), bpf::load(sz, 0, 6, 0)]
+          [
+            imm64(3, value),
+            store(sz, 6, 0, r(3)),
+            kaaneru::bpf::load(sz, 0, 6, 0)
+          ]
         ),
         in_packet_then(
-          [imm64(0, 0), store(sz, 6, 0, -2), bpf::load(sz, 0, 6, 0)]
+          [imm64(0, 0), store(sz, 6, 0, -2), kaaneru::bpf::load(sz, 0, 6, 0)]
         )
       ]
     end
@@ -359,7 +361,7 @@ test "the machine and the kernel agree on loads, stores and atomics at every wid
               imm64(0, 5),
               imm64(4, 12),
               atomic(op, sz, 10, -8, 4),
-              bpf::load(:dw, 5, 10, -8),
+              kaaneru::bpf::load(:dw, 5, 10, -8),
               alu(:add, 0, r(5)),
               alu(:add, 0, r(4))
             ]
@@ -409,8 +411,8 @@ test "a program counts into a map, and the kernel's count equals the machine's"
   loaded = load(p, {kind: :xdp, maps: [m], name: "suite_count"})
   assert kaaneru::run(loaded, {packet:, repeat: 3})[:ret] == 2
   assert bytes_int(map_get(m, int_bytes(2, 4)), 0, 8) == 15
-  model = bpf::run(p, {packet:, maps: [spec]})
-  assert bpf::map_value(model, :suite_counts, int_bytes(2, 4)) ==
+  model = kaaneru::bpf::run(p, {packet:, maps: [spec]})
+  assert kaaneru::bpf::map_value(model, :suite_counts, int_bytes(2, 4)) ==
     int_bytes(5, 8)
 end
 
@@ -510,7 +512,10 @@ test "a filter written in blue and compiled by blue drops ICMP in the real kerne
   assert bytes_int(map_get(counts, int_bytes(1, 4)), 0, 8) == 2
   assert bytes_int(map_get(counts, int_bytes(6, 4)), 0, 8) == 1
   assert bytes_int(map_get(counts, int_bytes(17, 4)), 0, 8) == 0
-  model = bpf::run(compiled, {packet: ip_packet(1), maps: compiled[:maps]})
+  model = kaaneru::bpf::run(
+    compiled,
+    {packet: ip_packet(1), maps: compiled[:maps]}
+  )
   assert model[:ret] == xdp_drop
 end
 
@@ -558,7 +563,7 @@ test "one source: the interpreter, the machine and the real kernel agree, and a 
     fn(pair)
       input = mix_packet(pair)
       want = interpreted(pair)
-      vm = bpf::run(compiled, {packet: input})
+      vm = kaaneru::bpf::run(compiled, {packet: input})
       in_kernel = kaaneru::run(live[:prog], {packet: input})
       vm_answer = answer_of(vm[:ret], packet_of(vm))
       kernel_answer = answer_of(in_kernel[:ret], in_kernel[:packet])
@@ -580,7 +585,7 @@ test "one source with a global subprogram: the interpreter, the machine and the 
     fn(pair)
       input = mix_packet(pair)
       want = interpreted(pair)
-      vm = bpf::run(compiled, {packet: input})
+      vm = kaaneru::bpf::run(compiled, {packet: input})
       in_kernel = kaaneru::run(live[:prog], {packet: input})
       vm_answer = answer_of(vm[:ret], packet_of(vm))
       kernel_answer = answer_of(in_kernel[:ret], in_kernel[:packet])
@@ -810,7 +815,10 @@ def parity_row(kind, file, entry)
   bad = filter(
     fn(frame)
       kernel = kaaneru::run(live[:prog], {packet: frame})[:ret]
-      model = bpf::run(compiled, {packet: frame, maps: compiled[:maps]})[:ret]
+      model = get(
+        kaaneru::bpf::run(compiled, {packet: frame, maps: compiled[:maps]}),
+        :ret
+      )
       kernel != model
     end,
     frames
@@ -868,8 +876,8 @@ test "a socket-buffer program's map counts in the kernel what the machine counts
   key = int_bytes(1, 4)
   model = reduce(
     fn(acc, f)
-      st = bpf::run(compiled, {packet: f, maps: compiled[:maps]})
-      acc + bytes_int(bpf::map_value(st, :l3_seen, key), 0, 8)
+      st = kaaneru::bpf::run(compiled, {packet: f, maps: compiled[:maps]})
+      acc + bytes_int(kaaneru::bpf::map_value(st, :l3_seen, key), 0, 8)
     end,
     0,
     frames
@@ -903,7 +911,7 @@ test "an sk_lookup program decides on its context in the machine and the kernel 
       ctx = lookup_ctx(c[0], c[1], c[2])
       [
         kaaneru::run(live[:prog], {ctx:})[:ret],
-        bpf::run(compiled, {ctx:})[:ret],
+        kaaneru::bpf::run(compiled, {ctx:})[:ret],
         c[3]
       ]
     end,
@@ -923,7 +931,7 @@ test "a raw tracepoint program runs on arguments it is given, and the machine ag
       ctx = append(int_bytes(first(pair), 8), int_bytes(pair[1], 8))
       [
         kaaneru::run(live[:prog], {ctx:})[:ret],
-        bpf::run(compiled, {ctx:})[:ret],
+        kaaneru::bpf::run(compiled, {ctx:})[:ret],
         first(pair) + pair[1]
       ]
     end,
@@ -940,10 +948,10 @@ test "a syscall program runs sleepable on its context, and its writes come back"
   live = install(compiled)
   ctx = append(int_bytes(30, 4), int_bytes(12, 4))
   assert kaaneru::run(live[:prog], {ctx:})[:ret] == 42
-  assert bpf::run(compiled, {ctx:})[:ret] == 42
+  assert kaaneru::bpf::run(compiled, {ctx:})[:ret] == 42
   writer = assemble(
     [
-      bpf::load(:w, 2, 1, 0),
+      kaaneru::bpf::load(:w, 2, 1, 0),
       alu(:add, 2, 1),
       store(:w, 1, 4, r(2)),
       alu(:mov, 0, 7),
@@ -959,7 +967,7 @@ test "a syscall program runs sleepable on its context, and its writes come back"
 end
 
 test "a netfilter program runs on a frame it is given, and decides from the real socket buffer"
-  table = btf::open(btf::vmlinux_path)
+  table = kaaneru::btf::open(kaaneru::btf::vmlinux_path)
   live = install(
     compile(
       "kernel/programs/nf_filter.b",
@@ -1017,7 +1025,7 @@ test "fmod_ret replaces a kernel function's answer and skips its body"
 end
 
 test "an LSM program has no BPF_PROG_RUN, and the refusal names it"
-  table = btf::open(btf::vmlinux_path)
+  table = kaaneru::btf::open(kaaneru::btf::vmlinux_path)
   live = install_hook(
     compile(
       "kernel/programs/count.b",
@@ -1039,11 +1047,11 @@ end
 def task_ids_program(pid_offset)
   assemble(
     [
-      bpf::load(:dw, 6, 1, 0),
-      bpf::load(:dw, 7, 1, 8),
+      kaaneru::bpf::load(:dw, 6, 1, 0),
+      kaaneru::bpf::load(:dw, 7, 1, 8),
       jump(:eq, 7, 0, :out),
-      bpf::load(:dw, 1, 6, 0),
-      bpf::load(:w, 8, 7, pid_offset),
+      kaaneru::bpf::load(:dw, 1, 6, 0),
+      kaaneru::bpf::load(:w, 8, 7, pid_offset),
       store(:w, 10, -4, r(8)),
       alu(:mov, 2, r(10)),
       alu(:add, 2, -4),
@@ -1057,10 +1065,12 @@ def task_ids_program(pid_offset)
 end
 
 test "a task iterator lists this very thread through a pin read back"
-  table = btf::open(btf::vmlinux_path)
+  table = kaaneru::btf::open(kaaneru::btf::vmlinux_path)
   compiled = assoc(
     assoc(
-      task_ids_program(btf::field(table, "task_struct", ["pid"])[:offset]),
+      task_ids_program(
+        kaaneru::btf::field(table, "task_struct", ["pid"])[:offset]
+      ),
       :kind,
       :tracing
     ),

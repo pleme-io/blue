@@ -1,4 +1,4 @@
-use("bpf", %i[declare_map map_add])
+use("kaaneru/bpf", %i[declare_map map_add])
 
 INITS = declare_map(:cc_inits, :array, 4, 8, 1)
 

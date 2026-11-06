@@ -1,7 +1,7 @@
 @moduledoc """
 kaaneru (カーネル) — the Linux kernel, spoken from blue: maps, programs, links and ring buffers over `bpf(2)`, with every struct a `baito` layout and no C library in the path.
 
-`bpf` builds programs and runs them on a pure machine anywhere; this package loads them into the kernel on Linux. `attached` loads a compiled program onto one of the `hooks`, runs a function while it is there, and takes it away whatever the function does. Each attach kind also has its word: `attach` for XDP, tcx and what names a descriptor, `attach_cgroup`, `attach_netfilter`, `attach_uprobes`, `attach_kprobes`, `attach_kprobe`, `attach_tracepoint`, `attach_raw_tracepoint`, `attach_sampling`, `install_hook` for fentry, fexit, fmod_ret, LSM and iterators, `install_struct_ops`. Off Linux each call raises :unsupported. A kernel refusal raises :kernel_refused with data {errno:, name:, log:}, the verifier's log included.
+The kernel family is one tree: `kaaneru::bpf` builds programs and runs them on a pure machine anywhere, `kaaneru::btf` reads and writes the type format, and `kaaneru::erufu` writes ELF objects; this root loads them into the kernel on Linux. `attached` loads a compiled program onto one of the `hooks`, runs a function while it is there, and takes it away whatever the function does. Each attach kind also has its word: `attach` for XDP, tcx and what names a descriptor, `attach_cgroup`, `attach_netfilter`, `attach_uprobes`, `attach_kprobes`, `attach_kprobe`, `attach_tracepoint`, `attach_raw_tracepoint`, `attach_sampling`, `install_hook` for fentry, fexit, fmod_ret, LSM and iterators, `install_struct_ops`. Off Linux each call raises :unsupported. A kernel refusal raises :kernel_refused with data {errno:, name:, log:}, the verifier's log included.
 
 The words need the `kernel_bpf` capability, which holds the kernel: grant it to what would otherwise run as root. The pure words here (the layouts, `kind_id`, `errno_name`, `struct_fields`) need nothing.
 
@@ -12,11 +12,15 @@ The words need the `kernel_bpf` capability, which holds the kernel: grant it to 
 
 use("baito", %i[bytes_int field_of int_bytes layout offset unpack width])
 
-use("bpf", %i[alu assemble bind_fields encode_insn exit_program map_kinds])
-use("btf")
+use(
+  "kaaneru/bpf",
+  %i[alu assemble bind_fields encode_insn exit_program map_kinds]
+)
+
+use("kaaneru/btf")
 use("retsu", %i[first flat_map index_of last repeat size take_while])
 
-legacy_names("0.1.0", [%w[map_kinds bpf::map_kinds]])
+legacy_names("0.1.0", [%w[map_kinds kaaneru::bpf::map_kinds]])
 
 @doc """
 commands: `enum bpf_cmd`, each by its number.
@@ -612,9 +616,9 @@ def load_btf(bytes, log?)
 end
 
 @doc """
-create_map: a kernel map from a `bpf::declare_map` shape: the shape plus {fd:}. `{flags:}` in the shape sets `map_flags`, and `{value_type_id:, btf_object:}` name the kernel's type a :struct_ops map holds and the BTF object `load_btf` made for it.
+create_map: a kernel map from a `kaaneru::bpf::declare_map` shape: the shape plus {fd:}. `{flags:}` in the shape sets `map_flags`, and `{value_type_id:, btf_object:}` name the kernel's type a :struct_ops map holds and the BTF object `load_btf` made for it.
 
-    (create_map(bpf::declare_map(:m, :nope, 4, 8, 1)) rescue :refused) #=> :refused
+    (create_map(kaaneru::bpf::declare_map(:m, :nope, 4, 8, 1)) rescue :refused) #=> :refused
 """
 def create_map(spec)
   a = call_bpf(
@@ -787,10 +791,10 @@ def fields_bound(program, table)
     if table.nil?
       raise(
         :bad_option,
-        "this program reads kernel fields: give install {btf: btf::open(btf::vmlinux_path)}"
+        "this program reads kernel fields: give install {btf: kaaneru::btf::open(kaaneru::btf::vmlinux_path)}"
       )
     end
-    bind_fields(program, (s, path) -> btf::field(table, s, path))
+    bind_fields(program, (s, path) -> kaaneru::btf::field(table, s, path))
   end
 end
 
@@ -1004,11 +1008,11 @@ end
 @doc """
 install: a compiled program into the kernel: its maps created, then the program loaded against them. {prog:, maps:}, each map by its place in `compile`'s list and findable by `map_named`. `opts` adds {attach:, attach_btf_id:} for the hooks that name their target at load.
 
-    (install({maps: [bpf::declare_map(:m, :nope, 4, 8, 1)]}) rescue :refused) #=> :refused
+    (install({maps: [kaaneru::bpf::declare_map(:m, :nope, 4, 8, 1)]}) rescue :refused) #=> :refused
 """
 def install(compiled, opts?)
-  shape = if bpf::needs_btf?(compiled)
-    bpf::program_btf(compiled)
+  shape = if kaaneru::bpf::needs_btf?(compiled)
+    kaaneru::bpf::program_btf(compiled)
   end
   program_btf = if shape != nil
     load_btf(shape[:bytes])
@@ -1064,22 +1068,31 @@ end
 @doc """
 hook_of: the attach type and BTF id a hook's spec names: {fentry:}, {fexit:} or {fmod_ret:} a kernel function, {lsm:} a hook, {iter:} an iterator such as "task".
 
-    hook_of(btf::read(btf::sample), {fentry: "run"}).id #=> 5
-    hook_of(btf::read(btf::sample), {fexit: "run"}).kind #=> :trace_fexit
-    hook_of(btf::read(btf::sample), {fmod_ret: "run"}).kind #=> :modify_return
-    (hook_of(btf::read(btf::sample), {}) rescue :refused) #=> :refused
+    hook_of(kaaneru::btf::read(kaaneru::btf::sample), {fentry: "run"}).id #=> 5
+    hook_of(kaaneru::btf::read(kaaneru::btf::sample), {fexit: "run"}).kind #=> :trace_fexit
+    hook_of(kaaneru::btf::read(kaaneru::btf::sample), {fmod_ret: "run"}).kind #=> :modify_return
+    (hook_of(kaaneru::btf::read(kaaneru::btf::sample), {}) rescue :refused) #=> :refused
 """
 def hook_of(table, spec)
   if spec[:fentry] != nil
-    {kind: :trace_fentry, id: btf::function_id(table, spec[:fentry])}
+    {kind: :trace_fentry, id: kaaneru::btf::function_id(table, spec[:fentry])}
   elsif spec[:fexit] != nil
-    {kind: :trace_fexit, id: btf::function_id(table, spec[:fexit])}
+    {kind: :trace_fexit, id: kaaneru::btf::function_id(table, spec[:fexit])}
   elsif spec[:fmod_ret] != nil
-    {kind: :modify_return, id: btf::function_id(table, spec[:fmod_ret])}
+    {
+      kind: :modify_return,
+      id: kaaneru::btf::function_id(table, spec[:fmod_ret])
+    }
   elsif spec[:lsm] != nil
-    {kind: :lsm_mac, id: btf::function_id(table, "bpf_lsm_#{spec[:lsm]}")}
+    {
+      kind: :lsm_mac,
+      id: kaaneru::btf::function_id(table, "bpf_lsm_#{spec[:lsm]}")
+    }
   elsif spec[:iter] != nil
-    {kind: :trace_iter, id: btf::function_id(table, "bpf_iter_#{spec[:iter]}")}
+    {
+      kind: :trace_iter,
+      id: kaaneru::btf::function_id(table, "bpf_iter_#{spec[:iter]}")
+    }
   else
     raise(
       :bad_option,
@@ -1091,9 +1104,9 @@ end
 @doc """
 install_hook: a compiled :tracing or :lsm program loaded onto a kernel function and attached: `spec` {fentry: name}, {fexit: name}, {fmod_ret: name}, {lsm: hook} or {iter: name}, the target found in `table`, this kernel's BTF. {prog:, maps:, link:}. The attachment needs no netlink and no perf event.
 
-    hook_of(btf::read(btf::sample), {fentry: "run"}).id #=> 5
-    hook_of(btf::read(btf::sample), {fentry: "run"}).kind #=> :trace_fentry
-    (install_hook({}, btf::read(btf::sample), {}) rescue :refused) #=> :refused
+    hook_of(kaaneru::btf::read(kaaneru::btf::sample), {fentry: "run"}).id #=> 5
+    hook_of(kaaneru::btf::read(kaaneru::btf::sample), {fentry: "run"}).kind #=> :trace_fentry
+    (install_hook({}, kaaneru::btf::read(kaaneru::btf::sample), {}) rescue :refused) #=> :refused
 """
 def install_hook(compiled, table, spec)
   hook = hook_of(table, spec)
@@ -1257,7 +1270,7 @@ def open_pinned(path)
 end
 
 @doc """
-map_int: the integer a map of an installed program holds for an integer key, nil when it holds none. Each width comes from the map's shape. `bpf::map_int` is the same read on the machine.
+map_int: the integer a map of an installed program holds for an integer key, nil when it holds none. Each width comes from the map's shape. `kaaneru::bpf::map_int` is the same read on the machine.
 
     (map_int({maps: []}, :m, 0) rescue :refused) #=> :refused
 """
@@ -1400,11 +1413,11 @@ def attached(compiled, spec, body)
   hook = row[:hook]
   target = get(spec, hook)
   live = if member?(hook, %i[fentry fexit fmod_ret lsm iter])
-    install_hook(compiled, btf::open(btf::vmlinux_path), spec)
+    install_hook(compiled, kaaneru::btf::open(kaaneru::btf::vmlinux_path), spec)
   elsif row[:target] == "a cgroup directory"
     install(compiled, {attach: hook})
   elsif (compiled[:fields] or []) != []
-    install(compiled, {btf: btf::open(btf::vmlinux_path)})
+    install(compiled, {btf: kaaneru::btf::open(kaaneru::btf::vmlinux_path)})
   else
     install(compiled)
   end
@@ -1720,14 +1733,15 @@ end
 @doc """
 struct_ops_value: the bytes of a `bpf_struct_ops_<ops>` map value: each program's descriptor number at its member's offset, and each given value at its own, a text as its bytes and an integer as four.
 
-    t = btf::read(btf::sample)
+    t = kaaneru::btf::read(kaaneru::btf::sample)
     size(struct_ops_value(t, {size: 8, data: 0}, "task", [["state", 7]])) #=> 8
     first(struct_ops_value(t, {size: 8, data: 0}, "task", [["state", 7]])) #=> 7
 """
 def struct_ops_value(table, shape, ops, members)
   reduce(
     fn(bytes, member)
-      at = shape[:data] + btf::field(table, ops, [first(member)])[:offset]
+      at = shape[:data] +
+        kaaneru::btf::field(table, ops, [first(member)])[:offset]
       value = member[1]
       part = if string?(value)
         text_bytes(value)
@@ -1744,13 +1758,13 @@ end
 @doc """
 install_struct_ops: a kernel operations table implemented in blue, registered through one link, its map naming a one-type BTF object since the kernel asks for one: `spec` {ops:, name:, programs:, values:}. `ops` names the kernel's struct such as "tcp_congestion_ops", `programs` pairs each member with what `compile` made for kind :struct_ops, and `values` pairs each other member with its text or integer. The maps the programs name are made once and shared. {maps:, programs:, table:, link:}; `detach` of the link unregisters it. A program needs no BTF of its own: a member's types come from the kernel's.
 
-    (install_struct_ops(btf::read(btf::sample), {ops: "nothing"}) rescue :refused) #=> :refused
+    (install_struct_ops(kaaneru::btf::read(kaaneru::btf::sample), {ops: "nothing"}) rescue :refused) #=> :refused
 """
 def install_struct_ops(table, spec)
   ops = spec[:ops]
-  ops_id = btf::need(table, ops, :struct)
+  ops_id = kaaneru::btf::need(table, ops, :struct)
   value_name = "bpf_struct_ops_#{ops}"
-  value_id = btf::need(table, value_name, :struct)
+  value_id = kaaneru::btf::need(table, value_name, :struct)
   given = flat_map(spec[:programs], (p) -> p[1][:maps] or [])
   maps = map(create_map, unique_by_name(given))
   programs = map(
@@ -1763,7 +1777,7 @@ def install_struct_ops(table, spec)
             kind: :struct_ops,
             maps:,
             name: first(p),
-            attach: btf::member_index(table, ops, first(p)),
+            attach: kaaneru::btf::member_index(table, ops, first(p)),
             attach_btf_id: ops_id
           }
         )
@@ -1771,14 +1785,20 @@ def install_struct_ops(table, spec)
     end,
     spec[:programs]
   )
-  value_size = btf::size_of(table, value_id)
-  btf_object = load_btf(btf::smallest)
+  value_size = kaaneru::btf::size_of(table, value_id)
+  btf_object = load_btf(kaaneru::btf::smallest)
   holder = begin
     create_map(
       assoc(
         assoc(
           assoc(
-            bpf::declare_map(spec[:name], :struct_ops, 4, value_size, 1),
+            kaaneru::bpf::declare_map(
+              spec[:name],
+              :struct_ops,
+              4,
+              value_size,
+              1
+            ),
             :flags,
             struct_ops_flag_link
           ),
@@ -1799,7 +1819,7 @@ def install_struct_ops(table, spec)
       table,
       {
         size: value_size,
-        data: btf::field(table, value_name, ["data"])[:offset]
+        data: kaaneru::btf::field(table, value_name, ["data"])[:offset]
       },
       ops,
       append(
@@ -2071,10 +2091,10 @@ end
 @doc """
 division_site?: whether an instruction is a signed division or remainder whose divisor can be -1: a register, or the immediate -1.
 
-    division_site?(alu(:sdiv, 0, bpf::r(1))) #=> true
-    division_site?(bpf::alu32(:smod, 0, -1)) #=> true
+    division_site?(alu(:sdiv, 0, kaaneru::bpf::r(1))) #=> true
+    division_site?(kaaneru::bpf::alu32(:smod, 0, -1)) #=> true
     division_site?(alu(:sdiv, 0, 3)) #=> false
-    division_site?(alu(:div, 0, bpf::r(1))) #=> false
+    division_site?(alu(:div, 0, kaaneru::bpf::r(1))) #=> false
 """
 def division_site?(i)
   class = bit_and(i[:code], 7)
@@ -2089,8 +2109,8 @@ end
 @doc """
 division_refusal: why this kernel must not load these instructions, or nil. A signed division with a divisor that can be -1 traps the CPU on a kernel below the fix, and the kernel panics. Pure: `mode` is `load`'s `signed_division`, and :trust turns the refusal off.
 
-    division_refusal([alu(:sdiv, 0, bpf::r(1))], "6.12.93", :refuse) #=> nil
-    division_refusal([alu(:sdiv, 0, bpf::r(1))], "6.6.142", :trust) #=> nil
+    division_refusal([alu(:sdiv, 0, kaaneru::bpf::r(1))], "6.12.93", :refuse) #=> nil
+    division_refusal([alu(:sdiv, 0, kaaneru::bpf::r(1))], "6.6.142", :trust) #=> nil
     division_refusal([alu(:sdiv, 0, 3)], "6.6.142", :refuse) #=> nil
 """
 def division_refusal(insns, release, mode)
@@ -2116,24 +2136,35 @@ def refuse_division(insns, mode)
 end
 
 test "a division that can panic this kernel is refused by name, and every other form loads on"
-  by_reg = alu(:sdiv, 0, bpf::r(1))
+  by_reg = alu(:sdiv, 0, kaaneru::bpf::r(1))
   floor = "6.6.142"
   assert contains?(division_refusal([by_reg], floor, :refuse), "Linux 6.6.142")
   assert contains?(division_refusal([by_reg], floor, :refuse), "6.12")
-  assert division_refusal([bpf::alu32(:smod, 0, bpf::r(1))], floor, :refuse) !=
-    nil
+  assert division_refusal(
+    [kaaneru::bpf::alu32(:smod, 0, kaaneru::bpf::r(1))],
+    floor,
+    :refuse
+  ) != nil
   assert division_refusal([alu(:smod, 0, -1)], floor, :refuse) != nil
   assert division_refusal([by_reg], "6.12.93", :refuse).nil?
   assert division_refusal([by_reg], floor, :trust).nil?
   assert division_refusal([alu(:sdiv, 0, 3)], floor, :refuse).nil?
-  assert division_refusal([alu(:div, 0, bpf::r(1))], floor, :refuse).nil?
-  assert division_refusal([bpf::jump(:eq, 0, 0, 0)], floor, :refuse).nil?
+  assert division_refusal(
+    [alu(:div, 0, kaaneru::bpf::r(1))],
+    floor,
+    :refuse
+  ).nil?
+  assert division_refusal(
+    [kaaneru::bpf::jump(:eq, 0, 0, 0)],
+    floor,
+    :refuse
+  ).nil?
   assert division_refusal([], floor, :refuse).nil?
 end
 
 test "a program with no such division never asks the release"
   assert refuse_division([alu(:mov, 0, 2)], :refuse).nil?
-  assert refuse_division([alu(:sdiv, 0, bpf::r(1))], :trust).nil?
+  assert refuse_division([alu(:sdiv, 0, kaaneru::bpf::r(1))], :trust).nil?
 end
 
 test "division traps below 6.12, and a suffix on the release changes nothing"
@@ -2356,7 +2387,7 @@ test "attached answers a named absence or refusal when nothing can load, and nev
 end
 
 test "a hook's spec names its attach type, and an empty one refuses"
-  t = btf::read(btf::sample)
+  t = kaaneru::btf::read(kaaneru::btf::sample)
   assert (hook_of(t, {lsm: "run"}) rescue :refused) == :refused
   assert hook_of(t, {fexit: "run"}).id == 5
   assert (hook_of(t, {iter: "run"}) rescue :refused) == :refused
@@ -2364,7 +2395,7 @@ test "a hook's spec names its attach type, and an empty one refuses"
 end
 
 test "a struct_ops value holds each program and value at its member, and the rest zero"
-  t = btf::read(btf::sample)
+  t = kaaneru::btf::read(kaaneru::btf::sample)
   bytes = struct_ops_value(
     t,
     {size: 16, data: 4},

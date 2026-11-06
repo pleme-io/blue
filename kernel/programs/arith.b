@@ -1,4 +1,7 @@
-use("bpf", %i[declare_map map_get map_put packet_int packet_put xdp_pass])
+use(
+  "kaaneru/bpf",
+  %i[declare_map map_get map_put packet_int packet_put xdp_pass]
+)
 
 LAST = declare_map(:arith_last, :hash, 8, 8, 16)
 

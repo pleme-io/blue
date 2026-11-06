@@ -111,7 +111,7 @@ const KERNEL: &str = r##"@moduledoc """
 __NAME__: a kernel program and its loader in one file. `count_packets` is the program, `main` loads it onto an interface, and the tests run the same source on the pure machine, and on a real kernel when this host has one. docs/tutorial/first-kernel-program.md explains each part.
 """
 
-use("bpf", %i[compile declare_map map_add packet_int packet_len xdp_pass])
+use("kaaneru/bpf", %i[compile declare_map map_add packet_int packet_len xdp_pass])
 use("kaaneru", %i[attached install kernel_absence])
 use("retsu", %i[first repeat])
 use("tesuto", [:skip_for])
@@ -159,17 +159,17 @@ end
 
 test "on the machine, a packet of one protocol is counted and passed"
   p = program
-  st = bpf::run(p, {packet: frame(1), maps: p[:maps]})
+  st = kaaneru::bpf::run(p, {packet: frame(1), maps: p[:maps]})
   assert st.ret == xdp_pass
-  assert bpf::map_int(st, :counts, 1) == 1
-  assert bpf::map_int(st, :counts, 6) == 0
+  assert kaaneru::bpf::map_int(st, :counts, 1) == 1
+  assert kaaneru::bpf::map_int(st, :counts, 6) == 0
 end
 
 test "on the machine, a frame too short for the field is passed and not counted"
   p = program
-  st = bpf::run(p, {packet: repeat(0, 20), maps: p[:maps]})
+  st = kaaneru::bpf::run(p, {packet: repeat(0, 20), maps: p[:maps]})
   assert st.ret == xdp_pass
-  assert bpf::map_int(st, :counts, 0) == 0
+  assert kaaneru::bpf::map_int(st, :counts, 0) == 0
 end
 
 test "on a real kernel, the program counts what the machine counts"

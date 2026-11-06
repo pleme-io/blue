@@ -537,7 +537,7 @@ Each part has one job:
   compiler writes the bounds check each packet read needs.
 - `compile` turns it into BPF and checks it first. `on_fault` is what the program
   answers when a read falls outside the packet.
-- [`bpf::run`](../bidamas/CATALOG.md#bpf) runs the program on the pure machine. [`bpf::map_int`](../bidamas/CATALOG.md#bpf) reads a map on
+- `bpf::run` runs the program on the pure machine. `bpf::map_int` reads a map on
   it.
 - `attached` loads the program onto one hook, runs a function, and takes the
   program away whatever the function does.
@@ -1601,7 +1601,7 @@ Three layers can say no, and each names its error kind. Find the layer first:
 | Error kind | Who says it | When |
 |---|---|---|
 | `:bpf_compile` | blue's compiler | at `compile`, on any host |
-| `:bpf_fault` | the pure machine | at [`bpf::run`](../bidamas/CATALOG.md#bpf), on any host |
+| `:bpf_fault` | the pure machine | at `bpf::run`, on any host |
 | `:kernel_refused` | the kernel's verifier | at load, on Linux |
 | `:kernel_mismatch` | the loader | a field has another size on this kernel |
 | `:unsupported` | the host | off Linux, at any word that reaches the kernel |

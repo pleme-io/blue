@@ -1,4 +1,4 @@
-use("bpf", %i[ctx_int declare_map kernel_read map_add])
+use("kaaneru/bpf", %i[ctx_int declare_map kernel_read map_add])
 
 SEEN = declare_map(:nf_seen, :array, 4, 8, 256)
 

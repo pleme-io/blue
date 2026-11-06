@@ -10,8 +10,8 @@ The encoding is RFC 9669. The kernel, `llvm-mc` and this machine are checked aga
 """
 
 use("baito", %i[align_up bytes_int int_bytes])
-use("btf")
 use("jisho", [:update])
+use("kaaneru/btf")
 use("retsu", %i[first flat_map index_of last repeat rest size zip])
 use("shisutemu", [:blue_exe])
 
@@ -2732,7 +2732,7 @@ compiled_only: the refusal a kernel word answers when it is called in the interp
 def compiled_only(word)
   raise(
     :bpf_fault,
-    "#{word} runs inside the kernel: compile the program with bpf::compile and run it with bpf::run or kaaneru::run"
+    "#{word} runs inside the kernel: compile the program with kaaneru::bpf::compile and run it with kaaneru::bpf::run or kaaneru::run"
   )
 end
 
@@ -4296,7 +4296,7 @@ def map_named(st, form)
   m = get(st[:map_consts], or_empty(name))
   if m.nil?
     refuse(
-      "a map word takes a map declared at the top level with bpf::declare_map, got #{to_s(form)}"
+      "a map word takes a map declared at the top level with kaaneru::bpf::declare_map, got #{to_s(form)}"
     )
   end
   m
@@ -4920,7 +4920,7 @@ def gen_word(st, word, args)
   when "helper"
     gen_helper(st, args)
   else
-    refuse("bpf::#{word} has no lowering inside a kernel program")
+    refuse("kaaneru::bpf::#{word} has no lowering inside a kernel program")
   end
 end
 
@@ -5475,10 +5475,10 @@ end
 @doc """
 interned: a BTF table with one more type, and the id in `:id`, for a chain of them.
 
-    interned({types: []}, btf::pointer_to(0)).id #=> 1
+    interned({types: []}, kaaneru::btf::pointer_to(0)).id #=> 1
 """
 def interned(acc, t)
-  got = btf::intern(acc[:types], t)
+  got = kaaneru::btf::intern(acc[:types], t)
   assoc(assoc(acc, :types, got[:types]), :id, got[:id])
 end
 
@@ -5491,18 +5491,18 @@ ctx_pointer: a BTF table holding a pointer to a program type's context; a type w
 def ctx_pointer(acc, kind)
   c = ctx_struct(kind)
   if c.nil?
-    interned(acc, btf::pointer_to(0))
+    interned(acc, kaaneru::btf::pointer_to(0))
   else
-    word = interned(acc, btf::int_type("unsigned int", 4, false))
+    word = interned(acc, kaaneru::btf::int_type("unsigned int", 4, false))
     members = map(
       (pair) -> {name: pair[1], type: word[:id], bits: first(pair) * 32},
       zip(range(0, size(c[:members])), c[:members])
     )
     named = interned(
       word,
-      btf::sized_type(:struct, c[:name], c[:size], members)
+      kaaneru::btf::sized_type(:struct, c[:name], c[:size], members)
     )
-    interned(named, btf::pointer_to(named[:id]))
+    interned(named, kaaneru::btf::pointer_to(named[:id]))
   end
 end
 
@@ -5523,10 +5523,10 @@ def param_type(acc, param, kind)
     end
     ctx_pointer(acc, kind)
   when :fault
-    word = interned(acc, btf::int_type("long long", 8))
-    interned(word, btf::pointer_to(word[:id]))
+    word = interned(acc, kaaneru::btf::int_type("long long", 8))
+    interned(word, kaaneru::btf::pointer_to(word[:id]))
   else
-    interned(acc, btf::int_type("long long", 8))
+    interned(acc, kaaneru::btf::int_type("long long", 8))
   end
 end
 
@@ -5554,9 +5554,15 @@ def func_btf(acc, f, kind, is_entry)
     assoc(acc, :rows, []),
     zip(range(0, size(f[:params])), f[:params])
   )
-  returning = interned(params, btf::int_type("long long", 8))
-  proto = interned(returning, btf::proto_type(returning[:id], params[:rows]))
-  interned(proto, btf::linked_type(:func, f[:name], proto[:id], f[:linkage]))
+  returning = interned(params, kaaneru::btf::int_type("long long", 8))
+  proto = interned(
+    returning,
+    kaaneru::btf::proto_type(returning[:id], params[:rows])
+  )
+  interned(
+    proto,
+    kaaneru::btf::linked_type(:func, f[:name], proto[:id], f[:linkage])
+  )
 end
 
 @doc """
@@ -5565,10 +5571,13 @@ map_uint: a BTF table holding the type a BTF-defined map says an integer with: a
     map_uint({types: []}, 8).id #=> 4
 """
 def map_uint(acc, value)
-  int_id = interned(acc, btf::int_type("int", 4))
-  index = interned(int_id, btf::int_type("__ARRAY_SIZE_TYPE__", 4))
-  counted = interned(index, btf::array_of(int_id[:id], index[:id], value))
-  interned(counted, btf::pointer_to(counted[:id]))
+  int_id = interned(acc, kaaneru::btf::int_type("int", 4))
+  index = interned(int_id, kaaneru::btf::int_type("__ARRAY_SIZE_TYPE__", 4))
+  counted = interned(
+    index,
+    kaaneru::btf::array_of(int_id[:id], index[:id], value)
+  )
+  interned(counted, kaaneru::btf::pointer_to(counted[:id]))
 end
 
 @doc """
@@ -5609,11 +5618,11 @@ def map_btf(acc, m)
   full = map_member(sized, "max_entries", m[:max_entries])
   shape = interned(
     full,
-    btf::sized_type(:struct, "", size(full[:rows]) * 8, full[:rows])
+    kaaneru::btf::sized_type(:struct, "", size(full[:rows]) * 8, full[:rows])
   )
   var = interned(
     shape,
-    btf::linked_type(:var, to_s(m[:name]), shape[:id], :global)
+    kaaneru::btf::linked_type(:var, to_s(m[:name]), shape[:id], :global)
   )
   assoc(assoc(var, :var, var[:id]), :var_size, size(full[:rows]) * 8)
 end
@@ -5626,22 +5635,22 @@ locked_members: the key and value members of a map with a spin lock: the value i
 def locked_members(acc, m)
   key_type = interned(
     acc,
-    btf::int_type(key_type_name(m[:key_size]), m[:key_size], false)
+    kaaneru::btf::int_type(key_type_name(m[:key_size]), m[:key_size], false)
   )
-  word = interned(key_type, btf::int_type("unsigned int", 4, false))
+  word = interned(key_type, kaaneru::btf::int_type("unsigned int", 4, false))
   lock = interned(
     word,
-    btf::sized_type(
+    kaaneru::btf::sized_type(
       :struct,
       "bpf_spin_lock",
       4,
       [{name: "val", type: word[:id], bits: 0}]
     )
   )
-  total = interned(lock, btf::int_type("long long", 8))
+  total = interned(lock, kaaneru::btf::int_type("long long", 8))
   value = interned(
     total,
-    btf::sized_type(
+    kaaneru::btf::sized_type(
       :struct,
       "blue_locked",
       16,
@@ -5651,8 +5660,8 @@ def locked_members(acc, m)
       ]
     )
   )
-  key_ptr = interned(value, btf::pointer_to(key_type[:id]))
-  value_ptr = interned(key_ptr, btf::pointer_to(value[:id]))
+  key_ptr = interned(value, kaaneru::btf::pointer_to(key_type[:id]))
+  value_ptr = interned(key_ptr, kaaneru::btf::pointer_to(value[:id]))
   rows = append(
     acc[:rows],
     [
@@ -5723,7 +5732,7 @@ end
 program_btf: a program's own BTF: {types:, names:, bytes:, ext:, func_info:, map_types:, map_vars:}. `bytes` is the blob for `.BTF` and BTF_LOAD; `ext` the `.BTF.ext`; `func_info` `{at:, type:}` by slot for BPF_PROG_LOAD; `map_types` each map's key and value ids where it has them; `map_vars` each map's variable. A program that came from an object keeps the BTF it came with.
 
     program_btf(compile_forms(read_forms("(define (%root/e c) 2)"), {entry: :e, kind: :xdp}))[:func_info] #=> [{at: 0, type: 6}]
-    btf::read(program_btf(compile_forms(read_forms("(define (%root/e c) 2)"), {entry: :e, kind: :xdp}))[:bytes])[:count] > 0 #=> true
+    kaaneru::btf::read(program_btf(compile_forms(read_forms("(define (%root/e c) 2)"), {entry: :e, kind: :xdp}))[:bytes])[:count] > 0 #=> true
 """
 def program_btf(program)
   if program[:btf] != nil
@@ -5789,8 +5798,8 @@ def fresh_btf(program)
   {
     types:,
     names:,
-    bytes: btf::encode(types, names),
-    ext: btf::encode_ext(types, names, ext_sections),
+    bytes: kaaneru::btf::encode(types, names),
+    ext: kaaneru::btf::encode_ext(types, names, ext_sections),
     func_info: map((row) -> {at: first(row)[:at], type: row[1]}, func_rows),
     map_types: with_maps[:map_types],
     map_vars: with_maps[:map_vars]
@@ -5822,7 +5831,7 @@ def maps_section(acc, maps)
     )
     interned(
       acc,
-      btf::sized_type(:datasec, ".maps", placed[:at], placed[:vars])
+      kaaneru::btf::sized_type(:datasec, ".maps", placed[:at], placed[:vars])
     )
   end
 end
@@ -5830,20 +5839,23 @@ end
 @doc """
 license_section: a BTF table with the `license` data section over its one variable, as clang writes `_license`.
 
-    btf::type_at(btf::read(btf::encode(license_section({types: []}, "GPL")[:types])), 5).name #=> "license"
+    kaaneru::btf::type_at(kaaneru::btf::read(kaaneru::btf::encode(license_section({types: []}, "GPL")[:types])), 5).name #=> "license"
 """
 def license_section(acc, license)
   count = length(text_bytes(license)) + 1
-  letter = interned(acc, btf::int_type("char", 1))
-  index = interned(letter, btf::int_type("__ARRAY_SIZE_TYPE__", 4))
-  counted = interned(index, btf::array_of(letter[:id], index[:id], count))
+  letter = interned(acc, kaaneru::btf::int_type("char", 1))
+  index = interned(letter, kaaneru::btf::int_type("__ARRAY_SIZE_TYPE__", 4))
+  counted = interned(
+    index,
+    kaaneru::btf::array_of(letter[:id], index[:id], count)
+  )
   var = interned(
     counted,
-    btf::linked_type(:var, "_license", counted[:id], :global)
+    kaaneru::btf::linked_type(:var, "_license", counted[:id], :global)
   )
   interned(
     var,
-    btf::sized_type(
+    kaaneru::btf::sized_type(
       :datasec,
       "license",
       count,
@@ -6480,13 +6492,16 @@ test "a program's BTF names each function, and its .BTF.ext places each by bytes
     [:g]
   )
   shape = program_btf(p)
-  table = btf::read(shape[:bytes])
+  table = kaaneru::btf::read(shape[:bytes])
   ids = map((f) -> f[:type], shape[:func_info])
-  assert map((id) -> btf::type_at(table, id)[:name], ids) == %w[e g]
+  assert map((id) -> kaaneru::btf::type_at(table, id)[:name], ids) == %w[e g]
   assert size(
-    btf::type_at(table, btf::type_at(table, ids[1])[:type])[:params]
+    get(
+      kaaneru::btf::type_at(table, kaaneru::btf::type_at(table, ids[1])[:type]),
+      :params
+    )
   ) == 1
-  rows = btf::read_ext(shape[:ext], shape[:bytes])
+  rows = kaaneru::btf::read_ext(shape[:ext], shape[:bytes])
   assert first(rows)[:section] == "xdp"
   assert rows[1][:section] == ".text"
   assert first(rows[1][:funcs])[:at] == 0
@@ -6501,14 +6516,16 @@ test "a map with a lock has its key and value types in BTF, and a plain one has 
       maps: [declare_locked(:l, :array, 4, 1), declare_map(:p, :array, 4, 8, 1)]
     }
   )
-  table = btf::read(shape[:bytes])
+  table = kaaneru::btf::read(shape[:bytes])
   types = shape[:map_types]["l"]
-  assert btf::type_at(table, types[:value])[:name] == "blue_locked"
-  assert btf::size_of(table, types[:value]) == 16
-  assert btf::size_of(table, types[:key]) == 4
+  assert kaaneru::btf::type_at(table, types[:value])[:name] == "blue_locked"
+  assert kaaneru::btf::size_of(table, types[:value]) == 16
+  assert kaaneru::btf::size_of(table, types[:key]) == 4
   assert shape[:map_types]["p"][:value].nil?
-  assert btf::type_at(table, btf::find(table, ".maps", :datasec))[:size] ==
-    shape[:map_vars]["l"][:size] + shape[:map_vars]["p"][:size]
+  assert get(
+    kaaneru::btf::type_at(table, kaaneru::btf::find(table, ".maps", :datasec)),
+    :size
+  ) == shape[:map_vars]["l"][:size] + shape[:map_vars]["p"][:size]
 end
 
 test "compiled arithmetic answers as blue answers, and a literal's range proves its check away"

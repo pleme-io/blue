@@ -1,5 +1,0 @@
-package("bpf", "0.1.0")
-needs("baito", "^0.1")
-needs("jisho", "^0.1")
-needs("retsu", "^0.1")
-needs("shisutemu", "^0.1")

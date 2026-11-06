@@ -50,18 +50,12 @@ nix consumes blue's own evaluation instead of re-deriving it.
 use("angou", [:is_prime])
 # waive B0016: zenbu is the facade, and depending on it means depending on baito
 use("baito")
-# waive B0016: zenbu is the facade, and depending on it means depending on bpf
-use("bpf")
-# waive B0016: zenbu is the facade, and depending on it means depending on btf
-use("btf")
 use("bunsho")
 use("burauza")
 use("chokkan")
 use("chozou")
 use("deeta", [:get_str])
 use("eigyou")
-# waive B0016: zenbu is the facade, and depending on it means depending on erufu
-use("erufu")
 use("fairu")
 use("fuuin")
 use("gamen")
@@ -76,10 +70,8 @@ use("hizuke", [:is_leap])
 use("hon")
 use("ibuki")
 use("isshou")
-# waive B0016: zenbu is the facade, and depending on it means depending on jisho
 use("jisho")
 use("junjo", %i[is_sorted sort])
-# waive B0016: zenbu is the facade, and depending on it means depending on kaaneru
 use("kaaneru")
 use("kakehashi")
 use("kansuu", [:identity])

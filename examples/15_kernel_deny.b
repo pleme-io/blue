@@ -4,7 +4,7 @@
 # denies it. The machine takes the identity a test gives it. On Linux,
 # `kaaneru::attached(program, {lsm: "file_open"}, body)` holds the hook while
 # `body` runs, and takes it away whatever `body` does.
-use("bpf", %i[compile helper])
+use("kaaneru/bpf", %i[compile helper])
 
 EPERM = 1
 
@@ -26,7 +26,10 @@ def program()
 end
 
 def answer_for(thread)
-  bpf::run(program, {ctx: [0, 0, 0, 0, 0, 0, 0, 0], pid_tgid: thread}).ret
+  kaaneru::bpf::run(
+    program,
+    {ctx: [0, 0, 0, 0, 0, 0, 0, 0], pid_tgid: thread}
+  ).ret
 end
 
 test "the target thread is denied"

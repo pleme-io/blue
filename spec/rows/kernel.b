@@ -70,10 +70,10 @@ row(
   "kernel.erufu.round_trip",
   join_lines(
     [
-      "use(\"bpf\")",
-      "use(\"erufu\")",
-      "p = bpf::assemble([bpf::alu(:mov, 0, 7), bpf::exit_program])",
-      "bpf::run(erufu::program_of(erufu::decode(erufu::object(p, {section: \"xdp\"})))).ret"
+      "use(\"kaaneru/bpf\")",
+      "use(\"kaaneru/erufu\")",
+      "p = kaaneru::bpf::assemble([kaaneru::bpf::alu(:mov, 0, 7), kaaneru::bpf::exit_program])",
+      "kaaneru::bpf::run(kaaneru::erufu::program_of(kaaneru::erufu::decode(kaaneru::erufu::object(p, {section: \"xdp\"})))).ret"
     ]
   ),
   value("7"),
@@ -82,7 +82,7 @@ row(
 
 row(
   "kernel.erufu.not_an_object",
-  join_lines(["use(\"erufu\")", "erufu::decode([1, 2, 3])"]),
+  join_lines(["use(\"kaaneru/erufu\")", "kaaneru::erufu::decode([1, 2, 3])"]),
   fails(:eval, "not ELF"),
   pending("G16", "wasm")
 )
@@ -91,8 +91,8 @@ row(
   "kernel.btf.written_reads_back",
   join_lines(
     [
-      "use(\"btf\")",
-      "btf::find(btf::read(btf::encode([btf::int_type(\"int\", 4)])), \"int\", :int)"
+      "use(\"kaaneru/btf\")",
+      "kaaneru::btf::find(kaaneru::btf::read(kaaneru::btf::encode([kaaneru::btf::int_type(\"int\", 4)])), \"int\", :int)"
     ]
   ),
   value("1"),
@@ -103,9 +103,9 @@ row(
   "kernel.bpf.global_subprogram",
   join_lines(
     [
-      "use(\"bpf\")",
-      "p = bpf::compile_forms(read_forms(\"(define (%root/g a) (+ a 1)) (define (%root/e c) (%root/g 41))\"), {entry: :e, kind: :xdp, on_fault: 9, global: [:g]})",
-      "[length(p[:funcs]), bpf::run(p).ret]"
+      "use(\"kaaneru/bpf\")",
+      "p = kaaneru::bpf::compile_forms(read_forms(\"(define (%root/g a) (+ a 1)) (define (%root/e c) (%root/g 41))\"), {entry: :e, kind: :xdp, on_fault: 9, global: [:g]})",
+      "[length(p[:funcs]), kaaneru::bpf::run(p).ret]"
     ]
   ),
   value("[2, 42]"),

@@ -54,24 +54,11 @@ def reach_words(text)
   end
 end
 
-def first_per_name(rows)
-  reduce(
-    fn(acc, r)
-      if member?(row_name(r, "needs("), map((a) -> row_name(a, "needs("), acc))
-        acc
-      else
-        concat_lists(acc, [r])
-      end
-    end,
-    [],
-    rows
-  )
-end
-
 @doc """
 adopted_bluefile: an existing root's Bluefile once its children move under it:
-its own rows, one `legacy_packages` row, every child's `needs` but on a sibling
-or the root, and one `reach` over every capability the tree held.
+its own rows but `needs` on a new level, one `legacy_packages` row, and one
+`reach` over every capability the tree held. A level's `needs` are not copied:
+`blue lock` derives the tree's from its `use` forms, as for a new root.
 
     starts_with?(adopted_bluefile("", "k", ["a"], [], "0.1.1"), "package(") #=> true
 """
@@ -83,17 +70,7 @@ def adopted_bluefile(root_text, root, children, child_texts, version)
   outside = fn(r)
     not member?(row_name(r, "needs("), concat_lists(children, [root]))
   end
-  needs = sort(
-    first_per_name(
-      filter(
-        outside,
-        filter(
-          (l) -> starts_with?(l, "needs("),
-          concat_lists(rows, retsu::flat_map(child_texts, lines))
-        )
-      )
-    )
-  )
+  needs = sort(filter(outside, filter((l) -> starts_with?(l, "needs("), rows)))
   reach = sort(
     distinct(
       retsu::flat_map(concat_lists([root_text], child_texts), reach_words)
@@ -116,7 +93,7 @@ def adopted_bluefile(root_text, root, children, child_texts, version)
   )
 end
 
-test "an adopted root keeps its rows, drops needs on its new levels and gains theirs"
+test "an adopted root keeps its rows, drops needs on its new levels and copies none of theirs"
   root = unlines(
     [
       "package(\"kaaneru\", \"0.1.0\")",
@@ -143,7 +120,7 @@ test "an adopted root keeps its rows, drops needs on its new levels and gains th
     out[1],
     "legacy_packages(\"0.1.1\", [[\"bpf\", \"kaaneru/bpf\"]"
   )
-  assert member?("needs(\"jisho\", \"^0.1\")", out)
+  assert not member?("needs(\"jisho\", \"^0.1\")", out)
   assert member?("needs(\"retsu\", \"^0.1\")", out)
   assert not member?("needs(\"retsu\", \"^0.2\")", out)
   assert not any?(
@@ -379,7 +356,10 @@ def callers_of(children)
         names_a_child?(read_file(p), children)
     end,
     retsu::flat_map(
-      filter(is_dir?, %w[bidamas gen examples nix native crates spec]),
+      filter(
+        is_dir?,
+        %w[bidamas gen examples nix native crates spec kernel bench rules]
+      ),
       walk_dir
     )
   )

@@ -1,4 +1,4 @@
-use("bpf", %i[ctx_int declare_map map_add])
+use("kaaneru/bpf", %i[ctx_int declare_map map_add])
 
 ASKED = declare_map(:device_asked, :array, 4, 8, 1)
 

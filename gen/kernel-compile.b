@@ -6,7 +6,7 @@ A program file with no row here is red, so the table cannot fall behind the dire
     blue test gen/kernel-compile.b
 """
 
-use("bpf", [:compile])
+use("kaaneru/bpf", [:compile])
 
 use("retsu", [:first])
 

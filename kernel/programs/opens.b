@@ -1,4 +1,4 @@
-use("bpf", %i[declare_map emit helper])
+use("kaaneru/bpf", %i[declare_map emit helper])
 
 EVENTS = declare_map(:opens_events, :ringbuf, 0, 0, 65536)
 

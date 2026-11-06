@@ -104,8 +104,8 @@
   {
     "name": "a member's offset forgets the value's head",
     "file": "kaaneru.b",
-    "find": "at = shape[:data] + btf::field",
-    "replace": "at = btf::field"
+    "find": "at = shape[:data] +",
+    "replace": "at = 0 +"
   },
   {
     "name": "a shared map is made twice",
@@ -128,8 +128,8 @@
   {
     "name": "fmod_ret takes fexit's attach type",
     "file": "kaaneru.b",
-    "find": "{kind: :modify_return,",
-    "replace": "{kind: :trace_fexit,"
+    "find": "kind: :modify_return,",
+    "replace": "kind: :trace_fexit,"
   },
   {
     "name": "an iterator loses its prefix",

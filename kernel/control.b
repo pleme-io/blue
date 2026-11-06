@@ -4,9 +4,9 @@ control: The test file every `vm_check` of the kernel suites must see fail. Its 
     blue test --allow host kernel/control.b
 """
 
-use("bpf", %i[alu assemble exit_program])
-
 use("kaaneru", %i[load run])
+
+use("kaaneru/bpf", %i[alu assemble exit_program])
 
 use("retsu", [:repeat])
 

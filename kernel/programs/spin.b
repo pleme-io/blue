@@ -1,4 +1,4 @@
-use("bpf", %i[declare_locked locked_add packet_put xdp_pass])
+use("kaaneru/bpf", %i[declare_locked locked_add packet_put xdp_pass])
 
 TOTALS = declare_locked(:spin_totals, :array, 4, 1)
 

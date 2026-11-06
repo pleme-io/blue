@@ -6,8 +6,10 @@ object_suite: Global subprograms, a spin lock and a callback in the real kernel,
 
 use("baito", %i[bytes_int int_bytes])
 
+use("kaaneru", %i[create_map install load map_get map_named prog_info])
+
 use(
-  "bpf",
+  "kaaneru/bpf",
   %i[
     alu
     assemble
@@ -28,10 +30,6 @@ use(
     xdp_pass
   ]
 )
-
-use("erufu")
-
-use("kaaneru", %i[create_map install load map_get map_named prog_info])
 
 use("retsu", %i[first repeat size])
 
@@ -91,7 +89,7 @@ def stack_reader(linkage)
         store(:dw, 10, -8, 0),
         alu(:mov, 2, r(10)),
         alu(:add, 2, r(1)),
-        bpf::load(:b, 0, 2, 0),
+        kaaneru::bpf::load(:b, 0, 2, 0),
         exit_program
       ]
     ),
@@ -104,9 +102,9 @@ end
 
 test "a global subprogram is verified alone, where a static one is verified with its caller's argument"
   plain = kaaneru::load_btf(
-    bpf::program_btf(assoc(stack_reader(:static), :kind, :xdp))[:bytes]
+    kaaneru::bpf::program_btf(assoc(stack_reader(:static), :kind, :xdp))[:bytes]
   )
-  shape = bpf::program_btf(assoc(stack_reader(:static), :kind, :xdp))
+  shape = kaaneru::bpf::program_btf(assoc(stack_reader(:static), :kind, :xdp))
   accepted = load(
     stack_reader(:static),
     {
@@ -117,7 +115,9 @@ test "a global subprogram is verified alone, where a static one is verified with
     }
   )
   assert accepted[:fd] != nil
-  global_shape = bpf::program_btf(assoc(stack_reader(:global), :kind, :xdp))
+  global_shape = kaaneru::bpf::program_btf(
+    assoc(stack_reader(:global), :kind, :xdp)
+  )
   global_btf = kaaneru::load_btf(global_shape[:bytes])
   refusal = begin
     load(
@@ -144,7 +144,7 @@ test "one source with a global subprogram that takes the context: the machine an
   )
   live = install(compiled)
   input = pair_packet(40, 2)
-  vm = bpf::run(compiled, {packet: input, maps: compiled[:maps]})
+  vm = kaaneru::bpf::run(compiled, {packet: input, maps: compiled[:maps]})
   in_kernel = kaaneru::run(live[:prog], {packet: input})
   assert in_kernel[:ret] == xdp_pass
   assert in_kernel[:packet] == packet_of(vm)
@@ -162,7 +162,7 @@ test "a spin lock taken in the real kernel: every add counted over a thousand ru
   live = install(compiled)
   totals = map_named(live, :spin_totals)
   input = repeat(0, 64)
-  vm = bpf::run(compiled, {packet: input, maps: compiled[:maps]})
+  vm = kaaneru::bpf::run(compiled, {packet: input, maps: compiled[:maps]})
   once = kaaneru::run(live[:prog], {packet: input})
   assert once[:packet] == packet_of(vm)
   assert bytes_int(once[:packet], 0, 8, :big) == 5
@@ -236,11 +236,11 @@ test "a callback in the real kernel: bpf_loop runs it, and the machine counts th
   live = install(p)
   in_kernel = kaaneru::run(live[:prog], {packet: repeat(0, 64)})
   assert in_kernel[:ret] == 3
-  assert bpf::run(p, {packet: repeat(0, 64)}).ret == 3
+  assert kaaneru::bpf::run(p, {packet: repeat(0, 64)}).ret == 3
 end
 
 def object_of(file, entry, globals)
-  erufu::object(
+  kaaneru::erufu::object(
     compile(file, {entry:, kind: :xdp, on_fault: 0, global: globals})
   )
 end
@@ -334,7 +334,7 @@ test "an object clang built reads back and loads through blue, and answers as bl
     )
   )
   tool("clang", ["-target", "bpf", "-O2", "-g", "-c", source, "-o", path])
-  back = erufu::program_of(erufu::decode(read_bytes(path)))
+  back = kaaneru::erufu::program_of(kaaneru::erufu::decode(read_bytes(path)))
   assert back[:kind] == :xdp
   assert first(back[:maps])[:lock] == true
   assert size(back[:funcs]) == 2
@@ -350,7 +350,9 @@ test "blue's reading of its own object loads as the compiled program does"
     "kernel/programs/object.b",
     {entry: :on_packet, kind: :xdp, on_fault: 0, global: [:sum_into]}
   )
-  back = erufu::program_of(erufu::decode(erufu::object(compiled)))
+  back = kaaneru::erufu::program_of(
+    kaaneru::erufu::decode(kaaneru::erufu::object(compiled))
+  )
   live = install(back)
   got = kaaneru::run(live[:prog], {packet: pair_packet(40, 2)})
   assert got[:ret] == xdp_pass

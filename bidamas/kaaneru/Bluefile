@@ -1,6 +1,10 @@
 package("kaaneru", "0.1.0")
+
+legacy_packages(
+  "0.1.0",
+  [%w[bpf kaaneru/bpf], %w[btf kaaneru/btf], %w[erufu kaaneru/erufu]]
+)
+
 needs("baito", "^0.1")
-needs("bpf", "^0.1")
-needs("btf", "^0.1")
 needs("retsu", "^0.1")
 reach(%i[filesystem kernel_bpf])

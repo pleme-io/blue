@@ -1547,7 +1547,7 @@ as written: no fix rewrites one into another.",
         severity: Error,
         fix: Machine,
         law: "a bidama that moved into another bidama's tree is used by its new path; the old name is a bridge that closes at the root's next minor version",
-        witness: "use(\"bpf\", [:compile])\n\ncompile\n",
+        witness: "use(\"kaaneru/bpf\", [:compile])\n\ncompile\n",
         imports: [("kaaneru/bpf", "def compile()\n  1\nend\n")],
         waivable: false,
         ratchet: 0,
@@ -1559,8 +1559,8 @@ Bluefile, the package twin of `legacy_names`:
     legacy_packages(\"0.2.0\", [[\"bpf\", \"kaaneru/bpf\"]])
 
 While the bridge is open, from `since` to the root's next minor version,
-`use(\"bpf\")`, `use(\"bpf\", [:compile])` and `use(\"bpf/asm\")` load the new
-path, and `bpf::compile` reaches `kaaneru::bpf::compile`, so no consumer
+`use(\"kaaneru/bpf\")`, `use(\"kaaneru/bpf\", [:compile])` and `use(\"kaaneru/bpf/asm\")` load the new
+path, and `kaaneru::bpf::compile` reaches `kaaneru::bpf::compile`, so no consumer
 breaks in the release that moves it. Each such `use`, and each qualifier
 written through the old name, is this rule. Its severity is derived, as
 B0021's is: an ERROR inside the distribution the root ships in, a WARNING for

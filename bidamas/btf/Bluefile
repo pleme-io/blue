@@ -1,4 +1,0 @@
-package("btf", "0.1.0")
-needs("baito", "^0.1")
-needs("retsu", "^0.1")
-reach(%i[filesystem])

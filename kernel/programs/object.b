@@ -1,5 +1,5 @@
 use(
-  "bpf",
+  "kaaneru/bpf",
   %i[
     declare_locked
     declare_map

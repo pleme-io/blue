@@ -1,4 +1,4 @@
-use("bpf", %i[declare_map map_add])
+use("kaaneru/bpf", %i[declare_map map_add])
 
 OPENS = declare_map(:lsm_opens, :array, 4, 8, 1)
 

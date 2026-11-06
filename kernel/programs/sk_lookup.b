@@ -1,4 +1,4 @@
-use("bpf", [:ctx_int])
+use("kaaneru/bpf", [:ctx_int])
 
 AF_INET = 2
 

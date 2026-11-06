@@ -1,18 +1,18 @@
 @moduledoc """
 erufu — an ELF relocatable object as data: written from a compiled kernel program, and read back, so `bpftool`, `veristat`, `llvm-objdump` and `readelf` apply to what blue compiles, and blue can read what clang compiles.
 
-`object` writes the bytes the kernel's own tools read: the program in a section libbpf knows by name, its subprograms in `.text`, its maps in `.maps`, its types in `.BTF` and `.BTF.ext`. `decode` reads any little-endian ELF64 object, and `program_of` links one back into a program `bpf::run` and `kaaneru::install` take. Every record is a `baito` layout.
+`object` writes the bytes the kernel's own tools read: the program in a section libbpf knows by name, its subprograms in `.text`, its maps in `.maps`, its types in `.BTF` and `.BTF.ext`. `decode` reads any little-endian ELF64 object, and `program_of` links one back into a program `kaaneru::bpf::run` and `kaaneru::install` take. Every record is a `baito` layout.
 
-    p = bpf::assemble([bpf::alu(:mov, 0, 2), bpf::exit_program])
+    p = kaaneru::bpf::assemble([kaaneru::bpf::alu(:mov, 0, 2), kaaneru::bpf::exit_program])
     bytes = object(assoc(assoc(p, :kind, :xdp), :name, "pass"))
     section_of(decode(bytes), "xdp")[:size] #=> 16
-    bpf::run(program_of(decode(bytes))).ret #=> 2
+    kaaneru::bpf::run(program_of(decode(bytes))).ret #=> 2
 """
 
 use("baito", %i[align_up layout pack slice_bytes text_of unpack width])
 
-use("bpf")
-use("btf")
+use("kaaneru/bpf")
+use("kaaneru/btf")
 use("retsu", %i[first flat_map index_of repeat rest size zip])
 
 @doc """
@@ -320,7 +320,7 @@ def encode(sections, symbols)
       map((s) -> s[:name], filter((s) -> s[:type] != :section, ordered))
     ]
   )
-  strings = btf::strings_of([], names)
+  strings = kaaneru::btf::strings_of([], names)
   skeleton = append(
     *[
       [
@@ -600,8 +600,8 @@ end
 @doc """
 relocated: one instruction as the object holds it, and its relocation: a map reference holds nothing until libbpf gives it a descriptor, a global call holds -1 and names its target, and a reference to a static function names `.text` and holds the place in it.
 
-    relocated(bpf::map_ref(1, :m), 2, {funcs: [], text_from: 9, relocs: {2 => "m"}}).rel #=> {at: 2, symbol: "m", type: :map}
-    relocated(bpf::exit_program, 0, {funcs: [], text_from: 9, relocs: {}})[:rel].nil? #=> true
+    relocated(kaaneru::bpf::map_ref(1, :m), 2, {funcs: [], text_from: 9, relocs: {2 => "m"}}).rel #=> {at: 2, symbol: "m", type: :map}
+    relocated(kaaneru::bpf::exit_program, 0, {funcs: [], text_from: 9, relocs: {}})[:rel].nil? #=> true
 """
 def relocated(i, slot, world)
   mapped = get(world[:relocs], slot)
@@ -629,8 +629,8 @@ end
 @doc """
 relocated_call: a call as the object holds it. A global function is named; a static one in the same section stays relative.
 
-    relocated_call(bpf::call_local(0), 0, {funcs: [{at: 1, name: "f", linkage: :global}], text_from: 1}).rel.symbol #=> "f"
-    (relocated_call(bpf::call_local(0), 0, {funcs: [], text_from: 1}) rescue :refused) #=> :refused
+    relocated_call(kaaneru::bpf::call_local(0), 0, {funcs: [{at: 1, name: "f", linkage: :global}], text_from: 1}).rel.symbol #=> "f"
+    (relocated_call(kaaneru::bpf::call_local(0), 0, {funcs: [], text_from: 1}) rescue :refused) #=> :refused
 """
 def relocated_call(i, slot, world)
   to = slot + 1 + (i[:imm] or 0)
@@ -656,16 +656,16 @@ end
 @doc """
 coded: a run of instructions as the bytes a section holds and its relocations, each `at` in bytes from the section's start.
 
-    coded([bpf::exit_program], 0, {funcs: [], text_from: 9, relocs: {}}).rels #=> []
-    size(coded([bpf::exit_program], 0, {funcs: [], text_from: 9, relocs: {}}).bytes) #=> 8
+    coded([kaaneru::bpf::exit_program], 0, {funcs: [], text_from: 9, relocs: {}}).rels #=> []
+    size(coded([kaaneru::bpf::exit_program], 0, {funcs: [], text_from: 9, relocs: {}}).bytes) #=> 8
 """
 def coded(insns, from, world)
   got = reduce(
     fn(acc, i)
       r = relocated(i, acc[:slot], world)
       {
-        slot: acc[:slot] + bpf::slots_of(i),
-        chunks: append(acc[:chunks], [bpf::encode_insn(r[:insn])]),
+        slot: acc[:slot] + kaaneru::bpf::slots_of(i),
+        chunks: append(acc[:chunks], [kaaneru::bpf::encode_insn(r[:insn])]),
         rels: if r[:rel].nil?
           acc[:rels]
         else
@@ -682,7 +682,7 @@ end
 @doc """
 slot_split: instructions before a slot and from it.
 
-    size(first(slot_split([bpf::exit_program, bpf::exit_program], 1))) #=> 1
+    size(first(slot_split([kaaneru::bpf::exit_program, kaaneru::bpf::exit_program], 1))) #=> 1
     slot_split([], 0) #=> [[], []]
 """
 def slot_split(insns, at)
@@ -690,13 +690,13 @@ def slot_split(insns, at)
     fn(acc, i)
       if acc[:slot] < at
         {
-          slot: acc[:slot] + bpf::slots_of(i),
+          slot: acc[:slot] + kaaneru::bpf::slots_of(i),
           early: append(acc[:early], [i]),
           late: acc[:late]
         }
       else
         {
-          slot: acc[:slot] + bpf::slots_of(i),
+          slot: acc[:slot] + kaaneru::bpf::slots_of(i),
           early: acc[:early],
           late: append(acc[:late], [i])
         }
@@ -757,7 +757,7 @@ end
 @doc """
 map_symbols: each map's symbol, at its place in `.maps`.
 
-    map_symbols([bpf::declare_map(:m, :array, 4, 8, 1)], {"m" => {size: 32}})[0][:value] #=> 0
+    map_symbols([kaaneru::bpf::declare_map(:m, :array, 4, 8, 1)], {"m" => {size: 32}})[0][:value] #=> 0
     map_symbols([], {}) #=> []
 """
 def map_symbols(maps, vars)
@@ -790,21 +790,21 @@ def map_symbols(maps, vars)
 end
 
 @doc """
-object: a compiled or assembled program as an ELF object's bytes, in the shape clang gives the same program: the entry in the section libbpf names its type by, subprograms in `.text`, maps in `.maps`, `license`, `.BTF` and `.BTF.ext`. `opts` takes {section:} for a program whose section names a target, such as "fentry/do_sys_openat2", and {license:}. A program whose fields are not yet bound to a kernel raises, naming `bpf::bind_fields`.
+object: a compiled or assembled program as an ELF object's bytes, in the shape clang gives the same program: the entry in the section libbpf names its type by, subprograms in `.text`, maps in `.maps`, `license`, `.BTF` and `.BTF.ext`. `opts` takes {section:} for a program whose section names a target, such as "fentry/do_sys_openat2", and {license:}. A program whose fields are not yet bound to a kernel raises, naming `kaaneru::bpf::bind_fields`.
 
-    size(object(bpf::assemble([bpf::exit_program]), {section: "xdp"})) > 64 #=> true
-    (object(assoc(bpf::assemble([]), :fields, [{}]), {section: "xdp"}) rescue :refused) #=> :refused
+    size(object(kaaneru::bpf::assemble([kaaneru::bpf::exit_program]), {section: "xdp"})) > 64 #=> true
+    (object(assoc(kaaneru::bpf::assemble([]), :fields, [{}]), {section: "xdp"}) rescue :refused) #=> :refused
 """
 def object(p, opts?)
   given = opts or {}
   if (p[:fields] or []) != []
     raise(
       :bad_option,
-      "this program reads kernel fields: bind them first with bpf::bind_fields, as an object here holds no CO-RE relocations"
+      "this program reads kernel fields: bind them first with kaaneru::bpf::bind_fields, as an object here holds no CO-RE relocations"
     )
   end
   kind = p[:kind] or :xdp
-  section = given[:section] or bpf::section_name(kind)
+  section = given[:section] or kaaneru::bpf::section_name(kind)
   funcs = functions_of(p)
   maps = p[:maps] or []
   shaped = reduce(
@@ -812,7 +812,7 @@ def object(p, opts?)
     p,
     [[:funcs, funcs], [:kind, kind], [:license, given[:license] or "GPL"]]
   )
-  types = bpf::program_btf(shaped)
+  types = kaaneru::bpf::program_btf(shaped)
   boundary = split_at(p, funcs)
   world = {
     funcs:,
@@ -944,10 +944,10 @@ end
 @doc """
 types_with_section: the `.BTF` bytes, the entry's section among its strings.
 
-    btf::read(types_with_section({types: [], names: []}, "xdp"))[:count] #=> 0
+    kaaneru::btf::read(types_with_section({types: [], names: []}, "xdp"))[:count] #=> 0
 """
 def types_with_section(types, section)
-  btf::encode(types[:types], append(types[:names], [section]))
+  kaaneru::btf::encode(types[:types], append(types[:names], [section]))
 end
 
 @doc """
@@ -956,10 +956,10 @@ ext_with_section: the `.BTF.ext` bytes for an object whose entry sits in this se
     size(ext_with_section({types: [], names: [], func_info: []}, "xdp", [])) #=> 32
 """
 def ext_with_section(types, section, funcs)
-  btf::encode_ext(
+  kaaneru::btf::encode_ext(
     types[:types],
     append(types[:names], [section]),
-    bpf::func_info_sections(
+    kaaneru::bpf::func_info_sections(
       map((row) -> [first(row), row[1][:type]], zip(funcs, types[:func_info])),
       section
     )
@@ -999,17 +999,20 @@ end
 @doc """
 map_rows: a BTF-defined map's members by name: an integer is a pointer to an array of that many, a type a pointer to it.
 
-    map_rows(btf::read(btf::encode([])), {members: []}) #=> {}
+    map_rows(kaaneru::btf::read(kaaneru::btf::encode([])), {members: []}) #=> {}
 """
 def map_rows(table, shape)
   reduce(
     fn(acc, m)
-      target = btf::type_at(table, btf::type_at(table, m[:type])[:type])
+      target = kaaneru::btf::type_at(
+        table,
+        kaaneru::btf::type_at(table, m[:type])[:type]
+      )
       if target[:kind] == :array
         assoc(acc, m[:name], target[:count])
       else
         assoc(
-          assoc(acc, m[:name], btf::size_of(table, target[:id])),
+          assoc(acc, m[:name], kaaneru::btf::size_of(table, target[:id])),
           "#{m[:name]}_type",
           target[:id]
         )
@@ -1023,16 +1026,18 @@ end
 @doc """
 has_lock?: whether a value type holds a `struct bpf_spin_lock`.
 
-    has_lock?(btf::read(btf::encode([])), nil) #=> false
+    has_lock?(kaaneru::btf::read(kaaneru::btf::encode([])), nil) #=> false
 """
 def has_lock?(table, id)
   if id.nil?
     false
   else
-    t = btf::resolved(table, id)
+    t = kaaneru::btf::resolved(table, id)
     t[:kind] == :struct and
       filter(
-        (m) -> btf::resolved(table, m[:type])[:name] == "bpf_spin_lock",
+        fn(m)
+          kaaneru::btf::resolved(table, m[:type])[:name] == "bpf_spin_lock"
+        end,
         t[:members]
       ) != []
   end
@@ -1041,15 +1046,15 @@ end
 @doc """
 map_of_var: the map shape a `.maps` variable declares.
 
-    (map_of_var(btf::read(btf::encode([])), 1) rescue :refused) #=> :refused
+    (map_of_var(kaaneru::btf::read(kaaneru::btf::encode([])), 1) rescue :refused) #=> :refused
 """
 def map_of_var(table, var_id)
-  var = btf::type_at(table, var_id)
-  rows = map_rows(table, btf::resolved(table, var[:type]))
+  var = kaaneru::btf::type_at(table, var_id)
+  rows = map_rows(table, kaaneru::btf::resolved(table, var[:type]))
   value_type = rows["value_type"]
-  shape = bpf::declare_map(
+  shape = kaaneru::bpf::declare_map(
     var[:name],
-    bpf::map_kinds[rows["type"]],
+    kaaneru::bpf::map_kinds[rows["type"]],
     rows["key"] or rows["key_size"] or 0,
     rows["value"] or rows["value_size"] or 0,
     rows["max_entries"] or 0
@@ -1069,19 +1074,22 @@ end
 @doc """
 maps_of: the maps a decoded object's `.BTF` declares in `.maps`.
 
-    maps_of(decode(object(bpf::assemble([bpf::exit_program]), {section: "xdp"}))) #=> []
+    maps_of(decode(object(kaaneru::bpf::assemble([kaaneru::bpf::exit_program]), {section: "xdp"}))) #=> []
 """
 def maps_of(o)
   blob = section_of(o, ".BTF")
   if blob.nil?
     []
   else
-    table = btf::read(blob[:bytes])
-    id = btf::find(table, ".maps", :datasec)
+    table = kaaneru::btf::read(blob[:bytes])
+    id = kaaneru::btf::find(table, ".maps", :datasec)
     if id.nil?
       []
     else
-      map((v) -> map_of_var(table, v[:type]), btf::type_at(table, id)[:vars])
+      map(
+        (v) -> map_of_var(table, v[:type]),
+        kaaneru::btf::type_at(table, id)[:vars]
+      )
     end
   end
 end
@@ -1089,14 +1097,14 @@ end
 @doc """
 fixed_blob: the `.BTF` as the kernel takes it: a data section's size and each variable's place come from the object's symbols, as clang leaves them for libbpf to fill.
 
-    btf::read(fixed_blob({sections: [{name: ".maps", size: 0}], symbols: []}, btf::encode([])))[:count] #=> 0
+    kaaneru::btf::read(fixed_blob({sections: [{name: ".maps", size: 0}], symbols: []}, kaaneru::btf::encode([])))[:count] #=> 0
 """
 def fixed_blob(o, blob)
-  table = btf::read(blob)
+  table = kaaneru::btf::read(blob)
   count = table[:count]
   words = reduce(
     fn(acc, id)
-      t = btf::type_at(table, id)
+      t = kaaneru::btf::type_at(table, id)
       if t[:kind] == :datasec
         fixed_datasec(acc, o, table, t)
       else
@@ -1106,11 +1114,11 @@ def fixed_blob(o, blob)
     table[:words],
     range(1, count + 1)
   )
-  h = btf::header_of(blob)
+  h = kaaneru::btf::header_of(blob)
   append(
     *[
       map((i) -> blob[i], range(0, h[:header])),
-      flat_map(words, btf::word_bytes),
+      flat_map(words, kaaneru::btf::word_bytes),
       map((i) -> blob[h[:str_off] + i], range(0, h[:str_len]))
     ]
   )
@@ -1119,7 +1127,7 @@ end
 @doc """
 fixed_datasec: type words with one data section's size and its variables' places filled in from symbols.
 
-    fixed_datasec([], {sections: [], symbols: []}, btf::read(btf::encode([])), {name: ".x", id: 1, vars: []}) #=> []
+    fixed_datasec([], {sections: [], symbols: []}, kaaneru::btf::read(kaaneru::btf::encode([])), {name: ".x", id: 1, vars: []}) #=> []
 """
 def fixed_datasec(words, o, table, t)
   at = get(table[:starts], t[:id])
@@ -1133,7 +1141,7 @@ def fixed_datasec(words, o, table, t)
     fn(acc, row)
       i = first(row)
       v = row[1]
-      name = btf::type_at(table, v[:type])[:name]
+      name = kaaneru::btf::type_at(table, v[:type])[:name]
       sym = find(o[:symbols], (x) -> x[:name] == name)
       if sym.nil?
         acc
@@ -1171,8 +1179,8 @@ end
 @doc """
 linked_rel: one instruction of a section given what its relocation names: a map named, a call or function reference made relative. `base` is where this section lands in the linked program, and `text_base` where `.text` does.
 
-    linked_rel(bpf::exit_program, nil, 0, 0, 9).code #=> 149
-    linked_rel(assoc(bpf::imm64(1, 0), :src, 0), {sym: {section: ".maps", name: "m", value: 0, type: :object}}, 0, 0, 9).map #=> "m"
+    linked_rel(kaaneru::bpf::exit_program, nil, 0, 0, 9).code #=> 149
+    linked_rel(assoc(kaaneru::bpf::imm64(1, 0), :src, 0), {sym: {section: ".maps", name: "m", value: 0, type: :object}}, 0, 0, 9).map #=> "m"
 """
 def linked_rel(i, rel, slot, _base, text_base)
   if rel.nil?
@@ -1215,7 +1223,7 @@ def linked_section(s, rels, base, text_base)
         text_base
       )
       {
-        slot: slot + bpf::slots_of(i),
+        slot: slot + kaaneru::bpf::slots_of(i),
         insns: append(acc[:insns], [dissoc(fixed, :map)]),
         relocs: if fixed[:map] != nil
           append(acc[:relocs], [{at: slot, map: fixed[:map]}])
@@ -1225,7 +1233,7 @@ def linked_section(s, rels, base, text_base)
       }
     end,
     {slot: base, insns: [], relocs: []},
-    bpf::decode(s[:bytes])
+    kaaneru::bpf::decode(s[:bytes])
   )
   {insns: got[:insns], relocs: got[:relocs]}
 end
@@ -1254,7 +1262,7 @@ end
 @doc """
 info_of: an object's func_info as the linked program's rows, each `at` by slot, and each row's function: {funcs:, func_info:}.
 
-    info_of(decode(object(bpf::assemble([bpf::exit_program]), {section: "xdp"})), "xdp", 1)[:func_info] #=> [{at: 0, type: 6}]
+    info_of(decode(object(kaaneru::bpf::assemble([kaaneru::bpf::exit_program]), {section: "xdp"})), "xdp", 1)[:func_info] #=> [{at: 0, type: 6}]
 """
 def info_of(o, section, main_slots)
   blob = section_of(o, ".BTF")
@@ -1262,11 +1270,11 @@ def info_of(o, section, main_slots)
   if blob.nil? or ext.nil?
     {funcs: nil, func_info: []}
   else
-    table = btf::read(blob[:bytes])
+    table = kaaneru::btf::read(blob[:bytes])
     rows = sort_keyed(
       (r) -> r[:at],
       flat_map(
-        btf::read_ext(ext[:bytes], blob[:bytes]),
+        kaaneru::btf::read_ext(ext[:bytes], blob[:bytes]),
         fn(s)
           if s[:section] == section
             map((f) -> {at: floor(f[:at] / 8), type: f[:type]}, s[:funcs])
@@ -1285,7 +1293,7 @@ def info_of(o, section, main_slots)
       func_info: rows,
       funcs: map(
         fn(r)
-          t = btf::type_at(table, r[:type])
+          t = kaaneru::btf::type_at(table, r[:type])
           {
             name: t[:name],
             at: r[:at],
@@ -1306,7 +1314,7 @@ end
 @doc """
 program_of: a decoded object linked into a program, as libbpf links one: the section named, or the first program section, then the whole of `.text` when anything reaches it. Its maps, functions and BTF come from the object, and a program type its section does not name is nil. An object for another machine raises.
 
-    bpf::run(program_of(decode(object(bpf::assemble([bpf::alu(:mov, 0, 3), bpf::exit_program]), {section: "xdp"})))).ret #=> 3
+    kaaneru::bpf::run(program_of(decode(object(kaaneru::bpf::assemble([kaaneru::bpf::alu(:mov, 0, 3), kaaneru::bpf::exit_program]), {section: "xdp"})))).ret #=> 3
     (program_of(assoc_machine(decode(encode([], [])))) rescue :refused) #=> :refused
 """
 def program_of(o, name?)
@@ -1396,7 +1404,7 @@ sample_program: a compiled program with a map and a global subprogram, for tests
     size(sample_program[:funcs]) #=> 2
 """
 def sample_program()
-  compiled = bpf::compile_forms(
+  compiled = kaaneru::bpf::compile_forms(
     read_forms("(define %root/M (bpf/declare_map :counts :array 4 8 4)) (define (%root/g a b) (+ a b)) (define (%root/e c) (begin (bpf/map_add %root/M 1 2) (%root/g 40 2)))"),
     {entry: :e, kind: :xdp, on_fault: 0, global: [:g]}
   )
@@ -1404,7 +1412,7 @@ def sample_program()
 end
 
 test "an empty program has an empty section and nothing else breaks"
-  bytes = object(bpf::assemble([]), {section: "xdp"})
+  bytes = object(kaaneru::bpf::assemble([]), {section: "xdp"})
   o = decode(bytes)
   assert section_of(o, "xdp")[:size] == 0
   assert section_of(o, ".text")[:size] == 0
@@ -1416,7 +1424,7 @@ test "a written object reads back: the same instructions, relocations, maps and 
   p = sample_program
   o = decode(object(p))
   back = program_of(o)
-  assert bpf::encode(back) == bpf::encode(p)
+  assert kaaneru::bpf::encode(back) == kaaneru::bpf::encode(p)
   assert size(back[:funcs]) == 2
   assert map((f) -> f[:name], back[:funcs]) == %w[e g]
   assert first(back[:maps])[:name] == "counts"
@@ -1424,16 +1432,18 @@ test "a written object reads back: the same instructions, relocations, maps and 
   assert first(back[:maps])[:value_size] == 8
   assert first(back[:relocs])[:map] == "counts"
   assert back[:kind] == :xdp
-  assert bpf::run(back, {maps: back[:maps]}).ret == 42
-  assert bpf::run(p, {maps: p[:maps]}).ret == 42
+  assert kaaneru::bpf::run(back, {maps: back[:maps]}).ret == 42
+  assert kaaneru::bpf::run(p, {maps: p[:maps]}).ret == 42
 end
 
 test "the bytes of the header and of a relocation are those the format states, checked by hand"
   o = object(
     assoc(
-      bpf::assemble([bpf::map_ref(1, :m), bpf::exit_program]),
+      kaaneru::bpf::assemble(
+        [kaaneru::bpf::map_ref(1, :m), kaaneru::bpf::exit_program]
+      ),
       :maps,
-      [bpf::declare_map(:m, :array, 4, 8, 1)]
+      [kaaneru::bpf::declare_map(:m, :array, 4, 8, 1)]
     ),
     {section: "xdp", license: "GPL"}
   )
@@ -1463,8 +1473,8 @@ test "a global call holds -1 and names its target, and symbols order locals firs
   named = find(calls, (r) -> r[:symbol] == "g")
   assert named[:type] == 10
   at = floor(named[:at] / 8)
-  called = bpf::decode(section_of(o, "xdp")[:bytes])
-  assert get(bpf::slot_table(called), at)[:imm] == -1
+  called = kaaneru::bpf::decode(section_of(o, "xdp")[:bytes])
+  assert get(kaaneru::bpf::slot_table(called), at)[:imm] == -1
   symtab = section_of(o, ".symtab")
   assert symtab[:info] == 1
   assert first(rest(o[:symbols]))[:bind] == :global
@@ -1472,18 +1482,18 @@ test "a global call holds -1 and names its target, and symbols order locals firs
 end
 
 test "a static callback is reached through .text, and a reader links it back"
-  p = bpf::with_funcs(
-    bpf::assemble(
+  p = kaaneru::bpf::with_funcs(
+    kaaneru::bpf::assemble(
       [
-        bpf::alu(:mov, 1, 3),
-        bpf::func_ref(2, :cb),
-        bpf::alu(:mov, 3, 0),
-        bpf::alu(:mov, 4, 0),
-        bpf::call(:loop),
-        bpf::exit_program,
-        bpf::label(:cb),
-        bpf::alu(:mov, 0, 0),
-        bpf::exit_program
+        kaaneru::bpf::alu(:mov, 1, 3),
+        kaaneru::bpf::func_ref(2, :cb),
+        kaaneru::bpf::alu(:mov, 3, 0),
+        kaaneru::bpf::alu(:mov, 4, 0),
+        kaaneru::bpf::call(:loop),
+        kaaneru::bpf::exit_program,
+        kaaneru::bpf::label(:cb),
+        kaaneru::bpf::alu(:mov, 0, 0),
+        kaaneru::bpf::exit_program
       ]
     ),
     [
@@ -1492,16 +1502,16 @@ test "a static callback is reached through .text, and a reader links it back"
     ]
   )
   back = program_of(decode(object(assoc(p, :kind, :xdp))))
-  assert bpf::encode(back) == bpf::encode(p)
-  assert bpf::run(back).ret == 3
+  assert kaaneru::bpf::encode(back) == kaaneru::bpf::encode(p)
+  assert kaaneru::bpf::run(back).ret == 3
 end
 
 test "a function list reads in slot order whichever section .BTF.ext names first, as clang writes .text first"
   names = %w[xdp .text]
   types = [
-    btf::proto_type(0, []),
-    btf::linked_type(:func, "e", 1, :global),
-    btf::linked_type(:func, "g", 1, :global)
+    kaaneru::btf::proto_type(0, []),
+    kaaneru::btf::linked_type(:func, "e", 1, :global),
+    kaaneru::btf::linked_type(:func, "g", 1, :global)
   ]
   sections = [
     {section: ".text", funcs: [{at: 0, type: 3}]},
@@ -1515,14 +1525,14 @@ test "a function list reads in slot order whichever section .BTF.ext names first
           type: :progbits,
           flags: [],
           align: 4,
-          bytes: btf::encode(types, names)
+          bytes: kaaneru::btf::encode(types, names)
         },
         {
           name: ".BTF.ext",
           type: :progbits,
           flags: [],
           align: 4,
-          bytes: btf::encode_ext(types, names, sections)
+          bytes: kaaneru::btf::encode_ext(types, names, sections)
         }
       ],
       []
@@ -1536,7 +1546,10 @@ end
 test "bytes that are no ELF, a big-endian ELF, a truncated one and another machine each refuse by name"
   assert (decode([]) rescue :refused) == :refused
   assert (decode(repeat(0, 80)) rescue :refused) == :refused
-  good = object(bpf::assemble([bpf::exit_program]), {section: "xdp"})
+  good = object(
+    kaaneru::bpf::assemble([kaaneru::bpf::exit_program]),
+    {section: "xdp"}
+  )
   big = replaced(good, 5, 2)
   assert (decode(big) rescue :refused) == :refused
   short = slice_bytes(good, 0, 100)
@@ -1545,11 +1558,19 @@ test "bytes that are no ELF, a big-endian ELF, a truncated one and another machi
 end
 
 test "a program with unbound kernel fields, a map value reference and a section that is none each refuse by name"
-  bound = assoc(bpf::assemble([bpf::exit_program]), :fields, [{at: 0}])
+  bound = assoc(
+    kaaneru::bpf::assemble([kaaneru::bpf::exit_program]),
+    :fields,
+    [{at: 0}]
+  )
   assert (object(bound, {section: "xdp"}) rescue :refused) == :refused
-  valued = bpf::assemble([bpf::map_value_ref(1, :m, 0), bpf::exit_program])
+  valued = kaaneru::bpf::assemble(
+    [kaaneru::bpf::map_value_ref(1, :m, 0), kaaneru::bpf::exit_program]
+  )
   assert (object(valued, {section: "xdp"}) rescue :refused) == :refused
-  named = bpf::assemble([bpf::map_ref(1, :absent), bpf::exit_program])
+  named = kaaneru::bpf::assemble(
+    [kaaneru::bpf::map_ref(1, :absent), kaaneru::bpf::exit_program]
+  )
   assert (object(named, {section: "xdp"}) rescue :refused) == :refused
   assert (program_of(decode(encode([], [])), "gone") rescue :refused) ==
     :refused

@@ -113,13 +113,13 @@ Every "measured on plo" row ran on 6.12.93, 2026-11-03 or 2026-11-04, and every 
 | encoder, every instruction form | built, checked against LLVM | `kernel/isa_llvm.b`: 166 of 166 byte-identical to `llvm-mc --mcpu=v4` |
 | machine against the kernel: ALU, jumps, swaps, memory, atomics | built, measured on plo | `kernel/suite.b`: 7,168 ALU programs over edge values |
 | maps, ring buffer, pins, program id, verifier log | built, measured on plo | `kernel/suite.b` |
-| compiler: integers, booleans, locals, `if`, inlined calls, tail loops, maps, packets, events, helpers | built | `bidamas/bpf/bpf.b`; 21 of 21 mutants caught |
+| compiler: integers, booleans, locals, `if`, inlined calls, tail loops, maps, packets, events, helpers | built | `bidamas/kaaneru/bpf/bpf.b`; 21 of 21 mutants caught |
 | one source agrees in interpreter, machine and kernel | built, measured on plo | `kernel/suite.b`, "one source": 456 inputs |
 | tracepoint attach and detach | built, measured on plo | `kernel/suite.b` |
 | kprobe through a perf event | built, measured on plo | `kernel/suite.b`; a NixOS 25.11 kernel leaves `CONFIG_FPROBE` off |
 | kprobe_multi | built, and a named refusal on plo, 6.6.142, 6.12.92 and 7.0.11 | `kernel/suite.b`: answers `EOPNOTSUPP`, held there by `vm_check`; the path that succeeds has not run |
 | XDP and tcx on a real interface | built, measured on plo | `kernel/net_suite.b`: ping drops, is counted, returns on detach |
-| `btf`: read a kernel's types, find a hook, a field's offset through anonymous unions | built, measured on plo's 115,470 types | `bidamas/btf/btf.b`; `kernel/suite.b` |
+| `btf`: read a kernel's types, find a hook, a field's offset through anonymous unions | built, measured on plo's 115,470 types | `bidamas/kaaneru/btf/btf.b`; `kernel/suite.b` |
 | fentry found through BTF, a field read at the kernel's own offset | built, measured on plo | `kernel/suite.b`: the field equals the thread id |
 | LSM program that counts, and one that denies only its target | built, measured on plo | `kernel/suite.b` |
 | a field of another size on this kernel refuses at load | built | `bpf::bind_fields` |

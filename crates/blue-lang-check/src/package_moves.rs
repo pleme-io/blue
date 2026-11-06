@@ -1,7 +1,7 @@
 //! B0074: a bidama that moved into another bidama's tree, written by its old
 //! name. The root it moved into declares the move in its Bluefile,
 //! `legacy_packages("0.2.0", [["bpf", "kaaneru/bpf"]])`, and the resolver
-//! loads `use("bpf")` as `kaaneru/bpf` ([`crate::names::PackageBridge`]). This
+//! loads `use("kaaneru/bpf")` as `kaaneru/bpf` ([`crate::names::PackageBridge`]). This
 //! is the package twin of B0021: the old spelling resolves while the bridge is
 //! open, is reported where it is written, and `blue check --fix` writes the
 //! new path, in the `use`, in every qualifier that crossed the bridge, and,
@@ -79,7 +79,7 @@ fn headline(b: &PackageBridge) -> String {
 }
 
 /// The string literal a `use` names its path with, when it is one: the
-/// value of `use({s: "bpf"})`, or the first argument of `use("bpf", …)`.
+/// value of `use({s: "bpf"})`, or the first argument of `use("kaaneru/bpf", …)`.
 /// Any other spelling is the author's, and only its qualifiers are fixed.
 fn path_literal<'f>(form: &'f Spanned, import: &Import) -> Option<(&'f Spanned, &'f str)> {
     fn find(form: &Spanned, at: Span) -> Option<(&Spanned, &str)> {

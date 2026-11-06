@@ -1,15 +1,15 @@
 @moduledoc """
-object_llvm: The same program built two ways, blue's `erufu::object` and clang from generated C, read by LLVM's own tools and compared.
+object_llvm: The same program built two ways, blue's `kaaneru::erufu::object` and clang from generated C, read by LLVM's own tools and compared.
 
-The C holds naked functions over assembly `bpf::text` prints, so its instructions are blue's by construction and every other difference is the object's. Clang is an oracle here alone: nothing in the build path needs it.
+The C holds naked functions over assembly `kaaneru::bpf::text` prints, so its instructions are blue's by construction and every other difference is the object's. Clang is an oracle here alone: nothing in the build path needs it.
 
     blue kernel/object_llvm.b CLANG LLVM_OBJDUMP LLVM_READOBJ READELF
 """
 
-use("bpf")
-use("btf")
 use("deeta", [:json_at])
-use("erufu")
+use("kaaneru/bpf")
+use("kaaneru/btf")
+use("kaaneru/erufu")
 use("retsu", %i[first flat_map rest size])
 
 @doc """
@@ -44,13 +44,13 @@ def signature_c(f)
 end
 
 @doc """
-map_c: a map's definition in the generated C, as `bpf::map_btf` says it.
+map_c: a map's definition in the generated C, as `kaaneru::bpf::map_btf` says it.
 
-    contains?(map_c(bpf::declare_map(:m, :array, 4, 8, 1)), "(*value_size)[8]") #=> true
-    contains?(map_c(bpf::declare_locked(:m, :array, 4, 1)), "struct blue_locked *value") #=> true
+    contains?(map_c(kaaneru::bpf::declare_map(:m, :array, 4, 8, 1)), "(*value_size)[8]") #=> true
+    contains?(map_c(kaaneru::bpf::declare_locked(:m, :array, 4, 1)), "struct blue_locked *value") #=> true
 """
 def map_c(m)
-  kind = retsu::index_of(bpf::map_kinds, m[:kind])
+  kind = retsu::index_of(kaaneru::bpf::map_kinds, m[:kind])
   inner = if m[:lock] == true
     "unsigned int *key; struct blue_locked *value;"
   else
@@ -62,32 +62,32 @@ end
 @doc """
 insn_text: one instruction as assembly, a map or a function by its symbol.
 
-    insn_text(bpf::exit_program, 0, {relocs: {}, funcs: []}) #=> "exit"
-    insn_text(bpf::map_ref(1, :m), 0, {relocs: {0 => "m"}, funcs: []}) #=> "r1 = m ll"
+    insn_text(kaaneru::bpf::exit_program, 0, {relocs: {}, funcs: []}) #=> "exit"
+    insn_text(kaaneru::bpf::map_ref(1, :m), 0, {relocs: {0 => "m"}, funcs: []}) #=> "r1 = m ll"
 """
 def insn_text(i, slot, world)
   mapped = get(world[:relocs], slot)
   if mapped != nil
     "r#{to_s(i[:dst])} = #{mapped} ll"
   elsif i[:code] == 133 and i[:src] == 1
-    callee = erufu::function_at(world[:funcs], slot + 1 + i[:imm])
+    callee = kaaneru::erufu::function_at(world[:funcs], slot + 1 + i[:imm])
     "call #{callee[:name]}"
   else
-    bpf::text(i)
+    kaaneru::bpf::text(i)
   end
 end
 
 @doc """
 function_c: one function as a naked C function, its instructions the slots given.
 
-    contains?(function_c({name: "e", params: [:ctx]}, [bpf::exit_program], 0, "xdp", {relocs: {}, funcs: []}), "naked") #=> true
+    contains?(function_c({name: "e", params: [:ctx]}, [kaaneru::bpf::exit_program], 0, "xdp", {relocs: {}, funcs: []}), "naked") #=> true
 """
 def function_c(f, insns, from, section, world)
   lines = get(
     reduce(
       fn(acc, i)
         {
-          slot: acc[:slot] + bpf::slots_of(i),
+          slot: acc[:slot] + kaaneru::bpf::slots_of(i),
           rows: append(
             acc[:rows],
             ["  \"#{insn_text(i, acc[:slot], world)}\\n\""]
@@ -120,7 +120,7 @@ end
 @doc """
 source_c: a whole compiled program as C.
 
-    contains?(source_c(bpf::compile_forms(read_forms("(define (%root/e c) 2)"), {entry: :e, kind: :xdp})), "_license") #=> true
+    contains?(source_c(kaaneru::bpf::compile_forms(read_forms("(define (%root/e c) 2)"), {entry: :e, kind: :xdp})), "_license") #=> true
 """
 def source_c(p)
   funcs = p[:funcs]
@@ -132,8 +132,8 @@ def source_c(p)
       p[:relocs]
     )
   }
-  boundary = erufu::split_at(p, funcs)
-  parts = erufu::slot_split(p[:insns], boundary)
+  boundary = kaaneru::erufu::split_at(p, funcs)
+  parts = kaaneru::erufu::slot_split(p[:insns], boundary)
   subs = rest(funcs)
   by_sub = reduce(
     fn(acc, row)
@@ -144,7 +144,7 @@ def source_c(p)
       else
         p[:slots]
       end
-      cut = erufu::slot_split(acc[:left], stop - f[:at])
+      cut = kaaneru::erufu::slot_split(acc[:left], stop - f[:at])
       {
         left: cut[1],
         rows: append(
@@ -172,7 +172,7 @@ def source_c(p)
             first(funcs),
             first(parts),
             0,
-            bpf::section_name(p[:kind]),
+            kaaneru::bpf::section_name(p[:kind]),
             world
           )
         ],
@@ -344,11 +344,11 @@ end
 @doc """
 type_text: a BTF type as text with its ids gone, so two blobs compare by what they mean.
 
-    type_text(btf::read(btf::encode([btf::int_type("int", 4)])), 1) #=> "int int 4"
-    type_text(btf::read(btf::encode([])), 0) #=> "void"
+    type_text(kaaneru::btf::read(kaaneru::btf::encode([kaaneru::btf::int_type("int", 4)])), 1) #=> "int int 4"
+    type_text(kaaneru::btf::read(kaaneru::btf::encode([])), 0) #=> "void"
 """
 def type_text(table, id)
-  t = btf::type_at(table, id)
+  t = kaaneru::btf::type_at(table, id)
   case t[:kind]
   when :void
     "void"
@@ -375,16 +375,16 @@ end
 @doc """
 btf_rows: each function, variable and data section of a blob as text, after libbpf's fixup of a data section's places.
 
-    btf_rows({sections: [], symbols: []}, btf::encode([])) #=> []
+    btf_rows({sections: [], symbols: []}, kaaneru::btf::encode([])) #=> []
 """
 def btf_rows(o, blob)
-  table = btf::read(erufu::fixed_blob(o, blob))
+  table = kaaneru::btf::read(kaaneru::erufu::fixed_blob(o, blob))
   sorted_rows(
     filter(
       (r) -> r != nil,
       map(
         fn(id)
-          t = btf::type_at(table, id)
+          t = kaaneru::btf::type_at(table, id)
           case t[:kind]
           when :func
             "func #{t[:name]} linkage #{to_s(bit_and(t[:vlen], 3))} #{type_text(table, t[:type])}"
@@ -393,7 +393,7 @@ def btf_rows(o, blob)
           when :datasec
             vars = map(
               fn(v)
-                "#{btf::type_at(table, v[:type])[:name]}@#{to_s(v[:offset])}+#{to_s(v[:size])}"
+                "#{kaaneru::btf::type_at(table, v[:type])[:name]}@#{to_s(v[:offset])}+#{to_s(v[:size])}"
               end,
               t[:vars]
             )
@@ -409,18 +409,21 @@ end
 @doc """
 func_info_rows: `.BTF.ext`'s functions as text: section, byte offset and function name.
 
-    func_info_rows(erufu::decode(erufu::object(bpf::assemble([bpf::exit_program]), {section: "xdp"}))) #=> ["xdp 0 blue"]
+    func_info_rows(kaaneru::erufu::decode(kaaneru::erufu::object(kaaneru::bpf::assemble([kaaneru::bpf::exit_program]), {section: "xdp"}))) #=> ["xdp 0 blue"]
 """
 def func_info_rows(o)
-  blob = erufu::section_of(o, ".BTF")[:bytes]
-  table = btf::read(blob)
+  blob = kaaneru::erufu::section_of(o, ".BTF")[:bytes]
+  table = kaaneru::btf::read(blob)
   sorted_rows(
     flat_map(
-      btf::read_ext(erufu::section_of(o, ".BTF.ext")[:bytes], blob),
+      kaaneru::btf::read_ext(
+        kaaneru::erufu::section_of(o, ".BTF.ext")[:bytes],
+        blob
+      ),
       fn(s)
         map(
           fn(f)
-            "#{s[:section]} #{to_s(f[:at])} #{btf::type_at(table, f[:type])[:name]}"
+            "#{s[:section]} #{to_s(f[:at])} #{kaaneru::btf::type_at(table, f[:type])[:name]}"
           end,
           s[:funcs]
         )
@@ -458,8 +461,8 @@ views: every view of two objects, by LLVM's tools and by the BTF each holds.
 def views(tools, blue_path, clang_path)
   ours = readobj_of(tools[:readobj], blue_path)
   theirs = readobj_of(tools[:readobj], clang_path)
-  blue_o = erufu::decode(read_bytes(blue_path))
-  clang_o = erufu::decode(read_bytes(clang_path))
+  blue_o = kaaneru::erufu::decode(read_bytes(blue_path))
+  clang_o = kaaneru::erufu::decode(read_bytes(clang_path))
   [
     verdict("sections", section_rows(ours), section_rows(theirs)),
     verdict("symbols", symbol_rows(ours), symbol_rows(theirs)),
@@ -471,8 +474,8 @@ def views(tools, blue_path, clang_path)
     ),
     verdict(
       "BTF",
-      btf_rows(blue_o, erufu::section_of(blue_o, ".BTF")[:bytes]),
-      btf_rows(clang_o, erufu::section_of(clang_o, ".BTF")[:bytes])
+      btf_rows(blue_o, kaaneru::erufu::section_of(blue_o, ".BTF")[:bytes]),
+      btf_rows(clang_o, kaaneru::erufu::section_of(clang_o, ".BTF")[:bytes])
     ),
     verdict("func_info", func_info_rows(blue_o), func_info_rows(clang_o))
   ]
@@ -495,7 +498,7 @@ tampered: an object's bytes with one instruction's first byte changed, for the c
     tampered([1, 2, 3], 1) #=> [1, 3, 3]
 """
 def tampered(bytes, at)
-  erufu::replaced(bytes, at, bit_xor(bytes[at], 1))
+  kaaneru::erufu::replaced(bytes, at, bit_xor(bytes[at], 1))
 end
 
 def main()
@@ -503,14 +506,14 @@ def main()
   tools = {clang: args[0], objdump: args[1], readobj: args[2], readelf: args[3]}
   dir = path_join(getenv("TMPDIR", "/tmp"), "blue-object-llvm-#{to_s(now_ms)}")
   mkdir_p(dir)
-  p = bpf::compile(
+  p = kaaneru::bpf::compile(
     "kernel/programs/object.b",
     {entry: :on_packet, kind: :xdp, on_fault: 0, global: [:sum_into]}
   )
   blue_path = path_join(dir, "blue.o")
   c_path = path_join(dir, "clang.c")
   clang_path = path_join(dir, "clang.o")
-  write_bytes(blue_path, erufu::object(p))
+  write_bytes(blue_path, kaaneru::erufu::object(p))
   write_file(c_path, source_c(p))
   built = exec_capture(
     tools[:clang],
@@ -559,7 +562,7 @@ end} readelf -a: read without a warning"]
     )
   )
   bytes = read_bytes(blue_path)
-  section = erufu::section_of(erufu::decode(bytes), "xdp")
+  section = kaaneru::erufu::section_of(kaaneru::erufu::decode(bytes), "xdp")
   bad_path = path_join(dir, "bad.o")
   write_bytes(bad_path, tampered(bytes, section[:offset]))
   control = verdict(
@@ -599,7 +602,7 @@ end
 
 test "the C of a compiled program declares its map, its function and its license"
   c = source_c(
-    bpf::compile_forms(
+    kaaneru::bpf::compile_forms(
       read_forms("(define %root/M (bpf/declare_map :m :array 4 8 1)) (define (%root/e c) (begin (bpf/map_add %root/M 0 1) 2))"),
       {entry: :e, kind: :xdp, on_fault: 0}
     )

@@ -1,5 +1,5 @@
 use(
-  "bpf",
+  "kaaneru/bpf",
   %i[
     alu
     alu32

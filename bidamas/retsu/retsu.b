@@ -44,6 +44,19 @@ def is_empty(xs)
 end
 
 @doc """
+if_empty: `default` when xs is empty or nil, else f(xs); the guard a summary of a list needs before it reads one.
+
+    if_empty([], 0, last) #=> 0
+"""
+def if_empty(xs, default, f)
+  if is_empty(xs)
+    default
+  else
+    f(xs)
+  end
+end
+
+@doc """
 first item, nil when empty.
 
     first([1, 2]) #=> 1
@@ -154,6 +167,14 @@ test "size is total where length is not"
   assert size([]) == 0
   assert size([1, 2, 3]) == 3
   assert is_empty(blue::rest([1])) == true
+end
+
+test "if_empty answers the default for both empties and applies f otherwise"
+  assert if_empty([], 0, last) == 0
+  assert if_empty(nil, "", first) == ""
+  assert if_empty([4, 5], 0, last) == 5
+  assert if_empty([[]], 9, first) == []
+  assert if_empty([1], 0, (xs) -> xs) == [1]
 end
 
 test "rest normalises the tail to a list"

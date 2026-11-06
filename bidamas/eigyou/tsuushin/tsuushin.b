@@ -31,7 +31,7 @@ use(
   ]
 )
 
-use("retsu", %i[all_but_last first is_empty last push rest])
+use("retsu", %i[all_but_last first if_empty is_empty last push rest])
 use("ronri", [:every])
 
 def default_port(scheme)
@@ -187,11 +187,7 @@ def glue(xs)
 end
 
 def last_or_empty(xs)
-  if is_empty(xs)
-    ""
-  else
-    last(xs)
-  end
+  if_empty(xs, "", last)
 end
 
 def without_final_empty(xs)
@@ -454,4 +450,9 @@ test "request passes a plain body and refuses what it cannot send"
   ) == :bad_option
   assert raised(() -> request("GET", "http://h.example/", {retries: 3})) ==
     :bad_option
+end
+
+test "last_or_empty is blank for no parts"
+  assert last_or_empty([]) == ""
+  assert last_or_empty(%w[a b]) == "b"
 end

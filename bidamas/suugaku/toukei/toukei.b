@@ -10,7 +10,7 @@ truncates is worse than none, because every number it returns is plausible.
 
 use("junjo", [:sort])
 use("kazu", %i[abs min near pow sum])
-use("retsu", %i[contains first indexes is_empty last size zip_with])
+use("retsu", %i[contains first if_empty indexes is_empty last size zip_with])
 use("shuugou", [:unique])
 
 legacy_names("0.1.1", [%w[total kazu::sum]])
@@ -90,11 +90,7 @@ below that folds over deviations goes through this one, which is what makes
 those functions total without each repeating the same empty check.
 """
 def mean_or_zero(xs)
-  if is_empty(xs)
-    0
-  else
-    mean(xs)
-  end
+  if_empty(xs, 0, mean)
 end
 
 @doc """
@@ -258,11 +254,7 @@ Exists so every quartile helper below can be total without repeating the
 guard four times.
 """
 def median_or_zero(xs)
-  if is_empty(xs)
-    0
-  else
-    median(xs)
-  end
+  if_empty(xs, 0, median)
 end
 
 @doc """
@@ -1004,4 +996,11 @@ test "half_median falls back to the whole list and names q1 and q3"
   assert half_median([1, 2, 3, 4, 5, 6, 7], lower_half) == 2
   assert q1([1, 2, 3, 4, 5, 6, 7]) == 2
   assert q3([1, 2, 3, 4, 5, 6, 7]) == 6
+end
+
+test "mean_or_zero and median_or_zero answer 0 for no data"
+  assert mean_or_zero([]) == 0
+  assert median_or_zero([]) == 0
+  assert mean_or_zero([1, 2, 6]) == 3
+  assert median_or_zero([1, 2, 6]) == 2
 end

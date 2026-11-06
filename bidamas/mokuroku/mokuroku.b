@@ -52,6 +52,7 @@ use(
     find_first
     first
     flat_map
+    if_empty
     is_empty
     last
     push
@@ -588,11 +589,7 @@ def md_cell(s)
 end
 
 def first_line_or_blank(lines)
-  if is_empty(lines)
-    ""
-  else
-    first(lines)
-  end
+  if_empty(lines, "", first)
 end
 
 def pkg_needs_text(r)
@@ -3730,4 +3727,9 @@ test "legacy_prefixes reads the two-string form only"
   assert is_empty(map_entries(ut_prefixed[:prefixes])) == false
   assert size(map_entries(ut_prefixed[:prefixes])) == 1
   assert legacy_prefixes([]) == {}
+end
+
+test "first_line_or_blank is blank for no lines"
+  assert first_line_or_blank([]) == ""
+  assert first_line_or_blank(%w[a b]) == "a"
 end

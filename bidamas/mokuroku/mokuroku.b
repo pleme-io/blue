@@ -52,6 +52,7 @@ use(
     find_first
     first
     flat_map
+    headed?
     if_empty
     is_empty
     last
@@ -764,7 +765,7 @@ def row_fail(cs, i, why)
 end
 
 def row_symbol?(v)
-  list?(v) and size(v) == 2 and first(v) == :symbol
+  headed?(v, 2, :symbol)
 end
 
 def row_plain(v)
@@ -3732,4 +3733,10 @@ end
 test "first_line_or_blank is blank for no lines"
   assert first_line_or_blank([]) == ""
   assert first_line_or_blank(%w[a b]) == "a"
+end
+
+test "row_symbol? is a two-item symbol pair"
+  assert row_symbol?([:symbol, "a"]) == true
+  assert row_symbol?("a") == false
+  assert row_symbol?([]) == false
 end

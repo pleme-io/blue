@@ -332,6 +332,24 @@ def without(xs, v)
 end
 
 @doc """
+headed?: Whether x is a list of exactly n items whose first is head; the test for a tagged tuple.
+
+    headed?([:symbol, "a"], 2, :symbol) #=> true
+"""
+def headed?(x, n, head)
+  list?(x) and size(x) == n and first(x) == head
+end
+
+test "headed? needs a list, the size and the head"
+  assert headed?([], 0, nil) == true
+  assert headed?(nil, 1, nil) == false
+  assert headed?([:symbol, "a"], 2, :symbol) == true
+  assert headed?([:symbol, "a", "b"], 2, :symbol) == false
+  assert headed?([:other, "a"], 2, :symbol) == false
+  assert headed?("ab", 2, "a") == false
+end
+
+@doc """
 filter_where: The items whose f(item) equals v, in order; rows selected by one field.
 
     filter_where([[:a, 1], [:b, 2], [:a, 3]], first, :a) #=> [[:a, 1], [:a, 3]]

@@ -174,6 +174,7 @@ use(
     first
     flat_map
     flatten1
+    headed?
     is_empty
     last
     push
@@ -1492,7 +1493,7 @@ def pb_task(t, where)
 end
 
 def rule?(r)
-  list?(r) and size(r) == 4 and first(r) == :lc_rule
+  headed?(r, 4, :lc_rule)
 end
 
 def pb_guards(p)
@@ -3257,4 +3258,10 @@ test "tagged keeps the clauses that carry the tag"
   assert tagged([], :lc_start) == []
   assert tagged([[:lc_start, 1], [:lc_rule, 2], [:lc_start, 3]], :lc_start) ==
     [[:lc_start, 1], [:lc_start, 3]]
+end
+
+test "rule? is a four-item lc_rule clause"
+  assert rule?(%i[lc_rule a e b]) == true
+  assert rule?(%i[lc_rule a]) == false
+  assert rule?(nil) == false
 end

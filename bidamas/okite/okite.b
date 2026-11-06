@@ -179,12 +179,32 @@ end
 
 # ── laws ───────────────────────────────────────────────────────────────────
 
+@doc """
+law_a is a record of two untyped fields, the subject of the record laws.
+
+    law_a(1, 2).y #=> 2
+"""
 record law_a(x, y)
 
+@doc """
+law_b is a record with law_a's fields under another name, so the laws can tell the two apart.
+
+    law_b?(law_b(1, 2)) #=> true
+"""
 record law_b(x, y)
 
+@doc """
+law_typed is a record whose fields are typed, an Int and a law_a, so the laws reach construction checks.
+
+    law_typed(1, law_a(2, 3)).inner.x #=> 2
+"""
 record law_typed(n: Int, inner: law_a)
 
+@doc """
+law_record_equality_includes_the_name holds that two records are equal only with one name and equal fields, and never equal a plain map.
+
+    law_record_equality_includes_the_name #=> true
+"""
 def law_record_equality_includes_the_name()
   all(
     fn(p)
@@ -197,6 +217,11 @@ def law_record_equality_includes_the_name()
   )
 end
 
+@doc """
+law_record_predicate_is_the_name_and_the_fields holds that a predicate answers true only for its own name with exactly its fields, so a map that gains or loses a key is plain.
+
+    law_record_predicate_is_the_name_and_the_fields #=> true
+"""
 def law_record_predicate_is_the_name_and_the_fields()
   all(
     fn(p)
@@ -214,6 +239,11 @@ def law_record_predicate_is_the_name_and_the_fields()
   )
 end
 
+@doc """
+law_record_update_is_a_copy holds that an update by spread makes a new record and leaves the old one as it was.
+
+    law_record_update_is_a_copy #=> true
+"""
 def law_record_update_is_a_copy()
   all(
     fn(p)
@@ -225,6 +255,11 @@ def law_record_update_is_a_copy()
   )
 end
 
+@doc """
+law_record_refuses_by_name holds that a construction known only at run time raises :record, naming the record and each missing and unknown field.
+
+    law_record_refuses_by_name #=> true
+"""
 def law_record_refuses_by_name()
   make = law_a
   typed = law_typed
@@ -248,6 +283,11 @@ def law_record_refuses_by_name()
       :refused and (typed(1, law_b(1, 2)) rescue :refused) == :refused
 end
 
+@doc """
+law_record_crosses_json holds that a record written as JSON reads back equal, with its name and fields under "$record".
+
+    law_record_crosses_json #=> true
+"""
 def law_record_crosses_json()
   a = law_typed(1, law_a([1, nil], "s"))
   json_read(json_stringify(a)) == a and
@@ -256,6 +296,11 @@ def law_record_crosses_json()
       "okite::law_typed(inner,n)"
 end
 
+@doc """
+law_record_prints_its_call holds that a record prints as the call that builds it.
+
+    law_record_prints_its_call #=> true
+"""
 def law_record_prints_its_call()
   to_s(law_a(1, [2])) == "okite::law_a({x: 1, y: [2]})"
 end

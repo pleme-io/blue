@@ -19,6 +19,8 @@ def recorded()
   unlines(
     [
       "refused: hanshi:crates/hanshi-core/rules/heartbeat.b:B0001 3",
+      "refused: kanshi:enforcer/differential.b:B0078 1",
+      "refused: kanshi:enforcer/loader.b:B0078 1",
       "refused: zukai:crates/zukai-confluence/tests/pages.b:B0001 31",
       "refused: zukai:crates/zukai-kata/tests/patterns.b:B0001 20"
     ]

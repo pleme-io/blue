@@ -6,6 +6,7 @@
     "name": "sabi",
     "version": "0.1.1",
     "needs": {
+      "deeta": "^0.1.0",
       "retsu": "^0.1.0"
     },
     "when": "anytime",

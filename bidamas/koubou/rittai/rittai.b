@@ -15,6 +15,7 @@ Written for nupastel docs/plans/design-pipeline.md, step 4.
     turn(square_points, [0, 1, 2], 1) #=> 1
 """
 
+use("deeta", [:get_or])
 use("junjo", [:sort_by])
 
 use("kazu", %i[abs clamp max max_of min min_of near near_within sum])
@@ -542,12 +543,7 @@ def count_keys(keys)
 end
 
 def count_of(table, k)
-  v = get(table, k)
-  if v.nil?
-    0
-  else
-    v
-  end
+  get_or(table, k, 0)
 end
 
 # waive B0013: `distinct` is a builtin rittai also uses, so the prefix stays; koubou::rittai::distinct names it too
@@ -1140,4 +1136,9 @@ test "seen_step keeps the first of each key at the named field"
     :keys
   ) == %w[c b a]
   assert distinct_step({seen: {}, out: []}, 3) == {seen: {3 => true}, out: [3]}
+end
+
+test "count_of is zero for a key not yet counted"
+  assert count_of({}, :a) == 0
+  assert count_of({a: 3}, :a) == 3
 end

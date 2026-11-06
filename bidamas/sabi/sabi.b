@@ -24,6 +24,8 @@ only way nodes are made, so a renderer arm and its constructor stay together.
     valid_ident?("") #=> false
 """
 
+use("deeta", [:get_or])
+
 use(
   "retsu",
   %i[concat_lists contains count_where first flat_map is_empty repeat]
@@ -346,12 +348,7 @@ def render_item(item)
 end
 
 def get_or_empty(m, key)
-  v = get(m, key)
-  if v.nil?
-    []
-  else
-    v
-  end
+  get_or(m, key, [])
 end
 
 # ── identifiers ────────────────────────────────────────────────────────────
@@ -597,4 +594,9 @@ test "derived_item keeps its members under the part named"
   assert struct("P", [], [field("x", "i64", [])], ["a"])[:fields] ==
     [field("x", "i64", [])]
   assert derived_item(:struct, "P", [], :fields, [], [])[:kind] == :struct
+end
+
+test "get_or_empty answers an empty list for an absent key"
+  assert get_or_empty({}, :items) == []
+  assert get_or_empty({items: [1]}, :items) == [1]
 end

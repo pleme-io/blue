@@ -10,7 +10,7 @@ word is pure: no clock, no host.
 """
 
 use("jisho")
-use("kazu", %i[abs clamp lerp])
+use("kazu", %i[abs clamp lerp near_within])
 use("kyohi", [:raised])
 use("moji", [:checked])
 use("retsu", %i[count_where first zip])
@@ -309,7 +309,7 @@ def settled?(m, state)
 end
 
 def close?(a, b)
-  abs(a - b) < 0.0001
+  near_within(a, b, 0.0001)
 end
 
 test "curve declares each kind and refuses what it cannot draw"

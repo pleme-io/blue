@@ -578,7 +578,25 @@ end
 
 # waive B0013: `round` is a builtin kueri also uses, so the prefix stays; kueri::round names it too
 def q_round(x, digits)
-  {kind: :fn, name: "round", args: [expr(x), int(digits)]}
+  fn_node("round", [expr(x), int(digits)])
+end
+
+@doc """
+fn_node: A call of the SQL function `fname` on argument nodes already built.
+
+    fn_node("coalesce", []) #=> {kind: :fn, name: "coalesce", args: []}
+"""
+def fn_node(fname, args)
+  {kind: :fn, name: fname, args:}
+end
+
+@doc """
+postfix_op: The postfix operator `op` applied to one value, as in `x IS NULL`.
+
+    postfix_op("IS NULL", 1) #=> is_null(1)
+"""
+def postfix_op(op, a)
+  {kind: :postfix, op:, args: [expr(a)]}
 end
 
 # waive B0013: `cast` is a builtin kueri also uses, so the prefix stays; kueri::cast names it too
@@ -590,18 +608,18 @@ end
 coalesce: The first of two values that is not NULL.
 """
 def coalesce(a, b)
-  {kind: :fn, name: "coalesce", args: [expr(a), expr(b)]}
+  fn_node("coalesce", [expr(a), expr(b)])
 end
 
 @doc """
 is_null: The value is NULL: absent, never a comparison (x = NULL is never true).
 """
 def is_null(a)
-  {kind: :postfix, op: "IS NULL", args: [expr(a)]}
+  postfix_op("IS NULL", a)
 end
 
 def not_null(a)
-  {kind: :postfix, op: "IS NOT NULL", args: [expr(a)]}
+  postfix_op("IS NOT NULL", a)
 end
 
 # waive B0013: `if` is a reserved word, so the prefix stays; kueri::if names it too
@@ -1023,7 +1041,16 @@ end
 as: A named output: a select item or a group aggregate.
 """
 def as(name, expr)
-  {kind: :as, name: kueri::name(name), expr: kueri::expr(expr)}
+  named_expr(:as, name, expr)
+end
+
+@doc """
+named_expr: A node of kind `kind` that binds one computed value to a column name.
+
+    named_expr(:derive, :n, 1) #=> derive(:n, 1)
+"""
+def named_expr(kind, label, value)
+  {kind:, name: name(label), expr: expr(value)}
 end
 
 def agg(name, expr)
@@ -1056,7 +1083,7 @@ end
 derive: Add one computed column; every row stays.
 """
 def derive(name, expr)
-  {kind: :derive, name: kueri::name(name), expr: kueri::expr(expr)}
+  named_expr(:derive, name, expr)
 end
 
 @doc """
@@ -1065,7 +1092,7 @@ explode: One row per element of a list: each row repeats once per element of
 empty or NULL is dropped (unnest). DuckDB only.
 """
 def explode(name, list_expr)
-  {kind: :explode, name: kueri::name(name), expr: expr(list_expr)}
+  named_expr(:explode, name, list_expr)
 end
 
 # waive B0013: `filter` is a builtin kueri also uses, so the prefix stays; kueri::filter names it too
@@ -1089,14 +1116,23 @@ q_join: JOIN … USING (keys): the keys appear once, then the left's other colum
 then the right's.
 """
 def q_join(rel, keys)
-  {kind: :join, how: :inner, rel: kueri::rel(rel), keys: map(name, keys)}
+  join_how(:inner, rel, keys)
+end
+
+@doc """
+join_how: JOIN … USING (keys) of the kind `how` names: `:inner`, `:left` or `:asof_left`.
+
+    join_how(:left, example_curve_cells, [:cell]) #=> left_join(example_curve_cells, [:cell])
+"""
+def join_how(how, other, keys)
+  {kind: :join, how:, rel: rel(other), keys: map(name, keys)}
 end
 
 @doc """
 left_join: join that keeps every left row.
 """
 def left_join(rel, keys)
-  {kind: :join, how: :left, rel: kueri::rel(rel), keys: map(name, keys)}
+  join_how(:left, rel, keys)
 end
 
 @doc """
@@ -1106,7 +1142,7 @@ right side as of the left row's moment); the other keys match exactly. A
 left row with no match keeps NULLs. DuckDB only.
 """
 def asof_left_join(rel, keys)
-  {kind: :join, how: :asof_left, rel: kueri::rel(rel), keys: map(name, keys)}
+  join_how(:asof_left, rel, keys)
 end
 
 @doc """
@@ -2875,6 +2911,24 @@ def example_tipping()
 end
 
 # ── tests ──────────────────────────────────────────────────────────────────
+
+test "the node builders the named words share"
+  assert fn_node("f", []) == {kind: :fn, name: "f", args: []}
+  assert fn_node("round", [expr(:x), int(2)]) == q_round(:x, 2)
+  assert fn_node("coalesce", [expr(:a), expr(:b)]) == coalesce(:a, :b)
+  assert postfix_op("IS NOT NULL", :a) == not_null(:a)
+  assert postfix_op("IS NULL", :a) ==
+    {kind: :postfix, op: "IS NULL", args: [expr(:a)]}
+  assert named_expr(:as, :n, :x) == as(:n, :x)
+  assert named_expr(:explode, :e, :xs) == explode(:e, :xs)
+  assert named_expr(:derive, :d, 1) ==
+    {kind: :derive, name: name(:d), expr: expr(1)}
+  t = example_curve_cells
+  assert join_how(:inner, t, []) ==
+    {kind: :join, how: :inner, rel: ref(t), keys: []}
+  assert join_how(:inner, t, [:cell]) == q_join(t, [:cell])
+  assert join_how(:asof_left, t, %i[cell ts]) == asof_left_join(t, %i[cell ts])
+end
 
 test "an empty pipeline is SELECT * from its relation, in both dialects, and holds"
   m = model({name: :everything, from: example_horizons})

@@ -30,8 +30,10 @@ Seeded 2026-11-06 at blue `6434ce31`.
 | blue on sui | `theory/BLUE-STRUCTURE.md` §5.3, `theory/SUI-FLIP.md` | UNRECONCILED | reconcile; mark §5.3 superseded (§ Rulings R1) | — | to be stated at reconcile |
 | frontend | [`FRONTEND-PLAN.md`](FRONTEND-PLAN.md), `theory/BLUE-FRONTEND.md` | UNRECONCILED | reconcile against main | — | to be stated at reconcile |
 | verbs | [`VERB-ROADMAP.md`](VERB-ROADMAP.md) | DESIGN (its own measured tier line, 2026-10-22) | reconcile | — | `blue verbs check` against its baseline |
-| **khipu**: the knowledge graph (OxiRS naturalized) | [`KHIPU.md`](KHIPU.md) | DESIGN | K1: the term sum, N-Triples and N-Quads, quads in DuckDB through `kueri` | kueri; arika (shares the rule engine and snapshots) | the W3C suites of K1-K4 green as a differential against Oxigraph |
-| **utsushi**: history projection (Josh naturalized) | [`UTSUSHI.md`](UTSUSHI.md) | DESIGN | U1: `sub`, `prefix`, `compose` over history with Josh's commit ids | gitto | `josh-filter` id parity on fixtures; the round-trip law green |
+| **khipu**: the knowledge graph (OxiRS naturalized) | [`KHIPU.md`](KHIPU.md) | K1a BUILT (`bidamas/khipu`: terms, N-Triples, N-Quads), the rest DESIGN | K1b: quads in DuckDB through `kueri`, basic graph patterns, the W3C syntax suites against Oxigraph | kueri; arika (shares the rule engine and snapshots) | the W3C suites of K1-K4 green as a differential against Oxigraph |
+| **utsushi**: history projection (Josh naturalized) | [`UTSUSHI.md`](UTSUSHI.md) | U1 BUILT (`bidamas/utsushi`), U2-U6 DESIGN | U2: workspace entries refused one by one; `exclude`; views | gitto | `josh-filter` id parity on fixtures; the round-trip law green |
+| **async**: native async, the `heikou` space | [`ASYNC.md`](ASYNC.md) | DESIGN (processes built, async words absent) | A1: `net_wait` in the node loop, node-time timers, the context record, the virtual clock in `blue test` | blue-lang-proc; HTTP2.md P3 (`net_wait`) | the conformance set green at `schedulers(1)` and `schedulers(n)`, gates A-ontology to A-replay |
+| **guard return** | [`GUARD-RETURN.md`](GUARD-RETURN.md) | DESIGN (operator-approved 2026-11-06) | G1: the parser rewrite and its refusal rule | — | R-lower, R-refuse, R-total green |
 
 ## The arika track
 

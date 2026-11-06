@@ -41,6 +41,7 @@ use("junjo", [:sort_by])
 use("kiwari", [:scm_string])
 
 use("kyohi", %i[kinds refusal why])
+use("moji", [:bracketed])
 
 use(
   "retsu",
@@ -2473,7 +2474,7 @@ test "every exported table renders from the graph the export reads, and an unkno
 end
 
 def row_strings(xs)
-  "[#{join(map(scm_string, xs), ", ")}]"
+  bracketed(xs, scm_string, ", ")
 end
 
 def row_scalar(v)
@@ -3739,4 +3740,9 @@ test "row_symbol? is a two-item symbol pair"
   assert row_symbol?([:symbol, "a"]) == true
   assert row_symbol?("a") == false
   assert row_symbol?([]) == false
+end
+
+test "row_strings writes a bracketed list of scheme strings"
+  assert row_strings([]) == "[]"
+  assert row_strings(%w[a b]) == "[#{scm_string("a")}, #{scm_string("b")}]"
 end

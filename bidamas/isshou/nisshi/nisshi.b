@@ -274,6 +274,7 @@ use("junjo", [:sort_stable_by])
 use("kansuu", [:maybe])
 
 use("kyohi")
+use("moji", [:bracketed])
 
 use(
   "retsu",
@@ -671,7 +672,7 @@ def normal_link(l)
 end
 
 def links_text(links)
-  "[#{join(map(link_text, links), ",")}]"
+  bracketed(links, link_text, ",")
 end
 
 def link_text(l)
@@ -2787,4 +2788,9 @@ test "sign and sig_text treat a nil key or signature as absent"
   assert sign(keypair_secret(k), h) == sign_message(keypair_secret(k), h)
   assert sig_text(nil) == "null"
   assert sig_text("ab") == "\"ab\""
+end
+
+test "links_text writes the links as a JSON array"
+  assert links_text([]) == "[]"
+  assert links_text([[:cause, "a"]]) == "[{\"id\":\"a\",\"kind\":\"cause\"}]"
 end

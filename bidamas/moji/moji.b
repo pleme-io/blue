@@ -409,6 +409,22 @@ def pad_center(s, width, pad)
 end
 
 @doc """
+bracketed: f of each item, joined by sep and closed in square brackets; a list written out as text.
+
+    bracketed([1, 2], to_s, ", ") #=> "[1, 2]"
+"""
+def bracketed(xs, f, sep)
+  "[#{join(map(f, xs), sep)}]"
+end
+
+test "bracketed writes a list between square brackets"
+  assert bracketed([], to_s, ", ") == "[]"
+  assert bracketed(["a"], (s) -> s, ",") == "[a]"
+  assert bracketed([1, 2], to_s, ", ") == "[1, 2]"
+  assert bracketed([1, 2], to_s, ", ") == to_s([1, 2])
+end
+
+@doc """
 replace_first: Replace only the FIRST occurrence — the half `replace` does not cover, since
 the builtin is already global.
 

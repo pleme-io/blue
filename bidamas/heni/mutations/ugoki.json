@@ -158,8 +158,8 @@
   {
     "name": "advance nil state",
     "file": "ugoki.b",
-    "find": "  if state.nil?\n    0\n  else",
-    "replace": "  if false\n    0\n  else"
+    "find": "  maybe(state, 0, (s) -> s[:t])",
+    "replace": "  state[:t]"
   },
   {
     "name": "settled tween",

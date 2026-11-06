@@ -32,7 +32,7 @@
   {
     "name": "an alias is not the response key",
     "file": "outou.b",
-    "find": "node.alias or node.name",
+    "find": "toriyose::danpen::response_key(node)",
     "replace": "node.name"
   },
   {

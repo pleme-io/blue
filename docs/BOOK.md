@@ -1852,6 +1852,7 @@ needs is in [KERNEL.md](KERNEL.md) §3.
 - [blue examples](EXAMPLES.md): one tested program per common task, ready to paste as examples
 - [Glossary: blue's terms and the concepts they name](GLOSSARY.md): every blue term mapped to the compiler, language or distributed-systems concept it names, in both directions, and how the parts meet in a compile, a test run and a deploy
 - [blue language reference](REFERENCE.md): syntax, operators, reserved words, every built-in name and the Bluefile words
+- [blue roadmap](ROADMAP.md): the one blue roadmap, one row per track with its tier, next step and done gate, and every conflict ruled once
 - [Safety first: blue's posture, row by row](SAFETY.md): the safety-first posture, one row per Rust guarantee: blue today, the gate, its tier and its off switch
 - [blue — the agent guide](../AGENTS.md): rules for people and agents who write blue programs or change blue itself, with the build commands from the Bluefile
 - [Implementing blue — the detail behind the agent guide](implementing.md): the implementer detail behind the agent guide's "Changing blue itself": the check registry, crate map, hard-won rules, CI gates, dependencies and what is not built
@@ -1860,6 +1861,7 @@ needs is in [KERNEL.md](KERNEL.md) §3.
 
 - [ABSENCE — no undeclared nil](ABSENCE.md): no undeclared nil: how blue makes absence a declared, checked state
 - [API-EVOLUTION — the API is a versioned rendering of the one model](API-EVOLUTION.md): the API as a versioned rendering of one model (design)
+- [arika (在り処): the design of record](ARIKA.md): arika, blue's word search, DESIGN: the recon, phases, gates with red runs, risks and every surface that names it
 - [BIDAMA-COHESION — one word per job, foundations below, a complete vocabulary](BIDAMA-COHESION.md): one word per job, foundations below, a complete vocabulary across the bidamas (plan)
 - [BUILD-ASSURANCE — what a blue build proves, how fast, and from which cache](BUILD-ASSURANCE.md): what a blue build proves, how fast, and from which cache (design)
 - [BUILD-STACK — the default platform for a blue service, from Bluefile to a running node](BUILD-STACK.md): the default platform for a blue service, from Bluefile to a running node (design)

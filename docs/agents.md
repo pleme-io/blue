@@ -56,6 +56,11 @@ names in [`docs/REFERENCE.md`](REFERENCE.md) (built-ins, operators,
 syntax) and [`bidamas/CATALOG.md`](../bidamas/CATALOG.md) (every bidama
 definition). Both are generated from the implementation and gated fresh.
 
+Before you write a `def`, ask whether blue already has the word. arika
+([`docs/ARIKA.md`](ARIKA.md), DESIGN) will answer that by shape with
+`blue arika like FILE`. Until it ships, search `bidamas/CATALOG.md`, and
+`blue check --reuse` (B0070) names the word a copy repeats.
+
 ### A file is a program; a project is one command away
 
 A script needs no structure. `blue new --script tool.b` writes one that opens

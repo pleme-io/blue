@@ -1663,18 +1663,23 @@ def outcome_of(status, text)
 end
 
 def exit_status_of(answer)
-  if map?(answer)
-    answer[:status]
-  else
-    0
-  end
+  outcome_field(answer, :status, 0)
 end
 
 def text_of(answer)
+  outcome_field(answer, :text, answer)
+end
+
+@doc """
+outcome_field: the value at `key` of an `outcome_of` map, or `bare` for an answer that is plain text.
+
+    outcome_field("done", :status, 0) #=> 0
+"""
+def outcome_field(answer, key, bare)
   if map?(answer)
-    answer[:text]
+    get(answer, key)
   else
-    answer
+    bare
   end
 end
 
@@ -2487,4 +2492,14 @@ test "the event log appends one line per decision and keeps only the newest"
   assert get_str(first(kept), "host", "") == "ryn"
   assert log_event("/dev/null/kirikae/events.jsonl", 3, {}).nil?
   rm_rf(dir)
+end
+
+test "outcome_field reads a field of an outcome and a default of bare text"
+  assert outcome_field(nil, :status, 0) == 0
+  assert outcome_field(outcome_of(3, "x"), :status, 0) == 3
+  assert outcome_field("plain", :text, "plain") == "plain"
+  assert exit_status_of(outcome_of(78, "held")) == 78
+  assert exit_status_of("ok") == 0
+  assert text_of(outcome_of(0, "built")) == "built"
+  assert text_of("built") == "built"
 end

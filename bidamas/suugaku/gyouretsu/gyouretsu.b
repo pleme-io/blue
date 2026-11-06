@@ -311,12 +311,21 @@ def zeros(r, c)
   filled(r, c, 0)
 end
 
+@doc """
+rowwise: a matrix whose every row is `f` of the two rows at that index.
+
+    rowwise(vadd, [[1, 2]], [[3, 4]]) #=> [[4, 6]]
+"""
+def rowwise(f, a, b)
+  map((i) -> f(row(a, i), row(b, i)), indexes(a))
+end
+
 def madd(a, b)
-  map((i) -> vadd(row(a, i), row(b, i)), indexes(a))
+  rowwise(vadd, a, b)
 end
 
 def msub(a, b)
-  map((i) -> vsub(row(a, i), row(b, i)), indexes(a))
+  rowwise(vsub, a, b)
 end
 
 def mscale(k, m)
@@ -977,4 +986,13 @@ test "cross, power, multiply, eye and diagsum bind the matrix verbs"
   assert eye(0) == []
   assert diagsum([[1, 2], [3, 4]]) == 5
   assert diagsum(eye(4)) == 4
+end
+
+test "rowwise pairs rows by index and names madd and msub"
+  assert rowwise(vadd, [], []) == []
+  assert rowwise((r, _s) -> r, [[1, 2], [3, 4]], [[0, 0], [0, 0]]) ==
+    [[1, 2], [3, 4]]
+  assert rowwise(vsub, [[5, 7]], [[1, 2]]) == [[4, 5]]
+  assert madd([[1, 2]], [[3, 4]]) == rowwise(vadd, [[1, 2]], [[3, 4]])
+  assert msub([[1, 2]], [[3, 4]]) == [[-2, -2]]
 end

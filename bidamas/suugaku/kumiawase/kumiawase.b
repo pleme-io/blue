@@ -19,10 +19,22 @@ factorial: product of 1 up to n.
     factorial(0) #=> 1
 """
 def factorial(n)
+  multifactorial(n, 1)
+end
+
+@doc """
+multifactorial: n * (n-k) * (n-2k) * ... while the term is at least 2.
+
+`k` is 1 for the factorial and 2 for the double factorial; below 2 the
+product is empty and answers 1.
+
+    multifactorial(9, 3) #=> 162
+"""
+def multifactorial(n, k)
   if n < 2
     1
   else
-    n * factorial(n - 1)
+    n * multifactorial(n - k, k)
   end
 end
 
@@ -92,11 +104,7 @@ out on the same branch.
     double_factorial(0) #=> 1
 """
 def double_factorial(n)
-  if n < 2
-    1
-  else
-    n * double_factorial(n - 2)
-  end
+  multifactorial(n, 2)
 end
 
 @doc """
@@ -903,4 +911,13 @@ test "choose is the binomial coefficient"
   assert choose(5, 5) == 1
   assert choose(0, 0) == 1
   assert choose(5, 6) == 0
+end
+
+test "multifactorial steps by k and names factorial and double_factorial"
+  assert multifactorial(0, 3) == 1
+  assert multifactorial(1, 2) == 1
+  assert multifactorial(9, 3) == 162
+  assert multifactorial(6, 1) == factorial(6)
+  assert multifactorial(8, 2) == 384
+  assert double_factorial(7) == 105
 end

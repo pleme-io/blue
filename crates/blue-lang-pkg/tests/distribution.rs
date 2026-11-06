@@ -616,7 +616,7 @@ fn shape_hashes() -> std::collections::BTreeMap<String, blue_lang_mondou::def_ha
                 blue_lang_runtime::pipeline::Checking::Program,
             )
             .unwrap_or_else(|e| panic!("{name}: imports must resolve: {e}"));
-            for shape in checked.entry_shapes() {
+            for shape in checked.entry_written_shapes() {
                 out.insert(shape.key.clone(), shape);
             }
         }

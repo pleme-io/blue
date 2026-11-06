@@ -339,7 +339,7 @@ mod tests {
         )
         .expect("checks");
         checked
-            .entry_shapes()
+            .entry_written_shapes()
             .into_iter()
             .map(|s| (s.name().to_string(), s))
             .collect()
@@ -425,7 +425,7 @@ mod tests {
             blue_lang_runtime::pipeline::Checking::Program,
         )
         .expect("checks");
-        checked.entry_shapes()[0].hash
+        checked.entry_written_shapes()[0].hash
     }
 
     #[test]

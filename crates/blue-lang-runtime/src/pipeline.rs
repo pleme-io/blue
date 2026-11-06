@@ -1029,6 +1029,15 @@ fn entry_shapes_of(
     program: &crate::uses::ResolvedProgram,
     names: &NameTable,
 ) -> Vec<crate::def_hash::Shape> {
+    crate::def_hash::computed_shape_hashes(&lower(program, names), &|i| {
+        program.owner_of(i) == Some(crate::uses::ResolvedProgram::ENTRY)
+    })
+}
+
+fn entry_written_shapes_of(
+    program: &crate::uses::ResolvedProgram,
+    names: &NameTable,
+) -> Vec<crate::def_hash::Shape> {
     crate::def_hash::shape_hashes(&lower(program, names), &|i| {
         program.owner_of(i) == Some(crate::uses::ResolvedProgram::ENTRY)
     })
@@ -1786,6 +1795,11 @@ impl Checked {
     #[must_use]
     pub fn entry_shapes(&self) -> Vec<crate::def_hash::Shape> {
         entry_shapes_of(&self.program, &self.names)
+    }
+
+    #[must_use]
+    pub fn entry_written_shapes(&self) -> Vec<crate::def_hash::Shape> {
+        entry_written_shapes_of(&self.program, &self.names)
     }
 
     /// What `blue test` hands the harness: the program [`lower`]ed, spans

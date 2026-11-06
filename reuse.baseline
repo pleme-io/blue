@@ -1,4 +1,7 @@
 # receipt: first measure, 2026-11-03: every shape two scopes share, before the catalogue table names a home
+# receipt: the census reads a word through its one-call wrapper now (kazu::sum is fold), so it sees two copies it missed: spec/docs.b total is a doc fixture with no imports by design; gyouretsu zeros and seimei blank_grid merge into retsu on reuse/cross
 reuse-copy: %root:examples/05_errors.b 1
 reuse-copy: %root:gen/prepush.b 1
 reuse-copy: %root:gen/retired.b 1
+reuse-copy: %root:spec/docs.b 1
+reuse-copy: suugaku/gyouretsu 1

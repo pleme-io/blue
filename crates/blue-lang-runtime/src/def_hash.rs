@@ -656,6 +656,11 @@ impl Shape {
 }
 
 #[must_use]
+pub fn computed_shape_hashes(lowered: &[Spanned], in_scope: &dyn Fn(usize) -> bool) -> Vec<Shape> {
+    shape_hashes(&unfold_forwards(lowered, in_scope), in_scope)
+}
+
+#[must_use]
 pub fn shape_hashes(lowered: &[Spanned], in_scope: &dyn Fn(usize) -> bool) -> Vec<Shape> {
     let numbered: Vec<Spanned> = lowered
         .iter()
@@ -678,6 +683,105 @@ pub fn shape_hashes(lowered: &[Spanned], in_scope: &dyn Fn(usize) -> bool) -> Ve
             key: d.key.clone(),
             hash: d.hash,
             size: shape_size(&numbered[d.top_level]),
+        })
+        .collect()
+}
+
+struct Forward<'a> {
+    params: Vec<&'a str>,
+    body: &'a Spanned,
+}
+
+fn forward_of(form: &Spanned) -> Option<(&str, Forward<'_>)> {
+    let items = form.as_list()?;
+    if !matches!(items.first()?.as_symbol()?, "define" | "define-typed") || items.len() != 3 {
+        return None;
+    }
+    let head = items[1].as_list()?;
+    let name = head.first()?.as_symbol()?;
+    let params = head[1..]
+        .iter()
+        .map(Spanned::as_symbol)
+        .collect::<Option<Vec<_>>>()?;
+    Some((
+        name,
+        Forward {
+            params,
+            body: &items[2],
+        },
+    ))
+}
+
+fn substituted(node: &Spanned, with: &HashMap<&str, &Spanned>) -> Spanned {
+    match &node.form {
+        SpannedForm::Atom(Atom::Symbol(s)) => with
+            .get(s.as_str())
+            .map_or_else(|| node.clone(), |arg| (*arg).clone()),
+        SpannedForm::List(items) => Spanned::new(
+            node.span,
+            SpannedForm::List(items.iter().map(|i| substituted(i, with)).collect()),
+        ),
+        _ => node.clone(),
+    }
+}
+
+fn callee<'a>(
+    call: &Spanned,
+    targets: &'a HashMap<&str, Forward<'a>>,
+    own: &str,
+) -> Option<&'a Forward<'a>> {
+    let items = call.as_list()?;
+    let head = items.first()?.as_symbol()?;
+    let bare = |n: &str| n.rsplit_once('/').map_or(n, |(_, b)| b).to_string();
+    if head == own || bare(head) == bare(own) {
+        return None;
+    }
+    targets
+        .get(head)
+        .or_else(|| {
+            targets
+                .iter()
+                .find(|(n, _)| bare(n) == head)
+                .map(|(_, f)| f)
+        })
+        .filter(|f| f.params.len() + 1 == items.len())
+}
+
+fn unfold_forwards(lowered: &[Spanned], in_scope: &dyn Fn(usize) -> bool) -> Vec<Spanned> {
+    const DEPTH: usize = 4;
+    let targets: HashMap<&str, Forward<'_>> = lowered
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| in_scope(*i))
+        .filter_map(|(_, f)| forward_of(f))
+        .collect();
+    lowered
+        .iter()
+        .enumerate()
+        .map(|(i, form)| {
+            let Some((own, Forward { body, .. })) = in_scope(i).then(|| forward_of(form)).flatten()
+            else {
+                return form.clone();
+            };
+            let mut body = body.clone();
+            for _ in 0..DEPTH {
+                let Some(target) = callee(&body, &targets, own) else {
+                    break;
+                };
+                let args = body.as_list().unwrap_or_default();
+                let with: HashMap<&str, &Spanned> = target
+                    .params
+                    .iter()
+                    .copied()
+                    .zip(args[1..].iter())
+                    .collect();
+                body = substituted(target.body, &with);
+            }
+            let items = form.as_list().unwrap_or_default();
+            Spanned::new(
+                form.span,
+                SpannedForm::List(vec![items[0].clone(), items[1].clone(), body]),
+            )
         })
         .collect()
 }

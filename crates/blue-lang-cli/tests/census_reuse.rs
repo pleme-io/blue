@@ -262,6 +262,32 @@ fn facts_print_one_definition_per_line_at_the_floor_and_exit_zero() {
 }
 
 #[test]
+fn a_word_that_forwards_to_a_sibling_has_the_shape_of_what_it_computes() {
+    let p = Project::new("forward");
+    p.write(
+        "words.b",
+        "def tilt(xs, by)\n  map((x) -> x * 2 + by, xs)\nend\n\n\
+         def lean(ys)\n  tilt(ys, 1)\nend\n",
+    );
+    p.write("copy.b", SPREAD);
+    let out = census(&p.0, &["--facts"]);
+    assert_eq!(code(&out), 0);
+    let shown = text(&out);
+    let rows: Vec<serde_json::Value> = shown
+        .lines()
+        .map(|l| serde_json::from_str(l).expect("a JSON line"))
+        .collect();
+    let shape = |name: &str| {
+        rows.iter()
+            .find(|r| r["name"] == name)
+            .map(|r| r["shape"].clone())
+            .unwrap_or_else(|| panic!("no row for {name}: {shown}"))
+    };
+    assert_eq!(shape("lean"), shape("spread"), "{shown}");
+    assert_ne!(shape("tilt"), shape("spread"), "{shown}");
+}
+
+#[test]
 fn the_tools_own_tests_pass() {
     let file = repo().join("crates/blue-lang-cli/blue/reuse.b");
     let out = blue_in(&repo(), &["test", &file.display().to_string()]);

@@ -7,4 +7,4 @@ legacy_packages(
 
 needs("baito", "^0.1")
 needs("retsu", "^0.1")
-reach(%i[filesystem kernel_bpf])
+reach(%i[environment filesystem kernel_bpf process])

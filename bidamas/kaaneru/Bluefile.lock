@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:196f7a09fd81d3d43df4d60f1075189d103c5f07f0d80c3c38eaeef55e036803",
+  "bluefile_b3": "b3:d4ff06695241c53e5e546a32e3f66333c94207abba4ef3b6a9244e5d756d239a",
   "manifest": {
     "schema": 1,
     "name": "kaaneru",
@@ -20,7 +20,9 @@
     "apps": {},
     "catalog": null,
     "reach": [
+      "process",
       "filesystem",
+      "environment",
       "kernel-bpf"
     ],
     "legacy_packages": {

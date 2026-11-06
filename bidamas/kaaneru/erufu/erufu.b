@@ -1405,7 +1405,7 @@ sample_program: a compiled program with a map and a global subprogram, for tests
 """
 def sample_program()
   compiled = kaaneru::bpf::compile_forms(
-    read_forms("(define %root/M (bpf/declare_map :counts :array 4 8 4)) (define (%root/g a b) (+ a b)) (define (%root/e c) (begin (bpf/map_add %root/M 1 2) (%root/g 40 2)))"),
+    read_forms("(define %root/M (kaaneru/bpf/declare_map :counts :array 4 8 4)) (define (%root/g a b) (+ a b)) (define (%root/e c) (begin (kaaneru/bpf/map_add %root/M 1 2) (%root/g 40 2)))"),
     {entry: :e, kind: :xdp, on_fault: 0, global: [:g]}
   )
   compiled

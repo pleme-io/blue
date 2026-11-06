@@ -111,8 +111,8 @@ const KERNEL: &str = r##"@moduledoc """
 __NAME__: a kernel program and its loader in one file. `count_packets` is the program, `main` loads it onto an interface, and the tests run the same source on the pure machine, and on a real kernel when this host has one. docs/tutorial/first-kernel-program.md explains each part.
 """
 
-use("kaaneru/bpf", %i[compile declare_map map_add packet_int packet_len xdp_pass])
 use("kaaneru", %i[attached install kernel_absence])
+use("kaaneru/bpf", %i[compile declare_map map_add packet_int packet_len xdp_pass])
 use("retsu", %i[first repeat])
 use("tesuto", [:skip_for])
 

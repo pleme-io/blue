@@ -2032,7 +2032,7 @@ end
 @doc """
 helper_lookup: the machine's `map_lookup_elem`.
 
-    with_map("(or (bpf/map_get %root/M 1) 5)") #=> 5
+    with_map("(or (kaaneru/bpf/map_get %root/M 1) 5)") #=> 5
 """
 def helper_lookup(st)
   m = map_of(st, arg(st, 1))
@@ -2058,7 +2058,7 @@ end
 @doc """
 helper_update: the machine's `map_update_elem`.
 
-    with_map("(begin (bpf/map_put %root/M 1 41) (or (bpf/map_get %root/M 1) 0))") #=> 41
+    with_map("(begin (kaaneru/bpf/map_put %root/M 1 41) (or (kaaneru/bpf/map_get %root/M 1) 0))") #=> 41
 """
 def helper_update(st)
   m = map_of(st, arg(st, 1))
@@ -2110,7 +2110,7 @@ end
 @doc """
 helper_delete: the machine's `map_delete_elem`.
 
-    with_map("(if (bpf/map_delete %root/M 1) 1 0)") #=> 0
+    with_map("(if (kaaneru/bpf/map_delete %root/M 1) 1 0)") #=> 0
 """
 def helper_delete(st)
   m = map_of(st, arg(st, 1))
@@ -3011,11 +3011,11 @@ end
 @doc """
 word_of: the word a resolved name is in this package, nil for another's.
 
-    word_of("bpf/emit") #=> "emit"
+    word_of("kaaneru/bpf/emit") #=> "emit"
     word_of("retsu/first").nil? #=> true
 """
 def word_of(name)
-  if starts_with?(name, "bpf/")
+  if starts_with?(name, "kaaneru/bpf/")
     short_name(name)
   end
 end
@@ -3907,7 +3907,7 @@ end
 argument_held: one argument of a global subprogram, its value kept in a stack slot; a context takes no slot. It adds to `:held_args`, `{t:, slot:}` for each.
 
     argument_held(assoc(start_state(:xdp), :held_args, []), 7)[:held_args] #=> [{t: :int, slot: 0}]
-    (argument_held(assoc(start_state(:xdp), :held_args, []), form_of("(bpf/map_get)")) rescue :refused) #=> :refused
+    (argument_held(assoc(start_state(:xdp), :held_args, []), form_of("(kaaneru/bpf/map_get)")) rescue :refused) #=> :refused
 """
 def argument_held(st, arg)
   value = gen(st, arg, nil)
@@ -4349,7 +4349,7 @@ end
 @doc """
 gen_map_get: `map_get`: the value in r0 and whether it is present in r1.
 
-    with_map("(or (bpf/map_get %root/M 1) 9)") #=> 9
+    with_map("(or (kaaneru/bpf/map_get %root/M 1) 9)") #=> 9
 """
 def gen_map_get(st, args)
   m = map_named(st, first(args))
@@ -4381,7 +4381,7 @@ end
 @doc """
 gen_map_put: `map_put`, a failed update a fault.
 
-    with_map("(begin (bpf/map_put %root/M 1 2) (or (bpf/map_get %root/M 1) 0))") #=> 2
+    with_map("(begin (kaaneru/bpf/map_put %root/M 1 2) (or (kaaneru/bpf/map_get %root/M 1) 0))") #=> 2
 """
 def gen_map_put(st, args)
   m = map_named(st, first(args))
@@ -4415,7 +4415,7 @@ end
 @doc """
 gen_map_add: `map_add`: an atomic add, an absent key inserted.
 
-    with_map("(begin (bpf/map_add %root/M 1 2) (bpf/map_add %root/M 1 3) (or (bpf/map_get %root/M 1) 0))") #=> 5
+    with_map("(begin (kaaneru/bpf/map_add %root/M 1 2) (kaaneru/bpf/map_add %root/M 1 3) (or (kaaneru/bpf/map_get %root/M 1) 0))") #=> 5
 """
 def gen_map_add(st, args)
   m = map_named(st, first(args))
@@ -4466,7 +4466,7 @@ end
 @doc """
 gen_locked_add: `locked_add`: the value found, its spin lock taken, its integer added to, the lock given back, and the total in r0. r7 and r8 are the two registers a helper leaves alone that nothing else here uses.
 
-    run(compiled_source("(define %root/M (bpf/declare_locked :m :array 4 1)) (define (%root/e c) (begin (bpf/locked_add %root/M 0 40) (bpf/locked_add %root/M 0 2)))"), {maps: [declare_locked(:m, :array, 4, 1)]}).ret #=> 42
+    run(compiled_source("(define %root/M (kaaneru/bpf/declare_locked :m :array 4 1)) (define (%root/e c) (begin (kaaneru/bpf/locked_add %root/M 0 40) (kaaneru/bpf/locked_add %root/M 0 2)))"), {maps: [declare_locked(:m, :array, 4, 1)]}).ret #=> 42
 """
 def gen_locked_add(st, args)
   m = map_named(st, first(args))
@@ -4513,7 +4513,7 @@ end
 @doc """
 gen_map_delete: `map_delete`: true when the key was there.
 
-    with_map("(begin (bpf/map_put %root/M 1 2) (if (bpf/map_delete %root/M 1) 1 0))") #=> 1
+    with_map("(begin (kaaneru/bpf/map_put %root/M 1 2) (if (kaaneru/bpf/map_delete %root/M 1) 1 0))") #=> 1
 """
 def gen_map_delete(st, args)
   m = map_named(st, first(args))
@@ -4545,7 +4545,7 @@ end
 @doc """
 gen_emit: `emit`: a record of values on the stack, sent through the ring buffer.
 
-    run(compiled_source("(define %root/E (bpf/declare_map :e :ringbuf 0 0 4096)) (define (%root/e c) (begin (bpf/emit %root/E (list 7)) 2))"), {maps: [declare_map(:e, :ringbuf, 0, 0, 4096)]}).ret #=> 2
+    run(compiled_source("(define %root/E (kaaneru/bpf/declare_map :e :ringbuf 0 0 4096)) (define (%root/e c) (begin (kaaneru/bpf/emit %root/E (list 7)) 2))"), {maps: [declare_map(:e, :ringbuf, 0, 0, 4096)]}).ret #=> 2
 """
 def gen_emit(st, args)
   m = map_named(st, first(args))
@@ -4601,7 +4601,7 @@ end
 @doc """
 gen_helper: `helper`: a kernel helper by name, its arguments loaded into r1 to r5.
 
-    answer("(define (%root/e c) (bpf/helper :get_smp_processor_id))") #=> 0
+    answer("(define (%root/e c) (kaaneru/bpf/helper :get_smp_processor_id))") #=> 0
 """
 def gen_helper(st, args)
   name = first(args)
@@ -4660,7 +4660,7 @@ end
 @doc """
 gen_kernel_read: `kernel_read`: the field's offset left to be bound, then `probe_read_kernel`.
 
-    first(compiled_source("(define (%root/e c) (bpf/kernel_read 0 \"s\" (list \"f\") 4))", :tracing)[:fields])[:struct] #=> "s"
+    first(compiled_source("(define (%root/e c) (kaaneru/bpf/kernel_read 0 \"s\" (list \"f\") 4))", :tracing)[:fields])[:struct] #=> "s"
 """
 def gen_kernel_read(st, args)
   count = literal_of(st, args[3])
@@ -4706,7 +4706,7 @@ end
 @doc """
 gen_ctx_int: `ctx_int`, at a literal offset as the verifier requires.
 
-    run(compile_forms(read_forms("(define (%root/e c) (bpf/ctx_int c 0 1))"), {entry: :e, kind: :tracepoint}), {ctx: [7]}).ret #=> 7
+    run(compile_forms(read_forms("(define (%root/e c) (kaaneru/bpf/ctx_int c 0 1))"), {entry: :e, kind: :tracepoint}), {ctx: [7]}).ret #=> 7
 """
 def gen_ctx_int(st, args)
   off = literal_of(st, args[1])
@@ -4814,7 +4814,7 @@ end
 @doc """
 gen_packet_int: `packet_int`: a bounds check, a load, a swap from network order.
 
-    answer("(define (%root/e c) (bpf/packet_int c 0 1))", [7]) #=> 7
+    answer("(define (%root/e c) (kaaneru/bpf/packet_int c 0 1))", [7]) #=> 7
 """
 def gen_packet_int(st, args)
   count = literal_of(st, args[2])
@@ -4834,7 +4834,7 @@ end
 @doc """
 gen_packet_put: `packet_put`: a bounds check, a swap to network order, a store.
 
-    packet_of(run(compiled_source("(define (%root/e c) (begin (bpf/packet_put c 0 1 9) 2))"), {packet: [0]})) #=> [9]
+    packet_of(run(compiled_source("(define (%root/e c) (begin (kaaneru/bpf/packet_put c 0 1 9) 2))"), {packet: [0]})) #=> [9]
 """
 def gen_packet_put(st, args)
   count = literal_of(st, args[2])
@@ -4870,7 +4870,7 @@ end
 @doc """
 gen_packet_len: `packet_len`: `data_end` less `data`.
 
-    answer("(define (%root/e c) (bpf/packet_len c))", [1, 2]) #=> 2
+    answer("(define (%root/e c) (kaaneru/bpf/packet_len c))", [1, 2]) #=> 2
 """
 def gen_packet_len(st)
   fields = packet_fields(st[:kind])
@@ -5041,11 +5041,11 @@ end
 @doc """
 declared_map_of: the map a top-level form declares, nil for any other form.
 
-    declared_map_of(form_of("(bpf/declare_map :m :array 4 8 1)"))[:max_entries] #=> 1
+    declared_map_of(form_of("(kaaneru/bpf/declare_map :m :array 4 8 1)"))[:max_entries] #=> 1
     declared_map_of(form_of("(a 1)")).nil? #=> true
 """
 def declared_map_of(form)
-  if head_name(form) == "bpf/declare_map" and size(form) == 6
+  if head_name(form) == "kaaneru/bpf/declare_map" and size(form) == 6
     {
       name: form[1],
       kind: form[2],
@@ -5053,7 +5053,7 @@ def declared_map_of(form)
       value_size: form[4],
       max_entries: form[5]
     }
-  elsif head_name(form) == "bpf/declare_locked" and size(form) == 5
+  elsif head_name(form) == "kaaneru/bpf/declare_locked" and size(form) == 5
     declare_locked(form[1], form[2], form[3], form[4])
   end
 end
@@ -5210,7 +5210,7 @@ with_map: what a body of resolved text answers on the machine, with a hash map `
     with_map("7") #=> 7
 """
 def with_map(body)
-  text = "(define %root/M (bpf/declare_map :m :hash 4 8 4)) (define (%root/e c) #{body})"
+  text = "(define %root/M (kaaneru/bpf/declare_map :m :hash 4 8 4)) (define (%root/e c) #{body})"
   run(compiled_source(text), {maps: [declare_map(:m, :hash, 4, 8, 4)]}).ret
 end
 
@@ -6022,18 +6022,18 @@ end
 
 test "a compiled socket-buffer program reads its packet at the kernel's fields, and a socket filter is told to read its length"
   p = compile_forms(
-    read_forms("(define (%root/e c) (bpf/packet_int c 0 1))"),
+    read_forms("(define (%root/e c) (kaaneru/bpf/packet_int c 0 1))"),
     {entry: :e, kind: :lwt_xmit, on_fault: 9}
   )
   assert run(p, {packet: append(repeat(0, 14), [7])}).ret == 7
   assert run(p, {packet: repeat(0, 14)}).ret == 9
   filter_program = compile_forms(
-    read_forms("(define (%root/e c) (bpf/ctx_int c 0 4))"),
+    read_forms("(define (%root/e c) (kaaneru/bpf/ctx_int c 0 4))"),
     {entry: :e, kind: :socket_filter, on_fault: 9}
   )
   assert run(filter_program, {packet: repeat(0, 20)}).ret == 6
   assert (compile_forms(
-    read_forms("(define (%root/e c) (bpf/packet_int c 0 1))"),
+    read_forms("(define (%root/e c) (kaaneru/bpf/packet_int c 0 1))"),
     {entry: :e, kind: :socket_filter}
   ) rescue
     :refused) == :refused
@@ -6435,7 +6435,7 @@ test "a chain of frames past 512 bytes of stack is refused before the verifier s
 end
 
 test "a spin lock in the machine: added under the lock, and a program that holds it wrongly faults"
-  text = "(define %root/M (bpf/declare_locked :m :array 4 1)) (define (%root/e c) (begin (bpf/locked_add %root/M 0 40) (bpf/locked_add %root/M 0 2)))"
+  text = "(define %root/M (kaaneru/bpf/declare_locked :m :array 4 1)) (define (%root/e c) (begin (kaaneru/bpf/locked_add %root/M 0 40) (kaaneru/bpf/locked_add %root/M 0 2)))"
   maps = [declare_locked(:m, :array, 4, 1)]
   p = compiled_source(text)
   got = run(p, {maps:})
@@ -6443,9 +6443,9 @@ test "a spin lock in the machine: added under the lock, and a program that holds
   assert got[:held].nil?
   assert bytes_int(map_value(got, :m, [0, 0, 0, 0]), 8, 8) == 42
   assert needs_btf?(p)
-  missing = "(define %root/M (bpf/declare_locked :m :array 4 1)) (define (%root/e c) (bpf/locked_add %root/M 5 1))"
+  missing = "(define %root/M (kaaneru/bpf/declare_locked :m :array 4 1)) (define (%root/e c) (kaaneru/bpf/locked_add %root/M 5 1))"
   assert run(compiled_source(missing), {maps:}).ret == 9
-  plain = "(define %root/M (bpf/declare_map :m :array 4 16 1)) (define (%root/e c) (bpf/locked_add %root/M 0 1))"
+  plain = "(define %root/M (kaaneru/bpf/declare_map :m :array 4 16 1)) (define (%root/e c) (kaaneru/bpf/locked_add %root/M 0 1))"
   assert contains?(refusal_of(plain), "declare_locked")
   never_freed = assemble([alu(:mov, 1, 7), call(:spin_lock), exit_program])
   assert (run(never_freed) rescue :refused) == :refused
@@ -6553,13 +6553,13 @@ end
 
 test "an overflow, a zero divisor and a bad shift are the declared fault, where blue raises"
   input = [255, 255, 255, 255, 255, 255, 255, 127, 0, 0, 0, 0, 0, 0, 0, 1]
-  read = "(bpf/packet_int c 0 8)"
+  read = "(kaaneru/bpf/packet_int c 0 8)"
   assert answer(
     "(define (%root/e c) (begin (define a #{read}) (+ a 0)))",
     repeat(0, 8)
   ) == 0
   assert answer(
-    "(define (%root/e c) (+ (bpf/packet_int c 0 8) (bpf/packet_int c 8 8)))",
+    "(define (%root/e c) (+ (kaaneru/bpf/packet_int c 0 8) (kaaneru/bpf/packet_int c 8 8)))",
     input
   ) != nil
   big = append(
@@ -6567,22 +6567,25 @@ test "an overflow, a zero divisor and a bad shift are the declared fault, where 
     [0, 0, 0, 0, 0, 0, 0, 1]
   )
   assert answer(
-    "(define (%root/e c) (+ (bpf/packet_int c 0 8) (bpf/packet_int c 8 8)))",
+    "(define (%root/e c) (+ (kaaneru/bpf/packet_int c 0 8) (kaaneru/bpf/packet_int c 8 8)))",
     big
   ) == 9
   assert answer(
-    "(define (%root/e c) (- (- 0 (bpf/packet_int c 0 8)) (bpf/packet_int c 0 8)))",
+    "(define (%root/e c) (- (- 0 (kaaneru/bpf/packet_int c 0 8)) (kaaneru/bpf/packet_int c 0 8)))",
     append([127, 255, 255, 255, 255, 255, 255, 255], [])
   ) == 9
   assert answer(
-    "(define (%root/e c) (unsigned_div 1 (bpf/packet_int c 0 1)))",
+    "(define (%root/e c) (unsigned_div 1 (kaaneru/bpf/packet_int c 0 1)))",
     [0]
   ) == 9
   assert answer(
-    "(define (%root/e c) (shift_left 1 (bpf/packet_int c 0 1)))",
+    "(define (%root/e c) (shift_left 1 (kaaneru/bpf/packet_int c 0 1)))",
     [64]
   ) == 9
-  assert answer("(define (%root/e c) (bpf/packet_int c 4 1))", [1, 2]) == 9
+  assert answer(
+    "(define (%root/e c) (kaaneru/bpf/packet_int c 4 1))",
+    [1, 2]
+  ) == 9
 end
 
 test "comparisons, and, or, not and if lower with blue's meaning of each"
@@ -6616,68 +6619,80 @@ test "locals rebind in place, calls inline, and a tail call is a loop"
 end
 
 test "a value that may be absent narrows on .nil? and takes a default with or"
-  m = "(define %root/M (bpf/declare_map :m :hash 4 8 4))"
-  absent = "#{m} (define (%root/e c) (begin (define x (bpf/map_get %root/M 1)) (if (blue-field x :nil?) 7 x)))"
+  m = "(define %root/M (kaaneru/bpf/declare_map :m :hash 4 8 4))"
+  absent = "#{m} (define (%root/e c) (begin (define x (kaaneru/bpf/map_get %root/M 1)) (if (blue-field x :nil?) 7 x)))"
   assert run(
     compiled_source(absent),
     {maps: [declare_map(:m, :hash, 4, 8, 4)]}
   ).ret == 7
-  put = "#{m} (define (%root/e c) (begin (bpf/map_put %root/M 1 41) (define x (bpf/map_get %root/M 1)) (if (blue-field x :nil?) 7 (+ x 1))))"
+  put = "#{m} (define (%root/e c) (begin (kaaneru/bpf/map_put %root/M 1 41) (define x (kaaneru/bpf/map_get %root/M 1)) (if (blue-field x :nil?) 7 (+ x 1))))"
   assert run(
     compiled_source(put),
     {maps: [declare_map(:m, :hash, 4, 8, 4)]}
   ).ret == 42
-  fallback = "#{m} (define (%root/e c) (or (bpf/map_get %root/M 1) 5))"
+  fallback = "#{m} (define (%root/e c) (or (kaaneru/bpf/map_get %root/M 1) 5))"
   assert run(
     compiled_source(fallback),
     {maps: [declare_map(:m, :hash, 4, 8, 4)]}
   ).ret == 5
-  bare = "#{m} (define (%root/e c) (begin (define x (bpf/map_get %root/M 1)) (+ x 1)))"
+  bare = "#{m} (define (%root/e c) (begin (define x (kaaneru/bpf/map_get %root/M 1)) (+ x 1)))"
   assert contains?(refusal_of(bare), "may be absent")
 end
 
 test "the map words add, delete and put through the machine's maps"
-  m = "(define %root/M (bpf/declare_map :m :hash 4 8 4))"
+  m = "(define %root/M (kaaneru/bpf/declare_map :m :hash 4 8 4))"
   spec = [declare_map(:m, :hash, 4, 8, 4)]
-  added = "#{m} (define (%root/e c) (begin (bpf/map_add %root/M 3 2) (bpf/map_add %root/M 3 5) (or (bpf/map_get %root/M 3) 0)))"
+  added = "#{m} (define (%root/e c) (begin (kaaneru/bpf/map_add %root/M 3 2) (kaaneru/bpf/map_add %root/M 3 5) (or (kaaneru/bpf/map_get %root/M 3) 0)))"
   assert run(compiled_source(added), {maps: spec}).ret == 7
-  gone = "#{m} (define (%root/e c) (begin (bpf/map_put %root/M 3 1) (if (bpf/map_delete %root/M 3) (if (bpf/map_delete %root/M 3) 1 2) 3)))"
+  gone = "#{m} (define (%root/e c) (begin (kaaneru/bpf/map_put %root/M 3 1) (if (kaaneru/bpf/map_delete %root/M 3) (if (kaaneru/bpf/map_delete %root/M 3) 1 2) 3)))"
   assert run(compiled_source(gone), {maps: spec}).ret == 2
 end
 
 test "emit sends a record of values, and helper reaches a kernel helper by name"
-  e = "(define %root/E (bpf/declare_map :e :ringbuf 0 0 4096))"
-  sent = "#{e} (define (%root/e c) (begin (bpf/emit %root/E (list 7 9)) 2))"
+  e = "(define %root/E (kaaneru/bpf/declare_map :e :ringbuf 0 0 4096))"
+  sent = "#{e} (define (%root/e c) (begin (kaaneru/bpf/emit %root/E (list 7 9)) 2))"
   st = run(
     compiled_source(sent),
     {maps: [declare_map(:e, :ringbuf, 0, 0, 4096)]}
   )
   assert st.events == [[7, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0]]
-  asked = "(define (%root/e c) (bpf/helper :ktime_get_ns))"
+  asked = "(define (%root/e c) (kaaneru/bpf/helper :ktime_get_ns))"
   assert run(compiled_source(asked), {now_ns: 5}).ret == 5
 end
 
 test "the packet words read and write in network order, and packet_len counts"
-  assert answer("(define (%root/e c) (bpf/packet_int c 0 2))", [1, 2]) == 258
-  assert answer("(define (%root/e c) (bpf/packet_int c (+ 0 1) 1))", [1, 2]) ==
-    2
-  assert answer("(define (%root/e c) (bpf/packet_len c))", [1, 2, 3]) == 3
-  assert answer("(define (%root/e c) (bpf/packet_int c 1 2))", [1, 2]) == 9
-  assert answer("(define (%root/e c) (bpf/packet_int c 1 2))", [1, 2, 3]) == 515
-  put = compiled_source("(define (%root/e c) (begin (bpf/packet_put c 1 2 258) 2))")
+  assert answer(
+    "(define (%root/e c) (kaaneru/bpf/packet_int c 0 2))",
+    [1, 2]
+  ) == 258
+  assert answer(
+    "(define (%root/e c) (kaaneru/bpf/packet_int c (+ 0 1) 1))",
+    [1, 2]
+  ) == 2
+  assert answer("(define (%root/e c) (kaaneru/bpf/packet_len c))", [1, 2, 3]) ==
+    3
+  assert answer(
+    "(define (%root/e c) (kaaneru/bpf/packet_int c 1 2))",
+    [1, 2]
+  ) == 9
+  assert answer(
+    "(define (%root/e c) (kaaneru/bpf/packet_int c 1 2))",
+    [1, 2, 3]
+  ) == 515
+  put = compiled_source("(define (%root/e c) (begin (kaaneru/bpf/packet_put c 1 2 258) 2))")
   assert packet_of(run(put, {packet: [0, 0, 0]})) == [0, 1, 2]
   ctx = compile_forms(
-    read_forms("(define (%root/e c) (bpf/ctx_int c 0 4))"),
+    read_forms("(define (%root/e c) (kaaneru/bpf/ctx_int c 0 4))"),
     {entry: :e, kind: :tracepoint}
   )
   assert run(ctx, {ctx: [7, 0, 0, 0]}).ret == 7
 end
 
 test "the XDP action words are the kernel's numbers, and each lowers to its number"
-  assert answer("(define (%root/e c) (bpf/xdp_pass))") == xdp_pass
-  assert answer("(define (%root/e c) bpf/xdp_drop)") == xdp_drop
-  assert answer("(define (%root/e c) (bpf/xdp_tx))") == xdp_tx
-  assert answer("(define (%root/e c) (bpf/xdp_aborted))") == xdp_aborted
+  assert answer("(define (%root/e c) (kaaneru/bpf/xdp_pass))") == xdp_pass
+  assert answer("(define (%root/e c) kaaneru/bpf/xdp_drop)") == xdp_drop
+  assert answer("(define (%root/e c) (kaaneru/bpf/xdp_tx))") == xdp_tx
+  assert answer("(define (%root/e c) (kaaneru/bpf/xdp_aborted))") == xdp_aborted
 end
 
 test "what the position has no lowering for is refused by name, never compiled wrong"
@@ -6691,11 +6706,11 @@ test "what the position has no lowering for is refused by name, never compiled w
     "always truthy"
   )
   assert contains?(
-    refusal_of("(define (%root/e c) (* (bpf/packet_int c 0 8) (bpf/packet_int c 8 8)))"),
+    refusal_of("(define (%root/e c) (* (kaaneru/bpf/packet_int c 0 8) (kaaneru/bpf/packet_int c 8 8)))"),
     "wrapping_mul"
   )
   assert contains?(
-    refusal_of("(define (%root/e c) (mod 7 (bpf/packet_int c 0 8)))"),
+    refusal_of("(define (%root/e c) (mod 7 (kaaneru/bpf/packet_int c 0 8)))"),
     "positive"
   )
   assert contains?(refusal_of("(define (%root/e c d) 1)"), "context alone")
@@ -6709,13 +6724,13 @@ test "what the position has no lowering for is refused by name, never compiled w
     "takes 1 arguments"
   )
   assert contains?(
-    refusal_of("(define (%root/e c) (bpf/map_get 1 2))"),
+    refusal_of("(define (%root/e c) (kaaneru/bpf/map_get 1 2))"),
     "declared at the top level"
   )
   assert contains?(refusal_of("(define (%root/e c) unknown)"), "not a local")
   assert contains?(refusal_of("(define (%root/e c) \"text\")"), "no lowering")
   assert contains?(
-    refusal_of("(define (%root/e c) (begin (define x (bpf/map_delete %root/M 1)) 1))"),
+    refusal_of("(define (%root/e c) (begin (define x (kaaneru/bpf/map_delete %root/M 1)) 1))"),
     "declared"
   )
 end
@@ -6727,7 +6742,7 @@ test "a program that needs more than the verifier's stack is refused before it r
 end
 
 test "the report counts what was emitted against what was proven"
-  checked = compiled_source("(define (%root/e c) (begin (define a (bpf/packet_int c 0 8)) (+ a a)))")
+  checked = compiled_source("(define (%root/e c) (begin (define a (kaaneru/bpf/packet_int c 0 8)) (+ a a)))")
   assert checked[:report][:checks] == 1
   assert checked[:report][:slots] >= 1
   assert checked[:report][:insns] > 5
@@ -6736,7 +6751,7 @@ test "the report counts what was emitted against what was proven"
 end
 
 test "kernel_read compiles to a field the loader binds, and the bound program reads it"
-  text = "(define (%root/e c) (bpf/kernel_read (bpf/helper :get_current_task) \"task_struct\" (list \"pid\") 4))"
+  text = "(define (%root/e c) (kaaneru/bpf/kernel_read (kaaneru/bpf/helper :get_current_task) \"task_struct\" (list \"pid\") 4))"
   p = compiled_source(text, :tracing)
   assert size(p[:fields]) == 1
   assert first(p[:fields])[:struct] == "task_struct"
@@ -6754,20 +6769,20 @@ test "kernel_read compiles to a field the loader binds, and the bound program re
 end
 
 test "a field whose size changed on this kernel refuses, and an unbound size or name refuses at compile"
-  text = "(define (%root/e c) (bpf/kernel_read 0 \"s\" (list \"f\") 4))"
+  text = "(define (%root/e c) (kaaneru/bpf/kernel_read 0 \"s\" (list \"f\") 4))"
   p = compiled_source(text, :tracing)
   assert (bind_fields(p, (_s, _path) -> {offset: 0, size: 8}) rescue
     :refused) == :refused
   assert contains?(
-    refusal_of("(define (%root/e c) (bpf/kernel_read 0 \"s\" (list \"f\") 3))"),
+    refusal_of("(define (%root/e c) (kaaneru/bpf/kernel_read 0 \"s\" (list \"f\") 3))"),
     "literal size"
   )
   assert contains?(
-    refusal_of("(define (%root/e c) (bpf/kernel_read 0 1 (list \"f\") 4))"),
+    refusal_of("(define (%root/e c) (kaaneru/bpf/kernel_read 0 1 (list \"f\") 4))"),
     "literal string"
   )
   assert contains?(
-    refusal_of("(define (%root/e c) (bpf/kernel_read 0 \"s\" 1 4))"),
+    refusal_of("(define (%root/e c) (kaaneru/bpf/kernel_read 0 \"s\" 1 4))"),
     "literal list"
   )
 end

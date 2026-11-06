@@ -323,7 +323,10 @@ mod tests {
                     "dist/user/Bluefile",
                     "package(\"user\", \"0.1.0\")\n  needs(\"bpf\", \"^0.1\")\n",
                 ),
-                ("dist/user/user.b", "use(\"kaaneru/bpf\")\n\nkaaneru::bpf::compile\n"),
+                (
+                    "dist/user/user.b",
+                    "use(\"kaaneru/bpf\")\n\nkaaneru::bpf::compile\n",
+                ),
             ],
         );
         let got = derived(&root, "user").unwrap();

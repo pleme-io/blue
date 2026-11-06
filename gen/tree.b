@@ -311,10 +311,10 @@ the strings a fix cannot see (a `legacy_names` target, a doc's example) follow t
 
     rehome("see `kid::go` and fam::kid::x", "fam", ["kid"]) #=> "see `fam::kid::go` and fam::kid::x"
 """
-def rehome(text, root, children)
+def rehome_with(text, root, children, sep)
   reduce(
     fn(acc, c)
-      pieces = split(acc, "#{c}::")
+      pieces = split(acc, "#{c}#{sep}")
       reduce(
         fn(out, piece)
           tail = chars(out)
@@ -328,9 +328,9 @@ def rehome(text, root, children)
               chars("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_:/")
             )
           if starts_path
-            "#{out}#{root}::#{c}::#{piece}"
+            "#{out}#{root}#{sep}#{c}#{sep}#{piece}"
           else
-            "#{out}#{c}::#{piece}"
+            "#{out}#{c}#{sep}#{piece}"
           end
         end,
         first(pieces),
@@ -339,6 +339,68 @@ def rehome(text, root, children)
     end,
     text,
     children
+  )
+end
+
+def rehome(text, root, children)
+  rehome_with(text, root, children, "::")
+end
+
+@doc """
+self_rehome: a moved file's OWN references to its new siblings: the qualifier
+`c::x`, the slash form `c/x` the compiled-program syntax uses, and `use("c")`.
+A package that moves carries its own self-references into the tree with it.
+
+    self_rehome("(bpf/packet_len c)", "kaaneru", ["bpf"]) #=> "(kaaneru/bpf/packet_len c)"
+    self_rehome("already kaaneru/bpf/x", "kaaneru", ["bpf"]) #=> "already kaaneru/bpf/x"
+"""
+def self_rehome(text, root, children)
+  rehome_with(
+    rehome_with(embedded_uses(text, root, children), root, children, "::"),
+    root,
+    children,
+    "/"
+  )
+end
+
+test "self_rehome moves every self-reference form and never double-prefixes"
+  t = unlines(
+    [
+      "use(\"bpf\")",
+      "bpf::compile",
+      "\"(bpf/packet_len c)\"",
+      "kaaneru/bpf/x",
+      "btf::id"
+    ]
+  )
+  out = self_rehome(t, "kaaneru", %w[bpf btf])
+  assert contains?(out, "use(\"kaaneru/bpf\")")
+  assert contains?(out, "kaaneru::bpf::compile")
+  assert contains?(out, "(kaaneru/bpf/packet_len c)")
+  assert contains?(out, "kaaneru::btf::id")
+  assert not contains?(out, "kaaneru/kaaneru/bpf")
+  assert not contains?(out, "kaaneru::kaaneru::bpf")
+end
+
+def tree_files(root)
+  filter((p) -> ends_with?(p, ".b"), walk_dir(path_join("bidamas", root)))
+end
+
+@doc """
+selfmove: rewrite every moved file's OWN references to its new siblings, so a
+package carries its self-references into the tree. `move` runs it; the verb
+repairs a tree whose slash-form self-references an earlier move missed.
+"""
+def selfmove(root, children)
+  map(
+    fn(p)
+      text = read_file(p)
+      moved = self_rehome(text, root, children)
+      if moved != text
+        write_file(p, moved)
+      end
+    end,
+    tree_files(root)
   )
 end
 
@@ -626,6 +688,7 @@ def move(blue, root, children)
       )
     )
   end
+  selfmove(root, children)
   callers = rewrite_callers(blue, root, children)
   facade(root, children)
   debt(root, children)
@@ -656,6 +719,8 @@ def main()
     mutation_sets(argv_get(1), drop(2, argv))
     paths(argv_get(1), drop(2, argv))
     strings(argv_get(1), drop(2, argv))
+  elsif verb == "selfmove" and size(argv) >= 3
+    selfmove(argv_get(1), drop(2, argv))
   elsif verb == "rehome" and size(argv) >= 3
     map(
       (p) -> write_file(p, rehome(read_file(p), argv_get(1), drop(2, argv))),

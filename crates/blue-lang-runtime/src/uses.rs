@@ -1309,7 +1309,7 @@ pub(crate) mod tests {
             ("kaaneru/bpf", "def compile()\n  1\nend"),
             ("kaaneru/bpf/asm", "def op()\n  2\nend"),
         ])));
-        let out = resolve("use(\"kaaneru/bpf\")\nuse(\"kaaneru/bpf/asm\")\n\nkaaneru::bpf::compile", &loader)
+        let out = resolve("use(\"bpf\")\nuse(\"bpf/asm\")\n\nbpf::compile", &loader)
             .expect("the bridge resolves");
         let packages: Vec<&str> = out
             .imports()

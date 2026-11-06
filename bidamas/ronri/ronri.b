@@ -8,7 +8,7 @@ recursive walks is the point: the combinators are the library.
     every(equals(1), []) #=> true
 """
 
-use("kansuu", [:compose])
+use("kansuu", %i[compose fork juxt_with])
 use("kazu", [:abs])
 use("retsu", %i[first indexes is_empty rest size])
 
@@ -79,7 +79,7 @@ xor: The rest of the connectives, so a caller never has to spell one out by hand
 and it is where a transcription error lands.
 """
 def xor(p, q)
-  (x) -> p(x) != q(x)
+  fork((a, b) -> a != b, p, q)
 end
 
 @doc """
@@ -92,11 +92,11 @@ def implies(p, q)
 end
 
 def nand(p, q)
-  (x) -> not (p(x) and q(x))
+  complement(both(p, q))
 end
 
 def nor(p, q)
-  (x) -> not (p(x) or q(x))
+  complement(either(p, q))
 end
 
 @doc """
@@ -112,15 +112,15 @@ fixed, which is the header's claim made literal. Two things fall out that a
 the first decisive predicate instead of calling all of them.
 """
 def all_of(ps)
-  (x) -> every((p) -> p(x), ps)
+  juxt_with(every, ps)
 end
 
 def any_of(ps)
-  (x) -> any((p) -> p(x), ps)
+  juxt_with(any, ps)
 end
 
 def none_of(ps)
-  (x) -> none((p) -> p(x), ps)
+  juxt_with(none, ps)
 end
 
 @doc """
@@ -591,4 +591,10 @@ test "via asks the predicate about a derived value"
   # via over a list-shaped value, where the derived thing is a size.
   assert count_if(via(size, equals(0)), [[], [1], []]) == 2
   assert every(via(size, equals(0)), []) == true
+end
+
+test "nand and nor stop at the first decisive predicate"
+  nonempty = (s) -> length(s) > 0
+  assert nand(string?, nonempty)(nil) == true
+  assert nor(nil?, nonempty)(nil) == false
 end

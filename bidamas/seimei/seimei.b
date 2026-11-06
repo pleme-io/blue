@@ -51,11 +51,7 @@ def elementary_step(rule, row)
 end
 
 def elementary_run(rule, row, gens)
-  if gens < 1
-    [row]
-  else
-    cons(row, elementary_run(rule, elementary_step(rule, row), gens - 1))
-  end
+  run_with((r) -> elementary_step(rule, r), row, gens)
 end
 
 @doc """
@@ -731,10 +727,7 @@ def seeds_cell(grid, r, c)
 end
 
 def seeds_step(grid)
-  map(
-    (r) -> map((c) -> seeds_cell(grid, r, c), range(0, grid_cols(grid))),
-    range(0, grid_rows(grid))
-  )
+  grid_step(grid, seeds_cell)
 end
 
 @doc """
@@ -757,8 +750,18 @@ def brain_cell(grid, r, c)
 end
 
 def brain_step(grid)
+  grid_step(grid, brain_cell)
+end
+
+@doc """
+grid_step(grid, cell) is the next grid, each cell the answer of
+cell(grid, r, c) for its row r and column c.
+
+    grid_step([[1, 0]], (g, r, c) -> 1 - g[r][c]) #=> [[0, 1]]
+"""
+def grid_step(grid, cell)
   map(
-    (r) -> map((c) -> brain_cell(grid, r, c), range(0, grid_cols(grid))),
+    (r) -> map((c) -> cell(grid, r, c), range(0, grid_cols(grid))),
     range(0, grid_rows(grid))
   )
 end
@@ -811,4 +814,13 @@ test "the generic runner drives any of the rule sets"
   assert period_with(life_step, blinker, 4) == 2
   # A rule with no fixed point inside the bound answers 0 rather than looping.
   assert period_with(brain_step, blinker, 3) == 0
+end
+
+test "grid_step asks cell for every position"
+  flip = (g, r, c) -> 1 - g[r][c]
+  assert grid_step([], flip) == []
+  assert grid_step([[1, 0], [0, 1]], (g, r, c) -> g[r][c]) == [[1, 0], [0, 1]]
+  assert grid_step([[1, 0]], flip) == [[0, 1]]
+  assert grid_step([[0, 0], [0, 0]], (_g, r, c) -> r * 2 + c) ==
+    [[0, 1], [2, 3]]
 end

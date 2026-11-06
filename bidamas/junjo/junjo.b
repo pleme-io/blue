@@ -14,21 +14,43 @@ use("kazu", %i[max min])
 use("retsu", %i[first indexes is_empty last rest size])
 use("ronri", [:count_if])
 
+@doc """
+insert_ordered(x, xs) inserts by `compare`, not `<=`, so it orders strings as
+well as numbers: `<=` is a type error on strings.
+
+    insert_ordered("b", ["a", "c"]) #=> ["a", "b", "c"]
+"""
 def insert_ordered(x, xs)
+  insert_with(compare, x, xs)
+end
+
+@doc """
+insert_with(cmp, x, xs) puts x into the list xs, sorted by cmp, before the
+first item it does not follow; cmp answers -1, 0 or 1.
+
+    insert_with(compare, 3, [1, 5]) #=> [1, 3, 5]
+"""
+def insert_with(cmp, x, xs)
   if is_empty(xs)
     [x]
+  elsif cmp(x, first(xs)) <= 0
+    cons(x, xs)
   else
-    # `compare`, not `<=`, so this sorts STRINGS as well as numbers.
-    #
-    # `<` and `<=` are a type error on strings ("expected number, got string"),
-    # so a `<=`-phrased sort could not order a list of words at all — it raised.
-    # The reachable `compare` builtin is total over the value domain and returns
-    # -1/0/1, so one implementation serves both.
-    if compare(x, first(xs)) <= 0
-      cons(x, xs)
-    else
-      cons(first(xs), insert_ordered(x, rest(xs)))
-    end
+    cons(first(xs), insert_with(cmp, x, rest(xs)))
+  end
+end
+
+@doc """
+sort_with(cmp, xs) orders xs by cmp, stably, by insertion; cmp answers -1, 0
+or 1.
+
+    sort_with(compare, [3, 1, 2]) #=> [1, 2, 3]
+"""
+def sort_with(cmp, xs)
+  if is_empty(xs)
+    []
+  else
+    insert_with(cmp, first(xs), sort_with(cmp, rest(xs)))
   end
 end
 
@@ -38,11 +60,7 @@ sort: items in ascending order; stable.
     sort([]) #=> []
 """
 def sort(xs)
-  if is_empty(xs)
-    []
-  else
-    insert_ordered(first(xs), sort(rest(xs)))
-  end
+  sort_with(compare, xs)
 end
 
 @doc """
@@ -308,27 +326,29 @@ def dedupe_sorted(xs)
 end
 
 def lower_bound_from(xs, target, lo, hi)
-  if lo >= hi
-    lo
-  else
-    mid = floor((lo + hi) / 2)
-    if xs[mid] < target
-      lower_bound_from(xs, target, mid + 1, hi)
-    else
-      lower_bound_from(xs, target, lo, mid)
-    end
-  end
+  bound_from((a, t) -> a < t, xs, target, lo, hi)
 end
 
 def upper_bound_from(xs, target, lo, hi)
+  bound_from((a, t) -> a <= t, xs, target, lo, hi)
+end
+
+@doc """
+bound_from(before, xs, target, lo, hi) is the first index in lo..hi of the
+sorted list xs whose item does not come before target, by a binary search;
+before(item, target) says whether the item comes before.
+
+    bound_from((a, t) -> a < t, [1, 3, 5], 4, 0, 3) #=> 2
+"""
+def bound_from(before, xs, target, lo, hi)
   if lo >= hi
     lo
   else
     mid = floor((lo + hi) / 2)
-    if xs[mid] <= target
-      upper_bound_from(xs, target, mid + 1, hi)
+    if before(xs[mid], target)
+      bound_from(before, xs, target, mid + 1, hi)
     else
-      upper_bound_from(xs, target, lo, mid)
+      bound_from(before, xs, target, lo, mid)
     end
   end
 end
@@ -389,19 +409,25 @@ smallest of three values is the second one, duplicate or not.
     nth_smallest(1, [5, 5, 1]) #=> 5
 """
 def nth_smallest(n, xs)
+  nth_by(sort, n, xs)
+end
+
+@doc """
+nth_by(order, n, xs) is the item at index n of order(xs), or nil when n is out
+of range.
+
+    nth_by(sort, 0, [3, 1, 2]) #=> 1
+"""
+def nth_by(order, n, xs)
   if n < 0 or n >= size(xs)
     nil
   else
-    sort(xs)[n]
+    order(xs)[n]
   end
 end
 
 def nth_largest(n, xs)
-  if n < 0 or n >= size(xs)
-    nil
-  else
-    sort_desc(xs)[n]
-  end
+  nth_by(sort_desc, n, xs)
 end
 
 @doc """
@@ -411,19 +437,25 @@ rather than erroring — a truncation should not become an exception.
     top_n(2, []) #=> []
 """
 def top_n(n, xs)
+  take_by(sort_desc, n, xs)
+end
+
+@doc """
+take_by(order, n, xs) is the first n items of order(xs), and none when n is
+below one.
+
+    take_by(sort, 2, [3, 1, 2]) #=> [1, 2]
+"""
+def take_by(order, n, xs)
   if n < 1
     []
   else
-    take(n, sort_desc(xs))
+    take(n, order(xs))
   end
 end
 
 def bottom_n(n, xs)
-  if n < 1
-    []
-  else
-    take(n, sort(xs))
-  end
+  take_by(sort, n, xs)
 end
 
 @doc """
@@ -474,13 +506,7 @@ def merge_all_sorted(xss)
 end
 
 def insert_lex(x, xss)
-  if is_empty(xss)
-    [x]
-  elsif compare_lists(x, first(xss)) <= 0
-    cons(x, xss)
-  else
-    cons(first(xss), insert_lex(x, rest(xss)))
-  end
+  insert_with(compare_lists, x, xss)
 end
 
 @doc """
@@ -493,11 +519,7 @@ the order exists, and this is what makes it usable. Stable, by insertion.
     sort_lists([]) #=> []
 """
 def sort_lists(xss)
-  if is_empty(xss)
-    []
-  else
-    insert_lex(first(xss), sort_lists(rest(xss)))
-  end
+  sort_with(compare_lists, xss)
 end
 
 test "sort orders, is idempotent, and handles the small cases"
@@ -846,4 +868,33 @@ test "merge joins two sorted lists and keeps the left on ties"
   assert merge([1], []) == [1]
   assert merge([], []) == []
   assert merge([1, 1], [1]) == [1, 1, 1]
+end
+
+test "insert_with and sort_with order by the comparator given"
+  desc = (a, b) -> compare(b, a)
+  assert insert_with(compare, 1, []) == [1]
+  assert sort_with(compare, []) == []
+  assert sort_with(compare, [3, 1, 2]) == sort([3, 1, 2])
+  assert sort_with(desc, [3, 1, 2]) == [3, 2, 1]
+  assert insert_with(desc, 2, [3, 1]) == [3, 2, 1]
+  assert sort_with(compare_lists, [[2], [1, 9]]) == [[1, 9], [2]]
+end
+
+test "bound_from searches by the before predicate"
+  lt = (a, t) -> a < t
+  assert bound_from(lt, [], 4, 0, 0) == 0
+  assert bound_from(lt, [1, 3, 5], 4, 0, 3) == 2
+  assert bound_from((a, t) -> a <= t, [1, 3, 3, 5], 3, 0, 4) == 3
+  assert bound_from(lt, [1, 3, 3, 5], 3, 0, 4) == 1
+end
+
+test "nth_by and take_by read the ordered list"
+  assert nth_by(sort, 0, []).nil?
+  assert take_by(sort, 2, []) == []
+  same = (xs) -> xs
+  assert nth_by(same, 1, [7, 8]) == 8
+  assert take_by(same, 1, [7, 8]) == [7]
+  assert nth_by(sort_desc, 0, [3, 9, 1]) == 9
+  assert take_by(sort, 2, [3, 1, 2]) == [1, 2]
+  assert take_by(sort, 0, [3]) == []
 end

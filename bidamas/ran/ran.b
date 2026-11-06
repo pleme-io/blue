@@ -61,10 +61,20 @@ take_ints: A list of n values, threading the seed through so the sequence advanc
     take_ints(42, 100, 5) #=> take_ints(42, 100, 5)
 """
 def take_ints(seed, bound, n)
+  draws(seed, n, (s) -> next_int(s, bound))
+end
+
+@doc """
+draws(seed, n, draw) is n values, each draw(s) of the seed s that the one
+before it advanced to, the first of seed itself.
+
+    draws(7, 3, (s) -> s) #=> [7, next_seed(7), next_seed(next_seed(7))]
+"""
+def draws(seed, n, draw)
   if n < 1
     []
   else
-    cons(next_int(seed, bound), take_ints(next_seed(seed), bound, n - 1))
+    cons(draw(seed), draws(next_seed(seed), n - 1, draw))
   end
 end
 
@@ -82,7 +92,16 @@ choice: Pick an element by index. Returns the element, not the seed — callers 
 need to keep drawing advance the seed themselves.
 """
 def choice(seed, xs)
-  xs[next_int(seed, size(xs))]
+  pick_with(next_int, seed, xs)
+end
+
+@doc """
+pick_with(index, seed, xs) is the item of xs at index(seed, size(xs)).
+
+    pick_with((_s, _n) -> 1, 5, %w[a b c]) #=> "b"
+"""
+def pick_with(index, seed, xs)
+  xs[index(seed, size(xs))]
 end
 
 @doc """
@@ -109,11 +128,7 @@ def next_bool(seed)
 end
 
 def take_bools(seed, n)
-  if n < 1
-    []
-  else
-    cons(next_bool(seed), take_bools(next_seed(seed), n - 1))
-  end
+  draws(seed, n, next_bool)
 end
 
 @doc """
@@ -122,11 +137,7 @@ take_floats: n floats in [0, 1). Never reaches 1: the largest seed is 2^32 - 1.
     take_floats(21, 0) #=> []
 """
 def take_floats(seed, n)
-  if n < 1
-    []
-  else
-    cons(next_float(seed), take_floats(next_seed(seed), n - 1))
-  end
+  draws(seed, n, next_float)
 end
 
 @doc """
@@ -216,7 +227,7 @@ two-element list with `choice` alternates, and picking from an eight-element
 one cycles its low three bits, which is exactly how a shuffle stops shuffling.
 """
 def pick(seed, xs)
-  xs[next_uniform(seed, size(xs))]
+  pick_with(next_uniform, seed, xs)
 end
 
 @doc """
@@ -225,11 +236,7 @@ choices: n picks WITH replacement — repeats are expected, and the list is not 
     choices(31, [1, 2, 3, 4], 20) #=> choices(31, [1, 2, 3, 4], 20)
 """
 def choices(seed, xs, n)
-  if n < 1
-    []
-  else
-    cons(pick(seed, xs), choices(next_seed(seed), xs, n - 1))
-  end
+  draws(seed, n, (s) -> pick(s, xs))
 end
 
 @doc """
@@ -652,4 +659,18 @@ test "one seed reproduces every stream; two seeds diverge"
   assert choices(31, [1, 2, 3, 4], 20) != choices(32, [1, 2, 3, 4], 20)
   assert shuffle(31, [1, 2, 3, 4, 5, 6]) == shuffle(31, [1, 2, 3, 4, 5, 6])
   assert shuffle(31, [1, 2, 3, 4, 5, 6]) != shuffle(32, [1, 2, 3, 4, 5, 6])
+end
+
+test "draws threads the seed through draw"
+  same = (s) -> s
+  assert draws(7, 0, same) == []
+  assert draws(7, 1, same) == [7]
+  assert draws(7, 3, same) == [7, next_seed(7), next_seed(next_seed(7))]
+  assert draws(9, 4, next_bool) == take_bools(9, 4)
+end
+
+test "pick_with reads the item at the index drawn"
+  assert pick_with((_s, _n) -> 0, 5, [4]) == 4
+  assert pick_with((_s, n) -> n - 1, 5, %w[a b c]) == "c"
+  assert pick_with(next_int, 3, [1, 2, 3]) == choice(3, [1, 2, 3])
 end

@@ -269,7 +269,7 @@ its list with cons and is quadratic (~0.2 s at 10,000).
 """
 
 use("deeta", %i[as_json get_int get_str is_doc])
-use("isshou/raifusaikuru", [:lc_define])
+use("isshou/raifusaikuru", %i[int_at_least? lc_define])
 use("junjo", [:sort_stable_by])
 
 use("kyohi")
@@ -1053,15 +1053,24 @@ def nonempty_string?(v)
 end
 
 def natural?(v)
-  integer?(v) and v >= 0
+  int_at_least?(v, 0)
 end
 
 def sig_shape?(v)
   v.nil? or string?(v)
 end
 
+@doc """
+list_of?: True when `v` is a list whose every element satisfies `pred`.
+
+    list_of?(["a", "b"], (x) -> string?(x)) #=> true
+"""
+def list_of?(v, pred)
+  v != nil and list?(v) and count_where((x) -> pred(x) == false, v) == 0
+end
+
 def links_shape?(v)
-  v != nil and list?(v) and count_where((l) -> link_shape?(l) == false, v) == 0
+  list_of?(v, link_shape?)
 end
 
 def link_shape?(l)
@@ -1084,7 +1093,7 @@ def refusal_shape?(status, v)
 end
 
 def texts_list?(v)
-  v != nil and list?(v) and count_where((x) -> string?(x) == false, v) == 0
+  list_of?(v, (x) -> string?(x))
 end
 
 # ── the log value ──────────────────────────────────────────────────────────
@@ -2754,4 +2763,26 @@ test "entry counts a refused event in seq and leaves the state as it was"
   )
   rm(p)
   assert entry(log, "a") == [isshou::raifusaikuru::initial(d), 1]
+end
+
+test "list_of? and natural? on the empty case"
+  assert list_of?([], (x) -> string?(x))
+  assert list_of?(nil, (x) -> string?(x)) == false
+  assert natural?(nil) == false
+end
+
+test "list_of? and natural? as identity: the original words are one call each"
+  assert texts_list?(["a", 1]) == list_of?(["a", 1], (x) -> string?(x))
+  ls = [{"id" => "x", "kind" => "k"}]
+  assert links_shape?(ls) == list_of?(ls, link_shape?)
+  assert natural?(4) == int_at_least?(4, 0)
+end
+
+test "list_of? and natural? on known values"
+  assert list_of?(%w[a b], (x) -> string?(x))
+  assert list_of?(["a", 1], (x) -> string?(x)) == false
+  assert list_of?("ab", (x) -> string?(x)) == false
+  assert natural?(0)
+  assert natural?(-1) == false
+  assert natural?(2.5) == false
 end

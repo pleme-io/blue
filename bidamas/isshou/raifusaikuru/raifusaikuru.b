@@ -703,8 +703,17 @@ def d_fields(d)
   d[7]
 end
 
+@doc """
+d_names: The names of the declarations in slot `i` of a definition: the first of each.
+
+    d_names([0, [[:a, 1], [:b, 2]]], 1) #=> [:a, :b]
+"""
+def d_names(d, i)
+  map((x) -> first(x), d[i])
+end
+
 def d_field_names(d)
-  map((f) -> first(f), d[7])
+  d_names(d, 7)
 end
 
 def d_events(d)
@@ -712,7 +721,7 @@ def d_events(d)
 end
 
 def d_event_names(d)
-  map((e) -> first(e), d[8])
+  d_names(d, 8)
 end
 
 def d_edges(d)
@@ -835,8 +844,17 @@ def dupes(xs)
   unique(filter((x) -> count_of(xs, x) > 1, xs))
 end
 
+@doc """
+int_at_least?: True when `x` is an integer no smaller than `low`.
+
+    int_at_least?(3, 1) #=> true
+"""
+def int_at_least?(x, low)
+  integer?(x) and x >= low
+end
+
 def positive_int?(x)
-  integer?(x) and x > 0
+  int_at_least?(x, 1)
 end
 
 @doc """
@@ -1104,12 +1122,22 @@ def pb_names(p)
   flatten1([empty, bad, reserved, ds, df, de, dk])
 end
 
-def pb_state(s, states, where)
-  if contains(states, s)
+@doc """
+pb_declared: No problem when `x` is among `declared`; otherwise one problem of `kind`
+saying, at `where`, that `x` is not a declared `what`.
+
+    pb_declared(:a, [:a], "here", :unknown_state, "state") #=> []
+"""
+def pb_declared(x, declared, where, kind, what)
+  if contains(declared, x)
     []
   else
-    [problem(:unknown_state, "#{where}: #{show(s)} is not a declared state")]
+    [problem(kind, "#{where}: #{show(x)} is not a declared #{what}")]
   end
+end
+
+def pb_state(s, states, where)
+  pb_declared(s, states, where, :unknown_state, "state")
 end
 
 def pb_start(p)
@@ -1197,11 +1225,7 @@ def pb_edge(p, e)
 end
 
 def pb_field(f, fields, where)
-  if contains(fields, f)
-    []
-  else
-    [problem(:unknown_field, "#{where}: #{show(f)} is not a declared field")]
-  end
+  pb_declared(f, fields, where, :unknown_field, "field")
 end
 
 def pb_effect(p, eff, keys, where)
@@ -1258,30 +1282,31 @@ end
 forward: States reachable from `seeds` along `pairs` ([from, to]), within n rounds.
 """
 def forward(pairs, seeds, n)
-  reduce(
-    fn(acc, _i)
-      union(
-        acc,
-        map((pr) -> pr[1], filter((pr) -> contains(acc, first(pr)), pairs))
-      )
-    end,
-    seeds,
-    range(0, n)
-  )
+  reach(pairs, seeds, n, 0, 1)
 end
 
 @doc """
 backward: States that can reach `goals` along `pairs`, within n rounds.
 """
 def backward(pairs, goals, n)
+  reach(pairs, goals, n, 1, 0)
+end
+
+@doc """
+reach: `seeds` and every state reached from them within n rounds, stepping from slot
+`from` of a pair to slot `to`.
+
+    reach([[:a, :b]], [:a], 1, 0, 1) #=> [:a, :b]
+"""
+def reach(pairs, seeds, n, from, to)
   reduce(
     fn(acc, _i)
       union(
         acc,
-        map((pr) -> first(pr), filter((pr) -> contains(acc, pr[1]), pairs))
+        map((pr) -> pr[to], filter((pr) -> contains(acc, pr[from]), pairs))
       )
     end,
-    goals,
+    seeds,
     range(0, n)
   )
 end
@@ -1746,12 +1771,21 @@ def legal_events(d, phase)
   unique(map((e) -> e[2], filter((e) -> e[1] == phase, d_edges(lc_require(d)))))
 end
 
+@doc """
+capability_row: The first row whose second slot is `capability`, or nil.
+
+    capability_row([[:guard, :use, 1]], :use) #=> [:guard, :use, 1]
+"""
+def capability_row(rows, capability)
+  find_first((r) -> r[1] == capability, rows)
+end
+
 def guard_for(d, capability)
-  find_first((g) -> g[1] == capability, d_guards(d))
+  capability_row(d_guards(d), capability)
 end
 
 def permit_spec_for(d, capability)
-  find_first((pm) -> pm[1] == capability, d_permits(d))
+  capability_row(d_permits(d), capability)
 end
 
 # ── events ─────────────────────────────────────────────────────────────────
@@ -2087,24 +2121,28 @@ def k(b)
   end
 end
 
-def k_and(vs)
-  if contains(vs, :no)
-    :no
+@doc """
+k_absorb: Three-valued fold: `dominant` if any value is, else :unknown if any is,
+else `otherwise`.
+
+    k_absorb(%i[yes unknown], :no, :yes) #=> :unknown
+"""
+def k_absorb(vs, dominant, otherwise)
+  if contains(vs, dominant)
+    dominant
   elsif contains(vs, :unknown)
     :unknown
   else
-    :yes
+    otherwise
   end
 end
 
+def k_and(vs)
+  k_absorb(vs, :no, :yes)
+end
+
 def k_or(vs)
-  if contains(vs, :yes)
-    :yes
-  elsif contains(vs, :unknown)
-    :unknown
-  else
-    :no
-  end
+  k_absorb(vs, :yes, :no)
 end
 
 def k_not(v)
@@ -3169,4 +3207,47 @@ test "check on a definition with no clause at all reports the missing states and
   kinds = map(problem_kind, check(parse(:empty, [])))
   assert contains(kinds, :no_states)
   assert contains(kinds, :no_start)
+end
+
+test "the general words on the empty case"
+  assert d_names([0, []], 1) == []
+  assert int_at_least?(nil, 0) == false
+  assert pb_declared(:a, [], "w", :unknown_state, "state") ==
+    [problem(:unknown_state, "w: :a is not a declared state")]
+  assert reach([], [:a], 3, 0, 1) == [:a]
+  assert capability_row([], :use).nil?
+  assert k_absorb([], :no, :yes) == :yes
+end
+
+test "the general words as identity: each original word is one call of its general word"
+  d = parse(:base, example_base)
+  assert d_field_names(d) == d_names(d, 7)
+  assert d_event_names(d) == d_names(d, 8)
+  assert positive_int?(1) == int_at_least?(1, 1)
+  assert pb_state(:x, [:x], "w") ==
+    pb_declared(:x, [:x], "w", :unknown_state, "state")
+  assert pb_field(:z, [], "w") ==
+    pb_declared(:z, [], "w", :unknown_field, "field")
+  pairs = [%i[a b], %i[b c]]
+  assert forward(pairs, [:a], 2) == reach(pairs, [:a], 2, 0, 1)
+  assert backward(pairs, [:c], 2) == reach(pairs, [:c], 2, 1, 0)
+  assert guard_for(d, :use) == capability_row(d_guards(d), :use)
+  assert k_and(%i[yes unknown]) == k_absorb(%i[yes unknown], :no, :yes)
+  assert k_or(%i[no unknown]) == k_absorb(%i[no unknown], :yes, :no)
+end
+
+test "the general words on known values"
+  assert d_names([0, [[:a, 1], [:b, 2]]], 1) == %i[a b]
+  assert int_at_least?(0, 0)
+  assert int_at_least?(0, 1) == false
+  assert int_at_least?(1.5, 0) == false
+  assert pb_field(:z, [:y], "w") ==
+    [problem(:unknown_field, "w: :z is not a declared field")]
+  assert set_equal(reach([%i[a b], %i[b c]], [:a], 2, 0, 1), %i[a b c])
+  assert set_equal(reach([%i[a b], %i[b c]], [:c], 1, 1, 0), %i[c b])
+  assert capability_row([[:guard, :use, 1], [:guard, :x, 2]], :x) ==
+    [:guard, :x, 2]
+  assert k_and(%i[yes no unknown]) == :no
+  assert k_or(%i[no unknown]) == :unknown
+  assert k_or(%i[no yes]) == :yes
 end

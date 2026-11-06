@@ -60,7 +60,8 @@ fn get_set_ttl_and_del_round_trip_with_a_password_file() {
 
 #[test]
 fn tls_on_is_refused_by_name_and_off_only_on_loopback() {
-    let e = err("use(\"chozou/kiibariu\")\nkiibariu::connect({host: \"127.0.0.1\", port: 1})");
+    let e =
+        err("use(\"chozou/kiibariu\")\nchozou::kiibariu::connect({host: \"127.0.0.1\", port: 1})");
     assert!(e.contains("no TLS transport"), "{e}");
     let e = err("resp_connect(\"10.0.0.1\", 6379, nil, false)");
     assert!(e.contains("only for 127.0.0.1"), "{e}");
@@ -119,7 +120,7 @@ fn strict_put_and_fetch_check_the_schema_both_ways() {
     ));
     assert!(e.contains("field total"), "{e}");
     let e = err(&format!(
-        "{head}{PLAN}chozou::kiibariu::set_key(c, \"k\", \"{{\\\"t\\\":1}}\", nil)\nkiibariu::fetch(c, from, \"k\")"
+        "{head}{PLAN}chozou::kiibariu::set_key(c, \"k\", \"{{\\\"t\\\":1}}\", nil)\nchozou::kiibariu::fetch(c, from, \"k\")"
     ));
     assert!(e.contains("no field total"), "{e}");
 }

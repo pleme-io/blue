@@ -11,7 +11,7 @@
 //!
 //! "Depending on the facade resolves all eighteen packages" is a claim that
 //! passes just as happily if resolution is broken in the other direction — if
-//! `needs("kumiawase")` also dragged the whole distribution in, every facade
+//! `needs("retsu")` also dragged the whole distribution in, every facade
 //! assertion here would still be green and the fine-grained half of the
 //! promise would be silently dead. A facade test alone proves that a bundle
 //! arrives, never that anything was left out.
@@ -50,10 +50,10 @@ use blue_lang_pkg::{Manifest, Range, Registry, Solver, MANIFEST_FILE};
 const FACADE: &str = "zenbu";
 
 /// A fine-grained consumer with a SHALLOW closure: one hop.
-const FINE_SHALLOW: &str = "kumiawase";
+const FINE_SHALLOW: &str = "retsu";
 
 /// A fine-grained consumer with a DEEP closure: four hops, still proper.
-const FINE_DEEP: &str = "toukei";
+const FINE_DEEP: &str = "junjo";
 
 fn dist() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -95,7 +95,7 @@ fn set(names: &[&str]) -> BTreeSet<String> {
 
 /// **Fine-grained, one hop: the package and its dependency, and nothing else.**
 ///
-/// `kumiawase` needs only `kazu`, so a consumer naming it must resolve exactly
+/// `retsu` needs only `kazu`, so a consumer naming it must resolve exactly
 /// two packages out of the distribution. Asserted as set EQUALITY rather than
 /// "contains kazu", because containment is satisfied by resolving everything.
 #[test]
@@ -110,10 +110,9 @@ fn a_fine_grained_consumer_gets_its_closure_and_not_the_world() {
     );
 
     // Named absences, so the assertion is about packages rather than a count.
-    // `moji` has no dependents at all and `toukei` sits at the far end of the
-    // deepest chain: if either arrived, resolution is pulling the distribution
+    // `moji` and the `suugaku` tree sit outside it: if either arrived, resolution is pulling the distribution
     // rather than the closure.
-    for stranger in ["moji", "toukei", FACADE] {
+    for stranger in ["moji", "suugaku", FACADE] {
         assert!(
             !got.contains(stranger),
             "{stranger} is not reachable from {FINE_SHALLOW} and must not be \
@@ -124,15 +123,15 @@ fn a_fine_grained_consumer_gets_its_closure_and_not_the_world() {
 
 /// **Fine-grained, four hops: the whole chain arrives, and it still stops.**
 ///
-/// `toukei -> junjo -> ronri -> {retsu -> kazu, kansuu}`. Same property as
+/// `junjo -> ronri -> {retsu -> kazu, kansuu}`. Same property as
 /// above with transitivity switched on, and a separate test because a resolver
 /// could get the one-hop case right by never recursing.
 ///
 /// Stated as containment-plus-named-absence rather than set equality, and the
 /// difference is deliberate. An exact set pins the *distribution's* shape, not
 /// the *resolver's* behaviour, so it goes red on any legitimate new edge —
-/// which happened within an hour of this being written, when `toukei` gained
-/// `shuugou`. The properness claim does not need the exact set: eleven named
+/// which happened within an hour of this being written, when a bidama on the
+/// chain gained `shuugou`. The properness claim does not need the exact set: eleven named
 /// packages that must be absent out of nineteen catches an over-reach just as
 /// well, and does not punish the distribution for growing. The tight equality
 /// assertion lives on the one-hop case above, where the edge is stable.
@@ -141,7 +140,7 @@ fn a_deep_fine_grained_consumer_gets_the_whole_chain_and_stops() {
     let got = closure_of(FINE_DEEP);
 
     // Transitivity: every hop of the chain must arrive, four deep.
-    for hop in [FINE_DEEP, "junjo", "ronri", "retsu", "kansuu", "kazu"] {
+    for hop in [FINE_DEEP, "ronri", "retsu", "kansuu", "kazu"] {
         assert!(
             got.contains(hop),
             "{hop} is on {FINE_DEEP}'s dependency chain and must resolve — a \
@@ -151,17 +150,8 @@ fn a_deep_fine_grained_consumer_gets_the_whole_chain_and_stops() {
 
     // Properness: the rest of the distribution must NOT come along.
     for stranger in [
-        "moji",
-        "ongaku",
-        "seimei",
-        "angou",
-        "hizuke",
-        "kikagaku",
-        "gyouretsu",
-        "shinsuu",
-        "kumiawase",
-        "ran",
-        FACADE,
+        "moji", "ongaku", "seimei", "angou", "hizuke", "koubou", "suugaku", "shinsuu", "moji",
+        "ran", FACADE,
     ] {
         assert!(
             !got.contains(stranger),
@@ -218,9 +208,9 @@ fn the_two_granularities_are_measurably_different() {
     );
 
     let only_via_facade: BTreeSet<String> = facade.difference(&fine).cloned().collect();
-    // Named, not counted. Each of these is a package a `needs("kumiawase")`
+    // Named, not counted. Each of these is a package a `needs("retsu")`
     // consumer must NOT be paying for.
-    for withheld in ["moji", "toukei", "ongaku", "seimei", "hizuke", "angou"] {
+    for withheld in ["moji", "suugaku", "ongaku", "seimei", "hizuke", "angou"] {
         assert!(
             only_via_facade.contains(withheld),
             "{withheld} must arrive with the facade and NOT with {FINE_SHALLOW}; \
@@ -262,16 +252,16 @@ fn eval(src: &str) -> Result<String, String> {
 /// put it in scope.
 #[test]
 fn granularity_holds_at_the_import_plane_too() {
-    // In closure: kumiawase's own function.
+    // In closure: retsu's own function.
     assert_eq!(
-        eval("use(\"suugaku/kumiawase\", [:factorial])\nfactorial(5)").expect("kumiawase must import"),
-        "Int(120)"
+        eval("use(\"retsu\", [:size])\nsize([1, 2])").expect("retsu must import"),
+        "Int(2)"
     );
 
-    // THE CONTROL. `median` lives only in toukei, which is outside
-    // kumiawase's closure, so this must fail as an unbound name.
-    let err = eval("use(\"suugaku/kumiawase\")\nmedian([1, 2, 3])").expect_err(
-        "median resolved under a kumiawase-only import — either it is ambient \
+    // THE CONTROL. `median` lives only in suugaku/toukei, outside
+    // retsu's closure, so this must fail as an unbound name.
+    let err = eval("use(\"retsu\")\nmedian([1, 2, 3])").expect_err(
+        "median resolved under a retsu-only import — either it is ambient \
          (making the facade assertion below vacuous) or the fine-grained import \
          is pulling the whole distribution",
     );
@@ -285,7 +275,8 @@ fn granularity_holds_at_the_import_plane_too() {
     assert_eq!(
         // Through the facade's qualifier: `use("zenbu")` makes every member
         // bidama's qualifier reachable, and lists no bare names.
-        eval("use(\"zenbu\")\ntoukei::median([1, 2, 3])").expect("the facade must import toukei"),
+        eval("use(\"zenbu\")\nsuugaku::toukei::median([1, 2, 3])")
+            .expect("the facade must import toukei"),
         "Int(2)"
     );
 }

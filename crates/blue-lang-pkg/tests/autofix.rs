@@ -8,8 +8,10 @@ const FIRST_SPELLING_RULE: &str = "B0023";
 /// Machine-fixed rules past the first spelling rule whose fix is an edit the
 /// diagnostic carries, which `blue check --fix` applies, not a spelling
 /// `blue fmt --write` derives: B0074 rewrites a moved bidama's path, read
-/// from the root's Bluefile, as B0021 rewrites a renamed word.
-const CHECK_FIX_RULES: &[Code] = &[Code::B0074];
+/// from the root's Bluefile, as B0021 rewrites a renamed word. B0076, B0077
+/// and B0078 rewrite a name or an import from what resolution found: the
+/// level a qualifier reaches, the levels a `use` form imports.
+const CHECK_FIX_RULES: &[Code] = &[Code::B0074, Code::B0076, Code::B0077, Code::B0078];
 
 struct Imports(
     &'static [(&'static str, &'static str)],

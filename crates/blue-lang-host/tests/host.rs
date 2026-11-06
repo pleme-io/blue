@@ -440,7 +440,7 @@ fn an_embedded_tree_is_reached_by_full_and_relative_paths() {
         own: root,
         rest: &over_deep,
     };
-    let src = "use(\"tree\")\n\ndef all()\n  [tree::top, tree::sub::inner, sub::deep::bottom, tree::sub::deep::bottom]\nend\n";
+    let src = "use(\"tree\")\n\ndef all()\n  [tree::top, tree::sub::inner, tree::sub::deep::bottom]\nend\n";
     let mut host = ();
     let mut p = Program::<()>::builder(Entry::anonymous(src))
         .loader(&loader)
@@ -448,7 +448,7 @@ fn an_embedded_tree_is_reached_by_full_and_relative_paths() {
         .load(&mut host)
         .expect("a chain of embedded levels loads as one tree");
     let said: Vec<String> = p.call("all", Vec::<Value>::new(), &mut host).unwrap();
-    assert_eq!(said, ["top", "inner", "bottom", "bottom"]);
+    assert_eq!(said, ["top", "inner", "bottom"]);
     let one: String = p
         .call("tree::sub::inner", Vec::<Value>::new(), &mut host)
         .unwrap();

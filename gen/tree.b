@@ -224,7 +224,11 @@ def rehome(text, root, children)
       reduce(
         fn(out, piece)
           tail = chars(out)
+          escaped = size(tail) >= 2 and
+            tail[size(tail) - 2] == "\\" and
+            member?(last(tail), %w[n t])
           starts_path = tail == [] or
+            escaped or
             not member?(
               last(tail),
               chars("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_:/")
@@ -640,4 +644,10 @@ test "a use held in a string or in code follows the move"
   assert embedded_uses("use(\"kid/sub\")", "fam", ["kid"]) ==
     "use(\"fam/kid/sub\")"
   assert embedded_uses("use(\"kidney\")", "fam", ["kid"]) == "use(\"kidney\")"
+end
+
+test "a qualifier after a newline escape in a string starts a path"
+  assert rehome("\"use(x)\\nkid::go\"", "fam", ["kid"]) ==
+    "\"use(x)\\nfam::kid::go\""
+  assert rehome("lankid::go", "fam", ["kid"]) == "lankid::go"
 end

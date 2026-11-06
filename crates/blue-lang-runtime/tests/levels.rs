@@ -90,37 +90,64 @@ fn a_full_path_resolves_at_one_two_and_three_levels() {
     );
 }
 
-/// The operator's sentence: `use("thing/sub")`, and `thing::sub::waka::goodness`
-/// is also `sub::waka::goodness` and `waka::goodness`.
+fn codes(src: &str) -> Vec<Code> {
+    diagnostics(src).into_iter().map(|(c, _, _)| c).collect()
+}
+
+fn fixed(src: &str) -> String {
+    let checked =
+        check_entry(Entry::anonymous(src), &Tree(THING), None, Checking::Program).expect("check");
+    let d = &checked.outcome.diagnostics;
+    blue_lang_check::fixes::apply_fixes(
+        d.iter().map(|d| (d.top_level, d.fixes.as_slice())),
+        &|_| true,
+        src,
+    )
+    .0
+}
+
+/// A tail of a path still names one level, so it resolves; it is refused as a
+/// spelling (B0076), and the fix writes the full path, which runs.
 #[test]
-fn a_shortcut_is_a_path_relative_to_the_import_at_each_depth() {
-    for name in [
-        "thing::sub::waka::goodness",
-        "sub::waka::goodness",
-        "waka::goodness",
-    ] {
-        assert_eq!(
-            text(&format!("use(\"thing/sub\")\n\n{name}.something\n")),
+fn a_tail_of_a_path_is_refused_and_fixed_to_the_full_path() {
+    for (src, full, value) in [
+        (
+            "use(\"thing/sub\")\n\nsub::waka::goodness.something\n",
+            "thing::sub::waka::goodness",
             "good",
-            "{name}"
-        );
+        ),
+        (
+            "use(\"thing/sub\")\n\nwaka::goodness.something\n",
+            "thing::sub::waka::goodness",
+            "good",
+        ),
+        (
+            "use(\"thing/sub\")\n\nsub::inner\n",
+            "thing::sub::inner",
+            "inner",
+        ),
+        (
+            "use(\"thing/sub\")\n\nwaka::deep::bottom\n",
+            "thing::sub::waka::deep::bottom",
+            "bottom",
+        ),
+        (
+            "use(\"thing/sub/waka/deep\")\n\ndeep::bottom\n",
+            "thing::sub::waka::deep::bottom",
+            "bottom",
+        ),
+        (
+            "use(\"thing\")\n\nsub::inner\n",
+            "thing::sub::inner",
+            "inner",
+        ),
+    ] {
+        assert_eq!(codes(src), vec![Code::B0076], "{src}");
+        let written = fixed(src);
+        assert!(written.contains(full), "{src}: {written}");
+        assert_eq!(text(&written), value, "{src}");
     }
-    assert_eq!(text("use(\"thing/sub\")\n\nsub::inner\n"), "inner");
     assert_eq!(text("use(\"thing/sub\")\n\nthing::sub::inner\n"), "inner");
-    assert_eq!(text("use(\"thing/sub\")\n\nwaka::deep::bottom\n"), "bottom");
-    assert_eq!(
-        text("use(\"thing/sub/waka/deep\")\n\ndeep::bottom\n"),
-        "bottom"
-    );
-    assert_eq!(
-        text("use(\"thing/sub/waka/deep\")\n\nwaka::deep::bottom\n"),
-        "bottom"
-    );
-    assert_eq!(text("use(\"thing\")\n\nsub::inner\n"), "inner");
-    assert_eq!(
-        text("use(\"thing\")\n\nsub::waka::goodness.something\n"),
-        "good"
-    );
 }
 
 #[test]
@@ -152,7 +179,7 @@ fn two_imports_that_fit_one_shortcut_are_refused_naming_both() {
     );
     assert_eq!(text(&format!("{both}thing::sub::inner\n")), "inner");
     assert_eq!(text(&format!("{both}elsewhere::sub::inner\n")), "elsewhere");
-    assert_eq!(text(&format!("{both}sub::only_here\n")), "only");
+    assert_eq!(text(&format!("{both}elsewhere::sub::only_here\n")), "only");
 }
 
 /// A miss at each depth names what the level holds, and a level is not a value.
@@ -208,7 +235,11 @@ fn loaded(src: &str) -> (BTreeSet<String>, Vec<String>) {
     let checked = check_entry(Entry::anonymous(src), &Tree(THING), None, Checking::Program)
         .unwrap_or_else(|e| panic!("{src}: {e}"));
     assert!(
-        checked.outcome.diagnostics.is_empty(),
+        checked
+            .outcome
+            .diagnostics
+            .iter()
+            .all(|d| d.code == Code::B0077),
         "{src}: {:?}",
         checked.outcome.diagnostics
     );
@@ -227,10 +258,11 @@ fn loaded(src: &str) -> (BTreeSet<String>, Vec<String>) {
     (files, imports)
 }
 
-/// Every spelling of one path is one import and one load.
+/// Every spelling of one path is one import and one load, and each but the
+/// slash string is B0077, whose fix writes the slash string.
 #[test]
 fn every_spelling_of_a_path_loads_one_identical_thing() {
-    let body = "\n\nsub::inner\n";
+    let body = "\n\nthing::sub::inner\n";
     let want = loaded(&format!("use(\"thing/sub\"){body}"));
     assert_eq!(
         want.0,
@@ -252,17 +284,28 @@ fn every_spelling_of_a_path_loads_one_identical_thing() {
     ] {
         let src = format!("use({spelling}){body}");
         assert_eq!(loaded(&src), want, "{spelling}");
-        assert_eq!(text(&src), "inner", "{spelling}");
+        assert_eq!(codes(&src), vec![Code::B0077], "{spelling}");
+        let written = fixed(&src);
+        assert!(
+            written.starts_with("use(\"thing/sub\")"),
+            "{spelling}: {written}"
+        );
+        assert_eq!(text(&written), "inner", "{spelling}");
     }
 }
 
+/// A second name still reaches its level; it is a spelling, so both the
+/// `use` and each name through it are refused, and the fixes write the path.
 #[test]
-fn a_second_name_reaches_the_level_and_everything_below_it() {
-    let src = "use({s: \"thing/sub\"})\n\n";
-    assert_eq!(text(&format!("{src}s::inner\n")), "inner");
-    assert_eq!(text(&format!("{src}s::waka::goodness.something\n")), "good");
-    assert_eq!(text(&format!("{src}thing::sub::inner\n")), "inner");
-    assert_eq!(text("use({s: %i[thing sub]})\n\ns::inner\n"), "inner");
+fn a_second_name_is_refused_and_fixed_to_the_path() {
+    let src = "use({s: \"thing/sub\"})\n\nconcat(s::inner, s::waka::goodness.something)\n";
+    let found = codes(src);
+    assert!(found.contains(&Code::B0077), "{found:?}");
+    assert!(found.contains(&Code::B0076), "{found:?}");
+    let written = fixed(src);
+    assert!(written.starts_with("use(\"thing/sub\")"), "{written}");
+    assert!(written.contains("thing::sub::inner"), "{written}");
+    assert_eq!(text(&written), "innergood");
     let d = diagnostics("use({s: \"thing/sub\"})\nuse({s: \"thing/other\"})\n\ns::inner\n");
     assert!(
         d.iter()
@@ -271,36 +314,47 @@ fn a_second_name_reaches_the_level_and_everything_below_it() {
     );
 }
 
+/// A form that imports several children is one canonical `use` per level.
 #[test]
-fn several_children_come_from_one_form_with_their_lists_at_any_depth() {
-    assert_eq!(
-        text("use(\"thing\", %w[other sub])\n\nconcat(other::word, sub::inner)\n"),
-        "otherinner"
-    );
-    assert_eq!(
-        text("use(\"thing\", {other: [:word], sub: []})\n\nconcat(word, sub::inner)\n"),
-        "otherinner"
-    );
-    assert_eq!(
-        text("use(\"thing/sub\", {waka: [:goodness]})\n\ngoodness.something\n"),
-        "good"
-    );
-    assert_eq!(
-        text("use(%i[thing sub], %w[waka/deep])\n\ndeep::bottom\n"),
-        "bottom"
-    );
+fn several_children_in_one_form_are_refused_and_fixed_to_one_use_each() {
+    for (src, value) in [
+        (
+            "use(\"thing\", %w[other sub])\n\nconcat(thing::other::word, thing::sub::inner)\n",
+            "otherinner",
+        ),
+        (
+            "use(\"thing\", {other: [:word], sub: []})\n\nconcat(word, thing::sub::inner)\n",
+            "otherinner",
+        ),
+        (
+            "use(\"thing/sub\", {waka: [:goodness]})\n\ngoodness.something\n",
+            "good",
+        ),
+    ] {
+        assert!(codes(src).contains(&Code::B0077), "{src}: {:?}", codes(src));
+        let written = fixed(src);
+        assert_eq!(text(&written), value, "{src}: {written}");
+    }
     assert_eq!(
         text("use(\"thing/sub/waka/deep\", [:bottom])\n\nbottom\n"),
         "bottom"
     );
 }
 
-/// No fix rewrites one spelling into another, and no qualifier is called
-/// redundant on a path through a tree.
+/// One spelling: a listed name is bare, every other name is its full path, and
+/// a `use` that is not a slash string carries a fix.
 #[test]
-fn every_spelling_stands_and_no_fix_touches_it() {
+fn every_spelling_but_the_canonical_one_carries_a_fix() {
     let src = "use(\"thing/sub\", [:inner])\n\nconcat(inner, sub::inner)\n";
-    assert_eq!(text(src), "innerinner");
+    assert_eq!(codes(src), vec![Code::B0076]);
+    let once = fixed(src);
+    assert_eq!(codes(&once), vec![Code::B0018], "{once}");
+    let twice = fixed(&once);
+    assert_eq!(
+        twice,
+        "use(\"thing/sub\", [:inner])\n\nconcat(inner, inner)\n"
+    );
+    assert_eq!(text(&twice), "innerinner");
     let checked = check_entry(
         Entry::anonymous("use(%i[zeta one])\n"),
         &Tree(&[("zeta/one", "def f()\n  1\nend\n")]),
@@ -309,11 +363,8 @@ fn every_spelling_stands_and_no_fix_touches_it() {
     )
     .expect("check");
     let d = &checked.outcome.diagnostics;
-    assert_eq!(d[0].code, Code::B0016, "{d:?}");
-    assert!(
-        d[0].fixes.is_empty(),
-        "a fix would erase the spelling: {d:?}"
-    );
+    let respelled = d.iter().find(|d| d.code == Code::B0077).expect("B0077");
+    assert!(!respelled.fixes.is_empty(), "{d:?}");
 }
 
 #[test]

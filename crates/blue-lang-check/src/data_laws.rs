@@ -11,7 +11,7 @@ pub const CODES: &[Code] = &[
     Code::B0051,
     Code::B0052,
 ];
-pub const FRAGMENT_HEADS: &[&str] = &["fragment", "danpen/fragment"];
+pub const FRAGMENT_HEADS: &[&str] = &["fragment", "toriyose/danpen/fragment", "danpen/fragment"];
 pub const LABELS_HEADS: &[&str] = &["labels", "gamen/labels"];
 pub const OPERATION_WORDS: &[&str] = &["query", "mutation", "subscription"];
 

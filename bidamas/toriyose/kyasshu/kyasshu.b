@@ -775,8 +775,9 @@ def post_page()
 end
 
 def page_query()
+  text = "query Post($id: ID!) { post(id: $id) { ...post_page } }"
   toriyose::danpen::compose(
-    toriyose::danpen::parse("query Post($id: ID!) { post(id: $id) { ...post_page } }"),
+    toriyose::danpen::parse(text),
     [post_page, comment_item, user_card]
   )
 end
@@ -887,9 +888,8 @@ def drawn_response(seed)
 end
 
 def posts_query()
-  operation_of(
-    toriyose::danpen::parse("{ posts { id title author { id name } comments { id body author { id name } } } }")
-  )
+  text = "{ posts { id title author { id name } comments { id body author { id name } } } }"
+  operation_of(toriyose::danpen::parse(text))
 end
 
 def server_text()

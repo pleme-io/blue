@@ -4300,12 +4300,12 @@ okite (掟) — blue's decisions, each enforced by laws written in blue.
 | `okite::values_from(s, n, acc)` | `ok_values_from` (old) |  |  |  |
 | `okite::pairs(seed, n)` | `ok_pairs` (old) |  |  | pairs: Consecutive pairs of generated values, so pairs mix kinds. |
 | `okite::all(f, xs)` | `ok_all` (old) |  |  |  |
-| `okite::law_record_equality_includes_the_name` | `ok_law_record_equality_includes_the_name` (old) |  |  |  |
-| `okite::law_record_predicate_is_the_name_and_the_fields` | `ok_law_record_predicate_is_the_name_and_the_fields` (old) |  |  |  |
-| `okite::law_record_update_is_a_copy` | `ok_law_record_update_is_a_copy` (old) |  |  |  |
-| `okite::law_record_refuses_by_name` | `ok_law_record_refuses_by_name` (old) |  |  |  |
-| `okite::law_record_crosses_json` | `ok_law_record_crosses_json` (old) |  |  |  |
-| `okite::law_record_prints_its_call` | `ok_law_record_prints_its_call` (old) |  |  |  |
+| `okite::law_record_equality_includes_the_name` | `ok_law_record_equality_includes_the_name` (old) |  |  | law_record_equality_includes_the_name holds that two records are equal only with one name and equal fields, and never equal a plain map. |
+| `okite::law_record_predicate_is_the_name_and_the_fields` | `ok_law_record_predicate_is_the_name_and_the_fields` (old) |  |  | law_record_predicate_is_the_name_and_the_fields holds that a predicate answers true only for its own name with exactly its fields, so a map that gains or loses a key is plain. |
+| `okite::law_record_update_is_a_copy` | `ok_law_record_update_is_a_copy` (old) |  |  | law_record_update_is_a_copy holds that an update by spread makes a new record and leaves the old one as it was. |
+| `okite::law_record_refuses_by_name` | `ok_law_record_refuses_by_name` (old) |  |  | law_record_refuses_by_name holds that a construction known only at run time raises :record, naming the record and each missing and unknown field. |
+| `okite::law_record_crosses_json` | `ok_law_record_crosses_json` (old) |  |  | law_record_crosses_json holds that a record written as JSON reads back equal, with its name and fields under "$record". |
+| `okite::law_record_prints_its_call` | `ok_law_record_prints_its_call` (old) |  |  | law_record_prints_its_call holds that a record prints as the call that builds it. |
 | `okite::law_equal_reflexive` | `ok_law_equal_reflexive` (old) |  |  |  |
 | `okite::law_equal_symmetric` | `ok_law_equal_symmetric` (old) |  |  |  |
 | `okite::law_not_equal_is_negation` | `ok_law_not_equal_is_negation` (old) |  |  |  |

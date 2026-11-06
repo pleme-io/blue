@@ -93,6 +93,7 @@ it; `blue explain --list` lists them.
 | B0076 | non-canonical-reference | error | a qualified name is written by the full path of the level that defines it, so one definition has one spelling and `rg` finds every caller |
 | B0077 | non-canonical-use | error | an import is written `use("a/b")` or `use("a/b", [:x])`: one level, its path as a slash string |
 | B0078 | redundant-use | error | a file imports a tree once: a `use` that lists nothing, of a level below another `use` of the file, adds nothing |
+| B0079 | record-fields | error | a call of a record's constructor gives every field and no other, and a literal in a typed field has that type |
 
 The registry is the source of truth; a test fails if a code is missing here.
 

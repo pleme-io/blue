@@ -6740,7 +6740,10 @@ test "loop_fold refuses by name: a step that is no definition, of another shape,
     "(define (%root/e c) (kaaneru/bpf/loop_fold 1 0 (lambda (i a) a)))",
     base
   )
-  assert refused("(define (%root/e c) (kaaneru/bpf/loop_fold 1 0 %root/none))", base)
+  assert refused(
+    "(define (%root/e c) (kaaneru/bpf/loop_fold 1 0 %root/none))",
+    base
+  )
   assert refused(
     "(define (%root/s i) i) (define (%root/e c) (kaaneru/bpf/loop_fold 1 0 %root/s))",
     base

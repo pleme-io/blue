@@ -1875,6 +1875,7 @@ needs is in [KERNEL.md](KERNEL.md) §3.
 - [FRONTEND-PLAN — building the blue frontend framework](FRONTEND-PLAN.md): the build plan for blue's frontend framework
 - [HTTP2 — blue speaks HTTP/2 and gRPC itself](HTTP2.md): blue speaks HTTP/2 and gRPC itself (design, phase 1 built)
 - [KERNEL — write only blue for the Linux kernel](KERNEL.md): blue as the whole kernel toolchain, from source to a program the verifier admits, and where each part runs
+- [khipu: blue's knowledge graph, the design of record](KHIPU.md): khipu, blue's knowledge graph, DESIGN: OxiRS's essence naturalized, the recon, the typed terms, the phases, the parity gates and the tier ledger
 - [Lessons behind the agent guide's rules](LESSONS.md): the full story behind each rule the agent page states in short
 - [MARKDOWN — Markdown is a first-class blue value](MARKDOWN.md): Markdown as a first-class blue value: one typed tree, one formatting, checked links, and renderings to Markdown, HTML, PDF and the terminal (design)
 - [Namespaces: a bidama definition stays in its bidama](NAMESPACES.md): a bidama definition stays in its bidama: the rule as built and its gates
@@ -1887,6 +1888,7 @@ needs is in [KERNEL.md](KERNEL.md) §3.
 - [SERVICE-DATA — Postgres, Valkey and the nervous system as defaults](SERVICE-DATA.md): Postgres, Valkey and the nervous system as the configurable defaults of a blue service (design)
 - [STDLIB: blue's batteries, as one verb vocabulary](STDLIB.md): the standard library's design as one verb vocabulary (design)
 - [Testing and the SDLC: one blue pipeline](TESTING.md): every kind of test and its one place beside what it tests, and the Bluefile as the one pipeline
+- [utsushi (写し): blue's history projection, the design of record](UTSUSHI.md): utsushi, blue's history projection, DESIGN: Josh's essence naturalized with six improvements, the recon, the lens and view algebra, the phases, the parity gates and the tier ledger
 - [Blue verb roadmap: full software verbalization](VERB-ROADMAP.md): the roadmap to full software verbalization
 - [vocabularify — the surface/structure vocabulary](VOCABULARIFY-SURFACE.md): kigou and yakugo: a program's spelling separated from its meaning
 - [WORKSPACES — one root, many bidamas and many crates](WORKSPACES.md): one root holding many bidamas and many crates (design)

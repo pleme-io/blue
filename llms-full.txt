@@ -3222,6 +3222,8 @@ Seeded 2026-11-06 at blue `6434ce31`.
 | blue on sui | `theory/BLUE-STRUCTURE.md` §5.3, `theory/SUI-FLIP.md` | UNRECONCILED | reconcile; mark §5.3 superseded (§ Rulings R1) | — | to be stated at reconcile |
 | frontend | [`FRONTEND-PLAN.md`](docs/FRONTEND-PLAN.md), `theory/BLUE-FRONTEND.md` | UNRECONCILED | reconcile against main | — | to be stated at reconcile |
 | verbs | [`VERB-ROADMAP.md`](docs/VERB-ROADMAP.md) | DESIGN (its own measured tier line, 2026-10-22) | reconcile | — | `blue verbs check` against its baseline |
+| **khipu**: the knowledge graph (OxiRS naturalized) | [`KHIPU.md`](docs/KHIPU.md) | DESIGN | K1: the term sum, N-Triples and N-Quads, quads in DuckDB through `kueri` | kueri; arika (shares the rule engine and snapshots) | the W3C suites of K1-K4 green as a differential against Oxigraph |
+| **utsushi**: history projection (Josh naturalized) | [`UTSUSHI.md`](docs/UTSUSHI.md) | DESIGN | U1: `sub`, `prefix`, `compose` over history with Josh's commit ids | gitto | `josh-filter` id parity on fixtures; the round-trip law green |
 
 ## The arika track
 

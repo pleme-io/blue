@@ -427,7 +427,7 @@ Read it in order as [The blue Book](docs/BOOK.md), or open one page:
 ### Explanation
 
 <details>
-<summary>42 pages on why blue is shaped as it is</summary>
+<summary>44 pages on why blue is shaped as it is</summary>
 
 - [ABSENCE — no undeclared nil](docs/ABSENCE.md): no undeclared nil: how blue makes absence a declared, checked state
 - [API-EVOLUTION — the API is a versioned rendering of the one model](docs/API-EVOLUTION.md): the API as a versioned rendering of one model (design)
@@ -445,6 +445,7 @@ Read it in order as [The blue Book](docs/BOOK.md), or open one page:
 - [FRONTEND-PLAN — building the blue frontend framework](docs/FRONTEND-PLAN.md): the build plan for blue's frontend framework
 - [HTTP2 — blue speaks HTTP/2 and gRPC itself](docs/HTTP2.md): blue speaks HTTP/2 and gRPC itself (design, phase 1 built)
 - [KERNEL — write only blue for the Linux kernel](docs/KERNEL.md): blue as the whole kernel toolchain, from source to a program the verifier admits, and where each part runs
+- [khipu: blue's knowledge graph, the design of record](docs/KHIPU.md): khipu, blue's knowledge graph, DESIGN: OxiRS's essence naturalized, the recon, the typed terms, the phases, the parity gates and the tier ledger
 - [Lessons behind the agent guide's rules](docs/LESSONS.md): the full story behind each rule the agent page states in short
 - [MARKDOWN — Markdown is a first-class blue value](docs/MARKDOWN.md): Markdown as a first-class blue value: one typed tree, one formatting, checked links, and renderings to Markdown, HTML, PDF and the terminal (design)
 - [Namespaces: a bidama definition stays in its bidama](docs/NAMESPACES.md): a bidama definition stays in its bidama: the rule as built and its gates
@@ -457,6 +458,7 @@ Read it in order as [The blue Book](docs/BOOK.md), or open one page:
 - [SERVICE-DATA — Postgres, Valkey and the nervous system as defaults](docs/SERVICE-DATA.md): Postgres, Valkey and the nervous system as the configurable defaults of a blue service (design)
 - [STDLIB: blue's batteries, as one verb vocabulary](docs/STDLIB.md): the standard library's design as one verb vocabulary (design)
 - [Testing and the SDLC: one blue pipeline](docs/TESTING.md): every kind of test and its one place beside what it tests, and the Bluefile as the one pipeline
+- [utsushi (写し): blue's history projection, the design of record](docs/UTSUSHI.md): utsushi, blue's history projection, DESIGN: Josh's essence naturalized with six improvements, the recon, the lens and view algebra, the phases, the parity gates and the tier ledger
 - [Blue verb roadmap: full software verbalization](docs/VERB-ROADMAP.md): the roadmap to full software verbalization
 - [vocabularify — the surface/structure vocabulary](docs/VOCABULARIFY-SURFACE.md): kigou and yakugo: a program's spelling separated from its meaning
 - [WORKSPACES — one root, many bidamas and many crates](docs/WORKSPACES.md): one root holding many bidamas and many crates (design)

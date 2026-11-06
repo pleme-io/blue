@@ -89,8 +89,8 @@
         # missing dependency instead of an empty directory. The floor tracks the
         # REAL package count, not a token minimum: it was 3 while 17 packages
         # shipped, which would have passed a distribution that had silently lost
-        # fourteen of them. Raise it when a package lands; a rename is
-        # count-preserving and needs no change here.
+        # fourteen of them. Raise it when a package lands; a rename or a
+        # tree move is count-preserving, because levels count as nodes.
         #
         # Counted at evaluation from the same `packageDirs` the distribution is
         # built from, so the gate and the thing it guards cannot disagree, and a
@@ -98,11 +98,11 @@
         # `find | wc -l` inside the build until 2026-09-27.
         bidamas =
           let
-            floor = 96;
-            count = builtins.length (builtins.attrNames ((bidamaLib pkgs).packageDirs ./.));
+            floor = 111;
+            count = (bidamaLib pkgs).treeNodeCount ./.;
           in
           assert pkgs.lib.assertMsg (count >= floor)
-            "bidamas: only ${toString count} package(s) found, expected >= ${toString floor}; refusing to publish a thinned distribution";
+            "bidamas: only ${toString count} package(s) and level(s) found, expected >= ${toString floor}; refusing to publish a thinned distribution";
           pkgs.runCommand "bidamas" { } "cp -r ${./.} $out";
       });
 

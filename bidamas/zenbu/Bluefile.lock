@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:b4976307d5b23de6cb41e2fd7532bf49f627a7b6ef7aa3eadc6b4c5ff2b7d50b",
+  "bluefile_b3": "b3:26616a86dc3e62f6a536cef66fa807b784339becdd1741b49f8fdb0eec7fbec0",
   "manifest": {
     "schema": 1,
     "name": "zenbu",
@@ -67,7 +67,8 @@
       "toriyose": "^0.1.0",
       "touroku": "^0.1.0",
       "ugoki": "^0.1.0",
-      "ukai": "^0.1.0"
+      "ukai": "^0.1.0",
+      "utsushi": "^0.1.0"
     },
     "when": "anytime",
     "sources": {},

@@ -193,8 +193,6 @@ was rendered. `blue help COMMAND` shows each one's flags.
 | `blue crash dump CRASH` | What a crash violated and where: its class, the host name and capability a breach demanded, the breaching call's file, line and column, the hold, the exit and the mailbox. |
 | `blue crash bisect CRASH` | The fewest messages the process took that still replay to the same crash, found by delta debugging against deterministic replay; the reduced trace is written beside the original under its own hash. |
 | `blue crash immunize CRASH` | The crash's regression lock: a test that spawns the target, sends it the fewest messages that crashed it and asserts it took them, red until the target is fixed. |
-| `blue arika like [FILE[:LINE]]` | The words a draft already is: each definition of FILE (or the one at FILE:LINE) matched to a blue word by def hash (T0), written shape (T1) and shape through a wrapper (T2), with the word's id and import line. |
-| `blue arika word NAME` | Find a blue word by NAME: its canonical spelling, an old spelling's new home, and catalogue glosses that mention NAME (T5). |
 | `blue receipt verify FILE` | Recompute a receipt's name from its bytes and check its form; any edit fails. |
 | `blue config [TIER]` | Show the bounds `blue` is running with, at any tier. |
 | `blue new NAME` | Start a program (a project with its own bidama), a `--bidama`, a `--script`, or a `--kernel` program, each passing `blue test` as written. |
@@ -216,14 +214,14 @@ rendered:
 | Surface forms | 31, with 13 operators and 25 reserved words |
 | Check rules | 75: 42 fix themselves, 8 suggest a fix |
 | Bluefile words | 26 |
-| Commands | 44 |
+| Commands | 42 |
 
 ## The standard library
 
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-63 packages, 5627 definitions, 1880 tests.
+64 packages, 5607 definitions, 1866 tests.
 
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
 - [baito](bidamas/CATALOG.md#baito) (バイト) — bytes as data: integers at a declared width and order, and record layouts that say where each field sits.
@@ -287,6 +285,7 @@ rendered:
 - [touroku](bidamas/CATALOG.md#touroku) (登録) — registry: a project published to and resolved from registry backends, each a rendering of the Bluefile, never its truth.
 - [ugoki](bidamas/CATALOG.md#ugoki) (動き) — motion: how a value moves over time.
 - [ukai](bidamas/CATALOG.md#ukai) (迂回) — a detour: keep an overlay VPN reaching its control plane and relays while a full-tunnel corporate VPN owns the default route.
+- [utsushi](bidamas/CATALOG.md#utsushi) (写し, a transcription) — a part of a repository's history, shown as a history of its own: a lens picks the part, and each commit is written again over the part's tree, with its author, committer and message unchanged, so the same lens over the same commit gives the same commit id on every machine (docs/UTSUSHI.md).
 - [zenbu](bidamas/CATALOG.md#zenbu) (全部) — the whole distribution, as ONE dependency.
 
 </details>
@@ -3213,7 +3212,7 @@ Seeded 2026-11-06 at blue `6434ce31`.
 
 | Track | Design doc | Tier | Next step | Depends on | Done gate |
 |---|---|---|---|---|---|
-| **arika**: blue's word search | [`ARIKA.md`](docs/ARIKA.md), `theory/ARIKA.md` | Phase 1 BUILT, the rest DESIGN | Phase 2: `blue arika emit` and `SNAPSHOT.json` | namespaces (tree paths in IDs); verbs (the `sakuin` space for T5) | G1-G8 green on main; a session on ryn answers the golden set through `blue_word_*` |
+| **arika**: blue's word search | [`ARIKA.md`](docs/ARIKA.md), `theory/ARIKA.md` | DESIGN | Phase 1: `blue arika like` + the PreToolUse hook, gated by G4 | namespaces (tree paths in IDs); verbs (the `sakuin` space for T5) | G1-G8 green on main; a session on ryn answers the golden set through `blue_word_*` |
 | namespaces | [`NAMESPACES.md`](docs/NAMESPACES.md), `theory/BLUE-NAMESPACES.md` | UNRECONCILED | reconcile against main | — | B0076-B0078 at error with corpus count 0 |
 | absence | [`ABSENCE.md`](docs/ABSENCE.md) | UNRECONCILED | reconcile against main | — | the doc's seal tier row |
 | safety | [`SAFETY.md`](docs/SAFETY.md) | UNRECONCILED | reconcile against main; add the blackhole row (§ Rulings R3) | — | each SAFETY row at its stated seal tier |
@@ -3222,8 +3221,6 @@ Seeded 2026-11-06 at blue `6434ce31`.
 | blue on sui | `theory/BLUE-STRUCTURE.md` §5.3, `theory/SUI-FLIP.md` | UNRECONCILED | reconcile; mark §5.3 superseded (§ Rulings R1) | — | to be stated at reconcile |
 | frontend | [`FRONTEND-PLAN.md`](docs/FRONTEND-PLAN.md), `theory/BLUE-FRONTEND.md` | UNRECONCILED | reconcile against main | — | to be stated at reconcile |
 | verbs | [`VERB-ROADMAP.md`](docs/VERB-ROADMAP.md) | DESIGN (its own measured tier line, 2026-10-22) | reconcile | — | `blue verbs check` against its baseline |
-| **khipu**: the knowledge graph (OxiRS naturalized) | [`KHIPU.md`](docs/KHIPU.md) | DESIGN | K1: the term sum, N-Triples and N-Quads, quads in DuckDB through `kueri` | kueri; arika (shares the rule engine and snapshots) | the W3C suites of K1-K4 green as a differential against Oxigraph |
-| **utsushi**: history projection (Josh naturalized) | [`UTSUSHI.md`](docs/UTSUSHI.md) | DESIGN | U1: `sub`, `prefix`, `compose` over history with Josh's commit ids | gitto | `josh-filter` id parity on fixtures; the round-trip law green |
 
 ## The arika track
 
@@ -3240,7 +3237,7 @@ Rungs (owners, gates and exits are in [`ARIKA.md`](docs/ARIKA.md) § Phases):
 
 | Rung | Content | Tier |
 |---|---|---|
-| 1 | `blue arika like` / `word`, PreToolUse hook, `bidama` skill step 1 | BUILT (G4 in `crates/blue-lang-cli/tests/arika.rs`) |
+| 1 | `blue arika like` / `word`, PreToolUse hook, `bidama` skill step 1 | DESIGN |
 | 2 | fact emitter, Merkle words, `SNAPSHOT.json`, `arika` nix output | DESIGN |
 | 3 | Parquet plane, full CLI, T3 witnesses, CATALOG.md from facts | DESIGN |
 | 4 | codesearch indexes `.b` | DESIGN |
@@ -4393,13 +4390,10 @@ names in [`docs/REFERENCE.md`](docs/REFERENCE.md) (built-ins, operators,
 syntax) and [`bidamas/CATALOG.md`](bidamas/CATALOG.md) (every bidama
 definition). Both are generated from the implementation and gated fresh.
 
-Before you write a `def`, ask whether blue already has the word.
-`blue arika word NAME` finds a word by name, old spelling or gloss.
-`blue arika like FILE[:LINE]` names the word a draft already is: an exact
-copy (T0), the same code (T1), or the same code through a wrapper (T2), with
-its id and import line ([`docs/ARIKA.md`](docs/ARIKA.md), Phase 1). The
-PreToolUse hook says the same before a `.b` write, and B0070
-(`blue check --reuse`) says it after.
+Before you write a `def`, ask whether blue already has the word. arika
+([`docs/ARIKA.md`](docs/ARIKA.md), DESIGN) will answer that by shape with
+`blue arika like FILE`. Until it ships, search `bidamas/CATALOG.md`, and
+`blue check --reuse` (B0070) names the word a copy repeats.
 
 ### A file is a program; a project is one command away
 

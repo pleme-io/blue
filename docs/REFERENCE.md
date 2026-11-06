@@ -280,7 +280,7 @@ Higher binding power binds tighter.
 | `any?` | `any?(f, xs)` | 2 | Whether f accepts some element; false for []. |
 | `apply` | `apply(f, args..., xs)` | 2+ | Call f with the elements of the last list as its arguments. With f a name it is written as a splat, max(*xs) (B0042); apply stays for a function computed by an expression. |
 | `comp` | `comp(f, g)` | 2 | The function x -> f(g(x)). |
-| `compose` | `compose(fs...)` | 0+ | Right to left: compose(f, g)(x) is f(g(x)). Also defined by `kansuu` (`kansuu::compose`): a file that lists it gets that one. |
+| `compose` | `compose(fs...)` | 0+ | Right to left: compose(f, g)(x) is f(g(x)). Also defined by `kansuu` (`kansuu::compose`), `utsushi` (`utsushi::compose`): a file that lists it gets that one. |
 | `const` | `const(x)` | 1 | A function that ignores its argument and returns x. |
 | `decorate` | `decorate(f, keys-and-values...)` | 1+ | f with metadata attached; it still calls as f. |
 | `def_hash` | `def_hash(f)` | 1 | The engine's identity of the definition f is bound under, as b3: and 64 hex digits: the hash of its resolved tree and @doc, with each definition it names by that one's hash, so it changes exactly when f or anything f reaches changes, never on a rename. It is the def_hash that run's crash traces and receipts name for f. Nil for a function no definition binds (a lambda, a builtin) and in a door that identifies no program (a session, an appliance); blue run, test, profile and trace identify theirs. Reads no host state; raises unless f is a function. |

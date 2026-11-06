@@ -131,9 +131,23 @@ let
       (n: t: t == "directory" && builtins.pathExists (root + "/${n}/Bluefile"))
       (builtins.readDir root);
 
+  levelsUnder = dir:
+    let
+      levels = lib.filterAttrs
+        (n: t: t == "directory" && builtins.pathExists (dir + "/${n}/${n}.b"))
+        (builtins.readDir dir);
+    in
+    lib.concatMap (n: [ n ] ++ levelsUnder (dir + "/${n}")) (builtins.attrNames levels);
+
+  treeNodeCount = root:
+    lib.foldl'
+      (acc: n: acc + 1 + builtins.length (levelsUnder (root + "/${n}")))
+      0
+      (builtins.attrNames (packageDirs root));
+
 in
 rec {
-  inherit lockOf depsOf versionOf packageDirs;
+  inherit lockOf depsOf versionOf packageDirs treeNodeCount;
 
   # Build ONE bidama.
   #

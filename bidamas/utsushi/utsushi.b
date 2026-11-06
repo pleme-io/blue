@@ -1,0 +1,530 @@
+@moduledoc """
+utsushi (写し, a transcription) — a part of a repository's history, shown as a history of its own: a lens picks the part, and each commit is written again over the part's tree, with its author, committer and message unchanged, so the same lens over the same commit gives the same commit id on every machine (docs/UTSUSHI.md).
+
+    sub("a/b") #=> {lens: :sub, path: "a/b"}
+"""
+
+use("gitto")
+use("kyohi")
+use("moji", %i[drop_chars starts_with take_chars trim])
+use("retsu", %i[first is_empty last])
+use("shisutemu")
+
+@doc """
+sub: The lens that keeps only the tree at `path`, which becomes the root.
+
+    sub("/a/b/") #=> {lens: :sub, path: "a/b"}
+"""
+def sub(path)
+  {lens: :sub, path: clean(path)}
+end
+
+@doc """
+prefix: The lens that moves the whole tree under `path`.
+
+    prefix("lib/x") #=> {lens: :prefix, path: "lib/x"}
+"""
+def prefix(path)
+  {lens: :prefix, path: clean(path)}
+end
+
+@doc """
+chain: The lenses applied in order, each to what the one before it kept.
+
+    chain([sub("a"), prefix("b")])[:lens] #=> :chain
+"""
+def chain(lenses)
+  {lens: :chain, parts: lenses}
+end
+
+@doc """
+compose: The trees of several lenses side by side. Their output roots must not overlap, so each file of the result has one source and the result can be written back; an overlap is refused, naming both roots.
+
+    compose([prefix("x"), prefix("y")])[:lens] #=> :compose
+"""
+def compose(lenses)
+  roots = map(out_root, lenses)
+  clashes = filter(
+    (pair) -> overlap?(pair[0], pair[1]),
+    retsu::flat_map(
+      range(retsu::size(roots)),
+      (i) -> map((j) -> [roots[i], roots[j]], range(i + 1, retsu::size(roots)))
+    )
+  )
+  if not is_empty(clashes)
+    c = first(clashes)
+    raise(
+      :lens_refused,
+      "compose: the output roots `#{shown_root(c[0])}` and `#{shown_root(c[1])}` overlap, so a file would have two sources"
+    )
+  end
+  {lens: :compose, parts: lenses}
+end
+
+def shown_root(r)
+  if r == ""
+    "/"
+  else
+    r
+  end
+end
+
+def clean(path)
+  segs = filter((s) -> s != "", split(path, "/"))
+  if is_empty(segs)
+    raise(:lens_refused, "a lens path names no directory: `#{path}`")
+  end
+  if any?((s) -> s == "." or s == "..", segs)
+    raise(:lens_refused, "a lens path stays inside the tree: `#{path}`")
+  end
+  join(segs, "/")
+end
+
+def out_root(lens)
+  if lens[:lens] == :prefix
+    lens[:path]
+  elsif lens[:lens] == :chain and not is_empty(lens[:parts])
+    out_root(last(lens[:parts]))
+  else
+    ""
+  end
+end
+
+def under?(a, b)
+  a == b or starts_with(a, "#{b}/")
+end
+
+def overlap?(a, b)
+  a == "" or b == "" or under?(a, b) or under?(b, a)
+end
+
+@doc """
+parse: A lens from Josh's filter text: `:/a/b` is `sub("a/b")`, `:prefix=x` is `prefix("x")`, and filters written one after another are a chain. Any other filter is refused by name.
+
+    parse(":/a/b:prefix=x") #=> chain([sub("a/b"), prefix("x")])
+"""
+def parse(spec)
+  parts = filter((p) -> p != "", split(spec, ":"))
+  lenses = map(parse_one, parts)
+  if retsu::size(lenses) == 1
+    first(lenses)
+  else
+    chain(lenses)
+  end
+end
+
+def parse_one(part)
+  if starts_with(part, "/")
+    sub(drop_chars(part, 1))
+  elsif starts_with(part, "prefix=")
+    prefix(drop_chars(part, 7))
+  else
+    raise(
+      :lens_refused,
+      "the filter `:#{part}` is not built (built: :/path, :prefix=path)"
+    )
+  end
+end
+
+def git_stdin(repo, input, args)
+  cap = exec_with_stdin(input, "git", "-C", repo, *args)
+  if shisutemu::status_of(cap) != 0
+    gitto::fail(repo, args, cap)
+  end
+  trim(shisutemu::stdout_of(cap))
+end
+
+def entry_of(line)
+  tab = text_index(line, "\t", 0)
+  meta = split(take_chars(line, tab), " ")
+  {mode: meta[0], type: meta[1], id: meta[2], name: drop_chars(line, tab + 1)}
+end
+
+def entries(repo, tree)
+  map(
+    entry_of,
+    filter(
+      (l) -> l != "",
+      split(gitto::raw(repo, ["ls-tree", tree]), line_break)
+    )
+  )
+end
+
+def entry_line(e)
+  "#{e[:mode]} #{e[:type]} #{e[:id]}\t#{e[:name]}"
+end
+
+def mktree(repo, es)
+  git_stdin(repo, unlines(map(entry_line, es)), ["mktree"])
+end
+
+def subtree(repo, tree, path)
+  found = filter(
+    (l) -> l != "",
+    split(gitto::raw(repo, ["ls-tree", tree, path]), line_break)
+  )
+  if is_empty(found)
+    nil
+  else
+    e = entry_of(first(found))
+    if e[:type] == "tree" and e[:name] == path
+      e[:id]
+    end
+  end
+end
+
+def wrap(repo, tree, path)
+  reduce(
+    fn(t, seg)
+      mktree(repo, [{mode: "040000", type: "tree", id: t, name: seg}])
+    end,
+    tree,
+    reverse(split(path, "/"))
+  )
+end
+
+def merge_trees(repo, a, b)
+  ea = entries(repo, a)
+  eb = entries(repo, b)
+  names = map((e) -> e[:name], ea)
+  merged = map(
+    fn(e)
+      other = filter((x) -> x[:name] == e[:name], eb)
+      if is_empty(other)
+        e
+      elsif e[:type] == "tree" and first(other)[:type] == "tree"
+        assoc(e, :id, merge_trees(repo, e[:id], first(other)[:id]))
+      else
+        raise(:lens_refused, "compose: `#{e[:name]}` comes from two lenses")
+      end
+    end,
+    ea
+  )
+  mktree(repo, append(merged, filter((e) -> not member?(e[:name], names), eb)))
+end
+
+@doc """
+keep: The tree a lens keeps of `tree`, or nil when it keeps nothing.
+"""
+def keep(repo, lens, tree)
+  if tree.nil?
+    nil
+  elsif lens[:lens] == :sub
+    subtree(repo, tree, lens[:path])
+  elsif lens[:lens] == :prefix
+    wrap(repo, tree, lens[:path])
+  elsif lens[:lens] == :chain
+    reduce((t, l) -> keep(repo, l, t), tree, lens[:parts])
+  else
+    kept = filter(
+      (t) -> t != nil,
+      map((l) -> keep(repo, l, tree), lens[:parts])
+    )
+    if is_empty(kept)
+      nil
+    else
+      reduce((x, y) -> merge_trees(repo, x, y), first(kept), drop(1, kept))
+    end
+  end
+end
+
+def person(rest)
+  lt = text_index(rest, " <", 0)
+  gt = text_index(rest, "> ", 0)
+  {
+    name: take_chars(rest, lt),
+    email: take_chars(drop_chars(rest, lt + 2), gt - lt - 2),
+    date: drop_chars(rest, gt + 2)
+  }
+end
+
+def header_value(lines, key)
+  found = filter((l) -> starts_with(l, "#{key} "), lines)
+  if is_empty(found)
+    nil
+  else
+    drop_chars(first(found), length(key) + 1)
+  end
+end
+
+def commit_parts(repo, c)
+  text = gitto::raw(repo, ["cat-file", "commit", c])
+  cut = text_index(text, unlines(["", ""]), 0)
+  head = split(take_chars(text, cut), line_break)
+  if header_value(head, "encoding") != nil
+    raise(:lens_refused, "commit #{c} declares an encoding, which is not built")
+  end
+  {
+    tree: header_value(head, "tree"),
+    author: person(header_value(head, "author")),
+    committer: person(header_value(head, "committer")),
+    signed: header_value(head, "gpgsig") != nil,
+    message: drop_chars(text, cut + 2)
+  }
+end
+
+def commit_tree(repo, msg_file, tree, parents, parts)
+  write_file(msg_file, parts[:message])
+  a = parts[:author]
+  c = parts[:committer]
+  args = append(
+    append(["commit-tree", tree], retsu::flat_map(parents, (p) -> ["-p", p])),
+    ["-F", msg_file]
+  )
+  cap = exec_with_env(
+    [
+      %w[GIT_TERMINAL_PROMPT 0],
+      %w[LC_ALL C],
+      ["GIT_AUTHOR_NAME", a[:name]],
+      ["GIT_AUTHOR_EMAIL", a[:email]],
+      ["GIT_AUTHOR_DATE", a[:date]],
+      ["GIT_COMMITTER_NAME", c[:name]],
+      ["GIT_COMMITTER_EMAIL", c[:email]],
+      ["GIT_COMMITTER_DATE", c[:date]]
+    ],
+    "git",
+    "-C",
+    repo,
+    *args
+  )
+  if shisutemu::status_of(cap) != 0
+    gitto::fail(repo, args, cap)
+  end
+  trim(shisutemu::stdout_of(cap))
+end
+
+def check_policy(opts)
+  policy = opts[:signatures]
+  if policy.nil?
+    raise(
+      :lens_refused,
+      "a split names its signature policy: {signatures: :drop}"
+    )
+  end
+  if policy != :drop
+    raise(
+      :lens_refused,
+      "the signature policy #{to_s(policy)} is not built (built: :drop)"
+    )
+  end
+end
+
+def step(repo, lens, msg_file, state, row)
+  c = first(row)
+  parts = commit_parts(repo, c)
+  t = keep(repo, lens, parts[:tree])
+  mapped = distinct(
+    filter((p) -> p != nil, map((p) -> get(state[:map], p), drop(1, row)))
+  )
+  made = if t.nil?
+    first(mapped)
+  elsif retsu::size(mapped) == 1 and get(state[:trees], first(mapped)) == t
+    first(mapped)
+  else
+    commit_tree(repo, msg_file, t, mapped, parts)
+  end
+  {
+    map: assoc(state[:map], c, made),
+    trees: if made.nil?
+      state[:trees]
+    else
+      assoc(
+        state[:trees],
+        made,
+        if t.nil?
+          get(state[:trees], made)
+        else
+          t
+        end
+      )
+    end,
+    written: if made != nil and not member?(made, mapped)
+      state[:written] + 1
+    else
+      state[:written]
+    end,
+    signed: if parts[:signed]
+      state[:signed] + 1
+    else
+      state[:signed]
+    end
+  }
+end
+
+@doc """
+project: The history of `source` seen through `lens`, written to the ref `target`. Returns the new head (nil when the lens kept nothing), how many commits were read, how many were written, and how many signatures were dropped. `opts` names the signature policy, and only `{signatures: :drop}` is built: a rewritten commit's old signature cannot verify.
+"""
+def project(repo, lens, source, target, opts)
+  check_policy(opts)
+  rows = map(
+    (l) -> split(l, " "),
+    filter(
+      (l) -> l != "",
+      split(
+        gitto::raw(
+          repo,
+          ["rev-list", "--topo-order", "--reverse", "--parents", source]
+        ),
+        line_break
+      )
+    )
+  )
+  msg_file = path_join(
+    gitto::out(repo, %w[rev-parse --absolute-git-dir]),
+    "UTSUSHI_MSG"
+  )
+  start = {map: {}, trees: {}, written: 0, signed: 0}
+  final = reduce((s, row) -> step(repo, lens, msg_file, s, row), start, rows)
+  tip = gitto::out(repo, ["rev-parse", source])
+  head = get(final[:map], tip)
+  if head != nil
+    gitto::out(repo, ["update-ref", target, head])
+  end
+  {
+    head:,
+    read: retsu::size(rows),
+    written: final[:written],
+    signatures_dropped: final[:signed]
+  }
+end
+
+def at_fixed_time(repo, args)
+  cap = exec_with_env(
+    [
+      %w[GIT_AUTHOR_DATE 1700000000+0000],
+      %w[GIT_COMMITTER_DATE 1700000000+0000],
+      %w[GIT_AUTHOR_NAME t],
+      %w[GIT_AUTHOR_EMAIL t@example.invalid],
+      %w[GIT_COMMITTER_NAME t],
+      %w[GIT_COMMITTER_EMAIL t@example.invalid]
+    ],
+    "git",
+    "-C",
+    repo,
+    *args
+  )
+  if shisutemu::status_of(cap) != 0
+    gitto::fail(repo, args, cap)
+  end
+end
+
+def fixed_commit(repo, files, message)
+  map((f) -> write_file(path_join(repo, f[0]), f[1]), files)
+  at_fixed_time(repo, %w[add -A])
+  at_fixed_time(repo, ["commit", "-q", "-m", message])
+end
+
+def josh_fixture(name)
+  r = gitto::fixture(name)
+  mkdir_p(path_join(r, "a/b"))
+  fixed_commit(r, [["top.txt", unlines(["r"])]], "root, no sub yet")
+  fixed_commit(r, [["a/b/one", unlines(["1"])]], "add a/b/one")
+  fixed_commit(r, [["top.txt", unlines(["t2"])]], "touch only top")
+  fixed_commit(
+    r,
+    [["a/b/two", unlines(["2"])], ["a/x", unlines(["x"])]],
+    "two files"
+  )
+  r
+end
+
+def log_of(repo, ref)
+  filter(
+    (l) -> l != "",
+    split(gitto::raw(repo, ["log", "--format=%H", ref]), line_break)
+  )
+end
+
+DROP = {signatures: :drop}
+
+def lens_refused?(f)
+  kyohi::raised(f) == :lens_refused
+end
+
+test "the fixture is the one the Josh ids were recorded on"
+  r = josh_fixture("utsushi-base")
+  assert first(log_of(r, "main")) == "917c1f5" or
+    starts_with(first(log_of(r, "main")), "917c1f5")
+end
+
+test "sub gives Josh's commit ids: unchanged and empty commits drop out"
+  r = josh_fixture("utsushi-sub")
+  out = project(r, parse(":/a/b"), "main", "refs/utsushi/sub", DROP)
+  assert log_of(r, "refs/utsushi/sub") ==
+    %w[
+      6f11a1fc9e3ca6fea56184bef03c41a4196a3267
+      66c01049f2a39d336b7c44acd1988893b8bb1512
+    ]
+  assert out[:read] == 4
+  assert out[:written] == 2
+end
+
+test "prefix gives Josh's commit ids: every commit is kept"
+  r = josh_fixture("utsushi-prefix")
+  project(r, parse(":prefix=lib/x"), "main", "refs/utsushi/prefix", DROP)
+  assert log_of(r, "refs/utsushi/prefix") ==
+    %w[
+      c34c7e046b5a1b72b8629f58c263829effdf3ea8
+      eedc8ecba26ce5f7e4a193ea63891e5e142d501d
+      95565941c32bc92bfa4fce5104fc3ece26da6a08
+      db0e63d6dfa90165be51f09459de069e9a7c9058
+    ]
+end
+
+test "the same lens twice gives the same head"
+  r = josh_fixture("utsushi-again")
+  one = project(r, sub("a/b"), "main", "refs/utsushi/one", DROP)
+  two = project(r, sub("a/b"), "main", "refs/utsushi/two", DROP)
+  assert one[:head] == two[:head]
+end
+
+test "a chain moves a subtree under a new root"
+  r = josh_fixture("utsushi-chain")
+  out = project(
+    r,
+    parse(":/a/b:prefix=lib"),
+    "main",
+    "refs/utsushi/chain",
+    DROP
+  )
+  files = split(
+    trim(gitto::raw(r, ["ls-tree", "-r", "--name-only", out[:head]])),
+    line_break
+  )
+  assert files == %w[lib/one lib/two]
+end
+
+test "compose puts disjoint lenses side by side and refuses an overlap"
+  r = josh_fixture("utsushi-compose")
+  lens = compose([chain([sub("a/b"), prefix("lib/b")]), prefix("lib/all")])
+  out = project(r, lens, "main", "refs/utsushi/compose", DROP)
+  files = split(
+    trim(gitto::raw(r, ["ls-tree", "-r", "--name-only", out[:head]])),
+    line_break
+  )
+  assert member?("lib/b/one", files)
+  assert member?("lib/all/a/x", files)
+  assert lens_refused?(() -> compose([sub("a"), prefix("x")]))
+  assert lens_refused?(() -> compose([prefix("lib"), prefix("lib/b")]))
+end
+
+test "a lens path names a directory inside the tree"
+  assert lens_refused?(() -> sub("/"))
+  assert lens_refused?(() -> sub("a/../b"))
+  assert lens_refused?(() -> parse(":exclude[a]"))
+end
+
+test "a projection names its signature policy, and only drop is built"
+  r = josh_fixture("utsushi-policy")
+  assert lens_refused?(() -> project(r, sub("a/b"), "main", "refs/x", {}))
+  assert lens_refused?(
+    () -> project(r, sub("a/b"), "main", "refs/x", {signatures: :re_sign})
+  )
+end
+
+test "a lens that keeps nothing writes no ref"
+  r = josh_fixture("utsushi-none")
+  out = project(r, sub("nowhere"), "main", "refs/utsushi/none", DROP)
+  assert out[:head].nil?
+  assert not gitto::resolves(r, "refs/utsushi/none")
+end

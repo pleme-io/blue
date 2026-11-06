@@ -61,6 +61,11 @@ def compose(lenses)
   {lens: :compose, parts: lenses}
 end
 
+@doc """
+shown_root is an output root as a refusal shows it: the whole tree is `/`.
+
+    shown_root("") #=> "/"
+"""
 def shown_root(r)
   if r == ""
     "/"
@@ -69,6 +74,11 @@ def shown_root(r)
   end
 end
 
+@doc """
+clean is a lens path without empty segments, refusing one that names no directory or leaves the tree.
+
+    clean("/a//b/") #=> "a/b"
+"""
 def clean(path)
   segs = filter((s) -> s != "", split(path, "/"))
   if is_empty(segs)
@@ -80,6 +90,11 @@ def clean(path)
   join(segs, "/")
 end
 
+@doc """
+out_root is where a lens puts what it keeps: a prefix's path, or the whole tree.
+
+    out_root(prefix("x")) #=> "x"
+"""
 def out_root(lens)
   if lens[:lens] == :prefix
     lens[:path]
@@ -90,10 +105,20 @@ def out_root(lens)
   end
 end
 
+@doc """
+under? tells whether path a is b or inside it.
+
+    under?("a/b", "a") #=> true
+"""
 def under?(a, b)
   a == b or starts_with(a, "#{b}/")
 end
 
+@doc """
+overlap? tells whether two output roots can hold the same file.
+
+    overlap?("a", "b") #=> false
+"""
 def overlap?(a, b)
   a == "" or b == "" or under?(a, b) or under?(b, a)
 end
@@ -113,6 +138,11 @@ def parse(spec)
   end
 end
 
+@doc """
+parse_one is the lens one Josh filter names, without its leading `:`.
+
+    parse_one("prefix=x") #=> prefix("x")
+"""
 def parse_one(part)
   if starts_with(part, "/")
     sub(drop_chars(part, 1))
@@ -126,6 +156,11 @@ def parse_one(part)
   end
 end
 
+@doc """
+git_stdin runs git in `repo` with `input` on its standard input and gives its trimmed output.
+
+    git_stdin(josh_fixture("doc-stdin"), "", ["mktree"]) #=> "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+"""
 def git_stdin(repo, input, args)
   cap = exec_with_stdin(input, "git", "-C", repo, *args)
   if shisutemu::status_of(cap) != 0
@@ -134,12 +169,22 @@ def git_stdin(repo, input, args)
   trim(shisutemu::stdout_of(cap))
 end
 
+@doc """
+entry_of is one `git ls-tree` line as its mode, type, id and name.
+
+    entry_of("100644 blob abc\tf")[:name] #=> "f"
+"""
 def entry_of(line)
   tab = text_index(line, "\t", 0)
   meta = split(take_chars(line, tab), " ")
   {mode: meta[0], type: meta[1], id: meta[2], name: drop_chars(line, tab + 1)}
 end
 
+@doc """
+entries is every entry of one tree, read with `git ls-tree`.
+
+    map((e) -> e[:name], entries(josh_fixture("doc-entries"), "main")) #=> ["a", "top.txt"]
+"""
 def entries(repo, tree)
   map(
     entry_of,
@@ -150,14 +195,29 @@ def entries(repo, tree)
   )
 end
 
+@doc """
+entry_line is an entry as the `git mktree` line that writes it.
+
+    entry_line({mode: "100644", type: "blob", id: "abc", name: "f"}) #=> "100644 blob abc\tf"
+"""
 def entry_line(e)
   "#{e[:mode]} #{e[:type]} #{e[:id]}\t#{e[:name]}"
 end
 
+@doc """
+mktree writes a tree of these entries and gives its id.
+
+    mktree(josh_fixture("doc-mktree"), []) #=> "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+"""
 def mktree(repo, es)
   git_stdin(repo, unlines(map(entry_line, es)), ["mktree"])
 end
 
+@doc """
+subtree is the id of the directory at `path` in a tree, or nil when there is none there.
+
+    subtree(josh_fixture("doc-subtree"), "main", "nowhere") #=> nil
+"""
 def subtree(repo, tree, path)
   found = filter(
     (l) -> l != "",
@@ -173,6 +233,11 @@ def subtree(repo, tree, path)
   end
 end
 
+@doc """
+wrap is a new tree that holds `tree` at `path`.
+
+    length(wrap(josh_fixture("doc-wrap"), "4b825dc642cb6eb9a060e54bf8d69288fbee4904", "a/b")) #=> 40
+"""
 def wrap(repo, tree, path)
   reduce(
     fn(t, seg)
@@ -183,6 +248,11 @@ def wrap(repo, tree, path)
   )
 end
 
+@doc """
+merge_trees is one tree holding the entries of both, refusing a name that both hold as a file.
+
+    merge_trees(josh_fixture("doc-merge"), "4b825dc642cb6eb9a060e54bf8d69288fbee4904", "4b825dc642cb6eb9a060e54bf8d69288fbee4904") #=> "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+"""
 def merge_trees(repo, a, b)
   ea = entries(repo, a)
   eb = entries(repo, b)
@@ -205,6 +275,8 @@ end
 
 @doc """
 keep: The tree a lens keeps of `tree`, or nil when it keeps nothing.
+
+    keep(josh_fixture("doc-keep"), sub("nowhere"), "main") #=> nil
 """
 def keep(repo, lens, tree)
   if tree.nil?
@@ -228,6 +300,11 @@ def keep(repo, lens, tree)
   end
 end
 
+@doc """
+person is an author or committer header's name, email and date.
+
+    person("t <t@x> 1700000000 +0000")[:email] #=> "t@x"
+"""
 def person(rest)
   lt = text_index(rest, " <", 0)
   gt = text_index(rest, "> ", 0)
@@ -238,6 +315,11 @@ def person(rest)
   }
 end
 
+@doc """
+header_value is the value of a commit header line, or nil when the commit has none.
+
+    header_value(["tree abc", "author x"], "tree") #=> "abc"
+"""
 def header_value(lines, key)
   found = filter((l) -> starts_with(l, "#{key} "), lines)
   if is_empty(found)
@@ -247,6 +329,11 @@ def header_value(lines, key)
   end
 end
 
+@doc """
+commit_parts is a commit's tree, author, committer, signature flag and exact message.
+
+    commit_parts(josh_fixture("doc-parts"), "main")[:message] #=> "two files\n"
+"""
 def commit_parts(repo, c)
   text = gitto::raw(repo, ["cat-file", "commit", c])
   cut = text_index(text, unlines(["", ""]), 0)
@@ -263,6 +350,11 @@ def commit_parts(repo, c)
   }
 end
 
+@doc """
+commit_tree writes a commit of `tree` on `parents` with the author, committer and message of `parts`, and gives its id.
+
+    length(commit_tree(josh_fixture("doc-commit"), path_join(getenv("TMPDIR") or "/tmp", "utsushi-doc-msg"), "4b825dc642cb6eb9a060e54bf8d69288fbee4904", [], commit_parts(josh_fixture("doc-commit-parts"), "main"))) #=> 40
+"""
 def commit_tree(repo, msg_file, tree, parents, parts)
   write_file(msg_file, parts[:message])
   a = parts[:author]
@@ -293,6 +385,11 @@ def commit_tree(repo, msg_file, tree, parents, parts)
   trim(shisutemu::stdout_of(cap))
 end
 
+@doc """
+check_policy refuses a projection that names no signature policy, or one that is not built.
+
+    lens_refused?(() -> check_policy({})) #=> true
+"""
 def check_policy(opts)
   policy = opts[:signatures]
   if policy.nil?
@@ -309,6 +406,11 @@ def check_policy(opts)
   end
 end
 
+@doc """
+step projects one commit, given as its `rev-list --parents` row: written again, mapped to a parent when its tree did not change, or dropped when the lens keeps nothing of it.
+
+    step(josh_fixture("doc-step"), sub("nowhere"), "unused", {map: {}, trees: {}, written: 0, signed: 0}, ["917c1f56804c077576931b6c8f59e2ae38fd4539"])[:written] #=> 0
+"""
 def step(repo, lens, msg_file, state, row)
   c = first(row)
   parts = commit_parts(repo, c)
@@ -353,6 +455,8 @@ end
 
 @doc """
 project: The history of `source` seen through `lens`, written to the ref `target`. Returns the new head (nil when the lens kept nothing), how many commits were read, how many were written, and how many signatures were dropped. `opts` names the signature policy, and only `{signatures: :drop}` is built: a rewritten commit's old signature cannot verify.
+
+    project(josh_fixture("doc-project"), sub("a/b"), "main", "refs/doc", DROP)[:written] #=> 2
 """
 def project(repo, lens, source, target, opts)
   check_policy(opts)
@@ -388,6 +492,11 @@ def project(repo, lens, source, target, opts)
   }
 end
 
+@doc """
+at_fixed_time runs git in `repo` as the fixture's author and committer at 1700000000 +0000, so the commits it writes have the same ids on every machine.
+
+    at_fixed_time(josh_fixture("doc-time"), ["status", "--short"]) #=> nil
+"""
 def at_fixed_time(repo, args)
   cap = exec_with_env(
     [
@@ -408,12 +517,22 @@ def at_fixed_time(repo, args)
   end
 end
 
+@doc """
+fixed_commit writes `files` as [path, text] pairs and commits them at the fixed time.
+
+    fixed_commit(josh_fixture("doc-fixed"), [["n.txt", "n"]], "n") #=> nil
+"""
 def fixed_commit(repo, files, message)
   map((f) -> write_file(path_join(repo, f[0]), f[1]), files)
   at_fixed_time(repo, %w[add -A])
   at_fixed_time(repo, ["commit", "-q", "-m", message])
 end
 
+@doc """
+josh_fixture is a fresh repository holding the four fixed-time commits the Josh ids were recorded on.
+
+    first(log_of(josh_fixture("doc-josh"), "main")) #=> "917c1f56804c077576931b6c8f59e2ae38fd4539"
+"""
 def josh_fixture(name)
   r = gitto::fixture(name)
   mkdir_p(path_join(r, "a/b"))
@@ -428,6 +547,11 @@ def josh_fixture(name)
   r
 end
 
+@doc """
+log_of is the commit ids reachable from `ref`, newest first.
+
+    length(log_of(josh_fixture("doc-log"), "main")) #=> 4
+"""
 def log_of(repo, ref)
   filter(
     (l) -> l != "",
@@ -435,8 +559,18 @@ def log_of(repo, ref)
   )
 end
 
+@doc """
+DROP is the signature policy that drops a rewritten commit's signature.
+
+    DROP #=> {signatures: :drop}
+"""
 DROP = {signatures: :drop}
 
+@doc """
+lens_refused? tells whether calling f raises `:lens_refused`.
+
+    lens_refused?(() -> sub("/")) #=> true
+"""
 def lens_refused?(f)
   kyohi::raised(f) == :lens_refused
 end

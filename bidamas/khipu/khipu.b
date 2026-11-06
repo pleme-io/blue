@@ -9,23 +9,53 @@ use("kyohi", [:raised])
 use("moji", %i[is_hex take_chars])
 use("retsu", %i[first size])
 
+@doc """
+XSD_STRING is the datatype IRI a plain literal has.
+
+    XSD_STRING #=> "http://www.w3.org/2001/XMLSchema#string"
+"""
 XSD_STRING = "http://www.w3.org/2001/XMLSchema#string"
 
+@doc """
+RDF_LANG_STRING is the datatype IRI a language-tagged literal has, so it is never written as a datatype.
+
+    RDF_LANG_STRING #=> "http://www.w3.org/1999/02/22-rdf-syntax-ns#langString"
+"""
 RDF_LANG_STRING = "http://www.w3.org/1999/02/22-rdf-syntax-ns#langString"
 
+@doc """
+IRI_FORBIDDEN is the characters an N-Triples IRI never holds.
+
+    size(IRI_FORBIDDEN) #=> 9
+"""
 IRI_FORBIDDEN = ["<", ">", "\"", "{", "}", "|", "^", "`", "\\"]
 
+@doc """
+control_or_space? tells whether one character is a space or an ASCII control character.
+
+    control_or_space?(" ") #=> true
+"""
 def control_or_space?(c)
   b = text_bytes(c)
   size(b) == 1 and first(b) <= 32
 end
 
+@doc """
+letter? tells whether one character is an ASCII letter.
+
+    letter?("a") #=> true
+"""
 def letter?(c)
   b = text_bytes(c)
   size(b) == 1 and
     (first(b) >= 65 and first(b) <= 90 or first(b) >= 97 and first(b) <= 122)
 end
 
+@doc """
+digit? tells whether one character is an ASCII digit.
+
+    digit?("7") #=> true
+"""
 def digit?(c)
   b = text_bytes(c)
   size(b) == 1 and first(b) >= 48 and first(b) <= 57
@@ -73,6 +103,11 @@ def lang_problem(tag)
   end
 end
 
+@doc """
+refuse raises `:rdf_refused` with the reason.
+
+    raised(() -> refuse("no")) #=> :rdf_refused
+"""
 def refuse(why)
   raise(:rdf_refused, why)
 end
@@ -140,12 +175,19 @@ def typed(text, datatype)
   end
 end
 
+@doc """
+term? tells whether a value is one of the five terms.
+
+    term?(literal("a")) #=> true
+"""
 def term?(t)
   map?(t) and member?(t[:term], %i[iri blank plain lang typed])
 end
 
 @doc """
 quad: A statement in a graph. The subject is an IRI or a blank node, the predicate an IRI, the object any term, and the graph nil (the default graph), an IRI or a blank node.
+
+    quad(iri("http://e/s"), iri("http://e/p"), literal("o"), nil)[:o] #=> literal("o")
 """
 def quad(s, p, o, g)
   if not term?(s) or not member?(s[:term], %i[iri blank])
@@ -163,6 +205,11 @@ def quad(s, p, o, g)
   {s:, p:, o:, g:}
 end
 
+@doc """
+escaped is a literal's text with its backslashes, quotes and line breaks escaped for N-Triples.
+
+    length(escaped("\"")) #=> 2
+"""
 def escaped(text)
   replace(
     replace(
@@ -201,6 +248,8 @@ end
 
 @doc """
 write_quad: One N-Quads line, ending in ` .`; a quad in the default graph is an N-Triples line.
+
+    write_quad(quad(iri("http://e/s"), iri("http://e/p"), iri("http://e/o"), nil), "") #=> "<http://e/s> <http://e/p> <http://e/o> ."
 """
 def write_quad(q, scope)
   parts = [
@@ -218,6 +267,8 @@ end
 
 @doc """
 write: Quads as N-Quads text, one line each.
+
+    write([], "") #=> ""
 """
 def write(quads, scope)
   unlines(map((q) -> write_quad(q, scope), quads))
@@ -236,20 +287,40 @@ def term_id(t)
   end
 end
 
+@doc """
+at is the character at index i, or nil past the end.
+
+    at(["a"], 1) #=> nil
+"""
 def at(cs, i)
   if i < size(cs)
     cs[i]
   end
 end
 
+@doc """
+ok is a reading that succeeded: its value and the index after it.
+
+    ok(1, 2) #=> {v: 1, i: 2}
+"""
 def ok(v, i)
   {v:, i:}
 end
 
+@doc """
+no is a reading that was refused, with its reason.
+
+    no("x") #=> {why: "x"}
+"""
 def no(why)
   {why:}
 end
 
+@doc """
+skip_ws is the index of the first character at or after i that is not a space or a tab.
+
+    skip_ws(chars("  a"), 0) #=> 2
+"""
 def skip_ws(cs, i)
   c = at(cs, i)
   if c == " " or c == "\t"
@@ -259,6 +330,11 @@ def skip_ws(cs, i)
   end
 end
 
+@doc """
+uchar reads a `\\u` or `\\U` escape whose letter is at i: the character it names.
+
+    uchar(chars("u00e9"), 0)[:v] #=> "é"
+"""
 def uchar(cs, i)
   width = if at(cs, i) == "u"
     4
@@ -278,6 +354,11 @@ def uchar(cs, i)
   end
 end
 
+@doc """
+iri_text reads an IRI's characters up to its closing `>`, escapes decoded.
+
+    iri_text(chars("a>"), 0, [])[:v] #=> "a"
+"""
 def iri_text(cs, i, acc)
   c = at(cs, i)
   if c.nil?
@@ -300,6 +381,11 @@ def iri_text(cs, i, acc)
   end
 end
 
+@doc """
+read_iri reads `<...>` at i as an IRI term, refusing one that is not absolute.
+
+    read_iri(chars("<http://e/a>"), 0)[:v] #=> iri("http://e/a")
+"""
 def read_iri(cs, i)
   r = iri_text(cs, i + 1, [])
   if r[:why] != nil
@@ -314,12 +400,22 @@ def read_iri(cs, i)
   end
 end
 
+@doc """
+label_char? tells whether a character can be part of a blank node label.
+
+    label_char?("a") #=> true
+"""
 def label_char?(c)
   c != nil and
     not control_or_space?(c) and
     not member?(c, ["<", ">", "\"", "#", "^", "@"])
 end
 
+@doc """
+label_end is the index just after the label characters that start at i.
+
+    label_end(chars("ab c"), 0) #=> 2
+"""
 def label_end(cs, i)
   if label_char?(at(cs, i))
     label_end(cs, i + 1)
@@ -328,6 +424,11 @@ def label_end(cs, i)
   end
 end
 
+@doc """
+read_blank reads `_:label` at i as a blank node of `scope`; a final `.` ends the statement, not the label.
+
+    read_blank(chars("_:b1."), 0, "d")[:v][:label] #=> "b1"
+"""
 def read_blank(cs, i, scope)
   start = i + 2
   stop = label_end(cs, start)
@@ -344,6 +445,11 @@ def read_blank(cs, i, scope)
   end
 end
 
+@doc """
+ECHAR is each N-Triples escape letter and the character it stands for.
+
+    get(ECHAR, "t") #=> "\t"
+"""
 ECHAR = {
   "t" => "\t",
   "b" => "\u{8}",
@@ -355,6 +461,11 @@ ECHAR = {
   "\\" => "\\"
 }
 
+@doc """
+string_text reads a literal's characters up to its closing quote, escapes decoded.
+
+    string_text(chars("hi\""), 0, [])[:v] #=> "hi"
+"""
 def string_text(cs, i, acc)
   c = at(cs, i)
   if c.nil?
@@ -380,6 +491,11 @@ def string_text(cs, i, acc)
   end
 end
 
+@doc """
+tag_end is the index just after the language tag characters that start at i.
+
+    tag_end(chars("en-GB x"), 0) #=> 5
+"""
 def tag_end(cs, i)
   c = at(cs, i)
   if c != nil and (letter?(c) or digit?(c) or c == "-")
@@ -389,6 +505,11 @@ def tag_end(cs, i)
   end
 end
 
+@doc """
+read_literal reads a quoted literal at i with its tag or datatype, refusing one with both.
+
+    read_literal(chars("\"a\"@en"), 0)[:v] #=> lang("a", "en")
+"""
 def read_literal(cs, i)
   r = string_text(cs, i + 1, [])
   if r[:why] != nil
@@ -422,6 +543,11 @@ def read_literal(cs, i)
   end
 end
 
+@doc """
+read_node reads the term at i when its kind is one of `kinds`, and refuses any other.
+
+    read_node(chars("<http://e/a>"), 0, "d", [:iri])[:v] #=> iri("http://e/a")
+"""
 def read_node(cs, i, scope, kinds)
   c = at(cs, i)
   if c == "<" and member?(:iri, kinds)
@@ -435,6 +561,11 @@ def read_node(cs, i, scope, kinds)
   end
 end
 
+@doc """
+read_rest accepts what follows a statement's dot: nothing, or a comment.
+
+    read_rest(chars("  # note"), 0)[:why] #=> nil
+"""
 def read_rest(cs, i)
   j = skip_ws(cs, i)
   c = at(cs, j)
@@ -445,6 +576,11 @@ def read_rest(cs, i)
   end
 end
 
+@doc """
+then passes a refused reading through, and gives a successful one to f.
+
+    then(no("x"), (r) -> r)[:why] #=> "x"
+"""
 def then(r, f)
   if r[:why] != nil
     r
@@ -453,6 +589,11 @@ def then(r, f)
   end
 end
 
+@doc """
+read_graph reads an N-Quads graph label at i, or nil when there is none or the text is N-Triples.
+
+    read_graph(chars(" ."), 0, "d", true)[:v] #=> nil
+"""
 def read_graph(cs, i, scope, with_graphs)
   k = skip_ws(cs, i)
   if with_graphs and at(cs, k) != "."
@@ -462,6 +603,11 @@ def read_graph(cs, i, scope, with_graphs)
   end
 end
 
+@doc """
+read_end requires the statement's dot at i, then nothing but a comment.
+
+    read_end(chars(" ."), 0, 7)[:v] #=> 7
+"""
 def read_end(cs, i, made)
   dot = skip_ws(cs, i)
   if at(cs, dot) != "."
@@ -471,6 +617,11 @@ def read_end(cs, i, made)
   end
 end
 
+@doc """
+read_statement reads one line's subject, predicate, object, optional graph and dot as a quad.
+
+    read_statement(chars("<http://e/s> <http://e/p> \"o\" ."), "d", false)[:v][:o] #=> literal("o")
+"""
 def read_statement(cs, scope, with_graphs)
   then(
     read_node(cs, skip_ws(cs, 0), scope, %i[iri blank]),
@@ -493,6 +644,11 @@ def read_statement(cs, scope, with_graphs)
   )
 end
 
+@doc """
+blank_line? tells whether a line holds no statement: only spaces, or a comment.
+
+    blank_line?(chars("  # c")) #=> true
+"""
 def blank_line?(cs)
   c = at(cs, skip_ws(cs, 0))
   c.nil? or c == "#"
@@ -500,6 +656,8 @@ end
 
 @doc """
 read: The statements of N-Triples (`with_graphs` false) or N-Quads text. Each line is judged alone: a bad line is a refusal with its line number and reason, and the lines around it are still read. `scope` names the document, for its blank nodes.
+
+    size(read("<http://e/s> <http://e/p> <http://e/o> .", "d", false)[:quads]) #=> 1
 """
 def read(text, scope, with_graphs)
   rows = split(replace(text, "\r", ""), line_break)
@@ -517,20 +675,40 @@ def read(text, scope, with_graphs)
   }
 end
 
+@doc """
+rdf_refused? tells whether calling f raises `:rdf_refused`.
+
+    rdf_refused?(() -> iri("x")) #=> true
+"""
 def rdf_refused?(f)
   raised(f) == :rdf_refused
 end
 
+@doc """
+nt reads N-Triples text in the scope `t`.
+
+    size(nt("<http://e/s> <http://e/p> \"o\" .")[:quads]) #=> 1
+"""
 def nt(text)
   read(text, "t", false)
 end
 
+@doc """
+one is the single quad an N-Triples line reads to, asserting nothing was refused.
+
+    one("<http://e/s> <http://e/p> \"o\" .")[:o] #=> literal("o")
+"""
 def one(text)
   r = nt(text)
   assert r[:refused] == []
   first(r[:quads])
 end
 
+@doc """
+refused_why is the reason the single line of `text` is refused.
+
+    contains?(refused_why("<rel> <http://e/p> <http://e/o> ."), "absolute") #=> true
+"""
 def refused_why(text)
   r = nt(text)
   assert size(r[:refused]) == 1

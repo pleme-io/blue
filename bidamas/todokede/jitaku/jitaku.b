@@ -13,7 +13,7 @@ use("jisho")
 
 use(
   "kousei",
-  %i[entry flag int_in kind_of name_of required text value_of verdict where]
+  %i[entry flag int_in kind_of name_of required text value_of verdict]
 )
 
 use("kyohi", %i[kinds refusal])
@@ -47,9 +47,7 @@ def float_in(lo, hi)
 end
 
 def one_of(choices)
-  fn(v)
-    verdict(contains(choices, v), "#{v} is not one of #{join(choices, ", ")}")
-  end
+  kousei::one_of(choices)
 end
 
 def lower_digits()
@@ -132,12 +130,7 @@ def passes?(check, v)
 end
 
 def first_why(check, xs)
-  whys = filter((w) -> w != nil, map((x) -> check(x), xs))
-  if is_empty(whys)
-    nil
-  else
-    first(whys)
-  end
+  kousei::first_why(check, xs)
 end
 
 @doc """
@@ -704,7 +697,7 @@ def singleton_checks()
 end
 
 def refuse_entry(kind, e, why)
-  refusal(kind, "#{where(e)}: #{why}")
+  kousei::refuse(kind, e, why)
 end
 
 def whys_to_refusals(e, whys)
@@ -1495,4 +1488,22 @@ test "a field the table does not know is refused, never dropped"
   assert kinds(
     refusals([site("natal"), tone("t", {frequency: 432, volume: 1})])
   ) == [:invalid]
+end
+
+test "first_why, one_of and refuse_entry answer as kousei's words do"
+  odd = fn(n)
+    if n % 2 == 1
+      nil
+    else
+      "#{n} is even"
+    end
+  end
+  assert first_why(odd, []).nil?
+  assert first_why(odd, [1, 4, 6]) == "4 is even"
+  assert one_of(%w[a b])("a").nil?
+  assert one_of(%w[a b])("c") == "c is not one of a, b"
+  assert one_of(%i[a b])(:c) == kousei::one_of(%i[a b])(:c)
+  e = entry(:light, "hall", {})
+  assert refuse_entry(:invalid, e, "dark") ==
+    kousei::refuse(:invalid, e, "dark")
 end

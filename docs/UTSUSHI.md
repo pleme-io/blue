@@ -5,12 +5,16 @@ summary: utsushi, blue's history projection, DESIGN: Josh's essence naturalized 
 
 # utsushi (写し): blue's history projection, the design of record
 
-**Tier: DESIGN (2026-11-06). No code exists.** utsushi is the naturalization of
+**Tier (2026-11-06): U1 BUILT, U2-U6 DESIGN.** utsushi is the naturalization of
 Josh, "Just One Single History" (https://github.com/josh-project/josh): any
 subtree or composed workspace of a repository shown as a repository of its
 own, with history, both ways. It keeps the problem and the good ideas. It
-vendors no Josh code. It lives as the level `gitto/utsushi`, beside `gitto`'s
-git verbs. The roadmap row is the utsushi track in [`ROADMAP.md`](ROADMAP.md).
+vendors no Josh code. It is its own bidama, `bidamas/utsushi`, over `gitto`:
+not a level of it, because a level never imports its root. U1 is `sub`,
+`prefix`, `chain`, `compose` and `project`, and on a fixed-date fixture its
+commit ids equal `josh-filter` 24.10.04's for `:/a/b` and `:prefix=lib/x`
+(the tests in `bidamas/utsushi/utsushi.b`). The roadmap row is the utsushi
+track in [`ROADMAP.md`](ROADMAP.md).
 
 **The name.** 写し is a transcription: a faithful copy of an original, made
 by hand, that keeps its form. A projected history is a transcription of part

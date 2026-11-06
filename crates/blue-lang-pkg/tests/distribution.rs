@@ -200,7 +200,7 @@ fn every_bidama_passes_its_own_tests() {
 fn every_bidama_passes_its_own_tests_inner() {
     let pkgs = tree_nodes();
     assert!(
-        pkgs.len() >= 111,
+        pkgs.len() >= 112,
         "found {} bidamas and levels; this asserts a FLOOR because a gate that walks a \
          directory passes vacuously when the directory is empty: {pkgs:?}",
         pkgs.len()
@@ -230,7 +230,7 @@ fn every_bidama_passes_its_own_tests_inner() {
         broken.join("\n")
     );
     assert!(
-        total >= 3923,
+        total >= 4019,
         "only {total} bidama tests ran across {} packages; the distribution \
          lost tests without any of them failing",
         pkgs.len()

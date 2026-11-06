@@ -77,6 +77,7 @@ use("kakehashi")
 use("kansuu", [:identity])
 use("kazu", %i[clamp near])
 use("keiyu", [:relay_env])
+use("khipu")
 use("kiwari")
 use("kodou")
 use("koubou")
@@ -213,6 +214,7 @@ test "every bidama in the distribution answers through this one import"
   assert fairu::stem("a/b.txt") == "b"
   assert gitto::ref_of("v1", :tag) == "refs/tags/v1"
   assert utsushi::sub("a/b") == {lens: :sub, path: "a/b"}
+  assert khipu::literal("a") == {term: :plain, value: "a"}
   assert mitoshi::rogu::level_of("warn") == :warn
   assert eigyou::tsuushin::join("http://a.com/b/c", "../d") == "http://a.com/d"
   assert shuusei::put({}, "a.b", 1) == {"a" => {"b" => 1}}

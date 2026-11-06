@@ -5,11 +5,14 @@ summary: khipu, blue's knowledge graph, DESIGN: OxiRS's essence naturalized, the
 
 # khipu: blue's knowledge graph, the design of record
 
-**Tier: DESIGN (2026-11-06). No code exists.** khipu is the naturalization of
-OxiRS (https://github.com/cool-japan/oxirs, v0.4.1): an RDF quad store, a
-SPARQL query and update engine, rules and shape validation, in blue. It keeps
-the problem and the good ideas. It vendors no OxiRS code and speaks no OxiRS
-API. The roadmap row is the khipu track in [`ROADMAP.md`](ROADMAP.md).
+**Tier (2026-11-06): K1a BUILT, the rest DESIGN.** khipu is the
+naturalization of OxiRS (https://github.com/cool-japan/oxirs, v0.4.1): an RDF
+quad store, a SPARQL query and update engine, rules and shape validation, in
+blue. It keeps the problem and the good ideas. It vendors no OxiRS code and
+speaks no OxiRS API. K1a is `bidamas/khipu`: the term sum, quads, and
+N-Triples and N-Quads read and written, each line judged alone (21 tests).
+K1b is the DuckDB store, basic graph patterns and the W3C syntax suites. The
+roadmap row is the khipu track in [`ROADMAP.md`](ROADMAP.md).
 
 **The name.** A khipu is the Andean record of knotted cords: each knot is a
 fact, and a cord hangs from a cord. That is a graph of statements.

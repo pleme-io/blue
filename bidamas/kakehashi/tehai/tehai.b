@@ -376,10 +376,40 @@ end
 # ── one run ──────────────────────────────────────────────────────────
 
 @doc """
-run: Check every declared machine once; write the live file and the state.
-Returns the state record.
+bounded: A probe result held to a handshake bound. An up machine slower than
+max_ms is down, and the detail names both numbers; a max_ms of 0 keeps the
+result as it is.
+
+    bounded([true, "worker protocol 1.38"], 3900, 1500) #=> [false, "slow: handshake 3900 ms > 1500 ms"]
+    bounded([true, "worker protocol 1.38"], 200, 1500) #=> [true, "worker protocol 1.38"]
+    bounded([true, "worker protocol 1.38"], 3900, 0) #=> [true, "worker protocol 1.38"]
+    bounded([false, "no worker protocol handshake"], 3900, 1500) #=> [false, "no worker protocol handshake"]
 """
-def run(declared_path, live_path, state_path, timeout_s, ssh)
+def bounded(result, elapsed_ms, max_ms)
+  if result[0] and max_ms > 0 and elapsed_ms > max_ms
+    [false, "slow: handshake #{to_s(elapsed_ms)} ms > #{to_s(max_ms)} ms"]
+  else
+    result
+  end
+end
+
+@doc """
+timed_probe: probe, held to a handshake bound of max_ms (0 is no bound).
+
+    timed_probe(probe_target, 2, "", 0) #=> [false, "ssh could not be started: "]
+"""
+def timed_probe(m, timeout_s, ssh, max_ms)
+  started = now_ms
+  result = probe(m, timeout_s, ssh)
+  bounded(result, now_ms - started, max_ms)
+end
+
+@doc """
+run: Check every declared machine once; write the live file and the state.
+An up machine whose handshake takes longer than max_ms is written down; 0 is
+no bound. Returns the state record.
+"""
+def run(declared_path, live_path, state_path, timeout_s, ssh, max_ms)
   now = now_ms
   machines = parse(read_or(declared_path, ""))
   good = filter((m) -> m[:ok], machines)
@@ -388,7 +418,7 @@ def run(declared_path, live_path, state_path, timeout_s, ssh)
     filter((m) -> m[:ok] == false, machines)
   )
   checked = map(
-    (m) -> kakehashi::tehai::checked(m, probe(m, timeout_s, ssh)),
+    (m) -> kakehashi::tehai::checked(m, timed_probe(m, timeout_s, ssh, max_ms)),
     good
   )
   states = kakehashi::tehai::states(checked, read_previous(state_path), now)
@@ -539,7 +569,8 @@ def main()
     getenv("TEHAI_LIVE", "/var/run/tehai/machines"),
     getenv("TEHAI_STATE", "/var/run/tehai/state.json"),
     to_int(getenv("TEHAI_TIMEOUT_S", "2")),
-    getenv("TEHAI_SSH", "ssh")
+    getenv("TEHAI_SSH", "ssh"),
+    to_int(getenv("TEHAI_MAX_HANDSHAKE_MS", "0"))
   )
   declared = getenv("TEHAI_SUBSTITUTERS_DECLARED", "")
   if is_empty(declared) == false
@@ -646,7 +677,8 @@ test "a run end to end, with a machine that cannot answer"
     path_join(dir, "live"),
     path_join(dir, "state.json"),
     1,
-    "ssh"
+    "ssh",
+    0
   )
   assert read_file(path_join(dir, "live")) == ""
   assert size(r[:machines]) == 1
@@ -660,7 +692,8 @@ test "a run end to end, with a machine that cannot answer"
     path_join(dir, "live"),
     path_join(dir, "state.json"),
     1,
-    "ssh"
+    "ssh",
+    0
   )
   assert first(r2[:machines])[:since_ms] == first(r[:machines])[:since_ms]
   rm_rf(dir)
@@ -679,7 +712,8 @@ test "a missing ssh binary is named, and the state records which ssh ran"
     path_join(dir, "live"),
     path_join(dir, "state.json"),
     1,
-    "/nonexistent/ssh"
+    "/nonexistent/ssh",
+    0
   )
   m = first(r[:machines])
   assert m[:up] == false
@@ -695,7 +729,8 @@ test "a missing ssh binary is named, and the state records which ssh ran"
     path_join(dir, "live"),
     path_join(dir, "state.json"),
     1,
-    "ssh"
+    "ssh",
+    0
   )
   assert first(r2[:machines])[:detail] != "ssh could not be started: ssh"
   rm_rf(dir)

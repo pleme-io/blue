@@ -17,7 +17,7 @@ use("jisho", [:get_any])
 use("kansuu", [:maybe])
 use("kiwari")
 use("kyohi", [:raised])
-use("moji", %i[capitalize checked])
+use("moji", %i[capitalize checked repeated])
 use("retsu", %i[first is_empty last rest])
 use("shomei")
 
@@ -1548,7 +1548,7 @@ def directive_definition(p, i)
 end
 
 def pad(ind)
-  join(map((_) -> "  ", range(ind)), "")
+  repeated("  ", ind)
 end
 
 def deeper(ind)
@@ -4170,4 +4170,9 @@ end
 test "response_key is the alias, else the field name"
   assert response_key({name: "a"}) == "a"
   assert response_key({alias: "b", name: "a"}) == "b"
+end
+
+test "pad indents two spaces a level"
+  assert pad(0) == ""
+  assert pad(2) == "    "
 end

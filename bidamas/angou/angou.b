@@ -18,8 +18,6 @@ Use them to learn the shape of the problem; never to keep a secret.
 
 use("kazu", %i[max sum])
 
-use("moji", [:map_chars])
-
 use(
   "retsu",
   %i[
@@ -512,7 +510,7 @@ only property worth asserting is that it is its own inverse.
     atbash("") #=> ""
 """
 def atbash(text)
-  map_chars(atbash_char, text)
+  join(map(atbash_char, chars(text)), "")
 end
 
 def atbash_char(ch)

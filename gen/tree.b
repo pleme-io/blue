@@ -3,7 +3,9 @@ tree: move flat bidamas under a root, as docs/BIDAMA-COHESION.md section 6
 lays out. `blue gen/tree.b move ROOT CHILD...` moves each child to
 `bidamas/ROOT/CHILD` without its Bluefile, writes the root's Bluefile with one
 `legacy_packages` row per child, and runs `blue check --fix --only B0074` on
-every `.b` file that names a child, so callers move to the new path. The root's
+every `.b` file that names a child, so callers move to the new path. A root that
+already exists keeps its own rows and takes its new levels' `needs` and `reach`
+(`adopted_bluefile`). The root's
 `@moduledoc`, its NAMES.md row and `zenbu` stay the author's.
 """
 
@@ -40,6 +42,121 @@ version_rank: a version as one number that orders as the version does.
 
     version_rank("0.1.10") > version_rank("0.1.9") #=> true
 """
+def reach_words(text)
+  rows = filter((l) -> starts_with?(l, "reach("), lines(text))
+  if rows == []
+    []
+  else
+    filter(
+      (w) -> w != "",
+      split(before_first(after_first(first(rows), "%i["), "]"), " ")
+    )
+  end
+end
+
+def first_per_name(rows)
+  reduce(
+    fn(acc, r)
+      if member?(row_name(r, "needs("), map((a) -> row_name(a, "needs("), acc))
+        acc
+      else
+        concat_lists(acc, [r])
+      end
+    end,
+    [],
+    rows
+  )
+end
+
+@doc """
+adopted_bluefile: an existing root's Bluefile once its children move under it:
+its own rows, one `legacy_packages` row, every child's `needs` but on a sibling
+or the root, and one `reach` over every capability the tree held.
+
+    starts_with?(adopted_bluefile("", "k", ["a"], [], "0.1.1"), "package(") #=> true
+"""
+def adopted_bluefile(root_text, root, children, child_texts, version)
+  rows = lines(root_text)
+  head? = fn(l)
+    any?((h) -> starts_with?(l, h), %w[package( needs( reach( legacy_packages(])
+  end
+  outside = fn(r)
+    not member?(row_name(r, "needs("), concat_lists(children, [root]))
+  end
+  needs = sort(
+    first_per_name(
+      filter(
+        outside,
+        filter(
+          (l) -> starts_with?(l, "needs("),
+          concat_lists(rows, retsu::flat_map(child_texts, lines))
+        )
+      )
+    )
+  )
+  reach = sort(
+    distinct(
+      retsu::flat_map(concat_lists([root_text], child_texts), reach_words)
+    )
+  )
+  reach_row = if reach == []
+    []
+  else
+    ["reach(%i[#{join(reach, " ")}])"]
+  end
+  head = [
+    "package(\"#{root}\", \"#{version}\")",
+    "legacy_packages(\"#{version}\", #{legacy_rows(root, children)})"
+  ]
+  unlines(
+    concat_lists(
+      concat_lists(head, needs),
+      concat_lists(reach_row, filter((l) -> l != "" and not head?(l), rows))
+    )
+  )
+end
+
+test "an adopted root keeps its rows, drops needs on its new levels and gains theirs"
+  root = unlines(
+    [
+      "package(\"kaaneru\", \"0.1.0\")",
+      "needs(\"baito\", \"^0.1\")",
+      "needs(\"bpf\", \"^0.1\")",
+      "needs(\"retsu\", \"^0.1\")",
+      "reach(%i[filesystem kernel_bpf])"
+    ]
+  )
+  bpf = unlines(
+    [
+      "package(\"bpf\", \"0.1.0\")",
+      "needs(\"btf\", \"^0.1\")",
+      "needs(\"jisho\", \"^0.1\")",
+      "needs(\"retsu\", \"^0.2\")"
+    ]
+  )
+  btf = unlines(["package(\"btf\", \"0.1.0\")", "reach(%i[filesystem net])"])
+  out = lines(
+    adopted_bluefile(root, "kaaneru", %w[bpf btf], [bpf, btf], "0.1.1")
+  )
+  assert out[0] == "package(\"kaaneru\", \"0.1.1\")"
+  assert starts_with?(
+    out[1],
+    "legacy_packages(\"0.1.1\", [[\"bpf\", \"kaaneru/bpf\"]"
+  )
+  assert member?("needs(\"jisho\", \"^0.1\")", out)
+  assert member?("needs(\"retsu\", \"^0.1\")", out)
+  assert not member?("needs(\"retsu\", \"^0.2\")", out)
+  assert not any?(
+    (l) -> contains?(l, "needs(\"bpf\"") or contains?(l, "needs(\"btf\""),
+    out
+  )
+  assert member?("reach(%i[filesystem kernel_bpf net])", out)
+  assert nth(
+    0,
+    lines(adopted_bluefile("package(\"k\", \"0.1.0\")", "k", [], [], "0.1.0"))
+  ) == "package(\"k\", \"0.1.0\")"
+end
+
 def version_rank(v)
   parts = map(to_int, split(v, "."))
   parts[0] * 1_000_000 + parts[1] * 1000 + parts[2]
@@ -475,18 +592,33 @@ end
 
 def move(blue, root, children)
   dir = path_join("bidamas", root)
-  if is_file?(path_join(dir, "Bluefile"))
-    write_stderr(
-      unlines(
-        ["❌ tree: #{dir}/Bluefile exists; add its legacy_packages rows by hand"]
-      )
-    )
-    exit_with(1)
-  end
+  existing = is_file?(path_join(dir, "Bluefile"))
   mkdir_p(dir)
-  version = root_version(
-    map((c) -> package_version(path_join("bidamas", c)), children)
+  child_texts = map(
+    (c) -> read_file(path_join("bidamas", c, "Bluefile")),
+    children
   )
+  version = root_version(
+    concat_lists(
+      map((c) -> package_version(path_join("bidamas", c)), children),
+      if existing
+        [package_version(dir)]
+      else
+        []
+      end
+    )
+  )
+  root_text = if existing
+    adopted_bluefile(
+      read_file(path_join(dir, "Bluefile")),
+      root,
+      children,
+      child_texts,
+      version
+    )
+  else
+    root_bluefile(root, children, version)
+  end
   map(
     fn(c)
       from = path_join("bidamas", c)
@@ -505,7 +637,7 @@ def move(blue, root, children)
     end,
     children
   )
-  write_file(path_join(dir, "Bluefile"), root_bluefile(root, children, version))
+  write_file(path_join(dir, "Bluefile"), root_text)
   if not is_file?(path_join(dir, "#{root}.b"))
     write_program(
       path_join(dir, "#{root}.b"),

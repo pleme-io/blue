@@ -82,7 +82,6 @@ pub mod sys;
 pub mod threshold;
 pub mod timings;
 pub mod uses;
-#[cfg(feature = "sys")]
 pub mod wire;
 pub mod word_shapes;
 pub mod xml;

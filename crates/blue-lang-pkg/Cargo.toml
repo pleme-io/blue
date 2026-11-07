@@ -7,7 +7,14 @@ rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
-include = ["build.rs", "src/**", "tests/**", "bidamas/*/Bluefile", "bidamas/*/*.b"]
+# `bidamas/**/*.b` at ANY depth: build.rs recurses into levels
+# (`bidamas/todokede/motenashi/motenashi.b`, `bidamas/okite/rung/deep/…`), so
+# a depth-limited pattern ships a package whose compiled-in distribution is
+# silently missing every level — exactly the 0.0.162 regression, where
+# `use("todokede/motenashi")` answered "no bidama named" from crates.io while
+# the checkout was green (its tests run beside the full bidamas/ tree, never
+# from the packaged tarball).
+include = ["build.rs", "src/**", "tests/**", "bidamas/*/Bluefile", "bidamas/**/*.b"]
 
 [package.metadata.substrate]
 sources = ["../../bidamas"]

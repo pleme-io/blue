@@ -510,6 +510,7 @@
         tehai = { level = "kakehashi/tehai"; entry = "main"; tools = pkgs: lib.optionals pkgs.stdenv.isLinux [ pkgs.openssh pkgs.curl ]; }; # live nix builders and substituters
         keiyu = { entry = "main"; tools = _: [ ]; };
         ukai = { entry = "main"; tools = pkgs: lib.optionals pkgs.stdenv.isLinux [ pkgs.iproute2 pkgs.tailscale ]; };
+        toride = { entry = "main"; tools = pkgs: lib.optionals pkgs.stdenv.isLinux [ pkgs.iproute2 ]; };
         kijun = { level = "kakehashi/kijun"; entry = "main"; tools = pkgs: [ pkgs.git ]; };
         kirikae = { level = "kakehashi/kirikae"; entry = "main"; tools = _: [ ]; };
         shinchoku = { entry = "main"; tools = _: [ ]; };

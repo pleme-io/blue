@@ -10,6 +10,7 @@ use("kyohi", [:ok])
 use("retsu", %i[first is_empty last rest size])
 use("shisutemu", %i[read_or status_of stderr_of stdout_of])
 use("shuugou", %i[as_set difference unique])
+use("tesuto")
 
 def axes()
   [
@@ -38,11 +39,7 @@ def variant_named(axis, text)
 end
 
 def every_state()
-  reduce((acc, a) -> flat_map_states(acc, first(a), last(a)), [{}], axes)
-end
-
-def flat_map_states(acc, axis, vs)
-  reduce((out, s) -> append(out, map((v) -> assoc(s, axis, v), vs)), [], acc)
+  tesuto::axis_states(axes)
 end
 
 def state(axes_map, payload)
@@ -129,75 +126,27 @@ def outcome_label(o)
 end
 
 def row_key(s)
-  join(map((a) -> to_s(get(s, a)), axis_names), "\t")
+  tesuto::row_key(axes, s)
+end
+
+def verdict(s)
+  outcome_label(decide(fill(s)))
 end
 
 def matrix_rows(text)
-  filter(
-    (l) -> not is_empty(blue::trim(l)) and not starts_with?(l, "corp\t"),
-    split(text, line_break)
-  )
+  tesuto::matrix_rows(axes, text)
 end
 
 def matrix_row(line)
-  fs = split(line, "\t")
-  [join(take(size(axis_names), fs), "\t"), last(fs)]
+  tesuto::matrix_row(axes, line)
 end
 
 def matrix_text(states)
-  header = unlines(["#{join(map((a) -> to_s(a), axis_names), "\t")}\toutcome"])
-  concat(
-    header,
-    join(
-      map(
-        (s) -> unlines(["#{row_key(s)}\t#{outcome_label(decide(s))}"]),
-        states
-      ),
-      ""
-    )
-  )
+  tesuto::matrix_text(axes, verdict, states)
 end
 
 def matrix_findings(text, states)
-  rows = map(matrix_row, matrix_rows(text))
-  want = reduce(
-    (m, s) -> assoc(m, row_key(s), outcome_label(decide(fill(s)))),
-    {},
-    states
-  )
-  seen = reduce((m, r) -> assoc(m, first(r), last(r)), {}, rows)
-  missing = map(
-    (s) -> [:missing_row, row_key(s)],
-    filter((s) -> get(seen, row_key(s)).nil?, states)
-  )
-  extra = map(
-    (r) -> [:row_without_variant, first(r)],
-    filter((r) -> get(want, first(r)).nil?, rows)
-  )
-  dup = duplicates(rows)
-  wrong = map(
-    (r) -> [:decision_disagrees, "#{first(r)}\twant #{last(r)}"],
-    filter(
-      (r) -> get(want, first(r)) != nil and get(want, first(r)) != last(r),
-      rows
-    )
-  )
-  append(append(append(missing, extra), dup), wrong)
-end
-
-def duplicates(rows)
-  r = reduce(
-    fn(acc, row)
-      if get(first(acc), first(row)).nil?
-        [assoc(first(acc), first(row), true), last(acc)]
-      else
-        [first(acc), append(last(acc), [[:duplicate_row, first(row)]])]
-      end
-    end,
-    [{}, []],
-    rows
-  )
-  last(r)
+  tesuto::matrix_findings(axes, verdict, text, states)
 end
 
 def fill(s)

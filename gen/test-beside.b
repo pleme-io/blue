@@ -39,6 +39,11 @@ def waivers()
       "2027-04-30"
     ),
     waive(
+      "toride::main",
+      "it reads TORIDE_CONFIG and acts on the machine's own dnsmasq conf and state file; toride::run is its body, tested through a fake io",
+      "2027-04-30"
+    ),
+    waive(
       "kakehashi::souji::main",
       "it reads the process's argv and may end it with exit_with(64); hikisuu::run_with is its body, tested with sinks, until the Terminal capability (docs/CLI-TUI.md section 7) lets a test hand it a line",
       "2027-04-30"

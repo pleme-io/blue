@@ -116,6 +116,7 @@ use("suugaku/tokumei", [:suppress_small])
 use("suugaku/toukei", %i[mean median])
 use("tesuto")
 use("todokede")
+use("toride")
 use("toriyose")
 use("touroku")
 use("ugoki")
@@ -189,6 +190,7 @@ test "every bidama in the distribution answers through this one import"
     :older_than_days
   ) == 14
   assert blue::get(decide({corp: :absent}), :kind) == :noop
+  assert toride::relation("natal", "natal") == :here
   assert size(relay_env("socks5h://r:1")) == 6
   assert hadome::recorded(
     hadome::parse(unlines(["entry: k 5"])),

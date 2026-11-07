@@ -252,7 +252,7 @@ rendered:
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-65 packages, 5755 definitions, 1916 tests.
+66 packages, 5842 definitions, 1937 tests.
 
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
 - [baito](bidamas/CATALOG.md#baito) (バイト) — bytes as data: integers at a declared width and order, and record layouts that say where each field sits.
@@ -313,6 +313,7 @@ rendered:
 - [suugaku](bidamas/CATALOG.md#suugaku) (数学, mathematics) — numbers worked over as a discipline.
 - [tesuto](bidamas/CATALOG.md#tesuto) (テスト) — testing: errors and snapshots as assertions, and the policy that holds every definition to a test beside it.
 - [todokede](bidamas/CATALOG.md#todokede) (届出, filings) — what a person or a company declares as entries.
+- [toride](bidamas/CATALOG.md#toride) (砦) — a fort at the border: split-horizon DNS for a machine that roams between sites.
 - [toriyose](bidamas/CATALOG.md#toriyose) (取り寄せ, fetching on order) — what a frontend asks for and keeps.
 - [touroku](bidamas/CATALOG.md#touroku) (登録) — registry: a project published to and resolved from registry backends, each a rendering of the Bluefile, never its truth.
 - [ugoki](bidamas/CATALOG.md#ugoki) (動き) — motion: how a value moves over time.

@@ -44,7 +44,7 @@ use tatara_lisp_eval::{EvalError, Interpreter, Value};
 use crate::pipeline::{self, RunError};
 use crate::uses::{Entry, Loader, ResolvedProgram};
 
-#[cfg(feature = "sys")]
+#[cfg(feature = "host")]
 pub mod protocol;
 
 /// The frame a session evaluates in when nothing wider is asked for: every

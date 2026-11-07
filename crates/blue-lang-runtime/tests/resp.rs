@@ -1,4 +1,4 @@
-#![cfg(feature = "sys")]
+#![cfg(feature = "host")]
 
 mod peers;
 

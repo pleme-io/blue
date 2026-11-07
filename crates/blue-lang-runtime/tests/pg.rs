@@ -1,4 +1,4 @@
-#![cfg(feature = "sys")]
+#![cfg(feature = "host")]
 
 use std::net::TcpListener;
 use std::path::PathBuf;

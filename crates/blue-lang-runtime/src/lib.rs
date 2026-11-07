@@ -28,26 +28,27 @@
 //!    substrate's.
 //! 4. **JSON** ([`json`]) and **cryptography** ([`crypto`]) — pure
 //!    computation, installed unconditionally, so the wasm consumer keeps them.
-//! 5. **The host layer** (`sys`, behind the `sys` feature) — every name in it
-//!    is a host import.
+//! 5. **The host layer** (`sys`, behind the `host` feature, and its
+//!    `threshold`, `storage-append`, `kernel` and `senses` features; `sys` is
+//!    their union) — every name in it is a host import.
 //! 6. **Processes** ([`attach_node`]) — `spawn`, `send`, `receive` and the
 //!    rest of `blue_lang_proc::node`'s words, bound to a node of the
 //!    interpreter's own, so the program is that node's root process.
 
 pub mod alloc;
-#[cfg(feature = "sys")]
+#[cfg(feature = "senses")]
 pub mod audio;
 pub mod bits;
 pub mod collection;
 pub mod crypto;
 pub mod def_hash;
 pub mod dispatch;
-#[cfg(feature = "sys")]
+#[cfg(feature = "senses")]
 pub mod display;
 pub mod doc_sources;
 pub mod docs;
 pub mod domain;
-#[cfg(feature = "sys")]
+#[cfg(feature = "host")]
 pub mod entropy;
 pub mod erase;
 pub mod errors;
@@ -55,30 +56,30 @@ pub mod host_surface;
 pub mod hosted;
 pub mod inputs;
 pub mod json;
-#[cfg(feature = "sys")]
+#[cfg(feature = "kernel")]
 pub mod kernel;
 pub mod literal;
 pub mod memory;
 pub mod messages;
-#[cfg(feature = "sys")]
+#[cfg(feature = "host")]
 pub mod net;
 pub mod nix;
 pub mod observe;
 pub mod paths;
 pub mod pipeline;
 pub mod project_rules;
-#[cfg(feature = "sys")]
+#[cfg(feature = "host")]
 pub mod provide;
 pub mod receipt;
 pub mod record;
 pub mod session;
 pub mod spread;
 pub mod stdlib;
-#[cfg(feature = "sys")]
+#[cfg(feature = "storage-append")]
 pub mod storage;
-#[cfg(feature = "sys")]
+#[cfg(feature = "host")]
 pub mod sys;
-#[cfg(feature = "sys")]
+#[cfg(feature = "threshold")]
 pub mod threshold;
 pub mod timings;
 pub mod uses;
@@ -135,7 +136,7 @@ pub fn interpreter<H: 'static>(host: &mut H) -> Interpreter<H> {
     // clock, network. Feature-gated: every sys primitive is a host import, so the
     // wasm consumer (which builds with `sys` OFF) keeps its zero-host-import
     // surface by construction. Only the CLI turns it on.
-    #[cfg(feature = "sys")]
+    #[cfg(feature = "host")]
     sys::install_sys_stdlib(&mut interp);
     // Layer 6: processes. Bound here so every name oracle built from this
     // interpreter (the check stage, the LSP, `blue reference`) knows them.
@@ -377,7 +378,7 @@ impl Hold {
             bounds.narrow(interp);
         }
         refuse_host_names(interp, &self.withheld_host_names(), who);
-        #[cfg(feature = "sys")]
+        #[cfg(feature = "host")]
         if let Some(clock) = provide::provide(interp, &self.provisions) {
             if self
                 .granted()
@@ -558,11 +559,11 @@ fn node_config_under(b: ExecutionBounds) -> blue_lang_proc::NodeConfig {
     };
     config.meter = Some(memory::METER);
     config.dispatch_steps = b.max_dispatch_steps;
-    #[cfg(feature = "sys")]
+    #[cfg(feature = "host")]
     {
         config.carrier = Some(wire::CARRIER);
     }
-    config.clock = if cfg!(feature = "sys") {
+    config.clock = if cfg!(feature = "host") {
         blue_lang_proc::ClockKind::Real
     } else {
         blue_lang_proc::ClockKind::Virtual
@@ -860,7 +861,7 @@ mod tests {
         assert!(matches!(eval(r#"(blake3_hex "")"#), Value::Str(_)));
     }
 
-    #[cfg(feature = "sys")]
+    #[cfg(feature = "host")]
     mod held {
         use super::super::*;
         use blue_lang_waku::{Capability, Provided, Provision, Provisions};
@@ -1030,6 +1031,7 @@ mod tests {
             );
         }
 
+        #[cfg(feature = "senses")]
         #[test]
         fn each_sense_is_its_own_hold_and_a_provider_answers_it_uncounted() {
             let (hold, mut interp, io) = held(&[Capability::AudioOut], &[]);
@@ -1069,6 +1071,7 @@ mod tests {
             assert!(e.contains("audio-out"), "{e}");
         }
 
+        #[cfg(feature = "storage-append")]
         #[test]
         fn a_filesystem_hold_holds_the_log_words_and_a_storage_append_hold_holds_only_them() {
             let (hold, mut interp, io) = held(&[Capability::FileSystem], &[]);

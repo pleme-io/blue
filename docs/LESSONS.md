@@ -69,7 +69,9 @@ Full text of rules that the agent guide (`docs/agents.md`, rendered as AGENTS.md
 
 - **`interpreter_hostless` is not hostless when the `sys` feature is on.** It
   forks a base built by `interpreter(&mut ())`, and `interpreter` installs the
-  host layer under `#[cfg(feature = "sys")]` — so in `blue-lang-cli`, and in
+  host layer under `#[cfg(feature = "host")]`, which `sys` turns on, and
+  each of `threshold`, `storage-append`, `kernel` and `senses` adds its own
+  words beside it — so in `blue-lang-cli`, and in
   every `cargo test --workspace` run through cargo's feature unification, the
   "hostless" interpreter binds all 37 host primitives including `rm_rf`.
   `bluefile`'s module doc credited the opposite for months: it said a manifest

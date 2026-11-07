@@ -210,11 +210,11 @@ fn a_witness_sees_the_sys_words_as_the_host_s_only_where_the_build_lacks_them() 
     for word in ["write_file", "read_file", "exec_capture"] {
         assert_eq!(
             words.contains(&word),
-            !cfg!(feature = "sys"),
+            !cfg!(feature = "host"),
             "{word} in {words:?}"
         );
     }
-    assert!(host_surface().contains("\"write_file\"") != cfg!(feature = "sys"));
+    assert!(host_surface().contains("\"write_file\"") != cfg!(feature = "host"));
 }
 
 /// Anti-vacuity for the test above: a program that breaks no rule produces

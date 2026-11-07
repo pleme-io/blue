@@ -27,7 +27,7 @@ fn a_process_spawned_in_one_request_answers_the_next() {
 
 /// Needs the host layer to have something to refuse; `cargo test --workspace`
 /// turns it on through the CLI.
-#[cfg(feature = "sys")]
+#[cfg(feature = "host")]
 #[test]
 fn a_child_is_held_to_the_session_frame() {
     let mut s = Session::new(Config::new(Box::new(NoLoader)));

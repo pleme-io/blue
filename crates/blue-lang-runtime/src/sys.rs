@@ -71,10 +71,15 @@ pub fn install_sys_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
     crate::net::install_net(interp);
     crate::entropy::install_entropy(interp);
     crate::wire::install_wire(interp);
+    #[cfg(feature = "threshold")]
     crate::threshold::install_threshold(interp);
+    #[cfg(feature = "storage-append")]
     crate::storage::install_storage(interp);
+    #[cfg(feature = "kernel")]
     crate::kernel::install_kernel(interp);
+    #[cfg(feature = "senses")]
     crate::audio::install_audio(interp);
+    #[cfg(feature = "senses")]
     crate::display::install_display(interp);
 }
 

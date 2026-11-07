@@ -730,6 +730,8 @@
             grep -qx STANDARD $out
           '';
 
+          package-fidelity = import ./nix/package-fidelity.nix { inherit lib pkgs blue bl; src = ./.; };
+
           # Every word the engine lowers, read back from a built project: the
           # fixture states the words this repository's own Bluefile does not
           # (a root `needs`, a tool, runs reading runs, a check, an app).

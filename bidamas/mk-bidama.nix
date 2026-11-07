@@ -137,7 +137,7 @@ let
         (n: t: t == "directory" && builtins.pathExists (dir + "/${n}/${n}.b"))
         (builtins.readDir dir);
     in
-    lib.concatMap (n: [ n ] ++ levelsUnder (dir + "/${n}")) (builtins.attrNames levels);
+    lib.concatMap (n: [ n ] ++ map (l: "${n}/${l}") (levelsUnder (dir + "/${n}"))) (builtins.attrNames levels);
 
   treeNodeCount = root:
     lib.foldl'
@@ -145,9 +145,12 @@ let
       0
       (builtins.attrNames (packageDirs root));
 
+  treeLevels = root:
+    lib.mapAttrs (n: _: levelsUnder (root + "/${n}")) (packageDirs root);
+
 in
 rec {
-  inherit lockOf depsOf versionOf packageDirs treeNodeCount;
+  inherit lockOf depsOf versionOf packageDirs treeNodeCount treeLevels;
 
   # Build ONE bidama.
   #

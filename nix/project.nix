@@ -183,7 +183,7 @@ let
   #          caller has none, and an `image(...)` is then refused by name
   #   appliance  the `blue-appliance` runner for the system (static musl on
   #          Linux), or null, and an `app` then lowers to no appliance
-  projectFor = { pkgs, blue, src, base ? null, oci ? null, moduleTrio ? null, legacy ? { }, chartLibraries ? { }, component ? null, appliance ? null, tameshi ? null, postMerge ? [ ] }:
+  projectFor = { pkgs, blue, src, base ? null, oci ? null, moduleTrio ? null, legacy ? { }, chartLibraries ? { }, component ? null, appliance ? null, tameshi ? null, postMerge ? [ ], shards ? { } }:
     assert lib.assertMsg (builtins.isPath src)
       "lib.project: src must be a path; pass `src = ./.` from the project's flake.nix";
     let
@@ -577,10 +577,44 @@ let
             '';
       };
 
-      checkWords = lib.mapAttrs
-        (cn: c: bl.mkTestCheck (common // { name = cn; file = programFile c.file; }
-          // lib.optionalAttrs ((c.inputs or [ ]) != [ ]) { root = inputsRoot "check-${cn}" c.inputs; }))
-        m.checks;
+      testCheck = cn: c: extra: bl.mkTestCheck (common // { name = cn; file = programFile c.file; }
+        // lib.optionalAttrs ((c.inputs or [ ]) != [ ]) { root = inputsRoot "check-${cn}" c.inputs; }
+        // extra);
+
+      filesUnder = dir: rel:
+        lib.concatLists (lib.mapAttrsToList
+          (n: t:
+            let r = if rel == "" then n else "${rel}/${n}"; in
+            if t == "directory" then filesUnder dir r else [ r ])
+          (builtins.readDir (if rel == "" then dir else dir + "/${rel}")));
+
+      shardChecks = cn: c: s:
+        let
+          parts = lib.filter (lib.hasSuffix s.suffix) (filesUnder (src + "/${s.dir}") "");
+          slug = p: lib.replaceStrings [ "/" ] [ "-" ] (lib.removeSuffix s.suffix p);
+          each = lib.listToAttrs (map
+            (p: lib.nameValuePair "${cn}-${slug p}" (testCheck "${cn}-${slug p}" c { env.${s.env} = p; }))
+            parts);
+        in
+        if parts == [ ] then
+          throw "lib.project: shards.${cn} finds no ${s.suffix} file under ${s.dir}"
+        else if lib.length (lib.attrNames each) != lib.length parts then
+          throw "lib.project: shards.${cn} names two files under ${s.dir} with one check name"
+        else
+          each // {
+            ${cn} = pkgs.runCommand cn { } ''
+              ${lib.concatMapStrings (d: "echo ${d} >> $out\n") (lib.attrValues each)}
+            '';
+          };
+
+      checkWords =
+        let unknownShards = attrNames (removeAttrs shards (attrNames m.checks)); in
+        if unknownShards != [ ] then
+          throw "lib.project: shards names ${lib.concatStringsSep ", " unknownShards}, which the Bluefile declares no check(...) for"
+        else
+          lib.concatMapAttrs
+            (cn: c: if shards ? ${cn} then shardChecks cn c shards.${cn} else { ${cn} = testCheck cn c { }; })
+            m.checks;
 
       receiptChecks = lib.mapAttrs'
         (cn: r: lib.nameValuePair "${cn}-receipt" (
@@ -639,13 +673,16 @@ let
         });
 
       allChecks = disjoint "check" (disjoint "check" (disjoint "check" gates ruleGate) checkWords) receiptChecks;
-      preMergeChecks = builtins.removeAttrs allChecks postMerge;
-      postMergeChecks = lib.filterAttrs (n: _: lib.elem n postMerge) allChecks;
+      postMergeNames = lib.concatMap
+        (cn: if shards ? ${cn} && m.checks ? ${cn} then attrNames (shardChecks cn m.checks.${cn} shards.${cn}) else [ cn ])
+        postMerge;
+      preMergeChecks = builtins.removeAttrs allChecks postMergeNames;
+      postMergeChecks = lib.filterAttrs (n: _: lib.elem n postMergeNames) allChecks;
     in
     if missingNeeds != [ ] then
       throw "lib.project: the Bluefile needs ${lib.concatStringsSep ", " missingNeeds}, which neither the project nor the distribution it composes over provides"
     else {
-      inherit name runner bidamas packages apps bluePath imageGate postMergeChecks;
+      inherit name runner bidamas packages apps bluePath imageGate postMergeChecks postMergeNames shards;
       inherit (lowered) services trios executables;
       checks = disjoint "check" preMergeChecks {
         project = pkgs.runCommand "${name}-project" { } ''
@@ -666,10 +703,10 @@ in
   #   pkgsFor   system -> nixpkgs
   #   ociFor    system -> substrate's image builders, or null
   #   applianceFor  system -> the `blue-appliance` runner, or null
-  mkProjectOutputs = { systems, blueFor, pkgsFor, ociFor ? (_: null), moduleTrio ? null, chartLibraries ? { }, componentFor ? (_: null), applianceFor ? (_: null), tameshi ? null }: { src, legacy ? { } }:
+  mkProjectOutputs = { systems, blueFor, pkgsFor, ociFor ? (_: null), moduleTrio ? null, chartLibraries ? { }, componentFor ? (_: null), applianceFor ? (_: null), tameshi ? null }: { src, legacy ? { }, shards ? { } }:
     let
       per = lib.genAttrs systems (system: projectFor {
-        inherit src moduleTrio legacy chartLibraries tameshi;
+        inherit src moduleTrio legacy chartLibraries tameshi shards;
         pkgs = pkgsFor system;
         blue = blueFor system;
         oci = ociFor system;

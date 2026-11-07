@@ -486,6 +486,7 @@
         appliance = applianceFor system;
         inherit tameshi;
         inherit (import ./nix/check-tiers.nix) postMerge;
+        shards.heni-mutations = { env = "HENI_SPEC"; dir = "bidamas/heni/mutations"; suffix = ".json"; };
       });
 
       # The bidama library bound to a package set: every nix function blue has
@@ -877,19 +878,23 @@
 
       checks = lib.mapAttrs (system: all:
         let
-          tier = (import ./nix/check-tiers.nix).postMerge;
+          named = (import ./nix/check-tiers.nix).postMerge;
+          tier = repository.${system}.postMergeNames;
           pre = builtins.removeAttrs all tier;
-          unknown = lib.filter (n: !(all ? ${n})) tier;
+          unknown = lib.filter (n: !(all ? ${n})) named;
           members = lib.splitString "\n" pre.project.buildCommand;
           leaked = lib.filter (n: all ? ${n} && lib.elem "echo ${all.${n}} >> $out" members) tier;
+          shardsLeft = lib.filter (n: lib.any (t: lib.hasPrefix "${t}-" n) (lib.attrNames shardsOf)) (lib.attrNames pre);
+          shardsOf = lib.filterAttrs (t: _: lib.elem t named) repository.${system}.shards;
         in
         assert lib.assertMsg (unknown == [ ]) "nix/check-tiers.nix: postMerge names ${lib.concatStringsSep ", " unknown}, which no check of ${system} is";
         assert lib.assertMsg (leaked == [ ]) "checks.project still builds the post-merge checks ${lib.concatStringsSep ", " leaked}; pass the tier to projectFor as postMerge";
+        assert lib.assertMsg (shardsLeft == [ ]) "the pre-merge checks keep shards of a post-merge check: ${lib.concatStringsSep ", " shardsLeft}; projectFor's postMergeNames must carry each tier check's shards";
         pre
       ) self.checksAll;
 
       postMerge = lib.mapAttrs (system: all:
-        lib.getAttrs (lib.filter (n: all ? ${n}) (import ./nix/check-tiers.nix).postMerge) all
+        lib.getAttrs (lib.filter (n: all ? ${n}) repository.${system}.postMergeNames) all
       ) self.checksAll;
     };
 }

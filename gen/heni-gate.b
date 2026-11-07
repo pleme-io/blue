@@ -43,8 +43,28 @@ def specs()
   )
 end
 
+def name_of(spec_path)
+  last(split(spec_path, "heni/mutations/"))
+end
+
 def key_of(spec_path)
-  replace(last(split(spec_path, "heni/mutations/")), ".json", "")
+  replace(name_of(spec_path), ".json", "")
+end
+
+def chosen(all, want)
+  if want.nil?
+    all
+  else
+    hit = filter((s) -> name_of(s) == want, all)
+    if is_empty(hit)
+      raise(
+        :heni_gate,
+        "HENI_SPEC is \"#{want}\"; no file heni/mutations/#{want} exists"
+      )
+    else
+      hit
+    end
+  end
 end
 
 def package_of(spec_path)
@@ -115,16 +135,15 @@ def rose?(rows, key, r)
   was != nil and sound?(r) and fell?(score(r), was)
 end
 
-def measure()
-  map((s) -> {key: key_of(s), r: report(s)}, specs)
+def measure(paths)
+  map((s) -> {key: key_of(s), r: report(s)}, paths)
 end
 
 def judge(rows, measured)
   flat_map(measured, (m) -> problems(rows, m[:key], m[:r]))
 end
 
-def advisories(rows, measured)
-  keys = map((m) -> m[:key], measured)
+def advisories(rows, measured, keys)
   append(
     map(
       (m) -> "#{m[:key]}: caught ratio rose; bank it: #{RECORD}",
@@ -184,7 +203,7 @@ def record(receipt)
   path = baseline_path
   old = read_or(path, "")
   rows = parse(old)
-  measured = measure
+  measured = measure(specs)
   unsound = filter((m) -> not sound?(m[:r]), measured)
   fell = filter(
     fn(m)
@@ -224,8 +243,11 @@ test "every package holds its recorded caught ratio"
   if not off?
     assert size(specs) >= 2
     rows = parse(read_or(baseline_path, ""))
-    measured = measure
-    map((a) -> write_stderr(unlines([a])), advisories(rows, measured))
+    measured = measure(chosen(specs, getenv("HENI_SPEC")))
+    map(
+      (a) -> write_stderr(unlines([a])),
+      advisories(rows, measured, map(key_of, specs))
+    )
     bad = judge(rows, measured)
     if not is_empty(bad)
       write_stderr(unlines(bad))
@@ -284,8 +306,23 @@ test "a recorded survivor holds, and the baseline round-trips"
     )
   assert recorded_ratio(parse(text), "kazu") == {caught: 1, total: 2}
   better = fixture_run([[0, :caught], [1, :caught]])
-  assert advisories(rows, [{key: "kazu", r: better}]) ==
+  assert advisories(rows, [{key: "kazu", r: better}], ["kazu"]) ==
     ["kazu: caught ratio rose; bank it: blue gen/heni-gate.b record"]
-  assert advisories(rows, []) ==
+  assert advisories(rows, [], []) ==
     ["kazu: recorded, and no mutation file names it; drop it: blue gen/heni-gate.b record"]
+end
+
+test "HENI_SPEC measures the one spec it names, refuses a name with no spec, and unset measures all"
+  all = %w[b/heni/mutations/kazu.json b/heni/mutations/mitoshi/keisoku.json]
+  assert chosen(all, nil) == all
+  assert chosen(all, "mitoshi/keisoku.json") ==
+    ["b/heni/mutations/mitoshi/keisoku.json"]
+  assert chosen(all, "kazu.json") == ["b/heni/mutations/kazu.json"]
+  refused = begin
+    chosen(all, "mitoshi/keisoku")
+  rescue e
+    e.message
+  end
+  assert refused ==
+    "HENI_SPEC is \"mitoshi/keisoku\"; no file heni/mutations/mitoshi/keisoku exists"
 end

@@ -422,10 +422,11 @@ rec {
   # A test file as a check: `blue test`, whose status is the check's. A file
   # with no `test` blocks fails (`blue test` refuses it), so a check cannot
   # pass over nothing. The tally is the output, for reading after the fact.
-  mkTestCheck = { blue, bidamas, file, name, tools ? [ ], root ? null }:
+  mkTestCheck = { blue, bidamas, file, name, tools ? [ ], root ? null, env ? { } }:
     let
       bluePath = mkBluePath { inherit bidamas; };
-      command = "${lib.optionalString (root != null) "GEN_ROOT=${root} "}BLUE_PATH=${bluePath} ${blue}/bin/blue test ${file}";
+      envPrefix = lib.concatStrings (lib.mapAttrsToList (k: v: "${k}=${lib.escapeShellArg v} ") env);
+      command = "${envPrefix}${lib.optionalString (root != null) "GEN_ROOT=${root} "}BLUE_PATH=${bluePath} ${blue}/bin/blue test ${file}";
     in
     runCommand name { nativeBuildInputs = tools; passthru.test = { inherit command root file tools bluePath; }; } ''
       ${command} > $out

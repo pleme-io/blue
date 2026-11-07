@@ -24,7 +24,8 @@ nix build .#checks.<system>.conformance                    # what CI runs
 | variable | effect |
 |---|---|
 | `BLUE_BIN` | the `blue` binary the `cli` column runs; else `target/{debug,release}/blue` |
-| `BLUE_CONFORMANCE_STRICT=1` | a blind `cli` column is a failure (the nix check sets it) |
+| `BLUE_COMPONENT`, `BLUE_WASMTIME` | the engine component (`nix build .#blue-component`) and the `wasmtime` the `component` column runs it with; without both the column is blind |
+| `BLUE_CONFORMANCE_STRICT=1` | a blind `cli` or `component` column is a failure (the nix check sets it) |
 | `BLUE_CONFORMANCE_JSON=path` | also write one JSON line per (row, evaluator), for DuckDB |
 | `BLUE_CONFORMANCE_PROBE=1` | print every observation, not only failures |
 
@@ -41,8 +42,15 @@ missing-row gate's totals.
 | `wasm` | `blue_lang_wasm::eval_tagged`, the module's ABI (no loader) | an Int, "not an Int", or an error |
 | `cli` | the `blue` binary: `run --quiet`, `fmt`, `check --format json`, `shift` | output, failure, formatting, diagnostics, rung |
 | `static` | the front end in-process: `check_entry`, `format_source_lossless`, `shift_of` | diagnostics, formatting, rung |
+| `memo` | the walker with the memo on, cold then warm from disk | value, failure |
+| `component` | `blue-lang-component`, the engine as a wasm32-wasip2 component, under wasmtime: the second placement of the program | output, failure |
 
 `walker` is stage 0 for evaluated rows and `static` for front-end rows.
+`component` is judged against `cli`: the same program run natively (`blue
+run`) and as the wasm component must print the same bytes, exit the same way
+and fail at the same stage with the same message. A difference fails the row
+and names the first differing field (`exit`, `stdout at byte N`, `stage`,
+`message at byte N`). This is the placement-parity gate (HORIZON H8).
 **Any other column that disagrees with stage 0 fails, even when both meet the
 row.** An evaluator that cannot observe a kind of row reports `blind`, which
 is counted apart and never as a pass. Blind by design: a value on `cli` (the
@@ -71,8 +79,8 @@ row(ID, SRC, EXPECTATION, OPTION...)
 | expectation | meaning | observed on |
 |---|---|---|
 | `value("[1, 2]")` | the final value, as its blue literal (blue's own `to_s` renderer, okite D0006) | walker, vm, wasm |
-| `fails(:eval, "division by zero")` | stops at `:parse`, `:check`, `:import` or `:eval`, with this text in the message (for `:check`, a rule code) | walker, vm, wasm, cli |
-| `prints("hi\n")` | exactly this on stdout, and a clean exit | cli |
+| `fails(:eval, "division by zero")` | stops at `:parse`, `:check`, `:import` or `:eval`, with this text in the message (for `:check`, a rule code) | walker, vm, wasm, cli, component |
+| `prints("hi\n")` | exactly this on stdout, and a clean exit | cli, component |
 | `diagnoses(["B0002"])` | exactly these check-stage codes, warnings included | static, cli |
 | `formats("x = 1\n")` | the one formatting of `SRC` | static, cli |
 | `fixes("find([1], (x) -> x)\n")` | what `blue check --fix` leaves of `SRC`: its machine-applicable fixes applied, formatted | static, cli |

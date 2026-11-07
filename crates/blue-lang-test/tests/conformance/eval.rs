@@ -10,6 +10,7 @@
 //! | `wasm` | `blue_lang_wasm::eval_tagged`, the module's ABI, with no loader | integer / non-integer / error |
 //! | `cli` | the shipped `blue` binary as a subprocess | output, failure, `fmt`, `check`, `shift` |
 //! | `static` | the shared front end in-process: check, format, blueshift | diagnostics, formatting, rung |
+//! | `component` | `blue-lang-component` under wasmtime, the second placement | output, failure |
 //!
 //! An evaluator that cannot observe what a row expects reports [`Obs::Blind`]
 //! with the reason. Blind is never a pass: the report counts it apart.
@@ -84,6 +85,7 @@ pub struct Env {
     /// Calls the `memo` column's warm runs answered from disk, over the
     /// whole suite: zero means the column compared nothing.
     pub memo_disk_hits: u64,
+    pub component: Option<Placement>,
     renderer: tatara_lisp_eval::Interpreter<()>,
     to_s: Value,
 }
@@ -100,6 +102,7 @@ impl Env {
             cli,
             scratch,
             memo_disk_hits: 0,
+            component: None,
             renderer,
             to_s,
         }
@@ -129,6 +132,28 @@ impl Env {
                 .map_or_else(|| s.to_string(), str::to_owned),
             Ok(other) => format!("<to_s returned {}>", other.type_name()),
             Err(e) => format!("<to_s failed: {e}>"),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct Placement {
+    pub wasm: PathBuf,
+    pub wasmtime: PathBuf,
+}
+
+impl Placement {
+    pub fn from_env() -> Result<Self, String> {
+        match (
+            std::env::var_os("BLUE_COMPONENT"),
+            std::env::var_os("BLUE_WASMTIME"),
+        ) {
+            (Some(wasm), Some(wasmtime)) => Ok(Self {
+                wasm: PathBuf::from(wasm),
+                wasmtime: PathBuf::from(wasmtime),
+            }),
+            (None, _) => Err("no component: set BLUE_COMPONENT".into()),
+            (_, None) => Err("no wasmtime: set BLUE_WASMTIME".into()),
         }
     }
 }
@@ -797,10 +822,72 @@ pub fn output_within(cmd: &mut Command) -> Result<std::process::Output, Obs> {
     })
 }
 
+pub fn component(env: &mut Env, row: &Row, n: usize) -> Obs {
+    let Some(placement) = env.component.clone() else {
+        return Obs::Blind(
+            Placement::from_env()
+                .err()
+                .unwrap_or_else(|| "no component".into()),
+        );
+    };
+    if !matches!(row.expect, Expect::Prints(_) | Expect::Fails(..)) {
+        return Obs::Blind(format!(
+            "a {} row is not a run; the component only runs programs",
+            row.expect.kind()
+        ));
+    }
+    if row.frontend.is_some() || row.bidama.is_some() {
+        return Obs::Blind("a frontend or bidama row is handed only to the static door".into());
+    }
+    let dir = env.scratch.join(format!("component-{n}"));
+    if let Err(e) = std::fs::create_dir_all(&dir) {
+        return Obs::Blind(format!("cannot create {}: {e}", dir.display()));
+    }
+    let file = dir.join(ROW_FILE);
+    if let Err(e) = std::fs::write(&file, &row.src) {
+        return Obs::Blind(format!("cannot write {}: {e}", file.display()));
+    }
+    let guest_roots: Vec<String> = (0..env.roots.len())
+        .map(|i| format!("/blue-path/{i}"))
+        .collect();
+    let mut cmd = Command::new(&placement.wasmtime);
+    cmd.arg("run")
+        .args(["-S", "inherit-network=y", "-S", "tcp=y", "-S", "udp=y"])
+        .arg("--dir")
+        .arg(format!("{}::/row", dir.display()))
+        .arg("--env")
+        .arg(format!("BLUE_PATH={}", guest_roots.join(":")))
+        .arg("--env")
+        .arg("RUST_BACKTRACE=0");
+    for (root, guest) in env.roots.iter().zip(&guest_roots) {
+        cmd.arg("--dir").arg(format!("{}::{guest}", root.display()));
+    }
+    cmd.arg(&placement.wasm).arg(format!("/row/{ROW_FILE}"));
+    let out = match output_within(&mut cmd) {
+        Ok(o) => o,
+        Err(crashed) => return crashed,
+    };
+    let raw_err = String::from_utf8_lossy(&out.stderr);
+    if let Some(i) = raw_err.find("panicked at ") {
+        let msg = raw_err[i..].lines().nth(1).unwrap_or("").trim();
+        return Obs::Crashed(format!("panic: {msg}"));
+    }
+    let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
+    if out.status.success() {
+        return Obs::Printed { stdout, ok: true };
+    }
+    let stderr = raw_err.replace(&format!("/row/{ROW_FILE}"), ROW_FILE);
+    door_failure(&stderr, "blue-component: ")
+}
+
 /// Classify what `blue run` wrote to stderr on a failing exit.
 fn cli_failure(stderr: &str) -> Obs {
+    door_failure(stderr, "blue: ")
+}
+
+fn door_failure(stderr: &str, door: &str) -> Obs {
     let text = stderr.trim();
-    let body = text.strip_prefix("blue: ").unwrap_or(text);
+    let body = text.strip_prefix(door).unwrap_or(text);
     if body.contains("error(s) in the check stage") {
         return Obs::Failed {
             stage: Stage::Check,
@@ -856,8 +943,11 @@ pub fn observes(ev: Ev, row: &Row) -> bool {
     }
     match (&row.expect, ev) {
         (Expect::Value(_), Ev::Walker | Ev::Vm | Ev::Wasm | Ev::Memo) => true,
-        (Expect::Fails(..), Ev::Walker | Ev::Vm | Ev::Wasm | Ev::Cli | Ev::Memo) => true,
-        (Expect::Prints(_), Ev::Cli) => true,
+        (
+            Expect::Fails(..),
+            Ev::Walker | Ev::Vm | Ev::Wasm | Ev::Cli | Ev::Memo | Ev::Component,
+        ) => true,
+        (Expect::Prints(_), Ev::Cli | Ev::Component) => true,
         (
             Expect::Diagnoses(_) | Expect::Formats(_) | Expect::Fixes(_) | Expect::Shifts(..),
             Ev::Static | Ev::Cli,

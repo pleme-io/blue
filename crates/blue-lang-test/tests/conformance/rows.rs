@@ -47,10 +47,19 @@ pub enum Ev {
     /// store: cold, then warm from disk. Both runs must agree with each other
     /// and with stage 0.
     Memo,
+    Component,
 }
 
 impl Ev {
-    pub const ALL: [Ev; 6] = [Ev::Walker, Ev::Vm, Ev::Wasm, Ev::Cli, Ev::Static, Ev::Memo];
+    pub const ALL: [Ev; 7] = [
+        Ev::Walker,
+        Ev::Vm,
+        Ev::Wasm,
+        Ev::Cli,
+        Ev::Static,
+        Ev::Memo,
+        Ev::Component,
+    ];
 
     pub fn name(self) -> &'static str {
         match self {
@@ -60,6 +69,7 @@ impl Ev {
             Ev::Cli => "cli",
             Ev::Static => "static",
             Ev::Memo => "memo",
+            Ev::Component => "component",
         }
     }
 

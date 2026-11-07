@@ -198,7 +198,8 @@ row(
   "host.read_missing",
   "read_file(\"/nonexistent/blue-spec\")",
   fails(:eval, "read_file"),
-  host()
+  host(),
+  pending("G21", "component")
 )
 
 row("host.cwd", "string?(cwd)", value("true"), covers("builtin:cwd"), host())
@@ -279,7 +280,8 @@ row(
   "exec_into([[\"BLUE_SPEC_X\", \"v\"]], \"blue-spec-surely-absent-command\")",
   fails(:eval, "exec_into"),
   covers("builtin:exec_into"),
-  host()
+  host(),
+  pending("G22", "component")
 )
 
 row(

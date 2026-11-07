@@ -322,7 +322,8 @@ row(
     ]
   ),
   fails(:eval, "depth"),
-  isolate()
+  isolate(),
+  pending("G20", "component")
 )
 
 row(
@@ -350,7 +351,8 @@ row(
   "fn.runaway_is_bounded",
   join_lines(["def spin(n)", "  spin(n + 1)", "end", "", "spin(0)"]),
   fails(:eval, "budget"),
-  isolate()
+  isolate(),
+  pending("G20", "component")
 )
 
 row(

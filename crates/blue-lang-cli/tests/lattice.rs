@@ -903,6 +903,28 @@ fn a_service_whose_code_reaches_past_its_access_is_refused_at_lock() {
     assert!(e.contains("needs 'process'"), "{e}");
 }
 
+const READ: &str = "def get(p)\n  read_file(p)\nend\n";
+
+#[test]
+fn a_service_reads_its_own_declaration_and_locks() {
+    let dir = project("access-read", &service_bluefile(""), READ, REDE);
+    let o = lock(&dir);
+    assert!(o.status.success(), "{}", err(&o));
+}
+
+#[test]
+fn the_declaration_read_grants_filesystem_and_nothing_else() {
+    let dir = project(
+        "access-read-exec",
+        &service_bluefile(", config: {greeting: \"Olá\"}"),
+        EXEC,
+        REDE,
+    );
+    let o = lock(&dir);
+    assert!(!o.status.success(), "{}", err(&o));
+    assert!(err(&o).contains("needs 'process'"), "{}", err(&o));
+}
+
 #[test]
 fn a_service_whose_access_covers_its_code_locks() {
     let dir = project(

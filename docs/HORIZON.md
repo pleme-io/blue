@@ -281,6 +281,17 @@ by name; `capabilities::verify_access` holds each service's code to its
 `a_service_whose_code_reaches_past_its_access_is_refused_at_lock`; red run:
 without the check that test fails.
 
+**Typed weaker (2026-11-07):** every service reads its own declaration at
+boot: `nix/service.nix` bakes `defaults.yaml` into every service's image and
+`settei` reads it through `*_DEFAULTS`. So every service's lock ceiling holds
+`filesystem` (`capabilities::DECLARATION_READ`). The lattice has no read/write
+split, so this admits any file reach at lock; the layers that hold a service
+to its declaration read are SERVICE-ACCESS A2/A3, not built. H15's
+path-scoped grants close it. Gates: `a_service_reads_its_own_declaration_and_locks`,
+`the_declaration_read_grants_filesystem_and_nothing_else`; red run: with
+`DECLARATION_READ` another capability, the first fails. The docs gate found
+this: it runs every tutorial block, and the tutorial service was refused.
+
 ### H12. Pure by default
 
 Every door with no declaration is ambient today. The flip comes in rings, each

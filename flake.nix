@@ -591,7 +591,7 @@
             }))
       ) base.packages;
 
-      checks = lib.mapAttrs (system: existing:
+      checksAll = lib.mapAttrs (system: existing:
         let
           pkgs = pkgsFor system;
           blue = blueFor system;
@@ -861,5 +861,13 @@
           };
         })
       ) base.checks;
+
+      checks = lib.mapAttrs (system: all:
+        builtins.removeAttrs all (import ./nix/check-tiers.nix).postMerge
+      ) self.checksAll;
+
+      postMerge = lib.mapAttrs (system: all:
+        lib.getAttrs (lib.filter (n: all ? ${n}) (import ./nix/check-tiers.nix).postMerge) all
+      ) self.checksAll;
     };
 }

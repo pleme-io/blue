@@ -402,6 +402,38 @@ only by the root.
 `reach(%i[clock])` that calls `read_file` is refused at run time.
 **Unlocks:** H15.
 
+**Memory is part of the frame** (operator, 2026-11-07: "protect memory
+spaces … easily define these memory boundaries in bluelang"). Built today:
+a live-byte account per evaluation and per blue process, refused with a
+typed `memory-exhausted` rather than an abort
+(`crates/blue-lang-runtime/src/memory.rs`, `alloc.rs`); a process rlimit
+for a host's worker (`bound_memory`, `crates/blue-lang-host/src/world.rs`);
+a pod limit from a service's `resources`. Missing: a bound a bidama or a frame
+declares, and isolation between frames.
+
+- **Declared with the authority.** A frame carries a memory bound beside its
+  capabilities: `reach(%i[clock], memory: "64mb")` in a Bluefile, the same
+  in `spawn(f, args, {memory: "16mb"})`. The rule is the capability rule: a
+  child's bound fits under what its parent has left, and its account charges
+  the parent's too.
+- **Isolation by immutability.** Frames share only immutable values. A value
+  that crosses a frame is content-addressed (H3's one store, hash-consed), so
+  sharing it costs nothing and the receiver cannot write the sender's memory;
+  mutable state lives in a process and is reached only by message.
+- **One number, every layer** (H16): the interpreter account, the process
+  meter, the worker's rlimit, the service's cgroup `memory.max` and the
+  kernel map of H20 render from the one declaration.
+- **The native gap.** The account is read between steps, so one native call
+  that asks for more than the machine holds still aborts (`memory.rs`, "what
+  it does not bound"). A native's large request is checked against the
+  account before it allocates, the same seam escriba's stoppable native call
+  needs.
+
+**Gate:** red run: a bidama declared at `memory: "1mb"` that builds a 2 MB
+list is refused with `memory-exhausted` while its caller, under a larger
+bound, continues; a value passed into a frame and changed there leaves the
+sender's value unchanged.
+
 ### H14. The checker sees authority
 
 Refusals come from the lock and the runtime, never from `blue check`, so an

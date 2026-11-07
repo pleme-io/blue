@@ -519,6 +519,25 @@ A shape spelled twice (a GraphQL type written by hand beside its table, a
 migration written beside the model) is the bad state; the gate is the H17
 matrix with a column per rendering.
 
+**GraphQL compiled to one query, not resolved field by field.** `outou`
+resolves each field with a function, which over a database is one query per
+field per row (N+1), the problem Hasura and PostGraphile exist to remove. From
+the model, an operation compiles to one `kueri` statement (joins, a JSON
+aggregate per selection), and the bar is set past theirs:
+
+- every operation is checked against the model at build time (`danpen`), so a
+  query naming a missing field is a compile error, not a request-time one;
+- production runs persisted operations only, keyed by their hash (H3);
+- row access comes from the same declaration as the capability frame, not a
+  second metadata layer;
+- a result is cached in H3's store under the operation hash and its inputs,
+  invalidated by the model's `keifu` changelog, with a Merkle receipt of what
+  was served.
+
+**Gate:** one SQL statement per operation for every operation in the
+fixture, measured by the statement log; red run: an operation naming a field
+the model lacks fails the build.
+
 ### H17. Parity: the placements agree on authority
 
 kakoi, kidou, the chart and the trio each keep their own effect table. Nothing

@@ -691,12 +691,12 @@ def name_words(name)
 end
 
 @doc """
-pascal_case: a snake, kebab or spaced name as one word, each part capitalized: a type name.
+pascal_case: a snake, kebab or spaced name as one word, each part capitalized: a type name, the name's title case with its spaces taken out.
 
     pascal_case("ledger_entry") #=> "LedgerEntry"
 """
 def pascal_case(name)
-  join(map(capitalize, name_words(name)), "")
+  replace(title_case(join(name_words(name), " ")), " ", "")
 end
 
 @doc """

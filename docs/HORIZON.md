@@ -544,6 +544,15 @@ EMISSION rule applied to databases. Today haibi writes its DDL and its
 migration as text lines (`bidamas/eigyou/haibi/haibi.b`), and they move onto
 `kueri` and `teeburu` first.
 
+**One data framework.** The pieces above are one framework, encapsulated as
+one entry bidama that composes them the way `zenbu` composes the
+distribution: the model (`chozou/teeburu`), its evolution (`keifu`, shinka),
+its queries (`kueri`), its API (`toriyose/outou`, compiled to one statement),
+its client (`danpen`, `kyasshu`), its stores (`kiibariu`, `sutoriimu`), its
+gates (kenshi) and its classes (khipu). A program writes one `use` and one
+model; the bidama's name is minted through the naming procedure
+(`theory/NAMING.md`), pending.
+
 **A schema is a bidama.** A model lives in its own bidama, versioned and
 locked like any package and hashed by `teeburu::version_hash`, so one
 schema is redistributed to every system that needs it: the services that own

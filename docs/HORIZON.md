@@ -542,7 +542,19 @@ the model lacks fails the build.
 `kueri`'s typed AST, from the model or from a typed query, the house's TYPED
 EMISSION rule applied to databases. Today haibi writes its DDL and its
 migration as text lines (`bidamas/eigyou/haibi/haibi.b`), and they move onto
-`kueri` and `teeburu` first. **Gate:** an okite law refuses a database call
+`kueri` and `teeburu` first.
+
+**A schema is a bidama.** A model lives in its own bidama, versioned and
+locked like any package and hashed by `teeburu::version_hash`, so one
+schema is redistributed to every system that needs it: the services that own
+and read it, Postgres and DuckDB through `kueri`, Valkey through `kv_model`,
+JetStream subjects through `sutoriimu`. `teeburu::evolve` and `judge` refuse
+a breaking change, so a consumer pinned to a version cannot be broken under
+it. A `model` macro expands one form into the typed accessors and renderings
+(SERVICE-DATA's pending model accessors); it waits on compile-time,
+hygienic macros, since blue's `defmacro` expands after the check stage today.
+
+**Gate:** an okite law refuses a database call
 whose statement is a string rather than a rendered `kueri` value; red run: a
 fixture passing `"SELECT 1"` to it is refused at `blue check`.
 

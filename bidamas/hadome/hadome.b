@@ -66,21 +66,35 @@ judge: whether a measure grew past its recorded size.
     judge([], "entry", "anything", 0) #=> {verdict: :unrecorded}
 """
 def judge(rows, kind, key, measured)
+  judge_within(rows, kind, key, measured, 0)
+end
+
+@doc """
+judge_within: judge, holding a measure up to permille thousandths past its row.
+
+    judge_within([row("cost", "fib", 1000)], "cost", "fib", 1010, 10) #=> {verdict: :held}
+"""
+def judge_within(rows, kind, key, measured, permille)
   r = recorded(rows, kind, key)
   if r.nil?
     {verdict: :unrecorded}
-  elsif measured > r
+  elsif measured * 1000 > r * (1000 + permille)
     {verdict: :grew, recorded: r, grew: measured - r}
   else
     {verdict: :held}
   end
 end
 
-def failure(rows, kind, m)
+def failure(rows, kind, m, permille)
   key = m[:key]
   size = m[:size]
-  j = judge(rows, kind, key, size)
+  j = judge_within(rows, kind, key, size, permille)
   v = j[:verdict]
+  beyond = if permille == 0
+    ""
+  else
+    ", beyond its #{to_s(permille)} per mille tolerance"
+  end
   if v == :unrecorded
     refusal(
       :unrecorded,
@@ -89,7 +103,7 @@ def failure(rows, kind, m)
   elsif v == :grew
     refusal(
       :grew,
-      "#{kind}: #{key} measures #{to_s(size)}, past its recorded #{to_s(j[:recorded])} by #{to_s(j[:grew])}"
+      "#{kind}: #{key} measures #{to_s(size)}, past its recorded #{to_s(j[:recorded])} by #{to_s(j[:grew])}#{beyond}"
     )
   end
 end
@@ -100,7 +114,19 @@ failures: every key that grew or is new.
     failures(example_baseline, "entry", []) #=> []
 """
 def failures(rows, kind, measurements)
-  filter((f) -> f != nil, map((m) -> failure(rows, kind, m), measurements))
+  failures_within(rows, kind, measurements, 0)
+end
+
+@doc """
+failures_within: every key that is new or grew past its row by more than permille thousandths.
+
+    failures_within([row("cost", "fib", 1000)], "cost", [measurement("fib", 1010)], 10) #=> []
+"""
+def failures_within(rows, kind, measurements, permille)
+  filter(
+    (f) -> f != nil,
+    map((m) -> failure(rows, kind, m, permille), measurements)
+  )
 end
 
 def keys_of(rows, kind)
@@ -141,6 +167,27 @@ def render(kind, measurements)
     map((m) -> unlines(["#{kind}: #{m[:key]} #{to_s(m[:size])}"]), sorted),
     ""
   )
+end
+
+@doc """
+receipted: a baseline's text, keeping the old text's comment lines, then the receipt line, then rows.
+
+    receipted("", nil, "") #=> ""
+"""
+def receipted(old, receipt, rows)
+  notes = append(
+    filter((l) -> starts_with?(l, "#"), lines(old)),
+    if receipt.nil?
+      []
+    else
+      ["# receipt: #{receipt}"]
+    end
+  )
+  if is_empty(notes)
+    rows
+  else
+    "#{unlines(notes)}#{rows}"
+  end
 end
 
 def example_baseline()
@@ -265,4 +312,33 @@ test "render is sorted, so a baseline diffs stably, and parses back"
   assert a == b
   assert parse(a) == [row("rust", "alpha", 2), row("rust", "zebra", 1)]
   assert render("rust", []) == ""
+end
+
+test "a measure within its tolerance holds, and one past it grew"
+  rows = [row("cost", "fib", 1000)]
+  assert judge_within(rows, "cost", "fib", 1010, 10) == {verdict: :held}
+  assert judge_within(rows, "cost", "fib", 1011, 10) ==
+    {verdict: :grew, recorded: 1000, grew: 11}
+  assert judge_within(rows, "cost", "fib", 1001, 0) ==
+    {verdict: :grew, recorded: 1000, grew: 1}
+  assert judge_within(rows, "cost", "nope", 1, 10) == {verdict: :unrecorded}
+end
+
+test "failures_within names a grown row with its tolerance and skips a held one"
+  rows = [row("cost", "fib", 1000), row("cost", "hello", 10)]
+  ms = [measurement("fib", 1200), measurement("hello", 10)]
+  got = failures_within(rows, "cost", ms, 10)
+  assert kinds(got) == [:grew]
+  assert includes(got[0][1], "past its recorded 1000 by 200")
+  assert includes(got[0][1], "10 per mille")
+  assert failures_within(rows, "cost", [measurement("fib", 1005)], 10) == []
+end
+
+test "receipted keeps every comment, adds the receipt, and drops old rows"
+  old = unlines(["# receipt: first", "cost: fib 1"])
+  assert receipted(old, "raised", unlines(["cost: fib 2"])) ==
+    unlines(["# receipt: first", "# receipt: raised", "cost: fib 2"])
+  assert receipted(old, nil, unlines(["cost: fib 2"])) ==
+    unlines(["# receipt: first", "cost: fib 2"])
+  assert receipted("", nil, "") == ""
 end

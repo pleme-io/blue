@@ -691,6 +691,11 @@
             ${blue}/bin/blue census ${./.} > $out
           '';
 
+          bench-ratchet = pkgs.runCommand "bench-ratchet" { } ''
+            cd ${./.}
+            ${blue}/bin/blue bench/bench.b cost ${blue}/bin/blue "$TMPDIR/bench" > $out || { cat $out; exit 1; }
+          '';
+
           # A bidama whose code does not check does not build.
           bidama-check-refuses = bl.mkCheckRefusalCheck { inherit blue; };
 

@@ -3,8 +3,10 @@
 //! `blue run --timings` turns the recorder on for its thread, runs, and prints
 //! [`report`] to stderr. Off, [`stage`] runs its closure and reads no clock.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::time::{Duration, Instant};
+
+use crate::alloc::Allocations;
 
 /// One stage of a run, in the order the pipeline reaches it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -67,12 +69,66 @@ impl Stage {
 thread_local! {
     static RECORD: RefCell<Option<Vec<(Stage, Duration)>>> = const { RefCell::new(None) };
     static NESTED: RefCell<Vec<Duration>> = const { RefCell::new(Vec::new()) };
+    static EVALUATED: Cell<Option<Allocations>> = const { Cell::new(None) };
+    static EVALUATING: Cell<bool> = const { Cell::new(false) };
+    static STEPS: Cell<Option<u64>> = const { Cell::new(None) };
 }
 
 /// Start recording on this thread, dropping anything recorded before.
 pub fn enable() {
     RECORD.with(|r| *r.borrow_mut() = Some(Vec::new()));
     NESTED.with(|n| n.borrow_mut().clear());
+    EVALUATED.with(|e| e.set(None));
+    EVALUATING.with(|e| e.set(false));
+    STEPS.with(|s| s.set(None));
+}
+
+/// Charge `spent` evaluation steps to this thread's report, when it records.
+pub fn steps(spent: usize) {
+    if enabled() {
+        let spent = u64::try_from(spent).unwrap_or(u64::MAX);
+        STEPS.with(|s| s.set(Some(s.get().unwrap_or(0).saturating_add(spent))));
+    }
+}
+
+/// The evaluation steps charged since [`enable`], or `None` when none were.
+#[must_use]
+pub fn stepped() -> Option<u64> {
+    STEPS.with(Cell::get).filter(|_| enabled())
+}
+
+/// What this thread allocated inside the eval and main stages since
+/// [`enable`], or `None` when it does not record, reached neither stage, or
+/// the binary does not count allocations.
+#[must_use]
+pub fn allocated() -> Option<Allocations> {
+    EVALUATED.with(Cell::get).filter(|_| enabled())
+}
+
+fn charge_evaluation(spent: Allocations) {
+    EVALUATED.with(|e| {
+        let had = e.get().unwrap_or_default();
+        e.set(Some(Allocations {
+            count: had.count.saturating_add(spent.count),
+            bytes: had.bytes.saturating_add(spent.bytes),
+            freed: had.freed.saturating_add(spent.freed),
+        }));
+    });
+}
+
+fn evaluating<T>(f: impl FnOnce() -> T) -> T {
+    let outer = EVALUATING.with(|e| e.replace(true));
+    let before = if outer {
+        None
+    } else {
+        crate::alloc::allocations()
+    };
+    let out = f();
+    if let (Some(before), Some(now)) = (before, crate::alloc::allocations()) {
+        charge_evaluation(now.since(before));
+    }
+    EVALUATING.with(|e| e.set(outer));
+    out
 }
 
 /// Whether this thread records.
@@ -89,7 +145,11 @@ pub fn stage<T>(stage: Stage, f: impl FnOnce() -> T) -> T {
     }
     NESTED.with(|n| n.borrow_mut().push(Duration::ZERO));
     let start = Instant::now();
-    let out = f();
+    let out = if matches!(stage, Stage::Eval | Stage::Main) {
+        evaluating(f)
+    } else {
+        f()
+    };
     let spent = start.elapsed();
     let inner = NESTED.with(|n| {
         let mut n = n.borrow_mut();
@@ -140,6 +200,12 @@ pub fn report() -> String {
     {
         out.push_str(&format!("{stage:<8} {:>9.3} ms\n", d.as_secs_f64() * 1e3));
     }
+    if let Some(n) = stepped() {
+        out.push_str(&format!("steps    {n}\n"));
+    }
+    if let Some(a) = allocated() {
+        out.push_str(&format!("allocs   {}\nbytes    {}\n", a.count, a.bytes));
+    }
     out
 }
 
@@ -167,6 +233,66 @@ mod tests {
         );
         assert!(t[1].1 >= Duration::from_millis(4));
         assert!(report().lines().last().unwrap().starts_with("total"));
+    }
+
+    #[test]
+    fn a_binary_that_does_not_count_reports_no_allocation_rows() {
+        enable();
+        stage(Stage::Eval, || ());
+        assert_eq!(allocated(), None);
+        assert!(!report().contains("allocs"), "{}", report());
+    }
+
+    #[test]
+    fn steps_are_summed_since_enable_and_reported_after_total() {
+        enable();
+        assert_eq!(stepped(), None);
+        stage(Stage::Eval, || ());
+        steps(5);
+        steps(7);
+        assert_eq!(stepped(), Some(12));
+        let r = report();
+        assert_eq!(r.lines().last(), Some("steps    12"), "{r}");
+        enable();
+        assert_eq!(stepped(), None);
+    }
+
+    #[test]
+    fn evaluation_allocations_sum_eval_and_main_and_skip_every_other_stage() {
+        enable();
+        charge_evaluation(Allocations {
+            count: 2,
+            bytes: 10,
+            freed: 0,
+        });
+        charge_evaluation(Allocations {
+            count: 3,
+            bytes: 5,
+            freed: 1,
+        });
+        assert_eq!(
+            allocated(),
+            Some(Allocations {
+                count: 5,
+                bytes: 15,
+                freed: 1
+            })
+        );
+        assert!(
+            report().contains("allocs   5\nbytes    15\n"),
+            "{}",
+            report()
+        );
+        enable();
+        stage(Stage::Parse, || ());
+        assert_eq!(allocated(), None);
+    }
+
+    #[test]
+    fn steps_charged_while_off_are_not_kept() {
+        RECORD.with(|r| *r.borrow_mut() = None);
+        steps(9);
+        assert_eq!(stepped(), None);
     }
 
     #[test]

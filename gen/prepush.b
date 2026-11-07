@@ -13,7 +13,7 @@ land ref; a heavy gate runs with BLUE_PREPUSH_FULL=1, and otherwise CI runs it
 when the push lands. The none weight names paths that no gate reads.
 
     map((g) -> get(g, :id), filter((g) -> get(g, :weight) == :light, gate_table)) #=> ["cargo-fmt", "blue-fmt", "locks", "retired", "gen-confirm", "swept-codes"]
-    map((g) -> get(g, :id), filter((g) -> get(g, :weight) == :land, gate_table)) #=> ["census", "reuse"]
+    map((g) -> get(g, :id), filter((g) -> get(g, :weight) == :land, gate_table)) #=> ["census", "reuse", "bench"]
 """
 def gate_table()
   [
@@ -59,6 +59,12 @@ def gate_table()
       label: "no definition is copied between scopes",
       weight: :land,
       inputs: %w[**/*.b reuse.baseline]
+    },
+    {
+      id: "bench",
+      label: "the quick bench workloads hold their cost baseline",
+      weight: :land,
+      inputs: %w[crates/** bench/**]
     },
     {
       id: "regen",
@@ -339,7 +345,7 @@ lands.
 
     planned(["blue-fmt", "census", "regen"], {full: false, landing: false}, gate_table) #=> ["blue-fmt"]
     planned(["blue-fmt", "census", "regen"], {full: false, landing: true}, gate_table) #=> ["blue-fmt", "census"]
-    count(planned([], {full: true, landing: false}, gate_table)) #=> 16
+    count(planned([], {full: true, landing: false}, gate_table)) #=> 17
 """
 def planned(ids, push, table)
   weights = if push[:landing]
@@ -1020,6 +1026,23 @@ def main()
         () -> verdict(exec_capture("#{bin}/blue", "census", "--reuse", root))
       ]
     ],
+    "bench" => [
+      [
+        "the quick bench workloads hold their cost baseline",
+        fn()
+          verdict(
+            exec_capture(
+              "#{bin}/blue",
+              "#{root}/bench/bench.b",
+              "cost",
+              "#{bin}/blue",
+              "#{store}/bench",
+              "--quick"
+            )
+          )
+        end
+      ]
+    ],
     "gen-pin" => [["gen is substrate's pin", () -> gen_pin]],
     "consumers" => [
       [
@@ -1210,12 +1233,25 @@ test "a .b-only change selects the .b gates and no Rust gate"
   assert not member?("test-targets", s[:ids])
 end
 
+test "a landing that touches the runtime or the bench judges the cost ratchet"
+  s = selection(["crates/blue-lang-runtime/src/stdlib.rs"], gate_table)
+  assert not member?("bench", planned(s[:ids], plain_push, gate_table))
+  assert member?(
+    "bench",
+    planned(s[:ids], {full: false, landing: true}, gate_table)
+  )
+  b = selection(["bench/cost.baseline"], gate_table)
+  assert b[:reason] == ""
+  assert member?("bench", b[:ids])
+end
+
 test "a landing judges the census and the reuse ratchet before CI does"
   s = selection(["kernel/programs/arith.b"], gate_table)
   assert not member?("census", planned(s[:ids], plain_push, gate_table))
   on_land = planned(s[:ids], {full: false, landing: true}, gate_table)
   assert member?("census", on_land)
   assert member?("reuse", on_land)
+  assert not member?("bench", on_land)
   assert skipped("census,reuse", gate_table) == %w[census reuse]
 end
 
@@ -1242,7 +1278,7 @@ test "a Cargo.lock change selects every gate"
   assert s[:reason] == "Cargo.lock selects every gate"
   assert planned(s[:ids], plain_push, gate_table) ==
     %w[cargo-fmt blue-fmt locks retired gen-confirm swept-codes]
-  assert count(s[:ids]) == 16
+  assert count(s[:ids]) == 17
 end
 
 test "only prose a code path never reads scopes a landing as prose, and an unknown path fails closed"
@@ -1292,7 +1328,7 @@ end
 test "an unknown path selects every gate"
   s = selection(%w[bidamas/retsu/retsu.b tools/new.toml], gate_table)
   assert s[:reason] == "no gate names tools/new.toml, so every gate runs"
-  assert count(s[:ids]) == 16
+  assert count(s[:ids]) == 17
 end
 
 test "a Rust change selects cargo fmt, the swept codes and the heavy gates"

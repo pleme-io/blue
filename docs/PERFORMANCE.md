@@ -46,6 +46,41 @@ The machine ran other builds during every measurement (load average 20 to
 measured process and is the more stable figure. Compare ratios, not absolute
 values.
 
+### 0.1 The cost ratchet
+
+Wall time on a shared machine is noise, so the gate reads costs that do not
+move with load. `blue run --no-memo --timings` prints, after the stage times,
+`steps` (evaluation steps of the root program, the same count
+`--receipt-steps` writes) and `allocs` and `bytes` (allocations made on the
+evaluating thread inside the eval and main stages, so startup, the
+environment and the check stage do not count). Steps are the same on every
+host and build profile. Allocations agree between a debug and a release build
+to a few counts, and differ between hosts, so their rows carry the host.
+
+```text
+blue bench/bench.b cost BLUE WORKDIR [--quick]
+blue bench/bench.b cost BLUE WORKDIR --record [--receipt "<why>"]
+```
+
+`cost` copies each workload out of the project, runs it once, prints a table
+with the wall time (reported, never gated), and judges it against
+`bench/cost.baseline` with hadome's `failures_within`: steps may grow 5 per
+mille, allocations and bytes 20 per mille. A workload past its tolerance, or
+with no row, fails and is named with its delta. A host with no allocation rows
+is advisory for them and still gated on steps. `--record` is the only writer
+of the baseline: it banks every fall, keeps the old row for a rise inside the
+tolerance so the baseline cannot creep, and refuses a rise past it without
+`--receipt`, which stays in the file as a `# receipt:` line, as in
+`reuse.baseline`.
+
+`--quick` (empty, hello, fib) is the pre-push gate `bench`, run when a landing
+touches `crates/**` or `bench/**`. The full set is `checks.bench-ratchet`,
+which CI runs with `nix flake check`.
+
+What it cannot see: time a builtin spends without allocating, and the
+evaluation steps of spawned processes (their allocations on the evaluating
+thread do count). Those show only in the wall column.
+
 ## 1. Measurements
 
 ### 1.1 Scripts: blue against Python and Ruby

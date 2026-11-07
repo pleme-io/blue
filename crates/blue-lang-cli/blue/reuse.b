@@ -1,4 +1,8 @@
-use("hadome", %i[failures judge measurement orphans parse render shrunk])
+use(
+  "hadome",
+  %i[failures judge measurement orphans parse receipted render shrunk]
+)
+
 use("kyohi", [:why])
 use("retsu", %i[first flat_map is_empty size])
 use("shisutemu", [:read_or])
@@ -89,27 +93,6 @@ def blind_lines(report)
   map((b) -> "blind: #{b["file"]}: #{b["why"]}", report["blind"])
 end
 
-def keep_comments(text)
-  filter((l) -> starts_with?(l, "#"), split(text, line_break))
-end
-
-def recorded_text(old, receipt, ms)
-  notes = append(
-    keep_comments(old),
-    if receipt.nil?
-      []
-    else
-      ["# receipt: #{receipt}"]
-    end
-  )
-  rows = render(KIND, ms)
-  if is_empty(notes)
-    rows
-  else
-    "#{unlines(notes)}#{rows}"
-  end
-end
-
 def record(path, root, ms, receipt)
   old = read_or(path, "")
   rows = parse(old)
@@ -127,7 +110,7 @@ def record(path, root, ms, receipt)
     )
     false
   else
-    write_file(path, recorded_text(old, receipt, ms))
+    write_file(path, receipted(old, receipt, render(KIND, ms)))
     write_stdout(unlines(["recorded #{to_s(size(ms))} row(s) to #{path}"]))
     true
   end
@@ -313,10 +296,10 @@ end
 
 test "a record keeps every note and adds the receipt"
   old = unlines(["# receipt: first", "reuse-copy: a 2"])
-  text = recorded_text(old, "second", [measurement("a", 1)])
+  text = receipted(old, "second", render(KIND, [measurement("a", 1)]))
   assert text ==
     unlines(["# receipt: first", "# receipt: second", "reuse-copy: a 1"])
-  assert recorded_text("", nil, [measurement("a", 1)]) ==
+  assert receipted("", nil, render(KIND, [measurement("a", 1)])) ==
     unlines(["reuse-copy: a 1"])
 end
 

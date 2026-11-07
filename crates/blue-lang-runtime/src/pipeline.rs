@@ -268,6 +268,7 @@ fn evaluate_held(
         })?
         .unwrap_or(value))
     });
+    crate::timings::steps(interp.steps_spent());
     if let Some(steps) = &account.steps {
         steps.store(
             u64::try_from(interp.steps_spent()).unwrap_or(u64::MAX),

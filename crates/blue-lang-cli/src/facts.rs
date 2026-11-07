@@ -197,6 +197,7 @@ mod tests {
         let ids = TestIdentities {
             definitions: [("%root/f".to_string(), "b3:aa".to_string())].into(),
             tests: [(1, "b3:bb".to_string())].into(),
+            preamble: String::new(),
         };
         let hold = Hold::from(blue_lang_runtime::session::pure_frame());
         let (facts, evidence) = render(

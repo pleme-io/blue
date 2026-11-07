@@ -40,6 +40,7 @@ struct FileRun {
     coverage: Option<Vec<Measured>>,
     /// Each definition's and each test's `def_hash`, when facts are asked.
     identities: Option<blue_lang_mondou::def_hash::TestIdentities>,
+    passed_keys: Vec<String>,
 }
 
 /// How `blue test` watches what it runs.
@@ -49,6 +50,7 @@ pub(crate) struct Watch<'a> {
     pub coverage: bool,
     pub json: bool,
     pub memo: crate::memo::Mode,
+    pub cache: Option<&'a crate::test_cache::TestCache>,
 }
 
 /// `blue test PATH [--filter PATTERN] [--coverage [--json]] [--allow CAP]
@@ -74,6 +76,10 @@ pub(crate) fn test(
     } else {
         vec![path.to_path_buf()]
     };
+    let hold = match (hold, watch.cache) {
+        (None, Some(_)) => Some(blue_lang_runtime::Hold::from(blue_lang_waku::Waku::top())),
+        (hold, _) => hold,
+    };
     let guard = blue_lang_test::Guard {
         hold,
         max_alloc_bytes: blue_lang_runtime::execution_bounds().max_alloc_bytes,
@@ -81,6 +87,10 @@ pub(crate) fn test(
         ..blue_lang_test::Guard::default()
     };
     let runs = run_files(&files, watch, &guard, facts.is_some())?;
+    if let Some(cache) = watch.cache {
+        let keys: Vec<String> = runs.iter().flat_map(|r| r.passed_keys.clone()).collect();
+        cache.record(&keys);
+    }
     if let (Some(facts), Some(hold)) = (facts, &guard.hold) {
         let evidence: Vec<crate::facts::FileEvidence<'_>> = runs
             .iter()
@@ -93,6 +103,7 @@ pub(crate) fn test(
         crate::facts::write(facts, hold, &evidence).map_err(CliError::Fmt)?;
     }
     let (mut total, mut passed, mut failed, mut skipped, mut broken) = (0, 0, 0, 0, 0);
+    let mut cached = 0;
     for run in &runs {
         eprint!("{}", run.errors);
         match &run.report {
@@ -101,6 +112,7 @@ pub(crate) fn test(
                 passed += r.passed;
                 failed += r.failures.len();
                 skipped += r.skipped.len();
+                cached += r.cached.len();
                 if tree {
                     println!("{}: {}", run.path.display(), r.tally());
                 }
@@ -116,7 +128,12 @@ pub(crate) fn test(
     } else {
         String::new()
     };
-    let tally = format!("{total} test(s): {passed} passed, {failed} failed{skips}");
+    let cached = if cached > 0 {
+        format!(", {cached} cached")
+    } else {
+        String::new()
+    };
+    let tally = format!("{total} test(s): {passed} passed, {failed} failed{skips}{cached}");
     if tree {
         let files = runs.len();
         let broken = if broken > 0 {
@@ -270,6 +287,7 @@ fn run_files(
                             report: None,
                             coverage: None,
                             identities: None,
+                            passed_keys: Vec::new(),
                         })
                     });
                     if let Ok(mut slots) = results.lock() {
@@ -337,6 +355,7 @@ fn test_file(
             report: None,
             coverage: None,
             identities: None,
+            passed_keys: Vec::new(),
         });
     }
     let memoized = memo != crate::memo::Mode::Off && !coverage;
@@ -374,14 +393,53 @@ fn test_file(
         Some(w) => Some(Arc::clone(w) as Arc<dyn CallObserver>),
         None => watching,
     };
-    let report = blue_lang_test::run_guarded(&checked, filter, observer, guard);
-    let identities = identify.then(|| {
+    let identities = (identify || watch.cache.is_some()).then(|| {
         let lowered = blue_lang_runtime::pipeline::lower(&checked.program, &checked.names);
         blue_lang_mondou::def_hash::test_identities(
             &lowered,
             &blue_lang_mondou::program_docs(&checked.program),
         )
     });
+    let bounds = format!(
+        "{:?} {:?} {:?}",
+        guard.bounds,
+        blue_lang_runtime::execution_bounds(),
+        guard.max_alloc_bytes
+    );
+    let key_of = |test: usize| {
+        watch
+            .cache
+            .zip(identities.as_ref())
+            .and_then(|(cache, ids)| cache.key(ids, test, &bounds))
+    };
+    let own;
+    let guard = match (watch.cache, &identities) {
+        (Some(cache), Some(ids)) => {
+            own = blue_lang_test::Guard {
+                cached: ids
+                    .tests
+                    .keys()
+                    .copied()
+                    .filter(|&t| key_of(t).is_some_and(|k| cache.passed(&k)))
+                    .collect(),
+                ..guard.clone()
+            };
+            &own
+        }
+        _ => guard,
+    };
+    let report = blue_lang_test::run_guarded(&checked, filter, observer, guard);
+    let passed_keys = if report.preamble_host_io == 0 {
+        report
+            .outcomes
+            .iter()
+            .filter(|o| o.passed && o.host_io == 0)
+            .filter_map(|o| o.top_level.and_then(key_of))
+            .collect()
+    } else {
+        Vec::new()
+    };
+    let identities = identities.filter(|_| identify);
     if let Some(m) = &recall {
         crate::memo::finish(m);
     }
@@ -404,6 +462,7 @@ fn test_file(
         report: Some(report),
         coverage: recorder.map(|r| r.report()),
         identities,
+        passed_keys,
     })
 }
 

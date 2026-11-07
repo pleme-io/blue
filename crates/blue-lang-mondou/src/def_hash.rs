@@ -330,6 +330,34 @@ mod tests {
         );
     }
 
+    #[test]
+    fn the_preamble_identity_moves_with_values_and_expressions_never_with_a_function() {
+        let src = "k = 2\n\ndef g(x)\n  x * k\nend\n\ndef h(x)\n  x\nend\n\n\
+                   test \"g\"\n  assert g(1) == 2\nend\n";
+        let base = with_tests(src);
+        assert!(base.preamble.starts_with("b3:"), "{base:?}");
+        assert_eq!(
+            with_tests(&src.replace("  x\nend", "  x + 1\nend")).preamble,
+            base.preamble,
+            "a function bound once runs nothing in the preamble"
+        );
+        assert_ne!(
+            with_tests(&src.replace("k = 2", "k = 3")).preamble,
+            base.preamble,
+            "a value runs in the preamble"
+        );
+        assert_ne!(
+            with_tests(&format!("{src}\nh(1)\n")).preamble,
+            base.preamble,
+            "a top-level expression runs in the preamble"
+        );
+        assert_eq!(
+            with_tests(&src.replace("assert g(1) == 2", "assert g(1) == 2 && true")).preamble,
+            base.preamble,
+            "a test is not the preamble"
+        );
+    }
+
     fn shapes_of(src: &str) -> BTreeMap<String, Shape> {
         let checked = blue_lang_runtime::pipeline::check_entry(
             blue_lang_runtime::uses::Entry::anonymous(src),

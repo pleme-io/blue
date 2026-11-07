@@ -324,6 +324,8 @@ pub struct Report {
     /// Host calls through granted names over the whole run, when it was
     /// held to a frame; `None` for an unheld run, which counts nothing.
     pub host_io: Option<u64>,
+    pub preamble_host_io: u64,
+    pub cached: Vec<String>,
 }
 
 impl Report {
@@ -332,7 +334,7 @@ impl Report {
     }
 
     pub fn total(&self) -> usize {
-        self.passed + self.failures.len() + self.skipped.len()
+        self.passed + self.failures.len() + self.skipped.len() + self.cached.len()
     }
 
     /// The tally a person reads: a skip shows only when there is one.
@@ -342,8 +344,13 @@ impl Report {
         } else {
             format!(", {} skipped", self.skipped.len())
         };
+        let cached = if self.cached.is_empty() {
+            String::new()
+        } else {
+            format!(", {} cached", self.cached.len())
+        };
         format!(
-            "{} test(s): {} passed, {} failed{skipped}",
+            "{} test(s): {} passed, {} failed{skipped}{cached}",
             self.total(),
             self.passed,
             self.failures.len()
@@ -845,6 +852,7 @@ pub struct Guard {
     /// above, so they only narrow; `blue test` reads them from the
     /// project's Bluefile.
     pub bounds: Option<blue_lang_runtime::ExecutionBounds>,
+    pub cached: std::collections::BTreeSet<usize>,
 }
 
 /// `f` on `interp`, held to `bound` live bytes through its interrupt flag;
@@ -986,6 +994,7 @@ pub fn run_guarded(
     report.preamble_evaluations = 1;
     report.steps = prototype.steps_spent() as u64;
     report.host_io = held.then(|| account.host_io.total());
+    report.preamble_host_io = account.host_io.total();
     if let Some(error) = preamble_error {
         for block in &blocks {
             let ran = Ran {
@@ -1001,6 +1010,10 @@ pub fn run_guarded(
     }
 
     for block in &blocks {
+        if guard.cached.contains(&block.top_level) {
+            report.cached.push(block.name.clone());
+            continue;
+        }
         let rec = Recorder::default();
         let mut interp = prototype.fork();
         install_assert(&mut interp, &rec, &bounds);

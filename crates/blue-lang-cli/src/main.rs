@@ -91,6 +91,7 @@ mod scaffold;
 mod script;
 mod sigint;
 mod source_lines;
+mod test_cache;
 mod watch;
 mod witness;
 
@@ -396,6 +397,10 @@ enum Cmd {
         /// on. Coverage always does.
         #[arg(long)]
         no_memo: bool,
+        /// Run every test, reporting none as cached from the test cache
+        /// `BLUE_TEST_CACHE` turns on. Coverage and facts always do.
+        #[arg(long)]
+        no_cache: bool,
         /// Hold the tests to these host capabilities, as `blue run --allow`
         /// holds a program: `none`, `host`, or one label. Repeatable. A host
         /// name a test reaches outside them is a capability breach, which
@@ -1398,10 +1403,13 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             coverage,
             json,
             no_memo,
+            no_cache,
             allow,
             facts,
         } => {
             let facts = facts::path(facts);
+            let cache = test_cache::TestCache::open(no_cache, coverage || facts.is_some())
+                .map_err(CliError::Usage)?;
             if file.is_file() {
                 inputs::hold(&file, inputs::Word::Check)?;
             }
@@ -1421,6 +1429,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                     coverage,
                     json,
                     memo: memo::mode(no_memo, &cfg),
+                    cache: cache.as_ref(),
                 },
                 receipt::hold_for(asked, facts.as_deref()),
                 facts.as_deref(),

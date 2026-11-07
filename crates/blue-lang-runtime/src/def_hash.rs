@@ -294,6 +294,7 @@ pub fn identified(
 pub struct TestIdentities {
     pub definitions: BTreeMap<String, String>,
     pub tests: BTreeMap<usize, String>,
+    pub preamble: String,
 }
 
 /// The identities of a lowered program's definitions and of its `test`
@@ -311,6 +312,27 @@ pub fn test_identities(lowered: &[Spanned], docs: &HashMap<usize, String>) -> Te
     let symbol = |s: &str| synthetic(SpannedForm::Atom(Atom::Symbol(s.to_string())));
     let mut forms = lowered.to_vec();
     let mut keys = Vec::new();
+    let mut bound: HashMap<&str, usize> = HashMap::new();
+    for form in lowered {
+        if let Some((key, _)) = defined(form) {
+            *bound.entry(key).or_default() += 1;
+        }
+    }
+    let preamble_key = "%test/preamble";
+    let mut preamble = vec![
+        symbol("define"),
+        synthetic(SpannedForm::List(vec![symbol(preamble_key)])),
+    ];
+    for form in lowered {
+        let binds_once = matches!(
+            defined(form),
+            Some((key, DefKind::Function | DefKind::Macro)) if bound.get(key) == Some(&1)
+        );
+        if !binds_once && blue_lang_syntax::test_parts(form).is_none() {
+            preamble.push(form.clone());
+        }
+    }
+    forms.push(synthetic(SpannedForm::List(preamble)));
     for (i, form) in lowered.iter().enumerate() {
         let Some(parts) = blue_lang_syntax::test_parts(form) else {
             continue;
@@ -336,7 +358,15 @@ pub fn test_identities(lowered: &[Spanned], docs: &HashMap<usize, String>) -> Te
         .into_iter()
         .filter_map(|(i, key)| hashes.of_key(&key).map(|d| (i, d.hash.to_string())))
         .collect();
-    TestIdentities { definitions, tests }
+    let preamble = hashes
+        .of_key(preamble_key)
+        .map(|d| d.hash.to_string())
+        .unwrap_or_default();
+    TestIdentities {
+        definitions,
+        tests,
+        preamble,
+    }
 }
 
 fn located_raise(items: &[Spanned]) -> Option<&[Spanned]> {

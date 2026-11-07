@@ -358,6 +358,16 @@ ones, added when an action is touched, never by mass rewrite.
   committed beside the binding's test, with the date it was taken; a contract
   test against the live service re-records it in a runner with the network
   capability.
+- **A cached pass is a pass of the same test.** With `BLUE_TEST_CACHE=on`,
+  `blue test` skips a test whose identity a passing run recorded under
+  `$XDG_CACHE_HOME/blue/test/`, and the summary counts it as cached. The
+  identity is the test's `def_hash` (its body, its declaration and every
+  definition it reaches), the file's preamble hash (every value, expression
+  and twice-bound name the tests fork from), the execution bounds, and the
+  build of `blue`. A failed or skipped test, a test that made a host call,
+  and every test of a file whose preamble made one are never recorded: what
+  they read is not in the identity. `--coverage` and `--facts` always run
+  every test. Off by default until the corpus has run under it.
 
 ## 11. States and trust
 
@@ -479,6 +489,7 @@ stateDiagram-v2
 | recorded debt | live | 210 untested definitions in 42 packages, 2026-10-24; 35 packages at zero |
 | test options map: `satisfies:`, `target:`, `assert_panics`, `blue test --allow`, `--facts` | live | section 4, "Declared controls"; `tests/compliance.rs` (4), `spec/rows/testing.b` (12) |
 | a named skip: `tesuto::skip_for`, `SKIP name: why`, `BLUE_TEST_SKIP=refuse` | live | `crates/blue-lang-test` (the skip is never a pass), `tests/scripts.rs`, `gen/kernel-new.b` |
+| test cache: `BLUE_TEST_CACHE=on` reports a test whose identity passed before as cached; `--no-cache` | tested, off by default | section 10; `tests/test_cache.rs` (7: callee, unrelated, preamble, failing, host, off, refused value) |
 | integration-point finding, test options map: `kind:`, `allow:`, `fakes:` | design | section 5, D6 |
 | BDD words beyond `raises?` and `snapshot` | design | section 6 |
 | rendered CI workflow, `blue test .` | design | section 9 |

@@ -538,6 +538,14 @@ aggregate per selection), and the bar is set past theirs:
 fixture, measured by the statement log; red run: an operation naming a field
 the model lacks fails the build.
 
+**No SQL is written by hand** (operator, same day). SQL is a rendering of
+`kueri`'s typed AST, from the model or from a typed query, the house's TYPED
+EMISSION rule applied to databases. Today haibi writes its DDL and its
+migration as text lines (`bidamas/eigyou/haibi/haibi.b`), and they move onto
+`kueri` and `teeburu` first. **Gate:** an okite law refuses a database call
+whose statement is a string rather than a rendered `kueri` value; red run: a
+fixture passing `"SELECT 1"` to it is refused at `blue check`.
+
 ### H17. Parity: the placements agree on authority
 
 kakoi, kidou, the chart and the trio each keep their own effect table. Nothing

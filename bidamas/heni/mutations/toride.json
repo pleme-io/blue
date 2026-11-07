@@ -1,0 +1,842 @@
+[
+  {
+    "name": "an unread axis is decided anyway",
+    "file": "toride.b",
+    "find": "  if not is_empty(unread)\n    {kind: :blind, unread:}",
+    "replace": "  if false\n    {kind: :blind, unread:}"
+  },
+  {
+    "name": "home ignores a down gateway",
+    "file": "toride.b",
+    "find": "elsif s[:site] == :here and s[:gateway] == :up",
+    "replace": "elsif s[:site] == :here"
+  },
+  {
+    "name": "any site with a live gateway is home",
+    "file": "toride.b",
+    "find": "elsif s[:site] == :here and s[:gateway] == :up",
+    "replace": "elsif s[:gateway] == :up"
+  },
+  {
+    "name": "a node away keeps its LAN address",
+    "file": "toride.b",
+    "find": "  elsif s[:entry] == :node\n    {kind: :serve, via: :tailnet}",
+    "replace": "  elsif s[:entry] == :node\n    {kind: :serve, via: :lan}"
+  },
+  {
+    "name": "the routed service is taken for the lan-only one",
+    "file": "toride.b",
+    "find": "elsif s[:entry] == :local_service",
+    "replace": "elsif s[:entry] == :routed_service"
+  },
+  {
+    "name": "a lan-only service away is served",
+    "file": "toride.b",
+    "find": "  elsif s[:entry] == :local_service\n    {kind: :withheld, reason: :lan_only}",
+    "replace": "  elsif s[:entry] == :local_service\n    {kind: :serve, via: :lan}"
+  },
+  {
+    "name": "the shadow test is inverted",
+    "file": "toride.b",
+    "find": "  elsif s[:lan] == :inside",
+    "replace": "  elsif s[:lan] == :outside"
+  },
+  {
+    "name": "a shadowed service is served",
+    "file": "toride.b",
+    "find": "    {kind: :withheld, reason: :shadowed_by_local_lan}",
+    "replace": "    {kind: :serve, via: :lan}"
+  },
+  {
+    "name": "the withheld label drops its reason",
+    "file": "toride.b",
+    "find": "\"withheld:#{to_s(o[:reason])}\"",
+    "replace": "\"withheld\""
+  },
+  {
+    "name": "the serve label drops its route",
+    "file": "toride.b",
+    "find": "  elsif o[:kind] == :serve\n    to_s(o[:via])",
+    "replace": "  elsif o[:kind] == :serve\n    \"lan\""
+  },
+  {
+    "name": "the blind label drops its axes",
+    "file": "toride.b",
+    "find": "\"blind:#{join(map(to_s, o[:unread]), \",\")}\"",
+    "replace": "\"blind\""
+  },
+  {
+    "name": "a state outside its axes is accepted",
+    "file": "toride.b",
+    "find": "  if is_empty(wrong)\n    m",
+    "replace": "  if true\n    m"
+  },
+  {
+    "name": "an octet weighs 255",
+    "file": "toride.b",
+    "find": "acc * 256 + to_int(o)",
+    "replace": "acc * 255 + to_int(o)"
+  },
+  {
+    "name": "int_ip repeats an octet",
+    "file": "toride.b",
+    "find": "[16_777_216, 65536, 256, 1]",
+    "replace": "[16_777_216, 65536, 256, 256]"
+  },
+  {
+    "name": "a prefix bit triples",
+    "file": "toride.b",
+    "find": "reduce((acc, _i) -> acc * 2, 1, range(0, 32 - prefix))",
+    "replace": "reduce((acc, _i) -> acc * 3, 1, range(0, 32 - prefix))"
+  },
+  {
+    "name": "a /33 is a prefix",
+    "file": "toride.b",
+    "find": "or p < 0 or p > 32",
+    "replace": "or p < 0 or p > 33"
+  },
+  {
+    "name": "a negative prefix is a prefix",
+    "file": "toride.b",
+    "find": "p.nil? or p < 0",
+    "replace": "p.nil? or p < -1"
+  },
+  {
+    "name": "a cidr base need not be IPv4",
+    "file": "toride.b",
+    "find": "  if size(ps) != 2 or not ipv4?(first(ps)) or",
+    "replace": "  if size(ps) != 2 or"
+  },
+  {
+    "name": "a cidr is not rounded to its network",
+    "file": "toride.b",
+    "find": "{network: floor(ip_int(first(ps)) / span(p)) * span(p), prefix: p}",
+    "replace": "{network: ip_int(first(ps)), prefix: p}"
+  },
+  {
+    "name": "inside? is off by one network",
+    "file": "toride.b",
+    "find": "    floor(net[:network] / span(net[:prefix]))\n",
+    "replace": "    floor(net[:network] / span(net[:prefix])) + 1\n"
+  },
+  {
+    "name": "a netmask counts its zero bits",
+    "file": "toride.b",
+    "find": "bit_and(n, span(32 - i)) != 0",
+    "replace": "bit_and(n, span(32 - i)) == 0"
+  },
+  {
+    "name": "a short octet is not padded",
+    "file": "toride.b",
+    "find": "\"0#{o}\"",
+    "replace": "o"
+  },
+  {
+    "name": "a three-digit octet is a MAC octet",
+    "file": "toride.b",
+    "find": "size(chars(o)) <= 2 and",
+    "replace": "size(chars(o)) <= 3 and"
+  },
+  {
+    "name": "an empty octet is a MAC octet",
+    "file": "toride.b",
+    "find": "size(chars(o)) >= 1 and",
+    "replace": "size(chars(o)) >= 0 and"
+  },
+  {
+    "name": "seven octets make a MAC",
+    "file": "toride.b",
+    "find": "if size(os) == 6 and",
+    "replace": "if size(os) >= 6 and"
+  },
+  {
+    "name": "a non-hex octet is a MAC octet",
+    "file": "toride.b",
+    "find": "is_empty(filter((c) -> not member?(c, hex_digits), chars(o)))",
+    "replace": "true"
+  },
+  {
+    "name": "the redacted MAC is a reading",
+    "file": "toride.b",
+    "find": "mac == \"02:00:00:00:00:00\"",
+    "replace": "mac == \"02:00:00:00:00:01\""
+  },
+  {
+    "name": "nixos reads as darwin",
+    "file": "toride.b",
+    "find": "  if kind == :platform and v == \"nixos\"\n    %i[ok nixos]",
+    "replace": "  if kind == :platform and v == \"nixos\"\n    %i[ok darwin]"
+  },
+  {
+    "name": "darwin is refused",
+    "file": "toride.b",
+    "find": "  elsif kind == :platform and v == \"darwin\"\n    %i[ok darwin]",
+    "replace": "  elsif kind == :platform and v == \"darwin\"\n    [:bad, \"x\"]"
+  },
+  {
+    "name": "a flag need not be boolean",
+    "file": "toride.b",
+    "find": "elsif kind == :flag and boolean?(v)",
+    "replace": "elsif kind == :flag"
+  },
+  {
+    "name": "a path need not be absolute",
+    "file": "toride.b",
+    "find": "elsif kind == :path and string?(v) and starts_with?(v, \"/\")",
+    "replace": "elsif kind == :path and string?(v)"
+  },
+  {
+    "name": "an empty program is a program",
+    "file": "toride.b",
+    "find": "v != \"\" and not contains?(v, \" \")",
+    "replace": "not contains?(v, \" \")"
+  },
+  {
+    "name": "a program may hold a space",
+    "file": "toride.b",
+    "find": "v != \"\" and not contains?(v, \" \")",
+    "replace": "v != \"\""
+  },
+  {
+    "name": "any argv is an argv",
+    "file": "toride.b",
+    "find": "elsif kind == :argv and words?(v)",
+    "replace": "elsif kind == :argv"
+  },
+  {
+    "name": "any ports are ports",
+    "file": "toride.b",
+    "find": "elsif kind == :ports and ports?(v)",
+    "replace": "elsif kind == :ports"
+  },
+  {
+    "name": "zero is a count",
+    "file": "toride.b",
+    "find": "elsif integer?(v) and v >= 1",
+    "replace": "elsif integer?(v) and v >= 0"
+  },
+  {
+    "name": "an empty word is a word",
+    "file": "toride.b",
+    "find": "filter((w) -> not string?(w) or w == \"\", v)",
+    "replace": "filter((w) -> not string?(w), v)"
+  },
+  {
+    "name": "a port past 65535 is a port",
+    "file": "toride.b",
+    "find": "p < 1 or p > 65535",
+    "replace": "p < 1 or p > 70000"
+  },
+  {
+    "name": "a slash may stand in a domain",
+    "file": "toride.b",
+    "find": "member?(c, [\"/\", \" \",",
+    "replace": "member?(c, [\" \","
+  },
+  {
+    "name": "a non-string is a domain",
+    "file": "toride.b",
+    "find": "  string?(d) and\n",
+    "replace": "  true and\n"
+  },
+  {
+    "name": "an empty domain is a domain",
+    "file": "toride.b",
+    "find": "    d != \"\" and\n",
+    "replace": ""
+  },
+  {
+    "name": "a bad domain passes the list",
+    "file": "toride.b",
+    "find": "is_empty(filter((d) -> not domain?(d), v))",
+    "replace": "true"
+  },
+  {
+    "name": "the default gateway is the second address",
+    "file": "toride.b",
+    "find": "int_ip(net[:network] + 1)",
+    "replace": "int_ip(net[:network] + 2)"
+  },
+  {
+    "name": "a given gateway is ignored",
+    "file": "toride.b",
+    "find": "  gateway = if gw_text.nil? and net != nil",
+    "replace": "  gateway = if net != nil"
+  },
+  {
+    "name": "a site with no name stands",
+    "file": "toride.b",
+    "find": "  why = if name == \"\"\n    \"has no name\"\n  elsif member?",
+    "replace": "  why = if false\n    \"has no name\"\n  elsif member?"
+  },
+  {
+    "name": "a site may be named twice",
+    "file": "toride.b",
+    "find": "elsif member?(name, taken)",
+    "replace": "elsif false"
+  },
+  {
+    "name": "a site with no cidr stands",
+    "file": "toride.b",
+    "find": "  elsif net.nil?\n    \"has no cidr",
+    "replace": "  elsif false\n    \"has no cidr"
+  },
+  {
+    "name": "a site gateway need not be IPv4",
+    "file": "toride.b",
+    "find": "elsif not string?(gateway) or not ipv4?(gateway)",
+    "replace": "elsif not string?(gateway)"
+  },
+  {
+    "name": "a site gateway may lie outside it",
+    "file": "toride.b",
+    "find": "elsif not inside?(gateway, net)",
+    "replace": "elsif false"
+  },
+  {
+    "name": "a malformed site MAC stands",
+    "file": "toride.b",
+    "find": "elsif mac_text != nil and mac.nil?",
+    "replace": "elsif false"
+  },
+  {
+    "name": "the unnamed label is empty",
+    "file": "toride.b",
+    "find": "    \"(unnamed)\"",
+    "replace": "    \"\""
+  },
+  {
+    "name": "a node with no name stands",
+    "file": "toride.b",
+    "find": "  why = if name == \"\"\n    \"has no name\"\n  elsif site.nil?",
+    "replace": "  why = if false\n    \"has no name\"\n  elsif site.nil?"
+  },
+  {
+    "name": "a node with no site stands",
+    "file": "toride.b",
+    "find": "  elsif site.nil?\n    \"names no configured site\"\n  elsif not ipv4?(lan)",
+    "replace": "  elsif false\n    \"names no configured site\"\n  elsif not ipv4?(lan)"
+  },
+  {
+    "name": "a node lan need not be IPv4",
+    "file": "toride.b",
+    "find": "elsif not ipv4?(lan)",
+    "replace": "elsif false"
+  },
+  {
+    "name": "a node lan may lie outside its site",
+    "file": "toride.b",
+    "find": "elsif not inside?(lan, site[:net])",
+    "replace": "elsif false"
+  },
+  {
+    "name": "a node tailnet need not be IPv4",
+    "file": "toride.b",
+    "find": "elsif not ipv4?(tailnet)",
+    "replace": "elsif false"
+  },
+  {
+    "name": "a node with bad domains stands",
+    "file": "toride.b",
+    "find": "elsif not domains?(domains)",
+    "replace": "elsif false"
+  },
+  {
+    "name": "a service with no domains stands",
+    "file": "toride.b",
+    "find": "  why = if name == \"\"\n    \"has no domains",
+    "replace": "  why = if false\n    \"has no domains"
+  },
+  {
+    "name": "a service with no site stands",
+    "file": "toride.b",
+    "find": "  elsif site.nil?\n    \"names no configured site\"\n  elsif not ipv4?(ip)",
+    "replace": "  elsif false\n    \"names no configured site\"\n  elsif not ipv4?(ip)"
+  },
+  {
+    "name": "a service address need not be IPv4",
+    "file": "toride.b",
+    "find": "elsif not ipv4?(ip)",
+    "replace": "elsif false"
+  },
+  {
+    "name": "a service may lie outside its site",
+    "file": "toride.b",
+    "find": "elsif not inside?(ip, site[:net])",
+    "replace": "elsif false"
+  },
+  {
+    "name": "subnet_routed need not be boolean",
+    "file": "toride.b",
+    "find": "elsif routed != nil and not boolean?(routed)",
+    "replace": "elsif false"
+  },
+  {
+    "name": "subnet_routed is read inverted",
+    "file": "toride.b",
+    "find": "  kind = if routed == true",
+    "replace": "  kind = if routed != true"
+  },
+  {
+    "name": "a non-list section is walked",
+    "file": "toride.b",
+    "find": "  if v != nil and list?(v)\n    v",
+    "replace": "  if v != nil\n    v"
+  },
+  {
+    "name": "duplicate site names go unseen",
+    "file": "toride.b",
+    "find": "r = read_site(d, map((s) -> s[:name], oks(acc)))",
+    "replace": "r = read_site(d, [])"
+  },
+  {
+    "name": "a JSON array is a config",
+    "file": "toride.b",
+    "find": "  if not object?(doc)",
+    "replace": "  if doc.nil?"
+  },
+  {
+    "name": "unknown settings go unseen",
+    "file": "toride.b",
+    "find": "filter((k) -> not member?(k, known), keys)",
+    "replace": "filter((k) -> false, keys)"
+  },
+  {
+    "name": "services is an unknown setting",
+    "file": "toride.b",
+    "find": "%w[sites nodes services]",
+    "replace": "%w[sites nodes]"
+  },
+  {
+    "name": "an absent setting has no default",
+    "file": "toride.b",
+    "find": "[:ok, get(defaults, first(s))]",
+    "replace": "[:ok, nil]"
+  },
+  {
+    "name": "a refused setting is applied",
+    "file": "toride.b",
+    "find": "        if first(r) == :ok\n          assoc(acc, first(s), last(r))",
+    "replace": "        if true\n          assoc(acc, first(s), last(r))"
+  },
+  {
+    "name": "entry refusals are dropped",
+    "file": "toride.b",
+    "find": "append(append(read[:refusals], bads(site_rs)), bads(entry_rs))",
+    "replace": "append(read[:refusals], bads(site_rs))"
+  },
+  {
+    "name": "an empty object is unreadable",
+    "file": "toride.b",
+    "find": "  doc == {} or\n",
+    "replace": "  false or\n"
+  },
+  {
+    "name": "a three-item pair is an object",
+    "file": "toride.b",
+    "find": "      size(first(doc)) == 2 and\n",
+    "replace": ""
+  },
+  {
+    "name": "a non-string key is an object",
+    "file": "toride.b",
+    "find": "      string?(first(first(doc)))",
+    "replace": "      true"
+  },
+  {
+    "name": "a link-layer default is the gateway",
+    "file": "toride.b",
+    "find": "r[:dest] == \"default\" and ipv4?(r[:gateway])",
+    "replace": "r[:dest] == \"default\""
+  },
+  {
+    "name": "ifconfig reads inet6",
+    "file": "toride.b",
+    "find": "filter((f) -> first(f) == \"inet\", map(fields",
+    "replace": "filter((f) -> first(f) == \"inet6\", map(fields"
+  },
+  {
+    "name": "ifconfig needs no netmask",
+    "file": "toride.b",
+    "find": "if fs.nil? or mask.nil? or not ipv4?(fs[1])",
+    "replace": "if fs.nil? or not ipv4?(fs[1])"
+  },
+  {
+    "name": "ifconfig needs no IPv4",
+    "file": "toride.b",
+    "find": "if fs.nil? or mask.nil? or not ipv4?(fs[1])",
+    "replace": "if fs.nil? or mask.nil?"
+  },
+  {
+    "name": "ip addr reads any interface",
+    "file": "toride.b",
+    "find": "(f) -> size(f) > 3 and f[1] == iface",
+    "replace": "(f) -> size(f) > 3"
+  },
+  {
+    "name": "ip addr needs no IPv4",
+    "file": "toride.b",
+    "find": "if a.nil? or size(ps) != 2 or not ipv4?(first(ps))",
+    "replace": "if a.nil? or size(ps) != 2"
+  },
+  {
+    "name": "arp keeps a non-IPv4 row",
+    "file": "toride.b",
+    "find": "if ip != nil and ipv4?(ip) and mac != nil",
+    "replace": "if ip != nil and mac != nil"
+  },
+  {
+    "name": "arp keeps an incomplete row",
+    "file": "toride.b",
+    "find": "and mac != nil and normal_mac(mac) != nil\n    {ip:, mac: normal_mac(mac), iface: after_word(fs, \"on\")}",
+    "replace": "and mac != nil\n    {ip:, mac: normal_mac(mac), iface: after_word(fs, \"on\")}"
+  },
+  {
+    "name": "arp forgets the interface",
+    "file": "toride.b",
+    "find": "iface: after_word(fs, \"on\")",
+    "replace": "iface: \"en0\""
+  },
+  {
+    "name": "neigh keeps an IPv6 row",
+    "file": "toride.b",
+    "find": "      ipv4?(first(fs)) and\n",
+    "replace": ""
+  },
+  {
+    "name": "neigh keeps a bad lladdr",
+    "file": "toride.b",
+    "find": "      mac != nil and\n      normal_mac(mac) != nil\n",
+    "replace": "      mac != nil\n"
+  },
+  {
+    "name": "neigh forgets the interface",
+    "file": "toride.b",
+    "find": "iface: after_word(fs, \"dev\")",
+    "replace": "iface: \"wlo1\""
+  },
+  {
+    "name": "a redacted MAC is a reading",
+    "file": "toride.b",
+    "find": "r[:ip] == ip and r[:iface] == iface and not redacted?(r[:mac])",
+    "replace": "r[:ip] == ip and r[:iface] == iface"
+  },
+  {
+    "name": "a missing MAC is a reading",
+    "file": "toride.b",
+    "find": "  if r.nil?\n    :unread\n  else\n    r[:mac]",
+    "replace": "  if r.nil?\n    nil\n  else\n    r[:mac]"
+  },
+  {
+    "name": "an unread MAC that is needed is ignored",
+    "file": "toride.b",
+    "find": "  pool = if mac == :unread and not is_empty(needs)",
+    "replace": "  pool = if false"
+  },
+  {
+    "name": "an unmatched MAC empties the pool",
+    "file": "toride.b",
+    "find": "  elsif mac == :unread or is_empty(matched)\n    loose",
+    "replace": "  elsif mac == :unread\n    loose"
+  },
+  {
+    "name": "an unread MAC that is needed reads unknown",
+    "file": "toride.b",
+    "find": "  if pool.nil?\n    :unread",
+    "replace": "  if pool.nil?\n    :unknown"
+  },
+  {
+    "name": "no site left is unread",
+    "file": "toride.b",
+    "find": "  elsif is_empty(pool)\n    :unknown",
+    "replace": "  elsif is_empty(pool)\n    :unread"
+  },
+  {
+    "name": "a tie picks one",
+    "file": "toride.b",
+    "find": "elsif size(pool) > 1",
+    "replace": "elsif size(pool) > 2"
+  },
+  {
+    "name": "every MAC matches",
+    "file": "toride.b",
+    "find": "matched = filter((c) -> c[:gateway_mac] == mac, needs)",
+    "replace": "matched = filter((c) -> true, needs)"
+  },
+  {
+    "name": "a live probe keeps the streak",
+    "file": "toride.b",
+    "find": "  if reachable\n    [:up, 0]",
+    "replace": "  if reachable\n    [:up, streak]"
+  },
+  {
+    "name": "the threshold is passed, not reached",
+    "file": "toride.b",
+    "find": "elsif streak + 1 >= threshold",
+    "replace": "elsif streak + 1 > threshold"
+  },
+  {
+    "name": "down is reported up",
+    "file": "toride.b",
+    "find": "    [:down, streak + 1]",
+    "replace": "    [:up, streak + 1]"
+  },
+  {
+    "name": "no default route is unread",
+    "file": "toride.b",
+    "find": "  elsif gw.nil?\n    :unknown",
+    "replace": "  elsif gw.nil?\n    :unread"
+  },
+  {
+    "name": "an unread address is matched",
+    "file": "toride.b",
+    "find": "  elsif not local_r[:ok]\n    :unread\n  else\n    match_site",
+    "replace": "  else\n    match_site"
+  },
+  {
+    "name": "the gateway is not compared",
+    "file": "toride.b",
+    "find": "            s[:gateway] == gw[:gateway]",
+    "replace": "            true"
+  },
+  {
+    "name": "the subnet is not compared",
+    "file": "toride.b",
+    "find": "          inside?(local_r[:value][:addr], s[:net]) and",
+    "replace": "          true and"
+  },
+  {
+    "name": "unread routes read a site",
+    "file": "toride.b",
+    "find": "  site = if not routes_r[:ok]\n    :unread",
+    "replace": "  site = if not routes_r[:ok]\n    :unknown"
+  },
+  {
+    "name": "unread routes read a gateway",
+    "file": "toride.b",
+    "find": "  g = if not routes_r[:ok]\n    [:unread, streak]",
+    "replace": "  g = if not routes_r[:ok]\n    [:down, streak]"
+  },
+  {
+    "name": "no default route leaves the gateway up",
+    "file": "toride.b",
+    "find": "[:down, cfg[:fail_threshold]]",
+    "replace": "[:up, cfg[:fail_threshold]]"
+  },
+  {
+    "name": "an unmade probe reads up",
+    "file": "toride.b",
+    "find": "  elsif not probe_r[:ok]\n    [:unread, streak]",
+    "replace": "  elsif not probe_r[:ok]\n    [:up, streak]"
+  },
+  {
+    "name": "the local network is not rounded",
+    "file": "toride.b",
+    "find": "      network: floor(\n",
+    "replace": "      network: 1 + floor(\n"
+  },
+  {
+    "name": "a keyword site is taken as a name",
+    "file": "toride.b",
+    "find": "  if not string?(site)\n    site",
+    "replace": "  if not string?(site)\n    :elsewhere"
+  },
+  {
+    "name": "home reads as elsewhere",
+    "file": "toride.b",
+    "find": "  elsif entry_site == site\n    :here",
+    "replace": "  elsif entry_site == site\n    :elsewhere"
+  },
+  {
+    "name": "everything on a known network is inside",
+    "file": "toride.b",
+    "find": "lan: if run[:local] != nil and inside?(e[:lan], run[:local])",
+    "replace": "lan: if run[:local] != nil"
+  },
+  {
+    "name": "a LAN answer serves the tailnet address",
+    "file": "toride.b",
+    "find": "  address = if o[:kind] == :serve and o[:via] == :lan\n    e[:lan]",
+    "replace": "  address = if o[:kind] == :serve and o[:via] == :lan\n    e[:tailnet]"
+  },
+  {
+    "name": "a tailnet answer serves the LAN address",
+    "file": "toride.b",
+    "find": "  elsif o[:kind] == :serve\n    e[:tailnet]",
+    "replace": "  elsif o[:kind] == :serve\n    e[:lan]"
+  },
+  {
+    "name": "a withheld name gets an address line",
+    "file": "toride.b",
+    "find": "            if a[:address] != nil\n",
+    "replace": "            if true\n"
+  },
+  {
+    "name": "a withheld line drops its reason",
+    "file": "toride.b",
+    "find": "\"# withheld #{d}: #{to_s(a[:outcome][:reason])}\"",
+    "replace": "\"# withheld #{d}\""
+  },
+  {
+    "name": "the header drops the gateway",
+    "file": "toride.b",
+    "find": "\"# site: #{site_label(run[:site])} gateway: #{to_s(run[:gateway])}\"",
+    "replace": "\"# site: #{site_label(run[:site])}\""
+  },
+  {
+    "name": "a blind run is written",
+    "file": "toride.b",
+    "find": "  if not is_empty(blind_axes(run))",
+    "replace": "  if false"
+  },
+  {
+    "name": "an unchanged file is rewritten",
+    "file": "toride.b",
+    "find": "    result = if read_or(path, \"\") == text",
+    "replace": "    result = if false"
+  },
+  {
+    "name": "a dry run writes",
+    "file": "toride.b",
+    "find": "    elsif cfg[:dry_run]\n      \"would-write\"",
+    "replace": "    elsif false\n      \"would-write\""
+  },
+  {
+    "name": "a failed write is not named",
+    "file": "toride.b",
+    "find": "    elsif write_atomic(path, text) != true",
+    "replace": "    elsif false"
+  },
+  {
+    "name": "a failed reload is not named",
+    "file": "toride.b",
+    "find": "    elsif reloaded(io, cfg[:reload]) != 0",
+    "replace": "    elsif false"
+  },
+  {
+    "name": "the write never lands",
+    "file": "toride.b",
+    "find": "  rename_file(\"#{path}.tmp\", path)\n  true",
+    "replace": "  true"
+  },
+  {
+    "name": "no ports is a probe",
+    "file": "toride.b",
+    "find": "    bad(\"probe: no ports\")",
+    "replace": "    ok(false)"
+  },
+  {
+    "name": "the shared timeout may be zero",
+    "file": "toride.b",
+    "find": "    per = if share < 1\n      1",
+    "replace": "    per = if share < 1\n      0"
+  },
+  {
+    "name": "an unmade probe reads as answered",
+    "file": "toride.b",
+    "find": "    if r.nil?\n      bad(\"probe:",
+    "replace": "    if false\n      bad(\"probe:"
+  },
+  {
+    "name": "an empty port list reaches",
+    "file": "toride.b",
+    "find": "  if is_empty(ports)\n    false",
+    "replace": "  if is_empty(ports)\n    true"
+  },
+  {
+    "name": "a reached port is not reached",
+    "file": "toride.b",
+    "find": "number?(tcp_connect_ms(addr, first(ports), per))",
+    "replace": "false"
+  },
+  {
+    "name": "the nixos route table is read as netstat",
+    "file": "toride.b",
+    "find": "    if nixos\n      parse_ip_route",
+    "replace": "    if nixos\n      parse_netstat"
+  },
+  {
+    "name": "the nixos address is read as ifconfig",
+    "file": "toride.b",
+    "find": "          (t) -> parse_ip_addr(t, gw[:iface])",
+    "replace": "          parse_ifconfig"
+  },
+  {
+    "name": "the nixos neighbours are read as arp",
+    "file": "toride.b",
+    "find": "        if nixos\n          parse_ip_neigh",
+    "replace": "        if nixos\n          parse_arp"
+  },
+  {
+    "name": "no default route is observed further",
+    "file": "toride.b",
+    "find": "  if gw.nil?\n    {\n      routes:,",
+    "replace": "  if false\n    {\n      routes:,"
+  },
+  {
+    "name": "nixos reads routes with netstat",
+    "file": "toride.b",
+    "find": "    ip_route_argv(cfg[:ip])",
+    "replace": "    [cfg[:netstat], \"-rn\", \"-f\", \"inet\"]"
+  },
+  {
+    "name": "nixos reads the address with ifconfig",
+    "file": "toride.b",
+    "find": "[cfg[:ip], \"-4\", \"-o\", \"addr\", \"show\", \"dev\", iface]",
+    "replace": "[cfg[:ifconfig], iface]"
+  },
+  {
+    "name": "nixos reads neighbours with arp",
+    "file": "toride.b",
+    "find": "[cfg[:ip], \"-4\", \"neigh\", \"show\", \"dev\", iface]",
+    "replace": "[cfg[:arp], \"-an\"]"
+  },
+  {
+    "name": "the streak is forgotten",
+    "file": "toride.b",
+    "find": "streak: get_if(doc, \"streak\", integer?, 0)",
+    "replace": "streak: 0"
+  },
+  {
+    "name": "the run count is forgotten",
+    "file": "toride.b",
+    "find": "runs: get_if(doc, \"runs\", integer?, 0)",
+    "replace": "runs: 0"
+  },
+  {
+    "name": "withheld is counted as served",
+    "file": "toride.b",
+    "find": "withheld=#{to_s(size(c[:answers]) - size(served))}",
+    "replace": "withheld=#{to_s(size(served))}"
+  },
+  {
+    "name": "the heartbeat never beats",
+    "file": "toride.b",
+    "find": "runs % heartbeat == 0",
+    "replace": "runs % heartbeat == 1"
+  },
+  {
+    "name": "a changed line is quiet",
+    "file": "toride.b",
+    "find": "  line != prior_line or",
+    "replace": "  false or"
+  },
+  {
+    "name": "an unreadable config is observed",
+    "file": "toride.b",
+    "find": "  r = if cfg[:readable]",
+    "replace": "  r = if true"
+  },
+  {
+    "name": "runs count twice",
+    "file": "toride.b",
+    "find": "  runs = prior[:runs] + 1",
+    "replace": "  runs = prior[:runs] + 2"
+  },
+  {
+    "name": "refusals are not recorded",
+    "file": "toride.b",
+    "find": "    refused: map(last, refusals)",
+    "replace": "    refused: []"
+  }
+]

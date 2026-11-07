@@ -56,6 +56,7 @@ generate("kiwari-spec", "crates/blue-lang-kiwari/blue.kiwari.json", "gen/kiwari/
 # The language reference, from `blue reference` (the tables the implementation
 # runs on) and, to say which built-in names a bidama redefines, the bidamas.
 generate("reference", "docs/REFERENCE.md", "gen/reference.b", ["bidamas"])
+generate("diagnostics", "docs/DIAGNOSTICS.md", "gen/diagnostics.b", ["gen/diagnostics.md"])
 
 # The golden corpus as one file of examples, from examples/ (a blue project of
 # its own, run by `checks.examples`).

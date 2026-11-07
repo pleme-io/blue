@@ -4,8 +4,9 @@ mokuroku (目録): the catalogue of what every bidama on a BLUE_PATH provides.
 Before anyone writes blue, the first question is "what do we already have?".
 Without this, the answer was a grep, and a grep cannot say what a function is
 for. mokuroku reads every package under the given roots: its manifest
-(package, version, needs), its gloss (the first line of its `@moduledoc`), its
-tests, and every top-level `def` with its `@doc`.
+(package and version from the Bluefile; needs and reach from the
+`Bluefile.lock`, which B0019 keeps true), its gloss (the first sentence of its
+`@moduledoc`), its tests, and every top-level `def` with its `@doc`.
 The same scan serves three consumers:
 
   render_markdown   the catalogue a person or agent reads. Committed as
@@ -26,8 +27,9 @@ of a Bluefile. Every def in the distribution is a top-level `def` line, so
 the text view is exact for today's corpus. A def produced by a macro would
 not be seen; the fix is a parser-backed scan, not a cleverer split.
 
-A package record is [name, version, needs, gloss, entries, tests], and an
-entry is [def_name, signature, doc_lines].
+A package record is [name, version, needs, gloss, entries, tests], with the
+optional slots legacy prefix, directory and reach after them, and an entry is
+[def_name, signature, doc_lines].
 
     code_tokens("") #=> []
 """
@@ -228,15 +230,38 @@ def joined_header_lines(lines)
   first(state)
 end
 
+@doc """
+gloss_of_text: The first sentence of a source's `@moduledoc`: its first paragraph up to the
+first period that ends a sentence, joined onto one line, or "" when it has no
+`@moduledoc`.
+
+    gloss_of_text("x = 1") #=> ""
+"""
 def gloss_of_text(text)
   after = drop_while(
     (l) -> not starts_with?(l, "@moduledoc "),
     split(text, line_break)
   )
-  if size(after) < 2 or after[1] == "\"\"\""
-    ""
+  paragraph = take_while(
+    (l) -> blue::trim(l) != "" and l != "\"\"\"",
+    drop(1, after)
+  )
+  first_sentence(join(map((l) -> blue::trim(l), paragraph), " "))
+end
+
+@doc """
+first_sentence: The text up to and including its first period followed by a space, or the
+whole text when no period ends a sentence before its end.
+
+    first_sentence("One. Two.") #=> "One."
+    first_sentence("see `a.b` here") #=> "see `a.b` here"
+"""
+def first_sentence(text)
+  parts = split(text, ". ")
+  if size(parts) < 2
+    text
   else
-    after[1]
+    "#{first(parts)}."
   end
 end
 
@@ -418,19 +443,70 @@ def level_entries(sources)
   )
 end
 
+@doc """
+lock_manifest: The manifest of the `Bluefile.lock` in a package directory, or nil when the
+directory holds no lock.
+
+    lock_manifest("/no/such") #=> nil
+"""
+def lock_manifest(dir)
+  path = path_join(dir, "Bluefile.lock")
+  if is_file?(path)
+    json_read(read_file(path))["manifest"]
+  end
+end
+
+@doc """
+locked_needs: The packages a lock manifest records as needs, sorted: the set B0019 holds
+equal to the package's `use`s.
+
+    locked_needs({"needs" => {"retsu" => "^0.1.0", "baito" => "^0.1.0"}}) #=> %w[baito retsu]
+    locked_needs({}) #=> []
+"""
+def locked_needs(manifest)
+  needs = manifest["needs"]
+  if needs.nil?
+    []
+  else
+    sort_by((n) -> n, map(first, map_entries(needs)))
+  end
+end
+
+@doc """
+locked_reach: The capabilities a lock manifest records as the package's declared reach, sorted,
+or nil when the package declares none.
+
+    locked_reach({"reach" => %w[process filesystem]}) #=> %w[filesystem process]
+    locked_reach({}) #=> nil
+"""
+def locked_reach(manifest)
+  reach = manifest["reach"]
+  if reach != nil
+    sort_by((c) -> c, reach)
+  end
+end
+
 def package_record(dir)
   manifest = parse_manifest(read_file(concat(dir, "/Bluefile")))
+  locked = lock_manifest(dir)
   all_text = package_text(dir)
   levels = level_sources(dir)
   [
     manifest[0],
     manifest[1],
-    manifest[2],
+    if locked.nil?
+      manifest[2]
+    else
+      locked_needs(locked)
+    end,
     gloss_of_text(all_text),
     concat_lists(entries_of_text(all_text), level_entries(levels)),
     reduce((n, s) -> n + tests_in_text(s[1]), tests_in_text(all_text), levels),
     legacy_prefix_of_text(all_text),
-    dir
+    dir,
+    if locked != nil
+      locked_reach(locked)
+    end
   ]
 end
 
@@ -499,6 +575,25 @@ pkg_dir: The directory the package was read from, or nil for a record built by h
 """
 def pkg_dir(r)
   pkg_optional(r, 7)
+end
+
+@doc """
+pkg_reach: The capabilities the package's lock records as its reach, or nil for a record
+read without a lock.
+
+    pkg_reach(["p", "1"]) #=> nil
+"""
+def pkg_reach(r)
+  pkg_optional(r, 8)
+end
+
+@doc """
+pkg_documented: How many of the package's public definitions carry a `@doc`.
+
+    pkg_documented(["p", "1", [], "", [["f", "f()", ["f: one."]], ["g", "g()", []]], 0]) #=> 1
+"""
+def pkg_documented(r)
+  count_where((e) -> not is_empty(e[2]), pkg_entries(r))
 end
 
 @doc """
@@ -607,6 +702,54 @@ def pkg_summary_row(r)
 end
 
 @doc """
+pkg_reach_text: The reach cell: the capabilities the lock records, `pure` for a declared empty
+reach, `—` when the package declares no reach or has no lock.
+
+    pkg_reach_text(["p", "1", [], "", [], 0, nil, nil, []]) #=> "pure"
+    pkg_reach_text(["p", "1", [], "", [], 0, nil, nil, %w[filesystem process]]) #=> "filesystem, process"
+"""
+def pkg_reach_text(r)
+  reach = pkg_reach(r)
+  if reach.nil?
+    "—"
+  elsif is_empty(reach)
+    "pure"
+  else
+    join(reach, ", ")
+  end
+end
+
+@doc """
+pkg_quality_row: The quality-signals row of a package: documented public definitions over
+public definitions, tests, and reach, each computed from the package's files.
+
+    pkg_quality_row(["p", "1", [], "", [["f", "f()", ["f: one."]]], 2]) #=> "| [`p`](#p) | 1/1 | 2 | — |"
+"""
+def pkg_quality_row(r)
+  "| [`#{pkg_name(r)}`](##{pkg_name(r)}) | #{to_s(pkg_documented(r))}/#{to_s(size(pkg_entries(r)))} | #{to_s(pkg_tests(r))} | #{md_cell(pkg_reach_text(r))} |"
+end
+
+@doc """
+quality_section: The quality signals of every package, computed from the files the catalogue
+reads and the package's `Bluefile.lock`, never claimed.
+
+    quality_section([])[0] #=> "## Quality signals"
+"""
+def quality_section(records)
+  concat_lists(
+    [
+      "## Quality signals",
+      "",
+      "Computed from each package's files and its `Bluefile.lock`: `docs` is the public definitions with a `@doc` over all of them, `tests` the `test` blocks, `reach` the capabilities the lock records from the package's `reach` declaration (`—` when it declares none, `pure` when it declares an empty reach).",
+      "",
+      "| package | docs | tests | reach |",
+      "|---|---|---|---|"
+    ],
+    map(pkg_quality_row, records)
+  )
+end
+
+@doc """
 other_name: The definition's other name, from the package's `legacy_names`: the old,
 prefixed spelling of a renamed definition (a bridge), or the stripped name
 of one that kept its prefix (a second name, for good).
@@ -685,6 +828,8 @@ def render_markdown(records)
   unlines(
     [
       join(concat_lists(header, map(pkg_summary_row, records)), line_break),
+      "",
+      join(quality_section(records), line_break),
       "",
       join(body, unlines(["", ""])),
       "",
@@ -2744,7 +2889,7 @@ test "a def's doc is its @doc; a comment documents nothing"
   assert is_empty(last(es)[2]) == true
 end
 
-test "the gloss is the first line of the @moduledoc"
+test "the gloss is the first sentence of the @moduledoc, however its lines wrap"
   assert gloss_of_text(
     unlines(
       [
@@ -2757,6 +2902,19 @@ test "the gloss is the first line of the @moduledoc"
       ]
     )
   ) == "kazu (数): numbers."
+  assert gloss_of_text(
+    unlines(
+      [
+        "@moduledoc \"\"\"",
+        "kake (架): blue speaks Nix, and a rebuild does",
+        "only the work that changed (theory/K.md). Six levels.",
+        "",
+        "More.",
+        "\"\"\""
+      ]
+    )
+  ) ==
+    "kake (架): blue speaks Nix, and a rebuild does only the work that changed (theory/K.md)."
   assert gloss_of_text(
     unlines(["# kazu: a comment.", "def f()", "  1", "end"])
   ) == ""
@@ -3492,6 +3650,72 @@ def ut_graph()
       %w[gauge? gauge exists:moji seven]
     ]
   )
+end
+
+test "needs and reach come from the lock, and the quality row counts docs and tests from the files"
+  dir = path_join(getenv("TMPDIR", "/tmp"), "mokuroku-ut-lock")
+  rm_rf(dir)
+  mkdir_p(dir)
+  write_file(
+    path_join(dir, "Bluefile"),
+    unlines(["package(\"locked\", \"0.1.0\")"])
+  )
+  write_file(
+    path_join(dir, "Bluefile.lock"),
+    json_write(
+      {
+        "manifest" => {
+          "needs" => {"retsu" => "^0.1.0", "moji" => "^0.1.0"},
+          "reach" => %w[process filesystem]
+        }
+      }
+    )
+  )
+  write_program(
+    path_join(dir, "locked.b"),
+    unlines(
+      [
+        "@doc \"\"\"",
+        "said: one.",
+        "\"\"\"",
+        "def said(a)",
+        "  a",
+        "end",
+        "",
+        "def unsaid(a)",
+        "  a",
+        "end",
+        "",
+        "test \"t\"",
+        "  assert said(1) == 1",
+        "end"
+      ]
+    )
+  )
+  r = package_record(dir)
+  assert pkg_needs(r) == %w[moji retsu]
+  assert pkg_reach(r) == %w[filesystem process]
+  md = render_markdown([r])
+  assert contains?(md, "| [`locked`](#locked) | 0.1.0 | moji, retsu |") == true
+  assert contains?(
+    md,
+    "| [`locked`](#locked) | 1/2 | 1 | filesystem, process |"
+  ) == true
+  assert contains?(md, "`locked` 0.1.0 · needs: moji, retsu") == true
+end
+
+test "a package with no lock keeps its Bluefile needs and reads its reach as unknown"
+  dir = path_join(getenv("TMPDIR", "/tmp"), "mokuroku-ut-nolock")
+  rm_rf(dir)
+  mkdir_p(dir)
+  write_file(
+    path_join(dir, "Bluefile"),
+    unlines(["package(\"loose\", \"0.1.0\")", "needs(\"retsu\", \"^0.1\")"])
+  )
+  write_program(path_join(dir, "loose.b"), unlines(["def f(a)", "  a", "end"]))
+  r = package_record(dir)
+  assert pkg_needs(r) == ["retsu"]
+  assert pkg_reach_text(r) == "—"
 end
 
 test "a file that opens with namespace() is a level, and a data directory is not"

@@ -15,6 +15,7 @@ Bluefile.lock merge=blue-generated
 /crates/blue-lang-runtime/src/word_shapes/tables.rs merge=blue-generated
 /crates/blue-lang-syntax/src/kigou/tables.rs merge=blue-generated
 /docs/BOOK.md merge=blue-generated
+/docs/DIAGNOSTICS.md merge=blue-generated
 /docs/EXAMPLES.md merge=blue-generated
 /docs/REFERENCE.md merge=blue-generated
 /docs/verbs/contracts.tsv merge=blue-generated

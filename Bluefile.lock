@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:2e494fa01632883606a72f76ef977506d5914d219e7cb93f2ac17e58c3a222c9",
+  "bluefile_b3": "b3:c28b3e62c8f7d7ffcc3b939294854443a5d5ec877ceca8bfe05e1233ac2fd724",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -143,6 +143,13 @@
         "program": "gen/verbs/contracts.b",
         "inputs": [
           "bidamas"
+        ]
+      },
+      "diagnostics": {
+        "output": "docs/DIAGNOSTICS.md",
+        "program": "gen/diagnostics.b",
+        "inputs": [
+          "gen/diagnostics.md"
         ]
       },
       "edges-table": {

@@ -252,7 +252,7 @@ rendered:
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-65 packages, 5708 definitions, 1900 tests.
+65 packages, 5717 definitions, 1902 tests.
 
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
 - [baito](bidamas/CATALOG.md#baito) (バイト) — bytes as data: integers at a declared width and order, and record layouts that say where each field sits.
@@ -278,11 +278,11 @@ rendered:
 - [jisho](bidamas/CATALOG.md#jisho) (辞書) — dictionaries: maps as values, read and changed by key, each change a new map.
 - [junjo](bidamas/CATALOG.md#junjo) (順序) — ordering: sorting, searching, selection.
 - [kaaneru](bidamas/CATALOG.md#kaaneru) (カーネル) — the Linux kernel, spoken from blue: maps, programs, links and ring buffers over `bpf(2)`, with every struct a `baito` layout and no C library in the path.
-- [kakehashi](bidamas/CATALOG.md#kakehashi) (架け橋, a bridge) — blue speaks Nix, Nix runs blue, and a rebuild does
+- [kakehashi](bidamas/CATALOG.md#kakehashi) (架け橋, a bridge) — blue speaks Nix, Nix runs blue, and a rebuild does only the work that changed (theory/KAKEHASHI.md).
 - [kansuu](bidamas/CATALOG.md#kansuu) (関数) — functions about functions.
 - [kazu](bidamas/CATALOG.md#kazu) (数) — numbers.
 - [keiyu](bidamas/CATALOG.md#keiyu) (経由) — by way of: run one command with a proxy set for it alone.
-- [khipu](bidamas/CATALOG.md#khipu) — blue's knowledge graph (docs/KHIPU.md): RDF terms as a closed sum, quads, and N-Triples and N-Quads read and written. A literal with both a language tag and a datatype has no constructor, an IRI or a language tag that is not valid is refused where it is read, and a blank node carries the scope of the document it came from, so two documents' `_:b` are two nodes.
+- [khipu](bidamas/CATALOG.md#khipu) — blue's knowledge graph (docs/KHIPU.md): RDF terms as a closed sum, quads, and N-Triples and N-Quads read and written.
 - [kiwari](bidamas/CATALOG.md#kiwari) (木割): one grammar spec, every syntax artifact emitted from it.
 - [kodou](bidamas/CATALOG.md#kodou) (鼓動) — the dual-pulse wire: a Flash channel paced by ibuki's token bucket and a Tide channel paced by ibuki's LEDBAT controller from the one-way delay each acknowledgement measures, over one UDP socket the host frames (0x02 Flash, 0x01 Tide); and the gossip of crash proofs on it: an alert on Flash, the artifact on Tide when a peer asks for it, verified by its content hash and kept in kensa's `kensa-immunity.v1` file.
 - [koubou](bidamas/CATALOG.md#koubou) (工房, workshop) — shapes made, measured and cut.
@@ -290,7 +290,7 @@ rendered:
 - [koutei](bidamas/CATALOG.md#koutei) (工程) — one step of a pipeline, as GitHub Actions runs it.
 - [kueri](bidamas/CATALOG.md#kueri) (クエリ) — queries: analysis is authored in blue, and SQL is only the rendered bridge to DuckDB.
 - [kyohi](bidamas/CATALOG.md#kyohi) (拒否) — refusals, as data.
-- [maakuappu](bidamas/CATALOG.md#maakuappu) (マークアップ) — XML as data: a document parsed by the runtime's xml_parse (quick-xml) into element maps {name, attributes, children, text}, the queries a reader of a scanner export asks of it (children and descendants by name, attributes, text, a path of element names), and the element rendered back with every value escaped. A DTD entity is never expanded or fetched: the document is refused (:xml_refused), and a document that is not well-formed raises :xml_malformed.
+- [maakuappu](bidamas/CATALOG.md#maakuappu) (マークアップ) — XML as data: a document parsed by the runtime's xml_parse (quick-xml) into element maps {name, attributes, children, text}, the queries a reader of a scanner export asks of it (children and descendants by name, attributes, text, a path of element names), and the element rendered back with every value escaped.
 - [mitoshi](bidamas/CATALOG.md#mitoshi) (見通し, a clear view ahead) — what a running program shows of itself.
 - [moji](bidamas/CATALOG.md#moji) (文字) — strings.
 - [mokuroku](bidamas/CATALOG.md#mokuroku) (目録): the catalogue of what every bidama on a BLUE_PATH provides.
@@ -299,12 +299,12 @@ rendered:
 - [ran](bidamas/CATALOG.md#ran) (乱) — deterministic pseudo-randomness.
 - [retsu](bidamas/CATALOG.md#retsu) (列) — lists, made TOTAL.
 - [ronri](bidamas/CATALOG.md#ronri) (論理) — predicates, and the algebra over them.
-- [sabi](bidamas/CATALOG.md#sabi) (錆): Rust source from blue data. Build the items as values, render once.
+- [sabi](bidamas/CATALOG.md#sabi) (錆): Rust source from blue data.
 - [saishikou](bidamas/CATALOG.md#saishikou) (再試行) — retrying a step that can fail for a moment.
 - [seimei](bidamas/CATALOG.md#seimei) (生命) — cellular automata: elementary rules, and Life.
-- [settei](bidamas/CATALOG.md#settei) (設定) — configuration, blue's shikumi: a record of defaults grouped by concern, resolved by read(app, defaults) from the defaults, then ~/.config/<app>/<app>.yaml (or <APP>_CONFIG), then <APP>_<GROUP>__<KEY> in the environment, each value typed by its default and a wrong type refused. The resolved record is read by dotted path; a misspelt path raises and names the fields that exist.
+- [settei](bidamas/CATALOG.md#settei) (設定) — configuration, blue's shikumi: a record of defaults grouped by concern, resolved by read(app, defaults) from the defaults, then ~/.config/<app>/<app>.yaml (or <APP>_CONFIG), then <APP>_<GROUP>__<KEY> in the environment, each value typed by its default and a wrong type refused.
 - [shinchoku](bidamas/CATALOG.md#shinchoku) (進捗) — progress: operational probes that judge by progress over a window, never by one reading.
-- [shinsatsu](bidamas/CATALOG.md#shinsatsu) (診察) — the credential doctor: a provider, the failure classes its credential helper can show, and for each class a diagnosis, the remediation steps and a verify step. A new provider or a new failure class is a declaration.
+- [shinsatsu](bidamas/CATALOG.md#shinsatsu) (診察) — the credential doctor: a provider, the failure classes its credential helper can show, and for each class a diagnosis, the remediation steps and a verify step.
 - [shinsuu](bidamas/CATALOG.md#shinsuu) (進数) — base conversion and checksums.
 - [shisutemu](bidamas/CATALOG.md#shisutemu) (システム) — the system.
 - [shomei](bidamas/CATALOG.md#shomei) (署名) — signatures and hash chains: Ed25519 and BLAKE3, for real.

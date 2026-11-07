@@ -85,7 +85,7 @@ fn a_syntax_error_is_a_json_diagnostic_too() {
     assert_eq!(v["line"], 2);
 }
 
-/// Every key the output uses is documented, and so is every code.
+/// Every key the output uses is documented, and the codes table is RULES, row for row.
 #[test]
 fn every_field_and_code_is_documented() {
     let doc = std::fs::read_to_string(
@@ -101,13 +101,28 @@ fn every_field_and_code_is_documented() {
         .filter(|k| !doc.contains(&format!("`{k}`")))
         .collect();
     assert!(missing.is_empty(), "undocumented JSON fields: {missing:?}");
-    for r in blue_lang_check::RULES {
-        assert!(
-            doc.contains(r.code.as_str()),
-            "{} is not in docs/DIAGNOSTICS.md",
-            r.code
-        );
-    }
+    let table: Vec<&str> = doc
+        .lines()
+        .skip_while(|l| *l != "## Codes")
+        .skip_while(|l| !l.starts_with("| B"))
+        .take_while(|l| l.starts_with("| B"))
+        .collect();
+    let registry: Vec<String> = blue_lang_check::RULES
+        .iter()
+        .map(|r| {
+            format!(
+                "| {} | {} | {} | {} |",
+                r.code.as_str(),
+                r.slug,
+                r.severity.label(),
+                r.law.replace('|', "\\|")
+            )
+        })
+        .collect();
+    assert_eq!(
+        table, registry,
+        "docs/DIAGNOSTICS.md's codes table is not RULES: run `nix run .#regen`"
+    );
 }
 
 fn collect_keys(v: &serde_json::Value, out: &mut std::collections::BTreeSet<String>) {

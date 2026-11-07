@@ -18,28 +18,28 @@ it; `blue explain --list` lists them.
 
 | code | slug | severity | law |
 |---|---|---|---|
-| B0001 | unbound-name | error | every name a program uses is bound |
+| B0001 | unbound-name | error | every name a program uses is bound: a local, a parameter, a definition, an imported bidama's definition, or a builtin |
 | B0002 | unused-binding | warning | a local binding is read at least once, or its name starts with `_` |
-| B0003 | return-type-mismatch | error | a typed definition's body produces its declared type |
-| B0004 | operand-type-mismatch | error | an operator in a typed definition gets operands of its type |
-| B0005 | argument-type-mismatch | error | a call to a typed definition passes the declared types |
+| B0003 | return-type-mismatch | error | a typed definition's body produces the type its signature declares |
+| B0004 | operand-type-mismatch | error | an operator inside a typed definition receives operands of the type it takes |
+| B0005 | argument-type-mismatch | error | a call to a typed definition passes arguments of the declared parameter types |
 | B0006 | syntax-error | error | a file parses |
-| B0007 | malformed-waiver | error | a waiver names a known, waivable code and gives a reason |
+| B0007 | malformed-waiver | error | a waiver names a known, waivable code and gives a reason: `# waive B0002: <reason>` |
 | B0008 | unused-waiver | error | a waiver suppresses at least one diagnostic |
-| B0009 | ambiguous-name | error | no two namespaces in one resolution tier define a name |
-| B0010 | qualifier-not-imported | error | a qualified name's level is one the file `use`s or one below it |
+| B0009 | ambiguous-name | error | a name resolves to one definition: no two namespaces in the same resolution tier define it |
+| B0010 | qualifier-not-imported | error | a qualified name's level is one the file `use`s or one below it: `retsu::first` needs `use("retsu")` |
 | B0011 | no-such-definition | error | a qualified name, or a name a `use` lists, is a definition of that level |
-| B0012 | implicit-reference | error | a bare name that is another bidama's definition is one the file lists, or is written qualified |
-| B0013 | prefixed-definition | error | a bidama's definition does not spell its bidama |
+| B0012 | implicit-reference | error | a bare name that is another bidama's definition is one the file lists: `use("retsu", [:first])`, or written `retsu::first` |
+| B0013 | prefixed-definition | error | a bidama's definition does not spell its bidama: `def parse` in `moji`, never `def moji_parse` |
 | B0014 | mangled-namespace | error | a bidama does not prefix nine in ten of its definitions with one short `x_` |
-| B0015 | non-canonical-import | error | a file's `use` forms come first, one per package, sorted, each list sorted |
-| B0016 | unused-import | error | every `use` is reached, and every name it lists is read |
+| B0015 | non-canonical-import | error | a file's `use` forms come first, one per package, sorted by package, each list sorted |
+| B0016 | unused-import | error | every `use` is reached by something in the file, and every name it lists is read |
 | B0017 | duplicate-definition | error | a namespace defines a function or macro once |
-| B0018 | redundant-qualifier | error | a qualifier changes what its name means |
-| B0019 | needs-mismatch | error | the bidamas a bidama `use`s are exactly the `needs` its Bluefile.lock records (`blue lock` derives them from the `use`s; a Bluefile `needs` row only narrows a range) |
-| B0020 | package-as-value | error | a bidama's name is written as a qualifier, never as a value |
-| B0021 | legacy-name | error | a renamed or moved definition is called by its new name; the old one is a bridge that closes at the next minor version |
-| B0022 | legacy-misuse | error | a `legacy_names` declaration is one of each form per bidama, dated from a version it has reached, names no name twice, and moves a name only to a definition a loaded bidama holds |
+| B0018 | redundant-qualifier | error | a qualifier changes what its name means: not a bidama's own definition, not a listed name, not a builtin already reached bare |
+| B0019 | needs-mismatch | error | the bidamas a bidama `use`s are exactly the `needs` its Bluefile.lock records |
+| B0020 | package-as-value | error | a bidama's name is written as a qualifier, `retsu::first(xs)`, never as a value |
+| B0021 | legacy-name | error | a renamed or moved definition is called by its new name; the old name is a bridge that closes at the next minor version |
+| B0022 | legacy-misuse | error | a `legacy_names` declaration is one of each form per bidama, dates from a version the bidama has reached, names no name twice, and moves a name only to a definition a loaded bidama holds |
 | B0023 | bare-nullary-call | error | a call to a function that takes no parameters is written bare: `now_ms`, never `now_ms()` |
 | B0024 | layout | error | a file is laid out as `blue fmt` writes it: indentation, line breaks at 80 columns, blank lines and parentheses |
 | B0025 | logical-words | error | logic is written in words: `a and b`, `a or b`, `not x`, never `&&`, `\|\|`, `!` |
@@ -62,9 +62,9 @@ it; `blue explain --list` lists them.
 | B0042 | splat | error | a list passed as a call's last arguments is written `f(a, *xs)`, never `apply(f, a, xs)` with `f` a name |
 | B0043 | prefixed-program | error | a program does not prefix every definition with one short `x_`: the file is the namespace |
 | B0044 | eta-reduction | error | a function that only forwards its parameters to a named function is that name: `map(describe, vs)`, never `map((v) -> describe(v), vs)` |
+| B0045 | redundant-conversion | warning | a conversion is not applied to a value it leaves alone: `to_s(to_s(x))` is `to_s(x)`, never the longer chain |
 | B0046 | map-pun | error | a map entry whose value is the variable of the same name is written `{name:}`, never `{name: name}` |
 | B0047 | nil-test | error | a nil test is written `x.nil?`, never `nil?(x)`, `x == nil` or `nil == x` |
-| B0045 | redundant-conversion | warning | a conversion is not applied to a value it leaves alone: `to_s(to_s(x))` is `to_s(x)`, never the longer chain |
 | B0048 | undeclared-field-read | error | a fragment ref is read only for the fields its fragment declares; a parent never reads a child's field |
 | B0049 | fragment-not-composed | error | a view's operation is the union of the fragments of the components it renders: a ref passed to a component comes from a selection that spreads its fragment, and every spread names a declared fragment |
 | B0050 | field-not-in-schema | error | every fragment's type and field, and every `labels` enum and key, is in the frontend's schema |
@@ -96,7 +96,11 @@ it; `blue explain --list` lists them.
 | B0079 | record-fields | error | a call of a record's constructor gives every field and no other, and a literal in a typed field has that type |
 | B0080 | return-position | error | a `return` ends a branch of an `if` or `case` that is a statement of a def body, where it is rewritten into if/else |
 
-The registry is the source of truth; a test fails if a code is missing here.
+The registry is the source of truth: `gen/diagnostics.b` renders this table
+from `blue reference`, which reads `RULES`, into this page, whose prose lives
+in `gen/diagnostics.md`. Edit that source and run `nix run .#regen`;
+`generated-diagnostics-fresh` fails when this page is stale, and a test fails
+when a row differs from the registry.
 
 ## Ratchets: how a rule becomes an error
 

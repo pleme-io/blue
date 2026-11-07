@@ -10,7 +10,6 @@ use std::sync::Arc;
 use tatara_lisp_eval::ffi::Arity;
 use tatara_lisp_eval::{EvalError, Interpreter, MapKey, Value};
 
-use std::collections::VecDeque;
 use std::sync::Mutex;
 use std::time::Duration;
 

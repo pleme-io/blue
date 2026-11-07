@@ -159,6 +159,28 @@ The rungs, compile time first:
    becomes a sparse Merkle tree keyed by shape hash, updated by the shapes
    that moved.
 
+**One store under every rung, packaged and spread** (operator, same day:
+"re-use and generalize the caching across all this", "package all the
+goodness up and spread it"). The five rungs are one primitive used five ways,
+not five caches. mondou's `Store` (`crates/blue-lang-mondou/src/store.rs`:
+`Identity`, `Bucket`, `Store`, already the memo store's and the test cache's
+root) becomes it:
+
+- **One key rule.** A key is BLAKE3 with a domain per use
+  (`blue check v1`, `blue test v1`, `blue memo v1`, `blue gen v1`), over the
+  engine identity and the hashes the result read. A result read under another
+  identity or domain is refused, never reused.
+- **One tier ladder.** Memory, then the local disk, then sui as the shared
+  tier; a miss falls through, a hit is promoted. Each entry carries its
+  provenance (who computed it, from which keys).
+- **One proof.** Every bucket's entries fold into a tameshi Merkle root, so
+  a hit can carry an inclusion proof and a bucket's whole state is one hash.
+- **Spread.** The store is a blue-lang crate any pleme-io Rust host links
+  (escriba, arnes, kensa, pangea-operator), and a bidama of blue words
+  (`get`, `put`, `memo`, `prove`) so a blue program caches by content with
+  the same keys, tiers and proofs. A new use is a new domain string, not a
+  new cache.
+
 Prerequisite: tameshi gates its Merkle code behind `full`, which brings tokio
 and axum; it gets a lean `merkle` feature (blake3 and `rs_merkle` only).
 **First step:** rung 1, measured: the flake checks' total check time before

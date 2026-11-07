@@ -515,8 +515,53 @@ A grant names the kinds and attach points it allows (tracing, XDP on one
 interface, LSM), as H15 attenuates the filesystem, and the chart's exact Linux
 capabilities derive from the kinds.
 
+**Full control of the BPF layer, joined to capabilities** (operator,
+2026-11-07, second brief: Linux as the hardware layer, policy in blue's
+programs). Measured the same day:
+
+| Part | State | Where |
+|---|---|---|
+| LSM, XDP, cgroup and `struct_ops` programs compiled and attached by `kaaneru` | built, measured on plo | `bidamas/kaaneru/kaaneru.b` (lsm kind, `attached`, `install_struct_ops`); `KERNEL.md` §6 |
+| An enforcer in blue | built, one target task | `kanshi/enforcer/program.b` (a one-slot map holding one tgid) |
+| A capability mask per cgroup in a BPF map, filled from the waku hold | absent | the missing primitive below |
+| AF_XDP to user space | absent | `xskmap` and `redirect_map` are names only (`bpf/bpf.b`) |
+| ibuki's wire header and Tide (LEDBAT) in the datapath | absent; Tide runs in the interpreter | `bidamas/ibuki/ibuki.b` (Tide controller) |
+| `sched_ext` | absent; the `struct_ops` loader is proven on TCP congestion control | `KERNEL.md` §6 |
+| Crash record and replay | built for the interpreter (blue-trace v3, `blue replay`); no kernel events in the trace | `crates/blue-lang-proc/src/trace.rs`, `crates/blue-lang-cli/src/replay.rs` |
+| A Linux guest from macOS | absent: the vm checks write `-absent` on darwin; kasou (Virtualization.framework) is not wired to tests | `nix/vm-check.nix` |
+| Kernel config asserted | partial: `lsm=landlock,yama,bpf` and `FPROBE`; `BPF_LSM`, `DEBUG_INFO_BTF`, `XDP_SOCKETS`, `SCHED_CLASS_EXT` are not asserted | `Bluefile` kernel matrix |
+
+Washed claims: Linux keeps hardware, page tables and the verifier, so it
+stays in the trusted base (not "zero authority"); a time ("nanoseconds") is
+a measurement on a named kernel, not a design property; replay of a kernel
+breach replays the recorded event into the interpreter, never the kernel.
+
+The parts, in order:
+
+1. **The capability frame in the kernel.** A BPF map keyed by cgroup id,
+   holding the frame's `Reach` as a mask, written when a service starts or an
+   actor spawns from the run-time hold (H13), and one generic program set that
+   reads it: `file_open`, `socket_connect`, `bprm_check_security`, device and
+   `sock_create`. A denied call returns `-EPERM` and writes a ring-buffer
+   event that the host records into blue-trace, so `blue replay` reproduces
+   the breach in the interpreter. kanshi's enforcer is the template.
+2. **A Linux guest from macOS.** One nix command boots a kernel with the
+   asserted config (`BPF_LSM`, `DEBUG_INFO_BTF`, `XDP_SOCKETS`,
+   `SCHED_CLASS_EXT`) under Virtualization.framework through kasou, shares the
+   checkout over virtiofs, and runs the vm checks, so the loop does not need
+   plo or a hosted KVM runner. The kernel matrix keeps its kernels; this adds
+   a host.
+3. **The wire in the datapath.** ibuki's header parsed in XDP, Flash frames
+   redirected to an AF_XDP socket, Tide's delay controller lowered from the
+   interpreter to tc or XDP with the same tests.
+4. **`sched_ext`.** A `sched_ext_ops` struct through the proven `struct_ops`
+   loader, with a dispatch queue for background actors that an interactive
+   wake preempts.
+
 **First step:** the generator and the load-everything gate on the matrix
-kernels, and the first compile rule it produces.
+kernels, and the first compile rule it produces. **Then** part 1 on plo: a
+service whose `access` lacks `network` is denied `connect` by the kernel.
+Red run: with the map entry absent, the connect succeeds and the test fails.
 **Gate:** red run: a generated program shape the compiler accepts and 6.6
 refuses fails the matrix, naming the shape; after the rule lands, the compiler
 refuses it with the blue line.

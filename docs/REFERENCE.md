@@ -100,6 +100,7 @@ Higher binding power binds tighter.
 | `assert_panics` | `assert_panics expr`: inside a test, pass only when `expr`, run in a child held to a pure frame, ends on a capability breach with no host call made. |
 | `fn` | `fn(x) x * 2 end`: an anonymous function, a value. Blue has no brace or do blocks. |
 | `case` | `case v when 1 … when 2 … else … end`: compares with `==`; `when point?` takes a value of a record the program declares. It does not destructure. |
+| `return` | `return x` ends a branch of an `if` or `case` in a def body: the rest of the body becomes the branches that did not return, so it costs nothing at run time. Anywhere else it is refused (B0080). |
 | `do` | Reserved and refused: blue has no do-blocks. Pass `fn(x) … end` instead. |
 | `end` | Closes `def`, `defmacro`, `if`, `case`, `fn`, `test` and `quote`. |
 | `else` | The branch of `if` or `case` taken when nothing before it matched. |
@@ -751,3 +752,4 @@ Every rule blue holds, from the registry the check stage runs (`blue explain COD
 | `B0077` | non-canonical-use | an import is written `use("a/b")` or `use("a/b", [:x])`: one level, its path as a slash string | autofix |
 | `B0078` | redundant-use | a file imports a tree once: a `use` that lists nothing, of a level below another `use` of the file, adds nothing | autofix |
 | `B0079` | record-fields | a call of a record's constructor gives every field and no other, and a literal in a typed field has that type | refused |
+| `B0080` | return-position | a `return` ends a branch of an `if` or `case` that is a statement of a def body, where it is rewritten into if/else | refused |

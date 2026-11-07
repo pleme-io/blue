@@ -182,7 +182,8 @@ pub fn format_source_lossless(src: &str) -> Result<String, FormatError> {
 /// output that does not carry every doc text of `src` is refused, as a lost
 /// comment is.
 pub fn format_tree_lossless(src: &str, tree: &[Spanned]) -> Result<String, FormatError> {
-    let tree = blue_lang_syntax::doc::redocument(src, tree.to_vec());
+    let tree =
+        blue_lang_syntax::guard::raise(src, blue_lang_syntax::doc::redocument(src, tree.to_vec()));
     let r = Renderer::lossless(src)?;
     let out = r.program(&tree);
     if doc_texts(src) != doc_texts(&out) {
@@ -905,6 +906,15 @@ impl<'s> Renderer<'s> {
                     .if_parts(s, "if")
                     .concat(Doc::hardline())
                     .concat(Doc::text("end"))
+            }
+            Some(blue_lang_syntax::guard::RETURN) if items.len() <= 2 => {
+                let d = match items.get(1) {
+                    Some(v) if !matches!(v.form, SpannedForm::Nil) => {
+                        Doc::text("return ").concat(self.expr(v, 0))
+                    }
+                    _ => Doc::text("return"),
+                };
+                return parenthesize_below(d, min_prec, 0);
             }
             Some("try" | "blue-ensure") => {
                 if let Some(d) = self.rescue_form(s, min_prec) {
@@ -1916,7 +1926,12 @@ fn pipe_built(head: &str, len: usize) -> bool {
 fn swallows_tail(s: &Spanned) -> bool {
     matches!(
         sym_name_of(s),
-        Some("lambda" | blue_lang_syntax::LOWERED_ASSERT | blue_lang_syntax::LOWERED_ASSERT_PANICS)
+        Some(
+            "lambda"
+                | blue_lang_syntax::LOWERED_ASSERT
+                | blue_lang_syntax::LOWERED_ASSERT_PANICS
+                | blue_lang_syntax::guard::RETURN
+        )
     )
 }
 

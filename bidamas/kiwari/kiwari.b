@@ -1235,6 +1235,7 @@ def surface()
         assert_panics
         fn
         case
+        return
       ],
       block: %w[do end else elsif rescue ensure true false nil]
     },
@@ -1263,6 +1264,7 @@ def surface()
       %w[test keyword],
       %w[assert keyword],
       %w[assert_panics keyword],
+      %w[return keyword.return],
       %w[quote keyword],
       %w[unquote keyword],
       %w[unquote_splice keyword],
@@ -1487,6 +1489,7 @@ def surface()
               test
               assert
               assert_panics
+              return
               quote
               unquote
               unquote_splice
@@ -2273,6 +2276,14 @@ def surface()
           ["quote", %w[field expression]],
           ["list", %w[sym lambda], ["list"], %w[field expression]]
         ]
+      ),
+      rule(
+        "return",
+        prec_right(
+          0,
+          seq([lit("return"), opt(field("value", ref("_expression")))])
+        ),
+        ["list", %w[sym return], %w[field? value]]
       ),
       rule(
         "quote",

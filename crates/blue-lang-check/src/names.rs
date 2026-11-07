@@ -2084,6 +2084,9 @@ impl<'t> Walker<'t> {
             }
             Resolution::Unbound => {}
         }
+        if name == blue_lang_syntax::guard::RETURN {
+            return;
+        }
         if name == "use" && !opaque {
             let d = Diagnostic::new(
                 Code::B0073,

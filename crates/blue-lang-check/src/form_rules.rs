@@ -275,6 +275,65 @@ fn is_nil(s: &Spanned) -> bool {
     matches!(s.form, SpannedForm::Nil)
 }
 
+/// B0080 over every entry form, stored file or not: a misplaced `return`
+/// must never reach the evaluator as an unbound name.
+#[must_use]
+pub fn returns(forms: &[Spanned], is_entry: &dyn Fn(usize) -> bool) -> Vec<Diagnostic> {
+    let mut out = Vec::new();
+    for (i, form) in forms.iter().enumerate().filter(|(i, _)| is_entry(*i)) {
+        stray_returns(form, None, i, &mut out);
+    }
+    out
+}
+
+/// A `return` the guard lowering could not place. `blocking` is the
+/// nearest enclosing form that is not a statement sequence or a branch.
+fn stray_returns(
+    form: &Spanned,
+    blocking: Option<&Spanned>,
+    top: usize,
+    out: &mut Vec<Diagnostic>,
+) {
+    let SpannedForm::List(items) = &form.form else {
+        return;
+    };
+    let head = items.first().and_then(Spanned::as_symbol);
+    if head == Some(blue_lang_syntax::guard::RETURN) {
+        out.push(
+            Diagnostic::new(
+                Code::B0080,
+                format!("`return` inside {} cannot be rewritten into if/else", blocking_form(blocking)),
+                items[0].span,
+            )
+            .at_top_level(top)
+            .with_help("end a branch of an `if` or `case` in a def body with it, or write the value as that branch"),
+        );
+    }
+    let carries = matches!(head, Some("begin" | "if" | "cond" | "let" | "else")) || head.is_none();
+    let next = if carries { blocking } else { Some(form) };
+    for item in items.iter().skip(usize::from(head.is_some())) {
+        stray_returns(item, next, top, out);
+    }
+}
+
+fn blocking_form(blocking: Option<&Spanned>) -> String {
+    let Some(SpannedForm::List(items)) = blocking.map(|b| &b.form) else {
+        return "the top level of the file".to_string();
+    };
+    match items.first().and_then(Spanned::as_symbol) {
+        Some("lambda") => "a function value (`fn` or `->`)".to_string(),
+        Some("try" | "catch") => "a `begin`/`rescue` block".to_string(),
+        Some(blue_lang_syntax::LOWERED_ENSURE) => "an `ensure` block".to_string(),
+        Some("define") if items.get(1).and_then(Spanned::as_symbol).is_some() => format!(
+            "the value of `{} = …`",
+            items[1].as_symbol().unwrap_or_default()
+        ),
+        Some("define" | "define-typed") => "a def body, outside the end of a branch".to_string(),
+        Some(name) => format!("an argument of `{name}`"),
+        None => "a list".to_string(),
+    }
+}
+
 fn swallowed(form: &Spanned, top: usize, out: &mut Vec<Diagnostic>) {
     let SpannedForm::List(items) = &form.form else {
         return;

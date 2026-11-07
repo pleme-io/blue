@@ -1874,7 +1874,8 @@ needs is in [KERNEL.md](KERNEL.md) §3.
 - [CST plan: a lossless tree, resilient parsing, surface blame](CST-PLAN.md): the design for a lossless CST with resilient parsing and surface blame; nothing is built yet
 - [DOCUMENTATION — every blue project documents itself, and the language has a book](DOCUMENTATION.md): documentation as a battery: one source per fact, a Diátaxis book, rendered README, AGENTS.md and llms.txt (design)
 - [FRONTEND-PLAN — building the blue frontend framework](FRONTEND-PLAN.md): the build plan for blue's frontend framework
-- [Guard-clause `return`: the design of record](GUARD-RETURN.md): Guard-clause return, DESIGN: `return x` where the parser can rewrite it into if/else, refused where it cannot, so blue stays one expression per body at no run-time cost
+- [Guard-clause `return`: the design of record](GUARD-RETURN.md): Guard-clause return, G1 BUILT: `return x` where the parser can rewrite it into if/else, refused where it cannot (B0080), so blue stays one expression per body at no run-time cost
+- [HORIZON: where blue goes next](HORIZON.md): the long plan for blue, ten horizons from hygiene to a language that proves, replays and explains itself; destination first, each horizon with its first step, its gate and what it unlocks
 - [HTTP2 — blue speaks HTTP/2 and gRPC itself](HTTP2.md): blue speaks HTTP/2 and gRPC itself (design, phase 1 built)
 - [KERNEL — write only blue for the Linux kernel](KERNEL.md): blue as the whole kernel toolchain, from source to a program the verifier admits, and where each part runs
 - [khipu: blue's knowledge graph, the design of record](KHIPU.md): khipu, blue's knowledge graph, DESIGN: OxiRS's essence naturalized, the recon, the typed terms, the phases, the parity gates and the tier ledger

@@ -1,12 +1,19 @@
 ---
 kind: explanation
-summary: Guard-clause return, DESIGN: `return x` where the parser can rewrite it into if/else, refused where it cannot, so blue stays one expression per body at no run-time cost
+summary: Guard-clause return, G1 BUILT: `return x` where the parser can rewrite it into if/else, refused where it cannot (B0080), so blue stays one expression per body at no run-time cost
 ---
 
 # Guard-clause `return`: the design of record
 
-**Tier: DESIGN (2026-11-06), operator-approved.** Blue has no `return`
-today. A body is one expression, because blue lowers to tatara-lisp, whose
+**Tier: G1 BUILT (2026-11-06), G2 DESIGN.** `crates/blue-lang-syntax/src/guard.rs`
+lowers a guard `return` in every tree a `parse_program*` door but the
+documented one hands out, and raises it back for `blue fmt` from the spans
+the lowering keeps. B0080 refuses the rest. The gates are
+`crates/blue-lang-runtime/tests/guard_return.rs` (R-lower, R-total,
+R-refuse, each red-run), `crates/blue-lang-fmt/tests/guard_return.rs` and
+`spec/rows/returns.b`; khipu's `read_statement` is written flat.
+
+Before this, blue had no `return`. A body is one expression, because blue lowers to tatara-lisp, whose
 only non-local exit is `throw`/`try`, which `raise`/`rescue` already use. A
 general `return` would be an exception per call: slow, and caught by the wrong
 `rescue`. Without it, a reader with several early exits nests: khipu's
@@ -42,7 +49,11 @@ end                                  end
   that differ only by a guard `return` versus the nested `if` have the same
   `def_hash`.
 - **Additive:** nested `if`/`else` stays valid; `blue fmt` keeps the form a
-  file used.
+  file used. One `return` is not kept: one that changes nothing, ending the
+  body's last statement, formats as its value.
+- **Not yet placed:** a `return` inside a `begin`/`rescue` block (a def body
+  with `rescue` clauses included) is refused; lowering it into the protected
+  body is a G2 question.
 
 ## Gates
 

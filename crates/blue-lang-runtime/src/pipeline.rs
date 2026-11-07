@@ -890,6 +890,9 @@ pub(crate) fn check_stage(
         .file(ResolvedProgram::ENTRY)
         .is_some_and(|f| f.path.is_some());
     outcome.diagnostics.extend(names);
+    outcome
+        .diagnostics
+        .extend(blue_lang_check::form_rules::returns(forms, &is_entry));
     outcome.stats.names_resolved = resolved;
     if stored {
         let script = program

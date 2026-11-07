@@ -219,7 +219,7 @@ Configuration is a record of defaults, grouped by concern, that
 in the environment, each value typed by its default. Read it by dotted path,
 `config.guard.branch`: a misspelt path raises and names the fields that
 exist, where `config["branch"]` returns nil. A program never reads its own
-settings with `getenv`. `bidamas/kirikae` is the worked example.
+settings with `getenv`. `bidamas/kakehashi/kirikae` is the worked example.
 
 Before you name a function, look for its verb: the graph rows in
 `bidamas/mokuroku/graph/` (one file per space) and the contract for each verb in

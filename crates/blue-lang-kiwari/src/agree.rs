@@ -38,7 +38,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 
-use blue_lang_syntax::parse::{parse_program, parse_program_spanned};
+use blue_lang_syntax::parse::{parse_program_spanned, parse_program_surface as parse_program};
 use tatara_lisp::Sexp;
 
 use crate::lower::{LowerError, Lowerer};

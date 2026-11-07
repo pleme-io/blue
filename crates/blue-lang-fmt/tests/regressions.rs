@@ -410,6 +410,8 @@ fn the_lossless_door_never_returns_text_with_fewer_comments() {
 }
 
 const GREEDY_OPERANDS: &[&str] = &[
+    "return a",
+    "return a + b",
     "fn(x) x end",
     "fn() a end",
     "(x) -> x",

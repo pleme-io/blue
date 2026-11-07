@@ -1660,6 +1660,32 @@ same fields: an update `point(**p, z: 2)` is refused here for `z`, and at run
 time if `p` is another record. There is no fix to apply: which field the call
 meant is the author's.",
     }
+    B0080 {
+        slug: "return-position",
+        severity: Error,
+        fix: None,
+        law: "a `return` ends a branch of an `if` or `case` that is a statement of a def body, where it is rewritten into if/else",
+        witness: "def f(xs)\n  map((x) -> return x, xs)\nend\n",
+        waivable: false,
+        explanation: "\
+Blue has no run-time `return`: a body is one expression. A guard
+
+    def read(cs)
+      s = node(cs)
+      if s.why
+        return s
+      end
+      ok(s, node(cs, s.i))
+    end
+
+is rewritten before anything runs into the `if`/`else` it stands for, so it
+costs nothing and hashes as that `if`. A `return` the rewrite cannot place is
+refused here, naming the form in the way: inside a `fn` (whose function would
+it leave?), inside a `begin`/`rescue` block, in an argument or an assignment's
+value, or at the top level of a file. Write that value as the branch instead.
+Code written after a `return` in the same sequence never runs and is a parse
+error. docs/GUARD-RETURN.md.",
+    }
 }
 
 impl Code {

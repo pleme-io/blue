@@ -13,6 +13,7 @@ use blue_lang_syntax::parse_program;
 /// Every construct the surface currently supports. Each entry is a
 /// separate law check, so a failure names the construct.
 const CORPUS: &[&str] = &[
+    "def grade(n)\n  if n < 0\n    return\n  end\n  if n < 50\n    return :low\n  end\n  :high\nend",
     "begin\n  risky\nrescue :timeout, :refused as e\n  e.message\nrescue e\n  raise(e)\nensure\n  close\nend",
     "def f(x)\n  g(x)\nrescue :boom\n  nil\nend",
     "x = json_parse(s) rescue nil",

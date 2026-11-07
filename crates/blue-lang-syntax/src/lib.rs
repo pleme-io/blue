@@ -18,6 +18,7 @@
 
 pub mod doc;
 pub mod forms;
+pub mod guard;
 pub mod kigou;
 pub mod lex;
 pub mod parse;
@@ -37,15 +38,15 @@ pub use parse::{
     comments, constant_text, is_callable_name, is_index_key, is_nested, is_one_segment,
     is_reserved_word, keyword_doc, parse_expr, parse_program, parse_program_documented,
     parse_program_documented_with_depth, parse_program_in, parse_program_spanned,
-    parse_program_spanned_with_depth, parse_program_tree, parse_program_tree_in,
-    parse_program_tree_with_depth, parse_program_with_depth, parses_on_this_thread, qualified,
-    qualify, root_of, spell_level, spelling_notes, Comment, Infix, ParseError, BLOCK_KEYWORDS,
-    BUILTIN_QUALIFIER, INFIX, LOWERED_ASSERT, LOWERED_ASSERT_PANICS, LOWERED_ATTEMPTED,
-    LOWERED_CONCAT, LOWERED_ENSURE, LOWERED_ERROR_MATCH, LOWERED_FAILED, LOWERED_FIELD,
-    LOWERED_HEADS, LOWERED_KWARGS, LOWERED_MAP, LOWERED_MERGE, LOWERED_OPTIONAL_ARG,
-    LOWERED_OPTIONAL_ARITY, LOWERED_RERAISE, LOWERED_SPLICE, LOWERED_TEST_META, MASTER_VERBS,
-    MAX_EXPR_DEPTH, OPERATOR_KEYWORDS, OPTIONAL_MARKER, QUALIFIER, RESCUED, SURFACE_KEYWORDS,
-    SYMBOL_SPELLINGS,
+    parse_program_spanned_with_depth, parse_program_surface, parse_program_tree,
+    parse_program_tree_in, parse_program_tree_with_depth, parse_program_with_depth,
+    parses_on_this_thread, qualified, qualify, root_of, spell_level, spelling_notes, Comment,
+    Infix, ParseError, BLOCK_KEYWORDS, BUILTIN_QUALIFIER, INFIX, LOWERED_ASSERT,
+    LOWERED_ASSERT_PANICS, LOWERED_ATTEMPTED, LOWERED_CONCAT, LOWERED_ENSURE, LOWERED_ERROR_MATCH,
+    LOWERED_FAILED, LOWERED_FIELD, LOWERED_HEADS, LOWERED_KWARGS, LOWERED_MAP, LOWERED_MERGE,
+    LOWERED_OPTIONAL_ARG, LOWERED_OPTIONAL_ARITY, LOWERED_RERAISE, LOWERED_SPLICE,
+    LOWERED_TEST_META, MASTER_VERBS, MAX_EXPR_DEPTH, OPERATOR_KEYWORDS, OPTIONAL_MARKER, QUALIFIER,
+    RESCUED, SURFACE_KEYWORDS, SYMBOL_SPELLINGS,
 };
 pub use spelling::{Note, Spelling};
 pub use test_form::{is_meta, meta_map, target_key, test_meta, test_parts, TestMeta, TestParts};

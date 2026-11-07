@@ -140,7 +140,17 @@ pub fn parse_program_tree_with_depth(
     src: &str,
     max_depth: usize,
 ) -> Result<Vec<Spanned>, ParseError> {
-    parse_program_documented_with_depth(src, max_depth).map(crate::doc::strip)
+    parse_program_documented_with_depth(src, max_depth)
+        .map(crate::doc::strip)
+        .and_then(|forms| crate::guard::lower(forms).map_err(|e| e.located(src)))
+}
+
+/// The program as written, before `crate::guard` rewrites a guard `return`
+/// into if/else: the reading a second grammar must agree with.
+pub fn parse_program_surface(src: &str) -> Result<Vec<Sexp>, ParseError> {
+    parse_program_documented_with_depth(src, MAX_EXPR_DEPTH)
+        .map(crate::doc::strip)
+        .map(|forms| forms.iter().map(Spanned::to_sexp).collect())
 }
 
 /// Parse keeping the documentation nodes `@doc` and `@moduledoc` lower to
@@ -634,6 +644,7 @@ pub const SURFACE_KEYWORDS: &[&str] = &[
     "assert_panics",
     "fn",
     "case",
+    "return",
 ];
 
 /// The words that are reserved but are not heads of a `SURFACE_KEYWORDS` form
@@ -778,6 +789,7 @@ pub fn keyword_doc(word: &str) -> &'static str {
         "assert_panics" => "`assert_panics expr`: inside a test, pass only when `expr`, run in a child held to a pure frame, ends on a capability breach with no host call made.",
         "fn" => "`fn(x) x * 2 end`: an anonymous function, a value. Blue has no brace or do blocks.",
         "case" => "`case v when 1 … when 2 … else … end`: compares with `==`; `when point?` takes a value of a record the program declares. It does not destructure.",
+        "return" => "`return x` ends a branch of an `if` or `case` in a def body: the rest of the body becomes the branches that did not return, so it costs nothing at run time. Anywhere else it is refused (B0080).",
         "do" => "Reserved and refused: blue has no do-blocks. Pass `fn(x) … end` instead.",
         "end" => "Closes `def`, `defmacro`, `if`, `case`, `fn`, `test` and `quote`.",
         "else" => "The branch of `if` or `case` taken when nothing before it matched.",
@@ -1817,6 +1829,7 @@ impl Parser {
                 "def" => self.def_form(span),
                 "defmacro" => self.defmacro_form(span),
                 "case" => self.case_form(span),
+                "return" => self.return_form(span),
                 "fn" => self.lambda_form(span),
                 "test" => self.test_form(span),
                 "assert" => self.assert_form(span),
@@ -2340,6 +2353,27 @@ impl Parser {
         let mut out = vec![sym_at(head, "if"), cond, then];
         if let Some(e) = els {
             out.push(e);
+        }
+        Ok(list_at(self.span_since(head.start), out))
+    }
+
+    /// `return` or `return x`: `(return)` or `(return x)`. `crate::guard`
+    /// lowers the ones that end a branch of a def body's `if` or `case`.
+    fn return_form(&mut self, head: Span) -> Result<Spanned, Fail> {
+        let bare = matches!(
+            self.peek(),
+            TokenKind::Newline
+                | TokenKind::Eof
+                | TokenKind::RParen
+                | TokenKind::Comma
+                | TokenKind::RBracket
+                | TokenKind::RBrace
+        ) || ["end", "else", "elsif", "when", "rescue", "ensure"]
+            .iter()
+            .any(|t| self.at_ident(t));
+        let mut out = vec![sym_at(head, crate::guard::RETURN)];
+        if !bare {
+            out.push(self.expr(0)?);
         }
         Ok(list_at(self.span_since(head.start), out))
     }
@@ -3540,7 +3574,7 @@ fn mentions(form: &Spanned, name: &str) -> bool {
 }
 
 /// A symbol node at `span`.
-fn sym_at(span: Span, s: &str) -> Spanned {
+pub(crate) fn sym_at(span: Span, s: &str) -> Spanned {
     Spanned::new(span, SpannedForm::Atom(Atom::Symbol(s.to_string())))
 }
 
@@ -3550,7 +3584,7 @@ fn atom_at(span: Span, a: Atom) -> Spanned {
 }
 
 /// A list node at `span`.
-fn list_at(span: Span, items: Vec<Spanned>) -> Spanned {
+pub(crate) fn list_at(span: Span, items: Vec<Spanned>) -> Spanned {
     Spanned::new(span, SpannedForm::List(items))
 }
 
@@ -3561,7 +3595,7 @@ fn list_at(span: Span, items: Vec<Spanned>) -> Spanned {
 /// synthetic span is a claim that a node has no source origin at all — and an
 /// empty parameter list in `def f()` very much has one. Defaulting to synthetic
 /// here is how "no span" leaks into a tree where every node does have a place.
-fn cover(items: &[Spanned], fallback: Span) -> Span {
+pub(crate) fn cover(items: &[Spanned], fallback: Span) -> Span {
     let merged = items
         .iter()
         .fold(Span::synthetic(), |acc, s| acc.merge(s.span));

@@ -623,25 +623,23 @@ read_statement reads one line's subject, predicate, object, optional graph and d
     read_statement(chars("<http://e/s> <http://e/p> \"o\" ."), "d", false)[:v][:o] #=> literal("o")
 """
 def read_statement(cs, scope, with_graphs)
-  then(
-    read_node(cs, skip_ws(cs, 0), scope, %i[iri blank]),
-    fn(s)
-      then(
-        read_node(cs, skip_ws(cs, s[:i]), scope, [:iri]),
-        fn(p)
-          then(
-            read_node(cs, skip_ws(cs, p[:i]), scope, %i[iri blank literal]),
-            fn(o)
-              then(
-                read_graph(cs, o[:i], scope, with_graphs),
-                (g) -> read_end(cs, g[:i], quad(s[:v], p[:v], o[:v], g[:v]))
-              )
-            end
-          )
-        end
-      )
-    end
-  )
+  s = read_node(cs, skip_ws(cs, 0), scope, %i[iri blank])
+  if s[:why] != nil
+    return s
+  end
+  p = read_node(cs, skip_ws(cs, s[:i]), scope, [:iri])
+  if p[:why] != nil
+    return p
+  end
+  o = read_node(cs, skip_ws(cs, p[:i]), scope, %i[iri blank literal])
+  if o[:why] != nil
+    return o
+  end
+  g = read_graph(cs, o[:i], scope, with_graphs)
+  if g[:why] != nil
+    return g
+  end
+  read_end(cs, g[:i], quad(s[:v], p[:v], o[:v], g[:v]))
 end
 
 @doc """

@@ -242,8 +242,8 @@ rendered:
 | | |
 |---|---|
 | Built-in names | 373: 346 functions, 14 special forms, 13 macros |
-| Surface forms | 32, with 13 operators and 25 reserved words |
-| Check rules | 76: 42 fix themselves, 8 suggest a fix |
+| Surface forms | 32, with 13 operators and 26 reserved words |
+| Check rules | 77: 42 fix themselves, 8 suggest a fix |
 | Bluefile words | 26 |
 | Commands | 44 |
 
@@ -429,7 +429,7 @@ Read it in order as [The blue Book](docs/BOOK.md), or open one page:
 ### Explanation
 
 <details>
-<summary>46 pages on why blue is shaped as it is</summary>
+<summary>47 pages on why blue is shaped as it is</summary>
 
 - [ABSENCE — no undeclared nil](docs/ABSENCE.md): no undeclared nil: how blue makes absence a declared, checked state
 - [API-EVOLUTION — the API is a versioned rendering of the one model](docs/API-EVOLUTION.md): the API as a versioned rendering of one model (design)
@@ -446,7 +446,8 @@ Read it in order as [The blue Book](docs/BOOK.md), or open one page:
 - [CST plan: a lossless tree, resilient parsing, surface blame](docs/CST-PLAN.md): the design for a lossless CST with resilient parsing and surface blame; nothing is built yet
 - [DOCUMENTATION — every blue project documents itself, and the language has a book](docs/DOCUMENTATION.md): documentation as a battery: one source per fact, a Diátaxis book, rendered README, AGENTS.md and llms.txt (design)
 - [FRONTEND-PLAN — building the blue frontend framework](docs/FRONTEND-PLAN.md): the build plan for blue's frontend framework
-- [Guard-clause `return`: the design of record](docs/GUARD-RETURN.md): Guard-clause return, DESIGN: `return x` where the parser can rewrite it into if/else, refused where it cannot, so blue stays one expression per body at no run-time cost
+- [Guard-clause `return`: the design of record](docs/GUARD-RETURN.md): Guard-clause return, G1 BUILT: `return x` where the parser can rewrite it into if/else, refused where it cannot (B0080), so blue stays one expression per body at no run-time cost
+- [HORIZON: where blue goes next](docs/HORIZON.md): the long plan for blue, ten horizons from hygiene to a language that proves, replays and explains itself; destination first, each horizon with its first step, its gate and what it unlocks
 - [HTTP2 — blue speaks HTTP/2 and gRPC itself](docs/HTTP2.md): blue speaks HTTP/2 and gRPC itself (design, phase 1 built)
 - [KERNEL — write only blue for the Linux kernel](docs/KERNEL.md): blue as the whole kernel toolchain, from source to a program the verifier admits, and where each part runs
 - [khipu: blue's knowledge graph, the design of record](docs/KHIPU.md): khipu, blue's knowledge graph, DESIGN: OxiRS's essence naturalized, the recon, the typed terms, the phases, the parity gates and the tier ledger

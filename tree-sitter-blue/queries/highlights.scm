@@ -40,4 +40,5 @@
 ["#{"] @punctuation.special
 ["if" "unless" "elsif" "else" "case" "when"] @keyword.conditional
 ["def" "defmacro" "fn"] @keyword.function
+["return"] @keyword.return
 ["@moduledoc" "@doc"] @attribute.documentation

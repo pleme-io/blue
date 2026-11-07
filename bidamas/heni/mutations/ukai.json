@@ -1,0 +1,56 @@
+[
+  {
+    "name": "stale routes are never retracted",
+    "file": "ukai.b",
+    "find": "  if o[:kind] != :blind and s[:stale] == :present\n    assoc(o, :retract, retract_set(s))",
+    "replace": "  if false\n    assoc(o, :retract, retract_set(s))"
+  },
+  {
+    "name": "a blind answer retracts too",
+    "file": "ukai.b",
+    "find": "  if o[:kind] != :blind and s[:stale] == :present",
+    "replace": "  if s[:stale] == :present"
+  },
+  {
+    "name": "a host never applied is retracted",
+    "file": "ukai.b",
+    "find": "          member?(r_dest(r), applied) and\n",
+    "replace": "          true and\n"
+  },
+  {
+    "name": "a route through the current gateway reads stale",
+    "file": "ukai.b",
+    "find": "            r[:gateway] != gateway and\n",
+    "replace": "            true and\n"
+  },
+  {
+    "name": "a move between networks reads as rewritten routes",
+    "file": "ukai.b",
+    "find": "    (h) -> not member?(h, routed) and not member?(h, stale),",
+    "replace": "    (h) -> not member?(h, routed),"
+  },
+  {
+    "name": "a retracted nixos host is not added back",
+    "file": "ukai.b",
+    "find": "  held = difference(as_set(s[:routed]), as_set(s[:stale_hosts]))",
+    "replace": "  held = as_set(s[:routed])"
+  },
+  {
+    "name": "a nixos table route through an old gateway is kept",
+    "file": "ukai.b",
+    "find": "      filter((r) -> ipv4?(r[:gateway]) and r[:gateway] != gateway, rows)",
+    "replace": "      filter((r) -> false, rows)"
+  },
+  {
+    "name": "an unreadable table reads as no stale routes",
+    "file": "ukai.b",
+    "find": "  if not routes_ok or not table_r[:ok]\n    :unread",
+    "replace": "  if not routes_ok\n    :unread"
+  },
+  {
+    "name": "a retract leaves its hosts in the record",
+    "file": "ukai.b",
+    "find": "      difference(as_set(applied), as_set(o[:retract][:hosts]))",
+    "replace": "      applied"
+  }
+]

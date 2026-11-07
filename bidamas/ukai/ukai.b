@@ -1,7 +1,7 @@
 @moduledoc """
 ukai (迂回) — a detour: keep an overlay VPN reaching its control plane and relays while a full-tunnel corporate VPN owns the default route.
 
-    infer_enforcement([], [], [], :relay) #=> :unknown
+    infer_enforcement([], [], [], [], :relay) #=> :unknown
 """
 
 use("deeta", %i[as_json get_str])
@@ -21,7 +21,8 @@ def axes()
     [:overlay, %i[down direct relay none unread]],
     [:gateway, %i[present absent unread]],
     [:targets, %i[resolved unread]],
-    [:platform, %i[darwin nixos]]
+    [:platform, %i[darwin nixos]],
+    [:stale, %i[none present unread]]
   ]
 end
 
@@ -51,7 +52,7 @@ def state(axes_map, payload)
     reduce(
       (s, k) -> assoc(s, k, get(payload, k)),
       axes_map,
-      %i[gateway_addr gateway_iface hosts routed table priority]
+      %i[gateway_addr gateway_iface hosts routed stale_hosts table priority]
     )
   else
     raise(
@@ -78,9 +79,18 @@ def blind(what)
 end
 
 @doc """
-decide: noop, bypass, refused or blind, over a total state.
+decide: noop, bypass, refused or blind, over a total state. A route this host applied through a gateway that is no longer its own is retracted beside any answer but blind, so a move between networks never strands it.
 """
 def decide(s)
+  o = decide_kind(s)
+  if o[:kind] != :blind and s[:stale] == :present
+    assoc(o, :retract, retract_set(s))
+  else
+    o
+  end
+end
+
+def decide_kind(s)
   if not is_empty(unread_axes(s))
     blind(unread_axes(s))
   elsif s[:corp] == :absent
@@ -102,6 +112,7 @@ end
 
 def route_set(s)
   hosts = sorted(unique(as_set(s[:hosts])))
+  held = difference(as_set(s[:routed]), as_set(s[:stale_hosts]))
   {
     backend: s[:platform],
     gateway: s[:gateway_addr],
@@ -109,7 +120,16 @@ def route_set(s)
     table: s[:table],
     priority: s[:priority],
     hosts:,
-    add: sorted(difference(hosts, as_set(s[:routed])))
+    add: sorted(difference(hosts, held))
+  }
+end
+
+def retract_set(s)
+  {
+    backend: s[:platform],
+    table: s[:table],
+    priority: s[:priority],
+    hosts: sorted(unique(as_set(s[:stale_hosts])))
   }
 end
 
@@ -119,12 +139,17 @@ end
 
 def outcome_label(o)
   k = o[:kind]
-  if k == :blind
+  base = if k == :blind
     "blind:#{join(map((a) -> to_s(a), o[:unread]), ",")}"
   elsif k == :bypass
     "bypass"
   else
     "#{to_s(k)}:#{to_s(o[:reason])}"
+  end
+  if o[:retract].nil?
+    base
+  else
+    "#{base}+retract"
   end
 end
 
@@ -203,12 +228,16 @@ end
 def fill(s)
   assoc(
     assoc(
-      assoc(assoc(s, :gateway_addr, "192.0.2.1"), :gateway_iface, "en0"),
-      :hosts,
-      ["198.51.100.1"]
+      assoc(
+        assoc(assoc(s, :gateway_addr, "192.0.2.1"), :gateway_iface, "en0"),
+        :hosts,
+        ["198.51.100.1"]
+      ),
+      :routed,
+      []
     ),
-    :routed,
-    []
+    :stale_hosts,
+    ["198.51.100.9"]
   )
 end
 
@@ -259,6 +288,10 @@ def route_add_argv(host, gateway)
   ["/sbin/route", "-n", "add", "-host", host, gateway]
 end
 
+def route_delete_argv(host)
+  ["/sbin/route", "-n", "delete", "-host", host]
+end
+
 def dscacheutil_argv(name)
   ["/usr/bin/dscacheutil", "-q", "host", "-a", "name", name]
 end
@@ -281,6 +314,29 @@ end
 
 def ip_rule_argv(ip)
   [ip, "-4", "rule", "show"]
+end
+
+def ip_table_argv(ip, table)
+  [ip, "-4", "route", "show", "table", to_s(table)]
+end
+
+def ip_route_del_argv(ip, host, table)
+  [ip, "-4", "route", "del", "#{host}/32", "table", to_s(table)]
+end
+
+def ip_rule_del_argv(ip, host, table, priority)
+  [
+    ip,
+    "-4",
+    "rule",
+    "del",
+    "to",
+    "#{host}/32",
+    "lookup",
+    to_s(table),
+    "priority",
+    to_s(priority)
+  ]
 end
 
 def ip_route_add_argv(ip, host, gateway, iface, table)
@@ -595,9 +651,63 @@ def parse_getent(text)
   end
 end
 
-def infer_enforcement(targets, routed, applied, overlay)
+@doc """
+stale_via: the hosts in `applied` that a host route still sends through a gateway other than `gateway`, the routes a move between networks leaves behind.
+
+    stale_via([{dest: "192.0.2.9", gateway: "192.168.50.1", flags: "UGHS", iface: "en0"}], "192.168.60.1", ["192.0.2.9"]) #=> ["192.0.2.9"]
+"""
+def stale_via(routes, gateway, applied)
+  unique(
+    map(
+      r_dest,
+      filter(
+        fn(r)
+          member?(r_dest(r), applied) and
+            ipv4?(r[:gateway]) and
+            r[:gateway] != gateway and
+            contains?(r[:flags], "H")
+        end,
+        routes
+      )
+    )
+  )
+end
+
+@doc """
+stale_in_table: every host route in ukai's own table whose gateway is not `gateway`.
+
+    stale_in_table([{dest: "192.0.2.9", gateway: "192.168.50.1", flags: "UG", iface: "eth0"}], "192.168.1.1") #=> ["192.0.2.9"]
+"""
+def stale_in_table(rows, gateway)
+  unique(
+    map(
+      (r) -> replace(r_dest(r), "/32", ""),
+      filter((r) -> ipv4?(r[:gateway]) and r[:gateway] != gateway, rows)
+    )
+  )
+end
+
+def stale_of(routes_ok, table_r, gw_addr, hosts)
+  if not routes_ok or not table_r[:ok]
+    :unread
+  elsif is_empty(gw_addr) or is_empty(hosts)
+    :none
+  else
+    :present
+  end
+end
+
+@doc """
+infer_enforcement: a host this side applied and no route now carries was removed by the corporate tunnel; one still routed through an old gateway is stale, not removed.
+
+    infer_enforcement(["a"], [], ["a"], ["a"], :relay) #=> :unknown
+"""
+def infer_enforcement(targets, routed, applied, stale, overlay)
   present = filter((h) -> member?(h, routed), targets)
-  lost = filter((h) -> not member?(h, routed), applied)
+  lost = filter(
+    (h) -> not member?(h, routed) and not member?(h, stale),
+    applied
+  )
   if not is_empty(lost)
     :routes_rewritten
   elsif is_empty(present)
@@ -661,6 +771,14 @@ def assemble(cfg, obs)
     routed_via(routes, gw_addr)
   end
   routes_ok = routes_r[:ok] and (cfg[:platform] == :darwin or obs[:rules][:ok])
+  table_r = obs[:table]
+  stale_hosts = if not routes_ok or not table_r[:ok] or is_empty(gw_addr)
+    []
+  elsif cfg[:platform] == :nixos
+    stale_in_table(table_r[:value], gw_addr)
+  else
+    stale_via(routes, gw_addr, cfg[:applied])
+  end
   corp = if routes_r[:ok]
     corp_of(routes, pattern)
   else
@@ -676,7 +794,7 @@ def assemble(cfg, obs)
   enforcement = if not routes_ok or overlay == :unread or not targets_ok
     :unread
   else
-    infer_enforcement(hosts, routed, cfg[:applied], overlay)
+    infer_enforcement(hosts, routed, cfg[:applied], stale_hosts, overlay)
   end
   state(
     {
@@ -689,13 +807,15 @@ def assemble(cfg, obs)
       else
         :unread
       end,
-      platform: cfg[:platform]
+      platform: cfg[:platform],
+      stale: stale_of(routes_ok, table_r, gw_addr, stale_hosts)
     },
     {
       gateway_addr: gw_addr,
       gateway_iface: gw_iface,
       hosts:,
       routed:,
+      stale_hosts:,
       table: cfg[:table],
       priority: cfg[:priority]
     }
@@ -719,12 +839,17 @@ def observe(cfg)
       control: from_capture(
         capture(getent_argv(cfg[:getent], host)),
         parse_getent
+      ),
+      table: from_capture(
+        capture(ip_table_argv(ip, cfg[:table])),
+        parse_ip_route
       )
     }
   else
     {
       routes: from_capture(capture(netstat_argv), parse_netstat),
       rules: ok([]),
+      table: ok([]),
       status: from_capture(capture(status_argv(ts)), parse_backend_state),
       netcheck: from_capture(capture(netcheck_argv(ts)), parse_netcheck),
       derp: from_capture(capture(derp_map_argv(ts)), parse_derp_map),
@@ -734,9 +859,58 @@ def observe(cfg)
 end
 
 @doc """
-plan: host routes or policy rules an outcome needs.
+plan: host routes or policy rules an outcome needs: the stale ones retracted first, then the missing ones added.
 """
 def plan(o, cfg)
+  append(retract_plan(o, cfg), add_plan(o, cfg))
+end
+
+def retract_plan(o, cfg)
+  rt = o[:retract]
+  if rt.nil?
+    []
+  elsif rt[:backend] == :nixos
+    reduce(
+      fn(acc, h)
+        append(
+          acc,
+          [
+            ip_route_del_argv(cfg[:ip], h, rt[:table]),
+            ip_rule_del_argv(cfg[:ip], h, rt[:table], rt[:priority])
+          ]
+        )
+      end,
+      [],
+      rt[:hosts]
+    )
+  else
+    map(route_delete_argv, rt[:hosts])
+  end
+end
+
+@doc """
+next_applied: the hosts this side holds after a run. A dry run or any failed command keeps the record as it was, so the next run retries.
+
+    next_applied(["a"], {kind: :noop, retract: {hosts: ["a"]}}, [], false) #=> []
+"""
+def next_applied(applied, o, failed, dry_run)
+  if dry_run or not is_empty(failed)
+    applied
+  else
+    kept = if o[:retract].nil?
+      applied
+    else
+      difference(as_set(applied), as_set(o[:retract][:hosts]))
+    end
+    if o[:kind] == :bypass
+      sorted(unique(append(kept, o[:routes][:hosts])))
+    else
+      sorted(unique(kept))
+    end
+  end
+end
+
+def add_plan(o, cfg)
   if o[:kind] != :bypass
     []
   else
@@ -820,11 +994,7 @@ def run(cfg)
   argvs = plan(o, cfg2)
   results = act(argvs, cfg2[:dry_run])
   failed = filter((r) -> r[:status] != 0 and r[:status] != nil, results)
-  applied = if cfg2[:dry_run] or o[:kind] != :bypass or not is_empty(failed)
-    cfg2[:applied]
-  else
-    sorted(unique(append(cfg2[:applied], o[:routes][:hosts])))
-  end
+  applied = next_applied(cfg2[:applied], o, failed, cfg2[:dry_run])
   record = {
     checked_ms: now,
     outcome: outcome_label(o),
@@ -871,7 +1041,8 @@ def measured(routes_text, netcheck_text)
     status: parse_backend_state(fixture("status-running.json")),
     netcheck: parse_netcheck(netcheck_text),
     derp: parse_derp_map(fixture("derp-map.json")),
-    control: parse_dscacheutil(fixture("dscacheutil.txt"))
+    control: parse_dscacheutil(fixture("dscacheutil.txt")),
+    table: ok([])
   }
 end
 
@@ -894,8 +1065,8 @@ end
 
 test "the matrix: every variant of every axis has exactly one row, and decide agrees with each"
   states = every_state
-  assert size(states) == 4 * 5 * 5 * 3 * 2 * 2
-  assert size(states) == 1200
+  assert size(states) == 4 * 5 * 5 * 3 * 2 * 2 * 3
+  assert size(states) == 3600
   findings = matrix_findings(fixture("matrix.tsv"), states)
   assert findings == []
 end
@@ -908,13 +1079,15 @@ test "the matrix gate goes red on a missing row, a stray row and a wrong decisio
   assert first(first(matrix_findings(short, states))) == :missing_row
   stray = concat(
     text,
-    unlines(["full\tpermissive\trelay\tpresent\tresolved\tsolaris\tbypass"])
+    unlines(
+      ["full\tpermissive\trelay\tpresent\tresolved\tsolaris\tnone\tbypass"]
+    )
   )
   assert first(first(matrix_findings(stray, states))) == :row_without_variant
   flipped = replace(
     text,
-    "full\tpermissive\trelay\tpresent\tresolved\tdarwin\tbypass",
-    "full\tpermissive\trelay\tpresent\tresolved\tdarwin\tnoop:no_corp_tunnel"
+    "full\tpermissive\trelay\tpresent\tresolved\tdarwin\tnone\tbypass",
+    "full\tpermissive\trelay\tpresent\tresolved\tdarwin\tnone\tnoop:no_corp_tunnel"
   )
   assert first(first(matrix_findings(flipped, states))) == :decision_disagrees
   assert size(
@@ -929,11 +1102,22 @@ test "the measured live row: full tunnel, permissive, relay, gateway present, da
   rows = map(matrix_row, matrix_rows(fixture("matrix.tsv")))
   r = first(
     filter(
-      (r) -> first(r) == "full\tpermissive\trelay\tpresent\tresolved\tdarwin",
+      fn(r)
+        first(r) == "full\tpermissive\trelay\tpresent\tresolved\tdarwin\tnone"
+      end,
       rows
     )
   )
   assert last(r) == "bypass"
+  moved = first(
+    filter(
+      fn(r)
+        first(r) == "absent\tunknown\tnone\tpresent\tresolved\tdarwin\tpresent"
+      end,
+      rows
+    )
+  )
+  assert last(moved) == "noop:no_corp_tunnel+retract"
 end
 
 test "blind is never noop: an unread axis wins over every other answer"
@@ -943,7 +1127,13 @@ test "blind is never noop: an unread axis wins over every other answer"
     [:targets]
   assert decide(assoc(s, :corp, :absent))[:kind] == :noop
   assert size(filter((x) -> decide(fill(x))[:kind] == :blind, every_state)) ==
-    1200 - 3 * 4 * 4 * 2 * 1 * 2
+    3600 - 3 * 4 * 4 * 2 * 1 * 2 * 2
+  assert decide(assoc(assoc(s, :corp, :absent), :stale, :unread))[:unread] ==
+    [:stale]
+  assert get(
+    decide(assoc(assoc(s, :corp, :unread), :stale, :present)),
+    :retract
+  ).nil?
 end
 
 test "a state with a value outside its axis is refused, not decided"
@@ -1032,7 +1222,7 @@ test "end to end over the measured state before the bypass: enforcement unknown,
     fixture("netcheck-blocked.json")
   )
   s = assemble(cfg_for(:darwin, []), obs)
-  assert row_key(s) == "full\tunknown\tnone\tpresent\tresolved\tdarwin"
+  assert row_key(s) == "full\tunknown\tnone\tpresent\tresolved\tdarwin\tnone"
   o = decide(s)
   assert o[:kind] == :bypass
   assert size(o[:routes][:add]) == 96
@@ -1054,7 +1244,8 @@ test "end to end over the measured state after the bypass: permissive, and only 
     fixture("netcheck-bypassed.json")
   )
   s = assemble(cfg_for(:darwin, []), obs)
-  assert row_key(s) == "full\tpermissive\tdirect\tpresent\tresolved\tdarwin"
+  assert row_key(s) ==
+    "full\tpermissive\tdirect\tpresent\tresolved\tdarwin\tnone"
   o = decide(s)
   assert o[:kind] == :bypass
   assert o[:routes][:add] ==
@@ -1063,12 +1254,16 @@ test "end to end over the measured state after the bypass: permissive, and only 
 end
 
 test "enforcement: removed routes and blocked egress are told apart, and each refuses"
-  assert infer_enforcement(%w[a b], ["a"], %w[a b], :relay) == :routes_rewritten
-  assert infer_enforcement(%w[a b], %w[a b], [], :none) == :egress_blocked
-  assert infer_enforcement(%w[a b], %w[a b], [], :relay) == :permissive
-  assert infer_enforcement(%w[a b], ["a"], [], :relay) == :permissive
-  assert infer_enforcement(%w[a b], [], [], :relay) == :unknown
-  assert infer_enforcement([], [], [], :relay) == :unknown
+  assert infer_enforcement(%w[a b], ["a"], %w[a b], [], :relay) ==
+    :routes_rewritten
+  assert infer_enforcement(%w[a b], ["a"], %w[a b], ["b"], :relay) ==
+    :permissive
+  assert infer_enforcement(%w[a b], [], %w[a b], %w[a b], :relay) == :unknown
+  assert infer_enforcement(%w[a b], %w[a b], [], [], :none) == :egress_blocked
+  assert infer_enforcement(%w[a b], %w[a b], [], [], :relay) == :permissive
+  assert infer_enforcement(%w[a b], ["a"], [], [], :relay) == :permissive
+  assert infer_enforcement(%w[a b], [], [], [], :relay) == :unknown
+  assert infer_enforcement([], [], [], [], :relay) == :unknown
   obs = measured(
     fixture("netstat-full-no-bypass.txt"),
     fixture("netcheck-blocked.json")
@@ -1092,7 +1287,7 @@ test "an unreadable observation is blind, naming what could not be read"
   assert o[:unread] == %i[enforcement targets]
   obs2 = assoc(obs, :routes, bad("netstat exited 1"))
   assert decide(assemble(cfg_for(:darwin, []), obs2))[:unread] ==
-    %i[corp enforcement gateway targets]
+    %i[corp enforcement gateway targets stale]
 end
 
 test "nixos is policy routing: a table route and a rule per host"
@@ -1126,7 +1321,8 @@ test "nixos is policy routing: a table route and a rule per host"
     status: ok("Running"),
     netcheck: ok(:relay),
     derp: ok(["199.38.181.93"]),
-    control: ok(["192.200.0.102"])
+    control: ok(["192.200.0.102"]),
+    table: ok([])
   }
   cfg = assoc(assoc(cfg_for(:nixos, []), :corp_pattern, "ppp"), :ip, "/bin/ip")
   o = decide(assemble(cfg, obs))
@@ -1167,4 +1363,117 @@ test "dry-run plans and runs nothing; a real capture keeps status and stdout apa
   missing = capture(["/nonexistent/ukai-tool"])
   assert missing[:started] == false
   assert from_capture(missing, parse_netstat)[:ok] == false
+end
+
+def moved_applied()
+  %w[192.200.0.102 199.38.181.93 5.161.218.233]
+end
+
+test "a move between networks with no corporate tunnel retracts every route this side applied through the old gateway, and only those"
+  obs = measured(
+    fixture("netstat-site-moved.txt"),
+    fixture("netcheck-blocked.json")
+  )
+  cfg = cfg_for(:darwin, moved_applied)
+  s = assemble(cfg, obs)
+  assert row_key(s) ==
+    "absent\tunknown\tnone\tpresent\tresolved\tdarwin\tpresent"
+  o = decide(s)
+  assert outcome_label(o) == "noop:no_corp_tunnel+retract"
+  assert plan(o, cfg) ==
+    [
+      %w[/sbin/route -n delete -host 192.200.0.102],
+      %w[/sbin/route -n delete -host 199.38.181.93],
+      %w[/sbin/route -n delete -host 5.161.218.233]
+    ]
+  assert member?("203.0.113.7", o[:retract][:hosts]) == false
+end
+
+test "a move between networks under a full tunnel retracts the old routes, then adds them through the new gateway, and is not read as rewritten routes"
+  text = concat(
+    fixture("netstat-site-moved.txt"),
+    unlines(
+      [
+        "0/1                utun7              UScg                utun7       ",
+        "128.0/1            utun7              UScg                utun7       "
+      ]
+    )
+  )
+  obs = measured(text, fixture("netcheck-blocked.json"))
+  cfg = cfg_for(:darwin, moved_applied)
+  s = assemble(cfg, obs)
+  assert s[:enforcement] == :unknown
+  o = decide(s)
+  assert outcome_label(o) == "bypass+retract"
+  argvs = plan(o, cfg)
+  assert take(3, argvs) ==
+    [
+      %w[/sbin/route -n delete -host 192.200.0.102],
+      %w[/sbin/route -n delete -host 199.38.181.93],
+      %w[/sbin/route -n delete -host 5.161.218.233]
+    ]
+  assert member?(
+    %w[/sbin/route -n add -host 199.38.181.93 192.168.60.1],
+    argvs
+  ) == true
+  assert size(argvs) == 3 + size(o[:routes][:add])
+end
+
+test "routes through the current gateway are never stale, and a host this side never applied is never retracted"
+  rs = parse_netstat(fixture("netstat-site-moved.txt"))[:value]
+  assert stale_via(rs, "192.168.50.1", moved_applied) == []
+  assert stale_via(rs, "192.168.60.1", []) == []
+  assert sorted(stale_via(rs, "192.168.60.1", moved_applied)) ==
+    %w[192.200.0.102 199.38.181.93 5.161.218.233]
+  assert stale_via(rs, "192.168.60.1", ["203.0.113.8"]) == []
+end
+
+test "nixos: a table route through an old gateway is retracted with its rule, then replaced through the new one"
+  text = unlines(
+    [
+      "0.0.0.0/1 dev ppp0 scope link",
+      "128.0.0.0/1 dev ppp0 scope link",
+      "default via 192.168.1.1 dev eth0 proto dhcp",
+      "100.64.0.0/10 dev tailscale0"
+    ]
+  )
+  obs = {
+    routes: parse_ip_route(text),
+    rules: parse_ip_rules(
+      unlines(["5200:\tfrom all to 199.38.181.93/32 lookup 5280"])
+    ),
+    status: ok("Running"),
+    netcheck: ok(:relay),
+    derp: ok(["199.38.181.93"]),
+    control: ok(["192.200.0.102"]),
+    table: parse_ip_route(unlines(["199.38.181.93 via 192.168.50.1 dev eth0"]))
+  }
+  cfg = assoc(assoc(cfg_for(:nixos, []), :corp_pattern, "ppp"), :ip, "/bin/ip")
+  s = assemble(cfg, obs)
+  assert s[:stale] == :present
+  o = decide(s)
+  assert outcome_label(o) == "bypass+retract"
+  assert take(2, plan(o, cfg)) ==
+    [
+      %w[/bin/ip -4 route del 199.38.181.93/32 table 5280],
+      %w[/bin/ip -4 rule del to 199.38.181.93/32 lookup 5280 priority 5200]
+    ]
+  assert member?("199.38.181.93", o[:routes][:add]) == true
+  unread = assemble(cfg, assoc(obs, :table, bad("ip exited 2")))
+  assert decide(unread)[:unread] == [:stale]
+end
+
+test "the applied record: a dry run or a failure keeps it, a retract removes its hosts, a bypass adds its own"
+  o = {kind: :noop, reason: :no_corp_tunnel, retract: {hosts: ["a"]}}
+  assert next_applied(%w[a b], o, [], true) == %w[a b]
+  assert next_applied(%w[a b], o, [{status: 1}], false) == %w[a b]
+  assert next_applied(%w[a b], o, [], false) == ["b"]
+  by = {kind: :bypass, routes: {hosts: %w[a c]}, retract: {hosts: ["a"]}}
+  assert next_applied(%w[a b], by, [], false) == %w[a b c]
+  assert next_applied(
+    %w[a b],
+    {kind: :noop, reason: :overlay_down},
+    [],
+    false
+  ) == %w[a b]
 end

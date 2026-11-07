@@ -8,6 +8,12 @@ summary: no undeclared nil: how blue makes absence a declared, checked state
 Parent: [`SAFETY.md`](SAFETY.md), the matrix that maps each Rust safety
 guarantee to blue. This document is its row 1, no null (`Option<T>`).
 
+**Tier: DESIGN; only P0, this document, exists (re-measured 2026-11-06 at
+blue `cc9a1a1e`).** There is no `umu` bidama, no
+`crates/blue-lang-check/src/absence.rs` and no `BLUE_ABSENCE` switch: no
+commit ever held them. B0054 and B0055 are reserved for the two rules and
+absent from `RULES`. Sections 4 and 5 describe P1 as it is to be built.
+
 Operator intent (2026-10-24): *"we should have common patterns like Option or
 Result, in bluelang."* Rust has no null; it has `Option`. blue should carry no
 absence that nothing declares.
@@ -83,15 +89,16 @@ so every reader downstream changes with it; `blue check` names the fix in its
 help line and leaves the edit to the author. That is the honest limit: a
 `maybe-incorrect` rewrite is not applied unattended.
 
-Implementation: `crates/blue-lang-check/src/absence.rs`, run by the check stage
-for every door; its unit tests hold the red cases and the guard cases. The
-witnesses are `B0054`/`B0055` rows in `RULES`, and `spec/rows/check.b` covers
-both codes.
+Implementation, at P1: `crates/blue-lang-check/src/absence.rs`, run by the
+check stage for every door, its unit tests holding the red cases and the guard
+cases; `B0054`/`B0055` rows in `RULES` with witnesses; `spec/rows/check.b`
+covering both codes.
 
 ## 5. Count, and the path to enforce
 
-Measured 2026-10-24 on `6f1bb37` with `BLUE_ABSENCE=audit blue census` over the whole repository (every `.b`
-file):
+The P0 draft (2026-10-24, `6f1bb37`) carried these counts, from a prototype
+that never landed. They cannot be re-run until P1 builds the switch, and are
+an estimate until then:
 
 | Code | Findings | Where most are |
 |---|---|---|

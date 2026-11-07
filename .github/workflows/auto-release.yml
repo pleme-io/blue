@@ -14,7 +14,7 @@ name: auto-release
 #     blue's `org.yaml` record carries no `actions_enabled` key, so it takes
 #     the default; the 14-of-860 records that pin it `false` (tear among them)
 #     are the exception, and blue is not one of them.
-#   - All 13 crates carry `description` + `license`, and `[workspace.package]`
+#   - All 24 crates carry `description` + `license`, and `[workspace.package]`
 #     supplies version/license/repository/readme — so cargo has what the
 #     registry requires.
 #   - 403 tests green on the workspace.

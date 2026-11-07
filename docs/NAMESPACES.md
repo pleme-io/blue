@@ -151,8 +151,11 @@ root it moves into declares the move in its Bluefile, the package twin of
 `legacy_names`:
 
 ```ruby
-package("kaaneru", "0.2.0")
-legacy_packages("0.2.0", [["bpf", "kaaneru/bpf"]])
+package("kaaneru", "0.1.0")
+legacy_packages(
+  "0.1.0",
+  [%w[bpf kaaneru/bpf], %w[btf kaaneru/btf], %w[erufu kaaneru/erufu]]
+)
 ```
 
 From `since` to the root's next minor version, the bridge is open. A loader

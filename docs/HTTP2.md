@@ -258,8 +258,8 @@ Two bidamas and two runtime words, all pure.
 | `shinsuu` 0.1.1 | `be_bytes`, `be_value`, `hex_bytes`, `bytes_hex` | two blocks |
 | `kyohi` 0.1.3 | `and_then`: the next step on a value, a refusal passed through | one block |
 
-Every test block was seen red: `bidamas/heni/mutations/heddaa.json` (20
-mutations) and `tajuu.json` (25) are each caught. The first heni run left one
+Every test block was seen red: `bidamas/heni/mutations/eigyou/heddaa.json` (20
+mutations) and `eigyou/tajuu.json` (25) are each caught. The first heni run left one
 survivor in each (padding of exactly 8 bits; padding equal to the payload
 length; a 23-octet preface); each gained the test that kills it.
 

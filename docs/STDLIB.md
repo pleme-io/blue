@@ -5,7 +5,10 @@ summary: the standard library's design as one verb vocabulary (design)
 
 # STDLIB: blue's batteries, as one verb vocabulary
 
-**Status: DESIGN (2026-10-19).** Nothing here is built. It is written against the forms the
+**Status: DESIGN (2026-10-19), partly built (2026-11-06).** Master verb dispatch (§3.7) is
+built. §5's gate was redesigned: the verb graph lives in `bidamas/mokuroku/graph/` as data and
+its check is designed in `docs/verbs/H/DESIGN.md`, which supersedes §5.1 and §5.2 (no
+`mokuroku/verbs.b`, `checks.bidama-verbs` or `docs/STDLIB-VERBS.md` exists). The rest is design. It is written against the forms the
 canonical-forms work is landing (`raise :kind, "msg"`, `rescue :kind as e … ensure … end`, inline
 `expr rescue default`, records read as `value.field`, splat `f(*args)`, the `main` entry, default
 per-file namespaces, `json_at`). `docs/CANONICAL-FORMS.md` was not committed when this was

@@ -10,8 +10,10 @@ facade), 4,223 top-level definitions. The near-duplicate gate
 (`crates/blue-lang-pkg/tests/distribution.rs`, `near_duplicate_shapes_only_fall`)
 counts 257 definitions in 106 shape groups, each a word the distribution wants.
 
-Status 2026-11-05: IN FLIGHT. Three branches wait to land, and the namespace
-trees add a second axis (section 6). Pick up from section 6.
+Status 2026-11-06 (blue `cc9a1a1e`): no branch waits; tree 10 (`kaaneru`)
+landed. Open: four of section 2's merge words are not written
+(`retsu::fold`, `retsu::find_where`, `retsu::span_end`, `kansuu::lift2`), and
+the items under "Open, in order" below. Pick up from section 6.
 
 ## 1. Destination
 
@@ -111,10 +113,6 @@ shape, where a wrapper is reuse.
 
 Open, in order:
 
-- Tree 10, `kaaneru`, after the kernel branches (`kernel/fc-work`,
-  `kernel/kprobe-multi-row`, `land/fc-objects`) land; `gen/tree.b move` refuses
-  a root that has its own Bluefile, so its `legacy_packages` rows are written by
-  hand.
 - `deeta/line_breaks` and `moji::repeated` are one word; deeta needs nothing,
   and a `use` of moji turns 53 of deeta's bare `first`, `rest`, `last` and `max`
   calls into B0012 until the retsu and kazu `legacy_names` windows close at
@@ -122,10 +120,6 @@ Open, in order:
 - A foundation takes a new edge only when it is worth every consumer's closure:
   `retsu::size` keeps its own nil check (`granularity` holds retsu at kazu), and
   `angou::atbash` keeps its own join rather than load moji.
-- Remote branches `namespaces/nested`, `namespaces/nested-land`,
-  `land/namespaces/nested` and `namespaces/tree-mitoshi` hold handoff and draft
-  commits main does not have; they are superseded and wait for the operator to
-  drop them.
 
 Decided from 2: `moji` needs `junjo`, which needs `ronri`. Both depend only on
 foundations and join the list in section 1. Moving `sort` below them would copy

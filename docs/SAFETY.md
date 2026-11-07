@@ -255,10 +255,12 @@ tier. ⚠️ marks a partial seal. ❌ marks an open row.
 | 16 | Blue scripting parity | ⚠️ a script gets the check stage's errors; no warnings, no project rules, ambient capabilities | shebang `--allow` (landed); project rules on `run`; default flip | checked-at-expansion | on |
 | 17 | Module privacy: a package cannot rebind a name outside itself | ✅ runtime: definitions keyed `pkg/name`; ✅ check: a bidama definition never changes an importer's bare builtin call (B0012 only for listed flat-era names, inside their window) | `docs/NAMESPACES.md` | unrepresentable (runtime) + checked-at-expansion | on, no off; the flat-era refusal goes off per name when its `legacy_names` window closes |
 | 18 | Session-mistake hard blocks | ✅ B0061 undeclared-option, B0062 argument-kind, B0063 nullary-as-function, B0064 unformatted-producer (`write_program`); ✅ `gen/retired.b`: a retired word ships its `legacy_names` fixer (prepush); ✅ `blue test` scrubs the inherited git environment and writes only under the temporary root; ✅ a Bluefile check under `blue test`, and a generator under `blue run`, reads only its declared inputs, as the nix sandbox gives them | registry witnesses, spec rows `safety.B0061*`–`safety.B0064*`, `crates/blue-lang-cli/tests/hermetic.rs`, `crates/blue-lang-cli/tests/declared_inputs.rs` | checked-at-expansion (codes), runtime-refused (test writes, undeclared inputs) | on; `# waive <code>: reason`; `BLUE_TEST_ENV=inherit`, `BLUE_TEST_WRITES=anywhere`, `BLUE_INPUTS=checkout` |
+| 19 | No silent re-entry of a lazy value (ROADMAP ruling R3) | ⚠️ a `force` that re-enters its own `delay` recurses until the call-depth budget (100,000) refuses it: loud, but not a cycle error naming its path (measured 2026-11-06) | a blackhole state in `force`: re-entry raises `:cycle` with the path of forces | checked-at-runtime (budget) → checked-at-runtime (named cycle) | on, no off |
 
-**Count:** 16 rows. Sealed at their target tier today: 4 (rows 4, 5, 6,
-10; row 5 for memory, its `nil` half belongs to row 1). Partly sealed: 9
-(rows 2, 7, 8, 9, 11, 12, 13, 15, 16). Open: 3 (rows 1, 3, 14).
+**Count (2026-11-06):** 19 rows. Sealed at their target tier today: 6 (rows
+4, 5, 6, 10, 17, 18; row 5 for memory, its `nil` half belongs to row 1).
+Partly sealed: 10 (rows 2, 7, 8, 9, 11, 12, 13, 15, 16, 19). Open: 3 (rows 1,
+3, 14).
 
 **Rows in flight with other owners.** Each owner adds its own row here, with
 the same columns, when its gate lands. This document does not land them.

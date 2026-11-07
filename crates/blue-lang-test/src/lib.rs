@@ -62,8 +62,8 @@
 //!
 //! The fleet's ★★ DOJO doctrine says every testing quality is a typed facet
 //! carried by one `(defsuite …)` over one injected Environment, and that dojo
-//! owns only the border. `pleme-io/dojo` is empty (DESIGN tier, nothing
-//! shipped), so this runner is blue-local and shaped to be absorbed: a
+//! owns only the border. `pleme-io/dojo` ships only `dojo-types` (v0.1.1,
+//! the facet types, no runner), so this runner is blue-local and shaped to be absorbed: a
 //! `(deftest …)` form is a facet's worth of declaration, and `Report` is the
 //! verdict a `(defsuite …)` would collect. It is not a second testing
 //! vocabulary competing with dojo; it is the first facet, waiting for the

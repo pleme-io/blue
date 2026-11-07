@@ -15,25 +15,28 @@ decided once, in § Rulings. The gap ledger (what is broken) is
 PARTIAL: some phases on main with green CI. SHIPPED: the done gate is green on
 main. UNRECONCILED: the row is seeded, and its tier is not yet measured.
 
-Seeded 2026-11-06 at blue `6434ce31`.
+Seeded 2026-11-06 at blue `6434ce31`. The long plan these rows serve, ten
+horizons from hygiene to replay and proof, is [`HORIZON.md`](HORIZON.md); a
+horizon gets a row here when its first phase starts.
 
 ## Tracks
 
 | Track | Design doc | Tier | Next step | Depends on | Done gate |
 |---|---|---|---|---|---|
-| **arika**: blue's word search | [`ARIKA.md`](ARIKA.md), `theory/ARIKA.md` | Phase 1 BUILT, the rest DESIGN | Phase 2: `blue arika emit` and `SNAPSHOT.json` | namespaces (tree paths in IDs); verbs (the `sakuin` space for T5) | G1-G8 green on main; a session on ryn answers the golden set through `blue_word_*` |
-| namespaces | [`NAMESPACES.md`](NAMESPACES.md), `theory/BLUE-NAMESPACES.md` | UNRECONCILED | reconcile against main | — | B0076-B0078 at error with corpus count 0 |
-| absence | [`ABSENCE.md`](ABSENCE.md) | UNRECONCILED | reconcile against main | — | the doc's seal tier row |
-| safety | [`SAFETY.md`](SAFETY.md) | UNRECONCILED | reconcile against main; add the blackhole row (§ Rulings R3) | — | each SAFETY row at its stated seal tier |
+| **arika**: blue's word search | [`ARIKA.md`](ARIKA.md), `theory/ARIKA.md` | Phase 1 BUILT, the rest DESIGN | Phase 2: `blue arika emit` and `SNAPSHOT.json` | namespaces (tree paths in IDs); verbs (the `sakuin` space for T5) | G1-G9 green on main; a session on ryn answers the golden set through `blue_word_*` |
+| namespaces | [`NAMESPACES.md`](NAMESPACES.md), `theory/BLUE-NAMESPACES.md` | SHIPPED (reconciled 2026-11-06 at `cc9a1a1e`: `blue census` measures B0076, B0077 and B0078 at 0, ratchet 0; tree 10 landed) | close the flat-era `legacy_names` windows at each root's next minor | — | B0076-B0078 at error with corpus count 0 |
+| absence | [`ABSENCE.md`](ABSENCE.md) | DESIGN (reconciled 2026-11-06: only P0, the document; no `umu`, no `absence.rs`, no `BLUE_ABSENCE`, B0054/B0055 reserved) | P1: `umu` and B0054/B0055 at audit | — | the doc's seal tier row |
+| safety | [`SAFETY.md`](SAFETY.md) | PARTIAL (reconciled 2026-11-06: 19 rows, 6 sealed, 10 partly, 3 open; the blackhole is row 19) | rows 1, 3 and 14, the open ones | — | each SAFETY row at its stated seal tier |
 | testing | [`TESTING.md`](TESTING.md) | UNRECONCILED | reconcile against the §16 tier ledger | — | the §16 ledger |
-| registry | [`REGISTRY.md`](REGISTRY.md) | UNRECONCILED | reconcile against main | — | `blue registry status` green |
+| registry | [`REGISTRY.md`](REGISTRY.md) | UNRECONCILED | reconcile against main; give the gate a way to fail | — | a registry check that exits non-zero on an absent pin (`blue registry status` reports and never fails, so it gates nothing) |
 | blue on sui | `theory/BLUE-STRUCTURE.md` §5.3, `theory/SUI-FLIP.md` | UNRECONCILED | reconcile; mark §5.3 superseded (§ Rulings R1) | — | to be stated at reconcile |
 | frontend | [`FRONTEND-PLAN.md`](FRONTEND-PLAN.md), `theory/BLUE-FRONTEND.md` | UNRECONCILED | reconcile against main | — | to be stated at reconcile |
 | verbs | [`VERB-ROADMAP.md`](VERB-ROADMAP.md) | DESIGN (its own measured tier line, 2026-10-22) | reconcile | — | `blue verbs check` against its baseline |
 | **khipu**: the knowledge graph (OxiRS naturalized) | [`KHIPU.md`](KHIPU.md) | K1a BUILT (`bidamas/khipu`: terms, N-Triples, N-Quads), the rest DESIGN | K1b: quads in DuckDB through `kueri`, basic graph patterns, the W3C syntax suites against Oxigraph | kueri; arika (shares the rule engine and snapshots) | the W3C suites of K1-K4 green as a differential against Oxigraph |
 | **utsushi**: history projection (Josh naturalized) | [`UTSUSHI.md`](UTSUSHI.md) | U1 BUILT (`bidamas/utsushi`), U2-U6 DESIGN | U2: workspace entries refused one by one; `exclude`; views | gitto | `josh-filter` id parity on fixtures; the round-trip law green |
 | **async**: native async, the `heikou` space | [`ASYNC.md`](ASYNC.md) | DESIGN (processes built, async words absent) | A1: `net_wait` in the node loop, node-time timers, the context record, the virtual clock in `blue test` | blue-lang-proc; HTTP2.md P3 (`net_wait`) | the conformance set green at `schedulers(1)` and `schedulers(n)`, gates A-ontology to A-replay |
-| **guard return** | [`GUARD-RETURN.md`](GUARD-RETURN.md) | DESIGN (operator-approved 2026-11-06) | G1: the parser rewrite and its refusal rule | — | R-lower, R-refuse, R-total green |
+| **record**: a named structure in one line | `examples/17_records.b`, okite D0017 | SHIPPED (2026-11-06, blue `cc9a1a1e`) | — | — | `spec/rows/records.b` and okite's record laws green; B0079 at error |
+| **guard return** | [`GUARD-RETURN.md`](GUARD-RETURN.md) | G1 BUILT (lowering, B0080, the formatter keeps the guard), G2 DESIGN | G2: the language server and the tree-sitter grammar know `return`; a `return` inside `rescue` | — | R-lower, R-refuse, R-total green (G1); editors highlight it (G2) |
 
 ## The arika track
 
@@ -69,9 +72,9 @@ dated receipt.
 
 | # | Conflict | Resolution | Rejected | Date, who |
 |---|---|---|---|---|
-| R1 | `theory/BLUE-STRUCTURE.md` §5.3 "blue expresses derivations: cut it" vs full nix in blue | operator override: blue lowers to sui's derivation seam (`sui_spec::derivation::apply`), not to `sui-ir`. §5.3 is superseded, its text kept. The superseded mark is still owed | lowering to `sui-ir` (it copies Nix syntax) | 2026-10-24, operator |
+| R1 | `theory/BLUE-STRUCTURE.md` §5.3 "blue expresses derivations: cut it" vs full nix in blue | operator override: blue lowers to sui's derivation seam (`sui_spec::derivation::apply`), not to `sui-ir`. §5.3 is superseded, its text kept, and carries the mark (2026-11-06) | lowering to `sui-ir` (it copies Nix syntax) | 2026-10-24, operator |
 | R2 | the check ladder's "zero analysis at rung 0" vs nil-safety on by default | builtin signatures are declared, so the nil rule needs no inference across calls; narrowing is local to one function | a global inference pass | 2026-10-24, operator |
-| R3 | `delay` re-runs a re-entrant thunk vs lazy scopes for overlays | a cycle is a typed refusal that names its path. The blackhole state is a SAFETY.md row, still owed | silent re-entry | 2026-10-24, operator |
+| R3 | `delay` re-runs a re-entrant thunk vs lazy scopes for overlays | a cycle is a typed refusal that names its path. The blackhole state is SAFETY.md row 19 (2026-11-06) | silent re-entry | 2026-10-24, operator |
 | R4 | FlakeHub as the registry vs pleme-io sui | the Bluefile and the lock are the truth; sui is the primary backend; FlakeHub is optional and off | FlakeHub as primary | 2026-10-24, operator |
 | R5 | arika's schema source: forge-gen (OpenAPI in) vs a blue schema | a blue schema over `toriyose/outou`; GraphQL, MCP tools and tables render from it | forge-gen: a third format, and a Rust MCP proxy | 2026-11-06, operator (D2-D4) |
 | R6 | mokuroku reads source as text vs the engine's facts | one producer: mondou's emitter. mokuroku reads the facts in Phase 2 and keeps its output | a second analyser | 2026-11-06, operator |

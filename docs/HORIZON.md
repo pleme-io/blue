@@ -1,6 +1,6 @@
 ---
 kind: explanation
-summary: the long plan for blue, ten horizons from hygiene to a language that proves, replays and explains itself; destination first, each horizon with its first step, its gate and what it unlocks
+summary: the long plan for blue, ten horizons from hygiene to a language that proves, replays and explains itself, and eight authority horizons that make every host effect a capability granted from one declaration in every placement; destination first, each horizon with its first step, its gate and what it unlocks
 ---
 
 # HORIZON: where blue goes next
@@ -217,6 +217,198 @@ unrelated definition, and they do not.
 **First step:** the quality signals rendered per package in CATALOG.
 **Gate:** each signal reproduces from the lock alone.
 
+## Authority: one capability set, every placement (H11 to H18)
+
+Added 2026-11-07 (blue `9ca7c2cc`, release v0.0.160), from two read-only
+surveys of the language and of every placement. Every "built" below cites code.
+
+**The destination.** Authority in blue is a capability, and a capability comes
+from one place. A program, a bidama, a process and a service each hold only
+what their declaration grants, narrowed from their caller and never widened.
+One closed set, `blue_lang_waku::Capability`, names every host effect, and
+every other list is a projection of it. One declaration renders the boundary
+of every placement: the interpreter frame, the embedder posture, the wasm
+imports and grant, the engenho native enclosure, the Kubernetes NetworkPolicy
+and securityContext, the systemd sandbox, the image entrypoint and the browser
+CSP. One gate proves that the placements agree. A program with no declaration
+is pure. Ambient authority is a declaration (`allow(:all)`), visible and
+counted, never a default.
+
+World-facts that limit this destination: WASI has no subprocess; a dynamic
+language cannot prove higher-order purity without an effect system (H14 builds
+one); the kernel verifier and the browser origin are boundaries blue renders
+to, not boundaries it replaces.
+
+### Where authority stands (measured 2026-11-07)
+
+| Fact | Value |
+|---|---|
+| Capability set | 6 pure and 14 host bundles, closed, no `Other` arm (`crates/blue-lang-waku/src/capability.rs:349-426`) |
+| Lattice | `Reach` with meet and join; `narrow` is the only run-time move, there is no widen (`crates/blue-lang-waku/src/lib.rs:70-297`) |
+| Lock check | `⋁ floors ⊑ allow ∨ provided`, per definition (`crates/blue-lang-pkg/src/capabilities.rs:862-1035`); runs only when the root declares `allow`, a provider or `bounds` (`:1097`) |
+| Run-time hold | one frame for the whole interpreter; a breach is fatal, exit 77 (`crates/blue-lang-runtime/src/lib.rs:376-543`) |
+| Default | ambient when nothing is declared: `blue run`, `load_hosted`, an embedder with no posture |
+| Adoption | 1 of 88 Bluefiles declares `reach` (`bidamas/kaaneru`), 1 declares `allow` (`examples/docking`) |
+| Service access | `Access`, with a second, 7-variant `Effect` enum (`crates/blue-lang-pkg/src/deploy/runtime.rs:8`) |
+| Placements with a boundary derived from `access` | 1 of 14: the engenho wasm pod (`blue.pleme.io/access`, enforced by engenho's kidou) |
+| Placements with no boundary | GitHub Actions `run.b`, the image entrypoint, `mkBlueApp` executables, the systemd and launchd trio |
+
+### H11. One vocabulary
+
+`access.effects` names 7 `Effect`s; the Bluefile's `allow` and `reach` name 14
+`Capability`s, spelled differently (`kernel_bpf`, `kernel-bpf`). Nothing ties
+a service's code to its `access`.
+
+- `Effect` becomes a projection of `Capability`: a total, tested map, so a
+  capability added to waku has a service spelling or the build fails.
+- A service's code floor, which `blue lock` already derives, must fit under its
+  `access.effects`.
+- One spelling, read both ways by the parser, printed one way.
+
+**First step:** `Effect` derived from `Capability` by an exhaustive map, and
+`blue lock` refuses a service whose floor exceeds `access.effects`, naming the
+definition.
+**Gate:** red run: a service whose code calls `exec_into` without `:process`
+in `access` fails the lock.
+**Unlocks:** H12, H16.
+
+### H12. Pure by default
+
+Every door with no declaration is ambient today. The flip comes in rings, each
+its own land. `allow(:all)` stays a legal declaration, so no behaviour is
+deleted; it is configured, and the configuration is visible.
+
+1. A census: every Bluefile and every action `run.b` in pleme-io declares
+   `allow`; a check counts the undeclared ones, and the count only falls.
+2. The lattice check runs on every lock, not only when the root declares.
+3. Embedders: a `Load` with no posture is pure, and ambient is
+   `posture(Capability::all())`. A posture refusal is fatal, as `blue run`'s
+   breach is, unless the embedder declares it catchable.
+4. `blue run` with no declaration grants nothing; `--allow all` and
+   `allow(:all)` keep the old behaviour.
+
+**First step:** rings 1 and 2.
+**Gate:** red run: a project with no `allow`, whose bidama declares
+`reach(%i[clock])` and calls `read_file`, fails `blue lock`.
+**Unlocks:** H13.
+
+### H13. Authority per bidama at run time
+
+The run-time hold is one frame for the whole interpreter. A bidama gets every
+capability the root grants, and code a dependency gained after locking is held
+only by the root.
+
+- Each package runs in its own frame: its declared `reach` met with its
+  caller's hold.
+- `process` implies every capability, since a subprocess can do anything; a
+  grant of it reads as top.
+- Program macros run in the macro-phase frame (today they expand under the
+  run's hold; `theory/BLUE.md`, the 2026-08-01 macro-phase correction).
+- A spawned process holds its spawner's frame or a narrower one.
+
+**First step:** per-package frames through the scoped-provider path
+(`crates/blue-lang-runtime/src/lib.rs:395-431`), and `process` implies all.
+**Gate:** red run: under a root `allow(%i[filesystem clock])`, a bidama with
+`reach(%i[clock])` that calls `read_file` is refused at run time.
+**Unlocks:** H15.
+
+### H14. The checker sees authority
+
+Refusals come from the lock and the runtime, never from `blue check`, so an
+editor sees none of them.
+
+- Effect inference per definition in the check stage, from the free-name walk
+  the lock uses, with an effect variable so `map(f, xs)` carries `f`'s
+  effects.
+- A `capability-escape` B-code at check time, with the path to the host word
+  (gap G9's destination).
+- ASYNC's `suspends` joins the same effect row.
+
+**First step:** the B-code for first-order escapes, judged against the root
+Bluefile's ceiling.
+**Gate:** red run: `blue check` on a file that calls `now_ms` under
+`allow([])` names the code and the line.
+
+### H15. Capabilities as values
+
+Authority today is "can name X". An object capability is a value: passed in,
+narrowed and revoked.
+
+- A grant is a value (`fs = grant(:filesystem, under: "/data")`), and the host
+  word takes it.
+- Attenuation: `fs.under("logs")`, `net.only("db:5432")` (per-peer egress
+  inside the language), `clock.monotonic`.
+- Revocation by the grant's maker; a use after revoke is a typed refusal.
+- The ambient names stay as sugar over the root grant, configured off per
+  project.
+- New capabilities: `secret` (SAFETY row 14: opaque, redacted on print,
+  refused on send), `stdout`, `gpu`. An embedder extension joins the closed
+  set or is refused.
+
+**First step:** the filesystem grant with `under`, and the `secret`
+capability.
+**Gate:** red run: a function given `fs.under("a")` cannot read `b/x`; a
+printed secret shows `<secret>`.
+
+### H16. One declaration, every placement
+
+Only the engenho wasm pod turns `access` into a boundary today.
+
+- haibi also renders `kakoi.pleme.io/access`, so a native-rung service gets
+  its enclosure from the same declaration; one annotation read by both doors
+  is the destination.
+- A wasm component imports only what `access.effects` grants (SERVICE-ACCESS
+  S3).
+- The chart renders NetworkPolicy egress and ingress, read-only `reads`
+  volumes and `automountServiceAccountToken` (A2).
+- The trio renders systemd `IPAddressAllow`, `ReadOnlyPaths`,
+  `NoNewPrivileges` and `SystemCallFilter` (A3).
+- The image entrypoint and `mkBlueApp` executables run with `--allow` derived
+  from `access`; a Rust host loads a service program under
+  `posture(access.effects)` (A5).
+- An action's `run.b` gets a Bluefile with `allow`.
+- `frontend(...)` and `workload(...)` gain `access`; a frontend's CSP and
+  `connect-src` render from it.
+- Default egress: the code renders `[]`; SERVICE-ACCESS.md §3 says the
+  declared bindings plus DNS. The doc's default is the destination.
+
+**First step:** haibi renders the kakoi annotation, and the
+`-component-serves` check's wasmtime flags derive from `access`.
+**Gate:** red run: on engenho, a native pod of a service with `egress: []`
+that opens a socket is refused.
+**Unlocks:** H17.
+
+### H17. Parity: the placements agree on authority
+
+kakoi, kidou, the chart and the trio each keep their own effect table. Nothing
+proves that one `access` allows and refuses the same effects in each.
+
+- A capability conformance matrix, in the shape of `spec/rows`: per
+  capability, a probe that succeeds when granted and is refused when withheld,
+  on every placement column.
+- kakoi and kidou read one effect table generated from waku.
+
+H8 compares what a program computes across placements; H17 compares what it is
+allowed to do.
+
+**First step:** the matrix on three columns: `blue run`, the wasm component,
+the engenho wasm pod.
+**Gate:** red run: one column that allows a withheld capability turns the
+matrix red.
+
+### H18. Least privilege as a ratchet
+
+The hold already counts calls per granted name
+(`crates/blue-lang-runtime/src/lib.rs:440-475`).
+
+- Each run's receipt records the capabilities it used.
+- Declared minus used is a census row per package, and it only falls.
+- `blue lock --tighten` writes the narrowest `reach` the code allows.
+
+**First step:** used capabilities in the receipt, and the census row.
+**Gate:** a capability declared and never used by the test suite appears in
+the census, and the row may not rise.
+
 ## Order
 
 | When | Horizons | Why first |
@@ -224,6 +416,9 @@ unrelated definition, and they do not.
 | Now | H0; H1 (unions, patterns, `?`); H3 (the test cache) | H0 makes the ledger true; H1 completes the data model every later horizon names; H3 makes every later change cheaper to verify |
 | Next | H2; H4 (async A1); H5 (arika Phase 2); H6 (heni in the census) | each builds on H1's shapes or H3's identities |
 | Later | H7; H8; H9; H10 | each multiplies what the earlier horizons made true |
+| Authority, now | H11; H12 rings 1 and 2; H16's first step | one vocabulary first, so every later horizon names one set; the census measures the flip before it happens |
+| Authority, next | H12 rings 3 and 4; H13; H17 | per-bidama frames and the parity matrix stand on one vocabulary |
+| Authority, later | H14; H15; H18 | effect inference and capability values change the language surface; least privilege needs receipts from every placement |
 
 ## What this plan refuses
 
@@ -231,5 +426,8 @@ unrelated definition, and they do not.
   proves it.
 - A second language for a placement. A placement blue cannot reach is a rung
   to build, not a reason to write TypeScript, nix or Rust beside it.
+- Ambient authority as a default. It stays legal as a declaration.
+- A placement that configures its boundary by hand. Each boundary is rendered
+  from the one declaration.
 - A global switch to settle a conflict between two good ideals. That is a
   blueshift position (`theory/BLUE-GAPS.md`, the rule at its head).

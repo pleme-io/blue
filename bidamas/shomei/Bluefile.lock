@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:83101e458f0b65fd7f34a80711e4c19166ad5f17203a150abd2bbfe23261927a",
+  "bluefile_b3": "b3:2d6d4b9417d2751b495351e19263eae616441eaaa618784801eefd3be730f182",
   "manifest": {
     "schema": 1,
     "name": "shomei",
@@ -11,7 +11,8 @@
       "kazu": "^0.1.0",
       "kyohi": "^0.1.0",
       "moji": "^0.1.0",
-      "retsu": "^0.1.0"
+      "retsu": "^0.1.0",
+      "shinsuu": "^0.1.0"
     },
     "when": "anytime",
     "sources": {},

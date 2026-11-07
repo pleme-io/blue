@@ -1,14 +1,22 @@
 ---
 kind: explanation
-summary: arika, blue's word search, Phase 1 built and the rest DESIGN: the recon, phases, gates with red runs, risks and every surface that names it
+summary: arika, blue's word search, Phases 1 and 2 built for blue's own tree and the rest DESIGN: the recon, phases, gates with red runs, risks and every surface that names it
 ---
 
 # arika (在り処): the design of record
 
-**Tier (2026-11-06): Phase 1 BUILT, Phases 2-7 DESIGN.** Phase 1 is
+**Tier (2026-11-06): Phase 1 BUILT. Phase 2 BUILT for blue's own tree
+(G1, G2, G3, G6 and the stale-facts refusal green); two Phase 2 rows stay
+DESIGN: the `arika` output of `mkBidama` and `blue.lib.project` for other
+projects, and mokuroku reading the facts. Phases 3-7 DESIGN.** Phase 1 is
 `crates/blue-lang-cli/src/arika.rs` (the facts, from the engine) and the
 embedded `crates/blue-lang-cli/blue/arika.b` (ranking and every answer's
-text), locked by `crates/blue-lang-cli/tests/arika.rs`. The spec (data model, tier
+text), locked by `crates/blue-lang-cli/tests/arika.rs`. Phase 2 adds the
+per-definition producer `crates/blue-lang-mondou/src/facts.rs`, `blue arika
+emit`, the RFC 9162 words `shomei::ct_*`, the committed header
+`bidamas/SNAPSHOT.json` (`generate("arika-snapshot")` in the root `Bluefile`,
+`gen/arika.b`) and the facts as a nix output, `packages.arika-facts`
+(`run("arika-facts")`, `gen/arika-facts.b`), never committed (D1). The spec (data model, tier
 ladder, proofs, schema, prior art) is `theory/ARIKA.md`. This file holds what
 an agent needs to build and maintain arika: the recon with paths, the phases,
 the gates with their red runs, the risks, and every surface that names arika.
@@ -21,6 +29,7 @@ Every "today" claim was read at blue `6434ce31` on 2026-11-06.
 | Face | Call | Phase | Tier |
 |---|---|---|---|
 | CLI | `blue arika like FILE[:LINE]`, `blue arika word NAME`, each with `--json` | 1 | BUILT |
+| CLI | `blue arika emit [ROOT] [--facts FILE]` writes the header `ROOT/SNAPSHOT.json` and the facts; `like` and `word` take `--snapshot HEADER --facts FILE` and answer from the facts, or refuse them as blind when their root is not the header's | 2 | BUILT |
 | CLI | `blue arika find "intent"`, `uses ID`, `changed PKG --since V`, `groups` | 3 | DESIGN |
 | Hook | `blue arika like --hook` on a `.b` Write, Edit or MultiEdit, before the write, advisory | 1 | BUILT |
 | MCP | `blue_word_like`, `blue_word_find`, `blue_word_get`, `blue_word_uses`, `blue_word_changes` | 5 | DESIGN |
@@ -41,6 +50,44 @@ Blind spot, shared with B0070: a home word's computed shape inlines the
 forwards defined in its own file. A copy that calls the same helper by import
 (`rest(scan(...))` for `retsu::running_sum`) has a different shape and is not
 named. Phase 2's emitter and Phase 3's T3 witnesses are where that closes.
+
+## What Phase 2 holds
+
+Two files, as D1 rules: a small committed header and the facts it roots, a nix
+output.
+
+- **The header**, `bidamas/SNAPSHOT.json` (format `arika/1`, 12 KB on
+  2026-11-06): canonical JSON, keys sorted, one package per line. It holds
+  `definitions`, `leaves`, `blind`, the `snapshot_root`, and per package its
+  `unit_root` and row count. It changes only when a fact changes.
+- **The facts**, `facts.jsonl` in `nix build .#arika-facts` (beside a copy of
+  the header): one row per line, in unit order. A row is one definition the
+  engine sees, of any kind (function, value, macro): `id`
+  (`blue:blue:<package path>::<word>@<12 hex>`), `word`, `package`, `name`,
+  `kind`, `def_hash`, `shape` (computed, T2), `written_shape` (T1), `size`,
+  `file` (relative to the root), `line`, `gloss` (the first line of its `@doc`,
+  as CATALOG.md writes it) and `legacy` (the old spellings that moved to it,
+  with `since`).
+
+| Piece | Rule |
+|---|---|
+| leaf | BLAKE3 of the row's canonical JSON |
+| unit root | `shomei::ct_root` over a package's leaves: RFC 9162 layout, leaf `0x00`, node `0x01`, tameshi's `compute_leaf_root` |
+| snapshot root | `ct_root` over the unit roots, in package order |
+| determinism | rows sorted by package, word, file, line; paths relative; no time, commit or engine version in either file |
+| coverage | `emit` refuses to write when the rows are not the definitions the producer counted |
+| a file that does not check | listed in `blind` with its reason; the other files still emit |
+| a stale index | `like` and `word` recompute the root of the facts they are given; when it is not the header's they answer `blind` and name the rebuild, never a stale `found` or `empty` |
+
+`seq`, `commit`, `engine_identity` and `expires` are left out, because each
+would make the same tree give different bytes; G7 (Phase 3) is where `seq` is
+checked. `census --reuse` reads the same producer (`facts::of_entry`), and
+`gen/word-shapes.b` reads census, so `WORD_SHAPES` comes from it too. The
+Bluefile's `run` takes `inputs` for this (`run(name, file[, reads[,
+inputs]])`, under `$GEN_ROOT`), as `generate` and `check` do.
+
+Measured 2026-11-06 on blue's tree: 5,737 definitions, 5,737 leaves, 102
+units, 0 blind.
 
 **A repo opts out** with `arika(false)` in its Bluefile. That configures the
 `arika` output off. It deletes nothing.
@@ -91,12 +138,14 @@ verified on 2026-11-06. Phases 1-4 need no engenho.
 
 | Gate | Proves | Red run |
 |---|---|---|
-| G1 `arika-fresh` | committed `SNAPSHOT.json` root equals the nix-built root | edit a def, do not regenerate |
-| G2 `arika-coverage` | leaves equal every definition the engine sees (5,573 functions in `bidamas/`, 2026-11-06) | drop one leaf in the emitter |
-| G3 `arika-word-shapes-parity` | each `WORD_SHAPES` prefix matches a shape row with the same home | corrupt one table row |
+| G1 `arika-fresh` (BUILT: `checks.generated-arika-snapshot-fresh`) | the committed header equals the nix-built one, byte for byte; `emit_is_byte_identical_for_the_same_tree_wherever_it_lies` locks the determinism of header and facts | edit a def, do not regenerate; for the test, write absolute paths into rows |
+| G2 `arika-coverage` (BUILT: `every_definition_is_one_leaf_with_its_facts_g2`, and `emit` refuses) | leaves equal every definition the engine sees (5,737 in `bidamas/`, 2026-11-06) | drop one leaf in the emitter: `emit` raises `arika_coverage` |
+| G3 `arika-word-shapes-parity` (BUILT: `every_word_shapes_row_is_a_fact_row_with_the_same_home_g3`) | each `WORD_SHAPES` prefix matches a fact row with the same home, and every fact row of 12 nodes or more has a table row | a table row that no longer matches: editing `shomei` without regenerating the table named 5 rows |
+| facts parity (BUILT: `like_from_the_facts_answers_as_the_engine_does`, `word_from_the_facts_finds_what_the_engine_finds`) | `like --snapshot --facts` gives the in-process answer for every fixture word, T0, T1 and T2; `word` from the facts keeps the engine's names, parts and old spellings | read T1 from the computed shape instead of the written one |
+| stale facts (BUILT: `facts_that_do_not_hash_to_the_header_are_refused_as_blind`, and a blue test in `arika.b`) | facts whose root is not the header's are answered `blind`, for `like` and `word` | skip the root check: the edited fact is answered as found |
 | G4 `arika-b0070-parity` (BUILT: `crates/blue-lang-cli/tests/arika.rs`) | `like` and B0070 name the same word for every definition of 12 nodes or more; below that B0070 is silent by design and `like` still answers | match on the written shape instead of the computed one: G4 and two more tests go red |
 | G5 `arika-queries` | the golden questions keep their top hit, on CLI and service | remove one gloss |
-| G6 `arika-proof` | proofs verify; tameshi RFC 9162 vectors pass in blue | flip one leaf byte |
+| G6 `arika-proof` (BUILT: `bidamas/shomei/shomei.b` tests) | `ct_proof` verifies for every leaf; `ct_root` for 0-9 leaves and every proof of a 7-leaf tree equal tameshi `61c77f8` (`compute_leaf_root`, `leaf_inclusion_proof`) | flip the leaf domain byte: 3 tests go red |
 | G7 `arika-consistency` | snapshot n+1 extends n; `seq` grows | reuse a `seq` |
 | G8 `arika-schema-fresh` | SDL and tool list are rendered from the blue schema | hand-edit the SDL |
 | G9 liveness vigy | the loaded root equals the newest built root | stop the reload sidecar |
@@ -139,6 +188,7 @@ These are recorded in [`ROADMAP.md`](ROADMAP.md) § Rulings.
 |---|---|---|
 | spec | `theory/ARIKA.md`; rows in `theory/VOCABULARY.md`, `theory/NAMING.md`; pointer in `theory/BLUE-ENGINE.md` §5.3 | canonical |
 | this file + roadmap track | `docs/ARIKA.md`, `docs/ROADMAP.md` | advisory |
+| header, facts + emitter | `bidamas/SNAPSHOT.json`, `gen/arika.b`, `gen/arika-facts.b` (`packages.arika-facts`), `crates/blue-lang-mondou/src/facts.rs`, `shomei::ct_*` | built (Phase 2) |
 | agent guide | `docs/agents.md` (renders `CLAUDE.md`, `AGENTS.md`, `llms-full.txt`) | generated, gated fresh |
 | skills | `blackmatter-pleme/skills/bidama` (step 1), `blackmatter-pleme/skills/arika` (maintenance) | advisory |
 | org pointer | `blackmatter-pleme/docs/pleme-io-CLAUDE.md` HOUSE STYLE "Find before you write blue" | advisory |

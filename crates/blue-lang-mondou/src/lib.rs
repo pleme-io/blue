@@ -34,6 +34,7 @@ pub mod canon;
 mod complete;
 pub mod def_hash;
 pub mod docview;
+pub mod facts;
 mod items;
 mod locals;
 mod memo;
@@ -676,8 +677,25 @@ fn hash_checked_with(
     lowered: &[Spanned],
     documented: &dyn Fn(&str) -> Rc<Parsed>,
 ) -> DefHashes {
+    hash_documented_with(program, lowered, documented).0
+}
+
+#[must_use]
+pub fn hash_checked_documented(
+    program: &ResolvedProgram,
+    lowered: &[Spanned],
+) -> (DefHashes, HashMap<usize, String>) {
+    hash_documented_with(program, lowered, &parse_documented)
+}
+
+fn hash_documented_with(
+    program: &ResolvedProgram,
+    lowered: &[Spanned],
+    documented: &dyn Fn(&str) -> Rc<Parsed>,
+) -> (DefHashes, HashMap<usize, String>) {
     let docs = program_docs_with(program, documented);
-    def_hash::hash_program_documented(lowered, &|i| docs.get(&i).cloned())
+    let hashes = def_hash::hash_program_documented(lowered, &|i| docs.get(&i).cloned());
+    (hashes, docs)
 }
 
 fn parse_documented(text: &str) -> Rc<Parsed> {

@@ -23,7 +23,7 @@ horizon gets a row here when its first phase starts.
 
 | Track | Design doc | Tier | Next step | Depends on | Done gate |
 |---|---|---|---|---|---|
-| **arika**: blue's word search | [`ARIKA.md`](ARIKA.md), `theory/ARIKA.md` | Phase 1 BUILT, the rest DESIGN | Phase 2: `blue arika emit` and `SNAPSHOT.json` | namespaces (tree paths in IDs); verbs (the `sakuin` space for T5) | G1-G9 green on main; a session on ryn answers the golden set through `blue_word_*` |
+| **arika**: blue's word search | [`ARIKA.md`](ARIKA.md), `theory/ARIKA.md` | Phases 1 and 2 BUILT for blue's own tree (G1-G4, G6); the rest DESIGN | Phase 2's open rows (the `arika` output for other projects, mokuroku on the facts), then Phase 3: Parquet and `find` | namespaces (tree paths in IDs); verbs (the `sakuin` space for T5) | G1-G9 green on main; a session on ryn answers the golden set through `blue_word_*` |
 | namespaces | [`NAMESPACES.md`](NAMESPACES.md), `theory/BLUE-NAMESPACES.md` | SHIPPED (reconciled 2026-11-06 at `cc9a1a1e`: `blue census` measures B0076, B0077 and B0078 at 0, ratchet 0; tree 10 landed) | close the flat-era `legacy_names` windows at each root's next minor | — | B0076-B0078 at error with corpus count 0 |
 | absence | [`ABSENCE.md`](ABSENCE.md) | DESIGN (reconciled 2026-11-06: only P0, the document; no `umu`, no `absence.rs`, no `BLUE_ABSENCE`, B0054/B0055 reserved) | P1: `umu` and B0054/B0055 at audit | — | the doc's seal tier row |
 | safety | [`SAFETY.md`](SAFETY.md) | PARTIAL (reconciled 2026-11-06: 19 rows, 6 sealed, 10 partly, 3 open; the blackhole is row 19) | rows 1, 3 and 14, the open ones | — | each SAFETY row at its stated seal tier |
@@ -54,7 +54,7 @@ Rungs (owners, gates and exits are in [`ARIKA.md`](ARIKA.md) § Phases):
 | Rung | Content | Tier |
 |---|---|---|
 | 1 | `blue arika like` / `word`, PreToolUse hook, `bidama` skill step 1 | BUILT (G4 in `crates/blue-lang-cli/tests/arika.rs`) |
-| 2 | fact emitter, Merkle words, `SNAPSHOT.json`, `arika` nix output | DESIGN |
+| 2 | fact emitter, Merkle words, `SNAPSHOT.json`, `arika` nix output | BUILT for blue's tree (G1, G2, G3, G6); the output for other projects and mokuroku on the facts DESIGN |
 | 3 | Parquet plane, full CLI, T3 witnesses, CATALOG.md from facts | DESIGN |
 | 4 | codesearch indexes `.b` | DESIGN |
 | 5 | GraphQL + MCP HTTP service on ryn's engenho | DESIGN |

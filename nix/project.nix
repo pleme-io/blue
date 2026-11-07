@@ -40,7 +40,7 @@
 # | the root lock itself | `checks.repository-lock-fresh` |
 # | `needs(name, range)` | refused at evaluation when the distribution lacks `name` |
 # | `tool(name)` | the nixpkgs attribute, on PATH for the runner, runs, checks and apps |
-# | `run(name, file[, reads])` | `packages.<name>`: `blue run file` with `RUN_OUT=$out` and `RUN_READS/<read>` holding each read run's output |
+# | `run(name, file[, reads[, inputs]])` | `packages.<name>`: `blue run file` with `RUN_OUT=$out`, `RUN_READS/<read>` holding each read run's output, and `inputs` under `$GEN_ROOT` |
 # | `check(name, file[, inputs])` | `checks.<name>`: `blue test file`; `inputs` are the project paths the tests read, under `$GEN_ROOT` |
 # | `app(name, file)` | `apps.<name>`: `blue run file` from the caller's directory; with a runner, `packages.appliance-<name>` (`nix/bundle.nix`: `blue bundle` seals the program and the lock's verified capabilities onto `blue-appliance`, one executable held to them, pure when the lock records none) and, on Linux, `packages.appliance-<name>-image` (that executable alone in a scratch image) |
 # | `generate(name, output, program[, inputs])` | `packages.generated-<name>`, `checks.generated-<name>-fresh`; `inputs` are the project paths the program reads, under `$GEN_ROOT` |
@@ -245,6 +245,8 @@ let
           name = rn;
           program = programFile r.file;
           reads = lib.getAttrs r.reads self;
+        } // lib.optionalAttrs ((r.inputs or [ ]) != [ ]) {
+          root = inputsRoot "run-${rn}" r.inputs;
         }))
         m.runs);
 

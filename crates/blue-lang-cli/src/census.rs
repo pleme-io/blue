@@ -217,13 +217,18 @@ pub fn reuse_scan(root: &Path) -> ReuseScan {
             .file(blue_lang_runtime::uses::ResolvedProgram::ENTRY)
             .and_then(|f| f.package.clone());
         let scope = package.unwrap_or_else(|| format!("%root:{rel}"));
-        let shapes = checked.entry_shapes();
+        let entry = blue_lang_mondou::facts::of_entry(&checked);
+        let shapes: Vec<(
+            &blue_lang_mondou::facts::DefFact,
+            &blue_lang_runtime::def_hash::Shape,
+        )> = entry
+            .facts
+            .iter()
+            .filter_map(|f| f.shape.as_ref().map(|s| (f, s)))
+            .collect();
         scan.definitions += shapes.len();
-        for s in shapes.iter().filter(|s| s.size >= floor) {
-            let start = checked.program.forms()[s.top_level].span.start;
-            let line = text
-                .get(..start)
-                .map_or(1, |head| head.matches('\n').count() + 1);
+        for (f, s) in shapes.into_iter().filter(|(_, s)| s.size >= floor) {
+            let line = f.line;
             let standing = blue_lang_runtime::word_shapes::standing(&s.hash, &s.key);
             let (home, fix, word) = match standing {
                 Standing::NoWord => (None, None, false),

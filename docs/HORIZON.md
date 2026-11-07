@@ -223,15 +223,17 @@ is; a cached check result read under a different engine identity is refused.
   point; with H2's types, blue generates the neighbourhood around it
   (property tests from signatures and examples), seeded and replayable.
 - **Mutation testing as a ratchet everywhere.** `heni` runs per bidama today;
-  make its caught ratio a census row per package, so a test that cannot say no
+  make its caught ratio a ratchet per package, so a test that cannot say no
   is visible.
 - **Laws as theorems for a decidable fragment.** okite's laws and integer
   ranges checked by a solver for linear integer arithmetic and list lengths,
   behind one seam (CONTAIN THE C), the rest staying tested laws. A law the
   solver proves carries that tier; one it cannot stays tested.
 
-**First step:** heni's caught ratio in the census.
-**Gate:** a mutant that survives turns its package's row red.
+**First step:** heni's caught ratio as a ratchet per package
+(`bidamas/heni/ratio.baseline`, held by the `heni-mutations` check).
+**Gate:** a mutant that survives makes its package's ratio fall, and the
+check names the package and its survivors.
 
 ### H7. Speed with receipts
 
@@ -746,7 +748,7 @@ receipts become instances).
 | When | Horizons | Why first |
 |---|---|---|
 | Now | H0; H1 (unions, patterns, `?`); H3 (the test cache) | H0 makes the ledger true; H1 completes the data model every later horizon names; H3 makes every later change cheaper to verify |
-| Next | H2; H4 (async A1); H5 (arika Phase 2); H6 (heni in the census) | each builds on H1's shapes or H3's identities |
+| Next | H2; H4 (async A1); H5 (arika Phase 2); H6 (heni's ratio as a ratchet) | each builds on H1's shapes or H3's identities |
 | Later | H7; H8; H9; H10 | each multiplies what the earlier horizons made true |
 | Authority, now | H11; H12 rings 1 and 2; H16's first step; H19's first step | one vocabulary first, so every later horizon names one set; the census measures the flip before it happens; the capability ontology makes every later authority horizon a set of generated rows |
 | Authority, next | H12 rings 3 and 4; H13; H17 | per-bidama frames and the parity matrix stand on one vocabulary |

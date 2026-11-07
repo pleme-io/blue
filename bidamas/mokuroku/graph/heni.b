@@ -65,8 +65,7 @@ verb(
     shape: "score(report) -> ratio",
     laterals: ["test"],
     fleet: nil,
-    today: "partial:heni",
-    meaning: "the share of mutations the tests caught",
+    today: "exists:heni",
     wave: 1,
     origin: "F"
   }
@@ -80,8 +79,7 @@ verb(
     shape: "survivors(report) -> [mutation]",
     laterals: ["test"],
     fleet: nil,
-    today: "partial:heni",
-    meaning: "the mutations no test caught",
+    today: "exists:heni",
     wave: 0,
     origin: "F"
   }

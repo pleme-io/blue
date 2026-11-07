@@ -25,6 +25,12 @@ anything, and the run stops.
 Exits non-zero (an uncaught error) when the control fails, or any mutation
 survives, is refused, or is blind (its tests could not be started).
 
+A run's caught ratio (`score`, caught over total) is a ratchet across
+every package: `gen/heni-gate.b` holds each package at the ratio recorded in
+`ratio.baseline` beside this file, and `blue gen/heni-gate.b record` is the
+one writer of that file. A ratio that falls fails the gate and names the
+package and its survivors.
+
     verdict({text: "t"}, 1) #=> :caught
 """
 
@@ -301,6 +307,49 @@ def ok?(r)
 end
 
 @doc """
+score: a run's caught ratio, the share of mutations its tests caught, as {caught, total}: every mutation run counts in total, only a caught one in caught.
+
+    score({results: [{verdict: :caught}, {verdict: :survived}]}) #=> {caught: 1, total: 2}
+"""
+def score(r)
+  {
+    caught: count_where((x) -> x[:verdict] == :caught, r[:results]),
+    total: length(r[:results])
+  }
+end
+
+@doc """
+fell?: whether a measured caught ratio is below a recorded one, compared without division; a package whose mutations all vanished fell too.
+
+    fell?({caught: 3, total: 3}, {caught: 3, total: 4}) #=> true
+"""
+def fell?(recorded, measured)
+  if measured[:total] == 0
+    recorded[:total] > 0
+  else
+    measured[:caught] * recorded[:total] < recorded[:caught] * measured[:total]
+  end
+end
+
+@doc """
+survivors: the names of the mutations a run's tests survived.
+
+    survivors({results: [{name: "a", verdict: :survived}, {name: "b", verdict: :caught}]}) #=> ["a"]
+"""
+def survivors(r)
+  map((x) -> x[:name], filter((x) -> x[:verdict] == :survived, r[:results]))
+end
+
+@doc """
+sound?: whether a run measured anything a ratio can stand on: the control passed and no mutation was refused or blind.
+
+    sound?({control: 0, refused: 0, blind: 1}) #=> false
+"""
+def sound?(r)
+  r[:control] == 0 and r[:refused] == 0 and r[:blind] == 0
+end
+
+@doc """
 cli: heni's command line: the package and its mutations file, and which blue and which test file to run.
 
     get(hikisuu::parse(["p", "m.json"], cli), :mutations_file) #=> "m.json"
@@ -478,6 +527,31 @@ def end_to_end()
   assert is_empty(bad[:results]) == true
   rm_rf(tmp)
   true
+end
+
+test "a caught ratio counts every mutation and falls only when it drops"
+  r = {
+    control: 0,
+    refused: 0,
+    blind: 0,
+    results: [
+      {name: "a", verdict: :caught},
+      {name: "b", verdict: :survived},
+      {name: "c", verdict: :caught}
+    ]
+  }
+  assert score(r) == {caught: 2, total: 3}
+  assert survivors(r) == ["b"]
+  assert sound?(r) == true
+  assert sound?(assoc(r, :refused, 1)) == false
+  assert sound?(assoc(r, :control, 1)) == false
+  assert fell?({caught: 3, total: 3}, {caught: 2, total: 3}) == true
+  assert fell?({caught: 3, total: 3}, {caught: 3, total: 4}) == true
+  assert fell?({caught: 3, total: 3}, {caught: 3, total: 3}) == false
+  assert fell?({caught: 2, total: 3}, {caught: 3, total: 4}) == false
+  assert fell?({caught: 3, total: 4}, {caught: 2, total: 3}) == true
+  assert fell?({caught: 2, total: 2}, {caught: 0, total: 0}) == true
+  assert fell?({caught: 0, total: 0}, {caught: 0, total: 0}) == false
 end
 
 test "status is nil without a capture and the capture's status with one"

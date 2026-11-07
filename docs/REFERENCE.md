@@ -654,7 +654,7 @@ A Bluefile is a blue program that may call only these words.
 | `legacy_packages(since, [[old, "root/level"], …])` | Bidamas that moved into this one's tree, the package twin of `legacy_names`: from version `since`, `use(old)` and `old::x` load the level `root/level` and are B0074, a warning outside this root's distribution until its next minor version, with the fix `blue check --fix` applies. `old` is one segment and no longer a bidama; the level is below this package. The row stays as the ledger once the bridge closes. |
 | `source(name, url, dir)` | A named external distribution root, fetched from a flake URL and pinned in Bluefile.lock by `blue lock`. |
 | `packages(dir)` | A local directory whose subdirectories are packages: each is built, tested (`bidama-test-<pkg>`) and gated for collisions. |
-| `run(name, file[, reads])` | A program run as its own cached derivation, writing into $RUN_OUT; `reads` names runs whose outputs it reads. |
+| `run(name, file[, reads[, inputs]])` | A program run as its own cached derivation, writing into $RUN_OUT; `reads` names runs whose outputs it reads. `inputs` lists the project paths it reads, found under $GEN_ROOT. |
 | `tool(name)` | A nixpkgs attribute put on PATH for the project's runs, checks, apps and generators. |
 | `check(name, file[, inputs])` | A test file run as `checks.<name>` with `blue test`. A file with no test blocks fails. `inputs` lists the project paths the tests read, found under $GEN_ROOT. |
 | `app(name, file)` | A program exposed as `nix run .#<name>`. |

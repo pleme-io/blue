@@ -400,7 +400,7 @@ rec {
   # `reads` is an attrset of run derivations keyed by run name; the farm holds
   # one symlink per read, so a reader's inputs are exactly the runs it names
   # and nothing else (makoto's `-- reads:` line, as a declaration).
-  mkRun = { blue, bidamas, program, name, reads ? { }, tools ? [ ] }:
+  mkRun = { blue, bidamas, program, name, reads ? { }, tools ? [ ], root ? null }:
     let
       farm = runCommand "${name}-reads" { } ''
         mkdir -p $out
@@ -409,7 +409,7 @@ rec {
     in
     runCommand name { nativeBuildInputs = tools; passthru = { inherit reads; }; } ''
       mkdir -p $out
-      RUN_OUT=$out RUN_READS=${farm} BLUE_PATH=${mkBluePath { inherit bidamas; }} ${blue}/bin/blue run ${program}
+      ${lib.optionalString (root != null) "GEN_ROOT=${root} "}RUN_OUT=$out RUN_READS=${farm} BLUE_PATH=${mkBluePath { inherit bidamas; }} ${blue}/bin/blue run ${program}
       if [ -z "$(ls -A $out)" ]; then
         echo "run ${name}: the program wrote nothing into \$RUN_OUT" >&2
         exit 1

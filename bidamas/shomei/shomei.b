@@ -66,6 +66,7 @@ use("kazu", [:max])
 use("kyohi", [:raised])
 use("moji", [:checked])
 use("retsu", %i[first is_empty size])
+use("shinsuu", [:hex_bytes])
 
 # ── keys ───────────────────────────────────────────────────────────
 
@@ -315,10 +316,19 @@ end
 merkle_top: The one hash a level of one node is.
 """
 def merkle_top(level)
+  merkle_top_by(level, merkle_node)
+end
+
+@doc """
+merkle_top_by: The one hash a level of one node is, each pair joined by `node`.
+
+    merkle_top_by(["x"], merkle_node) #=> "x"
+"""
+def merkle_top_by(level, node)
   if size(level) == 1
     first(level)
   else
-    merkle_top(merkle_up(level))
+    merkle_top_by(merkle_up_by(level, node), node)
   end
 end
 
@@ -326,18 +336,39 @@ end
 merkle_up: The next level up: each pair joined, an odd last node carried as it is.
 """
 def merkle_up(level)
-  map((i) -> merkle_pair(level, i), range(0, floor((size(level) + 1) / 2)))
+  merkle_up_by(level, merkle_node)
+end
+
+@doc """
+merkle_up_by: The next level up, each pair joined by `node`, an odd last node carried as it is.
+
+    merkle_up_by(["x"], merkle_node) #=> ["x"]
+"""
+def merkle_up_by(level, node)
+  map(
+    (i) -> merkle_pair_by(level, i, node),
+    range(0, floor((size(level) + 1) / 2))
+  )
 end
 
 @doc """
 merkle_pair: The parent of the pair starting at 2i, or the lone node when it has no pair.
 """
 def merkle_pair(level, i)
+  merkle_pair_by(level, i, merkle_node)
+end
+
+@doc """
+merkle_pair_by: The parent `node` makes of the pair starting at 2i, or the lone node.
+
+    merkle_pair_by(["x"], 0, merkle_node) #=> "x"
+"""
+def merkle_pair_by(level, i, node)
   right = chain_at(2 * i + 1, level)
   if right.nil?
     level[2 * i]
   else
-    merkle_node(level[2 * i], right)
+    node(level[2 * i], right)
   end
 end
 
@@ -345,13 +376,23 @@ end
 merkle_path: The proof steps from position `i` of `level` to the top, `acc` reversed.
 """
 def merkle_path(level, i, acc)
+  merkle_path_by(level, i, acc, merkle_node)
+end
+
+@doc """
+merkle_path_by: The proof steps from position `i` of `level` to the top, pairs joined by `node`.
+
+    merkle_path_by(["x"], 0, [], merkle_node) #=> []
+"""
+def merkle_path_by(level, i, acc, node)
   if size(level) == 1
     reverse(acc)
   else
-    merkle_path(
-      merkle_up(level),
+    merkle_path_by(
+      merkle_up_by(level, node),
       floor(i / 2),
-      merkle_push(merkle_step(level, i), acc)
+      merkle_push(merkle_step(level, i), acc),
+      node
     )
   end
 end
@@ -381,13 +422,84 @@ end
 merkle_climb: One step up a proof: the running hash joined with the step's sibling.
 """
 def merkle_climb(h, step)
+  merkle_climb_by(h, step, merkle_node)
+end
+
+@doc """
+merkle_climb_by: One step up a proof, the running hash and the step's sibling joined by `node`.
+
+    merkle_climb_by("x", ["R", "y"], (l, r) -> "#{l}#{r}") #=> "xy"
+"""
+def merkle_climb_by(h, step, node)
   if first(step) == "L"
-    merkle_node(step[1], h)
+    node(step[1], h)
   elsif first(step) == "R"
-    merkle_node(h, step[1])
+    node(h, step[1])
   else
     raise(:merkle, "a proof step's side must be \"L\" or \"R\"")
   end
+end
+
+@doc """
+ct_leaf: The RFC 9162 leaf hash of a 32-byte hash in hex: BLAKE3 over 0x00 and its bytes.
+
+    ct_leaf(hash_message("a")) #=> "0b436056b9890784d98b8f3355a48408eb03b57e80a7a56c0ccbe930948d0cb5"
+"""
+def ct_leaf(h)
+  chain_require_hash(h, "the leaf hash")
+  blake3_hex(cons(0, hex_bytes(h)))
+end
+
+@doc """
+ct_node: The RFC 9162 node hash: BLAKE3 over 0x01, the left hash's bytes and the right's.
+
+    ct_node(ct_leaf(hash_message("a")), ct_leaf(hash_message("b"))) #=> ct_root([hash_message("a"), hash_message("b")])
+"""
+def ct_node(left, right)
+  chain_require_hash(left, "the left hash")
+  chain_require_hash(right, "the right hash")
+  blake3_hex(cons(1, append(hex_bytes(left), hex_bytes(right))))
+end
+
+@doc """
+ct_root: The RFC 9162 root over 32-byte hashes in order; BLAKE3("empty-tree") for none.
+Each hash enters as ct_leaf and pairs as merkle_root's do, joined by ct_node:
+the tree tameshi's compute_leaf_root builds, which the tests hold it to.
+
+    ct_root([]) #=> hash_message("empty-tree")
+"""
+def ct_root(hashes)
+  if is_empty(hashes)
+    hash_message("empty-tree")
+  else
+    merkle_top_by(map(ct_leaf, hashes), ct_node)
+  end
+end
+
+@doc """
+ct_proof: The proof that hash `index` is under ct_root(hashes): [side, hash] steps, leaf up.
+
+    ct_proof([hash_message("a")], 0) #=> []
+"""
+def ct_proof(hashes, index)
+  if not (integer?(index) and index >= 0 and index < size(hashes))
+    raise(:merkle, "the index must name one of the hashes")
+  end
+  merkle_path_by(map(ct_leaf, hashes), index, [], ct_node)
+end
+
+@doc """
+ct_verify: True when the proof climbs from the hash's RFC 9162 leaf to `root`.
+
+    ct_verify(ct_root([hash_message("a")]), hash_message("a"), []) #=> true
+"""
+def ct_verify(root, h, proof)
+  chain_require_hash(root, "the root")
+  reduce(
+    (acc, step) -> merkle_climb_by(acc, step, ct_node),
+    ct_leaf(h),
+    proof
+  ) == root
 end
 
 # ── verbs ──────────────────────────────────────────────────────────
@@ -677,6 +789,79 @@ test "a changed payload, a swapped proof or a reordered list breaks the root"
   assert merkle_root(%w[b a c d e]) != root
   assert merkle_root(%w[a b c d]) != root
   assert merkle_root(%w[a b c d e e]) != root
+end
+
+test "ct roots equal tameshi's compute_leaf_root over blake3 of a to i"
+  names = %w[a b c d e f g h i]
+  want = %w[
+    0dfdde1dafbc1761daa06f0435532f45a2c2d5c9b70ec40788ecab2c591f2c7b
+    0b436056b9890784d98b8f3355a48408eb03b57e80a7a56c0ccbe930948d0cb5
+    31b7bbaf63d23584a9db776539be09557402d57b2eac626cd8d0701658ed5dd4
+    b48b2f18b1a5dc76fb88b4208addf4a4cacee090544db7005295d4ea38da4b67
+    9aeb0ab9ecbda946217e9086776a83f5519916832f6df421871c1c9bb4e5af25
+    7565e6cb16c4eb7c770147feca63434c35787bdd695adeed9fabb4e8d6c2a564
+    98d8bc2ede39e654feead6322c15aab2824745ba86ba3acb3054ef525f73c362
+    89debeeaa29eb68d332107d51914126b713032a8ce19c9b488cc2dcb8277dfc2
+    07f203652851cd83bda3a2154bbc4552c99cdcaad8a8885ac724424919d2a281
+    64bdf35c0f94b7e096e3ee1c4ca260186eb9cba8b1964eb916b6e283bea7220e
+  ]
+  got = map((n) -> ct_root(map(hash_message, take(n, names))), range(0, 10))
+  assert got == want
+end
+
+test "ct proofs are tameshi's leaf_inclusion_proof sibling lists, and verify"
+  hs = map(hash_message, %w[a b c d e f g])
+  root = ct_root(hs)
+  want = [
+    %w[
+      ddc979d8eed4bd09f1a3b785b5a10348bfac8c69ddaaf276b8306f8a517da712
+      b4c0d3fe3cf7e619fd6270cbe8389fd4e89e844c4348a5a4a610033ce45f0fd4
+      c2616410b5d62c785db2e30381c5835fdb43a919c96e47bcef3723f1c116bd55
+    ],
+    %w[
+      0b436056b9890784d98b8f3355a48408eb03b57e80a7a56c0ccbe930948d0cb5
+      b4c0d3fe3cf7e619fd6270cbe8389fd4e89e844c4348a5a4a610033ce45f0fd4
+      c2616410b5d62c785db2e30381c5835fdb43a919c96e47bcef3723f1c116bd55
+    ],
+    %w[
+      c180af3e30858f4360aea0a6d1e49fb86b49e9aa0913a48089832d619d085f20
+      31b7bbaf63d23584a9db776539be09557402d57b2eac626cd8d0701658ed5dd4
+      c2616410b5d62c785db2e30381c5835fdb43a919c96e47bcef3723f1c116bd55
+    ],
+    %w[
+      b9952b170ff2d87e9f922862d53e24fc5996be32beb2471712f0fe8308b86f6f
+      31b7bbaf63d23584a9db776539be09557402d57b2eac626cd8d0701658ed5dd4
+      c2616410b5d62c785db2e30381c5835fdb43a919c96e47bcef3723f1c116bd55
+    ],
+    %w[
+      e465e09eb1458b9b516b6f4a3f5c417cb53ac2b626719366491c6d728655f721
+      025c88b4bcd269a4f2aadef8185c3f685bfa7315c5159b90fbef8bdfcda8f3bd
+      9aeb0ab9ecbda946217e9086776a83f5519916832f6df421871c1c9bb4e5af25
+    ],
+    %w[
+      fe023839825a819d016bd03146df3abde79280c9d1a137ccb48c9fd6bb6e972f
+      025c88b4bcd269a4f2aadef8185c3f685bfa7315c5159b90fbef8bdfcda8f3bd
+      9aeb0ab9ecbda946217e9086776a83f5519916832f6df421871c1c9bb4e5af25
+    ],
+    %w[
+      03c35f81789e682c0af48b28ef74b5431d0d13f346eabf4ea59814bd6499ccb6
+      9aeb0ab9ecbda946217e9086776a83f5519916832f6df421871c1c9bb4e5af25
+    ]
+  ]
+  assert map((i) -> map((step) -> step[1], ct_proof(hs, i)), range(0, 7)) ==
+    want
+  assert every?((i) -> ct_verify(root, hs[i], ct_proof(hs, i)), range(0, 7))
+end
+
+test "a ct proof fails for a flipped leaf, a moved index or another tree"
+  hs = map(hash_message, %w[a b c d e])
+  root = ct_root(hs)
+  assert not ct_verify(root, hash_message("X"), ct_proof(hs, 1))
+  assert not ct_verify(root, hs[1], ct_proof(hs, 2))
+  assert ct_root(hs) != merkle_root(%w[a b c d e])
+  assert ct_leaf(hs[0]) != ct_node(hs[0], hs[0])
+  assert (ct_leaf("abc") rescue :raised) == :raised
+  assert (ct_proof(hs, 5) rescue :raised) == :raised
 end
 
 test "merkle refuses what it cannot place"

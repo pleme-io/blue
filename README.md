@@ -224,6 +224,7 @@ was rendered. `blue help COMMAND` shows each one's flags.
 | `blue crash immunize CRASH` | The crash's regression lock: a test that spawns the target, sends it the fewest messages that crashed it and asserts it took them, red until the target is fixed. |
 | `blue arika like [FILE[:LINE]]` | The words a draft already is: each definition of FILE (or the one at FILE:LINE) matched to a blue word by def hash (T0), written shape (T1) and shape through a wrapper (T2), with the word's id and import line. |
 | `blue arika word NAME` | Find a blue word by NAME: its canonical spelling, an old spelling's new home, and catalogue glosses that mention NAME (T5). |
+| `blue arika emit [ROOT]` | Write the header SNAPSHOT.json for the bidamas under ROOT (each package's RFC 9162 unit_root and row count, and the snapshot_root over them) and, with --facts, the facts: every definition the engine sees as one JSON line (readable id, def_hash, shape hashes, gloss, file, line, legacy names). |
 | `blue receipt verify FILE` | Recompute a receipt's name from its bytes and check its form; any edit fails. |
 | `blue config [TIER]` | Show the bounds `blue` is running with, at any tier. |
 | `blue new NAME` | Start a program (a project with its own bidama), a `--bidama`, a `--script`, or a `--kernel` program, each passing `blue test` as written. |
@@ -245,14 +246,14 @@ rendered:
 | Surface forms | 32, with 13 operators and 26 reserved words |
 | Check rules | 77: 42 fix themselves, 8 suggest a fix |
 | Bluefile words | 26 |
-| Commands | 44 |
+| Commands | 45 |
 
 ## The standard library
 
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-65 packages, 5708 definitions, 1900 tests.
+65 packages, 5718 definitions, 1903 tests.
 
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
 - [baito](bidamas/CATALOG.md#baito) (バイト) — bytes as data: integers at a declared width and order, and record layouts that say where each field sits.
@@ -433,7 +434,7 @@ Read it in order as [The blue Book](docs/BOOK.md), or open one page:
 
 - [ABSENCE — no undeclared nil](docs/ABSENCE.md): no undeclared nil: how blue makes absence a declared, checked state
 - [API-EVOLUTION — the API is a versioned rendering of the one model](docs/API-EVOLUTION.md): the API as a versioned rendering of one model (design)
-- [arika (在り処): the design of record](docs/ARIKA.md): arika, blue's word search, Phase 1 built and the rest DESIGN: the recon, phases, gates with red runs, risks and every surface that names it
+- [arika (在り処): the design of record](docs/ARIKA.md): arika, blue's word search, Phases 1 and 2 built for blue's own tree and the rest DESIGN: the recon, phases, gates with red runs, risks and every surface that names it
 - [Native async: the design of record](docs/ASYNC.md): Native async in blue, DESIGN: one ontology of every async concept as a blue word over parked processes, the mutually exclusive architectures as blueshift positions with defaults, the integration with every system blue already has, and one test matrix that runs every position against the same oracle
 - [BIDAMA-COHESION — one word per job, foundations below, a complete vocabulary](docs/BIDAMA-COHESION.md): one word per job, foundations below, a complete vocabulary across the bidamas (plan)
 - [BUILD-ASSURANCE — what a blue build proves, how fast, and from which cache](docs/BUILD-ASSURANCE.md): what a blue build proves, how fast, and from which cache (design)

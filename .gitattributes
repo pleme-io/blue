@@ -9,6 +9,7 @@ Bluefile.lock merge=blue-generated
 /CLAUDE.md merge=blue-generated
 /README.md merge=blue-generated
 /bidamas/CATALOG.md merge=blue-generated
+/bidamas/SNAPSHOT.json merge=blue-generated
 /bidamas/okite/RULES.md merge=blue-generated
 /bidamas/toriyose/kyasshu/keys/kensa.json merge=blue-generated
 /crates/blue-lang-kiwari/blue.kiwari.json merge=blue-generated

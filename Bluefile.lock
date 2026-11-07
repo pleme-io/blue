@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:2e494fa01632883606a72f76ef977506d5914d219e7cb93f2ac17e58c3a222c9",
+  "bluefile_b3": "b3:2bc7209c131ffdcd15a4931607ec15b8b83dc535c3a55b6066af4b8cb4000fd4",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -11,7 +11,15 @@
     "packages": [
       "bidamas"
     ],
-    "runs": {},
+    "runs": {
+      "arika-facts": {
+        "file": "gen/arika-facts.b",
+        "reads": [],
+        "inputs": [
+          "bidamas"
+        ]
+      }
+    },
     "tools": [
       "duckdb",
       "git",
@@ -117,6 +125,13 @@
         "inputs": [
           "Bluefile.lock",
           "docs",
+          "bidamas"
+        ]
+      },
+      "arika-snapshot": {
+        "output": "bidamas/SNAPSHOT.json",
+        "program": "gen/arika.b",
+        "inputs": [
           "bidamas"
         ]
       },

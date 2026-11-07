@@ -1236,15 +1236,39 @@ def bytes_hex(bytes)
   join(map((b) -> to_hex_width(b, 2), bytes), "")
 end
 
+@doc """
+HEX_VALUES: each lowercase hex digit with its value, the table hex_bytes reads.
+
+    get(HEX_VALUES, "f") #=> 15
+"""
+HEX_VALUES = {
+  "0" => 0,
+  "1" => 1,
+  "2" => 2,
+  "3" => 3,
+  "4" => 4,
+  "5" => 5,
+  "6" => 6,
+  "7" => 7,
+  "8" => 8,
+  "9" => 9,
+  "a" => 10,
+  "b" => 11,
+  "c" => 12,
+  "d" => 13,
+  "e" => 14,
+  "f" => 15
+}
+
 def hex_bytes(text)
-  cs = filter((c) -> c != " " and c != line_break, chars(downcase(text)))
-  if size(cs) % 2 != 0 or not all_digits_in_base(cs, 16)
+  vs = map(
+    (c) -> get(HEX_VALUES, c),
+    filter((c) -> c != " " and c != line_break, chars(downcase(text)))
+  )
+  if size(vs) % 2 != 0 or any?((v) -> v.nil?, vs)
     nil
   else
-    map(
-      (i) -> digit_value(cs[2 * i]) * 16 + digit_value(cs[2 * i + 1]),
-      range(0, size(cs) / 2)
-    )
+    map((i) -> vs[2 * i] * 16 + vs[2 * i + 1], range(0, size(vs) / 2))
   end
 end
 

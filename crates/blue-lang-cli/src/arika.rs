@@ -28,6 +28,20 @@ pub enum ArikaCmd {
             help = "Read Claude Code's PreToolUse JSON from stdin, lower the draft a Write, Edit or MultiEdit would leave in a .b file, print one advice line per word it already is, and always exit 0"
         )]
         hook: bool,
+        #[arg(
+            long,
+            value_name = "SNAPSHOT.json",
+            requires = "facts",
+            help = "Read each home word from the facts under this header (blue arika emit) instead of checking its package; facts whose root is not the header's are refused as blind"
+        )]
+        snapshot: Option<PathBuf>,
+        #[arg(
+            long,
+            value_name = "FACTS.jsonl",
+            requires = "snapshot",
+            help = "The facts the header roots (nix build .#arika-facts)"
+        )]
+        facts: Option<PathBuf>,
     },
     #[command(
         about = "Find a blue word by NAME: its canonical spelling, an old spelling's new home, and catalogue glosses that mention NAME (T5)"
@@ -36,6 +50,38 @@ pub enum ArikaCmd {
         name: String,
         #[arg(long, help = "Print the facts as one JSON object")]
         json: bool,
+        #[arg(
+            long,
+            value_name = "SNAPSHOT.json",
+            requires = "facts",
+            help = "Search every word, old spelling and doc gloss of the facts under this header (blue arika emit) instead of WORD_SHAPES, the packages' sources and CATALOG.md; facts whose root is not the header's are refused as blind"
+        )]
+        snapshot: Option<PathBuf>,
+        #[arg(
+            long,
+            value_name = "FACTS.jsonl",
+            requires = "snapshot",
+            help = "The facts the header roots (nix build .#arika-facts)"
+        )]
+        facts: Option<PathBuf>,
+    },
+    #[command(
+        about = "Write the header SNAPSHOT.json for the bidamas under ROOT (each package's RFC 9162 unit_root and row count, and the snapshot_root over them) and, with --facts, the facts: every definition the engine sees as one JSON line (readable id, def_hash, shape hashes, gloss, file, line, legacy names). The same tree gives the same bytes"
+    )]
+    Emit {
+        #[arg(default_value = "bidamas")]
+        root: PathBuf,
+        #[arg(
+            long,
+            help = "Where to write the snapshot (default ROOT/SNAPSHOT.json)"
+        )]
+        out: Option<PathBuf>,
+        #[arg(
+            long,
+            value_name = "FACTS.jsonl",
+            help = "Also write the facts, one row per line"
+        )]
+        facts: Option<PathBuf>,
     },
 }
 
@@ -129,7 +175,11 @@ fn shape_at(shapes: &[Shape], top_level: usize) -> Option<&Shape> {
 
 #[must_use]
 pub fn readable_id(word: &str, hash: &DefHash) -> String {
-    format!("blue:{REPO}:{word}@{}", &hash.hex()[..12])
+    id_of_hex(word, &hash.hex())
+}
+
+fn id_of_hex(word: &str, hex: &str) -> String {
+    format!("blue:{REPO}:{word}@{}", hex.get(..12).unwrap_or(hex))
 }
 
 fn tier(exact: bool, written: bool) -> &'static str {
@@ -142,14 +192,87 @@ fn tier(exact: bool, written: bool) -> &'static str {
     }
 }
 
-struct Ours<'a> {
-    hash: Option<&'a DefHash>,
-    written: Option<&'a Shape>,
+struct Ours {
+    hash: Option<String>,
+    written: Option<String>,
 }
 
-fn hit(word: &str, foundation: bool, ours: &Ours<'_>, home: &Result<Home, String>) -> Json {
+struct HomeDef {
+    file: String,
+    line: usize,
+    def_hash: Option<String>,
+    written: Option<String>,
+}
+
+fn engine_home(home: &Result<Home, String>, bare: &str) -> Result<HomeDef, String> {
+    let home = home.as_ref().map_err(Clone::clone)?;
+    let found = home
+        .computed
+        .iter()
+        .find(|s| {
+            s.name() == bare
+                && home.checked.program.owner_of(s.top_level) == Some(ResolvedProgram::ENTRY)
+        })
+        .ok_or_else(|| format!("{} defines no `{bare}`", home.file.display()))?;
+    let start = home.checked.program.forms()[found.top_level].span.start;
+    let text = home
+        .checked
+        .program
+        .file(ResolvedProgram::ENTRY)
+        .map(|f| f.text.to_string())
+        .unwrap_or_default();
+    Ok(HomeDef {
+        file: home.file.display().to_string(),
+        line: line_of(&text, start),
+        def_hash: home.hashes.at(found.top_level).map(|d| d.hash.hex()),
+        written: shape_at(&home.written, found.top_level).map(|s| s.hash.hex()),
+    })
+}
+
+fn bare_hex(v: &Json) -> Option<String> {
+    v.as_str()
+        .map(|h| h.strip_prefix("b3:").unwrap_or(h).to_string())
+}
+
+fn snapshot_home(snapshot: &Snapshot, word: &str) -> Result<HomeDef, String> {
+    let leaf = format!(
+        "{}.b",
+        word.rsplit_once("::")
+            .map_or(word, |(p, _)| p.rsplit_once('/').map_or(p, |(_, l)| l))
+    );
+    let rows: Vec<&Json> = snapshot
+        .by_word
+        .get(word)
+        .map(|rs| rs.iter().filter(|r| r["kind"] == "function").collect())
+        .unwrap_or_default();
+    let row = rows
+        .iter()
+        .find(|r| {
+            r["file"]
+                .as_str()
+                .and_then(|f| Path::new(f).file_name())
+                .is_some_and(|n| n == leaf.as_str())
+        })
+        .or_else(|| rows.first())
+        .ok_or_else(|| format!("{} holds no `{word}`", snapshot.path.display()))?;
+    Ok(HomeDef {
+        file: snapshot
+            .dir()
+            .join(row["file"].as_str().unwrap_or_default())
+            .display()
+            .to_string(),
+        line: row["line"]
+            .as_u64()
+            .and_then(|l| usize::try_from(l).ok())
+            .unwrap_or_default(),
+        def_hash: bare_hex(&row["def_hash"]),
+        written: bare_hex(&row["written_shape"]),
+    })
+}
+
+fn hit(word: &str, foundation: bool, ours: &Ours, home: Result<HomeDef, String>) -> Json {
     let (package, bare) = word.rsplit_once("::").unwrap_or(("", word));
-    let base = json!({
+    let mut b = json!({
         "word": word,
         "package": package,
         "name": bare,
@@ -159,49 +282,86 @@ fn hit(word: &str, foundation: bool, ours: &Ours<'_>, home: &Result<Home, String
     let home = match home {
         Ok(h) => h,
         Err(why) => {
-            let mut b = base;
             b["tier"] = json!("T2");
             b["home"] = json!({"outcome": "blind", "why": why});
             return b;
         }
     };
-    let found = home.computed.iter().find(|s| {
-        s.name() == bare
-            && home.checked.program.owner_of(s.top_level) == Some(ResolvedProgram::ENTRY)
-    });
-    let Some(found) = found else {
-        let mut b = base;
-        b["tier"] = json!("T2");
-        b["home"] = json!({"outcome": "blind", "why": format!("{} defines no `{bare}`", home.file.display())});
-        return b;
-    };
-    let home_hash = home.hashes.at(found.top_level).map(|d| d.hash);
-    let home_written = shape_at(&home.written, found.top_level);
-    let exact = matches!((ours.hash, home_hash.as_ref()), (Some(a), Some(b)) if a == b);
-    let written = matches!((ours.written, home_written), (Some(a), Some(b)) if a.hash == b.hash);
-    let start = home.checked.program.forms()[found.top_level].span.start;
-    let text = home
-        .checked
-        .program
-        .file(ResolvedProgram::ENTRY)
-        .map(|f| f.text.to_string())
-        .unwrap_or_default();
-    let mut b = base;
+    let exact = matches!((&ours.hash, &home.def_hash), (Some(a), Some(b)) if a == b);
+    let written = matches!((&ours.written, &home.written), (Some(a), Some(b)) if a == b);
     b["tier"] = json!(tier(exact, written));
-    b["id"] = home_hash
+    b["id"] = home
+        .def_hash
         .as_ref()
-        .map_or(Json::Null, |h| json!(readable_id(word, h)));
+        .map_or(Json::Null, |h| json!(id_of_hex(word, h)));
     b["home"] = json!({
         "outcome": "found",
-        "file": home.file.display().to_string(),
-        "line": line_of(&text, start),
-        "def_hash": home_hash.map(|h| h.hex()),
+        "file": home.file,
+        "line": home.line,
+        "def_hash": home.def_hash,
     });
     b
 }
 
+pub struct Snapshot {
+    pub path: PathBuf,
+    pub root: String,
+    pub rows: Vec<Json>,
+    pub by_word: BTreeMap<String, Vec<Json>>,
+}
+
+impl Snapshot {
+    /// # Errors
+    ///
+    /// A header or facts file that cannot be read, or a header that is not an
+    /// arika header.
+    pub fn read(header: &Path, facts: &Path) -> Result<Self, String> {
+        let text =
+            std::fs::read_to_string(header).map_err(|e| format!("{}: {e}", header.display()))?;
+        let doc: Json =
+            serde_json::from_str(&text).map_err(|e| format!("{}: {e}", header.display()))?;
+        if doc["format"] != FORMAT {
+            return Err(format!("{} is not an {FORMAT} header", header.display()));
+        }
+        let lines =
+            std::fs::read_to_string(facts).map_err(|e| format!("{}: {e}", facts.display()))?;
+        let rows = lines
+            .lines()
+            .filter(|l| !l.is_empty())
+            .map(|l| serde_json::from_str(l).map_err(|e| format!("{}: {e}", facts.display())))
+            .collect::<Result<Vec<Json>, String>>()?;
+        let mut by_word: BTreeMap<String, Vec<Json>> = BTreeMap::new();
+        for row in &rows {
+            if let Some(w) = row["word"].as_str() {
+                by_word.entry(w.to_string()).or_default().push(row.clone());
+            }
+        }
+        Ok(Snapshot {
+            path: header.to_path_buf(),
+            root: doc["snapshot_root"]
+                .as_str()
+                .unwrap_or_default()
+                .to_string(),
+            rows,
+            by_word,
+        })
+    }
+
+    fn dir(&self) -> PathBuf {
+        self.path
+            .parent()
+            .map_or_else(PathBuf::new, Path::to_path_buf)
+    }
+
+    fn check(&self) -> String {
+        json!({"root": self.root, "rows": self.rows}).to_string()
+    }
+}
+
+pub const FORMAT: &str = "arika/1";
+
 #[must_use]
-pub fn like_facts(draft: &Draft) -> Json {
+pub fn like_facts(draft: &Draft, snapshot: Option<&Snapshot>) -> Json {
     let environment = crate::census::environment_over(std::slice::from_ref(&draft.path));
     let loader = environment.load_path(Some(&draft.path));
     let file = draft.path.display().to_string();
@@ -224,15 +384,22 @@ pub fn like_facts(draft: &Draft) -> Json {
             continue;
         }
         let ours = Ours {
-            hash: hashes.at(s.top_level).map(|d| &d.hash),
-            written: shape_at(&written, s.top_level),
+            hash: hashes.at(s.top_level).map(|d| d.hash.hex()),
+            written: shape_at(&written, s.top_level).map(|w| w.hash.hex()),
         };
         let hits = match standing(&s.hash, &s.key) {
             Standing::CopyOf { word, foundation } => {
-                let package = word.rsplit_once("::").map_or(word, |(p, _)| p).to_string();
-                let home = homes
-                    .entry(package.clone())
-                    .or_insert_with(|| load_home(&environment, &draft.path, &package));
+                let home = match snapshot {
+                    Some(snap) => snapshot_home(snap, word),
+                    None => {
+                        let package = word.rsplit_once("::").map_or(word, |(p, _)| p).to_string();
+                        let (_, bare) = word.rsplit_once("::").unwrap_or(("", word));
+                        let home = homes
+                            .entry(package.clone())
+                            .or_insert_with(|| load_home(&environment, &draft.path, &package));
+                        engine_home(home, bare)
+                    }
+                };
                 vec![hit(word, foundation, &ours, home)]
             }
             Standing::OwnWord | Standing::NoWord => Vec::new(),
@@ -241,7 +408,7 @@ pub fn like_facts(draft: &Draft) -> Json {
             "name": s.name(),
             "line": first,
             "size": s.size,
-            "def_hash": ours.hash.map(DefHash::hex),
+            "def_hash": ours.hash,
             "shape": s.hash.hex(),
             "own_word": matches!(standing(&s.hash, &s.key), Standing::OwnWord),
             "hits": hits,
@@ -255,7 +422,11 @@ pub fn like_facts(draft: &Draft) -> Json {
     } else {
         "empty"
     };
-    json!({"outcome": outcome, "file": file, "line": draft.line, "defs": defs})
+    let mut out = json!({"outcome": outcome, "file": file, "line": draft.line, "defs": defs});
+    if let Some(snap) = snapshot {
+        out["snapshot_root"] = json!(snap.root);
+    }
+    out
 }
 
 fn legacy_moves(
@@ -320,6 +491,147 @@ pub fn word_facts(name: &str, cwd: &Path) -> Json {
         "moves": moves,
         "blind": blind,
         "catalog": catalog.map(|c| c.display().to_string()),
+    })
+}
+
+fn foundation_packages() -> BTreeSet<&'static str> {
+    WORD_SHAPES
+        .iter()
+        .filter(|(_, _, f)| *f)
+        .filter_map(|(_, w, _)| w.rsplit_once("::").map(|(p, _)| p))
+        .collect()
+}
+
+#[must_use]
+pub fn word_facts_from(name: &str, snapshot: &Snapshot) -> Json {
+    let foundation = foundation_packages();
+    let mut words = Vec::new();
+    let mut moves = Vec::new();
+    let mut glosses = Vec::new();
+    for (word, rows) in &snapshot.by_word {
+        let package = word.rsplit_once("::").map_or("", |(p, _)| p);
+        words.push(json!({"word": word, "foundation": foundation.contains(package)}));
+        let Some(row) = rows.first() else { continue };
+        if let Some(gloss) = row["gloss"].as_str() {
+            glosses.push(json!({"word": word, "gloss": gloss}));
+        }
+        for old in row["legacy"].as_array().into_iter().flatten() {
+            moves.push(json!({"old": old["old"], "word": word, "since": old["since"]}));
+        }
+    }
+    json!({
+        "query": name,
+        "words": words,
+        "moves": moves,
+        "blind": [],
+        "catalog": snapshot.path.display().to_string(),
+        "glosses": glosses,
+        "snapshot_root": snapshot.root,
+    })
+}
+
+fn rel_path(root: &Path, path: &Path) -> String {
+    path.strip_prefix(root)
+        .unwrap_or(path)
+        .display()
+        .to_string()
+}
+
+fn row_of(package: &str, file: &str, f: &blue_lang_mondou::facts::DefFact) -> Json {
+    let word = format!("{package}::{}", f.name);
+    json!({
+        "id": readable_id(&word, &f.def_hash),
+        "word": word,
+        "package": package,
+        "name": f.name,
+        "kind": f.kind_name(),
+        "def_hash": f.def_hash.to_string(),
+        "shape": f.shape.as_ref().map(|s| s.hash.to_string()),
+        "written_shape": f.written_shape.map(|h| h.to_string()),
+        "size": f.shape.as_ref().map(|s| s.size),
+        "file": file,
+        "line": f.line,
+        "gloss": f.gloss(),
+        "legacy": [],
+    })
+}
+
+fn moved_names(package: &str, text: &str, into: &mut BTreeMap<String, BTreeSet<(String, String)>>) {
+    use blue_lang_syntax::scope::{legacy_target, LegacyKind};
+    let Ok(forms) = blue_lang_syntax::parse_program_tree(text) else {
+        return;
+    };
+    for legacy in forms.iter().filter_map(legacy_target) {
+        if let LegacyKind::Moved(ms) = legacy.kind {
+            for m in ms {
+                into.entry(format!("{}::{}", m.home, m.new))
+                    .or_default()
+                    .insert((format!("{package}::{}", m.old), legacy.since.to_string()));
+            }
+        }
+    }
+}
+
+#[must_use]
+pub fn emit_facts(root: &Path) -> Json {
+    let files = blue_lang_pkg::corpus::files(root);
+    let environment = crate::census::environment_over(&files);
+    let shown = root.display().to_string();
+    let mut rows = Vec::new();
+    let mut definitions = 0usize;
+    let mut outside = 0usize;
+    let mut blind = Vec::new();
+    let mut legacy: BTreeMap<String, BTreeSet<(String, String)>> = BTreeMap::new();
+    for path in &files {
+        let rel = rel_path(root, path);
+        let checked = std::fs::read_to_string(path)
+            .map_err(|e| e.to_string())
+            .and_then(|text| {
+                check_file(path, &text, &environment.load_path(Some(path))).map(|c| (c, text))
+            });
+        let (checked, text) = match checked {
+            Ok(found) => found,
+            Err(why) => {
+                blind.push(json!({"file": rel, "why": why.replace(&shown, "ROOT")}));
+                continue;
+            }
+        };
+        let Some(package) = checked
+            .program
+            .file(ResolvedProgram::ENTRY)
+            .and_then(|f| f.package.clone())
+        else {
+            outside += 1;
+            continue;
+        };
+        let entry = blue_lang_mondou::facts::of_entry(&checked);
+        definitions += entry.definitions;
+        rows.extend(entry.facts.iter().map(|f| row_of(&package, &rel, f)));
+        moved_names(&package, &text, &mut legacy);
+    }
+    for row in &mut rows {
+        if let Some(olds) = row["word"].as_str().and_then(|w| legacy.get(w)) {
+            row["legacy"] = olds
+                .iter()
+                .map(|(old, since)| json!({"old": old, "since": since}))
+                .collect();
+        }
+    }
+    rows.sort_by_cached_key(|r| {
+        (
+            r["package"].as_str().unwrap_or_default().to_string(),
+            r["word"].as_str().unwrap_or_default().to_string(),
+            r["file"].as_str().unwrap_or_default().to_string(),
+            r["line"].as_u64().unwrap_or_default(),
+        )
+    });
+    json!({
+        "repo": REPO,
+        "files": files.len(),
+        "outside": outside,
+        "definitions": definitions,
+        "blind": blind,
+        "rows": rows,
     })
 }
 
@@ -397,7 +709,7 @@ fn hook() -> ExitCode {
         let Some(draft) = draft_of_hook(&input) else {
             return;
         };
-        let facts = like_facts(&draft);
+        let facts = like_facts(&draft, None);
         let _ = render(vec!["like".into(), "--hook".into(), facts.to_string()]);
     });
     ExitCode::SUCCESS
@@ -409,17 +721,60 @@ fn hook() -> ExitCode {
 pub fn run(cmd: ArikaCmd) -> Result<ExitCode, String> {
     match cmd {
         ArikaCmd::Like { hook: true, .. } => Ok(hook()),
-        ArikaCmd::Like { target, json, .. } => {
+        ArikaCmd::Like {
+            target,
+            json,
+            snapshot,
+            facts,
+            ..
+        } => {
             let (path, line) = split_target(&target.unwrap_or_default());
             let text =
                 std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
-            let facts = like_facts(&Draft { path, text, line });
-            render(vec!["like".into(), mode(json).into(), facts.to_string()])
+            let snapshot = read_snapshot(snapshot, facts)?;
+            let answer = like_facts(&Draft { path, text, line }, snapshot.as_ref());
+            let mut args = vec!["like".into(), mode(json).into(), answer.to_string()];
+            args.extend(snapshot.as_ref().map(Snapshot::check));
+            render(args)
         }
-        ArikaCmd::Word { name, json } => {
-            let cwd = std::env::current_dir().map_err(|e| format!("the working directory: {e}"))?;
-            let facts = word_facts(&name, &cwd);
-            render(vec!["word".into(), mode(json).into(), facts.to_string()])
+        ArikaCmd::Word {
+            name,
+            json,
+            snapshot,
+            facts,
+        } => {
+            let snapshot = read_snapshot(snapshot, facts)?;
+            let answer = match &snapshot {
+                Some(snap) => word_facts_from(&name, snap),
+                None => {
+                    let cwd = std::env::current_dir()
+                        .map_err(|e| format!("the working directory: {e}"))?;
+                    word_facts(&name, &cwd)
+                }
+            };
+            let mut args = vec!["word".into(), mode(json).into(), answer.to_string()];
+            args.extend(snapshot.as_ref().map(Snapshot::check));
+            render(args)
         }
+        ArikaCmd::Emit { root, out, facts } => {
+            let emitted = emit_facts(&root);
+            let out = out.unwrap_or_else(|| root.join("SNAPSHOT.json"));
+            render(vec![
+                "emit".into(),
+                out.display().to_string(),
+                emitted.to_string(),
+                facts.map(|f| f.display().to_string()).unwrap_or_default(),
+            ])
+        }
+    }
+}
+
+fn read_snapshot(
+    snapshot: Option<PathBuf>,
+    facts: Option<PathBuf>,
+) -> Result<Option<Snapshot>, String> {
+    match (snapshot, facts) {
+        (Some(header), Some(facts)) => Snapshot::read(&header, &facts).map(Some),
+        _ => Ok(None),
     }
 }

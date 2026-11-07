@@ -286,6 +286,8 @@ pub struct Run {
     /// The runs whose outputs this one reads. Every name must be a declared
     /// run, and the graph must be acyclic — both checked at read time.
     pub reads: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub inputs: Vec<String>,
 }
 
 /// A program a check or an app runs.
@@ -743,16 +745,21 @@ const WORDS: &[Word] = &[
     },
     Word {
         name: "run",
-        signature: "run(name, file[, reads])",
-        doc: "A program run as its own cached derivation, writing into $RUN_OUT; `reads` names runs whose outputs it reads.",
+        signature: "run(name, file[, reads[, inputs]])",
+        doc: "A program run as its own cached derivation, writing into $RUN_OUT; `reads` names runs whose outputs it reads. `inputs` lists the project paths it reads, found under $GEN_ROOT.",
         min: 2,
-        max: 3,
+        max: 4,
         record: |c, into| {
             let name = c.text(0, "name")?;
             let run = Run {
                 file: c.path(1, "file")?,
                 reads: if c.args.len() > 2 {
                     c.names(2, "reads")?
+                } else {
+                    Vec::new()
+                },
+                inputs: if c.args.len() > 3 {
+                    c.paths(3, "inputs")?
                 } else {
                     Vec::new()
                 },
@@ -1827,10 +1834,24 @@ mod tests {
             p.runs["games"],
             Run {
                 file: "src/games.b".into(),
-                reads: vec![]
+                reads: vec![],
+                inputs: vec![]
             }
         );
         assert_eq!(p.runs["report"].reads, vec!["games"]);
+    }
+
+    #[test]
+    fn a_run_names_the_project_paths_it_reads_and_an_empty_list_leaves_the_lock_as_it_was() {
+        let p = project_of(
+            "run(\"facts\", \"gen/facts.b\", [], [\"bidamas\"])\nrun(\"games\", \"src/games.b\")",
+        );
+        assert_eq!(p.runs["facts"].inputs, vec!["bidamas"]);
+        assert!(p.runs["games"].inputs.is_empty());
+        let games = serde_json::to_value(&p.runs["games"]).expect("json");
+        assert!(games.get("inputs").is_none(), "{games}");
+        let facts = serde_json::to_value(&p.runs["facts"]).expect("json");
+        assert_eq!(facts["inputs"], serde_json::json!(["bidamas"]));
     }
 
     /// A run may read one declared further down: the graph is checked once the
@@ -1954,7 +1975,7 @@ mod tests {
         );
         for body in [
             "run(\"a\")",
-            "run(\"a\", \"a.b\", [], \"x\")",
+            "run(\"a\", \"a.b\", [], [], \"x\")",
             "source(\"a\", \"b\")",
         ] {
             assert!(

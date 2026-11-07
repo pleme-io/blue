@@ -1,4 +1,5 @@
 use("retsu", %i[first flat_map is_empty size])
+use("shomei", [:ct_root])
 
 LIMIT = 12
 
@@ -157,7 +158,9 @@ def word_text(m)
 end
 
 def read_catalog(facts)
-  if facts["catalog"].nil?
+  if facts["glosses"] != nil
+    facts["glosses"]
+  elsif facts["catalog"].nil?
     []
   else
     catalog_rows(read_file(facts["catalog"]))
@@ -167,13 +170,19 @@ end
 def main()
   if size(argv) < 3
     true
+  elsif argv[0] == "emit"
+    emit(argv[1], json_read(argv[2]), argv[3])
+  elsif size(argv) > 3
+    answer(argv[0], argv[1], json_read(argv[2]), stale(json_read(argv[3])))
   else
-    answer(argv[0], argv[1], json_read(argv[2]))
+    answer(argv[0], argv[1], json_read(argv[2]), nil)
   end
 end
 
-def answer(verb, mode, facts)
-  if verb == "like" and mode == "--json"
+def answer(verb, mode, facts, why)
+  if why != nil
+    refuse(mode, facts, why)
+  elsif verb == "like" and mode == "--json"
     write_stdout(unlines([json_stringify(facts)]))
   elsif verb == "like" and mode == "--hook"
     out = like_hook(facts)
@@ -190,8 +199,105 @@ def answer(verb, mode, facts)
       write_stdout(unlines(word_text(m)))
     end
   else
-    raise(:usage, "usage: blue arika like FILE[:LINE] | blue arika word NAME")
+    raise(
+      :usage,
+      "usage: blue arika like FILE[:LINE] | blue arika word NAME | blue arika emit ROOT"
+    )
   end
+  true
+end
+
+def refusal(facts, why)
+  {
+    "outcome" => "blind",
+    "file" => facts["file"],
+    "query" => facts["query"],
+    "why" => why,
+    "defs" => [],
+    "snapshot_root" => facts["snapshot_root"]
+  }
+end
+
+def refuse(mode, facts, why)
+  r = refusal(facts, why)
+  if mode == "--json"
+    write_stdout(unlines([json_stringify(r)]))
+  else
+    write_stdout(unlines(["arika: blind: #{why}"]))
+  end
+end
+
+def stale(check)
+  root = "b3:#{snapshot_root_of(units_of(check["rows"]))}"
+  if root == check["root"]
+    nil
+  else
+    "the facts hash to #{root}, not the header's #{check["root"]}; the index is stale: rebuild the facts (nix build .#arika-facts) or regenerate the header (nix run .#regen)"
+  end
+end
+
+def leaf_of(row)
+  blake3_hex(json_stringify(row))
+end
+
+def unit_of(entry)
+  rows = entry[1]
+  {
+    "leaves" => size(rows),
+    "package" => entry[0],
+    "unit_root" => "b3:#{ct_root(map(leaf_of, rows))}",
+    "rows" => rows
+  }
+end
+
+def units_of(rows)
+  map(unit_of, map_entries(group_by(rows, (r) -> r["package"])))
+end
+
+def hex_of(b3)
+  retsu::last(split(b3, ":"))
+end
+
+def snapshot_root_of(units)
+  ct_root(map((u) -> hex_of(u["unit_root"]), units))
+end
+
+def unit_line(u)
+  "{\"leaves\":#{to_s(u["leaves"])},\"package\":#{json_stringify(u["package"])},\"unit_root\":\"#{u["unit_root"]}\"}"
+end
+
+def header_text(facts, units)
+  head = "{\"blind\":#{json_stringify(facts["blind"])},\"definitions\":#{to_s(facts["definitions"])},\"format\":\"arika/1\",\"leaves\":#{to_s(size(facts["rows"]))},\"repo\":#{json_stringify(facts["repo"])},\"snapshot_root\":\"b3:#{snapshot_root_of(units)}\",\"units\":["
+  "#{head}#{line_break}#{join(map(unit_line, units), ",#{line_break}")}#{line_break}]}#{line_break}"
+end
+
+def facts_text(units)
+  unlines(map(json_stringify, flat_map(units, (u) -> u["rows"])))
+end
+
+def covered!(facts)
+  if size(facts["rows"]) != facts["definitions"]
+    raise(
+      :arika_coverage,
+      "the emitter gave #{to_s(size(facts["rows"]))} rows for #{to_s(facts["definitions"])} definitions; every definition the engine sees is one leaf"
+    )
+  end
+end
+
+def emit(header, facts, facts_out)
+  covered!(facts)
+  units = units_of(facts["rows"])
+  write_file(header, header_text(facts, units))
+  if facts_out != ""
+    write_file(facts_out, facts_text(units))
+  end
+  write_stdout(
+    unlines(
+      [
+        "arika: wrote #{header}: #{to_s(size(facts["rows"]))} words in #{to_s(size(units))} units, #{to_s(size(facts["blind"]))} files blind"
+      ]
+    )
+  )
   true
 end
 
@@ -285,6 +391,17 @@ test "a word is found by name, old spelling, part and gloss, in that order"
   assert map((r) -> r["word"], m["glosses"]) == ["ran::roll"]
   out = word_text(m)
   assert first(out) == "T5 name    kazu::sum (foundation)"
+end
+
+test "facts that hash to the header's root pass; one changed fact is refused"
+  rows = [
+    {"package" => "a", "word" => "a::x", "gloss" => "x"},
+    {"package" => "b", "word" => "b::y", "gloss" => "y"}
+  ]
+  root = "b3:#{snapshot_root_of(units_of(rows))}"
+  assert stale({"root" => root, "rows" => rows}).nil?
+  edited = [rows[0], {"package" => "b", "word" => "b::y", "gloss" => "z"}]
+  assert contains?(stale({"root" => root, "rows" => edited}), "stale")
 end
 
 test "no catalogue makes the gloss tier blind, not empty"

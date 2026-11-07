@@ -485,6 +485,7 @@
         oci = ociFor system;
         appliance = applianceFor system;
         inherit tameshi;
+        shards.heni-mutations = { env = "HENI_SPEC"; dir = "bidamas/heni/mutations"; suffix = ".json"; };
       });
 
       # The bidama library bound to a package set: every nix function blue has

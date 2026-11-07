@@ -62,9 +62,9 @@ service("kensa", {
 
 | Field | Meaning | Default when `access` is not written |
 |---|---|---|
-| `effects` | host effects the engine and the host may perform, from the closed `Capability` set | `[:network, :clock, :entropy, :environment]` |
-| `egress` | peers: a binding the service declares (`:database` from `schema`, `:cache`, a declared queue) or `host:port` | the declared bindings, plus DNS |
-| `reads` | read-only boot inputs: secret mounts, the declaration, config | the service's secret mounts and its config |
+| `effects` | host effects the engine and the host may perform. Today a 7-variant `Effect` enum (`crates/blue-lang-pkg/src/deploy/runtime.rs:8`), separate from the 14-variant `Capability` set; HORIZON H11 makes it a projection of `Capability` | `[:network, :clock, :entropy, :environment]` |
+| `egress` | peers: a binding the service declares (`:database` from `schema`, `:cache`, a declared queue) or `host:port` | the declared bindings, plus DNS (destination, HORIZON H16). The code renders `[]` today (`Access::default_for`, `runtime.rs:126`) |
+| `reads` | read-only boot inputs: secret mounts, the declaration, config | the service's secret mounts and its config (destination). The code renders `[]` today |
 | `writes` | writable paths | none |
 | `listen` | ports | the ports the service declares |
 | `exec` | programs it may run | none |
@@ -163,8 +163,11 @@ Each step ends with blue's checks green and a red-then-green test.
 |---|---|
 | Engine posture (`Load::posture`, `refused_by`) | tested (`b21d99b`) |
 | kensa engine under `posture(&[])` | tested (`kensa@872cc76`) |
-| `access` declaration | design |
+| `access` declaration: `Access`, parsed by `access_of`, attached to `service(...)`, refusals at parse time (`crates/blue-lang-pkg/src/deploy/runtime.rs:85,173,226-241`) | built (re-measured 2026-11-07) |
+| engenho wasm pod: haibi renders `blue.pleme.io/access`; engenho's kidou turns it into a grant (preopens, connect list, bind list, env) | built, the one placement derived from `access` |
 | Chart renderer for `:kernel_bpf`: DaemonSet, host network, bpffs, tracefs, exact capabilities | built, not deployed (`KERNEL.md` §6) |
-| Chart, unit, image, host renderers, for every other access | design |
+| Chart `writes` as `emptyDir` volumes | built (`bidamas/eigyou/haibi/haibi.b:834-845`) |
+| `kakoi.pleme.io/access` for native pods, rendered from `access` | design (HORIZON H16) |
+| Chart NetworkPolicy, unit, image and host renderers, for every other access | design (HORIZON H16) |
 | Trio for `host` services | design |
 | GitOps rendering | design |

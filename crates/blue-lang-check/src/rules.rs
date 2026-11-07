@@ -1690,6 +1690,29 @@ value, or at the top level of a file. Write that value as the branch instead.
 Code written after a `return` in the same sequence never runs and is a parse
 error. docs/GUARD-RETURN.md.",
     }
+    B0081 {
+        slug: "union-arms",
+        severity: Error,
+        fix: None,
+        law: "a `case` whose `when` arms test a union's records names every arm of that union, or has an `else`",
+        witness: "union shape = circle(r: Float) | rect(w: Float, h: Float)\n\ncase circle(1.0)\nwhen circle?\n  :round\nend\n",
+        waivable: true,
+        explanation: "\
+`union shape = circle(r: Float) | rect(w: Float, h: Float)` is a closed set:
+every value of `shape` is a `circle` or a `rect`. A `case` that tests a value
+with the union's record predicates and leaves an arm out answers `nil` for that
+arm without a word, so the check stage refuses it, naming the arms it misses:
+
+    case s
+    when circle?
+      3.14 * s.r * s.r
+    end
+
+Add the missing arm (`when rect?`), or an `else` when the rest is one answer
+on purpose. `when shape?` covers every arm. A new arm added to the union later
+is a finding at every `case` that does not handle it, which is the point of
+declaring the set. Waive with `# waive B0081: reason`.",
+    }
 }
 
 impl Code {

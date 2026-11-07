@@ -93,6 +93,9 @@ const FOUND: &[&str] = &[
     "record p(x: Int, y: List(Str), z: geo::point)",
     "record p(\n  x,\n  y: Int\n)",
     "record p(x: dyn)",
+    "union u = a(x) | b(y: Int, z: geo::point)",
+    "union u =\na(x)\n|b(y)",
+    "union u = a(\n  x,\n  y: Int\n) | b(z)",
 ];
 
 /// Every accepted source, formatted, parses back to the same tree.
@@ -189,4 +192,29 @@ fn a_record_inside_an_interpolation_is_refused_at_every_door() {
 fn a_comment_inside_a_record_stays_where_it_is() {
     let src = "record p(\n  # the first\n  x,\n  y: Int # the second\n)\n";
     assert_eq!(format_source_lossless(src).unwrap(), src);
+}
+
+#[test]
+fn a_short_union_is_one_line_and_a_long_one_one_arm_a_line() {
+    let short = "union shape = circle(r: Float) | rect(w: Float, h: Float)\n";
+    assert_eq!(format_source_lossless(short).unwrap(), short);
+    assert_eq!(
+        format_source_lossless("union shape =\n  circle(r: Float)\n  | rect(w: Float, h: Float)\n")
+            .unwrap(),
+        short
+    );
+    let long = "union event =\n  opened(path: Str, mode: Sym, flags: List(Sym))\n  | closed(path: Str, code: Int)\n  | failed(path: Str, reason: Str)\n";
+    assert_eq!(format_source_lossless(long).unwrap(), long);
+    assert_eq!(format_source(long).unwrap(), long);
+}
+
+#[test]
+fn a_documented_union_keeps_its_doc_and_its_neighbours() {
+    let src = "x = 1\n\n@doc \"\"\"\nshape is a circle or a rect.\n\"\"\"\nunion shape = circle(r) | rect(w, h)\n\n# after\ny = rect(1, 2)\n";
+    assert_eq!(format_source_lossless(src).unwrap(), src);
+    let tree = blue_lang_syntax::parse_program_tree(src).unwrap();
+    assert_eq!(
+        blue_lang_fmt::format_tree_lossless(src, &tree).unwrap(),
+        src
+    );
 }

@@ -142,6 +142,7 @@ pub fn parse_program_tree_with_depth(
 ) -> Result<Vec<Spanned>, ParseError> {
     parse_program_documented_with_depth(src, max_depth)
         .map(crate::doc::strip)
+        .map(crate::union::lower)
         .and_then(|forms| crate::guard::lower(forms).map_err(|e| e.located(src)))
 }
 
@@ -307,6 +308,7 @@ pub fn parse_program_tree_in(
     let mut p = Parser::over(src, toks, MAX_EXPR_DEPTH);
     p.program()
         .map(crate::doc::strip)
+        .map(crate::union::lower)
         .map_err(|e| e.located(src))
 }
 
@@ -788,7 +790,7 @@ pub fn keyword_doc(word: &str) -> &'static str {
         "assert" => "`assert expr`: inside a test, fail it unless `expr` is truthy; the failure quotes the expression.",
         "assert_panics" => "`assert_panics expr`: inside a test, pass only when `expr`, run in a child held to a pure frame, ends on a capability breach with no host call made.",
         "fn" => "`fn(x) x * 2 end`: an anonymous function, a value. Blue has no brace or do blocks.",
-        "case" => "`case v when 1 … when 2 … else … end`: compares with `==`; `when point?` takes a value of a record the program declares. It does not destructure.",
+        "case" => "`case v when 1 … when 2 … else … end`: compares with `==`; `when point?` takes a value of a record the program declares. A case over a union's arms names every arm or has an `else` (B0081). It does not destructure.",
         "return" => "`return x` ends a branch of an `if` or `case` in a def body: the rest of the body becomes the branches that did not return, so it costs nothing at run time. Anywhere else it is refused (B0080).",
         "do" => "Reserved and refused: blue has no do-blocks. Pass `fn(x) … end` instead.",
         "end" => "Closes `def`, `defmacro`, `if`, `case`, `fn`, `test` and `quote`.",
@@ -1179,6 +1181,9 @@ impl Parser {
     }
 
     fn statement_inner(&mut self) -> Result<Spanned, Fail> {
+        if let Some(union) = self.union_statement()? {
+            return Ok(union);
+        }
         if let Some(record) = self.record_statement()? {
             return Ok(record);
         }
@@ -1244,6 +1249,92 @@ impl Parser {
         self.bump();
         let name_span = self.peek_span();
         self.bump();
+        self.record_rest(head, &name, name_span).map(Some)
+    }
+
+    fn union_statement(&mut self) -> Result<Option<Spanned>, Fail> {
+        let head = self.peek_span();
+        if !self.at_ident(crate::union::UNION_WORD) || self.peek_at(2) != "=" {
+            return Ok(None);
+        }
+        let Some(TokenKind::Ident(name)) = self.toks.get(self.pos + 1).map(|t| t.kind.clone())
+        else {
+            return Ok(None);
+        };
+        if is_reserved_word(&name) {
+            return Ok(None);
+        }
+        if self.depth > 1 {
+            return Err(fail(
+                format!("`union {name}` is a declaration of the top level of a file"),
+                head,
+            ));
+        }
+        self.bump();
+        let name_span = self.peek_span();
+        self.bump();
+        self.bump();
+        if name.ends_with(['?', '!']) {
+            return Err(fail(
+                format!(
+                    "a union name ends in neither `?` nor `!`: blue writes its predicate, `{}?`",
+                    name.trim_end_matches(['?', '!'])
+                ),
+                name_span,
+            ));
+        }
+        let mut items = vec![
+            sym_at(head, crate::union::LOWERED_UNION),
+            sym_at(name_span, &name),
+            sym_at(name_span, &format!("{name}?")),
+        ];
+        let mut seen: Vec<String> = Vec::new();
+        loop {
+            self.skip_newlines();
+            let arm_span = self.peek_span();
+            let TokenKind::Ident(arm) = self.bump() else {
+                return Err(fail(
+                    format!(
+                        "expected an arm of `union {name}`, a record such as `circle(r: Float)`"
+                    ),
+                    arm_span,
+                ));
+            };
+            self.not_reserved(&arm, arm_span, "an arm's name")?;
+            if arm == name {
+                return Err(fail(
+                    format!(
+                        "the arm `{arm}` has its union's name; `{name}?` is the union's predicate"
+                    ),
+                    arm_span,
+                ));
+            }
+            if seen.contains(&arm) {
+                return Err(fail(format!("the arm `{arm}` is named twice"), arm_span));
+            }
+            seen.push(arm.clone());
+            items.push(self.record_rest(arm_span, &arm, arm_span)?);
+            let mut ahead = self.pos;
+            while matches!(
+                self.toks.get(ahead).map(|t| &t.kind),
+                Some(TokenKind::Newline)
+            ) {
+                ahead += 1;
+            }
+            let bar = matches!(
+                self.toks.get(ahead).map(|t| &t.kind),
+                Some(TokenKind::Op(o)) if o == crate::union::ARM_SEPARATOR
+            );
+            if !bar {
+                break;
+            }
+            self.pos = ahead;
+            self.bump();
+        }
+        Ok(Some(list_at(self.span_since(head.start), items)))
+    }
+
+    fn record_rest(&mut self, head: Span, name: &str, name_span: Span) -> Result<Spanned, Fail> {
         if name.ends_with(['?', '!']) {
             return Err(fail(
                 format!("a record name ends in neither `?` nor `!`: `{name}` is its constructor, and blue writes its predicate"),
@@ -1256,7 +1347,7 @@ impl Parser {
         )?;
         let mut items = vec![
             sym_at(head, crate::record::LOWERED_RECORD),
-            sym_at(name_span, &name),
+            sym_at(name_span, name),
             sym_at(name_span, &format!("{name}?")),
         ];
         let mut seen: Vec<String> = Vec::new();
@@ -1279,7 +1370,7 @@ impl Parser {
                 name_span,
             ));
         }
-        Ok(Some(list_at(self.span_since(head.start), items)))
+        Ok(list_at(self.span_since(head.start), items))
     }
 
     fn record_field(&mut self, seen: &mut Vec<String>) -> Result<Spanned, Fail> {

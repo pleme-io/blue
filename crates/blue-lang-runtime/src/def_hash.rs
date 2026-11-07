@@ -145,6 +145,9 @@ pub fn defined(form: &Spanned) -> Option<(&str, DefKind)> {
         blue_lang_syntax::record::LOWERED_RECORD => {
             Some((items.get(1)?.as_symbol()?, DefKind::Value))
         }
+        blue_lang_syntax::union::LOWERED_UNION => {
+            Some((items.get(2)?.as_symbol()?, DefKind::Value))
+        }
         "define" | "define-typed" => {
             let node = blue_lang_syntax::scope::defined_name_node(items)?;
             let function = items[1].as_list().is_some()

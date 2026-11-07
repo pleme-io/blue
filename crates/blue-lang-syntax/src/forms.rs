@@ -96,6 +96,11 @@ pub const FORMS: &[Form] = &[
         doc: "A named structure, at a file's top level: point(1, 2) and point({x: 1, y: 2}) construct one, refusing a missing or unknown field at check and at run time, point?(v) is its predicate, p.x reads a field, point(**p, x: 3) is an updated copy. A value is a map carrying its name: == includes the name, and it crosses JSON as {\"$record\": \"point(x,y)\", ...}. A map whose keys no longer match that name, after assoc or a spread, is a plain map. A field type is Int, Float, Str, Bool, Sym, Nil, Map, List(T) or a record, checked at construction. struct and class are refused, naming this.",
     },
     Form {
+        example: "union shape = circle(r: Float) | rect(w: Float, h: Float)",
+        lowers_to: "(blue-union shape shape? (blue-record circle circle? (:r Float)) (blue-record rect rect? (:w Float) (:h Float)))",
+        doc: "A closed set of records, at a file's top level: each arm is a record with all a record gives (constructor, predicate, field reads, JSON), and shape?(v) is true for a value of any arm. A case whose `when` arms test a union's records and that has no `else` names every arm, or the check stage refuses it (B0081), naming the arms it misses. An arm may start a line with `|`. union stays a free name everywhere else.",
+    },
+    Form {
         example: "x = 5",
         lowers_to: "(define x 5)",
         doc: "A binding, only as a statement. There is no `let`; a binding lasts to the end of its body.",

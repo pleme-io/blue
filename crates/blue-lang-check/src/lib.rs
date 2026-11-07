@@ -29,7 +29,8 @@
 //! `Diagnostic`, not an absent code path. The docs say so because §V.24
 //! caught this document rounding exactly this kind of tier up.
 
-use std::collections::BTreeMap;
+use std::cell::RefCell;
+use std::collections::{BTreeMap, BTreeSet};
 
 use tatara_lisp::{Atom, Sexp, Span, Spanned, SpannedForm};
 
@@ -130,6 +131,30 @@ impl Ty {
             Ty::Fragment(sel) => sel.type_name(),
         }
     }
+
+    #[must_use]
+    pub fn join(&self, other: &Ty) -> Ty {
+        if self == other {
+            self.clone()
+        } else {
+            Ty::Dyn
+        }
+    }
+}
+
+#[must_use]
+pub fn builtin_result(name: &str) -> Option<Ty> {
+    Some(match name {
+        "length" | "count" => Ty::Int,
+        "to_s" | "upcase" | "downcase" | "trim" | "join" | "join_lines" | "unlines" | "replace" => {
+            Ty::Str
+        }
+        "split" | "chars" => Ty::List(Box::new(Ty::Str)),
+        "empty?" | "contains?" | "starts_with?" | "ends_with?" | "member?" | "even?" | "odd?"
+        | "zero?" | "positive?" | "negative?" | "string?" | "number?" | "integer?" | "nil?"
+        | "some?" | "list?" | "map?" | "keyword?" | "bool?" | "symbol?" => Ty::Bool,
+        _ => return None,
+    })
 }
 
 /// A reported problem: a registry [`Code`], a severity, a primary span, and
@@ -390,6 +415,24 @@ pub fn check_program(forms: &[Spanned]) -> Outcome {
 }
 
 pub fn check_program_in(forms: &[Spanned], same_file: &dyn Fn(usize, usize) -> bool) -> Outcome {
+    walk(forms, same_file, &|_| true, &mut BTreeMap::new())
+}
+
+pub(crate) fn typed_bindings(
+    forms: &[Spanned],
+    wanted: &dyn Fn(usize) -> bool,
+) -> BTreeMap<usize, BTreeMap<String, Ty>> {
+    let mut bindings = BTreeMap::new();
+    walk(forms, &|_, _| true, wanted, &mut bindings);
+    bindings
+}
+
+fn walk(
+    forms: &[Spanned],
+    same_file: &dyn Fn(usize, usize) -> bool,
+    wanted: &dyn Fn(usize) -> bool,
+    bindings: &mut BTreeMap<usize, BTreeMap<String, Ty>>,
+) -> Outcome {
     let mut out = Outcome::default();
     let mut sigs: BTreeMap<String, Sig> = BTreeMap::new();
     let frags = data_laws::Fragments::collect(forms);
@@ -415,23 +458,37 @@ pub fn check_program_in(forms: &[Spanned], same_file: &dyn Fn(usize, usize) -> b
     //
     // This is the mechanical form of "zero analysis at rung 0": an
     // unannotated program never enters the loop body.
+    let defined = if sigs.is_empty() {
+        BTreeSet::new()
+    } else {
+        top_level_names(forms)
+    };
     for (top_level, form) in forms.iter().enumerate() {
+        if !wanted(top_level) {
+            continue;
+        }
         if let Some((name, _)) = read_typed_decl(form) {
             let Some(items) = form.as_list() else {
                 continue;
             };
             let sig = sigs.get(&name).expect("just inserted");
+            let body = &items[3];
+            let mut shadowed = defined.clone();
+            contracts::binders_of(std::slice::from_ref(body), true, &mut shadowed);
+            let mut unsettled = BTreeSet::new();
+            nested_defines(body, true, &mut unsettled);
             let mut env: BTreeMap<String, Ty> = BTreeMap::new();
+            let bound = RefCell::new(BTreeMap::new());
             if let Some(params) = items[1].as_list() {
                 for (i, p) in params[1..].iter().filter(|p| !is_marker(p)).enumerate() {
                     if let Some(pair) = p.as_list() {
                         if let Some(pn) = pair[0].as_symbol() {
                             env.insert(pn.to_string(), sig.params[i].clone());
+                            settle(&bound, pn, &sig.params[i]);
                         }
                     }
                 }
             }
-            let body = &items[3];
             // Stamp the file-identity key ONCE, here, over whatever `infer`
             // pushed while walking this declaration's body.
             //
@@ -446,8 +503,24 @@ pub fn check_program_in(forms: &[Spanned], same_file: &dyn Fn(usize, usize) -> b
                 frags: &frags,
                 top: top_level,
                 same_file,
+                shadowed: &shadowed,
+                unsettled: &unsettled,
+                bound: &bound,
             };
             let body_ty = infer(body, &env, &cx, &mut out);
+            let mut rebound = BTreeSet::new();
+            contracts::binders_of(std::slice::from_ref(body), false, &mut rebound);
+            for n in rebound.iter().chain(&unsettled) {
+                bound.borrow_mut().insert(n.clone(), None);
+            }
+            bindings.insert(
+                top_level,
+                bound
+                    .into_inner()
+                    .into_iter()
+                    .filter_map(|(n, t)| t.map(|t| (n, t)))
+                    .collect(),
+            );
             for d in &mut out.diagnostics[before..] {
                 d.top_level = top_level;
             }
@@ -530,6 +603,88 @@ struct Cx<'a> {
     frags: &'a data_laws::Fragments,
     top: usize,
     same_file: &'a dyn Fn(usize, usize) -> bool,
+    shadowed: &'a BTreeSet<String>,
+    unsettled: &'a BTreeSet<String>,
+    bound: &'a RefCell<BTreeMap<String, Option<Ty>>>,
+}
+
+fn settle(bound: &RefCell<BTreeMap<String, Option<Ty>>>, name: &str, t: &Ty) {
+    let t = (*t != Ty::Dyn).then(|| t.clone());
+    bound
+        .borrow_mut()
+        .entry(name.to_string())
+        .and_modify(|v| {
+            if *v != t {
+                *v = None;
+            }
+        })
+        .or_insert(t);
+}
+
+fn top_level_names(forms: &[Spanned]) -> BTreeSet<String> {
+    let mut out = BTreeSet::new();
+    for form in forms {
+        let Some(items) = form.as_list() else {
+            continue;
+        };
+        let Some(head) = items.first().and_then(Spanned::as_symbol) else {
+            continue;
+        };
+        if !head.starts_with("def") {
+            continue;
+        }
+        let name = items.get(1).and_then(|n| {
+            n.as_symbol().or_else(|| {
+                n.as_list()
+                    .and_then(|l| l.first())
+                    .and_then(Spanned::as_symbol)
+            })
+        });
+        if let Some(n) = name {
+            out.insert(n.to_string());
+        }
+    }
+    out
+}
+
+fn nested_defines(s: &Spanned, root: bool, out: &mut BTreeSet<String>) {
+    let Some(items) = s.as_list() else { return };
+    let head = items.first().and_then(Spanned::as_symbol);
+    match head {
+        Some("quote" | "quasiquote") => return,
+        Some("set!") => {
+            if let Some(n) = items.get(1).and_then(Spanned::as_symbol) {
+                out.insert(n.to_string());
+            }
+        }
+        Some("define") if !root => {
+            if let Some(n) = items.get(1).and_then(Spanned::as_symbol) {
+                out.insert(n.to_string());
+            }
+        }
+        _ => {}
+    }
+    if root && head == Some("begin") {
+        for i in &items[1..] {
+            let direct = i
+                .as_list()
+                .and_then(|l| l.first())
+                .and_then(Spanned::as_symbol)
+                == Some("define");
+            match i.as_list() {
+                Some(d) if direct => {
+                    for v in &d[2..] {
+                        nested_defines(v, false, out);
+                    }
+                }
+                _ => nested_defines(i, false, out),
+            }
+        }
+        return;
+    }
+    for i in items {
+        nested_defines(i, false, out);
+    }
 }
 
 fn literal_key(s: &Spanned) -> Option<&str> {
@@ -656,7 +811,7 @@ fn infer(s: &Spanned, env: &BTreeMap<String, Ty>, cx: &Cx<'_>, out: &mut Outcome
                 let t = infer(&items[2], env, cx, out);
                 if let Some(e) = items.get(3) {
                     let f = infer(e, env, cx, out);
-                    return if t.accepts(&f) { t } else { Ty::Dyn };
+                    return t.join(&f);
                 }
                 return Ty::Dyn;
             }
@@ -674,6 +829,8 @@ fn infer(s: &Spanned, env: &BTreeMap<String, Ty>, cx: &Cx<'_>, out: &mut Outcome
                     last = match bound {
                         Some((n, value)) => {
                             let t = infer(value, &local, cx, out);
+                            let t = if cx.unsettled.contains(n) { Ty::Dyn } else { t };
+                            settle(cx.bound, n, &t);
                             local.insert(n.to_string(), t);
                             Ty::Nil
                         }
@@ -688,7 +845,7 @@ fn infer(s: &Spanned, env: &BTreeMap<String, Ty>, cx: &Cx<'_>, out: &mut Outcome
                 if let Some(params) = items[1].as_list() {
                     for p in params {
                         if let Some(n) = p.as_symbol() {
-                            local.remove(n);
+                            local.insert(n.to_string(), Ty::Dyn);
                         }
                     }
                 }
@@ -763,6 +920,15 @@ fn infer(s: &Spanned, env: &BTreeMap<String, Ty>, cx: &Cx<'_>, out: &mut Outcome
                     }
                 }
                 return sig.ret.clone();
+            }
+
+            if !env.contains_key(head) && !cx.shadowed.contains(head) {
+                if let Some(t) = builtin_result(head) {
+                    for a in &items[1..] {
+                        infer(a, env, cx, out);
+                    }
+                    return t;
+                }
             }
 
             // A call to something UNDECLARED. Walk the arguments (they may

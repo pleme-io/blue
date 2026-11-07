@@ -41,6 +41,19 @@ impl Kind {
     }
 
     #[must_use]
+    pub fn of_ty(t: &crate::Ty) -> Option<Kind> {
+        use crate::Ty;
+        match t {
+            Ty::Int | Ty::Float => Some(Kind::Num),
+            Ty::Str => Some(Kind::Str),
+            Ty::Bool => Some(Kind::Bool),
+            Ty::Sym => Some(Kind::Kw),
+            Ty::List(_) => Some(Kind::List),
+            _ => None,
+        }
+    }
+
+    #[must_use]
     pub const fn literal(self) -> &'static str {
         match self {
             Kind::Map => "{a: 1}",
@@ -262,11 +275,19 @@ fn define_parts(form: &Spanned) -> Option<Parts<'_>> {
 }
 
 fn locals_of(body: &[Spanned], out: &mut BTreeSet<String>) {
+    binders_of(body, true, out);
+}
+
+pub(crate) fn binders_of(body: &[Spanned], with_define: bool, out: &mut BTreeSet<String>) {
     for s in body {
         let Some(items) = s.as_list() else { continue };
         match items.first().and_then(Spanned::as_symbol) {
             Some("define") => {
-                if let Some(n) = items.get(1).and_then(Spanned::as_symbol) {
+                if let Some(n) = items
+                    .get(1)
+                    .and_then(Spanned::as_symbol)
+                    .filter(|_| with_define)
+                {
                     out.insert(n.to_string());
                 }
                 if let Some(sig) = items.get(1).and_then(Spanned::as_list) {
@@ -316,7 +337,7 @@ fn locals_of(body: &[Spanned], out: &mut BTreeSet<String>) {
             }
             _ => {}
         }
-        locals_of(items, out);
+        binders_of(items, with_define, out);
     }
 }
 
@@ -796,6 +817,7 @@ pub fn check<'t>(
             }
         }
     }
+    let typed = crate::typed_bindings(forms, is_entry);
     let mut globals = BTreeMap::new();
     for form in forms {
         if let Some([head, name, value]) = form.as_list() {
@@ -818,10 +840,15 @@ pub fn check<'t>(
         }
         let mut known = BTreeMap::new();
         bound_literals(form, &mut known);
-        let known: BTreeMap<String, Kind> = known
+        let mut known: BTreeMap<String, Kind> = known
             .into_iter()
             .filter_map(|(n, k)| k.map(|k| (n, k)))
             .collect();
+        for (n, t) in typed.get(&i).into_iter().flatten() {
+            if let Some(k) = Kind::of_ty(t) {
+                known.entry(n.clone()).or_insert(k);
+            }
+        }
         let cx = Site {
             top: i,
             program: &program,

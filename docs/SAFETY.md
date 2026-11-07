@@ -243,7 +243,7 @@ tier. ⚠️ marks a partial seal. ❌ marks an open row.
 | 4 | Immutability, no aliasing | ✅ values are persistent; `set!` rebinds a name, never a value | none needed | unrepresentable | n/a |
 | 5 | Bounds-checked indexing | ✅ memory: no raw index exists; ⚠️ semantics: `nth` out of range is `nil` | row 1 owns the `nil` | unrepresentable (memory) | n/a |
 | 6 | Integer overflow, numeric conversion | ✅ `+ - * abs floor` raise on overflow; `/` by zero raises; `to_int` of a huge float is `nil` | `to_int` → row 1 | runtime-refused | on, no off |
-| 7 | No implicit coercion | ⚠️ operators refuse mixed types; `4 == 4.0` is true; call types are checked only inside typed definitions (B0003–B0005) | call-site checks from any caller when the argument is a literal | runtime-refused → checked-at-expansion | on |
+| 7 | No implicit coercion | ⚠️ operators refuse mixed types; `4 == 4.0` is true; call types are checked only inside typed definitions (B0003–B0005), where a local binding now takes its type from its value (literal, parameter, declared builtin result, agreeing `if`) | call-site checks from any caller when the argument is a literal | runtime-refused → checked-at-expansion | on |
 | 8 | `unsafe` ⇔ declared capability | ⚠️ sessions pure by default; **`blue run --allow` and shebang `--allow` (landed)**; **a breach is fatal: no `rescue` or `ensure` sees it (landed)**; **the wire's two channels are their own capabilities, `comm_flash` and `comm_scavenger` (landed)**; **the Flash rate is the host's, a typed bound refused as a catchable `:rate_limited` (landed)**; **both channels have an in-process loopback provider (landed)**; **threshold signing is its own capability, `mpc_threshold`, with a seeded provider (landed)**; **an append-only log store is its own capability, `storage_append`, held by `filesystem`, with an in-memory provider (landed)**; **sound out, sound in and a display canvas are three capabilities, `audio_out`, `audio_in` and `display`, each with a pure provider, and a host without the device answers a named refusal (landed)**; **eviction over the Tide (`evict`, `accept`) sits in `comm_scavenger` (landed)**; **`bpf(2)` and perf events are their own capability, `kernel_bpf`, with no pure provider, and off Linux each word answers a named refusal (landed)**; an undeclared run is still ambient | default flip for scripts, then `posture(reach:)` for bidamas | checked-at-expansion (entry) + runtime-fatal (bidama, process) | declared: on; undeclared: ambient until phase 3 (`--allow host`) |
 | 9 | Memory safety of the host seam | ⚠️ 3 of 22 crates deny `unsafe_code` at their roots (kiwari, proc, senses) | workspace `unsafe_code = "deny"`, one `#[allow]` per seam, one seam test | unrepresentable for kiwari and proc → unrepresentable for every crate | on (`#[allow(unsafe_code)]` at a named seam) |
 | 10 | No data races | ✅ share-nothing processes; copy on send; handles refuse to cross | none needed | unrepresentable | n/a |
@@ -309,7 +309,9 @@ wrap and never promote to a bignum.
 (numeric equality crosses Int and Float); truthiness is Ruby's (`0`, `""`
 and `[]` are true). A typed definition called with a string from an untyped
 `main` fails at run time, not at check time: B0005 checks a call only inside
-a typed caller.
+a typed caller. Inside a typed definition a local binding is inferred
+(HORIZON H2 step 1, rows `check.infer.*`), so `x = a + 1` then `upcase(x)`,
+or `n = upcase(s)` returned as `Int`, is refused at check, not at run time.
 
 **Row 8, capabilities.** The landed gate: `blue run --allow CAP` and
 `blue --allow CAP FILE` (`crates/blue-lang-cli/src/script.rs:36`,

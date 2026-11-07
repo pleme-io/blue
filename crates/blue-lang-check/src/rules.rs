@@ -262,9 +262,12 @@ effects.",
         witness: "def f(a: Int) -> Str\n  a + 1\nend\n",
         explanation: "\
 A `def` with a return annotation (`-> Str`) promises a value of that type. The
-body's type is inferred from literals, operators, annotated parameters and
-calls to other typed definitions; `dyn` is compatible with everything. The
-diagnostic points at the body, which is the part that disagrees.
+body's type is inferred from literals, operators, annotated parameters,
+calls to other typed definitions, builtins whose result is declared, and local
+bindings, which take the type of their value. A binding assigned in a branch,
+a loop or a function, or bound twice with two types, is `dyn`; so is an `if`
+whose branches disagree. `dyn` is compatible with everything. The diagnostic
+points at the body, which is the part that disagrees.
 
 To comply, change the body or the annotation. Removing the annotation removes
 the check: untyped code is not analysed at all.",
@@ -1281,7 +1284,8 @@ takes what the builtins and functions it reaches take, unless the function
 tests its kind first (`string?(x)`, `map?(x)` and the other predicates).
 
 A literal passed where another kind is taken is a type error the runtime
-would raise later, far from the call. danpen's `schema_of` called
+would raise later, far from the call. Inside a typed definition the same holds
+for a parameter or a local binding whose type is inferred (B0003). danpen's `schema_of` called
 `get(schema, :kind)` on SDL text, a string, and the error came at run time.
 
 A builtin that takes the collection first and a function second

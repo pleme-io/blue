@@ -118,6 +118,54 @@ keys on:
 unrelated definition, and they do not.
 **Unlocks:** H7 (memo and caching are performance), H9 (cheap re-verification).
 
+**Content addressing by default, with proofs** (operator, 2026-11-07: compile
+time first). Measured the same day: `def_hash` is BLAKE3 over each
+definition's resolved tree with every callee replaced by its hash
+(`crates/blue-lang-runtime/src/def_hash.rs`), and almost nothing uses it by
+default to skip work.
+
+| Stage | Cached today | Key |
+|---|---|---|
+| parse, resolve | in memory only (mondou; the LSP and `blue check`) | text hash, then `def_hash` |
+| check and erase | none | `def_hash` + engine identity + the hashes it read |
+| `blue test` | built, off by default (`BLUE_TEST_CACHE`) | build + the test's hash + preamble + bounds |
+| a pure call | built, off by default (`BLUE_MEMO`) | `def_hash` + the arguments' canonical form |
+| a nix `bidama-test-*` check | none: one change anywhere reruns every package | the closure the test reaches |
+| a generator, arika's word table | none: always rerun and compared | the generator's hash + its inputs' hashes |
+
+`blue check` of kaaneru (10,252 lines with its levels) takes 1.4 s, and of
+eigyou 1.1 s (debug build, cid); the flake's 273 checks each check their
+closure again from nothing.
+
+The rungs, compile time first:
+
+1. **A check cache per definition, on by default.** Check and erase results
+   kept under `def_hash`, engine identity and the hashes each read, beside the
+   memo store; an edit re-checks the definitions whose hash moved and nothing
+   else.
+2. **A bidama ships its analysis.** `mkBidama` emits the parsed, resolved,
+   hashed and checked package as a nix output keyed by the engine and the
+   package's source hash (BLUE-ENGINE E5), so a run, a test and an editor load
+   it checked, from sui.
+3. **The test cache and memo on by default, shared.** The build identity
+   becomes the binary's `b3:` hash instead of its path and mtime, so a key
+   matches on every node and sui serves it.
+4. **Narrow test derivations, with a proof.** A nix test check depends on the
+   closure its tests reach, not the whole `BLUE_PATH`; the passed keys form a
+   tameshi Merkle tree (`compute_leaf_root`, `leaf_inclusion_proof`), so a
+   skipped test carries an inclusion proof that it passed for that hash.
+5. **Generators skip on equal inputs.** A generated file records the hash of
+   its generator and inputs; equal hashes skip the run. arika's word table
+   becomes a sparse Merkle tree keyed by shape hash, updated by the shapes
+   that moved.
+
+Prerequisite: tameshi gates its Merkle code behind `full`, which brings tokio
+and axum; it gets a lean `merkle` feature (blake3 and `rs_merkle` only).
+**First step:** rung 1, measured: the flake checks' total check time before
+and after on rio. **Gate:** red run: change a callee's body, and the caller
+is checked again; change an unrelated definition, and no other definition
+is; a cached check result read under a different engine identity is refused.
+
 ### H4. Time: async, replay and a debugger that goes backwards
 
 - **Async**, as designed in [`ASYNC.md`](ASYNC.md): `net_wait` in the node

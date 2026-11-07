@@ -1,3 +1,4 @@
+use blue_lang_waku::Capability;
 use serde::{Deserialize, Serialize};
 use tatara_lisp_eval::Value;
 
@@ -62,6 +63,45 @@ impl Effect {
         }
     }
 
+    #[must_use]
+    pub fn capability(self) -> Capability {
+        match self {
+            Effect::Network => Capability::Network,
+            Effect::Filesystem => Capability::FileSystem,
+            Effect::Clock => Capability::Clock,
+            Effect::Entropy => Capability::Entropy,
+            Effect::Environment => Capability::Environment,
+            Effect::Process => Capability::Process,
+            Effect::KernelBpf => Capability::KernelBpf,
+        }
+    }
+
+    #[must_use]
+    pub fn of_capability(c: Capability) -> Option<Effect> {
+        match c {
+            Capability::Network => Some(Effect::Network),
+            Capability::FileSystem => Some(Effect::Filesystem),
+            Capability::Clock => Some(Effect::Clock),
+            Capability::Entropy => Some(Effect::Entropy),
+            Capability::Environment => Some(Effect::Environment),
+            Capability::Process => Some(Effect::Process),
+            Capability::KernelBpf => Some(Effect::KernelBpf),
+            Capability::CommFlash
+            | Capability::CommScavenger
+            | Capability::MpcThreshold
+            | Capability::StorageAppend
+            | Capability::AudioOut
+            | Capability::AudioIn
+            | Capability::Display
+            | Capability::CoreForms
+            | Capability::Operators
+            | Capability::Collections
+            | Capability::Interpolation
+            | Capability::Assertion
+            | Capability::ManifestDeclaration => None,
+        }
+    }
+
     fn of(v: &Value) -> Result<Self, SpecError> {
         let word = match v {
             Value::Keyword(k) | Value::Str(k) | Value::Symbol(k) => k.to_string(),
@@ -73,10 +113,13 @@ impl Effect {
                 })
             }
         };
-        Effect::ALL
-            .into_iter()
-            .find(|e| e.name() == word)
-            .ok_or(SpecError::AccessEffect { got: word })
+        match Capability::host_named(&word) {
+            Some(c) => Effect::of_capability(c).ok_or(SpecError::AccessCapability {
+                got: word,
+                capability: c.label(),
+            }),
+            None => Err(SpecError::AccessEffect { got: word }),
+        }
     }
 }
 

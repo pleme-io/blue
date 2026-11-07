@@ -1,0 +1,19 @@
+{
+  "platform": "nixos",
+  "dry_run": false,
+  "sites": [
+    {"name": "natal", "cidr": "192.168.50.0/24", "gateway_mac": "02:00:5e:50:00:01"},
+    {"name": "bristol", "cidr": "192.168.50.0/24", "gateway": "192.168.50.1", "gateway_mac": "02:00:5e:b0:00:01"},
+    {"name": "buzios", "cidr": "192.168.60.0/24", "gateway": "192.168.60.1", "gateway_mac": "2:0:5E:60:0:1"},
+    {"name": "parnamirim", "cidr": "192.168.70.0/24"}
+  ],
+  "nodes": [
+    {"name": "plo", "site": "natal", "lan": "192.168.50.3", "tailnet": "100.64.0.110", "domains": ["plo.pleme.internal", "plo"]},
+    {"name": "zek", "site": "natal", "lan": "192.168.50.20", "tailnet": "100.64.0.20", "domains": ["zek.pleme.internal"]}
+  ],
+  "services": [
+    {"domains": ["hue.natal.pleme.internal"], "site": "natal", "ip": "192.168.50.183", "subnet_routed": true},
+    {"domains": ["cid.buzios.pleme.internal"], "site": "buzios", "ip": "192.168.60.138", "subnet_routed": true},
+    {"domains": ["printer.parnamirim.pleme.internal"], "site": "parnamirim", "ip": "192.168.70.50"}
+  ]
+}

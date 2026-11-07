@@ -5,6 +5,7 @@ tesuto (テスト) — testing: errors and snapshots as assertions, and the poli
 """
 
 use("moji", %i[checked trim])
+use("retsu", %i[first last rest])
 
 @doc """
 raises?: whether f raises that kind of error.
@@ -274,6 +275,127 @@ def stale(settled, names)
   filter((w) -> not member?(w[:name], names), settled[:waivers])
 end
 
+@doc """
+axis_states: Every state a closed set of axes can take, one map per combination, in axis order. `axes` is `[[name, [variant, …]], …]`.
+
+    length(axis_states([[:a, %i[x y]], [:b, %i[p q r]]])) #=> 6
+"""
+def axis_states(axes)
+  reduce(
+    fn(acc, a)
+      reduce(
+        (out, s) -> append(out, map((v) -> assoc(s, first(a), v), last(a))),
+        [],
+        acc
+      )
+    end,
+    [{}],
+    axes
+  )
+end
+
+@doc """
+row_key: A state's row in a decision matrix: its variants in axis order, tab-separated.
+
+    row_key([[:a, %i[x y]], [:b, %i[p q]]], {a: :y, b: :p}) #=> "y\tp"
+"""
+def row_key(axes, s)
+  join(map((a) -> to_s(get(s, first(a))), axes), "\t")
+end
+
+@doc """
+matrix_header: The header line of a decision matrix: the axis names, then `outcome`.
+
+    matrix_header([[:a, [:x]], [:b, [:p]]]) #=> "a\tb\toutcome"
+"""
+def matrix_header(axes)
+  "#{join(map((a) -> to_s(first(a)), axes), "\t")}\toutcome"
+end
+
+@doc """
+matrix_text: A decision matrix as text: the header, then one line per state, its row key and `verdict(state)`. Write it to a fixture and gate it with `matrix_findings`; never edit it by hand.
+
+    matrix_text([[:a, %i[x y]]], (s) -> to_s(s[:a]), axis_states([[:a, %i[x y]]])) #=> "a\toutcome\nx\tx\ny\ty\n"
+"""
+def matrix_text(axes, verdict, states)
+  unlines(
+    append(
+      [matrix_header(axes)],
+      map((s) -> "#{row_key(axes, s)}\t#{verdict(s)}", states)
+    )
+  )
+end
+
+@doc """
+matrix_rows: The data lines of a matrix text: every non-blank line but the header.
+
+    matrix_rows([[:a, [:x]]], "a\toutcome\n\nx\tok\n") #=> ["x\tok"]
+"""
+def matrix_rows(axes, text)
+  filter(
+    (l) -> trim(l) != "" and l != matrix_header(axes),
+    split(text, line_break)
+  )
+end
+
+@doc """
+matrix_row: One data line split into its row key and its outcome.
+
+    matrix_row([[:a, [:x]], [:b, [:p]]], "x\tp\tok") #=> ["x\tp", "ok"]
+"""
+def matrix_row(axes, line)
+  fs = split(line, "\t")
+  [join(take(length(axes), fs), "\t"), last(fs)]
+end
+
+@doc """
+matrix_findings: What a committed matrix text gets wrong against `states` and `verdict`: a missing row, a row naming no state, a duplicate row, and a row whose outcome disagrees. An empty list is the all-variants proof.
+
+    matrix_findings([[:a, [:x]]], (_s) -> "ok", "a\toutcome\nx\tok\n", [{a: :x}]) #=> []
+"""
+def matrix_findings(axes, verdict, text, states)
+  rows = map((l) -> matrix_row(axes, l), matrix_rows(axes, text))
+  want = reduce((m, s) -> assoc(m, row_key(axes, s), verdict(s)), {}, states)
+  seen = reduce((m, r) -> assoc(m, first(r), last(r)), {}, rows)
+  missing = map(
+    (s) -> [:missing_row, row_key(axes, s)],
+    filter((s) -> get(seen, row_key(axes, s)).nil?, states)
+  )
+  extra = map(
+    (r) -> [:row_without_variant, first(r)],
+    filter((r) -> get(want, first(r)).nil?, rows)
+  )
+  wrong = map(
+    (r) -> [:decision_disagrees, "#{first(r)}\twant #{get(want, first(r))}"],
+    filter(
+      (r) -> get(want, first(r)) != nil and get(want, first(r)) != last(r),
+      rows
+    )
+  )
+  append(append(append(missing, extra), duplicate_rows(rows)), wrong)
+end
+
+@doc """
+duplicate_rows: A `[:duplicate_row, key]` finding for every row whose key an earlier row already had.
+
+    duplicate_rows([["x", "a"], ["y", "b"], ["x", "c"]]) #=> [[:duplicate_row, "x"]]
+"""
+def duplicate_rows(rows)
+  last(
+    reduce(
+      fn(acc, row)
+        if get(first(acc), first(row)).nil?
+          [assoc(first(acc), first(row), true), last(acc)]
+        else
+          [first(acc), append(last(acc), [[:duplicate_row, first(row)]])]
+        end
+      end,
+      [{}, []],
+      rows
+    )
+  )
+end
+
 test "raises? is true for the kind raised and false for no error"
   assert raises?(:oops, () -> raise(:oops, "no")) == true
   assert raises?(:oops, () -> 1 + 1) == false
@@ -425,4 +547,45 @@ test "fresh_dir makes a new empty directory each call"
   assert ls(a) == []
   rm_rf(a)
   rm_rf(b)
+end
+
+test "axis_states is the product of the axes, and an axis with no variants leaves none"
+  axes = [[:a, %i[x y]], [:b, %i[p q r]]]
+  states = axis_states(axes)
+  assert length(states) == 6
+  assert first(states) == {a: :x, b: :p}
+  assert last(states) == {a: :y, b: :r}
+  assert axis_states([[:a, %i[x y]], [:b, []]]) == []
+  assert axis_states([]) == [{}]
+end
+
+test "a matrix written by matrix_text has no findings, and every kind of wrong row is found"
+  axes = [[:a, %i[x y]], [:b, %i[p q]]]
+  verdict = fn(s)
+    if s[:a] == :x
+      "go"
+    else
+      "stop"
+    end
+  end
+  states = axis_states(axes)
+  text = matrix_text(axes, verdict, states)
+  assert matrix_header(axes) == "a\tb\toutcome"
+  assert length(matrix_rows(axes, text)) == 4
+  assert matrix_row(axes, "x\tp\tgo") == ["x\tp", "go"]
+  assert row_key(axes, {a: :y, b: :q}) == "y\tq"
+  assert matrix_findings(axes, verdict, text, states) == []
+  short = unlines(append([matrix_header(axes)], rest(matrix_rows(axes, text))))
+  assert matrix_findings(axes, verdict, short, states) ==
+    [[:missing_row, "x\tp"]]
+  stray = concat(text, unlines(["z\tp\tgo"]))
+  assert matrix_findings(axes, verdict, stray, states) ==
+    [[:row_without_variant, "z\tp"]]
+  twice = concat(text, unlines(["x\tp\tgo"]))
+  assert matrix_findings(axes, verdict, twice, states) ==
+    [[:duplicate_row, "x\tp"]]
+  flipped = replace(text, "y\tq\tstop", "y\tq\tgo")
+  assert matrix_findings(axes, verdict, flipped, states) ==
+    [[:decision_disagrees, "y\tq\twant stop"]]
+  assert duplicate_rows([]) == []
 end

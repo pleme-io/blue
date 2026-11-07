@@ -5,8 +5,11 @@ summary: Native async in blue, DESIGN: one ontology of every async concept as a 
 
 # Native async: the design of record
 
-**Tier: DESIGN (2026-11-06). The process runtime under it is built; the async
-words are not.** Operator, 2026-11-06: *"full batteries included async
+**Tier: PARTIAL (2026-11-06). The process runtime under it is built, and A1's
+timer and clock rows are built: `node_time`, `sleep_for`, `sleep_until`,
+`after`, `deadline`, `timeout`, `context` and `remaining` on node time, and
+the virtual clock in `blue test`. A1's `net_wait` row, narrowing a deadline
+inside a process, and phases A2 to A7 are DESIGN.** Operator, 2026-11-06: *"full batteries included async
 programming … native … all the semantics around async … the most purely
 ontologically complete async native programming in bluelang … honors all
 other systems we have and integrates with them … blueshift, in the sense that
@@ -35,6 +38,9 @@ architectures are two rows of one matrix, not two languages.
 | deterministic interleaving, crash traces, bisect | `crates/blue-lang-proc/src/{node,trace,bisect}.rs` | built; the `:idle` lane is a real thread and not replayable |
 | a primitive that parks and is retried with its stack intact | `tatara-lisp-eval/src/vm/run.rs` (`Vm::park`) | built; used by `receive` |
 | the node loop advances to the next deadline | `node.rs` | built; it sleeps the thread when idle |
+| node-time timers: `node_time`, `sleep_for`, `sleep_until`, `after` | `node.rs`, `tests/timers.rs` | built (A1); a process parks on a `Wait::Timer`, the program drives the node until the time; `after` timers fire in deadline order, ties in the order set |
+| the context record: `context`, `remaining`, `deadline`, `timeout` | `node.rs` | built for the deadline field (A1): `spawn` copies it, every wait raises `:timeout` at it; the program narrows it, a process holds the one it was spawned under (narrowing inside a process is A2); cancel state, trace id and access join with A2, A3 and `mitoshi` |
+| the virtual clock in `blue test` | `blue-lang-test` `Guard::clock`, `Account::clock` | built (A1): `blue test`, the conformance rows and the language server's live tests read the virtual clock; `blue run` reads the wall clock |
 | readiness word `net_wait` over `poll(2)` | `docs/HTTP2.md` decision 2 | DESIGN |
 | every I/O word (`http_request`, `nats_*`, `pg`, `exec_capture`, `read_file`, `sleep_ms`) | `crates/blue-lang-runtime/src/{net,sys}.rs` | blocks the node thread |
 | `heikou` (map, all, any, race, scope, timeout, deadline, cancel, throttle, retry, …) | `docs/STDLIB.md`, `heikou.b` catalogue | absent |
@@ -63,7 +69,7 @@ two mechanisms.
 | suspension point | any word that may park | where a task gives up the scheduler | `Vm::park` |
 | effect `suspends` | inferred per definition, like reach | whether a definition can reach a suspension point | the reach analysis, which already separates `Cacheable` from `Volatile` |
 | yield | `yield()` | give up the scheduler without waiting | a park that is ready at once |
-| sleep, timer | `sleep(ms)`, `after(ms, msg)` | wait for time; a message at a time | a node deadline, never a blocked thread |
+| sleep, timer | `sleep_for(ms)`, `sleep_until(t)`, `after(ms, msg)` | wait for time; a message at a time | a node deadline, never a blocked thread; `sleep(secs)` and `sleep_ms` stay host words that block until A3 parks them |
 | deadline | `deadline(at, f)` | f must finish before `at`, and so must everything it starts | a context field inherited by `spawn` |
 | timeout | `timeout(ms, f)` | `deadline(now + ms, f)` | the same field |
 | cancellation | `cancel(h)` | ask a task to stop; it stops at its next suspension point, then after a grace period it is killed | an exit signal with a reason, delivered at park points |
@@ -160,6 +166,17 @@ No phase builds what a later phase throws away.
 | # | Deliverable | Gate | Exit |
 |---|---|---|---|
 | A1 | `net_wait` in the node loop; `sleep`, `after`, `timeout`, `deadline` on node time; the context record; the virtual clock for `blue test` | A-time, A-determinism | a test with a 30 s timeout runs in milliseconds and replays |
+
+A1 as built (2026-11-06): the timers, the deadline field of the context
+record, and the virtual clock. A-time: `tests/timers.rs` and
+`blue-lang-cli/tests/virtual_clock.rs` (a 600 s sleep and a 30 s timeout
+finish in milliseconds and observe 600 s and 30 s; red run: the virtual clock
+sleeping the thread takes the full 30 s). A-determinism: one timed program
+of four processes and four timers gives one answer over nine runs; timers
+fire in deadline order (red run: newest first misorders, or hangs). Not
+built: `net_wait` (HTTP2.md P3), narrowing a deadline inside a process (it
+needs the scope compiled into the process's chunk, with A2's `scope`), the
+context across `evict`, a timer cancel.
 | A2 | handles and `await`, `await_result`; `scope`, `all`, `any`, `race`, `heikou::map`; `cancel` with grace | A-structure, A-cancel, A-ontology (first rows) | the heikou catalogue rows for these verbs are built |
 | A3 | `http_request`, `exec_capture`, `read_file`, `nats_*`, `pg` park on readiness; `blocking(f)` | A-no-block, A-replay | a slow peer delays no other task |
 | A4 | `channel`, `stream`, `pull`, `select`; capacities and overflow policies; `throttle`, `limit`, `debounce`, `retry` | A-backpressure | a JetStream consumer runs as a pull stream |

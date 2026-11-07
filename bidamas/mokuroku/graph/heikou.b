@@ -98,7 +98,7 @@ verb(
     shape: "deadline(instant, f) -> value",
     laterals: %w[cancel deadline],
     fleet: nil,
-    today: "absent",
+    today: "rust:blue-lang-proc",
     meaning: "Run f with an absolute deadline inherited by callees.",
     wave: 1,
     origin: "C"
@@ -204,7 +204,7 @@ verb(
     shape: "remaining() -> duration",
     laterals: %w[deadline time],
     fleet: nil,
-    today: "absent",
+    today: "rust:blue-lang-proc",
     meaning: "Time left before the current deadline.",
     wave: 1,
     origin: "C"
@@ -322,10 +322,10 @@ verb(
   "timeout",
   {
     kind: :effect,
-    shape: "timeout(f, duration) -> value",
+    shape: "timeout(duration, f) -> value",
     laterals: ["deadline"],
     fleet: nil,
-    today: "absent",
+    today: "rust:blue-lang-proc",
     meaning: "Run f; raise timeout when the duration passes.",
     wave: 1,
     origin: "C"

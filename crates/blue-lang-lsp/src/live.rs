@@ -300,6 +300,7 @@ pub fn witness(
         identify: None,
         bounds: None,
         cached: std::collections::BTreeSet::new(),
+        clock: blue_lang_runtime::ClockKind::Virtual,
     };
     let seen = catch_unwind(AssertUnwindSafe(|| {
         let witness = Arc::new(Witness::of_checked(&checked, None));

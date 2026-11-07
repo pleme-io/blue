@@ -316,3 +316,96 @@ row(
   ),
   value(":bad_option")
 )
+
+# Async A1 (docs/ASYNC.md): timers on node time and the deadline a spawn
+# copies. The rows run on the virtual clock, the one oracle every async
+# position is measured against, so ten minutes of waiting costs nothing.
+
+row(
+  "processes.timers.sleep_for_moves_the_node_clock",
+  join_lines(["t0 = node_time", "sleep_for(600000)", "node_time - t0"]),
+  value("600000"),
+  covers("builtin:node_time", "builtin:sleep_for")
+)
+
+row(
+  "processes.timers.sleep_until",
+  join_lines(["t = node_time + 250", "sleep_until(t)", "node_time == t"]),
+  value("true"),
+  covers("builtin:sleep_until")
+)
+
+row(
+  "processes.timers.after_fires_in_deadline_order",
+  join_lines(
+    ["after(300, :late)", "after(100, :early)", "[receive(), receive()]"]
+  ),
+  value("[:early, :late]"),
+  covers("builtin:after")
+)
+
+row(
+  "processes.timers.a_sleeping_process_parks",
+  join_lines(
+    [
+      "me = self",
+      "spawn(fn() sleep_for(1000)",
+      "  send(me, :slow) end)",
+      "spawn(fn() send(me, :fast) end)",
+      "[receive(), receive()]"
+    ]
+  ),
+  value("[:fast, :slow]")
+)
+
+row(
+  "processes.deadline.timeout_raises_at_the_deadline",
+  join_lines(
+    [
+      "t0 = node_time",
+      "kind = begin",
+      "  timeout(30000, fn() receive([:never]) end)",
+      "rescue :timeout as e",
+      "  e.kind",
+      "end",
+      "[kind, node_time - t0]"
+    ]
+  ),
+  value("[:timeout, 30000]"),
+  covers("builtin:timeout")
+)
+
+row(
+  "processes.deadline.context_and_remaining",
+  join_lines(
+    [
+      "t = node_time + 250",
+      "inner = deadline(t, fn() [context[:deadline] == t, remaining] end)",
+      "[inner, context[:deadline], remaining]"
+    ]
+  ),
+  value("[[true, 250], nil, nil]"),
+  covers("builtin:deadline", "builtin:context", "builtin:remaining")
+)
+
+row(
+  "processes.deadline.a_spawn_inherits_it",
+  join_lines(
+    [
+      "me = self",
+      "t0 = node_time",
+      "timeout(500, fn()",
+      "  spawn(fn()",
+      "    begin",
+      "      sleep_for(10000)",
+      "      send(me, :slept)",
+      "    rescue :timeout as e",
+      "      send(me, [e.kind, node_time - t0])",
+      "    end",
+      "  end)",
+      "end)",
+      "receive()"
+    ]
+  ),
+  value("[:timeout, 500]")
+)

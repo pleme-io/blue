@@ -601,6 +601,14 @@ pub const NAMES: &[NameDoc] = names! {
     Actor: "send" "send(pid, msg)" "Copy msg into pid's mailbox and return msg. A function or handle is refused; a send to a process that has exited is dropped.";
     Actor: "receive" "receive([pattern][, timeout_ms][, on_timeout])" "The oldest message matching pattern (:_ matches anything, a list or map matches by shape), waiting for one. After timeout_ms, on_timeout (default nil). Waiting forever with no possible sender raises a deadlock.";
     Actor: "self" "self" "This process's pid. The program itself is 0.";
+    Actor: "node_time" "node_time" "Milliseconds on this node's clock. Under blue test the clock is virtual: it starts at 0 and moves only when every process waits, jumping to the next deadline. Under blue run it is the wall clock since the node started.";
+    Actor: "sleep_for" "sleep_for(ms)" "Wait ms on the node clock without holding the node: a process parks, the program runs the other processes meanwhile. Raises :timeout at the deadline this process holds, when that comes first.";
+    Actor: "sleep_until" "sleep_until(t)" "sleep_for, to the node time t (milliseconds).";
+    Actor: "after" "after(ms, msg[, pid])" "Deliver a copy of msg to pid (this process when omitted) ms from now on the node clock; returns the timer's number. Timers fire in the order of their times, and timers with one time in the order they were set.";
+    Actor: "deadline" "deadline(t, f)" "f(), which must finish by the node time t: every wait inside it, and in every process it spawns, raises :timeout at t, and f returning after t raises :timeout too. A nested deadline only narrows. Only the program narrows its deadline today; a process holds the one it was spawned under.";
+    Actor: "timeout" "timeout(ms, f)" "deadline(node_time + ms, f).";
+    Actor: "context" "context" "What this process inherits and passes to every process it spawns: {clock: :virtual or :real, deadline: the node time or nil}.";
+    Actor: "remaining" "remaining" "Milliseconds left before this process's deadline, or nil when it holds none.";
     Actor: "alive?" "alive?(pid)" "true while pid is running or waiting.";
     Actor: "link" "link(pid)" "Link to pid: an abnormal exit of either ends the other. false when pid is not alive.";
     Actor: "unlink" "unlink(pid)" "Remove a link; true.";

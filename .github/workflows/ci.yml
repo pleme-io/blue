@@ -54,7 +54,37 @@ permissions:
   contents: read
 
 jobs:
+  blue:
+    runs-on: ubuntu-latest
+    outputs:
+      proven: ${{ steps.proof.outputs.proven }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: blue
+        uses: pleme-io/actions/nix-build@main
+        with:
+          flake-ref: ".#default"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: read the suite proof noted on this commit
+        id: proof
+        continue-on-error: true
+        run: echo "proven=$(${{ steps.blue.outputs.out-path }}/bin/blue run --quiet gen/proof.b -- --verify HEAD)" >> "$GITHUB_OUTPUT"
+      - name: export blue's closure for the jobs that build it again
+        continue-on-error: true
+        env:
+          OUT: ${{ steps.blue.outputs.out-path }}
+        run: |
+          nix copy --to "file://$RUNNER_TEMP/blue-closure?compression=zstd" "$OUT"
+          echo "$OUT" > "$RUNNER_TEMP/blue-closure/out-path"
+      - uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: blue-closure
+          path: ${{ runner.temp }}/blue-closure
+          retention-days: 1
+
   check:
+    needs: blue
     uses: pleme-io/substrate/.github/workflows/cargo-ci.yml@main
     with:
       # blue git-deps tatara-lisp by rev over https. The reusable carries
@@ -65,15 +95,57 @@ jobs:
       test-args: "--workspace --no-fail-fast"
       runner: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && vars.BLUE_LAND_RUNNER || '' }}
       test-runner: ubuntu-latest
+      cargo-test: ${{ needs.blue.outputs.proven != 'true' }}
+      closure-artifact: blue-closure
     secrets: inherit
 
   consumers:
+    needs: blue
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: pleme-io/actions/nix-setup@main
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: blue-closure
+          path: ${{ runner.temp }}/blue-closure
+      - continue-on-error: true
+        run: nix copy --from "file://$RUNNER_TEMP/blue-closure" --no-check-sigs "$(cat "$RUNNER_TEMP/blue-closure/out-path")"
       - id: blue
         uses: pleme-io/actions/nix-build@main
         with:
           flake-ref: ".#default"
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - run: ${{ steps.blue.outputs.out-path }}/bin/blue gen/consumers.b sweep --clone "$RUNNER_TEMP/consumers"
+
+  stop-on-red:
+    needs: blue
+    if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'land/') && vars.BLUE_LAND_STOP_ON_RED != 'off' }}
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pleme-io/actions/nix-setup@main
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: blue-closure
+          path: ${{ runner.temp }}/blue-closure
+      - continue-on-error: true
+        run: nix copy --from "file://$RUNNER_TEMP/blue-closure" --no-check-sigs "$(cat "$RUNNER_TEMP/blue-closure/out-path")"
+      - id: blue
+        uses: pleme-io/actions/nix-build@main
+        with:
+          flake-ref: ".#default"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: ${{ steps.blue.outputs.out-path }}/bin/blue run --quiet gen/land.b -- --stop-on-red "$GITHUB_RUN_ID"

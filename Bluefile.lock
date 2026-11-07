@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:8245d77d78511ec187e7e49a208882f1515ce3cff024aaa10d8682d7911a7df7",
+  "bluefile_b3": "b3:417c03349b027ee456ece261cab79d79b8936ab23e0199e624c5af119d1f1c96",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -97,6 +97,12 @@
       },
       "project-rules": {
         "file": "rules/conventions.b"
+      },
+      "proof": {
+        "file": "gen/proof.b",
+        "inputs": [
+          "gen/proof.b"
+        ]
       },
       "regen-untracked": {
         "file": "gen/regen_test.b",

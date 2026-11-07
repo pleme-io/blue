@@ -61,6 +61,7 @@ These commands come from the Bluefile. Run them from the repository root.
 | `blue test gen/okite-laws.b` | `checks.okite-laws` |
 | `blue test gen/prepush.b` | `checks.prepush` |
 | `blue test rules/conventions.b` | `checks.project-rules` |
+| `blue test gen/proof.b` | `checks.proof` |
 | `blue test gen/regen_test.b` | `checks.regen-untracked` |
 | `blue test gen/test-beside.b` | `checks.test-beside` |
 | `blue test gen/verb-graph.b` | `checks.verb-graph` |

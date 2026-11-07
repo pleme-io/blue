@@ -53,11 +53,12 @@ end
 
 @doc """
 land_args: The words after the program: an optional slug and the flags, in any
-order. --dry rehearses, --watch follows the run and takes its turn. --no-queue,
---no-regen and --no-prose each turn one default off.
+order. --dry rehearses, --watch follows the run and takes its turn, --proven
+runs the suite and pushes its proof (gen/proof.b) so CI skips cargo test.
+--no-queue, --no-regen and --no-prose each turn one default off.
 
-    land_args(["--watch", "x"]) #=> {slug: "x", dry: false, watch: true, queue: true, regen: true, prose: true}
-    land_args(["--no-queue", "--no-regen", "--no-prose"]) #=> {slug: nil, dry: false, watch: false, queue: false, regen: false, prose: false}
+    land_args(["--watch", "x"]) #=> {slug: "x", dry: false, watch: true, queue: true, regen: true, prose: true, proven: false}
+    land_args(["--no-queue", "--no-regen", "--no-prose", "--proven"]) #=> {slug: nil, dry: false, watch: false, queue: false, regen: false, prose: false, proven: true}
 """
 def land_args(words)
   plain = reject((w) -> starts_with?(w, "--"), words)
@@ -71,7 +72,8 @@ def land_args(words)
     watch: member?("--watch", words),
     queue: not member?("--no-queue", words),
     regen: not member?("--no-regen", words),
-    prose: not member?("--no-prose", words)
+    prose: not member?("--no-prose", words),
+    proven: member?("--proven", words)
   }
 end
 
@@ -86,7 +88,10 @@ def unknown_flag(words)
   find_first(
     fn(w)
       starts_with?(w, "--") and
-        not member?(w, %w[--dry --watch --no-queue --no-regen --no-prose]) and
+        not member?(
+          w,
+          %w[--dry --watch --proven --no-queue --no-regen --no-prose]
+        ) and
         not starts_with?(w, "--requeue=") and
         not starts_with?(w, "--queue-minutes=")
     end,
@@ -131,6 +136,19 @@ def requeue_of(words)
 end
 
 @doc """
+own_job?: Whether a job, as `gh run view --json jobs` names it, is one of the
+land's own rather than its suite: the fast-forward and stop-on-red, at the top
+of land.yml or inside a reusable it calls.
+
+    own_job?("fast-forward") #=> true
+    own_job?("ci / stop-on-red") #=> true
+    own_job?("ci / check / cargo-test") #=> false
+"""
+def own_job?(name)
+  member?(retsu::last(split(name, " / ")), %w[fast-forward stop-on-red])
+end
+
+@doc """
 moved_main?: Whether a land run's jobs, as `gh run view --json jobs` lists
 them, failed only at the fast-forward with every CI job green: the failure a
 main that moved first causes, and the one a rebase can fix.
@@ -139,10 +157,7 @@ main that moved first causes, and the one a rebase can fix.
 """
 def moved_main?(jobs)
   forward = filter((j) -> json_get(j, :name) == "fast-forward", jobs)
-  ci = reject(
-    (j) -> member?(json_get(j, :name), %w[fast-forward stop-on-red]),
-    jobs
-  )
+  ci = reject((j) -> own_job?(json_get(j, :name)), jobs)
   forward != [] and
     every?((j) -> json_get(j, :conclusion) == "failure", forward) and
     every?((j) -> member?(json_get(j, :conclusion), %w[success skipped]), ci)
@@ -198,10 +213,7 @@ refusal is the land's last word, not a suite to stop.
 def first_red(jobs)
   name_of = (j) -> json_get(j, :name)
   red = find_first(
-    fn(j)
-      json_get(j, :conclusion) == "failure" and
-        not member?(name_of(j), %w[fast-forward stop-on-red])
-    end,
+    (j) -> json_get(j, :conclusion) == "failure" and not own_job?(name_of(j)),
     jobs
   )
   if not red.nil?
@@ -215,10 +227,7 @@ suite_done?: Whether every CI job has finished, so nothing is left to stop.
     suite_done?([]) #=> false
 """
 def suite_done?(jobs)
-  ci = reject(
-    (j) -> member?(json_get(j, :name), %w[fast-forward stop-on-red]),
-    jobs
-  )
+  ci = reject((j) -> own_job?(json_get(j, :name)), jobs)
   ci != [] and every?((j) -> json_get(j, :status) == "completed", ci)
 end
 
@@ -382,7 +391,7 @@ def wait_run(id)
 end
 
 @doc """
-stop_on_red: land.yml's stop-on-red job: read this run's jobs once a minute and
+stop_on_red: ci.yml's stop-on-red job on a land: read this run's jobs once a minute and
 cancel the run at its first red job, because a red land cannot reach main and the
 next land waits on it. An unreadable answer reads as not yet. Off: the repository
 variable BLUE_LAND_STOP_ON_RED=off skips the job.
@@ -592,6 +601,15 @@ def settle(a, left, minutes)
   end
 end
 
+def prove(a)
+  if a[:proven] and
+      exec_check(self_exe, "run", "--quiet", "gen/proof.b", "--", "--prove") !=
+        0
+    say("no proof of HEAD's tree; land without --proven and CI runs the suite")
+    exit_with(1)
+  end
+end
+
 def ref_for(a)
   scoped = exec_capture(
     self_exe,
@@ -635,6 +653,7 @@ end
 
 def follow(a, left, minutes)
   settle(a, left, minutes)
+  prove(a)
   ref = ref_for(a)
   sha = push_land(ref)
   found = run_of(ref, sha)
@@ -697,7 +716,7 @@ def main()
   unknown = unknown_flag(argv)
   if not unknown.nil?
     say(
-      "#{unknown} is no flag; land takes --dry, --watch, --no-queue, --no-regen, --no-prose, --requeue=N and --queue-minutes=N"
+      "#{unknown} is no flag; land takes --dry, --watch, --proven, --no-queue, --no-regen, --no-prose, --requeue=N and --queue-minutes=N"
     )
     exit_with(2)
   end
@@ -716,6 +735,7 @@ def main()
     follow(a, left, minutes)
   else
     settle(a, left, minutes)
+    prove(a)
     ref = ref_for(a)
     push_land(ref)
     say("follow it with gh run list --branch #{ref}")
@@ -843,6 +863,30 @@ test "a run's end is read from its view, and an unreadable answer is not an end"
   assert run_ended("{\"status\":\"queued\",\"conclusion\":\"\"}").nil?
   assert run_ended("").nil?
   assert run_ended("failed to get run: HTTP 403").nil?
+end
+
+test "stop-on-red inside the ci reusable is the land's own job, not its suite"
+  job = fn(name, status, conclusion)
+    "{\"name\":\"#{name}\",\"status\":\"#{status}\",\"conclusion\":\"#{conclusion}\"}"
+  end
+  run = (jobs) -> json_parse("[#{join(jobs, ",")}]")
+  green = run(
+    [
+      job("ci / stop-on-red", "in_progress", ""),
+      job("ci / blue", "completed", "success"),
+      job("ci / check / flake-check", "completed", "success")
+    ]
+  )
+  assert suite_done?(green)
+  assert first_red(green).nil?
+  assert first_red(run([job("ci / stop-on-red", "completed", "failure")])).nil?
+  assert not own_job?("ci / check / cargo-test")
+end
+
+test "--proven is a flag of its own, off unless given"
+  assert unknown_flag(%w[--proven --watch]).nil?
+  assert land_args(["--proven"])[:proven]
+  assert not land_args(["--watch"])[:proven]
 end
 
 test "a misspelt off switch stops the land, and each off switch is one flag"
@@ -1068,6 +1112,27 @@ test "a rebase that fails with no conflict says git's words, as a clone with no 
     assert status_of(r) == 1
     assert contains?(stderr_of(r), "git rebase failed with no conflict")
     assert repo(work, %w[rev-parse HEAD]) == before
+    rm_rf(root)
+  end
+end
+
+test "--proven pushes the land only after gen/proof.b --prove succeeds"
+  if self_exe != nil
+    root = landing_fixture
+    work = path_join(root, "work")
+    committed(work, [%w[other.txt other]], "topic")
+    refused = land_in(root, ["--proven"])
+    assert status_of(refused) == 1
+    assert contains?(stderr_of(refused), "no proof of HEAD's tree")
+    assert repo(work, %w[ls-remote origin refs/heads/land/topic]) == ""
+    committed(
+      work,
+      [["gen/proof.b", "write_file(\"#{root}/proved\", join(argv, \" \"))"]],
+      "proof"
+    )
+    assert status_of(land_in(root, ["--proven"])) == 0
+    assert read_file(path_join(root, "proved")) == "--prove"
+    assert repo(work, %w[ls-remote origin refs/heads/land/topic]) != ""
     rm_rf(root)
   end
 end

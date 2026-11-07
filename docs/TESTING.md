@@ -72,7 +72,7 @@ to dissolve.
 | `generate(name, out, program)` | `bluefile.rs:540` | a committed file and its program, gated fresh |
 | `service(...)` | `nix/service.nix`, `docs/SERVICE-ARCHITECTURE.md` | chart, values schema, migrations; `checks.service-<name>-{fresh,chart,serves}` |
 | pre-push gate | `.githooks/pre-push` (4 lines of sh), `gen/prepush.b` `gate_table` | a gate table in blue, scoped to the pushed paths; light gates by default, `BLUE_PREPUSH_FULL=1` all, `BLUE_PREPUSH_OFF=1` none |
-| CI | `.github/workflows/ci.yml` | one `uses:` of substrate's `cargo-ci.yml`; 0 lines of shell; no step calls blue |
+| CI | `.github/workflows/ci.yml` | a `blue` job builds blue once, reads the suite proof (`gen/proof.b --verify`) and exports the closure; substrate's `cargo-ci.yml`, `consumers` and, on a land, `stop-on-red` import it |
 | capabilities | `docs/SAFETY.md` row 8 | thirteen host effects (process, filesystem, environment, clock, network, entropy, comm-flash, comm-scavenger, mpc-threshold, storage-append, audio-out, audio-in, display); `blue run --allow` |
 | absence | `docs/ABSENCE.md` (in flight, other owner) | `Option` and the nil checker rule |
 
@@ -360,6 +360,9 @@ aggregates only pre-merge checks; evaluation refuses a tier name that is no
 check and a `project` that still names a post-merge one. A post-merge check is not a duplicate
 of a pre-merge one: before moving a check, name the question it answers. The
 land's runner is the repository variable `BLUE_LAND_RUNNER` (unset: hosted).
+
+`git land --proven` runs the suite locally (`gen/proof.b --prove`) and pushes a proof under `refs/notes/blue-suite`; CI skips `cargo test` when the note names the commit's tree and locks.
+The proof is trusted on push access alone: a note is not signed, so anyone who can push the notes ref can claim a green suite.
 
 ## 10. Determinism
 

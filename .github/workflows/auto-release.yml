@@ -87,5 +87,15 @@ jobs:
     with:
       # blue-lang-pkg compiles `bidamas/` into the crate, so a bidama-only
       # change is a release. The default paths read it as no change.
-      source-paths: "*.rs *.b Bluefile Cargo.toml Cargo.lock"
+      # NOTE on the pathspec shapes: git pathspecs without a wildcard are
+      # ROOT-ANCHORED literals — "Cargo.toml" matches only the root manifest,
+      # never crates/*/Cargo.toml, and "Bluefile" never bidamas/*/Bluefile.
+      # A manifest-only change (exactly what a dependency-metadata edit or a
+      # package version bump is) then matched NOTHING and the release
+      # silently no-bumped (measured 2026-11-07: 2c9568f0 changed only
+      # crates/blue-lang-pkg/Cargo.toml + Cargo.gen.lock; two "success"
+      # auto-release runs shipped nothing). Every path that can appear at
+      # depth is spelled with its **/ form; *.rs and *.b already cross
+      # directories because they carry a wildcard.
+      source-paths: "*.rs *.b **/Bluefile **/Cargo.toml **/Cargo.lock Cargo.gen.lock"
     secrets: inherit

@@ -57,6 +57,7 @@ These commands come from the Bluefile. Run them from the repository root.
 | `blue test gen/land.b` | `checks.land` |
 | `blue test gen/markdown-laws.b` | `checks.markdown-laws` |
 | `blue test gen/merge.b` | `checks.merge-driver` |
+| `blue test eval/score_test.b` | `checks.model-eval` |
 | `blue test gen/okite-laws.b` | `checks.okite-laws` |
 | `blue test gen/prepush.b` | `checks.prepush` |
 | `blue test rules/conventions.b` | `checks.project-rules` |

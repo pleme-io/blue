@@ -147,3 +147,9 @@ check("heni-mutations", "gen/heni-gate.b")
 # held as recorded debt that may only shrink. Configured in the file itself.
 check("test-beside", "gen/test-beside.b")
 check("consumers", "gen/consumers.b", ["gen/consumers.json"])
+
+# How well a model writes blue (docs/HORIZON.md, H9): ten golden tasks under
+# eval/tasks, each a prompt, hidden tests and a reference solution, scored by
+# eval/score.b. The check holds every reference at ten of ten and breaks one to
+# prove the scorer can say no.
+check("model-eval", "eval/score_test.b", ["eval"])

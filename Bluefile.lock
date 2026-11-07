@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:c28b3e62c8f7d7ffcc3b939294854443a5d5ec877ceca8bfe05e1233ac2fd724",
+  "bluefile_b3": "b3:8245d77d78511ec187e7e49a208882f1515ce3cff024aaa10d8682d7911a7df7",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -78,6 +78,12 @@
         "inputs": [
           "gen/merge.b",
           "gen/regen.b"
+        ]
+      },
+      "model-eval": {
+        "file": "eval/score_test.b",
+        "inputs": [
+          "eval"
         ]
       },
       "okite-laws": {

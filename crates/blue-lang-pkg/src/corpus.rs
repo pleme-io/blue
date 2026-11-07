@@ -19,9 +19,14 @@ pub const FIXTURE_DISTRIBUTIONS: &[&str] = &["spec/bidamas"];
 /// formatted like every `.b` file, and are not programs to check.
 pub const DATA_DIRECTORIES: &[&str] = &["spec/rows", "bidamas/mokuroku/graph"];
 
+/// The model eval's tasks (`eval/README.md`): each `hidden.b` holds tests
+/// for words only a submission defines, so it checks only once
+/// `eval/score.b` appends it to one. The `model-eval` flake check runs them.
+pub const EVAL_TASKS: &[&str] = &["eval/tasks"];
+
 /// Every `.b` file under `root`, sorted: `target/`, dot directories,
-/// symlinks (a `result` into the store), [`FIXTURE_DISTRIBUTIONS`] and
-/// [`DATA_DIRECTORIES`] skipped.
+/// symlinks (a `result` into the store), [`FIXTURE_DISTRIBUTIONS`],
+/// [`DATA_DIRECTORIES`] and [`EVAL_TASKS`] skipped.
 #[must_use]
 pub fn files(root: &Path) -> Vec<PathBuf> {
     fn walk(root: &Path, dir: &Path, out: &mut Vec<PathBuf>) {
@@ -38,6 +43,7 @@ pub fn files(root: &Path) -> Vec<PathBuf> {
                 let fixture = FIXTURE_DISTRIBUTIONS
                     .iter()
                     .chain(DATA_DIRECTORIES)
+                    .chain(EVAL_TASKS)
                     .any(|f| p == root.join(f));
                 if name == "target" || name.starts_with('.') || fixture {
                     continue;

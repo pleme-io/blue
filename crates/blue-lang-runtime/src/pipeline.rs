@@ -930,6 +930,11 @@ pub(crate) fn check_stage(
         .extend(blue_lang_check::records::check(forms, &table, &|i| {
             namespace_of(program, i)
         }));
+    outcome
+        .diagnostics
+        .extend(blue_lang_check::unions::check(forms, &table, &|i| {
+            namespace_of(program, i)
+        }));
     outcome.diagnostics.extend(doc_diagnostics(program));
     outcome
         .diagnostics

@@ -1103,7 +1103,15 @@ def doc_rules()
           rep1(ref("_newline")),
           field(
             "definition",
-            choice([ref("def"), ref("defmacro"), ref("record"), ref("binding")])
+            choice(
+              [
+                ref("def"),
+                ref("defmacro"),
+                ref("record"),
+                ref("union"),
+                ref("binding")
+              ]
+            )
           )
         ]
       ),
@@ -1291,6 +1299,7 @@ def surface()
       [",", "punctuation.delimiter"],
       %w[. punctuation.delimiter],
       %w[:: punctuation.delimiter],
+      %w[| punctuation.delimiter],
       [concat("#", "{"), "punctuation.special"],
       %w[= operator],
       %w[=> operator],
@@ -1323,7 +1332,68 @@ def surface()
       ),
       rule(
         "_top_statement",
-        choice([ref("documented"), ref("record"), ref("_statement")]),
+        choice(
+          [ref("documented"), ref("record"), ref("union"), ref("_statement")]
+        ),
+        nil
+      ),
+      with(
+        rule("union_head", token(pat("union[ \\t]+#{ident}")), nil),
+        :role,
+        "keyword"
+      ),
+      rule(
+        "union",
+        seq(
+          [
+            field("head", ref("union_head")),
+            lit("="),
+            nl,
+            field("arms", ref("union_arm")),
+            rep(seq([nl, lit("|"), nl, field("arms", ref("union_arm"))]))
+          ]
+        ),
+        [
+          "list",
+          %w[sym blue-union],
+          %w[record_head head],
+          [
+            "each",
+            ["arms"],
+            [
+              "list",
+              %w[sym blue-record],
+              %w[record_head name],
+              [
+                "each",
+                ["fields"],
+                [
+                  "if_kind",
+                  "identifier",
+                  ["keyword"],
+                  ["list", ["each", ["name"], ["keyword"]], %w[field type]]
+                ]
+              ]
+            ]
+          ]
+        ]
+      ),
+      rule(
+        "union_arm",
+        seq(
+          [
+            field("name", ref("identifier")),
+            lit("("),
+            nl,
+            comma_sep(
+              field(
+                "fields",
+                choice([ref("identifier"), ref("typed_parameter")])
+              )
+            ),
+            lit(")")
+          ]
+        ),
         nil
       ),
       with(
@@ -2385,6 +2455,8 @@ test "every visible rule of blue's lowers, but the parts its parent reads"
     %w[
       comment
       expectation
+      union_head
+      union_arm
       record_head
       rescue_clause
       rescue_all

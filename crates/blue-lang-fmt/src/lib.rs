@@ -182,8 +182,10 @@ pub fn format_source_lossless(src: &str) -> Result<String, FormatError> {
 /// output that does not carry every doc text of `src` is refused, as a lost
 /// comment is.
 pub fn format_tree_lossless(src: &str, tree: &[Spanned]) -> Result<String, FormatError> {
-    let tree =
-        blue_lang_syntax::guard::raise(src, blue_lang_syntax::doc::redocument(src, tree.to_vec()));
+    let tree = blue_lang_syntax::guard::raise(
+        src,
+        blue_lang_syntax::doc::redocument(src, blue_lang_syntax::union::raise(tree.to_vec())),
+    );
     let r = Renderer::lossless(src)?;
     let out = r.program(&tree);
     if doc_texts(src) != doc_texts(&out) {
@@ -554,6 +556,8 @@ impl<'s> Renderer<'s> {
     // ---- top level ------------------------------------------------------
 
     fn program(&self, forms: &[Spanned]) -> String {
+        let raised = blue_lang_syntax::union::raise(forms.to_vec());
+        let forms = raised.as_slice();
         let spans: Vec<Span> = forms.iter().map(|f| f.span).collect();
         let mut u = self.units(0, self.src.len(), &spans);
         // Nothing precedes the first form, so a "head" comment is just a line.
@@ -1031,6 +1035,11 @@ impl<'s> Renderer<'s> {
             Some(blue_lang_syntax::record::LOWERED_RECORD) => {
                 if let Some(record) = blue_lang_syntax::record::record_parts(s) {
                     return self.record_form(s, &record);
+                }
+            }
+            Some(blue_lang_syntax::union::LOWERED_UNION) => {
+                if let Some(union) = blue_lang_syntax::union::union_parts(s) {
+                    return self.union_form(s, &union);
                 }
             }
             // (defmacro name (params) body)
@@ -1698,6 +1707,29 @@ impl<'s> Renderer<'s> {
     }
 
     fn record_form(&self, s: &Spanned, record: &blue_lang_syntax::record::Record<'_>) -> Doc {
+        Doc::text("record ").concat(self.record_call(s, record))
+    }
+
+    fn union_form(&self, s: &Spanned, union: &blue_lang_syntax::union::Union<'_>) -> Doc {
+        let arms: Vec<&Spanned> = s
+            .as_list()
+            .map(|i| i[3..].iter().collect())
+            .unwrap_or_default();
+        let mut body = Doc::nil();
+        for (k, (node, arm)) in arms.iter().zip(&union.arms).enumerate() {
+            let call = self.record_call(node, arm);
+            body = body.concat(Doc::line());
+            body = body.concat(if k == 0 {
+                call
+            } else {
+                Doc::text("| ").concat(call)
+            });
+        }
+        let head = format!("union {} =", union.name.as_symbol().unwrap_or("_"));
+        Doc::text(head).concat(body.nest(2)).group()
+    }
+
+    fn record_call(&self, s: &Spanned, record: &blue_lang_syntax::record::Record<'_>) -> Doc {
         let spans: Vec<Span> = record.fields.iter().map(|f| f.node.span).collect();
         let (lo, hi) = self.inside(s, b'(', b')');
         let u = self.units(record.name.span.end.max(lo), hi, &spans);
@@ -1712,8 +1744,8 @@ impl<'s> Renderer<'s> {
                 })
             })
             .collect();
-        let head = format!("record {}", record.name.as_symbol().unwrap_or("_"));
-        Doc::text(head).concat(self.seq("(", ")", &u, docs))
+        Doc::text(record.name.as_symbol().unwrap_or("_").to_string())
+            .concat(self.seq("(", ")", &u, docs))
     }
 
     /// `def name(params…)` from a signature node `(name p…)`.

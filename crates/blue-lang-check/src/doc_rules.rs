@@ -102,7 +102,9 @@ fn name_span(def: &Spanned) -> Option<Span> {
     let items = def.as_list()?;
     if matches!(
         items.first()?.as_symbol()?,
-        "defmacro" | blue_lang_syntax::record::LOWERED_RECORD
+        "defmacro"
+            | blue_lang_syntax::record::LOWERED_RECORD
+            | blue_lang_syntax::union::LOWERED_UNION
     ) {
         return Some(items.get(1)?.span);
     }

@@ -452,6 +452,25 @@ fn declaration(form: &Spanned, known: &BTreeMap<String, Lowered>) -> Option<Span
     ))
 }
 
+fn union_predicate(form: &Spanned) -> Option<Spanned> {
+    let u = blue_lang_syntax::union::declared(form)?;
+    let at = form.span;
+    let mut any = vec![sym(at, "or")];
+    any.extend(
+        u.arms
+            .iter()
+            .map(|arm| list(arm.span, vec![arm.clone(), sym(arm.span, SUBJECT)])),
+    );
+    Some(define(
+        at,
+        vec![
+            sym(u.predicate.span, u.predicate.as_symbol()?),
+            sym(at, SUBJECT),
+        ],
+        list(at, any),
+    ))
+}
+
 fn is_call_of(form: &Spanned, head: &str) -> bool {
     form.as_list()
         .and_then(|i| i.first())
@@ -522,6 +541,11 @@ pub fn lower_records(forms: Vec<Spanned>) -> Vec<Spanned> {
             );
             predicates.insert(pred.to_string(), key.to_string());
         }
+        if let Some(u) = blue_lang_syntax::union::declared(form) {
+            if let (Some(key), Some(pred)) = (u.name.as_symbol(), u.predicate.as_symbol()) {
+                predicates.insert(pred.to_string(), key.to_string());
+            }
+        }
     }
     if known.is_empty() {
         return forms;
@@ -531,6 +555,8 @@ pub fn lower_records(forms: Vec<Spanned>) -> Vec<Spanned> {
         .map(|form| {
             if is_call_of(form, LOWERED_RECORD) {
                 declaration(form, &known).unwrap_or_else(|| form.clone())
+            } else if is_call_of(form, blue_lang_syntax::union::LOWERED_UNION) {
+                union_predicate(form).unwrap_or_else(|| form.clone())
             } else {
                 rewrite_calls(form, &known, &predicates)
             }

@@ -95,6 +95,7 @@ it; `blue explain --list` lists them.
 | B0078 | redundant-use | error | a file imports a tree once: a `use` that lists nothing, of a level below another `use` of the file, adds nothing |
 | B0079 | record-fields | error | a call of a record's constructor gives every field and no other, and a literal in a typed field has that type |
 | B0080 | return-position | error | a `return` ends a branch of an `if` or `case` that is a statement of a def body, where it is rewritten into if/else |
+| B0081 | union-arms | error | a `case` whose `when` arms test a union's records names every arm of that union, or has an `else` |
 
 The registry is the source of truth; a test fails if a code is missing here.
 

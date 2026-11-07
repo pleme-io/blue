@@ -506,6 +506,11 @@ pub fn definition_nodes<'a>(form: &'a Spanned, out: &mut dyn FnMut(&'a Spanned, 
                 out(r.predicate, HeadKind::Value);
             }
         }
+        Some(crate::union::LOWERED_UNION) => {
+            if let Some(u) = crate::union::declared(form) {
+                out(u.predicate, HeadKind::Value);
+            }
+        }
         Some("define" | "define-typed") => {
             if let Some(n) = defined_name_node(items) {
                 out(n, HeadKind::Value);
@@ -729,6 +734,14 @@ impl Walker<'_> {
                     crate::record::type_references(ty, &mut |t| {
                         self.pass.place(t, t.as_symbol().unwrap_or("_"), opaque);
                     });
+                }
+            }
+            return;
+        }
+        if head == crate::union::LOWERED_UNION {
+            if let Some(u) = crate::union::declared(form) {
+                for arm in u.arms {
+                    self.pass.place(arm, arm.as_symbol().unwrap_or("_"), opaque);
                 }
             }
             return;

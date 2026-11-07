@@ -50,6 +50,7 @@ pub mod respell;
 pub mod rules;
 pub mod shape;
 pub mod suggest;
+pub mod unions;
 pub mod waiver;
 
 pub use names::{check_names, Binding, NameTable, Namespace, Scope, ScopeKind};

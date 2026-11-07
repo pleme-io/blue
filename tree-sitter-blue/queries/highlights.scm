@@ -2,6 +2,7 @@
 ; The general first: neovim lets the last matching pattern win.
 (comment) @comment
 (expectation) @punctuation.special.doctest
+(union_head) @keyword
 (record_head) @keyword
 (identifier) @variable
 (label) @property
@@ -31,9 +32,9 @@
 (type name: (identifier) @type)
 (type name: (qualified_name) @type)
 (defmacro name: (identifier) @function.macro)
-["(" ")" "[" "]" "{" "}"] @punctuation.bracket
-["," "." "::"] @punctuation.delimiter
 ["=" "||" "∨" "&&" "∧" "==" "≡" "!=" "≠" "<" "<=" "≤" ">" ">=" "≥" "+" "-" "−" "*" "×" "/" "÷" "%" "|>" "!" "¬" "**" "=>" "->"] @operator
+["|" "," "." "::"] @punctuation.delimiter
+["(" ")" "[" "]" "{" "}"] @punctuation.bracket
 ["rescue" "begin" "as" "ensure"] @keyword.exception
 ["or" "and" "not"] @keyword.operator
 ["end" "test" "assert" "assert_panics" "quote" "unquote" "unquote_splice"] @keyword

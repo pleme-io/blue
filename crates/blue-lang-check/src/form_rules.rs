@@ -144,7 +144,13 @@ fn defined_name(form: &Spanned) -> Option<&str> {
     let items = form.as_list()?;
     if !matches!(
         items.first().and_then(Spanned::as_symbol),
-        Some("define" | "define-typed" | "defmacro" | blue_lang_syntax::record::LOWERED_RECORD)
+        Some(
+            "define"
+                | "define-typed"
+                | "defmacro"
+                | blue_lang_syntax::record::LOWERED_RECORD
+                | blue_lang_syntax::union::LOWERED_UNION
+        )
     ) {
         return None;
     }
@@ -152,7 +158,11 @@ fn defined_name(form: &Spanned) -> Option<&str> {
         s if s.as_symbol().is_some()
             && matches!(
                 items[0].as_symbol(),
-                Some("defmacro" | blue_lang_syntax::record::LOWERED_RECORD)
+                Some(
+                    "defmacro"
+                        | blue_lang_syntax::record::LOWERED_RECORD
+                        | blue_lang_syntax::union::LOWERED_UNION
+                )
             ) =>
         {
             s.as_symbol()
@@ -622,6 +632,12 @@ fn names(form: &Spanned, top: usize, out: &mut Vec<Diagnostic>) {
                         _ => check(f.node),
                     }
                 }
+            }
+            return;
+        }
+        Some(blue_lang_syntax::union::LOWERED_UNION) => {
+            if let Some(u) = blue_lang_syntax::union::declared(form) {
+                check(u.name);
             }
             return;
         }

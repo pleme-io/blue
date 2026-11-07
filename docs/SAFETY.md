@@ -239,7 +239,7 @@ tier. ⚠️ marks a partial seal. ❌ marks an open row.
 |---|---|---|---|---|---|
 | 1 | No null | ❌ `nil` everywhere; `nth`, `get`, `to_int` answer `nil` | `docs/ABSENCE.md`: Option bidama + nil rule | open → checked-at-expansion | on (`# waive <code>`) |
 | 2 | Must-use results | ⚠️ B0038 swallowed-error; **B0053 discarded-value (landed)** | B0053 for first-order words; a refusal-list rule next | checked-at-expansion | on (`# waive B0053: reason`) |
-| 3 | Exhaustive match | ❌ `case` falls through to `nil` | closed-set `case` rule | open → checked-at-expansion | on (`else` arm, or waive) |
+| 3 | Exhaustive match | ⚠️ **a `case` whose `when` arms test a `union`'s record predicates and has no `else` names every arm, or B0081 refuses it at check (landed)**; a `case` over any other values still falls through to `nil` | B0081 over unions; a closed set of keywords next | checked-at-expansion (unions) → checked-at-expansion (every closed set) | on (`else` arm, or `# waive B0081: reason`) |
 | 4 | Immutability, no aliasing | ✅ values are persistent; `set!` rebinds a name, never a value | none needed | unrepresentable | n/a |
 | 5 | Bounds-checked indexing | ✅ memory: no raw index exists; ⚠️ semantics: `nth` out of range is `nil` | row 1 owns the `nil` | unrepresentable (memory) | n/a |
 | 6 | Integer overflow, numeric conversion | ✅ `+ - * abs floor` raise on overflow; `/` by zero raises; `to_int` of a huge float is `nil` | `to_int` → row 1 | runtime-refused | on, no off |
@@ -259,8 +259,8 @@ tier. ⚠️ marks a partial seal. ❌ marks an open row.
 
 **Count (2026-11-06):** 19 rows. Sealed at their target tier today: 6 (rows
 4, 5, 6, 10, 17, 18; row 5 for memory, its `nil` half belongs to row 1).
-Partly sealed: 10 (rows 2, 7, 8, 9, 11, 12, 13, 15, 16, 19). Open: 3 (rows 1,
-3, 14).
+Partly sealed: 11 (rows 2, 3, 7, 8, 9, 11, 12, 13, 15, 16, 19). Open: 2 (rows
+1, 14).
 
 **Rows in flight with other owners.** Each owner adds its own row here, with
 the same columns, when its gate lands. This document does not land them.
@@ -288,9 +288,18 @@ from `kyohi::check` that nobody reads is the next case.
 
 **Row 3, exhaustive match.** `case v when 1 … end` with no matching arm is
 `nil` (measured). `match` (tatara) has no blue spelling. The gate needs a
-closed set to be exhaustive over: a `model(...)` enum, the kyohi ledger
-kinds, or a keyword list the file declares. The rule then refuses a `case`
-over that set that misses a member and has no `else`.
+closed set to be exhaustive over. The first one is built:
+`union shape = circle(r: Float) | rect(w: Float, h: Float)` declares each arm
+as a record and `shape?` true for any arm (`crates/blue-lang-syntax/src/union.rs`).
+A `case` whose `when` arms test a union's record predicates, misses an arm and
+has no `else` is B0081 (union-arms) at the check stage, naming the missing
+arms (`crates/blue-lang-check/src/unions.rs`); `when shape?` covers every arm.
+Gates: `spec/rows/unions.b`, `crates/blue-lang-runtime/tests/unions.rs`. Red
+runs: dropping `when rect?` from the exhaustive row fires B0081; a checker that
+always passes turns `check.B0081` and `check.B0081.stops_the_run` red. Still
+open: a closed set that is not a union (a `model(...)` enum, the kyohi ledger
+kinds, a keyword list the file declares), and a `case` whose subject is a
+union value but whose arms test values rather than predicates.
 
 **Row 4, immutability.** `ys = xs; ys = append(ys, [2])` leaves `xs` as `[1]`
 (measured). `set!` rebinds a name, and a name a forked process inherited is

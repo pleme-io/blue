@@ -73,7 +73,17 @@ The 2026-11-06 survey found the drift that hand-kept tables always gather.
   ABSENCE's Option is a union too: one mechanism instead of three conventions.
 
 **First step:** `union` as a declaration that lowers like `record`, with a
-check-stage rule for a `case` that misses an arm.
+check-stage rule for a `case` that misses an arm. **Built (2026-11-06):**
+`union shape = circle(r: Float) | rect(w: Float, h: Float)`, one line, or one
+arm a line with each later arm starting `|`. The parser reads it as
+`(blue-union shape shape? (blue-record circle …) (blue-record rect …))`; every
+door but the documented one lowers it to the arm records plus
+`(blue-union shape shape? circle? rect?)`, so constructors, predicates, field
+reads and JSON are the record machinery's, and the formatter raises it back.
+`shape?(v)` is true for a value of any arm. B0081 (union-arms) refuses a
+`case` whose `when` arms test a union's predicates, miss one and have no
+`else`. An arm needs at least one field, as a record does; `union` stays a free
+name (shuugou's `union(a, b)` is untouched).
 **Gate:** a conformance row per arm shape; the exhaustiveness rule's red run
 (drop an arm, the rule fires).
 **Unlocks:** H2 (types have shapes to name), ABSENCE P1, SAFETY rows 1 and 3.

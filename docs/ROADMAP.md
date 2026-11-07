@@ -37,6 +37,7 @@ horizon gets a row here when its first phase starts.
 | **async**: native async, the `heikou` space | [`ASYNC.md`](ASYNC.md) | DESIGN (processes built, async words absent) | A1: `net_wait` in the node loop, node-time timers, the context record, the virtual clock in `blue test` | blue-lang-proc; HTTP2.md P3 (`net_wait`) | the conformance set green at `schedulers(1)` and `schedulers(n)`, gates A-ontology to A-replay |
 | **record**: a named structure in one line | `examples/17_records.b`, okite D0017 | SHIPPED (2026-11-06, blue `cc9a1a1e`) | — | — | `spec/rows/records.b` and okite's record laws green; B0079 at error |
 | **guard return** | [`GUARD-RETURN.md`](GUARD-RETURN.md) | G1 BUILT (lowering, B0080, the formatter keeps the guard), G2 DESIGN | G2: the language server and the tree-sitter grammar know `return`; a `return` inside `rescue` | — | R-lower, R-refuse, R-total green (G1); editors highlight it (G2) |
+| **union** (HORIZON H1, first step) | [`HORIZON.md`](HORIZON.md) §H1, SAFETY row 3 | U1 BUILT: `union shape = circle(r: Float) \| rect(w: Float, h: Float)` declares each arm as a record and `shape?`; a `case` over a union's arms that misses one and has no `else` is B0081; fmt, kiwari and tree-sitter know it. Patterns and `?` DESIGN | H1 patterns: `when rect(w, h)` destructures; arms with no field | record | `spec/rows/unions.b` and `crates/blue-lang-runtime/tests/unions.rs` green; B0081 at error |
 
 ## The arika track
 

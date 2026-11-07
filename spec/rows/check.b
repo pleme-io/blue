@@ -67,6 +67,112 @@ row(
 )
 
 row(
+  "check.infer.literal",
+  join_lines(["def f() -> Int", "  x = \"two\"", "  x", "end"]),
+  diagnoses(["B0003"]),
+  covers("rule:B0003")
+)
+
+row(
+  "check.infer.parameter",
+  join_lines(["def f(s: Str) -> Int", "  x = s", "  x + 1", "end"]),
+  diagnoses(["B0004"]),
+  covers("rule:B0004")
+)
+
+row(
+  "check.infer.builtin_result",
+  join_lines(["def f(s: Str) -> Int", "  n = upcase(s)", "  n", "end"]),
+  diagnoses(["B0003"]),
+  covers("rule:B0003")
+)
+
+row(
+  "check.infer.if_join",
+  join_lines(
+    [
+      "def f(a: Int) -> Int",
+      "  x = if a > 0",
+      "    \"p\"",
+      "  else",
+      "    \"n\"",
+      "  end",
+      "  x * 2",
+      "end"
+    ]
+  ),
+  diagnoses(["B0004"]),
+  covers("rule:B0004")
+)
+
+row(
+  "check.infer.if_join_unknown",
+  join_lines(
+    [
+      "def f(a: Int, b) -> Int",
+      "  x = if a > 0",
+      "    \"p\"",
+      "  else",
+      "    b",
+      "  end",
+      "  x * 2",
+      "end"
+    ]
+  ),
+  diagnoses([])
+)
+
+row(
+  "check.infer.builtin_argument",
+  join_lines(["def shout(a: Int) -> Str", "  x = a + 1", "  upcase(x)", "end"]),
+  diagnoses(["B0062"]),
+  covers("rule:B0062")
+)
+
+row(
+  "check.infer.branch_assignment",
+  join_lines(
+    [
+      "def f(c: Bool) -> Int",
+      "  x = \"s\"",
+      "  if c",
+      "    x = 1",
+      "  end",
+      "  x + 1",
+      "end",
+      "",
+      "f(true)"
+    ]
+  ),
+  value("2")
+)
+
+row(
+  "check.infer.shadowed_builtin",
+  join_lines(
+    [
+      "def length(_x)",
+      "  \"long\"",
+      "end",
+      "",
+      "def f(s: Str) -> Str",
+      "  n = length(s)",
+      "  n",
+      "end",
+      "",
+      "f(\"a\")"
+    ]
+  ),
+  value("\"long\"")
+)
+
+row(
+  "check.infer.untyped",
+  join_lines(["def f(_a)", "  x = \"s\"", "  x + 1", "end"]),
+  diagnoses([])
+)
+
+row(
   "check.B0006",
   unlines(["def f("]),
   diagnoses(["B0006"]),

@@ -95,6 +95,15 @@ far a type reaches once it is written.
 **Gate:** a spec row per inference rule; the corpus check stays clean at the
 `dynamic` rung (no program that runs today is refused).
 
+**Built (2026-11-06):** inside a typed definition, a binding `x = e` takes the
+type of `e`: a literal, a typed parameter, an operator, a call to a typed
+definition, a builtin whose result is declared (`blue_lang_check::builtin_result`,
+each row probed against the runtime), or an `if` whose branches agree. A name
+assigned in a branch, a loop or a function, or bound twice with two types, stays
+`dyn`. A later misuse is B0003, B0004 or B0005, and an inferred kind passed to a
+builtin that takes another kind is B0062. Rows: `spec/rows/check.b`
+`check.infer.*`. Untyped definitions are still not walked.
+
 ### H3. Code is content: the definition hash as identity
 
 Blue already hashes every definition. Make that hash the identity everything

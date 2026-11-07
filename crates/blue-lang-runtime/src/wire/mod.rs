@@ -4,10 +4,10 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, UdpSocket};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 use std::time::{Duration, Instant};
 
-#[cfg(feature = "sys")]
+#[cfg(feature = "host")]
 mod words;
 
-#[cfg(feature = "sys")]
+#[cfg(feature = "host")]
 pub use words::{host_clock, host_flash_on, install_wire, provide_loopback, CARRIER};
 
 pub const MTU: usize = 1280;

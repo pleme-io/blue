@@ -30,7 +30,9 @@ pub fn provide<H: 'static>(
 ) -> Option<crate::wire::ClockRead> {
     let mut frame_clock = None;
     let mut links = Vec::new();
+    #[cfg(feature = "senses")]
     let mut sink = None;
+    #[cfg(feature = "senses")]
     let mut monitors = Vec::new();
     for p in provisions.iter() {
         let key: Key = if p.scope.is_some() {
@@ -49,18 +51,34 @@ pub fn provide<H: 'static>(
             Provision::InMemoryOverlay => filesystem(interp, key, true),
             Provision::NullSink => filesystem(interp, key, false),
             Provision::Loopback { channel } => links.push((key, *channel)),
+            #[cfg(feature = "threshold")]
             Provision::Seeded { seed } => crate::threshold::provide_seeded(interp, key, seed),
+            #[cfg(feature = "storage-append")]
             Provision::InMemory => crate::storage::provide_in_memory(interp, key),
+            #[cfg(feature = "senses")]
             Provision::RecordingSink => {
                 sink = Some(crate::audio::provide_recording_sink(interp, key));
             }
+            #[cfg(feature = "senses")]
             Provision::SeededNoise { seed } => {
                 crate::audio::provide_seeded_noise(interp, key, seed);
             }
+            #[cfg(feature = "senses")]
             Provision::Monitor => monitors.push(key),
+            #[cfg(feature = "senses")]
             Provision::Framebuffer => crate::display::provide_framebuffer(interp, key),
+            #[cfg(not(feature = "threshold"))]
+            Provision::Seeded { .. } => {}
+            #[cfg(not(feature = "storage-append"))]
+            Provision::InMemory => {}
+            #[cfg(not(feature = "senses"))]
+            Provision::RecordingSink
+            | Provision::SeededNoise { .. }
+            | Provision::Monitor
+            | Provision::Framebuffer => {}
         }
     }
+    #[cfg(feature = "senses")]
     for key in monitors {
         crate::audio::provide_monitor(interp, key, sink.clone());
     }
@@ -697,6 +715,7 @@ mod tests {
         assert!(breaches("getenv", &mut interp), "environment stays refused");
     }
 
+    #[cfg(feature = "sys")]
     #[test]
     fn a_scoped_provider_binds_every_name_of_its_capability_under_its_alias_and_leaves_the_bare_name_to_the_frame(
     ) {

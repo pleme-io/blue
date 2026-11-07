@@ -49,7 +49,12 @@ rowan = { workspace = true }
 # OFF by default: the `wasm32-unknown-unknown` consumer must keep its
 # zero-host-import surface, and every sys primitive is a host import. The CLI
 # (the one place a user's machine can supply a process to fork) turns it on.
-sys = ["dep:tameshi", "dep:rand_core", "dep:blue-lang-senses", "dep:blue-lang-kernel"]
+sys = ["host", "threshold", "storage-append", "kernel", "senses"]
+host = []
+threshold = ["host", "dep:tameshi", "dep:rand_core"]
+storage-append = ["host"]
+kernel = ["host", "dep:blue-lang-kernel"]
+senses = ["host", "dep:blue-lang-senses"]
 
 [dev-dependencies]
 # Cyclic in dev only, which Cargo allows: the tests need the real filesystem

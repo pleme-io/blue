@@ -12,7 +12,7 @@
 //! Connection`; a chunked body read as raw bytes failed
 //! `an_http_post_round_trips_through_a_listener`.
 
-#![cfg(feature = "sys")]
+#![cfg(feature = "host")]
 
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};

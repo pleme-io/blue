@@ -157,7 +157,7 @@ fn the_interrupt_halts_a_running_evaluation() {
     assert_eq!(value(s.eval("1 + 1", None, None)), "2");
 }
 
-#[cfg(feature = "sys")]
+#[cfg(feature = "host")]
 #[test]
 fn reaching_the_host_is_volatile_under_the_pure_frame_directly_or_through_a_call() {
     let mut s = session();
@@ -181,7 +181,7 @@ fn reaching_the_host_is_volatile_under_the_pure_frame_directly_or_through_a_call
     );
 }
 
-#[cfg(feature = "sys")]
+#[cfg(feature = "host")]
 #[test]
 fn a_frame_granting_the_host_evaluates_it() {
     let path = file("granted.txt", "granted");

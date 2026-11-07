@@ -2788,7 +2788,7 @@ mod input_tests {
     /// cargo feature (CLI only) is the one declared exception: it is the
     /// operator's own trusted host surface, and is asserted in
     /// `sys_read_file_is_the_trusted_cli_only_exception` below.
-    #[cfg(not(feature = "sys"))]
+    #[cfg(not(feature = "host"))]
     #[test]
     fn there_is_no_ambient_file_read() {
         for attempt in [
@@ -2811,7 +2811,7 @@ mod input_tests {
     /// own machine (the CLI), not an embedder's sandbox. Pin the boundary so a
     /// future default-build change is heard, and assert that `input()` still
     /// works beside it.
-    #[cfg(feature = "sys")]
+    #[cfg(feature = "host")]
     #[test]
     fn sys_read_file_is_the_trusted_cli_only_exception() {
         let err = with_schema("definitely_not_a_primitive(\"x\")").expect_err("must not resolve");

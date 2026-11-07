@@ -744,7 +744,14 @@ pub fn run(forms: &[Sexp]) -> Report {
         install_assert(&mut interp, &rec, &Bounds::default());
         // A process node per test, so one test's processes and mailbox are
         // not the next test's: the fork shares the prototype's node otherwise.
-        blue_lang_runtime::attach_node(&mut interp);
+        blue_lang_runtime::attach_node_accounted(
+            &mut interp,
+            None,
+            &blue_lang_runtime::Account {
+                clock: Some(blue_lang_runtime::ClockKind::Virtual),
+                ..blue_lang_runtime::Account::default()
+            },
+        );
 
         // Only the body: the preamble is already in the frames this fork
         // inherits. It still goes through the same erase-then-read path the
@@ -845,6 +852,7 @@ pub struct Guard {
     /// above, so they only narrow; `blue test` reads them from the
     /// project's Bluefile.
     pub bounds: Option<blue_lang_runtime::ExecutionBounds>,
+    pub clock: blue_lang_runtime::ClockKind,
 }
 
 /// `f` on `interp`, held to `bound` live bytes through its interrupt flag;
@@ -915,9 +923,10 @@ pub fn run_guarded(
     let mut prototype = blue_lang_runtime::interpreter_hostless();
     let account = blue_lang_runtime::Account {
         identify: guard.identify,
+        clock: Some(guard.clock),
         ..blue_lang_runtime::Account::default()
     };
-    let identified = account.defer_identities(program, lowered, None);
+    account.defer_identities(program, lowered, None);
     let hold = guard.hold.as_ref().map(|h| blue_lang_runtime::Hold {
         bounds: match (h.bounds, guard.bounds) {
             (Some(a), Some(b)) => Some(a.meet(b)),
@@ -931,10 +940,7 @@ pub fn run_guarded(
             blue_lang_runtime::attach_node_accounted(&mut prototype, Some(hold), &account);
         }
         (None, Some(own)) => blue_lang_runtime::attach_node_bounded(&mut prototype, own, &account),
-        (None, None) if identified => {
-            blue_lang_runtime::attach_node_accounted(&mut prototype, None, &account);
-        }
-        (None, None) => {}
+        (None, None) => blue_lang_runtime::attach_node_accounted(&mut prototype, None, &account),
     }
     let held = hold.is_some();
     let max_alloc_bytes = guard.bounds.map_or(guard.max_alloc_bytes, |own| {

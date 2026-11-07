@@ -222,6 +222,7 @@ fn import_message(m: &str) -> String {
 fn identifying() -> blue_lang_runtime::Account {
     blue_lang_runtime::Account {
         identify: Some(blue_lang_mondou::def_hash::identify),
+        clock: Some(blue_lang_runtime::ClockKind::Virtual),
         ..blue_lang_runtime::Account::default()
     }
 }

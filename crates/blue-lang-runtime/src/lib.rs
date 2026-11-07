@@ -94,7 +94,7 @@ pub use pipeline::{
 };
 pub use stdlib::install_blue_stdlib;
 
-pub use blue_lang_proc::{Frame, HostIo, Identities, Places, Receipt};
+pub use blue_lang_proc::{ClockKind, Frame, HostIo, Identities, Places, Receipt};
 
 use tatara_lisp_eval::{install_full_stdlib_with, Interpreter};
 
@@ -174,6 +174,9 @@ pub fn attach_node_bounded<H: 'static>(
     account: &Account,
 ) {
     let mut config = node_config_under(execution_bounds().meet(bounds));
+    if let Some(clock) = account.clock {
+        config.clock = clock;
+    }
     config.host_io = account.host_io.clone();
     config.identities = account.identities.clone();
     config.places = account.places.clone();
@@ -197,6 +200,9 @@ pub fn attach_node_accounted<H: 'static>(
     account: &Account,
 ) {
     let mut config = node_config_under(execution_bounds_under(hold));
+    if let Some(clock) = account.clock {
+        config.clock = clock;
+    }
     config.host_io = account.host_io.clone();
     config.identities = account.identities.clone();
     config.places = account.places.clone();
@@ -234,6 +240,7 @@ pub struct Account {
     /// Where each held process writes its receipt; none are written without.
     pub receipts: Option<std::path::PathBuf>,
     pub steps: Option<std::sync::Arc<std::sync::atomic::AtomicU64>>,
+    pub clock: Option<ClockKind>,
 }
 
 impl Account {
@@ -563,11 +570,14 @@ fn node_config_under(b: ExecutionBounds) -> blue_lang_proc::NodeConfig {
     {
         config.carrier = Some(wire::CARRIER);
     }
-    config.clock = if cfg!(feature = "sys") {
-        blue_lang_proc::ClockKind::Real
-    } else {
-        blue_lang_proc::ClockKind::Virtual
-    };
+    config.clock = NODE_CLOCK
+        .get()
+        .copied()
+        .unwrap_or(if cfg!(feature = "sys") {
+            blue_lang_proc::ClockKind::Real
+        } else {
+            blue_lang_proc::ClockKind::Virtual
+        });
     config
 }
 
@@ -584,6 +594,12 @@ fn child_interpreter() -> Interpreter<()> {
 
 /// The execution bounds every interpreter this crate builds runs under.
 static EXECUTION_BOUNDS: std::sync::OnceLock<ExecutionBounds> = std::sync::OnceLock::new();
+
+static NODE_CLOCK: std::sync::OnceLock<ClockKind> = std::sync::OnceLock::new();
+
+pub fn set_node_clock(clock: ClockKind) {
+    let _ = NODE_CLOCK.set(clock);
+}
 
 /// How much a blue program may do before it is refused: nested calls,
 /// evaluation steps and live bytes.

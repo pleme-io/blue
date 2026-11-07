@@ -299,6 +299,7 @@ pub fn witness(
         max_alloc_bytes: blue_lang_runtime::execution_bounds().guest_max_alloc_bytes,
         identify: None,
         bounds: None,
+        clock: blue_lang_runtime::ClockKind::Virtual,
     };
     let seen = catch_unwind(AssertUnwindSafe(|| {
         let witness = Arc::new(Witness::of_checked(&checked, None));

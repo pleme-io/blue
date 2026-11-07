@@ -212,7 +212,7 @@ rendered:
 
 | | |
 |---|---|
-| Built-in names | 373: 346 functions, 14 special forms, 13 macros |
+| Built-in names | 381: 354 functions, 14 special forms, 13 macros |
 | Surface forms | 32, with 13 operators and 25 reserved words |
 | Check rules | 76: 42 fix themselves, 8 suggest a fix |
 | Bluefile words | 26 |
@@ -3232,7 +3232,7 @@ Seeded 2026-11-06 at blue `6434ce31`.
 | verbs | [`VERB-ROADMAP.md`](docs/VERB-ROADMAP.md) | DESIGN (its own measured tier line, 2026-10-22) | reconcile | — | `blue verbs check` against its baseline |
 | **khipu**: the knowledge graph (OxiRS naturalized) | [`KHIPU.md`](docs/KHIPU.md) | K1a BUILT (`bidamas/khipu`: terms, N-Triples, N-Quads), the rest DESIGN | K1b: quads in DuckDB through `kueri`, basic graph patterns, the W3C syntax suites against Oxigraph | kueri; arika (shares the rule engine and snapshots) | the W3C suites of K1-K4 green as a differential against Oxigraph |
 | **utsushi**: history projection (Josh naturalized) | [`UTSUSHI.md`](docs/UTSUSHI.md) | U1 BUILT (`bidamas/utsushi`), U2-U6 DESIGN | U2: workspace entries refused one by one; `exclude`; views | gitto | `josh-filter` id parity on fixtures; the round-trip law green |
-| **async**: native async, the `heikou` space | [`ASYNC.md`](docs/ASYNC.md) | DESIGN (processes built, async words absent) | A1: `net_wait` in the node loop, node-time timers, the context record, the virtual clock in `blue test` | blue-lang-proc; HTTP2.md P3 (`net_wait`) | the conformance set green at `schedulers(1)` and `schedulers(n)`, gates A-ontology to A-replay |
+| **async**: native async, the `heikou` space | [`ASYNC.md`](docs/ASYNC.md) | PARTIAL (processes built; A1's node-time timers, the context deadline and the virtual clock in `blue test` built) | A1's rest: `net_wait` in the node loop, a deadline narrowed inside a process; then A2 | blue-lang-proc; HTTP2.md P3 (`net_wait`) | the conformance set green at `schedulers(1)` and `schedulers(n)`, gates A-ontology to A-replay |
 | **guard return** | [`GUARD-RETURN.md`](docs/GUARD-RETURN.md) | DESIGN (operator-approved 2026-11-06) | G1: the parser rewrite and its refusal rule | — | R-lower, R-refuse, R-total green |
 
 ## The arika track

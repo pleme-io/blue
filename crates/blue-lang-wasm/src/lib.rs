@@ -93,6 +93,7 @@ pub unsafe extern "C" fn blue_eval(ptr: *const u8, len: usize) -> i64 {
 /// The tagging logic, separated from the pointer handling so it is testable on
 /// the host as well as in wasm.
 pub fn eval_tagged(src: &str) -> i64 {
+    blue_lang_runtime::set_node_clock(blue_lang_runtime::ClockKind::Virtual);
     match blue_lang_runtime::run(src) {
         Err(e) => fail(&e.to_string()),
         Ok(run) => match run.value {

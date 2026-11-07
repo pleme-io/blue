@@ -136,6 +136,14 @@ pub const PROCESS_WORDS: &[&str] = &[
     "children",
     "defmigrate",
     "def_hash",
+    "node_time",
+    "after",
+    "context",
+    "remaining",
+    "sleep_for",
+    "sleep_until",
+    "deadline",
+    "timeout",
 ];
 
 pub const CARRIED_WORDS: &[&str] = &["evict", "accept"];
@@ -179,7 +187,7 @@ pub fn set_journal_bound(bound: usize) {
 }
 
 /// How a node reads time.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ClockKind {
     /// Milliseconds since the node started; an idle node sleeps until the
     /// next deadline.
@@ -187,6 +195,7 @@ pub enum ClockKind {
     /// Time moves only when every process is waiting: the node jumps to the
     /// next deadline. Deterministic, and the only clock a host with no clock
     /// (wasm) can offer.
+    #[default]
     Virtual,
 }
 
@@ -416,6 +425,7 @@ struct Info {
     armed: bool,
     kept: Option<Value>,
     asked: Option<usize>,
+    deadline: Option<u64>,
 }
 
 impl Info {
@@ -442,6 +452,7 @@ impl Info {
             armed: false,
             kept: None,
             asked: None,
+            deadline: None,
         }
     }
 
@@ -460,9 +471,37 @@ enum Wait {
     Receive {
         pattern: Value,
         deadline: Option<u64>,
+        bound: Option<u64>,
+    },
+    Timer {
+        until: u64,
+        bound: Option<u64>,
     },
     /// A server between messages: its migration boundary.
     ServerNext,
+}
+
+impl Wait {
+    fn wakes(&self) -> Option<u64> {
+        match self {
+            Wait::Receive {
+                deadline, bound, ..
+            } => earliest(*deadline, *bound),
+            Wait::Timer { until, bound } => earliest(Some(*until), *bound),
+            Wait::ServerNext => None,
+        }
+    }
+}
+
+fn earliest(a: Option<u64>, b: Option<u64>) -> Option<u64> {
+    match (a, b) {
+        (Some(a), Some(b)) => Some(a.min(b)),
+        (a, b) => a.or(b),
+    }
+}
+
+fn bound_fired(bound: Option<u64>, own: Option<u64>, now: u64) -> bool {
+    bound.is_some_and(|b| now >= b && own.is_none_or(|o| b < o))
 }
 
 #[derive(Clone)]
@@ -535,6 +574,8 @@ struct NodeState {
     aloft: BTreeSet<Pid>,
     doomed: BTreeMap<Pid, Value>,
     recalled: BTreeSet<Pid>,
+    timers: BTreeMap<(u64, u64), (Pid, Value)>,
+    next_timer: u64,
 }
 
 impl NodeState {
@@ -568,6 +609,8 @@ impl NodeState {
             aloft: BTreeSet::new(),
             doomed: BTreeMap::new(),
             recalled: BTreeSet::new(),
+            timers: BTreeMap::new(),
+            next_timer: 1,
         }
     }
 
@@ -644,11 +687,12 @@ impl NodeState {
         let now = self.clock.now();
         let mailbox = self.boxes.get(&pid);
         match self.waits.get(&pid) {
-            Some(Wait::Receive { pattern, deadline }) => {
+            Some(w @ Wait::Receive { pattern, .. }) => {
                 !self.held_at_receive(pid)
                     && (mailbox.is_some_and(|b| pattern::first_match(b, pattern).is_some())
-                        || deadline.is_some_and(|d| now >= d))
+                        || w.wakes().is_some_and(|d| now >= d))
             }
+            Some(w @ Wait::Timer { .. }) => w.wakes().is_some_and(|d| now >= d),
             Some(Wait::ServerNext) => {
                 mailbox.is_some_and(|b| !b.is_empty()) && !self.held_at_boundary(pid)
             }
@@ -657,13 +701,23 @@ impl NodeState {
     }
 
     fn earliest_deadline(&self) -> Option<u64> {
-        self.waits
-            .values()
-            .filter_map(|w| match w {
-                Wait::Receive { deadline, .. } => *deadline,
-                Wait::ServerNext => None,
-            })
-            .min()
+        let waits = self.waits.values().filter_map(Wait::wakes).min();
+        earliest(waits, self.timers.keys().next().map(|(at, _)| *at))
+    }
+
+    fn bound_of(&self, pid: Pid) -> Option<u64> {
+        self.info.get(&pid).and_then(|i| i.deadline)
+    }
+
+    fn fire_timers(&mut self) {
+        let now = self.clock.now();
+        while let Some(entry) = self.timers.first_entry() {
+            if entry.key().0 > now {
+                break;
+            }
+            let (to, msg) = entry.remove();
+            self.deliver(to, msg);
+        }
     }
 
     fn forget(&mut self, pid: Pid) {
@@ -931,6 +985,10 @@ const WORDS: &[(&str, Arity, Word)] = &[
     ("children", Arity::Exact(1), w_children),
     ("defmigrate", Arity::Range(2, 3), w_defmigrate),
     ("def_hash", Arity::Exact(1), w_def_hash),
+    ("node_time", Arity::Exact(0), w_node_time),
+    ("after", Arity::Range(2, 3), w_after),
+    ("context", Arity::Exact(0), w_context),
+    ("remaining", Arity::Exact(0), w_remaining),
 ];
 
 const CARRIED: &[(&str, Arity, Word, Word)] = &[
@@ -961,6 +1019,75 @@ pub fn install<H: 'static>(interp: &mut Interpreter<H>, node: Arc<Node>) {
             node.receive_root(args, span)
         },
     );
+    for (name, relative) in [("sleep_for", true), ("sleep_until", false)] {
+        let s = side.clone();
+        interp.register_fn(
+            name,
+            Arity::Exact(1),
+            move |args: &[Value], _h: &mut H, span| {
+                let node = s.node(name, span)?;
+                let target = wake_at(&node, name, &args[0], relative, span)?;
+                node.sleep_root(name, target, span)
+            },
+        );
+    }
+    for (name, relative) in [("deadline", false), ("timeout", true)] {
+        let s = side.clone();
+        interp.register_higher_order_fn(
+            name,
+            Arity::Exact(2),
+            move |args: &[Value], h: &mut H, caller: &tatara_lisp_eval::ffi::Caller<H>, span| {
+                let node = s.node(name, span)?;
+                let at = wake_at(&node, name, &args[0], relative, span)?;
+                let prev = node.st().bound_of(ROOT);
+                let held = earliest(prev, Some(at));
+                node.bind_deadline(ROOT, held);
+                let out = caller.apply_value(&args[1], Vec::new(), h, span);
+                node.bind_deadline(ROOT, prev);
+                let now = node.st().clock.now();
+                match (out, held) {
+                    (Ok(_), Some(d)) if now > d => Err(passed(name, d, now, span)),
+                    (out, _) => out,
+                }
+            },
+        );
+    }
+}
+
+fn wake_at(
+    node: &Node,
+    word: &str,
+    v: &Value,
+    relative: bool,
+    span: Span,
+) -> Result<u64, EvalError> {
+    let n = match v {
+        Value::Int(n) if *n >= 0 => n.unsigned_abs(),
+        other => {
+            return Err(refuse(
+                word,
+                format!(
+                    "the time is milliseconds on the node clock (an Int >= 0), got {}",
+                    other.type_name()
+                ),
+                span,
+            ))
+        }
+    };
+    Ok(if relative {
+        node.st().clock.now().saturating_add(n)
+    } else {
+        n
+    })
+}
+
+fn passed(word: &str, deadline: u64, now: u64, span: Span) -> EvalError {
+    crate::raised(
+        "timeout",
+        format!("{word}: the deadline at {deadline} ms on the node clock passed (now {now} ms)"),
+        record(&[("deadline", int(deadline)), ("now", int(now))]),
+        span,
+    )
 }
 
 fn carry<H: 'static>(interp: &mut Interpreter<H>, side: &Side, carrying: Carrying) {
@@ -1081,8 +1208,15 @@ fn install_child(proto: &mut Interpreter<()>, me: &Weak<Node>, carrying: Carryin
                 Some(Wait::Receive { deadline, .. }) => *deadline,
                 _ => timeout.map(|t| now.saturating_add(t)),
             };
-            st.waits.insert(pid, Wait::Receive { pattern, deadline });
-            !held && deadline.is_some_and(|d| now >= d)
+            let bound = st.bound_of(pid);
+            let wait = Wait::Receive {
+                pattern,
+                deadline,
+                bound,
+            };
+            let wakes = wait.wakes();
+            st.waits.insert(pid, wait);
+            !held && wakes.is_some_and(|d| now >= d)
         },
         move |args: &[Value], _h: &mut (), span| {
             let node = Side::Child(c.clone()).node("receive", span)?;
@@ -1091,18 +1225,87 @@ fn install_child(proto: &mut Interpreter<()>, me: &Weak<Node>, carrying: Carryin
             let out = {
                 let mut st = node.st();
                 let pid = st.running();
-                st.waits.remove(&pid);
+                let waited = st.waits.remove(&pid);
                 let taken = st.boxes.get_mut(&pid).and_then(|b| {
                     let i = pattern::first_match(b, &pattern)?;
                     b.remove(i)
                 });
                 node.journal(&mut st, pid, taken.as_ref());
-                Ok(taken.unwrap_or(default))
+                let now = st.clock.now();
+                match (taken, waited) {
+                    (Some(msg), _) => Ok(msg),
+                    (
+                        None,
+                        Some(Wait::Receive {
+                            deadline, bound, ..
+                        }),
+                    ) if bound_fired(bound, deadline, now) => {
+                        Err(passed("receive", bound.unwrap_or(now), now, span))
+                    }
+                    (None, _) => Ok(default),
+                }
             };
             node.record(node.current(), "receive", &out);
             out
         },
     );
+
+    for (name, relative) in [("sleep_for", true), ("sleep_until", false)] {
+        let (r, c) = (me.clone(), me.clone());
+        proto.register_awaitable_fn(
+            name,
+            Arity::Exact(1),
+            move |args: &[Value], _h: &()| {
+                let Some(node) = r.upgrade() else { return true };
+                let Ok(_pass) = node.pass(name, Span::synthetic()) else {
+                    return true;
+                };
+                let pid = node.current();
+                let waiting = match node.st().waits.get(&pid) {
+                    Some(Wait::Timer { until, .. }) => Some(*until),
+                    _ => None,
+                };
+                let until = match waiting {
+                    Some(until) => until,
+                    None => match wake_at(&node, name, &args[0], relative, Span::synthetic()) {
+                        Ok(t) => t,
+                        Err(_) => return true,
+                    },
+                };
+                let mut st = node.st();
+                let pid = st.running();
+                let now = st.clock.now();
+                let wait = Wait::Timer {
+                    until,
+                    bound: st.bound_of(pid),
+                };
+                let wakes = wait.wakes();
+                st.waits.insert(pid, wait);
+                wakes.is_some_and(|d| now >= d)
+            },
+            move |args: &[Value], _h: &mut (), span| {
+                let node = Side::Child(c.clone()).node(name, span)?;
+                let _pass = node.pass(name, span)?;
+                let (waited, now) = {
+                    let mut st = node.st();
+                    let pid = st.running();
+                    (st.waits.remove(&pid), st.clock.now())
+                };
+                let out = match waited {
+                    Some(Wait::Timer { until, bound }) if bound_fired(bound, Some(until), now) => {
+                        Err(passed(name, bound.unwrap_or(now), now, span))
+                    }
+                    Some(_) => Ok(Value::Nil),
+                    None => wake_at(&node, name, &args[0], relative, span).map(|_| Value::Nil),
+                };
+                node.record(node.current(), name, &out);
+                out
+            },
+        );
+    }
+    for name in ["deadline", "timeout"] {
+        register(proto, &side, name, Arity::Exact(2), w_scoped_in_process);
+    }
 
     // A server's boundary. Not ready while a migration is pending for this
     // process, so a busy server still stops here for the swap; the message
@@ -1658,10 +1861,12 @@ impl Node {
             _ => None,
         };
         let mut st = self.st();
+        let inherited = st.bound_of(st.running());
         let pid = Pid(st.next_pid);
         st.next_pid += 1;
         let proc = Proc::new(pid, chunk.clone(), self.config.budget, build);
         let mut info = Info::new(kind);
+        info.deadline = inherited;
         info.code = code;
         info.chunk = Some(chunk);
         info.def_name = def_name;
@@ -2475,6 +2680,7 @@ impl Node {
                 Wait::Receive {
                     pattern: kw(pattern::WILDCARD),
                     deadline: Some(deadline),
+                    bound: None,
                 },
             );
         }
@@ -2882,6 +3088,7 @@ impl Node {
             self.process_signals(&mut sched);
             {
                 let mut st = self.st();
+                st.fire_timers();
                 if let Some((from, reason)) = st.root_signal.take() {
                     return Err(refuse(
                         word,
@@ -2968,20 +3175,31 @@ impl Node {
 
     fn receive_root(&self, args: &[Value], span: Span) -> Result<Value, EvalError> {
         let (pattern, timeout, default) = receive_args(args, span)?;
-        let deadline = timeout.map(|t| self.st().clock.now().saturating_add(t));
+        let (now, bound) = {
+            let mut st = self.st();
+            (st.clock.now(), st.bound_of(ROOT))
+        };
+        let deadline = timeout.map(|t| now.saturating_add(t));
         let driven = self.drive(
             |st| {
                 let b = st.boxes.get_mut(&ROOT)?;
                 let i = pattern::first_match(b, &pattern)?;
                 b.remove(i)
             },
-            deadline,
+            earliest(deadline, bound),
             "receive",
             span,
         )?;
         match driven {
             Driven::Done(msg) => Ok(msg),
-            Driven::TimedOut => Ok(default),
+            Driven::TimedOut => {
+                let now = self.st().clock.now();
+                if bound_fired(bound, deadline, now) {
+                    Err(passed("receive", bound.unwrap_or(now), now, span))
+                } else {
+                    Ok(default)
+                }
+            }
             Driven::Deadlock(blocked) => Err(refuse(
                 "receive",
                 format!(
@@ -2995,6 +3213,29 @@ impl Node {
                 span,
             )),
         }
+    }
+
+    fn sleep_root(&self, word: &str, until: u64, span: Span) -> Result<Value, EvalError> {
+        let bound = self.st().bound_of(ROOT);
+        let driven = self.drive(|_| None::<()>, earliest(Some(until), bound), word, span)?;
+        let now = self.st().clock.now();
+        match driven {
+            Driven::TimedOut if bound_fired(bound, Some(until), now) => {
+                Err(passed(word, bound.unwrap_or(now), now, span))
+            }
+            _ => Ok(Value::Nil),
+        }
+    }
+
+    fn bind_deadline(&self, pid: Pid, deadline: Option<u64>) {
+        if let Some(info) = self.st().info.get_mut(&pid) {
+            info.deadline = deadline;
+        }
+    }
+
+    #[must_use]
+    pub fn now(&self) -> u64 {
+        self.st().clock.now()
     }
 
     /// Run every process until none can make progress. For hosts and tests;
@@ -3330,6 +3571,66 @@ fn w_send(node: &Node, _who: Who, args: &[Value], span: Span) -> Result<Value, E
     })?;
     node.credit(to, bytes);
     Ok(args[1].clone())
+}
+
+fn w_scoped_in_process(
+    _node: &Node,
+    _who: Who,
+    _args: &[Value],
+    span: Span,
+) -> Result<Value, EvalError> {
+    Err(refuse(
+        "deadline",
+        "a process holds the deadline it was spawned under; narrowing it inside a process is \
+         async phase A2 (docs/ASYNC.md)",
+        span,
+    ))
+}
+
+fn w_node_time(node: &Node, _who: Who, _args: &[Value], _span: Span) -> Result<Value, EvalError> {
+    Ok(int(node.now()))
+}
+
+fn w_after(node: &Node, who: Who, args: &[Value], span: Span) -> Result<Value, EvalError> {
+    let at = wake_at(node, "after", &args[0], true, span)?;
+    let to = match args.get(2) {
+        Some(p) => pid_arg(p, "after", span)?,
+        None => who.pid(),
+    };
+    let (copied, bytes) = node.apart(|| copy_data(&args[1]));
+    let msg = copied.map_err(|kind| {
+        refuse(
+            "after",
+            format!("a message is copied to the receiver, and a {kind} is not data"),
+            span,
+        )
+    })?;
+    let timer = {
+        let mut st = node.st();
+        let seq = st.next_timer;
+        st.next_timer += 1;
+        st.timers.insert((at, seq), (to, msg));
+        seq
+    };
+    node.credit(to, bytes);
+    Ok(int(timer))
+}
+
+fn w_context(node: &Node, who: Who, _args: &[Value], _span: Span) -> Result<Value, EvalError> {
+    let st = node.st();
+    let deadline = st.bound_of(who.pid());
+    Ok(record(&[
+        ("clock", kw(st.clock.kind.label())),
+        ("deadline", deadline.map_or(Value::Nil, int)),
+    ]))
+}
+
+fn w_remaining(node: &Node, who: Who, _args: &[Value], _span: Span) -> Result<Value, EvalError> {
+    let mut st = node.st();
+    let now = st.clock.now();
+    Ok(st
+        .bound_of(who.pid())
+        .map_or(Value::Nil, |d| int(d.saturating_sub(now))))
 }
 
 fn w_self(_node: &Node, who: Who, _args: &[Value], _span: Span) -> Result<Value, EvalError> {

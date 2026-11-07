@@ -712,6 +712,58 @@ mod tests {
     }
 
     #[test]
+    fn an_access_effect_reads_in_either_spelling_of_its_capability() {
+        for spelling in [":kernel_bpf", "\"kernel-bpf\""] {
+            let p = read(
+                &[
+                    "service(\"hello\", {",
+                    KERNEL,
+                    ", access: {effects: [:network, ",
+                    spelling,
+                    "]}})\n",
+                ]
+                .concat(),
+            )
+            .unwrap();
+            assert_eq!(
+                p.services["hello"].access.effects,
+                [Effect::Network, Effect::KernelBpf],
+                "{spelling}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_host_capability_with_no_access_spelling_is_refused_by_name() {
+        let refusals = read(
+            "service(\"hello\", {program: \"hello.b\", repository: \"ghcr.io/pleme-io/hello\", port: 8080, \
+             access: {effects: [:network, :audio_out]}})\n",
+        )
+        .unwrap_err();
+        let e = refusals
+            .iter()
+            .map(|r| r.error.to_string())
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            e.contains("`audio_out` names the host capability `audio-out`"),
+            "{e}"
+        );
+    }
+
+    #[test]
+    fn every_effect_projects_to_its_capability_and_back() {
+        for e in Effect::ALL {
+            assert_eq!(Effect::of_capability(e.capability()), Some(e), "{e:?}");
+        }
+        let projected = blue_lang_waku::Capability::ALL
+            .into_iter()
+            .filter_map(Effect::of_capability)
+            .count();
+        assert_eq!(projected, Effect::ALL.len());
+    }
+
+    #[test]
     fn wasm_is_refused_by_name_when_the_service_needs_what_wasi_cannot_grant() {
         let base = "program: \"hello.b\", repository: \"ghcr.io/pleme-io/hello\", port: 8080";
         let cases = [

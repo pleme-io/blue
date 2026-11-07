@@ -273,6 +273,11 @@ pub enum SpecError {
     ServiceIsImage { name: String },
     #[error("`{got}` is not an effect; the effects are network, filesystem, clock, entropy, environment, process and kernel_bpf")]
     AccessEffect { got: String },
+    #[error("`{got}` names the host capability `{capability}`, which a service's access cannot grant yet; the effects are network, filesystem, clock, entropy, environment, process and kernel_bpf")]
+    AccessCapability {
+        got: String,
+        capability: &'static str,
+    },
     #[error("access egress `{got}` is not host:port")]
     AccessPeer { got: String },
     #[error("`{field}` entries are absolute paths with no `..`, got `{got}`")]

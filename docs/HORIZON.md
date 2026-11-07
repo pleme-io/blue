@@ -500,6 +500,25 @@ Only the engenho wasm pod turns `access` into a boundary today.
 that opens a socket is refused.
 **Unlocks:** H17.
 
+**The model is the native way to model** (operator, 2026-11-07). Anything
+that has to be modeled is declared once, as a blue model (`chozou/teeburu`'s
+`model`, the Bluefile `model` word of `docs/SERVICE-DATA.md` when it lands),
+and every artifact that names its shape is a rendering of it, never a second
+spelling:
+
+| Rendering | From the model | State (2026-11-07) |
+|---|---|---|
+| storage and migrations | tables, `keifu`, the additive SQL, shinka's `DatabaseMigration` | built; the CR is string lines, not checked against shinka's CRD |
+| API | GraphQL types and Query roots (`toriyose/outou`) | `from_model` built; the bridge from teeburu's shape is being built with rubrica |
+| client | typed fragments (`danpen`), the normalized store's keys (`kyasshu`) | built over a generated schema table |
+| gates | kenshi `TestGate` and `BuildPipeline` from the Bluefile's checks | design (SERVICE-ARCHITECTURE P7) |
+| packaging | the service's chart on pleme-lib, published by version | chart built, publish being built; pleme-lib not pinned |
+| ontology | a khipu class per entity, a property per field, a shape per constraint (H19) | design |
+
+A shape spelled twice (a GraphQL type written by hand beside its table, a
+migration written beside the model) is the bad state; the gate is the H17
+matrix with a column per rendering.
+
 ### H17. Parity: the placements agree on authority
 
 kakoi, kidou, the chart and the trio each keep their own effect table. Nothing

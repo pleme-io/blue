@@ -259,10 +259,19 @@ struct Context {
     names: Option<NameTable>,
 }
 
-/// One evaluation session.
-pub struct Session {
-    interp: Interpreter<Host>,
-    host: Host,
+/// The interpreter state of a session: its own, and the embedder's `app`.
+pub struct Paired<E> {
+    core: Host,
+    pub app: E,
+}
+
+type Install<E> = Box<dyn Fn(&mut Interpreter<Paired<E>>) + Send>;
+
+/// One evaluation session, generic over the embedder's state `E`.
+pub struct Session<E: 'static = ()> {
+    interp: Interpreter<Paired<E>>,
+    host: Paired<E>,
+    install: Install<E>,
     frame: Waku,
     budget: Option<usize>,
     max_alloc_bytes: Option<u64>,
@@ -281,15 +290,33 @@ const CODE_LABEL: &str = "<eval>";
 impl Session {
     #[must_use]
     pub fn new(config: Config) -> Self {
-        let mut host = Host {
-            live: config.live,
-            ..Host::default()
+        Self::embedded(config, (), |_| {})
+    }
+}
+
+impl<E: 'static> Session<E> {
+    /// A session whose interpreter carries `app`, with `install` run on every
+    /// interpreter it builds (here and on [`Session::reset`]).
+    #[must_use]
+    pub fn embedded(
+        config: Config,
+        app: E,
+        install: impl Fn(&mut Interpreter<Paired<E>>) + Send + 'static,
+    ) -> Self {
+        let install: Install<E> = Box::new(install);
+        let mut host = Paired {
+            core: Host {
+                live: config.live,
+                ..Host::default()
+            },
+            app,
         };
-        let interp = build(&config.frame, &config.interrupt, &mut host);
+        let interp = build(&config.frame, &config.interrupt, &mut host, &install);
         let builtins = pipeline::builtin_names(&interp);
         Self {
             interp,
             host,
+            install,
             frame: config.frame,
             budget: config.budget,
             max_alloc_bytes: config.max_alloc_bytes,
@@ -312,14 +339,24 @@ impl Session {
         &self.frame
     }
 
-    /// Forget every context and definition: a fresh interpreter, same frame.
+    #[must_use]
+    pub fn app(&self) -> &E {
+        &self.host.app
+    }
+
+    pub fn app_mut(&mut self) -> &mut E {
+        &mut self.host.app
+    }
+
+    /// Forget every context and definition: a fresh interpreter, same frame,
+    /// the same app state, the embedder's primitives installed again.
     pub fn reset(&mut self) {
-        let live = self.host.live.take();
-        self.host = Host {
+        let live = self.host.core.live.take();
+        self.host.core = Host {
             live,
             ..Host::default()
         };
-        self.interp = build(&self.frame, &self.interrupt, &mut self.host);
+        self.interp = build(&self.frame, &self.interrupt, &mut self.host, &self.install);
         self.contexts.clear();
         self.packages.clear();
     }
@@ -442,7 +479,7 @@ impl Session {
     fn finish<T>(&mut self, result: Result<T, Stop>) -> Outcome<T> {
         Outcome {
             result,
-            out: std::mem::take(&mut self.host.out),
+            out: std::mem::take(&mut self.host.core.out),
         }
     }
 
@@ -626,7 +663,7 @@ impl Session {
             max_depth: Some(crate::execution_bounds().max_call_depth),
             quantum: None,
         });
-        self.host.reached = None;
+        self.host.core.reached = None;
 
         let mut value = Value::Nil;
         let mut ran: BTreeSet<usize> = BTreeSet::new();
@@ -689,7 +726,7 @@ impl Session {
             ctx.program = Some(program);
             ctx.names = Some(names);
         }
-        if let Some((reach, name)) = self.host.reached.take() {
+        if let Some((reach, name)) = self.host.core.reached.take() {
             return Err(Stop::Volatile {
                 reach,
                 name: name.to_string(),
@@ -752,9 +789,9 @@ fn in_code(
     (span.start < start + len).then(|| (*code_off).map(|c| c + (span.start - start)))?
 }
 
-fn expand_form(
-    interp: &mut Interpreter<Host>,
-    host: &mut Host,
+fn expand_form<E: 'static>(
+    interp: &mut Interpreter<Paired<E>>,
+    host: &mut Paired<E>,
     form: &Spanned,
     step: Step,
 ) -> tatara_lisp_eval::Result<Value> {
@@ -784,15 +821,21 @@ fn run_failure(e: RunError) -> Failure {
 
 /// The interpreter a session runs: the whole blue runtime, output captured,
 /// and every host name the frame does not grant bound to a breach.
-fn build(frame: &Waku, interrupt: &Arc<AtomicBool>, host: &mut Host) -> Interpreter<Host> {
+fn build<E: 'static>(
+    frame: &Waku,
+    interrupt: &Arc<AtomicBool>,
+    host: &mut Paired<E>,
+    install: &Install<E>,
+) -> Interpreter<Paired<E>> {
     let mut interp = crate::interpreter(host);
     capture_output(&mut interp);
+    install(&mut interp);
     crate::refuse_host_names_noting(
         &mut interp,
         &crate::ungranted_host_names(frame),
         "this session's frame",
-        |h: &mut Host, cap, name| {
-            h.reached.get_or_insert((cap, name));
+        |h: &mut Paired<E>, cap, name| {
+            h.core.reached.get_or_insert((cap, name));
         },
     );
     // Processes the session's programs spawn are held to the same frame.
@@ -803,13 +846,13 @@ fn build(frame: &Waku, interrupt: &Arc<AtomicBool>, host: &mut Host) -> Interpre
 
 /// Rebind every primitive that writes to stdout so the session receives what
 /// it writes. Each keeps its formatting.
-fn capture_output(interp: &mut Interpreter<Host>) {
+fn capture_output<E: 'static>(interp: &mut Interpreter<Paired<E>>) {
     interp.register_fn(
         "write_stdout",
         Arity::Exact(1),
-        |a: &[Value], h: &mut Host, s| match &a[0] {
+        |a: &[Value], h: &mut Paired<E>, s| match &a[0] {
             Value::Str(t) => {
-                h.write(t);
+                h.core.write(t);
                 Ok(Value::Nil)
             }
             other => Err(EvalError::type_mismatch("string", other.type_name(), s)),
@@ -818,32 +861,40 @@ fn capture_output(interp: &mut Interpreter<Host>) {
     interp.register_fn(
         "display",
         Arity::Exact(1),
-        |a: &[Value], h: &mut Host, _| {
-            h.write(&a[0].to_string());
+        |a: &[Value], h: &mut Paired<E>, _| {
+            h.core.write(&a[0].to_string());
             Ok(Value::Nil)
         },
     );
-    interp.register_fn("print", Arity::Exact(1), |a: &[Value], h: &mut Host, _| {
-        h.write(&format!("{}\n", a[0]));
-        Ok(Value::Nil)
-    });
+    interp.register_fn(
+        "print",
+        Arity::Exact(1),
+        |a: &[Value], h: &mut Paired<E>, _| {
+            h.core.write(&format!("{}\n", a[0]));
+            Ok(Value::Nil)
+        },
+    );
     interp.register_fn(
         "newline",
         Arity::Exact(0),
-        |_: &[Value], h: &mut Host, _| {
-            h.write("\n");
+        |_: &[Value], h: &mut Paired<E>, _| {
+            h.core.write("\n");
             Ok(Value::Nil)
         },
     );
-    interp.register_fn("println", Arity::Any, |a: &[Value], h: &mut Host, _| {
-        let line = a
-            .iter()
-            .map(ToString::to_string)
-            .collect::<Vec<_>>()
-            .join(" ");
-        h.write(&format!("{line}\n"));
-        Ok(Value::Nil)
-    });
+    interp.register_fn(
+        "println",
+        Arity::Any,
+        |a: &[Value], h: &mut Paired<E>, _| {
+            let line = a
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(" ");
+            h.core.write(&format!("{line}\n"));
+            Ok(Value::Nil)
+        },
+    );
 }
 
 /// A source's top-level forms, each with the text before it.

@@ -63,7 +63,7 @@ jobs:
       # private pleme-io git dep dies on `failed to acquire username/password
       # from local configuration`, and that is a fleet class, not a quirk.
       test-args: "--workspace --no-fail-fast"
-      runner: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && 'pleme-public-build' || '' }}
+      runner: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && vars.BLUE_LAND_RUNNER || '' }}
       test-runner: ubuntu-latest
     secrets: inherit
 

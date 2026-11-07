@@ -343,6 +343,21 @@ ones, added when an action is touched, never by mass rewrite.
 | 9 | action renderer | actions `defaction-render` (curl + python `render.py`) | python | a blue renderer in the `generate` program | T7 |
 | 10 | kensa delivery | kensa `ci.yml` `deliver-to-ryn` (`test -n`, `curl`) | 2 lines of sh | a blue step in the rendered workflow | T7 |
 
+### Pre-merge and post-merge
+
+A check answers one of two questions, and the answer places it:
+
+| Tier | The question | Where it runs | What it holds |
+|---|---|---|---|
+| pre-merge | is this change correct? | every land (`checks.<system>`) | tests, conformance, format, generated freshness, locks, check and lint gates, runnable docs |
+| post-merge | are the tests and the system good enough? | every push to `main`, nightly (`.github/workflows/post-merge.yml`, `postMerge.<system>`) | mutation testing, performance baselines, VM and real-kernel boots, model evals |
+
+The tier is data: `nix/check-tiers.nix` lists the post-merge checks, `checksAll`
+holds every check, `checks` is `checksAll` without them. A check moves between
+tiers by one line; nothing is deleted. A post-merge check is not a duplicate
+of a pre-merge one: before moving a check, name the question it answers. The
+land's runner is the repository variable `BLUE_LAND_RUNNER` (unset: hosted).
+
 ## 10. Determinism
 
 - **Hermetic fixtures.** A fixture is a file beside the test, or a value in

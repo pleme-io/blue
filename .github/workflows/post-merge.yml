@@ -1,0 +1,40 @@
+name: post-merge
+
+on:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: "41 4 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: post-merge-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tier:
+    runs-on: ubuntu-latest
+    outputs:
+      checks: ${{ steps.names.outputs.checks }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pleme-io/actions/nix-setup@main
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - id: names
+        run: echo "checks=$(nix eval --raw .#postMerge.x86_64-linux --apply 'cs: builtins.concatStringsSep " " (map (n: ".#postMerge.x86_64-linux." + n) (builtins.attrNames cs))')" >> "$GITHUB_OUTPUT"
+
+  checks:
+    needs: tier
+    if: needs.tier.outputs.checks != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pleme-io/actions/nix-flake-check@main
+        with:
+          only: ${{ needs.tier.outputs.checks }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}

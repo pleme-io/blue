@@ -2,6 +2,10 @@ pub use blue_lang_host_macros::host;
 pub use blue_lang_runtime::domain::{domain_form, DomainError};
 pub use blue_lang_runtime::host_surface::FILE as SURFACE_FILE;
 pub use blue_lang_runtime::hosted::{CallError, FramedError, Hosted};
+pub use blue_lang_runtime::session::{
+    frame_granting, pure_frame, Config as SessionConfig, Failure, Item, Load as SessionLoad,
+    Outcome, Paired, Session, Step, Stop,
+};
 pub use blue_lang_runtime::uses::{Entry, Loader, NoLoader};
 pub use blue_lang_runtime::RunError;
 pub use blue_lang_waku::Capability;

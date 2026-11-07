@@ -799,8 +799,8 @@ F	heni	apply	pure	apply(text, mutation) -> text	test	-	exists:heni	text with one
 F	heni	mutations	pure	mutations(parsed) -> [mutation]	test	-	exists:heni	Mutations from parsed JSON: [{name, file, find, replace}]	0		na
 F	heni	ok?	pure	ok?(report) -> Bool	test	-	exists:heni	whether every mutation was caught	0		na
 F	heni	run	effect	run(package, opts) -> report	process,test	-	exists:heni	spec: {package, mutations, blue, test, tmp}	0	run(package, opts) -> report	yes
-F	heni	score	pure	score(report) -> ratio	test	-	partial:heni	the share of mutations the tests caught	1	score(report) -> ratio	yes
-F	heni	survivors	pure	survivors(report) -> [mutation]	test	-	partial:heni	the mutations no test caught	0		na
+F	heni	score	pure	score(report) -> ratio	test	-	exists:heni	a run's caught ratio, the share of mutations its tests caught, as {caught, total}: every mutation run counts in total, only a caught one in caught	1	score(report) -> ratio	yes
+F	heni	survivors	pure	survivors(report) -> [mutation]	test	-	exists:heni	the names of the mutations a run's tests survived	0		na
 G	hikisuu	command	effect	command(spec, f) -> value	-	clap	exists:hikisuu	the program's door: argv read by the spec; help and completion printed, a bad line refused on stderr with exit 64, otherwise f called with the record	0	command(spec, f) -> value	yes
 G	hikisuu	complete	pure	complete(args, spec) -> [text]	-	clap	exists:hikisuu	the words that may follow a partial command line, for the last word as typed so far	0	complete(args, spec) -> [text]	yes
 G	hikisuu	parse	pure	parse(args, spec) -> record	-	clap	exists:hikisuu	a command line read by a spec into one record of every flag, positional and the command; every fault raised together as `:usage`	0	parse(args, spec) -> record	yes

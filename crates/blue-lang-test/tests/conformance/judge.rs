@@ -108,6 +108,7 @@ pub fn reference_for(ev: Ev, row: &Row) -> Option<Ev> {
             Expect::Diagnoses(_) | Expect::Formats(_) | Expect::Fixes(_) | Expect::Shifts(..),
             Ev::Cli,
         ) => Some(Ev::Static),
+        (Expect::Prints(_) | Expect::Fails(..), Ev::Component) => Some(Ev::Cli),
         _ => None,
     }
 }
@@ -129,6 +130,45 @@ pub enum Agreement {
 /// pending mark (`pending(GAP, "wasm")`), which is the declared form of "this
 /// surface differs, and here is the gap that closes it", or both sides are
 /// pending on the same row.
+pub fn first_difference(reference: &Obs, other: &Obs) -> String {
+    fn text(field: &str, a: &str, b: &str) -> String {
+        let at = a
+            .char_indices()
+            .zip(b.chars())
+            .find(|((_, x), y)| x != y)
+            .map_or_else(|| a.len().min(b.len()), |((i, _), _)| i);
+        format!("{field} at byte {at}")
+    }
+    match (reference, other) {
+        (Obs::Printed { stdout: a, ok: x }, Obs::Printed { stdout: b, ok: y }) => {
+            if x != y {
+                "exit".into()
+            } else {
+                text("stdout", a, b)
+            }
+        }
+        (
+            Obs::Failed {
+                stage: s,
+                message: a,
+            },
+            Obs::Failed {
+                stage: t,
+                message: b,
+            },
+        ) => {
+            if s != t {
+                "stage".into()
+            } else {
+                text("message", a, b)
+            }
+        }
+        (Obs::Value(a), Obs::Value(b)) | (Obs::Text(a), Obs::Text(b)) => text("value", a, b),
+        _ if std::mem::discriminant(reference) != std::mem::discriminant(other) => "outcome".into(),
+        _ => "value".into(),
+    }
+}
+
 pub fn agreement(
     row: &Row,
     ev: Ev,
@@ -143,7 +183,12 @@ pub fn agreement(
     if agrees(reference, obs) {
         return Agreement::Agrees;
     }
-    let what = format!("stage 0 observed {reference}, {} observed {obs}", ev.name());
+    let reference_name = reference_for(ev, row).map_or("stage 0", Ev::name);
+    let what = format!(
+        "{reference_name} observed {reference}, {} observed {obs}; first differing field: {}",
+        ev.name(),
+        first_difference(reference, obs)
+    );
     if row.pending.iter().any(|p| p.on == Some(ev)) {
         return Agreement::Agrees;
     }
@@ -154,5 +199,5 @@ pub fn agreement(
         // reaches the destination stage 0 is still pending on.
         return Agreement::DivergesWhilePending(what);
     }
-    Agreement::Disagrees(format!("disagrees with stage 0: {what}"))
+    Agreement::Disagrees(format!("disagrees with {reference_name}: {what}"))
 }

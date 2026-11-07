@@ -86,6 +86,7 @@ fn observe_in_process(env: &mut Env, row: &Row, ev: Ev, n: usize) -> Obs {
         Ev::Cli => eval::cli(env, row, n),
         Ev::Static => eval::statics(row, &env.roots),
         Ev::Memo => eval::memo(env, row),
+        Ev::Component => eval::component(env, row, n),
     }));
     run.unwrap_or_else(|_| {
         Obs::Crashed(format!(
@@ -119,7 +120,7 @@ fn observe_isolated(row: &Row, ev: Ev) -> Obs {
 fn run_row(env: &mut Env, row: &Row, n: usize) -> Outcome {
     let mut obs = BTreeMap::new();
     for ev in Ev::ALL {
-        let o = if row.isolate && ev != Ev::Cli {
+        let o = if row.isolate && !matches!(ev, Ev::Cli | Ev::Component) {
             observe_isolated(row, ev)
         } else {
             observe_in_process(env, row, ev, n)
@@ -157,8 +158,10 @@ fn run_row(env: &mut Env, row: &Row, n: usize) -> Outcome {
         // hole in the door, not a design.
         if eval::observes(ev, row) {
             if let Verdict::Blind(why) = &v {
-                if ev == Ev::Cli && std::env::var_os("BLUE_CONFORMANCE_STRICT").is_some() {
-                    v = Verdict::Fail(format!("the cli column is blind: {why}"));
+                if matches!(ev, Ev::Cli | Ev::Component)
+                    && std::env::var_os("BLUE_CONFORMANCE_STRICT").is_some()
+                {
+                    v = Verdict::Fail(format!("the {} column is blind: {why}", ev.name()));
                 }
             }
         }
@@ -260,6 +263,36 @@ fn controls(env: &mut Env) -> Vec<String> {
     };
     if judge::agrees(&a, &b) {
         failures.push("control: two different messages were judged to agree".into());
+    }
+
+    let printing = control(
+        "control.placement-differs",
+        "write_stdout(\"hi\\n\")",
+        Expect::Prints("hi\n".into()),
+        vec![],
+    );
+    let native = Obs::Printed {
+        stdout: "hi\n".into(),
+        ok: true,
+    };
+    let placed = Obs::Printed {
+        stdout: "hi~".into(),
+        ok: true,
+    };
+    match judge::agreement(
+        &printing,
+        Ev::Component,
+        &Verdict::Fail(String::new()),
+        &placed,
+        &Verdict::Pass,
+        &native,
+    ) {
+        judge::Agreement::Disagrees(why)
+            if why.contains("disagrees with cli")
+                && why.contains("first differing field: stdout at byte 2") => {}
+        other => failures.push(format!(
+            "control: a component printing other bytes than cli was not failed naming the field ({other:?})"
+        )),
     }
     failures
 }
@@ -370,6 +403,7 @@ fn main() {
     let scratch = std::env::temp_dir().join(format!("blue-conformance-{}", std::process::id()));
     let roots = vec![repo.join("spec/bidamas"), repo.join("bidamas")];
     let mut env = Env::new(roots, blue_bin(&repo), scratch.clone());
+    env.component = eval::Placement::from_env().ok();
 
     let (all_rows, refusals) = rows::load(&repo.join("spec/rows"));
     // `--coverage-only`: the missing-row gate and the controls, no rows run.
@@ -392,6 +426,15 @@ fn main() {
             .map_or("BLIND (no binary; set BLUE_BIN)".to_string(), |p| p
                 .display()
                 .to_string())
+    )
+    .ok();
+    writeln!(
+        out,
+        "  component column: {}",
+        env.component.as_ref().map_or_else(
+            || "BLIND (set BLUE_COMPONENT and BLUE_WASMTIME)".to_string(),
+            |p| format!("{} under {}", p.wasm.display(), p.wasmtime.display())
+        )
     )
     .ok();
 
@@ -561,7 +604,7 @@ fn main() {
         out,
         "\ncontrols: {}",
         if control_failures.is_empty() {
-            "4 of 4 judged as expected"
+            "5 of 5 judged as expected"
         } else {
             "RED"
         }

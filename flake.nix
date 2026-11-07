@@ -591,6 +591,7 @@
             (engine.disjoint "package" native.${system}.packages {
               tree-sitter-blue = treeSitterBlueFor (pkgsFor system);
               blue-appliance = applianceFor system;
+              blue-component = componentFor system;
             }))
       ) base.packages;
 
@@ -618,11 +619,12 @@
 
           # The executable specification: every row in spec/rows/ on every
           # evaluator (walker, vm, wasm ABI, the shipped binary, the front
-          # end), and the missing-row gate over RULES, FORMS, INFIX, the
-          # keywords, docs::NAMES and okite's card. `cargo test` over the
-          # Cargo.lock-vendored workspace, through substrate's runner, since
-          # the lockfile build path runs no tests. STRICT makes a blind `cli`
-          # column red, so the gate cannot pass without the binary it names.
+          # end, the engine component under wasmtime), and the missing-row
+          # gate over RULES, FORMS, INFIX, the keywords, docs::NAMES and
+          # okite's card. `cargo test` over the Cargo.lock-vendored workspace,
+          # through substrate's runner, since the lockfile build path runs no
+          # tests. STRICT makes a blind `cli` or `component` column red, so the
+          # gate cannot pass without the binary and the component it names.
           conformance =
             workspaceTests {
               src = ./.;
@@ -631,6 +633,8 @@
                 runs = [ { args = [ "-p" "blue-lang-test" "--test" "conformance" ]; } ];
                 env = {
                   BLUE_BIN = "${blue}/bin/blue";
+                  BLUE_COMPONENT = "${componentFor system}";
+                  BLUE_WASMTIME = "${pkgs.wasmtime}/bin/wasmtime";
                   BLUE_CONFORMANCE_STRICT = "1";
                 };
               };

@@ -1,6 +1,6 @@
 ---
 kind: explanation
-summary: the long plan for blue, ten horizons from hygiene to a language that proves, replays and explains itself, eight authority horizons that make every host effect a capability granted from one declaration in every placement, and an ontology of every concept in khipu that the tests are generated from; destination first, each horizon with its first step, its gate and what it unlocks
+summary: the long plan for blue, ten horizons from hygiene to a language that proves, replays and explains itself, eight authority horizons that make every host effect a capability granted from one declaration in every placement, an ontology of every concept in khipu that the tests are generated from, and the kernel as both a verified target and the enforcer of access; destination first, each horizon with its first step, its gate and what it unlocks
 ---
 
 # HORIZON: where blue goes next
@@ -217,7 +217,7 @@ unrelated definition, and they do not.
 **First step:** the quality signals rendered per package in CATALOG.
 **Gate:** each signal reproduces from the lock alone.
 
-## Authority and ontology: one capability set, every placement, every concept a class (H11 to H19)
+## Authority and ontology: one capability set, every placement, every concept a class (H11 to H20)
 
 Added 2026-11-07 (blue `9ca7c2cc`, release v0.0.160), from two read-only
 surveys of the language and of every placement. Every "built" below cites code.
@@ -459,6 +459,59 @@ Effect decision and a placement with no row for a capability each turn the
 ontology check red, naming the instance and the axiom.
 **Depends on:** khipu K1b to K4 for the store, the query and the shape
 engine; H5 for the facts.
+
+### H20. Kernel: admitted by construction, and the kernel as the enforcer
+
+Operator, 2026-11-07: blue as a verifier-guaranteed language, and the kernel
+with BPF as a deterministic capability sandbox. Measured against that claim:
+
+- Not yet: "blue requires explicit capability declarations". An undeclared run
+  is ambient (H12).
+- Partly: "cycle budgets". The interpreter has `bounds`; in BPF the bound is
+  the verifier's, and `kaaneru` inlines calls, holds 64 stack slots and lowers
+  tail loops only for a `CAP_BPF` loader (`KERNEL.md` §4).
+- Not so: "formal contracts (blueshift)". The blueshift is a position between
+  two good ideals, not a contract system.
+- Not claimed: "unhackable". The verifier is part of the trusted base, and it
+  has admitted a program that panicked the kernel: `sdiv` of the lowest value
+  by -1 at 6.6.142, measured 2026-11-04 (`KERNEL.md` §4). Admission is a
+  property against a named kernel, not a proof of safety.
+
+**Admission by construction.** The bad state is a program that compiles and
+the verifier then refuses. `kaaneru` already refuses some shapes at compile
+time (`*` on a parameter of a global subprogram, a stack past 512 bytes, a
+signed divide below 6.12). Make that the rule for every shape:
+
+- Each verifier refusal the matrix observes becomes a compile-time rule with
+  the blue line and the reason, at the floor kernel (6.6) and per kernel
+  where they differ.
+- A complexity estimate at compile time (instructions, branches, stack) beside
+  the verifier's own limits, so a program near a limit is named before load.
+- The proof is differential, because the verifier is the oracle: a generator
+  over the language the compiler accepts, every program loaded on every
+  matrix kernel (6.6.142, 6.12.92, 6.12.93, 7.0.11). One refusal at load is
+  red and becomes a new compile rule.
+
+**The kernel as the enforcer of `access`.** For a native placement, the kernel
+is where a boundary cannot be skipped by the program. `access` renders to BPF
+LSM and cgroup programs attached to the service's cgroup (`file_open`,
+`socket_connect`, `bprm_check_security`, device and `sock_create`, each already
+attached by blue on plo, `KERNEL.md` §6), beside kakoi's Landlock and seccomp.
+The same declaration, one more rendering; H17's matrix gets a kernel column.
+
+**`kernel_bpf` attenuated.** One capability for every program kind is coarse.
+A grant names the kinds and attach points it allows (tracing, XDP on one
+interface, LSM), as H15 attenuates the filesystem, and the chart's exact Linux
+capabilities derive from the kinds.
+
+**First step:** the generator and the load-everything gate on the matrix
+kernels, and the first compile rule it produces.
+**Gate:** red run: a generated program shape the compiler accepts and 6.6
+refuses fails the matrix, naming the shape; after the rule lands, the compiler
+refuses it with the blue line.
+**Depends on:** the kernel matrix (`.github/workflows/kernel-matrix.yml`),
+H16 for the rendering, H15 for the attenuated grant, H19 for program kind,
+attach point and kernel release as ontology classes.
 **Unlocks:** H17 (its matrix is generated), H14 and H18 (their effects and
 receipts become instances).
 
@@ -471,7 +524,8 @@ receipts become instances).
 | Later | H7; H8; H9; H10 | each multiplies what the earlier horizons made true |
 | Authority, now | H11; H12 rings 1 and 2; H16's first step; H19's first step | one vocabulary first, so every later horizon names one set; the census measures the flip before it happens; the capability ontology makes every later authority horizon a set of generated rows |
 | Authority, next | H12 rings 3 and 4; H13; H17 | per-bidama frames and the parity matrix stand on one vocabulary |
-| Authority, later | H14; H15; H18 | effect inference and capability values change the language surface; least privilege needs receipts from every placement |
+| Kernel, alongside | H20's first step | the matrix and the compiler exist; the generator only needs them |
+| Authority, later | H14; H15; H18; the rest of H20 | effect inference and capability values change the language surface; least privilege needs receipts from every placement |
 
 ## What this plan refuses
 

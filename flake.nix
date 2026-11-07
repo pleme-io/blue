@@ -604,6 +604,15 @@
           # so this is the rest of the tree: specs, generators, fixtures.
           blue-fmt = bl.mkFmtCheck { inherit blue; root = ./.; };
 
+          workflows-lint = pkgs.runCommand "workflows-lint" {
+            nativeBuildInputs = [ pkgs.actionlint ];
+            src = lib.fileset.toSource { root = ./.; fileset = ./.github; };
+          } ''
+            cd $src
+            actionlint .github/workflows/*.yml
+            touch $out
+          '';
+
           # The executable specification: every row in spec/rows/ on every
           # evaluator (walker, vm, wasm ABI, the shipped binary, the front
           # end), and the missing-row gate over RULES, FORMS, INFIX, the

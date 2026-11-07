@@ -165,6 +165,27 @@ fn a_documented_record_keeps_its_doc_through_the_door_a_file_goes_through() {
 }
 
 #[test]
+fn a_record_inside_an_interpolation_is_refused_at_every_door() {
+    for src in [
+        "a |> \"a#{record a(a, last: Int)}b\"",
+        "\"#{record p(x)}\"",
+        "x = \"a#{record p(x)}\"",
+        "\"a\\n#{record p(x)}\\n\"",
+        "\"a\\n#{record p(x)}b\\n\"",
+    ] {
+        let err = parse_program(src).expect_err(src);
+        assert!(
+            err.to_string()
+                .contains("`record p` is a declaration of the top level of a file")
+                || err
+                    .to_string()
+                    .contains("`record a` is a declaration of the top level of a file"),
+            "{src:?}: {err}"
+        );
+    }
+}
+
+#[test]
 fn a_comment_inside_a_record_stays_where_it_is() {
     let src = "record p(\n  # the first\n  x,\n  y: Int # the second\n)\n";
     assert_eq!(format_source_lossless(src).unwrap(), src);

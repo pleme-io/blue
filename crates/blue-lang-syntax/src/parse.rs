@@ -1538,6 +1538,24 @@ impl Parser {
         Ok(lhs)
     }
 
+    fn interpolated(span: Span, raw: &str) -> Result<Spanned, Fail> {
+        let refuse =
+            |message: String| fail(format!("in interpolation `#{{{raw}}}`: {message}"), span);
+        let inner = parse_expr(raw).map_err(|e| refuse(e.message))?;
+        if let Sexp::List(items) = &inner {
+            if let (Some(Sexp::Atom(Atom::Symbol(head))), Some(Sexp::Atom(Atom::Symbol(name)))) =
+                (items.first(), items.get(1))
+            {
+                if head == crate::record::LOWERED_RECORD {
+                    return Err(refuse(format!(
+                        "`record {name}` is a declaration of the top level of a file"
+                    )));
+                }
+            }
+        }
+        Ok(Spanned::from_sexp_at(&inner, span))
+    }
+
     #[inline(never)]
     fn interpolation(span: Span, parts: &[String], exprs: &[String]) -> Result<Spanned, Fail> {
         // Every node here carries the WHOLE string literal's span.
@@ -1551,13 +1569,7 @@ impl Parser {
         // literal is the most precise honest answer available.
         let mut acc = atom_at(span, Atom::Str(parts[0].clone()));
         for (i, raw) in exprs.iter().enumerate() {
-            let inner = parse_expr(raw).map_err(|e| {
-                fail(
-                    format!("in interpolation `#{{{raw}}}`: {}", e.message),
-                    span,
-                )
-            })?;
-            let inner = Spanned::from_sexp_at(&inner, span);
+            let inner = Self::interpolated(span, raw)?;
             acc = list_at(span, vec![sym_at(span, LOWERED_CONCAT), acc, inner]);
             // `parts.len() == exprs.len() + 1` by construction, so this
             // index is always in range.
@@ -1619,13 +1631,7 @@ impl Parser {
             let item = if raws.is_empty() {
                 atom_at(span, Atom::Str(lits[0].clone()))
             } else if raws.len() == 1 && lits.iter().all(String::is_empty) {
-                let inner = parse_expr(&raws[0]).map_err(|e| {
-                    fail(
-                        format!("in interpolation `#{{{}}}`: {}", raws[0], e.message),
-                        span,
-                    )
-                })?;
-                Spanned::from_sexp_at(&inner, span)
+                Self::interpolated(span, &raws[0])?
             } else {
                 Self::interpolation(span, lits, raws)?
             };

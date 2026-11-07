@@ -23,6 +23,15 @@ reads its results. No clang, libbpf, aya, rustc or LLVM is in that path, and no 
 library binding. The same source runs in three places and they must agree: the
 blue interpreter, a pure machine on any host, and a real kernel.
 
+Two further parts are DESIGN, in [`HORIZON.md`](HORIZON.md) H20. First, a
+program the compiler accepts is admitted by the verifier of every kernel in the
+matrix, held by a generator that loads every accepted shape and turns each
+refusal into a compile rule. Second, a native service's `access` renders to
+BPF LSM and cgroup programs on its cgroup, so the kernel enforces the same
+declaration every other placement renders. Admission is a property against a
+named kernel, not a proof of safety: the 6.6 verifier admits a signed divide
+that panics the kernel (§4).
+
 ## 2. The layers, each one bidama
 
 | Layer | Bidama or crate | Owns | Host needs |

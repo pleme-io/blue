@@ -386,7 +386,7 @@
   {
     "name": "duplicate site names go unseen",
     "file": "toride.b",
-    "find": "r = read_site(d, map((s) -> s[:name], oks(acc)))",
+    "find": "r = read_site(d, map((s) -> s[:name], tagged(:ok, acc)))",
     "replace": "r = read_site(d, [])"
   },
   {
@@ -422,8 +422,8 @@
   {
     "name": "entry refusals are dropped",
     "file": "toride.b",
-    "find": "append(append(read[:refusals], bads(site_rs)), bads(entry_rs))",
-    "replace": "append(read[:refusals], bads(site_rs))"
+    "find": "            append(read[:refusals], tagged(:bad, site_rs)),\n            tagged(:bad, entry_rs)\n",
+    "replace": "            read[:refusals],\n            tagged(:bad, site_rs)\n"
   },
   {
     "name": "an empty object is unreadable",
@@ -680,13 +680,13 @@
   {
     "name": "the header drops the gateway",
     "file": "toride.b",
-    "find": "\"# site: #{site_label(run[:site])} gateway: #{to_s(run[:gateway])}\"",
-    "replace": "\"# site: #{site_label(run[:site])}\""
+    "find": "\"# site: #{to_s(run[:site])} gateway: #{to_s(run[:gateway])}\"",
+    "replace": "\"# site: #{to_s(run[:site])}\""
   },
   {
     "name": "a blind run is written",
     "file": "toride.b",
-    "find": "  if not is_empty(blind_axes(run))",
+    "find": "  if not is_empty(unread_among(run, %i[site gateway]))",
     "replace": "  if false"
   },
   {

@@ -9,7 +9,7 @@ primitives, and the verb graph names them in this space.
 """
 
 use("moji", %i[present starts_with strip_suffix])
-use("retsu", %i[concat_lists last push take_while])
+use("retsu", %i[concat_lists first is_empty last push take_while])
 
 @doc """
 absolute: the path made absolute against the current directory.
@@ -35,6 +35,21 @@ def on_blue_path(rel)
     [path_join(cwd, "bidamas"), path_join(cwd, "../../bidamas"), cwd]
   )
   filter(path_exists, map((r) -> path_join(r, rel), roots))
+end
+
+@doc """
+fixture: the text of a bidama's fixture, `<package>/fixtures/<name>` found on the bidama roots; a fixture no root holds is refused by its path.
+
+    (fixture("fairu", "no-such-fixture") rescue :no_fixture) #=> :no_fixture
+"""
+def fixture(package, name)
+  rel = "#{package}/fixtures/#{name}"
+  hits = filter(is_file?, on_blue_path(rel))
+  if is_empty(hits)
+    raise(:no_fixture, rel)
+  else
+    read_file(first(hits))
+  end
 end
 
 @doc """
@@ -182,4 +197,9 @@ test "on_blue_path finds a file below the bidama roots and nothing that is not t
     on_blue_path("fairu/fairu.b")
   )
   assert on_blue_path("fairu/no-such-file.b") == []
+end
+
+test "fixture reads a bidama's fixture by name and refuses one that is not there"
+  assert fixture("fairu", "plain.txt") == unlines(["a fixture"])
+  assert (fixture("fairu", "no-such-fixture") rescue :no_fixture) == :no_fixture
 end

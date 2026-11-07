@@ -295,6 +295,16 @@ def axis_states(axes)
 end
 
 @doc """
+variants: The variants one axis of a closed set of axes can take, nil for an axis the set does not name.
+
+    variants([[:a, %i[x y]], [:b, [:p]]], :a) #=> [:x, :y]
+    variants([[:a, [:x]]], :z).nil? #=> true
+"""
+def variants(axes, axis)
+  last(first(filter((a) -> first(a) == axis, axes)))
+end
+
+@doc """
 row_key: A state's row in a decision matrix: its variants in axis order, tab-separated.
 
     row_key([[:a, %i[x y]], [:b, %i[p q]]], {a: :y, b: :p}) #=> "y\tp"

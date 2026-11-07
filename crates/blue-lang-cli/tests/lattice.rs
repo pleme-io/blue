@@ -881,3 +881,38 @@ fn a_project_with_no_packages_root_is_still_held_to_its_allow() {
         err(&o)
     );
 }
+
+const EXEC: &str = "def get(u)\n  exec_into(u, [])\nend\n";
+
+fn service_bluefile(access: &str) -> String {
+    format!(
+        "package(\"app\", \"0.1.0\")\npackages(\"bidamas\")\nservice(\"app\", {{program: \"main.b\", repository: \"ghcr.io/pleme-io/app\", port: 8080{access}}})\n"
+    )
+}
+
+#[test]
+fn a_service_whose_code_reaches_past_its_access_is_refused_at_lock() {
+    let dir = project("access-past", &service_bluefile(""), EXEC, REDE);
+    let o = lock(&dir);
+    assert!(!o.status.success(), "{}", err(&o));
+    let e = err(&o);
+    assert!(
+        e.contains("service `app` declares access effects [network, clock, entropy, environment]"),
+        "{e}"
+    );
+    assert!(e.contains("needs 'process'"), "{e}");
+}
+
+#[test]
+fn a_service_whose_access_covers_its_code_locks() {
+    let dir = project(
+        "access-covers",
+        &service_bluefile(
+            ", access: {effects: [:network, :process]}, runtime: :native, because: :process",
+        ),
+        EXEC,
+        REDE,
+    );
+    let o = lock(&dir);
+    assert!(o.status.success(), "{}", err(&o));
+}

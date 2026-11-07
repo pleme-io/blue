@@ -551,7 +551,8 @@ its queries (`kueri`), its API (`toriyose/outou`, compiled to one statement),
 its client (`danpen`, `kyasshu`), its stores (`kiibariu`, `sutoriimu`), its
 gates (kenshi) and its classes (khipu). A program writes one `use` and one
 model; the bidama's name is minted through the naming procedure
-(`theory/NAMING.md`), pending.
+(`theory/NAMING.md`), pending. The design, the research it rests on and its
+rungs D1 to D6: `docs/DATA-FRAMEWORK.md`.
 
 **A schema is a bidama.** A model lives in its own bidama, versioned and
 locked like any package and hashed by `teeburu::version_hash`, so one

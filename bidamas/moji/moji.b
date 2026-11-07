@@ -681,6 +681,38 @@ def title_case(s)
   join(map(capitalize, words(s)), " ")
 end
 
+@doc """
+name_words: the words of a name written in snake, kebab or spaced form, empties dropped.
+
+    name_words("created_at") #=> ["created", "at"]
+"""
+def name_words(name)
+  words(replace(replace(name, "_", " "), "-", " "))
+end
+
+@doc """
+pascal_case: a snake, kebab or spaced name as one word, each part capitalized: a type name.
+
+    pascal_case("ledger_entry") #=> "LedgerEntry"
+"""
+def pascal_case(name)
+  join(map(capitalize, name_words(name)), "")
+end
+
+@doc """
+camel_case: a snake, kebab or spaced name as one word, the first part lower case and each later part capitalized: a field name.
+
+    camel_case("created_at") #=> "createdAt"
+"""
+def camel_case(name)
+  ws = name_words(name)
+  if is_empty(ws)
+    ""
+  else
+    concat(downcase(first(ws)), join(map(capitalize, rest(ws)), ""))
+  end
+end
+
 def swap_char(c)
   if c == upcase(c)
     downcase(c)
@@ -837,6 +869,18 @@ test "env_key builds a variable name or a prefix from parts"
   assert env_key(%w[input blue-only]) == "INPUT_BLUE_ONLY"
   assert env_key(["kensa", ""]) == "KENSA_"
   assert env_key(["x"]) == "X"
+end
+
+test "a snake, kebab or spaced name becomes a type name and a field name"
+  assert name_words("__a--b c__") == %w[a b c]
+  assert pascal_case("signing") == "Signing"
+  assert pascal_case("ledger_entry") == "LedgerEntry"
+  assert pascal_case("ledger-entry") == "LedgerEntry"
+  assert camel_case("original_b3") == "originalB3"
+  assert camel_case("ID_value") == "idValue"
+  assert camel_case("id") == "id"
+  assert camel_case("") == ""
+  assert pascal_case("") == ""
 end
 
 test "upper_snake joins a kebab or spaced name into one upper-case word"

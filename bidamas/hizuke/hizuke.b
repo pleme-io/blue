@@ -592,6 +592,36 @@ def format_iso_date(dt)
   format_iso(year_of(dt), month_of(dt), day_of(dt))
 end
 
+@doc """
+rfc3339_of_ms: an instant in Unix milliseconds as RFC 3339 text in UTC, to the millisecond, the shape JavaScript's toISOString writes.
+
+    rfc3339_of_ms(0) #=> "1970-01-01T00:00:00.000Z"
+"""
+def rfc3339_of_ms(ms)
+  whole = floor(ms)
+  secs = floor(whole / 1000)
+  days = floor(secs / 86400)
+  of_day = secs - days * 86400
+  date = format_iso_date(from_day_number(days + to_day_number(1970, 1, 1)))
+  clock = join(
+    [
+      zero_pad(floor(of_day / 3600), 2),
+      zero_pad(floor(of_day % 3600 / 60), 2),
+      zero_pad(of_day % 60, 2)
+    ],
+    ":"
+  )
+  "#{date}T#{clock}.#{zero_pad(whole - secs * 1000, 3)}Z"
+end
+
+test "an instant in Unix milliseconds reads as RFC 3339 in UTC"
+  assert rfc3339_of_ms(0) == "1970-01-01T00:00:00.000Z"
+  assert rfc3339_of_ms(951_782_400_000) == "2000-02-29T00:00:00.000Z"
+  assert rfc3339_of_ms(1_762_259_696_789) == "2025-11-04T12:34:56.789Z"
+  assert rfc3339_of_ms(1_709_251_199_999) == "2024-02-29T23:59:59.999Z"
+  assert rfc3339_of_ms(-1) == "1969-12-31T23:59:59.999Z"
+end
+
 test "leap years, including the century rules"
   # 1900 is NOT a leap year and 2000 IS — the pair that separates a correct
   # implementation from `y % 4 == 0`.

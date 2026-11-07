@@ -11,13 +11,22 @@ a value built from type constructors, and a resolver is a blue function of
 (parent, args, context). No I/O happens here: host effects enter only
 through the resolvers a service supplies. `from_model` derives object types
 and the query root from an entity map, as a pure function, so a model
-renders straight into a schema.
+renders straight into a schema; `from_teeburu` reads a chozou/teeburu data
+model as that map, so one declaration names a service's storage and its
+GraphQL types. `http_routes` serves a schema as kyuuji routes, GET and POST
+at one path, answered by `http_answer` with a typed error for a request
+that cannot be read.
+
+    as_ref("Int") #=> type_ref("Int")
 """
 
+use("eigyou/kyuuji")
+use("hizuke", [:rfc3339_of_ms])
 use("jisho", [:has?])
 use("kansuu", [:apply_when])
-use("kyohi", %i[ok ok? refusal refusal_of refused value why])
-use("moji", [:starts_with])
+use("kyohi", %i[kind ok ok? refusal refusal_of refused value why])
+
+use("moji", %i[camel_case pascal_case starts_with])
 
 use(
   "retsu",
@@ -1954,15 +1963,286 @@ def from_model(model)
         [
           scalar_type(
             "DateTime",
-            {description: "An RFC 3339 date and time, as a String."}
+            {
+              description: "An RFC 3339 date and time, as a String.",
+              serialize: datetime_text
+            }
           )
         ]
       else
         []
       end
     ),
-    refusals: flat_map(parts, (p) -> p[1])
+    refusals: append(model[:refusals] or [], flat_map(parts, (p) -> p[1]))
   }
+end
+
+@doc """
+datetime_text: a DateTime as it is answered: text passes through, and a whole number is read as Unix milliseconds and written in RFC 3339.
+
+    datetime_text(0) #=> "1970-01-01T00:00:00.000Z"
+"""
+def datetime_text(v)
+  if string?(v)
+    v
+  elsif integer?(v)
+    rfc3339_of_ms(v)
+  else
+    raise(:coerce, "DateTime cannot represent value: #{shown_value(v)}")
+  end
+end
+
+@doc """
+teeburu_scalars: the model kind each teeburu field type is served as; a type absent here has no GraphQL scalar, and from_model refuses its field by name.
+
+    teeburu_scalars[:timestamp] #=> :time
+"""
+def teeburu_scalars()
+  {
+    uuid: :id,
+    text: :string,
+    int: :int,
+    float: :float,
+    bool: :bool,
+    timestamp: :time
+  }
+end
+
+def teeburu_field(ename, fname, rec, omit)
+  {
+    name: camel_case(to_s(fname)),
+    type: get(teeburu_scalars, rec[:type]) or rec[:type],
+    optional: rec[:null] != false,
+    public: not contains(omit, "#{to_s(ename)}.#{to_s(fname)}")
+  }
+end
+
+def teeburu_relations(ent)
+  map(
+    (r) -> {name: camel_case(to_s(first(r))), entity: pascal_case(to_s(r[1]))},
+    map_entries(ent[:relations] or {})
+  )
+end
+
+def teeburu_reverse(declared, target)
+  flat_map(
+    declared,
+    fn(e)
+      owner = pascal_case(to_s(first(e)))
+      map(
+        (_r) -> {name: plural_of({name: owner}), entity: owner, many: true},
+        filter((r) -> r[1] == target, map_entries(e[1][:relations] or {}))
+      )
+    end
+  )
+end
+
+def distinct_members(ename, members)
+  reduce(
+    fn(acc, m)
+      if contains(acc.names, m.member.name)
+        {
+          **acc,
+          refusals: append(
+            acc.refusals,
+            [
+              refusal(
+                :name_clash,
+                "#{ename}.#{m.member.name} is named twice; the later one is left out"
+              )
+            ]
+          )
+        }
+      else
+        {
+          **acc,
+          names: append(acc.names, [m.member.name]),
+          kept: append(acc.kept, [m])
+        }
+      end
+    end,
+    {names: [], kept: [], refusals: []},
+    members
+  )
+end
+
+@doc """
+from_teeburu: a teeburu model as the model from_model reads: each entity a type named in PascalCase, each field and relation in camelCase, each field typed through teeburu_scalars and nullable unless declared `null: false`, and every relation also answered from the entity it names as the list of its owners. `omit` lists `entity.field` names kept out of GraphQL; a name used twice on one type is refused alone.
+
+    from_teeburu({entities: {}}) #=> {entities: [], refusals: []}
+"""
+def from_teeburu(model, opts?)
+  omit = (opts or {})[:omit] or []
+  declared = map_entries(model[:entities] or {})
+  parts = map(
+    fn(e)
+      ename = pascal_case(to_s(first(e)))
+      key = e[1][:key] or :id
+      all = map_entries(e[1][:fields] or {})
+      fields = map(
+        fn(f)
+          {kind: :field, member: teeburu_field(first(e), first(f), f[1], omit)}
+        end,
+        append(
+          filter((f) -> first(f) == key, all),
+          filter((f) -> first(f) != key, all)
+        )
+      )
+      rels = map(
+        (r) -> {kind: :relation, member: r},
+        append(teeburu_relations(e[1]), teeburu_reverse(declared, first(e)))
+      )
+      d = distinct_members(ename, append(fields, rels))
+      pick = (k) -> map((m) -> m.member, filter((m) -> m.kind == k, d.kept))
+      [
+        {
+          name: ename,
+          key: camel_case(to_s(key)),
+          fields: pick(:field),
+          relations: pick(:relation)
+        },
+        d.refusals
+      ]
+    end,
+    declared
+  )
+  {entities: map(first, parts), refusals: flat_map(parts, (p) -> p[1])}
+end
+
+@doc """
+http_params: the query, variables and operation name a GraphQL-over-HTTP request carries, from a GET's query string or a POST's JSON body; a POST of any other content type, a body that is not a JSON object, no query, or variables that are not an object is refused by name.
+
+    ok?(http_params({method: "GET", path: "/graphql", query: "query=%7Ba%7D"})) #=> true
+"""
+def http_params(req)
+  bad = (text) -> refused(refusal(:bad_request, text))
+  if req[:method] == "GET"
+    q = eigyou::kyuuji::query_params(req)
+    at = fn(k)
+      v = get(q, k)
+      if v != nil
+        eigyou::kyuuji::form_decoded(v)
+      end
+    end
+    vars = at("variables")
+    parsed = if vars.nil?
+      ok(nil)
+    else
+      ok(json_read(vars)) rescue bad("the variables are not JSON")
+    end
+    if not ok?(parsed)
+      parsed
+    else
+      params_of(
+        {
+          "query" => at("query"),
+          "variables" => value(parsed),
+          "operationName" => at("operationName")
+        },
+        bad
+      )
+    end
+  elsif not starts_with(
+    downcase(eigyou::kyuuji::header(req, "content-type") or ""),
+    "application/json"
+  )
+    refused(
+      refusal(:unsupported_media_type, "a POST to GraphQL is application/json")
+    )
+  else
+    body = json_read(req[:body] or "") rescue nil
+    if not map?(body)
+      bad("the body is not a JSON object")
+    else
+      params_of(body, bad)
+    end
+  end
+end
+
+def params_of(b, bad)
+  q = b["query"]
+  v = b["variables"]
+  name = b["operationName"]
+  if not string?(q) or q == ""
+    bad("the request carries no query")
+  elsif v != nil and not map?(v)
+    bad("the variables are not a JSON object")
+  elsif name != nil and not string?(name)
+    bad("the operationName is not a string")
+  else
+    ok({query: q, variables: v or {}, operation_name: name})
+  end
+end
+
+def http_error(status, code, message)
+  eigyou::kyuuji::json(status, {errors: [{message:, extensions: {code:}}]})
+end
+
+def query_only?(text, name)
+  p = parse(text)
+  if not ok?(p)
+    true
+  else
+    op = operation_of(value(p), name)
+    not ok?(op) or value(op).operation == :query
+  end
+end
+
+@doc """
+http_answer: a GraphQL-over-HTTP request answered through request as application/json: 200 when the answer carries data, 400 when it carries only errors, 405 for a GET that is not a query, 415 for a POST that is not JSON. `context` is a function of the HTTP request giving the resolvers' context; with none, the context is the request.
+
+    http_answer(fixture, {method: "GET", path: "/graphql", query: "query=%7Bhero%7Bid%7D%7D"})[:status] #=> 200
+"""
+def http_answer(sc, req, opts?)
+  o = opts or {}
+  p = http_params(req)
+  if not ok?(p)
+    r = refusal_of(p)
+    if kind(r) == :unsupported_media_type
+      http_error(415, "UNSUPPORTED_MEDIA_TYPE", why(r))
+    else
+      http_error(400, "BAD_REQUEST", why(r))
+    end
+  else
+    g = value(p)
+    if req[:method] == "GET" and not query_only?(g.query, g.operation_name)
+      r = http_error(405, "METHOD_NOT_ALLOWED", "a GET answers only a query")
+      assoc(r, :headers, assoc(r[:headers], "Allow", "POST"))
+    else
+      ctx = if o[:context].nil?
+        req
+      else
+        f = o[:context]
+        f(req)
+      end
+      out = request(
+        sc,
+        g.query,
+        {variables: g.variables, operation_name: g.operation_name, context: ctx}
+      )
+      eigyou::kyuuji::json(
+        if has?(out, :data)
+          200
+        else
+          400
+        end,
+        out
+      )
+    end
+  end
+end
+
+@doc """
+http_routes: the kyuuji routes that serve a schema at one path, GET for a query string and POST for a JSON body, each answered by http_answer.
+
+    size(http_routes("/graphql", fixture)) #=> 2
+"""
+def http_routes(path, sc, opts?)
+  h = (req) -> http_answer(sc, req, opts)
+  [
+    eigyou::kyuuji::route("GET", path, h),
+    eigyou::kyuuji::route("POST", path, h)
+  ]
 end
 
 def with_resolvers(types, table)
@@ -2317,6 +2597,233 @@ test "a derived schema answers once resolvers are laid over it"
       }
     }
   assert request(sc, "{ team(id: \"zz\") { id } }") == {data: {"team" => nil}}
+end
+
+def shop_model()
+  {
+    name: "shop",
+    version: 1,
+    entities: {
+      customer: {
+        key: :id,
+        fields: {
+          id: {type: :uuid, null: false},
+          full_name: {type: :text, null: false},
+          orders: {type: :int, null: true}
+        }
+      },
+      order: {
+        key: :id,
+        fields: {
+          id: {type: :uuid, null: false},
+          placed_at: {type: :timestamp, null: true},
+          total: {type: :decimal, null: false},
+          note: {type: :text, null: true},
+          secret_code: {type: :text, null: true}
+        },
+        relations: {customer: :customer}
+      }
+    }
+  }
+end
+
+def field_texts(t)
+  map((f) -> "#{f.name}: #{toriyose::danpen::type_text(f.type)}", t.fields)
+end
+
+test "a teeburu model derives a schema: names cased, types mapped as data, an unmapped type and a clash refused alone"
+  t = from_teeburu(shop_model, {omit: ["order.secret_code"]})
+  d = from_model(t)
+  assert map((x) -> x.name, d.types) == %w[Customer Order Query DateTime]
+  assert field_texts(first(d.types)) ==
+    ["id: ID!", "fullName: String!", "orders: Int"]
+  assert field_texts(d.types[1]) ==
+    ["id: ID!", "note: String", "placedAt: DateTime", "customer: Customer"]
+  assert kyohi::kinds(d.refusals) == %i[name_clash unknown_type]
+  assert map(why, d.refusals) ==
+    [
+      "Customer.orders is named twice; the later one is left out",
+      "Order.total has the type decimal, which has no GraphQL scalar"
+    ]
+  assert map((f) -> f.name, d.types[2].fields) ==
+    %w[customer customers order orders]
+  assert from_teeburu({entities: {}}) == {entities: [], refusals: []}
+end
+
+test "a relation is answered both ways, and a stored millisecond instant reads as RFC 3339"
+  m = {
+    entities: {
+      team: {key: :id, fields: {id: {type: :uuid, null: false}}},
+      player: {
+        key: :id,
+        fields: {
+          id: {type: :uuid, null: false},
+          joined_at: {type: :timestamp, null: false}
+        },
+        relations: {team: :team}
+      }
+    }
+  }
+  t = from_teeburu(m)
+  assert t.refusals == []
+  players = [
+    {id: "p1", joinedAt: 1_762_259_696_789, team: "t1"},
+    {id: "p2", joinedAt: "2020-01-01T00:00:00Z", team: "t1"}
+  ]
+  sc = schema(
+    {
+      types: with_resolvers(
+        from_model(t).types,
+        {
+          "Query.team" => (_p, a, _c) -> {id: a.id},
+          "Team.players" => fn(p, _a, _c)
+            filter((x) -> x.team == p.id, players)
+          end,
+          "Player.team" => (p, _a, _c) -> {id: p.team}
+        }
+      )
+    }
+  )
+  assert request(
+    sc,
+    "{ team(id: \"t1\") { players { id joinedAt team { id } } } }"
+  ) ==
+    {
+      data: {
+        "team" => {
+          "players" => [
+            {
+              "id" => "p1",
+              "joinedAt" => "2025-11-04T12:34:56.789Z",
+              "team" => {"id" => "t1"}
+            },
+            {
+              "id" => "p2",
+              "joinedAt" => "2020-01-01T00:00:00Z",
+              "team" => {"id" => "t1"}
+            }
+          ]
+        }
+      }
+    }
+end
+
+def http_get(qs)
+  eigyou::kyuuji::request("GET", "/graphql", qs)
+end
+
+def http_post(content_type, body)
+  assoc(
+    eigyou::kyuuji::with_headers(
+      eigyou::kyuuji::request("POST", "/graphql", ""),
+      [["Content-Type", content_type]]
+    ),
+    :body,
+    body
+  )
+end
+
+def answered(sc, req, opts?)
+  r = http_answer(sc, req, opts)
+  {
+    status: r[:status],
+    type: r[:headers]["Content-Type"],
+    body: json_read(r[:body])
+  }
+end
+
+test "a GraphQL request is answered over HTTP by GET and POST, and a bad one with a typed error"
+  sc = fixture
+  got = answered(sc, http_get("query=%7B+hero+%7B+id+%7D+%7D"))
+  assert got ==
+    {
+      status: 200,
+      type: "application/json",
+      body: {"data" => {"hero" => {"id" => "2001"}}}
+    }
+  posted = answered(
+    sc,
+    http_post(
+      "application/json; charset=utf-8",
+      "{\"query\": \"query ($id: ID!) { human(id: $id) { name } }\", \"variables\": {\"id\": \"1000\"}}"
+    )
+  )
+  assert posted.status == 200
+  assert posted.body == {"data" => {"human" => {"name" => "Luke Skywalker"}}}
+  unknown = answered(
+    sc,
+    http_post("application/json", "{\"query\": \"{ nope }\"}")
+  )
+  assert unknown.status == 400
+  assert not has?(unknown.body, "data")
+  assert contains?(
+    first(unknown.body["errors"])["message"],
+    "Query has no field nope"
+  )
+  form = answered(
+    sc,
+    http_post("text/plain", "{\"query\": \"{ hero { id } }\"}")
+  )
+  assert form.status == 415
+  assert first(form.body["errors"])["extensions"] ==
+    {"code" => "UNSUPPORTED_MEDIA_TYPE"}
+  bad = map(
+    (b) -> answered(sc, http_post("application/json", b)),
+    [
+      "not json",
+      "[1]",
+      "{\"query\": \"\"}",
+      "{\"query\": \"{ hero { id } }\", \"variables\": [1]}"
+    ]
+  )
+  assert map((r) -> r.status, bad) == [400, 400, 400, 400]
+  assert map((r) -> first(r.body["errors"])["message"], bad) ==
+    [
+      "the body is not a JSON object",
+      "the body is not a JSON object",
+      "the request carries no query",
+      "the variables are not a JSON object"
+    ]
+  mutation = http_answer(
+    sc,
+    http_get("query=mutation+%7B+createReview(review%3A+%7Bstars%3A+5%7D)+%7B+stars+%7D+%7D")
+  )
+  by_get = answered(
+    sc,
+    http_get("query=query+A+%7Bhero%7Bid%7D%7D+query+B(%24id%3A+ID!)+%7Bhuman(id%3A+%24id)%7Bname%7D%7D&operationName=B&variables=%7B%22id%22%3A%221002%22%7D")
+  )
+  assert by_get.body == {"data" => {"human" => {"name" => "Han Solo"}}}
+  assert answered(
+    sc,
+    http_get("query=%7Bhero%7Bid%7D%7D&variables=%7Bno")
+  ).body ==
+    {
+      "errors" => [
+        {
+          "message" => "the variables are not JSON",
+          "extensions" => {"code" => "BAD_REQUEST"}
+        }
+      ]
+    }
+  assert mutation[:status] == 405
+  assert mutation[:headers]["Allow"] == "POST"
+  assert answered(
+    sc,
+    http_get("query=%7Bwhoami%7D"),
+    {context: (req) -> {user: req[:method]}}
+  ).body == {"data" => {"whoami" => "GET"}}
+end
+
+test "http_routes serve a schema at one path through a kyuuji router"
+  app = eigyou::kyuuji::router(http_routes("/graphql", fixture))
+  assert app[:refusals] == []
+  r = eigyou::kyuuji::dispatch(app, http_get("query=%7Bhero%7Bid%7D%7D"))
+  assert r[:status] == 200
+  put = eigyou::kyuuji::dispatch(
+    app,
+    eigyou::kyuuji::request("PUT", "/graphql", "")
+  )
+  assert put[:status] == 405
 end
 
 test "execution resolves aliases, arguments, variables, fragments and abstract types"
@@ -2692,9 +3199,8 @@ test "a valid document has no findings, and a bad one is refused with its locati
   bad = findings(value(parse(join_lines(["{", "  hero { nope } }"]))), sc)
   assert size(bad) == 1
   assert first(bad).locations == [{line: 2, column: 10}]
-  assert kyohi::kind(refusal_of(validate(value(parse("{ nope }")), sc))) ==
-    :invalid
-  assert kyohi::kind(refusal_of(parse("{ a "))) == :parse_error
+  assert kind(refusal_of(validate(value(parse("{ nope }")), sc))) == :invalid
+  assert kind(refusal_of(parse("{ a "))) == :parse_error
 end
 
 test "the schema renders as SDL that danpen reads back"

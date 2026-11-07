@@ -27,7 +27,10 @@ unknown constraint each have no way to answer "ok". The store is DuckDB
 through `kueri`, so blue writes the algebra and DuckDB does the joins.
 
 arika's typed facts (`theory/ARIKA.md` §2) are the first tenant: the same
-rule engine, the same Merkle snapshot, the same GraphQL face.
+rule engine, the same Merkle snapshot, the same GraphQL face. Blue's own
+ontology is the second ([`HORIZON.md`](HORIZON.md) H19): every concept of the
+language a class rendered from the table that owns it, every law a shape, and
+the tests generated from the shapes. Its first slice is capabilities.
 
 ## What OxiRS teaches
 

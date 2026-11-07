@@ -2726,7 +2726,7 @@ G	ugoki?	tween	decl	tween(from, to, opts) -> motion	validate	caixa-bevy_tweening
 D	ukai	apply	effect	apply(plan, opts) -> record	idempotent,log,process	-	partial:ukai	install the planned routes; same plan twice changes nothing	1	apply(plan, opts) -> record	yes
 D	ukai	decide	pure	decide(state) -> outcome	validate	-	exists:ukai	noop, bypass, refused or blind, over a total state	0	decide(state) -> outcome	yes
 D	ukai	observe	effect	observe(opts) -> state	process,resource	-	partial:ukai	read routes and overlay status into one typed state	0	observe(opts) -> state	yes
-D	ukai	plan	pure	plan(outcome) -> [action]	validate	-	exists:ukai	host routes or policy rules an outcome needs	0	plan(outcome) -> [action]	yes
+D	ukai	plan	pure	plan(outcome) -> [action]	validate	-	exists:ukai	host routes or policy rules an outcome needs: the stale ones retracted first, then the missing ones added	0	plan(outcome) -> [action]	yes
 E	uwagaki?	diff	pure	diff(a, b) -> [change]	config	-	absent	how two environments differ in resolved config	1	diff(a, b) -> [change]	yes
 E	uwagaki?	freeze	effect	freeze(name, reason) -> nil	capability,idempotent,log	-	absent	stop changes to an environment	3	freeze(name, reason) -> nil	yes
 E	uwagaki?	get	effect	get(name) -> environment or nil	config	-	absent	one environment's record	1	get(name) -> environment or nil	yes

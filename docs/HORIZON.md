@@ -1,6 +1,6 @@
 ---
 kind: explanation
-summary: the long plan for blue, ten horizons from hygiene to a language that proves, replays and explains itself, and eight authority horizons that make every host effect a capability granted from one declaration in every placement; destination first, each horizon with its first step, its gate and what it unlocks
+summary: the long plan for blue, ten horizons from hygiene to a language that proves, replays and explains itself, eight authority horizons that make every host effect a capability granted from one declaration in every placement, and an ontology of every concept in khipu that the tests are generated from; destination first, each horizon with its first step, its gate and what it unlocks
 ---
 
 # HORIZON: where blue goes next
@@ -217,7 +217,7 @@ unrelated definition, and they do not.
 **First step:** the quality signals rendered per package in CATALOG.
 **Gate:** each signal reproduces from the lock alone.
 
-## Authority: one capability set, every placement (H11 to H18)
+## Authority and ontology: one capability set, every placement, every concept a class (H11 to H19)
 
 Added 2026-11-07 (blue `9ca7c2cc`, release v0.0.160), from two read-only
 surveys of the language and of every placement. Every "built" below cites code.
@@ -409,6 +409,50 @@ The hold already counts calls per granted name
 **Gate:** a capability declared and never used by the test suite appears in
 the census, and the row may not rise.
 
+### H19. Ontology: every concept a class, every law a shape
+
+Operator, 2026-11-07: *"capabilities and everything else in bluelang should
+have full ontology and therefore be able to be fully ontologically tested"*.
+
+Blue's concepts live today in typed tables that do not know each other: the
+waku capability table, `Effect`, the host installers, `RULES`, the word
+shapes, the Bluefile and its lock, arika's facts. A relation between two of
+them (this host word belongs to that capability; that capability renders at
+this placement) is checked, if at all, by a test written for that pair.
+
+- **One ontology of blue, in khipu.** Classes for each concept (Capability,
+  HostWord, Effect, Placement, Boundary, Bidama, Definition, Rule, Shape,
+  Process, Service, Access, ...) and properties between them (`implies`,
+  `projectsTo`, `belongsTo`, `rendersAt`, `enforcedBy`, `reaches`, `declares`,
+  `refusedBy`). Each instance is rendered from the typed table that owns it,
+  never hand-kept, as N-Quads in khipu (K1a, built), with the dataset's
+  content hash.
+- **Axioms are shapes.** Each law is a khipu shape (KHIPU K4, each a `kousei`
+  entry judged alone): every host word belongs to exactly one capability;
+  every capability projects to an Effect or says it has none; every
+  (placement, capability) pair has a rendering or a typed refusal; every rule
+  has a witness, a law and a fix; every exported definition has a doc. An
+  unbuilt constraint is `blind`, and `blind` is never `conforms`.
+- **Ontological testing.** The tests are generated from the ontology: each
+  axiom over each instance is a row. H17's matrix is the (placement,
+  capability) slice of it. An all-variants gate makes completeness a build
+  fact: a new variant of a concept's enum or sum with no ontology rows fails
+  the build.
+- **One face to ask.** `blue ontology ask` takes a SPARQL query (KHIPU K2), and
+  arika's facts (H5) join as the instances of Definition.
+
+**First step:** the capability ontology. Capability, HostWord, Effect and
+Placement rendered from the waku table, the `Effect` map and a placement
+table into N-Quads, and four shapes judged in blue over the quads until K4
+lands.
+**Gate:** red runs: a host word with no capability, a capability with no
+Effect decision and a placement with no row for a capability each turn the
+ontology check red, naming the instance and the axiom.
+**Depends on:** khipu K1b to K4 for the store, the query and the shape
+engine; H5 for the facts.
+**Unlocks:** H17 (its matrix is generated), H14 and H18 (their effects and
+receipts become instances).
+
 ## Order
 
 | When | Horizons | Why first |
@@ -416,7 +460,7 @@ the census, and the row may not rise.
 | Now | H0; H1 (unions, patterns, `?`); H3 (the test cache) | H0 makes the ledger true; H1 completes the data model every later horizon names; H3 makes every later change cheaper to verify |
 | Next | H2; H4 (async A1); H5 (arika Phase 2); H6 (heni in the census) | each builds on H1's shapes or H3's identities |
 | Later | H7; H8; H9; H10 | each multiplies what the earlier horizons made true |
-| Authority, now | H11; H12 rings 1 and 2; H16's first step | one vocabulary first, so every later horizon names one set; the census measures the flip before it happens |
+| Authority, now | H11; H12 rings 1 and 2; H16's first step; H19's first step | one vocabulary first, so every later horizon names one set; the census measures the flip before it happens; the capability ontology makes every later authority horizon a set of generated rows |
 | Authority, next | H12 rings 3 and 4; H13; H17 | per-bidama frames and the parity matrix stand on one vocabulary |
 | Authority, later | H14; H15; H18 | effect inference and capability values change the language surface; least privilege needs receipts from every placement |
 

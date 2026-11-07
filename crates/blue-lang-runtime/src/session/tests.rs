@@ -192,6 +192,26 @@ fn a_frame_granting_the_host_evaluates_it() {
     assert_eq!(value(s.eval(&code, None, None)), "\"granted\"");
 }
 
+#[cfg(feature = "sys")]
+#[test]
+fn an_embedded_session_is_held_to_its_frame() {
+    let mut s = Session::embedded(Config::new(Box::new(NoLoader)), 7_i64, |interp| {
+        interp.register_fn(
+            "seven",
+            Arity::Exact(0),
+            |_: &[Value], p: &mut Paired<i64>, _| Ok(Value::Int(p.app)),
+        );
+    });
+    assert_eq!(
+        stop(s.eval("read_file(\"/etc/hosts\")", None, None)),
+        Stop::Volatile {
+            reach: Capability::FileSystem,
+            name: "read_file".to_string(),
+        }
+    );
+    assert_eq!(value(s.eval("seven()", None, None)), "7");
+}
+
 #[test]
 fn a_loaded_file_is_a_context_its_definitions_resolve_in() {
     let path = file(

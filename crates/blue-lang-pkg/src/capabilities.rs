@@ -371,6 +371,13 @@ pub enum CapabilityError {
     /// The join of the floors does not fit under the ceiling.
     #[error("{}", .0.iter().map(ToString::to_string).collect::<Vec<_>>().join("\n"))]
     Breach(Vec<Breach>),
+    /// A service's code reaches past its `access.effects`.
+    #[error("service `{service}` declares access effects [{}], and its code reaches past them:\n{}", .effects.join(", "), .breaches.iter().map(ToString::to_string).collect::<Vec<_>>().join("\n"))]
+    Access {
+        service: String,
+        effects: Vec<String>,
+        breaches: Vec<Breach>,
+    },
     /// A provider's `for:` names a package the root does not reach.
     #[error("`virtualize(:{capability}, …)` is for `{package}`, which [{root}] does not use; name a package it uses")]
     Scope {
@@ -1166,17 +1173,52 @@ fn held_project(entry: &Path) -> Result<Option<Bluefile>, String> {
 ///
 /// As [`graph`] and [`verify`].
 pub fn check_dir(dir: &Path, bf: &Bluefile) -> Result<Option<CapabilityRecord>, CapabilityError> {
-    if !declared(bf) {
+    if !declared(bf) && bf.project.services.is_empty() {
         return Ok(None);
     }
     let loader = LoadPath::for_dir(dir).unpinned();
     let g = graph(dir, bf, &loader)?;
-    verify(&g, &ceiling_of(bf), &provisions_of(bf)).map(|r| {
+    let provisions = provisions_of(bf);
+    for (name, service) in &bf.project.services {
+        verify_access(&g, name, &service.access, &provisions)?;
+    }
+    if !declared(bf) {
+        return Ok(None);
+    }
+    verify(&g, &ceiling_of(bf), &provisions).map(|r| {
         Some(CapabilityRecord {
             bounds: bf.project.bounds,
             ..r
         })
     })
+}
+
+/// Verify that the code `graph` reaches fits under one service's
+/// `access.effects`, read as a ceiling of the capabilities they project to.
+///
+/// # Errors
+///
+/// [`CapabilityError::Access`], with a path to each capability past it.
+pub fn verify_access(
+    graph: &Graph,
+    service: &str,
+    access: &crate::deploy::Access,
+    provisions: &Provisions,
+) -> Result<(), CapabilityError> {
+    let ceiling = Reach::only(access.effects.iter().map(|e| e.capability()).chain(pure()));
+    match verify(graph, &ceiling, provisions) {
+        Ok(_) => Ok(()),
+        Err(CapabilityError::Breach(breaches)) => Err(CapabilityError::Access {
+            service: service.to_string(),
+            effects: access
+                .effects
+                .iter()
+                .map(|e| e.name().to_string())
+                .collect(),
+            breaches,
+        }),
+        Err(other) => Err(other),
+    }
 }
 
 #[cfg(test)]

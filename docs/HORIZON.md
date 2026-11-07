@@ -271,6 +271,15 @@ definition.
 **Gate:** red run: a service whose code calls `exec_into` without `:process`
 in `access` fails the lock.
 **Unlocks:** H12, H16.
+**Built (first step, 2026-11-07):** `Effect::capability` and
+`Effect::of_capability`, the second an exhaustive match over every
+`Capability` (`crates/blue-lang-pkg/src/deploy/runtime.rs`); `access.effects`
+reads either spelling and refuses a host capability with no service spelling
+by name; `capabilities::verify_access` holds each service's code to its
+`access.effects` at lock (`crates/blue-lang-pkg/src/capabilities.rs`). Gate:
+`crates/blue-lang-cli/tests/lattice.rs`,
+`a_service_whose_code_reaches_past_its_access_is_refused_at_lock`; red run:
+without the check that test fails.
 
 ### H12. Pure by default
 

@@ -26,7 +26,8 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - id: names
-        run: echo "checks=$(nix eval --raw .#postMerge.x86_64-linux --apply 'cs: builtins.concatStringsSep " " (map (n: ".#postMerge.x86_64-linux." + n) (builtins.attrNames cs))')" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "checks=$(nix eval --raw .#postMerge.x86_64-linux --apply 'cs: builtins.concatStringsSep " " (map (n: ".#postMerge.x86_64-linux." + n) (builtins.attrNames cs))')" >> "$GITHUB_OUTPUT"
 
   checks:
     needs: tier

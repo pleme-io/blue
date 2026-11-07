@@ -1199,13 +1199,22 @@ pub fn check_dir(dir: &Path, bf: &Bluefile) -> Result<Option<CapabilityRecord>, 
 /// # Errors
 ///
 /// [`CapabilityError::Access`], with a path to each capability past it.
+pub const DECLARATION_READ: Capability = Capability::FileSystem;
+
 pub fn verify_access(
     graph: &Graph,
     service: &str,
     access: &crate::deploy::Access,
     provisions: &Provisions,
 ) -> Result<(), CapabilityError> {
-    let ceiling = Reach::only(access.effects.iter().map(|e| e.capability()).chain(pure()));
+    let ceiling = Reach::only(
+        access
+            .effects
+            .iter()
+            .map(|e| e.capability())
+            .chain([DECLARATION_READ])
+            .chain(pure()),
+    );
     match verify(graph, &ceiling, provisions) {
         Ok(_) => Ok(()),
         Err(CapabilityError::Breach(breaches)) => Err(CapabilityError::Access {

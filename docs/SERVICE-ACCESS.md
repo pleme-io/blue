@@ -166,6 +166,7 @@ Each step ends with blue's checks green and a red-then-green test.
 | `access` declaration: `Access`, parsed by `access_of`, attached to `service(...)`, refusals at parse time (`crates/blue-lang-pkg/src/deploy/runtime.rs:85,173,226-241`) | built (re-measured 2026-11-07) |
 | engenho wasm pod: haibi renders `blue.pleme.io/access`; engenho's kidou turns it into a grant (preopens, connect list, bind list, env) | built, the one placement derived from `access` |
 | A service's code floor fits under its `access.effects`, checked by `blue lock` (`capabilities::verify_access`); `Effect` a projection of `Capability` | built (HORIZON H11, 2026-11-07) |
+| Every service reads its declaration (`defaults.yaml`), so its lock ceiling holds `filesystem` (`capabilities::DECLARATION_READ`) | built, typed weaker: no read/write split until H15 path grants; A2/A3 hold the read to the declaration |
 | Chart renderer for `:kernel_bpf`: DaemonSet, host network, bpffs, tracefs, exact capabilities | built, not deployed (`KERNEL.md` §6) |
 | Chart `writes` as `emptyDir` volumes | built (`bidamas/eigyou/haibi/haibi.b:834-845`) |
 | `kakoi.pleme.io/access` for native pods, rendered from `access` | design (HORIZON H16) |

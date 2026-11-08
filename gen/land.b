@@ -1,3 +1,4 @@
+use("gitto", %i[as_tester ask])
 use("moji", %i[after_first take_chars])
 use("retsu", %i[find_first first reject])
 use("shisutemu", %i[status_of stderr_of stdout_of])
@@ -268,12 +269,8 @@ def absorbable?(ahead, touched)
     filter((f) -> member?(f, release_files), touched) == []
 end
 
-def git(args)
-  trim(stdout_of(exec_capture("git", *args)))
-end
-
 def git_lines(args)
-  filter((l) -> l != "", moji::lines(git(args)))
+  filter((l) -> l != "", moji::lines(ask(args)))
 end
 
 def say(line)
@@ -434,11 +431,11 @@ BLUE_LAND_ABSORB_RELEASE=off.
 """
 def absorb_release(sha, ref, left)
   fetch_main
-  base = git(["merge-base", sha, "origin/main"])
+  base = ask(["merge-base", sha, "origin/main"])
   ahead = map(
     fn(c)
       {
-        subject: git(["log", "-1", "--format=%s", c]),
+        subject: ask(["log", "-1", "--format=%s", c]),
         files: git_lines(
           ["diff-tree", "--no-commit-id", "--name-only", "-r", c]
         )
@@ -475,7 +472,7 @@ def absorb_release(sha, ref, left)
     (f) -> not member?(f, release_files),
     git_lines(["diff", "--name-only", sha, "HEAD"])
   )
-  drift = git(
+  drift = ask(
     retsu::concat_lists(%w[diff --name-only origin/main HEAD --], release_files)
   )
   if extra != [] or drift != ""
@@ -498,7 +495,7 @@ def absorb_release(sha, ref, left)
     exit_with(1)
   else
     say(
-      "main moved only by #{to_s(count(ahead))} release commit(s); fast-forwarded it to the tested tree rebased onto them, #{take_chars(git(%w[rev-parse HEAD]), 10)}"
+      "main moved only by #{to_s(count(ahead))} release commit(s); fast-forwarded it to the tested tree rebased onto them, #{take_chars(ask(%w[rev-parse HEAD]), 10)}"
     )
   end
 end
@@ -546,7 +543,7 @@ def regenerate()
     end,
     steps
   )
-  changed = git(%w[status --porcelain --untracked-files=no])
+  changed = ask(%w[status --porcelain --untracked-files=no])
   if changed != ""
     exec_check("git", "add", "-u")
     exec_check(
@@ -554,7 +551,7 @@ def regenerate()
       "commit",
       "-q",
       "-m",
-      "regen after rebasing onto #{git(%w[rev-parse --short origin/main])}"
+      "regen after rebasing onto #{ask(%w[rev-parse --short origin/main])}"
     )
     say("the rebase left generated files stale; regenerated and committed them")
   end
@@ -569,7 +566,7 @@ the paths and stops: that one needs a person.
 def catch_up(a)
   r = exec_capture("git", *append(driver_args, %w[rebase -q origin/main]))
   if status_of(r) != 0
-    paths = git(%w[diff --name-only --diff-filter=U])
+    paths = ask(%w[diff --name-only --diff-filter=U])
     exec_check("git", "rebase", "--abort")
     say(
       if paths == ""
@@ -630,8 +627,8 @@ def ref_for(a)
     scoped_slug(
       slug_for(
         a[:slug],
-        git(%w[rev-parse --abbrev-ref HEAD]),
-        git(%w[rev-parse --short HEAD])
+        ask(%w[rev-parse --abbrev-ref HEAD]),
+        ask(%w[rev-parse --short HEAD])
       ),
       scope
     ),
@@ -640,7 +637,7 @@ def ref_for(a)
 end
 
 def push_land(ref)
-  sha = git(%w[rev-parse HEAD])
+  sha = ask(%w[rev-parse HEAD])
   if exec_check("git", "push", "--force", "origin", "HEAD:refs/heads/#{ref}") !=
       0
     exit_with(1)
@@ -720,7 +717,7 @@ def main()
     )
     exit_with(2)
   end
-  if git(%w[status --porcelain --untracked-files=no]) != ""
+  if ask(%w[status --porcelain --untracked-files=no]) != ""
     say("tracked files differ from HEAD; commit them, since CI checks the commit")
     exit_with(1)
   end
@@ -903,23 +900,6 @@ def source(name)
   read_file(path_join(getenv("GEN_ROOT", cwd), name))
 end
 
-def repo(dir, args)
-  r = exec_capture(
-    "git",
-    "-C",
-    dir,
-    "-c",
-    "user.name=t",
-    "-c",
-    "user.email=t@t",
-    *args
-  )
-  if status_of(r) != 0
-    raise(:git, "git #{join(args, " ")}: #{stderr_of(r)}")
-  end
-  trim(stdout_of(r))
-end
-
 def script(path, text)
   write_file(path, text)
   exec_capture("chmod", "+x", path)
@@ -927,8 +907,8 @@ end
 
 def committed(dir, paths, message)
   map((p) -> write_file(path_join(dir, first(p)), retsu::last(p)), paths)
-  repo(dir, %w[add -A])
-  repo(dir, ["commit", "-q", "-m", message])
+  as_tester(dir, %w[add -A])
+  as_tester(dir, ["commit", "-q", "-m", message])
 end
 
 def landing_fixture()
@@ -976,23 +956,23 @@ def landing_fixture()
   if status_of(exec_capture(self_exe, "lock", work)) != 0
     raise(:fixture, "blue lock failed in #{work}")
   end
-  repo(work, %w[init -q -b main])
-  repo(work, %w[config user.name t])
-  repo(work, %w[config user.email t@t])
+  as_tester(work, %w[init -q -b main])
+  as_tester(work, %w[config user.name t])
+  as_tester(work, %w[config user.email t@t])
   committed(work, [], "base")
-  repo(root, %w[init -q --bare -b main origin.git])
-  repo(work, ["remote", "add", "origin", path_join(root, "origin.git")])
-  repo(work, %w[push -q origin main])
-  repo(work, %w[checkout -q -b topic])
+  as_tester(root, %w[init -q --bare -b main origin.git])
+  as_tester(work, ["remote", "add", "origin", path_join(root, "origin.git")])
+  as_tester(work, %w[push -q origin main])
+  as_tester(work, %w[checkout -q -b topic])
   root
 end
 
 def main_moves(root, paths)
   work = path_join(root, "work")
-  repo(work, %w[checkout -q main])
+  as_tester(work, %w[checkout -q main])
   committed(work, paths, "main moved")
-  repo(work, %w[push -q origin main])
-  repo(work, %w[checkout -q topic])
+  as_tester(work, %w[push -q origin main])
+  as_tester(work, %w[checkout -q topic])
 end
 
 def land_in(root, flags)
@@ -1024,7 +1004,7 @@ def land_with(settings, root, flags)
 end
 
 def landed(root, name)
-  repo(
+  as_tester(
     path_join(root, "work"),
     ["show", "refs/remotes/origin/land/topic:#{name}"]
   )
@@ -1042,11 +1022,13 @@ test "a land behind main whose one conflict is a generated file rebases, regener
     main_moves(root, [%w[notes/ant ant], ["made.txt", unlines(%w[base ant])]])
     r = land_in(root, [])
     assert status_of(r) == 0
-    repo(work, %w[fetch -q origin])
+    as_tester(work, %w[fetch -q origin])
     assert landed(root, "made.txt") == join(%w[base ant bee], line_break)
-    assert repo(work, %w[log -1 --format=%s refs/remotes/origin/land/topic]) ==
-      "topic"
-    repo(work, %w[merge-base --is-ancestor origin/main origin/land/topic])
+    assert as_tester(
+      work,
+      %w[log -1 --format=%s refs/remotes/origin/land/topic]
+    ) == "topic"
+    as_tester(work, %w[merge-base --is-ancestor origin/main origin/land/topic])
     rm_rf(root)
   end
 end
@@ -1060,7 +1042,7 @@ test "a rebase that merges clean but leaves a generated file stale commits the r
     r = land_in(root, [])
     assert status_of(r) == 0
     assert contains?(stderr_of(r), "regenerated and committed")
-    repo(work, %w[fetch -q origin])
+    as_tester(work, %w[fetch -q origin])
     assert landed(root, "made.txt") == join(%w[base ant], line_break)
     rm_rf(root)
   end
@@ -1073,7 +1055,7 @@ test "--no-regen leaves that stale file as the rebase left it"
     committed(work, [%w[other.txt other]], "topic")
     main_moves(root, [%w[notes/ant ant]])
     assert status_of(land_in(root, ["--no-regen"])) == 0
-    repo(work, %w[fetch -q origin])
+    as_tester(work, %w[fetch -q origin])
     assert landed(root, "made.txt") == "base"
     rm_rf(root)
   end
@@ -1084,12 +1066,12 @@ test "a conflict in a source stops the land, names the path and leaves HEAD as i
     root = landing_fixture
     work = path_join(root, "work")
     committed(work, [["source.txt", unlines(["topic"])]], "topic")
-    before = repo(work, %w[rev-parse HEAD])
+    before = as_tester(work, %w[rev-parse HEAD])
     main_moves(root, [["source.txt", unlines(["main"])]])
     r = land_in(root, [])
     assert status_of(r) == 1
     assert contains?(stderr_of(r), "source.txt")
-    assert repo(work, %w[rev-parse HEAD]) == before
+    assert as_tester(work, %w[rev-parse HEAD]) == before
     rm_rf(root)
   end
 end
@@ -1099,11 +1081,11 @@ test "a rebase that fails with no conflict says git's words, as a clone with no 
     root = landing_fixture
     work = path_join(root, "work")
     committed(work, [%w[other.txt other]], "topic")
-    before = repo(work, %w[rev-parse HEAD])
+    before = as_tester(work, %w[rev-parse HEAD])
     main_moves(root, [%w[notes/ant ant]])
-    repo(work, %w[config --unset user.name])
-    repo(work, %w[config --unset user.email])
-    repo(work, %w[config user.useConfigOnly true])
+    as_tester(work, %w[config --unset user.name])
+    as_tester(work, %w[config --unset user.email])
+    as_tester(work, %w[config user.useConfigOnly true])
     r = land_with(
       %w[GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1],
       root,
@@ -1111,7 +1093,7 @@ test "a rebase that fails with no conflict says git's words, as a clone with no 
     )
     assert status_of(r) == 1
     assert contains?(stderr_of(r), "git rebase failed with no conflict")
-    assert repo(work, %w[rev-parse HEAD]) == before
+    assert as_tester(work, %w[rev-parse HEAD]) == before
     rm_rf(root)
   end
 end
@@ -1124,7 +1106,7 @@ test "--proven pushes the land only after gen/proof.b --prove succeeds"
     refused = land_in(root, ["--proven"])
     assert status_of(refused) == 1
     assert contains?(stderr_of(refused), "no proof of HEAD's tree")
-    assert repo(work, %w[ls-remote origin refs/heads/land/topic]) == ""
+    assert as_tester(work, %w[ls-remote origin refs/heads/land/topic]) == ""
     committed(
       work,
       [["gen/proof.b", "write_file(\"#{root}/proved\", join(argv, \" \"))"]],
@@ -1132,7 +1114,7 @@ test "--proven pushes the land only after gen/proof.b --prove succeeds"
     )
     assert status_of(land_in(root, ["--proven"])) == 0
     assert read_file(path_join(root, "proved")) == "--prove"
-    assert repo(work, %w[ls-remote origin refs/heads/land/topic]) != ""
+    assert as_tester(work, %w[ls-remote origin refs/heads/land/topic]) != ""
     rm_rf(root)
   end
 end
@@ -1142,12 +1124,12 @@ test "--requeue=0 refuses a land behind main, as land did before it rebased"
     root = landing_fixture
     work = path_join(root, "work")
     committed(work, [%w[other.txt other]], "topic")
-    before = repo(work, %w[rev-parse HEAD])
+    before = as_tester(work, %w[rev-parse HEAD])
     main_moves(root, [%w[notes/ant ant]])
     r = land_in(root, ["--requeue=0"])
     assert status_of(r) == 1
     assert contains?(stderr_of(r), "--requeue=0")
-    assert repo(work, %w[rev-parse HEAD]) == before
+    assert as_tester(work, %w[rev-parse HEAD]) == before
     rm_rf(root)
   end
 end

@@ -54,6 +54,41 @@ def succeeds(repo, args)
   shisutemu::status_of(run(repo, args)) == 0
 end
 
+@doc """
+out_or: What git prints, trimmed, or `otherwise` when git fails: for a caller
+that reads a failure as no answer, as a land reads a merge base it cannot find.
+
+    out_or("/nonexistent/gitto", %w[rev-parse HEAD], "") #=> ""
+"""
+def out_or(repo, args, otherwise)
+  cap = run(repo, args)
+  if shisutemu::status_of(cap) == 0
+    trim(shisutemu::stdout_of(cap))
+  else
+    otherwise
+  end
+end
+
+@doc """
+ask: `out_or` in the working directory with an empty fallback: the question a
+tool run inside its checkout puts to git, where no answer reads as "".
+
+    ask(%w[rev-parse --verify --quiet refs/heads/gitto-none]) #=> ""
+"""
+def ask(args)
+  out_or(".", args, "")
+end
+
+@doc """
+as_tester: `out` as a test's author: git runs as the fixed identity `t`, so a
+scratch repository commits the same on every machine.
+
+    as_tester("/nonexistent/gitto", %w[status]) rescue :refused #=> :refused
+"""
+def as_tester(repo, args)
+  out(repo, append(%w[-c user.name=t -c user.email=t@t], args))
+end
+
 def commit_of(line)
   f = split(line, "\u{1f}")
   {
@@ -490,6 +525,20 @@ verb_for("gitto", "read", read)
 verb_for("gitto", "diff", diff)
 verb_for("gitto", "create", create)
 verb_for("gitto", "delete", delete)
+
+test "a tester commits as t whatever the machine's identity, and out_or reads a failure as its fallback"
+  dir = "#{scratch}-gitto-as-tester"
+  rm_rf(dir)
+  mkdir_p(dir)
+  as_tester(dir, %w[init -q -b main])
+  write_file(path_join(dir, "a.txt"), "a")
+  as_tester(dir, %w[add -A])
+  as_tester(dir, %w[commit -q -m one])
+  assert out(dir, %w[log -1 --format=%an]) == "t"
+  assert out_or(dir, %w[rev-parse --verify --quiet refs/heads/none], "none") ==
+    "none"
+  assert out_or(dir, %w[log -1 --format=%s], "none") == "one"
+end
 
 test "a repository is read as commits, refs and files"
   r = fixture("read")

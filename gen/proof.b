@@ -1,3 +1,4 @@
+use("gitto", %i[as_tester ask])
 use("retsu", [:first])
 use("shisutemu", %i[status_of stderr_of stdout_of])
 
@@ -108,10 +109,6 @@ def say(line)
   write_stderr(unlines(["proof: #{line}"]))
 end
 
-def git(args)
-  trim(stdout_of(exec_capture("git", *args)))
-end
-
 def fetch_notes()
   exec_capture("git", "fetch", "-q", "origin", "+#{notes_ref}:#{notes_ref}")
 end
@@ -126,9 +123,9 @@ end
 def gap_at(rev)
   proof_gap(
     note_of(rev),
-    git(["rev-parse", "#{rev}^{tree}"]),
-    git(["rev-parse", "#{rev}:flake.lock"]),
-    git(["rev-parse", "#{rev}:Cargo.lock"])
+    ask(["rev-parse", "#{rev}^{tree}"]),
+    ask(["rev-parse", "#{rev}:flake.lock"]),
+    ask(["rev-parse", "#{rev}:Cargo.lock"])
   )
 end
 
@@ -149,7 +146,7 @@ def verify(rev)
 end
 
 def clean?()
-  git(%w[status --porcelain --untracked-files=no]) == ""
+  ask(%w[status --porcelain --untracked-files=no]) == ""
 end
 
 def run_suite()
@@ -198,20 +195,20 @@ def prove()
     exit_with(1)
   end
   fetch_notes
-  tree = git(%w[rev-parse HEAD^{tree}])
+  tree = ask(%w[rev-parse HEAD^{tree}])
   if gap_at("HEAD").nil?
     say("HEAD already carries a proof of tree #{tree}")
   else
     ran = run_suite
-    if not clean? or git(%w[rev-parse HEAD^{tree}]) != tree
+    if not clean? or ask(%w[rev-parse HEAD^{tree}]) != tree
       say("HEAD moved while the suite ran; prove the new HEAD")
       exit_with(1)
     end
     note = json_stringify(
       note_for(
         tree,
-        git(%w[rev-parse HEAD:flake.lock]),
-        git(%w[rev-parse HEAD:Cargo.lock]),
+        ask(%w[rev-parse HEAD:flake.lock]),
+        ask(%w[rev-parse HEAD:Cargo.lock]),
         ran[:binaries],
         ran[:rustc],
         now_rfc3339
@@ -268,23 +265,6 @@ test "the note names the command it proves and counts its binaries"
   ) == 2
 end
 
-def repo(dir, args)
-  r = exec_capture(
-    "git",
-    "-C",
-    dir,
-    "-c",
-    "user.name=t",
-    "-c",
-    "user.email=t@t",
-    *args
-  )
-  if status_of(r) != 0
-    raise(:git, "git #{join(args, " ")}: #{stderr_of(r)}")
-  end
-  trim(stdout_of(r))
-end
-
 def verify_in(work)
   exec_capture(
     "env",
@@ -307,31 +287,31 @@ test "--verify reads the note origin holds for the commit, and a commit with non
     mkdir_p(work)
     write_file(path_join(work, "flake.lock"), "{}")
     write_file(path_join(work, "Cargo.lock"), "")
-    repo(root, %w[init -q --bare -b main origin.git])
-    repo(work, %w[init -q -b main])
-    repo(work, %w[add -A])
-    repo(work, %w[commit -q -m base])
-    repo(work, ["remote", "add", "origin", path_join(root, "origin.git")])
-    repo(work, %w[push -q origin main])
+    as_tester(root, %w[init -q --bare -b main origin.git])
+    as_tester(work, %w[init -q -b main])
+    as_tester(work, %w[add -A])
+    as_tester(work, %w[commit -q -m base])
+    as_tester(work, ["remote", "add", "origin", path_join(root, "origin.git")])
+    as_tester(work, %w[push -q origin main])
     unproven = verify_in(work)
     assert stdout_of(unproven) == "false"
     assert contains?(stderr_of(unproven), "no refs/notes/blue-suite")
     note = json_stringify(
       note_for(
-        repo(work, %w[rev-parse HEAD^{tree}]),
-        repo(work, %w[rev-parse HEAD:flake.lock]),
-        repo(work, %w[rev-parse HEAD:Cargo.lock]),
+        as_tester(work, %w[rev-parse HEAD^{tree}]),
+        as_tester(work, %w[rev-parse HEAD:flake.lock]),
+        as_tester(work, %w[rev-parse HEAD:Cargo.lock]),
         1,
         "r",
         "a"
       )
     )
-    repo(work, ["notes", "--ref=blue-suite", "add", "-m", note, "HEAD"])
-    repo(work, %w[push -q origin refs/notes/blue-suite])
-    repo(work, %w[update-ref -d refs/notes/blue-suite])
+    as_tester(work, ["notes", "--ref=blue-suite", "add", "-m", note, "HEAD"])
+    as_tester(work, %w[push -q origin refs/notes/blue-suite])
+    as_tester(work, %w[update-ref -d refs/notes/blue-suite])
     assert stdout_of(verify_in(work)) == "true"
     write_file(path_join(work, "Cargo.lock"), "changed")
-    repo(work, %w[commit -q -am moved])
+    as_tester(work, %w[commit -q -am moved])
     assert stdout_of(verify_in(work)) == "false"
     rm_rf(root)
   end

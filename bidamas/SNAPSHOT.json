@@ -1,4 +1,4 @@
-{"blind":[],"definitions":5877,"format":"arika/1","leaves":5877,"repo":"blue","snapshot_root":"b3:4f3164af3184595862911c600bf9ed8b37c84aa4c398233fe135d8fa3defba11","units":[
+{"blind":[],"definitions":5880,"format":"arika/1","leaves":5880,"repo":"blue","snapshot_root":"b3:3c0a3a9421104a23b44b50333b8ea6608f47c357407aa5dca5285b6232b306ff","units":[
 {"leaves":65,"package":"angou","unit_root":"b3:00f1f6116e93eb74681115be3ad992b241cc70096715e074c2f221e318098e05"},
 {"leaves":23,"package":"baito","unit_root":"b3:ebcad1b3f865dbcf6f2af62f426835ce574f124a9a1c249ce713bcc3a9ecf17a"},
 {"leaves":101,"package":"bunsho","unit_root":"b3:cd7c2901c5a3690c04ebb31aee17ad303b8e9f8f5110e1e84c214f0b398a3733"},
@@ -19,7 +19,7 @@
 {"leaves":8,"package":"fairu","unit_root":"b3:75ca4cd5fe25ab576eff3f4fd83de9c24ac30ac1be5334bac36e206e006cbf1a"},
 {"leaves":4,"package":"fuuin","unit_root":"b3:1bb5a0505bc6bce32f9a4ac0926839ca7433c175d88460215ddac2a40b260b30"},
 {"leaves":118,"package":"gamen","unit_root":"b3:4d3cf673b01daf21661e144433502485af6186e69076973b094f4468e88bbf8c"},
-{"leaves":37,"package":"gitto","unit_root":"b3:20c59ad6f27a39ecca547d47f79e22388fefb950d6b7d52007131bc46ff356d9"},
+{"leaves":40,"package":"gitto","unit_root":"b3:0a0f1b2757eab3ec0f252f4ac0c8cc8bb0f481c02bc20714886631b0fee68886"},
 {"leaves":27,"package":"gurafu","unit_root":"b3:0c91b69ba2406f03b11a57b83b443594d1f36662a4d97977f96bde239f2a5cf8"},
 {"leaves":17,"package":"hadome","unit_root":"b3:498444851c8f7922b3b0b5800ac9b389a87b3c2362d4aaa1ed65fc352c96c22d"},
 {"leaves":81,"package":"happa","unit_root":"b3:935cbb7c2695305e9601bfac6c9862e949729236c06e1917ac20fcbf65bba3d6"},

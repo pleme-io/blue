@@ -1,4 +1,4 @@
-{"blind":[],"definitions":5880,"format":"arika/1","leaves":5880,"repo":"blue","snapshot_root":"b3:3c0a3a9421104a23b44b50333b8ea6608f47c357407aa5dca5285b6232b306ff","units":[
+{"blind":[],"definitions":5880,"format":"arika/1","leaves":5880,"repo":"blue","snapshot_root":"b3:a2afa4e4eb17abf551949fc3ffe453bfc2fefb9cc616821af4b0e740bed6b534","units":[
 {"leaves":65,"package":"angou","unit_root":"b3:00f1f6116e93eb74681115be3ad992b241cc70096715e074c2f221e318098e05"},
 {"leaves":23,"package":"baito","unit_root":"b3:ebcad1b3f865dbcf6f2af62f426835ce574f124a9a1c249ce713bcc3a9ecf17a"},
 {"leaves":101,"package":"bunsho","unit_root":"b3:cd7c2901c5a3690c04ebb31aee17ad303b8e9f8f5110e1e84c214f0b398a3733"},
@@ -79,7 +79,7 @@
 {"leaves":33,"package":"shinsatsu","unit_root":"b3:dd5ebd398427322ff8df48046f8d79f9ed9b49d298a0561299bc5e5ee87b7410"},
 {"leaves":90,"package":"shinsuu","unit_root":"b3:f42443e5ae6fb3f913e560ec37abd7861e17854dede0429f78b1930cb1fef6cb"},
 {"leaves":15,"package":"shisutemu","unit_root":"b3:9bb635fffd5f3d6fda95f82a6a7be9939487e6a2e91fed39836dcdfdcd289cb8"},
-{"leaves":58,"package":"shomei","unit_root":"b3:090897de4cbffbea6d8b9658094f8e7902f5f69aff10055b69fb52a382e3fd68"},
+{"leaves":58,"package":"shomei","unit_root":"b3:4305353321d6480bb70443a5615b1fd1cbfa0ae5c52b74a0677e7422caa645b7"},
 {"leaves":33,"package":"shuugou","unit_root":"b3:e3742461e8b123e968f51b9b5e06fcd2ec67713de09be2a87ad1a820e83ef674"},
 {"leaves":33,"package":"shuusei","unit_root":"b3:b8d00a0bc6027b42d5f1e2b4803af5f5eaca435782c59fd8b3067e6251415014"},
 {"leaves":61,"package":"suugaku/gyouretsu","unit_root":"b3:f0b0cb91719615672f8380c502e7af9456b6d9acaad8b32fa62e086d0592d560"},
@@ -96,7 +96,7 @@
 {"leaves":33,"package":"todokede/motenashi","unit_root":"b3:eeced6441d26c39bca5392c7b8cfd3c5eb43e6700f5ad3ea7d7235a397e9174a"},
 {"leaves":72,"package":"toride","unit_root":"b3:17e81af107e4a4e185f18a050cd1d15d11bee033799dac47a945467cf7dea988"},
 {"leaves":207,"package":"toriyose/danpen","unit_root":"b3:42662af0ab7fad22800c309f96e23bb5d258836d58964dcba2ea35eb4ddf07d5"},
-{"leaves":75,"package":"toriyose/kyasshu","unit_root":"b3:87a17a3a314c5a55f2042aae84aacec87da1d26aeccd994324d74d6d035764ba"},
+{"leaves":75,"package":"toriyose/kyasshu","unit_root":"b3:5b17bfd6ced08f918c035e59fe5d2daa70b3a9f6946fe7f136455aa77fb0d9fc"},
 {"leaves":149,"package":"toriyose/outou","unit_root":"b3:ce34d0fa7a7825766f0bbe10ec74b28b68272ffd8fb23a923f5ac25de5cb3678"},
 {"leaves":33,"package":"touroku","unit_root":"b3:a5653f79d2711c5c10f4a56627dc845eca770a31806c0f7d98543509468f30fd"},
 {"leaves":27,"package":"ugoki","unit_root":"b3:28e853a6af0b645841a4448b7247e082613b6fee4af7ccc574b5339a767acfc5"},

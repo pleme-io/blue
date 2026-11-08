@@ -334,6 +334,9 @@ end
 
 @doc """
 merkle_up: The next level up: each pair joined, an odd last node carried as it is.
+
+    merkle_up([merkle_leaf("a"), merkle_leaf("b")]) == [merkle_root(["a", "b"])] #=> true
+    merkle_up([merkle_leaf("a"), merkle_leaf("b"), merkle_leaf("c")])[1] == merkle_leaf("c") #=> true
 """
 def merkle_up(level)
   merkle_up_by(level, merkle_node)
@@ -353,6 +356,9 @@ end
 
 @doc """
 merkle_pair: The parent of the pair starting at 2i, or the lone node when it has no pair.
+
+    merkle_pair([merkle_leaf("a"), merkle_leaf("b")], 0) == merkle_root(["a", "b"]) #=> true
+    merkle_pair(["x", "y", "z"], 1) #=> "z"
 """
 def merkle_pair(level, i)
   merkle_pair_by(level, i, merkle_node)

@@ -182,6 +182,21 @@ fn run_row(env: &mut Env, row: &Row, n: usize) -> Outcome {
 /// runner judges it as such.
 fn controls(env: &mut Env) -> Vec<String> {
     let mut failures = Vec::new();
+
+    let mut wasmtime = std::process::Command::new("wasmtime");
+    eval::cache_beside(&mut wasmtime, &env.scratch);
+    let cache = env.scratch.join("wasmtime-cache").into_os_string();
+    for var in ["XDG_CACHE_HOME", "HOME"] {
+        let set = wasmtime
+            .get_envs()
+            .find(|(k, _)| *k == var)
+            .and_then(|(_, v)| v.map(|v| v.to_os_string()));
+        if set.as_ref() != Some(&cache) {
+            failures.push(format!(
+                "control: the component's wasmtime is not given {var} under the scratch, so the nix sandbox's /homeless-shelter refuses its cache ({set:?})"
+            ));
+        }
+    }
     let control = |id: &str, src: &str, expect: Expect, pending: Vec<rows::Pending>| Row {
         file: "<control>".into(),
         id: id.into(),
@@ -604,7 +619,7 @@ fn main() {
         out,
         "\ncontrols: {}",
         if control_failures.is_empty() {
-            "5 of 5 judged as expected"
+            "6 of 6 judged as expected"
         } else {
             "RED"
         }

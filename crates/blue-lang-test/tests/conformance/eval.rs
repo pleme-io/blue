@@ -864,6 +864,7 @@ pub fn component(env: &mut Env, row: &Row, n: usize) -> Obs {
         cmd.arg("--dir").arg(format!("{}::{guest}", root.display()));
     }
     cmd.arg(&placement.wasm).arg(format!("/row/{ROW_FILE}"));
+    cache_beside(&mut cmd, &env.scratch);
     let out = match output_within(&mut cmd) {
         Ok(o) => o,
         Err(crashed) => return crashed,
@@ -879,6 +880,14 @@ pub fn component(env: &mut Env, row: &Row, n: usize) -> Obs {
     }
     let stderr = raw_err.replace(&format!("/row/{ROW_FILE}"), ROW_FILE);
     door_failure(&stderr, "blue-component: ")
+}
+
+/// wasmtime keeps its compile cache under `$XDG_CACHE_HOME` or `$HOME`; the nix
+/// sandbox's `/homeless-shelter` refuses it, so the component points both at
+/// the scratch directory every row already writes to.
+pub(crate) fn cache_beside(cmd: &mut Command, scratch: &std::path::Path) {
+    let cache = scratch.join("wasmtime-cache");
+    cmd.env("XDG_CACHE_HOME", &cache).env("HOME", &cache);
 }
 
 /// Classify what `blue run` wrote to stderr on a failing exit.

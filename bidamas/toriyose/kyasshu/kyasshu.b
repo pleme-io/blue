@@ -918,7 +918,7 @@ def waited(path, tries)
   elsif tries < 1
     raise(:timeout, "#{path} never appeared")
   else
-    receive(:_, 50, nil)
+    sleep_ms(50)
     waited(path, tries - 1)
   end
 end

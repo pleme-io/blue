@@ -222,8 +222,49 @@ def suite_done?(jobs)
   ci != [] and every?((j) -> json_get(j, :status) == "completed", ci)
 end
 
+@doc """
+release_files: The files a release commit writes: the workspace version and the
+two locks that carry it.
+
+    release_files #=> ["Cargo.toml", "Cargo.lock", "Cargo.gen.lock"]
+"""
+def release_files()
+  %w[Cargo.toml Cargo.lock Cargo.gen.lock]
+end
+
+@doc """
+release_commit?: Whether a commit, as `{subject:, files:}`, is a release commit:
+its subject names a workspace release and it writes release files only.
+
+    release_commit?({subject: "release: workspace v0.0.165", files: ["Cargo.toml"]}) #=> true
+    release_commit?({subject: "release: workspace v0.0.165", files: ["src/a.rs"]}) #=> false
+"""
+def release_commit?(c)
+  starts_with?(c[:subject], "release: workspace v") and
+    c[:files] != [] and
+    every?((f) -> member?(f, release_files), c[:files])
+end
+
+@doc """
+absorbable?: Whether a land whose fast-forward was refused can still reach main
+without a new suite: every commit main gained since the land's base is a release
+commit, and the land writes no release file, so the tree that reaches main is the
+tested tree with main's release files.
+
+    absorbable?([], ["gen/land.b"]) #=> false
+"""
+def absorbable?(ahead, touched)
+  ahead != [] and
+    every?(release_commit?, ahead) and
+    filter((f) -> member?(f, release_files), touched) == []
+end
+
 def git(args)
   trim(stdout_of(exec_capture("git", *args)))
+end
+
+def git_lines(args)
+  filter((l) -> l != "", moji::lines(git(args)))
 end
 
 def say(line)
@@ -371,6 +412,85 @@ def stop_on_red(id)
   elsif not suite_done?(jobs)
     sleep(60)
     stop_on_red(id)
+  end
+end
+
+@doc """
+absorb_release: land.yml's fast-forward, after main refused the tested commit:
+when main moved only by release commits and the land writes no release file,
+rebase the tested commit onto main, prove the result differs from it only in
+main's release files, and fast-forward main to it. Anything else exits 1, and
+`--watch` requeues the land as before. Off: the repository variable
+BLUE_LAND_ABSORB_RELEASE=off.
+"""
+def absorb_release(sha, ref, left)
+  fetch_main
+  base = git(["merge-base", sha, "origin/main"])
+  ahead = map(
+    fn(c)
+      {
+        subject: git(["log", "-1", "--format=%s", c]),
+        files: git_lines(
+          ["diff-tree", "--no-commit-id", "--name-only", "-r", c]
+        )
+      }
+    end,
+    git_lines(["rev-list", "#{sha}..origin/main"])
+  )
+  touched = git_lines(["diff", "--name-only", base, sha])
+  if not absorbable?(ahead, touched)
+    say(
+      "main gained #{to_s(count(ahead))} commit(s) that are not all release commits, or this land writes a release file; it needs a new suite"
+    )
+    exit_with(1)
+  end
+  exec_check("git", "checkout", "-q", "--detach", sha)
+  r = exec_capture(
+    "git",
+    "-c",
+    "user.name=github-actions[bot]",
+    "-c",
+    "user.email=41898282+github-actions[bot]@users.noreply.github.com",
+    "rebase",
+    "-q",
+    "origin/main"
+  )
+  if status_of(r) != 0
+    exec_check("git", "rebase", "--abort")
+    say(
+      "the tested commit does not rebase onto the release commit: #{trim(stderr_of(r))}"
+    )
+    exit_with(1)
+  end
+  extra = filter(
+    (f) -> not member?(f, release_files),
+    git_lines(["diff", "--name-only", sha, "HEAD"])
+  )
+  drift = git(
+    retsu::concat_lists(%w[diff --name-only origin/main HEAD --], release_files)
+  )
+  if extra != [] or drift != ""
+    say(
+      "the rebased tree is not the tested tree with main's release files: #{join(extra, ", ")} #{drift}"
+    )
+    exit_with(1)
+  end
+  pushed = exec_check(
+    "git",
+    "push",
+    "--atomic",
+    "origin",
+    "HEAD:refs/heads/main",
+    ":#{ref}"
+  )
+  if pushed != 0 and left > 0
+    absorb_release(sha, ref, left - 1)
+  elsif pushed != 0
+    exit_with(1)
+  else
+    say(
+      "main moved only by #{to_s(count(ahead))} release commit(s); fast-forwarded it to the tested tree rebased onto them, #{take_chars(git(%w[rev-parse HEAD]), 10)}"
+    )
   end
 end
 
@@ -569,6 +689,10 @@ def main()
     stop_on_red(argv_get(1))
     exit_with(0)
   end
+  if count(argv) == 3 and first(argv) == "--absorb-release"
+    absorb_release(argv_get(1), argv_get(2), 2)
+    exit_with(0)
+  end
   a = land_args(argv)
   unknown = unknown_flag(argv)
   if not unknown.nil?
@@ -695,6 +819,22 @@ test "the first red CI job stops a suite, and a refused fast-forward or a green 
       ]
     )
   )
+end
+
+test "a land refused only because main gained a release commit reaches main without a new suite, as koutei/bounded-fail's run 42464912784 of 2026-11-08 shows"
+  release = {
+    subject: "release: workspace v0.0.165",
+    files: %w[Cargo.gen.lock Cargo.lock Cargo.toml]
+  }
+  other = {subject: "prepush: regen is a land gate", files: ["gen/prepush.b"]}
+  forged = {subject: "release: workspace v0.0.166", files: ["gen/land.b"]}
+  assert absorbable?([release], %w[bidamas/koutei/koutei.b README.md])
+  assert absorbable?([release, release], ["gen/land.b"])
+  assert not absorbable?([release, other], ["gen/land.b"])
+  assert not absorbable?([forged], ["gen/land.b"])
+  assert not absorbable?([release], %w[gen/land.b Cargo.toml])
+  assert not absorbable?([release], ["Cargo.lock"])
+  assert not absorbable?([], ["gen/land.b"])
 end
 
 test "a run's end is read from its view, and an unreadable answer is not an end"

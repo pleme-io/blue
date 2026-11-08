@@ -82,8 +82,22 @@ jobs:
         if: ${{ startsWith(github.ref_name, 'land/dry-') }}
         run: git push --dry-run origin "${{ github.sha }}:refs/heads/main"
       - name: fast-forward main to ${{ github.sha }}
+        id: forward
         if: ${{ !startsWith(github.ref_name, 'land/dry-') }}
+        continue-on-error: true
         run: git push --atomic origin "${{ github.sha }}:refs/heads/main" ":${{ github.ref }}"
+      - name: refuse the land when main moved and absorbing a release is off
+        if: ${{ steps.forward.outcome == 'failure' && vars.BLUE_LAND_ABSORB_RELEASE == 'off' }}
+        run: exit 1
+      - id: blue
+        if: ${{ steps.forward.outcome == 'failure' && vars.BLUE_LAND_ABSORB_RELEASE != 'off' }}
+        uses: pleme-io/actions/nix-build@main
+        with:
+          flake-ref: ".#default"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: fast-forward main past the release commits that moved it
+        if: ${{ steps.forward.outcome == 'failure' && vars.BLUE_LAND_ABSORB_RELEASE != 'off' }}
+        run: ${{ steps.blue.outputs.out-path }}/bin/blue run --quiet gen/land.b -- --absorb-release "${{ github.sha }}" "${{ github.ref }}"
       - name: start the main-push workflows a GITHUB_TOKEN push does not start
         if: ${{ !startsWith(github.ref_name, 'land/dry-') && steps.token.outputs.source != 'app' }}
         env:

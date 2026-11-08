@@ -23,6 +23,13 @@ use("shinsuu", %i[bit_at bytes_hex hex_bytes shift_left shift_right])
 
 legacy_names("0.1.1", [%w[merge_state jisho::merge]])
 
+@doc """
+huffman_codes: The Huffman code of Appendix B: [code, bit length] for each octet 0 to
+255, then EOS at 256.
+
+    huffman_codes[97] #=> [3, 5]
+    huffman_codes[256] #=> [1_073_741_823, 30]
+"""
 huffman_codes = [
   [8184, 13],
   [8_388_568, 23],
@@ -283,6 +290,12 @@ huffman_codes = [
   [1_073_741_823, 30]
 ]
 
+@doc """
+static_entries: The static table of Appendix A, index 1 at position 0.
+
+    static_entries[1] #=> %w[:method GET]
+    size(static_entries) #=> 61
+"""
 static_entries = [
   [":authority", ""],
   %w[:method GET],
@@ -347,30 +360,69 @@ static_entries = [
   ["www-authenticate", ""]
 ]
 
+@doc """
+code_key: One key for a Huffman code and its bit length, so codes of different lengths
+never collide in the lookup map.
+
+    code_key(3, 5) #=> 101
+"""
 def code_key(code, len)
   code * 32 + len
 end
 
+@doc """
+huffman_lookup: The octet (or 256, EOS) each Huffman code_key decodes to.
+
+    get(huffman_lookup, code_key(3, 5)) #=> 97
+"""
 huffman_lookup = zipmap(
   map((c) -> code_key(first(c), c[1]), huffman_codes),
   range(0, 257)
 )
 
+@doc """
+static_exact: The static index of each whole [name, value] entry, keyed by its text.
+
+    get(static_exact, to_s(%w[:method GET])) #=> 2
+"""
 static_exact = zipmap(map((e) -> to_s(e), static_entries), range(1, 62))
 
+@doc """
+static_names: The lowest static index of each field name.
+
+    get(static_names, ":method") #=> 2
+"""
 static_names = zipmap(
   reverse(map((e) -> first(e), static_entries)),
   reverse(range(1, 62))
 )
 
+@doc """
+broken: A malformed block refused as :compression_error, which RFC 9113 §4.3 makes a
+connection error.
+
+    first(refusal_of(broken("bad"))) #=> :compression_error
+"""
 def broken(why)
   refused(refusal(:compression_error, why))
 end
 
+@doc """
+octets: A field part as octets: a string's UTF-8 bytes, a byte list as it is.
+
+    octets("hi") #=> [104, 105]
+    octets([255]) #=> [255]
+"""
 def octets(x)
   apply_when(string?, text_bytes)(x)
 end
 
+@doc """
+field_part: Octets as a field part: a string when they are UTF-8, else the bytes kept.
+
+    field_part([104, 105]) #=> "hi"
+    field_part([255]) #=> [255]
+"""
 def field_part(bytes)
   t = bytes_text(bytes)
   if t.nil?
@@ -380,30 +432,67 @@ def field_part(bytes)
   end
 end
 
+@doc """
+entry_size: An entry's size in the dynamic table (§4.1): name and value octets plus 32.
+
+    entry_size("custom-key", "custom-header") #=> 55
+"""
 def entry_size(name, value)
   size(octets(name)) + size(octets(value)) + 32
 end
 
+@doc """
+table: An empty dynamic table of size `max`, which is also its limit.
+
+    table(4096) #=> {entries: [], size: 0, max: 4096, limit: 4096, updates: []}
+"""
 def table(max)
   {entries: [], size: 0, max:, limit: max, updates: []}
 end
 
+@doc """
+entries: The dynamic table's fields, newest first, as [name, value].
+
+    entries(insert(table(4096), "a", "b")) #=> [%w[a b]]
+"""
 def entries(t)
   map((e) -> [first(e), e[1]], t[:entries])
 end
 
+@doc """
+table_size: The dynamic table's size: the sum of its entries' sizes.
+
+    table_size(insert(table(4096), "custom-key", "custom-header")) #=> 55
+"""
 def table_size(t)
   t[:size]
 end
 
+@doc """
+table_max: The table size in force.
+
+    table_max(table(4096)) #=> 4096
+"""
 def table_max(t)
   t[:max]
 end
 
+@doc """
+with_limit: The table with a new limit, the most the peer may raise its size to.
+
+    with_limit(table(4096), 100)[:limit] #=> 100
+"""
 def with_limit(t, limit)
   assoc(t, :limit, limit)
 end
 
+@doc """
+keep_step: One step of eviction's fold over entries, newest first: [kept, size, still
+keeping]. An entry is kept while every newer one was and the total fits `room`.
+
+    keep_step([0, 0, true], ["a", "b", 34], 40) #=> [1, 34, true]
+    keep_step([1, 34, true], ["c", "d", 34], 40) #=> [1, 34, false]
+"""
 def keep_step(acc, e, room)
   total = acc[1] + e[2]
   if acc[2] and total <= room
@@ -413,12 +502,25 @@ def keep_step(acc, e, room)
   end
 end
 
+@doc """
+evict: The table with its oldest entries dropped until its size is at most `room`
+(§4.4).
+
+    table_size(evict(insert(insert(table(4096), "a", "b"), "c", "d"), 40)) #=> 34
+"""
 def evict(t, room)
   es = t[:entries]
   r = reduce((acc, e) -> keep_step(acc, e, room), [0, 0, true], es)
   assoc(assoc(t, :entries, slice(es, 0, first(r))), :size, r[1])
 end
 
+@doc """
+insert: The table with [name, value] added as its newest entry, evicting the oldest to
+make room. An entry larger than the table empties it (§4.4).
+
+    entries(insert(insert(table(4096), "a", "b"), "c", "d")) #=> [%w[c d], %w[a b]]
+    entries(insert(table(10), "a", "b")) #=> []
+"""
 def insert(t, name, value)
   s = entry_size(name, value)
   if s > t[:max]
@@ -433,6 +535,13 @@ def insert(t, name, value)
   end
 end
 
+@doc """
+resize: The table at a new size within its limit, evicting what no longer fits, with
+the update recorded for the next encoded block to announce.
+
+    resize(table(4096), 0)[:updates] #=> [0]
+    (resize(table(4096), 5000) rescue :refused) #=> :refused
+"""
 def resize(t, max)
   if max > t[:limit] or max < 0
     raise(:usage, "table size #{max} is outside 0..#{t[:limit]}")
@@ -441,6 +550,14 @@ def resize(t, max)
   assoc(e, :updates, append(t[:updates], [max]))
 end
 
+@doc """
+lookup: The field at `index` across both tables: 1 to 61 static, 62 on the dynamic
+table newest first; nil past either.
+
+    lookup(table(4096), 2) #=> %w[:method GET]
+    lookup(insert(table(4096), "a", "b"), 62) #=> %w[a b]
+    lookup(table(4096), 62) #=> nil
+"""
 def lookup(t, index)
   es = t[:entries]
   if index >= 1 and index <= 61
@@ -451,6 +568,12 @@ def lookup(t, index)
   end
 end
 
+@doc """
+continuation: The continuation octets of an integer past its prefix (§5.1): seven bits
+each, low first, the top bit set on all but the last.
+
+    continuation(1306) #=> [154, 10]
+"""
 def continuation(n)
   if n < 128
     [n]
@@ -459,6 +582,13 @@ def continuation(n)
   end
 end
 
+@doc """
+encode_int: An integer in an N-bit prefix (§5.1), with `high` the bits above the prefix
+in the first octet (RFC 7541 C.1).
+
+    encode_int(10, 5, 0) #=> [10]
+    encode_int(1337, 5, 0) #=> [31, 154, 10]
+"""
 def encode_int(n, prefix, high)
   top = expt(2, prefix) - 1
   if n < top
@@ -468,6 +598,13 @@ def encode_int(n, prefix, high)
   end
 end
 
+@doc """
+continue_int: The rest of a prefixed integer from its continuation octets at `pos`, added
+to `acc` at bit `m`: [value, next position]. An integer past 28 bits of
+continuation, or one that runs off the block, is refused.
+
+    value(continue_int([154, 10], 0, 31, 0)) #=> [1337, 2]
+"""
 def continue_int(bytes, pos, acc, m)
   if m > 28
     broken("an integer is longer than this decoder takes")
@@ -484,6 +621,12 @@ def continue_int(bytes, pos, acc, m)
   end
 end
 
+@doc """
+decode_int: An N-bit prefixed integer read at `pos`: [value, next position].
+
+    value(decode_int([31, 154, 10], 0, 5)) #=> [1337, 3]
+    value(decode_int([42], 0, 8)) #=> [42, 1]
+"""
 def decode_int(bytes, pos, prefix)
   top = expt(2, prefix) - 1
   if pos >= size(bytes)
@@ -498,11 +641,22 @@ def decode_int(bytes, pos, prefix)
   end
 end
 
+@doc """
+huffman_size: How many octets the Huffman encoding of `data` takes.
+
+    huffman_size("www.example.com") #=> 12
+"""
 def huffman_size(data)
   bits = reduce((a, b) -> a + huffman_codes[b][1], 0, octets(data))
   floor((bits + 7) / 8)
 end
 
+@doc """
+huffman_encode: The Huffman encoding of a string or octets, padded with the start of EOS
+(RFC 7541 C.4.1).
+
+    huffman_encode("www.example.com") #=> hex_bytes("f1e3c2e5f23a6ba0ab90f4ff")
+"""
 def huffman_encode(data)
   st = [0, 0]
   out = map(
@@ -525,6 +679,12 @@ def huffman_encode(data)
   end
 end
 
+@doc """
+huffman_bit: One bit of Huffman decoding: [code so far, its length, broken, octets out].
+A complete code emits its octet; EOS, or a code past 30 bits, marks it broken.
+
+    huffman_bit([1, 4, false, []], 1) #=> [0, 0, false, [97]]
+"""
 def huffman_bit(s, bit)
   acc = first(s) * 2 + bit
   len = s[1] + 1
@@ -538,6 +698,12 @@ def huffman_bit(s, bit)
   end
 end
 
+@doc """
+huffman_decode: The octets a Huffman string decodes to; EOS inside it, or padding that is
+too long or not the start of EOS, is refused.
+
+    bytes_text(value(huffman_decode(hex_bytes("f1e3c2e5f23a6ba0ab90f4ff")))) #=> "www.example.com"
+"""
 def huffman_decode(bytes)
   st = [0, 0, false]
   out = map(
@@ -564,6 +730,13 @@ def huffman_decode(bytes)
   end
 end
 
+@doc """
+encode_string: A string literal (§5.2): its length with the H bit, then its octets,
+Huffman-coded when `huffman` is true or is :shorter and that is shorter.
+
+    encode_string("ab", false) #=> [2, 97, 98]
+    first(encode_string("www.example.com", :shorter)) #=> 140
+"""
 def encode_string(x, huffman)
   raw = octets(x)
   if huffman == true or huffman == :shorter and huffman_size(raw) < size(raw)
@@ -574,6 +747,12 @@ def encode_string(x, huffman)
   end
 end
 
+@doc """
+string_body: A string literal's `len` octets at `start`, Huffman-decoded when flagged:
+[field part, next position].
+
+    value(string_body([2, 97, 98], 1, 2, false)) #=> ["ab", 3]
+"""
 def string_body(bytes, start, len, huffman)
   raw = slice(bytes, start, len)
   if start + len > size(bytes)
@@ -585,6 +764,12 @@ def string_body(bytes, start, len, huffman)
   end
 end
 
+@doc """
+decode_string: A string literal read at `pos`: [field part, next position].
+
+    value(decode_string([2, 97, 98], 0)) #=> ["ab", 3]
+    ok?(decode_string([5, 97], 0)) #=> false
+"""
 def decode_string(bytes, pos)
   if pos >= size(bytes)
     broken("a string runs past the end of the block")
@@ -716,6 +901,13 @@ def decode(t, block)
   )
 end
 
+@doc """
+exact_index: The index of a whole [name, value] entry, static first, then dynamic; nil
+when neither table holds it.
+
+    exact_index(table(4096), ":method", "GET") #=> 2
+    exact_index(insert(table(4096), "a", "b"), "a", "b") #=> 62
+"""
 def exact_index(t, name, value)
   s = get(static_exact, to_s([name, value]))
   d = position([name, value], entries(t))
@@ -726,6 +918,13 @@ def exact_index(t, name, value)
   end
 end
 
+@doc """
+name_index: The index of an entry with this name, static first, then dynamic; nil when
+neither table holds the name.
+
+    name_index(table(4096), ":path") #=> 4
+    name_index(table(4096), "x-none") #=> nil
+"""
 def name_index(t, name)
   s = get(static_names, name)
   d = position(name, map((e) -> first(e), t[:entries]))
@@ -736,6 +935,13 @@ def name_index(t, name)
   end
 end
 
+@doc """
+literal_bytes: A literal field: the name by index when one is known, else written out,
+then the value as a string literal.
+
+    literal_bytes(4, ":path", "/a", 4, 0, false) #=> [4, 2, 47, 97]
+    literal_bytes(nil, "a", "b", 6, 64, false) #=> [64, 1, 97, 1, 98]
+"""
 def literal_bytes(index, name, value, prefix, high, huffman)
   head = if index.nil?
     append([high], encode_string(name, huffman))
@@ -766,6 +972,13 @@ def encode_field(t, f, huffman, never, plain)
   end
 end
 
+@doc """
+size_updates: The size updates a block opens with (§4.2): none when the size did not
+change, else the lowest size reached and then the size in force.
+
+    size_updates(table(4096)) #=> []
+    size_updates(resize(table(4096), 0)) #=> [32]
+"""
 def size_updates(t)
   us = t[:updates]
   low = reduce((a, b) -> blue::min(a, b), t[:max], us)

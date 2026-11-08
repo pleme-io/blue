@@ -1,20 +1,32 @@
-# kazoe (数え) — counting words in text: the example bidama.
-#
-# A package is a directory holding a Bluefile and a .b file of the same name.
-# Its definitions join one flat namespace with every other package a program
-# imports, so each name carries the package's prefix (kz_). Its tests live in
-# the same file; `use` strips them, so importing a package never runs them.
+@moduledoc """
+kazoe (数え) — counting words in text: the example bidama.
+
+A package is a directory holding a Bluefile and a .b file of the same name.
+A program imports its words by name, as `examples/10_using_a_bidama.b` does
+with `use("kazoe", [:kz_counts])`. Its tests live in the same file; `use`
+strips them, so importing a package never runs them.
+
+    kz_words("Blue, blue; BLUE!") #=> %w[blue blue blue]
+    kz_counts("b a b c a b") #=> [["b", 3], ["a", 2], ["c", 1]]
+"""
+
 use("junjo", [:sort_stable_by])
 use("moji", %i[is_alnum words])
 use("retsu", %i[drop_while last size])
 use("shuugou", [:unique])
 
-# Whether a token counts as a word: it holds at least one letter or digit.
+@doc """
+kz_word?: Whether a token counts as a word: it holds at least one letter or digit.
+"""
 def kz_word?(token)
   any?((c) -> is_alnum(c), chars(token))
 end
 
-# The words of a text, lower-cased, punctuation at either end removed.
+@doc """
+kz_words: The words of a text, lower-cased, punctuation at either end removed.
+
+    kz_words("") #=> []
+"""
 def kz_words(text)
   tokens = map((w) -> downcase(kz_strip(w)), words(text))
   filter(kz_word?, tokens)
@@ -26,7 +38,11 @@ def kz_strip(word)
   join(reverse(drop_while((c) -> not is_alnum(c), reverse(kept))), "")
 end
 
-# [word, count] pairs, most frequent first, ties in first-seen order.
+@doc """
+kz_counts: [word, count] pairs, most frequent first, ties in first-seen order.
+
+    kz_counts("") #=> []
+"""
 def kz_counts(text)
   ws = kz_words(text)
   seen = unique(ws)

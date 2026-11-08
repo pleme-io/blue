@@ -58,6 +58,26 @@ The 2026-11-06 survey found the drift that hand-kept tables always gather.
 **Gate:** each table is generated and `-fresh` checked; the census ratchets fall.
 **Unlocks:** every horizon, because a plan built on a wrong ledger is wrong.
 
+**Built (2026-11-08, measured at `5399e761` plus this change):**
+
+- The DIAGNOSTICS codes table and CATALOG's `needs` are rendered by `nix run .#regen`.
+- Nested levels ship in `blue-lang-pkg`: its `include` takes `bidamas/**/*.b`
+  (`2c9568f0`), and `checks.package-fidelity` (`nix/package-fidelity.nix`,
+  `03ad83e5`) builds blue from the packaged crates. `cargo package --list -p
+  blue-lang-pkg` lists 283 `.b` files under `bidamas/`, 217 of them in a level
+  below a package: every `.b` file the checkout holds.
+- B0058 is 0, ratchet 0 (was 7): bougyo, keiyu, zenbu, kazoe, chuuzou, kiban
+  and the project fixture each open with a `@moduledoc` and a running example.
+- B0056 2805 to 2557 and B0057 894 to 782, ratchets lowered to match. The
+  largest gains: `isshou/raifusaikuru`, `isshou/nisshi`, `eigyou/tajuu`,
+  `eigyou/heddaa`, and chuuzou and kiban's comments lifted into `@doc`.
+- ROADMAP has a row for HTTP2, CLI-TUI, SERVICE-DATA, API-EVOLUTION,
+  BUILD-STACK, BUILD-ASSURANCE, DOCUMENTATION, OPERATORS, KERNEL and
+  BIDAMA-COHESION, each tier read from its own ledger.
+
+Open: B0056 and B0057 to 0, next by size `toriyose` (danpen, outou, kyasshu)
+and `kakehashi` (kijun, kirikae, nikkusu).
+
 ### H1. Shapes: sums, patterns and refusals that flow
 
 `record` gave blue products. The next forms complete the data model:

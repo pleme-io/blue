@@ -1,5 +1,12 @@
 @moduledoc """
 keiyu (経由) — by way of: run one command with a proxy set for it alone.
+
+`run_via(url, command)` execs `command` with every proxy variable a client
+reads set to `url` in the child's environment alone; `main` reads the relay
+from `KEIYU_RELAY`. An empty command is refused as `:keiyu_no_command`.
+
+    relay_env("socks5h://r:1")[0] #=> %w[ALL_PROXY socks5h://r:1]
+    relay_env("socks5h://r:1")[5] #=> %w[http_proxy socks5h://r:1]
 """
 
 use("retsu", %i[first is_empty rest])

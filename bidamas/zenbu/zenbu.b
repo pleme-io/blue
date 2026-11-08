@@ -45,6 +45,12 @@ nix's saw 16, and the built closure came back with 17 bidamas instead of 18 —
 that divergence, which makes it loud; it does not make it impossible. The real
 fix is the `blue bluefile --deps --json` subcommand `mk-bidama.nix` names, so
 nix consumes blue's own evaluation instead of re-deriving it.
+
+## One import, words from many packages
+
+    is_prime(7) #=> true
+    clamp(15, 1, 10) #=> 10
+    sort([3, 1, 2]) #=> [1, 2, 3]
 """
 
 use("angou", [:is_prime])

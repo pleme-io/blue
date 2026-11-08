@@ -88,6 +88,8 @@ mean_or_zero: The total sibling of `mean`: 0 rather than a 0/0 on the empty list
 the distribution reads, so the guarded version lives beside it. Everything
 below that folds over deviations goes through this one, which is what makes
 those functions total without each repeating the same empty check.
+
+    mean_or_zero([]) #=> 0
 """
 def mean_or_zero(xs)
   if_empty(xs, 0, mean)
@@ -252,6 +254,8 @@ end
 median_or_zero: median that answers 0 on the empty list instead of indexing off the end.
 Exists so every quartile helper below can be total without repeating the
 guard four times.
+
+    median_or_zero([]) #=> 0
 """
 def median_or_zero(xs)
   if_empty(xs, 0, median)
@@ -261,6 +265,8 @@ end
 lower_half: The two halves either side of the median, EXCLUDING the median itself when
 there is an odd number of points. That exclusion is Tukey's convention and
 it is what makes q1/q3 land where a boxplot draws them.
+
+    lower_half([5, 1, 4, 2, 3]) #=> [1, 2]
 """
 def lower_half(xs)
   sorted_half(xs, (n, s) -> take(n, s), floor)
@@ -295,6 +301,8 @@ identity the test pins is q2 == median(xs), for both parities.
 
 A one-element list has no half to take a median of; it falls back to the
 whole list, so q1 == q3 == that element rather than an index error.
+
+    q1([1, 2, 3, 4, 5, 6, 7]) #=> 2
 """
 def q1(xs)
   half_median(xs, lower_half)

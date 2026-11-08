@@ -1,43 +1,49 @@
-use("kiban", [:kb_board])
+@moduledoc """
+chuuzou (鋳造, casting): blue's native backend. A checked blue program and a
+board spec go in; a Rust crate the board's rustc builds as no_std comes out,
+with no evaluator and no collector in it.
 
-# chuuzou (鋳造, casting): blue's native backend. A checked blue program and a
-# board spec go in; a Rust crate the board's rustc builds as no_std comes out,
-# with no evaluator and no collector in it.
-#
-# theory/BLUE-NATIVE.md is the design; this is milestone N0 (§7). Plan, fixed
-# before the code (blue-development-cycle stage 1):
-#
-# | Need | Exists | Move |
-# |---|---|---|
-# | parse, resolve, check the program | `blue check`, `blue ast --resolved` (the pipeline) | reuse, through `self_exe()`: the backend never sees an unchecked tree |
-# | qualified names (L1) | the resolved tree names every definition `%root/f` and every package word `kiban/mmio_write` | reuse |
-# | a typed Rust AST, rendered once | tatara-rust-ast 0.1.8 (`File`, typed control flow), its `tatara-rust-emit` CLI | reuse across a process boundary; the tree is JSON built here |
-# | board facts | kiban's specs | reuse |
-# | reading the tree's text | nothing in blue reads an S-expression | `cz_read` below; the first instance, so it stays here until a second reader appears |
-#
-# The shape: read → lower (L1 qualify, L5 represent, tail calls to loops, L8
-# the AST) → emit. The passes the design names and N0 lacks (closure
-# conversion, monomorphisation, partial evaluation, placement, discharge) are
-# absent because the N0 subset does not produce their input: every refusal
-# below names the construct and the rule, so a program outside the subset is a
-# compile error, never a wrong image.
-#
-# The N0 subset, and what each lowers to (board word 32):
-#
-#   def f(x: Int) -> Int      fn bl_f<I: Io>(io: &mut I, p_x: u32) -> u32
-#   NAME = <integer>          const BL_NAME: u32
-#   + - *                     kiban_io::checked(a.checked_add(b)): overflow is a fault
-#   wrapping_add(a, b)        a.wrapping_add(b): wrapping only where asked
-#   == < <= > >= !            comparisons, not
-#   if / begin                if / blocks
-#   a tail call to itself     a loop (the parameters rebound, then continue)
-#   mmio_write(a, 8|32, v)    io.write8 / io.write32, through the board's seam
-#   top-level expressions     pub fn main, called by the seam
-#
-# Int lowers to u32 here (L5 minimal): the checker has no fixed-width types
-# yet (BLUE-NATIVE.md §5.1), so a negative value or one past 2^32 - 1 is a
-# fault on the board where the interpreter would carry on. That divergence is
-# outside the N0 row and is N2's type language to close.
+theory/BLUE-NATIVE.md is the design; this is milestone N0 (§7). Plan, fixed
+before the code (blue-development-cycle stage 1):
+
+| Need | Exists | Move |
+|---|---|---|
+| parse, resolve, check the program | `blue check`, `blue ast --resolved` (the pipeline) | reuse, through `self_exe()`: the backend never sees an unchecked tree |
+| qualified names (L1) | the resolved tree names every definition `%root/f` and every package word `kiban/mmio_write` | reuse |
+| a typed Rust AST, rendered once | tatara-rust-ast 0.1.8 (`File`, typed control flow), its `tatara-rust-emit` CLI | reuse across a process boundary; the tree is JSON built here |
+| board facts | kiban's specs | reuse |
+| reading the tree's text | nothing in blue reads an S-expression | `cz_read` below; the first instance, so it stays here until a second reader appears |
+
+The shape: read → lower (L1 qualify, L5 represent, tail calls to loops, L8
+the AST) → emit. The passes the design names and N0 lacks (closure
+conversion, monomorphisation, partial evaluation, placement, discharge) are
+absent because the N0 subset does not produce their input: every refusal
+below names the construct and the rule, so a program outside the subset is a
+compile error, never a wrong image.
+
+The N0 subset, and what each lowers to (board word 32):
+
+  def f(x: Int) -> Int      fn bl_f<I: Io>(io: &mut I, p_x: u32) -> u32
+  NAME = <integer>          const BL_NAME: u32
+  + - *                     kiban_io::checked(a.checked_add(b)): overflow is a fault
+  wrapping_add(a, b)        a.wrapping_add(b): wrapping only where asked
+  == < <= > >= !            comparisons, not
+  if / begin                if / blocks
+  a tail call to itself     a loop (the parameters rebound, then continue)
+  mmio_write(a, 8|32, v)    io.write8 / io.write32, through the board's seam
+  top-level expressions     pub fn main, called by the seam
+
+Int lowers to u32 here (L5 minimal): the checker has no fixed-width types
+yet (BLUE-NATIVE.md §5.1), so a negative value or one past 2^32 - 1 is a
+fault on the board where the interpreter would carry on. That divergence is
+outside the N0 row and is N2's type language to close.
+
+The first pass reads the resolved tree's text into nodes:
+
+    cz_read("(define %root/X 5)") #=> [[{sym: "define"}, {sym: "%root/X"}, 5]]
+"""
+
+use("kiban", [:kb_board])
 
 # ── Reading the resolved tree ─────────────────────────────────────────────
 #
@@ -48,8 +54,10 @@ def cz_delims()
   %w[( )]
 end
 
-# Split S-expression text into tokens: "(", ")", atoms, and strings kept with
-# their quotes. A fold over the characters, so length never costs depth.
+@doc """
+cz_tokens: Split S-expression text into tokens: "(", ")", atoms, and strings kept with
+their quotes. A fold over the characters, so length never costs depth.
+"""
 def cz_tokens(text)
   start = {toks: [], cur: "", in_str: false, esc: false}
   step = fn(st, c)
@@ -90,7 +98,9 @@ def cz_flush(st)
   end
 end
 
-# One atom's node.
+@doc """
+cz_atom: One atom's node.
+"""
 def cz_atom(tok)
   n = to_int(tok)
   if n != nil
@@ -104,7 +114,9 @@ def cz_atom(tok)
   end
 end
 
-# The characters of a string literal's body with its escapes resolved.
+@doc """
+cz_unescape: The characters of a string literal's body with its escapes resolved.
+"""
 def cz_unescape(cs)
   st = reduce(
     fn(acc, c)
@@ -129,8 +141,12 @@ def cz_unescape(cs)
   st[:out]
 end
 
-# The forms in `text`. A stack of open lists, folded over the tokens; an
-# unbalanced text is refused.
+@doc """
+cz_read: The forms in `text`. A stack of open lists, folded over the tokens; an
+unbalanced text is refused.
+
+    cz_read("") #=> []
+"""
 def cz_read(text)
   st = reduce(
     fn(stack, tok)
@@ -292,7 +308,9 @@ end
 
 # ── Lowering (L5 represent; tail calls; L8 emit) ──────────────────────────
 
-# The type a signature names, at this board: Int is the board word.
+@doc """
+cz_type: The type a signature names, at this board: Int is the board word.
+"""
 def cz_type(n)
   if cz_sym(n) == "Int"
     rs_ty("u32")
@@ -320,7 +338,9 @@ def cz_lookup(key, pairs)
   end
 end
 
-# An expression in value position. `ctx`: {self, params, fns, consts}.
+@doc """
+cz_expr: An expression in value position. `ctx`: {self, params, fns, consts}.
+"""
 def cz_expr(n, ctx)
   if integer?(n)
     rs_u32(n)
@@ -415,8 +435,10 @@ def cz_call(n, ctx)
   end
 end
 
-# mmio_write(addr, width, value): the width is a literal, so the store is
-# chosen at compile time.
+@doc """
+cz_mmio: mmio_write(addr, width, value): the width is a literal, so the store is
+chosen at compile time.
+"""
 def cz_mmio(args, ctx)
   if count(args) != 3
     cz_refuse("mmio_write takes an address, a width and a value")
@@ -436,7 +458,9 @@ def cz_mmio(args, ctx)
   )
 end
 
-# A sequence in value position: every form but the last as a statement.
+@doc """
+cz_body: A sequence in value position: every form but the last as a statement.
+"""
 def cz_body(forms, ctx)
   append(
     map((f) -> rs_semi(cz_expr(f, ctx)), butlast(forms)),
@@ -444,7 +468,9 @@ def cz_body(forms, ctx)
   )
 end
 
-# Whether `n`, in tail position, calls `self`.
+@doc """
+cz_tail_self?: Whether `n`, in tail position, calls `self`.
+"""
 def cz_tail_self?(n, name)
   h = cz_head(n)
   if h == name
@@ -458,8 +484,10 @@ def cz_tail_self?(n, name)
   end
 end
 
-# A form in tail position of a looping function, as statements that always
-# leave: `return`, or the parameters rebound and `continue`.
+@doc """
+cz_tail: A form in tail position of a looping function, as statements that always
+leave: `return`, or the parameters rebound and `continue`.
+"""
 def cz_tail(n, ctx)
   h = cz_head(n)
   if h == ctx[:self]
@@ -507,7 +535,9 @@ def cz_tail(n, ctx)
   end
 end
 
-# (define-typed (name (p T) …) R body) → a generic fn over the board.
+@doc """
+cz_fn: (define-typed (name (p T) …) R body) → a generic fn over the board.
+"""
 def cz_fn(form, fns, consts)
   sig = second(form)
   name = cz_sym(first(sig))
@@ -571,7 +601,9 @@ def cz_kind(form)
   end
 end
 
-# The one package a native program may use at N0 is its board's.
+@doc """
+cz_check_use: The one package a native program may use at N0 is its board's.
+"""
 def cz_check_use(form)
   pkg = second(form)[:str]
   if pkg != "kiban"
@@ -586,7 +618,9 @@ def cz_attr(path, args)
   {path: [path], args:}
 end
 
-# The lowered program: a typed Rust `File` (as data), for `board`.
+@doc """
+cz_lower: The lowered program: a typed Rust `File` (as data), for `board`.
+"""
 def cz_lower(forms, board)
   if board[:word] != 32
     cz_refuse(
@@ -629,9 +663,11 @@ def cz_capture(args)
   }
 end
 
-# The emitted Rust for the blue program at `path`, built for the board named
-# `board_name`. The program is checked by blue's own pipeline first; a program
-# that does not check produces no Rust.
+@doc """
+cz_emit: The emitted Rust for the blue program at `path`, built for the board named
+`board_name`. The program is checked by blue's own pipeline first; a program
+that does not check produces no Rust.
+"""
 def cz_emit(path, board_name)
   board = kb_board(board_name)
   if board.nil?
@@ -660,9 +696,11 @@ end
 
 # ── Linking and measuring an image ────────────────────────────────────────
 
-# The linker script, from the board's memory regions: the entry first, every
-# section in RAM, the stack at the top of RAM. Generated, never hand-written
-# (BLUE-NATIVE.md §1.6); a board with no `ram` region is refused.
+@doc """
+cz_link_script: The linker script, from the board's memory regions: the entry first, every
+section in RAM, the stack at the top of RAM. Generated, never hand-written
+(BLUE-NATIVE.md §1.6); a board with no `ram` region is refused.
+"""
 def cz_link_script(board)
   ram = find(board[:memory], (r) -> r[:name] == :ram)
   if ram.nil?
@@ -685,8 +723,10 @@ def cz_link_script(board)
   join(lines, line_break)
 end
 
-# The rustc flags every crate of an image shares: the board's target, size
-# first, abort on panic (the seam's handler is on_fault).
+@doc """
+cz_rustc_flags: The rustc flags every crate of an image shares: the board's target, size
+first, abort on panic (the seam's handler is on_fault).
+"""
 def cz_rustc_flags(board)
   [
     "--edition",
@@ -710,11 +750,13 @@ def cz_run(args, what)
   r
 end
 
-# Build the image `name` from the emitted Rust at `rs`, for the board named
-# `board_name`, with the seam sources under `seam` (kiban_io.rs and
-# <board>/seam.rs), into the directory `out`. Three crates: kiban_io (safe),
-# the program (emitted, #![forbid(unsafe_code)]), and the seam, the one crate
-# where unsafe compiles, linked with LTO. Answers the ELF's path.
+@doc """
+cz_link: Build the image `name` from the emitted Rust at `rs`, for the board named
+`board_name`, with the seam sources under `seam` (kiban_io.rs and
+<board>/seam.rs), into the directory `out`. Three crates: kiban_io (safe),
+the program (emitted, #![forbid(unsafe_code)]), and the seam, the one crate
+where unsafe compiles, linked with LTO. Answers the ELF's path.
+"""
 def cz_link(rs, board_name, seam, out, name)
   board = kb_board(board_name)
   flags = cz_rustc_flags(board)
@@ -803,8 +845,10 @@ def cz_crate_name(name)
   )
 end
 
-# One section's size from `llvm-size -A` output, read by name (0 when the
-# image has no such section).
+@doc """
+cz_section: One section's size from `llvm-size -A` output, read by name (0 when the
+image has no such section).
+"""
 def cz_section(size_text, section)
   row = find(
     split(size_text, line_break),
@@ -817,8 +861,10 @@ def cz_section(size_text, section)
   end
 end
 
-# The image's size (text, data, bss) and whether any core::fmt symbol is in
-# it (BLUE-NATIVE.md, Review §4): one row of the size ledger.
+@doc """
+cz_measure: The image's size (text, data, bss) and whether any core::fmt symbol is in
+it (BLUE-NATIVE.md, Review §4): one row of the size ledger.
+"""
 def cz_measure(elf)
   sized = cz_run(["llvm-size", "-A", elf], "llvm-size")[:stdout]
   syms = cz_run(["llvm-nm", "-C", elf], "llvm-nm")[:stdout]
@@ -832,7 +878,9 @@ def cz_measure(elf)
   }
 end
 
-# The size ledger row as TSV (a header and one line), for DuckDB.
+@doc """
+cz_size_tsv: The size ledger row as TSV (a header and one line), for DuckDB.
+"""
 def cz_size_tsv(program, board_name, m)
   head = join(%w[program board text rodata data bss fmt_symbols], "\t")
   row = join(

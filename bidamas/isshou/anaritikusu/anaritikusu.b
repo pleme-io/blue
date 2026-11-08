@@ -2556,6 +2556,8 @@ end
 @doc """
 norm: A value as the tests compare it: numbers as floats (DuckDB answers 12.0
 where the fold holds 12).
+
+    norm(12) #=> 12.0
 """
 def norm(v)
   apply_when(number?, to_float)(v)

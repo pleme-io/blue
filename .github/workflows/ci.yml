@@ -97,6 +97,7 @@ jobs:
       test-runner: ubuntu-latest
       cargo-test: ${{ needs.blue.outputs.proven != 'true' }}
       closure-artifact: blue-closure
+      flake-check-shards: ${{ fromJSON(vars.BLUE_FLAKE_CHECK_SHARDS || '6') }}
     secrets: inherit
 
   consumers:

@@ -430,8 +430,23 @@ impl<T> Ring<T> {
 pub struct Received {
     pub from: SocketAddr,
     pub stamp_ms: Option<i64>,
+    /// The payload as text: the frame's bytes when they are UTF-8, empty
+    /// for a binary frame a [`Payloads::Bytes`] wire kept.
     pub payload: String,
+    /// The payload exactly as it crossed the wire.
+    pub raw: Vec<u8>,
     pub bytes: usize,
+}
+
+/// What a wire keeps of a frame whose payload is not UTF-8. A blue
+/// program reads every payload as text, so its wires refuse such a frame
+/// (`Text`, counted as malformed); a host that speaks a binary protocol
+/// over the wire keeps it whole in [`Received::raw`] (`Bytes`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Payloads {
+    #[default]
+    Text,
+    Bytes,
 }
 
 #[derive(Clone, Debug)]
@@ -459,6 +474,7 @@ pub struct Wire {
     flash_counts: Counts,
     tide_counts: Counts,
     malformed: u64,
+    payloads: Payloads,
 }
 
 impl Wire {
@@ -483,7 +499,13 @@ impl Wire {
             flash_counts: Counts::default(),
             tide_counts: Counts::default(),
             malformed: 0,
+            payloads: Payloads::Text,
         }
+    }
+
+    /// Choose what this wire keeps of a non-UTF-8 frame; see [`Payloads`].
+    pub fn keep(&mut self, payloads: Payloads) {
+        self.payloads = payloads;
     }
 
     #[must_use]
@@ -655,14 +677,19 @@ impl Wire {
             self.malformed += 1;
             return;
         };
-        let Ok(payload) = String::from_utf8(frame.payload) else {
-            self.malformed += 1;
-            return;
+        let payload = match (std::str::from_utf8(&frame.payload), self.payloads) {
+            (Ok(text), _) => text.to_owned(),
+            (Err(_), Payloads::Bytes) => String::new(),
+            (Err(_), Payloads::Text) => {
+                self.malformed += 1;
+                return;
+            }
         };
         let received = Received {
             from,
             stamp_ms: frame.stamp_ms,
             payload,
+            raw: frame.payload,
             bytes: datagram.len(),
         };
         match frame.channel {
@@ -790,6 +817,38 @@ mod tests {
         }
         let (aa, ba) = (a.address().unwrap(), b.address().unwrap());
         (a, b, aa, ba)
+    }
+
+    #[test]
+    fn a_binary_frame_is_refused_on_a_text_wire_and_kept_whole_on_a_bytes_wire() {
+        let binary = [0x81u8, 1, 0, 5, 0xff, 0xfe];
+        let (mut a, mut b, _, ba) = pair();
+        a.flash_put(ba, &binary, 0).unwrap();
+        assert_eq!(
+            b.next(Channel::Flash, Duration::from_secs(2)).unwrap(),
+            None
+        );
+        assert_eq!(b.malformed(), 1);
+
+        b.keep(Payloads::Bytes);
+        a.flash_put(ba, &binary, 1).unwrap();
+        let got = b
+            .next(Channel::Flash, Duration::from_secs(2))
+            .unwrap()
+            .expect("a bytes wire keeps a binary frame");
+        assert_eq!(got.raw, binary);
+        assert_eq!(got.payload, "");
+        assert_eq!(b.malformed(), 1);
+
+        a.flash_put(ba, b"alert", 2).unwrap();
+        let text = b
+            .next(Channel::Flash, Duration::from_secs(2))
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            (text.payload.as_str(), text.raw.as_slice()),
+            ("alert", &b"alert"[..])
+        );
     }
 
     #[test]

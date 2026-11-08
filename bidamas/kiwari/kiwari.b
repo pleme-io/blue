@@ -1223,7 +1223,8 @@ def surface()
       %w[_arrow_parameters _plain_parameters],
       %w[_arrow_parameters parameters],
       %w[pun_pair pair],
-      %w[string _plain_string]
+      %w[string _plain_string],
+      ["union"]
     ],
     infix: infix_rows,
     unary: unary_rows,

@@ -3,7 +3,7 @@ module.exports = grammar({
   name: 'blue',
   word: $ => $.identifier,
   extras: $ => [/[ \t\r]/u, $.comment, $.expectation],
-  conflicts: $ => [[$._primary, $._arrow_parameters], [$._arrow_parameters, $._plain_parameters], [$._arrow_parameters, $.parameters], [$.pun_pair, $.pair], [$.string, $._plain_string]],
+  conflicts: $ => [[$._primary, $._arrow_parameters], [$._arrow_parameters, $._plain_parameters], [$._arrow_parameters, $.parameters], [$.pun_pair, $.pair], [$.string, $._plain_string], [$.union]],
   rules: {
     source_file: $ => optional(choice(seq(repeat1($._newline), optional(choice(choice(seq(repeat1(seq($._top_statement, repeat1($._newline))), optional($._top_statement)), $._top_statement), seq($.moduledoc, optional(seq(repeat1($._newline), optional(choice(seq(repeat1(seq($._top_statement, repeat1($._newline))), optional($._top_statement)), $._top_statement)))))))), choice(choice(seq(repeat1(seq($._top_statement, repeat1($._newline))), optional($._top_statement)), $._top_statement), seq($.moduledoc, optional(seq(repeat1($._newline), optional(choice(seq(repeat1(seq($._top_statement, repeat1($._newline))), optional($._top_statement)), $._top_statement)))))))),
     _newline: $ => '\n',

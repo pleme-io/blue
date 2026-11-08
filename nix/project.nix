@@ -47,7 +47,8 @@
 # | `catalog(path)` | `packages.bidama-catalog`, `checks.bidama-catalog-fresh` |
 # | `rule(code, file, def[, severity])` | `checks.project-rules-hold`: `blue check` on every `.b` of the project's packages and every run, check and app program, which runs the project rules beside the registry |
 # | `generate`, `catalog` or `workload` | `apps.regen` |
-# | every project | `checks.project` (every other check, one name for CI) and, on Linux, `apps.scan-images` (each service's scan floor and grype gate) |
+# | `projectFor { postMerge = [ name … ]; }` | those checks leave `checks` and `checks.project` and are `postMergeChecks`, run after the merge |
+# | every project | `checks.project` (every other pre-merge check, one name for CI) and, on Linux, `apps.scan-images` (each service's scan floor and grype gate) |
 # | `image(name, spec)` | Linux only: `packages.image-<name>` through `mkHardenedImageSet` (`nix/image.nix`; the direct `mkPackageImage` / `mkDistrolessImage` path is configured off, revived by `legacy.directImages = true`), `packages.image-<name>-manifest` (the archive's manifest.json, which `blue image build` reads), `checks.image-<name>-distroless` (`image-gate.b` over the closure) |
 # | `workload(name, spec)` | configured off (refused) unless `legacy.rawWorkloads = true`; then `packages.workload-<name>` (`blue workload render`), `checks.workload-<name>-fresh` |
 # | `service(name, spec)` | `nix/service.nix`: `packages.<name>`, `packages.service-<name>-tree` (haibi), `checks.service-<name>-{fresh,chart,serves}` (+ `-migrations` with a schema); a `runtime: :wasm` service (the default) also `packages.service-<name>-component` (blue's engine component plus the program bundle at `app/`) and `checks.service-<name>-component-serves` (the component under wasmtime answers its probe); on Linux `packages.image-<name>` through `mkHardenedImageSet`, `checks.image-<name>-distroless`, `apps.grype-scan-<name>`; the module trio and `overlays.default` |
@@ -182,7 +183,7 @@ let
   #          caller has none, and an `image(...)` is then refused by name
   #   appliance  the `blue-appliance` runner for the system (static musl on
   #          Linux), or null, and an `app` then lowers to no appliance
-  projectFor = { pkgs, blue, src, base ? null, oci ? null, moduleTrio ? null, legacy ? { }, chartLibraries ? { }, component ? null, appliance ? null, tameshi ? null }:
+  projectFor = { pkgs, blue, src, base ? null, oci ? null, moduleTrio ? null, legacy ? { }, chartLibraries ? { }, component ? null, appliance ? null, tameshi ? null, postMerge ? [ ] }:
     assert lib.assertMsg (builtins.isPath src)
       "lib.project: src must be a path; pass `src = ./.` from the project's flake.nix";
     let
@@ -636,15 +637,17 @@ let
         });
 
       allChecks = disjoint "check" (disjoint "check" (disjoint "check" gates ruleGate) checkWords) receiptChecks;
+      preMergeChecks = builtins.removeAttrs allChecks postMerge;
+      postMergeChecks = lib.filterAttrs (n: _: lib.elem n postMerge) allChecks;
     in
     if missingNeeds != [ ] then
       throw "lib.project: the Bluefile needs ${lib.concatStringsSep ", " missingNeeds}, which neither the project nor the distribution it composes over provides"
     else {
-      inherit name runner bidamas packages apps bluePath imageGate;
+      inherit name runner bidamas packages apps bluePath imageGate postMergeChecks;
       inherit (lowered) services trios executables;
-      checks = disjoint "check" allChecks {
+      checks = disjoint "check" preMergeChecks {
         project = pkgs.runCommand "${name}-project" { } ''
-          ${lib.concatMapStrings (c: "echo ${c} >> $out\n") (lib.attrValues allChecks)}
+          ${lib.concatMapStrings (c: "echo ${c} >> $out\n") (lib.attrValues preMergeChecks)}
         '';
       };
     };

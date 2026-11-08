@@ -485,6 +485,7 @@
         oci = ociFor system;
         appliance = applianceFor system;
         inherit tameshi;
+        inherit (import ./nix/check-tiers.nix) postMerge;
       });
 
       # The bidama library bound to a package set: every nix function blue has
@@ -598,7 +599,7 @@
           bl = import ./bidamas/mk-bidama.nix { inherit (pkgs) lib runCommand symlinkJoin makeWrapper makeBinaryWrapper; inherit blue; };
           workspaceTests = (import "${substrate}/lib/build/rust/workspace-tests.nix" { inherit lib; }).mkWorkspaceTests pkgs;
         in
-        engine.disjoint "check" (engine.disjoint "check" (engine.disjoint "check" existing repository.${system}.checks) native.${system}.checks) ({
+        engine.disjoint "check" (engine.disjoint "check" (engine.disjoint "check" (engine.disjoint "check" existing repository.${system}.checks) repository.${system}.postMergeChecks) native.${system}.checks) ({
           # Every .b file in the repository is in the one layout; each file
           # that is not is named. `mkBidama` holds each package the same way,
           # so this is the rest of the tree: specs, generators, fixtures.
@@ -872,7 +873,16 @@
       ) base.checks;
 
       checks = lib.mapAttrs (system: all:
-        builtins.removeAttrs all (import ./nix/check-tiers.nix).postMerge
+        let
+          tier = (import ./nix/check-tiers.nix).postMerge;
+          pre = builtins.removeAttrs all tier;
+          unknown = lib.filter (n: !(all ? ${n})) tier;
+          members = lib.splitString "\n" pre.project.buildCommand;
+          leaked = lib.filter (n: all ? ${n} && lib.elem "echo ${all.${n}} >> $out" members) tier;
+        in
+        assert lib.assertMsg (unknown == [ ]) "nix/check-tiers.nix: postMerge names ${lib.concatStringsSep ", " unknown}, which no check of ${system} is";
+        assert lib.assertMsg (leaked == [ ]) "checks.project still builds the post-merge checks ${lib.concatStringsSep ", " leaked}; pass the tier to projectFor as postMerge";
+        pre
       ) self.checksAll;
 
       postMerge = lib.mapAttrs (system: all:

@@ -354,7 +354,10 @@ A check answers one of two questions, and the answer places it:
 
 The tier is data: `nix/check-tiers.nix` lists the post-merge checks, `checksAll`
 holds every check, `checks` is `checksAll` without them. A check moves between
-tiers by one line; nothing is deleted. A post-merge check is not a duplicate
+tiers by one line; nothing is deleted. The project engine takes the same list
+(`projectFor { postMerge = …; }`), so `checks.project`, the one name CI builds,
+aggregates only pre-merge checks; evaluation refuses a tier name that is no
+check and a `project` that still names a post-merge one. A post-merge check is not a duplicate
 of a pre-merge one: before moving a check, name the question it answers. The
 land's runner is the repository variable `BLUE_LAND_RUNNER` (unset: hosted).
 

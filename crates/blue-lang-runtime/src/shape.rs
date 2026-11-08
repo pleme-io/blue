@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use blue_lang_syntax::pattern::{SHAPE_AT, SHAPE_FROM, SHAPE_KEY, SHAPE_LIST, SHAPE_REFUSE};
+use blue_lang_syntax::try_op::{TRY_REFUSED, TRY_VALUE};
 use tatara_lisp_eval::ffi::Arity;
 use tatara_lisp_eval::value::MapKey;
 use tatara_lisp_eval::{EvalError, Interpreter, Value};
@@ -68,6 +69,29 @@ fn shown(v: &Value) -> String {
     }
 }
 
+fn result_of(v: &Value) -> Option<bool> {
+    let Value::Map(m) = v else {
+        return None;
+    };
+    match m.get(&MapKey::Keyword(Arc::from("ok"))) {
+        Some(Value::Bool(ok)) => Some(*ok),
+        _ => None,
+    }
+}
+
+fn not_a_result(v: &Value, sp: tatara_lisp::Span) -> EvalError {
+    raise_kind_with(
+        "usage",
+        format!(
+            "`?` takes a result, {{ok: true, value: v}} or {{ok: false, refusal: r}} \
+             (kyohi::ok, kyohi::refused), and was given {}",
+            shown(v)
+        ),
+        v.clone(),
+        sp,
+    )
+}
+
 pub fn install<H: 'static>(interp: &mut Interpreter<H>) {
     interp.register_fn(SHAPE_LIST, Arity::Exact(3), |a: &[Value], _: &mut H, _| {
         Ok(Value::Bool(list_shape(&a[0], &a[1], &a[2])))
@@ -81,6 +105,25 @@ pub fn install<H: 'static>(interp: &mut Interpreter<H>) {
     interp.register_fn(SHAPE_FROM, Arity::Exact(2), |a: &[Value], _: &mut H, _| {
         Ok(from(&a[0], &a[1]))
     });
+    interp.register_fn(
+        TRY_REFUSED,
+        Arity::Exact(1),
+        |a: &[Value], _: &mut H, sp| match result_of(&a[0]) {
+            Some(ok) => Ok(Value::Bool(!ok)),
+            None => Err(not_a_result(&a[0], sp)),
+        },
+    );
+    interp.register_fn(
+        TRY_VALUE,
+        Arity::Exact(1),
+        |a: &[Value], _: &mut H, sp| match (result_of(&a[0]), &a[0]) {
+            (Some(true), Value::Map(m)) => Ok(m
+                .get(&MapKey::Keyword(Arc::from("value")))
+                .cloned()
+                .unwrap_or(Value::Nil)),
+            _ => Err(not_a_result(&a[0], sp)),
+        },
+    );
     interp.register_fn(
         SHAPE_REFUSE,
         Arity::Exact(2),

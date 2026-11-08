@@ -1660,6 +1660,7 @@ const SYNTHESIZED: &[&str] = &[
     "case-subject",
     blue_lang_syntax::RESCUED,
     blue_lang_syntax::pattern::BIND_SUBJECT,
+    blue_lang_syntax::try_op::TRY_SUBJECT,
 ];
 
 /// Resolve every name in `forms` against `table`.

@@ -73,7 +73,11 @@ impl Locals {
 }
 
 /// Synthesized by the parser, never written by an author.
-const SYNTHESIZED: &[&str] = &["case-subject", blue_lang_syntax::pattern::BIND_SUBJECT];
+const SYNTHESIZED: &[&str] = &[
+    "case-subject",
+    blue_lang_syntax::pattern::BIND_SUBJECT,
+    blue_lang_syntax::try_op::TRY_SUBJECT,
+];
 
 pub(crate) fn index(a: &Analysis, builtins: &NameTable) -> Locals {
     let own = a.own_namespace();

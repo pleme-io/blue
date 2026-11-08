@@ -186,7 +186,9 @@ pub fn format_tree_lossless(src: &str, tree: &[Spanned]) -> Result<String, Forma
         src,
         blue_lang_syntax::doc::redocument(
             src,
-            blue_lang_syntax::union::raise(blue_lang_syntax::pattern::raise(tree.to_vec())),
+            blue_lang_syntax::union::raise(blue_lang_syntax::try_op::raise(
+                blue_lang_syntax::pattern::raise(tree.to_vec()),
+            )),
         ),
     );
     let r = Renderer::lossless(src)?;
@@ -559,8 +561,9 @@ impl<'s> Renderer<'s> {
     // ---- top level ------------------------------------------------------
 
     fn program(&self, forms: &[Spanned]) -> String {
-        let raised =
-            blue_lang_syntax::union::raise(blue_lang_syntax::pattern::raise(forms.to_vec()));
+        let raised = blue_lang_syntax::union::raise(blue_lang_syntax::try_op::raise(
+            blue_lang_syntax::pattern::raise(forms.to_vec()),
+        ));
         let forms = raised.as_slice();
         let spans: Vec<Span> = forms.iter().map(|f| f.span).collect();
         let mut u = self.units(0, self.src.len(), &spans);
@@ -1083,6 +1086,18 @@ impl<'s> Renderer<'s> {
                     && items[1].as_symbol().is_some() =>
             {
                 return Doc::text(format!("*{}", items[1].as_symbol().unwrap_or("_")));
+            }
+            Some(n) if n == blue_lang_syntax::try_op::LOWERED_TRY && items.len() == 2 => {
+                let inner = match (&items[1].form, items[1].as_list()) {
+                    (_, Some([callee])) if is_call_head(callee) => {
+                        self.expr(callee, 12).concat(Doc::text("()"))
+                    }
+                    (SpannedForm::Atom(_) | SpannedForm::Nil, _) => Doc::text("(")
+                        .concat(self.expr(&items[1], 0))
+                        .concat(Doc::text(")")),
+                    _ => self.expr(&items[1], 12),
+                };
+                return inner.concat(Doc::text("?"));
             }
             Some("list") => {
                 if let Some(d) = self.word_list(s, &items[1..]) {

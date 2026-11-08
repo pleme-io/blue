@@ -143,7 +143,9 @@ pub fn parse_program_tree_with_depth(
     parse_program_documented_with_depth(src, max_depth)
         .map(crate::doc::strip)
         .map(crate::union::lower)
+        .and_then(|forms| crate::try_op::lower(forms).map_err(|e| e.located(src)))
         .and_then(|forms| crate::guard::lower(forms).map_err(|e| e.located(src)))
+        .map(crate::try_op::widen)
         .and_then(|forms| crate::pattern::lower(forms).map_err(|e| e.located(src)))
 }
 
@@ -1635,6 +1637,15 @@ impl Parser {
                     if self.at(&TokenKind::LParen) || self.touches_previous() =>
                 {
                     lhs = self.applied(start, lhs)?;
+                    continue;
+                }
+                TokenKind::Op(o) if o == "?" && self.touches_previous() => {
+                    let mark = self.peek_span();
+                    self.bump();
+                    lhs = list_at(
+                        self.span_since(start),
+                        vec![sym_at(mark, crate::try_op::LOWERED_TRY), lhs],
+                    );
                     continue;
                 }
                 _ => {}

@@ -106,6 +106,11 @@ pub const FORMS: &[Form] = &[
         doc: "A binding, only as a statement. There is no `let`; a binding lasts to the end of its body.",
     },
     Form {
+        example: "x = f(y)?",
+        lowers_to: "(define x (blue-try (f y)))",
+        doc: "`?` after a call takes a result, {ok: true, value: v} or {ok: false, refusal: r} (kyohi::ok, kyohi::refused): a refusal is returned from the function at once, through a guard `return`; otherwise the expression is v. It ends a statement of a def body, `x = f(y)?` or `f(y)?`; anywhere else it is a parse error. A value that is not a result raises :usage.",
+    },
+    Form {
         example: "[a, *rest] = xs",
         lowers_to: "(blue-bind (list a (blue-splice rest)) xs)",
         doc: "A destructuring binding, only as a statement: a list pattern `[a, b]` or a map pattern `{name:}` on the left binds each name it holds. A value that does not fit raises :pattern, naming the pattern; it never binds nil. The same patterns destructure in a `when`.",

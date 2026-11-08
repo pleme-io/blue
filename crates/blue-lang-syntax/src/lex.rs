@@ -288,6 +288,7 @@ impl<'a> Lexer<'a> {
                 b'{' => self.one(TokenKind::LBrace, start),
                 b'}' => self.one(TokenKind::RBrace, start),
                 b',' => self.one(TokenKind::Comma, start),
+                b'?' => self.one(TokenKind::Op("?".to_string()), start),
                 b'.' => self.one(TokenKind::Dot, start),
                 // Non-ASCII goes through the UTF-8 layer, which decodes a
                 // whole CHARACTER and asks `kigou` what it means. This must

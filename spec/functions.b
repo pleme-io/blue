@@ -55,3 +55,22 @@ test "unless is a negated if"
     8
   end == 7
 end
+
+def halved(n)
+  if n % 2 == 0
+    {ok: true, value: n / 2}
+  else
+    {ok: false, refusal: [:odd, n]}
+  end
+end
+
+def quartered(n)
+  h = halved(n)?
+  halved(h)
+end
+
+test "`?` returns a refusal at once and unwraps a value"
+  assert quartered(8) == {ok: true, value: 2}
+  assert quartered(6) == {ok: false, refusal: [:odd, 3]}
+  assert quartered(5) == {ok: false, refusal: [:odd, 5]}
+end

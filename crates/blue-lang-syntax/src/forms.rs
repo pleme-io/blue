@@ -106,6 +106,11 @@ pub const FORMS: &[Form] = &[
         doc: "A binding, only as a statement. There is no `let`; a binding lasts to the end of its body.",
     },
     Form {
+        example: "[a, *rest] = xs",
+        lowers_to: "(blue-bind (list a (blue-splice rest)) xs)",
+        doc: "A destructuring binding, only as a statement: a list pattern `[a, b]` or a map pattern `{name:}` on the left binds each name it holds. A value that does not fit raises :pattern, naming the pattern; it never binds nil. The same patterns destructure in a `when`.",
+    },
+    Form {
         example: "case s\nwhen rect(w, h)\n  w * h\nwhen [x, *rest]\n  rest\nwhen {name:}\n  name\nend",
         lowers_to: "(let ((case-subject s)) (cond ((equal? case-subject (rect w h)) (* w h)) ((equal? case-subject (list x (blue-splice rest))) rest) ((equal? case-subject (hash-map :name name)) name) (else ())))",
         doc: "A `when` pattern destructures: rect(w, h) matches a record of the program by position, [x, *rest] a list of at least one, {name:} a map or record holding :name. Inside a pattern a name binds, `_` matches anything and a literal compares with ==. A pattern with no name in it compares by value, as before. rect(w, h) covers the arm rect for B0081; rect(w, 1) does not.",

@@ -1205,6 +1205,24 @@ impl Parser {
                 ));
             }
         }
+        if let Some(close) = self.pattern_binding_ahead() {
+            let start = self.peek_span();
+            let pattern = self.expr(0)?;
+            let eq = self.peek_span();
+            if self.pos != close || self.peek_at(0) != "=" {
+                return Err(fail(
+                    "expected `=` after the pattern of a destructuring binding",
+                    eq,
+                ));
+            }
+            self.bump();
+            self.skip_newlines();
+            let value = self.expr(0)?;
+            return Ok(list_at(
+                self.span_since(start.start),
+                vec![sym_at(eq, crate::pattern::LOWERED_BIND), pattern, value],
+            ));
+        }
         let e = self.expr(0)?;
         if let SpannedForm::List(items) = &e.form {
             if items.len() == 3
@@ -1216,6 +1234,31 @@ impl Parser {
             }
         }
         Ok(e)
+    }
+
+    fn pattern_binding_ahead(&self) -> Option<usize> {
+        let (open, close) = match self.toks.get(self.pos).map(|t| &t.kind) {
+            Some(TokenKind::LBracket) => (TokenKind::LBracket, TokenKind::RBracket),
+            Some(TokenKind::LBrace) => (TokenKind::LBrace, TokenKind::RBrace),
+            _ => return None,
+        };
+        let mut depth = 0usize;
+        let mut i = self.pos;
+        while let Some(t) = self.toks.get(i) {
+            if t.kind == open {
+                depth += 1;
+            } else if t.kind == close {
+                depth -= 1;
+                if depth == 0 {
+                    return matches!(self.toks.get(i + 1).map(|t| &t.kind), Some(TokenKind::Op(o)) if o == "=")
+                        .then_some(i + 1);
+                }
+            } else if matches!(t.kind, TokenKind::Eof) {
+                return None;
+            }
+            i += 1;
+        }
+        None
     }
 
     fn record_statement(&mut self) -> Result<Option<Spanned>, Fail> {

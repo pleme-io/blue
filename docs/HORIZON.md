@@ -102,6 +102,11 @@ since it lowers to `when rect?`'s test; `when rect(w, 1)` does not cover it.
 A record pattern names a record declared in the same program; one from another
 bidama is not yet a pattern and still compares by value. Rows:
 `spec/rows/patterns.b`.
+**Destructuring bindings, built (2026-11-08):** `[a, b] = pair`,
+`[h, *t] = xs` and `{name:, age: n} = person` are statements over the same
+patterns. They lower in their statement sequence to `bind-subject = value`, a
+test that raises :pattern naming the pattern when the value does not fit, and
+one binding per name, so nothing ever binds nil. G13 is closed.
 **Unlocks:** H2 (types have shapes to name), ABSENCE P1, SAFETY rows 1 and 3.
 
 ### H2. Types that grow with the program

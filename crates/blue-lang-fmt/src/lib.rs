@@ -853,6 +853,14 @@ impl<'s> Renderer<'s> {
                     .concat(Doc::text(" = "))
                     .concat(self.expr(&items[2], 0));
             }
+            if items.len() == 3
+                && items[0].as_symbol() == Some(blue_lang_syntax::pattern::LOWERED_BIND)
+            {
+                return self
+                    .expr(&items[1], 0)
+                    .concat(Doc::text(" = "))
+                    .concat(self.expr(&items[2], 0));
+            }
         }
         self.expr(s, 0)
     }

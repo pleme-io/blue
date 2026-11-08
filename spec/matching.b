@@ -75,3 +75,15 @@ test "a map pattern binds a key it holds"
     name
   end == "a"
 end
+
+def only(xs)
+  [c] = xs
+  c
+end
+
+test "a destructuring binding binds every name, or refuses"
+  [a, {b:}] = [1, {b: 2}]
+  assert a + b == 3
+  assert only([5]) == 5
+  assert (only([1, 2]) rescue :refused) == :refused
+end

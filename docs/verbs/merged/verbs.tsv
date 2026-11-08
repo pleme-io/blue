@@ -777,14 +777,14 @@ C	heikou	backoff	pure	backoff(policy, attempt) -> duration	retry,time	-	absent	T
 C	heikou	batch	pure	batch(xs, size) -> [[x]]	-	-	absent	Cut a list into groups of a size.	1	batch(xs, size) -> [[x]]	yes
 C	heikou	cancel	effect	cancel(token, reason) -> nil	cancel	-	absent	Signal cancellation to everything holding the token.	1	cancel(token, reason) -> nil	yes
 C	heikou	cancelled?	pure	cancelled?(token) -> Bool	cancel	-	absent	Whether cancellation was signalled.	1		na
-C	heikou	deadline	effect	deadline(instant, f) -> value	cancel,deadline	-	absent	Run f with an absolute deadline inherited by callees.	1		na
+C	heikou	deadline	effect	deadline(instant, f) -> value	cancel,deadline	-	rust:blue-lang-proc	Run f with an absolute deadline inherited by callees.	1		na
 C	heikou	debounce	effect	debounce(f, duration) -> function	time	-	absent	Call f once after calls stop for a duration.	3		na
 C	heikou	each	effect	each(xs, f, opts) -> nil	cancel,error,process	-	absent	Parallel side effects with a limit.	1	each(xs, f) -> nil	no
 C	heikou	limit	decl	limit(count) -> semaphore	resource	shigoto-budget	absent	Make a bound on how many run at once.	2	limit(count) -> semaphore	yes
 C	heikou	map	effect	map(xs, f, opts) -> [value]	cancel,error,process,resource	-	absent	Parallel map with a limit; results in order.	1	map(xs, f, opts) -> [value]	yes
 C	heikou	policy	decl	policy(opts) -> policy	config,retry	shigoto-retry	absent	Declare attempts, backoff, jitter and which kinds retry.	1	policy(opts) -> policy	yes
 C	heikou	race	effect	race(fs, opts) -> value	cancel,process	-	absent	Return the first finisher; cancel the rest.	1		na
-C	heikou	remaining	pure	remaining() -> duration	deadline,time	-	absent	Time left before the current deadline.	1		na
+C	heikou	remaining	pure	remaining() -> duration	deadline,time	-	rust:blue-lang-proc	Time left before the current deadline.	1		na
 C	heikou	retry	effect	retry(f, policy) -> value	deadline,error,retry,time	shigoto-retry	absent	Call f again under a policy while its error is retryable.	1	retry(f, policy) -> value	yes
 C	heikou	run	effect	run(f, opts) -> value	deadline,process	-	absent	Run f in a process with a timeout.	1	run(f, opts) -> value	yes
 C	heikou	scope	effect	scope(f) -> value	cancel,process,resource	-	absent	A scope where every child ends before it returns.	2	scope(f) -> value	yes
@@ -792,15 +792,15 @@ C	heikou	shield	effect	shield(f) -> value	cancel	-	absent	Run f to the end even 
 C	heikou	spawn	effect	spawn(f, opts) -> handle	process	-	absent	Start f without waiting.	1	spawn(f, opts) -> handle	yes
 C	heikou	stop	effect	stop(handle, opts) -> nil	cancel,process	-	absent	Cancel a handle and wait for it to end.	1	stop(handle, opts) -> nil	yes
 C	heikou	throttle	effect	throttle(f, duration) -> function	ratelimit,time	-	absent	Call f at most once per duration.	3	throttle(f, duration) -> function	yes
-C	heikou	timeout	effect	timeout(f, duration) -> value	deadline	-	absent	Run f; raise timeout when the duration passes.	1		na
+C	heikou	timeout	effect	timeout(duration, f) -> value	deadline	-	rust:blue-lang-proc	Run f; raise timeout when the duration passes.	1		na
 C	heikou	token	decl	token() -> cancel token	cancel	-	absent	Make a token that signals cancellation.	1		na
 C	heikou	wait	effect	wait(handle, opts) -> value	deadline,process	-	absent	Wait for a handle's result.	1	wait(handle, opts) -> value	yes
 F	heni	apply	pure	apply(text, mutation) -> text	test	-	exists:heni	text with one mutation applied, or an error	0	apply(text, mutation) -> text	yes
 F	heni	mutations	pure	mutations(parsed) -> [mutation]	test	-	exists:heni	Mutations from parsed JSON: [{name, file, find, replace}]	0		na
 F	heni	ok?	pure	ok?(report) -> Bool	test	-	exists:heni	whether every mutation was caught	0		na
 F	heni	run	effect	run(package, opts) -> report	process,test	-	exists:heni	spec: {package, mutations, blue, test, tmp}	0	run(package, opts) -> report	yes
-F	heni	score	pure	score(report) -> ratio	test	-	partial:heni	the share of mutations the tests caught	1	score(report) -> ratio	yes
-F	heni	survivors	pure	survivors(report) -> [mutation]	test	-	partial:heni	the mutations no test caught	0		na
+F	heni	score	pure	score(report) -> ratio	test	-	exists:heni	a run's caught ratio, the share of mutations its tests caught, as {caught, total}: every mutation run counts in total, only a caught one in caught	1	score(report) -> ratio	yes
+F	heni	survivors	pure	survivors(report) -> [mutation]	test	-	exists:heni	the names of the mutations a run's tests survived	0		na
 G	hikisuu	command	effect	command(spec, f) -> value	-	clap	exists:hikisuu	the program's door: argv read by the spec; help and completion printed, a bad line refused on stderr with exit 64, otherwise f called with the record	0	command(spec, f) -> value	yes
 G	hikisuu	complete	pure	complete(args, spec) -> [text]	-	clap	exists:hikisuu	the words that may follow a partial command line, for the last word as typed so far	0	complete(args, spec) -> [text]	yes
 G	hikisuu	parse	pure	parse(args, spec) -> record	-	clap	exists:hikisuu	a command line read by a spec into one record of every flag, positional and the command; every fault raised together as `:usage`	0	parse(args, spec) -> record	yes

@@ -213,7 +213,7 @@ rendered:
 
 | | |
 |---|---|
-| Built-in names | 373: 346 functions, 14 special forms, 13 macros |
+| Built-in names | 381: 354 functions, 14 special forms, 13 macros |
 | Surface forms | 32, with 13 operators and 26 reserved words |
 | Check rules | 77: 42 fix themselves, 8 suggest a fix |
 | Bluefile words | 26 |
@@ -224,7 +224,7 @@ rendered:
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-65 packages, 5718 definitions, 1903 tests.
+66 packages, 5858 definitions, 1944 tests.
 
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
 - [baito](bidamas/CATALOG.md#baito) (バイト) — bytes as data: integers at a declared width and order, and record layouts that say where each field sits.
@@ -250,11 +250,11 @@ rendered:
 - [jisho](bidamas/CATALOG.md#jisho) (辞書) — dictionaries: maps as values, read and changed by key, each change a new map.
 - [junjo](bidamas/CATALOG.md#junjo) (順序) — ordering: sorting, searching, selection.
 - [kaaneru](bidamas/CATALOG.md#kaaneru) (カーネル) — the Linux kernel, spoken from blue: maps, programs, links and ring buffers over `bpf(2)`, with every struct a `baito` layout and no C library in the path.
-- [kakehashi](bidamas/CATALOG.md#kakehashi) (架け橋, a bridge) — blue speaks Nix, Nix runs blue, and a rebuild does
+- [kakehashi](bidamas/CATALOG.md#kakehashi) (架け橋, a bridge) — blue speaks Nix, Nix runs blue, and a rebuild does only the work that changed (theory/KAKEHASHI.md).
 - [kansuu](bidamas/CATALOG.md#kansuu) (関数) — functions about functions.
 - [kazu](bidamas/CATALOG.md#kazu) (数) — numbers.
 - [keiyu](bidamas/CATALOG.md#keiyu) (経由) — by way of: run one command with a proxy set for it alone.
-- [khipu](bidamas/CATALOG.md#khipu) — blue's knowledge graph (docs/KHIPU.md): RDF terms as a closed sum, quads, and N-Triples and N-Quads read and written. A literal with both a language tag and a datatype has no constructor, an IRI or a language tag that is not valid is refused where it is read, and a blank node carries the scope of the document it came from, so two documents' `_:b` are two nodes.
+- [khipu](bidamas/CATALOG.md#khipu) — blue's knowledge graph (docs/KHIPU.md): RDF terms as a closed sum, quads, and N-Triples and N-Quads read and written.
 - [kiwari](bidamas/CATALOG.md#kiwari) (木割): one grammar spec, every syntax artifact emitted from it.
 - [kodou](bidamas/CATALOG.md#kodou) (鼓動) — the dual-pulse wire: a Flash channel paced by ibuki's token bucket and a Tide channel paced by ibuki's LEDBAT controller from the one-way delay each acknowledgement measures, over one UDP socket the host frames (0x02 Flash, 0x01 Tide); and the gossip of crash proofs on it: an alert on Flash, the artifact on Tide when a peer asks for it, verified by its content hash and kept in kensa's `kensa-immunity.v1` file.
 - [koubou](bidamas/CATALOG.md#koubou) (工房, workshop) — shapes made, measured and cut.
@@ -262,7 +262,7 @@ rendered:
 - [koutei](bidamas/CATALOG.md#koutei) (工程) — one step of a pipeline, as GitHub Actions runs it.
 - [kueri](bidamas/CATALOG.md#kueri) (クエリ) — queries: analysis is authored in blue, and SQL is only the rendered bridge to DuckDB.
 - [kyohi](bidamas/CATALOG.md#kyohi) (拒否) — refusals, as data.
-- [maakuappu](bidamas/CATALOG.md#maakuappu) (マークアップ) — XML as data: a document parsed by the runtime's xml_parse (quick-xml) into element maps {name, attributes, children, text}, the queries a reader of a scanner export asks of it (children and descendants by name, attributes, text, a path of element names), and the element rendered back with every value escaped. A DTD entity is never expanded or fetched: the document is refused (:xml_refused), and a document that is not well-formed raises :xml_malformed.
+- [maakuappu](bidamas/CATALOG.md#maakuappu) (マークアップ) — XML as data: a document parsed by the runtime's xml_parse (quick-xml) into element maps {name, attributes, children, text}, the queries a reader of a scanner export asks of it (children and descendants by name, attributes, text, a path of element names), and the element rendered back with every value escaped.
 - [mitoshi](bidamas/CATALOG.md#mitoshi) (見通し, a clear view ahead) — what a running program shows of itself.
 - [moji](bidamas/CATALOG.md#moji) (文字) — strings.
 - [mokuroku](bidamas/CATALOG.md#mokuroku) (目録): the catalogue of what every bidama on a BLUE_PATH provides.
@@ -271,12 +271,12 @@ rendered:
 - [ran](bidamas/CATALOG.md#ran) (乱) — deterministic pseudo-randomness.
 - [retsu](bidamas/CATALOG.md#retsu) (列) — lists, made TOTAL.
 - [ronri](bidamas/CATALOG.md#ronri) (論理) — predicates, and the algebra over them.
-- [sabi](bidamas/CATALOG.md#sabi) (錆): Rust source from blue data. Build the items as values, render once.
+- [sabi](bidamas/CATALOG.md#sabi) (錆): Rust source from blue data.
 - [saishikou](bidamas/CATALOG.md#saishikou) (再試行) — retrying a step that can fail for a moment.
 - [seimei](bidamas/CATALOG.md#seimei) (生命) — cellular automata: elementary rules, and Life.
-- [settei](bidamas/CATALOG.md#settei) (設定) — configuration, blue's shikumi: a record of defaults grouped by concern, resolved by read(app, defaults) from the defaults, then ~/.config/<app>/<app>.yaml (or <APP>_CONFIG), then <APP>_<GROUP>__<KEY> in the environment, each value typed by its default and a wrong type refused. The resolved record is read by dotted path; a misspelt path raises and names the fields that exist.
+- [settei](bidamas/CATALOG.md#settei) (設定) — configuration, blue's shikumi: a record of defaults grouped by concern, resolved by read(app, defaults) from the defaults, then ~/.config/<app>/<app>.yaml (or <APP>_CONFIG), then <APP>_<GROUP>__<KEY> in the environment, each value typed by its default and a wrong type refused.
 - [shinchoku](bidamas/CATALOG.md#shinchoku) (進捗) — progress: operational probes that judge by progress over a window, never by one reading.
-- [shinsatsu](bidamas/CATALOG.md#shinsatsu) (診察) — the credential doctor: a provider, the failure classes its credential helper can show, and for each class a diagnosis, the remediation steps and a verify step. A new provider or a new failure class is a declaration.
+- [shinsatsu](bidamas/CATALOG.md#shinsatsu) (診察) — the credential doctor: a provider, the failure classes its credential helper can show, and for each class a diagnosis, the remediation steps and a verify step.
 - [shinsuu](bidamas/CATALOG.md#shinsuu) (進数) — base conversion and checksums.
 - [shisutemu](bidamas/CATALOG.md#shisutemu) (システム) — the system.
 - [shomei](bidamas/CATALOG.md#shomei) (署名) — signatures and hash chains: Ed25519 and BLAKE3, for real.
@@ -285,6 +285,7 @@ rendered:
 - [suugaku](bidamas/CATALOG.md#suugaku) (数学, mathematics) — numbers worked over as a discipline.
 - [tesuto](bidamas/CATALOG.md#tesuto) (テスト) — testing: errors and snapshots as assertions, and the policy that holds every definition to a test beside it.
 - [todokede](bidamas/CATALOG.md#todokede) (届出, filings) — what a person or a company declares as entries.
+- [toride](bidamas/CATALOG.md#toride) (砦) — a fort at the border: split-horizon DNS for a machine that roams between sites.
 - [toriyose](bidamas/CATALOG.md#toriyose) (取り寄せ, fetching on order) — what a frontend asks for and keeps.
 - [touroku](bidamas/CATALOG.md#touroku) (登録) — registry: a project published to and resolved from registry backends, each a rendering of the Bluefile, never its truth.
 - [ugoki](bidamas/CATALOG.md#ugoki) (動き) — motion: how a value moves over time.
@@ -2369,483 +2370,39 @@ and the refusals. `blue explain CODE` prints each row.
 
 ---
 
-Source: `docs/DIAGNOSTICS.md`
+Source: `docs/COMMANDS.md`
 
-# Diagnostics
+# Commands
 
-What blue's check stage reports, and the machine-readable shape of it.
+Every `blue` verb with its flags. The agents page (`docs/agents.md`, rendered to `AGENTS.md` and `CLAUDE.md`) keeps one line per verb and links here.
 
-Every rule lives in one registry, `blue_lang_check::RULES`
-(`crates/blue-lang-check/src/rules.rs`). The check stage runs on every door —
-`blue run`, `blue test`, `blue check`, the language server and every bidama
-build — so an error-severity rule is a program that does not run or build.
-`blue explain CODE` prints a rule's explanation and an example that violates
-it; `blue explain --list` lists them.
-
-## Codes
-
-| code | slug | severity | law |
-|---|---|---|---|
-| B0001 | unbound-name | error | every name a program uses is bound |
-| B0002 | unused-binding | warning | a local binding is read at least once, or its name starts with `_` |
-| B0003 | return-type-mismatch | error | a typed definition's body produces its declared type |
-| B0004 | operand-type-mismatch | error | an operator in a typed definition gets operands of its type |
-| B0005 | argument-type-mismatch | error | a call to a typed definition passes the declared types |
-| B0006 | syntax-error | error | a file parses |
-| B0007 | malformed-waiver | error | a waiver names a known, waivable code and gives a reason |
-| B0008 | unused-waiver | error | a waiver suppresses at least one diagnostic |
-| B0009 | ambiguous-name | error | no two namespaces in one resolution tier define a name |
-| B0010 | qualifier-not-imported | error | a qualified name's level is one the file `use`s or one below it |
-| B0011 | no-such-definition | error | a qualified name, or a name a `use` lists, is a definition of that level |
-| B0012 | implicit-reference | error | a bare name that is another bidama's definition is one the file lists, or is written qualified |
-| B0013 | prefixed-definition | error | a bidama's definition does not spell its bidama |
-| B0014 | mangled-namespace | error | a bidama does not prefix nine in ten of its definitions with one short `x_` |
-| B0015 | non-canonical-import | error | a file's `use` forms come first, one per package, sorted, each list sorted |
-| B0016 | unused-import | error | every `use` is reached, and every name it lists is read |
-| B0017 | duplicate-definition | error | a namespace defines a function or macro once |
-| B0018 | redundant-qualifier | error | a qualifier changes what its name means |
-| B0019 | needs-mismatch | error | the bidamas a bidama `use`s are exactly the `needs` its Bluefile.lock records (`blue lock` derives them from the `use`s; a Bluefile `needs` row only narrows a range) |
-| B0020 | package-as-value | error | a bidama's name is written as a qualifier, never as a value |
-| B0021 | legacy-name | error | a renamed or moved definition is called by its new name; the old one is a bridge that closes at the next minor version |
-| B0022 | legacy-misuse | error | a `legacy_names` declaration is one of each form per bidama, dated from a version it has reached, names no name twice, and moves a name only to a definition a loaded bidama holds |
-| B0023 | bare-nullary-call | error | a call to a function that takes no parameters is written bare: `now_ms`, never `now_ms()` |
-| B0024 | layout | error | a file is laid out as `blue fmt` writes it: indentation, line breaks at 80 columns, blank lines and parentheses |
-| B0025 | logical-words | error | logic is written in words: `a and b`, `a or b`, `not x`, never `&&`, `\|\|`, `!` |
-| B0026 | unless | error | a negated condition is written `if not c`, never `unless c` |
-| B0027 | elsif | error | an `else` whose whole body is an `if` is written `elsif` |
-| B0028 | call-form | error | a call is written `f(x, y)`: never `x.f(y)` or `x \|> f(y)` |
-| B0029 | keyword-key | error | a map key that is a keyword is written `name: value`, never `:name => value` |
-| B0030 | parameter-list | error | a definition and a lambda write their parameter list, even an empty one: `def f()`, `fn() … end` |
-| B0031 | operator-spelling | error | an operator or literal is written as itself, never as the call it lowers to or a typographic alias |
-| B0032 | trailing-comma | error | no comma before a closing bracket |
-| B0033 | literal-spelling | error | a literal is written as `blue fmt` writes its value: digits of six or more grouped `1_000_000`, an invisible character escaped `\u{1b}` |
-| B0034 | negated-comparison | error | a negated equality is written with the other operator: `a != b`, never `not (a == b)` |
-| B0035 | else-nil | error | an `if` has no `else` whose body is empty or `nil` |
-| B0036 | builtin-synonym | error | a builtin with two names is called by its readable one: `first` not `car`, `rest` not `cdr` or `next`, `a % b` not `modulo`/`rem`, `boolean?` not `bool?`, `compose` not `comp`, `reduce` not `foldl`, `x != nil` not `some?(x)`, `e.kind`/`e.message` not `error_kind`/`error_message` |
-| B0037 | error-spelling | error | an error is raised with `raise` and caught with `rescue`: never `throw(error(…))` or `try(…, catch(…))` |
-| B0038 | swallowed-error | error | a `rescue` that catches every error and does nothing names the error `_` |
-| B0039 | duplicate-test-name | error | the tests of a file have distinct names |
-| B0040 | identifier-case | error | a function, parameter or local is named in lower snake_case (`retry_count`, never `retryCount`); a top-level constant may be UPPER_SNAKE |
-| B0041 | main-guard | error | a program's entry point is `def main()`, which `blue run` calls; never a top-level `if getenv("X_MAIN", "") == "1"` guard |
-| B0042 | splat | error | a list passed as a call's last arguments is written `f(a, *xs)`, never `apply(f, a, xs)` with `f` a name |
-| B0043 | prefixed-program | error | a program does not prefix every definition with one short `x_`: the file is the namespace |
-| B0044 | eta-reduction | error | a function that only forwards its parameters to a named function is that name: `map(describe, vs)`, never `map((v) -> describe(v), vs)` |
-| B0046 | map-pun | error | a map entry whose value is the variable of the same name is written `{name:}`, never `{name: name}` |
-| B0047 | nil-test | error | a nil test is written `x.nil?`, never `nil?(x)`, `x == nil` or `nil == x` |
-| B0045 | redundant-conversion | warning | a conversion is not applied to a value it leaves alone: `to_s(to_s(x))` is `to_s(x)`, never the longer chain |
-| B0048 | undeclared-field-read | error | a fragment ref is read only for the fields its fragment declares; a parent never reads a child's field |
-| B0049 | fragment-not-composed | error | a view's operation is the union of the fragments of the components it renders: a ref passed to a component comes from a selection that spreads its fragment, and every spread names a declared fragment |
-| B0050 | field-not-in-schema | error | every fragment's type and field, and every `labels` enum and key, is in the frontend's schema |
-| B0051 | enum-mirror | error | a literal list never mirrors an enum of the schema; display text is keyed by the enum with `labels` |
-| B0052 | query-text | error | a view holds no GraphQL operation text; its operation is composed from fragments and sent by hash |
-| B0053 | discarded-value | error | the value of a word that only returns a value is read: `assoc`, `append`, `to_s` and their kin are never a statement |
-| B0056 | undocumented-definition | error | a bidama's public definition has a `@doc` whose first sentence starts with its name |
-| B0057 | doc-without-example | error | a `@doc` holds at least one example, an indented `expr #=> value` line |
-| B0058 | undocumented-bidama | error | a bidama's file opens with a `@moduledoc` holding its purpose and one whole example |
-| B0059 | placeholder-doc | error | a `@doc` or `@moduledoc` says something: no empty text and no placeholder (`TODO`, `TBD`, `...`) |
-| B0060 | restated-doc | error | a `@doc` never restates a type, a signature or a contract field: blue derives them |
-| B0061 | undeclared-option | error | a function's option keys are a closed set: a call passes only keys the function reads, and a `checked(opts, [...])` list declares every key the function reads |
-| B0062 | argument-kind | error | a value whose kind is known is never passed where a builtin, or the parameter it flows to, takes another kind |
-| B0063 | nullary-as-function | error | a zero-argument definition passed where a function is taken is written `() -> name`; a bare zero-argument name is a call |
-| B0064 | unformatted-producer | error | a program that writes a `.b` file writes it with `write_program`, which formats it; a producer owns the form of what it emits |
-| B0065 | newline-escape | error | text of several lines is written as its lines: `join_lines([a, b])`, `unlines([a, b])` when it ends in a newline, `line_break` alone; never a `\n` escape in a string |
-| B0066 | index | error | a key or position is read with brackets: `m[:k]` for `get(m, :k)`, `xs[i]` for `nth(i, xs)` |
-| B0067 | name-as-string | error | a name a builtin reads as text is a keyword, not a string: `error(:kind, m)`, `json_get(doc, :field)`, `json_get_or(doc, :field, d)` |
-| B0068 | test-declaration-order | error | a test's declaration is written `satisfies` then `target`, its controls sorted: `{satisfies: %i[nist_ac_6 nist_cm_7], target: f}` |
-| B0069 | test-declaration | error | a test satisfies controls the catalog table names (`:nist_ac_6` is NIST_SP_800_53R5_AC_6) and targets a definition of the program |
-| B0070 | reimplemented-word | warning | a definition of 12 or more nodes is not a catalogue word's shape: it uses the word, or waives this rule with its reason |
-| B0071 | evaluator-name | error | a definition is not named for a word the evaluator answers first: a word syntax lowers to (`list`, `concat`, `apply`, `equal?`, `mod`, `join_lines`, `unlines`, `line_break`) or a special form |
-| B0072 | call-arity | error | a call to a definition passes a number of arguments that definition takes |
-| B0073 | computed-use | error | a `use` names its path as a literal, so the loader and the check stage read it before the program runs |
-| B0074 | moved-package | error | a bidama that moved into another bidama's tree is used by its new path; the old name is a bridge that closes at the root's next minor version |
-| B0076 | non-canonical-reference | error | a qualified name is written by the full path of the level that defines it, so one definition has one spelling and `rg` finds every caller |
-| B0077 | non-canonical-use | error | an import is written `use("a/b")` or `use("a/b", [:x])`: one level, its path as a slash string |
-| B0078 | redundant-use | error | a file imports a tree once: a `use` that lists nothing, of a level below another `use` of the file, adds nothing |
-| B0079 | record-fields | error | a call of a record's constructor gives every field and no other, and a literal in a typed field has that type |
-| B0080 | return-position | error | a `return` ends a branch of an `if` or `case` that is a statement of a def body, where it is rewritten into if/else |
-
-The registry is the source of truth; a test fails if a code is missing here.
-
-## Ratchets: how a rule becomes an error
-
-A rule the corpus does not yet satisfy is registered with `ratchet: Some(n)`:
-it is computed on every program and its findings are counted, not enforced.
-`blue census [ROOT]` counts them over every `.b` file under ROOT, and
-`checks.namespace-census` fails unless each count equals its row's ratchet
-exactly, so every change to a count is a reviewed edit of the number. The
-commit that brings a count to zero sets the row to `Some(0)`, and from then
-on the rule is an error on every door. `blue census --findings` lists each
-finding.
-
-## The reuse ratchet
-
-`blue census --reuse [ROOT]` counts copies per package, against the hadome
-baseline `ROOT/reuse.baseline` (`--baseline FILE` to name another). The tool
-is `crates/blue-lang-cli/blue/reuse.b`, compiled into the binary.
-
-A copy is a definition of 12 or more nodes (`Near::DEFAULT.min_size`) whose
-`shape_hash` is another package's or file's. A row is `reuse-copy: SCOPE N`:
-SCOPE is the package, or `%root:FILE` for a script.
-
-| state | exit | what it does |
-|---|---|---|
-| no baseline | 0 | enforces nothing; prints the measure and the command that adopts it |
-| a row held | 0 | |
-| a row shrank | 0 | reported; `--record` banks it |
-| a row is gone | 0 | advisory; `--record` drops it |
-| a row grew, or a scope has no row | 1 | names the row and the copies inside it; every other row, and `run`, `test` and every build, go on |
-| a file does not load | 0 | `blind: FILE: why`; counted as blind, never as zero |
-
-`--record` writes the measured rows. It banks a fall with no argument; a raised
-or new row is refused without `--receipt "<why>"`, which stays beside the rows
-as a `# receipt:` line a reviewer reads. `--json` prints one document with the
-rows that broke and each copy's home. `--facts` prints each measured definition
-and exits 0. `checks.reuse-ratchet` (`lib.project`) runs the check on every
-project, and `pleme-io/actions/blue-reuse` runs it in CI. A project adopts it
-with one command, and the file it writes is the only thing that turns it on:
-
-    blue census --reuse . --record --receipt "first measure"
-
-`blue check --reuse FILE` prints each B0070 in one file, with the word to use
-and its import line, and always exits 0. `blue check --reuse --hook` reads Claude
-Code's PostToolUse JSON from stdin, takes `tool_input.file_path`, stays silent
-unless it ends in `.b` and exists, and exits 0 on every failure of its own.
-
-## The data laws (B0048–B0052)
-
-The frontend's data laws (`theory/BLUE-FRONTEND.md` §2) are rows like every
-other. A fragment declared with `danpen::fragment(:user_card, {on: "User",
-fields: […]})` is the type `UserCard`; a parameter annotated with it holds a
-fragment ref, and the typing ladder checks every read of it (B0048) and every
-ref passed on to a component (B0049, whose fix adds the spread). The schema
-enters through the project's Bluefile: `frontend(name, {views:, schema:})`
-names the SDL, and the `generate(...)` whose inputs hold that SDL writes the
-table the check reads (`danpen::render(sdl, :table)`), so
-`checks.generated-<name>-fresh` keeps it current. A file under a frontend's
-`views` is a view (B0052 applies); any other file of the project is checked
-against the same table (B0050, B0051). A file with no frontend around it has
-no table, and B0050–B0052 do not run for it. In nix a check program runs
-alone in the store, so only `blue check`, the language server, `blue census`
-and the corpus test read the table there.
-
-`blue_lang_check::data_laws::Fragments` is the fragment and composition table
-as data (each fragment's type, fields and spreads), for checks that build on
-it.
-
-## Name resolution order
-
-A bare name resolves by tier, first match wins, deterministically
-(`blue_lang_check::names::RESOLUTION_ORDER`): locals innermost first, then
-the referencing file's own bidama (or, for a script, the file), then the
-names the file lists in its `use` forms (`use("retsu", [:first])`), then
-builtins (harness names, special forms, macros, values). A `use("x")` with no
-list makes `x::name` reachable and no bare name; a bidama the file does not
-`use` is not visible. Two namespaces in the tier that holds the name is B0009
-(two lists naming it). A qualified name — `retsu::first`, or `blue::first`
-for the builtin — bypasses the tiers and is exact.
-
-The words the parser lowers its own syntax to (`blue_lang_syntax::LOWERED_HEADS`:
-`list` for `[…]`, `concat` for interpolation, `not`, `and`, `or`, `mod`,
-`equal?`, `not=`, `apply`) skip the own and listed tiers: a bare one is always
-the builtin, so a bidama may define `list` and its literals still build lists.
-Its own definition is reached qualified (`gitto::list`), and `B0018` does not
-call that qualifier redundant. `get` is not among them: field access lowers to
-`blue-field`, so a bidama may define `get` and use `x.name` freely.
-
-The runtime evaluates the tree resolution produced: every definition keyed
-`pkg/name` (`%root/name` for a script), every reference to it as that key, a
-builtin bare. So the runtime binds exactly what the check resolved.
-
-## Overrides, and `blue explain-name`
-
-When a bare name is bound in one tier while a lower tier also holds it — a
-bidama's own `count` over the builtin, a listed `first` over the builtin — the
-higher tier wins; that is the order, not an error, since each tier is
-something the author wrote. `blue check --format json` records each one in
-the entry file as a line after the diagnostics:
-
-| field | meaning |
+| | |
 |---|---|
-| `kind` | `override` |
-| `name` | the name as written |
-| location fields | where the reference is |
-| `tier` | the tier that won: `own` or `imported` |
-| `namespace` | the winning namespace: a bidama's name, or `this file` |
-| `shadowed` | each lower-tier candidate, as `{tier, namespace}` |
-
-`blue explain-name NAME FILE:LINE` prints the whole path for one name at one
-place: each tier, what it holds, and which wins.
-
-## Waivers
-
-The one escape hatch is a comment directly above a top-level definition:
-
-```
-# waive B0002: the callback shape is fixed
-def on_event(event, ctx)
-  event
-end
-```
-
-It suppresses that code inside that definition and nowhere else. There is no
-file-wide or global waiver. A waived diagnostic is still reported: `blue check`
-counts it, and `--format json` lists it with its `waiver` set.
-
-## `blue check --format json`
-
-JSON Lines on stdout: one object per diagnostic per line, reported ones first,
-then waived ones. The exit status is 1 when any error-severity diagnostic is
-reported. The field names below are stable; `crates/blue-lang-cli/tests/check_json.rs`
-pins the exact output and fails if a field here is undocumented.
-
-| field | type | meaning |
-|---|---|---|
-| `code` | string | the rule, `B0001` |
-| `slug` | string | the rule's kebab-case name, `unbound-name` |
-| `severity` | string | `error` or `warning` |
-| `message` | string | what is wrong, one line |
-| `file` | string or null | the file the primary span is in (an imported bidama's own path when the fault is there) |
-| `line`, `column` | number or null | start, 1-based; columns count characters, not bytes |
-| `end_line`, `end_column` | number or null | end (exclusive), same units |
-| `byte_start`, `byte_end` | number or null | the half-open byte range in `file` |
-| `help` | string or null | one line on what to do |
-| `related` | array | other places: each has the location fields above and a `message` |
-| `fixes` | array | suggested repairs, best first |
-| `waiver` | object or null | set when a waiver suppressed this diagnostic: `reason`, and the waiver's `line` |
-
-Each entry of `fixes`:
-
-| field | meaning |
-|---|---|
-| `message` | what the fix does, `replace with \`length\` (builtin)` |
-| `applicability` | `machine-applicable` (preserves meaning; `--fix` applies it) or `maybe-incorrect` (a guess; never applied automatically) |
-| `edits` | byte-range replacements applied together: the location fields, `original` (what the range must still contain, or the edit is refused) and `replacement` |
-
-A location is `null` throughout when it cannot be placed honestly (for
-example, a span that is not a range in the named file).
-
-## `blue run --format json`
-
-A runtime error as one JSON object on stdout, the same error `blue run` prints
-as text: `stage` (`eval`), `severity`, `message` (names as the author writes
-them), `file`, `line`, `column` (each `null` when it cannot be justified), and
-`stack`, the blue call stack innermost first, each frame `function`, `file`,
-`line`, `column`, or `builtin: true` for a builtin the runtime defines in
-tatara-lisp. The last frame is `<top level>` when the whole stack was
-recorded; `stack_depth` counts every frame unwound, recorded or not (a trace
-keeps 256). Any other stage's error is `stage` (`parse`, `check`, `import`)
-and `message`. `crates/blue-lang-cli/tests/observe.rs` pins the shape.
-
-## `blue check --fix`
-
-Applies every machine-applicable fix whose edits land in the named file and
-still match their `original`, skips overlapping ones, then re-formats and
-re-checks the file and reports what remains. Suggestions marked
-`maybe-incorrect` are never applied.
-
-`blue check --fix --only CODE FILE` (repeatable) applies only those codes'
-fixes, to the file as written: no re-format, no project-rule fix, no Bluefile
-edit. A project pinned to an older blue takes one rule's fix from a newer blue
-this way, then formats with its own (`blue fmt --write`).
-
-## Project rules
-
-A project adds its own check rules, written in blue, by naming them in its
-Bluefile:
-
-```
-rule("R0001", "rules/conventions.b", "nil_predicate")
-rule("R0002", "rules/conventions.b", "loud_call", "warning")
-```
-
-`rule(code, file, def[, severity])` names a definition in a blue file (relative
-to the Bluefile). `blue check FILE` gathers the rules of every Bluefile in
-FILE's directory and its ancestors, up to the directory holding `.git`, and
-calls each one on every top-level form of FILE, beside the registry. A code
-declared by two Bluefiles is refused.
-
-**Codes.** A project code is one to four capital letters, never `B` alone,
-then four digits (`R0001`, `KZ0003`). `B` + four digits is blue's registry, so
-the two never meet. Severity is `error` (the default) or `warning`.
-
-**The ABI.** The definition takes one argument, a top-level form as data (the
-tree the parser wrote, as a macro sees its arguments: symbols, lists, `quote`
-as `(quote x)`), and returns a list of findings. A finding is a map:
-
-| key | | meaning |
-|---|---|---|
-| `at` | required | the path to the node, one child index per level; `[]` is the form itself |
-| `message` | required | a string |
-| `help` | optional | a string |
-| `fix` | optional | a tree that replaces the node at `at`, usually built with `quote … unquote(x) … end` |
-
-```
-def nil_predicate(form)
-  hits = filter(fn(p) call?(last(p), "nil?", 1) end, nodes(form, []))
-  map(
-    fn(p)
-      arg = nth(1, last(p))
-      {at: first(p), message: "write `x.nil?`", fix: quote
-        unquote(arg).nil?
-      end}
-    end,
-    hits
-  )
-end
-```
-
-The code and severity are the Bluefile row's. A path, not a byte offset: the
-rule sees only data, and `blue check` resolves the path against the form it
-gave the rule, so the rule needs no access to the source (and can later run as
-a wasm module, `theory/BLUE-EXECUTION.md` §I.2). A fix is rendered by the
-formatter and proved before `--fix` will apply it: the edited file is parsed
-and must hold exactly the rule's tree at that path (the rendering is retried in
-parentheses when an operator binds differently in place); otherwise it is
-offered as `maybe-incorrect`.
-
-**The frame.** A rule program, imported bidamas included, may name every
-builtin except the host effects (process, filesystem, environment, clock,
-network), printing, and `eval`, `require` and `provide`. A rule that names one
-is refused before it runs. Each call runs under a step budget
-(`blue_lang_runtime::project_rules::RULE_STEPS`).
-
-**Failures.** A rule that does not load, reaches outside its frame, raises,
-runs past its budget, or returns anything but a list of findings is reported
-once, as an error under its code with the slug `rule-failure`, and is not run
-on the file's remaining forms. The other rules still report.
-
-**Waivers** use the one grammar: `# waive R0001: reason` above the definition.
-The check stage that `blue run`, `blue test` and every build run does not run
-project rules, so it leaves a project-code waiver alone; `blue check` reports
-one that names no declared rule (B0007) or suppresses nothing (B0008).
-
-**Output.** Findings are diagnostics in every format above: `file:line:col:
-error[R0001]: message`, the same JSON object (the slug is the definition's
-name, kebab-cased), the same `fixes`. `blue check` prints `project rules: N`
-when any apply.
-
-**In nix**, a project whose Bluefile declares rules gets
-`checks.project-rules-hold`: `blue check` on every `.b` file of its packages and
-every run, check and app program.
-
-## `blue ast --resolved --json`
-
-How every name in a file resolves, under both rules: today's **flat** rule
-(one global environment; the definition evaluated last wins, a builtin only
-when no program form defines the name) and **per-bidama namespaces** (locals,
-then the file's own package, then its explicit imports, then builtins; a
-qualified name exactly). One JSON object on stdout.
-`crates/blue-lang-cli/tests/ast_resolved.rs` pins the exact output and fails
-if a field here is undocumented. A migration is proven on it: a program whose
-`flat` and `ns` trees are equal means the same thing under either rule.
-
-| field | meaning |
-|---|---|
-| `namespace` | the entry file's bidama (from the Bluefile beside it), or `null` for the root namespace |
-| `flat` | the entry file's top-level forms, resolved under the flat rule: each definition renamed to its runtime key (`retsu/first`; `%root/f` for a script) and each reference to what the rule binds it to (a builtin stays bare) |
-| `ns` | the same forms under per-bidama namespaces |
-| `references` | every non-local reference in the entry file |
-| `imports` | the entry file's `use` declarations: the location fields, `package`, and `names` (the list, empty for a whole-package `use`) |
-| `first_line` | the first line of the entry file's first top-level form, or `null` |
-| `definitions` | the entry file's top-level definitions: the location fields and `name` |
-| `builtins` | every name the interpreter binds, sorted |
-| `reserved` | the reserved words, which no definition can be named |
-
-Each entry of `references` carries the location fields of `blue check` and:
-
-| field | meaning |
-|---|---|
-| `top_level` | the index of the top-level form it is in |
-| `written` | the symbol as the tree has it: `first`, or `retsu/first` for `retsu::first` |
-| `opaque` | inside a macro call's arguments |
-| `flat`, `ns` | what each rule binds it to |
-| `locals` | the locals in scope where it is written, innermost first |
-| `position` | `call` (the head of a call), `value` (anywhere else in code), `place` (the name `set!` rebinds) or `syntax` (a macro head, a template symbol) |
-| `argc` | for a `call`, how many arguments it passes; `null` otherwise |
-| `nullary` | what `ns` binds it to takes exactly zero parameters: a bare `value` reference is CALLED, and a `call` with `argc` 0 is B0023 |
-
-This list is how a definition's callers are found: bare calls have no
-parentheses, so searching the text for `name(` misses every one.
-
-A binding (`flat`, `ns`) has:
-
-| field | meaning |
-|---|---|
-| `kind` | `def` (a program definition), `builtin`, `local`, `ambiguous` (two imports list it) or `unbound` |
-| `namespace` | the defining bidama for a `def`; `null` otherwise, and for the root namespace |
-| `name` | the definition's or builtin's name |
-| `key` | the symbol the resolved tree writes, or `null` when it keeps the written one |
-
-## `blue query`
-
-`blue query QUERY [PATH…]` lists every definition under the paths (files, or
-directories of `.b` files; `.` when none) that satisfies a query: one line per
-hit, `file:line:col: definition`, then what the pattern bound, then the chain
-through which the definition reaches each capability a `reaches` clause names.
-The engine answers it (`blue_lang_mondou::Engine::query`), each file loaded as
-`blue check FILE` and the language server load it, so an editor or agent door
-gets the same hits. A file whose imports do not load has no
-resolved tree; it is named on stderr and the exit is 1.
-
-A query is tatara-lisp data. Several clauses are their conjunction:
-
-| clause | holds for a definition when |
-|---|---|
-| `(match PATTERN)` | a form of its resolved tree matches `PATTERN`; each matching form is a hit, with what the pattern bound |
-| `(reaches CAP)` | it names a primitive of host capability `CAP` (`process`, `filesystem`, `environment`, `clock`, `network`; `host` for any), directly or through the definitions it references |
-| `(annotated)`, `(unannotated)` | it is, or is not, a typed definition |
-| `(calls NAME)` | a reference in it resolves to `NAME`: `retsu/first` or `retsu::first` for a bidama's definition, `%root/f` for a script's own, `first` for the builtin |
-| `(package NAME)` | it is defined in bidama `NAME` |
-| `(longer-than N)` | its tree has more than `N` forms |
-| `(kind K)` | it is a `function`, `macro` or `value` |
-| `(and C …)`, `(or C …)`, `(not C)` | the connectives |
-
-A pattern is tatara's `match` pattern, compiled by tatara's own matcher. A
-quasipattern reads as the code it matches: `` `(retsu/first ,xs) `` is a call
-to retsu's `first` with one argument, bound to `xs`; outside an unquote a
-symbol matches itself, `,_` matches anything, a final `,@rest` matches the
-remaining elements, and `,(? string? s)` runs a predicate (under a pure frame
-and a step budget; a predicate naming a host primitive or `eval` is refused).
-Patterns see the resolved tree, the `ns` tree of `blue ast --resolved --json`:
-every reference is written as what it resolved to, so a call written `first`
-after `use("retsu", [:first])` and one written `retsu::first` are both
-`retsu/first`, and a local named `first` is neither. A function definition's
-own `(name params…)` is not a call and is not searched.
-
-`--json` prints one object per hit per line:
-
-| field | meaning |
-|---|---|
-| `file`, `line`, `column` | where the matching form starts, or the definition when no pattern placed the hit |
-| `definition` | the definition's name as written |
-| `key` | its runtime key: `retsu/first`, `%root/f` |
-| `kind` | `function`, `macro` or `value` |
-| `bindings` | each name the pattern bound, and its value as tatara-lisp text |
-| `reach` | each host capability the definition reaches, and one chain to it: the definitions it goes through, then the primitive |
-
-A Bluefile names a query with `query(name, text)`, and `blue query NAME` runs
-it from the project's directory or below:
-
-```text
-query("host_unannotated", "(reaches host) (unannotated)")
-```
-
-Over blue's own standard bidamas (2026-10-28, 255 files):
-
-```text
-$ blue query '(reaches filesystem)' bidamas
-bidamas/isshou/anaritikusu/anaritikusu.b:2131:1: write_history  filesystem via write_file
-bidamas/isshou/anaritikusu/anaritikusu.b:2488:1: example_append  filesystem via nisshi/el_append -> nisshi/write -> append_file
-…
-146 hit(s) in 255 file(s)
-
-$ blue query '(match `(retsu/first ,xs))' bidamas/zumen
-bidamas/koubou/zumen/zumen.b:147:14: layer_names  xs = l
-1 hit(s) in 1 file(s)
-```
-
-`(annotated)` over the same corpus finds nothing: no bidama definition is
-typed yet.
+| `blue file.b a b` | run a program as a script: quiet, every argument after the file to `argv` |
+| `blue run file.b` | run a program and print its final value; `--quiet` drops it, `-- a b` passes arguments; `--allow CAP` holds it to those host capabilities; `--receipts DIR` writes an execution receipt for the run and for each process ([`docs/SAFETY.md`](docs/SAFETY.md), row 8), and `--receipt-steps` counts in each the steps it spent; a runtime error prints the blue call stack, and `--format json` prints it as one object; `--timings` prints the wall time of each pipeline stage to stderr |
+| `blue replay TRACE` | run a crashed process again from its trace and say whether it crashed the same way; a fatal exit's `.bluecrash` replays under the hold it recorded; TRACE is a file or its crash hash (`b3:<hex>`, 8 digits at least) |
+| `blue crash dump\|bisect\|immunize CRASH` | a trace by file or crash hash: `dump` what it violated and where (class, host name, capability, file:line:col, hold, exit, mailbox; `--json`); `bisect` it to the fewest messages that replay to the same crash; `immunize` it into a test, red until the target is fixed (`--into FILE`) ([`docs/SAFETY.md`](docs/SAFETY.md), row 8) |
+| `blue receipt verify FILE` | recompute a receipt's name from the BLAKE3 hash of its bytes and check its form: version 1, version 2 with a server's `input_root` and `output_root`, or version 3 with `steps`; any edit fails |
+| `blue new NAME` | a project; `--bidama NAME` a package, `--script NAME.b` an executable script, `--kernel NAME` a kernel program with its loader |
+| `blue watch [check\|test\|run] PATH…` | rerun the command on every save (`check` by default) |
+| `blue test file.b` | check it, then run its `test` blocks; a directory runs every file with tests, in parallel; `--filter NAME` keeps tests whose name contains it; `--coverage` lists each definition's calls and the uncovered ones; `--allow CAP` holds the tests to those host capabilities; `--facts FILE` (or `TAMESHI_FACTS`) writes the facts tameshi reads and `blue-test-evidence.json` beside it ([`docs/TESTING.md`](docs/TESTING.md#declared-controls-live-2026-10-30)) |
+| `blue profile file.b` | run it and list every function called: calls, inclusive and exclusive time, and allocations made in each |
+| `blue trace NAME file.b` | run it and print each call of `NAME` with its arguments and value |
+| `blue check file.b` | every rule (unbound names with did-you-mean, unused bindings, types, waivers); `--format json` prints one object per diagnostic, `--fix` applies the machine-applicable fixes |
+| `blue query '(reaches filesystem) (unannotated)' DIR` | every definition a code query matches: `(match PATTERN)` over the resolved tree with bindings, `(reaches CAP)`, `(calls retsu/first)`, `(package P)`, `(longer-than N)`; `--json`; a Bluefile's `query(name, text)` runs as `blue query NAME` ([`docs/DIAGNOSTICS.md`](docs/DIAGNOSTICS.md)) |
+| `blue explain B0001` | what a diagnostic code means; `--list` lists them ([`docs/DIAGNOSTICS.md`](docs/DIAGNOSTICS.md)) |
+| `blue doc NAME` | a builtin, `pkg::name` or bare name: signature, doc line, namespace, tier and an example (a builtin's from its spec row, a definition's from its package's tests); `blue doc PKG` lists a package; `--file F` gives each answer's tier as F reaches it; `--json` |
+| `blue verbs import\|export\|check\|findings` | the verb graph (`bidamas/mokuroku/graph`, `docs/verbs/H/DESIGN.md`): `import` TSVs into its row files, `export` them back (the only writer of TSV; the committed tables are Bluefile `generate`s, so `nix run .#regen` refreshes them through it), `check` its gates against the recorded baseline (`--record` writes it), `findings --tsv DIR` of a directory of TSVs |
+| `blue fmt file.b` | print the one formatting, zero-parameter calls bare (it resolves the file to know which); `--write` rewrites, `--check` fails on drift |
+| `blue reference` | the language reference as JSON |
+| `blue eval 'EXPR'` | evaluate once and print the value; `blue eval file.b:LINE:COL` evaluates the top-level form there in that file's context |
+| `blue repl` | an evaluation session: multi-line input, `:load`, `:expand`, `:doc`, `:reset`, `:quit`; ctrl-c stops a running evaluation |
+| `blue serve` | the same session as JSON lines on stdio, for editors (`theory/BLUE-TOOLING.md` §4) |
+| `blue bundle FILE -o OUT` | seal a program into an appliance payload: compiled, its imports resolved, held to the capabilities its fresh `Bluefile.lock` verified (pure when it records none); `--runner blue-appliance` makes OUT one executable that takes no flags. nix builds one per Bluefile `app` as `packages.appliance-<name>` |
+| `blue image build [NAME]` | build a Bluefile `image` through nix: the tarball, its size and layers |
+| `blue workload render [NAME]` | a Bluefile `workload` as Kubernetes objects; `--write` rewrites the committed files |
+| `blue diff --context CTX` | the committed workload files against a cluster, read-only; there is no `blue apply`, GitOps applies |
+| `blue registry render [BACKEND]` | a Bluefile `registry` entry (sui first, FlakeHub optional) as its publish workflow; `--write` rewrites the committed files; `blue registry status` says whether sui serves each pin. The lock stays the truth: [`docs/REGISTRY.md`](docs/REGISTRY.md) |
 
 ---
 
@@ -3006,7 +2563,7 @@ and its owning page disagree, the owning page is right: fix this page.
 | test-beside | **A coverage gate per definition.** `checks.test-beside` fails when a package has more definitions that no test reaches than its recorded hadome debt; `waive(name, why, until)` excuses one. [TESTING.md](docs/TESTING.md) |
 | heni (変異, *mutation*) | **Mutation testing, like cargo-mutants.** heni changes one literal in a fresh copy of a package and runs its tests, which must fail; each mutation ends caught, survived, refused or blind. [TESTING.md](docs/TESTING.md) |
 | conformance row | **A conformance test, like test262.** A row in `spec/rows/` states one observable behaviour, and every evaluator must agree with stage 0 on it. [spec/README.md](spec/README.md) |
-| evaluator column | **Differential testing across implementations.** The suite runs each row on `walker`, `vm`, `wasm`, `cli` and `static`, and a column that disagrees with stage 0 fails. [spec/README.md](spec/README.md) |
+| evaluator column | **Differential testing across implementations.** The suite runs each row on `walker`, `vm`, `wasm`, `cli`, `static`, `memo` and `component`, and a column that disagrees with its reference fails; `component` is judged against `cli`, so one program run in two placements must give the same output and failure. [spec/README.md](spec/README.md) |
 | `pending("<gap>")` | **A strict expected failure (strict xfail).** A pending row names its gap and fails the run when the gap closes, until the mark is removed. [agents.md](docs/agents.md) |
 | second implementation (`*-diff` crates) | **An oracle for differential testing.** `blue-lang-yaml-diff` and `blue-lang-danpen-diff` run yaml-rust2 and apollo-compiler on the same corpus and compare the results with blue's. [blue-lang-yaml-diff](crates/blue-lang-yaml-diff/Cargo.toml) |
 
@@ -3233,12 +2790,14 @@ horizon gets a row here when its first phase starts.
 | registry | [`REGISTRY.md`](docs/REGISTRY.md) | UNRECONCILED | reconcile against main; give the gate a way to fail | — | a registry check that exits non-zero on an absent pin (`blue registry status` reports and never fails, so it gates nothing) |
 | blue on sui | `theory/BLUE-STRUCTURE.md` §5.3, `theory/SUI-FLIP.md` | UNRECONCILED | reconcile; mark §5.3 superseded (§ Rulings R1) | — | to be stated at reconcile |
 | frontend | [`FRONTEND-PLAN.md`](docs/FRONTEND-PLAN.md), `theory/BLUE-FRONTEND.md` | UNRECONCILED | reconcile against main | — | to be stated at reconcile |
+| **placement parity** (HORIZON H8) | [`spec/README.md`](spec/README.md) § The evaluators, `theory/FUEKI.md` | PARTIAL: the gate is built. The conformance `component` column runs every `prints` and `fails` row (180) in the wasm32-wasip2 engine component under wasmtime and compares it with `cli` (`blue run`): 167 agree, 13 pending, 5 of them on new placement gaps G20 (the component holds no execution bounds and its wasm stack ends before the call-depth budget), G21 (host errors carry the platform errno), G22 (a capability the placement lacks, `exec_into`, refuses in its own words), G23 (`nats_connect` panics for want of a pid) | the run receipt from the component, so the gate compares receipts and not only output; then close G20-G23; the frontend's first page as a declared `runtime: :wasm` service (`examples/13_web_site.b` already renders and serves it natively) | the component (`nix build .#blue-component`) | `checks.<system>.conformance` green with the column strict; red run: a component that prints one extra byte fails every `prints` row naming `stdout at byte N` |
 | verbs | [`VERB-ROADMAP.md`](docs/VERB-ROADMAP.md) | DESIGN (its own measured tier line, 2026-10-22) | reconcile | — | `blue verbs check` against its baseline |
 | **khipu**: the knowledge graph (OxiRS naturalized) | [`KHIPU.md`](docs/KHIPU.md) | K1a BUILT (`bidamas/khipu`: terms, N-Triples, N-Quads), the rest DESIGN | K1b: quads in DuckDB through `kueri`, basic graph patterns, the W3C syntax suites against Oxigraph | kueri; arika (shares the rule engine and snapshots) | the W3C suites of K1-K4 green as a differential against Oxigraph |
 | **utsushi**: history projection (Josh naturalized) | [`UTSUSHI.md`](docs/UTSUSHI.md) | U1 BUILT (`bidamas/utsushi`), U2-U6 DESIGN | U2: workspace entries refused one by one; `exclude`; views | gitto | `josh-filter` id parity on fixtures; the round-trip law green |
-| **async**: native async, the `heikou` space | [`ASYNC.md`](docs/ASYNC.md) | DESIGN (processes built, async words absent) | A1: `net_wait` in the node loop, node-time timers, the context record, the virtual clock in `blue test` | blue-lang-proc; HTTP2.md P3 (`net_wait`) | the conformance set green at `schedulers(1)` and `schedulers(n)`, gates A-ontology to A-replay |
+| **async**: native async, the `heikou` space | [`ASYNC.md`](docs/ASYNC.md) | PARTIAL (processes built; A1's node-time timers, the context deadline and the virtual clock in `blue test` built) | A1's rest: `net_wait` in the node loop, a deadline narrowed inside a process; then A2 | blue-lang-proc; HTTP2.md P3 (`net_wait`) | the conformance set green at `schedulers(1)` and `schedulers(n)`, gates A-ontology to A-replay |
 | **record**: a named structure in one line | `examples/17_records.b`, okite D0017 | SHIPPED (2026-11-06, blue `cc9a1a1e`) | — | — | `spec/rows/records.b` and okite's record laws green; B0079 at error |
 | **guard return** | [`GUARD-RETURN.md`](docs/GUARD-RETURN.md) | G1 BUILT (lowering, B0080, the formatter keeps the guard), G2 DESIGN | G2: the language server and the tree-sitter grammar know `return`; a `return` inside `rescue` | — | R-lower, R-refuse, R-total green (G1); editors highlight it (G2) |
+| **types that grow** (H2) | [`HORIZON.md`](docs/HORIZON.md) § H2, [`SAFETY.md`](docs/SAFETY.md) row 7 | step 1 BUILT (local inference in a typed definition: literals, parameters, declared builtin results, the `if` join; an inferred kind feeds B0062), the rest DESIGN | record and union types in signatures; then the checked boundary (gap G8) | H1 (shapes to name) | a spec row per inference rule (`check.infer.*`) green; the corpus checks clean at `dynamic` |
 
 ## The arika track
 
@@ -3336,13 +2895,15 @@ document lands.
   and every bidama build call `check_stage`
   (`crates/blue-lang-runtime/src/pipeline.rs:458`). An error-severity rule
   stops a program before it runs. 53 B-codes exist (`docs/DIAGNOSTICS.md`).
-- **A closed capability set.** `blue_lang_waku::Capability` has thirteen host
-  effects: process, filesystem, environment, clock, network, entropy,
-  comm-flash, comm-scavenger, mpc-threshold, storage-append, audio-out,
-  audio-in, display (`crates/blue-lang-waku/src/capability.rs:116-145`,
-  `host_effects` at `:600`). The set has no `Other(String)` arm. One
-  capability implies another: filesystem holds storage-append
-  (`Capability::implied` at `:564`).
+- **A closed capability set.** `blue_lang_waku::Capability` has fourteen host
+  effects (re-measured 2026-11-07): process, filesystem, environment, clock,
+  network, entropy, comm-flash, comm-scavenger, mpc-threshold, storage-append,
+  audio-out, audio-in, display, kernel-bpf
+  (`crates/blue-lang-waku/src/capability.rs:349-426`, `host_effects` at
+  `:467`). The set has no `Other(String)` arm. One capability implies another:
+  filesystem holds storage-append (`Capability::implied` at `:114`, the row at
+  `:404`). Process implies nothing, though a subprocess can do anything
+  (HORIZON H13).
 - **Pure sessions.** `blue eval`, `repl` and `serve` bind every ungranted host
   name to a refusal (`crates/blue-lang-runtime/src/session.rs:744`).
   `--allow` widens the frame. A process the session spawns gets the same
@@ -3528,8 +3089,8 @@ tier. ⚠️ marks a partial seal. ❌ marks an open row.
 | 4 | Immutability, no aliasing | ✅ values are persistent; `set!` rebinds a name, never a value | none needed | unrepresentable | n/a |
 | 5 | Bounds-checked indexing | ✅ memory: no raw index exists; ⚠️ semantics: `nth` out of range is `nil` | row 1 owns the `nil` | unrepresentable (memory) | n/a |
 | 6 | Integer overflow, numeric conversion | ✅ `+ - * abs floor` raise on overflow; `/` by zero raises; `to_int` of a huge float is `nil` | `to_int` → row 1 | runtime-refused | on, no off |
-| 7 | No implicit coercion | ⚠️ operators refuse mixed types; `4 == 4.0` is true; call types are checked only inside typed definitions (B0003–B0005) | call-site checks from any caller when the argument is a literal | runtime-refused → checked-at-expansion | on |
-| 8 | `unsafe` ⇔ declared capability | ⚠️ sessions pure by default; **`blue run --allow` and shebang `--allow` (landed)**; **a breach is fatal: no `rescue` or `ensure` sees it (landed)**; **the wire's two channels are their own capabilities, `comm_flash` and `comm_scavenger` (landed)**; **the Flash rate is the host's, a typed bound refused as a catchable `:rate_limited` (landed)**; **both channels have an in-process loopback provider (landed)**; **threshold signing is its own capability, `mpc_threshold`, with a seeded provider (landed)**; **an append-only log store is its own capability, `storage_append`, held by `filesystem`, with an in-memory provider (landed)**; **sound out, sound in and a display canvas are three capabilities, `audio_out`, `audio_in` and `display`, each with a pure provider, and a host without the device answers a named refusal (landed)**; **eviction over the Tide (`evict`, `accept`) sits in `comm_scavenger` (landed)**; **`bpf(2)` and perf events are their own capability, `kernel_bpf`, with no pure provider, and off Linux each word answers a named refusal (landed)**; an undeclared run is still ambient | default flip for scripts, then `posture(reach:)` for bidamas | checked-at-expansion (entry) + runtime-fatal (bidama, process) | declared: on; undeclared: ambient until phase 3 (`--allow host`) |
+| 7 | No implicit coercion | ⚠️ operators refuse mixed types; `4 == 4.0` is true; call types are checked only inside typed definitions (B0003–B0005), where a local binding now takes its type from its value (literal, parameter, declared builtin result, agreeing `if`) | call-site checks from any caller when the argument is a literal | runtime-refused → checked-at-expansion | on |
+| 8 | `unsafe` ⇔ declared capability | ⚠️ sessions pure by default; **`blue run --allow` and shebang `--allow` (landed)**; **a breach is fatal: no `rescue` or `ensure` sees it (landed)**; **the wire's two channels are their own capabilities, `comm_flash` and `comm_scavenger` (landed)**; **the Flash rate is the host's, a typed bound refused as a catchable `:rate_limited` (landed)**; **both channels have an in-process loopback provider (landed)**; **threshold signing is its own capability, `mpc_threshold`, with a seeded provider (landed)**; **an append-only log store is its own capability, `storage_append`, held by `filesystem`, with an in-memory provider (landed)**; **sound out, sound in and a display canvas are three capabilities, `audio_out`, `audio_in` and `display`, each with a pure provider, and a host without the device answers a named refusal (landed)**; **eviction over the Tide (`evict`, `accept`) sits in `comm_scavenger` (landed)**; **`bpf(2)` and perf events are their own capability, `kernel_bpf`, with no pure provider, and off Linux each word answers a named refusal (landed)**; an undeclared run is still ambient; one frame holds the whole interpreter, so a bidama gets every capability the root grants | `docs/HORIZON.md` H11 to H20: one vocabulary, pure by default in rings, a frame per bidama, a check-time escape code, capabilities as values, every placement rendered from `access`, a parity matrix, least privilege as a ratchet, the capability ontology the tests are generated from, kernel admission by construction and the kernel as the enforcer of `access` | checked-at-expansion (entry) + runtime-fatal (bidama, process) | declared: on; undeclared: ambient until phase 3 (`--allow host`) |
 | 9 | Memory safety of the host seam | ⚠️ 3 of 22 crates deny `unsafe_code` at their roots (kiwari, proc, senses) | workspace `unsafe_code = "deny"`, one `#[allow]` per seam, one seam test | unrepresentable for kiwari and proc → unrepresentable for every crate | on (`#[allow(unsafe_code)]` at a named seam) |
 | 10 | No data races | ✅ share-nothing processes; copy on send; handles refuse to cross | none needed | unrepresentable | n/a |
 | 11 | Panic vs typed refusal | ⚠️ blue faults are catchable; a Rust panic in a native function is not a blue error | one unwind seam at the native-call boundary → `:internal` refusal | open → runtime-refused | on |
@@ -3594,7 +3155,9 @@ wrap and never promote to a bignum.
 (numeric equality crosses Int and Float); truthiness is Ruby's (`0`, `""`
 and `[]` are true). A typed definition called with a string from an untyped
 `main` fails at run time, not at check time: B0005 checks a call only inside
-a typed caller.
+a typed caller. Inside a typed definition a local binding is inferred
+(HORIZON H2 step 1, rows `check.infer.*`), so `x = a + 1` then `upcase(x)`,
+or `n = upcase(s)` returned as `Int`, is refused at check, not at run time.
 
 **Row 8, capabilities.** The landed gate: `blue run --allow CAP` and
 `blue --allow CAP FILE` (`crates/blue-lang-cli/src/script.rs:36`,
@@ -4458,33 +4021,19 @@ file's `Bluefile.lock` records is skipped and named, never chosen.
 
 ### Commands
 
+Every verb with its flags: [`docs/COMMANDS.md`](docs/COMMANDS.md).
+
 | | |
 |---|---|
-| `blue file.b a b` | run a program as a script: quiet, every argument after the file to `argv` |
-| `blue run file.b` | run a program and print its final value; `--quiet` drops it, `-- a b` passes arguments; `--allow CAP` holds it to those host capabilities; `--receipts DIR` writes an execution receipt for the run and for each process ([`docs/SAFETY.md`](docs/SAFETY.md), row 8), and `--receipt-steps` counts in each the steps it spent; a runtime error prints the blue call stack, and `--format json` prints it as one object; `--timings` prints the wall time of each pipeline stage to stderr |
-| `blue replay TRACE` | run a crashed process again from its trace and say whether it crashed the same way; a fatal exit's `.bluecrash` replays under the hold it recorded; TRACE is a file or its crash hash (`b3:<hex>`, 8 digits at least) |
-| `blue crash dump\|bisect\|immunize CRASH` | a trace by file or crash hash: `dump` what it violated and where (class, host name, capability, file:line:col, hold, exit, mailbox; `--json`); `bisect` it to the fewest messages that replay to the same crash; `immunize` it into a test, red until the target is fixed (`--into FILE`) ([`docs/SAFETY.md`](docs/SAFETY.md), row 8) |
-| `blue receipt verify FILE` | recompute a receipt's name from the BLAKE3 hash of its bytes and check its form: version 1, version 2 with a server's `input_root` and `output_root`, or version 3 with `steps`; any edit fails |
-| `blue new NAME` | a project; `--bidama NAME` a package, `--script NAME.b` an executable script, `--kernel NAME` a kernel program with its loader |
-| `blue watch [check\|test\|run] PATH…` | rerun the command on every save (`check` by default) |
-| `blue test file.b` | check it, then run its `test` blocks; a directory runs every file with tests, in parallel; `--filter NAME` keeps tests whose name contains it; `--coverage` lists each definition's calls and the uncovered ones; `--allow CAP` holds the tests to those host capabilities; `--facts FILE` (or `TAMESHI_FACTS`) writes the facts tameshi reads and `blue-test-evidence.json` beside it ([`docs/TESTING.md`](docs/TESTING.md#declared-controls-live-2026-10-30)) |
-| `blue profile file.b` | run it and list every function called: calls, inclusive and exclusive time, and allocations made in each |
-| `blue trace NAME file.b` | run it and print each call of `NAME` with its arguments and value |
-| `blue check file.b` | every rule (unbound names with did-you-mean, unused bindings, types, waivers); `--format json` prints one object per diagnostic, `--fix` applies the machine-applicable fixes |
-| `blue query '(reaches filesystem) (unannotated)' DIR` | every definition a code query matches: `(match PATTERN)` over the resolved tree with bindings, `(reaches CAP)`, `(calls retsu/first)`, `(package P)`, `(longer-than N)`; `--json`; a Bluefile's `query(name, text)` runs as `blue query NAME` ([`docs/DIAGNOSTICS.md`](docs/DIAGNOSTICS.md)) |
-| `blue explain B0001` | what a diagnostic code means; `--list` lists them ([`docs/DIAGNOSTICS.md`](docs/DIAGNOSTICS.md)) |
-| `blue doc NAME` | a builtin, `pkg::name` or bare name: signature, doc line, namespace, tier and an example (a builtin's from its spec row, a definition's from its package's tests); `blue doc PKG` lists a package; `--file F` gives each answer's tier as F reaches it; `--json` |
-| `blue verbs import\|export\|check\|findings` | the verb graph (`bidamas/mokuroku/graph`, `docs/verbs/H/DESIGN.md`): `import` TSVs into its row files, `export` them back (the only writer of TSV; the committed tables are Bluefile `generate`s, so `nix run .#regen` refreshes them through it), `check` its gates against the recorded baseline (`--record` writes it), `findings --tsv DIR` of a directory of TSVs |
-| `blue fmt file.b` | print the one formatting, zero-parameter calls bare (it resolves the file to know which); `--write` rewrites, `--check` fails on drift |
-| `blue reference` | the language reference as JSON |
-| `blue eval 'EXPR'` | evaluate once and print the value; `blue eval file.b:LINE:COL` evaluates the top-level form there in that file's context |
-| `blue repl` | an evaluation session: multi-line input, `:load`, `:expand`, `:doc`, `:reset`, `:quit`; ctrl-c stops a running evaluation |
-| `blue serve` | the same session as JSON lines on stdio, for editors (`theory/BLUE-TOOLING.md` §4) |
-| `blue bundle FILE -o OUT` | seal a program into an appliance payload: compiled, its imports resolved, held to the capabilities its fresh `Bluefile.lock` verified (pure when it records none); `--runner blue-appliance` makes OUT one executable that takes no flags. nix builds one per Bluefile `app` as `packages.appliance-<name>` |
-| `blue image build [NAME]` | build a Bluefile `image` through nix: the tarball, its size and layers |
-| `blue workload render [NAME]` | a Bluefile `workload` as Kubernetes objects; `--write` rewrites the committed files |
-| `blue diff --context CTX` | the committed workload files against a cluster, read-only; there is no `blue apply`, GitOps applies |
-| `blue registry render [BACKEND]` | a Bluefile `registry` entry (sui first, FlakeHub optional) as its publish workflow; `--write` rewrites the committed files; `blue registry status` says whether sui serves each pin. The lock stays the truth: [`docs/REGISTRY.md`](docs/REGISTRY.md) |
+| `blue file.b a b`, `blue run file.b` | run a program (`--allow CAP` holds it; `--receipts DIR`) |
+| `blue test file.b` / `check` / `fmt` | test, every rule, the one formatting |
+| `blue new NAME` / `watch` | a project, bidama or script; rerun on save |
+| `blue eval` / `repl` / `serve` | a pure session, once, interactive, or JSON lines |
+| `blue doc NAME` / `explain B0001` / `reference` | a word, a diagnostic code, the language |
+| `blue query` / `verbs` | code queries; the verb graph |
+| `blue profile` / `trace NAME` | calls and time; one function's calls |
+| `blue replay` / `crash` / `receipt verify` | rerun a crash; dump, bisect, immunize; check a receipt |
+| `blue bundle` / `image build` / `workload render` / `diff` / `registry render` | appliance, image, Kubernetes objects, drift, registry |
 
 Sessions (`eval`, `repl`, `serve`) are pure: code that reaches the host
 (`read_file`, `now_ms`, `exec_capture`, …) is refused as volatile unless the
@@ -4991,13 +4540,13 @@ hit:
 
 **CI guards `main`; land with `git land`.** `git land [slug] [--watch]` (`gen/land.b`; `nix develop` sets the alias) pushes HEAD to `land/<slug>`. `.github/workflows/land.yml` runs the `ci` suite on that exact commit and, when it is green, fast-forwards `main` to it and deletes the branch; when `main` moved first the fast-forward is refused, unless `main` moved only by release commits and the land writes no `Cargo.toml`, `Cargo.lock` or `Cargo.gen.lock`: then it rebases onto them and fast-forwards without a new suite (`BLUE_LAND_ABSORB_RELEASE=off` turns that off). `--dry` lands on `land/dry-<slug>`, where the fast-forward is only rehearsed. A push straight to `main` stays possible. A land behind `main` rebases itself: the merge driver regenerates a generated file that conflicts, and `blue lock .` and `gen/regen.b` refresh what merged clean but went stale, in a commit of their own (`--no-regen` skips the second); any other conflict stops, names the paths and leaves HEAD alone. `--requeue=N` bounds it (2 by default; `--requeue=0` refuses instead of rebasing).
 
-With `--watch`, a land takes a turn, because only one land reaches `main` and the others' suites are spent: it waits while another land runs (`--queue-minutes=N`, 240 by default; `--no-queue` lands beside them, and a `gh` that answers no list holds the turn too, up to that limit), rebases, and rechecks before it pushes; of two that took one turn, the younger run stops and queues again. A run green in CI and refused at the fast-forward rebases and lands again. In CI, `land.yml`'s `stop-on-red` job cancels a land's run at its first red job, so the next land starts (repository variable `BLUE_LAND_STOP_ON_RED=off` skips it).
+With `--watch`, a land takes a turn, because only one land reaches `main` and the others' suites are spent: it waits while another land runs (`--queue-minutes=N`, 240 by default; `--no-queue` lands beside them, and a `gh` that answers no list holds the turn too, up to that limit), rebases, and rechecks before it pushes; of two that took one turn, the younger run stops and queues again. A run green in CI and refused at the fast-forward rebases and lands again. In CI, `ci.yml`'s `stop-on-red` job cancels a land's run at its first red job, so the next land starts (repository variable `BLUE_LAND_STOP_ON_RED=off` skips it). `--proven` runs the suite first (`gen/proof.b --prove`) and pushes its proof as a note under `refs/notes/blue-suite`; CI skips `cargo test` when the note names the commit's tree and locks (`docs/TESTING.md`, pre-merge and post-merge).
 
 A change only to prose (`land_scope` in `gen/prepush.b`: the root's and the docs' markdown, and the generated files that only render them) lands on `land/prose-<slug>`, whose suite is the gates that read prose (`prose_gates`, from the lock). Evaluated on 2026-11-04, a doc edit changed the derivation of 18 of 276 checks; the 9 of those with a whole-tree source (`conformance`, `network` and so on) read no `docs/`. `land.yml` recomputes the scope and refuses a `prose-` ref over a change that is not; an unknown path, an empty change and `docs/DIAGNOSTICS.md`, which Rust tests read, are `whole`; the push to `main` still runs the whole suite. `--no-prose` runs the whole suite on the land too.
 
 **A generated file never conflicts by hand.** `.gitattributes`, itself generated, marks each with `merge=blue-generated`; `nix develop` and `git land` set the driver, and `gen/merge.b` regenerates the file from the merged tree in a merge, a rebase or a cherry-pick (`BLUE_MERGE_PICK=off` merges a cherry-pick as text). A failed generator or a clone with no driver merges as text.
 
-**Every push runs a fast local gate first.** `nix develop` sets `core.hooksPath` to `.githooks`, whose `pre-push` runs `gen/prepush.b`: the light gates the changed paths select from `gate_table` (formatting, the changed locks, retired words), in seconds; a path in `every_gate_paths` or one no gate names selects every gate. The heavy gates (`regen`, the gen pin and tie, the sweep of every consumer in `gen/consumers.json`, tests beside, each member compiled alone, the distribution tests, strict conformance) run in CI, or here with `BLUE_PREPUSH_FULL=1`. A clean tree that passed skips its next push. Off: `BLUE_PREPUSH_OFF=1`. What each gate caught and what it costs: [LESSONS.md](docs/LESSONS.md).
+**Every push runs a fast local gate first.** `nix develop` sets `core.hooksPath` to `.githooks`, whose `pre-push` runs `gen/prepush.b`: the light gates the changed paths select from `gate_table` (formatting, the changed locks, retired words), in seconds; a path in `every_gate_paths` or one no gate names selects every gate. A landing (a push to `main` or a land ref) also runs the land gates its paths select: the census, the reuse ratchet, the bench and `regen`. The heavy gates (the gen pin and tie, the sweep of every consumer in `gen/consumers.json`, tests beside, each member compiled alone, the distribution tests, strict conformance) run in CI, or here with `BLUE_PREPUSH_FULL=1`. A clean tree that passed skips its next push. Off: `BLUE_PREPUSH_OFF=1`. What each gate caught and what it costs: [LESSONS.md](docs/LESSONS.md).
 
 **A new rule lands after its consumers are written in it.** `gen/consumers.json` is the registry of pleme-io repositories with `.b` files and the blue each pins (flake, git cargo source, crates.io or blue-setup); `blue gen/consumers.b derive` rewrites it from the workspace. `blue gen/consumers.b sweep` runs every consumer's files through this blue's `fmt --check` and `check`; prepush and the `consumers` CI job run it, and recorded debt may shrink, never grow (hadome). `blue gen/consumers.b fix REPO` writes one consumer with `fmt --write` in a worktree and commits only when `blue erase` is byte-identical before and after each file; the consumer then moves its pin and runs its tests. `checks.consumers` is red while `blue explain --list` names a code that `sweep --record` has not recorded green. Off: `level(REPO, :audit, why)` or `level("*", :off, why)` in `entries`.
 

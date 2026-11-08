@@ -116,7 +116,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-373 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 188 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+381 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 188 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -574,21 +574,29 @@ Higher binding power binds tighter.
 | name | call | arity | meaning |
 |---|---|---|---|
 | `accept` | `accept(wire, timeout_ms)` | 2 | Resume a process another node evicted to this wire: waits at most timeout_ms (0 only checks) for every frame of one blue-image, checks it hashes to its name, starts it here with the same code, state or frames, scheduling class and waiting messages, a server's dispatch_steps met with this node's bound, and returns its new pid; nil when no whole image came. A plain process goes on inside the receive it moved at, its functions rebuilt from its code, and its tape starts with the entries it made before the move, so a crash trace of it here replays from its start (blue replay refuses one whose carried entries are not the ones that came); on a held node its mailbox journal and host-call count start from the ones it brought, so its crash trace and receipt here count both nodes, and a server's receipt begins at the input root it brought (blue replay and blue receipt verify refuse a cut or edited carried part by name); an image with no tape, from an older blue or a tape past its bound, starts a tape marked truncated. A supervised process arrives under a one_for_one supervisor of its own, which restarts it as its old one would. A frame of the image that is malformed, or an image whose bytes hash to another name, raises :decode_error. Frames this node cannot resume (a native function it does not register, code its blue compiles to another chunk) are refused by name and nothing is admitted; the process has already left the node it came from. Other Tide frames stay in the inbox for tide_next. An accepted process runs under this node's frame, never more. Needs the comm_scavenger capability. |
+| `after` | `after(ms, msg[, pid])` | 2..3 | Deliver a copy of msg to pid (this process when omitted) ms from now on the node clock; returns the timer's number. Timers fire in the order of their times, and timers with one time in the order they were set. |
 | `alive?` | `alive?(pid)` | 1 | true while pid is running or waiting. |
 | `children` | `children(sup)` | 1 | The pids a supervisor started, in order. Also defined by `maakuappu` (`maakuappu::children`): a file that lists it gets that one. |
+| `context` | `context` | 0 | What this process inherits and passes to every process it spawns: {clock: :virtual or :real, deadline: the node time or nil}. |
+| `deadline` | `deadline(t, f)` | 2 | f(), which must finish by the node time t: every wait inside it, and in every process it spawns, raises :timeout at t, and f returning after t raises :timeout too. A nested deadline only narrows. Only the program narrows its deadline today; a process holds the one it was spawned under. |
 | `defmigrate` | `defmigrate(target, new_fn[, transform])` | 2..3 | Swap the code of process target, or of every process running that function, at its next boundary without dropping its mailbox; a server's state becomes transform(state). A migration that raises leaves the old code running. Returns [[pid, :ok or [:error, why]], …]. |
 | `demonitor` | `demonitor(ref)` | 1 | Stop a monitor; true. |
 | `evict` | `evict(pid, wire, peer)` | 3 | Move process pid off this node at its next message boundary: a server between two messages, with its code, state and its own dispatch_steps, and from a held node its mailbox journal, its count of host calls and the root of the state its incarnation began with, so its crash trace and receipt on the peer cover the whole incarnation; a plain process (spawn) parked at receive, with its code and its VM frames, so its locals, the closures it holds and the cells they share go on where they were, what is left of a receive timeout, and its tape, so a crash on the peer replays from its start; from a held node also its mailbox journal and its count of host calls, so its crash trace and receipt there count both nodes (a tape, or a server's journal, the send ring cannot hold stays behind with the rest of its account, and the process moves without it). Its scheduling class and waiting messages go too; a plain process still running stops at its next receive and takes nothing more here. They become a blue-image, queued as Tide frames for peer (host:port) on wire, and the process leaves the node: its monitors get [:down, ref, pid, :evicted], and each linked process, which must trap exits, gets [:exit, pid, :evicted] and is linked no more. A supervised process's supervisor drops it, and the image carries its restart: on the peer it runs under a one_for_one supervisor of its own that restarts it as its old one would (a server from the state its old one began it with, a plain process from its code), its restarts so far counted against the same max_restarts. tide_release sends the frames at the pace the program allows; accept on the peer's wire resumes it. Returns {image: "b3:…", frames:, bytes:}. Only the program evicts, since it waits for the boundary. Refused by name, and the process keeps running here: the program itself (the door runs it on the tree-walker, not on a VM this node holds), a supervisor, a plain process whose frames hold a value with no data form (a host handle, a promise, a tree-walker closure) or run code a migration replaced, a linked process whose partner does not trap exits, and an image the send ring has no room for. Needs the comm_scavenger capability. |
 | `exit` | `exit(pid, reason)` | 2 | Send pid an exit signal: it ends with reason unless it traps exits (:normal ends nothing, :kill cannot be trapped). exit(self, r) raises. |
 | `link` | `link(pid)` | 1 | Link to pid: an abnormal exit of either ends the other. false when pid is not alive. Also defined by `kodou` (`kodou::link`): a file that lists it gets that one. |
 | `monitor` | `monitor(pid)` | 1 | Watch pid and return a ref; its exit arrives as [:down, ref, pid, reason] ([:down, ref, pid, :noproc] if it is gone). |
+| `node_time` | `node_time` | 0 | Milliseconds on this node's clock. Under blue test the clock is virtual: it starts at 0 and moves only when every process waits, jumping to the next deadline. Under blue run it is the wall clock since the node started. |
 | `receive` | `receive([pattern][, timeout_ms][, on_timeout])` | 0..3 | The oldest message matching pattern (:_ matches anything, a list or map matches by shape), waiting for one. After timeout_ms, on_timeout (default nil). Waiting forever with no possible sender raises a deadlock. |
+| `remaining` | `remaining` | 0 | Milliseconds left before this process's deadline, or nil when it holds none. |
 | `self` | `self` | 0 | This process's pid. The program itself is 0. |
 | `send` | `send(pid, msg)` | 2 | Copy msg into pid's mailbox and return msg. A function or handle is refused; a send to a process that has exited is dropped. |
+| `sleep_for` | `sleep_for(ms)` | 1 | Wait ms on the node clock without holding the node: a process parks, the program runs the other processes meanwhile. Raises :timeout at the deadline this process holds, when that comes first. |
+| `sleep_until` | `sleep_until(t)` | 1 | sleep_for, to the node time t (milliseconds). |
 | `spawn` | `spawn(f[, args][, opts])` | 1..3 | Start a process running f(args...) and return its pid. f's code and copies of the data it reaches go with it; a host handle does not, so open it inside. Processes run while the program waits (receive); the program ends when it does. opts {scheduling: :normal \| :idle}: :normal (the default) changes nothing; :idle runs each of its slices on a thread the OS gives its lowest priority (nice 19 on Linux, the background band on darwin), apart from the node: the node runs its other processes while that thread waits for a core, and the process still acts only while the program waits. A host with no such class raises :unsupported. :realtime, the class the OS never preempts, raises :permission_denied: the OS gives it only to a privileged process. |
 | `spawn_link` | `spawn_link(f[, args][, opts])` | 1..3 | spawn, linked to the caller: an abnormal exit of either ends the other, unless it traps exits. opts as for spawn. |
 | `spawn_server` | `spawn_server(handler, state[, opts])` | 2..3 | A process that answers each message m with state = handler(m, state). Its state is what defmigrate transforms and evict carries. opts as for spawn, and dispatch_steps: n, the most steps one message's handler may take, met with the project's bounds({dispatch_steps:}) so each only narrows. Past it the process exits [:runaway, "execution budget exhausted: steps per dispatch (limit n)"], as a step bound ends one; nothing the handler did to the state lands, and a supervisor restarts it from the state before that message. A positive integer, or :bad_option. |
 | `supervisor` | `supervisor(strategy, children[, max_restarts])` | 2..3 | Start children (functions, [f, args] pairs, or [:server, handler, state[, opts]] with spawn_server's opts) under :one_for_one, :one_for_all or :rest_for_one and return the supervisor's pid. A crashed child restarts with an empty mailbox; past max_restarts (default 3) the supervisor gives up. Each crash writes a trace for blue replay. |
+| `timeout` | `timeout(ms, f)` | 2 | deadline(node_time + ms, f). |
 | `trap_exit` | `trap_exit(flag)` | 1 | While true, exit signals arrive as [:exit, pid, reason] messages instead of ending this process. Returns the previous flag. |
 | `unlink` | `unlink(pid)` | 1 | Remove a link; true. |
 
@@ -618,7 +626,7 @@ Higher binding power binds tighter.
 
 ### Called where written bare
 
-A function that takes no parameters is CALLED where its name is written: `now_ms` is a number, `now_ms()` is the same call in a spelling the check stage refuses in a file (B0023; `blue fmt --write` rewrites it), and `fn() now_ms end` is the function itself as a value. A local or a parameter of the same name is its value, never a call. These 14 built-in names therefore run, with their effects, wherever they are written bare:
+A function that takes no parameters is CALLED where its name is written: `now_ms` is a number, `now_ms()` is the same call in a spelling the check stage refuses in a file (B0023; `blue fmt --write` rewrites it), and `fn() now_ms end` is the function itself as a value. A local or a parameter of the same name is its value, never a call. These 17 built-in names therefore run, with their effects, wherever they are written bare:
 
 | name | meaning |
 |---|---|
@@ -627,13 +635,16 @@ A function that takes no parameters is CALLED where its name is written: `now_ms
 | `audio_out_format` | The default output device's format, {rate:, channels:}, or nil when there is none. Needs the audio_out capability. |
 | `builtin_names` | Every name this reference documents, as strings: what a bare name falls to when no definition or import has it. A catalogue reads it to say which definitions share a builtin's name. |
 | `chain_rules` | Every conversion-chain rewrite the check stage, the formatter and the evaluator share, as [id, slug, outer, soundness, cases] rows; a case is [label, kind or nil, lhs, rhs] with lhs and rhs one-parameter lambda forms for eval. okite's laws evaluate both sides. |
+| `context` | What this process inherits and passes to every process it spawns: {clock: :virtual or :real, deadline: the node time or nil}. |
 | `cwd` | The current directory. |
 | `line_break` | The one-character line-break string, "\n" (B0065). `newline` prints one. |
 | `newline` | Print a newline. |
+| `node_time` | Milliseconds on this node's clock. Under blue test the clock is virtual: it starts at 0 and moves only when every process waits, jumping to the next deadline. Under blue run it is the wall clock since the node started. |
 | `now` | Unix time in seconds. |
 | `now_ms` | Unix time in milliseconds. |
 | `now_ns` | Unix time in nanoseconds. |
 | `now_rfc3339` | The current UTC time as RFC 3339 text. |
+| `remaining` | Milliseconds left before this process's deadline, or nil when it holds none. |
 | `self` | This process's pid. The program itself is 0. |
 | `self_exe` | The path of the blue running this program, or nil outside the CLI. Spawn it to run blue; a sandbox has no blue on PATH. |
 

@@ -19,6 +19,8 @@ const CORPUS: &[&str] = &[
     "record p(x, y)\ncase v\nwhen [p(a, _), {k: [b]}]\n  a + b\nend",
     "[a, *rest] = xs\n{name:, age: n} = person",
     "def f(pair)\n  [a, [b, c]] = pair\n  case pair\n  when [x, *_]\n    if x\n      return a\n    end\n  end\n  b + c\nend",
+    "def f(r)\n  x = g(r)?\n  g(x)?\n  if x\n    y = h(x)?\n    return y\n  end\n  k()?\nend",
+    "def f(r)\n  [a, *b] = g(r)?\n  b\nend",
     "union event =\n  opened(path: Str, mode: Sym, flags: List(Sym))\n  | closed(path: Str, code: Int)\n  | failed(path: Str, reason: Str)",
     "def grade(n)\n  if n < 0\n    return\n  end\n  if n < 50\n    return :low\n  end\n  :high\nend",
     "begin\n  risky\nrescue :timeout, :refused as e\n  e.message\nrescue e\n  raise(e)\nensure\n  close\nend",

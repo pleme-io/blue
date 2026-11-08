@@ -1306,6 +1306,7 @@ def surface()
       %w[=> operator],
       %w[** operator],
       %w[-> operator],
+      %w[? operator],
       [":", ""],
       ["#", ""],
       ["#=>", ""],
@@ -1507,8 +1508,20 @@ def surface()
       # innermost expression take `.name` and `(…)`.
       rule(
         "_postfix",
-        choice([ref("call"), ref("send"), ref("index"), ref("_primary")]),
+        choice(
+          [ref("call"), ref("send"), ref("index"), ref("try"), ref("_primary")]
+        ),
         nil
+      ),
+      # `f(x)?` returns a refusal from the function (parse.rs `expr_inner`,
+      # try_op.rs): `?` touches what it follows.
+      rule(
+        "try",
+        prec(
+          postfix,
+          seq([field("value", ref("_postfix")), immediate(lit("?"))])
+        ),
+        ["list", %w[sym blue-try], %w[field value]]
       ),
       # `x[k]` touches what it indexes (parse.rs `expr_inner`): a keyword or a
       # plain string key is `get(x, k)`, any other key is `nth(k, x)` (B0066).

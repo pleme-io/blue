@@ -55,6 +55,25 @@ end                                  end
   with `rescue` clauses included) is refused; lowering it into the protected
   body is a G2 question.
 
+## `?`: a refusal that flows
+
+`x = f(y)?` (and `f(y)?` alone, and `[a, b] = f(y)?`) is written as a guard
+`return` and lowered by `crates/blue-lang-syntax/src/try_op.rs` before this
+rewrite runs:
+
+```text
+x = f(y)?        try-subject = f(y)
+                 if blue-try-refused?(try-subject)
+                   return try-subject
+                 end
+                 x = blue-try-value(try-subject)
+```
+
+A refusal is a kyohi result whose `:ok` is `false`; one whose `:ok` is `true`
+gives its `:value`; any other value raises :usage. The same placement rule
+holds: a `?` in an argument, a lambda or at the top level is a parse error.
+Rows: `spec/rows/refusals.b`; tests: `crates/blue-lang-runtime/tests/refusals.rs`.
+
 ## Gates
 
 | Gate | Proves | Red run |

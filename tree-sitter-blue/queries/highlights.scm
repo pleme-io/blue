@@ -33,7 +33,7 @@
 (type name: (identifier) @type)
 (type name: (qualified_name) @type)
 (defmacro name: (identifier) @function.macro)
-["=" "||" "∨" "&&" "∧" "==" "≡" "!=" "≠" "<" "<=" "≤" ">" ">=" "≥" "+" "-" "−" "*" "×" "/" "÷" "%" "|>" "!" "¬" "**" "=>" "->"] @operator
+["=" "?" "||" "∨" "&&" "∧" "==" "≡" "!=" "≠" "<" "<=" "≤" ">" ">=" "≥" "+" "-" "−" "*" "×" "/" "÷" "%" "|>" "!" "¬" "**" "=>" "->"] @operator
 ["|" "," "." "::"] @punctuation.delimiter
 ["(" ")" "[" "]" "{" "}"] @punctuation.bracket
 ["rescue" "begin" "as" "ensure"] @keyword.exception

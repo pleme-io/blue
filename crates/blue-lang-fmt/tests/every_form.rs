@@ -99,6 +99,8 @@ const FOUND: &[&str] = &[
     "union u = a(x) | b(y, z)\ncase v\nwhen a(x)\n  x\nwhen b(_, [z, *r])\n  r\nend",
     "case v\nwhen {a:, b: [_, *c]}\n  c\nend",
     "[a, {b:}] = v\nb",
+    "def f(r)\n  x = g(r)?\n  (x + 1)\nend",
+    "def f(r)\n  case r\n  when [a, *_]\n    b = g(a)?\n    b\n  end\nend",
 ];
 
 /// Every accepted source, formatted, parses back to the same tree.

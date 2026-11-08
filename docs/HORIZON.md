@@ -107,6 +107,18 @@ bidama is not yet a pattern and still compares by value. Rows:
 patterns. They lower in their statement sequence to `bind-subject = value`, a
 test that raises :pattern naming the pattern when the value does not fit, and
 one binding per name, so nothing ever binds nil. G13 is closed.
+**`?`, built (2026-11-08):** `x = f(y)?`, `[a, b] = f(y)?` and a bare
+`f(y)?` statement end a statement of a `def` body. A refusal is kyohi's: a map
+whose `:ok` is `false` (`kyohi::refused(r)`, `{ok: false, refusal: r}`); a map
+whose `:ok` is `true` is a value and `?` gives its `:value`; anything else
+raises :usage, so a `nil` or a khipu `{why:}` map never passes as either.
+`crates/blue-lang-syntax/src/try_op.rs` lowers it before the guard rewrite to
+`try-subject = f(y)`, `if blue-try-refused?(try-subject) return try-subject
+end`, `x = blue-try-value(try-subject)`, so GUARD-RETURN's own lowering turns
+it into if/else and every evaluator door runs that. A `?` the rewrite cannot
+place (an argument, a lambda, the top level) is a parse error; the formatter
+raises it back. Not yet: `?` on an Option (ABSENCE P1 has no `umu`), one
+declared `result` union, and khipu still writes its own `{why:}` guards.
 **Unlocks:** H2 (types have shapes to name), ABSENCE P1, SAFETY rows 1 and 3.
 
 ### H2. Types that grow with the program

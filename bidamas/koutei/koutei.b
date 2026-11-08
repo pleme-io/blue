@@ -248,12 +248,111 @@ def annotate(level, message, props)
 end
 
 @doc """
-fail: raise an error annotation and end the step with status 1.
+annotation_cap: the characters of an annotation message the step keeps; GitHub
+cuts a longer one from the end, so its last lines, where a cause usually is, go.
 
-    annotation("error", "stop", []) #=> "::error::stop"
+    annotation_cap #=> 3500
+"""
+def annotation_cap()
+  3500
+end
+
+@doc """
+named_line?: whether a line names what failed: a harness's failure line or a
+compiler's or nix's error.
+
+    named_line?("error: builder for '/nix/store/x.drv' failed") #=> true
+    named_line?("thread 'x' panicked at src/lib.rs:1:1:") #=> true
+    named_line?("copying path '/nix/store/x' from 'http://rio:5000'...") #=> false
+"""
+def named_line?(line)
+  t = trim(line)
+  any?(
+    (p) -> starts_with?(t, p),
+    ["FAIL", "MISSING ", "REFUSED ", "error:", "error[", "not ok", "failed:"]
+  ) or
+    any?(
+      (p) -> contains?(t, p),
+      [" FAILED", "panicked at", "❌", "✗ ", "assertion failed"]
+    )
+end
+
+@doc """
+clip_line: a line kept to `n` characters, an ellipsis marking the cut.
+
+    clip_line("abcdef", 4) #=> "abc…"
+    clip_line("ab", 4) #=> "ab"
+"""
+def clip_line(line, n)
+  if length(line) <= n
+    line
+  else
+    "#{join(take(n - 1, chars(line)), "")}…"
+  end
+end
+
+@doc """
+fitting_tail: the last lines of `lines` whose text, a line break after each,
+fits `budget` characters.
+
+    fitting_tail(%w[aa bb cc], 6) #=> ["bb", "cc"]
+    fitting_tail(%w[aa], 1) #=> []
+"""
+def fitting_tail(lines, budget)
+  if lines == []
+    []
+  else
+    l = join(drop(length(lines) - 1, lines), "")
+    cost = length(l) + 1
+    if cost > budget
+      []
+    else
+      append(fitting_tail(take(length(lines) - 1, lines), budget - cost), [l])
+    end
+  end
+end
+
+@doc """
+digest: a message that fits `cap` characters. A message that fits is itself;
+a longer one keeps the lines that name the failure, each clipped to 200, then
+as many of its last lines as still fit, with the count of lines cut between.
+
+    digest("short", 100) #=> "short"
+"""
+def digest(message, cap)
+  text = to_s(message)
+  if length(text) <= cap
+    text
+  else
+    lines = filter((l) -> trim(l) != "", split(text, line_break))
+    named = fitting_tail(
+      map((l) -> clip_line(l, 200), take(20, filter(named_line?, lines))),
+      cap / 2
+    )
+    used = length(join_lines(named)) + 40
+    tail = fitting_tail(lines, cap - used)
+    cut = length(lines) - length(tail)
+    join_lines(
+      append(
+        append(
+          named,
+          ["… #{cut} lines cut; the step log above holds them all …"]
+        ),
+        tail
+      )
+    )
+  end
+end
+
+@doc """
+fail: print the whole message to the step log, raise an error annotation that
+holds its digest, and end the step with status 1.
+
+    annotation("error", digest("stop", annotation_cap), []) #=> "::error::stop"
 """
 def fail(message)
-  annotate("error", message, [])
+  write_stdout(unlines([to_s(message)]))
+  annotate("error", digest(message, annotation_cap), [])
   exit_with(1)
 end
 
@@ -366,6 +465,28 @@ test "annotation text and properties are escaped as GitHub reads them"
     [%w[file a.b], ["line", 3], ["col", nil]]
   ) == "::error file=a.b,line=3::two%0Alines"
   assert annotation("notice", "n", []) == "::notice::n"
+end
+
+test "a long failure keeps its cause and its last lines inside the cap"
+  noise = map(
+    (i) -> "copying path '/nix/store/#{i}' into the Git cache...",
+    range(0, 400)
+  )
+  message = join_lines(
+    append(
+      append(["warning: Git tree is dirty"], noise),
+      [
+        "error: builder for '/nix/store/gate.drv' failed",
+        ".#gate did not build against the new lock; nothing pushed"
+      ]
+    )
+  )
+  d = digest(message, annotation_cap)
+  assert length(d) <= annotation_cap
+  assert contains?(d, "error: builder for '/nix/store/gate.drv' failed")
+  assert ends_with?(d, "did not build against the new lock; nothing pushed")
+  assert contains?(d, "lines cut")
+  assert digest("fits", annotation_cap) == "fits"
 end
 
 test "a level GitHub does not show is refused"

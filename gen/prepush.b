@@ -13,7 +13,7 @@ land ref; a heavy gate runs with BLUE_PREPUSH_FULL=1, and otherwise CI runs it
 when the push lands. The none weight names paths that no gate reads.
 
     map((g) -> get(g, :id), filter((g) -> get(g, :weight) == :light, gate_table)) #=> ["cargo-fmt", "blue-fmt", "locks", "retired", "gen-confirm", "swept-codes"]
-    map((g) -> get(g, :id), filter((g) -> get(g, :weight) == :land, gate_table)) #=> ["census", "reuse", "bench"]
+    map((g) -> get(g, :id), filter((g) -> get(g, :weight) == :land, gate_table)) #=> ["census", "reuse", "bench", "regen"]
 """
 def gate_table()
   [
@@ -69,7 +69,7 @@ def gate_table()
     {
       id: "regen",
       label: "regen",
-      weight: :heavy,
+      weight: :land,
       inputs: %w[
         **/*.b
         **/Bluefile
@@ -344,7 +344,7 @@ else the light gates the selection holds, and its land gates when the push
 lands.
 
     planned(["blue-fmt", "census", "regen"], {full: false, landing: false}, gate_table) #=> ["blue-fmt"]
-    planned(["blue-fmt", "census", "regen"], {full: false, landing: true}, gate_table) #=> ["blue-fmt", "census"]
+    planned(["blue-fmt", "census", "regen"], {full: false, landing: true}, gate_table) #=> ["blue-fmt", "census", "regen"]
     count(planned([], {full: true, landing: false}, gate_table)) #=> 17
 """
 def planned(ids, push, table)
@@ -1253,6 +1253,16 @@ test "a landing judges the census and the reuse ratchet before CI does"
   assert member?("reuse", on_land)
   assert not member?("bench", on_land)
   assert skipped("census,reuse", gate_table) == %w[census reuse]
+end
+
+test "a landing that changes a doc page regenerates before the push, not in CI"
+  s = selection(["docs/COMMANDS.md"], gate_table)
+  assert member?("regen", s[:ids])
+  assert not member?("regen", planned(s[:ids], plain_push, gate_table))
+  assert member?(
+    "regen",
+    planned(s[:ids], {full: false, landing: true}, gate_table)
+  )
 end
 
 test "a light green record never covers a landing"

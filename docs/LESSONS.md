@@ -212,10 +212,14 @@ working tree. The gates and the paths each one reads are one table,
 `Bluefile.lock` of each changed lock dir, and the retired-word gate when a
 bidama changed. A path in `every_gate_paths` (`Cargo.lock`, `flake.lock`,
 `flake.nix`, the hooks, the gate itself) or a path no gate names selects every
-gate, so an unknown path fails closed. The heavy gates run in CI, or here with
-`BLUE_PREPUSH_FULL=1`: `regen` in every project that generates (each red names
-the file it rewrote; commit it), `gen --version` against substrate's one gen
-pin, the sweep of every consumer in `gen/consumers.json`, `gen confirm` (red runs `gen build .` and names the files to commit),
+gate, so an unknown path fails closed. A landing (a push to `main` or a land
+ref) also runs the land gates its paths select: the census, the reuse ratchet,
+the bench, and `regen` in every project that generates (each red names the file
+it rewrote; commit it). `regen` became a land gate on 2026-11-08: two pages
+gained front matter, the hook ran no gate, and CI found the four index files
+stale after a 50-minute run; regen takes about 103 s warm. The heavy gates run
+in CI, or here with `BLUE_PREPUSH_FULL=1`: `gen --version` against substrate's
+one gen pin, the sweep of every consumer in `gen/consumers.json`, `gen confirm` (red runs `gen build .` and names the files to commit),
 tests beside every bidama definition, each member's test targets compiled
 alone (`cargo test -p M --no-run`, since `--workspace` unifies features and
 hid a break), the `registry_graph`, `check_corpus`, `distribution` and

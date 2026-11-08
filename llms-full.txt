@@ -214,8 +214,8 @@ rendered:
 | | |
 |---|---|
 | Built-in names | 381: 354 functions, 14 special forms, 13 macros |
-| Surface forms | 32, with 13 operators and 26 reserved words |
-| Check rules | 77: 42 fix themselves, 8 suggest a fix |
+| Surface forms | 33, with 13 operators and 26 reserved words |
+| Check rules | 78: 42 fix themselves, 8 suggest a fix |
 | Bluefile words | 26 |
 | Commands | 45 |
 
@@ -2802,12 +2802,8 @@ horizon gets a row here when its first phase starts.
 | **async**: native async, the `heikou` space | [`ASYNC.md`](docs/ASYNC.md) | PARTIAL (processes built; A1's node-time timers, the context deadline and the virtual clock in `blue test` built) | A1's rest: `net_wait` in the node loop, a deadline narrowed inside a process; then A2 | blue-lang-proc; HTTP2.md P3 (`net_wait`) | the conformance set green at `schedulers(1)` and `schedulers(n)`, gates A-ontology to A-replay |
 | **record**: a named structure in one line | `examples/17_records.b`, okite D0017 | SHIPPED (2026-11-06, blue `cc9a1a1e`) | — | — | `spec/rows/records.b` and okite's record laws green; B0079 at error |
 | **guard return** | [`GUARD-RETURN.md`](docs/GUARD-RETURN.md) | G1 BUILT (lowering, B0080, the formatter keeps the guard), G2 DESIGN | G2: the language server and the tree-sitter grammar know `return`; a `return` inside `rescue` | — | R-lower, R-refuse, R-total green (G1); editors highlight it (G2) |
-<<<<<<< HEAD
 | **types that grow** (H2) | [`HORIZON.md`](docs/HORIZON.md) § H2, [`SAFETY.md`](docs/SAFETY.md) row 7 | step 1 BUILT (local inference in a typed definition: literals, parameters, declared builtin results, the `if` join; an inferred kind feeds B0062), the rest DESIGN | record and union types in signatures; then the checked boundary (gap G8) | H1 (shapes to name) | a spec row per inference rule (`check.infer.*`) green; the corpus checks clean at `dynamic` |
-||||||| 45b9d264c0659b00a2aecb5213c2c9e0a27f0cd6^
-=======
 | **union** (HORIZON H1, first step) | [`HORIZON.md`](docs/HORIZON.md) §H1, SAFETY row 3 | U1 BUILT: `union shape = circle(r: Float) \| rect(w: Float, h: Float)` declares each arm as a record and `shape?`; a `case` over a union's arms that misses one and has no `else` is B0081; fmt, kiwari and tree-sitter know it. Patterns and `?` DESIGN | H1 patterns: `when rect(w, h)` destructures; arms with no field | record | `spec/rows/unions.b` and `crates/blue-lang-runtime/tests/unions.rs` green; B0081 at error |
->>>>>>> 45b9d264c0659b00a2aecb5213c2c9e0a27f0cd6
 
 ## The arika track
 

@@ -27,6 +27,7 @@ Semantics that differ from Ruby are in [`bidamas/okite/RULES.md`](../bidamas/oki
 | `f(x, **a, b: 1)` | `(f x (blue-kwargs (blue-splice a) (hash-map :b 1)))` | A call whose last argument is the map built from `**` spreads and entries, `f(x, {**a, b: 1})` without the braces. Entries after a `**` are the call's last argument, so it cannot also carry a splat `*xs`. |
 | `a::b::c(x)` | `(a/b/c x)` | A qualified name, as deep as the levels of a bidama go: `a::b::c` is `c` in level `a/b`. After `use("a/b")` the same name is also `b::c`; a level below it, `a::b::d::e`, is also `b::d::e` and `d::e`. One symbol in the tree. |
 | `record point(x, y: Int)` | `(blue-record point point? :x (:y Int))` | A named structure, at a file's top level: point(1, 2) and point({x: 1, y: 2}) construct one, refusing a missing or unknown field at check and at run time, point?(v) is its predicate, p.x reads a field, point(**p, x: 3) is an updated copy. A value is a map carrying its name: == includes the name, and it crosses JSON as {"$record": "point(x,y)", ...}. A map whose keys no longer match that name, after assoc or a spread, is a plain map. A field type is Int, Float, Str, Bool, Sym, Nil, Map, List(T) or a record, checked at construction. struct and class are refused, naming this. |
+| `union shape = circle(r: Float) \| rect(w: Float, h: Float)` | `(blue-union shape shape? (blue-record circle circle? (:r Float)) (blue-record rect rect? (:w Float) (:h Float)))` | A closed set of records, at a file's top level: each arm is a record with all a record gives (constructor, predicate, field reads, JSON), and shape?(v) is true for a value of any arm. A case whose `when` arms test a union's records and that has no `else` names every arm, or the check stage refuses it (B0081), naming the arms it misses. An arm may start a line with `\|`. union stays a free name everywhere else. |
 | `x = 5` | `(define x 5)` | A binding, only as a statement. There is no `let`; a binding lasts to the end of its body. |
 | `f(x, y)` | `(f x y)` | A call. This is the one form the formatter writes, except for a function that takes no parameters: that is called by its bare name, now_ms, never now_ms() (B0023), and passed as a value as fn() now_ms end. |
 | `f(a, *xs)` | `(apply f a xs)` | A splat: the list's elements are the call's last arguments. The one spelling of apply(f, a, xs) with f a name (B0042). |
@@ -99,7 +100,7 @@ Higher binding power binds tighter.
 | `assert` | `assert expr`: inside a test, fail it unless `expr` is truthy; the failure quotes the expression. |
 | `assert_panics` | `assert_panics expr`: inside a test, pass only when `expr`, run in a child held to a pure frame, ends on a capability breach with no host call made. |
 | `fn` | `fn(x) x * 2 end`: an anonymous function, a value. Blue has no brace or do blocks. |
-| `case` | `case v when 1 … when 2 … else … end`: compares with `==`; `when point?` takes a value of a record the program declares. It does not destructure. |
+| `case` | `case v when 1 … when 2 … else … end`: compares with `==`; `when point?` takes a value of a record the program declares. A case over a union's arms names every arm or has an `else` (B0081). It does not destructure. |
 | `return` | `return x` ends a branch of an `if` or `case` in a def body: the rest of the body becomes the branches that did not return, so it costs nothing at run time. Anywhere else it is refused (B0080). |
 | `do` | Reserved and refused: blue has no do-blocks. Pass `fn(x) … end` instead. |
 | `end` | Closes `def`, `defmacro`, `if`, `case`, `fn`, `test` and `quote`. |
@@ -764,3 +765,4 @@ Every rule blue holds, from the registry the check stage runs (`blue explain COD
 | `B0078` | redundant-use | a file imports a tree once: a `use` that lists nothing, of a level below another `use` of the file, adds nothing | autofix |
 | `B0079` | record-fields | a call of a record's constructor gives every field and no other, and a literal in a typed field has that type | refused |
 | `B0080` | return-position | a `return` ends a branch of an `if` or `case` that is a statement of a def body, where it is rewritten into if/else | refused |
+| `B0081` | union-arms | a `case` whose `when` arms test a union's records names every arm of that union, or has an `else` | refused |

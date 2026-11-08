@@ -1,3 +1,8 @@
+---
+kind: reference
+summary: every blue verb with its flags, one row each; the agents page keeps one line per verb and links here
+---
+
 # Commands
 
 Every `blue` verb with its flags. The agents page (`docs/agents.md`, rendered to `AGENTS.md` and `CLAUDE.md`) keeps one line per verb and links here.

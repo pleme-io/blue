@@ -1,3 +1,8 @@
+---
+kind: explanation
+summary: the design of the data framework, one blue model rendered to schema, migrations, queries and GraphQL with nothing written twice, and the research it rests on
+---
+
 # The data framework: one model, every rendering, nothing written twice
 
 Status: DESIGN (2026-11-07). The pieces it composes are built and named below;

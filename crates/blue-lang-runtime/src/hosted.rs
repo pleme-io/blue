@@ -27,6 +27,7 @@ pub struct Hosted<H: 'static> {
     /// The entry file's namespace: its definitions run under this
     /// namespace's keys (`%root/f` for a script), and a host names them bare.
     entry: blue_lang_check::Namespace,
+    content: Option<[u8; 32]>,
 }
 
 /// Parse, check and erase `entry`, build a blue interpreter over `H`, let
@@ -51,10 +52,19 @@ pub fn load_hosted<H: 'static>(
     let prepared = prepare(entry, loader, None, &builtin_names(&interp))?;
     eval_prepared(&mut interp, &prepared, host)?;
     let entry = prepared.entry_namespace();
-    Ok(Hosted { interp, entry })
+    Ok(Hosted {
+        interp,
+        entry,
+        content: None,
+    })
 }
 
 impl<H: 'static> Hosted<H> {
+    #[must_use]
+    pub fn content(&self) -> Option<[u8; 32]> {
+        self.content
+    }
+
     /// What `name` is bound to: the entry's definition of it (under its
     /// runtime key), else a global of that name (a host primitive, a builtin).
     /// A qualified `pkg::name` is bidama `pkg`'s definition, exactly as a
@@ -193,7 +203,11 @@ pub fn load_program<H: 'static>(
     install(&mut interp);
     eval_prepared(&mut interp, &program.0, host)?;
     let entry = program.0.entry_namespace();
-    Ok(Hosted { interp, entry })
+    Ok(Hosted {
+        interp,
+        entry,
+        content: None,
+    })
 }
 
 /// Prepared programs a host keeps across calls, keyed by entry: a program is
@@ -336,7 +350,21 @@ pub fn load_hosted_in_frame<H: 'static>(
         .map_err(|e| RunError::Eval(Box::new(e.to_string().into())))?;
     eval_prepared(&mut interp, &prepared, host)?;
     let entry = prepared.entry_namespace();
-    Ok(Hosted { interp, entry })
+    let content = crate::check_cache::digest(
+        &prepared
+            .erased()
+            .iter()
+            .map(|f| f.to_sexp().to_string().into_bytes())
+            .collect::<Vec<_>>()
+            .iter()
+            .map(Vec::as_slice)
+            .collect::<Vec<_>>(),
+    );
+    Ok(Hosted {
+        interp,
+        entry,
+        content: Some(content),
+    })
 }
 
 impl<H: 'static> Hosted<H> {

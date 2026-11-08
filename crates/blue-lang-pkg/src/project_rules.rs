@@ -30,6 +30,8 @@ use blue_lang_check::project::{
     apply_waivers, Finding, ProjectCode, ProjectCodeError, WaivedFinding,
 };
 use blue_lang_check::{Applicability, Diagnostic, Edit, Fix, Severity};
+use blue_lang_runtime::check_cache::{CheckCache, Pass};
+use blue_lang_runtime::def_hash::DefHash;
 use blue_lang_runtime::project_rules::{RawFinding, RuleFailure, RuleProgram};
 use blue_lang_runtime::uses::{Entry, Loader, ResolvedProgram};
 use tatara_lisp::{Sexp, Span, Spanned, SpannedForm};
@@ -177,6 +179,57 @@ pub fn check(
     loader: &dyn Loader,
     steps: usize,
 ) -> Outcome {
+    check_cached(program, explicit, rules, loader, steps, None)
+}
+
+pub struct RuleCache<'a, 's> {
+    pub cache: &'a CheckCache<'s>,
+    pub form: &'a dyn Fn(usize) -> Option<([u8; 32], [u8; 32])>,
+}
+
+impl RuleCache<'_, '_> {
+    fn key(
+        &self,
+        rule: &Declared,
+        content: Option<[u8; 32]>,
+        steps: usize,
+        top_level: usize,
+        form: &Spanned,
+    ) -> Option<([u8; 32], DefHash)> {
+        let content = content?;
+        let (identity, bucket) = (self.form)(top_level)?;
+        let bound = format!(
+            "{:?}",
+            blue_lang_runtime::execution_bounds().guest_max_alloc_bytes
+        );
+        let read = blue_lang_runtime::check_cache::digest(&[form.to_sexp().to_string().as_bytes()]);
+        let key = self.cache.key(
+            Pass::Rule,
+            &[
+                &bucket,
+                &identity,
+                &read,
+                &content,
+                rule.code.as_str().as_bytes(),
+                rule.def.as_bytes(),
+                format!("{:?}", rule.severity).as_bytes(),
+                &(steps as u64).to_le_bytes(),
+                bound.as_bytes(),
+            ],
+        );
+        Some((key, DefHash(bucket)))
+    }
+}
+
+#[must_use]
+pub fn check_cached(
+    program: &ResolvedProgram,
+    explicit: &[Spanned],
+    rules: &[Declared],
+    loader: &dyn Loader,
+    steps: usize,
+    cache: Option<&RuleCache<'_, '_>>,
+) -> Outcome {
     let mut out = Outcome::default();
     // With no rules there is no project pass, and a waiver of a project code
     // is left alone, as the check stage leaves it: a package checked by
@@ -230,8 +283,22 @@ pub fn check(
                 continue;
             }
         };
+        let content = program_of_rules.content();
         for rule in mine {
             for (k, (top_level, form)) in forms.iter().enumerate() {
+                let key = cache.and_then(|c| {
+                    c.key(rule, content, steps, *top_level, form)
+                        .map(|(key, bucket)| (c, key, bucket))
+                });
+                if let Some((c, key, bucket)) = &key {
+                    if c.cache
+                        .get(Pass::Rule, bucket, key)
+                        .is_some_and(|v| v.is_empty())
+                    {
+                        continue;
+                    }
+                    c.cache.checked(Pass::Rule, *top_level);
+                }
                 let reported = program_of_rules
                     .run(&rule.def, form, steps)
                     .and_then(|raw| {
@@ -239,6 +306,11 @@ pub fn check(
                             .map(|r| resolve(rule, &entry.text, k, *top_level, form, r))
                             .collect::<Result<Vec<Finding>, RuleFailure>>()
                     });
+                if let (Some((c, key, bucket)), Ok(found)) = (&key, &reported) {
+                    if found.is_empty() {
+                        c.cache.put(bucket, *key, Vec::new());
+                    }
+                }
                 match reported {
                     Ok(found) => out.findings.extend(found),
                     Err(failure) => {

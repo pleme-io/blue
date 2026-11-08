@@ -864,6 +864,31 @@ pub(crate) fn check_stage(
     builtins: &NameTable,
     with_tests: bool,
 ) -> (blue_lang_check::Outcome, NameTable) {
+    let (outcome, table, _) = check_stage_in(program, builtins, with_tests, None);
+    (outcome, table)
+}
+
+#[derive(Clone)]
+pub(crate) struct Cached {
+    lowered: Vec<tatara_lisp::Spanned>,
+    resolved: blue_lang_check::names::Resolved,
+    forms: Vec<CachedForm>,
+}
+
+#[derive(Clone, Copy)]
+struct CachedForm {
+    identity: [u8; 32],
+    resolve: [u8; 32],
+    bucket: crate::def_hash::DefHash,
+}
+
+fn check_stage_in(
+    program: &crate::uses::ResolvedProgram,
+    builtins: &NameTable,
+    with_tests: bool,
+    cache: Option<&crate::check_cache::CheckCache<'_>>,
+) -> (blue_lang_check::Outcome, NameTable, Option<Cached>) {
+    use crate::check_cache::{digest, Pass};
     use crate::uses::ResolvedProgram;
     let forms = program.forms();
     let is_entry = |i: usize| program.owner_of(i) == Some(ResolvedProgram::ENTRY);
@@ -880,13 +905,82 @@ pub(crate) fn check_stage(
     // entry file, then each bidama in import order), then the interpreter's.
     let table = program_names(program, builtins);
     let whole = |i: usize| with_tests && is_entry(i);
-    let (names, resolved) = blue_lang_check::names::check_names_whole(
-        forms,
-        &table,
-        &|i| namespace_of(program, i),
-        &is_entry,
-        &whole,
-    );
+    let cached = cache.and_then(|cache| {
+        let fingerprint = digest(&[table
+            .fingerprint(&|i| forms.get(i).map(|f| f.span.start))
+            .as_bytes()]);
+        let keys = resolve_keys(cache, program, forms, &fingerprint);
+        let (lowered, resolved) =
+            lower_in(program, &table, true, Some((cache, &fingerprint, &keys)));
+        let resolved = resolved?;
+        let hashes = crate::def_hash::hash_program(&lowered);
+        let forms = keys
+            .iter()
+            .enumerate()
+            .map(|(i, (resolve, bucket))| {
+                let identity = hashes.at(i).map_or_else(
+                    || {
+                        digest(&[lowered
+                            .get(i)
+                            .map(|f| f.to_sexp().to_string())
+                            .unwrap_or_default()
+                            .as_bytes()])
+                    },
+                    |d| d.hash.0,
+                );
+                CachedForm {
+                    identity,
+                    resolve: *resolve,
+                    bucket: *bucket,
+                }
+            })
+            .collect();
+        Some(Cached {
+            lowered,
+            resolved,
+            forms,
+        })
+    });
+    let (names, resolved) = match (cache, &cached) {
+        (Some(cache), Some(c)) => {
+            let keys = c
+                .forms
+                .iter()
+                .enumerate()
+                .map(|(i, f)| {
+                    let key = cache.key(
+                        Pass::Names,
+                        &[
+                            &f.resolve,
+                            &f.identity,
+                            &[u8::from(is_entry(i)), u8::from(whole(i))],
+                        ],
+                    );
+                    (key, f.bucket)
+                })
+                .collect();
+            let mut memo = crate::check_cache::FormMemo {
+                cache,
+                pass: Pass::Names,
+                keys,
+            };
+            blue_lang_check::names::check_names_whole_with(
+                forms,
+                &table,
+                &|i| namespace_of(program, i),
+                &is_entry,
+                &whole,
+                Some(&mut memo),
+            )
+        }
+        _ => blue_lang_check::names::check_names_whole(
+            forms,
+            &table,
+            &|i| namespace_of(program, i),
+            &is_entry,
+            &whole,
+        ),
+    };
     let stored = program
         .file(ResolvedProgram::ENTRY)
         .is_some_and(|f| f.path.is_some());
@@ -998,9 +1092,11 @@ pub(crate) fn check_stage(
         .partition(|w| w.code == blue_lang_check::Code::B0070);
     outcome.waived = blue_lang_check::waiver::apply(&mut outcome.diagnostics, waivers, &is_entry);
     if with_tests && outcome.ok() {
-        outcome
-            .diagnostics
-            .extend(reimplemented_words(program, &table));
+        outcome.diagnostics.extend(reimplemented_words_in(
+            program,
+            &table,
+            cached.as_ref().map(|c| c.lowered.as_slice()),
+        ));
         outcome.waived.extend(blue_lang_check::waiver::apply(
             &mut outcome.diagnostics,
             reuse_waivers,
@@ -1036,7 +1132,7 @@ pub(crate) fn check_stage(
     outcome
         .diagnostics
         .sort_by_key(|d| (d.top_level, d.span.start, d.code));
-    (outcome, table)
+    (outcome, table, cached)
 }
 
 fn entry_shapes_of(
@@ -1061,9 +1157,23 @@ fn reimplemented_words(
     program: &crate::uses::ResolvedProgram,
     names: &NameTable,
 ) -> Vec<blue_lang_check::Diagnostic> {
+    reimplemented_words_in(program, names, None)
+}
+
+fn reimplemented_words_in(
+    program: &crate::uses::ResolvedProgram,
+    names: &NameTable,
+    lowered: Option<&[tatara_lisp::Spanned]>,
+) -> Vec<blue_lang_check::Diagnostic> {
     use crate::word_shapes::{standing, Standing};
     use blue_lang_check::{shape::Near, Code, Diagnostic};
-    entry_shapes_of(program, names)
+    let shapes = match lowered {
+        Some(lowered) => crate::def_hash::computed_shape_hashes(lowered, &|i| {
+            program.owner_of(i) == Some(crate::uses::ResolvedProgram::ENTRY)
+        }),
+        None => entry_shapes_of(program, names),
+    };
+    shapes
         .iter()
         .filter(|s| s.size >= Near::DEFAULT.min_size)
         .filter_map(|s| {
@@ -1511,20 +1621,103 @@ pub fn lower_with(
     names: &NameTable,
     simplify_chains: bool,
 ) -> Vec<tatara_lisp::Spanned> {
-    let mut resolved = blue_lang_check::names::resolve_program(program.forms(), names, &|i| {
-        namespace_of(program, i)
-    });
+    lower_in(program, names, simplify_chains, None).0
+}
+
+type FormKeys = Vec<([u8; 32], crate::def_hash::DefHash)>;
+
+fn resolve_keys(
+    cache: &crate::check_cache::CheckCache<'_>,
+    program: &crate::uses::ResolvedProgram,
+    forms: &[tatara_lisp::Spanned],
+    fingerprint: &[u8; 32],
+) -> FormKeys {
+    use crate::check_cache::{digest, tree_digest, Pass};
+    let mut buckets: std::collections::HashMap<
+        Option<crate::uses::FileId>,
+        crate::def_hash::DefHash,
+    > = std::collections::HashMap::new();
+    forms
+        .iter()
+        .enumerate()
+        .map(|(i, f)| {
+            let owner = program.owner_of(i);
+            let bucket = *buckets.entry(owner).or_insert_with(|| {
+                let file = owner.and_then(|id| program.file(id));
+                let label = file.map_or_else(String::new, |f| {
+                    f.path.as_ref().map_or_else(
+                        || f.package.clone().unwrap_or_default(),
+                        |p| p.display().to_string(),
+                    )
+                });
+                crate::def_hash::DefHash(digest(&[b"bucket", fingerprint, label.as_bytes()]))
+            });
+            let ns = format!("{:?}", namespace_of(program, i));
+            let key = cache.key(
+                Pass::Resolve,
+                &[
+                    fingerprint,
+                    ns.as_bytes(),
+                    &(i as u64).to_le_bytes(),
+                    &tree_digest(f),
+                ],
+            );
+            (key, bucket)
+        })
+        .collect()
+}
+
+fn resolve_in(
+    program: &crate::uses::ResolvedProgram,
+    forms: &[tatara_lisp::Spanned],
+    names: &NameTable,
+    cache: Option<(&crate::check_cache::CheckCache<'_>, FormKeys)>,
+) -> blue_lang_check::names::Resolved {
+    let ns = |i| namespace_of(program, i);
+    match cache {
+        Some((cache, keys)) => {
+            let mut memo = crate::check_cache::FormMemo {
+                cache,
+                pass: crate::check_cache::Pass::Resolve,
+                keys,
+            };
+            blue_lang_check::names::resolve_program_with(forms, names, &ns, Some(&mut memo))
+        }
+        None => blue_lang_check::names::resolve_program(forms, names, &ns),
+    }
+}
+
+fn lower_in(
+    program: &crate::uses::ResolvedProgram,
+    names: &NameTable,
+    simplify_chains: bool,
+    cache: Option<(&crate::check_cache::CheckCache<'_>, &[u8; 32], &FormKeys)>,
+) -> (
+    Vec<tatara_lisp::Spanned>,
+    Option<blue_lang_check::names::Resolved>,
+) {
+    let mut resolved = resolve_in(
+        program,
+        program.forms(),
+        names,
+        cache.map(|(c, _, keys)| (c, keys.clone())),
+    );
     let simplified = if simplify_chains {
         chain_simplified(program.forms(), &resolved)
     } else {
         None
     };
+    let first = cache.map(|_| resolved.clone());
     let forms: &[tatara_lisp::Spanned] = simplified.as_deref().unwrap_or(program.forms());
     if simplified.is_some() {
-        resolved =
-            blue_lang_check::names::resolve_program(forms, names, &|i| namespace_of(program, i));
+        resolved = resolve_in(
+            program,
+            forms,
+            names,
+            cache.map(|(c, fingerprint, _)| (c, resolve_keys(c, program, forms, fingerprint))),
+        );
     }
-    resolved
+    let lowered = resolved
         .resolved_tree(forms, blue_lang_check::names::Rule::Namespaced)
         .into_iter()
         .zip(forms)
@@ -1543,7 +1736,8 @@ pub fn lower_with(
                 }
             }
         })
-        .collect()
+        .collect();
+    (lowered, first)
 }
 
 fn chain_simplified(
@@ -1789,6 +1983,7 @@ pub struct Checked {
     /// The name table the stage resolved against: every program scope, then
     /// the builtins. What an editor completes from.
     pub names: NameTable,
+    cached: Option<Cached>,
 }
 
 impl Checked {
@@ -1803,7 +1998,16 @@ impl Checked {
     /// tree `def_hash` reads (`crate::Account::defer_identities`).
     #[must_use]
     pub fn lowered(&self) -> Vec<tatara_lisp::Spanned> {
-        lower(&self.program, &self.names)
+        match &self.cached {
+            Some(c) => c.lowered.clone(),
+            None => lower(&self.program, &self.names),
+        }
+    }
+
+    #[must_use]
+    pub fn form_identity(&self, top_level: usize) -> Option<([u8; 32], [u8; 32])> {
+        let f = self.cached.as_ref()?.forms.get(top_level)?;
+        Some((f.identity, f.bucket.0))
     }
 
     #[must_use]
@@ -1831,6 +2035,9 @@ impl Checked {
     /// (`blue ast --resolved`).
     #[must_use]
     pub fn resolve(&self) -> blue_lang_check::names::Resolved {
+        if let Some(c) = &self.cached {
+            return c.resolved.clone();
+        }
         blue_lang_check::names::resolve_program(self.program.forms(), &self.names, &|i| {
             namespace_of(&self.program, i)
         })
@@ -1957,6 +2164,16 @@ pub fn check_entry(
     surface: Option<&blue_lang_syntax::yakugo::Yakugo>,
     checking: Checking,
 ) -> Result<Checked, RunError> {
+    check_entry_cached(entry, loader, surface, checking, None)
+}
+
+pub fn check_entry_cached(
+    entry: Entry<'_>,
+    loader: &dyn crate::uses::Loader,
+    surface: Option<&blue_lang_syntax::yakugo::Yakugo>,
+    checking: Checking,
+    cache: Option<&crate::check_cache::CheckCache<'_>>,
+) -> Result<Checked, RunError> {
     let mut program = parse_and_resolve(entry, loader, surface)?;
     if checking == Checking::Program {
         program.retain(|f| !crate::uses::is_test_form(f));
@@ -1972,13 +2189,14 @@ pub fn check_entry(
     let builtins = crate::timings::stage(crate::timings::Stage::Names, || {
         builtin_names_with(&interp, &host)
     });
-    let (outcome, names) = crate::timings::stage(crate::timings::Stage::Check, || {
-        check_stage(&program, &builtins, checking == Checking::WithTests)
+    let (outcome, names, cached) = crate::timings::stage(crate::timings::Stage::Check, || {
+        check_stage_in(&program, &builtins, checking == Checking::WithTests, cache)
     });
     Ok(Checked {
         program,
         outcome,
         names,
+        cached,
     })
 }
 

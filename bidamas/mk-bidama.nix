@@ -481,7 +481,7 @@ rec {
         mkdir -p $out/bin
         ${lib.optionalString (source != null) ''mkdir -p $out/share/blue && cp "$sourcePath" "${file}"''}
         ${wrapper.fn} ${blue}/bin/blue $out/bin/${name} ${lib.concatStringsSep " " flags}
-        HOME=$TMPDIR BLUE_PATH="${mkBluePath { inherit bidamas; }}" \
+        HOME=$TMPDIR BLUE_CHECK_CACHE=off BLUE_PATH="${mkBluePath { inherit bidamas; }}" \
           ${blue}/bin/blue check ${file} > /dev/null
       '';
 

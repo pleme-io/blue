@@ -251,6 +251,11 @@ enum Cmd {
         /// formats with its own (`blue check --fix --only B0062 FILE`).
         #[arg(long, requires = "fix", value_name = "CODE")]
         only: Vec<String>,
+        #[arg(
+            long,
+            help = "Check every definition again, reading and writing nothing in the check cache (BLUE_CHECK_CACHE=off does the same)"
+        )]
+        no_cache: bool,
     },
     /// Every definition under PATH (files, or directories of `.b` files; `.`
     /// when none) that satisfies QUERY, one line per hit:
@@ -1123,12 +1128,14 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             format,
             fix,
             only,
+            no_cache,
             ..
         } => check(
             &file.expect("clap requires a file unless --hook"),
             format,
             fix,
             &only,
+            no_cache,
         ),
 
         Cmd::Query { query, paths, json } => query::run(&query, &paths, json),
@@ -1801,8 +1808,39 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
 }
 
 /// `blue check`: the pipeline's check stage over the file and its imports.
-fn check(file: &Path, format: Format, fix: bool, only: &[String]) -> Result<ExitCode, CliError> {
-    use blue_lang_runtime::pipeline::{check_entry, render, syntax_diagnostic, Checking};
+fn check(
+    file: &Path,
+    format: Format,
+    fix: bool,
+    only: &[String],
+    no_cache: bool,
+) -> Result<ExitCode, CliError> {
+    use blue_lang_runtime::check_cache::{self, CheckCache};
+    use blue_lang_runtime::pipeline::{check_entry_cached, render, syntax_diagnostic, Checking};
+    let on = check_cache::enabled(std::env::var(check_cache::ENV).ok().as_deref())
+        .map_err(CliError::Pkg)?
+        && !no_cache;
+    let store = blue_lang_mondou::store::check_root()
+        .filter(|_| on)
+        .and_then(|root| {
+            let identity = blue_lang_mondou::store::Identity::of_this_build();
+            blue_lang_mondou::store::Store::open(
+                &root,
+                identity,
+                blue_lang_mondou::store::DEFAULT_MAX_BYTES,
+            )
+            .ok()
+            .map(|s| (s, identity))
+        });
+    let cache = store
+        .as_ref()
+        .map(|(s, identity)| CheckCache::new(s, identity.0));
+    let check_entry = |entry: blue_lang_runtime::uses::Entry<'_>,
+                       loader: &dyn blue_lang_runtime::uses::Loader,
+                       surface: Option<&blue_lang_syntax::yakugo::Yakugo>,
+                       checking: Checking| {
+        check_entry_cached(entry, loader, surface, checking, cache.as_ref())
+    };
     let only: Vec<blue_lang_check::Code> = only
         .iter()
         .map(|o| {
@@ -1855,12 +1893,17 @@ fn check(file: &Path, format: Format, fix: bool, only: &[String]) -> Result<Exit
     let rules =
         blue_lang_pkg::project_rules::discover(file).map_err(|e| CliError::Pkg(e.to_string()))?;
     let project_pass = |checked: &blue_lang_runtime::pipeline::Checked| {
-        blue_lang_pkg::project_rules::check(
+        let form = |i: usize| checked.form_identity(i);
+        let rule_cache = cache
+            .as_ref()
+            .map(|cache| blue_lang_pkg::project_rules::RuleCache { cache, form: &form });
+        blue_lang_pkg::project_rules::check_cached(
             &checked.program,
             &checked.call_explicit_forms(),
             &rules,
             &loader,
             blue_lang_runtime::project_rules::RULE_STEPS,
+            rule_cache.as_ref(),
         )
     };
     let mut checked = check_entry(entry(file, &src), &loader, None, Checking::WithTests)?;
@@ -2049,6 +2092,10 @@ fn check(file: &Path, format: Format, fix: bool, only: &[String]) -> Result<Exit
                 eprintln!("{}", diagnostics::render_failure(&checked.program, f));
             }
         }
+    }
+    if let (Some(cache), Some((store, _))) = (&cache, &store) {
+        cache.flush();
+        let _ = store.evict();
     }
     Ok(if outcome.ok() && project.ok() {
         ExitCode::SUCCESS

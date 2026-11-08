@@ -163,6 +163,11 @@ impl RuleProgram {
         }
     }
 
+    #[must_use]
+    pub fn content(&self) -> Option<[u8; 32]> {
+        self.hosted.content()
+    }
+
     /// Call `def` on one form under a budget of `steps`.
     ///
     /// # Errors

@@ -131,6 +131,29 @@ pub fn default_root() -> Option<PathBuf> {
     Some(cache_root()?.join("memo"))
 }
 
+#[must_use]
+pub fn check_root() -> Option<PathBuf> {
+    Some(cache_root()?.join("check"))
+}
+
+impl blue_lang_runtime::check_cache::CheckStore for Store {
+    fn load(&self, bucket: &DefHash) -> HashMap<[u8; 32], Vec<u8>> {
+        Store::load(self, bucket)
+            .entries
+            .into_iter()
+            .map(|(k, s)| (k, s.value))
+            .collect()
+    }
+
+    fn append(&self, bucket: &DefHash, entries: &[([u8; 32], Vec<u8>)]) {
+        let entries: Vec<([u8; 32], Duration, Vec<u8>)> = entries
+            .iter()
+            .map(|(k, v)| (*k, Duration::ZERO, v.clone()))
+            .collect();
+        let _ = Store::append(self, bucket, &entries);
+    }
+}
+
 /// One stored entry.
 #[derive(Clone, Debug)]
 pub struct Stored {

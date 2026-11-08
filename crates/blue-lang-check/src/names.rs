@@ -440,6 +440,24 @@ impl NameTable {
         Self::default()
     }
 
+    #[must_use]
+    pub fn fingerprint(&self, form_start: &dyn Fn(usize) -> Option<usize>) -> String {
+        let mut table = self.clone();
+        table.legacy_findings.clear();
+        let rebase = |b: &mut Binding| {
+            if let (Some(span), Some(top)) = (b.span.as_mut(), b.top_level) {
+                if let Some(start) = form_start(top).filter(|s| *s <= span.start) {
+                    *span = Span::new(span.start - start, span.end.saturating_sub(start));
+                }
+            }
+        };
+        for scope in &mut table.scopes {
+            scope.bindings.values_mut().for_each(rebase);
+            scope.moved.values_mut().for_each(rebase);
+        }
+        format!("{table:?}")
+    }
+
     /// Append a scope; it resolves after every scope already present.
     pub fn push(&mut self, scope: Scope) {
         self.scopes.push(scope);
@@ -1466,7 +1484,7 @@ pub struct Reference {
     /// The node's address in the forms it was resolved over: the join key
     /// [`resolved_tree`] rewrites by, since spans are not unique (every node
     /// of an interpolation carries the string's span).
-    node: usize,
+    pub(crate) node: usize,
 }
 
 /// A top-level definition's name node, keyed.
@@ -1485,12 +1503,21 @@ pub fn resolve_program(
     table: &NameTable,
     namespace_of: &dyn Fn(usize) -> Namespace,
 ) -> Resolved {
+    resolve_program_with(forms, table, namespace_of, None)
+}
+
+#[must_use]
+pub fn resolve_program_with(
+    forms: &[Spanned],
+    table: &NameTable,
+    namespace_of: &dyn Fn(usize) -> Namespace,
+    mut memo: Option<&mut dyn crate::walk_cache::WalkMemo>,
+) -> Resolved {
     let mut w = Walker::new(table, &|_| false);
     let mut defs = Vec::new();
     for (i, form) in forms.iter().enumerate() {
         let ns = namespace_of(i);
-        w.enter(i, ns.clone(), form);
-        scope::walk_top(form, &mut w);
+        w.walk_form(i, ns.clone(), form, false, memo.as_deref_mut());
         scope::definition_nodes(form, &mut |node, _| {
             if let Some(n) = node.as_symbol() {
                 defs.push(DefSite {
@@ -1691,12 +1718,21 @@ pub fn check_names_whole(
     report_unused: &dyn Fn(usize) -> bool,
     whole_file: &dyn Fn(usize) -> bool,
 ) -> (Vec<Diagnostic>, usize) {
+    check_names_whole_with(forms, table, namespace_of, report_unused, whole_file, None)
+}
+
+pub fn check_names_whole_with(
+    forms: &[Spanned],
+    table: &NameTable,
+    namespace_of: &dyn Fn(usize) -> Namespace,
+    report_unused: &dyn Fn(usize) -> bool,
+    whole_file: &dyn Fn(usize) -> bool,
+    mut memo: Option<&mut dyn crate::walk_cache::WalkMemo>,
+) -> (Vec<Diagnostic>, usize) {
     let mut w = Walker::new(table, report_unused);
     for (i, form) in forms.iter().enumerate() {
-        w.enter(i, namespace_of(i), form);
-        w.check_import_list(form);
         // A top-level form's own defines are globals, already in `table`.
-        scope::walk_top(form, &mut w);
+        w.walk_form(i, namespace_of(i), form, true, memo.as_deref_mut());
     }
     w.attach_missing_uses();
     let file_rules =
@@ -1755,6 +1791,57 @@ impl<'t> Walker<'t> {
                 table.candidates(name, &locals, 3)
             })
             .clone()
+    }
+
+    fn walk_form<'m>(
+        &mut self,
+        i: usize,
+        own: Namespace,
+        form: &Spanned,
+        imports: bool,
+        memo: Option<&mut (dyn crate::walk_cache::WalkMemo + 'm)>,
+    ) {
+        let Some(memo) = memo else {
+            self.enter(i, own, form);
+            if imports {
+                self.check_import_list(form);
+            }
+            scope::walk_top(form, self);
+            return;
+        };
+        if let Some(walked) = memo
+            .recall(i)
+            .and_then(|bytes| crate::walk_cache::decode(form, i, &bytes))
+        {
+            self.references.extend(walked.references);
+            self.resolved += walked.resolved;
+            return;
+        }
+        memo.walked(i);
+        let before = (
+            self.diagnostics.len(),
+            self.references.len(),
+            self.missing_uses.len(),
+            self.respellings.len(),
+            self.resolved,
+        );
+        self.enter(i, own, form);
+        if imports {
+            self.check_import_list(form);
+        }
+        scope::walk_top(form, self);
+        let clean = self.diagnostics.len() == before.0
+            && self.missing_uses.len() == before.2
+            && self.respellings.len() == before.3;
+        if clean {
+            if let Some(bytes) = crate::walk_cache::encode(
+                form,
+                &self.references[before.1..],
+                self.resolved - before.4,
+            ) {
+                memo.keep(i, bytes);
+            }
+        }
     }
 
     /// Start top-level form `i`.

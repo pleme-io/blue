@@ -39,6 +39,7 @@ pub mod alloc;
 #[cfg(feature = "senses")]
 pub mod audio;
 pub mod bits;
+pub mod check_cache;
 pub mod collection;
 pub mod crypto;
 pub mod def_hash;

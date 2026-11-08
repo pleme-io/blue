@@ -53,6 +53,7 @@ pub mod shape;
 pub mod suggest;
 pub mod unions;
 pub mod waiver;
+pub mod walk_cache;
 
 pub use names::{check_names, Binding, NameTable, Namespace, Scope, ScopeKind};
 pub use rules::{Code, Explain, FixKind, Rule, Severity, RULES};

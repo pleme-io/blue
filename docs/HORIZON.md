@@ -146,7 +146,7 @@ default to skip work.
 | Stage | Cached today | Key |
 |---|---|---|
 | parse, resolve | in memory only (mondou; the LSP and `blue check`) | text hash, then `def_hash` |
-| check and erase | none | `def_hash` + engine identity + the hashes it read |
+| check and erase | built, on by default for `blue check` (`BLUE_CHECK_CACHE=off`, `--no-cache`): the name walks and project rules, per definition | `def_hash` + engine identity + the hashes it read |
 | `blue test` | built, off by default (`BLUE_TEST_CACHE`) | build + the test's hash + preamble + bounds |
 | a pure call | built, off by default (`BLUE_MEMO`) | `def_hash` + the arguments' canonical form |
 | a nix `bidama-test-*` check | none: one change anywhere reruns every package | the closure the test reaches |
@@ -177,6 +177,54 @@ The rungs, compile time first:
    its generator and inputs; equal hashes skip the run. arika's word table
    becomes a sparse Merkle tree keyed by shape hash, updated by the shapes
    that moved.
+
+**Built (rung 1, 2026-11-08):** `blue check` keeps its per-definition work in
+mondou's `Store` under `$XDG_CACHE_HOME/blue/check`, one file per source file
+of the program, the same `Identity` directory and header the memo uses
+(`blue_lang_runtime::check_cache`). A key is BLAKE3 in the domain
+`blue check v1` over the engine identity, the pass, and what the pass read:
+
+- **resolve** (the name walk `lower` and `resolve()` run): the form's spanned
+  tree with spans relative to the form, its namespace and index, and a
+  span-free fingerprint of the whole name table;
+- **names** (the check stage's name walk): the resolve key, the definition's
+  `def_hash` (a form that defines nothing: the hash of its lowered tree), and
+  whether its warnings are reported;
+- **rule** (each project rule on each entry definition): the `def_hash`, the
+  call-explicit form the rule reads, the rule program's erased content, its
+  code, severity, step budget and memory bound.
+
+Only a clean result is kept: a form whose walk found a diagnostic, a missing
+`use` or a respelling, and a rule that reported a finding, are checked again
+every run. A hit restores the walk's references with spans and node addresses
+rebuilt in the current tree. An entry under another identity is refused twice:
+the store's header names the identity, and the key holds it. Off
+(`BLUE_CHECK_CACHE=off` or `blue check --no-cache`) runs exactly the code path
+of before. The nix builds keep it off: their `HOME` dies with the build
+(`mkBidama`'s app check names it off; the rest have no writable `HOME`).
+
+Measured on cid (macOS, debug build, `blue check`, wall seconds; a
+one-definition edit changes one string in one definition's body):
+
+| Package | off | cold | warm | one definition edited |
+|---|---|---|---|---|
+| kaaneru (1,260 forms, 243 in the entry) | 1.37 | 1.70 | 0.73 | 0.77 |
+| eigyou (1,141 forms, 2 in the entry) | 1.07 | 1.06 | 0.54 | 0.55 |
+
+Gates (`crates/blue-lang-mondou/tests/check_cache.rs`): a callee's edit
+checks it and its caller again and nothing else; an unrelated edit checks
+that definition only; another engine identity checks everything, in memory
+and with a store file copied across identity directories; a warm run reports
+exactly the diagnostics, lowered tree and call-explicit tree an uncached run
+does. The JSON output of `blue check` on kaaneru and eigyou is byte-equal off,
+cold and warm.
+
+Not yet: the parse, the docs rules (0.14 s of kaaneru) and the layout check
+are not cached; adding or renaming a name anywhere moves the table
+fingerprint and makes the next run cold (cold costs up to a quarter more than
+off); a bucket that reaches its share of the bound takes no new entries until
+it is evicted; the flake's checks gain nothing, because a sandbox has no
+store that outlives it (rung 2).
 
 **One store under every rung, packaged and spread** (operator, same day:
 "re-use and generalize the caching across all this", "package all the

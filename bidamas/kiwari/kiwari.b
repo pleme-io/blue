@@ -1439,7 +1439,11 @@ def surface()
         :reference,
         true
       ),
-      rule("_statement", choice([ref("binding"), ref("_expression")]), nil),
+      rule(
+        "_statement",
+        choice([ref("binding"), ref("pattern_binding"), ref("_expression")]),
+        nil
+      ),
       # `x = v` is a statement, never an expression (parse.rs `statement`).
       rule(
         "binding",
@@ -1452,6 +1456,19 @@ def surface()
           ]
         ),
         ["list", %w[sym define], %w[field name], %w[field value]]
+      ),
+      # `[a, *rest] = xs` and `{name:} = m` destructure (parse.rs `statement`).
+      rule(
+        "pattern_binding",
+        seq(
+          [
+            field("pattern", choice([ref("list"), ref("map")])),
+            lit("="),
+            nl,
+            field("value", ref("_expression"))
+          ]
+        ),
+        ["list", %w[sym blue-bind], %w[field pattern], %w[field value]]
       ),
       rule(
         "_expression",

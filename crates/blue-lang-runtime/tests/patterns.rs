@@ -24,6 +24,7 @@ fn sexps(forms: &[Spanned]) -> Vec<String> {
 const PROGRAMS: &[&str] = &[
     "union shape = circle(r) | rect(w, h)\n\ndef f(s)\n  case s\n  when circle(r)\n    r\n  when rect(_, 1)\n    :strip\n  when rect(w, h)\n    w * h\n  end\nend\n",
     "def g(v)\n  case v\n  when [x, *rest]\n    [x, rest]\n  when {name:, tags: [_, *_]}\n    name\n  when [1, 2]\n    :same\n  end\nend\n",
+    "def h(pair)\n  [a, [b, *c]] = pair\n  {name:} = {name: a}\n  [name, b, c]\nend\n",
 ];
 
 #[test]
@@ -44,4 +45,13 @@ fn a_pattern_arm_runs_on_the_walker() {
     let got = run(&src).unwrap_or_else(|e| panic!("{e}"));
     let want = run("[2, :strip, 10]").unwrap_or_else(|e| panic!("{e}"));
     assert_eq!(format!("{got:?}"), format!("{want:?}"));
+}
+
+#[test]
+fn a_destructuring_mismatch_raises_pattern_not_nil() {
+    let src = format!("{}\nh([1])\n", PROGRAMS[2]);
+    match run(&src) {
+        Err(e) => assert!(e.to_string().contains("does not match"), "{e}"),
+        Ok(v) => panic!("bound by a mismatch: {v:?}"),
+    }
 }

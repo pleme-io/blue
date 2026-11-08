@@ -1,4 +1,4 @@
-{"blind":[],"definitions":5880,"format":"arika/1","leaves":5880,"repo":"blue","snapshot_root":"b3:ad3f82d50e97f978dada97ebac7ef10e754ca78304e4107cb9dcfa04e4488605","units":[
+{"blind":[],"definitions":5880,"format":"arika/1","leaves":5880,"repo":"blue","snapshot_root":"b3:8ccb48406a699934c90e91d72a6c45b63008a3a21bfc3634ceede84acf57c5ed","units":[
 {"leaves":65,"package":"angou","unit_root":"b3:00f1f6116e93eb74681115be3ad992b241cc70096715e074c2f221e318098e05"},
 {"leaves":23,"package":"baito","unit_root":"b3:ebcad1b3f865dbcf6f2af62f426835ce574f124a9a1c249ce713bcc3a9ecf17a"},
 {"leaves":101,"package":"bunsho","unit_root":"b3:cd7c2901c5a3690c04ebb31aee17ad303b8e9f8f5110e1e84c214f0b398a3733"},
@@ -47,7 +47,7 @@
 {"leaves":36,"package":"kazu","unit_root":"b3:7d2b37d574d8eb759461a0cefdf99b7a93dc9805d4b0c751e83104446a6f672f"},
 {"leaves":4,"package":"keiyu","unit_root":"b3:11bed51b9303df9cd3628cc25d624f852854ef174fb19a26944b75f24f5c2c2c"},
 {"leaves":47,"package":"khipu","unit_root":"b3:53234df02fd145c06f01681cb07c89b1d83e3d3c04e0220cd7ebb908047d8ba1"},
-{"leaves":96,"package":"kiwari","unit_root":"b3:e5aa18f03b6fb2f919db362edeea51fede87aeb46a0216dcdd07880a51ac88ca"},
+{"leaves":96,"package":"kiwari","unit_root":"b3:83b9437d3317c3f216eeb07d22290f0e7fbc870aabc905d9a4a1b2788682a600"},
 {"leaves":35,"package":"kodou","unit_root":"b3:5f4efdb5d57ba7985c97603bb801d1dc44c5fa2eb662778f3dccef225ddc2d30"},
 {"leaves":54,"package":"koubou/kakou","unit_root":"b3:e8f1a3ee010fb05bded65fb5aa44ec173ac9c3f3ca2e69067d90ca5128113573"},
 {"leaves":84,"package":"koubou/kikagaku","unit_root":"b3:36aecbdcec48bc665e2d5d9e428a7f0fa86da811598a9678613bef64dd449000"},

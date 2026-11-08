@@ -1,6 +1,7 @@
 # Patterns: a `when` destructures a record by position, a list by head and
-# rest, a map by key. A name in a pattern binds, `_` matches anything, a
-# literal compares with ==.
+# rest, a map by key, and a binding destructures a list or a map. A name in a
+# pattern binds, `_` matches anything, a literal compares with ==. A binding
+# that does not fit raises :pattern; it never binds nil.
 
 row(
   "patterns.record_by_position",
@@ -256,6 +257,63 @@ row(
       ["case v", "when [x, *rest]", "  rest", "when {name:}", "  name", "end"]
     )
   )
+)
+
+row(
+  "destructure.list",
+  join_lines(["[a, b] = [1, 2]", "a + b"]),
+  value("3"),
+  covers("form:[a, *rest] = xs")
+)
+
+row(
+  "destructure.rest",
+  join_lines(["[h, *t] = [1, 2, 3]", "[h, t]"]),
+  value("[1, [2, 3]]")
+)
+
+row(
+  "destructure.map",
+  join_lines(["{name:, age: n} = {name: \"a\", age: 3}", "[name, n]"]),
+  value("[\"a\", 3]")
+)
+
+row(
+  "destructure.nested_in_a_function",
+  join_lines(
+    [
+      "def swap(pair)",
+      "  [a, [b, c]] = pair",
+      "  [c, b, a]",
+      "end",
+      "swap([1, [2, 3]])"
+    ]
+  ),
+  value("[3, 2, 1]")
+)
+
+row(
+  "destructure.short_list_refuses",
+  join_lines(["[a, b] = [1]", "a"]),
+  fails(:eval, "`[a, b]` does not match a list of 1")
+)
+
+row(
+  "destructure.missing_key_refuses",
+  join_lines(["{name:} = {age: 3}", "name"]),
+  fails(:eval, "`{name:}` does not match")
+)
+
+row(
+  "destructure.refusal_is_named",
+  join_lines(["begin", "  [a] = 5", "rescue :pattern as e", "  e.kind", "end"]),
+  value(":pattern")
+)
+
+row(
+  "destructure.formats",
+  unlines(["[a,b] = [1, 2]"]),
+  formats(unlines(["[a, b] = [1, 2]"]))
 )
 
 row(

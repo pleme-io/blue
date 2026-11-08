@@ -144,6 +144,7 @@ pub fn parse_program_tree_with_depth(
         .map(crate::doc::strip)
         .map(crate::union::lower)
         .and_then(|forms| crate::guard::lower(forms).map_err(|e| e.located(src)))
+        .and_then(|forms| crate::pattern::lower(forms).map_err(|e| e.located(src)))
 }
 
 /// The program as written, before `crate::guard` rewrites a guard `return`
@@ -310,6 +311,7 @@ pub fn parse_program_tree_in(
         .map(crate::doc::strip)
         .map(crate::union::lower)
         .map_err(|e| e.located(src))
+        .and_then(|forms| crate::pattern::lower(forms).map_err(|e| e.located(src)))
 }
 
 /// [`parse_program`] with the nesting bound supplied by the caller.
@@ -790,7 +792,7 @@ pub fn keyword_doc(word: &str) -> &'static str {
         "assert" => "`assert expr`: inside a test, fail it unless `expr` is truthy; the failure quotes the expression.",
         "assert_panics" => "`assert_panics expr`: inside a test, pass only when `expr`, run in a child held to a pure frame, ends on a capability breach with no host call made.",
         "fn" => "`fn(x) x * 2 end`: an anonymous function, a value. Blue has no brace or do blocks.",
-        "case" => "`case v when 1 … when 2 … else … end`: compares with `==`; `when point?` takes a value of a record the program declares. A case over a union's arms names every arm or has an `else` (B0081). It does not destructure.",
+        "case" => "`case v when 1 … when 2 … else … end`: compares with `==`; `when point?` takes a value of a record the program declares. A case over a union's arms names every arm or has an `else` (B0081). A `when` destructures: `when rect(w, h)`, `when [x, *rest]`, `when {name:}` bind the names they hold.",
         "return" => "`return x` ends a branch of an `if` or `case` in a def body: the rest of the body becomes the branches that did not return, so it costs nothing at run time. Anywhere else it is refused (B0080).",
         "do" => "Reserved and refused: blue has no do-blocks. Pass `fn(x) … end` instead.",
         "end" => "Closes `def`, `defmacro`, `if`, `case`, `fn`, `test` and `quote`.",
@@ -2299,7 +2301,11 @@ impl Parser {
         }
         loop {
             self.skip_newlines();
-            items.push(self.expr(0)?);
+            if self.at_star() {
+                items.push(self.list_rest()?);
+            } else {
+                items.push(self.expr(0)?);
+            }
             self.skip_newlines();
             if self.eat(&TokenKind::Comma) {
                 if self.trailing_comma(&TokenKind::RBracket) {
@@ -2311,6 +2317,22 @@ impl Parser {
             break;
         }
         Ok(list_at(self.span_since(open.start), items))
+    }
+
+    fn list_rest(&mut self) -> Result<Spanned, Fail> {
+        let star = self.peek_span();
+        self.bump();
+        let at = self.peek_span();
+        match self.bump() {
+            TokenKind::Ident(name) => Ok(list_at(
+                star.merge(at),
+                vec![sym_at(star, LOWERED_SPLICE), sym_at(at, &name)],
+            )),
+            other => Err(fail(
+                format!("expected a name after `*` in a list pattern, found {other}"),
+                at,
+            )),
+        }
     }
 
     /// `{a: 1, "k" => v}` — both spellings, one tree.

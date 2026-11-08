@@ -22,6 +22,7 @@ pub mod guard;
 pub mod kigou;
 pub mod lex;
 pub mod parse;
+pub mod pattern;
 pub mod record;
 pub mod scope;
 pub mod spelling;

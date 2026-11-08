@@ -1656,7 +1656,11 @@ struct Walker<'t> {
 
 /// Names the parser synthesizes. Never reported unused: the author did not
 /// write them.
-const SYNTHESIZED: &[&str] = &["case-subject", blue_lang_syntax::RESCUED];
+const SYNTHESIZED: &[&str] = &[
+    "case-subject",
+    blue_lang_syntax::RESCUED,
+    blue_lang_syntax::pattern::BIND_SUBJECT,
+];
 
 /// Resolve every name in `forms` against `table`.
 ///

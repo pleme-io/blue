@@ -350,6 +350,7 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
     crate::paths::install(interp);
     crate::spread::install(interp);
     crate::record::install(interp);
+    crate::shape::install(interp);
     crate::collection::install(interp);
     crate::bits::install(interp);
     // ── text ──────────────────────────────────────────────────────────

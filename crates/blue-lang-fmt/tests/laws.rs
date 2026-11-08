@@ -14,6 +14,10 @@ use blue_lang_syntax::parse_program;
 /// separate law check, so a failure names the construct.
 const CORPUS: &[&str] = &[
     "union shape = circle(r: Float) | rect(w: Float, h: Float)",
+    "union s = c(r) | q(w, h)\ndef f(v)\n  case v\n  when c(r)\n    r\n  when q(_, 1)\n    :strip\n  when q(w, h)\n    w * h\n  end\nend",
+    "case v\nwhen [x, *rest]\n  rest\nwhen [:ok, _, *_]\n  :ok\nwhen {name:, age: 3}\n  name\nwhen [1, 2]\n  :same\nend",
+    "record p(x, y)\ncase v\nwhen [p(a, _), {k: [b]}]\n  a + b\nend",
+    "def f(pair)\n  case pair\n  when [x, *_]\n    if x\n      return x\n    end\n  end\n  pair\nend",
     "union event =\n  opened(path: Str, mode: Sym, flags: List(Sym))\n  | closed(path: Str, code: Int)\n  | failed(path: Str, reason: Str)",
     "def grade(n)\n  if n < 0\n    return\n  end\n  if n < 50\n    return :low\n  end\n  :high\nend",
     "begin\n  risky\nrescue :timeout, :refused as e\n  e.message\nrescue e\n  raise(e)\nensure\n  close\nend",

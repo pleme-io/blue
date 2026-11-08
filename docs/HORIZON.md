@@ -86,6 +86,22 @@ reads and JSON are the record machinery's, and the formatter raises it back.
 name (shuugou's `union(a, b)` is untouched).
 **Gate:** a conformance row per arm shape; the exhaustiveness rule's red run
 (drop an arm, the rule fires).
+**Patterns, built (2026-11-08):** a `when` that holds a name destructures.
+`rect(w, h)` matches a record the program declares and binds its fields by
+position, `[x, *rest]` a list of at least one with its head and the rest,
+`{name:}` (or `{name: n}`) a map or record holding `:name`. Inside a pattern a
+name binds, `_` matches anything and a literal compares with `==`; a pattern
+with no name in it compares by value, as before. `crates/blue-lang-syntax/src/pattern.rs`
+lowers each such arm at every `parse_program*` door but the documented one,
+after the guard rewrite, to the existing machinery: the record's predicate
+(`when rect?`'s own test), `blue-shape-list?`/`blue-shape-key?` tests, and a
+`let` of `blue-shape-at`/`blue-shape-from` reads (runtime `shape.rs`). So the
+walker, the VM, WASM and the CLI run one lowering, and the formatter raises it
+back (`pattern::raise`). B0081 counts `when rect(w, h)` as covering `rect`,
+since it lowers to `when rect?`'s test; `when rect(w, 1)` does not cover it.
+A record pattern names a record declared in the same program; one from another
+bidama is not yet a pattern and still compares by value. Rows:
+`spec/rows/patterns.b`.
 **Unlocks:** H2 (types have shapes to name), ABSENCE P1, SAFETY rows 1 and 3.
 
 ### H2. Types that grow with the program

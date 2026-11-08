@@ -5,6 +5,7 @@
 (lambda) @local.scope
 (arrow_lambda) @local.scope
 (binding name: (identifier) @local.definition.var)
+(list_rest name: (identifier) @local.definition.var)
 (def name: (identifier) @local.definition.function)
 (parameters parameter: (identifier) @local.definition.parameter)
 (defmacro name: (identifier) @local.definition.macro)

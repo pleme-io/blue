@@ -29,6 +29,16 @@ Semantics that differ from Ruby are in [`bidamas/okite/RULES.md`](../bidamas/oki
 | `record point(x, y: Int)` | `(blue-record point point? :x (:y Int))` | A named structure, at a file's top level: point(1, 2) and point({x: 1, y: 2}) construct one, refusing a missing or unknown field at check and at run time, point?(v) is its predicate, p.x reads a field, point(**p, x: 3) is an updated copy. A value is a map carrying its name: == includes the name, and it crosses JSON as {"$record": "point(x,y)", ...}. A map whose keys no longer match that name, after assoc or a spread, is a plain map. A field type is Int, Float, Str, Bool, Sym, Nil, Map, List(T) or a record, checked at construction. struct and class are refused, naming this. |
 | `union shape = circle(r: Float) \| rect(w: Float, h: Float)` | `(blue-union shape shape? (blue-record circle circle? (:r Float)) (blue-record rect rect? (:w Float) (:h Float)))` | A closed set of records, at a file's top level: each arm is a record with all a record gives (constructor, predicate, field reads, JSON), and shape?(v) is true for a value of any arm. A case whose `when` arms test a union's records and that has no `else` names every arm, or the check stage refuses it (B0081), naming the arms it misses. An arm may start a line with `\|`. union stays a free name everywhere else. |
 | `x = 5` | `(define x 5)` | A binding, only as a statement. There is no `let`; a binding lasts to the end of its body. |
+| `x = f(y)?` | `(define x (blue-try (f y)))` | `?` after a call takes a result, {ok: true, value: v} or {ok: false, refusal: r} (kyohi::ok, kyohi::refused): a refusal is returned from the function at once, through a guard `return`; otherwise the expression is v. It ends a statement of a def body, `x = f(y)?` or `f(y)?`; anywhere else it is a parse error. A value that is not a result raises :usage. |
+| `[a, *rest] = xs` | `(blue-bind (list a (blue-splice rest)) xs)` | A destructuring binding, only as a statement: a list pattern `[a, b]` or a map pattern `{name:}` on the left binds each name it holds. A value that does not fit raises :pattern, naming the pattern; it never binds nil. The same patterns destructure in a `when`. |
+| `case s
+when rect(w, h)
+  w * h
+when [x, *rest]
+  rest
+when {name:}
+  name
+end` | `(let ((case-subject s)) (cond ((equal? case-subject (rect w h)) (* w h)) ((equal? case-subject (list x (blue-splice rest))) rest) ((equal? case-subject (hash-map :name name)) name) (else ())))` | A `when` pattern destructures: rect(w, h) matches a record of the program by position, [x, *rest] a list of at least one, {name:} a map or record holding :name. Inside a pattern a name binds, `_` matches anything and a literal compares with ==. A pattern with no name in it compares by value, as before. rect(w, h) covers the arm rect for B0081; rect(w, 1) does not. |
 | `f(x, y)` | `(f x y)` | A call. This is the one form the formatter writes, except for a function that takes no parameters: that is called by its bare name, now_ms, never now_ms() (B0023), and passed as a value as fn() now_ms end. |
 | `f(a, *xs)` | `(apply f a xs)` | A splat: the list's elements are the call's last arguments. The one spelling of apply(f, a, xs) with f a name (B0042). |
 | `(a, *rest) -> rest` | `(lambda (a &rest rest) rest)` | A rest parameter: `*name` last in a def, fn or arrow parameter list collects the remaining arguments into a list, the signature-side sibling of the call-side splat. A call passes every fixed parameter and any number more. |
@@ -100,7 +110,7 @@ Higher binding power binds tighter.
 | `assert` | `assert expr`: inside a test, fail it unless `expr` is truthy; the failure quotes the expression. |
 | `assert_panics` | `assert_panics expr`: inside a test, pass only when `expr`, run in a child held to a pure frame, ends on a capability breach with no host call made. |
 | `fn` | `fn(x) x * 2 end`: an anonymous function, a value. Blue has no brace or do blocks. |
-| `case` | `case v when 1 … when 2 … else … end`: compares with `==`; `when point?` takes a value of a record the program declares. A case over a union's arms names every arm or has an `else` (B0081). It does not destructure. |
+| `case` | `case v when 1 … when 2 … else … end`: compares with `==`; `when point?` takes a value of a record the program declares. A case over a union's arms names every arm or has an `else` (B0081). A `when` destructures: `when rect(w, h)`, `when [x, *rest]`, `when {name:}` bind the names they hold. |
 | `return` | `return x` ends a branch of an `if` or `case` in a def body: the rest of the body becomes the branches that did not return, so it costs nothing at run time. Anywhere else it is refused (B0080). |
 | `do` | Reserved and refused: blue has no do-blocks. Pass `fn(x) … end` instead. |
 | `end` | Closes `def`, `defmacro`, `if`, `case`, `fn`, `test` and `quote`. |
@@ -117,7 +127,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-381 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 188 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+381 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 195 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 

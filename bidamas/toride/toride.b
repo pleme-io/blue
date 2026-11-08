@@ -42,6 +42,11 @@ def axes()
   ]
 end
 
+@doc """
+axis_names: The names of the axes, in table order.
+
+    axis_names #=> [:site, :gateway, :entry, :lan, :platform]
+"""
 def axis_names()
   map(first, axes)
 end
@@ -100,6 +105,11 @@ def outcome_label(o)
   end
 end
 
+@doc """
+verdict: The outcome label of `decide` over `s`, the cell a matrix row holds.
+
+    verdict({site: :here, gateway: :up, entry: :node, lan: :inside, platform: :darwin}) #=> "lan"
+"""
 def verdict(s)
   outcome_label(decide(s))
 end
@@ -169,6 +179,11 @@ def mask_prefix(hex)
   size(filter((i) -> bit_and(n, span(32 - i)) != 0, range(0, 32)))
 end
 
+@doc """
+hex_digits: The sixteen hex digits in lower case, in order; a digit's position is its value.
+
+    size(hex_digits) #=> 16
+"""
 def hex_digits()
   chars("0123456789abcdef")
 end
@@ -298,6 +313,12 @@ def read_setting(kind, v)
   end
 end
 
+@doc """
+words?: Whether a value is a non-empty list of non-empty strings.
+
+    words?(["a", "b"]) #=> true
+    words?([]) #=> false
+"""
 def words?(v)
   v != nil and
     list?(v) and
@@ -305,6 +326,12 @@ def words?(v)
     is_empty(filter((w) -> not string?(w) or w == "", v))
 end
 
+@doc """
+ports?: Whether a value is a non-empty list of whole numbers from 1 to 65535.
+
+    ports?([53, 80]) #=> true
+    ports?([0]) #=> false
+"""
 def ports?(v)
   v != nil and
     list?(v) and
@@ -323,6 +350,12 @@ def domain?(d)
     is_empty(filter((c) -> member?(c, ["/", " ", "#", "\t"]), chars(d)))
 end
 
+@doc """
+domains?: Whether a value is a non-empty list in which each item passes `domain?`.
+
+    domains?(["plo.pleme.internal"]) #=> true
+    domains?([]) #=> false
+"""
 def domains?(v)
   v != nil and
     list?(v) and
@@ -368,6 +401,12 @@ def read_site(doc, taken)
   end
 end
 
+@doc """
+label_of: The name a refusal shows for an entry. An empty name shows as `(unnamed)`.
+
+    label_of("") #=> "(unnamed)"
+    label_of("natal") #=> "natal"
+"""
 def label_of(name)
   if name == ""
     "(unnamed)"
@@ -376,6 +415,11 @@ def label_of(name)
   end
 end
 
+@doc """
+site_named: The first site in `sites` with the name `name`, or nil.
+
+    site_named([{name: "a"}, {name: "b"}], "b") #=> {name: "b"}
+"""
 def site_named(sites, name)
   first(filter((s) -> s[:name] == name, sites))
 end
@@ -458,6 +502,11 @@ def tagged(tag, rs)
   map(last, filter((r) -> first(r) == tag, rs))
 end
 
+@doc """
+doc_list: The list at `key` in a JSON document. A key that is absent or holds no list gives the empty list.
+
+    doc_list(json_parse("{}"), "sites") #=> []
+"""
 def doc_list(doc, key)
   v = as_json(doc, key)
   if v != nil and list?(v)
@@ -467,6 +516,11 @@ def doc_list(doc, key)
   end
 end
 
+@doc """
+read_sites: Each site document read by `read_site`, in order. A name that an earlier good site already holds is refused as named twice.
+
+    map(first, read_sites([{}])) #=> [:bad]
+"""
 def read_sites(docs)
   reduce(
     fn(acc, d)
@@ -552,6 +606,12 @@ def load(text)
   end
 end
 
+@doc """
+object?: Whether a parsed JSON value is an object: the empty object, or a list of pairs whose keys are strings.
+
+    object?(json_parse("{}")) #=> true
+    object?(json_parse("[1]")) #=> false
+"""
 def object?(doc)
   doc == {} or
     doc != nil and
@@ -632,6 +692,11 @@ def parse_arp(text)
   )
 end
 
+@doc """
+arp_row: One `arp -an` line, split into fields, as an `{ip:, mac:, iface:}` row, or nil when it has no IPv4 address or no MAC.
+
+    arp_row(["?", "(192.168.1.1)", "at", "2:0:5e:60:0:1", "on", "en0"]) #=> {ip: "192.168.1.1", mac: "02:00:5e:60:00:01", iface: "en0"}
+"""
 def arp_row(fs)
   ip = if size(fs) > 1
     replace(replace(fs[1], "(", ""), ")", "")
@@ -656,6 +721,11 @@ def parse_ip_neigh(text)
   )
 end
 
+@doc """
+neigh_row: One `ip -4 neigh` line, split into fields, as an `{ip:, mac:, iface:}` row, or nil when it has no IPv4 address or no lladdr.
+
+    neigh_row(["10.0.0.1", "dev", "eth0", "lladdr", "aa:bb:cc:dd:ee:ff", "REACHABLE"]) #=> {ip: "10.0.0.1", mac: "aa:bb:cc:dd:ee:ff", iface: "eth0"}
+"""
 def neigh_row(fs)
   mac = after_word(fs, "lladdr")
   if not is_empty(fs) and
@@ -809,6 +879,11 @@ def relation(entry_site, site)
   end
 end
 
+@doc """
+entry_state: The state of one entry in a run: its site against the run's site, the run's gateway, the entry's kind, whether its LAN address lies in the local network, and the platform.
+
+    entry_state({kind: :node, site: "a", lan: "10.0.0.2"}, {site: "a", gateway: :up, platform: :darwin}) #=> {site: :here, gateway: :up, entry: :node, lan: :outside, platform: :darwin}
+"""
 def entry_state(e, run)
   state(
     {
@@ -903,11 +978,21 @@ def converge(cfg, run, io)
   end
 end
 
+@doc """
+reloaded: The exit status of the reload command `argv`, run through the `exec` of `io`.
+
+    reloaded(fake([["/usr/bin/true", ""]], ok(true)), ["/usr/bin/true"]) #=> 0
+"""
 def reloaded(io, argv)
   exec = io[:exec]
   exec(argv)[:status]
 end
 
+@doc """
+write_atomic: Write `text` to `path` through a temporary file and a rename, so a reader never sees half a file. It makes the parent directory, and gives true on success and false on any failure.
+
+    write_atomic("#{tesuto::fresh_dir("toride-doc")}/a/b.txt", "x") #=> true
+"""
 def write_atomic(path, text)
   mkdir_p(path_dirname(path))
   write_file("#{path}.tmp", text)
@@ -980,6 +1065,11 @@ def probe(addr, ports, timeout_ms)
   end
 end
 
+@doc """
+reach: Whether `addr` accepts a TCP connection on one of `ports`, each tried in order within `per` milliseconds. No ports means false.
+
+    reach("127.0.0.1", [], 100) #=> false
+"""
 def reach(addr, ports, per)
   if is_empty(ports)
     false
@@ -1050,6 +1140,11 @@ def observe(cfg, io)
   end
 end
 
+@doc """
+read_prior: The streak, run count and last line from the state file at `path`. A missing or unreadable file gives zero runs, a zero streak and an empty line.
+
+    read_prior("/nonexistent/toride/state.json") #=> {streak: 0, runs: 0, line: ""}
+"""
 def read_prior(path)
   doc = json_parse(read_or(path, "")) rescue nil
   {
@@ -1115,6 +1210,11 @@ def run(cfg, io)
   record
 end
 
+@doc """
+main: One live run with the config at `TORIDE_CONFIG`, or at `/etc/toride/config.json` when the variable is not set. With no file at that path the config is unreadable, and the run is refused.
+
+    get(load(read_or("/nonexistent/toride/config.json", nil)), :readable) #=> false
+"""
 def main()
   run(
     load(read_or(getenv("TORIDE_CONFIG", "/etc/toride/config.json"), nil)),
@@ -1122,10 +1222,20 @@ def main()
   )
 end
 
+@doc """
+config: The config fixture of toride, loaded by `load`.
+
+    get(config, :readable) #=> true
+"""
 def config()
   load(fairu::fixture("toride", "config.json"))
 end
 
+@doc """
+natal_commands: The fixture answers of a nixos machine at the natal site: each pair is a command line and the text it prints.
+
+    size(natal_commands) #=> 4
+"""
 def natal_commands()
   [
     [
@@ -1144,6 +1254,11 @@ def natal_commands()
   ]
 end
 
+@doc """
+buzios_commands: The fixture answers of a darwin machine at the buzios site, with `arp` naming the fixture that `arp -an` prints.
+
+    size(buzios_commands("arp-buzios.txt")) #=> 4
+"""
 def buzios_commands(arp)
   [
     [
@@ -1156,6 +1271,12 @@ def buzios_commands(arp)
   ]
 end
 
+@doc """
+fake: An `io` for tests. Its `exec` answers a command from `commands` by its joined command line, and a command not in the list does not start; its `probe` always gives `probed`.
+
+    exec = get(fake([], ok(true)), :exec)
+    exec(["/nonexistent/x"])[:started] #=> false
+"""
 def fake(commands, probed)
   {
     exec: fn(argv)
@@ -1176,10 +1297,20 @@ def fake(commands, probed)
   }
 end
 
+@doc """
+at: The run state that `assemble` builds from a `fake` observation of `commands` and `probed`, with `streak` as the prior streak.
+
+    at(config, natal_commands, ok(true), 0)[:site] #=> "natal"
+"""
 def at(cfg, commands, probed, streak)
   assemble(cfg, observe(cfg, fake(commands, probed)), {streak:})
 end
 
+@doc """
+served: Each entry's name mapped to its answer in `run`: the address it is served at, or the outcome label when it is withheld or blind.
+
+    served(config, at(config, natal_commands, ok(true), 0))["plo"] #=> "192.168.50.3"
+"""
 def served(cfg, run)
   reduce(
     fn(m, a)
@@ -1195,10 +1326,20 @@ def served(cfg, run)
   )
 end
 
+@doc """
+darwin: The config `cfg` with its platform set to darwin.
+
+    get(darwin({}), :platform) #=> :darwin
+"""
 def darwin(cfg)
   assoc(cfg, :platform, :darwin)
 end
 
+@doc """
+without_site: The config `cfg` with the site `name` and every entry on that site taken out.
+
+    without_site({sites: [{name: "a"}, {name: "b"}], entries: [{site: "a"}]}, "a") #=> {sites: [{name: "b"}], entries: []}
+"""
 def without_site(cfg, name)
   assoc(
     assoc(cfg, :sites, filter((s) -> s[:name] != name, cfg[:sites])),
@@ -1207,6 +1348,11 @@ def without_site(cfg, name)
   )
 end
 
+@doc """
+site_mac: The config `cfg` with the gateway MAC of the site `name` set to `mac`.
+
+    site_mac({sites: [{name: "a"}]}, "a", "aa:bb:cc:dd:ee:ff") #=> {sites: [{name: "a", gateway_mac: "aa:bb:cc:dd:ee:ff"}]}
+"""
 def site_mac(cfg, name, mac)
   assoc(
     cfg,
@@ -1224,6 +1370,11 @@ def site_mac(cfg, name, mac)
   )
 end
 
+@doc """
+in_dir: The config `cfg` with its dnsmasq conf and state file moved into a fresh directory, and its reload command set to `/usr/bin/true`.
+
+    in_dir({})[:reload] #=> ["/usr/bin/true"]
+"""
 def in_dir(cfg)
   dir = tesuto::fresh_dir("toride")
   assoc(

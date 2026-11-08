@@ -91,6 +91,11 @@ def decide(s)
   end
 end
 
+@doc """
+decide_kind: the answer of `decide` before any retract. It is blind when an axis is unread; otherwise the first axis that settles the case gives noop or refused, and a state that passes every check is a bypass with its route set.
+
+    decide_kind({corp: :split}) #=> {kind: :noop, reason: :split_tunnel_leaves_default}
+"""
 def decide_kind(s)
   if not is_empty(unread_axes(s))
     blind(unread_axes(s))
@@ -125,6 +130,11 @@ def route_set(s)
   }
 end
 
+@doc """
+retract_set: the routes to take back for `s`. It carries the backend, table and priority of `s` and its stale hosts, unique and sorted.
+
+    retract_set({platform: :darwin, table: 52, priority: 5200, stale_hosts: ["b", "a", "b"]}) #=> {backend: :darwin, table: 52, priority: 5200, hosts: ["a", "b"]}
+"""
 def retract_set(s)
   {
     backend: s[:platform],
@@ -158,12 +168,89 @@ def row_key(s)
   tesuto::row_key(axes, s)
 end
 
+@doc """
+verdict: the outcome label of `decide` over `s` after `fill` adds a payload. It is the cell a matrix row holds for that state.
+
+    verdict({corp: :absent}) #=> "noop:no_corp_tunnel"
+"""
 def verdict(s)
   outcome_label(decide(fill(s)))
 end
 
 def matrix_rows(text)
   tesuto::matrix_rows(axes, text)
+end
+
+@doc """
+variants: the variants of `axis` in ukai's axis table, in table order.
+
+    variants(:gateway) #=> [:present, :absent, :unread]
+"""
+def variants(axis)
+  tesuto::variants(axes, axis)
+end
+
+@doc """
+every_state: every total state over ukai's axes, one for each row of the decision matrix.
+
+    size(every_state) #=> 3600
+"""
+def every_state()
+  tesuto::axis_states(axes)
+end
+
+@doc """
+flat_map_states: each state in `acc` once for each variant in `vs`, with `axis` set to that variant.
+
+    flat_map_states([{}], :a, [:x, :y]) #=> [{a: :x}, {a: :y}]
+"""
+def flat_map_states(acc, axis, vs)
+  reduce((out, s) -> append(out, map((v) -> assoc(s, axis, v), vs)), [], acc)
+end
+
+@doc """
+matrix_text: the decision matrix for `states` as text. A header row names the axes and the outcome; each state then gives one row with the label of its decision.
+
+    starts_with?(matrix_text(every_state), "corp") #=> true
+"""
+def matrix_text(states)
+  tesuto::matrix_text(axes, (s) -> outcome_label(decide(s)), states)
+end
+
+@doc """
+matrix_findings: the findings where the matrix `text` disagrees with `verdict` over `states`. An empty list means the matrix holds.
+
+    matrix_findings(fixture("matrix.tsv"), every_state) #=> []
+"""
+def matrix_findings(text, states)
+  tesuto::matrix_findings(axes, verdict, text, states)
+end
+
+@doc """
+duplicates: a finding for each row key that `rows` holds more than once.
+
+    duplicates([["x", "a"], ["x", "b"]]) #=> [[:duplicate_row, "x"]]
+"""
+def duplicates(rows)
+  tesuto::duplicate_rows(rows)
+end
+
+@doc """
+ip_rule_add_argv: the `ip rule` argv that adds the rule sending `host` to `table` at `priority`.
+
+    ip_rule_add_argv("ip", "192.0.2.9", 52, 5200) #=> ["ip", "-4", "rule", "add", "to", "192.0.2.9/32", "lookup", "52", "priority", "5200"]
+"""
+def ip_rule_add_argv(ip, host, table, priority)
+  ip_rule_to_argv(ip, "add", host, table, priority)
+end
+
+@doc """
+fixture: the text of ukai's fixture file `name`.
+
+    starts_with?(fixture("matrix.tsv"), "corp") #=> true
+"""
+def fixture(name)
+  fairu::fixture("ukai", name)
 end
 
 def matrix_row(line)
@@ -233,6 +320,11 @@ def route_add_argv(host, gateway)
   ["/sbin/route", "-n", "add", "-host", host, gateway]
 end
 
+@doc """
+route_delete_argv: the darwin `route` argv that deletes the host route to `host`.
+
+    route_delete_argv("192.0.2.9") #=> ["/sbin/route", "-n", "delete", "-host", "192.0.2.9"]
+"""
 def route_delete_argv(host)
   ["/sbin/route", "-n", "delete", "-host", host]
 end
@@ -261,10 +353,20 @@ def ip_rule_argv(ip)
   [ip, "-4", "rule", "show"]
 end
 
+@doc """
+ip_table_argv: the `ip route` argv that shows the IPv4 routes in `table`.
+
+    ip_table_argv("ip", 52) #=> ["ip", "-4", "route", "show", "table", "52"]
+"""
 def ip_table_argv(ip, table)
   [ip, "-4", "route", "show", "table", to_s(table)]
 end
 
+@doc """
+ip_route_del_argv: the `ip route` argv that deletes the host route to `host` from `table`.
+
+    ip_route_del_argv("ip", "192.0.2.9", 52) #=> ["ip", "-4", "route", "del", "192.0.2.9/32", "table", "52"]
+"""
 def ip_route_del_argv(ip, host, table)
   [ip, "-4", "route", "del", "#{host}/32", "table", to_s(table)]
 end
@@ -622,6 +724,12 @@ def stale_in_table(rows, gateway)
   )
 end
 
+@doc """
+stale_of: the stale axis. It is unread when the routes or the table could not be read, none when there is no gateway or no stale host, and present otherwise.
+
+    stale_of(true, {ok: true}, "192.168.1.1", ["192.0.2.9"]) #=> :present
+    stale_of(false, {ok: true}, "", []) #=> :unread
+"""
 def stale_of(routes_ok, table_r, gw_addr, hosts)
   if not routes_ok or not table_r[:ok]
     :unread
@@ -800,6 +908,12 @@ def plan(o, cfg)
   append(retract_plan(o, cfg), add_plan(o, cfg))
 end
 
+@doc """
+retract_plan: the commands that take back the routes in the retract of `o`. On nixos each host gets a route delete and a rule delete; on darwin each host gets a route delete. With no retract the plan is empty.
+
+    retract_plan({kind: :noop, retract: {backend: :darwin, hosts: ["192.0.2.9"]}}, {}) #=> [["/sbin/route", "-n", "delete", "-host", "192.0.2.9"]]
+    retract_plan({kind: :noop}, {}) #=> []
+"""
 def retract_plan(o, cfg)
   rt = o[:retract]
   if rt.nil?
@@ -845,6 +959,12 @@ def next_applied(applied, o, failed, dry_run)
   end
 end
 
+@doc """
+add_plan: the commands that add the routes a bypass `o` still lacks. On nixos each host gets a route replace and a rule add; on darwin each host gets a route add through the gateway. Any answer but bypass gives an empty plan.
+
+    add_plan({kind: :bypass, routes: {backend: :darwin, gateway: "192.168.1.1", add: ["192.0.2.9"]}}, {}) #=> [["/sbin/route", "-n", "add", "-host", "192.0.2.9", "192.168.1.1"]]
+    add_plan({kind: :noop}, {}) #=> []
+"""
 def add_plan(o, cfg)
   if o[:kind] != :bypass
     []
@@ -1317,6 +1437,11 @@ test "dry-run plans and runs nothing; a real capture keeps status and stdout apa
   assert from_capture(missing, parse_netstat)[:ok] == false
 end
 
+@doc """
+moved_applied: the hosts this side applied before the move in the site-move fixtures.
+
+    moved_applied #=> ["192.200.0.102", "199.38.181.93", "5.161.218.233"]
+"""
 def moved_applied()
   %w[192.200.0.102 199.38.181.93 5.161.218.233]
 end
@@ -1428,4 +1553,19 @@ test "the applied record: a dry run or a failure keeps it, a retract removes its
     [],
     false
   ) == %w[a b]
+end
+
+test "the released words keep their behaviour through their new homes"
+  assert variants(:host) == tesuto::variants(axes, :host)
+  assert length(every_state) == length(tesuto::axis_states(axes))
+  assert flat_map_states([{}], :a, %i[x y]) == [{a: :x}, {a: :y}]
+  assert duplicates([%w[x a], %w[x b]]) == [[:duplicate_row, "x"]]
+  assert ip_rule_add_argv("ip", "192.0.2.9", 52, 5200) ==
+    ip_rule_to_argv("ip", "add", "192.0.2.9", 52, 5200)
+  assert fixture("matrix.tsv") == fairu::fixture("ukai", "matrix.tsv")
+  assert matrix_findings(fixture("matrix.tsv"), every_state) == []
+  assert starts_with?(
+    matrix_text(every_state),
+    "#{join(map(to_s, axis_names), "\t")}\toutcome"
+  )
 end

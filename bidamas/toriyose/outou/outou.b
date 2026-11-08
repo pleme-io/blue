@@ -2008,6 +2008,11 @@ def teeburu_scalars()
   }
 end
 
+@doc """
+teeburu_field: one teeburu field as a model field: its name in camelCase, its type through teeburu_scalars, optional unless declared `null: false`, and public unless `omit` names it as `entity.field`.
+
+    teeburu_field(:order, :placed_at, {type: :timestamp, null: false}, []) #=> {name: "placedAt", type: :time, optional: false, public: true}
+"""
 def teeburu_field(ename, fname, rec, omit)
   {
     name: camel_case(to_s(fname)),
@@ -2017,6 +2022,11 @@ def teeburu_field(ename, fname, rec, omit)
   }
 end
 
+@doc """
+teeburu_relations: the relations a teeburu entity declares, each with its name in camelCase and the entity it names in PascalCase.
+
+    teeburu_relations({relations: {customer: :customer}}) #=> [{name: "customer", entity: "Customer"}]
+"""
 def teeburu_relations(ent)
   map(
     (r) -> {name: camel_case(to_s(first(r))), entity: pascal_case(to_s(r[1]))},
@@ -2024,6 +2034,11 @@ def teeburu_relations(ent)
   )
 end
 
+@doc """
+teeburu_reverse: the reverse relations of the entity `target`: for each relation in `declared` that names `target`, a many relation to the owner, named with the owner's plural.
+
+    teeburu_reverse([[:order, {relations: {customer: :customer}}]], :customer) #=> [{name: "orders", entity: "Order", many: true}]
+"""
 def teeburu_reverse(declared, target)
   flat_map(
     declared,
@@ -2037,6 +2052,11 @@ def teeburu_reverse(declared, target)
   )
 end
 
+@doc """
+distinct_members: the members of the type `ename` with each name kept once. The first member with a name stays; each later one is left out and refused as a name clash.
+
+    size(get(distinct_members("Order", [{member: {name: "id"}}, {member: {name: "id"}}]), :refusals)) #=> 1
+"""
 def distinct_members(ename, members)
   reduce(
     fn(acc, m)
@@ -2159,6 +2179,12 @@ def http_params(req)
   end
 end
 
+@doc """
+params_of: the query, variables and operation name of a decoded request `b`, or the result of `bad` with the reason. A request with no query, variables that are not an object, or an operation name that is not a string is bad.
+
+    params_of({"query" => "{ a }"}, (t) -> t) #=> {ok: true, value: {query: "{ a }", variables: {}, operation_name: nil}}
+    params_of({}, (t) -> t) #=> "the request carries no query"
+"""
 def params_of(b, bad)
   q = b["query"]
   v = b["variables"]
@@ -2174,10 +2200,21 @@ def params_of(b, bad)
   end
 end
 
+@doc """
+http_error: a JSON response with the HTTP `status` and one GraphQL error that carries `message` and the extension `code`.
+
+    http_error(400, "BAD_REQUEST", "no query")[:status] #=> 400
+"""
 def http_error(status, code, message)
   eigyou::kyuuji::json(status, {errors: [{message:, extensions: {code:}}]})
 end
 
+@doc """
+query_only?: whether the operation `name` in `text` is a query. Text that does not parse, or names no operation it holds, is true here, so the request reports its own error.
+
+    query_only?("{ a }", nil) #=> true
+    query_only?("mutation { a }", nil) #=> false
+"""
 def query_only?(text, name)
   p = parse(text)
   if not ok?(p)
@@ -2599,6 +2636,11 @@ test "a derived schema answers once resolvers are laid over it"
   assert request(sc, "{ team(id: \"zz\") { id } }") == {data: {"team" => nil}}
 end
 
+@doc """
+shop_model: a teeburu model for tests: a customer and an order that names it, with one field of a type that has no GraphQL scalar.
+
+    shop_model[:name] #=> "shop"
+"""
 def shop_model()
   {
     name: "shop",
@@ -2627,6 +2669,12 @@ def shop_model()
   }
 end
 
+@doc """
+field_texts: each field of the type `t` as `name: Type` text, in order.
+
+    d = from_model(from_teeburu(shop_model))
+    field_texts(first(d.types)) #=> ["id: ID!", "fullName: String!", "orders: Int"]
+"""
 def field_texts(t)
   map((f) -> "#{f.name}: #{toriyose::danpen::type_text(f.type)}", t.fields)
 end
@@ -2708,10 +2756,20 @@ test "a relation is answered both ways, and a stored millisecond instant reads a
     }
 end
 
+@doc """
+http_get: a GET request to `/graphql` with the query string `qs`.
+
+    http_get("query=%7Ba%7D")[:method] #=> "GET"
+"""
 def http_get(qs)
   eigyou::kyuuji::request("GET", "/graphql", qs)
 end
 
+@doc """
+http_post: a POST request to `/graphql` with the content type `content_type` and the body `body`.
+
+    http_post("application/json", "{}")[:body] #=> "{}"
+"""
 def http_post(content_type, body)
   assoc(
     eigyou::kyuuji::with_headers(
@@ -2723,6 +2781,11 @@ def http_post(content_type, body)
   )
 end
 
+@doc """
+answered: the answer of http_answer to `req` as its status, its content type and its body read as JSON.
+
+    answered(fixture, http_get("query=%7Bhero%7Bid%7D%7D"))[:status] #=> 200
+"""
 def answered(sc, req, opts?)
   r = http_answer(sc, req, opts)
   {

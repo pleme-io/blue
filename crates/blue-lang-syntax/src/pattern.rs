@@ -251,15 +251,7 @@ fn compile(p: &Pat<'_>, access: &Spanned, out: &mut Compiled) -> Result<(), Pars
             }
         }
         Pat::Record { shape, args, .. } => {
-            let test = if access.as_symbol() == Some(CASE_SUBJECT) {
-                call(
-                    span,
-                    "equal?",
-                    vec![access.clone(), sym_at(span, &shape.predicate)],
-                )
-            } else {
-                call(span, &shape.predicate, vec![access.clone()])
-            };
+            let test = call(span, &shape.predicate, vec![access.clone()]);
             out.tests.push(test);
             for (arg, field) in args.iter().zip(&shape.fields) {
                 let here = call(
@@ -574,12 +566,7 @@ impl Tree {
                 let (path, false) = path_of(a, root)? else {
                     return None;
                 };
-                match v.as_symbol().and_then(|p| shapes.by_predicate(p)) {
-                    Some(shape) if path.is_empty() && root == CASE_SUBJECT => {
-                        self.node(path).record = Some(shape.clone());
-                    }
-                    _ => self.node(path).lit = Some(v.clone()),
-                }
+                self.node(path).lit = Some(v.clone());
             }
             (pred, [a]) => {
                 let shape = shapes.by_predicate(pred)?.clone();

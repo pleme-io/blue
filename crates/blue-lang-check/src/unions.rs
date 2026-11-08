@@ -61,6 +61,13 @@ fn case_of(form: &Spanned) -> Option<Case<'_>> {
             otherwise = !implicit;
             continue;
         }
+        if let Some([predicate, subject]) = test.as_list() {
+            if subject.as_symbol() == Some(CASE_SUBJECT) {
+                if let Some(p) = predicate.as_symbol() {
+                    patterns.push(p);
+                }
+            }
+        }
         if let Some([eq, subject, pattern]) = test.as_list() {
             if eq.as_symbol() == Some("equal?") && subject.as_symbol() == Some(CASE_SUBJECT) {
                 if let Some(p) = pattern.as_symbol() {

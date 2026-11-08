@@ -21,8 +21,19 @@ use("kyohi", %i[ok ok? refusal refusal_of refused value])
 use("retsu", %i[first is_empty size slice])
 use("shinsuu", %i[be_bytes be_value bit_at bytes_hex hex_bytes])
 
+@doc """
+preface: The 24 octets a client sends first on every HTTP/2 connection (§3.4).
+
+    size(preface) #=> 24
+    first(preface) #=> 80
+"""
 preface = hex_bytes("505249202a20485454502f322e300d0a0d0a534d0d0a0d0a")
 
+@doc """
+frame_types: The frame types of §6, each at the index that is its type code.
+
+    frame_types[4] #=> :settings
+"""
 frame_types = %i[
   data
   headers
@@ -36,6 +47,11 @@ frame_types = %i[
   continuation
 ]
 
+@doc """
+error_codes: The error codes of §7, each at the index that is its code.
+
+    error_codes[1] #=> :protocol_error
+"""
 error_codes = %i[
   no_error
   protocol_error
@@ -53,6 +69,11 @@ error_codes = %i[
   http_1_1_required
 ]
 
+@doc """
+setting_names: The settings of §6.5.2, in identifier order from 1.
+
+    setting_names[4] #=> :max_frame_size
+"""
 setting_names = %i[
   header_table_size
   enable_push
@@ -62,6 +83,11 @@ setting_names = %i[
   max_header_list_size
 ]
 
+@doc """
+stream_states: The stream states of §5.1, with a closed stream that was reset kept apart.
+
+    size(stream_states) #=> 8
+"""
 stream_states = %i[
   idle
   reserved_local
@@ -73,6 +99,13 @@ stream_states = %i[
   closed_after_reset
 ]
 
+@doc """
+code_of: The index of `name` in `names`: its wire code. A name not listed is kept as it
+is, so a code already numeric passes through.
+
+    code_of(:b, %i[a b]) #=> 1
+    code_of(7, %i[a b]) #=> 7
+"""
 def code_of(name, names)
   i = position(name, names)
   if i < 0
@@ -82,6 +115,12 @@ def code_of(name, names)
   end
 end
 
+@doc """
+name_of: The name at index `code` in `names`; a code past the list is kept as a number.
+
+    name_of(1, %i[a b]) #=> :b
+    name_of(9, %i[a b]) #=> 9
+"""
 def name_of(code, names)
   if code >= 0 and code < size(names)
     names[code]
@@ -90,18 +129,41 @@ def name_of(code, names)
   end
 end
 
+@doc """
+error_code: The wire code of an error name; an unknown code is kept as a number.
+
+    error_code(:protocol_error) #=> 1
+    error_code(:http_1_1_required) #=> 13
+"""
 def error_code(name)
   code_of(name, error_codes)
 end
 
+@doc """
+error_name: The name of an error code, or the code itself when §7 names none.
+
+    error_name(8) #=> :cancel
+"""
 def error_name(code)
   name_of(code, error_codes)
 end
 
+@doc """
+setting_id: The identifier of a setting name, counting from 1.
+
+    setting_id(:header_table_size) #=> 1
+    setting_id(:max_frame_size) #=> 5
+"""
 def setting_id(name)
   code_of(name, append([nil], setting_names))
 end
 
+@doc """
+setting_name: The name of a setting identifier, or the identifier itself when unknown.
+
+    setting_name(4) #=> :initial_window_size
+    setting_name(99) #=> 99
+"""
 def setting_name(id)
   if id >= 1 and id <= size(setting_names)
     setting_names[id - 1]
@@ -110,14 +172,32 @@ def setting_name(id)
   end
 end
 
+@doc """
+fault: A refusal whose kind is the RFC error code, carrying the scope (:connection or
+:stream) and the stream it is about.
+
+    scope_of(fault(:stream, :cancel, 3, "gone")) #=> :stream
+    fault(:stream, :cancel, 3, "gone")[:stream] #=> 3
+"""
 def fault(scope, code, stream, why)
   assoc(assoc(refused(refusal(code, why)), :scope, scope), :stream, stream)
 end
 
+@doc """
+scope_of: Whether a refusal ends the connection or only its stream.
+
+    scope_of(conn(:protocol_error, "bad")) #=> :connection
+"""
 def scope_of(r)
   r[:scope]
 end
 
+@doc """
+flag: `bit` when `on`, else 0: one flag's share of a flags octet.
+
+    flag(true, 4) #=> 4
+    flag(false, 4) #=> 0
+"""
 def flag(on, bit)
   if on
     bit
@@ -126,14 +206,32 @@ def flag(on, bit)
   end
 end
 
+@doc """
+zeros: `n` zero octets.
+
+    zeros(3) #=> [0, 0, 0]
+"""
 def zeros(n)
   map((_i) -> 0, range(0, n))
 end
 
+@doc """
+header: The 9-octet frame header of §4.1: a 24-bit length, the type, the flags, the
+31-bit stream id.
+
+    header(5, 0, 1, 3) #=> [0, 0, 5, 0, 1, 0, 0, 0, 3]
+"""
 def header(len, type, flags, stream)
   append(be_bytes(len, 3), [type, flags], be_bytes(stream, 4))
 end
 
+@doc """
+padded: A payload with its padding: the pad length, the body, that many zeros. No pad
+leaves the body as it is.
+
+    padded(2, [7]) #=> [2, 7, 0, 0]
+    padded(nil, [7]) #=> [7]
+"""
 def padded(pad, body)
   if pad.nil?
     body
@@ -142,11 +240,22 @@ def padded(pad, body)
   end
 end
 
+@doc """
+priority_bytes: A priority's five octets: the stream it depends on with the exclusive bit,
+then the weight less one.
+
+    priority_bytes({depends_on: 1, exclusive: true, weight: 16}) #=> [128, 0, 0, 1, 15]
+"""
 def priority_bytes(p)
   dep = p[:depends_on] + flag(p[:exclusive], 2_147_483_648)
   append(be_bytes(dep, 4), [p[:weight] - 1])
 end
 
+@doc """
+settings_bytes: SETTINGS pairs as their six-octet entries: a 16-bit identifier, a 32-bit value.
+
+    settings_bytes([[:enable_push, 0]]) #=> [0, 2, 0, 0, 0, 0]
+"""
 def settings_bytes(pairs)
   flatten(
     map(
@@ -156,6 +265,12 @@ def settings_bytes(pairs)
   )
 end
 
+@doc """
+headers_payload: A HEADERS frame's payload: its priority when it has one, then the header
+block, padded when it carries a pad.
+
+    headers_payload({block: [130], pad: nil, priority: nil}) #=> [130]
+"""
 def headers_payload(f)
   p = f[:priority]
   lead = if p.nil?
@@ -166,6 +281,12 @@ def headers_payload(f)
   padded(f[:pad], append(lead, f[:block]))
 end
 
+@doc """
+headers_flags: A HEADERS frame's flags octet: END_STREAM 1, END_HEADERS 4, PADDED 8,
+PRIORITY 32.
+
+    headers_flags({end_stream: true, end_headers: true, pad: nil, priority: nil}) #=> 5
+"""
 def headers_flags(f)
   flag(f[:end_stream], 1) +
     flag(f[:end_headers], 4) +
@@ -173,6 +294,12 @@ def headers_flags(f)
     flag(not f[:priority].nil?, 32)
 end
 
+@doc """
+wire: A frame as [type code, flags, payload], before its header is written.
+
+    wire({type: :ping, ack: true, data: [1, 2, 3, 4, 5, 6, 7, 8]}) #=> [6, 1, [1, 2, 3, 4, 5, 6, 7, 8]]
+    wire({type: :window_update, increment: 1}) #=> [8, 0, [0, 0, 0, 1]]
+"""
 def wire(f)
   t = f[:type]
   case t
@@ -219,6 +346,13 @@ def wire(f)
   end
 end
 
+@doc """
+stream_of: The stream a frame is sent on: 0 for SETTINGS, PING and GOAWAY, which belong
+to the connection, else its own.
+
+    stream_of({type: :ping}) #=> 0
+    stream_of({type: :data, stream: 3}) #=> 3
+"""
 def stream_of(f)
   if member?(f[:type], %i[settings ping goaway])
     0
@@ -227,6 +361,12 @@ def stream_of(f)
   end
 end
 
+@doc """
+encode: A frame's bytes, header and payload. A frame `decode` would refuse is
+refused here as :usage, so nothing malformed is sent.
+
+    encode({type: :window_update, stream: 0, increment: 1}) #=> [0, 0, 4, 8, 0, 0, 0, 0, 0, 0, 0, 0, 1]
+"""
 def encode(f)
   w = wire(f)
   body = w[2]
@@ -238,10 +378,23 @@ def encode(f)
   bytes
 end
 
+@doc """
+conn: A refusal that ends the whole connection, on stream 0.
+
+    conn(:protocol_error, "bad")[:stream] #=> 0
+"""
 def conn(code, why)
   fault(:connection, code, 0, why)
 end
 
+@doc """
+unpad: A payload's body without its padding, as [pad length, body]; a frame without
+the PADDED flag (bit 3) is [nil, payload]. Padding that fills the payload is a
+connection error.
+
+    value(unpad([2, 7, 0, 0], 1, 8, :stream)) #=> [2, [7]]
+    value(unpad([7], 1, 0, :stream)) #=> [nil, [7]]
+"""
 def unpad(payload, stream, flags, scope)
   len = size(payload)
   if bit_at(flags, 3) == 0
@@ -258,6 +411,12 @@ def unpad(payload, stream, flags, scope)
   end
 end
 
+@doc """
+read_priority: The priority written at `pos`: the exclusive bit, the stream it depends on,
+and the weight (the octet plus one).
+
+    read_priority([128, 0, 0, 1, 15], 0) #=> {exclusive: true, depends_on: 1, weight: 16}
+"""
 def read_priority(bytes, pos)
   dep = be_value(bytes, pos, 4)
   {
@@ -267,6 +426,13 @@ def read_priority(bytes, pos)
   }
 end
 
+@doc """
+data_frame: A DATA frame read from its payload and flags; DATA on stream 0 is a
+connection error.
+
+    value(data_frame([104, 105], 1, 1)) #=> {type: :data, stream: 1, end_stream: true, pad: nil, data: [104, 105]}
+    scope_of(data_frame([], 0, 0)) #=> :connection
+"""
 def data_frame(payload, flags, stream)
   u = unpad(payload, stream, flags, :stream)
   if stream == 0
@@ -286,6 +452,13 @@ def data_frame(payload, flags, stream)
   end
 end
 
+@doc """
+headers_frame: A HEADERS frame read from its payload and flags: the priority when the
+PRIORITY flag is set, then the header block.
+
+    value(headers_frame([130], 4, 1))[:block] #=> [130]
+    value(headers_frame([130], 4, 1))[:end_headers] #=> true
+"""
 def headers_frame(payload, flags, stream)
   u = unpad(payload, stream, flags, :connection)
   prio = bit_at(flags, 5) == 1
@@ -317,6 +490,13 @@ def headers_frame(payload, flags, stream)
   end
 end
 
+@doc """
+priority_frame: A PRIORITY frame: five octets on a stream other than 0. A wrong length is
+a stream error.
+
+    value(priority_frame([0, 0, 0, 1, 15], 3))[:priority][:weight] #=> 16
+    scope_of(priority_frame([0], 3)) #=> :stream
+"""
 def priority_frame(payload, stream)
   if stream == 0
     conn(:protocol_error, "PRIORITY on stream 0")
@@ -332,6 +512,11 @@ def priority_frame(payload, stream)
   end
 end
 
+@doc """
+rst_frame: An RST_STREAM frame: a four-octet error code on a stream other than 0.
+
+    value(rst_frame([0, 0, 0, 8], 3)) #=> {type: :rst_stream, stream: 3, code: :cancel}
+"""
 def rst_frame(payload, stream)
   if stream == 0
     conn(:protocol_error, "RST_STREAM on stream 0")
@@ -342,10 +527,22 @@ def rst_frame(payload, stream)
   end
 end
 
+@doc """
+setting_pair: The `i`th six-octet SETTINGS entry as [name, value].
+
+    setting_pair([0, 2, 0, 0, 0, 0], 0) #=> [:enable_push, 0]
+"""
 def setting_pair(payload, i)
   [setting_name(be_value(payload, 6 * i, 2)), be_value(payload, 6 * i + 2, 4)]
 end
 
+@doc """
+bad_setting: The connection error a setting's value makes (§6.5.2), or nil when it is
+in range.
+
+    bad_setting([:enable_push, 1]) #=> nil
+    scope_of(bad_setting([:max_frame_size, 100])) #=> :connection
+"""
 def bad_setting(kv)
   k = first(kv)
   v = kv[1]
@@ -358,6 +555,13 @@ def bad_setting(kv)
   end
 end
 
+@doc """
+settings_frame: A SETTINGS frame: an ack with no payload, or whole six-octet entries on
+stream 0, each value in range.
+
+    value(settings_frame([0, 2, 0, 0, 0, 0], 0, 0)) #=> {type: :settings, ack: false, settings: [[:enable_push, 0]]}
+    value(settings_frame([], 1, 0)) #=> {type: :settings, ack: true, settings: []}
+"""
 def settings_frame(payload, flags, stream)
   ack = bit_at(flags, 0) == 1
   len = size(payload)
@@ -380,6 +584,11 @@ def settings_frame(payload, flags, stream)
   end
 end
 
+@doc """
+push_frame: A PUSH_PROMISE frame: the promised stream, never 0, then a header block.
+
+    value(push_frame([0, 0, 0, 2, 130], 4, 1))[:promised] #=> 2
+"""
 def push_frame(payload, flags, stream)
   u = unpad(payload, stream, flags, :connection)
   body = value(u)[1]
@@ -405,6 +614,12 @@ def push_frame(payload, flags, stream)
   end
 end
 
+@doc """
+ping_frame: A PING frame: exactly eight octets, on stream 0.
+
+    value(ping_frame([1, 2, 3, 4, 5, 6, 7, 8], 1, 0))[:ack] #=> true
+    ok?(ping_frame([1], 0, 0)) #=> false
+"""
 def ping_frame(payload, flags, stream)
   if stream != 0
     conn(:protocol_error, "PING on stream #{stream}")
@@ -415,6 +630,12 @@ def ping_frame(payload, flags, stream)
   end
 end
 
+@doc """
+goaway_frame: A GOAWAY frame on stream 0: the last stream processed, the error code and
+any debug octets.
+
+    value(goaway_frame([0, 0, 0, 5, 0, 0, 0, 0], 0)) #=> {type: :goaway, last_stream: 5, code: :no_error, debug: []}
+"""
 def goaway_frame(payload, stream)
   if stream != 0
     conn(:protocol_error, "GOAWAY on stream #{stream}")
@@ -432,6 +653,13 @@ def goaway_frame(payload, stream)
   end
 end
 
+@doc """
+window_frame: A WINDOW_UPDATE frame: a four-octet increment that is not 0. A zero
+increment is a stream error on a stream, a connection error on stream 0.
+
+    value(window_frame([0, 0, 0, 9], 1))[:increment] #=> 9
+    scope_of(window_frame([0, 0, 0, 0], 1)) #=> :stream
+"""
 def window_frame(payload, stream)
   inc = if size(payload) == 4
     be_value(payload, 0, 4) % 2_147_483_648
@@ -447,6 +675,11 @@ def window_frame(payload, stream)
   end
 end
 
+@doc """
+continuation_frame: A CONTINUATION frame: more of a header block, on a stream other than 0.
+
+    value(continuation_frame([130], 4, 1)) #=> {type: :continuation, stream: 1, end_headers: true, block: [130]}
+"""
 def continuation_frame(payload, flags, stream)
   if stream == 0
     conn(:protocol_error, "CONTINUATION on stream 0")
@@ -462,6 +695,12 @@ def continuation_frame(payload, flags, stream)
   end
 end
 
+@doc """
+frame_of: The frame a type code, flags, stream and payload make; an unknown type is
+kept as :unknown, for the caller to discard (§4.1).
+
+    value(frame_of(42, 0, 1, [7]))[:type] #=> :unknown
+"""
 def frame_of(type, flags, stream, payload)
   case type
   when 0
@@ -489,6 +728,13 @@ def frame_of(type, flags, stream, payload)
   end
 end
 
+@doc """
+oversize_scope: What a frame over the size limit ends (§4.2): the connection for stream 0
+and for frames that change header state, else only the stream.
+
+    oversize_scope(0, 1) #=> :stream
+    oversize_scope(1, 1) #=> :connection
+"""
 def oversize_scope(type, stream)
   if stream == 0 or member?(type, [1, 4, 5, 9])
     :connection
@@ -497,6 +743,13 @@ def oversize_scope(type, stream)
   end
 end
 
+@doc """
+decode: One frame from the front of the bytes so far: the frame and the rest, how
+many more bytes are needed, or a refusal carrying its scope and stream.
+
+    value(decode([0, 0], 16384)) #=> {frame: nil, need: 7}
+    value(decode([0, 0, 4, 8, 0, 0, 0, 0, 0, 0, 0, 0, 1, 9], 16384)) #=> {frame: {type: :window_update, stream: 0, increment: 1}, rest: [9]}
+"""
 def decode(bytes, max_frame_size)
   have = size(bytes)
   len = if have >= 9
@@ -527,6 +780,14 @@ def decode(bytes, max_frame_size)
   end
 end
 
+@doc """
+read_preface: The connection preface read from the front of the bytes: the rest once all
+24 octets match, how many more are needed while a prefix matches, and a
+connection error on the first octet that does not.
+
+    value(read_preface(slice(preface, 0, 10))) #=> {rest: nil, need: 14}
+    ok?(read_preface([1])) #=> false
+"""
 def read_preface(bytes)
   n = blue::min(size(bytes), 24)
   if slice(bytes, 0, n) != slice(preface, 0, n)
@@ -538,6 +799,12 @@ def read_preface(bytes)
   end
 end
 
+@doc """
+allowed_send: Whether a frame of `kind` may be sent on a stream in `state` (§5.1).
+
+    allowed_send(:idle, :headers) #=> true
+    allowed_send(:idle, :data) #=> false
+"""
 def allowed_send(state, kind)
   case state
   when :idle
@@ -557,6 +824,12 @@ def allowed_send(state, kind)
   end
 end
 
+@doc """
+after_send: The state a stream moves to on sending `kind`, before END_STREAM is applied.
+
+    after_send(:idle, :headers) #=> :open
+    after_send(:open, :rst_stream) #=> :closed_after_reset
+"""
 def after_send(state, kind)
   if kind == :rst_stream
     if member?(state, %i[open half_closed_local])
@@ -575,6 +848,14 @@ def after_send(state, kind)
   end
 end
 
+@doc """
+recv_refusal: The error for receiving `kind` where §5.1 forbids it: STREAM_CLOSED on a
+half-closed (remote) stream and for DATA on a closed one, else a connection
+error.
+
+    scope_of(recv_refusal(:half_closed_remote, :data, 1)) #=> :stream
+    scope_of(recv_refusal(:idle, :data, 1)) #=> :connection
+"""
 def recv_refusal(state, kind, stream)
   if state == :half_closed_remote
     fault(
@@ -592,6 +873,12 @@ def recv_refusal(state, kind, stream)
   end
 end
 
+@doc """
+allowed_recv: Whether a frame of `kind` may be received on a stream in `state` (§5.1).
+
+    allowed_recv(:closed, :window_update) #=> true
+    allowed_recv(:closed, :headers) #=> false
+"""
 def allowed_recv(state, kind)
   case state
   when :idle
@@ -609,6 +896,12 @@ def allowed_recv(state, kind)
   end
 end
 
+@doc """
+after_recv: The state a stream moves to on receiving `kind`, before END_STREAM is applied.
+
+    after_recv(:idle, :promised) #=> :reserved_remote
+    after_recv(:open, :rst_stream) #=> :closed
+"""
 def after_recv(state, kind)
   if kind == :rst_stream and state != :closed_after_reset
     :closed
@@ -623,6 +916,13 @@ def after_recv(state, kind)
   end
 end
 
+@doc """
+after_end_stream: The state after END_STREAM in direction `dir`: one side closes, and the
+second side to close closes the stream.
+
+    after_end_stream(:open, :send) #=> :half_closed_local
+    after_end_stream(:half_closed_local, :recv) #=> :closed
+"""
 def after_end_stream(state, dir)
   if dir == :send and state == :open
     :half_closed_local
@@ -637,6 +937,13 @@ def after_end_stream(state, dir)
   end
 end
 
+@doc """
+ends: END_STREAM applied when it is set on a HEADERS or DATA frame; any other frame
+leaves the state.
+
+    ends(:open, :recv, :data, true) #=> :half_closed_remote
+    ends(:open, :recv, :ping, true) #=> :open
+"""
 def ends(state, dir, kind, end_stream)
   if end_stream and member?(kind, %i[headers data])
     after_end_stream(state, dir)
@@ -645,6 +952,14 @@ def ends(state, dir, kind, end_stream)
   end
 end
 
+@doc """
+step: The stream state machine of §5.1: one frame sent or received in a state gives
+the next state and whether to discard the frame, or a refusal. A frame this
+side may not send is refused with scope :local.
+
+    value(step(:idle, :send, :headers, true, 1)) #=> {state: :half_closed_local, discard: false}
+    scope_of(step(:idle, :send, :data, false, 1)) #=> :local
+"""
 def step(state, dir, kind, end_stream, stream?)
   stream = stream or 0
   discard = member?(state, [:closed_after_reset]) or

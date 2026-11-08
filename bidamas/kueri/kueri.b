@@ -162,6 +162,8 @@ legacy_names(
 
 @doc """
 name: A name as text: a keyword's name, or the string itself.
+
+    name(:id) #=> "id"
 """
 def name(x)
   apply_when(keyword?, to_s)(x)

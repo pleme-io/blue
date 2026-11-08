@@ -317,6 +317,8 @@ end
 
 @doc """
 zeros: matrix of zeros.
+
+    zeros(1, 2) #=> [[0, 0]]
 """
 def zeros(r, c)
   filled(r, c, 0)

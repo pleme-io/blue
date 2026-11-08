@@ -9,6 +9,12 @@ recorded and the request goes on until the operator sets "enforce".
 Request headers arrive as a list of [name, value] pairs with lowercase names;
 response headers are a map. The posture builders take no arguments, so a
 service lists them as `[headers_posture, request_id_posture, limits_posture]`.
+
+A header the handler already set is kept, whatever the case of its name, and
+only the missing defaults are added:
+
+    has_header?({"x-frame-options" => "SAMEORIGIN"}, "X-Frame-Options") #=> true
+    with_missing({"x-frame-options" => "SAMEORIGIN"}, [%w[X-Frame-Options DENY], %w[Referrer-Policy no-referrer]]) #=> {"x-frame-options" => "SAMEORIGIN", "Referrer-Policy" => "no-referrer"}
 """
 
 use("eigyou/kyuuji", %i[header route_methods])

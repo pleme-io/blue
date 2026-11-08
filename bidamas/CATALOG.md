@@ -84,7 +84,7 @@ Computed from each package's files and its `Bluefile.lock`: `docs` is the public
 | [`chokkan`](#chokkan) | 5/29 | 8 | — |
 | [`chozou`](#chozou) | 108/108 | 29 | — |
 | [`deeta`](#deeta) | 18/121 | 27 | — |
-| [`eigyou`](#eigyou) | 82/332 | 126 | — |
+| [`eigyou`](#eigyou) | 158/332 | 126 | — |
 | [`fairu`](#fairu) | 8/8 | 9 | — |
 | [`fuuin`](#fuuin) | 4/4 | 6 | — |
 | [`gamen`](#gamen) | 42/118 | 60 | — |
@@ -97,7 +97,7 @@ Computed from each package's files and its `Bluefile.lock`: `docs` is the public
 | [`hizuke`](#hizuke) | 38/50 | 37 | — |
 | [`hon`](#hon) | 96/96 | 26 | — |
 | [`ibuki`](#ibuki) | 32/32 | 22 | — |
-| [`isshou`](#isshou) | 259/454 | 56 | — |
+| [`isshou`](#isshou) | 387/454 | 56 | — |
 | [`jisho`](#jisho) | 9/16 | 12 | — |
 | [`junjo`](#junjo) | 30/43 | 32 | — |
 | [`kaaneru`](#kaaneru) | 544/544 | 108 | environment, filesystem, kernel-bpf, process |
@@ -780,32 +780,32 @@ eigyou (営業, open for business) — what a running service answers, guards an
 | `eigyou::haibi::write_tree(root, fs)` |  |  |  |  |
 | `eigyou::haibi::sample` |  |  |  |  |
 | `eigyou::haibi::kernel_service(access)` |  |  |  | kernel_service: a declaration that reaches the kernel, with the access fields a test names. |
-| `eigyou::heddaa::code_key(code, len)` |  |  |  |  |
-| `eigyou::heddaa::broken(why)` |  |  |  |  |
-| `eigyou::heddaa::octets(x)` |  |  |  |  |
-| `eigyou::heddaa::field_part(bytes)` |  |  |  |  |
-| `eigyou::heddaa::entry_size(name, value)` |  |  |  |  |
-| `eigyou::heddaa::table(max)` |  |  |  |  |
-| `eigyou::heddaa::entries(t)` |  |  |  |  |
-| `eigyou::heddaa::table_size(t)` |  |  |  |  |
-| `eigyou::heddaa::table_max(t)` |  |  |  |  |
-| `eigyou::heddaa::with_limit(t, limit)` |  |  |  |  |
-| `eigyou::heddaa::keep_step(acc, e, room)` |  |  |  |  |
-| `eigyou::heddaa::evict(t, room)` |  |  |  |  |
-| `eigyou::heddaa::insert(t, name, value)` |  |  |  |  |
-| `eigyou::heddaa::resize(t, max)` |  |  |  |  |
-| `eigyou::heddaa::lookup(t, index)` |  |  |  |  |
-| `eigyou::heddaa::continuation(n)` |  |  |  |  |
-| `eigyou::heddaa::encode_int(n, prefix, high)` |  |  |  |  |
-| `eigyou::heddaa::continue_int(bytes, pos, acc, m)` |  |  |  |  |
-| `eigyou::heddaa::decode_int(bytes, pos, prefix)` |  |  |  |  |
-| `eigyou::heddaa::huffman_size(data)` |  |  |  |  |
-| `eigyou::heddaa::huffman_encode(data)` |  |  |  |  |
-| `eigyou::heddaa::huffman_bit(s, bit)` |  |  |  |  |
-| `eigyou::heddaa::huffman_decode(bytes)` |  |  |  |  |
-| `eigyou::heddaa::encode_string(x, huffman)` |  |  |  |  |
-| `eigyou::heddaa::string_body(bytes, start, len, huffman)` |  |  |  |  |
-| `eigyou::heddaa::decode_string(bytes, pos)` |  |  |  |  |
+| `eigyou::heddaa::code_key(code, len)` |  |  |  | code_key: One key for a Huffman code and its bit length, so codes of different lengths |
+| `eigyou::heddaa::broken(why)` |  |  |  | broken: A malformed block refused as :compression_error, which RFC 9113 §4.3 makes a |
+| `eigyou::heddaa::octets(x)` |  |  |  | octets: A field part as octets: a string's UTF-8 bytes, a byte list as it is. |
+| `eigyou::heddaa::field_part(bytes)` |  |  |  | field_part: Octets as a field part: a string when they are UTF-8, else the bytes kept. |
+| `eigyou::heddaa::entry_size(name, value)` |  |  |  | entry_size: An entry's size in the dynamic table (§4.1): name and value octets plus 32. |
+| `eigyou::heddaa::table(max)` |  |  |  | table: An empty dynamic table of size `max`, which is also its limit. |
+| `eigyou::heddaa::entries(t)` |  |  |  | entries: The dynamic table's fields, newest first, as [name, value]. |
+| `eigyou::heddaa::table_size(t)` |  |  |  | table_size: The dynamic table's size: the sum of its entries' sizes. |
+| `eigyou::heddaa::table_max(t)` |  |  |  | table_max: The table size in force. |
+| `eigyou::heddaa::with_limit(t, limit)` |  |  |  | with_limit: The table with a new limit, the most the peer may raise its size to. |
+| `eigyou::heddaa::keep_step(acc, e, room)` |  |  |  | keep_step: One step of eviction's fold over entries, newest first: [kept, size, still |
+| `eigyou::heddaa::evict(t, room)` |  |  |  | evict: The table with its oldest entries dropped until its size is at most `room` |
+| `eigyou::heddaa::insert(t, name, value)` |  |  |  | insert: The table with [name, value] added as its newest entry, evicting the oldest to |
+| `eigyou::heddaa::resize(t, max)` |  |  |  | resize: The table at a new size within its limit, evicting what no longer fits, with |
+| `eigyou::heddaa::lookup(t, index)` |  |  |  | lookup: The field at `index` across both tables: 1 to 61 static, 62 on the dynamic |
+| `eigyou::heddaa::continuation(n)` |  |  |  | continuation: The continuation octets of an integer past its prefix (§5.1): seven bits |
+| `eigyou::heddaa::encode_int(n, prefix, high)` |  |  |  | encode_int: An integer in an N-bit prefix (§5.1), with `high` the bits above the prefix |
+| `eigyou::heddaa::continue_int(bytes, pos, acc, m)` |  |  |  | continue_int: The rest of a prefixed integer from its continuation octets at `pos`, added |
+| `eigyou::heddaa::decode_int(bytes, pos, prefix)` |  |  |  | decode_int: An N-bit prefixed integer read at `pos`: [value, next position]. |
+| `eigyou::heddaa::huffman_size(data)` |  |  |  | huffman_size: How many octets the Huffman encoding of `data` takes. |
+| `eigyou::heddaa::huffman_encode(data)` |  |  |  | huffman_encode: The Huffman encoding of a string or octets, padded with the start of EOS |
+| `eigyou::heddaa::huffman_bit(s, bit)` |  |  |  | huffman_bit: One bit of Huffman decoding: [code so far, its length, broken, octets out]. |
+| `eigyou::heddaa::huffman_decode(bytes)` |  |  |  | huffman_decode: The octets a Huffman string decodes to; EOS inside it, or padding that is |
+| `eigyou::heddaa::encode_string(x, huffman)` |  |  |  | encode_string: A string literal (§5.2): its length with the H bit, then its octets, |
+| `eigyou::heddaa::string_body(bytes, start, len, huffman)` |  |  |  | string_body: A string literal's `len` octets at `start`, Huffman-decoded when flagged: |
+| `eigyou::heddaa::decode_string(bytes, pos)` |  |  |  | decode_string: A string literal read at `pos`: [field part, next position]. |
 | `eigyou::heddaa::add_field(st, f, next, sensitive)` |  |  |  |  |
 | `eigyou::heddaa::indexed_field(st, index, next)` |  |  |  |  |
 | `eigyou::heddaa::literal_done(st, f, next, how)` |  |  |  |  |
@@ -816,11 +816,11 @@ eigyou (営業, open for business) — what a running service answers, guards an
 | `eigyou::heddaa::size_update(st, block)` |  |  |  |  |
 | `eigyou::heddaa::decode_one(st, block)` |  |  |  |  |
 | `eigyou::heddaa::decode(t, block)` |  |  |  |  |
-| `eigyou::heddaa::exact_index(t, name, value)` |  |  |  |  |
-| `eigyou::heddaa::name_index(t, name)` |  |  |  |  |
-| `eigyou::heddaa::literal_bytes(index, name, value, prefix, high, huffman)` |  |  |  |  |
+| `eigyou::heddaa::exact_index(t, name, value)` |  |  |  | exact_index: The index of a whole [name, value] entry, static first, then dynamic; nil |
+| `eigyou::heddaa::name_index(t, name)` |  |  |  | name_index: The index of an entry with this name, static first, then dynamic; nil when |
+| `eigyou::heddaa::literal_bytes(index, name, value, prefix, high, huffman)` |  |  |  | literal_bytes: A literal field: the name by index when one is known, else written out, |
 | `eigyou::heddaa::encode_field(t, f, huffman, never, plain)` |  |  |  |  |
-| `eigyou::heddaa::size_updates(t)` |  |  |  |  |
+| `eigyou::heddaa::size_updates(t)` |  |  |  | size_updates: The size updates a block opens with (§4.2): none when the size did not |
 | `eigyou::heddaa::encode(t, fields, opts?)` |  |  |  |  |
 | `eigyou::heddaa::exchange(max, lists, hexes, huffman)` |  |  |  |  |
 | `eigyou::heddaa::repeat_text(s, n)` |  |  |  |  |
@@ -936,52 +936,52 @@ eigyou (営業, open for business) — what a running service answers, guards an
 | `eigyou::shisei::echo(req)` |  |  |  |  |
 | `eigyou::shisei::req_at(path)` |  |  |  |  |
 | `eigyou::shisei::gate_probe(mode)` |  |  |  |  |
-| `eigyou::tajuu::code_of(name, names)` |  |  |  |  |
-| `eigyou::tajuu::name_of(code, names)` |  |  |  |  |
-| `eigyou::tajuu::error_code(name)` |  |  |  |  |
-| `eigyou::tajuu::error_name(code)` |  |  |  |  |
-| `eigyou::tajuu::setting_id(name)` |  |  |  |  |
-| `eigyou::tajuu::setting_name(id)` |  |  |  |  |
-| `eigyou::tajuu::fault(scope, code, stream, why)` |  |  |  |  |
-| `eigyou::tajuu::scope_of(r)` |  |  |  |  |
-| `eigyou::tajuu::flag(on, bit)` |  |  |  |  |
-| `eigyou::tajuu::zeros(n)` |  |  |  |  |
-| `eigyou::tajuu::header(len, type, flags, stream)` |  |  |  |  |
-| `eigyou::tajuu::padded(pad, body)` |  |  |  |  |
-| `eigyou::tajuu::priority_bytes(p)` |  |  |  |  |
-| `eigyou::tajuu::settings_bytes(pairs)` |  |  |  |  |
-| `eigyou::tajuu::headers_payload(f)` |  |  |  |  |
-| `eigyou::tajuu::headers_flags(f)` |  |  |  |  |
-| `eigyou::tajuu::wire(f)` |  |  |  |  |
-| `eigyou::tajuu::stream_of(f)` |  |  |  |  |
-| `eigyou::tajuu::encode(f)` |  |  |  |  |
-| `eigyou::tajuu::conn(code, why)` |  |  |  |  |
-| `eigyou::tajuu::unpad(payload, stream, flags, scope)` |  |  |  |  |
-| `eigyou::tajuu::read_priority(bytes, pos)` |  |  |  |  |
-| `eigyou::tajuu::data_frame(payload, flags, stream)` |  |  |  |  |
-| `eigyou::tajuu::headers_frame(payload, flags, stream)` |  |  |  |  |
-| `eigyou::tajuu::priority_frame(payload, stream)` |  |  |  |  |
-| `eigyou::tajuu::rst_frame(payload, stream)` |  |  |  |  |
-| `eigyou::tajuu::setting_pair(payload, i)` |  |  |  |  |
-| `eigyou::tajuu::bad_setting(kv)` |  |  |  |  |
-| `eigyou::tajuu::settings_frame(payload, flags, stream)` |  |  |  |  |
-| `eigyou::tajuu::push_frame(payload, flags, stream)` |  |  |  |  |
-| `eigyou::tajuu::ping_frame(payload, flags, stream)` |  |  |  |  |
-| `eigyou::tajuu::goaway_frame(payload, stream)` |  |  |  |  |
-| `eigyou::tajuu::window_frame(payload, stream)` |  |  |  |  |
-| `eigyou::tajuu::continuation_frame(payload, flags, stream)` |  |  |  |  |
-| `eigyou::tajuu::frame_of(type, flags, stream, payload)` |  |  |  |  |
-| `eigyou::tajuu::oversize_scope(type, stream)` |  |  |  |  |
-| `eigyou::tajuu::decode(bytes, max_frame_size)` |  |  |  |  |
-| `eigyou::tajuu::read_preface(bytes)` |  |  |  |  |
-| `eigyou::tajuu::allowed_send(state, kind)` |  |  |  |  |
-| `eigyou::tajuu::after_send(state, kind)` |  |  |  |  |
-| `eigyou::tajuu::recv_refusal(state, kind, stream)` |  |  |  |  |
-| `eigyou::tajuu::allowed_recv(state, kind)` |  |  |  |  |
-| `eigyou::tajuu::after_recv(state, kind)` |  |  |  |  |
-| `eigyou::tajuu::after_end_stream(state, dir)` |  |  |  |  |
-| `eigyou::tajuu::ends(state, dir, kind, end_stream)` |  |  |  |  |
-| `eigyou::tajuu::step(state, dir, kind, end_stream, stream?)` |  |  |  |  |
+| `eigyou::tajuu::code_of(name, names)` |  |  |  | code_of: The index of `name` in `names`: its wire code. A name not listed is kept as it |
+| `eigyou::tajuu::name_of(code, names)` |  |  |  | name_of: The name at index `code` in `names`; a code past the list is kept as a number. |
+| `eigyou::tajuu::error_code(name)` |  |  |  | error_code: The wire code of an error name; an unknown code is kept as a number. |
+| `eigyou::tajuu::error_name(code)` |  |  |  | error_name: The name of an error code, or the code itself when §7 names none. |
+| `eigyou::tajuu::setting_id(name)` |  |  |  | setting_id: The identifier of a setting name, counting from 1. |
+| `eigyou::tajuu::setting_name(id)` |  |  |  | setting_name: The name of a setting identifier, or the identifier itself when unknown. |
+| `eigyou::tajuu::fault(scope, code, stream, why)` |  |  |  | fault: A refusal whose kind is the RFC error code, carrying the scope (:connection or |
+| `eigyou::tajuu::scope_of(r)` |  |  |  | scope_of: Whether a refusal ends the connection or only its stream. |
+| `eigyou::tajuu::flag(on, bit)` |  |  |  | flag: `bit` when `on`, else 0: one flag's share of a flags octet. |
+| `eigyou::tajuu::zeros(n)` |  |  |  | zeros: `n` zero octets. |
+| `eigyou::tajuu::header(len, type, flags, stream)` |  |  |  | header: The 9-octet frame header of §4.1: a 24-bit length, the type, the flags, the |
+| `eigyou::tajuu::padded(pad, body)` |  |  |  | padded: A payload with its padding: the pad length, the body, that many zeros. No pad |
+| `eigyou::tajuu::priority_bytes(p)` |  |  |  | priority_bytes: A priority's five octets: the stream it depends on with the exclusive bit, |
+| `eigyou::tajuu::settings_bytes(pairs)` |  |  |  | settings_bytes: SETTINGS pairs as their six-octet entries: a 16-bit identifier, a 32-bit value. |
+| `eigyou::tajuu::headers_payload(f)` |  |  |  | headers_payload: A HEADERS frame's payload: its priority when it has one, then the header |
+| `eigyou::tajuu::headers_flags(f)` |  |  |  | headers_flags: A HEADERS frame's flags octet: END_STREAM 1, END_HEADERS 4, PADDED 8, |
+| `eigyou::tajuu::wire(f)` |  |  |  | wire: A frame as [type code, flags, payload], before its header is written. |
+| `eigyou::tajuu::stream_of(f)` |  |  |  | stream_of: The stream a frame is sent on: 0 for SETTINGS, PING and GOAWAY, which belong |
+| `eigyou::tajuu::encode(f)` |  |  |  | encode: A frame's bytes, header and payload. A frame `decode` would refuse is |
+| `eigyou::tajuu::conn(code, why)` |  |  |  | conn: A refusal that ends the whole connection, on stream 0. |
+| `eigyou::tajuu::unpad(payload, stream, flags, scope)` |  |  |  | unpad: A payload's body without its padding, as [pad length, body]; a frame without |
+| `eigyou::tajuu::read_priority(bytes, pos)` |  |  |  | read_priority: The priority written at `pos`: the exclusive bit, the stream it depends on, |
+| `eigyou::tajuu::data_frame(payload, flags, stream)` |  |  |  | data_frame: A DATA frame read from its payload and flags; DATA on stream 0 is a |
+| `eigyou::tajuu::headers_frame(payload, flags, stream)` |  |  |  | headers_frame: A HEADERS frame read from its payload and flags: the priority when the |
+| `eigyou::tajuu::priority_frame(payload, stream)` |  |  |  | priority_frame: A PRIORITY frame: five octets on a stream other than 0. A wrong length is |
+| `eigyou::tajuu::rst_frame(payload, stream)` |  |  |  | rst_frame: An RST_STREAM frame: a four-octet error code on a stream other than 0. |
+| `eigyou::tajuu::setting_pair(payload, i)` |  |  |  | setting_pair: The `i`th six-octet SETTINGS entry as [name, value]. |
+| `eigyou::tajuu::bad_setting(kv)` |  |  |  | bad_setting: The connection error a setting's value makes (§6.5.2), or nil when it is |
+| `eigyou::tajuu::settings_frame(payload, flags, stream)` |  |  |  | settings_frame: A SETTINGS frame: an ack with no payload, or whole six-octet entries on |
+| `eigyou::tajuu::push_frame(payload, flags, stream)` |  |  |  | push_frame: A PUSH_PROMISE frame: the promised stream, never 0, then a header block. |
+| `eigyou::tajuu::ping_frame(payload, flags, stream)` |  |  |  | ping_frame: A PING frame: exactly eight octets, on stream 0. |
+| `eigyou::tajuu::goaway_frame(payload, stream)` |  |  |  | goaway_frame: A GOAWAY frame on stream 0: the last stream processed, the error code and |
+| `eigyou::tajuu::window_frame(payload, stream)` |  |  |  | window_frame: A WINDOW_UPDATE frame: a four-octet increment that is not 0. A zero |
+| `eigyou::tajuu::continuation_frame(payload, flags, stream)` |  |  |  | continuation_frame: A CONTINUATION frame: more of a header block, on a stream other than 0. |
+| `eigyou::tajuu::frame_of(type, flags, stream, payload)` |  |  |  | frame_of: The frame a type code, flags, stream and payload make; an unknown type is |
+| `eigyou::tajuu::oversize_scope(type, stream)` |  |  |  | oversize_scope: What a frame over the size limit ends (§4.2): the connection for stream 0 |
+| `eigyou::tajuu::decode(bytes, max_frame_size)` |  |  |  | decode: One frame from the front of the bytes so far: the frame and the rest, how |
+| `eigyou::tajuu::read_preface(bytes)` |  |  |  | read_preface: The connection preface read from the front of the bytes: the rest once all |
+| `eigyou::tajuu::allowed_send(state, kind)` |  |  |  | allowed_send: Whether a frame of `kind` may be sent on a stream in `state` (§5.1). |
+| `eigyou::tajuu::after_send(state, kind)` |  |  |  | after_send: The state a stream moves to on sending `kind`, before END_STREAM is applied. |
+| `eigyou::tajuu::recv_refusal(state, kind, stream)` |  |  |  | recv_refusal: The error for receiving `kind` where §5.1 forbids it: STREAM_CLOSED on a |
+| `eigyou::tajuu::allowed_recv(state, kind)` |  |  |  | allowed_recv: Whether a frame of `kind` may be received on a stream in `state` (§5.1). |
+| `eigyou::tajuu::after_recv(state, kind)` |  |  |  | after_recv: The state a stream moves to on receiving `kind`, before END_STREAM is applied. |
+| `eigyou::tajuu::after_end_stream(state, dir)` |  |  |  | after_end_stream: The state after END_STREAM in direction `dir`: one side closes, and the |
+| `eigyou::tajuu::ends(state, dir, kind, end_stream)` |  |  |  | ends: END_STREAM applied when it is set on a HEADERS or DATA frame; any other frame |
+| `eigyou::tajuu::step(state, dir, kind, end_stream, stream?)` |  |  |  | step: The stream state machine of §5.1: one frame sent or received in a state gives |
 | `eigyou::tsuushin::default_port(scheme)` |  |  |  |  |
 | `eigyou::tsuushin::scheme_chars?(s)` |  |  |  |  |
 | `eigyou::tsuushin::valid_scheme?(s)` |  |  |  |  |
@@ -1760,53 +1760,53 @@ isshou (一生, a lifetime) — what a thing goes through, recorded and read bac
 | `isshou::nisshi::object?(v)` |  |  |  | object?: True for a value JSON writes as an object: a non-empty list whose every |
 | `isshou::nisshi::empty_object?(v)` |  |  |  | empty_object?: True for the value json_parse gives an empty object: a map that writes "{}". |
 | `isshou::nisshi::canon(v)` |  |  |  | canon: The canonical JSON text of a value. Raises :eventlog_value for what JSON |
-| `isshou::nisshi::canon_list(v)` |  |  |  |  |
-| `isshou::nisshi::canon_float(x)` |  |  |  |  |
+| `isshou::nisshi::canon_list(v)` |  |  |  | canon_list: The canonical text of a list: an object when every element is a pair, |
+| `isshou::nisshi::canon_float(x)` |  |  |  | canon_float: The JSON text of a finite float; a float JSON cannot write is refused. |
 | `isshou::nisshi::sorted_pairs(pairs)` |  |  |  | sorted_pairs: Pairs ordered by key text, in code-point order (what `compare` gives). |
-| `isshou::nisshi::require_pair(p)` |  |  |  |  |
+| `isshou::nisshi::require_pair(p)` |  |  |  | require_pair: `p` itself when it is a [name, value] pair; anything else is refused as |
 | `isshou::nisshi::canon_object(pairs)` |  |  |  | canon_object: The canonical text of an object given as [name, value] pairs; "{}" for none. |
-| `isshou::nisshi::canon_member(p)` |  |  |  |  |
-| `isshou::nisshi::names(d)` |  |  |  |  |
-| `isshou::nisshi::key_index(keys)` |  |  |  |  |
-| `isshou::nisshi::require_distinct(texts, what)` |  |  |  |  |
+| `isshou::nisshi::canon_member(p)` |  |  |  | canon_member: One object member as canonical text: the key as a JSON string, a colon, |
+| `isshou::nisshi::names(d)` |  |  |  | names: The definition's names indexed by their text: a map from an event type's |
+| `isshou::nisshi::key_index(keys)` |  |  |  | key_index: A map from each payload key's text to the key; two keys with one text are |
+| `isshou::nisshi::require_distinct(texts, what)` |  |  |  | require_distinct: Nothing when the names' texts are distinct; two of one text are refused |
 | `isshou::nisshi::type_named(names, t)` |  |  |  | type_named: The type named by text `t`: the definition's own name, or the text itself. |
 | `isshou::nisshi::key_named(names, ty, k)` |  |  |  | key_named: The payload key named by text `k` for type `ty`: the key the definition |
 | `isshou::nisshi::normal_event(names, ev)` |  |  |  | normal_event: The event as the log holds it: its type and payload keys as the definition |
 | `isshou::nisshi::normal_value(v)` |  |  |  | normal_value: A value with every object in it put in key order, which is all canonical |
 | `isshou::nisshi::refusal_of(verdict)` |  |  |  | refusal_of: The refusal an admission verdict gives a record: nil when admitted, else |
-| `isshou::nisshi::detail_texts(kind, detail)` |  |  |  |  |
-| `isshou::nisshi::refusal_text(rf)` |  |  |  |  |
+| `isshou::nisshi::detail_texts(kind, detail)` |  |  |  | detail_texts: A rejection's detail as a list of texts: the refusing rules for :guard, |
+| `isshou::nisshi::refusal_text(rf)` |  |  |  | refusal_text: A record's refusal as canonical JSON: null when admitted. |
 | `isshou::nisshi::normal_links(links)` |  |  |  | normal_links: Links as the log holds them: [kind, id] pairs, the kind as text, in order. |
-| `isshou::nisshi::normal_link(l)` |  |  |  |  |
-| `isshou::nisshi::links_text(links)` |  |  |  |  |
-| `isshou::nisshi::link_text(l)` |  |  |  |  |
+| `isshou::nisshi::normal_link(l)` |  |  |  | normal_link: One link as the log holds it, [kind as text, id]; anything but a name and |
+| `isshou::nisshi::links_text(links)` |  |  |  | links_text: Links as a canonical JSON array of objects. |
+| `isshou::nisshi::link_text(l)` |  |  |  | link_text: One link as a canonical JSON object, keys in code-point order. |
 | `isshou::nisshi::texts(entity, links, payload, refusal, seq, status, at, ty)` |  |  |  | texts: The canonical text of each body field, in key order: entity, links, |
 | `isshou::nisshi::body_text(t)` |  |  |  | body_text: The text the chain hashes: the record without prev, hash and sig. |
 | `isshou::nisshi::line_text(t, prev, hash, sig)` |  |  |  | line_text: The line a stream holds: every field, keys in code-point order. |
-| `isshou::nisshi::sig_text(sig)` |  |  |  |  |
-| `isshou::nisshi::status_for(refusal)` |  |  |  |  |
+| `isshou::nisshi::sig_text(sig)` |  |  |  | sig_text: A signature as JSON: its hex as a string, or null when unsigned. |
+| `isshou::nisshi::status_for(refusal)` |  |  |  | status_for: A record's status from its refusal: :admitted when there is none. |
 | `isshou::nisshi::record(position, seq, at, entity, ty, payload, links, status, refusal, prev, hash, sig, line)` |  |  |  | record: A record as read: [:el_record, position, seq, time, entity, type, payload, |
-| `isshou::nisshi::record?(x)` |  |  |  |  |
+| `isshou::nisshi::record?(x)` |  |  |  | record?: Whether a decoded line is a record rather than a bad line. |
 | `isshou::nisshi::el_position(x)` |  |  | `B0013` | el_position: The index of a record or a bad line in its stream, from 0. |
-| `isshou::nisshi::rec_seq(r)` |  |  |  |  |
-| `isshou::nisshi::rec_time(r)` |  |  |  |  |
-| `isshou::nisshi::rec_entity(r)` |  |  |  |  |
+| `isshou::nisshi::rec_seq(r)` |  |  |  | rec_seq: A record's sequence number within its entity. |
+| `isshou::nisshi::rec_time(r)` |  |  |  | rec_time: A record's time, on the caller's clock. |
+| `isshou::nisshi::rec_entity(r)` |  |  |  | rec_entity: The id of the entity a record belongs to. |
 | `isshou::nisshi::rec_type(r)` |  |  |  | rec_type: The type: the definition's own name when it declares it, else text. |
 | `isshou::nisshi::rec_payload(r)` |  |  |  | rec_payload: The payload as [key, value] pairs in key order. |
 | `isshou::nisshi::rec_links(r)` |  |  |  | rec_links: The links as [kind, id] pairs, in the order they were given. |
 | `isshou::nisshi::rec_status(r)` |  |  |  | rec_status: :admitted or :refused. |
-| `isshou::nisshi::rec_admitted?(r)` |  |  |  |  |
+| `isshou::nisshi::rec_admitted?(r)` |  |  |  | rec_admitted?: Whether a record was admitted. |
 | `isshou::nisshi::rec_refusal(r)` |  |  |  | rec_refusal: nil, or [kind, detail] for a refused record. |
-| `isshou::nisshi::rec_prev(r)` |  |  |  |  |
-| `isshou::nisshi::rec_hash(r)` |  |  |  |  |
+| `isshou::nisshi::rec_prev(r)` |  |  |  | rec_prev: The hash of the line before a record in its stream: the chain link. |
+| `isshou::nisshi::rec_hash(r)` |  |  |  | rec_hash: A record's own hash, over its prev and its body. |
 | `isshou::nisshi::rec_sig(r)` |  |  |  | rec_sig: The signature's hex, or nil. |
 | `isshou::nisshi::rec_line(r)` |  |  |  | rec_line: The line exactly as the stream holds it. |
 | `isshou::nisshi::rec_event(r)` |  |  |  | rec_event: The event a record holds, as raifusaikuru folds it. |
-| `isshou::nisshi::texts_of(r)` |  |  |  |  |
+| `isshou::nisshi::texts_of(r)` |  |  |  | texts_of: The canonical text of each body field of a record, as texts renders them. |
 | `isshou::nisshi::body_of(r)` |  |  |  | body_of: The body text a record's hash covers, rendered from the record. |
 | `isshou::nisshi::line_of(r)` |  |  |  | line_of: The canonical line for a record: what its line must be, byte for byte. |
 | `isshou::nisshi::bad(position, line, why)` |  |  |  | bad: A line that is not a record: [:el_bad_line, position, line, why]. |
-| `isshou::nisshi::bad_why(b)` |  |  |  |  |
+| `isshou::nisshi::bad_why(b)` |  |  |  | bad_why: Why a bad line is not a record. |
 | `isshou::nisshi::decode_line(d, position, line)` |  |  |  | decode_line: A line read back as a record, or as a bad line saying why it is not one. |
 | `isshou::nisshi::decode_named(names, position, line)` |  |  |  | decode_named: el_decode_line with the definition's names already indexed (el_names), as |
 | `isshou::nisshi::decode_doc(names, position, line, doc)` |  |  |  | decode_doc: Each field is read once, with deeta's total readers (nil for absent or of |
@@ -1900,10 +1900,10 @@ isshou (一生, a lifetime) — what a thing goes through, recorded and read bac
 | `isshou::nisshi::control_verdict(row)` |  |  |  |  |
 | `isshou::raifusaikuru::text(x)` |  |  |  | text: A name as text: a keyword's name, a string itself, anything else via to_s. |
 | `isshou::raifusaikuru::show(x)` |  |  |  | show: A value as it reads in a message: keywords keep their colon, strings their |
-| `isshou::raifusaikuru::name?(x)` |  |  |  |  |
+| `isshou::raifusaikuru::name?(x)` |  |  |  | name?: Whether a value can name a state, event or field: a keyword or a string. |
 | `isshou::raifusaikuru::minutes(n)` |  |  |  | minutes: Durations on a seconds clock. |
-| `isshou::raifusaikuru::hours(n)` |  |  |  |  |
-| `isshou::raifusaikuru::days(n)` |  |  |  |  |
+| `isshou::raifusaikuru::hours(n)` |  |  |  | hours: `n` hours on a seconds clock. |
+| `isshou::raifusaikuru::days(n)` |  |  |  | days: `n` days on a seconds clock. |
 | `isshou::raifusaikuru::states(names)` |  |  |  | states: Declare states. May appear more than once; the mentions accumulate. |
 | `isshou::raifusaikuru::start(state)` |  |  |  | start: The state a new entity starts in: exactly one per definition. |
 | `isshou::raifusaikuru::terminals(names)` |  |  |  | terminals: Terminal states: an entity rests there for good, and no event leaves them. |
@@ -1911,19 +1911,19 @@ isshou (一生, a lifetime) — what a thing goes through, recorded and read bac
 | `isshou::raifusaikuru::field(name, initial)` |  |  |  | field: A field the events fold into, with its value before any event. |
 | `isshou::raifusaikuru::event(name, keys)` |  |  |  | event: An event type and the payload keys it must carry. A declared key is |
 | `isshou::raifusaikuru::on(from, event, to, effects)` |  |  |  | on: One transition row: in `from`, event `event` moves the entity to `to` and |
-| `isshou::raifusaikuru::stay_to(from, to)` |  |  |  |  |
+| `isshou::raifusaikuru::stay_to(from, to)` |  |  |  | stay_to: The state a row moves to: `from` itself when `to` is :stay. |
 | `isshou::raifusaikuru::on_each(froms, event, to, effects)` |  |  |  | on_each: The same row from each of several states. With :stay each row loops on its |
 | `isshou::raifusaikuru::gate(capability, rows)` |  |  |  | gate: Gate rows by a capability: the event is a USE of it. The fold evaluates the |
-| `isshou::raifusaikuru::gated_row(capability, c)` |  |  |  |  |
+| `isshou::raifusaikuru::gated_row(capability, c)` |  |  |  | gated_row: One clause under `gate`: a transition row gains the capability it uses; |
 | `isshou::raifusaikuru::set(field, key)` |  |  |  | set: Set a field from a payload key of the event. |
 | `isshou::raifusaikuru::put(field, value)` |  |  |  | put: Set a field to a constant. |
 | `isshou::raifusaikuru::add(field, n)` |  |  |  | add: Add a constant to a numeric field: a counter. |
 | `isshou::raifusaikuru::add_from(field, key)` |  |  |  | add_from: Add a numeric payload value to a numeric field. |
 | `isshou::raifusaikuru::stamp(field)` |  |  |  | stamp: Set a field to the event's time. |
 | `isshou::raifusaikuru::below(field, limit)` |  |  |  | below: The field is a number below the limit. |
-| `isshou::raifusaikuru::at_most(field, limit)` |  |  |  |  |
-| `isshou::raifusaikuru::above(field, limit)` |  |  |  |  |
-| `isshou::raifusaikuru::at_least(field, limit)` |  |  |  |  |
+| `isshou::raifusaikuru::at_most(field, limit)` |  |  |  | at_most: The field is a number no greater than the limit. |
+| `isshou::raifusaikuru::above(field, limit)` |  |  |  | above: The field is a number greater than the limit. |
+| `isshou::raifusaikuru::at_least(field, limit)` |  |  |  | at_least: The field is a number no less than the limit. |
 | `isshou::raifusaikuru::equals(field, value)` |  |  |  | equals: The field equals the value. A float never equals an int: 1.0 is not 1. |
 | `isshou::raifusaikuru::present(field)` |  |  |  | present: The field has a value (is not nil). Never unknown. |
 | `isshou::raifusaikuru::fresh(field, max_age)` |  |  |  | fresh: The field holds a time less than `max_age` before now: a reading still |
@@ -1932,9 +1932,9 @@ isshou (一生, a lifetime) — what a thing goes through, recorded and read bac
 | `isshou::raifusaikuru::any(preds)` |  |  |  | any: Some predicate holds. Unknown when none holds and one is unknown. |
 | `isshou::raifusaikuru::lc_not(pred)` |  |  | `B0013` | lc_not: The predicate does not hold. The negation of unknown is unknown. |
 | `isshou::raifusaikuru::task(name, evidence, escalate_after)` |  |  |  | task: A task spec: its name, the evidence kinds that close it, and how long it may |
-| `isshou::raifusaikuru::task_name(t)` |  |  |  |  |
-| `isshou::raifusaikuru::task_evidence(t)` |  |  |  |  |
-| `isshou::raifusaikuru::task_escalate_after(t)` |  |  |  |  |
+| `isshou::raifusaikuru::task_name(t)` |  |  |  | task_name: A task spec's name. |
+| `isshou::raifusaikuru::task_evidence(t)` |  |  |  | task_evidence: The evidence kinds that close a task spec. |
+| `isshou::raifusaikuru::task_escalate_after(t)` |  |  |  | task_escalate_after: How long a task spec may stay open before it escalates. |
 | `isshou::raifusaikuru::rule(name, pred)` |  |  |  | rule: A named rule. A guard allows its capability only when every rule holds. |
 | `isshou::raifusaikuru::rule_task(name, pred, task)` |  |  |  | rule_task: A named rule whose refusal asks for its own task. |
 | `isshou::raifusaikuru::guard(capability, rules, task)` |  |  |  | guard: The guard for a capability: its rules, all of which must hold, and the task |
@@ -1946,92 +1946,92 @@ isshou (一生, a lifetime) — what a thing goes through, recorded and read bac
 | `isshou::raifusaikuru::link(role, target)` |  |  |  | link: This lifecycle's records may carry links of kind `role`, each naming an |
 | `isshou::raifusaikuru::span(name, from, to, limit)` |  |  |  | span: A span: the time from an entity's first entry into state `from` to its |
 | `isshou::raifusaikuru::span_name(s)` |  |  |  | span_name: A declared span's parts, as lc_d_spans returns them: [name, from, to, limit]. |
-| `isshou::raifusaikuru::span_from(s)` |  |  |  |  |
-| `isshou::raifusaikuru::span_to(s)` |  |  |  |  |
-| `isshou::raifusaikuru::span_limit(s)` |  |  |  |  |
+| `isshou::raifusaikuru::span_from(s)` |  |  |  | span_from: The state a declared span starts at. |
+| `isshou::raifusaikuru::span_to(s)` |  |  |  | span_to: The state a declared span ends at. |
+| `isshou::raifusaikuru::span_limit(s)` |  |  |  | span_limit: The longest a declared span should take, or nil for none. |
 | `isshou::raifusaikuru::flat(clauses)` |  |  |  | flat: A clause is a list headed by a keyword; anything else is a list of clauses |
-| `isshou::raifusaikuru::flat_one(c)` |  |  |  |  |
-| `isshou::raifusaikuru::tagged(flat, tag)` |  |  |  |  |
-| `isshou::raifusaikuru::known_tags` |  |  |  |  |
+| `isshou::raifusaikuru::flat_one(c)` |  |  |  | flat_one: One element of a clause list as clauses: a keyword-headed list is itself, |
+| `isshou::raifusaikuru::tagged(flat, tag)` |  |  |  | tagged: The clauses of a flat clause list that carry `tag`, in order. |
+| `isshou::raifusaikuru::known_tags` |  |  |  | known_tags: Every clause tag a definition may hold; any other is a :bad_clause. |
 | `isshou::raifusaikuru::parse(name, clauses)` |  |  |  | parse: The parsed form, which lc_define seals as the definition once it validates: |
 | `isshou::raifusaikuru::permit_log_keys(permits, capability)` |  |  |  | permit_log_keys: The payload keys of a logged permit for `capability`: subject, not_after, |
-| `isshou::raifusaikuru::d_name(d)` |  |  |  |  |
-| `isshou::raifusaikuru::d_flat(d)` |  |  |  |  |
-| `isshou::raifusaikuru::d_states(d)` |  |  |  |  |
-| `isshou::raifusaikuru::d_starts(d)` |  |  |  |  |
-| `isshou::raifusaikuru::d_start(d)` |  |  |  |  |
-| `isshou::raifusaikuru::d_terminals(d)` |  |  |  |  |
-| `isshou::raifusaikuru::d_rests(d)` |  |  |  |  |
-| `isshou::raifusaikuru::d_fields(d)` |  |  |  |  |
+| `isshou::raifusaikuru::d_name(d)` |  |  |  | d_name: A definition's name. |
+| `isshou::raifusaikuru::d_flat(d)` |  |  |  | d_flat: A definition's clauses, flattened. |
+| `isshou::raifusaikuru::d_states(d)` |  |  |  | d_states: A definition's declared states, in declaration order. |
+| `isshou::raifusaikuru::d_starts(d)` |  |  |  | d_starts: Every start a definition declares; a sound one has exactly one. |
+| `isshou::raifusaikuru::d_start(d)` |  |  |  | d_start: The state a new entity of the definition starts in. |
+| `isshou::raifusaikuru::d_terminals(d)` |  |  |  | d_terminals: A definition's terminal states. |
+| `isshou::raifusaikuru::d_rests(d)` |  |  |  | d_rests: A definition's resting states that are not terminals. |
+| `isshou::raifusaikuru::d_fields(d)` |  |  |  | d_fields: A definition's fields, [name, initial], in declaration order. |
 | `isshou::raifusaikuru::d_names(d, i)` |  |  |  | d_names: The names of the declarations in slot `i` of a definition: the first of each. |
-| `isshou::raifusaikuru::d_field_names(d)` |  |  |  |  |
-| `isshou::raifusaikuru::d_events(d)` |  |  |  |  |
-| `isshou::raifusaikuru::d_event_names(d)` |  |  |  |  |
-| `isshou::raifusaikuru::d_edges(d)` |  |  |  |  |
-| `isshou::raifusaikuru::d_guards(d)` |  |  |  |  |
-| `isshou::raifusaikuru::d_capabilities(d)` |  |  |  |  |
-| `isshou::raifusaikuru::d_permits(d)` |  |  |  |  |
+| `isshou::raifusaikuru::d_field_names(d)` |  |  |  | d_field_names: The names of a definition's fields. |
+| `isshou::raifusaikuru::d_events(d)` |  |  |  | d_events: A definition's events, [name, keys], in declaration order. |
+| `isshou::raifusaikuru::d_event_names(d)` |  |  |  | d_event_names: The names of a definition's events. |
+| `isshou::raifusaikuru::d_edges(d)` |  |  |  | d_edges: A definition's transition rows, [:lc_edge, from, event, to, effects, capability]. |
+| `isshou::raifusaikuru::d_guards(d)` |  |  |  | d_guards: A definition's guard clauses. |
+| `isshou::raifusaikuru::d_capabilities(d)` |  |  |  | d_capabilities: The capabilities a definition guards. |
+| `isshou::raifusaikuru::d_permits(d)` |  |  |  | d_permits: A definition's permit clauses. |
 | `isshou::raifusaikuru::d_links(d)` |  |  |  | d_links: The declared links, [role, target], in declaration order. |
 | `isshou::raifusaikuru::d_permit_logs(d)` |  |  |  | d_permit_logs: The permit logs, [capability, event], in declaration order. |
 | `isshou::raifusaikuru::d_spans(d)` |  |  |  | d_spans: The declared spans, [name, from, to, limit], in declaration order. |
 | `isshou::raifusaikuru::problem_kinds` |  |  |  | problem_kinds: Every kind of problem the builder reports. Closed: lc_problem refuses any |
-| `isshou::raifusaikuru::problem(kind, why)` |  |  |  |  |
+| `isshou::raifusaikuru::problem(kind, why)` |  |  |  | problem: One finding, [kind, why]. A kind outside problem_kinds is an internal error, |
 | `isshou::raifusaikuru::problem_kind(p)` |  |  |  | problem_kind: A problem's kind, one of lc_problem_kinds(). |
 | `isshou::raifusaikuru::problem_why(p)` |  |  |  | problem_why: A problem's explanation, naming what is wrong and where. |
-| `isshou::raifusaikuru::problem_text(p)` |  |  |  |  |
+| `isshou::raifusaikuru::problem_text(p)` |  |  |  | problem_text: A problem as one line: its kind, a colon, its explanation. |
 | `isshou::raifusaikuru::dupes(xs)` |  |  |  | dupes: Every value that occurs more than once, once each, in first-seen order. |
 | `isshou::raifusaikuru::int_at_least?(x, low)` |  |  |  | int_at_least?: True when `x` is an integer no smaller than `low`. |
-| `isshou::raifusaikuru::positive_int?(x)` |  |  |  |  |
+| `isshou::raifusaikuru::positive_int?(x)` |  |  |  | positive_int?: True when `x` is an integer of at least 1. |
 | `isshou::raifusaikuru::problems(name, clauses)` |  |  |  | problems: Why a definition would be refused: a list of [kind, why], empty when it is |
 | `isshou::raifusaikuru::check(p)` |  |  |  | check: find unreachable states, duplicates and bad guards. |
 | `isshou::raifusaikuru::pb_spans(p)` |  |  |  | pb_spans: A span names two declared states, `to` reachable from `from`, with a limit |
-| `isshou::raifusaikuru::pb_span(p, s)` |  |  |  |  |
+| `isshou::raifusaikuru::pb_span(p, s)` |  |  |  | pb_span: The problems of one span: a name that is not a name, an undeclared state, a |
 | `isshou::raifusaikuru::pb_permit_logs(p)` |  |  |  | pb_permit_logs: A permit log names a capability that has an lc_permit, once. |
 | `isshou::raifusaikuru::pb_links(p)` |  |  |  | pb_links: A link names a role and a target lifecycle, one row per role. |
-| `isshou::raifusaikuru::pb_shape(p)` |  |  |  |  |
-| `isshou::raifusaikuru::pb_clause(c)` |  |  |  |  |
-| `isshou::raifusaikuru::pb_names(p)` |  |  |  |  |
+| `isshou::raifusaikuru::pb_shape(p)` |  |  |  | pb_shape: The problems of a definition's outline: a name that is not a keyword or a |
+| `isshou::raifusaikuru::pb_clause(c)` |  |  |  | pb_clause: The problem one unknown clause makes: a gated clause that is not a row, a |
+| `isshou::raifusaikuru::pb_names(p)` |  |  |  | pb_names: The problems of the declared names: no states, a value that is not a name, |
 | `isshou::raifusaikuru::pb_declared(x, declared, where, kind, what)` |  |  |  | pb_declared: No problem when `x` is among `declared`; otherwise one problem of `kind` |
-| `isshou::raifusaikuru::pb_state(s, states, where)` |  |  |  |  |
-| `isshou::raifusaikuru::pb_start(p)` |  |  |  |  |
-| `isshou::raifusaikuru::edge_where(e)` |  |  |  |  |
-| `isshou::raifusaikuru::pb_edges(p)` |  |  |  |  |
-| `isshou::raifusaikuru::pb_edge(p, e)` |  |  |  |  |
-| `isshou::raifusaikuru::pb_field(f, fields, where)` |  |  |  |  |
-| `isshou::raifusaikuru::pb_effect(p, eff, keys, where)` |  |  |  |  |
+| `isshou::raifusaikuru::pb_state(s, states, where)` |  |  |  | pb_state: No problem when `s` is a declared state, else one :unknown_state at `where`. |
+| `isshou::raifusaikuru::pb_start(p)` |  |  |  | pb_start: The problems of a definition's start, terminals and rests: no start, more |
+| `isshou::raifusaikuru::edge_where(e)` |  |  |  | edge_where: Where a row is, as a problem names it. |
+| `isshou::raifusaikuru::pb_edges(p)` |  |  |  | pb_edges: The problems of every row, and of two rows leaving one state on one event. |
+| `isshou::raifusaikuru::pb_edge(p, e)` |  |  |  | pb_edge: The problems of one row: an undeclared state at either end, an undeclared |
+| `isshou::raifusaikuru::pb_field(f, fields, where)` |  |  |  | pb_field: No problem when `f` is a declared field, else one :unknown_field at `where`. |
+| `isshou::raifusaikuru::pb_effect(p, eff, keys, where)` |  |  |  | pb_effect: The problems of one effect on a row whose event carries `keys`: not an |
 | `isshou::raifusaikuru::forward(pairs, seeds, n)` |  |  |  | forward: States reachable from `seeds` along `pairs` ([from, to]), within n rounds. |
 | `isshou::raifusaikuru::backward(pairs, goals, n)` |  |  |  | backward: States that can reach `goals` along `pairs`, within n rounds. |
 | `isshou::raifusaikuru::reach(pairs, seeds, n, from, to)` |  |  |  | reach: `seeds` and every state reached from them within n rounds, stepping from slot |
-| `isshou::raifusaikuru::pb_graph(p)` |  |  |  |  |
-| `isshou::raifusaikuru::pb_graph_of(p, states)` |  |  |  |  |
-| `isshou::raifusaikuru::pb_pred(pr, fields, states, where)` |  |  |  |  |
-| `isshou::raifusaikuru::pb_task(t, where)` |  |  |  |  |
-| `isshou::raifusaikuru::rule?(r)` |  |  |  |  |
-| `isshou::raifusaikuru::pb_guards(p)` |  |  |  |  |
-| `isshou::raifusaikuru::pb_guard(p, g)` |  |  |  |  |
+| `isshou::raifusaikuru::pb_graph(p)` |  |  |  | pb_graph: The graph problems of a definition whose states and one start are sound; |
+| `isshou::raifusaikuru::pb_graph_of(p, states)` |  |  |  | pb_graph_of: The graph problems over `states`: a terminal with an exit, a trap, a state |
+| `isshou::raifusaikuru::pb_pred(pr, fields, states, where)` |  |  |  | pb_pred: The problems of a predicate at `where`, over the declared `fields` and |
+| `isshou::raifusaikuru::pb_task(t, where)` |  |  |  | pb_task: The problems of a task spec at `where`: not a task, not named by a name, no |
+| `isshou::raifusaikuru::rule?(r)` |  |  |  | rule?: Whether a value has the shape lc_rule and lc_rule_task build. |
+| `isshou::raifusaikuru::pb_guards(p)` |  |  |  | pb_guards: The problems of every guard, and of two guards for one capability. |
+| `isshou::raifusaikuru::pb_guard(p, g)` |  |  |  | pb_guard: The problems of one guard: a capability that is not a name, no rules, a |
 | `isshou::raifusaikuru::conjuncts(pr)` |  |  |  | conjuncts: The atoms in positive conjunctive position: each rule's predicate, and |
-| `isshou::raifusaikuru::atoms(pr)` |  |  |  |  |
+| `isshou::raifusaikuru::atoms(pr)` |  |  |  | atoms: Every atom of a predicate, beneath lc_all, lc_any and lc_not alike. |
 | `isshou::raifusaikuru::hidden_atoms(pr)` |  |  |  | hidden_atoms: Every atom beneath an lc_any or an lc_not. |
 | `isshou::raifusaikuru::guard_pred(g)` |  |  |  | guard_pred: The guard as one predicate: the conjunction of its rules. |
 | `isshou::raifusaikuru::drifts?(atom, counted)` |  |  |  | drifts?: An atom that changes as a permit is used: any lc_fresh (time passes), or a |
-| `isshou::raifusaikuru::pb_permits(p)` |  |  |  |  |
-| `isshou::raifusaikuru::pb_permit(p, pm)` |  |  |  |  |
-| `isshou::raifusaikuru::pb_permit_terms(p, pm, g, where)` |  |  |  |  |
-| `isshou::raifusaikuru::permit_term?(t, fields)` |  |  |  |  |
+| `isshou::raifusaikuru::pb_permits(p)` |  |  |  | pb_permits: The problems of every permit, and of two permits for one capability. |
+| `isshou::raifusaikuru::pb_permit(p, pm)` |  |  |  | pb_permit: The problems of one permit: a capability no guard declares, else the |
+| `isshou::raifusaikuru::pb_permit_terms(p, pm, g, where)` |  |  |  | pb_permit_terms: The problems of a permit's terms against its guard: a term that is not |
+| `isshou::raifusaikuru::permit_term?(t, fields)` |  |  |  | permit_term?: Whether `t` is a sound permit term over `fields`: a valid_for of a |
 | `isshou::raifusaikuru::lc_define(name, clauses)` |  |  | `B0013` | lc_define: Build a lifecycle definition from clauses, or throw :raifusaikuru_definition |
-| `isshou::raifusaikuru::lc_require(d)` |  |  | `B0013` |  |
+| `isshou::raifusaikuru::lc_require(d)` |  |  | `B0013` | lc_require: `d` itself when it is a definition lc_define built; anything else is |
 | `isshou::raifusaikuru::name(d)` |  |  |  | name: The definition's name. |
-| `isshou::raifusaikuru::edge_for(d, phase, event)` |  |  |  |  |
+| `isshou::raifusaikuru::edge_for(d, phase, event)` |  |  |  | edge_for: The row that event `event` takes from state `phase`, or nil when none does. |
 | `isshou::raifusaikuru::legal_events(d, phase)` |  |  |  | legal_events: The events accepted in a state, in declaration order: what an illegal |
 | `isshou::raifusaikuru::capability_row(rows, capability)` |  |  |  | capability_row: The first row whose second slot is `capability`, or nil. |
-| `isshou::raifusaikuru::guard_for(d, capability)` |  |  |  |  |
-| `isshou::raifusaikuru::permit_spec_for(d, capability)` |  |  |  |  |
+| `isshou::raifusaikuru::guard_for(d, capability)` |  |  |  | guard_for: The guard clause of `capability`, or nil when the definition guards none. |
+| `isshou::raifusaikuru::permit_spec_for(d, capability)` |  |  |  | permit_spec_for: The permit clause of `capability`, or nil when it has none. |
 | `isshou::raifusaikuru::ev(type, time, payload)` |  |  |  | ev: An event: its type, its time on the caller's clock, and its payload as |
-| `isshou::raifusaikuru::ev_type(ev)` |  |  |  |  |
-| `isshou::raifusaikuru::ev_time(ev)` |  |  |  |  |
-| `isshou::raifusaikuru::ev_payload(ev)` |  |  |  |  |
+| `isshou::raifusaikuru::ev_type(ev)` |  |  |  | ev_type: An event's type. |
+| `isshou::raifusaikuru::ev_time(ev)` |  |  |  | ev_time: An event's time, on the caller's clock. |
+| `isshou::raifusaikuru::ev_payload(ev)` |  |  |  | ev_payload: An event's payload, as [key, value] pairs. |
 | `isshou::raifusaikuru::ev_get(ev, key)` |  |  |  | ev_get: A payload value, or nil when the key is absent. |
-| `isshou::raifusaikuru::ev_has?(ev, key)` |  |  |  |  |
+| `isshou::raifusaikuru::ev_has?(ev, key)` |  |  |  | ev_has?: Whether the event's payload carries `key`, even with a nil value. |
 | `isshou::raifusaikuru::initial(d)` |  |  |  | initial: The state before any event. A state is |
 | `isshou::raifusaikuru::phase(s)` |  |  |  | phase: The state the entity is in. |
 | `isshou::raifusaikuru::fields(s)` |  |  |  | fields: Every field as [name, value], in declaration order. |
@@ -2039,20 +2039,20 @@ isshou (一生, a lifetime) — what a thing goes through, recorded and read bac
 | `isshou::raifusaikuru::seq(s)` |  |  |  | seq: How many events the state has consumed, accepted or refused: the position |
 | `isshou::raifusaikuru::as_of(s)` |  |  |  | as_of: The time of the last applied event, or nil before any. |
 | `isshou::raifusaikuru::refused(s)` |  |  |  | refused: Refused events, oldest first: [position, type, kind, detail]. kind is |
-| `isshou::raifusaikuru::refusal_position(r)` |  |  |  |  |
-| `isshou::raifusaikuru::refusal_type(r)` |  |  |  |  |
-| `isshou::raifusaikuru::refusal_kind(r)` |  |  |  |  |
-| `isshou::raifusaikuru::refusal_detail(r)` |  |  |  |  |
+| `isshou::raifusaikuru::refusal_position(r)` |  |  |  | refusal_position: The position in the log of a refused event. |
+| `isshou::raifusaikuru::refusal_type(r)` |  |  |  | refusal_type: The type of a refused event. |
+| `isshou::raifusaikuru::refusal_kind(r)` |  |  |  | refusal_kind: Why an event was refused, one of the kinds `refused` lists. |
+| `isshou::raifusaikuru::refusal_detail(r)` |  |  |  | refusal_detail: What a refusal names: the legal events, the missing keys, or the key or |
 | `isshou::raifusaikuru::breaches(s)` |  |  |  | breaches: Breaches, oldest first: [position, type, capability, refusing rules]. A gated |
-| `isshou::raifusaikuru::breach_position(b)` |  |  |  |  |
-| `isshou::raifusaikuru::breach_type(b)` |  |  |  |  |
-| `isshou::raifusaikuru::breach_capability(b)` |  |  |  |  |
-| `isshou::raifusaikuru::breach_rules(b)` |  |  |  |  |
+| `isshou::raifusaikuru::breach_position(b)` |  |  |  | breach_position: The position in the log of a breaching event. |
+| `isshou::raifusaikuru::breach_type(b)` |  |  |  | breach_type: The type of a breaching event. |
+| `isshou::raifusaikuru::breach_capability(b)` |  |  |  | breach_capability: The capability a breaching event used. |
+| `isshou::raifusaikuru::breach_rules(b)` |  |  |  | breach_rules: The rules that refused when the breaching event happened. |
 | `isshou::raifusaikuru::judge(d, s, ev)` |  |  |  | judge: The one decision about an event in a state: |
-| `isshou::raifusaikuru::judge_row(d, s, ev, e)` |  |  |  |  |
-| `isshou::raifusaikuru::put_field(fs, f, v)` |  |  |  |  |
-| `isshou::raifusaikuru::put_pair(kv, f, v)` |  |  |  |  |
-| `isshou::raifusaikuru::effect(fs, eff, ev)` |  |  |  |  |
+| `isshou::raifusaikuru::judge_row(d, s, ev, e)` |  |  |  | judge_row: The decision for an event that has a row: refused for a missing payload |
+| `isshou::raifusaikuru::put_field(fs, f, v)` |  |  |  | put_field: The [name, value] pairs with field `f` set to `v`, order kept. |
+| `isshou::raifusaikuru::put_pair(kv, f, v)` |  |  |  | put_pair: One [name, value] pair, its value replaced by `v` when its name is `f`. |
+| `isshou::raifusaikuru::effect(fs, eff, ev)` |  |  |  | effect: The fields after one effect of an accepted event: set from a payload key, put a |
 | `isshou::raifusaikuru::step(d, s, ev)` |  |  |  | step: One event, folded. Total: a refused event is recorded and changes nothing |
 | `isshou::raifusaikuru::lc_apply(_d, s, ev, j)` |  |  | `B0013` | lc_apply: The state after an event lc_judge has already decided: the second half of |
 | `isshou::raifusaikuru::resume(d, s, events)` |  |  |  | resume: Continue a fold from a state. |
@@ -2060,53 +2060,53 @@ isshou (一生, a lifetime) — what a thing goes through, recorded and read bac
 | `isshou::raifusaikuru::admit(d, s, ev)` |  |  |  | admit: Would `ev` be accepted in `s`? [:admit], or [:reject, kind, detail] with the |
 | `isshou::raifusaikuru::admission(j)` |  |  |  | admission: lc_judge's decision as lc_admit answers it. |
 | `isshou::raifusaikuru::admit_step(d, s, ev)` |  |  |  | admit_step: lc_admit and lc_step from ONE judgement: [admission, state after]. An |
-| `isshou::raifusaikuru::admitted?(a)` |  |  |  |  |
-| `isshou::raifusaikuru::reject_kind(a)` |  |  |  |  |
-| `isshou::raifusaikuru::reject_detail(a)` |  |  |  |  |
-| `isshou::raifusaikuru::k(b)` |  |  |  |  |
+| `isshou::raifusaikuru::admitted?(a)` |  |  |  | admitted?: Whether an admission accepts the event. |
+| `isshou::raifusaikuru::reject_kind(a)` |  |  |  | reject_kind: Why an admission rejects: a fold refusal kind, or :guard. |
+| `isshou::raifusaikuru::reject_detail(a)` |  |  |  | reject_detail: What a rejection names: the refusal's detail, or the guard's verdict. |
+| `isshou::raifusaikuru::k(b)` |  |  |  | k: A boolean as a three-valued truth: :yes or :no. |
 | `isshou::raifusaikuru::k_absorb(vs, dominant, otherwise)` |  |  |  | k_absorb: Three-valued fold: `dominant` if any value is, else :unknown if any is, |
-| `isshou::raifusaikuru::k_and(vs)` |  |  |  |  |
-| `isshou::raifusaikuru::k_or(vs)` |  |  |  |  |
-| `isshou::raifusaikuru::k_not(v)` |  |  |  |  |
-| `isshou::raifusaikuru::lc_compare(op, v, limit)` |  |  | `B0013` |  |
+| `isshou::raifusaikuru::k_and(vs)` |  |  |  | k_and: Three-valued and: :no if any value is, else :unknown if any is, else :yes. |
+| `isshou::raifusaikuru::k_or(vs)` |  |  |  | k_or: Three-valued or: :yes if any value is, else :unknown if any is, else :no. |
+| `isshou::raifusaikuru::k_not(v)` |  |  |  | k_not: Three-valued not: :yes and :no swap, and :unknown stays unknown. |
+| `isshou::raifusaikuru::lc_compare(op, v, limit)` |  |  | `B0013` | lc_compare: A numeric comparison named by a predicate's op: :lt, :le, :gt, else :ge. |
 | `isshou::raifusaikuru::lc_eval(pr, s, now)` |  |  | `B0013` | lc_eval: A predicate over a state at time `now`: :yes, :no or :unknown. A comparison |
-| `isshou::raifusaikuru::task_or(rule, default)` |  |  |  |  |
+| `isshou::raifusaikuru::task_or(rule, default)` |  |  |  | task_or: The task a refusing rule asks for: its own, else the guard's `default`. |
 | `isshou::raifusaikuru::allowed(d, s, capability, now)` |  |  |  | allowed: Is `capability` allowed in `s` at time `now`? The verdict is data: |
-| `isshou::raifusaikuru::is_allowed(v)` |  |  |  |  |
-| `isshou::raifusaikuru::verdict_capability(v)` |  |  |  |  |
+| `isshou::raifusaikuru::is_allowed(v)` |  |  |  | is_allowed: Whether a verdict allows its capability. |
+| `isshou::raifusaikuru::verdict_capability(v)` |  |  |  | verdict_capability: The capability a verdict is about. |
 | `isshou::raifusaikuru::refused_rules(v)` |  |  |  | refused_rules: The refusing rules' names, in the guard's order; [] when allowed. |
 | `isshou::raifusaikuru::refused_rule(v)` |  |  |  | refused_rule: The rule that refused (the first, in the guard's order), or nil when allowed. |
 | `isshou::raifusaikuru::verdict_tasks(v)` |  |  |  | verdict_tasks: The task specs a refusal asks for; [] when allowed. |
 | `isshou::raifusaikuru::pred_fields(pr)` |  |  |  | pred_fields: The fields a predicate reads, once each, in first-seen order. |
-| `isshou::raifusaikuru::observed(pr, s)` |  |  |  |  |
-| `isshou::raifusaikuru::pred_has?(pr, target)` |  |  |  |  |
+| `isshou::raifusaikuru::observed(pr, s)` |  |  |  | observed: The value in `s` of each field a predicate reads, as [field, value]. |
+| `isshou::raifusaikuru::pred_has?(pr, target)` |  |  |  | pred_has?: Whether a predicate holds an atom of op `target` anywhere inside it. |
 | `isshou::raifusaikuru::pred_text(pr)` |  |  |  | pred_text: A predicate as words: "quality below 24". |
-| `isshou::raifusaikuru::observed_text(kv)` |  |  |  |  |
-| `isshou::raifusaikuru::reason_text(r)` |  |  |  |  |
+| `isshou::raifusaikuru::observed_text(kv)` |  |  |  | observed_text: One observed [field, value] as words, an absent value said as such. |
+| `isshou::raifusaikuru::reason_text(r)` |  |  |  | reason_text: One refusal reason as a sentence: the rule, what it needs, and what was |
 | `isshou::raifusaikuru::why(v)` |  |  |  | why: Each refusal as a sentence a person can act on: |
-| `isshou::raifusaikuru::min_known(xs)` |  |  |  |  |
+| `isshou::raifusaikuru::min_known(xs)` |  |  |  | min_known: The least of the values that are not nil, or nil when none is. |
 | `isshou::raifusaikuru::time_bound(g, s)` |  |  |  | time_bound: The moment the guard could first stop holding as time passes: the earliest |
 | `isshou::raifusaikuru::count_bound(g, s, field)` |  |  |  | count_bound: How many more uses (one unit of `field` each) keep every conjunct on it |
-| `isshou::raifusaikuru::uses_left(op, v, limit)` |  |  |  |  |
+| `isshou::raifusaikuru::uses_left(op, v, limit)` |  |  |  | uses_left: How many more uses of one unit each keep one conjunct true: below L allows |
 | `isshou::raifusaikuru::permit_for(d, s, capability, now)` |  |  |  | permit_for: The permit for `capability` in `s` at `now`, as data: |
-| `isshou::raifusaikuru::permit_limits(d, s, spec, now)` |  |  |  |  |
-| `isshou::raifusaikuru::has_permit?(p)` |  |  |  |  |
-| `isshou::raifusaikuru::permit_lifecycle(p)` |  |  |  |  |
-| `isshou::raifusaikuru::permit_capability(p)` |  |  |  |  |
-| `isshou::raifusaikuru::permit_issued_at(p)` |  |  |  |  |
-| `isshou::raifusaikuru::permit_not_after(p)` |  |  |  |  |
-| `isshou::raifusaikuru::permit_counts(p)` |  |  |  |  |
+| `isshou::raifusaikuru::permit_limits(d, s, spec, now)` |  |  |  | permit_limits: The permit an allowed state earns: not_after is the soonest of the |
+| `isshou::raifusaikuru::has_permit?(p)` |  |  |  | has_permit?: Whether permit_for answered a permit rather than :no_permit. |
+| `isshou::raifusaikuru::permit_lifecycle(p)` |  |  |  | permit_lifecycle: The lifecycle a permit was issued under. |
+| `isshou::raifusaikuru::permit_capability(p)` |  |  |  | permit_capability: The capability a permit grants. |
+| `isshou::raifusaikuru::permit_issued_at(p)` |  |  |  | permit_issued_at: When a permit was issued, on the caller's clock. |
+| `isshou::raifusaikuru::permit_not_after(p)` |  |  |  | permit_not_after: The last moment a permit is valid. |
+| `isshou::raifusaikuru::permit_counts(p)` |  |  |  | permit_counts: A permit's remaining counts, [field, remaining]. |
 | `isshou::raifusaikuru::permit_count(p, field)` |  |  |  | permit_count: The remaining count of one counted field. |
-| `isshou::raifusaikuru::permit_basis(p)` |  |  |  |  |
+| `isshou::raifusaikuru::permit_basis(p)` |  |  |  | permit_basis: The sequence number of the state a permit's limits were derived from. |
 | `isshou::raifusaikuru::no_permit_why(p)` |  |  |  | no_permit_why: Why there is no permit (:no_permit_declared, :refused, :unbounded, |
-| `isshou::raifusaikuru::no_permit_detail(p)` |  |  |  |  |
+| `isshou::raifusaikuru::no_permit_detail(p)` |  |  |  | no_permit_detail: What a missing permit names: the refusing verdict, or the unbounded field. |
 | `isshou::raifusaikuru::permit_payload(p, subject)` |  |  |  | permit_payload: THE SIGNING SEAM. The canonical text of a permit issued to `subject` (the |
 | `isshou::raifusaikuru::permit_event(d, p, subject)` |  |  |  | permit_event: The issuance of permit `p` to `subject` as the event the definition's |
 | `isshou::raifusaikuru::example_consumable` |  |  |  | example_consumable: A consumable, generic: sealed until opened, then used until spent or |
 | `isshou::raifusaikuru::example_consumable_clauses` |  |  |  | example_consumable_clauses: The example's clauses, before lc_define: a consumer extends the example by |
 | `isshou::raifusaikuru::example_log` |  |  |  | example_log: The example's log: a reading of 10 at 1000, opened at 2000, three uses. |
-| `isshou::raifusaikuru::example_base` |  |  |  | example_base: One row per problem kind: [defect, kind]. Each defect is added to a sound |
-| `isshou::raifusaikuru::example_problem_rows` |  |  |  |  |
+| `isshou::raifusaikuru::example_base` |  |  |  | example_base: The sound base definition each row of example_problem_rows adds its |
+| `isshou::raifusaikuru::example_problem_rows` |  |  |  | example_problem_rows: One row per problem kind: [defect, kind]. Each defect is added to |
 
 ## jisho
 

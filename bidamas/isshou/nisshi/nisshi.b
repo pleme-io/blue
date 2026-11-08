@@ -324,6 +324,8 @@ legacy_names(
 
 @doc """
 format: The format tag, bound into every stream's genesis.
+
+    format #=> "nisshi/1"
 """
 def format()
   "nisshi/1"
@@ -347,6 +349,8 @@ end
 
 @doc """
 refusal_kinds: Every refusal kind a record can carry: lc_admit's. Closed.
+
+    refusal_kinds[5] #=> :guard
 """
 def refusal_kinds()
   %i[unknown_event no_edge missing_payload bad_payload bad_field guard]
@@ -355,6 +359,8 @@ end
 @doc """
 break_kinds: Every break el_verify reports, in the order it prefers them when two fall on
 one line. Closed: a test row exercises each.
+
+    first(break_kinds) #=> :unparseable
 """
 def break_kinds()
   %i[unparseable prev hash not_canonical seq unsigned signature head]
@@ -364,6 +370,9 @@ end
 
 @doc """
 key_text: A key as JSON text: a string itself, a keyword's or symbol's name.
+
+    key_text(:value) #=> "value"
+    (key_text(3) rescue :refused) #=> :refused
 """
 def key_text(k)
   if string?(k)
@@ -381,6 +390,9 @@ end
 # waive B0013: `pair?` is a builtin nisshi also uses, so the prefix stays; isshou::nisshi::pair? names it too
 @doc """
 el_pair?: True for a [name, value] pair.
+
+    el_pair?([:k, 1]) #=> true
+    el_pair?([1, 2]) #=> false
 """
 def el_pair?(p)
   list?(p) and
@@ -391,6 +403,9 @@ end
 @doc """
 object?: True for a value JSON writes as an object: a non-empty list whose every
 element is a [name, value] pair, the runtime's own rule.
+
+    object?([["a", 1]]) #=> true
+    object?([]) #=> false
 """
 def object?(v)
   list?(v) and
@@ -400,6 +415,9 @@ end
 
 @doc """
 empty_object?: True for the value json_parse gives an empty object: a map that writes "{}".
+
+    empty_object?(json_parse("{}")) #=> true
+    empty_object?([]) #=> false
 """
 def empty_object?(v)
   v != nil and list?(v) == false and json_stringify(v) == "{}"
@@ -436,6 +454,13 @@ def canon(v)
   end
 end
 
+@doc """
+canon_list: The canonical text of a list: an object when every element is a pair,
+else an array.
+
+    canon_list([1, "a"]) #=> "[1,\"a\"]"
+    canon_list([["b", 1], ["a", 2]]) #=> "{\"a\":2,\"b\":1}"
+"""
 def canon_list(v)
   if object?(v)
     canon_object(v)
@@ -444,6 +469,11 @@ def canon_list(v)
   end
 end
 
+@doc """
+canon_float: The JSON text of a finite float; a float JSON cannot write is refused.
+
+    canon_float(1.5) #=> "1.5"
+"""
 def canon_float(x)
   t = json_stringify(x)
   if t == "null"
@@ -458,6 +488,9 @@ end
 @doc """
 sorted_pairs: Pairs ordered by key text, in code-point order (what `compare` gives).
 Raises when a pair is not [name, value] or two keys share one text.
+
+    sorted_pairs([["b", 1], [:a, 2]]) #=> [[:a, 2], ["b", 1]]
+    (sorted_pairs([["a", 1], [:a, 2]]) rescue :refused) #=> :refused
 """
 def sorted_pairs(pairs)
   checked = map(require_pair, as_list(pairs))
@@ -473,6 +506,13 @@ def sorted_pairs(pairs)
   sorted
 end
 
+@doc """
+require_pair: `p` itself when it is a [name, value] pair; anything else is refused as
+:eventlog_value.
+
+    require_pair(["a", 1]) #=> ["a", 1]
+    (require_pair([1, 2]) rescue :refused) #=> :refused
+"""
 def require_pair(p)
   if el_pair?(p) == false
     raise(
@@ -492,17 +532,27 @@ def canon_object(pairs)
   "{#{join(map(canon_member, sorted_pairs(pairs)), ",")}}"
 end
 
+@doc """
+canon_member: One object member as canonical text: the key as a JSON string, a colon,
+the value's canonical text.
+
+    canon_member([:n, 3]) #=> "\"n\":3"
+"""
 def canon_member(p)
   "#{json_stringify(key_text(first(p)))}:#{canon(p[1])}"
 end
 
 # ── names: what JSON keeps, and what the definition restores ──────────────
 
-# The definition's names indexed by their text: a map from an event type's
-# text to [type, keys], keys a map from a payload key's text to the key.
-# Built once per log value, so restoring a name is a lookup, not a search.
-# Raises :eventlog_use when two events, or two keys of one event, share a
-# text: the log writes names as text and could not tell them apart.
+@doc """
+names: The definition's names indexed by their text: a map from an event type's
+text to [type, keys], keys a map from a payload key's text to the key.
+Built once per log value, so restoring a name is a lookup, not a search.
+Two events, or two keys of one event, that share a text are refused: the
+log writes names as text and could not tell them apart.
+
+    first(get(names(isshou::raifusaikuru::example_consumable), "reading")) #=> :reading
+"""
 def names(d)
   events = isshou::raifusaikuru::d_events(d)
   require_distinct(
@@ -522,6 +572,13 @@ def names(d)
   )
 end
 
+@doc """
+key_index: A map from each payload key's text to the key; two keys with one text are
+refused as :eventlog_use.
+
+    get(key_index([:value]), "value") #=> :value
+    (key_index([:a, "a"]) rescue :refused) #=> :refused
+"""
 def key_index(keys)
   require_distinct(
     map((k) -> isshou::raifusaikuru::text(k), as_list(keys)),
@@ -534,6 +591,13 @@ def key_index(keys)
   )
 end
 
+@doc """
+require_distinct: Nothing when the names' texts are distinct; two of one text are refused
+as :eventlog_use, naming `what` they are.
+
+    require_distinct(%w[a b], "event") #=> nil
+    (require_distinct(%w[a a], "event") rescue :refused) #=> :refused
+"""
 def require_distinct(texts, what)
   if size(unique(texts)) != size(texts)
     raise(
@@ -545,6 +609,9 @@ end
 
 @doc """
 type_named: The type named by text `t`: the definition's own name, or the text itself.
+
+    type_named(names(isshou::raifusaikuru::example_consumable), "open") #=> :open
+    type_named(names(isshou::raifusaikuru::example_consumable), "fly") #=> "fly"
 """
 def type_named(names, t)
   hit = get(names, t)
@@ -558,6 +625,9 @@ end
 @doc """
 key_named: The payload key named by text `k` for type `ty`: the key the definition
 declares, or the text itself.
+
+    key_named(names(isshou::raifusaikuru::example_consumable), :reading, "value") #=> :value
+    key_named(names(isshou::raifusaikuru::example_consumable), :reading, "other") #=> "other"
 """
 def key_named(names, ty, k)
   hit = get(names, isshou::raifusaikuru::text(ty))
@@ -576,6 +646,8 @@ end
 @doc """
 normal_event: The event as the log holds it: its type and payload keys as the definition
 names them (text where it names none), and every object in key order.
+
+    normal_event(names(isshou::raifusaikuru::example_consumable), ["reading", 5, [["value", 7]]]) #=> [:reading, 5, [[:value, 7]]]
 """
 def normal_event(names, ev)
   ty = type_named(
@@ -593,6 +665,8 @@ end
 normal_value: A value with every object in it put in key order, which is all canonical
 JSON changes about a value that survives it. Keys keep their kind, so a
 keyword key still fails the round trip it cannot survive.
+
+    normal_value([["b", 1], ["a", [["d", 2], ["c", 3]]]]) #=> [["a", [["c", 3], ["d", 2]]], ["b", 1]]
 """
 def normal_value(v)
   if v.nil?
@@ -612,6 +686,9 @@ end
 refusal_of: The refusal an admission verdict gives a record: nil when admitted, else
 [kind, detail], the detail as text (the legal events, the missing keys, the
 offending key or field, or the refusing rules).
+
+    refusal_of([:admit]) #=> nil
+    refusal_of([:reject, :no_edge, %i[open reading]]) #=> [:no_edge, %w[open reading]]
 """
 def refusal_of(verdict)
   if isshou::raifusaikuru::admitted?(verdict)
@@ -627,6 +704,13 @@ def refusal_of(verdict)
   end
 end
 
+@doc """
+detail_texts: A rejection's detail as a list of texts: the refusing rules for :guard,
+none for nil, else each name as text.
+
+    detail_texts(:bad_field, :uses) #=> ["uses"]
+    detail_texts(:unknown_event, nil) #=> []
+"""
 def detail_texts(kind, detail)
   if kind == :guard
     map(
@@ -642,6 +726,12 @@ def detail_texts(kind, detail)
   end
 end
 
+@doc """
+refusal_text: A record's refusal as canonical JSON: null when admitted.
+
+    refusal_text(nil) #=> "null"
+    refusal_text([:bad_field, ["uses"]]) #=> "{\"detail\":[\"uses\"],\"kind\":\"bad_field\"}"
+"""
 def refusal_text(rf)
   if rf.nil?
     "null"
@@ -652,11 +742,20 @@ end
 
 @doc """
 normal_links: Links as the log holds them: [kind, id] pairs, the kind as text, in order.
+
+    normal_links([[:batch, "b-1"]]) #=> [["batch", "b-1"]]
 """
 def normal_links(links)
   map(normal_link, as_list(links))
 end
 
+@doc """
+normal_link: One link as the log holds it, [kind as text, id]; anything but a name and
+a string is refused as :eventlog_value.
+
+    normal_link([:batch, "b-1"]) #=> ["batch", "b-1"]
+    (normal_link([:batch, 1]) rescue :refused) #=> :refused
+"""
 def normal_link(l)
   if list?(l) and
       size(l) == 2 and
@@ -671,10 +770,20 @@ def normal_link(l)
   end
 end
 
+@doc """
+links_text: Links as a canonical JSON array of objects.
+
+    links_text([]) #=> "[]"
+"""
 def links_text(links)
   bracketed(links, link_text, ",")
 end
 
+@doc """
+link_text: One link as a canonical JSON object, keys in code-point order.
+
+    link_text(["batch", "b-1"]) #=> "{\"id\":\"b-1\",\"kind\":\"batch\"}"
+"""
 def link_text(l)
   "{\"id\":#{json_stringify(l[1])},\"kind\":#{json_stringify(first(l))}}"
 end
@@ -684,6 +793,8 @@ end
 @doc """
 texts: The canonical text of each body field, in key order: entity, links,
 payload, refusal, seq, status, time, type.
+
+    texts("e1", [], [], nil, 0, :admitted, 5, :open) #=> ["\"e1\"", "[]", "{}", "null", "0", "\"admitted\"", "5", "\"open\""]
 """
 def texts(entity, links, payload, refusal, seq, status, at, ty)
   [
@@ -700,6 +811,8 @@ end
 
 @doc """
 body_text: The text the chain hashes: the record without prev, hash and sig.
+
+    body_text(texts("e1", [], [], nil, 0, :admitted, 5, :open)) #=> "{\"entity\":\"e1\",\"links\":[],\"payload\":{},\"refusal\":null,\"seq\":0,\"status\":\"admitted\",\"time\":5,\"type\":\"open\"}"
 """
 def body_text(t)
   "{\"entity\":#{t[0]},\"links\":#{t[1]},\"payload\":#{t[2]},\"refusal\":#{t[3]},\"seq\":#{t[4]},\"status\":#{t[5]},\"time\":#{t[6]},\"type\":#{t[7]}}"
@@ -707,15 +820,29 @@ end
 
 @doc """
 line_text: The line a stream holds: every field, keys in code-point order.
+
+    contains?(line_text(texts("e1", [], [], nil, 0, :admitted, 5, :open), "p", "h", nil), "\"prev\":\"p\",\"refusal\":null,\"seq\":0,\"sig\":null") #=> true
 """
 def line_text(t, prev, hash, sig)
   "{\"entity\":#{t[0]},\"hash\":\"#{hash}\",\"links\":#{t[1]},\"payload\":#{t[2]},\"prev\":\"#{prev}\",\"refusal\":#{t[3]},\"seq\":#{t[4]},\"sig\":#{sig_text(sig)},\"status\":#{t[5]},\"time\":#{t[6]},\"type\":#{t[7]}}"
 end
 
+@doc """
+sig_text: A signature as JSON: its hex as a string, or null when unsigned.
+
+    sig_text(nil) #=> "null"
+    sig_text("ab") #=> "\"ab\""
+"""
 def sig_text(sig)
   maybe(sig, "null", json_stringify)
 end
 
+@doc """
+status_for: A record's status from its refusal: :admitted when there is none.
+
+    status_for(nil) #=> :admitted
+    status_for([:no_edge, []]) #=> :refused
+"""
 def status_for(refusal)
   if refusal.nil?
     :admitted
@@ -730,6 +857,8 @@ end
 record: A record as read: [:el_record, position, seq, time, entity, type, payload,
 links, status, refusal, prev, hash, sig, line]. position is the line's
 index in the stream, from 0.
+
+    first(record(0, 0, 5, "e1", :open, [], [], :admitted, nil, "p", "h", nil, "l")) #=> :el_record
 """
 def record(
   position,
@@ -764,6 +893,12 @@ def record(
   ]
 end
 
+@doc """
+record?: Whether a decoded line is a record rather than a bad line.
+
+    record?(record(0, 0, 5, "e1", :open, [], [], :admitted, nil, "p", "h", nil, "l")) #=> true
+    record?(bad(0, "x", "not JSON")) #=> false
+"""
 def record?(x)
   first(x) == :el_record
 end
@@ -771,25 +906,44 @@ end
 # waive B0013: `position` is a builtin nisshi also uses, so the prefix stays; isshou::nisshi::position names it too
 @doc """
 el_position: The index of a record or a bad line in its stream, from 0.
+
+    el_position(bad(3, "x", "not JSON")) #=> 3
 """
 def el_position(x)
   x[1]
 end
 
+@doc """
+rec_seq: A record's sequence number within its entity.
+
+    rec_seq(record(0, 2, 5, "e1", :open, [], [], :admitted, nil, "p", "h", nil, "l")) #=> 2
+"""
 def rec_seq(r)
   r[2]
 end
 
+@doc """
+rec_time: A record's time, on the caller's clock.
+
+    rec_time(record(0, 2, 5, "e1", :open, [], [], :admitted, nil, "p", "h", nil, "l")) #=> 5
+"""
 def rec_time(r)
   r[3]
 end
 
+@doc """
+rec_entity: The id of the entity a record belongs to.
+
+    rec_entity(record(0, 2, 5, "e1", :open, [], [], :admitted, nil, "p", "h", nil, "l")) #=> "e1"
+"""
 def rec_entity(r)
   r[4]
 end
 
 @doc """
 rec_type: The type: the definition's own name when it declares it, else text.
+
+    rec_type(record(0, 2, 5, "e1", :open, [], [], :admitted, nil, "p", "h", nil, "l")) #=> :open
 """
 def rec_type(r)
   r[5]
@@ -797,6 +951,8 @@ end
 
 @doc """
 rec_payload: The payload as [key, value] pairs in key order.
+
+    rec_payload(record(0, 2, 5, "e1", :reading, [[:value, 7]], [], :admitted, nil, "p", "h", nil, "l")) #=> [[:value, 7]]
 """
 def rec_payload(r)
   r[6]
@@ -804,6 +960,8 @@ end
 
 @doc """
 rec_links: The links as [kind, id] pairs, in the order they were given.
+
+    rec_links(record(0, 2, 5, "e1", :open, [], [%w[batch b-1]], :admitted, nil, "p", "h", nil, "l")) #=> [%w[batch b-1]]
 """
 def rec_links(r)
   r[7]
@@ -811,32 +969,53 @@ end
 
 @doc """
 rec_status: :admitted or :refused.
+
+    rec_status(record(0, 2, 5, "e1", :open, [], [], :admitted, nil, "p", "h", nil, "l")) #=> :admitted
 """
 def rec_status(r)
   r[8]
 end
 
+@doc """
+rec_admitted?: Whether a record was admitted.
+
+    rec_admitted?(record(0, 2, 5, "e1", :open, [], [], :refused, [:no_edge, []], "p", "h", nil, "l")) #=> false
+"""
 def rec_admitted?(r)
   r[8] == :admitted
 end
 
 @doc """
 rec_refusal: nil, or [kind, detail] for a refused record.
+
+    rec_refusal(record(0, 2, 5, "e1", :open, [], [], :refused, [:no_edge, []], "p", "h", nil, "l")) #=> [:no_edge, []]
 """
 def rec_refusal(r)
   r[9]
 end
 
+@doc """
+rec_prev: The hash of the line before a record in its stream: the chain link.
+
+    rec_prev(record(0, 2, 5, "e1", :open, [], [], :admitted, nil, "p", "h", nil, "l")) #=> "p"
+"""
 def rec_prev(r)
   r[10]
 end
 
+@doc """
+rec_hash: A record's own hash, over its prev and its body.
+
+    rec_hash(record(0, 2, 5, "e1", :open, [], [], :admitted, nil, "p", "h", nil, "l")) #=> "h"
+"""
 def rec_hash(r)
   r[11]
 end
 
 @doc """
 rec_sig: The signature's hex, or nil.
+
+    rec_sig(record(0, 2, 5, "e1", :open, [], [], :admitted, nil, "p", "h", nil, "l")) #=> nil
 """
 def rec_sig(r)
   r[12]
@@ -844,6 +1023,8 @@ end
 
 @doc """
 rec_line: The line exactly as the stream holds it.
+
+    rec_line(record(0, 2, 5, "e1", :open, [], [], :admitted, nil, "p", "h", nil, "l")) #=> "l"
 """
 def rec_line(r)
   r[13]
@@ -851,11 +1032,18 @@ end
 
 @doc """
 rec_event: The event a record holds, as raifusaikuru folds it.
+
+    rec_event(record(0, 2, 5, "e1", :reading, [[:value, 7]], [], :admitted, nil, "p", "h", nil, "l")) #=> [:reading, 5, [[:value, 7]]]
 """
 def rec_event(r)
   isshou::raifusaikuru::ev(rec_type(r), rec_time(r), rec_payload(r))
 end
 
+@doc """
+texts_of: The canonical text of each body field of a record, as texts renders them.
+
+    texts_of(record(0, 0, 5, "e1", :open, [], [], :admitted, nil, "p", "h", nil, "l"))[7] #=> "\"open\""
+"""
 def texts_of(r)
   texts(
     rec_entity(r),
@@ -871,6 +1059,8 @@ end
 
 @doc """
 body_of: The body text a record's hash covers, rendered from the record.
+
+    body_of(record(0, 0, 5, "e1", :open, [], [], :admitted, nil, "p", "h", nil, "l")) == body_text(texts("e1", [], [], nil, 0, :admitted, 5, :open)) #=> true
 """
 def body_of(r)
   body_text(texts_of(r))
@@ -878,6 +1068,8 @@ end
 
 @doc """
 line_of: The canonical line for a record: what its line must be, byte for byte.
+
+    starts_with?(line_of(record(0, 0, 5, "e1", :open, [], [], :admitted, nil, "p", "h", nil, "l")), "{\"entity\":\"e1\",\"hash\":\"h\"") #=> true
 """
 def line_of(r)
   line_text(texts_of(r), rec_prev(r), rec_hash(r), rec_sig(r))
@@ -885,11 +1077,18 @@ end
 
 @doc """
 bad: A line that is not a record: [:el_bad_line, position, line, why].
+
+    bad(0, "x", "not JSON") #=> [:el_bad_line, 0, "x", "not JSON"]
 """
 def bad(position, line, why)
   [:el_bad_line, position, line, why]
 end
 
+@doc """
+bad_why: Why a bad line is not a record.
+
+    bad_why(bad(0, "x", "not JSON")) #=> "not JSON"
+"""
 def bad_why(b)
   b[3]
 end
@@ -899,6 +1098,8 @@ end
 @doc """
 decode_line: A line read back as a record, or as a bad line saying why it is not one.
 Total: nothing here raises, whatever the line holds.
+
+    decode_line(isshou::raifusaikuru::example_consumable, 0, "nope") #=> [:el_bad_line, 0, "nope", "not JSON"]
 """
 def decode_line(d, position, line)
   decode_named(names(d), position, line)
@@ -907,6 +1108,8 @@ end
 @doc """
 decode_named: el_decode_line with the definition's names already indexed (el_names), as
 read and append hold them.
+
+    bad_why(decode_named(names(isshou::raifusaikuru::example_consumable), 0, "{\"seq\": 1}")) #=> "not a record: entity is not a non-empty string"
 """
 def decode_named(names, position, line)
   doc = json_parse(line) rescue :el_unreadable

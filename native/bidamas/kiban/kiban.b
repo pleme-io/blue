@@ -1,31 +1,49 @@
-# kiban (基板, the circuit board): typed board specs for blue native, and the
-# host's model of the words a board gives a program.
-#
-# theory/BLUE-NATIVE.md §1.6. A board spec is data, authored in blue: the ISA
-# and the rustc target it lowers to, the word width, the memory regions, the
-# devices, how QEMU boots it, and the position ceiling it imposes on every
-# program built for it. N0 has one board, QEMU `virt` riscv32; N1 moves the
-# spec behind a `board` Bluefile word and a TataraDomain border.
-#
-# `mmio_write(addr, width, value)` is the one board word at N0. Compiled for a
-# board, it is the seam's volatile store; run under `blue run`, it is this
-# file's model of the same board, so the interpreter prints what the image's
-# UART prints. That is the parity amendment's first row (BLUE-NATIVE.md,
-# Review §1): one program, two executions, one output.
+@moduledoc """
+kiban (基板, the circuit board): typed board specs for blue native, and the
+host's model of the words a board gives a program.
 
-# A memory region: a name, a start address, a length in bytes.
+theory/BLUE-NATIVE.md §1.6. A board spec is data, authored in blue: the ISA
+and the rustc target it lowers to, the word width, the memory regions, the
+devices, how QEMU boots it, and the position ceiling it imposes on every
+program built for it. N0 has one board, QEMU `virt` riscv32; N1 moves the
+spec behind a `board` Bluefile word and a TataraDomain border.
+
+`mmio_write(addr, width, value)` is the one board word at N0. Compiled for a
+board, it is the seam's volatile store; run under `blue run`, it is this
+file's model of the same board, so the interpreter prints what the image's
+UART prints. That is the parity amendment's first row (BLUE-NATIVE.md,
+Review §1): one program, two executions, one output.
+
+    kb_board("qemu-virt32")[:rust_target] #=> "riscv32imac-unknown-none-elf"
+    kb_device_base(kb_board("qemu-virt32"), :uart0) #=> 268_435_456
+    kb_char(104) #=> "h"
+"""
+
+@doc """
+kb_region: A memory region: a name, a start address, a length in bytes.
+
+    kb_region(:ram, 4096, 512) #=> {name: :ram, origin: 4096, length: 512}
+"""
 def kb_region(name, origin, length)
   {name:, origin:, length:}
 end
 
-# A memory-mapped device: what it is and where its registers start.
+@doc """
+kb_device: A memory-mapped device: what it is and where its registers start.
+
+    kb_device(:uart0, :ns16550, 268_435_456)[:kind] #=> :ns16550
+"""
 def kb_device(name, kind, base)
   {name:, kind:, base:}
 end
 
-# The position a board imposes on every program built for it (the root
-# ceiling, §2.1): restricted rigor, no evaluator, no collector, static places,
-# monomorphic representation.
+@doc """
+kb_native_ceiling: The position a board imposes on every program built for it (the root
+ceiling, §2.1): restricted rigor, no evaluator, no collector, static places,
+monomorphic representation.
+
+    kb_native_ceiling[:evaluator] #=> :absent
+"""
 def kb_native_ceiling()
   {
     rigor: :restricted,
@@ -36,9 +54,13 @@ def kb_native_ceiling()
   }
 end
 
-# QEMU's `virt` machine with a 32-bit RISC-V hart (T1): an NS16550 UART at
-# 0x10000000 and the SiFive test finisher at 0x100000, whose 0x5555 ends QEMU
-# with status 0 and (code << 16) | 0x3333 with status `code`.
+@doc """
+kb_qemu_virt32: QEMU's `virt` machine with a 32-bit RISC-V hart (T1): an NS16550 UART at
+0x10000000 and the SiFive test finisher at 0x100000, whose 0x5555 ends QEMU
+with status 0 and (code << 16) | 0x3333 with status `code`.
+
+    kb_qemu_virt32[:word] #=> 32
+"""
 def kb_qemu_virt32()
   {
     name: "qemu-virt32",
@@ -55,17 +77,31 @@ def kb_qemu_virt32()
   }
 end
 
-# Every board this package knows, by name.
+@doc """
+kb_boards: Every board this package knows, by name.
+
+    map((b) -> b[:name], kb_boards) #=> ["qemu-virt32"]
+"""
 def kb_boards()
   [kb_qemu_virt32]
 end
 
-# The board named `name`, or nil.
+@doc """
+kb_board: The board named `name`, or nil.
+
+    kb_board("qemu-virt32")[:isa] #=> :rv32imac
+    kb_board("no-such-board") #=> nil
+"""
 def kb_board(name)
   find(kb_boards, (b) -> b[:name] == name)
 end
 
-# The base address of the board's device named `name`, or nil.
+@doc """
+kb_device_base: The base address of the board's device named `name`, or nil.
+
+    kb_device_base(kb_qemu_virt32, :finisher) #=> 1_048_576
+    kb_device_base(kb_qemu_virt32, :gpio) #=> nil
+"""
 def kb_device_base(board, name)
   d = find(board[:devices], (x) -> x[:name] == name)
   if d.nil?
@@ -75,13 +111,21 @@ def kb_device_base(board, name)
   end
 end
 
-# The printable ASCII range, in order from code 32, for the UART model.
+@doc """
+kb_ascii: The printable ASCII range, in order from code 32, for the UART model.
+
+    chars(kb_ascii)[33] #=> "A"
+"""
 def kb_ascii()
   " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"
 end
 
-# The character a UART prints for byte `c`: printable ASCII and newline. Any
-# other byte is refused rather than guessed at.
+@doc """
+kb_char: The character a UART prints for byte `c`: printable ASCII and newline. Any
+other byte is refused rather than guessed at.
+
+    kb_char(32) #=> " "
+"""
 def kb_char(c)
   if c == 10
     line_break
@@ -92,10 +136,15 @@ def kb_char(c)
   end
 end
 
-# The host's model of a store to a board register, against the QEMU virt32
-# board: a byte to the UART is printed; a store to the finisher is the end of
-# the program, which on the host is simply the end of the run. Any other
-# address is a device the model does not have, and is refused.
+@doc """
+mmio_write: The host's model of a store to a board register, against the QEMU virt32
+board: a byte to the UART is printed; a store to the finisher is the end of
+the program, which on the host is simply the end of the run. Any other
+address is a device the model does not have, and is refused.
+
+    mmio_write(1_048_576, 32, 21_845) #=> nil
+    (mmio_write(4096, 32, 1) rescue :refused) #=> :refused
+"""
 def mmio_write(addr, width, value)
   board = kb_qemu_virt32
   if not (width == 8 or width == 32)
@@ -109,9 +158,13 @@ def mmio_write(addr, width, value)
   end
 end
 
-# a + b modulo 2^32: wrapping arithmetic, only where a program asks for it by
-# name. Plain + is checked everywhere (overflow is a fault on the board); this
-# word is the one way to wrap, and it lowers to u32::wrapping_add.
+@doc """
+wrapping_add: a + b modulo 2^32: wrapping arithmetic, only where a program asks for it by
+name. Plain + is checked everywhere (overflow is a fault on the board); this
+word is the one way to wrap, and it lowers to u32::wrapping_add.
+
+    wrapping_add(2, 3) #=> 5
+"""
 def wrapping_add(a, b)
   (a + b) % 4_294_967_296
 end

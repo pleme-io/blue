@@ -106,6 +106,11 @@ pub const FORMS: &[Form] = &[
         doc: "A binding, only as a statement. There is no `let`; a binding lasts to the end of its body.",
     },
     Form {
+        example: "case s\nwhen rect(w, h)\n  w * h\nwhen [x, *rest]\n  rest\nwhen {name:}\n  name\nend",
+        lowers_to: "(let ((case-subject s)) (cond ((equal? case-subject (rect w h)) (* w h)) ((equal? case-subject (list x (blue-splice rest))) rest) ((equal? case-subject (hash-map :name name)) name) (else ())))",
+        doc: "A `when` pattern destructures: rect(w, h) matches a record of the program by position, [x, *rest] a list of at least one, {name:} a map or record holding :name. Inside a pattern a name binds, `_` matches anything and a literal compares with ==. A pattern with no name in it compares by value, as before. rect(w, h) covers the arm rect for B0081; rect(w, 1) does not.",
+    },
+    Form {
         example: "f(x, y)",
         lowers_to: "(f x y)",
         doc: "A call. This is the one form the formatter writes, except for a function that takes no parameters: that is called by its bare name, now_ms, never now_ms() (B0023), and passed as a value as fn() now_ms end.",

@@ -74,6 +74,7 @@ pub mod provide;
 pub mod receipt;
 pub mod record;
 pub mod session;
+pub mod shape;
 pub mod spread;
 pub mod stdlib;
 #[cfg(feature = "storage-append")]

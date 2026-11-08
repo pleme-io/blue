@@ -100,8 +100,7 @@ row(
 row(
   "control.case.destructure",
   join_lines(["case [1, 2]", "when [a, b]", "  a + b", "end"]),
-  value("3"),
-  pending("G13")
+  value("3")
 )
 
 row(

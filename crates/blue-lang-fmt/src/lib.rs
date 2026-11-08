@@ -184,7 +184,10 @@ pub fn format_source_lossless(src: &str) -> Result<String, FormatError> {
 pub fn format_tree_lossless(src: &str, tree: &[Spanned]) -> Result<String, FormatError> {
     let tree = blue_lang_syntax::guard::raise(
         src,
-        blue_lang_syntax::doc::redocument(src, blue_lang_syntax::union::raise(tree.to_vec())),
+        blue_lang_syntax::doc::redocument(
+            src,
+            blue_lang_syntax::union::raise(blue_lang_syntax::pattern::raise(tree.to_vec())),
+        ),
     );
     let r = Renderer::lossless(src)?;
     let out = r.program(&tree);
@@ -556,7 +559,8 @@ impl<'s> Renderer<'s> {
     // ---- top level ------------------------------------------------------
 
     fn program(&self, forms: &[Spanned]) -> String {
-        let raised = blue_lang_syntax::union::raise(forms.to_vec());
+        let raised =
+            blue_lang_syntax::union::raise(blue_lang_syntax::pattern::raise(forms.to_vec()));
         let forms = raised.as_slice();
         let spans: Vec<Span> = forms.iter().map(|f| f.span).collect();
         let mut u = self.units(0, self.src.len(), &spans);
@@ -1064,6 +1068,13 @@ impl<'s> Renderer<'s> {
                 if items.len() == 4 && is_typed_signature(&items[1], &items[2]) =>
             {
                 return self.typed_def_form(s, items)
+            }
+            Some(n)
+                if n == blue_lang_syntax::LOWERED_SPLICE
+                    && items.len() == 2
+                    && items[1].as_symbol().is_some() =>
+            {
+                return Doc::text(format!("*{}", items[1].as_symbol().unwrap_or("_")));
             }
             Some("list") => {
                 if let Some(d) = self.word_list(s, &items[1..]) {

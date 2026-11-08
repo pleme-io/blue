@@ -1777,8 +1777,21 @@ def surface()
       ),
       rule(
         "list",
-        seq([lit("["), nl, comma_sep(ref("_expression")), lit("]")]),
+        seq(
+          [
+            lit("["),
+            nl,
+            comma_sep(choice([ref("_expression"), ref("list_rest")])),
+            lit("]")
+          ]
+        ),
         ["list", %w[sym list], ["named"]]
+      ),
+      # `*rest` takes the rest of a list in a pattern (parse.rs `list_rest`).
+      rule(
+        "list_rest",
+        seq([lit("*"), painted("name", ref("identifier"), "variable", "var")]),
+        ["list", %w[sym blue-splice], %w[field name]]
       ),
       rule(
         "keyword_arguments",

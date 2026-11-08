@@ -24,6 +24,7 @@
 (call function: (identifier) @function.call)
 (call function: (qualified_name) @function.call)
 (send method: (identifier) @function.method.call)
+(list_rest name: (identifier) @variable)
 (qualified_name package: (identifier) @module)
 (qualified_name package: (package) @module)
 (def name: (identifier) @function)

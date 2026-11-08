@@ -1848,6 +1848,7 @@ needs is in [KERNEL.md](KERNEL.md) §3.
 ## Reference
 
 - [Canonical forms](CANONICAL-FORMS.md): every place the surface accepts two spellings, the one blue writes, and the rule that names it
+- [Commands](COMMANDS.md): every blue verb with its flags, one row each; the agents page keeps one line per verb and links here
 - [Diagnostics](DIAGNOSTICS.md): what the check stage reports, every rule code, and the machine-readable shape of a diagnostic
 - [blue examples](EXAMPLES.md): one tested program per common task, ready to paste as examples
 - [Glossary: blue's terms and the concepts they name](GLOSSARY.md): every blue term mapped to the compiler, language or distributed-systems concept it names, in both directions, and how the parts meet in a compile, a test run and a deploy
@@ -1872,6 +1873,7 @@ needs is in [KERNEL.md](KERNEL.md) §3.
 - [Compile time: Rust's static guarantees and Lua's runtime, in blue](COMPILE-TIME.md): Rust's static guarantees and Lua's runtime, brought into blue
 - [Compounding: every evolution break fixes itself](COMPOUNDING.md): every break blue's evolution causes ships its own fixer
 - [CST plan: a lossless tree, resilient parsing, surface blame](CST-PLAN.md): the design for a lossless CST with resilient parsing and surface blame; nothing is built yet
+- [The data framework: one model, every rendering, nothing written twice](DATA-FRAMEWORK.md): the design of the data framework, one blue model rendered to schema, migrations, queries and GraphQL with nothing written twice, and the research it rests on
 - [DOCUMENTATION — every blue project documents itself, and the language has a book](DOCUMENTATION.md): documentation as a battery: one source per fact, a Diátaxis book, rendered README, AGENTS.md and llms.txt (design)
 - [FRONTEND-PLAN — building the blue frontend framework](FRONTEND-PLAN.md): the build plan for blue's frontend framework
 - [Guard-clause `return`: the design of record](GUARD-RETURN.md): Guard-clause return, G1 BUILT: `return x` where the parser can rewrite it into if/else, refused where it cannot (B0080), so blue stays one expression per body at no run-time cost

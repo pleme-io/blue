@@ -418,6 +418,7 @@ Read it in order as [The blue Book](docs/BOOK.md), or open one page:
 ### Reference
 
 - [Canonical forms](docs/CANONICAL-FORMS.md): every place the surface accepts two spellings, the one blue writes, and the rule that names it
+- [Commands](docs/COMMANDS.md): every blue verb with its flags, one row each; the agents page keeps one line per verb and links here
 - [Diagnostics](docs/DIAGNOSTICS.md): what the check stage reports, every rule code, and the machine-readable shape of a diagnostic
 - [blue examples](docs/EXAMPLES.md): one tested program per common task, ready to paste as examples
 - [Glossary: blue's terms and the concepts they name](docs/GLOSSARY.md): every blue term mapped to the compiler, language or distributed-systems concept it names, in both directions, and how the parts meet in a compile, a test run and a deploy
@@ -430,7 +431,7 @@ Read it in order as [The blue Book](docs/BOOK.md), or open one page:
 ### Explanation
 
 <details>
-<summary>47 pages on why blue is shaped as it is</summary>
+<summary>48 pages on why blue is shaped as it is</summary>
 
 - [ABSENCE — no undeclared nil](docs/ABSENCE.md): no undeclared nil: how blue makes absence a declared, checked state
 - [API-EVOLUTION — the API is a versioned rendering of the one model](docs/API-EVOLUTION.md): the API as a versioned rendering of one model (design)
@@ -445,6 +446,7 @@ Read it in order as [The blue Book](docs/BOOK.md), or open one page:
 - [Compile time: Rust's static guarantees and Lua's runtime, in blue](docs/COMPILE-TIME.md): Rust's static guarantees and Lua's runtime, brought into blue
 - [Compounding: every evolution break fixes itself](docs/COMPOUNDING.md): every break blue's evolution causes ships its own fixer
 - [CST plan: a lossless tree, resilient parsing, surface blame](docs/CST-PLAN.md): the design for a lossless CST with resilient parsing and surface blame; nothing is built yet
+- [The data framework: one model, every rendering, nothing written twice](docs/DATA-FRAMEWORK.md): the design of the data framework, one blue model rendered to schema, migrations, queries and GraphQL with nothing written twice, and the research it rests on
 - [DOCUMENTATION — every blue project documents itself, and the language has a book](docs/DOCUMENTATION.md): documentation as a battery: one source per fact, a Diátaxis book, rendered README, AGENTS.md and llms.txt (design)
 - [FRONTEND-PLAN — building the blue frontend framework](docs/FRONTEND-PLAN.md): the build plan for blue's frontend framework
 - [Guard-clause `return`: the design of record](docs/GUARD-RETURN.md): Guard-clause return, G1 BUILT: `return x` where the parser can rewrite it into if/else, refused where it cannot (B0080), so blue stays one expression per body at no run-time cost

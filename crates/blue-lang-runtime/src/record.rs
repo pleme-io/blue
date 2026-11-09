@@ -328,6 +328,11 @@ pub fn install<H: 'static>(interp: &mut Interpreter<H>) {
         Ok(Value::Bool(holds(text_arg(&a[0]), &a[1], &a[2])))
     });
     interp.register_fn(
+        blue_lang_check::properties::CONFORMS,
+        Arity::Exact(2),
+        |a: &[Value], _: &mut H, _| Ok(Value::Bool(conforms(&a[0], &a[1]))),
+    );
+    interp.register_fn(
         "record_name",
         Arity::Exact(1),
         |a: &[Value], _: &mut H, _| {

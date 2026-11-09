@@ -362,6 +362,35 @@ is; a cached check result read under a different engine identity is refused.
 **Gate:** a mutant that survives makes its package's ratio fall, and the
 check names the package and its survivors.
 
+**Built (first step, 2026-11-06, `40d73db3`):** `gen/heni-gate.b`, the
+`heni-mutations` check, holds every package at the caught ratio recorded in
+`bidamas/heni/ratio.baseline`; a package whose ratio falls fails, named with
+its survivors, and `blue gen/heni-gate.b record` is the one writer.
+
+**Built (properties, 2026-11-09):** `blue test` draws properties from what a
+definition already says. For each `@doc` example call of a typed definition
+(`blue_lang_check::properties`), each literal argument whose declared type is
+`Int`, `Float`, `Str` or `Bool` moves near its point by `ran`'s generator, and
+each drawn call (up to 8 per example call) is one assertion of a test
+``@property `f` example k, seed S``: the call returns the declared return type,
+judged by `blue-conforms?`, the predicate a typed record field is judged by.
+A call that raises passes; a refusal breaks no return type. The seed is
+`BLUE_PROPERTY_SEED` (default 1, `off` turns it off), mixed with the
+definition's name, and the cases land in the tree as literals, so one seed
+replays one failure: `assert conforms?(grade(50), Str)`. No property for an
+untyped definition, a return type of `dyn` or a name, an optional or rest
+parameter, or an example call with no drawable literal argument. Gate,
+`crates/blue-lang-cli/tests/properties.rs`: `grade(52) #=> "pass"` passes with
+properties off, and the drawn `grade(50)` returns nil and fails; the same
+seed gives the same output; the untyped `grade` runs exactly its doctest. Red
+run: with `generated_properties` answering no tests, the fixture passed (1
+test) and two of the three tests failed. Corpus cost: `blue test bidamas` ran
+the same 4737 tests with properties off (81.2 s, 76.4 s) and on (81.2 s,
+72.9 s), release build, the spread being host load; no corpus definition is
+typed and documented with a drawable example yet, so none is generated.
+Open: record and named return types; drawn values for `List` and `Sym`
+arguments; laws over a decidable fragment (the third bullet).
+
 ### H7. Speed with receipts
 
 - The bytecode VM as the default door where the conformance columns agree.
@@ -881,7 +910,7 @@ keeps the 2026-11-06 order inside that frame.
 | When | Horizons | Why first |
 |---|---|---|
 | Now | H0; H1 (unions, patterns, `?`); H3 (the test cache) | H0 makes the ledger true; H1 completes the data model every later horizon names; H3 makes every later change cheaper to verify |
-| Next | H2; H4 (async A1); H5 (arika Phase 2); H6 (heni's ratio as a ratchet) | each builds on H1's shapes or H3's identities |
+| Next | H2; H4 (async A1); H5 (arika Phase 2); H6 (heni's ratio as a ratchet, built; generated properties, built; solver laws) | each builds on H1's shapes or H3's identities |
 | Later | H7; H8; H9; H10 | each multiplies what the earlier horizons made true |
 | Authority, now | H11; H12 rings 1 and 2; H16's first step; H19's first step | one vocabulary first, so every later horizon names one set; the census measures the flip before it happens; the capability ontology makes every later authority horizon a set of generated rows |
 | Authority, next | H12 rings 3 and 4; H13; H17 | per-bidama frames and the parity matrix stand on one vocabulary |

@@ -18,7 +18,7 @@
     "crates/blue-lang-lsp/Cargo.toml": "6ee650c395599803eaa4f13f2194ea1a1145a5f5f491e27a1e90a95e183fce00",
     "crates/blue-lang-mondou/Cargo.toml": "637a0cbb6ac275a3478a437406f8fd387a8b5257f755127815a47418b7ad08e5",
     "crates/blue-lang-pkg/Cargo.toml": "4748e901a3daea02d320297a956284dcb4aeee913c1c3df074d0722fda893d3c",
-    "crates/blue-lang-proc/Cargo.toml": "52fad15b16abe51edb8c65eeac9947731de5e44b282dea1f563a55169beb39dc",
+    "crates/blue-lang-proc/Cargo.toml": "84d0fc0f2223461e180e38eb73bfd8a1e3e474b12d0eb8d9814198520ae9c48b",
     "crates/blue-lang-runtime/Cargo.toml": "87284d5dce70754ff9526bbdd19f8cd00ba459e128516188d22191e1d88b0582",
     "crates/blue-lang-senses/Cargo.toml": "b8a88a1d21769a74b0210bd6ad3aa3e91cbdb59f7f7f531c569bb20a040eb7f0",
     "crates/blue-lang-syntax/Cargo.toml": "9d405348af1d3f57fffd0a73ddf0776a933ce98bfbcaa60c53a1db55db4e75cd",
@@ -12652,6 +12652,7 @@
             "features": [
               "alloc",
               "default",
+              "event",
               "fs",
               "process",
               "std",
@@ -12998,6 +12999,7 @@
                 "package_key": "rustix-1.1.4",
                 "kind": "normal",
                 "features": [
+                  "event",
                   "process",
                   "std",
                   "thread"
@@ -13676,6 +13678,7 @@
             "features": [
               "alloc",
               "default",
+              "event",
               "fs",
               "process",
               "std",
@@ -13935,6 +13938,7 @@
                 "package_key": "rustix-1.1.4",
                 "kind": "normal",
                 "features": [
+                  "event",
                   "process",
                   "std",
                   "thread"
@@ -14613,6 +14617,7 @@
             "features": [
               "alloc",
               "default",
+              "event",
               "fs",
               "process",
               "std",
@@ -15500,6 +15505,7 @@
             "features": [
               "alloc",
               "default",
+              "event",
               "fs",
               "process",
               "std",
@@ -15882,6 +15888,7 @@
                 "package_key": "rustix-1.1.4",
                 "kind": "normal",
                 "features": [
+                  "event",
                   "process",
                   "std",
                   "thread"
@@ -16592,6 +16599,7 @@
             "features": [
               "alloc",
               "default",
+              "event",
               "fs",
               "process",
               "std",
@@ -16887,6 +16895,7 @@
                 "package_key": "rustix-1.1.4",
                 "kind": "normal",
                 "features": [
+                  "event",
                   "process",
                   "std",
                   "thread"
@@ -17597,6 +17606,7 @@
             "features": [
               "alloc",
               "default",
+              "event",
               "fs",
               "process",
               "std",

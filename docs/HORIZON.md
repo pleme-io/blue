@@ -207,7 +207,7 @@ default to skip work.
 |---|---|---|
 | parse, resolve | in memory only (mondou; the LSP and `blue check`) | text hash, then `def_hash` |
 | check and erase | built, on by default for every check a `blue` command runs: `check`, `test`, `run`, `fmt`, the LSP (`BLUE_CHECK_CACHE=off`, `--no-cache` on `check` and `test`): the name walks, the lowered tree and project rules, per definition | `def_hash` + engine identity + the hashes it read |
-| `blue test` | built, off by default (`BLUE_TEST_CACHE`) | build + the test's hash + preamble + bounds |
+| `blue test` | built, on by default (`BLUE_TEST_CACHE=off` turns it off) | build + the test's hash + preamble + bounds |
 | a pure call | built, off by default (`BLUE_MEMO`) | `def_hash` + the arguments' canonical form |
 | a nix `bidama-test-*` check | none: one change anywhere reruns every package | the closure the test reaches |
 | a generator, arika's word table | none: always rerun and compared | the generator's hash + its inputs' hashes |
@@ -226,9 +226,10 @@ The rungs, compile time first:
    hashed and checked package as a nix output keyed by the engine and the
    package's source hash (BLUE-ENGINE E5), so a run, a test and an editor load
    it checked, from sui.
-3. **The test cache and memo on by default, shared.** The build identity
-   becomes the binary's `b3:` hash instead of its path and mtime, so a key
-   matches on every node and sui serves it.
+3. **The test cache and memo on by default, shared.** The test cache is on
+   by default on one node since 2026-11-09; the memo is not. The build
+   identity becomes the binary's `b3:` hash instead of its path and mtime, so
+   a key matches on every node and sui serves it.
 4. **Narrow test derivations, with a proof.** A nix test check depends on the
    closure its tests reach, not the whole `BLUE_PATH`; the passed keys form a
    tameshi Merkle tree (`compute_leaf_root`, `leaf_inclusion_proof`), so a

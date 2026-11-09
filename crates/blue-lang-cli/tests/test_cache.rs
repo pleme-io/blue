@@ -138,11 +138,23 @@ fn the_cache_off_runs_everything() {
             .env("XDG_CACHE_HOME", p.root.join("cache"));
         String::from_utf8_lossy(&c.output().expect("blue test runs").stdout).into_owned()
     };
-    says(&unset, "1 test(s): 1 passed, 0 failed\n");
+    says(&unset, "1 test(s): 0 passed, 0 failed, 1 cached\n");
     let facts = p.root.join("facts").join("facts.json");
     let with_facts = p.test(&[], &["--facts", facts.to_str().expect("utf-8 path")]);
     says(&with_facts, "1 test(s): 1 passed, 0 failed\n");
     says(&p.run(), "1 test(s): 0 passed, 0 failed, 1 cached\n");
+}
+
+#[test]
+fn a_cache_that_cannot_be_written_is_silently_off() {
+    let p = Place::new("unwritable");
+    p.write(BASE);
+    std::fs::write(p.root.join("cache"), "a file, not a directory").expect("block the cache");
+    for _ in 0..2 {
+        let out = p.test(&[], &[]);
+        says(&out, "1 test(s): 1 passed, 0 failed\n");
+        assert!(!out.contains("test cache"), "{out}");
+    }
 }
 
 #[test]

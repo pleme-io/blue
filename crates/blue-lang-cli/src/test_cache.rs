@@ -9,8 +9,8 @@ pub(crate) const ENV: &str = "BLUE_TEST_CACHE";
 
 pub(crate) fn parse(value: &str) -> Option<bool> {
     match value.trim().to_ascii_lowercase().as_str() {
-        "" | "off" | "0" | "false" | "no" => Some(false),
-        "on" | "1" | "true" | "yes" => Some(true),
+        "" | "on" | "1" | "true" | "yes" => Some(true),
+        "off" | "0" | "false" | "no" => Some(false),
         _ => None,
     }
 }
@@ -24,9 +24,9 @@ pub(crate) struct TestCache {
 impl TestCache {
     pub(crate) fn open(no_cache: bool, reports_what_ran: bool) -> Result<Option<Self>, String> {
         let on = match std::env::var(ENV) {
-            Err(_) => false,
+            Err(_) => true,
             Ok(v) => parse(&v)
-                .ok_or_else(|| format!("{ENV} is \"{v}\"; it takes on or off (the default)"))?,
+                .ok_or_else(|| format!("{ENV} is \"{v}\"; it takes on (the default) or off"))?,
         };
         if !on || no_cache || reports_what_ran {
             return Ok(None);
@@ -35,7 +35,11 @@ impl TestCache {
             return Ok(None);
         };
         let build = Identity::of_this_build();
-        let file = root.join("test").join(DefHash(build.0).hex());
+        let dir = root.join("test");
+        if std::fs::create_dir_all(&dir).is_err() {
+            return Ok(None);
+        }
+        let file = dir.join(DefHash(build.0).hex());
         let passed = std::fs::read_to_string(&file)
             .map(|t| t.lines().map(str::to_string).collect())
             .unwrap_or_default();
@@ -97,11 +101,11 @@ mod tests {
     use super::parse;
 
     #[test]
-    fn the_cache_is_off_unless_named_on() {
-        for off in ["", "off", "0", "false", "no"] {
+    fn the_cache_is_on_unless_named_off() {
+        for off in ["off", "0", "false", "no", "OFF"] {
             assert_eq!(parse(off), Some(false), "{off}");
         }
-        for on in ["on", "1", "true", "YES"] {
+        for on in ["", "on", "1", "true", "YES"] {
             assert_eq!(parse(on), Some(true), "{on}");
         }
         assert_eq!(parse("store"), None);

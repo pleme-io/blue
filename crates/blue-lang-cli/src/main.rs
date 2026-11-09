@@ -411,9 +411,9 @@ enum Cmd {
         /// on. Coverage always does.
         #[arg(long)]
         no_memo: bool,
-        /// Run every test, reporting none as cached from the test cache
-        /// `BLUE_TEST_CACHE` turns on, and check every form afresh. Coverage
-        /// and facts always run every test.
+        /// Run every test, reporting none as cached from the test cache,
+        /// which is on unless `BLUE_TEST_CACHE=off`, and check every form
+        /// afresh. Coverage and facts always run every test.
         #[arg(long)]
         no_cache: bool,
         /// Hold the tests to these host capabilities, as `blue run --allow`

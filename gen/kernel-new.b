@@ -20,7 +20,7 @@ def project(dir)
 end
 
 def blue_in(root, args)
-  exec_with_env([["GEN_ROOT", root]], self_exe, *args)
+  exec_with_env([["GEN_ROOT", root], %w[BLUE_TEST_CACHE off]], self_exe, *args)
 end
 
 test "a generated project passes its tests with what this host has"

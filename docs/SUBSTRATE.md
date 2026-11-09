@@ -60,7 +60,7 @@ BUILT = code and a test on main; PARTIAL; DESIGN = doc only; ABSENT.
 | `workload(...)` renders typed objects (Deployment, Service, Kustomization) | BUILT (Rust) | `crates/blue-lang-pkg/src/deploy/render.rs` |
 | engenho runs WASI P2 pods in-process | BUILT, tested with a probe component | `engenho-kubelet/src/wasm_backend.rs` |
 | kidou (blue in engenho) admits pods, turns `access` into runtime grants | BUILT | `engenho-kubelet/blue/kidou/kidou.b` |
-| ola-mundo's release pins `runtime.component.closure` on ryn | DONE; whether the pod serves is unmeasured | `nix/nodes/ryn/default.nix` (`6dd08d07`) |
+| ola-mundo's component pod on ryn's engenho | LIVE: measured 2026-11-09, pod `Running` 1/1 with `runtimeClassName: wasm` and image `nix:…service-ola-mundo-component`; `GET /` on 8417 answers `Olá, mundo!` (200), `/metrics` 200 | `nix/nodes/ryn/default.nix` (`6dd08d07`); engenho e2e `engenho-kubelet/tests/wasm_backend_blue_component.rs` (`3d86211`) |
 | Imports derived from `access` (link-time authority) | DESIGN, blocked (M2) | `crates/blue-lang-waku/src/imports.rs`; one engine for every service (`nix/service.nix`) |
 | Typed Kubernetes kinds generated from vendored OpenAPI v1.34.0 | BUILT (Rust, engenho) | `engenho-kube-codegen`, `engenho-types/vendor/openapi/v1.34.0` |
 | Kubernetes client with watch | BUILT (Rust, engenho) | `engenho-kube-client` (`KubeClient`, `Watcher`) |
@@ -263,7 +263,7 @@ sequenceDiagram
 
 | Question | Kind |
 |---|---|
-| Does ola-mundo's component pod serve on ryn today | ours to measure (L1.1) |
+| Does ola-mundo's component pod serve on ryn today | answered 2026-11-09: yes (§2) |
 | How codegen emits blue records: a generated bidama per API group, or one | ours |
 | Long-lived connections across a swap | ours: drain or pin per connection |
 | The browser loader: generated or one fixed loader | ours |
@@ -330,7 +330,7 @@ without it.
 
 | Item | Design | Exists | Tested | Live |
 |---|---|---|---|---|
-| L1.1 component serves on engenho | ✅ | release pinned on ryn | probe component only | unmeasured |
+| L1.1 component serves on engenho | ✅ | ✅ | ✅ engenho e2e, real component (`3d86211`) | ✅ ryn, ola-mundo 200 (2026-11-09) |
 | L1.2 blue records from codegen | ✅ | Rust codegen | Rust only | ❌ |
 | L1.3 typed rendering per chart | ✅ | `render.rs` objects | yes (render.rs) | ❌ |
 | L1.4 placement → Flux / node | ✅ | node arm | node arm | node arm |

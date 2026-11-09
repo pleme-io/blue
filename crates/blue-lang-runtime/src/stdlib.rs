@@ -946,16 +946,71 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
         Arity::Exact(1),
         |a: &[Value], _h: &mut H, s| match &a[0] {
             Value::Map(m) => {
-                let keyed = m
-                    .iter()
-                    .map(|(k, v)| (k.to_value(), list(vec![k.to_value(), v.clone()])))
-                    .collect();
-                Ok(list(tatara_lisp_eval::hof::sort_keyed_values(keyed, s)?))
+                let mut entries: Vec<_> = m.iter().collect();
+                entries.sort_by(|a, b| key_order(a.0, b.0));
+                Ok(list(
+                    entries
+                        .into_iter()
+                        .map(|(k, v)| list(vec![k.to_value(), v.clone()]))
+                        .collect(),
+                ))
             }
             Value::Nil => Ok(list(Vec::new())),
             other => Err(EvalError::type_mismatch("a map", other.type_name(), s)),
         },
     );
+}
+
+fn key_rank(k: &tatara_lisp_eval::value::MapKey) -> u8 {
+    use tatara_lisp_eval::value::MapKey;
+    match k {
+        MapKey::Nil => 0,
+        MapKey::Bool(_) => 1,
+        MapKey::Int(_) | MapKey::Float(_) => 2,
+        MapKey::Str(_) => 3,
+        MapKey::Symbol(_) => 4,
+        MapKey::Keyword(_) => 5,
+    }
+}
+
+fn number_order(
+    a: &tatara_lisp_eval::value::MapKey,
+    b: &tatara_lisp_eval::value::MapKey,
+) -> std::cmp::Ordering {
+    use tatara_lisp_eval::value::MapKey;
+    let as_f64 = |k: &MapKey| match k {
+        MapKey::Int(n) => *n as f64,
+        MapKey::Float(bits) => f64::from_bits(*bits),
+        _ => 0.0,
+    };
+    let (x, y) = (as_f64(a), as_f64(b));
+    x.is_nan()
+        .cmp(&y.is_nan())
+        .then_with(|| match (a, b) {
+            (MapKey::Int(m), MapKey::Int(n)) => m.cmp(n),
+            _ => x.partial_cmp(&y).unwrap_or(std::cmp::Ordering::Equal),
+        })
+        .then_with(|| matches!(a, MapKey::Float(_)).cmp(&matches!(b, MapKey::Float(_))))
+        .then_with(|| match (a, b) {
+            (MapKey::Float(p), MapKey::Float(q)) => p.cmp(q),
+            (MapKey::Int(m), MapKey::Int(n)) => m.cmp(n),
+            _ => std::cmp::Ordering::Equal,
+        })
+}
+
+fn key_order(
+    a: &tatara_lisp_eval::value::MapKey,
+    b: &tatara_lisp_eval::value::MapKey,
+) -> std::cmp::Ordering {
+    use tatara_lisp_eval::value::MapKey;
+    key_rank(a).cmp(&key_rank(b)).then_with(|| match (a, b) {
+        (MapKey::Bool(x), MapKey::Bool(y)) => x.cmp(y),
+        (MapKey::Str(x), MapKey::Str(y))
+        | (MapKey::Symbol(x), MapKey::Symbol(y))
+        | (MapKey::Keyword(x), MapKey::Keyword(y)) => x.as_ref().cmp(y.as_ref()),
+        (MapKey::Nil, MapKey::Nil) => std::cmp::Ordering::Equal,
+        _ => number_order(a, b),
+    })
 }
 
 fn as_index(v: &Value, span: tatara_lisp::Span) -> Result<i64, EvalError> {

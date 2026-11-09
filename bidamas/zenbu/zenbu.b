@@ -105,6 +105,7 @@ use("retsu", %i[contains size])
 use("ronri", [:every])
 use("sabi")
 use("saishikou")
+use("seikika", [:root])
 use("seimei", [:life_step])
 use("settei")
 use("shinchoku")
@@ -180,6 +181,7 @@ test "every bidama in the distribution answers through this one import"
   assert box_around([[1, 2], [3, 0]]) == [[1, 3], [0, 2]]
   assert sabi::valid_ident?("OPERATOR_ALIASES") == true
   assert saishikou::retrying({times: 1}, () -> 1) == 1
+  assert root("a") != root(:a)
   assert life_step([[0, 0], [0, 0]]) == [[0, 0], [0, 0]]
   assert to_hex(255) == "ff"
   assert age_s(3_600_000) == "1h0m"

@@ -371,7 +371,7 @@ pub const NAMES: &[NameDoc] = names! {
     Map: "zipmap" "zipmap(keys, values)" "A map pairing keys with values, as long as the shorter list.";
     Map: "record_name" "record_name(v)" "The name a record carries, `pkg::point` for one a bidama declares; nil for any other value.";
     Map: "record_fields" "record_fields(r)" "A record's fields as a plain map, without its name: the map a service writes when its JSON carries no name. Anything but a record raises.";
-    Map: "map_entries" "map_entries(m)" "Every [key, value] pair of a map, ordered by key under compare's rules; [] for nil. Mixed key kinds raise.";
+    Map: "map_entries" "map_entries(m)" "Every [key, value] pair of a map, ordered by key, total over every key kind: nil, then false and true, then numbers by value (an Int before an equal Float, NaN last), then strings, symbols and keywords, each by its text; [] for nil.";
     // ── functions ─────────────────────────────────────────────────────────
     Function: "map" "map(f, xs, more...)" "f applied to each element; with two lists, f(x, y) pairwise. The FUNCTION comes first. nil maps to [].";
     Function: "filter" "filter(f, xs)" "The elements f accepts. The FUNCTION comes first.";

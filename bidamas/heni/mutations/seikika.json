@@ -1,0 +1,50 @@
+[
+  {
+    "name": "a symbol takes the string's tag",
+    "file": "seikika.b",
+    "find": "  symbol: 5,",
+    "replace": "  symbol: 4,"
+  },
+  {
+    "name": "a list takes the map's tag",
+    "file": "seikika.b",
+    "find": "  list: 7,",
+    "replace": "  list: 8,"
+  },
+  {
+    "name": "a text loses its length prefix",
+    "file": "seikika.b",
+    "find": "  append(u32(length(b)), b)",
+    "replace": "  b"
+  },
+  {
+    "name": "NaN reads as an infinity",
+    "file": "seikika.b",
+    "find": "    if v != v\n",
+    "replace": "    if false\n"
+  },
+  {
+    "name": "map keys keep the runtime's order, not their bytes' order",
+    "file": "seikika.b",
+    "find": "*map(last, sort_keyed(first, pairs))",
+    "replace": "*map(last, pairs)"
+  },
+  {
+    "name": "a refusal's path drops the list index",
+    "file": "seikika.b",
+    "find": "encode_at(v[i], append(path, [i]))",
+    "replace": "encode_at(v[i], path)"
+  },
+  {
+    "name": "-0.0 loses its sign bit",
+    "file": "seikika.b",
+    "find": "x == 0.0 and atan2(x, -1.0) < 0.0",
+    "replace": "false"
+  },
+  {
+    "name": "decode accepts trailing bytes",
+    "file": "seikika.b",
+    "find": "  if end_at != length(bytes)\n",
+    "replace": "  if false\n"
+  }
+]

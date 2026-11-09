@@ -375,6 +375,25 @@ process's `net_wait` replays its answer but not the node time it came at
 **First step:** arika Phase 2, `blue arika emit` and `SNAPSHOT.json`.
 **Gate:** arika G1-G9; khipu's W3C suites against Oxigraph.
 
+**Built (2026-11-09, wave 3, on `h5/arika-khipu`):** the facts carry each
+definition's `calls`, `reach` and the `tests` that name it (mondou's
+`of_entry_linked`). arika Phase 3's verbs answer from them: `find` ranks by
+BM25 through the new `bidamas/sakuin` (the ratified `sakuin` verb space:
+`analyze`, `invert`, `lookup`, `score`), and `get`, `uses`, `groups`,
+`changed` and `golden` (G5, 22 questions) read the rows. The MCP door is blue:
+`eigyou/kyuuji` speaks JSON-RPC 2.0 and Streamable HTTP (`mcp_answer`,
+`mcp_handler`), `arika.b`'s `TOOLS` is the schema, `docs/arika-tools.json` is
+rendered from it (G8), and `blue arika serve` offers six `blue_word_*` tools
+whose structured content is the CLI's `--json` answer. khipu ingests blue
+itself: definitions, tests, doc examples and check rules as quads under
+`urn:blue:`, stored for DuckDB through `kueri`, and `blue arika ask
+untested-network` is one basic graph pattern with one NOT EXISTS. Gate:
+`the_definitions_that_reach_the_network_and_have_no_test_are_one_question`
+answers exactly `kumo::fetch` and `kumo::first_line` on its fixture, and a
+test naming `fetch` leaves only `first_line`. Open: Parquet, T3, CATALOG.md
+from the facts, G7, G9, `blue_word_like`, GraphQL, the release on ryn
+(Phases 4 and 5's other repos), and khipu's W3C suites.
+
 ### H6. Proof: claims that cannot round up
 
 - **Properties from what a definition already says.** A doc example is a

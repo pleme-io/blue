@@ -83,6 +83,172 @@ pub enum ArikaCmd {
         )]
         facts: Option<PathBuf>,
     },
+    #[command(
+        about = "Blue words whose name, package or doc gloss match TEXT, ranked by BM25 (the sakuin words), from the facts"
+    )]
+    Find {
+        text: String,
+        #[arg(long, default_value_t = 12)]
+        limit: usize,
+        #[arg(long, help = "Print the answer as one JSON object")]
+        json: bool,
+        #[command(flatten)]
+        from: FactsFrom,
+    },
+    #[command(about = "Every fact of one word, by pkg::name or readable id")]
+    Get {
+        word: String,
+        #[arg(long, help = "Print the answer as one JSON object")]
+        json: bool,
+        #[command(flatten)]
+        from: FactsFrom,
+    },
+    #[command(about = "The definitions that call a word, by pkg::name or readable id")]
+    Uses {
+        word: String,
+        #[arg(long, help = "Print the answer as one JSON object")]
+        json: bool,
+        #[command(flatten)]
+        from: FactsFrom,
+    },
+    #[command(
+        about = "Functions of MIN nodes or more that share one computed shape across words (T2 over the whole tree)"
+    )]
+    Groups {
+        #[arg(long, default_value_t = 12)]
+        min: usize,
+        #[arg(long, help = "Print the answer as one JSON object")]
+        json: bool,
+        #[command(flatten)]
+        from: FactsFrom,
+    },
+    #[command(
+        about = "How PACKAGE's words moved since an older facts file: added, removed, and code or doc moved"
+    )]
+    Changed {
+        package: String,
+        #[arg(long, value_name = "FACTS.jsonl", help = "The older facts")]
+        since: PathBuf,
+        #[arg(long, help = "Print the answer as one JSON object")]
+        json: bool,
+        #[command(flatten)]
+        from: FactsFrom,
+    },
+    #[command(
+        about = "Answer a named question over blue's knowledge graph (definitions, tests, docs and rules as khipu quads, asked through DuckDB): untested-CAPABILITY is every definition that reaches the capability and that no test or doc example names"
+    )]
+    Ask {
+        question: String,
+        #[arg(long, help = "Print the answer as one JSON object")]
+        json: bool,
+        #[arg(long, value_name = "FILE", help = "Where to write the quad store (default: a file in the temp dir, removed after)")]
+        store: Option<PathBuf>,
+        #[command(flatten)]
+        from: FactsFrom,
+    },
+    #[command(
+        about = "Ask every golden question of FILE (one `intent<TAB>word` per line, # comments) through find and name each whose word is no longer the top hit (G5)"
+    )]
+    Golden {
+        file: PathBuf,
+        #[arg(long, help = "Print the answer as one JSON object")]
+        json: bool,
+        #[command(flatten)]
+        from: FactsFrom,
+    },
+    #[command(about = "Write blue's definitions, tests, docs and rules as N-Quads to OUT")]
+    Quads {
+        out: PathBuf,
+        #[command(flatten)]
+        from: FactsFrom,
+    },
+    #[command(about = "Print the MCP tool list, rendered from the blue schema TOOLS in arika.b")]
+    Tools,
+    #[command(
+        about = "Answer one MCP JSON-RPC request (REQUEST is the JSON text) from the facts, as the service would; a notification prints nothing"
+    )]
+    Mcp {
+        request: String,
+        #[command(flatten)]
+        from: FactsFrom,
+    },
+    #[command(
+        about = "Serve the blue_word_* tools as an MCP server over Streamable HTTP (POST JSON-RPC to any path; /healthz answers ok)"
+    )]
+    Serve {
+        #[arg(default_value = "127.0.0.1:8433")]
+        addr: String,
+        #[arg(long, value_name = "FILE", help = "Where blue_word_ask writes its quad store")]
+        store: Option<PathBuf>,
+        #[command(flatten)]
+        from: FactsFrom,
+    },
+}
+
+#[derive(clap::Args)]
+pub struct FactsFrom {
+    #[arg(
+        long,
+        value_name = "SNAPSHOT.json",
+        requires = "facts",
+        help = "Answer from the facts under this header; facts whose root is not the header's are refused as blind. Without it the facts of ROOT are built in process"
+    )]
+    snapshot: Option<PathBuf>,
+    #[arg(
+        long,
+        value_name = "FACTS.jsonl",
+        requires = "snapshot",
+        help = "The facts the header roots (nix build .#arika-facts)"
+    )]
+    facts: Option<PathBuf>,
+    #[arg(long, default_value = "bidamas", help = "The bidamas to build the facts of when no header is given")]
+    root: PathBuf,
+}
+
+impl FactsFrom {
+    fn check(&self) -> Result<Json, String> {
+        match (&self.snapshot, &self.facts) {
+            (Some(header), Some(facts)) => {
+                let snap = Snapshot::read(header, facts)?;
+                Ok(json!({"root": snap.root, "rows": snap.rows}))
+            }
+            _ => Ok(json!({"root": null, "rows": emit_facts(&self.root)["rows"]})),
+        }
+    }
+}
+
+fn rules() -> Json {
+    blue_lang_check::RULES
+        .iter()
+        .map(|r| {
+            json!({
+                "code": r.code.to_string(),
+                "slug": r.slug,
+                "severity": r.severity.label(),
+                "law": r.law,
+            })
+        })
+        .collect()
+}
+
+fn over_facts(verb: &str, json: bool, query: &Json, from: &FactsFrom) -> Result<ExitCode, String> {
+    let check = from.check()?;
+    render(vec![
+        verb.into(),
+        mode(json).into(),
+        query.to_string(),
+        check.to_string(),
+    ])
+}
+
+fn scratch_store(store: Option<PathBuf>) -> (PathBuf, bool) {
+    match store {
+        Some(p) => (p, false),
+        None => (
+            std::env::temp_dir().join(format!("arika-store-{}.jsonl", std::process::id())),
+            true,
+        ),
+    }
 }
 
 pub struct Draft {
@@ -537,9 +703,31 @@ fn rel_path(root: &Path, path: &Path) -> String {
         .to_string()
 }
 
-fn row_of(package: &str, file: &str, f: &blue_lang_mondou::facts::DefFact) -> Json {
+#[must_use]
+pub fn word_of_key(key: &str) -> String {
+    key.rsplit_once('/')
+        .map_or_else(|| key.to_string(), |(p, n)| format!("{p}::{n}"))
+}
+
+fn row_of(
+    package: &str,
+    file: &str,
+    f: &blue_lang_mondou::facts::DefFact,
+    links: &blue_lang_mondou::facts::Links,
+) -> Json {
     let word = format!("{package}::{}", f.name);
+    let calls: Vec<String> = links
+        .calls
+        .get(&f.top_level)
+        .into_iter()
+        .flatten()
+        .map(|k| word_of_key(k))
+        .filter(|w| *w != word)
+        .collect();
     json!({
+        "calls": calls,
+        "reach": links.reach.get(&f.top_level).cloned().unwrap_or_default(),
+        "tests": [],
         "id": readable_id(&word, &f.def_hash),
         "word": word,
         "package": package,
@@ -582,6 +770,7 @@ pub fn emit_facts(root: &Path) -> Json {
     let mut outside = 0usize;
     let mut blind = Vec::new();
     let mut legacy: BTreeMap<String, BTreeSet<(String, String)>> = BTreeMap::new();
+    let mut tested: BTreeMap<String, BTreeSet<(String, usize, String, bool)>> = BTreeMap::new();
     for path in &files {
         let rel = rel_path(root, path);
         let checked = std::fs::read_to_string(path)
@@ -604,16 +793,33 @@ pub fn emit_facts(root: &Path) -> Json {
             outside += 1;
             continue;
         };
-        let entry = blue_lang_mondou::facts::of_entry(&checked);
+        let (entry, links) = blue_lang_mondou::facts::of_entry_linked(&checked);
         definitions += entry.definitions;
-        rows.extend(entry.facts.iter().map(|f| row_of(&package, &rel, f)));
+        rows.extend(entry.facts.iter().map(|f| row_of(&package, &rel, f, &links)));
+        for t in &links.tests {
+            for key in &t.names {
+                tested
+                    .entry(word_of_key(key))
+                    .or_default()
+                    .insert((rel.clone(), t.line, t.name.clone(), t.doc));
+            }
+        }
         moved_names(&package, &text, &mut legacy);
     }
     for row in &mut rows {
-        if let Some(olds) = row["word"].as_str().and_then(|w| legacy.get(w)) {
+        let word = row["word"].as_str().unwrap_or_default().to_string();
+        if let Some(olds) = legacy.get(&word) {
             row["legacy"] = olds
                 .iter()
                 .map(|(old, since)| json!({"old": old, "since": since}))
+                .collect();
+        }
+        if let Some(tests) = tested.get(&word) {
+            row["tests"] = tests
+                .iter()
+                .map(|(file, line, name, doc)| {
+                    json!({"file": file, "line": line, "name": name, "doc": doc})
+                })
                 .collect();
         }
     }
@@ -765,6 +971,94 @@ pub fn run(cmd: ArikaCmd) -> Result<ExitCode, String> {
                 emitted.to_string(),
                 facts.map(|f| f.display().to_string()).unwrap_or_default(),
             ])
+        }
+        ArikaCmd::Find {
+            text,
+            limit,
+            json,
+            from,
+        } => over_facts("find", json, &json!({"text": text, "limit": limit}), &from),
+        ArikaCmd::Get { word, json, from } => over_facts("get", json, &json!({"word": word}), &from),
+        ArikaCmd::Uses { word, json, from } => {
+            over_facts("uses", json, &json!({"word": word}), &from)
+        }
+        ArikaCmd::Groups { min, json, from } => {
+            over_facts("groups", json, &json!({"min": min}), &from)
+        }
+        ArikaCmd::Changed {
+            package,
+            since,
+            json,
+            from,
+        } => over_facts(
+            "changed",
+            json,
+            &json!({"package": package, "since": since.display().to_string()}),
+            &from,
+        ),
+        ArikaCmd::Golden { file, json, from } => {
+            let text = std::fs::read_to_string(&file)
+                .map_err(|e| format!("{}: {e}", file.display()))?;
+            let questions: Vec<Json> = text
+                .lines()
+                .filter(|l| !l.trim().is_empty() && !l.starts_with('#'))
+                .map(|l| {
+                    l.split_once('\t').map_or_else(
+                        || Err(format!("{}: `{l}` is not intent<TAB>word", file.display())),
+                        |(intent, word)| Ok(json!([intent, word])),
+                    )
+                })
+                .collect::<Result<_, _>>()?;
+            over_facts("golden", json, &json!({"questions": questions}), &from)
+        }
+        ArikaCmd::Ask {
+            question,
+            json,
+            store,
+            from,
+        } => {
+            let (store, scratch) = scratch_store(store);
+            let out = over_facts(
+                "ask",
+                json,
+                &json!({"question": question, "store": store.display().to_string(), "rules": rules()}),
+                &from,
+            );
+            if scratch {
+                let _ = std::fs::remove_file(&store);
+            }
+            out
+        }
+        ArikaCmd::Quads { out, from } => over_facts(
+            "quads",
+            false,
+            &json!({"out": out.display().to_string(), "rules": rules()}),
+            &from,
+        ),
+        ArikaCmd::Tools => render(vec!["tools".into()]),
+        ArikaCmd::Mcp { request, from } => {
+            let request: Json =
+                serde_json::from_str(&request).map_err(|e| format!("REQUEST is not JSON: {e}"))?;
+            let (store, scratch) = scratch_store(None);
+            let out = over_facts(
+                "mcp",
+                true,
+                &json!({"request": request, "store": store.display().to_string(), "rules": rules()}),
+                &from,
+            );
+            if scratch {
+                let _ = std::fs::remove_file(&store);
+            }
+            out
+        }
+        ArikaCmd::Serve { addr, store, from } => {
+            let (store, _) = scratch_store(store);
+            over_facts(
+                "serve",
+                false,
+                &json!({"addr": addr, "store": store.display().to_string(), "rules": rules()}),
+                &from,
+            )
         }
     }
 }

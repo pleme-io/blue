@@ -1,12 +1,13 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:fa22e9b1684d03e043c3c5545014025fb0934895ba2b162d53512d6a083bce86",
+  "bluefile_b3": "b3:4c2357869f3b2359461fa679314924f17cd59bcddc53c2351aadaa84a1d7b6c2",
   "manifest": {
     "schema": 1,
     "name": "khipu",
     "version": "0.1.0",
     "needs": {
       "deeta": "^0.1.0",
+      "kueri": "^0.1.0",
       "kyohi": "^0.1.0",
       "moji": "^0.1.0",
       "retsu": "^0.1.0"

@@ -67,7 +67,7 @@ These commands come from the Bluefile. Run them from the repository root.
 | `blue test gen/verb-graph.b` | `checks.verb-graph` |
 | `blue test nix/vm-run.b` | `checks.vm-run` |
 
-Generated files, never edited by hand: `bidamas/CATALOG.md`, `AGENTS.md`, `bidamas/SNAPSHOT.json`, `docs/BOOK.md`, `CLAUDE.md`, `docs/verbs/contracts.tsv`, `docs/DIAGNOSTICS.md`, `docs/verbs/merged/edges.tsv`, `docs/EXAMPLES.md`, `.gitattributes`, `.github/workflows/kernel-matrix.yml`, `crates/blue-lang-syntax/src/kigou/tables.rs`, `tree-sitter-blue/queries/folds.scm`, `tree-sitter-blue/grammar.js`, `tree-sitter-blue/queries/highlights.scm`, `tree-sitter-blue/queries/indents.scm`, `tree-sitter-blue/queries/injections.scm`, `tree-sitter-blue/queries/locals.scm`, `tree-sitter-blue/tree-sitter.json`, `crates/blue-lang-kiwari/blue.kiwari.json`, `bidamas/toriyose/kyasshu/keys/kensa.json`, `llms.txt`, `llms-full.txt`, `bidamas/okite/RULES.md`, `README.md`, `docs/REFERENCE.md`, `docs/verbs/merged/verbs.tsv`, `crates/blue-lang-runtime/src/word_shapes/tables.rs`.
+Generated files, never edited by hand: `bidamas/CATALOG.md`, `AGENTS.md`, `bidamas/SNAPSHOT.json`, `docs/arika-tools.json`, `docs/BOOK.md`, `CLAUDE.md`, `docs/verbs/contracts.tsv`, `docs/DIAGNOSTICS.md`, `docs/verbs/merged/edges.tsv`, `docs/EXAMPLES.md`, `.gitattributes`, `.github/workflows/kernel-matrix.yml`, `crates/blue-lang-syntax/src/kigou/tables.rs`, `tree-sitter-blue/queries/folds.scm`, `tree-sitter-blue/grammar.js`, `tree-sitter-blue/queries/highlights.scm`, `tree-sitter-blue/queries/indents.scm`, `tree-sitter-blue/queries/injections.scm`, `tree-sitter-blue/queries/locals.scm`, `tree-sitter-blue/tree-sitter.json`, `crates/blue-lang-kiwari/blue.kiwari.json`, `bidamas/toriyose/kyasshu/keys/kensa.json`, `llms.txt`, `llms-full.txt`, `bidamas/okite/RULES.md`, `README.md`, `docs/REFERENCE.md`, `docs/verbs/merged/verbs.tsv`, `crates/blue-lang-runtime/src/word_shapes/tables.rs`.
 
 ## Writing blue programs
 
@@ -89,7 +89,10 @@ Before you write a `def`, ask whether blue already has the word.
 copy (T0), the same code (T1), or the same code through a wrapper (T2), with
 its id and import line ([`docs/ARIKA.md`](docs/ARIKA.md), Phase 1). The
 PreToolUse hook says the same before a `.b` write, and B0070
-(`blue check --reuse`) says it after.
+(`blue check --reuse`) says it after. `blue arika find "intent"` ranks words
+by what they do, `blue arika uses WORD` names their callers, and
+`blue arika ask untested-network` names the definitions that reach the
+network with no test.
 
 ### A file is a program; a project is one command away
 

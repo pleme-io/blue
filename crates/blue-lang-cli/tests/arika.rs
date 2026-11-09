@@ -591,3 +591,216 @@ fn facts_that_do_not_hash_to_the_header_are_refused_as_blind() {
     let word = from_snapshot(&d, &stale, &["word", "without"]);
     assert_eq!(word["outcome"], "blind", "{word}");
 }
+
+const KUMO: &str = "@doc \"\"\"\nfetch: the body of a page.\n\"\"\"\ndef fetch(url)\n  http_request(\"GET\", url, nil, nil, 1000)[:body]\nend\n\n@doc \"\"\"\nsend_it: post a body to a page.\n\"\"\"\ndef send_it(url, body)\n  http_request(\"POST\", url, nil, body, 1000)[:status]\nend\n\n@doc \"\"\"\nfirst_line: the first line of a page.\n\"\"\"\ndef first_line(url)\n  split(fetch(url), line_break)[0]\nend\n\n@doc \"\"\"\nbump: one more.\n\"\"\"\ndef bump(n)\n  n + 1\nend\n\ntest \"send_it answers a status\"\n  assert send_it(\"http://127.0.0.1:9/\", \"\") != nil\nend\n";
+
+const FETCH_TEST: &str = "\ntest \"fetch answers a body\"\n  assert fetch(\"http://127.0.0.1:9/\") != nil\nend\n";
+
+fn kumo_tree(dir: &Dir, source: &str) -> PathBuf {
+    let root = dir.0.join("bidamas");
+    let p = root.join("kumo");
+    std::fs::create_dir_all(&p).expect("mkdir");
+    std::fs::write(p.join("Bluefile"), "package(\"kumo\", \"0.1.0\")\n").expect("write");
+    std::fs::write(p.join("kumo.b"), source).expect("write");
+    root
+}
+
+fn asked(d: &Dir, root: &Path) -> serde_json::Value {
+    let (header, facts) = emitted(d, root, "k");
+    let out = run(
+        &d.0,
+        &[
+            "arika",
+            "ask",
+            "untested-network",
+            "--json",
+            "--snapshot",
+            &header.display().to_string(),
+            "--facts",
+            &facts.display().to_string(),
+        ],
+    );
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    serde_json::from_str(text(&out).trim()).expect("json")
+}
+
+#[test]
+fn the_definitions_that_reach_the_network_and_have_no_test_are_one_question() {
+    let d = Dir::new("untested");
+    let root = kumo_tree(&d, KUMO);
+    let a = asked(&d, &root);
+    assert_eq!(
+        a["answers"],
+        serde_json::json!(["kumo::fetch", "kumo::first_line"]),
+        "{a}"
+    );
+    assert!(a["quads"].as_u64().is_some_and(|n| n > 20), "{a}");
+    let header = snapshot(&d.0.join("k.json"));
+    assert_eq!(a["snapshot_root"], header["snapshot_root"]);
+    let tested = kumo_tree(&d, &format!("{KUMO}{FETCH_TEST}"));
+    let b = asked(&d, &tested);
+    assert_eq!(b["answers"], serde_json::json!(["kumo::first_line"]), "{b}");
+}
+
+#[test]
+fn the_facts_carry_calls_reach_and_the_tests_that_name_a_word() {
+    let d = Dir::new("links");
+    let root = kumo_tree(&d, KUMO);
+    let (_, facts) = emitted(&d, &root, "l");
+    let rows = rows_of(&facts);
+    let row = |w: &str| {
+        rows.iter()
+            .find(|r| r["word"] == w)
+            .cloned()
+            .unwrap_or_else(|| panic!("no row {w}"))
+    };
+    assert_eq!(row("kumo::first_line")["calls"], serde_json::json!(["kumo::fetch"]));
+    assert_eq!(row("kumo::first_line")["reach"], serde_json::json!(["network"]));
+    assert_eq!(row("kumo::bump")["reach"], serde_json::json!([]));
+    let tests = row("kumo::send_it")["tests"].clone();
+    assert_eq!(tests[0]["name"], "send_it answers a status", "{tests}");
+    assert_eq!(tests[0]["doc"], false);
+    assert_eq!(row("kumo::fetch")["tests"], serde_json::json!([]));
+}
+
+fn fact_verb(d: &Dir, args: &[&str]) -> serde_json::Value {
+    let snap = repo_snapshot().display().to_string();
+    let facts = repo_facts().display().to_string();
+    let mut all = vec!["arika"];
+    all.extend_from_slice(args);
+    all.extend_from_slice(&["--json", "--snapshot", &snap, "--facts", &facts]);
+    let out = run(&d.0, &all);
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    serde_json::from_str(text(&out).trim()).expect("json")
+}
+
+fn golden_file() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/arika_golden.tsv")
+}
+
+#[test]
+fn the_golden_questions_keep_their_top_hit_g5() {
+    let d = Dir::new("golden");
+    let a = fact_verb(&d, &["golden", &golden_file().display().to_string()]);
+    assert!(
+        a["asked"].as_u64().is_some_and(|n| n >= 20),
+        "the golden set shrank: {a}"
+    );
+    assert_eq!(a["lost"], serde_json::json!([]), "golden questions that lost their top hit");
+}
+
+#[test]
+fn uses_groups_and_get_answer_from_the_facts() {
+    let d = Dir::new("verbs");
+    let uses = fact_verb(&d, &["uses", "retsu::first"]);
+    let callers = uses["callers"].as_array().expect("callers");
+    assert!(callers.len() > 50, "{}", callers.len());
+    assert!(callers.iter().all(|c| c["word"] != "retsu::first"));
+    let got = fact_verb(&d, &["get", "retsu::first"]);
+    let id = got["rows"][0]["id"].as_str().expect("id").to_string();
+    let by_id = fact_verb(&d, &["uses", &id]);
+    assert_eq!(by_id["callers"], uses["callers"]);
+    let groups = fact_verb(&d, &["groups"]);
+    for g in groups["groups"].as_array().expect("groups") {
+        assert!(g["words"].as_array().is_some_and(|w| w.len() > 1));
+        assert!(g["size"].as_u64().is_some_and(|s| s >= 12));
+    }
+}
+
+#[test]
+fn changed_names_what_moved_in_a_package_since_older_facts() {
+    let d = Dir::new("changed");
+    let root = fixture_tree(&d, "t");
+    let (_, old) = emitted(&d, &root, "old");
+    std::fs::write(
+        root.join("kagi/kagi.b"),
+        KAGI.replace("x < LIMIT", "x <= LIMIT")
+            .replace("twice: the number doubled.", "twice: two times the number.")
+            + "\ndef thrice(n)\n  n * 3\nend\n",
+    )
+    .expect("write");
+    let (header, facts) = emitted(&d, &root, "new");
+    let out = run(
+        &d.0,
+        &[
+            "arika",
+            "changed",
+            "kagi",
+            "--since",
+            &old.display().to_string(),
+            "--json",
+            "--snapshot",
+            &header.display().to_string(),
+            "--facts",
+            &facts.display().to_string(),
+        ],
+    );
+    let a: serde_json::Value = serde_json::from_str(text(&out).trim()).expect("json");
+    assert_eq!(a["added"], serde_json::json!(["kagi::thrice"]), "{a}");
+    assert_eq!(a["removed"], serde_json::json!([]));
+    assert_eq!(
+        a["moved"],
+        serde_json::json!([
+            {"word": "kagi::capped", "code": true},
+            {"word": "kagi::twice", "code": false}
+        ]),
+        "{a}"
+    );
+}
+
+#[test]
+fn the_mcp_door_lists_the_rendered_tools_and_answers_a_call_as_the_cli_does() {
+    let d = Dir::new("mcp");
+    let tools: serde_json::Value =
+        serde_json::from_str(text(&run(&d.0, &["arika", "tools"])).trim()).expect("json");
+    let committed: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(repo().join("docs/arika-tools.json")).expect("read"),
+    )
+    .expect("json");
+    assert_eq!(tools, committed, "docs/arika-tools.json is stale: nix run .#regen");
+    let snap = repo_snapshot().display().to_string();
+    let facts = repo_facts().display().to_string();
+    let mcp = |req: serde_json::Value| -> String {
+        text(&run(
+            &d.0,
+            &[
+                "arika",
+                "mcp",
+                &req.to_string(),
+                "--snapshot",
+                &snap,
+                "--facts",
+                &facts,
+            ],
+        ))
+    };
+    let listed: serde_json::Value = serde_json::from_str(
+        mcp(serde_json::json!({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})).trim(),
+    )
+    .expect("json");
+    assert_eq!(listed["result"]["tools"], tools);
+    let called: serde_json::Value = serde_json::from_str(
+        mcp(serde_json::json!({
+            "jsonrpc": "2.0", "id": 2, "method": "tools/call",
+            "params": {"name": "blue_word_find", "arguments": {"text": "running totals"}}
+        }))
+        .trim(),
+    )
+    .expect("json");
+    let cli = fact_verb(&d, &["find", "running totals"]);
+    assert_eq!(called["result"]["structuredContent"], cli);
+    assert_eq!(
+        mcp(serde_json::json!({"jsonrpc": "2.0", "method": "notifications/initialized"})),
+        ""
+    );
+}

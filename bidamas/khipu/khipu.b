@@ -4,10 +4,11 @@ khipu — blue's knowledge graph (docs/KHIPU.md): RDF terms as a closed sum, qua
     write_term(iri("http://e/a"), "") #=> "<http://e/a>"
 """
 
-use("deeta", %i[code_point_text radix_value])
+use("deeta", %i[as_json code_point_text radix_value])
+use("kueri", %i[ident quote_str])
 use("kyohi", [:raised])
 use("moji", %i[is_hex take_chars])
-use("retsu", %i[first size])
+use("retsu", %i[first push size])
 
 @doc """
 XSD_STRING is the datatype IRI a plain literal has.
@@ -713,6 +714,268 @@ def refused_why(text)
   first(r[:refused])[:why]
 end
 
+@doc """
+PERCENT is each character an IRI never holds as text, and `%` itself, with its percent escape.
+
+    PERCENT["<"] #=> "%3C"
+"""
+PERCENT = {
+  " " => "%20",
+  "\"" => "%22",
+  "%" => "%25",
+  "<" => "%3C",
+  ">" => "%3E",
+  "\\" => "%5C",
+  "^" => "%5E",
+  "`" => "%60",
+  "{" => "%7B",
+  "|" => "%7C",
+  "}" => "%7D"
+}
+
+@doc """
+encoded: A text made safe to stand in an IRI: each forbidden character and `%` written as its percent escape, so `decoded` gives the text back.
+
+    encoded("a<b>%") #=> "a%3Cb%3E%25"
+"""
+def encoded(text)
+  join(map((c) -> get(PERCENT, c) or c, chars(text)), "")
+end
+
+@doc """
+decoded: The text `encoded` was given.
+
+    decoded(encoded("x <=> y")) #=> "x <=> y"
+"""
+def decoded(text)
+  others = reduce(
+    (t, e) -> replace(t, e[1], e[0]),
+    text,
+    filter((e) -> e[0] != "%", map_entries(PERCENT))
+  )
+  replace(others, "%25", "%")
+end
+
+@doc """
+BUDGET is the rows a question may answer when it names no budget of its own; past it the question is refused, never cut short.
+
+    BUDGET #=> 10000
+"""
+BUDGET = 10000
+
+@doc """
+STORE_SCOPE is the scope of every blank node read back from a store: a store is one document.
+
+    STORE_SCOPE #=> "khipu-store"
+"""
+STORE_SCOPE = "khipu-store"
+
+@doc """
+store_row is one quad as the JSON row a store holds: each term in N-Triples, the default graph as "".
+
+    store_row(quad(iri("http://e/s"), iri("http://e/p"), literal("o"), nil))["g"] #=> ""
+"""
+def store_row(q)
+  {
+    "s" => write_term(q[:s], ""),
+    "p" => write_term(q[:p], ""),
+    "o" => write_term(q[:o], ""),
+    "g" => if q[:g].nil?
+      ""
+    else
+      write_term(q[:g], "")
+    end
+  }
+end
+
+@doc """
+load writes `quads` to `path` as a store, one JSON row per distinct quad (a dataset is a set, so a repeated statement is held once), and answers the store: its path and quad count. DuckDB reads the file; blue holds no index of it.
+
+    load(scratch("khipu-doc.jsonl"), [quad(iri("http://e/a"), iri("http://e/p"), iri("http://e/b"), nil), quad(iri("http://e/a"), iri("http://e/p"), iri("http://e/b"), nil)])[:quads] #=> 1
+"""
+def load(path, quads)
+  lines = distinct(map((q) -> json_stringify(store_row(q)), quads))
+  write_file(path, unlines(lines))
+  {path:, quads: size(lines)}
+end
+
+@doc """
+var: A variable of a basic graph pattern, by name.
+
+    var("d") #=> {term: :var, name: "d"}
+"""
+def var(name)
+  {term: :var, name:}
+end
+
+@doc """
+var? tells whether a pattern position is a variable.
+
+    var?(var("d")) #=> true
+"""
+def var?(t)
+  t[:term] == :var
+end
+
+@doc """
+pattern: One triple pattern; each position a term or a variable. It matches a quad of any graph.
+
+    size(pattern(var("s"), iri("http://e/p"), var("o"))) #=> 3
+"""
+def pattern(s, p, o)
+  [s, p, o]
+end
+
+@doc """
+question: What to ask a store: the variables answered, the patterns that must all match, the pattern groups that must not match (each a NOT EXISTS), and the row budget (BUDGET unless `opts[:budget]`).
+
+    question(["d"], [], [], {})[:budget] #=> 10000
+"""
+def question(vars, where, absent, opts)
+  {vars:, where:, absent:, budget: opts[:budget] or BUDGET}
+end
+
+@doc """
+COLUMNS is the store's columns in pattern order.
+
+    COLUMNS #=> %w[s p o]
+"""
+COLUMNS = %w[s p o]
+
+@doc """
+bind_group adds one group of patterns, aliased `prefix0`, `prefix1`..., to a binding: each variable's first column, and an equality for every other position.
+
+    bind_group([pattern(var("a"), iri("http://e/p"), var("a"))], "q", {})[:conds] #=> ["q0.p = '<http://e/p>'", "q0.o = q0.s"]
+"""
+def bind_group(patterns, prefix, bound)
+  reduce(
+    fn(acc, i)
+      reduce(
+        fn(st, j)
+          bind_position(st, patterns[i][j], "#{prefix}#{to_s(i)}.#{COLUMNS[j]}")
+        end,
+        acc,
+        range(3)
+      )
+    end,
+    {bound:, conds: []},
+    range(size(patterns))
+  )
+end
+
+@doc """
+bind_position is one pattern position: a constant becomes an equality, a bound variable an equality with its column, a new variable a binding.
+
+    bind_position({bound: {}, conds: []}, var("x"), "q0.s")[:bound] #=> {"x" => "q0.s"}
+"""
+def bind_position(st, t, column)
+  if not var?(t)
+    {
+      bound: st[:bound],
+      conds: push(st[:conds], "#{column} = #{quote_str(write_term(t, ""))}")
+    }
+  elsif get(st[:bound], t[:name]) != nil
+    {
+      bound: st[:bound],
+      conds: push(st[:conds], "#{column} = #{get(st[:bound], t[:name])}")
+    }
+  else
+    {bound: assoc(st[:bound], t[:name], column), conds: st[:conds]}
+  end
+end
+
+@doc """
+from_list is the FROM list of a group: the store once per pattern.
+
+    from_list(2, "q") #=> "quads AS q0, quads AS q1"
+"""
+def from_list(n, prefix)
+  join(map((i) -> "quads AS #{prefix}#{to_s(i)}", range(n)), ", ")
+end
+
+@doc """
+absent_sql is one group that must not match, as NOT EXISTS over the outer binding.
+
+    absent_sql([pattern(var("t"), iri("http://e/x"), var("d"))], 0, {"d" => "q0.s"}) #=> "NOT EXISTS (SELECT 1 FROM quads AS n0_0 WHERE n0_0.p = '<http://e/x>' AND n0_0.o = q0.s)"
+"""
+def absent_sql(patterns, k, bound)
+  prefix = "n#{to_s(k)}_"
+  inner = bind_group(patterns, prefix, bound)
+  conds = if inner[:conds] == []
+    "true"
+  else
+    join(inner[:conds], " AND ")
+  end
+  "NOT EXISTS (SELECT 1 FROM #{from_list(size(patterns), prefix)} WHERE #{conds})"
+end
+
+@doc """
+question_sql lowers a question to one DuckDB query over the store at `path`: a self-join per pattern, a NOT EXISTS per absent group, DISTINCT rows ordered by every answered variable, one row past the budget so an overrun is seen. A question with no pattern, or one answering a variable no pattern binds, is refused.
+
+    contains?(question_sql("s.jsonl", question(["s"], [pattern(var("s"), iri("http://e/p"), var("o"))], [], {})), "LIMIT 10001") #=> true
+"""
+def question_sql(path, q)
+  if q[:where] == []
+    refuse("a question has at least one pattern")
+  end
+  outer = bind_group(q[:where], "q", {})
+  unbound = filter((v) -> get(outer[:bound], v).nil?, q[:vars])
+  if unbound != []
+    refuse("no pattern binds ?#{first(unbound)}")
+  end
+  absent = map(
+    (k) -> absent_sql(q[:absent][k], k, outer[:bound]),
+    range(size(q[:absent]))
+  )
+  conds = append(outer[:conds], absent)
+  cols = join(
+    map((v) -> "#{get(outer[:bound], v)} AS #{ident(v)}", q[:vars]),
+    ", "
+  )
+  order = join(map((v) -> ident(v), q[:vars]), ", ")
+  source = "read_json(#{quote_str(path)}, format = 'newline_delimited', columns = {s: 'VARCHAR', p: 'VARCHAR', o: 'VARCHAR', g: 'VARCHAR'})"
+  where = if conds == []
+    ""
+  else
+    " WHERE #{join(conds, " AND ")}"
+  end
+  "WITH quads AS (SELECT * FROM #{source}) SELECT DISTINCT #{cols} FROM #{from_list(size(q[:where]), "q")}#{where} ORDER BY #{order} LIMIT #{to_s(q[:budget] + 1)}"
+end
+
+@doc """
+read_term reads one stored N-Triples term back.
+
+    read_term("<http://e/a>") #=> iri("http://e/a")
+"""
+def read_term(text)
+  read_node(chars(text), 0, STORE_SCOPE, %i[iri blank literal])[:v]
+end
+
+@doc """
+ask: The answers of a question over a store, each a map from variable name to term, distinct and ordered. More rows than the budget is refused as `:khipu_budget`, naming the bound, never a partial answer; an empty store answers [], and a store DuckDB cannot read raises `:kueri_query`.
+
+    ask(load(scratch("khipu-doc-ask.jsonl"), []), question(["s"], [pattern(var("s"), var("p"), var("o"))], [], {})) #=> []
+"""
+def ask(store, q)
+  if store[:quads] == 0
+    []
+  else
+    found = kueri::rows(question_sql(store[:path], q))
+    if size(found) > q[:budget]
+      raise(
+        :khipu_budget,
+        "the question answers more than its budget of #{to_s(q[:budget])} rows"
+      )
+    end
+    map(
+      fn(row)
+        reduce((m, v) -> assoc(m, v, read_term(as_json(row, v))), {}, q[:vars])
+      end,
+      found
+    )
+  end
+end
+
 test "a literal with both a language tag and a datatype has no constructor and no reading"
   assert not member?(:datatype, map((e) -> e[0], map_entries(lang("a", "en"))))
   assert contains?(
@@ -829,4 +1092,104 @@ end
 test "equal terms share an id"
   assert term_id(iri("http://e/a")) == term_id(iri("http://e/a"))
   assert term_id(literal("a")) != term_id(lang("a", "en"))
+end
+
+@doc """
+scratch is a path under TMPDIR for a test's store.
+
+    ends_with?(scratch("s.jsonl"), "s.jsonl") #=> true
+"""
+def scratch(name)
+  path_join(getenv("TMPDIR", "/tmp"), name)
+end
+
+@doc """
+ex is a test IRI in the http://e/ space.
+
+    ex("a") #=> iri("http://e/a")
+"""
+def ex(local)
+  iri("http://e/#{local}")
+end
+
+@doc """
+fixture_store loads the tests' five quads: two definitions reach the network, one the clock, a test exercises one of the two, and one carries a gloss.
+
+    fixture_store(scratch("khipu-doc-fixture.jsonl"))[:quads] #=> 5
+"""
+def fixture_store(path)
+  load(
+    path,
+    [
+      quad(ex("a"), ex("reaches"), ex("network"), nil),
+      quad(ex("b"), ex("reaches"), ex("network"), nil),
+      quad(ex("c"), ex("reaches"), ex("clock"), nil),
+      quad(ex("t1"), ex("exercises"), ex("b"), ex("g")),
+      quad(ex("a"), ex("gloss"), literal("it's a\tword"), nil)
+    ]
+  )
+end
+
+@doc """
+untested is the question "which subjects reach `caps` and are exercised by nothing?".
+
+    untested(ex("network"))[:vars] #=> ["d"]
+"""
+def untested(caps)
+  question(
+    ["d"],
+    [pattern(var("d"), ex("reaches"), caps)],
+    [[pattern(var("t"), ex("exercises"), var("d"))]],
+    {}
+  )
+end
+
+test "a basic graph pattern joins in DuckDB, and an absent group removes what it matches"
+  s = fixture_store(scratch("khipu-test-bgp.jsonl"))
+  assert ask(s, untested(ex("network"))) == [{"d" => ex("a")}]
+  all = question(
+    ["d"],
+    [pattern(var("d"), ex("reaches"), ex("network"))],
+    [],
+    {}
+  )
+  assert map((r) -> r["d"], ask(s, all)) == [ex("a"), ex("b")]
+  pair = question(%w[d c], [pattern(var("d"), ex("reaches"), var("c"))], [], {})
+  assert size(ask(s, pair)) == 3
+end
+
+test "a literal with a quote and a tab survives the store"
+  s = fixture_store(scratch("khipu-test-lit.jsonl"))
+  q = question(["g"], [pattern(ex("a"), ex("gloss"), var("g"))], [], {})
+  assert ask(s, q) == [{"g" => literal("it's a\tword")}]
+end
+
+test "encoded text is a valid IRI and decodes to itself"
+  texts = ["retsu::first", "x <=> y", "%3C", "a|b`c^d{e}\\f\"g h%25"]
+  assert every?((t) -> iri_problem("urn:x:#{encoded(t)}").nil?, texts)
+  assert map(decoded, map(encoded, texts)) == texts
+end
+
+test "past its budget a question is refused, never cut short"
+  s = fixture_store(scratch("khipu-test-budget.jsonl"))
+  q = question(
+    ["d"],
+    [pattern(var("d"), ex("reaches"), var("c"))],
+    [],
+    {budget: 2}
+  )
+  assert raised(() -> ask(s, q)) == :khipu_budget
+  assert size(ask(s, question(["d"], q[:where], [], {budget: 3}))) == 3
+end
+
+test "a question with no pattern, or an unbound answer, is refused"
+  assert rdf_refused?(() -> question_sql("x", question(["d"], [], [], {})))
+  assert rdf_refused?(
+    fn()
+      question_sql(
+        "x",
+        question(["z"], [pattern(var("d"), ex("p"), var("o"))], [], {})
+      )
+    end
+  )
 end

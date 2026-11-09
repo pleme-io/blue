@@ -5,14 +5,23 @@ summary: "khipu, blue's knowledge graph, DESIGN: OxiRS's essence naturalized, th
 
 # khipu: blue's knowledge graph, the design of record
 
-**Tier (2026-11-06): K1a BUILT, the rest DESIGN.** khipu is the
+**Tier (2026-11-09): K1a BUILT; K1b's store and basic graph patterns BUILT;
+the W3C suites and the rest DESIGN.** khipu is the
 naturalization of OxiRS (https://github.com/cool-japan/oxirs, v0.4.1): an RDF
 quad store, a SPARQL query and update engine, rules and shape validation, in
 blue. It keeps the problem and the good ideas. It vendors no OxiRS code and
 speaks no OxiRS API. K1a is `bidamas/khipu`: the term sum, quads, and
-N-Triples and N-Quads read and written, each line judged alone (21 tests).
-K1b is the DuckDB store, basic graph patterns and the W3C syntax suites. The
-roadmap row is the khipu track in [`ROADMAP.md`](ROADMAP.md).
+N-Triples and N-Quads read and written, each line judged alone. K1b's first
+half (2026-11-09) is in the same file: `load` writes a store (one JSON row per
+distinct quad, each term in N-Triples) that DuckDB reads through `kueri`;
+`question` and `ask` answer a basic graph pattern (one self-join per pattern)
+with absent groups (NOT EXISTS), DISTINCT and ordered, under a required row
+budget that refuses an overrun as `:khipu_budget`; `encoded` mints an IRI from
+any text. Its first tenant is blue itself: `blue arika ask untested-network`
+asks which definitions reach the network and are named by no test
+([`ARIKA.md`](ARIKA.md) § What Phase 3 holds). K1b's second half is the W3C
+N-Triples and N-Quads syntax suites against Oxigraph. The roadmap row is the
+khipu track in [`ROADMAP.md`](ROADMAP.md).
 
 **The name.** A khipu is the Andean record of knotted cords: each knot is a
 fact, and a cord hangs from a cord. That is a graph of statements.
@@ -128,7 +137,8 @@ Vectors and embeddings stay with codesearch (arika ruling R8).
 | a literal with both a language tag and a datatype | no constructor in the term sum | truly-unrep |
 | an invalid IRI or language tag | refused when the term is parsed | parse-time-rejected |
 | a blank-node label escaping its document | the label's scope is part of the term | truly-unrep |
-| an unbounded query | a required budget; past it, `refused` | only-mitigated (C2) |
+| an unbounded query | a required budget (`question`, default `BUDGET`); past it `ask` raises `:khipu_budget`, never a partial answer (test: "past its budget a question is refused") | only-mitigated (C2) |
+| a question answering a variable no pattern binds | `question_sql` refuses it | parse-time-rejected |
 | an unstratified rule set | `gurafu::topo` refuses that rule set | parse-time-rejected |
 | an unbuilt SHACL constraint reading as conforms | `blind` is a distinct outcome | truly-unrep |
 | SPARQL conformance | a differential against Oxigraph on the W3C suites | only-mitigated (C2) |

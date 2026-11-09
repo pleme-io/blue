@@ -1,0 +1,29 @@
+name: runner-overflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      overflow-threshold:
+        description: "The hosted backlog at which this run overflows. Empty reads the fleet default."
+        type: string
+        default: ""
+      pressure:
+        description: "A runner-pressure snapshot (JSON) in place of vars.RUNNER_PRESSURE."
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  resolve:
+    uses: pleme-io/substrate/.github/workflows/runner-resolve.yml@main
+    with:
+      overflow-threshold: ${{ inputs.overflow-threshold }}
+      pressure: ${{ inputs.pressure }}
+
+  placed:
+    needs: resolve
+    runs-on: ${{ needs.resolve.outputs.runner }}
+    steps:
+      - run: echo "runner=${RUNNER_NAME} environment=${RUNNER_ENVIRONMENT} provenance=${{ needs.resolve.outputs.provenance }} overflow=${{ needs.resolve.outputs.overflow }}"

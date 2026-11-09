@@ -46,10 +46,13 @@ jobs:
           only: ${{ steps.gates.outputs.checks }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
+  resolve:
+    uses: pleme-io/substrate/.github/workflows/runner-resolve.yml@main
+
   fast-forward:
-    needs: [ci, prose]
-    if: ${{ !cancelled() && (needs.ci.result == 'success' || needs.prose.result == 'success') }}
-    runs-on: ${{ github.event.repository.private && (vars.PRIVATE_BUILDER_RUNNER || 'pleme-private') || 'ubuntu-latest' }}
+    needs: [resolve, ci, prose]
+    if: ${{ !cancelled() && needs.resolve.result == 'success' && (needs.ci.result == 'success' || needs.prose.result == 'success') }}
+    runs-on: ${{ needs.resolve.outputs.runner }}
     permissions:
       contents: write
       actions: write

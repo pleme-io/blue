@@ -1,6 +1,6 @@
-# lareira-camelot-builders — the camelot nix builder fleet (Tier A shipped; Tier B gated).
+# lareira-outpost-builders — the outpost nix builder fleet (Tier A shipped; Tier B gated).
 #
-# Design: scratchpad/camelot-builder-fleet-design.md (§2i + §2c + §2f).
+# Design: scratchpad/outpost-builder-fleet-design.md (§2i + §2c + §2f).
 # Every mutation is a magma Plan / GitOps commit — never a direct cloud-API call.
 # Every band ships SHADOW-FIRST: dryRun + writeEnabled both default safe-OFF; the
 # operator observes ShadowWouldApply, then flips writeEnabled deliberately.
@@ -14,15 +14,15 @@ arches:
   - arm64
   - amd64
 
-# ── Shared cloud context (the borrowed camelot ground; host-free split). ───────
+# ── Shared cloud context (the borrowed outpost ground; host-free split). ───────
 # PLACEHOLDERS — the environment identity is a REQUIRED per-install override.
 # The chart never carries a live cluster name or account profile.
-cluster:    example-cluster  # the EKS cluster camelot is carved into
+cluster:    example-cluster  # the EKS cluster outpost is carved into
 region:     us-east-1
 awsProfile: example-profile  # BreatheCloudPool.target.profile
 # pangeaNamespace = the pangea-operator state-isolation boundary (Postgres schema)
 # the builder InfrastructureTemplates settle into.
-pangeaNamespace: camelot-builders
+pangeaNamespace: outpost-builders
 # magma is the sole executor (PANGEA_FORBID_TOFU); never tofu.
 executor: magma
 # AWS provider credentials for the InfrastructureTemplate's magma apply. Leave
@@ -71,14 +71,14 @@ perfClassProfiles:
 # persistent always-on service anti-select (nodeAffinity NotIn) a transient
 # build pool and never ride it — the sui-on-timefloor leak (a small always-on
 # service scheduled onto a huge, expensive transient build node because both
-# pools only shared `role=camelot-builder`). It ONLY labels — it changes no
+# pools only shared `role=outpost-builder`). It ONLY labels — it changes no
 # build-worker scheduling, no taint, no spot, no breathe setting. A runtime
 # cost-guard also reads this label to classify a node. Additive + backward-
 # compatible: disabling it or an unmapped perfClass simply omits/defaults the
 # label. Derived per perfClass from the map below; override per-arch via
 # builders.<arch>.poolLifecycle.
 #
-# Every pool in THIS chart is a transient build pool (role=camelot-builder,
+# Every pool in THIS chart is a transient build pool (role=outpost-builder,
 # scale-to-zero, 100% spot) — none is a persistent service. A time-floor /
 # supercharge perf class (a huge cost-for-speed pool) maps to
 # `transient-build-supercharge`; every other builder perf class maps to
@@ -99,7 +99,7 @@ poolLifecycle:
   # (backward-compatible: a new/unmapped perfClass still gets a label).
   default: transient-build
 
-# ── Per-arch builder config (§2b — the CamelotBuilderNodeGroup delta). ─────────
+# ── Per-arch builder config (§2b — the OutpostBuilderNodeGroup delta). ─────────
 # The SAME stack per arch; arch is a parameter. Shared node-group shape lives
 # below in `nodeGroup`; per-arch here overrides only what differs.
 builders:
@@ -108,7 +108,7 @@ builders:
       enabled: true          # render the InfrastructureTemplate (magma applies the ASG)
     k8sArch: arm64           # kubernetes.io/arch label + node_label
     nixArch:  aarch64        # the nix `system` half is aarch64-linux
-    asg: camelot-builder-arm64-asg
+    asg: outpost-builder-arm64-asg
     ceiling: 8               # max ASG size = the L2 budget wall
     costSlaCents: 40000      # per-period cost ceiling → EnvelopeExausto→Escalate
     # perfClass: guaranteed-wake   # optional per-arch override of the top-level knob
@@ -120,7 +120,7 @@ builders:
       enabled: true
     k8sArch: amd64
     nixArch:  x86_64         # the nix `system` half is x86_64-linux
-    asg: camelot-builder-amd64-asg
+    asg: outpost-builder-amd64-asg
     ceiling: 8
     costSlaCents: 40000
     # perfClass: guaranteed-wake
@@ -128,13 +128,13 @@ builders:
     interruptionHandler:
       enabled: false
 
-# ── Shared CamelotBuilderNodeGroup shape (§2b) — the isolation guarantee. ──────
-# A builder-SPECIFIC taint keeps builder churn off the camelot SaaS nodes; only
+# ── Shared OutpostBuilderNodeGroup shape (§2b) — the isolation guarantee. ──────
+# A builder-SPECIFIC taint keeps builder churn off the outpost SaaS nodes; only
 # builder pods tolerate it, nothing resident lands here.
 nodeGroup:
-  role: camelot-builder
+  role: outpost-builder
   taint:
-    key: camelot-builder
+    key: outpost-builder
     value: "true"
     effect: NO_SCHEDULE
   catalog: nix_builder       # the pangea-spot nix_builder catalog category
@@ -179,7 +179,7 @@ cloudPool:
   dryRun: true               # SHADOW — observe ShadowWouldApply, actuate nothing
   writeEnabled: false        # pool-level master write switch
 
-# ── L4 substituter — Attic-in-camelot (§2i). VPN-independent in-cluster cache. ─
+# ── L4 substituter — Attic-in-outpost (§2i). VPN-independent in-cluster cache. ─
 attic:
   enabled: true
   image:
@@ -218,9 +218,9 @@ buildQueueExporter:
   # SSM/machines sources the exporter reads to compute queue depth (per arch).
   sources:
     - arch: arm64
-      asg: camelot-builder-arm64-asg
+      asg: outpost-builder-arm64-asg
     - arch: amd64
-      asg: camelot-builder-amd64-asg
+      asg: outpost-builder-amd64-asg
   serviceMonitor:
     enabled: true
     interval: 15s
@@ -233,36 +233,36 @@ buildQueueExporter:
 # SuperCacheCiOverview Library mixin. pangea-operator compiles it → Grafana JSON.
 dashboard:
   enabled: true
-  folder: camelot
+  folder: outpost
   architecture: SuperCacheCiOverview
-  message: "camelot builder fleet — super-cache-ci overview"
+  message: "outpost builder fleet — super-cache-ci overview"
   params:
-    namespace: camelot-builders
+    namespace: outpost-builders
     arches: [arm64, amd64]
     queueMetric: build_queue_depth
-    poolPrefix: camelot-builder
+    poolPrefix: outpost-builder
     # Perpetual-warming (preheat) OBSERVE signals — the enjulho catalog IS the
     # agent's reasoning surface (dashboard-as-code). These name the warmth
     # metrics the "cache stays warm" promessa is proven against; a mixin that
     # doesn't yet render them ignores the extra keys (forward-safe).
-    warmthPromessa: camelot-cache-warm
+    warmthPromessa: outpost-cache-warm
     warmFractionMetric: sui_cache_warm_fraction
-    lastWarmMetric: camelot_cache_warm_last_run_seconds
+    lastWarmMetric: outpost_cache_warm_last_run_seconds
 
 # ── Perpetual cache-warming (preheat) — the "cache stays warm" outcome. ────────
 # Keeps the sui super-cache HOT so a build SUBSTITUTES pre-built closures (warm,
 # ~seconds) instead of cold-compiling (~minutes). SHADOW-FIRST + GATED OFF:
 # `preheat.enabled` renders the Viggy Promessa CR (the declared outcome); it
 # declares `dryRun: true` and actuates nothing. The EXECUTABLE preheat is the
-# image-build repo's `camelot-cache-warm` workflow (6h cadence + on tracked-input
+# image-build repo's `outpost-cache-warm` workflow (6h cadence + on tracked-input
 # change), which spins the 100%-spot scale-to-zero builder floor ONLY while
 # warming. The pure decision core is sui-supercacheci::preheat (WHEN/WHICH to warm
 # + the floor-spin plan); the closed loop that PROVES this promessa is autorevivy's
 # CLEAN face (superCacheCiRef) — a named LiveTODO.
 #
 # Tier-honest: the sui substituter is LIVE (a build fetches closures from
-# sui.camelot-build.svc); keeping it PERPETUALLY warm is behind (a) the
-# camelot-cache-warm workflow going green and (b) the sui TieredBackend store
+# sui.outpost-build.svc); keeping it PERPETUALLY warm is behind (a) the
+# outpost-cache-warm workflow going green and (b) the sui TieredBackend store
 # keystone (Redis-L1 / Postgres-L2 persistence). Rendering this CR does not make
 # the cache warm — it declares the outcome the loop reconciles toward.
 preheat:
@@ -284,29 +284,29 @@ preheat:
   #     inputs: [flake.lock]
   # The Viggy (defpromessa) the loop reconciles toward.
   promessa:
-    name: camelot-cache-warm
-    scope: camelot
+    name: outpost-cache-warm
+    scope: outpost
     canaryService: service-a   # the warm-build-substitutes canary
     slaObjective: "0.99"
     slaWindow: "7d"
     remediationPolicy: AutoCorrect
-    autorevivyRef: camelot-self-maintenance
+    autorevivyRef: outpost-self-maintenance
     outcomeChain: true
 
-# ── Camelot posture (CAMELOT §III non-negotiables). ───────────────────────────
-# In-cluster workloads (attic, exporter) run on camelot nodes with the camelot
+# ── Outpost posture (non-negotiables). ──────────────────────────────────────
+# In-cluster workloads (attic, exporter) run on outpost nodes with the outpost
 # toleration — NOT on the builder-tainted nodes (those are for build workers only).
 nodeSelector:
-  role: camelot
+  role: outpost
 tolerations:
-  - key: camelot-only
+  - key: outpost-only
     operator: Exists
     effect: NoSchedule
 imagePullSecrets: []
 
 serviceAccount:
   create: true
-  name: camelot-builders
+  name: outpost-builders
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Tier B — the super-cache-ci DESTINATION. GATED OFF until its keystone gates
@@ -329,7 +329,7 @@ tierB:
     enabled: true
     minRunners: 0
     maxRunners: 8
-    githubConfigUrl: ""              # set to the camelot GHA org/repo
+    githubConfigUrl: ""              # set to the outpost GHA org/repo
     githubConfigSecret: ""
 
   # ReplicaBand — the runner-replica axis (field-disjoint from node count) (§2e).

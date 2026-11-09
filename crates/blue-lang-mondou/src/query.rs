@@ -1,6 +1,5 @@
 //! `query(document, q)`: the definitions of a file that satisfy a query, where
-//! each one matched and what its pattern bound (`theory/BLUE-TOOLING.md`
-//! T-K). `blue query` and any later door ask this one call.
+//! each one matched and what its pattern bound. `blue query` and any later door ask this one call.
 //!
 //! A query is tatara-lisp data, read by tatara's own reader; several forms
 //! are their conjunction:

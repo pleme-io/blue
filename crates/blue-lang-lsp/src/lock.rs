@@ -1,5 +1,5 @@
 //! `blueshift: lock invariants`: a loose definition rewritten as the typed one
-//! its executions showed (`theory/BLUE.md` §V.20).
+//! its executions showed.
 //!
 //! **Transport-free**, like [`crate::analysis`]: the engine and the evidence
 //! in, [`Lock`]s out. The evidence is `blue_lang_mondou::witness`:

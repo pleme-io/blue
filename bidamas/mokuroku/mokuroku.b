@@ -2955,14 +2955,14 @@ test "the gloss is the first sentence of the @moduledoc, however its lines wrap"
       [
         "@moduledoc \"\"\"",
         "kake (架): blue speaks Nix, and a rebuild does",
-        "only the work that changed (theory/K.md). Six levels.",
+        "only the work that changed (docs/K.md). Six levels.",
         "",
         "More.",
         "\"\"\""
       ]
     )
   ) ==
-    "kake (架): blue speaks Nix, and a rebuild does only the work that changed (theory/K.md)."
+    "kake (架): blue speaks Nix, and a rebuild does only the work that changed (docs/K.md)."
   assert gloss_of_text(
     unlines(["# kazu: a comment.", "def f()", "  1", "end"])
   ) == ""

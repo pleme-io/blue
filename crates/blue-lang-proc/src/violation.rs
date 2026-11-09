@@ -10,8 +10,7 @@
 //!                  "file": PATH | null, "line": n | null, "column": n | null } }
 //! ```
 //!
-//! A class is one of the five names a forensic reader uses
-//! (`theory/IBUKI-FORENSICS.md`). Two are produced, each from one exit:
+//! A class is one of the five names a forensic reader uses. Two are produced, each from one exit:
 //!
 //! | class | the exit |
 //! |---|---|

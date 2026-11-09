@@ -24,8 +24,8 @@ use harness::build_wasm;
 
 /// **The frame this crate's artifact is minted from.**
 ///
-/// `theory/BLUE-EXECUTION.md` M1: *"a module's import table is the lowering of
-/// the `waku` it was minted from."* Until M2 wires an engine border there is no
+/// Milestone M1: a module's import table is the lowering of
+/// the `waku` it was minted from. Until M2 wires an engine border there is no
 /// minting step to read a frame from, so this states the frame the build
 /// already realises — `blue-lang-wasm` compiles `blue-lang-runtime` with the
 /// `sys` feature OFF, so **no host capability is granted**, and every pure
@@ -88,7 +88,7 @@ fn blue_runs_inside_a_wasm_engine_with_zero_imports() {
 
     // **The engine's count and the frame's lowering are the same number.**
     //
-    // `theory/BLUE-EXECUTION.md` M1's gate. The line above pins the engine's
+    // Milestone M1's gate. The line above pins the engine's
     // observation; this pins that blue's derivation *agrees* with it, which is
     // the only thing that makes the derivation about this artifact rather than
     // about itself. If M2 ever mints a module from a frame, this comparison is

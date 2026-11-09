@@ -1,4 +1,4 @@
-# pangea.quero.cloud — coming-soon teaser, served by HANABI (the BFF), NO nginx.
+# pangea.example.net — coming-soon teaser, served by HANABI (the BFF), NO nginx.
 # Static-only now (no backend); hanabi proxies the backend GraphQL once it lands.
 # readOnlyRootFilesystem:false + enable_metrics:false to rule out startup-crash
 # classes on the (stale f8f5faa) base image; rio logs aren't MCP-reachable so we
@@ -108,7 +108,7 @@ spec:
             security:
               cors:
                 allowed_origins:
-                  - https://pangea.quero.cloud
+                  - https://pangea.example.net
                 allow_credentials: true
                 max_age_secs: 3600
       - name: pangea-coming-soon-content
@@ -129,7 +129,7 @@ spec:
               <meta property="og:type" content="website"/>
               <meta property="og:title" content="Pangea — coming soon"/>
               <meta property="og:description" content="Cloud infrastructure, declared and observed. The operator does the rest."/>
-              <meta property="og:url" content="https://pangea.quero.cloud/"/>
+              <meta property="og:url" content="https://pangea.example.net/"/>
               <meta property="og:site_name" content="Pangea"/>
               <meta name="twitter:card" content="summary_large_image"/>
               <meta name="twitter:title" content="Pangea — coming soon"/>

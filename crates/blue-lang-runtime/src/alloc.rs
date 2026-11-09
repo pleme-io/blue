@@ -1,8 +1,7 @@
 //! How many allocations a stretch of a blue program made, and how many bytes.
 //!
 //! `blue profile` reports time per definition; this is the other half of what
-//! a definition costs (`theory/BLUE-MEMORY.md` §VI M0: you cannot configure
-//! what you cannot account for). One counter, read at two points: a caller
+//! a definition costs (you cannot configure what you cannot account for). One counter, read at two points: a caller
 //! snapshots [`allocations`] when an activation enters and again when it
 //! leaves, and the difference is what that activation allocated, everything it
 //! called included. Subtracting what its callees allocated gives the

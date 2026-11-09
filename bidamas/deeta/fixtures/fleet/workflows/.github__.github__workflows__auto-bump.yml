@@ -41,7 +41,7 @@ jobs:
   # is the one place a visibility-only ternary stays correct.
   resolve-runner:
     name: resolve runner
-    runs-on: ${{ github.event.repository.private && 'camelot-builder-pleme-eks' || 'ubuntu-latest' }}
+    runs-on: ${{ github.event.repository.private && 'outpost-builder-pleme-eks' || 'ubuntu-latest' }}
     outputs:
       runner: ${{ steps.resolve.outputs.runner }}
     steps:

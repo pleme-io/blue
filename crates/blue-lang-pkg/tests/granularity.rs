@@ -339,7 +339,7 @@ fn locked_needs(name: &str) -> BTreeMap<String, Range> {
 /// **Nix's view and blue's evaluated view are one view, package by package.**
 ///
 /// This was `the_regex_and_evaluated_dependency_views_agree`, and the change is
-/// the point of `theory/BLUE-STRUCTURE.md` P1. `mk-bidama.nix` used to extract
+/// the point of phase P1. `mk-bidama.nix` used to extract
 /// the graph by splitting each manifest's text on `needs("`, so a *computed*
 /// `needs` was invisible to it — measured on 2026-08-02 by rewriting one
 /// `zenbu` entry as `computed = "moji"` / `needs(computed, "^0.1")`: blue

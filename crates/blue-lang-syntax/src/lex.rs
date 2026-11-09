@@ -7,7 +7,7 @@
 //!
 //! Two decisions here are load-bearing downstream and are made once:
 //!
-//! 1. **Every token carries a byte span.** `theory/BLUE.md` §0 requires
+//! 1. **Every token carries a byte span.** blue requires
 //!    total provenance — every node in an expanded program traceable to the
 //!    source that caused it — and provenance cannot be recovered later if
 //!    the lexer drops it.

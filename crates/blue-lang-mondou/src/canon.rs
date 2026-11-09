@@ -4,7 +4,7 @@
 //! Canonical means one encoding per value, so two equal arguments make one
 //! key: a map's entries are written in the order of their encoded keys, never
 //! the order a hash map happens to iterate in. Structural, so the encoding is
-//! injective where blue text is not (`theory/BLUE-ENGINE.md` §3.6): `1` and
+//! injective where blue text is not: `1` and
 //! `1.0`, a string and a symbol, never meet.
 //!
 //! Only data has an encoding. A closure, a native function, a promise, quoted

@@ -1,5 +1,5 @@
 # A blue service as an OCI image and a Kubernetes workload: the worked example
-# for the Bluefile's deploy words (theory/BLUE-TOOLING.md T-J).
+# for the Bluefile's deploy words.
 #
 # The words state facts; nix and the fleet's tools do the work. A project's
 # flake.nix is one line, and this project needs nothing more:

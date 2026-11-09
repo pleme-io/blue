@@ -14,7 +14,6 @@
 //! That distinction matters because "self-hosted" usually means the compiler
 //! compiles itself, and this does not. Claiming otherwise would be the
 //! overstatement the rest of this repo is written to avoid.
-//! `theory/BLUE.md` §V.26 carries the row.
 //!
 //! ## Why it earns its keep anyway
 //!

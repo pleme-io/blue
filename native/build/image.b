@@ -1,5 +1,5 @@
 # Link an emitted program into an image for its board and measure it: the ELF
-# and size.tsv (one row of BLUE-NATIVE.md's size ledger) into $IMAGE_OUT.
+# and size.tsv (one row of the native size ledger) into $IMAGE_OUT.
 #
 #   IMAGE_RS     the emitted Rust (packages.generated-<name>)
 #   IMAGE_BOARD  the board's name in kiban

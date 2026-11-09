@@ -7,7 +7,7 @@
 //!
 //! **Why that is not obvious, and why the test is worth its weight.** The
 //! standing objection to snapshotting a blue value is that blue's values are
-//! `Arc`-based (`BLUE-MEMORY.md` §I.1) and a refcount is meaningless outside
+//! `Arc`-based and a refcount is meaningless outside
 //! the process that owns it. Compiled to wasm the objection dissolves: the
 //! `Arc`s, their refcounts and the whole allocator arena are *in the snapshot*,
 //! internally consistent with each other, because the snapshot is the entire

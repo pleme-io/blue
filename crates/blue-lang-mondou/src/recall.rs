@@ -1,4 +1,4 @@
-//! Automatic memoization of pure definitions (`theory/BLUE-TOOLING.md` T-M).
+//! Automatic memoization of pure definitions.
 //!
 //! A call of a definition [`crate::reach`] proves pure is answered by its
 //! key when the key was answered before:

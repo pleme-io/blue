@@ -1,4 +1,4 @@
-# N0's program (theory/BLUE-NATIVE.md §7): write "hi" and a newline to the
+# N0's program: write "hi" and a newline to the
 # board's UART. It uses def, if, Int arithmetic, a tail call and mmio_write, and
 # nothing else. Under `blue run` kiban's model of the board prints the same
 # three bytes the image prints on QEMU; the check compares the two.

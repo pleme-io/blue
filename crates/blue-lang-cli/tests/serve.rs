@@ -1,6 +1,6 @@
 //! `blue serve`, `blue repl` and `blue eval` driven as a person or an editor
-//! drives them: the binary as a subprocess, the protocol of
-//! `theory/BLUE-TOOLING.md` §4 on its pipes.
+//! drives them: the binary as a subprocess, the session protocol on its
+//! pipes.
 
 use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;

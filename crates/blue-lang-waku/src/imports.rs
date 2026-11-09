@@ -1,15 +1,15 @@
-//! The import table a frame lowers to — **`theory/BLUE-EXECUTION.md` M1.**
+//! The import table a frame lowers to (milestone M1).
 //!
-//! `BLUE-EXECUTION.md` §0 states the mechanism in one sentence: *"a module's
-//! import table is the lowering of the `waku` it was minted from, so
-//! narrow-cannot-widen stops being a lattice property blue asserts and becomes
-//! a property the engine enforces because the import is absent."*
+//! The mechanism in one sentence: a module's import table is the lowering of
+//! the `waku` it was minted from, so narrow-cannot-widen stops being a
+//! lattice property blue asserts and becomes a property the engine enforces
+//! because the import is absent.
 //!
 //! This module is that lowering, and nothing else. It does **not** put an
 //! import into a wasm module — a core-wasm import table is static in the
 //! binary and a frame is a runtime value, so emitting one is code generation
-//! behind the engine border, which is M2 and is blocked on a decision
-//! `BLUE-EXECUTION.md` §VII states rather than hides. What lands here is the
+//! behind the engine border, which is M2 and is blocked on an open
+//! decision. What lands here is the
 //! function M2 will call, with its totality gated now rather than later.
 //!
 //! ## Why this is derived and not a list

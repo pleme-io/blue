@@ -1,4 +1,4 @@
-# The blueshift (theory/BLUE.md V.20): the rung a program sits at, what holds
+# The blueshift: the rung a program sits at, what holds
 # it back, and behaviour that legitimately differs by rung. A `shifts` row is
 # observed by `blue shift` and in-process; `position` states the rung a row's
 # behaviour applies at, and the runner checks the program measures there.

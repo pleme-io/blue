@@ -10,11 +10,11 @@
 //! observer here: counts, inclusive and exclusive time and allocations
 //! ([`crate::alloc`]), and the trace of one definition. The hook's `enter` may also answer a call without running its
 //! body, which is where a memo table keyed on a definition and its arguments
-//! plugs in (`theory/BLUE-TOOLING.md` T-M) without a second hook.
+//! plugs in without a second hook.
 //!
 //! Every count is keyed by the DEFINITION the runtime binds (`retsu/first`,
 //! `%root/f`), the key the check stage resolved. That is the key the engine's
-//! per-definition queries carry (`theory/BLUE-ENGINE.md` §3), so when
+//! per-definition queries carry, so when
 //! `def_hash` replaces the name, the counters move with it.
 //!
 //! The tree-walker only: the VM reports neither arm.

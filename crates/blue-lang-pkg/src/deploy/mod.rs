@@ -1,6 +1,6 @@
 //! The two deploy words: `image(name, spec)` and `workload(name, spec)`.
 //!
-//! `theory/BLUE-TOOLING.md` T-J. A Bluefile states the facts; the fleet's own
+//! A Bluefile states the facts; the fleet's own
 //! tools do the work. An image lowers through substrate's hardened image
 //! builders (`nix/project.nix`), distroless unless a deviation is declared
 //! with its reason. A workload renders to Kubernetes objects committed as a

@@ -31,9 +31,9 @@
 //!
 //! * **Formatter width** — settled AGAINST. `blue_lang_fmt`'s module docs say
 //!   it outright: "There is no configuration type in this crate, and that is
-//!   the feature… there is nowhere to put a knob." `theory/BLUE.md` §0 makes
-//!   FORM an axis with exactly one way to write a thing, and the content-
-//!   addressed identity of §V.16.1 rests on that single rendering. A width
+//!   the feature… there is nowhere to put a knob." blue makes FORM an axis
+//!   with exactly one way to write a thing, and the content-addressed
+//!   identity of a definition rests on that single rendering. A width
 //!   option would forfeit both. Typing it would be a regression, not progress.
 //!
 //! * **Posture ceiling** — settled elsewhere. §V.24 moved ceilings to the

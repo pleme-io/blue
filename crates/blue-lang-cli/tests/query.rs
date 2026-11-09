@@ -1,4 +1,4 @@
-//! `blue query` (`theory/BLUE-TOOLING.md` T-K) as a subprocess: a query
+//! `blue query` as a subprocess: a query
 //! named in a Bluefile, the JSON lines, a skipped file, and blue's own
 //! `bidamas/` asked which definitions reach the filesystem.
 

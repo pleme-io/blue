@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:7e56f1691ce167f5e9df33cabfa22722cc28d2432f439beb6778622771405ed0",
+  "bluefile_b3": "b3:cd09e5c212b9175fbb4646a2141db1ae358b1bfb2ff91fd8ec407a94e460e929",
   "manifest": {
     "schema": 1,
     "name": "ibuki-docking",
@@ -81,6 +81,7 @@
       "ran": [],
       "retsu": [],
       "ronri": [],
+      "shinsuu": [],
       "shomei": [],
       "shuugou": []
     },

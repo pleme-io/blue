@@ -1,5 +1,5 @@
 //! `blue serve`: a [`Session`] spoken as JSON lines, one request per line in,
-//! one response per line out (`theory/BLUE-TOOLING.md` §4).
+//! one response per line out.
 //!
 //! Requests run in order on one evaluation thread, so a session's state
 //! changes one request at a time. `interrupt` is the exception: the reading

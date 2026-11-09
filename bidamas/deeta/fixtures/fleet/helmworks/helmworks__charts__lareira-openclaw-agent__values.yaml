@@ -119,7 +119,7 @@ pleme-microservice:
   ingress:
     enabled: true
     className: nginx
-    host: openclaw-agent-dev.quero.cloud
+    host: openclaw-agent-dev.example.net
     tls:
       enabled: true
       issuer: letsencrypt-prod

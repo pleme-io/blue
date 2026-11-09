@@ -1,5 +1,4 @@
-//! `reach(def)`: what a definition reaches beyond its arguments
-//! (`theory/BLUE-ENGINE.md` §3.5).
+//! `reach(def)`: what a definition reaches beyond its arguments.
 //!
 //! One walk of each definition's erased tree (what the evaluator runs) reads
 //! what the definition names on its own; the definitions it calls, from

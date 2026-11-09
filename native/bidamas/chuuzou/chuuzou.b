@@ -3,7 +3,7 @@ chuuzou (鋳造, casting): blue's native backend. A checked blue program and a
 board spec go in; a Rust crate the board's rustc builds as no_std comes out,
 with no evaluator and no collector in it.
 
-theory/BLUE-NATIVE.md is the design; this is milestone N0 (§7). Plan, fixed
+This is milestone N0 of blue native. Plan, fixed
 before the code (blue-development-cycle stage 1):
 
 | Need | Exists | Move |
@@ -60,7 +60,7 @@ i64 on the host board `host64`):
   top-level expressions     pub fn main, called by the seam
 
 On a board, Int lowers to u32 (L5 minimal): the checker has no fixed-width
-types yet (BLUE-NATIVE.md §5.1), so a negative value or one past 2^32 - 1 is
+types yet, so a negative value or one past 2^32 - 1 is
 a fault on the board where the interpreter would carry on. On the host, Int
 is i64 with checked arithmetic, as the interpreter's Int, and the corpus in
 native/corpus holds the two executions to one output.
@@ -2443,8 +2443,8 @@ end
 
 @doc """
 cz_link_script: The linker script, from the board's memory regions: the entry first, every
-section in RAM, the stack at the top of RAM. Generated, never hand-written
-(BLUE-NATIVE.md §1.6); a board with no `ram` region is refused.
+section in RAM, the stack at the top of RAM. Generated, never hand-written;
+a board with no `ram` region is refused.
 """
 def cz_link_script(board)
   ram = find(board[:memory], (r) -> r[:name] == :ram)
@@ -2659,7 +2659,7 @@ end
 
 @doc """
 cz_measure: The image's size (text, data, bss) and whether any core::fmt symbol is in
-it (BLUE-NATIVE.md, Review §4): one row of the size ledger.
+it: one row of the size ledger.
 """
 def cz_measure(elf)
   sized = cz_run(["llvm-size", "-A", elf], "llvm-size")[:stdout]

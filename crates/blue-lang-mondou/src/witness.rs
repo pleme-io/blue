@@ -1,6 +1,6 @@
 //! What a definition's executions showed: the blue type of every argument
 //! and of the value returned, at every call that returned
-//! (`theory/BLUE.md` §V.20, the blueshift).
+//! (the blueshift).
 //!
 //! A loose definition runs with whatever it is given. [`Witness`] sits on the
 //! evaluator's call hook (`blue_lang_runtime::observe`) and records, for every

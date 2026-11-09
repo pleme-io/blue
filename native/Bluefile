@@ -1,4 +1,4 @@
-# blue native (theory/BLUE-NATIVE.md): blue programs compiled to board images
+# blue native: blue programs compiled to board images
 # with no evaluator and no collector in them.
 #
 # A blue project of its own, lowered by the same engine as every project

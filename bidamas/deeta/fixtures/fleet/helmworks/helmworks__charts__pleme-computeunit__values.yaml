@@ -5,7 +5,7 @@ enabled: false
 
 # ── module — where the WASM bytes come from ─────────────────────────
 module:
-  # github URL grammar from theory/WASM-PACKAGING.md §II.
+  # github URL grammar.
   source: ""                   # github:pleme-io/programs/<name>/main.tlisp?ref=<tag>
   blake3: ""                   # optional content-pin for reproducibility
   # OR: an OCI ref to pre-compiled WASM

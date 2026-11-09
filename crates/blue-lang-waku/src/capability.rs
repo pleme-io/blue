@@ -1,6 +1,6 @@
 //! The closed capability universe — what a [`crate::Reach`] is a set *of*.
 //!
-//! `theory/BLUE-EXECUTION.md` M0. Before this module, `Reach::Only` carried
+//! Milestone M0. Before this module, `Reach::Only` carried
 //! free `String`s, and two things followed from that one fact:
 //!
 //! - **A typo was silently restrictive.** `Reach::only(["read-flie"])`
@@ -18,7 +18,7 @@
 //!
 //! ## A capability is a BUNDLE OF NAMES, and that is a correction
 //!
-//! `BLUE-EXECUTION.md` §IV.1 describes `Capability` as *"one variant per host
+//! The first design described `Capability` as *"one variant per host
 //! effect blue is willing to name"*. Measured against the tree on 2026-08-13,
 //! that description is a third of the type it asks for. `Reach`'s own doc
 //! comment says what it governs — *"what definitions a computation may
@@ -134,7 +134,7 @@ macro_rules! capability_table {
 /// The wasm import module every host capability lowers into.
 ///
 /// **Blue's own, not `wasi_snapshot_preview1`, and that is a decision.**
-/// `BLUE-EXECUTION.md` §I.2 measured `tatara-wasm`'s `WasiPreview::default()` at
+/// A measurement found `tatara-wasm`'s `WasiPreview::default()` at
 /// `P2`, an arm every shipped engine in that crate rejects — the trap being that
 /// modelling preview levels here would freeze a guess about an ABI blue has not
 /// designed. Blue's host functions take strings, not file descriptors; mapping
@@ -389,7 +389,7 @@ capability_table! {
         ///
         /// `package`/`needs`/`posture` since the Bluefile landed; `source`,
         /// `packages`, `run`, `tool`, `check`, `app` and `catalog` since
-        /// `theory/BLUE-STRUCTURE.md` P1b (2026-09-23), so a project states every
+        /// phase P1b (2026-09-23), so a project states every
         /// fact its build needs without writing nix. Each name has exactly one
         /// recorder in `blue_lang_pkg::bluefile`, and a gate there fails if the
         /// two lists disagree in either direction.

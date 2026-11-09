@@ -1,6 +1,6 @@
 # The project engine: a blue project's `Bluefile.lock`, lowered to flake outputs.
 #
-# `theory/BLUE-STRUCTURE.md` §5.5 (P6): a blue project writes no nix. It states
+# Phase P6: a blue project writes no nix. It states
 # its build facts in its root `Bluefile`, `blue lock .` evaluates them into
 # `Bluefile.lock`, and this file, written once in the blue repository, lowers
 # them. A project's whole `flake.nix` is
@@ -9,7 +9,7 @@
 #
 # ## Stage 1 — the plan, fixed before the code (2026-09-24)
 #
-# The `blue-development-cycle` skill's first stage; `theory/BLUE.md` §I.1.
+# The `blue-development-cycle` skill's first stage.
 #
 # ### The reuse map (read from source)
 #

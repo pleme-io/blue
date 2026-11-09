@@ -4,8 +4,8 @@
 //! and whose **program is a tatara-lisp value**. This crate is the join:
 //! it lexes blue source and parses it directly into `tatara_lisp::Sexp`.
 //!
-//! There is deliberately no private blue AST in between. Tenet 1 of
-//! `theory/BLUE.md` is that blue source parses *to tatara-lisp*, and an
+//! There is deliberately no private blue AST in between. blue's first
+//! tenet is that blue source parses *to tatara-lisp*, and an
 //! intermediate tree would make homoiconicity a conversion step rather
 //! than an identity — the difference between blue's macro story working
 //! and merely being asserted.

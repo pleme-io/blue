@@ -32,7 +32,7 @@
 # arguments can be computed. Nix cannot evaluate blue without
 # import-from-derivation, so it reads what blue already computed: each
 # package's committed `Bluefile.lock`, written by `blue lock` and parsed here
-# with `builtins.fromJSON` (`theory/BLUE-STRUCTURE.md` §5.1, phase P1).
+# with `builtins.fromJSON` (phase P1).
 #
 # This replaced a `builtins.match`/`splitString` scrape of the manifest text,
 # which was wrong for a computed `needs` — measured on 2026-08-02 by rewriting
@@ -449,7 +449,7 @@ rec {
   # A blue program as an executable: `blue run <program>` with the given
   # bidamas on BLUE_PATH, and `blue` itself on PATH so the program can run
   # other blue programs. The shape behind `nix run .#regen`, and behind the
-  # Bluefile's `app` word (`nix/project.nix`, BLUE-STRUCTURE §5.5 P6).
+  # Bluefile's `app` word (`nix/project.nix`, phase P6).
   #
   # The program is a `.b` file (`program`) or its text (`source`, written into
   # the package as share/blue/<name>.b); exactly one. `env` is set on every run

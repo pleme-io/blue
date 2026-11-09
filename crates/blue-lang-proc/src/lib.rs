@@ -39,7 +39,7 @@
 //! This is `sumika` at the *environment* level. It is **not** a per-process
 //! GC heap: allocation still goes through Rust's allocator and reclamation is
 //! still `Arc` refcounting, so there is no independent per-process collection
-//! pause. `theory/BLUE.md` §V records that as the remaining distance.
+//! pause. That is the remaining distance.
 //!
 //! ## Strategy names follow `caixa`, deliberately
 //!

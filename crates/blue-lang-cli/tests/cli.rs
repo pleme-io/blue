@@ -859,7 +859,7 @@ fn schema_program() -> String {
 }
 
 /// **A macro generates code from a schema, read at expansion time.** The
-/// Tier-2 conversion `theory/BLUE.md` §VI OPEN #6 named as gating blue's
+/// Tier-2 conversion that once gated blue's
 /// "stronger than Ruby's metaprogramming" claim.
 #[test]
 fn a_macro_reads_a_content_addressed_input() {
@@ -937,7 +937,7 @@ fn a_program_without_declarations_still_runs() {
 }
 
 // ---------------------------------------------------------------------------
-// bluefile / lock — `theory/BLUE-STRUCTURE.md` P1 + P1b
+// bluefile / lock (phases P1 and P1b)
 //
 // Every word reads back through `blue bluefile --json`, the surface nix is
 // fed from. P1b's gate: remove a word from the frame and its test here goes
@@ -1424,7 +1424,7 @@ fn a_file_the_formatter_refuses_is_a_compile_error_naming_the_line() {
 // ---------------------------------------------------------------------------
 // Execution bounds: `max_call_depth` and `max_steps`.
 //
-// Measured at blue 0.0.49 (theory/BLUE-GAPS.md G6): a non-tail recursion 6,000
+// Measured at blue 0.0.49 (gap G6): a non-tail recursion 6,000
 // deep aborted the process — `fatal runtime error: stack overflow`, rc 134 —
 // and `try` could not catch it; a loop with no exit ran until killed.
 

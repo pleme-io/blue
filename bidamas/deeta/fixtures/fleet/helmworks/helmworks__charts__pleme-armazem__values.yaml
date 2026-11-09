@@ -1,5 +1,5 @@
 # pleme-armazem default values
-# armázem — the any-storage→S3 gateway (theory/ARMAZEM.md). M0 ships the fs
+# armázem — the any-storage→S3 gateway. M0 ships the fs
 # (PVC) backend: a dedicated PersistentVolume becomes an S3 endpoint. The
 # gateway is a Rust binary over the s3s crate; the bytes hanabi serves the
 # frontend from and the bytes any pod needs are the same typed S3 surface.
@@ -38,7 +38,7 @@ armazem:
 
 # --- Persistence ----------------------------------------------------------
 # The fs backend's S3 store. Durability is the StorageClass's (armázem does
-# not replicate — that's the FullS3-single-writer tier, theory/ARMAZEM.md §IV).
+# not replicate — that's the FullS3-single-writer tier).
 persistence:
   enabled: true
   # storageClass: local-path   # rio uses local-path-provisioner
@@ -104,7 +104,7 @@ tests:
   enabled: true
   image: curlimages/curl:8.11.1
 
-# --- Breathability / carving (theory/BREATHABILITY.md) --------------------
+# --- Breathability / carving --------------------
 # What makes armázem a fully breathable, infinitely-expandable S3 interface.
 # breathe holds the gateway in the 80/20 utilization band by carving its
 # limits (memory/cpu) and GROWS the fs-backend PVC before it fills (storage).

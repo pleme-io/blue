@@ -1,4 +1,4 @@
-//! A file is a program (`theory/BLUE-TOOLING.md` T-C), exercised as a
+//! A file is a program, exercised as a
 //! subprocess: `blue FILE [ARGS]`, a shebang script run by the operating
 //! system, the load path a script gets with no Bluefile and no `BLUE_PATH`,
 //! `blue new` and `blue watch`.

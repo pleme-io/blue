@@ -1,8 +1,6 @@
 //! `Bluefile.lock` — blue's evaluation of a Bluefile, committed so nix can read
 //! it without running blue.
 //!
-//! `theory/BLUE-STRUCTURE.md` §5.1 and phases P1/P1b.
-//!
 //! ## Why a committed file, and not nix calling blue
 //!
 //! Nix cannot run blue at evaluation time without import-from-derivation, and

@@ -1,4 +1,4 @@
-# blue native, lowered to flake outputs for one system (theory/BLUE-NATIVE.md).
+# blue native, lowered to flake outputs for one system.
 #
 # native/ is a blue project: its Bluefile declares the bidamas (kiban, chuuzou)
 # and, per image, the emitted Rust as a `generate` (committed, gated fresh).

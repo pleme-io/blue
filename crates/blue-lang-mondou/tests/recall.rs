@@ -1,6 +1,5 @@
 //! The memo against the run it replaces: every program answers the same with
-//! the memo off, cold, and warm from the store a cold run wrote
-//! (`theory/BLUE-TOOLING.md` T-M).
+//! the memo off, cold, and warm from the store a cold run wrote.
 //!
 //! In process, through the same doors `blue run` uses
 //! (`pipeline::run_in_surface` with the memo off, `pipeline::run_observed`
@@ -349,7 +348,7 @@ fn every_seeded_program_answers_the_same_off_cold_and_warm() {
 }
 
 /// What the memo costs a call, measured: the numbers behind
-/// `Policy::default` (`theory/BLUE-TOOLING.md` T-M). Run in release:
+/// `Policy::default`. Run in release:
 /// `cargo test --release -p blue-lang-mondou --test memo measure -- --ignored --nocapture`.
 #[test]
 #[ignore = "a measurement, not a gate"]

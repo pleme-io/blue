@@ -1,7 +1,7 @@
 //! kiban_io: the one interface between an emitted blue program and a board.
 //!
 //! An emitted program is compiled as its own crate under
-//! `#![forbid(unsafe_code)]` (BLUE-NATIVE.md, Review §2), so it cannot touch a
+//! `#![forbid(unsafe_code)]`, so it cannot touch a
 //! register. It reaches the board only through this trait, which the board's
 //! seam implements; every emitted function takes the board as `io`. This
 //! crate is safe too, so the seam crate is the only place in an image where
@@ -22,7 +22,7 @@ pub trait Io {
 }
 
 /// The value of a checked operation, or a fault. Integer overflow is an
-/// error by default (the operator's decision, BLUE-NATIVE.md status line),
+/// error by default (the operator's decision),
 /// so every `+`, `-`, `*` and `%` an emitted program performs arrives here as
 /// `checked_*`, in the board's word; wrapping is a separate word a program
 /// asks for by name. A `const fn`, so a top-level binding computed from

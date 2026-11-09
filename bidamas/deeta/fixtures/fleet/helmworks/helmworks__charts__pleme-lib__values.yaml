@@ -714,7 +714,7 @@ compliance:
 # sbomnix / Trivy / SLSA-in-toto / Kyverno verifyImages) behind typed config;
 # pleme-io content is reserved for the four tested voids (offline inclusion,
 # re-derivable proof, BLAKE3 store-binding, eBPF kernel-enforcement).
-# See theory/SUPER-CACHE-CI-SECURITY.md + _compliance_perderivation.tpl.
+# See _compliance_perderivation.tpl.
 # Because super-cache-ci is content-addressed (PDC clause 4), every verdict
 # is per-derivation build-once-reuse: sign/SBOM/scan/attest each content hash
 # ONCE; every consumer of the hash inherits the verdict.

@@ -19,8 +19,7 @@
 //!
 //! ## The shapes, adopted rather than invented
 //!
-//! - **Copy on send, share nothing** (`theory/BLUE.md` §V.8, BLUE-EXCLUSIVITY
-//!   §II.3): a message is deep-copied, and a spawned function is turned back
+//! - **Copy on send, share nothing**: a message is deep-copied, and a spawned function is turned back
 //!   into code and recompiled in the child ([`crate::code`]), never shared.
 //! - **Erlang's process vocabulary**: links propagate abnormal exits unless the
 //!   receiver traps them (then they arrive as `[:exit, pid, reason]`), monitors
@@ -29,7 +28,7 @@
 //! - **The supervisor strategies are [`Strategy`]'s**, with intensity checked on
 //!   the child that exited and the mailbox emptied on restart, exactly as the
 //!   Rust-level [`crate::Supervisor`] does.
-//! - **The interleaving is replayable** (BLUE-EXCLUSIVITY §II.13): one thread,
+//! - **The interleaving is replayable**: one thread,
 //!   procs walked in spawn order, a fixed reduction quantum. What a process
 //!   could not replay from its program alone — the messages it received, the
 //!   host values it read, the pids it was handed — is recorded on its tape, and

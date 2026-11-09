@@ -1,7 +1,7 @@
 //! The QEMU `virt` riscv32 seam: startup, the one unsafe module of a native
 //! blue image on this board, and its fault handler.
 //!
-//! Hand-written at N0 (BLUE-NATIVE.md §7): the startup code, the MMIO stores
+//! Hand-written at N0: the startup code, the MMIO stores
 //! and the fault path, and nothing else. The program is a separate crate
 //! compiled under `#![forbid(unsafe_code)]` and reaches the registers only
 //! through `kiban_io::Io`, which this crate implements with volatile stores.

@@ -2,7 +2,7 @@
 kiban (基板, the circuit board): typed board specs for blue native, and the
 host's model of the words a board gives a program.
 
-theory/BLUE-NATIVE.md §1.6. A board spec is data, authored in blue: the ISA
+A board spec is data, authored in blue: the ISA
 and the rustc target it lowers to, the word width, the memory regions, the
 devices, how QEMU boots it, and the position ceiling it imposes on every
 program built for it. N0 has one board, QEMU `virt` riscv32; N1 moves the
@@ -11,8 +11,7 @@ spec behind a `board` Bluefile word and a TataraDomain border.
 `mmio_write(addr, width, value)` is the one board word at N0. Compiled for a
 board, it is the seam's volatile store; run under `blue run`, it is this
 file's model of the same board, so the interpreter prints what the image's
-UART prints. That is the parity amendment's first row (BLUE-NATIVE.md,
-Review §1): one program, two executions, one output.
+UART prints. That is the parity amendment's first row: one program, two executions, one output.
 
     kb_board("qemu-virt32")[:rust_target] #=> "riscv32imac-unknown-none-elf"
     kb_device_base(kb_board("qemu-virt32"), :uart0) #=> 268_435_456

@@ -4,7 +4,7 @@
 //!
 //! There is **no new syntax**. A `Bluefile` is a `.b` file whose top level
 //! calls the manifest words — `package`, `needs` and `posture` for identity,
-//! and the build words `theory/BLUE-STRUCTURE.md` §5.5 added (`source`,
+//! and the build words (`source`,
 //! `packages`, `run`, `tool`, `check`, `app`, `catalog`; see [`bluefile`]):
 //!
 //! ```text
@@ -51,7 +51,7 @@ pub mod git_registry;
 pub mod levels;
 pub mod load_path;
 /// `Bluefile.lock` — the evaluated manifest, committed so nix reads blue's
-/// evaluation instead of re-deriving it. `theory/BLUE-STRUCTURE.md` §5.1.
+/// evaluation instead of re-deriving it.
 pub mod lock;
 pub mod needs;
 /// The project pass of `blue check`: the rules a project writes in blue.

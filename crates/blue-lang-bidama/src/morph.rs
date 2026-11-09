@@ -180,7 +180,7 @@ pub struct Shape {
 ///
 /// **One coordinate, two schedules, and a language may split them.** blue's
 /// macro phase and its run phase share a `When` because expansion happens
-/// *inside* `run` — measured, `theory/SAKIDORI.md` §IX #1. Rust does not share
+/// *inside* `run` (measured). Rust does not share
 /// them: its macros expand against nothing (`Sealed`) while `const fn`
 /// evaluates preceding definitions (`Preceding`). A single coordinate cannot
 /// hold both, and this catalog picks the macro phase's, because that is what

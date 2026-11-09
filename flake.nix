@@ -553,7 +553,7 @@
         generate = true;
       };
 
-      # blue native (theory/BLUE-NATIVE.md): native/ as a project, plus each
+      # blue native: native/ as a project, plus each
       # image and its QEMU check (nix/native.nix).
       native = lib.genAttrs systems (system: import ./nix/native.nix {
         inherit lib engine;
@@ -854,7 +854,7 @@
               ${lib.concatMapStrings (d: "echo ${d} >> $out\n") (lib.attrValues ex.checks ++ lib.attrValues ex.packages)}
             '';
 
-          # The worked ibuki docking project (examples/docking, theory/IBUKI.md):
+          # The worked ibuki docking project (examples/docking):
           # a pure ceiling, a stepped clock and a seeded provider scoped to
           # shomei; its test docks its own lock's capability record as a
           # crystal, and its app is sealed into an appliance.

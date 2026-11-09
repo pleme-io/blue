@@ -1,6 +1,6 @@
 # Modules: `use` against today's semantics, with the fixture packages in
 # spec/bidamas/. The WASM surface has no loader, so it misses every `use` until
-# G16 gives it one. Rows for the namespace design (theory/BLUE-NAMESPACES.md)
+# G16 gives it one. Rows for the namespace design (docs/NAMESPACES.md)
 # state that destination and are pending on `namespaces`.
 
 row(

@@ -68,7 +68,7 @@
 //! **Half of the reason it could not be declared is gone as of 2026-08-13.**
 //! This paragraph said a declared `Reach` *"needs a closed capability universe
 //! to declare over, and blue has none — `Reach::Only` still takes arbitrary
-//! strings."* `theory/BLUE-EXECUTION.md` M0 built that universe:
+//! strings."* That universe now exists:
 //! [`blue_lang_waku::Capability`] is closed, so `posture(reach: …)` now has an
 //! enumerable vocabulary to accept and a misspelling in it would be a parse
 //! failure rather than a silent grant of nothing.
@@ -80,7 +80,7 @@
 //! not this module's. Recorded here so the next reader does not re-derive the
 //! old blocker and conclude it is still there.
 //!
-//! ## The vocabulary is the whole build (`theory/BLUE-STRUCTURE.md` §5.5)
+//! ## The vocabulary is the whole build
 //!
 //! A blue project writes no nix. Every fact a hand-written flake used to state
 //! is a word here, recorded into [`Project`] and printed by
@@ -1655,8 +1655,8 @@ mod tests {
     /// the manifest vocabulary and fails here rather than widening what a third
     /// party's Bluefile may name.
     ///
-    /// **Widened deliberately on 2026-09-23 (`BLUE-STRUCTURE.md` P1b):** the
-    /// seven §5.5 words, and `list` plus the map constructor for
+    /// **Widened deliberately on 2026-09-23 (phase P1b):** the
+    /// seven build words, and `list` plus the map constructor for
     /// `run(name, file, reads)`'s list argument. Every addition is listed by
     /// name below; nothing a host installs joined.
     #[test]

@@ -18,8 +18,8 @@
 //!
 //! ## Why the lattice matters, and what was open about it
 //!
-//! `theory/BLUE.md` §V.19 recorded "whether this forms a lattice with
-//! computable meets" as OPEN and load-bearing. §V.24 closed it: **lattice-hood
+//! The first design recorded "whether this forms a lattice with
+//! computable meets" as OPEN and load-bearing. A later revision closed it: **lattice-hood
 //! was never at risk.** A finite product of chains and powersets is a complete
 //! lattice under componentwise meet (Davey & Priestley, *Introduction to
 //! Lattices and Order*, 2nd ed., ch. 2). The question that actually bites is
@@ -59,7 +59,7 @@ pub use provision::{Channel, Provided, Provision, ProvisionError, Provisions};
 ///
 /// ## The set is CLOSED, and it was not always
 ///
-/// `theory/BLUE-EXECUTION.md` M0. This carried `BTreeSet<String>` until
+/// Milestone M0. This carried `BTreeSet<String>` until
 /// 2026-08-13, and both of that type's failures were real:
 /// `Reach::only(["read-flie"])` compiled and granted nothing while reading as a
 /// grant, and there was no closed set for an import table to be *total* over —
@@ -238,8 +238,7 @@ impl Waku {
 
     /// The macro phase: full compute, no IO, preceding-only schedule.
     ///
-    /// This is the frame that closes the measured hole. `theory/BLUE.md`
-    /// §0 records that under the *shipped* `tatara-script` configuration a
+    /// This is the frame that closes the measured hole. Under the *shipped* `tatara-script` configuration a
     /// macro body reads the filesystem at expansion time, because expansion
     /// shares the run phase's registry — tier **ABSENT**. A frame whose
     /// `Reach` omits [`Capability::FileSystem`] makes the call unresolvable

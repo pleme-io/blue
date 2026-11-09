@@ -26,7 +26,7 @@
 //! tree it lowered, so a rule cannot point outside the form it was given, and
 //! the same rule compiled to wasm would need no access to the source at all.
 //! Tree in, data out: the ABI is a pure function, which is what lets
-//! `BLUE-EXECUTION.md` §I.2's wrapper run it as a module later.
+//! a wasm wrapper run it as a module later.
 //!
 //! **The frame.** A rule runs under [`permits`]: every name the runtime binds
 //! except the host effects (`blue_lang_waku::Capability`'s five host

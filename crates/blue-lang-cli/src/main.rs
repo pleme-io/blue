@@ -50,8 +50,8 @@
 //! `BLUE_PATH` (via `GitRegistry`) and installs nothing. With no distribution
 //! there, it says so rather than printing a hollow resolution.
 //!
-//! `blue bluefile` and `blue lock` are how nix reads blue without running it
-//! (`theory/BLUE-STRUCTURE.md` §5.1): `lock` commits the evaluation, and
+//! `blue bluefile` and `blue lock` are how nix reads blue without running it:
+//! `lock` commits the evaluation, and
 //! `--confirm` is the offline freshness gate the flake runs over every package.
 //! `lock` is the one subcommand that starts a process — `nix flake prefetch`,
 //! behind `blue_lang_pkg::lock::Prefetch` so no test reaches the network.
@@ -507,8 +507,8 @@ enum Cmd {
     },
     /// Run the language server, speaking LSP over stdin/stdout.
     Lsp,
-    /// Serve one evaluation session as JSON lines on stdin/stdout
-    /// (`theory/BLUE-TOOLING.md` §4): the door an editor drives.
+    /// Serve one evaluation session as JSON lines on stdin/stdout:
+    /// the door an editor drives.
     Serve(repl::SessionArgs),
     /// An evaluation session at the terminal.
     Repl(repl::SessionArgs),

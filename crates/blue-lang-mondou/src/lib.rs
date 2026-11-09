@@ -2,8 +2,7 @@
 //!
 //! Every tool that needs to know something about a blue program — the
 //! language server, `blue check`, a REPL, an agent — asks this crate, and
-//! each answer is computed once from the same queries
-//! (`theory/BLUE-ENGINE.md` §3). Today that is milestones E1 and E2:
+//! each answer is computed once from the same queries. Today that is milestones E1 and E2:
 //!
 //! | query | key | memo |
 //! |---|---|---|

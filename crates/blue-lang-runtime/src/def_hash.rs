@@ -1,5 +1,5 @@
 //! `def_hash(def)`: a definition's identity is the hash of its resolved tree
-//! (`theory/BLUE-ENGINE.md` §3.2, milestone E4), Unison's rule.
+//! (milestone E4), Unison's rule.
 //!
 //! The tree is the one the runtime evaluates before erasure
 //! (`crate::pipeline::lower`): every reference to a program

@@ -1,9 +1,9 @@
 //! blue's canonical formatter.
 //!
 //! **There is no configuration type in this crate, and that is the
-//! feature.** `theory/BLUE.md` §0 makes FORM an axis with exactly one way
-//! to write a thing; a single option would forfeit both that and the
-//! text↔tree bijection §V.16.1's content-addressed identity rests on. So
+//! feature.** blue makes FORM an axis with exactly one way to write a
+//! thing; a single option would forfeit both that and the text↔tree
+//! bijection a definition's content-addressed identity rests on. So
 //! `format_source` takes source and returns source, and there is nowhere
 //! to put a knob. The width is a constant, not a parameter.
 //!

@@ -1,6 +1,6 @@
 //! `doc_view(def)`: everything blue knows about a definition beyond its
-//! `@doc`, derived when asked and never written into a file
-//! (`theory/BLUE.md`, "The documentation requirement").
+//! `@doc`, derived when asked and never written into a file (the
+//! documentation requirement).
 //!
 //! | row | source |
 //! |---|---|

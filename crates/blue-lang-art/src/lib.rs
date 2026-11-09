@@ -3,8 +3,8 @@
 //! # The mark is a COLOUR shift across Nord's Frost band
 //!
 //! blue's central ratified metaphor is **blueshift** — the wave that shifts with
-//! the author across tatara-lisp and Rust as a program is written
-//! (`theory/BLUE.md` §V.20). A blueshift is a shift in **colour**, so the mark
+//! the author across tatara-lisp and Rust as a program is written.
+//! A blueshift is a shift in **colour**, so the mark
 //! is four solid cells walking Nord's own Frost band toward blue:
 //!
 //! ```text

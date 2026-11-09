@@ -841,7 +841,7 @@ mod tests {
     }
 
     /// Two points blue's algebra admits that no BEAM-hosted language can
-    /// express at all — the target domains named in `theory/BLUE.md`.
+    /// express at all: blue's two target domains.
     #[test]
     fn the_two_target_domains_are_points_in_the_space() {
         // Trading: replayable interleaving with a hard latency bound. The BEAM

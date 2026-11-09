@@ -1,5 +1,4 @@
-//! The documentation requirement (`theory/BLUE.md`, "The documentation
-//! requirement"): rules B0056–B0060 over one bidama file, and the fixes that
+//! The documentation requirement: rules B0056–B0060 over one bidama file, and the fixes that
 //! fill what a source already holds.
 //!
 //! **Public** is what blue already has: every top-level definition of a

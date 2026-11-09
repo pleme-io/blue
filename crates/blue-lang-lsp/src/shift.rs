@@ -2,7 +2,7 @@
 //!
 //! Blue's central model is that a program slides along a continuum — loose and
 //! dynamic at one end, locked and Rust-like at the other — and that it slides
-//! *because of what you wrote* (`theory/BLUE.md` §V.20). A model that governs
+//! *because of what you wrote*. A model that governs
 //! how a language behaves and is invisible while you use it is a model the
 //! author has to hold in their head. This makes it a reading on the screen.
 //!

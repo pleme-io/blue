@@ -1,6 +1,6 @@
 //! `blue FILE [ARGS…]`: a file is a program.
 //!
-//! The bare-file rule (`theory/BLUE-TOOLING.md` T-C). When the first argument
+//! The bare-file rule. When the first argument
 //! is not a subcommand and names a script, the command line is rewritten to
 //!
 //! ```text

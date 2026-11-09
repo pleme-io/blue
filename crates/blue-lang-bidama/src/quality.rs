@@ -87,7 +87,7 @@ pub enum Quality {
     /// **live** interpreter's globals, so `def n() 3 end` followed by a macro
     /// whose body calls `n()` prints a number today and would fail with
     /// `unbound symbol: n` under any schedule that expands before evaluating
-    /// (`theory/SAKIDORI.md` §IX #1, and the probe there is the argument).
+    /// (measured by a probe; the probe is the argument).
     ExpansionTimeEvaluation,
     /// Everything a macro emits passes the type checker — and a macro may emit
     /// an annotated declaration at all.
@@ -315,8 +315,7 @@ pub fn qualities_at(w: &Waku) -> BTreeSet<Quality> {
     // differ in *nothing but* when a macro body runs and are two languages
     // because of it.
     //
-    // Each value is one whole pipeline, and `theory/SAKIDORI.md` §IX #1
-    // measured all three:
+    // Each value is one whole pipeline, and a probe measured all three:
     //
     // | `when`      | the schedule it names                          | today |
     // |-------------|------------------------------------------------|-------|
@@ -341,7 +340,7 @@ pub fn qualities_at(w: &Waku) -> BTreeSet<Quality> {
         // would be the whole modelling error.** The first draft did exactly
         // that, and the derivation caught it immediately: it reported
         // `expansion-time evaluation ⊥ checked macro output` as an exclusive
-        // PAIR, which is strictly stronger than anything SAKIDORI §IX #1
+        // PAIR, which is strictly stronger than anything the probe
         // measured and would have erased the trilemma — the per-form schedule
         // has both, and pays for them on the two below.
         out.insert(Quality::CheckedMacroOutput);
@@ -376,7 +375,7 @@ pub fn qualities_at(w: &Waku) -> BTreeSet<Quality> {
     // incompleteness*: `Reach::Only` took arbitrary strings, so "io" was a name
     // no blue program binds and no frame in the workspace granted except by
     // being `Unrestricted`. The doc said the fix needed a closed capability
-    // universe blue did not have — `theory/BLUE-EXECUTION.md` M0 built one, and
+    // universe blue did not have. The closed `Capability` type is that universe, and
     // `grants_any_host_effect` is a real question about it.
     //
     // **The collapse to one bit survives, deliberately.** The quality is
@@ -387,8 +386,7 @@ pub fn qualities_at(w: &Waku) -> BTreeSet<Quality> {
     // (one quality for four host effects) and no longer an unbounded blind
     // spot. Splitting it into one quality per host capability is available and
     // is not done here: it needs consumers that can tell two host effects
-    // apart, and `BLUE-EXECUTION.md` §X unknown 3 records that granularity as
-    // untested.
+    // apart, and that granularity is untested.
     if w.reach.grants_any_host_effect() {
         out.insert(Quality::AmbientBuildCapability);
     } else {
@@ -516,7 +514,7 @@ fn mask_of(w: &Waku) -> u32 {
 /// enumerates pairs reports a trilemma as *nothing*, which is the worst
 /// possible answer: it looks like a checked absence.
 ///
-/// `theory/SAKIDORI.md` §IX #1 measured exactly such a shape in blue's macro
+/// A probe measured exactly such a shape in blue's macro
 /// phase, and the point of deriving it here rather than writing it down is that
 /// the lattice then also finds the ones nobody measured.
 ///
@@ -618,7 +616,7 @@ mod tests {
 
     /// **THE MACRO-PHASE TRILEMMA, DERIVED.**
     ///
-    /// `theory/SAKIDORI.md` §IX #1 measured it — *pick two of (A) macro bodies
+    /// A probe measured it — *pick two of (A) macro bodies
     /// see earlier top-level definitions, (B) whole-program signature
     /// collection, (C) no side effects before any check* — and left it as
     /// prose. Nothing here lists it. It falls out because

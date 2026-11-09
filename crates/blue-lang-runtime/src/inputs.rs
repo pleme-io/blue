@@ -1,7 +1,6 @@
 //! Build inputs — the macro phase's **only** channel to the outside world.
 //!
-//! Closes `theory/BLUE.md` §VI OPEN #6, which the spec names as gating "blue's
-//! whole 'stronger than Ruby's metaprogramming' claim": tenet 2 installs a
+//! Closes the open question that gated "blue's whole 'stronger than Ruby's metaprogramming' claim": tenet 2 installs a
 //! `NoLoader`, so a macro could read *nothing*, which also meant it could not
 //! generate code from a schema — the thing that would make blue's
 //! metaprogramming exceed Ruby's rather than merely match it.

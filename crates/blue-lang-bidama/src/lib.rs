@@ -8,8 +8,8 @@
 //!
 //! ## Floors only. Ceilings live at the root.
 //!
-//! `theory/BLUE.md` §V.19 first had a package declare both a floor and a
-//! ceiling. §V.24 corrected it: **a leaf-side ceiling is Cargo's documented
+//! The first design had a package declare both a floor and a
+//! ceiling. A later revision corrected it: **a leaf-side ceiling is Cargo's documented
 //! anti-pattern by name**, and the only mechanism that manufactures an
 //! absorbing axis out of a gradient. So:
 //!
@@ -244,8 +244,8 @@ mod tests {
 
     /// A package whose floor names exactly `caps`.
     ///
-    /// Takes capabilities rather than strings since `theory/BLUE-EXECUTION.md`
-    /// M0 closed the universe. The pairs below are chosen to be DISTINCT
+    /// Takes capabilities rather than strings since the
+    /// capability universe is closed. The pairs below are chosen to be DISTINCT
     /// capabilities rather than two operators: under the closed type `+` and
     /// `*` are one capability, so a test that used them to exercise the join
     /// of two different floors would have been comparing a set with itself.

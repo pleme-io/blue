@@ -1,5 +1,5 @@
 //! One evaluation session: the function the REPL, `blue eval`, `blue serve`
-//! and an editor all call (`theory/BLUE-TOOLING.md` §2, §4).
+//! and an editor all call.
 //!
 //! A session holds one interpreter and, per **context**, the program code is
 //! evaluated against: a loaded file's top-level forms, or the session's own

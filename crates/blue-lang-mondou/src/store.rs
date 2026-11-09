@@ -1,4 +1,4 @@
-//! The engine's persistent tier (`theory/BLUE-ENGINE.md` §3.6, E5): results
+//! The engine's persistent tier (milestone E5): results
 //! keyed by content, kept on disk between runs.
 //!
 //! **One file per definition.** `$XDG_CACHE_HOME/blue/memo/<identity>/<def_hash>`
@@ -33,7 +33,7 @@
 //!
 //! **Bounded.** Reading a file marks it used; once a run has written, the
 //! whole store (every identity) is held under its byte bound by removing the
-//! least recently used files first (`theory/BLUE.md` §V.15: sticky by default,
+//! least recently used files first (sticky by default,
 //! never unbounded). One definition's file stops growing at a sixteenth of
 //! the bound.
 //!

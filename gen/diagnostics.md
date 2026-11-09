@@ -73,7 +73,7 @@ unless it ends in `.b` and exists, and exits 0 on every failure of its own.
 
 ## The data laws (B0048–B0052)
 
-The frontend's data laws (`theory/BLUE-FRONTEND.md` §2) are rows like every
+The frontend's data laws are rows like every
 other. A fragment declared with `danpen::fragment(:user_card, {on: "User",
 fields: […]})` is the type `UserCard`; a parameter annotated with it holds a
 fragment ref, and the typing ladder checks every read of it (B0048) and every
@@ -257,7 +257,7 @@ end
 The code and severity are the Bluefile row's. A path, not a byte offset: the
 rule sees only data, and `blue check` resolves the path against the form it
 gave the rule, so the rule needs no access to the source (and can later run as
-a wasm module, `theory/BLUE-EXECUTION.md` §I.2). A fix is rendered by the
+a wasm module). A fix is rendered by the
 formatter and proved before `--fix` will apply it: the edited file is parsed
 and must hold exactly the rule's tree at that path (the rendering is retried in
 parentheses when an operator binds differently in place); otherwise it is

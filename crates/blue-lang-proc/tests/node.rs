@@ -303,7 +303,7 @@ fn a_finished_process_is_reaped_so_memory_follows_live_processes() {
 
 /// A restarted incarnation gives its memory back.
 ///
-/// BLUE-MEMORY §I.3 measured ~832 B kept per dead incarnation, because a
+/// A measurement found ~832 B kept per dead incarnation, because a
 /// top-level function definition closes a cycle through the frame it is
 /// defined in. tatara-lisp-eval 0.3.45 releases an interpreter's own frames on
 /// drop; this pins that a supervisor's restart is such a drop, so a crash loop

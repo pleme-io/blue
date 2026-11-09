@@ -3168,10 +3168,9 @@ mod tier2_tests {
     /// **The Tier-2 conversion §V.6.3 said was gated: a macro that emits real
     /// declarations FROM A SCHEMA.**
     ///
-    /// `theory/BLUE.md` §VI OPEN #6 states the blocker plainly — "tenet 2
-    /// installs a `NoLoader`, so a macro cannot read a schema — which gates
-    /// every Tier-2 conversion in §V.6 and therefore blue's whole 'stronger than
-    /// Ruby's metaprogramming' claim."
+    /// The blocker was plain: tenet 2 installs a `NoLoader`, so a macro cannot
+    /// read a schema, which gated every Tier-2 conversion and therefore blue's
+    /// whole 'stronger than Ruby's metaprogramming' claim.
     ///
     /// Here the schema supplies a *value the generated code depends on*, read at
     /// expansion time. Ruby and Elixir can both do this — with the whole

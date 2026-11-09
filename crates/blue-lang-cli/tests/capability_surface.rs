@@ -1,5 +1,5 @@
 //! The gate that ties blue's **closed capability universe** to the runtime it
-//! describes — `theory/BLUE-EXECUTION.md` M0/M1.
+//! describes.
 //!
 //! # Why this test lives here and not in `blue-lang-waku`
 //!
@@ -147,7 +147,7 @@ fn every_sys_name_is_claimed_by_exactly_one_host_capability() {
 /// The soundness direction. A bundle that named something the runtime does not
 /// install would let a frame grant a capability that opens an import for a
 /// function nobody can call — an import with no callee is exactly the kind of
-/// stub `BLUE-EXECUTION.md` §0 says must not exist.
+/// stub that must not exist.
 #[test]
 fn every_host_capability_name_is_installed_by_the_sys_layer() {
     let installed = host_installed_names();

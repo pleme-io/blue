@@ -360,8 +360,7 @@ fn test_file(
     }
     let memoized = memo != crate::memo::Mode::Off && !coverage;
     let witnessing = crate::witness::enabled();
-    let lowered = (coverage || memoized || witnessing)
-        .then(|| blue_lang_runtime::pipeline::lower(&checked.program, &checked.names));
+    let lowered = (coverage || memoized || witnessing).then(|| checked.lowered());
     let watched = lowered
         .as_ref()
         .filter(|_| coverage || memoized)
@@ -394,7 +393,7 @@ fn test_file(
         None => watching,
     };
     let identities = (identify || watch.cache.is_some()).then(|| {
-        let lowered = blue_lang_runtime::pipeline::lower(&checked.program, &checked.names);
+        let lowered = checked.lowered();
         blue_lang_mondou::def_hash::test_identities(
             &lowered,
             &blue_lang_mondou::program_docs(&checked.program),

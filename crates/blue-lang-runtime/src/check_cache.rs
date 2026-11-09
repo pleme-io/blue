@@ -65,6 +65,24 @@ impl Tally {
 
 type Entries = HashMap<[u8; 32], Vec<u8>>;
 
+static INSTALLED: std::sync::OnceLock<(&'static (dyn CheckStore + Sync), [u8; 32])> =
+    std::sync::OnceLock::new();
+
+/// Make `store` the check cache of every check this process runs through
+/// [`crate::pipeline::check_entry`] or [`crate::pipeline::run`]'s stages.
+/// The first store installed stays; returns whether this one was.
+pub fn install(store: &'static (dyn CheckStore + Sync), identity: [u8; 32]) -> bool {
+    INSTALLED.set((store, identity)).is_ok()
+}
+
+/// A fresh cache over the installed store, or `None` when none is installed.
+#[must_use]
+pub fn installed() -> Option<CheckCache<'static>> {
+    INSTALLED
+        .get()
+        .map(|(store, identity)| CheckCache::new(*store, *identity))
+}
+
 pub struct CheckCache<'s> {
     store: &'s dyn CheckStore,
     identity: [u8; 32],

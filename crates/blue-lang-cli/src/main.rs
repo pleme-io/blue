@@ -412,7 +412,8 @@ enum Cmd {
         #[arg(long)]
         no_memo: bool,
         /// Run every test, reporting none as cached from the test cache
-        /// `BLUE_TEST_CACHE` turns on. Coverage and facts always do.
+        /// `BLUE_TEST_CACHE` turns on, and check every form afresh. Coverage
+        /// and facts always run every test.
         #[arg(long)]
         no_cache: bool,
         /// Hold the tests to these host capabilities, as `blue run --allow`
@@ -625,7 +626,83 @@ fn main() -> ExitCode {
         }
     };
     inputs::release(code != ExitCode::SUCCESS);
+    evict_check_cache();
     code
+}
+
+struct CheckTier {
+    root: PathBuf,
+    identity: blue_lang_mondou::store::Identity,
+    store: std::sync::OnceLock<Option<blue_lang_mondou::store::Store>>,
+    wrote: std::sync::atomic::AtomicBool,
+}
+
+impl CheckTier {
+    fn store(&self) -> Option<&blue_lang_mondou::store::Store> {
+        self.store
+            .get_or_init(|| {
+                blue_lang_mondou::store::Store::open(
+                    &self.root,
+                    self.identity,
+                    blue_lang_mondou::store::DEFAULT_MAX_BYTES,
+                )
+                .ok()
+            })
+            .as_ref()
+    }
+}
+
+impl blue_lang_runtime::check_cache::CheckStore for CheckTier {
+    fn load(
+        &self,
+        bucket: &blue_lang_runtime::def_hash::DefHash,
+    ) -> std::collections::HashMap<[u8; 32], Vec<u8>> {
+        self.store()
+            .map(|s| blue_lang_runtime::check_cache::CheckStore::load(s, bucket))
+            .unwrap_or_default()
+    }
+
+    fn append(
+        &self,
+        bucket: &blue_lang_runtime::def_hash::DefHash,
+        entries: &[([u8; 32], Vec<u8>)],
+    ) {
+        if let Some(store) = self.store() {
+            self.wrote.store(true, std::sync::atomic::Ordering::Relaxed);
+            blue_lang_runtime::check_cache::CheckStore::append(store, bucket, entries);
+        }
+    }
+}
+
+static CHECK_TIER: std::sync::OnceLock<CheckTier> = std::sync::OnceLock::new();
+
+fn install_check_cache(no_cache: bool) -> Result<(), CliError> {
+    use blue_lang_runtime::check_cache;
+    let on = check_cache::enabled(std::env::var(check_cache::ENV).ok().as_deref())
+        .map_err(CliError::Pkg)?;
+    let Some(root) = blue_lang_mondou::store::check_root().filter(|_| on && !no_cache) else {
+        return Ok(());
+    };
+    let identity = blue_lang_mondou::store::Identity::of_this_build();
+    let tier = CHECK_TIER.get_or_init(|| CheckTier {
+        root,
+        identity,
+        store: std::sync::OnceLock::new(),
+        wrote: std::sync::atomic::AtomicBool::new(false),
+    });
+    check_cache::install(tier, identity.0);
+    Ok(())
+}
+
+fn evict_check_cache() {
+    let Some(tier) = CHECK_TIER.get() else {
+        return;
+    };
+    if tier.wrote.load(std::sync::atomic::Ordering::Relaxed) {
+        if let Some(store) = tier.store() {
+            let _ = store.evict();
+        }
+    }
 }
 
 fn failure_code(e: &blue_lang_runtime::RunError) -> ExitCode {
@@ -826,6 +903,10 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
     // the LSP, a Bluefile — runs under the configured bounds.
     blue_lang_runtime::set_execution_bounds(cfg.execution_bounds());
     blue_lang_runtime::wire::set_flash_rate(cfg.flash_bytes_per_second);
+    install_check_cache(matches!(
+        &cli.cmd,
+        Cmd::Check { no_cache: true, .. } | Cmd::Test { no_cache: true, .. }
+    ))?;
     blue_lang_proc::node::set_trace_dir(replay::trace_dir());
     blue_lang_proc::node::set_journal_bound(replay::journal_bound());
     // `self_exe` answers with THIS binary only because it is the blue CLI;
@@ -1740,26 +1821,9 @@ fn check(
     only: &[String],
     no_cache: bool,
 ) -> Result<ExitCode, CliError> {
-    use blue_lang_runtime::check_cache::{self, CheckCache};
+    use blue_lang_runtime::check_cache;
     use blue_lang_runtime::pipeline::{check_entry_cached, render, syntax_diagnostic, Checking};
-    let on = check_cache::enabled(std::env::var(check_cache::ENV).ok().as_deref())
-        .map_err(CliError::Pkg)?
-        && !no_cache;
-    let store = blue_lang_mondou::store::check_root()
-        .filter(|_| on)
-        .and_then(|root| {
-            let identity = blue_lang_mondou::store::Identity::of_this_build();
-            blue_lang_mondou::store::Store::open(
-                &root,
-                identity,
-                blue_lang_mondou::store::DEFAULT_MAX_BYTES,
-            )
-            .ok()
-            .map(|s| (s, identity))
-        });
-    let cache = store
-        .as_ref()
-        .map(|(s, identity)| CheckCache::new(s, identity.0));
+    let cache = check_cache::installed().filter(|_| !no_cache);
     let check_entry = |entry: blue_lang_runtime::uses::Entry<'_>,
                        loader: &dyn blue_lang_runtime::uses::Loader,
                        surface: Option<&blue_lang_syntax::yakugo::Yakugo>,
@@ -2018,9 +2082,8 @@ fn check(
             }
         }
     }
-    if let (Some(cache), Some((store, _))) = (&cache, &store) {
+    if let Some(cache) = &cache {
         cache.flush();
-        let _ = store.evict();
     }
     Ok(if outcome.ok() && project.ok() {
         ExitCode::SUCCESS

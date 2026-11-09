@@ -695,7 +695,7 @@ pub(crate) fn prepare(
     // the string that produced them, which the caller is responsible for
     // holding onto"). blue holds onto it BESIDE the span, per top-level form —
     // see `uses::ResolvedProgram`.
-    let (outcome, names) = crate::timings::stage(crate::timings::Stage::Check, || {
+    let (outcome, names, cached) = crate::timings::stage(crate::timings::Stage::Check, || {
         check_stage(&program, builtins, false)
     });
     if !outcome.ok() {
@@ -723,7 +723,7 @@ pub(crate) fn prepare(
     // No lowering step follows. The tree the evaluator receives IS the tree the
     // parser built, minus annotations, with the author's byte offsets intact.
     let (lowered, erased) = crate::timings::stage(crate::timings::Stage::Erase, || {
-        let lowered = lower(&program, &names);
+        let lowered = cached.map_or_else(|| lower(&program, &names), |c| c.lowered);
         let erased = erase_types(&lowered);
         (lowered, erased)
     });
@@ -881,9 +881,13 @@ pub(crate) fn check_stage(
     program: &crate::uses::ResolvedProgram,
     builtins: &NameTable,
     with_tests: bool,
-) -> (blue_lang_check::Outcome, NameTable) {
-    let (outcome, table, _) = check_stage_in(program, builtins, with_tests, None);
-    (outcome, table)
+) -> (blue_lang_check::Outcome, NameTable, Option<Cached>) {
+    let cache = crate::check_cache::installed();
+    let checked = check_stage_in(program, builtins, with_tests, cache.as_ref());
+    if let Some(cache) = &cache {
+        cache.flush();
+    }
+    checked
 }
 
 #[derive(Clone)]
@@ -2182,7 +2186,12 @@ pub fn check_entry(
     surface: Option<&blue_lang_syntax::yakugo::Yakugo>,
     checking: Checking,
 ) -> Result<Checked, RunError> {
-    check_entry_cached(entry, loader, surface, checking, None)
+    let cache = crate::check_cache::installed();
+    let checked = check_entry_cached(entry, loader, surface, checking, cache.as_ref());
+    if let Some(cache) = &cache {
+        cache.flush();
+    }
+    checked
 }
 
 pub fn check_entry_cached(

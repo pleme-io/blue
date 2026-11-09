@@ -206,7 +206,7 @@ default to skip work.
 | Stage | Cached today | Key |
 |---|---|---|
 | parse, resolve | in memory only (mondou; the LSP and `blue check`) | text hash, then `def_hash` |
-| check and erase | built, on by default for `blue check` (`BLUE_CHECK_CACHE=off`, `--no-cache`): the name walks and project rules, per definition | `def_hash` + engine identity + the hashes it read |
+| check and erase | built, on by default for every check a `blue` command runs: `check`, `test`, `run`, `fmt`, the LSP (`BLUE_CHECK_CACHE=off`, `--no-cache` on `check` and `test`): the name walks, the lowered tree and project rules, per definition | `def_hash` + engine identity + the hashes it read |
 | `blue test` | built, off by default (`BLUE_TEST_CACHE`) | build + the test's hash + preamble + bounds |
 | a pure call | built, off by default (`BLUE_MEMO`) | `def_hash` + the arguments' canonical form |
 | a nix `bidama-test-*` check | none: one change anywhere reruns every package | the closure the test reaches |

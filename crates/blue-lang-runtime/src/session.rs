@@ -588,7 +588,7 @@ impl<E: 'static> Session<E> {
         let mut program = pipeline::parse_and_resolve(entry, self.loader.as_ref(), None)
             .map_err(|e| Stop::Error(run_failure(e)))?;
         program.retain(|f| !crate::uses::is_test_form(f));
-        let (mut outcome, names) = pipeline::check_stage(&program, &self.builtins, false);
+        let (mut outcome, names, _) = pipeline::check_stage(&program, &self.builtins, false);
         outcome.diagnostics.retain(|d| {
             !matches!(
                 d.code,

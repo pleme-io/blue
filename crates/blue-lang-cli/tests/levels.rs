@@ -3,6 +3,9 @@
 //! depth, a part of a bidama that is no level, and a data directory nothing
 //! loads.
 
+#[macro_use]
+mod moduledoc;
+
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
@@ -39,23 +42,39 @@ fn tree(name: &str, project: &str, deep: &str) -> PathBuf {
     put(&root.join("Bluefile"), "package(\"tree\", \"0.1.0\")\n");
     put(
         &root.join("tree.b"),
-        "def top()\n  \"top\"\nend\n\ntest \"top\"\n  assert top == \"top\"\nend\n",
+        moduledoc!(
+            "tree is the root of the levels.",
+            "top #=> \"top\"",
+            "def top()\n  \"top\"\nend\n\ntest \"top\"\n  assert top == \"top\"\nend\n"
+        ),
     );
     put(&root.join("part.b"), "def merged()\n  \"merged\"\nend\n");
     put(
         &root.join("door.b"),
-        "namespace()\n\ndef key()\n  \"key\"\nend\n\ntest \"key\"\n  assert key == \"key\"\nend\n",
+        moduledoc!(
+            "door is a level one file deep.",
+            "key #=> \"key\"",
+            "namespace()\n\ndef key()\n  \"key\"\nend\n\ntest \"key\"\n  assert key == \"key\"\nend\n"
+        ),
     );
     put(
         &root.join("room/room.b"),
-        "def bed()\n  \"bed\"\nend\n\ntest \"bed\"\n  assert bed == \"bed\"\nend\n",
+        moduledoc!(
+            "room is a level one directory deep.",
+            "bed #=> \"bed\"",
+            "def bed()\n  \"bed\"\nend\n\ntest \"bed\"\n  assert bed == \"bed\"\nend\n"
+        ),
     );
     put(&root.join("room/deep/deep.b"), deep);
     put(&root.join("fixtures/data.b"), "this is ( not blue\n");
     dir.canonicalize().unwrap()
 }
 
-const PURE: &str = "def word()\n  \"deep\"\nend\n\ntest \"word\"\n  assert word == \"deep\"\nend\n";
+const PURE: &str = moduledoc!(
+    "deep is a level two directories deep.",
+    "word #=> \"deep\"",
+    "def word()\n  \"deep\"\nend\n\ntest \"word\"\n  assert word == \"deep\"\nend\n"
+);
 const CLOCK: &str = "def word()\n  now_ms\nend\n";
 
 #[test]
@@ -109,7 +128,7 @@ fn a_file_inside_a_level_is_tested_in_that_level() {
     }
     let o = blue()
         .current_dir(&dir)
-        .args(["explain-name", "word", "bidamas/tree/room/deep/deep.b:1"])
+        .args(["explain-name", "word", "bidamas/tree/room/deep/deep.b:7"])
         .output()
         .unwrap();
     assert!(say(&o).contains("tree/room/deep"), "{}", say(&o));

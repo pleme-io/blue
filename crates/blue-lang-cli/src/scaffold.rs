@@ -63,7 +63,13 @@ const BIDAMA_BLUEFILE: &str = r##"package("__NAME__", "0.1.0")
 needs("retsu", "^0.1")
 "##;
 
-const BIDAMA: &str = r##"use("retsu", [:first])
+const BIDAMA: &str = r##"@moduledoc """
+__NAME__ greets the first argument it is given, or the world.
+
+    greeting(["ryn"]) #=> "hello, ryn"
+"""
+
+use("retsu", [:first])
 
 # The greeting for a program's arguments: the first one, or the world.
 def greeting(args)
@@ -109,6 +115,8 @@ check("__NAME__", "__NAME__.b", ["__NAME__.b"])
 
 const KERNEL: &str = r##"@moduledoc """
 __NAME__: a kernel program and its loader in one file. `count_packets` is the program, `main` loads it onto an interface, and the tests run the same source on the pure machine, and on a real kernel when this host has one. docs/tutorial/first-kernel-program.md explains each part.
+
+    count(frame(1)) #=> 34
 """
 
 use("kaaneru", %i[attached install kernel_absence])

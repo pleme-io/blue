@@ -275,6 +275,12 @@ def fixture(attributed)
     path_join(dir, "made.b"),
     unlines(
       [
+        "@moduledoc \"\"\"",
+        "made: the fixture's generator, one line per note the checkout holds.",
+        "",
+        "    path_join(\"notes\", \"ant\") #=> \"notes/ant\"",
+        "\"\"\"",
+        "",
         "root = getenv(\"GEN_ROOT\", \".\")",
         "there = (n) -> path_exists(path_join(path_join(root, \"notes\"), n))",
         "write_file(getenv(\"GEN_OUT\"), unlines(filter(there, %w[ant base bee])))"

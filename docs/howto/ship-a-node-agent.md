@@ -44,6 +44,12 @@ beside `serve_settings` with the words in
 [the first kernel program](../tutorial/first-kernel-program.md).
 
 ```blue file=agent.b
+@moduledoc """
+agent answers its root path with its name, and any other path with not found.
+
+    handle(kyuuji::request("GET", "/x", ""))[:status] #=> 404
+"""
+
 use("kyuuji")
 use("settei")
 
@@ -69,7 +75,7 @@ end
 $ blue lock .
 ./Bluefile.lock: 0 source(s) pinned
 $ blue test agent.b
-1 test(s): 1 passed, 0 failed
+2 test(s): 2 passed, 0 failed
 ```
 
 This program shows what the declaration renders:

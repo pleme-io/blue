@@ -1,3 +1,6 @@
+#[macro_use]
+mod moduledoc;
+
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
@@ -69,7 +72,24 @@ const SPILL: &str =
 
 fn appends(log: &Path) -> String {
     let l = log.display();
-    format!("def main()\n  append_log(\"{l}\", \"one\")\n  append_log(\"{l}\", \"two\")\n  write_stdout(join(read_log(\"{l}\"), \",\"))\nend\n")
+    format!(
+        "{}def main()\n  append_log(\"{l}\", \"one\")\n  append_log(\"{l}\", \"two\")\n  write_stdout(join(read_log(\"{l}\"), \",\"))\nend\n",
+        moduledoc!(
+            "log appends two entries to its log, and writes what it reads back.",
+            "join(%w[one two], \",\") #=> \"one,two\""
+        )
+    )
+}
+
+fn both(log: &Path) -> String {
+    let l = log.display();
+    format!(
+        "{}def main()\n  append_file(\"{l}\", \"one\\n\")\n  append_log(\"{l}\", \"two\")\n  write_stdout(join(read_log(\"{l}\"), \",\"))\nend\n",
+        moduledoc!(
+            "both appends a line as a file and an entry as a log, and writes what it reads back.",
+            "join(%w[one two], \",\") #=> \"one,two\""
+        )
+    )
 }
 
 fn spills(log: &Path, word: &str) -> String {
@@ -157,12 +177,8 @@ fn a_program_held_to_storage_append_appends_and_reads_and_a_write_or_rm_is_a_fat
 fn a_filesystem_grant_still_appends_with_append_file_and_with_the_log_words() {
     let dir = scratch("filesystem");
     let log = dir.join("both.log");
-    let l = log.display();
     let file = dir.join("both.b");
-    put(
-        &file,
-        &format!("def main()\n  append_file(\"{l}\", \"one\\n\")\n  append_log(\"{l}\", \"two\")\n  write_stdout(join(read_log(\"{l}\"), \",\"))\nend\n"),
-    );
+    put(&file, &both(&log));
     let o = run(&file, &["filesystem"]);
     assert!(o.status.success(), "{}{}", out(&o), err(&o));
     assert_eq!(out(&o), "one,two");
@@ -182,11 +198,7 @@ fn a_filesystem_grant_still_appends_with_append_file_and_with_the_log_words() {
         "package(\"fsapp\", \"0.1.0\")\nallow(%i[filesystem])\n",
     );
     let log = project.join("both.log");
-    let l = log.display();
-    put(
-        &project.join("both.b"),
-        &format!("def main()\n  append_file(\"{l}\", \"one\\n\")\n  append_log(\"{l}\", \"two\")\n  write_stdout(join(read_log(\"{l}\"), \",\"))\nend\n"),
-    );
+    put(&project.join("both.b"), &both(&log));
     locked(&project);
     let caps = &lock_of(&project)["capabilities"];
     assert_eq!(caps["ceiling"], serde_json::json!(["filesystem"]), "{caps}");

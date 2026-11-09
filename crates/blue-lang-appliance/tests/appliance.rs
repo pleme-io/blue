@@ -238,9 +238,9 @@ fn a_runner_with_no_payload_says_so() {
     );
 }
 
-const SPIN: &str = "def spin(n)\n  if n == 0\n    \"done\"\n  else\n    spin(n - 1)\n  end\nend\n\ndef main()\n  write_stdout(unlines([spin(1_000_000)]))\nend\n";
+const SPIN: &str = "@moduledoc \"\"\"\napp counts a million down to done.\n\n    spin(3) #=> \"done\"\n\"\"\"\n\ndef spin(n)\n  if n == 0\n    \"done\"\n  else\n    spin(n - 1)\n  end\nend\n\ndef main()\n  write_stdout(unlines([spin(1_000_000)]))\nend\n";
 
-const HOG: &str = "def main()\n  write_stdout(unlines([\"#{length(map((x) -> [x, x], range(0, 20000)))}\"]))\nend\n";
+const HOG: &str = "@moduledoc \"\"\"\napp holds a pair for every number below 20000, and writes how many.\n\n    length(map((x) -> [x, x], range(0, 3))) #=> 3\n\"\"\"\n\ndef main()\n  write_stdout(unlines([\"#{length(map((x) -> [x, x], range(0, 20000)))}\"]))\nend\n";
 
 fn bounded(name: &str, bounds: &str, main: &str) -> PathBuf {
     let dir = scratch(name).join("app");

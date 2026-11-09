@@ -1,7 +1,13 @@
+#[macro_use]
+mod moduledoc;
+
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
-const CHECK: &str = "test \"the declared input is there\"
+const CHECK: &str = moduledoc!(
+    "reads: the check sees its declared inputs under GEN_ROOT, and nothing else.",
+    "path_join(\"docs\", \"a.md\") #=> \"docs/a.md\"",
+    "test \"the declared input is there\"
   assert path_exists(path_join(getenv(\"GEN_ROOT\", \".\"), \"docs/a.md\"))
 end
 
@@ -14,15 +20,20 @@ test \"a path that climbs out of a declared input reaches nothing\"
   assert not path_exists(path_join(root, \"docs/../unread/b.md\"))
   assert not path_exists(path_join(root, \"docs/../t.b\"))
 end
-";
+"
+);
 
-const GENERATOR: &str = "def main()
+const GENERATOR: &str = moduledoc!(
+    "page: the generator writes whether it sees a path it does not declare.",
+    "to_s(false) #=> \"false\"",
+    "def main()
   write_file(
     getenv(\"GEN_OUT\", \"out.txt\"),
     to_s(path_exists(path_join(getenv(\"GEN_ROOT\", \".\"), \"unread/b.md\")))
   )
 end
-";
+"
+);
 
 fn project(name: &str, inputs: &str) -> PathBuf {
     let dir = fixture(Path::new(env!("CARGO_TARGET_TMPDIR")), name, inputs);

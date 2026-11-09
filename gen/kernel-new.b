@@ -33,8 +33,8 @@ test "a generated project passes its tests with what this host has"
   end
   assert status_of(got) == 0
   said = stdout_of(got)
-  assert contains?(said, "2 passed, 0 failed, 1 skipped") or
-    contains?(said, "3 passed, 0 failed")
+  assert contains?(said, "3 passed, 0 failed, 1 skipped") or
+    contains?(said, "4 passed, 0 failed")
 end
 
 test "a skip names the test and the reason, and refused it is a failure"

@@ -1,3 +1,6 @@
+#[macro_use]
+mod moduledoc;
+
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
@@ -24,11 +27,23 @@ fn err(o: &Output) -> String {
     String::from_utf8_lossy(&o.stderr).into_owned()
 }
 
-const SPIN: &str = "def spin(n)\n  if n == 0\n    :done\n  else\n    spin(n - 1)\n  end\nend\n\ndef main()\n  spin(1_000_000)\nend\n\ntest \"spins\"\n  assert spin(1_000_000) == :done\nend\n";
+const SPIN: &str = moduledoc!(
+    "spin counts down to done.",
+    "spin(3) #=> :done",
+    "def spin(n)\n  if n == 0\n    :done\n  else\n    spin(n - 1)\n  end\nend\n\ndef main()\n  spin(1_000_000)\nend\n\ntest \"spins\"\n  assert spin(1_000_000) == :done\nend\n"
+);
 
-const HOG: &str = "def main()\n  length(map((x) -> [x, x], range(0, 20000)))\nend\n\ntest \"small\"\n  assert length(map((x) -> [x, x], range(0, 10))) == 10\nend\n\ntest \"hog\"\n  assert length(map((x) -> [x, x], range(0, 20000))) == 20000\nend\n";
+const HOG: &str = moduledoc!(
+    "hog holds a pair for every number below 20000.",
+    "length(map((x) -> [x, x], range(0, 3))) #=> 3",
+    "def main()\n  length(map((x) -> [x, x], range(0, 20000)))\nend\n\ntest \"small\"\n  assert length(map((x) -> [x, x], range(0, 10))) == 10\nend\n\ntest \"hog\"\n  assert length(map((x) -> [x, x], range(0, 20000))) == 20000\nend\n"
+);
 
-const CHILD: &str = "def spin(n)\n  if n == 0\n    :done\n  else\n    spin(n - 1)\n  end\nend\n\ndef child()\n  p = spawn(spin, [1_000_000])\n  monitor(p)\n  last(receive())\nend\n\ndef main()\n  child\nend\n\ntest \"a child spins to the end\"\n  assert child == :normal\nend\n";
+const CHILD: &str = moduledoc!(
+    "child spins in a process of its own, and its exit is the answer.",
+    "spin(3) #=> :done",
+    "def spin(n)\n  if n == 0\n    :done\n  else\n    spin(n - 1)\n  end\nend\n\ndef child()\n  p = spawn(spin, [1_000_000])\n  monitor(p)\n  last(receive())\nend\n\ndef main()\n  child\nend\n\ntest \"a child spins to the end\"\n  assert child == :normal\nend\n"
+);
 
 fn project(name: &str, bluefile: &str, app: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("blue-bounds-{name}-{}", std::process::id()));
@@ -108,7 +123,7 @@ fn a_live_byte_bound_the_project_declares_refuses_what_it_holds_without_it() {
     assert_eq!(out(&ran).trim(), "20000");
     let tested = test(&free);
     assert!(
-        out(&tested).contains("2 passed, 0 failed"),
+        out(&tested).contains("3 passed, 0 failed"),
         "{}{}",
         out(&tested),
         err(&tested)
@@ -128,7 +143,7 @@ fn a_live_byte_bound_the_project_declares_refuses_what_it_holds_without_it() {
     );
     let tested = test(&bounded);
     assert!(
-        !tested.status.success() && out(&tested).contains("1 passed, 1 failed"),
+        !tested.status.success() && out(&tested).contains("2 passed, 1 failed"),
         "{}{}",
         out(&tested),
         err(&tested)
@@ -298,7 +313,7 @@ fn a_process_the_program_spawns_is_held_to_the_projects_step_bound() {
     );
     let tested = test(&bounded);
     assert!(
-        !tested.status.success() && out(&tested).contains("0 passed, 1 failed"),
+        !tested.status.success() && out(&tested).contains("1 passed, 1 failed"),
         "a child a test spawns is held too: {}{}",
         out(&tested),
         err(&tested)
@@ -307,7 +322,11 @@ fn a_process_the_program_spawns_is_held_to_the_projects_step_bound() {
 
 fn served(opts: &str) -> String {
     format!(
-        "def spin(k)\n  if k == 0\n    0\n  else\n    spin(k - 1)\n  end\nend\n\ndef h(m, n)\n  if list?(m)\n    send(first(m), n)\n    n\n  elsif m == 0\n    spin(5000)\n    n + 1000\n  else\n    n + m\n  end\nend\n\ndef main()\n  s = spawn_server(h, 0{opts})\n  monitor(s)\n  send(s, 1)\n  send(s, 0)\n  send(s, [self])\n  receive(:_, 5000)\nend\n"
+        "{}def spin(k)\n  if k == 0\n    0\n  else\n    spin(k - 1)\n  end\nend\n\ndef h(m, n)\n  if list?(m)\n    send(first(m), n)\n    n\n  elsif m == 0\n    spin(5000)\n    n + 1000\n  else\n    n + m\n  end\nend\n\ndef main()\n  s = spawn_server(h, 0{opts})\n  monitor(s)\n  send(s, 1)\n  send(s, 0)\n  send(s, [self])\n  receive(:_, 5000)\nend\n",
+        moduledoc!(
+            "srv adds what it is sent to its state, and spins on a zero.",
+            "h(2, 1) #=> 3"
+        )
     )
 }
 

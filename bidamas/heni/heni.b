@@ -480,6 +480,12 @@ def end_to_end()
     path_join(pkg, "hnprobe.b"),
     unlines(
       [
+        "@moduledoc \"\"\"",
+        "hnprobe: the probe heni mutates, one checked word and one unchecked.",
+        "",
+        "    hp_double(3) #=> 6",
+        "\"\"\"",
+        "",
         "def hp_double(x)",
         "  x * 2",
         "end",

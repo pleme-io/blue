@@ -10,6 +10,9 @@
 //! `refused …/mk_c.b: its resolved tree changed; restored`, and this test
 //! fails.
 
+#[macro_use]
+mod moduledoc;
+
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -55,11 +58,12 @@ fn a_transitive_reference_is_listed_needed_and_proven() {
         &["mk_a"],
         "use(\"mk_a\", [:one])\n\ndef two()\n  one() + one()\nend\n",
     );
+    let doc = moduledoc!("mk_c adds mk_b's two to mk_a's one.", "three #=> 3");
     let c = package(
         &dist,
         "mk_c",
         &["mk_b"],
-        "use(\"mk_b\")\n\ndef three()\n  two + one\nend\n\ntest \"three\"\n  assert three == 3\nend\n",
+        &format!("{doc}use(\"mk_b\")\n\ndef three()\n  two + one\nend\n\ntest \"three\"\n  assert three == 3\nend\n"),
     );
     for p in ["mk_a", "mk_b", "mk_c"] {
         let (ok, _, err) = run(blue(&dist).arg("lock").arg(dist.join(p)));
@@ -71,7 +75,9 @@ fn a_transitive_reference_is_listed_needed_and_proven() {
     assert!(out.contains("2 name(s) made explicit"), "{out}");
     let src = std::fs::read_to_string(&c).expect("read");
     assert!(
-        src.starts_with("use(\"mk_a\", [:one])\nuse(\"mk_b\", [:two])\n"),
+        src.starts_with(&format!(
+            "{doc}use(\"mk_a\", [:one])\nuse(\"mk_b\", [:two])\n"
+        )),
         "{src}"
     );
     let lock = std::fs::read_to_string(dist.join("mk_c/Bluefile.lock")).expect("read");
@@ -113,7 +119,10 @@ fn swap_dist(tag: &str, caller: &str) -> (PathBuf, PathBuf, PathBuf) {
     (dist, lib, user)
 }
 
-const CALLER: &str = "use(\"mk_a\", [:apply_all])
+const CALLER: &str = moduledoc!(
+    "mk_b maps through mk_a's apply_all.",
+    "twice([1, 2]) #=> [2, 4]",
+    "use(\"mk_a\", [:apply_all])
 
 def twice(xs)
   apply_all(
@@ -136,7 +145,8 @@ test \"twice and nested\"
   assert twice([1, 2]) == [2, 4]
   assert nested([1]) == [\"a,)[1, 1]\"]
 end
-";
+"
+);
 
 #[test]
 fn a_swap_rewrites_every_call_and_proves_the_tree_moved_only_that_way() {

@@ -84,6 +84,12 @@ prose::count_words(text)
 Now use the package from the program. Replace `bidamas/shelf/shelf.b`:
 
 ```blue file=bidamas/shelf/shelf.b
+@moduledoc """
+shelf counts the words of its arguments through the prose package.
+
+    count_words("a b c") #=> 3
+"""
+
 use("prose", [:count_words])
 
 def main(args)

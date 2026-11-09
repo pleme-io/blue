@@ -97,7 +97,17 @@ def generating_fixture()
   )
   write_program(
     path_join(dir, "gen.b"),
-    unlines(["write_file(getenv(\"GEN_OUT\"), \"made\")"])
+    unlines(
+      [
+        "@moduledoc \"\"\"",
+        "gen: the fixture's generator, which writes made.",
+        "",
+        "    join(%w[ma de], \"\") #=> \"made\"",
+        "\"\"\"",
+        "",
+        "write_file(getenv(\"GEN_OUT\"), \"made\")"
+      ]
+    )
   )
   fake = path_join(dir, "fake/blue")
   write_file(

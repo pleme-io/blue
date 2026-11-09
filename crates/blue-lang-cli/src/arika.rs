@@ -141,7 +141,11 @@ pub enum ArikaCmd {
         question: String,
         #[arg(long, help = "Print the answer as one JSON object")]
         json: bool,
-        #[arg(long, value_name = "FILE", help = "Where to write the quad store (default: a file in the temp dir, removed after)")]
+        #[arg(
+            long,
+            value_name = "FILE",
+            help = "Where to write the quad store (default: a file in the temp dir, removed after)"
+        )]
         store: Option<PathBuf>,
         #[command(flatten)]
         from: FactsFrom,
@@ -178,7 +182,11 @@ pub enum ArikaCmd {
     Serve {
         #[arg(default_value = "127.0.0.1:8433")]
         addr: String,
-        #[arg(long, value_name = "FILE", help = "Where blue_word_ask writes its quad store")]
+        #[arg(
+            long,
+            value_name = "FILE",
+            help = "Where blue_word_ask writes its quad store"
+        )]
         store: Option<PathBuf>,
         #[command(flatten)]
         from: FactsFrom,
@@ -201,7 +209,11 @@ pub struct FactsFrom {
         help = "The facts the header roots (nix build .#arika-facts)"
     )]
     facts: Option<PathBuf>,
-    #[arg(long, default_value = "bidamas", help = "The bidamas to build the facts of when no header is given")]
+    #[arg(
+        long,
+        default_value = "bidamas",
+        help = "The bidamas to build the facts of when no header is given"
+    )]
     root: PathBuf,
 }
 
@@ -795,13 +807,20 @@ pub fn emit_facts(root: &Path) -> Json {
         };
         let (entry, links) = blue_lang_mondou::facts::of_entry_linked(&checked);
         definitions += entry.definitions;
-        rows.extend(entry.facts.iter().map(|f| row_of(&package, &rel, f, &links)));
+        rows.extend(
+            entry
+                .facts
+                .iter()
+                .map(|f| row_of(&package, &rel, f, &links)),
+        );
         for t in &links.tests {
             for key in &t.names {
-                tested
-                    .entry(word_of_key(key))
-                    .or_default()
-                    .insert((rel.clone(), t.line, t.name.clone(), t.doc));
+                tested.entry(word_of_key(key)).or_default().insert((
+                    rel.clone(),
+                    t.line,
+                    t.name.clone(),
+                    t.doc,
+                ));
             }
         }
         moved_names(&package, &text, &mut legacy);
@@ -978,7 +997,9 @@ pub fn run(cmd: ArikaCmd) -> Result<ExitCode, String> {
             json,
             from,
         } => over_facts("find", json, &json!({"text": text, "limit": limit}), &from),
-        ArikaCmd::Get { word, json, from } => over_facts("get", json, &json!({"word": word}), &from),
+        ArikaCmd::Get { word, json, from } => {
+            over_facts("get", json, &json!({"word": word}), &from)
+        }
         ArikaCmd::Uses { word, json, from } => {
             over_facts("uses", json, &json!({"word": word}), &from)
         }
@@ -997,8 +1018,8 @@ pub fn run(cmd: ArikaCmd) -> Result<ExitCode, String> {
             &from,
         ),
         ArikaCmd::Golden { file, json, from } => {
-            let text = std::fs::read_to_string(&file)
-                .map_err(|e| format!("{}: {e}", file.display()))?;
+            let text =
+                std::fs::read_to_string(&file).map_err(|e| format!("{}: {e}", file.display()))?;
             let questions: Vec<Json> = text
                 .lines()
                 .filter(|l| !l.trim().is_empty() && !l.starts_with('#'))

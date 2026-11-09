@@ -84,7 +84,7 @@ pub enum ArikaCmd {
         facts: Option<PathBuf>,
     },
     #[command(
-        about = "Blue words whose name, package or doc gloss match TEXT, ranked by BM25 (the sakuin words), from the facts"
+        about = "Blue words whose name, package or doc gloss match TEXT, ranked by BM25 (the junni words), from the facts"
     )]
     Find {
         text: String,

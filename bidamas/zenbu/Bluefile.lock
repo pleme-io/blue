@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:afc9ac419c162c13ea274a26f51a48b139abd7750164a3a7b7d0d7133d89ad18",
+  "bluefile_b3": "b3:5516e4cd68d4fa1003fee2ef3dbaa85e0e79faf1fe34a6795cbf6511d70e511d",
   "manifest": {
     "schema": 1,
     "name": "zenbu",
@@ -29,6 +29,7 @@
       "isshou": "^0.1.0",
       "jisho": "^0.1.0",
       "junjo": "^0.1.0",
+      "junni": "^0.1.0",
       "kaaneru": "^0.1.0",
       "kakehashi": "^0.1.0",
       "kansuu": "^0.1.0",
@@ -54,7 +55,6 @@
       "ronri": "^0.1.0",
       "sabi": "^0.1.0",
       "saishikou": "^0.1.0",
-      "sakuin": "^0.1.0",
       "seimei": "^0.1.0",
       "settei": "^0.1.0",
       "shinchoku": "^0.1.0",

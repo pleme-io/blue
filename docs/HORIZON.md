@@ -347,7 +347,7 @@ is; a cached check result read under a different engine identity is refused.
 **Built (2026-11-09, wave 3, on `h5/arika-khipu`):** the facts carry each
 definition's `calls`, `reach` and the `tests` that name it (mondou's
 `of_entry_linked`). arika Phase 3's verbs answer from them: `find` ranks by
-BM25 through the new `bidamas/sakuin` (the ratified `sakuin` verb space:
+BM25 through the new `bidamas/junni` (the subject of the ratified `sakuin` verb space:
 `analyze`, `invert`, `lookup`, `score`), and `get`, `uses`, `groups`,
 `changed` and `golden` (G5, 22 questions) read the rows. The MCP door is blue:
 `eigyou/kyuuji` speaks JSON-RPC 2.0 and Streamable HTTP (`mcp_answer`,

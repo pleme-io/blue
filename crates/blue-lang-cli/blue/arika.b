@@ -1,11 +1,11 @@
 use("eigyou/kyuuji", %i[mcp_answer mcp_handler mcp_server mcp_tool serve])
 
+use("junni", %i[invert score])
 use("khipu", %i[decoded encoded iri literal pattern question typed var])
 
 use("kyohi", [:raised])
 use("moji", %i[capitalize drop_chars])
 use("retsu", %i[first flat_map is_empty push size])
-use("sakuin", %i[invert score])
 use("shomei", [:ct_root])
 
 LIMIT = 12
@@ -550,7 +550,7 @@ def by_word(rows)
 end
 
 @doc """
-find_answer: The words whose name, package or gloss match `text`, ranked by BM25 (sakuin), at most `limit`.
+find_answer: The words whose name, package or gloss match `text`, ranked by BM25 (junni), at most `limit`.
 
     find_answer("x", 5, [])["hits"] #=> []
 """

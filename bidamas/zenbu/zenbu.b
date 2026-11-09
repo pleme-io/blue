@@ -78,6 +78,7 @@ use("ibuki")
 use("isshou")
 use("jisho")
 use("junjo", %i[is_sorted sort])
+use("junni")
 use("kaaneru")
 use("kakehashi")
 use("kansuu", [:identity])
@@ -105,7 +106,6 @@ use("retsu", %i[contains size])
 use("ronri", [:every])
 use("sabi")
 use("saishikou")
-use("sakuin")
 use("seimei", [:life_step])
 use("settei")
 use("shinchoku")
@@ -226,7 +226,7 @@ test "every bidama in the distribution answers through this one import"
   assert gitto::ref_of("v1", :tag) == "refs/tags/v1"
   assert utsushi::sub("a/b") == {lens: :sub, path: "a/b"}
   assert khipu::literal("a") == {term: :plain, value: "a"}
-  assert sakuin::analyze("The Words", {}) == ["words"]
+  assert junni::analyze("The Words", {}) == ["words"]
   assert mitoshi::rogu::level_of("warn") == :warn
   assert eigyou::tsuushin::join("http://a.com/b/c", "../d") == "http://a.com/d"
   assert shuusei::put({}, "a.b", 1) == {"a" => {"b" => 1}}

@@ -17,8 +17,8 @@ every node a start node reaches	gurafu::reachable
 approximate equality for rounding error	kazu::near
 RFC 9162 root over hashes	shomei::ct_root
 an IRI term	khipu::iri
-documents ranked by BM25, highest first	sakuin::score
+documents ranked by BM25, highest first	junni::score
 keep the first occurrence of each element	shuugou::unique
 items in ascending order	junjo::sort
-the index tokens of a text, stop words dropped	sakuin::analyze
-the token count of every document and the mean length	sakuin::invert
+the index tokens of a text, stop words dropped	junni::analyze
+the token count of every document and the mean length	junni::invert

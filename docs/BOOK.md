@@ -145,6 +145,12 @@ hello, ryn
 Now make it count words. Replace `bidamas/tally/tally.b` with this:
 
 ```blue file=bidamas/tally/tally.b
+@moduledoc """
+tally counts the words in a text: the pieces its spaces separate.
+
+    tally("one two three") #=> 3
+"""
+
 use("retsu", [:size])
 
 def words(text)
@@ -168,12 +174,15 @@ test "an empty text has no words"
 end
 ```
 
+A bidama opens with a `@moduledoc`: what it is for, then an example that
+runs (`expr #=> value`). The check refuses a bidama without one.
+
 Run the tests. `blue test` checks the file first, then runs each `test`
-block:
+block and each example:
 
 ```console
 $ blue test bidamas/tally/tally.b
-2 test(s): 2 passed, 0 failed
+3 test(s): 3 passed, 0 failed
 ```
 
 Run the program:
@@ -267,6 +276,12 @@ prose::count_words(text)
 Now use the package from the program. Replace `bidamas/shelf/shelf.b`:
 
 ```blue file=bidamas/shelf/shelf.b
+@moduledoc """
+shelf counts the words of its arguments through the prose package.
+
+    count_words("a b c") #=> 3
+"""
+
 use("prose", [:count_words])
 
 def main(args)
@@ -326,6 +341,12 @@ The program answers `GET /`. [`settei`](../bidamas/CATALOG.md#settei) reads the 
 gives it, and `kyuuji` serves HTTP:
 
 ```blue file=hello.b
+@moduledoc """
+hello greets the subject its settings name, or the one a request asks for.
+
+    greeting({"greeting" => "Olá", "subject" => "mundo"}, "ryn") #=> "Olá, ryn!"
+"""
+
 use("kyuuji")
 use("settei")
 
@@ -374,7 +395,7 @@ it directly. Lock the declaration and run the tests:
 $ blue lock .
 ./Bluefile.lock: 0 source(s) pinned
 $ blue test hello.b
-2 test(s): 2 passed, 0 failed
+3 test(s): 3 passed, 0 failed
 ```
 
 The `haibi` bidama renders the declaration into everything that ships the
@@ -444,12 +465,19 @@ says which test it skipped and why, and the tally counts it apart from a pass:
 ```console host
 $ blue test pkts.b
 SKIP on a real kernel, the program counts what the machine counts: no kernel here: this host is not Linux
-3 test(s): 2 passed, 0 failed, 1 skipped
+4 test(s): 3 passed, 0 failed, 1 skipped
 ```
 
 Now make the program drop ICMP. Replace `pkts.b` with this:
 
 ```blue file=pkts.b
+@moduledoc """
+pkts counts packets by protocol and drops ICMP, as a kernel program and its
+loader in one file.
+
+    ICMP #=> 1
+"""
+
 use(
   "bpf",
   %i[compile declare_map map_add packet_int packet_len xdp_drop xdp_pass]
@@ -581,7 +609,7 @@ through `BPF_PROG_RUN`, which attaches nothing:
 ```console host
 $ cd pkts
 $ sudo blue test pkts.b
-4 test(s): 4 passed, 0 failed
+5 test(s): 5 passed, 0 failed
 ```
 
 To see real packets, make a network namespace, so nothing on your host sees the
@@ -1750,6 +1778,12 @@ beside `serve_settings` with the words in
 [the first kernel program](tutorial/first-kernel-program.md).
 
 ```blue file=agent.b
+@moduledoc """
+agent answers its root path with its name, and any other path with not found.
+
+    handle(kyuuji::request("GET", "/x", ""))[:status] #=> 404
+"""
+
 use("kyuuji")
 use("settei")
 
@@ -1775,7 +1809,7 @@ end
 $ blue lock .
 ./Bluefile.lock: 0 source(s) pinned
 $ blue test agent.b
-1 test(s): 1 passed, 0 failed
+2 test(s): 2 passed, 0 failed
 ```
 
 This program shows what the declaration renders:

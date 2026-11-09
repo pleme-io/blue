@@ -1,3 +1,6 @@
+#[macro_use]
+mod moduledoc;
+
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -20,6 +23,15 @@ fn tree(name: &str, files: &[(&str, &str)]) -> PathBuf {
 }
 
 const USER: &str = "use(\"onlyhere\", [:marker])\n\ndef shown()\n  marker\nend\n\ntest \"marker\"\n  assert shown == 42\nend\n\nshown\n";
+
+const MARKER: &str = "use(\"onlyhere\", [:marker])\n";
+
+fn user_bidama(uses: &str) -> String {
+    format!(
+        "{}{uses}\ndef shown()\n  marker\nend\n",
+        moduledoc!("user shows the marker onlyhere defines.", "shown #=> 42")
+    )
+}
 
 fn project(name: &str) -> PathBuf {
     tree(
@@ -121,11 +133,7 @@ fn the_editor_resolves_a_project_bidama_from_a_file_inside_another_bidama() {
         "package(\"user\", \"0.1.0\")\nneeds(\"onlyhere\", \"^0.1\")\n",
     )
     .unwrap();
-    std::fs::write(
-        &file,
-        "use(\"onlyhere\", [:marker])\n\ndef shown()\n  marker\nend\n",
-    )
-    .unwrap();
+    std::fs::write(&file, user_bidama(MARKER)).unwrap();
     let out = lsp(
         Path::new("/"),
         &file,
@@ -242,10 +250,7 @@ fn check_fix_derives_a_bidamas_needs_from_its_uses_and_relocks() {
                 "proj/bidamas/user/Bluefile",
                 "package(\"user\", \"0.1.0\")\nneeds(\"unused\", \"^0.1\")\n",
             ),
-            (
-                "proj/bidamas/user/user.b",
-                "use(\"onlyhere\", [:marker])\n\ndef shown()\n  marker\nend\n",
-            ),
+            ("proj/bidamas/user/user.b", &user_bidama(MARKER)),
         ],
     );
     let file = root.join("proj/bidamas/user/user.b");
@@ -267,7 +272,7 @@ fn check_fix_derives_a_bidamas_needs_from_its_uses_and_relocks() {
     assert!(ok, "{fresh}");
     std::fs::write(
         user.join("user.b"),
-        "use(\"onlyhere\", [:marker])\nuse(\"gone\")\n\ndef shown()\n  marker\nend\n",
+        user_bidama(&format!("{MARKER}use(\"gone\")\n")),
     )
     .unwrap();
     let (ok, stale) = door(&["bluefile", "--confirm", bf.as_str()], &[], &root);
@@ -279,11 +284,7 @@ fn check_fix_derives_a_bidamas_needs_from_its_uses_and_relocks() {
         "package(\"user\", \"0.1.0\")\nneeds(\"onlyhere\", \"=0.4.1\")\nneeds(\"stray\", \"^0.1\")\n",
     )
     .unwrap();
-    std::fs::write(
-        user.join("user.b"),
-        "use(\"onlyhere\", [:marker])\n\ndef shown()\n  marker\nend\n",
-    )
-    .unwrap();
+    std::fs::write(user.join("user.b"), user_bidama(MARKER)).unwrap();
     let (ok, refused) = door(&["lock", u.as_str()], &[], &root);
     assert!(!ok && refused.contains("needs(\"stray\""), "{refused}");
     let (ok, fixed) = door(&["check", "--fix", f.as_str()], &[], &root);

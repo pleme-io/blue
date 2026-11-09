@@ -222,7 +222,23 @@ end
 
 def zed(tests)
   join_lines(
-    ["def lower(s)", "  s", "end", "", "def upper(s)", "  s", "end", "", tests]
+    [
+      "@moduledoc \"\"\"",
+      "zed: two words, each giving back the string it is given.",
+      "",
+      "    join(%w[z ed], \"\") #=> \"zed\"",
+      "\"\"\"",
+      "",
+      "def lower(s)",
+      "  s",
+      "end",
+      "",
+      "def upper(s)",
+      "  s",
+      "end",
+      "",
+      tests
+    ]
   )
 end
 

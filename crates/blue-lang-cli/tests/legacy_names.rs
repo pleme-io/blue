@@ -13,6 +13,9 @@
 //! Red run (2026-09-29), `inside_distribution` answering true for every
 //! file: the outside caller's B0021 is an error and `blue check` exits 1.
 
+#[macro_use]
+mod moduledoc;
+
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -539,7 +542,11 @@ fn a_moved_name_can_name_a_level_as_its_home() {
     let level = dist.join("fam/k/k.b");
     write(
         &level,
-        "legacy_names(\"0.1.1\", [[\"old\", \"fam::k::new\", \"\"]])\n\ndef new()\n  1\nend\n",
+        moduledoc!(
+            "k is the level `old` moved to, as `new`.",
+            "new #=> 1",
+            "legacy_names(\"0.1.1\", [[\"old\", \"fam::k::new\", \"\"]])\n\ndef new()\n  1\nend\n"
+        ),
     );
     let fmt = blue(&dist)
         .args(["fmt", "--write"])
@@ -575,13 +582,17 @@ fn fix_on_a_level_relocks_the_root_it_lives_under() {
     let dist = root.join("bidamas");
     kroot(&dist, "0.2.0");
     let level = dist.join("kroot/kc/kc.b");
-    write(&level, "use(\"kb\")\n\ndef two()\n  kb::compile + 1\nend\n");
+    let doc = moduledoc!("kc adds one to what kb compiles.", "two #=> 8");
+    write(
+        &level,
+        &format!("{doc}use(\"kb\")\n\ndef two()\n  kb::compile + 1\nend\n"),
+    );
 
     let (code, json) = check(&dist, &level, &["--fix"]);
     assert_eq!(code, 0, "{json}");
     assert_eq!(
         std::fs::read_to_string(&level).expect("read"),
-        "use(\"kroot/kb\")\n\ndef two()\n  kroot::kb::compile + 1\nend\n"
+        format!("{doc}use(\"kroot/kb\")\n\ndef two()\n  kroot::kb::compile + 1\nend\n")
     );
     assert!(!dist.join("kroot/kc/Bluefile.lock").exists());
     assert!(dist.join("kroot/Bluefile.lock").is_file());
@@ -705,10 +716,11 @@ fn a_consumer_bidamas_needs_row_moves_with_the_bidama() {
         "package(\"user\", \"0.1.0\")\nneeds(\"kb\", \"^0.1\")\n",
     );
     let source = user.join("user.b");
+    let module = moduledoc!("user builds what kb compiles.", "build #=> 7");
     let doc = "@doc \"\"\"\nbuild: The program, compiled.\n\"\"\"\n";
     write(
         &source,
-        &format!("use(\"kb\")\n\n{doc}def build()\n  kb::compile\nend\n"),
+        &format!("{module}use(\"kb\")\n\n{doc}def build()\n  kb::compile\nend\n"),
     );
 
     let (code, json) = check(&dist, &source, &[]);
@@ -724,7 +736,7 @@ fn a_consumer_bidamas_needs_row_moves_with_the_bidama() {
     assert_eq!(code, 0, "{json}");
     assert_eq!(
         std::fs::read_to_string(&source).expect("read"),
-        format!("use(\"kroot/kb\")\n\n{doc}def build()\n  kroot::kb::compile\nend\n")
+        format!("{module}use(\"kroot/kb\")\n\n{doc}def build()\n  kroot::kb::compile\nend\n")
     );
     assert_eq!(
         std::fs::read_to_string(user.join("Bluefile")).expect("read"),
@@ -740,7 +752,7 @@ fn a_consumer_bidamas_needs_row_moves_with_the_bidama() {
     );
     write(
         &source,
-        &format!("use(\"kb\")\n\n{doc}def build()\n  kb::compile\nend\n"),
+        &format!("{module}use(\"kb\")\n\n{doc}def build()\n  kb::compile\nend\n"),
     );
     let (code, json) = check(&dist, &source, &["--fix", "--only", "B0074"]);
     assert_eq!(code, 0, "{json}");

@@ -113,7 +113,7 @@ mod tests {
         }
     }
 
-    const KAGI: &str = "@doc \"\"\"\nguard: x, refused below zero.\n\"\"\"\n\
+    const KAGI: &str = "@moduledoc \"\"\"\nkagi guards a number against going below zero.\n\n    guard(1) #=> 1\n\"\"\"\n\n@doc \"\"\"\nguard: x, refused below zero.\n\"\"\"\n\
                         def guard(x)\n  if x < 0\n    raise(:negative, \"below zero\")\n  else\n    x\n  end\nend\n";
 
     fn kagi_ids(entry: Option<&str>, label: &'static str, src: &str) -> BTreeMap<String, String> {
@@ -152,7 +152,11 @@ mod tests {
         let as_entry = kagi_ids(Some("bidamas/kagi/kagi.b"), "", KAGI)["kagi/guard"].clone();
         let moved_entry = kagi_ids(Some("/srv/other/kagi/kagi.b"), "", KAGI)["kagi/guard"].clone();
         let used = kagi_ids(None, "/srv/dist/bidamas/kagi/kagi.b", KAGI)["kagi/guard"].clone();
-        let lower_down = format!("# a note\n\n\ndef unrelated(y)\n  y\nend\n\n{KAGI}");
+        let lower_down = KAGI.replacen(
+            "@doc",
+            "# a note\n\n\ndef unrelated(y)\n  y\nend\n\n@doc",
+            1,
+        );
         let laid_out = kagi_ids(None, "kagi.b", &lower_down)["kagi/guard"].clone();
         assert_eq!(as_entry, moved_entry, "the entry's path is not in the hash");
         assert_eq!(as_entry, used, "an entry and an import hash alike");

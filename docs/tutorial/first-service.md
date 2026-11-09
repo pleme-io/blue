@@ -38,6 +38,12 @@ The program answers `GET /`. `settei` reads the settings the declaration
 gives it, and `kyuuji` serves HTTP:
 
 ```blue file=hello.b
+@moduledoc """
+hello greets the subject its settings name, or the one a request asks for.
+
+    greeting({"greeting" => "Olá", "subject" => "mundo"}, "ryn") #=> "Olá, ryn!"
+"""
+
 use("kyuuji")
 use("settei")
 
@@ -86,7 +92,7 @@ it directly. Lock the declaration and run the tests:
 $ blue lock .
 ./Bluefile.lock: 0 source(s) pinned
 $ blue test hello.b
-2 test(s): 2 passed, 0 failed
+3 test(s): 3 passed, 0 failed
 ```
 
 The `haibi` bidama renders the declaration into everything that ships the

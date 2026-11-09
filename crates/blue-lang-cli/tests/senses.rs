@@ -1,3 +1,6 @@
+#[macro_use]
+mod moduledoc;
+
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
@@ -178,7 +181,10 @@ fn every_sense_word_under_a_hold_without_its_bundle_is_a_fatal_breach_no_rescue_
     let _ = std::fs::remove_dir_all(dir);
 }
 
-const ROUND_TRIP: &str = "def main()
+const ROUND_TRIP: &str = moduledoc!(
+    "virtualapp plays two clips, hears them back, draws a frame, and writes it all as JSON.",
+    "json_stringify([1, 2]) #=> \"[1,2]\"",
+    "def main()
   play_audio({rate: 8000, channels: 2, samples: [0.5, -0.25, 1, 0]})
   play_audio({rate: 8000, channels: 2, samples: [-1.0, 0.125]})
   heard = capture_audio(4, {rate: 8000, channels: 2})
@@ -208,7 +214,8 @@ const ROUND_TRIP: &str = "def main()
     )
   )
 end
-";
+"
+);
 
 #[test]
 fn the_virtual_senses_play_into_a_sink_a_monitor_reads_back_and_a_framebuffer_shows_what_was_drawn()
@@ -257,7 +264,11 @@ fn the_virtual_senses_play_into_a_sink_a_monitor_reads_back_and_a_framebuffer_sh
     );
     put(
         &seeded.join("main.b"),
-        "def main()\n  write_stdout(\n    json_stringify(capture_audio(3, {rate: 16000, channels: 2}).samples)\n  )\nend\n",
+        moduledoc!(
+            "seededapp writes three frames it hears from seeded noise, as JSON.",
+            "json_stringify([1, 2]) #=> \"[1,2]\"",
+            "def main()\n  write_stdout(\n    json_stringify(capture_audio(3, {rate: 16000, channels: 2}).samples)\n  )\nend\n"
+        ),
     );
     locked(&seeded);
     let first = run(&seeded.join("main.b"), &[]);

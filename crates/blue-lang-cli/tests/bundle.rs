@@ -1,3 +1,6 @@
+#[macro_use]
+mod moduledoc;
+
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
@@ -31,7 +34,11 @@ fn project(name: &str) -> PathBuf {
     );
     put(
         &dir.join("main.b"),
-        "def main()\n  write_stdout(unlines([argv[0]]))\nend\n",
+        moduledoc!(
+            "hello writes its first argument back.",
+            "[\"world\"][0] #=> \"world\"",
+            "def main()\n  write_stdout(unlines([argv[0]]))\nend\n"
+        ),
     );
     let dir = dir.canonicalize().unwrap();
     let o = blue().arg("lock").arg(&dir).output().unwrap();

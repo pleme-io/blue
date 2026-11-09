@@ -475,6 +475,12 @@ hello, ryn
 Now make it count words. Replace `bidamas/tally/tally.b` with this:
 
 ```blue file=bidamas/tally/tally.b
+@moduledoc """
+tally counts the words in a text: the pieces its spaces separate.
+
+    tally("one two three") #=> 3
+"""
+
 use("retsu", [:size])
 
 def words(text)
@@ -498,12 +504,15 @@ test "an empty text has no words"
 end
 ```
 
+A bidama opens with a `@moduledoc`: what it is for, then an example that
+runs (`expr #=> value`). The check refuses a bidama without one.
+
 Run the tests. `blue test` checks the file first, then runs each `test`
-block:
+block and each example:
 
 ```console
 $ blue test bidamas/tally/tally.b
-2 test(s): 2 passed, 0 failed
+3 test(s): 3 passed, 0 failed
 ```
 
 Run the program:
@@ -600,6 +609,12 @@ prose::count_words(text)
 Now use the package from the program. Replace `bidamas/shelf/shelf.b`:
 
 ```blue file=bidamas/shelf/shelf.b
+@moduledoc """
+shelf counts the words of its arguments through the prose package.
+
+    count_words("a b c") #=> 3
+"""
+
 use("prose", [:count_words])
 
 def main(args)
@@ -662,6 +677,12 @@ The program answers `GET /`. `settei` reads the settings the declaration
 gives it, and `kyuuji` serves HTTP:
 
 ```blue file=hello.b
+@moduledoc """
+hello greets the subject its settings name, or the one a request asks for.
+
+    greeting({"greeting" => "Olá", "subject" => "mundo"}, "ryn") #=> "Olá, ryn!"
+"""
+
 use("kyuuji")
 use("settei")
 
@@ -710,7 +731,7 @@ it directly. Lock the declaration and run the tests:
 $ blue lock .
 ./Bluefile.lock: 0 source(s) pinned
 $ blue test hello.b
-2 test(s): 2 passed, 0 failed
+3 test(s): 3 passed, 0 failed
 ```
 
 The `haibi` bidama renders the declaration into everything that ships the
@@ -783,12 +804,19 @@ says which test it skipped and why, and the tally counts it apart from a pass:
 ```console host
 $ blue test pkts.b
 SKIP on a real kernel, the program counts what the machine counts: no kernel here: this host is not Linux
-3 test(s): 2 passed, 0 failed, 1 skipped
+4 test(s): 3 passed, 0 failed, 1 skipped
 ```
 
 Now make the program drop ICMP. Replace `pkts.b` with this:
 
 ```blue file=pkts.b
+@moduledoc """
+pkts counts packets by protocol and drops ICMP, as a kernel program and its
+loader in one file.
+
+    ICMP #=> 1
+"""
+
 use(
   "bpf",
   %i[compile declare_map map_add packet_int packet_len xdp_drop xdp_pass]
@@ -920,7 +948,7 @@ through `BPF_PROG_RUN`, which attaches nothing:
 ```console host
 $ cd pkts
 $ sudo blue test pkts.b
-4 test(s): 4 passed, 0 failed
+5 test(s): 5 passed, 0 failed
 ```
 
 To see real packets, make a network namespace, so nothing on your host sees the
@@ -2127,6 +2155,12 @@ beside `serve_settings` with the words in
 [the first kernel program](docs/tutorial/first-kernel-program.md).
 
 ```blue file=agent.b
+@moduledoc """
+agent answers its root path with its name, and any other path with not found.
+
+    handle(kyuuji::request("GET", "/x", ""))[:status] #=> 404
+"""
+
 use("kyuuji")
 use("settei")
 
@@ -2152,7 +2186,7 @@ end
 $ blue lock .
 ./Bluefile.lock: 0 source(s) pinned
 $ blue test agent.b
-1 test(s): 1 passed, 0 failed
+2 test(s): 2 passed, 0 failed
 ```
 
 This program shows what the declaration renders:
@@ -2803,12 +2837,7 @@ horizon gets a row here when its first phase starts.
 | **record**: a named structure in one line | `examples/17_records.b`, okite D0017 | SHIPPED (2026-11-06, blue `cc9a1a1e`) | — | — | `spec/rows/records.b` and okite's record laws green; B0079 at error |
 | **guard return** | [`GUARD-RETURN.md`](docs/GUARD-RETURN.md) | G1 BUILT (lowering, B0080, the formatter keeps the guard), G2 DESIGN | G2: the language server and the tree-sitter grammar know `return`; a `return` inside `rescue` | — | R-lower, R-refuse, R-total green (G1); editors highlight it (G2) |
 | **types that grow** (H2) | [`HORIZON.md`](docs/HORIZON.md) § H2, [`SAFETY.md`](docs/SAFETY.md) row 7 | step 1 BUILT (local inference in a typed definition: literals, parameters, declared builtin results, the `if` join; an inferred kind feeds B0062), the rest DESIGN | record and union types in signatures; then the checked boundary (gap G8) | H1 (shapes to name) | a spec row per inference rule (`check.infer.*`) green; the corpus checks clean at `dynamic` |
-<<<<<<< HEAD
 | **union** (HORIZON H1, first step) | [`HORIZON.md`](docs/HORIZON.md) §H1, SAFETY row 3 | U1 BUILT: `union shape = circle(r: Float) \| rect(w: Float, h: Float)` declares each arm as a record and `shape?`; a `case` over a union's arms that misses one and has no `else` is B0081; fmt, kiwari and tree-sitter know it. P1 BUILT: a `when` destructures (`rect(w, h)`, `[x, *rest]`, `{name:}`), and B0081 counts a destructuring arm; `[a, b] = pair` and `{name:} = m` bind or raise :pattern; `x = f(y)?` returns a kyohi refusal through a guard `return`. | H1: one declared `result` union for ok/refused; `?` on an Option; arms with no field; record patterns across bidamas | record | `spec/rows/unions.b`, `spec/rows/patterns.b`, `spec/rows/refusals.b` and `crates/blue-lang-runtime/tests/unions.rs` green; B0081 at error |
-||||||| 2a8f930524c09fa4c0e0fa48a39ef1cdd421e5ae^
-| **union** (HORIZON H1, first step) | [`HORIZON.md`](docs/HORIZON.md) §H1, SAFETY row 3 | U1 BUILT: `union shape = circle(r: Float) \| rect(w: Float, h: Float)` declares each arm as a record and `shape?`; a `case` over a union's arms that misses one and has no `else` is B0081; fmt, kiwari and tree-sitter know it. Patterns and `?` DESIGN | H1 patterns: `when rect(w, h)` destructures; arms with no field | record | `spec/rows/unions.b` and `crates/blue-lang-runtime/tests/unions.rs` green; B0081 at error |
-=======
-| **union** (HORIZON H1, first step) | [`HORIZON.md`](docs/HORIZON.md) §H1, SAFETY row 3 | U1 BUILT: `union shape = circle(r: Float) \| rect(w: Float, h: Float)` declares each arm as a record and `shape?`; a `case` over a union's arms that misses one and has no `else` is B0081; fmt, kiwari and tree-sitter know it. Patterns and `?` DESIGN | H1 patterns: `when rect(w, h)` destructures; arms with no field | record | `spec/rows/unions.b` and `crates/blue-lang-runtime/tests/unions.rs` green; B0081 at error |
 | HTTP/2 and gRPC | [`HTTP2.md`](docs/HTTP2.md) | PARTIAL (reconciled 2026-11-08 at `5399e761` against its §12 ledger): P1 BUILT and tested (`eigyou/heddaa` HPACK, `eigyou/tajuu` frames and `step`, `text_bytes` and `bytes_text`, 45 heni mutations caught); P2 to P6 DESIGN. The runtime's only TCP word is `tcp_connect_ms`; no `tcp_*` stream, no `net_wait`, no `tls_*` | P2: the pure connection value and its `receive` and `send` steps (§13), with the h2spec cases as byte transcripts | async (`net_wait`) for P3 | P3 `checks.network`: `curl --http2-prior-knowledge` and `h2spec` against a blue server; P5: `grpcurl` and a Go client against a blue server |
 | CLI and TUI | [`CLI-TUI.md`](docs/CLI-TUI.md) | PARTIAL (reconciled 2026-11-08): L1 BUILT 2026-10-27 (`hikisuu`: spec, parse, help, completion, `command`; `gamen` line output); L2 to L4 DESIGN. No `prompt`, `confirm` or `choose` in `gamen`, no `read_line` host word | L2: the `Terminal` capability with `read_line` and `is_terminal`; `prompt`, `confirm`, `choose` | — | L4: the remaining hand parsers moved onto `hikisuu`, `hand-rolled-flags` at warning |
 | service data defaults | [`SERVICE-DATA.md`](docs/SERVICE-DATA.md) | PARTIAL (reconciled 2026-11-08 against its §4): S3, S4 and S5 BUILT (telemetry export, the RESP client `kiibariu`, JetStream `sutoriimu`); S2 partial (`teeburu::model`, `evolve`, `judge`); S1, S2b, S6 and eleven `pending-*` rows open | S1: haibi renders pleme-lib's `shinkaDatabaseMigration`, the wait init container, `observabilityBundle` and `jetstream` | helmworks H3; HTTP/2 P4 for `pending-resp-tls` | §4's pending table empty and both services (kensa, ola-mundo) on the defaults |
@@ -2819,7 +2848,6 @@ horizon gets a row here when its first phase starts.
 | operators | [`OPERATORS.md`](docs/OPERATORS.md) | DESIGN (reconciled 2026-11-08 against its §9: O1 to O9 design; no `??` or `?.` in `spec/rows/`) | O1: measure `m.k` against `get`, then `m.k` or `m[:k]`, `xs[i]`, `[*xs, y]`, `a..b`, `in` | — | O3: the nested-call corpus rewritten onto the collection-slot pipe with output identical |
 | kernel | [`KERNEL.md`](docs/KERNEL.md) | PARTIAL (BUILDING, reconciled 2026-11-08 against its §6 ledger: the encoder, compiler, `btf`, `erufu`, CO-RE and every attach kind listed BUILT, most measured on plo; the kernel-agent chart built and not deployed; a `.ko` module and H20 admission DESIGN) | the kernel-agent chart deployed on one cluster | HORIZON H20 for admission | H20: every program the compiler accepts is admitted by every kernel in the matrix |
 | bidama cohesion | [`BIDAMA-COHESION.md`](docs/BIDAMA-COHESION.md) | PARTIAL (reconciled 2026-11-08 against its §6): trees 1 to 10 landed (`kaaneru/bpf`, `btf`, `erufu` on main), exact copies 0, near duplicates 24 in 11 groups; C6's batteries (`himitsu`, `kurasuta`, `habu`, `joujuu`) DESIGN, none on main | the arnes copies of `wariate::bump` and `yushutsu::column` onto foundation words (§ After the trees) | — | `near_duplicate_shapes_only_fall` at its floor and `blue census --reuse` at 0 |
->>>>>>> 2a8f930524c09fa4c0e0fa48a39ef1cdd421e5ae
 
 ## The arika track
 

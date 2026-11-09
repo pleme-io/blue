@@ -23,6 +23,12 @@ hello, ryn
 Now make it count words. Replace `bidamas/tally/tally.b` with this:
 
 ```blue file=bidamas/tally/tally.b
+@moduledoc """
+tally counts the words in a text: the pieces its spaces separate.
+
+    tally("one two three") #=> 3
+"""
+
 use("retsu", [:size])
 
 def words(text)
@@ -46,12 +52,15 @@ test "an empty text has no words"
 end
 ```
 
+A bidama opens with a `@moduledoc`: what it is for, then an example that
+runs (`expr #=> value`). The check refuses a bidama without one.
+
 Run the tests. `blue test` checks the file first, then runs each `test`
-block:
+block and each example:
 
 ```console
 $ blue test bidamas/tally/tally.b
-2 test(s): 2 passed, 0 failed
+3 test(s): 3 passed, 0 failed
 ```
 
 Run the program:

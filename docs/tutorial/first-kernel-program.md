@@ -30,12 +30,19 @@ says which test it skipped and why, and the tally counts it apart from a pass:
 ```console host
 $ blue test pkts.b
 SKIP on a real kernel, the program counts what the machine counts: no kernel here: this host is not Linux
-3 test(s): 2 passed, 0 failed, 1 skipped
+4 test(s): 3 passed, 0 failed, 1 skipped
 ```
 
 Now make the program drop ICMP. Replace `pkts.b` with this:
 
 ```blue file=pkts.b
+@moduledoc """
+pkts counts packets by protocol and drops ICMP, as a kernel program and its
+loader in one file.
+
+    ICMP #=> 1
+"""
+
 use(
   "bpf",
   %i[compile declare_map map_add packet_int packet_len xdp_drop xdp_pass]
@@ -167,7 +174,7 @@ through `BPF_PROG_RUN`, which attaches nothing:
 ```console host
 $ cd pkts
 $ sudo blue test pkts.b
-4 test(s): 4 passed, 0 failed
+5 test(s): 5 passed, 0 failed
 ```
 
 To see real packets, make a network namespace, so nothing on your host sees the

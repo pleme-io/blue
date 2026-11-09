@@ -357,7 +357,7 @@ fn blue_new_kernel_passes_with_no_kernel_and_a_skip_is_named() {
     assert!(test.status.success(), "{}{}", out(&test), err(&test));
     let tally = out(&test);
     if tally.contains("skipped") {
-        assert!(tally.contains("2 passed, 0 failed, 1 skipped"), "{tally}");
+        assert!(tally.contains("3 passed, 0 failed, 1 skipped"), "{tally}");
         assert!(
             err(&test).contains("SKIP on a real kernel"),
             "{}",

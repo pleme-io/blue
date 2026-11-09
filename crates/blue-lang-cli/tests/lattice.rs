@@ -1,3 +1,6 @@
+#[macro_use]
+mod moduledoc;
+
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
@@ -870,7 +873,11 @@ fn a_project_with_no_packages_root_is_still_held_to_its_allow() {
     );
     put(
         &dir.join("main.b"),
-        "def main()\n  write_stdout(\"#{now_ms}\")\nend\n",
+        moduledoc!(
+            "app writes the clock, which its project does not allow.",
+            "\"#{1}\" #=> \"1\"",
+            "def main()\n  write_stdout(\"#{now_ms}\")\nend\n"
+        ),
     );
     let o = run(&dir, &[]);
     assert!(!o.status.success(), "{}", out(&o));

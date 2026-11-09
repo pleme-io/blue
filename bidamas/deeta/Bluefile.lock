@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:1ce96cb7da72803a62763fa4d1f9b2b7f7d53f3773ac4a936fb05e3c2d888c44",
+  "bluefile_b3": "b3:a847c89c18538fe67596f948c0f0917777f1a3703416a9d7116b4c569f8f3730",
   "manifest": {
     "schema": 1,
     "name": "deeta",
@@ -13,7 +13,8 @@
     "tools": [],
     "checks": {},
     "apps": {},
-    "catalog": null
+    "catalog": null,
+    "tier": "foundation"
   },
   "sources": {}
 }

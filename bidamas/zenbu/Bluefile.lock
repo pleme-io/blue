@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:4335e7efe4c25f2b26bb1c5ae9d02d931d1b7f083b73327348de2f1125940dc6",
+  "bluefile_b3": "b3:a7404649c5229db25f11b65b9a0f9c3ed35b6b91873872b4117671c45e6d8ff7",
   "manifest": {
     "schema": 1,
     "name": "zenbu",
@@ -80,7 +80,8 @@
     "tools": [],
     "checks": {},
     "apps": {},
-    "catalog": null
+    "catalog": null,
+    "tier": "toolchain"
   },
   "sources": {}
 }

@@ -1,4 +1,5 @@
 package("settei", "0.1.1")
+tier(:system)
 needs("deeta", "^0.1")
 needs("kyohi", "^0.1")
 needs("moji", "^0.1")

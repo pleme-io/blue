@@ -1,4 +1,5 @@
 package("bunsho", "0.1.0")
+tier(:toolchain)
 needs("fairu", "^0.1")
 needs("kazu", "^0.1")
 needs("moji", "^0.1")

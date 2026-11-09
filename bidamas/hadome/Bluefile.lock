@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:ffc33069113f32a4b294f93398889a9cc23f2dd375ade07f65ffc4d319769285",
+  "bluefile_b3": "b3:deb1248da94280e037845f0b3500356e01133bafe418fcedd0f865c485d0143c",
   "manifest": {
     "schema": 1,
     "name": "hadome",
@@ -17,7 +17,8 @@
     "tools": [],
     "checks": {},
     "apps": {},
-    "catalog": null
+    "catalog": null,
+    "tier": "toolchain"
   },
   "sources": {}
 }

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:65a6b028f7ad748361f3bccb4f2c5e5b647ac055672649063bf67f8e0d2efa42",
+  "bluefile_b3": "b3:baaf827a1b75e9cd2ffcb8c7533c0439b797a60b91e78630be263e605ca4dc75",
   "manifest": {
     "schema": 1,
     "name": "kyohi",
@@ -15,7 +15,8 @@
     "tools": [],
     "checks": {},
     "apps": {},
-    "catalog": null
+    "catalog": null,
+    "tier": "foundation"
   },
   "sources": {}
 }

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:c0003f5c1d7893f77456178a6fd847f2c54215a927f69bc191d1fd90366d65b6",
+  "bluefile_b3": "b3:39011a9cfd2f75af6ac356d2bbd565cb7a09c762206df6439e7242592b8eb5d9",
   "manifest": {
     "schema": 1,
     "name": "jisho",
@@ -15,7 +15,8 @@
     "tools": [],
     "checks": {},
     "apps": {},
-    "catalog": null
+    "catalog": null,
+    "tier": "foundation"
   },
   "sources": {}
 }

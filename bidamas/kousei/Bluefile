@@ -1,3 +1,4 @@
 package("kousei", "0.1.0")
+tier(:foundation)
 needs("kyohi", "^0.1")
 needs("retsu", "^0.1")

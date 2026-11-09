@@ -1,1 +1,2 @@
 package("kansuu", "0.1.0")
+tier(:foundation)

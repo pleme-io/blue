@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:e5d9771b09d908a079963af744460fcba617e7e8a33c8a89d2fba2609a5cdbca",
+  "bluefile_b3": "b3:7136a41c38db7333d7ced0716dc7f501ee3f53369968e1eb46b254f583def6b8",
   "manifest": {
     "schema": 1,
     "name": "kiwari",
@@ -15,7 +15,8 @@
     "tools": [],
     "checks": {},
     "apps": {},
-    "catalog": null
+    "catalog": null,
+    "tier": "toolchain"
   },
   "sources": {}
 }

@@ -1,4 +1,5 @@
 package("okite", "0.1.1")
+tier(:toolchain)
 needs("retsu", "^0.1")
 needs("moji", "^0.1")
 needs("ran", "^0.1")

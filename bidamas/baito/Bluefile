@@ -1,2 +1,3 @@
 package("baito", "0.1.0")
+tier(:toolchain)
 needs("retsu", "^0.1")

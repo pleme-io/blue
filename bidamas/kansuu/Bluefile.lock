@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:45a73e5580e0d16f072b5948c0f8a839bfdd1a39da5538bfa037fdd0ccce43cc",
+  "bluefile_b3": "b3:a2ca4d2bbff554e81d0327a816c7905cf62e11280b13e6707329c2701f4978f1",
   "manifest": {
     "schema": 1,
     "name": "kansuu",
@@ -13,7 +13,8 @@
     "tools": [],
     "checks": {},
     "apps": {},
-    "catalog": null
+    "catalog": null,
+    "tier": "foundation"
   },
   "sources": {}
 }

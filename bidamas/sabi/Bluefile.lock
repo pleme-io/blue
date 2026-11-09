@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:e6c61d806a4a6a0d0136e432f26ca12f7e43c986a0a4bd42c3070ed00f733e66",
+  "bluefile_b3": "b3:81e2530763a81763e6154d566e54b24b710ac68e64acb74f28562e9044b7a28b",
   "manifest": {
     "schema": 1,
     "name": "sabi",
@@ -16,7 +16,8 @@
     "tools": [],
     "checks": {},
     "apps": {},
-    "catalog": null
+    "catalog": null,
+    "tier": "toolchain"
   },
   "sources": {}
 }

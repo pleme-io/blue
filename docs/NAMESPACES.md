@@ -256,3 +256,40 @@ and the other sources still build. The flow, the pins and the off switches:
   bump changes the meaning in silence.
 - **Mark flat-era names by date in the checker.** Rejected: the checker reads
   source, not history. The declaration is source, and the gate pins it.
+
+## One root holds a name
+
+The loader searches roots by channel: the project, then `BLUE_PATH`, then
+`BLUE_DIST`, then the copy compiled into blue.
+
+| Channel | Two roots hold `x` |
+|---|---|
+| the project (`packages`, workspace folders) | ❌ refused: the error names both directories |
+| a fixed list of roots (tests, the corpus) | ❌ refused |
+| `BLUE_PATH` | ✅ the first root answers: the caller chose the shadow |
+| `BLUE_DIST` | ✅ the first root answers: nested wrappers append roots |
+
+The refusal is scoped to `x` and every level below it. Every other name
+still loads. `nix/project.nix` refuses the same project at evaluation, so a
+build and a `blue test` agree. Lock:
+`crates/blue-lang-pkg/src/load_path.rs`,
+`a_name_two_roots_of_one_channel_hold_is_refused_and_only_that_name`.
+
+## Tiers: blue's core
+
+A bidama states its tier in its Bluefile, `tier(:foundation)`.
+
+| Tier | Holds | May use |
+|---|---|---|
+| `:foundation` | pure words over data (`kazu`, `retsu`, `ronri`, …) | foundation only |
+| `:system` | the host (`shisutemu`, `fairu`, `settei`, …) | the core |
+| `:toolchain` | blue's own tools (`okite`, `touroku`, `hon`, …) | the core |
+| none | an extension, outside the core | anything |
+
+The core is every bidama with a tier. `blue lock` records the tier in
+`Bluefile.lock`. `gen/word-shapes.b` reads the foundation from the locks, so
+the B0070 home of a shape follows the Bluefiles. The gate
+`a_core_bidama_needs_only_core_and_a_foundation_one_only_foundation`
+(`crates/blue-lang-pkg/tests/distribution.rs`) fails when a core bidama
+needs an extension, or a foundation bidama needs a bidama outside the
+foundation. `zenbu` gathers every bidama, so the gate skips it.

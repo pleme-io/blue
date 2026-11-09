@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:ede6c54266456da26761ff57ef07732b503baa7e601ebfc3e7a7e85078e12d0d",
+  "bluefile_b3": "b3:a21509f0ffcca1165ba0504cd227dfe290036b727d53410e9110c7f496dd3d88",
   "manifest": {
     "schema": 1,
     "name": "mokuroku",
@@ -22,7 +22,8 @@
     "tools": [],
     "checks": {},
     "apps": {},
-    "catalog": null
+    "catalog": null,
+    "tier": "toolchain"
   },
   "sources": {}
 }

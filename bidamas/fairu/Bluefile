@@ -1,3 +1,4 @@
 package("fairu", "0.1.1")
+tier(:system)
 needs("moji", "^0.1")
 needs("retsu", "^0.1")

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:b726b47e934783f3796763f32ecb70040abd2c77368ce6a3b4fd78340df88c84",
+  "bluefile_b3": "b3:8c2b4bccb5bcf4e355b91e4f3c1acd266544e4b43a5caff3fd067ab80dc3938f",
   "manifest": {
     "schema": 1,
     "name": "hon",
@@ -19,7 +19,8 @@
     "tools": [],
     "checks": {},
     "apps": {},
-    "catalog": null
+    "catalog": null,
+    "tier": "toolchain"
   },
   "sources": {}
 }

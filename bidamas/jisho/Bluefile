@@ -1,2 +1,3 @@
 package("jisho", "0.1.0")
+tier(:foundation)
 needs("retsu", "^0.1")

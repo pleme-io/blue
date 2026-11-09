@@ -1,2 +1,3 @@
 package("retsu", "0.1.1")
+tier(:foundation)
 needs("kazu", "^0.1")

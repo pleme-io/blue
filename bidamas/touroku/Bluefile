@@ -1,4 +1,5 @@
 package("touroku", "0.1.0")
+tier(:toolchain)
 needs("deeta", "^0.1")
 needs("kousei", "^0.1")
 needs("kyohi", "^0.1")

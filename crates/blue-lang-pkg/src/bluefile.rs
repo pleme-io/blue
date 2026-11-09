@@ -176,6 +176,8 @@ pub struct Project {
     pub vm_checks: BTreeMap<String, crate::deploy::VmCheck>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub visibility: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tier: Option<String>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub registries: BTreeMap<String, serde_json::Value>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
@@ -223,6 +225,8 @@ pub struct MovedPackage {
 }
 
 pub const VISIBILITIES: &[&str] = &["public", "unlisted", "private"];
+
+pub const TIERS: &[&str] = &["foundation", "system", "toolchain"];
 
 #[must_use]
 pub fn registry_output(backend: &str) -> String {
@@ -618,6 +622,25 @@ const WORDS: &[Word] = &[
         record: |c, into| {
             let caps = c.capabilities(0, "capabilities")?;
             set_once(&mut into.project.reach, c.word, "reach".into(), caps)
+        },
+    },
+    Word {
+        name: "tier",
+        signature: "tier(level)",
+        doc: "Where a bidama sits in blue's core: :foundation (pure words over data), :system (the host) or :toolchain (blue's own tools). An undeclared tier is an extension, outside the core. A core bidama uses only core bidamas, and a foundation one only foundation ones.",
+        min: 1,
+        max: 1,
+        record: |c, into| {
+            let tier = c.label(0, "level")?;
+            if !TIERS.contains(&tier.as_str()) {
+                return Err(Malformed::Choice {
+                    word: c.word,
+                    param: "level",
+                    expected: TIERS,
+                    got: tier,
+                });
+            }
+            set_once(&mut into.project.tier, c.word, "tier".into(), tier)
         },
     },
     Word {
@@ -1589,7 +1612,7 @@ mod tests {
             .chain(["registry"])
             .chain(["receipt"])
             .chain(["query"])
-            .chain(["reach", "allow", "virtualize", "floors", "bounds"])
+            .chain(["reach", "tier", "allow", "virtualize", "floors", "bounds"])
             // 2026-11-05: a bidama moved into this root's tree (B0074).
             .chain(["legacy_packages"])
             // P1b's list argument, 2026-09-23 — `Capability::Collections`.
@@ -1675,6 +1698,22 @@ mod tests {
             .to_string();
             assert!(e.contains(why), "{moves}: {e}");
         }
+    }
+
+    #[test]
+    fn a_bidama_declares_its_tier_once_and_only_a_core_one() {
+        let b = read_bluefile("package(\"m\", \"1.0.0\")\ntier(:foundation)").expect("read");
+        assert_eq!(b.project.tier.as_deref(), Some("foundation"));
+        for t in TIERS {
+            let b = read_bluefile(&format!("package(\"m\", \"1.0.0\")\ntier(:{t})")).expect("read");
+            assert_eq!(b.project.tier.as_deref(), Some(*t));
+        }
+        assert_eq!(read_bluefile(SIMPLE).expect("read").project.tier, None);
+        let bad = read_bluefile("package(\"m\", \"1.0.0\")\ntier(:core)").expect_err("reject");
+        assert!(bad.to_string().contains("core"), "{bad}");
+        let twice = read_bluefile("package(\"m\", \"1.0.0\")\ntier(:system)\ntier(:system)")
+            .expect_err("reject");
+        assert!(twice.to_string().contains("tier"), "{twice}");
     }
 
     #[test]

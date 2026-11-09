@@ -208,6 +208,7 @@ const MANIFEST_NAMES: &[&str] = &[
     "receipt",
     "query",
     "reach",
+    "tier",
     "allow",
     "virtualize",
     "floors",

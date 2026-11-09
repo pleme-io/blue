@@ -1,4 +1,5 @@
 package("gitto", "0.1.4")
+tier(:toolchain)
 needs("deeta", "^0.1")
 needs("kyohi", "^0.1")
 needs("moji", "^0.1")

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:1cb7862070b7641dc1a1d112ae06a067de74d5c392791cdecb0eccb8c5c84794",
+  "bluefile_b3": "b3:055f8a4ade2c073faa353c64f06101ee7b7a3968886f5f3b5076fac5b2dc11f8",
   "manifest": {
     "schema": 1,
     "name": "gitto",
@@ -22,7 +22,8 @@
     ],
     "checks": {},
     "apps": {},
-    "catalog": null
+    "catalog": null,
+    "tier": "toolchain"
   },
   "sources": {}
 }

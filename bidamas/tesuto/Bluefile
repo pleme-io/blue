@@ -1,2 +1,3 @@
 package("tesuto", "0.1.1")
+tier(:toolchain)
 needs("moji", "^0.1")

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:74b4393abed26493e600d35646f24b5006011eb2531cad85bf7835295968071d",
+  "bluefile_b3": "b3:c424c0c5428ca1b15acf14a8122ea899f8d0e998cdf193bab34d333dccf13075",
   "manifest": {
     "schema": 1,
     "name": "junjo",
@@ -17,7 +17,8 @@
     "tools": [],
     "checks": {},
     "apps": {},
-    "catalog": null
+    "catalog": null,
+    "tier": "foundation"
   },
   "sources": {}
 }

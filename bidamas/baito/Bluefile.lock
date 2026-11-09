@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:22ea7207b45f36a4cb2efc18ab8c616f68dec65be6b0452187f749048ed8628d",
+  "bluefile_b3": "b3:be5076441960186a47559b74fa7257872d7807aec4a91a232259548ad86769d0",
   "manifest": {
     "schema": 1,
     "name": "baito",
@@ -15,7 +15,8 @@
     "tools": [],
     "checks": {},
     "apps": {},
-    "catalog": null
+    "catalog": null,
+    "tier": "toolchain"
   },
   "sources": {}
 }

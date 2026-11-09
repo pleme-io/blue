@@ -274,6 +274,87 @@ fn every_declared_dependency_exists() {
     }
 }
 
+fn tier_of(name: &str) -> Option<String> {
+    let text = std::fs::read_to_string(dist().join(name).join("Bluefile")).expect("manifest");
+    blue_lang_pkg::read_bluefile(&text)
+        .unwrap_or_else(|e| panic!("{name}: {e}"))
+        .project
+        .tier
+}
+
+fn tier_admits(user: Option<&str>, used: Option<&str>) -> bool {
+    match (user, used) {
+        (None, _) => true,
+        (Some("foundation"), used) => used == Some("foundation"),
+        (Some(_), used) => used.is_some(),
+    }
+}
+
+#[test]
+fn a_tier_admits_only_what_sits_at_or_below_it() {
+    assert!(tier_admits(None, None));
+    assert!(tier_admits(None, Some("toolchain")));
+    assert!(tier_admits(Some("foundation"), Some("foundation")));
+    assert!(!tier_admits(Some("foundation"), Some("system")));
+    assert!(!tier_admits(Some("foundation"), None));
+    assert!(tier_admits(Some("system"), Some("foundation")));
+    assert!(tier_admits(Some("toolchain"), Some("system")));
+    assert!(!tier_admits(Some("system"), None));
+    assert!(!tier_admits(Some("toolchain"), None));
+}
+
+#[test]
+fn a_core_bidama_needs_only_core_and_a_foundation_one_only_foundation() {
+    let tiers: std::collections::BTreeMap<String, Option<String>> = packages()
+        .into_iter()
+        .map(|n| {
+            let t = tier_of(&n);
+            (n, t)
+        })
+        .collect();
+    let core: Vec<&String> = tiers
+        .iter()
+        .filter(|(_, t)| t.is_some())
+        .map(|(n, _)| n)
+        .collect();
+    assert!(
+        core.len() >= 32,
+        "only {} bidamas declare a tier: {core:?}",
+        core.len()
+    );
+    assert!(
+        tiers
+            .values()
+            .filter(|t| t.as_deref() == Some("foundation"))
+            .count()
+            >= 11,
+        "{tiers:?}"
+    );
+    let mut checked = 0;
+    let mut broken = Vec::new();
+    for (name, tier) in tiers.iter().filter(|(n, _)| n.as_str() != "zenbu") {
+        let needs = blue_lang_pkg::lock::locked_needs(&dist().join(name))
+            .unwrap_or_else(|| panic!("{name}: no Bluefile.lock"));
+        for dep in needs.keys() {
+            checked += 1;
+            let used = tiers.get(dep).cloned().flatten();
+            if !tier_admits(tier.as_deref(), used.as_deref()) {
+                broken.push(format!(
+                    "{name} ({}) needs {dep} ({})",
+                    tier.as_deref().unwrap_or("extension"),
+                    used.as_deref().unwrap_or("extension")
+                ));
+            }
+        }
+    }
+    assert!(checked > 100, "only {checked} needs were read");
+    assert!(
+        broken.is_empty(),
+        "a core bidama needs one outside the core, or a foundation one needs one outside the foundation: {broken:?}. \
+         fix: move the word it needs into the core, or declare the right tier(...) in its Bluefile"
+    );
+}
+
 /// Every package a manifest declares must actually be imported by its source.
 ///
 /// The gap this closes is the one the whole import system was built for:

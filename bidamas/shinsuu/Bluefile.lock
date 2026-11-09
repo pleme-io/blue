@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:3d9072f369a726762a4fe63535a655cc63620ffee3e62dfdf4ff956d355448d4",
+  "bluefile_b3": "b3:2fa31be9a666c2d1e4e5b8cd4c942d13ecba55e20743238f5d33e8988a01ea94",
   "manifest": {
     "schema": 1,
     "name": "shinsuu",
@@ -16,7 +16,8 @@
     "tools": [],
     "checks": {},
     "apps": {},
-    "catalog": null
+    "catalog": null,
+    "tier": "system"
   },
   "sources": {}
 }

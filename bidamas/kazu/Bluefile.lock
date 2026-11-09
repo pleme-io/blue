@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:8795a19524ee5651d3e4526dca79da5a0e28c22be5cdb8d201f2badf327695e5",
+  "bluefile_b3": "b3:e8e5b952499154623edadee18b10130d341b4579aa6ec023aca1f3e8ced1d209",
   "manifest": {
     "schema": 1,
     "name": "kazu",
@@ -13,7 +13,8 @@
     "tools": [],
     "checks": {},
     "apps": {},
-    "catalog": null
+    "catalog": null,
+    "tier": "foundation"
   },
   "sources": {}
 }

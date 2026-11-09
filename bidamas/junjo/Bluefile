@@ -1,4 +1,5 @@
 package("junjo", "0.1.0")
+tier(:foundation)
 needs("ronri", "^0.1")
 needs("kazu", "^0.1")
 needs("retsu", "^0.1")

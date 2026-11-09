@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:57fab7b46df267f667f54381f5133e28a6da1af4c27a5491df6cc4e751c89104",
+  "bluefile_b3": "b3:0258eba925cf646d1030d79dd3673ee80ef8a5c51eb56fb0b636d9787984f635",
   "manifest": {
     "schema": 1,
     "name": "okite",
@@ -19,7 +19,8 @@
     "tools": [],
     "checks": {},
     "apps": {},
-    "catalog": null
+    "catalog": null,
+    "tier": "toolchain"
   },
   "sources": {}
 }

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:9b8521575eab96e6b0369ee6bff368c220b753ce99df641df5049100fa87291e",
+  "bluefile_b3": "b3:df582e269eeb223d1613eef3e2facf967d7375bb548074dbab4245295c29bca1",
   "manifest": {
     "schema": 1,
     "name": "ran",
@@ -19,7 +19,8 @@
     "tools": [],
     "checks": {},
     "apps": {},
-    "catalog": null
+    "catalog": null,
+    "tier": "toolchain"
   },
   "sources": {}
 }

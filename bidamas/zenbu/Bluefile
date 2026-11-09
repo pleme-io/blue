@@ -1,4 +1,5 @@
 package("zenbu", "0.1.0")
+tier(:toolchain)
 needs("angou", "^0.1")
 needs("baito", "^0.1")
 needs("bunsho", "^0.1")

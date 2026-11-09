@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:d4ff06695241c53e5e546a32e3f66333c94207abba4ef3b6a9244e5d756d239a",
+  "bluefile_b3": "b3:02085eb4e41564ed57984dd473f1589be67fd4e47d9e2bd0ddc5c1b32807c874",
   "manifest": {
     "schema": 1,
     "name": "kaaneru",
@@ -20,6 +20,7 @@
     "checks": {},
     "apps": {},
     "catalog": null,
+    "tier": "toolchain",
     "reach": [
       "process",
       "filesystem",

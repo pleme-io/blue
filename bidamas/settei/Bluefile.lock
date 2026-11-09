@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:e4aef1ec43527fb8a600ed4c6938939160a658ea14cf2a7887307087d423c556",
+  "bluefile_b3": "b3:e446123867075386d4ac74ac1fc15c0f8b914806b7937aef60e094d34c4b964e",
   "manifest": {
     "schema": 1,
     "name": "settei",
@@ -18,7 +18,8 @@
     "tools": [],
     "checks": {},
     "apps": {},
-    "catalog": null
+    "catalog": null,
+    "tier": "system"
   },
   "sources": {}
 }

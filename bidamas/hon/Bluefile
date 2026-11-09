@@ -1,4 +1,5 @@
 package("hon", "0.1.0")
+tier(:toolchain)
 needs("kyohi", "^0.1")
 needs("moji", "^0.1")
 needs("mokuroku", "^0.1")

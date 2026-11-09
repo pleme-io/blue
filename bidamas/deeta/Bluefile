@@ -1,1 +1,2 @@
 package("deeta", "0.1.3")
+tier(:foundation)

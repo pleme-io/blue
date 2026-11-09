@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:7ccc5b97044b70a25cbcc9032592a80bbce68d7f86361d16e43a96d03e0e791e",
+  "bluefile_b3": "b3:044b0d09fbd5cc772ff17bcb1ec5efa0891dc81f4ee6fd5e4c02cff9eb55d9e6",
   "manifest": {
     "schema": 1,
     "name": "kousei",
@@ -16,7 +16,8 @@
     "tools": [],
     "checks": {},
     "apps": {},
-    "catalog": null
+    "catalog": null,
+    "tier": "foundation"
   },
   "sources": {}
 }

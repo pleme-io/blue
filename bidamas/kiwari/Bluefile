@@ -1,2 +1,3 @@
 package("kiwari", "0.1.1")
+tier(:toolchain)
 needs("retsu", "^0.1")

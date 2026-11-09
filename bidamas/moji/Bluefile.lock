@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:dbf35550d9e1691764bd1559213f4e01ae72fbab981978dc9ece46915815075d",
+  "bluefile_b3": "b3:967c9d036cc43c0167cc02b5f84b9e84500af71b3b926482a1b86aaed68642c6",
   "manifest": {
     "schema": 1,
     "name": "moji",
@@ -17,7 +17,8 @@
     "tools": [],
     "checks": {},
     "apps": {},
-    "catalog": null
+    "catalog": null,
+    "tier": "foundation"
   },
   "sources": {}
 }

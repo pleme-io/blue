@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:aa38eb70271852f379ea08234a15101f40c0567066bb5a56930342829433ae2a",
+  "bluefile_b3": "b3:9a2fb8d842d44301bddbbf4933a53633b1fb1322143fa9e65cdcc091c560bc6b",
   "manifest": {
     "schema": 1,
     "name": "bunsho",
@@ -18,7 +18,8 @@
     "tools": [],
     "checks": {},
     "apps": {},
-    "catalog": null
+    "catalog": null,
+    "tier": "toolchain"
   },
   "sources": {}
 }

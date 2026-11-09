@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:bd26d202081958eaaad109df87224f349c43a8c1eafb5025a455cc321b377c24",
+  "bluefile_b3": "b3:9dddc8e06e01f0cc8d6d5687cb3dcc435ea1ec24b4962ec430588d3cc4ecd17d",
   "manifest": {
     "schema": 1,
     "name": "retsu",
@@ -15,7 +15,8 @@
     "tools": [],
     "checks": {},
     "apps": {},
-    "catalog": null
+    "catalog": null,
+    "tier": "foundation"
   },
   "sources": {}
 }

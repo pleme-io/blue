@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:fce2cbd6883b67e3390fa98c2ac54fafaa48024a58414a00513ce8feafafd125",
+  "bluefile_b3": "b3:6d084b822443f5aff912a124ccc31a8f786393bf8c1e4777e7883a2fbbc72c14",
   "manifest": {
     "schema": 1,
     "name": "heni",
@@ -20,7 +20,8 @@
     "tools": [],
     "checks": {},
     "apps": {},
-    "catalog": null
+    "catalog": null,
+    "tier": "toolchain"
   },
   "sources": {}
 }

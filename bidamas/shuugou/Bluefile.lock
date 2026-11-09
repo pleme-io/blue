@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:dc02acfbcc3def4ffe81cc6ceee940fac7957a11c5ad3f5fd4deede9a4851db2",
+  "bluefile_b3": "b3:e6738df7f9a1f574aca41533fb885b008f4c061997b634a37acaed3f19ead71f",
   "manifest": {
     "schema": 1,
     "name": "shuugou",
@@ -16,7 +16,8 @@
     "tools": [],
     "checks": {},
     "apps": {},
-    "catalog": null
+    "catalog": null,
+    "tier": "foundation"
   },
   "sources": {}
 }

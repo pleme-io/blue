@@ -390,10 +390,7 @@ impl ResolvedProgram {
         self.forms
             .iter()
             .map(|f| {
-                if use_target(f).is_some()
-                    || blue_lang_syntax::scope::legacy_target(f).is_some()
-                    || blue_lang_syntax::scope::is_level_marker(f)
-                {
+                if blue_lang_syntax::scope::is_file_declaration(f) {
                     Sexp::Nil
                 } else {
                     f.to_sexp()

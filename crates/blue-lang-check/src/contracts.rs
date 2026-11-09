@@ -49,6 +49,7 @@ impl Kind {
             Ty::Bool => Some(Kind::Bool),
             Ty::Sym => Some(Kind::Kw),
             Ty::List(_) => Some(Kind::List),
+            Ty::Map(_, _) | Ty::Record(_) | Ty::Union(_, _) => Some(Kind::Map),
             _ => None,
         }
     }

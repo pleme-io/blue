@@ -93,9 +93,10 @@ it; `blue explain --list` lists them.
 | B0076 | non-canonical-reference | error | a qualified name is written by the full path of the level that defines it, so one definition has one spelling and `rg` finds every caller |
 | B0077 | non-canonical-use | error | an import is written `use("a/b")` or `use("a/b", [:x])`: one level, its path as a slash string |
 | B0078 | redundant-use | error | a file imports a tree once: a `use` that lists nothing, of a level below another `use` of the file, adds nothing |
-| B0079 | record-fields | error | a call of a record's constructor gives every field and no other, and a literal in a typed field has that type |
+| B0079 | record-fields | error | a call of a record's constructor gives every field and no other, a literal in a typed field has that type, and a typed definition reads only fields its record declares |
 | B0080 | return-position | error | a `return` ends a branch of an `if` or `case` that is a statement of a def body, where it is rewritten into if/else |
 | B0081 | union-arms | error | a `case` whose `when` arms test a union's records names every arm of that union, or has an `else` |
+| B0082 | strict-signature | error | in a `blueshift(:strict)` file every top-level function is typed: its signature annotates a parameter or its return |
 
 The registry is the source of truth: `gen/diagnostics.b` renders this table
 from `blue reference`, which reads `RULES`, into this page, whose prose lives

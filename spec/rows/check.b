@@ -173,6 +173,356 @@ row(
 )
 
 row(
+  "check.infer.list_literal",
+  join_lines(["def f(a: Int) -> Int", "  [a]", "end"]),
+  diagnoses(["B0003"]),
+  covers("rule:B0003")
+)
+
+row(
+  "check.infer.map_literal",
+  join_lines(["def f(a: Int) -> Str", "  {b: a}", "end"]),
+  diagnoses(["B0003"]),
+  covers("rule:B0003")
+)
+
+row(
+  "check.signature.map",
+  join_lines(
+    [
+      "def total(m: Map(Sym, Int)) -> Int",
+      "  m[:a]",
+      "end",
+      "",
+      "def g(a: Int) -> Int",
+      "  total({b: \"x\"}) + a",
+      "end"
+    ]
+  ),
+  diagnoses(["B0005"]),
+  covers("rule:B0005")
+)
+
+row(
+  "check.signature.map_runs",
+  join_lines(
+    [
+      "def total(m: Map(Sym, Int)) -> Int",
+      "  m[:a]",
+      "end",
+      "",
+      "def g(a: Int) -> Int",
+      "  total({a: 1, b: 2}) + a",
+      "end",
+      "",
+      "g(1)"
+    ]
+  ),
+  value("2")
+)
+
+row(
+  "check.signature.record",
+  join_lines(
+    [
+      "record point(x, y: Int)",
+      "",
+      "def height(p: point) -> Int",
+      "  p.y",
+      "end",
+      "",
+      "def g(a: Int) -> Int",
+      "  height({x: a, y: a})",
+      "end"
+    ]
+  ),
+  diagnoses(["B0005"]),
+  covers("rule:B0005")
+)
+
+row(
+  "check.signature.record_field_type",
+  join_lines(
+    [
+      "record point(x, y: Int)",
+      "",
+      "def label(p: point) -> Str",
+      "  p.y",
+      "end"
+    ]
+  ),
+  diagnoses(["B0003"]),
+  covers("rule:B0003")
+)
+
+row(
+  "check.signature.record_unknown_field",
+  join_lines(
+    [
+      "record point(x, y: Int)",
+      "",
+      "def depth(p: point) -> Int",
+      "  p.z",
+      "end"
+    ]
+  ),
+  diagnoses(["B0079"]),
+  covers("rule:B0079")
+)
+
+row(
+  "check.signature.record_return",
+  join_lines(
+    [
+      "record point(x, y: Int)",
+      "",
+      "def origin(a: Int) -> point",
+      "  point(a, a)",
+      "end",
+      "",
+      "def height(p: point) -> Int",
+      "  p.y",
+      "end",
+      "",
+      "def g(a: Int) -> Int",
+      "  height(origin(a))",
+      "end",
+      "",
+      "g(4)"
+    ]
+  ),
+  value("4")
+)
+
+row(
+  "check.signature.union",
+  join_lines(
+    [
+      "union shape = circle(r: Int) | rect(w: Int, h: Int)",
+      "record point(x, y)",
+      "",
+      "def area(s: shape) -> Int",
+      "  case s",
+      "  when circle?",
+      "    3 * s.r * s.r",
+      "  when rect?",
+      "    s.w * s.h",
+      "  end",
+      "end",
+      "",
+      "def g(a: Int) -> Int",
+      "  area(point(a, a))",
+      "end"
+    ]
+  ),
+  diagnoses(["B0005"]),
+  covers("rule:B0005")
+)
+
+row(
+  "check.signature.union_takes_an_arm",
+  join_lines(
+    [
+      "union shape = circle(r: Int) | rect(w: Int, h: Int)",
+      "",
+      "def area(s: shape) -> Int",
+      "  case s",
+      "  when circle?",
+      "    3 * s.r * s.r",
+      "  when rect?",
+      "    s.w * s.h",
+      "  end",
+      "end",
+      "",
+      "def g(a: Int) -> Int",
+      "  area(circle(a)) + area(rect(a, 2))",
+      "end",
+      "",
+      "g(2)"
+    ]
+  ),
+  value("16")
+)
+
+row(
+  "check.boundary.top_level",
+  join_lines(["def inc(n: Int) -> Int", "  n + 1", "end", "", "inc(\"a\")"]),
+  diagnoses(["B0005"]),
+  covers("rule:B0005")
+)
+
+row(
+  "check.boundary.top_level_refuses",
+  join_lines(
+    [
+      "def inc(n: Int) -> Int",
+      "  n + 1",
+      "end",
+      "",
+      "write_stdout(\"side effect\")",
+      "inc([1])"
+    ]
+  ),
+  fails(:check, "B0005"),
+  covers("rule:B0005")
+)
+
+row(
+  "check.boundary.untyped_def",
+  join_lines(
+    [
+      "def inc(n: Int) -> Int",
+      "  n + 1",
+      "end",
+      "",
+      "def loose(xs)",
+      "  label = \"n\"",
+      "  [inc(label), xs]",
+      "end"
+    ]
+  ),
+  diagnoses(["B0005"]),
+  covers("rule:B0005")
+)
+
+row(
+  "check.boundary.unknown_is_left",
+  join_lines(
+    [
+      "def inc(n: Int) -> Int",
+      "  n + 1",
+      "end",
+      "",
+      "def loose(x)",
+      "  inc(x)",
+      "end",
+      "",
+      "loose(1)"
+    ]
+  ),
+  value("2")
+)
+
+row(
+  "check.boundary.local_name",
+  join_lines(
+    [
+      "def inc(n: Int) -> Int",
+      "  n + 1",
+      "end",
+      "",
+      "def loose(inc)",
+      "  inc(\"a\")",
+      "end",
+      "",
+      "loose((s) -> upcase(s))"
+    ]
+  ),
+  value("\"A\"")
+)
+
+row(
+  "check.boundary.qualified",
+  join_lines(["use(\"sp_strict\")", "", "sp_strict::sp_scale(2, \"x\")"]),
+  diagnoses(["B0005"]),
+  covers("rule:B0005")
+)
+
+row(
+  "check.boundary.qualified_runs",
+  join_lines(["use(\"sp_strict\")", "", "sp_strict::sp_scale(2, 3)"]),
+  value("6"),
+  pending("G16", "wasm")
+)
+
+row(
+  "check.B0082",
+  join_lines(["blueshift(:strict)", "", "def twice(n)", "  n * 2", "end"]),
+  diagnoses(["B0082"]),
+  covers("rule:B0082")
+)
+
+row(
+  "check.B0082.one_annotation_is_typed",
+  join_lines(
+    [
+      "blueshift(:strict)",
+      "",
+      "def scale(n: Int, k)",
+      "  n * k",
+      "end",
+      "",
+      "def show(x) -> dyn",
+      "  x",
+      "end"
+    ]
+  ),
+  diagnoses([])
+)
+
+row(
+  "check.B0082.runs",
+  join_lines(
+    [
+      "blueshift(:strict)",
+      "",
+      "def twice(n: Int) -> Int",
+      "  n * 2",
+      "end",
+      "",
+      "twice(21)"
+    ]
+  ),
+  value("42")
+)
+
+row(
+  "check.B0082.script_is_not_made_strict",
+  join_lines(
+    [
+      "use(\"sp_strict\")",
+      "",
+      "def loose(x)",
+      "  sp_strict::sp_scale(x, 2)",
+      "end",
+      "",
+      "loose(3)"
+    ]
+  ),
+  value("6"),
+  pending("G16", "wasm")
+)
+
+row(
+  "check.B0082.script_is_not_made_strict.clean",
+  join_lines(
+    [
+      "use(\"sp_strict\")",
+      "",
+      "def loose(x)",
+      "  sp_strict::sp_scale(x, 2)",
+      "end"
+    ]
+  ),
+  diagnoses([])
+)
+
+row(
+  "check.B0082.waived",
+  join_lines(
+    [
+      "blueshift(:strict)",
+      "",
+      "# waive B0082: the shape of a value it forwards is the caller's",
+      "def pass(x)",
+      "  x",
+      "end"
+    ]
+  ),
+  diagnoses([])
+)
+
+row(
   "check.B0006",
   unlines(["def f("]),
   diagnoses(["B0006"]),

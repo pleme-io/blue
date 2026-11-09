@@ -362,7 +362,9 @@ fn header<'c>(
                 f.as_list()
                     .and_then(|i| i.first())
                     .and_then(Spanned::as_symbol),
-                Some("use" | "apply" | "legacy_names" | "namespace" | "blue-moduledoc")
+                Some(
+                    "use" | "apply" | "legacy_names" | "namespace" | "blueshift" | "blue-moduledoc"
+                )
             )
         })
         .map_or(text.len(), |f| f.span.start);

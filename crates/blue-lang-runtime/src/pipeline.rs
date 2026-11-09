@@ -894,9 +894,16 @@ fn check_stage_in(
     let is_entry = |i: usize| program.owner_of(i) == Some(ResolvedProgram::ENTRY);
 
     // Rules B0003–B0005: the typing ladder.
-    let mut outcome = blue_lang_check::check_program_in(forms, &|a, b| {
-        program.owner_of(a) == program.owner_of(b)
-    });
+    let mut outcome = blue_lang_check::check_program_with(
+        forms,
+        &|a, b| program.owner_of(a) == program.owner_of(b),
+        &|i| {
+            program
+                .owner_of(i)
+                .and_then(|id| program.file(id))
+                .and_then(|f| f.package.clone())
+        },
+    );
     outcome
         .diagnostics
         .extend(data_law_diagnostics(program, &is_entry));
@@ -1723,10 +1730,7 @@ fn lower_in(
         .zip(forms)
         .enumerate()
         .map(|(i, (resolved, written))| {
-            if crate::uses::use_target(written).is_some()
-                || blue_lang_syntax::scope::legacy_target(written).is_some()
-                || blue_lang_syntax::scope::is_level_marker(written)
-            {
+            if blue_lang_syntax::scope::is_file_declaration(written) {
                 tatara_lisp::Spanned::new(written.span, tatara_lisp::SpannedForm::Nil)
             } else {
                 let file = program.owner_of(i).and_then(|id| program.file(id));

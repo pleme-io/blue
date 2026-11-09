@@ -262,9 +262,12 @@ effects.",
         witness: "def f(a: Int) -> Str\n  a + 1\nend\n",
         explanation: "\
 A `def` with a return annotation (`-> Str`) promises a value of that type. The
-body's type is inferred from literals, operators, annotated parameters,
-calls to other typed definitions, builtins whose result is declared, and local
-bindings, which take the type of their value. A binding assigned in a branch,
+body's type is inferred from literals (a list literal is `List(T)`, a map
+literal `Map(K, V)`), operators, annotated parameters, a record's constructor
+and its typed fields, calls to other typed definitions, builtins whose result
+is declared, and local bindings, which take the type of their value. A
+signature names `Int`, `Float`, `Str`, `Bool`, `Sym`, `Nil`, `List(T)`,
+`Map(K, V)`, `dyn`, or a record or union the program declares. A binding assigned in a branch,
 a loop or a function, or bound twice with two types, is `dyn`; so is an `if`
 whose branches disagree. `dyn` is compatible with everything. The diagnostic
 points at the body, which is the part that disagrees.
@@ -293,7 +296,15 @@ known and different is reported at the operand itself.",
 A call to a definition whose parameters are annotated has each argument
 checked against its parameter. An argument whose type is unknown (`dyn`) is
 not an error: it becomes a seam, a runtime check at that point, which
-`blue check` lists.",
+`blue check` lists.
+
+The call is checked where it is written, typed or not. In an untyped `def` or
+at the top level of a file, an argument whose type is known at the call (a
+literal, a list or map literal, a record built there, a call to a typed
+definition or to a builtin whose result is declared) is checked against the
+parameter; an argument whose type is not known there is left alone. A
+parameter typed with a union takes any of its records, and one typed `Map`
+takes a record.",
     }
     B0006 {
         slug: "syntax-error",
@@ -1643,7 +1654,7 @@ names (`use(\"tree/kid\", [:x])`) does add something, the bare names, and stays.
         slug: "record-fields",
         severity: Error,
         fix: None,
-        law: "a call of a record's constructor gives every field and no other, and a literal in a typed field has that type",
+        law: "a call of a record's constructor gives every field and no other, a literal in a typed field has that type, and a typed definition reads only fields its record declares",
         witness: "record point(x, y)\npoint(1)\n",
         waivable: false,
         explanation: "\
@@ -1662,7 +1673,11 @@ local named `point` is none. A value it cannot see (a variable, a spread
 `**p`) is checked when the record is built, which raises `:record` naming the
 same fields: an update `point(**p, z: 2)` is refused here for `z`, and at run
 time if `p` is another record. There is no fix to apply: which field the call
-meant is the author's.",
+meant is the author's.
+
+Inside a typed definition, a value whose type is the record (a parameter
+`p: point`, or a binding of `point(1, 2)`) is read by its fields: `p.z` is
+the same finding, and `p.y` has the field's declared type.",
     }
     B0080 {
         slug: "return-position",
@@ -1712,6 +1727,32 @@ Add the missing arm (`when rect?`), or an `else` when the rest is one answer
 on purpose. `when shape?` covers every arm. A new arm added to the union later
 is a finding at every `case` that does not handle it, which is the point of
 declaring the set. Waive with `# waive B0081: reason`.",
+    }
+    B0082 {
+        slug: "strict-signature",
+        severity: Error,
+        fix: None,
+        law: "in a `blueshift(:strict)` file every top-level function is typed: its signature annotates a parameter or its return",
+        witness: "blueshift(:strict)\n\ndef twice(n)\n  n * 2\nend\n",
+        waivable: true,
+        explanation: "\
+`blueshift(:strict)` at the top level of a file is the file's position on the
+blueshift: every top-level `def` in it is at the `checked` rung, so the type
+walk covers its body:
+
+    blueshift(:strict)
+
+    def twice(n: Int) -> Int
+      n * 2
+    end
+
+A `def` with no annotation at all is refused at its name. One annotation is
+enough to put the body under the checker; a parameter left bare in a typed
+signature is `dyn`, and `def show(x) -> dyn` is a function that says it takes
+and returns any value. A lambda and a nested `def` are not asked. The position
+binds the file that declares it and nothing else: a script that `use`s a
+strict bidama stays at whatever rung it is written at.
+Waive one definition with `# waive B0082: reason`.",
     }
 }
 

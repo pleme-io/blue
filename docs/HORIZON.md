@@ -174,6 +174,38 @@ assigned in a branch, a loop or a function, or bound twice with two types, stays
 builtin that takes another kind is B0062. Rows: `spec/rows/check.b`
 `check.infer.*`. Untyped definitions are still not walked.
 
+**Built (2026-11-09), wave 3:** the rest of H2 except the runtime seam.
+Signatures name `Map(K, V)` (and bare `Map`, `List`) and the records and
+unions the program declares (`blue_lang_check::Ty::{Map, Record, Union}`). A
+list literal infers `List(T)`, a map literal `Map(K, V)`, a record's
+constructor that record. Inside a typed definition a record value is read by
+its fields: `p.y` has the field's declared type and `p.z` on a record without
+`z` is B0079. A union parameter takes any of its records, a `Map` parameter
+takes a record, and anything else is B0005; a value typed with a union is read
+as `dyn` until a `case` narrows it, which nothing does yet. The checked
+boundary (G8, static half): once a program has a typed definition, every
+other top-level form, untyped `def` bodies and the file's top level, is walked
+for calls to typed definitions (`check_program_with`'s boundary pass, counted
+in `Stats::boundary_visited`, so `visited` still measures only typed bodies).
+An argument whose type is known at the call (a literal, a local binding of
+one, a list, map or record built there, a typed call) is checked as B0005; an
+argument not known there is left alone, and no other rule runs on untyped
+code. A bare call is checked when one top-level definition has the name and
+no local binds it; a qualified `pkg::f(...)` is checked against `pkg`'s typed
+`f`. The position: `blueshift(:strict)` at the top level of a file is that
+file's demand for types, B0082 (waivable) at every top-level `def` that leaves
+a parameter or its return unannotated; `dyn` written by hand is a type. The
+marker binds the file that declares it only, so a script that `use`s a strict
+bidama is not made strict. `scope::is_file_declaration` is now the one
+predicate for the declarations that never run (`use`, `legacy_names`,
+`namespace()`, `blueshift(:strict)`). Rows: `spec/rows/check.b`
+`check.infer.{list,map}_literal`, `check.signature.*`, `check.boundary.*`,
+`check.B0082*`; fixture `spec/bidamas/sp_strict`. Not yet: the runtime half
+of G8 (`shift.wrong_arg.annotated`: an untyped caller passing an untyped
+value, refused at run time), a bidama-wide position in the Bluefile, carrying
+a top-level binding across forms, `case` narrowing a union, and record or
+union types named across a bidama (`geo::point` in a signature stays opaque).
+
 ### H3. Code is content: the definition hash as identity
 
 Blue already hashes every definition. Make that hash the identity everything

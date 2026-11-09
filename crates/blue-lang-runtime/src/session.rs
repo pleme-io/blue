@@ -912,9 +912,7 @@ fn split(text: &str) -> Result<Vec<Form>, blue_lang_syntax::ParseError> {
                 .into_iter()
                 .map(|(n, _, _)| n)
                 .collect(),
-            is_use: blue_lang_syntax::scope::use_target(form).is_some()
-                || blue_lang_syntax::scope::legacy_target(form).is_some()
-                || blue_lang_syntax::scope::is_level_marker(form),
+            is_use: blue_lang_syntax::scope::is_file_declaration(form),
             fresh: None,
         });
         prev = end;

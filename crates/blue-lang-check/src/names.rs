@@ -3006,7 +3006,13 @@ impl Scopes for Walker<'_> {
             HeadKind::SpecialForm
                 if !matches!(
                     name,
-                    "define" | "define-typed" | "defmacro" | "use" | "legacy_names" | "namespace"
+                    "define"
+                        | "define-typed"
+                        | "defmacro"
+                        | "use"
+                        | "legacy_names"
+                        | "namespace"
+                        | "blueshift"
                 ) =>
             {
                 self.resolved += 1;

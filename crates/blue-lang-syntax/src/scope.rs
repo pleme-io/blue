@@ -281,6 +281,28 @@ pub fn is_level_marker(form: &Spanned) -> bool {
     matches!(form.as_list(), Some([head]) if head.as_symbol() == Some(LEVEL_MARKER))
 }
 
+pub const BLUESHIFT: &str = "blueshift";
+
+pub const STRICT: &str = "strict";
+
+#[must_use]
+pub fn is_strict_marker(form: &Spanned) -> bool {
+    matches!(
+        form.as_list(),
+        Some([head, position])
+            if head.as_symbol() == Some(BLUESHIFT)
+                && matches!(&position.form, SpannedForm::Atom(Atom::Keyword(k)) if &**k == STRICT)
+    )
+}
+
+#[must_use]
+pub fn is_file_declaration(form: &Spanned) -> bool {
+    use_target(form).is_some()
+        || legacy_target(form).is_some()
+        || is_level_marker(form)
+        || is_strict_marker(form)
+}
+
 /// The head of the rename-ledger declaration: `legacy_names("0.1.1", "lc")`.
 pub const LEGACY_NAMES: &str = "legacy_names";
 
@@ -723,7 +745,10 @@ impl Walker<'_> {
         // `use("x", [:a])` at the top level is a declaration the resolver
         // consumed, not a call: nothing in it is a reference.
         if self.depth == 0
-            && (use_targets(form).is_some() || head == LEGACY_NAMES || is_level_marker(form))
+            && (use_targets(form).is_some()
+                || head == LEGACY_NAMES
+                || is_level_marker(form)
+                || is_strict_marker(form))
         {
             self.pass.head(&items[0], head, HeadKind::SpecialForm);
             return;

@@ -231,7 +231,7 @@ fn the_reach_walk_and_the_name_table_agree_on_free_names() {
         let builtin = |n: &str| {
             matches!(
                 n,
-                "defmacro" | "define-typed" | "use" | "legacy_names" | "namespace"
+                "defmacro" | "define-typed" | "use" | "legacy_names" | "namespace" | "blueshift"
             ) || table.scopes().iter().any(|s| {
                 !matches!(
                     s.namespace,

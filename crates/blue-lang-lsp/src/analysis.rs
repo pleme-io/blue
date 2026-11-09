@@ -356,7 +356,7 @@ pub fn diagnostics(engine: &Engine, id: &str) -> Vec<Diagnostic> {
 fn lsp_diagnostic(d: &blue_lang_check::Diagnostic, index: &LineIndex) -> Diagnostic {
     use blue_lang_check::{Applicability, Code};
     let source = match d.code {
-        Code::B0003 | Code::B0004 | Code::B0005 => "types",
+        Code::B0003 | Code::B0004 | Code::B0005 | Code::B0082 => "types",
         Code::B0007 | Code::B0008 => "waivers",
         Code::B0048 | Code::B0049 | Code::B0050 | Code::B0051 | Code::B0052 => "data",
         c if c.rule().slug == "layout"

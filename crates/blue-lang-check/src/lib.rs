@@ -74,6 +74,9 @@ pub enum Ty {
     Sym,
     Nil,
     List(Box<Ty>),
+    Map(Box<Ty>, Box<Ty>),
+    Record(String),
+    Union(String, Vec<String>),
     /// A name the checker does not know. Treated as opaque and nominal.
     Named(String),
     Fragment(Box<data_laws::Selection>),
@@ -91,16 +94,19 @@ impl Ty {
                 "Bool" => Ty::Bool,
                 "Sym" => Ty::Sym,
                 "Nil" => Ty::Nil,
+                "List" => Ty::List(Box::new(Ty::Dyn)),
+                "Map" => Ty::Map(Box::new(Ty::Dyn), Box::new(Ty::Dyn)),
                 other => Ty::Named(other.to_string()),
             },
-            Sexp::List(items) if items.len() == 2 => {
-                if let Sexp::Atom(Atom::Symbol(h)) = &items[0] {
-                    if h == "List" {
-                        return Ty::List(Box::new(Ty::from_sexp(&items[1])));
-                    }
+            Sexp::List(items) => match (items.first(), &items[1..]) {
+                (Some(Sexp::Atom(Atom::Symbol(h))), [t]) if h == "List" => {
+                    Ty::List(Box::new(Ty::from_sexp(t)))
                 }
-                Ty::Dyn
-            }
+                (Some(Sexp::Atom(Atom::Symbol(h))), [k, v]) if h == "Map" => {
+                    Ty::Map(Box::new(Ty::from_sexp(k)), Box::new(Ty::from_sexp(v)))
+                }
+                _ => Ty::Dyn,
+            },
             _ => Ty::Dyn,
         }
     }
@@ -115,6 +121,10 @@ impl Ty {
         match (self, want) {
             (Ty::Dyn, _) | (_, Ty::Dyn) => true,
             (Ty::List(a), Ty::List(b)) => a.accepts(b),
+            (Ty::Map(ka, va), Ty::Map(kb, vb)) => ka.accepts(kb) && va.accepts(vb),
+            (Ty::Record(_), Ty::Map(k, _)) => Ty::Sym.accepts(k),
+            (Ty::Record(r), Ty::Union(_, arms)) => arms.contains(r),
+            (Ty::Union(a, _), Ty::Union(b, _)) => a == b,
             (Ty::Fragment(a), Ty::Fragment(b)) => a.fragment == b.fragment && a.path == b.path,
             (a, b) => a == b,
         }
@@ -130,7 +140,8 @@ impl Ty {
             Ty::Sym => "Sym".into(),
             Ty::Nil => "Nil".into(),
             Ty::List(t) => format!("List({})", t.name()),
-            Ty::Named(n) => n.clone(),
+            Ty::Map(k, v) => format!("Map({}, {})", k.name(), v.name()),
+            Ty::Record(n) | Ty::Union(n, _) | Ty::Named(n) => n.clone(),
             Ty::Fragment(sel) => sel.type_name(),
         }
     }
@@ -371,6 +382,7 @@ pub struct Stats {
     /// Name references resolved by [`check_names`]. Zero until that pass runs;
     /// a corpus gate reads it to prove the pass looked at something.
     pub names_resolved: usize,
+    pub boundary_visited: usize,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -418,7 +430,19 @@ pub fn check_program(forms: &[Spanned]) -> Outcome {
 }
 
 pub fn check_program_in(forms: &[Spanned], same_file: &dyn Fn(usize, usize) -> bool) -> Outcome {
-    walk(forms, same_file, &|_| true, &mut BTreeMap::new())
+    check_program_with(forms, same_file, &|_| None)
+}
+
+pub fn check_program_with(
+    forms: &[Spanned],
+    same_file: &dyn Fn(usize, usize) -> bool,
+    package_of: &dyn Fn(usize) -> Option<String>,
+) -> Outcome {
+    let decls = Decls::collect(forms, package_of);
+    let mut out = walk(forms, &decls, same_file, &|_| true, &mut BTreeMap::new());
+    boundary(forms, &decls, same_file, &mut out);
+    strict(forms, same_file, &mut out);
+    out
 }
 
 pub(crate) fn typed_bindings(
@@ -426,46 +450,172 @@ pub(crate) fn typed_bindings(
     wanted: &dyn Fn(usize) -> bool,
 ) -> BTreeMap<usize, BTreeMap<String, Ty>> {
     let mut bindings = BTreeMap::new();
-    walk(forms, &|_, _| true, wanted, &mut bindings);
+    let decls = Decls::collect(forms, &|_| None);
+    walk(forms, &decls, &|_, _| true, wanted, &mut bindings);
     bindings
+}
+
+#[derive(Default)]
+struct Types {
+    records: BTreeMap<String, Vec<(String, Ty)>>,
+    unions: BTreeMap<String, Vec<String>>,
+}
+
+impl Types {
+    fn collect(forms: &[Spanned]) -> Types {
+        let mut out = Types::default();
+        let mut by_predicate = BTreeMap::new();
+        for form in forms {
+            let Some(r) = blue_lang_syntax::record::record_parts(form) else {
+                continue;
+            };
+            let (Some(name), Some(predicate)) = (r.name.as_symbol(), r.predicate.as_symbol())
+            else {
+                continue;
+            };
+            by_predicate.insert(predicate.to_string(), name.to_string());
+            let fields = r
+                .fields
+                .iter()
+                .map(|f| {
+                    let ty = f.ty.map_or(Ty::Dyn, |t| Ty::from_sexp(&t.to_sexp()));
+                    (f.name.to_string(), ty)
+                })
+                .collect();
+            out.records.insert(name.to_string(), fields);
+        }
+        for form in forms {
+            let Some(u) = blue_lang_syntax::union::declared(form) else {
+                continue;
+            };
+            let Some(name) = u.name.as_symbol() else {
+                continue;
+            };
+            let arms = u
+                .arms
+                .iter()
+                .filter_map(|a| a.as_symbol().and_then(|p| by_predicate.get(p)).cloned())
+                .collect();
+            out.unions.insert(name.to_string(), arms);
+        }
+        out
+    }
+
+    fn resolve(&self, t: Ty) -> Ty {
+        match t {
+            Ty::Named(n) => match self.unions.get(&n) {
+                Some(arms) => Ty::Union(n, arms.clone()),
+                None if self.records.contains_key(&n) => Ty::Record(n),
+                None => Ty::Named(n),
+            },
+            Ty::List(t) => Ty::List(Box::new(self.resolve(*t))),
+            Ty::Map(k, v) => Ty::Map(Box::new(self.resolve(*k)), Box::new(self.resolve(*v))),
+            t => t,
+        }
+    }
+
+    fn field(&self, record: &str, key: &str) -> Option<Option<Ty>> {
+        let fields = self.records.get(record)?;
+        Some(
+            fields
+                .iter()
+                .find(|(n, _)| n == key)
+                .map(|(_, t)| self.resolve(t.clone())),
+        )
+    }
+}
+
+struct Decls {
+    sigs: BTreeMap<String, Sig>,
+    qualified: BTreeMap<String, Sig>,
+    frags: data_laws::Fragments,
+    types: Types,
+    counts: BTreeMap<String, usize>,
+    defined: BTreeSet<String>,
+    typed_decls: usize,
+}
+
+impl Decls {
+    fn collect(forms: &[Spanned], package_of: &dyn Fn(usize) -> Option<String>) -> Decls {
+        let frags = data_laws::Fragments::collect(forms);
+        let mut raw = Vec::new();
+        for (i, form) in forms.iter().enumerate() {
+            if let Some(decl) = read_typed_decl(form) {
+                raw.push((i, decl));
+            }
+        }
+        let types = if raw.is_empty() {
+            Types::default()
+        } else {
+            Types::collect(forms)
+        };
+        let mut sigs = BTreeMap::new();
+        let mut qualified = BTreeMap::new();
+        let typed_decls = raw.len();
+        for (i, (name, mut sig)) in raw {
+            for p in &mut sig.params {
+                let t = std::mem::replace(p, Ty::Dyn);
+                *p = match &t {
+                    Ty::Named(n) => match frags.by_type(n) {
+                        Some(f) => Ty::Fragment(Box::new(f.selection.clone())),
+                        None => types.resolve(t),
+                    },
+                    _ => types.resolve(t),
+                };
+            }
+            sig.ret = types.resolve(std::mem::replace(&mut sig.ret, Ty::Dyn));
+            if let Some(package) = package_of(i) {
+                qualified.insert(
+                    format!("{package}{}{name}", blue_lang_syntax::QUALIFIER),
+                    sig.clone(),
+                );
+            }
+            sigs.insert(name, sig);
+        }
+        let counts = if sigs.is_empty() {
+            BTreeMap::new()
+        } else {
+            top_level_counts(forms)
+        };
+        let defined = counts.keys().cloned().collect();
+        Decls {
+            sigs,
+            qualified,
+            frags,
+            types,
+            counts,
+            defined,
+            typed_decls,
+        }
+    }
+
+    fn at_boundary(&self, head: &str) -> Option<&Sig> {
+        if head.contains(blue_lang_syntax::QUALIFIER) {
+            return self.qualified.get(head);
+        }
+        if self.counts.get(head) == Some(&1) {
+            return self.sigs.get(head);
+        }
+        None
+    }
 }
 
 fn walk(
     forms: &[Spanned],
+    decls: &Decls,
     same_file: &dyn Fn(usize, usize) -> bool,
     wanted: &dyn Fn(usize) -> bool,
     bindings: &mut BTreeMap<usize, BTreeMap<String, Ty>>,
 ) -> Outcome {
     let mut out = Outcome::default();
-    let mut sigs: BTreeMap<String, Sig> = BTreeMap::new();
-    let frags = data_laws::Fragments::collect(forms);
-
-    // Pass 1: collect declared signatures. Only typed heads are read, so
-    // an entirely unannotated program leaves this map empty and pass 2
-    // has nothing to walk.
-    for form in forms {
-        if let Some((name, mut sig)) = read_typed_decl(form) {
-            for p in &mut sig.params {
-                if let Ty::Named(n) = p {
-                    if let Some(f) = frags.by_type(n) {
-                        *p = Ty::Fragment(Box::new(f.selection.clone()));
-                    }
-                }
-            }
-            sigs.insert(name, sig);
-            out.stats.typed_decls += 1;
-        }
-    }
+    out.stats.typed_decls = decls.typed_decls;
+    let sigs = &decls.sigs;
+    let none = BTreeSet::new();
 
     // Pass 2: walk ONLY the typed declarations' bodies.
     //
     // This is the mechanical form of "zero analysis at rung 0": an
     // unannotated program never enters the loop body.
-    let defined = if sigs.is_empty() {
-        BTreeSet::new()
-    } else {
-        top_level_names(forms)
-    };
     for (top_level, form) in forms.iter().enumerate() {
         if !wanted(top_level) {
             continue;
@@ -476,7 +626,7 @@ fn walk(
             };
             let sig = sigs.get(&name).expect("just inserted");
             let body = &items[3];
-            let mut shadowed = defined.clone();
+            let mut shadowed = decls.defined.clone();
             contracts::binders_of(std::slice::from_ref(body), true, &mut shadowed);
             let mut unsettled = BTreeSet::new();
             nested_defines(body, true, &mut unsettled);
@@ -502,13 +652,14 @@ fn walk(
             // loop knows that, so it is recorded where it is known.
             let before = out.diagnostics.len();
             let cx = Cx {
-                sigs: &sigs,
-                frags: &frags,
+                decls,
                 top: top_level,
                 same_file,
                 shadowed: &shadowed,
                 unsettled: &unsettled,
                 bound: &bound,
+                locals: &none,
+                boundary: false,
             };
             let body_ty = infer(body, &env, &cx, &mut out);
             let mut rebound = BTreeSet::new();
@@ -557,6 +708,112 @@ fn walk(
     out
 }
 
+fn boundary(
+    forms: &[Spanned],
+    decls: &Decls,
+    same_file: &dyn Fn(usize, usize) -> bool,
+    out: &mut Outcome,
+) {
+    if decls.sigs.is_empty() {
+        return;
+    }
+    for (top_level, form) in forms.iter().enumerate() {
+        if read_typed_decl(form).is_some()
+            || blue_lang_syntax::scope::is_file_declaration(form)
+            || blue_lang_syntax::record::record_parts(form).is_some()
+            || blue_lang_syntax::union::declared(form).is_some()
+        {
+            continue;
+        }
+        let Some(items) = form.as_list() else {
+            continue;
+        };
+        if matches!(
+            items.first().and_then(Spanned::as_symbol),
+            Some("defmacro" | "quote" | "quasiquote")
+        ) {
+            continue;
+        }
+        let mut locals = BTreeSet::new();
+        contracts::binders_of(std::slice::from_ref(form), true, &mut locals);
+        let mut shadowed = decls.defined.clone();
+        shadowed.extend(locals.iter().cloned());
+        let body: &[Spanned] = match items {
+            [head, sig, rest @ ..]
+                if head.as_symbol() == Some("define") && sig.as_list().is_some() =>
+            {
+                rest
+            }
+            _ => std::slice::from_ref(form),
+        };
+        let mut unsettled = BTreeSet::new();
+        for b in body {
+            nested_defines(b, true, &mut unsettled);
+        }
+        let bound = RefCell::new(BTreeMap::new());
+        let cx = Cx {
+            decls,
+            top: top_level,
+            same_file,
+            shadowed: &shadowed,
+            unsettled: &unsettled,
+            bound: &bound,
+            locals: &locals,
+            boundary: true,
+        };
+        let mut scratch = Outcome::default();
+        for b in body {
+            infer(b, &BTreeMap::new(), &cx, &mut scratch);
+        }
+        out.stats.boundary_visited += scratch.stats.visited;
+        out.diagnostics.extend(
+            scratch
+                .diagnostics
+                .into_iter()
+                .filter(|d| d.code == Code::B0005)
+                .map(|d| d.at_top_level(top_level)),
+        );
+    }
+}
+
+fn strict(forms: &[Spanned], same_file: &dyn Fn(usize, usize) -> bool, out: &mut Outcome) {
+    let markers: Vec<usize> = forms
+        .iter()
+        .enumerate()
+        .filter(|(_, f)| blue_lang_syntax::scope::is_strict_marker(f))
+        .map(|(i, _)| i)
+        .collect();
+    if markers.is_empty() {
+        return;
+    }
+    for (top_level, form) in forms.iter().enumerate() {
+        if !markers.iter().any(|m| same_file(*m, top_level)) {
+            continue;
+        }
+        let Some([head, sig, ..]) = form.as_list() else {
+            continue;
+        };
+        if head.as_symbol() != Some("define") {
+            continue;
+        }
+        let Some(name_node) = sig.as_list().and_then(|s| s.first()) else {
+            continue;
+        };
+        let name = name_node.as_symbol().unwrap_or("_");
+        out.diagnostics.push(
+            Diagnostic::new(
+                Code::B0082,
+                format!("`{name}` is untyped in a `blueshift(:strict)` file"),
+                name_node.span,
+            )
+            .at_top_level(top_level)
+            .with_help(
+                "annotate a parameter or the return; `-> dyn` says the function returns any value",
+            ),
+        );
+    }
+}
+
 fn is_marker(p: &Spanned) -> bool {
     p.as_symbol().is_some_and(|n| n.starts_with('&'))
 }
@@ -602,13 +859,30 @@ fn op_sig(op: &str) -> Option<(Ty, Ty)> {
 }
 
 struct Cx<'a> {
-    sigs: &'a BTreeMap<String, Sig>,
-    frags: &'a data_laws::Fragments,
+    decls: &'a Decls,
     top: usize,
     same_file: &'a dyn Fn(usize, usize) -> bool,
     shadowed: &'a BTreeSet<String>,
     unsettled: &'a BTreeSet<String>,
     bound: &'a RefCell<BTreeMap<String, Option<Ty>>>,
+    locals: &'a BTreeSet<String>,
+    boundary: bool,
+}
+
+impl Cx<'_> {
+    fn sig(&self, head: &str) -> Option<&Sig> {
+        if self.boundary {
+            if self.locals.contains(head) {
+                return None;
+            }
+            return self.decls.at_boundary(head);
+        }
+        self.decls.sigs.get(head)
+    }
+
+    fn builtin(&self, head: &str, env: &BTreeMap<String, Ty>) -> bool {
+        !env.contains_key(head) && !self.shadowed.contains(head)
+    }
 }
 
 fn settle(bound: &RefCell<BTreeMap<String, Option<Ty>>>, name: &str, t: &Ty) {
@@ -624,8 +898,8 @@ fn settle(bound: &RefCell<BTreeMap<String, Option<Ty>>>, name: &str, t: &Ty) {
         .or_insert(t);
 }
 
-fn top_level_names(forms: &[Spanned]) -> BTreeSet<String> {
-    let mut out = BTreeSet::new();
+fn top_level_counts(forms: &[Spanned]) -> BTreeMap<String, usize> {
+    let mut out = BTreeMap::new();
     for form in forms {
         let Some(items) = form.as_list() else {
             continue;
@@ -644,7 +918,7 @@ fn top_level_names(forms: &[Spanned]) -> BTreeSet<String> {
             })
         });
         if let Some(n) = name {
-            out.insert(n.to_string());
+            *out.entry(n.to_string()).or_insert(0) += 1;
         }
     }
     out
@@ -710,9 +984,9 @@ fn read_field(
     if key == "__typename" {
         return Ty::Dyn;
     }
-    let owner = cx.frags.get(&sel.fragment).map(|f| f.top_level);
+    let owner = cx.decls.frags.get(&sel.fragment).map(|f| f.top_level);
     let editable = owner.is_some_and(|o| (cx.same_file)(o, cx.top));
-    let d = match cx.frags.declaring(sel, key) {
+    let d = match cx.decls.frags.declaring(sel, key) {
         Some(child) => Diagnostic::new(
             Code::B0048,
             format!(
@@ -746,6 +1020,24 @@ fn read_field(
     Ty::Dyn
 }
 
+fn record_field(record: &str, key: &str, at: Span, cx: &Cx<'_>, out: &mut Outcome) -> Ty {
+    match cx.decls.types.field(record, key) {
+        Some(Some(t)) => t,
+        Some(None) => {
+            let fields: Vec<String> = cx.decls.types.records[record]
+                .iter()
+                .map(|(n, _)| format!("`{n}`"))
+                .collect();
+            out.diagnostics.push(
+                Diagnostic::new(Code::B0079, format!("`{record}` has no field `{key}`"), at)
+                    .with_help(format!("its fields are {}", fields.join(", "))),
+            );
+            Ty::Dyn
+        }
+        None => Ty::Dyn,
+    }
+}
+
 fn composed(
     want: &data_laws::Selection,
     got: &data_laws::Selection,
@@ -758,7 +1050,7 @@ fn composed(
     if (got.fragment == want.fragment && got.path == want.path) || got.spreads(&want.fragment) {
         return;
     }
-    let owner = cx.frags.get(&got.fragment).map(|f| f.top_level);
+    let owner = cx.decls.frags.get(&got.fragment).map(|f| f.top_level);
     let editable = owner.is_some_and(|o| (cx.same_file)(o, cx.top));
     let d = Diagnostic::new(
         Code::B0049,
@@ -783,8 +1075,24 @@ fn composed(
     out.diagnostics.push(d);
 }
 
+fn joined<'a>(
+    items: impl Iterator<Item = &'a Spanned>,
+    env: &BTreeMap<String, Ty>,
+    cx: &Cx<'_>,
+    out: &mut Outcome,
+) -> Ty {
+    let mut at: Option<Ty> = None;
+    for i in items {
+        let t = infer(i, env, cx, out);
+        at = Some(match at {
+            None => t,
+            Some(a) => a.join(&t),
+        });
+    }
+    at.unwrap_or(Ty::Dyn)
+}
+
 fn infer(s: &Spanned, env: &BTreeMap<String, Ty>, cx: &Cx<'_>, out: &mut Outcome) -> Ty {
-    let sigs = cx.sigs;
     out.stats.visited += 1;
     match &s.form {
         SpannedForm::Nil => Ty::Nil,
@@ -863,6 +1171,9 @@ fn infer(s: &Spanned, env: &BTreeMap<String, Ty>, cx: &Cx<'_>, out: &mut Outcome
                 if let (Ty::Fragment(sel), Some(key)) = (&base, literal_key(&items[2])) {
                     return read_field(sel, key, s.span, cx, out);
                 }
+                if let (Ty::Record(r), Some(key)) = (&base, literal_key(&items[2])) {
+                    return record_field(r, key, items[2].span, cx, out);
+                }
                 infer(&items[2], env, cx, out);
                 return Ty::Dyn;
             }
@@ -890,8 +1201,29 @@ fn infer(s: &Spanned, env: &BTreeMap<String, Ty>, cx: &Cx<'_>, out: &mut Outcome
                 return ret;
             }
 
+            if head == "list" && cx.builtin(head, env) {
+                return Ty::List(Box::new(joined(items[1..].iter(), env, cx, out)));
+            }
+
+            if head == blue_lang_syntax::LOWERED_MAP && cx.builtin(head, env) {
+                let keys = joined(items[1..].iter().step_by(2), env, cx, out);
+                let values = joined(items[1..].iter().skip(1).step_by(2), env, cx, out);
+                return Ty::Map(Box::new(keys), Box::new(values));
+            }
+
+            if cx.decls.types.records.contains_key(head)
+                && !env.contains_key(head)
+                && !cx.locals.contains(head)
+                && cx.sig(head).is_none()
+            {
+                for a in &items[1..] {
+                    infer(a, env, cx, out);
+                }
+                return Ty::Record(head.to_string());
+            }
+
             // A call to a DECLARED function: check the arguments.
-            if let Some(sig) = sigs.get(head) {
+            if let Some(sig) = cx.sig(head) {
                 for (i, a) in items[1..].iter().enumerate() {
                     let got = infer(a, env, cx, out);
                     let Some(want) = sig.params.get(i) else {
@@ -925,7 +1257,7 @@ fn infer(s: &Spanned, env: &BTreeMap<String, Ty>, cx: &Cx<'_>, out: &mut Outcome
                 return sig.ret.clone();
             }
 
-            if !env.contains_key(head) && !cx.shadowed.contains(head) {
+            if cx.builtin(head, env) {
                 if let Some(t) = builtin_result(head) {
                     for a in &items[1..] {
                         infer(a, env, cx, out);
@@ -1455,5 +1787,160 @@ mod tests {
             body_of(&typed[0]),
             "annotating changed the body"
         );
+    }
+
+    fn codes(o: &Outcome) -> Vec<Code> {
+        o.diagnostics.iter().map(|d| d.code).collect()
+    }
+
+    #[test]
+    fn a_map_signature_checks_its_values() {
+        let head = "def total(m: Map(Sym, Int)) -> Int\n  get(m, :a)\nend\n";
+        let bad = check(&format!(
+            "{head}def g(a: Int) -> Int\n  total({{a: \"x\"}}) + a\nend"
+        ));
+        assert_eq!(codes(&bad), [Code::B0005], "{:?}", msgs(&bad));
+        assert!(
+            msgs(&bad)[0].contains("expects Map(Sym, Int), got Map(Sym, Str)"),
+            "{:?}",
+            msgs(&bad)
+        );
+        let good = check(&format!(
+            "{head}def g(a: Int) -> Int\n  total({{a: 1}}) + a\nend"
+        ));
+        assert!(good.diagnostics.is_empty(), "{:?}", msgs(&good));
+    }
+
+    #[test]
+    fn a_list_and_a_map_literal_have_their_types() {
+        assert_eq!(
+            codes(&check("def f(a: Int) -> Int\n  [a]\nend")),
+            [Code::B0003]
+        );
+        assert_eq!(
+            codes(&check("def f(a: Int) -> Str\n  {a: a}\nend")),
+            [Code::B0003]
+        );
+        assert!(check("def f(a: Int) -> List(Int)\n  [a, 2]\nend")
+            .diagnostics
+            .is_empty());
+        assert!(check("def f(a: Int) -> Map\n  {a: a}\nend")
+            .diagnostics
+            .is_empty());
+    }
+
+    #[test]
+    fn a_record_parameter_types_its_fields() {
+        let rec = "record point(x, y: Int)\n";
+        let o = check(&format!("{rec}def label(p: point) -> Str\n  p.y\nend"));
+        assert_eq!(codes(&o), [Code::B0003], "{:?}", msgs(&o));
+        let o = check(&format!("{rec}def depth(p: point) -> Int\n  p.z\nend"));
+        assert_eq!(codes(&o), [Code::B0079], "{:?}", msgs(&o));
+        assert!(
+            msgs(&o)[0].contains("`point` has no field `z`"),
+            "{:?}",
+            msgs(&o)
+        );
+        let o = check(&format!(
+            "{rec}def height(p: point) -> Int\n  p.y\nend\ndef g(a: Int) -> Int\n  height({{x: a, y: a}})\nend"
+        ));
+        assert_eq!(codes(&o), [Code::B0005], "{:?}", msgs(&o));
+        let o = check(&format!(
+            "{rec}def origin(a: Int) -> point\n  point(a, a)\nend\ndef height(p: point) -> Int\n  p.y\nend\ndef g(a: Int) -> Int\n  height(origin(a))\nend"
+        ));
+        assert!(o.diagnostics.is_empty(), "{:?}", msgs(&o));
+    }
+
+    #[test]
+    fn a_union_parameter_takes_its_arms_and_nothing_else() {
+        let decl = "union shape = circle(r: Int) | rect(w: Int, h: Int)\nrecord point(x, y)\ndef area(s: shape) -> Int\n  1\nend\n";
+        let o = check(&format!(
+            "{decl}def g(a: Int) -> Int\n  area(circle(a)) + area(rect(a, a))\nend"
+        ));
+        assert!(o.diagnostics.is_empty(), "{:?}", msgs(&o));
+        let o = check(&format!(
+            "{decl}def g(a: Int) -> Int\n  area(point(a, a))\nend"
+        ));
+        assert_eq!(codes(&o), [Code::B0005], "{:?}", msgs(&o));
+        assert!(
+            msgs(&o)[0].contains("expects shape, got point"),
+            "{:?}",
+            msgs(&o)
+        );
+    }
+
+    #[test]
+    fn an_untyped_caller_is_checked_where_the_value_is_known() {
+        let typed = "def inc(n: Int) -> Int\n  n + 1\nend\n";
+        let o = check(&format!("{typed}inc(\"a\")"));
+        assert_eq!(codes(&o), [Code::B0005], "{:?}", msgs(&o));
+        assert_eq!(o.diagnostics[0].top_level, 1);
+        let o = check(&format!(
+            "{typed}def loose(xs)\n  label = \"n\"\n  [inc(label), xs]\nend"
+        ));
+        assert_eq!(codes(&o), [Code::B0005], "{:?}", msgs(&o));
+        let o = check(&format!("{typed}def loose(x)\n  inc(x)\nend\ninc(1)"));
+        assert!(o.diagnostics.is_empty(), "{:?}", msgs(&o));
+        assert!(o.seams.is_empty(), "{:?}", o.seams);
+    }
+
+    #[test]
+    fn the_boundary_leaves_a_local_name_and_untyped_misuse_alone() {
+        let typed = "def inc(n: Int) -> Int\n  n + 1\nend\n";
+        let o = check(&format!("{typed}def loose(inc)\n  inc(\"a\")\nend"));
+        assert!(o.diagnostics.is_empty(), "{:?}", msgs(&o));
+        let o = check(&format!("{typed}def loose(x)\n  \"a\" + x\nend"));
+        assert!(o.diagnostics.is_empty(), "{:?}", msgs(&o));
+        let o = check(&format!("{typed}def inc(s)\n  s\nend\ninc(\"a\")"));
+        assert!(o.diagnostics.is_empty(), "{:?}", msgs(&o));
+    }
+
+    #[test]
+    fn the_boundary_costs_nothing_without_a_typed_definition() {
+        let o = check("def add(a, b)\n  a + b\nend\nadd(1, \"nope\")");
+        assert_eq!((o.stats.visited, o.stats.boundary_visited), (0, 0));
+        let o = check("def inc(n: Int) -> Int\n  n + 1\nend\ninc(\"a\")");
+        assert!(o.stats.boundary_visited > 0);
+    }
+
+    #[test]
+    fn a_qualified_call_is_checked_against_its_package() {
+        let src = "def scale(n: Int) -> Int\n  n\nend\nkit::scale(\"x\")\nscale(\"x\")";
+        let forms = parse_program_tree(src).unwrap();
+        let o = check_program_with(&forms, &|a, b| (a == 0) == (b == 0), &|i| {
+            (i == 0).then(|| "kit".to_string())
+        });
+        assert_eq!(codes(&o), [Code::B0005, Code::B0005], "{:?}", msgs(&o));
+        let o = check_program_with(&forms, &|a, b| (a == 0) == (b == 0), &|i| {
+            (i == 0).then(|| "other".to_string())
+        });
+        assert_eq!(codes(&o), [Code::B0005], "{:?}", msgs(&o));
+        assert_eq!(o.diagnostics[0].top_level, 2);
+    }
+
+    #[test]
+    fn a_strict_file_types_every_function() {
+        let o = check("blueshift(:strict)\ndef twice(n)\n  n * 2\nend\ndef one()\n  1\nend");
+        assert_eq!(codes(&o), [Code::B0082, Code::B0082], "{:?}", msgs(&o));
+        assert!(msgs(&o)[0].contains("`twice` is untyped"), "{:?}", msgs(&o));
+        let o = check(
+            "blueshift(:strict)\ndef scale(n: Int, k)\n  n * k\nend\ndef show(x) -> dyn\n  x\nend\nlimit = 3",
+        );
+        assert!(o.diagnostics.is_empty(), "{:?}", msgs(&o));
+        let o = check("blueshift(:loose)\ndef twice(n)\n  n * 2\nend");
+        assert!(o.diagnostics.is_empty(), "{:?}", msgs(&o));
+        let o = check("def twice(n)\n  n * 2\nend");
+        assert!(o.diagnostics.is_empty(), "{:?}", msgs(&o));
+    }
+
+    #[test]
+    fn a_strict_position_binds_only_its_own_file() {
+        let src = "blueshift(:strict)\ndef scale(n: Int) -> Int\n  n\nend\ndef loose(x)\n  x\nend";
+        let forms = parse_program_tree(src).unwrap();
+        let o = check_program_in(&forms, &|a, b| (a < 2) == (b < 2));
+        assert!(o.diagnostics.is_empty(), "{:?}", msgs(&o));
+        let o = check_program_in(&forms, &|_, _| true);
+        assert_eq!(codes(&o), [Code::B0082], "{:?}", msgs(&o));
+        assert_eq!(o.diagnostics[0].top_level, 2);
     }
 }

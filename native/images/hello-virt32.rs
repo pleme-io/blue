@@ -4,7 +4,7 @@ use kiban_io::Io;
 const BL_UART0: u32 = 268435456u32;
 fn bl_put<I: Io>(io: &mut I, p_c: u32) -> u32 {
     {
-        io.write8(BL_UART0, p_c);
+        io.write8(kiban_io::reg(BL_UART0), kiban_io::reg(p_c));
         p_c
     }
 }

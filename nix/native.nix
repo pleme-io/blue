@@ -32,6 +32,7 @@ let
 
   fx = fenix.packages.${pkgs.stdenv.hostPlatform.system};
   rustFor = target: fx.combine [ fx.stable.rustc fx.targets.${target}.stable.rust-std ];
+  hostRust = fx.combine [ fx.stable.rustc fx.stable.rust-std ];
 
   image = name: spec: pkgs.runCommand "native-${name}" {
     nativeBuildInputs = [ (rustFor spec.target) pkgs.llvm ];
@@ -53,6 +54,13 @@ let
     BLUE_PATH = project.bluePath;
   } "${blue}/bin/blue test ${src + "/checks/${lib.replaceStrings [ "-" ] [ "_" ] name}_qemu.b"} > $out";
 
+  corpusCheck = pkgs.runCommand "native-corpus" {
+    nativeBuildInputs = [ hostRust emitter pkgs.stdenv.cc ];
+    CORPUS_DIR = src + "/corpus";
+    CORPUS_SEAM = src + "/seam";
+    BLUE_PATH = project.bluePath;
+  } "${blue}/bin/blue test ${src + "/checks/corpus.b"} > $out";
+
   # The project's own checks under a `native-` prefix, so none meets a name
   # in blue's root project.
   projectChecks = lib.mapAttrs' (n: v: lib.nameValuePair "native-${n}" v) project.checks;
@@ -60,5 +68,6 @@ in
 {
   packages = lib.mapAttrs' (n: v: lib.nameValuePair "native-${n}" v) built;
   checks = projectChecks
-    // lib.mapAttrs' (n: s: lib.nameValuePair "${n}-qemu" (qemuCheck n s)) images;
+    // lib.mapAttrs' (n: s: lib.nameValuePair "${n}-qemu" (qemuCheck n s)) images
+    // { native-corpus = corpusCheck; };
 }

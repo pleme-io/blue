@@ -23,19 +23,55 @@ pub trait Io {
 
 /// The value of a checked operation, or a fault. Integer overflow is an
 /// error by default (the operator's decision, BLUE-NATIVE.md status line),
-/// so every `+`, `-` and `*` an emitted program performs arrives here as
-/// `checked_*`; wrapping is a separate word a program asks for by name.
+/// so every `+`, `-`, `*` and `%` an emitted program performs arrives here as
+/// `checked_*`, in the board's word; wrapping is a separate word a program
+/// asks for by name. A `const fn`, so a top-level binding computed from
+/// constants is a Rust constant and its overflow a build error.
 #[inline(always)]
-pub fn checked(value: Option<u32>) -> u32 {
+pub const fn checked<T: Copy>(value: Option<T>) -> T {
     match value {
         Some(v) => v,
         None => fault(),
     }
 }
 
+/// A word as a register value: a value that does not fit 32 bits (a
+/// negative one on the 64-bit host word) is a fault, never a truncation.
+#[inline(always)]
+pub fn reg<T: TryInto<u32>>(value: T) -> u32 {
+    match value.try_into() {
+        Ok(v) => v,
+        Err(_) => fault(),
+    }
+}
+
+/// `floor(a / b)` in the signed host word: the quotient rounded toward
+/// negative infinity, as the interpreter's `floor` of its `/`. A zero
+/// divisor and `i64::MIN / -1` are faults.
+#[inline(always)]
+pub const fn floor_div(a: i64, b: i64) -> i64 {
+    let q = checked(a.checked_div(b));
+    if a % b != 0 && ((a < 0) != (b < 0)) {
+        q - 1
+    } else {
+        q
+    }
+}
+
+/// One more frame of a recursive definition: the depth it runs at, or a
+/// fault past the board's declared bound, as the interpreter refuses a call
+/// past its depth.
+#[inline(always)]
+pub fn deeper(depth: u32, bound: u32) -> u32 {
+    if depth >= bound {
+        fault()
+    }
+    depth + 1
+}
+
 /// Stop at the board's fault handler.
 #[inline(never)]
 #[cold]
-pub fn fault() -> ! {
+pub const fn fault() -> ! {
     panic!()
 }

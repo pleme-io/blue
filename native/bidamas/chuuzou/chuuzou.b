@@ -21,22 +21,30 @@ absent because the N0 subset does not produce their input: every refusal
 below names the construct and the rule, so a program outside the subset is a
 compile error, never a wrong image.
 
-The N0 subset, and what each lowers to (board word 32):
+The subset, and what each lowers to (W is the board word: u32 on a board,
+i64 on the host board `host64`):
 
-  def f(x: Int) -> Int      fn bl_f<I: Io>(io: &mut I, p_x: u32) -> u32
-  NAME = <integer>          const BL_NAME: u32
-  + - *                     kiban_io::checked(a.checked_add(b)): overflow is a fault
-  wrapping_add(a, b)        a.wrapping_add(b): wrapping only where asked
-  == < <= > >= !            comparisons, not
-  if / begin                if / blocks
+  def f(x: Int) -> Int      fn bl_f<I: Io>(io: &mut I, p_x: W) -> W
+  NAME = <constant expr>    const BL_NAME: W, built from literals and constants
+  NAME = <expr>             a local of the top level, read by later top-level forms
+  + - * mod                 kiban_io::checked(a.checked_op(b)): overflow is a fault
+  floor(a / b)              kiban_io::floor_div (i64) or checked_div (u32)
+  wrapping_add(a, b)        a.wrapping_add(b), on the 32-bit word only
+  == != < <= > >= not and or  comparisons and logic
+  if / begin                if / blocks; an `if` with no else where its value is dropped
   a tail call to itself     a loop (the parameters rebound, then continue)
+  a call that recurses      a frame per level under the board's max_depth; a board
+                            with none refuses it, mutual recursion included
+  f(g(x)) where g reaches   every argument bound first, so `io` is borrowed
+  the board                 by one call at a time
   mmio_write(a, 8|32, v)    io.write8 / io.write32, through the board's seam
   top-level expressions     pub fn main, called by the seam
 
-Int lowers to u32 here (L5 minimal): the checker has no fixed-width types
-yet (BLUE-NATIVE.md §5.1), so a negative value or one past 2^32 - 1 is a
-fault on the board where the interpreter would carry on. That divergence is
-outside the N0 row and is N2's type language to close.
+On a board, Int lowers to u32 (L5 minimal): the checker has no fixed-width
+types yet (BLUE-NATIVE.md §5.1), so a negative value or one past 2^32 - 1 is
+a fault on the board where the interpreter would carry on. On the host, Int
+is i64 with checked arithmetic, as the interpreter's Int, and the corpus in
+native/corpus holds the two executions to one output.
 
 The first pass reads the resolved tree's text into nodes:
 
@@ -252,6 +260,33 @@ def rs_u32(n)
   {kind: "int", value: n, suffix: "u32"}
 end
 
+@doc """
+rs_word: An integer literal in the board's word: u32 on a 32-bit board, i64 on the
+64-bit host, where a negative literal is the negation of its magnitude.
+
+    rs_word(5, 64) #=> {kind: "int", value: 5, suffix: "i64"}
+    rs_word(-5, 64)[:op] #=> "neg"
+"""
+def rs_word(n, word)
+  if word == 32
+    rs_u32(n)
+  elsif not integer?(n)
+    cz_refuse("`#{to_s(n)}` is not an integer of the board word (i64)")
+  elsif n < 0
+    {kind: "unary", op: "neg", expr: {kind: "int", value: -n, suffix: "i64"}}
+  else
+    {kind: "int", value: n, suffix: "i64"}
+  end
+end
+
+def cz_word_ty(word)
+  if word == 64
+    "i64"
+  else
+    "u32"
+  end
+end
+
 def rs_call(path, args)
   {kind: "call", func: path, args:}
 end
@@ -296,6 +331,10 @@ def rs_generics()
   {type_params: [{name: "I", bounds: [rs_ty("Io")]}]}
 end
 
+def rs_depth_param()
+  {name: "d", ty: rs_ty("u32")}
+end
+
 def rs_fn(vis, name, params, ret, body)
   sig = {name:, generics: rs_generics, params: append([rs_io_param], params)}
   sig_ = if ret.nil?
@@ -311,22 +350,33 @@ end
 @doc """
 cz_type: The type a signature names, at this board: Int is the board word.
 """
-def cz_type(n)
+def cz_type(n, word)
   if cz_sym(n) == "Int"
-    rs_ty("u32")
+    rs_ty(cz_word_ty(word))
   else
     cz_refuse(
-      "the type `#{cz_sym(n) or n}` has no native representation at N0; Int is the board word"
+      "the type `#{cz_sym(n) or n}` has no native representation yet; Int is the board word"
     )
   end
 end
 
 def cz_arith()
-  [%w[+ checked_add], %w[- checked_sub], %w[* checked_mul]]
+  [
+    %w[+ checked_add],
+    %w[- checked_sub],
+    %w[* checked_mul],
+    %w[mod checked_rem_euclid],
+    %w[modulo checked_rem_euclid],
+    %w[rem checked_rem_euclid]
+  ]
 end
 
 def cz_compare()
-  [%w[equal? eq], %w[< lt], %w[<= le], %w[> gt], %w[>= ge]]
+  [%w[equal? eq], %w[not= ne], %w[< lt], %w[<= le], %w[> gt], %w[>= ge]]
+end
+
+def cz_logic()
+  [%w[and and], %w[or or]]
 end
 
 def cz_lookup(key, pairs)
@@ -343,13 +393,19 @@ cz_expr: An expression in value position. `ctx`: {self, params, fns, consts}.
 """
 def cz_expr(n, ctx)
   if integer?(n)
-    rs_u32(n)
+    rs_word(n, ctx[:word])
   elsif cz_sym?(n)
     s = cz_sym(n)
     if member?(s, ctx[:params])
       rs_path(cz_param_name(s))
     elsif member?(s, ctx[:consts])
       rs_path(cz_const_name(s))
+    elsif member?(s, ctx[:bindings]) and ctx[:self].nil?
+      rs_path(cz_binding_name(s))
+    elsif member?(s, ctx[:bindings])
+      cz_refuse(
+        "`#{cz_local(s)}` is computed when the top level runs; a definition reads constants and its parameters only"
+      )
     else
       cz_refuse("`#{s}` is not a parameter or a constant here")
     end
@@ -367,6 +423,7 @@ def cz_call(n, ctx)
   args = rest(n)
   arith = cz_lookup(h, cz_arith)
   cmp = cz_lookup(h, cz_compare)
+  logic = cz_lookup(h, cz_logic)
   if h.nil?
     cz_refuse("a call through a computed function has no native form (every call is direct at the monomorphic position)")
   elsif arith != nil
@@ -388,6 +445,16 @@ def cz_call(n, ctx)
       cz_refuse("`#{h}` compares exactly two operands at N0")
     end
     rs_binary(cmp, cz_expr(first(args), ctx), cz_expr(second(args), ctx))
+  elsif logic != nil
+    reduce(
+      (acc, b) -> rs_binary(logic, acc, cz_expr(b, ctx)),
+      cz_expr(first(args), ctx),
+      rest(args)
+    )
+  elsif h == "floor"
+    cz_floor(args, ctx)
+  elsif h == "/"
+    cz_refuse("`/` answers a Float when it does not divide, and floats have no native form; integer division is floor(a / b)")
   elsif h == "not"
     {kind: "unary", op: "not", expr: cz_expr(first(args), ctx)}
   elsif h == "if"
@@ -412,6 +479,10 @@ def cz_call(n, ctx)
     {kind: "block", block: rs_block(cz_body(args, ctx))}
   elsif h == "kiban/mmio_write"
     cz_mmio(args, ctx)
+  elsif h == "kiban/wrapping_add" and ctx[:word] != 32
+    cz_refuse(
+      "wrapping_add wraps at 2^32, the 32-bit board word; the #{ctx[:word]}-bit word has no wrapping word"
+    )
   elsif h == "kiban/wrapping_add"
     rs_method(
       cz_expr(first(args), ctx),
@@ -419,15 +490,12 @@ def cz_call(n, ctx)
       [cz_expr(second(args), ctx)]
     )
   elsif member?(h, ctx[:fns])
-    if h == ctx[:self]
-      cz_refuse(
-        "`#{cz_local(h)}` calls itself outside tail position; recursion needs a declared depth bound (BLUE-NATIVE.md §2.2), which N0 cannot express"
-      )
+    lead = if member?(h, ctx[:rec])
+      [rs_path("io"), ctx[:depth]]
+    else
+      [rs_path("io")]
     end
-    rs_call(
-      [cz_fn_name(h)],
-      append([rs_path("io")], map((a) -> cz_expr(a, ctx), args))
-    )
+    cz_direct((xs) -> rs_call([cz_fn_name(h)], append(lead, xs)), args, ctx)
   else
     cz_refuse(
       "`#{h}` has no native form: it is not a definition of this program or a word of its board (the native position's Reach, §2.3)"
@@ -451,11 +519,92 @@ def cz_mmio(args, ctx)
   else
     cz_refuse("mmio_write's width must be the literal 8 or 32, got #{to_s(w)}")
   end
-  rs_method(
-    rs_path("io"),
-    method,
-    [cz_expr(first(args), ctx), cz_expr(third(args), ctx)]
+  cz_direct(
+    fn(xs)
+      rs_method(
+        rs_path("io"),
+        method,
+        [
+          rs_call(%w[kiban_io reg], [first(xs)]),
+          rs_call(%w[kiban_io reg], [second(xs)])
+        ]
+      )
+    end,
+    [first(args), third(args)],
+    ctx
   )
+end
+
+@doc """
+cz_effectful?: Whether lowering `n` reaches the board: a call of a definition or a
+board word, anywhere inside it.
+"""
+def cz_effectful?(n, ctx)
+  h = cz_head(n)
+  if not list?(n)
+    false
+  elsif h == "kiban/mmio_write" or member?(h, ctx[:fns])
+    true
+  else
+    any?((x) -> cz_effectful?(x, ctx), n)
+  end
+end
+
+@doc """
+cz_direct: A call whose arguments are lowered first. When an argument reaches the
+board itself, every argument is bound to a local before the call, so the
+board is borrowed by one call at a time (a nested call would otherwise hold
+`io` twice, E0499). `build` makes the call from the argument expressions.
+"""
+def cz_direct(build, args, ctx)
+  if any?((a) -> cz_effectful?(a, ctx), args)
+    idx = range(count(args))
+    temps = map(
+      (i) -> {kind: "local", name: "a_#{i}", value: cz_expr(args[i], ctx)},
+      idx
+    )
+    {
+      kind: "block",
+      block: rs_block(
+        append(temps, [rs_tail(build(map((i) -> rs_path("a_#{i}"), idx)))])
+      )
+    }
+  else
+    build(map((a) -> cz_expr(a, ctx), args))
+  end
+end
+
+@doc """
+cz_floor: floor(a / b), the interpreter's integer division: rounded toward negative
+infinity in the signed host word, the plain quotient in the unsigned board
+word. A divisor of zero is a fault, as the interpreter raises.
+"""
+def cz_floor(args, ctx)
+  q = first(args)
+  if count(args) != 1 or cz_head(q) != "/" or count(q) != 3
+    cz_refuse("floor has a native form only as integer division, floor(a / b); floats have none")
+  end
+  a = cz_expr(second(q), ctx)
+  b = cz_expr(third(q), ctx)
+  if ctx[:word] == 64
+    rs_call(%w[kiban_io floor_div], [a, b])
+  else
+    rs_call(%w[kiban_io checked], [rs_method(a, "checked_div", [b])])
+  end
+end
+
+@doc """
+cz_stmt: A form whose value is dropped. An `if` with no else branch is a statement
+here, where its missing value is never read.
+"""
+def cz_stmt(n, ctx)
+  if cz_head(n) == "if" and count(n) == 3
+    rs_semi(
+      rs_if(cz_expr(second(n), ctx), rs_block([cz_stmt(third(n), ctx)]), nil)
+    )
+  else
+    rs_semi(cz_expr(n, ctx))
+  end
 end
 
 @doc """
@@ -463,7 +612,7 @@ cz_body: A sequence in value position: every form but the last as a statement.
 """
 def cz_body(forms, ctx)
   append(
-    map((f) -> rs_semi(cz_expr(f, ctx)), butlast(forms)),
+    map((f) -> cz_stmt(f, ctx), butlast(forms)),
     [rs_tail(cz_expr(last(forms), ctx))]
   )
 end
@@ -527,7 +676,7 @@ def cz_tail(n, ctx)
   elsif h == "begin"
     forms = rest(n)
     append(
-      map((f) -> rs_semi(cz_expr(f, ctx)), butlast(forms)),
+      map((f) -> cz_stmt(f, ctx), butlast(forms)),
       cz_tail(last(forms), ctx)
     )
   else
@@ -536,19 +685,115 @@ def cz_tail(n, ctx)
 end
 
 @doc """
-cz_fn: (define-typed (name (p T) …) R body) → a generic fn over the board.
+cz_calls: The definitions `n` calls, in `fns`. A call of `me` in tail position is
+left out: that function loops instead (`me` is nil when it does not).
 """
-def cz_fn(form, fns, consts)
+def cz_calls(n, fns, me, tail)
+  h = cz_head(n)
+  if not list?(n) or count(n) == 0
+    []
+  elsif h == "if"
+    reduce(
+      (acc, b) -> append(acc, cz_calls(b, fns, me, tail)),
+      cz_calls(second(n), fns, me, false),
+      drop(2, n)
+    )
+  elsif h == "begin"
+    forms = rest(n)
+    reduce(
+      (acc, f) -> append(acc, cz_calls(f, fns, me, false)),
+      cz_calls(last(forms), fns, me, tail),
+      butlast(forms)
+    )
+  else
+    own = if member?(h, fns) and not (tail and h == me)
+      [h]
+    else
+      []
+    end
+    reduce((acc, a) -> append(acc, cz_calls(a, fns, me, false)), own, rest(n))
+  end
+end
+
+@doc """
+cz_reach: Every definition reachable from `frontier` through the call graph
+`graph` ([name, callees] pairs).
+
+    cz_reach(["a"], [], [["a", ["b"]], ["b", ["a"]]]) #=> ["a", "b"]
+"""
+def cz_reach(frontier, seen, graph)
+  if empty?(frontier)
+    seen
+  elsif member?(first(frontier), seen)
+    cz_reach(rest(frontier), seen, graph)
+  else
+    cz_reach(
+      append(rest(frontier), cz_lookup(first(frontier), graph) or []),
+      append(seen, [first(frontier)]),
+      graph
+    )
+  end
+end
+
+@doc """
+cz_recursive: The definitions that reach themselves through a call that is not a tail
+call to themselves: each needs a stack frame per level, so each runs under
+the board's declared depth bound.
+"""
+def cz_recursive(fn_forms, fns)
+  graph = map(
+    fn(f)
+      name = cz_sym(first(second(f)))
+      body = fourth(f)
+      me = if cz_tail_self?(body, name)
+        name
+      end
+      [name, cz_calls(body, fns, me, true)]
+    end,
+    fn_forms
+  )
+  filter(
+    (name) -> member?(name, cz_reach(cz_lookup(name, graph), [], graph)),
+    fns
+  )
+end
+
+@doc """
+cz_fn: (define-typed (name (p T) …) R body) → a generic fn over the board. `env`:
+{fns, consts, bindings, rec, word, bound}. A recursive definition takes its
+depth `d` and enters one level deeper, faulting past the bound.
+"""
+def cz_fn(form, env)
   sig = second(form)
   name = cz_sym(first(sig))
   params = map((p) -> cz_sym(first(p)), rest(sig))
-  ret = cz_type(third(form))
+  word = env[:word]
+  ret = cz_type(third(form), word)
   body = fourth(form)
-  ctx = {self: name, params:, fns:, consts:}
+  rec = member?(name, env[:rec])
+  depth = if rec
+    rs_path("d")
+  else
+    rs_u32(0)
+  end
+  ctx = assoc(assoc(assoc(env, :self, name), :params, params), :depth, depth)
   rparams = map(
-    (p) -> {name: cz_param_name(cz_sym(first(p))), ty: cz_type(second(p))},
+    fn(p)
+      {name: cz_param_name(cz_sym(first(p))), ty: cz_type(second(p), word)}
+    end,
     rest(sig)
   )
+  enter = if rec
+    [
+      {
+        kind: "local",
+        name: "d",
+        value: rs_call(%w[kiban_io deeper], [rs_path("d"), rs_u32(env[:bound])])
+      }
+    ]
+  else
+    []
+  end
   stmts = if cz_tail_self?(body, name)
     rebind = map(
       fn(p)
@@ -562,38 +807,74 @@ def cz_fn(form, fns, consts)
       params
     )
     append(
+      enter,
       rebind,
       [rs_semi({kind: "loop", body: rs_block(cz_tail(body, ctx))})]
     )
   else
-    [rs_tail(cz_expr(body, ctx))]
+    append(enter, [rs_tail(cz_expr(body, ctx))])
   end
-  rs_fn("private", cz_fn_name(name), rparams, ret, rs_block(stmts))
+  lead = if rec
+    [rs_depth_param]
+  else
+    []
+  end
+  rs_fn(
+    "private",
+    cz_fn_name(name),
+    append(lead, rparams),
+    ret,
+    rs_block(stmts)
+  )
 end
 
-def cz_const(form)
-  v = third(form)
-  if not integer?(v)
-    cz_refuse(
-      "the constant `#{cz_local(cz_sym(second(form)))}` must be an integer literal at N0"
-    )
+@doc """
+cz_constant?: Whether `n` is computed from literals and earlier constants alone, so
+it is a Rust constant evaluated when the image is built.
+"""
+def cz_constant?(n, consts)
+  h = cz_head(n)
+  if integer?(n)
+    true
+  elsif cz_sym?(n)
+    member?(cz_sym(n), consts)
+  elsif h != nil and (cz_lookup(h, cz_arith) != nil or h == "floor" or h == "/")
+    every?((a) -> cz_constant?(a, consts), rest(n))
+  else
+    false
   end
+end
+
+def cz_const(form, env)
   {
     kind: "const",
     name: cz_const_name(cz_sym(second(form))),
-    ty: rs_ty("u32"),
-    value: rs_u32(v)
+    ty: rs_ty(cz_word_ty(env[:word])),
+    value: cz_expr(third(form), assoc(assoc(env, :fns, []), :params, []))
   }
 end
 
-def cz_kind(form)
+def cz_binding_name(qualified)
+  concat("g_", downcase(cz_checked_ident(cz_local(qualified), "a binding")))
+end
+
+@doc """
+cz_kind: What a top-level form is: a use, a typed definition, a constant (from
+literals and the constants before it), a binding the top level computes when
+it runs, an untyped definition, or an expression.
+"""
+def cz_kind(form, consts)
   h = cz_head(form)
   if h == "use"
     :use
   elsif h == "define-typed"
     :fn
-  elsif h == "define" and cz_sym?(second(form))
+  elsif h == "define" and
+      cz_sym?(second(form)) and
+      cz_constant?(third(form), consts)
     :const
+  elsif h == "define" and cz_sym?(second(form))
+    :binding
   elsif h == "define"
     :untyped
   else
@@ -619,15 +900,54 @@ def cz_attr(path, args)
 end
 
 @doc """
+cz_kinds: Each top-level form with its kind, in order; a constant is known to the
+forms after it.
+"""
+def cz_kinds(forms)
+  st = reduce(
+    fn(acc, f)
+      k = cz_kind(f, acc[:consts])
+      consts = if k == :const
+        append(acc[:consts], [cz_sym(second(f))])
+      else
+        acc[:consts]
+      end
+      {consts:, kinds: append(acc[:kinds], [[k, f]])}
+    end,
+    {consts: [], kinds: []},
+    forms
+  )
+  st[:kinds]
+end
+
+@doc """
+cz_main_stmt: One top-level form of the program's main: a binding becomes a local the
+later top-level forms read; an expression a statement.
+"""
+def cz_main_stmt(kf, ctx)
+  f = second(kf)
+  if first(kf) == :binding
+    {
+      kind: "local",
+      name: cz_binding_name(cz_sym(second(f))),
+      value: cz_expr(third(f), ctx)
+    }
+  else
+    cz_stmt(f, ctx)
+  end
+end
+
+@doc """
 cz_lower: The lowered program: a typed Rust `File` (as data), for `board`.
 """
 def cz_lower(forms, board)
-  if board[:word] != 32
+  word = board[:word]
+  if word != 32 and word != 64
     cz_refuse(
-      "N0 lowers to a 32-bit board word; #{board[:name]} has #{board[:word]}"
+      "chuuzou lowers to a 32-bit board word or the 64-bit host word; #{board[:name]} has #{word}"
     )
   end
-  kinds = map((f) -> [cz_kind(f), f], forms)
+  kinds = cz_kinds(forms)
   pick = (k) -> map((p) -> second(p), filter((p) -> first(p) == k, kinds))
   map(cz_check_use, pick(:use))
   if not empty?(pick(:untyped))
@@ -639,14 +959,36 @@ def cz_lower(forms, board)
   const_forms = pick(:const)
   fns = map((f) -> cz_sym(first(second(f))), fn_forms)
   consts = map((f) -> cz_sym(second(f)), const_forms)
-  main_ctx = {self: nil, params: [], fns:, consts:}
-  main_body = rs_block(map((e) -> rs_semi(cz_expr(e, main_ctx)), pick(:expr)))
+  bindings = map((f) -> cz_sym(second(f)), pick(:binding))
+  rec = cz_recursive(fn_forms, fns)
+  if not empty?(rec) and board[:max_depth].nil?
+    cz_refuse(
+      "`#{cz_local(first(rec))}` calls itself again before it returns; #{board[:name]} declares no recursion depth bound (max_depth), so only a tail call to itself, a loop, compiles for it"
+    )
+  end
+  env = {
+    self: nil,
+    params: [],
+    fns:,
+    consts:,
+    bindings:,
+    rec:,
+    word:,
+    bound: board[:max_depth],
+    depth: rs_u32(0)
+  }
+  main_body = rs_block(
+    map(
+      (kf) -> cz_main_stmt(kf, env),
+      filter((kf) -> first(kf) == :binding or first(kf) == :expr, kinds)
+    )
+  )
   {
     attrs: [cz_attr("no_std", []), cz_attr("forbid", ["unsafe_code"])],
     items: append(
       [{kind: "use", item: {path: %w[kiban_io Io]}}],
-      map(cz_const, const_forms),
-      map((f) -> cz_fn(f, fns, consts), fn_forms),
+      map((f) -> cz_const(f, env), const_forms),
+      map((f) -> cz_fn(f, env), fn_forms),
       [rs_fn("pub", "main", [], nil, main_body)]
     )
   }
@@ -724,22 +1066,28 @@ def cz_link_script(board)
 end
 
 @doc """
-cz_rustc_flags: The rustc flags every crate of an image shares: the board's target, size
-first, abort on panic (the seam's handler is on_fault).
+cz_rustc_flags: The rustc flags every crate of an image shares. A board: its target, size
+first, abort on panic (the seam's handler is on_fault). The host (no
+`rust_target`): its own target, speed first, and a fault that unwinds so the
+seam flushes what was printed.
 """
 def cz_rustc_flags(board)
-  [
-    "--edition",
-    "2021",
-    "--target",
-    board[:rust_target],
-    "-C",
-    "opt-level=z",
-    "-C",
-    "panic=abort",
-    "-C",
-    "codegen-units=1"
-  ]
+  if board[:rust_target].nil?
+    %w[--edition 2021 -C opt-level=3 -C codegen-units=1]
+  else
+    [
+      "--edition",
+      "2021",
+      "--target",
+      board[:rust_target],
+      "-C",
+      "opt-level=z",
+      "-C",
+      "panic=abort",
+      "-C",
+      "codegen-units=1"
+    ]
+  end
 end
 
 def cz_run(args, what)
@@ -762,7 +1110,12 @@ def cz_link(rs, board_name, seam, out, name)
   flags = cz_rustc_flags(board)
   mkdir_p(out)
   script = path_join(out, "link.x")
-  write_file(script, cz_link_script(board))
+  link = if board[:rust_target].nil?
+    []
+  else
+    write_file(script, cz_link_script(board))
+    ["-C", "link-arg=-T#{script}"]
+  end
   io = path_join(out, "libkiban_io.rlib")
   prog = path_join(out, "libprogram.rlib")
   elf = path_join(out, "#{name}.elf")
@@ -816,17 +1169,27 @@ def cz_link(rs, board_name, seam, out, name)
         "--extern",
         "program=#{prog}",
         "-L",
-        out,
-        "-C",
-        "link-arg=-T#{script}",
-        "-o",
-        elf,
-        path_join(seam, board[:name], "seam.rs")
-      ]
+        out
+      ],
+      link,
+      ["-o", elf, path_join(seam, board[:name], "seam.rs")]
     ),
     "rustc seam"
   )
   elf
+end
+
+@doc """
+cz_host_image: The blue program at `program` compiled for the host board: its Rust
+emitted beside the image in `out`, linked with the seams under `seam`.
+Answers the executable's path.
+"""
+def cz_host_image(program, seam, out)
+  name = replace(path_basename(program), ".b", "")
+  mkdir_p(out)
+  rs = path_join(out, "#{name}.rs")
+  write_file(rs, cz_emit(program, "host64"))
+  cz_link(rs, "host64", seam, out, name)
 end
 
 def cz_crate_name(name)
@@ -910,13 +1273,66 @@ test "the reader reads the resolved tree's atoms and nesting"
   assert (cz_read("a)") rescue :refused) == :refused
 end
 
+def cz_test_env(word)
+  {
+    self: nil,
+    params: %w[a b],
+    fns: [],
+    consts: [],
+    bindings: [],
+    rec: [],
+    word:,
+    bound: 100_000,
+    depth: rs_u32(0)
+  }
+end
+
+def cz_test_lower(text, board_name)
+  cz_lower(cz_read(text), kb_board(board_name))
+end
+
+def cz_test_items(text)
+  cz_test_lower(text, "host64")[:items]
+end
+
 test "arithmetic lowers checked, and wrapping only where asked"
-  ctx = {self: nil, params: %w[a b], fns: [], consts: []}
+  ctx = cz_test_env(32)
   e = cz_expr(first(cz_read("(+ a b)")), ctx)
   assert e[:func] == %w[kiban_io checked]
   assert first(e[:args])[:method] == "checked_add"
   w = cz_expr(first(cz_read("(kiban/wrapping_add a b)")), ctx)
   assert w[:method] == "wrapping_add"
+  assert (cz_expr(
+    first(cz_read("(kiban/wrapping_add a b)")),
+    cz_test_env(64)
+  ) rescue
+    :refused) == :refused
+end
+
+test "mod, inequality, and, or and integer division lower; a bare quotient is refused"
+  ctx = cz_test_env(64)
+  m = cz_expr(first(cz_read("(mod a b)")), ctx)
+  assert first(m[:args])[:method] == "checked_rem_euclid"
+  assert cz_expr(first(cz_read("(not= a b)")), ctx)[:op] == "ne"
+  assert get(
+    cz_expr(first(cz_read("(and (< a b) (> a b) (equal? a b))")), ctx),
+    :op
+  ) == "and"
+  assert cz_expr(first(cz_read("(or (< a b) (> a b))")), ctx)[:op] == "or"
+  assert cz_expr(first(cz_read("(floor (/ a b))")), ctx)[:func] ==
+    %w[kiban_io floor_div]
+  assert get(
+    first(cz_expr(first(cz_read("(floor (/ a b))")), cz_test_env(32))[:args]),
+    :method
+  ) == "checked_div"
+  assert (cz_expr(first(cz_read("(/ a b)")), ctx) rescue :refused) == :refused
+  assert (cz_expr(first(cz_read("(floor a)")), ctx) rescue :refused) == :refused
+end
+
+test "a literal is in the board word: u32 on a board, i64 on the host"
+  assert rs_word(7, 64) == {kind: "int", value: 7, suffix: "i64"}
+  assert rs_word(-7, 64)[:expr][:value] == 7
+  assert (rs_word(-7, 32) rescue :refused) == :refused
 end
 
 test "a literal past the board word is a compile error"
@@ -925,20 +1341,128 @@ test "a literal past the board word is a compile error"
   assert (rs_u32(-1) rescue :refused) == :refused
 end
 
-test "a tail self-call becomes a loop and any other self-call is refused"
+test "a call whose argument reaches the board binds its arguments first"
+  ctx = assoc(cz_test_env(64), :fns, %w[%root/f %root/g])
+  nested = cz_expr(first(cz_read("(%root/f (%root/g a) b)")), ctx)
+  assert nested[:kind] == "block"
+  stmts = nested[:block][:stmts]
+  assert map((x) -> x[:name], butlast(stmts)) == %w[a_0 a_1]
+  assert last(stmts)[:expr][:args] ==
+    [rs_path("io"), rs_path("a_0"), rs_path("a_1")]
+  flat = cz_expr(first(cz_read("(%root/f a (+ b 1))")), ctx)
+  assert flat[:kind] == "call"
+  mmio = cz_expr(first(cz_read("(kiban/mmio_write a 8 (%root/g b))")), ctx)
+  assert mmio[:kind] == "block"
+end
+
+test "a tail self-call becomes a loop"
+  env = assoc(cz_test_env(32), :fns, ["%root/down"])
   looped = cz_fn(
     first(
       cz_read("(define-typed (%root/down (n Int)) Int (if (equal? n 0) n (%root/down (- n 1))))")
     ),
-    ["%root/down"],
-    []
+    env
   )
   stmts = looped[:item][:body][:stmts]
   assert last(stmts)[:expr][:kind] == "loop"
-  deep = first(
-    cz_read("(define-typed (%root/f (n Int)) Int (+ 1 (%root/f n)))")
+end
+
+test "recursion is found through the call graph, tail self-calls aside"
+  forms = cz_read(
+    join_lines(
+      [
+        "(define-typed (%root/f (n Int)) Int (+ 1 (%root/f n)))",
+        "(define-typed (%root/down (n Int)) Int (if (equal? n 0) n (%root/down (- n 1))))",
+        "(define-typed (%root/even (n Int)) Int (if (equal? n 0) 1 (%root/odd (- n 1))))",
+        "(define-typed (%root/odd (n Int)) Int (if (equal? n 0) 0 (%root/even (- n 1))))",
+        "(define-typed (%root/leaf (n Int)) Int (%root/down n))"
+      ]
+    )
   )
-  assert (cz_fn(deep, ["%root/f"], []) rescue :refused) == :refused
+  fns = map((f) -> cz_sym(first(second(f))), forms)
+  assert cz_recursive(forms, fns) == %w[%root/f %root/even %root/odd]
+  assert cz_recursive([], []) == []
+end
+
+test "a recursive definition takes its depth and runs under the board's bound"
+  items = cz_test_items(
+    join_lines(
+      [
+        "(define-typed (%root/fib (n Int)) Int (if (< n 2) n (+ (%root/fib (- n 1)) (%root/fib (- n 2)))))",
+        "(%root/fib 20)"
+      ]
+    )
+  )
+  f = second(items)[:item]
+  assert second(f[:sig][:params]) == rs_depth_param
+  enter = first(f[:body][:stmts])
+  assert enter[:value][:func] == %w[kiban_io deeper]
+  assert last(enter[:value][:args]) == rs_u32(100_000)
+  main_call = first(last(items)[:item][:body][:stmts])[:expr]
+  assert second(main_call[:args]) == rs_u32(0)
+end
+
+test "a definition outside every cycle calls a recursive one from depth zero"
+  items = cz_test_items(
+    join_lines(
+      [
+        "(define-typed (%root/down (n Int)) Int (if (equal? n 0) n (+ 1 (%root/down (- n 1)))))",
+        "(define-typed (%root/top (n Int)) Int (%root/down n))"
+      ]
+    )
+  )
+  top = third(items)[:item]
+  assert count(top[:sig][:params]) == 2
+  assert second(last(top[:body][:stmts])[:expr][:args]) == rs_u32(0)
+end
+
+test "a board with no depth bound refuses recursion, mutual recursion included"
+  odd_even = join_lines(
+    [
+      "(define-typed (%root/even (n Int)) Int (if (equal? n 0) 1 (%root/odd (- n 1))))",
+      "(define-typed (%root/odd (n Int)) Int (if (equal? n 0) 0 (%root/even (- n 1))))"
+    ]
+  )
+  assert (cz_test_lower(odd_even, "qemu-virt32") rescue :refused) == :refused
+  assert count(cz_test_items(odd_even)) == 4
+end
+
+test "a constant may be computed from constants; a call makes a top-level binding"
+  items = cz_test_items(
+    join_lines(
+      [
+        "(define %root/A 6)",
+        "(define %root/B (floor (/ (* %root/A 7) 2)))",
+        "(define-typed (%root/sq (n Int)) Int (* n n))",
+        "(define %root/K (%root/sq %root/B))",
+        "(%root/sq %root/K)"
+      ]
+    )
+  )
+  assert map((i) -> i[:kind], items) == %w[use const const fn fn]
+  assert third(items)[:name] == "BL_B"
+  main_stmts = last(items)[:item][:body][:stmts]
+  assert first(main_stmts)[:name] == "g_k"
+  assert second(main_stmts)[:expr][:args] == [rs_path("io"), rs_path("g_k")]
+  reads = join_lines(
+    [
+      "(define-typed (%root/sq (n Int)) Int (* n n))",
+      "(define %root/K (%root/sq 3))",
+      "(define-typed (%root/k (n Int)) Int (+ n %root/K))"
+    ]
+  )
+  assert (cz_test_items(reads) rescue :refused) == :refused
+end
+
+test "an if with no else is a statement where its value is dropped"
+  s = cz_stmt(
+    first(cz_read("(if (< a b) (kiban/mmio_write a 8 b))")),
+    cz_test_env(64)
+  )
+  assert s[:kind] == "semi"
+  assert s[:expr][:else_branch].nil?
+  assert (cz_expr(first(cz_read("(if (< a b) a)")), cz_test_env(64)) rescue
+    :refused) == :refused
 end
 
 test "outside the N0 subset is refused, naming the rule"
@@ -948,6 +1472,16 @@ test "outside the N0 subset is refused, naming the rule"
   assert (cz_lower(cz_read("(use \"retsu\" (list :first))"), board) rescue
     :refused) == :refused
   assert (cz_lower(cz_read("(eval 1)"), board) rescue :refused) == :refused
+  assert (cz_lower([], {name: "wide", word: 16}) rescue :refused) == :refused
+end
+
+test "the host builds for speed and unwinds; a board builds for size and aborts"
+  host = cz_rustc_flags(kb_board("host64"))
+  assert member?("opt-level=3", host)
+  assert not member?("--target", host)
+  virt = cz_rustc_flags(kb_board("qemu-virt32"))
+  assert member?("riscv32imac-unknown-none-elf", virt)
+  assert member?("panic=abort", virt)
 end
 
 test "the linker script comes from the board's ram region"

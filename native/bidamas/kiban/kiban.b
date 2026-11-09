@@ -78,12 +78,40 @@ def kb_qemu_virt32()
 end
 
 @doc """
+kb_host64: The machine blue itself runs on, as a board: a 64-bit word that is the
+interpreter's Int, the virt32 board's UART and finisher addresses (so a
+program and kiban's model run unchanged on both), the host's own rustc
+target (`rust_target` nil), unwinding faults, and a recursion bound equal to
+the interpreter's default call depth. The image is a process; its UART is
+standard output. This is the board the differential corpus and the
+benchmarks build for.
+
+    kb_host64[:word] #=> 64
+    kb_host64[:max_depth] #=> 100_000
+"""
+def kb_host64()
+  assoc(
+    assoc(
+      assoc(
+        assoc(assoc(kb_qemu_virt32, :name, "host64"), :isa, :host),
+        :word,
+        64
+      ),
+      :rust_target,
+      nil
+    ),
+    :max_depth,
+    100_000
+  )
+end
+
+@doc """
 kb_boards: Every board this package knows, by name.
 
-    map((b) -> b[:name], kb_boards) #=> ["qemu-virt32"]
+    map((b) -> b[:name], kb_boards) #=> ["qemu-virt32", "host64"]
 """
 def kb_boards()
-  [kb_qemu_virt32]
+  [kb_qemu_virt32, kb_host64]
 end
 
 @doc """
@@ -177,6 +205,15 @@ end
 test "the virt32 board is found by name and an unknown one is nil"
   assert kb_board("qemu-virt32")[:rust_target] == "riscv32imac-unknown-none-elf"
   assert kb_board("no-such-board").nil?
+end
+
+test "the host board shares virt32's devices and declares its own word and depth"
+  h = kb_board("host64")
+  assert h[:word] == 64
+  assert h[:rust_target].nil?
+  assert h[:max_depth] == 100_000
+  assert kb_device_base(h, :uart0) == kb_device_base(kb_qemu_virt32, :uart0)
+  assert kb_qemu_virt32[:max_depth].nil?
 end
 
 test "device bases are the virt machine's"

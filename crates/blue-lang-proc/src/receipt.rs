@@ -85,6 +85,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use blue_lang_waku::{Capability, Provided};
 use serde_json::{json, Value as Json};
 
+use crate::trace::TapeEntry;
 use crate::Pid;
 
 /// The format name every receipt carries.
@@ -96,18 +97,29 @@ pub const VERSION_UNROOTED: u64 = 1;
 pub const VERSION_STEPPED: u64 = 3;
 pub const VERSION_CARRIED: u64 = 4;
 pub const VERSION_CARRIED_ROOTED: u64 = 5;
+pub const VERSION_REPLAYABLE: u64 = 6;
 /// Every version [`check`] accepts.
-pub const READS: [u64; 5] = [
+pub const READS: [u64; 6] = [
     VERSION_UNROOTED,
     VERSION,
     VERSION_STEPPED,
     VERSION_CARRIED,
     VERSION_CARRIED_ROOTED,
+    VERSION_REPLAYABLE,
 ];
 /// The keys a server's receipt has from version 2 on.
 pub const ROOT_KEYS: [&str; 2] = ["input_root", "output_root"];
 pub const STEPS_KEY: &str = "steps";
 pub const CARRIED_KEY: &str = "carried";
+pub const REPLAY_KEY: &str = "replay";
+pub const REPLAY_FIELDS: [&str; 3] = ["inputs", "output", "tape"];
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Replay {
+    pub inputs: String,
+    pub output: String,
+    pub tape: String,
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CarriedIo {
@@ -172,9 +184,10 @@ pub fn check(receipt: &Json) -> Result<(), String> {
         ),
         Some(VERSION_CARRIED) => (false, receipt.get(STEPS_KEY).is_some(), true),
         Some(VERSION_CARRIED_ROOTED) => (true, receipt.get(STEPS_KEY).is_some(), true),
+        Some(VERSION_REPLAYABLE) => (false, receipt.get(STEPS_KEY).is_some(), false),
         _ => {
             return Err(format!(
-                "{FORMAT} version {}; this blue reads versions {} to {VERSION_CARRIED_ROOTED}",
+                "{FORMAT} version {}; this blue reads versions {} to {VERSION_REPLAYABLE}",
                 receipt.get("version").unwrap_or(&Json::Null),
                 READS[0]
             ))
@@ -197,6 +210,7 @@ pub fn check(receipt: &Json) -> Result<(), String> {
         }
     }
     check_carried(receipt, v, carried, rooted && carried)?;
+    check_replay(receipt, v)?;
     match (stepped, receipt.get(STEPS_KEY)) {
         (false, Some(_)) => Err(format!(
             "a version {v} receipt carries `{STEPS_KEY}`, which only version {VERSION_STEPPED}, {VERSION_CARRIED} or {VERSION_CARRIED_ROOTED} has"
@@ -207,6 +221,33 @@ pub fn check(receipt: &Json) -> Result<(), String> {
         }
         _ => Ok(()),
     }
+}
+
+fn check_replay(receipt: &Json, v: u64) -> Result<(), String> {
+    let block = match (v == VERSION_REPLAYABLE, receipt.get(REPLAY_KEY)) {
+        (false, None) => return Ok(()),
+        (false, Some(_)) => {
+            return Err(format!(
+                "a version {v} receipt carries `{REPLAY_KEY}`, which only a run's receipt of version {VERSION_REPLAYABLE} has"
+            ))
+        }
+        (true, None) => return Err(format!("a version {v} receipt without `{REPLAY_KEY}`")),
+        (true, Some(b)) => b,
+    };
+    if receipt.get("subject").and_then(Json::as_str) != Some("run") {
+        return Err(format!(
+            "`{REPLAY_KEY}` belongs to a run's receipt, not an actor's"
+        ));
+    }
+    for k in REPLAY_FIELDS {
+        let h = block.get(k).unwrap_or(&Json::Null);
+        if !h.as_str().is_some_and(is_hash) {
+            return Err(format!(
+                "`{REPLAY_KEY}.{k}` is {h}, not b3: and 64 hex digits"
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn check_carried(receipt: &Json, v: u64, carried: bool, rooted: bool) -> Result<(), String> {
@@ -379,6 +420,28 @@ struct Ledger {
     current: Pid,
     total: u64,
     by_pid: BTreeMap<Pid, u64>,
+    taping: Taping,
+}
+
+pub type Tapes = BTreeMap<Pid, Vec<TapeEntry>>;
+
+#[derive(Debug, Default)]
+enum Taping {
+    #[default]
+    Off,
+    Record(Tapes),
+    Replay {
+        tapes: Tapes,
+        read: BTreeMap<Pid, usize>,
+        diverged: Option<String>,
+    },
+}
+
+#[derive(Clone, Debug)]
+pub struct Taped {
+    pub tapes: Tapes,
+    pub entries: usize,
+    pub diverged: Option<String>,
 }
 
 /// Host calls made through granted host names, per process of one node.
@@ -424,7 +487,126 @@ impl HostIo {
     pub fn carry(&self, pid: Pid, calls: u64) {
         *locked(&self.0).by_pid.entry(pid).or_default() += calls;
     }
+
+    pub fn record(&self) {
+        locked(&self.0).taping = Taping::Record(Tapes::new());
+    }
+
+    pub fn replay(&self, tapes: Tapes) {
+        locked(&self.0).taping = Taping::Replay {
+            tapes,
+            read: BTreeMap::new(),
+            diverged: None,
+        };
+    }
+
+    #[must_use]
+    pub fn replaying(&self) -> bool {
+        matches!(locked(&self.0).taping, Taping::Replay { .. })
+    }
+
+    #[must_use]
+    pub fn taped(&self) -> Option<Taped> {
+        match &locked(&self.0).taping {
+            Taping::Off => None,
+            Taping::Record(tapes) => Some(Taped {
+                tapes: tapes.clone(),
+                entries: tapes.values().map(Vec::len).sum(),
+                diverged: None,
+            }),
+            Taping::Replay {
+                tapes,
+                read,
+                diverged,
+            } => {
+                let tapes: Tapes = read
+                    .iter()
+                    .filter(|(_, n)| **n > 0)
+                    .map(|(pid, n)| {
+                        (
+                            *pid,
+                            tapes.get(pid).map_or_else(Vec::new, |t| t[..*n].to_vec()),
+                        )
+                    })
+                    .collect();
+                Some(Taped {
+                    entries: tapes.values().map(Vec::len).sum(),
+                    tapes,
+                    diverged: diverged.clone(),
+                })
+            }
+        }
+    }
+
+    pub fn through(
+        &self,
+        name: &str,
+        span: tatara_lisp::Span,
+        live: impl FnOnce() -> Result<tatara_lisp_eval::Value, tatara_lisp_eval::EvalError>,
+    ) -> Result<tatara_lisp_eval::Value, tatara_lisp_eval::EvalError> {
+        self.tally();
+        let answer = {
+            let mut l = locked(&self.0);
+            let pid = crate::scheduling::lane().unwrap_or(l.current);
+            match &mut l.taping {
+                Taping::Off | Taping::Record(_) => None,
+                Taping::Replay {
+                    tapes,
+                    read,
+                    diverged,
+                } => {
+                    let at = read.entry(pid).or_default();
+                    let found = match tapes.get(&pid).and_then(|t| t.get(*at)) {
+                        Some(e) if e.call == name => {
+                            *at += 1;
+                            Ok(e.clone())
+                        }
+                        Some(e) => Err(format!(
+                            "at tape entry {at} of process {} the run called `{name}` where the record has `{}`",
+                            pid.0, e.call
+                        )),
+                        None => Err(format!(
+                            "process {} called `{name}` after its tape ended ({at} calls)",
+                            pid.0
+                        )),
+                    };
+                    if let Err(why) = &found {
+                        diverged.get_or_insert(why.clone());
+                    }
+                    Some(found)
+                }
+            }
+        };
+        match answer {
+            Some(Ok(entry)) => match (entry.outcome, entry.fatal) {
+                (Ok(v), _) => Ok(v),
+                (Err(m), Some(kind)) => Err(tatara_lisp_eval::EvalError::fatal(kind, m, span)),
+                (Err(m), None) => Err(tatara_lisp_eval::EvalError::native_fn(
+                    name.to_string(),
+                    m,
+                    span,
+                )),
+            },
+            Some(Err(why)) => Err(tatara_lisp_eval::EvalError::fatal(DIVERGED, why, span)),
+            None => {
+                let pid = {
+                    let l = locked(&self.0);
+                    crate::scheduling::lane().unwrap_or(l.current)
+                };
+                let out = live();
+                if let Taping::Record(tapes) = &mut locked(&self.0).taping {
+                    tapes
+                        .entry(pid)
+                        .or_default()
+                        .push(TapeEntry::of(name, &out));
+                }
+                out
+            }
+        }
+    }
 }
+
+pub const DIVERGED: &str = "replay-diverged";
 
 type Deferred<T> = Box<dyn FnOnce() -> T + Send>;
 
@@ -589,6 +771,7 @@ pub struct Receipt {
     pub roots: Option<Roots>,
     pub steps: Option<u64>,
     pub carried: Option<CarriedIo>,
+    pub replay: Option<Replay>,
 }
 
 impl Receipt {
@@ -628,6 +811,10 @@ impl Receipt {
                 VERSION_CARRIED
             });
             j[CARRIED_KEY] = c.to_json();
+        }
+        if let Some(r) = &self.replay {
+            j["version"] = json!(VERSION_REPLAYABLE);
+            j[REPLAY_KEY] = json!({"inputs": r.inputs, "output": r.output, "tape": r.tape});
         }
         j
     }
@@ -718,6 +905,55 @@ mod tests {
             canonical(&block),
             r#"{"granted":["filesystem"],"host_io":3,"withheld":["process","environment","network","entropy"]}"#
         );
+    }
+
+    fn run_receipt(replay: Option<Replay>) -> Receipt {
+        Receipt {
+            subject: Subject::Run,
+            definition: Some("%run".into()),
+            def_hash: None,
+            frame: frame(),
+            host_io: 2,
+            exit_kind: "normal".into(),
+            exit_text: "normal".into(),
+            roots: None,
+            steps: None,
+            carried: None,
+            replay,
+        }
+    }
+
+    fn hashes() -> Replay {
+        let h = |c: char| format!("b3:{}", c.to_string().repeat(64));
+        Replay {
+            inputs: h('a'),
+            output: h('b'),
+            tape: h('c'),
+        }
+    }
+
+    #[test]
+    fn a_replayable_run_receipt_is_version_6_and_checks() {
+        let j = run_receipt(Some(hashes())).to_json();
+        assert_eq!(j["version"], VERSION_REPLAYABLE);
+        check(&j).expect("a version 6 receipt checks");
+        assert_eq!(run_receipt(None).to_json()["version"], VERSION_UNROOTED);
+    }
+
+    #[test]
+    fn a_replay_block_is_refused_where_it_does_not_belong_or_is_not_hashes() {
+        let mut v1 = run_receipt(Some(hashes())).to_json();
+        v1["version"] = json!(VERSION_UNROOTED);
+        assert!(check(&v1).unwrap_err().contains("replay"));
+        let mut missing = run_receipt(Some(hashes())).to_json();
+        missing.as_object_mut().expect("object").remove(REPLAY_KEY);
+        assert!(check(&missing).unwrap_err().contains("without `replay`"));
+        let mut actor = run_receipt(Some(hashes())).to_json();
+        actor["subject"] = json!("actor");
+        assert!(check(&actor).unwrap_err().contains("run's receipt"));
+        let mut bad = run_receipt(Some(hashes())).to_json();
+        bad[REPLAY_KEY]["tape"] = json!("b3:nope");
+        assert!(check(&bad).unwrap_err().contains("replay.tape"));
     }
 
     #[test]
@@ -830,6 +1066,7 @@ mod tests {
             roots: None,
             steps: None,
             carried: None,
+            replay: None,
         };
         let text = String::from_utf8(r.bytes()).expect("utf8");
         assert!(!text.contains(' ') && !text.contains('\n'), "{text}");
@@ -865,6 +1102,7 @@ mod tests {
             roots,
             steps: None,
             carried: None,
+            replay: None,
         }
     }
 
@@ -919,7 +1157,7 @@ mod tests {
             &edited(&v1, "input_root", json!(root('a'))),
             "carries `input_root`",
         );
-        refused(&edited(&v1, "version", json!(6)), "reads versions 1 to 5");
+        refused(&edited(&v1, "version", json!(7)), "reads versions 1 to 6");
         refused(
             &edited(&v2, "output_root", json!("b3:00")),
             "not b3: and 64 hex",
@@ -936,7 +1174,7 @@ mod tests {
             .as_object_mut()
             .expect("object")
             .remove("version");
-        refused(&unversioned, "reads versions 1 to 5");
+        refused(&unversioned, "reads versions 1 to 6");
     }
 
     const V2: &str = r#"{"def_hash":"b3:ab","definition":"%root/w","exit":{"kind":"normal","text":"normal"},"format":"blue-receipt","frame":{"granted":["filesystem"],"host_io":7,"withheld":["process","environment","network","entropy"]},"incarnation":1,"input_root":"b3:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","output_root":"b3:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","pid":2,"provided":[{"at_ms":5,"provider":"deterministic-stepped","step_ms":1},{"for":["kazu"],"provider":"null-sink"}],"subject":"actor","version":2}"#;

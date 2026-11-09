@@ -86,6 +86,57 @@ row(
 )
 
 row(
+  "network.tcp_listen.port_and_no_waiting_connection",
+  join_lines(
+    ["l = tcp_listen(\"127.0.0.1:0\")", "[tcp_port(l) > 0, tcp_accept(l)]"]
+  ),
+  value("[true, nil]"),
+  covers("builtin:tcp_listen", "builtin:tcp_port", "builtin:tcp_accept"),
+  host()
+)
+
+row(
+  "network.tcp.round_trip_through_net_wait",
+  join_lines(
+    [
+      "l = tcp_listen(\"127.0.0.1:0\")",
+      "c = tcp_connect(concat(\"127.0.0.1:\", tcp_port(l)), 1000)",
+      "net_wait([[l, :read]], 1000)",
+      "s = tcp_accept(l)",
+      "sent = tcp_write(c, \"hi\")",
+      "ready = net_wait([[s, :read]], 1000)",
+      "got = bytes_text(tcp_read(s, 16))",
+      "tcp_close(c)",
+      "tcp_close(c)",
+      "[sent, last(first(ready)), got, tcp_read(c, 16)]"
+    ]
+  ),
+  value("[2, :read, \"hi\", nil]"),
+  covers(
+    "builtin:tcp_connect",
+    "builtin:tcp_write",
+    "builtin:tcp_read",
+    "builtin:tcp_close",
+    "builtin:net_wait"
+  ),
+  host()
+)
+
+row(
+  "network.net_wait.nothing_ready_is_empty",
+  join_lines(["l = tcp_listen(\"127.0.0.1:0\")", "net_wait([[l, :read]], 0)"]),
+  value("[]"),
+  host()
+)
+
+row(
+  "network.net_wait.not_a_handle",
+  "net_wait([[1, :read]], 0)",
+  fails(:eval, "not a handle net_wait can wait on"),
+  host()
+)
+
+row(
   "network.http_listen.bad_address",
   "http_listen(\"no-port-here\")",
   fails(:eval, "cannot listen"),

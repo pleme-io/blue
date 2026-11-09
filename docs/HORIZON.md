@@ -330,6 +330,36 @@ is; a cached check result read under a different engine identity is refused.
 **Gate:** the async conformance set green at `schedulers(1)` and
 `schedulers(n)`; a replayed run's receipt equals the original's.
 
+**Built (2026-11-09), wave 3.** `net_wait` is in the node loop: a process
+that waits on a socket parks on `Wait::Net`, and the loop polls every waiting
+handle through `poll(2)` (rustix on Linux, the one `libc::poll` in the darwin
+seam) beside the node-time timers A1 built. On the virtual clock a wait with
+nothing ready jumps to the next deadline; a wait with no deadline waits on
+the sockets in real time. The handles are the `tcp_*` words of
+[`HTTP2.md`](HTTP2.md) §5d (`tcp_listen`, `tcp_port`, `tcp_accept`,
+`tcp_connect`, `tcp_read`, `tcp_write`, `tcp_close`), all non-blocking and
+held by `Capability::Network`. Replay: `blue run --receipts DIR --record`
+runs on the virtual clock with every host call's answer on a tape per
+process, writes the run's receipt as `blue-receipt` version 6 (a `replay`
+block naming the hashes of the inputs, the output and the tape) and
+`<receipt hash>.run.json` beside it; `blue replay <receipt>` runs the program
+again from that record, every host call answered from the tape, and passes
+only when the replayed run's receipt is the original's. Tests:
+`blue-lang-proc/tests/net_wait.rs` (8) and `blue-lang-cli/tests/run_replay.rs`
+(7), the receipt form in `receipt.rs` (2). Red runs: no poll in the idle
+loop deadlocks `a_process_waiting_on_a_socket_parks_and_never_holds_the_node`;
+a child `net_wait` that never parks fails it and
+`a_process_wait_times_out_in_virtual_time_among_other_timers`; a replay
+answered live instead of from the tape fails
+`a_recorded_run_replays_to_a_receipt_equal_to_the_original` and
+`a_networked_run_replays_with_no_socket_open`; an inputs hash without the
+arguments fails the negative control
+`a_changed_input_makes_the_replayed_receipt_differ`. Open: `schedulers(n)`
+does not exist (ASYNC A6), so the gate holds at `schedulers(1)` only; a
+process's `net_wait` replays its answer but not the node time it came at
+(the root's does); the idle lane is not replayable; I/O words other than
+`tcp_*` still block the node (A3); the debugger over replay.
+
 ### H5. Knowledge: the corpus as a graph you can ask
 
 - **arika Phases 2-5** ([`ARIKA.md`](ARIKA.md)): the snapshot, the MCP service

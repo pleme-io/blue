@@ -83,6 +83,7 @@ mod observe;
 mod prefetch;
 mod query;
 mod receipt;
+mod record;
 mod reference;
 mod registry;
 mod repl;
@@ -153,6 +154,14 @@ enum Cmd {
         /// the call memo is off under it, so the count is the evaluation's.
         #[arg(long, requires = "receipts")]
         receipt_steps: bool,
+        /// With `--receipts`, record the run so `blue replay RECEIPT` runs it
+        /// again: the run's receipt becomes `blue-receipt` version 6, naming
+        /// the hashes of its inputs, its output and its tape, and beside it
+        /// goes `<receipt hash>.run.json` with the source, the arguments and
+        /// the tape of every host call's answer. A recorded run reads the
+        /// virtual node clock and answers no call from the memo.
+        #[arg(long, requires = "receipts")]
+        record: bool,
         /// Do not print the program's final value. An installed command's
         /// output is what it writes (`write_stdout`), not the value its last
         /// expression happens to leave; `mkBlueApp` passes this, so a blue
@@ -825,6 +834,9 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
         blue_lang_runtime::sys::set_blue_exe(me.to_string_lossy().into_owned());
     }
     match cli.cmd {
+        Cmd::Replay { trace } if trace.ends_with(blue_lang_runtime::receipt::EXTENSION) => {
+            record::replay(&cfg, Path::new(&trace))
+        }
         Cmd::Replay { trace } => crash::resolve(&trace)
             .and_then(|path| replay::run(&path))
             .map_err(CliError::Fmt),
@@ -837,6 +849,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             allow,
             receipts,
             receipt_steps,
+            record,
             quiet,
             format,
             timings,
@@ -847,130 +860,42 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                 blue_lang_runtime::timings::enable();
             }
             sigint::stop();
-            inputs::hold(&file, inputs::Word::Generate)?;
-            let project = blue_lang_pkg::capabilities::hold_for(&file).map_err(CliError::Pkg)?;
-            let hold = if allow.is_empty() {
-                project
-            } else {
-                let asked = blue_lang_runtime::session::frame_granting(
-                    &repl::granted(&allow).map_err(CliError::Fmt)?,
-                );
-                Some(match project {
-                    Some(p) => blue_lang_runtime::Hold {
-                        frame: asked.narrow(&p.frame),
-                        provisions: p.provisions,
-                        bounds: p.bounds,
-                    },
-                    None => blue_lang_runtime::Hold::from(asked),
-                })
-            };
-            let hold = receipt::hold_for(hold, receipts.as_deref());
-            let mut account = receipt::account(receipts.clone());
-            if receipt_steps {
-                account.steps = Some(std::sync::Arc::default());
-            }
-            blue_lang_runtime::sys::set_program_args(args);
-            // The SURFACE the program is written in: BLUE_LANG wins, else the
-            // host locale. An explicit choice must beat a detected one.
-            let surface = resolve_surface().map_err(CliError::Pkg)?;
-            // blue compiles only canonical source. The formatter speaks the
-            // English surface, so a program that USES a `yakugo` surface's
-            // words is compiled as written rather than translated by its
-            // formatting. One that parses to the same tree either way is
-            // English — the common case under a pt or de locale — and is held
-            // to the rule like any other.
-            let src = match &surface {
-                None => blue_lang_runtime::timings::stage(
-                    blue_lang_runtime::timings::Stage::Read,
-                    || read_run(&file),
-                )?,
-                Some(pack) => {
-                    let text = read(&file)?;
-                    let english = blue_lang_syntax::parse_program(&text).ok();
-                    let spoken = blue_lang_syntax::parse_program_in(&text, pack).ok();
-                    if english.is_some() && english == spoken {
-                        blue_lang_pkg::canonical::admit(&file, text)?
+            let invoked = invoke(
+                &cfg,
+                Invocation {
+                    file: &file,
+                    src: None,
+                    inputs: &inputs,
+                    allow: &allow,
+                    receipts: receipts.as_deref(),
+                    receipt_steps,
+                    no_memo,
+                    args: args.clone(),
+                    taping: if record {
+                        record::Taping::Record
                     } else {
-                        text
-                    }
-                }
-            };
-            // Always bind, even with no `--input` flags: a program that
-            // DECLARES an input and gets no material must hear "you forgot the
-            // flag", not the macro-level "no input named …" from deep inside
-            // expansion. Short-circuiting on an empty flag list is what made it
-            // report the wrong one.
-            // Imports resolve through BLUE_PATH.
-            //
-            // The CLI is the one place a *user's* environment can supply the
-            // loader, and without this wire `use("kazu")` fails from the
-            // command line no matter what nix built — the derivations, the
-            // BLUE_PATH root and the resolver would all be correct and none of
-            // them reachable from `blue run`.
-            //
-            // Reading the environment rather than taking a flag because that is
-            // what makes the nix wrapper work: `mkBlueWithBidamas` suffixes
-            // BLUE_PATH, so a wrapped `blue` resolves the distribution with no
-            // argument, and an unwrapped one still honours a checkout. After
-            // BLUE_PATH come the project around the file and the distribution
-            // compiled in (`LoadPath::for_entry` states the order).
-            let loader = blue_lang_pkg::load_path::LoadPath::for_entry(&file);
-            // The entry file travels WITH its source. Without the path, every
-            // type error in the file the user named would report against
-            // `<anonymous>` while an imported package's reported its real path
-            // — the entry file being the one file the CLI always knows.
-            let entry = blue_lang_runtime::uses::Entry {
-                path: Some(&file),
-                text: &src,
-            };
-            let inputs = bind_inputs(&src, &inputs, &cfg)?;
-            let memo = if receipt_steps {
-                memo::Mode::Off
-            } else {
-                memo::unless_bounded(
-                    memo::mode(no_memo, &cfg),
-                    hold.as_ref().and_then(|h| h.bounds),
-                )
-            };
-            let ran = match memo {
-                memo::Mode::Off => blue_lang_runtime::pipeline::run_framed_accounted(
-                    entry,
-                    inputs,
-                    &loader,
-                    surface.as_ref(),
-                    hold.as_ref(),
-                    &account,
-                ),
-                mode => {
-                    let mut held = None;
-                    let observed = blue_lang_runtime::pipeline::run_observed_accounted(
-                        entry,
-                        inputs,
-                        &loader,
-                        surface.as_ref(),
-                        hold.as_ref(),
-                        &account,
-                        |w| {
-                            let m = memo::over(
-                                mode.persist(),
-                                w.definitions,
-                                w.lowered,
-                                w.erased,
-                                None,
-                            );
-                            held = Some(std::sync::Arc::clone(&m));
-                            m
+                        record::Taping::Off
+                    },
+                },
+            )?;
+            if let Some(dir) = &receipts {
+                if record {
+                    record::write(
+                        dir,
+                        &invoked,
+                        &record::Inputs {
+                            file: &file,
+                            inputs: &inputs,
+                            allow: &allow,
+                            args: &args,
+                            receipt_steps,
                         },
                     );
-                    if let Some(m) = &held {
-                        memo::finish(m);
-                    }
-                    observed.and_then(|o| o.outcome)
+                } else {
+                    receipt::write_run(dir, invoked.hold.as_ref(), &invoked.account, &invoked.ran);
                 }
-            };
-            if let Some(dir) = &receipts {
-                receipt::write_run(dir, hold.as_ref(), &account, &ran);
             }
+            let ran = invoked.ran;
             let out = match ran {
                 Err(e) if format == Format::Json => {
                     println!("{}", serde_json::to_string(&observe::error_json(&e))?);
@@ -2182,6 +2107,160 @@ fn describe_reach(r: &blue_lang_waku::Reach) -> String {
 /// A `Display` on `Value` would be tatara-lisp's call to make, not blue's, so
 /// this is a small local projection rather than a `format!` of arbitrary
 /// structure — it names each shape it prints.
+struct Invocation<'a> {
+    file: &'a Path,
+    src: Option<String>,
+    inputs: &'a [String],
+    allow: &'a [String],
+    receipts: Option<&'a Path>,
+    receipt_steps: bool,
+    no_memo: bool,
+    args: Vec<String>,
+    taping: record::Taping,
+}
+
+struct Invoked {
+    hold: Option<blue_lang_runtime::Hold>,
+    account: blue_lang_runtime::Account,
+    src: String,
+    ran: Result<blue_lang_runtime::pipeline::Run, blue_lang_runtime::pipeline::RunError>,
+}
+
+fn invoke(cfg: &BlueConfig, inv: Invocation<'_>) -> Result<Invoked, CliError> {
+    inputs::hold(inv.file, inputs::Word::Generate)?;
+    let project = blue_lang_pkg::capabilities::hold_for(inv.file).map_err(CliError::Pkg)?;
+    let hold = if inv.allow.is_empty() {
+        project
+    } else {
+        let asked = blue_lang_runtime::session::frame_granting(
+            &repl::granted(inv.allow).map_err(CliError::Fmt)?,
+        );
+        Some(match project {
+            Some(p) => blue_lang_runtime::Hold {
+                frame: asked.narrow(&p.frame),
+                provisions: p.provisions,
+                bounds: p.bounds,
+            },
+            None => blue_lang_runtime::Hold::from(asked),
+        })
+    };
+    let hold = receipt::hold_for(hold, inv.receipts);
+    let mut account = receipt::account(inv.receipts.map(Path::to_path_buf));
+    if inv.receipt_steps {
+        account.steps = Some(std::sync::Arc::default());
+    }
+    let taped = !matches!(inv.taping, record::Taping::Off);
+    match inv.taping {
+        record::Taping::Off => {}
+        record::Taping::Record => account.host_io.record(),
+        record::Taping::Replay(tape) => account.host_io.replay(tape),
+    }
+    if taped {
+        account.clock = Some(blue_lang_runtime::ClockKind::Virtual);
+    }
+    blue_lang_runtime::sys::set_program_args(inv.args);
+    // The SURFACE the program is written in: BLUE_LANG wins, else the
+    // host locale. An explicit choice must beat a detected one.
+    let surface = resolve_surface().map_err(CliError::Pkg)?;
+    // blue compiles only canonical source. The formatter speaks the
+    // English surface, so a program that USES a `yakugo` surface's
+    // words is compiled as written rather than translated by its
+    // formatting. One that parses to the same tree either way is
+    // English — the common case under a pt or de locale — and is held
+    // to the rule like any other.
+    let src = match (inv.src, &surface) {
+        (Some(text), _) => text,
+        (None, None) => {
+            blue_lang_runtime::timings::stage(blue_lang_runtime::timings::Stage::Read, || {
+                read_run(inv.file)
+            })?
+        }
+        (None, Some(pack)) => {
+            let text = read(inv.file)?;
+            let english = blue_lang_syntax::parse_program(&text).ok();
+            let spoken = blue_lang_syntax::parse_program_in(&text, pack).ok();
+            if english.is_some() && english == spoken {
+                blue_lang_pkg::canonical::admit(inv.file, text)?
+            } else {
+                text
+            }
+        }
+    };
+    // Always bind, even with no `--input` flags: a program that
+    // DECLARES an input and gets no material must hear "you forgot the
+    // flag", not the macro-level "no input named …" from deep inside
+    // expansion. Short-circuiting on an empty flag list is what made it
+    // report the wrong one.
+    // Imports resolve through BLUE_PATH.
+    //
+    // The CLI is the one place a *user's* environment can supply the
+    // loader, and without this wire `use("kazu")` fails from the
+    // command line no matter what nix built — the derivations, the
+    // BLUE_PATH root and the resolver would all be correct and none of
+    // them reachable from `blue run`.
+    //
+    // Reading the environment rather than taking a flag because that is
+    // what makes the nix wrapper work: `mkBlueWithBidamas` suffixes
+    // BLUE_PATH, so a wrapped `blue` resolves the distribution with no
+    // argument, and an unwrapped one still honours a checkout. After
+    // BLUE_PATH come the project around the file and the distribution
+    // compiled in (`LoadPath::for_entry` states the order).
+    let loader = blue_lang_pkg::load_path::LoadPath::for_entry(inv.file);
+    // The entry file travels WITH its source. Without the path, every
+    // type error in the file the user named would report against
+    // `<anonymous>` while an imported package's reported its real path
+    // — the entry file being the one file the CLI always knows.
+    let entry = blue_lang_runtime::uses::Entry {
+        path: Some(inv.file),
+        text: &src,
+    };
+    let inputs = bind_inputs(&src, inv.inputs, cfg)?;
+    let memo = if inv.receipt_steps || taped {
+        memo::Mode::Off
+    } else {
+        memo::unless_bounded(
+            memo::mode(inv.no_memo, cfg),
+            hold.as_ref().and_then(|h| h.bounds),
+        )
+    };
+    let ran = match memo {
+        memo::Mode::Off => blue_lang_runtime::pipeline::run_framed_accounted(
+            entry,
+            inputs,
+            &loader,
+            surface.as_ref(),
+            hold.as_ref(),
+            &account,
+        ),
+        mode => {
+            let mut held = None;
+            let observed = blue_lang_runtime::pipeline::run_observed_accounted(
+                entry,
+                inputs,
+                &loader,
+                surface.as_ref(),
+                hold.as_ref(),
+                &account,
+                |w| {
+                    let m = memo::over(mode.persist(), w.definitions, w.lowered, w.erased, None);
+                    held = Some(std::sync::Arc::clone(&m));
+                    m
+                },
+            );
+            if let Some(m) = &held {
+                memo::finish(m);
+            }
+            observed.and_then(|o| o.outcome)
+        }
+    };
+    Ok(Invoked {
+        hold,
+        account,
+        src,
+        ran,
+    })
+}
+
 fn render(v: &tatara_lisp_eval::Value) -> String {
     use tatara_lisp_eval::Value;
     match v {

@@ -1,7 +1,7 @@
 use std::path::Path;
 
 #[test]
-fn exactly_one_module_may_use_unsafe_and_it_is_the_darwin_priority_seam() {
+fn exactly_one_module_may_use_unsafe_and_it_is_the_darwin_seam() {
     let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
     let mut allowed = Vec::new();
     for e in std::fs::read_dir(&src).expect("src").flatten() {
@@ -19,7 +19,7 @@ fn exactly_one_module_may_use_unsafe_and_it_is_the_darwin_priority_seam() {
     let seam = std::fs::read_to_string(src.join("seam.rs")).expect("seam.rs");
     assert_eq!(
         seam.matches("unsafe {").count(),
-        2,
-        "the seam is two calls, setpriority and getpriority"
+        3,
+        "the seam is three calls: setpriority, getpriority and poll"
     );
 }

@@ -80,6 +80,7 @@ use crate::code::{self, Code, Entry};
 use crate::image::{self, Account, Arrivals, Continuation, Image, Supervision};
 use crate::mailbox::copy_data;
 use crate::pattern;
+use crate::readiness::{FdOf, Interest, Pollable};
 use crate::receipt::{
     CarriedIo, Frame, HostIo, Identities, Places, Receipt, ReceiptSink, Roots, StateRoot, Subject,
 };
@@ -147,6 +148,8 @@ pub const PROCESS_WORDS: &[&str] = &[
 ];
 
 pub const CARRIED_WORDS: &[&str] = &["evict", "accept"];
+
+pub const NODE_HOST_WORDS: &[&str] = &["net_wait"];
 
 pub const EVICTED: &str = "evicted";
 
@@ -316,6 +319,7 @@ pub struct NodeConfig {
     pub dispatch_steps: Option<usize>,
     pub count_steps: bool,
     pub idle_lane: IdleLane,
+    pub fd_of: Option<FdOf>,
 }
 
 impl NodeConfig {
@@ -346,6 +350,7 @@ impl NodeConfig {
             dispatch_steps: None,
             count_steps: false,
             idle_lane: IdleLane::default(),
+            fd_of: None,
         }
     }
 
@@ -479,6 +484,15 @@ enum Wait {
     },
     /// A server between messages: its migration boundary.
     ServerNext,
+    Net {
+        until: Option<u64>,
+        bound: Option<u64>,
+    },
+}
+
+struct Net {
+    handles: Vec<(Value, Interest, Pollable)>,
+    answer: Option<Result<Value, String>>,
 }
 
 impl Wait {
@@ -489,6 +503,7 @@ impl Wait {
             } => earliest(*deadline, *bound),
             Wait::Timer { until, bound } => earliest(Some(*until), *bound),
             Wait::ServerNext => None,
+            Wait::Net { until, bound } => earliest(*until, *bound),
         }
     }
 }
@@ -576,6 +591,7 @@ struct NodeState {
     recalled: BTreeSet<Pid>,
     timers: BTreeMap<(u64, u64), (Pid, Value)>,
     next_timer: u64,
+    nets: BTreeMap<Pid, Net>,
 }
 
 impl NodeState {
@@ -611,6 +627,7 @@ impl NodeState {
             recalled: BTreeSet::new(),
             timers: BTreeMap::new(),
             next_timer: 1,
+            nets: BTreeMap::new(),
         }
     }
 
@@ -693,6 +710,10 @@ impl NodeState {
                         || w.wakes().is_some_and(|d| now >= d))
             }
             Some(w @ Wait::Timer { .. }) => w.wakes().is_some_and(|d| now >= d),
+            Some(w @ Wait::Net { .. }) => {
+                self.nets.get(&pid).is_some_and(|n| n.answer.is_some())
+                    || w.wakes().is_some_and(|d| now >= d)
+            }
             Some(Wait::ServerNext) => {
                 mailbox.is_some_and(|b| !b.is_empty()) && !self.held_at_boundary(pid)
             }
@@ -728,6 +749,7 @@ impl NodeState {
         self.journals.remove(&pid);
         self.accounts.remove(&pid);
         self.evicting.remove(&pid);
+        self.nets.remove(&pid);
     }
 
     /// `pid` took `msg`: keep it among its last `bound`.
@@ -1031,6 +1053,17 @@ pub fn install<H: 'static>(interp: &mut Interpreter<H>, node: Arc<Node>) {
             },
         );
     }
+    if node_fd_of(&side).is_some() {
+        let s = side.clone();
+        interp.register_fn(
+            "net_wait",
+            Arity::Range(1, 2),
+            move |args: &[Value], _h: &mut H, span| {
+                let node = s.node("net_wait", span)?;
+                node.net_wait_root(args, span)
+            },
+        );
+    }
     for (name, relative) in [("deadline", false), ("timeout", true)] {
         let s = side.clone();
         interp.register_higher_order_fn(
@@ -1306,6 +1339,9 @@ fn install_child(proto: &mut Interpreter<()>, me: &Weak<Node>, carrying: Carryin
     for name in ["deadline", "timeout"] {
         register(proto, &side, name, Arity::Exact(2), w_scoped_in_process);
     }
+    if me.upgrade().is_some_and(|n| n.config.fd_of.is_some()) {
+        install_child_net(proto, me);
+    }
 
     // A server's boundary. Not ready while a migration is pending for this
     // process, so a busy server still stops here for the swap; the message
@@ -1358,6 +1394,9 @@ fn install_child(proto: &mut Interpreter<()>, me: &Weak<Node>, carrying: Carryin
 /// host reads land on its tape in order.
 fn record_host_names(proto: &mut Interpreter<()>, me: &Weak<Node>) {
     for name in host_names() {
+        if NODE_HOST_WORDS.contains(&name) {
+            continue;
+        }
         let Some(original @ Value::NativeFn(_)) = proto.lookup_global(name) else {
             continue;
         };
@@ -3022,6 +3061,7 @@ impl Node {
             roots,
             steps,
             carried,
+            replay: None,
         })
     }
 
@@ -3109,6 +3149,9 @@ impl Node {
             if self.land(&mut sched) {
                 continue;
             }
+            if self.poll_nets(Some(Duration::ZERO)) {
+                continue;
+            }
             if self.has_work(&sched) {
                 self.round(&mut sched);
                 continue;
@@ -3133,6 +3176,21 @@ impl Node {
             if let Some(limit) = aloft {
                 self.await_flight(&mut sched, limit);
                 continue;
+            }
+            if self.has_nets() {
+                let limit = {
+                    let mut st = self.st();
+                    let now = st.clock.now();
+                    match st.clock.kind {
+                        ClockKind::Real => {
+                            next.map(|t| Duration::from_millis(t.saturating_sub(now)))
+                        }
+                        ClockKind::Virtual => next.map(|_| Duration::ZERO),
+                    }
+                };
+                if self.poll_nets(limit) || next.is_none() {
+                    continue;
+                }
             }
             match next {
                 Some(t) => {
@@ -3928,4 +3986,338 @@ fn w_defmigrate(node: &Node, who: Who, args: &[Value], span: Span) -> Result<Val
             },
         ])
     })))
+}
+
+fn node_fd_of(side: &Side) -> Option<FdOf> {
+    match side {
+        Side::Root(n) => n.config.fd_of,
+        Side::Child(w) => w.upgrade().and_then(|n| n.config.fd_of),
+    }
+}
+
+type Handles = Vec<(Value, Interest, Pollable)>;
+
+fn net_args(fd_of: FdOf, args: &[Value], span: Span) -> Result<(Handles, Option<u64>), EvalError> {
+    let shape = "interests are a list of [handle, :read | :write | :both]";
+    let Value::List(items) = &args[0] else {
+        return Err(refuse(
+            "net_wait",
+            format!("{shape}, got {}", args[0].type_name()),
+            span,
+        ));
+    };
+    let mut handles = Vec::with_capacity(items.len());
+    for item in items.iter() {
+        let pair = match item {
+            Value::List(p) if p.len() == 2 => p,
+            other => {
+                return Err(refuse(
+                    "net_wait",
+                    format!("{shape}, got {}", other.type_name()),
+                    span,
+                ))
+            }
+        };
+        let interest = match &pair[1] {
+            Value::Keyword(k) => Interest::named(k.trim_start_matches(':')),
+            _ => None,
+        }
+        .ok_or_else(|| {
+            refuse(
+                "net_wait",
+                format!("{shape}, got {} as an interest", pair[1]),
+                span,
+            )
+        })?;
+        let fd = fd_of(&pair[0]).ok_or_else(|| {
+            refuse(
+                "net_wait",
+                format!(
+                    "{} is not a handle net_wait can wait on",
+                    pair[0].type_name()
+                ),
+                span,
+            )
+        })?;
+        handles.push((pair[0].clone(), interest, fd));
+    }
+    let timeout = match args.get(1) {
+        None | Some(Value::Nil) => None,
+        Some(Value::Int(n)) if *n >= 0 => Some(n.unsigned_abs()),
+        Some(other) => {
+            return Err(refuse(
+                "net_wait",
+                format!(
+                    "the timeout is milliseconds on the node clock (an Int >= 0) or nil, got {}",
+                    other.type_name()
+                ),
+                span,
+            ))
+        }
+    };
+    Ok((handles, timeout))
+}
+
+fn answer_of(handles: &Handles, events: &[crate::readiness::Events]) -> Option<Value> {
+    let ready: Vec<Value> = handles
+        .iter()
+        .zip(events)
+        .flat_map(|((h, interest, _), e)| {
+            crate::readiness::readiness(*interest, *e)
+                .into_iter()
+                .map(|r| Value::list([h.clone(), kw(r.label())]))
+        })
+        .collect();
+    (!ready.is_empty()).then(|| Value::list(ready))
+}
+
+fn poll_once(handles: &Handles, limit: Option<Duration>) -> Option<Result<Value, String>> {
+    let set: Vec<(Pollable, Interest)> =
+        handles.iter().map(|(_, i, fd)| (fd.clone(), *i)).collect();
+    match crate::readiness::poll(&set, limit) {
+        Ok(events) => answer_of(handles, &events).map(Ok),
+        Err(e) => Some(Err(e)),
+    }
+}
+
+fn timed(answer: Value, now: u64) -> Value {
+    Value::list([answer, int(now)])
+}
+
+fn untimed(taped: Value, span: Span) -> Result<(Value, u64), EvalError> {
+    match &taped {
+        Value::List(p) if p.len() == 2 => match &p[1] {
+            Value::Int(t) if *t >= 0 => Ok((p[0].clone(), t.unsigned_abs())),
+            _ => Err(refuse(
+                "net_wait",
+                "its taped answer has no node time",
+                span,
+            )),
+        },
+        _ => Err(refuse(
+            "net_wait",
+            "its taped answer has no node time",
+            span,
+        )),
+    }
+}
+
+impl Node {
+    fn net_allowed(&self, who: Who, span: Span) -> Result<(), EvalError> {
+        let withheld = self
+            .config
+            .frame
+            .as_ref()
+            .is_some_and(|f| f.withheld.contains(&Capability::Network));
+        if withheld {
+            let whose = match who {
+                Who::Root => "this run's frame",
+                Who::Child(_) => "this process's frame",
+            };
+            return Err(breach("net_wait", Capability::Network, whose, span));
+        }
+        Ok(())
+    }
+
+    fn has_nets(&self) -> bool {
+        self.st().nets.values().any(|n| n.answer.is_none())
+    }
+
+    fn poll_nets(&self, limit: Option<Duration>) -> bool {
+        let waiting: Vec<(Pid, Handles)> = self
+            .st()
+            .nets
+            .iter()
+            .filter(|(_, n)| n.answer.is_none())
+            .map(|(p, n)| (*p, n.handles.clone()))
+            .collect();
+        if waiting.is_empty() {
+            return false;
+        }
+        let set: Vec<(Pollable, Interest)> = waiting
+            .iter()
+            .flat_map(|(_, hs)| hs.iter().map(|(_, i, fd)| (fd.clone(), *i)))
+            .collect();
+        let polled = crate::readiness::poll(&set, limit);
+        let mut st = self.st();
+        let mut woke = false;
+        let mut at = 0;
+        for (pid, handles) in &waiting {
+            let answer = match &polled {
+                Ok(events) => answer_of(handles, &events[at..at + handles.len()]).map(Ok),
+                Err(e) => Some(Err(e.clone())),
+            };
+            at += handles.len();
+            if let (Some(a), Some(n)) = (answer, st.nets.get_mut(pid)) {
+                n.answer = Some(a);
+                woke = true;
+            }
+        }
+        woke
+    }
+
+    fn net_wait_root(&self, args: &[Value], span: Span) -> Result<Value, EvalError> {
+        self.net_allowed(Who::Root, span)?;
+        let fd_of = self
+            .config
+            .fd_of
+            .ok_or_else(|| refuse("net_wait", "this node has no readiness source", span))?;
+        let io = &self.config.host_io;
+        let taped = if io.replaying() {
+            io.through("net_wait", span, || {
+                Err(refuse("net_wait", "a replay never reaches the host", span))
+            })?
+        } else {
+            let (handles, timeout) = net_args(fd_of, args, span)?;
+            io.through("net_wait", span, || {
+                self.net_wait_live(handles, timeout, span)
+            })?
+        };
+        let (answer, at) = untimed(taped, span)?;
+        if self.now() < at {
+            let _ = self.drive(|_| None::<()>, Some(at), "net_wait", span)?;
+        }
+        Ok(answer)
+    }
+
+    fn net_wait_live(
+        &self,
+        handles: Handles,
+        timeout: Option<u64>,
+        span: Span,
+    ) -> Result<Value, EvalError> {
+        if let Some(found) = poll_once(&handles, Some(Duration::ZERO)) {
+            return found
+                .map(|a| timed(a, self.now()))
+                .map_err(|e| refuse("net_wait", e, span));
+        }
+        let (now, bound) = {
+            let mut st = self.st();
+            (st.clock.now(), st.bound_of(ROOT))
+        };
+        let deadline = timeout.map(|t| now.saturating_add(t));
+        if timeout == Some(0) {
+            return Ok(timed(Value::list(Vec::<Value>::new()), now));
+        }
+        self.st().nets.insert(
+            ROOT,
+            Net {
+                handles,
+                answer: None,
+            },
+        );
+        let driven = self.drive(
+            |st| st.nets.get_mut(&ROOT).and_then(|n| n.answer.take()),
+            earliest(deadline, bound),
+            "net_wait",
+            span,
+        );
+        self.st().nets.remove(&ROOT);
+        let now = self.now();
+        match driven? {
+            Driven::Done(Ok(a)) => Ok(timed(a, now)),
+            Driven::Done(Err(e)) => Err(refuse("net_wait", e, span)),
+            Driven::TimedOut if bound_fired(bound, deadline, now) => {
+                Err(passed("net_wait", bound.unwrap_or(now), now, span))
+            }
+            Driven::TimedOut => Ok(timed(Value::list(Vec::<Value>::new()), now)),
+            Driven::Deadlock(_) => Err(refuse(
+                "net_wait",
+                "would wait forever: nothing can become ready",
+                span,
+            )),
+        }
+    }
+}
+
+fn install_child_net(proto: &mut Interpreter<()>, me: &Weak<Node>) {
+    let (r, c) = (me.clone(), me.clone());
+    proto.register_awaitable_fn(
+        "net_wait",
+        Arity::Range(1, 2),
+        move |args: &[Value], _h: &()| {
+            let Some(node) = r.upgrade() else { return true };
+            let Ok(_pass) = node.pass("net_wait", Span::synthetic()) else {
+                return true;
+            };
+            if node.config.host_io.replaying() {
+                return true;
+            }
+            let pid = node.current();
+            {
+                let mut st = node.st();
+                let now = st.clock.now();
+                if let Some(n) = st.nets.get(&pid) {
+                    return n.answer.is_some()
+                        || st
+                            .waits
+                            .get(&pid)
+                            .and_then(Wait::wakes)
+                            .is_some_and(|d| now >= d);
+                }
+            }
+            if node
+                .net_allowed(Who::Child(pid), Span::synthetic())
+                .is_err()
+            {
+                return true;
+            }
+            let Some(fd_of) = node.config.fd_of else {
+                return true;
+            };
+            let Ok((handles, timeout)) = net_args(fd_of, args, Span::synthetic()) else {
+                return true;
+            };
+            let found = poll_once(&handles, Some(Duration::ZERO));
+            let mut st = node.st();
+            let now = st.clock.now();
+            let ready = found.is_some() || timeout == Some(0);
+            if !ready {
+                let wait = Wait::Net {
+                    until: timeout.map(|t| now.saturating_add(t)),
+                    bound: st.bound_of(pid),
+                };
+                st.waits.insert(pid, wait);
+            }
+            st.nets.insert(
+                pid,
+                Net {
+                    handles,
+                    answer: found,
+                },
+            );
+            ready
+        },
+        move |args: &[Value], _h: &mut (), span| {
+            let node = Side::Child(c.clone()).node("net_wait", span)?;
+            let _pass = node.pass("net_wait", span)?;
+            let pid = node.current();
+            node.net_allowed(Who::Child(pid), span)?;
+            let fd_of = node
+                .config
+                .fd_of
+                .ok_or_else(|| refuse("net_wait", "this node has no readiness source", span))?;
+            let taped = node.config.host_io.through("net_wait", span, || {
+                let (waited, net, now) = {
+                    let mut st = node.st();
+                    (st.waits.remove(&pid), st.nets.remove(&pid), st.clock.now())
+                };
+                let Some(net) = net else {
+                    net_args(fd_of, args, span)?;
+                    return Ok(timed(Value::list(Vec::<Value>::new()), now));
+                };
+                match (net.answer, waited) {
+                    (Some(Ok(a)), _) => Ok(timed(a, now)),
+                    (Some(Err(e)), _) => Err(refuse("net_wait", e, span)),
+                    (None, Some(Wait::Net { until, bound })) if bound_fired(bound, until, now) => {
+                        Err(passed("net_wait", bound.unwrap_or(now), now, span))
+                    }
+                    (None, _) => Ok(timed(Value::list(Vec::<Value>::new()), now)),
+                }
+            });
+            let out = taped.and_then(|t| untimed(t, span).map(|(a, _)| a));
+            node.record(pid, "net_wait", &out);
+            out
+        },
+    );
 }

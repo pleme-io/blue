@@ -189,12 +189,13 @@ for calls to typed definitions (`check_program_with`'s boundary pass, counted
 in `Stats::boundary_visited`, so `visited` still measures only typed bodies).
 An argument whose type is known at the call (a literal, a local binding of
 one, a list, map or record built there, a typed call) is checked as B0005; an
-argument not known there is left alone, and no other rule runs on untyped
-code. A bare call is checked when one top-level definition has the name and
+argument not known there, or a parameter typed with a name blue does not know
+(`String`), is left alone, and no other rule runs on untyped code. A bare call is checked when one top-level definition has the name and
 no local binds it; a qualified `pkg::f(...)` is checked against `pkg`'s typed
 `f`. The position: `blueshift(:strict)` at the top level of a file is that
-file's demand for types, B0082 (waivable) at every top-level `def` that leaves
-a parameter or its return unannotated; `dyn` written by hand is a type. The
+file's demand for the `checked` rung, B0082 (waivable) at every top-level
+`def` with no annotation at all (`blue fmt` drops a hand-written `x: dyn`, so
+one annotation is the demand; `def show(x) -> dyn` takes any value). The
 marker binds the file that declares it only, so a script that `use`s a strict
 bidama is not made strict. `scope::is_file_declaration` is now the one
 predicate for the declarations that never run (`use`, `legacy_names`,
@@ -205,6 +206,9 @@ of G8 (`shift.wrong_arg.annotated`: an untyped caller passing an untyped
 value, refused at run time), a bidama-wide position in the Bluefile, carrying
 a top-level binding across forms, `case` narrowing a union, and record or
 union types named across a bidama (`geo::point` in a signature stays opaque).
+B0082 is not yet in `gen/consumers.json`'s swept codes: the sweep at this blue
+finds no B0005 or B0082 in any consumer, and refuses to record because kensa
+and nupastel are red on B0058, which is older than this work.
 
 ### H3. Code is content: the definition hash as identity
 

@@ -257,7 +257,17 @@ fn test_files(root: &Path) -> Vec<PathBuf> {
     out
 }
 
-/// Run each file's tests, across as many threads as the machine has.
+/// The order to start `files` in: the largest first, so the file that runs
+/// longest does not start last and run alone. Ties keep their given order.
+fn longest_first(files: &[PathBuf]) -> Vec<usize> {
+    let size = |p: &PathBuf| std::fs::metadata(p).map_or(0, |m| m.len());
+    let mut order: Vec<usize> = (0..files.len()).collect();
+    order.sort_by_key(|&i| std::cmp::Reverse(size(&files[i])));
+    order
+}
+
+/// Run each file's tests, across as many threads as the machine has, the
+/// largest file first.
 fn run_files(
     files: &[PathBuf],
     watch: &Watch<'_>,
@@ -267,6 +277,7 @@ fn run_files(
     let workers = std::thread::available_parallelism()
         .map_or(1, std::num::NonZero::get)
         .min(files.len().max(1));
+    let order = longest_first(files);
     let next = AtomicUsize::new(0);
     let mut slots: Vec<Option<Result<FileRun, CliError>>> =
         std::iter::repeat_with(|| None).take(files.len()).collect();
@@ -276,8 +287,10 @@ fn run_files(
             std::thread::Builder::new()
                 .stack_size(64 << 20)
                 .spawn_scoped(scope, || loop {
-                    let i = next.fetch_add(1, Ordering::Relaxed);
-                    let Some(path) = files.get(i) else { break };
+                    let Some(&i) = order.get(next.fetch_add(1, Ordering::Relaxed)) else {
+                        break;
+                    };
+                    let path = &files[i];
                     // A file that cannot be read or loaded is that file's
                     // failure, not the tree's: its siblings still run.
                     let run = test_file(path, watch, guard, identify).or_else(|e| {
@@ -787,7 +800,25 @@ pub(crate) fn error_json(e: &blue_lang_runtime::RunError) -> serde_json::Value {
 
 #[cfg(test)]
 mod tests {
-    use super::test_files;
+    use super::{longest_first, test_files};
+
+    #[test]
+    fn the_largest_file_starts_first_and_ties_keep_their_order() {
+        let base = std::env::temp_dir().join(format!("blue-longest-{}", std::process::id()));
+        std::fs::create_dir_all(&base).unwrap();
+        let files: Vec<std::path::PathBuf> = [("a.b", 1), ("b.b", 30), ("c.b", 1), ("d.b", 7)]
+            .iter()
+            .map(|(n, len)| {
+                let p = base.join(n);
+                std::fs::write(&p, "x".repeat(*len)).unwrap();
+                p
+            })
+            .collect();
+        let order = longest_first(&files);
+        std::fs::remove_dir_all(&base).unwrap();
+        assert_eq!(order, vec![1, 3, 0, 2]);
+        assert!(longest_first(&[]).is_empty());
+    }
 
     #[test]
     fn a_bidama_of_symlinks_is_walked_as_its_files() {

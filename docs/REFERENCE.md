@@ -127,7 +127,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-389 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 196 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+396 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 196 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -542,8 +542,13 @@ Higher binding power binds tighter.
 
 | name | call | arity | meaning |
 |---|---|---|---|
+| `bao_outboard` | `bao_outboard(data)` | 1 | {root:, outboard:} in hex for a string or byte list: root is its BLAKE3 hash, the same as blake3_hex(data), and outboard is the Bao chunk tree that proves any range of it. |
+| `bao_slice` | `bao_slice(data, outboard_hex, start, length)` | 4 | The Bao slice in hex that proves bytes start to start + length of data against its root, from the data and its outboard. |
+| `bao_verify_slice` | `bao_verify_slice(root_hex, slice_hex, start, length)` | 4 | The bytes of the range a slice proves, as a byte list, verified against the root. A slice that does not verify raises :tampered and gives no bytes. |
 | `blake3_hex` | `blake3_hex(data)` | 1 | The BLAKE3-256 hash of a string or byte list, in lowercase hex. shomei's hash_message wraps it. |
 | `bytes_equal?` | `bytes_equal?(a, b)` | 2 | Whether two strings or byte lists hold the same bytes. It reads every position of the longer side whether or not an earlier byte differs. A difference in length is false. shomei's same? wraps it. |
+| `chacha20poly1305_open` | `chacha20poly1305_open(key_hex, nonce_hex, aad, sealed_hex)` | 4 | The plaintext of a sealed message as a byte list. A tag, ciphertext, aad or nonce that does not verify raises :tampered and gives no plaintext. |
+| `chacha20poly1305_seal` | `chacha20poly1305_seal(key_hex, nonce_hex, aad, plaintext)` | 4 | The ChaCha20-Poly1305 (RFC 8439) ciphertext and its 16-byte tag in hex, for a 32-byte key and a 12-byte nonce; aad and plaintext are a string or byte list. Never seal twice under one key and nonce. |
 | `digest_hex` | `digest_hex(algorithm, data)` | 2 | The digest of a string or byte list in lowercase hex. The algorithm is "sha1", "sha256", "sha512" or "blake3" (a string or a keyword); any other name raises. shomei's hash wraps it. |
 | `ed25519_keypair` | `ed25519_keypair(seed_hex)` | 1 | [secret, public] in hex for a 32-byte seed. The caller supplies the seed; random_bytes draws one. |
 | `ed25519_sign` | `ed25519_sign(secret_hex, message)` | 2 | The Ed25519 signature of a message, in hex. |
@@ -559,6 +564,8 @@ Higher binding power binds tighter.
 | `threshold_share_export` | `threshold_share_export(share)` | 1 | The whole secret share in hex, for its holder's own storage; the one word that prints it. threshold_share_import reads it back. |
 | `threshold_share_import` | `threshold_share_import(hex)` | 1 | A share from threshold_share_export's hex, {participant:, key:, min:, secret:}. Raises :decode_error when the hex is no share. |
 | `threshold_sign` | `threshold_sign(share, nonces, message, commitments)` | 4 | Signing round two: this share's signature share {participant:, hex:} over the message for these commitments, at least k of them and its own among them. The nonces are spent; a second use, nonces made for another message or share, or too few commitments raises :refused. |
+| `x25519_keypair` | `x25519_keypair(seed_hex)` | 1 | [secret, public] in hex for a 32-byte X25519 secret (RFC 7748). The caller supplies the seed; random_bytes draws one. |
+| `x25519_shared` | `x25519_shared(secret_hex, peer_public_hex)` | 2 | The 32-byte X25519 shared secret in hex. A peer key of low order gives an all-zero secret, which raises :refused. |
 
 ### Terminal output
 

@@ -5,15 +5,15 @@ summary: the API as a versioned rendering of one model (design)
 
 # API-EVOLUTION — the API is a versioned rendering of the one model
 
-Status: DESIGN, 2026-10-23. Nothing below is built unless the tier ledger
-(§17) says so. Paths are under `~/code/github/pleme-io/`. Line numbers were
-read on 2026-10-23. The kensa paths were read on branch `kensa/event-envelope`
-at `3c76c81`.
+Status: ❌ not built. This doc is design. The [Ledger](#ledger) at the end
+says what exists today. Paths are under `~/code/github/pleme-io/`. Line
+numbers were read on 2026-10-23. The kensa paths were read on branch
+`kensa/event-envelope` at `3c76c81`.
 
-Decided context, not argued again here: `theory/BLUE-STRUCTURE.md` §6.5 (one
-`model(...)`, every data surface is a rendering) and §6.6 (one `service(...)`
-plus one `model(...)`); `blue/docs/SERVICE-ARCHITECTURE.md` (katachi judges the
-model, haibi renders, forge-gen generates from OpenAPI);
+Decided context, not argued again here: one `model(...)`, and every data
+surface is a rendering of it; a service is one `service(...)` plus one model;
+`blue/docs/SERVICE-ARCHITECTURE.md` (katachi judges the model, haibi renders,
+forge-gen generates from OpenAPI);
 `kensa/docs/live-compliance.md` §5.6 (kensa's model).
 
 ## 1. Destination
@@ -554,18 +554,22 @@ No handler changes. No hand-written OpenAPI, SDL or proto changes.
 | deprecation headers that disagree with the docs | both render from the same delta | that element |
 | an OpenAPI spec that lags the routes (kensa today) | the spec is a rendering; the freshness gate fails a stale one | that file |
 
-## 18. Tier ledger
+## Ledger
 
-| Item | Tier | Evidence |
+What exists today, measured on 2026-11-09. Only kensa's hand-written API is
+live. Every lifecycle, version, rendering and planner item is design.
+
+✅ built and tested · ⏳ in progress · ❌ not built
+
+| Item | State | What makes it true |
 |---|---|---|
-| `/api/v1` path and `kensa.v1` package | live | `kensa/src/api/rest.rs:51`, `kensa/proto/kensa.proto:9` |
-| additive DDL (`ADD COLUMN IF NOT EXISTS`) | tested | `haibi.b:347`, test at `:895` |
-| forge-gen from one OpenAPI to SDKs, MCP, gRPC-rust, docs | tested | forge-gen tests (`registry.rs:584`) |
-| REST, GraphQL, gRPC served by kensa, hand-written | live (gRPC behind a feature that does not build: `main.rs:502`) | kensa routes and schema |
-| hand-run expand and contract | live, by comment | lilitu `m20260208_000001` |
-| lifecycle words, versions, delta catalog, refusals | design | none |
-| per-version OpenAPI, SDL, proto from the model; number lock; compatibility gate | design | none |
-| `api_version` posture, headers, 410 | design | none |
-| pinning, usage telemetry, evidence states, sunset gate | design | none |
-| storage planner (expand, backfill, migrate, contract) | design | none |
-| kensa `observed_at` → `evidence_time` | design | none |
+| `/api/v1` path and `kensa.v1` package | ✅ built | live in kensa: `kensa/src/api/rest.rs:51`, `kensa/proto/kensa.proto:9` |
+| Additive DDL (`ADD COLUMN IF NOT EXISTS`) | ✅ built | haibi test "the DDL is additive, keyed by id, with nullable columns marked" (`bidamas/eigyou/haibi/haibi.b`) |
+| forge-gen from one OpenAPI to SDKs, MCP, gRPC for Rust, docs | ✅ built | forge-gen's own tests (`registry.rs:584`) |
+| REST, GraphQL, gRPC served by kensa, written by hand | ⏳ in progress | live in kensa. gRPC sits behind a feature that does not build (`main.rs:502`) |
+| Expand and contract | ⏳ in progress | `teeburu::evolve` and `teeburu::postgres` render typed steps with keyset backfills (`bidamas/chozou/teeburu/teeburu.b`, test "split and merge copy rows in keyset batches into the new table"). No planner orders expand, backfill, migrate and contract across versions |
+| Lifecycle words, versions, the delta catalog, the §9 refusals | ❌ not built | No `version` or `api_policy` word exists. Done at P1 (§14) |
+| Per-version OpenAPI, SDL and proto from the model; the number lock; the compatibility gate | ❌ not built | `toriyose/outou` renders GraphQL with deprecations from a blue schema, not from the model |
+| `api_version` posture, headers, 410 | ❌ not built | Done when kensa serves two versions and the headers show on the wire (P8) |
+| Pinning, usage telemetry, evidence states, the sunset gate | ❌ not built | No word exists |
+| kensa renames `observed_at` to `evidence_time` (§13) | ❌ not built | the worked example; design only |

@@ -7,8 +7,7 @@ summary: a zero-server peer network in blue with capability memory regions, faul
 
 Status: DESIGN, 2026-11-09, revised after an independent review the same day.
 Owner of the design: this file. It refines [`SUBSTRATE.md`](SUBSTRATE.md)
-layer 3 (phases L3.1 and L3.2) and
-[`theory/IBUKI.md`](https://github.com/pleme-io/theory/blob/main/IBUKI.md).
+layer 3 (phases L3.1 and L3.2) and the ibuki plane (`bidamas/ibuki`).
 The tier ledger at the end is the only place a status is claimed.
 
 ## 1. Destination
@@ -29,8 +28,8 @@ commit-reveal, netcode and re-execution checks are blue. The rules of one game
 run as a sealed blue process that a blue node spawns with an empty capability
 ceiling ("blue hosts blue"). Rust supplies only what blue cannot: the
 interpreter, the UDP socket, and primitives (BLAKE3 and its chunk tree, Ed25519,
-X25519, an AEAD, disk bytes). When BLUE-NATIVE self-hosting lands
-(`theory/BLUE-NATIVE.md` §5), the interpreter moves up the ladder too.
+X25519, an AEAD, disk bytes). When blue hosts its own
+interpreter, the interpreter moves up the ladder too.
 
 **Memory is a capability too.** A process registers a region of its state and
 hands out grants: unforgeable, signed, narrowable, revocable rights to read,
@@ -118,7 +117,7 @@ unless named. Rows marked "branch" are on an unlanded branch, not on main.
 | a frame per bidama | DESIGN (H13); one frame per interpreter today | `docs/HORIZON.md` §H13, `runtime/src/lib.rs` (`Hold`) |
 | live-byte accounting; bounds that only narrow | TESTED | `runtime/src/memory.rs`, `ExecutionBounds::meet` |
 | processes share nothing; messages deep-copied | TESTED, doctrine | `crates/blue-lang-proc/src/mailbox.rs`, `docs/HORIZON.md` (isolation by immutability) |
-| zero-copy ownership move | DESIGN | `theory/BLUE-EXCLUSIVITY.md` (`Payload::LinearMove`) |
+| zero-copy ownership move | DESIGN, the variant only | `crates/blue-lang-bidama/src/beam.rs` (`Payload::LinearMove`) |
 | regions, shared memory, CAS, leases, signed grants | ABSENT | none |
 
 Corrections to the model this design started from: tameshi is an evidence and
@@ -398,7 +397,7 @@ stateDiagram-v2
 | Floats in rules | refused by a check position; fixed-point words | platform libm: peers diverge |
 | Two-player disputes | both lose the match | a referee peer: one peer becomes a server |
 | Hidden information | commit-reveal per game design | none is possible in lockstep (W2) |
-| Shared mutable memory | regions owned by a process, served by its node per grant | true shared memory between processes: breaks "share nothing" and the aliasing question in `theory/BLUE.md` is still open |
+| Shared mutable memory | regions owned by a process, served by its node per grant | true shared memory between processes: breaks "share nothing" and blue's aliasing question is still open |
 | Remote access key | signed, narrowable grants with epochs | RDMA rkeys: guessable bearer tokens with no cryptography |
 | Response to tampering | freeze the smallest proven unit | freeze everything: a stop button for any attacker |
 
@@ -413,7 +412,7 @@ stateDiagram-v2
 | Sybil and eclipse resistance for open lobbies (W6) | ours, after invite-only rosters |
 | Share of target home networks behind symmetric NAT | world-fact, to measure |
 | Mobile limits on holding a UDP socket in the background (asobi) | world-fact |
-| The time source for lease expiry across peers with skewed clocks | ours; the wall-clock bound is still DESIGN in `theory/IBUKI.md` |
+| The time source for lease expiry across peers with skewed clocks | ours; the wall-clock bound is still DESIGN in the ibuki plane |
 | Quorum size per match and per cluster | ours |
 | The platform's name | ours, through the `naming` skill |
 | Real RDMA NICs as an optional backend behind the same grant check | ours, later |

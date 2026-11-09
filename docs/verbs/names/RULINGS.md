@@ -24,7 +24,7 @@ The operator accepted every recommended default. Each row below is a row of `mer
 | `kyuu` (now `junban`), `taiki`, `messeeji`, `kyuuji` | stay four spaces. `junban` is the in-memory structure and its ordering (queue, heap, priority). `taiki` is the store-backed queue (durable, leased). `messeeji` is the network message queue (ack, nack, park, seek). `kyuuji` stays HTTP routing |
 | `yuugou` | renamed `tougou` |
 | `keikaku` | renamed `puran` |
-| `tegata` | ratified as the space name. `theory/TEGATA.md` still calls the name proposed; the doc is to be ratified as the same name (theory is not edited here) |
+| `tegata` | ratified as the space name. An earlier design of the same name still calls it proposed; ratify both as one name. |
 | `genbo` | kept. It stays the blue face of the `daicho` object database; the space is named only for as long as the two share one vocabulary |
 | `kumo` | renamed `kuraudo`: the crate `kumo` is taken (a web crawler) |
 | `moderu` | renamed `mokei`: the crate `moderu` is taken (a glTF representation) |
@@ -57,7 +57,7 @@ The operator delegated the names on one condition: no conflict in the fleet, on 
 | `kyasshu?` | promoted to `kyasshu` | キャッシュ, cache. The `ky-` head ruling above already kept it; it gains `normalize`, `settle`, `watch` |
 | `gamen?` | unchanged | F1 owns its rows; it gains `labels`, `island`, `hydrate` |
 
-Collision check, 2026-10-23: `rg --no-ignore -l -w -i` over the pleme-io root found 0 files for `danpen` and `etsuran`, and for `burauza` only the two design docs that proposed it (`FRONTEND-PLAN.md`, `BLUE-FRONTEND.md`). No repo directory. crates.io 404 for both with the User-Agent `pleme-io-ci`. Controls: `shikumi` 1859 files, 138 `caixa` directories, `serde` crates.io 200, a nonsense word 404. Near names checked: `handan` and `shindan` (repos, a different head), `furagu?` (rules out the loanword `furagumento`), `kueri` and `mondou` (rule out a query word), `youken?` (rules out "requirement").
+Collision check, 2026-10-23: `rg --no-ignore -l -w -i` over the pleme-io root found 0 files for `danpen` and `etsuran`, and for `burauza` only the two design docs that proposed it (`FRONTEND-PLAN.md` and one other design doc). No repo directory. crates.io 404 for both with the User-Agent `pleme-io-ci`. Controls: `shikumi` 1859 files, 138 `caixa` directories, `serde` crates.io 200, a nonsense word 404. Near names checked: `handan` and `shindan` (repos, a different head), `furagu?` (rules out the loanword `furagumento`), `kueri` and `mondou` (rule out a query word), `youken?` (rules out "requirement").
 
 Verbs: one verb per meaning, so four plan words take the existing verb.
 

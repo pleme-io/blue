@@ -5,8 +5,9 @@ summary: one access declaration, enforced by every layer that builds a service (
 
 # SERVICE-ACCESS — one access declaration, enforced by every layer that builds a service
 
-Status: DESIGN, 2026-10-27. One part is built: the engine posture (§4, A0).
-Nothing else here is built unless the tier ledger (§9) says so. It extends
+Status: ⏳ in progress. The engine posture, the `access` declaration and the
+wasm pod grant are built. The [Ledger](#ledger) at the end says what else is
+built. This doc extends
 `SERVICE-ARCHITECTURE.md`: access is one more service concern, on by default,
 tuned or refused alone.
 
@@ -140,7 +141,7 @@ Each step ends with blue's checks green and a red-then-green test.
 
 | Step | Work | Gate |
 |---|---|---|
-| A0 | `Load::posture` | ✅ `blue-lang-host` `tests/host.rs`; kensa `event_tests` (one refused call per effect) |
+| A0 | `Load::posture` | built: `blue-lang-host` `tests/host.rs`; kensa `event_tests` (one refused call per effect) |
 | A1 | Bluefile: `access` field on `service`, judged alone; `posture(reach:)` reads the same `Capability` set | parse tests for every refusal in §3 |
 | A2 | haibi renders §4's chart rows | rendered chart tests: no writable volume when `writes` is empty; NetworkPolicy egress equals the declared peers |
 | A3 | the trio renders §4's unit rows; `trios` maps over every service, a `host` service's package comes from `spec.host` | `-trio` check reads the unit and finds each field; kensa gets `nixosModules.kensa` |
@@ -157,19 +158,23 @@ Each step ends with blue's checks green and a red-then-green test.
 | A `:filesystem` split into read and write | ours: `Capability` notes it as a later variant; `reads` and `writes` cover the platform side now |
 | macOS sandbox profiles are deprecated by Apple | world-fact: they still run; the darwin row stays typed weaker |
 
-## 9. Tier ledger
+## Ledger
 
-| Item | Tier |
-|---|---|
-| Engine posture (`Load::posture`, `refused_by`) | tested (`b21d99b`) |
-| kensa engine under `posture(&[])` | tested (`kensa@872cc76`) |
-| `access` declaration: `Access`, parsed by `access_of`, attached to `service(...)`, refusals at parse time (`crates/blue-lang-pkg/src/deploy/runtime.rs:85,173,226-241`) | built (re-measured 2026-11-07) |
-| engenho wasm pod: haibi renders `blue.pleme.io/access`; engenho's kidou turns it into a grant (preopens, connect list, bind list, env) | built, the one placement derived from `access` |
-| A service's code floor fits under its `access.effects`, checked by `blue lock` (`capabilities::verify_access`); `Effect` a projection of `Capability` | built (HORIZON H11, 2026-11-07) |
-| Every service reads its declaration (`defaults.yaml`), so its lock ceiling holds `filesystem` (`capabilities::DECLARATION_READ`) | built, typed weaker: no read/write split until H15 path grants; A2/A3 hold the read to the declaration |
-| Chart renderer for `:kernel_bpf`: DaemonSet, host network, bpffs, tracefs, exact capabilities | built, not deployed (`KERNEL.md` §6) |
-| Chart `writes` as `emptyDir` volumes | built (`bidamas/eigyou/haibi/haibi.b:834-845`) |
-| `kakoi.pleme.io/access` for native pods, rendered from `access` | design (HORIZON H16) |
-| Chart NetworkPolicy, unit, image and host renderers, for every other access | design (HORIZON H16) |
-| Trio for `host` services | design |
-| GitOps rendering | design |
+The state of each access layer, measured on 2026-11-09.
+
+✅ built and tested · ⏳ in progress · ❌ not built
+
+| Item | State | What makes it true |
+|---|---|---|
+| Engine posture (`Load::posture`, `refused_by`) | ✅ built | `crates/blue-lang-host/src/lib.rs`, tested in `crates/blue-lang-host/tests/host.rs` |
+| kensa's engine under `posture(&[])` | ✅ built | kensa `event_tests`: one refused call per effect |
+| The `access` declaration on `service(...)`, refused at parse time | ✅ built | `access_of` in `crates/blue-lang-pkg/src/deploy/runtime.rs`, tested in `deploy/service.rs` |
+| engenho wasm pod: haibi renders `blue.pleme.io/access`, kidou turns it into a grant | ✅ built | haibi writes `access` into the values (test "a service runs as a wasm component by default: runtime class, closure image, access annotation, bundled defaults"); the chart check in `nix/service.nix` fails when the rendered chart lacks the annotation; kidou is `engenho-kubelet/blue/kidou/kidou.b` |
+| A service's code floor fits under its `access.effects`, checked by `blue lock` | ✅ built | `capabilities::verify_access` in `crates/blue-lang-pkg/src/capabilities.rs` |
+| Every service reads its declaration, so its lock ceiling holds `filesystem` | ⏳ in progress | `capabilities::DECLARATION_READ`. There is no split of reads from writes yet |
+| Chart for `:kernel_bpf`: DaemonSet, host network, bpffs, tracefs, exact capabilities | ✅ built | haibi tests "a service that reaches the kernel gets exactly its capabilities, and no other service gets any" and "a pod that loads kernel programs mounts bpffs and a read-only tracefs from the host, and no other pod mounts either". No cluster runs it yet (`KERNEL.md`) |
+| Chart `writes` as volumes | ✅ built | haibi test "a written path is a volume the release chooses, and a service that writes nothing has none" |
+| `kakoi.pleme.io/access` for native pods | ❌ not built | haibi renders no such annotation (HORIZON H16) |
+| Chart NetworkPolicy, unit, image and host renderers for every other access | ❌ not built | haibi renders no NetworkPolicy. Done at A2 to A4 (§7) |
+| The trio for `host` services | ❌ not built | Done at A3: kensa gets `nixosModules.kensa` |
+| GitOps rendering from a `placement` entry | ❌ not built | blue has no `placement` word. Done at A7 |

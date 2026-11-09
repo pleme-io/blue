@@ -5,7 +5,8 @@ summary: "tree-sitter naturalized: the grammar spec and what is emitted from it"
 
 # naturalize(tree-sitter) — the destination, before the build
 
-**Status (2026-10-10): M0, M1 and M2 are built; M3 and M4 are design.** The
+M0, M1 and M2 are built. M3 and M4 are not built. The [Ledger](#ledger) at
+the end shows each milestone. The
 spec is the `kiwari` bidama (`bidamas/kiwari`, blue's grammar is
 `kiwari::blue()`); its artifacts are generated files declared in the root
 `Bluefile` (`tree-sitter-blue/`, `crates/blue-lang-kiwari/blue.kiwari.json`);
@@ -101,7 +102,7 @@ parsing engine, and this repo has already measured where the wins are:
   *files* and across *sessions*, which tree-sitter does not attempt — its reuse
   is within one buffer's edit history. This is the genuinely differentiated
   move, and it is available because the surrounding infrastructure exists.
-- **Purgatory (BLUE.md §V.11)** — the generational nursery — is the natural home
+- **A generational nursery** is the natural home
   for short-lived parse nodes produced while typing and discarded on the next
   keystroke.
 
@@ -154,13 +155,7 @@ M4, not a naming defect.
 
 ## 6. Honest ordering
 
-| Milestone | Deliverable | Gate | State |
-|---|---|---|---|
-| **M0** | `(defgramatica …)` spec covering blue's *current* surface, hand-checked against `parse.rs` | the spec round-trips every file in `spec/` and `bidamas/` | **done** |
-| **M1** | Emit `grammar.js` from the spec; ship a real tree-sitter grammar | differential vs blue's parser over every file AND every prefix | **done** |
-| **M2** | Emit highlight/fold/indent queries; wire into blackmatter-nvim | an operator sees blue highlighted from the generated artifact | **done** (locals emitted too; reaches a machine with the nix repo's blackmatter-nvim bump) |
-| **M3** | Emit blue's own parser from the spec, retiring the hand-written one | byte-identical `Sexp` on the whole corpus before the old parser is deleted | design |
-| **M4** | `kizami` — Rust incremental engine + content-addressed subtree memo | measured against the C runtime on a real buffer, not a microbenchmark | design |
+The [Ledger](#ledger) holds the state of each milestone.
 
 What was built, and the decisions it took:
 
@@ -244,3 +239,17 @@ Measured gaps in blue's surface today, none of which block the above:
 Each is a candidate for the syntax pass; each should be decided *in the grammar
 spec*, so the decision lands in every emitted artifact at once instead of in a
 parser and then, months later, in a grammar.
+
+## Ledger
+
+One row for each milestone.
+
+✅ built and tested · ⏳ in progress · ❌ not built
+
+| Item | State | What makes it true |
+|---|---|---|
+| M0: the grammar spec covers blue's current surface | ✅ built | `bidamas/kiwari` (`kiwari::blue()`). `crates/blue-lang-kiwari/tests/spec.rs` holds the spec to the parser's tables, for example `the_infix_table_is_parse_rs_table`. |
+| M1: `grammar.js` emitted from the spec | ✅ built | `tree-sitter-blue/grammar.js` (`generate("kiwari-grammar")`). The flake's `kiwari` check runs the differential against blue's parser over every file and every prefix (`crates/blue-lang-kiwari/tests/differential.rs`). |
+| M2: highlight, fold, indent and locals queries | ✅ built | `tree-sitter-blue/queries/*.scm`, each a generated file of the root `Bluefile`. |
+| M3: blue's own parser emitted from the spec | ❌ not built | The parser is still hand-written (`crates/blue-lang-syntax/src/parse.rs`). The gate is a byte-identical tree on the whole corpus before the old parser goes. |
+| M4: `kizami`, an incremental engine with a subtree memo | ❌ not built | No `kizami` crate exists. The gate is a measurement against the C runtime on a real buffer. |

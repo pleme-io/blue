@@ -5,7 +5,10 @@ summary: the build plan for blue's frontend framework
 
 # FRONTEND-PLAN — building the blue frontend framework
 
-Design: [`theory/BLUE-FRONTEND.md`](https://github.com/pleme-io/theory/blob/main/BLUE-FRONTEND.md).
+Status: ⏳ in progress. The server side, the GraphQL documents, the data laws
+and the cache are built. The browser runtime, live data and the component
+library are not. The [Ledger](#ledger) at the end says what is built.
+
 This file is the build plan: what, where, in which order, and when each step is
 done. Counted 2026-10-23 against `docs/verbs/merged/verbs.tsv` and the repos named.
 The whole stack this plan is layer 2 of is [`SUBSTRATE.md`](SUBSTRATE.md)
@@ -21,22 +24,13 @@ and hanabi's hot path.
 
 ## 1. What exists to build on
 
-| Piece | State | Where |
-|---|---|---|
-| `gamen` bidama: theme, token colours, contrast, terminal `show` | built | `bidamas/gamen/` |
-| `gamen?` graph rows: 37 verbs: `component`, `view`, `state`, `render`, `layout`, `on`, `check`, `diff`, `focus`, `labels`, … | 10 built (`check`, `component`, `contrast`, `labels` (F4), `layout`, `render`, `show`, `style`, `theme`, `view`); the rest rows only | `bidamas/gamen/`, `bidamas/mokuroku/graph/gamen-provisional.b` |
-| `kyasshu`: the normalized entity store, 31 cache verbs | 13 built (F5): `declare`, `key`, `merge`, `normalize`, `policy`, `read`, `request`, `schema`, `settle`, `snapshot`, `stale?`, `sweep`, `write`; the rest rows only | `bidamas/toriyose/kyasshu/`, `bidamas/mokuroku/graph/kyasshu.b` |
-| `kyuuji`: `serve`, `response`, `json`, `metered`, … (wave 0); `route`, `router`, `resolve` (was `match`, a special form's name), `mount`, `header`, `redirect`, `guard`, `body`, `recover`, `timeout` (wave 1); `stream`, `upgrade`, `file`, `cors` (wave 2) | waves 0–2 built (F2); `timeout` checks its deadline when the handler returns, `stream` buffers, `upgrade` answers the handshake and the wire refuses the hand-off with 501: each needs a host seam | `bidamas/eigyou/kyuuji/` |
-| `ugoki`: spring, tween, ease, sample, settled? | built | `bidamas/ugoki/` |
-| `kousei`, `shisei`, `bougyo`: entries, postures, request defence | built | `bidamas/` |
-| `kiwari`: one grammar spec, every syntax artifact emitted | built | `bidamas/kiwari/` |
-| `blue-lang-wasm`: the full pipeline as a wasm32 module, zero imports | built | `crates/blue-lang-wasm/` |
-| `blue-lang-host`: embed blue in a Rust program, `#[host]`, `Session`, frames | built | `crates/blue-lang-host/` |
-| hanabi: APQ, entity cache, cache invalidation, federation planner, WS proxy, `ServerBuilder` extension points | built (Rust) | `hanabi/src/federation/`, `builder.rs` |
-| a GraphQL parser or client in blue | **absent** | only `habu::query` (one row), `keiyaku?::parse` (wave 1) |
+The [Ledger](#ledger) lists each piece this plan builds on, with its state.
+Besides the blue pieces, hanabi (Rust) already has APQ, an entity cache, cache
+invalidation, a federation planner, a WS proxy and `ServerBuilder` extension
+points (`hanabi/src/federation/`, `builder.rs`).
 
-Correction to the design doc: the browser runtime is **not** blocked on
-`tatara-wasm`. That blocker (BLUE-EXECUTION M2) is blue *hosting* wasm. The
+The browser runtime is **not** blocked on `tatara-wasm`. That blocker is about
+blue *hosting* wasm. The
 browser runs `blue-lang-wasm` itself; it needs an import table, which is a
 change to that crate.
 
@@ -212,22 +206,21 @@ witness and an autofix where one exists.
 
 ### S — The service side, complete (decided 2026-10-24)
 
-The frontend renders from a blue service, so the backend is closed with it. The
-gap rows are `theory/FUEKI.md` §IV G, H and I; each closes there, not here.
+The frontend renders from a blue service, so the backend is closed with it.
 
-| ID | Closes | Work |
-|---|---|---|
-| S1 | G1, H1 | concurrent requests, keep-alive, HTTP/2, TLS, gRPC: owned by `docs/HTTP2.md` P2–P6 (`net_wait` poll loop, rustls), not a second plan |
-| S2 | G3 | a YAML reader (a bidama on kiwari, or the runtime) |
-| S3 | I3 | `settei` rebuilt on `kousei`; `{tier, source}` per key |
-| S4 | I4 | readiness distinct from liveness; drain on a signal |
-| S5 | I5 | `kiroku`: JSON-line log layer; `nisshi` events when on |
-| S6 | I7 | cofre's `SecretRef`; a `show` that redacts by construction |
-| S7 | H2 | a RESP client under `Capability::Network`; a `cache` field on `service` |
-| S8 | I2 | authn (RS256 JWT verify, OIDC) and authz layers; rate limit as a `shisei` posture |
-| S9 | H1 | a PDF writer, so kensa's host form can be configured off |
+| ID | Work |
+|---|---|
+| S1 | concurrent requests, keep-alive, HTTP/2, TLS, gRPC: owned by `docs/HTTP2.md` P2–P6 (`net_wait` poll loop, rustls), not a second plan |
+| S2 | a YAML reader (a bidama on kiwari, or the runtime) |
+| S3 | `settei` rebuilt on `kousei`; `{tier, source}` per key |
+| S4 | readiness distinct from liveness; drain on a signal |
+| S5 | `kiroku`: JSON-line log layer; `nisshi` events when on |
+| S6 | cofre's `SecretRef`; a `show` that redacts by construction |
+| S7 | a RESP client under `Capability::Network`; a `cache` field on `service` |
+| S8 | authn (RS256 JWT verify, OIDC) and authz layers; rate limit as a `shisei` posture |
+| S9 | a PDF writer, so kensa's host form can be configured off |
 
-Done when every G, H and I row is `exists` and kensa runs as a pure blue service.
+Done when S1 to S9 are built and kensa runs as a pure blue service.
 
 ### F14 — The design language (after F12)
 
@@ -261,7 +254,7 @@ branding: no Google marks, names or assets.
 ### F15 — Phone and desktop from the same code
 
 One blue app, unchanged, renders to web, desktop and phone; the target is a
-placement datum (`theory/FUEKI.md`), never a fork of the views. Its phases in
+placement datum, never a fork of the views. Its phases in
 the whole-stack order are `SUBSTRATE.md` L2.1 to L2.3.
 
 - The element tree, tokens, store and data laws are target-free; only the
@@ -337,3 +330,37 @@ From the H1 receipts (2026-10-22/23):
   a surface that misses its budget stays in Rust, recorded with its number.
 - **Scope.** F0–F5 and F13 are the product. F8–F10 are the polish. Ship the
   SSR console before the browser runtime.
+
+## Ledger
+
+The state of each piece and each milestone, measured on 2026-11-09.
+
+✅ built and tested · ⏳ in progress · ❌ not built
+
+| Item | State | What makes it true |
+|---|---|---|
+| F0: names, rows, contracts; the `frontend(...)` Bluefile word | ✅ built | `docs/verbs/names/RULINGS.md`; `crates/blue-lang-pkg/src/deploy/frontend.rs` and its test |
+| F1: element tree and the HTML renderer | ✅ built | `gamen` `view`, `component`, `render`, `layout`, `style`, `check`, `escape` (`bidamas/gamen/gamen.b`, 60 tests), with tests "text and attribute values are always escaped" and "the table is closed: no script, style or frame tag and no on attribute" |
+| F2: kyuuji waves 0 to 2 | ⏳ in progress | `route`, `router`, `resolve`, `timeout`, `stream`, `upgrade` and the rest in `bidamas/eigyou/kyuuji/kyuuji.b` (34 tests). `timeout` checks its deadline only when the handler returns, `stream` buffers, and the wire refuses an `upgrade` hand-off with 501: each needs a host seam |
+| F3: GraphQL in blue (`danpen`) | ✅ built | `parse`, `validate`, `fragment`, `compose`, `hash`, `render` in `bidamas/toriyose/danpen/danpen.b` (32 tests); the second implementation agrees through `crates/blue-lang-danpen-diff/tests/agree.rs` (apollo-compiler) |
+| F4: the data laws as check rules | ✅ built | B0048 to B0052 in `crates/blue-lang-check/src/`; `examples/frontend` |
+| F5: normalized cache (`kyasshu`) | ⏳ in progress | `bidamas/toriyose/kyasshu/kyasshu.b` (16 tests): `normalize`, `read`, `write`, policies, mutations that declare `touches`, optimistic writes settled by `settle`. SSR through `tsuushin` with the persisted hash is not built |
+| F6: `signal`, `store`, `memo`, `machine`; `gamen::diff` | ❌ not built | No such word in `gamen` or a bidama of its own |
+| F7: hanabi embeds blue | ⏳ in progress | hanabi depends on `blue-lang-host` and loads `blue/hanabi/hanabi.b` (`src/blue.rs`, `tests/blue_config_test.rs`). Webhooks, middleware, routes, OAuth claim maps and postures in blue are not built |
+| F8: browser runtime | ⏳ in progress | `bidamas/burauza/burauza.b` (4 tests) renders the manifest, the service worker and the one loader script. No `Capability::Dom`, no import table in `blue-lang-wasm`, no hydration |
+| F9: live data over graphql-ws | ❌ not built | No graphql-ws word exists |
+| F10: PWA | ⏳ in progress | `burauza`'s `install` renders the manifest and the service worker. No offline routes or `persist` policies over IndexedDB |
+| F11: build and dev loop (`frontend` lowering, `blue dev`) | ❌ not built | `nix/project.nix` lowers no wasm bundle for a frontend, and there is no `blue dev` |
+| F12: component library | ❌ not built | No component bidama exists |
+| F13: kensa console | ❌ not built | Done when an auditor flow (open, filter, verify, export) runs on the stack |
+| F14: the design language | ❌ not built | Waits on F12 |
+| F15: phone and desktop from the same code | ❌ not built | Done when the kensa console runs as web, desktop and iOS builds from one Bluefile |
+| S1: concurrent requests, keep-alive, HTTP/2, TLS, gRPC | ⏳ in progress | The `tcp_*` words and `net_wait` are built. HTTP/2 P2 to P6 are not (`HTTP2.md`) |
+| S2: a YAML reader | ✅ built | `deeta::parse(text, :yaml)` (`bidamas/deeta/deeta.b`); a second implementation agrees through `crates/blue-lang-yaml-diff/tests/agree.rs` |
+| S3: `settei` rebuilt on `kousei`, `{tier, source}` per key | ❌ not built | `bidamas/settei/settei.b` does not use `kousei` |
+| S4: readiness apart from liveness; drain on a signal | ❌ not built | `SERVICE-ARCHITECTURE.md` P5 |
+| S5: `kiroku`, a JSON-line log layer | ❌ not built | No `kiroku` bidama exists. `rogu` writes JSON lines today |
+| S6: cofre's `SecretRef`; a `show` that redacts by construction | ❌ not built | No secret read word exists |
+| S7: a RESP client; a `cache` field on `service` | ✅ built | `bidamas/chozou/kiibariu` (8 tests), `crates/blue-lang-runtime/tests/resp.rs`; `cache` in `crates/blue-lang-pkg/src/deploy/service.rs` |
+| S8: authn (RS256 JWT, OIDC), authz, rate limit as a posture | ❌ not built | The service config carries `api.auth` only |
+| S9: a PDF writer | ❌ not built | `bunsho` refuses `:pdf` by name (`bidamas/bunsho/bunsho.b`) |

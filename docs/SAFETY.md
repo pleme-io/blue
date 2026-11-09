@@ -247,7 +247,7 @@ tier. ⚠️ marks a partial seal. ❌ marks an open row.
 | 6 | Integer overflow, numeric conversion | ✅ `+ - * abs floor` raise on overflow; `/` by zero raises; `to_int` of a huge float is `nil` | `to_int` → row 1 | runtime-refused | on, no off |
 | 7 | No implicit coercion | ⚠️ operators refuse mixed types; `4 == 4.0` is true; call types are checked only inside typed definitions (B0003–B0005), where a local binding now takes its type from its value (literal, parameter, declared builtin result, agreeing `if`) | call-site checks from any caller when the argument is a literal | runtime-refused → checked-at-expansion | on |
 | 8 | `unsafe` ⇔ declared capability | ⚠️ sessions pure by default; **`blue run --allow` and shebang `--allow` (landed)**; **a breach is fatal: no `rescue` or `ensure` sees it (landed)**; **the wire's two channels are their own capabilities, `comm_flash` and `comm_scavenger` (landed)**; **the Flash rate is the host's, a typed bound refused as a catchable `:rate_limited` (landed)**; **both channels have an in-process loopback provider (landed)**; **threshold signing is its own capability, `mpc_threshold`, with a seeded provider (landed)**; **an append-only log store is its own capability, `storage_append`, held by `filesystem`, with an in-memory provider (landed)**; **sound out, sound in and a display canvas are three capabilities, `audio_out`, `audio_in` and `display`, each with a pure provider, and a host without the device answers a named refusal (landed)**; **eviction over the Tide (`evict`, `accept`) sits in `comm_scavenger` (landed)**; **`bpf(2)` and perf events are their own capability, `kernel_bpf`, with no pure provider, and off Linux each word answers a named refusal (landed)**; an undeclared run is still ambient; one frame holds the whole interpreter, so a bidama gets every capability the root grants | `docs/HORIZON.md` H11 to H20: one vocabulary, pure by default in rings, a frame per bidama, a check-time escape code, capabilities as values, every placement rendered from `access`, a parity matrix, least privilege as a ratchet, the capability ontology the tests are generated from, kernel admission by construction and the kernel as the enforcer of `access` | checked-at-expansion (entry) + runtime-fatal (bidama, process) | declared: on; undeclared: ambient until phase 3 (`--allow host`) |
-| 9 | Memory safety of the host seam | ⚠️ 3 of 22 crates deny `unsafe_code` at their roots (kiwari, proc, senses) | workspace `unsafe_code = "deny"`, one `#[allow]` per seam, one seam test | unrepresentable for kiwari and proc → unrepresentable for every crate | on (`#[allow(unsafe_code)]` at a named seam) |
+| 9 | Memory safety of the host seam | ⚠️ 5 of 24 crates deny `unsafe_code` at their roots (kernel, kiwari, proc, senses, worker) | workspace `unsafe_code = "deny"`, one `#[allow]` per seam, one seam test | unrepresentable for kiwari and proc → unrepresentable for every crate | on (`#[allow(unsafe_code)]` at a named seam) |
 | 10 | No data races | ✅ share-nothing processes; copy on send; handles refuse to cross | none needed | unrepresentable | n/a |
 | 11 | Panic vs typed refusal | ⚠️ blue faults are catchable; a Rust panic in a native function is not a blue error | one unwind seam at the native-call boundary → `:internal` refusal | open → runtime-refused | on |
 | 12 | Resource bounds | ⚠️ depth bounded; steps unbounded by default; **live bytes bounded per evaluation and per process (landed: `max_alloc_bytes`, `guest_max_alloc_bytes`)**; **a project bounds its own steps, depth and live bytes with `bounds(...)`, met with the operator's, so it narrows and never widens (landed)**; **a server's steps per message with `dispatch_steps`, in `bounds` and at spawn, met (landed)**; no wall-clock bound | `max_wall_ms` bound; on for doors that run code they did not write | runtime-refused | memory: off for `run` and `test` (`max_alloc_bytes: null`; it removes working behaviour), 1 GiB for sessions, live evaluation, rules and Bluefiles (`guest_max_alloc_bytes`; `null` lifts it); a project's `bounds`: none until it declares them (drop the word) |
@@ -389,7 +389,7 @@ misses one, and a breach names packages:
 `[app] -> [porta] -> [rede: needs 'network'] violates ceiling [filesystem, clock]`.
 A record written before `unit` existed reads as `package`, so its lock is
 stale under the default until relocked. Measured on the case that ranked it
-first (`theory/IBUKI.md` §VI): a root that imports `tesuto` only for
+first: a root that imports `tesuto` only for
 `raises?` locks under `allow([])`, where whole packages refuse it for
 tesuto's filesystem and environment. Tests: `tests/lattice.rs`
 (`a_root_that_reaches_only_a_pure_word_resolves_under_allow_none`,
@@ -461,7 +461,7 @@ withholds. Under a real clock the host reads its clock a moment after kodou's
 bucket did, so at the margin it can refuse a frame the bucket passed;
 `kodou::emit` waits the host's `wait_ms` once and resends. The bucket is per
 wire, as kodou's is per link, so a program that opens n wires may spend n
-times the rate until a per-app bound exists (`theory/IBUKI.md` §VI.2). With
+times the rate until a per-app bound exists. With
 no whole-program clock provider the rate reads the host's clock, so the wire,
 like any network capability, lets a program observe elapsed time. Tests:
 `crates/blue-lang-cli/tests/wire.rs`
@@ -791,7 +791,7 @@ entry and the breaching call's span, its enclosing definition and, when the
 run identifies (`blue run`), its file, line and column
 (`blue_lang_proc::Places`); `ThermodynamicCycleExhaustion` for a runaway.
 Three other classes a forensic reader names are refused on read, each with
-why: no exit produces them (`theory/IBUKI-FORENSICS.md`). It also writes the
+why: no exit produces them. It also writes the
 receipt's frame block (`frame`), which makes the file one tameshi 0.1.7's
 `incident ingest` accepts, with tameshi's digest equal to the crash hash; a
 version 2 file has no `frame` and tameshi refuses it. `blue crash dump`
@@ -1002,7 +1002,7 @@ and ambient for every child).
 The entry file is what the author wrote, so a host name there is refused
 before any effect. Rejected: the static check over the whole resolved
 program. It refuses a pure use of a bidama that holds an unrelated host word,
-which is collateral scope (UNREPRESENTABILITY §II.2.1).
+which is collateral scope: the refusal reaches good states beside the bad one.
 
 **D3. The default for an undeclared script stays ambient now.** Rejected:
 pure by default today. Every working script that reads a file would stop, so
@@ -1035,20 +1035,11 @@ again; a restart spends intensity and then kills innocent siblings).
 
 ## 9. Open questions
 
-- ~~**Q1 (ours).** Should a capability refusal escape `rescue _`?~~ Closed
-  2026-10-30 by D7: a breach escapes every `rescue`.
-- ~~**Q2 (ours).** How a bidama's declared reach composes with the root's
-  frame.~~ Closed 2026-10-30: floors join and must fit under `allow` widened
-  by `virtualize` (row 8 note, "The lattice"). The over-approximation it left
-  open, a floor that counts the whole package, closed the same day: floors
-  count the definitions the root reaches (mondou's reach), and a declared
-  reach bounds them (row 8 note, "Definition floors"); `floors(:package)`
-  keeps the whole-package reading.
-- **Q3 (world-fact).** WASI has no subprocess spawn; `Process` stays a blue
+- **Q3 (world-fact).** WASI has no subprocess spawn. `Process` stays a blue
   import with no WASI lowering.
 - **Q4 (world-fact).** A shebang flag needs `env -S` on Linux.
-- **Q5 (ours).** The closed set for row 3: a `model(...)` enum, or any
-  keyword list the file declares.
+- **Q5 (ours).** Which closed set row 3 covers next: a `model(...)` enum, or
+  any keyword list the file declares.
 
 ## 10. Phases, ranked by bug classes closed per effort
 
@@ -1066,18 +1057,34 @@ again; a restart spends intensity and then kills innocent siblings).
 | 9 | memory and wall-clock bounds for untrusted doors | runaway memory and time | two bounds |
 | 10 | call-site type checks from untyped callers | literal type mismatches at run time | checker work |
 
-## 11. Tier ledger
+## Ledger
 
-| Item | Tier | Evidence |
+Each row is one gate of the matrix. The third column names the test or path
+that makes the state true, and the tier the gate reaches.
+
+✅ built and tested · ⏳ in progress · ❌ not built
+
+| Item | State | What makes it true |
 |---|---|---|
-| this matrix | DESIGN | this file |
-| B0053 discarded-value | TESTED | registry witness, spec rows `safety.B0053*`, census 0 of 355 files |
-| `blue run --allow`, shebang `--allow` | TESTED | `crates/blue-lang-cli/tests/allow.rs` (6 red before the change, 7 green after), `script.rs` unit test |
-| capability lattice in `blue lock`, providers, the project hold | TESTED | `tests/lattice.rs` 6/6, `capabilities.rs` 7, `provide.rs` 5, `provision.rs` 4 |
-| definition floors, `floors(:package)` | TESTED | `tests/lattice.rs` 19/19 (7 red with the default flipped to `:package`, 4 red with `floors(...)` ignored), `capabilities.rs` 16, mondou `reach.rs` 7; cargo mutants over the lattice code, 61 mutants: 7 missed on the first run: 4 closed by tests (a top-level value, a compiled-in package for both units, a declared ceiling with no record), 2 in a bound check since removed (its replacement, mutated to revisit, hangs on the mutual-recursion fixture), 1 equivalent (a guard on the root's own forms); 5 unviable |
-| a project's own bounds, `bounds(...)` | TESTED | `tests/bounds.rs` 6/6 (run, test, `--allow`, a spawned process, a bound past the operator's, the lock and `--confirm`), `blue-lang-appliance` 2 (sealed and applied, steps and live bytes), `bounds.rs` 7; each red with its site reverted: the hold, the test door, the node of a run and of a test, the appliance hold, the meet, the record, `consistent`, the runner's counting allocator, the word |
-| a step bound per dispatch, `dispatch_steps` | TESTED | `blue-lang-proc` `tests/dispatch.rs` 10 (a refused message and the next from the state before it, a monitor's runaway, the meet four ways, a handler within its bound, absent as before, a refusal at the boundary, the receipt's roots, no parks without a bound, refused options), `tests/bounds.rs` the Bluefile key met with the spawn option, `bounds.rs` 8; red before the change (5 of 6, the Bluefile key, the flag) and each red with its site reverted: the meet in the node and in `ExecutionBounds`, the node's wiring, the kept state at restart, the state put back at the refusal, the bound gate on the boundary park |
-| steps in receipts, `--receipt-steps` | TESTED | `tests/receipts.rs` 2, `blue-lang-proc` `tests/dispatch.rs` 2, `receipt::tests` 3; red before the change (the flag unknown) |
-| a breach is fatal (D7) | TESTED | tatara-lisp-eval `no_catch_sees_a_fatal_error_on_the_walker`, `no_handler_sees_a_fatal_error_on_the_vm` (cargo mutants: 7 of 7 caught); `allow.rs` 8/8; `blue-lang-proc` `a_fatal_child_is_*` |
-| rows 4, 5 (memory), 6, 10 | EXISTS | measured behaviour cited above |
-| rows 1, 3, 9, 11–15 gates | DESIGN | phases 1–10 |
+| Discarded value, B0053 (row 2) | ✅ built | Refused at check. Spec rows `safety.B0053*` in `spec/rows/check.b`. |
+| `blue run --allow` and shebang `--allow` (row 8) | ✅ built | `crates/blue-lang-cli/tests/allow.rs`, for example `allow_none_refuses_a_host_name_before_anything_runs`. |
+| A breach is fatal, D7 (row 8) | ✅ built | No `rescue` sees a breach. `no_rescue_swallows_a_breach` and `a_breach_in_a_spawned_process_ends_it_and_its_monitor_sees_why` in `crates/blue-lang-cli/tests/allow.rs`. |
+| The capability lattice in `blue lock`, definition floors, `floors(:package)` (row 8) | ✅ built | `crates/blue-lang-cli/tests/lattice.rs`, `crates/blue-lang-pkg/src/capabilities.rs`. |
+| A project's own bounds, `bounds(...)` (row 12) | ✅ built | Refused at run time. `crates/blue-lang-cli/tests/bounds.rs`. |
+| A step bound per dispatch, `dispatch_steps` (row 12) | ✅ built | `crates/blue-lang-proc/tests/dispatch.rs`. |
+| Steps in receipts, `--receipt-steps` | ✅ built | `crates/blue-lang-cli/tests/receipts.rs`. |
+| Session-mistake hard blocks (row 18) | ✅ built | Refused at check: B0061 to B0064. `crates/blue-lang-cli/tests/hermetic.rs`, `crates/blue-lang-cli/tests/declared_inputs.rs`. |
+| Immutability, bounds-checked memory, no data races (rows 4, 5, 10) | ✅ built | Unrepresentable: no word mutates a value or indexes raw memory, and processes share nothing. |
+| Integer overflow (row 6) | ✅ built | Refused at run time. `numbers.overflow.mul` in `spec/rows/numbers.b`. |
+| Exhaustive `case` over a union (row 3) | ✅ built | Refused at check: B0081. `spec/rows/unions.b`, `spec/rows/patterns.b`. |
+| Exhaustive `case` over any other closed set (row 3) | ❌ not built | A rule over a declared closed set. Q5 decides the set. |
+| No null (row 1) | ❌ not built | [ABSENCE.md](ABSENCE.md) is the plan. No `umu` bidama exists, and B0054 and B0055 have no rule. |
+| `unsafe_code` denied in every crate (row 9) | ⏳ in progress | 5 of 24 crates deny it at their roots. A workspace `unsafe_code = "deny"` with one `#[allow]` per seam is missing. |
+| Native panic seam to an `:internal` refusal (row 11) | ❌ not built | No unwind seam at the native-call boundary. |
+| Wall-clock bound (row 12) | ❌ not built | No `max_wall_ms` bound exists. |
+| A content hash per bidama in `Bluefile.lock` (row 13) | ❌ not built | The lock records the Bluefile's b3 (`crates/blue-lang-pkg/src/lock.rs`), not the hash of the package's sources. |
+| A secret type (row 14) | ❌ not built | No secret bidama exists. A secret is a plain string. |
+| Injection rule for `sh_exec` and `pg_execute` (row 15) | ❌ not built | No check rule names them. |
+| Script parity and the declared default (row 16) | ❌ not built | An undeclared script run is still ambient. |
+| Call-site type checks from untyped callers (row 7) | ❌ not built | Types are checked only inside typed definitions (B0003 to B0005). |
+| A named cycle error for a lazy value (row 19) | ❌ not built | Re-entry runs until the call-depth budget refuses it. No blackhole state exists in `force`. |

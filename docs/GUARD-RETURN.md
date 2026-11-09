@@ -5,7 +5,8 @@ summary: "Guard-clause return, G1 BUILT: `return x` where the parser can rewrite
 
 # Guard-clause `return`: the design of record
 
-**Tier: G1 BUILT (2026-11-06), G2 DESIGN.** `crates/blue-lang-syntax/src/guard.rs`
+G1 is built. G2 is in progress. The [Ledger](#ledger) gives the state of each
+item. `crates/blue-lang-syntax/src/guard.rs`
 lowers a guard `return` in every tree a `parse_program*` door but the
 documented one hands out, and raises it back for `blue fmt` from the spans
 the lowering keeps. B0080 refuses the rest. The gates are
@@ -88,3 +89,17 @@ Rows: `spec/rows/refusals.b`; tests: `crates/blue-lang-runtime/tests/refusals.rs
 |---|---|---|
 | G1 | parser rewrite and the refusal rule, with the three gates | `read_statement` in khipu is written flat |
 | G2 | `blue fmt` and the language server show the guard form; the tree-sitter grammar knows `return` | editors highlight it |
+
+## Ledger
+
+✅ built and tested · ⏳ in progress · ❌ not built
+
+| Item | State | What makes it true |
+|---|---|---|
+| G1: a guard `return` lowered to `if`/`else` | ✅ built | `crates/blue-lang-syntax/src/guard.rs`; `crates/blue-lang-runtime/tests/guard_return.rs`: `a_guard_and_its_nested_if_are_one_program` (R-lower), `every_path_has_a_value_when_every_branch_returns` (R-total); `spec/rows/returns.b`. The lowering has no run-time cost. |
+| G1: B0080 refuses a `return` the rewrite cannot place | ✅ built | `a_return_the_rewrite_cannot_place_is_refused_by_name`, `code_after_a_return_never_runs_and_is_a_parse_error` (R-refuse). |
+| G1: `blue fmt` keeps the guard as written | ✅ built | `crates/blue-lang-fmt/tests/guard_return.rs`; `the_formatter_keeps_the_guard_as_written`. |
+| `?`: a refusal that flows | ✅ built | `crates/blue-lang-syntax/src/try_op.rs`; `spec/rows/refusals.b`; `crates/blue-lang-runtime/tests/refusals.rs`. |
+| G2: the tree-sitter grammar knows `return` | ✅ built | `return` in `tree-sitter-blue/grammar.js`; `@keyword.return` in `tree-sitter-blue/queries/highlights.scm`. |
+| G2: the language server shows the guard form | ❌ not built | `crates/blue-lang-lsp/src` has no `return` handling of its own. |
+| G2: a `return` inside `begin`/`rescue` | ❌ not built | The parser refuses it today. Done when it lowers into the protected body. |

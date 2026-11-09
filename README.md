@@ -18,8 +18,7 @@ only through the capabilities it is given. The standard library is a set of
 packages called bidamas, and one `Bluefile` says how a project is built,
 tested, documented and shipped.
 
-The philosophy is two axes
-([`theory/BLUE.md`](https://github.com/pleme-io/theory/blob/main/BLUE.md) §0).
+The philosophy is two axes.
 **Form has no choices:** there is one short, distinct way to write each
 thing, every larger form is built from smaller ones, and every tool and gate
 enforces it. **Rigor has every choice:** a program is as strict as you write
@@ -211,7 +210,7 @@ was rendered. `blue help COMMAND` shows each one's flags.
 | `blue lock [DIRS]...` | Evaluate each directory's Bluefile, pin every `source(...)` with `nix flake prefetch`, and write `Bluefile.lock` beside it. |
 | `blue bundle FILE` | Seal FILE into an appliance payload: the program compiled (every `use` resolved, checked, erased) with the capability record its project's fresh `Bluefile.lock` verified, closed with its BLAKE3 digest. |
 | `blue lsp` | Run the language server, speaking LSP over stdin/stdout. |
-| `blue serve` | Serve one evaluation session as JSON lines on stdin/stdout (`theory/BLUE-TOOLING.md` §4): the door an editor drives. |
+| `blue serve` | Serve one evaluation session as JSON lines on stdin/stdout: the door an editor drives. |
 | `blue repl` | An evaluation session at the terminal. |
 | `blue eval TARGET` | Evaluate EXPR, or the top-level form at FILE:LINE:COL in that file's context, and print its value. |
 | `blue banner` | Print blue's wordmark. |
@@ -264,7 +263,7 @@ rendered:
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-69 packages, 5947 definitions, 2013 tests.
+69 packages, 5949 definitions, 2014 tests.
 
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
 - [baito](bidamas/CATALOG.md#baito) (バイト) — bytes as data: integers at a declared width and order, and record layouts that say where each field sits.
@@ -340,40 +339,30 @@ rendered:
 
 ## What is not built
 
-blue states its gaps plainly, because a language's honest gaps matter more
-than its claims. This list is the one in
-[Implementing blue](docs/implementing.md#what-is-not-built), rendered here:
+This table lists what blue does not have yet. It is the table in
+[Implementing blue](docs/implementing.md#what-is-not-built), rendered here.
 
-Stated so nobody cites it as existing: **no per-process GC heap** (processes have
-private environments and messages are deep-copied, but reclamation is `Arc`
-refcounting — no independent collection pause), **no registry client** (resolution
-is real; nothing fetches), **no self-hosting on the implementation axis**
-(`spec/*.b` is the specification axis only), **no comment attachment inside a
-form**, **no entropy primitive and no encryption** (the `crypto` layer hashes,
-signs and verifies; a keypair comes from a seed the caller supplies),
-**no TLS** (`net` speaks NATS and HTTP over plain TCP: an `https://` url and a
-NATS server requiring TLS are refused by name; planned in `docs/HTTP2.md` P4,
-rustls with ALPN `h2`),
-**no import EMISSION into a wasm module** (`blue_lang_waku::imports_of`
-derives the table from a frame — nothing puts an entry into a `.wasm`, and no
-engine border is wired: that is `BLUE-EXECUTION.md` M2, blocked on `tatara-wasm`
-not being on crates.io), **no editor answer inside a broken buffer** (the
-LSP answers from the newest revision that parsed until the parser recovers,
-`BLUE-ENGINE.md` E6), **project rules in the editor or as wasm** (`blue check`
-runs them in-process under the rule frame; the LSP does not run them, and the
-ABI is shaped for a wasm module that nothing builds yet), **no account of a
-move the send ring cannot carry** (from a held node a moved plain process
-brings its tape, mailbox journal and host-call count, `blue-image` version 5,
-and a moved server its journal, count and the root of the state its
-incarnation began with, version 6, so each crash trace and receipt covers the
-whole incarnation; an account past the tape bound or the send ring stays
-behind, and that process's journal, count and a server's receipt
-`input_root` start at the node it moved to), **no link across nodes** (`evict` breaks a link and
-tells a partner that traps exits; it refuses one that does not), **no
-authenticated image** (an image's BLAKE3 name proves it arrived whole, not who
-sent it; it runs under the accepting node's frame, never more), and no **`case`/`when` pattern matching** or **ranges** — the two remaining
-surface gaps a Ruby or Elixir author would reach for. `theory/BLUE.md` §V.26 holds the tier ledger; **do not build against a
-DESIGN-tier row without saying so.**
+This table lists the gaps of the language and its runtime. Do not cite a ❌ row as a feature. Do not build against a ❌ row without saying so.
+
+✅ built and tested · ⏳ in progress · ❌ not built
+
+| Item | State | What makes it true |
+|---|---|---|
+| A per-process GC heap | ❌ not built | Processes have private environments, and messages are deep-copied. Reclamation is `Arc` refcounting (`crates/blue-lang-proc/src/lib.rs`), so no process has its own collection pause. |
+| A registry client | ✅ built | Resolution works over a git directory (`crates/blue-lang-pkg/src/git_registry.rs`). `blue lock` pins a source with `nix flake prefetch` (`crates/blue-lang-cli/src/prefetch.rs`). The nix build fetches each `source(name, url, dir)` over its pin (`nix/project.nix`, `checks.source-fixture`). The CLI adds a pinned source to the load path (test `a_locked_source_on_this_machine_joins_the_project_after_its_packages`). |
+| Self-hosting on the implementation axis | ❌ not built | The parser, checker and runtime are Rust. `spec/rows/*.b` is the specification axis only. |
+| Comments inside a form | ✅ built | The formatter places each comment by its span. Tests: `comments_inside_a_body_are_placed`, `comments_inside_a_call_and_a_list_are_placed` (`crates/blue-lang-fmt/src/lib.rs`). |
+| Entropy | ✅ built | `random_bytes(n)` reads the kernel's non-blocking device under `Capability::Entropy` (`crates/blue-lang-runtime/src/entropy.rs`, test `a_draw_has_the_requested_length_of_byte_integers`). |
+| Encryption | ❌ not built | The `crypto` layer hashes, signs and verifies (`crates/blue-lang-runtime/src/crypto.rs`). A keypair comes from a seed the caller supplies. The ciphers in `angou` are classical and insecure by design. |
+| TLS | ❌ not built | `net` speaks NATS and HTTP over plain TCP. An `https://` URL and a NATS server that requires TLS are refused by name (`crates/blue-lang-runtime/src/net/http.rs`, `net/nats.rs`). The plan is HTTP2.md P4: rustls with ALPN `h2`. |
+| Import emission into a wasm module | ❌ not built | `blue_lang_waku::imports_of` derives the import table from a frame (`crates/blue-lang-waku/src/imports.rs`). Nothing writes that table into a `.wasm`, and no engine border uses it. |
+| Editor answers inside a broken buffer | ❌ not built | The parser does no error recovery. The language server answers from the newest revision that parsed (`crates/blue-lang-lsp/src/analysis.rs`). The plan is [CST-PLAN.md](docs/CST-PLAN.md). |
+| Project rules in the editor or as wasm | ❌ not built | `blue check` runs project rules in-process under the rule frame (`crates/blue-lang-runtime/src/project_rules.rs`). The language server does not run them. The ABI fits a wasm module, but nothing builds one. |
+| A move the send ring cannot carry | ❌ not built | A moved plain process carries its tape, mailbox journal and host-call count (`blue-image` version 5). A moved server carries its journal, count and state root (version 6). An account past the tape bound or the send ring stays behind. That process's journal, count and receipt root start again at the new node (`crates/blue-lang-proc/tests/nomad.rs`, `a_plain_process_whose_tape_the_send_ring_cannot_hold_still_moves_and_its_trace_says_the_tape_stayed`). |
+| A link across nodes | ❌ not built | `evict` breaks a link and tells a partner that traps exits. It refuses a partner that does not (`evict_breaks_a_link_with_evicted_for_every_partner_that_traps_exits_and_names_one_that_does_not`). |
+| An authenticated image | ❌ not built | An image's BLAKE3 name proves that it arrived whole. It does not prove who sent it. The image runs under the frame of the node that accepts it, never more (`crates/blue-lang-proc/src/image.rs`). |
+| `case` and `when` pattern matching | ✅ built | A `when` destructures a union arm, a list and a map. B0081 refuses a `case` that misses an arm (`spec/rows/patterns.b`, `spec/rows/unions.b`). |
+| Range syntax `a..b` | ❌ not built | `range(a, b)` and `range(a, b, step)` exist (`spec/rows/lists.b`). The parser refuses `1..3`. The plan is OPERATORS.md O1. |
 
 ## Theming
 
@@ -438,7 +427,7 @@ Read it in order as [The blue Book](docs/BOOK.md), or open one page:
 - [blue examples](docs/EXAMPLES.md): one tested program per common task, ready to paste as examples
 - [Glossary: blue's terms and the concepts they name](docs/GLOSSARY.md): every blue term mapped to the compiler, language or distributed-systems concept it names, in both directions, and how the parts meet in a compile, a test run and a deploy
 - [blue language reference](docs/REFERENCE.md): syntax, operators, reserved words, every built-in name and the Bluefile words
-- [blue roadmap](docs/ROADMAP.md): the one blue roadmap, one row per track with its tier, next step and done gate, and every conflict ruled once
+- [blue roadmap](docs/ROADMAP.md): the one blue roadmap, one row per track with its state and the evidence for it, and every conflict ruled once
 - [Safety first: blue's posture, row by row](docs/SAFETY.md): the safety-first posture, one row per Rust guarantee: blue today, the gate, its tier and its off switch
 - [blue — the agent guide](AGENTS.md): rules for people and agents who write blue programs or change blue itself, with the build commands from the Bluefile
 - [Implementing blue — the detail behind the agent guide](docs/implementing.md): the implementer detail behind the agent guide's "Changing blue itself": the check registry, crate map, hard-won rules, CI gates, dependencies and what is not built
@@ -468,7 +457,7 @@ Read it in order as [The blue Book](docs/BOOK.md), or open one page:
 - [HORIZON: where blue goes next](docs/HORIZON.md): the long plan for blue, ten horizons from hygiene to a language that proves, replays and explains itself, eight authority horizons that make every host effect a capability granted from one declaration in every placement, an ontology of every concept in khipu that the tests are generated from, and the kernel as both a verified target and the enforcer of access; destination first, each horizon with its first step, its gate and what it unlocks
 - [HTTP2 — blue speaks HTTP/2 and gRPC itself](docs/HTTP2.md): blue speaks HTTP/2 and gRPC itself (design, phase 1 built)
 - [KERNEL — write only blue for the Linux kernel](docs/KERNEL.md): blue as the whole kernel toolchain, from source to a program the verifier admits, and where each part runs
-- [khipu: blue's knowledge graph, the design of record](docs/KHIPU.md): khipu, blue's knowledge graph, DESIGN: OxiRS's essence naturalized, the recon, the typed terms, the phases, the parity gates and the tier ledger
+- [khipu: blue's knowledge graph, the design of record](docs/KHIPU.md): khipu, blue's knowledge graph, DESIGN: OxiRS's essence naturalized, the recon, the typed terms, the phases, the parity gates and the ledger
 - [Lessons behind the agent guide's rules](docs/LESSONS.md): the full story behind each rule the agent page states in short
 - [MARKDOWN — Markdown is a first-class blue value](docs/MARKDOWN.md): Markdown as a first-class blue value: one typed tree, one formatting, checked links, and renderings to Markdown, HTML, PDF and the terminal (design)
 - [Namespaces: a bidama definition stays in its bidama](docs/NAMESPACES.md): a bidama definition stays in its bidama: the rule as built and its gates

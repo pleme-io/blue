@@ -5,9 +5,10 @@ summary: short notation for what blue says most, keyed to the blueshift (design)
 
 # OPERATORS — short notation for what blue says most, keyed to the blueshift
 
-Status: DESIGN, 2026-10-27. Corpus measured at `71b4f65`: 336 files, 152,314
-lines (blue's tracked `.b` files, kensa's bidama, the blue actions). Nothing here
-is built unless §9 says so.
+Most of this design is not built. The field read and the index are built. The
+[Ledger](#10-ledger) gives the state of each item. The corpus counts below come
+from `71b4f65` (2026-10-27): 336 files, 152,314 lines (blue's tracked `.b`
+files, kensa's bidama, the blue actions).
 
 ## 1. Destination
 
@@ -84,8 +85,8 @@ numeric meaning and a vector is added with `vadd`.
 
 ## 5. Proof rungs on the blueshift
 
-Theory already names two optional proof rungs above `restricted`
-(`theory/BLUE.md`). This design fixes what they mean for notation:
+blue has two optional proof rungs above `restricted`, `stated` and `proven`.
+This design fixes what they mean for notation:
 
 | Rung | A file here | Operators gain |
 |---|---|---|
@@ -147,6 +148,20 @@ project chooses one (a Bluefile `posture` entry, refused when both are chosen;
 | O8 | the `stated` rung | a refuted law fails the build |
 | O9 | the `proven` rung kernel | its own design first |
 
-| Item | Tier |
-|---|---|
-| everything above | design |
+## 10. Ledger
+
+✅ built and tested · ⏳ in progress · ❌ not built
+
+| Item | State | What makes it true |
+|---|---|---|
+| O1: `m.k` reads a field | ✅ built | `a_dot_without_parentheses_reads_a_field`, `chained_fields_read_left_to_right` (`crates/blue-lang-syntax/src/parse.rs`): `user.name` is `(blue-field user :name)`. |
+| O1: `m[:k]` and `xs[i]` | ✅ built | `an_index_is_the_tree_of_get_or_nth` (`parse.rs`): `m[:k]` is `get(m, :k)` and `xs[0]` is `nth(0, xs)`. A spaced index is refused (`a_spaced_index_is_refused_naming_the_touching_one`). |
+| O1: `[*xs, y]` as a value, `a..b`, `in` | ❌ not built | The parser has none of them. `[*xs, x]` exists only as a `case` pattern (`spec/rows/patterns.b`). |
+| O2: `?.` and `??` | ❌ not built | No `??` or `?.` in the lexer or in `spec/rows/`. |
+| O3: the collection-slot pipe | ❌ not built | `x \|> f(a)` threads into the first argument (`parse.rs`), and the parser notes it as a non-canonical spelling of a call. |
+| O4: rung-scoped rewrites driven by `blue shift` | ❌ not built | Done when a file's canonical text changes only when its rung does. |
+| O5: the math tier at dynamic | ❌ not built | Done with parse and lowering tests. |
+| O6: the exact numeric model and its exclusive group | ❌ not built | Done when `1/3` is exact under the exact posture, and two declared postures are refused. |
+| O7: units and quantities at checked | ❌ not built | Done when a dimension mismatch is a type error. |
+| O8: the `stated` rung | ❌ not built | Done when a refuted law fails the build. |
+| O9: the `proven` rung kernel | ❌ not built | It needs its own design first. |

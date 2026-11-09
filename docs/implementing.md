@@ -32,7 +32,7 @@ definitions its Bluefile names (`rule`), run by `blue check` under a pure
 frame with codes outside `B`, and the check stage leaves their waivers to
 that door (`docs/DIAGNOSTICS.md`, "Project rules").
 
-**Each bidama is a namespace** (`theory/BLUE-NAMESPACES.md`). A file reaches
+**Each bidama is a namespace** ([NAMESPACES.md](NAMESPACES.md)). A file reaches
 another bidama's definition only qualified (`kueri::join`) or listed
 (`use("retsu", [:first])`); a name reached because something else loaded it
 is B0012. Prefixing a bidama's definitions (`q_join`) is B0013/B0014, with
@@ -190,33 +190,24 @@ The measured cost of a stale lock, and the update order, are in [LESSONS.md](LES
 
 ## What is not built
 
-Stated so nobody cites it as existing: **no per-process GC heap** (processes have
-private environments and messages are deep-copied, but reclamation is `Arc`
-refcounting — no independent collection pause), **no registry client** (resolution
-is real; nothing fetches), **no self-hosting on the implementation axis**
-(`spec/*.b` is the specification axis only), **no comment attachment inside a
-form**, **no entropy primitive and no encryption** (the `crypto` layer hashes,
-signs and verifies; a keypair comes from a seed the caller supplies),
-**no TLS** (`net` speaks NATS and HTTP over plain TCP: an `https://` url and a
-NATS server requiring TLS are refused by name; planned in `docs/HTTP2.md` P4,
-rustls with ALPN `h2`),
-**no import EMISSION into a wasm module** (`blue_lang_waku::imports_of`
-derives the table from a frame — nothing puts an entry into a `.wasm`, and no
-engine border is wired: that is `BLUE-EXECUTION.md` M2, blocked on `tatara-wasm`
-not being on crates.io), **no editor answer inside a broken buffer** (the
-LSP answers from the newest revision that parsed until the parser recovers,
-`BLUE-ENGINE.md` E6), **project rules in the editor or as wasm** (`blue check`
-runs them in-process under the rule frame; the LSP does not run them, and the
-ABI is shaped for a wasm module that nothing builds yet), **no account of a
-move the send ring cannot carry** (from a held node a moved plain process
-brings its tape, mailbox journal and host-call count, `blue-image` version 5,
-and a moved server its journal, count and the root of the state its
-incarnation began with, version 6, so each crash trace and receipt covers the
-whole incarnation; an account past the tape bound or the send ring stays
-behind, and that process's journal, count and a server's receipt
-`input_root` start at the node it moved to), **no link across nodes** (`evict` breaks a link and
-tells a partner that traps exits; it refuses one that does not), **no
-authenticated image** (an image's BLAKE3 name proves it arrived whole, not who
-sent it; it runs under the accepting node's frame, never more), and no **`case`/`when` pattern matching** or **ranges** — the two remaining
-surface gaps a Ruby or Elixir author would reach for. `theory/BLUE.md` §V.26 holds the tier ledger; **do not build against a
-DESIGN-tier row without saying so.**
+This table lists the gaps of the language and its runtime. Do not cite a ❌ row as a feature. Do not build against a ❌ row without saying so.
+
+✅ built and tested · ⏳ in progress · ❌ not built
+
+| Item | State | What makes it true |
+|---|---|---|
+| A per-process GC heap | ❌ not built | Processes have private environments, and messages are deep-copied. Reclamation is `Arc` refcounting (`crates/blue-lang-proc/src/lib.rs`), so no process has its own collection pause. |
+| A registry client | ✅ built | Resolution works over a git directory (`crates/blue-lang-pkg/src/git_registry.rs`). `blue lock` pins a source with `nix flake prefetch` (`crates/blue-lang-cli/src/prefetch.rs`). The nix build fetches each `source(name, url, dir)` over its pin (`nix/project.nix`, `checks.source-fixture`). The CLI adds a pinned source to the load path (test `a_locked_source_on_this_machine_joins_the_project_after_its_packages`). |
+| Self-hosting on the implementation axis | ❌ not built | The parser, checker and runtime are Rust. `spec/rows/*.b` is the specification axis only. |
+| Comments inside a form | ✅ built | The formatter places each comment by its span. Tests: `comments_inside_a_body_are_placed`, `comments_inside_a_call_and_a_list_are_placed` (`crates/blue-lang-fmt/src/lib.rs`). |
+| Entropy | ✅ built | `random_bytes(n)` reads the kernel's non-blocking device under `Capability::Entropy` (`crates/blue-lang-runtime/src/entropy.rs`, test `a_draw_has_the_requested_length_of_byte_integers`). |
+| Encryption | ❌ not built | The `crypto` layer hashes, signs and verifies (`crates/blue-lang-runtime/src/crypto.rs`). A keypair comes from a seed the caller supplies. The ciphers in `angou` are classical and insecure by design. |
+| TLS | ❌ not built | `net` speaks NATS and HTTP over plain TCP. An `https://` URL and a NATS server that requires TLS are refused by name (`crates/blue-lang-runtime/src/net/http.rs`, `net/nats.rs`). The plan is HTTP2.md P4: rustls with ALPN `h2`. |
+| Import emission into a wasm module | ❌ not built | `blue_lang_waku::imports_of` derives the import table from a frame (`crates/blue-lang-waku/src/imports.rs`). Nothing writes that table into a `.wasm`, and no engine border uses it. |
+| Editor answers inside a broken buffer | ❌ not built | The parser does no error recovery. The language server answers from the newest revision that parsed (`crates/blue-lang-lsp/src/analysis.rs`). The plan is [CST-PLAN.md](CST-PLAN.md). |
+| Project rules in the editor or as wasm | ❌ not built | `blue check` runs project rules in-process under the rule frame (`crates/blue-lang-runtime/src/project_rules.rs`). The language server does not run them. The ABI fits a wasm module, but nothing builds one. |
+| A move the send ring cannot carry | ❌ not built | A moved plain process carries its tape, mailbox journal and host-call count (`blue-image` version 5). A moved server carries its journal, count and state root (version 6). An account past the tape bound or the send ring stays behind. That process's journal, count and receipt root start again at the new node (`crates/blue-lang-proc/tests/nomad.rs`, `a_plain_process_whose_tape_the_send_ring_cannot_hold_still_moves_and_its_trace_says_the_tape_stayed`). |
+| A link across nodes | ❌ not built | `evict` breaks a link and tells a partner that traps exits. It refuses a partner that does not (`evict_breaks_a_link_with_evicted_for_every_partner_that_traps_exits_and_names_one_that_does_not`). |
+| An authenticated image | ❌ not built | An image's BLAKE3 name proves that it arrived whole. It does not prove who sent it. The image runs under the frame of the node that accepts it, never more (`crates/blue-lang-proc/src/image.rs`). |
+| `case` and `when` pattern matching | ✅ built | A `when` destructures a union arm, a list and a map. B0081 refuses a `case` that misses an arm (`spec/rows/patterns.b`, `spec/rows/unions.b`). |
+| Range syntax `a..b` | ❌ not built | `range(a, b)` and `range(a, b, step)` exist (`spec/rows/lists.b`). The parser refuses `1..3`. The plan is OPERATORS.md O1. |

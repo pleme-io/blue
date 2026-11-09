@@ -105,10 +105,9 @@ still run.
 1. Put it in the area's file (`spec/rows/<area>.b`), or start a new file with
    a comment saying what the area covers.
 2. Write the behaviour the language **promises** — REFERENCE.md, okite's
-   RULES.md, AGENTS.md, theory/BLUE.md — not whatever the implementation
-   happens to do. When they differ, the row states the promise and is pending
-   on the gap that owns the difference (add one to `theory/BLUE-GAPS.md` if
-   none does).
+   RULES.md, AGENTS.md — not whatever the implementation happens to do. When
+   they differ, the row states the promise and is pending on the gap that owns
+   the difference. Name a new gap id if no gap owns it.
 3. `blue fmt --write spec/rows/<area>.b`, then run the suite.
 
 A new builtin, form, keyword, operator, rule code or okite decision fails the

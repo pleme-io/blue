@@ -22,7 +22,7 @@ Provisional (`?`, need the `naming` sweep): `kagi?` 鍵 keys, randomness, sealin
 
 ## Stays OUT of blue (and why)
 - Primitive implementations in C or assembly, `-sys` crates, OpenSSL: blue's crypto layer is pure Rust (CONTAIN THE C). Algorithms are RustCrypto crates behind verbs.
-- FIPS 140 validated modules and live 3PAO passes: external gates, named never claimed (SECURITY-LAYER.md section 0). `quantum_safe?` and `strength` report algorithm facts only.
+- FIPS 140 validated modules and live 3PAO passes: external gates, named never claimed. `quantum_safe?` and `strength` report algorithm facts only.
 - HSM, TPM, Secure Enclave, GrapheneOS hardware attestation (gos-attest, Auditor): device seams stay Rust.
 - Kernel enforcement (seccomp, Landlock, eBPF programs): blue declares `kakuri::filter` and profiles; a Rust seam applies them. WASM confinement via `kakuri::embed` is the pure-blue route.
 - The TLS record protocol and SAML XML canonicalization engines: `net` has no TLS today; `tegata::assertion` is wave 4 because XML signature wrapping is a parser attack surface, OIDC is preferred.

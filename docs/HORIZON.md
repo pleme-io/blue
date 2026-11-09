@@ -5,10 +5,10 @@ summary: the long plan for blue, ten horizons from hygiene to a language that pr
 
 # HORIZON: where blue goes next
 
-**Tier: DESIGN (2026-11-06, blue `cc9a1a1e`, release v0.0.155).** Nothing in
-this document is built unless a line says so. A horizon becomes a
-[`ROADMAP.md`](ROADMAP.md) row when its first phase starts; this document holds
-the destination, the ROADMAP holds the work.
+This document holds the destination. [`ROADMAP.md`](ROADMAP.md) holds the
+work. A horizon becomes a ROADMAP row when its first phase starts. The
+[Ledger](#ledger) at the end shows the state of each horizon. Nothing here is
+built unless the ledger or a line says so.
 
 **Build order, 2026-11-09 (operator).** The operator set the build order to the
 three layers of [`SUBSTRATE.md`](SUBSTRATE.md): blue on engenho first, then
@@ -35,7 +35,7 @@ position on the blueshift instead of forking the language.
 | Bidamas | 65, about 180,000 lines of blue |
 | Conformance | `spec/rows/`, 37 files, run on five columns (tree-walker, VM, wasm ABI, the `blue` binary, the in-process front end) |
 | Safety matrix | 19 rows: 6 sealed, 10 partly, 3 open ([`SAFETY.md`](SAFETY.md)) |
-| Gap ledger | of 16 pass-1 gaps: 7 closed, 7 partial, 2 not re-measured (`theory/BLUE-GAPS.md`, status pass) |
+| Gaps | of the 16 gaps the first pass found: 7 closed, 7 partial, 2 not measured again |
 | Identity | `def_hash` per definition, docs hashed in (`blue-lang-runtime/src/def_hash.rs`) |
 | Concurrency | OTP-style processes in every door (`blue-lang-proc`) |
 | Reach | CLI, services as wasm components, kernel BPF (`kaaneru`), word search (`arika`) |
@@ -259,7 +259,7 @@ The rungs, compile time first:
    else.
 2. **A bidama ships its analysis.** `mkBidama` emits the parsed, resolved,
    hashed and checked package as a nix output keyed by the engine and the
-   package's source hash (BLUE-ENGINE E5), so a run, a test and an editor load
+   package's source hash, so a run, a test and an editor load
    it checked, from sui.
 3. **The test cache and memo on by default, shared.** The test cache is on
    by default on one node since 2026-11-09; the memo is not. The build
@@ -491,7 +491,7 @@ arguments; laws over a decidable fragment (the third bullet).
 
 `fueki` renders one program by placement. Extend the placements:
 
-- **Browser.** Frontends in blue (`theory/BLUE-FRONTEND.md`), the engine as a
+- **Browser.** Frontends in blue ([`FRONTEND-PLAN.md`](FRONTEND-PLAN.md)), the engine as a
   wasm component in the page.
 - **Kernel.** `kaaneru` compiles blue to BPF; more program kinds, and a
   verifier report that names the blue line.
@@ -636,7 +636,7 @@ only by the root.
 - `process` implies every capability, since a subprocess can do anything; a
   grant of it reads as top.
 - Program macros run in the macro-phase frame (today they expand under the
-  run's hold; `theory/BLUE.md`, the 2026-08-01 macro-phase correction).
+  run's hold).
 - A spawned process holds its spawner's frame or a narrower one.
 
 **First step:** per-package frames through the scoped-provider path
@@ -745,8 +745,7 @@ that opens a socket is refused.
 
 **The model is the native way to model** (operator, 2026-11-07). Anything
 that has to be modeled is declared once, as a blue model (`chozou/teeburu`'s
-`model`, in its own bidama as "A schema is a bidama" below and
-`theory/BLUE.md` §V.32 rule; the Bluefile `model` word this line named until
+`model`, in its own bidama as "A schema is a bidama" below; the Bluefile `model` word this line named until
 2026-11-09 is superseded, `SERVICE-ARCHITECTURE.md` §5c), and every artifact that names its shape is a rendering of it, never a second
 spelling:
 
@@ -794,8 +793,8 @@ distribution: the model (`chozou/teeburu`), its evolution (`keifu`, shinka),
 its queries (`kueri`), its API (`toriyose/outou`, compiled to one statement),
 its client (`danpen`, `kyasshu`), its stores (`kiibariu`, `sutoriimu`), its
 gates (kenshi) and its classes (khipu). A program writes one `use` and one
-model; the bidama's name is minted through the naming procedure
-(`theory/NAMING.md`), pending. The design, the research it rests on and its
+model; the bidama's name is minted through the naming procedure, which is
+pending. The design, the research it rests on and its
 rungs D1 to D6: `docs/DATA-FRAMEWORK.md`.
 
 **A schema is a bidama.** A model lives in its own bidama, versioned and
@@ -1012,4 +1011,35 @@ keeps the 2026-11-06 order inside that frame.
 - A placement that configures its boundary by hand. Each boundary is rendered
   from the one declaration.
 - A global switch to settle a conflict between two good ideals. That is a
-  blueshift position (`theory/BLUE-GAPS.md`, the rule at its head).
+  blueshift position.
+
+## Ledger
+
+✅ built and tested · ⏳ in progress · ❌ not built
+
+One row per horizon, measured 2026-11-09 on main. A ⏳ row names what is built
+and what is not.
+
+| Item | State | What makes it true |
+|---|---|---|
+| H0. Hygiene | ⏳ in progress | Built: the DIAGNOSTICS codes table and CATALOG's `needs` render in `nix run .#regen`; `checks.package-fidelity` (`nix/package-fidelity.nix`); B0058 at 0. Not built: B0056 and B0057 at 0. |
+| H1. Shapes | ⏳ in progress | Built: unions, patterns, destructuring bindings and `?` (`spec/rows/unions.b`, `patterns.b`, `refusals.b`; `crates/blue-lang-runtime/tests/unions.rs`). Not built: one declared `result` union, `?` on an Option, a record pattern from another bidama. |
+| H2. Types that grow | ⏳ in progress | Built: local inference in a typed definition (`check.infer` rows in `spec/rows/check.b`). Not built: record and union types in signatures, the checked boundary, a `strict` position per file. |
+| H3. Code is content | ⏳ in progress | Built: rung 1, the check cache per definition, on by default (`crates/blue-lang-mondou/tests/check_cache.rs`); the test cache, on by default (`BLUE_TEST_CACHE=off` turns it off); the memo, off by default (`BLUE_MEMO`). Not built: rungs 2 to 5 and the shared store. |
+| H4. Time | ⏳ in progress | Built: `net_wait` in the node loop (`crates/blue-lang-proc/tests/net_wait.rs`), node-time timers, record and replay (`crates/blue-lang-cli/tests/run_replay.rs`). Not built: `schedulers(n)`, the debugger over replay. |
+| H5. Knowledge | ⏳ in progress | Built: arika Phase 2 for blue's own tree (`crates/blue-lang-cli/tests/arika.rs`), khipu K1a (`bidamas/khipu`). Not built: the MCP service, khipu over blue itself, why-answers. |
+| H6. Proof | ⏳ in progress | Built: heni's caught ratio as a ratchet (`bidamas/heni/ratio.baseline`, `checks.heni-mutations`); generated properties (`crates/blue-lang-cli/tests/properties.rs`). Not built: laws over a decidable fragment. |
+| H7. Speed with receipts | ⏳ in progress | Built: a bench row set with a recorded baseline (`bench/bench.b`, `bench/cost.baseline`, the `bench-ratchet` check in `flake.nix`). Not built: the VM as the default door, AOT to wasm. |
+| H8. Reach | ⏳ in progress | Built: `kaaneru` compiles blue to BPF; `examples/13_web_site.b` serves a page natively; `checks.conformance` compares output across placements. Not built: equal receipts across two placements, the frontend as a wasm page, the GPU rung. |
+| H9. Model-native | ⏳ in progress | Built: ten golden tasks and the scorer (`eval/tasks/`, `eval/score.b`, `checks.model-eval`). Not built: a model's score recorded per release as a census row. |
+| H10. Ecosystem | ⏳ in progress | Built: docs, tests and reach per package in CATALOG's "Quality signals". Not built: heni ratio, conformance and model score in that table; signed releases. |
+| H11. One vocabulary | ⏳ in progress | Built: `Effect` as a projection of `Capability`, held at lock (`crates/blue-lang-cli/tests/lattice.rs`, `a_service_whose_code_reaches_past_its_access_is_refused_at_lock`). Not built: one spelling read both ways. |
+| H12. Pure by default | ❌ not built | The lattice check still runs only when the root declares `allow`, a provider or `bounds` (`crates/blue-lang-pkg/src/capabilities.rs`). No census counts undeclared Bluefiles. |
+| H13. Authority per bidama at run time | ⏳ in progress | Built: a live-byte account per evaluation and per process (`crates/blue-lang-runtime/src/memory.rs`). Not built: a frame per package, a memory bound a bidama declares. |
+| H14. The checker sees authority | ❌ not built | No `capability-escape` code exists in any crate. |
+| H15. Capabilities as values | ❌ not built | No grant value and no `secret` capability exist in `crates/blue-lang-waku/src/capability.rs`. |
+| H16. One declaration, every placement | ❌ not built | No bidama or crate renders the native enclosure annotation. Only the engenho wasm pod derives a boundary from `access`. |
+| H17. Parity on authority | ❌ not built | No capability conformance matrix exists. |
+| H18. Least privilege as a ratchet | ❌ not built | No receipt records the capabilities a run used. No `blue lock --tighten` exists. |
+| H19. Ontology | ❌ not built | No crate or generator renders a capability ontology. It waits on khipu K1b to K4. |
+| H20. Kernel | ⏳ in progress | Built: LSM, XDP, cgroup and `struct_ops` programs in `bidamas/kaaneru/kaaneru.b`; the kernel matrix (`.github/workflows/kernel-matrix.yml`). Not built: the program generator and its load-everything gate, the capability frame in a BPF map. |

@@ -5,9 +5,9 @@ summary: "Markdown as a first-class blue value: one typed tree, one formatting, 
 
 # MARKDOWN — Markdown is a first-class blue value
 
-Status: DESIGN, 2026-10-30. Built: M0, M1 and M2 (§7): the typed facts
-`hon` renders into a page, and the `bunsho` (文書) bidama, which parses
-Markdown into the tree of §3 and renders it back. The rest is design.
+Part of this design is built: the typed facts that `hon` renders into a page,
+and the `bunsho` (文書) bidama. `bunsho` parses Markdown into the tree of §3
+and renders it back. The [Ledger](#ledger) at the end shows each step.
 
 ## 1. Destination
 
@@ -93,7 +93,7 @@ parser claims, each an okite law with a witness:
 
 ## 5. Facts are nodes
 
-M0 (§7) puts a fact in a page as a fenced code block whose info string is
+M0 puts a fact in a page as a fenced code block whose info string is
 `hon`. The block's first line names the fact: `commands`, or `include
 implementing.md#what-is-not-built`. This page cannot show such a block inside
 an example block, because `hon` reads fences line by line and a nested fence
@@ -110,24 +110,11 @@ fact is one definition, not a change to the renderer.
 | Format | How | Gate |
 |---|---|---|
 | Markdown | `render`, the one formatting | `-fresh` on each generated file; a `docs/` page that is not canonical is refused, naming `blue fmt --write` |
-| HTML | `to_html`, written by blue (`theory/BLUE-FRONTEND.md`) | the D5 site of `docs/DOCUMENTATION.md` |
+| HTML | `to_html`, written by blue | the D5 site of `docs/DOCUMENTATION.md` |
 | PDF | `to_typst`, then `typst compile`, run by nix as a Bluefile `run` | `nix build .#book-pdf` builds the Blue Book as one PDF; the PDF is an artifact, never committed |
 | terminal | `to_terminal`, coloured from irodori by ANSI slot | `blue doc` and a page viewer |
 
-## 7. Build order and tier
-
-| Step | Work | Gate | Tier |
-|---|---|---|---|
-| M0 | typed facts in a page: `commands`, `language`, `packages`, `include` | `checks.docs` refuses an unknown fact or a missing section by page; `bidama-test-hon` | built 2026-10-30 |
-| M1 | the block tree: `parse` and `render` for every block kind of §3 | `checks.markdown-laws`: both laws on every page of `docs/`; `bidama-test-bunsho`; heni catches every mutation | built 2026-10-30 (`bunsho`) |
-| M2 | inline nodes: links, code spans, emphasis, images; the link and anchor gate | `checks.markdown-laws`: every relative link and image under `docs/` (330 on 2026-10-30) reaches a file, and every `#anchor` a heading, each refused by page and line | built 2026-10-30 |
-| M3 | `hon` on the tree: its text functions removed, facts as nodes | every `hon` test, unchanged renderings byte for byte | design |
-| M4 | `blue fmt` formats `.md` | an md-fmt gate over `docs/` | design |
-| M5 | `to_typst` and `typst` from nixpkgs | `nix build .#book-pdf` | design |
-| M6 | `to_html`, the static site | D5 | design |
-| M7 | `to_terminal` | `blue doc` shows a page | design |
-
-## 8. Decisions
+## 7. Decisions
 
 | Question | Chosen | Rejected, and why |
 |---|---|---|
@@ -136,3 +123,20 @@ fact is one definition, not a change to the renderer.
 | The parser | blue, in a bidama | **pulldown-cmark or comrak behind a host seam**: Markdown is text in and records out, so blue can express it, and the house ladder puts blue first |
 | PDF | Typst: one Rust binary in nixpkgs, hermetic, no browser | **pandoc and LaTeX**: a second toolchain and a large closure; **headless Chromium `printToPDF`** (the `hikyaku` seam that `malote` plans): a browser in the closure, and the output depends on its version |
 | Where facts live | in the page, as `hon` blocks, then `fact` nodes | **a template language** around the page: a second syntax to learn and to parse |
+
+## Ledger
+
+One row for each build step.
+
+✅ built and tested · ⏳ in progress · ❌ not built
+
+| Item | State | What makes it true |
+|---|---|---|
+| M0: typed facts in a page (`commands`, `language`, `packages`, `include`) | ✅ built | `checks.docs` refuses an unknown fact or a missing section by page (`gen/docs.b`). `bidama-test-hon`. |
+| M1: the block tree, `parse` and `render` | ✅ built | `checks.markdown-laws`: "both Markdown laws hold on every page under docs/" (`gen/markdown-laws.b`). `bidamas/bunsho`, 16 tests. |
+| M2: inline nodes, and the link and anchor gate | ✅ built | `checks.markdown-laws`: "every relative link under docs/ reaches a file, and every anchor a heading". |
+| M3: `hon` on the tree | ❌ not built | `bidamas/hon/hon.b` does not use `bunsho`. The gate is every `hon` test and each rendering unchanged byte for byte. |
+| M4: `blue fmt` formats `.md` | ❌ not built | `blue fmt` parses every file as blue and refuses Markdown syntax. The gate is an md-fmt check over `docs/`. |
+| M5: `to_typst` and the book as PDF | ❌ not built | No `to_typst` and no `book-pdf` output. The gate is `nix build .#book-pdf`. |
+| M6: `to_html` and the static site | ❌ not built | No `to_html`. The gate is D5 of [DOCUMENTATION.md](DOCUMENTATION.md). |
+| M7: `to_terminal` | ❌ not built | No `to_terminal`. The gate is `blue doc` showing a page. |

@@ -1,7 +1,7 @@
 @moduledoc """
 ibuki (息吹) — the plane an app docks into, as pure decisions: the five structural classes and a docking check over the reach `blue lock` measured, the Flash channel's token bucket, the Tide channel's LEDBAT controller, and a Strand, a last-writer-wins map whose every transition is a hash-linked record of its input and output roots.
 
-Every word answers a new value and reaches no host; time is passed in as `now_ms`. The design and what is not built: `theory/IBUKI.md`.
+Every word answers a new value and reaches no host; time is passed in as `now_ms`.
 
     dock({state: :merge}, {capabilities: {floor: [], packages: {}}}).class #=> :strand
 """

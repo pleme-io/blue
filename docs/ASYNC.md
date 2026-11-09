@@ -5,12 +5,10 @@ summary: "Native async in blue, DESIGN: one ontology of every async concept as a
 
 # Native async: the design of record
 
-**Tier: PARTIAL (2026-11-09). The process runtime under it is built, and A1
-is built: `node_time`, `sleep_for`, `sleep_until`, `after`, `deadline`,
-`timeout`, `context` and `remaining` on node time, the virtual clock in `blue
-test`, and `net_wait` in the node loop over the `tcp_*` words (2026-11-09).
-A run replays from its receipt (`blue run --record`, `blue replay`, HORIZON
-H4). Narrowing a deadline inside a process, and phases A2 to A7 are DESIGN.** Operator, 2026-11-06: *"full batteries included async
+The process runtime and phase A1 are built. Phases A2 to A7 are not built.
+The [Ledger](#ledger) gives the state of each item.
+
+Operator, 2026-11-06: *"full batteries included async
 programming … native … all the semantics around async … the most purely
 ontologically complete async native programming in bluelang … honors all
 other systems we have and integrates with them … blueshift, in the sense that
@@ -30,33 +28,16 @@ with a virtual clock, where a run is a replayable trace. So an architecture
 blue can express is an architecture blue can test, and two exclusive
 architectures are two rows of one matrix, not two languages.
 
-## What exists (measured 2026-11-06)
+## Decisions this design keeps
 
-| Piece | Where | State |
-|---|---|---|
-| processes: `spawn`, `spawn_link`, `send`, `receive` with timeout, `self`, `link`, `monitor`, `exit`, `trap_exit` | `crates/blue-lang-proc/src/node.rs`, docs rows in `crates/blue-lang-runtime/src/docs.rs` (Actor) | built; one VM and one interpreter per process |
-| supervisors: one_for_one, one_for_all, rest_for_one, simple_one_for_one | `crates/blue-lang-proc/src/lib.rs` | built; no restart window, no backoff |
-| deterministic interleaving, crash traces, bisect | `crates/blue-lang-proc/src/{node,trace,bisect}.rs` | built; the `:idle` lane is a real thread and not replayable |
-| a primitive that parks and is retried with its stack intact | `tatara-lisp-eval/src/vm/run.rs` (`Vm::park`) | built; used by `receive` |
-| the node loop advances to the next deadline | `node.rs` | built; it sleeps the thread when idle |
-| node-time timers: `node_time`, `sleep_for`, `sleep_until`, `after` | `node.rs`, `tests/timers.rs` | built (A1); a process parks on a `Wait::Timer`, the program drives the node until the time; `after` timers fire in deadline order, ties in the order set |
-| the context record: `context`, `remaining`, `deadline`, `timeout` | `node.rs` | built for the deadline field (A1): `spawn` copies it, every wait raises `:timeout` at it; the program narrows it, a process holds the one it was spawned under (narrowing inside a process is A2); cancel state, trace id and access join with A2, A3 and `mitoshi` |
-| the virtual clock in `blue test` | `blue-lang-test` `Guard::clock`, `Account::clock` | built (A1): `blue test`, the conformance rows and the language server's live tests read the virtual clock; `blue run` reads the wall clock |
-| readiness word `net_wait` over `poll(2)` | `node.rs` (`Wait::Net`), `readiness.rs`, the `tcp_*` words in `blue-lang-runtime/src/net/stream.rs`, `tests/net_wait.rs` | built (A1, 2026-11-09): a process parks on its sockets, the node loop polls them beside the timers; on the virtual clock a wait with nothing ready jumps to the next deadline |
-| a run replayed from its receipt | `blue run --receipts DIR --record`, `blue replay <receipt>`, `HostIo::through`, `blue-lang-cli/tests/run_replay.rs` | built (HORIZON H4, 2026-11-09): every host answer on a tape per process, receipt version 6; the replayed receipt equals the original's |
-| every I/O word (`http_request`, `nats_*`, `pg`, `exec_capture`, `read_file`, `sleep_ms`) | `crates/blue-lang-runtime/src/{net,sys}.rs` | blocks the node thread |
-| `heikou` (map, all, any, race, scope, timeout, deadline, cancel, throttle, retry, …) | `docs/STDLIB.md`, `heikou.b` catalogue | absent |
-
-Recorded decisions this design keeps: blue is **uncoloured by construction**
-and the capability belongs to the frame (`theory/BLUE-EXCLUSIVITY.md`
-§II.11); tokio is refused, one readiness word replaces it (`docs/HTTP2.md`
-decision 2); processes share nothing (`docs/STDLIB.md`); supervision is the
-default for a service and a `try` around a handler is refused
-(`docs/BUILD-STACK.md` §5); WASM is the default runtime
-(`docs/BUILD-STACK.md`). Two theory statements are stale and are corrected when
-phase A1 lands: `theory/BLUE.md` §V.8 says processes share globals (each has
-its own VM), and `theory/BLUE-GAPS.md` G11 says no crate depends on
-`blue-lang-proc` (`blue run` does).
+- blue has no function colours. The capability to do I/O belongs to the
+  frame, not to the function.
+- tokio is refused. One readiness word replaces it (`docs/HTTP2.md`
+  decision 2).
+- Processes share nothing (`docs/STDLIB.md`). Each process has its own VM.
+- Supervision is the default for a service. A `try` around a handler is
+  refused (`docs/BUILD-STACK.md` §5).
+- WASM is the default runtime (`docs/BUILD-STACK.md`).
 
 ## The ontology: every async concept, named once
 
@@ -169,26 +150,6 @@ No phase builds what a later phase throws away.
 |---|---|---|---|
 | A1 | `net_wait` in the node loop; `sleep`, `after`, `timeout`, `deadline` on node time; the context record; the virtual clock for `blue test` | A-time, A-determinism | a test with a 30 s timeout runs in milliseconds and replays |
 
-A1 as built (2026-11-06): the timers, the deadline field of the context
-record, and the virtual clock. A-time: `tests/timers.rs` and
-`blue-lang-cli/tests/virtual_clock.rs` (a 600 s sleep and a 30 s timeout
-finish in milliseconds and observe 600 s and 30 s; red run: the virtual clock
-sleeping the thread takes the full 30 s). A-determinism: one timed program
-of four processes and four timers gives one answer over nine runs; timers
-fire in deadline order (red run: newest first misorders, or hangs). Not
-built: `net_wait` (HTTP2.md P3), narrowing a deadline inside a process (it
-needs the scope compiled into the process's chunk, with A2's `scope`), the
-context across `evict`, a timer cancel.
-
-`net_wait` as built (2026-11-09): `net_wait(interests[, timeout_ms])` over
-`tcp_listen`, `tcp_accept` and `tcp_connect` handles, level-triggered over
-`poll(2)`. A-time and A-determinism hold for it at `schedulers(1)`:
-`tests/net_wait.rs` (a 30 s wait with nothing ready takes no wall time and
-observes 30 s; a parked waiter lets a ready process and a timer run first;
-one program gives one answer over four runs). Red runs: no poll in the idle
-loop deadlocks the parked waiter; a child wait that never parks answers
-before its peer writes. Not built: `schedulers(n)` (A6), the node time a
-process's wait came at on the replay tape (the root's is taped).
 | A2 | handles and `await`, `await_result`; `scope`, `all`, `any`, `race`, `heikou::map`; `cancel` with grace | A-structure, A-cancel, A-ontology (first rows) | the heikou catalogue rows for these verbs are built |
 | A3 | `http_request`, `exec_capture`, `read_file`, `nats_*`, `pg` park on readiness; `blocking(f)` | A-no-block, A-replay | a slow peer delays no other task |
 | A4 | `channel`, `stream`, `pull`, `select`; capacities and overflow policies; `throttle`, `limit`, `debounce`, `retry` | A-backpressure | a JetStream consumer runs as a pull stream |
@@ -196,20 +157,26 @@ process's wait came at on the replay tape (the root's is taped).
 | A6 | `schedulers(n)`; the `suspends` declaration and its check | A-parity, A-colour | the conformance set is green at both line positions |
 | A7 | the WASM rung on `wasi:io/poll` | the conformance set on the component | the same programs pass as components |
 
-## Tier ledger
+## Ledger
 
-<!-- tier-ledger -->
+✅ built and tested · ⏳ in progress · ❌ not built
 
-| Async capability | blue realization | tier |
+| Item | State | What makes it true |
 |---|---|---|
-| a task that outlives its scope | `s.spawn` exists only inside `scope` | truly-unrep |
-| a callee running past its caller's deadline | the deadline travels in the context `spawn` copies | truly-unrep |
-| a blocked scheduler | I/O words park; blocking is a declared `blocking(f)` | parse-time-rejected |
-| an unbounded queue | capacity is a required field with a bounded default | truly-unrep |
-| an unsupervised `spawn` in a service | a check rule refuses it | parse-time-rejected |
-| a suspension point a `restricted` definition did not declare | the reach analysis refuses it | parse-time-rejected |
-| a flaky concurrency test | the deterministic node and virtual clock | only-mitigated (C2) |
-| parity between one and n schedulers | the A-parity differential | only-mitigated (C2) |
-
-C2 is the external-world ceiling: real parallel runs and real networks are
-measured, not typed.
+| processes: `spawn`, `spawn_link`, `send`, `receive` with timeout, `self`, `link`, `monitor`, `exit`, `trap_exit` | ✅ built | `crates/blue-lang-proc/src/node.rs`; `crates/blue-lang-proc/tests/node.rs`, `messaging.rs`, `isolation.rs`. Each process has one VM and one interpreter. |
+| supervisors: one_for_one, one_for_all, rest_for_one, simple_one_for_one | ⏳ in progress | `crates/blue-lang-proc/src/lib.rs` (`Strategy`, `max_restarts`). A restart count bounds a supervisor. No restart window and no backoff exist (A5). |
+| deterministic interleaving, crash traces, bisect | ✅ built | `crates/blue-lang-proc/src/{node,trace,bisect}.rs`; `tests/crash_replay.rs`, `tests/replay.rs`. The `:idle` lane is a real thread and does not replay. |
+| a primitive that parks and retries with its stack intact | ✅ built | `Vm::park` in tatara-lisp-eval. `receive` and every timer use it. |
+| A1 timers: `node_time`, `sleep_for`, `sleep_until`, `after` | ✅ built | `crates/blue-lang-proc/tests/timers.rs`: `two_timers_fire_in_the_order_of_their_deadlines_not_of_their_creation`, `a_sleeping_process_parks_and_never_holds_the_node`. |
+| A1 context: `context`, `remaining`, `deadline`, `timeout` | ⏳ in progress | `tests/timers.rs`: `a_nested_deadline_only_narrows`. `spawn` copies the deadline, and every wait raises `:timeout` at it. A process cannot narrow its deadline. Cancel state and trace id are not in the context (A2, A3). |
+| A1 virtual clock in `blue test` | ✅ built | `crates/blue-lang-cli/tests/virtual_clock.rs`: `blue_test_runs_timed_tests_on_the_virtual_clock_in_well_under_a_second_of_waiting`, `blue_run_keeps_the_wall_clock`. |
+| A1 readiness: `net_wait` over `poll(2)` and the `tcp_*` words | ✅ built | `crates/blue-lang-proc/src/readiness.rs`; `tests/net_wait.rs`: `a_process_waiting_on_a_socket_parks_and_never_holds_the_node`. Only at `schedulers(1)`. The replay tape does not record the node time of a child process's wait. |
+| a run replayed from its receipt | ✅ built | `blue run --record`, `blue replay`; `crates/blue-lang-cli/tests/run_replay.rs`: `a_recorded_run_replays_to_a_receipt_equal_to_the_original`. |
+| A2: handles, `await`, `scope`, `all`, `any`, `race`, `heikou::map`, `cancel` | ❌ not built | No such word in `crates/blue-lang-proc/src/node.rs`. The 24 verbs in `bidamas/mokuroku/graph/heikou.b` are all `absent`. Done when the A-structure and A-cancel gates are green. |
+| A3: I/O words park on readiness; `blocking(f)` | ❌ not built | `http_request`, `nats_*`, `pg`, `exec_capture`, `read_file` and `sleep_ms` still block the node thread. Done when A-no-block is green. |
+| A4: `channel`, `stream`, `select`, capacities, `throttle`, `retry` | ❌ not built | Done when A-backpressure is green. A bounded queue is then the only kind a program can make. |
+| A5: `supervise` with restart windows and backoff | ❌ not built | Done when a service restarts a crashing handler within its window. |
+| A6: `schedulers(n)`; `suspends` and its check | ❌ not built | Done when A-parity and A-colour are green. A `restricted` definition that reaches an undeclared suspension point is then refused at check time. |
+| A7: the WASM rung on `wasi:io/poll` | ❌ not built | Done when the conformance set passes as components. |
+| an unsupervised `spawn` in a service is refused | ❌ not built | No check rule exists. |
+| a flaky concurrency test | ⏳ in progress | The deterministic node and the virtual clock make a timed test replay. Real parallel runs and real networks are measured, never typed: this stays a mitigation. |

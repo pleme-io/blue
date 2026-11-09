@@ -24,8 +24,7 @@ and `tests`; Phase 5 adds the MCP words in `eigyou/kyuuji` (`mcp_answer`,
 CATALOG.md from the facts, G7, G9, `blue_word_like` as a tool, GraphQL, and
 the release on ryn. Two Phase 2 rows stay DESIGN: the `arika` output of
 `mkBidama` and `blue.lib.project` for other projects, and mokuroku reading the
-facts. The spec (data model, tier
-ladder, proofs, schema, prior art) is `theory/ARIKA.md`. This file holds what
+facts. This file holds what
 an agent needs to build and maintain arika: the recon with paths, the phases,
 the gates with their red runs, the risks, and every surface that names arika.
 The roadmap row is the arika track in [`ROADMAP.md`](ROADMAP.md).
@@ -168,8 +167,8 @@ Outside blue: tameshi (`src/merkle.rs`, RFC 9162 layout, the test oracle;
 
 ## Phases
 
-Each phase is on the shortest path to the destination in `theory/ARIKA.md` §1.
-No phase builds what a later phase throws away.
+Each phase is on the shortest path to the destination: one word search over
+every blue tree, answered with a proof. No phase builds what a later phase throws away.
 
 | # | Deliverable | Owner | Gates | Exit |
 |---|---|---|---|---|
@@ -236,18 +235,32 @@ These are recorded in [`ROADMAP.md`](ROADMAP.md) § Rulings.
 
 | Surface | Path | Tier |
 |---|---|---|
-| spec | `theory/ARIKA.md`; rows in `theory/VOCABULARY.md`, `theory/NAMING.md`; pointer in `theory/BLUE-ENGINE.md` §5.3 | canonical |
 | this file + roadmap track | `docs/ARIKA.md`, `docs/ROADMAP.md` | advisory |
 | header, facts + emitter | `bidamas/SNAPSHOT.json`, `gen/arika.b`, `gen/arika-facts.b` (`packages.arika-facts`), `crates/blue-lang-mondou/src/facts.rs`, `shomei::ct_*` | built (Phase 2) |
 | agent guide | `docs/agents.md` (renders `CLAUDE.md`, `AGENTS.md`, `llms-full.txt`) | generated, gated fresh |
 | skills | `blackmatter-pleme/skills/bidama` (step 1), `blackmatter-pleme/skills/arika` (maintenance) | advisory |
 | org pointer | `blackmatter-pleme/docs/pleme-io-CLAUDE.md` HOUSE STYLE "Find before you write blue" | advisory |
-| knowledge note | `nix/docs/knowledge/pleme-io/blue/` | recall |
 | repo declaration | `pangea-architectures/workspaces/pleme-io-opensource/org.yaml` | declared, not applied |
 | CLI + rule | `crates/blue-lang-cli/src/arika.rs`, `crates/blue-lang-cli/blue/arika.b`; B0070's explanation names arika | built |
 | PreToolUse hook | `blackmatter-pleme/module/default.nix`, `blue arika like --hook` on `Edit\|Write\|MultiEdit` | built |
 | full text + MCP | `bidamas/junni`, `bidamas/eigyou/kyuuji` (`mcp_*`), `TOOLS` in `arika.b`, `docs/arika-tools.json`, `gen/arika-tools.b` | built (2026-11-09) |
 | still to come | `mcpServers.arika` (Phase 5), engenho release in `nix/nodes/ryn` (Phase 5) | — |
 
-When a phase ships, update its row here, the roadmap tier, the skill text and
-the knowledge note in the same pass.
+When a phase ships, update its row in the ledger, the roadmap track and the
+skill text in the same pass.
+
+## Ledger
+
+One row for each phase.
+
+✅ built and tested · ⏳ in progress · ❌ not built
+
+| Item | State | What makes it true |
+|---|---|---|
+| Phase 1: `blue arika like` and `word`, the PreToolUse hook | ✅ built | `crates/blue-lang-cli/tests/arika.rs`, `arika_and_b0070_name_the_same_word_g4` (G4). |
+| Phase 2: the emitter, the Merkle words, `SNAPSHOT.json` | ⏳ in progress | Built for blue's own tree: `blue arika emit`, `crates/blue-lang-mondou/src/facts.rs`, `bidamas/SNAPSHOT.json` (`generate("arika-snapshot")`), `run("arika-facts")`, test `every_definition_is_one_leaf_with_its_facts_g2` (G2). Missing: an `arika` output in `mkBidama` and `blue.lib.project` for other projects, and mokuroku reading the facts. |
+| Phase 3: Parquet, `find`, `uses`, `changed`, `groups`, T3 witnesses | ⏳ in progress | Built in process over the facts: `find` (BM25, `bidamas/junni`), `get`, `uses`, `groups`, `changed`, `golden` and `ask` in `crates/blue-lang-cli/blue/arika.b`; test `the_golden_questions_keep_their_top_hit_g5` (G5) over 22 questions in `crates/blue-lang-cli/tests/arika_golden.tsv`. Missing: the Parquet plane through kueri, T3 witnesses, the compression rank, CATALOG.md from the facts, G7, and about 50 golden questions. |
+| Phase 4: codesearch indexes `.b` | ❌ not built | The exit is a `.b` chunk from `semantic_search`. |
+| Phase 5: the GraphQL and MCP service | ⏳ in progress | Built in process: `mcp_answer` and `mcp_handler` in `bidamas/eigyou/kyuuji`, `TOOLS` in `crates/blue-lang-cli/blue/arika.b`, `blue arika tools`, `mcp` and `serve`; `docs/arika-tools.json` (`generate("arika-tools")`, G8); test `the_mcp_door_lists_the_rendered_tools_and_answers_a_call_as_the_cli_does`. Missing: `blue_word_like` as a tool, GraphQL, T6, the reload vigy (G9), the release on ryn and `mcpServers.arika`. The exit is a fresh session that lists `blue_word_*` and answers the golden set with the CLI's bytes. |
+| Phase 6: federation over consumer repos | ❌ not built | The exit is one query over blue and at least 3 consumer repos. |
+| Phase 7: T4 canonical forms | ❌ not built | The exit is near groups that collapse with 0 false merges on the golden set. |

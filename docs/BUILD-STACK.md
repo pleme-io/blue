@@ -5,11 +5,11 @@ summary: the default platform for a blue service, from Bluefile to a running nod
 
 # BUILD-STACK — the default platform for a blue service, from Bluefile to a running node
 
-Status: DESIGN, 2026-10-27; the runtime rung (§2) is decided, and its judge
-and component are built, 2026-10-28. Nothing else is built unless §8 says so. It joins three
-designs into one chain: `SERVICE-ACCESS.md` (what a service may touch),
-`BUILD-ASSURANCE.md` (what a build proves, how fast, from which cache) and
-theory `BLUE-EXECUTION.md` §IV (blue to wasm). The whole-stack architecture
+Status: ⏳ in progress. The runtime rung (§2), its judge, the engine component
+and the wasm chart are built. The [Ledger](#ledger) at the end says what else
+is built. This doc joins designs into one chain: `SERVICE-ACCESS.md` (what a
+service may touch) and `BUILD-ASSURANCE.md` (what a build proves, how fast,
+from which cache), with blue compiled to wasm. The whole-stack architecture
 that this chain serves (business logic in blue, everything else rendered, three
 layers) is `SUBSTRATE.md` (2026-11-09).
 
@@ -78,7 +78,7 @@ The judge refuses each bad entry alone and names it:
   service needs (a stale reason would keep a service native for nothing);
 - `because` without `runtime: :native`.
 
-This keeps FUEKI R1: the declaration states what the service needs; the rung
+This keeps one rule: the declaration states what the service needs; the rung
 follows from it, and *where* it runs stays placement.
 
 ## 3. Everything is a Helm chart
@@ -104,8 +104,8 @@ lowers through `blue.lib.project` to substrate's nix (`lib/service/helm-build.ni
 | `service(name, {...})` | the program, port, probes, config | haibi's chart (values plus pleme-lib `include`s) |
 | `access: {effects, egress, reads, writes, listen, exec, host_network, per_node}` | what it may touch (`SERVICE-ACCESS.md` §3) | pleme-lib access network policy and volumes; the engine posture; unit sandbox |
 | `runtime: :native, because: :process` (absent: wasm) | the runtime rung (§2) | `packages.service-<name>-component` and the wasm workload, or the native workload; `checks.service-<name>-component-serves` runs the component under wasmtime |
-| `schema: {...}` / `model(...)` | its data; since 2026-11-09 the model lives in its own bidama (`theory/BLUE.md` §V.32, `SERVICE-ARCHITECTURE.md` §5c) | DDL and the shinka migration |
-| `cache: {...}`, `secrets: [...]` | bindings; a secret is a cofre `SecretRef` (`theory/FUEKI.md` R5) | pleme-cache values; pleme-lib typed secret refs |
+| `schema: {...}` / `model(...)` | its data; since 2026-11-09 the model lives in its own bidama (`SERVICE-ARCHITECTURE.md` §5c) | DDL and the shinka migration |
+| `cache: {...}`, `secrets: [...]` | bindings; a secret is a cofre `SecretRef` | pleme-cache values; pleme-lib typed secret refs |
 | `supervision: {...}` | the OTP tree (§5.1) | the service runtime's supervisor; probes |
 | `placement(name, {node: "plo"})` / `placement(name, {cluster: "...", namespace: "..."})` | where it runs, with per-place values | `mkHelmRender` with those values → engenho manifests (node) or a Flux HelmRelease/Kustomization (cluster) |
 | `chart_library("pleme-lib", from: :helmworks)` | a library chart the chart uses | `mkHelmChart` vendoring it from the flake input; the dependency names a vendored path |
@@ -156,9 +156,9 @@ process with a private environment, a crash ends only that process, and a
 supervisor restarts it under a policy. The pieces exist: `blue-lang-proc`'s
 supervisor (one-for-one, one-for-all, rest-for-one, simple-one-for-one, max
 restarts; per-process VM isolation) and the `saishikou` bidama, which holds
-the restart policy as data. The gap is the wiring: no service depends on
-`blue-lang-proc` yet (theory `BLUE-GAPS.md`), and the supervisor has no
-restart window and no backoff (`SERVICE-ARCHITECTURE.md`, Supervision row).
+the restart policy as data. The gap is the wiring: no service runs its handlers
+under `blue-lang-proc` yet, and the supervisor has no restart window and no
+backoff (`SERVICE-ARCHITECTURE.md`, Supervision row).
 
 | Default | Value | Configured by |
 |---|---|---|
@@ -194,21 +194,28 @@ Turning it off is a typed waiver on the entry, never a missing entry.
 | S4 | haibi chart for the wasm rung, on pleme-lib's `pleme-wasm-component` mode (helmworks H4) | rendered chart test (`checks.service-<name>-chart`) |
 | S5 | Flux objects per `placement` in the GitOps repo | that repo's `-fresh` check |
 | S6 | `blue-project.yml` adopted by every Bluefile repo, sui scheduling builds | a fresh runner builds with zero local Rust (`BUILD-ASSURANCE.md` B1) |
-| S7 | kensa: the native rung today with its gap, and the path off it (FUEKI H1) | kensa's Bluefile states `runtime: :native, because: :host_program` |
+| S7 | kensa: the native rung today with its gap, and the path off it | kensa's Bluefile states `runtime: :native, because: :host_program` |
 | S8 | the service runtime runs every handler under `blue-lang-proc` with the §5.1 defaults; the supervisor gains a restart window and backoff | a handler that raises answers 500 and the next request succeeds; a crash loop backs off and fails upward (counted in a test) |
 
-## 8. Tier ledger
+## Ledger
 
-| Item | Tier |
-|---|---|
-| haibi chart, values schema, migration, `-fresh` | built |
-| capability → wasm import table | built (`blue-lang-waku`) |
-| engine posture (`Load::posture`) | built |
-| blue actions suite and `blue-project.yml` | built 2026-10-27 |
-| `runtime` and `access` on `service`, the judge (§2.1) | built 2026-10-28 |
-| blue engine as a WASI preview 2 component (`blue-lang-component`), per-service bundle, `-component-serves` | built 2026-10-28 |
-| engenho `kidou` preopens the bundle at `/app` (`wasm.pleme.io/app`) | built 2026-10-28 |
-| haibi wasm chart on pleme-lib's wasm mode (S4) | built 2026-10-29 on pleme-lib 0.59.1: `checks.service-<name>-chart` renders the wasm Deployment and refuses one with no closure. On 2026-10-29 no release set `runtime.component.closure`; since nix `6dd08d07` ola-mundo's release on ryn pins it (`nix/nodes/ryn/default.nix`). Whether that pod serves is unmeasured (`SUBSTRATE.md` L1.1) |
-| Flux per placement | design |
-| OTP supervisor (`blue-lang-proc`), restart policy as data (`saishikou`) | built, not wired into services |
-| supervision as a service default, restart window and backoff | design |
+The state of each step, measured on 2026-11-09.
+
+✅ built and tested · ⏳ in progress · ❌ not built
+
+| Item | State | What makes it true |
+|---|---|---|
+| haibi chart, values schema, migration, freshness check | ✅ built | `bidamas/eigyou/haibi/haibi.b`, 22 tests |
+| Capability to wasm import table | ✅ built | `crates/blue-lang-waku/src/imports.rs` |
+| Engine posture (`Load::posture`) | ✅ built | `crates/blue-lang-host/tests/host.rs` |
+| The blue actions and `blue-project.yml` | ✅ built | `blue-check`, `blue-build-plan`, `blue-service-release` and `blue-reuse` in the pleme-io/actions repository; the reusable `blue-project.yml` in the substrate repository |
+| S1: `runtime` and `access` on `service`, the judge (§2.1) | ✅ built | `crates/blue-lang-pkg/src/deploy/runtime.rs`, tested in `deploy/service.rs` |
+| S2: the engine as one WASI preview 2 component, a per-service bundle | ✅ built | `crates/blue-lang-component`; `checks.service-<name>-component-serves` in `nix/service.nix` runs it under wasmtime and fails when the probe never answers |
+| kidou preopens the bundle at `/app` (`wasm.pleme.io/app`) | ✅ built | `engenho-kubelet/blue/kidou/kidou.b`; the chart check in `nix/service.nix` |
+| S3: a component's imports derived from `access.effects` | ❌ not built | One engine serves every service. Done when a component built under the default access has no filesystem import |
+| S4: the haibi wasm chart on pleme-lib's wasm mode | ✅ built | `checks.service-<name>-chart` in `nix/service.nix` renders the wasm Deployment and refuses one with no closure. ola-mundo's release pins its closure and serves on engenho (`SUBSTRATE.md` L1.1) |
+| S5: Flux objects per `placement` | ❌ not built | blue has no `placement` word |
+| S6: `blue-project.yml` in every Bluefile repo, sui schedules the builds | ❌ not built | Done at `BUILD-ASSURANCE.md` B1 |
+| S7: kensa states its native rung and its gap | ⏳ in progress | kensa's Bluefile states `runtime: :native, because: :host_program`. The path off the native rung is not built |
+| OTP supervisor (`blue-lang-proc`), restart policy as data (`saishikou`) | ⏳ in progress | Both exist (`crates/blue-lang-proc/src/lib.rs`, `bidamas/saishikou/saishikou.b`). No service runs its handlers under them |
+| S8: supervision as a service default, with a restart window and backoff | ❌ not built | Done when a handler that raises answers 500, the next request succeeds, and a crash loop backs off (counted in a test) |

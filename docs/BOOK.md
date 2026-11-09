@@ -853,9 +853,9 @@ write_stdout(read_file("note.txt"))
 ```
 
 Every Rust guarantee, the blue gate that matches it and its off switch are in
-[SAFETY.md](SAFETY.md). One access declaration for a whole service, in its
-`service(...)` entry, is designed in
-[SERVICE-ACCESS.md](SERVICE-ACCESS.md) and not built yet.
+[SAFETY.md](SAFETY.md). A whole service declares its access once, in the
+`access` of its `service(...)` entry. The ledger in
+[SERVICE-ACCESS.md](SERVICE-ACCESS.md) shows which layers render it today.
 
 
 ### 10. Write an action
@@ -1887,7 +1887,7 @@ needs is in [KERNEL.md](KERNEL.md) §3.
 - [blue examples](EXAMPLES.md): one tested program per common task, ready to paste as examples
 - [Glossary: blue's terms and the concepts they name](GLOSSARY.md): every blue term mapped to the compiler, language or distributed-systems concept it names, in both directions, and how the parts meet in a compile, a test run and a deploy
 - [blue language reference](REFERENCE.md): syntax, operators, reserved words, every built-in name and the Bluefile words
-- [blue roadmap](ROADMAP.md): the one blue roadmap, one row per track with its tier, next step and done gate, and every conflict ruled once
+- [blue roadmap](ROADMAP.md): the one blue roadmap, one row per track with its state and the evidence for it, and every conflict ruled once
 - [Safety first: blue's posture, row by row](SAFETY.md): the safety-first posture, one row per Rust guarantee: blue today, the gate, its tier and its off switch
 - [blue — the agent guide](../AGENTS.md): rules for people and agents who write blue programs or change blue itself, with the build commands from the Bluefile
 - [Implementing blue — the detail behind the agent guide](implementing.md): the implementer detail behind the agent guide's "Changing blue itself": the check registry, crate map, hard-won rules, CI gates, dependencies and what is not built
@@ -1914,7 +1914,7 @@ needs is in [KERNEL.md](KERNEL.md) §3.
 - [HORIZON: where blue goes next](HORIZON.md): the long plan for blue, ten horizons from hygiene to a language that proves, replays and explains itself, eight authority horizons that make every host effect a capability granted from one declaration in every placement, an ontology of every concept in khipu that the tests are generated from, and the kernel as both a verified target and the enforcer of access; destination first, each horizon with its first step, its gate and what it unlocks
 - [HTTP2 — blue speaks HTTP/2 and gRPC itself](HTTP2.md): blue speaks HTTP/2 and gRPC itself (design, phase 1 built)
 - [KERNEL — write only blue for the Linux kernel](KERNEL.md): blue as the whole kernel toolchain, from source to a program the verifier admits, and where each part runs
-- [khipu: blue's knowledge graph, the design of record](KHIPU.md): khipu, blue's knowledge graph, DESIGN: OxiRS's essence naturalized, the recon, the typed terms, the phases, the parity gates and the tier ledger
+- [khipu: blue's knowledge graph, the design of record](KHIPU.md): khipu, blue's knowledge graph, DESIGN: OxiRS's essence naturalized, the recon, the typed terms, the phases, the parity gates and the ledger
 - [Lessons behind the agent guide's rules](LESSONS.md): the full story behind each rule the agent page states in short
 - [MARKDOWN — Markdown is a first-class blue value](MARKDOWN.md): Markdown as a first-class blue value: one typed tree, one formatting, checked links, and renderings to Markdown, HTML, PDF and the terminal (design)
 - [Namespaces: a bidama definition stays in its bidama](NAMESPACES.md): a bidama definition stays in its bidama: the rule as built and its gates

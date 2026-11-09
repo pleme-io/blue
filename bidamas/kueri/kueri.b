@@ -47,7 +47,7 @@ read_csv — has floor :duckdb.
 ## Rungs — the blueshift, for SQL
 
 A model declares its posture, `posture: [reach, rigor]`, which mirrors blue's
-(theory/BLUE.md §V.19–V.20):
+blueshift:
 
   reach  :portable | :duckdb — like waku's REACH, what a model may NAME.
          :portable is the narrower frame. Every construct has a floor, and a
@@ -111,7 +111,7 @@ identity for nodes is not built.
 
 Design: the SQL-frameworks survey in the makoto lab (§5 sketch; this is its
 M0). Near-misses, deliberately not merged: dialeto's relational sub-IR
-(theory/DIALETO.md — design-tier, no types to compare) and sql-synthesizer
+(design only, no types to compare) and sql-synthesizer
 (a Rust DDL AST with no SELECT algebra).
 
     ident("Mean") #=> "\"Mean\""

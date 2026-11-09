@@ -5,8 +5,8 @@ summary: one way to build a command line and a terminal interface in blue (desig
 
 # CLI-TUI — one way to build a command line and a terminal interface in blue
 
-Status: DESIGN, 2026-10-27. Layer 1 (arguments and line output) is BUILT; §9
-marks each piece.
+Status: ⏳ in progress. Layer 1 (arguments and line output) is built. Layers 2
+to 4 are design. The [Ledger](#ledger) at the end marks each piece.
 
 ## 1. Destination
 
@@ -29,7 +29,7 @@ function, never a hand-written parser or a hand-written escape sequence.
 | terminal input: a line, a key, raw mode, the window size | none; the runtime has `argv`, `getenv`, `write_stdout`, `write_stderr`, `exit_with` and nothing that reads stdin | absent |
 | design tokens | `ishou` (`ishou-tokens`: `SemanticRoles`, the Nord and Vellum themes) is the source of truth; `irodori` holds Nord | Rust |
 | the house CLI look | `kazari` (Rust): roles, the sixteen-colour fallback line, severity glyphs, rounded boxes, braille spinner, eighth-block meter, capability probing (`NO_COLOR`, `COLORTERM`, `TERM`) | Rust |
-| the house TUI | quadro (`theory/QUADRO.md`): egaku widget state machines, egaku-term cell buffer with diff flush, one event loop, typed `Event` in and `Action` out, `MinSize` gate, synchronized output | Rust |
+| the house TUI | quadro: egaku widget state machines, egaku-term cell buffer with diff flush, one event loop, typed `Event` in and `Action` out, `MinSize` gate, synchronized output | Rust |
 | the blue agent TUI | `arnes`: a Rust kernel on egaku-term and crossterm; its blue host functions have no terminal words | Rust kernel, blue behaviour |
 
 Two facts set the design. First, the house look already exists as data in
@@ -170,14 +170,23 @@ The hand parsers in `tehai`, `kijun`, `kirikae` and `blue`'s own `verbs`,
 `doc` and `migrate` tools move to `hikisuu` (C5 in `BIDAMA-COHESION.md`); the
 `hand-rolled-flags` rule in `STDLIB.md` W4 then turns the pattern into a
 check-stage warning. kensa's hand-written ANSI reporter is a Rust instance of
-the same class and moves to kazari (`theory/KAZARI.md`).
+the same class and moves to kazari.
 
-## 9. Build order and state
+## 9. Build order
 
-| Step | Work | State |
+L1 to L4. Each step is a row in the [Ledger](#ledger), with its state.
+
+## Ledger
+
+The state of each step, measured on 2026-11-09.
+
+✅ built and tested · ⏳ in progress · ❌ not built
+
+| Item | State | What makes it true |
 |---|---|---|
-| L1 | `hikisuu`: spec, parse, help, completion, `command`; `souji` and `heni` migrated | BUILT 2026-10-27 |
-| L1 | `gamen` line output: roles, marks, verdict circles, cells, table, tree, meter, spinner | BUILT 2026-10-27 |
-| L2 | `Terminal` capability with `read_line` and `is_terminal`; `prompt`, `confirm`, `choose` | DESIGN |
-| L3 | `term_size`, `term_raw`, `term_event`; the cell grid and diff flush; the supervised loop; widgets, focus, keymaps | DESIGN |
-| L4 | the remaining hand parsers and `hand-rolled-flags` at warning | DESIGN |
+| L1: `hikisuu`: spec, parse, help, completion, `command` | ✅ built | `bidamas/hikisuu/hikisuu.b`, 13 tests; heni mutations in `bidamas/heni/mutations/hikisuu.json` |
+| L1: `souji` and `heni` read their flags through `hikisuu` | ✅ built | `bidamas/kakehashi/souji/souji.b` and `bidamas/heni/heni.b` use it |
+| L1: `gamen` line output: roles, marks, verdict circles, cells, table, tree, meter, spinner | ✅ built | `bidamas/gamen/gamen.b` (`step`, `verdict_marks`, `table`, `tree`, `meter`, `spinner`), 60 tests |
+| L2: the `Terminal` capability with `read_line` and `is_terminal`; `prompt`, `confirm`, `choose` | ❌ not built | No such word in the runtime or in `gamen`. `gamen::terminal?` still runs `test -t` as a process |
+| L3: `term_size`, `term_raw`, `term_event`; the cell grid and diff flush; the supervised loop; widgets, focus, keymaps | ❌ not built | No such word exists |
+| L4: the remaining hand parsers move to `hikisuu`; `hand-rolled-flags` at warning | ❌ not built | `tehai`, `kijun` and `kirikae` still parse `--flag` by hand. No `hand-rolled-flags` rule exists |

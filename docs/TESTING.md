@@ -13,8 +13,8 @@ fully bluelang pipeline"*, then *"give bluelang all the verbs for deep bdd and
 tdd style testing and if possible hard block lack of tests ... make the hard
 block and testing frameworks also highly configurable"*.
 
-This document is the design. Section 16 is the tier ledger: what exists, what
-is tested, what is live, and what is only design.
+This document is the design. Section 16 is the ledger: the state of each
+item.
 
 ## 1. Destination
 
@@ -89,9 +89,8 @@ test kind other than "a `test` block"; no capability declaration on a test;
 no blue action in `pleme-io/actions` (its 439 run scripts are tatara-lisp
 `run.tlisp`).
 
-Prior pleme-io art: `theory/TESTING-SUBSTRATE.md` §IX (the seam is the whole
-game: every side effect behind one injectable trait, then mock the trait) and
-kensa's `kensa-profiles` matchers (`eq`, `cmp`, `include`, `match`, `be_in`,
+Prior pleme-io art: the seam is the whole game (every side effect behind one
+injectable trait, then mock the trait), and kensa's `kensa-profiles` matchers (`eq`, `cmp`, `include`, `match`, `be_in`,
 `compare`). kensa's own integration tests hand-write an axum server that
 plays GitHub (`kensa/tests/recorder_tests.rs:100-124`); no recorded fake
 exists in the fleet.
@@ -221,26 +220,26 @@ builtin or a bidama already has is used, not aliased.
 
 | RSpec or Rust shape | blue word | State |
 |---|---|---|
-| `it "does x"`, `#[test]` | `test "does x" … end` | exists |
-| `describe`, `context` | `describe "subject" … end` (one word; a context is a nested `describe`) | design (parser form, like `test`) |
-| `let`, `subject` | a binding at the top of a `describe`, evaluated per test in the forked interpreter | design |
-| `before`, `after`, `around` | `around(f)`: a function that receives the test body; `before` and `after` are `around` with one side | design |
-| shared examples | a `def` that takes the subject and asserts; tests call it | exists (plain blue) |
-| table-driven, parametric | `case(name, f)` over a list of rows, one test per row | verb graph row, design |
-| `eq` | `assert a == b` (structural diff on failure) | exists |
-| `include` | `member?`, `contains?` | exists (builtins) |
-| `raise_error` | `tesuto::raises?(kind, f)` | exists |
-| `change { }.by(n)` | `changes?(probe, f, by)` | design |
-| `satisfy` | any predicate in `assert` | exists |
-| match a shape or schema | `conforms?(value, contract)`; a contract is a kousei shape | verb graph row, design |
-| stub, fake | `fake(target, impl, f)`: on a declared seam only | verb graph row, design |
-| spy | `spy(target)`, `calls(spy)` | verb graph rows, design |
-| snapshot, golden | `tesuto::snapshot(value, {name:})` | exists |
-| property | okite laws over `ran` seeded generators | exists; shrinking is design |
-| frozen time | `freeze(instant, f)` | verb graph row, design |
-| fixture file | `fixture(name)`: a file kept beside the test | verb graph row, design |
-| flaky handling | `quarantine(test, reason, until)`, `flaky?` | verb graph rows, design |
-| coverage | `blue test --coverage`, `tesuto::uncovered` | exists |
+| `it "does x"`, `#[test]` | `test "does x" … end` | ✅ built |
+| `describe`, `context` | `describe "subject" … end` (one word; a context is a nested `describe`) | ❌ not built (a parser form, like `test`) |
+| `let`, `subject` | a binding at the top of a `describe`, evaluated per test in the forked interpreter | ❌ not built |
+| `before`, `after`, `around` | `around(f)`: a function that receives the test body; `before` and `after` are `around` with one side | ❌ not built |
+| shared examples | a `def` that takes the subject and asserts; tests call it | ✅ built (plain blue) |
+| table-driven, parametric | `case(name, f)` over a list of rows, one test per row | ❌ not built (a verb graph row) |
+| `eq` | `assert a == b` (structural diff on failure) | ✅ built |
+| `include` | `member?`, `contains?` | ✅ built (builtins) |
+| `raise_error` | `tesuto::raises?(kind, f)` | ✅ built |
+| `change { }.by(n)` | `changes?(probe, f, by)` | ❌ not built |
+| `satisfy` | any predicate in `assert` | ✅ built |
+| match a shape or schema | `conforms?(value, contract)`; a contract is a kousei shape | ❌ not built (a verb graph row) |
+| stub, fake | `fake(target, impl, f)`: on a declared seam only | ❌ not built (a verb graph row) |
+| spy | `spy(target)`, `calls(spy)` | ❌ not built (verb graph rows) |
+| snapshot, golden | `tesuto::snapshot(value, {name:})` | ✅ built |
+| property | okite laws over `ran` seeded generators | ⏳ in progress: laws run; shrinking is not built |
+| frozen time | `freeze(instant, f)` | ❌ not built (a verb graph row) |
+| fixture file | `fixture(name)`: a file kept beside the test | ❌ not built (a verb graph row) |
+| flaky handling | `quarantine(test, reason, until)`, `flaky?` | ❌ not built (verb graph rows) |
+| coverage | `blue test --coverage`, `tesuto::uncovered` | ✅ built |
 
 A fake replaces a seam that a bidama declares. It never patches an arbitrary
 name: that would make every definition a seam and hide what a test touches.
@@ -330,20 +329,25 @@ moves out of them one step at a time, in the ledger order below. A blue
 action (`action.yml` that calls `blue run run.b`) is a peer of the tatara-lisp
 ones, added when an action is touched, never by mass rewrite.
 
-### The ledger: non-blue steps in the pipeline today
+### Non-blue steps in the pipeline today
 
-| # | Step | Where | Language | Blue replacement | Phase |
-|---|---|---|---|---|---|
-| 1 | which checks exist, per word | `nix/project.nix`, `bidamas/mk-bidama.nix` | nix | stays nix (packaging is nix's job); it reads the lock, which blue wrote | none |
-| 2 | each check's body | `mk-bidama.nix:405-411` (`runCommand` one-liners) | sh glue | one `blue test` call per check (exists) | done |
-| 3 | freshness compare | `mkFreshCheck` (`cmp` in sh) | sh glue | `blue test` over a generated-vs-committed gate | T6 |
-| 4 | pre-push hook | `.githooks/pre-push` | 4 lines of sh | stays as glue; it calls `gen/prepush.b` | none |
-| 5 | pre-push gate list | `gen/prepush.b` | blue, hand list | derived from `check` rows with `stage: :push` | T3 |
-| 6 | CI workflow | `.github/workflows/ci.yml` | YAML, no logic | rendered by `generate` from `gen/ci.b` | T5 |
-| 7 | CI logic | substrate `cargo-ci.yml` + actions `run.tlisp` | YAML + tatara-lisp | `nix flake check` only; the logic is the Bluefile's checks | T5 |
-| 8 | release | substrate `rust-auto-release.yml` | YAML + tatara-lisp | the same rendering with release-stage gates first | T7 |
-| 9 | action renderer | actions `defaction-render` (curl + python `render.py`) | python | a blue renderer in the `generate` program | T7 |
-| 10 | kensa delivery | kensa `ci.yml` `deliver-to-ryn` (`test -n`, `curl`) | 2 lines of sh | a blue step in the rendered workflow | T7 |
+✅ built and tested · ⏳ in progress · ❌ not built
+
+Each row is one step of the pipeline. The state says whether the step is blue,
+or stays outside blue by design.
+
+| Item | State | What makes it true |
+|---|---|---|
+| 1. which checks exist, per word | ✅ built | It stays nix by design: packaging is nix's job. `nix/project.nix` and `bidamas/mk-bidama.nix` read the lock, which blue wrote. |
+| 2. each check's body | ✅ built | One `blue test` call per check (`bidamas/mk-bidama.nix`). |
+| 3. freshness compare | ❌ not built | `mkFreshCheck` compares with `cmp` in sh (`bidamas/mk-bidama.nix`). Phase T6 moves it to a `blue test` gate. |
+| 4. pre-push hook | ✅ built | It stays as glue by design: `.githooks/pre-push` is 4 lines of sh that call `gen/prepush.b`. |
+| 5. pre-push gate list | ⏳ in progress | `gate_table` in `gen/prepush.b` is blue, but a hand list. Phase T3 derives it from `check` rows with `stage: :push`. |
+| 6. CI workflow | ❌ not built | `.github/workflows/ci.yml` is hand YAML with no logic. Phase T5 renders it from `gen/ci.b`, which does not exist. |
+| 7. CI logic | ❌ not built | substrate `cargo-ci.yml` and the actions' `run.tlisp`. Phase T5 moves the logic into the Bluefile's checks. |
+| 8. release | ❌ not built | substrate `rust-auto-release.yml`. Phase T7. |
+| 9. action renderer | ❌ not built | actions `defaction-render` (curl and python `render.py`). Phase T7. |
+| 10. kensa delivery | ❌ not built | kensa `ci.yml` `deliver-to-ryn` (2 lines of sh). Phase T7. |
 
 ### Pre-merge and post-merge
 
@@ -390,7 +394,7 @@ The proof is trusted on push access alone: a note is not signed, so anyone who c
   build of `blue`. A failed or skipped test, a test that made a host call,
   and every test of a file whose preamble made one are never recorded: what
   they read is not in the identity. `--coverage` and `--facts` always run
-  every test. Off by default until the corpus has run under it.
+  every test. On by default.
 
 ## 11. States and trust
 
@@ -493,7 +497,7 @@ stateDiagram-v2
 
 | Phase | What | Value | Effort |
 |---|---|---|---|
-| **T1** ✅ | coverage hard block on blue's own bidamas: `tesuto` policy words, `gen/test-beside.b`, `check("test-beside")`, pre-push gate | every new untested definition in blue is red | landed |
+| T1 | coverage hard block on blue's own bidamas: `tesuto` policy words, `gen/test-beside.b`, `check("test-beside")`, pre-push gate | every new untested definition in blue is red | landed |
 | T2 | the gate in `lib.project`: every project with `packages` gets it by default; read coverage from the `bidama-test-<pkg>` outputs (no second run) | fleet-wide block, half the time | medium |
 | T3 | `check` options `{stage:, kind:}`; `blue test .` runs the Bluefile's rows; `gen/prepush.b` derived from them | one gate list for nix, pre-push and CI | medium |
 | T4 | test options map (`kind`, `allow`, `fakes`) and the integration-point finding: a `service` binding, a `generate` row or a seam with no test of its kind | integration tests beside their points | medium (parser + check stage) |
@@ -502,23 +506,28 @@ stateDiagram-v2
 | T7 | release and delivery steps as blue (`defaction-render` in blue, kensa's delivery step) | the last non-blue logic leaves the pipeline | large |
 | T8 | reporters (JUnit, SARIF), shards, quarantine with until, flaky detection | CI ergonomics | small each |
 
-## 16. Tier ledger
+## 16. Ledger
 
-| Item | Tier | Evidence |
+✅ built and tested · ⏳ in progress · ❌ not built
+
+| Item | State | What makes it true |
 |---|---|---|
-| test blocks, `assert`, `--coverage` | live | `crates/blue-lang-test`, `blue test` |
-| `tesuto::uncovered`, `level`, `waive`, `settle`, `level_of`, `beside`, `stale` | tested | `bidamas/tesuto/tesuto.b`, 15 tests, 18/18 definitions reached |
-| coverage gate at enforce with a ratchet | tested, gated | `gen/test-beside.b` (7 tests: red then green on a fixture package; growth, waiver, stale, audit, off, blind); `checks.test-beside`; pre-push gate |
-| recorded debt | live | 210 untested definitions in 42 packages, 2026-10-24; 35 packages at zero |
-| test options map: `satisfies:`, `target:`, `assert_panics`, `blue test --allow`, `--facts` | live | section 4, "Declared controls"; `tests/compliance.rs` (4), `spec/rows/testing.b` (12) |
-| a named skip: `tesuto::skip_for`, `SKIP name: why`, `BLUE_TEST_SKIP=refuse` | live | `crates/blue-lang-test` (the skip is never a pass), `tests/scripts.rs`, `gen/kernel-new.b` |
-| test cache: a test whose identity passed before is reported as cached; `BLUE_TEST_CACHE=off` or `--no-cache` runs it | tested, on by default | section 10; `tests/test_cache.rs` (8: callee, unrelated, preamble, failing, host, off, unwritable, refused value) |
-| integration-point finding, test options map: `kind:`, `allow:`, `fakes:` | design | section 5, D6 |
-| BDD words beyond `raises?` and `snapshot` | design | section 6 |
-| rendered CI workflow, `blue test .` | design | section 9 |
+| test blocks, `assert`, `blue test --coverage` | ✅ built | `crates/blue-lang-test`; `blue test`. |
+| `tesuto::uncovered`, `level`, `waive`, `settle`, `level_of`, `beside`, `stale` | ✅ built | `bidamas/tesuto/tesuto.b`, 18 tests. |
+| T1: the coverage gate at enforce, with a ratchet, on blue's own bidamas | ✅ built | `gen/test-beside.b`, 7 tests (red then green on a fixture package; growth, waiver, stale, audit, off, blind); `check("test-beside", …)` in the Bluefile; the pre-push gate. |
+| recorded debt | ⏳ in progress | 210 untested definitions in 42 packages, measured 2026-10-24; 35 packages at zero. |
+| test declarations: `satisfies:`, `target:`, `assert_panics`, `blue test --allow`, `--facts` | ✅ built | Section 4, "Declared controls"; `crates/blue-lang-cli/tests/compliance.rs` (4 tests), `spec/rows/testing.b` (12 rows). |
+| a named skip: `tesuto::skip_for`, `SKIP name: why`, `BLUE_TEST_SKIP=refuse` | ✅ built | `crates/blue-lang-test/src/lib.rs` (a skip is never a pass), `crates/blue-lang-cli/tests/scripts.rs`, `gen/kernel-new.b`. |
+| the test cache: on by default; `BLUE_TEST_CACHE=off` or `--no-cache` turns it off | ✅ built | Section 10; `crates/blue-lang-cli/tests/test_cache.rs`, 8 tests (among them `a_changed_callee_runs_its_test_again`, `a_test_that_reaches_the_host_is_never_cached`, `an_unknown_cache_value_is_refused`). |
+| T2: the coverage gate in `lib.project` for every project with `packages` | ❌ not built | Only blue's own Bluefile declares `check("test-beside", …)`. `nix/project.nix` adds no such gate. |
+| T3: `check` options `{stage:, kind:}`; `blue test .` | ❌ not built | `crates/blue-lang-pkg/src/bluefile.rs` reads no `stage:` option. |
+| T4: test options `kind:`, `allow:`, `fakes:`; the integration-point finding | ❌ not built | Section 5. A test declaration takes `satisfies:` and `target:` only. |
+| T5: `gen/ci.b` renders blue's own CI workflow | ❌ not built | No `gen/ci.b`. |
+| T6: BDD words (`describe`, `around`, `case`, `changes?`, `fake`, `spy`, `calls`, `freeze`, `fixture`, `conforms?`) | ❌ not built | `tesuto` has `raises?`, `snapshot` and `caught` only. The planned words are `absent` rows in `bidamas/mokuroku/graph/tesuto-provisional.b`. |
+| T7: release and delivery steps as blue | ❌ not built | Rows 8 to 10 of section 9. |
+| T8: reporters (JUnit, SARIF), shards, quarantine, flaky detection | ❌ not built | No reporter in `crates/`. |
 
 Related: [`SAFETY.md`](SAFETY.md) (capabilities, row 8; scripts get project
-checks, row 16), `ABSENCE.md` (absence as its own state; in flight),
+checks, row 16), [`ABSENCE.md`](ABSENCE.md) (absence as its own state),
 [`SERVICE-ARCHITECTURE.md`](SERVICE-ARCHITECTURE.md) (the service and its
-renderings), [`DIAGNOSTICS.md`](DIAGNOSTICS.md) (project rules, waivers),
-`theory/BLUE-STRUCTURE.md` §6.7.
+renderings), [`DIAGNOSTICS.md`](DIAGNOSTICS.md) (project rules, waivers).

@@ -5,10 +5,12 @@ summary: Postgres, Valkey and the nervous system as the configurable defaults of
 
 # SERVICE-DATA — Postgres, Valkey and the nervous system as defaults
 
-Status: DESIGN, 2026-10-27. Measured over the 2 Bluefiles that declare a
-`service(...)` (kensa, ola-mundo) of 14. Extends `BUILD-STACK.md` §3.1. The
-model's design is `DATA-FRAMEWORK.md` (a model in its own bidama,
-`theory/BLUE.md` §V.32); the whole stack is `SUBSTRATE.md` (2026-11-09).
+Status: ⏳ in progress. The model steps, telemetry export, the RESP client and
+JetStream are built. The [Ledger](#ledger) at the end says what else is built.
+Measured over the 2 Bluefiles that declare a `service(...)` (kensa, ola-mundo)
+of 14. This doc extends `BUILD-STACK.md` §3.1. The model's design is
+`DATA-FRAMEWORK.md`: a model lives in its own bidama. The whole stack is
+`SUBSTRATE.md` (2026-11-09).
 
 ## 1. Destination
 
@@ -96,37 +98,34 @@ rendering covers it (`SUBSTRATE.md` §7, L1.3).
 
 ## 4. Build order
 
-| Step | Work | Serves (of 2 services) |
+S1 to S6 are the build steps. Each one is a row in the [Ledger](#ledger), with
+its state and its evidence.
+
+## Ledger
+
+The state of each step and each pending row, measured on 2026-11-09.
+
+✅ built and tested · ⏳ in progress · ❌ not built
+
+| Item | State | What makes it true |
 |---|---|---|
-| S1 | haibi renders on pleme-lib's `shinkaDatabaseMigration`, wait init container, `observabilityBundle` and `jetstream`, and emits the kenshi labels (with H3 in `helmworks/docs/BLUE-SERVICES.md`) | 2 |
-| S2 ✅ (partial) | in `teeburu`: `model(name, spec)` (a version, typed fields, keys, indexes, relations, `renamed_from`, `split_from`, `merged_from`, `drop` entries; a BLAKE3 `version_hash`); `evolve(from, to)` to typed steps (add_entity, add_field, rename, retype, add_index, split, merge, drop); `judge(steps)` refusing an undeclared drop-and-add pair (`:rename_undeclared`, both steps) and a destructive step without `allow: :destructive` (`:destructive`, that step alone), its siblings standing; `postgres(from, to, opts)` (each change led by `lock_timeout`, `CREATE INDEX CONCURRENTLY` and `DROP INDEX CONCURRENTLY` outside a transaction, a foreign key or NOT NULL as a constraint `NOT VALID` then `VALIDATE`, a constant default in one `ADD COLUMN`, backfills and split or merge copies as keyset batches each committed alone, a NOT NULL column with neither default nor backfill refused by name); `keifu(changes)` (the Liquibase XML shinka reads, `runInTransaction="false"` where needed); `kv_model` and `kv_check` (strict: missing, mistyped and undeclared fields all named; indexes, relations and non-JSON encodings refused by name) and `kv_upgrade` over the same steps. Typed accessors, the lock pin and the `blue check` gate are pending rows below | 2 |
-| S2b | one renderer per remaining shinka migrator, each tested by applying it to a real Postgres | services that pin a tool |
-| S3 ✅ | telemetry export: `rogu::exporting` → Vector (`VECTOR_ENDPOINT`), `tsuiseki::exporter` → OTLP/HTTP (`OTEL_EXPORTER_OTLP_ENDPOINT`), `keisoku::endpoint` serving `/metrics`; each on by default and off alone through `observe` (`rogu::on?`); the chart side is pleme-lib 0.55.0 `telemetry-export` and `kenshi-labels` (helmworks H6 ✅) | 2 |
-| S4 ✅ | the RESP client (`resp_*` in `blue-lang-runtime`, the `kiibariu` bidama): get, set with a TTL, del, pub/sub, SCAN; loose version-hashed keys; strict put and fetch checked against a schema; `read_upgrading` and `upgrade_eager` (SCAN batches, pipelined rewrite, TTL kept). Model-rendered keys and the hardened image are pending rows below | 1 now, 2 by default |
-| S5 ✅ | JetStream (`sutoriimu`): streams, publish with ack, durable pull consumers, ack and nak; the outbox written in the change's transaction and drained with SKIP LOCKED; `consumer` runs a handler under a one-for-one supervisor, a raise naks and restarts | the gate for every event-driven service |
-| S6 | `database.provider: :node_socket` for hosts like plo; escuta's Postgres source | hosts; log-based capture |
-
-### Pending (S2–S5)
-
-| Row | What is missing | Waits on |
-|---|---|---|
-| `pending-model-cache-keys` | `model(...)` entries' `cache` field rendered to `kiibariu` key prefixes (`prefix(model.name, model.hash, entity)`) and invalidation on write | a renderer from `model` to haibi's cache binding; `model` and `version_hash` are on main (2026-10-28) |
-| `pending-model-accessors` | typed accessors rendered from a model version (`orders::order::find`, `insert`, `update`) | a code generator over `model`; `teeburu::insert_statement` is the hand-written seed |
-| `pending-model-lock-pin` | the Bluefile lock pins each version's hash and `blue check` refuses a change with no version bump or a shipped lowering that changed | a `model` word in the Bluefile `WORDS` table and `nix/project.nix` |
-| `pending-keifu-no-transaction` | shinka's keifu applier honours `runInTransaction="false"`, so CONCURRENTLY and the keyset backfills run outside a transaction | shinka `keifu-core` (it reads only `id` and `author` today) |
-| `pending-mysql-lowering` | MySQL online DDL (`ALGORITHM=INSTANT` or `INPLACE`), each step refused by name where MySQL has no native form | a second `pg_step`-shaped lowering |
-| `pending-eager-upgrade-job` | `upgrade_eager` rendered as a shinka job for `upgrade: :eager` | S2 and haibi |
-| `pending-kv-encodings` | strict entries are JSON strings; `kv_model` refuses `encoding: :hash` and `:stream` by name until they render | a hash and a stream entry encoding in `kiibariu` |
-| `pending-resp-tls` | `resp_connect` with TLS on refuses by name; Valkey off loopback needs the runtime's TLS transport | `docs/HTTP2.md` P4 |
-| `pending-hardened-valkey` | `pleme-cache` still runs upstream `valkey/valkey` | a `mkHardenedImageSet` Valkey image |
-| `pending-outbox-dedupe` | the drain is at-least-once: a crash between publish and delete republishes; a `Nats-Msg-Id` header would let JetStream drop the duplicate, and the runtime has no HPUB word | an `nats_publish` with headers |
-| `pending-observe-wiring` | haibi passes `service(...)`'s `observe` and kenshi values into the chart (`telemetry`, `kenshi`) | S1 / H3 |
-
-## 5. Known gaps carried in
-
-- escuta is deployed nowhere, and its own README calls its MySQL decoder
-  unverified and its NATS sink core NATS, not JetStream.
-- haibi writes its migration as a full `schema.sql` apply every time; S1/S2
-  replace that with versioned migrations.
-- kensa's Valkey binding is typed and never connects; blue now has a RESP
-  client (`kiibariu`), and kensa does not use it yet.
+| S1: haibi renders on pleme-lib's `shinkaDatabaseMigration`, the wait init container, `observabilityBundle` and `jetstream`, and emits the kenshi labels | ❌ not built | haibi names none of these (`bidamas/eigyou/haibi/haibi.b`). It still writes a full `schema.sql` apply every time |
+| S2: model steps in `teeburu` | ⏳ in progress | `model`, `version_hash`, `evolve`, `judge`, `postgres`, `keifu`, `kv_model`, `kv_check` and `kv_upgrade` in `bidamas/chozou/teeburu/teeburu.b` (15 tests). Typed accessors, the lock pin and the `blue check` gate are missing (rows below) |
+| S2b: one renderer per remaining shinka migrator, each applied to a real Postgres | ❌ not built | Only `keifu` renders |
+| S3: telemetry export | ✅ built | `rogu::exporting` to Vector, `tsuiseki::exporter` to OTLP/HTTP, `keisoku::endpoint` on `/metrics`; each on by default and off alone through `observe` (`rogu::on?`). The chart side is pleme-lib 0.55.0 `telemetry-export` and `kenshi-labels` |
+| S4: the RESP client | ✅ built | `resp_*` in `crates/blue-lang-runtime` (`tests/resp.rs`) and `bidamas/chozou/kiibariu` (8 tests): get, set with a TTL, del, pub/sub, SCAN, versioned keys, strict `put` and `fetch`, `read_upgrading`, `upgrade_eager` |
+| S5: JetStream | ✅ built | `bidamas/chozou/sutoriimu` (5 tests) and `crates/blue-lang-runtime/tests/jetstream.rs`: streams, publish with ack, durable pull consumers, ack and nak, the outbox drained with SKIP LOCKED, `consumer` under a one-for-one supervisor |
+| S6: `database.provider: :node_socket`; escuta's Postgres source | ❌ not built | No `node_socket` in haibi or `crates/blue-lang-pkg` |
+| Model cache keys: a model's `cache` field rendered to `kiibariu` key prefixes, invalidated on write | ❌ not built | Needs a renderer from `model` to haibi's cache binding |
+| Typed accessors from a model version (`orders::order::find`, `insert`, `update`) | ❌ not built | `teeburu::insert_statement` is the hand-written seed |
+| Lock pin: the lock pins each version's hash, and `blue check` refuses a change with no version bump | ❌ not built | The Bluefile has no `model` word (`crates/blue-lang-pkg/src/bluefile.rs`) |
+| shinka's keifu applier honours `runInTransaction="false"` | ❌ not built | shinka `keifu-core` reads only `id` and `author` |
+| MySQL online DDL (`ALGORITHM=INSTANT` or `INPLACE`) | ❌ not built | Needs a second lowering shaped like `pg_step` |
+| `upgrade_eager` rendered as a shinka job | ❌ not built | Waits on S2 and haibi |
+| Strict Valkey entries as hashes or stream entries | ❌ not built | `kv_model` refuses `encoding: :hash` and `:stream` by name |
+| RESP over TLS | ❌ not built | `resp_connect` refuses TLS by name. Waits on the runtime's TLS transport (`HTTP2.md` P4) |
+| A hardened Valkey image | ❌ not built | `pleme-cache` still runs upstream `valkey/valkey` |
+| Outbox without duplicates | ❌ not built | The drain is at-least-once. A `Nats-Msg-Id` header would let JetStream drop a duplicate, but `nats_publish` takes no headers |
+| haibi passes `observe` and the kenshi values into the chart | ❌ not built | Waits on S1 |
+| escuta as the change-capture source | ❌ not built | escuta runs nowhere. Its README calls its MySQL decoder unverified and its NATS sink core NATS, not JetStream |
+| kensa's Valkey binding | ❌ not built | The binding is typed and never connects. kensa does not use `kiibariu` yet |

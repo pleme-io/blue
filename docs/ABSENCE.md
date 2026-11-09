@@ -8,11 +8,9 @@ summary: "no undeclared nil: how blue makes absence a declared, checked state"
 Parent: [`SAFETY.md`](SAFETY.md), the matrix that maps each Rust safety
 guarantee to blue. This document is its row 1, no null (`Option<T>`).
 
-**Tier: DESIGN; only P0, this document, exists (re-measured 2026-11-06 at
-blue `cc9a1a1e`).** There is no `umu` bidama, no
-`crates/blue-lang-check/src/absence.rs` and no `BLUE_ABSENCE` switch: no
-commit ever held them. B0054 and B0055 are reserved for the two rules and
-absent from `RULES`. Sections 4 and 5 describe P1 as it is to be built.
+Only this design exists. No code implements it (re-measured 2026-11-09). The
+[Ledger](#9-ledger) gives the state of each item. Sections 4 and 5 describe P1
+as it is to be built.
 
 Operator intent (2026-10-24): *"we should have common patterns like Option or
 Result, in bluelang."* Rust has no null; it has `Option`. blue should carry no
@@ -125,32 +123,32 @@ producing nil (section 7) and a declared return type can say `Option`.
 
 ## 7. Builtins that answer nil
 
-Each row is a ledger entry. Today every row is reachable as an option through
-`umu::from_nil(...)` at the call site; the replacement column is the
-destination.
+Each builtin below answers nil today. The third column is the destination.
+`umu::from_nil(...)` is to wrap a nil answer at the call site until the builtin
+itself answers an option. `umu` does not exist yet.
 
-| Builtin | Answers nil when | Option path | Status |
-|---|---|---|---|
-| `get(m, k)` | the key is absent | the verb contract (`docs/verbs/contracts.tsv`, `get`: "value or nil") becomes "option"; `need` stays the raising form | ledger: a contracts change across every space that has `get` |
-| `nth(i, xs)` | past either end | an option-answering `nth` | ledger |
-| `dig(tree, keys...)` | a step is absent | option | ledger |
-| `find(xs, f)` | no element is accepted | option | ledger |
-| `json_get(obj, k)` | the field is absent | option, or `deeta`'s readers | ledger |
-| `getenv(name)` | the variable is unset | option (the two-argument form keeps its default) | ledger |
-| `to_int(x)` | text is not an integer | option; `to_int!` keeps raising | ledger |
-| `bytes_text(bytes)` | not UTF-8 | option | ledger |
-| `path_extension(path)` | no extension | option | ledger |
-| `self_exe` | outside the CLI | option | ledger |
-| `space_of(value)` | no space | option | ledger |
-| `nats_next_message`, `http_next_request` | nothing came in time | option | ledger |
-| `some(f, xs)` | nothing accepted (nil, not false) | `any?`, a Bool | ledger |
-| `when(c, ...)`, an `if` with no `else` | the test is false | B0055 does not see these (no `nil` is written); a later rule | ledger |
-| `json_parse`, `json_read` | JSON `null` | data, not absence: a parsed document keeps nil until `deeta` reads it as an option | ledger |
+| Builtin | Answers nil when | Option path |
+|---|---|---|
+| `get(m, k)` | the key is absent | the verb contract (`docs/verbs/contracts.tsv`, `get`: "value or nil") becomes "option"; `need` stays the raising form |
+| `nth(i, xs)` | past either end | an option-answering `nth` |
+| `dig(tree, keys...)` | a step is absent | option |
+| `find(xs, f)` | no element is accepted | option |
+| `json_get(obj, k)` | the field is absent | option, or `deeta`'s readers |
+| `getenv(name)` | the variable is unset | option (the two-argument form keeps its default) |
+| `to_int(x)` | text is not an integer | option; `to_int!` keeps raising |
+| `bytes_text(bytes)` | not UTF-8 | option |
+| `path_extension(path)` | no extension | option |
+| `self_exe` | outside the CLI | option |
+| `space_of(value)` | no space | option |
+| `nats_next_message`, `http_next_request` | nothing came in time | option |
+| `some(f, xs)` | nothing accepted (nil, not false) | `any?`, a Bool |
+| `when(c, ...)`, an `if` with no `else` | the test is false | B0055 does not see these (no `nil` is written); a later rule |
+| `json_parse`, `json_read` | JSON `null` | data, not absence: a parsed document keeps nil until `deeta` reads it as an option |
 
-Migrated this session: none. A builtin's answer is a runtime change (Rust, its
-`docs::NAMES` line, its spec rows, its verb contract), and doing it for one
-builtin without the `legacy_names` fixer for every caller would break the
-distribution. The first migration is P3.
+No builtin is migrated. A builtin's answer is a runtime change: Rust, its
+`docs::NAMES` line, its spec rows and its verb contract. A migration without the
+`legacy_names` fixer for every caller breaks the distribution. The first
+migration is P3.
 
 ## 8. Phases
 
@@ -161,3 +159,16 @@ distribution. The first migration is P3.
 | P2 | B0054 to 0 across the repository; `enforce` the default for B0054 | `the_check_stage_reports_no_error_on_the_corpus` under enforce |
 | P3 | The section 7 builtins answer options, each with its `legacy_names` row and fixer; `get`'s verb contract first | `blue check --fix` migrates a caller; spec rows per builtin |
 | P4 | B0055 to 0; `enforce` for B0055; a declared return type can say `Option` | the corpus gate under enforce for both codes |
+
+## 9. Ledger
+
+✅ built and tested · ⏳ in progress · ❌ not built
+
+| Item | State | What makes it true |
+|---|---|---|
+| P0: this design | ✅ built | This page. |
+| P1: the `umu` bidama (option and result), wired into zenbu, with heni mutations | ❌ not built | No `bidamas/umu`. Done when `blue test bidamas/umu` passes and heni catches 9 of 9 mutations. |
+| P1: B0054 and B0055 at `audit`, with the `BLUE_ABSENCE` switch | ❌ not built | No `crates/blue-lang-check/src/absence.rs`. No crate names B0054, B0055 or `BLUE_ABSENCE`. The two codes are reserved. |
+| P2: B0054 at 0 across the repository; `enforce` the default for B0054 | ❌ not built | Done when `the_check_stage_reports_no_error_on_the_corpus` passes under enforce. The 2026-10-24 estimate is 77 findings. |
+| P3: the section 7 builtins answer options, each with a `legacy_names` row and a fixer | ❌ not built | No builtin is migrated. Done when `blue check --fix` migrates a caller and each builtin has spec rows. `get`'s verb contract goes first. |
+| P4: B0055 at 0; `enforce` for B0055; a declared return type can say `Option` | ❌ not built | Done when the corpus gate passes under enforce for both codes. The 2026-10-24 estimate is 559 findings. |

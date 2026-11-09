@@ -13,7 +13,9 @@ safety rows (null, must-use, unsafe, races, secrets). This document owns the
 rest of what Rust's compiler gives at compile time, and what Lua's runtime
 gives at run time. It does not restate a SAFETY row; it points at it.
 
-Tier: DESIGN. Measurements: `origin/main` at `2026394`, 2026-10-24.
+Phase 1 and part of phase 7 are built. The rest is not built. The
+[Ledger](#9-ledger) gives the state of each item. The measurements come from
+`origin/main` at `2026394`, 2026-10-24.
 
 ## 1. Destination
 
@@ -50,11 +52,12 @@ to dissolve.
 - **Types are gradual.** `def f(n: Int) -> Int` is checked inside typed
   definitions (B0003–B0005). B0062 checks a value of known kind at a builtin.
   An untyped definition is not checked.
-- **Arity is checked at run time.** A call with too many arguments raises,
-  naming the range (`REFERENCE.md`, optional parameters). No B-code checks
-  arity before a run.
-- **No declared records or enums.** A map is the record. `case` compares with
-  `==`, does not destructure, and falls through to `nil` (SAFETY row 3).
+- **Arity is checked before a run.** B0072 refuses a call to a definition
+  with a number of arguments that definition does not take.
+- **Records and unions are declared; enums are not.** `record` closes a field
+  set (B0079). `union` declares a closed set of records, and a `case` over its
+  arms names every arm or has an `else` (B0081). A `when` arm destructures
+  records and lists. A plain map is still open.
 - **Macros** are `defmacro` + `quote`, with `gensym` for private names. They
   are not hygienic by construction.
 - **Lints** exist for unused bindings (B0002, warning), unused imports
@@ -76,11 +79,11 @@ parse-rejected, unrepresentable. ✅ sealed at target, ⚠️ partial, ❌ open.
 | # | Rust benefit | blue today | Gate | Tier today → target |
 |---|---|---|---|---|
 | R1 | Every name resolved before run | ✅ B0001 at check; ❌ the runtime resolves again by name | resolver output is the program the runtime runs (§5) | checked-at-expansion → unrepresentable |
-| R2 | Arity checked at every call | ❌ raises at run time | B-code: a call to a known definition passes an arity in its range | runtime-refused → checked-at-expansion |
-| R3 | Types inferred, not only declared | ⚠️ typed definitions only; B0062 for known kinds at builtins | local inference: a literal, a constructor, a typed return and a builtin's result give a kind; the kind flows through bindings and calls | checked-at-expansion (typed) → checked-at-expansion (every known kind) |
-| R4 | Declared structs: a field set is closed | ❌ a map is the record; `cap.status` raises at run time on a missing field | `record Name(a, b)`: construction must give every field; a read of an absent field of a known record is refused | open → checked-at-expansion |
+| R2 | Arity checked at every call | ✅ B0072 at check | B-code: a call to a known definition passes an arity in its range | runtime-refused → checked-at-expansion |
+| R3 | Types inferred, not only declared | ⚠️ local inference inside a typed definition (spec rows `check.infer.*`); B0062 for known kinds at builtins | local inference: a literal, a constructor, a typed return and a builtin's result give a kind; the kind flows through bindings and calls | checked-at-expansion (typed) → checked-at-expansion (every known kind) |
+| R4 | Declared structs: a field set is closed | ⚠️ `record` closes a field set (B0079); a plain map stays open, and `cap.status` raises at run time on a missing field | `record Name(a, b)`: construction must give every field; a read of an absent field of a known record is refused | open → checked-at-expansion |
 | R5 | Declared enums | ❌ keywords are open | `enum Name(:a, :b)` (SAFETY Q5): a keyword outside the set, where an enum is expected, is refused | open → checked-at-expansion |
-| R6 | Exhaustive `match` with destructuring | ❌ `case` is `==` and falls to `nil` | SAFETY row 3 owns totality; this row adds destructuring of records and lists in `case` | open → checked-at-expansion |
+| R6 | Exhaustive `match` with destructuring | ⚠️ `when` destructures records and lists (`spec/rows/patterns.b`); a `case` over a union names every arm or has an `else` (B0081) | SAFETY row 3 owns totality; this row adds destructuring of records and lists in `case` | open → checked-at-expansion |
 | R7 | Traits: a capability a type must provide | ❌ none | `protocol` over records: a call through a protocol to a record that lacks it is refused | open → checked-at-expansion |
 | R8 | Generics with bounds | ⚠️ builtins are polymorphic at run time | type variables in signatures, `def first(xs: List(T)) -> T`, checked by R3's inference | open → checked-at-expansion |
 | R9 | Hygienic macros | ⚠️ `gensym` by hand | a macro's own bindings are renamed by the expander; a capture is written on purpose | open → unrepresentable |
@@ -89,7 +92,7 @@ parse-rejected, unrepresentable. ✅ sealed at target, ⚠️ partial, ❌ open.
 | R12 | `#[deprecated]` | ✅ `legacy_names` + B0021/B0022 | none | checked-at-expansion |
 | R13 | Privacy | ✅ SAFETY row 17 + `docs/NAMESPACES.md` | none | unrepresentable |
 | R14 | Refactor safety: a rename breaks every stale call | ⚠️ B0001/B0011 for names; ❌ fields and option keys at run time (B0061 covers option keys) | R4 + R2 | checked-at-expansion |
-| R15 | Compile once, run the artifact | ❌ four resolutions per run | the checked, resolved program is cached by content hash and run directly | → unrepresentable (one resolution) |
+| R15 | Compile once, run the artifact | ⚠️ a check cache by definition hash (`check_cache.rs`); no measurement shows one resolution per run | the checked, resolved program is cached by content hash and run directly | → unrepresentable (one resolution) |
 | R16 | Doc tests | ✅ B0056–B0060, `blue test` runs `#=>` lines | none | checked-at-expansion |
 
 R1, R2, R3, R14 and R15 all need the same pass (§5). R4–R8 need a declared
@@ -163,10 +166,10 @@ Operator, 2026-10-24: *"make sure conflicting features use blueshift so we get
 the best of everything whenever we want with a set of the best defaults as
 defaults"*.
 
-The rule is `BLUE-GAPS.md`'s: when two ideals are both right in different
-places, the behaviour becomes a function of the program's declared position on
-the blueshift (`theory/BLUE.md` §V.20: `dynamic → annotated → checked →
-restricted`, per axis, plus quantized lines). It is never a global semantic
+The rule: when two ideals are both right in different places, the behaviour
+becomes a function of the program's declared position on the blueshift
+(`dynamic → annotated → checked → restricted`, per axis, plus quantized
+lines). It is never a global semantic
 change and never an off switch. A per-site fallback slides continuously; an
 indivisible resident (an evaluator, a collector) is a line, chosen per
 artifact.
@@ -193,7 +196,7 @@ hygiene, R11's code after `raise`. Every row below is a real conflict.
 Each default is the best answer for a program that declares nothing. A
 program moves off a default by declaring a position, in the file or the
 Bluefile, never by an environment variable, and `blue shift` reports the
-position and what holds it there (§V.20).
+position and what holds it there.
 
 Where a row needs a position the blueshift cannot yet express (the
 per-protocol open/closed bit, the per-binding capture), the model gains that
@@ -217,11 +220,24 @@ axis; the language does not fork.
 Each phase ships with a red-run test (the gate fails with the change removed)
 and a row in `docs/PERFORMANCE.md` or `docs/DIAGNOSTICS.md`.
 
-## 9. Tier ledger
+## 9. Ledger
 
-| Item | Tier | Evidence |
+✅ built and tested · ⏳ in progress · ❌ not built
+
+| Item | State | What makes it true |
 |---|---|---|
-| this matrix | DESIGN | this file |
-| R12, R13, R16 | EXISTS | B0021/B0022, SAFETY row 17, B0056–B0060 |
-| R1 at check time | EXISTS | B0001 |
-| every other row | DESIGN | phases 1–10 |
+| R1 at check time | ✅ built | B0001 refuses an unbound name. The runtime still resolves each name again (phase 2). |
+| phase 1: static arity (R2) | ✅ built | B0072 (`crates/blue-lang-check/src/contracts.rs`, its test asserts three B0072 findings). |
+| phase 2: slot resolver and interned symbols (R1, L1, L4) | ❌ not built | The work is in tatara-lisp-eval. The runtime looks each name up by hash (`docs/PERFORMANCE.md` 3.2). |
+| phase 3: lock-free frames and upvalues (L2, L3) | ❌ not built | The work is in tatara-lisp-eval. |
+| phase 4: VM-native callbacks; the VM on for `blue run` (L5) | ❌ not built | `blue run` does not use the VM (`docs/PERFORMANCE.md` 3.3). |
+| phase 5: resolved-program cache by content hash (R15) | ⏳ in progress | A check cache keyed by definition hash is on by default (`crates/blue-lang-runtime/src/check_cache.rs`). No measurement shows one resolution per run (`docs/PERFORMANCE.md` 3.5). |
+| phase 6: coroutines (`coroutine`, `resume`, `yield`) (L6) | ❌ not built | No such word in `crates/`. |
+| phase 7: `record` (R4) | ✅ built | B0079; `spec/rows/records.b`. |
+| phase 7: `case` destructuring and totality over a union (R6) | ✅ built | B0081; `spec/rows/unions.b`, `spec/rows/patterns.b`. |
+| phase 7: `enum` and `protocol` (R5, R7) | ❌ not built | The parser has neither. |
+| phase 8: local inference and type variables (R3, R8) | ⏳ in progress | Local inference inside a typed definition: spec rows `check.infer.literal`, `check.infer.parameter`, `check.infer.builtin_result` (`spec/rows/check.b`). Type variables in signatures do not exist. |
+| phase 9: hygienic `defmacro` (R9), const folding (R10), dead-code rules (R11) | ❌ not built | A macro uses `gensym` by hand. No fold and no rule for code after `raise` exist. |
+| phase 10: host derive for bidamas (L7) | ❌ not built | Glue for each Rust library is written by hand. |
+| R12 `#[deprecated]` | ✅ built | `legacy_names` with B0021 and B0022. |
+| R16 doc tests | ✅ built | B0056 to B0060 (`crates/blue-lang-check/src/doc_rules.rs`); `blue test` runs each `#=>` line. |

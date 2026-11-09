@@ -5,15 +5,11 @@ summary: one word per job, foundations below, a complete vocabulary across the b
 
 # BIDAMA-COHESION — one word per job, foundations below, a complete vocabulary
 
-Status: PLAN, 2026-10-27, measured at `392aeda`: 78 bidamas (77 plus the `zenbu`
-facade), 4,223 top-level definitions. The near-duplicate gate
+This plan was measured at `392aeda` (2026-10-27): 78 bidamas (77 plus the
+`zenbu` facade) and 4,223 top-level definitions. The near-duplicate gate
 (`crates/blue-lang-pkg/tests/distribution.rs`, `near_duplicate_shapes_only_fall`)
-counts 257 definitions in 106 shape groups, each a word the distribution wants.
-
-Status 2026-11-06 (blue `cc9a1a1e`): no branch waits; tree 10 (`kaaneru`)
-landed. Open: four of section 2's merge words are not written
-(`retsu::fold`, `retsu::find_where`, `retsu::span_end`, `kansuu::lift2`), and
-the items under "Open, in order" below. Pick up from section 6.
+then counted 257 definitions in 106 shape groups, each a word the distribution
+wants. The [Ledger](#7-ledger) gives the state of each item today.
 
 ## 1. Destination
 
@@ -59,19 +55,8 @@ No dependency cycle exists (every `needs` edge checked).
 
 ## 4. Vocabulary gaps
 
-| Domain | State | Evidence |
-|---|---|---|
-| environment, dotenv | absent | 22 bidamas call `getenv` directly |
-| time, durations, cron | partial | `hizuke` is the calendar only; 21 bidamas use `now_ms`/`sleep_ms` |
-| CLI arguments | absent | 14 bidamas parse `"--flag"` by hand |
-| parallel map, timeouts, supervision wording | absent | the runtime supervisor (`blue-lang-proc`) has no blue words |
-| rate limit, circuit breaker, bulkhead | absent | `bougyo` has no rate posture (`SERVICE-ARCHITECTURE.md` §5d) |
-| files and paths | partial | `fairu` has 4 definitions; 501 call sites in 65 files |
-| processes | partial | `shisutemu` has 12; 11 bidamas still call `exec_*` |
-| HTTP client | partial | `tsuushin`: URL and a basic request; no JSON or pagination helpers |
-| encodings | partial | base64 and hex in `shinsuu`; no base64url, no URL encoding outside `kyuuji` |
-| UUID, semver, regex | absent | none; UUID needs only `random_bytes` and hex; regex needs a runtime primitive |
-| secrets, Kubernetes, GitHub, units | designed | `STDLIB.md` §4.18-4.21 (`himitsu`, `kurasuta`, `habu`, `joujuu`) |
+Each domain the distribution lacks is a row of the [Ledger](#7-ledger), with
+its evidence.
 
 ## 5. Build order
 
@@ -136,16 +121,16 @@ landing, with a `legacy_packages` row per moved package:
 
 | Order | Root | Children | Fleet consumers to fix |
 |---|---|---|---|
-| 1 ✅ | `mitoshi` 見通し | rogu, tsuiseki, keisoku | none |
-| 2 ✅ | `chozou` 貯蔵 (alt. `takuwae`) | teeburu, kiibariu, sutoriimu | ola-mundo (1 use) |
-| 3 ✅ | `suugaku` 数学 | gyouretsu, kinji, kumiawase, toukei, ryouiki, tokumei | makoto (18 use), nupastel |
-| 4 ✅ | `koubou` 工房 | kikagaku, rittai, zumen, kakou | nupastel (5 use) |
-| 5 ✅ | `todokede` 届出 | jitaku, kurashi, motenashi, empresa, kinko | nix (3 use) |
-| 6 ✅ | `kakehashi` 架け橋 (alt. `fushin`) | nikkusu, hyouka, kirikae, kijun, tehai, souji | nix, substrate, blackmatter-akeyless |
-| 7 ✅ | `eigyou` 営業 | kyuuji, bougyo, shisei, tsuushin, heddaa, tajuu, shihyou, haibi | rubrica, ola-mundo |
-| 8 ✅ | `isshou` 一生 | raifusaikuru, nisshi, anaritikusu | nupastel (11 use, 11 needs) |
-| 9 ✅ | `toriyose` 取り寄せ | danpen, outou, kyasshu | none |
-| 10 ⏳ | `kaaneru` (exists) | bpf, btf, erufu | kanshi; LAST, kernel work is live (`land/fc-objects`) |
+| 1 | `mitoshi` 見通し | rogu, tsuiseki, keisoku | none |
+| 2 | `chozou` 貯蔵 (alt. `takuwae`) | teeburu, kiibariu, sutoriimu | ola-mundo (1 use) |
+| 3 | `suugaku` 数学 | gyouretsu, kinji, kumiawase, toukei, ryouiki, tokumei | makoto (18 use), nupastel |
+| 4 | `koubou` 工房 | kikagaku, rittai, zumen, kakou | nupastel (5 use) |
+| 5 | `todokede` 届出 | jitaku, kurashi, motenashi, empresa, kinko | nix (3 use) |
+| 6 | `kakehashi` 架け橋 (alt. `fushin`) | nikkusu, hyouka, kirikae, kijun, tehai, souji | nix, substrate, blackmatter-akeyless |
+| 7 | `eigyou` 営業 | kyuuji, bougyo, shisei, tsuushin, heddaa, tajuu, shihyou, haibi | rubrica, ola-mundo |
+| 8 | `isshou` 一生 | raifusaikuru, nisshi, anaritikusu | nupastel (11 use, 11 needs) |
+| 9 | `toriyose` 取り寄せ | danpen, outou, kyasshu | none |
+| 10 | `kaaneru` (exists) | bpf, btf, erufu | kanshi |
 
 The consumers named here warn (B0021) until each moves to the new paths:
 `blue gen/consumers.b fix <repo>` rewrites one.
@@ -169,6 +154,31 @@ package only; a B0015 reorder parted a waiver from its `use`, after which
 
 ### After the trees
 
-Sections 2 and 3 are done; section 4's new bidamas (C4) stand. The arnes copies
+Section 3 is done. Four words of section 2 are not written (see the Ledger). The arnes copies
 `wariate::bump` (home `toriyose::danpen::deeper`, now `kansuu::maybe`) and
 `yushutsu::column` (home `suugaku::gyouretsu::col`) move to a foundation word.
+
+## 7. Ledger
+
+✅ built and tested · ⏳ in progress · ❌ not built
+
+| Item | State | What makes it true |
+|---|---|---|
+| section 2 merges | ⏳ in progress | Written: `kansuu::maybe`, `apply_when`, `juxt_with`; `retsu::if_empty`; `junjo::sort_with`, `insert_with`; `jisho::get_any`; `ongaku::chord_from_root`. Not written: `retsu::fold`, `retsu::find_where`, `retsu::span_end`, `kansuu::lift2`. |
+| section 3 layering | ⏳ in progress | `kyuuji` no longer needs `tesuto`; `kyohi` holds `raised`. `tsuushin` still needs `kyuuji` (`bidamas/eigyou/tsuushin/tsuushin.b`). |
+| trees 1 to 10 | ✅ built | Each root exists under `bidamas/`, with its `legacy_packages` rows; tree 10 is `bidamas/kaaneru/{bpf,btf,erufu}`. |
+| exact copies | ⏳ in progress | `reuse.baseline` records 4 copies, one each in `examples/05_errors.b`, `gen/prepush.b`, `gen/retired.b` and `spec/docs.b`. The census holds them and refuses a new one (`blue census --reuse`). |
+| near duplicates | ⏳ in progress | `NEAR_SHAPE_DEFINITIONS = 24` (11 groups) in `crates/blue-lang-pkg/tests/distribution.rs`, down from 252. The arnes copies `wariate::bump` and `yushutsu::column` still wait for a foundation word. |
+| C0: the newline-escape ban | ✅ built | B0065 (`docs/DIAGNOSTICS.md`). |
+| CLI arguments | ✅ built | `bidamas/hikisuu`. 14 bidamas parsed `"--flag"` by hand at the 2026-10-27 measure (C5). |
+| environment, dotenv | ⏳ in progress | `bidamas/settei` resolves settings from defaults, a file and the environment. No `kankyou` bidama and no dotenv reader exist. 22 bidamas called `getenv` directly (2026-10-27). |
+| time, durations, cron | ❌ not built | No `jikan` bidama. `hizuke` is the calendar only. |
+| parallel map, timeouts, supervision words | ❌ not built | No `heikou` bidama ([`ASYNC.md`](ASYNC.md)). |
+| rate limit, circuit breaker, bulkhead | ❌ not built | No `kyoujin` bidama. `bougyo` has no rate posture. |
+| files and paths | ⏳ in progress | `bidamas/fairu` has 8 definitions. |
+| processes | ⏳ in progress | `bidamas/shisutemu` has 15 definitions. Some bidamas still call `exec_*` directly. |
+| HTTP client | ⏳ in progress | `eigyou/tsuushin`: URL and a basic request. No JSON or pagination helpers. |
+| encodings | ⏳ in progress | base64 and hex in `shinsuu`. No base64url and no URL encoding outside `kyuuji`. |
+| UUID, semver, regex | ❌ not built | No definition in `bidamas/`. Regex needs a runtime primitive. |
+| Kubernetes (`kurasuta`) | ⏳ in progress | `bidamas/kurasuta` holds the `kinds` level. The reads of `STDLIB.md` §4.18 are not built. |
+| secrets, GitHub, units (`himitsu`, `habu`, `joujuu`) | ❌ not built | Designed in `STDLIB.md` §4.18 to §4.21. No such bidama. |

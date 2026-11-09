@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:174ad37e45d48c03cabbc6799bd24dbcf449044634b378faac1f9c758e6aa0ca",
+  "bluefile_b3": "b3:6ab864f72443bef555590ec8c83a90b49ee8101f554f15c404ec33c1afa6c3e1",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -39,7 +39,18 @@
       "docs": {
         "file": "gen/docs.b",
         "inputs": [
-          "docs"
+          "docs",
+          "Bluefile.lock",
+          "AGENTS.md",
+          "CLAUDE.md",
+          "README.md",
+          "llms.txt",
+          "llms-full.txt",
+          ".gitattributes",
+          ".github",
+          "bidamas",
+          "crates",
+          "tree-sitter-blue"
         ]
       },
       "heni-mutations": {

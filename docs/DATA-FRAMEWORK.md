@@ -5,9 +5,9 @@ summary: the design of the data framework, one blue model rendered to schema, mi
 
 # The data framework: one model, every rendering, nothing written twice
 
-Status: DESIGN (2026-11-07). The pieces it composes are built and named below;
-the composition, the compiler and the gates are not. HORIZON H16 holds the
-rows; this page holds the design and the research it rests on.
+The pieces this framework composes are built. The compiler, the gates and
+rungs D2 to D6 are not built. The [Ledger](#ledger) gives the state of each
+item. This page holds the design and the research it rests on.
 
 ## Destination
 
@@ -16,21 +16,6 @@ bidama. Storage, migrations, queries, the GraphQL API, the client's typed
 fragments and cache, key-value and stream shapes, test gates and ontology
 classes are renderings of it. SQL is never written by hand: it is a rendering
 of `kueri`'s typed tree. One `use` gives a program the whole path.
-
-## What is built today
-
-| Piece | Where | State |
-|---|---|---|
-| model, version hash, evolve, judge, Postgres, `keifu` changelog | `bidamas/chozou/teeburu` | built |
-| key-value and stream shapes | `chozou/kiibariu` (`kv_model`), `chozou/sutoriimu` | built |
-| typed SQL tree rendered to DuckDB | `bidamas/kueri`, the Bluefile `query` word | built |
-| GraphQL documents and fragments | `toriyose/danpen` | built |
-| GraphQL executor, `from_model`, SDL | `toriyose/outou` | built; resolves field by field |
-| normalized client store | `toriyose/kyasshu` | built |
-| migration CR and additive SQL | `eigyou/haibi` | built as text lines |
-| content-addressed identity | `def_hash` (`crates/blue-lang-runtime/src/def_hash.rs`) | built |
-| capability frames | waku | built per interpreter; per bidama is H13 |
-| teeburu model → outou model | — | being built with rubrica |
 
 ## Research it rests on
 
@@ -160,3 +145,25 @@ From the systems survey, each with its counter here:
 
 The order puts D1 first because rubrica needs it now, and D2 before D3
 because authority compiles into the plan D2 produces.
+
+## Ledger
+
+✅ built and tested · ⏳ in progress · ❌ not built
+
+| Item | State | What makes it true |
+|---|---|---|
+| model, version hash, `evolve`, `judge`, Postgres, `keifu` changelog | ✅ built | `bidamas/chozou/teeburu/teeburu.b`, 15 tests, among them "keifu renders one changeSet per change, escaped, outside a transaction where it must be". |
+| key-value and stream shapes | ✅ built | `kv_model` in teeburu; `bidamas/chozou/kiibariu` (8 tests) and `bidamas/chozou/sutoriimu` (5 tests). |
+| typed SQL tree rendered to DuckDB | ✅ built | `bidamas/kueri/kueri.b`, 31 tests; the Bluefile `query` word. |
+| GraphQL documents and fragments | ✅ built | `bidamas/toriyose/danpen`, 32 tests. |
+| GraphQL executor, `from_model`, SDL | ✅ built | `bidamas/toriyose/outou`, 18 tests. It resolves field by field: no plan, no batching. |
+| normalized client store | ✅ built | `bidamas/toriyose/kyasshu`, 16 tests. |
+| migration CR and additive SQL | ⏳ in progress | `bidamas/eigyou/haibi`, 22 tests. It renders text lines, not the operator set of D4. |
+| content-addressed identity | ✅ built | `def_hash` (`crates/blue-lang-runtime/src/def_hash.rs`). |
+| capability frames | ⏳ in progress | `crates/blue-lang-waku`: a frame per interpreter. A frame per bidama (HORIZON H13) is not built. |
+| D1: teeburu → outou bridge; `/graphql` route; rubrica on it | ⏳ in progress | `from_teeburu` in outou; test "a teeburu model derives a schema: names cased, types mapped as data, an unmapped type and a clash refused alone". No `/graphql` route serves it. |
+| D2: an operation compiled to one `kueri` plan, plan cache by hash, cost bound | ❌ not built | Done when the statement count equals the type's prediction under fuzzing. |
+| D3: frames and model rules into WHERE and RLS from one source | ❌ not built | Done when an oracle filter agrees over random frames and a deleted rule fails the build. |
+| D4: migration operators, lenses, expand and contract, lint classes | ❌ not built | Done when the lens laws hold and no destructive DDL runs without a zero-reader proof. |
+| D5: the keifu stream maintains caches; live-query cohorts | ❌ not built | Done when maintained equals recomputed, with zero stale reads. |
+| D6: the `model` macro; the framework's entry bidama | ❌ not built | Done when capture tests pass and every expansion type-checks. |

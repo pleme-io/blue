@@ -24,8 +24,7 @@ only through the capabilities it is given. The standard library is a set of
 packages called bidamas, and one `Bluefile` says how a project is built,
 tested, documented and shipped.
 
-The philosophy is two axes
-([`theory/BLUE.md`](https://github.com/pleme-io/theory/blob/main/BLUE.md) §0).
+The philosophy is two axes.
 **Form has no choices:** there is one short, distinct way to write each
 thing, every larger form is built from smaller ones, and every tool and gate
 enforces it. **Rigor has every choice:** a program is as strict as you write
@@ -182,7 +181,7 @@ was rendered. `blue help COMMAND` shows each one's flags.
 | `blue lock [DIRS]...` | Evaluate each directory's Bluefile, pin every `source(...)` with `nix flake prefetch`, and write `Bluefile.lock` beside it. |
 | `blue bundle FILE` | Seal FILE into an appliance payload: the program compiled (every `use` resolved, checked, erased) with the capability record its project's fresh `Bluefile.lock` verified, closed with its BLAKE3 digest. |
 | `blue lsp` | Run the language server, speaking LSP over stdin/stdout. |
-| `blue serve` | Serve one evaluation session as JSON lines on stdin/stdout (`theory/BLUE-TOOLING.md` §4): the door an editor drives. |
+| `blue serve` | Serve one evaluation session as JSON lines on stdin/stdout: the door an editor drives. |
 | `blue repl` | An evaluation session at the terminal. |
 | `blue eval TARGET` | Evaluate EXPR, or the top-level form at FILE:LINE:COL in that file's context, and print its value. |
 | `blue banner` | Print blue's wordmark. |
@@ -235,7 +234,7 @@ rendered:
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-69 packages, 5947 definitions, 2013 tests.
+69 packages, 5949 definitions, 2014 tests.
 
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
 - [baito](bidamas/CATALOG.md#baito) (バイト) — bytes as data: integers at a declared width and order, and record layouts that say where each field sits.
@@ -311,40 +310,30 @@ rendered:
 
 ## What is not built
 
-blue states its gaps plainly, because a language's honest gaps matter more
-than its claims. This list is the one in
-[Implementing blue](docs/implementing.md#what-is-not-built), rendered here:
+This table lists what blue does not have yet. It is the table in
+[Implementing blue](docs/implementing.md#what-is-not-built), rendered here.
 
-Stated so nobody cites it as existing: **no per-process GC heap** (processes have
-private environments and messages are deep-copied, but reclamation is `Arc`
-refcounting — no independent collection pause), **no registry client** (resolution
-is real; nothing fetches), **no self-hosting on the implementation axis**
-(`spec/*.b` is the specification axis only), **no comment attachment inside a
-form**, **no entropy primitive and no encryption** (the `crypto` layer hashes,
-signs and verifies; a keypair comes from a seed the caller supplies),
-**no TLS** (`net` speaks NATS and HTTP over plain TCP: an `https://` url and a
-NATS server requiring TLS are refused by name; planned in `docs/HTTP2.md` P4,
-rustls with ALPN `h2`),
-**no import EMISSION into a wasm module** (`blue_lang_waku::imports_of`
-derives the table from a frame — nothing puts an entry into a `.wasm`, and no
-engine border is wired: that is `BLUE-EXECUTION.md` M2, blocked on `tatara-wasm`
-not being on crates.io), **no editor answer inside a broken buffer** (the
-LSP answers from the newest revision that parsed until the parser recovers,
-`BLUE-ENGINE.md` E6), **project rules in the editor or as wasm** (`blue check`
-runs them in-process under the rule frame; the LSP does not run them, and the
-ABI is shaped for a wasm module that nothing builds yet), **no account of a
-move the send ring cannot carry** (from a held node a moved plain process
-brings its tape, mailbox journal and host-call count, `blue-image` version 5,
-and a moved server its journal, count and the root of the state its
-incarnation began with, version 6, so each crash trace and receipt covers the
-whole incarnation; an account past the tape bound or the send ring stays
-behind, and that process's journal, count and a server's receipt
-`input_root` start at the node it moved to), **no link across nodes** (`evict` breaks a link and
-tells a partner that traps exits; it refuses one that does not), **no
-authenticated image** (an image's BLAKE3 name proves it arrived whole, not who
-sent it; it runs under the accepting node's frame, never more), and no **`case`/`when` pattern matching** or **ranges** — the two remaining
-surface gaps a Ruby or Elixir author would reach for. `theory/BLUE.md` §V.26 holds the tier ledger; **do not build against a
-DESIGN-tier row without saying so.**
+This table lists the gaps of the language and its runtime. Do not cite a ❌ row as a feature. Do not build against a ❌ row without saying so.
+
+✅ built and tested · ⏳ in progress · ❌ not built
+
+| Item | State | What makes it true |
+|---|---|---|
+| A per-process GC heap | ❌ not built | Processes have private environments, and messages are deep-copied. Reclamation is `Arc` refcounting (`crates/blue-lang-proc/src/lib.rs`), so no process has its own collection pause. |
+| A registry client | ✅ built | Resolution works over a git directory (`crates/blue-lang-pkg/src/git_registry.rs`). `blue lock` pins a source with `nix flake prefetch` (`crates/blue-lang-cli/src/prefetch.rs`). The nix build fetches each `source(name, url, dir)` over its pin (`nix/project.nix`, `checks.source-fixture`). The CLI adds a pinned source to the load path (test `a_locked_source_on_this_machine_joins_the_project_after_its_packages`). |
+| Self-hosting on the implementation axis | ❌ not built | The parser, checker and runtime are Rust. `spec/rows/*.b` is the specification axis only. |
+| Comments inside a form | ✅ built | The formatter places each comment by its span. Tests: `comments_inside_a_body_are_placed`, `comments_inside_a_call_and_a_list_are_placed` (`crates/blue-lang-fmt/src/lib.rs`). |
+| Entropy | ✅ built | `random_bytes(n)` reads the kernel's non-blocking device under `Capability::Entropy` (`crates/blue-lang-runtime/src/entropy.rs`, test `a_draw_has_the_requested_length_of_byte_integers`). |
+| Encryption | ❌ not built | The `crypto` layer hashes, signs and verifies (`crates/blue-lang-runtime/src/crypto.rs`). A keypair comes from a seed the caller supplies. The ciphers in `angou` are classical and insecure by design. |
+| TLS | ❌ not built | `net` speaks NATS and HTTP over plain TCP. An `https://` URL and a NATS server that requires TLS are refused by name (`crates/blue-lang-runtime/src/net/http.rs`, `net/nats.rs`). The plan is HTTP2.md P4: rustls with ALPN `h2`. |
+| Import emission into a wasm module | ❌ not built | `blue_lang_waku::imports_of` derives the import table from a frame (`crates/blue-lang-waku/src/imports.rs`). Nothing writes that table into a `.wasm`, and no engine border uses it. |
+| Editor answers inside a broken buffer | ❌ not built | The parser does no error recovery. The language server answers from the newest revision that parsed (`crates/blue-lang-lsp/src/analysis.rs`). The plan is [CST-PLAN.md](docs/CST-PLAN.md). |
+| Project rules in the editor or as wasm | ❌ not built | `blue check` runs project rules in-process under the rule frame (`crates/blue-lang-runtime/src/project_rules.rs`). The language server does not run them. The ABI fits a wasm module, but nothing builds one. |
+| A move the send ring cannot carry | ❌ not built | A moved plain process carries its tape, mailbox journal and host-call count (`blue-image` version 5). A moved server carries its journal, count and state root (version 6). An account past the tape bound or the send ring stays behind. That process's journal, count and receipt root start again at the new node (`crates/blue-lang-proc/tests/nomad.rs`, `a_plain_process_whose_tape_the_send_ring_cannot_hold_still_moves_and_its_trace_says_the_tape_stayed`). |
+| A link across nodes | ❌ not built | `evict` breaks a link and tells a partner that traps exits. It refuses a partner that does not (`evict_breaks_a_link_with_evicted_for_every_partner_that_traps_exits_and_names_one_that_does_not`). |
+| An authenticated image | ❌ not built | An image's BLAKE3 name proves that it arrived whole. It does not prove who sent it. The image runs under the frame of the node that accepts it, never more (`crates/blue-lang-proc/src/image.rs`). |
+| `case` and `when` pattern matching | ✅ built | A `when` destructures a union arm, a list and a map. B0081 refuses a `case` that misses an arm (`spec/rows/patterns.b`, `spec/rows/unions.b`). |
+| Range syntax `a..b` | ❌ not built | `range(a, b)` and `range(a, b, step)` exist (`spec/rows/lists.b`). The parser refuses `1..3`. The plan is OPERATORS.md O1. |
 
 ## Theming
 
@@ -1214,9 +1203,9 @@ write_stdout(read_file("note.txt"))
 ```
 
 Every Rust guarantee, the blue gate that matches it and its off switch are in
-[SAFETY.md](docs/SAFETY.md). One access declaration for a whole service, in its
-`service(...)` entry, is designed in
-[SERVICE-ACCESS.md](docs/SERVICE-ACCESS.md) and not built yet.
+[SAFETY.md](docs/SAFETY.md). A whole service declares its access once, in the
+`access` of its `service(...)` entry. The ledger in
+[SERVICE-ACCESS.md](docs/SERVICE-ACCESS.md) shows which layers render it today.
 
 ---
 
@@ -2410,12 +2399,13 @@ and the refusals. `blue explain CODE` prints each row.
 | `eq?` vs `==`, `null?` vs `empty?`, `length` vs `count`, `some` vs `any?` | both stay | different answers on some input (`eq?` is identity; `null?("")`; `length(nil)` raises; `some` answers nil) |
 | `count(x) == 0` vs `empty?(x)` | both stay | `count` raises where `empty?` answers; a rewrite would change a failure into a value |
 | `if not c a else b end` vs `if c b else a end` | both stay | branch order is the author's emphasis, and swapping it moves comments |
-| pipelines | call form | the tree does not remember the spelling; a pipeline rendering for long data-first chains needs a shape detector and is a formatter version bump (§V.13) |
+| pipelines | call form | the tree does not remember the spelling; a pipeline rendering for long data-first chains needs a shape detector and is a formatter version bump |
 | `def f()` vs `def f` | `def f()` | the definition says it takes nothing; only the call is bare |
 | unused locals and parameters | B0002 stays a warning | renaming in flight would rename a parameter the author is about to use |
-| `return`, `do`/braces blocks, `;`, `xs[i]` | one form already | refused by the parser with the canonical spelling named |
+| `do`/braces blocks, `;` | one form already | refused by the parser with the canonical spelling named |
+| `return` | a guard `return` only | the parser lowers a guard `return` to `if`/`else` and refuses any other place (B0080, [`GUARD-RETURN.md`](docs/GUARD-RETURN.md)) |
 | a typed `raise :kind, "m"` keyword form | `raise(…)` call | blue has no paren-less calls; one call grammar |
-| Result values and a `?` operator | not added | exceptions stay the one error model; `kyohi` holds refusals as data where a caller branches on them |
+| Result values and a `?` operator | `?` on a kyohi refusal | exceptions stay the one error model; `kyohi` holds refusals as data, and `x = f(y)?` returns a refusal through a guard `return` ([`GUARD-RETURN.md`](docs/GUARD-RETURN.md)) |
 | retry as syntax (`retry`) | a bidama, `saishikou` | a bounded helper says its bound; a keyword hides a loop |
 | a warning for rescuing a kind nothing raises | not built | no analysis can know which kinds a call raises |
 | `test "n" satisfies: …` without braces, or `@satisfies` above a test | the map after a comma | a call takes no bare entries without `**`, and an attribute is a second form to read for one test; the map is the literal the house already passes settings in |
@@ -2450,7 +2440,7 @@ Every `blue` verb with its flags. The agents page (`docs/agents.md`, rendered to
 | `blue reference` | the language reference as JSON |
 | `blue eval 'EXPR'` | evaluate once and print the value; `blue eval file.b:LINE:COL` evaluates the top-level form there in that file's context |
 | `blue repl` | an evaluation session: multi-line input, `:load`, `:expand`, `:doc`, `:reset`, `:quit`; ctrl-c stops a running evaluation |
-| `blue serve` | the same session as JSON lines on stdio, for editors (`theory/BLUE-TOOLING.md` §4) |
+| `blue serve` | the same session as JSON lines on stdio, for editors |
 | `blue bundle FILE -o OUT` | seal a program into an appliance payload: compiled, its imports resolved, held to the capabilities its fresh `Bluefile.lock` verified (pure when it records none); `--runner blue-appliance` makes OUT one executable that takes no flags. nix builds one per Bluefile `app` as `packages.appliance-<name>` |
 | `blue image build [NAME]` | build a Bluefile `image` through nix: the tarball, its size and layers |
 | `blue workload render [NAME]` | a Bluefile `workload` as Kubernetes objects; `--write` rewrites the committed files |
@@ -2532,7 +2522,7 @@ and its owning page disagree, the owning page is right: fix this page.
 | seam | **A runtime cast at a typed/untyped boundary, as gradual typing inserts.** When typed code receives an argument of unknown type, the checker records a seam (a runtime check at that call), and `blue check` lists it. [blue-lang-check](crates/blue-lang-check/src/lib.rs) |
 | unsafe seam | **An FFI boundary that holds Rust `unsafe`.** blue allows `unsafe` only at one audited seam per foreign ABI; `blue-lang-kiwari` enforces this today, and a workspace-wide deny is **design**. [SAFETY.md](docs/SAFETY.md) |
 | FORM axis | **One canonical syntax, as gofmt gives, extended to spelling.** Each thing has one spelling, the shortest that stays distinct, and every tool writes it. [CANONICAL-FORMS.md](docs/CANONICAL-FORMS.md) |
-| RIGOR axis | **Opt-in static analysis.** Types, memory and capability limits slide per declaration: declare nothing and get no analysis. [theory/BLUE.md](https://github.com/pleme-io/theory/blob/main/BLUE.md) |
+| RIGOR axis | **Opt-in static analysis.** Types, memory and capability limits slide per declaration: declare nothing and get no analysis. [introduction.md](docs/introduction.md) |
 | canonical spelling | **The formatter's one chosen syntax.** blue reads older or borrowed spellings (`&&`, `unless`, `x.f(y)`) and writes one; `blue fmt --write` and `blue check --fix` rewrite a file to it. [CANONICAL-FORMS.md](docs/CANONICAL-FORMS.md) |
 | the mark (blueshift ramp) | **The logo.** The mark is four solid cells across Nord's Frost band, `nord7` to `nord10`: a shift in colour, not in density. [blue-lang-art](crates/blue-lang-art/src/lib.rs) |
 | irodori | **The fleet's colour-palette library (Nord).** `blue-lang-art` reads every colour from the `irodori` crate, and blue carries no hex of its own. [blue-lang-art](crates/blue-lang-art/src/lib.rs) |
@@ -2558,7 +2548,7 @@ and its owning page disagree, the owning page is right: fix this page.
 | provider | **A deterministic stand-in implementation.** The providers are `deterministic_stepped` (clock), `seeded_prng` (entropy), and `in_memory_overlay` or `null_sink` (filesystem); process, network and environment have none. [provision.rs](crates/blue-lang-waku/src/provision.rs) |
 | posture (frame) | **A point in the permission and staging lattice.** A posture is a waku position; the Bluefile word `posture(when)` declares a package's WHEN floor, `"sealed"`, `"preceding"` or `"anytime"`. [bluefile.rs](crates/blue-lang-pkg/src/bluefile.rs) |
 | engine posture | **The permission set of an embedded interpreter.** `Load::posture(allowed)` in `blue-lang-host` binds every host effect it does not allow as a refusal. [SERVICE-ACCESS.md](docs/SERVICE-ACCESS.md) |
-| morphology (`blue morph`) | **A feature matrix of language modes.** It maps each posture to the qualities it grants and forfeits, and lists the pairs that truly exclude each other. [theory/BLUE.md](https://github.com/pleme-io/theory/blob/main/BLUE.md) |
+| morphology (`blue morph`) | **A feature matrix of language modes.** It maps each posture to the qualities it grants and forfeits, and lists the pairs that truly exclude each other. [morph.rs](crates/blue-lang-bidama/src/morph.rs) |
 | appliance (`blue bundle`) | **A sealed single-file executable.** `blue bundle FILE --runner blue-appliance` seals the compiled program and its lock's capability record onto a runner, which checks the BLAKE3 digest and runs held to that record. [SAFETY.md](docs/SAFETY.md) |
 | pure, volatile | **Purity (effect) analysis.** mondou marks a definition pure only when its answer depends on its arguments alone; a host call, another effect, nondeterminism or an outer mutation makes it volatile. [reach.rs](crates/blue-lang-mondou/src/reach.rs) |
 
@@ -2624,7 +2614,7 @@ and its owning page disagree, the owning page is right: fix this page.
 
 | blue term | standard concept |
 |---|---|
-| battery (lateral) | **A batteries-included module for one cross-cutting concern.** Each concern that every program carries (errors, retries, configuration, logs) is one bidama or primitive with one verb set; the full lateral map is **design**. [theory/BLUE.md](https://github.com/pleme-io/theory/blob/main/BLUE.md) |
+| battery (lateral) | **A batteries-included module for one cross-cutting concern.** Each concern that every program carries (errors, retries, configuration, logs) is one bidama or primitive with one verb set; the full lateral map is **design**. [agents.md](docs/agents.md) |
 | kyohi (拒否, *refusal*) | **Errors as values: a list of validation results.** A refusal is `[kind, why]`; `check` returns every refusal a subject has, and `enforce` raises them as one error. [NAMES.md](bidamas/NAMES.md) |
 | kousei (構成, *composition*) | **Declarative configuration with per-entry validation.** A declaration is a list of entries, each checked, configured `off`, tuned or refused alone; `judge` sorts them into accepted, off and refused, so one bad entry never fails its siblings. [kousei.b](bidamas/kousei/kousei.b) |
 | settei (設定, *settings*) | **Layered configuration, twelve-factor style.** `settei::read(app, defaults)` resolves the defaults, then `~/.config/<app>/<app>.yaml`, then `<APP>_<GROUP>__<KEY>` variables, each typed by its default. [settei.b](bidamas/settei/settei.b) |
@@ -2660,7 +2650,7 @@ and its owning page disagree, the owning page is right: fix this page.
 | `blue-lang-proc` | **Erlang/OTP processes and supervisors.** Each process owns its VM and interpreter, a message is deep-copied, and a supervisor restarts children one-for-one, one-for-all, rest-for-one or simple-one-for-one; supervision as a service default is **design**. [blue-lang-proc](crates/blue-lang-proc/src/lib.rs) |
 | kyuuji (給仕, *serving*) | **An HTTP/1.1 server loop.** kyuuji runs handlers as functions from a request to a response record, with a built-in health path, and answers a raise with 500. [NAMES.md](bidamas/NAMES.md) |
 | koutei (工程, *one production step*) | **A CI step toolkit, like `@actions/core`.** koutei reads `INPUT_*` inputs and writes outputs, step summaries and annotations; it is the `run.b` side of every blue action. [NAMES.md](bidamas/NAMES.md) |
-| fueki (不易, *the unchanging*) | **Write once, deploy anywhere by placement.** An application is declared once, and each runtime (WASI, Nix, OCI, engenho, Helm) is a renderer that a placement datum selects. [theory/FUEKI.md](https://github.com/pleme-io/theory/blob/main/FUEKI.md) |
+| fueki (不易, *the unchanging*) | **Write once, deploy anywhere by placement.** An application is declared once, and each runtime (WASI, Nix, OCI, engenho, Helm) is a renderer that a placement datum selects. [BUILD-STACK.md](docs/BUILD-STACK.md) |
 
 ## Fleet terms the docs use
 
@@ -2673,7 +2663,7 @@ These are pleme-io names outside blue. blue's docs and agent guide use them.
 | sui | **A Nix build scheduler and binary cache.** It builds each change once on the build node, and every other machine substitutes. [BUILD-STACK.md](docs/BUILD-STACK.md) |
 | engenho | **A Kubernetes runtime written in Rust.** It runs a service's chart on any node, and its wasm backend runs the component. [BUILD-STACK.md](docs/BUILD-STACK.md) |
 | Flux | **A GitOps reconciler (FluxCD).** It applies the committed objects to a cluster. [BUILD-STACK.md](docs/BUILD-STACK.md) |
-| Tela | **The fleet's frontend standard.** blue hosts a frontend framework that retargets Tela, and that framework is **design**. [theory/BLUE-FRONTEND.md](https://github.com/pleme-io/theory/blob/main/BLUE-FRONTEND.md) |
+| Tela | **The fleet's frontend standard.** blue hosts a frontend framework that retargets Tela, and that framework is **design**. [FRONTEND-PLAN.md](docs/FRONTEND-PLAN.md) |
 
 ## Implementer terms
 
@@ -2819,75 +2809,76 @@ Source: `docs/ROADMAP.md`
 
 # blue roadmap
 
-One row per track. Each row names its design doc, its tier, its next step, what
-it depends on, and the gate that proves it done. Conflicts between tracks are
-decided once, in § Rulings. The gap ledger (what is broken) is
-`theory/BLUE-GAPS.md`; this file is the plan (what is built next, and why). The
-`blue-roadmap` skill owns the procedure for adding and editing a row.
+This page has one row per track. Each row names its design doc, its state and
+the evidence for that state. A ⏳ row also names what is built and the next
+step. A ❌ row names the gate that makes it done. § Rulings decides each
+conflict between tracks once. The `blue-roadmap` skill owns the procedure to
+add or edit a row.
 
-**Tier is read from main and CI, never from a report.** DESIGN: no code.
-PARTIAL: some phases on main with green CI. SHIPPED: the done gate is green on
-main. UNRECONCILED: the row is seeded, and its tier is not yet measured.
+✅ built and tested · ⏳ in progress · ❌ not built
 
-Seeded 2026-11-06 at blue `6434ce31`. The long plan these rows serve, ten
-horizons from hygiene to replay and proof, is [`HORIZON.md`](docs/HORIZON.md); a
-horizon gets a row here when its first phase starts.
+The state comes from main and its tests, never from a report. A ✅ cites a
+test or a path. When the evidence is not on main, the row says ❌.
+Measured 2026-11-09. The long plan these rows serve, ten horizons from hygiene
+to replay and proof, is [`HORIZON.md`](docs/HORIZON.md). A horizon gets a row here
+when its first phase starts.
 
-## Tracks
+## Ledger
 
-| Track | Design doc | Tier | Next step | Depends on | Done gate |
-|---|---|---|---|---|---|
-| **substrate**: blue as the one language of the whole stack | [`SUBSTRATE.md`](docs/SUBSTRATE.md) | DESIGN (2026-11-09: no phase on main; ola-mundo's release pins its component closure on ryn, and whether it serves is unmeasured) | L1.1: probe ola-mundo's pod on ryn; an engenho e2e runs the real `blue-component.wasm` with a bundle and serves a request | placement parity (the component); engenho (`engenho-kube-codegen`, `BlueWorker`) | each phase of SUBSTRATE §9 green with its red run; L1.1: the e2e serves a request, and with the bundle path removed it fails with the named error, not a hang |
-| **arika**: blue's word search | [`ARIKA.md`](docs/ARIKA.md), `theory/ARIKA.md` | Phases 1 and 2 BUILT for blue's own tree (G1-G4, G6); Phase 3's CLI (`find` over `sakuin`, `get`, `uses`, `groups`, `changed`, `ask`) and the MCP door (`kyuuji` `mcp_*`, `blue arika serve`) BUILT in process (G5, G8; 2026-11-09); the rest DESIGN | Phase 3's rest (Parquet through kueri, T3, CATALOG.md from facts, G7); Phase 5's release on ryn and G9; Phase 2's open rows | namespaces (tree paths in IDs); verbs (the `sakuin` space for T5) | G1-G9 green on main; a session on ryn answers the golden set through `blue_word_*` |
-| namespaces | [`NAMESPACES.md`](docs/NAMESPACES.md), `theory/BLUE-NAMESPACES.md` | SHIPPED (reconciled 2026-11-06 at `cc9a1a1e`: `blue census` measures B0076, B0077 and B0078 at 0, ratchet 0; tree 10 landed) | close the flat-era `legacy_names` windows at each root's next minor | — | B0076-B0078 at error with corpus count 0 |
-| absence | [`ABSENCE.md`](docs/ABSENCE.md) | DESIGN (reconciled 2026-11-06: only P0, the document; no `umu`, no `absence.rs`, no `BLUE_ABSENCE`, B0054/B0055 reserved) | P1: `umu` and B0054/B0055 at audit | — | the doc's seal tier row |
-| safety | [`SAFETY.md`](docs/SAFETY.md) | PARTIAL (reconciled 2026-11-06: 19 rows, 6 sealed, 10 partly, 3 open; the blackhole is row 19) | rows 1, 3 and 14, the open ones | — | each SAFETY row at its stated seal tier |
-| testing | [`TESTING.md`](docs/TESTING.md) | UNRECONCILED | reconcile against the §16 tier ledger | — | the §16 ledger |
-| registry | [`REGISTRY.md`](docs/REGISTRY.md) | UNRECONCILED | reconcile against main; give the gate a way to fail | — | a registry check that exits non-zero on an absent pin (`blue registry status` reports and never fails, so it gates nothing) |
-| blue on sui | `theory/BLUE-STRUCTURE.md` §5.3, `theory/SUI-FLIP.md` | UNRECONCILED | reconcile; mark §5.3 superseded (§ Rulings R1) | — | to be stated at reconcile |
-| frontend | [`FRONTEND-PLAN.md`](docs/FRONTEND-PLAN.md), `theory/BLUE-FRONTEND.md` | UNRECONCILED | reconcile against main | — | to be stated at reconcile |
-| **placement parity** (HORIZON H8) | [`spec/README.md`](spec/README.md) § The evaluators, `theory/FUEKI.md` | PARTIAL: the gate is built. The conformance `component` column runs every `prints` and `fails` row (180) in the wasm32-wasip2 engine component under wasmtime and compares it with `cli` (`blue run`): 167 agree, 13 pending, 5 of them on new placement gaps G20 (the component holds no execution bounds and its wasm stack ends before the call-depth budget), G21 (host errors carry the platform errno), G22 (a capability the placement lacks, `exec_into`, refuses in its own words), G23 (`nats_connect` panics for want of a pid) | the run receipt from the component, so the gate compares receipts and not only output; then close G20-G23; the frontend's first page as a declared `runtime: :wasm` service (`examples/13_web_site.b` already renders and serves it natively) | the component (`nix build .#blue-component`) | `checks.<system>.conformance` green with the column strict; red run: a component that prints one extra byte fails every `prints` row naming `stdout at byte N` |
-| verbs | [`VERB-ROADMAP.md`](docs/VERB-ROADMAP.md) | DESIGN (its own measured tier line, 2026-10-22) | reconcile | — | `blue verbs check` against its baseline |
-| **khipu**: the knowledge graph (OxiRS naturalized) | [`KHIPU.md`](docs/KHIPU.md) | K1a BUILT (`bidamas/khipu`: terms, N-Triples, N-Quads); K1b's store and basic graph patterns BUILT (DuckDB through `kueri`, NOT EXISTS, a row budget; blue ingested as quads, 2026-11-09); the rest DESIGN | K1b's rest: the W3C syntax suites against Oxigraph; then K2 | kueri; arika (shares the rule engine and snapshots) | the W3C suites of K1-K4 green as a differential against Oxigraph |
-| **utsushi**: history projection (Josh naturalized) | [`UTSUSHI.md`](docs/UTSUSHI.md) | U1 BUILT (`bidamas/utsushi`), U2-U6 DESIGN | U2: workspace entries refused one by one; `exclude`; views | gitto | `josh-filter` id parity on fixtures; the round-trip law green |
-| **async**: native async, the `heikou` space | [`ASYNC.md`](docs/ASYNC.md) | PARTIAL (processes built; A1 built: node-time timers, the context deadline, the virtual clock in `blue test`, and `net_wait` in the node loop over the `tcp_*` words, 2026-11-09; HORIZON H4 replay built: `blue run --record` and `blue replay <receipt>`, the replayed receipt equal to the original's) | a deadline narrowed inside a process; then A2; `schedulers(n)` (A6) | blue-lang-proc | the conformance set green at `schedulers(1)` and `schedulers(n)`, gates A-ontology to A-replay |
-| **record**: a named structure in one line | `examples/17_records.b`, okite D0017 | SHIPPED (2026-11-06, blue `cc9a1a1e`) | — | — | `spec/rows/records.b` and okite's record laws green; B0079 at error |
-| **guard return** | [`GUARD-RETURN.md`](docs/GUARD-RETURN.md) | G1 BUILT (lowering, B0080, the formatter keeps the guard), G2 DESIGN | G2: the language server and the tree-sitter grammar know `return`; a `return` inside `rescue` | — | R-lower, R-refuse, R-total green (G1); editors highlight it (G2) |
-| **proof** (HORIZON H6) | [`HORIZON.md`](docs/HORIZON.md) §H6, [`TESTING.md`](docs/TESTING.md) | PARTIAL (2026-11-09): heni's caught ratio a ratchet per package BUILT (`bidamas/heni/ratio.baseline`, `checks.heni-mutations`); generated properties BUILT (`blue_lang_check::properties`: `@doc` example calls of a typed definition, neighbours drawn by `ran`'s generator from `BLUE_PROPERTY_SEED`, held to the declared return type); laws over a decidable fragment DESIGN | record and named return types; drawn `List` and `Sym` arguments; then the solver seam for okite's integer laws | H2 (types to draw from) | `crates/blue-lang-cli/tests/properties.rs` green: a drawn neighbour fails where the example passes, the same seed replays it, an untyped definition gets none |
-| **types that grow** (H2) | [`HORIZON.md`](docs/HORIZON.md) § H2, [`SAFETY.md`](docs/SAFETY.md) row 7 | PARTIAL: step 1 BUILT (local inference in a typed definition), wave 3 BUILT 2026-11-09: `Map(K, V)`, records and unions in signatures (field types read, B0079 on an undeclared field), list/map/record literals inferred, the static checked boundary (an untyped caller's known argument is B0005, qualified calls included), `blueshift(:strict)` per file (B0082) | the runtime half of G8 (`shift.wrong_arg.annotated`); a Bluefile-wide position; `case` narrowing a union | H1 (shapes to name) | a spec row per rule (`check.infer.*`, `check.signature.*`, `check.boundary.*`, `check.B0082*`) green; the corpus checks clean at `dynamic` || **union** (HORIZON H1, first step) | [`HORIZON.md`](docs/HORIZON.md) §H1, SAFETY row 3 | U1 BUILT: `union shape = circle(r: Float) \| rect(w: Float, h: Float)` declares each arm as a record and `shape?`; a `case` over a union's arms that misses one and has no `else` is B0081; fmt, kiwari and tree-sitter know it. P1 BUILT: a `when` destructures (`rect(w, h)`, `[x, *rest]`, `{name:}`), and B0081 counts a destructuring arm; `[a, b] = pair` and `{name:} = m` bind or raise :pattern; `x = f(y)?` returns a kyohi refusal through a guard `return`. | H1: one declared `result` union for ok/refused; `?` on an Option; arms with no field; record patterns across bidamas | record | `spec/rows/unions.b`, `spec/rows/patterns.b`, `spec/rows/refusals.b` and `crates/blue-lang-runtime/tests/unions.rs` green; B0081 at error |
-| HTTP/2 and gRPC | [`HTTP2.md`](docs/HTTP2.md) | PARTIAL (reconciled 2026-11-08 at `5399e761` against its §12 ledger): P1 BUILT and tested (`eigyou/heddaa` HPACK, `eigyou/tajuu` frames and `step`, `text_bytes` and `bytes_text`, 45 heni mutations caught); P2 to P6 DESIGN. The `tcp_*` stream words and `net_wait` are built (2026-11-09, HORIZON H4); no `tls_*` | P2: the pure connection value and its `receive` and `send` steps (§13), with the h2spec cases as byte transcripts | — | P3 `checks.network`: `curl --http2-prior-knowledge` and `h2spec` against a blue server; P5: `grpcurl` and a Go client against a blue server |
-| CLI and TUI | [`CLI-TUI.md`](docs/CLI-TUI.md) | PARTIAL (reconciled 2026-11-08): L1 BUILT 2026-10-27 (`hikisuu`: spec, parse, help, completion, `command`; `gamen` line output); L2 to L4 DESIGN. No `prompt`, `confirm` or `choose` in `gamen`, no `read_line` host word | L2: the `Terminal` capability with `read_line` and `is_terminal`; `prompt`, `confirm`, `choose` | — | L4: the remaining hand parsers moved onto `hikisuu`, `hand-rolled-flags` at warning |
-| service data defaults | [`SERVICE-DATA.md`](docs/SERVICE-DATA.md) | PARTIAL (reconciled 2026-11-08 against its §4): S3, S4 and S5 BUILT (telemetry export, the RESP client `kiibariu`, JetStream `sutoriimu`); S2 partial (`teeburu::model`, `evolve`, `judge`); S1, S2b, S6 and eleven `pending-*` rows open | S1: haibi renders pleme-lib's `shinkaDatabaseMigration`, the wait init container, `observabilityBundle` and `jetstream` | helmworks H3; HTTP/2 P4 for `pending-resp-tls` | §4's pending table empty and both services (kensa, ola-mundo) on the defaults |
-| API evolution | [`API-EVOLUTION.md`](docs/API-EVOLUTION.md) | DESIGN (reconciled 2026-11-08 against its §18 ledger: every lifecycle, version, rendering and storage-planner item is design; only kensa's hand-written `/api/v1` and `kensa.v1` are live) | P1: katachi lifecycle words, `version`, `api_policy`, the delta catalog and the §9 refusals, in pure blue | HTTP/2 P5 for P6 | P8: kensa serves two versions, the headers seen on the wire |
-| build stack | [`BUILD-STACK.md`](docs/BUILD-STACK.md) | PARTIAL (reconciled 2026-11-08 against its §8 ledger): S1, S2 and S4 BUILT 2026-10-28 and 10-29 (`runtime` and `access` with the judge, the engine component, the wasm chart); S3 and S5 to S8 DESIGN; no release sets `runtime.component.closure` and no pod runs a component | S3: a component's imports derived from `access.effects` | build assurance B1 for S6 | S8: a handler that raises answers 500, the next request succeeds, and a crash loop backs off (counted in a test) |
-| build assurance | [`BUILD-ASSURANCE.md`](docs/BUILD-ASSURANCE.md) | PARTIAL (reconciled 2026-11-08 against its §9): A BUILT 2026-10-27 (the blue actions and `blue-project.yml`); B0 measured for kensa only; B1 to B7 DESIGN | B1: sui pull on by default per system, CI push on for Bluefile repos | — | B7: `checks.build-time` fails on a derivation-count regression |
-| documentation | [`DOCUMENTATION.md`](docs/DOCUMENTATION.md) | PARTIAL (reconciled 2026-11-08 against its §8): D0 to D4.1 and D8 BUILT; D7's tree BUILT (`bunsho`); D5, D6 and D9 DESIGN. The census still counts B0056 and B0057 (HORIZON H0) | D5: the static site, published from `blue-project.yml` | build assurance A | D6: `ola-mundo` renders every rendering of §4 by default |
-| operators | [`OPERATORS.md`](docs/OPERATORS.md) | DESIGN (reconciled 2026-11-08 against its §9: O1 to O9 design; no `??` or `?.` in `spec/rows/`) | O1: measure `m.k` against `get`, then `m.k` or `m[:k]`, `xs[i]`, `[*xs, y]`, `a..b`, `in` | — | O3: the nested-call corpus rewritten onto the collection-slot pipe with output identical |
-| kernel | [`KERNEL.md`](docs/KERNEL.md) | PARTIAL (BUILDING, reconciled 2026-11-08 against its §6 ledger: the encoder, compiler, `btf`, `erufu`, CO-RE and every attach kind listed BUILT, most measured on plo; the kernel-agent chart built and not deployed; a `.ko` module and H20 admission DESIGN) | the kernel-agent chart deployed on one cluster | HORIZON H20 for admission | H20: every program the compiler accepts is admitted by every kernel in the matrix |
-| bidama cohesion | [`BIDAMA-COHESION.md`](docs/BIDAMA-COHESION.md) | PARTIAL (reconciled 2026-11-08 against its §6): trees 1 to 10 landed (`kaaneru/bpf`, `btf`, `erufu` on main), exact copies 0, near duplicates 24 in 11 groups; C6's batteries (`himitsu`, `kurasuta`, `habu`, `joujuu`) DESIGN, none on main | the arnes copies of `wariate::bump` and `yushutsu::column` onto foundation words (§ After the trees) | — | `near_duplicate_shapes_only_fall` at its floor and `blue census --reuse` at 0 |
+| Track | State | What makes it true |
+|---|---|---|
+| **substrate**: blue as the one language of the whole stack ([`SUBSTRATE.md`](docs/SUBSTRATE.md)) | ❌ not built | No phase of SUBSTRATE.md §9 is on main. Next step L1.1: an engenho e2e runs the real `blue-component.wasm` with a bundle and serves a request. With the bundle path removed, it fails with the named error, not a hang. |
+| **arika**: blue's word search ([`ARIKA.md`](docs/ARIKA.md)) | ⏳ in progress | Phases 1 and 2 are built for blue's own tree: `crates/blue-lang-cli/tests/arika.rs` (G2, G3, G4), `gen/arika-facts.b`, `bidamas/SNAPSHOT.json`. Phase 3's CLI verbs (`find` over `bidamas/junni`, `get`, `uses`, `groups`, `changed`, `ask`) and the MCP door (`mcp_*` in `bidamas/eigyou/kyuuji`, `blue arika serve`) are built in process (2026-11-09): `the_golden_questions_keep_their_top_hit_g5` (G5), `docs/arika-tools.json` (G8). Not built: the `arika` output for other projects, mokuroku on the facts, the Parquet plane through kueri, T3, CATALOG.md from the facts, G7, G9, the release on ryn. Done when G1 to G9 are green on main. |
+| **namespaces** ([`NAMESPACES.md`](docs/NAMESPACES.md)) | ✅ built | B0076, B0077 and B0078: `crates/blue-lang-cli/tests/levels.rs`, `crates/blue-lang-runtime/tests/levels.rs`, `crates/blue-lang-check/src/namespace_rules.rs`. Open: close the flat-era `legacy_names` windows at each root's next minor. |
+| **absence** ([`ABSENCE.md`](docs/ABSENCE.md)) | ❌ not built | Only the document exists. No `umu` bidama, no `crates/blue-lang-runtime/src/absence.rs`. B0054 and B0055 are reserved. Next step P1: `umu`, with B0054 and B0055 at audit. |
+| **safety** ([`SAFETY.md`](docs/SAFETY.md)) | ⏳ in progress | The SAFETY.md ledger holds one row per invariant with its state. Next step: rows 1, 3 and 14. Done when each row is at its stated seal. |
+| **testing** ([`TESTING.md`](docs/TESTING.md)) | ⏳ in progress | The TESTING.md ledger holds the state of each item. |
+| **registry** ([`REGISTRY.md`](docs/REGISTRY.md)) | ⏳ in progress | The sui and FlakeHub backends are built (`bidamas/touroku/touroku.b` tests). `porto` and `github` are refused as `not_built`. `blue registry status` never fails, so it gates nothing. Done when a registry check exits non-zero on an absent pin. |
+| **blue on sui** | ❌ not built | No crate and no nix file calls sui's derivation seam (`sui_spec::derivation::apply`). Done when blue lowers a derivation through that seam (Ruling R1). |
+| **frontend** ([`FRONTEND-PLAN.md`](docs/FRONTEND-PLAN.md)) | ⏳ in progress | `bidamas/burauza` exists. `examples/13_web_site.b` renders and serves a page natively. Next step: that page as a declared `runtime: :wasm` service. |
+| **placement parity** (HORIZON H8, [`spec/README.md`](spec/README.md) § The evaluators) | ⏳ in progress | `checks.conformance` (`crates/blue-lang-test/tests/conformance.rs`) runs the `prints` and `fails` rows in the wasm32-wasip2 engine component under wasmtime and compares each with `blue run`. Five rows wait on component gaps (`pending("G20", "component")` to `pending("G23", "component")` in `spec/rows/`). G20: the component holds no execution bounds. G21: host errors carry the platform errno. G22: a capability the placement lacks refuses in its own words. G23: `nats_connect` panics for want of a pid. Next step: compare run receipts, not only output. |
+| **verbs** ([`VERB-ROADMAP.md`](docs/VERB-ROADMAP.md)) | ⏳ in progress | The graph is blue rows in `bidamas/mokuroku/graph/`, gated by `checks.verb-graph`. The contract table has 4 open rows. The VERB-ROADMAP.md ledger holds the rest. |
+| **khipu**: the knowledge graph ([`KHIPU.md`](docs/KHIPU.md)) | ⏳ in progress | K1a is built: `bidamas/khipu` (terms, quads, N-Triples, N-Quads). K1b's store and basic graph patterns are built (2026-11-09): DuckDB through `kueri`, NOT EXISTS, a row budget, blue's own facts as quads; tests "a basic graph pattern joins in DuckDB, and an absent group removes what it matches" and "past its budget a question is refused, never cut short" in `bidamas/khipu/khipu.b`. Not built: the W3C syntax suites against Oxigraph, then K2. Done when the W3C suites of K1 to K4 pass as a differential against Oxigraph. |
+| **utsushi**: history projection ([`UTSUSHI.md`](docs/UTSUSHI.md)) | ⏳ in progress | U1 is built: `bidamas/utsushi`. U2 to U6 are not built: the lens parser still refuses `:exclude` (utsushi test `lens_refused?`). Done when `josh-filter` ids match on the fixtures and the round-trip law is green. |
+| **async**: native async, the `heikou` space ([`ASYNC.md`](docs/ASYNC.md)) | ⏳ in progress | Built: processes (`crates/blue-lang-proc`), node-time timers (`crates/blue-lang-proc/tests/timers.rs`), `net_wait` (`crates/blue-lang-proc/tests/net_wait.rs`), record and replay (`crates/blue-lang-cli/tests/run_replay.rs`). Not built: a deadline narrowed inside a process, A2, `schedulers(n)` (A6). |
+| **record**: a named structure in one line (`examples/17_records.b`) | ✅ built | `spec/rows/records.b`; `crates/blue-lang-runtime/tests/records.rs` (B0079) |
+| **guard return** ([`GUARD-RETURN.md`](docs/GUARD-RETURN.md)) | ⏳ in progress | G1 is built: `crates/blue-lang-syntax/src/guard.rs`, `crates/blue-lang-runtime/tests/guard_return.rs` (B0080). The tree-sitter grammar knows `return` (`tree-sitter-blue/grammar.js`, `queries/highlights.scm`). Not built: `return` inside `rescue`. |
+| **types that grow** (HORIZON H2, SAFETY row 7) | ⏳ in progress | Step 1 is built: local inference in a typed definition, with `check.infer` rows in `spec/rows/check.b`. Wave 3 is built (2026-11-09): `Map(K, V)`, records and unions in signatures (B0079 on an undeclared field), list, map and record literals inferred, the static checked boundary (an untyped caller's known argument is B0005, qualified calls too) and `blueshift(:strict)` per file (B0082); rows `check.signature.*`, `check.boundary.*` and `check.B0082*` in `spec/rows/check.b`. Not built: the runtime half of the checked boundary (`shift.wrong_arg.annotated`), a Bluefile-wide position, `case` narrowing a union. |
+| **proof** (HORIZON H6, [`TESTING.md`](docs/TESTING.md)) | ⏳ in progress | Built: heni's caught ratio as a ratchet per package (`bidamas/heni/ratio.baseline`, `checks.heni-mutations`); generated properties (`crates/blue-lang-cli/tests/properties.rs`). Not built: laws over a decidable fragment, the solver seam for okite's integer laws. |
+| **union** (HORIZON H1, SAFETY row 3) | ⏳ in progress | U1 and P1 are built: `spec/rows/unions.b`, `spec/rows/patterns.b`, `spec/rows/refusals.b`, `crates/blue-lang-runtime/tests/unions.rs` (B0081). Next step: one declared `result` union for ok and refused, `?` on an Option, arms with no field. |
+| **HTTP/2 and gRPC** ([`HTTP2.md`](docs/HTTP2.md)) | ⏳ in progress | P1 is built: `bidamas/eigyou/heddaa` (HPACK) and `bidamas/eigyou/tajuu` (frames). No `tls_*` words exist. P2 to P6 are not built. Next step P2: the pure connection value and its `receive` and `send` steps. |
+| **CLI and TUI** ([`CLI-TUI.md`](docs/CLI-TUI.md)) | ⏳ in progress | L1 is built: `bidamas/hikisuu` (spec, parse, help, completion) and `gamen` line output. Not built: `prompt`, `confirm` and `choose` in `gamen`, and a `read_line` host word. |
+| **service data defaults** ([`SERVICE-DATA.md`](docs/SERVICE-DATA.md)) | ⏳ in progress | Built: `bidamas/chozou/kiibariu` (RESP), `bidamas/chozou/sutoriimu` (JetStream), `bidamas/chozou/teeburu`. The SERVICE-DATA.md ledger holds the rest. |
+| **API evolution** ([`API-EVOLUTION.md`](docs/API-EVOLUTION.md)) | ❌ not built | No `api_policy` word exists in any bidama or crate. Next step P1: lifecycle words, `version`, `api_policy` and the delta catalog in pure blue. Done at P8: a service serves two versions, with the headers seen on the wire. |
+| **build stack** ([`BUILD-STACK.md`](docs/BUILD-STACK.md)) | ⏳ in progress | Built: the `runtime` and `access` entries (`crates/blue-lang-pkg/src/capabilities.rs`, `deploy/service.rs`) and the engine component (`nix build .#blue-component`). No pod runs a component. The BUILD-STACK.md ledger holds the rest. |
+| **build assurance** ([`BUILD-ASSURANCE.md`](docs/BUILD-ASSURANCE.md)) | ⏳ in progress | The BUILD-ASSURANCE.md ledger holds the state of each item. Done when `checks.build-time` fails on a derivation-count regression. |
+| **documentation** ([`DOCUMENTATION.md`](docs/DOCUMENTATION.md)) | ⏳ in progress | Built: `bidamas/hon` with `checks.docs` (`gen/docs.b`), and `bidamas/bunsho`. Not built: D5, the static site. |
+| **operators** ([`OPERATORS.md`](docs/OPERATORS.md)) | ❌ not built | No `??` and no `?.` in `spec/rows/`. Next step O1: measure `m.k` against `get`. |
+| **kernel** ([`KERNEL.md`](docs/KERNEL.md)) | ⏳ in progress | Built: `bidamas/kaaneru` with `bpf`, `btf` and `erufu`. The kernel-agent chart is in `examples/kernel-agent/deploy/kernel-agent/chart` and is not deployed. Not built: a `.ko` module and H20 admission. |
+| **bidama cohesion** ([`BIDAMA-COHESION.md`](docs/BIDAMA-COHESION.md)) | ⏳ in progress | The trees landed (`bidamas/kaaneru/bpf`, `btf`, `erufu`). `bidamas/kurasuta` exists with the typed kinds only, and its reads are not built. No `himitsu`, `habu` or `joujuu` bidama exists. Done when `blue census --reuse` reads 0. |
 
 ## The arika track
 
-**What it makes blue.** arika makes "does blue already have a word for this?" a
-query with a proof. It fits blue's identity: pattern-first (`theory/BLUE.md`
-§I.1), because the reuse rule B0070 already turns a copy into a gate and arika
-moves that answer before the write; one dialect (§0), because the service, the
-schema and the Merkle words are written in blue; and "we write blue, we leverage
-nix" (`theory/BLUE-STRUCTURE.md` §5.5), because facts are a nix output and only
-the snapshot root is committed. It adds no semantics to the language and no
-position on the blueshift.
+**What it makes blue.** arika turns the question "does blue already have a
+word for this?" into a query with a proof. It fits blue in three ways. blue is
+pattern-first: the reuse rule B0070 already turns a copy into a gate, and arika
+gives that answer before the write. blue is one dialect: the service, the
+schema and the Merkle words are blue. blue is written in blue and built with
+nix: the facts are a nix output, and only the snapshot root is committed.
+arika adds no semantics to the language and takes no position on the
+blueshift.
 
-Rungs (owners, gates and exits are in [`ARIKA.md`](docs/ARIKA.md) § Phases):
+The owners, gates and exits of each rung are in [`ARIKA.md`](docs/ARIKA.md) § Phases.
 
-| Rung | Content | Tier |
+| Item | State | What makes it true |
 |---|---|---|
-| 1 | `blue arika like` / `word`, PreToolUse hook, `bidama` skill step 1 | BUILT (G4 in `crates/blue-lang-cli/tests/arika.rs`) |
-| 2 | fact emitter, Merkle words, `SNAPSHOT.json`, `arika` nix output | BUILT for blue's tree (G1, G2, G3, G6); the output for other projects and mokuroku on the facts DESIGN |
-| 3 | Parquet plane, full CLI, T3 witnesses, CATALOG.md from facts | PARTIAL: the CLI verbs and G5 BUILT (2026-11-09); Parquet, T3, CATALOG.md from facts and G7 DESIGN |
-| 4 | codesearch indexes `.b` | DESIGN |
-| 5 | GraphQL + MCP HTTP service on ryn's engenho | PARTIAL: the MCP door in blue and G8 BUILT (2026-11-09); GraphQL, G9 and the release on ryn DESIGN |
-| 6 | federation over consumer repos | DESIGN |
-| 7 | T4 canonical forms | DESIGN |
+| Rung 1: `blue arika like` and `word`, the PreToolUse hook, the `bidama` skill step 1 | ✅ built | `crates/blue-lang-cli/tests/arika.rs`: `arika_and_b0070_name_the_same_word_g4`, `the_hook_advises_on_the_draft_before_the_write_and_never_blocks` |
+| Rung 2: the fact emitter, Merkle words, `SNAPSHOT.json`, the `arika` nix output | ⏳ in progress | Built for blue's own tree: `gen/arika-facts.b`, `bidamas/SNAPSHOT.json`, `every_definition_is_one_leaf_with_its_facts_g2`. Not built: the output for other projects, mokuroku on the facts. |
+| Rung 3: the Parquet plane, the full CLI, T3 witnesses, CATALOG.md from facts | ⏳ in progress | Built (2026-11-09): the CLI verbs over the facts in `crates/blue-lang-cli/blue/arika.b`, and G5, `the_golden_questions_keep_their_top_hit_g5` over `crates/blue-lang-cli/tests/arika_golden.tsv`. Not built: no crate or generator writes Parquet; T3, CATALOG.md from facts and G7 are open. |
+| Rung 4: codesearch indexes `.b` | ❌ not built | Done when a codesearch index answers a query over `.b` files. |
+| Rung 5: a GraphQL and MCP HTTP service | ⏳ in progress | Built (2026-11-09): the MCP door in blue (`mcp_answer`, `mcp_handler` in `bidamas/eigyou/kyuuji`), `docs/arika-tools.json` (G8), `the_mcp_door_lists_the_rendered_tools_and_answers_a_call_as_the_cli_does`. Not built: GraphQL, G9, the release on ryn. Done when a session answers the golden set through `blue_word_*`. |
+| Rung 6: federation over consumer repos | ❌ not built | Done when one query answers over blue and a consumer repo. |
+| Rung 7: T4 canonical forms | ❌ not built | Done when T4 names two definitions with one canonical form. |
 
 Links: the `sakuin` and `kensaku?` spaces in [`VERB-ROADMAP.md`](docs/VERB-ROADMAP.md)
 (T5); the rmcp and stdin rows of the port register in [`STDLIB.md`](docs/STDLIB.md)
@@ -2900,7 +2891,7 @@ dated receipt.
 
 | # | Conflict | Resolution | Rejected | Date, who |
 |---|---|---|---|---|
-| R1 | `theory/BLUE-STRUCTURE.md` §5.3 "blue expresses derivations: cut it" vs full nix in blue | operator override: blue lowers to sui's derivation seam (`sui_spec::derivation::apply`), not to `sui-ir`. §5.3 is superseded, its text kept, and carries the mark (2026-11-06) | lowering to `sui-ir` (it copies Nix syntax) | 2026-10-24, operator |
+| R1 | the earlier rule "blue expresses derivations: cut it" vs full nix in blue | operator override: blue lowers to sui's derivation seam (`sui_spec::derivation::apply`), not to `sui-ir`. The earlier rule is superseded (2026-11-06) | lowering to `sui-ir` (it copies Nix syntax) | 2026-10-24, operator |
 | R2 | the check ladder's "zero analysis at rung 0" vs nil-safety on by default | builtin signatures are declared, so the nil rule needs no inference across calls; narrowing is local to one function | a global inference pass | 2026-10-24, operator |
 | R3 | `delay` re-runs a re-entrant thunk vs lazy scopes for overlays | a cycle is a typed refusal that names its path. The blackhole state is SAFETY.md row 19 (2026-11-06) | silent re-entry | 2026-10-24, operator |
 | R4 | FlakeHub as the registry vs pleme-io sui | the Bluefile and the lock are the truth; sui is the primary backend; FlakeHub is optional and off | FlakeHub as primary | 2026-10-24, operator |
@@ -3158,7 +3149,7 @@ tier. ⚠️ marks a partial seal. ❌ marks an open row.
 | 6 | Integer overflow, numeric conversion | ✅ `+ - * abs floor` raise on overflow; `/` by zero raises; `to_int` of a huge float is `nil` | `to_int` → row 1 | runtime-refused | on, no off |
 | 7 | No implicit coercion | ⚠️ operators refuse mixed types; `4 == 4.0` is true; call types are checked only inside typed definitions (B0003–B0005), where a local binding now takes its type from its value (literal, parameter, declared builtin result, agreeing `if`) | call-site checks from any caller when the argument is a literal | runtime-refused → checked-at-expansion | on |
 | 8 | `unsafe` ⇔ declared capability | ⚠️ sessions pure by default; **`blue run --allow` and shebang `--allow` (landed)**; **a breach is fatal: no `rescue` or `ensure` sees it (landed)**; **the wire's two channels are their own capabilities, `comm_flash` and `comm_scavenger` (landed)**; **the Flash rate is the host's, a typed bound refused as a catchable `:rate_limited` (landed)**; **both channels have an in-process loopback provider (landed)**; **threshold signing is its own capability, `mpc_threshold`, with a seeded provider (landed)**; **an append-only log store is its own capability, `storage_append`, held by `filesystem`, with an in-memory provider (landed)**; **sound out, sound in and a display canvas are three capabilities, `audio_out`, `audio_in` and `display`, each with a pure provider, and a host without the device answers a named refusal (landed)**; **eviction over the Tide (`evict`, `accept`) sits in `comm_scavenger` (landed)**; **`bpf(2)` and perf events are their own capability, `kernel_bpf`, with no pure provider, and off Linux each word answers a named refusal (landed)**; an undeclared run is still ambient; one frame holds the whole interpreter, so a bidama gets every capability the root grants | `docs/HORIZON.md` H11 to H20: one vocabulary, pure by default in rings, a frame per bidama, a check-time escape code, capabilities as values, every placement rendered from `access`, a parity matrix, least privilege as a ratchet, the capability ontology the tests are generated from, kernel admission by construction and the kernel as the enforcer of `access` | checked-at-expansion (entry) + runtime-fatal (bidama, process) | declared: on; undeclared: ambient until phase 3 (`--allow host`) |
-| 9 | Memory safety of the host seam | ⚠️ 3 of 22 crates deny `unsafe_code` at their roots (kiwari, proc, senses) | workspace `unsafe_code = "deny"`, one `#[allow]` per seam, one seam test | unrepresentable for kiwari and proc → unrepresentable for every crate | on (`#[allow(unsafe_code)]` at a named seam) |
+| 9 | Memory safety of the host seam | ⚠️ 5 of 24 crates deny `unsafe_code` at their roots (kernel, kiwari, proc, senses, worker) | workspace `unsafe_code = "deny"`, one `#[allow]` per seam, one seam test | unrepresentable for kiwari and proc → unrepresentable for every crate | on (`#[allow(unsafe_code)]` at a named seam) |
 | 10 | No data races | ✅ share-nothing processes; copy on send; handles refuse to cross | none needed | unrepresentable | n/a |
 | 11 | Panic vs typed refusal | ⚠️ blue faults are catchable; a Rust panic in a native function is not a blue error | one unwind seam at the native-call boundary → `:internal` refusal | open → runtime-refused | on |
 | 12 | Resource bounds | ⚠️ depth bounded; steps unbounded by default; **live bytes bounded per evaluation and per process (landed: `max_alloc_bytes`, `guest_max_alloc_bytes`)**; **a project bounds its own steps, depth and live bytes with `bounds(...)`, met with the operator's, so it narrows and never widens (landed)**; **a server's steps per message with `dispatch_steps`, in `bounds` and at spawn, met (landed)**; no wall-clock bound | `max_wall_ms` bound; on for doors that run code they did not write | runtime-refused | memory: off for `run` and `test` (`max_alloc_bytes: null`; it removes working behaviour), 1 GiB for sessions, live evaluation, rules and Bluefiles (`guest_max_alloc_bytes`; `null` lifts it); a project's `bounds`: none until it declares them (drop the word) |
@@ -3300,7 +3291,7 @@ misses one, and a breach names packages:
 `[app] -> [porta] -> [rede: needs 'network'] violates ceiling [filesystem, clock]`.
 A record written before `unit` existed reads as `package`, so its lock is
 stale under the default until relocked. Measured on the case that ranked it
-first (`theory/IBUKI.md` §VI): a root that imports `tesuto` only for
+first: a root that imports `tesuto` only for
 `raises?` locks under `allow([])`, where whole packages refuse it for
 tesuto's filesystem and environment. Tests: `tests/lattice.rs`
 (`a_root_that_reaches_only_a_pure_word_resolves_under_allow_none`,
@@ -3372,7 +3363,7 @@ withholds. Under a real clock the host reads its clock a moment after kodou's
 bucket did, so at the margin it can refuse a frame the bucket passed;
 `kodou::emit` waits the host's `wait_ms` once and resends. The bucket is per
 wire, as kodou's is per link, so a program that opens n wires may spend n
-times the rate until a per-app bound exists (`theory/IBUKI.md` §VI.2). With
+times the rate until a per-app bound exists. With
 no whole-program clock provider the rate reads the host's clock, so the wire,
 like any network capability, lets a program observe elapsed time. Tests:
 `crates/blue-lang-cli/tests/wire.rs`
@@ -3702,7 +3693,7 @@ entry and the breaching call's span, its enclosing definition and, when the
 run identifies (`blue run`), its file, line and column
 (`blue_lang_proc::Places`); `ThermodynamicCycleExhaustion` for a runaway.
 Three other classes a forensic reader names are refused on read, each with
-why: no exit produces them (`theory/IBUKI-FORENSICS.md`). It also writes the
+why: no exit produces them. It also writes the
 receipt's frame block (`frame`), which makes the file one tameshi 0.1.7's
 `incident ingest` accepts, with tameshi's digest equal to the crash hash; a
 version 2 file has no `frame` and tameshi refuses it. `blue crash dump`
@@ -3913,7 +3904,7 @@ and ambient for every child).
 The entry file is what the author wrote, so a host name there is refused
 before any effect. Rejected: the static check over the whole resolved
 program. It refuses a pure use of a bidama that holds an unrelated host word,
-which is collateral scope (UNREPRESENTABILITY §II.2.1).
+which is collateral scope: the refusal reaches good states beside the bad one.
 
 **D3. The default for an undeclared script stays ambient now.** Rejected:
 pure by default today. Every working script that reads a file would stop, so
@@ -3946,20 +3937,11 @@ again; a restart spends intensity and then kills innocent siblings).
 
 ## 9. Open questions
 
-- ~~**Q1 (ours).** Should a capability refusal escape `rescue _`?~~ Closed
-  2026-10-30 by D7: a breach escapes every `rescue`.
-- ~~**Q2 (ours).** How a bidama's declared reach composes with the root's
-  frame.~~ Closed 2026-10-30: floors join and must fit under `allow` widened
-  by `virtualize` (row 8 note, "The lattice"). The over-approximation it left
-  open, a floor that counts the whole package, closed the same day: floors
-  count the definitions the root reaches (mondou's reach), and a declared
-  reach bounds them (row 8 note, "Definition floors"); `floors(:package)`
-  keeps the whole-package reading.
-- **Q3 (world-fact).** WASI has no subprocess spawn; `Process` stays a blue
+- **Q3 (world-fact).** WASI has no subprocess spawn. `Process` stays a blue
   import with no WASI lowering.
 - **Q4 (world-fact).** A shebang flag needs `env -S` on Linux.
-- **Q5 (ours).** The closed set for row 3: a `model(...)` enum, or any
-  keyword list the file declares.
+- **Q5 (ours).** Which closed set row 3 covers next: a `model(...)` enum, or
+  any keyword list the file declares.
 
 ## 10. Phases, ranked by bug classes closed per effort
 
@@ -3977,21 +3959,37 @@ again; a restart spends intensity and then kills innocent siblings).
 | 9 | memory and wall-clock bounds for untrusted doors | runaway memory and time | two bounds |
 | 10 | call-site type checks from untyped callers | literal type mismatches at run time | checker work |
 
-## 11. Tier ledger
+## Ledger
 
-| Item | Tier | Evidence |
+Each row is one gate of the matrix. The third column names the test or path
+that makes the state true, and the tier the gate reaches.
+
+✅ built and tested · ⏳ in progress · ❌ not built
+
+| Item | State | What makes it true |
 |---|---|---|
-| this matrix | DESIGN | this file |
-| B0053 discarded-value | TESTED | registry witness, spec rows `safety.B0053*`, census 0 of 355 files |
-| `blue run --allow`, shebang `--allow` | TESTED | `crates/blue-lang-cli/tests/allow.rs` (6 red before the change, 7 green after), `script.rs` unit test |
-| capability lattice in `blue lock`, providers, the project hold | TESTED | `tests/lattice.rs` 6/6, `capabilities.rs` 7, `provide.rs` 5, `provision.rs` 4 |
-| definition floors, `floors(:package)` | TESTED | `tests/lattice.rs` 19/19 (7 red with the default flipped to `:package`, 4 red with `floors(...)` ignored), `capabilities.rs` 16, mondou `reach.rs` 7; cargo mutants over the lattice code, 61 mutants: 7 missed on the first run: 4 closed by tests (a top-level value, a compiled-in package for both units, a declared ceiling with no record), 2 in a bound check since removed (its replacement, mutated to revisit, hangs on the mutual-recursion fixture), 1 equivalent (a guard on the root's own forms); 5 unviable |
-| a project's own bounds, `bounds(...)` | TESTED | `tests/bounds.rs` 6/6 (run, test, `--allow`, a spawned process, a bound past the operator's, the lock and `--confirm`), `blue-lang-appliance` 2 (sealed and applied, steps and live bytes), `bounds.rs` 7; each red with its site reverted: the hold, the test door, the node of a run and of a test, the appliance hold, the meet, the record, `consistent`, the runner's counting allocator, the word |
-| a step bound per dispatch, `dispatch_steps` | TESTED | `blue-lang-proc` `tests/dispatch.rs` 10 (a refused message and the next from the state before it, a monitor's runaway, the meet four ways, a handler within its bound, absent as before, a refusal at the boundary, the receipt's roots, no parks without a bound, refused options), `tests/bounds.rs` the Bluefile key met with the spawn option, `bounds.rs` 8; red before the change (5 of 6, the Bluefile key, the flag) and each red with its site reverted: the meet in the node and in `ExecutionBounds`, the node's wiring, the kept state at restart, the state put back at the refusal, the bound gate on the boundary park |
-| steps in receipts, `--receipt-steps` | TESTED | `tests/receipts.rs` 2, `blue-lang-proc` `tests/dispatch.rs` 2, `receipt::tests` 3; red before the change (the flag unknown) |
-| a breach is fatal (D7) | TESTED | tatara-lisp-eval `no_catch_sees_a_fatal_error_on_the_walker`, `no_handler_sees_a_fatal_error_on_the_vm` (cargo mutants: 7 of 7 caught); `allow.rs` 8/8; `blue-lang-proc` `a_fatal_child_is_*` |
-| rows 4, 5 (memory), 6, 10 | EXISTS | measured behaviour cited above |
-| rows 1, 3, 9, 11–15 gates | DESIGN | phases 1–10 |
+| Discarded value, B0053 (row 2) | ✅ built | Refused at check. Spec rows `safety.B0053*` in `spec/rows/check.b`. |
+| `blue run --allow` and shebang `--allow` (row 8) | ✅ built | `crates/blue-lang-cli/tests/allow.rs`, for example `allow_none_refuses_a_host_name_before_anything_runs`. |
+| A breach is fatal, D7 (row 8) | ✅ built | No `rescue` sees a breach. `no_rescue_swallows_a_breach` and `a_breach_in_a_spawned_process_ends_it_and_its_monitor_sees_why` in `crates/blue-lang-cli/tests/allow.rs`. |
+| The capability lattice in `blue lock`, definition floors, `floors(:package)` (row 8) | ✅ built | `crates/blue-lang-cli/tests/lattice.rs`, `crates/blue-lang-pkg/src/capabilities.rs`. |
+| A project's own bounds, `bounds(...)` (row 12) | ✅ built | Refused at run time. `crates/blue-lang-cli/tests/bounds.rs`. |
+| A step bound per dispatch, `dispatch_steps` (row 12) | ✅ built | `crates/blue-lang-proc/tests/dispatch.rs`. |
+| Steps in receipts, `--receipt-steps` | ✅ built | `crates/blue-lang-cli/tests/receipts.rs`. |
+| Session-mistake hard blocks (row 18) | ✅ built | Refused at check: B0061 to B0064. `crates/blue-lang-cli/tests/hermetic.rs`, `crates/blue-lang-cli/tests/declared_inputs.rs`. |
+| Immutability, bounds-checked memory, no data races (rows 4, 5, 10) | ✅ built | Unrepresentable: no word mutates a value or indexes raw memory, and processes share nothing. |
+| Integer overflow (row 6) | ✅ built | Refused at run time. `numbers.overflow.mul` in `spec/rows/numbers.b`. |
+| Exhaustive `case` over a union (row 3) | ✅ built | Refused at check: B0081. `spec/rows/unions.b`, `spec/rows/patterns.b`. |
+| Exhaustive `case` over any other closed set (row 3) | ❌ not built | A rule over a declared closed set. Q5 decides the set. |
+| No null (row 1) | ❌ not built | [ABSENCE.md](docs/ABSENCE.md) is the plan. No `umu` bidama exists, and B0054 and B0055 have no rule. |
+| `unsafe_code` denied in every crate (row 9) | ⏳ in progress | 5 of 24 crates deny it at their roots. A workspace `unsafe_code = "deny"` with one `#[allow]` per seam is missing. |
+| Native panic seam to an `:internal` refusal (row 11) | ❌ not built | No unwind seam at the native-call boundary. |
+| Wall-clock bound (row 12) | ❌ not built | No `max_wall_ms` bound exists. |
+| A content hash per bidama in `Bluefile.lock` (row 13) | ❌ not built | The lock records the Bluefile's b3 (`crates/blue-lang-pkg/src/lock.rs`), not the hash of the package's sources. |
+| A secret type (row 14) | ❌ not built | No secret bidama exists. A secret is a plain string. |
+| Injection rule for `sh_exec` and `pg_execute` (row 15) | ❌ not built | No check rule names them. |
+| Script parity and the declared default (row 16) | ❌ not built | An undeclared script run is still ambient. |
+| Call-site type checks from untyped callers (row 7) | ❌ not built | Types are checked only inside typed definitions (B0003 to B0005). |
+| A named cycle error for a lazy value (row 19) | ❌ not built | Re-entry runs until the call-depth budget refuses it. No blackhole state exists in `force`. |
 
 ---
 
@@ -4017,14 +4015,8 @@ is the operator surface.
 The M1 waiver this replaced, and why two of its three knobs are settled against configuration, is in [LESSONS.md](docs/LESSONS.md), "Bounds, never preferences".
 
 pending-tela: not a frontend app; blue hosts the frontend framework that
-retargets Tela (`theory/BLUE-FRONTEND.md`, `docs/FRONTEND-PLAN.md`). No `pending-urdume:` — blue is a language
+retargets Tela (`docs/FRONTEND-PLAN.md`). No `pending-urdume:` — blue is a language
 workspace, not a Rust service.
-
-> **★★★ CSE / Knowable Construction.** This repo operates under
-> **Constructive Substrate Engineering** — canonical spec at
-> [`pleme-io/theory/CONSTRUCTIVE-SUBSTRATE-ENGINEERING.md`](https://github.com/pleme-io/theory/blob/main/CONSTRUCTIVE-SUBSTRATE-ENGINEERING.md).
-> **The design is canonical in [`theory/BLUE.md`](https://github.com/pleme-io/theory/blob/main/BLUE.md)
-> — read it before non-trivial changes, and do not restate it here.**
 
 A general-purpose language: a Ruby/Elixir surface, a tatara-lisp AST, macros
 as term rewriting on that AST, and a Rust runtime. Crates are `blue-lang-*`
@@ -4169,8 +4161,7 @@ built from a longer form that also works, so writing the long form is never
 wrong: the formatter shortens it. The same holds for the library: one verb per
 meaning, and one bidama for each cross-cutting concern (errors and refusals in
 `kyohi`, entries and switches in `kousei`, configuration in `settei`). Reach
-for that bidama before writing the concern by hand. Why: `theory/BLUE.md` §0
-and §V.28.1.
+for that bidama before writing the concern by hand.
 
 Configuration is a record of defaults, grouped by concern, that
 `settei::read(app, defaults)` resolves: the defaults, then
@@ -4333,20 +4324,20 @@ skill holds the same rules for an agent.
 Before any capability is coded, fix its plan in writing: the reuse map (read from source; move,
 never copy), the shape (adopt what existing implementations agree on), the idioms, and the
 dependency order. **Blue bends to the pattern:** boilerplate in a blue program means blue is
-missing a word, so add the form, macro or primitive. The principle is `theory/BLUE.md` §I.1; the
+missing a word, so add the form, macro or primitive. The
 loop (plan, build, test, ancestry, DuckDB analysis, promote) is the `blue-development-cycle` skill.
 
 ### One short way, built on the last
 
-The FORM axis (`theory/BLUE.md` §0) is the core of blue: each thing has one spelling, the
+The FORM axis is the core of blue: each thing has one spelling, the
 shortest that stays distinct from every other meaning. A new form or shorthand lowers to a form
 that already exists (`x++` → `x += 1` → `x = x + 1`), and it ships whole or not at all: a
 `Spelling` note and formatter arm, a `RULES` row with a witness and autofix, a
 `CANONICAL-FORMS.md` row, spec rows, and an okite law per lowering link that the two spellings
-agree on every input class. The library follows the same law (§V.28): one verb per meaning, with one argument shape,
+agree on every input class. The library follows the same law: one verb per meaning, with one argument shape,
 return shape and error behaviour in every space that has it (`docs/verbs/contracts.tsv`), larger
 verbs built from smaller ones. A capability is done when its verbs are rows in the graph
-(`blue verbs check`) and each has a unit test. One battery per cross-cutting concern (§V.28.1),
+(`blue verbs check`) and each has a unit test. One battery per cross-cutting concern,
 extended rather than rewritten. A Rust program
 runs blue through `blue-lang-host`.
 
@@ -4363,8 +4354,7 @@ composes them. Declare entries with `kousei` (each checked, configured off, tune
 alone); declare service behaviour as `shisei` postures (on by default, a blocking one defaults to
 `audit`); take the request defence from `bougyo`. A second copy of a shape is a bug the
 distribution refuses: `cargo test -p blue-lang-pkg --test distribution` fails when the count of
-identical function shapes rises, so reuse the existing word. The list of service batteries and
-what is still missing: `theory/FUEKI.md` section I.
+identical function shapes rises, so reuse the existing word.
 
 ### The pipeline is the architecture
 
@@ -4454,11 +4444,9 @@ the measured failure and the tier: [`docs/CARGO-GEN-LOCK.md`](docs/CARGO-GEN-LOC
 
 ### What is not built
 
-No per-process GC heap, registry client, implementation self-hosting, comment
-attachment inside a form, entropy or encryption, TLS, wasm import emission,
-editor answers in a broken buffer, project rules in the editor or as wasm,
-`case`/`when` matching or ranges. Each with its plan: [implementing.md](docs/implementing.md), "What is not built".
-**Do not build against a DESIGN-tier row without saying so.**
+The gap table is [implementing.md](docs/implementing.md), "What is not built". Each row
+shows ✅ built, ⏳ in progress or ❌ not built, with the test or path that makes it
+true. Do not build against a ❌ row without saying so.
 
 ---
 
@@ -4493,7 +4481,7 @@ definitions its Bluefile names (`rule`), run by `blue check` under a pure
 frame with codes outside `B`, and the check stage leaves their waivers to
 that door (`docs/DIAGNOSTICS.md`, "Project rules").
 
-**Each bidama is a namespace** (`theory/BLUE-NAMESPACES.md`). A file reaches
+**Each bidama is a namespace** ([NAMESPACES.md](docs/NAMESPACES.md)). A file reaches
 another bidama's definition only qualified (`kueri::join`) or listed
 (`use("retsu", [:first])`); a name reached because something else loaded it
 is B0012. Prefixing a bidama's definitions (`q_join`) is B0013/B0014, with
@@ -4651,33 +4639,24 @@ The measured cost of a stale lock, and the update order, are in [LESSONS.md](doc
 
 ## What is not built
 
-Stated so nobody cites it as existing: **no per-process GC heap** (processes have
-private environments and messages are deep-copied, but reclamation is `Arc`
-refcounting — no independent collection pause), **no registry client** (resolution
-is real; nothing fetches), **no self-hosting on the implementation axis**
-(`spec/*.b` is the specification axis only), **no comment attachment inside a
-form**, **no entropy primitive and no encryption** (the `crypto` layer hashes,
-signs and verifies; a keypair comes from a seed the caller supplies),
-**no TLS** (`net` speaks NATS and HTTP over plain TCP: an `https://` url and a
-NATS server requiring TLS are refused by name; planned in `docs/HTTP2.md` P4,
-rustls with ALPN `h2`),
-**no import EMISSION into a wasm module** (`blue_lang_waku::imports_of`
-derives the table from a frame — nothing puts an entry into a `.wasm`, and no
-engine border is wired: that is `BLUE-EXECUTION.md` M2, blocked on `tatara-wasm`
-not being on crates.io), **no editor answer inside a broken buffer** (the
-LSP answers from the newest revision that parsed until the parser recovers,
-`BLUE-ENGINE.md` E6), **project rules in the editor or as wasm** (`blue check`
-runs them in-process under the rule frame; the LSP does not run them, and the
-ABI is shaped for a wasm module that nothing builds yet), **no account of a
-move the send ring cannot carry** (from a held node a moved plain process
-brings its tape, mailbox journal and host-call count, `blue-image` version 5,
-and a moved server its journal, count and the root of the state its
-incarnation began with, version 6, so each crash trace and receipt covers the
-whole incarnation; an account past the tape bound or the send ring stays
-behind, and that process's journal, count and a server's receipt
-`input_root` start at the node it moved to), **no link across nodes** (`evict` breaks a link and
-tells a partner that traps exits; it refuses one that does not), **no
-authenticated image** (an image's BLAKE3 name proves it arrived whole, not who
-sent it; it runs under the accepting node's frame, never more), and no **`case`/`when` pattern matching** or **ranges** — the two remaining
-surface gaps a Ruby or Elixir author would reach for. `theory/BLUE.md` §V.26 holds the tier ledger; **do not build against a
-DESIGN-tier row without saying so.**
+This table lists the gaps of the language and its runtime. Do not cite a ❌ row as a feature. Do not build against a ❌ row without saying so.
+
+✅ built and tested · ⏳ in progress · ❌ not built
+
+| Item | State | What makes it true |
+|---|---|---|
+| A per-process GC heap | ❌ not built | Processes have private environments, and messages are deep-copied. Reclamation is `Arc` refcounting (`crates/blue-lang-proc/src/lib.rs`), so no process has its own collection pause. |
+| A registry client | ✅ built | Resolution works over a git directory (`crates/blue-lang-pkg/src/git_registry.rs`). `blue lock` pins a source with `nix flake prefetch` (`crates/blue-lang-cli/src/prefetch.rs`). The nix build fetches each `source(name, url, dir)` over its pin (`nix/project.nix`, `checks.source-fixture`). The CLI adds a pinned source to the load path (test `a_locked_source_on_this_machine_joins_the_project_after_its_packages`). |
+| Self-hosting on the implementation axis | ❌ not built | The parser, checker and runtime are Rust. `spec/rows/*.b` is the specification axis only. |
+| Comments inside a form | ✅ built | The formatter places each comment by its span. Tests: `comments_inside_a_body_are_placed`, `comments_inside_a_call_and_a_list_are_placed` (`crates/blue-lang-fmt/src/lib.rs`). |
+| Entropy | ✅ built | `random_bytes(n)` reads the kernel's non-blocking device under `Capability::Entropy` (`crates/blue-lang-runtime/src/entropy.rs`, test `a_draw_has_the_requested_length_of_byte_integers`). |
+| Encryption | ❌ not built | The `crypto` layer hashes, signs and verifies (`crates/blue-lang-runtime/src/crypto.rs`). A keypair comes from a seed the caller supplies. The ciphers in `angou` are classical and insecure by design. |
+| TLS | ❌ not built | `net` speaks NATS and HTTP over plain TCP. An `https://` URL and a NATS server that requires TLS are refused by name (`crates/blue-lang-runtime/src/net/http.rs`, `net/nats.rs`). The plan is HTTP2.md P4: rustls with ALPN `h2`. |
+| Import emission into a wasm module | ❌ not built | `blue_lang_waku::imports_of` derives the import table from a frame (`crates/blue-lang-waku/src/imports.rs`). Nothing writes that table into a `.wasm`, and no engine border uses it. |
+| Editor answers inside a broken buffer | ❌ not built | The parser does no error recovery. The language server answers from the newest revision that parsed (`crates/blue-lang-lsp/src/analysis.rs`). The plan is [CST-PLAN.md](docs/CST-PLAN.md). |
+| Project rules in the editor or as wasm | ❌ not built | `blue check` runs project rules in-process under the rule frame (`crates/blue-lang-runtime/src/project_rules.rs`). The language server does not run them. The ABI fits a wasm module, but nothing builds one. |
+| A move the send ring cannot carry | ❌ not built | A moved plain process carries its tape, mailbox journal and host-call count (`blue-image` version 5). A moved server carries its journal, count and state root (version 6). An account past the tape bound or the send ring stays behind. That process's journal, count and receipt root start again at the new node (`crates/blue-lang-proc/tests/nomad.rs`, `a_plain_process_whose_tape_the_send_ring_cannot_hold_still_moves_and_its_trace_says_the_tape_stayed`). |
+| A link across nodes | ❌ not built | `evict` breaks a link and tells a partner that traps exits. It refuses a partner that does not (`evict_breaks_a_link_with_evicted_for_every_partner_that_traps_exits_and_names_one_that_does_not`). |
+| An authenticated image | ❌ not built | An image's BLAKE3 name proves that it arrived whole. It does not prove who sent it. The image runs under the frame of the node that accepts it, never more (`crates/blue-lang-proc/src/image.rs`). |
+| `case` and `when` pattern matching | ✅ built | A `when` destructures a union arm, a list and a map. B0081 refuses a `case` that misses an arm (`spec/rows/patterns.b`, `spec/rows/unions.b`). |
+| Range syntax `a..b` | ❌ not built | `range(a, b)` and `range(a, b, step)` exist (`spec/rows/lists.b`). The parser refuses `1..3`. The plan is OPERATORS.md O1. |

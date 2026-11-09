@@ -5,17 +5,18 @@ summary: blue as the one language of the whole stack — business logic in blue,
 
 # SUBSTRATE — blue as the one language of the whole stack
 
-Status: DESIGN, 2026-11-09, at blue `3345779c` (v0.0.172) and engenho `1523893`;
-revised the same day after an independent review against the code.
-The operator's direction, 2026-11-08 and 2026-11-09: build bottom up; the
-business logic of everything is blue, and everything it requires (the Helm
-stack, the Kubernetes objects, the libraries) is rendered from it; blue is
-"Darklang-style", one singular language; maximize reuse of what exists. This
-doc owns that direction and points at the docs that own each part
-(`BUILD-STACK.md`, `SERVICE-ARCHITECTURE.md`, `SERVICE-ACCESS.md`,
-`SERVICE-DATA.md`, `DATA-FRAMEWORK.md`, `STDLIB.md`, `FRONTEND-PLAN.md`,
-`HORIZON.md`, and in `theory/`: `BLUE.md`, `BLUE-STRUCTURE.md`, `FUEKI.md`,
-`IBUKI.md`, `BLUE-FRONTEND.md`). Where they rule, this doc follows them (§7).
+Status: ⏳ in progress, 2026-11-09. Layer 1 serves one component on engenho.
+The rest of this doc is design. The state of each part is in the
+[Ledger](#ledger) at the end.
+
+The operator's direction, 2026-11-08 and 2026-11-09: build bottom up. The
+business logic of everything is blue. Everything it requires (the Helm stack,
+the Kubernetes objects, the libraries) is rendered from it. blue is one
+language, in the way Darklang is one language. Reuse what exists as much as
+possible. This doc owns that direction. Each part has its own doc:
+`BUILD-STACK.md`, `SERVICE-ARCHITECTURE.md`, `SERVICE-ACCESS.md`,
+`SERVICE-DATA.md`, `DATA-FRAMEWORK.md`, `STDLIB.md`, `FRONTEND-PLAN.md` and
+`HORIZON.md`. Where a ruling exists, this doc follows it (§7).
 
 ## 1. Destination
 
@@ -44,57 +45,11 @@ downloaded code, so an iOS placement ships its engine and bundle inside the
 app; a signature proves who signed, never that the signer was honest. Every
 other limit below is ours to remove.
 
-## 2. Ground: what exists (measured 2026-11-09)
+## 2. Ground: what exists
 
-BUILT = code and a test on main; PARTIAL; DESIGN = doc only; ABSENT.
-
-### Layer 1: blue on engenho
-
-| Piece | Tier | Evidence |
-|---|---|---|
-| `service(...)` with `access`, `runtime`, `schema`, `cache`, `slo` | BUILT | `crates/blue-lang-pkg/src/deploy/service.rs` |
-| Runtime rung: wasm by default, native with a named reason | BUILT | `BUILD-STACK.md` §2, `deploy/runtime.rs` |
-| One shared engine component (wasip2) | BUILT; 180 conformance rows on its column, 167 agree | `crates/blue-lang-component`; ROADMAP placement-parity row |
-| haibi renders chart, values schema, config, DDL, migration, SLO | BUILT, as Go-template lines over pleme-lib helpers | `bidamas/eigyou/haibi/haibi.b` |
-| pleme-lib: 96 hand-written `.tpl` helpers, 122 of 153 helmworks charts depend on it | HAND-WRITTEN, fleet-wide | `helmworks/charts/pleme-lib/templates/` |
-| `workload(...)` renders typed objects (Deployment, Service, Kustomization) | BUILT (Rust) | `crates/blue-lang-pkg/src/deploy/render.rs` |
-| engenho runs WASI P2 pods in-process | BUILT, tested with a probe component | `engenho-kubelet/src/wasm_backend.rs` |
-| kidou (blue in engenho) admits pods, turns `access` into runtime grants | BUILT | `engenho-kubelet/blue/kidou/kidou.b` |
-| ola-mundo's component pod on ryn's engenho | LIVE: measured 2026-11-09, pod `Running` 1/1 with `runtimeClassName: wasm` and image `nix:…service-ola-mundo-component`; `GET /` on 8417 answers `Olá, mundo!` (200), `/metrics` 200 | `nix/nodes/ryn/default.nix` (`6dd08d07`); engenho e2e `engenho-kubelet/tests/wasm_backend_blue_component.rs` (`3d86211`) |
-| Imports derived from `access` (link-time authority) | DESIGN, blocked (M2) | `crates/blue-lang-waku/src/imports.rs`; one engine for every service (`nix/service.nix`) |
-| Typed Kubernetes kinds generated from vendored OpenAPI v1.34.0 | BUILT (Rust, engenho) | `engenho-kube-codegen`, `engenho-types/vendor/openapi/v1.34.0` |
-| Kubernetes client with watch | BUILT (Rust, engenho) | `engenho-kube-client` (`KubeClient`, `Watcher`) |
-| Controller loop | BUILT (Rust, engenho) | `engenho-controllers/src/controller.rs` (`Controller::tick`) |
-| "blue decides, Rust applies" seam | BUILT | `engenho-blue/src/lib.rs` (`BlueWorker`), used by kidou |
-| `kurasuta`: Kubernetes verbs in blue (`watch`, `diff`, `describe`, `render`; writes go through GitOps) | DESIGN (ratified space) | `docs/STDLIB.md` §4.18, `mokuroku/graph/kurasuta.b` |
-| Placement on a node without Flux | BUILT | `pleme.engenho.helm.releases` (`theory/FUEKI.md` G6) |
-| Flux objects from `placement(...)`; GitOps inside engenho | DESIGN | `BUILD-STACK.md` §3.1; `engenho/docs/NATIVE-GITOPS.md` |
-
-### Constructs, mapped to ratified spaces
-
-| Construct | Tier | Owner |
-|---|---|---|
-| route and handler | BUILT as words | `kyuuji` |
-| data model → SQL, migrations, API | `teeburu` `model`/`evolve`/`judge` BUILT; the model bidama of `theory/BLUE.md` §V.32 DESIGN | `DATA-FRAMEWORK.md` D1–D6, `SERVICE-DATA.md` |
-| schedule | DESIGN (ratified space) + BUILT timers | `shigoto` (`every`, `next`, `missed`, `backfill`, `claim`, `timer`); ASYNC A1 `after`, `sleep_until`; engenho `cron.rs` |
-| queue and message | DESIGN spaces; NATS client BUILT | `taiki`, `messeeji` spaces; `net/nats.rs` |
-| secret | law ruled, reader designed | declarations name cofre's `SecretRef` (`theory/FUEKI.md` R5, E3); runtime reads through shikumi `SecretSource` (`SERVICE-ARCHITECTURE.md` §5a) and blue's `himitsu` record |
-| typed peer API | PARTIAL | `toriyose/outou` (GraphQL from a blue schema); `katachi`, `seigyo` proposed (`SERVICE-ARCHITECTURE.md` §5e, §6) |
-| retry and restart | BUILT | `saishikou`, `blue-lang-proc` |
-| deployless edit | ABSENT | — |
-| request traces | PARTIAL (spans in process, no export) | `tsuiseki` |
-
-### Layer 2 and layer 3
-
-Layer 2: `frontend(...)` parses; `gamen`, `kyasshu`, `ugoki` and the
-zero-import `blue-lang-wasm` are BUILT; `burauza` PARTIAL; DOM capability,
-element tree, hydration DESIGN; desktop (mado) and iOS/Android (asobi) shells
-DESIGN (`FRONTEND-PLAN.md`; `theory/BLUE-FRONTEND.md` §10).
-Layer 3: the runtime `wire` (binary payloads since v0.0.169), `ibuki` (22
-tests), `shomei` (33 tests), receipts v2, `def_hash`, appliances with bounds and
-threshold signing, and `receipt(...)` → tameshi are BUILT; rings charged to an
-app allocation DESIGN; a live tameshi chain writer PARTIAL (`theory/IBUKI.md`
-§VII; `theory/FUEKI.md` D2–D5).
+The [Ledger](#ledger) at the end lists each piece and its state, measured on
+2026-11-09. Layer 1 has the most code. Layers 2 and 3 have their primitives,
+but no placement shell and no application.
 
 ## 3. Research
 
@@ -140,10 +95,10 @@ every placement emit through those records; a reconciler reads through them.
 | Declaration | Behaviour lives in | Renders to |
 |---|---|---|
 | `service(...)` | `kyuuji` handlers | Deployment/Service objects, chart, Flux or node release |
-| `model` (its own bidama, `theory/BLUE.md` §V.32) | queries over the model | SQL DDL, migrations, data API (`DATA-FRAMEWORK.md`) |
+| `model` (its own bidama) | queries over the model | SQL DDL, migrations, data API (`DATA-FRAMEWORK.md`) |
 | `shigoto` schedule | a handler per firing; `claim` holds a lease so one replica fires; `missed`/`backfill` cover scale-to-zero and swaps | a supervised timer in the service |
 | `taiki`/`messeeji` queue | a handler per message | NATS JetStream objects, supervised consumers |
-| secret | `himitsu` record read through shikumi `SecretSource` | cofre `SecretRef` in the declaration (FUEKI R5) |
+| secret | `himitsu` record read through shikumi `SecretSource` | cofre `SecretRef` in the declaration |
 | peer | calls through the generated client | the client; the NetworkPolicy egress rule |
 | `placement(...)` | — | Flux objects for a cluster, or a node release |
 | reconciler | a blue `BlueWorker` decision over typed kinds | a watch in engenho; RBAC for exactly its kinds |
@@ -160,7 +115,7 @@ capability in `blue-lang-waku/src/capability.rs`.
 
 Rule: no construct, phase or placement starts a primitive while a row below is
 the near-miss; a new word comes only after `blue arika word` and `blue arika
-like` find nothing (`theory/ARIKA.md`); a shape seen twice is promoted, and the
+like` find nothing (`ARIKA.md`); a shape seen twice is promoted, and the
 reuse census holds it.
 
 | Need | Extends | Not |
@@ -168,10 +123,10 @@ reuse census holds it.
 | Kubernetes kinds | `engenho-kube-codegen` (emit blue records too) | a second generator, hand-typed kinds |
 | Kubernetes reads, watch, reconcile | `engenho-kube-client`, `Controller::tick`, `BlueWorker`, `kurasuta` verbs | a new client or loop; vigy (a native host runtime, not reachable from a component) |
 | routes, handlers | `kyuuji` | a second router |
-| data model | the §V.32 model bidama (`DATA-FRAMEWORK.md`), `teeburu` (`model`/`evolve`/`judge`); SQL rendered from `kueri`'s typed tree (§V.32) | hand SQL; a second model beside the bidama; `kueri` as the model (it renders the SQL, it does not hold the shape) |
+| data model | the model bidama (`DATA-FRAMEWORK.md`), `teeburu` (`model`/`evolve`/`judge`); SQL rendered from `kueri`'s typed tree | hand SQL; a second model beside the bidama; `kueri` as the model (it renders the SQL, it does not hold the shape) |
 | schedules | `shigoto`, ASYNC timers, engenho `cron.rs` | a CronJob per schedule |
 | queues | `taiki`/`messeeji` spaces over `net/nats.rs` | a new broker client |
-| secrets | cofre `SecretRef` (declared), shikumi `SecretSource` + `himitsu` (read) | blue's own parallel `SecretRef` (FUEKI E3) |
+| secrets | cofre `SecretRef` (declared), shikumi `SecretSource` + `himitsu` (read) | blue's own parallel `SecretRef` |
 | typed peer APIs | `toriyose/outou`, `katachi`, `seigyo` | hand clients |
 | retry, supervision | `saishikou`, `blue-lang-proc` | ad-hoc retries |
 | loop liveness | `shinchoku` | a new probe |
@@ -248,13 +203,13 @@ sequenceDiagram
 | Decision | Why; alternatives rejected |
 |---|---|
 | Typed objects are the source; Helm is one output | the review showed the better alternative already exists (`render.rs`); Go-template strings are the `format!`-of-a-target-syntax the house bans, and `hole(path, type)` (`SERVICE-ARCHITECTURE.md` §5e) shows the fight they cause. The chart stays an output because Flux and nodes consume it |
-| pleme-lib and haibi's string templates are **configured off** per chart as typed rendering covers them, never deleted | `theory/FUEKI.md` R7 (retirement is a flag); pleme-lib serves 122 charts, so this is fleet-wide and per chart |
+| pleme-lib and haibi's string templates are **configured off** per chart as typed rendering covers them, never deleted | retirement is a flag, not a deletion; pleme-lib serves 122 charts, so this is fleet-wide and per chart |
 | Kinds come from `engenho-kube-codegen` | a second generator in blue (two sources of one schema) |
 | Reconcilers use `BlueWorker` + `Controller::tick` | vigy (native host runtime, ticks only); a Rust operator per CRD (moves logic out of blue) |
 | Writes reach clusters through GitOps; blue reads, watches, diffs and decides | `STDLIB.md` §4.18 rules kurasuta has no writes; engenho applies what a `BlueWorker` decides on the node it runs |
-| Secrets: cofre `SecretRef` declared, shikumi read | blue's parallel `SecretRef` (`theory/FUEKI.md` E3 calls it the cardinal sin) |
-| The engine stays nix, written once in the blue repo | `theory/BLUE-STRUCTURE.md` §5.5, ROADMAP R1; blue drives nix through kakehashi, it does not replace the engine |
-| The data model is its own bidama | `theory/BLUE.md` §V.32 (newer than the `model(...)` Bluefile word in `SERVICE-ARCHITECTURE.md` §5c); that doc is reconciled to it |
+| Secrets: cofre `SecretRef` declared, shikumi read | blue's parallel `SecretRef` (two owners of one secret reference) |
+| The engine stays nix, written once in the blue repo | ROADMAP R1; blue drives nix through kakehashi, it does not replace the engine |
+| The data model is its own bidama | a ruling of 2026-11-09, newer than the `model(...)` Bluefile word in `SERVICE-ARCHITECTURE.md` §5c; that doc follows it |
 | CRDs: a controller's CRD stays derived from its Rust types; a blue reconciler's CRD from its blue kinds | `SERVICE-ARCHITECTURE.md` §5e; one owner per CRD |
 | Placement has two arms: a node (engenho release) and a cluster (Flux) | `BUILD-STACK.md` §3.1 |
 | Deployless is a dev lane with a `Drifted` state, promoted by commit | pushing to the cluster directly (Flux reverts it; review is skipped) |
@@ -263,8 +218,6 @@ sequenceDiagram
 
 | Question | Kind |
 |---|---|
-| Does ola-mundo's component pod serve on ryn today | answered 2026-11-09: yes (§2) |
-| How codegen emits blue records: a generated bidama per API group, or one | ours |
 | Long-lived connections across a swap | ours: drain or pin per connection |
 | The browser loader: generated or one fixed loader | ours |
 | iOS live edit: dev builds only | world-fact (App Store rules) |
@@ -272,18 +225,10 @@ sequenceDiagram
 ## 9. Phases
 
 Each phase names the row of §4.4 it extends and a red run that must fail
-without it.
+without it. L1.1 and L1.2 are built; the [Ledger](#ledger) holds their evidence.
 
 ### Layer 1: cloud on engenho
 
-- **L1.1 Measure and serve.** Probe ola-mundo's pod on ryn; add an engenho e2e
-  that runs the real `blue-component.wasm` with a bundle and serves a request
-  (extends `tests/wasm_backend.rs`). Red: the same test with the program bundle
-  path removed fails with the named error, not a hang.
-- **L1.2 Blue records from engenho-kube-codegen.** Red: a rendered greeter
-  object built from the generated records with an unknown field does not
-  construct; and a golden of the generated records changes when the vendored
-  schema changes (proves the generator is used, not bypassed).
 - **L1.3 Typed rendering replaces string templates, per chart, configured.**
   The greeter chart renders its objects from the records with pleme-lib
   configured off for it. Red: re-enabling a hand template for an object the
@@ -326,16 +271,44 @@ without it.
   chunk whose hash does not match the root it claims is refused; a chunk signed
   by a key that does not own the coordinate is refused.
 
-## 10. Tier ledger
+## Ledger
 
-| Item | Design | Exists | Tested | Live |
-|---|---|---|---|---|
-| L1.1 component serves on engenho | ✅ | ✅ | ✅ engenho e2e, real component (`3d86211`) | ✅ ryn, ola-mundo 200 (2026-11-09) |
-| L1.2 blue records from codegen | ✅ | Rust codegen | Rust only | ❌ |
-| L1.3 typed rendering per chart | ✅ | `render.rs` objects | yes (render.rs) | ❌ |
-| L1.4 placement → Flux / node | ✅ | node arm | node arm | node arm |
-| L1.5 blue reconciler | ✅ | `BlueWorker`, kidou | kidou | kidou on ryn |
-| L1.6 constructs | ✅ | spaces ratified; timers, NATS client | partial | ❌ |
-| L1.7 dev loop + traces | ✅ | ❌ | ❌ | ❌ |
-| L2.1–L2.3 placements | ✅ | wasm engine, gamen | partial | ❌ |
-| L3.1–L3.2 local assurance | ✅ | primitives | primitives | ❌ |
+The state of each piece, measured on 2026-11-09. A path that starts with
+`engenho-` is in the engenho repository.
+
+✅ built and tested · ⏳ in progress · ❌ not built
+
+| Item | State | What makes it true |
+|---|---|---|
+| `service(...)` with `access`, `runtime`, `schema`, `cache`, `slo` | ✅ built | `crates/blue-lang-pkg/src/deploy/service.rs` and its 22 tests |
+| Runtime rung: wasm by default, native with a named reason | ✅ built | `runtime_of` in `crates/blue-lang-pkg/src/deploy/runtime.rs`, tested in `deploy/service.rs`; `BUILD-STACK.md` §2 |
+| One shared engine component (wasip2) | ⏳ in progress | `crates/blue-lang-component` builds. The conformance `component` column agrees with `cli` on 167 of 180 rows; 13 rows are pending |
+| haibi renders chart, values schema, config, DDL, migration, SLO | ✅ built | `bidamas/eigyou/haibi/haibi.b`, 22 tests. It writes Go-template lines over pleme-lib helpers |
+| `workload(...)` renders typed objects (Deployment, Service, Kustomization) | ✅ built | `crates/blue-lang-pkg/src/deploy/render.rs`, 4 tests |
+| engenho runs WASI P2 pods in-process | ✅ built | `engenho-kubelet/src/wasm_backend.rs`, tested with a probe component |
+| kidou admits pods and turns `access` into runtime grants | ✅ built | `engenho-kubelet/blue/kidou/kidou.b` |
+| Typed Kubernetes kinds in Rust, from vendored OpenAPI v1.34.0 | ✅ built | `engenho-kube-codegen`, `engenho-types/vendor/openapi/v1.34.0` |
+| Kubernetes client with watch, controller loop, the "blue decides, Rust applies" seam | ✅ built | `engenho-kube-client` (`KubeClient`, `Watcher`), `engenho-controllers/src/controller.rs` (`Controller::tick`), `engenho-blue/src/lib.rs` (`BlueWorker`) |
+| L1.1 a component serves on engenho | ✅ built | engenho e2e `engenho-kubelet/tests/wasm_backend_blue_component.rs` runs the real component. Live on 2026-11-09: ola-mundo's pod is `Running` with `runtimeClassName: wasm`; `GET /` and `/metrics` answer 200 |
+| L1.2 Kubernetes kinds as blue records, from engenho-kube-codegen | ✅ built | `bidamas/kurasuta/kinds/kinds.b`, generated by engenho-kube-codegen, 35 tests |
+| `kurasuta` reads: `list`, `get`, `need`, `watch` | ❌ not built | `bidamas/kurasuta/kurasuta.b` defines no word yet. Writes stay with GitOps (`STDLIB.md` §4.18) |
+| L1.3 typed rendering replaces string templates, per chart | ❌ not built | haibi still writes template lines, and pleme-lib (96 hand-written helpers, 122 of 153 charts) stays on. Done when the greeter chart renders from the records with pleme-lib configured off for it |
+| L1.4 `placement(...)` to Flux and to a node release | ⏳ in progress | A node takes a chart without Flux through the fleet option `pleme.engenho.helm.releases`. blue has no `placement` word (`crates/blue-lang-pkg/src/` holds none), so it renders neither arm |
+| L1.5 a blue reconciler | ⏳ in progress | `BlueWorker` and kidou decide in blue on a node. No reconciler over the typed kinds exists, and nothing renders RBAC from the kinds it names |
+| Imports derived from `access` (link-time authority) | ⏳ in progress | `crates/blue-lang-waku/src/imports.rs` derives the import table. Nothing writes it into a `.wasm`, and every service shares one engine (`nix/service.nix`). kidou's runtime grant enforces `access` today |
+| Routes and handlers | ✅ built | `bidamas/eigyou/kyuuji/kyuuji.b`, 34 tests |
+| Data model to SQL and migrations | ⏳ in progress | `teeburu` `model`, `evolve` and `judge` (`bidamas/chozou/teeburu/teeburu.b`, 15 tests). The model as its own bidama does not exist (`DATA-FRAMEWORK.md`) |
+| Schedules | ⏳ in progress | Node-time timers `after` and `sleep_until` exist (ASYNC A1). No `shigoto` bidama exists |
+| Queues and messages | ⏳ in progress | The NATS client (`crates/blue-lang-runtime/src/net/nats.rs`) and JetStream `sutoriimu` (5 tests) exist. No `taiki` or `messeeji` bidama exists |
+| Secrets | ❌ not built | No `himitsu` bidama and no secret read word exist. Declarations carry `*_file` paths |
+| Typed peer APIs | ⏳ in progress | `toriyose/outou` renders GraphQL from a blue schema. `katachi` and `seigyo` do not exist |
+| Retry and restart | ⏳ in progress | `saishikou::retrying` (fixed wait, 4 tests) and the `blue-lang-proc` `Supervisor`. No restart window, backoff or jitter |
+| Request traces | ✅ built | `bidamas/mitoshi/tsuiseki`: spans, and the OTLP export test "an exporting span POSTs OTLP JSON to /v1/traces" |
+| L1.6 constructs | ⏳ in progress | The schedule, queue, secret, peer and retry rows above |
+| L1.7 dev loop: a deployless edit, the `Drifted` state, traces keyed by hash | ❌ not built | Done when an edit whose `access` hash differs is held, and a swap where one replica fails rolls the set back |
+| Layer 2: `frontend(...)` and the shared views | ✅ built | `crates/blue-lang-pkg/src/deploy/frontend.rs`; `gamen` (60 tests), `ugoki` (23), `kyasshu` (16); the zero-import `crates/blue-lang-wasm` |
+| Layer 2: `burauza` | ⏳ in progress | `bidamas/burauza/burauza.b`, 4 tests |
+| L2.1 to L2.3: DOM capability, element tree, hydration; desktop and mobile shells | ❌ not built | `FRONTEND-PLAN.md`. Done when one program gives equal receipts on two placements (HORIZON H8) |
+| Layer 3 primitives: the runtime `wire`, `ibuki`, `shomei`, receipts v2, `def_hash`, appliances | ✅ built | `bidamas/ibuki/ibuki.b` (22 tests), `bidamas/shomei/shomei.b` (33 tests), `crates/blue-lang-runtime/src/receipt.rs`, `crates/blue-lang-appliance/tests/appliance.rs` |
+| L3.1 high-assurance designs as typed entries | ❌ not built | No entry exists |
+| L3.2 rings charged to an app allocation, a live chain writer, receipts over the wire | ❌ not built | Done when a chunk with a wrong root hash, or one signed by a key that does not own the coordinate, is refused |

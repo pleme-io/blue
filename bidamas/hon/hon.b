@@ -18,6 +18,9 @@ use(
     before_first
     drop_chars
     is_alnum
+    is_alpha
+    is_upper
+    lines
     pad_left
     repeated
     strip_prefix
@@ -45,6 +48,7 @@ use(
     concat_lists
     count_where
     drop_while
+    enumerate
     find_first
     first
     flat_map
@@ -54,6 +58,7 @@ use(
     push
     rest
     take_while
+    zip
   ]
 )
 
@@ -2095,6 +2100,69 @@ def fact_refusals(project)
 end
 
 @doc """
+unreachable_address?: Whether a line links where a reader of this repository cannot follow: a link to a `pleme-io/` repository readers cannot open, in any case, or a path under its design directory (`theory`, then a slash) that names an upper-case document.
+
+A word that ends in `theory` is no address, and neither is a lower-case path.
+The examples build each address from parts, so this file holds none.
+
+    unreachable_address?("number theory/basics is a field") #=> false
+    unreachable_address?(concat("see ", "theory", "/SKETCH.md")) #=> true
+    unreachable_address?(concat("my_", "theory", "/SKETCH.md")) #=> false
+    unreachable_address?(concat("github.com/PLEME-IO/", "theory")) #=> true
+"""
+def unreachable_address?(line)
+  if contains?(downcase(line), concat("pleme-io/", "theory"))
+    true
+  else
+    pieces = split(line, concat("theory", "/"))
+    any?(
+      fn(pair)
+        before = last(split(first(pair), ""))
+        after = first(split(last(pair), ""))
+        if after.nil?
+          false
+        elsif not (is_alpha(after) and is_upper(after))
+          false
+        elsif before.nil?
+          true
+        else
+          not (is_alnum(before) or before == "_" or before == "-")
+        end
+      end,
+      zip(pieces, rest(pieces))
+    )
+  end
+end
+
+@doc """
+address_refusals: One refusal for each line of each file, given as [path, text], that links where a reader cannot follow; each names its file and line, and every other line passes.
+
+    address_refusals([["docs/a.md", "# A"]]) #=> []
+"""
+def address_refusals(files)
+  flat_map(
+    files,
+    fn(f)
+      flat_map(
+        enumerate(lines(last(f))),
+        fn(numbered)
+          if unreachable_address?(last(numbered))
+            [
+              refusal(
+                :unreachable_address,
+                "#{first(f)}:#{first(numbered) + 1} links where a reader cannot follow; state the claim in plain words and drop the address"
+              )
+            ]
+          else
+            []
+          end
+        end
+      )
+    end
+  )
+end
+
+@doc """
 rendering: The text of one rendering of the project at `root`, by name: `:readme`, `:agents`, `:llms`, `:llms_full`, or `:book` for a book written in directory `to`.
 
     starts_with?(rendering(:llms, "/nonexistent", ""), "# ") #=> true
@@ -2186,6 +2254,17 @@ test "each bad page is refused alone and named"
   assert map((r) -> first(r), found) == %i[no_kind unknown_kind]
   assert contains?(last(first(found)), "docs/b.md")
   assert contains?(last(last(found)), "kind `guide`")
+end
+
+test "a line that links where a reader cannot follow is refused alone, by file and line"
+  address = concat("see ", "theory", "/SKETCH.md §2")
+  files = [
+    ["docs/a.md", join_lines(["# A", "a theory of everything", address])],
+    ["docs/b.md", join_lines(["# B", "kotheory/Sketch", "theory/sketch.md"])]
+  ]
+  found = address_refusals(files)
+  assert map((r) -> first(r), found) == [:unreachable_address]
+  assert contains?(last(first(found)), "docs/a.md:3")
 end
 
 test "the kinds are listed in the book's order"

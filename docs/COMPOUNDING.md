@@ -105,7 +105,6 @@ gate calls one.
 The near gate prints each group's shared shape, with `%hN` for each hole.
 That shape is the candidate word, and its holes are the word's parameters.
 It is the mechanical form of a bidama's "words blue is missing" list.
-Theory: `theory/BLUE-SUPERCOMPILATION.md`.
 
 ## Receipts
 

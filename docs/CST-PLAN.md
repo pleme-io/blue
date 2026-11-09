@@ -5,15 +5,16 @@ summary: the design for a lossless CST with resilient parsing and surface blame;
 
 # CST plan: a lossless tree, resilient parsing, surface blame
 
-**Status (2026-10-24): DESIGN.** Nothing here is built. Source read at
-`origin/main` `c2843e0`. Each `file:line` below was read at that commit.
-Re-measure before you build on a count.
+Nothing here is built (re-measured 2026-11-09). The [Ledger](#7-ledger)
+gives the state of each phase. Source read at `origin/main` `c2843e0`. Each
+`file:line` below was read at that commit. Re-measure before you build on a
+count.
 
-This plan is the bridge between two designs that already exist. It does not
-restate them:
+This plan serves two goals:
 
-- `theory/BLUE-ENGINE.md` §5.1 and milestone E6: parser recovery, holes,
-  `Parsed<Complete>` and `Parsed<WithHoles>`.
+- Parser recovery for the editor (milestone E6): holes, `Parsed<Complete>`
+  and `Parsed<WithHoles>`. Today the language server answers from the newest
+  revision that parsed.
 - `docs/NATURALIZE-TREESITTER.md` §6, M3: blue's own parser is emitted from
   the `kiwari` spec, and the hand-written one retires.
 
@@ -38,8 +39,7 @@ came from, so a runtime error names the operator the author wrote (`%`, `==`)
 at the operator's position, not the callee it lowered to (`mod`, `equal?`).
 `Sexp`, `def_hash` and canonical text do not change.
 
-**What becomes unrepresentable, by tier** (tiers per
-`theory/UNREPRESENTABILITY.md`):
+**What becomes unrepresentable, by tier:**
 
 | bad state | after this plan | tier |
 |---|---|---|
@@ -50,9 +50,9 @@ at the operator's position, not the callee it lowered to (`mod`, `equal?`).
 | a runtime error that names a lowered callee, or points at the wrong byte | `describe` reads the blame table; a matrix test has one row per lowering link | CI-caught (all-variants matrix) |
 | a node kind with no row in the grammar card | the kinds are generated from `kiwari`; a gate fails when a kind has no `FORMS`, `INFIX` or keyword row | CI-caught |
 
-The trivia stays out of `Sexp`. `theory/BLUE-ENGINE.md` §2 (the Roslyn row)
-refused trivia in the tree that `def_hash` and canonicality read, and this
-plan keeps that refusal. Trivia lives one layer below, in the CST, and the
+The trivia stays out of `Sexp`. Trivia in the tree that `def_hash` and
+canonicality read is refused (the Roslyn model was weighed and rejected for
+this reason), and this plan keeps that refusal. Trivia lives one layer below, in the CST, and the
 lowering drops it.
 
 ---
@@ -209,15 +209,14 @@ An `ERROR` node lowers to `(blue-hole "B0006" "<message>")` at the node's
 span. `blue-hole` is a lowered name owned by the parser, in `LOWERED_HEADS`.
 No source can spell it: a hyphen cannot occur in a blue identifier. No
 runtime binds it, and `no_lowered_name_is_shadowed_by_the_runtime` proves
-that. This is BLUE-ENGINE §5.1's spelling.
+that.
 
 `parse_cst(src).lower()` returns `Parsed<WithHoles>` or `Parsed<Complete>`.
 Only `Parsed<Complete>` converts into what `pipeline` accepts. The editor
 path takes either. The check stage reports B0006 once per hole, at its span.
 It checks every top-level form without a hole. In a form with a hole, it
 drops each diagnostic whose span overlaps the hole or whose cause is a name
-the hole would bind. The explicit surface hole for agents (BLUE-ENGINE §8,
-decision 2) is out of scope. A recovery hole needs no spelling.
+the hole would bind. An explicit surface hole for agents is out of scope. A recovery hole needs no spelling.
 
 ### 3.6 Blame: how the lowering carries the CST node into the tree
 
@@ -291,7 +290,7 @@ the lowering are already the spec's.
 
 ## 5. Risks, and what canonical identity needs
 
-**Canonical identity (`theory/BLUE.md` §V.16.1; `crates/blue-lang-mondou/src/def_hash.rs:1-20`).**
+**Canonical identity (`crates/blue-lang-mondou/src/def_hash.rs:1-20`).**
 `def_hash` hashes the resolved lowered tree. It ignores spans, comments and
 layout. Four rules keep it stable:
 
@@ -339,8 +338,24 @@ layout. Four rules keep it stable:
 3. **Formatting a buffer with holes.** (a) The formatter refuses it, and the
    LSP returns no edit; or (b) it formats every complete top-level form and
    leaves each `ERROR` region as written.
-   **Recommendation: (a).** FORM (`theory/BLUE.md` §0) gives a program one
-   rendering. A half-formatted file has no canonical form, and canonical
+   **Recommendation: (a).** blue gives a program one rendering. A half-formatted file has no canonical form, and canonical
    admission (`crates/blue-lang-pkg/src/canonical.rs:100`) already refuses a
    file that does not parse. (b) can come later as a configured-off
    behaviour, if editors ask for it.
+
+---
+
+## 7. Ledger
+
+✅ built and tested · ⏳ in progress · ❌ not built
+
+| Item | State | What makes it true |
+|---|---|---|
+| P0: lossless lexing (`lex_lossless`) | ❌ not built | No `lex_lossless` in `crates/`. Done when token text concatenates to `src` on every corpus file, every prefix and 20,000 proptest strings. |
+| P1: kinds from `kiwari`; the rowan `Language` impl | ❌ not built | No `cst` module in `crates/blue-lang-syntax`. `rowan` is a dependency only for the Nix syntax tree in `blue-lang-runtime`. |
+| P2: the CST beside the tree (`parse_cst`) | ❌ not built | No `parse_cst` and no `GreenNodeBuilder` in `crates/`. |
+| P3: one lowering, `Spanned` as `lower(cst)` | ❌ not built | Depends on P2. |
+| P4: recovery, `ERROR` and `MISSING` | ❌ not built | A syntax error ends the parse (B0006 once per file). |
+| P5: holes and the typed door (`blue-hole`, `Parsed<WithHoles>`) | ❌ not built | No `blue-hole` in `LOWERED_HEADS`. |
+| P6: the formatter and the language server on the CST | ❌ not built | Depends on P5 and P2. |
+| P7: surface blame | ❌ not built | No `Blame` in `crates/`. A runtime error names the lowered callee. |

@@ -5,8 +5,8 @@ summary: what a blue build proves, how fast, and from which cache (design)
 
 # BUILD-ASSURANCE — what a blue build proves, how fast, and from which cache
 
-Status: DESIGN, 2026-10-27. Nothing here is built unless the tier ledger (§9)
-says so. Ground measured 2026-10-27; paths are under `~/code/github/pleme-io/`.
+Status: ⏳ in progress. The blue actions are built; the rest is design. The
+[Ledger](#ledger) at the end says what is built. Ground measured 2026-10-27; paths are under `~/code/github/pleme-io/`.
 
 ## 1. Destination
 
@@ -26,7 +26,7 @@ like any other assurance.
 
 | Fact | Where | State |
 |---|---|---|
-| Blueshift rungs: `dynamic`, `annotated`, `checked`, `restricted`; a file's rung is its lowest declaration's | `theory/BLUE.md:391`, `:3457`; `enum Rung` `blue/crates/blue-lang-lsp/src/shift.rs:45`; `blue shift FILE` | typed and reported; **not a Bluefile word, not a build gate** |
+| Blueshift rungs: `dynamic`, `annotated`, `checked`, `restricted`; a file's rung is its lowest declaration's | `enum Rung` `blue/crates/blue-lang-lsp/src/shift.rs:45`; `blue shift FILE` | typed and reported; **not a Bluefile word, not a build gate** |
 | `mkBidama` runs `blue check` (meaning only) per `.b`; a failing file does not build | `blue/bidamas/mk-bidama.nix:150-158` | exists |
 | Checks: `bidama-form-*`, `bidama-test-*` (no tests is a refusal), `bidama-collisions`, `bidama-locks-fresh`, `bidama-deps-resolve`, `repository-lock-fresh`, `generated-*-fresh`, `bidama-catalog-fresh`, `project-rules-hold`, `service-*-{fresh,chart,serves,migrations}`, `-trio`, `image-*-distroless` | `blue/nix/project.nix:39-57`, `:450-530`; `blue/nix/service.nix:203` | exist; all run by `checks.project` |
 | No default assurance set; `posture(when:)` lowers to nothing | `blue/nix/project.nix:57` | gap |
@@ -35,8 +35,8 @@ like any other assurance.
 | No blue, substrate or kensa flake has `nixConfig` | `rg nixConfig` | gap |
 | Fleet cache `sui`: `rio` (x86_64-linux, `:5000`), `cid` (aarch64-darwin, `:5001`) | `nix/lib/sui-cache.nix:132` | exists; each node's pull is `enable = false` by default (`nix/modules/pleme/darwin/binary-caches.nix:38`); the builder node reads cache.nixos.org only (`nix/nodes/builder/default.nix:81`) |
 | Push: a post-build hook on darwin; CI `cache-push` defaults to `false` | `nix/modules/pleme/darwin/post-build-hook.nix:96`; `substrate/.github/workflows/nix-fleet.yml:68` | exists, off by default |
-| Build times | `rg -i 'build time\|s CPU\|wall.clock'` over `blue/docs`, `theory/BLUE*` | never measured |
-| kensa: 5 Rust workspace members, 624 crates in `Cargo.lock`, 208 `.rs` against 2 `.b` | `kensa/flake.nix:13,23` | not blue-only; a `host` service (FUEKI H1) |
+| Build times | `rg -i 'build time\|s CPU\|wall.clock'` over `blue/docs` | never measured |
+| kensa: 5 Rust workspace members, 624 crates in `Cargo.lock`, 208 `.rs` against 2 `.b` | `kensa/flake.nix:13,23` | not blue-only; a `host` service |
 | Measured plan, `kensa#packages.aarch64-darwin.default` on ryn, 2026-10-27 (`pleme-io/actions` `blue-build-plan`) | 545 derivations to build, 56 paths fetched, 445 of the builds Rust | the cache served 9% of the plan |
 | A dead substituter costs seconds per lookup: ryn's nix lists the `cid` sui origin, offline 9 h (tailscale status, ICMP, TCP: three probes); each narinfo lookup waits a 5 s connect timeout and retries | `nix build --dry-run` on ryn, 2026-10-27 | a fast negative is not configured: no `connect-timeout`, no health-gated substituter list |
 
@@ -95,8 +95,8 @@ bidamas and nixpkgs, and nothing else that compiles Rust. `checks.blue-only`
 reads the project's build plan (`nix path-info --derivation` over
 `checks.project`) and fails when a derivation runs `cargo` or `rustc` outside
 the toolchain pin. A `host` service (kensa today) is the one typed exception:
-its Bluefile says `host:`, the check names the host build and its crate count,
-and FUEKI H1's destination (the host form configured off) is the way out.
+its Bluefile says `host:`, and the check names the host build and its crate
+count. The way out is the host form configured off.
 
 The toolchain is never built on a developer machine or a CI runner: it is
 pushed once per blue revision by blue's own CI and substituted everywhere else.
@@ -149,16 +149,25 @@ caches beside cache.nixos.org. Both are `enable` flips on entries that exist.
 | Toolchain on a cold machine | substitute or fail with a cache fault | **build from source silently**: 270 crates hide behind a green build |
 | Cache config per repo | rendered by `blue.lib.project` | **hand-written `nixConfig` per repo**: one copy per repo, drifting |
 
-## 9. Build order and tier
+## 9. Build order
 
-| Step | Work | Gate | Tier |
-|---|---|---|---|
-| B0 | measure: derivation counts and wall clock for blue's examples, ola-mundo and kensa, cold and warm | numbers recorded here | kensa measured (§2); the rest design |
-| A | the actions: `blue-setup`, `blue-check`, `blue-test`, `blue-shift`, `blue-build-plan` (`pleme-io/actions`, logic in `run.b` on the `koutei` bidama) and the reusable `substrate/.github/workflows/blue-project.yml` | each run locally against kensa and a broken fixture | built 2026-10-27 |
-| B1 | caches: `sui` pull on by default per system; builder node gains fleet caches; CI push on for Bluefile repos | a fresh runner builds ola-mundo with zero local Rust | design |
-| B2 | `nixConfig` rendered by `blue.lib.project` | a new blue project's flake carries the substituters | design |
-| B3 | `shift(rung)` word and the per-file gate in `mkBidama`; kind defaults | a service file at `annotated` fails the build | design |
-| B4 | `checks.blue-only` | kensa reports its host build; ola-mundo passes | design |
-| B5 | per-file check derivations with interface hashes | a body edit re-checks one derivation (counted) | design |
-| B6 | `restricted` macro expansion as content-addressed derivations | a second project reusing a macro input substitutes its expansion | design |
-| B7 | `checks.build-time` with ratchets | a regression in derivation count fails | design |
+A, then B0 to B7. Each step is a row in the [Ledger](#ledger), with its state
+and the gate that makes it true.
+
+## Ledger
+
+The state of each step, measured on 2026-11-09.
+
+✅ built and tested · ⏳ in progress · ❌ not built
+
+| Item | State | What makes it true |
+|---|---|---|
+| B0: derivation counts and wall clock for blue's examples, ola-mundo and kensa, cold and warm | ⏳ in progress | kensa is measured (§2). The examples and ola-mundo are not |
+| A: the actions `blue-setup`, `blue-check`, `blue-test`, `blue-shift`, `blue-build-plan` and the reusable `blue-project.yml` | ✅ built | the pleme-io/actions repository (logic in `run.b` on the `koutei` bidama) and `substrate/.github/workflows/blue-project.yml`; each runs against kensa and a broken fixture |
+| B1: `sui` pull on by default per system; the builder node gains the fleet caches; CI push on for Bluefile repos | ❌ not built | Done when a fresh runner builds ola-mundo with zero local Rust |
+| B2: `nixConfig` rendered by `blue.lib.project` | ❌ not built | `nix/project.nix` renders no `nixConfig`. Done when a new blue project's flake carries the substituters |
+| B3: the `shift(rung)` word and the per-file gate in `mkBidama` | ❌ not built | The Bluefile has no `shift` word. Done when a service file at `annotated` fails the build |
+| B4: `checks.blue-only` | ❌ not built | Done when kensa reports its host build and ola-mundo passes |
+| B5: per-file check derivations with interface hashes | ❌ not built | The check is per bidama. Done when a body edit re-checks one derivation (counted) |
+| B6: `restricted` macro expansion as content-addressed derivations | ❌ not built | Done when a second project that reuses a macro input substitutes its expansion |
+| B7: `checks.build-time` with ratchets | ❌ not built | Done when a regression in derivation count fails |

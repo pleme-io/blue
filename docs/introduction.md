@@ -23,8 +23,7 @@ only through the capabilities it is given. The standard library is a set of
 packages called bidamas, and one `Bluefile` says how a project is built,
 tested, documented and shipped.
 
-The philosophy is two axes
-([`theory/BLUE.md`](https://github.com/pleme-io/theory/blob/main/BLUE.md) §0).
+The philosophy is two axes.
 **Form has no choices:** there is one short, distinct way to write each
 thing, every larger form is built from smaller ones, and every tool and gate
 enforces it. **Rigor has every choice:** a program is as strict as you write
@@ -183,9 +182,8 @@ packages
 
 ## What is not built
 
-blue states its gaps plainly, because a language's honest gaps matter more
-than its claims. This list is the one in
-[Implementing blue](implementing.md#what-is-not-built), rendered here:
+This table lists what blue does not have yet. It is the table in
+[Implementing blue](implementing.md#what-is-not-built), rendered here.
 
 ```hon
 include implementing.md#what-is-not-built

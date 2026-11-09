@@ -5,15 +5,14 @@ summary: the standard library's design as one verb vocabulary (design)
 
 # STDLIB: blue's batteries, as one verb vocabulary
 
-**Status: DESIGN (2026-10-19), partly built (2026-11-06).** Master verb dispatch (§3.7) is
-built. §5's gate was redesigned: the verb graph lives in `bidamas/mokuroku/graph/` as data and
-its check is designed in `docs/verbs/H/DESIGN.md`, which supersedes §5.1 and §5.2 (no
-`mokuroku/verbs.b`, `checks.bidama-verbs` or `docs/STDLIB-VERBS.md` exists). The rest is design. It is written against the forms the
-canonical-forms work is landing (`raise :kind, "msg"`, `rescue :kind as e … ensure … end`, inline
-`expr rescue default`, records read as `value.field`, splat `f(*args)`, the `main` entry, default
-per-file namespaces, `json_at`). `docs/CANONICAL-FORMS.md` was not committed when this was
-written. Where it settles a spelling differently, the spelling here changes and the design does
-not. Every count below was measured on 2026-10-19 (§9 has the method).
+This page is the design of the standard library as one verb vocabulary. Part of it is built.
+The [Ledger](#ledger) at the end shows each space with its state. Master verb dispatch (§3.7) is
+built. The verb graph lives in `bidamas/mokuroku/graph/` as data, and `blue verbs check` gates it.
+`docs/verbs/H/DESIGN.md` holds the design of that check, and it replaces §5.1 and §5.2. The forms
+on this page are the canonical forms of [CANONICAL-FORMS.md](CANONICAL-FORMS.md): `raise :kind,
+"msg"`, `rescue :kind as e … ensure … end`, inline `expr rescue default`, `value.field`, splat
+`f(*args)`. When that page spells a form differently, the spelling here changes and the design
+does not. The counts in §1 to §8 are from 2026-10-19 (§9 has the method).
 
 The operator's two directives:
 
@@ -47,7 +46,7 @@ end
 ```
 
 - A **space** is one problem domain (files, processes, data formats, time, git…). Each space is one
-  bidama, named by the plain Japanese noun for the domain (the goi rule, `theory/NAMING.md`), and
+  bidama, named by the plain Japanese noun for the domain (the goi rule), and
   its verbs are always written qualified: `fairu::read`, never a bare `read`.
 - A **verb** has one meaning everywhere. `read` gets the whole content of a source, whether the
   source is a file, a URL, a secret, a config tier or a git blob. `get` looks a key up in a store and
@@ -146,7 +145,8 @@ exception: they are the prelude and are written bare.
    condition it tests. `delete` treats an absent subject as already done. `need` is the raising
    lookup.
 4. **Program faults are not recoverable by a bare `rescue`.** An unbound name, an arity error or a
-   type mismatch reaches a handler only when the handler names that kind (`theory/BLUE-GAPS.md` G4).
+   type mismatch reaches a handler only when the handler names that kind. This rule is not built:
+   `spec/rows/errors.b` holds it as the pending row `errors.catch_does_not_swallow_bugs`.
 
 ```ruby
 text = fairu::read(path) rescue ""
@@ -181,7 +181,7 @@ sequences are tatara-lisp's, and `cycle`/`realize` stay a known trap.
 
 A verb that touches the host declares its capability (`Capability::Filesystem`, `Process`,
 `Network`, `Environment`, `Clock`). Pure verbs (paths, parse, render, collections) declare none, so
-the evaluation engine may cache them (`theory/BLUE-ENGINE.md`). A space mixes both kinds, and each
+the evaluation engine may cache them. A space mixes both kinds, and each
 definition's capability is derived, never asserted by hand.
 
 ### 2.8 Each verb's documentation and tests
@@ -557,8 +557,7 @@ name a ledger kind (§5.4). Collect-every-problem validation keeps one verb, `ky
 which returns every finding as a list (empty when sound); `kyohi::enforce(subject, rules, opts)` is its
 raising form and throws a single error carrying the list (`kind: :first` takes the first finding's kind). **Absorbs:** `refusal`, `refuse` → `enforce`, `ok`,
 `refused`, `ok?`, `value`, `refusal_of` (the result-wrapper half is retired, since rescue does that
-job) and the per-package refusal families (kueri 16, nisshi 12, raifusaikuru 12, kinji 8, …;
-`theory/BLUE-GAPS.md` G4).
+job) and the per-package refusal families (kueri 16, nisshi 12, raifusaikuru 12, kinji 8, …).
 
 ### 4.10 hikisuu (引数), command-line arguments, *new*
 
@@ -718,7 +717,7 @@ through shisutemu).
 keys, `list(file)` (keys only), `put(file, key, value)` (`sops set`), and the noun `reveal(secret)
 -> Text`. A Secret renders as `<secret>` everywhere except through `reveal`. **Runtime:** the `sops`
 binary through shisutemu (move `sops-extract`'s argv shape). himitsu is a reader. A service
-declaration names a cofre `SecretRef` (`theory/FUEKI.md` R5); shikumi `SecretSource` and himitsu read
+declaration names a cofre `SecretRef`; shikumi `SecretSource` and himitsu read
 it (`SUBSTRATE.md` §7, 2026-11-09).
 
 ### 4.22 Unchanged spaces, conformed
@@ -824,41 +823,6 @@ exit status.
 Before it lands, each gate is broken on purpose and seen to fail with the fault named: delete
 `fairu::glob`, add a `fairu::slurp`, declare `:fetch` on files, drop a `why`, and make `delete` raise
 on an absent path. Those are the five red runs.
-
-## 6. Inventory: blue today against the spaces
-
-| Domain | State | What exists | The gap |
-|---|---|---|---|
-| strings | **present**, renames owed | builtins (split, join, trim, replace, `starts_with?`, `text_index`); moji (62 definitions) | regex absent; predicates spelled `is_x`; moji duplicates `starts_with?`/`ends_with?` |
-| lists | **present**, inconsistent | builtins (Lisp argument order); retsu (49, total and data-first); ronri (quantifiers); junjo (sorting) | four spellings of `contains?`, two of `empty?`; function-first builtins against data-first retsu (D2) |
-| maps and records | **partial** | `get`, `assoc`, `dissoc`, `map_entries`, `zipmap`; `deeta::get_or` | no `merge`, `update`, `select`, `keys`; records arrive with canonical-forms |
-| sets | **present** | shuugou (29) | predicates without `?`; `group_by` returns pairs while `map_entries` exists |
-| files and paths | **partial** | 17 builtins; `shisutemu::read_or`, `file_age_ms` | absolute `glob` broken; no temp dirs, atomic write (hand-rolled in tehai), sorted walk, `info` record, copy or watch |
-| processes | **partial** | 7 exec builtins and alist accessors | no cwd, timeout, streaming, spawn/wait/stop, pipe or which; 54 wrapper definitions in 31 files |
-| environment | **partial** | `getenv`, `env_required` | no listing, dotenv or `need` spelling |
-| typed config | **partial** | settei (18: tiers, coercion) | not in the verb shape; undocumented (empty catalog line) |
-| data formats | **partial** | JSON builtins; deeta (19: JSON reads, YAML render) | YAML/TOML/CSV parse, encodings and records absent |
-| time | **partial** | `now*`, `sleep*`, `elapsed_since`; hizuke (46, pure calendar) | no instant or duration values, time zones, parse or render |
-| regex | **missing** | `moji::glob_match?` only | everything (move `regex.rs`) |
-| HTTP client | **partial** | `http_request` (HTTP/1.1, http only) | TLS, redirects, JSON helpers, pagination, retry |
-| HTTP server | **present** | `http_listen`/`http_next_request`/`http_respond`; kyuuji (14) | verb conformance only |
-| CLI parsing | **missing** | `argv`, `argv_get` | hand-written parsers in 26 files |
-| logging | **missing** | `write_stderr` | levels, structure, a terminal mode |
-| testing | **partial** | `test`, `assert`, `--coverage`, heni (mutation) | diffs, snapshots, fixtures, temp dirs, `raises?` |
-| errors and retry | **partial**, in flight | `throw`/`error`/`try`; kyohi (10) | raise/rescue (canonical-forms); a kinds ledger; retry |
-| concurrency | **partial** | `spawn`, `receive`, supervisors | parallel map, `all`, timeouts as a verb |
-| hashing and encoding | **partial** | `blake3_hex`, Ed25519; shomei (16); shinsuu (base conversion) | sha256/512, hmac, base64/hex/url, entropy |
-| templating | **excluded** | interpolation | — |
-| math and stats | **present** | kazu (33), toukei (44), kinji (50), gyouretsu (55) | predicate renames only |
-| nix | **partial** | hyouka (25), kirikae (52), tehai (17), nikkusu (source as data) | the verb shape; `build`, `copy`, `lock` |
-| git | **missing** | ad-hoc calls (kirikae `git_out`) | the space |
-| Kubernetes reads | **missing** | `blue diff` (CLI, Rust) | the space |
-| GitHub | **missing** | `gh` calls in nix's github-org-repos | the space |
-| ssh | **missing** | tehai and keiyu build argv by hand | `on:` |
-| services | **missing** | node-health's hand-written systemctl calls | the space |
-| secrets | **missing** | — | the space and the Secret value |
-| tatara-lisp interop | **present** | blue's AST is tatara-lisp | the `:lisp` format row |
-| SQL | **present** | kueri (199), teeburu (8), `pg_*` | `query` naming |
 
 ## 7. Renames: the names the catalogue already has
 
@@ -989,10 +953,9 @@ rule.
   which are qualified and differently shaped. Option (b): rename the state verb to `status`, which
   reads well for git and services and badly for a file's stat. **Recommendation: (a).**
 
-## 11. UNFINISHED: what this design still owes
+## 11. Measurements for the sections still owed
 
-Three sections were requested and are not yet written. Their measurements are recorded here so the
-next pass starts from them. Counts are occurrences / files / repos over `~/code/github/pleme-io`
+Three sections are not written. Their measurements are here, so the next pass starts from them. Counts are occurrences / files / repos over `~/code/github/pleme-io`
 `*.rs` (25,911 files in 704 repos, measured 2026-10-19), and include vendored OSS (`caixa-*`,
 `gitoxide`, `vector`).
 
@@ -1042,11 +1005,45 @@ master table lacks:
 - `ensure` (→ `put`), `patch` (→ `update`), `wait_until` (visita's Wait).
 
 The conflicts to settle:
-- cordel's cluster `sleep`/`wake` should become `park`/`unpark`, the words camelot-incept already
-  uses;
+- cordel's cluster `sleep`/`wake` should become `park`/`unpark`, the words the fleet's cluster
+  bootstrap already uses;
 - the tatara-script stdlib's kebab words (`read-file`, `exec-capture`) become legacy aliases of the
   space words written as tatara's `fairu/read`, which is the same tree blue lowers `fairu::read`
   to, so the two languages share one vocabulary.
 
 Still to do: fold these rows into §3 and the waves, run the naming procedure and add a `NAMES.md`
 row for every *new* package, and re-check the forms against `docs/CANONICAL-FORMS.md` once it lands.
+
+## Ledger
+
+One row for each space of §4, and one for each part of the design that is not a space.
+
+✅ built and tested · ⏳ in progress · ❌ not built
+
+| Item | State | What makes it true |
+|---|---|---|
+| Master verb dispatch (§3.7) | ✅ built | `spec/rows/dispatch.b`. |
+| The verb graph and its check (§5) | ✅ built | `bidamas/mokuroku/graph/`, `blue verbs check`, `docs/verbs/H/DESIGN.md`. |
+| fairu, files and paths (§4.1) | ⏳ in progress | `bidamas/fairu` has path words with 9 tests. Temporary directories, atomic write, `info`, copy and watch do not exist. |
+| shisutemu, processes (§4.2) | ✅ built | `bidamas/shisutemu`, 11 tests. |
+| kankyou, the environment (§4.3) | ❌ not built | No `kankyou` bidama. `getenv` is a builtin. |
+| settei, typed configuration (§4.4) | ✅ built | `bidamas/settei`, 16 tests. |
+| deeta, data formats (§4.5) | ✅ built | `bidamas/deeta`, 27 tests. `deeta::parse(text, :yaml)` reads YAML (`spec/rows/yaml.b`). |
+| jisho, maps and records (§4.6) | ✅ built | `bidamas/jisho`, 12 tests. |
+| jikan, instants and durations (§4.7) | ❌ not built | No `jikan` bidama. `bidamas/hizuke` holds the pure calendar, with 37 tests. |
+| moji, text (§4.8) | ⏳ in progress | `bidamas/moji`, 54 tests. No regular expression word exists. |
+| kyohi, error kinds (§4.9) | ✅ built | `bidamas/kyohi`, 13 tests. |
+| hikisuu, command-line arguments (§4.10) | ✅ built | `bidamas/hikisuu`, 13 tests. |
+| rogu, logging (§4.11) | ✅ built | `bidamas/mitoshi/rogu`, 21 tests. |
+| heikou, concurrency, timeouts and retry (§4.12) | ⏳ in progress | No `heikou` bidama. Retry is `bidamas/saishikou` (4 tests). Processes are in `blue-lang-proc`. [ASYNC.md](ASYNC.md) holds the plan. |
+| tsuushin, the HTTP client (§4.13) | ⏳ in progress | `bidamas/eigyou/tsuushin`, 11 tests. It speaks plain `http://` only. TLS does not exist. |
+| shomei, hashing and signatures (§4.14) | ✅ built | `bidamas/shomei`, 33 tests. |
+| Testing, owned by the runner (§4.15) | ✅ built | `bidamas/tesuto`, 18 tests. |
+| hyouka, nix (§4.16) | ✅ built | `bidamas/kakehashi/hyouka`, 7 tests. |
+| gitto, git (§4.17) | ✅ built | `bidamas/gitto`, 20 tests. |
+| kurasuta, Kubernetes reads (§4.18) | ⏳ in progress | `bidamas/kurasuta/kinds` holds the typed kinds. The reads `list`, `get`, `need` and `watch` do not exist. |
+| habu, the GitHub API (§4.19) | ❌ not built | No `habu` bidama. |
+| joujuu, services (§4.20) | ❌ not built | No `joujuu` bidama. |
+| himitsu, secrets (§4.21) | ❌ not built | No `himitsu` bidama and no Secret value. |
+| A program fault that a bare `rescue` does not catch (§2.4) | ❌ not built | `errors.catch_does_not_swallow_bugs` is a pending row in `spec/rows/errors.b`. |
+| §11a, §12 and §13 folded into §3 and the waves | ❌ not built | §11 holds their measurements. |

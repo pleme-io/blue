@@ -76,7 +76,7 @@ rejected at the parse boundary, a bad definition when it is built and an
 illegal event when it is folded. Added beyond both: guards over folded field
 data, tasks and permits. Neither FSM carries data-dependent guards.
 
-Adjacent, not merged: `utsuroi` (ensaio/utsuroi-lifecycle, theory/UTSUROI.md)
+Adjacent, not merged: `utsuroi` (ensaio/utsuroi-lifecycle)
 is a Rust stage PROJECTION for ephemeral resources (spawn → ready → keep →
 drain → reaped) that existing domain FSMs map onto. It declares no
 lifecycles and folds no events. Its named-M1 `(deflifecycle …)` keyword stays

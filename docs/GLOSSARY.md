@@ -74,7 +74,7 @@ and its owning page disagree, the owning page is right: fix this page.
 | seam | **A runtime cast at a typed/untyped boundary, as gradual typing inserts.** When typed code receives an argument of unknown type, the checker records a seam (a runtime check at that call), and `blue check` lists it. [blue-lang-check](../crates/blue-lang-check/src/lib.rs) |
 | unsafe seam | **An FFI boundary that holds Rust `unsafe`.** blue allows `unsafe` only at one audited seam per foreign ABI; `blue-lang-kiwari` enforces this today, and a workspace-wide deny is **design**. [SAFETY.md](SAFETY.md) |
 | FORM axis | **One canonical syntax, as gofmt gives, extended to spelling.** Each thing has one spelling, the shortest that stays distinct, and every tool writes it. [CANONICAL-FORMS.md](CANONICAL-FORMS.md) |
-| RIGOR axis | **Opt-in static analysis.** Types, memory and capability limits slide per declaration: declare nothing and get no analysis. [theory/BLUE.md](https://github.com/pleme-io/theory/blob/main/BLUE.md) |
+| RIGOR axis | **Opt-in static analysis.** Types, memory and capability limits slide per declaration: declare nothing and get no analysis. [introduction.md](introduction.md) |
 | canonical spelling | **The formatter's one chosen syntax.** blue reads older or borrowed spellings (`&&`, `unless`, `x.f(y)`) and writes one; `blue fmt --write` and `blue check --fix` rewrite a file to it. [CANONICAL-FORMS.md](CANONICAL-FORMS.md) |
 | the mark (blueshift ramp) | **The logo.** The mark is four solid cells across Nord's Frost band, `nord7` to `nord10`: a shift in colour, not in density. [blue-lang-art](../crates/blue-lang-art/src/lib.rs) |
 | irodori | **The fleet's colour-palette library (Nord).** `blue-lang-art` reads every colour from the `irodori` crate, and blue carries no hex of its own. [blue-lang-art](../crates/blue-lang-art/src/lib.rs) |
@@ -100,7 +100,7 @@ and its owning page disagree, the owning page is right: fix this page.
 | provider | **A deterministic stand-in implementation.** The providers are `deterministic_stepped` (clock), `seeded_prng` (entropy), and `in_memory_overlay` or `null_sink` (filesystem); process, network and environment have none. [provision.rs](../crates/blue-lang-waku/src/provision.rs) |
 | posture (frame) | **A point in the permission and staging lattice.** A posture is a waku position; the Bluefile word `posture(when)` declares a package's WHEN floor, `"sealed"`, `"preceding"` or `"anytime"`. [bluefile.rs](../crates/blue-lang-pkg/src/bluefile.rs) |
 | engine posture | **The permission set of an embedded interpreter.** `Load::posture(allowed)` in `blue-lang-host` binds every host effect it does not allow as a refusal. [SERVICE-ACCESS.md](SERVICE-ACCESS.md) |
-| morphology (`blue morph`) | **A feature matrix of language modes.** It maps each posture to the qualities it grants and forfeits, and lists the pairs that truly exclude each other. [theory/BLUE.md](https://github.com/pleme-io/theory/blob/main/BLUE.md) |
+| morphology (`blue morph`) | **A feature matrix of language modes.** It maps each posture to the qualities it grants and forfeits, and lists the pairs that truly exclude each other. [morph.rs](../crates/blue-lang-bidama/src/morph.rs) |
 | appliance (`blue bundle`) | **A sealed single-file executable.** `blue bundle FILE --runner blue-appliance` seals the compiled program and its lock's capability record onto a runner, which checks the BLAKE3 digest and runs held to that record. [SAFETY.md](SAFETY.md) |
 | pure, volatile | **Purity (effect) analysis.** mondou marks a definition pure only when its answer depends on its arguments alone; a host call, another effect, nondeterminism or an outer mutation makes it volatile. [reach.rs](../crates/blue-lang-mondou/src/reach.rs) |
 
@@ -166,7 +166,7 @@ and its owning page disagree, the owning page is right: fix this page.
 
 | blue term | standard concept |
 |---|---|
-| battery (lateral) | **A batteries-included module for one cross-cutting concern.** Each concern that every program carries (errors, retries, configuration, logs) is one bidama or primitive with one verb set; the full lateral map is **design**. [theory/BLUE.md](https://github.com/pleme-io/theory/blob/main/BLUE.md) |
+| battery (lateral) | **A batteries-included module for one cross-cutting concern.** Each concern that every program carries (errors, retries, configuration, logs) is one bidama or primitive with one verb set; the full lateral map is **design**. [agents.md](agents.md) |
 | kyohi (拒否, *refusal*) | **Errors as values: a list of validation results.** A refusal is `[kind, why]`; `check` returns every refusal a subject has, and `enforce` raises them as one error. [NAMES.md](../bidamas/NAMES.md) |
 | kousei (構成, *composition*) | **Declarative configuration with per-entry validation.** A declaration is a list of entries, each checked, configured `off`, tuned or refused alone; `judge` sorts them into accepted, off and refused, so one bad entry never fails its siblings. [kousei.b](../bidamas/kousei/kousei.b) |
 | settei (設定, *settings*) | **Layered configuration, twelve-factor style.** `settei::read(app, defaults)` resolves the defaults, then `~/.config/<app>/<app>.yaml`, then `<APP>_<GROUP>__<KEY>` variables, each typed by its default. [settei.b](../bidamas/settei/settei.b) |
@@ -202,7 +202,7 @@ and its owning page disagree, the owning page is right: fix this page.
 | `blue-lang-proc` | **Erlang/OTP processes and supervisors.** Each process owns its VM and interpreter, a message is deep-copied, and a supervisor restarts children one-for-one, one-for-all, rest-for-one or simple-one-for-one; supervision as a service default is **design**. [blue-lang-proc](../crates/blue-lang-proc/src/lib.rs) |
 | kyuuji (給仕, *serving*) | **An HTTP/1.1 server loop.** kyuuji runs handlers as functions from a request to a response record, with a built-in health path, and answers a raise with 500. [NAMES.md](../bidamas/NAMES.md) |
 | koutei (工程, *one production step*) | **A CI step toolkit, like `@actions/core`.** koutei reads `INPUT_*` inputs and writes outputs, step summaries and annotations; it is the `run.b` side of every blue action. [NAMES.md](../bidamas/NAMES.md) |
-| fueki (不易, *the unchanging*) | **Write once, deploy anywhere by placement.** An application is declared once, and each runtime (WASI, Nix, OCI, engenho, Helm) is a renderer that a placement datum selects. [theory/FUEKI.md](https://github.com/pleme-io/theory/blob/main/FUEKI.md) |
+| fueki (不易, *the unchanging*) | **Write once, deploy anywhere by placement.** An application is declared once, and each runtime (WASI, Nix, OCI, engenho, Helm) is a renderer that a placement datum selects. [BUILD-STACK.md](BUILD-STACK.md) |
 
 ## Fleet terms the docs use
 
@@ -215,7 +215,7 @@ These are pleme-io names outside blue. blue's docs and agent guide use them.
 | sui | **A Nix build scheduler and binary cache.** It builds each change once on the build node, and every other machine substitutes. [BUILD-STACK.md](BUILD-STACK.md) |
 | engenho | **A Kubernetes runtime written in Rust.** It runs a service's chart on any node, and its wasm backend runs the component. [BUILD-STACK.md](BUILD-STACK.md) |
 | Flux | **A GitOps reconciler (FluxCD).** It applies the committed objects to a cluster. [BUILD-STACK.md](BUILD-STACK.md) |
-| Tela | **The fleet's frontend standard.** blue hosts a frontend framework that retargets Tela, and that framework is **design**. [theory/BLUE-FRONTEND.md](https://github.com/pleme-io/theory/blob/main/BLUE-FRONTEND.md) |
+| Tela | **The fleet's frontend standard.** blue hosts a frontend framework that retargets Tela, and that framework is **design**. [FRONTEND-PLAN.md](FRONTEND-PLAN.md) |
 
 ## Implementer terms
 

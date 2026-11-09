@@ -7,9 +7,9 @@ summary: the roadmap to full software verbalization
 
 Operator, 2026-10-22: *"extend bluelang batteries included nature by going to all of software engineering and building the language and verb graph and giving blue a development roadmap for full software verbalization."*
 
-This document extends [`STDLIB.md`](STDLIB.md) (22 scripting spaces, DESIGN tier) to the rest of software engineering. The law is `theory/BLUE.md` §V.28: one short verb per meaning, distinct verbs for distinct meanings, larger verbs built from smaller ones, laws per verb. The cross-cutting concerns are §V.28.1. The graph's data model, gates and coverage metric are in [`verbs/H/DESIGN.md`](verbs/H/DESIGN.md).
+This document extends [`STDLIB.md`](STDLIB.md) (22 scripting spaces) to the rest of software engineering. The law has four parts. Each meaning has one short verb. Distinct meanings have distinct verbs. Larger verbs are built from smaller ones. Each verb has laws. The cross-cutting concerns are the laterals (error, retry, deadline and the others in §1). The graph's data model, gates and coverage metric are in [`verbs/H/DESIGN.md`](verbs/H/DESIGN.md).
 
-**Tier: DESIGN.** Nothing here is built. Every number below was measured on 2026-10-22 by DuckDB over the seven region tables in `docs/verbs/` (`duckdb -c ".read docs/verbs/queries/contracts.sql"`). The tables were written by research agents from the existing docs, the catalogue and the fleet; `blue_today` is by name from `bidamas/CATALOG.md` and has not been re-measured.
+The [Ledger](#ledger) shows what is built. §1 to §3 record the first measurement. DuckDB measured it on 2026-10-22 over the seven region tables in `docs/verbs/` (`duckdb -c ".read docs/verbs/queries/contracts.sql"`). Research agents wrote those tables from the existing docs, the catalogue and the fleet. The graph today lives as blue rows in `bidamas/mokuroku/graph/`, and `docs/verbs/merged/verbs.tsv` renders it. On 2026-11-09 it holds 2,809 verbs in 169 spaces: 414 exist, 212 are partial, 158 live only in Rust and 2,025 are absent.
 
 ## 1. The graph today
 
@@ -34,7 +34,7 @@ This document extends [`STDLIB.md`](STDLIB.md) (22 scripting spaces, DESIGN tier
 
 | # | Finding | Measure | Fix |
 |---|---|---|---|
-| 1 | **The shared verbs do not share a shape.** 222 verb names occur in three or more spaces; only 48 take the same number of positional arguments everywhere. `list` has 54 spaces and three arities, `get` 43 and three, `put` 25 and three. | `queries/contracts.sql` | Write the verb contract table first (H0). It is the whole of §V.28 made concrete. |
+| 1 | **The shared verbs do not share a shape.** 222 verb names occur in three or more spaces; only 48 take the same number of positional arguments everywhere. `list` has 54 spaces and three arities, `get` 43 and three, `put` 25 and three. | `queries/contracts.sql` | Write the verb contract table first (H0). It makes the one-verb-per-meaning law concrete. |
 | 2 | Regions overlap. 87 `space::verb` keys appear in two regions (`gitto` and `habu` in E and F, `gyouretsu` in A and G) and 15 spaces are defined by more than one. | `queries/defects.sql` | One owner per space. E owns `gitto` and `habu` as build tools; F owns them as review. Merge, keep the more specific row. |
 | 3 | **Five contradictions in `composes`.** Mutual cycles: `jisho::keys` and `entries`; `shuugou::set` and `retsu::unique`; `chokkan::ask` and `choice`; `kazu::mod`, `floor` and `divmod`; `fairu::write` and `with_temp_file`. | `queries/graph.sql` | Name one primitive in each group. The other is built from it. |
 | 4 | Seven existing verbs are referenced but not listed: `kankyou::get`, `kueri::ident`, `ran::stream_seed`, `saishikou::retrying`, `shisutemu::run`, `shuusei::deep_merge`, `shuusei::put`. 120 more edges point at `core::` master verbs. | `queries/defects.sql` | Add the seven rows. Give `core::` its own space of master verbs. |
@@ -101,3 +101,29 @@ Each phase ends when its gates are green and the coverage ratchet has moved. A p
 - The fleet column cites only what the agents read. Of region A's 578 rows, 66 name an owner. Treat `-` as "not read", not "none".
 - `blue_today` is by name. Before a wave is planned, its rows are re-measured against the catalogue.
 - The region tables were written in one pass by separate agents with one shared brief. Findings 1 to 8 are what that approach could not catch alone, which is why H0 comes first.
+
+## Ledger
+
+✅ built and tested · ⏳ in progress · ❌ not built
+
+Measured 2026-11-09 on `docs/verbs/merged/verbs.tsv`, which `gen/verbs/verbs.b` renders from `bidamas/mokuroku/graph/`.
+
+| Item | State | What makes it true |
+|---|---|---|
+| H0: the graph as blue rows | ✅ built | `bidamas/mokuroku/graph/` holds the rows. `gen/verbs/verbs.b` and `gen/verbs/edges.b` render `docs/verbs/merged/verbs.tsv` and `edges.tsv`. `gen/verb-graph.b` test "the committed graph loads without one refusal". |
+| H0: findings 2 to 8 repaired in the data | ✅ built | `docs/verbs/merged/CHANGES.md` repairs a to h. The `rust:` value of `blue_today` exists (158 rows). |
+| H0: the 94 provisional names swept | ✅ built | `docs/verbs/names/N1.tsv`, `N2.tsv` and `RULINGS.md` |
+| H0: the verb contract table | ⏳ in progress | `docs/verbs/contracts.tsv` renders from the graph (`gen/verbs/contracts.b`): 286 rows decided, 93 from STDLIB, 4 open. |
+| H0: gates over the graph | ⏳ in progress | `checks.verb-graph` runs G1, G2, G4, G7 and G9, each with a fixture that names its bad row. Its live probe checks that each `exists` row resolves and has a test. G3, G6 and G8 do not exist. |
+| H0: the coverage baseline | ✅ built | `bidamas/mokuroku/graph/graph.baseline`; `gen/verb-graph.b` test "the committed graph breaks no gate beyond the debt it recorded" |
+| H0: `docs/VERBS.md` rendered from the graph | ❌ not built | No generator writes `docs/VERBS.md`. |
+| H1: the spine | ⏳ in progress | Wave 0 has 635 verbs: 343 exist and 17 are absent. The rest are partial or live only in Rust. Wave 1 has 723 verbs: 48 exist and 597 are absent. |
+| H1: TLS | ❌ not built | No `rustls` in any crate. Done when a pure-Rust provider sits behind `Capability::Network`. |
+| H1: entropy | ✅ built | `random_bytes` in `crates/blue-lang-runtime/src/provide.rs`; `shomei::random` in `bidamas/shomei/shomei.b` |
+| H1: `fuuin` threshold verbs | ✅ built | `generate` and `combine` in `bidamas/fuuin/fuuin.b`, with its tests |
+| H2: stores and conversation | ⏳ in progress | `bidamas/chozou` holds `teeburu`, `kiibariu` and `sutoriimu`. No one store contract joins the store spaces. |
+| H3: ship and observe | ❌ not built | No `birudo`, `tenkai` or `rirezu` bidama exists. |
+| H4: surfaces and intelligence | ⏳ in progress | `bidamas/gamen`, `bidamas/ugoki` and `bidamas/bunsho` exist. No `dairi`, `kensaku`, `saiten`, `kinyuu` or `chizu` bidama exists. |
+| Waves 2 and 3 | ❌ not built | Wave 2 has 865 verbs: 22 exist and 830 are absent. Wave 3 has 523 verbs: 1 exists and 518 are absent. |
+| H5: horizon | ❌ not built | None of the 63 wave-4 verbs exists. |
+| Decision 5: the scope of `blue_today: rust:<crate>` | ❌ not built | The value exists in the data. Its scope is not decided. |

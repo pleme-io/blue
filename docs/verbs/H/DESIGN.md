@@ -6,8 +6,8 @@ summary: the verb graph as data blue owns
 # H: the verb GRAPH as data blue owns (META region)
 
 Read: STDLIB §0-§11, mokuroku (text scan, CATALOG.md, `name_collisions`), okite (`decisions()` with laws),
-hadome (`judge`: Unrecorded/Held/Grew), kousei, `docs.rs` `NAMES`, `rules.rs` `Rule`, `spec/rows`,
-CONVERGENT-EVIDENCE, JOEIRA §6.2. Files here: `verbs.tsv` and `edges.tsv` (30 rows each, loaded
+hadome (`judge`: Unrecorded/Held/Grew), kousei, `docs.rs` `NAMES`, `rules.rs` `Rule`, `spec/rows`.
+Files here: `verbs.tsv` and `edges.tsv` (30 rows each, loaded
 unchanged by `queries.sql`, which ran green under duckdb: 16 absent verbs, 1 orphan, 3 shape divergences).
 
 Destination: the vocabulary is ONE graph in blue source; TSV, DuckDB tables, VERBS.md, REFERENCE rows,
@@ -103,7 +103,7 @@ other law is a blue property test in a space adapter (okite's `values(seed, n)` 
 | suggestion engine | a lint over the resolved tree (`blue ast --resolved`, mondou `def_hash`): (a) a call to a `raw` name (`exec_capture`, `getenv`) suggests the verb; (b) a def whose callee set contains all `composes` targets of verb Y suggests "Y exists"; (c) a def whose shape and laterals equal a verb's suggests the verb. The `raw` table is data, so one `RULES` row (`raw-for-verb`) replaces STDLIB §8's six hand-written steering slugs | each suggestion kind has a witness; ships as warnings under a ratchet |
 | TSV and DuckDB | `blue verbs export` writes verbs.tsv, edges.tsv, laterals.tsv, activities.tsv; analysis is `duckdb < queries.sql` | round-trip law |
 
-## 4. The verbalization coverage metric (a ratchet, JOEIRA §6.2)
+## 4. The verbalization coverage metric (a ratchet)
 
 Three numbers, never blended into one score, each with its denominator and date printed on every run
 (a zero denominator is red: anti-vacuity).

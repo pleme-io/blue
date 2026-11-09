@@ -5,8 +5,8 @@ summary: the default blue service and the batteries it composes (design)
 
 # SERVICE-ARCHITECTURE — the default blue service
 
-Status: DESIGN, 2026-10-23. Nothing below is built unless the tier ledger (§12)
-says so. Paths are under `~/code/github/pleme-io/`. Line numbers were read on
+Status: ⏳ in progress. Most of this doc is design. The [Ledger](#ledger) at
+the end says what is built. Paths are under `~/code/github/pleme-io/`. Line numbers were read on
 2026-10-23. What a service may touch (effects, peers, paths, ports, programs),
 and how each layer enforces it, is `SERVICE-ACCESS.md`. The whole-stack
 architecture (business logic in blue, the three layers, the reuse table) is
@@ -48,7 +48,7 @@ The table lists each concern with its Rust home, its blue state and the gap.
 | Secrets by file | `shikumi/src/secret.rs:116` `SecretSource` (file, sops, op, akeyless, command). kensa has its own `read_secret` at `kensa/src/main.rs:565` | Declarations carry `*_file` paths. kensa refuses a literal (`kensa/src/config.rs:135`) | No blue primitive reads a secret. A secret becomes a plain string |
 | Health, ready, metrics | `tsunagu/src/axum.rs:81` `health_router` (30 repos). About 75 repos hand-roll routes, with paths that differ: kensa `/health`, shinka `/healthz` (`shinka/src/health.rs:72`) | `kyuuji::answer` answers health before the handler. `kyuuji` `/metrics` has request counters and a latency histogram. `keisoku` has counter, gauge and histogram | No readiness distinct from liveness. No dependency checks (db, cache) |
 | Logs | `tsunagu/src/tracing_init.rs:92`, `shidou/src/tracing_init.rs:35`, `pleme-observability/src/tracing.rs:87`: 3 crates. About 130 repos call `tracing_subscriber::fmt` directly | `rogu`: one JSON line per call on stderr | None for logs. The Rust side has three overlapping crates |
-| Traces | `pleme-observability/src/tracing.rs:87` (OTel) | `tsuiseki`: spans and lineage, in process | No export. No trace id from the request id |
+| Traces | `pleme-observability/src/tracing.rs:87` (OTel) | `tsuiseki`: spans, lineage and OTLP export (`bidamas/mitoshi/tsuiseki`) | No trace id from the request id |
 | Graceful shutdown | `tsunagu/src/shutdown.rs:63` `ShutdownController` (SIGTERM and SIGINT). 31 files call `with_graceful_shutdown`. `samba/src/worker.rs:90` handles `ctrl_c` only. kensa calls an undefined `shutdown_signal()` under `grpc` (`kensa/src/main.rs:502`) | `kyuuji::serve_once` polls with `wait_ms`, so a drain point exists | No primitive tells blue "a stop was asked". No drain |
 | Supervision | The OS supervisor (systemd, launchd, kubelet) through the substrate trio (`substrate/lib/module-trio.nix:77`) | `blue-lang-proc` `Supervisor` (`crates/blue-lang-proc/src/lib.rs:373`), one-for-one, one-for-all and rest-for-one, max restarts | No restart window and no backoff (caixa has a window, this crate does not) |
 | Retry, backoff | `tend/src/backoff.rs:132` (crate-private). 23 repos have their own | `saishikou::retrying` has a fixed wait. `kirikae` has `backoff_ms` | Two blue halves. Neither has jitter |
@@ -58,9 +58,9 @@ The table lists each concern with its Rust home, its blue state and the gap.
 | Introspection | `kanshou/crates/kanshou/src/server.rs:19` (Unix socket, 11 repos) | kousei's judgement returns accepted, off and refused, but nothing serves it | No surface |
 | Hot reload | `shikumi/src/store.rs:37` `ConfigStore`, `watcher.rs:970`, `hotswap.rs:45` validate-then-swap | none | No reload |
 | Feature flags | `enabled` fields in each service (`kensa/src/config.rs:70`) | `flags:` in the Bluefile, `settei::flag` | None for flags. A flag has no owner or expiry |
-| Data model | SeaORM entities by hand (lilitu), `kensa/src/config.rs:102` | flat `schema:` map. haibi `table_sql` (`haibi.b:321`), `ddl_in` (`:360`). `teeburu` insert and latest | No `model(...)` word (the Bluefile words are listed at `crates/blue-lang-pkg/src/bluefile.rs:1055`). No keys, relations, secret, public, cache or retention |
+| Data model | SeaORM entities by hand (lilitu), `kensa/src/config.rs:102` | flat `schema:` map. haibi `table_sql` (`haibi.b:321`), `ddl_in` (`:360`). `teeburu` insert and latest | `teeburu::model` exists, but no Bluefile word and no bidama of its own holds the model. No keys, relations, secret, public, cache or retention |
 | Migrations | shinka operator, `shinka/src/crd/database_migration.rs:72` | haibi `migration` (`haibi.b:664`) emits a `DatabaseMigration` | The CR is built from string lines, not as a typed value. Only CREATE statements, with no plan for model changes |
-| Cache | none shared. Valkey is declared in kensa only (`kensa/src/config.rs:102`) | haibi `cache_values` (`:127`) mounts the secret | No RESP client. No keys or invalidation from the model |
+| Cache | none shared. Valkey is declared in kensa only (`kensa/src/config.rs:102`) | haibi `cache_values` (`:127`) mounts the secret. `kiibariu` is a RESP client (`bidamas/chozou/kiibariu`) | No keys or invalidation from the model |
 | API generation | `forge-gen/src/commands/generate.rs:201` (OpenAPI → SDK, MCP, docs) | none | Blue does not render OpenAPI, GraphQL or JSON Schema for the API |
 | SLO, alerts | `helm-forge/src/template_gen.rs:92` | `shihyou` rules and dashboard, rendered into the chart (`haibi.b:729`) | None. Exists in blue |
 | Values schema | `helm-forge/src/values_schema.rs:95` | haibi `values_schema` (`:232`) | Two renderers (blue and Rust) of one kind of artifact |
@@ -103,7 +103,7 @@ restart-class field changed on reload). shikumi's `extract_with_sources`
 default. kensa's `from_env` does that today (`kensa/src/config.rs:244`), and this
 design forbids it.
 
-**Secrets.** The one ruling is `theory/FUEKI.md` R5: a declaration names a
+**Secrets.** The one ruling: a declaration names a
 cofre `SecretRef`, never a value, and placement binds its backend. shikumi
 `SecretSource` (`*_file`, sops, akeyless) and blue's `himitsu` record read it
 (`SUBSTRATE.md` §7, 2026-11-09). This section owns only the read side. The host primitive returns an opaque handle
@@ -198,7 +198,7 @@ signals and protocols go in Rust.**
 | Concern | Lives in | Why |
 |---|---|---|
 | Config tiers | Rust engine (shikumi) with the blue judge | shikumi has six slots, overlays, sources, secrets and reload. 107 repos use it |
-| Secrets | declared as a cofre `SecretRef` (`theory/FUEKI.md` R5); read in Rust (shikumi `SecretSource`) | bytes must not enter blue values |
+| Secrets | declared as a cofre `SecretRef`; read in Rust (shikumi `SecretSource`) | bytes must not enter blue values |
 | Health, ready, metrics text | blue (kyuuji) | pure text over `http_*` |
 | Logs | blue (rogu) | one JSON line. No Rust need |
 | Trace export | Rust (OTLP) | protocol |
@@ -255,17 +255,16 @@ flowchart LR
 
 ### 5c. One model, every data surface
 
-The model is a blue value in its own bidama: versioned, locked and hashed
-(`theory/BLUE.md` §V.32). `DATA-FRAMEWORK.md` owns its design, and
+The model is a blue value in its own bidama: versioned, locked and hashed.
+`DATA-FRAMEWORK.md` owns its design, and
 `SERVICE-DATA.md` §2a owns its evolution. A service depends on the model's
 bidama; its Bluefile does not hold the model. History: on 2026-10-23 this
-section made `model(...)` a new Bluefile word; on 2026-11-09 it follows §V.32
-(`SUBSTRATE.md` §7).
+section made `model(...)` a new Bluefile word; on 2026-11-09 it follows the
+ruling that the model is its own bidama (`SUBSTRATE.md` §7).
 
 Each entity is one entry: fields and types, key, relations, indexes, `secret`,
 `public`, `cache` (key shape, TTL, what invalidates it) and `retention`.
-Today's flat `schema:` lowers into model entries, so it stays valid
-(BLUE-STRUCTURE §6.5).
+Today's flat `schema:` lowers into model entries, so it stays valid.
 
 ```
 model("greetings", {
@@ -388,7 +387,7 @@ one declaration.
 | GraphQL | none | design |
 | Rust types | `bidamas/sabi/sabi.b:197` `struct` | not wired to the model |
 | DuckDB SQL | `kueri` | none |
-| nix | the Bluefile engine (`BLUE-STRUCTURE.md` §5.5) | as that doc tracks |
+| nix | the Bluefile engine (`nix/project.nix`) | none |
 | CI | pleme-io/actions in blue (`action.yml` + `run.b`) | not rendered from the service |
 | catalog entry | `ola-mundo/Bluefile` `generate("catalog", ...)` | none |
 | the service process | `blue` host + kyuuji | host surface (§5a) |
@@ -498,9 +497,8 @@ write its field, for example `slo: {latency_ms: 250}`. The handlers in
    users. Rejected: revive `pleme-service-foundation`. It has two diverged
    copies and 0 users.
 6. **One model word, with its renderers in haibi.** Rejected: a separate DDL,
-   API and cache declaration per surface (that is the drift BLUE-STRUCTURE
-   §6.5 forbids). Since 2026-11-09 the model word lives in its own bidama
-   (§5c, `theory/BLUE.md` §V.32).
+   API and cache declaration per surface (three copies of one model drift
+   apart). Since 2026-11-09 the model word lives in its own bidama (§5c).
 
 ## 9. Open questions
 
@@ -518,7 +516,7 @@ write its field, for example `slo: {latency_ms: 250}`. The handlers in
 
 | Bad state | How it is refused | Scope |
 |---|---|---|
-| A secret literal in a declaration | a cofre `SecretRef` only (`theory/FUEKI.md` R5), read through `*_file` or `SecretSource`. A string at a secret field is refused | that entry |
+| A secret literal in a declaration | a cofre `SecretRef` only, read through `*_file` or `SecretSource`. A string at a secret field is refused | that entry |
 | A secret value in a log or a response | `secret_open` returns `Value::Foreign`. Rendering it is a type error | that call |
 | An unknown config key, from file, env or CLI | shikumi's unknown-key report becomes a settei refusal | that key |
 | Broken config falls back to defaults | there is no `unwrap_or_default` path. A refusal stops the start | the process start |
@@ -538,20 +536,28 @@ shapes (about 75). These are the Rust survey counts from 2026-10-23. A blue
 service inherits one copy of each. The Rust fleet keeps its own copies until
 each repo is touched.
 
-## 12. Tier ledger
+## Ledger
 
-| Item | Tier | Evidence |
+The state of each service concern, measured on 2026-11-09.
+
+✅ built and tested · ⏳ in progress · ❌ not built
+
+| Item | State | What makes it true |
 |---|---|---|
-| `service()` → chart, config schema, values schema, DDL, migration, SLO | tested | ola-mundo and kensa `checks.project` (freshness gate) |
-| settei defaults → file → env | tested | settei tests, `ola.b` |
-| shikumi six slots, secrets, reload | tested | shikumi tests (in its repo) |
-| kyuuji serve, health, metrics | tested | `kyuuji.b` tests |
-| bougyo, shisei postures | tested | CATALOG test counts |
-| blue embedded in Rust (pure) | live | kensa attestation plane |
-| `config_resolve`, `secret_open`, `stop_requested`, `oidc_verify`, `resp_*`, `span_export` | design | none |
-| differential settei ≡ shikumi | design | none |
-| `model(...)`, katachi | design | none |
-| seigyo, typed CRs, pinned CRDs | design | none |
-| OpenAPI, GraphQL from the model | design | none |
-| rate and auth postures, readiness, drain | design | none |
-| hot reload, introspection for blue | design | none |
+| `service()` renders chart, config schema, values schema, DDL, migration, SLO | ✅ built | `bidamas/eigyou/haibi/haibi.b`, 22 tests; the freshness gate `checks.project` in ola-mundo and kensa |
+| settei: defaults, then file, then env | ✅ built | `bidamas/settei/settei.b`, 16 tests |
+| shikumi: six slots, secrets, reload | ✅ built | shikumi's own tests, in its repository |
+| kyuuji: serve, health, metrics | ✅ built | `bidamas/eigyou/kyuuji/kyuuji.b`, 34 tests |
+| bougyo and shisei postures | ✅ built | `bidamas/eigyou/bougyo/bougyo.b` (10 tests), `bidamas/eigyou/shisei/shisei.b` (13 tests) |
+| Logs and metrics in blue | ✅ built | `bidamas/mitoshi/rogu` (21 tests), `bidamas/mitoshi/keisoku` (23 tests) |
+| Trace export | ✅ built | `bidamas/mitoshi/tsuiseki`, test "an exporting span POSTs OTLP JSON to /v1/traces" |
+| RESP client | ✅ built | `bidamas/chozou/kiibariu/kiibariu.b` (8 tests), `crates/blue-lang-runtime/tests/resp.rs` |
+| blue embedded in Rust as a pure engine | ✅ built | live in kensa's attestation plane (`kensa/src/attestation.rs`) |
+| `config_resolve`, `secret_open`, `stop_requested`, `oidc_verify` | ❌ not built | No such word in `crates/` or `bidamas/`. Done at P1 and P5 (§7) |
+| The settei and shikumi differential | ❌ not built | Done when a seeded mismatch turns the differential red (P1) |
+| The model and `katachi` | ⏳ in progress | `teeburu` has `model`, `evolve` and `judge` (`bidamas/chozou/teeburu/teeburu.b`). No `katachi` bidama exists, and the model is not its own bidama |
+| `seigyo`: typed CRs checked against pinned CRDs | ❌ not built | haibi still builds `DatabaseMigration` from string lines. Done at P2 and P7 |
+| OpenAPI and GraphQL from the model | ❌ not built | `toriyose/outou` renders GraphQL from a blue schema, not from the model. Done at P4 |
+| Auth posture | ⏳ in progress | The service config carries `api.auth` with `mode` and `jwks_url` (`crates/blue-lang-pkg/src/deploy/service.rs`). No word verifies a token |
+| Rate posture, readiness apart from liveness, drain | ❌ not built | bougyo limits size and method only; haibi probes one `/healthz`. Done at P5 |
+| Hot reload and introspection for blue | ❌ not built | Done at P8: a refused reload candidate keeps the old config |

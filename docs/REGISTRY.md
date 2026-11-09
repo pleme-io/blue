@@ -21,14 +21,14 @@ seam), `crates/blue-lang-pkg/src/lock.rs` (`lock_with`), and
 One declaration publishes a project to every backend that the fleet uses,
 and one lock resolves it from any of them. A backend that is down never
 changes a build and never turns a pipeline red. The destination has four
-backends:
+backends. The [Ledger](#ledger) shows which of them are built.
 
-| backend | role | state |
-|---|---|---|
-| `sui` | the fleet cache plane: the closure of each output, signed with the fleet uploader key | ✅ built (publish); ✅ `blue registry status` (resolve check) |
-| `flakehub` | an optional public semver index and FlakeHub's cache | ✅ built (publish, resolve); off by default |
-| `porto` | the fleet OCI registry (`sui/sui-registry`, binary `porto`) | ➖ row: refused as `not_built` |
-| `github` | GitHub releases | ➖ row: refused as `not_built` |
+| backend | role |
+|---|---|
+| `sui` | the fleet cache plane: the closure of each output, signed with the fleet uploader key |
+| `flakehub` | an optional public semver index and FlakeHub's cache; off by default |
+| `porto` | the fleet OCI registry (`sui/sui-registry`, binary `porto`) |
+| `github` | GitHub releases |
 
 ## Decisions
 
@@ -112,8 +112,8 @@ Each entry is judged alone. A bad entry is refused with a kind (`invalid`,
    `on`.
 
 The flake description that FlakeHub shows comes from the flake's own
-`description`. The catalogue gloss does not yet reach it (see "What
-remains").
+`description`. The catalogue gloss does not reach it (see the
+[Ledger](#ledger)).
 
 ## Resolve flow
 
@@ -155,11 +155,6 @@ lock pins:
 The CLI reads the same pin. `blue run`, `blue test` and `blue check` in the
 project add the source's packages root after the project's `packages` roots,
 when the pinned store path is on the machine. `blue lock` fetches it.
-
-| state | |
-|---|---|
-| `source` lowered in `nix/project.nix` (fetchTree over the pin) | ✅ `checks.source-fixture` |
-| a project's locked source on the CLI load path | ✅ `a_locked_source_on_this_machine_joins_the_project_after_its_packages` |
 
 `blue registry status` reads the lock and probes the sui origin that
 `SUI_CACHE_URL` names with `nix path-info --store`. For each pin it prints
@@ -225,11 +220,21 @@ flowchart LR
   O -.->|substituter| B
 ```
 
-## What remains
+## Ledger
 
-| row | state |
-|---|---|
-| `porto` backend (OCI registry for charts and images) | ➖ refused as `not_built` |
-| `github` releases backend | ➖ refused as `not_built` |
-| the catalogue gloss as the FlakeHub description | ➖ flakehub-push reads the flake's `description`; the reusable has no input for it |
-| a sui probe inside `blue lock` | ➖ `blue registry status` does it on demand |
+✅ built and tested · ⏳ in progress · ❌ not built
+
+| Item | State | What makes it true |
+|---|---|---|
+| `sui` publish | ✅ built | `bidamas/touroku/touroku.b` test "sui renders a gated publish of each output through sui-cache-push" |
+| `sui` resolve check, `blue registry status` | ✅ built | `status` and `probe` in `crates/blue-lang-cli/src/registry.rs`; touroku test "a sui probe never fails a build" |
+| `flakehub` publish and resolve | ✅ built | touroku tests "semver publishes on tags, rolling on main" and "a range resolves to the recorded exact version and revision" |
+| private FlakeHub refusals | ✅ built | touroku tests "absence, credentials and an outage are typed refusals of the one source" and "private on FlakeHub without a paid plan is refused as a world fact" |
+| visibility declared once | ✅ built | touroku tests "a private package never renders public, on any tag" and "a registry entry that sets visibility is refused alone" |
+| `porto` backend (OCI registry for charts and images) | ❌ not built | touroku refuses the entry as `not_built` (test "planned and unknown backends are refused by kind"). Done when a `porto` entry renders a publish job. |
+| `github` releases backend | ❌ not built | touroku refuses the entry as `not_built`. Done when a `github` entry renders a release job. |
+| the catalogue gloss as the FlakeHub description | ❌ not built | flakehub-push reads the flake's `description`. The reusable workflow has no input for the gloss. |
+| `source` lowered in `nix/project.nix` (fetchTree over the pin) | ✅ built | `checks.source-fixture`: a project whose `needs` only a package in another tree meets, with the fetch arguments checked against the lock. |
+| a project's locked source on the CLI load path | ✅ built | Test `a_locked_source_on_this_machine_joins_the_project_after_its_packages` (`crates/blue-lang-pkg/src/load_path.rs`). |
+| a sui probe inside `blue lock` | ❌ not built | `blue registry status` probes on demand. `blue lock` does not probe. |
+| a registry gate that can fail | ❌ not built | `blue registry status` reports and never exits non-zero. Done when a check fails on an absent pin. |

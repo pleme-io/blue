@@ -1,9 +1,11 @@
 use(
   "hon",
   %i[
+    address_refusals
     doc_pages
     fact_refusals
     front_matter_refusals
+    generated_files
     kind_refusals
     project_at
     run_blocks
@@ -60,4 +62,24 @@ test "every block of every tutorial and how-to runs as the page shows it"
     assert length(runnable) >= 19
     assert found == []
   end
+end
+
+test "no page and no generated file links where a reader cannot follow"
+  root = project_root
+  rendered = generated_files(project_at(root))
+  seen = filter((p) -> path_exists(path_join(root, p)), rendered)
+  unseen = filter((p) -> not member?(p, seen), rendered)
+  if unseen != []
+    write_stderr(
+      "check(\"docs\") cannot read #{join(unseen, ", ")}: add it to the check's inputs in the Bluefile"
+    )
+  end
+  files = append(pages, map((p) -> [p, read_file(path_join(root, p))], seen))
+  found = address_refusals(files)
+  if found != []
+    write_stderr(unlines(map(why, found)))
+  end
+  assert length(rendered) > 20
+  assert unseen == []
+  assert found == []
 end

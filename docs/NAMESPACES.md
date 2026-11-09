@@ -5,8 +5,7 @@ summary: "a bidama definition stays in its bidama: the rule as built and its gat
 
 # Namespaces: a bidama definition stays in its bidama
 
-The design is `theory/BLUE-NAMESPACES.md` (pleme-io/theory). This page
-records one rule of it as built, the receipt that asked for it, and the
+This page records the namespace rule as built, the receipt that asked for it, and the
 gates that hold it.
 
 ## The rule

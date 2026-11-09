@@ -5,7 +5,8 @@ summary: "utsushi, blue's history projection, DESIGN: Josh's essence naturalized
 
 # utsushi (写し): blue's history projection, the design of record
 
-**Tier (2026-11-06): U1 BUILT, U2-U6 DESIGN.** utsushi is the naturalization of
+U1 is built. U2 to U6 are not built. The [Ledger](#ledger) gives the state
+of each item. utsushi is the naturalization of
 Josh, "Just One Single History" (https://github.com/josh-project/josh): any
 subtree or composed workspace of a repository shown as a repository of its
 own, with history, both ways. It keeps the problem and the good ideas. It
@@ -32,7 +33,7 @@ inverse is refused, naming the path in conflict. It never guesses a base by
 trial merges.
 
 The first consumers are pleme-io's own: a bidama graduating to its own repo
-with its history (`theory/PROJECT-GROWTH.md`), a repo absorbed with its
+with its history, a repo absorbed with its
 history, and `gen/tree.b` moves that keep `git log` for a moved package.
 
 ## What Josh teaches
@@ -71,7 +72,7 @@ writes; the type is the first line.
 | an HTTP server | `bidamas/eigyou/kyuuji` with a streaming reply | pkt-line, upload-pack, receive-pack |
 | a memo | mondou's `recall` and `def_hash` | a persistent memo keyed by (filter, commit) |
 | a path move over a tree | `gen/tree.b` | it moves the work tree, not history |
-| repo growth | `theory/PROJECT-GROWTH.md`, `tend`, `repo-forge` | no step keeps history on graduate or absorb |
+| repo growth | `tend`, `repo-forge` | no step keeps history on graduate or absorb |
 
 About 25% of the parts exist. Almost none of Josh's own logic does.
 
@@ -86,29 +87,21 @@ About 25% of the parts exist. Almost none of Josh's own logic does.
 | U5 | native objects: loose objects and packs | a pure-Rust inflate host primitive (`miniz_oxide`); pack and delta in blue, measured first | U1's differential holds with no `git` process |
 | U6 | the proxy: smart HTTP fetch and push as a blue `service(...)` | protocol fixtures; the auth field required | `git clone` and `git push` through the service work |
 
-## What blue lacks (host primitives)
+## Ledger
 
-| Need | Why | Where it goes |
+✅ built and tested · ⏳ in progress · ❌ not built
+
+| Item | State | What makes it true |
 |---|---|---|
-| zlib inflate and deflate | loose objects and packs | a `blue-lang-host` seam over `miniz_oxide` (pure Rust, no C) |
-| an https client | an upstream on GitHub (`http_request` speaks http only) | a host seam |
-| fast pack and delta I/O | large monorepos | blue first; a host primitive only if U5 measures blue too slow |
-
-## Tier ledger
-
-<!-- tier-ledger -->
-
-| Josh capability | utsushi realization | tier |
-|---|---|---|
-| a non-invertible filter on a push path | push's parameter is a lens; a view has no lens constructor | truly-unrep |
-| an invalid or overlapping workspace entry | that entry is refused with its reason when the workspace is read | parse-time-rejected |
-| a push with no exact inverse | `unapply` returns a refusal naming the conflict path | only-mitigated (C2) |
-| commit ids stable across machines | the differential against `josh-filter`; a cache hit equals a cold run | only-mitigated (C2) |
-| a copied signature that no longer verifies | the signature policy is a required field | truly-unrep |
-| an unauthenticated push | the auth mode is a required field of the service | truly-unrep |
-
-C2 is the external-world ceiling: the round-trip law and the id parity are
-tested facts about runs, not types.
+| U1 lenses: `sub`, `prefix`, `chain`, disjoint `compose`, and `project` over history | ✅ built | `bidamas/utsushi/utsushi.b` tests: "sub gives Josh's commit ids: unchanged and empty commits drop out", "prefix gives Josh's commit ids: every commit is kept", "compose puts disjoint lenses side by side and refuses an overlap". The ids equal `josh-filter` 24.10.04 on a fixed-date fixture. |
+| the CLI verb `blue utsushi split` | ❌ not built | No `utsushi` verb in `crates/blue-lang-cli/src`. Done when `blue utsushi split` gives Josh's ids for `:/a` and `:prefix=a`. |
+| a signature policy is a required field | ⏳ in progress | Test "a projection names its signature policy, and only drop is built": a projection without a policy is refused. `keep_when_tree_unchanged` and `re_sign` are refused as not built. |
+| U2: workspace entries, `exclude`, views | ❌ not built | `parse(":exclude[a]")` is refused today. Done when a workspace with one bad entry still projects the rest, and each refusal (overlap, double map, self-reference, cycle) has a fixture with a red run. |
+| U3: `unapply` and push-back | ❌ not built | Done when the law `filter(unapply(c, base)) == c` is a green property test. A push with no exact inverse is then refused with the conflict path. This stays a tested fact about runs, not a type. |
+| a non-invertible filter on a push path | ❌ not built | Push does not exist. The design makes push take a lens only, so a view cannot reach it by type. |
+| U4: the content-keyed cache | ❌ not built | Done when a cache hit equals a cold run byte for byte. |
+| U5: native objects (loose objects and packs) | ❌ not built | No inflate primitive exists in `crates/`. It needs a host seam over `miniz_oxide` (pure Rust). Done when U1's differential holds with no `git` process. |
+| U6: the proxy (smart HTTP fetch and push as a blue `service(...)`) | ❌ not built | `http_request` refuses an `https://` URL (`crates/blue-lang-runtime/src/net/http.rs`), so an upstream on GitHub needs TLS first. The auth mode becomes a required field of the service. |
 
 ## Risks
 

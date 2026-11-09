@@ -104,13 +104,13 @@ worth correcting rather than carrying:
 
 - **Formatter width** — settled AGAINST. `blue-lang-fmt`'s module docs already
   said so: "There is no configuration type in this crate, and that is the
-  feature… there is nowhere to put a knob." Typing it would forfeit §0 (one way
-  to write a thing) and the content-addressed identity §V.16.1 rests on. It is
+  feature… there is nowhere to put a knob." Typing it would forfeit one way
+  to write a thing, and the content-addressed identity of a definition rests on that. It is
   a regression, not pending work.
-- **Posture ceiling** — settled elsewhere. §V.24 moved ceilings to the ROOT as
+- **Posture ceiling** — settled elsewhere. Ceilings moved to the ROOT as
   a Bluefile input; `blue_lang_waku::Waku` deliberately carries none and
   `blue_lang_bidama::resolve(bidama, ceiling)` takes it as an argument. A
-  daemon knob would rebuild the anti-pattern §V.24 removed.
+  daemon knob would rebuild the anti-pattern that move removed.
 - **Execution budget** — was open because no default constant existed to
   expose. tatara-lisp-eval 0.3.63 gave both executors one budget and made
   exceeding it a catchable error rather than a stack overflow, which closed M2.

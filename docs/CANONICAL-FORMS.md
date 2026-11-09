@@ -139,12 +139,13 @@ and the refusals. `blue explain CODE` prints each row.
 | `eq?` vs `==`, `null?` vs `empty?`, `length` vs `count`, `some` vs `any?` | both stay | different answers on some input (`eq?` is identity; `null?("")`; `length(nil)` raises; `some` answers nil) |
 | `count(x) == 0` vs `empty?(x)` | both stay | `count` raises where `empty?` answers; a rewrite would change a failure into a value |
 | `if not c a else b end` vs `if c b else a end` | both stay | branch order is the author's emphasis, and swapping it moves comments |
-| pipelines | call form | the tree does not remember the spelling; a pipeline rendering for long data-first chains needs a shape detector and is a formatter version bump (§V.13) |
+| pipelines | call form | the tree does not remember the spelling; a pipeline rendering for long data-first chains needs a shape detector and is a formatter version bump |
 | `def f()` vs `def f` | `def f()` | the definition says it takes nothing; only the call is bare |
 | unused locals and parameters | B0002 stays a warning | renaming in flight would rename a parameter the author is about to use |
-| `return`, `do`/braces blocks, `;`, `xs[i]` | one form already | refused by the parser with the canonical spelling named |
+| `do`/braces blocks, `;` | one form already | refused by the parser with the canonical spelling named |
+| `return` | a guard `return` only | the parser lowers a guard `return` to `if`/`else` and refuses any other place (B0080, [`GUARD-RETURN.md`](GUARD-RETURN.md)) |
 | a typed `raise :kind, "m"` keyword form | `raise(…)` call | blue has no paren-less calls; one call grammar |
-| Result values and a `?` operator | not added | exceptions stay the one error model; `kyohi` holds refusals as data where a caller branches on them |
+| Result values and a `?` operator | `?` on a kyohi refusal | exceptions stay the one error model; `kyohi` holds refusals as data, and `x = f(y)?` returns a refusal through a guard `return` ([`GUARD-RETURN.md`](GUARD-RETURN.md)) |
 | retry as syntax (`retry`) | a bidama, `saishikou` | a bounded helper says its bound; a keyword hides a loop |
 | a warning for rescuing a kind nothing raises | not built | no analysis can know which kinds a call raises |
 | `test "n" satisfies: …` without braces, or `@satisfies` above a test | the map after a comma | a call takes no bare entries without `**`, and an attribute is a second form to read for one test; the map is the literal the house already passes settings in |

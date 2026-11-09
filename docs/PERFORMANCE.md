@@ -352,8 +352,7 @@ samples. Expected gain (estimate): 2× to 2.5× on call-heavy code.
   `LtInt` with an overflow check, so a typed `def` skips the dispatch on
   `Value`.
 
-Then make the VM the evaluator of `blue run`. The semantic difference that
-`BLUE-EXECUTION.md` II.1 records (a macro that calls an earlier top-level
+Then make the VM the evaluator of `blue run`. One semantic difference (a macro that calls an earlier top-level
 definition) must close first, with a conformance row. Expected gain: 2× to 3×
 over 3.2, which puts `fib` near Python.
 
@@ -382,7 +381,7 @@ This is just-in-time partial compilation, keyed by content.
 6. **Persistence.** The chunk store lives in
    `$XDG_CACHE_HOME/blue/<engine-identity>/<def_hash>`. A second run of the
    same script loads tier-1 chunks instead of compiling them. A miss is always
-   correct, so eviction is safe (`BLUE-ENGINE.md` §3.6). Native code is not
+   correct, so eviction is safe. Native code is not
    persisted at first; it is cheap to recompile from the chunk.
 7. **The AOT twin.** `native/` already lowers a checked program to a typed
    Rust AST (`chuuzou`) and emits it through `tatara-rust-emit`. Its passes
@@ -411,7 +410,7 @@ name table. Expected gain: the kueri script from 82 ms to about 40 ms;
 ### 3.6 Shared bidama analysis
 
 `mkBidama` writes each bidama's parse, resolution and check result as an
-output (`BLUE-ENGINE.md` §3.6). A run that imports kueri then reads the
+output. A run that imports kueri then reads the
 result instead of computing it. Expected gain: an import-heavy run from about
 40 ms (after 3.5) to about 10 ms.
 
@@ -478,5 +477,20 @@ registration is renamed and when an Int is keyed apart from a Float; the
 wrong. Spec row `lists.distinct.keys` pins the keys `distinct` must keep
 apart.
 
-The hot-definition counter with VM promotion (3.4) is not built, because 1.4
-shows the VM is slower on the common script shape today.
+## Ledger
+
+One row for each item of section 3.
+
+✅ built and tested · ⏳ in progress · ❌ not built
+
+| Item | State | What makes it true |
+|---|---|---|
+| 3.1 Linear library words | ⏳ in progress | `distinct`, `frequencies`, `shuugou::unique` and `mokuroku::name_collisions` are linear (section 4, spec row `lists.distinct.keys`). The census of the builtins that still run as Lisp, and a size row per word, do not exist. |
+| 3.2 Lexical addressing in the tree-walker | ❌ not built | The work is in tatara-lisp-eval. This repository holds no measurement of it. |
+| 3.3 A real VM tier | ❌ not built | The work is in tatara-lisp-eval. `blue run` does not use the VM (1.4). |
+| 3.4 Tiered execution | ❌ not built | No call counter and no VM promotion exist. The VM is slower than the walker on the common script shape (1.4), so 3.2 and 3.3 come first. |
+| 3.5 Resolve once per run | ⏳ in progress | `lower` takes the check stage's `ResolvedProgram` (`crates/blue-lang-runtime/src/pipeline.rs`). A check cache keyed by definition hash is on by default (`crates/blue-lang-runtime/src/check_cache.rs`, `BLUE_CHECK_CACHE`). No measurement shows one resolution per run. |
+| 3.6 Shared bidama analysis | ❌ not built | `bidamas/mk-bidama.nix` writes no parse, resolution or check output. |
+| 3.7 Processes share the macro table | ❌ not built | The work is in tatara-lisp-eval. No measurement of `spawn` before and after exists. |
+| 3.8 A startup image | ❌ not built | No snapshot of the stdlib or the name table exists. |
+| 3.9 Optimize the tooling crates in the dev profile | ❌ not built | `Cargo.toml` sets `opt-level = 3` for the evaluator crates only. `blue-lang-check`, `blue-lang-syntax`, `blue-lang-fmt` and `blue-lang-pkg` have no row. |

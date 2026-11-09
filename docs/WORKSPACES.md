@@ -5,7 +5,10 @@ summary: one root holding many bidamas and many crates (design)
 
 # WORKSPACES — one root, many bidamas and many crates
 
-Status: DESIGN, 2026-10-23. Operator: *"bidama should have the concept of a
+The workspace itself is not built. A project with `packages(dir)` already
+gives most of it. The [Ledger](#9-ledger) gives the state of each item.
+
+Operator, 2026-10-23: *"bidama should have the concept of a
 workspace like Rust does that can have many crates and many bidamas; I think we
 have this but it should be an officially fully supported pattern."*
 
@@ -40,25 +43,25 @@ no crates, and its lock and versions are per member.
 
 | Fact | State | Where |
 |---|---|---|
-| Bluefile vocabulary: `package`, `needs`, `posture`, `source`, `packages`, `run`, `tool`, `check`, `app`, `generate`, `rule`, `catalog`, `image`, `workload`, `service` | SHIPPED, closed table | `crates/blue-lang-pkg/src/bluefile.rs:423` (`WORDS`) |
-| `packages(dir)`: every subdirectory of `dir` is a bidama, built, tested and gated for collisions | SHIPPED. This is the de facto workspace | `bluefile.rs:475`, `nix/project.nix:39` |
-| `library()`, `binary()` (gabarito) | PROPOSED, not in `WORDS` | `theory/BLUE-STRUCTURE.md` §3.4 |
-| `bidama(...)` as a Bluefile word | ABSENT. A bidama is a directory, not a word | `bluefile.rs:423` |
-| `workspace(...)`, a member list, member globs | ABSENT | `bluefile.rs:423` |
+| Bluefile vocabulary: `package`, `needs`, `posture`, `reach`, `allow`, `floors`, `bounds`, `virtualize`, `legacy_packages`, `source`, `packages`, `run`, `tool`, `check`, `app`, `generate`, `rule`, `catalog`, `image`, `workload`, `service`, `frontend`, `vm_check`, `registry`, `receipt`, `query` (2026-11-09) | ✅ built: closed table | `crates/blue-lang-pkg/src/bluefile.rs` (`WORDS`) |
+| `packages(dir)`: every subdirectory of `dir` is a bidama, built, tested and gated for collisions | ✅ built. This is the de facto workspace | `bluefile.rs:475`, `nix/project.nix:39` |
+| `library()`, `binary()` (gabarito) | ❌ not built: proposed, not in `WORDS` | `bluefile.rs` (`WORDS`) |
+| `bidama(...)` as a Bluefile word | ❌ not built. A bidama is a directory, not a word | `bluefile.rs:423` |
+| `workspace(...)`, a member list, member globs | ❌ not built | `bluefile.rs:423` |
 | Sibling resolution | by layout. Walking up from a file, a bidama's Bluefile adds its parent dir, a project's adds its `packages` roots and stops | `crates/blue-lang-pkg/src/load_path.rs:183-210` |
 | Resolution order | project roots, then `BLUE_PATH`, then `BLUE_DIST`, then the compiled-in standard. The project always wins; outside it, a copy outside the lock's range is skipped and named (2026-10-23) | `load_path.rs`, `Environment::load_path`, `LoadPath::select` |
 | Version choice | not in the loader; nix picks the version when it builds a root | `load_path.rs:50-59` |
-| Version solver | SHIPPED, backtracking with conflict chains; `checks.bidama-deps-resolve` | `src/solve.rs:1-27`, `bidamas/mk-bidama.nix:551` |
+| Version solver | ✅ built: backtracking with conflict chains; `checks.bidama-deps-resolve` | `src/solve.rs:1-27`, `bidamas/mk-bidama.nix:551` |
 | Lock | one `Bluefile.lock` per Bluefile: the project's, and one per member bidama. `bidama-locks-fresh` checks every member lock | `src/lock.rs:24-29`, `mk-bidama.nix:610`, `project.nix:419` |
-| One derivation per bidama, the graph tied with `lib.fix` | SHIPPED | `mk-bidama.nix:159` (`mkBidama`), `:503` (`mkDistribution`) |
+| One derivation per bidama, the graph tied with `lib.fix` | ✅ built | `mk-bidama.nix:159` (`mkBidama`), `:503` (`mkDistribution`) |
 | Versions and needs ranges | written per member: `package("joutai", "0.2.0")`, `needs("ronri", "^0.1")` | `arnes/bidamas/joutai/Bluefile:1-3` |
-| Compiled-in bidamas for a Rust host | SHIPPED for the standard distribution only: `build.rs` embeds `bidamas/` | `crates/blue-lang-pkg/build.rs:1-30`, `src/embedded.rs:1-12` |
+| Compiled-in bidamas for a Rust host | ⏳ in progress: the standard distribution only; `build.rs` embeds `bidamas/` | `crates/blue-lang-pkg/build.rs:1-30`, `src/embedded.rs:1-12` |
 | A host embedding its own bidama | hand-written: `include_str!` of one file and a one-name `Loader` | `kensa/src/attestation.rs:25`, `:61-71` |
 | Crates in a blue project | not a blue concept. Cargo owns them, substrate builds them through gen | `blue/Cargo.toml:1-25`, `kensa/flake.nix:23-26` |
-| Rust workspace inheritance | SHIPPED in Cargo: `[workspace.package]` and `[workspace.dependencies]` | `blue/Cargo.toml:5-30` |
-| Rust per-crate derivations | SHIPPED: `Cargo.gen.lock` read by substrate's lockfile-builder, one `buildRustCrate` per crate | `substrate/lib/build/rust/mk-rust-workspace.nix:1-40`, `docs/CARGO-GEN-LOCK.md` |
-| `blue test -p <member>` | ABSENT. `blue test <file>` only | `crates/blue-lang-cli/src/` (no `-p` flag) |
-| Publish one member alone | ABSENT as a verb. Distribution members are published by being in `bidamas/` of a pinned blue | `project.nix:184` |
+| Rust workspace inheritance | ✅ built in Cargo: `[workspace.package]` and `[workspace.dependencies]` | `blue/Cargo.toml:5-30` |
+| Rust per-crate derivations | ✅ built: `Cargo.gen.lock` read by substrate's lockfile-builder, one `buildRustCrate` per crate | `substrate/lib/build/rust/mk-rust-workspace.nix:1-40`, `docs/CARGO-GEN-LOCK.md` |
+| `blue test -p <member>` | ❌ not built. `blue test <file>` only | `crates/blue-lang-cli/src/` (no `-p` flag) |
+| Publish one member alone | ❌ not built as a verb. Distribution members are published by being in `bidamas/` of a pinned blue | `project.nix:184` |
 
 Repos that already hold several bidamas in one tree:
 
@@ -355,7 +358,7 @@ one file becomes a member, not a longer file.
 
 | Decision | Chosen | Rejected, and why |
 |---|---|---|
-| How members are declared | explicit globs in one `workspace(...)` entry | **Discovery by layout alone** (any dir with a manifest): a stray directory silently becomes a member, and deleting one is a silent change of kind. This is the argument `BLUE-STRUCTURE.md` §3.4 makes for declared `library()`. **One entry per member**: a second list to keep in step with the tree. Globs are what `packages(dir)` already means, so the old form is sugar, not a second mechanism |
+| How members are declared | explicit globs in one `workspace(...)` entry | **Discovery by layout alone** (any dir with a manifest): a stray directory silently becomes a member, and deleting one is a silent change of kind. The same argument favours a declared `library()` over layout. **One entry per member**: a second list to keep in step with the tree. Globs are what `packages(dir)` already means, so the old form is sugar, not a second mechanism |
 | One lock or one per member | one root lock; per-member locks only rendered at publish | **Per-member locks** (today): N files that can disagree about one shared need, and N freshness checks for one fact. Cargo learned this; we take it |
 | Sibling resolution | by name, member-first, no range | **Path deps in `needs`**: the workspace already knows the path; writing it twice drifts. **Version ranges between siblings**: siblings move together at one version, so a range can only be wrong |
 | `BLUE_PATH` over a member | the project wins | **First match wins** (before 2026-10-23): a checkout on `BLUE_PATH` silently replaced code that is in this tree. `BLUE_PATH` still overrides distribution packages |
@@ -375,29 +378,29 @@ one file becomes a member, not a longer file.
 | does gabarito (`lib.b`, `main.b`, `bin/`) apply inside members? | ours: yes, per member, when gabarito ships; this design does not need it |
 | makoto has bidamas and no root Bluefile | ours: a W1 adoption, one file |
 
-## 9. Tier ledger
+## 9. Ledger
 
-| Claim | Tier | Evidence |
+✅ built and tested · ⏳ in progress · ❌ not built
+
+| Item | State | What makes it true |
 |---|---|---|
-| a directory of bidamas, each built, tested and gated | SHIPPED | `project.nix:39`, used by blue, arnes, nupastel |
-| one derivation per bidama | SHIPPED | `mk-bidama.nix:159` |
-| version solver with conflict chains | SHIPPED | `solve.rs`, `bidama-deps-resolve` |
-| per-crate Rust derivations through gen | SHIPPED | `mk-rust-workspace.nix`, `Cargo.gen.lock` |
-| compiled-in bidamas for a host | SHIPPED for the standard only | `blue-lang-pkg/build.rs` |
-| `workspace(...)` word | DESIGN | this doc §5.1 |
-| one root lock with `members` | DESIGN | §5.4 |
-| member-first resolution, `MemberShadowed` | DESIGN | §5.2 |
-| version and needs inheritance | DESIGN | §5.1 |
-| `blue test -p`, `--workspace`, `blue members` | DESIGN | §5.6 |
-| host embed function, `checks.workspace-embed-*` | DESIGN | §5.5 |
-| `checks.workspace`, `checks.workspace-crates` | DESIGN | §5.5 |
-| `blue publish -p` | DESIGN | §5.7 |
-| rendered Cargo `[workspace]` table | DESIGN | W8 |
+| a directory of bidamas, each built, tested and gated | ✅ built | `packages(dir)` in `nix/project.nix`; blue, arnes and nupastel use it. |
+| one derivation per bidama | ✅ built | `mkBidama` and `mkDistribution` in `bidamas/mk-bidama.nix`, tied with `lib.fix`. |
+| version solver with conflict chains | ✅ built | `crates/blue-lang-pkg/src/solve.rs`; `checks.bidama-deps-resolve`. |
+| per-crate Rust derivations through gen | ✅ built | substrate's `mk-rust-workspace.nix` reads `Cargo.gen.lock` ([`CARGO-GEN-LOCK.md`](CARGO-GEN-LOCK.md)). |
+| compiled-in bidamas for a host | ⏳ in progress | `crates/blue-lang-pkg/build.rs` embeds the standard distribution only. A host that embeds its own bidama writes `include_str!` by hand. |
+| W1: the `workspace(...)` word (§5.1) | ❌ not built | No `workspace` in `WORDS` (`crates/blue-lang-pkg/src/bluefile.rs`). |
+| one root lock with `members` (§5.4) | ❌ not built | Each Bluefile has its own `Bluefile.lock`. |
+| member-first resolution, `MemberShadowed` (§5.2) | ❌ not built | No `MemberShadowed` in `crates/`. |
+| version and needs inheritance (§5.1) | ❌ not built | Each member writes its own version and ranges. |
+| `blue test -p`, `--workspace`, `blue members` (§5.6) | ❌ not built | `blue test` takes a file or a directory. |
+| host embed function, `checks.workspace-embed-*` (§5.5) | ❌ not built | No such function in `blue-lang-host`. |
+| `checks.workspace`, `checks.workspace-crates` (§5.5) | ❌ not built | `nix/project.nix` defines neither. |
+| W7: `blue publish -p` (§5.7) | ❌ not built | No `publish` command in `crates/blue-lang-cli/src/main.rs`. |
+| W8: the rendered Cargo `[workspace]` table | ❌ not built | `Cargo.toml` is written by hand. |
 
 ## 10. Related
 
-- `theory/BLUE-STRUCTURE.md` §1 (layout), §3 (gabarito), §5.5 (no nix in a
-  project), §6.5–6.6 (one model, batteries-included service)
 - `docs/SERVICE-ARCHITECTURE.md` (the default service, its bidamas, the host
   surface)
 - `docs/CARGO-GEN-LOCK.md` (why `Cargo.gen.lock` is committed)

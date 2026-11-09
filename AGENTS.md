@@ -20,14 +20,8 @@ is the operator surface.
 The M1 waiver this replaced, and why two of its three knobs are settled against configuration, is in [LESSONS.md](docs/LESSONS.md), "Bounds, never preferences".
 
 pending-tela: not a frontend app; blue hosts the frontend framework that
-retargets Tela (`theory/BLUE-FRONTEND.md`, `docs/FRONTEND-PLAN.md`). No `pending-urdume:` — blue is a language
+retargets Tela (`docs/FRONTEND-PLAN.md`). No `pending-urdume:` — blue is a language
 workspace, not a Rust service.
-
-> **★★★ CSE / Knowable Construction.** This repo operates under
-> **Constructive Substrate Engineering** — canonical spec at
-> [`pleme-io/theory/CONSTRUCTIVE-SUBSTRATE-ENGINEERING.md`](https://github.com/pleme-io/theory/blob/main/CONSTRUCTIVE-SUBSTRATE-ENGINEERING.md).
-> **The design is canonical in [`theory/BLUE.md`](https://github.com/pleme-io/theory/blob/main/BLUE.md)
-> — read it before non-trivial changes, and do not restate it here.**
 
 A general-purpose language: a Ruby/Elixir surface, a tatara-lisp AST, macros
 as term rewriting on that AST, and a Rust runtime. Crates are `blue-lang-*`
@@ -203,8 +197,7 @@ built from a longer form that also works, so writing the long form is never
 wrong: the formatter shortens it. The same holds for the library: one verb per
 meaning, and one bidama for each cross-cutting concern (errors and refusals in
 `kyohi`, entries and switches in `kousei`, configuration in `settei`). Reach
-for that bidama before writing the concern by hand. Why: `theory/BLUE.md` §0
-and §V.28.1.
+for that bidama before writing the concern by hand.
 
 Configuration is a record of defaults, grouped by concern, that
 `settei::read(app, defaults)` resolves: the defaults, then
@@ -367,20 +360,20 @@ skill holds the same rules for an agent.
 Before any capability is coded, fix its plan in writing: the reuse map (read from source; move,
 never copy), the shape (adopt what existing implementations agree on), the idioms, and the
 dependency order. **Blue bends to the pattern:** boilerplate in a blue program means blue is
-missing a word, so add the form, macro or primitive. The principle is `theory/BLUE.md` §I.1; the
+missing a word, so add the form, macro or primitive. The
 loop (plan, build, test, ancestry, DuckDB analysis, promote) is the `blue-development-cycle` skill.
 
 ### One short way, built on the last
 
-The FORM axis (`theory/BLUE.md` §0) is the core of blue: each thing has one spelling, the
+The FORM axis is the core of blue: each thing has one spelling, the
 shortest that stays distinct from every other meaning. A new form or shorthand lowers to a form
 that already exists (`x++` → `x += 1` → `x = x + 1`), and it ships whole or not at all: a
 `Spelling` note and formatter arm, a `RULES` row with a witness and autofix, a
 `CANONICAL-FORMS.md` row, spec rows, and an okite law per lowering link that the two spellings
-agree on every input class. The library follows the same law (§V.28): one verb per meaning, with one argument shape,
+agree on every input class. The library follows the same law: one verb per meaning, with one argument shape,
 return shape and error behaviour in every space that has it (`docs/verbs/contracts.tsv`), larger
 verbs built from smaller ones. A capability is done when its verbs are rows in the graph
-(`blue verbs check`) and each has a unit test. One battery per cross-cutting concern (§V.28.1),
+(`blue verbs check`) and each has a unit test. One battery per cross-cutting concern,
 extended rather than rewritten. A Rust program
 runs blue through `blue-lang-host`.
 
@@ -397,8 +390,7 @@ composes them. Declare entries with `kousei` (each checked, configured off, tune
 alone); declare service behaviour as `shisei` postures (on by default, a blocking one defaults to
 `audit`); take the request defence from `bougyo`. A second copy of a shape is a bug the
 distribution refuses: `cargo test -p blue-lang-pkg --test distribution` fails when the count of
-identical function shapes rises, so reuse the existing word. The list of service batteries and
-what is still missing: `theory/FUEKI.md` section I.
+identical function shapes rises, so reuse the existing word.
 
 ### The pipeline is the architecture
 
@@ -488,11 +480,9 @@ the measured failure and the tier: [`docs/CARGO-GEN-LOCK.md`](docs/CARGO-GEN-LOC
 
 ### What is not built
 
-No per-process GC heap, registry client, implementation self-hosting, comment
-attachment inside a form, entropy or encryption, TLS, wasm import emission,
-editor answers in a broken buffer, project rules in the editor or as wasm,
-`case`/`when` matching or ranges. Each with its plan: [implementing.md](docs/implementing.md), "What is not built".
-**Do not build against a DESIGN-tier row without saying so.**
+The gap table is [implementing.md](docs/implementing.md), "What is not built". Each row
+shows ✅ built, ⏳ in progress or ❌ not built, with the test or path that makes it
+true. Do not build against a ❌ row without saying so.
 
 ## The book
 

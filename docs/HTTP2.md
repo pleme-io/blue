@@ -5,7 +5,8 @@ summary: blue speaks HTTP/2 and gRPC itself (design, phase 1 built)
 
 # HTTP2 — blue speaks HTTP/2 and gRPC itself
 
-Status: DESIGN, 2026-10-23, with phase 1 built (§13). Paths are under
+Status: ⏳ in progress. Phase 1 (§6) and the TCP words are built; the rest is
+design. The [Ledger](#ledger) at the end says what is built. Paths are under
 `~/code/github/pleme-io/`. Line numbers were read on 2026-10-23 at blue
 `7141b26` plus this change.
 
@@ -15,9 +16,8 @@ in `blue/bidamas/`, and a primitive blue lacks goes into blue's runtime.
 
 Decided context, not argued again here: `blue/docs/SERVICE-ARCHITECTURE.md`
 (blue-led services; blue over a Rust host), `blue/docs/API-EVOLUTION.md`
-(one model; gRPC as one rendering; the protobuf number lock),
-`theory/BLUE-GAPS.md` "Network I/O status" (`:739`–`:781`) and "G11 status"
-(`:820`–`:855`), and CONTAIN THE C in `pleme-io/CLAUDE.md`.
+(one model; gRPC as one rendering; the protobuf number lock), and CONTAIN THE
+C in `pleme-io/CLAUDE.md`.
 
 ## 1. Destination
 
@@ -44,10 +44,10 @@ rustls today carries C or assembly.
 
 | Concern | What exists (path:line) | What does not exist |
 |---|---|---|
-| Sockets | `crates/blue-lang-runtime/src/net.rs:1`–`:28`: NATS, HTTP/1.1, Postgres over std TCP, each call blocking with a timeout; `net/serve.rs:176` sets one listener non-blocking | no socket handle a program reads or writes; no wait over many sockets |
+| Sockets | `crates/blue-lang-runtime/src/net.rs:1`–`:28`: NATS, HTTP/1.1, Postgres over std TCP, each call blocking with a timeout; `net/serve.rs:176` sets one listener non-blocking | until 2026-11-09, no socket handle a program reads or writes and no wait over many sockets; the `tcp_*` words and `net_wait` now exist (`net/stream.rs`) |
 | Capability | `net.rs:5`: names granted only through `Capability::Network`; host names come from `sys` (`crates/blue-lang-runtime/Cargo.toml:47`), off in the wasm build | a per-socket grant |
-| TLS | `BLUE-GAPS.md:775`: `https://` and TLS-only NATS are refused; no rustls in `Cargo.lock` | all of it |
-| Processes | `crates/blue-lang-proc/src/lib.rs:373` `Supervisor`; `BLUE-GAPS.md:851`: the root is not preempted, and a blocking host call blocks the node | a socket that feeds a mailbox |
+| TLS | `https://` and TLS-only NATS are refused by name. rustls is in `Cargo.lock` only as a dependency of other crates; no blue word uses it | all of it |
+| Processes | `crates/blue-lang-proc/src/lib.rs:373` `Supervisor`; the root is not preempted, and a blocking host call blocks the node | a socket that feeds a mailbox |
 | Bytes | a byte is an Int in a list; `crypto.rs:198` `message_bytes` reads a string or a byte list | until this change, no text to bytes and back (now `text_bytes`, `bytes_text`, `stdlib.rs:570`, `:584`) |
 | Bits | `bidamas/shinsuu`: `bit_at`, `shift_left`, `shift_right`, by arithmetic; blue has no bitwise operator | native bit operators |
 | An HTTP server loop | `bidamas/eigyou/kyuuji/kyuuji.b:201`, `while` over `http_next_request` | a loop over many connections |
@@ -252,7 +252,7 @@ Two bidamas and two runtime words, all pure.
 
 | Name | What | Tests |
 |---|---|---|
-| `heddaa` (ヘッダー) | HPACK: `encode_int`, `decode_int`, `huffman_encode`, `huffman_decode`, `huffman_size`, `encode_string`, `decode_string`, `table`, `insert`, `evict`, `resize`, `with_limit`, `lookup`, `encode`, `decode` | 12 blocks: C.1 integers, the Huffman code's completeness (Kraft sum = 1), C.4 strings, bad padding and EOS, Appendix A, the dynamic table, C.2.1–C.2.4, C.3 and C.4 threaded through one table each way, C.5 and C.6 with eviction at 256, decoder refusals with controls, size-update signalling, non-UTF-8 octets |
+| `heddaa` (ヘッダー) | HPACK: `encode_int`, `decode_int`, `huffman_encode`, `huffman_decode`, `huffman_size`, `encode_string`, `decode_string`, `table`, `insert`, `evict`, `resize`, `with_limit`, `lookup`, `encode`, `decode` | 13 blocks: C.1 integers, the Huffman code's completeness (Kraft sum = 1), C.4 strings, bad padding and EOS, Appendix A, the dynamic table, C.2.1–C.2.4, C.3 and C.4 threaded through one table each way, C.5 and C.6 with eviction at 256, decoder refusals with controls, size-update signalling, non-UTF-8 octets |
 | `tajuu` (多重) | frames: `encode`, `decode`, `read_preface`, `preface`; codes: `error_code`, `error_name`, `setting_id`, `setting_name`; streams: `step` | 11 blocks: the preface in pieces, a round trip of every frame type (and an unknown one), hand-checked bytes, partial frames and the reserved bit, 28 malformed frames each with its code and scope, SETTINGS_MAX_FRAME_SIZE and its scope, encode refusing what decode refuses, every edge of Figure 2, 18 refused transitions, discard after reset |
 | `text_bytes`, `bytes_text` | UTF-8 both ways; nil for bytes that are not UTF-8 | a runtime unit test and three conformance rows |
 | `shinsuu` 0.1.1 | `be_bytes`, `be_value`, `hex_bytes`, `bytes_hex` | two blocks |
@@ -270,7 +270,7 @@ length; a 23-octet preface); each gained the test that kills it.
 | P0 | this doc | review; the operator approves the destination |
 | P1 | `heddaa`, `tajuu` codec and `step`, `text_bytes` and `bytes_text` (built) | RFC 7541 C.1–C.6 byte for byte; every §6 rule and §5.1 edge; heni catches every mutation |
 | P2 | the connection, pure: SETTINGS exchange and ack, the two flow-control windows per stream and per connection, CONTINUATION order, stream-id parity and order, MAX_CONCURRENT_STREAMS, GOAWAY drain, PING, the §8 message rules, SETTINGS_MAX_HEADER_LIST_SIZE, the HPACK size-update rule after a SETTINGS change | scripted byte transcripts: the h2spec cases as blue tests, each seen red |
-| P3 | `tcp_*` and `net_wait` in `blue-lang-runtime`; a blue h2c server and client | `checks.network`: `curl --http2-prior-knowledge` and `h2spec` against a blue server, failing when either tool is missing |
+| P3 | `tcp_*` and `net_wait` in `blue-lang-runtime` (built); a blue h2c server and client | `checks.network`: `curl --http2-prior-knowledge` and `h2spec` against a blue server, failing when either tool is missing |
 | P4 | `tls_*` over rustls; ALPN `h2` with `http/1.1` fallback to kyuuji | `curl --http2` over TLS and `h2spec -t`; a wrong certificate refused |
 | P5 | protobuf wire codec (`shinsuu::to_varint`, ZigZag, LEN, fixed); gRPC framing and status; unary and server streaming | `grpcurl` and a Go gRPC client against a blue server; status and trailers seen on the wire |
 | P6 | the `.proto` rendering of API-EVOLUTION P6 served by a blue-led service; kensa's gRPC surface moves to it | API-EVOLUTION §16's first question answered by a running service; `buf breaking` against the number lock |
@@ -298,8 +298,8 @@ length; a 23-octet preface); each gained the test that kills it.
 5. **Pure steps that return the next state.** `heddaa::encode` and `decode`
    take a table and return the next one; `tajuu::step` takes a state and
    returns the next one. Rejected: mutable connection objects in the host.
-   They would hide the protocol state from tests and from replay
-   (`BLUE-GAPS.md:838`, crash traces).
+   They would hide the protocol state from tests, from replay and from
+   crash traces.
 6. **Refusals are data with a scope.** A decoder answers the RFC's code and
    whether it ends the stream or the connection, so the caller writes
    RST_STREAM or GOAWAY without a second table. Rejected: raising. The caller
@@ -308,8 +308,7 @@ length; a 23-octet preface); each gained the test that kills it.
 7. **A field part is text or bytes, never refused for its octets.** HPACK and
    RFC 9113 §8.2.1 allow octets that are not UTF-8 in values; a decoder that
    refused them would put the HPACK tables out of step with the peer.
-   Rejected: lossy conversion (the existing NATS payload rule,
-   `BLUE-GAPS.md:776`).
+   Rejected: lossy conversion (the existing NATS payload rule).
 8. **Two bidamas, named by the layer.** `heddaa` holds header fields, so the
    HTTP field rules of phase 2 join it. `tajuu` holds multiplexing: frames,
    streams and, in phase 2, the connection. Rejected: one `http2` bidama (a
@@ -348,26 +347,11 @@ to `kyohi::and_then`, and text to bytes into the runtime.
 | Which rustls crypto provider? aws-lc-rs (default, FIPS, C) or ring (C and assembly) | world fact: no pure-Rust provider is production-audited today; `rustls-rustcrypto` is to measure, not to ship |
 | Is a byte list fast enough? Every byte is a boxed Int in a vector | ours: measure frames per second in P3; a native bytes value in the runtime is the likely answer |
 | Huffman decoding walks one bit at a time through a map | ours: a 4-bit state table (the nghttp2 method) is the next step when P3 measures it |
-| How does a handler run without stalling the loop? The root process is not preempted (`BLUE-GAPS.md:851`) | ours: `net_wait` also returns when the root's mailbox has a message, so handlers run in worker processes |
 | poll(2) is O(n) per call | ours: measure at 1 000 connections; epoll and kqueue go under the same word |
 | RFC 9218 priorities | ours: ignored at first; the §5.3.2 fields are already parsed |
 | Which fields default to never indexed? | ours, guided by a world fact (RFC 7541 §7.1, CRIME-style attacks): `authorization` and short `cookie` values |
 | gRPC for browsers | world fact: gRPC-Web needs a proxy (API-EVOLUTION §3); out of scope |
 | Is the ENABLE_PUSH rule role-dependent? A client must refuse ENABLE_PUSH = 1 | world fact (§6.5.2); it needs the role, so it is P2's |
-
-## 12. Tier ledger
-
-| Item | Tier | Evidence |
-|---|---|---|
-| `text_bytes`, `bytes_text` | tested | `stdlib.rs` unit test, seen red; conformance rows in `spec/rows/strings.b` |
-| `heddaa` HPACK | tested | 12 blocks; RFC 7541 C.1–C.6; 20 heni mutations caught |
-| `tajuu` frame codec, preface, `step` | tested | 11 blocks; 25 heni mutations caught |
-| `shinsuu` byte helpers, `kyohi::and_then` | tested | their blocks, seen red with heni |
-| connection layer (P2) | design | none |
-| `tcp_*`, `net_wait` | tested (2026-11-09, HORIZON H4) | `blue-lang-proc/tests/net_wait.rs` and `blue-lang-cli/tests/run_replay.rs` (a tcp echo between two processes, recorded and replayed), each seen red; `tcp_port` added for a listener on port 0. The blue h2c server and `checks.network` of P3 are design |
-| `tls_*` | design | none |
-| gRPC, protobuf wire codec | design | none |
-| a blue-led gRPC service | design | none |
 
 ## 13. What phase 2 needs
 
@@ -378,3 +362,22 @@ each side opened, the GOAWAY state, and the streams map. A `receive(conn,
 bytes)` step that returns the next value and a list of actions; a `send`
 step for responses. The h2spec cases as byte transcripts. No host primitive
 is needed for any of it.
+
+## Ledger
+
+The state of each phase, measured on 2026-11-09.
+
+✅ built and tested · ⏳ in progress · ❌ not built
+
+| Item | State | What makes it true |
+|---|---|---|
+| `text_bytes`, `bytes_text` | ✅ built | a `stdlib.rs` unit test; conformance rows in `spec/rows/strings.b` |
+| P1: `heddaa` HPACK | ✅ built | `bidamas/eigyou/heddaa/heddaa.b`, 13 tests (RFC 7541 C.1 to C.6); heni catches 20 of 20 mutations (`bidamas/heni/ratio.baseline`) |
+| P1: `tajuu` frame codec, preface, `step` | ✅ built | `bidamas/eigyou/tajuu/tajuu.b`, 11 tests; heni catches 25 of 25 mutations |
+| `shinsuu` byte helpers, `kyohi::and_then` | ✅ built | their test blocks, seen red with heni |
+| P2: the pure connection value, `receive` and `send` | ❌ not built | Done when the h2spec cases pass as blue byte transcripts, each seen red (§13) |
+| P3: `tcp_*` and `net_wait` | ✅ built | `crates/blue-lang-runtime/src/net/stream.rs`; `crates/blue-lang-proc/tests/net_wait.rs` and `crates/blue-lang-cli/tests/run_replay.rs` (a TCP echo between two processes, recorded and replayed) |
+| P3: a blue h2c server and client, `checks.network` | ❌ not built | Done when `curl --http2-prior-knowledge` and `h2spec` pass against a blue server |
+| P4: `tls_*` over rustls, ALPN `h2` | ❌ not built | No `tls_*` word exists. Done when `curl --http2` over TLS passes and a wrong certificate is refused |
+| P5: protobuf wire codec, gRPC framing and status | ❌ not built | Done when `grpcurl` and a Go gRPC client pass against a blue server |
+| P6: a blue-led gRPC service | ❌ not built | Done when kensa's gRPC surface moves to it and `buf breaking` holds against the number lock |

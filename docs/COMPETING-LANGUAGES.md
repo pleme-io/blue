@@ -23,14 +23,14 @@ diverge from what a general-purpose language would choose.
 
 | Language | Source of truth | Resolution | What blue takes / refuses |
 |---|---|---|---|
-| **Rust / Cargo** | crates.io index + `Cargo.toml` | SemVer, MVS-adjacent, lockfile | **Take:** the lockfile discipline and *floors-not-ceilings* (Cargo names leaf-side ceilings an anti-pattern by name — blue's §V.24 already adopted this). **Refuse:** a central registry as the only path. |
+| **Rust / Cargo** | crates.io index + `Cargo.toml` | SemVer, MVS-adjacent, lockfile | **Take:** the lockfile discipline and *floors-not-ceilings* (Cargo names leaf-side ceilings an anti-pattern by name, and blue already adopted this). **Refuse:** a central registry as the only path. |
 | **Go modules** | **VCS directly** — no registry service | MVS (minimal version selection), `go.sum` | **Take: the whole shape.** Go proved a language can resolve straight from git with no package server. blue's `GitRegistry` is this. **Take also:** MVS's determinism-without-a-solver argument is worth reading before blue's solver grows. |
 | **Nix / flakes** | git revisions, content-addressed | exact pins, `flake.lock` | **Take:** revision pinning + a lock that is a *hash*, not a version range. This is the honest ceiling blue's git registry has not reached yet. |
 | **Elixir / Hex** | hex.pm + `mix.exs` | SemVer solver | **Take:** the manifest-is-code idea (`mix.exs` is Elixir). blue already goes further — a `Bluefile` is blue, evaluated. |
 | **Unison** | content-addressed codebase, names as metadata | by hash, no version conflicts | **Study, do not copy.** Unison *publicly retracted* its first codebase model as lacking "practical ergonomics". The idea is right; a decade of tooling rebuild (diff, review, search, IDE) is the price. |
 | **Deno** | URL imports | none — the URL is the version | **Refuse.** Deno itself walked this back (`deno.json`, JSR) after unpinned URLs proved unauditable. |
 | **npm** | registry + `package.json` | SemVer, nested resolution | **Refuse the shape.** Nested duplicate resolution is why `node_modules` is a punchline. Instructive as a counterexample. |
-| **Ruby / Bundler** | rubygems.org + `Gemfile`, or a git source (`gem "x", github: "org/repo"`) | resolver, `Gemfile.lock` records the git revision | **Take:** the proof that a gem server is optional. A Bundler git source resolves straight from a repository and the lock pins the commit, which is blue's `source` + `Bluefile.lock` (`theory/BLUE-STRUCTURE.md` §5.5). **Take also:** the manifest-is-Ruby DSL, which the Bluefile already goes past. |
+| **Ruby / Bundler** | rubygems.org + `Gemfile`, or a git source (`gem "x", github: "org/repo"`) | resolver, `Gemfile.lock` records the git revision | **Take:** the proof that a gem server is optional. A Bundler git source resolves straight from a repository and the lock pins the commit, which is blue's `source` + `Bluefile.lock`. **Take also:** the manifest-is-Ruby DSL, which the Bluefile already goes past. |
 | **Zig** | `build.zig.zon`: a URL plus a content hash per dependency | none, the hash is the identity | **Take:** no registry, and a dependency is its hash. This is what `narHash` in `Bluefile.lock` gives blue for free. |
 
 **The decision this review supports:** blue's default is **git-based**, because
@@ -40,8 +40,7 @@ delivery mechanism, not a second package manager** — a bidama distribution is 
 directory in a repo; a flake pins the *revision* of that repo. Those compose:
 git answers "what does this package need", nix answers "exactly which bytes".
 
-**And the project author writes no nix** (operator, 2026-09-23;
-`theory/BLUE-STRUCTURE.md` §5.5). Nix does the building, pinning and caching,
+**And the project author writes no nix** (operator, 2026-09-23). Nix does the building, pinning and caching,
 but a blue project states all of it in its Bluefile, in blue. `blue lock` pins
 the sources, and one engine in this repository lowers the evaluated manifest to
 nix outputs. Cargo, Bundler and Mix each keep their build language and their

@@ -44,6 +44,6 @@ write_stdout(read_file("note.txt"))
 ```
 
 Every Rust guarantee, the blue gate that matches it and its off switch are in
-[SAFETY.md](../SAFETY.md). One access declaration for a whole service, in its
-`service(...)` entry, is designed in
-[SERVICE-ACCESS.md](../SERVICE-ACCESS.md) and not built yet.
+[SAFETY.md](../SAFETY.md). A whole service declares its access once, in the
+`access` of its `service(...)` entry. The ledger in
+[SERVICE-ACCESS.md](../SERVICE-ACCESS.md) shows which layers render it today.

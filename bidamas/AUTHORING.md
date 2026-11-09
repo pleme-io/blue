@@ -214,12 +214,14 @@ the other, or a builtin, for anyone else.
 [`CATALOG.md`](./CATALOG.md) lists every package, its gloss, and every definition
 with the first line of its doc comment. The `mokuroku` bidama generates it.
 `nix flake check` fails when the committed copy is stale, and
-`nix build .#bidama-catalog` produces a fresh one. A doc comment is the `#`
-block **directly above** a `def`: a blank line in between detaches it, so put
-the sentence that says what a function is for right above it. This is today's
-mechanism. The decided one is `@doc` and `@moduledoc` with a doctested example
-(`theory/BLUE.md`, "The documentation requirement", DESIGN on 2026-10-24);
-`blue check --fix` will lift this line into `@doc`.
+`nix build .#bidama-catalog` produces a fresh one. A definition's doc is the
+`@doc` block directly above its `def`. The block opens with one sentence that
+says what the function is for, and it holds a doctested example. A bidama's
+doc is its `@moduledoc`, with one whole example. `blue check` reports a public
+definition without `@doc` (B0056), a `@doc` without an example (B0057) and a
+bidama without a `@moduledoc` example (B0058). A `#` comment does not reach the
+catalogue. `blue check --fix` lifts a `#` comment block above a `def` into
+`@doc`.
 
 ## Output, strings and control flow (measured)
 

@@ -196,7 +196,7 @@ was rendered. `blue help COMMAND` shows each one's flags.
 | `blue arika like [FILE[:LINE]]` | The words a draft already is: each definition of FILE (or the one at FILE:LINE) matched to a blue word by def hash (T0), written shape (T1) and shape through a wrapper (T2), with the word's id and import line. |
 | `blue arika word NAME` | Find a blue word by NAME: its canonical spelling, an old spelling's new home, and catalogue glosses that mention NAME (T5). |
 | `blue arika emit [ROOT]` | Write the header SNAPSHOT.json for the bidamas under ROOT (each package's RFC 9162 unit_root and row count, and the snapshot_root over them) and, with --facts, the facts: every definition the engine sees as one JSON line (readable id, def_hash, shape hashes, gloss, file, line, legacy names). |
-| `blue arika find TEXT` | Blue words whose name, package or doc gloss match TEXT, ranked by BM25 (the sakuin words), from the facts. |
+| `blue arika find TEXT` | Blue words whose name, package or doc gloss match TEXT, ranked by BM25 (the junni words), from the facts. |
 | `blue arika get WORD` | Every fact of one word, by pkg::name or readable id. |
 | `blue arika uses WORD` | The definitions that call a word, by pkg::name or readable id. |
 | `blue arika groups` | Functions of MIN nodes or more that share one computed shape across words (T2 over the whole tree). |

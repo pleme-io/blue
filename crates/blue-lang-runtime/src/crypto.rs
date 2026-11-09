@@ -110,7 +110,7 @@ pub enum CryptoError {
     #[error("the {what} has an odd number of hex digits ({digits})")]
     OddHex { what: &'static str, digits: usize },
     /// Well-formed hex of the wrong size.
-    #[error("the {what} is {got} bytes; an Ed25519 {what} is {expected}")]
+    #[error("the {what} is {got} bytes; it must be {expected}")]
     WrongLength {
         what: &'static str,
         expected: usize,
@@ -142,6 +142,31 @@ pub enum CryptoError {
     },
     #[error("the key is not usable as a keyed-digest key")]
     BadMacKey,
+    #[error("the peer public key has low order: the shared secret is all zero")]
+    LowOrderPoint,
+    #[error("the {what} does not verify")]
+    Tampered { what: &'static str },
+    #[error("the plaintext is too long to seal")]
+    TooLong,
+    #[error("the outboard does not fit the data")]
+    OutboardMismatch,
+    #[error("the {what} must be an integer; got {got}")]
+    NotACount {
+        what: &'static str,
+        got: &'static str,
+    },
+    #[error("the {what} is {value}; it must be 0 or more")]
+    NegativeCount { what: &'static str, value: i64 },
+}
+
+impl CryptoError {
+    pub fn kind(&self) -> Option<&'static str> {
+        match self {
+            CryptoError::LowOrderPoint => Some("refused"),
+            CryptoError::Tampered { .. } => Some("tampered"),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -310,6 +335,111 @@ pub fn ed25519_verify(
     Ok(key.verify_strict(message, &signature).is_ok())
 }
 
+pub const AEAD_KEY_BYTES: usize = 32;
+pub const AEAD_NONCE_BYTES: usize = 12;
+pub const AEAD_TAG_BYTES: usize = 16;
+
+pub fn x25519_public(secret: &[u8; KEY_BYTES]) -> [u8; KEY_BYTES] {
+    x25519_dalek::PublicKey::from(&x25519_dalek::StaticSecret::from(*secret)).to_bytes()
+}
+
+pub fn x25519_shared(
+    secret: &[u8; KEY_BYTES],
+    peer: &[u8; KEY_BYTES],
+) -> Result<[u8; KEY_BYTES], CryptoError> {
+    let shared = x25519_dalek::StaticSecret::from(*secret)
+        .diffie_hellman(&x25519_dalek::PublicKey::from(*peer));
+    if !shared.was_contributory() {
+        return Err(CryptoError::LowOrderPoint);
+    }
+    Ok(shared.to_bytes())
+}
+
+fn aead_cipher(key: &[u8; AEAD_KEY_BYTES]) -> chacha20poly1305::ChaCha20Poly1305 {
+    use chacha20poly1305::KeyInit;
+    chacha20poly1305::ChaCha20Poly1305::new(chacha20poly1305::Key::from_slice(key))
+}
+
+pub fn chacha20poly1305_seal(
+    key: &[u8; AEAD_KEY_BYTES],
+    nonce: &[u8; AEAD_NONCE_BYTES],
+    aad: &[u8],
+    plaintext: &[u8],
+) -> Result<Vec<u8>, CryptoError> {
+    use chacha20poly1305::aead::{Aead, Payload};
+    aead_cipher(key)
+        .encrypt(
+            chacha20poly1305::Nonce::from_slice(nonce),
+            Payload {
+                msg: plaintext,
+                aad,
+            },
+        )
+        .map_err(|_| CryptoError::TooLong)
+}
+
+pub fn chacha20poly1305_open(
+    key: &[u8; AEAD_KEY_BYTES],
+    nonce: &[u8; AEAD_NONCE_BYTES],
+    aad: &[u8],
+    sealed: &[u8],
+) -> Result<Vec<u8>, CryptoError> {
+    use chacha20poly1305::aead::{Aead, Payload};
+    aead_cipher(key)
+        .decrypt(
+            chacha20poly1305::Nonce::from_slice(nonce),
+            Payload { msg: sealed, aad },
+        )
+        .map_err(|_| CryptoError::Tampered {
+            what: "sealed message",
+        })
+}
+
+pub fn bao_outboard(data: &[u8]) -> ([u8; KEY_BYTES], Vec<u8>) {
+    let (outboard, root) = bao::encode::outboard(data);
+    (*root.as_bytes(), outboard)
+}
+
+pub fn bao_slice(
+    data: &[u8],
+    outboard: &[u8],
+    start: u64,
+    len: u64,
+) -> Result<Vec<u8>, CryptoError> {
+    use std::io::{Cursor, Read};
+    let mut slice = Vec::new();
+    bao::encode::SliceExtractor::new_outboard(Cursor::new(data), Cursor::new(outboard), start, len)
+        .read_to_end(&mut slice)
+        .map_err(|_| CryptoError::OutboardMismatch)?;
+    Ok(slice)
+}
+
+pub fn bao_verify_slice(
+    root: &[u8; KEY_BYTES],
+    slice: &[u8],
+    start: u64,
+    len: u64,
+) -> Result<Vec<u8>, CryptoError> {
+    use std::io::Read;
+    let mut range = Vec::new();
+    bao::decode::SliceDecoder::new(slice, &bao::Hash::from(*root), start, len)
+        .read_to_end(&mut range)
+        .map_err(|_| CryptoError::Tampered { what: "slice" })?;
+    Ok(range)
+}
+
+pub fn count(v: &Value, what: &'static str) -> Result<u64, CryptoError> {
+    match v {
+        Value::Int(n) => {
+            u64::try_from(*n).map_err(|_| CryptoError::NegativeCount { what, value: *n })
+        }
+        other => Err(CryptoError::NotACount {
+            what,
+            got: other.type_name(),
+        }),
+    }
+}
+
 pub fn digest_hex(algorithm: Algorithm, data: &[u8]) -> String {
     match algorithm {
         Algorithm::Sha1 => encode_hex(&Sha1::digest(data)),
@@ -362,7 +492,14 @@ pub fn bytes_equal(a: &[u8], b: &[u8]) -> bool {
 
 /// Raise a refusal as the named primitive's error.
 fn refuse(name: &'static str, span: tatara_lisp::Span) -> impl Fn(CryptoError) -> EvalError {
-    move |e| EvalError::native_fn(name, e.to_string(), span)
+    move |e| match e.kind() {
+        Some(kind) => crate::errors::raise_kind(kind, format!("{name}: {e}"), span),
+        None => EvalError::native_fn(name, e.to_string(), span),
+    }
+}
+
+fn bytes_value(bytes: &[u8]) -> Value {
+    Value::list(bytes.iter().map(|b| Value::Int(i64::from(*b))))
 }
 
 fn hex_value(bytes: &[u8]) -> Value {
@@ -448,6 +585,107 @@ pub fn install_crypto_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
             let verdict = ed25519_verify(&public, &message, &signature)
                 .map_err(refuse("ed25519_verify", span))?;
             Ok(Value::Bool(verdict))
+        },
+    );
+
+    interp.register_fn(
+        "x25519_keypair",
+        Arity::Exact(1),
+        |a: &[Value], _h: &mut H, span| {
+            let seed: [u8; KEY_BYTES] =
+                hex_array(&a[0], "seed").map_err(refuse("x25519_keypair", span))?;
+            Ok(Value::list([
+                hex_value(&seed),
+                hex_value(&x25519_public(&seed)),
+            ]))
+        },
+    );
+
+    interp.register_fn(
+        "x25519_shared",
+        Arity::Exact(2),
+        |a: &[Value], _h: &mut H, span| {
+            let secret: [u8; KEY_BYTES] =
+                hex_array(&a[0], "secret key").map_err(refuse("x25519_shared", span))?;
+            let peer: [u8; KEY_BYTES] =
+                hex_array(&a[1], "public key").map_err(refuse("x25519_shared", span))?;
+            let shared = x25519_shared(&secret, &peer).map_err(refuse("x25519_shared", span))?;
+            Ok(hex_value(&shared))
+        },
+    );
+
+    interp.register_fn(
+        "chacha20poly1305_seal",
+        Arity::Exact(4),
+        |a: &[Value], _h: &mut H, span| {
+            let fail = || refuse("chacha20poly1305_seal", span);
+            let key: [u8; AEAD_KEY_BYTES] = hex_array(&a[0], "key").map_err(fail())?;
+            let nonce: [u8; AEAD_NONCE_BYTES] = hex_array(&a[1], "nonce").map_err(fail())?;
+            let aad = message_bytes(&a[2]).map_err(fail())?;
+            let plaintext = message_bytes(&a[3]).map_err(fail())?;
+            let sealed = chacha20poly1305_seal(&key, &nonce, &aad, &plaintext).map_err(fail())?;
+            Ok(hex_value(&sealed))
+        },
+    );
+
+    interp.register_fn(
+        "chacha20poly1305_open",
+        Arity::Exact(4),
+        |a: &[Value], _h: &mut H, span| {
+            let fail = || refuse("chacha20poly1305_open", span);
+            let key: [u8; AEAD_KEY_BYTES] = hex_array(&a[0], "key").map_err(fail())?;
+            let nonce: [u8; AEAD_NONCE_BYTES] = hex_array(&a[1], "nonce").map_err(fail())?;
+            let aad = message_bytes(&a[2]).map_err(fail())?;
+            let sealed = hex_vec(&a[3], "sealed message").map_err(fail())?;
+            let plaintext = chacha20poly1305_open(&key, &nonce, &aad, &sealed).map_err(fail())?;
+            Ok(bytes_value(&plaintext))
+        },
+    );
+
+    interp.register_fn(
+        "bao_outboard",
+        Arity::Exact(1),
+        |a: &[Value], _h: &mut H, span| {
+            let data = message_bytes(&a[0]).map_err(refuse("bao_outboard", span))?;
+            let (root, outboard) = bao_outboard(&data);
+            Ok(Value::map([
+                (
+                    tatara_lisp_eval::MapKey::Keyword(Arc::from("root")),
+                    hex_value(&root),
+                ),
+                (
+                    tatara_lisp_eval::MapKey::Keyword(Arc::from("outboard")),
+                    hex_value(&outboard),
+                ),
+            ]))
+        },
+    );
+
+    interp.register_fn(
+        "bao_slice",
+        Arity::Exact(4),
+        |a: &[Value], _h: &mut H, span| {
+            let fail = || refuse("bao_slice", span);
+            let data = message_bytes(&a[0]).map_err(fail())?;
+            let outboard = hex_vec(&a[1], "outboard").map_err(fail())?;
+            let start = count(&a[2], "start").map_err(fail())?;
+            let len = count(&a[3], "length").map_err(fail())?;
+            let slice = bao_slice(&data, &outboard, start, len).map_err(fail())?;
+            Ok(hex_value(&slice))
+        },
+    );
+
+    interp.register_fn(
+        "bao_verify_slice",
+        Arity::Exact(4),
+        |a: &[Value], _h: &mut H, span| {
+            let fail = || refuse("bao_verify_slice", span);
+            let root: [u8; KEY_BYTES] = hex_array(&a[0], "root").map_err(fail())?;
+            let slice = hex_vec(&a[1], "slice").map_err(fail())?;
+            let start = count(&a[2], "start").map_err(fail())?;
+            let len = count(&a[3], "length").map_err(fail())?;
+            let range = bao_verify_slice(&root, &slice, start, len).map_err(fail())?;
+            Ok(bytes_value(&range))
         },
     );
 }
@@ -1001,5 +1239,339 @@ mod tests {
         assert_ne!(acc, 0, "a difference before equal tail bytes must survive");
         let (acc, _) = scan_differences(&[0b0001, 0b0010], &[0b0000, 0b0000]);
         assert_eq!(acc, 0b0011);
+    }
+
+    fn rescued(src: &str, kind: &str) -> String {
+        s(&format!(
+            "begin\n  {src}\n  \"no refusal\"\nrescue :{kind} as e\n  e.message\nend"
+        ))
+    }
+
+    fn flip_hex_digit(hex: &str, position: usize) -> String {
+        let mut chars: Vec<char> = hex.chars().collect();
+        chars[position] = if chars[position] == '0' { '1' } else { '0' };
+        chars.into_iter().collect()
+    }
+
+    fn byte_list(bytes: &[u8]) -> String {
+        format!(
+            "[{}]",
+            bytes
+                .iter()
+                .map(u8::to_string)
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    }
+
+    fn list_bytes(v: Value) -> Vec<u8> {
+        let Value::List(items) = v else {
+            panic!("a byte list, got {v:?}")
+        };
+        items
+            .iter()
+            .map(|x| match x {
+                Value::Int(n) => u8::try_from(*n).expect("a byte"),
+                other => panic!("a byte, got {other:?}"),
+            })
+            .collect()
+    }
+
+    #[test]
+    fn rfc7748_section_5_2_vector_1() {
+        assert_eq!(
+            s("x25519_shared(\"a546e36bf0527c9d3b16154b82465edd62144c0ac1fc5a18506a2244ba449ac4\", \"e6db6867583030db3594c1a424b15f7c726624ec26b3353b10a903a6d0ab1c4c\")"),
+            "c3da55379de9c6908e94ea4df28d084f32eccf03491c71f754b4075577a28552"
+        );
+    }
+
+    #[test]
+    fn rfc7748_section_5_2_vector_2() {
+        assert_eq!(
+            s("x25519_shared(\"4b66e9d4d1b4673c5ad22691957d6af5c11b6421e0ea01d42ca4169e7918ba0d\", \"e5210f12786811d3f4b7959d0538ae2c31dbe7106fc03c3efc4cd549c715a493\")"),
+            "95cbde9476e8907d7aade45cb4b873f88b595a68799fa152e6f8f7647aac7957"
+        );
+    }
+
+    const ALICE_SECRET: &str = "77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a";
+    const ALICE_PUBLIC: &str = "8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a";
+    const BOB_SECRET: &str = "5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb";
+    const BOB_PUBLIC: &str = "de9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f";
+    const ALICE_BOB_SHARED: &str =
+        "4a5d9d5ba4ce2de1728e3bf480350f25e07e21c947d19e3376f09b3c1e161742";
+
+    #[test]
+    fn rfc7748_section_6_1_alice_and_bob() {
+        assert_eq!(
+            s(&format!("nth(1, x25519_keypair(\"{ALICE_SECRET}\"))")),
+            ALICE_PUBLIC
+        );
+        assert_eq!(
+            s(&format!("nth(1, x25519_keypair(\"{BOB_SECRET}\"))")),
+            BOB_PUBLIC
+        );
+        assert_eq!(
+            s(&format!("x25519_shared(\"{ALICE_SECRET}\", \"{BOB_PUBLIC}\")")),
+            ALICE_BOB_SHARED
+        );
+        assert_eq!(
+            s(&format!("x25519_shared(\"{BOB_SECRET}\", \"{ALICE_PUBLIC}\")")),
+            ALICE_BOB_SHARED
+        );
+    }
+
+    #[test]
+    fn x25519_low_order_points_are_refused() {
+        for point in [
+            "0000000000000000000000000000000000000000000000000000000000000000",
+            "0100000000000000000000000000000000000000000000000000000000000000",
+            "e0eb7a7c3b41b8ae1656e3faf19fc46ada098deb9c32b1fd866205165f49b800",
+            "5f9c95bca3508c24b1d0b1559c83ef5b04445cc4581c8e86d8224eddd09f1157",
+        ] {
+            let message = rescued(
+                &format!("x25519_shared(\"{ALICE_SECRET}\", \"{point}\")"),
+                "refused",
+            );
+            assert!(message.contains("low order"), "{point}: {message}");
+        }
+    }
+
+    #[test]
+    fn x25519_bad_lengths_are_named_errors() {
+        let e = err("x25519_shared(\"abcd\", \"00\")");
+        assert!(e.contains("secret key is 2 bytes; it must be 32"), "{e}");
+    }
+
+    const RFC8439_KEY: &str = "808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9f";
+    const RFC8439_NONCE: &str = "070000004041424344454647";
+    const RFC8439_AAD: &str = "[80, 81, 82, 83, 192, 193, 194, 195, 196, 197, 198, 199]";
+    const RFC8439_PLAINTEXT: &str = "Ladies and Gentlemen of the class of '99: If I could offer you only one tip for the future, sunscreen would be it.";
+    const RFC8439_SEALED: &str = "d31a8d34648e60db7b86afbc53ef7ec2a4aded51296e08fea9e2b5a736ee62d63dbea45e8ca9671282fafb69da92728b1a71de0a9e060b2905d6a5b67ecd3b3692ddbd7f2d778b8c9803aee328091b58fab324e4fad675945585808b4831d7bc3ff4def08e4b7a9de576d26586cec64b61161ae10b594f09e26a7e902ecbd0600691";
+
+    fn open_src(sealed: &str, aad: &str) -> String {
+        format!("chacha20poly1305_open(\"{RFC8439_KEY}\", \"{RFC8439_NONCE}\", {aad}, \"{sealed}\")")
+    }
+
+    #[test]
+    fn rfc8439_section_2_8_2_seal() {
+        assert_eq!(
+            s(&format!(
+                "chacha20poly1305_seal(\"{RFC8439_KEY}\", \"{RFC8439_NONCE}\", {RFC8439_AAD}, \"{RFC8439_PLAINTEXT}\")"
+            )),
+            RFC8439_SEALED
+        );
+    }
+
+    #[test]
+    fn rfc8439_section_2_8_2_open() {
+        assert_eq!(
+            list_bytes(eval(&open_src(RFC8439_SEALED, RFC8439_AAD))),
+            RFC8439_PLAINTEXT.as_bytes()
+        );
+        assert_eq!(
+            s(&format!("bytes_text({})", open_src(RFC8439_SEALED, RFC8439_AAD))),
+            RFC8439_PLAINTEXT
+        );
+    }
+
+    #[test]
+    fn a_tampered_tag_is_refused() {
+        let last = RFC8439_SEALED.len() - 1;
+        let message = rescued(&open_src(&flip_hex_digit(RFC8439_SEALED, last), RFC8439_AAD), "tampered");
+        assert!(message.contains("sealed message does not verify"), "{message}");
+    }
+
+    #[test]
+    fn a_tampered_ciphertext_wrong_aad_or_short_message_is_refused() {
+        for src in [
+            open_src(&flip_hex_digit(RFC8439_SEALED, 0), RFC8439_AAD),
+            open_src(RFC8439_SEALED, "[80]"),
+            open_src(RFC8439_SEALED, "\"\""),
+            open_src(&RFC8439_SEALED[..30], RFC8439_AAD),
+            open_src("", RFC8439_AAD),
+        ] {
+            let message = rescued(&src, "tampered");
+            assert!(message.contains("does not verify"), "{src}: {message}");
+        }
+    }
+
+    #[test]
+    fn aead_bad_lengths_are_named_errors() {
+        let e = err(&format!(
+            "chacha20poly1305_seal(\"{RFC8439_KEY}\", \"0700000040414243\", \"\", \"m\")"
+        ));
+        assert!(e.contains("nonce is 8 bytes; it must be 12"), "{e}");
+        let e = err(&format!(
+            "chacha20poly1305_open(\"0001\", \"{RFC8439_NONCE}\", \"\", \"{RFC8439_SEALED}\")"
+        ));
+        assert!(e.contains("key is 2 bytes; it must be 32"), "{e}");
+    }
+
+    #[test]
+    fn a_seal_round_trips_and_binds_the_nonce() {
+        let sealed = s(&format!(
+            "chacha20poly1305_seal(\"{RFC8439_KEY}\", \"{RFC8439_NONCE}\", \"head\", [0, 255, 7])"
+        ));
+        assert_eq!(sealed.len(), (3 + AEAD_TAG_BYTES) * 2);
+        assert_eq!(
+            list_bytes(eval(&format!(
+                "chacha20poly1305_open(\"{RFC8439_KEY}\", \"{RFC8439_NONCE}\", \"head\", \"{sealed}\")"
+            ))),
+            [0, 255, 7]
+        );
+        let message = rescued(
+            &format!("chacha20poly1305_open(\"{RFC8439_KEY}\", \"000000000000000000000000\", \"head\", \"{sealed}\")"),
+            "tampered",
+        );
+        assert!(message.contains("does not verify"), "{message}");
+    }
+
+    fn bao_input(len: usize) -> Vec<u8> {
+        (1u32..)
+            .flat_map(u32::to_le_bytes)
+            .take(len)
+            .collect()
+    }
+
+    #[test]
+    fn bao_outboard_matches_the_vectors() {
+        for (len, root, outboard_len, outboard_blake3) in [
+            (
+                0,
+                "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262",
+                8,
+                "71e0a99173564931c0b8acc52d2685a8e39c64dc52e3d02390fdac2a12b155cb",
+            ),
+            (
+                1025,
+                "3613596275c4ea790774dedf20835b2daf86cacc892feef6ce720c121572f1f9",
+                72,
+                "025f630e00fbdcc023b970c9f1f21016c56c0a34e384e712c66428bf1c7999b9",
+            ),
+            (
+                2049,
+                "64770fa15a4bbe7770654c4ac68ed4f0e975ad6c85b5edb4d3db3b4b604e084e",
+                136,
+                "f2afc0716690e8513d8697e3e75f5c3532d51e0c704416e7fb0bbf7c0abfb57e",
+            ),
+        ] {
+            let (got_root, outboard) = bao_outboard(&bao_input(len));
+            assert_eq!(encode_hex(&got_root), root, "root, input_len {len}");
+            assert_eq!(outboard.len(), outboard_len, "outboard length, input_len {len}");
+            assert_eq!(blake3_hex(&outboard), outboard_blake3, "outboard, input_len {len}");
+        }
+    }
+
+    const SLICE_VECTORS: [(usize, &str, u64, u64, usize, &str, &[usize]); 3] = [
+        (
+            13312,
+            "3e88d1dd20f426640077dcf82d6d4e18ee0062aa72f8ae547a0e65fcd36a0f06",
+            2048,
+            1024,
+            1288,
+            "4a41e4b0529f98aaa354fe1cb22880d9cbe850aa8291db1f85e2c73a9954a462",
+            &[7, 8, 72, 136, 200, 264],
+        ),
+        (
+            11264,
+            "69fa39c8ab837dbb9e419c66a3ab7014ce9f86dba55935936b4c38cfcbc4d5f6",
+            1024,
+            1024,
+            1288,
+            "9fa5fc9ac6f34743ab103137310df80cd01bd45fc3afd62ec3dca95054308544",
+            &[7, 8, 72, 136, 200, 264],
+        ),
+        (
+            13312,
+            "3e88d1dd20f426640077dcf82d6d4e18ee0062aa72f8ae547a0e65fcd36a0f06",
+            2047,
+            1024,
+            2376,
+            "04caae4d370ca619a5e16c3e04706abfa350c7c8c4db46cf51d72d687f8b22c9",
+            &[7, 8, 72, 136, 200, 264, 1288, 1352],
+        ),
+    ];
+
+    #[test]
+    fn bao_slices_match_the_vectors_and_verify() {
+        for (len, root, start, slice_len, out_len, out_blake3, _) in SLICE_VECTORS {
+            let input = bao_input(len);
+            let (got_root, outboard) = bao_outboard(&input);
+            assert_eq!(encode_hex(&got_root), root);
+            let slice = bao_slice(&input, &outboard, start, slice_len).expect("extract");
+            assert_eq!(slice.len(), out_len, "slice length, {len}@{start}");
+            assert_eq!(blake3_hex(&slice), out_blake3, "slice, {len}@{start}");
+            let range = bao_verify_slice(&got_root, &slice, start, slice_len).expect("verify");
+            let from = usize::try_from(start).expect("start");
+            let to = (from + usize::try_from(slice_len).expect("len")).min(len);
+            assert_eq!(range, input[from..to], "range, {len}@{start}");
+        }
+    }
+
+    #[test]
+    fn every_bao_vector_corruption_is_refused() {
+        for (len, _, start, slice_len, _, _, corruptions) in SLICE_VECTORS {
+            let input = bao_input(len);
+            let (root, outboard) = bao_outboard(&input);
+            let slice = bao_slice(&input, &outboard, start, slice_len).expect("extract");
+            for &at in corruptions {
+                let mut bad = slice.clone();
+                bad[at] ^= 1;
+                assert_eq!(
+                    bao_verify_slice(&root, &bad, start, slice_len),
+                    Err(CryptoError::Tampered { what: "slice" }),
+                    "corruption at {at}, {len}@{start}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_slice_round_trips_through_blue() {
+        let input = bao_input(2049);
+        let data = byte_list(&input);
+        let range = eval(&format!(
+            "d = {data}\nt = bao_outboard(d)\nbao_verify_slice(t.root, bao_slice(d, t.outboard, 1024, 1025), 1024, 1025)"
+        ));
+        assert_eq!(list_bytes(range), input[1024..]);
+        assert!(b(&format!(
+            "bao_outboard({data}).root == blake3_hex({data})"
+        )));
+    }
+
+    #[test]
+    fn a_tampered_range_is_refused() {
+        let input = bao_input(2049);
+        let (root, outboard) = bao_outboard(&input);
+        let slice = encode_hex(&bao_slice(&input, &outboard, 1024, 1024).expect("extract"));
+        let root = encode_hex(&root);
+        let ok = eval(&format!("bao_verify_slice(\"{root}\", \"{slice}\", 1024, 1024)"));
+        assert_eq!(list_bytes(ok), input[1024..2048]);
+        for position in [slice.len() - 1, slice.len() / 2, 200, 15] {
+            let message = rescued(
+                &format!(
+                    "bao_verify_slice(\"{root}\", \"{}\", 1024, 1024)",
+                    flip_hex_digit(&slice, position)
+                ),
+                "tampered",
+            );
+            assert!(message.contains("slice does not verify"), "{position}: {message}");
+        }
+        let other_root = blake3_hex(b"another value");
+        let message = rescued(
+            &format!("bao_verify_slice(\"{other_root}\", \"{slice}\", 1024, 1024)"),
+            "tampered",
+        );
+        assert!(message.contains("slice does not verify"), "{message}");
+    }
+
+    #[test]
+    fn bao_bad_offsets_and_outboards_are_named_errors() {
+        let e = err("bao_slice(\"abc\", \"0300000000000000\", -1, 1)");
+        assert!(e.contains("start is -1; it must be 0 or more"), "{e}");
+        let e = err("bao_verify_slice(\"00\", \"\", 0, nil)");
+        assert!(e.contains("root is 1 bytes; it must be 32"), "{e}");
+        let e = err("bao_slice(\"abc\", \"\", 0, 1)");
+        assert!(e.contains("outboard does not fit the data"), "{e}");
     }
 }

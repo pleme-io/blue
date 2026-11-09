@@ -474,7 +474,9 @@ fn count_host_names<H: 'static>(
                   caller: &tatara_lisp_eval::ffi::Caller<H>,
                   span| {
                 if arity.check(args.len()).is_ok() {
-                    io.tally();
+                    return io.through(name, span, || {
+                        caller.apply_value(&original, args.to_vec(), host, span)
+                    });
                 }
                 caller.apply_value(&original, args.to_vec(), host, span)
             },
@@ -571,6 +573,10 @@ fn node_config_under(b: ExecutionBounds) -> blue_lang_proc::NodeConfig {
     #[cfg(feature = "host")]
     {
         config.carrier = Some(wire::CARRIER);
+    }
+    #[cfg(all(feature = "host", unix))]
+    {
+        config.fd_of = Some(net::stream::fd_of);
     }
     config.clock = NODE_CLOCK
         .get()

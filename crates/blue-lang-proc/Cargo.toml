@@ -21,7 +21,7 @@ serde_json = { workspace = true }
 blake3 = { version = "1", default-features = false, features = ["std", "pure"] }
 
 [target.'cfg(any(target_os = "linux", target_os = "android"))'.dependencies]
-rustix = { version = "1", default-features = false, features = ["std", "process", "thread"] }
+rustix = { version = "1", default-features = false, features = ["std", "process", "thread", "event"] }
 
 [target.'cfg(target_vendor = "apple")'.dependencies]
 libc = "0.2"

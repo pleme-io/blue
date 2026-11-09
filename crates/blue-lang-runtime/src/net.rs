@@ -15,6 +15,13 @@
 //! nats_close(conn)                            → nil
 //! http_request(method, url, headers, body, ms) → {status:, headers:, body:}
 //! tcp_connect_ms(host, port, ms)              → connect time in ms, or [:error, why, detail]
+//! tcp_listen(addr)                            → listener
+//! tcp_port(listener)                          → the bound port
+//! tcp_accept(listener)                        → connection, or nil when none waits
+//! tcp_connect(addr, ms)                       → connection
+//! tcp_read(conn, max)                         → bytes, [] when none are ready, nil once closed
+//! tcp_write(conn, bytes)                      → how many went out, 0 when the socket is full
+//! tcp_close(x)                                → nil
 //! http_listen(addr[, opts])                   → listener
 //! http_listener_port(listener)                → the bound port
 //! http_next_request(listener, ms)             → {method:, path:, query:, headers:, body:, exchange:} or nil
@@ -39,6 +46,7 @@ pub mod nats;
 pub mod pg;
 pub mod resp;
 pub mod serve;
+pub mod stream;
 
 use std::net::{TcpStream, ToSocketAddrs};
 use std::sync::{Arc, Mutex};
@@ -317,6 +325,7 @@ pub fn install_net<H: 'static>(interp: &mut Interpreter<H>) {
     install_nats(interp);
     install_http(interp);
     install_tcp(interp);
+    stream::install(interp);
     install_serve(interp);
     install_pg(interp);
     install_resp(interp);

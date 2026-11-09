@@ -127,7 +127,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-381 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 195 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+389 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 195 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -483,6 +483,7 @@ Higher binding power binds tighter.
 | `nats_request` | `nats_request(conn, subject, payload, timeout_ms)` | 4 | Publish and wait for one reply; the reply's payload as a string. Raises on timeout and when no one is subscribed (no responders). |
 | `nats_subscribe` | `nats_subscribe(conn, subject[, queue])` | 2..3 | A subscription to a subject, wildcards * and > allowed; with a queue group, one member of the group gets each message. Read it with nats_next_message. |
 | `nats_unsubscribe` | `nats_unsubscribe(sub)` | 1 | Stop a subscription; messages already queued for it are dropped. nil. |
+| `net_wait` | `net_wait(interests[, timeout_ms])` | 1..2 | Wait until a handle is ready: interests are [[handle, :read \| :write \| :both], …] of tcp_listen, tcp_accept and tcp_connect handles; the answer is [[handle, :read \| :write \| :closed], …], or [] when timeout_ms passed on the node clock (nil or no timeout waits as long as it takes; 0 only checks). Level-triggered, over poll(2). A process waiting here parks: every other process runs, and timers fire; the program waiting here drives them. A deadline or timeout around the wait raises :timeout at it. On the virtual clock a wait with nothing ready jumps to the next deadline, and a wait with no deadline waits on the sockets in real time. With blue run --record, each answer and the node time it came at go on the run's tape. |
 | `pg_close` | `pg_close(conn)` | 1 | Close the connection; every later call on it raises. nil. |
 | `pg_connect` | `pg_connect(url[, timeout_ms])` | 1..2 | A PostgreSQL connection to postgres://user@host[:port]/database (a password, when the server asks for one, rides in the url's userinfo after a colon), speaking the wire protocol over plain TCP: trust, password and SCRAM-SHA-256 authentication; md5 and TLS are refused by name. Raises when it cannot connect. |
 | `pg_execute` | `pg_execute(conn, sql)` | 2 | A script of statements, unparameterised: the list of their command tags. Raises naming the first failure. |
@@ -492,7 +493,14 @@ Higher binding power binds tighter.
 | `resp_connect` | `resp_connect(host, port, password, tls[, timeout_ms])` | 4..5 | A RESP (Valkey, Redis) connection, authenticated with password when it is not nil and confirmed by a PING. tls true is refused by name until the runtime has a TLS transport (docs/HTTP2.md P4); tls false is allowed only for 127.0.0.1. Raises when it cannot connect. |
 | `resp_next` | `resp_next(conn, timeout_ms)` | 2 | The next reply the server pushes (a subscribed connection's messages), waiting at most timeout_ms (0 only checks what has arrived); nil when none came. |
 | `resp_pipeline` | `resp_pipeline(conn, commands)` | 2 | Send every command in one write and return their replies in order. Raises naming the first server error. |
+| `tcp_accept` | `tcp_accept(listener)` | 1 | The next waiting connection, non-blocking, or nil when none is waiting. Never blocks. |
+| `tcp_close` | `tcp_close(x)` | 1 | Close a connection or a listener. Closing twice is done. nil. |
+| `tcp_connect` | `tcp_connect(addr, timeout_ms)` | 2 | A non-blocking TCP connection to addr (host:port), connected within timeout_ms. Raises when it cannot connect. |
 | `tcp_connect_ms` | `tcp_connect_ms(host, port, timeout_ms)` | 3 | Open one TCP connection to host:port and close it at once: the milliseconds the connect took, the handshake only (name resolution is not counted). A failed connect is an answer, not a raise: [:error, why, detail], why one of :unresolved, :timeout, :refused, :unreachable or :failed. A bad port or timeout raises. |
+| `tcp_listen` | `tcp_listen(addr)` | 1 | A non-blocking TCP listener bound to addr (host:port; port 0 picks one). Wait for a connection with net_wait([[l, :read]]), then tcp_accept. Raises when it cannot bind. |
+| `tcp_port` | `tcp_port(listener)` | 1 | The port a listener from tcp_listen is bound to. |
+| `tcp_read` | `tcp_read(conn, max)` | 2 | At most max bytes as a list of Ints: [] when none are ready, nil when the peer has closed (or after tcp_close). Never blocks; wait with net_wait([[conn, :read]]). |
+| `tcp_write` | `tcp_write(conn, bytes)` | 2 | Write bytes (a list of Ints 0 to 255, or a string) without blocking: how many went out, 0 when the socket is full. The caller keeps the rest and waits with net_wait([[conn, :write]]). |
 | `tide_close` | `tide_close(wire)` | 1 | Close the wire's Tide channel and drop what its ring holds; the socket closes with its last channel. nil. |
 | `tide_next` | `tide_next(wire, timeout_ms)` | 2 | {from:, payload:, bytes:, sent_ms:} for the oldest Tide frame in the inbox, waiting at most timeout_ms (0 only checks); nil when none came. The inbox evicts its oldest frame past its bounds. |
 | `tide_open` | `tide_open(addr_or_wire[, opts])` | 1..2 | The Tide channel of a dual-pulse wire, bound to host:port or joined to a wire flash_open made; opts {ring_frames:, ring_bytes:} hold its send ring and its inbox each to that many frames (64) and bytes (65536, at least 1280). Needs the comm_scavenger capability. |

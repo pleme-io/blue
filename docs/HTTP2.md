@@ -364,7 +364,7 @@ to `kyohi::and_then`, and text to bytes into the runtime.
 | `tajuu` frame codec, preface, `step` | tested | 11 blocks; 25 heni mutations caught |
 | `shinsuu` byte helpers, `kyohi::and_then` | tested | their blocks, seen red with heni |
 | connection layer (P2) | design | none |
-| `tcp_*`, `net_wait` | design | none |
+| `tcp_*`, `net_wait` | tested (2026-11-09, HORIZON H4) | `blue-lang-proc/tests/net_wait.rs` and `blue-lang-cli/tests/run_replay.rs` (a tcp echo between two processes, recorded and replayed), each seen red; `tcp_port` added for a listener on port 0. The blue h2c server and `checks.network` of P3 are design |
 | `tls_*` | design | none |
 | gRPC, protobuf wire codec | design | none |
 | a blue-led gRPC service | design | none |

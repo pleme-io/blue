@@ -5,11 +5,12 @@ summary: Native async in blue, DESIGN: one ontology of every async concept as a 
 
 # Native async: the design of record
 
-**Tier: PARTIAL (2026-11-06). The process runtime under it is built, and A1's
-timer and clock rows are built: `node_time`, `sleep_for`, `sleep_until`,
-`after`, `deadline`, `timeout`, `context` and `remaining` on node time, and
-the virtual clock in `blue test`. A1's `net_wait` row, narrowing a deadline
-inside a process, and phases A2 to A7 are DESIGN.** Operator, 2026-11-06: *"full batteries included async
+**Tier: PARTIAL (2026-11-09). The process runtime under it is built, and A1
+is built: `node_time`, `sleep_for`, `sleep_until`, `after`, `deadline`,
+`timeout`, `context` and `remaining` on node time, the virtual clock in `blue
+test`, and `net_wait` in the node loop over the `tcp_*` words (2026-11-09).
+A run replays from its receipt (`blue run --record`, `blue replay`, HORIZON
+H4). Narrowing a deadline inside a process, and phases A2 to A7 are DESIGN.** Operator, 2026-11-06: *"full batteries included async
 programming … native … all the semantics around async … the most purely
 ontologically complete async native programming in bluelang … honors all
 other systems we have and integrates with them … blueshift, in the sense that
@@ -41,7 +42,8 @@ architectures are two rows of one matrix, not two languages.
 | node-time timers: `node_time`, `sleep_for`, `sleep_until`, `after` | `node.rs`, `tests/timers.rs` | built (A1); a process parks on a `Wait::Timer`, the program drives the node until the time; `after` timers fire in deadline order, ties in the order set |
 | the context record: `context`, `remaining`, `deadline`, `timeout` | `node.rs` | built for the deadline field (A1): `spawn` copies it, every wait raises `:timeout` at it; the program narrows it, a process holds the one it was spawned under (narrowing inside a process is A2); cancel state, trace id and access join with A2, A3 and `mitoshi` |
 | the virtual clock in `blue test` | `blue-lang-test` `Guard::clock`, `Account::clock` | built (A1): `blue test`, the conformance rows and the language server's live tests read the virtual clock; `blue run` reads the wall clock |
-| readiness word `net_wait` over `poll(2)` | `docs/HTTP2.md` decision 2 | DESIGN |
+| readiness word `net_wait` over `poll(2)` | `node.rs` (`Wait::Net`), `readiness.rs`, the `tcp_*` words in `blue-lang-runtime/src/net/stream.rs`, `tests/net_wait.rs` | built (A1, 2026-11-09): a process parks on its sockets, the node loop polls them beside the timers; on the virtual clock a wait with nothing ready jumps to the next deadline |
+| a run replayed from its receipt | `blue run --receipts DIR --record`, `blue replay <receipt>`, `HostIo::through`, `blue-lang-cli/tests/run_replay.rs` | built (HORIZON H4, 2026-11-09): every host answer on a tape per process, receipt version 6; the replayed receipt equals the original's |
 | every I/O word (`http_request`, `nats_*`, `pg`, `exec_capture`, `read_file`, `sleep_ms`) | `crates/blue-lang-runtime/src/{net,sys}.rs` | blocks the node thread |
 | `heikou` (map, all, any, race, scope, timeout, deadline, cancel, throttle, retry, …) | `docs/STDLIB.md`, `heikou.b` catalogue | absent |
 
@@ -177,6 +179,16 @@ fire in deadline order (red run: newest first misorders, or hangs). Not
 built: `net_wait` (HTTP2.md P3), narrowing a deadline inside a process (it
 needs the scope compiled into the process's chunk, with A2's `scope`), the
 context across `evict`, a timer cancel.
+
+`net_wait` as built (2026-11-09): `net_wait(interests[, timeout_ms])` over
+`tcp_listen`, `tcp_accept` and `tcp_connect` handles, level-triggered over
+`poll(2)`. A-time and A-determinism hold for it at `schedulers(1)`:
+`tests/net_wait.rs` (a 30 s wait with nothing ready takes no wall time and
+observes 30 s; a parked waiter lets a ready process and a timer run first;
+one program gives one answer over four runs). Red runs: no poll in the idle
+loop deadlocks the parked waiter; a child wait that never parks answers
+before its peer writes. Not built: `schedulers(n)` (A6), the node time a
+process's wait came at on the replay tape (the root's is taped).
 | A2 | handles and `await`, `await_result`; `scope`, `all`, `any`, `race`, `heikou::map`; `cancel` with grace | A-structure, A-cancel, A-ontology (first rows) | the heikou catalogue rows for these verbs are built |
 | A3 | `http_request`, `exec_capture`, `read_file`, `nats_*`, `pg` park on readiness; `blocking(f)` | A-no-block, A-replay | a slow peer delays no other task |
 | A4 | `channel`, `stream`, `pull`, `select`; capacities and overflow policies; `throttle`, `limit`, `debounce`, `retry` | A-backpressure | a JetStream consumer runs as a pull stream |

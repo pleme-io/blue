@@ -279,7 +279,7 @@ rendered:
 - [jisho](bidamas/CATALOG.md#jisho) (辞書) — dictionaries: maps as values, read and changed by key, each change a new map.
 - [junjo](bidamas/CATALOG.md#junjo) (順序) — ordering: sorting, searching, selection.
 - [kaaneru](bidamas/CATALOG.md#kaaneru) (カーネル) — the Linux kernel, spoken from blue: maps, programs, links and ring buffers over `bpf(2)`, with every struct a `baito` layout and no C library in the path.
-- [kakehashi](bidamas/CATALOG.md#kakehashi) (架け橋, a bridge) — blue speaks Nix, Nix runs blue, and a rebuild does only the work that changed (theory/KAKEHASHI.md).
+- [kakehashi](bidamas/CATALOG.md#kakehashi) (架け橋, a bridge) — blue speaks Nix, Nix runs blue, and a rebuild does only the work that changed.
 - [kansuu](bidamas/CATALOG.md#kansuu) (関数) — functions about functions.
 - [kazu](bidamas/CATALOG.md#kazu) (数) — numbers.
 - [keiyu](bidamas/CATALOG.md#keiyu) (経由) — by way of: run one command with a proxy set for it alone.

@@ -778,18 +778,18 @@ test "substituters: the URL is kept as written, the probe drops the query, a bad
         "# peers",
         "http://cid:5001",
         "",
-        "http://cid.buzios.pleme.internal:5001?priority=29",
+        "http://cid.bravo.pleme.internal:5001?priority=29",
         "ssh://cid"
       ]
     )
   )
   assert size(ss) == 3
   assert ss[0][:host] == "cid:5001"
-  assert ss[1][:line] == "http://cid.buzios.pleme.internal:5001?priority=29"
-  assert ss[1][:base] == "http://cid.buzios.pleme.internal:5001"
+  assert ss[1][:line] == "http://cid.bravo.pleme.internal:5001?priority=29"
+  assert ss[1][:base] == "http://cid.bravo.pleme.internal:5001"
   assert ss[2][:ok] == false
   assert last(cache_info_argv(ss[1], 2, "/usr/bin/curl")) ==
-    "http://cid.buzios.pleme.internal:5001/nix-cache-info"
+    "http://cid.bravo.pleme.internal:5001/nix-cache-info"
   assert contains(cache_info_argv(ss[1], 2, "c"), "--connect-timeout") == true
 end
 

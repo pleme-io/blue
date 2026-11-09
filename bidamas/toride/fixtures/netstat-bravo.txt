@@ -5,7 +5,7 @@ Destination        Gateway            Flags               Netif Expire
 default            192.168.60.1       UGScg                 en0       
 100.64/10          utun0              USc                 utun0       
 100.100.100.100/32 utun0              USc                 utun0       
-100.64.0.81        100.64.0.81        UH                  utun0       
+100.64.0.13        100.64.0.13        UH                  utun0       
 127                127.0.0.1          UCS                   lo0       
 127.0.0.1          127.0.0.1          UH                    lo0       
 169.254            link#14            UCS                   en0      !

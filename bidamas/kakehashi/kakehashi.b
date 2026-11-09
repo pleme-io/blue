@@ -1,6 +1,6 @@
 @moduledoc """
 kakehashi (架け橋, a bridge) — blue speaks Nix, Nix runs blue, and a rebuild does
-only the work that changed (theory/KAKEHASHI.md).
+only the work that changed.
 
 Six levels: `kakehashi/nikkusu` (Nix as verbs), `kakehashi/hyouka` (evaluation),
 `kakehashi/kirikae` (switching a system), `kakehashi/kijun` (the fleet repo

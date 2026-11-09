@@ -1,7 +1,7 @@
 @moduledoc """
 toride (砦) — a fort at the border: split-horizon DNS for a machine that roams between sites. It finds the site it stands on from the default route, the interface address and the gateway's MAC, and serves each name its LAN address at home, its tailnet address elsewhere, or withholds it with a reason.
 
-    relation("natal", "natal") #=> :here
+    relation("alfa", "alfa") #=> :here
 """
 
 use("deeta", %i[as_json get_if])
@@ -405,7 +405,7 @@ end
 label_of: The name a refusal shows for an entry. An empty name shows as `(unnamed)`.
 
     label_of("") #=> "(unnamed)"
-    label_of("natal") #=> "natal"
+    label_of("alfa") #=> "alfa"
 """
 def label_of(name)
   if name == ""
@@ -867,7 +867,7 @@ end
 @doc """
 relation: An entry's site against the site the machine stands on.
 
-    relation("buzios", :ambiguous) #=> :ambiguous
+    relation("bravo", :ambiguous) #=> :ambiguous
 """
 def relation(entry_site, site)
   if not string?(site)
@@ -1157,7 +1157,7 @@ end
 @doc """
 outcome_line: The run's one line: result, site, gateway, and how many names were served, withheld and refused.
 
-    outcome_line({result: "unchanged", answers: []}, {site: "natal", gateway: :up}, []) #=> "unchanged site=natal gateway=up served=0 withheld=0 refused=0"
+    outcome_line({result: "unchanged", answers: []}, {site: "alfa", gateway: :up}, []) #=> "unchanged site=alfa gateway=up served=0 withheld=0 refused=0"
 """
 def outcome_line(c, run, refusals)
   served = filter((a) -> a[:address] != nil, c[:answers])
@@ -1232,40 +1232,40 @@ def config()
 end
 
 @doc """
-natal_commands: The fixture answers of a nixos machine at the natal site: each pair is a command line and the text it prints.
+alfa_commands: The fixture answers of a nixos machine at the alfa site: each pair is a command line and the text it prints.
 
-    size(natal_commands) #=> 4
+    size(alfa_commands) #=> 4
 """
-def natal_commands()
+def alfa_commands()
   [
     [
       "ip -4 route show table main",
-      fairu::fixture("toride", "ip-route-natal.txt")
+      fairu::fixture("toride", "ip-route-alfa.txt")
     ],
     [
       "ip -4 -o addr show dev wlo1",
-      fairu::fixture("toride", "ip-addr-natal.txt")
+      fairu::fixture("toride", "ip-addr-alfa.txt")
     ],
     [
       "ip -4 neigh show dev wlo1",
-      fairu::fixture("toride", "ip-neigh-natal.txt")
+      fairu::fixture("toride", "ip-neigh-alfa.txt")
     ],
     ["/usr/bin/true", ""]
   ]
 end
 
 @doc """
-buzios_commands: The fixture answers of a darwin machine at the buzios site, with `arp` naming the fixture that `arp -an` prints.
+bravo_commands: The fixture answers of a darwin machine at the bravo site, with `arp` naming the fixture that `arp -an` prints.
 
-    size(buzios_commands("arp-buzios.txt")) #=> 4
+    size(bravo_commands("arp-bravo.txt")) #=> 4
 """
-def buzios_commands(arp)
+def bravo_commands(arp)
   [
     [
       "/usr/sbin/netstat -rn -f inet",
-      fairu::fixture("toride", "netstat-buzios.txt")
+      fairu::fixture("toride", "netstat-bravo.txt")
     ],
-    ["/sbin/ifconfig en0", fairu::fixture("toride", "ifconfig-buzios.txt")],
+    ["/sbin/ifconfig en0", fairu::fixture("toride", "ifconfig-bravo.txt")],
     ["/usr/sbin/arp -an", fairu::fixture("toride", arp)],
     ["/usr/bin/true", ""]
   ]
@@ -1300,7 +1300,7 @@ end
 @doc """
 at: The run state that `assemble` builds from a `fake` observation of `commands` and `probed`, with `streak` as the prior streak.
 
-    at(config, natal_commands, ok(true), 0)[:site] #=> "natal"
+    at(config, alfa_commands, ok(true), 0)[:site] #=> "alfa"
 """
 def at(cfg, commands, probed, streak)
   assemble(cfg, observe(cfg, fake(commands, probed)), {streak:})
@@ -1309,7 +1309,7 @@ end
 @doc """
 served: Each entry's name mapped to its answer in `run`: the address it is served at, or the outcome label when it is withheld or blind.
 
-    served(config, at(config, natal_commands, ok(true), 0))["plo"] #=> "192.168.50.3"
+    served(config, at(config, alfa_commands, ok(true), 0))["plo"] #=> "192.168.50.3"
 """
 def served(cfg, run)
   reduce(
@@ -1525,7 +1525,7 @@ test "settings: each takes its typed default, and a malformed one is refused by 
   assert load(nil)[:readable] == false
   assert load("[[1, 2]]")[:readable] == false
   assert load("[[\"a\", 1, 2]]")[:readable] == false
-  assert load(json_stringify({sites: "natal"}))[:sites] == []
+  assert load(json_stringify({sites: "alfa"}))[:sites] == []
   assert load("[1, 2]")[:readable] == false
   assert load("not json")[:readable] == false
 end
@@ -1533,10 +1533,9 @@ end
 test "sites, nodes and services: a malformed entry is refused alone, by name, and valid siblings proceed"
   cfg = config
   assert cfg[:refusals] == []
-  assert map((s) -> s[:name], cfg[:sites]) ==
-    %w[natal bristol buzios parnamirim]
-  natal = first(cfg[:sites])
-  assert natal[:gateway] == "192.168.50.1"
+  assert map((s) -> s[:name], cfg[:sites]) == %w[alfa bristol bravo charlie]
+  alfa = first(cfg[:sites])
+  assert alfa[:gateway] == "192.168.50.1"
   assert last(cfg[:sites])[:gateway] == "192.168.70.1"
   assert last(cfg[:sites])[:gateway_mac].nil?
   assert cfg[:sites][2][:gateway_mac] == "02:00:5e:60:00:01"
@@ -1640,19 +1639,19 @@ test "sites, nodes and services: a malformed entry is refused alone, by name, an
 end
 
 test "darwin parsers over the measured Búzios captures: netstat, ifconfig and a root arp table"
-  rs = parse_netstat(fairu::fixture("toride", "netstat-buzios.txt"))[:value]
+  rs = parse_netstat(fairu::fixture("toride", "netstat-bravo.txt"))[:value]
   assert default_gateway(rs) == {gateway: "192.168.60.1", iface: "en0"}
   assert default_gateway(
     [{dest: "default", gateway: "link#14", flags: "UCS", iface: "en0"}]
   ).nil?
   assert get(
-    parse_ifconfig(fairu::fixture("toride", "ifconfig-buzios.txt")),
+    parse_ifconfig(fairu::fixture("toride", "ifconfig-bravo.txt")),
     :value
   ) == {addr: "192.168.60.138", prefix: 24}
   assert parse_ifconfig(unlines(["\tinet 10.0.0.2"]))[:ok] == false
   assert parse_ifconfig(unlines(["\tinet nope netmask 0xffffff00"]))[:ok] ==
     false
-  arp = parse_arp(fairu::fixture("toride", "arp-buzios.txt"))[:value]
+  arp = parse_arp(fairu::fixture("toride", "arp-bravo.txt"))[:value]
   assert size(arp) == 14
   assert mac_of(arp, "192.168.60.1", "en0") == "02:00:5e:60:00:01"
   assert mac_of(arp, "192.168.60.1", "en1") == :unread
@@ -1678,19 +1677,19 @@ test "darwin parsers over the measured Búzios captures: netstat, ifconfig and a
   ) == :unread
 end
 
-test "nixos parsers over the measured Natal captures: ip route, ip addr and ip neigh"
-  rs = parse_ip_route(fairu::fixture("toride", "ip-route-natal.txt"))[:value]
+test "nixos parsers over the measured Alfa captures: ip route, ip addr and ip neigh"
+  rs = parse_ip_route(fairu::fixture("toride", "ip-route-alfa.txt"))[:value]
   assert default_gateway(rs) == {gateway: "192.168.50.1", iface: "wlo1"}
   assert get(
-    parse_ip_addr(fairu::fixture("toride", "ip-addr-natal.txt"), "wlo1"),
+    parse_ip_addr(fairu::fixture("toride", "ip-addr-alfa.txt"), "wlo1"),
     :value
   ) == {addr: "192.168.50.3", prefix: 24}
   assert get(
-    parse_ip_addr(fairu::fixture("toride", "ip-addr-natal.txt"), "eth9"),
+    parse_ip_addr(fairu::fixture("toride", "ip-addr-alfa.txt"), "eth9"),
     :ok
   ) == false
   assert parse_ip_addr("3: wlo1    inet nope/24 brd x", "wlo1")[:ok] == false
-  n = parse_ip_neigh(fairu::fixture("toride", "ip-neigh-natal.txt"))[:value]
+  n = parse_ip_neigh(fairu::fixture("toride", "ip-neigh-alfa.txt"))[:value]
   assert size(n) == 8
   assert mac_of(n, "192.168.50.1", "wlo1") == "02:00:5e:50:00:01"
   assert mac_of(n, "192.168.50.2", "wlo1") == :unread
@@ -1708,28 +1707,28 @@ end
 
 test "site matching: subnet and gateway filter, a MAC decides, and neither an unread MAC nor a tie ever picks one"
   cfg = config
-  natal = first(cfg[:sites])
+  alfa = first(cfg[:sites])
   bristol = cfg[:sites][1]
-  loose_n = assoc(natal, :gateway_mac, nil)
+  loose_n = assoc(alfa, :gateway_mac, nil)
   loose_b = assoc(bristol, :gateway_mac, nil)
-  assert match_site([natal, bristol], "02:00:5e:50:00:01") == "natal"
-  assert match_site([natal, bristol], "02:00:5e:b0:00:01") == "bristol"
-  assert match_site([natal, bristol], "02:00:5e:99:00:01") == :unknown
-  assert match_site([natal, bristol], :unread) == :unread
+  assert match_site([alfa, bristol], "02:00:5e:50:00:01") == "alfa"
+  assert match_site([alfa, bristol], "02:00:5e:b0:00:01") == "bristol"
+  assert match_site([alfa, bristol], "02:00:5e:99:00:01") == :unknown
+  assert match_site([alfa, bristol], :unread) == :unread
   assert match_site([loose_n, loose_b], "02:00:5e:50:00:01") == :ambiguous
   assert match_site([loose_n, loose_b], :unread) == :ambiguous
-  assert match_site([loose_n], :unread) == "natal"
-  assert match_site([natal, loose_b], "02:00:5e:50:00:01") == "natal"
-  assert match_site([natal, loose_b], "02:00:5e:99:00:01") == "bristol"
-  assert match_site([natal, loose_b], :unread) == :unread
+  assert match_site([loose_n], :unread) == "alfa"
+  assert match_site([alfa, loose_b], "02:00:5e:50:00:01") == "alfa"
+  assert match_site([alfa, loose_b], "02:00:5e:99:00:01") == "bristol"
+  assert match_site([alfa, loose_b], :unread) == :unread
   assert match_site(
-    [natal, assoc(bristol, :gateway_mac, natal[:gateway_mac])],
-    natal[:gateway_mac]
+    [alfa, assoc(bristol, :gateway_mac, alfa[:gateway_mac])],
+    alfa[:gateway_mac]
   ) == :ambiguous
   assert match_site([], "02:00:5e:50:00:01") == :unknown
-  assert relation("natal", "natal") == :here
-  assert relation("natal", "buzios") == :elsewhere
-  assert relation("natal", :unknown) == :unknown
+  assert relation("alfa", "alfa") == :here
+  assert relation("alfa", "bravo") == :elsewhere
+  assert relation("alfa", :unknown) == :unknown
 end
 
 test "the gateway is down only after fail_threshold probes fail in a row"
@@ -1739,10 +1738,10 @@ test "the gateway is down only after fail_threshold probes fail in a row"
   assert debounce(false, 0, 1) == [:down, 1]
 end
 
-test "on Natal (nixos, measured): home names on the LAN, Búzios through its subnet route, the lan-only printer withheld"
+test "on Alfa (nixos, measured): home names on the LAN, Búzios through its subnet route, the lan-only printer withheld"
   cfg = config
-  run = at(cfg, natal_commands, ok(true), 0)
-  assert run[:site] == "natal"
+  run = at(cfg, alfa_commands, ok(true), 0)
+  assert run[:site] == "alfa"
   assert run[:gateway] == :up
   assert run[:mac] == "02:00:5e:50:00:01"
   assert run[:local] == {network: ip_int("192.168.50.0"), prefix: 24}
@@ -1750,50 +1749,50 @@ test "on Natal (nixos, measured): home names on the LAN, Búzios through its sub
     {
       "plo" => "192.168.50.3",
       "zek" => "192.168.50.20",
-      "hue.natal.pleme.internal" => "192.168.50.183",
-      "cid.buzios.pleme.internal" => "192.168.60.138",
-      "printer.parnamirim.pleme.internal" => "withheld:lan_only"
+      "hue.alfa.pleme.internal" => "192.168.50.183",
+      "cid.bravo.pleme.internal" => "192.168.60.138",
+      "printer.charlie.pleme.internal" => "withheld:lan_only"
     }
   text = render(run, map((e) -> answer(e, run), cfg[:entries]))
   assert text ==
     unlines(
       [
         "# Generated by toride; do not edit",
-        "# site: natal gateway: up",
+        "# site: alfa gateway: up",
         "address=/plo.pleme.internal/192.168.50.3",
         "address=/plo/192.168.50.3",
         "address=/zek.pleme.internal/192.168.50.20",
-        "address=/hue.natal.pleme.internal/192.168.50.183",
-        "address=/cid.buzios.pleme.internal/192.168.60.138",
-        "# withheld printer.parnamirim.pleme.internal: lan_only"
+        "address=/hue.alfa.pleme.internal/192.168.50.183",
+        "address=/cid.bravo.pleme.internal/192.168.60.138",
+        "# withheld printer.charlie.pleme.internal: lan_only"
       ]
     )
 end
 
-test "on Búzios (darwin, measured): Natal's nodes on the tailnet, Búzios's own entry on the LAN, Natal's routed service kept"
+test "on Búzios (darwin, measured): Alfa's nodes on the tailnet, Búzios's own entry on the LAN, Alfa's routed service kept"
   cfg = darwin(config)
-  run = at(cfg, buzios_commands("arp-buzios.txt"), ok(true), 0)
-  assert run[:site] == "buzios"
+  run = at(cfg, bravo_commands("arp-bravo.txt"), ok(true), 0)
+  assert run[:site] == "bravo"
   assert served(cfg, run) ==
     {
-      "plo" => "100.64.0.110",
-      "zek" => "100.64.0.20",
-      "hue.natal.pleme.internal" => "192.168.50.183",
-      "cid.buzios.pleme.internal" => "192.168.60.138",
-      "printer.parnamirim.pleme.internal" => "withheld:lan_only"
+      "plo" => "100.64.0.11",
+      "zek" => "100.64.0.12",
+      "hue.alfa.pleme.internal" => "192.168.50.183",
+      "cid.bravo.pleme.internal" => "192.168.60.138",
+      "printer.charlie.pleme.internal" => "withheld:lan_only"
     }
 end
 
 test "on an unknown LAN: no site claims it, so every node is on the tailnet"
-  cfg = without_site(darwin(config), "buzios")
-  run = at(cfg, buzios_commands("arp-buzios.txt"), ok(true), 0)
+  cfg = without_site(darwin(config), "bravo")
+  run = at(cfg, bravo_commands("arp-bravo.txt"), ok(true), 0)
   assert run[:site] == :unknown
   assert served(cfg, run) ==
     {
-      "plo" => "100.64.0.110",
-      "zek" => "100.64.0.20",
-      "hue.natal.pleme.internal" => "192.168.50.183",
-      "printer.parnamirim.pleme.internal" => "withheld:lan_only"
+      "plo" => "100.64.0.11",
+      "zek" => "100.64.0.12",
+      "hue.alfa.pleme.internal" => "192.168.50.183",
+      "printer.charlie.pleme.internal" => "withheld:lan_only"
     }
   gone = [
     [
@@ -1806,7 +1805,7 @@ test "on an unknown LAN: no site claims it, so every node is on the tailnet"
   assert offline[:gateway] == :down
   moved = map(
     fn(s)
-      if s[:name] == "buzios"
+      if s[:name] == "bravo"
         assoc(s, :gateway, "192.168.60.254")
       else
         s
@@ -1816,14 +1815,14 @@ test "on an unknown LAN: no site claims it, so every node is on the tailnet"
   )
   other_router = at(
     darwin(assoc(config, :sites, moved)),
-    buzios_commands("arp-buzios.txt"),
+    bravo_commands("arp-bravo.txt"),
     ok(true),
     0
   )
   assert other_router[:site] == :unknown
   narrow = map(
     fn(s)
-      if s[:name] == "buzios"
+      if s[:name] == "bravo"
         assoc(s, :net, parse_cidr("192.168.60.0/30"))
       else
         s
@@ -1833,54 +1832,54 @@ test "on an unknown LAN: no site claims it, so every node is on the tailnet"
   )
   other_net = at(
     darwin(assoc(config, :sites, narrow)),
-    buzios_commands("arp-buzios.txt"),
+    bravo_commands("arp-bravo.txt"),
     ok(true),
     0
   )
   assert other_net[:site] == :unknown
 end
 
-test "on an ambiguous LAN: Natal and Bristol share a subnet and a gateway; the MAC decides, and with no MAC neither is picked"
+test "on an ambiguous LAN: Alfa and Bristol share a subnet and a gateway; the MAC decides, and with no MAC neither is picked"
   cfg = config
   bristol = at(
     site_mac(
-      site_mac(cfg, "natal", "02:00:5e:aa:00:01"),
+      site_mac(cfg, "alfa", "02:00:5e:aa:00:01"),
       "bristol",
       "02:00:5e:50:00:01"
     ),
-    natal_commands,
+    alfa_commands,
     ok(true),
     0
   )
   assert bristol[:site] == "bristol"
-  assert served(cfg, bristol)["plo"] == "100.64.0.110"
-  assert served(cfg, bristol)["hue.natal.pleme.internal"] ==
+  assert served(cfg, bristol)["plo"] == "100.64.0.11"
+  assert served(cfg, bristol)["hue.alfa.pleme.internal"] ==
     "withheld:shadowed_by_local_lan"
-  loose = site_mac(site_mac(cfg, "natal", nil), "bristol", nil)
-  run = at(loose, natal_commands, ok(true), 0)
+  loose = site_mac(site_mac(cfg, "alfa", nil), "bristol", nil)
+  run = at(loose, alfa_commands, ok(true), 0)
   assert run[:site] == :ambiguous
   assert served(loose, run) ==
     {
-      "plo" => "100.64.0.110",
-      "zek" => "100.64.0.20",
-      "hue.natal.pleme.internal" => "withheld:shadowed_by_local_lan",
-      "cid.buzios.pleme.internal" => "192.168.60.138",
-      "printer.parnamirim.pleme.internal" => "withheld:lan_only"
+      "plo" => "100.64.0.11",
+      "zek" => "100.64.0.12",
+      "hue.alfa.pleme.internal" => "withheld:shadowed_by_local_lan",
+      "cid.bravo.pleme.internal" => "192.168.60.138",
+      "printer.charlie.pleme.internal" => "withheld:lan_only"
     }
 end
 
 test "gateway unreachable: held on the LAN until the threshold, then home names move to the tailnet"
   cfg = config
-  held = at(cfg, natal_commands, ok(false), 1)
+  held = at(cfg, alfa_commands, ok(false), 1)
   assert held[:gateway] == :up
   assert held[:streak] == 2
-  down = at(cfg, natal_commands, ok(false), 2)
+  down = at(cfg, alfa_commands, ok(false), 2)
   assert down[:gateway] == :down
   assert down[:streak] == 3
-  assert served(cfg, down)["plo"] == "100.64.0.110"
-  assert served(cfg, down)["hue.natal.pleme.internal"] ==
+  assert served(cfg, down)["plo"] == "100.64.0.11"
+  assert served(cfg, down)["hue.alfa.pleme.internal"] ==
     "withheld:shadowed_by_local_lan"
-  assert served(cfg, down)["cid.buzios.pleme.internal"] == "192.168.60.138"
+  assert served(cfg, down)["cid.bravo.pleme.internal"] == "192.168.60.138"
 end
 
 test "an unreadable observation is blind, never empty, and blind writes nothing"
@@ -1891,40 +1890,38 @@ test "an unreadable observation is blind, never empty, and blind writes nothing"
   c = converge(cfg, nothing, fake([], ok(true)))
   assert c[:result] == "blind:site,gateway"
   assert path_exists(cfg[:dnsmasq_conf]) == false
-  no_mac = at(darwin(cfg), buzios_commands("arp-unprivileged.txt"), ok(true), 0)
+  no_mac = at(darwin(cfg), bravo_commands("arp-unprivileged.txt"), ok(true), 0)
   assert no_mac[:site] == :unread
   assert no_mac[:mac] == :unread
   assert converge(cfg, no_mac, fake([], ok(true)))[:result] == "blind:site"
-  no_probe = at(cfg, natal_commands, bad("probe: could not"), 0)
-  assert no_probe[:site] == "natal"
+  no_probe = at(cfg, alfa_commands, bad("probe: could not"), 0)
+  assert no_probe[:site] == "alfa"
   assert no_probe[:gateway] == :unread
   assert converge(cfg, no_probe, fake([], ok(true)))[:result] == "blind:gateway"
-  no_addr = at(cfg, [first(natal_commands)], ok(true), 0)
+  no_addr = at(cfg, [first(alfa_commands)], ok(true), 0)
   assert no_addr[:site] == :unread
-  no_neigh = at(cfg, take(2, natal_commands), ok(true), 0)
+  no_neigh = at(cfg, take(2, alfa_commands), ok(true), 0)
   assert no_neigh[:site] == :unread
   assert no_neigh[:mac] == :unread
 end
 
 test "converge writes and reloads only when the text changes, a dry run only says so, and a failed write or reload is named"
   cfg = in_dir(config)
-  io = fake(natal_commands, ok(true))
-  run = at(cfg, natal_commands, ok(true), 0)
+  io = fake(alfa_commands, ok(true))
+  run = at(cfg, alfa_commands, ok(true), 0)
   assert converge(assoc(cfg, :dry_run, true), run, io)[:result] == "would-write"
   assert path_exists(cfg[:dnsmasq_conf]) == false
   c = converge(cfg, run, io)
   assert c[:result] == "written"
   assert read_file(cfg[:dnsmasq_conf]) == c[:text]
   assert converge(cfg, run, io)[:result] == "unchanged"
-  away = at(cfg, natal_commands, ok(false), 5)
+  away = at(cfg, alfa_commands, ok(false), 5)
   assert get(
     converge(assoc(cfg, :reload, ["/no/such/reload"]), away, io),
     :result
   ) == "reload-failed"
-  assert contains?(
-    read_file(cfg[:dnsmasq_conf]),
-    "address=/plo/100.64.0.110"
-  ) == true
+  assert contains?(read_file(cfg[:dnsmasq_conf]), "address=/plo/100.64.0.11") ==
+    true
   assert get(
     converge(assoc(cfg, :dnsmasq_conf, "/dev/null/toride.conf"), run, io),
     :result
@@ -1933,23 +1930,21 @@ end
 
 test "run: observe, converge and record; the streak survives between runs, and the line prints on change or heartbeat"
   cfg = in_dir(config)
-  io = fake(natal_commands, ok(false))
+  io = fake(alfa_commands, ok(false))
   first_run = run(cfg, io)
   assert first_run[:result] == "written"
   assert first_run[:streak] == 1
   assert first_run[:runs] == 1
   assert first_run[:line] ==
-    "written site=natal gateway=up served=4 withheld=1 refused=0"
+    "written site=alfa gateway=up served=4 withheld=1 refused=0"
   second = run(cfg, io)
   assert second[:result] == "unchanged"
   assert second[:streak] == 2
   third = run(cfg, io)
   assert third[:gateway] == "down"
   assert third[:result] == "written"
-  assert contains?(
-    read_file(cfg[:dnsmasq_conf]),
-    "address=/plo/100.64.0.110"
-  ) == true
+  assert contains?(read_file(cfg[:dnsmasq_conf]), "address=/plo/100.64.0.11") ==
+    true
   assert read_prior(cfg[:state_path])[:runs] == 3
   assert loud?("a", "b", 1, 30) == true
   assert loud?("a", "a", 30, 30) == true
@@ -1983,7 +1978,7 @@ test "the commands toride runs, by platform, and a probe that reaches nothing"
           [
             [
               "/usr/sbin/netstat -rn -f inet",
-              fairu::fixture("toride", "netstat-buzios.txt")
+              fairu::fixture("toride", "netstat-bravo.txt")
             ]
           ],
           ok(true)

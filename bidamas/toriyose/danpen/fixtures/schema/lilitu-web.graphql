@@ -8403,7 +8403,7 @@ type Query {
 	Returns a page of pre-computed, tiered provider listings.
 	Data is refreshed every 5 minutes by the wall_refresh worker.
 	
-	- `city`: Filter by city slug (e.g., "natal"). Null returns global wall.
+	- `city`: Filter by city slug (e.g., "alfa"). Null returns global wall.
 	- `neighborhood`: Filter by neighborhood within a city. Requires city.
 	- `page`: Page number (0-indexed, default 0). Each page has 20 profiles.
 	

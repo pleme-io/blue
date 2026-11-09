@@ -1,7 +1,7 @@
 @moduledoc """
 kodou (鼓動) — the dual-pulse wire: a Flash channel paced by ibuki's token bucket and a Tide channel paced by ibuki's LEDBAT controller from the one-way delay each acknowledgement measures, over one UDP socket the host frames (0x02 Flash, 0x01 Tide); and the gossip of crash proofs on it: an alert on Flash, the artifact on Tide when a peer asks for it, verified by its content hash and kept in kensa's `kensa-immunity.v1` file.
 
-The host words are `flash_*` (the comm_flash capability) and `tide_*` (comm_scavenger); the clock paces both, so under a stepped clock a run repeats. The host refuses a frame past 1280 bytes, and holds each wire's Flash channel to the same rate and burst as ibuki's bucket (`flash_bytes_per_second`, 16 KiB/s), refusing a send past it as a catchable `:rate_limited`; so a program that calls `flash_put` itself is paced too. `virtualize(:comm_flash, {using: :loopback})` and the same for comm_scavenger carry the frames in process, with no socket. The design and its tiers: `theory/IBUKI.md`.
+The host words are `flash_*` (the comm_flash capability) and `tide_*` (comm_scavenger); the clock paces both, so under a stepped clock a run repeats. The host refuses a frame past 1280 bytes, and holds each wire's Flash channel to the same rate and burst as ibuki's bucket (`flash_bytes_per_second`, 16 KiB/s), refusing a send past it as a catchable `:rate_limited`; so a program that calls `flash_put` itself is paced too. `virtualize(:comm_flash, {using: :loopback})` and the same for comm_scavenger carry the frames in process, with no socket.
 
     parts("abcdef", 4) #=> ["abcd", "ef"]
 """

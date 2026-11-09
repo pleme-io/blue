@@ -31,7 +31,7 @@ type Device {
 
 """
 The platform a registered sync device runs on. Mobile is File-Provider /
-DocumentsProvider + opportunistic background sync (theory/GAVETA.md §II).
+DocumentsProvider + opportunistic background sync.
 """
 enum DevicePlatform {
 	DESKTOP
@@ -319,7 +319,7 @@ type Query {
 """
 A sharing grant — "share this node (subtree) with member X" (the mutirão
 colmeia consent projection). Consent is the only path to cross-member
-access (theory/GAVETA.md §0).
+access.
 """
 type Share {
 	id: UUID!

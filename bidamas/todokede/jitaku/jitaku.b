@@ -1229,7 +1229,7 @@ end
 
 def example_home()
   [
-    site("natal"),
+    site("alfa"),
     delivery("engenho"),
     on(:mosquitto),
     component(:whisper, {enable: true, language: "pt"}),
@@ -1319,20 +1319,20 @@ test "an empty home is on, and refused only for the site it lacks"
   assert kinds(refusals([])) == [:no_site]
   assert accepted([]) == []
   assert to_json([]) == "{\"enable\":true}"
-  assert kinds(refusals([site("natal")])) == []
+  assert kinds(refusals([site("alfa")])) == []
 end
 
 test "a tone and a mood project field for field as pleme.lareira takes them"
   assert to_json(
     [
-      site("natal"),
+      site("alfa"),
       tone(
         "alpha-10hz",
         {frequency: 200, tremolo: 10.0, depth: 1.0, minutes: 30}
       )
     ]
   ) ==
-    "{\"enable\":true,\"homeAssistant\":{\"tones\":{\"alpha-10hz\":{\"depth\":1.0,\"frequency\":200,\"minutes\":30,\"tremolo\":10.0}}},\"site\":{\"name\":\"natal\"}}"
+    "{\"enable\":true,\"homeAssistant\":{\"tones\":{\"alpha-10hz\":{\"depth\":1.0,\"frequency\":200,\"minutes\":30,\"tremolo\":10.0}}},\"site\":{\"name\":\"alfa\"}}"
   assert json_stringify(lareira(example_home)) == to_json(example_home)
   relax = json_stringify(
     project(
@@ -1456,7 +1456,7 @@ end
 
 test "a mood plays only where a base url and speakers stand"
   bare = [
-    site("natal"),
+    site("alfa"),
     tone("hz432", {frequency: 432}),
     mood("m", {sound: sound("hz432", 0.3)})
   ]
@@ -1482,15 +1482,15 @@ test "a mood plays only where a base url and speakers stand"
 end
 
 test "a field the table does not know is refused, never dropped"
-  ok = [site("natal"), mood("m", {label: "M", lights: {brightness_pct: 10}})]
+  ok = [site("alfa"), mood("m", {label: "M", lights: {brightness_pct: 10}})]
   typo = [
-    site("natal"),
+    site("alfa"),
     mood("m", {label: "M", lights: {brightness_pct: 10, kelvn: 3000}})
   ]
   assert refusals(ok) == []
   assert kinds(refusals(typo)) == [:invalid]
   assert kinds(
-    refusals([site("natal"), tone("t", {frequency: 432, volume: 1})])
+    refusals([site("alfa"), tone("t", {frequency: 432, volume: 1})])
   ) == [:invalid]
 end
 

@@ -1,3 +1,8 @@
+---
+kind: explanation
+summary: a zero-server peer network in blue with capability memory regions, fault-scoped tamper evidence, and a game platform on it (design, destination approved 2026-11-09)
+---
+
 # P2P: a zero-server peer network in blue, and a game platform on it
 
 Status: DESIGN, 2026-11-09, revised after an independent review the same day.

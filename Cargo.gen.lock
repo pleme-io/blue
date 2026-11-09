@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "17e6db70a12620b21aeb5513e90db2d267854b22a9fe2cd2a230a81634cd9724",
+  "cargo_lock_sha256": "7fe792e0b721f44a4f0462ef76f5c19d41447e0aa2a8447baf09e9139636e59c",
   "manifest_sha256": {
     "Cargo.toml": "deb0bc889f7a7a87822af60975f8575d1d10ca44b55473552c418116be6d645c",
     "crates/blue-lang-appliance/Cargo.toml": "72da422691d14356450606a218eed12ed6a26ed3a23c64116dc3ef8546937526",
@@ -19,7 +19,7 @@
     "crates/blue-lang-mondou/Cargo.toml": "637a0cbb6ac275a3478a437406f8fd387a8b5257f755127815a47418b7ad08e5",
     "crates/blue-lang-pkg/Cargo.toml": "4748e901a3daea02d320297a956284dcb4aeee913c1c3df074d0722fda893d3c",
     "crates/blue-lang-proc/Cargo.toml": "84d0fc0f2223461e180e38eb73bfd8a1e3e474b12d0eb8d9814198520ae9c48b",
-    "crates/blue-lang-runtime/Cargo.toml": "87284d5dce70754ff9526bbdd19f8cd00ba459e128516188d22191e1d88b0582",
+    "crates/blue-lang-runtime/Cargo.toml": "c0e89593b32c2ac7253438c56007993e3207606444f552d39a02f500e0521892",
     "crates/blue-lang-senses/Cargo.toml": "b8a88a1d21769a74b0210bd6ad3aa3e91cbdb59f7f7f531c569bb20a040eb7f0",
     "crates/blue-lang-syntax/Cargo.toml": "9d405348af1d3f57fffd0a73ddf0776a933ce98bfbcaa60c53a1db55db4e75cd",
     "crates/blue-lang-test/Cargo.toml": "df208a871216b2b2374dfa0614ddf42eaa7ba2d801dd6b981cde99ac14709cdb",
@@ -30,6 +30,34 @@
   },
   "target_resolves": {
     "base": {
+      "aead-0.5.2": {
+        "runtime_dependencies": [
+          {
+            "name": "crypto_common",
+            "package_key": "crypto-common-0.1.7",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "generic_array",
+            "package_key": "generic-array-0.14.7",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": [
+          "alloc"
+        ]
+      },
       "ahash-0.8.12": {
         "runtime_dependencies": [
           {
@@ -470,7 +498,10 @@
       "arrayvec-0.7.8": {
         "runtime_dependencies": [],
         "build_dependencies": [],
-        "features": []
+        "features": [
+          "default",
+          "std"
+        ]
       },
       "async-trait-0.1.91": {
         "runtime_dependencies": [
@@ -921,6 +952,32 @@
         "features": [
           "tracing"
         ]
+      },
+      "bao-0.13.1": {
+        "runtime_dependencies": [
+          {
+            "name": "arrayvec",
+            "package_key": "arrayvec-0.7.8",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "blake3",
+            "package_key": "blake3-1.8.5",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": []
       },
       "base16ct-0.2.0": {
         "runtime_dependencies": [],
@@ -1835,6 +1892,16 @@
       "blue-lang-runtime-0.0.180": {
         "runtime_dependencies": [
           {
+            "name": "bao",
+            "package_key": "bao-0.13.1",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
             "name": "blake3",
             "package_key": "blake3-1.8.5",
             "kind": "normal",
@@ -1913,6 +1980,18 @@
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "chacha20poly1305",
+            "package_key": "chacha20poly1305-0.10.1",
+            "kind": "normal",
+            "features": [
+              "alloc"
+            ],
+            "uses_default_features": false,
             "optional": false,
             "target": null,
             "tree": "target"
@@ -2053,6 +2132,20 @@
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "x25519_dalek",
+            "package_key": "x25519-dalek-2.0.1",
+            "kind": "normal",
+            "features": [
+              "precomputed-tables",
+              "static_secrets",
+              "zeroize"
+            ],
+            "uses_default_features": false,
             "optional": false,
             "target": null,
             "tree": "target"
@@ -2301,6 +2394,66 @@
         "build_dependencies": [],
         "features": []
       },
+      "chacha20poly1305-0.10.1": {
+        "runtime_dependencies": [
+          {
+            "name": "aead",
+            "package_key": "aead-0.5.2",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "chacha20",
+            "package_key": "chacha20-0.9.1",
+            "kind": "normal",
+            "features": [
+              "zeroize"
+            ],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "cipher",
+            "package_key": "cipher-0.4.4",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "poly1305",
+            "package_key": "poly1305-0.8.0",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "zeroize",
+            "package_key": "zeroize-1.9.1",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": [
+          "alloc"
+        ]
+      },
       "chrono-0.4.45": {
         "runtime_dependencies": [
           {
@@ -2351,6 +2504,44 @@
           "wasmbind",
           "winapi",
           "windows-link"
+        ]
+      },
+      "cipher-0.4.4": {
+        "runtime_dependencies": [
+          {
+            "name": "crypto_common",
+            "package_key": "crypto-common-0.1.7",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "inout",
+            "package_key": "inout-0.1.4",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "zeroize",
+            "package_key": "zeroize-1.9.1",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": true,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": [
+          "zeroize"
         ]
       },
       "clap-4.6.5": {
@@ -5524,6 +5715,22 @@
         "build_dependencies": [],
         "features": []
       },
+      "inout-0.1.4": {
+        "runtime_dependencies": [
+          {
+            "name": "generic_array",
+            "package_key": "generic-array-0.14.7",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": []
+      },
       "inventory-0.3.24": {
         "runtime_dependencies": [],
         "build_dependencies": [],
@@ -6197,6 +6404,11 @@
           "race",
           "std"
         ]
+      },
+      "opaque-debug-0.3.1": {
+        "runtime_dependencies": [],
+        "build_dependencies": [],
+        "features": []
       },
       "parking_lot-0.12.5": {
         "runtime_dependencies": [
@@ -11179,6 +11391,32 @@
           "default"
         ]
       },
+      "universal-hash-0.5.1": {
+        "runtime_dependencies": [
+          {
+            "name": "crypto_common",
+            "package_key": "crypto-common-0.1.7",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "subtle",
+            "package_key": "subtle-2.6.1",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": []
+      },
       "unsafe-libyaml-norway-0.2.15": {
         "runtime_dependencies": [],
         "build_dependencies": [],
@@ -11446,6 +11684,48 @@
         "runtime_dependencies": [],
         "build_dependencies": [],
         "features": []
+      },
+      "x25519-dalek-2.0.1": {
+        "runtime_dependencies": [
+          {
+            "name": "curve25519_dalek",
+            "package_key": "curve25519-dalek-4.1.3",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "rand_core",
+            "package_key": "rand_core-0.6.4",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "zeroize",
+            "package_key": "zeroize-1.9.1",
+            "kind": "normal",
+            "features": [
+              "zeroize_derive"
+            ],
+            "uses_default_features": false,
+            "optional": true,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": [
+          "precomputed-tables",
+          "static_secrets",
+          "zeroize"
+        ]
       },
       "yaml-rust2-0.13.0": {
         "runtime_dependencies": [
@@ -12181,6 +12461,34 @@
               "rng"
             ]
           },
+          "chacha20-0.9.1": {
+            "runtime_dependencies": [
+              {
+                "name": "cfg_if",
+                "package_key": "cfg-if-1.0.5",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "cipher",
+                "package_key": "cipher-0.4.4",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": [
+              "zeroize"
+            ]
+          },
           "const-hex-1.19.3": {
             "runtime_dependencies": [
               {
@@ -12511,6 +12819,32 @@
               "fsevent-sys",
               "macos_fsevent"
             ]
+          },
+          "poly1305-0.8.0": {
+            "runtime_dependencies": [
+              {
+                "name": "opaque_debug",
+                "package_key": "opaque-debug-0.3.1",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "universal_hash",
+                "package_key": "universal-hash-0.5.1",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": []
           },
           "ring-0.17.14": {
             "runtime_dependencies": [
@@ -13156,6 +13490,34 @@
               "rng"
             ]
           },
+          "chacha20-0.9.1": {
+            "runtime_dependencies": [
+              {
+                "name": "cfg_if",
+                "package_key": "cfg-if-1.0.5",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "cipher",
+                "package_key": "cipher-0.4.4",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": [
+              "zeroize"
+            ]
+          },
           "const-hex-1.19.3": {
             "runtime_dependencies": [
               {
@@ -13504,6 +13866,32 @@
           },
           "openssl-probe-0.2.2": {
             "runtime_dependencies": [],
+            "build_dependencies": [],
+            "features": []
+          },
+          "poly1305-0.8.0": {
+            "runtime_dependencies": [
+              {
+                "name": "opaque_debug",
+                "package_key": "opaque-debug-0.3.1",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "universal_hash",
+                "package_key": "universal-hash-0.5.1",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
             "build_dependencies": [],
             "features": []
           },
@@ -14095,6 +14483,34 @@
               "rng"
             ]
           },
+          "chacha20-0.9.1": {
+            "runtime_dependencies": [
+              {
+                "name": "cfg_if",
+                "package_key": "cfg-if-1.0.5",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "cipher",
+                "package_key": "cipher-0.4.4",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": [
+              "zeroize"
+            ]
+          },
           "const-hex-1.19.3": {
             "runtime_dependencies": [
               {
@@ -14443,6 +14859,32 @@
           },
           "openssl-probe-0.2.2": {
             "runtime_dependencies": [],
+            "build_dependencies": [],
+            "features": []
+          },
+          "poly1305-0.8.0": {
+            "runtime_dependencies": [
+              {
+                "name": "opaque_debug",
+                "package_key": "opaque-debug-0.3.1",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "universal_hash",
+                "package_key": "universal-hash-0.5.1",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
             "build_dependencies": [],
             "features": []
           },
@@ -15012,6 +15454,44 @@
               "rng"
             ]
           },
+          "chacha20-0.9.1": {
+            "runtime_dependencies": [
+              {
+                "name": "cfg_if",
+                "package_key": "cfg-if-1.0.5",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "cipher",
+                "package_key": "cipher-0.4.4",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "cpufeatures",
+                "package_key": "cpufeatures-0.2.17",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(any(target_arch = \"x86_64\", target_arch = \"x86\"))",
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": [
+              "zeroize"
+            ]
+          },
           "const-hex-1.19.3": {
             "runtime_dependencies": [
               {
@@ -15384,6 +15864,42 @@
               "fsevent-sys",
               "macos_fsevent"
             ]
+          },
+          "poly1305-0.8.0": {
+            "runtime_dependencies": [
+              {
+                "name": "cpufeatures",
+                "package_key": "cpufeatures-0.2.17",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(any(target_arch = \"x86_64\", target_arch = \"x86\"))",
+                "tree": "target"
+              },
+              {
+                "name": "opaque_debug",
+                "package_key": "opaque-debug-0.3.1",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "universal_hash",
+                "package_key": "universal-hash-0.5.1",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": []
           },
           "ring-0.17.14": {
             "runtime_dependencies": [
@@ -16055,6 +16571,44 @@
               "rng"
             ]
           },
+          "chacha20-0.9.1": {
+            "runtime_dependencies": [
+              {
+                "name": "cfg_if",
+                "package_key": "cfg-if-1.0.5",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "cipher",
+                "package_key": "cipher-0.4.4",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "cpufeatures",
+                "package_key": "cpufeatures-0.2.17",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(any(target_arch = \"x86_64\", target_arch = \"x86\"))",
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": [
+              "zeroize"
+            ]
+          },
           "const-hex-1.19.3": {
             "runtime_dependencies": [
               {
@@ -16445,6 +16999,42 @@
           },
           "openssl-probe-0.2.2": {
             "runtime_dependencies": [],
+            "build_dependencies": [],
+            "features": []
+          },
+          "poly1305-0.8.0": {
+            "runtime_dependencies": [
+              {
+                "name": "cpufeatures",
+                "package_key": "cpufeatures-0.2.17",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(any(target_arch = \"x86_64\", target_arch = \"x86\"))",
+                "tree": "target"
+              },
+              {
+                "name": "opaque_debug",
+                "package_key": "opaque-debug-0.3.1",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "universal_hash",
+                "package_key": "universal-hash-0.5.1",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
             "build_dependencies": [],
             "features": []
           },
@@ -17062,6 +17652,44 @@
               "rng"
             ]
           },
+          "chacha20-0.9.1": {
+            "runtime_dependencies": [
+              {
+                "name": "cfg_if",
+                "package_key": "cfg-if-1.0.5",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "cipher",
+                "package_key": "cipher-0.4.4",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "cpufeatures",
+                "package_key": "cpufeatures-0.2.17",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(any(target_arch = \"x86_64\", target_arch = \"x86\"))",
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": [
+              "zeroize"
+            ]
+          },
           "const-hex-1.19.3": {
             "runtime_dependencies": [
               {
@@ -17455,6 +18083,42 @@
             "build_dependencies": [],
             "features": []
           },
+          "poly1305-0.8.0": {
+            "runtime_dependencies": [
+              {
+                "name": "cpufeatures",
+                "package_key": "cpufeatures-0.2.17",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(any(target_arch = \"x86_64\", target_arch = \"x86\"))",
+                "tree": "target"
+              },
+              {
+                "name": "opaque_debug",
+                "package_key": "opaque-debug-0.3.1",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "universal_hash",
+                "package_key": "universal-hash-0.5.1",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": []
+          },
           "ring-0.17.14": {
             "runtime_dependencies": [
               {
@@ -17672,6 +18336,9 @@
     }
   },
   "per_crate": {
+    "aead-0.5.2": {
+      "edition": "2021"
+    },
     "ahash-0.8.12": {
       "edition": "2018",
       "build_script": "build.rs"
@@ -17732,6 +18399,9 @@
       "edition": "2021"
     },
     "axum-core-0.5.6": {
+      "edition": "2021"
+    },
+    "bao-0.13.1": {
       "edition": "2021"
     },
     "base16ct-0.2.0": {
@@ -17969,7 +18639,16 @@
     "chacha20-0.10.2": {
       "edition": "2024"
     },
+    "chacha20-0.9.1": {
+      "edition": "2021"
+    },
+    "chacha20poly1305-0.10.1": {
+      "edition": "2021"
+    },
     "chrono-0.4.45": {
+      "edition": "2021"
+    },
+    "cipher-0.4.4": {
       "edition": "2021"
     },
     "clap-4.6.5": {
@@ -18285,6 +18964,9 @@
       "edition": "2015",
       "build_script": "build.rs"
     },
+    "inout-0.1.4": {
+      "edition": "2021"
+    },
     "inventory-0.3.24": {
       "edition": "2021"
     },
@@ -18376,6 +19058,9 @@
     "once_cell-1.21.4": {
       "edition": "2021"
     },
+    "opaque-debug-0.3.1": {
+      "edition": "2018"
+    },
     "openssl-probe-0.2.2": {
       "edition": "2021"
     },
@@ -18413,6 +19098,9 @@
       "edition": "2018"
     },
     "pkcs8-0.10.2": {
+      "edition": "2021"
+    },
+    "poly1305-0.8.0": {
       "edition": "2021"
     },
     "postcard-1.1.3": {
@@ -18833,6 +19521,9 @@
     "unicode-width-0.2.2": {
       "edition": "2021"
     },
+    "universal-hash-0.5.1": {
+      "edition": "2021"
+    },
     "unsafe-libyaml-norway-0.2.15": {
       "edition": "2021",
       "binaries": [
@@ -18904,6 +19595,9 @@
       "edition": "2021"
     },
     "writeable-0.6.4": {
+      "edition": "2021"
+    },
+    "x25519-dalek-2.0.1": {
       "edition": "2021"
     },
     "yaml-rust2-0.13.0": {

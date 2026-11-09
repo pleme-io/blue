@@ -11,6 +11,7 @@ use("kyohi", %i[raised refusal])
 use("moji", [:checked])
 use("ran", %i[seeds take_ints])
 use("retsu", %i[first is_empty last size])
+use("seikika", [:root])
 use("shomei", %i[chain genesis hash_message intact? is_hash_hex])
 use("shuugou", %i[difference intersection ordered subset?])
 
@@ -501,12 +502,13 @@ def merge(a, b)
 end
 
 @doc """
-state_root: the Merkle root of a map's cells in key order, written b3:<hex>.
+state_root: the root of a Strand's map: seikika's root of its canonical bytes, so two maps share a root only when they are one value, kind for kind.
 
-    state_root({}) == "b3:#{shomei::root([])}" #=> true
+    state_root({}) == root({}) #=> true
+    state_root({"k" => 1}) == state_root({k: 1}) #=> false
 """
 def state_root(state)
-  "b3:#{shomei::root(map(json_stringify, map_entries(state)))}"
+  root(state)
 end
 
 @doc """

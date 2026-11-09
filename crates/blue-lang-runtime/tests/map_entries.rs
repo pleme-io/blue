@@ -18,6 +18,17 @@ fn a_maps_entries_come_back_ordered_by_key() {
 }
 
 #[test]
+fn a_map_of_mixed_key_kinds_lists_every_entry_in_one_total_order() {
+    assert_eq!(
+        text(
+            "map_entries({:k => 1, \"1\" => 2, 1.0 => 3, 1 => 4, true => 5, false => 6, nil => 7})"
+        ),
+        text("[[nil, 7], [false, 6], [true, 5], [1, 4], [1.0, 3], [\"1\", 2], [:k, 1]]")
+    );
+    assert_eq!(text("map_entries({true => 1})"), text("[[true, 1]]"));
+}
+
+#[test]
 fn an_empty_or_absent_map_has_no_entries() {
     assert_eq!(text("map_entries({})"), text("[]"));
     assert_eq!(text("map_entries(nil)"), text("[]"));

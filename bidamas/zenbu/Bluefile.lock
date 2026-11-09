@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:2ae12c5a4e8a3bea19ad48c2edd3fb19157aa44fef845f15edfd97db25985184",
+  "bluefile_b3": "b3:8853ae83a4271272dc01a1da3ba7b46db6111494f4515ca354830bc7a2f9cfcc",
   "manifest": {
     "schema": 1,
     "name": "zenbu",
@@ -55,6 +55,7 @@
       "ronri": "^0.1.0",
       "sabi": "^0.1.0",
       "saishikou": "^0.1.0",
+      "seikika": "^0.1.0",
       "seimei": "^0.1.0",
       "settei": "^0.1.0",
       "shinchoku": "^0.1.0",

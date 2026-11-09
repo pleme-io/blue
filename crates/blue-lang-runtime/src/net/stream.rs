@@ -34,6 +34,12 @@ impl std::os::fd::AsFd for Conn {
     }
 }
 
+#[cfg(not(unix))]
+#[must_use]
+pub fn fd_of(_: &Value) -> Option<blue_lang_proc::readiness::Pollable> {
+    None
+}
+
 #[cfg(unix)]
 #[must_use]
 pub fn fd_of(v: &Value) -> Option<blue_lang_proc::readiness::Pollable> {

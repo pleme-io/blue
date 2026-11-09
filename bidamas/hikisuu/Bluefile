@@ -1,4 +1,4 @@
-package("hikisuu", "0.1.0")
+package("hikisuu", "0.1.1")
 needs("jisho", "^0.1")
 needs("kyohi", "^0.1")
 needs("moji", "^0.1")

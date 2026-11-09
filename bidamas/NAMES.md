@@ -105,6 +105,19 @@ replacement (`docs/COMPOUNDING.md`).
 |---|---|---|---|
 | `angou` | `find_index_of` | `retsu::index_of_at` | 0.1.1 |
 | `eigyou/bougyo` | `request_header` | `eigyou::kyuuji::header` | 0.1.1 |
+| `eigyou/haibi` | `write_tree` | `fairu::write_tree` | 0.1.2 |
+| `gamen` | `color_default` | `shisutemu::color_default` | 0.1.2 |
+| `gamen` | `codes` | `shisutemu::codes` | 0.1.2 |
+| `gamen` | `colored?` | `shisutemu::colored?` | 0.1.2 |
+| `gamen` | `duration_text` | `shisutemu::duration_text` | 0.1.2 |
+| `gamen` | `ink_code` | `shisutemu::ink_code` | 0.1.2 |
+| `gamen` | `inks` | `shisutemu::inks` | 0.1.2 |
+| `gamen` | `sequence` | `shisutemu::sequence` | 0.1.2 |
+| `gamen` | `show_step` | `shisutemu::show_step` | 0.1.2 |
+| `gamen` | `step` | `shisutemu::step` | 0.1.2 |
+| `gamen` | `step_marks` | `shisutemu::step_marks` | 0.1.2 |
+| `gamen` | `terminal?` | `shisutemu::terminal?` | 0.1.2 |
+| `gamen` | `writer` | `shisutemu::writer` | 0.1.2 |
 | `gitto` | `raised` | `kyohi::raised` | 0.1.3 |
 | `happa` | `text_of` | `moji::text_of` | 0.1.1 |
 | `eigyou/heddaa` | `merge_state` | `jisho::merge` | 0.1.1 |
@@ -132,7 +145,10 @@ replacement (`docs/COMPOUNDING.md`).
 | `koubou/rittai` | `index_edges` | `koubou::kikagaku::polygon_edges` | 0.1.2 |
 | `seimei` | `after_with` | `kansuu::iterate_n` | 0.1.1 |
 | `seimei` | `bit_of` | `shinsuu::bit_at` | 0.1.1 |
+| `shinchoku` | `load_and_cores` | `shisutemu::load_and_cores` | 0.1.1 |
+| `shinchoku` | `run_capture` | `shisutemu::run_capture` | 0.1.1 |
 | `shinsuu` | `value_index` | `retsu::index_of_at` | 0.1.3 |
+| `shinsatsu` | `flag` | `hikisuu::flag` | 0.1.1 |
 | `shuusei` | `contains_claim?` | `retsu::contains` | 0.1.1 |
 | `shuusei` | `contains_pair?` | `retsu::contains` | 0.1.1 |
 | `kakehashi/souji` | `sum` | `kazu::sum` | 0.1.2 |

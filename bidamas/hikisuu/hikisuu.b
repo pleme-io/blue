@@ -26,6 +26,21 @@ use(
 )
 
 @doc """
+flag: the value after a flag in an argument list, or nil.
+
+    flag(["--a", "1", "--b", "2"], "--b") #=> "2"
+    flag(["--a"], "--a") #=> nil
+"""
+def flag(args, name)
+  i = index_of(args, name)
+  if i < 0 or i + 1 >= size(args)
+    nil
+  else
+    args[i + 1]
+  end
+end
+
+@doc """
 flag_text: the spelling of a flag key on the command line.
 
     flag_text(:dry_run) #=> "--dry-run"
@@ -1008,4 +1023,11 @@ test "run_with calls the program only on a good line, and exits 64 on a bad one"
   assert third(seen) == [64]
   assert size(second(seen)) == 1
   assert first(seen) == [render(souji_like, nil)]
+end
+
+test "flag reads the word after a flag, and nil when the flag or its value is absent"
+  assert flag(%w[--a 1 --b 2], "--b") == "2"
+  assert flag(%w[--a 1], "--c").nil?
+  assert flag(["--a"], "--a").nil?
+  assert flag([], "--a").nil?
 end

@@ -1,4 +1,5 @@
-use("eigyou/haibi", %i[files write_tree])
+use("eigyou/haibi", [:files])
+use("fairu", [:write_tree])
 use("mokuroku", %i[catalog_of registered_only render_markdown])
 use("retsu", %i[concat_lists first flat_map is_empty last])
 use("shisutemu", %i[blue_exe status_of stdout_of])

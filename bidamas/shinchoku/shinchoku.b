@@ -15,7 +15,15 @@ use("kazu", %i[abs max min])
 use("retsu", %i[first index_of is_empty last rest size zip])
 use("settei", %i[env_of no_env resolve])
 
-use("shisutemu", %i[last_nonempty_line read_or status_of stderr_of stdout_of])
+use("shisutemu", %i[load_and_cores run_capture])
+
+legacy_names(
+  "0.1.1",
+  [
+    %w[load_and_cores shisutemu::load_and_cores],
+    %w[run_capture shisutemu::run_capture]
+  ]
+)
 
 def moving(rate)
   {verdict: "moving", rate:}
@@ -134,20 +142,6 @@ def budget_of(text)
       actions: bucket(resources, "actions_runner_registration"),
       graphql: bucket(resources, "graphql")
     }
-  end
-end
-
-def run_capture(argv)
-  cap = exec_capture(*argv) rescue nil
-  if cap.nil?
-    {ok: false, why: "#{first(argv)} could not be started"}
-  elsif status_of(cap) != 0
-    {
-      ok: false,
-      why: "#{first(argv)} exited #{to_s(status_of(cap))}: #{last_nonempty_line(stderr_of(cap))}"
-    }
-  else
-    {ok: true, stdout: stdout_of(cap)}
   end
 end
 
@@ -479,23 +473,6 @@ def after_dashes(args)
   if i >= 0
     drop(i + 1, args)
   end
-end
-
-def load_and_cores()
-  la = read_or("/proc/loadavg", "")
-  load1 = if la != ""
-    to_float(first(split(la, " ")))
-  else
-    r = run_capture(%w[sysctl -n vm.loadavg])
-    if r[:ok]
-      to_float(split(blue::trim(r[:stdout]), " ")[1])
-    end
-  end
-  c = run_capture(%w[getconf _NPROCESSORS_ONLN])
-  cores = if c[:ok]
-    to_int(blue::trim(c[:stdout]))
-  end
-  [load1, cores]
 end
 
 def usage()

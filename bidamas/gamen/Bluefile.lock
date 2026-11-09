@@ -1,10 +1,10 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:8ccd5d63cacf6aee236702a7d700dac1c2f4317dcf8d609043849fc7b261b988",
+  "bluefile_b3": "b3:8b7dce068708599657dafbc935e6b1d02d70efc72aa609504f6edc2f90d8b2f0",
   "manifest": {
     "schema": 1,
     "name": "gamen",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "needs": {
       "jisho": "^0.1.0",
       "kazu": "^0.1.0",

@@ -20,15 +20,14 @@ directory removed by the runner on the host once this side has read it.
 `on.cleanup` turns that removal off.
 """
 
-use("gamen", [:show_step])
-
 use("retsu", %i[enumerate first last rest])
 
 use("settei")
 
-use("shinchoku", [:load_and_cores])
-
-use("shisutemu", %i[blue_exe read_or status_of stderr_of stdout_of])
+use(
+  "shisutemu",
+  %i[blue_exe load_and_cores read_or show_step status_of stderr_of stdout_of]
+)
 
 @doc """
 config_defaults: What `kernel-run` does when nothing says otherwise.

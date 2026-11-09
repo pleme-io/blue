@@ -34,11 +34,12 @@ first) or documented as raising (`json_parse` on garbage still raises — see
 `deeta`). The one un-guardable race, a file vanishing between the check and
 the read, is noted on `read_or` rather than pretended away.
 
-**No stdout writer.** Raw output is the *final value* of a program: `blue run`
-prints the last expression with `render`, which is the one path that does not
-quote strings (every `print`/`println` renders through Value's Debug Display,
-which quotes them). A multi-line widget is built as a list and joined with
-"\n" as the last expression — see the sentinela-sui.b consumer.
+**Output is the terminal's, and colour is a theme's.** `show` writes a node
+to stdout or stderr, `styled` wraps it in SGR codes, and `step` and
+`show_step` draw one step of a run with its mark and duration. A named ink
+is the terminal's own slot. A hex or theme colour is read through the paint
+function a caller passes, which gamen's `styled` and `show` build from a
+theme, so this package holds no colour model.
 
 `is_alpha` is delegated to moji, not re-derived: an ANSI final byte is any
 ASCII letter, which is exactly what the Rust original's `is_ascii_alphabetic`
@@ -48,8 +49,9 @@ checks, and hand-rolling a character class here would drift from it.
 """
 
 use("deeta", [:get_str])
-use("moji", %i[is_alpha is_blank lines take_chars])
-use("retsu", %i[first is_empty last rest])
+use("kyohi", [:raised])
+use("moji", %i[checked is_alpha is_blank lines take_chars])
+use("retsu", %i[first is_empty last rest size])
 use("settei")
 
 # ── process captures ───────────────────────────────────────────────
@@ -258,6 +260,304 @@ def age_s(ms)
   end
 end
 
+def sequence(prefix, value, paint)
+  if paint.nil?
+    raise(
+      :bad_option,
+      "#{to_s(value)} is a colour, and styled reads a colour only through the paint function its context holds, as gamen's styled and show give it"
+    )
+  end
+  c = paint(value)
+  "#{prefix};2;#{to_s(round(c[:r]))};#{to_s(round(c[:g]))};#{to_s(round(c[:b]))}"
+end
+
+@doc """
+inks: the sixteen ANSI colour slots by name with their SGR codes, so a terminal paints text in its own theme (Nord on a pleme-io terminal) and blue carries no hex.
+
+    get(inks, :cyan) #=> "36"
+"""
+def inks()
+  {
+    black: "30",
+    red: "31",
+    green: "32",
+    yellow: "33",
+    blue: "34",
+    magenta: "35",
+    cyan: "36",
+    white: "37",
+    bright_black: "90",
+    bright_red: "91",
+    bright_green: "92",
+    bright_yellow: "93",
+    bright_blue: "94",
+    bright_magenta: "95",
+    bright_cyan: "96",
+    bright_white: "97"
+  }
+end
+
+@doc """
+ink_code: the SGR code of an ANSI slot name, refusing a name that is no slot.
+
+    ink_code(:bright_black) #=> "90"
+"""
+def ink_code(name)
+  code = get(inks, name)
+  if code.nil?
+    raise(
+      :bad_option,
+      "no ink #{to_s(name)}; an ink is one of the sixteen ANSI slots"
+    )
+  end
+  code
+end
+
+def codes(node, ctx)
+  flags = filter(
+    (p) -> get(node, first(p)) == true,
+    [[:bold, "1"], [:dim, "2"], [:underline, "4"]]
+  )
+  colors = filter(
+    (x) -> x != nil,
+    [
+      if node[:ink].nil?
+        nil
+      else
+        ink_code(node[:ink])
+      end,
+      if node[:fg].nil?
+        nil
+      else
+        sequence("38", node[:fg], ctx[:paint])
+      end,
+      if node[:bg].nil?
+        nil
+      else
+        sequence("48", node[:bg], ctx[:paint])
+      end
+    ]
+  )
+  append(map((p) -> p[1], flags), colors)
+end
+
+@doc """
+styled: a node as text: a string, a list of nodes, or a record with text and its flags, ink, fg and bg, wrapped in SGR codes when `ctx` has color on; a fg or bg colour is read through the context's paint function.
+
+    styled({text: "x", ink: :cyan}, {color: false}) #=> "x"
+"""
+def styled(node, ctx)
+  if string?(node)
+    node
+  elsif list?(node)
+    join(map((n) -> styled(n, ctx), node), "")
+  elsif map?(node) and string?(node[:text])
+    on = codes(node, ctx)
+    if is_empty(on) or not ctx[:color]
+      node[:text]
+    else
+      "#{esc_char}[#{join(on, ";")}m#{node[:text]}#{esc_char}[0m"
+    end
+  else
+    raise(:bad_option, "a node is text, a list of nodes, or a record with text")
+  end
+end
+
+def colored?(no_color)
+  no_color.nil? or no_color == ""
+end
+
+def color_default()
+  colored?(getenv("NO_COLOR"))
+end
+
+def writer(opts)
+  sink = opts[:sink]
+  to = opts[:to] or :stdout
+  if sink != nil
+    sink
+  elsif to == :stdout
+    (text) -> write_stdout(text)
+  elsif to == :stderr
+    (text) -> write_stderr(text)
+  else
+    raise(:bad_option, "show writes to :stdout or :stderr, got #{to_s(to)}")
+  end
+end
+
+@doc """
+show: put a node on the terminal as styled output.
+"""
+def show(node, opts)
+  checked(opts, %i[paint color sink to newline])
+  write = writer(opts)
+  on = opts[:color]
+  ctx = {
+    color: if on.nil?
+      color_default
+    else
+      on
+    end,
+    paint: opts[:paint]
+  }
+  text = styled(node, ctx)
+  if opts[:newline] == false
+    write(text)
+  else
+    write(unlines([text]))
+  end
+  nil
+end
+
+@doc """
+terminal?: whether a file descriptor is a terminal, asked of `test -t`.
+
+    terminal?(9) #=> false
+"""
+def terminal?(fd)
+  exec_check("test", "-t", to_s(fd)) == 0 rescue false
+end
+
+@doc """
+step_marks: the symbol each state of a step shows.
+
+    get(step_marks, :done) #=> "✅"
+"""
+def step_marks()
+  {running: "⏳", done: "✅", failed: "❌", skipped: "➖", warn: "⚠️"}
+end
+
+@doc """
+duration_text: milliseconds as a person reads a duration: tenths of a second under a minute, minutes and seconds above.
+
+    duration_text(87240) #=> "1m 27s"
+"""
+def duration_text(ms)
+  if ms < 60000
+    "#{to_s(round(ms / 100) / 10)}s"
+  else
+    m = floor(ms / 60000)
+    sec = floor((ms - m * 60000) / 1000)
+    pad = if sec < 10
+      "0"
+    else
+      ""
+    end
+    "#{to_s(m)}m #{pad}#{to_s(sec)}s"
+  end
+end
+
+@doc """
+step: one step of a run as a node: the state's mark, its place as [at/of], its name in bold, an optional note after a dash, the duration once known, and an ellipsis while it runs.
+
+    styled(step({state: :done, at: 3, of: 11, name: "regen", ms: 87240}), {color: false}) #=> "✅ [3/11] regen (1m 27s)"
+"""
+def step(s)
+  checked(s, %i[state at of name note ms])
+  state = s[:state]
+  mark = get(step_marks, state)
+  if mark.nil?
+    raise(
+      :bad_option,
+      "a step state is running, done, failed, skipped or warn, got #{to_s(state)}"
+    )
+  end
+  tone = get(
+    {running: :cyan, failed: :red, warn: :yellow, skipped: :bright_black},
+    state
+  )
+  name = if tone.nil?
+    {text: s[:name], bold: true}
+  else
+    {text: s[:name], bold: true, ink: tone}
+  end
+  note = if s[:note].nil?
+    []
+  else
+    [{text: " — ", ink: :bright_black}, s[:note]]
+  end
+  tail = if s[:ms] != nil
+    [{text: " (#{duration_text(s[:ms])})", ink: :bright_black}]
+  elsif state == :running
+    [{text: " …", ink: :bright_black}]
+  else
+    []
+  end
+  append(
+    [
+      "#{mark} ",
+      {text: "[#{to_s(s[:at])}/#{to_s(s[:of])}]", ink: :bright_black},
+      " ",
+      name
+    ],
+    note,
+    tail
+  )
+end
+
+@doc """
+show_step: write one step line, to stderr unless told otherwise, painted only when NO_COLOR is unset and the stream is a terminal.
+
+    show_step({state: :skipped, at: 1, of: 1, name: "x"}, {sink: (_t) -> nil}) #=> nil
+"""
+def show_step(s, opts)
+  to = opts[:to] or :stderr
+  color = if opts[:color].nil?
+    color_default and
+      terminal?(
+        if to == :stdout
+          1
+        else
+          2
+        end
+      )
+  else
+    opts[:color]
+  end
+  show(step(s), assoc(assoc(opts, :to, to), :color, color))
+end
+
+@doc """
+run_capture: run a command and answer {ok: true, stdout} when it exits 0, else {ok: false, why} naming the command and its last stderr line, or that it could not start.
+
+    run_capture(["blue-no-such-command"])[:ok] #=> false
+"""
+def run_capture(argv)
+  cap = exec_capture(*argv) rescue nil
+  if cap.nil?
+    {ok: false, why: "#{first(argv)} could not be started"}
+  elsif status_of(cap) != 0
+    {
+      ok: false,
+      why: "#{first(argv)} exited #{to_s(status_of(cap))}: #{last_nonempty_line(stderr_of(cap))}"
+    }
+  else
+    {ok: true, stdout: stdout_of(cap)}
+  end
+end
+
+@doc """
+load_and_cores: the host's one-minute load and its online cores, as [load1, cores], each nil when the host does not say.
+
+    size(load_and_cores) #=> 2
+"""
+def load_and_cores()
+  la = read_or("/proc/loadavg", "")
+  load1 = if la != ""
+    to_float(first(split(la, " ")))
+  else
+    r = run_capture(%w[sysctl -n vm.loadavg])
+    if r[:ok]
+      to_float(split(trim(r[:stdout]), " ")[1])
+    end
+  end
+  c = run_capture(%w[getconf _NPROCESSORS_ONLN])
+  cores = if c[:ok]
+    to_int(trim(c[:stdout]))
+  end
+  [load1, cores]
+end
+
 # ── git ────────────────────────────────────────────────────────────
 
 @doc """
@@ -408,4 +708,125 @@ test "short_rev clamps to the width and answers the em dash for an absent rev"
   assert short_rev("abcdefgh", 8) == "abcdefgh"
   assert short_rev(nil, 8) == "—"
   assert short_rev("", 8) == "—"
+end
+
+test "styled paints flags, ink, then fg and bg through the paint function"
+  esc = esc_char
+  ctx = {color: true, paint: (_v) -> {r: 1, g: 2, b: 3}}
+  assert styled({text: "x", ink: :cyan}, ctx) == "#{esc}[36mx#{esc}[0m"
+  assert styled({text: "x", bold: true, ink: :bright_black, fg: "c"}, ctx) ==
+    "#{esc}[1;90;38;2;1;2;3mx#{esc}[0m"
+  assert styled({text: "x", bg: "c"}, ctx) == "#{esc}[48;2;1;2;3mx#{esc}[0m"
+  assert styled({text: "x", ink: :cyan}, {color: false}) == "x"
+  assert styled([], ctx) == ""
+  assert size(map_entries(inks)) == 16
+  assert raised(() -> styled({text: "x", ink: :teal}, ctx)) == :bad_option
+end
+
+test "a colour with no paint function is refused, and a node with none needs none"
+  assert raised(() -> styled({text: "x", fg: "#ff0000"}, {color: true})) ==
+    :bad_option
+  assert styled({text: "x", bold: true}, {color: false}) == "x"
+end
+
+test "NO_COLOR turns color off unless it is unset or empty"
+  assert colored?(nil) == true
+  assert colored?("") == true
+  assert colored?("1") == false
+  assert colored?("anything") == false
+end
+
+test "the writer goes to stdout or stderr and refuses any other place"
+  assert writer({})("").nil?
+  assert writer({to: :stdout})("").nil?
+  assert writer({to: :stderr})("").nil?
+  assert raised(() -> writer({to: :file})) == :bad_option
+  assert raised(() -> writer({to: "stderr"})) == :bad_option
+end
+
+test "show refuses an unknown option, and a theme belongs to gamen"
+  assert raised(() -> show("a", {sink: (_t) -> nil, style: 1})) == :bad_option
+  assert raised(() -> show("a", {sink: (_t) -> nil, theme: nil})) == :bad_option
+  assert show("a", {sink: (_t) -> nil}).nil?
+end
+
+test "show writes stdout by default and stderr on request, each to its own stream"
+  if self_exe != nil
+    dir = path_join(getenv("TMPDIR", "/tmp"), "shisutemu-#{to_s(now_ns)}")
+    mkdir_p(dir)
+    prog = path_join(dir, "probe.b")
+    write_program(
+      prog,
+      unlines(
+        [
+          "use(\"shisutemu\")",
+          "shisutemu::show(\"out\", {color: false})",
+          "shisutemu::show(\"err\", {to: :stderr, newline: false})"
+        ]
+      )
+    )
+    cap = exec_with_env([], self_exe, "run", "--quiet", prog)
+    rm_rf(dir)
+    assert status_of(cap) == 0
+    assert stdout_of(cap) == unlines(["out"])
+    assert stderr_of(cap) == "err"
+  end
+end
+
+test "duration_text: tenths under a minute, minutes and padded seconds above"
+  assert duration_text(0) == "0s"
+  assert duration_text(87) == "0.1s"
+  assert duration_text(59940) == "59.9s"
+  assert duration_text(60000) == "1m 00s"
+  assert duration_text(551_000) == "9m 11s"
+end
+
+test "a step line reads mark, place, name, note and duration, and refuses an unknown state"
+  plain = {color: false}
+  assert styled(step({state: :running, at: 1, of: 5, name: "guard"}), plain) ==
+    "⏳ [1/5] guard …"
+  assert styled(
+    step(
+      {state: :running, at: 2, of: 5, name: "wait", note: "held", ms: 60000}
+    ),
+    plain
+  ) == "⏳ [2/5] wait — held (1m 00s)"
+  assert styled(
+    step({state: :skipped, at: 2, of: 5, name: "wait", note: "free"}),
+    plain
+  ) == "➖ [2/5] wait — free"
+  assert styled(
+    step({state: :failed, at: 4, of: 5, name: "switch"}),
+    {color: true}
+  ) ==
+    "❌ #{esc_char}[90m[4/5]#{esc_char}[0m #{esc_char}[1;31mswitch#{esc_char}[0m"
+  assert raised(() -> step({state: :gone, at: 1, of: 1, name: "x"})) ==
+    :bad_option
+  assert raised(() -> step({state: :done, at: 1, of: 1, name: "x", eta: 1})) ==
+    :bad_option
+end
+
+test "show_step writes one line through the sink and keeps colour off when told"
+  seen = [""]
+  sink = (t) -> set!(seen, [concat(first(seen), t)])
+  assert show_step(
+    {state: :done, at: 1, of: 2, name: "x", ms: 1500},
+    {sink:, color: false}
+  ).nil?
+  assert first(seen) == unlines(["✅ [1/2] x (1.5s)"])
+  assert terminal?(9) == false
+end
+
+test "run_capture answers stdout on success and why on failure or no start"
+  assert run_capture(["blue-no-such-command-xyz"]) ==
+    {ok: false, why: "blue-no-such-command-xyz could not be started"}
+  assert run_capture(%w[sh -c true]) == {ok: true, stdout: ""}
+  assert run_capture(["sh", "-c", "echo boom >&2; exit 3"]) ==
+    {ok: false, why: "sh exited 3: boom"}
+end
+
+test "load_and_cores answers the load and a positive core count on a host that has them"
+  lc = load_and_cores
+  assert size(lc) == 2
+  assert lc[1].nil? or lc[1] > 0
 end

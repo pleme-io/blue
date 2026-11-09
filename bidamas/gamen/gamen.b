@@ -5,8 +5,9 @@ gamen (画面) — screen: what a program shows, as values: colors and themes, U
 tokens for light or dark. `view`, `component` and `layout` build a UI tree
 from a closed table of tags and attributes. `render` writes the tree as
 HTML, ANSI, SVG or a widget spec and escapes every text, and `check` finds
-its accessibility faults. On the terminal, `show` writes styled text, and
-`table`, `tree` and `step` measure width in terminal cells.
+its accessibility faults. On the terminal, `show` writes styled text with
+its colours read in a theme, over shisutemu's `show`, and `table` and `tree`
+measure width in terminal cells.
 
     render(view(:p, {}, ["a & b"]), :html) #=> "<p>a &amp; b</p>"
 """
@@ -17,7 +18,26 @@ use("kyohi", %i[kind kinds raised refusal why])
 use("moji", %i[checked trim])
 use("retsu", %i[count_where find_first first flat_map is_empty size])
 use("shinsuu", %i[parse_int to_hex_width])
-use("shisutemu", %i[esc_char status_of stderr_of stdout_of])
+
+use("shisutemu", %i[color_default esc_char inks step_marks])
+
+legacy_names(
+  "0.1.2",
+  [
+    %w[color_default shisutemu::color_default],
+    %w[codes shisutemu::codes],
+    %w[colored? shisutemu::colored?],
+    %w[duration_text shisutemu::duration_text],
+    %w[ink_code shisutemu::ink_code],
+    %w[inks shisutemu::inks],
+    %w[sequence shisutemu::sequence],
+    %w[show_step shisutemu::show_step],
+    %w[step shisutemu::step],
+    %w[step_marks shisutemu::step_marks],
+    %w[terminal? shisutemu::terminal?],
+    %w[writer shisutemu::writer]
+  ]
+)
 
 def hex_channels(text)
   digits = moji::strip_prefix(text, "#")
@@ -144,250 +164,41 @@ def paint(value, theme)
   end
 end
 
-def sequence(prefix, value, theme)
-  c = paint(value, theme)
-  "#{prefix};2;#{to_s(round(c[:r]))};#{to_s(round(c[:g]))};#{to_s(round(c[:b]))}"
+@doc """
+painter: the function that reads a colour in a theme, as shisutemu's styled and show take it: a hex string, an {r, g, b} record, or a token the theme holds.
+
+    painter(nil)("#ff0000") #=> {r: 255, g: 0, b: 0}
+"""
+def painter(theme)
+  (value) -> paint(value, theme)
 end
 
 @doc """
-inks: the sixteen ANSI colour slots by name with their SGR codes, so a terminal paints text in its own theme (Nord on a pleme-io terminal) and blue carries no hex.
+styled: a node as text with SGR codes, its colours read in the theme of `ctx`.
 
-    get(inks, :cyan) #=> "36"
+    styled({text: "x", bold: true}, {color: false, theme: nil}) #=> "x"
 """
-def inks()
-  {
-    black: "30",
-    red: "31",
-    green: "32",
-    yellow: "33",
-    blue: "34",
-    magenta: "35",
-    cyan: "36",
-    white: "37",
-    bright_black: "90",
-    bright_red: "91",
-    bright_green: "92",
-    bright_yellow: "93",
-    bright_blue: "94",
-    bright_magenta: "95",
-    bright_cyan: "96",
-    bright_white: "97"
-  }
-end
-
-@doc """
-ink_code: the SGR code of an ANSI slot name, refusing a name that is no slot.
-
-    ink_code(:bright_black) #=> "90"
-"""
-def ink_code(name)
-  code = get(inks, name)
-  if code.nil?
-    raise(
-      :bad_option,
-      "no ink #{to_s(name)}; an ink is one of the sixteen ANSI slots"
-    )
-  end
-  code
-end
-
-def codes(node, theme)
-  flags = filter(
-    (p) -> get(node, first(p)) == true,
-    [[:bold, "1"], [:dim, "2"], [:underline, "4"]]
-  )
-  colors = filter(
-    (x) -> x != nil,
-    [
-      if node[:ink].nil?
-        nil
-      else
-        ink_code(node[:ink])
-      end,
-      if node[:fg].nil?
-        nil
-      else
-        sequence("38", node[:fg], theme)
-      end,
-      if node[:bg].nil?
-        nil
-      else
-        sequence("48", node[:bg], theme)
-      end
-    ]
-  )
-  append(map((p) -> p[1], flags), colors)
-end
-
 def styled(node, ctx)
-  if string?(node)
-    node
-  elsif list?(node)
-    join(map((n) -> styled(n, ctx), node), "")
-  elsif map?(node) and string?(node[:text])
-    on = codes(node, ctx[:theme])
-    if is_empty(on) or not ctx[:color]
-      node[:text]
-    else
-      "#{esc_char}[#{join(on, ";")}m#{node[:text]}#{esc_char}[0m"
-    end
-  else
-    raise(:bad_option, "a node is text, a list of nodes, or a record with text")
-  end
-end
-
-def colored?(no_color)
-  no_color.nil? or no_color == ""
-end
-
-def color_default()
-  colored?(getenv("NO_COLOR"))
-end
-
-def writer(opts)
-  sink = opts[:sink]
-  to = opts[:to] or :stdout
-  if sink != nil
-    sink
-  elsif to == :stdout
-    (text) -> write_stdout(text)
-  elsif to == :stderr
-    (text) -> write_stderr(text)
-  else
-    raise(:bad_option, "show writes to :stdout or :stderr, got #{to_s(to)}")
-  end
+  shisutemu::styled(node, {color: ctx[:color], paint: painter(ctx[:theme])})
 end
 
 @doc """
-show: put a node on the terminal as styled output.
+show: put a node on the terminal as styled output, its colours read in the `theme` option.
+
+    show("x", {sink: (_t) -> nil}) #=> nil
 """
 def show(node, opts)
   checked(opts, %i[theme color sink to newline])
-  write = writer(opts)
-  on = opts[:color]
-  ctx = {
-    color: if on.nil?
-      color_default
-    else
-      on
-    end,
-    theme: opts[:theme]
-  }
-  text = styled(node, ctx)
-  if opts[:newline] == false
-    write(text)
-  else
-    write(unlines([text]))
-  end
-  nil
-end
-
-@doc """
-terminal?: whether a file descriptor is a terminal, asked of `test -t`.
-
-    terminal?(9) #=> false
-"""
-def terminal?(fd)
-  exec_check("test", "-t", to_s(fd)) == 0 rescue false
-end
-
-@doc """
-step_marks: the symbol each state of a step shows.
-
-    get(step_marks, :done) #=> "✅"
-"""
-def step_marks()
-  {running: "⏳", done: "✅", failed: "❌", skipped: "➖", warn: "⚠️"}
-end
-
-@doc """
-duration_text: milliseconds as a person reads a duration: tenths of a second under a minute, minutes and seconds above.
-
-    duration_text(87240) #=> "1m 27s"
-"""
-def duration_text(ms)
-  if ms < 60000
-    "#{to_s(round(ms / 100) / 10)}s"
-  else
-    m = floor(ms / 60000)
-    sec = floor((ms - m * 60000) / 1000)
-    pad = if sec < 10
-      "0"
-    else
-      ""
-    end
-    "#{to_s(m)}m #{pad}#{to_s(sec)}s"
-  end
-end
-
-@doc """
-step: one step of a run as a node: the state's mark, its place as [at/of], its name in bold, an optional note after a dash, the duration once known, and an ellipsis while it runs.
-
-    styled(step({state: :done, at: 3, of: 11, name: "regen", ms: 87240}), {color: false, theme: nil}) #=> "✅ [3/11] regen (1m 27s)"
-"""
-def step(s)
-  checked(s, %i[state at of name note ms])
-  state = s[:state]
-  mark = get(step_marks, state)
-  if mark.nil?
-    raise(
-      :bad_option,
-      "a step state is running, done, failed, skipped or warn, got #{to_s(state)}"
-    )
-  end
-  tone = get(
-    {running: :cyan, failed: :red, warn: :yellow, skipped: :bright_black},
-    state
+  shisutemu::show(
+    node,
+    {
+      color: opts[:color],
+      sink: opts[:sink],
+      to: opts[:to],
+      newline: opts[:newline],
+      paint: painter(opts[:theme])
+    }
   )
-  name = if tone.nil?
-    {text: s[:name], bold: true}
-  else
-    {text: s[:name], bold: true, ink: tone}
-  end
-  note = if s[:note].nil?
-    []
-  else
-    [{text: " — ", ink: :bright_black}, s[:note]]
-  end
-  tail = if s[:ms] != nil
-    [{text: " (#{duration_text(s[:ms])})", ink: :bright_black}]
-  elsif state == :running
-    [{text: " …", ink: :bright_black}]
-  else
-    []
-  end
-  append(
-    [
-      "#{mark} ",
-      {text: "[#{to_s(s[:at])}/#{to_s(s[:of])}]", ink: :bright_black},
-      " ",
-      name
-    ],
-    note,
-    tail
-  )
-end
-
-@doc """
-show_step: write one step line, to stderr unless told otherwise, painted only when NO_COLOR is unset and the stream is a terminal.
-
-    show_step({state: :skipped, at: 1, of: 1, name: "x"}, {sink: (_t) -> nil}) #=> nil
-"""
-def show_step(s, opts)
-  to = opts[:to] or :stderr
-  color = if opts[:color].nil?
-    color_default and
-      terminal?(
-        if to == :stdout
-          1
-        else
-          2
-        end
-      )
-  else
-    opts[:color]
-  end
-  show(step(s), assoc(assoc(opts, :to, to), :color, color))
 end
 
 def close?(a, b)
@@ -2350,44 +2161,6 @@ test "a missing theme token is named, with and without a theme at all"
   assert contains?(e2, "no theme token zzz") == true
 end
 
-test "NO_COLOR turns color off unless it is unset or empty"
-  assert colored?(nil) == true
-  assert colored?("") == true
-  assert colored?("1") == false
-  assert colored?("anything") == false
-end
-
-test "the writer goes to stdout or stderr and refuses any other place"
-  assert writer({})("").nil?
-  assert writer({to: :stdout})("").nil?
-  assert writer({to: :stderr})("").nil?
-  assert raised(() -> writer({to: :file})) == :bad_option
-  assert raised(() -> writer({to: "stderr"})) == :bad_option
-end
-
-test "show writes stdout by default and stderr on request, each to its own stream"
-  if self_exe != nil
-    dir = path_join(getenv("TMPDIR", "/tmp"), "gamen-#{to_s(now_ns)}")
-    mkdir_p(dir)
-    prog = path_join(dir, "probe.b")
-    write_program(
-      prog,
-      unlines(
-        [
-          "use(\"gamen\")",
-          "gamen::show(\"out\", {color: false})",
-          "gamen::show(\"err\", {to: :stderr, newline: false})"
-        ]
-      )
-    )
-    cap = exec_with_env([], self_exe, "run", "--quiet", prog)
-    rm_rf(dir)
-    assert status_of(cap) == 0
-    assert stdout_of(cap) == unlines(["out"])
-    assert stderr_of(cap) == "err"
-  end
-end
-
 test "view builds a plain record of tag, props and children"
   assert view(:p, {class: "x"}, ["hi"]) ==
     {tag: :p, props: {class: "x"}, children: ["hi"]}
@@ -3003,50 +2776,6 @@ test "an ink paints by ANSI slot, after the flags and before a hex colour, and a
   assert styled({text: "x", ink: :cyan}, {color: false, theme: nil}) == "x"
   assert size(map_entries(inks)) == 16
   assert raised(() -> styled({text: "x", ink: :teal}, ctx)) == :bad_option
-end
-
-test "duration_text: tenths under a minute, minutes and padded seconds above"
-  assert duration_text(0) == "0s"
-  assert duration_text(87) == "0.1s"
-  assert duration_text(59940) == "59.9s"
-  assert duration_text(60000) == "1m 00s"
-  assert duration_text(551_000) == "9m 11s"
-end
-
-test "a step line reads mark, place, name, note and duration, and refuses an unknown state"
-  plain = {color: false, theme: nil}
-  assert styled(step({state: :running, at: 1, of: 5, name: "guard"}), plain) ==
-    "⏳ [1/5] guard …"
-  assert styled(
-    step(
-      {state: :running, at: 2, of: 5, name: "wait", note: "held", ms: 60000}
-    ),
-    plain
-  ) == "⏳ [2/5] wait — held (1m 00s)"
-  assert styled(
-    step({state: :skipped, at: 2, of: 5, name: "wait", note: "free"}),
-    plain
-  ) == "➖ [2/5] wait — free"
-  assert styled(
-    step({state: :failed, at: 4, of: 5, name: "switch"}),
-    {color: true, theme: nil}
-  ) ==
-    "❌ #{esc_char}[90m[4/5]#{esc_char}[0m #{esc_char}[1;31mswitch#{esc_char}[0m"
-  assert raised(() -> step({state: :gone, at: 1, of: 1, name: "x"})) ==
-    :bad_option
-  assert raised(() -> step({state: :done, at: 1, of: 1, name: "x", eta: 1})) ==
-    :bad_option
-end
-
-test "show_step writes one line through the sink and keeps colour off when told"
-  seen = [""]
-  sink = (t) -> set!(seen, [concat(first(seen), t)])
-  assert show_step(
-    {state: :done, at: 1, of: 2, name: "x", ms: 1500},
-    {sink:, color: false}
-  ).nil?
-  assert first(seen) == unlines(["✅ [1/2] x (1.5s)"])
-  assert terminal?(9) == false
 end
 
 test "a role paints in its kazari ink, and an unknown role is refused"

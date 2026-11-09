@@ -142,6 +142,23 @@ def relative(path, base)
   )
 end
 
+@doc """
+write_tree: write each [path, text] pair of `fs` under `root`, making the directories each needs, and answer the paths written.
+
+    write_tree("/nowhere", []) #=> []
+"""
+def write_tree(root, fs)
+  map(
+    fn(f)
+      path = "#{root}/#{first(f)}"
+      mkdir_p(path_dirname(path))
+      write_file(path, second(f))
+      path
+    end,
+    fs
+  )
+end
+
 test "normalize removes dot parts, empty parts and each pair that climbs back"
   assert normalize("a/./b//c/../d") == "a/b/d"
   assert normalize("/a/../b") == "/b"
@@ -202,4 +219,14 @@ end
 test "fixture reads a bidama's fixture by name and refuses one that is not there"
   assert fixture("fairu", "plain.txt") == unlines(["a fixture"])
   assert (fixture("fairu", "no-such-fixture") rescue :no_fixture) == :no_fixture
+end
+
+test "write_tree writes each file below the root, making its directories, and answers the paths"
+  root = path_join(getenv("TMPDIR", "/tmp"), "fairu-#{to_s(now_ns)}")
+  written = write_tree(root, [%w[a.txt one], %w[deep/er/b.txt two]])
+  assert written == ["#{root}/a.txt", "#{root}/deep/er/b.txt"]
+  assert read_file("#{root}/a.txt") == "one"
+  assert read_file("#{root}/deep/er/b.txt") == "two"
+  assert write_tree(root, []) == []
+  rm_rf(root)
 end

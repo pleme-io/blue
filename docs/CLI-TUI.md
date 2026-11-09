@@ -22,9 +22,9 @@ function, never a hand-written parser or a hand-written escape sequence.
 
 | Piece | Where | State |
 |---|---|---|
-| styled text: SGR flags, ANSI-slot inks, truecolor `fg`/`bg` from a theme, `NO_COLOR` | `gamen` (`styled`, `show`, `inks`, `theme`) | built |
-| step lines with ✅ ❌ ⚠️ ➖ ⏳ and durations | `gamen` (`step`, `show_step`, `step_marks`) | built |
-| whether a stream is a terminal | `gamen::terminal?`, by running `test -t` | built, through a process |
+| styled text: SGR flags, ANSI-slot inks, truecolor `fg`/`bg`, `NO_COLOR` | `shisutemu` (`styled`, `show`, `inks`); `gamen` (`styled`, `show`, `theme`) reads `fg`/`bg` in a theme (moved 2026-11-09) | built |
+| step lines with ✅ ❌ ⚠️ ➖ ⏳ and durations | `shisutemu` (`step`, `show_step`, `step_marks`, `duration_text`; moved from `gamen` 2026-11-09) | built |
+| whether a stream is a terminal | `shisutemu::terminal?`, by running `test -t` | built, through a process |
 | CLI arguments | none: `souji`, `heni`, `tehai`, `kijun`, `kirikae` and the `blue` tools parse `--flag` by hand (`BIDAMA-COHESION.md` C4 counts 14 bidamas) | absent until `hikisuu` |
 | terminal input: a line, a key, raw mode, the window size | none; the runtime has `argv`, `getenv`, `write_stdout`, `write_stderr`, `exit_with` and nothing that reads stdin | absent |
 | design tokens | `ishou` (`ishou-tokens`: `SemanticRoles`, the Nord and Vellum themes) is the source of truth; `irodori` holds Nord | Rust |
@@ -156,7 +156,7 @@ the environment has not thereby been allowed to take over the terminal:
 | `term_raw(on)` | enter or leave raw mode and the alternate screen; leaving restores the saved mode |
 | `term_event(timeout_ms)` | the next key, paste or resize as a record, nil on timeout |
 | `read_line()` | a line from stdin, nil at end of input |
-| `is_terminal(fd)` | replaces `gamen::terminal?`'s `test -t` process |
+| `is_terminal(fd)` | replaces `shisutemu::terminal?`'s `test -t` process |
 
 Rust holds only these five (a termios call and an event decoder, through
 crossterm behind one seam, per CONTAIN THE C); everything above them is blue.

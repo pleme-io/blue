@@ -541,7 +541,7 @@ G	gamen?	prompt	effect	prompt(question, opts) -> answer	deadline	egaku	absent	as
 G	gamen?	put	effect	put(subject, key, value) -> value	validate	egaku	absent	set a state value, theme token or key binding	1	put(subject, key, value) -> value	yes
 G	gamen?	render	pure	render(tree, target, opts) -> output	serialize	pleme-widget-gen	exists:gamen	tree to html, ansi, svg or widget spec text	1	render(tree, target, opts) -> output	yes
 G	gamen?	send	effect	send(app, event) -> nil	-	madori	absent	deliver one event to a running app	2	send(app, event) -> nil	yes
-G	gamen?	show	effect	show(node, opts) -> nil	-	kazari	exists:gamen	put a node on the terminal as styled output	0		na
+G	gamen?	show	effect	show(node, opts) -> nil	-	kazari	exists:gamen	put a node on the terminal as styled output, its colours read in the `theme` option	0		na
 G	gamen?	start	effect	start(app, surface, opts) -> handle	process,resource	madori	absent	run an app on a terminal, window or page	2	start(app, surface, opts) -> handle	yes
 G	gamen?	state	decl	state(initial, opts) -> store	serialize	egaku	absent	declare the store that holds a view state	1		na
 G	gamen?	stop	effect	stop(handle, opts) -> nil	cancel,resource	madori	absent	end a running app and free its surface	2	stop(handle, opts) -> nil	yes

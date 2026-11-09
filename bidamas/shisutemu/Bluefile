@@ -1,5 +1,6 @@
-package("shisutemu", "0.1.0")
+package("shisutemu", "0.1.1")
 needs("retsu", "^0.1")
 needs("moji", "^0.1")
 needs("settei", "^0.1")
 needs("deeta", "^0.1")
+needs("kyohi", "^0.1")

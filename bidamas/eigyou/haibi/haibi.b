@@ -13,9 +13,12 @@ component unless it declares another runtime.
 use("deeta", %i[get_or pretty yaml])
 use("eigyou/kyuuji")
 use("eigyou/shihyou")
+use("fairu")
 use("jisho")
 use("retsu", %i[first flat_map last take_while])
 use("settei", [:env_prefix])
+
+legacy_names("0.1.2", [%w[write_tree fairu::write_tree]])
 
 def entries_of(m)
   if m.nil?
@@ -1389,18 +1392,6 @@ def files_with(name, version, svc, mode)
     ["config/#{name}.schema.json", pretty(config_schema(name, svc))]
   ]
   sort_keyed((f) -> first(f), append(chart, own, db, config))
-end
-
-def write_tree(root, fs)
-  map(
-    fn(f)
-      path = "#{root}/#{first(f)}"
-      mkdir_p(path_dirname(path))
-      write_file(path, second(f))
-      path
-    end,
-    fs
-  )
 end
 
 def sample()

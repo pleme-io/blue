@@ -1,10 +1,10 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:34fd9df4c4d7ce91d078ccd3886eed722f023ee7708f4f1d96fd935c9e2b89dc",
+  "bluefile_b3": "b3:f3aeecbd3bb7be6f04ba197c372edecb2fcb09cfbc7772e6b37618d680474e78",
   "manifest": {
     "schema": 1,
     "name": "fairu",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "needs": {
       "moji": "^0.1.0",
       "retsu": "^0.1.0"

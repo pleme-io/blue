@@ -7,8 +7,11 @@ A host hands `diagnose` the facts of one failed connect: the credential helper's
     incomplete #=> []
 """
 
+use("hikisuu", [:flag])
 use("moji", %i[includes lower made_of starts_with strip_suffix words])
 use("retsu", %i[drop_n find_first index_of is_empty size])
+
+legacy_names("0.1.1", [%w[flag hikisuu::flag]])
 
 @doc """
 failure: one failure class: the error markers that identify it, a short title, the diagnosis and the remediation.
@@ -26,21 +29,6 @@ provider: one credential provider: the helper programs it owns, the facts it rea
 """
 def provider(name, label, programs, facts, failures)
   {name:, label:, programs:, facts:, failures:}
-end
-
-@doc """
-flag: the value after a flag in an argument list, or nil.
-
-    flag(["--a", "1", "--b", "2"], "--b") #=> "2"
-    flag(["--a"], "--a") #=> nil
-"""
-def flag(args, name)
-  i = index_of(args, name)
-  if i < 0 or i + 1 >= size(args)
-    nil
-  else
-    args[i + 1]
-  end
 end
 
 @doc """

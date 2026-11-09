@@ -13,11 +13,11 @@ use(
   ]
 )
 
+use("hikisuu", [:flag])
 use("kazu", [:max])
 use("kyohi", [:why])
 use("moji", %i[after_first before_first includes lines trim])
 use("retsu", %i[first is_empty size])
-use("shinsatsu", [:flag])
 use("shisutemu", %i[read_or status_of stderr_of])
 
 BASELINE = "bench/cost.baseline"

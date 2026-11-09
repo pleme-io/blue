@@ -15,11 +15,6 @@ records the outcome.
 use("deeta", %i[get_int get_str])
 
 use(
-  "gamen",
-  %i[color_default duration_text show show_step step styled terminal?]
-)
-
-use(
   "kakehashi/hyouka",
   %i[first_out installable plan_build resolve store_hash store_name store_path?]
 )
@@ -46,7 +41,21 @@ use(
 
 use("settei")
 
-use("shisutemu", %i[read_or stdout_of strip_ansi])
+use(
+  "shisutemu",
+  %i[
+    color_default
+    duration_text
+    read_or
+    show
+    show_step
+    stdout_of
+    step
+    strip_ansi
+    styled
+    terminal?
+  ]
+)
 
 def attr_for(kind, host)
   if kind == "nixos"
@@ -1579,7 +1588,7 @@ end
 @doc """
 opening: the first line of a narrated run: what is rebuilt, from where, and the phases ahead.
 
-    styled(opening({host: "ryn", kind: "darwin", flake: "."}), {color: false, theme: nil}) #=> "kirikae · rebuilding ryn (darwin) from . — guard, wait, plan, switch, verify"
+    styled(opening({host: "ryn", kind: "darwin", flake: "."}), {color: false}) #=> "kirikae · rebuilding ryn (darwin) from . — guard, wait, plan, switch, verify"
 """
 def opening(s)
   [
@@ -1594,7 +1603,7 @@ end
 @doc """
 closing: the end of a narrated run: a coloured circle for the verdict, the outcome and how long the whole run took, then the fix when there is one and where the event log is.
 
-    styled(closing("activated", 0, 1051000, nil, "/x/events.jsonl"), {color: false, theme: nil}) #=> "🟢 kirikae: activated (17m 31s)\n   log /x/events.jsonl"
+    styled(closing("activated", 0, 1051000, nil, "/x/events.jsonl"), {color: false}) #=> "🟢 kirikae: activated (17m 31s)\n   log /x/events.jsonl"
 """
 def closing(text, status, ms, fix, log)
   circle = if status == 0
@@ -1718,7 +1727,7 @@ def answer(args)
   elsif verb == "demo"
     join(
       map(
-        (n) -> styled(n, {color: color_default and terminal?(1), theme: nil}),
+        (n) -> styled(n, {color: color_default and terminal?(1)}),
         demo_lines(
           if size(args) > 1
             args[1]
@@ -2342,10 +2351,7 @@ test "each phase closes with the state its finding earns"
 end
 
 test "the demo renders every phase in order, plain when colour is off"
-  plain = map(
-    (n) -> styled(n, {color: false, theme: nil}),
-    demo_lines("switch")
-  )
+  plain = map((n) -> styled(n, {color: false}), demo_lines("switch"))
   assert first(plain) ==
     "kirikae · rebuilding ryn (darwin) from . — guard, wait, plan, switch, verify"
   assert plain[2] ==

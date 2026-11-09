@@ -1,10 +1,10 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:0009f2bdc25178cee9b7181a010999fa73864a8cf8de73df5b1b6c1611858b52",
+  "bluefile_b3": "b3:1dfc9ed8c70ba94a61350bcf42e22f796bff7725d35826b066c558d8555dd19c",
   "manifest": {
     "schema": 1,
     "name": "hikisuu",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "needs": {
       "jisho": "^0.1.0",
       "kyohi": "^0.1.0",

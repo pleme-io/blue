@@ -7,7 +7,6 @@
     "version": "0.1.2",
     "needs": {
       "deeta": "^0.1.0",
-      "gamen": "^0.1.0",
       "hadome": "^0.1.0",
       "hikisuu": "^0.1.0",
       "jisho": "^0.1.0",

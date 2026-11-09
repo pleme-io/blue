@@ -66,9 +66,7 @@ fn the_frontend_finds_its_schema_table_and_its_views() {
     let generator = root().join("examples/frontend/gen/schema.b");
     let fe = l.frontend(&generator).expect("the project's table");
     assert!(!fe.view, "the generator is not a view");
-    assert!(l
-        .frontend(&root().join("bidamas/toriyose/danpen/danpen.b"))
-        .is_none());
+    assert!(l.frontend(&root().join("bidamas/fairu/fairu.b")).is_none());
 }
 
 #[test]
@@ -172,7 +170,7 @@ fn query_text_in_a_views_test_or_outside_a_frontend_is_not_reported() {
         source()
     );
     assert_eq!(codes(&in_test), Vec::<Code>::new());
-    let elsewhere = root().join("bidamas/toriyose/danpen/danpen.b");
+    let elsewhere = root().join("bidamas/fairu/fairu.b");
     let text = "q = \"query Q { a }\"\nALL = [\"COOL\", \"WARM\"]\n";
     let c = checked(&elsewhere, text);
     assert!(

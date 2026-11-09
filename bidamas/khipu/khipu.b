@@ -818,11 +818,17 @@ def var?(t)
 end
 
 @doc """
-pattern: One triple pattern; each position a term or a variable. It matches a quad of any graph.
+pattern: One triple pattern; each position a term or a variable. It matches a quad of any graph. A subject that is a literal, or a predicate that is not an IRI, could match nothing and is refused.
 
     size(pattern(var("s"), iri("http://e/p"), var("o"))) #=> 3
 """
 def pattern(s, p, o)
+  if not var?(s) and not member?(s[:term], %i[iri blank])
+    refuse("a pattern's subject is a variable, an IRI or a blank node")
+  end
+  if not var?(p) and p[:term] != :iri
+    refuse("a pattern's predicate is a variable or an IRI")
+  end
   [s, p, o]
 end
 
@@ -1109,7 +1115,7 @@ ex is a test IRI in the http://e/ space.
     ex("a") #=> iri("http://e/a")
 """
 def ex(local)
-  iri("http://e/#{local}")
+  iri(concat("http://e/", local))
 end
 
 @doc """
@@ -1180,6 +1186,12 @@ test "past its budget a question is refused, never cut short"
   )
   assert raised(() -> ask(s, q)) == :khipu_budget
   assert size(ask(s, question(["d"], q[:where], [], {budget: 3}))) == 3
+end
+
+test "a pattern that could match nothing is refused where it is made"
+  assert rdf_refused?(() -> pattern(literal("a"), ex("p"), var("o")))
+  assert rdf_refused?(() -> pattern(var("s"), literal("p"), var("o")))
+  assert size(pattern(var("s"), var("p"), literal("o"))) == 3
 end
 
 test "a question with no pattern, or an unbound answer, is refused"

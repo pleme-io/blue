@@ -1926,6 +1926,7 @@ needs is in [KERNEL.md](KERNEL.md) §3.
 - [SERVICE-ARCHITECTURE — the default blue service](SERVICE-ARCHITECTURE.md): the default blue service and the batteries it composes (design)
 - [SERVICE-DATA — Postgres, Valkey and the nervous system as defaults](SERVICE-DATA.md): Postgres, Valkey and the nervous system as the configurable defaults of a blue service (design)
 - [STDLIB: blue's batteries, as one verb vocabulary](STDLIB.md): the standard library's design as one verb vocabulary (design)
+- [SUBSTRATE — blue as the one language of the whole stack](SUBSTRATE.md): blue as the one language of the whole stack — business logic in blue, everything it needs rendered; layer 1 cloud on engenho, layer 2 every placement, layer 3 high-assurance local systems (design)
 - [Testing and the SDLC: one blue pipeline](TESTING.md): every kind of test and its one place beside what it tests, and the Bluefile as the one pipeline
 - [utsushi (写し): blue's history projection, the design of record](UTSUSHI.md): utsushi, blue's history projection, DESIGN: Josh's essence naturalized with six improvements, the recon, the lens and view algebra, the phases, the parity gates and the tier ledger
 - [Blue verb roadmap: full software verbalization](VERB-ROADMAP.md): the roadmap to full software verbalization

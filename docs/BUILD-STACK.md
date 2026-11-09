@@ -9,7 +9,9 @@ Status: DESIGN, 2026-10-27; the runtime rung (§2) is decided, and its judge
 and component are built, 2026-10-28. Nothing else is built unless §8 says so. It joins three
 designs into one chain: `SERVICE-ACCESS.md` (what a service may touch),
 `BUILD-ASSURANCE.md` (what a build proves, how fast, from which cache) and
-theory `BLUE-EXECUTION.md` §IV (blue to wasm).
+theory `BLUE-EXECUTION.md` §IV (blue to wasm). The whole-stack architecture
+that this chain serves (business logic in blue, everything else rendered, three
+layers) is `SUBSTRATE.md` (2026-11-09).
 
 ## 1. Destination
 
@@ -102,14 +104,21 @@ lowers through `blue.lib.project` to substrate's nix (`lib/service/helm-build.ni
 | `service(name, {...})` | the program, port, probes, config | haibi's chart (values plus pleme-lib `include`s) |
 | `access: {effects, egress, reads, writes, listen, exec, host_network, per_node}` | what it may touch (`SERVICE-ACCESS.md` §3) | pleme-lib access network policy and volumes; the engine posture; unit sandbox |
 | `runtime: :native, because: :process` (absent: wasm) | the runtime rung (§2) | `packages.service-<name>-component` and the wasm workload, or the native workload; `checks.service-<name>-component-serves` runs the component under wasmtime |
-| `schema: {...}` / `model(...)` | its data | DDL and the shinka migration |
-| `cache: {...}`, `secrets: [...]` | bindings | pleme-cache values; pleme-lib typed secret refs |
+| `schema: {...}` / `model(...)` | its data; since 2026-11-09 the model lives in its own bidama (`theory/BLUE.md` §V.32, `SERVICE-ARCHITECTURE.md` §5c) | DDL and the shinka migration |
+| `cache: {...}`, `secrets: [...]` | bindings; a secret is a cofre `SecretRef` (`theory/FUEKI.md` R5) | pleme-cache values; pleme-lib typed secret refs |
 | `supervision: {...}` | the OTP tree (§5.1) | the service runtime's supervisor; probes |
 | `placement(name, {node: "plo"})` / `placement(name, {cluster: "...", namespace: "..."})` | where it runs, with per-place values | `mkHelmRender` with those values → engenho manifests (node) or a Flux HelmRelease/Kustomization (cluster) |
 | `chart_library("pleme-lib", from: :helmworks)` | a library chart the chart uses | `mkHelmChart` vendoring it from the flake input; the dependency names a vendored path |
 
 A word not in this table is a request for a new word, made in blue's Bluefile
 vocabulary (`blue_lang_pkg::bluefile::WORDS`), never a hand-written nix or YAML file.
+
+This table owns the two placement arms, a node and a cluster;
+`SUBSTRATE.md` §7 keeps both and points here. The pleme-lib `include`s above
+are today's rendering, not a kept part of the path: from 2026-11-09 typed
+objects are the source, and pleme-lib and haibi's string templates are
+configured off per chart as typed rendering covers them (`SUBSTRATE.md` §7,
+L1.3).
 
 A node that runs no Kubernetes (a NixOS host) still runs the chart: engenho
 renders it into its manifests directory (`pleme.engenho.helm.releases`). So one
@@ -199,7 +208,7 @@ Turning it off is a typed waiver on the entry, never a missing entry.
 | `runtime` and `access` on `service`, the judge (§2.1) | built 2026-10-28 |
 | blue engine as a WASI preview 2 component (`blue-lang-component`), per-service bundle, `-component-serves` | built 2026-10-28 |
 | engenho `kidou` preopens the bundle at `/app` (`wasm.pleme.io/app`) | built 2026-10-28 |
-| haibi wasm chart on pleme-lib's wasm mode (S4) | built 2026-10-29 on pleme-lib 0.59.1: `checks.service-<name>-chart` renders the wasm Deployment and refuses one with no closure; no release sets `runtime.component.closure` yet (S5), and no deployed pod has run it |
+| haibi wasm chart on pleme-lib's wasm mode (S4) | built 2026-10-29 on pleme-lib 0.59.1: `checks.service-<name>-chart` renders the wasm Deployment and refuses one with no closure. On 2026-10-29 no release set `runtime.component.closure`; since nix `6dd08d07` ola-mundo's release on ryn pins it (`nix/nodes/ryn/default.nix`). Whether that pod serves is unmeasured (`SUBSTRATE.md` L1.1) |
 | Flux per placement | design |
 | OTP supervisor (`blue-lang-proc`), restart policy as data (`saishikou`) | built, not wired into services |
 | supervision as a service default, restart window and backoff | design |

@@ -432,7 +432,7 @@ Read it in order as [The blue Book](docs/BOOK.md), or open one page:
 ### Explanation
 
 <details>
-<summary>48 pages on why blue is shaped as it is</summary>
+<summary>49 pages on why blue is shaped as it is</summary>
 
 - [ABSENCE — no undeclared nil](docs/ABSENCE.md): no undeclared nil: how blue makes absence a declared, checked state
 - [API-EVOLUTION — the API is a versioned rendering of the one model](docs/API-EVOLUTION.md): the API as a versioned rendering of one model (design)
@@ -466,6 +466,7 @@ Read it in order as [The blue Book](docs/BOOK.md), or open one page:
 - [SERVICE-ARCHITECTURE — the default blue service](docs/SERVICE-ARCHITECTURE.md): the default blue service and the batteries it composes (design)
 - [SERVICE-DATA — Postgres, Valkey and the nervous system as defaults](docs/SERVICE-DATA.md): Postgres, Valkey and the nervous system as the configurable defaults of a blue service (design)
 - [STDLIB: blue's batteries, as one verb vocabulary](docs/STDLIB.md): the standard library's design as one verb vocabulary (design)
+- [SUBSTRATE — blue as the one language of the whole stack](docs/SUBSTRATE.md): blue as the one language of the whole stack — business logic in blue, everything it needs rendered; layer 1 cloud on engenho, layer 2 every placement, layer 3 high-assurance local systems (design)
 - [Testing and the SDLC: one blue pipeline](docs/TESTING.md): every kind of test and its one place beside what it tests, and the Bluefile as the one pipeline
 - [utsushi (写し): blue's history projection, the design of record](docs/UTSUSHI.md): utsushi, blue's history projection, DESIGN: Josh's essence naturalized with six improvements, the recon, the lens and view algebra, the phases, the parity gates and the tier ledger
 - [Blue verb roadmap: full software verbalization](docs/VERB-ROADMAP.md): the roadmap to full software verbalization

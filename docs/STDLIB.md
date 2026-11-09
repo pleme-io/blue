@@ -683,7 +683,8 @@ it raises `:bad_option`, because this kubeconfig also holds akeyless production 
 house rule is to pass `--context` every time. **Left out on purpose:** `put`, `create`, `update` and
 `delete`. Clusters change through GitOps, and blue already says so (`blue diff`, no `blue apply`).
 The completeness argument is the doctrine: every read a program makes is here, and every write
-belongs to a reconciler.
+belongs to a reconciler. This section owns that rule; `SUBSTRATE.md` L1.5 (2026-11-09) follows it:
+a blue reconciler is a `BlueWorker` decision over typed kinds, and engenho applies it on its node.
 
 **Runtime:** `kubectl get -o json` through shisutemu first. A direct API client over tsuushin
 (needs TLS, a kubeconfig parse and an exec credential plugin) comes later, behind the same surface.
@@ -710,7 +711,9 @@ through shisutemu).
 **Verbs:** `read("secrets.yaml#github/token") -> Secret`, `get`/`need`/`has?` over a sops file's
 keys, `list(file)` (keys only), `put(file, key, value)` (`sops set`), and the noun `reveal(secret)
 -> Text`. A Secret renders as `<secret>` everywhere except through `reveal`. **Runtime:** the `sops`
-binary through shisutemu (move `sops-extract`'s argv shape).
+binary through shisutemu (move `sops-extract`'s argv shape). himitsu is a reader. A service
+declaration names a cofre `SecretRef` (`theory/FUEKI.md` R5); shikumi `SecretSource` and himitsu read
+it (`SUBSTRATE.md` §7, 2026-11-09).
 
 ### 4.22 Unchanged spaces, conformed
 
@@ -1005,7 +1008,9 @@ frequency, then the space that covers it:
 - axum: `.route(` 1,050; 73 repos → kyuuji.
 - rmcp: about 50 MCP servers in 45 repos → kyuuji `serve` with an MCP protocol. This needs a stdin
   line primitive, since blue cannot read stdin today.
-- kube-rs: `Controller::new` 371; 37 repos → kurasuta plus vigy.
+- kube-rs: `Controller::new` 371; 37 repos → kurasuta plus a `BlueWorker` decision over typed kinds
+  (`SUBSTRATE.md` §4.4). Until 2026-11-09 this row named vigy, a native host runtime a component
+  cannot reach.
 - sqlx and SeaORM: 30 and 26 repos; `DeriveEntityModel` 152, `Entity::find` 588, `Column::` 1,600,
   `MigrationTrait` 136 → teeburu, extended into the data layer.
 - octocrab: 11 repos → habu.

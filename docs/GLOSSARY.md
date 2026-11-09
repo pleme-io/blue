@@ -343,6 +343,8 @@ These are pleme-io names outside blue. blue's docs and agent guide use them.
 
 ### A deploy: a blue service from Bluefile to a node
 
+The whole-stack architecture this path serves is `SUBSTRATE.md`.
+
 1. The author writes `service("name", {…, access: {…}})` and a `placement(…)` in the Bluefile.
 2. `blue lock .` evaluates the Bluefile in its frame, checks the capability lattice and writes `Bluefile.lock`. blue calls nix to pin the sources; nix never calls blue.
 3. nix (`blue.lib.project`) reads the lock and lowers each word to packages, checks and apps. `nix run .#regen` rewrites every generated file, and the `-fresh` checks fail until the diff is committed.
@@ -350,5 +352,5 @@ These are pleme-io names outside blue. blue's docs and agent guide use them.
 5. haibi renders the Helm chart and its closed values schema into `deploy/<service>/`. `blue workload render --write` renders the Kubernetes objects. `blue image build` builds an image through nix for the native rung.
 6. GitHub Actions runs substrate's `blue-project.yml`. sui builds once on the build node and caches the result. Every other machine substitutes. koutei writes each step summary.
 7. Flux applies a HelmRelease and a Kustomization for each placement. This step is **design**. `blue diff --context CTX` compares the committed files with a cluster, read-only.
-8. engenho runs the chart. On the wasm rung, engenho's `kidou` preopens the program bundle read-only at `/app` and derives the grants from `access`. The chart is built, but no release sets its component closure yet, and no deployed pod has run it.
+8. engenho runs the chart. On the wasm rung, engenho's `kidou` preopens the program bundle read-only at `/app` and derives the grants from `access`. The chart is built. ola-mundo's release on ryn pins its component closure (nix `6dd08d07`); whether that pod serves is unmeasured (`SUBSTRATE.md` L1.1).
 9. Inside the service, `shisei::stack` composes the declared postures, bougyo's among them, around each handler. kyuuji answers a raise with 500. OTP supervision through `blue-lang-proc` is built, but no service uses it yet: that wiring is **design**.

@@ -168,7 +168,7 @@ reuse census holds it.
 | Kubernetes kinds | `engenho-kube-codegen` (emit blue records too) | a second generator, hand-typed kinds |
 | Kubernetes reads, watch, reconcile | `engenho-kube-client`, `Controller::tick`, `BlueWorker`, `kurasuta` verbs | a new client or loop; vigy (a native host runtime, not reachable from a component) |
 | routes, handlers | `kyuuji` | a second router |
-| data model | `teeburu` (`model`/`evolve`/`judge`), the §V.32 model bidama | hand SQL; `kueri` (that is DuckDB analytics) |
+| data model | the §V.32 model bidama (`DATA-FRAMEWORK.md`), `teeburu` (`model`/`evolve`/`judge`); SQL rendered from `kueri`'s typed tree (§V.32) | hand SQL; a second model beside the bidama; `kueri` as the model (it renders the SQL, it does not hold the shape) |
 | schedules | `shigoto`, ASYNC timers, engenho `cron.rs` | a CronJob per schedule |
 | queues | `taiki`/`messeeji` spaces over `net/nats.rs` | a new broker client |
 | secrets | cofre `SecretRef` (declared), shikumi `SecretSource` + `himitsu` (read) | blue's own parallel `SecretRef` (FUEKI E3) |

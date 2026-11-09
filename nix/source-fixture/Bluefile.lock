@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:cfd8e6ff9b9136d105b494aaf17fac174801d92cb728505b66b4dc5d405a84a0",
+  "manifest": {
+    "schema": 1,
+    "name": "source-fixture",
+    "version": "0.1.0",
+    "needs": {
+      "fixture": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {
+      "upstream": {
+        "url": "github:pleme-io/blue",
+        "dir": "nix/project-fixture/bidamas"
+      }
+    },
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {
+      "reaches": {
+        "file": "checks/reaches.b"
+      }
+    },
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {
+    "upstream": {
+      "url": "github:pleme-io/blue",
+      "rev": "804c190eb5341cca984844d3d5cdb24202670eda",
+      "narHash": "sha256-5jBJMKKJbhEk2DavIq0hu8YYCFfaL1iKymiUUP3uZdg=",
+      "storePath": "/nix/store/7k6f8kds4v8ycfxkyky9p64xgj2hdqr3-source"
+    }
+  }
+}

@@ -219,6 +219,23 @@ Rejected, and why:
 Every argument is a literal, and a computed one is B0073, at the check stage,
 naming why. A level imported twice is B0015, whichever spellings did it.
 
+### Where a root comes from
+
+A name has a second axis: the repository that holds its root. The call site
+never states it. `use("thing/sub")` reads the same whether `thing` sits in
+the project, in blue's distribution or in another repository.
+
+| Where | What it states |
+|---|---|
+| `source(name, url, dir)` in the Bluefile | a repository, and the directory in it that holds package roots |
+| `Bluefile.lock` | the exact tree: `rev` and `narHash` |
+| the build (`nix/project.nix`) and the CLI load path | every package root under `dir` joins the project's roots |
+
+One root holds a name. When two roots of the project hold the same name, the
+build refuses it and names both. A source the lock does not pin adds nothing,
+and the other sources still build. The flow, the pins and the off switches:
+[REGISTRY.md](REGISTRY.md), "Build flow".
+
 ### Embedding
 
 `Embedded` is one level. A host compiles a tree in by chaining one

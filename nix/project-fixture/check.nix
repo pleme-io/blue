@@ -14,8 +14,8 @@
 #   - `second` writing first + 2     "FAIL a run reads the run it names through RUN_READS"
 #   - checks/smoke.b with no tests   "…smoke.b: no `test` blocks, so nothing was tested"
 #   - the package defining `unique`  bidama-collisions: (("unique" ("fixture" "shuugou")))
-# and at evaluation, each a `lib.project:` error naming it: a `source(...)`
-# word, `tool("no-such-tool-xyz")`, a lock key `service` no word lowers,
+# and at evaluation, each a `lib.project:` error naming it:
+# `tool("no-such-tool-xyz")`, a lock key `service` no word lowers,
 # `check("bidama-collisions", …)`, and `needs("no-such-pkg", …)`.
 # The unbroken copy: "4 test(s): 4 passed, 0 failed".
 { pkgs, blue, engine, src, appliance }:

@@ -135,6 +135,32 @@ A `source` whose url is `flakehub:<org>/<project>/<range>` resolves in
 
 Builds read only the lock. They never ask FlakeHub.
 
+## Build flow
+
+A project that declares `source(name, url, dir)` builds against the tree the
+lock pins:
+
+1. `nix/project.nix` calls `builtins.fetchTree` with the pin. A FlakeHub pin
+   gives FlakeHub's immutable tarball (`fetch`) and `narHash`. Any other pin
+   gives the declared flake reference with `rev` and `narHash`. A hosted
+   reference drops its `ref`, because the `rev` names the commit.
+2. Every package under `dir` in that tree joins the build graph beside the
+   project's own packages. The project's checks, runs, apps and runner see
+   them.
+3. A package name that two roots hold is refused, and the error names both
+   roots.
+4. A source the lock refused, or never pinned, adds no package. Its siblings
+   build. A `needs` that only it could meet fails and names its reason.
+
+The CLI reads the same pin. `blue run`, `blue test` and `blue check` in the
+project add the source's packages root after the project's `packages` roots,
+when the pinned store path is on the machine. `blue lock` fetches it.
+
+| state | |
+|---|---|
+| `source` lowered in `nix/project.nix` (fetchTree over the pin) | ✅ `checks.source-fixture` |
+| a project's locked source on the CLI load path | ✅ `a_locked_source_on_this_machine_joins_the_project_after_its_packages` |
+
 `blue registry status` reads the lock and probes the sui origin that
 `SUI_CACHE_URL` names with `nix path-info --store`. For each pin it prints
 `warm` (the origin serves it), `cold` (builds fetch it) or `absent` (no
@@ -206,5 +232,4 @@ flowchart LR
 | `porto` backend (OCI registry for charts and images) | ➖ refused as `not_built` |
 | `github` releases backend | ➖ refused as `not_built` |
 | the catalogue gloss as the FlakeHub description | ➖ flakehub-push reads the flake's `description`; the reusable has no input for it |
-| `source` lowered in `nix/project.nix` (fetchTree over the pin) | ➖ the engine still refuses `source`; the lock already holds `fetch` and `narHash` |
 | a sui probe inside `blue lock` | ➖ `blue registry status` does it on demand |

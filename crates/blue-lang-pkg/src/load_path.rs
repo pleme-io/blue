@@ -576,9 +576,10 @@ fn level_file(dir: &Path) -> Option<PathBuf> {
 ///   it too: the nearest project owns the file, never one further out.
 ///
 /// A Bluefile that does not evaluate ends the walk adding nothing; `blue
-/// bluefile --json` reports why. `source(...)` roots are not here: they are
-/// fetched by nix, and reach a run through the project's runner or
-/// `BLUE_PATH`.
+/// bluefile --json` reports why. A project's `source(...)` adds its packages
+/// root inside the tree `Bluefile.lock` pins, after the `packages` roots, when
+/// that store path is on this machine (`blue lock` fetches it). A source the
+/// lock does not pin, or pins for another url, adds nothing.
 #[must_use]
 pub fn project_roots(entry: &Path) -> Vec<PathBuf> {
     let dir = entry
@@ -601,11 +602,30 @@ pub fn project_roots(entry: &Path) -> Vec<PathBuf> {
             continue;
         }
         roots.extend(bf.project.packages.iter().map(|p| at.join(p)));
+        roots.extend(locked_source_roots(at, &bf));
         break;
     }
     let mut seen = std::collections::BTreeSet::new();
     roots.retain(|r| seen.insert(r.canonicalize().unwrap_or_else(|_| r.clone())));
     roots
+}
+
+fn locked_source_roots(project: &Path, bf: &crate::Bluefile) -> Vec<PathBuf> {
+    let Some(lock) = std::fs::read_to_string(project.join(crate::lock::LOCK_FILE))
+        .ok()
+        .and_then(|t| serde_json::from_str::<crate::lock::Lock>(&t).ok())
+    else {
+        return Vec::new();
+    };
+    bf.project
+        .sources
+        .iter()
+        .filter_map(|(name, source)| {
+            let pin = lock.sources.get(name).filter(|p| p.url == source.url)?;
+            let root = Path::new(pin.store_path.as_deref()?).join(&source.dir);
+            root.is_dir().then_some(root)
+        })
+        .collect()
 }
 
 /// Read every `.b` file in a package directory, sorted by filename. A file
@@ -1036,6 +1056,67 @@ mod tests {
         assert_eq!(project_roots(&root.join("proj/pkgs/foo/foo.b")), pkgs);
         assert!(project_roots(&root.join("elsewhere.b")).is_empty());
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    struct Pinned(String);
+
+    impl crate::lock::Prefetch for Pinned {
+        fn prefetch(&self, _: &str) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+            Ok(format!(
+                r#"{{"hash":"sha256-x","locked":{{"rev":"0123456789abcdef0123456789abcdef01234567"}},"storePath":"{}"}}"#,
+                self.0
+            ))
+        }
+    }
+
+    fn locked_project(name: &str, url_in_lock: &str, store: &Path) -> PathBuf {
+        let bluefile = "package(\"consumer\", \"0.1.0\")\npackages(\"pkgs\")\nsource(\"up\", \"github:o/r\", \"bidamas\")\n";
+        let root = tree(
+            name,
+            &[
+                ("proj/Bluefile", bluefile),
+                ("proj/pkgs/own/Bluefile", "package(\"own\", \"0.1.0\")\n"),
+            ],
+        );
+        let pinned = bluefile.replace("github:o/r", url_in_lock);
+        let lock = crate::lock::lock(
+            &pinned,
+            &BTreeMap::new(),
+            &Pinned(store.display().to_string()),
+        )
+        .expect("lock");
+        std::fs::write(
+            root.join("proj/Bluefile.lock"),
+            serde_json::to_string(&lock).expect("json"),
+        )
+        .expect("write lock");
+        root
+    }
+
+    #[test]
+    fn a_locked_source_on_this_machine_joins_the_project_after_its_packages() {
+        let store = tree(
+            "source-store",
+            &[("bidamas/up/Bluefile", "package(\"up\", \"0.1.0\")\n")],
+        );
+        let root = locked_project("source-roots", "github:o/r", &store);
+        assert_eq!(
+            project_roots(&root.join("proj/main.b")),
+            vec![root.join("proj/pkgs"), store.join("bidamas")]
+        );
+        let elsewhere = locked_project("source-moved", "github:o/other", &store);
+        assert_eq!(
+            project_roots(&elsewhere.join("proj/main.b")),
+            vec![elsewhere.join("proj/pkgs")]
+        );
+        let gone = locked_project("source-gone", "github:o/r", &store.join("absent"));
+        assert_eq!(
+            project_roots(&gone.join("proj/main.b")),
+            vec![gone.join("proj/pkgs")]
+        );
+        for d in [store, root, elsewhere, gone] {
+            let _ = std::fs::remove_dir_all(d);
+        }
     }
 
     /// The nearest project owns a file: an outer project's packages are not

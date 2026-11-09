@@ -55,7 +55,7 @@
 # | `frontend(name, spec)` | `checks.frontend-<name>-declared`: every `views`, `tokens` and `schema` path must exist in the project, and the declaration is written out as JSON; the renderers it lowers to come with FRONTEND-PLAN F11 |
 # | `vm_check(name, spec)` | `nix/vm-check.nix`: on Linux `packages.vm-<name>-<kernel>` (`testers.runNixOSTest`, requiring `kvm` and `nixos-test`: `vm-run.b` runs the control, then the program, and judges the release, the expected text and both exits; its output is the log); everywhere `checks.vm-<name>-absent`, a file saying none of it ran in this check |
 # | `registry(backend, spec)` | `packages.registry-<backend>` (`blue registry render`, judged by `touroku`), `checks.registry-<backend>-fresh` against the committed `output`; `package`'s `visibility` is recorded and read only by `touroku` (docs/REGISTRY.md) |
-# | `source(name, url, dir)` | **refused, not yet lowered** (fetchTree from the lock's pin is the named next step) |
+# | `source(name, url, dir)` | `builtins.fetchTree` over the lock's pin (`rev` and `narHash`; FlakeHub's `fetch` tarball when the pin has one); every package under `dir` joins the graph beside the project's own. A name two roots hold is refused. A source the lock refused adds nothing, and a `needs` it would meet names its reason |
 # | `posture(when)` | nothing: a runtime floor, not a build fact |
 #
 # ### The idioms
@@ -138,14 +138,24 @@ let
           verifies every package's floor fits under the ceiling and writes the
           record, or refuses and names the path to the breach.
         ''
-      else if m.sources != { } then
-        throw ''
-          lib.project: `source(...)` (${lib.concatStringsSep ", " (attrNames m.sources)}) is not
-          lowered yet. The public distribution comes with the `blue` input;
-          another distribution needs fetchTree over the lock's pin, which is
-          the next row to build in blue's nix/project.nix.
-        ''
       else lock;
+
+  fetchArgs = pin:
+    if (pin.fetch or null) != null then { type = "tarball"; url = pin.fetch; inherit (pin) narHash; }
+    else
+      let
+        ref = removeAttrs (builtins.parseFlakeRef pin.url) [ "dir" ];
+        hosted = builtins.elem ref.type [ "github" "gitlab" "sourcehut" ];
+      in
+      (if hosted then removeAttrs ref [ "ref" ] else ref) // { inherit (pin) rev narHash; };
+
+  sourcesOf = fetchTree: lock: lib.mapAttrs
+    (sn: s:
+      let pin = lock.sources.${sn} or null; in
+      if pin == null then { refused = lock.refused.${sn} or "Bluefile.lock holds no pin; run `blue lock .`"; }
+      else if pin.url != s.url then { refused = "the lock pins ${pin.url}, the Bluefile declares ${s.url}; run `blue lock .`"; }
+      else { root = "${fetchTree (fetchArgs pin)}/${s.dir}"; })
+    lock.manifest.sources;
 
   # Merge two attrsets whose names must not meet. A run called `default`, or a
   # check called `bidama-collisions`, is refused rather than laid over.
@@ -157,19 +167,27 @@ let
   # Every package directory under the project's `packages(...)` roots, as
   # { name, root }. Two roots holding one name are refused: the loader would
   # pick one by root order, and the build would pick one by attrset order.
-  packagesOf = bl: src: dirs:
+  packagesOf = bl: src: dirs: fetched:
     let
-      found = lib.concatMap
+      own = lib.concatMap
         (d:
           let root = src + "/${d}"; in
           if !pathExists root then throw "lib.project: packages(\"${d}\") names a directory the project does not have"
-          else map (name: { inherit name root; }) (attrNames (bl.packageDirs root)))
+          else map (name: { inherit name root; source = null; }) (attrNames (bl.packageDirs root)))
         dirs;
-      names = map (p: p.name) found;
+      sourced = lib.concatLists (lib.mapAttrsToList
+        (sn: f:
+          if f ? refused then [ ]
+          else if !pathExists f.root then throw "lib.project: source(\"${sn}\") names a directory its pinned tree does not have (${f.root})"
+          else map (name: { inherit name; inherit (f) root; source = sn; }) (attrNames (bl.packageDirs f.root)))
+        fetched);
+      all = own ++ sourced;
+      names = map (p: p.name) all;
       twice = lib.unique (lib.filter (n: lib.count (x: x == n) names > 1) names);
+      whereIs = n: lib.concatStringsSep " and " (map (p: if p.source == null then "packages(...)" else "source(\"${p.source}\")") (lib.filter (p: p.name == n) all));
     in
-    if twice != [ ] then throw "lib.project: package ${lib.concatStringsSep ", " twice} is in more than one packages(...) root"
-    else found;
+    if twice != [ ] then throw "lib.project: package ${lib.concatMapStringsSep ", " (n: "${n} (in ${whereIs n})") twice} is in more than one root; one root holds a name"
+    else { inherit own sourced; };
 
   # The whole lowering, for one system.
   #
@@ -183,7 +201,7 @@ let
   #          caller has none, and an `image(...)` is then refused by name
   #   appliance  the `blue-appliance` runner for the system (static musl on
   #          Linux), or null, and an `app` then lowers to no appliance
-  projectFor = { pkgs, blue, src, base ? null, oci ? null, moduleTrio ? null, legacy ? { }, chartLibraries ? { }, component ? null, appliance ? null, tameshi ? null, postMerge ? [ ], shards ? { } }:
+  projectFor = { pkgs, blue, src, fetchTree ? builtins.fetchTree, base ? null, oci ? null, moduleTrio ? null, legacy ? { }, chartLibraries ? { }, component ? null, appliance ? null, tameshi ? null, postMerge ? [ ], shards ? { } }:
     assert lib.assertMsg (builtins.isPath src)
       "lib.project: src must be a path; pass `src = ./.` from the project's flake.nix";
     let
@@ -210,11 +228,13 @@ let
 
       # The project's own packages, composed over `public` in one graph, so a
       # private package's needs(...) on a public one resolves at build time.
-      found = packagesOf bl src m.packages;
+      fetched = sourcesOf fetchTree lock;
+      roots = packagesOf bl src m.packages fetched;
+      found = roots.own;
       ownNames = map (p: p.name) found;
       bidamas = lib.fix (all: public // lib.listToAttrs (map
-        (p: lib.nameValuePair p.name (bl.mkBidama { inherit (p) name; inherit all; src = p.root + "/${p.name}"; }))
-        found));
+        (p: lib.nameValuePair p.name (bl.mkBidama { inherit (p) name; inherit all; src = if p.source == null then p.root + "/${p.name}" else "${p.root}/${p.name}"; }))
+        (roots.sourced ++ found)));
       own = lib.getAttrs ownNames bidamas;
       # The levels below a bidama, each tested by its own file: a directory
       # holding `<d>/<d>.b`, or a file opening with `namespace()`. A level with
@@ -235,6 +255,7 @@ let
           (attrNames entries);
 
       missingNeeds = lib.filter (d: !(bidamas ? ${d})) (attrNames m.needs);
+      refusedSources = lib.filterAttrs (_: f: f ? refused) fetched;
 
       common = { inherit blue bidamas tools; };
 
@@ -680,7 +701,7 @@ let
       postMergeChecks = lib.filterAttrs (n: _: lib.elem n postMergeNames) allChecks;
     in
     if missingNeeds != [ ] then
-      throw "lib.project: the Bluefile needs ${lib.concatStringsSep ", " missingNeeds}, which neither the project nor the distribution it composes over provides"
+      throw "lib.project: the Bluefile needs ${lib.concatStringsSep ", " missingNeeds}, which neither the project nor the distribution it composes over provides${lib.concatStrings (lib.mapAttrsToList (sn: f: "; source(\"${sn}\") added nothing: ${f.refused}") refusedSources)}"
     else {
       inherit name runner bidamas packages apps bluePath imageGate postMergeChecks postMergeNames shards;
       inherit (lowered) services trios executables;

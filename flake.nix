@@ -772,6 +772,12 @@
             appliance = applianceFor system;
           };
 
+          source-fixture = import ./nix/source-fixture/check.nix {
+            inherit pkgs blue engine;
+            src = ./nix/source-fixture;
+            tree = self;
+          };
+
           # The golden corpus: examples/ is a blue project of its own, lowered
           # by the same engine every project uses. Its checks are this check's
           # inputs, so each example's tests, the example bidama's tests, its

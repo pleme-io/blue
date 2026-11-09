@@ -96,7 +96,9 @@ below it, and `thing::sub::waka::x` is also `sub::waka::x` and `waka::x`.
 `use` family and the rules.
 
 `use("pkg")` looks in order: the `packages` roots of the project the file
-sits in (the nearest Bluefile above it that declares them), then the roots on
+sits in (the nearest Bluefile above it that declares them) and the packages
+root of each `source(name, url, dir)` it declares (the tree its
+`Bluefile.lock` pins, once `blue lock` has fetched it), then the roots on
 `BLUE_PATH` (your override), then `BLUE_DIST` (the installed distribution the
 fleet's `blue` wrapper sets), then the distribution compiled into `blue`. The
 project always wins; outside it, a copy whose version is outside the range the

@@ -594,7 +594,8 @@ fn facts_that_do_not_hash_to_the_header_are_refused_as_blind() {
 
 const KUMO: &str = "@doc \"\"\"\nfetch: the body of a page.\n\"\"\"\ndef fetch(url)\n  http_request(\"GET\", url, nil, nil, 1000)[:body]\nend\n\n@doc \"\"\"\nsend_it: post a body to a page.\n\"\"\"\ndef send_it(url, body)\n  http_request(\"POST\", url, nil, body, 1000)[:status]\nend\n\n@doc \"\"\"\nfirst_line: the first line of a page.\n\"\"\"\ndef first_line(url)\n  split(fetch(url), line_break)[0]\nend\n\n@doc \"\"\"\nbump: one more.\n\"\"\"\ndef bump(n)\n  n + 1\nend\n\ntest \"send_it answers a status\"\n  assert send_it(\"http://127.0.0.1:9/\", \"\") != nil\nend\n";
 
-const FETCH_TEST: &str = "\ntest \"fetch answers a body\"\n  assert fetch(\"http://127.0.0.1:9/\") != nil\nend\n";
+const FETCH_TEST: &str =
+    "\ntest \"fetch answers a body\"\n  assert fetch(\"http://127.0.0.1:9/\") != nil\nend\n";
 
 fn kumo_tree(dir: &Dir, source: &str) -> PathBuf {
     let root = dir.0.join("bidamas");
@@ -659,8 +660,14 @@ fn the_facts_carry_calls_reach_and_the_tests_that_name_a_word() {
             .cloned()
             .unwrap_or_else(|| panic!("no row {w}"))
     };
-    assert_eq!(row("kumo::first_line")["calls"], serde_json::json!(["kumo::fetch"]));
-    assert_eq!(row("kumo::first_line")["reach"], serde_json::json!(["network"]));
+    assert_eq!(
+        row("kumo::first_line")["calls"],
+        serde_json::json!(["kumo::fetch"])
+    );
+    assert_eq!(
+        row("kumo::first_line")["reach"],
+        serde_json::json!(["network"])
+    );
     assert_eq!(row("kumo::bump")["reach"], serde_json::json!([]));
     let tests = row("kumo::send_it")["tests"].clone();
     assert_eq!(tests[0]["name"], "send_it answers a status", "{tests}");
@@ -696,7 +703,11 @@ fn the_golden_questions_keep_their_top_hit_g5() {
         a["asked"].as_u64().is_some_and(|n| n >= 20),
         "the golden set shrank: {a}"
     );
-    assert_eq!(a["lost"], serde_json::json!([]), "golden questions that lost their top hit");
+    assert_eq!(
+        a["lost"],
+        serde_json::json!([]),
+        "golden questions that lost their top hit"
+    );
 }
 
 #[test]
@@ -767,7 +778,10 @@ fn the_mcp_door_lists_the_rendered_tools_and_answers_a_call_as_the_cli_does() {
         &std::fs::read_to_string(repo().join("docs/arika-tools.json")).expect("read"),
     )
     .expect("json");
-    assert_eq!(tools, committed, "docs/arika-tools.json is stale: nix run .#regen");
+    assert_eq!(
+        tools, committed,
+        "docs/arika-tools.json is stale: nix run .#regen"
+    );
     let snap = repo_snapshot().display().to_string();
     let facts = repo_facts().display().to_string();
     let mcp = |req: serde_json::Value| -> String {

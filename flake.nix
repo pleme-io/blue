@@ -12,6 +12,10 @@
       url = "github:pleme-io/helmworks";
       flake = false;
     };
+    engenho = {
+      url = "github:pleme-io/engenho";
+      flake = false;
+    };
     # blue native's emitter: a typed Rust AST as JSON in, Rust out
     # (nix/native.nix).
     tatara-rust-ast = {
@@ -34,6 +38,7 @@
     flake-utils,
     substrate,
     helmworks,
+    engenho,
     tatara-rust-ast,
     tameshi,
   }: let
@@ -607,6 +612,16 @@
           # that is not is named. `mkBidama` holds each package the same way,
           # so this is the rest of the tree: specs, generators, fixtures.
           blue-fmt = bl.mkFmtCheck { inherit blue; root = ./.; };
+
+          kurasuta-kinds-fresh =
+            let
+              generated = "${engenho}/engenho-types/blue/kinds.b";
+              fresh = builtins.readFile generated == builtins.readFile ./bidamas/kurasuta/kinds/kinds.b;
+            in
+            pkgs.runCommand "kurasuta-kinds-fresh" { } (if fresh then "touch $out" else ''
+              echo "bidamas/kurasuta/kinds/kinds.b is not engenho-kube-codegen's output at the pinned engenho: copy ${generated} over it" >&2
+              exit 1
+            '');
 
           workflows-lint = pkgs.runCommand "workflows-lint" {
             nativeBuildInputs = [ pkgs.actionlint ];

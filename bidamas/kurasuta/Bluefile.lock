@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:fd841d15a7abe15f0c5da84d74cacffbc1a48e30f1ba4095f6accaa903d0eb1b",
+  "manifest": {
+    "schema": 1,
+    "name": "kurasuta",
+    "version": "0.1.0",
+    "needs": {},
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

@@ -1311,11 +1311,15 @@ mod tests {
             BOB_PUBLIC
         );
         assert_eq!(
-            s(&format!("x25519_shared(\"{ALICE_SECRET}\", \"{BOB_PUBLIC}\")")),
+            s(&format!(
+                "x25519_shared(\"{ALICE_SECRET}\", \"{BOB_PUBLIC}\")"
+            )),
             ALICE_BOB_SHARED
         );
         assert_eq!(
-            s(&format!("x25519_shared(\"{BOB_SECRET}\", \"{ALICE_PUBLIC}\")")),
+            s(&format!(
+                "x25519_shared(\"{BOB_SECRET}\", \"{ALICE_PUBLIC}\")"
+            )),
             ALICE_BOB_SHARED
         );
     }
@@ -1349,7 +1353,9 @@ mod tests {
     const RFC8439_SEALED: &str = "d31a8d34648e60db7b86afbc53ef7ec2a4aded51296e08fea9e2b5a736ee62d63dbea45e8ca9671282fafb69da92728b1a71de0a9e060b2905d6a5b67ecd3b3692ddbd7f2d778b8c9803aee328091b58fab324e4fad675945585808b4831d7bc3ff4def08e4b7a9de576d26586cec64b61161ae10b594f09e26a7e902ecbd0600691";
 
     fn open_src(sealed: &str, aad: &str) -> String {
-        format!("chacha20poly1305_open(\"{RFC8439_KEY}\", \"{RFC8439_NONCE}\", {aad}, \"{sealed}\")")
+        format!(
+            "chacha20poly1305_open(\"{RFC8439_KEY}\", \"{RFC8439_NONCE}\", {aad}, \"{sealed}\")"
+        )
     }
 
     #[test]
@@ -1369,7 +1375,10 @@ mod tests {
             RFC8439_PLAINTEXT.as_bytes()
         );
         assert_eq!(
-            s(&format!("bytes_text({})", open_src(RFC8439_SEALED, RFC8439_AAD))),
+            s(&format!(
+                "bytes_text({})",
+                open_src(RFC8439_SEALED, RFC8439_AAD)
+            )),
             RFC8439_PLAINTEXT
         );
     }
@@ -1377,8 +1386,14 @@ mod tests {
     #[test]
     fn a_tampered_tag_is_refused() {
         let last = RFC8439_SEALED.len() - 1;
-        let message = rescued(&open_src(&flip_hex_digit(RFC8439_SEALED, last), RFC8439_AAD), "tampered");
-        assert!(message.contains("sealed message does not verify"), "{message}");
+        let message = rescued(
+            &open_src(&flip_hex_digit(RFC8439_SEALED, last), RFC8439_AAD),
+            "tampered",
+        );
+        assert!(
+            message.contains("sealed message does not verify"),
+            "{message}"
+        );
     }
 
     #[test]
@@ -1427,10 +1442,7 @@ mod tests {
     }
 
     fn bao_input(len: usize) -> Vec<u8> {
-        (1u32..)
-            .flat_map(u32::to_le_bytes)
-            .take(len)
-            .collect()
+        (1u32..).flat_map(u32::to_le_bytes).take(len).collect()
     }
 
     #[test]
@@ -1457,8 +1469,16 @@ mod tests {
         ] {
             let (got_root, outboard) = bao_outboard(&bao_input(len));
             assert_eq!(encode_hex(&got_root), root, "root, input_len {len}");
-            assert_eq!(outboard.len(), outboard_len, "outboard length, input_len {len}");
-            assert_eq!(blake3_hex(&outboard), outboard_blake3, "outboard, input_len {len}");
+            assert_eq!(
+                outboard.len(),
+                outboard_len,
+                "outboard length, input_len {len}"
+            );
+            assert_eq!(
+                blake3_hex(&outboard),
+                outboard_blake3,
+                "outboard, input_len {len}"
+            );
         }
     }
 
@@ -1545,7 +1565,9 @@ mod tests {
         let (root, outboard) = bao_outboard(&input);
         let slice = encode_hex(&bao_slice(&input, &outboard, 1024, 1024).expect("extract"));
         let root = encode_hex(&root);
-        let ok = eval(&format!("bao_verify_slice(\"{root}\", \"{slice}\", 1024, 1024)"));
+        let ok = eval(&format!(
+            "bao_verify_slice(\"{root}\", \"{slice}\", 1024, 1024)"
+        ));
         assert_eq!(list_bytes(ok), input[1024..2048]);
         for position in [slice.len() - 1, slice.len() / 2, 200, 15] {
             let message = rescued(
@@ -1555,7 +1577,10 @@ mod tests {
                 ),
                 "tampered",
             );
-            assert!(message.contains("slice does not verify"), "{position}: {message}");
+            assert!(
+                message.contains("slice does not verify"),
+                "{position}: {message}"
+            );
         }
         let other_root = blake3_hex(b"another value");
         let message = rescued(

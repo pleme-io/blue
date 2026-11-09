@@ -9,10 +9,9 @@
 //! <root>/retsu/retsu.b
 //! ```
 //!
-//! `BLUE_PATH` is a `:`-separated list of roots, searched left to right, first
-//! match wins — the same shape as `PATH`, chosen because it is the one search
-//! convention every operator already knows, and because "first match wins" is
-//! what makes a local override possible without a flag.
+//! `BLUE_PATH` is a `:`-separated list of roots, searched left to right — the
+//! same shape as `PATH`. Its first match wins, and that is what makes a local
+//! override possible without a flag.
 //!
 //! **That layout is not a coincidence — it is exactly what `bidamas/` is on
 //! disk and exactly what `bidamas/mk-bidama.nix` builds.** A bidama derivation
@@ -38,12 +37,12 @@
 //! through [`LoadPath::for_entry`] or, in the editor, per document through
 //! the [`Scopes`] it implements:
 //!
-//! 1. **`BLUE_PATH`**, left to right: the caller's explicit override.
-//! 2. **The project the file sits in**: walking up from the file, the first
+//! 1. **The project the file sits in**: walking up from the file, the first
 //!    Bluefile that is a project's contributes its `packages(dir)` roots; a
 //!    bidama's own Bluefile on the way contributes the directory that holds
 //!    it (its distribution) and the walk goes on. In the editor, a document
 //!    outside every project takes the projects of the workspace folders.
+//! 2. **`BLUE_PATH`**, left to right: the caller's explicit override.
 //! 3. **`BLUE_DIST`**, left to right: the installed distribution, which the
 //!    fleet's wrapper (`mkBlueWithBidamas`) sets. It is not a caller's
 //!    choice, so it never shadows the project: a bidama newer than the pin
@@ -53,11 +52,18 @@
 //!    on), so a bare script with no Bluefile and no `BLUE_PATH` can
 //!    `use("retsu")`.
 //!
-//! First match wins, so a checkout on `BLUE_PATH` still overrides a project's
-//! package, the project overrides the installed distribution, and every root
-//! overrides the compiled-in copy. A wrapper built before `BLUE_DIST` existed
-//! appended the distribution to `BLUE_PATH`; that form is still read, with
-//! its old meaning (an override).
+//! The project overrides `BLUE_PATH`, `BLUE_PATH` overrides the installed
+//! distribution, and every root overrides the compiled-in copy. A wrapper
+//! built before `BLUE_DIST` existed appended the distribution to `BLUE_PATH`;
+//! that form is still read, with its old meaning (an override).
+//!
+//! Inside one channel, order is a choice only where the caller makes it.
+//! `BLUE_PATH` and `BLUE_DIST` keep their first match. The project's roots and
+//! a fixed list of roots do not: their order comes from the Bluefile or the
+//! code, not from a person who chose a shadow. When two of those roots hold
+//! one bidama, the loader refuses that bidama and names both directories
+//! ([`Selection::clash`]). Every other name still loads. The nix engine
+//! refuses the same project at evaluation.
 //!
 //! A bidama that is not found names every root searched, in order and by
 //! channel, and when a directory near the file holds it off the path, says
@@ -242,6 +248,7 @@ pub enum Found {
 pub struct Selection {
     pub found: Option<Found>,
     pub skipped: Vec<String>,
+    pub clash: Option<String>,
 }
 
 /// An ordered list of directories to find bidamas in, with where each came
@@ -340,6 +347,47 @@ impl LoadPath {
 
     #[must_use]
     pub fn select(&self, name: &str) -> Selection {
+        let selection = self.first_match(name);
+        match selection.found {
+            Some(Found::Dir(ref dir)) => match self.clash(name, dir) {
+                Some(clash) => Selection {
+                    found: None,
+                    skipped: selection.skipped,
+                    clash: Some(clash),
+                },
+                None => selection,
+            },
+            _ => selection,
+        }
+    }
+
+    fn clash(&self, name: &str, dir: &Path) -> Option<String> {
+        let top = blue_lang_syntax::root_of(name);
+        let (_, channel) = self
+            .roots
+            .iter()
+            .zip(&self.channels)
+            .find(|(root, _)| dir.starts_with(root.join(top)))?;
+        if !matches!(channel, Channel::Project | Channel::Given) {
+            return None;
+        }
+        let holders: Vec<String> = self
+            .roots
+            .iter()
+            .zip(&self.channels)
+            .filter(|(root, c)| *c == channel && root.join(top).is_dir())
+            .map(|(root, _)| root.join(top).display().to_string())
+            .collect();
+        (holders.len() > 1).then(|| {
+            format!(
+                "bidama \"{top}\" is held by more than one root of {}: {}; one root holds a name, so neither is chosen. fix: keep one copy on the path (drop the other root, or rename one bidama)",
+                channel.label(),
+                holders.join(" and ")
+            )
+        })
+    }
+
+    fn first_match(&self, name: &str) -> Selection {
         let mut skipped = Vec::new();
         let range = self.required.get(name);
         for (root, channel) in self.roots.iter().zip(&self.channels) {
@@ -351,6 +399,7 @@ impl LoadPath {
                 return Selection {
                     found: Some(Found::Dir(dir)),
                     skipped,
+                    clash: None,
                 };
             }
             match (range, version_at(&dir)) {
@@ -362,6 +411,7 @@ impl LoadPath {
                     return Selection {
                         found: Some(Found::Dir(dir)),
                         skipped,
+                        clash: None,
                     }
                 }
             }
@@ -377,6 +427,7 @@ impl LoadPath {
                     return Selection {
                         found: Some(Found::Standard),
                         skipped,
+                        clash: None,
                     }
                 }
             }
@@ -384,6 +435,7 @@ impl LoadPath {
         Selection {
             found: None,
             skipped,
+            clash: None,
         }
     }
 
@@ -679,7 +731,11 @@ impl Loader for LoadPath {
         let dir = match selection.found {
             Some(Found::Standard) => return crate::embedded::Standard.load(name),
             Some(Found::Dir(d)) => d,
-            None => return Err(self.not_found(name, &selection.skipped)),
+            None => {
+                return Err(selection
+                    .clash
+                    .unwrap_or_else(|| self.not_found(name, &selection.skipped)))
+            }
         };
         if !dir.is_dir() {
             return load_level_file(name, &dir);
@@ -1244,6 +1300,76 @@ mod tests {
             std::ffi::OsStr::new(&join(path)),
             std::ffi::OsStr::new(&join(dist)),
         )
+    }
+
+    fn held_twice(name: &str) -> PathBuf {
+        tree(
+            name,
+            &[
+                (
+                    "proj/Bluefile",
+                    "package(\"twice-proj\", \"0.1.0\")\npackages(\"a\")\npackages(\"b\")\n",
+                ),
+                ("proj/a/pick/Bluefile", "package(\"pick\", \"0.1.0\")\n"),
+                ("proj/a/pick/pick.b", "def p()\n  1\nend\n"),
+                ("proj/a/pick/sub/sub.b", "def s()\n  1\nend\n"),
+                ("proj/a/only/Bluefile", "package(\"only\", \"0.1.0\")\n"),
+                ("proj/a/only/only.b", "def o()\n  1\nend\n"),
+                ("proj/b/pick/Bluefile", "package(\"pick\", \"0.2.0\")\n"),
+                ("proj/b/pick/pick.b", "def p()\n  2\nend\n"),
+            ],
+        )
+    }
+
+    #[test]
+    fn a_name_two_roots_of_one_channel_hold_is_refused_and_only_that_name() {
+        let root = held_twice("twice-given");
+        let lp = LoadPath::new([root.join("proj/a"), root.join("proj/b")]);
+        let err = lp.load("pick").expect_err("two roots hold pick");
+        assert!(err.contains("more than one root"), "{err}");
+        assert!(
+            err.contains(&root.join("proj/a/pick").display().to_string()),
+            "{err}"
+        );
+        assert!(
+            err.contains(&root.join("proj/b/pick").display().to_string()),
+            "{err}"
+        );
+        let nested = lp.load("pick/sub").expect_err("a level of pick is pick's");
+        assert!(nested.contains("more than one root"), "{nested}");
+        assert_eq!(lp.select("pick").found, None);
+        assert!(lp.children("pick").is_empty());
+        assert_eq!(lp.needs("pick", None), None);
+        assert_eq!(lp.version("pick", None), None);
+        assert!(lp.load("only").is_ok(), "a sibling name still loads");
+        assert_eq!(lp.select("only").clash, None);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_projects_two_packages_roots_holding_one_name_are_refused() {
+        let root = held_twice("twice-project");
+        let lp = env(&[], &[]).load_path(Some(&root.join("proj/main.b")));
+        let err = lp.load("pick").expect_err("two packages roots hold pick");
+        assert!(err.contains("the project"), "{err}");
+        assert!(lp.load("only").is_ok());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn the_override_and_the_installed_distribution_still_shadow_by_order() {
+        let root = held_twice("twice-override");
+        let over = env(&[&root.join("proj/b"), &root.join("proj/a")], &[]).load_path(None);
+        assert_eq!(
+            over.select("pick").found,
+            Some(Found::Dir(root.join("proj/b/pick")))
+        );
+        let dist = env(&[], &[&root.join("proj/a"), &root.join("proj/b")]).load_path(None);
+        assert_eq!(
+            dist.select("pick").found,
+            Some(Found::Dir(root.join("proj/a/pick")))
+        );
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]

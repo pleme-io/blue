@@ -404,6 +404,14 @@ row(
 )
 
 row(
+  "check.boundary.opaque_type_is_left",
+  join_lines(
+    ["def shout(w: String) -> String", "  w", "end", "", "shout(\"a\")"]
+  ),
+  value("\"a\"")
+)
+
+row(
   "check.boundary.local_name",
   join_lines(
     [

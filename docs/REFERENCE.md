@@ -240,7 +240,7 @@ Higher binding power binds tighter.
 | `dig` | `dig(tree, keys...)` | 1+ | The value at the path of keys through nested maps and lists, or nil at the first step that is absent or cannot be entered. A list takes an Int index, negative from the end; dig(tree) is tree. |
 | `dissoc` | `dissoc(m, k)` | 2 | A new map without k; unchanged when k is absent. |
 | `get` | `get(m, k)` | 2 | The value at key k, or nil. Raises on nil and on a list. Also defined by `gitto` (`gitto::get`): a file that lists it gets that one. |
-| `map_entries` | `map_entries(m)` | 1 | Every [key, value] pair of a map, ordered by key under compare's rules; [] for nil. Mixed key kinds raise. |
+| `map_entries` | `map_entries(m)` | 1 | Every [key, value] pair of a map, ordered by key, total over every key kind: nil, then false and true, then numbers by value (an Int before an equal Float, NaN last), then strings, symbols and keywords, each by its text; [] for nil. |
 | `record_fields` | `record_fields(r)` | 1 | A record's fields as a plain map, without its name: the map a service writes when its JSON carries no name. Anything but a record raises. |
 | `record_name` | `record_name(v)` | 1 | The name a record carries, `pkg::point` for one a bidama declares; nil for any other value. |
 | `zipmap` | `zipmap(keys, values)` | 2 | A map pairing keys with values, as long as the shorter list. |

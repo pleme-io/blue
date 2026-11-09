@@ -685,11 +685,11 @@
     "engenho": {
       "flake": false,
       "locked": {
-        "lastModified": 1794215644,
-        "narHash": "sha256-TLvbtHuMEvKqKWMEeHqmXCEAzDlCtf885nROB/Y/4j4=",
+        "lastModified": 1794217287,
+        "narHash": "sha256-pBR5YeQSRdaoL/qggyKa+KqirQlOC5BOht5d5Zam/PA=",
         "owner": "pleme-io",
         "repo": "engenho",
-        "rev": "034896baf9560d1f355e0bc6969b8c150d25beba",
+        "rev": "2eae4b564e6297d5de21c40b072d9712ae610043",
         "type": "github"
       },
       "original": {

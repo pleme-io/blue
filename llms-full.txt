@@ -196,6 +196,17 @@ was rendered. `blue help COMMAND` shows each one's flags.
 | `blue arika like [FILE[:LINE]]` | The words a draft already is: each definition of FILE (or the one at FILE:LINE) matched to a blue word by def hash (T0), written shape (T1) and shape through a wrapper (T2), with the word's id and import line. |
 | `blue arika word NAME` | Find a blue word by NAME: its canonical spelling, an old spelling's new home, and catalogue glosses that mention NAME (T5). |
 | `blue arika emit [ROOT]` | Write the header SNAPSHOT.json for the bidamas under ROOT (each package's RFC 9162 unit_root and row count, and the snapshot_root over them) and, with --facts, the facts: every definition the engine sees as one JSON line (readable id, def_hash, shape hashes, gloss, file, line, legacy names). |
+| `blue arika find TEXT` | Blue words whose name, package or doc gloss match TEXT, ranked by BM25 (the sakuin words), from the facts. |
+| `blue arika get WORD` | Every fact of one word, by pkg::name or readable id. |
+| `blue arika uses WORD` | The definitions that call a word, by pkg::name or readable id. |
+| `blue arika groups` | Functions of MIN nodes or more that share one computed shape across words (T2 over the whole tree). |
+| `blue arika changed PACKAGE` | How PACKAGE's words moved since an older facts file: added, removed, and code or doc moved. |
+| `blue arika ask QUESTION` | Answer a named question over blue's knowledge graph (definitions, tests, docs and rules as khipu quads, asked through DuckDB): untested-CAPABILITY is every definition that reaches the capability and that no test or doc example names. |
+| `blue arika golden FILE` | Ask every golden question of FILE (one `intent<TAB>word` per line, # comments) through find and name each whose word is no longer the top hit (G5). |
+| `blue arika quads OUT` | Write blue's definitions, tests, docs and rules as N-Quads to OUT. |
+| `blue arika tools` | Print the MCP tool list, rendered from the blue schema TOOLS in arika.b. |
+| `blue arika mcp REQUEST` | Answer one MCP JSON-RPC request (REQUEST is the JSON text) from the facts, as the service would; a notification prints nothing. |
+| `blue arika serve [ADDR]` | Serve the blue_word_* tools as an MCP server over Streamable HTTP (POST JSON-RPC to any path; /healthz answers ok). |
 | `blue receipt verify FILE` | Recompute a receipt's name from its bytes and check its form; any edit fails. |
 | `blue config [TIER]` | Show the bounds `blue` is running with, at any tier. |
 | `blue new NAME` | Start a program (a project with its own bidama), a `--bidama`, a `--script`, or a `--kernel` program, each passing `blue test` as written. |
@@ -217,14 +228,14 @@ rendered:
 | Surface forms | 36, with 13 operators and 26 reserved words |
 | Check rules | 78: 42 fix themselves, 8 suggest a fix |
 | Bluefile words | 28 |
-| Commands | 45 |
+| Commands | 56 |
 
 ## The standard library
 
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-67 packages, 5876 definitions, 1994 tests.
+68 packages, 5915 definitions, 2009 tests.
 
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
 - [baito](bidamas/CATALOG.md#baito) (バイト) — bytes as data: integers at a declared width and order, and record layouts that say where each field sits.
@@ -274,6 +285,7 @@ rendered:
 - [ronri](bidamas/CATALOG.md#ronri) (論理) — predicates, and the algebra over them.
 - [sabi](bidamas/CATALOG.md#sabi) (錆): Rust source from blue data.
 - [saishikou](bidamas/CATALOG.md#saishikou) (再試行) — retrying a step that can fail for a moment.
+- [sakuin](bidamas/CATALOG.md#sakuin) — the pure words of blue's full-text index (the `sakuin` verb space, docs/verbs): text analyzed into tokens, documents inverted into postings, and a question's terms ranked by BM25 over them.
 - [seimei](bidamas/CATALOG.md#seimei) (生命) — cellular automata: elementary rules, and Life.
 - [settei](bidamas/CATALOG.md#settei) (設定) — configuration, blue's shikumi: a record of defaults grouped by concern, resolved by read(app, defaults) from the defaults, then ~/.config/<app>/<app>.yaml (or <APP>_CONFIG), then <APP>_<GROUP>__<KEY> in the environment, each value typed by its default and a wrong type refused.
 - [shinchoku](bidamas/CATALOG.md#shinchoku) (進捗) — progress: operational probes that judge by progress over a window, never by one reading.
@@ -2825,7 +2837,7 @@ horizon gets a row here when its first phase starts.
 | Track | Design doc | Tier | Next step | Depends on | Done gate |
 |---|---|---|---|---|---|
 | **substrate**: blue as the one language of the whole stack | [`SUBSTRATE.md`](docs/SUBSTRATE.md) | DESIGN (2026-11-09: no phase on main; ola-mundo's release pins its component closure on ryn, and whether it serves is unmeasured) | L1.1: probe ola-mundo's pod on ryn; an engenho e2e runs the real `blue-component.wasm` with a bundle and serves a request | placement parity (the component); engenho (`engenho-kube-codegen`, `BlueWorker`) | each phase of SUBSTRATE §9 green with its red run; L1.1: the e2e serves a request, and with the bundle path removed it fails with the named error, not a hang |
-| **arika**: blue's word search | [`ARIKA.md`](docs/ARIKA.md), `theory/ARIKA.md` | Phases 1 and 2 BUILT for blue's own tree (G1-G4, G6); the rest DESIGN | Phase 2's open rows (the `arika` output for other projects, mokuroku on the facts), then Phase 3: Parquet and `find` | namespaces (tree paths in IDs); verbs (the `sakuin` space for T5) | G1-G9 green on main; a session on ryn answers the golden set through `blue_word_*` |
+| **arika**: blue's word search | [`ARIKA.md`](docs/ARIKA.md), `theory/ARIKA.md` | Phases 1 and 2 BUILT for blue's own tree (G1-G4, G6); Phase 3's CLI (`find` over `sakuin`, `get`, `uses`, `groups`, `changed`, `ask`) and the MCP door (`kyuuji` `mcp_*`, `blue arika serve`) BUILT in process (G5, G8; 2026-11-09); the rest DESIGN | Phase 3's rest (Parquet through kueri, T3, CATALOG.md from facts, G7); Phase 5's release on ryn and G9; Phase 2's open rows | namespaces (tree paths in IDs); verbs (the `sakuin` space for T5) | G1-G9 green on main; a session on ryn answers the golden set through `blue_word_*` |
 | namespaces | [`NAMESPACES.md`](docs/NAMESPACES.md), `theory/BLUE-NAMESPACES.md` | SHIPPED (reconciled 2026-11-06 at `cc9a1a1e`: `blue census` measures B0076, B0077 and B0078 at 0, ratchet 0; tree 10 landed) | close the flat-era `legacy_names` windows at each root's next minor | — | B0076-B0078 at error with corpus count 0 |
 | absence | [`ABSENCE.md`](docs/ABSENCE.md) | DESIGN (reconciled 2026-11-06: only P0, the document; no `umu`, no `absence.rs`, no `BLUE_ABSENCE`, B0054/B0055 reserved) | P1: `umu` and B0054/B0055 at audit | — | the doc's seal tier row |
 | safety | [`SAFETY.md`](docs/SAFETY.md) | PARTIAL (reconciled 2026-11-06: 19 rows, 6 sealed, 10 partly, 3 open; the blackhole is row 19) | rows 1, 3 and 14, the open ones | — | each SAFETY row at its stated seal tier |
@@ -2835,7 +2847,7 @@ horizon gets a row here when its first phase starts.
 | frontend | [`FRONTEND-PLAN.md`](docs/FRONTEND-PLAN.md), `theory/BLUE-FRONTEND.md` | UNRECONCILED | reconcile against main | — | to be stated at reconcile |
 | **placement parity** (HORIZON H8) | [`spec/README.md`](spec/README.md) § The evaluators, `theory/FUEKI.md` | PARTIAL: the gate is built. The conformance `component` column runs every `prints` and `fails` row (180) in the wasm32-wasip2 engine component under wasmtime and compares it with `cli` (`blue run`): 167 agree, 13 pending, 5 of them on new placement gaps G20 (the component holds no execution bounds and its wasm stack ends before the call-depth budget), G21 (host errors carry the platform errno), G22 (a capability the placement lacks, `exec_into`, refuses in its own words), G23 (`nats_connect` panics for want of a pid) | the run receipt from the component, so the gate compares receipts and not only output; then close G20-G23; the frontend's first page as a declared `runtime: :wasm` service (`examples/13_web_site.b` already renders and serves it natively) | the component (`nix build .#blue-component`) | `checks.<system>.conformance` green with the column strict; red run: a component that prints one extra byte fails every `prints` row naming `stdout at byte N` |
 | verbs | [`VERB-ROADMAP.md`](docs/VERB-ROADMAP.md) | DESIGN (its own measured tier line, 2026-10-22) | reconcile | — | `blue verbs check` against its baseline |
-| **khipu**: the knowledge graph (OxiRS naturalized) | [`KHIPU.md`](docs/KHIPU.md) | K1a BUILT (`bidamas/khipu`: terms, N-Triples, N-Quads), the rest DESIGN | K1b: quads in DuckDB through `kueri`, basic graph patterns, the W3C syntax suites against Oxigraph | kueri; arika (shares the rule engine and snapshots) | the W3C suites of K1-K4 green as a differential against Oxigraph |
+| **khipu**: the knowledge graph (OxiRS naturalized) | [`KHIPU.md`](docs/KHIPU.md) | K1a BUILT (`bidamas/khipu`: terms, N-Triples, N-Quads); K1b's store and basic graph patterns BUILT (DuckDB through `kueri`, NOT EXISTS, a row budget; blue ingested as quads, 2026-11-09); the rest DESIGN | K1b's rest: the W3C syntax suites against Oxigraph; then K2 | kueri; arika (shares the rule engine and snapshots) | the W3C suites of K1-K4 green as a differential against Oxigraph |
 | **utsushi**: history projection (Josh naturalized) | [`UTSUSHI.md`](docs/UTSUSHI.md) | U1 BUILT (`bidamas/utsushi`), U2-U6 DESIGN | U2: workspace entries refused one by one; `exclude`; views | gitto | `josh-filter` id parity on fixtures; the round-trip law green |
 | **async**: native async, the `heikou` space | [`ASYNC.md`](docs/ASYNC.md) | PARTIAL (processes built; A1 built: node-time timers, the context deadline, the virtual clock in `blue test`, and `net_wait` in the node loop over the `tcp_*` words, 2026-11-09; HORIZON H4 replay built: `blue run --record` and `blue replay <receipt>`, the replayed receipt equal to the original's) | a deadline narrowed inside a process; then A2; `schedulers(n)` (A6) | blue-lang-proc | the conformance set green at `schedulers(1)` and `schedulers(n)`, gates A-ontology to A-replay |
 | **record**: a named structure in one line | `examples/17_records.b`, okite D0017 | SHIPPED (2026-11-06, blue `cc9a1a1e`) | — | — | `spec/rows/records.b` and okite's record laws green; B0079 at error |
@@ -2871,9 +2883,9 @@ Rungs (owners, gates and exits are in [`ARIKA.md`](docs/ARIKA.md) § Phases):
 |---|---|---|
 | 1 | `blue arika like` / `word`, PreToolUse hook, `bidama` skill step 1 | BUILT (G4 in `crates/blue-lang-cli/tests/arika.rs`) |
 | 2 | fact emitter, Merkle words, `SNAPSHOT.json`, `arika` nix output | BUILT for blue's tree (G1, G2, G3, G6); the output for other projects and mokuroku on the facts DESIGN |
-| 3 | Parquet plane, full CLI, T3 witnesses, CATALOG.md from facts | DESIGN |
+| 3 | Parquet plane, full CLI, T3 witnesses, CATALOG.md from facts | PARTIAL: the CLI verbs and G5 BUILT (2026-11-09); Parquet, T3, CATALOG.md from facts and G7 DESIGN |
 | 4 | codesearch indexes `.b` | DESIGN |
-| 5 | GraphQL + MCP HTTP service on ryn's engenho | DESIGN |
+| 5 | GraphQL + MCP HTTP service on ryn's engenho | PARTIAL: the MCP door in blue and G8 BUILT (2026-11-09); GraphQL, G9 and the release on ryn DESIGN |
 | 6 | federation over consumer repos | DESIGN |
 | 7 | T4 canonical forms | DESIGN |
 
@@ -4043,7 +4055,10 @@ Before you write a `def`, ask whether blue already has the word.
 copy (T0), the same code (T1), or the same code through a wrapper (T2), with
 its id and import line ([`docs/ARIKA.md`](docs/ARIKA.md), Phase 1). The
 PreToolUse hook says the same before a `.b` write, and B0070
-(`blue check --reuse`) says it after.
+(`blue check --reuse`) says it after. `blue arika find "intent"` ranks words
+by what they do, `blue arika uses WORD` names their callers, and
+`blue arika ask untested-network` names the definitions that reach the
+network with no test.
 
 ### A file is a program; a project is one command away
 

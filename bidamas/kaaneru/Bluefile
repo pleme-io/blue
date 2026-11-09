@@ -1,5 +1,6 @@
 package("kaaneru", "0.1.0")
 tier(:toolchain)
+target(%i[host bpf])
 
 legacy_packages(
   "0.1.0",

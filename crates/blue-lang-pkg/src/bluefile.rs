@@ -178,6 +178,8 @@ pub struct Project {
     pub visibility: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tier: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub registries: BTreeMap<String, serde_json::Value>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
@@ -227,6 +229,8 @@ pub struct MovedPackage {
 pub const VISIBILITIES: &[&str] = &["public", "unlisted", "private"];
 
 pub const TIERS: &[&str] = &["foundation", "system", "toolchain"];
+
+pub const TARGETS: &[&str] = &["host", "wasm", "bpf"];
 
 #[must_use]
 pub fn registry_output(backend: &str) -> String {
@@ -641,6 +645,37 @@ const WORDS: &[Word] = &[
                 });
             }
             set_once(&mut into.project.tier, c.word, "tier".into(), tier)
+        },
+    },
+    Word {
+        name: "target",
+        signature: "target(places)",
+        doc: "Where a bidama's definitions run (%i[host bpf]): :host (the blue runtime on a machine), :wasm (the blue engine component) or :bpf (inside a kernel program `bpf::compile` emits). An undeclared target is [:host]. A place named twice, or none, is refused.",
+        min: 1,
+        max: 1,
+        record: |c, into| {
+            let places = c.labels(0, "places")?;
+            let bad = places.iter().find(|p| !TARGETS.contains(&p.as_str()));
+            if let Some(got) = bad {
+                return Err(Malformed::Choice {
+                    word: c.word,
+                    param: "places",
+                    expected: TARGETS,
+                    got: got.clone(),
+                });
+            }
+            let mut seen = places.clone();
+            seen.sort();
+            seen.dedup();
+            if places.is_empty() || seen.len() != places.len() {
+                return Err(Malformed::Choice {
+                    word: c.word,
+                    param: "places",
+                    expected: TARGETS,
+                    got: format!("{places:?}"),
+                });
+            }
+            set_once(&mut into.project.target, c.word, "target".into(), places)
         },
     },
     Word {
@@ -1612,7 +1647,15 @@ mod tests {
             .chain(["registry"])
             .chain(["receipt"])
             .chain(["query"])
-            .chain(["reach", "tier", "allow", "virtualize", "floors", "bounds"])
+            .chain([
+                "reach",
+                "tier",
+                "target",
+                "allow",
+                "virtualize",
+                "floors",
+                "bounds",
+            ])
             // 2026-11-05: a bidama moved into this root's tree (B0074).
             .chain(["legacy_packages"])
             // P1b's list argument, 2026-09-23 — `Capability::Collections`.
@@ -1714,6 +1757,27 @@ mod tests {
         let twice = read_bluefile("package(\"m\", \"1.0.0\")\ntier(:system)\ntier(:system)")
             .expect_err("reject");
         assert!(twice.to_string().contains("tier"), "{twice}");
+    }
+
+    #[test]
+    fn a_bidama_declares_where_it_runs_once_and_only_known_places() {
+        let b = read_bluefile("package(\"m\", \"1.0.0\")\ntarget(%i[host bpf])").expect("read");
+        assert_eq!(
+            b.project.target,
+            Some(vec!["host".to_string(), "bpf".to_string()])
+        );
+        assert_eq!(read_bluefile(SIMPLE).expect("read").project.target, None);
+        for bad in [
+            "target(%i[gpu])",
+            "target([])",
+            "target(%i[host host])",
+            "target(:host)",
+        ] {
+            let err = read_bluefile(&format!("package(\"m\", \"1.0.0\")\n{bad}"));
+            assert!(err.is_err(), "{bad} was accepted");
+        }
+        let twice = read_bluefile("package(\"m\", \"1.0.0\")\ntarget(%i[host])\ntarget(%i[wasm])");
+        assert!(twice.is_err());
     }
 
     #[test]

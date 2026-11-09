@@ -293,3 +293,20 @@ the B0070 home of a shape follows the Bluefiles. The gate
 (`crates/blue-lang-pkg/tests/distribution.rs`) fails when a core bidama
 needs an extension, or a foundation bidama needs a bidama outside the
 foundation. `zenbu` gathers every bidama, so the gate skips it.
+
+The catalogue shows each bidama's tier in its own column.
+
+## Targets: where a bidama runs
+
+A bidama states where its definitions run, `target(%i[host bpf])`.
+
+| Target | Runs in |
+|---|---|
+| `:host` | the blue runtime on a machine (the default when undeclared) |
+| `:wasm` | the blue engine component |
+| `:bpf` | a kernel program that `bpf::compile` emits |
+
+`kaaneru` declares `%i[host bpf]`: `kaaneru/bpf` defines words a kernel
+program calls (`ctx_int`, `map_add`, `emit`, `kernel_read`, `loop_fold`).
+No bidama declares `:wasm` yet: the engine component carries the whole
+distribution, so no bidama is measured as wasm-only.

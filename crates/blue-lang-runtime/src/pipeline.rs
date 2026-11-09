@@ -755,10 +755,11 @@ pub(crate) fn parse_and_resolve(
         // Every `@doc` example is a `test` block of the entry file: checked with
         // the file's names, run by `blue test`, dropped by `run` with the others.
         if surface.is_none() {
-            forms.extend(
-                blue_lang_syntax::doc::doctests(entry.text)
-                    .map_err(|e| RunError::Parse(e.to_string()))?,
-            );
+            let tests = blue_lang_syntax::doc::doctests(entry.text)
+                .map_err(|e| RunError::Parse(e.to_string()))?;
+            let drawn = generated_properties(&forms, &tests)?;
+            forms.extend(tests);
+            forms.extend(drawn);
         }
         Ok::<_, RunError>(forms)
     })?;
@@ -776,6 +777,23 @@ pub(crate) fn parse_and_resolve(
     crate::timings::stage(crate::timings::Stage::Resolve, || {
         crate::uses::resolve_uses(forms, entry, loader).map_err(RunError::Import)
     })
+}
+
+/// The entry file's generated properties (`blue_lang_check::properties`):
+/// read the seed only when the file has an example, so a program with none
+/// never reads `BLUE_PROPERTY_SEED`.
+fn generated_properties(
+    forms: &[tatara_lisp::Spanned],
+    tests: &[tatara_lisp::Spanned],
+) -> Result<Vec<tatara_lisp::Spanned>, RunError> {
+    use blue_lang_check::properties::{properties, Setting};
+    if tests.is_empty() {
+        return Ok(Vec::new());
+    }
+    match Setting::configured().map_err(RunError::Parse)? {
+        Setting::Off => Ok(Vec::new()),
+        Setting::Seed(seed) => Ok(properties(forms, tests, seed)),
+    }
 }
 
 /// The start of `span` widened over the comment lines directly above it:

@@ -1,4 +1,4 @@
-{"blind":[],"definitions":5919,"format":"arika/1","leaves":5919,"repo":"blue","snapshot_root":"b3:ed38949c0da467a670d85df56e55741541febd357203e87d87073dc21a3670cb","units":[
+{"blind":[],"definitions":5960,"format":"arika/1","leaves":5960,"repo":"blue","snapshot_root":"b3:834cbd0cf9608cc11e58af22779b66dbb0e19f9b40f9d378191622a4a1e6a166","units":[
 {"leaves":65,"package":"angou","unit_root":"b3:00f1f6116e93eb74681115be3ad992b241cc70096715e074c2f221e318098e05"},
 {"leaves":23,"package":"baito","unit_root":"b3:ebcad1b3f865dbcf6f2af62f426835ce574f124a9a1c249ce713bcc3a9ecf17a"},
 {"leaves":101,"package":"bunsho","unit_root":"b3:cd7c2901c5a3690c04ebb31aee17ad303b8e9f8f5110e1e84c214f0b398a3733"},
@@ -27,7 +27,7 @@
 {"leaves":32,"package":"hikisuu","unit_root":"b3:c7278c5eddd62861aee63b7b023e3a8bc4ba66730e0f4f2608b91f05ce04afa8"},
 {"leaves":50,"package":"hizuke","unit_root":"b3:f54f12764b014b68f4574ad771809b286054841d5ef593ace709a045ac7161c8"},
 {"leaves":96,"package":"hon","unit_root":"b3:d35755df847ca436575617c630be35ee6d23e15225d46ab41e88182784e04b70"},
-{"leaves":32,"package":"ibuki","unit_root":"b3:0572dccc7bd1531ed5d8d174826f707d93d5009adbaf2e12f3c44c034012d7a9"},
+{"leaves":32,"package":"ibuki","unit_root":"b3:76f65f28be66f8413d099db7073f70121f71ba3b2d61a76c263698766da95e1e"},
 {"leaves":98,"package":"isshou/anaritikusu","unit_root":"b3:e97f252179844eea00d922566dab7644c107e096cb1308681b43152ef1688473"},
 {"leaves":147,"package":"isshou/nisshi","unit_root":"b3:62a3a79c4b7a68daff33f23e8bc6d19fa95c68444d1d26a11af8961346498c92"},
 {"leaves":209,"package":"isshou/raifusaikuru","unit_root":"b3:7d1a3701f0bfc18a61ef4996458848905a96038ab6d0717a0d7ac7366424356b"},
@@ -75,6 +75,7 @@
 {"leaves":33,"package":"ronri","unit_root":"b3:c705ad42e4608d724192fe35e49b284bc7dbc2a450e961f76d007cb30ae0b833"},
 {"leaves":43,"package":"sabi","unit_root":"b3:e169ef544acfd3a7fd40abd38a1388b5f9ba0ac3d2d431796c04393d608d47ba"},
 {"leaves":5,"package":"saishikou","unit_root":"b3:a3db439dac12dc5a70fbe57d387c29ee7768279d5b5908ff0af0eafa35d531a9"},
+{"leaves":41,"package":"seikika","unit_root":"b3:e31d202b405ab9739b049cfbfbdae7c87a00c45be462937ed457232aa7dc7fdb"},
 {"leaves":47,"package":"seimei","unit_root":"b3:b87468d48a5d45ca8dc54d6e8eb8f66433a7932046eb52c3bcc4cacfb68b8ec7"},
 {"leaves":30,"package":"settei","unit_root":"b3:933ad5a1d4d8e9cea644c07af30c23f86323d5b538aa691cdf9d8b471f3a05d3"},
 {"leaves":44,"package":"shinchoku","unit_root":"b3:bd02feef0c8ef914e667cbcf693429e4f7171ab226e0390c3dcc17a363977ec5"},

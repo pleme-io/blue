@@ -412,14 +412,22 @@ table 0.5 ms of a 2.1 ms run. blue already starts faster than Python
 (6.4 ms against 12.9 ms for hello) and Ruby (33.0 ms). Gain: at most 2 to 3 ms per run. Low
 priority.
 
-### 3.9 Optimize the tooling crates in the dev profile
+### 3.9 Optimize the tooling crates in the dev profile (built 2026-11-09)
 
-Add `opt-level = 3` for `blue-lang-check`, `blue-lang-syntax`,
-`blue-lang-fmt` and `blue-lang-pkg` under `[profile.dev.package]`, as the
-evaluator crates have. Measured gain: `fmt --check` on all files in the dev
-build is 6.7× the release figure today. Cost: longer incremental builds of
-those four crates, to measure with `bench/bench.b compile` before the change
-lands.
+`blue-lang-check`, `blue-lang-syntax`, `blue-lang-fmt` and `blue-lang-pkg`
+build at `opt-level = 3` in the dev profile, as the evaluator crates do.
+Measured on a shared machine, `blue fmt --check` over the 528 tracked `.b`
+files with the dev binary: 97.2, 98.5, 106.9 s wall (user 95.6 to 101.3)
+before, 22.2, 19.6, 19.7 s (user 18.5 to 18.8) after. A one-line change to
+`blue-lang-check` then rebuilds `cargo build -p blue-lang-cli` in 6.1 to
+9.6 s wall (user 2.7) against 5.6 to 5.9 s (user 2.6) before.
+
+`cargo build --profile release-local` is the release build for the machine
+it runs on: incremental, 256 codegen units. After a one-line change to
+`blue-lang-runtime` it rebuilds `blue` in 4.0 to 4.8 s wall (user 2.3)
+where `--release` takes 23.8 to 25.7 s (user 39.5), and its `blue test
+bidamas/isshou` runs within noise of the release binary (6.4 s both). The
+shipped build stays on `release`.
 
 ### 3.10 Not planned
 

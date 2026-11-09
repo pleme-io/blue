@@ -56,6 +56,11 @@ rowan = "0.16"
 # evaluator is generic over the host: `eval_in::<()>` is monomorphized, and so
 # compiled, in the crate that instantiates it (measured with `sample`: the hot
 # frames were tatara_lisp_eval symbols inside blue_lang_runtime).
+[profile.release-local]
+inherits = "release"
+incremental = true
+codegen-units = 256
+
 [profile.dev.package.tatara-lisp-eval]
 opt-level = 3
 
@@ -63,6 +68,18 @@ opt-level = 3
 opt-level = 3
 
 [profile.dev.package.blue-lang-runtime]
+opt-level = 3
+
+[profile.dev.package.blue-lang-check]
+opt-level = 3
+
+[profile.dev.package.blue-lang-syntax]
+opt-level = 3
+
+[profile.dev.package.blue-lang-fmt]
+opt-level = 3
+
+[profile.dev.package.blue-lang-pkg]
 opt-level = 3
 
 # The conformance runner instantiates the VM (`eval_program_vm::<()>`) itself.

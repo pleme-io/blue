@@ -688,6 +688,12 @@ belongs to a reconciler.
 **Runtime:** `kubectl get -o json` through shisutemu first. A direct API client over tsuushin
 (needs TLS, a kubeconfig parse and an exec credential plugin) comes later, behind the same surface.
 
+**Kinds (built 2026-11-09, SUBSTRATE L1.2):** the level `kurasuta::kinds` holds the typed kinds as
+records: ConfigMap, Secret, Service, ServiceAccount, Deployment, NetworkPolicy, Role, RoleBinding and
+the sub-shapes they name. engenho-kube-codegen writes the file from engenho's vendored OpenAPI through
+blue's syntax tree and formatter (`engenho-types/blue/kinds.b`, held fresh by its `blue_kinds` test);
+blue keeps a copy, and `checks.kurasuta-kinds-fresh` fails when it differs from the pinned engenho's.
+
 ### 4.19 habu (ハブ), the GitHub API, *new*
 
 **Verbs:** the store verbs over `https://api.github.com`: `list(path, opts)` (every page),

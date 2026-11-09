@@ -682,6 +682,22 @@
         "type": "github"
       }
     },
+    "engenho": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1794215644,
+        "narHash": "sha256-TLvbtHuMEvKqKWMEeHqmXCEAzDlCtf885nROB/Y/4j4=",
+        "owner": "pleme-io",
+        "repo": "engenho",
+        "rev": "034896baf9560d1f355e0bc6969b8c150d25beba",
+        "type": "github"
+      },
+      "original": {
+        "owner": "pleme-io",
+        "repo": "engenho",
+        "type": "github"
+      }
+    },
     "fenix": {
       "inputs": {
         "nixpkgs": [
@@ -2613,6 +2629,7 @@
     "root": {
       "inputs": {
         "crate2nix": "crate2nix",
+        "engenho": "engenho",
         "flake-utils": "flake-utils",
         "helmworks": "helmworks",
         "nixpkgs": [

@@ -26,6 +26,33 @@ pub type Package = (
 
 include!(concat!(env!("OUT_DIR"), "/embedded.rs"));
 
+static PACKAGES: std::sync::LazyLock<Vec<Package>> = std::sync::LazyLock::new(|| match LIVE {
+    Some(root) => read_live(Path::new(root)),
+    None => COMPILED.to_vec(),
+});
+
+fn leaked(text: String) -> &'static str {
+    Box::leak(text.into_boxed_str())
+}
+
+fn read_live(root: &Path) -> Vec<Package> {
+    let read = |p: &Path| leaked(std::fs::read_to_string(p).unwrap_or_default());
+    crate::embed_rows::rows(root)
+        .into_iter()
+        .map(|(level, bluefile, files)| {
+            let files: Vec<(&'static str, &'static str)> = files
+                .iter()
+                .map(|f| (leaked(crate::embed_rows::label(&level, f)), read(f)))
+                .collect();
+            (
+                leaked(level),
+                read(&bluefile),
+                &*Box::leak(files.into_boxed_slice()),
+            )
+        })
+        .collect()
+}
+
 /// The compiled-in standard distribution.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Standard;
@@ -122,6 +149,41 @@ impl Loader for Standard {
 #[cfg(all(test, feature = "embedded"))]
 mod tests {
     use super::*;
+
+    #[test]
+    #[cfg(debug_assertions)]
+    fn a_dev_build_reads_the_checkout_and_compiles_no_bidama_in() {
+        let generated = include_str!(concat!(env!("OUT_DIR"), "/embedded.rs"));
+        assert!(LIVE.is_some(), "{generated}");
+        assert!(COMPILED.is_empty());
+        assert!(!generated.contains("include_str!"), "{generated}");
+        let root = Path::new(LIVE.expect("live"));
+        assert!(root.join("retsu").join("Bluefile").is_file());
+        let retsu = Standard
+            .load("retsu/retsu")
+            .or_else(|_| Standard.load("retsu"));
+        assert!(retsu.is_ok_and(|files| files
+            .iter()
+            .all(|(l, t)| l.starts_with("retsu/") && !t.is_empty())));
+        assert!(Standard.bluefile("retsu").is_some());
+    }
+
+    #[test]
+    fn every_row_labels_its_files_under_its_level() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../bidamas");
+        let rows = crate::embed_rows::rows(&root);
+        assert!(rows.iter().any(|(level, _, _)| level == "retsu"));
+        for (level, bluefile, files) in &rows {
+            assert!(bluefile.ends_with("Bluefile"), "{level}");
+            for f in files {
+                assert_eq!(
+                    crate::embed_rows::label(level, f),
+                    format!("{level}/{}", f.file_name().unwrap().to_string_lossy())
+                );
+            }
+        }
+        assert!(crate::embed_rows::rows(&root.join("no-such-root")).is_empty());
+    }
 
     #[test]
     fn the_standard_distribution_is_compiled_in_and_serves_by_name() {

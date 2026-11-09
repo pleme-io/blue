@@ -42,6 +42,7 @@ pub mod corpus;
 pub mod deploy;
 /// The standard distribution compiled in (feature `embedded`; empty without
 /// it).
+pub mod embed_rows;
 pub mod embedded;
 /// Git-backed resolution — a distribution is a directory of bidamas in a
 /// checkout, not a package server. See the module docs for what it does and

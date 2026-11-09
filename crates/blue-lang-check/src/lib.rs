@@ -146,6 +146,16 @@ impl Ty {
     }
 
     #[must_use]
+    pub fn opaque(&self) -> bool {
+        match self {
+            Ty::Named(_) => true,
+            Ty::List(t) => t.opaque(),
+            Ty::Map(k, v) => k.opaque() || v.opaque(),
+            _ => false,
+        }
+    }
+
+    #[must_use]
     pub fn join(&self, other: &Ty) -> Ty {
         if self == other {
             self.clone()
@@ -1240,7 +1250,9 @@ fn infer(s: &Spanned, env: &BTreeMap<String, Ty>, cx: &Cx<'_>, out: &mut Outcome
                             at: format!("argument {} of `{head}`", i + 1),
                             span: a.span,
                         });
-                    } else if !got.accepts(want) {
+                    } else if !got.accepts(want)
+                        && !(cx.boundary && (got.opaque() || want.opaque()))
+                    {
                         out.diagnostics.push(Diagnostic::new(
                             Code::B0005,
                             format!(
@@ -1891,6 +1903,8 @@ mod tests {
         let o = check(&format!("{typed}def loose(x)\n  \"a\" + x\nend"));
         assert!(o.diagnostics.is_empty(), "{:?}", msgs(&o));
         let o = check(&format!("{typed}def inc(s)\n  s\nend\ninc(\"a\")"));
+        assert!(o.diagnostics.is_empty(), "{:?}", msgs(&o));
+        let o = check("def shout(w: String) -> String\n  w\nend\nshout(\"a\")");
         assert!(o.diagnostics.is_empty(), "{:?}", msgs(&o));
     }
 

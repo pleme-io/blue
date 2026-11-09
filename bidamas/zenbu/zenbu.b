@@ -91,6 +91,7 @@ use("koubou/kikagaku", [:manhattan])
 use("kousei")
 use("koutei")
 use("kueri")
+use("kurasuta")
 use("kyohi")
 use("maakuappu")
 use("mitoshi")
@@ -157,6 +158,7 @@ test "every bidama in the distribution answers through this one import"
   assert kueri::ident("order") == "\"order\""
   assert toriyose::kyasshu::key(["User", 7]) == "User:7"
   assert kyohi::kind(kyohi::refusal(:late, "why")) == :late
+  assert kurasuta::greeter.spec.replicas == 2
   assert combinations(52, 5) == 2_598_960
   assert eigyou::kyuuji::address({"listen" => {"host" => "h", "port" => 1}}) ==
     "h:1"

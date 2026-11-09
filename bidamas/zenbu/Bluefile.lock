@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:cf7d3e35afd790bc63d2663e673c5699990cb8a24801316b21120eea001f4bac",
+  "bluefile_b3": "b3:4335e7efe4c25f2b26bb1c5ae9d02d931d1b7f083b73327348de2f1125940dc6",
   "manifest": {
     "schema": 1,
     "name": "zenbu",
@@ -41,6 +41,7 @@
       "kousei": "^0.1.0",
       "koutei": "^0.1.0",
       "kueri": "^0.1.0",
+      "kurasuta": "^0.1.0",
       "kyohi": "^0.1.0",
       "maakuappu": "^0.1.0",
       "mitoshi": "^0.1.0",

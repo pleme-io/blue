@@ -621,9 +621,207 @@ def check_costs(rows, costs, host, n)
   end
 end
 
+NATIVE_BASELINE = "bench/native.baseline"
+
+@doc """
+native_programs: The programs measured on every execution path: each is a corpus program
+the interpreter and chuuzou run (native/corpus) with a hand-written Rust twin
+(bench/native).
+
+    native_programs #=> ["fib", "loop", "mutual"]
+"""
+def native_programs()
+  %w[fib loop mutual]
+end
+
+@doc """
+native_paths: The execution paths a native row compares with Rust, each gated as its
+time over Rust's, in per mille, with a tolerance wide enough for a loaded
+machine's noise.
+
+    map((p) -> p[:name], native_paths) #=> ["tree", "chuuzou"]
+"""
+def native_paths()
+  [
+    {name: "tree", field: :tree, permille: 500},
+    {name: "chuuzou", field: :chuuzou, permille: 500}
+  ]
+end
+
+def cpu_ms(r)
+  ms(json_get(r, :user) + json_get(r, :system))
+end
+
+def timed(command, runs, out)
+  r = hyperfine(command, runs, out)
+  {wall: ms(json_get(r, :mean)), cpu: cpu_ms(r)}
+end
+
+@doc """
+per_mille: `a` over `b` in per mille, rounded; a zero `b` counts as 0.1 ms.
+
+    per_mille(5, 2.5) #=> 2000
+"""
+def per_mille(a, b)
+  round(a * 1000 / max(b, 0.1))
+end
+
+def output_of(command)
+  cap = exec_capture(*command)
+  if status_of(cap) != 0
+    raise(:bench, "#{join(command, " ")} failed: #{stderr_of(cap)}")
+  end
+  stdout_of(cap)
+end
+
+def native_commands(blue, name, work)
+  bidamas = "BLUE_PATH=#{path_join(cwd, "native/bidamas")}"
+  program = path_join(cwd, "native/corpus/#{name}.b")
+  image = trim(
+    output_of(
+      [
+        "env",
+        bidamas,
+        blue,
+        "run",
+        "--quiet",
+        "native/build/host.b",
+        program,
+        path_join(work, name),
+        path_join(cwd, "native/seam")
+      ]
+    )
+  )
+  rust = path_join(work, "#{name}-rust")
+  output_of(
+    [
+      "rustc",
+      "--edition",
+      "2021",
+      "-C",
+      "opt-level=3",
+      "-C",
+      "codegen-units=1",
+      "-o",
+      rust,
+      "bench/native/#{name}.rs"
+    ]
+  )
+  {
+    tree: ["env", bidamas, blue, "run", "--quiet", program],
+    chuuzou: [image],
+    rust: [rust]
+  }
+end
+
+@doc """
+native_row: One program on every path: the three agree on what they print, then each
+is timed; wall and CPU (user + system) in ms.
+"""
+def native_row(blue, name, work, runs)
+  c = native_commands(blue, name, work)
+  want = output_of(c.rust)
+  map(
+    fn(k)
+      if output_of(get(c, k)) != want
+        raise(:bench, "#{name}: the #{k} path prints other than the Rust twin")
+      end
+    end,
+    %i[tree chuuzou]
+  )
+  out = path_join(work, "#{name}.json")
+  {
+    name:,
+    tree: timed(join(c.tree, " "), runs, out),
+    chuuzou: timed(join(c.chuuzou, " "), runs, out),
+    rust: timed(join(c.rust, " "), runs, out)
+  }
+end
+
+def native_cell(t)
+  "#{t.wall} (cpu #{t.cpu})"
+end
+
+def native_line(r)
+  "| #{r.name} | #{native_cell(r.tree)} | not reachable | #{native_cell(r.chuuzou)} | #{native_cell(r.rust)} | #{per_mille(r.chuuzou.cpu, r.rust.cpu)} | #{per_mille(r.tree.cpu, r.rust.cpu)} |"
+end
+
+@doc """
+native_measures: A path's rows: each program's CPU time over Rust's, keyed by program,
+path and host.
+
+    native_measures([{name: "fib", tree: {cpu: 30}, rust: {cpu: 3}}], {name: "tree", field: :tree}, "darwin") #=> [{key: "fib tree darwin", size: 10000}]
+"""
+def native_measures(results, path, host)
+  map(
+    fn(r)
+      measurement(
+        "#{r.name} #{path.name} #{host}",
+        per_mille(get(r, path.field).cpu, r.rust.cpu)
+      )
+    end,
+    results
+  )
+end
+
+def native_refusals(rows, results, host)
+  reduce(
+    fn(acc, p)
+      append(
+        acc,
+        failures_within(
+          rows,
+          "native-ratio",
+          native_measures(results, p, host),
+          p.permille
+        )
+      )
+    end,
+    [],
+    native_paths
+  )
+end
+
+def native_command(blue, work, flags)
+  runs = 3
+  results = map((n) -> native_row(blue, n, work, runs), native_programs)
+  write_stdout(
+    unlines(
+      [
+        "| program | tree-walker ms | VM | chuuzou ms | Rust ms | chuuzou/Rust ‰ | tree/Rust ‰ |",
+        "|---|---|---|---|---|---|---|"
+      ]
+    )
+  )
+  map((r) -> write_stdout(unlines([native_line(r)])), results)
+  host = host_name
+  old = read_or(NATIVE_BASELINE, "")
+  rows = parse(old)
+  if member?("--record", flags)
+    measures = reduce(
+      (acc, p) -> append(acc, native_measures(results, p, host)),
+      [],
+      native_paths
+    )
+    write_file(
+      NATIVE_BASELINE,
+      receipted(old, flag(flags, "--receipt"), render("native-ratio", measures))
+    )
+    true
+  else
+    bad = native_refusals(rows, results, host)
+    map((b) -> write_stdout(unlines([why(b)])), bad)
+    is_empty(bad)
+  end
+end
+
 def main()
   if argv[0] == "compile"
     write_stdout(compile_rows(argv[1]))
+  elsif argv[0] == "native"
+    if not native_command(argv[1], argv[2], drop(3, argv))
+      exit_with(1)
+    end
   elsif argv[0] == "cost"
     if not cost_command(argv[1], argv[2], drop(3, argv))
       exit_with(1)
@@ -651,6 +849,24 @@ end
 
 def example_cost(steps, allocs, bytes)
   {name: "fib", steps:, allocs:, bytes:, ms: 1.0}
+end
+
+test "a native path past its ratio to Rust is refused, and one within it holds"
+  results = [
+    {name: "fib", tree: {cpu: 300}, chuuzou: {cpu: 11}, rust: {cpu: 10}}
+  ]
+  rows = parse(
+    unlines(
+      [
+        "native-ratio: fib tree darwin 30000",
+        "native-ratio: fib chuuzou darwin 1000"
+      ]
+    )
+  )
+  assert native_refusals(rows, results, "darwin") == []
+  slow = [{name: "fib", tree: {cpu: 300}, chuuzou: {cpu: 16}, rust: {cpu: 10}}]
+  assert size(native_refusals(rows, slow, "darwin")) == 1
+  assert size(native_refusals([], results, "darwin")) == 2
 end
 
 test "a cost within every tolerance holds"

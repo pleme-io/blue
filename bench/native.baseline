@@ -1,0 +1,7 @@
+# receipt: first measure, 2026-11-09: three corpus programs on the tree-walker, chuuzou's host image and a hand-written Rust twin, CPU over Rust's
+native-ratio: fib chuuzou darwin 1093
+native-ratio: fib tree darwin 272019
+native-ratio: loop chuuzou darwin 1186
+native-ratio: loop tree darwin 715349
+native-ratio: mutual chuuzou darwin 1042
+native-ratio: mutual tree darwin 11000

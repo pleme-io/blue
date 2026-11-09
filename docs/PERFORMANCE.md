@@ -181,6 +181,31 @@ processes. A probe build sent the whole program to
 The VM is 15% faster on a plain recursive function and up to 2× slower when a
 lambda goes to `map`, `filter` or `reduce`. Section 2.2 gives the cause.
 
+### 1.4.1 Every execution path against Rust
+
+`blue bench/bench.b native BLUE WORKDIR` runs each program in
+`native_programs` (from `native/corpus`) three ways: `blue run` (the
+tree-walker), chuuzou's host image (`native/build/host.b`, board `host64`),
+and the program's hand-written Rust twin in `bench/native`, built with
+`rustc -C opt-level=3`. The three must print the same bytes before any is
+timed. hyperfine, 3 runs; wall ms, then CPU (user + system) ms. It needs
+`hyperfine`, `rustc` and `tatara-rust-emit` on `PATH`. The VM has no entry
+that runs a program, so it has no column.
+
+| program | tree-walker | chuuzou | Rust | chuuzou / Rust | tree-walker / Rust |
+|---|---|---|---|---|---|
+| fib (fib(30)) | 2542 (cpu 1469) | 8.6 (cpu 5.9) | 8.6 (cpu 5.4) | 1.09 | 272 |
+| loop (3M iterations) | 5342 (cpu 3076) | 15.4 (cpu 5.1) | 16.6 (cpu 4.3) | 1.19 | 715 |
+| mutual (depth 10,000) | 48 (cpu 26) | 10.7 (cpu 2.5) | 26.5 (cpu 2.4) | 1.04 | 11 |
+
+chuuzou keeps every `+`, `-`, `*` checked and counts recursion depth against
+the board's bound, which the Rust twin does not; that is the gap. The
+programs finish in a few milliseconds natively, so process start is most of
+the native figure and the ratios move by up to a third between runs.
+`bench/native.baseline` holds each path's CPU over Rust's, per host, in per
+mille; the run fails when a path passes its row by more than 500 per mille,
+and `--record [--receipt "<why>"]` rewrites it.
+
 ### 1.5 Compile times
 
 `bench/bench.b compile`, sccache off, `cargo build -p blue-lang-cli`, wall

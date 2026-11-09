@@ -15,7 +15,7 @@ emit`, the RFC 9162 words `shomei::ct_*`, the committed header
 `bidamas/SNAPSHOT.json` (`generate("arika-snapshot")` in the root `Bluefile`,
 `gen/arika.b`) and the facts as a nix output, `packages.arika-facts`
 (`run("arika-facts")`, `gen/arika-facts.b`), never committed (D1). Phase 3
-(2026-11-09) adds `find` (BM25 through the new `bidamas/sakuin`), `get`,
+(2026-11-09) adds `find` (BM25 through the new `bidamas/junni`), `get`,
 `uses`, `groups`, `changed`, `golden` (G5) and the facts' `calls`, `reach`
 and `tests`; Phase 5 adds the MCP words in `eigyou/kyuuji` (`mcp_answer`,
 `mcp_handler`), the tool schema `TOOLS` in `arika.b`, `blue arika tools`
@@ -114,7 +114,7 @@ word is not tested by that test.
 
 | Verb | Answers | Words |
 |---|---|---|
-| `find TEXT` | words ranked by BM25 over name parts, package and gloss | `sakuin::invert`, `sakuin::score` |
+| `find TEXT` | words ranked by BM25 over name parts, package and gloss | `junni::invert`, `junni::score` |
 | `get WORD` | every row of a word, by word or readable id | `get_answer` |
 | `uses WORD` | the definitions whose `calls` hold the word | `uses_answer` |
 | `groups` | functions of 12 nodes or more sharing one computed shape across words | `groups_answer` |
@@ -246,7 +246,7 @@ These are recorded in [`ROADMAP.md`](ROADMAP.md) § Rulings.
 | repo declaration | `pangea-architectures/workspaces/pleme-io-opensource/org.yaml` | declared, not applied |
 | CLI + rule | `crates/blue-lang-cli/src/arika.rs`, `crates/blue-lang-cli/blue/arika.b`; B0070's explanation names arika | built |
 | PreToolUse hook | `blackmatter-pleme/module/default.nix`, `blue arika like --hook` on `Edit\|Write\|MultiEdit` | built |
-| full text + MCP | `bidamas/sakuin`, `bidamas/eigyou/kyuuji` (`mcp_*`), `TOOLS` in `arika.b`, `docs/arika-tools.json`, `gen/arika-tools.b` | built (2026-11-09) |
+| full text + MCP | `bidamas/junni`, `bidamas/eigyou/kyuuji` (`mcp_*`), `TOOLS` in `arika.b`, `docs/arika-tools.json`, `gen/arika-tools.b` | built (2026-11-09) |
 | still to come | `mcpServers.arika` (Phase 5), engenho release in `nix/nodes/ryn` (Phase 5) | — |
 
 When a phase ships, update its row here, the roadmap tier, the skill text and

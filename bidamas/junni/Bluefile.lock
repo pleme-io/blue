@@ -1,9 +1,9 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:877a73d175fc67e7c7c57b04fcd4eb84d8991b11a8892a8b21ea4dcbfe390806",
+  "bluefile_b3": "b3:544d04427ddaa55d27e96cd8bece23196b9245519c94b0e385af9afdf9eae4a0",
   "manifest": {
     "schema": 1,
-    "name": "sakuin",
+    "name": "junni",
     "version": "0.1.0",
     "needs": {
       "moji": "^0.1.0",

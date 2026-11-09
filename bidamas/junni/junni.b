@@ -1,5 +1,5 @@
 @moduledoc """
-sakuin — the pure words of blue's full-text index (the `sakuin` verb space, docs/verbs): text analyzed into tokens, documents inverted into postings, and a question's terms ranked by BM25 over them. Everything here is in memory and a function of its arguments; a stored index, a writer and its lock are later rungs of the space. arika's `find` is the first consumer (docs/ARIKA.md ruling R7).
+junni — the pure words of blue's full-text index (the subject of the `sakuin` verb space, docs/verbs): text analyzed into tokens, documents inverted into postings, and a question's terms ranked by BM25 over them. Everything here is in memory and a function of its arguments; a stored index, a writer and its lock are later rungs of the space. arika's `find` is the first consumer (docs/ARIKA.md ruling R7).
 
     lookup(invert([["a", "blue words"]], {}), "words") #=> ["a"]
 """

@@ -289,6 +289,7 @@ rendered:
 - [isshou](bidamas/CATALOG.md#isshou) (一生, a lifetime) — what a thing goes through, recorded and read back.
 - [jisho](bidamas/CATALOG.md#jisho) (辞書) — dictionaries: maps as values, read and changed by key, each change a new map.
 - [junjo](bidamas/CATALOG.md#junjo) (順序) — ordering: sorting, searching, selection.
+- [junni](bidamas/CATALOG.md#junni) — the pure words of blue's full-text index (the subject of the `sakuin` verb space, docs/verbs): text analyzed into tokens, documents inverted into postings, and a question's terms ranked by BM25 over them.
 - [kaaneru](bidamas/CATALOG.md#kaaneru) (カーネル) — the Linux kernel, spoken from blue: maps, programs, links and ring buffers over `bpf(2)`, with every struct a `baito` layout and no C library in the path.
 - [kakehashi](bidamas/CATALOG.md#kakehashi) (架け橋, a bridge) — blue speaks Nix, Nix runs blue, and a rebuild does only the work that changed.
 - [kansuu](bidamas/CATALOG.md#kansuu) (関数) — functions about functions.
@@ -314,7 +315,6 @@ rendered:
 - [ronri](bidamas/CATALOG.md#ronri) (論理) — predicates, and the algebra over them.
 - [sabi](bidamas/CATALOG.md#sabi) (錆): Rust source from blue data.
 - [saishikou](bidamas/CATALOG.md#saishikou) (再試行) — retrying a step that can fail for a moment.
-- [sakuin](bidamas/CATALOG.md#sakuin) — the pure words of blue's full-text index (the `sakuin` verb space, docs/verbs): text analyzed into tokens, documents inverted into postings, and a question's terms ranked by BM25 over them.
 - [seimei](bidamas/CATALOG.md#seimei) (生命) — cellular automata: elementary rules, and Life.
 - [settei](bidamas/CATALOG.md#settei) (設定) — configuration, blue's shikumi: a record of defaults grouped by concern, resolved by read(app, defaults) from the defaults, then ~/.config/<app>/<app>.yaml (or <APP>_CONFIG), then <APP>_<GROUP>__<KEY> in the environment, each value typed by its default and a wrong type refused.
 - [shinchoku](bidamas/CATALOG.md#shinchoku) (進捗) — progress: operational probes that judge by progress over a window, never by one reading.

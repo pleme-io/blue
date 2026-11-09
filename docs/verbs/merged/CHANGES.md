@@ -1,6 +1,6 @@
 ---
 kind: explanation
-summary: the merged verb graph: repairs and decisions
+summary: "the merged verb graph: repairs and decisions"
 ---
 
 # Merged graph: repairs and decisions (H0a)

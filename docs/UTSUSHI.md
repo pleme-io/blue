@@ -1,6 +1,6 @@
 ---
 kind: explanation
-summary: utsushi, blue's history projection, DESIGN: Josh's essence naturalized with six improvements, the recon, the lens and view algebra, the phases, the parity gates and the tier ledger
+summary: "utsushi, blue's history projection, DESIGN: Josh's essence naturalized with six improvements, the recon, the lens and view algebra, the phases, the parity gates and the tier ledger"
 ---
 
 # utsushi (写し): blue's history projection, the design of record

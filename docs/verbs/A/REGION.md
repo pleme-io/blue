@@ -1,6 +1,6 @@
 ---
 kind: explanation
-summary: verb graph region A: data and knowledge
+summary: "verb graph region A: data and knowledge"
 ---
 
 # Region A: data and knowledge (578 verbs, 30 spaces, 875 edges)

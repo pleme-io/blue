@@ -1,6 +1,6 @@
 ---
 kind: explanation
-summary: verb graph region F: observe, test, quality and process
+summary: "verb graph region F: observe, test, quality and process"
 ---
 
 # Region F: OBSERVE, TEST, QUALITY AND THE ENGINEERING PROCESS

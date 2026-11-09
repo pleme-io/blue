@@ -1,6 +1,6 @@
 ---
 kind: reference
-summary: the safety-first posture, one row per Rust guarantee: blue today, the gate, its tier and its off switch
+summary: "the safety-first posture, one row per Rust guarantee: blue today, the gate, its tier and its off switch"
 ---
 
 # Safety first: blue's posture, row by row

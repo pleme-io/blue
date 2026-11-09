@@ -1,6 +1,6 @@
 ---
 kind: explanation
-summary: tree-sitter naturalized: the grammar spec and what is emitted from it
+summary: "tree-sitter naturalized: the grammar spec and what is emitted from it"
 ---
 
 # naturalize(tree-sitter) — the destination, before the build

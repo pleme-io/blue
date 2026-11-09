@@ -1,6 +1,6 @@
 ---
 kind: explanation
-summary: arika, blue's word search, Phases 1 and 2 built for blue's own tree and the rest DESIGN: the recon, phases, gates with red runs, risks and every surface that names it
+summary: "arika, blue's word search, Phases 1 and 2 built for blue's own tree and the rest DESIGN: the recon, phases, gates with red runs, risks and every surface that names it"
 ---
 
 # arika (在り処): the design of record

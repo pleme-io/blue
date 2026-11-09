@@ -1,7 +1,7 @@
 ---
 kind: howto
 order: 8
-summary: give a program a stepped clock with the Bluefile word virtualize, so now_ms is the same at every run, and scope it to one package with for:
+summary: "give a program a stepped clock with the Bluefile word virtualize, so now_ms is the same at every run, and scope it to one package with for:"
 ---
 
 # Virtualize a capability

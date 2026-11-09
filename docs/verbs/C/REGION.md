@@ -1,6 +1,6 @@
 ---
 kind: explanation
-summary: verb graph region C: communication and distributed systems
+summary: "verb graph region C: communication and distributed systems"
 ---
 
 # Region C: communication and distributed systems

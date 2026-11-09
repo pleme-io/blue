@@ -1,7 +1,7 @@
 ---
 kind: reference
 role: book
-summary: the book: tutorials and how-to guides in full, then the reference and the explanation
+summary: "the book: tutorials and how-to guides in full, then the reference and the explanation"
 ---
 
 # The blue Book

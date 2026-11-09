@@ -1,6 +1,6 @@
 ---
 kind: explanation
-summary: verb graph region E: build, ship and run
+summary: "verb graph region E: build, ship and run"
 ---
 
 # Region E: build, ship and run (346 verbs, 567 edges, 29 spaces)

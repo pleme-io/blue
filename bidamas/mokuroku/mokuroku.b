@@ -43,7 +43,7 @@ use("junjo", [:sort_by])
 use("kiwari", [:scm_string])
 
 use("kyohi", %i[kinds refusal why])
-use("moji", [:bracketed])
+use("moji", %i[bracketed drop_chars])
 
 use(
   "retsu",
@@ -677,12 +677,46 @@ end
 # ── rendering ──────────────────────────────────────────────────────────────
 
 @doc """
-md_cell: Markdown table cells cannot hold a raw pipe.
+md_cell: A Markdown table cell holds no raw pipe and no line break.
 
     md_cell("a || b") #=> "a \\|\\| b"
 """
 def md_cell(s)
-  replace(s, "|", "\\|")
+  replace(replace(s, "|", "\\|"), line_break, "<br>")
+end
+
+@doc """
+md_code_cell: Code in a Markdown table cell: a code span, or an HTML code block of lines when a span cannot hold it.
+
+    md_code_cell("a | b") #=> "`a \\| b`"
+"""
+def md_code_cell(s)
+  if contains?(s, line_break) or contains?(s, "`")
+    lines = map(html_code_line, split(s, line_break))
+    "<code>#{join(lines, "<br>")}</code>"
+  else
+    "`#{md_cell(s)}`"
+  end
+end
+
+@doc """
+html_code_line: One line of code as HTML a table cell keeps: escaped, its indent kept.
+
+    html_code_line("  a < b | c") #=> "&nbsp;&nbsp;a &lt; b &#124; c"
+"""
+def html_code_line(line)
+  indent = length(line) - (length(trim("#{line}x")) - 1)
+  body = drop_chars(line, indent)
+  escaped = replace(
+    replace(
+      replace(replace(replace(body, "&", "&amp;"), "<", "&lt;"), ">", "&gt;"),
+      "|",
+      "&#124;"
+    ),
+    "`",
+    "&#96;"
+  )
+  "#{join(map((_i) -> "&nbsp;", range(0, indent)), "")}#{escaped}"
 end
 
 def first_line_or_blank(lines)
@@ -3969,4 +4003,12 @@ end
 test "row_strings writes a bracketed list of scheme strings"
   assert row_strings([]) == "[]"
   assert row_strings(%w[a b]) == "[#{scm_string("a")}, #{scm_string("b")}]"
+end
+
+test "a table cell never holds a line break or a backtick its span cannot hold"
+  assert md_code_cell(join_lines(["begin", "  x | y", "end"])) ==
+    "<code>begin<br>&nbsp;&nbsp;x &#124; y<br>end</code>"
+  assert md_code_cell("a `b`") == "<code>a &#96;b&#96;</code>"
+  assert md_code_cell("plain") == "`plain`"
+  assert md_cell(join_lines(%w[one two])) == "one<br>two"
 end

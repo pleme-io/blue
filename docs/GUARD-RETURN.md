@@ -1,6 +1,6 @@
 ---
 kind: explanation
-summary: Guard-clause return, G1 BUILT: `return x` where the parser can rewrite it into if/else, refused where it cannot (B0080), so blue stays one expression per body at no run-time cost
+summary: "Guard-clause return, G1 BUILT: `return x` where the parser can rewrite it into if/else, refused where it cannot (B0080), so blue stays one expression per body at no run-time cost"
 ---
 
 # Guard-clause `return`: the design of record

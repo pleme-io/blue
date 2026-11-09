@@ -1,6 +1,6 @@
 ---
 kind: explanation
-summary: Markdown as a first-class blue value: one typed tree, one formatting, checked links, and renderings to Markdown, HTML, PDF and the terminal (design)
+summary: "Markdown as a first-class blue value: one typed tree, one formatting, checked links, and renderings to Markdown, HTML, PDF and the terminal (design)"
 ---
 
 # MARKDOWN — Markdown is a first-class blue value

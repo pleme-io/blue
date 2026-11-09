@@ -1,6 +1,6 @@
 ---
 kind: explanation
-summary: verb graph region G: interfaces, intelligence and the physical world
+summary: "verb graph region G: interfaces, intelligence and the physical world"
 ---
 
 # Region G: interfaces, intelligence and the physical world

@@ -1,6 +1,6 @@
 ---
 kind: explanation
-summary: how a blue project is published and resolved: registries as renderings of the Bluefile
+summary: "how a blue project is published and resolved: registries as renderings of the Bluefile"
 ---
 
 # Registry

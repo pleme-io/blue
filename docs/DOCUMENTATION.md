@@ -1,6 +1,6 @@
 ---
 kind: explanation
-summary: documentation as a battery: one source per fact, a Diátaxis book, rendered README, AGENTS.md and llms.txt (design)
+summary: "documentation as a battery: one source per fact, a Diátaxis book, rendered README, AGENTS.md and llms.txt (design)"
 ---
 
 # DOCUMENTATION — every blue project documents itself, and the language has a book

@@ -1,6 +1,6 @@
 ---
 kind: explanation
-summary: kigou and yakugo: a program's spelling separated from its meaning
+summary: "kigou and yakugo: a program's spelling separated from its meaning"
 ---
 
 # vocabularify — the surface/structure vocabulary

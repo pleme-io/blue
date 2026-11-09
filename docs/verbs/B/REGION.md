@@ -1,6 +1,6 @@
 ---
 kind: explanation
-summary: verb graph region B: storage and state
+summary: "verb graph region B: storage and state"
 ---
 
 # Region B: storage and state (2026-10-22)

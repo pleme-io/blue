@@ -1,6 +1,6 @@
 ---
 kind: explanation
-summary: khipu, blue's knowledge graph, DESIGN: OxiRS's essence naturalized, the recon, the typed terms, the phases, the parity gates and the tier ledger
+summary: "khipu, blue's knowledge graph, DESIGN: OxiRS's essence naturalized, the recon, the typed terms, the phases, the parity gates and the tier ledger"
 ---
 
 # khipu: blue's knowledge graph, the design of record

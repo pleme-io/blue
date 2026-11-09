@@ -1,6 +1,14 @@
 use(
   "hon",
-  %i[doc_pages fact_refusals kind_refusals project_at run_blocks runnable_page?]
+  %i[
+    doc_pages
+    fact_refusals
+    front_matter_refusals
+    kind_refusals
+    project_at
+    run_blocks
+    runnable_page?
+  ]
 )
 
 use("kyohi", [:why])
@@ -20,6 +28,14 @@ test "every page under docs/ declares one Diátaxis kind"
     write_stderr(unlines(map(why, found)))
   end
   assert length(pages) > 30
+  assert found == []
+end
+
+test "every page's front matter is YAML that reads back as the text it shows"
+  found = front_matter_refusals(pages)
+  if found != []
+    write_stderr(unlines(map(why, found)))
+  end
   assert found == []
 end
 

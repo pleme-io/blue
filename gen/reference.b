@@ -1,5 +1,5 @@
 use("hon", [:front_matter_text])
-use("mokuroku", %i[catalog_of md_cell names_shadowing])
+use("mokuroku", %i[catalog_of md_cell md_code_cell names_shadowing])
 use("retsu", %i[concat_lists find_first first is_empty last size])
 use("shisutemu", %i[status_of stderr_of stdout_of])
 
@@ -39,7 +39,7 @@ def text(obj, key)
 end
 
 def code(s)
-  "`#{md_cell(s)}`"
+  md_code_cell(s)
 end
 
 def table(head, rows)

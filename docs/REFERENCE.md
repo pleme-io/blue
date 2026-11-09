@@ -31,14 +31,7 @@ Semantics that differ from Ruby are in [`bidamas/okite/RULES.md`](../bidamas/oki
 | `x = 5` | `(define x 5)` | A binding, only as a statement. There is no `let`; a binding lasts to the end of its body. |
 | `x = f(y)?` | `(define x (blue-try (f y)))` | `?` after a call takes a result, {ok: true, value: v} or {ok: false, refusal: r} (kyohi::ok, kyohi::refused): a refusal is returned from the function at once, through a guard `return`; otherwise the expression is v. It ends a statement of a def body, `x = f(y)?` or `f(y)?`; anywhere else it is a parse error. A value that is not a result raises :usage. |
 | `[a, *rest] = xs` | `(blue-bind (list a (blue-splice rest)) xs)` | A destructuring binding, only as a statement: a list pattern `[a, b]` or a map pattern `{name:}` on the left binds each name it holds. A value that does not fit raises :pattern, naming the pattern; it never binds nil. The same patterns destructure in a `when`. |
-| `case s
-when rect(w, h)
-  w * h
-when [x, *rest]
-  rest
-when {name:}
-  name
-end` | `(let ((case-subject s)) (cond ((equal? case-subject (rect w h)) (* w h)) ((equal? case-subject (list x (blue-splice rest))) rest) ((equal? case-subject (hash-map :name name)) name) (else ())))` | A `when` pattern destructures: rect(w, h) matches a record of the program by position, [x, *rest] a list of at least one, {name:} a map or record holding :name. Inside a pattern a name binds, `_` matches anything and a literal compares with ==. A pattern with no name in it compares by value, as before. rect(w, h) covers the arm rect for B0081; rect(w, 1) does not. |
+| <code>case s<br>when rect(w, h)<br>&nbsp;&nbsp;w * h<br>when [x, *rest]<br>&nbsp;&nbsp;rest<br>when {name:}<br>&nbsp;&nbsp;name<br>end</code> | `(let ((case-subject s)) (cond ((equal? case-subject (rect w h)) (* w h)) ((equal? case-subject (list x (blue-splice rest))) rest) ((equal? case-subject (hash-map :name name)) name) (else ())))` | A `when` pattern destructures: rect(w, h) matches a record of the program by position, [x, *rest] a list of at least one, {name:} a map or record holding :name. Inside a pattern a name binds, `_` matches anything and a literal compares with ==. A pattern with no name in it compares by value, as before. rect(w, h) covers the arm rect for B0081; rect(w, 1) does not. |
 | `f(x, y)` | `(f x y)` | A call. This is the one form the formatter writes, except for a function that takes no parameters: that is called by its bare name, now_ms, never now_ms() (B0023), and passed as a value as fn() now_ms end. |
 | `f(a, *xs)` | `(apply f a xs)` | A splat: the list's elements are the call's last arguments. The one spelling of apply(f, a, xs) with f a name (B0042). |
 | `(a, *rest) -> rest` | `(lambda (a &rest rest) rest)` | A rest parameter: `*name` last in a def, fn or arrow parameter list collects the remaining arguments into a list, the signature-side sibling of the call-side splat. A call passes every fixed parameter and any number more. |
@@ -52,27 +45,10 @@ end` | `(let ((case-subject s)) (cond ((equal? case-subject (rect w h)) (* w h))
 | `use("retsu")` | `(use "retsu")` | Import a bidama by name, found on BLUE_PATH. Every definition it makes joins one flat namespace. |
 | `raise(:parse, "bad row")` | `(raise :parse "bad row")` | Raise an error; raise(:k, "m", {data: d, cause: e}) attaches data and the error it wraps, raise(e) raises e again. throw(error(…)) is read as this (B0037). |
 | `risky(x) rescue fallback` | `(try (risky x) (catch (_) fallback))` | The value of risky(x), or fallback when it raises. Binds loosest of all, below \|>. |
-| `begin
-  risky(x)
-rescue :timeout as e
-  wait(e)
-end` | `(try (risky x) (catch (rescued-error) (cond ((blue-rescues? rescued-error :timeout) (let ((e rescued-error)) (wait e))) (else (blue-reraise rescued-error)))))` | Catch by kind, binding the error; `rescue e` (last) catches every error, an unmatched kind raises again, and `ensure` runs on both paths. A def body takes the same clauses without begin. |
-| `test "isolated", {satisfies: [:nist_ac_6], target: parse}
-  assert parse(1)
-end` | `(deftest "isolated" (blue-test-meta (hash-map :satisfies (list :nist_ac_6) :target parse)) (blue-assert '(parse 1) (parse 1)))` | A test that declares the controls it verifies, each a catalog keyword (:nist_ac_6 is NIST_SP_800_53R5_AC_6, B0069), and the definition it targets. `blue test --facts` hands both, with each one's def_hash, to tameshi. Written satisfies then target, the controls sorted (B0068). |
-| `@doc """
-inc adds one to a number.
-
-    inc(1) #=> 2
-"""
-def inc(n)
-  n + 1
-end` | `(blue-doc "inc adds one to a number.\n\n    inc(1) #=> 2" (define (inc n) (+ n 1)))` | Documents the definition below it: one sentence of intent starting with its name, then an indented example whose `expr #=> value` lines `blue test` runs as tests. A heredoc: no escapes, no interpolation. Everything else about a definition is derived (B0056–B0060). |
-| `@moduledoc """
-kazu holds the number verbs.
-
-    kazu::clamp(9, 1, 5) #=> 5
-"""` | `(blue-moduledoc "kazu holds the number verbs.\n\n    kazu::clamp(9, 1, 5) #=> 5")` | Documents a whole file, a bidama: its purpose and one whole example. The first form of the file. |
+| <code>begin<br>&nbsp;&nbsp;risky(x)<br>rescue :timeout as e<br>&nbsp;&nbsp;wait(e)<br>end</code> | `(try (risky x) (catch (rescued-error) (cond ((blue-rescues? rescued-error :timeout) (let ((e rescued-error)) (wait e))) (else (blue-reraise rescued-error)))))` | Catch by kind, binding the error; `rescue e` (last) catches every error, an unmatched kind raises again, and `ensure` runs on both paths. A def body takes the same clauses without begin. |
+| <code>test "isolated", {satisfies: [:nist_ac_6], target: parse}<br>&nbsp;&nbsp;assert parse(1)<br>end</code> | `(deftest "isolated" (blue-test-meta (hash-map :satisfies (list :nist_ac_6) :target parse)) (blue-assert '(parse 1) (parse 1)))` | A test that declares the controls it verifies, each a catalog keyword (:nist_ac_6 is NIST_SP_800_53R5_AC_6, B0069), and the definition it targets. `blue test --facts` hands both, with each one's def_hash, to tameshi. Written satisfies then target, the controls sorted (B0068). |
+| <code>@doc """<br>inc adds one to a number.<br><br>&nbsp;&nbsp;&nbsp;&nbsp;inc(1) #=&gt; 2<br>"""<br>def inc(n)<br>&nbsp;&nbsp;n + 1<br>end</code> | `(blue-doc "inc adds one to a number.\n\n    inc(1) #=> 2" (define (inc n) (+ n 1)))` | Documents the definition below it: one sentence of intent starting with its name, then an indented example whose `expr #=> value` lines `blue test` runs as tests. A heredoc: no escapes, no interpolation. Everything else about a definition is derived (B0056–B0060). |
+| <code>@moduledoc """<br>kazu holds the number verbs.<br><br>&nbsp;&nbsp;&nbsp;&nbsp;kazu::clamp(9, 1, 5) #=&gt; 5<br>"""</code> | `(blue-moduledoc "kazu holds the number verbs.\n\n    kazu::clamp(9, 1, 5) #=> 5")` | Documents a whole file, a bidama: its purpose and one whole example. The first form of the file. |
 
 ## Operators
 

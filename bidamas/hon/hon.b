@@ -96,7 +96,11 @@ def front_matter(text)
   reduce(
     fn(acc, line)
       if contains?(line, ":")
-        assoc(acc, trim(before_first(line, ":")), trim(after_first(line, ":")))
+        assoc(
+          acc,
+          trim(before_first(line, ":")),
+          yaml_unquote(trim(after_first(line, ":")))
+        )
       else
         acc
       end
@@ -123,9 +127,97 @@ front_matter_of: A front matter block from [key, value] pairs, in order, ending 
 def front_matter_of(pairs)
   unlines(
     concat_lists(
-      concat_lists(["---"], map((p) -> "#{first(p)}: #{last(p)}", pairs)),
+      concat_lists(
+        ["---"],
+        map((p) -> "#{first(p)}: #{yaml_value(last(p))}", pairs)
+      ),
       ["---", ""]
     )
+  )
+end
+
+@doc """
+quoted?: Whether `v` is one double-quoted YAML scalar.
+
+    quoted?("\"a: b\"") #=> true
+"""
+def quoted?(v)
+  length(v) >= 2 and take_chars(v, 1) == "\"" and ends_with?(v, "\"")
+end
+
+@doc """
+plain_scalar?: Whether YAML reads `v` as the plain text it is: no `: ` or ` #` inside, no `:` at its end, no indicator character first.
+
+    plain_scalar?("how a page is read: the rules") #=> false
+"""
+def plain_scalar?(v)
+  t = trim(v)
+  lead = take_chars(t, 1)
+  t == "" or
+    not (
+      contains?(t, ": ") or
+      contains?(t, " #") or
+      ends_with?(t, ":") or
+      contains?("[]{},#&*!|>'\"%@`", lead) or
+      starts_with?(t, "- ") or
+      starts_with?(t, "? ")
+    )
+end
+
+@doc """
+yaml_value: `v` as YAML reads it back: plain when it can be, else double-quoted.
+
+    yaml_value("published: the rules") #=> "\"published: the rules\""
+"""
+def yaml_value(v)
+  if plain_scalar?(v)
+    v
+  else
+    "\"#{replace(replace(v, "\\", "\\\\"), "\"", "\\\"")}\""
+  end
+end
+
+@doc """
+yaml_unquote: The text of a front matter value, without the double quotes YAML needs.
+
+    yaml_unquote("\"a: b\"") #=> "a: b"
+"""
+def yaml_unquote(v)
+  if quoted?(v)
+    inner = take_chars(drop_chars(v, 1), length(v) - 2)
+    replace(replace(inner, "\\\"", "\""), "\\\\", "\\")
+  else
+    v
+  end
+end
+
+@doc """
+front_matter_refusals: One refusal for each front matter line, of each page given as [path, text], that YAML would not read as the text it shows.
+
+    front_matter_refusals([["docs/a.md", join_lines(["---", "summary: a: b", "---"])]]) #=> [[:front_matter_yaml, "docs/a.md: front matter `summary` is not plain YAML (a `: ` or ` #` inside, or an indicator first); quote it"]]
+"""
+def front_matter_refusals(pages)
+  flat_map(
+    pages,
+    fn(p)
+      path = first(p)
+      flat_map(
+        filter((l) -> contains?(l, ":"), front_matter_lines(last(p))),
+        fn(line)
+          value = trim(after_first(line, ":"))
+          if plain_scalar?(value) or quoted?(value)
+            []
+          else
+            [
+              refusal(
+                :front_matter_yaml,
+                "#{path}: front matter `#{trim(before_first(line, ":"))}` is not plain YAML (a `: ` or ` #` inside, or an indicator first); quote it"
+              )
+            ]
+          end
+        end
+      )
+    end
   )
 end
 
@@ -2598,4 +2690,27 @@ test "a packages fact refuses when the rendering cannot see the packages, rather
   sources = fact_sources(nil, "/nonexistent", project)
   assert sources[:packages] == :unseen
   assert (with_facts_of(project, sources) rescue :refused) == :refused
+end
+
+test "front matter written with a colon or a hash reads back as the same text"
+  texts = [
+    "published and resolved: registries",
+    "a # b",
+    "[x] y",
+    "plain words",
+    "q \"a\" \\ b: c"
+  ]
+  wrong = filter(
+    fn(t)
+      page = front_matter_text(:explanation, t)
+      front_matter(page)["summary"] != t or
+        front_matter_refusals([["docs/x.md", page]]) != []
+    end,
+    texts
+  )
+  assert wrong == []
+  assert front_matter_text(:howto, "plain words") ==
+    unlines(["---", "kind: howto", "summary: plain words", "---", ""])
+  bad = join_lines(["---", "kind: explanation", "summary: a: b", "---"])
+  assert length(front_matter_refusals([["docs/x.md", bad]])) == 1
 end

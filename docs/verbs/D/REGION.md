@@ -1,6 +1,6 @@
 ---
 kind: explanation
-summary: verb graph region D: security and trust
+summary: "verb graph region D: security and trust"
 ---
 
 # Region D: security and trust (2026-10-22)

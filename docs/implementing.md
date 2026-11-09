@@ -1,6 +1,6 @@
 ---
 kind: reference
-summary: the implementer detail behind the agent guide's "Changing blue itself": the check registry, crate map, hard-won rules, CI gates, dependencies and what is not built
+summary: "the implementer detail behind the agent guide's \"Changing blue itself\": the check registry, crate map, hard-won rules, CI gates, dependencies and what is not built"
 ---
 
 # Implementing blue — the detail behind the agent guide

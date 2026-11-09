@@ -1,6 +1,6 @@
 ---
 kind: explanation
-summary: no undeclared nil: how blue makes absence a declared, checked state
+summary: "no undeclared nil: how blue makes absence a declared, checked state"
 ---
 
 # ABSENCE — no undeclared nil

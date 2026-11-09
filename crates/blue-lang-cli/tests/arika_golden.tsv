@@ -1,0 +1,24 @@
+# G5: arika's golden questions. Each line is an intent, a TAB, and the word `blue arika find` must rank first.
+# A line that loses its top hit fails `the_golden_questions_keep_their_top_hit_g5`; fix the gloss or the ranking, never drop the line.
+running totals of a list	retsu::running_sum
+items of two lists paired by position	retsu::zip
+fixed-size groups, last one short	retsu::chunk
+the first element satisfying a predicate	retsu::find_first
+drop space from both ends	moji::trim
+greedy word wrap	moji::wrap_text
+shorten text marking the cut	moji::ellipsize
+a name in pascal case	moji::pascal_case
+shift each letter	angou::caesar
+compose routes into one app	eigyou/kyuuji::router
+listen and answer requests until stopped	eigyou/kyuuji::serve
+the name without its final extension	fairu::stem
+nodes ordered so each edge points forward	gurafu::topo
+every node a start node reaches	gurafu::reachable
+approximate equality for rounding error	kazu::near
+RFC 9162 root over hashes	shomei::ct_root
+an IRI term	khipu::iri
+documents ranked by BM25, highest first	sakuin::score
+keep the first occurrence of each element	shuugou::unique
+items in ascending order	junjo::sort
+the index tokens of a text, stop words dropped	sakuin::analyze
+the token count of every document and the mean length	sakuin::invert

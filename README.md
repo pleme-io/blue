@@ -225,6 +225,17 @@ was rendered. `blue help COMMAND` shows each one's flags.
 | `blue arika like [FILE[:LINE]]` | The words a draft already is: each definition of FILE (or the one at FILE:LINE) matched to a blue word by def hash (T0), written shape (T1) and shape through a wrapper (T2), with the word's id and import line. |
 | `blue arika word NAME` | Find a blue word by NAME: its canonical spelling, an old spelling's new home, and catalogue glosses that mention NAME (T5). |
 | `blue arika emit [ROOT]` | Write the header SNAPSHOT.json for the bidamas under ROOT (each package's RFC 9162 unit_root and row count, and the snapshot_root over them) and, with --facts, the facts: every definition the engine sees as one JSON line (readable id, def_hash, shape hashes, gloss, file, line, legacy names). |
+| `blue arika find TEXT` | Blue words whose name, package or doc gloss match TEXT, ranked by BM25 (the sakuin words), from the facts. |
+| `blue arika get WORD` | Every fact of one word, by pkg::name or readable id. |
+| `blue arika uses WORD` | The definitions that call a word, by pkg::name or readable id. |
+| `blue arika groups` | Functions of MIN nodes or more that share one computed shape across words (T2 over the whole tree). |
+| `blue arika changed PACKAGE` | How PACKAGE's words moved since an older facts file: added, removed, and code or doc moved. |
+| `blue arika ask QUESTION` | Answer a named question over blue's knowledge graph (definitions, tests, docs and rules as khipu quads, asked through DuckDB): untested-CAPABILITY is every definition that reaches the capability and that no test or doc example names. |
+| `blue arika golden FILE` | Ask every golden question of FILE (one `intent<TAB>word` per line, # comments) through find and name each whose word is no longer the top hit (G5). |
+| `blue arika quads OUT` | Write blue's definitions, tests, docs and rules as N-Quads to OUT. |
+| `blue arika tools` | Print the MCP tool list, rendered from the blue schema TOOLS in arika.b. |
+| `blue arika mcp REQUEST` | Answer one MCP JSON-RPC request (REQUEST is the JSON text) from the facts, as the service would; a notification prints nothing. |
+| `blue arika serve [ADDR]` | Serve the blue_word_* tools as an MCP server over Streamable HTTP (POST JSON-RPC to any path; /healthz answers ok). |
 | `blue receipt verify FILE` | Recompute a receipt's name from its bytes and check its form; any edit fails. |
 | `blue config [TIER]` | Show the bounds `blue` is running with, at any tier. |
 | `blue new NAME` | Start a program (a project with its own bidama), a `--bidama`, a `--script`, or a `--kernel` program, each passing `blue test` as written. |
@@ -246,14 +257,14 @@ rendered:
 | Surface forms | 36, with 13 operators and 26 reserved words |
 | Check rules | 78: 42 fix themselves, 8 suggest a fix |
 | Bluefile words | 26 |
-| Commands | 45 |
+| Commands | 56 |
 
 ## The standard library
 
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-67 packages, 5865 definitions, 1985 tests.
+68 packages, 5904 definitions, 1999 tests.
 
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
 - [baito](bidamas/CATALOG.md#baito) (バイト) — bytes as data: integers at a declared width and order, and record layouts that say where each field sits.
@@ -303,6 +314,7 @@ rendered:
 - [ronri](bidamas/CATALOG.md#ronri) (論理) — predicates, and the algebra over them.
 - [sabi](bidamas/CATALOG.md#sabi) (錆): Rust source from blue data.
 - [saishikou](bidamas/CATALOG.md#saishikou) (再試行) — retrying a step that can fail for a moment.
+- [sakuin](bidamas/CATALOG.md#sakuin) — the pure words of blue's full-text index (the `sakuin` verb space, docs/verbs): text analyzed into tokens, documents inverted into postings, and a question's terms ranked by BM25 over them.
 - [seimei](bidamas/CATALOG.md#seimei) (生命) — cellular automata: elementary rules, and Life.
 - [settei](bidamas/CATALOG.md#settei) (設定) — configuration, blue's shikumi: a record of defaults grouped by concern, resolved by read(app, defaults) from the defaults, then ~/.config/<app>/<app>.yaml (or <APP>_CONFIG), then <APP>_<GROUP>__<KEY> in the environment, each value typed by its default and a wrong type refused.
 - [shinchoku](bidamas/CATALOG.md#shinchoku) (進捗) — progress: operational probes that judge by progress over a window, never by one reading.

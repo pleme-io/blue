@@ -62,7 +62,10 @@ Before you write a `def`, ask whether blue already has the word.
 copy (T0), the same code (T1), or the same code through a wrapper (T2), with
 its id and import line ([`docs/ARIKA.md`](ARIKA.md), Phase 1). The
 PreToolUse hook says the same before a `.b` write, and B0070
-(`blue check --reuse`) says it after.
+(`blue check --reuse`) says it after. `blue arika find "intent"` ranks words
+by what they do, `blue arika uses WORD` names their callers, and
+`blue arika ask untested-network` names the definitions that reach the
+network with no test.
 
 ### A file is a program; a project is one command away
 

@@ -42,6 +42,7 @@ generate("okite-rules", "bidamas/okite/RULES.md", "gen/okite-rules.b")
 generate("word-shapes", "crates/blue-lang-runtime/src/word_shapes/tables.rs", "gen/word-shapes.b", ["bidamas"])
 generate("arika-snapshot", "bidamas/SNAPSHOT.json", "gen/arika.b", ["bidamas"])
 run("arika-facts", "gen/arika-facts.b", [], ["bidamas"])
+generate("arika-tools", "docs/arika-tools.json", "gen/arika-tools.b", ["crates/blue-lang-cli/blue/arika.b"])
 
 # blue's one grammar spec (bidamas/kiwari) and everything emitted from it: the
 # tree-sitter grammar editors build, its queries, and the spec as JSON for

@@ -1692,3 +1692,261 @@ test "bound_name reads the param, then the rest"
   assert bound_name({param: "id"}) == "id"
   assert bound_name({rest: "path"}) == "path"
 end
+
+@doc """
+MCP_VERSIONS is the Model Context Protocol revisions mcp_answer speaks, newest first; an `initialize` naming another is answered with the newest.
+
+    first(MCP_VERSIONS) #=> "2025-06-18"
+"""
+MCP_VERSIONS = %w[2025-06-18 2025-03-26]
+
+@doc """
+mcp_tool: One MCP tool: its name, what it answers, and the JSON Schema of its arguments.
+
+    mcp_tool("ping", "answers", {"type" => "object"})["name"] #=> "ping"
+"""
+def mcp_tool(name, description, input)
+  {"name" => name, "description" => description, "inputSchema" => input}
+end
+
+@doc """
+mcp_server: An MCP server as data: its name, version, tools, and `call`, a function from a tool name and its arguments to the tool's answer. A raise in `call` is the tool's error, never the server's.
+
+    mcp_server("s", "0.1.0", [], (_n, _a) -> nil)[:name] #=> "s"
+"""
+def mcp_server(name, version, tools, call)
+  {name:, version:, tools:, call:}
+end
+
+@doc """
+mcp_result is a JSON-RPC 2.0 success for request `id`.
+
+    mcp_result(1, {})["jsonrpc"] #=> "2.0"
+"""
+def mcp_result(id, result)
+  {"jsonrpc" => "2.0", "id" => id, "result" => result}
+end
+
+@doc """
+mcp_error is a JSON-RPC 2.0 error for request `id`: its code and message.
+
+    mcp_error(1, -32601, "no")["error"]["code"] #=> -32601
+"""
+def mcp_error(id, code, message)
+  {
+    "jsonrpc" => "2.0",
+    "id" => id,
+    "error" => {"code" => code, "message" => message}
+  }
+end
+
+@doc """
+mcp_version is the revision an `initialize` is answered with: the client's when it is spoken, else the newest.
+
+    mcp_version("2025-03-26") #=> "2025-03-26"
+"""
+def mcp_version(asked)
+  if member?(asked, MCP_VERSIONS)
+    asked
+  else
+    first(MCP_VERSIONS)
+  end
+end
+
+@doc """
+mcp_call runs one `tools/call`: the tool's answer as text and structured content, or, when the tool raised, `isError` with the reason. A tool the server does not offer is a JSON-RPC error.
+
+    mcp_call(mcp_server("s", "0", [], (_n, _a) -> nil), 1, {"name" => "x"})["error"]["code"] #=> -32602
+"""
+def mcp_call(server, id, params)
+  name = (params or {})["name"]
+  if not any?((t) -> t["name"] == name, server[:tools])
+    mcp_error(id, -32602, "no tool named #{to_s(name)}")
+  else
+    args = params["arguments"] or {}
+    f = server[:call]
+    outcome = begin
+      [:ok, f(name, args)]
+    rescue e
+      [:error, e.message]
+    end
+    if first(outcome) == :ok
+      mcp_result(
+        id,
+        {
+          "content" => [
+            {"type" => "text", "text" => json_stringify(last(outcome))}
+          ],
+          "structuredContent" => last(outcome),
+          "isError" => false
+        }
+      )
+    else
+      mcp_result(
+        id,
+        {
+          "content" => [{"type" => "text", "text" => last(outcome)}],
+          "isError" => true
+        }
+      )
+    end
+  end
+end
+
+@doc """
+mcp_answer: The JSON-RPC 2.0 answer of an MCP server to one request (a parsed JSON object): `initialize`, `ping`, `tools/list` and `tools/call`; nil for a notification, which has no answer; an unknown method is error -32601 and a request that is not JSON-RPC 2.0 is -32600.
+
+    mcp_answer(mcp_server("s", "0", [], (_n, _a) -> nil), {"jsonrpc" => "2.0", "id" => 1, "method" => "ping"})["result"] #=> {}
+"""
+def mcp_answer(server, req)
+  id = req["id"]
+  method = req["method"]
+  if req["jsonrpc"] != "2.0" or not string?(method)
+    mcp_error(id, -32600, "not a JSON-RPC 2.0 request")
+  elsif starts_with?(method, "notifications/")
+    nil
+  elsif method == "initialize"
+    mcp_result(
+      id,
+      {
+        "protocolVersion" => mcp_version(
+          (req["params"] or {})["protocolVersion"]
+        ),
+        "capabilities" => {"tools" => {"listChanged" => false}},
+        "serverInfo" => {"name" => server[:name], "version" => server[:version]}
+      }
+    )
+  elsif method == "ping"
+    mcp_result(id, {})
+  elsif method == "tools/list"
+    mcp_result(id, {"tools" => server[:tools]})
+  elsif method == "tools/call"
+    mcp_call(server, id, req["params"])
+  else
+    mcp_error(id, -32601, "no method #{method}")
+  end
+end
+
+@doc """
+mcp_handler: A handler serving an MCP server over Streamable HTTP, answering with JSON (no stream): a POST of one JSON-RPC message is answered 200 with its answer, or 202 for a notification; a body that is not JSON is error -32700; any other method is 405.
+
+    mcp_handler(mcp_server("s", "0", [], (_n, _a) -> nil))(request("GET", "/mcp", ""))[:status] #=> 405
+"""
+def mcp_handler(server)
+  fn(req)
+    if req[:method] != "POST"
+      text(405, unlines(["MCP takes a POST of a JSON-RPC message"]))
+    else
+      parsed = begin
+        [:ok, json_read(req[:body] or "")]
+      rescue _e
+        [:error, nil]
+      end
+      if first(parsed) == :error
+        json(200, mcp_error(nil, -32700, "the body is not JSON"))
+      else
+        out = mcp_answer(server, last(parsed))
+        if out.nil?
+          response(202, "application/json", "")
+        else
+          json(200, out)
+        end
+      end
+    end
+  end
+end
+
+@doc """
+mcp_fixture is the tests' server: one tool, `echo`, answering its arguments, and raising on `{"fail" => true}`.
+
+    mcp_fixture[:name] #=> "fixture"
+"""
+def mcp_fixture()
+  mcp_server(
+    "fixture",
+    "0.1.0",
+    [mcp_tool("echo", "its arguments", {"type" => "object"})],
+    fn(_name, args)
+      if args["fail"] == true
+        raise(:echo, "asked to fail")
+      else
+        args
+      end
+    end
+  )
+end
+
+@doc """
+rpc is a JSON-RPC 2.0 request for the tests.
+
+    rpc(7, "ping", nil)["id"] #=> 7
+"""
+def rpc(id, method, params)
+  {"jsonrpc" => "2.0", "id" => id, "method" => method, "params" => params}
+end
+
+test "initialize names the server and the revision, and tools/list its tools"
+  s = mcp_fixture
+  init = mcp_answer(
+    s,
+    rpc(1, "initialize", {"protocolVersion" => "2025-03-26"})
+  )
+  assert init["result"]["protocolVersion"] == "2025-03-26"
+  assert init["result"]["serverInfo"] ==
+    {"name" => "fixture", "version" => "0.1.0"}
+  newest = mcp_answer(
+    s,
+    rpc(2, "initialize", {"protocolVersion" => "1999-01-01"})
+  )
+  assert newest["result"]["protocolVersion"] == "2025-06-18"
+  listed = mcp_answer(s, rpc(3, "tools/list", nil))
+  assert map((t) -> t["name"], listed["result"]["tools"]) == ["echo"]
+end
+
+test "a tool's answer is content and structured content; its raise is isError, not a protocol error"
+  s = mcp_fixture
+  ok = mcp_answer(
+    s,
+    rpc(1, "tools/call", {"name" => "echo", "arguments" => {"a" => 1}})
+  )
+  assert ok["result"]["isError"] == false
+  assert ok["result"]["structuredContent"] == {"a" => 1}
+  assert json_read(first(ok["result"]["content"])["text"]) == {"a" => 1}
+  bad = mcp_answer(
+    s,
+    rpc(2, "tools/call", {"name" => "echo", "arguments" => {"fail" => true}})
+  )
+  assert bad["result"]["isError"] == true
+  assert bad["error"].nil?
+  none = mcp_answer(s, rpc(3, "tools/call", {"name" => "nope"}))
+  assert none["error"]["code"] == -32602
+end
+
+test "notifications have no answer; unknown methods and non-requests are errors"
+  s = mcp_fixture
+  note = {"jsonrpc" => "2.0", "method" => "notifications/initialized"}
+  assert mcp_answer(s, note).nil?
+  assert mcp_answer(s, rpc(1, "resources/list", nil))["error"]["code"] == -32601
+  assert mcp_answer(s, {"id" => 1, "method" => "ping"})["error"]["code"] ==
+    -32600
+end
+
+test "over HTTP a request is a POST answered 200, a notification 202, a bad body -32700"
+  h = mcp_handler(mcp_fixture)
+  post = (body) -> {method: "POST", path: "/mcp", query: "", headers: [], body:}
+  r = h(post(json_stringify(rpc(1, "ping", nil))))
+  assert r[:status] == 200
+  assert json_read(r[:body])["id"] == 1
+  assert get(
+    h(
+      post(
+        json_stringify(
+          {"jsonrpc" => "2.0", "method" => "notifications/initialized"}
+        )
+      )
+    ),
+    :status
+  ) == 202
+  assert json_read(h(post("{"))[:body])["error"]["code"] == -32700
+  assert h(request("GET", "/mcp", ""))[:status] == 405
+end

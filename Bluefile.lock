@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:46801d13345483a1828c71adcb96b7744a9f29b6180d48dc8a28b99623ac6f51",
+  "bluefile_b3": "b3:ca72450126c4306eb9642dd18784815b186d27cc311fc44c4b0c059fcea6c198",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -145,6 +145,13 @@
         "program": "gen/arika.b",
         "inputs": [
           "bidamas"
+        ]
+      },
+      "arika-tools": {
+        "output": "docs/arika-tools.json",
+        "program": "gen/arika-tools.b",
+        "inputs": [
+          "crates/blue-lang-cli/blue/arika.b"
         ]
       },
       "book": {

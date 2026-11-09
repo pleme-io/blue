@@ -72,7 +72,8 @@ pub mod violation;
 pub use bisect::{bisect, Bisected};
 pub use mailbox::{copy_data, deep_copy, install_process_primitives, System};
 pub use node::{
-    install, Carrier, ClockKind, Meter, Node, NodeConfig, CARRIED_WORDS, PROCESS_WORDS, ROOT,
+    install, net_args, Carrier, ClockKind, Meter, Node, NodeConfig, CARRIED_WORDS, PROCESS_WORDS,
+    ROOT,
 };
 pub use receipt::{
     Frame, HostIo, Identities, Place, Places, Receipt, ReceiptSink, Source, Subject,

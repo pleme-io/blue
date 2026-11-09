@@ -125,7 +125,8 @@ pub fn install<H: 'static>(interp: &mut Interpreter<H>) {
     interp.register_fn(
         "net_wait",
         Arity::Range(1, 2),
-        |_: &[Value], _h: &mut H, span| {
+        |args: &[Value], _h: &mut H, span| {
+            blue_lang_proc::net_args(fd_of, args, span)?;
             Err(fail(
                 "net_wait",
                 "this interpreter runs no node with a readiness source, so nothing can wait here",

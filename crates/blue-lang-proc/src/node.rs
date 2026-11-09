@@ -3995,9 +3995,13 @@ fn node_fd_of(side: &Side) -> Option<FdOf> {
     }
 }
 
-type Handles = Vec<(Value, Interest, Pollable)>;
+pub type Handles = Vec<(Value, Interest, Pollable)>;
 
-fn net_args(fd_of: FdOf, args: &[Value], span: Span) -> Result<(Handles, Option<u64>), EvalError> {
+pub fn net_args(
+    fd_of: FdOf,
+    args: &[Value],
+    span: Span,
+) -> Result<(Handles, Option<u64>), EvalError> {
     let shape = "interests are a list of [handle, :read | :write | :both]";
     let Value::List(items) = &args[0] else {
         return Err(refuse(

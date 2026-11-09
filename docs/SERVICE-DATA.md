@@ -6,7 +6,9 @@ summary: Postgres, Valkey and the nervous system as the configurable defaults of
 # SERVICE-DATA — Postgres, Valkey and the nervous system as defaults
 
 Status: DESIGN, 2026-10-27. Measured over the 2 Bluefiles that declare a
-`service(...)` (kensa, ola-mundo) of 14. Extends `BUILD-STACK.md` §3.1.
+`service(...)` (kensa, ola-mundo) of 14. Extends `BUILD-STACK.md` §3.1. The
+model's design is `DATA-FRAMEWORK.md` (a model in its own bidama,
+`theory/BLUE.md` §V.32); the whole stack is `SUBSTRATE.md` (2026-11-09).
 
 ## 1. Destination
 
@@ -80,6 +82,10 @@ A transform that kueri's AST cannot express is a gap in kueri. Grow kueri
 to cover it. Do not escape to raw SQL or Rust.
 
 ## 3. How each lowers
+
+The chart side below is today's rendering. From 2026-11-09 typed objects are
+the source, and each pleme-lib helper is configured off per chart as typed
+rendering covers it (`SUBSTRATE.md` §7, L1.3).
 
 | Battery | Blue side | Chart side (pleme-lib) | Operators |
 |---|---|---|---|

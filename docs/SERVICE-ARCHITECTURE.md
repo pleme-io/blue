@@ -8,7 +8,10 @@ summary: the default blue service and the batteries it composes (design)
 Status: DESIGN, 2026-10-23. Nothing below is built unless the tier ledger (§12)
 says so. Paths are under `~/code/github/pleme-io/`. Line numbers were read on
 2026-10-23. What a service may touch (effects, peers, paths, ports, programs),
-and how each layer enforces it, is `SERVICE-ACCESS.md`.
+and how each layer enforces it, is `SERVICE-ACCESS.md`. The whole-stack
+architecture (business logic in blue, the three layers, the reuse table) is
+`SUBSTRATE.md` (2026-11-09). This doc owns the service concerns; where
+`SUBSTRATE.md` §7 names a ruling, this doc follows it.
 
 ## 1. Destination
 
@@ -18,9 +21,9 @@ supervision, retry, rate limits, auth, caching, migrations, API types, SLOs,
 introspection, hot reload and each controller's custom resource. Each concern
 is one declaration entry. It is on by default. You can configure it off or tune
 it alone, and it is refused alone when it is wrong. No concern is ever deleted.
-The author writes one `service(...)` and one `model(...)` in the Bluefile, and
-then writes the handlers. All other files are renderings of those two
-declarations. Where the work needs Rust (a socket, a signal, RS256, the RESP
+The author writes one `service(...)` in the Bluefile and one model in its own
+bidama (§5c), and then writes the handlers. All other files are renderings of
+those two declarations. Where the work needs Rust (a socket, a signal, RS256, the RESP
 protocol), blue calls one Rust host primitive that the fleet already trusts. A
 service does not write its own copy. **Blue is the source, and every other
 format is a rendering of it.** This covers Helm charts and values schemas,
@@ -100,8 +103,10 @@ restart-class field changed on reload). shikumi's `extract_with_sources`
 default. kensa's `from_env` does that today (`kensa/src/config.rs:244`), and this
 design forbids it.
 
-**Secrets.** A declaration holds a reference (`*_file`, or a shikumi
-`SecretSource`), never a value. The host primitive returns an opaque handle
+**Secrets.** The one ruling is `theory/FUEKI.md` R5: a declaration names a
+cofre `SecretRef`, never a value, and placement binds its backend. shikumi
+`SecretSource` (`*_file`, sops, akeyless) and blue's `himitsu` record read it
+(`SUBSTRATE.md` §7, 2026-11-09). This section owns only the read side. The host primitive returns an opaque handle
 (`Value::Foreign`, as `net.rs:407` does for sockets). Blue can pass the handle
 to a host primitive. It cannot render, log or interpolate the handle. Only the
 Rust side reads the bytes.
@@ -193,7 +198,7 @@ signals and protocols go in Rust.**
 | Concern | Lives in | Why |
 |---|---|---|
 | Config tiers | Rust engine (shikumi) with the blue judge | shikumi has six slots, overlays, sources, secrets and reload. 107 repos use it |
-| Secrets | Rust (shikumi `SecretSource`) | bytes must not enter blue values |
+| Secrets | declared as a cofre `SecretRef` (`theory/FUEKI.md` R5); read in Rust (shikumi `SecretSource`) | bytes must not enter blue values |
 | Health, ready, metrics text | blue (kyuuji) | pure text over `http_*` |
 | Logs | blue (rogu) | one JSON line. No Rust need |
 | Trace export | Rust (OTLP) | protocol |
@@ -250,10 +255,17 @@ flowchart LR
 
 ### 5c. One model, every data surface
 
-`model(...)` is a new Bluefile word. Each entity is one entry: fields and
-types, key, relations, indexes, `secret`, `public`, `cache` (key shape, TTL,
-what invalidates it) and `retention`. Today's flat `schema:` lowers into model
-entries, so it stays valid (BLUE-STRUCTURE §6.5).
+The model is a blue value in its own bidama: versioned, locked and hashed
+(`theory/BLUE.md` §V.32). `DATA-FRAMEWORK.md` owns its design, and
+`SERVICE-DATA.md` §2a owns its evolution. A service depends on the model's
+bidama; its Bluefile does not hold the model. History: on 2026-10-23 this
+section made `model(...)` a new Bluefile word; on 2026-11-09 it follows §V.32
+(`SUBSTRATE.md` §7).
+
+Each entity is one entry: fields and types, key, relations, indexes, `secret`,
+`public`, `cache` (key shape, TTL, what invalidates it) and `retention`.
+Today's flat `schema:` lowers into model entries, so it stays valid
+(BLUE-STRUCTURE §6.5).
 
 ```
 model("greetings", {
@@ -327,6 +339,12 @@ service uses into `Bluefile.lock`, as it pins sources. The proposed `seigyo`
 bidama builds each CR as a blue value and checks it against the pinned
 `openAPIV3Schema` at build. It then renders the CR as YAML. A CR that fails
 is refused alone. Its siblings still render.
+
+Each CRD has one owner, by where its controller lives (2026-11-09,
+`SUBSTRATE.md` §7). A Rust controller's CRD is derived from its Rust types, as
+above. A blue reconciler's CRD is derived from its blue kinds, the records
+`engenho-kube-codegen` generates (`SUBSTRATE.md` L1.2, L1.5). `blue lock` pins
+both in the same way.
 
 ```mermaid
 flowchart LR
@@ -439,7 +457,8 @@ service("svc", {program: "svc.b", repository: "ghcr.io/pleme-io/svc", port: 8080
 model("things", {key: "id", fields: {name: "text"}, public: ["name"]})
 ```
 
-That is the whole Bluefile. Each concern in §2 is on by default. To turn one
+That is the whole Bluefile. Since 2026-11-09 the `model(...)` line moves into
+the model's own bidama, and the Bluefile depends on that bidama (§5c). Each concern in §2 is on by default. To turn one
 off, write one entry, for example `off(:rate)` or `off(:breathe)`. To tune one,
 write its field, for example `slo: {latency_ms: 250}`. The handlers in
 `svc.b` are the only other source file.
@@ -480,7 +499,8 @@ write its field, for example `slo: {latency_ms: 250}`. The handlers in
    copies and 0 users.
 6. **One model word, with its renderers in haibi.** Rejected: a separate DDL,
    API and cache declaration per surface (that is the drift BLUE-STRUCTURE
-   §6.5 forbids).
+   §6.5 forbids). Since 2026-11-09 the model word lives in its own bidama
+   (§5c, `theory/BLUE.md` §V.32).
 
 ## 9. Open questions
 
@@ -498,7 +518,7 @@ write its field, for example `slo: {latency_ms: 250}`. The handlers in
 
 | Bad state | How it is refused | Scope |
 |---|---|---|
-| A secret literal in a declaration | `*_file` or `SecretSource` only. A string at a secret field is refused | that entry |
+| A secret literal in a declaration | a cofre `SecretRef` only (`theory/FUEKI.md` R5), read through `*_file` or `SecretSource`. A string at a secret field is refused | that entry |
 | A secret value in a log or a response | `secret_open` returns `Value::Foreign`. Rendering it is a type error | that call |
 | An unknown config key, from file, env or CLI | shikumi's unknown-key report becomes a settei refusal | that key |
 | Broken config falls back to defaults | there is no `unwrap_or_default` path. A refusal stops the start | the process start |

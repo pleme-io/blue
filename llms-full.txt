@@ -2753,6 +2753,8 @@ These are pleme-io names outside blue. blue's docs and agent guide use them.
 
 ### A deploy: a blue service from Bluefile to a node
 
+The whole-stack architecture this path serves is `SUBSTRATE.md`.
+
 1. The author writes `service("name", {…, access: {…}})` and a `placement(…)` in the Bluefile.
 2. `blue lock .` evaluates the Bluefile in its frame, checks the capability lattice and writes `Bluefile.lock`. blue calls nix to pin the sources; nix never calls blue.
 3. nix (`blue.lib.project`) reads the lock and lowers each word to packages, checks and apps. `nix run .#regen` rewrites every generated file, and the `-fresh` checks fail until the diff is committed.
@@ -2760,7 +2762,7 @@ These are pleme-io names outside blue. blue's docs and agent guide use them.
 5. haibi renders the Helm chart and its closed values schema into `deploy/<service>/`. `blue workload render --write` renders the Kubernetes objects. `blue image build` builds an image through nix for the native rung.
 6. GitHub Actions runs substrate's `blue-project.yml`. sui builds once on the build node and caches the result. Every other machine substitutes. koutei writes each step summary.
 7. Flux applies a HelmRelease and a Kustomization for each placement. This step is **design**. `blue diff --context CTX` compares the committed files with a cluster, read-only.
-8. engenho runs the chart. On the wasm rung, engenho's `kidou` preopens the program bundle read-only at `/app` and derives the grants from `access`. The chart is built, but no release sets its component closure yet, and no deployed pod has run it.
+8. engenho runs the chart. On the wasm rung, engenho's `kidou` preopens the program bundle read-only at `/app` and derives the grants from `access`. The chart is built. ola-mundo's release on ryn pins its component closure (nix `6dd08d07`); whether that pod serves is unmeasured (`SUBSTRATE.md` L1.1).
 9. Inside the service, `shisei::stack` composes the declared postures, bougyo's among them, around each handler. kyuuji answers a raise with 500. OTP supervision through `blue-lang-proc` is built, but no service uses it yet: that wiring is **design**.
 
 ---
@@ -2787,6 +2789,7 @@ horizon gets a row here when its first phase starts.
 
 | Track | Design doc | Tier | Next step | Depends on | Done gate |
 |---|---|---|---|---|---|
+| **substrate**: blue as the one language of the whole stack | [`SUBSTRATE.md`](docs/SUBSTRATE.md) | DESIGN (2026-11-09: no phase on main; ola-mundo's release pins its component closure on ryn, and whether it serves is unmeasured) | L1.1: probe ola-mundo's pod on ryn; an engenho e2e runs the real `blue-component.wasm` with a bundle and serves a request | placement parity (the component); engenho (`engenho-kube-codegen`, `BlueWorker`) | each phase of SUBSTRATE §9 green with its red run; L1.1: the e2e serves a request, and with the bundle path removed it fails with the named error, not a hang |
 | **arika**: blue's word search | [`ARIKA.md`](docs/ARIKA.md), `theory/ARIKA.md` | Phases 1 and 2 BUILT for blue's own tree (G1-G4, G6); the rest DESIGN | Phase 2's open rows (the `arika` output for other projects, mokuroku on the facts), then Phase 3: Parquet and `find` | namespaces (tree paths in IDs); verbs (the `sakuin` space for T5) | G1-G9 green on main; a session on ryn answers the golden set through `blue_word_*` |
 | namespaces | [`NAMESPACES.md`](docs/NAMESPACES.md), `theory/BLUE-NAMESPACES.md` | SHIPPED (reconciled 2026-11-06 at `cc9a1a1e`: `blue census` measures B0076, B0077 and B0078 at 0, ratchet 0; tree 10 landed) | close the flat-era `legacy_names` windows at each root's next minor | — | B0076-B0078 at error with corpus count 0 |
 | absence | [`ABSENCE.md`](docs/ABSENCE.md) | DESIGN (reconciled 2026-11-06: only P0, the document; no `umu`, no `absence.rs`, no `BLUE_ABSENCE`, B0054/B0055 reserved) | P1: `umu` and B0054/B0055 at audit | — | the doc's seal tier row |

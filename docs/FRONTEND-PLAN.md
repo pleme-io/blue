@@ -8,6 +8,8 @@ summary: the build plan for blue's frontend framework
 Design: [`theory/BLUE-FRONTEND.md`](https://github.com/pleme-io/theory/blob/main/BLUE-FRONTEND.md).
 This file is the build plan: what, where, in which order, and when each step is
 done. Counted 2026-10-23 against `docs/verbs/merged/verbs.tsv` and the repos named.
+The whole stack this plan is layer 2 of is [`SUBSTRATE.md`](SUBSTRATE.md)
+(2026-11-09).
 
 ## 0. Destination
 
@@ -259,7 +261,8 @@ branding: no Google marks, names or assets.
 ### F15 — Phone and desktop from the same code
 
 One blue app, unchanged, renders to web, desktop and phone; the target is a
-placement datum (`theory/FUEKI.md`), never a fork of the views.
+placement datum (`theory/FUEKI.md`), never a fork of the views. Its phases in
+the whole-stack order are `SUBSTRATE.md` L2.1 to L2.3.
 
 - The element tree, tokens, store and data laws are target-free; only the
   renderer and the import table change per target.

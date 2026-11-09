@@ -10,6 +10,13 @@ this document is built unless a line says so. A horizon becomes a
 [`ROADMAP.md`](ROADMAP.md) row when its first phase starts; this document holds
 the destination, the ROADMAP holds the work.
 
+**Build order, 2026-11-09 (operator).** The operator set the build order to the
+three layers of [`SUBSTRATE.md`](SUBSTRATE.md): blue on engenho first, then
+every placement, then high-assurance local systems. H8 (placements) and the
+authority work (H11 to H20) are scheduled through SUBSTRATE's phases (§9). This
+document keeps each horizon's idea, gate and first step; § Order below is the
+order as it stood on 2026-11-06.
+
 ## The destination
 
 Blue is the one language a person and a model write together for everything
@@ -604,8 +611,9 @@ that opens a socket is refused.
 
 **The model is the native way to model** (operator, 2026-11-07). Anything
 that has to be modeled is declared once, as a blue model (`chozou/teeburu`'s
-`model`, the Bluefile `model` word of `docs/SERVICE-DATA.md` when it lands),
-and every artifact that names its shape is a rendering of it, never a second
+`model`, in its own bidama as "A schema is a bidama" below and
+`theory/BLUE.md` §V.32 rule; the Bluefile `model` word this line named until
+2026-11-09 is superseded, `SERVICE-ARCHITECTURE.md` §5c), and every artifact that names its shape is a rendering of it, never a second
 spelling:
 
 | Rendering | From the model | State (2026-11-07) |
@@ -614,7 +622,7 @@ spelling:
 | API | GraphQL types and Query roots (`toriyose/outou`) | `from_model` built; the bridge from teeburu's shape is being built with rubrica |
 | client | typed fragments (`danpen`), the normalized store's keys (`kyasshu`) | built over a generated schema table |
 | gates | kenshi `TestGate` and `BuildPipeline` from the Bluefile's checks | design (SERVICE-ARCHITECTURE P7) |
-| packaging | the service's chart on pleme-lib, published by version | chart built, publish being built; pleme-lib not pinned |
+| packaging | the service's chart on pleme-lib, published by version | chart built, publish being built; pleme-lib not pinned; pleme-lib is configured off per chart as typed rendering covers it (`SUBSTRATE.md` §7, 2026-11-09) |
 | ontology | a khipu class per entity, a property per field, a shape per constraint (H19) | design |
 
 A shape spelled twice (a GraphQL type written by hand beside its table, a
@@ -844,6 +852,11 @@ attach point and kernel release as ontology classes.
 receipts become instances).
 
 ## Order
+
+Since 2026-11-09 the build order is SUBSTRATE's three layers (the note at the
+head of this document). H8 lands as SUBSTRATE L2.1 to L2.3; the authority
+horizons H11 to H20 land through the layer 1 phases that need them. The table
+keeps the 2026-11-06 order inside that frame.
 
 | When | Horizons | Why first |
 |---|---|---|

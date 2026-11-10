@@ -24,6 +24,11 @@ jobs:
   prose:
     if: ${{ startsWith(github.ref_name, 'land/prose-') || startsWith(github.ref_name, 'land/dry-prose-') }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      held: ${{ steps.turn.outputs.held }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -33,8 +38,17 @@ jobs:
         with:
           flake-ref: ".#default"
           github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: take the land turn before the suite runs
+        id: turn
+        if: ${{ !startsWith(github.ref_name, 'land/dry-') && vars.BLUE_LAND_TURN != 'off' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          held="$(${{ steps.blue.outputs.out-path }}/bin/blue run --quiet gen/land.b -- --turn "$GITHUB_RUN_ID" "$GITHUB_REF_NAME" "$GITHUB_SHA")"
+          echo "held=$held" >> "$GITHUB_OUTPUT"
       - name: refuse a ref that claims prose over a change that is not
         id: gates
+        if: ${{ steps.turn.outputs.held != 'false' }}
         env:
           BLUE: ${{ steps.blue.outputs.out-path }}/bin/blue
         run: |
@@ -42,6 +56,7 @@ jobs:
           echo "checks=$("$BLUE" run --quiet gen/prepush.b -- --prose-gates x86_64-linux)" >> "$GITHUB_OUTPUT"
           dirname "$BLUE" >> "$GITHUB_PATH"
       - uses: pleme-io/actions/nix-flake-check@main
+        if: ${{ steps.turn.outputs.held != 'false' }}
         with:
           only: ${{ steps.gates.outputs.checks }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -57,6 +72,11 @@ jobs:
       contents: write
       actions: write
     steps:
+      - name: refuse a land that does not hold the turn
+        if: ${{ needs.ci.outputs.held == 'false' || needs.prose.outputs.held == 'false' }}
+        run: |
+          echo "::error::this run did not hold the land turn (see the turn step of ci / blue or prose); git land --watch lands it again"
+          exit 1
       - id: token
         uses: pleme-io/actions/github-token@main
         with:

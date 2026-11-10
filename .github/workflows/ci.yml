@@ -48,7 +48,11 @@ on:
     branches:
       - main
   workflow_dispatch: {}
-  workflow_call: {}
+  workflow_call:
+    outputs:
+      held:
+        description: "false when a land run does not hold the land turn (gen/land.b --turn); empty otherwise"
+        value: ${{ jobs.blue.outputs.held }}
 
 permissions:
   contents: read
@@ -56,8 +60,12 @@ permissions:
 jobs:
   blue:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
     outputs:
       proven: ${{ steps.proof.outputs.proven }}
+      held: ${{ steps.turn.outputs.held }}
     steps:
       - uses: actions/checkout@v4
       - id: blue
@@ -65,6 +73,14 @@ jobs:
         with:
           flake-ref: ".#default"
           github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: take the land turn before the suite runs
+        id: turn
+        if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'land/') && !startsWith(github.ref_name, 'land/dry-') && vars.BLUE_LAND_TURN != 'off' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          held="$(${{ steps.blue.outputs.out-path }}/bin/blue run --quiet gen/land.b -- --turn "$GITHUB_RUN_ID" "$GITHUB_REF_NAME" "$GITHUB_SHA")"
+          echo "held=$held" >> "$GITHUB_OUTPUT"
       - name: read the suite proof noted on this commit
         id: proof
         continue-on-error: true
@@ -85,6 +101,7 @@ jobs:
 
   check:
     needs: blue
+    if: ${{ needs.blue.outputs.held != 'false' }}
     uses: pleme-io/substrate/.github/workflows/cargo-ci.yml@main
     with:
       # blue git-deps tatara-lisp by rev over https. The reusable carries
@@ -102,6 +119,7 @@ jobs:
 
   consumers:
     needs: blue
+    if: ${{ needs.blue.outputs.held != 'false' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -124,7 +142,7 @@ jobs:
 
   stop-on-red:
     needs: blue
-    if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'land/') && vars.BLUE_LAND_STOP_ON_RED != 'off' }}
+    if: ${{ needs.blue.outputs.held != 'false' && github.event_name == 'push' && startsWith(github.ref_name, 'land/') && vars.BLUE_LAND_STOP_ON_RED != 'off' }}
     continue-on-error: true
     runs-on: ubuntu-latest
     permissions:

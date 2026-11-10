@@ -177,19 +177,26 @@ def lands_ahead(runs, ref)
     filter(
       fn(r)
         branch = json_get(r, :headBranch)
-        member?(
-          json_get(r, :status),
-          %w[queued in_progress requested waiting pending]
-        ) and
-          branch !=
-            ref and
-          starts_with?(
-            branch,
-            "land/"
-          ) and not starts_with?(branch, "land/dry-")
+        live?(r) and
+          branch != ref and
+          starts_with?(branch, "land/") and
+          not starts_with?(branch, "land/dry-")
       end,
       runs
     )
+  )
+end
+
+@doc """
+live?: Whether a run, as `gh run list --json status` lists it, has not finished.
+
+    live?(json_parse("{\"status\":\"waiting\"}")) #=> true
+    live?(json_parse("{\"status\":\"completed\"}")) #=> false
+"""
+def live?(r)
+  member?(
+    json_get(r, :status),
+    %w[queued in_progress requested waiting pending]
   )
 end
 
@@ -266,7 +273,88 @@ tested tree with main's release files.
 def absorbable?(ahead, touched)
   ahead != [] and
     every?(release_commit?, ahead) and
-    filter((f) -> member?(f, release_files), touched) == []
+    not writes_release?(touched)
+end
+
+@doc """
+writes_release?: Whether a land changes a release file, so a release commit
+that reaches main under it cannot be absorbed and would refuse its fast-forward.
+
+    writes_release?(["gen/land.b", "Cargo.lock"]) #=> true
+    writes_release?(["gen/land.b"]) #=> false
+"""
+def writes_release?(touched)
+  filter((f) -> member?(f, release_files), touched) != []
+end
+
+@doc """
+releases_live: The auto-release runs, as `gh run list --json
+databaseId,event,status,displayTitle` lists them, that can still commit a
+release to main: a scheduled tick never bumps, and the push of a release commit
+bumps nothing.
+
+    releases_live([]) #=> []
+"""
+def releases_live(runs)
+  filter(
+    fn(r)
+      live?(r) and
+        json_get(r, :event) != "schedule" and
+        not starts_with?(json_get(r, :displayTitle), "release: workspace v")
+    end,
+    runs
+  )
+end
+
+@doc """
+release_hold: Why a land waits before its suite runs, or nil: a release is in
+flight and the land changes a release file, so the release commit would move
+main under the suite. A land that changes none absorbs the release instead.
+
+    release_hold([], ["Cargo.lock"]) #=> nil
+"""
+def release_hold(releases, touched)
+  if releases != [] and writes_release?(touched)
+    "auto-release run #{to_s(json_get(first(releases), :databaseId))} is in flight and this land changes #{join(filter((f) -> member?(f, release_files), touched), ", ")}; it waits for the release commit"
+  end
+end
+
+@doc """
+turn_refusal: Why a land run may not run its suite, or nil when it holds the
+turn: an older land still runs, and only one tests at a time against the main it
+fast-forwards; or main gained a commit the land was not built on and cannot
+absorb, so its fast-forward would be refused after the whole suite.
+
+    turn_refusal(nil, [], ["gen/land.b"]) #=> nil
+"""
+def turn_refusal(older, ahead, touched)
+  if not older.nil?
+    "#{json_get(older, :headBranch)} (run #{to_s(json_get(older, :databaseId))}) is older and still running; one land runs its suite at a time"
+  elsif ahead != [] and not absorbable?(ahead, touched)
+    "main gained #{to_s(count(ahead))} commit(s) this land was not built on"
+  end
+end
+
+@doc """
+refused_turn?: Whether a land run's jobs, as `gh run view --json jobs` lists
+them with a `refused` flag per job, show the fast-forward refusing a run that did
+not hold the turn: the run never ran its suite, so it lands again whether or not
+main moved.
+
+    refused_turn?([]) #=> false
+"""
+def refused_turn?(jobs)
+  find_first((j) -> json_get(j, :refused) == true, jobs) != nil
+end
+
+@doc """
+turn_step: The name of land.yml's fast-forward step that refuses a run which did
+not hold the turn; `git land --watch` reads it from the run's jobs.
+
+    turn_step #=> "refuse a land that does not hold the turn"
+"""
+def turn_step()
+  "refuse a land that does not hold the turn"
 end
 
 def git_lines(args)
@@ -310,31 +398,46 @@ def run_of(ref, sha)
   )
 end
 
-def land_runs()
+def runs_of(workflow, fields)
   cap = exec_capture(
     "gh",
     "run",
     "list",
     "--workflow",
-    "land.yml",
+    workflow,
     "--limit",
     "40",
     "--json",
-    "databaseId,headBranch,status"
+    fields
   )
   if status_of(cap) == 0
-    json_parse(stdout_of(cap))
+    json_parse(stdout_of(cap)) rescue nil
   end
+end
+
+def land_runs()
+  runs_of("land.yml", "databaseId,headBranch,status")
+end
+
+def release_runs()
+  runs_of("auto-release.yml", "databaseId,event,status,displayTitle")
+end
+
+def touched_since_main()
+  git_lines(%w[diff --name-only origin/main...HEAD])
 end
 
 def wait_turn(ref, deadline, waited)
   runs = land_runs
-  held = if runs.nil?
-    "the land runs cannot be read (a rate limit answers 403), so this land holds its turn"
+  releases = release_runs
+  held = if runs.nil? or releases.nil?
+    "the land or release runs cannot be read (a rate limit answers 403), so this land holds its turn"
   else
     ahead = lands_ahead(runs, ref)
     if ahead != []
       "#{to_s(count(ahead))} land(s) ahead, first #{json_get(first(ahead), :headBranch)}; waiting for a turn, since only one reaches main; --no-queue lands beside them"
+    else
+      release_hold(releases_live(releases), touched_since_main)
     end
   end
   if not held.nil?
@@ -432,17 +535,7 @@ BLUE_LAND_ABSORB_RELEASE=off.
 def absorb_release(sha, ref, left)
   fetch_main
   base = ask(["merge-base", sha, "origin/main"])
-  ahead = map(
-    fn(c)
-      {
-        subject: ask(["log", "-1", "--format=%s", c]),
-        files: git_lines(
-          ["diff-tree", "--no-commit-id", "--name-only", "-r", c]
-        )
-      }
-    end,
-    git_lines(["rev-list", "#{sha}..origin/main"])
-  )
+  ahead = ahead_of(sha)
   touched = git_lines(["diff", "--name-only", base, sha])
   if not absorbable?(ahead, touched)
     say(
@@ -497,6 +590,93 @@ def absorb_release(sha, ref, left)
     say(
       "main moved only by #{to_s(count(ahead))} release commit(s); fast-forwarded it to the tested tree rebased onto them, #{take_chars(ask(%w[rev-parse HEAD]), 10)}"
     )
+  end
+end
+
+def read_until(reader, left)
+  got = reader()
+  if got.nil? and left > 0
+    sleep(30)
+    read_until(reader, left - 1)
+  else
+    got
+  end
+end
+
+def ahead_of(sha)
+  map(
+    fn(c)
+      {
+        subject: ask(["log", "-1", "--format=%s", c]),
+        files: git_lines(
+          ["diff-tree", "--no-commit-id", "--name-only", "-r", c]
+        )
+      }
+    end,
+    git_lines(["rev-list", "#{sha}..origin/main"])
+  )
+end
+
+def wait_release(touched, deadline)
+  releases = read_until(() -> release_runs, 10)
+  if releases.nil?
+    "the release runs cannot be read"
+  else
+    hold = release_hold(releases_live(releases), touched)
+    if hold.nil?
+      nil
+    elsif now_ms > deadline
+      "#{hold}, and an hour passed"
+    else
+      say(hold)
+      sleep(60)
+      wait_release(touched, deadline)
+    end
+  end
+end
+
+@doc """
+hold_turn: The turn ci.yml's blue job and land.yml's prose job take on a land
+before its suite runs: print true when this run holds it, false with the reason
+on stderr when it does not, and land.yml's fast-forward then refuses the run.
+The turn is the server's half of the queue, so a land pushed without --watch,
+with --no-queue or past a rate limit still tests alone against the main it
+fast-forwards. Off: the repository variable BLUE_LAND_TURN=off.
+"""
+def hold_turn(id, ref, sha)
+  if ask(%w[rev-parse --is-shallow-repository]) == "true"
+    exec_check("git", "fetch", "-q", "--unshallow", "origin")
+  end
+  touched_at = fn()
+    fetch_main
+    git_lines(
+      ["diff", "--name-only", ask(["merge-base", sha, "origin/main"]), sha]
+    )
+  end
+  runs = read_until(() -> land_runs, 10)
+  refusal = if runs.nil?
+    "the land runs cannot be read"
+  else
+    turn_refusal(yields_to(runs, ref, to_int(id)), [], [])
+  end
+  refusal = if refusal.nil?
+    wait_release(touched_at(), now_ms + 3_600_000)
+  else
+    refusal
+  end
+  refusal = if refusal.nil?
+    turn_refusal(nil, ahead_of(sha), touched_at())
+  else
+    refusal
+  end
+  if refusal.nil?
+    say("run #{id} holds the land turn")
+    write_stdout("true")
+  else
+    say(
+      "run #{id} does not hold the land turn: #{refusal}; the fast-forward refuses it, and git land --watch lands it again"
+    )
+    write_stdout("false")
   end
 end
 
@@ -683,18 +863,23 @@ def follow(a, left, minutes)
           "--json",
           "jobs",
           "--jq",
-          "[.jobs[] | {name, conclusion}]"
+          "[.jobs[] | {name, conclusion, refused: ([.steps[]? | select(.name == \"#{turn_step}\" and .conclusion == \"failure\")] != [])}]"
         )
       )
     ) rescue
       []
     fetched = exec_check("git", "fetch", "-q", "origin", "main") == 0
     moved = fetched and not contains_main?
-    if left == 0 or not moved or not moved_main?(jobs)
+    turned = refused_turn?(jobs)
+    if left == 0 or not moved_main?(jobs) or not (moved or turned)
       exit_with(status)
     end
     say(
-      "main moved while CI ran (every CI job green, the fast-forward refused); rebasing onto origin/main and landing again, #{to_s(left - 1)} more after this; --requeue=0 turns this off"
+      if turned
+        "the run did not hold the land turn and ran no suite; queueing and landing again, #{to_s(left - 1)} more after this; --requeue=0 turns this off"
+      else
+        "main moved while CI ran (every CI job green, the fast-forward refused); rebasing onto origin/main and landing again, #{to_s(left - 1)} more after this; --requeue=0 turns this off"
+      end
     )
     follow(a, left - 1, minutes)
   end
@@ -703,6 +888,10 @@ end
 def main()
   if count(argv) == 2 and first(argv) == "--stop-on-red"
     stop_on_red(argv_get(1))
+    exit_with(0)
+  end
+  if count(argv) == 4 and first(argv) == "--turn"
+    hold_turn(argv_get(1), argv_get(2), argv_get(3))
     exit_with(0)
   end
   if count(argv) == 3 and first(argv) == "--absorb-release"
@@ -852,6 +1041,79 @@ test "a land refused only because main gained a release commit reaches main with
   assert not absorbable?([release], %w[gen/land.b Cargo.toml])
   assert not absorbable?([release], ["Cargo.lock"])
   assert not absorbable?([], ["gen/land.b"])
+end
+
+test "one land holds the turn: an older running land refuses a younger, and main moving under a land refuses it unless it can absorb a release, as land/native-gate-roots' run 42814489810 of 2026-11-10 shows"
+  run = fn(id, branch, status)
+    "{\"databaseId\":#{id},\"headBranch\":\"#{branch}\",\"status\":\"#{status}\"}"
+  end
+  runs = json_parse(
+    "[#{join([run(42_813_678_972, "land/h5/arika-khipu", "in_progress"), run(42_814_489_810, "land/native-gate-roots", "in_progress")], ",")}]"
+  )
+  older = yields_to(runs, "land/native-gate-roots", 42_814_489_810)
+  assert contains?(
+    turn_refusal(older, [], ["gen/land.b"]),
+    "land/h5/arika-khipu (run 42813678972) is older"
+  )
+  assert turn_refusal(
+    yields_to(runs, "land/h5/arika-khipu", 42_813_678_972),
+    [],
+    []
+  ).nil?
+  release = {
+    subject: "release: workspace v0.0.183",
+    files: %w[Cargo.gen.lock Cargo.lock Cargo.toml]
+  }
+  h5 = {
+    subject: "HORIZON H5 wave 3",
+    files: ["crates/blue-lang-cli/src/arika.rs"]
+  }
+  assert turn_refusal(nil, [release], ["gen/land.b"]).nil?
+  assert contains?(
+    turn_refusal(nil, [h5, release], ["gen/land.b"]),
+    "2 commit(s)"
+  )
+  assert contains?(turn_refusal(nil, [release], ["Cargo.lock"]), "1 commit(s)")
+  assert turn_refusal(nil, [], ["Cargo.lock"]).nil?
+end
+
+test "a land that changes a release file waits while a release is in flight, as land/speed/compile-plan's run 42788192992 of 2026-11-10 shows, and a scheduled tick or a release commit's own push holds nobody"
+  run = fn(id, event, status, title)
+    "{\"databaseId\":#{id},\"event\":\"#{event}\",\"status\":\"#{status}\",\"displayTitle\":\"#{title}\"}"
+  end
+  runs = json_parse(
+    "[#{join([run(3, "schedule", "in_progress", "auto-release"), run(2, "push", "in_progress", "release: workspace v0.0.180"), run(1, "workflow_dispatch", "completed", "auto-release")], ",")}]"
+  )
+  assert releases_live(runs) == []
+  dispatched = json_parse(
+    "[#{run(42_786_952_460, "workflow_dispatch", "in_progress", "auto-release")}]"
+  )
+  assert map((r) -> json_get(r, :databaseId), releases_live(dispatched)) ==
+    [42_786_952_460]
+  assert contains?(
+    release_hold(releases_live(dispatched), %w[Cargo.toml Cargo.lock src/a.rs]),
+    "changes Cargo.toml, Cargo.lock"
+  )
+  assert release_hold(releases_live(dispatched), ["gen/land.b"]).nil?
+  assert release_hold([], ["Cargo.lock"]).nil?
+end
+
+test "a run whose fast-forward refused it at the turn is read from its steps, so --watch lands it again though main did not move"
+  jobs = json_parse("[{\"name\":\"ci / blue\",\"conclusion\":\"success\",\"refused\":false},{\"name\":\"ci / check\",\"conclusion\":\"skipped\",\"refused\":false},{\"name\":\"fast-forward\",\"conclusion\":\"failure\",\"refused\":true}]")
+  assert refused_turn?(jobs)
+  assert moved_main?(jobs)
+  assert not refused_turn?(
+    json_parse("[{\"name\":\"fast-forward\",\"conclusion\":\"failure\",\"refused\":false}]")
+  )
+end
+
+test "land.yml refuses at the step --watch reads, and both suites take the turn first"
+  land = source(".github/workflows/land.yml")
+  ci = source(".github/workflows/ci.yml")
+  assert contains?(land, "name: #{turn_step}")
+  assert contains?(land, "gen/land.b -- --turn")
+  assert contains?(ci, "gen/land.b -- --turn")
+  assert contains?(ci, "needs.blue.outputs.held != 'false'")
 end
 
 test "a run's end is read from its view, and an unreadable answer is not an end"
@@ -1155,8 +1417,10 @@ def fake_gh(root)
         "end",
         "args = join(argv, \" \")",
         "write_file(log, join([prior, unlines([args])], \"\"))",
-        "lists = count(filter((l) -> contains?(l, \"--limit\"), split(prior, line_break)))",
-        "if contains?(args, \"--limit\")",
+        "lists = count(filter((l) -> contains?(l, \"land.yml --limit\"), split(prior, line_break)))",
+        "if contains?(args, \"auto-release.yml\")",
+        "  write_stdout(\"[]\")",
+        "elsif contains?(args, \"land.yml --limit\")",
         "  older = \"[{\\\"databaseId\\\":50,\\\"headBranch\\\":\\\"land/older\\\",\\\"status\\\":\\\"in_progress\\\"}]\"",
         "  write_stdout(if lists == 1",
         "    older",
@@ -1205,6 +1469,84 @@ test "--watch yields to an older land that took the same turn, then lands and fo
     assert contains?(calls, "run cancel 100")
     assert contains?(calls, "run view 100 --json status,conclusion")
     assert contains?(stderr_of(r), "land/older took the same turn")
+    rm_rf(root)
+  end
+end
+
+def fake_runs_gh(root, lands, releases)
+  bin = path_join(root, "turn-bin")
+  mkdir_p(bin)
+  write_file(path_join(root, "lands.json"), lands)
+  write_file(path_join(root, "releases.json"), releases)
+  write_program(
+    path_join(root, "turn-gh.b"),
+    unlines(
+      [
+        "args = join(argv, \" \")",
+        "if contains?(args, \"land.yml\")",
+        "  write_stdout(read_file(\"#{root}/lands.json\"))",
+        "elsif contains?(args, \"auto-release.yml\")",
+        "  write_stdout(read_file(\"#{root}/releases.json\"))",
+        "end"
+      ]
+    )
+  )
+  script(
+    path_join(bin, "gh"),
+    unlines(
+      ["#!/bin/sh", "exec #{self_exe} run --quiet #{root}/turn-gh.b -- \"$@\""]
+    )
+  )
+  bin
+end
+
+def turn_in(root, bin)
+  work = path_join(root, "work")
+  exec_capture(
+    "env",
+    "-u",
+    "GEN_ROOT",
+    "-C",
+    work,
+    "PATH=#{bin}:#{getenv("PATH")}",
+    *flatten_args(
+      ["--turn", "100", "land/topic", as_tester(work, %w[rev-parse HEAD])]
+    )
+  )
+end
+
+test "--turn holds a land alone on the main it fast-forwards, and refuses one behind an older land or a main it was not built on"
+  if self_exe != nil
+    root = landing_fixture
+    work = path_join(root, "work")
+    committed(work, [%w[other.txt other]], "topic")
+    free = fake_runs_gh(root, "[]", "[]")
+    held = turn_in(root, free)
+    assert status_of(held) == 0
+    assert stdout_of(held) == "true"
+    older = fake_runs_gh(
+      root,
+      "[{\"databaseId\":50,\"headBranch\":\"land/older\",\"status\":\"in_progress\"},{\"databaseId\":150,\"headBranch\":\"land/younger\",\"status\":\"queued\"}]",
+      "[]"
+    )
+    behind = turn_in(root, older)
+    assert status_of(behind) == 0
+    assert stdout_of(behind) == "false"
+    assert contains?(stderr_of(behind), "land/older (run 50) is older")
+    main_moves(root, [["Cargo.toml", "[workspace]"]])
+    as_tester(work, %w[checkout -q main])
+    as_tester(
+      work,
+      ["commit", "-q", "--amend", "-m", "release: workspace v0.0.2"]
+    )
+    as_tester(work, %w[push -q --force origin main])
+    as_tester(work, %w[checkout -q topic])
+    absorbed = turn_in(root, fake_runs_gh(root, "[]", "[]"))
+    assert stdout_of(absorbed) == "true"
+    main_moves(root, [%w[notes/ant ant]])
+    stale = turn_in(root, fake_runs_gh(root, "[]", "[]"))
+    assert stdout_of(stale) == "false"
+    assert contains?(stderr_of(stale), "main gained 2 commit(s)")
     rm_rf(root)
   end
 end

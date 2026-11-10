@@ -42,6 +42,7 @@ pub mod doc_rules;
 pub mod evolution;
 pub mod fixes;
 pub mod form_rules;
+pub mod laws;
 pub mod lia;
 pub mod names;
 pub mod namespace_rules;

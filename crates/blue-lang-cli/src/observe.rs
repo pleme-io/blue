@@ -133,6 +133,9 @@ pub(crate) fn test(
     } else {
         String::new()
     };
+    if let Some(laws) = law_tally(&runs) {
+        println!("{laws}");
+    }
     let tally = format!("{total} test(s): {passed} passed, {failed} failed{skips}{cached}");
     if tree {
         let files = runs.len();
@@ -175,6 +178,33 @@ const REPOSITORY_ENV: &[&str] = &[
     "GIT_COMMON_DIR",
     "GIT_NAMESPACE",
 ];
+
+/// The laws a run checked, by the tier each block's name carries
+/// (`blue_lang_check::laws::Tier`): `law(s): 1 proved, 0 refuted, 1 tested,
+/// 0 unchecked`. `None` when the run checked no law, so a run without laws
+/// prints what it always printed.
+fn law_tally(runs: &[FileRun]) -> Option<String> {
+    use blue_lang_check::laws::Tier;
+    let names = runs.iter().filter_map(|r| r.report.as_ref()).flat_map(|r| {
+        r.outcomes
+            .iter()
+            .map(|o| o.name.as_str())
+            .chain(r.cached.iter().map(String::as_str))
+    });
+    let (mut proved, mut refuted, mut tested, mut unchecked) = (0, 0, 0, 0);
+    for tier in names.filter_map(Tier::of_test) {
+        match tier {
+            Tier::Proved => proved += 1,
+            Tier::Refuted => refuted += 1,
+            Tier::Tested(_) => tested += 1,
+            Tier::Unchecked => unchecked += 1,
+        }
+    }
+    let total = proved + refuted + tested + unchecked;
+    (total > 0).then(|| {
+        format!("{total} law(s): {proved} proved, {refuted} refuted, {tested} tested, {unchecked} unchecked")
+    })
+}
 
 fn hermetic() -> Result<(), CliError> {
     match std::env::var("BLUE_TEST_ENV").as_deref() {

@@ -213,6 +213,26 @@ def put_int(n)
 end
 
 @doc """
+reclaim: How the definition named `name` reclaims the lists it makes, for blue
+native: `:refcount` (the default; a list is freed when its last holder drops
+it, and one nothing else holds is extended in place) or `:arena` (its lists
+live in a region freed when it returns). The interpreter has one collector,
+so here the word only checks its arguments.
+
+    reclaim(:arena, "build") #=> nil
+    (reclaim(:mark_sweep, "build") rescue :refused) #=> :refused
+"""
+def reclaim(strategy, name)
+  if not member?(strategy, %i[arena refcount])
+    raise(:kiban, "reclaim takes :arena or :refcount, got #{to_s(strategy)}")
+  end
+  if not string?(name)
+    raise(:kiban, "reclaim names a definition by its name as a string")
+  end
+  nil
+end
+
+@doc """
 wrapping_add: a + b modulo 2^32: wrapping arithmetic, only where a program asks for it by
 name. Plain + is checked everywhere (overflow is a fault on the board); this
 word is the one way to wrap, and it lowers to u32::wrapping_add.

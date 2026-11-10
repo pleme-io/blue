@@ -1,10 +1,13 @@
 # receipt: first measure, 2026-11-09: three corpus programs on the tree-walker, chuuzou's host image and a hand-written Rust twin, CPU over Rust's
 # receipt: 2026-11-10: chuuzou and Rust run at a big N (fib 38, loop 300M, shapes 100M); the tree-walker row is its CPU per unit of work over Rust's, so every earlier tree row was startup-bound and is replaced; shapes is new
-native-ratio: fib chuuzou darwin 1318
-native-ratio: fib tree darwin 860994
-native-ratio: loop chuuzou darwin 1645
-native-ratio: loop tree darwin 1796445
-native-ratio: mutual chuuzou darwin 1000
-native-ratio: mutual tree darwin 13500
-native-ratio: shapes chuuzou darwin 947
-native-ratio: shapes tree darwin 5874771
+# receipt: 2026-11-10: sums is new (a list of N words built by append and summed by nth, once refcounted and once in a region)
+native-ratio: fib chuuzou darwin 1344
+native-ratio: fib tree darwin 870526
+native-ratio: loop chuuzou darwin 1638
+native-ratio: loop tree darwin 1796190
+native-ratio: mutual chuuzou darwin 929
+native-ratio: mutual tree darwin 13929
+native-ratio: shapes chuuzou darwin 937
+native-ratio: shapes tree darwin 6170764
+native-ratio: sums chuuzou darwin 1531
+native-ratio: sums tree darwin 1840551

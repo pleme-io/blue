@@ -631,14 +631,15 @@ runs the program at its own `N`; chuuzou and Rust run it at `big`, `work`
 times the work, so a native run is long enough to time and not process
 start. A program with no `N` runs as written on every path.
 
-    map((p) -> p[:name], native_programs) #=> ["fib", "loop", "mutual", "shapes"]
+    map((p) -> p[:name], native_programs) #=> ["fib", "loop", "mutual", "shapes", "sums"]
 """
 def native_programs()
   [
     {name: "fib", n: 30, big: 38, work: 39_088_169 / 832_040},
     {name: "loop", n: 3_000_000, big: 300_000_000, work: 100},
     {name: "mutual", n: nil, big: nil, work: 1},
-    {name: "shapes", n: 1_000_000, big: 100_000_000, work: 100}
+    {name: "shapes", n: 1_000_000, big: 100_000_000, work: 100},
+    {name: "sums", n: 100_000, big: 10_000_000, work: 100}
   ]
 end
 

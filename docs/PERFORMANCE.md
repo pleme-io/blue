@@ -202,6 +202,7 @@ so it has no column.
 | loop (3M; 300M) | 2685 (cpu 2679) | 246 (cpu 245) | 153 (cpu 149) | 1.65 | 1796 |
 | mutual (depth 10,000) | 40 (cpu 22) | 8.6 (cpu 1.6) | 9.1 (cpu 1.6) | 1.00 | 14 |
 | shapes, records (1M; 100M) | 7697 (cpu 7684) | 125 (cpu 124) | 133 (cpu 131) | 0.95 | 5875 |
+| sums, lists (100k; 10M) | 473 (cpu 467) | 41.6 (cpu 38.0) | 29.0 (cpu 25.1) | 1.51 | 1860 |
 
 chuuzou keeps every `+`, `-`, `*` checked and counts recursion depth
 against the board's bound; the twin, as release Rust does, wraps and
@@ -212,6 +213,14 @@ record, and every value is `Copy`. `bench/native.baseline` holds each
 path's CPU over Rust's (per unit of work for the tree-walker), per host, in
 per mille; the run fails when a path passes its row by more than 500 per
 mille, and `--record [--receipt "<why>"]` rewrites it.
+
+sums builds a list of N words one append at a time and sums it by index,
+twice: once refcounted and once in a region (`reclaim(:arena, …)`), so
+both reclamation strategies run in one program. An append of a literal list
+is a push (`kiban_heap::rc_push`, `Region::push_onto`): before that, each
+step made a one-word list and appended it, and sums ran at 8.8 times the
+twin; after, 1.5. The rest of the gap is the twin's vectorised sum against a
+checked add and a bounds-checked index per word.
 
 ### 1.5 Compile times
 

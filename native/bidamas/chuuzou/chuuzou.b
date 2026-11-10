@@ -45,6 +45,17 @@ i64 on the host board `host64`):
                             (any other is a fault, as the interpreter raises); a
                             variant test on Rec, a constant where the type is known
   ==, != on records         derived PartialEq, both sides brought to one type
+  [a, b], append, count,    a list of board words, on the host board only:
+  nth, first                refcounted (kiban_heap::List, an Rc<Vec>) by default,
+                            or a Span of a region with reclaim(:arena, "f")
+  append(xs, [a])           a push onto xs: in place when nothing else holds xs
+                            (refcount) or xs is its region's newest list (arena)
+  a list read more than     moved where it is read once; read more, a take is an
+  once                      Rc clone (a refcount, no copy)
+  a call across strategies  the list copied into or out of the region; a region
+                            definition called from a refcounting one gets a
+                            fresh region for that call, freed when it returns
+  x = e in a body           a local, seen by the forms after it
   mmio_write(a, 8|32, v)    io.write8 / io.write32, through the board's seam
   top-level expressions     pub fn main, called by the seam
 
@@ -383,6 +394,8 @@ def cz_sig_ty(n, records)
     :bool
   elsif s == "dyn"
     :dyn
+  elsif s == "List"
+    :list
   elsif r != nil
     r[:name]
   else
@@ -406,8 +419,28 @@ def cz_rs_ty(ty, word)
     rs_ty("bool")
   elsif ty == :dyn
     rs_ty("Rec")
+  elsif ty == :list
+    rs_ty("List")
+  elsif ty == :span
+    rs_ty("Span")
   else
     rs_ty(cz_struct_name(ty))
+  end
+end
+
+@doc """
+cz_held_ty: A lowered type as a definition of `strategy` holds it: a list is a
+refcounted `List`, or a `Span` of the definition's region.
+
+    cz_held_ty(:list, :arena) #=> :span
+    cz_held_ty(:list, :refcount) #=> :list
+    cz_held_ty(:word, :arena) #=> :word
+"""
+def cz_held_ty(ty, strategy)
+  if ty == :list and strategy == :arena
+    :span
+  else
+    ty
   end
 end
 
@@ -522,7 +555,9 @@ def cz_ty(n, ctx)
   elsif h == "if" and count(n) == 4
     cz_unify(cz_ty(third(n), ctx), cz_ty(fourth(n), ctx))
   elsif h == "begin"
-    cz_ty(last(n), ctx)
+    cz_ty(last(n), cz_scope(butlast(rest(n)), ctx))
+  elsif h == "list" or h == "append"
+    :list
   elsif cz_record_named(ctx, h) != nil
     h
   elsif cz_record_tested(ctx, h) != nil
@@ -795,10 +830,16 @@ def cz_expr(n, ctx)
     rs_word(n, ctx[:word])
   elsif cz_sym?(n)
     s = cz_sym(n)
-    if member?(s, ctx[:params])
+    if member?(s, ctx[:params]) and member?(s, ctx[:shared] or [])
+      rs_method(rs_path(cz_param_name(s)), "clone", [])
+    elsif member?(s, ctx[:params])
       rs_path(cz_param_name(s))
     elsif member?(s, ctx[:consts])
       rs_path(cz_const_name(s))
+    elsif member?(s, ctx[:bindings]) and
+        ctx[:self].nil? and
+        cz_lookup(s, ctx[:types] or []) == :list
+      rs_method(rs_path(cz_binding_name(s)), "clone", [])
     elsif member?(s, ctx[:bindings]) and ctx[:self].nil?
       rs_path(cz_binding_name(s))
     elsif member?(s, ctx[:bindings])
@@ -922,6 +963,8 @@ def cz_call(n, ctx)
       "wrapping_add",
       [cz_expr(second(args), ctx)]
     )
+  elsif member?(h, %w[list append count nth first])
+    cz_list_op(h, args, ctx)
   elsif h == "blue-field"
     cz_field(args, ctx)
   elsif cz_record_named(ctx, h) != nil
@@ -940,12 +983,7 @@ def cz_call(n, ctx)
     else
       sig[:params]
     end
-    cz_direct_with(
-      (xs) -> rs_call([cz_fn_name(h)], append(lead, xs)),
-      args,
-      (i) -> cz_as(args[i], wants[i], ctx),
-      ctx
-    )
+    cz_call_across(h, lead, args, wants, sig, ctx)
   else
     cz_refuse(
       "`#{h}` has no native form: it is not a definition of this program or a word of its board (the native position's Reach, §2.3)"
@@ -1013,6 +1051,318 @@ def cz_put_byte(arg, ctx)
 end
 
 @doc """
+cz_strategy: How the definition `name` reclaims the lists it holds: :arena when the
+program says so with `reclaim(:arena, "name")`, else :refcount.
+
+    cz_strategy("%root/f", {strategies: [["%root/f", :arena]]}) #=> :arena
+    cz_strategy("%root/g", {strategies: []}) #=> :refcount
+"""
+def cz_strategy(name, ctx)
+  cz_lookup(name, ctx[:strategies] or []) or :refcount
+end
+
+@doc """
+cz_region: The region the current definition's lists live in: its `rg` parameter.
+
+    cz_region({}) #=> {kind: "path", segments: ["rg"]}
+"""
+def cz_region(_ctx)
+  rs_path("rg")
+end
+
+@doc """
+cz_borrowed: A list operand read without being taken: `&x` of a refcounted list, the
+span itself in a region.
+
+    cz_borrowed({sym: "xs"}, {params: ["xs"], strategy: :refcount, word: 64})[:kind] #=> "ref"
+"""
+def cz_borrowed(n, ctx)
+  e = if cz_sym?(n) and member?(cz_sym(n), ctx[:params])
+    rs_path(cz_param_name(cz_sym(n)))
+  else
+    cz_expr(n, ctx)
+  end
+  if ctx[:strategy] == :arena
+    e
+  else
+    {kind: "ref", expr: e}
+  end
+end
+
+@doc """
+cz_temps: Each expression bound to a local `<stem>_<i>`, so a call that takes the
+region or the board borrows it alone: the locals, then their paths.
+
+    second(cz_temps("e", [rs_path("a")])) #=> [{kind: "path", segments: ["e_0"]}]
+"""
+def cz_temps(stem, exprs)
+  idx = range(count(exprs))
+  [
+    map((i) -> {kind: "local", name: "#{stem}_#{i}", value: exprs[i]}, idx),
+    map((i) -> rs_path("#{stem}_#{i}"), idx)
+  ]
+end
+
+@doc """
+rs_seq: A block of `stmts` ending in `tail`.
+
+    rs_seq([], rs_path("x"))[:kind] #=> "block"
+"""
+def rs_seq(stmts, tail)
+  {kind: "block", block: rs_block(append(stmts, [rs_tail(tail)]))}
+end
+
+@doc """
+cz_list_op: A list word on a host with a heap: `[a, b]`, append, count, nth, first,
+each on the representation the current definition's strategy holds.
+
+    cz_list_op("count", [{sym: "xs"}], {params: ["xs"], strategy: :refcount, word: 64, heap: true})[:func] #=> ["kiban_heap", "rc_count"]
+"""
+def cz_list_op(h, args, ctx)
+  arena = ctx[:strategy] == :arena
+  if not ctx[:heap]
+    cz_refuse("a list needs a heap, and this board has none; lists compile for the host board")
+  elsif h == "list"
+    t = cz_temps("e", map((a) -> cz_as(a, :word, ctx), args))
+    if arena
+      rg = cz_region(ctx)
+      rs_seq(
+        append(
+          first(t),
+          [{kind: "local", name: "s", value: rs_method(rg, "begin", [])}],
+          map((e) -> rs_semi(rs_method(rg, "push", [e])), second(t))
+        ),
+        rs_method(rg, "end", [rs_path("s")])
+      )
+    else
+      rs_seq(
+        append(
+          first(t),
+          [
+            {
+              kind: "local",
+              name: "v",
+              mutable: true,
+              value: rs_call(
+                %w[kiban_heap vec_with],
+                [{kind: "int", value: count(args), suffix: "usize"}]
+              )
+            }
+          ],
+          map((e) -> rs_semi(rs_method(rs_path("v"), "push", [e])), second(t))
+        ),
+        rs_call(%w[kiban_heap rc_of], [rs_path("v")])
+      )
+    end
+  elsif h == "append" and count(args) == 2 and cz_head(second(args)) == "list"
+    cz_push_words(first(args), rest(second(args)), ctx)
+  elsif h == "append"
+    if count(args) < 2
+      cz_refuse("append joins two lists or more")
+    end
+    if arena
+      t = cz_temps("x", map((a) -> cz_list_value(a, ctx), args))
+      rs_seq(
+        first(t),
+        reduce(
+          (acc, b) -> rs_method(cz_region(ctx), "append", [acc, b]),
+          first(second(t)),
+          rest(second(t))
+        )
+      )
+    else
+      reduce(
+        fn(acc, b)
+          rs_call(
+            %w[kiban_heap rc_append],
+            [acc, {kind: "ref", expr: cz_list_value(b, ctx)}]
+          )
+        end,
+        cz_list_value(first(args), ctx),
+        rest(args)
+      )
+    end
+  elsif h == "count"
+    if arena
+      rs_call(%w[Region count], [cz_borrowed(first(args), ctx)])
+    else
+      rs_call(%w[kiban_heap rc_count], [cz_borrowed(first(args), ctx)])
+    end
+  else
+    l = if h == "first"
+      first(args)
+    else
+      second(args)
+    end
+    i = if h == "first"
+      0
+    else
+      first(args)
+    end
+    if arena
+      t = cz_temps("n", [cz_borrowed(l, ctx), cz_as(i, :word, ctx)])
+      rs_seq(first(t), rs_method(cz_region(ctx), "nth", second(t)))
+    else
+      rs_call(
+        %w[kiban_heap rc_nth],
+        [cz_borrowed(l, ctx), cz_as(i, :word, ctx)]
+      )
+    end
+  end
+end
+
+@doc """
+cz_push_words: `append(xs, [a, b])`: the words pushed onto `xs`, one at a time, with
+no list made for them: in place when `xs` is held nowhere else (refcount) or
+is its region's newest list (arena).
+
+    last(cz_push_words({sym: "xs"}, [1], {params: ["xs"], types: [["xs", :list]], strategy: :refcount, word: 64})[:block][:stmts])[:expr][:func] #=> ["kiban_heap", "rc_push"]
+"""
+def cz_push_words(xs, words, ctx)
+  arena = ctx[:strategy] == :arena
+  t = cz_temps("w", map((w) -> cz_as(w, :word, ctx), words))
+  base = cz_list_value(xs, ctx)
+  pushed = reduce(
+    fn(acc, w)
+      if arena
+        rs_method(cz_region(ctx), "push_onto", [acc, w])
+      else
+        rs_call(%w[kiban_heap rc_push], [acc, w])
+      end
+    end,
+    rs_path("l_0"),
+    second(t)
+  )
+  rs_seq(append([{kind: "local", name: "l_0", value: base}], first(t)), pushed)
+end
+
+@doc """
+cz_list_value: An operand that must be a list, lowered.
+
+    cz_list_value({sym: "xs"}, {params: ["xs"], types: [["xs", :list]]}) #=> {kind: "path", segments: ["p_xs"]}
+"""
+def cz_list_value(n, ctx)
+  t = cz_ty(n, ctx)
+  if t != :list
+    cz_refuse("append joins lists, and this is #{cz_ty_text(t)}")
+  end
+  cz_expr(n, ctx)
+end
+
+@doc """
+cz_convert: A list moved between strategies at a call: into the region `rg` from a
+refcounted list, or out of it into a refcounted one. Anything else as it is.
+
+    cz_convert(rs_path("x"), :list, :refcount, :arena, rs_path("rg"))[:method] #=> "from_rc"
+    cz_convert(rs_path("x"), :word, :refcount, :arena, rs_path("rg")) #=> {kind: "path", segments: ["x"]}
+"""
+def cz_convert(e, ty, from, to, rg)
+  if ty != :list or from == to
+    e
+  elsif to == :arena
+    rs_method(rg, "from_rc", [{kind: "ref", expr: e}])
+  else
+    rs_method(rg, "to_rc", [e])
+  end
+end
+
+@doc """
+cz_call_across: A call of the definition `h`. Arguments are brought to the types it
+takes and to the strategy it holds lists by. A region definition called from a
+refcounting one gets a fresh region for the call, and a list it answers is
+copied out before that region is dropped; between two region definitions the
+region is passed on.
+"""
+def cz_call_across(h, lead, args, wants, sig, ctx)
+  callee = cz_strategy(h, ctx)
+  caller = ctx[:strategy] or :refcount
+  fresh = callee == :arena and caller != :arena
+  rg = if fresh
+    rs_path("rg_0")
+  else
+    cz_region(ctx)
+  end
+  rg_arg = if callee == :arena and fresh
+    [{kind: "ref", mutable: true, expr: rg}]
+  elsif callee == :arena
+    [rg]
+  else
+    []
+  end
+  full_lead = append([first(lead)], rg_arg, rest(lead))
+  lowered = map(
+    fn(i)
+      cz_convert(cz_as(args[i], wants[i], ctx), wants[i], caller, callee, rg)
+    end,
+    range(count(args))
+  )
+  ret = if sig.nil?
+    :word
+  else
+    sig[:ret]
+  end
+  if fresh or callee == :arena or caller == :arena
+    t = cz_temps("a", lowered)
+    call = rs_call([cz_fn_name(h)], append(full_lead, second(t)))
+    open = if fresh
+      [
+        {
+          kind: "local",
+          name: "rg_0",
+          mutable: true,
+          value: rs_call(%w[Region new], [])
+        }
+      ]
+    else
+      []
+    end
+    rs_seq(
+      append(open, first(t), [{kind: "local", name: "r_0", value: call}]),
+      cz_convert(rs_path("r_0"), ret, callee, caller, rg)
+    )
+  else
+    cz_direct_with(
+      (xs) -> rs_call([cz_fn_name(h)], append(full_lead, xs)),
+      args,
+      (i) -> lowered[i],
+      ctx
+    )
+  end
+end
+
+@doc """
+cz_uses: How many times `name` is read along the path through `n` that reads it
+most: the two branches of an `if` are never both taken. A list parameter or
+local read at most once is moved where it is taken; read more, a take clones
+it (a refcount, not a copy), since a borrow (count, nth, first) may come after
+the take in evaluation order.
+
+    cz_uses(first(cz_read("(if c xs (append xs (list 1)))")), "xs") #=> 1
+    cz_uses(first(cz_read("(f xs (count xs))")), "xs") #=> 2
+"""
+def cz_uses(n, name)
+  h = cz_head(n)
+  if cz_sym?(n)
+    if cz_sym(n) == name
+      1
+    else
+      0
+    end
+  elsif not list?(n) or count(n) == 0
+    0
+  elsif h == "if"
+    other = if count(n) > 3
+      cz_uses(fourth(n), name)
+    else
+      0
+    end
+    cz_uses(second(n), name) + max(cz_uses(third(n), name), other)
+  else
+    reduce((acc, a) -> acc + cz_uses(a, name), 0, rest(n))
+  end
+end
+
+@doc """
 cz_effectful?: Whether lowering `n` reaches the board: a call of a definition or a
 board word, anywhere inside it.
 
@@ -1023,8 +1373,10 @@ def cz_effectful?(n, ctx)
   h = cz_head(n)
   if not list?(n)
     false
-  elsif member?(h, %w[kiban/mmio_write kiban/put_byte kiban/put_int]) or
-      member?(h, ctx[:fns])
+  elsif member?(
+      h,
+      %w[kiban/mmio_write kiban/put_byte kiban/put_int list append nth first]
+    ) or member?(h, ctx[:fns])
     true
   else
     any?((x) -> cz_effectful?(x, ctx), n)
@@ -1104,9 +1456,85 @@ end
 cz_body: A sequence in value position: every form but the last as a statement.
 """
 def cz_body(forms, ctx)
-  append(
-    map((f) -> cz_stmt(f, ctx), butlast(forms)),
-    [rs_tail(cz_expr(last(forms), ctx))]
+  r = cz_lead(forms, ctx)
+  append(r[:stmts], [rs_tail(cz_expr(last(forms), r[:ctx]))])
+end
+
+@doc """
+cz_local_def?: Whether `f` binds a local in a body: `x = e` inside a definition.
+
+    cz_local_def?(first(cz_read("(define xs (list))"))) #=> true
+    cz_local_def?(first(cz_read("(define (f x) x)"))) #=> false
+"""
+def cz_local_def?(f)
+  cz_head(f) == "define" and cz_sym?(second(f))
+end
+
+@doc """
+cz_scope: `ctx` with the locals `forms` bind, each typed by its value.
+
+    cz_scope(cz_read("(define k 3)"), {params: [], types: []})[:types] #=> [["k", :word]]
+"""
+def cz_scope(forms, ctx)
+  reduce(
+    fn(acc, f)
+      if cz_local_def?(f)
+        x = cz_sym(second(f))
+        {
+          **acc,
+          params: append(acc[:params] or [], [x]),
+          types: append(acc[:types] or [], [[x, cz_ty(third(f), acc)]])
+        }
+      else
+        acc
+      end
+    end,
+    ctx,
+    forms
+  )
+end
+
+@doc """
+cz_lead: Every form of a body but the last, as statements: a local binding is a
+`let`, and the forms after it see it; a list local taken more than once after
+it is cloned where taken (a refcount, not a copy). Answers the statements and
+the context the last form sees.
+
+    cz_lead(cz_read("(define k 3) k"), {params: [], types: [], word: 64})[:stmts] #=> [{kind: "local", name: "p_k", value: {kind: "int", value: 3, suffix: "i64"}}]
+"""
+def cz_lead(forms, ctx)
+  lead = butlast(forms)
+  reduce(
+    fn(acc, i)
+      f = lead[i]
+      if cz_local_def?(f)
+        x = cz_sym(second(f))
+        c = cz_scope([f], acc[:ctx])
+        later = reduce((n, g) -> n + cz_uses(g, x), 0, drop(i + 1, forms))
+        shared = if cz_lookup(x, c[:types]) == :list and later > 1
+          append(c[:shared] or [], [x])
+        else
+          c[:shared] or []
+        end
+        {
+          stmts: append(
+            acc[:stmts],
+            [
+              {
+                kind: "local",
+                name: cz_param_name(x),
+                value: cz_expr(third(f), acc[:ctx])
+              }
+            ]
+          ),
+          ctx: {**c, shared:}
+        }
+      else
+        {stmts: append(acc[:stmts], [cz_stmt(f, acc[:ctx])]), ctx: acc[:ctx]}
+      end
+    end,
+    {stmts: [], ctx:},
+    range(count(lead))
   )
 end
 
@@ -1174,10 +1602,8 @@ def cz_tail(n, ctx)
     [rs_semi(rs_if(c, t, e))]
   elsif h == "begin"
     forms = rest(n)
-    append(
-      map((f) -> cz_stmt(f, ctx), butlast(forms)),
-      cz_tail(last(forms), ctx)
-    )
+    r = cz_lead(forms, ctx)
+    append(r[:stmts], cz_tail(last(forms), r[:ctx]))
   else
     [rs_semi({kind: "return", value: cz_as(n, ctx[:ret], ctx)})]
   end
@@ -1272,30 +1698,41 @@ def cz_fn(form, env)
   params = map((p) -> cz_sym(first(p)), rest(sig))
   word = env[:word]
   records = env[:records] or []
+  strategy = cz_strategy(name, env)
   ret_ty = cz_sig_ty(third(form), records)
-  ret = cz_rs_ty(ret_ty, word)
+  ret = cz_rs_ty(cz_held_ty(ret_ty, strategy), word)
   types = map(
     (p) -> [cz_sym(first(p)), cz_sig_ty(second(p), records)],
     rest(sig)
   )
   body = fourth(form)
+  shared = map(
+    first,
+    filter((t) -> second(t) == :list and cz_uses(body, first(t)) > 1, types)
+  )
   rec = member?(name, env[:rec])
   depth = if rec
     rs_path("d")
   else
     rs_u32(0)
   end
-  ctx = assoc(
-    assoc(
-      assoc(assoc(assoc(env, :self, name), :params, params), :depth, depth),
-      :types,
-      types
-    ),
-    :ret,
-    ret_ty
-  )
+  ctx = {
+    **env,
+    self: name,
+    params:,
+    depth:,
+    types:,
+    ret: ret_ty,
+    strategy:,
+    shared:
+  }
   rparams = map(
-    (t) -> {name: cz_param_name(first(t)), ty: cz_rs_ty(second(t), word)},
+    fn(t)
+      {
+        name: cz_param_name(first(t)),
+        ty: cz_rs_ty(cz_held_ty(second(t), strategy), word)
+      }
+    end,
     types
   )
   enter = if rec
@@ -1329,6 +1766,11 @@ def cz_fn(form, env)
   else
     append(enter, [rs_tail(cz_as(body, ret_ty, ctx))])
   end
+  region = if strategy == :arena
+    [{name: "rg", ty: {ident: "Region", reference: {kind: "mut"}}}]
+  else
+    []
+  end
   lead = if rec
     [rs_depth_param]
   else
@@ -1337,7 +1779,7 @@ def cz_fn(form, env)
   rs_fn(
     "private",
     cz_fn_name(name),
-    append(lead, rparams),
+    append(region, lead, rparams),
     ret,
     rs_block(stmts)
   )
@@ -1395,6 +1837,8 @@ def cz_kind(form, consts)
     :use
   elsif h == "blue-record"
     :record
+  elsif h == "kiban/reclaim"
+    :reclaim
   elsif h == "define-typed"
     :fn
   elsif h == "define" and
@@ -1466,6 +1910,46 @@ def cz_main_stmt(kf, ctx)
     }
   else
     cz_stmt(f, ctx)
+  end
+end
+
+@doc """
+cz_reclaim_of: The strategy `reclaim(:arena, "name")` gives a definition, as
+[qualified name, strategy]. An unknown strategy or name is refused.
+
+    cz_reclaim_of(first(cz_read("(kiban/reclaim :arena \"f\")")), ["%root/f"]) #=> ["%root/f", :arena]
+"""
+def cz_reclaim_of(form, fns)
+  strategy = second(form)[:kw]
+  name = "%root/#{third(form)[:str] or ""}"
+  if not member?(strategy, %w[arena refcount])
+    cz_refuse("reclaim takes :arena or :refcount, given #{to_s(second(form))}")
+  end
+  if not member?(name, fns)
+    cz_refuse(
+      "reclaim names `#{third(form)[:str]}`, which is not a typed definition of this program"
+    )
+  end
+  if strategy == "arena"
+    [name, :arena]
+  else
+    [name, :refcount]
+  end
+end
+
+@doc """
+cz_mentions?: Whether any symbol in `n` is one of `names`.
+
+    cz_mentions?(cz_read("(f (list 1))"), ["list"]) #=> true
+    cz_mentions?(cz_read("(f 1)"), ["list"]) #=> false
+"""
+def cz_mentions?(n, names)
+  if cz_sym?(n)
+    member?(cz_sym(n), names)
+  elsif list?(n)
+    any?((x) -> cz_mentions?(x, names), n)
+  else
+    false
   end
 end
 
@@ -1543,6 +2027,14 @@ def cz_lower(forms, board)
   consts = map((f) -> cz_sym(second(f)), const_forms)
   bindings = map((f) -> cz_sym(second(f)), pick(:binding))
   records = map(cz_record_of, pick(:record))
+  strategies = map((f) -> cz_reclaim_of(f, fns), pick(:reclaim))
+  heap = board[:rust_target].nil?
+  lists = cz_mentions?(forms, %w[list append List])
+  if lists and not heap
+    cz_refuse(
+      "a list needs a heap, and #{board[:name]} has none; lists compile for the host board"
+    )
+  end
   sigs = map(
     fn(f)
       [
@@ -1574,7 +2066,11 @@ def cz_lower(forms, board)
     uart: kb_device_base(board, :uart0),
     records:,
     sigs:,
-    types: []
+    types: [],
+    strategies:,
+    heap:,
+    strategy: :refcount,
+    shared: []
   }
   main_env = assoc(
     env,
@@ -1600,6 +2096,14 @@ def cz_lower(forms, board)
     attrs: [cz_attr("no_std", []), cz_attr("forbid", ["unsafe_code"])],
     items: append(
       [{kind: "use", item: {path: %w[kiban_io Io]}}],
+      if lists
+        map(
+          (t) -> {kind: "use", item: {path: ["kiban_heap", t]}},
+          %w[List Region Span]
+        )
+      else
+        []
+      end,
       cz_record_items(records, word),
       map((f) -> cz_const(f, env), const_forms),
       map((f) -> cz_fn(f, env), fn_forms),
@@ -1731,6 +2235,13 @@ def cz_link(rs, board_name, seam, out, name)
     ["-C", "link-arg=-T#{script}"]
   end
   io = path_join(out, "libkiban_io.rlib")
+  heap = path_join(out, "libkiban_heap.rlib")
+  hosted = board[:rust_target].nil?
+  heap_extern = if hosted
+    ["--extern", "kiban_heap=#{heap}"]
+  else
+    []
+  end
   prog = path_join(out, "libprogram.rlib")
   elf = path_join(out, "#{name}.elf")
   cz_run(
@@ -1749,6 +2260,26 @@ def cz_link(rs, board_name, seam, out, name)
     ),
     "rustc kiban_io"
   )
+  if hosted
+    cz_run(
+      append(
+        ["rustc"],
+        flags,
+        [
+          "--crate-type",
+          "rlib",
+          "--crate-name",
+          "kiban_heap",
+          "--extern",
+          "kiban_io=#{io}",
+          "-o",
+          heap,
+          path_join(seam, "kiban_heap.rs")
+        ]
+      ),
+      "rustc kiban_heap"
+    )
+  end
   cz_run(
     append(
       ["rustc"],
@@ -1759,11 +2290,10 @@ def cz_link(rs, board_name, seam, out, name)
         "--crate-name",
         "program",
         "--extern",
-        "kiban_io=#{io}",
-        "-o",
-        prog,
-        rs
-      ]
+        "kiban_io=#{io}"
+      ],
+      heap_extern,
+      ["-o", prog, rs]
     ),
     "rustc program"
   )
@@ -1785,6 +2315,7 @@ def cz_link(rs, board_name, seam, out, name)
         "-L",
         out
       ],
+      heap_extern,
       link,
       ["-o", elf, path_join(seam, board[:name], "seam.rs")]
     ),

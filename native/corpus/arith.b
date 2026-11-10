@@ -3,11 +3,6 @@ use("kiban", %i[put_byte put_int])
 SPAN = 7 * 6 - 2
 HALF = floor(SPAN / 3)
 
-def show(n: Int) -> Int
-  put_int(n)
-  put_byte(32)
-end
-
 def pick(a: Int, b: Int) -> Int
   if a != b and not (a > b) or a == 0
     a
@@ -16,15 +11,26 @@ def pick(a: Int, b: Int) -> Int
   end
 end
 
-K = show(HALF)
-show(-7 % 3)
-show(7 % -3)
-show(floor(-7 / 2))
-show(floor(7 / -2))
-show(floor(-8 / 2))
-show(pick(3, 5))
-show(pick(5, 3))
-show(pick(0, -1))
-show(K * 2)
-show(SPAN)
+K = put_int(HALF)
+put_byte(32)
+put_int(-7 % 3)
+put_byte(32)
+put_int(7 % -3)
+put_byte(32)
+put_int(floor(-7 / 2))
+put_byte(32)
+put_int(floor(7 / -2))
+put_byte(32)
+put_int(floor(-8 / 2))
+put_byte(32)
+put_int(pick(3, 5))
+put_byte(32)
+put_int(pick(5, 3))
+put_byte(32)
+put_int(pick(0, -1))
+put_byte(32)
+put_int(K * 2)
+put_byte(32)
+put_int(SPAN)
+put_byte(32)
 put_byte(10)

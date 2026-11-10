@@ -15,7 +15,7 @@ def area(s) -> Int
 end
 
 def shift(p: point, d: Int) -> point
-  point(**p, x: p.x + d)
+  point(**p, y: p.y + d)
 end
 
 def mirror(p: point) -> point
@@ -32,29 +32,36 @@ def pick(n: Int)
   end
 end
 
-def show(n: Int) -> Int
-  put_int(n)
+P = point(3, 4)
+
+put_int(area(circle(2)))
+
+put_byte(32)
+put_int(area(rect(3, 4)))
+put_byte(32)
+put_int(area(P))
+put_byte(32)
+put_int(shift(P, 10).y)
+put_byte(32)
+put_int(mirror(P).x)
+put_byte(32)
+put_int(area(pick(4)))
+put_byte(32)
+put_int(area(pick(6)))
+put_byte(32)
+put_int(area(pick(8)))
+put_byte(32)
+put_int(pick(8).x)
+put_byte(32)
+
+if point(1, 2) == point(1, 2)
+  put_int(1)
   put_byte(32)
 end
 
-P = point(3, 4)
-
-show(area(circle(2)))
-show(area(rect(3, 4)))
-show(area(P))
-show(shift(P, 10).x)
-show(mirror(P).x)
-show(area(pick(4)))
-show(area(pick(6)))
-show(area(pick(8)))
-show(pick(8).x)
-
-if point(1, 2) == point(1, 2)
-  show(1)
-end
-
 if mirror(P) != P
-  show(2)
+  put_int(2)
+  put_byte(32)
 end
 
 put_byte(10)

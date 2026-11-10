@@ -31,15 +31,15 @@ def fill_region(n: Int, xs: List) -> List
 end
 
 def add_region(xs: List, i: Int, acc: Int) -> Int
-  if i == count(xs)
+  if i == -1
     acc
   else
-    add_region(xs, i + 1, acc + xs[i])
+    add_region(xs, i - 1, acc + xs[i])
   end
 end
 
 def in_region(n: Int) -> Int
-  add_region(fill_region(n, []), 0, 0)
+  add_region(fill_region(n, []), n - 1, 0)
 end
 
 put_int(add(fill(N, []), 0, 0))

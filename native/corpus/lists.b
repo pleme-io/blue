@@ -14,10 +14,10 @@ def build(n: Int, xs: List) -> List
 end
 
 def sum(xs: List, i: Int, acc: Int) -> Int
-  if i == count(xs)
+  if i < 0
     acc
   else
-    sum(xs, i + 1, acc + xs[i])
+    sum(xs, i - 1, acc + xs[i])
   end
 end
 
@@ -30,7 +30,7 @@ def build_in_region(n: Int, xs: List) -> List
 end
 
 def sum_in_region(xs: List, i: Int, acc: Int) -> Int
-  if i == count(xs)
+  if i >= count(xs)
     acc
   else
     sum_in_region(xs, i + 1, acc + xs[i])
@@ -50,21 +50,24 @@ def forked(n: Int) -> Int
 end
 
 def both(xs: List) -> Int
-  sum(xs, 0, 0) * 1000 + count(xs)
-end
-
-def show(n: Int) -> Int
-  put_int(n)
-  put_byte(32)
+  sum(xs, count(xs) - 1, 0) * 1000 + count(xs)
 end
 
 R = build(10, [4, 5])
-show(sum(R, 0, 0))
-show(count(R))
-show(R[3])
-show(region_total(10))
-show(sum_in_region(R, 0, 0))
-show(sum(build_in_region(6, [1]), 0, 0))
-show(forked(4))
-show(both(append(R, [9], build(3, []))))
+put_int(sum(R, count(R) - 1, 0))
+put_byte(32)
+put_int(count(R))
+put_byte(32)
+put_int(R[3])
+put_byte(32)
+put_int(region_total(10))
+put_byte(32)
+put_int(sum_in_region(R, 0, 0))
+put_byte(32)
+put_int(sum(build_in_region(6, [1]), 6, 0))
+put_byte(32)
+put_int(forked(4))
+put_byte(32)
+put_int(both(append(R, [9], build(3, []))))
+put_byte(32)
 put_byte(10)

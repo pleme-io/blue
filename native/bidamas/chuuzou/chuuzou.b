@@ -2029,7 +2029,10 @@ def cz_lower(forms, board)
   records = map(cz_record_of, pick(:record))
   strategies = map((f) -> cz_reclaim_of(f, fns), pick(:reclaim))
   heap = board[:rust_target].nil?
-  lists = cz_mentions?(forms, %w[list append List])
+  lists = cz_mentions?(
+    filter((f) -> cz_head(f) != "use", forms),
+    %w[list append List]
+  )
   if lists and not heap
     cz_refuse(
       "a list needs a heap, and #{board[:name]} has none; lists compile for the host board"
@@ -2588,6 +2591,27 @@ test "a definition outside every cycle calls a recursive one from depth zero"
   top = third(items)[:item]
   assert count(top[:sig][:params]) == 2
   assert second(last(top[:body][:stmts])[:expr][:args]) == rs_u32(0)
+end
+
+test "a use form's name list is not a heap list, so a board program still compiles"
+  items = get(
+    cz_test_lower(
+      join_lines(
+        [
+          "(use \"kiban\" (list :mmio_write))",
+          "(kiban/mmio_write 268435456 8 104)"
+        ]
+      ),
+      "qemu-virt32"
+    ),
+    :items
+  )
+  assert count(items) == 2
+  assert (cz_test_lower(
+    "(define-typed (%root/f (xs List)) Int (count xs))",
+    "qemu-virt32"
+  ) rescue
+    :refused) == :refused
 end
 
 test "a board with no depth bound refuses recursion, mutual recursion included"

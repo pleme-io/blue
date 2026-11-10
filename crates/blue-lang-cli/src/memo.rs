@@ -17,7 +17,7 @@
 use std::sync::Arc;
 
 use blue_lang_mondou::recall::{Plan, Policy, Recall, Report};
-use blue_lang_mondou::store::{self, Identity, Store};
+use blue_lang_mondou::store::{self, Store};
 use blue_lang_runtime::observe::{CallObserver, Definitions};
 
 pub(crate) const ENV: &str = "BLUE_MEMO";
@@ -74,10 +74,7 @@ pub(crate) fn unless_bounded(
 }
 
 fn store() -> Option<Arc<Store>> {
-    let root = store::default_root()?;
-    Store::open(&root, Identity::of_this_build(), store::DEFAULT_MAX_BYTES)
-        .ok()
-        .map(Arc::new)
+    store::open_tier("memo").map(Arc::new)
 }
 
 /// A memo over a program about to run, wrapping `inner` when a tool already

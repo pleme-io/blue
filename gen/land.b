@@ -1062,23 +1062,136 @@ def regenerate()
 end
 
 @doc """
+lock_conflict?: Whether every path a rebase stopped on is one of the two Cargo
+locks, the conflict land settles itself; a conflict on any other path, or on
+none, still needs a person.
+
+    lock_conflict?(["Cargo.gen.lock"]) #=> true
+    lock_conflict?(["Cargo.gen.lock", "Cargo.lock"]) #=> true
+    lock_conflict?(["Cargo.gen.lock", "source.txt"]) #=> false
+    lock_conflict?([]) #=> false
+"""
+def lock_conflict?(paths)
+  paths != [] and
+    every?((p) -> member?(p, %w[Cargo.gen.lock Cargo.lock]), paths)
+end
+
+@doc """
+settle_steps: The commands that settle a lock conflict once main's side of each
+conflicted lock is taken, the three a person ran by hand: cargo adds the branch's
+crates back to main's Cargo.lock when that lock conflicted, `gen build .` ties
+Cargo.gen.lock to it, and `cargo metadata --locked` checks the result.
+
+    settle_steps(["Cargo.gen.lock"]) #=> [["gen", "build", "."], ["cargo", "metadata", "--format-version", "1", "--locked"]]
+    count(settle_steps(["Cargo.gen.lock", "Cargo.lock"])) #=> 3
+"""
+def settle_steps(paths)
+  checked = [%w[gen build .], %w[cargo metadata --format-version 1 --locked]]
+  if member?("Cargo.lock", paths)
+    append([%w[cargo metadata --format-version 1]], checked)
+  else
+    checked
+  end
+end
+
+@doc """
+rebase_stop: What land says when a rebase onto main stops for good: git's words
+when nothing conflicts, why settling the locks failed when it tried, else the
+paths that need a person.
+
+    rebase_stop([], "no identity", nil) #=> "git rebase failed with no conflict: no identity"
+    rebase_stop(["source.txt"], "", nil) #=> "HEAD does not rebase onto origin/main: source.txt conflict beyond what regenerating can settle; rebase it yourself and land again"
+    rebase_stop(["Cargo.gen.lock"], "", "`gen build .` failed") #=> "HEAD does not rebase onto origin/main: settling Cargo.gen.lock failed, `gen build .` failed; rebase it yourself and land again"
+"""
+def rebase_stop(paths, why, settling)
+  if paths == []
+    "git rebase failed with no conflict: #{why}"
+  elsif not settling.nil?
+    "HEAD does not rebase onto origin/main: settling #{join(paths, ", ")} failed, #{settling}; rebase it yourself and land again"
+  else
+    "HEAD does not rebase onto origin/main: #{join(paths, ", ")} conflict beyond what regenerating can settle; rebase it yourself and land again"
+  end
+end
+
+def settle_locks(paths)
+  map(
+    (p) -> exec_check("git", "checkout", "--ours", "--", p),
+    filter((p) -> member?(p, %w[Cargo.gen.lock Cargo.lock]), paths)
+  )
+  failure = reduce(
+    fn(why, step)
+      if not why.nil?
+        why
+      else
+        r = exec_capture(*step)
+        if status_of(r) != 0
+          "`#{join(step, " ")}` failed: #{trim(stderr_of(r))}"
+        end
+      end
+    end,
+    nil,
+    settle_steps(paths)
+  )
+  if failure.nil?
+    exec_check(
+      "git",
+      *append(
+        %w[add --],
+        filter((p) -> path_exists(p), %w[Cargo.gen.lock Cargo.lock])
+      )
+    )
+  end
+  failure
+end
+
+def continue_rebase()
+  if exec_ok?("git", "diff", "--cached", "--quiet")
+    exec_capture("git", *append(driver_args, %w[rebase --skip]))
+  else
+    exec_capture(
+      "env",
+      "GIT_EDITOR=true",
+      "git",
+      *append(driver_args, %w[rebase --continue])
+    )
+  end
+end
+
+def through(a, r)
+  if status_of(r) != 0
+    paths = git_lines(%w[diff --name-only --diff-filter=U])
+    if a[:regen] and lock_conflict?(paths)
+      failure = settle_locks(paths)
+      if failure.nil?
+        say(
+          "settled #{join(paths, ", ")} at #{ask(%w[log -1 --format=%h REBASE_HEAD])}: main's side, #{join(map((s) -> join(s, " "), settle_steps(paths)), ", ")}"
+        )
+        through(a, continue_rebase)
+      else
+        {paths:, why: "", settling: failure}
+      end
+    else
+      {paths:, why: trim(stderr_of(r)), settling: nil}
+    end
+  end
+end
+
+@doc """
 catch_up: Rebase HEAD onto origin/main, where the merge driver regenerates a
 generated file that conflicts, then regenerate what merged clean but went stale
-and commit it. Any other conflict aborts the rebase, leaves HEAD as it was, names
-the paths and stops: that one needs a person.
+and commit it. A commit that stops only on the Cargo locks is settled and the
+rebase goes on (settle_steps); --no-regen leaves that stop to a person. Any other
+conflict aborts the rebase, leaves HEAD as it was, names the paths and stops:
+that one needs a person.
 """
 def catch_up(a)
-  r = exec_capture("git", *append(driver_args, %w[rebase -q origin/main]))
-  if status_of(r) != 0
-    paths = ask(%w[diff --name-only --diff-filter=U])
+  stopped = through(
+    a,
+    exec_capture("git", *append(driver_args, %w[rebase -q origin/main]))
+  )
+  if not stopped.nil?
     exec_check("git", "rebase", "--abort")
-    say(
-      if paths == ""
-        "git rebase failed with no conflict: #{trim(stderr_of(r))}"
-      else
-        "HEAD does not rebase onto origin/main: #{replace(paths, line_break, ", ")} conflict beyond what regenerating can settle; rebase it yourself and land again"
-      end
-    )
+    say(rebase_stop(stopped[:paths], stopped[:why], stopped[:settling]))
     exit_with(1)
   end
   if a[:regen]
@@ -2095,6 +2208,228 @@ test "a land again of the same HEAD clears its ref and pushes, so a run cancelle
     )
     assert count(pushed) == 2
     assert as_tester(work, %w[ls-remote origin refs/heads/land/topic]) != ""
+    rm_rf(root)
+  end
+end
+
+def manifest(top, bottom)
+  dep = (n) -> "dep #{n}"
+  unlines(
+    retsu::concat_lists(
+      retsu::concat_lists(["[top]"], map(dep, top)),
+      retsu::concat_lists(["[middle]", "[bottom]"], map(dep, bottom))
+    )
+  )
+end
+
+def cargo_files(top, bottom)
+  names = retsu::concat_lists(top, bottom)
+  [
+    ["Cargo.toml", manifest(top, bottom)],
+    ["Cargo.lock", unlines(retsu::concat_lists(["lock"], names))],
+    [
+      "Cargo.gen.lock",
+      unlines([join(retsu::concat_lists(%w[gen lock], names), " ")])
+    ]
+  ]
+end
+
+def locks_on_main(root)
+  work = path_join(root, "work")
+  as_tester(work, %w[checkout -q main])
+  committed(work, cargo_files(["base"], []), "locks")
+  as_tester(work, %w[push -q origin main])
+  as_tester(work, %w[checkout -q topic])
+  as_tester(work, %w[reset -q --hard main])
+end
+
+def fake_locks(root)
+  bin = path_join(root, "lock-bin")
+  mkdir_p(bin)
+  logged = fn(name)
+    [
+      "use(\"moji\", %i[after_first])",
+      "log = \"#{root}/#{name}.log\"",
+      "prior = if path_exists(log)",
+      "  read_file(log)",
+      "else",
+      "  \"\"",
+      "end",
+      "write_file(log, join([prior, unlines([join(argv, \" \")])], \"\"))"
+    ]
+  end
+  write_program(
+    path_join(root, "cargo.b"),
+    unlines(
+      retsu::concat_lists(
+        logged("cargo"),
+        [
+          "deps = map((l) -> after_first(l, \"dep \"), filter((l) -> starts_with?(l, \"dep \"), moji::lines(read_file(\"Cargo.toml\"))))",
+          "resolved = unlines(append([\"lock\"], deps))",
+          "if member?(\"--locked\", argv)",
+          "  if path_exists(\"#{root}/cargo-refuses\") or read_file(\"Cargo.lock\") != resolved",
+          "    write_stderr(\"error: the lock file Cargo.lock needs to be updated but --locked was passed to prevent this\")",
+          "    exit_with(101)",
+          "  end",
+          "else",
+          "  write_file(\"Cargo.lock\", resolved)",
+          "end"
+        ]
+      )
+    )
+  )
+  write_program(
+    path_join(root, "gen.b"),
+    unlines(
+      retsu::concat_lists(
+        logged("gen"),
+        ["write_file(\"Cargo.gen.lock\", unlines([concat(\"gen \", join(moji::lines(read_file(\"Cargo.lock\")), \" \"))]))"]
+      )
+    )
+  )
+  map(
+    fn(name)
+      script(
+        path_join(bin, name),
+        unlines(
+          [
+            "#!/bin/sh",
+            "exec #{self_exe} run --quiet #{root}/#{name}.b -- \"$@\""
+          ]
+        )
+      )
+    end,
+    %w[cargo gen]
+  )
+  bin
+end
+
+def calls_of(root, name)
+  log = path_join(root, "#{name}.log")
+  if path_exists(log)
+    moji::lines(read_file(log))
+  else
+    []
+  end
+end
+
+def on_path(bin)
+  ["PATH=#{bin}:#{getenv("PATH")}"]
+end
+
+test "a land whose rebase stops only on Cargo.gen.lock settles it commit by commit: main's side, gen build ., cargo metadata --locked, as five refusals of 2026-11-10 were settled by hand"
+  if self_exe != nil
+    root = landing_fixture
+    work = path_join(root, "work")
+    locks_on_main(root)
+    committed(work, cargo_files(["base"], ["bee"]), "bee")
+    committed(work, cargo_files(["base"], %w[bee cat]), "cat")
+    main_moves(root, cargo_files(%w[ant base], []))
+    r = land_with(on_path(fake_locks(root)), root, [])
+    assert status_of(r) == 0
+    as_tester(work, %w[fetch -q origin])
+    assert as_tester(
+      work,
+      %w[
+        log
+        --format=%s
+        refs/remotes/origin/main..refs/remotes/origin/land/topic
+      ]
+    ) == join(%w[cat bee], line_break)
+    assert landed(root, "Cargo.gen.lock") == "gen lock ant base bee cat"
+    assert as_tester(
+      work,
+      %w[show refs/remotes/origin/land/topic~1:Cargo.gen.lock]
+    ) == "gen lock ant base bee"
+    assert landed(root, "Cargo.lock") ==
+      join(%w[lock ant base bee cat], line_break)
+    assert calls_of(root, "gen") == ["build .", "build ."]
+    assert calls_of(root, "cargo") ==
+      [
+        "metadata --format-version 1 --locked",
+        "metadata --format-version 1 --locked"
+      ]
+    assert contains?(stderr_of(r), "settled Cargo.gen.lock")
+    rm_rf(root)
+  end
+end
+
+test "a rebase that stops on both locks takes main's Cargo.lock and lets cargo add the branch's crates back before gen build"
+  if self_exe != nil
+    root = landing_fixture
+    work = path_join(root, "work")
+    locks_on_main(root)
+    committed(work, cargo_files(["base"], ["bee"]), "bee")
+    main_moves(root, cargo_files(%w[base bat], []))
+    r = land_with(on_path(fake_locks(root)), root, [])
+    assert status_of(r) == 0
+    as_tester(work, %w[fetch -q origin])
+    assert landed(root, "Cargo.lock") == join(%w[lock base bat bee], line_break)
+    assert landed(root, "Cargo.gen.lock") == "gen lock base bat bee"
+    assert calls_of(root, "cargo") ==
+      ["metadata --format-version 1", "metadata --format-version 1 --locked"]
+    rm_rf(root)
+  end
+end
+
+test "a lock that does not check after settling, and --no-regen, stop the land with the old refusal and leave HEAD as it was"
+  if self_exe != nil
+    root = landing_fixture
+    work = path_join(root, "work")
+    locks_on_main(root)
+    committed(work, cargo_files(["base"], ["bee"]), "bee")
+    before = as_tester(work, %w[rev-parse HEAD])
+    main_moves(root, cargo_files(%w[ant base], []))
+    path = on_path(fake_locks(root))
+    write_file(path_join(root, "cargo-refuses"), "")
+    refused = land_with(path, root, [])
+    assert status_of(refused) == 1
+    assert contains?(
+      stderr_of(refused),
+      "cargo metadata --format-version 1 --locked"
+    )
+    assert as_tester(work, %w[rev-parse HEAD]) == before
+    assert as_tester(work, %w[status --porcelain --untracked-files=no]) == ""
+    assert as_tester(work, %w[ls-remote origin refs/heads/land/topic]) == ""
+    rm_rf(path_join(root, "cargo-refuses"))
+    kept = land_with(path, root, ["--no-regen"])
+    assert status_of(kept) == 1
+    assert contains?(
+      stderr_of(kept),
+      "Cargo.gen.lock conflict beyond what regenerating can settle"
+    )
+    assert as_tester(work, %w[rev-parse HEAD]) == before
+    rm_rf(root)
+  end
+end
+
+test "a lock conflict beside a source conflict in one commit stops the land, names the source and settles nothing"
+  if self_exe != nil
+    root = landing_fixture
+    work = path_join(root, "work")
+    locks_on_main(root)
+    committed(
+      work,
+      retsu::concat_lists(
+        cargo_files(["base"], ["bee"]),
+        [["source.txt", unlines(["topic"])]]
+      ),
+      "bee"
+    )
+    before = as_tester(work, %w[rev-parse HEAD])
+    main_moves(
+      root,
+      retsu::concat_lists(
+        cargo_files(%w[ant base], []),
+        [["source.txt", unlines(["main"])]]
+      )
+    )
+    r = land_with(on_path(fake_locks(root)), root, [])
+    assert status_of(r) == 1
+    assert contains?(stderr_of(r), "source.txt")
+    assert contains?(stderr_of(r), "beyond what regenerating can settle")
+    assert as_tester(work, %w[rev-parse HEAD]) == before
+    assert calls_of(root, "cargo") == []
     rm_rf(root)
   end
 end

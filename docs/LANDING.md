@@ -57,6 +57,7 @@ L3 and L5 first (small, and they remove the manual stops today); L2 next
 
 | Item | Tier |
 |---|---|
-| L1 to L5 | DESIGN |
+| L1, L2, L4, L5 | DESIGN |
+| L3 | built 2026-11-10: `catch_up` in `gen/land.b` settles each commit whose rebase stops only on the locks, and `--no-regen` keeps the old stop. Four fixture tests run a fake `gen` and `cargo` on `PATH`: two commits settled one by one, a conflicted `Cargo.lock`, a lock that fails `--locked`, and a lock beside a source conflict. The first three went red on the old refusal, then green; the fourth guards the stop that stays. Dropping the `--locked` check or the `--no-regen` guard turns them red. No test runs the real `gen build .` on blue's workspace; the first land that settles on a real release is the proof |
 | stale queue ticket fix | live (80fbc8e3) |
 | heni-gate rows | DESIGN |

@@ -651,7 +651,9 @@ runtime: `take(-1, xs)` is empty, `drop(5, [1, 2, 3])` is empty,
 the solver chose. A word the file defines is read as the file defines it,
 inlined; a word a `use` brings in bare is outside the fragment. Blue
 integers raise on overflow, so a law proved over the integers holds at every
-call that returns.
+call that returns. B0043 never reads `law_` as a hand-made namespace: a
+program of three laws was refused, and `blue run` would have stripped the
+prefix and with it every law block (`canon.B0043.laws`).
 
 Gates: `crates/blue-lang-cli/tests/laws.rs` runs `blue test` on fixtures:
 `law_clamp_in_range` is proved; `law_clamp_is_identity` is refuted and red at

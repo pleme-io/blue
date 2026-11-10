@@ -689,3 +689,23 @@ row(
   diagnoses(["B0043"]),
   covers("rule:B0043")
 )
+
+row(
+  "canon.B0043.laws",
+  join_lines(
+    [
+      "def law_one(a: Int) -> Bool",
+      "  a + 1 > a",
+      "end",
+      "",
+      "def law_two(a: Int) -> Bool",
+      "  a * 2 == a + a",
+      "end",
+      "",
+      "def law_three(a: Int) -> Bool",
+      "  abs(a) >= 0",
+      "end"
+    ]
+  ),
+  diagnoses([])
+)

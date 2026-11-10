@@ -199,21 +199,21 @@ must be a build that has the flag.
 
 | program | tree-walker (N) | VM (N) | chuuzou (big N) | Rust (big N) | chuuzou / Rust | VM / Rust per unit of work | tree-walker / Rust per unit of work |
 |---|---|---|---|---|---|---|---|
-| fib (30; 38) | 1274 (cpu 1261) | 1059 (cpu 1055) | 86.2 (cpu 85.1) | 68.3 (cpu 66.1) | 1.29 | 750 | 897 |
-| loop (3M; 300M) | 2723 (cpu 2719) | 2703 (cpu 2696) | 240 (cpu 237) | 150 (cpu 148) | 1.61 | 1825 | 1841 |
-| mutual (depth 10,000) | 22 (cpu 19) | 23 (cpu 19) | 6.3 (cpu 1.6) | 2.3 (cpu 1.3) | 1.23 | 15 | 14 |
-| shapes, records (1M; 100M) | 14310 (cpu 9029) | 8269 (cpu 8229) | 141 (cpu 140) | 152 (cpu 143) | 0.98 | 5763 | 6323 |
-| sums, lists (100k; 10M) | 565 (cpu 560) | 596 (cpu 592) | 57.9 (cpu 54.4) | 44.9 (cpu 40.8) | 1.33 | 1451 | 1372 |
+| fib (30; 38) | 1181 (cpu 1170) | 1062 (cpu 1052) | 92.8 (cpu 89.6) | 70.7 (cpu 69.8) | 1.28 | 708 | 788 |
+| loop (3M; 300M) | 2589 (cpu 2561) | 2749 (cpu 2726) | 141 (cpu 138) | 162 (cpu 157) | 0.88 | 1742 | 1637 |
+| mutual (depth 10,000) | 26 (cpu 19) | 27 (cpu 18) | 4.7 (cpu 1.3) | 6.7 (cpu 1.3) | 1.00 | 14 | 15 |
+| shapes, records (1M; 100M) | 8099 (cpu 7803) | 7062 (cpu 7044) | 127 (cpu 122) | 133 (cpu 132) | 0.93 | 5344 | 5920 |
+| sums, lists (100k; 10M) | 420 (cpu 416) | 417 (cpu 411) | 47.6 (cpu 43.4) | 36.2 (cpu 32.9) | 1.32 | 1250 | 1264 |
 
-chuuzou keeps every `+`, `-`, `*` checked and counts recursion depth
-against the board's bound; the twin, as release Rust does, wraps and
-counts nothing. That is the gap on fib and loop. On shapes chuuzou is
-faster than the twin: a typed parameter is the record's own struct by value
-(no tag), an untyped one is `Rec`, whose variants each hold only their
-record, and every value is `Copy`. `bench/native.baseline` holds each
-path's CPU over Rust's (per unit of work for the tree-walker), per host, in
-per mille; the run fails when a path passes its row by more than 500 per
-mille, and `--record [--receipt "<why>"]` rewrites it.
+chuuzou checks `+`, `-` and `*` for overflow and counts recursion depth
+against the board's bound; the twin, as release Rust does, wraps and counts
+nothing. A check a range proves cannot fire is left out: an Int parameter
+every call keeps at zero or above (the largest such set, an inductive
+invariant over every call site) and the facts an `if` establishes (`n < 2`
+false means `n >= 2`) make a difference of two non-negative values a plain
+`-`, and a non-negative value's Euclidean remainder by a positive literal a
+plain `%`. That took loop from 1.61 to 0.88 of the twin; fib keeps its
+depth count and its checked `+`.
 
 sums builds a list of N words one append at a time and sums it by index,
 twice: once refcounted and once in a region (`reclaim(:arena, …)`), so

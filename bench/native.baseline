@@ -2,18 +2,19 @@
 # receipt: 2026-11-10: chuuzou and Rust run at a big N (fib 38, loop 300M, shapes 100M); the tree-walker row is its CPU per unit of work over Rust's, so every earlier tree row was startup-bound and is replaced; shapes is new
 # receipt: 2026-11-10: sums is new (a list of N words built by append and summed by nth, once refcounted and once in a region)
 # receipt: 2026-11-10: the VM is a column (blue run --vm), gated per unit of work like the tree-walker; every path measured with a release build of this tree
-native-ratio: fib chuuzou darwin 1287
-native-ratio: fib tree darwin 896505
-native-ratio: fib vm darwin 749598
-native-ratio: loop chuuzou darwin 1607
-native-ratio: loop tree darwin 1840691
-native-ratio: loop vm darwin 1824983
-native-ratio: mutual chuuzou darwin 1231
-native-ratio: mutual tree darwin 14385
-native-ratio: mutual vm darwin 14538
-native-ratio: shapes chuuzou darwin 977
-native-ratio: shapes tree darwin 6322549
-native-ratio: shapes vm darwin 5762745
-native-ratio: sums chuuzou darwin 1333
-native-ratio: sums tree darwin 1372304
-native-ratio: sums vm darwin 1450735
+# receipt: 2026-11-10: a decrement and a remainder that a range proves safe are plain operators (loop 1.61 -> 0.88 of Rust)
+native-ratio: fib chuuzou darwin 1284
+native-ratio: fib tree darwin 787735
+native-ratio: fib vm darwin 708181
+native-ratio: loop chuuzou darwin 881
+native-ratio: loop tree darwin 1636613
+native-ratio: loop vm darwin 1741853
+native-ratio: mutual chuuzou darwin 1000
+native-ratio: mutual tree darwin 14923
+native-ratio: mutual vm darwin 14154
+native-ratio: shapes chuuzou darwin 928
+native-ratio: shapes tree darwin 5919954
+native-ratio: shapes vm darwin 5344082
+native-ratio: sums chuuzou darwin 1319
+native-ratio: sums tree darwin 1264134
+native-ratio: sums vm darwin 1250456

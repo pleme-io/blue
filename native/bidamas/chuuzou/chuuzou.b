@@ -866,6 +866,16 @@ def cz_call(n, ctx)
   logic = cz_lookup(h, cz_logic)
   if h.nil?
     cz_refuse("a call through a computed function has no native form (every call is direct at the monomorphic position)")
+  elsif cz_plain?(h, args, ctx)
+    rs_binary(
+      if h == "-"
+        "sub"
+      else
+        "rem"
+      end,
+      cz_expr(first(args), ctx),
+      cz_expr(second(args), ctx)
+    )
   elsif arith == "checked_rem_euclid" and
       count(args) == 2 and
       integer?(second(args)) and
@@ -929,8 +939,20 @@ def cz_call(n, ctx)
           rs_tail(
             rs_if(
               cz_expr(first(args), ctx),
-              rs_block([rs_tail(cz_as(second(args), t, ctx))]),
-              rs_block([rs_tail(cz_as(third(args), t, ctx))])
+              rs_block(
+                [
+                  rs_tail(
+                    cz_as(second(args), t, cz_given(first(args), true, ctx))
+                  )
+                ]
+              ),
+              rs_block(
+                [
+                  rs_tail(
+                    cz_as(third(args), t, cz_given(first(args), false, ctx))
+                  )
+                ]
+              )
             )
           )
         ]
@@ -1445,7 +1467,11 @@ here, where its missing value is never read.
 def cz_stmt(n, ctx)
   if cz_head(n) == "if" and count(n) == 3
     rs_semi(
-      rs_if(cz_expr(second(n), ctx), rs_block([cz_stmt(third(n), ctx)]), nil)
+      rs_if(
+        cz_expr(second(n), ctx),
+        rs_block([cz_stmt(third(n), cz_given(second(n), true, ctx))]),
+        nil
+      )
     )
   else
     rs_semi(cz_expr(n, ctx))
@@ -1593,9 +1619,9 @@ def cz_tail(n, ctx)
     append(temps, rebinds, [rs_semi({kind: "continue"})])
   elsif h == "if"
     c = cz_expr(second(n), ctx)
-    t = rs_block(cz_tail(third(n), ctx))
+    t = rs_block(cz_tail(third(n), cz_given(second(n), true, ctx)))
     e = if count(n) > 3
-      rs_block(cz_tail(fourth(n), ctx))
+      rs_block(cz_tail(fourth(n), cz_given(second(n), false, ctx)))
     else
       cz_refuse("an `if` in tail position needs an else branch")
     end
@@ -1724,7 +1750,14 @@ def cz_fn(form, env)
     types:,
     ret: ret_ty,
     strategy:,
-    shared:
+    shared:,
+    lb: append(
+      map(
+        (p) -> [p, 0],
+        filter((p) -> member?([name, p], env[:nonneg] or []), params)
+      ),
+      env[:lb] or []
+    )
   }
   rparams = map(
     fn(t)
@@ -1954,6 +1987,227 @@ def cz_mentions?(n, names)
 end
 
 @doc """
+cz_lb: The least value `n` can have where it stands, from literals, the facts
+in `ctx[:lb]` and the operators that keep a bound, or nil when none is known.
+A Euclidean remainder by a positive literal is never negative, whatever its
+left side.
+
+    cz_lb(first(cz_read("(- n 1)")), {lb: [["n", 2]]}) #=> 1
+    cz_lb(first(cz_read("(mod x 3)")), {lb: []}) #=> 0
+    cz_lb(first(cz_read("(+ n x)")), {lb: [["n", 0]]}) #=> nil
+"""
+def cz_lb(n, ctx)
+  h = cz_head(n)
+  bounds = (xs) -> map((x) -> cz_lb(x, ctx), xs)
+  all_nonneg = (bs) -> every?((b) -> b != nil and b >= 0, bs)
+  if integer?(n)
+    n
+  elsif cz_sym?(n)
+    cz_lookup(cz_sym(n), ctx[:lb] or [])
+  elsif not list?(n)
+    nil
+  elsif h == "+" and all_nonneg(bounds(rest(n)))
+    reduce((a, b) -> a + b, 0, bounds(rest(n)))
+  elsif h == "*" and all_nonneg(bounds(rest(n)))
+    reduce((a, b) -> a * b, 1, bounds(rest(n)))
+  elsif h == "-" and
+      count(n) == 3 and
+      integer?(third(n)) and
+      cz_lb(second(n), ctx) != nil
+    cz_lb(second(n), ctx) - third(n)
+  elsif member?(h, %w[mod modulo rem]) and
+      count(n) == 3 and
+      integer?(third(n)) and
+      third(n) > 0
+    0
+  end
+end
+
+@doc """
+cz_plain?: Whether `h` applied to `args` cannot fault, so it is the plain operator:
+a difference of two values never below zero cannot overflow the signed word,
+and a Euclidean remainder of a value never below zero by a positive literal
+is the truncating one.
+
+    cz_plain?("-", [{sym: "n"}, 1], {word: 64, lb: [["n", 1]]}) #=> true
+    cz_plain?("-", [{sym: "n"}, 1], {word: 64, lb: []}) #=> false
+    cz_plain?("mod", [{sym: "i"}, 3], {word: 64, lb: [["i", 0]]}) #=> true
+"""
+def cz_plain?(h, args, ctx)
+  nonneg = (x) -> cz_lb(x, ctx) != nil and cz_lb(x, ctx) >= 0
+  if ctx[:word] != 64 or count(args) != 2
+    false
+  elsif h == "-"
+    nonneg(first(args)) and nonneg(second(args))
+  elsif member?(h, %w[mod modulo rem])
+    nonneg(first(args)) and integer?(second(args)) and second(args) > 0
+  else
+    false
+  end
+end
+
+@doc """
+cz_given: `ctx` inside the branch of `cond` taken when it is `truth`: a comparison
+of a name with a literal raises the name's least value.
+
+    cz_given(first(cz_read("(< n 2)")), false, {lb: []})[:lb] #=> [["n", 2]]
+    cz_given(first(cz_read("(equal? i 0)")), false, {lb: [["i", 0]]})[:lb] #=> [["i", 1], ["i", 0]]
+    cz_given(first(cz_read("(> n 5)")), true, {lb: []})[:lb] #=> [["n", 6]]
+"""
+def cz_given(cond, truth, ctx)
+  h = cz_head(cond)
+  lhs = if list?(cond) and count(cond) == 3
+    second(cond)
+  end
+  k = if list?(cond) and count(cond) == 3
+    third(cond)
+  end
+  name = cz_sym(lhs)
+  old = if name.nil?
+    nil
+  else
+    cz_lookup(name, ctx[:lb] or [])
+  end
+  least = if name.nil? or not integer?(k)
+    nil
+  elsif truth and h == ">"
+    k + 1
+  elsif truth and member?(h, %w[>= equal?])
+    k
+  elsif not truth and h == "<"
+    k
+  elsif not truth and h == "<="
+    k + 1
+  elsif not truth and h == "equal?" and old == k
+    k + 1
+  end
+  if h == "and" and truth
+    reduce((c, x) -> cz_given(x, true, c), ctx, rest(cond))
+  elsif least.nil? or old != nil and old >= least
+    ctx
+  else
+    {**ctx, lb: append([[name, least]], ctx[:lb] or [])}
+  end
+end
+
+@doc """
+cz_sites: Every call of a definition in `fns` inside `n`, with the facts that hold
+where it is made, as [callee, arguments, context].
+
+    count(cz_sites(first(cz_read("(if (< n 2) n (%root/f (- n 1)))")), ["%root/f"], {lb: []})) #=> 1
+"""
+def cz_sites(n, fns, ctx)
+  h = cz_head(n)
+  if not list?(n) or count(n) == 0
+    []
+  elsif h == "if"
+    c = second(n)
+    append(
+      cz_sites(c, fns, ctx),
+      cz_sites(third(n), fns, cz_given(c, true, ctx)),
+      if count(n) > 3
+        cz_sites(fourth(n), fns, cz_given(c, false, ctx))
+      else
+        []
+      end
+    )
+  else
+    own = if member?(h, fns)
+      [[h, rest(n), ctx]]
+    else
+      []
+    end
+    reduce((acc, a) -> append(acc, cz_sites(a, fns, ctx)), own, rest(n))
+  end
+end
+
+@doc """
+cz_nonneg: The Int parameters never below zero, as [definition, parameter]: the
+largest set such that, assuming it, every call anywhere passes each of them a
+value whose least is at least zero. It starts from every Int parameter and
+drops one that some call cannot vouch for, until nothing more drops; the
+set left is an inductive invariant, so it holds on every call.
+
+    cz_nonneg(cz_read("(define-typed (%root/f (n Int)) Int n)"), cz_read("(%root/f 3)"), {lb: []}) #=> [["%root/f", "n"]]
+"""
+def cz_nonneg(fn_forms, top, env)
+  fns = map((f) -> cz_sym(first(second(f))), fn_forms)
+  start = reduce(
+    fn(acc, f)
+      sig = second(f)
+      append(
+        acc,
+        map(
+          (p) -> [cz_sym(first(sig)), cz_sym(first(p))],
+          filter((p) -> cz_sym(second(p)) == "Int", rest(sig))
+        )
+      )
+    end,
+    [],
+    fn_forms
+  )
+  cz_nonneg_from(start, fn_forms, fns, top, env)
+end
+
+@doc """
+cz_nonneg_from: One step of cz_nonneg: of the pairs `held`, those every call site, read
+with `held` assumed, still vouches for; repeated until none drops.
+
+    cz_nonneg_from([["%root/f", "n"]], cz_read("(define-typed (%root/f (n Int)) Int n)"), ["%root/f"], cz_read("(%root/f (- 0 1))"), {lb: []}) #=> []
+"""
+def cz_nonneg_from(held, fn_forms, fns, top, env)
+  sites = append(
+    reduce(
+      fn(acc, f)
+        sig = second(f)
+        name = cz_sym(first(sig))
+        lb = append(
+          map(
+            (p) -> [cz_sym(first(p)), 0],
+            filter((p) -> member?([name, cz_sym(first(p))], held), rest(sig))
+          ),
+          env[:lb] or []
+        )
+        append(acc, cz_sites(fourth(f), fns, {**env, lb:}))
+      end,
+      [],
+      fn_forms
+    ),
+    reduce((acc, f) -> append(acc, cz_sites(f, fns, env)), [], top)
+  )
+  params_of = fn(g)
+    map(
+      (p) -> cz_sym(first(p)),
+      rest(second(find(fn_forms, (f) -> cz_sym(first(second(f))) == g)))
+    )
+  end
+  kept = filter(
+    fn(pair)
+      every?(
+        fn(site)
+          if first(site) != first(pair)
+            true
+          else
+            ps = params_of(first(pair))
+            i = find(range(count(ps)), (j) -> ps[j] == second(pair))
+            arg = second(site)[i]
+            b = cz_lb(arg, third(site))
+            b != nil and b >= 0
+          end
+        end,
+        sites
+      )
+    end,
+    held
+  )
+  if count(kept) == count(held)
+    held
+  else
+    cz_nonneg_from(kept, fn_forms, fns, top, env)
+  end
+end
+
+@doc """
 cz_record_items: A struct per record, its fields board words, and, when there are
 records, `Rec`: one variant per record, each holding only that record.
 
@@ -2074,6 +2328,34 @@ def cz_lower(forms, board)
     heap:,
     strategy: :refcount,
     shared: []
+  }
+  const_lb = reduce(
+    fn(acc, f)
+      v = cz_lb(third(f), {lb: acc})
+      if v.nil?
+        acc
+      else
+        append(acc, [[cz_sym(second(f)), v]])
+      end
+    end,
+    [],
+    const_forms
+  )
+  env = {
+    **env,
+    lb: const_lb,
+    nonneg: if word == 64
+      cz_nonneg(
+        fn_forms,
+        map(
+          second,
+          filter((kf) -> first(kf) == :expr or first(kf) == :binding, kinds)
+        ),
+        {**env, lb: const_lb}
+      )
+    else
+      []
+    end
   }
   main_env = assoc(
     env,
@@ -2612,6 +2894,37 @@ test "a use form's name list is not a heap list, so a board program still compil
     "qemu-virt32"
   ) rescue
     :refused) == :refused
+end
+
+@doc """
+cz_test_rust: The items `text` lowers to on the host board, as text to search.
+
+    contains?(cz_test_rust(""), "main") #=> true
+"""
+def cz_test_rust(text)
+  to_s(cz_test_items(text))
+end
+
+test "a parameter every call keeps at zero or above makes its decrement and remainder plain"
+  walk = "(define-typed (%root/walk (i Int) (acc Int)) Int (if (equal? i 0) acc (%root/walk (- i 1) (+ acc (mod i 3)))))"
+  safe = cz_test_rust(join_lines([walk, "(%root/walk 10 0)"]))
+  assert contains?(safe, "op: \"sub\"")
+  assert contains?(safe, "op: \"rem\"")
+  assert contains?(safe, "checked_add")
+  unsafe = cz_test_rust(
+    join_lines([walk, "(%root/walk 10 0)", "(%root/walk -1 0)"])
+  )
+  assert not contains?(unsafe, "op: \"sub\"")
+  assert contains?(unsafe, "checked_sub")
+  fib = "(define-typed (%root/fib (n Int)) Int (if (< n 2) n (+ (%root/fib (- n 1)) (%root/fib (- n 2)))))"
+  assert contains?(
+    cz_test_rust(join_lines([fib, "(%root/fib 20)"])),
+    "op: \"sub\""
+  )
+  assert contains?(
+    cz_test_rust(join_lines([fib, "(%root/fib (- 0 5))"])),
+    "op: \"sub\""
+  )
 end
 
 test "a board with no depth bound refuses recursion, mutual recursion included"

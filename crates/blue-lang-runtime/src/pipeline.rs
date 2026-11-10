@@ -235,13 +235,50 @@ pub fn run_framed_accounted(
     hold: Option<&crate::Hold>,
     account: &crate::Account,
 ) -> Result<Run, RunError> {
+    run_framed_on(
+        entry,
+        inputs,
+        loader,
+        surface,
+        hold,
+        account,
+        Executor::Walker,
+    )
+}
+
+/// What evaluates a checked, erased program: the tree-walker, or the
+/// bytecode VM (`tatara_lisp_eval::Interpreter::eval_program_vm`), which
+/// compiles the whole program, its `main` call included, to one chunk.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum Executor {
+    #[default]
+    Walker,
+    Vm,
+}
+
+/// [`run_framed_accounted`] on the chosen [`Executor`]. Every stage before
+/// evaluation, and the frame, are the same for both.
+///
+/// # Errors
+///
+/// As [`run_framed_accounted`]; on the VM a runtime error carries its
+/// message, without the walker's place and stack.
+pub fn run_framed_on(
+    entry: Entry<'_>,
+    inputs: Inputs,
+    loader: &dyn crate::uses::Loader,
+    surface: Option<&blue_lang_syntax::yakugo::Yakugo>,
+    hold: Option<&crate::Hold>,
+    account: &crate::Account,
+    executor: Executor,
+) -> Result<Run, RunError> {
     // The interpreter is built BEFORE the check stage, because it is the check
     // stage's name oracle: every builtin, macro and special form a program may
     // name is read off the interpreter that will run it, never off a list.
     // Building it is not a stage; nothing is evaluated until `eval_prepared`.
     let (mut interp, mut prepared) = prepared_on(entry, inputs, loader, surface)?;
     hold_to_frame(&mut interp, &mut prepared, hold, account)?;
-    let value = evaluate_held(&mut interp, &prepared, hold, account)?;
+    let value = evaluate_held(&mut interp, &prepared, hold, account, executor)?;
     Ok(Run {
         value,
         visited: prepared.visited,
@@ -257,16 +294,22 @@ fn evaluate_held(
     prepared: &Prepared,
     hold: Option<&crate::Hold>,
     account: &crate::Account,
+    executor: Executor,
 ) -> Result<Value, RunError> {
     let bound = crate::execution_bounds_under(hold).max_alloc_bytes;
-    let (outcome, over) = crate::memory::held_on(interp, bound, |interp| {
-        let value = crate::timings::stage(crate::timings::Stage::Eval, || {
-            eval_prepared(interp, prepared, &mut ())
-        })?;
-        Ok(crate::timings::stage(crate::timings::Stage::Main, || {
-            call_main(interp, prepared, &mut ())
-        })?
-        .unwrap_or(value))
+    let (outcome, over) = crate::memory::held_on(interp, bound, |interp| match executor {
+        Executor::Walker => {
+            let value = crate::timings::stage(crate::timings::Stage::Eval, || {
+                eval_prepared(interp, prepared, &mut ())
+            })?;
+            Ok(crate::timings::stage(crate::timings::Stage::Main, || {
+                call_main(interp, prepared, &mut ())
+            })?
+            .unwrap_or(value))
+        }
+        Executor::Vm => crate::timings::stage(crate::timings::Stage::Eval, || {
+            eval_on_vm(interp, prepared, &mut ())
+        }),
     });
     crate::timings::steps(interp.steps_spent());
     if let Some(steps) = &account.steps {
@@ -599,12 +642,13 @@ pub fn run_observed_accounted(
         lowered: &prepared.lowered,
         erased: &prepared.erased,
     })));
-    let outcome = evaluate_held(&mut interp, &prepared, hold, account).map(|value| Run {
-        value,
-        visited: prepared.visited,
-        typed_decls: prepared.typed_decls,
-        seams: prepared.seams,
-    });
+    let outcome =
+        evaluate_held(&mut interp, &prepared, hold, account, Executor::Walker).map(|value| Run {
+            value,
+            visited: prepared.visited,
+            typed_decls: prepared.typed_decls,
+            seams: prepared.seams,
+        });
     interp.set_call_observer(None);
     Ok(Observed {
         definitions,
@@ -2456,6 +2500,31 @@ fn main_key(prepared: &Prepared) -> Option<String> {
     main_call(prepared).map(|(_, _, key)| key)
 }
 
+/// The program's forms and, when the entry has one, its `main` call, compiled
+/// to one chunk and run on the VM.
+fn eval_on_vm<H: 'static>(
+    interp: &mut tatara_lisp_eval::Interpreter<H>,
+    prepared: &Prepared,
+    host: &mut H,
+) -> Result<Value, RunError> {
+    let mut forms = prepared.erased.clone();
+    if let Some((_, span, key)) = main_call(prepared) {
+        forms.push(tatara_lisp::Spanned::new(
+            span,
+            tatara_lisp::SpannedForm::List(vec![tatara_lisp::Spanned::new(
+                span,
+                tatara_lisp::SpannedForm::Atom(tatara_lisp::Atom::Symbol(key)),
+            )]),
+        ));
+    }
+    interp.eval_program_vm(&forms, host).map_err(|e| {
+        RunError::Eval(Box::new(crate::observe::Fault::unplaced(
+            &crate::memory::named(e),
+            &forms,
+        )))
+    })
+}
+
 pub(crate) fn call_main<H: 'static>(
     interp: &mut tatara_lisp_eval::Interpreter<H>,
     prepared: &Prepared,
@@ -3137,5 +3206,55 @@ mod tier2_tests {
             "the schema's 7 must reach the generated code: got {:?}",
             out.value
         );
+    }
+}
+
+#[cfg(test)]
+mod executor_tests {
+    use super::*;
+    use tatara_lisp_eval::vm::run::CompiledClosure;
+
+    fn on(entry: Entry<'_>, executor: Executor) -> Value {
+        run_framed_on(
+            entry,
+            Inputs::new(),
+            &crate::uses::NoLoader,
+            None,
+            None,
+            &crate::Account::default(),
+            executor,
+        )
+        .unwrap_or_else(|e| panic!("{e}"))
+        .value
+    }
+
+    #[test]
+    fn the_vm_evaluates_the_program_so_a_function_it_defines_is_compiled() {
+        let src = "def double(x: Int) -> Int\n  x * 2\nend\n\ndouble";
+        let vm = on(Entry::anonymous(src), Executor::Vm);
+        assert!(
+            matches!(&vm, Value::Foreign(f) if f.is::<CompiledClosure>()),
+            "{vm:?}"
+        );
+        let walker = on(Entry::anonymous(src), Executor::Walker);
+        assert!(!matches!(walker, Value::Foreign(_)), "{walker:?}");
+    }
+
+    #[test]
+    fn both_executors_agree_and_the_vm_calls_main() {
+        let fib = "def fib(n: Int) -> Int\n  if n < 2\n    n\n  else\n    fib(n - 1) + fib(n - 2)\n  end\nend\n\nfib(15)";
+        assert!(matches!(
+            on(Entry::anonymous(fib), Executor::Vm),
+            Value::Int(610)
+        ));
+        assert!(matches!(
+            on(Entry::anonymous(fib), Executor::Walker),
+            Value::Int(610)
+        ));
+        let main = Entry {
+            path: Some(std::path::Path::new("m.b")),
+            text: "def main()\n  41 + 1\nend\n\n7",
+        };
+        assert!(matches!(on(main, Executor::Vm), Value::Int(42)));
     }
 }

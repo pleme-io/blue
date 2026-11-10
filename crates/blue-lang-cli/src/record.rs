@@ -230,6 +230,7 @@ pub fn replay(cfg: &BlueConfig, receipt_path: &Path) -> Result<ExitCode, CliErro
             receipts: Some(&scratch),
             receipt_steps: recorded.receipt_steps,
             no_memo: true,
+            executor: blue_lang_runtime::pipeline::Executor::Walker,
             args: recorded.args.clone(),
             taping: Taping::Replay(recorded.tapes.clone()),
         },

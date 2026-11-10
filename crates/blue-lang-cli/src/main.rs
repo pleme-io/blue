@@ -178,6 +178,11 @@ enum Cmd {
         /// Run every call, answering none from the memo `BLUE_MEMO` turns on.
         #[arg(long)]
         no_memo: bool,
+        /// Evaluate on the bytecode VM instead of the tree-walker: the whole
+        /// program, its `main` call included, compiled to one chunk. Every
+        /// stage before evaluation is the same; the memo is off.
+        #[arg(long)]
+        vm: bool,
         /// The program's own arguments, after the file (use `--` before any
         /// that start with a dash): what `argv()` returns. Before 2026-09-27
         /// `run` refused any, so no blue program could take arguments.
@@ -935,6 +940,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             format,
             timings,
             no_memo,
+            vm,
             args,
         } => {
             if timings {
@@ -951,6 +957,11 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                     receipts: receipts.as_deref(),
                     receipt_steps,
                     no_memo,
+                    executor: if vm {
+                        blue_lang_runtime::pipeline::Executor::Vm
+                    } else {
+                        blue_lang_runtime::pipeline::Executor::Walker
+                    },
                     args: args.clone(),
                     taping: if record {
                         record::Taping::Record
@@ -2178,6 +2189,7 @@ struct Invocation<'a> {
     receipts: Option<&'a Path>,
     receipt_steps: bool,
     no_memo: bool,
+    executor: blue_lang_runtime::pipeline::Executor,
     args: Vec<String>,
     taping: record::Taping,
 }
@@ -2278,7 +2290,10 @@ fn invoke(cfg: &BlueConfig, inv: Invocation<'_>) -> Result<Invoked, CliError> {
         text: &src,
     };
     let inputs = bind_inputs(&src, inv.inputs, cfg)?;
-    let memo = if inv.receipt_steps || taped {
+    let memo = if inv.receipt_steps
+        || taped
+        || inv.executor == blue_lang_runtime::pipeline::Executor::Vm
+    {
         memo::Mode::Off
     } else {
         memo::unless_bounded(
@@ -2287,13 +2302,14 @@ fn invoke(cfg: &BlueConfig, inv: Invocation<'_>) -> Result<Invoked, CliError> {
         )
     };
     let ran = match memo {
-        memo::Mode::Off => blue_lang_runtime::pipeline::run_framed_accounted(
+        memo::Mode::Off => blue_lang_runtime::pipeline::run_framed_on(
             entry,
             inputs,
             &loader,
             surface.as_ref(),
             hold.as_ref(),
             &account,
+            inv.executor,
         ),
         mode => {
             let mut held = None;

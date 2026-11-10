@@ -148,6 +148,31 @@ fn run_quiet_prints_only_what_the_program_writes() {
     assert_eq!(stdout(&o), "--quiet|rust");
 }
 
+/// `--vm` evaluates on the bytecode VM: a function the program defines is a
+/// compiled closure there, a walker closure without the flag, and both
+/// executors print what the program writes.
+#[test]
+fn run_vm_evaluates_on_the_bytecode_vm() {
+    let f = write("vm", "def double(x: Int) -> Int\n  x * 2\nend\n\ndouble");
+    let o = run(&["run", "--vm", f.to_str().unwrap()]);
+    assert!(o.status.success(), "stderr: {}", stderr(&o));
+    assert_eq!(stdout(&o), "Foreign(…)\n");
+    let o = run(&["run", f.to_str().unwrap()]);
+    assert_eq!(stdout(&o), "Closure(…)\n");
+    let o = run_env(
+        &["run", "--vm", f.to_str().unwrap()],
+        &[("BLUE_MEMO", "process")],
+    );
+    assert_eq!(
+        stdout(&o),
+        "Foreign(…)\n",
+        "the memo never takes a VM run back to the walker"
+    );
+    let g = write("vm-out", "write_stdout(to_s(3 * 7))\nnil");
+    let o = run(&["run", "--quiet", "--vm", g.to_str().unwrap()]);
+    assert_eq!(stdout(&o), "21");
+}
+
 #[test]
 fn run_executes_a_program_and_prints_its_value() {
     let f = write("run", PROGRAM);

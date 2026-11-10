@@ -98,4 +98,5 @@ jobs:
       # depth is spelled with its **/ form; *.rs and *.b already cross
       # directories because they carry a wildcard.
       source-paths: "*.rs *.b **/Bluefile **/Cargo.toml **/Cargo.lock Cargo.gen.lock"
+      release-ref-mode: tag
     secrets: inherit

@@ -1,5 +1,6 @@
 use("gitto", %i[as_tester ask])
-use("moji", %i[after_first take_chars])
+use("hizuke", [:rfc3339_of_ms])
+use("moji", %i[after_first before_first take_chars])
 use("retsu", %i[find_first first reject])
 use("shisutemu", %i[status_of stderr_of stdout_of])
 
@@ -201,14 +202,136 @@ def live?(r)
 end
 
 @doc """
-yields_to: The older land run this one stands behind, or nil: two lands that took
-the same free turn would each run the suite for one fast-forward, so the younger
-stops and queues again.
+stamp: A UTC time, as RFC 3339 text or `gh`'s createdAt, as the number
+YYYYMMDDHHMMSS, which orders as the time does.
 
-    yields_to([], "land/x", 5) #=> nil
+    stamp("2026-11-10T19:30:05Z") #=> 20_261_110_193_005
+    stamp("2026-11-10T19:30:05.120Z") #=> 20_261_110_193_005
 """
-def yields_to(runs, ref, mine)
-  find_first((r) -> json_get(r, :databaseId) < mine, lands_ahead(runs, ref))
+def stamp(text)
+  to_int(
+    replace(replace(replace(take_chars(text, 19), "-", ""), ":", ""), "T", "")
+  )
+end
+
+@doc """
+ticket_name: The branch that holds a land's place in the queue from the time it
+first queued, so a land that pushes again keeps its place. No workflow runs on a
+`land-queue/` branch.
+
+    ticket_name(20_261_110_193_005, "land/queue/land-turn") #=> "land-queue/20261110193005/queue/land-turn"
+"""
+def ticket_name(at, ref)
+  "land-queue/#{to_s(at)}/#{after_first(ref, "/")}"
+end
+
+@doc """
+tickets_of: The queue tickets in `git ls-remote` output, each as `{name:, at:,
+ref:}`, leaving out those queued before the cutoff: a land that died holds no
+place for ever.
+
+    tickets_of("1\trefs/heads/land-queue/20261110193005/a/b", 0) #=> [{name: "land-queue/20261110193005/a/b", at: 20_261_110_193_005, ref: "land/a/b"}]
+    tickets_of("1\trefs/heads/land-queue/20261110193005/a", 20_261_111_000_000) #=> []
+"""
+def tickets_of(text, cutoff)
+  filter(
+    (t) -> not t[:at].nil? and t[:at] >= cutoff,
+    map(
+      fn(l)
+        name = after_first(l, "refs/heads/")
+        rest = after_first(name, "/")
+        {
+          name:,
+          at: to_int(before_first(rest, "/")),
+          ref: "land/#{after_first(rest, "/")}"
+        }
+      end,
+      filter((l) -> contains?(l, "refs/heads/land-queue/"), moji::lines(text))
+    )
+  )
+end
+
+@doc """
+queued_at: When the land on a ref first queued: its oldest ticket, else nil.
+
+    queued_at([{name: "q", at: 5, ref: "land/a"}, {name: "p", at: 3, ref: "land/a"}], "land/a") #=> 3
+    queued_at([], "land/a") #=> nil
+"""
+def queued_at(tickets, ref)
+  ats = map((t) -> t[:at], filter((t) -> t[:ref] == ref, tickets))
+  if ats != []
+    reduce(
+      fn(m, x)
+        if x < m
+          x
+        else
+          m
+        end
+      end,
+      first(ats),
+      ats
+    )
+  end
+end
+
+@doc """
+place_of: A land run's place in the queue, `[time, run id]`: the time its land
+first queued when it holds a ticket, else the time the run was created, as a land
+from a client without tickets queues.
+
+    place_of(json_parse("{\"databaseId\":7,\"headBranch\":\"land/a\",\"createdAt\":\"2026-11-10T19:30:05Z\"}"), []) #=> [20_261_110_193_005, 7]
+"""
+def place_of(run, tickets)
+  at = queued_at(tickets, json_get(run, :headBranch))
+  [
+    if at.nil?
+      created = json_get(run, :createdAt)
+      if created.nil?
+        0
+      else
+        stamp(created)
+      end
+    else
+      at
+    end,
+    json_get(run, :databaseId)
+  ]
+end
+
+@doc """
+before?: Whether one place in the queue comes before another: the earlier time,
+and on the same second the lower run id.
+
+    before?([1, 9], [2, 3]) #=> true
+    before?([2, 3], [2, 9]) #=> true
+    before?([2, 9], [2, 3]) #=> false
+"""
+def before?(p, q)
+  first(p) < first(q) or
+    first(p) == first(q) and retsu::last(p) < retsu::last(q)
+end
+
+@doc """
+yields_to: The running land this one stands behind, or nil: two lands that took
+the same free turn would each run the suite for one fast-forward, so the one
+queued later stops and queues again. The queue goes by the time a land first
+queued (place_of), so a land that pushes again never passes one queued before it.
+
+    yields_to([], "land/x", [5, 5], []) #=> nil
+"""
+def yields_to(runs, ref, mine, tickets)
+  find_first((r) -> before?(place_of(r, tickets), mine), lands_ahead(runs, ref))
+end
+
+@doc """
+waits_behind: The ticket of a land queued before this one and still waiting, or
+nil; a land waiting without a run holds its place too.
+
+    waits_behind([{name: "a", at: 1, ref: "land/a"}, {name: "b", at: 2, ref: "land/b"}], "land/b", 2) #=> {name: "a", at: 1, ref: "land/a"}
+    waits_behind([{name: "a", at: 1, ref: "land/a"}, {name: "b", at: 2, ref: "land/b"}], "land/a", 1) #=> nil
+"""
+def waits_behind(tickets, ref, mine)
+  find_first((t) -> t[:ref] != ref and t[:at] < mine, tickets)
 end
 
 @doc """
@@ -416,7 +539,57 @@ def runs_of(workflow, fields)
 end
 
 def land_runs()
-  runs_of("land.yml", "databaseId,headBranch,status")
+  runs_of("land.yml", "databaseId,headBranch,status,createdAt")
+end
+
+def tickets()
+  cap = exec_capture("git", "ls-remote", "origin", "refs/heads/land-queue/*")
+  if status_of(cap) == 0
+    tickets_of(stdout_of(cap), stamp(rfc3339_of_ms(now_ms - 21_600_000)))
+  end
+end
+
+def enqueue(ref)
+  held = tickets or []
+  at = queued_at(held, ref)
+  if at.nil?
+    at = stamp(rfc3339_of_ms(now_ms))
+    pushed = exec_capture(
+      "env",
+      "BLUE_PREPUSH_OFF=1",
+      "git",
+      "push",
+      "-q",
+      "origin",
+      "#{ask(%w[rev-parse origin/main])}:refs/heads/#{ticket_name(at, ref)}"
+    )
+    if status_of(pushed) != 0
+      say("no queue ticket: #{trim(stderr_of(pushed))}")
+    end
+  end
+  at
+end
+
+def dequeue(ref)
+  map(
+    fn(t)
+      exec_capture(
+        "env",
+        "BLUE_PREPUSH_OFF=1",
+        "git",
+        "push",
+        "-q",
+        "origin",
+        ":refs/heads/#{t[:name]}"
+      )
+    end,
+    filter((t) -> t[:ref] == ref, tickets or [])
+  )
+end
+
+def leave(ref, code)
+  dequeue(ref)
+  exit_with(code)
 end
 
 def release_runs()
@@ -434,8 +607,17 @@ def wait_turn(ref, deadline, waited)
     "the land or release runs cannot be read (a rate limit answers 403), so this land holds its turn"
   else
     ahead = lands_ahead(runs, ref)
+    queue = tickets or []
+    mine = queued_at(queue, ref)
+    waiting = if mine.nil?
+      nil
+    else
+      waits_behind(queue, ref, mine)
+    end
     if ahead != []
       "#{to_s(count(ahead))} land(s) ahead, first #{json_get(first(ahead), :headBranch)}; waiting for a turn, since only one reaches main; --no-queue lands beside them"
+    elsif not waiting.nil?
+      "#{waiting[:ref]} queued first and waits for its turn; this land keeps its place behind it"
     else
       release_hold(releases_live(releases), touched_since_main)
     end
@@ -657,7 +839,14 @@ def hold_turn(id, ref, sha)
   refusal = if runs.nil?
     "the land runs cannot be read"
   else
-    turn_refusal(yields_to(runs, ref, to_int(id)), [], [])
+    queue = tickets or []
+    own = find_first((r) -> json_get(r, :databaseId) == to_int(id), runs)
+    mine = if own.nil?
+      [stamp(rfc3339_of_ms(now_ms)), to_int(id)]
+    else
+      place_of(own, queue)
+    end
+    turn_refusal(yields_to(runs, ref, mine, queue), [], [])
   end
   refusal = if refusal.nil?
     wait_release(touched_at(), now_ms + 3_600_000)
@@ -860,7 +1049,20 @@ def follow(a, left, minutes)
     exit_with(1)
   end
   older = if a[:queue] and not a[:dry]
-    yields_to(land_runs or [], ref, to_int(found))
+    queue = tickets or []
+    at = queued_at(queue, ref)
+    runs = land_runs or []
+    mine = if at.nil?
+      own = find_first((r) -> json_get(r, :databaseId) == to_int(found), runs)
+      if own.nil?
+        [stamp(rfc3339_of_ms(now_ms)), to_int(found)]
+      else
+        place_of(own, queue)
+      end
+    else
+      [at, to_int(found)]
+    end
+    yields_to(runs, ref, mine, queue)
   end
   if not older.nil?
     say(
@@ -872,7 +1074,7 @@ def follow(a, left, minutes)
     say("following run #{found}")
     status = wait_run(found)
     if status == 0
-      exit_with(0)
+      leave(ref, 0)
     end
     jobs = json_parse(
       stdout_of(
@@ -893,7 +1095,7 @@ def follow(a, left, minutes)
     moved = fetched and not contains_main?
     turned = refused_turn?(jobs)
     if left == 0 or not moved_main?(jobs) or not (moved or turned)
-      exit_with(status)
+      leave(ref, status)
     end
     say(
       if turned
@@ -939,6 +1141,9 @@ def main()
   end
   fetch_main
   if a[:watch]
+    if a[:queue] and not a[:dry]
+      enqueue(ref_for(a))
+    end
     follow(a, left, minutes)
   else
     settle(a, left, minutes)
@@ -1006,9 +1211,10 @@ test "only a land still running on another ref holds a turn, oldest first"
   )
   assert map((r) -> json_get(r, :headBranch), lands_ahead(runs, "land/mine")) ==
     %w[land/early land/late]
-  assert json_get(yields_to(runs, "land/mine", 7), :headBranch) == "land/early"
-  assert yields_to(runs, "land/mine", 4).nil?
-  assert yields_to(runs, "land/mine", 2).nil?
+  assert json_get(yields_to(runs, "land/mine", [0, 7], []), :headBranch) ==
+    "land/early"
+  assert yields_to(runs, "land/mine", [0, 4], []).nil?
+  assert yields_to(runs, "land/mine", [0, 2], []).nil?
 end
 
 test "the first red CI job stops a suite, and a refused fast-forward or a green suite stops nothing, as land/fc-objects' 32 minute run of 2026-11-04 shows"
@@ -1071,13 +1277,13 @@ test "one land holds the turn: an older running land refuses a younger, and main
   runs = json_parse(
     "[#{join([run(42_813_678_972, "land/h5/arika-khipu", "in_progress"), run(42_814_489_810, "land/native-gate-roots", "in_progress")], ",")}]"
   )
-  older = yields_to(runs, "land/native-gate-roots", 42_814_489_810)
+  older = yields_to(runs, "land/native-gate-roots", [0, 42_814_489_810], [])
   assert contains?(
     turn_refusal(older, [], ["gen/land.b"]),
     "land/h5/arika-khipu (run 42813678972) is older"
   )
   assert turn_refusal(
-    yields_to(runs, "land/h5/arika-khipu", 42_813_678_972),
+    yields_to(runs, "land/h5/arika-khipu", [0, 42_813_678_972], []),
     [],
     []
   ).nil?
@@ -1135,6 +1341,49 @@ test "land.yml refuses at the step --watch reads, and both suites take the turn 
   assert contains?(land, "gen/land.b -- --turn")
   assert contains?(ci, "gen/land.b -- --turn")
   assert contains?(ci, "needs.blue.outputs.held != 'false'")
+end
+
+test "the queue goes by the time a land first queued, so a land that pushes again never passes one queued before it, as land/docs/iphone's runs passed land/queue/land-turn for five hours on 2026-11-10"
+  run = fn(id, branch, created)
+    "{\"databaseId\":#{id},\"headBranch\":\"#{branch}\",\"status\":\"in_progress\",\"createdAt\":\"#{created}\"}"
+  end
+  queue = tickets_of(
+    unlines(
+      [
+        "1\trefs/heads/land-queue/20261110143900/queue/land-turn",
+        "2\trefs/heads/land-queue/20261110184300/docs/iphone"
+      ]
+    ),
+    0
+  )
+  iphone = json_parse(
+    "[#{run(42_886_900_000, "land/docs/iphone", "2026-11-10T19:30:00Z")}]"
+  )
+  mine = [queued_at(queue, "land/queue/land-turn"), 42_886_928_469]
+  assert yields_to(iphone, "land/queue/land-turn", mine, queue).nil?
+  turn = json_parse(
+    "[#{run(42_886_928_469, "land/queue/land-turn", "2026-11-10T19:31:00Z")}]"
+  )
+  theirs = place_of(first(iphone), queue)
+  assert json_get(
+    yields_to(turn, "land/docs/iphone", theirs, queue),
+    :headBranch
+  ) == "land/queue/land-turn"
+  assert waits_behind(queue, "land/docs/iphone", 20_261_110_184_300)[:ref] ==
+    "land/queue/land-turn"
+  assert waits_behind(queue, "land/queue/land-turn", 20_261_110_143_900).nil?
+  old = json_parse(
+    "[#{run(42_800_000_000, "land/old-client", "2026-11-10T15:00:00Z")}]"
+  )
+  assert yields_to(old, "land/queue/land-turn", mine, queue).nil?
+  assert json_get(
+    yields_to(old, "land/docs/iphone", theirs, queue),
+    :headBranch
+  ) == "land/old-client"
+  assert tickets_of(
+    "1\trefs/heads/land-queue/20261110143900/queue/land-turn",
+    20_261_110_150_000
+  ) == []
 end
 
 test "a run's end is read from its view, and an unreadable answer is not an end"
@@ -1490,6 +1739,7 @@ test "--watch yields to an older land that took the same turn, then lands and fo
     assert contains?(calls, "run cancel 100")
     assert contains?(calls, "run view 100 --json status,conclusion")
     assert contains?(stderr_of(r), "land/older took the same turn")
+    assert as_tester(work, %w[ls-remote origin refs/heads/land-queue/*]) == ""
     rm_rf(root)
   end
 end

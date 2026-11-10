@@ -1,6 +1,6 @@
 ---
 kind: explanation
-summary: how a change reaches main fast without losing a test: batched lands, releases beside main, settled locks, tests skipped only by identity, suites run on runners (design, 2026-11-10)
+summary: "how a change reaches main fast without losing a test: batched lands, releases beside main, settled locks, tests skipped only by identity, suites run on runners (design, 2026-11-10)"
 ---
 
 # LANDING: faster to main, with every test still meaning what it meant

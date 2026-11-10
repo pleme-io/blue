@@ -1915,6 +1915,7 @@ needs is in [KERNEL.md](KERNEL.md) §3.
 - [HTTP2 — blue speaks HTTP/2 and gRPC itself](HTTP2.md): blue speaks HTTP/2 and gRPC itself (design, phase 1 built)
 - [KERNEL — write only blue for the Linux kernel](KERNEL.md): blue as the whole kernel toolchain, from source to a program the verifier admits, and where each part runs
 - [khipu: blue's knowledge graph, the design of record](KHIPU.md): khipu, blue's knowledge graph, DESIGN: OxiRS's essence naturalized, the recon, the typed terms, the phases, the parity gates and the ledger
+- [LANDING: faster to main, with every test still meaning what it meant](LANDING.md): how a change reaches main fast without losing a test: batched lands, releases beside main, settled locks, tests skipped only by identity, suites run on runners (design, 2026-11-10)
 - [Lessons behind the agent guide's rules](LESSONS.md): the full story behind each rule the agent page states in short
 - [MARKDOWN — Markdown is a first-class blue value](MARKDOWN.md): Markdown as a first-class blue value: one typed tree, one formatting, checked links, and renderings to Markdown, HTML, PDF and the terminal (design)
 - [Namespaces: a bidama definition stays in its bidama](NAMESPACES.md): a bidama definition stays in its bidama: the rule as built and its gates

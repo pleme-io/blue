@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "f33d1914307deabdee928afb4d5a37fec6872107db4ad7fef80ee676f25e87e8",
+  "cargo_lock_sha256": "09ba8f4b77ca25287106456550e4687bf976c79c035d27bcf96f3518802661c9",
   "manifest_sha256": {
-    "Cargo.toml": "20076e52471e3531ca306a11e09916b5a47a6391183751d69df36d07342c69dd",
+    "Cargo.toml": "be6b2c06a21c43f721941c44dae739b14fe9eab0cfa838f1947faa4e8b560c97",
     "crates/blue-lang-appliance/Cargo.toml": "72da422691d14356450606a218eed12ed6a26ed3a23c64116dc3ef8546937526",
     "crates/blue-lang-art/Cargo.toml": "f6721f78c76a94d4915a455675cd05889176a43212494c53aa8a01dfc9dfe5ee",
     "crates/blue-lang-bidama/Cargo.toml": "7b29108c8c3d40b5cbaf9f427c4f0a0ace1e5b49e02bd7448dcb53d3ee91337f",
@@ -13,6 +13,7 @@
     "crates/blue-lang-fmt/Cargo.toml": "4f5c416d0a44933a497ea60c2e0e7d412ac8da28e2cbd646bb45d75c6e07db88",
     "crates/blue-lang-host-macros/Cargo.toml": "f8efb27bcf0512036b610e3c3d54b0d237f00c812e8a29e0c3adaaa662e74d60",
     "crates/blue-lang-host/Cargo.toml": "397f5d3f4efe6ea7ad812e187bb8c35f2db0c67d66182c2b49b92af8fd3debd7",
+    "crates/blue-lang-ios/Cargo.toml": "21c49295c9761896613ed93a938a165cf62e3e5d2119462ee670fc6335a7bf88",
     "crates/blue-lang-kernel/Cargo.toml": "ade0db0e2d949194ab8c8441e2e8d6dba03a4b60e1587dda9a92441fe4043ba6",
     "crates/blue-lang-kiwari/Cargo.toml": "7061ed32aff7aac13a83517bb14ad40fb0e3b21d5ab948c719236b5f8d39150c",
     "crates/blue-lang-lsp/Cargo.toml": "6ee650c395599803eaa4f13f2194ea1a1145a5f5f491e27a1e90a95e183fce00",
@@ -30,6 +31,11 @@
   },
   "target_resolves": {
     "base": {
+      "adler2-2.0.1": {
+        "runtime_dependencies": [],
+        "build_dependencies": [],
+        "features": []
+      },
       "aead-0.5.2": {
         "runtime_dependencies": [
           {
@@ -1490,6 +1496,42 @@
         "build_dependencies": [],
         "features": []
       },
+      "blue-lang-ios-0.0.184": {
+        "runtime_dependencies": [
+          {
+            "name": "blue_lang_host",
+            "package_key": "blue-lang-host-0.0.184",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "tatara_lisp_eval",
+            "package_key": "tatara-lisp-eval-0.4.16",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "thiserror",
+            "package_key": "thiserror-2.0.19",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": []
+      },
       "blue-lang-kiwari-0.0.184": {
         "runtime_dependencies": [
           {
@@ -2780,6 +2822,25 @@
         "build_dependencies": [],
         "features": []
       },
+      "crc32fast-1.5.5": {
+        "runtime_dependencies": [
+          {
+            "name": "cfg_if",
+            "package_key": "cfg-if-1.0.5",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": [
+          "default",
+          "std"
+        ]
+      },
       "crypto-common-0.1.7": {
         "runtime_dependencies": [
           {
@@ -3161,6 +3222,22 @@
           "std"
         ]
       },
+      "fdeflate-0.3.7": {
+        "runtime_dependencies": [
+          {
+            "name": "simd_adler32",
+            "package_key": "simd-adler32-0.3.10",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": []
+      },
       "figment-0.10.19": {
         "runtime_dependencies": [
           {
@@ -3227,6 +3304,40 @@
         "runtime_dependencies": [],
         "build_dependencies": [],
         "features": []
+      },
+      "flate2-1.1.11": {
+        "runtime_dependencies": [
+          {
+            "name": "crc32fast",
+            "package_key": "crc32fast-1.5.5",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": true,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "miniz_oxide",
+            "package_key": "miniz_oxide-0.9.1",
+            "kind": "normal",
+            "features": [
+              "simd"
+            ],
+            "uses_default_features": true,
+            "optional": true,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": [
+          "any_impl",
+          "default",
+          "miniz_oxide",
+          "runtime_detection",
+          "rust_backend"
+        ]
       },
       "fnv-1.0.7": {
         "runtime_dependencies": [],
@@ -5975,6 +6086,68 @@
         "build_dependencies": [],
         "features": []
       },
+      "miniz_oxide-0.8.9": {
+        "runtime_dependencies": [
+          {
+            "name": "adler2",
+            "package_key": "adler2-2.0.1",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "simd_adler32",
+            "package_key": "simd-adler32-0.3.10",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": true,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": [
+          "default",
+          "simd",
+          "simd-adler32",
+          "with-alloc"
+        ]
+      },
+      "miniz_oxide-0.9.1": {
+        "runtime_dependencies": [
+          {
+            "name": "adler2",
+            "package_key": "adler2-2.0.1",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "simd_adler32",
+            "package_key": "simd-adler32-0.3.10",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": true,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": [
+          "default",
+          "simd",
+          "simd-adler32",
+          "with-alloc"
+        ]
+      },
       "mio-1.2.2": {
         "runtime_dependencies": [
           {
@@ -6743,6 +6916,64 @@
           "alloc",
           "std"
         ]
+      },
+      "png-0.17.16": {
+        "runtime_dependencies": [
+          {
+            "name": "bitflags",
+            "package_key": "bitflags-1.3.2",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "crc32fast",
+            "package_key": "crc32fast-1.5.5",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "fdeflate",
+            "package_key": "fdeflate-0.3.7",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "flate2",
+            "package_key": "flate2-1.1.11",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "miniz_oxide",
+            "package_key": "miniz_oxide-0.8.9",
+            "kind": "normal",
+            "features": [
+              "simd"
+            ],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": []
       },
       "postcard-1.1.3": {
         "runtime_dependencies": [
@@ -9520,6 +9751,15 @@
           "std"
         ]
       },
+      "simd-adler32-0.3.10": {
+        "runtime_dependencies": [],
+        "build_dependencies": [],
+        "features": [
+          "const-generics",
+          "default",
+          "std"
+        ]
+      },
       "slab-0.4.12": {
         "runtime_dependencies": [],
         "build_dependencies": [],
@@ -12125,6 +12365,14 @@
         ],
         "build_dependencies": [],
         "features": []
+      },
+      "zlib-rs-0.6.8": {
+        "runtime_dependencies": [],
+        "build_dependencies": [],
+        "features": [
+          "rust-allocator",
+          "std"
+        ]
       },
       "zmij-1.0.23": {
         "runtime_dependencies": [],
@@ -18346,6 +18594,9 @@
     }
   },
   "per_crate": {
+    "adler2-2.0.1": {
+      "edition": "2021"
+    },
     "aead-0.5.2": {
       "edition": "2021"
     },
@@ -18522,6 +18773,19 @@
         "name": "blue_lang_host_macros",
         "path": "src/lib.rs"
       }
+    },
+    "blue-lang-ios-0.0.184": {
+      "edition": "2021",
+      "lib_target": {
+        "name": "blue_lang_ios",
+        "path": "src/lib.rs"
+      },
+      "binaries": [
+        {
+          "name": "blue-ios",
+          "path": "src/main.rs"
+        }
+      ]
     },
     "blue-lang-kernel-0.0.184": {
       "edition": "2021",
@@ -18719,6 +18983,10 @@
     "cpufeatures-0.3.0": {
       "edition": "2024"
     },
+    "crc32fast-1.5.5": {
+      "edition": "2021",
+      "build_script": "build.rs"
+    },
     "crypto-common-0.1.7": {
       "edition": "2018"
     },
@@ -18782,12 +19050,18 @@
     "fastrand-2.5.0": {
       "edition": "2018"
     },
+    "fdeflate-0.3.7": {
+      "edition": "2021"
+    },
     "figment-0.10.19": {
       "edition": "2018",
       "build_script": "build.rs"
     },
     "find-msvc-tools-0.1.15": {
       "edition": "2021"
+    },
+    "flate2-1.1.11": {
+      "edition": "2018"
     },
     "fnv-1.0.7": {
       "edition": "2015",
@@ -19042,6 +19316,12 @@
     "mime-0.3.17": {
       "edition": "2015"
     },
+    "miniz_oxide-0.8.9": {
+      "edition": "2021"
+    },
+    "miniz_oxide-0.9.1": {
+      "edition": "2021"
+    },
     "mio-1.2.2": {
       "edition": "2021"
     },
@@ -19109,6 +19389,9 @@
     },
     "pkcs8-0.10.2": {
       "edition": "2021"
+    },
+    "png-0.17.16": {
+      "edition": "2018"
     },
     "poly1305-0.8.0": {
       "edition": "2021"
@@ -19361,6 +19644,9 @@
     },
     "signature-2.2.0": {
       "edition": "2021"
+    },
+    "simd-adler32-0.3.10": {
+      "edition": "2018"
     },
     "slab-0.4.12": {
       "edition": "2018"
@@ -19650,6 +19936,9 @@
     "zerovec-derive-0.11.7": {
       "edition": "2021",
       "proc_macro": true
+    },
+    "zlib-rs-0.6.8": {
+      "edition": "2021"
     },
     "zmij-1.0.23": {
       "edition": "2021",

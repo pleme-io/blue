@@ -85,3 +85,9 @@ opt-level = 3
 # The conformance runner instantiates the VM (`eval_program_vm::<()>`) itself.
 [profile.dev.package.blue-lang-test]
 opt-level = 3
+
+# The engine identity is the BLAKE3 of the running executable
+# (`blue_lang_mondou::store::Identity::of_this_build`); unoptimized, hashing
+# a debug `blue` costs most of a second.
+[profile.dev.package.blake3]
+opt-level = 3

@@ -440,10 +440,28 @@ impl NameTable {
         Self::default()
     }
 
+    /// The table as text, spans relative to their forms and no file path in
+    /// it: the paths are read only by [`NameTable::inside_distribution`],
+    /// so they enter as the relation it reads (which file sits under which
+    /// bidama's root), and one package checked from two places on two nodes
+    /// prints the same.
     #[must_use]
     pub fn fingerprint(&self, form_start: &dyn Fn(usize) -> Option<usize>) -> String {
         let mut table = self.clone();
         table.legacy_findings.clear();
+        let inside: Vec<(usize, &String, bool)> = self
+            .file_paths
+            .iter()
+            .flat_map(|(file, path)| {
+                self.pkg_roots
+                    .iter()
+                    .map(move |(pkg, root)| (*file, pkg, path.starts_with(root.as_str())))
+            })
+            .collect();
+        let placed: Vec<usize> = self.file_paths.keys().copied().collect();
+        let rooted: Vec<&String> = self.pkg_roots.keys().collect();
+        table.file_paths.clear();
+        table.pkg_roots.clear();
         let rebase = |b: &mut Binding| {
             if let (Some(span), Some(top)) = (b.span.as_mut(), b.top_level) {
                 if let Some(start) = form_start(top).filter(|s| *s <= span.start) {
@@ -455,7 +473,7 @@ impl NameTable {
             scope.bindings.values_mut().for_each(rebase);
             scope.moved.values_mut().for_each(rebase);
         }
-        format!("{table:?}")
+        format!("{table:?} {placed:?} {rooted:?} {inside:?}")
     }
 
     /// Append a scope; it resolves after every scope already present.

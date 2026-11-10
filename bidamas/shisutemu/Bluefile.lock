@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:4d93c1d4bccedbf6c6323dbfcde78f89ac4b1281aed49d46d1e201cba4353f90",
+  "bluefile_b3": "b3:be3fdd27101bfd48b18d94895986c8cb8ece072b00fa1c086deeae2aed468f10",
   "manifest": {
     "schema": 1,
     "name": "shisutemu",
@@ -19,7 +19,8 @@
     "tools": [],
     "checks": {},
     "apps": {},
-    "catalog": null
+    "catalog": null,
+    "tier": "system"
   },
   "sources": {}
 }

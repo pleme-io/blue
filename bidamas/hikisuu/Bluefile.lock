@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:1dfc9ed8c70ba94a61350bcf42e22f796bff7725d35826b066c558d8555dd19c",
+  "bluefile_b3": "b3:56efbe381552f0bdd8956acce687b1245c28ccaf905c6ac58d1662242a4fbd4c",
   "manifest": {
     "schema": 1,
     "name": "hikisuu",
@@ -18,7 +18,8 @@
     "tools": [],
     "checks": {},
     "apps": {},
-    "catalog": null
+    "catalog": null,
+    "tier": "system"
   },
   "sources": {}
 }

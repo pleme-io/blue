@@ -1,0 +1,45 @@
+[package]
+name = "blue-lang-ios"
+description = "The iPhone placement: one open Rust shell that runs a bundled blue program through UIKit and Metal."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[[bin]]
+name = "blue-ios"
+path = "src/main.rs"
+
+[dependencies]
+blue-lang-host = { workspace = true }
+tatara-lisp-eval = { workspace = true }
+thiserror = { workspace = true }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2 = "0.6.4"
+objc2-foundation = { version = "0.3.2", default-features = false, features = [
+  "std", "NSString", "NSObject", "NSDictionary", "NSSet", "NSArray", "NSGeometry", "NSRunLoop", "NSError",
+] }
+objc2-ui-kit = { version = "0.3.2", default-features = false, features = [
+  "std", "objc2-core-foundation", "objc2-quartz-core",
+  "UIApplication", "UIResponder", "UIWindow", "UIScreen", "UIView", "UIViewController",
+  "UITouch", "UIEvent", "UIScene", "UISceneOptions", "UISceneSession", "UIWindowScene",
+] }
+objc2-quartz-core = { version = "0.3.2", default-features = false, features = [
+  "std", "objc2-core-foundation", "objc2-metal",
+  "CALayer", "CAMetalLayer", "CADisplayLink", "CAFrameRateRange",
+] }
+objc2-metal = { version = "0.3.2", default-features = false, features = [
+  "std", "MTLDevice", "MTLCommandQueue", "MTLCommandBuffer", "MTLCommandEncoder",
+  "MTLRenderCommandEncoder", "MTLRenderPipeline", "MTLRenderPass", "MTLLibrary",
+  "MTLPixelFormat", "MTLDrawable", "MTLTexture", "MTLBuffer", "MTLResource", "MTLAllocation",
+] }
+objc2-core-foundation = { version = "0.3.2", default-features = false, features = [
+  "std", "CFCGTypes",
+] }
+
+[dev-dependencies]
+png = "0.17"

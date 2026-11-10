@@ -480,6 +480,29 @@
       };
       applianceFor = system: applianceRelease.packages.${system}.default;
 
+      iosAppsFor = system:
+        let
+          pkgs = pkgsFor system;
+          fx = substrate.inputs.fenix.packages.${system};
+          toolchain = fx.combine [
+            fx.stable.rustc
+            fx.stable.cargo
+            fx.targets.aarch64-apple-ios-sim.stable.rust-std
+            fx.targets.aarch64-apple-ios.stable.rust-std
+          ];
+          loop = pkgs.runCommand "blue-ios-sim" { nativeBuildInputs = [ pkgs.makeBinaryWrapper ]; } ''
+            makeBinaryWrapper ${blueFor system}/bin/blue $out/bin/blue-ios-sim \
+              --add-flags "run ${./crates/blue-lang-ios/sim.b} --" \
+              --prefix PATH : ${toolchain}/bin \
+              --suffix PATH : /usr/bin \
+              --set-default DEVELOPER_DIR /Applications/Xcode.app/Contents/Developer \
+              --unset SDKROOT
+          '';
+        in
+        lib.optionalAttrs (system == "aarch64-darwin") {
+          ios-sim = { type = "app"; program = "${loop}/bin/blue-ios-sim"; };
+        };
+
       # This repository as a blue project. `base = { }` because its packages
       # ARE the public distribution every other project composes over.
       repository = lib.genAttrs systems (system: engine.projectFor {
@@ -586,7 +609,9 @@
       # `nix run .#regen`: rewrite every generated file in place (gen/regen.b).
       # Bluefile.lock files have their own command, `blue lock <dir>`.
       apps = lib.mapAttrs (system: existing:
-        engine.disjoint "app" existing repository.${system}.apps
+        engine.disjoint "app"
+          (engine.disjoint "app" existing repository.${system}.apps)
+          (iosAppsFor system)
       ) base.apps;
 
       # `bidama-catalog` and every `generated-<name>`, from ./Bluefile.

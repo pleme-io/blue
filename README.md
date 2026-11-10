@@ -210,6 +210,7 @@ was rendered. `blue help COMMAND` shows each one's flags.
 | `blue lock [DIRS]...` | Evaluate each directory's Bluefile, pin every `source(...)` with `nix flake prefetch`, and write `Bluefile.lock` beside it. |
 | `blue bundle FILE` | Seal FILE into an appliance payload: the program compiled (every `use` resolved, checked, erased) with the capability record its project's fresh `Bluefile.lock` verified, closed with its BLAKE3 digest. |
 | `blue lsp` | Run the language server, speaking LSP over stdin/stdout. |
+| `blue debug` | Debug a recorded run, speaking the Debug Adapter Protocol over stdin/stdout. |
 | `blue serve` | Serve one evaluation session as JSON lines on stdin/stdout: the door an editor drives. |
 | `blue repl` | An evaluation session at the terminal. |
 | `blue eval TARGET` | Evaluate EXPR, or the top-level form at FILE:LINE:COL in that file's context, and print its value. |
@@ -256,7 +257,7 @@ rendered:
 | Surface forms | 36, with 13 operators and 26 reserved words |
 | Check rules | 79: 42 fix themselves, 8 suggest a fix |
 | Bluefile words | 28 |
-| Commands | 56 |
+| Commands | 57 |
 
 ## The standard library
 

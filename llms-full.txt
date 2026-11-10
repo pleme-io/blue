@@ -181,6 +181,7 @@ was rendered. `blue help COMMAND` shows each one's flags.
 | `blue lock [DIRS]...` | Evaluate each directory's Bluefile, pin every `source(...)` with `nix flake prefetch`, and write `Bluefile.lock` beside it. |
 | `blue bundle FILE` | Seal FILE into an appliance payload: the program compiled (every `use` resolved, checked, erased) with the capability record its project's fresh `Bluefile.lock` verified, closed with its BLAKE3 digest. |
 | `blue lsp` | Run the language server, speaking LSP over stdin/stdout. |
+| `blue debug` | Debug a recorded run, speaking the Debug Adapter Protocol over stdin/stdout. |
 | `blue serve` | Serve one evaluation session as JSON lines on stdin/stdout: the door an editor drives. |
 | `blue repl` | An evaluation session at the terminal. |
 | `blue eval TARGET` | Evaluate EXPR, or the top-level form at FILE:LINE:COL in that file's context, and print its value. |
@@ -227,7 +228,7 @@ rendered:
 | Surface forms | 36, with 13 operators and 26 reserved words |
 | Check rules | 79: 42 fix themselves, 8 suggest a fix |
 | Bluefile words | 28 |
-| Commands | 56 |
+| Commands | 57 |
 
 ## The standard library
 
@@ -2840,7 +2841,7 @@ when its first phase starts.
 | **verbs** ([`VERB-ROADMAP.md`](docs/VERB-ROADMAP.md)) | ⏳ in progress | The graph is blue rows in `bidamas/mokuroku/graph/`, gated by `checks.verb-graph`. The contract table has 4 open rows. The VERB-ROADMAP.md ledger holds the rest. |
 | **khipu**: the knowledge graph ([`KHIPU.md`](docs/KHIPU.md)) | ⏳ in progress | K1a is built: `bidamas/khipu` (terms, quads, N-Triples, N-Quads). K1b's store and basic graph patterns are built (2026-11-09): DuckDB through `kueri`, NOT EXISTS, a row budget, blue's own facts as quads; tests "a basic graph pattern joins in DuckDB, and an absent group removes what it matches" and "past its budget a question is refused, never cut short" in `bidamas/khipu/khipu.b`. Not built: the W3C syntax suites against Oxigraph, then K2. Done when the W3C suites of K1 to K4 pass as a differential against Oxigraph. |
 | **utsushi**: history projection ([`UTSUSHI.md`](docs/UTSUSHI.md)) | ⏳ in progress | U1 is built: `bidamas/utsushi`. U2 to U6 are not built: the lens parser still refuses `:exclude` (utsushi test `lens_refused?`). Done when `josh-filter` ids match on the fixtures and the round-trip law is green. |
-| **async**: native async, the `heikou` space ([`ASYNC.md`](docs/ASYNC.md)) | ⏳ in progress | Built: processes (`crates/blue-lang-proc`), node-time timers (`crates/blue-lang-proc/tests/timers.rs`), `net_wait` (`crates/blue-lang-proc/tests/net_wait.rs`), record and replay (`crates/blue-lang-cli/tests/run_replay.rs`). Not built: a deadline narrowed inside a process, A2, `schedulers(n)` (A6). |
+| **async**: native async, the `heikou` space ([`ASYNC.md`](docs/ASYNC.md)) | ⏳ in progress | Built: processes (`crates/blue-lang-proc`), node-time timers (`crates/blue-lang-proc/tests/timers.rs`), `net_wait` (`crates/blue-lang-proc/tests/net_wait.rs`), record and replay (`crates/blue-lang-cli/tests/run_replay.rs`), the H4 debugger (2026-11-10): `blue debug`, a Debug Adapter Protocol server over a recorded run, with call and return steps, step back by replay, and breakpoints by name, `def_hash` or definition line (`crates/blue-lang-cli/tests/debug.rs`). Not built: a deadline narrowed inside a process, A2, `schedulers(n)` (A6). |
 | **record**: a named structure in one line (`examples/17_records.b`) | ✅ built | `spec/rows/records.b`; `crates/blue-lang-runtime/tests/records.rs` (B0079) |
 | **guard return** ([`GUARD-RETURN.md`](docs/GUARD-RETURN.md)) | ⏳ in progress | G1 is built: `crates/blue-lang-syntax/src/guard.rs`, `crates/blue-lang-runtime/tests/guard_return.rs` (B0080). The tree-sitter grammar knows `return` (`tree-sitter-blue/grammar.js`, `queries/highlights.scm`). Not built: `return` inside `rescue`. |
 | **types that grow** (HORIZON H2, SAFETY row 7) | ⏳ in progress | Step 1 is built: local inference in a typed definition, with `check.infer` rows in `spec/rows/check.b`. Wave 3 is built (2026-11-09): `Map(K, V)`, records and unions in signatures (B0079 on an undeclared field), list, map and record literals inferred, the static checked boundary (an untyped caller's known argument is B0005, qualified calls too) and `blueshift(:strict)` per file (B0082); rows `check.signature.*`, `check.boundary.*` and `check.B0082*` in `spec/rows/check.b`. Not built: the runtime half of the checked boundary (`shift.wrong_arg.annotated`), a Bluefile-wide position, `case` narrowing a union. |

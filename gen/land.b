@@ -234,6 +234,43 @@ place for ever.
     tickets_of("1\trefs/heads/land-queue/20261110193005/a", 20_261_111_000_000) #=> []
 """
 def tickets_of(text, cutoff)
+  marks_of(text, "land-queue", cutoff)
+end
+
+@doc """
+beat_name: The branch a waiting land renames each minute to say it is alive; a
+ticket whose land stopped beating gives up its place.
+
+    beat_name(20_261_110_233_000, "land/fetch/lock-retry") #=> "land-beat/20261110233000/fetch/lock-retry"
+"""
+def beat_name(at, ref)
+  "land-beat/#{to_s(at)}/#{after_first(ref, "/")}"
+end
+
+@doc """
+beats_of: The heartbeats in `git ls-remote` output, each as `{name:, at:, ref:}`.
+
+    beats_of("1\trefs/heads/land-beat/20261110233000/a") #=> [{name: "land-beat/20261110233000/a", at: 20_261_110_233_000, ref: "land/a"}]
+"""
+def beats_of(text)
+  marks_of(text, "land-beat", 0)
+end
+
+@doc """
+alive?: Whether a ticket's land still waits: it queued after `since`, or it beat
+after `since`. A land whose client died stops beating, and ten minutes later the
+lands behind it pass it.
+
+    alive?({at: 5, ref: "land/a"}, [], 4) #=> true
+    alive?({at: 1, ref: "land/a"}, [{at: 5, ref: "land/a"}], 4) #=> true
+    alive?({at: 1, ref: "land/a"}, [{at: 5, ref: "land/b"}], 4) #=> false
+"""
+def alive?(ticket, beats, since)
+  ticket[:at] >= since or
+    find_first((b) -> b[:ref] == ticket[:ref] and b[:at] >= since, beats) != nil
+end
+
+def marks_of(text, kind, cutoff)
   filter(
     (t) -> not t[:at].nil? and t[:at] >= cutoff,
     map(
@@ -246,7 +283,7 @@ def tickets_of(text, cutoff)
           ref: "land/#{after_first(rest, "/")}"
         }
       end,
-      filter((l) -> contains?(l, "refs/heads/land-queue/"), moji::lines(text))
+      filter((l) -> contains?(l, "refs/heads/#{kind}/"), moji::lines(text))
     )
   )
 end
@@ -325,13 +362,17 @@ end
 
 @doc """
 waits_behind: The ticket of a land queued before this one and still waiting, or
-nil; a land waiting without a run holds its place too.
+nil; a land waiting without a run holds its place too, while it is alive?.
 
-    waits_behind([{name: "a", at: 1, ref: "land/a"}, {name: "b", at: 2, ref: "land/b"}], "land/b", 2) #=> {name: "a", at: 1, ref: "land/a"}
-    waits_behind([{name: "a", at: 1, ref: "land/a"}, {name: "b", at: 2, ref: "land/b"}], "land/a", 1) #=> nil
+    waits_behind([{name: "a", at: 1, ref: "land/a"}, {name: "b", at: 2, ref: "land/b"}], "land/b", 2, [], 0) #=> {name: "a", at: 1, ref: "land/a"}
+    waits_behind([{name: "a", at: 1, ref: "land/a"}, {name: "b", at: 2, ref: "land/b"}], "land/a", 1, [], 0) #=> nil
+    waits_behind([{name: "a", at: 1, ref: "land/a"}], "land/b", 2, [], 2) #=> nil
 """
-def waits_behind(tickets, ref, mine)
-  find_first((t) -> t[:ref] != ref and t[:at] < mine, tickets)
+def waits_behind(tickets, ref, mine, beats, since)
+  find_first(
+    (t) -> t[:ref] != ref and t[:at] < mine and alive?(t, beats, since),
+    tickets
+  )
 end
 
 @doc """
@@ -542,15 +583,50 @@ def land_runs()
   runs_of("land.yml", "databaseId,headBranch,status,createdAt")
 end
 
+def queue_refs()
+  cap = exec_capture(
+    "git",
+    "ls-remote",
+    "origin",
+    "refs/heads/land-queue/*",
+    "refs/heads/land-beat/*"
+  )
+  if status_of(cap) == 0
+    stdout_of(cap)
+  end
+end
+
 def tickets()
   tickets_since(stamp(rfc3339_of_ms(now_ms - 21_600_000)))
 end
 
 def tickets_since(cutoff)
-  cap = exec_capture("git", "ls-remote", "origin", "refs/heads/land-queue/*")
-  if status_of(cap) == 0
-    tickets_of(stdout_of(cap), cutoff)
+  text = queue_refs
+  if not text.nil?
+    tickets_of(text, cutoff)
   end
+end
+
+def beats()
+  beats_of(queue_refs or "")
+end
+
+def beat(ref)
+  old = map(
+    (b) -> ":refs/heads/#{b[:name]}",
+    filter((b) -> b[:ref] == ref, beats)
+  )
+  exec_capture(
+    "env",
+    "BLUE_PREPUSH_OFF=1",
+    "git",
+    "push",
+    "-q",
+    "--atomic",
+    "origin",
+    "#{ask(%w[rev-parse origin/main])}:refs/heads/#{beat_name(stamp(rfc3339_of_ms(now_ms)), ref)}",
+    *old
+  )
 end
 
 def enqueue(ref)
@@ -587,7 +663,7 @@ def dequeue(ref)
         ":refs/heads/#{t[:name]}"
       )
     end,
-    filter((t) -> t[:ref] == ref, tickets_since(0) or [])
+    filter((t) -> t[:ref] == ref, append(tickets_since(0) or [], beats))
   )
 end
 
@@ -616,7 +692,14 @@ def wait_turn(ref, deadline, waited)
     waiting = if mine.nil?
       nil
     else
-      waits_behind(queue, ref, mine)
+      beat(ref)
+      waits_behind(
+        queue,
+        ref,
+        mine,
+        beats,
+        stamp(rfc3339_of_ms(now_ms - 600_000))
+      )
     end
     if ahead != []
       "#{to_s(count(ahead))} land(s) ahead, first #{json_get(first(ahead), :headBranch)}; waiting for a turn, since only one reaches main; --no-queue lands beside them"
@@ -1421,9 +1504,37 @@ test "the queue goes by the time a land first queued, so a land that pushes agai
     yields_to(turn, "land/docs/iphone", theirs, queue),
     :headBranch
   ) == "land/queue/land-turn"
-  assert waits_behind(queue, "land/docs/iphone", 20_261_110_184_300)[:ref] ==
-    "land/queue/land-turn"
-  assert waits_behind(queue, "land/queue/land-turn", 20_261_110_143_900).nil?
+  assert get(
+    waits_behind(queue, "land/docs/iphone", 20_261_110_184_300, [], 0),
+    :ref
+  ) == "land/queue/land-turn"
+  assert waits_behind(
+    queue,
+    "land/queue/land-turn",
+    20_261_110_143_900,
+    [],
+    0
+  ).nil?
+  dead = tickets_of("1\trefs/heads/land-queue/20261110211916/docs/iphone", 0)
+  since = 20_261_110_231_300
+  assert waits_behind(
+    dead,
+    "land/fetch/lock-retry",
+    20_261_110_222_321,
+    [],
+    since
+  ).nil?
+  alive = beats_of("1\trefs/heads/land-beat/20261110232000/docs/iphone")
+  assert get(
+    waits_behind(
+      dead,
+      "land/fetch/lock-retry",
+      20_261_110_222_321,
+      alive,
+      since
+    ),
+    :ref
+  ) == "land/docs/iphone"
   old = json_parse(
     "[#{run(42_800_000_000, "land/old-client", "2026-11-10T15:00:00Z")}]"
   )
@@ -1874,7 +1985,10 @@ test "--watch yields to an older land that took the same turn, then lands and fo
     assert contains?(calls, "run cancel 100")
     assert contains?(calls, "run view 100 --json status,conclusion")
     assert contains?(stderr_of(r), "land/older took the same turn")
-    assert as_tester(work, %w[ls-remote origin refs/heads/land-queue/*]) == ""
+    assert as_tester(
+      work,
+      %w[ls-remote origin refs/heads/land-queue/* refs/heads/land-beat/*]
+    ) == ""
     rm_rf(root)
   end
 end

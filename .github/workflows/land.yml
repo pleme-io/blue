@@ -43,6 +43,7 @@ jobs:
         if: ${{ !startsWith(github.ref_name, 'land/dry-') && vars.BLUE_LAND_TURN != 'off' }}
         env:
           GH_TOKEN: ${{ github.token }}
+          BLUE_LAND_BATCH: ${{ vars.BLUE_LAND_BATCH }}
         run: |
           held="$(${{ steps.blue.outputs.out-path }}/bin/blue run --quiet gen/land.b -- --turn "$GITHUB_RUN_ID" "$GITHUB_REF_NAME" "$GITHUB_SHA")"
           echo "held=$held" >> "$GITHUB_OUTPUT"
@@ -72,6 +73,11 @@ jobs:
       contents: write
       actions: write
     steps:
+      - name: refuse a batch while BLUE_LAND_BATCH is off
+        if: ${{ vars.BLUE_LAND_BATCH == 'off' && (startsWith(github.ref_name, 'land/batch-') || startsWith(github.ref_name, 'land/prose-batch-')) }}
+        run: |
+          echo "::error::batching is off (the repository variable BLUE_LAND_BATCH=off); git land --watch lands the leader of this batch alone"
+          exit 1
       - name: refuse a land that does not hold the turn
         if: ${{ needs.ci.outputs.held == 'false' || needs.prose.outputs.held == 'false' }}
         run: |

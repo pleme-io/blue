@@ -78,6 +78,7 @@ jobs:
         if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'land/') && !startsWith(github.ref_name, 'land/dry-') && vars.BLUE_LAND_TURN != 'off' }}
         env:
           GH_TOKEN: ${{ github.token }}
+          BLUE_LAND_BATCH: ${{ vars.BLUE_LAND_BATCH }}
         run: |
           held="$(${{ steps.blue.outputs.out-path }}/bin/blue run --quiet gen/land.b -- --turn "$GITHUB_RUN_ID" "$GITHUB_REF_NAME" "$GITHUB_SHA")"
           echo "held=$held" >> "$GITHUB_OUTPUT"

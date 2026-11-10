@@ -92,7 +92,7 @@ def unknown_flag(words)
       starts_with?(w, "--") and
         not member?(
           w,
-          %w[--dry --watch --proven --no-queue --no-regen --no-prose]
+          %w[--dry --watch --proven --no-queue --no-regen --no-prose --no-batch]
         ) and
         not starts_with?(w, "--requeue=") and
         not starts_with?(w, "--queue-minutes=")
@@ -521,6 +521,256 @@ def turn_step()
   "refuse a land that does not hold the turn"
 end
 
+@doc """
+batch_off_step: The name of land.yml's fast-forward step that refuses a batch
+while the repository variable BLUE_LAND_BATCH is off; the land that pushed it
+reads the step and lands alone.
+
+    batch_off_step #=> "refuse a batch while BLUE_LAND_BATCH is off"
+"""
+def batch_off_step()
+  "refuse a batch while BLUE_LAND_BATCH is off"
+end
+
+@doc """
+batches?: Whether a land tests the lands queued behind it with it when it reaches
+the front of the queue (land_batch): on for a land that follows its run and
+queues; --no-batch turns it off, and a dry land or one that carries its own proof
+(--proven, a proof of its tree alone) lands alone.
+
+    batches?({batch: true, watch: true, queue: true, dry: false, proven: false}) #=> true
+    batches?({batch: false, watch: true, queue: true, dry: false, proven: false}) #=> false
+    batches?({batch: true, watch: true, queue: true, dry: false, proven: true}) #=> false
+"""
+def batches?(a)
+  a[:batch] and a[:watch] and a[:queue] and not a[:dry] and not a[:proven]
+end
+
+@doc """
+batch_ref?: Whether a land ref carries a batch, main plus the lands queued behind
+the one that pushed it; BLUE_LAND_BATCH=off refuses such a ref at the turn. A
+slug that starts with batch- reads as one, as a slug that starts with dry- or
+prose- reads as a dry or a prose land.
+
+    batch_ref?("land/batch-a/b") #=> true
+    batch_ref?("land/prose-batch-a") #=> true
+    batch_ref?("land/land/batch-and-settle") #=> false
+"""
+def batch_ref?(ref)
+  starts_with?(ref, "land/batch-") or starts_with?(ref, "land/prose-batch-")
+end
+
+@doc """
+batch_off: Why a batch stops while the repository variable BLUE_LAND_BATCH is
+off: the turn refuses it and the land that leads it lands alone.
+
+    starts_with?(batch_off, "batching is off") #=> true
+"""
+def batch_off()
+  "batching is off (the repository variable BLUE_LAND_BATCH=off); the land that leads this batch lands alone"
+end
+
+@doc """
+batch_refusal: Why the turn refuses a land ref, or nil: a batch, while the
+repository variable BLUE_LAND_BATCH is off, runs no suite, and the land that
+pushed it reads land.yml's batch_off_step and lands alone.
+
+    batch_refusal("land/batch-a", "off") == batch_off #=> true
+    batch_refusal("land/a", "off") #=> nil
+    batch_refusal("land/batch-a", "") #=> nil
+"""
+def batch_refusal(ref, setting)
+  if setting == "off" and batch_ref?(ref)
+    batch_off
+  end
+end
+
+@doc """
+batch_cap: The most lands one batch holds, the one that leads it included; a red
+batch of 8 finds its breaking land in at most 3 more runs.
+
+    batch_cap #=> 8
+"""
+def batch_cap()
+  8
+end
+
+@doc """
+verdict_name: The branch the land that leads a batch writes a queued land's
+verdict on, beside the land's ticket. No workflow runs on it.
+
+    verdict_name("land-queue/20261110193005/a/b") #=> "land-verdict/20261110193005/a/b"
+"""
+def verdict_name(ticket)
+  "land-verdict/#{after_first(ticket, "/")}"
+end
+
+@doc """
+head_of: The commit a branch names in `git ls-remote` output, or nil.
+
+    head_of(unlines(["abc\trefs/heads/land-queue/1/a", "def\trefs/heads/land-queue/1/a/b"]), "land-queue/1/a") #=> "abc"
+    head_of("", "land-queue/1/a") #=> nil
+"""
+def head_of(text, name)
+  line = find_first(
+    (l) -> ends_with?(l, "\trefs/heads/#{name}"),
+    moji::lines(text)
+  )
+  if not line.nil?
+    first(split(line, "\t"))
+  end
+end
+
+@doc """
+undecided: The tickets no batch has decided: a ticket with a verdict beside it
+waits only for its own land to read the verdict and remove both, so it holds no
+place, even when that land died.
+
+    undecided(tickets_of("1\trefs/heads/land-queue/5/a", 0), unlines(["1\trefs/heads/land-queue/5/a", "2\trefs/heads/land-verdict/5/a"])) #=> []
+    count(undecided(tickets_of("1\trefs/heads/land-queue/5/a", 0), "1\trefs/heads/land-queue/5/a")) #=> 1
+"""
+def undecided(tickets, text)
+  filter((t) -> head_of(text, verdict_name(t[:name])).nil?, tickets)
+end
+
+@doc """
+verdicts_of: The verdict branches in `git ls-remote` output, each as `{name:, at:,
+ref:}`, so a land that ends removes its own.
+
+    verdicts_of("2\trefs/heads/land-verdict/5/a/b") #=> [{name: "land-verdict/5/a/b", at: 5, ref: "land/a/b"}]
+"""
+def verdicts_of(text)
+  marks_of(text, "land-verdict", 0)
+end
+
+@doc """
+batch_of: The queued lands the land at the front of the queue tests with it, in
+queue order: those queued after it, never its own ticket, up to batch_cap with it.
+
+    map((t) -> t[:ref], batch_of(tickets_of(unlines(["1\trefs/heads/land-queue/3/c", "1\trefs/heads/land-queue/1/a", "1\trefs/heads/land-queue/2/b"]), 0), "land/a", 1)) #=> ["land/b", "land/c"]
+"""
+def batch_of(tickets, ref, mine)
+  take(
+    batch_cap - 1,
+    sort_keyed(
+      (t) -> t[:name],
+      filter((t) -> t[:ref] != ref and t[:at] > mine, tickets)
+    )
+  )
+end
+
+@doc """
+halves: A red batch split for its next tries: the front half, the larger when the
+count is odd, then the rest.
+
+    halves(%w[a b c d]) #=> [["a", "b"], ["c", "d"]]
+    halves(%w[a b c]) #=> [["a", "b"], ["c"]]
+"""
+def halves(xs)
+  n = count(xs) - floor(count(xs) / 2)
+  [take(n, xs), drop(n, xs)]
+end
+
+@doc """
+bisect: Land a batch as far as its suite allows. `attempt` tests a list of lands
+as one tree on main and answers `{verdict:, why:}`, the verdict :green, :red or
+:halt. A green try lands all of it. A red try splits in halves and tries the
+front first; when the whole front lands, the back on the new main is the tree
+that was red, so it runs no suite again and a lone land in it is blamed with that
+red. A land is blamed only alone. :halt stops the batch and leaves its lands
+undecided. The answer: what landed, what was blamed with why, what is left, why it
+halted, and every try in order.
+
+    bisect(["a"], nil, (_b) -> {verdict: :green, why: ""})[:landed] #=> ["a"]
+    bisect(["a"], nil, (_b) -> {verdict: :red, why: "red"})[:blamed] #=> [["a", "red"]]
+"""
+def bisect(batch, known, attempt)
+  if batch == []
+    {landed: [], blamed: [], left: [], halted: nil, tried: []}
+  elsif count(batch) == 1 and not known.nil?
+    {
+      landed: [],
+      blamed: [[first(batch), known]],
+      left: [],
+      halted: nil,
+      tried: []
+    }
+  elsif known.nil?
+    r = attempt(batch)
+    if r[:verdict] == :green
+      {landed: batch, blamed: [], left: [], halted: nil, tried: [batch]}
+    elsif r[:verdict] == :halt
+      {landed: [], blamed: [], left: batch, halted: r[:why], tried: [batch]}
+    else
+      rest = bisect(batch, r[:why], attempt)
+      {**rest, tried: append([batch], rest[:tried])}
+    end
+  else
+    [front, back] = halves(batch)
+    one = bisect(front, nil, attempt)
+    two = if one[:left] != []
+      {landed: [], blamed: [], left: back, halted: nil, tried: []}
+    elsif one[:blamed] == []
+      bisect(back, known, attempt)
+    else
+      bisect(back, nil, attempt)
+    end
+    {
+      landed: append(one[:landed], two[:landed]),
+      blamed: append(one[:blamed], two[:blamed]),
+      left: append(one[:left], two[:left]),
+      halted: if one[:halted].nil?
+        two[:halted]
+      else
+        one[:halted]
+      end,
+      tried: append(one[:tried], two[:tried])
+    }
+  end
+end
+
+@doc """
+verdict_text: The message of the commit the land that leads a batch writes on a
+queued land's verdict branch: the verdict, then why.
+
+    verdict_of(verdict_text(false, "run 7 is red at ci / check / cargo-test")) #=> {landed: false, why: "run 7 is red at ci / check / cargo-test"}
+"""
+def verdict_text(landed, why)
+  unlines(
+    [
+      if landed
+        "land verdict: landed"
+      else
+        "land verdict: red"
+      end,
+      "",
+      why
+    ]
+  )
+end
+
+@doc """
+verdict_of: A verdict read back from its commit message, or nil for a message
+that is none.
+
+    verdict_of(verdict_text(true, "main is 1234567"))[:landed] #=> true
+    verdict_of("land: a commit") #=> nil
+"""
+def verdict_of(message)
+  ls = moji::lines(message)
+  head = if ls == []
+    ""
+  else
+    first(ls)
+  end
+  if member?(head, ["land verdict: landed", "land verdict: red"])
+    {
+      landed: head == "land verdict: landed",
+      why: trim(join(drop(2, ls), line_break))
+    }
+  end
+end
+
 def git_lines(args)
   filter((l) -> l != "", moji::lines(ask(args)))
 end
@@ -589,7 +839,8 @@ def queue_refs()
     "ls-remote",
     "origin",
     "refs/heads/land-queue/*",
-    "refs/heads/land-beat/*"
+    "refs/heads/land-beat/*",
+    "refs/heads/land-verdict/*"
   )
   if status_of(cap) == 0
     stdout_of(cap)
@@ -597,7 +848,10 @@ def queue_refs()
 end
 
 def tickets()
-  tickets_since(stamp(rfc3339_of_ms(now_ms - 21_600_000)))
+  text = queue_refs
+  if not text.nil?
+    undecided(tickets_of(text, stamp(rfc3339_of_ms(now_ms - 21_600_000))), text)
+  end
 end
 
 def tickets_since(cutoff)
@@ -629,23 +883,29 @@ def beat(ref)
   )
 end
 
-def enqueue(ref)
+@doc """
+enqueue: Hold this land's place in the queue: its ticket, created at the time it
+first queued and kept after, names the commit a batch tests for it (HEAD), or
+main's commit for a land that does not batch, which no batch takes.
+"""
+def enqueue(ref, head)
   held = tickets or []
   at = queued_at(held, ref)
   if at.nil?
     at = stamp(rfc3339_of_ms(now_ms))
-    pushed = exec_capture(
-      "env",
-      "BLUE_PREPUSH_OFF=1",
-      "git",
-      "push",
-      "-q",
-      "origin",
-      "#{ask(%w[rev-parse origin/main])}:refs/heads/#{ticket_name(at, ref)}"
-    )
-    if status_of(pushed) != 0
-      say("no queue ticket: #{trim(stderr_of(pushed))}")
-    end
+  end
+  pushed = exec_capture(
+    "env",
+    "BLUE_PREPUSH_OFF=1",
+    "git",
+    "push",
+    "-q",
+    "--force",
+    "origin",
+    "#{head}:refs/heads/#{ticket_name(at, ref)}"
+  )
+  if status_of(pushed) != 0
+    say("no queue ticket: #{trim(stderr_of(pushed))}")
   end
   at
 end
@@ -663,7 +923,13 @@ def dequeue(ref)
         ":refs/heads/#{t[:name]}"
       )
     end,
-    filter((t) -> t[:ref] == ref, append(tickets_since(0) or [], beats))
+    filter(
+      (t) -> t[:ref] == ref,
+      append(
+        append(tickets_since(0) or [], beats),
+        verdicts_of(queue_refs or "")
+      )
+    )
   )
 end
 
@@ -680,7 +946,30 @@ def touched_since_main()
   git_lines(%w[diff --name-only origin/main...HEAD])
 end
 
-def wait_turn(ref, deadline, waited)
+def verdict_on(ticket)
+  text = queue_refs
+  if not text.nil? and not ticket.nil?
+    name = verdict_name(ticket)
+    at = head_of(text, name)
+    if at.nil?
+      nil
+    elsif exec_check("git", "fetch", "-q", "origin", "refs/heads/#{name}") != 0
+      nil
+    elsif ask(["rev-parse", "#{at}^"]) == head_of(text, ticket)
+      verdict_of(ask(["log", "-1", "--format=%B", at]))
+    end
+  end
+end
+
+@doc """
+wait_turn: Wait while a land runs ahead, a land queued first waits, or a release
+would move main under the suite. A land whose ticket a batch decided (land_batch)
+stops waiting: it says the verdict and ends, 0 when it landed in the batch, 1
+with the reason when it was blamed. The verdict is read after the queue, and a
+batch writes its verdicts before its leader leaves the queue, so a land never
+reads the queue empty and its verdict not yet written.
+"""
+def wait_turn(ref, deadline, waited, ticket?)
   runs = land_runs
   releases = release_runs
   held = if runs.nil? or releases.nil?
@@ -709,6 +998,18 @@ def wait_turn(ref, deadline, waited)
       release_hold(releases_live(releases), touched_since_main)
     end
   end
+  verdict = verdict_on(ticket)
+  if not verdict.nil?
+    say(verdict[:why])
+    leave(
+      ref,
+      if verdict[:landed]
+        0
+      else
+        1
+      end
+    )
+  end
   if not held.nil?
     if now_ms > deadline
       say("waited the --queue-minutes limit; landing without a turn: #{held}")
@@ -717,7 +1018,7 @@ def wait_turn(ref, deadline, waited)
         say(held)
       end
       sleep(60)
-      wait_turn(ref, deadline, true)
+      wait_turn(ref, deadline, true, ticket)
     end
   end
 end
@@ -741,9 +1042,13 @@ end
 wait_run: Poll a run once a minute until it ends and return 0 when it succeeded.
 `gh run watch` polls every 3 seconds, 1,200 calls an hour of a 5,000-an-hour limit,
 and on 2026-11-04 `gh` answered 403 beside other agents' polling; a 403 from watch
-reads as a failed land while its run goes on.
+reads as a failed land while its run goes on. The land that leads a batch passes
+`tick`, its heartbeat, so the lands it holds see it alive while its run goes on.
 """
-def wait_run(id)
+def wait_run(id, tick?)
+  if not tick.nil?
+    tick()
+  end
   ended = run_ended(
     stdout_of(
       exec_capture("gh", "run", "view", id, "--json", "status,conclusion")
@@ -751,7 +1056,7 @@ def wait_run(id)
   )
   if ended.nil?
     sleep(60)
-    wait_run(id)
+    wait_run(id, tick)
   elsif ended == "success"
     0
   else
@@ -923,7 +1228,10 @@ def hold_turn(id, ref, sha)
     )
   end
   runs = read_until(() -> land_runs, 10)
-  refusal = if runs.nil?
+  off = batch_refusal(ref, getenv("BLUE_LAND_BATCH", ""))
+  refusal = if not off.nil?
+    off
+  elsif runs.nil?
     "the land runs cannot be read"
   else
     queue = tickets or []
@@ -1033,22 +1341,22 @@ def blue_here()
   end
 end
 
-def regenerate()
-  steps = [%w[lock .], %w[run --quiet gen/regen.b]]
-  map(
-    fn(args)
-      r = exec_capture(blue_here, *args)
-      if status_of(r) != 0
-        say(
+def regen_failure()
+  failed = reduce(
+    fn(why, args)
+      if not why.nil?
+        why
+      else
+        r = exec_capture(blue_here, *args)
+        if status_of(r) != 0
           "rebased onto origin/main, but `blue #{join(args, " ")}` failed; fix it and land again: #{stderr_of(r)}"
-        )
-        exit_with(1)
+        end
       end
     end,
-    steps
+    nil,
+    [%w[lock .], %w[run --quiet gen/regen.b]]
   )
-  changed = ask(%w[status --porcelain --untracked-files=no])
-  if changed != ""
+  if failed.nil? and ask(%w[status --porcelain --untracked-files=no]) != ""
     exec_check("git", "add", "-u")
     exec_check(
       "git",
@@ -1058,6 +1366,15 @@ def regenerate()
       "regen after rebasing onto #{ask(%w[rev-parse --short origin/main])}"
     )
     say("the rebase left generated files stale; regenerated and committed them")
+  end
+  failed
+end
+
+def regenerate()
+  failed = regen_failure
+  if not failed.nil?
+    say(failed)
+    exit_with(1)
   end
 end
 
@@ -1202,7 +1519,7 @@ end
 def settle(a, left, minutes)
   ref = ref_for(a)
   if a[:watch] and a[:queue] and not a[:dry]
-    wait_turn(ref, now_ms + minutes * 60000, false)
+    wait_turn(ref, now_ms + minutes * 60000, false, a[:ticket])
   end
   fetch_main
   if not contains_main?
@@ -1225,6 +1542,10 @@ def prove(a)
 end
 
 def ref_for(a)
+  ref_at(a, "HEAD", "")
+end
+
+def ref_at(a, rev, prefix)
   scoped = exec_capture(
     self_exe,
     "run",
@@ -1233,7 +1554,7 @@ def ref_for(a)
     "--",
     "--scope",
     "origin/main",
-    "HEAD"
+    rev
   )
   scope = if a[:prose] and status_of(scoped) == 0
     trim(stdout_of(scoped))
@@ -1242,11 +1563,7 @@ def ref_for(a)
   end
   land_ref(
     scoped_slug(
-      slug_for(
-        a[:slug],
-        ask(%w[rev-parse --abbrev-ref HEAD]),
-        ask(%w[rev-parse --short HEAD])
-      ),
+      "#{prefix}#{slug_for(a[:slug], ask(%w[rev-parse --abbrev-ref HEAD]), ask(%w[rev-parse --short HEAD]))}",
       scope
     ),
     a[:dry]
@@ -1267,17 +1584,28 @@ def repush?(listed, sha)
 end
 
 def push_land(ref)
-  sha = ask(%w[rev-parse HEAD])
+  push_at(ref, ask(%w[rev-parse HEAD]), [])
+end
+
+def push_at(ref, sha, settings)
   if repush?(ask(["ls-remote", "origin", "refs/heads/#{ref}"]), sha)
     say(
       "#{ref} already names #{take_chars(sha, 10)}; deleting it first, so the push starts a new run"
     )
-    if exec_check("git", "push", "-q", "origin", ":refs/heads/#{ref}") != 0
+    if exec_check(
+        "env",
+        *append(settings, ["git", "push", "-q", "origin", ":refs/heads/#{ref}"])
+      ) != 0
       exit_with(1)
     end
   end
-  if exec_check("git", "push", "--force", "origin", "HEAD:refs/heads/#{ref}") !=
-      0
+  if exec_check(
+      "env",
+      *append(
+        settings,
+        ["git", "push", "--force", "origin", "#{sha}:refs/heads/#{ref}"]
+      )
+    ) != 0
     exit_with(1)
   end
   say(
@@ -1286,17 +1614,8 @@ def push_land(ref)
   sha
 end
 
-def follow(a, left, minutes)
-  settle(a, left, minutes)
-  prove(a)
-  ref = ref_for(a)
-  sha = push_land(ref)
-  found = run_of(ref, sha)
-  if found == ""
-    say("no run appeared in a minute; gh run list --branch #{ref}")
-    exit_with(1)
-  end
-  older = if a[:queue] and not a[:dry]
+def older_than(a, ref, found)
+  if a[:queue] and not a[:dry]
     queue = tickets or []
     at = queued_at(queue, ref)
     runs = land_runs or []
@@ -1312,6 +1631,305 @@ def follow(a, left, minutes)
     end
     yields_to(runs, ref, mine, queue)
   end
+end
+
+def jobs_of(found)
+  json_parse(
+    stdout_of(
+      exec_capture(
+        "gh",
+        "run",
+        "view",
+        found,
+        "--json",
+        "jobs",
+        "--jq",
+        "[.jobs[] | {name, conclusion, refused: ([.steps[]? | select(.name == \"#{turn_step}\" and .conclusion == \"failure\")] != []), off: ([.steps[]? | select(.name == \"#{batch_off_step}\" and .conclusion == \"failure\")] != [])}]"
+      )
+    )
+  ) rescue
+    []
+end
+
+@doc """
+batch_off?: Whether a batch's run, as jobs_of reads it, was refused at land.yml's
+batch_off_step: BLUE_LAND_BATCH is off, and the land that leads lands alone.
+
+    batch_off?(json_parse("[{\"name\":\"fast-forward\",\"conclusion\":\"failure\",\"refused\":false,\"off\":true}]")) #=> true
+    batch_off?([]) #=> false
+"""
+def batch_off?(jobs)
+  find_first((j) -> json_get(j, :off) == true, jobs) != nil
+end
+
+def has_own_commits?(sha)
+  if sha.nil?
+    false
+  else
+    (to_int(ask(["rev-list", "--count", "origin/main..#{sha}"])) or 0) > 0
+  end
+end
+
+def batch_members(ref, ticket)
+  text = queue_refs
+  queue = if text.nil?
+    []
+  else
+    undecided(tickets_of(text, stamp(rfc3339_of_ms(now_ms - 21_600_000))), text)
+  end
+  mine = queued_at(queue, ref)
+  since = stamp(rfc3339_of_ms(now_ms - 600_000))
+  behind = if mine.nil? or ticket.nil?
+    []
+  else
+    batch_of(filter((t) -> alive?(t, beats_of(text), since), queue), ref, mine)
+  end
+  if behind != []
+    exec_capture(
+      "git",
+      "fetch",
+      "-q",
+      "origin",
+      *map((t) -> "refs/heads/#{t[:name]}", behind)
+    )
+  end
+  filter(
+    (m) -> has_own_commits?(m[:head]),
+    map((t) -> {**t, head: head_of(text, t[:name])}, behind)
+  )
+end
+
+@doc """
+compose: A batch's tree: each land's own commits, in queue order, rebased onto
+main and the lands before it as catch_up rebases one (the merge driver, the
+settled locks), then regenerated once. It works on a detached HEAD and returns to
+the branch, so the branch never moves. Answers `{tip:, stop:}`, stop naming the
+land that does not rebase or the regeneration that failed.
+"""
+def compose(a, b)
+  home = ask(%w[symbolic-ref -q --short HEAD])
+  back = if home == ""
+    ask(%w[rev-parse HEAD])
+  else
+    home
+  end
+  exec_check("git", "checkout", "-q", "--detach", "origin/main")
+  got = reduce(
+    fn(acc, m)
+      if not acc[:stop].nil?
+        acc
+      else
+        stopped = through(
+          a,
+          exec_capture(
+            "git",
+            *append(
+              driver_args,
+              [
+                "rebase",
+                "-q",
+                "--onto",
+                acc[:tip],
+                ask(["merge-base", m[:head], "origin/main"]),
+                m[:head]
+              ]
+            )
+          )
+        )
+        if stopped.nil?
+          {tip: ask(%w[rev-parse HEAD]), stop: nil}
+        else
+          exec_check("git", "rebase", "--abort")
+          {
+            tip: acc[:tip],
+            stop: "#{m[:ref]} does not rebase onto main and the lands before it: #{rebase_stop(stopped[:paths], stopped[:why], stopped[:settling])}"
+          }
+        end
+      end
+    end,
+    {tip: ask(%w[rev-parse origin/main]), stop: nil},
+    b
+  )
+  stop = if got[:stop].nil? and a[:regen]
+    regen_failure
+  else
+    got[:stop]
+  end
+  tip = ask(%w[rev-parse HEAD])
+  exec_check("git", "checkout", "-q", back)
+  {tip:, stop:}
+end
+
+def try_batch(a, b, left, minutes)
+  names = join(map((m) -> m[:ref], b), ", ")
+  home = ref_for(a)
+  wait_turn(home, now_ms + minutes * 60000, false)
+  fetch_main
+  c = compose(a, b)
+  if not c[:stop].nil?
+    say(c[:stop])
+    {verdict: :red, why: c[:stop]}
+  else
+    ref = ref_at(a, c[:tip], "batch-")
+    push_at(ref, c[:tip], ["BLUE_PREPUSH_OFF=1"])
+    found = run_of(ref, c[:tip])
+    older = if found == ""
+      nil
+    else
+      older_than(a, ref, found)
+    end
+    if found == ""
+      {verdict: :halt, why: "no run appeared for #{ref} in a minute"}
+    elsif not older.nil?
+      say(
+        "#{json_get(older, :headBranch)} took the same turn first; stopping run #{found} and trying the batch again behind it"
+      )
+      exec_check("gh", "run", "cancel", found)
+      try_batch(a, b, left, minutes)
+    else
+      say("following run #{found} of #{names}")
+      if wait_run(found, () -> beat(home)) == 0
+        fetch_main
+        {
+          verdict: :green,
+          why: "#{names} landed together in run #{found}; main is #{ask(%w[rev-parse --short origin/main])}"
+        }
+      else
+        jobs = jobs_of(found)
+        fetch_main
+        moved = not exec_ok?(
+          "git",
+          "merge-base",
+          "--is-ancestor",
+          "origin/main",
+          c[:tip]
+        )
+        again = moved_main?(jobs) and (refused_turn?(jobs) or moved)
+        if batch_off?(jobs)
+          {verdict: :halt, why: batch_off}
+        elsif again and left > 0
+          say(
+            "run #{found} of #{names} was refused at the fast-forward or the turn; composing on main again, #{to_s(left - 1)} more after this"
+          )
+          try_batch(a, b, left - 1, minutes)
+        elsif again
+          {
+            verdict: :halt,
+            why: "main moved or the turn was refused on every try of #{names}; --requeue=N allows more"
+          }
+        else
+          {
+            verdict: :red,
+            why: "run #{found} of #{names} is red at #{first_red(jobs) or "the fast-forward"}"
+          }
+        end
+      end
+    end
+  end
+end
+
+def give_verdict(m, landed, why)
+  sha = ask(
+    [
+      "commit-tree",
+      "#{m[:head]}^{tree}",
+      "-p",
+      m[:head],
+      "-m",
+      verdict_text(landed, why)
+    ]
+  )
+  pushed = if sha == ""
+    1
+  else
+    status_of(
+      exec_capture(
+        "env",
+        "BLUE_PREPUSH_OFF=1",
+        "git",
+        "push",
+        "-q",
+        "--force",
+        "origin",
+        "#{sha}:refs/heads/#{verdict_name(m[:name])}"
+      )
+    )
+  end
+  say(
+    "#{m[:ref]} #{if landed
+  "landed"
+else
+  "is blamed"
+end}: #{why}#{if pushed != 0
+  "; its verdict could not be written, so its land waits on"
+else
+  ""
+end}"
+  )
+end
+
+@doc """
+land_batch: LANDING L1, batched lands. The land at the front of the queue tests
+main plus the lands queued behind it (batch_of), in queue order, as one tree
+(compose); green fast-forwards main through all of them. Red halves the batch
+until the land that breaks it is alone (bisect). Each queued land gets its
+verdict on a branch beside its ticket, and its --watch ends with it (wait_turn).
+Off: --no-batch, or the repository variable BLUE_LAND_BATCH=off, which refuses a
+batch at the turn; this land then lands alone.
+"""
+def land_batch(a, ref, members, left, minutes)
+  me = {name: a[:ticket], ref:, head: ask(%w[rev-parse HEAD])}
+  batch = append([me], members)
+  say(
+    "#{to_s(count(members))} land(s) queued behind this one: #{join(map((m) -> m[:ref], members), ", ")}; testing them with it as one tree on main, in queue order; --no-batch lands alone"
+  )
+  done = bisect(batch, nil, (b) -> try_batch(a, b, left, minutes))
+  others = (ms) -> reject((m) -> m[:ref] == ref, ms)
+  map(
+    (m) -> give_verdict(m, true, "landed in the batch #{ref} led"),
+    others(done[:landed])
+  )
+  map(
+    (p) -> give_verdict(first(p), false, retsu::last(p)),
+    reject((p) -> first(p)[:ref] == ref, done[:blamed])
+  )
+  mine = find_first((p) -> first(p)[:ref] == ref, done[:blamed])
+  if done[:halted] == batch_off
+    say(done[:halted])
+    follow(assoc(a, :batch, false), left, minutes)
+  elsif member?(ref, map((m) -> m[:ref], done[:landed]))
+    say(
+      "landed in a batch with #{to_s(count(others(done[:landed])))} other land(s)"
+    )
+    leave(ref, 0)
+  elsif not mine.nil?
+    say("blamed: #{retsu::last(mine)}")
+    leave(ref, 1)
+  else
+    say(
+      "the batch stopped: #{done[:halted]}; #{to_s(count(done[:left]))} land(s) stay queued"
+    )
+    leave(ref, 1)
+  end
+end
+
+def follow(a, left, minutes)
+  settle(a, left, minutes)
+  prove(a)
+  ref = ref_for(a)
+  if batches?(a)
+    members = batch_members(ref, a[:ticket])
+    if members != []
+      land_batch(a, ref, members, left, minutes)
+    end
+  end
+  sha = push_land(ref)
+  found = run_of(ref, sha)
+  if found == ""
+    say("no run appeared in a minute; gh run list --branch #{ref}")
+    exit_with(1)
+  end
+  older = older_than(a, ref, found)
   if not older.nil?
     say(
       "#{json_get(older, :headBranch)} took the same turn first; stopping this run and queueing behind it"
@@ -1324,21 +1942,7 @@ def follow(a, left, minutes)
     if status == 0
       leave(ref, 0)
     end
-    jobs = json_parse(
-      stdout_of(
-        exec_capture(
-          "gh",
-          "run",
-          "view",
-          found,
-          "--json",
-          "jobs",
-          "--jq",
-          "[.jobs[] | {name, conclusion, refused: ([.steps[]? | select(.name == \"#{turn_step}\" and .conclusion == \"failure\")] != [])}]"
-        )
-      )
-    ) rescue
-      []
+    jobs = jobs_of(found)
     fetch_main
     moved = not contains_main?
     turned = refused_turn?(jobs)
@@ -1369,11 +1973,11 @@ def main()
     absorb_release(argv_get(1), argv_get(2), 2)
     exit_with(0)
   end
-  a = land_args(argv)
+  a = assoc(land_args(argv), :batch, not member?("--no-batch", argv))
   unknown = unknown_flag(argv)
   if not unknown.nil?
     say(
-      "#{unknown} is no flag; land takes --dry, --watch, --proven, --no-queue, --no-regen, --no-prose, --requeue=N and --queue-minutes=N"
+      "#{unknown} is no flag; land takes --dry, --watch, --proven, --no-queue, --no-regen, --no-prose, --no-batch, --requeue=N and --queue-minutes=N"
     )
     exit_with(2)
   end
@@ -1389,10 +1993,16 @@ def main()
   end
   fetch_main
   if a[:watch]
-    if a[:queue] and not a[:dry]
-      enqueue(ref_for(a))
+    ticket = if a[:queue] and not a[:dry]
+      ref = ref_for(a)
+      head = if batches?(a)
+        ask(%w[rev-parse HEAD])
+      else
+        ask(%w[rev-parse origin/main])
+      end
+      ticket_name(enqueue(ref, head), ref)
     end
-    follow(a, left, minutes)
+    follow(assoc(a, :ticket, ticket), left, minutes)
   else
     settle(a, left, minutes)
     prove(a)
@@ -2430,6 +3040,335 @@ test "a lock conflict beside a source conflict in one commit stops the land, nam
     assert contains?(stderr_of(r), "beyond what regenerating can settle")
     assert as_tester(work, %w[rev-parse HEAD]) == before
     assert calls_of(root, "cargo") == []
+    rm_rf(root)
+  end
+end
+
+test "a green batch lands whole in one run, and a red one is halved until the land that breaks it is alone and blamed, as LANDING L1 asks"
+  breaks = fn(bad)
+    fn(b)
+      if find_first((x) -> member?(x, bad), b).nil?
+        {verdict: :green, why: ""}
+      else
+        {verdict: :red, why: "#{join(bad, " ")} red with #{join(b, " ")}"}
+      end
+    end
+  end
+  green = bisect(%w[a b c d], nil, breaks([]))
+  assert green[:landed] == %w[a b c d]
+  assert green[:tried] == [%w[a b c d]]
+  c = bisect(%w[a b c d], nil, breaks(["c"]))
+  assert c[:landed] == %w[a b d]
+  assert c[:blamed] == [["c", "c red with c"]]
+  assert c[:tried] == [%w[a b c d], %w[a b], ["c"], ["d"]]
+  d = bisect(%w[a b c d], nil, breaks(["d"]))
+  assert d[:landed] == %w[a b c]
+  assert d[:blamed] == [["d", "d red with a b c d"]]
+  assert d[:tried] == [%w[a b c d], %w[a b], ["c"]]
+  lead = bisect(%w[a b c d], nil, breaks(["a"]))
+  assert lead[:landed] == %w[b c d]
+  assert map((p) -> first(p), lead[:blamed]) == ["a"]
+  assert lead[:tried] == [%w[a b c d], %w[a b], ["a"], ["b"], %w[c d]]
+  two = bisect(%w[a b c d e], nil, breaks(%w[b e]))
+  assert two[:landed] == %w[a c d]
+  assert map((p) -> first(p), two[:blamed]) == %w[b e]
+  assert two[:left] == []
+end
+
+test "a batch that cannot hold a turn stops and leaves its undecided lands queued, and a lone land is the single land it was"
+  stuck = bisect(
+    %w[a b c d],
+    nil,
+    fn(b)
+      if count(b) == 4
+        {verdict: :red, why: "red"}
+      else
+        {verdict: :halt, why: "main moved 3 times"}
+      end
+    end
+  )
+  assert stuck[:landed] == []
+  assert stuck[:blamed] == []
+  assert stuck[:left] == %w[a b c d]
+  assert stuck[:halted] == "main moved 3 times"
+  assert stuck[:tried] == [%w[a b c d], %w[a b]]
+  alone = bisect(["a"], nil, (_b) -> {verdict: :red, why: "run 7 is red"})
+  assert alone[:blamed] == [["a", "run 7 is red"]]
+  assert alone[:tried] == [["a"]]
+  assert halves(%w[a b]) == [["a"], ["b"]]
+end
+
+test "a batch is the lands queued after its leader, in queue order, without a decided ticket, up to its cap"
+  listed = unlines(
+    [
+      "1\trefs/heads/land-queue/20261110140000/lead",
+      "2\trefs/heads/land-queue/20261110130000/older",
+      "3\trefs/heads/land-queue/20261110160000/third",
+      "4\trefs/heads/land-queue/20261110150000/second",
+      "5\trefs/heads/land-queue/20261110155000/decided",
+      "6\trefs/heads/land-verdict/20261110155000/decided"
+    ]
+  )
+  queue = undecided(tickets_of(listed, 0), listed)
+  assert map((t) -> t[:ref], queue) ==
+    %w[land/lead land/older land/third land/second]
+  behind = batch_of(queue, "land/lead", 20_261_110_140_000)
+  assert map((t) -> t[:ref], behind) == %w[land/second land/third]
+  assert head_of(listed, first(behind)[:name]) == "4"
+  many = tickets_of(
+    unlines(
+      map(
+        fn(i)
+          "#{to_s(i)}\trefs/heads/land-queue/#{to_s(20_261_110_150_010 + i)}/l#{to_s(i)}"
+        end,
+        range(12)
+      )
+    ),
+    0
+  )
+  assert count(batch_of(many, "land/lead", 0)) == batch_cap - 1
+  assert waits_behind(queue, "land/lead", 20_261_110_140_000, [], 0)[:ref] ==
+    "land/older"
+  assert map((v) -> v[:ref], verdicts_of(listed)) == ["land/decided"]
+end
+
+test "a verdict is read back as it was written, so a blamed land's watch exits with the reason"
+  red = verdict_of(
+    verdict_text(false, "run 42 is red at ci / check / cargo-test")
+  )
+  assert not red[:landed]
+  assert red[:why] == "run 42 is red at ci / check / cargo-test"
+  assert verdict_of(verdict_text(true, "main is 1234567"))[:landed]
+  assert verdict_of("").nil?
+  assert batch_ref?(land_ref(scoped_slug("batch-x", "prose"), false))
+  assert not batch_ref?(land_ref(scoped_slug("x", "whole"), false))
+end
+
+def batch_gh(root, on_list)
+  bin = path_join(root, "batch-bin")
+  mkdir_p(bin)
+  write_program(
+    path_join(root, "batch-gh.b"),
+    unlines(
+      retsu::concat_lists(
+        retsu::concat_lists(
+          [
+            "use(\"shisutemu\", %i[status_of stdout_of])",
+            "log = \"#{root}/gh.log\"",
+            "prior = if path_exists(log)",
+            "  read_file(log)",
+            "else",
+            "  \"\"",
+            "end",
+            "args = join(argv, \" \")",
+            "write_file(log, join([prior, unlines([args])], \"\"))",
+            "if contains?(args, \"auto-release.yml\")",
+            "  write_stdout(\"[]\")",
+            "elsif contains?(args, \"land.yml --limit\")"
+          ],
+          on_list
+        ),
+        [
+          "  write_stdout(\"[]\")",
+          "elsif contains?(args, \"--branch\")",
+          "  id = 100 + count(filter((l) -> contains?(l, \"--branch\"), split(prior, line_break)))",
+          "  write_file(concat(\"#{root}/run-\", to_s(id)), argv_get(7))",
+          "  write_stdout(to_s(id))",
+          "elsif contains?(args, \"status,conclusion\")",
+          "  sha = read_file(concat(\"#{root}/run-\", argv_get(2)))",
+          "  red = status_of(exec_capture(\"git\", \"-C\", \"#{root}/origin.git\", \"cat-file\", \"-e\", concat(sha, \":breaks.txt\"))) == 0",
+          "  write_stdout(if red",
+          "    \"{\\\"status\\\":\\\"completed\\\",\\\"conclusion\\\":\\\"failure\\\"}\"",
+          "  else",
+          "    \"{\\\"status\\\":\\\"completed\\\",\\\"conclusion\\\":\\\"success\\\"}\"",
+          "  end)",
+          "elsif contains?(args, \"--json jobs\")",
+          "  write_stdout(\"[{\\\"name\\\":\\\"ci / check / cargo-test\\\",\\\"conclusion\\\":\\\"failure\\\",\\\"refused\\\":false,\\\"off\\\":false}]\")",
+          "end"
+        ]
+      )
+    )
+  )
+  script(
+    path_join(bin, "gh"),
+    unlines(
+      ["#!/bin/sh", "exec #{self_exe} run --quiet #{root}/batch-gh.b -- \"$@\""]
+    )
+  )
+  bin
+end
+
+def queued(root, branch, files, at)
+  work = path_join(root, "work")
+  as_tester(work, ["checkout", "-q", "-b", branch, "main"])
+  committed(work, files, branch)
+  name = ticket_name(at, "land/#{branch}")
+  as_tester(work, ["push", "-q", "origin", "HEAD:refs/heads/#{name}"])
+  as_tester(work, %w[checkout -q topic])
+  name
+end
+
+def recently(seconds)
+  stamp(rfc3339_of_ms(now_ms - seconds * 1000))
+end
+
+def watched(root, bin, flags)
+  land_with(["PATH=#{bin}:#{getenv("PATH")}"], root, append(["--watch"], flags))
+end
+
+def branch_calls(root)
+  filter(
+    (l) -> contains?(l, "--branch"),
+    moji::lines(read_file(path_join(root, "gh.log")))
+  )
+end
+
+def remote_message(work, name)
+  as_tester(work, ["fetch", "-q", "origin", "refs/heads/#{name}"])
+  as_tester(work, %w[log -1 --format=%B FETCH_HEAD])
+end
+
+test "the land at the front of the queue tests the land queued behind it with it as one tree, and a green run lands both and tells the other its verdict"
+  if self_exe != nil
+    root = landing_fixture
+    work = path_join(root, "work")
+    committed(work, [%w[other.txt other]], "topic")
+    lead = ticket_name(recently(120), "land/topic")
+    as_tester(work, ["push", "-q", "origin", "HEAD:refs/heads/#{lead}"])
+    member = queued(root, "member", [%w[member.txt member]], recently(60))
+    r = watched(root, batch_gh(root, []), [])
+    assert status_of(r) == 0
+    assert contains?(
+      stderr_of(r),
+      "1 land(s) queued behind this one: land/member"
+    )
+    as_tester(work, %w[fetch -q origin])
+    assert as_tester(
+      work,
+      %w[
+        log
+        --format=%s
+        refs/remotes/origin/main..refs/remotes/origin/land/batch-topic
+      ]
+    ) == join(%w[member topic], line_break)
+    assert count(branch_calls(root)) == 1
+    assert starts_with?(
+      remote_message(work, verdict_name(member)),
+      "land verdict: landed"
+    )
+    assert as_tester(work, ["ls-remote", "origin", "refs/heads/#{lead}"]) == ""
+    assert as_tester(work, ["ls-remote", "origin", "refs/heads/#{member}"]) !=
+      ""
+    rm_rf(root)
+  end
+end
+
+test "a red batch is halved: the leader lands alone and the land that breaks it is blamed without a run of its own, and --no-batch takes no one"
+  if self_exe != nil
+    root = landing_fixture
+    work = path_join(root, "work")
+    committed(work, [%w[other.txt other]], "topic")
+    lead = ticket_name(recently(120), "land/topic")
+    as_tester(work, ["push", "-q", "origin", "HEAD:refs/heads/#{lead}"])
+    member = queued(root, "member", [%w[breaks.txt red]], recently(60))
+    bin = batch_gh(root, [])
+    r = watched(root, bin, [])
+    assert status_of(r) == 0
+    assert count(branch_calls(root)) == 2
+    as_tester(work, %w[fetch -q origin])
+    assert as_tester(
+      work,
+      %w[
+        log
+        --format=%s
+        refs/remotes/origin/main..refs/remotes/origin/land/batch-topic
+      ]
+    ) == "topic"
+    said = remote_message(work, verdict_name(member))
+    assert starts_with?(said, "land verdict: red")
+    assert contains?(said, "is red at ci / check / cargo-test")
+    rm_rf(root)
+    root = landing_fixture
+    work = path_join(root, "work")
+    committed(work, [%w[other.txt other]], "topic")
+    lead = ticket_name(recently(120), "land/topic")
+    as_tester(work, ["push", "-q", "origin", "HEAD:refs/heads/#{lead}"])
+    member = queued(root, "member", [%w[member.txt member]], recently(60))
+    alone = watched(root, batch_gh(root, []), ["--no-batch"])
+    assert status_of(alone) == 0
+    assert map(
+      (l) -> contains?(l, "--branch land/topic"),
+      branch_calls(root)
+    ) == [true]
+    assert as_tester(
+      work,
+      ["ls-remote", "origin", "refs/heads/#{verdict_name(member)}"]
+    ) == ""
+    rm_rf(root)
+  end
+end
+
+test "a queued land whose batch blamed it ends its watch with the reason and leaves the queue, and never pushes a land of its own"
+  if self_exe != nil
+    root = landing_fixture
+    work = path_join(root, "work")
+    committed(work, [%w[other.txt other]], "topic")
+    head = as_tester(work, %w[rev-parse HEAD])
+    mine = ticket_name(recently(60), "land/topic")
+    as_tester(work, ["push", "-q", "origin", "HEAD:refs/heads/#{mine}"])
+    writes = [
+      "  if not path_exists(\"#{root}/verdict-written\")",
+      "    write_file(\"#{root}/verdict-written\", \"\")",
+      "    sha = trim(stdout_of(exec_capture(\"git\", \"-C\", \"#{work}\", \"commit-tree\", \"#{head}^{tree}\", \"-p\", \"#{head}\", \"-m\", \"land verdict: red\", \"-m\", \"run 7 is red at ci / check / cargo-test\")))",
+      "    exec_capture(\"git\", \"-C\", \"#{work}\", \"push\", \"-q\", \"origin\", concat(sha, \":refs/heads/#{verdict_name(mine)}\"))",
+      "  end"
+    ]
+    r = watched(root, batch_gh(root, writes), [])
+    assert status_of(r) == 1
+    assert contains?(stderr_of(r), "run 7 is red at ci / check / cargo-test")
+    assert as_tester(
+      work,
+      %w[ls-remote origin refs/heads/land-queue/* refs/heads/land-verdict/*]
+    ) == ""
+    assert as_tester(work, %w[ls-remote origin refs/heads/land/topic]) == ""
+    rm_rf(root)
+  end
+end
+
+test "land.yml refuses a batch at a step of its own while BLUE_LAND_BATCH is off, before the turn, and both turns read the variable"
+  land = source(".github/workflows/land.yml")
+  ci = source(".github/workflows/ci.yml")
+  assert contains?(land, "name: #{batch_off_step}")
+  assert length(before_first(land, "name: #{batch_off_step}")) <
+    length(before_first(land, "name: #{turn_step}"))
+  assert contains?(land, "BLUE_LAND_BATCH: ${{ vars.BLUE_LAND_BATCH }}")
+  assert contains?(ci, "BLUE_LAND_BATCH: ${{ vars.BLUE_LAND_BATCH }}")
+end
+
+test "the turn refuses a batch while BLUE_LAND_BATCH is off and holds the same land when it is not a batch"
+  if self_exe != nil
+    root = landing_fixture
+    work = path_join(root, "work")
+    committed(work, [%w[other.txt other]], "topic")
+    free = fake_runs_gh(root, "[]", "[]")
+    turn = fn(ref)
+      exec_capture(
+        "env",
+        "-u",
+        "GEN_ROOT",
+        "-C",
+        work,
+        "PATH=#{free}:#{getenv("PATH")}",
+        "BLUE_LAND_BATCH=off",
+        *flatten_args(
+          ["--turn", "100", ref, as_tester(work, %w[rev-parse HEAD])]
+        )
+      )
+    end
+    off = turn("land/batch-topic")
+    assert stdout_of(off) == "false"
+    assert contains?(stderr_of(off), "batching is off")
+    assert stdout_of(turn("land/topic")) == "true"
     rm_rf(root)
   end
 end

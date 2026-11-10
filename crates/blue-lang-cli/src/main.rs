@@ -636,25 +636,8 @@ fn main() -> ExitCode {
 }
 
 struct CheckTier {
-    root: PathBuf,
-    identity: blue_lang_mondou::store::Identity,
-    store: std::sync::OnceLock<Option<blue_lang_mondou::store::Store>>,
+    store: blue_lang_mondou::store::Store,
     wrote: std::sync::atomic::AtomicBool,
-}
-
-impl CheckTier {
-    fn store(&self) -> Option<&blue_lang_mondou::store::Store> {
-        self.store
-            .get_or_init(|| {
-                blue_lang_mondou::store::Store::open(
-                    &self.root,
-                    self.identity,
-                    blue_lang_mondou::store::DEFAULT_MAX_BYTES,
-                )
-                .ok()
-            })
-            .as_ref()
-    }
 }
 
 impl blue_lang_runtime::check_cache::CheckStore for CheckTier {
@@ -662,9 +645,14 @@ impl blue_lang_runtime::check_cache::CheckStore for CheckTier {
         &self,
         bucket: &blue_lang_runtime::def_hash::DefHash,
     ) -> std::collections::HashMap<[u8; 32], Vec<u8>> {
-        self.store()
-            .map(|s| blue_lang_runtime::check_cache::CheckStore::load(s, bucket))
-            .unwrap_or_default()
+        let read = self.store.load(bucket);
+        if read.shared > 0 {
+            self.wrote.store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+        read.entries
+            .into_iter()
+            .map(|(k, s)| (k, s.value))
+            .collect()
     }
 
     fn append(
@@ -672,41 +660,38 @@ impl blue_lang_runtime::check_cache::CheckStore for CheckTier {
         bucket: &blue_lang_runtime::def_hash::DefHash,
         entries: &[([u8; 32], Vec<u8>)],
     ) {
-        if let Some(store) = self.store() {
-            self.wrote.store(true, std::sync::atomic::Ordering::Relaxed);
-            blue_lang_runtime::check_cache::CheckStore::append(store, bucket, entries);
-        }
+        self.wrote.store(true, std::sync::atomic::Ordering::Relaxed);
+        blue_lang_runtime::check_cache::CheckStore::append(&self.store, bucket, entries);
     }
 }
 
-static CHECK_TIER: std::sync::OnceLock<CheckTier> = std::sync::OnceLock::new();
+static CHECK_TIER: std::sync::OnceLock<Option<CheckTier>> = std::sync::OnceLock::new();
 
 fn install_check_cache(no_cache: bool) -> Result<(), CliError> {
     use blue_lang_runtime::check_cache;
     let on = check_cache::enabled(std::env::var(check_cache::ENV).ok().as_deref())
         .map_err(CliError::Pkg)?;
-    let Some(root) = blue_lang_mondou::store::check_root().filter(|_| on && !no_cache) else {
+    if !on || no_cache {
         return Ok(());
-    };
-    let identity = blue_lang_mondou::store::Identity::of_this_build();
-    let tier = CHECK_TIER.get_or_init(|| CheckTier {
-        root,
-        identity,
-        store: std::sync::OnceLock::new(),
-        wrote: std::sync::atomic::AtomicBool::new(false),
+    }
+    let tier = CHECK_TIER.get_or_init(|| {
+        blue_lang_mondou::store::open_tier("check").map(|store| CheckTier {
+            store,
+            wrote: std::sync::atomic::AtomicBool::new(false),
+        })
     });
-    check_cache::install(tier, identity.0);
+    if let Some(tier) = tier {
+        check_cache::install(tier, tier.store.identity().0);
+    }
     Ok(())
 }
 
 fn evict_check_cache() {
-    let Some(tier) = CHECK_TIER.get() else {
+    let Some(Some(tier)) = CHECK_TIER.get() else {
         return;
     };
     if tier.wrote.load(std::sync::atomic::Ordering::Relaxed) {
-        if let Some(store) = tier.store() {
-            let _ = store.evict();
-        }
+        let _ = tier.store.evict();
     }
 }
 

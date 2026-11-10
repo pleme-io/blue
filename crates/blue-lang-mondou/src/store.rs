@@ -67,15 +67,25 @@ pub struct Identity(pub [u8; 32]);
 
 impl Identity {
     /// The store format, this crate's version (the workspace's), and the
-    /// executable running now: its path, size and modification time. The
-    /// last is what a rebuild changes, and a nix store path names its build.
+    /// BLAKE3 of the executable running now. Two nodes running the same
+    /// bytes share an identity wherever the file sits, so an entry one
+    /// computed is served on the other; a rebuild that changes one byte
+    /// moves it. The hash is kept beside the cache under a stamp of the
+    /// file ([`executable_hash`]); an executable that cannot be read falls
+    /// back to its path, size and modification time.
     #[must_use]
     pub fn of_this_build() -> Self {
         let exe = std::env::current_exe().ok();
-        let meta = exe.as_deref().and_then(|p| std::fs::metadata(p).ok());
         let canonical = exe
             .as_deref()
             .map(|p| std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf()));
+        if let Some(content) = canonical
+            .as_deref()
+            .and_then(|p| executable_hash(p, cache_root().map(|r| r.join("engine")).as_deref()))
+        {
+            return Self::of_executable_bytes(&content);
+        }
+        let meta = canonical.as_deref().and_then(|p| std::fs::metadata(p).ok());
         let mtime = meta
             .as_ref()
             .and_then(|m| m.modified().ok())
@@ -93,6 +103,19 @@ impl Identity {
         Self::from_parts(&parts.iter().map(Vec::as_slice).collect::<Vec<_>>())
     }
 
+    /// The identity of an executable whose bytes hash to `content`
+    /// ([`executable_hash`]): the store format, this crate's version and
+    /// that hash, and nothing about where the file sits.
+    #[must_use]
+    pub fn of_executable_bytes(content: &[u8; 32]) -> Self {
+        Self::from_parts(&[
+            &FORMAT.to_le_bytes(),
+            env!("CARGO_PKG_VERSION").as_bytes(),
+            b"b3",
+            content,
+        ])
+    }
+
     /// An identity from explicit parts, each length-prefixed.
     #[must_use]
     pub fn from_parts(parts: &[&[u8]]) -> Self {
@@ -107,6 +130,90 @@ impl Identity {
     fn dir_name(&self) -> String {
         format!("v{FORMAT}-{}", DefHash(self.0).hex())
     }
+}
+
+/// The BLAKE3 of the file at `path`. With `stamps`, the hash is kept there
+/// under a stamp of the file (its path, length, inode, device, and its
+/// modification and change times, the last of which no caller can set), so
+/// the bytes are read once per build, not once per run. A stamp that cannot
+/// be read or written costs a re-hash, never a wrong answer.
+#[must_use]
+pub fn executable_hash(path: &Path, stamps: Option<&Path>) -> Option<[u8; 32]> {
+    let meta = std::fs::metadata(path).ok()?;
+    let stamp = stamps.map(|dir| dir.join(DefHash(file_stamp(path, &meta)).hex()));
+    if let Some(kept) = stamp
+        .as_deref()
+        .and_then(|s| std::fs::read(s).ok())
+        .and_then(|b| <[u8; 32]>::try_from(b.as_slice()).ok())
+    {
+        return Some(kept);
+    }
+    let mut h = blake3::Hasher::new();
+    h.update_reader(File::open(path).ok()?).ok()?;
+    let content = *h.finalize().as_bytes();
+    if let Some(stamp) = stamp {
+        let _ = keep_stamp(&stamp, &content);
+    }
+    Some(content)
+}
+
+fn file_stamp(path: &Path, meta: &std::fs::Metadata) -> [u8; 32] {
+    let nanos = |t: std::io::Result<SystemTime>| {
+        t.ok()
+            .and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok())
+            .map_or(0, |d| d.as_nanos())
+    };
+    let mut h = blake3::Hasher::new_derive_key("blue engine stamp v1");
+    let p = path.to_string_lossy();
+    h.update(&(p.len() as u64).to_le_bytes());
+    h.update(p.as_bytes());
+    h.update(&meta.len().to_le_bytes());
+    h.update(&nanos(meta.modified()).to_le_bytes());
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        h.update(&meta.ino().to_le_bytes());
+        h.update(&meta.dev().to_le_bytes());
+        h.update(&meta.ctime().to_le_bytes());
+        h.update(&meta.ctime_nsec().to_le_bytes());
+    }
+    *h.finalize().as_bytes()
+}
+
+fn keep_stamp(stamp: &Path, content: &[u8; 32]) -> std::io::Result<()> {
+    let dir = stamp.parent().unwrap_or(Path::new("."));
+    std::fs::create_dir_all(dir)?;
+    let tmp = dir.join(format!(
+        ".{}.{}",
+        std::process::id(),
+        DefHash(*content).hex()
+    ));
+    std::fs::write(&tmp, content)?;
+    std::fs::rename(&tmp, stamp)
+}
+
+/// The variable naming read-only cache roots shared with this node: a
+/// colon-separated list of directories laid out as [`cache_root`] is
+/// (`check/`, `memo/`, `test/`), such as a bidama's analysis from nix.
+pub const SHARED_ENV: &str = "BLUE_CACHE_SHARED";
+
+/// The shared roots of one tier: each absolute directory `BLUE_CACHE_SHARED`
+/// names, joined with `tier` (`check`, `memo`, `test`).
+#[must_use]
+pub fn shared_roots(tier: &str) -> Vec<PathBuf> {
+    shared_roots_in(std::env::var_os(SHARED_ENV).as_deref(), tier)
+}
+
+#[must_use]
+pub fn shared_roots_in(value: Option<&std::ffi::OsStr>, tier: &str) -> Vec<PathBuf> {
+    value
+        .map(|v| {
+            std::env::split_paths(v)
+                .filter(|p| p.is_absolute())
+                .map(|p| p.join(tier))
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// blue's cache directory: `$XDG_CACHE_HOME/blue`, else `$HOME/.cache/blue`.
@@ -134,6 +241,20 @@ pub fn default_root() -> Option<PathBuf> {
 #[must_use]
 pub fn check_root() -> Option<PathBuf> {
     Some(cache_root()?.join("check"))
+}
+
+/// One tier of blue's cache (`check`, `memo`, `test`) for this build:
+/// [`cache_root`]`/<tier>` under [`Identity::of_this_build`], falling through
+/// to the same tier of every root `BLUE_CACHE_SHARED` names. `None` when the
+/// directory cannot be created (a read-only home, a build sandbox), and then
+/// the executable is never hashed.
+#[must_use]
+pub fn open_tier(tier: &str) -> Option<Store> {
+    let root = cache_root()?.join(tier);
+    std::fs::create_dir_all(&root).ok()?;
+    Store::open(&root, Identity::of_this_build(), DEFAULT_MAX_BYTES)
+        .ok()
+        .map(|s| s.sharing(&shared_roots(tier)))
 }
 
 impl blue_lang_runtime::check_cache::CheckStore for Store {
@@ -167,6 +288,9 @@ pub struct Stored {
 #[derive(Debug, Default)]
 pub struct Bucket {
     pub entries: HashMap<[u8; 32], Stored>,
+    /// Entries read from a shared root and absent here; [`Store::load`]
+    /// copies them into this node's store.
+    pub shared: usize,
     /// Entries skipped because their checksum failed or their length ran
     /// past the end, and headers that did not match.
     pub damaged: usize,
@@ -178,6 +302,7 @@ pub struct Store {
     dir: PathBuf,
     identity: Identity,
     max_bytes: u64,
+    shared: Vec<PathBuf>,
 }
 
 impl Store {
@@ -194,12 +319,33 @@ impl Store {
             dir,
             identity,
             max_bytes,
+            shared: Vec::new(),
         })
+    }
+
+    /// This store, falling through to `roots` on a miss: read-only roots laid
+    /// out as this one's, each read under this store's identity only. A
+    /// shared entry is copied here when read, so the next run finds it
+    /// locally. A root that is this store's own is skipped.
+    #[must_use]
+    pub fn sharing(mut self, roots: &[PathBuf]) -> Self {
+        let own = std::fs::canonicalize(&self.root).unwrap_or_else(|_| self.root.clone());
+        self.shared = roots
+            .iter()
+            .filter(|r| std::fs::canonicalize(r).map_or(true, |c| c != own))
+            .map(|r| r.join(self.identity.dir_name()))
+            .collect();
+        self
     }
 
     #[must_use]
     pub fn dir(&self) -> &Path {
         &self.dir
+    }
+
+    #[must_use]
+    pub fn identity(&self) -> Identity {
+        self.identity
     }
 
     fn path(&self, bucket: &DefHash) -> PathBuf {
@@ -220,13 +366,34 @@ impl Store {
     #[must_use]
     pub fn load(&self, bucket: &DefHash) -> Bucket {
         let path = self.path(bucket);
-        let Ok(bytes) = std::fs::read(&path) else {
-            return Bucket::default();
+        let mut out = match std::fs::read(&path) {
+            Ok(bytes) => {
+                if let Ok(f) = OpenOptions::new().write(true).open(&path) {
+                    let _ = f.set_modified(SystemTime::now());
+                }
+                self.parse(bucket, &bytes)
+            }
+            Err(_) => Bucket::default(),
         };
-        if let Ok(f) = OpenOptions::new().write(true).open(&path) {
-            let _ = f.set_modified(SystemTime::now());
+        let mut promote = Vec::new();
+        for dir in &self.shared {
+            let Ok(bytes) = std::fs::read(dir.join(bucket.hex())) else {
+                continue;
+            };
+            let read = self.parse(bucket, &bytes);
+            out.damaged += read.damaged;
+            for (key, stored) in read.entries {
+                if !out.entries.contains_key(&key) {
+                    promote.push((key, stored.cost, stored.value.clone()));
+                    out.entries.insert(key, stored);
+                }
+            }
         }
-        self.parse(bucket, &bytes)
+        out.shared = promote.len();
+        if !promote.is_empty() {
+            let _ = self.append(bucket, &promote);
+        }
+        out
     }
 
     fn parse(&self, bucket: &DefHash, bytes: &[u8]) -> Bucket {
@@ -525,6 +692,85 @@ mod tests {
         );
         assert!(store.path(&DefHash([39; 32])).exists(), "the newest stays");
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_shared_root_answers_a_miss_and_the_entry_is_copied_here() {
+        let root = temp("shared-local");
+        let other = temp("shared-other");
+        let id = Identity::from_parts(&[b"a"]);
+        let bucket = DefHash([9; 32]);
+        Store::open(&other, id, DEFAULT_MAX_BYTES)
+            .expect("opens")
+            .append(&bucket, &[entry(1, b"one"), entry(2, b"two")])
+            .expect("writes");
+        let local = Store::open(&root, id, DEFAULT_MAX_BYTES).expect("opens");
+        local.append(&bucket, &[entry(2, b"mine")]).expect("writes");
+        let sharing = Store::open(&root, id, DEFAULT_MAX_BYTES)
+            .expect("opens")
+            .sharing(&[other.clone()]);
+        let b = sharing.load(&bucket);
+        assert_eq!((b.entries.len(), b.shared), (2, 1));
+        assert_eq!(b.entries[&[2; 32]].value, b"mine");
+        assert_eq!(b.entries[&[1; 32]].value, b"one");
+        let _ = std::fs::remove_dir_all(&other);
+        let alone = Store::open(&root, id, DEFAULT_MAX_BYTES).expect("opens");
+        let b = alone.load(&bucket);
+        assert_eq!((b.entries.len(), b.shared), (2, 0));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_shared_root_under_another_identity_answers_nothing() {
+        let root = temp("shared-id-local");
+        let other = temp("shared-id-other");
+        let bucket = DefHash([9; 32]);
+        let theirs =
+            Store::open(&other, Identity::from_parts(&[b"b"]), DEFAULT_MAX_BYTES).expect("opens");
+        theirs.append(&bucket, &[entry(1, b"one")]).expect("writes");
+        let id = Identity::from_parts(&[b"a"]);
+        let planted = other.join(id.dir_name());
+        std::fs::create_dir_all(&planted).expect("dir");
+        std::fs::copy(theirs.path(&bucket), planted.join(bucket.hex())).expect("copies");
+        let mine = Store::open(&root, id, DEFAULT_MAX_BYTES)
+            .expect("opens")
+            .sharing(&[other.clone()]);
+        let b = mine.load(&bucket);
+        assert!(b.entries.is_empty());
+        assert_eq!(b.damaged, 1);
+        let _ = std::fs::remove_dir_all(&root);
+        let _ = std::fs::remove_dir_all(&other);
+    }
+
+    #[test]
+    fn one_executable_is_one_identity_wherever_it_sits_and_one_byte_moves_it() {
+        let dir = temp("exe");
+        let stamps = dir.join("stamps");
+        std::fs::create_dir_all(&dir).expect("dir");
+        let a = dir.join("a");
+        let b = dir.join("b");
+        std::fs::write(&a, b"the same engine").expect("writes");
+        std::fs::write(&b, b"the same engine").expect("writes");
+        let ha = executable_hash(&a, Some(&stamps)).expect("hashes");
+        assert_eq!(ha, *blake3::hash(b"the same engine").as_bytes());
+        assert_eq!(executable_hash(&b, Some(&stamps)), Some(ha));
+        assert_eq!(executable_hash(&a, Some(&stamps)), Some(ha));
+        assert_eq!(std::fs::read_dir(&stamps).expect("stamps").count(), 2);
+        std::fs::write(&b, b"the same enginf").expect("rewrites");
+        let hb = executable_hash(&b, Some(&stamps)).expect("hashes");
+        assert_ne!(hb, ha);
+        assert!(Identity::of_executable_bytes(&hb) != Identity::of_executable_bytes(&ha));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_shared_roots_are_the_absolute_directories_named() {
+        let v = std::ffi::OsString::from("/a/blue:relative:/b");
+        assert_eq!(
+            shared_roots_in(Some(&v), "check"),
+            vec![PathBuf::from("/a/blue/check"), PathBuf::from("/b/check")]
+        );
+        assert!(shared_roots_in(None, "memo").is_empty());
     }
 
     #[test]

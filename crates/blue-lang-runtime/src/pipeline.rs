@@ -1717,12 +1717,7 @@ fn resolve_keys(
             let owner = program.owner_of(i);
             let bucket = *buckets.entry(owner).or_insert_with(|| {
                 let file = owner.and_then(|id| program.file(id));
-                let label = file.map_or_else(String::new, |f| {
-                    f.path.as_ref().map_or_else(
-                        || f.package.clone().unwrap_or_default(),
-                        |p| p.display().to_string(),
-                    )
-                });
+                let label = file.map_or_else(String::new, bucket_label);
                 crate::def_hash::DefHash(digest(&[b"bucket", fingerprint, label.as_bytes()]))
             });
             let ns = format!("{:?}", namespace_of(program, i));
@@ -1738,6 +1733,19 @@ fn resolve_keys(
             (key, bucket)
         })
         .collect()
+}
+
+fn bucket_label(f: &crate::uses::SourceFile) -> String {
+    match (&f.package, &f.path) {
+        (Some(package), Some(path)) => format!(
+            "{package}/{}",
+            path.file_name()
+                .map_or_else(String::new, |n| n.to_string_lossy().into_owned())
+        ),
+        (Some(package), None) => package.clone(),
+        (None, Some(path)) => path.display().to_string(),
+        (None, None) => String::new(),
+    }
 }
 
 fn resolve_in(

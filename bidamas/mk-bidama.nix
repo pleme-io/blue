@@ -164,9 +164,9 @@ rec {
   # `form` is BLUE_FORM: "none" in the build, which judges meaning only,
   # because a consumer's blue may build a producer's bidama; "own" in the
   # producer's form check.
-  checkStep = { blue, name, src, bluePath, form ? "none" }: ''
+  checkStep = { blue, name, src, bluePath, form ? "none", keep ? null }: ''
       for f in ${src}/*.b; do
-        if ! BLUE_FORM=${form} BLUE_PATH=${bluePath} ${blue} check "$f" > check.log 2>&1; then
+        if ! ${lib.optionalString (keep != null) "XDG_CACHE_HOME=${keep} "}BLUE_FORM=${form} BLUE_PATH=${bluePath} ${blue} check "$f" > check.log 2>&1; then
           cat check.log >&2
           echo "bidama ${name}: the check stage refuses $f (above); a bidama that does not check does not build" >&2
           exit 1
@@ -205,6 +205,7 @@ rec {
     runCommand "bidama-${name}-${version}"
       {
         inherit version;
+        outputs = [ "out" "analysis" ];
         buildInputs = resolved;
         passthru = {
           bidamaDeps = deps;
@@ -249,6 +250,19 @@ rec {
       ${lib.concatMapStringsSep "\n"
           (d: ''echo "${d}" >> $out/${name}/.bidama-deps'')
           (map toString resolved)}
+
+      # The analysis output (HORIZON H3 rung 2): the check above, run again
+      # from a distribution laid out as a consumer's (real directories,
+      # files linked to their store paths), keeping its check store. A key
+      # holds which file sits under which root, so only this layout's
+      # entries are the ones the installed blue asks for.
+      mkdir -p $TMPDIR/dist $analysis
+      cp -rs $out/${name} $TMPDIR/dist/${name}
+      ${lib.concatMapStringsSep "\n" (d: "cp -rs ${all.${d}}/${d} $TMPDIR/dist/${d}") closure}
+      ${checkStep { blue = fmt; inherit name; src = "$TMPDIR/dist/${name}"; bluePath = "$TMPDIR/dist"; keep = "$TMPDIR/blue-cache"; }}
+      if [ -d $TMPDIR/blue-cache/blue/check ]; then
+        cp -r $TMPDIR/blue-cache/blue/check $analysis/check
+      fi
     '';
 
   # A single `BLUE_PATH` root containing the given bidamas.
@@ -295,7 +309,15 @@ rec {
   # `bin` names the executable (a project's runner is its own name, so it can
   # sit on a PATH beside `blue`), and `tools` are appended to PATH — appended,
   # so a node's own copy of a tool wins over the pinned one.
-  mkBlueWithBidamas = { blue, bidamas, name ? "blue-with-bidamas", bin ? "blue", tools ? [ ] }:
+  mkAnalysis = { bidamas, name ? "blue-analysis" }:
+    assert lib.assertMsg (symlinkJoin != null)
+      "mkAnalysis needs symlinkJoin; pass the full pkgs set";
+    symlinkJoin {
+      inherit name;
+      paths = lib.concatMap (b: lib.optional (b ? analysis) b.analysis) (lib.attrValues bidamas);
+    };
+
+  mkBlueWithBidamas = { blue, bidamas, name ? "blue-with-bidamas", bin ? "blue", tools ? [ ], analysis ? true }:
     assert wrapperGiven "mkBlueWithBidamas";
     let distribution = mkBluePath { inherit bidamas; }; in
     runCommand name {
@@ -306,6 +328,7 @@ rec {
       mkdir -p $out/bin
       ${wrapper.fn} ${blue}/bin/blue $out/bin/${bin} ${lib.concatStringsSep " " (
         [ ''--suffix BLUE_DIST : "${distribution}"'' ]
+        ++ lib.optional analysis ''--suffix BLUE_CACHE_SHARED : "${mkAnalysis { inherit bidamas; }}"''
         ++ lib.optional (tools != [ ]) ''--suffix PATH : "${lib.makeBinPath tools}"''
       )}
     '';

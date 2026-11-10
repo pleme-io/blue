@@ -2,7 +2,7 @@
   "schema_version": 2,
   "cargo_lock_sha256": "8a13732e96e56aeb9fc506f0023edbc22e51feda19650c6a86483dd0390481b6",
   "manifest_sha256": {
-    "Cargo.toml": "5da59ed77f466053d413f39a3065755ed544b2d4fdb317ce84f2bd93e577592d",
+    "Cargo.toml": "14390d75c158dfeee9d2830550b15b056b6bc5735bbaf94b6be3864aa1fcd890",
     "crates/blue-lang-appliance/Cargo.toml": "72da422691d14356450606a218eed12ed6a26ed3a23c64116dc3ef8546937526",
     "crates/blue-lang-art/Cargo.toml": "f6721f78c76a94d4915a455675cd05889176a43212494c53aa8a01dfc9dfe5ee",
     "crates/blue-lang-bidama/Cargo.toml": "7b29108c8c3d40b5cbaf9f427c4f0a0ace1e5b49e02bd7448dcb53d3ee91337f",

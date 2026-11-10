@@ -45,6 +45,25 @@ impl DefHash {
         }
         s
     }
+
+    /// The hash whose [`DefHash::hex`] is `hex`; `None` for anything else.
+    #[must_use]
+    pub fn from_hex(hex: &str) -> Option<Self> {
+        let digits = hex.as_bytes();
+        if digits.len() != 64 {
+            return None;
+        }
+        let nibble = |c: u8| match c {
+            b'0'..=b'9' => Some(c - b'0'),
+            b'a'..=b'f' => Some(c - b'a' + 10),
+            _ => None,
+        };
+        let mut out = [0u8; 32];
+        for (i, pair) in digits.chunks(2).enumerate() {
+            out[i] = (nibble(pair[0])? << 4) | nibble(pair[1])?;
+        }
+        Some(Self(out))
+    }
 }
 
 impl std::fmt::Display for DefHash {
@@ -923,4 +942,18 @@ fn numbered(node: &Spanned, pass: &Numbering) -> Spanned {
         other => other.clone(),
     };
     Spanned::new(node.span, form)
+}
+
+#[cfg(test)]
+mod hex_tests {
+    use super::DefHash;
+
+    #[test]
+    fn a_hash_reads_back_from_its_hex_and_nothing_else_does() {
+        let h = DefHash(*blake3::hash(b"x").as_bytes());
+        assert_eq!(DefHash::from_hex(&h.hex()), Some(h));
+        assert_eq!(DefHash::from_hex(&h.hex()[1..]), None);
+        assert_eq!(DefHash::from_hex(&h.hex().to_uppercase()), None);
+        assert_eq!(DefHash::from_hex(&"g".repeat(64)), None);
+    }
 }

@@ -1,9 +1,8 @@
 use std::collections::HashSet;
-use std::io::Write as _;
-use std::path::PathBuf;
+use std::time::Duration;
 
 use blue_lang_mondou::def_hash::{DefHash, TestIdentities};
-use blue_lang_mondou::store::{self, Identity};
+use blue_lang_mondou::store::{self, Identity, Store};
 
 pub(crate) const ENV: &str = "BLUE_TEST_CACHE";
 
@@ -16,8 +15,8 @@ pub(crate) fn parse(value: &str) -> Option<bool> {
 }
 
 pub(crate) struct TestCache {
-    file: PathBuf,
-    build: Identity,
+    store: Store,
+    bucket: DefHash,
     passed: HashSet<String>,
 }
 
@@ -31,21 +30,19 @@ impl TestCache {
         if !on || no_cache || reports_what_ran {
             return Ok(None);
         }
-        let Some(root) = store::cache_root() else {
+        let Some(store) = store::open_tier("test") else {
             return Ok(None);
         };
-        let build = Identity::of_this_build();
-        let dir = root.join("test");
-        if std::fs::create_dir_all(&dir).is_err() {
-            return Ok(None);
-        }
-        let file = dir.join(DefHash(build.0).hex());
-        let passed = std::fs::read_to_string(&file)
-            .map(|t| t.lines().map(str::to_string).collect())
-            .unwrap_or_default();
+        let bucket = DefHash(store.identity().0);
+        let passed = store
+            .load(&bucket)
+            .entries
+            .into_keys()
+            .map(|k| DefHash(k).hex())
+            .collect();
         Ok(Some(Self {
-            file,
-            build,
+            store,
+            bucket,
             passed,
         }))
     }
@@ -54,7 +51,7 @@ impl TestCache {
         let own = ids.tests.get(&test)?;
         let id = Identity::from_parts(&[
             b"blue test cache v1",
-            &self.build.0,
+            &self.store.identity().0,
             own.as_bytes(),
             ids.preamble.as_bytes(),
             bounds.as_bytes(),
@@ -67,31 +64,23 @@ impl TestCache {
     }
 
     pub(crate) fn record(&self, keys: &[String]) {
-        let fresh: Vec<&String> = keys.iter().filter(|k| !self.passed(k)).collect();
+        let fresh: Vec<([u8; 32], Duration, Vec<u8>)> = keys
+            .iter()
+            .filter(|k| !self.passed(k))
+            .filter_map(|k| DefHash::from_hex(k))
+            .map(|k| (k.0, Duration::ZERO, Vec::new()))
+            .collect();
         if fresh.is_empty() {
             return;
         }
-        let mut text = String::new();
-        for k in fresh {
-            text.push_str(k);
-            text.push('\n');
-        }
-        let written = self
-            .file
-            .parent()
-            .map_or(Ok(()), std::fs::create_dir_all)
-            .and_then(|()| {
-                std::fs::OpenOptions::new()
-                    .create(true)
-                    .append(true)
-                    .open(&self.file)
-            })
-            .and_then(|mut f| f.write_all(text.as_bytes()));
-        if let Err(e) = written {
-            eprintln!(
+        match self.store.append(&self.bucket, &fresh) {
+            Ok(_) => {
+                let _ = self.store.evict();
+            }
+            Err(e) => eprintln!(
                 "blue: the test cache could not be written to {}: {e}",
-                self.file.display()
-            );
+                self.store.dir().display()
+            ),
         }
     }
 }

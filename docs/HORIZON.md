@@ -241,9 +241,9 @@ default to skip work.
 | Stage | Cached today | Key |
 |---|---|---|
 | parse, resolve | in memory only (mondou; the LSP and `blue check`) | text hash, then `def_hash` |
-| check and erase | built, on by default for every check a `blue` command runs: `check`, `test`, `run`, `fmt`, the LSP (`BLUE_CHECK_CACHE=off`, `--no-cache` on `check` and `test`): the name walks, the lowered tree and project rules, per definition | `def_hash` + engine identity + the hashes it read |
-| `blue test` | built, on by default (`BLUE_TEST_CACHE=off` turns it off) | build + the test's hash + preamble + bounds |
-| a pure call | built, off by default (`BLUE_MEMO`) | `def_hash` + the arguments' canonical form |
+| check and erase | built, on by default for every check a `blue` command runs: `check`, `test`, `run`, `fmt`, the LSP (`BLUE_CHECK_CACHE=off`, `--no-cache` on `check` and `test`): the name walks, the lowered tree and project rules, per definition; shipped per bidama as its `analysis` output, read through `BLUE_CACHE_SHARED` | `def_hash` + engine identity + the hashes it read |
+| `blue test` | built, on by default (`BLUE_TEST_CACHE=off` turns it off), shared through `BLUE_CACHE_SHARED` | the engine's `b3:` + the test's hash + preamble + bounds |
+| a pure call | built, off by default (`BLUE_MEMO`; measured slower on the corpus's tests), shared when on | `def_hash` + the arguments' canonical form |
 | a nix `bidama-test-*` check | none: one change anywhere reruns every package | the closure the test reaches |
 | a generator, arika's word table | none: always rerun and compared | the generator's hash + its inputs' hashes |
 
@@ -321,6 +321,93 @@ fingerprint and makes the next run cold (cold costs up to a quarter more than
 off); a bucket that reaches its share of the bound takes no new entries until
 it is evicted; the flake's checks gain nothing, because a sandbox has no
 store that outlives it (rung 2).
+
+**Built (rungs 2 and 3, 2026-11-10, wave 4):** one store, one identity,
+one shared tier.
+
+- **The identity is the engine's bytes.** `Identity::of_this_build` is the
+  store format, the version and the BLAKE3 of the running executable
+  (`store::executable_hash`), no longer its path and mtime. The hash is kept
+  under `$XDG_CACHE_HOME/blue/engine/` by a stamp of the file (path, length,
+  inode, device, mtime and ctime), so a build is hashed once. Two nodes, or
+  two paths, running the same bytes share every entry; one changed byte
+  moves every key. An unreadable executable falls back to the old parts.
+- **A shared tier under every rung.** `BLUE_CACHE_SHARED` names read-only
+  roots laid out like `$XDG_CACHE_HOME/blue` (`check/`, `memo/`, `test/`).
+  `store::open_tier` opens one tier with them; `Store::load` falls through
+  to each root on a miss, reads it under its own identity only (another
+  identity's file is damage, never served) and copies what it read into the
+  local store. The check cache, the memo and the test cache all open
+  through it; the test cache now lives in the same `Store` (one bucket per
+  build, bounded and checksummed) instead of its own text file.
+- **A key is the same in every place.** The check cache's name-table
+  fingerprint held every file's absolute path. The paths are read only by
+  `inside_distribution` (B0021), so the fingerprint now carries the relation
+  it reads (which file sits under which bidama's root) and no path, and a
+  bucket is labelled `<bidama>/<file>` for a package's file. A loose script
+  keeps its path: its namespace is `File(<path>)`.
+- **A bidama ships its analysis** (rung 2). `mkBidama` checks the package
+  a second time, from a distribution laid out as an installed one (real
+  directories, files linked to their store paths, so every file sits outside
+  the root as it does under `BLUE_DIST`), and keeps that check store as a
+  second output, `analysis` (`check/v1-<engine>/…`). `mkAnalysis` joins a
+  distribution's analyses into one root, and `mkBlueWithBidamas` suffixes it
+  onto `BLUE_CACHE_SHARED` (`analysis = false` turns it off). The engine
+  identity is the bytes of `${blue}/bin/blue`, which the binary wrapper
+  executes, so the build's entries are the wrapper's. Measured: after
+  `nix build` of `blue-with-bidamas` (763 buckets), every bucket the
+  installed blue wrote checking kaaneru (17), eigyou (24), okite (13) and
+  retsu (2) from the distribution was a shipped one. Seconds, release
+  build, `blue check <dist>/<pkg>/<pkg>.b`, a fresh cache each (off / cold /
+  warm / fed by the analysis, three runs alike): kaaneru 0.28 / 0.29 / 0.19
+  / 0.20, eigyou 0.23 / 0.23 / 0.15 / 0.16, okite 0.09 / 0.10 / 0.09 /
+  0.09. The first check on a node is now a warm one. Each bidama build
+  checks twice.
+- **The memo stays off by default**, shared when on. Measured (cid, debug,
+  `blue test`, seconds, memo off / process / store):
+  okite 3.23 / 3.31 / 3.60, moji 0.27 / 0.33 / 0.39, heni 0.26 / 0.29 / 0.31,
+  retsu 0.12 / 0.13 / 0.13; a warm store did not win either (okite 3.52).
+  The tests of the corpus repeat few pure calls, so the memo costs more
+  than it answers there, and the default is the faster one.
+
+Measured on cid (macOS, debug build, seconds, loaded machine). A second
+node (another engine path, another cache, the same bytes) runs
+`blue test` with the first node's cache as its shared root:
+
+| Package | before: second node, first run | after: second node, first run | after: second run |
+|---|---|---|---|
+| okite (23 tests) | 3.41 | 0.25, all 23 cached | 0.15 |
+| moji (103 tests) | 0.33 | 0.22, all 103 cached | 0.13 |
+| kazu (52 tests) | 0.09 | 0.16, all 52 cached | 0.06 |
+
+Before, the second node's run passed every test again: the identity named
+the path. kazu's first run pays the engine hash (68 MB debug binary, about
+0.05 s optimized), once per build per node.
+
+Gates (`crates/blue-lang-cli/tests/shared_cache.rs`, the store's own
+tests): a test passed on one node is cached on another node running the
+same bytes from another path, and a third node with no shared root runs it;
+a dependency whose callee changed runs the test again whatever the shared
+root holds, and a dependency whose unrelated definition changed keeps it
+cached; a package checked from two places keys every check the same; a
+dependency that drops a name is reported whatever the shared root holds; a
+shared root answers a miss and the entry is copied here; another identity's
+file planted in a shared root answers nothing; one executable is one
+identity wherever it sits and one byte moves it. Red runs: a test key
+without the test's own hash fails the changed-dependency gate; `sharing`
+that keeps no root fails the second-node and changed-dependency gates; the
+path-and-mtime identity fails the second-node gate; the fingerprint with
+the raw paths fails the two-places gate.
+
+Not yet: a consumer's program does not reuse a bidama's analysis, because
+a key carries the fingerprint of the whole program's name table, and the
+program's own names are in it; that wants a fingerprint per bidama (what
+its forms can see). The dropped-name gate cannot be reddened through the
+cache: the dependency check (B0011) and the arity check (B0072) run outside
+the cached walks, and a caller's `def_hash` already carries its callees'.
+Nothing uploads a node's store to sui; a node shares through a root it is
+given (a nix output, a copied directory). The test cache does not read the
+analysis, and the nix test checks keep no store (`HOME` dies with them).
 
 **One store under every rung, packaged and spread** (operator, same day:
 "re-use and generalize the caching across all this", "package all the

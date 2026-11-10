@@ -350,8 +350,9 @@ its decisions; a hot path carries its lever in its `@doc`.
 straightforward Rust program of the same job, with the command that
 produces it, and held by the bench ratchet (HORIZON H7). "N times faster
 than Rust" is never a slogan; it is a row with its workload, its lever, its
-ratio and its baseline. The game engine's rows are in
-[`ENGINE.md`](ENGINE.md) section 4.1 once that design lands.
+ratio and its baseline. The game engine design (branch
+`engine/hd2d-tactics`, `docs/ENGINE.md` section 4.1) names where it uses
+each lever.
 
 blue runs scripts at the speed of Python and Ruby or better, and checks and
 formats a whole tree in well under a second, through one pipeline (parse →

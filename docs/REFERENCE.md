@@ -766,6 +766,7 @@ Every rule blue holds, from the registry the check stage runs (`blue explain COD
 | `B0076` | non-canonical-reference | a qualified name is written by the full path of the level that defines it, so one definition has one spelling and `rg` finds every caller | autofix |
 | `B0077` | non-canonical-use | an import is written `use("a/b")` or `use("a/b", [:x])`: one level, its path as a slash string | autofix |
 | `B0078` | redundant-use | a file imports a tree once: a `use` that lists nothing, of a level below another `use` of the file, adds nothing | autofix |
-| `B0079` | record-fields | a call of a record's constructor gives every field and no other, and a literal in a typed field has that type | refused |
+| `B0079` | record-fields | a call of a record's constructor gives every field and no other, a literal in a typed field has that type, and a typed definition reads only fields its record declares | refused |
 | `B0080` | return-position | a `return` ends a branch of an `if` or `case` that is a statement of a def body, where it is rewritten into if/else | refused |
 | `B0081` | union-arms | a `case` whose `when` arms test a union's records names every arm of that union, or has an `else` | refused |
+| `B0082` | strict-signature | in a `blueshift(:strict)` file every top-level function is typed: its signature annotates a parameter or its return | refused |

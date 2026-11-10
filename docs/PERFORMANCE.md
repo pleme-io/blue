@@ -318,6 +318,41 @@ parses and resolves each imported file twice and walks the names four times.
 
 ## 3. The destination
 
+### 3.0 The doctrine: blue wins by doing less work
+
+Operator, 2026-11-10: *"we need to be 10000 times faster than rust not
+slower"*, then *"blue CAN know those things due to its nature"*.
+
+On the same instructions, no compiler beats Rust by orders of magnitude:
+both reach the machine's limit. That is a world-fact. Blue beats a Rust
+program of the same job by doing less work, because blue knows facts about
+the program that rustc must not assume:
+
+| Blue knows | Because | Lever it enables |
+|---|---|---|
+| each definition's identity | `def_hash`, the b3 of the resolved tree (mondou, H3) | memo: a repeated call with the same inputs is a lookup, across calls, frames, runs and machines |
+| which definitions are pure | capabilities name every effect (SAFETY.md) | memo and reordering are safe exactly where no capability is used |
+| the whole program and its data at build time | the Bluefile, the lock, the generators | bake: what is computable at build time costs nothing at run time |
+| which inputs changed | content identity of inputs and definitions | incremental: work in proportion to the change, never to the whole state |
+| that a pure map runs over a grid or a list | the AST and the types | data-parallel: one GPU compute pass (engawa) instead of a CPU loop |
+| which arguments are constant | rules and configuration are blue data | partial evaluation: an interpreter of rules folds into straight code |
+| that a run is deterministic | seeded randomness, no wall clock, declared capabilities | results cache and replay exactly (H4) |
+
+The floor is parity: `chuuzou` compiles blue to native code at 0.98x to
+1.61x of Rust today (section 1.4.1). Above the floor, every gain comes from
+a lever in the table.
+
+**The rule for every design and every change in blue:** name the lever the
+work can use, or say why none applies. A design doc carries the question in
+its decisions; a hot path carries its lever in its `@doc`.
+
+**The receipt:** a speed claim is a ratio per workload, measured against a
+straightforward Rust program of the same job, with the command that
+produces it, and held by the bench ratchet (HORIZON H7). "N times faster
+than Rust" is never a slogan; it is a row with its workload, its lever, its
+ratio and its baseline. The game engine's rows are in
+[`ENGINE.md`](ENGINE.md) section 4.1 once that design lands.
+
 blue runs scripts at the speed of Python and Ruby or better, and checks and
 formats a whole tree in well under a second, through one pipeline (parse →
 check → erase → run). Each item below names its expected gain. A gain marked

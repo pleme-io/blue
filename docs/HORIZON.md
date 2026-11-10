@@ -483,6 +483,11 @@ arguments; laws over a decidable fragment (the third bullet).
   host services use.
 - Performance as a ratchet: `blue bench` results recorded per release, a slower
   release refused unless it carries a typed reason ([`PERFORMANCE.md`](PERFORMANCE.md)).
+- Faster than Rust by doing less work ([`PERFORMANCE.md`](PERFORMANCE.md)
+  section 3.0): each lever blue's knowledge enables (bake, memo by identity,
+  incremental, data-parallel, partial evaluation) is a bench row per
+  workload, a ratio against a plain Rust program of the same job, held by
+  the same ratchet. Parity through `chuuzou` is the floor, not the target.
 
 **First step:** a bench row set in CI with a recorded baseline.
 **Gate:** red run: a deliberately slower build fails the ratchet.

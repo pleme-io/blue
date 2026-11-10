@@ -180,6 +180,7 @@ fn script_prefix(forms: &[&Spanned]) -> Option<String> {
     let shaped = (1..=4).contains(&first.len()) && first.chars().all(|c| c.is_ascii_lowercase());
     let prefix = format!("{first}_");
     (shaped
+        && prefix != crate::laws::LAW_NAME
         && names
             .iter()
             .all(|n| n.starts_with(&prefix) && n.len() > prefix.len()))

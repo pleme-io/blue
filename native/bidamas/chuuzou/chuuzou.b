@@ -37,6 +37,14 @@ i64 on the host board `host64`):
                             with none refuses it, mutual recursion included
   f(g(x)) where g reaches   every argument bound first, so `io` is borrowed
   the board                 by one call at a time
+  record p(x, y)            #[derive(Clone, Copy, PartialEq)] struct R_p { x: W, y: W }
+  p(a, b), p({x: a, y: b})  R_p { x: a, y: b }: the record's own struct, no tag
+  p(**q, x: a)              q read once, then R_p { x: a, y: q.y }
+  an untyped parameter      Rec: one variant per record, each holding only its record
+  x.f, p?(x)                a field; on Rec a match over the variants that have it
+                            (any other is a fault, as the interpreter raises); a
+                            variant test on Rec, a constant where the type is known
+  ==, != on records         derived PartialEq, both sides brought to one type
   mmio_write(a, 8|32, v)    io.write8 / io.write32, through the board's seam
   top-level expressions     pub fn main, called by the seam
 
@@ -359,15 +367,106 @@ end
 # ── Lowering (L5 represent; tail calls; L8 emit) ──────────────────────────
 
 @doc """
-cz_type: The type a signature names, at this board: Int is the board word.
+cz_sig_ty: The type a signature names: Int is the board word (:word), Bool is :bool,
+an untyped parameter (dyn) holds any record (:dyn), and a record's own name
+is that record, by its qualified name.
+
+    cz_sig_ty({sym: "Int"}, []) #=> :word
+    cz_sig_ty({sym: "point"}, [{name: "%root/point", pred: "%root/point?", fields: ["x"]}]) #=> "%root/point"
 """
-def cz_type(n, word)
-  if cz_sym(n) == "Int"
-    rs_ty(cz_word_ty(word))
+def cz_sig_ty(n, records)
+  s = cz_sym(n)
+  r = find(records, (x) -> cz_local(x[:name]) == s)
+  if s == "Int"
+    :word
+  elsif s == "Bool"
+    :bool
+  elsif s == "dyn"
+    :dyn
+  elsif r != nil
+    r[:name]
   else
     cz_refuse(
-      "the type `#{cz_sym(n) or n}` has no native representation yet; Int is the board word"
+      "the type `#{s or to_s(n)}` has no native representation yet; Int is the board word, Bool a bool, a record its struct, dyn any record"
     )
+  end
+end
+
+@doc """
+cz_rs_ty: The Rust type of a lowered type: the board word, bool, `Rec` (the enum of
+every record, each variant holding only its own record) or a record's struct.
+
+    cz_rs_ty("%root/point", 64) #=> {ident: "R_point"}
+    cz_rs_ty(:dyn, 64) #=> {ident: "Rec"}
+"""
+def cz_rs_ty(ty, word)
+  if ty == :word
+    rs_ty(cz_word_ty(word))
+  elsif ty == :bool
+    rs_ty("bool")
+  elsif ty == :dyn
+    rs_ty("Rec")
+  else
+    rs_ty(cz_struct_name(ty))
+  end
+end
+
+@doc """
+cz_struct_name: The Rust struct, and `Rec` variant, a record lowers to.
+
+    cz_struct_name("%root/point") #=> "R_point"
+"""
+def cz_struct_name(qualified)
+  concat("R_", cz_checked_ident(cz_local(qualified), "a record"))
+end
+
+@doc """
+cz_record_of: The record a resolved `(blue-record name pred :field …)` form declares.
+
+    cz_record_of(first(cz_read("(blue-record %root/p %root/p? :x :y)"))) #=> {name: "%root/p", pred: "%root/p?", fields: ["x", "y"]}
+"""
+def cz_record_of(form)
+  {
+    name: cz_sym(second(form)),
+    pred: cz_sym(third(form)),
+    fields: map((k) -> k[:kw], drop(3, form))
+  }
+end
+
+@doc """
+cz_unify: The one type two branches share: the same type, or :dyn when both hold
+records; anything else is refused.
+
+    cz_unify("%root/a", "%root/b") #=> :dyn
+    cz_unify(:word, :word) #=> :word
+"""
+def cz_unify(a, b)
+  if a == b
+    a
+  elsif (string?(a) or a == :dyn) and (string?(b) or b == :dyn)
+    :dyn
+  else
+    cz_refuse(
+      "one branch is #{cz_ty_text(a)} and the other #{cz_ty_text(b)}; natively both branches have one type"
+    )
+  end
+end
+
+@doc """
+cz_ty_text: A lowered type as a reader names it.
+
+    cz_ty_text(:word) #=> "an Int"
+    cz_ty_text("%root/point") #=> "a point"
+"""
+def cz_ty_text(t)
+  if t == :word
+    "an Int"
+  elsif t == :bool
+    "a Bool"
+  elsif t == :dyn
+    "any record"
+  else
+    "a #{cz_local(t)}"
   end
 end
 
@@ -401,6 +500,290 @@ def cz_lookup(key, pairs)
     nil
   else
     second(hit)
+  end
+end
+
+@doc """
+cz_ty: The type of `n` where it stands: what the native code holds for it.
+
+    cz_ty(first(cz_read("(< 1 2)")), {}) #=> :bool
+    cz_ty(first(cz_read("(%root/p 1)")), {records: [{name: "%root/p", pred: "%root/p?", fields: ["x"]}]}) #=> "%root/p"
+"""
+def cz_ty(n, ctx)
+  h = cz_head(n)
+  if integer?(n)
+    :word
+  elsif cz_sym?(n)
+    cz_lookup(cz_sym(n), ctx[:types] or []) or :word
+  elsif not list?(n)
+    :word
+  elsif member?(h, %w[not and or]) or cz_lookup(h, cz_compare) != nil
+    :bool
+  elsif h == "if" and count(n) == 4
+    cz_unify(cz_ty(third(n), ctx), cz_ty(fourth(n), ctx))
+  elsif h == "begin"
+    cz_ty(last(n), ctx)
+  elsif cz_record_named(ctx, h) != nil
+    h
+  elsif cz_record_tested(ctx, h) != nil
+    :bool
+  elsif cz_lookup(h, ctx[:sigs] or []) != nil
+    cz_lookup(h, ctx[:sigs])[:ret]
+  else
+    :word
+  end
+end
+
+@doc """
+cz_record_named: The record whose constructor is `name`, or nil.
+
+    cz_record_named({records: []}, "%root/p") #=> nil
+"""
+def cz_record_named(ctx, name)
+  find(ctx[:records] or [], (r) -> r[:name] == name)
+end
+
+@doc """
+cz_record_tested: The record whose predicate is `name`, or nil.
+
+    cz_record_tested({records: [{name: "%root/p", pred: "%root/p?", fields: []}]}, "%root/p?")[:name] #=> "%root/p"
+"""
+def cz_record_tested(ctx, name)
+  find(ctx[:records] or [], (r) -> r[:pred] == name)
+end
+
+@doc """
+cz_coerce: `e`, of type `from`, where `to` is expected: a record into `Rec` is its
+variant; `Rec` into a record is that variant's record, any other a fault, as
+the interpreter raises reading a field the value lacks. Anything else differing
+is refused.
+
+    cz_coerce(rs_path("p"), "%root/p", :dyn)[:func] #=> ["Rec", "R_p"]
+"""
+def cz_coerce(e, from, to)
+  if from == to or to.nil?
+    e
+  elsif to == :dyn and string?(from)
+    rs_call(["Rec", cz_struct_name(from)], [e])
+  elsif string?(to) and from == :dyn
+    rs_match(
+      e,
+      [
+        rs_arm(rs_variant_pat(to, cz_bind_pat("v")), rs_path("v")),
+        rs_arm({kind: "wild"}, rs_call(%w[kiban_io fault], []))
+      ]
+    )
+  else
+    cz_refuse(
+      "#{cz_ty_text(from)} cannot stand where #{cz_ty_text(to)} is expected"
+    )
+  end
+end
+
+@doc """
+cz_as: `n` lowered and held as type `want` (nil keeps its own).
+
+    cz_as(5, :word, {word: 64}) #=> {kind: "int", value: 5, suffix: "i64"}
+"""
+def cz_as(n, want, ctx)
+  cz_coerce(cz_expr(n, ctx), cz_ty(n, ctx), want)
+end
+
+@doc """
+rs_match: `match scrutinee { arms }`.
+
+    rs_match(rs_path("x"), [])[:kind] #=> "match"
+"""
+def rs_match(scrutinee, arms)
+  {kind: "match", scrutinee:, arms:}
+end
+
+@doc """
+rs_arm: One arm: `pattern => body`.
+
+    rs_arm({kind: "wild"}, rs_path("x"))[:pattern] #=> {kind: "wild"}
+"""
+def rs_arm(pattern, body)
+  {pattern:, body:}
+end
+
+@doc """
+cz_bind_pat: A pattern binding `name`.
+
+    cz_bind_pat("v") #=> {kind: "bind", name: "v"}
+"""
+def cz_bind_pat(name)
+  {kind: "bind", name:}
+end
+
+@doc """
+rs_variant_pat: The pattern `Rec::R_record(inner)`.
+
+    rs_variant_pat("%root/p", {kind: "wild"})[:path] #=> ["Rec", "R_p"]
+"""
+def rs_variant_pat(record, inner)
+  {kind: "tuple-struct", path: ["Rec", cz_struct_name(record)], elems: [inner]}
+end
+
+@doc """
+cz_field: `x.f`: a field of a record known here, or of `Rec`, matched by variant;
+a variant without the field is a fault, as the interpreter raises.
+
+    cz_field([{sym: "a"}, {kw: "x"}], {types: [["a", "%root/p"]], records: [{name: "%root/p", pred: "%root/p?", fields: ["x"]}], params: ["a"]})[:field] #=> "x"
+"""
+def cz_field(args, ctx)
+  e = first(args)
+  f = second(args)[:kw]
+  t = cz_ty(e, ctx)
+  name = cz_checked_ident(f, "a field")
+  if string?(t)
+    if not member?(f, cz_record_named(ctx, t)[:fields])
+      cz_refuse("#{cz_ty_text(t)} has no field `#{f}`")
+    end
+    {kind: "field", base: cz_expr(e, ctx), field: name}
+  elsif t == :dyn
+    holders = filter((r) -> member?(f, r[:fields]), ctx[:records])
+    if empty?(holders)
+      cz_refuse("no record has a field `#{f}`")
+    end
+    arms = map(
+      fn(r)
+        rs_arm(
+          rs_variant_pat(r[:name], cz_bind_pat("v")),
+          {kind: "field", base: rs_path("v"), field: name}
+        )
+      end,
+      holders
+    )
+    rest_arm = if count(holders) < count(ctx[:records])
+      [rs_arm({kind: "wild"}, rs_call(%w[kiban_io fault], []))]
+    else
+      []
+    end
+    rs_match(cz_expr(e, ctx), append(arms, rest_arm))
+  else
+    cz_refuse("`.#{f}` reads a record's field, and this is #{cz_ty_text(t)}")
+  end
+end
+
+@doc """
+cz_is: `record?(x)`: a constant where the type is known, a variant test on `Rec`.
+
+    cz_is({name: "%root/p"}, 1, {word: 32})[:block][:stmts] #=> [{kind: "semi", expr: {kind: "int", value: 1, suffix: "u32"}}, {kind: "tail", expr: {kind: "bool", value: false}}]
+"""
+def cz_is(rec, e, ctx)
+  t = cz_ty(e, ctx)
+  if t == :dyn
+    rs_match(
+      cz_expr(e, ctx),
+      [
+        rs_arm(
+          rs_variant_pat(rec[:name], {kind: "wild"}),
+          {kind: "bool", value: true}
+        ),
+        rs_arm({kind: "wild"}, {kind: "bool", value: false})
+      ]
+    )
+  else
+    {
+      kind: "block",
+      block: rs_block(
+        [
+          rs_semi(cz_expr(e, ctx)),
+          rs_tail({kind: "bool", value: t == rec[:name]})
+        ]
+      )
+    }
+  end
+end
+
+@doc """
+cz_pairs: The `[key, value]` pairs of a resolved `(hash-map :k v …)`.
+
+    cz_pairs(first(cz_read("(hash-map :x 1 :y 2)"))) #=> [["x", 1], ["y", 2]]
+"""
+def cz_pairs(hm)
+  kv = rest(hm)
+  map((i) -> [kv[i * 2][:kw], kv[i * 2 + 1]], range(floor(count(kv) / 2)))
+end
+
+@doc """
+cz_construct: A record built: by position, by name (`p({x: 1})`), or as an updated
+copy (`p(**q, x: 1)`), each field a board word. The struct is the record's
+own: no tag, no other record's fields.
+
+    cz_construct({name: "%root/p", fields: ["x"]}, [1], {word: 64})[:fields] #=> [{name: "x", value: {kind: "int", value: 1, suffix: "i64"}}]
+"""
+def cz_construct(rec, args, ctx)
+  fields = rec[:fields]
+  h = cz_head(first(args))
+  lit = fn(vals)
+    {
+      kind: "struct-lit",
+      path: [cz_struct_name(rec[:name])],
+      fields: map(
+        (i) -> {name: cz_checked_ident(fields[i], "a field"), value: vals[i]},
+        range(count(fields))
+      )
+    }
+  end
+  if count(args) == 1 and h == "blue-kwargs"
+    kw = first(args)
+    base = second(kw)
+    if cz_head(base) != "blue-splice"
+      cz_refuse(
+        "an updated copy of #{cz_ty_text(rec[:name])} spreads one record first"
+      )
+    end
+    given = cz_pairs(third(kw))
+    vals = map(
+      fn(f)
+        v = cz_lookup(f, given)
+        if v.nil?
+          {
+            kind: "field",
+            base: rs_path("s_0"),
+            field: cz_checked_ident(f, "a field")
+          }
+        else
+          cz_as(v, :word, ctx)
+        end
+      end,
+      fields
+    )
+    {
+      kind: "block",
+      block: rs_block(
+        [
+          {
+            kind: "local",
+            name: "s_0",
+            value: cz_as(second(base), rec[:name], ctx)
+          },
+          rs_tail(lit(vals))
+        ]
+      )
+    }
+  elsif count(args) == 1 and h == "hash-map"
+    given = cz_pairs(first(args))
+    lit(
+      map(
+        fn(f)
+          v = cz_lookup(f, given)
+          if v.nil?
+            cz_refuse("#{cz_ty_text(rec[:name])} is missing its field `#{f}`")
+          end
+          cz_as(v, :word, ctx)
+        end,
+        fields
+      )
+    )
+  elsif count(args) != count(fields)
+    cz_refuse(
+      "#{cz_ty_text(rec[:name])} takes #{count(fields)} fields, given #{count(args)}"
+    )
+  else
+    lit(map((a) -> cz_as(a, :word, ctx), args))
   end
 end
 
@@ -442,6 +825,15 @@ def cz_call(n, ctx)
   logic = cz_lookup(h, cz_logic)
   if h.nil?
     cz_refuse("a call through a computed function has no native form (every call is direct at the monomorphic position)")
+  elsif arith == "checked_rem_euclid" and
+      count(args) == 2 and
+      integer?(second(args)) and
+      second(args) > 0
+    rs_method(
+      cz_expr(first(args), ctx),
+      "rem_euclid",
+      [cz_expr(second(args), ctx)]
+    )
   elsif arith != nil
     if count(args) < 2
       cz_refuse("`#{h}` with #{count(args)} operands has no native form at N0")
@@ -460,7 +852,18 @@ def cz_call(n, ctx)
     if count(args) != 2
       cz_refuse("`#{h}` compares exactly two operands at N0")
     end
-    rs_binary(cmp, cz_expr(first(args), ctx), cz_expr(second(args), ctx))
+    ta = cz_ty(first(args), ctx)
+    tb = cz_ty(second(args), ctx)
+    if ta == :word and tb == :word
+      rs_binary(cmp, cz_expr(first(args), ctx), cz_expr(second(args), ctx))
+    elsif member?(h, %w[equal? not=])
+      t = cz_unify(ta, tb)
+      rs_binary(cmp, cz_as(first(args), t, ctx), cz_as(second(args), t, ctx))
+    else
+      cz_refuse(
+        "`#{h}` orders Ints; #{cz_ty_text(ta)} and #{cz_ty_text(tb)} have no order"
+      )
+    end
   elsif logic != nil
     reduce(
       (acc, b) -> rs_binary(logic, acc, cz_expr(b, ctx)),
@@ -477,6 +880,7 @@ def cz_call(n, ctx)
     if count(args) != 3
       cz_refuse("an `if` whose value is used needs an else branch")
     end
+    t = cz_ty(n, ctx)
     {
       kind: "block",
       block: rs_block(
@@ -484,8 +888,8 @@ def cz_call(n, ctx)
           rs_tail(
             rs_if(
               cz_expr(first(args), ctx),
-              rs_block([rs_tail(cz_expr(second(args), ctx))]),
-              rs_block([rs_tail(cz_expr(third(args), ctx))])
+              rs_block([rs_tail(cz_as(second(args), t, ctx))]),
+              rs_block([rs_tail(cz_as(third(args), t, ctx))])
             )
           )
         ]
@@ -518,13 +922,30 @@ def cz_call(n, ctx)
       "wrapping_add",
       [cz_expr(second(args), ctx)]
     )
+  elsif h == "blue-field"
+    cz_field(args, ctx)
+  elsif cz_record_named(ctx, h) != nil
+    cz_construct(cz_record_named(ctx, h), args, ctx)
+  elsif cz_record_tested(ctx, h) != nil
+    cz_is(cz_record_tested(ctx, h), first(args), ctx)
   elsif member?(h, ctx[:fns])
     lead = if member?(h, ctx[:rec])
       [rs_path("io"), ctx[:depth]]
     else
       [rs_path("io")]
     end
-    cz_direct((xs) -> rs_call([cz_fn_name(h)], append(lead, xs)), args, ctx)
+    sig = cz_lookup(h, ctx[:sigs] or [])
+    wants = if sig.nil?
+      map((_a) -> nil, args)
+    else
+      sig[:params]
+    end
+    cz_direct_with(
+      (xs) -> rs_call([cz_fn_name(h)], append(lead, xs)),
+      args,
+      (i) -> cz_as(args[i], wants[i], ctx),
+      ctx
+    )
   else
     cz_refuse(
       "`#{h}` has no native form: it is not a definition of this program or a word of its board (the native position's Reach, §2.3)"
@@ -619,12 +1040,18 @@ board is borrowed by one call at a time (a nested call would otherwise hold
     cz_direct((xs) -> rs_call(["f"], xs), [1], {word: 64, fns: []})[:args] #=> [{kind: "int", value: 1, suffix: "i64"}]
 """
 def cz_direct(build, args, ctx)
+  cz_direct_with(build, args, (i) -> cz_expr(args[i], ctx), ctx)
+end
+
+@doc """
+cz_direct_with: cz_direct, each argument lowered by `lower(i)`.
+
+    cz_direct_with((xs) -> rs_call(["f"], xs), [1], (_i) -> rs_path("k"), {fns: []})[:args] #=> [{kind: "path", segments: ["k"]}]
+"""
+def cz_direct_with(build, args, lower, ctx)
   if any?((a) -> cz_effectful?(a, ctx), args)
     idx = range(count(args))
-    temps = map(
-      (i) -> {kind: "local", name: "a_#{i}", value: cz_expr(args[i], ctx)},
-      idx
-    )
+    temps = map((i) -> {kind: "local", name: "a_#{i}", value: lower(i)}, idx)
     {
       kind: "block",
       block: rs_block(
@@ -632,7 +1059,7 @@ def cz_direct(build, args, ctx)
       )
     }
   else
-    build(map((a) -> cz_expr(a, ctx), args))
+    build(map(lower, range(count(args))))
   end
 end
 
@@ -714,7 +1141,13 @@ def cz_tail(n, ctx)
       )
     end
     temps = map(
-      (i) -> {kind: "local", name: "t_#{i}", value: cz_expr(args[i], ctx)},
+      fn(i)
+        {
+          kind: "local",
+          name: "t_#{i}",
+          value: cz_as(args[i], cz_lookup(params[i], ctx[:types] or []), ctx)
+        }
+      end,
       range(count(args))
     )
     rebinds = map(
@@ -746,7 +1179,7 @@ def cz_tail(n, ctx)
       cz_tail(last(forms), ctx)
     )
   else
-    [rs_semi({kind: "return", value: cz_expr(n, ctx)})]
+    [rs_semi({kind: "return", value: cz_as(n, ctx[:ret], ctx)})]
   end
 end
 
@@ -838,7 +1271,13 @@ def cz_fn(form, env)
   name = cz_sym(first(sig))
   params = map((p) -> cz_sym(first(p)), rest(sig))
   word = env[:word]
-  ret = cz_type(third(form), word)
+  records = env[:records] or []
+  ret_ty = cz_sig_ty(third(form), records)
+  ret = cz_rs_ty(ret_ty, word)
+  types = map(
+    (p) -> [cz_sym(first(p)), cz_sig_ty(second(p), records)],
+    rest(sig)
+  )
   body = fourth(form)
   rec = member?(name, env[:rec])
   depth = if rec
@@ -846,12 +1285,18 @@ def cz_fn(form, env)
   else
     rs_u32(0)
   end
-  ctx = assoc(assoc(assoc(env, :self, name), :params, params), :depth, depth)
+  ctx = assoc(
+    assoc(
+      assoc(assoc(assoc(env, :self, name), :params, params), :depth, depth),
+      :types,
+      types
+    ),
+    :ret,
+    ret_ty
+  )
   rparams = map(
-    fn(p)
-      {name: cz_param_name(cz_sym(first(p))), ty: cz_type(second(p), word)}
-    end,
-    rest(sig)
+    (t) -> {name: cz_param_name(first(t)), ty: cz_rs_ty(second(t), word)},
+    types
   )
   enter = if rec
     [
@@ -882,7 +1327,7 @@ def cz_fn(form, env)
       [rs_semi({kind: "loop", body: rs_block(cz_tail(body, ctx))})]
     )
   else
-    append(enter, [rs_tail(cz_expr(body, ctx))])
+    append(enter, [rs_tail(cz_as(body, ret_ty, ctx))])
   end
   lead = if rec
     [rs_depth_param]
@@ -948,6 +1393,8 @@ def cz_kind(form, consts)
   h = cz_head(form)
   if h == "use"
     :use
+  elsif h == "blue-record"
+    :record
   elsif h == "define-typed"
     :fn
   elsif h == "define" and
@@ -1023,6 +1470,56 @@ def cz_main_stmt(kf, ctx)
 end
 
 @doc """
+cz_record_items: A struct per record, its fields board words, and, when there are
+records, `Rec`: one variant per record, each holding only that record.
+
+    map((i) -> i[:kind], cz_record_items([{name: "%root/p", pred: "%root/p?", fields: ["x"]}], 64)) #=> ["struct", "enum"]
+    cz_record_items([], 64) #=> []
+"""
+def cz_record_items(records, word)
+  derives = %w[Clone Copy PartialEq]
+  structs = map(
+    fn(r)
+      {
+        kind: "struct",
+        name: cz_struct_name(r[:name]),
+        derives:,
+        fields: map(
+          fn(f)
+            {name: cz_checked_ident(f, "a field"), ty: rs_ty(cz_word_ty(word))}
+          end,
+          r[:fields]
+        )
+      }
+    end,
+    records
+  )
+  if empty?(records)
+    []
+  else
+    append(
+      structs,
+      [
+        {
+          kind: "enum",
+          name: "Rec",
+          derives:,
+          variants: map(
+            fn(r)
+              {
+                name: cz_struct_name(r[:name]),
+                elems: [rs_ty(cz_struct_name(r[:name]))]
+              }
+            end,
+            records
+          )
+        }
+      ]
+    )
+  end
+end
+
+@doc """
 cz_lower: The lowered program: a typed Rust `File` (as data), for `board`.
 """
 def cz_lower(forms, board)
@@ -1045,6 +1542,19 @@ def cz_lower(forms, board)
   fns = map((f) -> cz_sym(first(second(f))), fn_forms)
   consts = map((f) -> cz_sym(second(f)), const_forms)
   bindings = map((f) -> cz_sym(second(f)), pick(:binding))
+  records = map(cz_record_of, pick(:record))
+  sigs = map(
+    fn(f)
+      [
+        cz_sym(first(second(f))),
+        {
+          params: map((p) -> cz_sig_ty(second(p), records), rest(second(f))),
+          ret: cz_sig_ty(third(f), records)
+        }
+      ]
+    end,
+    fn_forms
+  )
   rec = cz_recursive(fn_forms, fns)
   if not empty?(rec) and board[:max_depth].nil?
     cz_refuse(
@@ -1061,11 +1571,28 @@ def cz_lower(forms, board)
     word:,
     bound: board[:max_depth],
     depth: rs_u32(0),
-    uart: kb_device_base(board, :uart0)
+    uart: kb_device_base(board, :uart0),
+    records:,
+    sigs:,
+    types: []
   }
+  main_env = assoc(
+    env,
+    :types,
+    reduce(
+      fn(acc, f)
+        append(
+          acc,
+          [[cz_sym(second(f)), cz_ty(third(f), assoc(env, :types, acc))]]
+        )
+      end,
+      [],
+      pick(:binding)
+    )
+  )
   main_body = rs_block(
     map(
-      (kf) -> cz_main_stmt(kf, env),
+      (kf) -> cz_main_stmt(kf, main_env),
       filter((kf) -> first(kf) == :binding or first(kf) == :expr, kinds)
     )
   )
@@ -1073,6 +1600,7 @@ def cz_lower(forms, board)
     attrs: [cz_attr("no_std", []), cz_attr("forbid", ["unsafe_code"])],
     items: append(
       [{kind: "use", item: {path: %w[kiban_io Io]}}],
+      cz_record_items(records, word),
       map((f) -> cz_const(f, env), const_forms),
       map((f) -> cz_fn(f, env), fn_forms),
       [rs_fn("pub", "main", [], nil, main_body)]
@@ -1432,6 +1960,16 @@ test "mod, inequality, and, or and integer division lower; a bare quotient is re
   ) == "checked_div"
   assert (cz_expr(first(cz_read("(/ a b)")), ctx) rescue :refused) == :refused
   assert (cz_expr(first(cz_read("(floor a)")), ctx) rescue :refused) == :refused
+end
+
+test "a remainder by a positive literal cannot fault, so it is the plain rem_euclid"
+  ctx = cz_test_env(64)
+  plain = cz_expr(first(cz_read("(mod a 3)")), ctx)
+  assert plain[:method] == "rem_euclid"
+  assert cz_expr(first(cz_read("(mod a 0)")), ctx)[:func] ==
+    %w[kiban_io checked]
+  assert cz_expr(first(cz_read("(mod a b)")), ctx)[:func] ==
+    %w[kiban_io checked]
 end
 
 test "a literal is in the board word: u32 on a board, i64 on the host"

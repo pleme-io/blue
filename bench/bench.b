@@ -626,12 +626,40 @@ NATIVE_BASELINE = "bench/native.baseline"
 @doc """
 native_programs: The programs measured on every execution path: each is a corpus program
 the interpreter and chuuzou run (native/corpus) with a hand-written Rust twin
-(bench/native).
+(bench/native) that takes the program's `N` as its argument. The interpreter
+runs the program at its own `N`; chuuzou and Rust run it at `big`, `work`
+times the work, so a native run is long enough to time and not process
+start. A program with no `N` runs as written on every path.
 
-    native_programs #=> ["fib", "loop", "mutual"]
+    map((p) -> p[:name], native_programs) #=> ["fib", "loop", "mutual", "shapes"]
 """
 def native_programs()
-  %w[fib loop mutual]
+  [
+    {name: "fib", n: 30, big: 38, work: 39_088_169 / 832_040},
+    {name: "loop", n: 3_000_000, big: 300_000_000, work: 100},
+    {name: "mutual", n: nil, big: nil, work: 1},
+    {name: "shapes", n: 1_000_000, big: 100_000_000, work: 100}
+  ]
+end
+
+@doc """
+scaled_source: The program's text with its `N = …` line set to `n`.
+
+    scaled_source(unlines(["N = 3", "f(N)"]), 7) #=> unlines(["N = 7", "f(N)"])
+"""
+def scaled_source(text, n)
+  unlines(
+    map(
+      fn(l)
+        if starts_with?(l, "N = ")
+          "N = #{to_s(n)}"
+        else
+          l
+        end
+      end,
+      lines(text)
+    )
+  )
 end
 
 @doc """
@@ -643,8 +671,8 @@ machine's noise.
 """
 def native_paths()
   [
-    {name: "tree", field: :tree, permille: 500},
-    {name: "chuuzou", field: :chuuzou, permille: 500}
+    {name: "tree", field: :tree, permille: 500, scaled: true},
+    {name: "chuuzou", field: :chuuzou, permille: 500, scaled: false}
   ]
 end
 
@@ -674,9 +702,18 @@ def output_of(command)
   stdout_of(cap)
 end
 
-def native_commands(blue, name, work)
+def native_commands(blue, spec, work)
+  name = spec.name
   bidamas = "BLUE_PATH=#{path_join(cwd, "native/bidamas")}"
   program = path_join(cwd, "native/corpus/#{name}.b")
+  big_program = if spec.big.nil?
+    program
+  else
+    mkdir_p(path_join(work, "big"))
+    p = path_join(work, "big", "#{name}.b")
+    write_program(p, scaled_source(read_file(program), spec.big))
+    p
+  end
   image = trim(
     output_of(
       [
@@ -686,7 +723,7 @@ def native_commands(blue, name, work)
         "run",
         "--quiet",
         "native/build/host.b",
-        program,
+        big_program,
         path_join(work, name),
         path_join(cwd, "native/seam")
       ]
@@ -707,10 +744,18 @@ def native_commands(blue, name, work)
       "bench/native/#{name}.rs"
     ]
   )
+  arg = fn(n)
+    if n.nil?
+      []
+    else
+      [to_s(n)]
+    end
+  end
   {
     tree: ["env", bidamas, blue, "run", "--quiet", program],
     chuuzou: [image],
-    rust: [rust]
+    rust: append([rust], arg(spec.big)),
+    rust_small: append([rust], arg(spec.n))
   }
 end
 
@@ -718,20 +763,19 @@ end
 native_row: One program on every path: the three agree on what they print, then each
 is timed; wall and CPU (user + system) in ms.
 """
-def native_row(blue, name, work, runs)
-  c = native_commands(blue, name, work)
-  want = output_of(c.rust)
-  map(
-    fn(k)
-      if output_of(get(c, k)) != want
-        raise(:bench, "#{name}: the #{k} path prints other than the Rust twin")
-      end
-    end,
-    %i[tree chuuzou]
-  )
+def native_row(blue, spec, work, runs)
+  name = spec.name
+  c = native_commands(blue, spec, work)
+  if output_of(c.tree) != output_of(c.rust_small)
+    raise(:bench, "#{name}: the interpreter prints other than the Rust twin")
+  end
+  if output_of(c.chuuzou) != output_of(c.rust)
+    raise(:bench, "#{name}: chuuzou's image prints other than the Rust twin")
+  end
   out = path_join(work, "#{name}.json")
   {
     name:,
+    work: spec.work,
     tree: timed(join(c.tree, " "), runs, out),
     chuuzou: timed(join(c.chuuzou, " "), runs, out),
     rust: timed(join(c.rust, " "), runs, out)
@@ -743,25 +787,40 @@ def native_cell(t)
 end
 
 def native_line(r)
-  "| #{r.name} | #{native_cell(r.tree)} | not reachable | #{native_cell(r.chuuzou)} | #{native_cell(r.rust)} | #{per_mille(r.chuuzou.cpu, r.rust.cpu)} | #{per_mille(r.tree.cpu, r.rust.cpu)} |"
+  "| #{r.name} | #{native_cell(r.tree)} | not reachable | #{native_cell(r.chuuzou)} | #{native_cell(r.rust)} | #{per_mille(r.chuuzou.cpu, r.rust.cpu)} | #{per_mille(r.tree.cpu * r.work, r.rust.cpu)} |"
 end
 
 @doc """
 native_measures: A path's rows: each program's CPU time over Rust's, keyed by program,
 path and host.
 
-    native_measures([{name: "fib", tree: {cpu: 30}, rust: {cpu: 3}}], {name: "tree", field: :tree}, "darwin") #=> [{key: "fib tree darwin", size: 10000}]
+    native_measures([{name: "fib", work: 2, tree: {cpu: 30}, rust: {cpu: 3}}], {name: "tree", field: :tree, scaled: true}, "darwin") #=> [{key: "fib tree darwin", size: 20000}]
 """
 def native_measures(results, path, host)
   map(
     fn(r)
       measurement(
         "#{r.name} #{path.name} #{host}",
-        per_mille(get(r, path.field).cpu, r.rust.cpu)
+        per_mille(get(r, path.field).cpu * work_of(r, path), r.rust.cpu)
       )
     end,
     results
   )
+end
+
+@doc """
+work_of: How many units of the Rust run's work one run on `path` is: the program's
+`work` for a path run at the small `N`, else 1.
+
+    work_of({work: 100}, {scaled: true}) #=> 100
+    work_of({work: 100}, {scaled: false}) #=> 1
+"""
+def work_of(r, path)
+  if path.scaled
+    r.work
+  else
+    1
+  end
 end
 
 def native_refusals(rows, results, host)
@@ -788,7 +847,7 @@ def native_command(blue, work, flags)
   write_stdout(
     unlines(
       [
-        "| program | tree-walker ms | VM | chuuzou ms | Rust ms | chuuzou/Rust ‰ | tree/Rust ‰ |",
+        "| program | tree-walker ms (N) | VM | chuuzou ms (big N) | Rust ms (big N) | chuuzou/Rust ‰ | tree/Rust ‰ per unit of work |",
         "|---|---|---|---|---|---|---|"
       ]
     )
@@ -853,7 +912,13 @@ end
 
 test "a native path past its ratio to Rust is refused, and one within it holds"
   results = [
-    {name: "fib", tree: {cpu: 300}, chuuzou: {cpu: 11}, rust: {cpu: 10}}
+    {
+      name: "fib",
+      work: 1,
+      tree: {cpu: 300},
+      chuuzou: {cpu: 11},
+      rust: {cpu: 10}
+    }
   ]
   rows = parse(
     unlines(
@@ -864,7 +929,15 @@ test "a native path past its ratio to Rust is refused, and one within it holds"
     )
   )
   assert native_refusals(rows, results, "darwin") == []
-  slow = [{name: "fib", tree: {cpu: 300}, chuuzou: {cpu: 16}, rust: {cpu: 10}}]
+  slow = [
+    {
+      name: "fib",
+      work: 1,
+      tree: {cpu: 300},
+      chuuzou: {cpu: 16},
+      rust: {cpu: 10}
+    }
+  ]
   assert size(native_refusals(rows, slow, "darwin")) == 1
   assert size(native_refusals([], results, "darwin")) == 2
 end

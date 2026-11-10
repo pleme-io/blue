@@ -187,24 +187,31 @@ lambda goes to `map`, `filter` or `reduce`. Section 2.2 gives the cause.
 `native_programs` (from `native/corpus`) three ways: `blue run` (the
 tree-walker), chuuzou's host image (`native/build/host.b`, board `host64`),
 and the program's hand-written Rust twin in `bench/native`, built with
-`rustc -C opt-level=3`. The three must print the same bytes before any is
-timed. hyperfine, 3 runs; wall ms, then CPU (user + system) ms. It needs
-`hyperfine`, `rustc` and `tatara-rust-emit` on `PATH`. The VM has no entry
-that runs a program, so it has no column.
+`rustc -C opt-level=3`. A program's `N = …` line sets its size: the
+tree-walker runs it as written, chuuzou and Rust at a big `N` (`work` times
+the work), so a native run is long enough that process start does not
+decide it. The interpreter's output must equal the twin's at the small `N`,
+the image's the twin's at the big one, before anything is timed. hyperfine,
+3 runs; wall ms, then CPU (user + system) ms. It needs `hyperfine`, `rustc`
+and `tatara-rust-emit` on `PATH`. The VM has no entry that runs a program,
+so it has no column.
 
-| program | tree-walker | chuuzou | Rust | chuuzou / Rust | tree-walker / Rust |
+| program | tree-walker (N) | chuuzou (big N) | Rust (big N) | chuuzou / Rust | tree-walker / Rust per unit of work |
 |---|---|---|---|---|---|
-| fib (fib(30)) | 2542 (cpu 1469) | 8.6 (cpu 5.9) | 8.6 (cpu 5.4) | 1.09 | 272 |
-| loop (3M iterations) | 5342 (cpu 3076) | 15.4 (cpu 5.1) | 16.6 (cpu 4.3) | 1.19 | 715 |
-| mutual (depth 10,000) | 48 (cpu 26) | 10.7 (cpu 2.5) | 26.5 (cpu 2.4) | 1.04 | 11 |
+| fib (30; 38) | 1243 (cpu 1221) | 88.9 (cpu 87.8) | 68.9 (cpu 66.6) | 1.32 | 861 |
+| loop (3M; 300M) | 2685 (cpu 2679) | 246 (cpu 245) | 153 (cpu 149) | 1.65 | 1796 |
+| mutual (depth 10,000) | 40 (cpu 22) | 8.6 (cpu 1.6) | 9.1 (cpu 1.6) | 1.00 | 14 |
+| shapes, records (1M; 100M) | 7697 (cpu 7684) | 125 (cpu 124) | 133 (cpu 131) | 0.95 | 5875 |
 
-chuuzou keeps every `+`, `-`, `*` checked and counts recursion depth against
-the board's bound, which the Rust twin does not; that is the gap. The
-programs finish in a few milliseconds natively, so process start is most of
-the native figure and the ratios move by up to a third between runs.
-`bench/native.baseline` holds each path's CPU over Rust's, per host, in per
-mille; the run fails when a path passes its row by more than 500 per mille,
-and `--record [--receipt "<why>"]` rewrites it.
+chuuzou keeps every `+`, `-`, `*` checked and counts recursion depth
+against the board's bound; the twin, as release Rust does, wraps and
+counts nothing. That is the gap on fib and loop. On shapes chuuzou is
+faster than the twin: a typed parameter is the record's own struct by value
+(no tag), an untyped one is `Rec`, whose variants each hold only their
+record, and every value is `Copy`. `bench/native.baseline` holds each
+path's CPU over Rust's (per unit of work for the tree-walker), per host, in
+per mille; the run fails when a path passes its row by more than 500 per
+mille, and `--record [--receipt "<why>"]` rewrites it.
 
 ### 1.5 Compile times
 

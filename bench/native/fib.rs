@@ -7,5 +7,5 @@ fn fib(n: i64) -> i64 {
 }
 
 fn main() {
-    println!("{}", fib(std::hint::black_box(30)));
+    println!("{}", fib(std::env::args().nth(1).and_then(|a| a.parse::<i64>().ok()).unwrap_or(0)));
 }

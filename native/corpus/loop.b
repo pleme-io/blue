@@ -1,5 +1,7 @@
 use("kiban", %i[put_byte put_int])
 
+N = 3_000_000
+
 def walk(i: Int, acc: Int) -> Int
   if i == 0
     acc
@@ -12,5 +14,5 @@ def walk(i: Int, acc: Int) -> Int
   end
 end
 
-put_int(walk(3_000_000, 0))
+put_int(walk(N, 0))
 put_byte(10)

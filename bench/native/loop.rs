@@ -14,5 +14,5 @@ fn walk(mut i: i64, mut acc: i64) -> i64 {
 }
 
 fn main() {
-    println!("{}", walk(std::hint::black_box(3_000_000), 0));
+    println!("{}", walk(std::env::args().nth(1).and_then(|a| a.parse::<i64>().ok()).unwrap_or(0), 0));
 }

@@ -1,5 +1,7 @@
 use("kiban", %i[put_byte put_int])
 
+N = 30
+
 def fib(n: Int) -> Int
   if n < 2
     n
@@ -8,5 +10,5 @@ def fib(n: Int) -> Int
   end
 end
 
-put_int(fib(30))
+put_int(fib(N))
 put_byte(10)

@@ -181,8 +181,10 @@ impl Definitions {
     }
 
     /// Which definition an activation is a call of: by its name, or for a
-    /// lambda bound at the top level, by its span.
-    fn of_call(&self, name: Option<&Arc<str>>, source: Span) -> Option<usize> {
+    /// lambda bound at the top level, by its span. `None` for a builtin and
+    /// for a lambda no top-level name binds.
+    #[must_use]
+    pub fn of_call(&self, name: Option<&Arc<str>>, source: Span) -> Option<usize> {
         match name {
             Some(n) => self.by_key.get(n).copied(),
             None => self.by_lambda.get(&source).copied().flatten(),

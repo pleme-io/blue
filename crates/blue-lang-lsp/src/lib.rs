@@ -48,6 +48,7 @@
 //! [`tokens`] lists what it therefore declines to guess.
 
 pub mod analysis;
+pub mod frame;
 pub mod live;
 pub mod lock;
 pub mod server;

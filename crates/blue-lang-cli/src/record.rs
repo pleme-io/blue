@@ -135,9 +135,9 @@ pub fn write(dir: &Path, invoked: &Invoked, given: &Inputs<'_>) {
     }
 }
 
-struct Recorded {
-    file: PathBuf,
-    source: String,
+pub struct Recorded {
+    pub file: PathBuf,
+    pub source: String,
     inputs: Vec<String>,
     allow: Vec<String>,
     args: Vec<String>,
@@ -199,7 +199,19 @@ fn load(path: &Path, receipt: &str) -> Result<Recorded, String> {
     })
 }
 
-pub fn replay(cfg: &BlueConfig, receipt_path: &Path) -> Result<ExitCode, CliError> {
+pub struct Loaded {
+    pub original: String,
+    pub recorded: Recorded,
+}
+
+pub struct Rerun {
+    pub invoked: Invoked,
+    pub receipt: Receipt,
+    pub replayed: String,
+    pub taped: usize,
+}
+
+pub fn open(receipt_path: &Path) -> Result<Loaded, CliError> {
     let original = blue_lang_runtime::receipt::verify(receipt_path).map_err(CliError::Fmt)?;
     let hex = original.trim_start_matches("b3:");
     let record_path = receipt_path
@@ -211,6 +223,16 @@ pub fn replay(cfg: &BlueConfig, receipt_path: &Path) -> Result<ExitCode, CliErro
             "{e}\nblue: only a run recorded with `blue run --receipts DIR --record` replays from its receipt"
         ))
     })?;
+    Ok(Loaded { original, recorded })
+}
+
+pub fn rerun(
+    cfg: &BlueConfig,
+    loaded: &Loaded,
+    watch: Option<crate::Watch<'_>>,
+) -> Result<Rerun, CliError> {
+    let recorded = &loaded.recorded;
+    let hex = loaded.original.trim_start_matches("b3:");
     let scratch = std::env::temp_dir().join(format!("blue-replay-{}-{hex}", std::process::id()));
     let given = Inputs {
         file: &recorded.file,
@@ -233,6 +255,7 @@ pub fn replay(cfg: &BlueConfig, receipt_path: &Path) -> Result<ExitCode, CliErro
             executor: blue_lang_runtime::pipeline::Executor::Walker,
             args: recorded.args.clone(),
             taping: Taping::Replay(recorded.tapes.clone()),
+            watch,
         },
     );
     let _ = std::fs::remove_dir_all(&scratch);
@@ -247,7 +270,23 @@ pub fn replay(cfg: &BlueConfig, receipt_path: &Path) -> Result<ExitCode, CliErro
         &invoked.ran,
         &inputs_json(&given, &invoked.src),
     );
-    let replayed = name_of(&receipt);
+    Ok(Rerun {
+        replayed: name_of(&receipt),
+        receipt,
+        invoked,
+        taped,
+    })
+}
+
+pub fn replay(cfg: &BlueConfig, receipt_path: &Path) -> Result<ExitCode, CliError> {
+    let loaded = open(receipt_path)?;
+    let Rerun {
+        invoked,
+        receipt,
+        replayed,
+        taped,
+    } = rerun(cfg, &loaded, None)?;
+    let original = loaded.original;
     let consumed = invoked.account.host_io.taped();
     println!("recorded: {original}");
     println!("replayed: {replayed}");

@@ -1,13 +1,13 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "11669c5d10e9f0447492f0a32bc7f1923880b63698601d6f696bd0b75492331e",
+  "cargo_lock_sha256": "bd09df9790371b5a67f8d0b68ca1c5a3777f8e3b28d8aff116d57b318f8277a9",
   "manifest_sha256": {
     "Cargo.toml": "718d8e72a8c0a46e1f3d8cb9a313ca45013af3627d2fb0c1ea9dad1329266166",
     "crates/blue-lang-appliance/Cargo.toml": "72da422691d14356450606a218eed12ed6a26ed3a23c64116dc3ef8546937526",
     "crates/blue-lang-art/Cargo.toml": "f6721f78c76a94d4915a455675cd05889176a43212494c53aa8a01dfc9dfe5ee",
     "crates/blue-lang-bidama/Cargo.toml": "7b29108c8c3d40b5cbaf9f427c4f0a0ace1e5b49e02bd7448dcb53d3ee91337f",
     "crates/blue-lang-check/Cargo.toml": "8e11f4b76e3ecef246fcac2ce0521a0960cb03b5d8e5ca996c151862d3eb6c87",
-    "crates/blue-lang-cli/Cargo.toml": "bdfa55c40336d65fdc7e1ced97efd5baa61a1b5256fe290b6a7d5ab79a358a6c",
+    "crates/blue-lang-cli/Cargo.toml": "198a86d0467c8c5977b6bb1b6097732adf71110c7de073d10f6649d6313fad0d",
     "crates/blue-lang-component/Cargo.toml": "70bb98db843f6b7db73b1541f1e5f3fcdf7b880f3b3cf21bf25384a5ba8e1b52",
     "crates/blue-lang-danpen-diff/Cargo.toml": "b7e792141144a87f38bf6e6f78365ddd1c3feabbae5097bc43e560fc2223dfbf",
     "crates/blue-lang-fmt/Cargo.toml": "4f5c416d0a44933a497ea60c2e0e7d412ac8da28e2cbd646bb45d75c6e07db88",
@@ -1330,6 +1330,19 @@
             "tree": "target"
           },
           {
+            "name": "rustix",
+            "package_key": "rustix-1.1.4",
+            "kind": "normal",
+            "features": [
+              "std",
+              "stdio"
+            ],
+            "uses_default_features": false,
+            "optional": false,
+            "target": "cfg(unix)",
+            "tree": "target"
+          },
+          {
             "name": "serde",
             "package_key": "serde-1.0.229",
             "kind": "normal",
@@ -1358,6 +1371,16 @@
             "features": [
               "cli"
             ],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "tatara_lisp",
+            "package_key": "tatara-lisp-0.4.16",
+            "kind": "normal",
+            "features": [],
             "uses_default_features": true,
             "optional": false,
             "target": null,
@@ -13248,6 +13271,7 @@
               "fs",
               "process",
               "std",
+              "stdio",
               "thread"
             ]
           },
@@ -14328,6 +14352,7 @@
               "fs",
               "process",
               "std",
+              "stdio",
               "thread"
             ]
           },
@@ -15321,6 +15346,7 @@
               "fs",
               "process",
               "std",
+              "stdio",
               "thread"
             ]
           },
@@ -16283,6 +16309,7 @@
               "fs",
               "process",
               "std",
+              "stdio",
               "thread"
             ]
           },
@@ -17451,6 +17478,7 @@
               "fs",
               "process",
               "std",
+              "stdio",
               "thread"
             ]
           },
@@ -18532,6 +18560,7 @@
               "fs",
               "process",
               "std",
+              "stdio",
               "thread"
             ]
           },

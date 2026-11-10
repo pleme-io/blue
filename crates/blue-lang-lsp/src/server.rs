@@ -51,6 +51,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use crate::analysis::{diagnostics, hover_of, LineIndex, Position};
+use crate::frame::{read_message, write_message};
 use crate::{live, lock, tokens};
 
 /// What the server produced for one incoming message.
@@ -1262,36 +1263,6 @@ fn u32_at(v: &Value, path: &[&str]) -> Option<u32> {
     cur.as_u64().map(|n| n as u32)
 }
 
-/// Read one LSP message: `Content-Length` header, blank line, then that many
-/// bytes.
-fn read_message<R: BufRead>(input: &mut R) -> std::io::Result<Option<Value>> {
-    let mut length: Option<usize> = None;
-    loop {
-        let mut line = String::new();
-        if input.read_line(&mut line)? == 0 {
-            return Ok(None); // EOF
-        }
-        let trimmed = line.trim_end();
-        if trimmed.is_empty() {
-            break; // End of headers.
-        }
-        if let Some(rest) = trimmed
-            .strip_prefix("Content-Length:")
-            .or_else(|| trimmed.strip_prefix("content-length:"))
-        {
-            length = rest.trim().parse().ok();
-        }
-    }
-    // A message with no Content-Length cannot be framed, and guessing a length
-    // would desynchronise the stream for every message after it.
-    let Some(length) = length else {
-        return Ok(None);
-    };
-    let mut buf = vec![0u8; length];
-    input.read_exact(&mut buf)?;
-    Ok(serde_json::from_slice(&buf).ok())
-}
-
 fn read_messages<R: BufRead>(mut input: R, events: &Sender<Event>) {
     let closed = loop {
         match read_message(&mut input) {
@@ -1322,13 +1293,6 @@ fn write_response<W: Write>(output: &mut W, response: Response) -> std::io::Resu
             Ok(())
         }
     }
-}
-
-fn write_message<W: Write>(output: &mut W, value: &Value) -> std::io::Result<()> {
-    let body = serde_json::to_vec(value)?;
-    write!(output, "Content-Length: {}\r\n\r\n", body.len())?;
-    output.write_all(&body)?;
-    output.flush()
 }
 
 #[cfg(test)]

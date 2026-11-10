@@ -73,6 +73,7 @@ const VERBS: &str = include_str!("../blue/verbs.b");
 const REUSE: &str = include_str!("../blue/reuse.b");
 mod config;
 mod crash;
+mod debug;
 mod deploy;
 mod diagnostics;
 mod doc;
@@ -507,6 +508,13 @@ enum Cmd {
     },
     /// Run the language server, speaking LSP over stdin/stdout.
     Lsp,
+    /// Debug a recorded run, speaking the Debug Adapter Protocol over
+    /// stdin/stdout. The `launch` request names the receipt of a run
+    /// recorded with `blue run --receipts DIR --record`; every stop re-runs
+    /// that record from its tape to the step asked for, so a step back is a
+    /// replay to the step before, never an undo. A step is a call of a
+    /// definition or its return. The program's own output goes to stderr.
+    Debug,
     /// Serve one evaluation session as JSON lines on stdin/stdout:
     /// the door an editor drives.
     Serve(repl::SessionArgs),
@@ -968,6 +976,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                     } else {
                         record::Taping::Off
                     },
+                    watch: None,
                 },
             )?;
             if let Some(dir) = &receipts {
@@ -1809,6 +1818,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             );
             Ok(ExitCode::SUCCESS)
         }
+        Cmd::Debug => debug::serve(&cfg),
         Cmd::Lsp => {
             let stdout = std::io::stdout();
             blue_lang_lsp::Server::with_scopes(Box::new(
@@ -2192,7 +2202,15 @@ struct Invocation<'a> {
     executor: blue_lang_runtime::pipeline::Executor,
     args: Vec<String>,
     taping: record::Taping,
+    watch: Option<Watch<'a>>,
 }
+
+type Watch<'a> = Box<
+    dyn FnOnce(
+            &blue_lang_runtime::pipeline::Watched<'_>,
+        ) -> std::sync::Arc<dyn blue_lang_runtime::observe::CallObserver>
+        + 'a,
+>;
 
 struct Invoked {
     hold: Option<blue_lang_runtime::Hold>,
@@ -2301,8 +2319,18 @@ fn invoke(cfg: &BlueConfig, inv: Invocation<'_>) -> Result<Invoked, CliError> {
             hold.as_ref().and_then(|h| h.bounds),
         )
     };
-    let ran = match memo {
-        memo::Mode::Off => blue_lang_runtime::pipeline::run_framed_on(
+    let ran = match (memo, inv.watch) {
+        (memo::Mode::Off, Some(watch)) => blue_lang_runtime::pipeline::run_observed_accounted(
+            entry,
+            inputs,
+            &loader,
+            surface.as_ref(),
+            hold.as_ref(),
+            &account,
+            watch,
+        )
+        .and_then(|o| o.outcome),
+        (memo::Mode::Off, None) => blue_lang_runtime::pipeline::run_framed_on(
             entry,
             inputs,
             &loader,
@@ -2311,7 +2339,7 @@ fn invoke(cfg: &BlueConfig, inv: Invocation<'_>) -> Result<Invoked, CliError> {
             &account,
             inv.executor,
         ),
-        mode => {
+        (mode, _) => {
             let mut held = None;
             let observed = blue_lang_runtime::pipeline::run_observed_accounted(
                 entry,

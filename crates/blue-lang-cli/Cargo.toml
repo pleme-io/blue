@@ -31,6 +31,7 @@ katsuji = "0.1"
 blue-lang-waku = { workspace = true }
 blue-lang-bidama = { workspace = true }
 blue-lang-proc = { workspace = true }
+tatara-lisp = { workspace = true }
 tatara-lisp-eval = { workspace = true }
 clap = { workspace = true }
 thiserror = { workspace = true }
@@ -53,6 +54,9 @@ shikumi = { version = "0.1", features = ["cli"] }
 # dependents.
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
+# `blue debug` speaks the Debug Adapter Protocol on stdout, so the program
+# it replays writes to stderr instead: `dup2_stdout`, safe.
+rustix = { version = "1", default-features = false, features = ["std", "stdio"] }
 
 [dev-dependencies]
 blue-lang-pkg = { path = "../blue-lang-pkg", features = ["embedded", "fixture"] }

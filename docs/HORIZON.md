@@ -394,7 +394,37 @@ arguments fails the negative control
 does not exist (ASYNC A6), so the gate holds at `schedulers(1)` only; a
 process's `net_wait` replays its answer but not the node time it came at
 (the root's does); the idle lane is not replayable; I/O words other than
-`tcp_*` still block the node (A3); the debugger over replay.
+`tcp_*` still block the node (A3).
+
+**Built (2026-11-10), wave 4: the debugger over replay.** `blue debug`
+speaks the Debug Adapter Protocol on stdin and stdout, framed by
+`blue_lang_lsp::frame` (the language server's own `Content-Length` framing,
+moved out of its server so both speak it). `launch` names the receipt of a
+run recorded with `--record`; the launch replays it once from its tape under
+a call observer that numbers every step (a call of a program definition, or
+its return) and refuses the run when the replayed receipt is not the
+recorded one. Every stop is a fresh replay to the step asked for, held to
+the launch's step numbering, so `stepBack` and `reverseContinue` re-run to
+an earlier point and never undo. A stop shows the stack of active
+definitions, each with its parameters bound to its arguments, the innermost
+one's `return` (or `raised`) at a return step, the caller's line at its call,
+and each frame's `defHash`. Breakpoints: `setFunctionBreakpoints` by name or
+by `def_hash` (`b3:<hex>`), `setBreakpoints` on a line where a definition
+starts. `next`, `stepIn`, `stepOut`, `continue` go forward. The program's
+own output goes to stderr (`dup2_stdout`, rustix), never into the protocol
+stream. Tests: `blue-lang-cli/tests/debug.rs` (7), scripted DAP sessions
+over a recorded run. Red runs: a stop that keeps its old stack instead of
+replaying fails `a_step_back_replays_to_the_earlier_value`,
+`stepping_forward_walks_calls_and_returns_to_the_end` and
+`a_breakpoint_on_a_definitions_hash_stops_at_its_calls`; a return step that
+drops its value fails the first two; a replay answered live instead of from
+the tape fails six of seven at launch (`a_tampered_tape_is_refused_at_launch`
+is its negative control); program output left on stdout fails
+`the_programs_output_never_enters_the_protocol_stream`. Open: a step is a
+call or a return, not a line, so a local bound inside a body shows only once
+it is passed to a call; no `evaluate`; one DAP thread, so a spawned
+process's calls show on the root's stack only when it runs on the same OS
+thread (stacks are kept per thread); each stop costs one whole replay.
 
 ### H5. Knowledge: the corpus as a graph you can ask
 

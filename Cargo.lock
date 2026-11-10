@@ -410,10 +410,12 @@ dependencies = [
  "clap",
  "katsuji",
  "libc",
+ "rustix",
  "serde",
  "serde_json",
  "shikumi",
  "tameshi",
+ "tatara-lisp",
  "tatara-lisp-eval",
  "thiserror 2.0.19",
 ]

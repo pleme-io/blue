@@ -30,6 +30,13 @@ pub fn enabled(value: Option<&str>) -> Result<bool, String> {
 pub trait CheckStore {
     fn load(&self, bucket: &DefHash) -> HashMap<[u8; 32], Vec<u8>>;
     fn append(&self, bucket: &DefHash, entries: &[([u8; 32], Vec<u8>)]);
+
+    /// The engine identity this store keeps entries under, asked when a
+    /// check first runs ([`install_deferred`]); `None` when the store cannot
+    /// be opened, and then no check is cached.
+    fn identity(&self) -> Option<[u8; 32]> {
+        None
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -65,22 +72,31 @@ impl Tally {
 
 type Entries = HashMap<[u8; 32], Vec<u8>>;
 
-static INSTALLED: std::sync::OnceLock<(&'static (dyn CheckStore + Sync), [u8; 32])> =
-    std::sync::OnceLock::new();
+type Installed = (&'static (dyn CheckStore + Sync), Option<[u8; 32]>);
+
+static INSTALLED: std::sync::OnceLock<Installed> = std::sync::OnceLock::new();
 
 /// Make `store` the check cache of every check this process runs through
 /// [`crate::pipeline::check_entry`] or [`crate::pipeline::run`]'s stages.
 /// The first store installed stays; returns whether this one was.
 pub fn install(store: &'static (dyn CheckStore + Sync), identity: [u8; 32]) -> bool {
-    INSTALLED.set((store, identity)).is_ok()
+    INSTALLED.set((store, Some(identity))).is_ok()
 }
 
-/// A fresh cache over the installed store, or `None` when none is installed.
+/// [`install`], with the identity asked of the store when a check first
+/// runs ([`CheckStore::identity`]), so a command that checks nothing opens
+/// and hashes nothing.
+pub fn install_deferred(store: &'static (dyn CheckStore + Sync)) -> bool {
+    INSTALLED.set((store, None)).is_ok()
+}
+
+/// A fresh cache over the installed store, or `None` when none is installed
+/// or its store has no identity.
 #[must_use]
 pub fn installed() -> Option<CheckCache<'static>> {
-    INSTALLED
-        .get()
-        .map(|(store, identity)| CheckCache::new(*store, *identity))
+    let (store, identity) = INSTALLED.get()?;
+    let identity = identity.or_else(|| store.identity())?;
+    Some(CheckCache::new(*store, identity))
 }
 
 pub struct CheckCache<'s> {

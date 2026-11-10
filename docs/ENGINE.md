@@ -212,6 +212,78 @@ The engine's speed gate is per workload: "AI turn", "reach for all
 units", "frame encode", each a ratio against its Rust baseline, with the
 target written beside it.
 
+## 4.2 The systemic environment
+
+Operator, 2026-11-10: *"fully integrated mechanics with the environment,
+everything from where we are standing to where the stars are at that moment
+to line of sight, think everything from XCOM and everything from Baldur's
+Gate 3 in terms of environmental effect and potential."*
+
+The environment is not decoration; it is a rule system every action reads
+and writes, in battle and out of it, with one set of rules for both. It
+takes XCOM's cover, flanking, elevation, overwatch and concealment, and
+Baldur's Gate 3's (Larian's) surfaces, clouds, elemental reactions, light,
+shoving, throwing and verticality, on top of the FFT kit (3.2).
+
+**State.** One record per tile and one for the scene, all Int, all in the
+simulation (W4):
+
+| Layer | Fields |
+|---|---|
+| Ground | height, slope per edge, material (earth, stone, wood, metal, water, mud, sand, ice), depth |
+| Surface | none, water, mud, oil, ice, fire, embers, grass, vines, blood, electrified, and each game's own; amount and age |
+| Cloud | none, smoke, steam, fog, spores, darkness, and each game's own; density and age |
+| Prop | cover height (half or full), hit points, flammable, conducts, movable, explosive |
+| Light | level from the sky, local lights and clouds |
+| Scene | wind direction and strength, rain, temperature, the sky (sun and moon position and phase, eclipse, meteors, aurora) from the real sky |
+
+**Rules as data.** Every interaction is one row of a reaction table a game
+supplies: *(what is applied, what is there) → (what results, its effects)*.
+Fire on oil spreads fire; fire on water makes steam; water near a live
+current electrifies; cold on water makes ice; fire on ice makes water; rain
+puts fire out and leaves water; wind moves clouds and pushes fire
+downwind. The engine runs the table; it holds no reaction of its own.
+
+**Propagation.** Surfaces and clouds spread, decay and react once per step
+of the battle clock, as a cellular automaton over the grid (fire by
+flammability and wind, water downhill, clouds downwind). It is
+deterministic, so a replay is exact and every peer agrees.
+
+**Sight.** Line of sight is a 3D supercover line over the height grid;
+walls, full cover and dense clouds stop it, half cover and thin clouds
+weaken it. What is seen depends on light along the line: lit, dim, or dark.
+Sun height, moon phase, an eclipse, fires and lamps all set the light, so
+the real sky changes what a unit can see and hit at that moment.
+
+**Cover and flanking.** Cover comes from the geometry: a prop or a step
+between attacker and target as high as half or all of the target gives
+half or full cover. An attacker whose line misses the cover flanks.
+Destroying the prop (fire burns wood, a blast breaks stone) removes the
+cover.
+
+**Height and force.** Height sets reach (FFT vertical tolerance) and aim (a
+bonus from above). A unit can be shoved off a ledge, thrown, or knocked
+into a surface; falls deal FFT fall damage; a thrown barrel of oil becomes
+a surface, a thrown lamp lights it.
+
+**Watching and hiding.** A unit can reserve its action as a watch: it fires
+on the first enemy to move in its sight (XCOM overwatch, as a charged
+reaction on the clock). A band that is not yet seen is concealed and strikes
+first (XCOM 2); darkness, fog and smoke keep concealment, light breaks it.
+
+**Previews never lie.** Before a command is confirmed, the player sees its
+exact result: hit chance, cover, the surfaces and clouds it makes, and how
+they will spread on the next step (Into the Breach's telegraph). Previews
+draw no randomness.
+
+**One world, battle or not.** The same rules run outside battle: burn a
+bridge, flood a path, freeze a river to cross it, light a signal fire on a
+hill. A battle is the same place under the clock.
+
+**Speed.** The grids are small; propagation touches only cells that changed
+(incremental lever); a large field (a forest fire, a flood) runs as one GPU
+compute pass (data-parallel lever).
+
 ## 5. Decisions
 
 | Decision | Chosen | Rejected, and why |
@@ -236,7 +308,7 @@ and a run on the operator's iPhone 16 Pro Max.
 | E0 | `frame` returns an engawa graph; engawa-metal and its WGSL move to public `pleme-io/engawa` after a `mekakushi` scan; textured, instanced, point-sampled sprites from a baked atlas | a sprite sheet animates in the golden and on the phone |
 | E1 | the diorama in blue (port of recanto `Diorama`, `Look`, camera rig); the HD-2D passes: main, shadow, bloom, focus band, composite, spatial upscale | a test diorama matches its golden; 60 Hz on the phone |
 | E2 | blue host tools: Aseprite reader, MaxRects packer with extrusion, LDtk and glTF readers, the baked bundle, wired into the iPhone pipeline | an Aseprite file edited on the Mac shows on the phone after one command |
-| E3 | the tactics kit and the simulation: height grid, reach, shapes with vertical tolerance, line of sight, facing, the clock with charged actions, command log, snapshots, rewind | properties: replay equals live; rewind then replay equals live; reach agrees with a brute-force oracle |
+| E3 | the tactics kit and the simulation: height grid, reach, shapes with vertical tolerance, line of sight, facing, the clock with charged actions, command log, snapshots, rewind; the systemic environment (4.2): surfaces, clouds, the reaction table, propagation, light from the sky, cover and flanking, shove and throw, watch and concealment | properties: replay equals live; rewind then replay equals live; reach and line of sight agree with brute-force oracles; every reaction-table row has a red-then-green test; a preview equals the confirmed result |
 | E4 | interface: gestures and camera (port of recanto-input), move and attack previews, turn-order list, text layout over a Rust glyph atlas, menus, safe areas | a full turn is playable by touch in the golden flow and on the phone |
 | E5 | AI by scoring; the audio seam and cues; haptics | a battle against the AI plays to an end; a cue sounds on the phone |
 | E6 | `chuuzou` gains an iOS board; the simulation and AI ship compiled; then Float, strings, lambdas and maps so the whole engine ships compiled | AI turn under 16 ms on the phone; the frame budget holds at 60 Hz |

@@ -187,6 +187,32 @@ def mmio_write(addr, width, value)
 end
 
 @doc """
+put_byte: One byte to the board's UART, answered. Compiled, it is one store to the
+UART; here it is the model's store, so a byte the UART model does not print
+is refused as the image faults on it.
+
+    (put_byte(7) rescue :refused) #=> :refused
+"""
+def put_byte(c)
+  mmio_write(kb_device_base(kb_qemu_virt32, :uart0), 8, c)
+  c
+end
+
+@doc """
+put_int: An Int to the board's UART in decimal, a minus sign first when it is
+negative, answered. Compiled, it is kiban_io::put_int on the board's UART.
+
+    (put_int("7") rescue :refused) #=> :refused
+"""
+def put_int(n)
+  if not integer?(n)
+    raise(:kiban, "put_int prints an Int, got #{to_s(n)}")
+  end
+  write_stdout(to_s(n))
+  n
+end
+
+@doc """
 wrapping_add: a + b modulo 2^32: wrapping arithmetic, only where a program asks for it by
 name. Plain + is checked everywhere (overflow is a fault on the board); this
 word is the one way to wrap, and it lowers to u32::wrapping_add.

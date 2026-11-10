@@ -51,7 +51,7 @@ The first pass reads the resolved tree's text into nodes:
     cz_read("(define %root/X 5)") #=> [[{sym: "define"}, {sym: "%root/X"}, 5]]
 """
 
-use("kiban", [:kb_board])
+use("kiban", %i[kb_board kb_device_base])
 
 # ── Reading the resolved tree ─────────────────────────────────────────────
 #
@@ -279,6 +279,12 @@ def rs_word(n, word)
   end
 end
 
+@doc """
+cz_word_ty: The Rust type of the board's word.
+
+    cz_word_ty(64) #=> "i64"
+    cz_word_ty(32) #=> "u32"
+"""
 def cz_word_ty(word)
   if word == 64
     "i64"
@@ -331,6 +337,11 @@ def rs_generics()
   {type_params: [{name: "I", bounds: [rs_ty("Io")]}]}
 end
 
+@doc """
+rs_depth_param: The depth parameter a recursive definition takes after the board.
+
+    rs_depth_param[:name] #=> "d"
+"""
 def rs_depth_param()
   {name: "d", ty: rs_ty("u32")}
 end
@@ -375,6 +386,11 @@ def cz_compare()
   [%w[equal? eq], %w[not= ne], %w[< lt], %w[<= le], %w[> gt], %w[>= ge]]
 end
 
+@doc """
+cz_logic: blue's `and` and `or` and the Rust operator each lowers to.
+
+    cz_lookup("or", cz_logic) #=> "or"
+"""
 def cz_logic()
   [%w[and and], %w[or or]]
 end
@@ -479,6 +495,19 @@ def cz_call(n, ctx)
     {kind: "block", block: rs_block(cz_body(args, ctx))}
   elsif h == "kiban/mmio_write"
     cz_mmio(args, ctx)
+  elsif h == "kiban/put_byte"
+    cz_put_byte(first(args), ctx)
+  elsif h == "kiban/put_int"
+    cz_direct(
+      fn(xs)
+        rs_call(
+          %w[kiban_io put_int],
+          append([rs_path("io"), rs_u32(ctx[:uart])], xs)
+        )
+      end,
+      args,
+      ctx
+    )
   elsif h == "kiban/wrapping_add" and ctx[:word] != 32
     cz_refuse(
       "wrapping_add wraps at 2^32, the 32-bit board word; the #{ctx[:word]}-bit word has no wrapping word"
@@ -536,14 +565,45 @@ def cz_mmio(args, ctx)
 end
 
 @doc """
+cz_put_byte: put_byte(c): `c` bound once, stored to the board's UART, and answered.
+
+    last(cz_put_byte(65, {word: 64, uart: 4096})[:block][:stmts])[:expr] #=> {kind: "path", segments: ["b_0"]}
+"""
+def cz_put_byte(arg, ctx)
+  b = rs_path("b_0")
+  store = rs_method(
+    rs_path("io"),
+    "write8",
+    [
+      rs_call(%w[kiban_io reg], [rs_u32(ctx[:uart])]),
+      rs_call(%w[kiban_io reg], [b])
+    ]
+  )
+  {
+    kind: "block",
+    block: rs_block(
+      [
+        {kind: "local", name: "b_0", value: cz_expr(arg, ctx)},
+        rs_semi(store),
+        rs_tail(b)
+      ]
+    )
+  }
+end
+
+@doc """
 cz_effectful?: Whether lowering `n` reaches the board: a call of a definition or a
 board word, anywhere inside it.
+
+    cz_effectful?(first(cz_read("(+ 1 (%root/f 2))")), {fns: ["%root/f"]}) #=> true
+    cz_effectful?(first(cz_read("(+ 1 2)")), {fns: []}) #=> false
 """
 def cz_effectful?(n, ctx)
   h = cz_head(n)
   if not list?(n)
     false
-  elsif h == "kiban/mmio_write" or member?(h, ctx[:fns])
+  elsif member?(h, %w[kiban/mmio_write kiban/put_byte kiban/put_int]) or
+      member?(h, ctx[:fns])
     true
   else
     any?((x) -> cz_effectful?(x, ctx), n)
@@ -555,6 +615,8 @@ cz_direct: A call whose arguments are lowered first. When an argument reaches th
 board itself, every argument is bound to a local before the call, so the
 board is borrowed by one call at a time (a nested call would otherwise hold
 `io` twice, E0499). `build` makes the call from the argument expressions.
+
+    cz_direct((xs) -> rs_call(["f"], xs), [1], {word: 64, fns: []})[:args] #=> [{kind: "int", value: 1, suffix: "i64"}]
 """
 def cz_direct(build, args, ctx)
   if any?((a) -> cz_effectful?(a, ctx), args)
@@ -578,6 +640,8 @@ end
 cz_floor: floor(a / b), the interpreter's integer division: rounded toward negative
 infinity in the signed host word, the plain quotient in the unsigned board
 word. A divisor of zero is a fault, as the interpreter raises.
+
+    cz_floor([first(cz_read("(/ 7 2)"))], {word: 64})[:func] #=> ["kiban_io", "floor_div"]
 """
 def cz_floor(args, ctx)
   q = first(args)
@@ -596,6 +660,8 @@ end
 @doc """
 cz_stmt: A form whose value is dropped. An `if` with no else branch is a statement
 here, where its missing value is never read.
+
+    cz_stmt(first(cz_read("(if (< a b) a)")), {word: 64, params: ["a", "b"], fns: []})[:expr][:kind] #=> "if"
 """
 def cz_stmt(n, ctx)
   if cz_head(n) == "if" and count(n) == 3
@@ -687,6 +753,8 @@ end
 @doc """
 cz_calls: The definitions `n` calls, in `fns`. A call of `me` in tail position is
 left out: that function loops instead (`me` is nil when it does not).
+
+    cz_calls(first(cz_read("(+ (%root/f 1) (%root/g 2))")), ["%root/f"], nil, true) #=> ["%root/f"]
 """
 def cz_calls(n, fns, me, tail)
   h = cz_head(n)
@@ -739,6 +807,8 @@ end
 cz_recursive: The definitions that reach themselves through a call that is not a tail
 call to themselves: each needs a stack frame per level, so each runs under
 the board's declared depth bound.
+
+    cz_recursive(cz_read("(define-typed (%root/f (n Int)) Int (%root/f n))"), ["%root/f"]) #=> []
 """
 def cz_recursive(fn_forms, fns)
   graph = map(
@@ -831,6 +901,9 @@ end
 @doc """
 cz_constant?: Whether `n` is computed from literals and earlier constants alone, so
 it is a Rust constant evaluated when the image is built.
+
+    cz_constant?(first(cz_read("(* %root/A 2)")), ["%root/A"]) #=> true
+    cz_constant?(first(cz_read("(%root/f 2)")), []) #=> false
 """
 def cz_constant?(n, consts)
   h = cz_head(n)
@@ -854,6 +927,11 @@ def cz_const(form, env)
   }
 end
 
+@doc """
+cz_binding_name: The Rust local a computed top-level binding becomes.
+
+    cz_binding_name("%root/K") #=> "g_k"
+"""
 def cz_binding_name(qualified)
   concat("g_", downcase(cz_checked_ident(cz_local(qualified), "a binding")))
 end
@@ -862,6 +940,9 @@ end
 cz_kind: What a top-level form is: a use, a typed definition, a constant (from
 literals and the constants before it), a binding the top level computes when
 it runs, an untyped definition, or an expression.
+
+    cz_kind(first(cz_read("(define %root/X (+ %root/A 1))")), ["%root/A"]) #=> :const
+    cz_kind(first(cz_read("(define %root/X (+ %root/A 1))")), []) #=> :binding
 """
 def cz_kind(form, consts)
   h = cz_head(form)
@@ -902,6 +983,8 @@ end
 @doc """
 cz_kinds: Each top-level form with its kind, in order; a constant is known to the
 forms after it.
+
+    map(first, cz_kinds(cz_read("(define %root/A 1) (define %root/B %root/A)"))) #=> [:const, :const]
 """
 def cz_kinds(forms)
   st = reduce(
@@ -923,6 +1006,8 @@ end
 @doc """
 cz_main_stmt: One top-level form of the program's main: a binding becomes a local the
 later top-level forms read; an expression a statement.
+
+    cz_main_stmt([:binding, first(cz_read("(define %root/K 2)"))], {word: 64})[:name] #=> "g_k"
 """
 def cz_main_stmt(kf, ctx)
   f = second(kf)
@@ -975,7 +1060,8 @@ def cz_lower(forms, board)
     rec:,
     word:,
     bound: board[:max_depth],
-    depth: rs_u32(0)
+    depth: rs_u32(0),
+    uart: kb_device_base(board, :uart0)
   }
   main_body = rs_block(
     map(
@@ -1183,12 +1269,15 @@ end
 cz_host_image: The blue program at `program` compiled for the host board: its Rust
 emitted beside the image in `out`, linked with the seams under `seam`.
 Answers the executable's path.
+
+    (cz_host_image("no-such-program.b", "seam", "out") rescue :refused) #=> :refused
 """
 def cz_host_image(program, seam, out)
   name = replace(path_basename(program), ".b", "")
+  text = cz_emit(program, "host64")
   mkdir_p(out)
   rs = path_join(out, "#{name}.rs")
-  write_file(rs, cz_emit(program, "host64"))
+  write_file(rs, text)
   cz_link(rs, "host64", seam, out, name)
 end
 
@@ -1273,6 +1362,12 @@ test "the reader reads the resolved tree's atoms and nesting"
   assert (cz_read("a)") rescue :refused) == :refused
 end
 
+@doc """
+cz_test_env: A lowering context for the tests: parameters `a` and `b`, no definitions,
+the given word.
+
+    cz_test_env(64)[:params] #=> ["a", "b"]
+"""
 def cz_test_env(word)
   {
     self: nil,
@@ -1287,10 +1382,20 @@ def cz_test_env(word)
   }
 end
 
+@doc """
+cz_test_lower: The resolved-tree `text` lowered for the board named `board_name`.
+
+    count(cz_test_lower("", "host64")[:items]) #=> 2
+"""
 def cz_test_lower(text, board_name)
   cz_lower(cz_read(text), kb_board(board_name))
 end
 
+@doc """
+cz_test_items: The items `text` lowers to on the host board.
+
+    map((i) -> i[:kind], cz_test_items("")) #=> ["use", "fn"]
+"""
 def cz_test_items(text)
   cz_test_lower(text, "host64")[:items]
 end

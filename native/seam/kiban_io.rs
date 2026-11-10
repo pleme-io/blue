@@ -69,6 +69,32 @@ pub fn deeper(depth: u32, bound: u32) -> u32 {
     depth + 1
 }
 
+/// `n` in decimal to the UART at `uart`, a minus sign first when it is
+/// negative, byte by byte through the board's own store; answers `n`. The
+/// digits are built in a fixed buffer, so nothing is formatted or allocated.
+pub fn put_int<I: Io, W: Copy + Into<i64>>(io: &mut I, uart: u32, n: W) -> W {
+    let v: i64 = n.into();
+    let mut digits = [0u8; 20];
+    let mut len = 0;
+    let mut m = v.unsigned_abs();
+    loop {
+        digits[len] = b'0' + (m % 10) as u8;
+        len += 1;
+        m /= 10;
+        if m == 0 {
+            break;
+        }
+    }
+    if v < 0 {
+        io.write8(uart, u32::from(b'-'));
+    }
+    while len > 0 {
+        len -= 1;
+        io.write8(uart, u32::from(digits[len]));
+    }
+    n
+}
+
 /// Stop at the board's fault handler.
 #[inline(never)]
 #[cold]

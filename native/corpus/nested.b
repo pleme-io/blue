@@ -1,18 +1,13 @@
-use("kiban", [:mmio_write])
+use("kiban", %i[mmio_write put_byte])
 
 UART0 = 268_435_456
 
-def put(c: Int) -> Int
-  mmio_write(UART0, 8, c)
-  c
-end
-
 def twice(a: Int, b: Int) -> Int
-  put(a)
-  put(b)
+  put_byte(a)
+  put_byte(b)
 end
 
-put(put(put(104) + 1) - 1)
-twice(put(97), put(98) + 1)
-mmio_write(UART0, 8, put(120) + 1)
-put(10)
+put_byte(put_byte(put_byte(104) + 1) - 1)
+twice(put_byte(97), put_byte(98) + 1)
+mmio_write(UART0, 8, put_byte(120) + 1)
+put_byte(10)

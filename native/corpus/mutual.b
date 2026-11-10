@@ -1,11 +1,4 @@
-use("kiban", [:mmio_write])
-
-UART0 = 268_435_456
-
-def put(c: Int) -> Int
-  mmio_write(UART0, 8, c)
-  c
-end
+use("kiban", %i[put_byte put_int])
 
 def is_even(n: Int) -> Int
   if n == 0
@@ -23,7 +16,7 @@ def is_odd(n: Int) -> Int
   end
 end
 
-put(48 + is_even(10))
-put(48 + is_even(7))
-put(48 + is_odd(9999))
-put(10)
+put_int(is_even(10))
+put_int(is_even(7))
+put_int(is_odd(9999))
+put_byte(10)

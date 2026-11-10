@@ -1,18 +1,4 @@
-use("kiban", [:mmio_write])
-
-UART0 = 268_435_456
-
-def put(c: Int) -> Int
-  mmio_write(UART0, 8, c)
-  c
-end
-
-def digits(n: Int) -> Int
-  if n >= 10
-    digits(floor(n / 10))
-  end
-  put(48 + n % 10)
-end
+use("kiban", %i[put_byte put_int])
 
 def walk(i: Int, acc: Int) -> Int
   if i == 0
@@ -26,5 +12,5 @@ def walk(i: Int, acc: Int) -> Int
   end
 end
 
-digits(walk(3_000_000, 0))
-put(10)
+put_int(walk(3_000_000, 0))
+put_byte(10)

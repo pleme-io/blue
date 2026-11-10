@@ -616,7 +616,72 @@ the same 4737 tests with properties off (81.2 s, 76.4 s) and on (81.2 s,
 72.9 s), release build, the spread being host load; no corpus definition is
 typed and documented with a drawable example yet, so none is generated.
 Open: record and named return types; drawn values for `List` and `Sym`
-arguments; laws over a decidable fragment (the third bullet).
+arguments.
+
+**Built (solver-checked laws, 2026-11-10):** a law is a typed definition
+named `law_…` that returns `Bool`. `blue test` gives each one a `test` block
+whose name says which check stands behind it, and prints a tally
+(`3 law(s): 1 proved, 1 refuted, 1 tested, 0 unchecked`). Tiers:
+**proved** (the solver found no model of the negation; up to 8 drawn calls
+still run, so the runtime has to agree), **refuted** (the block asserts the
+law at the solver's counterexample and fails: `FAIL @law
+`law_take_keeps_n`: refuted (cooper) at xs = [0], n = -1`), **tested-N**
+(outside the fragment, or no solver: N drawn calls, the reason in the name),
+**unchecked** (no draw is possible, and the name says why). Tested never
+reads as proved. `BLUE_LAWS` is `cooper` (default), `tested` (no solver) or
+`off`; draws follow `BLUE_PROPERTY_SEED`. An untyped `law_…` (all of okite's
+today) gets no block, so no program that runs today changes.
+
+The seam is `blue_lang_check::lia::Backend`, one typed enum: `Cooper`, a
+pure-Rust Cooper search over linear integer arithmetic with divisibility,
+and `Absent`, the typed absence of a solver (every answer `Unknown`). No C is
+linked. Each step picks the variable with the fewest candidates and the
+smaller of its lower and upper bound sets, inequalities are divided through
+by their gcd, every candidate costs one step of a 200 000-step budget, and a
+spent budget answers `Unknown`, so the law is tested. A model is checked
+against the formula before it is returned. `blue_lang_check::laws` reads the
+law into the fragment: `Int` parameters as integers, `Bool` parameters as
+truth values, `List` parameters by their length alone; `+`, `-`, `*` and `%`
+by a constant, `abs`, `min`, `max`, comparisons, `==`, `!=`, `and`, `or`,
+`not`, `if`, local bindings, and the lengths of lists built by `[…]`, `cons`,
+`append`, `reverse`, `map`, `take`, `drop`, `range` and `zip`, read by
+`length`, `count` and `empty?` (each length rule measured against the
+runtime: `take(-1, xs)` is empty, `drop(5, [1, 2, 3])` is empty,
+`range(5, 2)` is empty). A refuted list law gets a list built to the length
+the solver chose. A word the file defines is read as the file defines it,
+inlined; a word a `use` brings in bare is outside the fragment. Blue
+integers raise on overflow, so a law proved over the integers holds at every
+call that returns.
+
+Gates: `crates/blue-lang-cli/tests/laws.rs` runs `blue test` on fixtures:
+`law_clamp_in_range` is proved; `law_clamp_is_identity` is refuted and red at
+its counterexample; with `BLUE_LAWS=tested` the true law is tested and
+passes; `a * b == b * a` is outside the fragment and tested; a list-length
+law is proved and a false one is red at a built list; an unchecked law, and a
+proved law with draws off, leave the file running (red first: the empty
+block's body was the symbol `nil`, and B0001 refused the file). Red runs: with
+`Cooper` answering `Unknown` for every formula, the proved fixture's tally
+read `0 proved, 0 refuted, 1 tested` and four of the six tests failed; with
+`Cooper` answering `Unsat` for every formula, the false laws were named
+`proved (cooper)` and only the drawn calls beside the proof failed them.
+`lia::tests::cooper_agrees_with_a_search_of_the_box_on_drawn_formulas`
+checks 400 drawn three-variable formulas: no `Unsat` has a model in
+`[-9, 9]³`, every `Sat` model satisfies its formula, and fewer than 60 answer
+`Unknown`; with the far candidates dropped it failed at once. The WIP
+translator read a same-file `def abs(x) x end` as the builtin and named
+`abs(a) >= 0` proved; `a_word_the_file_rebinds_is_read_as_the_file_defines_it`
+was red on it before the fix. Cost, debug build: on 300 drawn formulas with
+coefficients up to 2, the WIP search (fixed variable order, lower bounds
+only) took 142 s and the per-variable choice 0.07 s; with coefficients up to
+3 one formula still took 87 s until each candidate was charged to the
+budget; the 400 of the gate take 4.2 s. Open: okite's laws as typed laws
+(they take no arguments and test runtime behaviour, not arithmetic); integer
+ranges on parameters (H2's refinements); `rest`, `butlast` and `filter`
+lengths; a z3 backend behind the same enum; no corpus definition is a typed
+law yet. Law blocks are made at every parse of the entry file, as doctests
+and properties are, so `blue run` and `blue check` of a file with typed laws
+pay the solver (within its budget) for blocks they drop; the parse does not
+know whether tests will run.
 
 ### H7. Speed with receipts
 
@@ -1141,7 +1206,7 @@ keeps the 2026-11-06 order inside that frame.
 | When | Horizons | Why first |
 |---|---|---|
 | Now | H0; H1 (unions, patterns, `?`); H3 (the test cache) | H0 makes the ledger true; H1 completes the data model every later horizon names; H3 makes every later change cheaper to verify |
-| Next | H2; H4 (async A1); H5 (arika Phase 2); H6 (heni's ratio as a ratchet, built; generated properties, built; solver laws) | each builds on H1's shapes or H3's identities |
+| Next | H2; H4 (async A1); H5 (arika Phase 2); H6 (heni's ratio as a ratchet, built; generated properties, built; solver laws, built) | each builds on H1's shapes or H3's identities |
 | Later | H7; H8; H9; H10 | each multiplies what the earlier horizons made true |
 | Authority, now | H11; H12 rings 1 and 2; H16's first step; H19's first step | one vocabulary first, so every later horizon names one set; the census measures the flip before it happens; the capability ontology makes every later authority horizon a set of generated rows |
 | Authority, next | H12 rings 3 and 4; H13; H17 | per-bidama frames and the parity matrix stand on one vocabulary |

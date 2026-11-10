@@ -802,8 +802,10 @@ pub(crate) fn parse_and_resolve(
             let tests = blue_lang_syntax::doc::doctests(entry.text)
                 .map_err(|e| RunError::Parse(e.to_string()))?;
             let drawn = generated_properties(&forms, &tests)?;
+            let laws = generated_laws(&forms)?;
             forms.extend(tests);
             forms.extend(drawn);
+            forms.extend(laws);
         }
         Ok::<_, RunError>(forms)
     })?;
@@ -838,6 +840,25 @@ fn generated_properties(
         Setting::Off => Ok(Vec::new()),
         Setting::Seed(seed) => Ok(properties(forms, tests, seed)),
     }
+}
+
+/// The entry file's law blocks (`blue_lang_check::laws`): read the settings
+/// only when the file has a typed law, so a program with none reads neither
+/// `BLUE_LAWS` nor `BLUE_PROPERTY_SEED`.
+fn generated_laws(forms: &[tatara_lisp::Spanned]) -> Result<Vec<tatara_lisp::Spanned>, RunError> {
+    use blue_lang_check::{laws, properties};
+    if !laws::has_laws(forms) {
+        return Ok(Vec::new());
+    }
+    let backend = match laws::Setting::configured().map_err(RunError::Parse)? {
+        laws::Setting::Off => return Ok(Vec::new()),
+        laws::Setting::On(b) => b,
+    };
+    let seed = match properties::Setting::configured().map_err(RunError::Parse)? {
+        properties::Setting::Off => None,
+        properties::Setting::Seed(s) => Some(s),
+    };
+    Ok(laws::laws(forms, backend, seed))
 }
 
 /// The start of `span` widened over the comment lines directly above it:

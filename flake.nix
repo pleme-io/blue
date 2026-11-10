@@ -578,6 +578,11 @@
       overlays.bidamas = bidamasOverlay;
       overlays.default = lib.composeExtensions base.overlays.default bidamasOverlay;
 
+      toolchains = lib.genAttrs systems (system: {
+        "." = repository.${system}.toolchain;
+        native = native.${system}.toolchain;
+      });
+
       # `nix run .#regen`: rewrite every generated file in place (gen/regen.b).
       # Bluefile.lock files have their own command, `blue lock <dir>`.
       apps = lib.mapAttrs (system: existing:

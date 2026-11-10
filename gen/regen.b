@@ -45,10 +45,22 @@ def generated()
   end
 end
 
+def roots_path(packages, dir, inherited)
+  own = map((p) -> path_join(dir, p), packages or [])
+  join(filter((r) -> r != nil and r != "", append(own, [inherited])), ":")
+end
+
 # Run one generator with $GEN_OUT set to the output the lock names, so the
 # declaration, not the program's own default, decides where the file goes.
 def regenerate(g)
-  status = exec_check("env", "GEN_OUT=#{g[1]}", blue_exe, "run", g[2])
+  status = exec_check(
+    "env",
+    "GEN_OUT=#{g[1]}",
+    "BLUE_PATH=#{roots_path(json_get(manifest, :packages), cwd, getenv("BLUE_PATH"))}",
+    blue_exe,
+    "run",
+    g[2]
+  )
   if status != 0
     raise(:regen, "#{g[2]} exited #{to_s(status)}; #{g[1]} was not rewritten")
   end

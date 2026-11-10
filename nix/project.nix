@@ -704,6 +704,7 @@ let
       throw "lib.project: the Bluefile needs ${lib.concatStringsSep ", " missingNeeds}, which neither the project nor the distribution it composes over provides${lib.concatStrings (lib.mapAttrsToList (sn: f: "; source(\"${sn}\") added nothing: ${f.refused}") refusedSources)}"
     else {
       inherit name runner bidamas packages apps bluePath imageGate postMergeChecks postMergeNames shards;
+      toolchain = pkgs.symlinkJoin { name = "${name}-toolchain"; paths = tools; };
       inherit (lowered) services trios executables;
       checks = disjoint "check" preMergeChecks {
         project = pkgs.runCommand "${name}-project" { } ''

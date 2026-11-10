@@ -125,6 +125,56 @@ def fake_first(dir)
   ["PATH", "#{path_join(dir, "fake")}:#{getenv("PATH")}"]
 end
 
+def rooted_fixture()
+  dir = fixture
+  outside = path_join(getenv("TMPDIR", "/tmp"), "regen-outside-#{to_s(now_ns)}")
+  mkdir_p(outside)
+  write_program(
+    path_join(outside, "uses.b"),
+    unlines(["use(\"zed\", [:one])", "", "write_stdout(to_s(one))"])
+  )
+  write_file(
+    path_join(dir, "Bluefile"),
+    unlines(
+      [
+        "package(\"fixture\", \"0.1.0\")",
+        "packages(\"bidamas\")",
+        "generate(\"made\", \"made.txt\", \"gen.b\")"
+      ]
+    )
+  )
+  write_program(
+    path_join(dir, "gen.b"),
+    unlines(
+      [
+        "@moduledoc \"\"\"",
+        "gen: the fixture's generator; a blue it starts reads the project's zed.",
+        "",
+        "    join(%w[ma de], \"\") #=> \"made\"",
+        "\"\"\"",
+        "",
+        "r = exec_capture(self_exe, \"run\", \"--quiet\", \"#{path_join(outside, "uses.b")}\")",
+        "write_file(getenv(\"GEN_OUT\"), second(second(r)))"
+      ]
+    )
+  )
+  if status_of(exec_capture(self_exe, "lock", dir)) != 0
+    raise(:fixture, "blue lock failed in #{dir}")
+  end
+  git(dir, %w[add Bluefile Bluefile.lock gen.b bidamas notes])
+  dir
+end
+
+test "a blue a generator starts resolves the project's packages, as nix's generate does"
+  if self_exe != nil
+    dir = rooted_fixture
+    cap = regen_in(dir, [])
+    assert status_of(cap) == 0
+    assert read_or(path_join(dir, "made.txt"), nil) == "1"
+    rm_rf(dir)
+  end
+end
+
 test "regen spawns the blue running it, not a blue first on PATH"
   if self_exe != nil
     dir = generating_fixture

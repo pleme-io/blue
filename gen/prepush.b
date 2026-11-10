@@ -663,11 +663,84 @@ def changed()
   "#{git(%w[status --porcelain --untracked-files=all])}#{git(["diff"])}"
 end
 
+@doc """
+toolchain_ref: The flake output holding the tools the project in `dir` declares, built
+by nix for `system`.
+
+    toolchain_ref("/r", "aarch64-darwin", "native") #=> "/r#toolchains.aarch64-darwin.\"native\""
+"""
+def toolchain_ref(root, system, dir)
+  "#{root}#toolchains.#{system}.\"#{dir}\""
+end
+
+@doc """
+toolchain_step: What the regen of a project does about the tools it declares and PATH
+lacks: nothing when none is missing, else the bin of the toolchain `build`
+answers, or red naming the tools when nix cannot build it. Never blind: a
+declared tool comes from the project's own toolchain.
+
+    toolchain_step([], () -> nil) #=> [:path, ""]
+"""
+def toolchain_step(missing, build)
+  if missing == []
+    [:path, ""]
+  else
+    cap = build()
+    if status_of(cap) == 0
+      [:path, "#{path_join(trim(stdout_of(cap)), "bin")}:"]
+    else
+      [
+        :red,
+        unlines(
+          [
+            "needs #{join(missing, ", ")}, which is not on PATH, and nix did not build the project's toolchain:",
+            stderr_of(cap)
+          ]
+        )
+      ]
+    end
+  end
+end
+
+def build_toolchain(root, dir)
+  system = trim(
+    stdout_of(
+      exec_capture(
+        "nix",
+        "eval",
+        "--impure",
+        "--raw",
+        "--expr",
+        "builtins.currentSystem"
+      )
+    )
+  )
+  exec_capture(
+    "nix",
+    "build",
+    "--option",
+    "builders",
+    "",
+    "--no-link",
+    "--print-out-paths",
+    toolchain_ref(root, system, dir)
+  )
+end
+
 def regen(bin, root, dir)
+  step = toolchain_step(absent_tools(dir), () -> build_toolchain(root, dir))
+  if first(step) == :red
+    step
+  else
+    regen_with(bin, root, dir, last(step))
+  end
+end
+
+def regen_with(bin, root, dir, tools)
   was = lines_of(git(%w[status --porcelain --untracked-files=all]))
   before = changed
   run = exec_with_env(
-    [["PATH", "#{bin}:#{getenv("PATH")}"]],
+    [["PATH", "#{tools}#{bin}:#{getenv("PATH")}"]],
     "env",
     "-C",
     dir,
@@ -677,12 +750,7 @@ def regen(bin, root, dir)
   )
   now = lines_of(git(%w[status --porcelain --untracked-files=all]))
   if status_of(run) != 0
-    missing = absent_tools(dir)
-    if missing == []
-      [:red, stderr_of(run)]
-    else
-      [:blind, unlines(["needs #{join(missing, ", ")}, which is not on PATH"])]
-    end
+    [:red, stderr_of(run)]
   elsif before == changed
     [:green, ""]
   else
@@ -1226,6 +1294,28 @@ def main()
     )
     exit_with(1)
   end
+end
+
+test "a project's declared tool missing from PATH comes from its toolchain, and a toolchain nix cannot build is red, never blind"
+  built = toolchain_step(
+    ["tatara-rust-emit"],
+    fn()
+      [
+        ["status", 0],
+        ["stdout", unlines(["/nix/store/x-native-toolchain"])],
+        ["stderr", ""]
+      ]
+    end
+  )
+  assert built == [:path, "/nix/store/x-native-toolchain/bin:"]
+  failed = toolchain_step(
+    ["tatara-rust-emit"],
+    () -> [["status", 1], ["stdout", ""], ["stderr", "no such attribute"]]
+  )
+  assert first(failed) == :red
+  assert contains?(last(failed), "tatara-rust-emit")
+  assert contains?(last(failed), "no such attribute")
+  assert toolchain_step([], () -> raise(:unused, "never built")) == [:path, ""]
 end
 
 test "a .b-only change selects the .b gates and no Rust gate"

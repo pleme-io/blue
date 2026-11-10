@@ -67,6 +67,7 @@ let
 in
 {
   packages = lib.mapAttrs' (n: v: lib.nameValuePair "native-${n}" v) built;
+  inherit (project) toolchain;
   checks = projectChecks
     // lib.mapAttrs' (n: s: lib.nameValuePair "${n}-qemu" (qemuCheck n s)) images
     // { native-corpus = corpusCheck; };

@@ -670,7 +670,7 @@ A Bluefile is a blue program that may call only these words.
 | `source(name, url, dir)` | A named external distribution root, fetched from a flake URL and pinned in Bluefile.lock by `blue lock`. |
 | `packages(dir)` | A local directory whose subdirectories are packages: each is built, tested (`bidama-test-<pkg>`) and gated for collisions. |
 | `run(name, file[, reads[, inputs]])` | A program run as its own cached derivation, writing into $RUN_OUT; `reads` names runs whose outputs it reads. `inputs` lists the project paths it reads, found under $GEN_ROOT. |
-| `tool(name)` | A nixpkgs attribute put on PATH for the project's runs, checks, apps and generators. |
+| `tool(name[, platforms])` | A nixpkgs attribute put on PATH for the project's runs, checks, apps and generators. `platforms` (%i[linux] or %i[darwin]) puts it there on those platforms only; on any other the row is skipped. A platform named twice, or none, is refused. |
 | `check(name, file[, inputs])` | A test file run as `checks.<name>` with `blue test`. A file with no test blocks fails. `inputs` lists the project paths the tests read, found under $GEN_ROOT. |
 | `app(name, file)` | A program exposed as `nix run .#<name>`. |
 | `generate(name, output, program[, inputs])` | A committed file and the program that writes it (to $GEN_OUT): `packages.generated-<name>` and a freshness check. `inputs` lists the project paths the program reads, found under $GEN_ROOT. |

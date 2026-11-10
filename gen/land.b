@@ -385,9 +385,9 @@ def run_of(ref, sha)
               "--commit",
               sha,
               "--json",
-              "databaseId",
+              "databaseId,status",
               "--jq",
-              ".[0].databaseId"
+              "[.[] | select(.status != \"completed\")][0].databaseId // \"\""
             )
           )
         )
@@ -816,8 +816,29 @@ def ref_for(a)
   )
 end
 
+@doc """
+repush?: Whether a land must clear its ref before it pushes: the ref already
+names HEAD, as `git ls-remote` prints it, so a push would be up to date, start no
+run, and --watch would follow the run it cancelled or the turn refused.
+
+    repush?("4f5a9a07\trefs/heads/land/x", "4f5a9a07") #=> true
+    repush?("", "4f5a9a07") #=> false
+    repush?("61dee1bd\trefs/heads/land/x", "4f5a9a07") #=> false
+"""
+def repush?(listed, sha)
+  first(split(trim(listed), "\t")) == sha
+end
+
 def push_land(ref)
   sha = ask(%w[rev-parse HEAD])
+  if repush?(ask(["ls-remote", "origin", "refs/heads/#{ref}"]), sha)
+    say(
+      "#{ref} already names #{take_chars(sha, 10)}; deleting it first, so the push starts a new run"
+    )
+    if exec_check("git", "push", "-q", "origin", ":refs/heads/#{ref}") != 0
+      exit_with(1)
+    end
+  end
   if exec_check("git", "push", "--force", "origin", "HEAD:refs/heads/#{ref}") !=
       0
     exit_with(1)
@@ -1547,6 +1568,34 @@ test "--turn holds a land alone on the main it fast-forwards, and refuses one be
     stale = turn_in(root, fake_runs_gh(root, "[]", "[]"))
     assert stdout_of(stale) == "false"
     assert contains?(stderr_of(stale), "main gained 2 commit(s)")
+    rm_rf(root)
+  end
+end
+
+test "a land again of the same HEAD clears its ref and pushes, so a run cancelled for an older land or refused at the turn is followed by a new run, not by itself"
+  if self_exe != nil
+    root = landing_fixture
+    work = path_join(root, "work")
+    committed(work, [%w[other.txt other]], "topic")
+    script(
+      path_join(root, "origin.git/hooks/post-receive"),
+      unlines(["#!/bin/sh", "cat >> #{root}/received"])
+    )
+    as_tester(
+      path_join(root, "origin.git"),
+      ["config", "core.hooksPath", path_join(root, "origin.git/hooks")]
+    )
+    assert status_of(land_in(root, [])) == 0
+    again = land_in(root, [])
+    assert status_of(again) == 0
+    assert contains?(stderr_of(again), "deleting it first")
+    sha = as_tester(work, %w[rev-parse HEAD])
+    pushed = filter(
+      (l) -> contains?(l, "#{sha} refs/heads/land/topic"),
+      moji::lines(read_file(path_join(root, "received")))
+    )
+    assert count(pushed) == 2
+    assert as_tester(work, %w[ls-remote origin refs/heads/land/topic]) != ""
     rm_rf(root)
   end
 end

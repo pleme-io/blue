@@ -777,6 +777,14 @@
             appliance = applianceFor system;
           };
 
+          project-overlay =
+            let extended = pkgs.extend (self.lib.project { src = ./nix/project-fixture; }).overlays.default;
+            in pkgs.runCommand "project-overlay" { } ''
+              test -x ${extended.greet}/bin/greet
+              test -x ${extended.hello}/bin/hello
+              touch $out
+            '';
+
           source-fixture = import ./nix/source-fixture/check.nix {
             inherit pkgs blue engine;
             src = ./nix/source-fixture;

@@ -749,7 +749,9 @@ in
     lib.optionalAttrs (any.services != { } || any.commands != { }) {
       overlays.default = final: _prev:
         let at = per.${final.stdenv.hostPlatform.system}; in
-        disjoint "overlay entry" (lib.mapAttrs (sn: _: at.executables.${sn}) any.services) at.commands;
+        disjoint "overlay entry"
+          (lib.mapAttrs (sn: _: at.executables.${sn}) any.services)
+          (lib.mapAttrs (an: _: at.commands.${an}) any.commands);
     }
     // lib.optionalAttrs (any.services != { }) {
       nixosModules = arm "nixos";

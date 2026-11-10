@@ -435,7 +435,7 @@ Read it in order as [The blue Book](docs/BOOK.md), or open one page:
 ### Explanation
 
 <details>
-<summary>51 pages on why blue is shaped as it is</summary>
+<summary>52 pages on why blue is shaped as it is</summary>
 
 - [ABSENCE — no undeclared nil](docs/ABSENCE.md): no undeclared nil: how blue makes absence a declared, checked state
 - [API-EVOLUTION — the API is a versioned rendering of the one model](docs/API-EVOLUTION.md): the API as a versioned rendering of one model (design)
@@ -456,6 +456,7 @@ Read it in order as [The blue Book](docs/BOOK.md), or open one page:
 - [Guard-clause `return`: the design of record](docs/GUARD-RETURN.md): Guard-clause return, G1 BUILT: `return x` where the parser can rewrite it into if/else, refused where it cannot (B0080), so blue stays one expression per body at no run-time cost
 - [HORIZON: where blue goes next](docs/HORIZON.md): the long plan for blue, ten horizons from hygiene to a language that proves, replays and explains itself, eight authority horizons that make every host effect a capability granted from one declaration in every placement, an ontology of every concept in khipu that the tests are generated from, and the kernel as both a verified target and the enforcer of access; destination first, each horizon with its first step, its gate and what it unlocks
 - [HTTP2 — blue speaks HTTP/2 and gRPC itself](docs/HTTP2.md): blue speaks HTTP/2 and gRPC itself (design, phase 1 built)
+- [IPHONE: a whole iPhone app in blue](docs/IPHONE.md): the iPhone placement, a whole iPhone app written in blue with one open Rust shell, a nix pipeline from source to simulator, device and CI (design; I0 and I1 tested, 2026-11-10)
 - [KERNEL — write only blue for the Linux kernel](docs/KERNEL.md): blue as the whole kernel toolchain, from source to a program the verifier admits, and where each part runs
 - [khipu: blue's knowledge graph, the design of record](docs/KHIPU.md): khipu, blue's knowledge graph, DESIGN: OxiRS's essence naturalized, the recon, the typed terms, the phases, the parity gates and the ledger
 - [LANDING: faster to main, with every test still meaning what it meant](docs/LANDING.md): how a change reaches main fast without losing a test: batched lands, releases beside main, settled locks, tests skipped only by identity, suites run on runners (design, 2026-11-10)

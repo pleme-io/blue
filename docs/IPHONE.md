@@ -1,11 +1,11 @@
 ---
 kind: explanation
-summary: the iPhone placement, a whole iPhone app written in blue with one open Rust shell, a nix pipeline from source to simulator, device and CI (design, 2026-11-10)
+summary: the iPhone placement, a whole iPhone app written in blue with one open Rust shell, a nix pipeline from source to simulator, device and CI (design; I0 and I1 tested, 2026-11-10)
 ---
 
 # IPHONE: a whole iPhone app in blue
 
-Status: DESIGN, 2026-11-10. Owner of the design: this file. It refines
+Status: DESIGN, 2026-11-10; I0 and I1 TESTED. Owner of the design: this file. It refines
 [`SUBSTRATE.md`](SUBSTRATE.md) layer 2 (L2.3 Mobile) and
 [`FRONTEND-PLAN.md`](FRONTEND-PLAN.md) F15. The tier ledger at the end is the
 only place a status is claimed.
@@ -54,9 +54,11 @@ The app shell is `asobi/crates/asobi-smoke` (UIApplication, scene delegate,
 `asobi/crates/engawa-metal` over the public render-graph IR `pleme-io/engawa`.
 
 Blue today: `blue-lang-host` embeds the interpreter in Rust with `#[host]`
-blocks; `blue-lang-runtime` is pure Rust. Neither was built for an iOS target.
+blocks; `blue-lang-runtime` is pure Rust. Both build for `aarch64-apple-ios`
+and `aarch64-apple-ios-sim` with no source change (I0, section 8).
 `blue-lang-wasm` has no import table. Blue has no ahead-of-time compiler (the
-bytecode VM exists and is off for `blue run`). Blue has no iOS code.
+bytecode VM exists and is off for `blue run`). `crates/blue-lang-ios` is the
+shell (I1, section 8).
 
 ## 3. Decisions
 
@@ -140,4 +142,21 @@ replays a session frame by frame (the H4 replay rule).
 | Item | Tier |
 |---|---|
 | Destination and phases | DESIGN |
-| I0 to I6 | DESIGN |
+| I0 | TESTED, 2026-11-10 |
+| I1 | TESTED, 2026-11-10 |
+| I2 to I6 | DESIGN |
+
+Evidence for I0 and I1 (iPhone 17 Pro simulator, iOS 26.1, Xcode 26.4.1,
+debug build):
+
+| Item | Evidence |
+|---|---|
+| I0 build | `blue run crates/blue-lang-ios/sim.b -- build` builds `blue-lang-runtime`, `blue-lang-host` and `blue-lang-ios` for both iOS targets; `nix run .#ios-sim -- build` runs the same file with the fenix iOS toolchain |
+| I0 gate | `simctl launch --console-pty` prints `blue-ios: init() = {:taps 0}` from the bundled `app.b` |
+| I1 seam | `crates/blue-lang-ios`: `init`, `frame(state, input) -> {state, draw}`, `event(state, ev) -> state`; draw commands `clear` and `rect`; a bad command is refused alone and its siblings draw (`tests/program.rs`) |
+| I1 gate | `blue run crates/blue-lang-ios/sim.b -- golden` builds, bundles, signs ad hoc, installs, launches, takes a screenshot and runs `tests/golden.rs` against `golden/iphone-17-pro.png` |
+| Red run | the rectangle colour changed in the `.b`: the diff is red, 12.5 % of the pixels differ; back to the committed `.b`: green |
+| Frame time | the blue `frame` call: p50 0.2 to 0.5 ms; the whole step with Metal: p50 0.8 to 1.7 ms (120-frame windows) |
+
+The shell keeps all `unsafe` code in `src/shell.rs`: the crate root has
+`#![deny(unsafe_code)]` and one `#[allow(unsafe_code)]` on that module.

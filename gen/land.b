@@ -877,9 +877,57 @@ def contains_main?()
   exec_ok?("git", "merge-base", "--is-ancestor", "origin/main", "HEAD")
 end
 
+@doc """
+lock_messages: The words git prints when another git in the same repository
+holds a ref lock, as worktrees that share one `.git` and fetch at once do. A
+fetch that fails with one of them can succeed a moment later.
+
+    lock_messages #=> ["incorrect old value provided", "cannot lock ref", ".lock': File exists", "unable to update local ref", "failed: reference already exists"]
+"""
+def lock_messages()
+  [
+    "incorrect old value provided",
+    "cannot lock ref",
+    ".lock': File exists",
+    "unable to update local ref",
+    "failed: reference already exists"
+  ]
+end
+
+@doc """
+lock_race?: Whether a failed git command's stderr names a ref lock another git
+holds, rather than a fault waiting cannot fix.
+
+    lock_race?("error: cannot lock ref 'refs/remotes/origin/main': is at 1 but expected 2") #=> true
+    lock_race?("fatal: 'origin' does not appear to be a git repository") #=> false
+"""
+def lock_race?(text)
+  find_first((m) -> contains?(text, m), lock_messages) != nil
+end
+
+@doc """
+fetch_main: Fetch origin's main. A ref lock another worktree holds is waited
+out, up to four tries one, two and four seconds apart; any other failure, or a
+lock that outlasts the tries, ends the land with git's words.
+"""
 def fetch_main()
-  if exec_check("git", "fetch", "-q", "origin", "main") != 0
-    exit_with(1)
+  fetch_tries(4, 1)
+end
+
+def fetch_tries(left, wait)
+  r = exec_capture("git", "fetch", "-q", "origin", "main")
+  if status_of(r) != 0
+    words = trim(stderr_of(r))
+    if lock_race?(words) and left > 1
+      say(
+        "another git holds a ref lock (#{words}); retrying the fetch in #{to_s(wait)} s"
+      )
+      sleep(wait)
+      fetch_tries(left - 1, wait * 2)
+    else
+      say("git fetch origin main failed: #{words}")
+      exit_with(1)
+    end
   end
 end
 
@@ -1095,8 +1143,8 @@ def follow(a, left, minutes)
       )
     ) rescue
       []
-    fetched = exec_check("git", "fetch", "-q", "origin", "main") == 0
-    moved = fetched and not contains_main?
+    fetch_main
+    moved = not contains_main?
     turned = refused_turn?(jobs)
     if left == 0 or not moved_main?(jobs) or not (moved or turned)
       leave(ref, status)
@@ -1672,6 +1720,85 @@ test "--requeue=0 refuses a land behind main, as land did before it rebased"
     assert status_of(r) == 1
     assert contains?(stderr_of(r), "--requeue=0")
     assert as_tester(work, %w[rev-parse HEAD]) == before
+    rm_rf(root)
+  end
+end
+
+def locking_git(root, held)
+  real = trim(stdout_of(exec_capture("sh", "-c", "command -v git")))
+  bin = path_join(root, "git-bin")
+  mkdir_p(bin)
+  lock = path_join(root, "work/.git/refs/remotes/origin/main.lock")
+  write_file(lock, "")
+  write_program(
+    path_join(root, "git.b"),
+    unlines(
+      [
+        "use(\"shisutemu\", %i[status_of stderr_of stdout_of])",
+        "r = exec_capture(\"#{real}\", *argv)",
+        "write_stdout(stdout_of(r))",
+        "write_stderr(stderr_of(r))",
+        "if argv_get(0) == \"fetch\" and #{to_s(not held)}",
+        "  rm_rf(\"#{lock}\")",
+        "end",
+        "exit_with(status_of(r))"
+      ]
+    )
+  )
+  script(
+    path_join(bin, "git"),
+    unlines(
+      ["#!/bin/sh", "exec #{self_exe} run --quiet #{root}/git.b -- \"$@\""]
+    )
+  )
+  bin
+end
+
+def land_locked(root, held)
+  work = path_join(root, "work")
+  committed(work, [%w[other.txt other]], "topic")
+  base = as_tester(work, %w[rev-parse origin/main])
+  main_moves(root, [%w[notes/ant ant]])
+  as_tester(work, ["update-ref", "refs/remotes/origin/main", base])
+  bin = locking_git(root, held)
+  land_with(["PATH=#{bin}:#{getenv("PATH")}"], root, [])
+end
+
+test "a fetch that meets a ref lock another worktree holds waits it out and lands, as the speed and runtime agents' lands of 2026-11-10 did not"
+  if self_exe != nil
+    root = landing_fixture
+    r = land_locked(root, false)
+    assert status_of(r) == 0
+    assert contains?(stderr_of(r), "another git holds a ref lock")
+    work = path_join(root, "work")
+    assert as_tester(work, %w[show HEAD:notes/ant]) == "ant"
+    assert contains?(
+      as_tester(work, %w[ls-remote origin refs/heads/land/topic]),
+      as_tester(work, %w[rev-parse HEAD])
+    )
+    rm_rf(root)
+  end
+end
+
+test "a ref lock that outlasts the tries, or any other fetch failure, ends the land with git's words"
+  if self_exe != nil
+    root = landing_fixture
+    held = land_locked(root, true)
+    assert status_of(held) == 1
+    assert contains?(stderr_of(held), "git fetch origin main failed")
+    assert contains?(stderr_of(held), "lock")
+    rm_rf(root)
+    root = landing_fixture
+    work = path_join(root, "work")
+    committed(work, [%w[other.txt other]], "topic")
+    as_tester(
+      work,
+      ["remote", "set-url", "origin", path_join(root, "gone.git")]
+    )
+    gone = land_in(root, [])
+    assert status_of(gone) == 1
+    assert contains?(stderr_of(gone), "git fetch origin main failed")
+    assert not contains?(stderr_of(gone), "another git holds a ref lock")
     rm_rf(root)
   end
 end

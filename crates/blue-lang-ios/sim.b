@@ -219,6 +219,7 @@ def main()
   else
     raise(:usage, "blue run sim.b -- build|run|golden [program.b]")
   end
+  exit_with(0)
 end
 
 test "the plist renders nested dicts, arrays and escapes"

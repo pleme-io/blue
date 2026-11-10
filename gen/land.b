@@ -543,9 +543,13 @@ def land_runs()
 end
 
 def tickets()
+  tickets_since(stamp(rfc3339_of_ms(now_ms - 21_600_000)))
+end
+
+def tickets_since(cutoff)
   cap = exec_capture("git", "ls-remote", "origin", "refs/heads/land-queue/*")
   if status_of(cap) == 0
-    tickets_of(stdout_of(cap), stamp(rfc3339_of_ms(now_ms - 21_600_000)))
+    tickets_of(stdout_of(cap), cutoff)
   end
 end
 
@@ -583,7 +587,7 @@ def dequeue(ref)
         ":refs/heads/#{t[:name]}"
       )
     end,
-    filter((t) -> t[:ref] == ref, tickets or [])
+    filter((t) -> t[:ref] == ref, tickets_since(0) or [])
   )
 end
 
@@ -1719,6 +1723,10 @@ test "--watch yields to an older land that took the same turn, then lands and fo
     root = landing_fixture
     work = path_join(root, "work")
     committed(work, [%w[other.txt other]], "topic")
+    as_tester(
+      work,
+      %w[push -q origin HEAD:refs/heads/land-queue/20000101000000/topic]
+    )
     bin = fake_gh(root)
     r = exec_capture(
       "env",

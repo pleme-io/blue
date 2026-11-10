@@ -433,7 +433,7 @@ Read it in order as [The blue Book](docs/BOOK.md), or open one page:
 ### Explanation
 
 <details>
-<summary>49 pages on why blue is shaped as it is</summary>
+<summary>50 pages on why blue is shaped as it is</summary>
 
 - [ABSENCE — no undeclared nil](docs/ABSENCE.md): no undeclared nil: how blue makes absence a declared, checked state
 - [API-EVOLUTION — the API is a versioned rendering of the one model](docs/API-EVOLUTION.md): the API as a versioned rendering of one model (design)
@@ -461,6 +461,7 @@ Read it in order as [The blue Book](docs/BOOK.md), or open one page:
 - [Namespaces: a bidama definition stays in its bidama](docs/NAMESPACES.md): a bidama definition stays in its bidama: the rule as built and its gates
 - [naturalize(tree-sitter) — the destination, before the build](docs/NATURALIZE-TREESITTER.md): tree-sitter naturalized: the grammar spec and what is emitted from it
 - [OPERATORS — short notation for what blue says most, keyed to the blueshift](docs/OPERATORS.md): short notation for what blue says most, keyed to the blueshift (design)
+- [P2P: a zero-server peer network in blue, and a game platform on it](docs/P2P.md): a zero-server peer network in blue with capability memory regions, fault-scoped tamper evidence, and a game platform on it (design, destination approved 2026-11-09)
 - [Performance: blue as a scripting language and as a tool](docs/PERFORMANCE.md): what blue costs today, where the time goes, and the order to remove it
 - [Registry](docs/REGISTRY.md): how a blue project is published and resolved: registries as renderings of the Bluefile
 - [SERVICE-ACCESS — one access declaration, enforced by every layer that builds a service](docs/SERVICE-ACCESS.md): one access declaration, enforced by every layer that builds a service (design)

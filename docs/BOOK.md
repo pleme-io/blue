@@ -1920,6 +1920,7 @@ needs is in [KERNEL.md](KERNEL.md) §3.
 - [Namespaces: a bidama definition stays in its bidama](NAMESPACES.md): a bidama definition stays in its bidama: the rule as built and its gates
 - [naturalize(tree-sitter) — the destination, before the build](NATURALIZE-TREESITTER.md): tree-sitter naturalized: the grammar spec and what is emitted from it
 - [OPERATORS — short notation for what blue says most, keyed to the blueshift](OPERATORS.md): short notation for what blue says most, keyed to the blueshift (design)
+- [P2P: a zero-server peer network in blue, and a game platform on it](P2P.md): a zero-server peer network in blue with capability memory regions, fault-scoped tamper evidence, and a game platform on it (design, destination approved 2026-11-09)
 - [Performance: blue as a scripting language and as a tool](PERFORMANCE.md): what blue costs today, where the time goes, and the order to remove it
 - [Registry](REGISTRY.md): how a blue project is published and resolved: registries as renderings of the Bluefile
 - [SERVICE-ACCESS — one access declaration, enforced by every layer that builds a service](SERVICE-ACCESS.md): one access declaration, enforced by every layer that builds a service (design)

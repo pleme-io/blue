@@ -206,9 +206,8 @@ of G8 (`shift.wrong_arg.annotated`: an untyped caller passing an untyped
 value, refused at run time), a bidama-wide position in the Bluefile, carrying
 a top-level binding across forms, `case` narrowing a union, and record or
 union types named across a bidama (`geo::point` in a signature stays opaque).
-B0082 is not yet in `gen/consumers.json`'s swept codes: the sweep at this blue
-finds no B0005 or B0082 in any consumer, and refuses to record because kensa
-and nupastel are red on B0058, which is older than this work.
+B0082 is in `gen/consumers.json`'s swept codes (2026-11-10): the sweep at
+this blue finds all 23 consumers green.
 
 ### H3. Code is content: the definition hash as identity
 

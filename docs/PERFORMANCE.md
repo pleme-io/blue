@@ -193,16 +193,17 @@ the work), so a native run is long enough that process start does not
 decide it. The interpreter's output must equal the twin's at the small `N`,
 the image's the twin's at the big one, before anything is timed. hyperfine,
 3 runs; wall ms, then CPU (user + system) ms. It needs `hyperfine`, `rustc`
-and `tatara-rust-emit` on `PATH`. The VM has no entry that runs a program,
-so it has no column.
+and `tatara-rust-emit` on `PATH`. The VM column is `blue run --vm`, which
+compiles the whole program, its `main` call included, to one chunk; BLUE
+must be a build that has the flag.
 
-| program | tree-walker (N) | chuuzou (big N) | Rust (big N) | chuuzou / Rust | tree-walker / Rust per unit of work |
-|---|---|---|---|---|---|
-| fib (30; 38) | 1243 (cpu 1221) | 88.9 (cpu 87.8) | 68.9 (cpu 66.6) | 1.32 | 861 |
-| loop (3M; 300M) | 2685 (cpu 2679) | 246 (cpu 245) | 153 (cpu 149) | 1.65 | 1796 |
-| mutual (depth 10,000) | 40 (cpu 22) | 8.6 (cpu 1.6) | 9.1 (cpu 1.6) | 1.00 | 14 |
-| shapes, records (1M; 100M) | 7697 (cpu 7684) | 125 (cpu 124) | 133 (cpu 131) | 0.95 | 5875 |
-| sums, lists (100k; 10M) | 473 (cpu 467) | 41.6 (cpu 38.0) | 29.0 (cpu 25.1) | 1.51 | 1860 |
+| program | tree-walker (N) | VM (N) | chuuzou (big N) | Rust (big N) | chuuzou / Rust | VM / Rust per unit of work | tree-walker / Rust per unit of work |
+|---|---|---|---|---|---|---|---|
+| fib (30; 38) | 1274 (cpu 1261) | 1059 (cpu 1055) | 86.2 (cpu 85.1) | 68.3 (cpu 66.1) | 1.29 | 750 | 897 |
+| loop (3M; 300M) | 2723 (cpu 2719) | 2703 (cpu 2696) | 240 (cpu 237) | 150 (cpu 148) | 1.61 | 1825 | 1841 |
+| mutual (depth 10,000) | 22 (cpu 19) | 23 (cpu 19) | 6.3 (cpu 1.6) | 2.3 (cpu 1.3) | 1.23 | 15 | 14 |
+| shapes, records (1M; 100M) | 14310 (cpu 9029) | 8269 (cpu 8229) | 141 (cpu 140) | 152 (cpu 143) | 0.98 | 5763 | 6323 |
+| sums, lists (100k; 10M) | 565 (cpu 560) | 596 (cpu 592) | 57.9 (cpu 54.4) | 44.9 (cpu 40.8) | 1.33 | 1451 | 1372 |
 
 chuuzou keeps every `+`, `-`, `*` checked and counts recursion depth
 against the board's bound; the twin, as release Rust does, wraps and

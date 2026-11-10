@@ -1,13 +1,19 @@
 # receipt: first measure, 2026-11-09: three corpus programs on the tree-walker, chuuzou's host image and a hand-written Rust twin, CPU over Rust's
 # receipt: 2026-11-10: chuuzou and Rust run at a big N (fib 38, loop 300M, shapes 100M); the tree-walker row is its CPU per unit of work over Rust's, so every earlier tree row was startup-bound and is replaced; shapes is new
 # receipt: 2026-11-10: sums is new (a list of N words built by append and summed by nth, once refcounted and once in a region)
-native-ratio: fib chuuzou darwin 1344
-native-ratio: fib tree darwin 870526
-native-ratio: loop chuuzou darwin 1638
-native-ratio: loop tree darwin 1796190
-native-ratio: mutual chuuzou darwin 929
-native-ratio: mutual tree darwin 13929
-native-ratio: shapes chuuzou darwin 937
-native-ratio: shapes tree darwin 6170764
-native-ratio: sums chuuzou darwin 1531
-native-ratio: sums tree darwin 1840551
+# receipt: 2026-11-10: the VM is a column (blue run --vm), gated per unit of work like the tree-walker; every path measured with a release build of this tree
+native-ratio: fib chuuzou darwin 1287
+native-ratio: fib tree darwin 896505
+native-ratio: fib vm darwin 749598
+native-ratio: loop chuuzou darwin 1607
+native-ratio: loop tree darwin 1840691
+native-ratio: loop vm darwin 1824983
+native-ratio: mutual chuuzou darwin 1231
+native-ratio: mutual tree darwin 14385
+native-ratio: mutual vm darwin 14538
+native-ratio: shapes chuuzou darwin 977
+native-ratio: shapes tree darwin 6322549
+native-ratio: shapes vm darwin 5762745
+native-ratio: sums chuuzou darwin 1333
+native-ratio: sums tree darwin 1372304
+native-ratio: sums vm darwin 1450735

@@ -190,6 +190,31 @@ they are written in the Int-only subset that `chuuzou` compiles today, so
 they become native code first. Float, strings, lambdas, maps and an iOS
 board in `chuuzou` then compile the rest.
 
+## 4.1 Speed target: faster than Rust by doing less work
+
+Operator, 2026-11-10: *"we need to be 10000 times faster than rust not
+slower"*.
+
+On the same instructions, no compiler beats Rust by orders of magnitude:
+both reach the machine's limit (a world-fact). Blue beats a Rust program by
+doing less work, because blue knows things about the program that rustc
+must not assume. Each lever below is a measured ratio per workload against
+a straightforward Rust program of the same job, held by a benchmark
+ratchet (HORIZON H7); a ratio is a receipt, never a slogan.
+
+| Lever | What blue knows | Typical gain | Engine use |
+|---|---|---|---|
+| Parity | the program, compiled by `chuuzou` | 1x (floor: 0.98-1.61x today) | everything, from E6 |
+| Bake | the whole program and its data at build time | the runtime cost goes to zero for anything computable ahead | reach tables per map, atlas layout, light probes, pipeline states |
+| Memo by identity | each definition's b3 identity and its purity (capabilities) | a repeated call costs a lookup, across frames, runs and devices (H3 rung 3) | ability previews, reach for units whose surroundings did not change |
+| Incremental | which inputs changed | work in proportion to the change, not the state | a turn recomputes only what the command touched; a frame encodes only what changed |
+| Data-parallel on the GPU | a pure map over a grid | thousands of lanes against one CPU thread | AI scores every tile and target in one compute pass; visibility and threat maps |
+| Partial evaluation | which arguments are constant (rules as data) | the rule interpreter vanishes into straight code | formulas, shapes and clock rules specialised per game |
+
+The engine's speed gate is per workload: "AI turn", "reach for all
+units", "frame encode", each a ratio against its Rust baseline, with the
+target written beside it.
+
 ## 5. Decisions
 
 | Decision | Chosen | Rejected, and why |

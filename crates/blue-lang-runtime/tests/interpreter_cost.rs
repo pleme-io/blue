@@ -138,28 +138,26 @@ fn repeated_runs_do_not_each_pay_for_a_stdlib() {
     let src = "def config\n  1\nend\nconfig";
     let _ = blue_lang_runtime::pipeline::run(src);
 
-    // The MINIMUM over several rounds, as in the fork test above: load only
-    // ever adds time. One round read 3.13 ms on a shared CI runner under the
-    // full parallel suite (blue auto-release run 36690836145) while the same
-    // build measures ~0.3 ms alone — a rebuild would be over the bound in
-    // every round, noise is not.
-    let n = 20;
-    let per = (0..5)
-        .map(|_| {
-            let t = Instant::now();
-            for _ in 0..n {
-                let r = blue_lang_runtime::pipeline::run(src);
-                assert!(r.is_ok(), "config-shaped program must run: {r:?}");
-            }
-            t.elapsed() / n
-        })
-        .min()
-        .expect("rounds > 0");
-
-    assert!(
-        per < std::time::Duration::from_millis(3),
-        "a config-shaped run takes {per:?}; it was 5.92 ms before the fork and \
-         0.12 ms after, so anything near the old number means the stdlib is \
-         being rebuilt per run again"
+    // A count, not a clock: a wall-clock bound read 4.03 ms on a loaded
+    // runner (blue auto-release run 42801298256) where the same sha passed an
+    // hour before. Building the stdlib is the cost this guards, so the test
+    // counts builds. After the first run built the base, twenty runs build
+    // none.
+    let before = blue_lang_runtime::stdlib_builds();
+    assert!(before >= 1, "the first run built no base");
+    for _ in 0..20 {
+        let r = blue_lang_runtime::pipeline::run(src);
+        assert!(r.is_ok(), "config-shaped program must run: {r:?}");
+    }
+    assert_eq!(
+        blue_lang_runtime::stdlib_builds(),
+        before,
+        "twenty runs built the stdlib again; each run must fork the base"
+    );
+    let _ = blue_lang_runtime::interpreter(&mut ());
+    assert_eq!(
+        blue_lang_runtime::stdlib_builds(),
+        before + 1,
+        "a full build is not counted, so the count above proves nothing"
     );
 }

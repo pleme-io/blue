@@ -100,12 +100,23 @@ pub use blue_lang_proc::{ClockKind, Frame, HostIo, Identities, Places, Receipt};
 
 use tatara_lisp_eval::{install_full_stdlib_with, Interpreter};
 
+static STDLIB_BUILDS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// How many times this process has built the full runtime with
+/// [`interpreter`]. A fork costs none; the count is what a cost test reads
+/// instead of a clock.
+#[must_use]
+pub fn stdlib_builds() -> usize {
+    STDLIB_BUILDS.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 /// Build an interpreter with the complete blue runtime installed.
 ///
 /// This is the *only* sanctioned way to obtain one. A caller that builds an
 /// `Interpreter` directly gets a partial runtime, and the failure shows up as
 /// an unbound symbol at the far end of a program.
 pub fn interpreter<H: 'static>(host: &mut H) -> Interpreter<H> {
+    STDLIB_BUILDS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let mut interp = Interpreter::new();
     // The FULL substrate, not just `install_primitives`.
     //

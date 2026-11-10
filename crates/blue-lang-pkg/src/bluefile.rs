@@ -143,6 +143,10 @@ pub struct Project {
     pub runs: BTreeMap<String, Run>,
     /// `tool(name)`, in declaration order.
     pub tools: Vec<String>,
+    /// `tool(name, platforms)`: the platforms a tool is put on PATH on; a
+    /// tool with no row here is on PATH everywhere.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub tool_platforms: BTreeMap<String, Vec<String>>,
     /// `check(name, file[, inputs])`.
     pub checks: BTreeMap<String, Check>,
     /// `app(name, file)`.
@@ -231,6 +235,8 @@ pub const VISIBILITIES: &[&str] = &["public", "unlisted", "private"];
 pub const TIERS: &[&str] = &["foundation", "system", "toolchain"];
 
 pub const TARGETS: &[&str] = &["host", "wasm", "bpf"];
+
+pub const TOOL_PLATFORMS: &[&str] = &["linux", "darwin"];
 
 #[must_use]
 pub fn registry_output(backend: &str) -> String {
@@ -827,11 +833,38 @@ const WORDS: &[Word] = &[
     },
     Word {
         name: "tool",
-        signature: "tool(name)",
-        doc: "A nixpkgs attribute put on PATH for the project's runs, checks, apps and generators.",
+        signature: "tool(name[, platforms])",
+        doc: "A nixpkgs attribute put on PATH for the project's runs, checks, apps and generators. `platforms` (%i[linux] or %i[darwin]) puts it there on those platforms only; on any other the row is skipped. A platform named twice, or none, is refused.",
         min: 1,
-        max: 1,
-        record: |c, into| push_once(&mut into.project.tools, c.word, c.text(0, "name")?),
+        max: 2,
+        record: |c, into| {
+            let name = c.text(0, "name")?;
+            if c.args.len() > 1 {
+                let platforms = c.labels(1, "platforms")?;
+                let mut seen = platforms.clone();
+                seen.sort();
+                seen.dedup();
+                let bad = platforms.iter().find(|p| !TOOL_PLATFORMS.contains(&p.as_str()));
+                if let Some(got) = bad {
+                    return Err(Malformed::Choice {
+                        word: c.word,
+                        param: "platforms",
+                        expected: TOOL_PLATFORMS,
+                        got: got.clone(),
+                    });
+                }
+                if platforms.is_empty() || seen.len() != platforms.len() {
+                    return Err(Malformed::Choice {
+                        word: c.word,
+                        param: "platforms",
+                        expected: TOOL_PLATFORMS,
+                        got: format!("{platforms:?}"),
+                    });
+                }
+                into.project.tool_platforms.insert(name.clone(), platforms);
+            }
+            push_once(&mut into.project.tools, c.word, name)
+        },
     },
     Word {
         name: "check",
@@ -1778,6 +1811,33 @@ mod tests {
         }
         let twice = read_bluefile("package(\"m\", \"1.0.0\")\ntarget(%i[host])\ntarget(%i[wasm])");
         assert!(twice.is_err());
+    }
+
+    #[test]
+    fn a_tool_is_scoped_to_platforms_only_when_it_names_them() {
+        let b = read_bluefile(
+            "package(\"p\", \"1.0.0\")\ntool(\"git\")\ntool(\"iproute2\", %i[linux])",
+        )
+        .expect("read");
+        assert_eq!(b.project.tools, ["git", "iproute2"]);
+        assert_eq!(
+            b.project.tool_platforms,
+            BTreeMap::from([("iproute2".to_string(), vec!["linux".to_string()])])
+        );
+        assert!(read_bluefile("package(\"p\", \"1.0.0\")\ntool(\"git\")")
+            .expect("read")
+            .project
+            .tool_platforms
+            .is_empty());
+        for bad in [
+            "tool(\"x\", %i[windows])",
+            "tool(\"x\", [])",
+            "tool(\"x\", %i[linux linux])",
+            "tool(\"x\", :linux)",
+        ] {
+            let err = read_bluefile(&format!("package(\"p\", \"1.0.0\")\n{bad}"));
+            assert!(err.is_err(), "{bad} was accepted");
+        }
     }
 
     #[test]

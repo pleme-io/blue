@@ -39,10 +39,10 @@
 # | `packages(dir)` | each `dir/<pkg>/` built by `mkBidama` over `base` (blue's public distribution), plus `checks.bidama-test-<pkg>` (`blue test dir/<pkg>/<pkg>.b`), `checks.bidama-form-<pkg>` (the producer's form: `blue fmt --check` and `BLUE_FORM=own blue check`, under the blue this project pins; the build judges meaning only), `bidama-collisions` (touching the project's packages), `bidama-locks-fresh` and `bidama-deps-resolve` (the version solver) |
 # | the root lock itself | `checks.repository-lock-fresh` |
 # | `needs(name, range)` | refused at evaluation when the distribution lacks `name` |
-# | `tool(name)` | the nixpkgs attribute, on PATH for the runner, runs, checks and apps |
+# | `tool(name[, platforms])` | the nixpkgs attribute, on PATH for the runner, runs, checks and apps; with `platforms`, only on those (`linux`, `darwin`), and skipped elsewhere |
 # | `run(name, file[, reads[, inputs]])` | `packages.<name>`: `blue run file` with `RUN_OUT=$out`, `RUN_READS/<read>` holding each read run's output, and `inputs` under `$GEN_ROOT` |
 # | `check(name, file[, inputs])` | `checks.<name>`: `blue test file`; `inputs` are the project paths the tests read, under `$GEN_ROOT` |
-# | `app(name, file)` | `apps.<name>`: `blue run file` from the caller's directory; with a runner, `packages.appliance-<name>` (`nix/bundle.nix`: `blue bundle` seals the program and the lock's verified capabilities onto `blue-appliance`, one executable held to them, pure when the lock records none) and, on Linux, `packages.appliance-<name>-image` (that executable alone in a scratch image) |
+# | `app(name, file)` | `apps.<name>` and `packages.<name>`: the program installed as a command (`mkBlueApp`, the project's bidamas and tools) that runs `blue run file` from the caller's directory, and an `overlays.default` entry `<name>` for a consumer's package set; with a runner, `packages.appliance-<name>` (`nix/bundle.nix`: `blue bundle` seals the program and the lock's verified capabilities onto `blue-appliance`, one executable held to them, pure when the lock records none) and, on Linux, `packages.appliance-<name>-image` (that executable alone in a scratch image) |
 # | `generate(name, output, program[, inputs])` | `packages.generated-<name>`, `checks.generated-<name>-fresh`; `inputs` are the project paths the program reads, under `$GEN_ROOT` |
 # | `catalog(path)` | `packages.bidama-catalog`, `checks.bidama-catalog-fresh` |
 # | `rule(code, file, def[, severity])` | `checks.project-rules-hold`: `blue check` on every `.b` of the project's packages and every run, check and app program, which runs the project rules beside the registry |
@@ -103,7 +103,7 @@ let
   # the closed-world half of the plan above.
   known = [
     "schema" "name" "version" "needs" "when"
-    "sources" "packages" "runs" "tools" "checks" "apps" "catalog" "generated"
+    "sources" "packages" "runs" "tools" "tool_platforms" "checks" "apps" "catalog" "generated"
     "images" "workloads" "rules" "services" "frontends" "vm_checks"
     "visibility" "registries" "reach" "allow" "virtualized" "receipts" "floors"
     "bounds" "tier" "target"
@@ -220,11 +220,14 @@ let
       # that file and nothing else in the project.
       programFile = f: builtins.path { path = src + "/${f}"; name = baseNameOf f; };
 
+      platform = if pkgs.stdenv.isLinux then "linux" else if pkgs.stdenv.isDarwin then "darwin" else pkgs.stdenv.hostPlatform.parsed.kernel.name;
+      onThisPlatform = t: !((m.tool_platforms or { }) ? ${t}) || lib.elem platform m.tool_platforms.${t};
+
       tools = map
         (t: lib.attrByPath (lib.splitString "." t)
           (throw "lib.project: tool(\"${t}\") names no attribute in nixpkgs")
           pkgs)
-        m.tools;
+        (lib.filter onThisPlatform m.tools);
 
       # The project's own packages, composed over `public` in one graph, so a
       # private package's needs(...) on a public one resolves at build time.
@@ -497,10 +500,15 @@ let
         }))
         workloads;
 
+      commands = lib.mapAttrs
+        (an: a: bl.mkBlueApp (common // { name = an; program = programFile a.file; }))
+        m.apps;
+
       packages = disjoint "package" runs
-        (disjoint "package" (catalogue // generatedPackages)
-          (disjoint "package" (imagePackages // workloadPackages // registryPackages)
-            (disjoint "package" vms.packages (disjoint "package" bundled.packages lowered.packages))));
+        (disjoint "package" commands
+          (disjoint "package" (catalogue // generatedPackages)
+            (disjoint "package" (imagePackages // workloadPackages // registryPackages)
+              (disjoint "package" vms.packages (disjoint "package" bundled.packages lowered.packages)))));
 
       gates =
         lib.optionalAttrs (ownNames != [ ]) ({
@@ -678,7 +686,7 @@ let
       };
 
       apps = disjoint "app"
-        (lib.mapAttrs (an: a: app an (programFile a.file)) m.apps)
+        (lib.mapAttrs (an: c: { type = "app"; program = "${c}/bin/${an}"; }) commands)
         (lowered.apps // lib.optionalAttrs (m.catalog != null || generated != { } || workloads != { } || registries != { } || lowered.services != { }) {
           # gen/regen.b reads the project's Bluefile.lock from the directory
           # it is run in: `nix run .#regen` from the project root.
@@ -703,7 +711,7 @@ let
     if missingNeeds != [ ] then
       throw "lib.project: the Bluefile needs ${lib.concatStringsSep ", " missingNeeds}, which neither the project nor the distribution it composes over provides${lib.concatStrings (lib.mapAttrsToList (sn: f: "; source(\"${sn}\") added nothing: ${f.refused}") refusedSources)}"
     else {
-      inherit name runner bidamas packages apps bluePath imageGate postMergeChecks postMergeNames shards;
+      inherit name runner bidamas packages apps commands bluePath imageGate postMergeChecks postMergeNames shards;
       toolchain = pkgs.symlinkJoin { name = "${name}-toolchain"; paths = tools; };
       inherit (lowered) services trios executables;
       checks = disjoint "check" preMergeChecks {
@@ -738,9 +746,12 @@ in
       any = per.${builtins.head systems};
       arm = a: lib.mapAttrs (_: t: t."${a}Module") any.trios;
     in
-    lib.optionalAttrs (any.services != { }) {
+    lib.optionalAttrs (any.services != { } || any.commands != { }) {
       overlays.default = final: _prev:
-        lib.mapAttrs (sn: _: per.${final.stdenv.hostPlatform.system}.executables.${sn}) any.services;
+        let at = per.${final.stdenv.hostPlatform.system}; in
+        disjoint "overlay entry" (lib.mapAttrs (sn: _: at.executables.${sn}) any.services) at.commands;
+    }
+    // lib.optionalAttrs (any.services != { }) {
       nixosModules = arm "nixos";
       darwinModules = arm "darwin";
       homeManagerModules = arm "homeManager";

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:af54bbd3835cbe6a9a81a5e67e08bdd393a7f61f9eb9f04661b93a96bb3db6ef",
+  "bluefile_b3": "b3:f7faf05e8bdca153fc05f821516e5390365b10724cd25e19b675d6d7d6395512",
   "manifest": {
     "schema": 1,
     "name": "project-fixture",
@@ -26,8 +26,14 @@
       }
     },
     "tools": [
-      "hello"
+      "hello",
+      "figlet"
     ],
+    "tool_platforms": {
+      "figlet": [
+        "linux"
+      ]
+    },
     "checks": {
       "smoke": {
         "file": "checks/smoke.b"

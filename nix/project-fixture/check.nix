@@ -26,6 +26,12 @@ in
 pkgs.runCommand "project-fixture" { } ''
   : ${pkgs.lib.concatStringsSep " " (pkgs.lib.attrValues fx.checks)}
   GREET_OUT=$PWD/greet ${fx.apps.greet.program}
+  test "${fx.apps.greet.program}" = "${fx.packages.greet}/bin/greet"
+  GREET_OUT=$PWD/greet-installed ${fx.packages.greet}/bin/greet
+  cmp greet greet-installed
+  test -x ${fx.packages.hello}/bin/hello
+  if grep -aq figlet ${fx.packages.hello}/bin/hello; then figlet_on_path=yes; else figlet_on_path=no; fi
+  test "$figlet_on_path" = ${if pkgs.stdenv.isLinux then "yes" else "no"} || { echo "project-fixture: tool(\"figlet\", %i[linux]) is $figlet_on_path on PATH here" >&2; exit 1; }
   ${fx.packages.appliance-hello}/bin/hello > appliance
   : ${pkgs.lib.optionalString pkgs.stdenv.isLinux "${fx.packages.appliance-hello-image}"}
   ${fx.runner}/bin/project-fixture test ${src + "/bidamas/fixture/fixture.b"} > runner.log

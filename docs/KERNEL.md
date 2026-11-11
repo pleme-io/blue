@@ -235,3 +235,23 @@ The encoder's check needs only an `llvm-mc`:
 ```text
 BLUE_PATH=bidamas blue kernel/isa_llvm.b "$(nix build --no-link --print-out-paths nixpkgs#llvmPackages.llvm)/bin/llvm-mc"
 ```
+
+## Writing a kernel program
+
+`blue new --kernel NAME` writes one file holding the program, its loader
+and its tests. These words do most of the work:
+
+| Word | What it does | Needs |
+|---|---|---|
+| `bpf::compile(file, {entry:, kind:, on_fault:})` | one definition to BPF, through the check stage | process |
+| `bpf::run(p, {packet:, maps:})`, `bpf::map_int(st, name, key)` | the pure machine, and a map on it | nothing |
+| `kaaneru::attached(p, spec, body)` | loads onto one of `kaaneru::hooks`, runs `body`, closes everything | `kernel_bpf` |
+| `kaaneru::map_int(live, name, key)` | a map in the kernel, with the machine's arguments | `kernel_bpf` |
+| `kaaneru::kernel_absence` | why a program cannot load here, nil when one can | `kernel_bpf` |
+
+Test on the machine first; it needs no root and runs everywhere. A real-kernel test
+opens with `skip_for(kernel_absence)`. A real kernel means plo, and a loaded plo
+reads as a broken BPF, so follow [section 7](#7-running-the-kernel-suites): work in your own
+directory under `~/scratch`, hold `flock /tmp/blue-kernel.lock`, run at idle
+priority through `blue kernel/run.b`, and read what it left behind. The `kernel`
+skill holds the same rules for an agent.

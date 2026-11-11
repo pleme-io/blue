@@ -2566,7 +2566,7 @@ test "an executable's entry is placed by the segment that holds it, and none hol
 end
 
 test "an executable's entry comes from its own file, and a file that is no ELF refuses"
-  dir = path_join(getenv("TMPDIR", "/tmp"), "kaaneru-elf-#{to_s(now_ms)}")
+  dir = path_join(temp_dir("kaaneru-elf"), "kaaneru-elf")
   mkdir_p(dir)
   elf = path_join(dir, "program")
   plain = path_join(dir, "plain")

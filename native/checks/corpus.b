@@ -32,7 +32,7 @@ test "the corpus is not empty and holds a failing run"
 end
 
 test "every corpus program prints the same and ends the same, interpreted and native"
-  work = path_join(getenv("TMPDIR", "/tmp"), "chuuzou-corpus-#{to_s(now_ns)}")
+  work = path_join(temp_dir("chuuzou-corpus"), "chuuzou-corpus")
   assert filter((d) -> d != nil, map((p) -> difference(p, work), programs)) ==
     []
 end

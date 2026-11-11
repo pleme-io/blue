@@ -2135,7 +2135,7 @@ end
 test_path: A fresh path under TMPDIR for a test's stream.
 """
 def test_path(name)
-  path_join(getenv("TMPDIR", "/tmp"), "nisshi-#{name}-#{to_s(now_ns)}.jsonl")
+  path_join(temp_dir("nisshi-#{name}"), "nisshi-#{name}.jsonl")
 end
 
 # ── tests ──────────────────────────────────────────────────────────────────

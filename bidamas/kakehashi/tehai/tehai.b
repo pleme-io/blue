@@ -664,7 +664,7 @@ test "since carries forward while a machine's state holds, and resets when it fl
 end
 
 test "a run end to end, with a machine that cannot answer"
-  dir = path_join(getenv("TMPDIR", "/tmp"), "tehai-test-#{to_s(now_ms)}")
+  dir = path_join(temp_dir("tehai-test"), "tehai-test")
   mkdir_p(dir)
   declared = path_join(dir, "machines")
   # A port nothing listens on, on this host: a fast, certain "down".
@@ -700,7 +700,7 @@ test "a run end to end, with a machine that cannot answer"
 end
 
 test "a missing ssh binary is named, and the state records which ssh ran"
-  dir = path_join(getenv("TMPDIR", "/tmp"), "tehai-ssh-test-#{to_s(now_ms)}")
+  dir = path_join(temp_dir("tehai-ssh-test"), "tehai-ssh-test")
   mkdir_p(dir)
   declared = path_join(dir, "machines")
   write_file(

@@ -1091,7 +1091,7 @@ test "only a run whose runner has gone is swept"
 end
 
 test "this runner removes what it made, and only that"
-  root = "#{getenv("TMPDIR") or "/tmp"}/kernel-run-sweep-#{to_s(now_ms)}"
+  root = path_join(temp_dir("kernel-run-sweep"), "kernel-run-sweep")
   mine = "#{root}/run-1"
   dead = "#{root}/run-2"
   mkdir_p("#{mine}/src")

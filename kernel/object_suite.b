@@ -34,7 +34,7 @@ use(
 use("retsu", %i[first flat_map repeat size])
 
 def scratch_dir()
-  dir = path_join(getenv("TMPDIR", "/tmp"), "blue-object-#{to_s(now_ms)}")
+  dir = path_join(temp_dir("blue-object"), "blue-object")
   mkdir_p(dir)
   dir
 end

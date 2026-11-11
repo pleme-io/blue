@@ -265,13 +265,16 @@ fn over_facts(verb: &str, json: bool, query: &Json, from: &FactsFrom) -> Result<
     ])
 }
 
-fn scratch_store(store: Option<PathBuf>) -> (PathBuf, bool) {
+fn scratch_store(
+    store: Option<PathBuf>,
+) -> Result<(PathBuf, Option<blue_lang_runtime::scratch::Scratch>), String> {
     match store {
-        Some(p) => (p, false),
-        None => (
-            std::env::temp_dir().join(format!("arika-store-{}.jsonl", std::process::id())),
-            true,
-        ),
+        Some(p) => Ok((p, None)),
+        None => {
+            let held = blue_lang_runtime::scratch::Scratch::new("arika-store")
+                .map_err(|e| format!("a scratch store: {e}"))?;
+            Ok((held.path().join("store.jsonl"), Some(held)))
+        }
     }
 }
 
@@ -1054,17 +1057,13 @@ pub fn run(cmd: ArikaCmd) -> Result<ExitCode, String> {
             store,
             from,
         } => {
-            let (store, scratch) = scratch_store(store);
-            let out = over_facts(
+            let (store, _held) = scratch_store(store)?;
+            over_facts(
                 "ask",
                 json,
                 &json!({"question": question, "store": store.display().to_string(), "rules": rules()}),
                 &from,
-            );
-            if scratch {
-                let _ = std::fs::remove_file(&store);
-            }
-            out
+            )
         }
         ArikaCmd::Quads { out, from } => over_facts(
             "quads",
@@ -1076,20 +1075,16 @@ pub fn run(cmd: ArikaCmd) -> Result<ExitCode, String> {
         ArikaCmd::Mcp { request, from } => {
             let request: Json =
                 serde_json::from_str(&request).map_err(|e| format!("REQUEST is not JSON: {e}"))?;
-            let (store, scratch) = scratch_store(None);
-            let out = over_facts(
+            let (store, _held) = scratch_store(None)?;
+            over_facts(
                 "mcp",
                 true,
                 &json!({"request": request, "store": store.display().to_string(), "rules": rules()}),
                 &from,
-            );
-            if scratch {
-                let _ = std::fs::remove_file(&store);
-            }
-            out
+            )
         }
         ArikaCmd::Serve { addr, store, from } => {
-            let (store, _) = scratch_store(store);
+            let (store, _held) = scratch_store(store)?;
             over_facts(
                 "serve",
                 false,

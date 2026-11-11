@@ -282,7 +282,7 @@ end
 
 test "--verify reads the note origin holds for the commit, and a commit with none is not proven"
   if self_exe != nil
-    root = path_join(getenv("TMPDIR", "/tmp"), "proof-#{to_s(now_ns)}")
+    root = path_join(temp_dir("proof"), "proof")
     work = path_join(root, "work")
     mkdir_p(work)
     write_file(path_join(work, "flake.lock"), "{}")

@@ -97,7 +97,7 @@ test "every relative link under docs/ reaches a file, and every anchor a heading
 end
 
 test "a link to nowhere, an anchor to no heading and a path this check does not read are each refused, and a good one passes"
-  dir = path_join(getenv("TMPDIR", "/tmp"), "links-#{to_s(now_ns)}")
+  dir = path_join(temp_dir("links"), "links")
   mkdir_p(path_join(dir, "docs"))
   mkdir_p(path_join(dir, "unread"))
   write_file(path_join(dir, "docs/b.md"), "# Real heading")

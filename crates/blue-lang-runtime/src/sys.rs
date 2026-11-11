@@ -133,6 +133,7 @@ fn install_process<H: 'static>(interp: &mut Interpreter<H>) {
             })?;
             let _ = std::io::stdout().flush();
             let _ = std::io::stderr().flush();
+            crate::scratch::release_all();
             std::process::exit(code)
         },
     );
@@ -873,6 +874,20 @@ fn install_fs<H: 'static>(interp: &mut Interpreter<H>) {
                     .map_err(|e| EvalError::native_fn("rm_rf", format!("{path}: {e}"), span))?;
             }
             Ok(Value::Nil)
+        },
+    );
+
+    interp.register_fn(
+        "temp_dir",
+        Arity::Exact(1),
+        |args: &[Value], _h: &mut H, span| {
+            let label = arg_str(&args[0], "temp_dir", span)?;
+            let root = crate::scratch::root();
+            writable(&root.to_string_lossy(), "temp_dir", span)?;
+            let dir = crate::scratch::held(&label).map_err(|e| {
+                EvalError::native_fn("temp_dir", format!("{}: {e}", root.display()), span)
+            })?;
+            Ok(Value::Str(dir.to_string_lossy().into_owned().into()))
         },
     );
 

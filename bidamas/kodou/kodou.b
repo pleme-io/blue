@@ -829,8 +829,8 @@ test "an immunity file grows by entries in crash-hash order, once each, and an e
   assert raised(
     () -> immunity_entries(replace(text, "kensa-immunity.v1", "v0"))
   ) == :refused
-  dir = getenv("TMPDIR", "/tmp")
-  path = path_join(dir, "kodou-immunity-#{to_s(now_ns)}.json")
+  dir = temp_dir("kodou-immunity")
+  path = path_join(dir, "kodou-immunity.json")
   immunize(path, fixture_crash("filesystem", d))
   immunize(path, fixture_crash("filesystem", d))
   immunize(path, fixture_crash("network", d))
@@ -903,8 +903,8 @@ test "the Tide window holds what is past it in the ring until acknowledgements f
 end
 
 test "a gossiped crash arrives, verifies against its hash and lands in the immunity file once"
-  dir = getenv("TMPDIR", "/tmp")
-  path = path_join(dir, "kodou-gossip-#{to_s(now_ns)}.json")
+  dir = temp_dir("kodou-gossip")
+  path = path_join(dir, "kodou-gossip.json")
   la = link("127.0.0.1:0", {})
   lb = link("127.0.0.1:0", {})
   c = fixture_crash("filesystem", crash_hash("def"))

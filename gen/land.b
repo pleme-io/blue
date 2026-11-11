@@ -2786,7 +2786,7 @@ def committed(dir, paths, message)
 end
 
 def landing_fixture()
-  root = path_join(getenv("TMPDIR", "/tmp"), "land-#{to_s(now_ns)}")
+  root = path_join(temp_dir("land"), "land")
   work = path_join(root, "work")
   mkdir_p(path_join(work, "gen"))
   mkdir_p(path_join(work, "notes"))

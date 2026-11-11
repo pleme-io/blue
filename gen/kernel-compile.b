@@ -122,7 +122,7 @@ test "every program compiles to bytecode"
 end
 
 test "the check this gate runs goes red on a call a rebase left short"
-  dir = "#{getenv("TMPDIR") or "/tmp"}/kernel-compile-#{to_s(now_ms)}"
+  dir = path_join(temp_dir("kernel-compile"), "kernel-compile")
   mkdir_p(dir)
   file = "#{dir}/planted.b"
   write_program(

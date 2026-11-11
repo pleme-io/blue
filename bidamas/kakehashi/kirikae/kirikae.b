@@ -1956,7 +1956,7 @@ test "a success clears the streak, and a zero base never holds"
 end
 
 test "the history file round-trips and keeps only its tail"
-  dir = path_join(getenv("TMPDIR", "/tmp"), "kirikae-test-#{to_s(now_ns)}")
+  dir = path_join(temp_dir("kirikae-test"), "kirikae-test")
   p = path_join(dir, "history.jsonl")
   assert history(p) == []
   record(p, entry(b, "failed", 1000, "first"))
@@ -2152,7 +2152,7 @@ test "a switch is verified against the system it built, naming both on a mismatc
 end
 
 test "a command that exits 0 without switching is a failure the history counts"
-  dir = path_join(getenv("TMPDIR", "/tmp"), "kirikae-verify-#{to_s(now_ns)}")
+  dir = path_join(temp_dir("kirikae-verify"), "kirikae-verify")
   s = {history: path_join(dir, "history.jsonl")}
   p = {desired: b}
   out = settle(s, p, 0, verify_switch(b, a), "rebuild")
@@ -2238,7 +2238,7 @@ test "with KIRIKAE_PHASES__PLAN at 0 the guard's go switches with no plan and no
 end
 
 test "a frozen heartbeat is no writer: following stops as stale and the guard's go is planned"
-  dir = path_join(getenv("TMPDIR", "/tmp"), "kirikae-stale-#{to_s(now_ns)}")
+  dir = path_join(temp_dir("kirikae-stale"), "kirikae-stale")
   mkdir_p(dir)
   rev = "b548e3a24f88a08d1c673ad27ac494293ac5cac1"
   hb = path_join(dir, "heartbeat.json")
@@ -2322,7 +2322,7 @@ test "the expected plan time is the median of the last five timed plans, and not
 end
 
 test "a timed plan survives the history file"
-  dir = path_join(getenv("TMPDIR", "/tmp"), "kirikae-timed-#{to_s(now_ns)}")
+  dir = path_join(temp_dir("kirikae-timed"), "kirikae-timed")
   p = path_join(dir, "history.jsonl")
   record(p, assoc(entry(b, "activated", 1000, "ok"), :plan_ms, 551_000))
   record(p, entry(b, "activated", 2000, "ok"))
@@ -2424,7 +2424,7 @@ end
 
 test "following a gitops build tells its new log lines and stops on the deploy"
   rev = "b548e3a24f88a08d1c673ad27ac494293ac5cac1"
-  dir = path_join(getenv("TMPDIR", "/tmp"), "kirikae-follow-#{to_s(now_ns)}")
+  dir = path_join(temp_dir("kirikae-follow"), "kirikae-follow")
   mkdir_p(dir)
   log = path_join(dir, "stdout.log")
   write_file(
@@ -2479,7 +2479,7 @@ test "every refusal and hold names its fix, and a switch or no-op has none"
 end
 
 test "the event log appends one line per decision and keeps only the newest"
-  dir = path_join(getenv("TMPDIR", "/tmp"), "kirikae-events-#{to_s(now_ns)}")
+  dir = path_join(temp_dir("kirikae-events"), "kirikae-events")
   path = path_join(dir, "events.jsonl")
   map(
     fn(i)

@@ -400,7 +400,7 @@ def mutate(a)
       mutations: mutations(json_parse(read_file(a[:mutations_file]))),
       blue: a[:blue] or self_exe,
       test: a[:test],
-      tmp: getenv("TMPDIR", "/tmp")
+      tmp: temp_dir("heni")
     }
   )
   write_stdout(report_text(r))
@@ -469,7 +469,7 @@ test "a run end to end: a caught mutation, a survivor, a refusal"
 end
 
 def end_to_end()
-  tmp = path_join(getenv("TMPDIR", "/tmp"), "heni-self-#{to_s(now_ms)}")
+  tmp = path_join(temp_dir("heni-self"), "heni-self")
   pkg = path_join(tmp, "hnprobe")
   mkdir_p(pkg)
   write_file(

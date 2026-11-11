@@ -221,7 +221,7 @@ def exporting(observe, base)
 end
 
 def probe(env, body)
-  dir = path_join(getenv("TMPDIR", "/tmp"), "rogu-#{to_s(now_ns)}")
+  dir = path_join(temp_dir("rogu"), "rogu")
   mkdir_p(dir)
   prog = path_join(dir, "probe.b")
   write_program(prog, unlines(["use(\"rogu\")", body]))

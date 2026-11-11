@@ -1381,8 +1381,7 @@ test "an app answers its routes, 404 for no path, 405 with Allow for a wrong met
 end
 
 test "a file that is not text is answered by path, bytes untouched, with its validator"
-  dir = "#{getenv("TMPDIR", "/tmp")}/kyuuji-bytes-#{to_s(now_ms)}"
-  mkdir_p(dir)
+  dir = temp_dir("kyuuji-bytes")
   path = "#{dir}/b.pdf"
   write_bytes(path, [37, 80, 68, 70, 255, 254, 0, 128])
   r = file(path)
@@ -1404,8 +1403,7 @@ test "a file that is not text is answered by path, bytes untouched, with its val
 end
 
 test "a body spooled by the listener is on disk until the request is answered"
-  dir = "#{getenv("TMPDIR", "/tmp")}/kyuuji-spool-#{to_s(now_ms)}"
-  mkdir_p(dir)
+  dir = temp_dir("kyuuji-spool")
   l = http_listen("127.0.0.1:0", {max_request: 4096, spool: dir})
   port = http_listener_port(l)
   me = self
@@ -1572,7 +1570,7 @@ test "stream keeps each chunk in order and the body is their join"
 end
 
 test "file serves a file with its type and validator, 304 on a match, ranges by byte"
-  dir = getenv("TMPDIR", "/tmp")
+  dir = temp_dir("kyuuji-file")
   path = "#{dir}/kyuuji-file-test.css"
   write_file(path, "body{color:red}")
   r = file(path)

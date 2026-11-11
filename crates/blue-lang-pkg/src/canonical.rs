@@ -329,18 +329,16 @@ fn rewrite(path: &Path, text: &str) -> std::io::Result<()> {
 mod tests {
     use super::*;
 
-    fn scratch(name: &str, text: &str) -> PathBuf {
-        let dir =
-            std::env::temp_dir().join(format!("blue-canonical-{}-{name}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("mkdir");
-        let p = dir.join(format!("{name}.b"));
+    fn scratch(name: &str, text: &str) -> (blue_lang_runtime::scratch::Scratch, PathBuf) {
+        let dir = blue_lang_runtime::scratch::Scratch::new("blue-canonical").expect("mkdir");
+        let p = dir.path().join(format!("{name}.b"));
         std::fs::write(&p, text).expect("write");
-        p
+        (dir, p)
     }
 
     #[test]
     fn a_canonical_file_is_compiled_as_written() {
-        let p = scratch("clean", "x = 1 + 2\n");
+        let (_held, p) = scratch("clean", "x = 1 + 2\n");
         assert_eq!(read_source(&p, REWRITE).expect("admitted"), "x = 1 + 2\n");
     }
 
@@ -351,7 +349,7 @@ mod tests {
 
     #[test]
     fn a_writable_messy_entry_is_refused_and_never_written() {
-        let p = scratch("messy-judged", "x   =   1+2\n");
+        let (_held, p) = scratch("messy-judged", "x   =   1+2\n");
         let err = read_source_with(&p, Policy::default()).expect_err("refused");
         assert!(err.to_string().contains("run blue fmt --write"), "{err}");
         assert_eq!(std::fs::read_to_string(&p).expect("read"), "x   =   1+2\n");
@@ -359,7 +357,7 @@ mod tests {
 
     #[test]
     fn a_dependency_compiles_as_written_and_is_never_written() {
-        let p = scratch("dep-as-written", "x   =   1+2\n");
+        let (_held, p) = scratch("dep-as-written", "x   =   1+2\n");
         let text = std::fs::read_to_string(&p).expect("read");
         assert_eq!(
             admit_with(&p, text.clone(), Policy::default(), false).expect("admitted"),
@@ -380,7 +378,7 @@ mod tests {
 
     #[test]
     fn a_writable_messy_file_is_rewritten_when_rewrite_is_asked_for() {
-        let p = scratch("messy", "x   =   1+2\n");
+        let (_held, p) = scratch("messy", "x   =   1+2\n");
         assert_eq!(
             read_source_with(&p, REWRITE).expect("admitted"),
             "x = 1 + 2\n"
@@ -390,7 +388,7 @@ mod tests {
 
     #[test]
     fn a_one_line_block_is_not_canonical_and_compiles_as_an_inline_lambda() {
-        let p = scratch("oneline", "y = map(xs, fn(x) x * 2 end)\n");
+        let (_held, p) = scratch("oneline", "y = map(xs, fn(x) x * 2 end)\n");
         assert_eq!(
             read_source_with(&p, REWRITE).expect("admitted"),
             "y = map(xs, (x) -> x * 2)\n"
@@ -399,7 +397,7 @@ mod tests {
 
     #[test]
     fn a_read_only_one_line_block_is_refused() {
-        let p = scratch("oneline-ro", "f = fn(x) x end\n");
+        let (_held, p) = scratch("oneline-ro", "f = fn(x) x end\n");
         let mut perm = std::fs::metadata(&p).expect("meta").permissions();
         perm.set_readonly(true);
         std::fs::set_permissions(&p, perm).expect("chmod");
@@ -408,7 +406,7 @@ mod tests {
 
     #[test]
     fn a_read_only_messy_file_is_refused_and_left_alone() {
-        let p = scratch("readonly", "x   =   1+2\n");
+        let (_held, p) = scratch("readonly", "x   =   1+2\n");
         let mut perm = std::fs::metadata(&p).expect("meta").permissions();
         perm.set_readonly(true);
         std::fs::set_permissions(&p, perm).expect("chmod");
@@ -423,7 +421,7 @@ mod tests {
 
     #[test]
     fn a_file_the_formatter_refuses_is_a_compile_error_naming_the_line() {
-        let p = scratch("unplaceable", "y = 1\nx = # no line\n  5\n");
+        let (_held, p) = scratch("unplaceable", "y = 1\nx = # no line\n  5\n");
         let err = read_source(&p, REWRITE).expect_err("refused");
         let msg = err.to_string();
         assert!(msg.contains("cannot be formatted"), "{msg}");

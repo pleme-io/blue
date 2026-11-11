@@ -97,6 +97,20 @@ row(
 )
 
 row(
+  "host.temp_dir",
+  join_lines(
+    [
+      "a = temp_dir(\"blue-spec-td\")",
+      "b = temp_dir(\"blue-spec-td\")",
+      "[a != b, is_dir?(a), ls(a), starts_with?(path_basename(a), \"blue-spec-td-\")]"
+    ]
+  ),
+  value("[true, true, [], true]"),
+  covers("builtin:temp_dir"),
+  host()
+)
+
+row(
   "host.size_mtime",
   join_lines(
     [

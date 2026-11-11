@@ -64,7 +64,7 @@ capture of `blue test`.
     status_of(run_hidden("/no/such/task", "/no/such.b", "")) != 0 #=> true
 """
 def run_hidden(task_dir, path, text)
-  dir = path_join(getenv("TMPDIR", "/tmp"), "blue-eval-#{to_s(now_ns)}")
+  dir = path_join(temp_dir("blue-eval"), "blue-eval")
   mkdir_p(dir)
   hidden = path_join(task_dir, "hidden.b")
   cap = if path_exists(hidden)

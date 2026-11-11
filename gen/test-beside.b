@@ -206,10 +206,7 @@ def report(r, baseline)
 end
 
 def zed_root(source)
-  root = path_join(
-    getenv("TMPDIR", "/tmp"),
-    "test-beside-zed-#{blake3_hex(source)}"
-  )
+  root = path_join(temp_dir("test-beside-zed"), "test-beside-zed")
   rm_rf(root)
   mkdir_p(path_join(root, "zed"))
   write_file(

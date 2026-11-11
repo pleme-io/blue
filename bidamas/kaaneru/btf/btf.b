@@ -1225,7 +1225,7 @@ test "a field is found through a typedef and an anonymous union, at its bit offs
 end
 
 test "open reads a file's sections as read reads its bytes"
-  dir = path_join(getenv("TMPDIR", "/tmp"), "btf-open-#{to_s(now_ms)}")
+  dir = path_join(temp_dir("btf-open"), "btf-open")
   mkdir_p(dir)
   path = path_join(dir, "sample.btf")
   write_bytes(path, sample)

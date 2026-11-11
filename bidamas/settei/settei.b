@@ -487,7 +487,7 @@ test "file refuses an unknown tier and the explicit tier is nil when unset"
 end
 
 def defaults_dir()
-  dir = path_join(getenv("TMPDIR", "/tmp"), "settei-defs-#{to_s(now_ns)}")
+  dir = path_join(temp_dir("settei-defs"), "settei-defs")
   mkdir_p(dir)
   dir
 end

@@ -73,6 +73,8 @@ pub mod project_rules;
 pub mod provide;
 pub mod receipt;
 pub mod record;
+#[cfg(feature = "host")]
+pub mod scratch;
 pub mod session;
 pub mod shape;
 pub mod spread;

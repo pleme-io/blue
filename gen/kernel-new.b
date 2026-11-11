@@ -5,7 +5,7 @@ kernel-new: holds `blue new --kernel` to the kernel words as they change. It mak
 use("shisutemu", %i[status_of stderr_of stdout_of])
 
 def fresh(tag)
-  dir = path_join(getenv("TMPDIR", "/tmp"), "kernel-new-#{tag}-#{to_s(now_ms)}")
+  dir = path_join(temp_dir("kernel-new-#{tag}"), "kernel-new-#{tag}")
   mkdir_p(dir)
   dir
 end

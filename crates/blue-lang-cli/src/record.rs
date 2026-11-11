@@ -232,8 +232,9 @@ pub fn rerun(
     watch: Option<crate::Watch<'_>>,
 ) -> Result<Rerun, CliError> {
     let recorded = &loaded.recorded;
-    let hex = loaded.original.trim_start_matches("b3:");
-    let scratch = std::env::temp_dir().join(format!("blue-replay-{}-{hex}", std::process::id()));
+    let held = blue_lang_runtime::scratch::Scratch::new("blue-replay")
+        .map_err(|e| CliError::Fmt(format!("a replay scratch directory: {e}")))?;
+    let scratch = held.path().join("receipts");
     let given = Inputs {
         file: &recorded.file,
         inputs: &recorded.inputs,
@@ -258,7 +259,7 @@ pub fn rerun(
             watch,
         },
     );
-    let _ = std::fs::remove_dir_all(&scratch);
+    drop(held);
     let invoked = invoked?;
     let hold = invoked
         .hold

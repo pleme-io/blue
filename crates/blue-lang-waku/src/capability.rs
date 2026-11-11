@@ -251,6 +251,7 @@ const FILESYSTEM_NAMES: &[&str] = &[
     "rm",
     "rename_file",
     "rm_rf",
+    "temp_dir",
     "path_join",
     "path_basename",
     "path_dirname",

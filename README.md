@@ -254,7 +254,7 @@ rendered:
 
 | | |
 |---|---|
-| Built-in names | 396: 369 functions, 14 special forms, 13 macros |
+| Built-in names | 397: 370 functions, 14 special forms, 13 macros |
 | Surface forms | 36, with 13 operators and 26 reserved words |
 | Check rules | 79: 42 fix themselves, 8 suggest a fix |
 | Bluefile words | 28 |
@@ -265,7 +265,7 @@ rendered:
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-69 packages, 5952 definitions, 2017 tests.
+69 packages, 5953 definitions, 2019 tests.
 
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
 - [baito](bidamas/CATALOG.md#baito) (バイト) — bytes as data: integers at a declared width and order, and record layouts that say where each field sits.

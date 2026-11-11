@@ -653,7 +653,7 @@ end
 def main()
   args = argv
   tools = {clang: args[0], objdump: args[1], readobj: args[2], readelf: args[3]}
-  dir = path_join(getenv("TMPDIR", "/tmp"), "blue-object-llvm-#{to_s(now_ms)}")
+  dir = path_join(temp_dir("blue-object-llvm"), "blue-object-llvm")
   mkdir_p(dir)
   compiled = kaaneru::bpf::compile(
     "kernel/programs/object.b",

@@ -22,7 +22,7 @@ def replace_once(text, part, by)
 end
 
 def canonical(text)
-  path = path_join(getenv("TMPDIR", "/tmp"), "heni-anchors-#{to_s(now_ns)}.b")
+  path = path_join(temp_dir("heni-anchors"), "heni-anchors.b")
   write_program(path, text)
   read_file(path)
 end

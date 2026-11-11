@@ -103,7 +103,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-396 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 196 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+397 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 196 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -396,6 +396,7 @@ Higher binding power binds tighter.
 | `rename_file` | `rename_file(from, to)` | 2 | Move a file, atomically on one filesystem: write a temporary beside to, then rename. |
 | `rm` | `rm(path)` | 1 | Delete a file; raises when it is absent. |
 | `rm_rf` | `rm_rf(path)` | 1 | Delete a file or a directory tree; nil when there is nothing. |
+| `temp_dir` | `temp_dir(label)` | 1 | A new, empty directory under TMPDIR named after label, owned by this run: removed when the run ends, however it ends. fairu's with_temp_dir(label, f) removes it when f returns. |
 | `walk_dir` | `walk_dir(root)` | 1 | Every file under root, as paths, in no fixed order: sort before comparing. |
 | `write_bytes` | `write_bytes(path, bytes)` | 2 | Write a byte list or string to path, replacing what is there. Nil. |
 | `write_file` | `write_file(path, text)` | 2 | Replace the file's contents with text; nil. |

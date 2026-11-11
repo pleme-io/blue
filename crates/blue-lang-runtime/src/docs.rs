@@ -466,6 +466,7 @@ pub const NAMES: &[NameDoc] = names! {
     File: "rm_rf" "rm_rf(path)" "Delete a file or a directory tree; nil when there is nothing.";
     File: "mkdir" "mkdir(path)" "Create one directory; nil if it exists.";
     File: "mkdir_p" "mkdir_p(path)" "Create a directory and its parents.";
+    File: "temp_dir" "temp_dir(label)" "A new, empty directory under TMPDIR named after label, owned by this run: removed when the run ends, however it ends. fairu's with_temp_dir(label, f) removes it when f returns.";
     File: "path_exists" "path_exists(path)" "Whether anything is at path.";
     File: "is_file?" "is_file?(path)" "Whether path is a regular file.";
     File: "is_dir?" "is_dir?(path)" "Whether path is a directory.";

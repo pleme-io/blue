@@ -255,7 +255,7 @@ def must(dir, args)
 end
 
 def fixture(attributed)
-  dir = path_join(getenv("TMPDIR", "/tmp"), "merge-#{to_s(now_ns)}")
+  dir = path_join(temp_dir("merge"), "merge")
   mkdir_p(path_join(dir, "gen"))
   mkdir_p(path_join(dir, "notes"))
   write_program(

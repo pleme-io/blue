@@ -591,7 +591,7 @@ test "blue_exe is the running blue, and BLUE_SPAWN_FROM_PATH=1 makes it PATH's"
     assert blue_exe == blue_from(false, self_exe)
   end
   if self_exe != nil
-    dir = path_join(getenv("TMPDIR", "/tmp"), "shisutemu-#{to_s(now_ns)}")
+    dir = path_join(temp_dir("shisutemu"), "shisutemu")
     mkdir_p(dir)
     prog = path_join(dir, "probe.b")
     write_program(
@@ -777,7 +777,7 @@ end
 
 test "show writes stdout by default and stderr on request, each to its own stream"
   if self_exe != nil
-    dir = path_join(getenv("TMPDIR", "/tmp"), "shisutemu-#{to_s(now_ns)}")
+    dir = path_join(temp_dir("shisutemu"), "shisutemu")
     mkdir_p(dir)
     prog = path_join(dir, "probe.b")
     write_program(

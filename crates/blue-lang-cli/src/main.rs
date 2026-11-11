@@ -626,6 +626,7 @@ enum Cmd {
 }
 
 fn main() -> ExitCode {
+    let _held = blue_lang_runtime::scratch::ReleaseOnDrop;
     // `blue FILE [ARGS]` is `blue run --quiet FILE -- ARGS` (`script`).
     let argv = script::route(std::env::args_os().collect(), &Cli::command());
     let code = match dispatch(Cli::parse_from(argv)) {

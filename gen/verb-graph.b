@@ -103,10 +103,7 @@ test "a probe with no blue to run it raises instead of reporting nothing"
 end
 
 def zed_root(tested)
-  root = path_join(
-    getenv("TMPDIR", "/tmp"),
-    "verb-graph-zed-#{blake3_hex(tested)}"
-  )
+  root = path_join(temp_dir("verb-graph-zed"), "verb-graph-zed")
   rm_rf(root)
   mkdir_p(path_join(root, "zed"))
   write_file(

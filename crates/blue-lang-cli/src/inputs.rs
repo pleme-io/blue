@@ -43,13 +43,10 @@ pub(crate) fn hold(file: &Path, word: Word) -> Result<(), CliError> {
     let Some((project, name, inputs)) = declaration(file, word) else {
         return Ok(());
     };
-    let root = std::env::temp_dir().join(format!(
-        "blue-inputs-{}-{}",
-        name.replace(|c: char| !c.is_ascii_alphanumeric(), "-"),
-        std::process::id()
-    ));
+    let root = blue_lang_runtime::scratch::held(&format!("blue-inputs-{name}"))
+        .map_err(|e| CliError::Usage(format!("{} `{name}`: {e}", word.spelled())))?;
     let made = farm(&project, &root, &inputs).map_err(|why| {
-        let _ = std::fs::remove_dir_all(&root);
+        blue_lang_runtime::scratch::release(&root);
         CliError::Usage(format!("{} `{name}`: {why}", word.spelled()))
     })?;
     std::env::set_var("GEN_ROOT", &made);
@@ -69,7 +66,7 @@ pub(crate) fn hold(file: &Path, word: Word) -> Result<(), CliError> {
     );
     *DECLARED
         .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(Declared { note, root: made });
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(Declared { note, root });
     Ok(())
 }
 
@@ -82,7 +79,7 @@ pub(crate) fn release(failed: bool) {
         if failed {
             eprintln!("blue: {}", d.note);
         }
-        let _ = std::fs::remove_dir_all(&d.root);
+        blue_lang_runtime::scratch::release(&d.root);
     }
 }
 
@@ -119,7 +116,6 @@ fn declaration(file: &Path, word: Word) -> Option<(PathBuf, String, Vec<String>)
 }
 
 fn farm(project: &Path, root: &Path, inputs: &[String]) -> Result<PathBuf, String> {
-    let _ = std::fs::remove_dir_all(root);
     let (store, top) = (root.join("store"), root.join("root"));
     for dir in [&store, &top] {
         std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;

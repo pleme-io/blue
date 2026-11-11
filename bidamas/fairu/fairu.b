@@ -25,6 +25,20 @@ def absolute(path)
 end
 
 @doc """
+with_temp_dir: `f` called with a new, empty directory under TMPDIR named after `label`; the directory is removed when `f` returns or raises, and the answer is what `f` answers. For a directory one block uses; `temp_dir(label)` alone keeps it until the run ends.
+
+    with_temp_dir("doc", (d) -> is_dir?(d)) #=> true
+"""
+def with_temp_dir(label, f)
+  dir = temp_dir(label)
+  begin
+    f(dir)
+  ensure
+    rm_rf(dir)
+  end
+end
+
+@doc """
 on_blue_path: every existing path `rel` names below a bidama root: each BLUE_PATH entry, then `bidamas/` and `../../bidamas/` under the current directory, then the current directory. Where a bidama's test finds its fixtures, wherever blue runs it.
 
     on_blue_path("no/such/fixture") #=> []
@@ -222,11 +236,47 @@ test "fixture reads a bidama's fixture by name and refuses one that is not there
 end
 
 test "write_tree writes each file below the root, making its directories, and answers the paths"
-  root = path_join(getenv("TMPDIR", "/tmp"), "fairu-#{to_s(now_ns)}")
-  written = write_tree(root, [%w[a.txt one], %w[deep/er/b.txt two]])
-  assert written == ["#{root}/a.txt", "#{root}/deep/er/b.txt"]
-  assert read_file("#{root}/a.txt") == "one"
-  assert read_file("#{root}/deep/er/b.txt") == "two"
-  assert write_tree(root, []) == []
-  rm_rf(root)
+  with_temp_dir(
+    "fairu",
+    fn(root)
+      written = write_tree(root, [%w[a.txt one], %w[deep/er/b.txt two]])
+      assert written == ["#{root}/a.txt", "#{root}/deep/er/b.txt"]
+      assert read_file("#{root}/a.txt") == "one"
+      assert read_file("#{root}/deep/er/b.txt") == "two"
+      assert write_tree(root, []) == []
+    end
+  )
+end
+
+test "with_temp_dir removes its directory when the block returns and when it raises"
+  kept = with_temp_dir(
+    "fairu-returns",
+    fn(d)
+      write_file(path_join(d, "f"), "x")
+      d
+    end
+  )
+  assert path_exists(kept) == false
+  held = temp_dir("fairu-holder")
+  outcome = begin
+    with_temp_dir(
+      "fairu-raises",
+      fn(d)
+        write_file(path_join(held, "seen"), d)
+        raise(:broke, "on purpose")
+      end
+    )
+  rescue _
+    :raised
+  end
+  assert outcome == :raised
+  assert path_exists(read_file(path_join(held, "seen"))) == false
+end
+
+test "temp_dir makes a new empty directory each call, named after its label"
+  a = temp_dir("fairu-label")
+  b = temp_dir("fairu-label")
+  assert a != b
+  assert is_dir?(a) and ls(a) == []
+  assert starts_with?(path_basename(a), "fairu-label-")
 end

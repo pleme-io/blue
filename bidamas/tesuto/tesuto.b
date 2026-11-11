@@ -81,18 +81,16 @@ def snapshot(value, opts)
 end
 
 def scratch()
-  path_join(getenv("TMPDIR") or "/tmp", "tesuto-#{to_s(now_ns)}")
+  path_join(temp_dir("tesuto"), "scratch")
 end
 
 @doc """
-fresh_dir: A new, empty directory under TMPDIR whose name starts with `label`, made now: one per test that needs a directory.
+fresh_dir: A new, empty directory under TMPDIR whose name starts with `label`, made now: one per test that needs a directory. The run owns it (`temp_dir`), so it is gone when the run ends, however the run ends.
 
     starts_with?(path_basename(fresh_dir("doc")), "doc-") #=> true
 """
 def fresh_dir(label)
-  dir = path_join(getenv("TMPDIR") or "/tmp", "#{label}-#{to_s(now_ns)}")
-  mkdir_p(dir)
-  dir
+  temp_dir(label)
 end
 
 def caught(f)

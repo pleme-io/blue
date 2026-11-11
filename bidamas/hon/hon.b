@@ -2272,7 +2272,7 @@ test "the kinds are listed in the book's order"
 end
 
 test "a directory with pages is read sorted, with paths from the root"
-  root = path_join(getenv("TMPDIR", "/tmp"), "hon-pages-#{to_s(now_ns)}")
+  root = path_join(temp_dir("hon-pages"), "hon-pages")
   mkdir_p(path_join(root, "docs/howto"))
   write_file(path_join(root, "docs/b.md"), "# B")
   write_file(path_join(root, "docs/howto/a.md"), "# A")
@@ -2486,7 +2486,7 @@ test "every block of a page runs, and a wrong output or a failing command is nam
         ]
       )
     )
-    assert run_blocks(self_exe, getenv("TMPDIR", "/tmp"), good) == []
+    assert run_blocks(self_exe, temp_dir("hon-good"), good) == []
     bad = page_of(
       "docs/b.md",
       join_lines(
@@ -2501,7 +2501,7 @@ test "every block of a page runs, and a wrong output or a failing command is nam
         ]
       )
     )
-    found = run_blocks(self_exe, getenv("TMPDIR", "/tmp"), bad)
+    found = run_blocks(self_exe, temp_dir("hon-bad"), bad)
     assert length(found) == 2
     assert contains?(first(found), "docs/b.md: `blue eval 1` printed [\"1\"]")
     assert contains?(last(found), "blue block 1 failed")

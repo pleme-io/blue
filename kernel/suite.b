@@ -792,7 +792,7 @@ test "attached takes the program away when its body raises, and hands the raise 
 end
 
 test "blue new --kernel makes a project whose every test runs here, none skipped"
-  dir = path_join(getenv("TMPDIR", "/tmp"), "kernel-new-#{to_s(now_ms)}")
+  dir = path_join(temp_dir("kernel-new"), "kernel-new")
   mkdir_p(dir)
   project = path_join(dir, "probe")
   got = begin
@@ -841,7 +841,7 @@ def first_word(text)
 end
 
 test "compile refuses a file that does not check, naming why"
-  dir = path_join(getenv("TMPDIR", "/tmp"), "bpf-compile-#{to_s(now_ms)}")
+  dir = path_join(temp_dir("bpf-compile"), "bpf-compile")
   mkdir_p(dir)
   bad = path_join(dir, "bad.b")
   write_program(bad, unlines(["def entry(ctx)", "  missing_name", "end"]))
@@ -1201,7 +1201,7 @@ test "a perf_event program runs on the CPU's clock, and detach ends it"
 end
 
 test "a uprobe_multi link counts an executable's own start, and only while it holds"
-  dir = path_join(getenv("TMPDIR", "/tmp"), "blue_suite_uprobe_#{to_s(now_ms)}")
+  dir = path_join(temp_dir("blue_suite_uprobe"), "blue_suite_uprobe")
   mkdir_p(dir)
   here = path_join(dir, "head")
   source = trim(exec_capture("sh", "-c", "command -v head").stdout)

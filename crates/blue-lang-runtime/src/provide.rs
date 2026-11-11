@@ -545,6 +545,21 @@ fn filesystem<H: 'static>(interp: &mut Interpreter<H>, key: Key, keep: bool) {
         );
     }
     let t = Arc::clone(&tree);
+    let made = Arc::new(std::sync::atomic::AtomicU64::new(0));
+    interp.register_fn(
+        key("temp_dir"),
+        Arity::Exact(1),
+        move |a: &[Value], _: &mut H, span| {
+            let label = arg_str(&a[0], "temp_dir", span)?;
+            let n = made.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            let p = absolute(&format!("/tmp/blue-scratch/{label}-{n}"));
+            let mut g = locked(&t);
+            g.parents(&p);
+            g.dirs.insert(p.clone());
+            Ok(str_value(p))
+        },
+    );
+    let t = Arc::clone(&tree);
     interp.register_fn(
         key("rm"),
         Arity::Exact(1),

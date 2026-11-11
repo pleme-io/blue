@@ -234,3 +234,116 @@ fn a_switch_outside_its_set_is_refused() {
     );
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+const ENDS: &[(&str, &str, bool)] = &[
+    (
+        "returns",
+        "def main()\n  write_file(getenv(\"GEN_OUT\", \"out.txt\"), \"ok\")\nend\n",
+        true,
+    ),
+    (
+        "raises",
+        "def main()\n  raise(:broke, \"on purpose\")\nend\n",
+        false,
+    ),
+    ("exits", "def main()\n  exit_with(3)\nend\n", false),
+];
+
+fn leak_project(name: &str, program: &str, inputs: &str) -> (PathBuf, PathBuf) {
+    let base =
+        Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("leak-{name}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&base);
+    let (dir, tmp) = (base.join("project"), base.join("tmp"));
+    std::fs::create_dir_all(dir.join("docs")).expect("docs dir");
+    std::fs::create_dir_all(&tmp).expect("tmp dir");
+    std::fs::write(dir.join("docs/a.md"), "# A\n").expect("declared file");
+    std::fs::write(
+        dir.join("g.b"),
+        format!("@moduledoc \"\"\"\nleak: how a generator run ends.\n\n    to_s(1) #=> \"1\"\n\"\"\"\n\n{program}"),
+    )
+    .expect("generator");
+    std::fs::write(
+        dir.join("Bluefile"),
+        format!("package(\"fixture\", \"0.1.0\")\n\ngenerate(\"page\", \"out.txt\", \"g.b\", {inputs})\n"),
+    )
+    .expect("Bluefile");
+    let locked = blue(&dir, &["lock", "."], &[]);
+    assert!(locked.status.success(), "{}", text(&locked));
+    for args in [&["init", "-q"][..], &["add", "-A"][..]] {
+        assert!(git(&dir, args).status.success());
+    }
+    (dir.canonicalize().expect("canonical project"), tmp)
+}
+
+fn left(tmp: &Path) -> Vec<String> {
+    let mut out = Vec::new();
+    for d in [tmp.to_path_buf(), tmp.join("blue-scratch")] {
+        for e in std::fs::read_dir(&d).into_iter().flatten().flatten() {
+            let n = e.file_name().to_string_lossy().into_owned();
+            if n != "blue-scratch" {
+                out.push(n);
+            }
+        }
+    }
+    out
+}
+
+#[test]
+fn a_generator_run_leaves_no_inputs_farm_however_it_ends() {
+    for (end, program, ok) in ENDS {
+        let (dir, tmp) = leak_project(end, program, "[\"docs\"]");
+        let tmp_s = tmp.to_string_lossy().into_owned();
+        let o = blue(&dir, &["run", "--quiet", "g.b"], &[("TMPDIR", &tmp_s)]);
+        assert_eq!(o.status.success(), *ok, "{end}: {}", text(&o));
+        assert_eq!(left(&tmp), Vec::<String>::new(), "{end} left a farm behind");
+    }
+}
+
+#[test]
+fn a_refused_declared_input_leaves_no_inputs_farm() {
+    let (dir, tmp) = leak_project("refused", ENDS[0].1, "[\"docs\"]");
+    std::fs::remove_dir_all(dir.join("docs")).unwrap();
+    let tmp_s = tmp.to_string_lossy().into_owned();
+    let o = blue(&dir, &["run", "--quiet", "g.b"], &[("TMPDIR", &tmp_s)]);
+    assert!(!o.status.success());
+    assert!(
+        text(&o).contains("declares the input `docs`"),
+        "{}",
+        text(&o)
+    );
+    assert_eq!(left(&tmp), Vec::<String>::new());
+}
+
+#[test]
+fn a_killed_run_leaves_its_farm_only_until_the_next_run() {
+    let (dir, tmp) = leak_project("killed", "def main()\n  sleep(30)\nend\n", "[\"docs\"]");
+    let tmp_s = tmp.to_string_lossy().into_owned();
+    let mut child = Command::new(env!("CARGO_BIN_EXE_blue"))
+        .current_dir(&dir)
+        .args(["run", "--quiet", "g.b"])
+        .env_remove("GEN_ROOT")
+        .env_remove("BLUE_INPUTS")
+        .env_remove("BLUE_PATH")
+        .env("TMPDIR", &tmp)
+        .spawn()
+        .expect("blue starts");
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+    while left(&tmp).iter().all(|n| !n.ends_with(".lock")) {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the run never made its farm"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    child.kill().expect("kill");
+    let _ = child.wait();
+    assert!(!left(&tmp).is_empty(), "SIGKILL skips every Drop");
+    std::fs::write(dir.join("g.b"), format!("@moduledoc \"\"\"\nleak: how a generator run ends.\n\n    to_s(1) #=> \"1\"\n\"\"\"\n\n{}", ENDS[0].1)).unwrap();
+    let o = blue(&dir, &["run", "--quiet", "g.b"], &[("TMPDIR", &tmp_s)]);
+    assert!(o.status.success(), "{}", text(&o));
+    assert_eq!(
+        left(&tmp),
+        Vec::<String>::new(),
+        "the next run reaps the dead run's farm"
+    );
+}

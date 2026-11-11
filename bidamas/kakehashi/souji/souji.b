@@ -304,7 +304,7 @@ test "the nix command line: generations older than N days, dry-run passed throug
 end
 
 test "rust: only a target/ beside a Cargo.toml, only when idle, dry run deletes nothing"
-  base = path_join(getenv("TMPDIR", "/tmp"), "souji-test-#{to_s(now_ms)}")
+  base = path_join(temp_dir("souji-test"), "souji-test")
   crate = path_join(base, "crate")
   mkdir_p(path_join(crate, "target/debug"))
   write_file(path_join(crate, "Cargo.toml"), unlines(["[package]"]))

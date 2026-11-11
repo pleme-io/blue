@@ -83,7 +83,7 @@ def report(spec_path)
       mutations: mutations(json_parse(read_file(spec_path))),
       blue: self_exe,
       test: nil,
-      tmp: getenv("TMPDIR", "/tmp")
+      tmp: temp_dir("heni")
     }
   )
 end

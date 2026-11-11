@@ -54,7 +54,7 @@ test "every block of every tutorial and how-to runs as the page shows it"
     runnable = filter(runnable_page?, project_at(project_root)[:pages])
     found = flat_map(
       runnable,
-      (p) -> run_blocks(self_exe, getenv("TMPDIR", "/tmp"), p)
+      (p) -> run_blocks(self_exe, temp_dir("docs-blocks"), p)
     )
     if found != []
       write_stderr(unlines(found))

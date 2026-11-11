@@ -1,5 +1,5 @@
 def eval_t05_caught(src, from, to)
-  dir = path_join(getenv("TMPDIR", "/tmp"), "eval-t05-#{to_s(now_ns)}")
+  dir = path_join(temp_dir("eval-t05"), "eval-t05")
   mkdir_p(dir)
   path = path_join(dir, "mutant.b")
   write_program(path, replace(src, unlines(from), unlines(to)))

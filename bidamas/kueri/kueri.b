@@ -3830,7 +3830,7 @@ def example_run(m, names)
 end
 
 test "JSON Lines and literal rows load with declared types, and struct fields and explode read them"
-  path = path_join(getenv("TMPDIR", "."), "kueri-records-#{to_s(now_ns)}.jsonl")
+  path = path_join(temp_dir("kueri-records"), "kueri-records.jsonl")
   write_file(path, example_records_text)
   recs = example_records(path)
   assert render_load(recs, "r.jsonl", :duckdb) ==
@@ -4183,7 +4183,7 @@ test "a script builds a database file of views, upstream first, and q_rows never
     join_lines(["CREATE OR REPLACE VIEW intervals AS", "WITH step_1 AS ("])
   )
   assert last(parts) == ""
-  db = path_join(getenv("TMPDIR", "."), "kueri-script-#{to_s(now_ns)}.duckdb")
+  db = path_join(temp_dir("kueri-script"), "kueri-script.duckdb")
   assert duckdb_failed?(duckdb_at(db, script)) == false
   # The views persist in the file: a second process reads them.
   assert rows_at(db, "SELECT sum(seconds) AS s FROM intervals") ==
@@ -4226,7 +4226,7 @@ test "q_rows reads values by conversion, so a DuckDB display change never change
     "SELECT sum(n) AS n FROM k"
   ) == kueri::rows("SELECT 2 AS n")
   # The control: a script that fails throws, it never reads as done.
-  db = path_join(getenv("TMPDIR", "."), "kueri-run-#{to_s(now_ns)}.duckdb")
+  db = path_join(temp_dir("kueri-run"), "kueri-run.duckdb")
   assert error?(
     begin
       run_at(db, "CREATE VIEW v AS SELECT * FROM nowhere")

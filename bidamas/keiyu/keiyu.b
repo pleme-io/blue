@@ -53,7 +53,7 @@ end
 test "the proxy reaches the child and never this process"
   before = getenv("ALL_PROXY")
   if self_exe != nil
-    dir = path_join(getenv("TMPDIR", "/tmp"), "keiyu-#{to_s(now_ns)}")
+    dir = path_join(temp_dir("keiyu"), "keiyu")
     mkdir_p(dir)
     prog = path_join(dir, "child.b")
     write_program(prog, unlines(["use(\"keiyu\", [:main])", "main()"]))

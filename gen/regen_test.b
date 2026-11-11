@@ -18,7 +18,7 @@ def git(dir, args)
 end
 
 def fixture()
-  dir = path_join(getenv("TMPDIR", "/tmp"), "regen-untracked-#{to_s(now_ns)}")
+  dir = path_join(temp_dir("regen-untracked"), "regen-untracked")
   mkdir_p(path_join(dir, "bidamas/zed"))
   write_file(
     path_join(dir, "Bluefile"),
@@ -84,7 +84,7 @@ def regen_in(dir, env)
 end
 
 def generating_fixture()
-  dir = path_join(getenv("TMPDIR", "/tmp"), "regen-self-#{to_s(now_ns)}")
+  dir = path_join(temp_dir("regen-self"), "regen-self")
   mkdir_p(path_join(dir, "fake"))
   write_file(
     path_join(dir, "Bluefile"),
@@ -127,7 +127,7 @@ end
 
 def rooted_fixture()
   dir = fixture
-  outside = path_join(getenv("TMPDIR", "/tmp"), "regen-outside-#{to_s(now_ns)}")
+  outside = path_join(temp_dir("regen-outside"), "regen-outside")
   mkdir_p(outside)
   write_program(
     path_join(outside, "uses.b"),

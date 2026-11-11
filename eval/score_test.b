@@ -22,7 +22,7 @@ task's reference solution as `<task id>.b`; its path.
     length(ls(stage_references)) #=> 10
 """
 def stage_references()
-  dir = path_join(getenv("TMPDIR", "/tmp"), "blue-eval-gate-#{to_s(now_ns)}")
+  dir = path_join(temp_dir("blue-eval-gate"), "blue-eval-gate")
   mkdir_p(dir)
   tasks = ls(path_join(eval_root, "eval/tasks"))
   copied = map(

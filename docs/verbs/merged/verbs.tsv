@@ -636,7 +636,7 @@ E	gitto	graft	effect	graft(repo, ref) -> commit	error,process	-	absent	apply one
 F	gitto	hook	decl	hook(event, step) -> hook	switch,test	blue	absent	declare a step git runs before commit or push	1		na
 F	gitto	ignore?	effect	ignore?(repo, path) -> Bool	process	-	absent	whether ignore rules hide a path	2		na
 E	gitto	info	effect	info(repo) -> record	error,process	-	exists	branch, head, ahead, behind, changes	0	info(repo) -> record	yes
-E	gitto	list	effect	list(repo, opts) -> [record]	error,process	-	exists:gitto	branches, tags, commits, remotes or worktrees, chosen by of:	0	list(repo, opts) -> [record]	yes
+E	gitto	list	effect	list(repo, opts) -> [record]	error,process	-	exists:gitto	branches, tags, commits, remotes or worktrees, chosen by of:; commits narrow by grep:, pickaxe: and path: (search_args)	0	list(repo, opts) -> [record]	yes
 E	gitto	merge	effect	merge(repo, ref, opts) -> commit	error,process	-	exists	fast-forward only by default	0	merge(repo, ref, opts) -> commit	yes
 F	gitto	merge_base	effect	merge_base(repo, a, b) -> commit	process	-	absent	the newest commit that both refs contain	1		na
 E	gitto	need	effect	need(repo, ref) -> commit	error	-	absent	one commit, raises when absent	1	need(repo, ref) -> commit	yes

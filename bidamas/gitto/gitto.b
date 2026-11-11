@@ -223,12 +223,59 @@ def limit_args(opts)
   end
 end
 
+@doc """
+search_args: the git log arguments that narrow commits by message, changed text and path.
+
+`grep:` keeps the commits whose message holds every one of its fixed texts,
+`pickaxe:` those that changed how often a text occurs, and `path:` those that
+touch a path (given after the `--`).
+
+    search_args({grep: ["a", "b"]}) #=> {before: ["-F", "--all-match", "--grep=a", "--grep=b"], after: []}
+    search_args({pickaxe: "def f", path: "x.b"}) #=> {before: ["-S", "def f"], after: ["x.b"]}
+"""
+def search_args(opts)
+  texts = get_or(opts, :grep, [])
+  grep = if is_empty(texts)
+    []
+  else
+    append(%w[-F --all-match], map((t) -> "--grep=#{t}", texts))
+  end
+  pick = get_or(opts, :pickaxe, nil)
+  path = get_or(opts, :path, nil)
+  {
+    before: append(
+      grep,
+      if pick.nil?
+        []
+      else
+        ["-S", pick]
+      end
+    ),
+    after: if path.nil?
+      []
+    else
+      [path]
+    end
+  }
+end
+
+@doc """
+message: the whole message of one commit, trimmed; nil when the ref is absent.
+
+    message("/nonexistent/gitto", "HEAD") #=> nil
+"""
+def message(repo, ref)
+  if resolves(repo, ref)
+    out(repo, ["log", "-1", "--format=%B", ref, "--"])
+  end
+end
+
 # waive B0071: every caller writes gitto::list, which a qualifier resolves exactly; the verb graph names this word
 @doc """
-list: branches, tags, commits, remotes or worktrees, chosen by of:
+list: branches, tags, commits, remotes or worktrees, chosen by of:; commits narrow by grep:, pickaxe: and path: (search_args).
 """
 def list(repo, opts?)
-  o = checked(opts, %i[of limit ref])
+  o = checked(opts, %i[of limit ref grep pickaxe path])
   require_repo(repo)
   what = get_or(o, :of, :commits)
   if what == :branches
@@ -258,12 +305,16 @@ def list(repo, opts?)
   elsif what == :commits
     ref = get_or(o, :ref, "HEAD")
     if resolves(repo, ref)
+      s = search_args(o)
       map(
         commit_of,
         lines(
           raw(
             repo,
-            append(append(["log", commit_format], limit_args(o)), [ref, "--"])
+            append(
+              append(append(["log", commit_format], limit_args(o)), s.before),
+              append([ref, "--"], s.after)
+            )
           )
         )
       )
@@ -726,6 +777,22 @@ test "list of an empty repository is empty, and of a missing one is not_found"
     () -> gitto::list("/tmp/blue-gitto-not-a-repo-at-all", {})
   ) == :not_found
   assert kyohi::raised(() -> gitto::list(r, {ref: "nope"})) == :not_found
+end
+
+test "list narrows commits by message texts, a changed text and a path; message reads the whole message"
+  r = fixture("list-search")
+  first_commit = save(r, "a.b", unlines(["def f(x)", "  x", "end"]), "add f")
+  save(r, "b.txt", "b", unlines(["note b", "", "the `f` of kumo, kept"]))
+  save(r, "a.b", unlines(["def f(x)", "  x + 1", "end"]), "f moves by one")
+  subjects = (opts) -> map((c) -> c.subject, gitto::list(r, opts))
+  assert subjects({grep: %w[`f` kumo]}) == ["note b"]
+  assert subjects({grep: %w[`f` absent]}) == []
+  assert subjects({pickaxe: "def f"}) == ["add f"]
+  assert subjects({path: "a.b"}) == ["f moves by one", "add f"]
+  assert subjects({path: "b.txt", grep: ["kumo"]}) == ["note b"]
+  assert message(r, first_commit.oid) == "add f"
+  assert contains?(message(r, "HEAD~1"), "the `f` of kumo, kept")
+  assert message(r, "nope").nil?
 end
 
 test "list refuses an unknown of and an unknown option"

@@ -723,6 +723,31 @@ test "styled paints flags, ink, then fg and bg through the paint function"
   assert raised(() -> styled({text: "x", ink: :teal}, ctx)) == :bad_option
 end
 
+test "styled reads each flag only when it is true, and a map without text is not a node"
+  esc = esc_char
+  ctx = {color: true, paint: (_v) -> {r: 1, g: 2, b: 3}}
+  assert styled({text: "x", dim: true}, ctx) == "#{esc}[2mx#{esc}[0m"
+  assert styled({text: "x", underline: true}, ctx) == "#{esc}[4mx#{esc}[0m"
+  assert styled({text: "x", bold: false}, ctx) == "x"
+  assert styled({text: "x"}, ctx) == "x"
+  assert raised(() -> styled({label: "x"}, ctx)) != nil
+end
+
+test "show hands its paint function to styled"
+  esc = esc_char
+  me = self
+  show(
+    {text: "x", fg: "c"},
+    {
+      color: true,
+      paint: (_v) -> {r: 1, g: 2, b: 3},
+      sink: (t) -> send(me, t),
+      newline: false
+    }
+  )
+  assert receive(:_, 1000, nil) == "#{esc}[38;2;1;2;3mx#{esc}[0m"
+end
+
 test "a colour with no paint function is refused, and a node with none needs none"
   assert raised(() -> styled({text: "x", fg: "#ff0000"}, {color: true})) ==
     :bad_option

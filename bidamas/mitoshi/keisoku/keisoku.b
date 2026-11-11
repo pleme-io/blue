@@ -575,6 +575,19 @@ test "read raises a timeout when the instrument does not answer"
   started = now_ms
   assert raised(() -> read(dead, {wait_ms: 1})) == :timeout
   assert now_ms - started < 3000
+  slow = jisho::merge(
+    c,
+    {
+      pid: spawn(
+        fn()
+          ask = receive(:_, 60000, nil)
+          receive(:_, 2000, nil)
+          send(ask[1], [:series, self, {}])
+        end
+      )
+    }
+  )
+  assert raised(() -> read(slow, {wait_ms: 1})) == :timeout
   assert read(c, {wait_ms: 5000}) == []
 end
 

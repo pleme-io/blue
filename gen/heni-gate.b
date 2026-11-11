@@ -2,10 +2,11 @@ use("hadome", %i[measurement orphans parse recorded render])
 
 use("heni", %i[fell? mutations report_text run score sound? survivors])
 
-use("moji", [:trim])
+use("moji", %i[includes trim])
 use("mokuroku", [:blue_path_roots])
 use("retsu", %i[find_first flat_map is_empty last reject size])
 use("shisutemu", [:read_or])
+use("shuugou", [:unique])
 
 CAUGHT = "heni-caught"
 
@@ -159,22 +160,56 @@ def advisories(rows, measured, keys)
 end
 
 def rendered(measured)
+  entries(measured, [])
+end
+
+@doc """
+kept: the rows of a baseline whose key no measured package names, as entries, so a run that measured one spec rewrites that spec's rows and keeps every other.
+
+    kept(parse("heni-caught: a 1\nheni-total: a 2\n"), []) #=> [{key: "a", caught: 1, total: 2}]
+"""
+def kept(rows, measured)
+  names = map((m) -> m[:key], measured)
+  map(
+    fn(k)
+      {
+        key: k,
+        caught: recorded(rows, CAUGHT, k),
+        total: recorded(rows, TOTAL, k)
+      }
+    end,
+    reject((k) -> member?(k, names), unique(map((r) -> r[:key], rows)))
+  )
+end
+
+def entries(measured, others)
   join(
     map(
-      fn(m)
-        q = score(m[:r])
+      fn(e)
         concat(
-          render(CAUGHT, [measurement(m[:key], q[:caught])]),
-          render(TOTAL, [measurement(m[:key], q[:total])])
+          render(CAUGHT, [measurement(e[:key], e[:caught])]),
+          render(TOTAL, [measurement(e[:key], e[:total])])
         )
       end,
-      sort_keyed((m) -> m[:key], measured)
+      sort_keyed(
+        (e) -> e[:key],
+        append(
+          others,
+          map(
+            fn(m)
+              q = score(m[:r])
+              {key: m[:key], caught: q[:caught], total: q[:total]}
+            end,
+            measured
+          )
+        )
+      )
     ),
     ""
   )
 end
 
-def baseline_text(old, receipt, measured)
+def baseline_text(old, receipt, measured, partial)
   notes = append(
     filter((l) -> starts_with?(l, "#"), split(old, line_break)),
     if receipt.nil?
@@ -183,10 +218,15 @@ def baseline_text(old, receipt, measured)
       ["# receipt: #{receipt}"]
     end
   )
-  if is_empty(notes)
-    rendered(measured)
+  body = if partial
+    entries(measured, kept(parse(old), measured))
   else
-    concat(unlines(notes), rendered(measured))
+    rendered(measured)
+  end
+  if is_empty(notes)
+    body
+  else
+    concat(unlines(notes), body)
   end
 end
 
@@ -203,7 +243,8 @@ def record(receipt)
   path = baseline_path
   old = read_or(path, "")
   rows = parse(old)
-  measured = measure(specs)
+  want = getenv("HENI_SPEC")
+  measured = measure(chosen(specs, want))
   unsound = filter((m) -> not sound?(m[:r]), measured)
   fell = filter(
     fn(m)
@@ -223,7 +264,7 @@ def record(receipt)
     )
     exit_with(1)
   else
-    write_file(path, baseline_text(old, receipt, measured))
+    write_file(path, baseline_text(old, receipt, measured, not want.nil?))
     write_stdout(
       unlines(["recorded #{to_s(size(measured))} package(s) to #{path}"])
     )
@@ -290,11 +331,44 @@ test "a survivor below the recorded ratio names its package and itself"
   assert size(judge(rows, [{key: "kazu", r: refused}])) == 1
 end
 
+test "a record of one spec rewrites that spec's rows and keeps every other"
+  old = unlines(
+    [
+      "# receipt: before",
+      "heni-caught: alpha 3",
+      "heni-total: alpha 4",
+      "heni-caught: kazu 1",
+      "heni-total: kazu 1"
+    ]
+  )
+  held = fixture_run([[0, :caught], [1, :caught]])
+  text = baseline_text(old, nil, [{key: "kazu", r: held}], true)
+  assert text ==
+    unlines(
+      [
+        "# receipt: before",
+        "heni-caught: alpha 3",
+        "heni-total: alpha 4",
+        "heni-caught: kazu 2",
+        "heni-total: kazu 2"
+      ]
+    )
+  whole = baseline_text(old, nil, [{key: "kazu", r: held}], false)
+  assert not includes(whole, "alpha")
+  assert kept(parse(old), [{key: "alpha", r: held}]) ==
+    [{key: "kazu", caught: 1, total: 1}]
+end
+
 test "a recorded survivor holds, and the baseline round-trips"
   rows = parse(unlines(["heni-caught: kazu 1", "heni-total: kazu 2"]))
   debt = fixture_run([[0, :caught], [1, :survived]])
   assert judge(rows, [{key: "kazu", r: debt}]) == []
-  text = baseline_text("# receipt: first", "second", [{key: "kazu", r: debt}])
+  text = baseline_text(
+    "# receipt: first",
+    "second",
+    [{key: "kazu", r: debt}],
+    false
+  )
   assert text ==
     unlines(
       [

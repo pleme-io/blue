@@ -20,8 +20,8 @@ heni-caught: eigyou/tsuushin 3
 heni-total: eigyou/tsuushin 3
 heni-caught: fuuin 4
 heni-total: fuuin 4
-heni-caught: gamen 74
-heni-total: gamen 74
+heni-caught: gamen 56
+heni-total: gamen 56
 heni-caught: gurafu 7
 heni-total: gurafu 7
 heni-caught: happa 23
@@ -48,12 +48,16 @@ heni-caught: mitoshi/tsuiseki 22
 heni-total: mitoshi/tsuiseki 22
 heni-caught: mokuroku 2
 heni-total: mokuroku 2
+heni-caught: seikika 8
+heni-total: seikika 8
 heni-caught: settei 2
 heni-total: settei 2
 heni-caught: shinchoku 2
 heni-total: shinchoku 2
 heni-caught: shinsuu 2
 heni-total: shinsuu 2
+heni-caught: shisutemu 18
+heni-total: shisutemu 18
 heni-caught: shuusei 5
 heni-total: shuusei 5
 heni-caught: tesuto 10
@@ -62,6 +66,8 @@ heni-caught: todokede/kurashi 12
 heni-total: todokede/kurashi 12
 heni-caught: todokede/motenashi 12
 heni-total: todokede/motenashi 12
+heni-caught: toride 140
+heni-total: toride 140
 heni-caught: toriyose/danpen 20
 heni-total: toriyose/danpen 20
 heni-caught: toriyose/kyasshu 15
@@ -72,3 +78,5 @@ heni-caught: touroku 9
 heni-total: touroku 9
 heni-caught: ugoki 33
 heni-total: ugoki 33
+heni-caught: ukai 9
+heni-total: ukai 9

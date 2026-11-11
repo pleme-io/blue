@@ -1,0 +1,110 @@
+[
+  {
+    "name": "sgr fg",
+    "file": "shisutemu.b",
+    "find": "        sequence(\"38\", node[:fg], ctx[:paint])\n",
+    "replace": "        sequence(\"48\", node[:fg], ctx[:paint])\n"
+  },
+  {
+    "name": "sgr bg",
+    "file": "shisutemu.b",
+    "find": "        sequence(\"48\", node[:bg], ctx[:paint])\n",
+    "replace": "        sequence(\"38\", node[:bg], ctx[:paint])\n"
+  },
+  {
+    "name": "sgr bold",
+    "file": "shisutemu.b",
+    "find": "[:bold, \"1\"]",
+    "replace": "[:bold, \"3\"]"
+  },
+  {
+    "name": "sgr dim",
+    "file": "shisutemu.b",
+    "find": "[:dim, \"2\"]",
+    "replace": "[:dim, \"5\"]"
+  },
+  {
+    "name": "sgr underline",
+    "file": "shisutemu.b",
+    "find": "[:underline, \"4\"]",
+    "replace": "[:underline, \"7\"]"
+  },
+  {
+    "name": "flag false",
+    "file": "shisutemu.b",
+    "find": "get(node, first(p)) == true",
+    "replace": "get(node, first(p)) != nil"
+  },
+  {
+    "name": "reset",
+    "file": "shisutemu.b",
+    "find": "      \"#{esc_char}[#{join(on, \";\")}m#{node[:text]}#{esc_char}[0m\"\n",
+    "replace": "      \"#{esc_char}[#{join(on, \";\")}m#{node[:text]}#{esc_char}[m\"\n"
+  },
+  {
+    "name": "color off",
+    "file": "shisutemu.b",
+    "find": "    if is_empty(on) or not ctx[:color]\n",
+    "replace": "    if is_empty(on)\n"
+  },
+  {
+    "name": "plain map",
+    "file": "shisutemu.b",
+    "find": "    if is_empty(on) or not ctx[:color]\n",
+    "replace": "    if not ctx[:color]\n"
+  },
+  {
+    "name": "list join",
+    "file": "shisutemu.b",
+    "find": "join(map((n) -> styled(n, ctx), node), \"\")",
+    "replace": "join(map((n) -> styled(n, ctx), node), \" \")"
+  },
+  {
+    "name": "node text",
+    "file": "shisutemu.b",
+    "find": "  elsif map?(node) and string?(node[:text])\n",
+    "replace": "  elsif map?(node)\n"
+  },
+  {
+    "name": "no color env",
+    "file": "shisutemu.b",
+    "find": "no_color.nil? or no_color == \"\"",
+    "replace": "no_color.nil?"
+  },
+  {
+    "name": "sink wins",
+    "file": "shisutemu.b",
+    "find": "  if sink != nil\n    sink",
+    "replace": "  if false\n    sink"
+  },
+  {
+    "name": "to stderr",
+    "file": "shisutemu.b",
+    "find": "elsif to == :stderr",
+    "replace": "elsif to == :stdout"
+  },
+  {
+    "name": "show newline",
+    "file": "shisutemu.b",
+    "find": "  if opts[:newline] == false\n",
+    "replace": "  if opts[:newline] != false\n"
+  },
+  {
+    "name": "show returns",
+    "file": "shisutemu.b",
+    "find": "    write(unlines([text]))\n  end\n  nil\nend\n",
+    "replace": "    write(unlines([text]))\n  end\n  text\nend\n"
+  },
+  {
+    "name": "show theme",
+    "file": "shisutemu.b",
+    "find": "    paint: opts[:paint]\n",
+    "replace": "    paint: nil\n"
+  },
+  {
+    "name": "stderr writer",
+    "file": "shisutemu.b",
+    "find": "(text) -> write_stderr(text)",
+    "replace": "(text) -> write_stdout(text)"
+  }
+]

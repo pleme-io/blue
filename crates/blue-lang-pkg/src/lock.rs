@@ -199,6 +199,52 @@ pub enum LockError {
     Capability(#[from] crate::capabilities::CapabilityError),
     #[error("cannot read {path}: {error}")]
     Read { path: String, error: String },
+    #[error("source `{name}` ({url}) pinned at {rev}: {why}")]
+    SourceTree {
+        name: String,
+        url: String,
+        rev: String,
+        why: String,
+    },
+    #[error("the floor is blind: source(s) {} have no fetched tree, and reading the project without them failed: {cause}", .refused.join(", "))]
+    BlindFloor { refused: Vec<String>, cause: String },
+}
+
+pub struct SourceTrees(Vec<std::path::PathBuf>);
+
+impl SourceTrees {
+    pub fn fetched(bf: &Bluefile, pins: &BTreeMap<String, Pin>) -> Result<Self, LockError> {
+        let mut roots = Vec::new();
+        for (name, source) in &bf.project.sources {
+            let Some(pin) = pins.get(name).filter(|p| p.url == source.url) else {
+                continue;
+            };
+            let refuse = |why: String| LockError::SourceTree {
+                name: name.clone(),
+                url: source.url.clone(),
+                rev: pin.rev.clone(),
+                why,
+            };
+            let store = pin
+                .store_path
+                .as_deref()
+                .ok_or_else(|| refuse("the fetch named no store path".to_string()))?;
+            let root = Path::new(store).join(&source.dir);
+            if !root.is_dir() {
+                return Err(refuse(format!(
+                    "the fetched tree has no directory {}",
+                    root.display()
+                )));
+            }
+            roots.push(root);
+        }
+        Ok(Self(roots))
+    }
+
+    #[must_use]
+    pub fn roots(&self) -> &[std::path::PathBuf] {
+        &self.0
+    }
 }
 
 /// Where the pin's revision lives in `nix flake prefetch --json` output.
@@ -361,37 +407,52 @@ pub fn lock_dir_with(
     flakehub: Option<&dyn FlakeHub>,
 ) -> Result<(Lock, Vec<String>), LockError> {
     let (src, bf) = bluefile_at(dir)?;
-    let needs = derived_needs(dir, &bf)?;
+    let previous =
+        read_text(&dir.join(LOCK_FILE))?.and_then(|t| serde_json::from_str::<Lock>(&t).ok());
+    let registry = crate::load_path::LoadPath::for_dir(dir);
+    let pinned = pin_sources(
+        &bf,
+        prefetch,
+        &Resolve {
+            flakehub,
+            loader: &registry,
+            previous: previous.as_ref(),
+        },
+    )?;
+    let trees = SourceTrees::fetched(&bf, &pinned.sources)?;
+    let loader = crate::load_path::LoadPath::for_fetched(dir, &trees).unpinned();
+    let blind = |cause: LockError| -> LockError {
+        if pinned.refused.is_empty() {
+            cause
+        } else {
+            LockError::BlindFloor {
+                refused: pinned.refused.keys().cloned().collect(),
+                cause: cause.to_string(),
+            }
+        }
+    };
+    let needs = crate::needs::derive(dir, &bf, &loader).map_err(|e| blind(e.into()))?;
     if crate::load_path::bidama_of(&bf).is_some() {
-        let loader = crate::load_path::LoadPath::for_dir(dir).unpinned();
         let absent: Vec<String> = needs
             .keys()
             .filter(|n| loader.select(n).found.is_none())
             .cloned()
             .collect();
         if !absent.is_empty() {
-            return Err(NeedsError {
-                bluefile: dir.join(crate::MANIFEST_FILE),
-                unused: Vec::new(),
-                absent,
-            }
-            .into());
+            return Err(blind(
+                NeedsError {
+                    bluefile: dir.join(crate::MANIFEST_FILE),
+                    unused: Vec::new(),
+                    absent,
+                }
+                .into(),
+            ));
         }
     }
-    let capabilities = crate::capabilities::check_dir(dir, &bf)?;
-    let previous =
-        read_text(&dir.join(LOCK_FILE))?.and_then(|t| serde_json::from_str::<Lock>(&t).ok());
-    let loader = crate::load_path::LoadPath::for_dir(dir);
-    let (mut lock, notes) = lock_with(
-        &src,
-        &needs,
-        prefetch,
-        &Resolve {
-            flakehub,
-            loader: &loader,
-            previous: previous.as_ref(),
-        },
-    )?;
+    let capabilities =
+        crate::capabilities::check_dir(dir, &bf, &loader).map_err(|e| blind(e.into()))?;
+    let notes = pinned.notes.clone();
+    let mut lock = pinned.into_lock(&src, &bf, &needs);
     lock.capabilities = capabilities;
     Ok((lock, notes))
 }
@@ -516,6 +577,40 @@ pub fn lock_with(
     resolve: &Resolve<'_>,
 ) -> Result<(Lock, Vec<String>), LockError> {
     let bluefile = read_bluefile(bluefile_src)?;
+    let pinned = pin_sources(&bluefile, prefetch, resolve)?;
+    let notes = pinned.notes.clone();
+    Ok((pinned.into_lock(bluefile_src, &bluefile, needs), notes))
+}
+
+struct Pinned {
+    sources: BTreeMap<String, Pin>,
+    refused: BTreeMap<String, String>,
+    notes: Vec<String>,
+}
+
+impl Pinned {
+    fn into_lock(
+        self,
+        bluefile_src: &str,
+        bluefile: &Bluefile,
+        needs: &BTreeMap<String, Range>,
+    ) -> Lock {
+        Lock {
+            schema: LOCK_SCHEMA,
+            bluefile_b3: blue_lang_runtime::Inputs::hash_of(bluefile_src.as_bytes()),
+            manifest: ManifestRecord::with_needs(bluefile, needs),
+            sources: self.sources,
+            refused: self.refused,
+            capabilities: None,
+        }
+    }
+}
+
+fn pin_sources(
+    bluefile: &Bluefile,
+    prefetch: &dyn Prefetch,
+    resolve: &Resolve<'_>,
+) -> Result<Pinned, LockError> {
     let mut sources = BTreeMap::new();
     let mut refused = BTreeMap::new();
     let mut notes = Vec::new();
@@ -563,17 +658,11 @@ pub fn lock_with(
             })?;
         sources.insert(name.clone(), pin_of(name, &source.url, &json)?);
     }
-    Ok((
-        Lock {
-            schema: LOCK_SCHEMA,
-            bluefile_b3: blue_lang_runtime::Inputs::hash_of(bluefile_src.as_bytes()),
-            manifest: ManifestRecord::with_needs(&bluefile, needs),
-            sources,
-            refused,
-            capabilities: None,
-        },
+    Ok(Pinned {
+        sources,
+        refused,
         notes,
-    ))
+    })
 }
 
 /// The one rendering of a lock or a manifest record: pretty, keys in

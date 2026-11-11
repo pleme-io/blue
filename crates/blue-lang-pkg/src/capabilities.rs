@@ -1172,12 +1172,15 @@ fn held_project(entry: &Path) -> Result<Option<Bluefile>, String> {
 /// # Errors
 ///
 /// As [`graph`] and [`verify`].
-pub fn check_dir(dir: &Path, bf: &Bluefile) -> Result<Option<CapabilityRecord>, CapabilityError> {
+pub fn check_dir(
+    dir: &Path,
+    bf: &Bluefile,
+    loader: &LoadPath,
+) -> Result<Option<CapabilityRecord>, CapabilityError> {
     if !declared(bf) && bf.project.services.is_empty() {
         return Ok(None);
     }
-    let loader = LoadPath::for_dir(dir).unpinned();
-    let g = graph(dir, bf, &loader)?;
+    let g = graph(dir, bf, loader)?;
     let provisions = provisions_of(bf);
     for (name, service) in &bf.project.services {
         verify_access(&g, name, &service.access, &provisions)?;

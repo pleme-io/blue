@@ -801,13 +801,35 @@ test "blue new --kernel makes a project whose every test runs here, none skipped
       [["GEN_ROOT", project], %w[BLUE_TEST_SKIP refuse]],
       self_exe,
       "test",
+      "--no-cache",
       path_join(project, "probe.b")
     )
   ensure
     rm_rf(dir)
   end
   assert got.status == 0
-  assert contains?(got.stdout, "3 passed, 0 failed")
+  tally = all_ran(got.stdout)
+  assert not tally.nil?
+  assert tally >= 3
+end
+
+@doc """
+all_ran: how many tests a `blue test` run counted when every one passed and none was skipped, else nil.
+
+    all_ran(unlines(["SKIP none", "4 test(s): 4 passed, 0 failed"])) #=> 4
+    all_ran("4 test(s): 3 passed, 0 failed, 1 skipped").nil? #=> true
+    all_ran("4 test(s): 3 passed, 1 failed").nil? #=> true
+"""
+def all_ran(out)
+  summary = retsu::last(
+    filter((l) -> contains?(l, " test(s): "), split(out, line_break))
+  )
+  if summary != nil
+    parts = split(trim(summary), " test(s): ")
+    if parts[1] == "#{parts[0]} passed, 0 failed"
+      to_int(parts[0])
+    end
+  end
 end
 
 def current_tid()

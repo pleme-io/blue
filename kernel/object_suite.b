@@ -397,7 +397,27 @@ test "a refusal names the blue line and the reason, and the verifier's own log h
   assert caught.data.at.line == 11
   assert contains?(caught.data.at.text, "ctx_int(c, 1000, 4)")
   assert caught.data.reason == "invalid bpf_context access off=1000 size=4"
-  assert contains?(caught.data.log, "ctx_int(c, 1000, 4) @ refused.b:11")
+  assert contains?(caught.data.log, "; far = ctx_int(c, 1000, 4)")
+  names = verifier_names_file?(kaaneru::kernel_release)
+  if names != nil
+    assert contains?(caught.data.log, "ctx_int(c, 1000, 4) @ refused.b:11") ==
+      names
+  end
+end
+
+@doc """
+verifier_names_file?: whether the verifier's log puts ` @ FILE:LINE` after a source line, as measured: 6.6.142 prints the line alone, 6.12.92 and 7.0.11 name the file. nil for a release nothing measured.
+
+    verifier_names_file?("6.6.142") #=> false
+    verifier_names_file?("6.12.92") #=> true
+    verifier_names_file?("5.15.1").nil? #=> true
+"""
+def verifier_names_file?(release)
+  if starts_with?(release, "6.6.")
+    false
+  elsif starts_with?(release, "6.12.") or starts_with?(release, "7.")
+    true
+  end
 end
 
 test "with lines off the refusal holds an instruction and no source, as a program with no lines has"

@@ -6580,7 +6580,21 @@ source_path: where `compile` reads a file: under `GEN_ROOT` when a check holds i
     (source_path("/no/such/file.b") rescue :refused) #=> :refused
 """
 def source_path(path)
-  held = path_join(getenv("GEN_ROOT", "."), path)
+  source_path_in(getenv("GEN_ROOT"), path)
+end
+
+@doc """
+source_path_in: `source_path` under a root, or nil for none. With no root the path is the one given, spelled as given, since it names the file in a program's BTF and bpftool prints it back as `[file:PATH`.
+
+    source_path_in(nil, ".") #=> "."
+    (source_path_in(nil, "/no/such/file.b") rescue :refused) #=> :refused
+"""
+def source_path_in(root, path)
+  held = if root.nil?
+    path
+  else
+    path_join(root, path)
+  end
   found = find([held, path], (p) -> path_exists(p))
   if found.nil?
     raise(

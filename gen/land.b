@@ -560,6 +560,118 @@ def turn_step()
 end
 
 @doc """
+indent_of: How many spaces a line of YAML starts with.
+
+    indent_of("    - main") #=> 4
+    indent_of("on:") #=> 0
+"""
+def indent_of(line)
+  length(line) - length(trim(concat(line, "x"))) + 1
+end
+
+@doc """
+block_under: The lines nested under the first line `key` names, a YAML mapping
+key at any depth, up to the next line no deeper than it; [] when no line names it.
+
+    block_under(["on:", "  push:", "    branches: [main]", "  schedule:"], "push:") #=> ["    branches: [main]"]
+"""
+def block_under(ls, key)
+  rest = retsu::drop_while((l) -> trim(l) != key, ls)
+  if rest == []
+    []
+  else
+    depth = indent_of(first(rest))
+    retsu::take_while(
+      (l) -> trim(l) == "" or indent_of(l) > depth,
+      drop(1, rest)
+    )
+  end
+end
+
+@doc """
+unquoted: A YAML scalar without its quotes.
+
+    unquoted("\"main\"") #=> "main"
+    unquoted("main") #=> "main"
+"""
+def unquoted(text)
+  trim(replace(replace(trim(text), "\"", ""), "'", ""))
+end
+
+@doc """
+main_push_of: How a workflow's push to main starts it: :all when any push to
+main does, :paths when only a push that touches its paths does, nil when a push
+to main starts it never. A land's fast-forward is a push made with a token that
+starts no workflow, so land.yml must start each :all workflow itself.
+
+    main_push_of(unlines(["on:", "  push:", "    branches: [main]"])) #=> :all
+    main_push_of(unlines(["\"on\":", "  push:", "    branches:", "      - \"main\"", "    paths:", "      - \"kernel/**\""])) #=> :paths
+    main_push_of(unlines(["on:", "  push:", "    branches:", "      - \"land/**\""])) #=> nil
+    main_push_of(unlines(["on:", "  workflow_dispatch: {}"])) #=> nil
+"""
+def main_push_of(yml)
+  ls = moji::lines(yml)
+  on = if block_under(ls, "on:") == []
+    block_under(ls, "\"on\":")
+  else
+    block_under(ls, "on:")
+  end
+  push = block_under(on, "push:")
+  inline = find_first((l) -> starts_with?(trim(l), "branches: ["), push)
+  branches = if inline.nil?
+    map(
+      (l) -> unquoted(after_first(trim(l), "- ")),
+      filter((l) -> starts_with?(trim(l), "- "), block_under(push, "branches:"))
+    )
+  else
+    map(unquoted, split(before_first(after_first(inline, "["), "]"), ","))
+  end
+  if member?("main", branches)
+    if find_first(
+      fn(l)
+        starts_with?(trim(l), "paths:") or
+          starts_with?(trim(l), "paths-ignore:")
+      end,
+      push
+    ).nil?
+      :all
+    else
+      :paths
+    end
+  end
+end
+
+@doc """
+dispatched_of: The workflows land.yml's fast-forward job starts on main after it
+pushes, as its `for w in ...; do gh workflow run` step names them.
+
+    dispatched_of("        run: for w in a.yml b.yml; do gh workflow run \"$w\" --ref main; done") #=> ["a.yml", "b.yml"]
+"""
+def dispatched_of(land_yml)
+  line = find_first(
+    (l) -> contains?(l, "for w in ") and contains?(l, "gh workflow run"),
+    moji::lines(land_yml)
+  )
+  if line.nil?
+    []
+  else
+    split(trim(before_first(after_first(line, "for w in "), ";")), " ")
+  end
+end
+
+@doc """
+undispatched: The workflows a push to main starts that land.yml does not start
+after a fast-forward, each with why: ci.yml's suite already ran on the same
+commit inside the land run (land.yml calls it), and a :paths workflow would run
+on every land if dispatched, since a dispatch ignores the paths.
+
+    get(undispatched, "ci.yml") #=> "the land run already ran ci.yml on this commit"
+"""
+def undispatched()
+  {"ci.yml" => "the land run already ran ci.yml on this commit"}
+end
+
+@doc """
 batch_off_step: The name of land.yml's fast-forward step that refuses a batch
 while the repository variable BLUE_LAND_BATCH is off; the land that pushed it
 reads the step and lands alone.
@@ -3678,6 +3790,28 @@ test "a queued land whose batch blamed it ends its watch with the reason and lea
     assert as_tester(work, %w[ls-remote origin refs/heads/land/topic]) == ""
     rm_rf(root)
   end
+end
+
+test "land.yml starts every workflow a push to main starts, since its fast-forward pushes with a token that starts none, as post-merge started no run on any land after 110d3b86 (run 43017445507) until 43072181560 was dispatched by hand"
+  dir = path_join(getenv("GEN_ROOT", cwd), ".github/workflows")
+  started = dispatched_of(read_file(path_join(dir, "land.yml")))
+  assert member?("post-merge.yml", started)
+  names = map(
+    (p) -> retsu::last(split(p, "/")),
+    filter((p) -> ends_with?(p, ".yml"), walk_dir(dir))
+  )
+  skipped = undispatched
+  missed = filter(
+    fn(n)
+      main_push_of(read_file(path_join(dir, n))) == :all and
+        not member?(n, started) and
+        get(skipped, n).nil?
+    end,
+    names
+  )
+  assert missed == []
+  assert member?("post-merge.yml", names)
+  assert main_push_of(read_file(path_join(dir, "post-merge.yml"))) == :all
 end
 
 test "land.yml refuses a batch at a step of its own while BLUE_LAND_BATCH is off, before the turn, and both turns read the variable"

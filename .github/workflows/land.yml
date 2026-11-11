@@ -116,4 +116,4 @@ jobs:
         if: ${{ !startsWith(github.ref_name, 'land/dry-') && steps.token.outputs.source != 'app' }}
         env:
           GH_TOKEN: ${{ steps.token.outputs.token || secrets.GITHUB_TOKEN }}
-        run: for w in auto-release.yml registry-flakehub.yml registry-sui.yml; do gh workflow run "$w" --ref main; done
+        run: for w in auto-release.yml post-merge.yml registry-flakehub.yml registry-sui.yml; do gh workflow run "$w" --ref main; done

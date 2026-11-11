@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:92e411a23a23551653d8a8e727e8b5204b7dddc7fe70e8e6ddf961988ec121e2",
+  "bluefile_b3": "b3:6ad59d1094b79d35aa3488261bae734553c2c65f92bf2270125182c486f19668",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -75,9 +75,7 @@
           "gen/land.b",
           "gen/merge.b",
           "gen/regen.b",
-          ".github/workflows/land.yml",
-          ".github/workflows/ci.yml",
-          ".github/workflows/auto-release.yml"
+          ".github/workflows"
         ]
       },
       "markdown-laws": {

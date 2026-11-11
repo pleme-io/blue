@@ -199,6 +199,7 @@ was rendered. `blue help COMMAND` shows each one's flags.
 | `blue arika find TEXT` | Blue words whose name, package or doc gloss match TEXT, ranked by BM25 (the junni words), from the facts. |
 | `blue arika get WORD` | Every fact of one word, by pkg::name or readable id. |
 | `blue arika uses WORD` | The definitions that call a word, by pkg::name or readable id. |
+| `blue arika why WORD` | Why a word exists and is shaped as it is: the reasons recorded for it (its @doc, the commits and docs/ROADMAP.md and docs/HORIZON.md lines that name it), what pins it (the tests that name it, its callers, the commit that first wrote it), each cited; `no recorded reason` when every source was read and none says why, blind when one could not be read. |
 | `blue arika groups` | Functions of MIN nodes or more that share one computed shape across words (T2 over the whole tree). |
 | `blue arika changed PACKAGE` | How PACKAGE's words moved since an older facts file: added, removed, and code or doc moved. |
 | `blue arika ask QUESTION` | Answer a named question over blue's knowledge graph (definitions, tests, docs and rules as khipu quads, asked through DuckDB): untested-CAPABILITY is every definition that reaches the capability and that no test or doc example names. |
@@ -228,7 +229,7 @@ rendered:
 | Surface forms | 36, with 13 operators and 26 reserved words |
 | Check rules | 79: 42 fix themselves, 8 suggest a fix |
 | Bluefile words | 28 |
-| Commands | 57 |
+| Commands | 58 |
 
 ## The standard library
 

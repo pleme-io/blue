@@ -24,6 +24,8 @@ pub const DATA_DIRECTORIES: &[&str] = &["spec/rows", "bidamas/mokuroku/graph"];
 /// `eval/score.b` appends it to one. The `model-eval` flake check runs them.
 pub const EVAL_TASKS: &[&str] = &["eval/tasks"];
 
+pub const OWN_ROOT_FIXTURES: &[&str] = &["nix/bidama-root-fixture"];
+
 /// Every `.b` file under `root`, sorted: `target/`, dot directories,
 /// symlinks (a `result` into the store), [`FIXTURE_DISTRIBUTIONS`],
 /// [`DATA_DIRECTORIES`] and [`EVAL_TASKS`] skipped.
@@ -44,6 +46,7 @@ pub fn files(root: &Path) -> Vec<PathBuf> {
                     .iter()
                     .chain(DATA_DIRECTORIES)
                     .chain(EVAL_TASKS)
+                    .chain(OWN_ROOT_FIXTURES)
                     .any(|f| p == root.join(f));
                 if name == "target" || name.starts_with('.') || fixture {
                     continue;
@@ -76,4 +79,22 @@ pub fn load_path(root: &Path, files: &[PathBuf]) -> LoadPath {
     roots.dedup();
     roots.sort_by_key(|r| r != &root.join("bidamas"));
     LoadPath::over(roots)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_fixture_checked_from_its_own_root_is_not_corpus() {
+        let root = std::env::temp_dir().join(format!("corpus-own-root-{}", std::process::id()));
+        let fixture = root.join("nix/bidama-root-fixture/naibu");
+        std::fs::create_dir_all(fixture.join("soto")).unwrap();
+        std::fs::write(fixture.join("naibu.b"), "import naibu/soto\n").unwrap();
+        std::fs::write(fixture.join("soto/soto.b"), "").unwrap();
+        std::fs::write(root.join("kept.b"), "").unwrap();
+        let found = files(&root);
+        std::fs::remove_dir_all(&root).unwrap();
+        assert_eq!(found, vec![root.join("kept.b")]);
+    }
 }

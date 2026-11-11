@@ -79,7 +79,7 @@ generate("kyasshu-keys", "bidamas/toriyose/kyasshu/keys/kensa.json", "gen/kyassh
 check("okite-laws", "gen/okite-laws.b")
 check("regen-untracked", "gen/regen_test.b", ["gen/regen.b"])
 check("merge-driver", "gen/merge.b", ["gen/merge.b", "gen/regen.b"])
-check("land", "gen/land.b", ["gen/land.b", "gen/merge.b", "gen/regen.b", ".github/workflows/land.yml", ".github/workflows/ci.yml"])
+check("land", "gen/land.b", ["gen/land.b", "gen/merge.b", "gen/regen.b", ".github/workflows/land.yml", ".github/workflows/ci.yml", ".github/workflows/auto-release.yml"])
 check("proof", "gen/proof.b", ["gen/proof.b"])
 check("prepush", "gen/prepush.b", ["Bluefile.lock"])
 check("docs", "gen/docs.b", ["docs", "Bluefile.lock", "AGENTS.md", "CLAUDE.md", "README.md", "llms.txt", "llms-full.txt", ".gitattributes", ".github", "bidamas", "crates", "tree-sitter-blue"])

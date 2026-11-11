@@ -484,6 +484,44 @@ def release_hold(releases, touched)
 end
 
 @doc """
+releases_beside_main?: Whether an auto-release workflow, as its text reads,
+releases in tag mode: the release commit sits beside main, reachable only by
+its tag, so it never moves main and a land has nothing to wait for.
+
+    releases_beside_main?("      release-ref-mode: tag") #=> true
+    releases_beside_main?("      release-ref-mode: branch") #=> false
+    releases_beside_main?("") #=> false
+"""
+def releases_beside_main?(workflow)
+  find_first(
+    (l) -> trim(l) == "release-ref-mode: tag",
+    moji::lines(workflow)
+  ) != nil
+end
+
+@doc """
+held_by_release: The release hold for a land, or nil when the repository's
+auto-release workflow releases beside main: release_hold is then off, since a
+release run never writes main.
+
+    held_by_release("release-ref-mode: tag", [], ["Cargo.lock"]) #=> nil
+"""
+def held_by_release(workflow, releases, touched)
+  if not releases_beside_main?(workflow)
+    release_hold(releases_live(releases), touched)
+  end
+end
+
+def auto_release_workflow()
+  path = ".github/workflows/auto-release.yml"
+  if path_exists(path)
+    read_file(path)
+  else
+    ""
+  end
+end
+
+@doc """
 turn_refusal: Why a land run may not run its suite, or nil when it holds the
 turn: an older land still runs, and only one tests at a time against the main it
 fast-forwards; or main gained a commit the land was not built on and cannot
@@ -995,7 +1033,7 @@ def wait_turn(ref, deadline, waited, ticket?)
     elsif not waiting.nil?
       "#{waiting[:ref]} queued first and waits for its turn; this land keeps its place behind it"
     else
-      release_hold(releases_live(releases), touched_since_main)
+      held_by_release(auto_release_workflow, releases, touched_since_main)
     end
   end
   verdict = verdict_on(ticket)
@@ -1196,7 +1234,7 @@ def wait_release(touched, deadline)
   if releases.nil?
     "the release runs cannot be read"
   else
-    hold = release_hold(releases_live(releases), touched)
+    hold = held_by_release(auto_release_workflow, releases, touched)
     if hold.nil?
       nil
     elsif now_ms > deadline
@@ -2181,6 +2219,26 @@ test "a land that changes a release file waits while a release is in flight, as 
   )
   assert release_hold(releases_live(dispatched), ["gen/land.b"]).nil?
   assert release_hold([], ["Cargo.lock"]).nil?
+end
+
+test "a repository whose auto-release runs in tag mode holds no land for a release in flight, since the release commit never reaches main (v0.0.193 tagged at cafef4c8 beside main), and blue's own workflow is one"
+  dispatched = json_parse("[{\"databaseId\":42786952460,\"event\":\"workflow_dispatch\",\"status\":\"in_progress\",\"displayTitle\":\"auto-release\"}]")
+  touched = %w[Cargo.toml Cargo.lock]
+  assert held_by_release(
+    unlines(["    with:", "      release-ref-mode: tag"]),
+    dispatched,
+    touched
+  ).nil?
+  assert contains?(
+    held_by_release(
+      unlines(["    with:", "      source-paths: x"]),
+      dispatched,
+      touched
+    ),
+    "changes Cargo.toml, Cargo.lock"
+  )
+  assert held_by_release("", [], touched).nil?
+  assert releases_beside_main?(source(".github/workflows/auto-release.yml"))
 end
 
 test "a run whose fast-forward refused it at the turn is read from its steps, so --watch lands it again though main did not move"

@@ -196,8 +196,12 @@ impl Environment {
 
     #[must_use]
     pub fn load_path(&self, entry: Option<&Path>) -> LoadPath {
+        self.load_path_over(&self.project(entry), entry)
+    }
+
+    fn load_path_over(&self, project: &[PathBuf], entry: Option<&Path>) -> LoadPath {
         let mut lp = LoadPath::default();
-        lp.push(Channel::Project, &self.project(entry));
+        lp.push(Channel::Project, project);
         lp.push(Channel::Override, &self.overrides);
         lp.push(Channel::Distribution, &self.distribution);
         match entry {
@@ -339,6 +343,20 @@ impl LoadPath {
     #[must_use]
     pub fn for_dir(dir: &Path) -> Self {
         Self::for_entry(&dir.join(crate::MANIFEST_FILE))
+    }
+
+    #[must_use]
+    pub fn for_fetched(dir: &Path, fetched: &crate::lock::SourceTrees) -> Self {
+        let entry = dir.join(crate::MANIFEST_FILE);
+        let at = dir_of(&entry);
+        let project = project_roots_by(&entry, &|project, bf| {
+            if project == at {
+                fetched.roots().to_vec()
+            } else {
+                locked_source_roots(project, bf)
+            }
+        });
+        Environment::from_env().load_path_over(&project, Some(&entry))
     }
 
     /// The roots, in search order.
@@ -668,6 +686,13 @@ fn level_file(dir: &Path) -> Option<PathBuf> {
 /// lock does not pin, or pins for another url, adds nothing.
 #[must_use]
 pub fn project_roots(entry: &Path) -> Vec<PathBuf> {
+    project_roots_by(entry, &locked_source_roots)
+}
+
+fn project_roots_by(
+    entry: &Path,
+    sources: &dyn Fn(&Path, &crate::Bluefile) -> Vec<PathBuf>,
+) -> Vec<PathBuf> {
     let dir = entry
         .parent()
         .filter(|d| !d.as_os_str().is_empty())
@@ -688,7 +713,7 @@ pub fn project_roots(entry: &Path) -> Vec<PathBuf> {
             continue;
         }
         roots.extend(bf.project.packages.iter().map(|p| at.join(p)));
-        roots.extend(locked_source_roots(at, &bf));
+        roots.extend(sources(at, &bf));
         break;
     }
     let mut seen = std::collections::BTreeSet::new();

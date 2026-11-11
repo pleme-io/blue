@@ -516,7 +516,7 @@ let
           # distribution as much as with each other, so one package is enough
           # to need it.
           bidama-collisions = bl.mkCollisionCheck { inherit blue bidamas; owned = ownNames; scope = "namespace"; };
-          bidama-locks-fresh = bl.mkLockCheck { inherit blue; roots = map (d: src + "/${d}") m.packages; };
+          bidama-locks-fresh = bl.mkLockCheck { inherit blue bluePath; roots = map (d: src + "/${d}") m.packages; };
           # The version solver over every own package's needs, against the
           # same graph the build uses (mk-bidama.nix, mkResolveCheck).
           bidama-deps-resolve = bl.mkResolveCheck {

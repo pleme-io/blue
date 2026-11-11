@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:214c44935111ffa6537843d70760cc4a3f6ad661cae9fc66eb66b2eb25ec34dd",
+  "manifest": {
+    "schema": 1,
+    "name": "kakeru",
+    "version": "0.1.0",
+    "needs": {
+      "fixture": "^0.1.0",
+      "naibu": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

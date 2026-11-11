@@ -702,14 +702,14 @@ rec {
       touch $out
     '';
 
-  mkLockCheck = { blue, root ? null, roots ? [ root ], name ? "bidama-locks-fresh" }:
+  mkLockCheck = { blue, root ? null, roots ? [ root ], name ? "bidama-locks-fresh", bluePath ? null }:
     let
       manifests = lib.concatMap
         (r: map (n: "${r}/${n}/Bluefile") (lib.attrNames (packageDirs r)))
         roots;
     in
     runCommand name { } ''
-      ${blue}/bin/blue bluefile --confirm ${lib.escapeShellArgs manifests}
+      ${lib.optionalString (bluePath != null) "BLUE_PATH=${bluePath} "}${blue}/bin/blue bluefile --confirm ${lib.escapeShellArgs manifests}
       touch $out
     '';
 }

@@ -1,4 +1,6 @@
 package("source-fixture", "0.1.0")
 needs("fixture", "^0.1")
+packages("bidamas")
 source("upstream", "github:pleme-io/blue", "nix/project-fixture/bidamas")
+source("rooted", "github:pleme-io/blue", "nix/bidama-root-fixture")
 check("reaches", "checks/reaches.b")

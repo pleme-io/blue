@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:cfd8e6ff9b9136d105b494aaf17fac174801d92cb728505b66b4dc5d405a84a0",
+  "bluefile_b3": "b3:5b508b2b646d89de2677d03bbb2063a0525fa4b2676fd97d5c5a43a446bff9d7",
   "manifest": {
     "schema": 1,
     "name": "source-fixture",
@@ -10,12 +10,18 @@
     },
     "when": "anytime",
     "sources": {
+      "rooted": {
+        "url": "github:pleme-io/blue",
+        "dir": "nix/bidama-root-fixture"
+      },
       "upstream": {
         "url": "github:pleme-io/blue",
         "dir": "nix/project-fixture/bidamas"
       }
     },
-    "packages": [],
+    "packages": [
+      "bidamas"
+    ],
     "runs": {},
     "tools": [],
     "checks": {
@@ -27,11 +33,17 @@
     "catalog": null
   },
   "sources": {
+    "rooted": {
+      "url": "github:pleme-io/blue",
+      "rev": "110d3b86de477bf9d15e8a44f265d855c9e5a288",
+      "narHash": "sha256-OUPpKcdtf60vcMCGA+wnCClqs1BBaao2RbtscGhchRc=",
+      "storePath": "/nix/store/1p3m42kb3as0pn0kw4sd6nm741fqvm20-source"
+    },
     "upstream": {
       "url": "github:pleme-io/blue",
-      "rev": "804c190eb5341cca984844d3d5cdb24202670eda",
-      "narHash": "sha256-5jBJMKKJbhEk2DavIq0hu8YYCFfaL1iKymiUUP3uZdg=",
-      "storePath": "/nix/store/7k6f8kds4v8ycfxkyky9p64xgj2hdqr3-source"
+      "rev": "110d3b86de477bf9d15e8a44f265d855c9e5a288",
+      "narHash": "sha256-OUPpKcdtf60vcMCGA+wnCClqs1BBaao2RbtscGhchRc=",
+      "storePath": "/nix/store/1p3m42kb3as0pn0kw4sd6nm741fqvm20-source"
     }
   }
 }

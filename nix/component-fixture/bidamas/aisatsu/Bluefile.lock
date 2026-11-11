@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:8cdc2f783872ebb913a70b2a6da7716b3e1203b0c31a2531c4d45fe0ff503714",
+  "manifest": {
+    "schema": 1,
+    "name": "aisatsu",
+    "version": "0.1.0",
+    "needs": {},
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

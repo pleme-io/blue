@@ -1,0 +1,101 @@
+{{- include "pleme-lib.wasm-component.validate" . }}
+{{- $peers := list }}
+{{- if and .Values.database .Values.database.enabled }}
+{{- $peers = append $peers (printf "%s:%v" .Values.database.host .Values.database.port) }}
+{{- end }}
+{{- if and .Values.cache .Values.cache.enabled }}
+{{- $peers = append $peers (printf "%s:%v" .Values.cache.host .Values.cache.port) }}
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "pleme-lib.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "pleme-lib.selectorLabels" . | nindent 8 }}
+      annotations:
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- include "pleme-lib.wasm-component.annotations" (dict "ctx" . "extraEgress" $peers) | nindent 8 }}
+    spec:
+      {{- include "pleme-lib.runtimeclass" . | nindent 6 }}
+      serviceAccountName: {{ include "pleme-lib.fullname" . }}
+      automountServiceAccountToken: false
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: greeter
+          image: {{ include "pleme-lib.wasm-component.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.command }}
+          command:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.args }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            - name: BLUE_SERVICE
+              value: "greeter"
+            - name: GREETER_LISTEN__HOST
+              value: {{ .Values.listen.host | quote }}
+            - name: GREETER_LISTEN__PORT
+              value: {{ .Values.listen.port | quote }}
+            - name: GREETER_HEALTH
+              value: {{ .Values.health | quote }}
+            - name: GREETER_DEFAULTS
+              value: /app/share/greeter/defaults.yaml
+            {{- if and .Values.database .Values.database.enabled }}
+            - name: GREETER_DATABASE__URL
+              value: {{ printf "postgres://%s@%s:%v/%s" .Values.database.username .Values.database.host .Values.database.port .Values.database.name | quote }}
+            {{- end }}
+            {{- with include "greeter.env" (list "GREETER_" .Values.config) | trim }}
+            {{- . | nindent 12 }}
+            {{- end }}
+            {{- with include "greeter.env" (list "GREETER_FLAGS__" .Values.flags) | trim }}
+            {{- . | nindent 12 }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.listen.port }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.health | quote }}
+              port: http
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.health | quote }}
+              port: http
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- define "greeter.env" }}
+{{- $prefix := index . 0 }}
+{{- range $k, $v := index . 1 }}
+{{- if kindIs "map" $v }}
+{{- include "greeter.env" (list (printf "%s%s__" $prefix (upper $k)) $v) }}
+{{- else if not (kindIs "invalid" $v) }}
+- name: {{ printf "%s%s" $prefix (upper $k) }}
+  value: {{ if kindIs "slice" $v }}{{ $v | toJson | quote }}{{ else }}{{ $v | toString | quote }}{{ end }}
+{{- end }}
+{{- end }}
+{{- end }}

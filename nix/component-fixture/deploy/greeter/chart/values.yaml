@@ -1,0 +1,74 @@
+access:
+  effects:
+    - "network"
+    - "clock"
+    - "entropy"
+    - "environment"
+  egress: []
+  exec: []
+  listen:
+    - 18180
+  reads: []
+  writes: []
+args:
+  - "/app/greeter.b"
+command: []
+config:
+  greeting: "hello"
+  subject: "world"
+database:
+  credentialsSecret: ""
+  enabled: false
+  host: ""
+  migratorImage: "docker.io/library/postgres:17-alpine"
+  name: ""
+  passwordKey: "password"
+  port: 5432
+  username: ""
+flags:
+  shout: false
+health: "/healthz"
+image:
+  pullPolicy: "IfNotPresent"
+  repository: "ghcr.io/pleme-io/blue"
+  tag: ""
+listen:
+  host: "0.0.0.0"
+  port: 18180
+podAnnotations:
+  "prometheus.io/path": "/metrics"
+  "prometheus.io/port": "18180"
+  "prometheus.io/scrape": "true"
+podSecurityContext:
+  runAsGroup: 65532
+  runAsNonRoot: true
+  runAsUser: 65532
+replicaCount: 1
+resources: {}
+runtime:
+  class: "wasm"
+  component:
+    app: "app"
+    closure: ""
+    path: "component.wasm"
+  kind: "wasm"
+  reason: ""
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - "ALL"
+  readOnlyRootFilesystem: true
+service:
+  ports:
+    - name: "http"
+      port: 18180
+      protocol: "TCP"
+      targetPort: "http"
+  type: "ClusterIP"
+serviceAccount:
+  automountServiceAccountToken: false
+  create: true
+slo:
+  dashboard: true
+  rules: true

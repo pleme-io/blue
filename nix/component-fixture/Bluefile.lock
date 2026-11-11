@@ -1,0 +1,68 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:2b28ab8ae04234c6031b499c718a31d679336ac71f6944a0134d2303eedc124d",
+  "manifest": {
+    "schema": 1,
+    "name": "component-fixture",
+    "version": "0.1.0",
+    "needs": {},
+    "when": "anytime",
+    "sources": {},
+    "packages": [
+      "bidamas"
+    ],
+    "runs": {},
+    "tools": [],
+    "checks": {
+      "greeter": {
+        "file": "greeter.b"
+      }
+    },
+    "apps": {},
+    "catalog": null,
+    "services": {
+      "greeter": {
+        "program": "greeter.b",
+        "repository": "ghcr.io/pleme-io/blue",
+        "port": 18180,
+        "probe": "/healthz",
+        "namespace": "greeter",
+        "replicas": 1,
+        "config": {
+          "greeting": "hello",
+          "subject": "world"
+        },
+        "flags": {
+          "shout": false
+        },
+        "schema": {
+          "greetings": {
+            "created_at": "timestamptz",
+            "note": "text?",
+            "text": "text"
+          }
+        },
+        "access": {
+          "effects": [
+            "network",
+            "clock",
+            "entropy",
+            "environment"
+          ],
+          "egress": [],
+          "reads": [],
+          "writes": [],
+          "listen": [
+            18180
+          ],
+          "exec": []
+        },
+        "runtime": {
+          "kind": "wasm"
+        },
+        "output": "deploy/greeter"
+      }
+    }
+  },
+  "sources": {}
+}

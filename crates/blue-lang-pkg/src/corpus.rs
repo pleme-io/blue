@@ -24,7 +24,11 @@ pub const DATA_DIRECTORIES: &[&str] = &["spec/rows", "bidamas/mokuroku/graph"];
 /// `eval/score.b` appends it to one. The `model-eval` flake check runs them.
 pub const EVAL_TASKS: &[&str] = &["eval/tasks"];
 
-pub const OWN_ROOT_FIXTURES: &[&str] = &["nix/bidama-root-fixture"];
+pub const OWN_ROOT_FIXTURES: &[&str] = &[
+    "nix/bidama-root-fixture",
+    "nix/component-fixture",
+    "nix/source-fixture",
+];
 
 /// Every `.b` file under `root`, sorted: `target/`, dot directories,
 /// symlinks (a `result` into the store), [`FIXTURE_DISTRIBUTIONS`],
@@ -92,6 +96,12 @@ mod tests {
         std::fs::create_dir_all(fixture.join("soto")).unwrap();
         std::fs::write(fixture.join("naibu.b"), "import naibu/soto\n").unwrap();
         std::fs::write(fixture.join("soto/soto.b"), "").unwrap();
+        for own in ["nix/component-fixture", "nix/source-fixture"] {
+            let pkg = root.join(own).join("bidamas/own");
+            std::fs::create_dir_all(&pkg).unwrap();
+            std::fs::write(pkg.join("own.b"), "use(\"elsewhere/level\")\n").unwrap();
+            std::fs::write(root.join(own).join("main.b"), "use(\"own\")\n").unwrap();
+        }
         std::fs::write(root.join("kept.b"), "").unwrap();
         let found = files(&root);
         std::fs::remove_dir_all(&root).unwrap();

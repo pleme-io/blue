@@ -481,6 +481,10 @@ let
 
       lowered = import ./service.nix {
         inherit lib pkgs blue bl common src m name bluePath programFile lockFile imageGate oci moduleTrio chartLibraries component;
+        projectBidamas =
+          let carried = map (p: p.name) (roots.sourced ++ found); in
+          if carried == [ ] then null
+          else bl.mkBluePath { bidamas = lib.getAttrs carried bidamas; name = "${name}-component-bidamas"; };
       };
 
       # `workload(name, spec)`: the objects `blue workload render` writes from

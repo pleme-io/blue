@@ -1,0 +1,16 @@
+{
+  "database": {
+    "schema": "greeter",
+    "url": ""
+  },
+  "flags": {
+    "shout": false
+  },
+  "greeting": "hello",
+  "health": "/healthz",
+  "listen": {
+    "host": "0.0.0.0",
+    "port": 18180
+  },
+  "subject": "world"
+}

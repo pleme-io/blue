@@ -857,6 +857,10 @@
             assert lib.assertMsg (!refused.success) "example-service-workload-off: a workload lowered with rawWorkloads off";
             pkgs.writeText "example-service-workload-off" "refused";
 
+          component-fixture =
+            let ex = engine.projectFor { inherit pkgs blue moduleTrio chartLibraries; src = ./nix/component-fixture; oci = ociFor system; component = componentFor system; };
+            in ex.checks.service-greeter-component-serves or (pkgs.writeText "component-fixture" "no component on ${system}");
+
           example-http =
             let ex = engine.projectFor { inherit pkgs blue moduleTrio chartLibraries; src = ./examples/http; oci = ociFor system; component = componentFor system; };
             in pkgs.runCommand "example-http" { } ''

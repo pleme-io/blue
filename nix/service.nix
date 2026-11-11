@@ -1,4 +1,4 @@
-{ lib, pkgs, blue, bl, common, src, m, name, bluePath, programFile, lockFile, imageGate, oci, moduleTrio, chartLibraries ? { }, component ? null }:
+{ lib, pkgs, blue, bl, common, src, m, name, bluePath, projectBidamas ? null, programFile, lockFile, imageGate, oci, moduleTrio, chartLibraries ? { }, component ? null }:
 
 let
   inherit (builtins) attrNames;
@@ -39,6 +39,9 @@ let
       ln -s ${component} $out/component.wasm
       cp -L ${programFile spec.program} $out/app/${baseNameOf spec.program}
       cp -L ${trees.${sn}}/config/${sn}.yaml $out/app/share/${sn}/defaults.yaml
+    '' + lib.optionalString (projectBidamas != null) ''
+      cp -rL ${projectBidamas} $out/app/bidamas
+      printf 'package("%s", "%s")\n\npackages("bidamas")\n' "${name}-component" "${m.version}" > $out/app/Bluefile
     '' + lib.concatMapStrings
       (a: ''
         mkdir -p "$out/app/${dirOf a}"

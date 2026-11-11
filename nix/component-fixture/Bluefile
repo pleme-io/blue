@@ -1,0 +1,19 @@
+package("component-fixture", "0.1.0")
+
+packages("bidamas")
+
+service(
+  "greeter",
+  {
+    program: "greeter.b",
+    repository: "ghcr.io/pleme-io/blue",
+    port: 18180,
+    config: {greeting: "hello", subject: "world"},
+    flags: {shout: false},
+    schema: {
+      greetings: {text: "text", created_at: "timestamptz", note: "text?"}
+    }
+  }
+)
+
+check("greeter", "greeter.b")

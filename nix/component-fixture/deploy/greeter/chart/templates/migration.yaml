@@ -1,0 +1,49 @@
+{{- if .Values.database.enabled }}
+{{- $db := .Values.database }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}-schema
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+data:
+  schema.sql: |-
+    {{- .Files.Get "files/schema.sql" | trimSuffix "\n" | nindent 4 }}
+---
+apiVersion: shinka.pleme.io/v1alpha1
+kind: DatabaseMigration
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}-schema
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+spec:
+  database:
+    directRef:
+      engine: postgres
+      host: {{ required "database.host is required when database.enabled is true" $db.host | quote }}
+      port: {{ $db.port }}
+      {{- with $db.name }}
+      database: {{ . | quote }}
+      {{- end }}
+      {{- with $db.username }}
+      username: {{ . | quote }}
+      {{- end }}
+      credentialsSecretRef:
+        name: {{ required "database.credentialsSecret is required when database.enabled is true" $db.credentialsSecret | quote }}
+      passwordKey: {{ $db.passwordKey | quote }}
+      sqlConfigMapRef:
+        name: {{ include "pleme-lib.fullname" . }}-schema
+  migrator:
+    type: custom
+    imageOverride: {{ $db.migratorImage | quote }}
+    deploymentRef:
+      name: {{ include "pleme-lib.fullname" . }}
+    command:
+      - psql
+      - -v
+      - ON_ERROR_STOP=1
+      - -f
+      - /sql/schema.sql
+{{- end }}

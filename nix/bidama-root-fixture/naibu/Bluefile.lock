@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:227e7c3832ff738a3458a12854bf87f89082c4e8fb8553a3daf127cf663cc60c",
+  "manifest": {
+    "schema": 1,
+    "name": "naibu",
+    "version": "0.1.0",
+    "needs": {},
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null
+  },
+  "sources": {}
+}

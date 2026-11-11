@@ -759,6 +759,11 @@
 
           # A bidama whose code does not check does not build.
           bidama-check-refuses = bl.mkCheckRefusalCheck { inherit blue; };
+          bidama-checks-in-its-own-root = bl.mkBidama {
+            name = "naibu";
+            src = ./nix/bidama-root-fixture/naibu;
+            inherit blue;
+          };
 
           bidamas-floor =
             let

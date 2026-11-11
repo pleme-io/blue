@@ -165,7 +165,11 @@ rec {
   # because a consumer's blue may build a producer's bidama; "own" in the
   # producer's form check.
   checkStep = { blue, name, src, bluePath, form ? "none" }: ''
-      for f in ${src}/*.b; do
+      rm -rf check-root
+      mkdir check-root
+      cp -r ${src} check-root/${name}
+      chmod -R u+w check-root
+      for f in check-root/${name}/*.b; do
         if ! BLUE_FORM=${form} BLUE_PATH=${bluePath} ${blue} check "$f" > check.log 2>&1; then
           cat check.log >&2
           echo "bidama ${name}: the check stage refuses $f (above); a bidama that does not check does not build" >&2

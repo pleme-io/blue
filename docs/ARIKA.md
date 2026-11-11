@@ -120,6 +120,7 @@ word is not tested by that test.
 | `changed PKG --since OLD` | words added, removed, and moved (code, or doc and names only) | `changed_answer` |
 | `golden FILE` | G5: each `intent<TAB>word` line whose word is no longer `find`'s top hit | `golden_answer` |
 | `ask NAME` | a named khipu question over blue's quads | `blue_quads`, `khipu::ask` |
+| `why WORD` | why a word exists and is shaped as it is, each part cited (below) | `why_answer`, `gitto::list` |
 
 blue's quads live under `urn:blue:` in the graph `urn:blue:snapshot:<root>`:
 `def:WORD` with `rdf:type` Function, Value or Macro, `p:package`, `p:file`,
@@ -133,6 +134,33 @@ blue's quads live under `urn:blue:` in the graph `urn:blue:snapshot:<root>`:
 ```
 
 Measured 2026-11-09 on blue's tree: 5,966 definitions in 106 units.
+
+**`why WORD` (2026-11-10).** Each facts row also carries its whole `@doc`
+(`doc`). `why` answers three parts, every line with its source and a cite:
+
+- **reasons**, what is written about why the word exists: the `@doc` prose
+  (examples dropped; the gloss when there is no doc), each commit whose
+  message names the word (`git log -F --grep`, 8 newest per form), and each
+  line of `docs/ROADMAP.md` and `docs/HORIZON.md` that names it;
+- **pins**, what holds its shape: the tests and doc examples that name it,
+  the definitions that call it, and the oldest commit that wrote
+  `def NAME(` (or `NAME = `) in its file (`git log -S`);
+- **blind**, each source it could not read: a root in no git history, a plan
+  file not beside the root.
+
+A text names a word as `package::name` (the package's last segment), or as
+the name in backticks with the package named in the same text; a name
+character just before or after (or a `?` or `!` after) is no match. A plan
+or commit reason is the table cell or sentence of the line that names the
+word; in wrapped prose that is the one line, not its whole sentence. The
+outcome is `found` when a reason is recorded, `blind` when none was found and
+a source was unread, `none` when no word has that name, and `no recorded
+reason` when every source was read and none says why. Callers, tests and the
+writing commit are evidence, not reasons: a word they alone hold answers `no
+recorded reason`. `blue_word_why` is the same answer over MCP. Commits are read
+from git, not yet from khipu quads (utsushi), and the history is the checkout's
+own: a shallow clone sees fewer commits, and a word whose file moved cites the
+move as its writing commit.
 
 The MCP door is blue end to end: `eigyou/kyuuji`'s `mcp_answer` speaks
 JSON-RPC 2.0 (`initialize`, `ping`, `tools/list`, `tools/call`, notifications

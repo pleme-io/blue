@@ -818,3 +818,236 @@ fn the_mcp_door_lists_the_rendered_tools_and_answers_a_call_as_the_cli_does() {
         ""
     );
 }
+
+const QUIET: &str = "\ndef quiet(n)\n  n\nend\n";
+
+fn git(dir: &Path, args: &[&str]) {
+    let o = Command::new("git")
+        .current_dir(dir)
+        .args(["-c", "user.name=t", "-c", "user.email=t@t"])
+        .args(args)
+        .env("LC_ALL", "C")
+        .output()
+        .expect("spawn git");
+    assert!(
+        o.status.success(),
+        "git {args:?}: {}",
+        String::from_utf8_lossy(&o.stderr)
+    );
+}
+
+fn why(d: &Dir, root: &Path, header: &Path, facts: &Path, word: &str) -> serde_json::Value {
+    let out = run(
+        &d.0,
+        &[
+            "arika",
+            "why",
+            word,
+            "--json",
+            "--snapshot",
+            &header.display().to_string(),
+            "--facts",
+            &facts.display().to_string(),
+            "--root",
+            &root.display().to_string(),
+        ],
+    );
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    serde_json::from_str(text(&out).trim()).expect("json")
+}
+
+fn sources(a: &serde_json::Value, key: &str) -> Vec<String> {
+    a[key]
+        .as_array()
+        .expect("list")
+        .iter()
+        .map(|r| r["source"].as_str().unwrap_or_default().to_string())
+        .collect()
+}
+
+#[test]
+fn why_cites_the_doc_the_commits_and_the_plans_and_a_word_with_none_has_no_recorded_reason() {
+    let d = Dir::new("why");
+    let root = kumo_tree(&d, &format!("{KUMO}{QUIET}"));
+    std::fs::create_dir_all(d.0.join("docs")).expect("mkdir");
+    std::fs::write(
+        d.0.join("docs/ROADMAP.md"),
+        "# Roadmap\n\n| kumo | `send_it` posts what kumo reads | built |\n",
+    )
+    .expect("write");
+    std::fs::write(d.0.join("docs/HORIZON.md"), "# Horizon\n\nNothing yet.\n").expect("write");
+    git(&d.0, &["init", "-q", "-b", "main"]);
+    git(&d.0, &["add", "bidamas", "docs"]);
+    git(&d.0, &["commit", "-q", "-m", "kumo: a page reader"]);
+    std::fs::write(
+        root.join("kumo/kumo.b"),
+        format!("{KUMO}{QUIET}\ndef later(n)\n  n\nend\n"),
+    )
+    .expect("write");
+    git(&d.0, &["add", "bidamas"]);
+    git(
+        &d.0,
+        &[
+            "commit",
+            "-q",
+            "-m",
+            "kumo: later\n\nkumo::fetch keeps its timeout at one second, so a dead host fails fast.",
+        ],
+    );
+    let (header, facts) = emitted(&d, &root, "w");
+
+    let fetch = why(&d, &root, &header, &facts, "kumo::fetch");
+    assert_eq!(fetch["outcome"], "found", "{fetch}");
+    assert_eq!(sources(&fetch, "reasons"), ["doc", "commit"], "{fetch}");
+    assert_eq!(fetch["reasons"][0]["text"], "fetch: the body of a page.");
+    assert_eq!(fetch["reasons"][0]["cite"], "kumo/kumo.b:1");
+    assert_eq!(
+        fetch["reasons"][1]["text"],
+        "kumo::fetch keeps its timeout at one second, so a dead host fails fast."
+    );
+    assert!(fetch["reasons"][1]["cite"]
+        .as_str()
+        .is_some_and(|c| c.starts_with("commit ") && c.len() == 19));
+    assert_eq!(sources(&fetch, "pins"), ["caller", "written"], "{fetch}");
+    assert_eq!(fetch["pins"][0]["text"], "kumo::first_line");
+    assert!(fetch["pins"][1]["text"]
+        .as_str()
+        .is_some_and(|t| t.starts_with("kumo: a page reader")));
+    assert_eq!(fetch["blind"], serde_json::json!([]));
+
+    let send = why(&d, &root, &header, &facts, "kumo::send_it");
+    assert_eq!(sources(&send, "reasons"), ["doc", "plan"], "{send}");
+    assert_eq!(send["reasons"][1]["cite"], "docs/ROADMAP.md:3");
+    assert_eq!(sources(&send, "pins"), ["test", "written"], "{send}");
+
+    let quiet = why(&d, &root, &header, &facts, "kumo::quiet");
+    assert_eq!(quiet["outcome"], "no recorded reason", "{quiet}");
+    assert_eq!(quiet["reasons"], serde_json::json!([]));
+    assert_eq!(sources(&quiet, "pins"), ["written"], "{quiet}");
+    let text_answer = text(&run(
+        &d.0,
+        &[
+            "arika",
+            "why",
+            "kumo::quiet",
+            "--snapshot",
+            &header.display().to_string(),
+            "--facts",
+            &facts.display().to_string(),
+            "--root",
+            &root.display().to_string(),
+        ],
+    ));
+    assert!(
+        text_answer.starts_with("kumo::quiet: no recorded reason\n"),
+        "{text_answer}"
+    );
+
+    let none = why(&d, &root, &header, &facts, "kumo::absent");
+    assert_eq!(none["outcome"], "none", "{none}");
+
+    std::fs::remove_dir_all(d.0.join(".git")).expect("rm .git");
+    let unread = why(&d, &root, &header, &facts, "kumo::quiet");
+    assert_eq!(unread["outcome"], "blind", "{unread}");
+    assert_eq!(sources(&unread, "blind"), ["history"], "{unread}");
+}
+
+fn in_git(dir: &Path) -> bool {
+    Command::new("git")
+        .current_dir(dir)
+        .args(["rev-parse", "--git-dir"])
+        .output()
+        .is_ok_and(|o| o.status.success())
+}
+
+fn why_in_blue(d: &Dir, word: &str) -> serde_json::Value {
+    why(
+        d,
+        &repo().join("bidamas"),
+        &repo_snapshot(),
+        repo_facts(),
+        word,
+    )
+}
+
+#[test]
+fn why_answers_real_words_from_blue_s_own_facts_and_says_when_nothing_records_a_reason() {
+    let d = Dir::new("whyblue");
+    let first = why_in_blue(&d, "retsu::first");
+    assert_eq!(first["outcome"], "found", "{first}");
+    assert_eq!(first["reasons"][0]["source"], "doc", "{first}");
+    assert!(
+        sources(&first, "pins")
+            .iter()
+            .filter(|s| *s == "caller")
+            .count()
+            > 50,
+        "{first}"
+    );
+    let wrapped = why_in_blue(&d, "gitto::out_or");
+    assert!(
+        wrapped["reasons"][0]["text"]
+            .as_str()
+            .is_some_and(|t| t.starts_with("out_or: What git prints")
+                && t.ends_with("as a land reads a merge base it cannot find.")),
+        "{wrapped}"
+    );
+    let planned = why_in_blue(&d, "eigyou/kyuuji::mcp_answer");
+    assert!(
+        planned["reasons"]
+            .as_array()
+            .expect("reasons")
+            .iter()
+            .any(|r| r["source"] == "plan"
+                && r["cite"]
+                    .as_str()
+                    .is_some_and(|c| c.starts_with("docs/HORIZON.md:"))),
+        "{planned}"
+    );
+    let quiet = why_in_blue(&d, "gitto::branch_of");
+    if in_git(&repo()) {
+        assert_eq!(quiet["outcome"], "no recorded reason", "{quiet}");
+        assert_eq!(quiet["blind"], serde_json::json!([]), "{quiet}");
+    } else {
+        assert_eq!(quiet["outcome"], "blind", "{quiet}");
+    }
+    assert_eq!(quiet["reasons"], serde_json::json!([]), "{quiet}");
+    let tools: serde_json::Value =
+        serde_json::from_str(text(&run(&d.0, &["arika", "tools"])).trim()).expect("json");
+    assert!(tools
+        .as_array()
+        .expect("tools")
+        .iter()
+        .any(|t| t["name"] == "blue_word_why"));
+    let snap = repo_snapshot().display().to_string();
+    let facts = repo_facts().display().to_string();
+    let bidamas = repo().join("bidamas").display().to_string();
+    let called: serde_json::Value = serde_json::from_str(
+        text(&run(
+            &d.0,
+            &[
+                "arika",
+                "mcp",
+                &serde_json::json!({
+                    "jsonrpc": "2.0", "id": 3, "method": "tools/call",
+                    "params": {"name": "blue_word_why", "arguments": {"word": "gitto::branch_of"}}
+                })
+                .to_string(),
+                "--snapshot",
+                &snap,
+                "--facts",
+                &facts,
+                "--root",
+                &bidamas,
+            ],
+        ))
+        .trim(),
+    )
+    .expect("json");
+    assert_eq!(called["result"]["structuredContent"], quiet);
+}

@@ -1,10 +1,11 @@
 use("eigyou/kyuuji", %i[mcp_answer mcp_handler mcp_server mcp_tool serve])
+use("gitto")
 
 use("junni", %i[invert score])
 use("khipu", %i[decoded encoded iri literal pattern question typed var])
 
 use("kyohi", [:raised])
-use("moji", %i[capitalize drop_chars])
+use("moji", %i[capitalize drop_chars take_chars])
 use("retsu", %i[first flat_map is_empty push size])
 use("shomei", [:ct_root])
 
@@ -318,7 +319,7 @@ FACT_VERBS is the verbs answered from the facts alone: each takes the facts' che
 
     member?("find", FACT_VERBS) #=> true
 """
-FACT_VERBS = %w[find get uses groups changed golden quads ask mcp serve]
+FACT_VERBS = %w[find get uses why groups changed golden quads ask mcp serve]
 
 @doc """
 BLUE_IRI is the IRI space blue's own facts are written in.
@@ -717,9 +718,349 @@ def golden_answer(questions, rows)
 end
 
 @doc """
+PLANS are the documents whose lines record why a word exists, beside the
+facts' root: the roadmap and the horizon.
+
+    PLANS #=> ["docs/ROADMAP.md", "docs/HORIZON.md"]
+"""
+PLANS = %w[docs/ROADMAP.md docs/HORIZON.md]
+
+@doc """
+COMMIT_LIMIT is how many commits, newest first, each history search reads.
+
+    COMMIT_LIMIT #=> 8
+"""
+COMMIT_LIMIT = 8
+
+@doc """
+NO_REASON is what `why` answers for a word whose doc, history and plans were
+all read and none says why it exists: absence stated, never a guess.
+
+    NO_REASON #=> "no recorded reason"
+"""
+NO_REASON = "no recorded reason"
+
+@doc """
+IDENT is the characters a word's name continues with.
+
+    contains?(IDENT, "_") #=> true
+"""
+IDENT = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
+
+@doc """
+package_tail is the last segment of a package path: the name a document calls the package by.
+
+    package_tail("eigyou/kyuuji") #=> "kyuuji"
+"""
+def package_tail(package)
+  retsu::last(split(package, "/"))
+end
+
+@doc """
+bounded? is whether `needle` occurs in `text` with no name character just before it and none (nor `?` or `!`) just after it.
+
+    bounded?("see kumo::fetch.", "kumo::fetch") #=> true
+    bounded?("see kumo::fetch_all", "kumo::fetch") #=> false
+"""
+def bounded?(text, needle)
+  parts = split(text, needle)
+  any?(
+    fn(i)
+      before = parts[i - 1]
+      after = parts[i]
+      (before == "" or not contains?(IDENT, retsu::last(chars(before)))) and
+        (after == "" or not contains?("#{IDENT}?!", first(chars(after))))
+    end,
+    range(1, size(parts))
+  )
+end
+
+@doc """
+names_word? is whether a text names a word: as `package::name`, or as the name in backticks with its package named in the same text.
+
+    names_word?("kumo::fetch reads a page", "kumo", "fetch") #=> true
+    names_word?("`fetch` in kumo", "kumo", "fetch") #=> true
+    names_word?("`fetch` alone", "kumo", "fetch") #=> false
+"""
+def names_word?(text, package, name)
+  tail = package_tail(package)
+  bounded?(text, "#{tail}::#{name}") or
+    (contains?(text, "`#{name}`") or contains?(text, "`#{name}(")) and
+      bounded?(text, tail)
+end
+
+@doc """
+naming_piece is the cell or sentence of a line that names the word, trimmed: the line itself when no one piece does.
+
+    naming_piece("| a | kumo::fetch reads. Other | b |", "kumo", "fetch") #=> "kumo::fetch reads"
+"""
+def naming_piece(line, package, name)
+  pieces = filter(
+    (p) -> p != "",
+    map(trim, flat_map(split(line, "|"), (c) -> split(c, ". ")))
+  )
+  retsu::find_first(
+    (p) -> names_word?(p, package, name) or contains?(p, "`#{name}`"),
+    pieces
+  ) or trim(line)
+end
+
+@doc """
+doc_prose is a @doc's prose: its lines that are not examples (indented four spaces), trimmed and joined; nil when there is none.
+
+    doc_prose(unlines(["f: one.", "more.", "", "    f(1) #=> 1"])) #=> "f: one. more."
+    doc_prose(nil) #=> nil
+"""
+def doc_prose(doc)
+  if doc != nil
+    ls = filter(
+      (l) -> l != "",
+      map(
+        trim,
+        filter((l) -> not starts_with?(l, "    "), split(doc, line_break))
+      )
+    )
+    if not is_empty(ls)
+      join(ls, " ")
+    end
+  end
+end
+
+@doc """
+plan_lines are the lines of one plan document that name a word, each cited by its file and line.
+
+    plan_lines("docs/R.md", unlines(["x", "| kumo::fetch | built |"]), "kumo", "fetch") #=> [{"source" => "plan", "cite" => "docs/R.md:2", "text" => "kumo::fetch"}]
+"""
+def plan_lines(file, text, package, name)
+  ls = split(text, line_break)
+  map(
+    fn(i)
+      {
+        "source" => "plan",
+        "cite" => "#{file}:#{to_s(i + 1)}",
+        "text" => naming_piece(ls[i], package, name)
+      }
+    end,
+    filter((i) -> names_word?(ls[i], package, name), range(0, size(ls)))
+  )
+end
+
+@doc """
+written_needle is the text whose first appearance in a definition's file is the commit that wrote it.
+
+    written_needle({"kind" => "function", "name" => "f"}) #=> "def f("
+    written_needle({"kind" => "value", "name" => "LIMIT"}) #=> "LIMIT = "
+"""
+def written_needle(row)
+  if row["kind"] == "function"
+    "def #{row["name"]}("
+  elsif row["kind"] == "value"
+    "#{row["name"]} = "
+  else
+    row["name"]
+  end
+end
+
+def short_oid(oid)
+  take_chars(oid, 12)
+end
+
+def commit_reason(dir, c, row)
+  m = gitto::message(dir, c.oid) or ""
+  if names_word?(m, row["package"], row["name"])
+    line = retsu::find_first(
+      fn(l)
+        bounded?(l, "#{package_tail(row["package"])}::#{row["name"]}") or
+          contains?(l, "`#{row["name"]}`")
+      end,
+      split(m, line_break)
+    ) or c.subject
+    {
+      "source" => "commit",
+      "cite" => "commit #{short_oid(c.oid)}",
+      "text" => naming_piece(line, row["package"], row["name"])
+    }
+  end
+end
+
+def plan_evidence(dir, row)
+  map(
+    fn(p)
+      path = path_join(dir, "..", p)
+      if is_file?(path)
+        {"found" => plan_lines(p, read_file(path), row["package"], row["name"])}
+      else
+        {"blind" => {"source" => "plan", "why" => "#{p} is not beside #{dir}"}}
+      end
+    end,
+    PLANS
+  )
+end
+
+def history_evidence(dir, row)
+  tail = package_tail(row["package"])
+  name = row["name"]
+  named = distinct(
+    append(
+      gitto::list(dir, {grep: ["#{tail}::#{name}"], limit: COMMIT_LIMIT}),
+      gitto::list(dir, {grep: ["`#{name}`", tail], limit: COMMIT_LIMIT})
+    )
+  )
+  oldest = retsu::last(
+    gitto::list(dir, {pickaxe: written_needle(row), path: row["file"]})
+  )
+  {
+    "commits" => filter(
+      (r) -> r != nil,
+      map((c) -> commit_reason(dir, c, row), named)
+    ),
+    "written" => if oldest != nil
+      {
+        "source" => "written",
+        "cite" => "commit #{short_oid(oldest.oid)}",
+        "text" => "#{oldest.subject} (the oldest commit that wrote `#{written_needle(row)}` in #{row["file"]})"
+      }
+    end
+  }
+end
+
+@doc """
+why_evidence reads what records why a word exists, beyond its facts: the commits whose message names it and the one that first wrote it (the git history holding `dir`), and the plan lines that name it. A source it cannot read is blind, never empty.
+
+    why_evidence("/nonexistent/arika", {"package" => "a", "name" => "x", "kind" => "function", "file" => "a/a.b"})["history"] #=> {"blind" => "/nonexistent/arika is in no git history"}
+"""
+def why_evidence(dir, row)
+  history = if gitto::out_or(dir, %w[rev-parse --git-dir], nil).nil?
+    {"blind" => "#{dir} is in no git history"}
+  else
+    {"found" => history_evidence(dir, row)}
+  end
+  {"history" => history, "plans" => plan_evidence(dir, row)}
+end
+
+@doc """
+why_judged answers why a word exists and is shaped as it is, from its facts and the evidence: the reasons recorded for it (its @doc, the commits and plan lines that name it), each cited; what pins its shape (the tests that name it, the definitions that call it, the commit that first wrote it); the sources it could not read. The outcome is `found` when a reason is recorded, `blind` when none was found but a source could not be read, `no recorded reason` when every source was read and none says why, and `none` when no word has that name.
+
+    why_judged("a::x", [], {})["outcome"] #=> "none"
+"""
+def why_judged(target, rows, ev)
+  w = resolve_word(target, rows)
+  if w.nil?
+    {"query" => target, "word" => nil, "outcome" => "none"}
+  else
+    row = get(by_word(rows), w)
+    prose = doc_prose(row["doc"]) or row["gloss"]
+    doc = if prose != nil
+      [
+        {
+          "source" => "doc",
+          "cite" => "#{row["file"]}:#{to_s(row["line"])}",
+          "text" => prose
+        }
+      ]
+    else
+      []
+    end
+    history = ev["history"] or {}
+    found_history = history["found"] or {}
+    plans = ev["plans"] or []
+    reasons = append(
+      append(doc, found_history["commits"] or []),
+      flat_map(plans, (p) -> p["found"] or [])
+    )
+    blind = append(
+      if history["blind"] != nil
+        [{"source" => "history", "why" => history["blind"]}]
+      else
+        []
+      end,
+      filter((b) -> b != nil, map((p) -> p["blind"], plans))
+    )
+    outcome = if not is_empty(reasons)
+      "found"
+    elsif not is_empty(blind)
+      "blind"
+    else
+      NO_REASON
+    end
+    {
+      "query" => target,
+      "word" => w,
+      "outcome" => outcome,
+      "reasons" => reasons,
+      "pins" => append(
+        append(
+          map(
+            fn(t)
+              {
+                "source" => if t["doc"]
+                  "example"
+                else
+                  "test"
+                end,
+                "cite" => "#{t["file"]}:#{to_s(t["line"])}",
+                "text" => t["name"]
+              }
+            end,
+            row["tests"] or []
+          ),
+          map(
+            fn(c)
+              {
+                "source" => "caller",
+                "cite" => "#{c["file"]}:#{to_s(c["line"])}",
+                "text" => c["word"]
+              }
+            end,
+            uses_answer(w, rows)["callers"]
+          )
+        ),
+        filter((x) -> x != nil, [found_history["written"]])
+      ),
+      "blind" => blind
+    }
+  end
+end
+
+@doc """
+why_answer is why_judged over the evidence read beside the facts' root `dir`.
+
+    why_answer("nope::nothing", [], "/nonexistent/arika")["outcome"] #=> "none"
+"""
+def why_answer(target, rows, dir)
+  w = resolve_word(target, rows)
+  ev = if w.nil?
+    {}
+  else
+    why_evidence(dir, get(by_word(rows), w))
+  end
+  why_judged(target, rows, ev)
+end
+
+@doc """
+why_lines is a why answer as text: the verdict, then one cited line per reason, pin and blind source.
+
+    why_lines({"query" => "a::x", "word" => nil, "outcome" => "none"}) #=> ["arika: no word `a::x`"]
+"""
+def why_lines(a)
+  if a["outcome"] == "none"
+    ["arika: no word `#{a["query"]}`"]
+  else
+    cited = (x) -> "#{x["source"]}  #{x["cite"]}  #{x["text"]}"
+    append(
+      append(["#{a["word"]}: #{a["outcome"]}"], map(cited, a["reasons"])),
+      append(
+        map(cited, a["pins"]),
+        map((b) -> "blind  #{b["source"]}: #{b["why"]}", a["blind"])
+      )
+    )
+  end
+end
+
+@doc """
 TOOLS is the arika service's schema in blue: each tool's name, the verb it answers with, what it answers, and its arguments. The MCP tool list (`blue arika tools`, docs/arika-tools.json) is rendered from it and nothing else.
 
-    size(TOOLS) #=> 6
+    size(TOOLS) #=> 7
 """
 TOOLS = [
   {
@@ -758,6 +1099,19 @@ TOOLS = [
     name: "blue_word_uses",
     verb: "uses",
     about: "The blue definitions that call a word",
+    args: [
+      {
+        name: "word",
+        type: "string",
+        required: true,
+        about: "pkg::name or a readable id"
+      }
+    ]
+  },
+  {
+    name: "blue_word_why",
+    verb: "why",
+    about: "Why a blue word exists and is shaped as it is: the reasons recorded for it (its @doc, the commits and ROADMAP/HORIZON lines that name it), what pins it (tests, callers, the commit that wrote it), each cited; `no recorded reason` when every source was read and none says why",
     args: [
       {
         name: "word",
@@ -866,6 +1220,8 @@ def verb_answer(verb, q, ctx)
     get_answer(q["word"], rows)
   elsif verb == "uses"
     uses_answer(q["word"], rows)
+  elsif verb == "why"
+    why_answer(q["word"], rows, ctx["dir"] or "bidamas")
   elsif verb == "groups"
     groups_answer(q["min"] or MIN_GROUP, rows)
   elsif verb == "changed"
@@ -945,6 +1301,8 @@ def fact_lines(verb, a)
       ),
       "arika: nothing calls #{a["word"]}"
     )
+  elsif verb == "why"
+    why_lines(a)
   elsif verb == "groups"
     lines_or(
       map(
@@ -1012,7 +1370,8 @@ def over_facts(verb, mode, q, check)
       "rows" => check["rows"],
       "rules" => q["rules"] or [],
       "root" => fresh[:root],
-      "store" => q["store"]
+      "store" => q["store"],
+      "dir" => q["dir"]
     }
     if verb == "quads"
       lines = map(
@@ -1290,4 +1649,67 @@ test "the MCP tools are rendered from TOOLS and answered by their verbs"
   out = mcp_answer(arika_server(ctx), call)
   assert first(out["result"]["structuredContent"]["hits"])["word"] ==
     "a::running_sum"
+end
+
+test "why cites each recorded reason, and a word with none answers no recorded reason"
+  fetch = assoc(
+    fixture_row("a", "fetch", [], [], [a_test("fetches")]),
+    "doc",
+    unlines(["fetch: the body of a page.", "", "    fetch(1) #=> 1"])
+  )
+  bare_row = assoc(
+    assoc(fixture_row("a", "bare", [], ["a::fetch"], []), "gloss", nil),
+    "doc",
+    nil
+  )
+  rows = [fetch, bare_row]
+  read = {
+    "history" => {
+      "found" => {
+        "commits" => [
+          {
+            "source" => "commit",
+            "cite" => "commit 0123456789ab",
+            "text" => "a::fetch reads pages"
+          }
+        ],
+        "written" => nil
+      }
+    },
+    "plans" => [{"found" => []}]
+  }
+  f = why_judged("a::fetch", rows, read)
+  assert f["outcome"] == "found"
+  assert map((r) -> r["source"], f["reasons"]) == %w[doc commit]
+  assert first(f["reasons"])["text"] == "fetch: the body of a page."
+  assert first(f["reasons"])["cite"] == "a/a.b:1"
+  assert map((p) -> p["text"], f["pins"]) == %w[fetches a::bare]
+  empty = {
+    "history" => {"found" => {"commits" => [], "written" => nil}},
+    "plans" => [{"found" => []}]
+  }
+  b = why_judged("a::bare", rows, empty)
+  assert b["outcome"] == NO_REASON
+  assert b["reasons"] == []
+  assert contains?(
+    join(why_lines(b), line_break),
+    "a::bare: no recorded reason"
+  )
+  unread = assoc(empty, "history", {"blind" => "no git"})
+  assert why_judged("a::bare", rows, unread)["outcome"] == "blind"
+end
+
+test "a plan line names a word by its path or by its name in backticks beside its package"
+  text = unlines(
+    [
+      "| a | kumo::fetch reads | b |",
+      "kumo::fetch_all is another word",
+      "`fetch` is kumo's reader. It is old.",
+      "`fetch` alone names nothing"
+    ]
+  )
+  ls = plan_lines("docs/P.md", text, "kumo", "fetch")
+  assert map((l) -> l["cite"], ls) == %w[docs/P.md:1 docs/P.md:3]
+  assert map((l) -> l["text"], ls) ==
+    ["kumo::fetch reads", "`fetch` is kumo's reader"]
 end

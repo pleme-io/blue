@@ -429,6 +429,31 @@ test naming `fetch` leaves only `first_line`. Open: Parquet, T3, CATALOG.md
 from the facts, G7, G9, `blue_word_like`, GraphQL, the release on ryn
 (Phases 4 and 5's other repos), and khipu's W3C suites.
 
+**Built (why-answers, 2026-11-10, wave 4, on `h5/why-answers`):** `blue
+arika why WORD` and the MCP tool `blue_word_why` answer why a word exists and
+is shaped as it is, every line cited: its reasons (the `@doc` prose, now in
+the facts as `doc`; the commits whose message names it; the `docs/ROADMAP.md`
+and `docs/HORIZON.md` lines that name it), its pins (the tests that name it,
+its callers, the oldest commit that wrote its `def`), and each source it
+could not read. Absence is its own state: `no recorded reason` when every
+source was read and none says why, `blind` when one could not be read, `none`
+for no such word. The history is read through gitto 0.1.5 (`list` takes
+`grep:`, `pickaxe:` and `path:`; `message`). Gates:
+`why_cites_the_doc_the_commits_and_the_plans_and_a_word_with_none_has_no_recorded_reason`
+(a git fixture: doc, commit and plan reasons, `no recorded reason`, `none`,
+`blind` once `.git` is gone) and
+`why_answers_real_words_from_blue_s_own_facts_and_says_when_nothing_records_a_reason`
+(`retsu::first` from its doc, `gitto::out_or` from its whole wrapped doc,
+`eigyou/kyuuji::mcp_answer` from a HORIZON line, an undocumented gitto
+parser that no commit or plan names with no recorded reason, and the MCP call
+equal to the CLI), with the blue tests in `arika.b` and gitto's
+`list narrows commits ...`. Each was seen red once. Measured 2026-11-10: one
+`why` over blue's tree with the facts built in process takes 36 s (a debug
+build, on a loaded machine). Open: a
+diagnostic's why (its rule, law and witness) is not answered yet; commits
+come from git, not from khipu quads through utsushi; a plan reason in wrapped
+prose cites the one line that names the word, not its whole sentence.
+
 ### H6. Proof: claims that cannot round up
 
 - **Properties from what a definition already says.** A doc example is a

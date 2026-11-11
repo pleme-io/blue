@@ -112,6 +112,16 @@ pub enum ArikaCmd {
         from: FactsFrom,
     },
     #[command(
+        about = "Why a word exists and is shaped as it is: the reasons recorded for it (its @doc, the commits and docs/ROADMAP.md and docs/HORIZON.md lines that name it), what pins it (the tests that name it, its callers, the commit that first wrote it), each cited; `no recorded reason` when every source was read and none says why, blind when one could not be read"
+    )]
+    Why {
+        word: String,
+        #[arg(long, help = "Print the answer as one JSON object")]
+        json: bool,
+        #[command(flatten)]
+        from: FactsFrom,
+    },
+    #[command(
         about = "Functions of MIN nodes or more that share one computed shape across words (T2 over the whole tree)"
     )]
     Groups {
@@ -212,7 +222,7 @@ pub struct FactsFrom {
     #[arg(
         long,
         default_value = "bidamas",
-        help = "The bidamas to build the facts of when no header is given"
+        help = "The bidamas to build the facts of when no header is given; `why` reads the git history holding it and the docs/ROADMAP.md and docs/HORIZON.md beside it"
     )]
     root: PathBuf,
 }
@@ -245,6 +255,8 @@ fn rules() -> Json {
 
 fn over_facts(verb: &str, json: bool, query: &Json, from: &FactsFrom) -> Result<ExitCode, String> {
     let check = from.check()?;
+    let mut query = query.clone();
+    query["dir"] = json!(from.root.display().to_string());
     render(vec![
         verb.into(),
         mode(json).into(),
@@ -752,6 +764,7 @@ fn row_of(
         "file": file,
         "line": f.line,
         "gloss": f.gloss(),
+        "doc": f.doc,
         "legacy": [],
     })
 }
@@ -1002,6 +1015,9 @@ pub fn run(cmd: ArikaCmd) -> Result<ExitCode, String> {
         }
         ArikaCmd::Uses { word, json, from } => {
             over_facts("uses", json, &json!({"word": word}), &from)
+        }
+        ArikaCmd::Why { word, json, from } => {
+            over_facts("why", json, &json!({"word": word}), &from)
         }
         ArikaCmd::Groups { min, json, from } => {
             over_facts("groups", json, &json!({"min": min}), &from)

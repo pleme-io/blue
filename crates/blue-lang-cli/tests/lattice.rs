@@ -392,15 +392,16 @@ fn a_root_that_imports_tesuto_only_for_raises_no_longer_inherits_its_disk_and_en
     );
     let o = locked(&dir);
     assert!(!o.status.success(), "the whole of tesuto is counted");
-    for cap in ["filesystem", "environment"] {
-        assert!(
-            err(&o).contains(&format!(
-                "[app] -> [tesuto: needs '{cap}'] violates ceiling []"
-            )),
-            "{cap}: {}",
-            err(&o)
-        );
-    }
+    assert!(
+        err(&o).contains("[app] -> [tesuto: needs 'filesystem'] violates ceiling []"),
+        "{}",
+        err(&o)
+    );
+    assert!(
+        !err(&o).contains("[tesuto: needs 'environment']"),
+        "tesuto makes its directories with temp_dir and reads no environment: {}",
+        err(&o)
+    );
 }
 
 #[test]

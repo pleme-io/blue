@@ -437,7 +437,7 @@ Read it in order as [The blue Book](docs/BOOK.md), or open one page:
 ### Explanation
 
 <details>
-<summary>53 pages on why blue is shaped as it is</summary>
+<summary>54 pages on why blue is shaped as it is</summary>
 
 - [ABSENCE — no undeclared nil](docs/ABSENCE.md): no undeclared nil: how blue makes absence a declared, checked state
 - [API-EVOLUTION — the API is a versioned rendering of the one model](docs/API-EVOLUTION.md): the API as a versioned rendering of one model (design)
@@ -451,6 +451,7 @@ Read it in order as [The blue Book](docs/BOOK.md), or open one page:
 - [Competing languages — what blue takes, and what it refuses](docs/COMPETING-LANGUAGES.md): what blue takes from competing languages on packaging and the standard library, and what it refuses
 - [Compile time: Rust's static guarantees and Lua's runtime, in blue](docs/COMPILE-TIME.md): Rust's static guarantees and Lua's runtime, brought into blue
 - [Compounding: every evolution break fixes itself](docs/COMPOUNDING.md): every break blue's evolution causes ships its own fixer
+- [COVERAGE: what blue can prove is untested, and forces](docs/COVERAGE.md): every kind of missing test that blue can decide from its own AST and a deterministic test run, each one a forced finding by default outside scripts (design, 2026-11-10)
 - [CST plan: a lossless tree, resilient parsing, surface blame](docs/CST-PLAN.md): the design for a lossless CST with resilient parsing and surface blame; nothing is built yet
 - [The data framework: one model, every rendering, nothing written twice](docs/DATA-FRAMEWORK.md): the design of the data framework, one blue model rendered to schema, migrations, queries and GraphQL with nothing written twice, and the research it rests on
 - [DOCUMENTATION — every blue project documents itself, and the language has a book](docs/DOCUMENTATION.md): documentation as a battery: one source per fact, a Diátaxis book, rendered README, AGENTS.md and llms.txt (design)

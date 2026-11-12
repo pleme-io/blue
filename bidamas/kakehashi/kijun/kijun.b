@@ -43,6 +43,11 @@ use("retsu", %i[first flat_map is_empty last rest size take_n])
 use("shisutemu", %i[blue_exe read_or status_of stderr_of stdout_of])
 use("shuugou", %i[frequencies unique])
 
+@doc """
+fleet_repo: the fleet-repo standard at `version`, as the config an instance's kijun.b starts from: the top-level allowlist, the node registry, import routes, declarers and the trio factory, with no waivers.
+
+    fleet_repo(1)[:registry] #=> "lib/nodes.nix"
+"""
 def fleet_repo(version)
   {
     standard: "fleet-repo",
@@ -102,10 +107,20 @@ def fleet_repo(version)
   }
 end
 
+@doc """
+allow_top: an instance names extra top-level entries the standard does not.
+
+    allow_top({top: ["lib"]}, ["bin"]) #=> {top: ["lib", "bin"]}
+"""
 def allow_top(cfg, entries)
   append_field(cfg, :top, entries)
 end
 
+@doc """
+configurations: an instance names the configurations the tree plane evaluates.
+
+    configurations({configurations: []}, ["nixosConfigurations.plo"]) #=> {configurations: ["nixosConfigurations.plo"]}
+"""
 def configurations(cfg, names)
   append_field(cfg, :configurations, names)
 end
@@ -121,27 +136,55 @@ end
 
 @doc """
 waive: exempt one path from one rule with a reason.
+
+    waive({waivers: []}, "expr/no-shell", "pkgs/a.nix", "skip-expr/no-shell: vendored")[:waivers] #=> [{rule: "expr/no-shell", glob: "pkgs/a.nix", reason: "skip-expr/no-shell: vendored"}]
 """
 def waive(cfg, rule, glob, reason)
   assoc(cfg, :waivers, append(cfg[:waivers], [{rule:, glob:, reason:}]))
 end
 
+@doc """
+disable: switch one rule off for an instance, with the reason it is off; the rule then runs nowhere.
+
+    disable({disabled: []}, "expr/no-shell", "bootstrap repo") #=> {disabled: [{rule: "expr/no-shell", reason: "bootstrap repo"}]}
+"""
 def disable(cfg, rule, reason)
   assoc(cfg, :disabled, append(cfg[:disabled], [{rule:, reason:}]))
 end
 
+@doc """
+finding: one violation of a rule: where it is, what it is about, and why it fails.
+
+    finding("expr/no-angle-paths", "lib/a.nix", 1, "<nixpkgs>", "m")[:subject] #=> "<nixpkgs>"
+"""
 def finding(rule, file, line, subject, message)
   {rule:, file:, line:, subject:, message:}
 end
 
+@doc """
+at: a finding inside a parsed file, located at the line that holds the offset `start`.
+
+    f = file_facts("lib/a.nix", "{\n  x = 1;\n}")
+    at(f, f[:doc], "expr/parses", 4, "x", "m")[:line] #=> 2
+"""
 def at(f, doc, rule, start, subject, message)
   finding(rule, f[:path], line_of(doc, start), subject, message)
 end
 
+@doc """
+segments: the parts of a repository path, the unit every layout rule reads.
+
+    segments("nodes/plo/default.nix") #=> ["nodes", "plo", "default.nix"]
+"""
 def segments(path)
   split(path, "/")
 end
 
+@doc """
+top_entries: the repository's top-level entries, a directory marked with a trailing slash.
+
+    top_entries(["flake.nix", "lib/a.nix", "lib/b.nix"]) #=> ["flake.nix", "lib/"]
+"""
 def top_entries(files)
   unique(
     map(
@@ -158,6 +201,11 @@ def top_entries(files)
   )
 end
 
+@doc """
+allowed_top?: a top-level entry is one the standard's allowlist, or the instance's, matches.
+
+    allowed_top?(fleet_repo(1), "bin/") #=> false
+"""
 def allowed_top?(cfg, entry)
   name = if ends_with?(entry, "/")
     before_first(entry, "/")
@@ -167,6 +215,11 @@ def allowed_top?(cfg, entry)
   not is_empty(filter((g) -> glob_match?(g, name), cfg[:top]))
 end
 
+@doc """
+check_top: the layout/top-level rule: one finding per top-level entry the standard does not allow.
+
+    map((x) -> x[:subject], check_top({config: fleet_repo(1), files: ["flake.nix", "stray.txt"]})) #=> ["stray.txt"]
+"""
 def check_top(repo)
   map(
     fn(e)
@@ -182,6 +235,11 @@ def check_top(repo)
   )
 end
 
+@doc """
+node_dirs: the directory names under nodes/ that hold at least one file.
+
+    node_dirs(["nodes/plo/default.nix", "nodes/README.md", "lib/a.nix"]) #=> ["plo"]
+"""
 def node_dirs(files)
   unique(
     map(
@@ -194,12 +252,23 @@ def node_dirs(files)
   )
 end
 
+@doc """
+node_dir_of: the node directory a registry's nodeDir path names, or nil when it names none.
+
+    node_dir_of("../nodes/plo") #=> "plo"
+"""
 def node_dir_of(text)
   if contains?(text, "nodes/")
     before_first("#{after_first(text, "nodes/")}/", "/")
   end
 end
 
+@doc """
+declared_nodes: the node directories the registry declares through the node constructor; none when there is no registry.
+
+    repo = assoc(in_memory([["lib/nodes.nix", "{ plo = mkNode { name = \"plo\"; nodeDir = ../nodes/plo; }; }"]]), :config, fleet_repo(1))
+    declared_nodes(repo) #=> ["plo"]
+"""
 def declared_nodes(repo)
   cfg = repo[:config]
   path = cfg[:registry]
@@ -227,6 +296,12 @@ def declared_nodes(repo)
   end
 end
 
+@doc """
+check_nodes: the layout/node-shape rule: a node directory with no default.nix, and a registry-declared node with no layers.nix.
+
+    repo = assoc(in_memory([["nodes/zed/hw.nix", "{ }"]]), :config, fleet_repo(1))
+    map((x) -> x[:subject], check_nodes(repo)) #=> ["default.nix"]
+"""
 def check_nodes(repo)
   files = repo[:files]
   declared = declared_nodes(repo)
@@ -266,6 +341,11 @@ def check_nodes(repo)
   )
 end
 
+@doc """
+shared_modules: the names of the shared options modules, one file each under modules/pleme/shared, its default.nix aside.
+
+    shared_modules(["modules/pleme/shared/x.nix", "modules/pleme/shared/default.nix"]) #=> ["x"]
+"""
 def shared_modules(files)
   map(
     (p) -> before_first(last(segments(p)), ".nix"),
@@ -279,6 +359,12 @@ def shared_modules(files)
   )
 end
 
+@doc """
+trio_calls: the calls of the trio factory in one file of the repository.
+
+    repo = assoc(in_memory([trio_source("p", "package")]), :config, fleet_repo(1))
+    size(trio_calls(repo, "modules/pleme/shared/p.nix")) #=> 1
+"""
 def trio_calls(repo, path)
   named(
     calls(kakehashi::nikkusu::read(source_of(repo, path))[:root]),
@@ -286,6 +372,11 @@ def trio_calls(repo, path)
   )
 end
 
+@doc """
+spec_kind: the kind a trio call declares: its literal kind, "binary" when none is set, "computed" when it is not a literal.
+
+    spec_kind(first(calls(kakehashi::nikkusu::read("f { kind = k; }")[:root]))) #=> "computed"
+"""
 def spec_kind(c)
   a = last(c[:args])
   v = if a != nil and kind(a) == "NODE_ATTR_SET"
@@ -300,10 +391,22 @@ def spec_kind(c)
   end
 end
 
+@doc """
+self_rendering?: a shared module that calls the trio factory renders itself, since its module arm picks the platform.
+
+    repo = assoc(in_memory([trio_source("b", nil)]), :config, fleet_repo(1))
+    self_rendering?(repo, "b") #=> true
+"""
 def self_rendering?(repo, m)
   not is_empty(trio_calls(repo, "modules/pleme/shared/#{m}.nix"))
 end
 
+@doc """
+factory_proven?: a shared module whose every trio call is a binary, package or service kind is proven by substrate's matrix, so it needs no harness of its own.
+
+    repo = assoc(in_memory([trio_source("r", "registry")]), :config, fleet_repo(1))
+    factory_proven?(repo, "r") #=> false
+"""
 def factory_proven?(repo, m)
   cs = trio_calls(repo, "modules/pleme/shared/#{m}.nix")
   not is_empty(cs) and
@@ -312,6 +415,12 @@ def factory_proven?(repo, m)
     )
 end
 
+@doc """
+check_proof: the layout/shared-has-proof rule: a shared module with no parts/ harness that the factory does not prove.
+
+    repo = assoc(in_memory([["modules/pleme/shared/x.nix", "{ }"]]), :config, fleet_repo(1))
+    map((x) -> x[:subject], check_proof(repo)) #=> ["x"]
+"""
 def check_proof(repo)
   files = repo[:files]
   map(
@@ -333,6 +442,11 @@ def check_proof(repo)
   )
 end
 
+@doc """
+route_files: the repository's files that the config names as import routes.
+
+    route_files({config: fleet_repo(1), files: ["profiles/p/default.nix", "lib/a.nix"]}) #=> ["profiles/p/default.nix"]
+"""
 def route_files(repo)
   files = repo[:files]
   filter(
@@ -345,6 +459,12 @@ def route_files(repo)
   )
 end
 
+@doc """
+check_reachable: the layout/shared-reachable rule: a shared module no renderer, import route or trio call reaches.
+
+    repo = assoc(in_memory([["modules/pleme/shared/x.nix", "{ }"]]), :config, fleet_repo(1))
+    map((x) -> x[:subject], check_reachable(repo)) #=> ["x"]
+"""
 def check_reachable(repo)
   files = repo[:files]
   routes = map(
@@ -373,18 +493,40 @@ def check_reachable(repo)
   )
 end
 
+@doc """
+binding_finding: a finding about one attribute binding, located at the binding and named by its dotted path.
+
+    f = file_facts("profiles/p/default.nix", "{ networking.hostName = \"plo\"; }")
+    binding_finding("expr/profile-no-identity", f, first(module_bindings(f)), "m")[:subject] #=> "networking.hostName"
+"""
 def binding_finding(rule, f, b, message)
   at(f, f[:doc], rule, b[:start], b[:dotted], message)
 end
 
+@doc """
+module_bindings: the attribute-set bindings of a parsed file, the ones a module sets.
+
+    size(module_bindings(file_facts("lib/a.nix", "{ a = 1; b = 2; }"))) #=> 2
+"""
 def module_bindings(f)
   filter((b) -> b[:scope] == :attrs, f[:bindings])
 end
 
+@doc """
+starts?: an option path begins with the given prefix of segments.
+
+    starts?(["sops", "secrets", "k"], ["sops", "secrets"]) #=> true
+"""
 def starts?(path, prefix)
   size(path) >= size(prefix) and take(size(prefix), path) == prefix
 end
 
+@doc """
+check_system_calls: the expr/node-system-only-via-mkNode rule: a nixosSystem or darwinSystem call outside the node engine.
+
+    f = file_facts("parts/nixos.nix", "{ a = inputs.nixpkgs.lib.nixosSystem { modules = [ ]; }; }")
+    size(check_system_calls(f, {config: fleet_repo(1)})) #=> 1
+"""
 def check_system_calls(f, repo)
   if not is_empty(
     filter((g) -> glob_match?(g, f[:path]), repo[:config][:engine])
@@ -407,6 +549,11 @@ def check_system_calls(f, repo)
   end
 end
 
+@doc """
+identity?: a binding sets a node's identity: its hostname or hostId, a disk by UUID, or a secret from a node's directory.
+
+    identity?(first(module_bindings(file_facts("profiles/p/default.nix", "{ networking.hostName = \"plo\"; }")))) #=> true
+"""
 def identity?(b)
   p = module_path(b)
   v = b[:value]
@@ -421,6 +568,12 @@ def identity?(b)
   end
 end
 
+@doc """
+check_profile_identity: the expr/profile-no-identity rule: a profile that sets a node's identity.
+
+    f = file_facts("profiles/p/default.nix", "{ networking.hostName = \"plo\"; networking.firewall.enable = true; }")
+    size(check_profile_identity(f, nil)) #=> 1
+"""
 def check_profile_identity(f, _repo)
   map(
     fn(b)
@@ -435,6 +588,12 @@ def check_profile_identity(f, _repo)
   )
 end
 
+@doc """
+declaration_findings: one finding of `rule` per option a file declares, saying where the declaration sits.
+
+    f = file_facts("lib/a.nix", "{ lib, ... }: { options.x = lib.mkOption { }; }")
+    size(declaration_findings("expr/lib-is-data", f, "lib/")) > 0 #=> true
+"""
 def declaration_findings(rule, f, where)
   map(
     fn(d)
@@ -451,6 +610,11 @@ def declaration_findings(rule, f, where)
   )
 end
 
+@doc """
+check_lib_data: the expr/lib-is-data rule: an option declaration or a module function in lib/.
+
+    check_lib_data(file_facts("lib/a.nix", "{ lib }: { x = 1; options = [ \"a\" ]; }"), nil) #=> []
+"""
 def check_lib_data(f, _repo)
   modules = map(
     fn(l)
@@ -468,6 +632,11 @@ def check_lib_data(f, _repo)
   append(declaration_findings("expr/lib-is-data", f, "lib/"), modules)
 end
 
+@doc """
+platform_prefixes: the config paths only a platform renderer may emit, since each exists on one platform only.
+
+    member?(["launchd"], platform_prefixes) #=> true
+"""
 def platform_prefixes()
   [
     ["systemd"],
@@ -483,17 +652,33 @@ def platform_prefixes()
   ]
 end
 
+@doc """
+platform_path?: a binding path lands under a platform prefix; an option declaration never does.
+
+    platform_path?(["systemd", "services", "x"]) #=> true
+"""
 def platform_path?(path)
   p = config_relative(path)
   first(path) != "options" and
     not is_empty(filter((x) -> starts?(p, x), platform_prefixes))
 end
 
+@doc """
+emits_platform?: a binding is the outermost one that emits platform config, so a nested emission is named once.
+
+    emits_platform?({path: ["systemd", "services", "x"], outer: nil}) #=> true
+"""
 def emits_platform?(b)
   o = b[:outer]
   platform_path?(b[:path]) and (o.nil? or not platform_path?(o))
 end
 
+@doc """
+check_shared_emission: the expr/shared-declares-only rule: a shared module that emits platform config.
+
+    f = file_facts("modules/pleme/shared/x.nix", module_with("  config = lib.mkIf config.pleme.x.enable { pleme.y = 1; };"))
+    check_shared_emission(f, nil) #=> []
+"""
 def check_shared_emission(f, _repo)
   map(
     fn(b)
@@ -508,6 +693,12 @@ def check_shared_emission(f, _repo)
   )
 end
 
+@doc """
+check_shared_platform_question: the expr/shared-asks-no-platform rule: a shared module that asks isDarwin or isLinux.
+
+    f = file_facts("modules/pleme/shared/x.nix", module_with("  pleme.x = pkgs.stdenv.hostPlatform.isDarwin;"))
+    map((x) -> x[:subject], check_shared_platform_question(f, nil)) #=> ["pkgs.stdenv.hostPlatform.isDarwin"]
+"""
 def check_shared_platform_question(f, _repo)
   map(
     fn(n)
@@ -530,10 +721,20 @@ def check_shared_platform_question(f, _repo)
   )
 end
 
+@doc """
+check_node_options: the expr/nodes-declare-no-options rule: an option declared in a node file.
+
+    check_node_options(file_facts("nodes/plo/default.nix", module_with("  pleme.x = true;")), nil) #=> []
+"""
 def check_node_options(f, _repo)
   declaration_findings("expr/nodes-declare-no-options", f, "a node file")
 end
 
+@doc """
+check_angle: the expr/no-angle-paths rule: an angle path, which NIX_PATH resolves and the flake lock does not pin.
+
+    map((x) -> x[:subject], check_angle(file_facts("lib/a.nix", "import <nixpkgs> { }"), nil)) #=> ["<nixpkgs>"]
+"""
 def check_angle(f, _repo)
   map(
     fn(p)
@@ -550,6 +751,11 @@ def check_angle(f, _repo)
   )
 end
 
+@doc """
+fetchers: the fetch functions the unpinned-fetch rule reads.
+
+    member?("fetchFromGitHub", fetchers) #=> true
+"""
 def fetchers()
   %w[
     fetchTarball
@@ -563,10 +769,20 @@ def fetchers()
   ]
 end
 
+@doc """
+pin_attrs: the attributes any one of which pins a fetch to its content.
+
+    member?("narHash", pin_attrs) #=> true
+"""
 def pin_attrs()
   %w[hash sha256 narHash outputHash rev]
 end
 
+@doc """
+unpinned?: a fetch call carries no pin: a bare URL, or an attribute set with no hash or rev.
+
+    unpinned?(first(calls(kakehashi::nikkusu::read("fetchurl { url = \"https://example.invalid/b\"; }")[:root]))) #=> true
+"""
 def unpinned?(c)
   a = first(c[:args])
   if a.nil?
@@ -578,6 +794,12 @@ def unpinned?(c)
   end
 end
 
+@doc """
+check_fetch: the expr/no-unpinned-fetch rule: a fetch that takes whatever the server serves today.
+
+    f = file_facts("lib/a.nix", "builtins.fetchTarball { url = \"https://example.invalid/a.tar.gz\"; sha256 = \"0abc\"; }")
+    check_fetch(f, nil) #=> []
+"""
 def check_fetch(f, _repo)
   map(
     fn(c)
@@ -594,6 +816,12 @@ def check_fetch(f, _repo)
   )
 end
 
+@doc """
+script_body: the argument of a script-writing call that holds its shell text, which sits at a different place for each writer.
+
+    c = first(named(calls(kakehashi::nikkusu::read("writeShellScript \"a\" \"echo hi\"")[:root]), scripts))
+    string_content(script_body(c)) #=> "echo hi"
+"""
 def script_body(c)
   n = head_name(c)
   args = c[:args]
@@ -608,6 +836,11 @@ def script_body(c)
   end
 end
 
+@doc """
+script_lines: the non-blank lines of a literal script body; 0 when the body is not a literal string.
+
+    script_lines(nil) #=> 0
+"""
 def script_lines(body)
   if body.nil? or kind(body) != "NODE_STRING"
     0
@@ -616,6 +849,11 @@ def script_lines(body)
   end
 end
 
+@doc """
+scripts: the nixpkgs writers that carry shell text, the calls the no-shell rule reads.
+
+    member?("writeShellApplication", scripts) #=> true
+"""
 def scripts()
   %w[
     writeShellScript
@@ -630,6 +868,12 @@ def scripts()
   ]
 end
 
+@doc """
+check_shell: the expr/no-shell rule: a script writer carrying more than three lines of shell.
+
+    f = file_facts("pkgs/a.nix", join_lines(["pkgs.writeShellScript \"a\" ''", "  one", "  two", "  three", "  four", "''"]))
+    size(check_shell(f, nil)) #=> 1
+"""
 def check_shell(f, _repo)
   map(
     fn(c)
@@ -646,6 +890,11 @@ def check_shell(f, _repo)
   )
 end
 
+@doc """
+check_parses: the expr/parses rule: the first parse error of a file, since a file the parser refuses is checked by no rule.
+
+    map((x) -> x[:subject], check_parses(file_facts("lib/a.nix", "{ a = ; }"), nil)) #=> ["parse"]
+"""
 def check_parses(f, _repo)
   map(
     fn(e)
@@ -662,6 +911,11 @@ def check_parses(f, _repo)
   )
 end
 
+@doc """
+own_file: a store path from an evaluated tree, as a path in this repository; nil when it lies outside the repository's own source.
+
+    own_file({own: "/nix/store/h-source"}, "/nix/store/h-source/lib/x.nix") #=> "lib/x.nix"
+"""
 def own_file(tree, file)
   own = tree[:own]
   if own != nil and own != "" and starts_with?(file, "#{own}/")
@@ -669,6 +923,11 @@ def own_file(tree, file)
   end
 end
 
+@doc """
+check_pleme_declarations: the tree/pleme-options-declared-in-shared rule: a pleme.* option declared outside the declarer globs.
+
+    map((x) -> x[:file], check_pleme_declarations(tree_case("lib/x.nix", :declaration), {config: fleet_repo(1)})) #=> ["lib/x.nix"]
+"""
 def check_pleme_declarations(tree, repo)
   declarers = repo[:config][:declarers]
   flat_map(
@@ -706,6 +965,11 @@ def check_pleme_declarations(tree, repo)
   )
 end
 
+@doc """
+check_hostname: the tree/hostname-from-node rule: networking.hostName defined anywhere but under nodes/.
+
+    check_hostname(tree_case("nodes/a/default.nix", :definition), nil) #=> []
+"""
 def check_hostname(tree, _repo)
   flat_map(
     tree[:hostname],
@@ -743,6 +1007,11 @@ def check_hostname(tree, _repo)
   )
 end
 
+@doc """
+declared_at: the repository file that declares an option in an evaluated tree, or "(external)" when no own file does.
+
+    declared_at(tree_case("lib/x.nix", :declaration), "pleme.x") #=> "lib/x.nix"
+"""
 def declared_at(tree, option)
   hit = filter((o) -> o[:path] == option, append(tree[:pleme], tree[:hostname]))
   rels = filter(
@@ -756,6 +1025,11 @@ def declared_at(tree, option)
   end
 end
 
+@doc """
+check_option_evaluates: the tree/option-evaluates rule: one finding per option the tree probe could not evaluate, at its declaration.
+
+    map((x) -> x[:file], check_option_evaluates(tree_case("modules/pleme/shared/x.nix", :blind), nil)) #=> ["modules/pleme/shared/x.nix"]
+"""
 def check_option_evaluates(tree, _repo)
   map(
     fn(b)
@@ -771,18 +1045,39 @@ def check_option_evaluates(tree, _repo)
   )
 end
 
+@doc """
+unit_kinds: the kinds of concept the trio rule counts.
+
+    unit_kinds #=> [:shared, :package, :overlay, :registry]
+"""
 def unit_kinds()
   %i[shared package overlay registry]
 end
 
+@doc """
+unit: one concept the fleet manages: its kind, its name, the file or directory that holds it, and its nix files.
+
+    unit(:package, "p", "pkgs/p/", ["pkgs/p/default.nix"])[:name] #=> "p"
+"""
 def unit(kind_of, name, file, files)
   {kind: kind_of, name:, file:, files:}
 end
 
+@doc """
+nix_under: the nix files under a path prefix.
+
+    nix_under(["pkgs/p/default.nix", "pkgs/p/src/main.rs"], "pkgs/") #=> ["pkgs/p/default.nix"]
+"""
 def nix_under(files, prefix)
   filter((p) -> starts_with?(p, prefix) and ends_with?(p, ".nix"), files)
 end
 
+@doc """
+dir_units: the concepts directly under `root`: each nix file one unit, each subdirectory one unit, minus the files in `skip`.
+
+    fs = ["pkgs/default.nix", "pkgs/a.nix", "pkgs/p/default.nix"]
+    map((u) -> u[:name], dir_units(fs, "pkgs", :package, ["pkgs/default.nix"], fs)) #=> ["a", "p"]
+"""
 def dir_units(files, root, kind_of, skip, pool)
   depth = size(segments(root))
   under = filter((p) -> starts_with?(p, "#{root}/"), pool)
@@ -814,6 +1109,11 @@ def dir_units(files, root, kind_of, skip, pool)
   )
 end
 
+@doc """
+returned_set: the attribute set an expression evaluates to, looking through lambdas, let and parentheses; nil when it is not one.
+
+    kind(returned_set(kakehashi::nikkusu::read("final: prev: { o = 1; }")[:root])) #=> "NODE_ATTR_SET"
+"""
 def returned_set(n)
   k = kind(n)
   if n.nil?
@@ -827,6 +1127,12 @@ def returned_set(n)
   end
 end
 
+@doc """
+overlay_units: one concept per package an overlay file adds, named by its top-level attribute.
+
+    repo = assoc(in_memory([["overlays/o.nix", "final: prev: { o = prev.hello; }"]]), :config, fleet_repo(1))
+    map((u) -> u[:name], overlay_units(repo)) #=> ["o"]
+"""
 def overlay_units(repo)
   flat_map(
     filter(
@@ -859,6 +1165,11 @@ def overlay_units(repo)
   )
 end
 
+@doc """
+resolve: path segments applied to a directory, "." and ".." resolved.
+
+    resolve(["..", "lib", "r.nix"], ["modules", "pleme"]) #=> ["modules", "lib", "r.nix"]
+"""
 def resolve(segs, acc)
   if is_empty(segs)
     acc
@@ -881,11 +1192,21 @@ def resolve(segs, acc)
   end
 end
 
+@doc """
+relative_to: the repository path a relative import in `file` names.
+
+    relative_to("modules/pleme/nixos/a.nix", "../../../lib/r.nix") #=> "lib/r.nix"
+"""
 def relative_to(file, rel)
   dir = take(size(segments(file)) - 1, segments(file))
   join(resolve(segments(rel), dir), "/")
 end
 
+@doc """
+imported_files: the repository files a parsed file imports by relative path.
+
+    imported_files(file_facts("modules/pleme/nixos/use.nix", "let r = import ../../../lib/r.nix; in { }")) #=> ["lib/r.nix"]
+"""
 def imported_files(f)
   map(
     (c) -> relative_to(f[:path], code(first(c[:args]))),
@@ -898,6 +1219,11 @@ def imported_files(f)
   )
 end
 
+@doc """
+spec_names: the concept names a trio call covers: its literal name and packageAttr.
+
+    spec_names(first(calls(kakehashi::nikkusu::read("mkModuleTrio { name = \"tools\"; packageAttr = \"p\"; }")[:root]))) #=> ["tools", "p"]
+"""
 def spec_names(c)
   a = last(c[:args])
   if a.nil? or kind(a) != "NODE_ATTR_SET"
@@ -918,6 +1244,12 @@ def spec_names(c)
   end
 end
 
+@doc """
+concept_facts: what the trio rule reads of the repository: the files that call the factory, the names their specs cover, what they import, and what the configuration layers import.
+
+    repo = assoc(in_memory(concept_sources(false)), :config, fleet_repo(1))
+    concept_facts(repo)[:consumed] #=> ["lib/r.nix"]
+"""
 def concept_facts(repo)
   cfg = repo[:config]
   files = repo[:files]
@@ -960,6 +1292,11 @@ def concept_facts(repo)
   }
 end
 
+@doc """
+registry_units: one concept per lib/ file a configuration layer imports; a registry nobody reads as configuration is not one.
+
+    map((u) -> u[:name], registry_units(["lib/r.nix", "lib/unread.nix"], {consumed: ["lib/r.nix"]})) #=> ["r"]
+"""
 def registry_units(files, facts)
   map(
     (p) -> unit(:registry, before_first(segments(p)[1], ".nix"), p, [p]),
@@ -975,6 +1312,12 @@ def registry_units(files, facts)
   )
 end
 
+@doc """
+concept_units: every concept the fleet manages: shared modules, packages, overlay-added packages and consumed registries.
+
+    repo = assoc(in_memory(concept_sources(false)), :config, fleet_repo(1))
+    map((u) -> to_s(u[:kind]), concept_units(repo, concept_facts(repo))) #=> ["shared", "package", "overlay", "registry"]
+"""
 def concept_units(repo, facts)
   files = repo[:files]
   append(
@@ -992,12 +1335,22 @@ def concept_units(repo, facts)
   )
 end
 
+@doc """
+covered?: a concept is declared through the trio factory: one of its files calls it, a spec names it, or a trio file imports the registry.
+
+    covered?({kind: :package, name: "p", file: "pkgs/p/", files: []}, {trio_files: [], names: ["p"], trio_imports: []}) #=> true
+"""
 def covered?(u, facts)
   not is_empty(filter((p) -> member?(p, facts[:trio_files]), u[:files])) or
     member?(u[:name], facts[:names]) or
     u[:kind] == :registry and member?(u[:file], facts[:trio_imports])
 end
 
+@doc """
+check_concepts: the trio/every-concept rule: a concept not declared through the module-trio factory.
+
+    check_concepts(assoc(in_memory(concept_sources(true)), :config, fleet_repo(1))) #=> []
+"""
 def check_concepts(repo)
   facts = concept_facts(repo)
   map(
@@ -1014,10 +1367,20 @@ def check_concepts(repo)
   )
 end
 
+@doc """
+rule: one rule of the standard: its id, the plane it reads, whether it gates or advises, the paths it covers, why it holds, how to fix a finding, and the check that finds them.
+
+    rule("x/y", :layout, :gate, ["*"], "why", "fix", check_top)[:tier] #=> :gate
+"""
 def rule(id, plane, tier, scope, why, fix, check)
   {id:, plane:, tier:, scope:, why:, fix:, check:}
 end
 
+@doc """
+rules: the standard itself: every rule, in the order `kijun rules` lists them.
+
+    first(rules)[:id] #=> "trio/every-concept"
+"""
 def rules()
   [
     rule(
@@ -1185,10 +1548,20 @@ def rules()
   ]
 end
 
+@doc """
+disabled_ids: the ids of the rules an instance switched off.
+
+    disabled_ids({disabled: [{rule: "expr/no-shell", reason: "r"}]}) #=> ["expr/no-shell"]
+"""
 def disabled_ids(cfg)
   map((d) -> d[:rule], cfg[:disabled])
 end
 
+@doc """
+active: the rules of one plane that run for an instance, its disabled ones left out.
+
+    map((r) -> r[:id], active(disable(fleet_repo(1), "tree/option-evaluates", "r"), :tree)) #=> ["tree/pleme-options-declared-in-shared", "tree/hostname-from-node"]
+"""
 def active(cfg, plane)
   filter(
     (r) -> r[:plane] == plane and not member?(r[:id], disabled_ids(cfg)),
@@ -1196,10 +1569,20 @@ def active(cfg, plane)
   )
 end
 
+@doc """
+in_scope?: a rule reads a path when one of its scope globs matches it.
+
+    in_scope?({scope: ["nodes/**"]}, "nodes/plo/default.nix") #=> true
+"""
 def in_scope?(r, path)
   not is_empty(filter((g) -> glob_match?(g, path), r[:scope]))
 end
 
+@doc """
+file_facts: one nix file parsed once for every expression rule: its path, syntax tree, bindings and calls.
+
+    size(file_facts("lib/a.nix", "{ a = 1; }")[:bindings]) #=> 1
+"""
 def file_facts(path, source)
   doc = kakehashi::nikkusu::read(source)
   {
@@ -1211,6 +1594,12 @@ def file_facts(path, source)
   }
 end
 
+@doc """
+expression_findings: every active expression rule run over each nix file in its scope; a file no rule covers is not parsed.
+
+    repo = assoc(in_memory([["lib/a.nix", "import <nixpkgs> { }"]]), :config, fleet_repo(1))
+    map((x) -> x[:rule], expression_findings(repo)) #=> ["expr/no-angle-paths"]
+"""
 def expression_findings(repo)
   rs = active(repo[:config], :expression)
   flat_map(
@@ -1227,15 +1616,31 @@ def expression_findings(repo)
   )
 end
 
+@doc """
+layout_findings: every active layout rule run over the repository's file list.
+
+    repo = assoc(in_memory([["flake.nix", "{ }"], ["stray.txt", ""]]), :config, fleet_repo(1))
+    map((x) -> x[:rule], layout_findings(repo)) #=> ["layout/top-level"]
+"""
 def layout_findings(repo)
   flat_map(active(repo[:config], :layout), (r) -> r[:check](repo))
 end
 
+@doc """
+tree_findings: every active tree rule run over each evaluated configuration tree.
+
+    map((x) -> x[:rule], tree_findings({config: fleet_repo(1)}, [tree_case("lib/x.nix", :declaration)])) #=> ["tree/pleme-options-declared-in-shared"]
+"""
 def tree_findings(repo, trees)
   rs = active(repo[:config], :tree)
   flat_map(trees, (t) -> flat_map(rs, (r) -> r[:check](t, repo)))
 end
 
+@doc """
+waiver_refusal: why a waiver is refused: its reason is not a typed `skip-<rule>:` line, or it names no rule of the standard; nil when it is sound.
+
+    kyohi::why(waiver_refusal({rule: "expr/nope", glob: "**", reason: "skip-expr/nope: x"})) #=> "expr/nope is not a rule of the standard"
+"""
 def waiver_refusal(w)
   prefix = "skip-#{w[:rule]}: "
   reason = w[:reason]
@@ -1249,10 +1654,20 @@ def waiver_refusal(w)
   end
 end
 
+@doc """
+valid_waivers: the waivers that hold; a refused one covers nothing.
+
+    valid_waivers({waivers: [{rule: "expr/no-shell", glob: "**", reason: "because"}]}) #=> []
+"""
 def valid_waivers(cfg)
   filter((w) -> waiver_refusal(w).nil?, cfg[:waivers])
 end
 
+@doc """
+config_refusals: every refused waiver and every disable naming no rule, each refused alone.
+
+    size(config_refusals({waivers: [], disabled: [{rule: "x/y", reason: "r"}]})) #=> 1
+"""
 def config_refusals(cfg)
   append(
     filter((x) -> x != nil, map(waiver_refusal, cfg[:waivers])),
@@ -1266,12 +1681,22 @@ def config_refusals(cfg)
   )
 end
 
+@doc """
+waived?: a finding is covered by a waiver of its rule whose glob matches its file.
+
+    waived?([{rule: "expr/no-angle-paths", glob: "lib/*"}], {rule: "expr/no-angle-paths", file: "lib/a.nix"}) #=> true
+"""
 def waived?(ws, x)
   not is_empty(
     filter((w) -> w[:rule] == x[:rule] and glob_match?(w[:glob], x[:file]), ws)
   )
 end
 
+@doc """
+tier_of: whether a rule gates or only advises.
+
+    tier_of("expr/no-shell") #=> :advise
+"""
 def tier_of(id)
   rule_field(id, :tier)
 end
@@ -1285,22 +1710,48 @@ def rule_field(id, key)
   get(first(filter((r) -> r[:id] == id, rules)), key)
 end
 
+@doc """
+key_of: the baseline key of a finding, its file and subject, so a moved line keeps its row.
+
+    key_of({file: "lib/a.nix", subject: "<nixpkgs>"}) #=> "lib/a.nix::<nixpkgs>"
+"""
 def key_of(x)
   "#{x[:file]}::#{x[:subject]}"
 end
 
+@doc """
+measurements: findings counted per key, as the ratchet's measurements.
+
+    size(measurements([{file: "a", subject: "s"}, {file: "a", subject: "s"}])) #=> 1
+"""
 def measurements(xs)
   map((p) -> hadome::measurement(first(p), p[1]), frequencies(map(key_of, xs)))
 end
 
+@doc """
+rule_ids: the rules that have findings, each once, in first-seen order.
+
+    rule_ids([{rule: "a"}, {rule: "b"}, {rule: "a"}]) #=> ["a", "b"]
+"""
 def rule_ids(xs)
   unique(map((x) -> x[:rule], xs))
 end
 
+@doc """
+baseline_text: the kijun.baseline a set of gate findings records.
+
+    baseline_text([finding("expr/no-angle-paths", "lib/a.nix", 1, "<nixpkgs>", "m")]) #=> "expr/no-angle-paths: lib/a.nix::<nixpkgs> 1\n"
+"""
 def baseline_text(gates)
   baseline_with(gates, [])
 end
 
+@doc """
+baseline_with: the baseline for this run's gate findings, keeping the rows of planes that did not run.
+
+    t = finding("tree/hostname-from-node", "(external)", 0, "a networking.hostName", "m")
+    baseline_with([], hadome::parse(baseline_text([t]))) #=> baseline_text([t])
+"""
 def baseline_with(gates, kept)
   own = map(
     (id) -> [id, measurements(filter((x) -> x[:rule] == id, gates))],
@@ -1327,6 +1778,11 @@ def baseline_with(gates, kept)
   )
 end
 
+@doc """
+ran_ids: the ids of the rules this run executes; the tree plane runs only with --tree.
+
+    member?("tree/hostname-from-node", ran_ids(fleet_repo(1), false)) #=> false
+"""
 def ran_ids(cfg, tree)
   planes = if tree
     %i[layout expression tree]
@@ -1336,6 +1792,11 @@ def ran_ids(cfg, tree)
   map((r) -> r[:id], flat_map(planes, (p) -> active(cfg, p)))
 end
 
+@doc """
+split_rows: baseline rows split into those of rules that ran, which are judged, and the rest, which are kept as they are.
+
+    split_rows([{kind: "a"}, {kind: "b"}], ["a"]) #=> [[{kind: "a"}], [{kind: "b"}]]
+"""
 def split_rows(rows, ids)
   [
     filter((r) -> member?(r[:kind], ids), rows),
@@ -1343,6 +1804,13 @@ def split_rows(rows, ids)
   ]
 end
 
+@doc """
+judge: the ratchet's verdict: gate findings outside the baseline are new, baseline rows no finding holds are orphans, and rows whose count fell can shrink.
+
+    a = finding("expr/no-angle-paths", "lib/a.nix", 1, "<nixpkgs>", "m")
+    b = finding("expr/no-angle-paths", "lib/b.nix", 1, "<nixpkgs>", "m")
+    map((x) -> x[:file], judge([a, b], hadome::parse(baseline_text([a])))[:new]) #=> ["lib/b.nix"]
+"""
 def judge(gates, rows)
   ids = unique(append(rule_ids(gates), map((r) -> r[:kind], rows)))
   per = map(
@@ -1378,15 +1846,30 @@ def judge(gates, rows)
   }
 end
 
+@doc """
+nix_string: a text as a nix string literal, quotes, backslashes and interpolation escaped.
+
+    nix_string("pleme.a") #=> "\"pleme.a\""
+"""
 def nix_string(s)
   "\"#{replace(replace(replace(s, "\\", "\\\\"), "\"", "\\\""), "$", "\\$")}\""
 end
 
+@doc """
+tree_expr: the nix function the tree probe applies to a configuration: the declarations and definitions of every pleme.* option and of networking.hostName, skipping the options already known not to evaluate.
+
+    contains?(tree_expr(["pleme.a"]), "excluded = [ \"pleme.a\" ]") #=> true
+"""
 def tree_expr(excluded)
   skip = join(map(nix_string, excluded), " ")
   "c: let lib = c.pkgs.lib; excluded = [ #{skip} ]; defsOf = d: v: if builtins.elem d excluded then { definitions = [ ]; threw = false; } else let fs = builtins.addErrorContext (\"kijun\" + \"-option \" + d) (map (x: x.file) (v.definitionsWithLocations or [ ])); r = builtins.tryEval (builtins.deepSeq fs fs); in if r.success then { definitions = r.value; threw = false; } else { definitions = [ ]; threw = true; }; walk = path: v: if lib.isOption v then [ ({ path = lib.concatStringsSep \".\" path; declarations = v.declarations or [ ]; } // defsOf (lib.concatStringsSep \".\" path) v) ] else if builtins.isAttrs v && !(lib.isDerivation v) then lib.concatLists (lib.mapAttrsToList (n: x: walk (path ++ [ n ]) x) v) else [ ]; in { pleme = walk [ \"pleme\" ] (c.options.pleme or { }); hostname = walk [ \"networking\" \"hostName\" ] (c.options.networking.hostName or { }); }"
 end
 
+@doc """
+failing_option: the option whose evaluation failed, read from the last kijun-option tag in nix's trace; nil when no tag is there.
+
+    failing_option(unlines(["error:", "       … kijun-option pleme.fleet.nixRepo", "       error: attribute 'darwinUser' missing"])) #=> "pleme.fleet.nixRepo"
+"""
 def failing_option(stderr)
   tagged = filter(
     (l) -> starts_with?(trim(l), "… kijun-option "),
@@ -1399,6 +1882,11 @@ def failing_option(stderr)
   end
 end
 
+@doc """
+last_error: the innermost error message in nix's stderr, the one that names the cause.
+
+    last_error(unlines(["error:", "       error: attribute 'darwinUser' missing"])) #=> "attribute 'darwinUser' missing"
+"""
 def last_error(stderr)
   errs = filter(
     (l) -> starts_with?(trim(l), "error:") and trim(l) != "error:",
@@ -1411,6 +1899,11 @@ def last_error(stderr)
   end
 end
 
+@doc """
+own_source: the store path of the flake's own source, which tells this repository's files apart from its inputs' in an evaluated tree; "" when nix cannot say.
+
+    procedure?(own_source) #=> true
+"""
 def own_source(root)
   cap = exec_capture("nix", "flake", "metadata", "--json", root)
   if status_of(cap) == 0
@@ -1420,6 +1913,11 @@ def own_source(root)
   end
 end
 
+@doc """
+entries: the option entries of the tree probe's JSON, each with its path, declarations, definitions and whether it threw.
+
+    entries(nil) #=> []
+"""
 def entries(xs)
   if xs.nil?
     []
@@ -1438,6 +1936,11 @@ def entries(xs)
   end
 end
 
+@doc """
+or_list: a value read from JSON as a list, or [] when it is absent or not a list.
+
+    or_list("x") #=> []
+"""
 def or_list(xs)
   if xs.nil? or not list?(xs)
     []
@@ -1446,10 +1949,20 @@ def or_list(xs)
   end
 end
 
+@doc """
+tree_of: the evaluated option tree of one configuration, from a probe that starts with no option known to fail.
+
+    procedure?(tree_of) #=> true
+"""
 def tree_of(root, own, configuration)
   probe(root, own, configuration, [])
 end
 
+@doc """
+probe: evaluate one configuration's option tree with nix; an option whose evaluation fails is set aside as blind and the probe runs again, so one bad option never hides the rest.
+
+    procedure?(probe) #=> true
+"""
 def probe(root, own, configuration, blind)
   cap = exec_capture(
     "nix",
@@ -1504,6 +2017,11 @@ def probe(root, own, configuration, blind)
   end
 end
 
+@doc """
+tracked: the files git tracks under root, the set a flake sees; nil when root is not a work tree.
+
+    procedure?(tracked) #=> true
+"""
 def tracked(root)
   cap = exec_capture("git", "-C", root, "ls-files")
   if status_of(cap) != 0
@@ -1513,14 +2031,29 @@ def tracked(root)
   end
 end
 
+@doc """
+source_of: the text of one repository file, through the repository's own reader.
+
+    source_of(in_memory([["lib/a.nix", "{ }"]]), "lib/a.nix") #=> "{ }"
+"""
 def source_of(repo, path)
   repo[:read](path)
 end
 
+@doc """
+on_disk: a repository read from a checkout: its tracked files, each read from disk when a rule asks.
+
+    on_disk("/r", ["flake.nix"])[:files] #=> ["flake.nix"]
+"""
 def on_disk(root, files)
   {root:, files:, read: (p) -> read_or(path_join(root, p), "")}
 end
 
+@doc """
+in_memory: a repository held as [path, text] pairs, so every rule runs without a checkout.
+
+    in_memory([["lib/a.nix", "{ }"]])[:files] #=> ["lib/a.nix"]
+"""
 def in_memory(sources)
   {
     root: ".",
@@ -1536,10 +2069,20 @@ def in_memory(sources)
   }
 end
 
+@doc """
+evaluate: the standard applied to a repository and its evaluated trees: findings split into gates, advice and waived, with the config's refusals.
+
+    map((x) -> x[:rule], evaluate(fleet_repo(1), in_memory([["lib/a.nix", "import <nixpkgs> { }"]]), [])[:gates]) #=> ["expr/no-angle-paths"]
+"""
 def evaluate(cfg, source, trees)
   evaluate_timed(cfg, source, trees, () -> 0)
 end
 
+@doc """
+evaluate_timed: evaluate, with each plane's time read from `clock`.
+
+    evaluate_timed(fleet_repo(1), in_memory([]), [], () -> 5)[:ms] #=> {layout: 0, expression: 0, tree: 0}
+"""
 def evaluate_timed(cfg, source, trees, clock)
   repo = assoc(source, :config, cfg)
   t0 = clock()
@@ -1575,6 +2118,11 @@ def evaluate_timed(cfg, source, trees, clock)
   }
 end
 
+@doc """
+parse_args: kijun's command line: check, baseline or rules, then its flags; a bad line is an error field, never a raise.
+
+    parse_args(["check", "--json", "--root", "/r"])[:root] #=> "/r"
+"""
 def parse_args(args)
   if is_empty(args)
     {error: "a command: check, baseline or rules"}
@@ -1595,6 +2143,11 @@ def parse_args(args)
   end
 end
 
+@doc """
+flags: the flags after the command, read into `acc` until the first error.
+
+    flags(["--tree", "--bogus"], {tree: false, error: nil}) #=> {tree: true, error: "unknown flag --bogus"}
+"""
 def flags(args, acc)
   if is_empty(args) or acc[:error] != nil
     acc
@@ -1621,6 +2174,11 @@ def flags(args, acc)
   end
 end
 
+@doc """
+rule_line: one rule as `kijun rules` lists it: id, plane, tier and scope, then why and fix.
+
+    starts_with?(rule_line(first(rules)), "trio/every-concept\tlayout\tgate") #=> true
+"""
 def rule_line(r)
   unlines(
     [
@@ -1631,6 +2189,11 @@ def rule_line(r)
   )
 end
 
+@doc """
+rules_text: the whole standard as `kijun rules` prints it, headed by its name, version and rule count.
+
+    first(lines(rules_text(fleet_repo(1)))) #=> "fleet-repo v1: 18 rules"
+"""
 def rules_text(cfg)
   join_lines(
     [
@@ -1641,6 +2204,11 @@ def rules_text(cfg)
   )
 end
 
+@doc """
+finding_line: one finding as a report line, file:line first so an editor can jump to it.
+
+    finding_line(finding("expr/no-angle-paths", "lib/a.nix", 2, "<nixpkgs>", "m")) #=> "lib/a.nix:2: expr/no-angle-paths: m\n"
+"""
 def finding_line(x)
   where = if x[:line] > 0
     "#{x[:file]}:#{to_s(x[:line])}"
@@ -1650,6 +2218,11 @@ def finding_line(x)
   unlines(["#{where}: #{x[:rule]}: #{x[:message]}"])
 end
 
+@doc """
+counts: the number of findings per rule, ordered by rule id.
+
+    counts([{rule: "b"}, {rule: "a"}, {rule: "b"}]) #=> [["a", 1], ["b", 2]]
+"""
 def counts(xs)
   map(
     (id) -> [id, size(filter((x) -> x[:rule] == id, xs))],
@@ -1657,6 +2230,11 @@ def counts(xs)
   )
 end
 
+@doc """
+plain: a finding as the JSON report carries it: only its rule, file, line, subject and message.
+
+    plain({rule: "r", file: "f", line: 1, subject: "s", message: "m", extra: 1}) #=> {rule: "r", file: "f", line: 1, subject: "s", message: "m"}
+"""
 def plain(x)
   {
     rule: x[:rule],
@@ -1667,10 +2245,21 @@ def plain(x)
   }
 end
 
+@doc """
+plane_of: which plane a rule reads: layout, expression or tree.
+
+    plane_of("expr/no-shell") #=> :expression
+"""
 def plane_of(id)
   rule_field(id, :plane)
 end
 
+@doc """
+plane_counts: per plane, how many findings, gates, advice and waivers it produced and how long it took.
+
+    r = evaluate(fleet_repo(1), in_memory([["lib/a.nix", "import <nixpkgs> { }"]]), [])
+    map((p) -> p[:findings], plane_counts(r, {wall: 7, planes: {layout: 1, expression: 2, tree: 3}})) #=> [0, 1, 0]
+"""
 def plane_counts(result, timing)
   map(
     fn(p)
@@ -1688,6 +2277,12 @@ def plane_counts(result, timing)
   )
 end
 
+@doc """
+report_json: the `kijun check --json` report: the verdict, every finding, the counts and the timing.
+
+    r = evaluate(fleet_repo(1), in_memory([["lib/a.nix", "import <nixpkgs> { }"]]), [])
+    json_get(json_parse(report_json(fleet_repo(1), r, judge(r[:gates], []), {wall: 7, planes: {layout: 1, expression: 2, tree: 3}})), :wall_ms) #=> 7
+"""
 def report_json(cfg, result, verdict, timing)
   json_stringify(
     {
@@ -1712,6 +2307,12 @@ def report_json(cfg, result, verdict, timing)
   )
 end
 
+@doc """
+timing_line: the report's last line: wall time, then each plane's findings and time.
+
+    r = evaluate(fleet_repo(1), in_memory([["lib/a.nix", "import <nixpkgs> { }"]]), [])
+    timing_line(r, {wall: 7, planes: {layout: 1, expression: 2, tree: 3}}) #=> "wall 7 ms: layout 0 findings 1 ms, expression 1 findings 2 ms, tree 0 findings 3 ms\n"
+"""
 def timing_line(result, timing)
   ps = join(
     map(
@@ -1725,6 +2326,12 @@ def timing_line(result, timing)
   unlines(["wall #{to_s(timing[:wall])} ms: #{ps}"])
 end
 
+@doc """
+report_text: the `kijun check` report for people: totals, counts per rule, refusals, disabled rules, blind trees, what the baseline can shed, and the gate findings outside it.
+
+    r = evaluate(fleet_repo(1), in_memory([["lib/a.nix", "import <nixpkgs> { }"]]), [])
+    first(lines(report_text(fleet_repo(1), r, judge(r[:gates], []), {wall: 7, planes: {layout: 1, expression: 2, tree: 3}}))) #=> "kijun fleet-repo v1: 1 gate findings, 0 advice, 0 waived"
+"""
 def report_text(cfg, result, verdict, timing)
   head = unlines(
     [
@@ -1777,6 +2384,11 @@ def report_text(cfg, result, verdict, timing)
   "#{head}#{per}#{refused}#{off}#{blind}#{shrink}#{fresh}#{timing_line(result, timing)}"
 end
 
+@doc """
+run: one kijun command against a checkout with a given standard: list the rules, check against the baseline, or rewrite the baseline. A bad line or a gate finding outside the baseline raises.
+
+    procedure?(run) #=> true
+"""
 def run(cfg, args)
   a = parse_args(args)
   if a[:error] != nil
@@ -1838,6 +2450,11 @@ def run(cfg, args)
   end
 end
 
+@doc """
+main: the kijun command's entry point: a repository's own kijun.b runs in its place when there is one, else the fleet-repo standard v1.
+
+    procedure?(() -> main) #=> true
+"""
 def main()
   args = argv
   root = flags(drop(1, args), {root: ".", error: nil})[:root]
@@ -1855,6 +2472,11 @@ def main()
   end
 end
 
+@doc """
+tree_case: an evaluated tree the tree-rule tests read, with one option at `file`: a pleme.x declaration, a blind pleme.x, or a hostname definition.
+
+    first(tree_case("lib/x.nix", :declaration)[:pleme])[:declarations] #=> ["/nix/store/h-source/lib/x.nix"]
+"""
 def tree_case(file, kind_of)
   t = {
     configuration: "nixosConfigurations.a",
@@ -1907,14 +2529,29 @@ def tree_case(file, kind_of)
   end
 end
 
+@doc """
+example: one fixture case: the repository's sources and its evaluated trees.
+
+    example([], []) #=> {sources: [], trees: []}
+"""
 def example(sources, trees)
   {sources:, trees:}
 end
 
+@doc """
+module_with: a NixOS module source around the given body, for fixtures.
+
+    module_with("  pleme.x = true;") #=> "{ config, lib, pkgs, ... }:\n{\n  pleme.x = true;\n}\n"
+"""
 def module_with(body)
   unlines(["{ config, lib, pkgs, ... }:", "{", body, "}"])
 end
 
+@doc """
+concept_sources: a repository with one concept of each kind, every one declared through the trio factory when `declared`, none otherwise.
+
+    map((s) -> first(s), concept_sources(false))[6] #=> "lib/r.nix"
+"""
 def concept_sources(declared)
   shared = if declared
     unlines(
@@ -1961,6 +2598,11 @@ def concept_sources(declared)
   ]
 end
 
+@doc """
+trio_source: a shared module file that declares its concept through mkModuleTrio, of the given kind or none.
+
+    first(trio_source("p", "package")) #=> "modules/pleme/shared/p.nix"
+"""
 def trio_source(name, kind_of)
   k = if kind_of.nil?
     ""
@@ -1980,6 +2622,11 @@ def trio_source(name, kind_of)
   ]
 end
 
+@doc """
+fixtures: one violating and one clean case per rule, with how often the violating one fires; a rule cannot land without both.
+
+    size(fixtures) #=> size(rules)
+"""
 def fixtures()
   registry = [
     "lib/nodes.nix",
@@ -2315,6 +2962,11 @@ def fixtures()
   ]
 end
 
+@doc """
+fired: the findings of one rule on one fixture case.
+
+    size(fired(fleet_repo(1), example([["lib/a.nix", "import <nixpkgs> { }"]], []), "expr/no-angle-paths")) #=> 1
+"""
 def fired(cfg, c, id)
   filter(
     (x) -> x[:rule] == id,

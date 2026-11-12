@@ -45,6 +45,11 @@ legacy_names("0.1.1", "th")
 # max jobs, speed factor, supported features, mandatory features, host key;
 # "-" for an empty field. Blank lines and # comments are skipped.
 
+@doc """
+fields: the fields of one machines-file line, split on spaces or tabs, empty runs dropped.
+
+    fields(" ssh://h\tx  - ") #=> ["ssh://h", "x", "-"]
+"""
 def fields(line)
   filter(
     (f) -> is_empty(f) == false,
@@ -52,6 +57,11 @@ def fields(line)
   )
 end
 
+@doc """
+meaningful?: a declared line is read only when it is neither blank nor a # comment.
+
+    meaningful?("  # declared by nix-darwin") #=> false
+"""
 def meaningful?(line)
   t = trim(line)
   is_empty(t) == false and starts_with?(t, "#") == false
@@ -155,6 +165,8 @@ end
 
 @doc """
 parse: declared remote builders from the machines file.
+
+    size(parse(unlines(["# c", "ssh://root@plo x86_64-linux - 8 8 - - -", "not-a-uri x"]))) #=> 2
 """
 def parse(text)
   entries(text, machine)
@@ -184,6 +196,8 @@ will run for a build, so "up" means the builder's store answers the protocol
 nix speaks, not merely that ssh or `nix --version` does. `ssh` is the binary
 to run, by absolute path when the caller has one (services.tehai passes
 /usr/bin/ssh on macOS, openssh on NixOS), so the state can name which ssh ran.
+
+    take_n(probe_argv(machine("ssh://root@plo x - 8 8 - - -"), 2, "/usr/bin/ssh"), 3) #=> ["/usr/bin/ssh", "-o", "BatchMode=yes"]
 """
 def probe_argv(m, timeout_s, ssh)
   key = if m[:key].nil?
@@ -287,6 +301,8 @@ end
 
 @doc """
 live_text: The live machines file: each live machine's declared line, unchanged.
+
+    live_text([{line: "ssh://root@plo x - 8 8 - - -", up: true}, {line: "ssh://q y", up: false}]) #=> "ssh://root@plo x - 8 8 - - -\n"
 """
 def live_text(checked)
   join(
@@ -297,15 +313,27 @@ end
 
 @doc """
 states: Each machine's state, carrying `since` forward while up/down is unchanged.
+
+    first(states([{line: "l", host: "h", up: true, detail: "ok"}], [{line: "l", up: true, since_ms: 1000}], 2000))[:since_ms] #=> 1000
 """
 def states(checked, previous, now)
   map((c) -> state(c, previous_of(previous, c[:line]), now), checked)
 end
 
+@doc """
+previous_of: the previous run's state of the machine declared by `line`, or nil when it is new.
+
+    previous_of([{line: "a", up: true, since_ms: 5}], "b") #=> nil
+"""
 def previous_of(previous, line)
   find_first((p) -> p[:line] == line, previous)
 end
 
+@doc """
+state: one machine's state for this run: `since` is kept from the previous run while up/down holds, and is now when it flips.
+
+    state({line: "l", host: "h", up: false, detail: "gone"}, {line: "l", up: true, since_ms: 1000}, 3000)[:since_ms] #=> 3000
+"""
 def state(c, prev, now)
   since = if prev != nil and prev[:up] == c[:up]
     prev[:since_ms]
@@ -325,6 +353,8 @@ end
 @doc """
 read_previous: A previous state file's machines, or [] when there is none or it is not
 JSON: a missing history only resets `since`.
+
+    procedure?(read_previous) #=> true
 """
 def read_previous(path)
   text = read_or(path, "")
@@ -366,6 +396,8 @@ end
 @doc """
 write_atomic: Write through a temporary beside the target, then rename: atomic on one
 filesystem, so a reader sees the old file or the new one.
+
+    procedure?(write_atomic) #=> true
 """
 def write_atomic(path, text)
   tmp = "#{path}.tehai-tmp"
@@ -407,7 +439,9 @@ end
 @doc """
 run: Check every declared machine once; write the live file and the state.
 An up machine whose handshake takes longer than max_ms is written down; 0 is
-no bound. Returns the state record.
+no bound. The state record is what it answers.
+
+    procedure?(run) #=> true
 """
 def run(declared_path, live_path, state_path, timeout_s, ssh, max_ms)
   now = now_ms
@@ -437,6 +471,11 @@ def run(declared_path, live_path, state_path, timeout_s, ssh, max_ms)
   record
 end
 
+@doc """
+checked: one declared entry paired with its probe result, the row live_text and states read.
+
+    checked({line: "l", host: "h"}, [true, "ok"]) #=> {line: "l", host: "h", up: true, detail: "ok"}
+"""
 def checked(m, result)
   {line: m[:line], host: m[:host], up: result[0], detail: result[1]}
 end
@@ -528,7 +567,9 @@ end
 
 @doc """
 run_substituters: Check every declared substituter once; write the live
-fragment and the state. Returns the state record.
+fragment and the state. The state record is what it answers.
+
+    procedure?(run_substituters) #=> true
 """
 def run_substituters(declared_path, live_path, state_path, timeout_s, curl)
   now = now_ms
@@ -562,6 +603,8 @@ end
 main: The daemon's entry point: paths, timeout and the ssh binary from the
 environment. A bare "ssh" (PATH lookup) is the fallback, and the state says so.
 Substituters are checked only when TEHAI_SUBSTITUTERS_DECLARED names a file.
+
+    procedure?(() -> main) #=> true
 """
 def main()
   r = run(
@@ -587,6 +630,11 @@ end
 
 # ── tests ────────────────────────────────────────────────────────────
 
+@doc """
+sample: the machines file the format tests read: a comment, two machines, a blank line and one malformed line.
+
+    size(parse(sample)) #=> 3
+"""
 def sample()
   unlines(
     [
@@ -736,6 +784,11 @@ test "a missing ssh binary is named, and the state records which ssh ran"
   rm_rf(dir)
 end
 
+@doc """
+fake_ssh: a stand-in ssh the probe tests run: a script in `dir` named `name` whose body is `body`, made executable; its path.
+
+    procedure?(fake_ssh) #=> true
+"""
 def fake_ssh(dir, name, body)
   path = path_join(dir, name)
   write_file(path, unlines(["#!/bin/sh", body]))
@@ -743,10 +796,20 @@ def fake_ssh(dir, name, body)
   path
 end
 
+@doc """
+probe_dir: a fresh scratch directory for one probe test, named after its label.
+
+    procedure?(probe_dir) #=> true
+"""
 def probe_dir(label)
   fresh_dir("tehai-probe-#{label}")
 end
 
+@doc """
+probe_target: the machine the probe tests aim at when ssh never starts: a host and user, no key.
+
+    get(probe_target, :host) #=> "h"
+"""
 def probe_target()
   {host: "h", user: "u", key: nil}
 end
@@ -844,18 +907,38 @@ test "a substituter run end to end: a dead peer is left out and named in the sta
   rm_rf(dir)
 end
 
+@doc """
+worker_target: the ssh-ng:// machine the probe tests use to speak the worker protocol.
+
+    get(worker_target, :protocol) #=> :worker
+"""
 def worker_target()
   machine("ssh-ng://u@h aarch64-darwin - 1 1 - - -")
 end
 
+@doc """
+serve_target: the ssh:// machine the probe tests use to speak the serve protocol.
+
+    get(serve_target, :protocol) #=> :serve
+"""
 def serve_target()
   machine("ssh://u@h aarch64-darwin - 1 1 - - -")
 end
 
+@doc """
+worker_reply: the shell a fake ssh runs to answer the worker handshake: the oixd magic, then protocol 1.38.
+
+    starts_with?(worker_reply, "printf 'oixd") #=> true
+"""
 def worker_reply()
   "printf 'oixd\\000\\000\\000\\000\\046\\001\\000\\000\\000\\000\\000\\000'"
 end
 
+@doc """
+serve_reply: the shell a fake ssh runs to answer the serve handshake: the serve magic, then protocol 2.7.
+
+    starts_with?(serve_reply, "printf '\\313\\356") #=> true
+"""
 def serve_reply()
   "printf '\\313\\356\\122\\124\\000\\000\\000\\000\\007\\002\\000\\000\\000\\000\\000\\000'"
 end

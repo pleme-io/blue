@@ -24,14 +24,29 @@ use("retsu", %i[find_first first is_empty push size])
 use("tesuto", [:raises?])
 use("toriyose/danpen")
 
+@doc """
+key_format names the version of the key table, so a reader can refuse a table another layout wrote.
+
+    key_format #=> "kyasshu-keys/1"
+"""
 def key_format()
   "kyasshu-keys/1"
 end
 
+@doc """
+separator joins the parts of one cache key, the colon hanabi's entity cache uses.
+
+    separator #=> ":"
+"""
 def separator()
   ":"
 end
 
+@doc """
+root_key stamps the root fields of a response, which belong to no entity.
+
+    root_key #=> "ROOT"
+"""
 def root_key()
   "ROOT"
 end
@@ -51,16 +66,33 @@ def key(parts)
   blue::join(map(to_s, parts), separator)
 end
 
+@doc """
+table? tells a ready key table apart from a schema still to read.
+
+    table?(schema(sdl)) #=> true
+    table?(sdl) #=> false
+"""
 def table?(x)
   map?(x) and x[:format] == key_format
 end
 
+@doc """
+entity_type? tells whether a schema type is cached as its own entity: an object, not introspection, with an id.
+
+    entity_type?({kind: :object, name: "User", fields: [{name: "id"}]}) #=> true
+    entity_type?({kind: :object, name: "Note", fields: [{name: "text"}]}) #=> false
+"""
 def entity_type?(d)
   d[:kind] == :object and
     not starts_with?(d[:name], "__") and
     any?((f) -> f[:name] == "id", d[:fields] or [])
 end
 
+@doc """
+table_of builds the key table from a parsed schema: every entity type keyed by its id.
+
+    table_of(toriyose::danpen::schema_of(sdl))[:cached_types] #=> ["Comment", "Post", "User"]
+"""
 def table_of(s)
   types = sort_keyed(
     (t) -> t,
@@ -79,11 +111,19 @@ end
 
 @doc """
 schema: the entity key table a GraphQL schema implies.
+
+    schema(sdl)[:key_fields]["User"] #=> ["id"]
 """
 def schema(subject)
   table_of(toriyose::danpen::schema_of(subject))
 end
 
+@doc """
+context holds what a walk needs: the key table, and the parsed schema when one was given.
+
+    context(schema(sdl))[:types] #=> nil
+    context(sdl)[:table] == schema(sdl) #=> true
+"""
 def context(schema)
   if table?(schema)
     {table: schema, types: nil}
@@ -93,10 +133,22 @@ def context(schema)
   end
 end
 
+@doc """
+ref? tells a reference to an entity apart from a value held in place.
+
+    ref?({"__ref" => "User:7"}) #=> true
+    ref?({"__ref" => "User:7", "id" => "7"}) #=> false
+"""
 def ref?(x)
   map?(x) and x["__ref"] != nil and size(map_entries(x)) == 1
 end
 
+@doc """
+combined lays a newer value over an older one, field by field, and keeps the fields only the older one has.
+
+    combined({"a" => 1}, {"b" => 2}) #=> {"a" => 1, "b" => 2}
+    combined({"a" => 1}, {"a" => 3}) #=> {"a" => 3}
+"""
 def combined(x, y)
   if map?(x) and map?(y) and not ref?(x) and not ref?(y)
     reduce(
@@ -109,6 +161,11 @@ def combined(x, y)
   end
 end
 
+@doc """
+entities_merged joins two entity tables so each key keeps one combined copy.
+
+    entities_merged({"User:1" => {"id" => "1"}}, {"User:1" => {"name" => "Ann"}}) #=> {"User:1" => {"id" => "1", "name" => "Ann"}}
+"""
 def entities_merged(a, b)
   reduce(
     (acc, e) -> assoc(acc, first(e), combined(get(acc, first(e)), second(e))),
@@ -117,6 +174,12 @@ def entities_merged(a, b)
   )
 end
 
+@doc """
+field_type finds the type a field of a parent type holds, so a walk can key a nested value that carries no typename.
+
+    field_type(context(sdl), "Post", "author") #=> "User"
+    field_type(context(schema(sdl)), "Post", "author") #=> nil
+"""
 def field_type(ctx, parent, name)
   s = ctx[:types]
   f = if s.nil? or parent.nil?
@@ -131,6 +194,12 @@ def field_type(ctx, parent, name)
   end
 end
 
+@doc """
+entity_key gives the cache key of a record of a cached type, or nil when the record lacks a key field.
+
+    entity_key(context(sdl), "User", {"id" => "u7"}) #=> "User:u7"
+    entity_key(context(sdl), "Note", {"text" => "t"}) #=> nil
+"""
 def entity_key(ctx, t, rec)
   fields = get(ctx[:table][:key_fields], t)
   if t.nil? or fields.nil?
@@ -145,6 +214,11 @@ def entity_key(ctx, t, rec)
   end
 end
 
+@doc """
+walk splits one value into what stays in place, with references, and the entities it found.
+
+    first(walk(ada, "User", context(sdl))) #=> {"__ref" => "User:u7"}
+"""
 def walk(value, type, ctx)
   if value.nil?
     [nil, {}]
@@ -184,6 +258,12 @@ def walk(value, type, ctx)
   end
 end
 
+@doc """
+payload takes the data of a GraphQL response, or the value itself when it holds no data field.
+
+    payload({"data" => {"a" => 1}}) #=> {"a" => 1}
+    payload({"a" => 1}) #=> {"a" => 1}
+"""
 def payload(response)
   if map?(response) and response["data"] != nil
     response["data"]
@@ -225,6 +305,9 @@ end
 
 @doc """
 merge: combine two stores keeping one copy per entity.
+
+    merge(nil, blank) #=> blank
+    merge(blank, nil) #=> blank
 """
 def merge(a, b)
   if a.nil?
@@ -241,6 +324,11 @@ def merge(a, b)
   end
 end
 
+@doc """
+overlay lays every pending optimistic write over a store, so a read sees them.
+
+    overlay(blank) #=> blank
+"""
 def overlay(store)
   reduce(
     (acc, w) -> merge(acc, w[:patch]),
@@ -249,6 +337,13 @@ def overlay(store)
   )
 end
 
+@doc """
+hooks tells danpen's select how to follow references through a store and to miss on an absent field.
+
+    h = hooks(blank)
+    f = h[:start]
+    f({"__ref" => "User:7"}) #=> {"__ref" => "User:7"}
+"""
 def hooks(v)
   ents = v[:entities]
   {
@@ -274,6 +369,11 @@ def hooks(v)
   }
 end
 
+@doc """
+selections_of takes the selections of a fragment or operation that a read answers.
+
+    size(selections_of(user_card)) #=> 2
+"""
 def selections_of(f)
   if not map?(f) or f[:selections].nil?
     raise(:bad_option, "fragment: a danpen fragment or operation")
@@ -281,6 +381,12 @@ def selections_of(f)
   f[:selections]
 end
 
+@doc """
+start_value picks where a read starts: the root, or the entity an `at:` names.
+
+    start_value(blank, "User:7") #=> {"__ref" => "User:7"}
+    start_value(blank, nil) #=> {}
+"""
 def start_value(v, at)
   if at.nil?
     v[:root]
@@ -293,10 +399,22 @@ def start_value(v, at)
   end
 end
 
+@doc """
+null_at? tells a read given `at: nil` apart from a read given no `at:`.
+
+    null_at?({at: nil}) #=> true
+    null_at?({}) #=> false
+"""
 def null_at?(o)
   any?((e) -> first(e) == :at and second(e).nil?, map_entries(o))
 end
 
+@doc """
+fetched reads the fields of a fragment from a store, or nil when the store misses one.
+
+    fetched(normalize(response, sdl), {fragment: user_card, at: "User:u7"})["name"] #=> "Ada"
+    fetched(normalize(response, sdl), {fragment: user_card, at: "User:nobody"}) #=> nil
+"""
 def fetched(v, o)
   if null_at?(o)
     nil
@@ -315,6 +433,11 @@ rescue e
   end
 end
 
+@doc """
+refs_in lists every entity a read value references, so its age can be checked.
+
+    refs_in({"a" => {"__ref" => "User:1"}, "b" => [{"__ref" => "Post:2"}]}) #=> ["User:1", "Post:2"]
+"""
 def refs_in(x)
   if map?(x)
     own = if x["__ref"].nil?
@@ -330,6 +453,11 @@ def refs_in(x)
   end
 end
 
+@doc """
+rules_for finds the policy rules of the fragment a read names.
+
+    rules_for({fragment: user_card}) #=> {}
+"""
 def rules_for(o)
   p = o[:policy]
   if p.nil?
@@ -339,6 +467,11 @@ def rules_for(o)
   end
 end
 
+@doc """
+aged? tells whether any entity a read touched is older than its fragment's ttl.
+
+    aged?(blank, {}, {fragment: user_card}) #=> false
+"""
 def aged?(v, data, o)
   ttl = rules_for(o)[:ttl]
   if ttl.nil?
@@ -364,12 +497,20 @@ def aged?(v, data, o)
   end
 end
 
+@doc """
+read_options lists the options a read and a staleness check accept.
+
+    read_options #=> [:fragment, :at, :now, :policy]
+"""
 def read_options()
   %i[fragment at now policy]
 end
 
 @doc """
 read: the masked fields of one fragment read from the store.
+
+    read(normalize(response, sdl), {fragment: user_card, at: "User:u7"})["name"] #=> "Ada"
+    read(nil, {fragment: user_card}) #=> nil
 """
 def read(store, opts)
   o = checked(opts, read_options)
@@ -393,6 +534,8 @@ end
 
 @doc """
 stale?: whether a fragment read is older than its ttl.
+
+    stale?(normalize(response, sdl), {fragment: user_card, at: "User:u7"}) #=> false
 """
 def stale?(store, opts)
   o = checked(opts, read_options)
@@ -405,6 +548,11 @@ def stale?(store, opts)
   end
 end
 
+@doc """
+rule_kinds holds the kousei schema of each fragment rule: ttl, stale, persist and evict.
+
+    size(map_entries(rule_kinds)) #=> 4
+"""
 def rule_kinds()
   {
     ttl: [
@@ -422,12 +570,20 @@ def rule_kinds()
   }
 end
 
+@doc """
+rule_value takes the one setting of a kousei rule entry.
+
+    rule_value(kousei::entry(:ttl, "user_card", {seconds: 60})) #=> 60
+"""
 def rule_value(e)
   second(first(map_entries(kousei::value_of(e))))
 end
 
 @doc """
 policy: per fragment ttl, stale, persist and evict rules from kousei entries.
+
+    p = policy([user_card], [kousei::entry(:ttl, "user_card", {seconds: 60})])
+    p[:fragments]["user_card"][:ttl] #=> 60
 """
 def policy(fragments, entries)
   if not list?(fragments)
@@ -474,6 +630,13 @@ def policy(fragments, entries)
   }
 end
 
+@doc """
+types_with gives each entity type the smallest value one of its fragments sets for a rule.
+
+    p = policy([user_card], [kousei::entry(:ttl, "user_card", {seconds: 60})])
+    types_with(p, :ttl) #=> {"User" => 60}
+    types_with(nil, :ttl) #=> {}
+"""
 def types_with(p, kind)
   if p.nil?
     {}
@@ -496,6 +659,11 @@ def types_with(p, kind)
   end
 end
 
+@doc """
+kept keeps only the entities a test admits, with their stamps.
+
+    kept(normalize(response, sdl), (_k, _e) -> false)[:entities] #=> {}
+"""
 def kept(store, keeps)
   pairs = filter(
     (e) -> keeps(first(e), second(e)),
@@ -515,6 +683,8 @@ end
 
 @doc """
 snapshot: the entities persisted fragments read, to keep across restarts.
+
+    snapshot(normalize(response, sdl))[:entities] #=> {}
 """
 def snapshot(store, opts?)
   o = checked(opts, [:policy])
@@ -530,6 +700,8 @@ end
 
 @doc """
 sweep: drop the entities older than their fragment evict limit.
+
+    sweep(blank, {now: 1}) #=> blank
 """
 def sweep(store, opts)
   o = checked(opts, %i[now policy])
@@ -551,6 +723,8 @@ end
 
 @doc """
 declare a mutation and the entity types it touches.
+
+    declare(:rename, {touches: ["User"]}) #=> {mutation: "rename", touches: ["User"], operation: nil}
 """
 def declare(name, spec)
   s = checked(spec, %i[touches operation])
@@ -570,6 +744,11 @@ def declare(name, spec)
   }
 end
 
+@doc """
+touched lists the entity types a patch writes.
+
+    touched(renamed("u7", "x")) #=> ["User"]
+"""
 def touched(patch)
   sort_keyed(
     (t) -> t,
@@ -579,6 +758,11 @@ def touched(patch)
   )
 end
 
+@doc """
+write_machine is the lifecycle of one optimistic write: pending until confirmed or rolled back.
+
+    isshou::raifusaikuru::phase(isshou::raifusaikuru::initial(write_machine)) #=> :pending
+"""
 def write_machine()
   isshou::raifusaikuru::lc_define(
     :optimistic_write,
@@ -594,12 +778,21 @@ def write_machine()
   )
 end
 
+@doc """
+blank is the empty store a first write starts from.
+
+    blank #=> {root: {}, entities: {}, stamps: {}, writes: []}
+"""
 def blank()
   {root: {}, entities: {}, stamps: {}, writes: []}
 end
 
 @doc """
 write: lay a pending optimistic write over the store.
+
+    m = declare(:rename, {touches: ["User"]})
+    s = write(nil, {id: "w1", mutation: m, patch: renamed("u7", "Ada L.")})
+    read(s, {fragment: user_card, at: "User:u7"})["name"] #=> "Ada L."
 """
 def write(store, change)
   c = checked(change, %i[id mutation patch])
@@ -631,6 +824,12 @@ def write(store, change)
   )
 end
 
+@doc """
+outcome_event turns a settle outcome into the event the write machine takes.
+
+    outcome_event(:confirmed) #=> :confirm
+    outcome_event(:rolled_back) #=> :roll_back
+"""
 def outcome_event(outcome)
   if outcome == :confirmed
     :confirm
@@ -643,6 +842,10 @@ end
 
 @doc """
 settle: end an optimistic write as confirmed or rolled back.
+
+    m = declare(:rename, {touches: ["User"]})
+    s = write(blank, {id: "w1", mutation: m, patch: renamed("u7", "x")})
+    settle(s, "w1", :rolled_back) #=> blank
 """
 def settle(store, id, outcome)
   event = outcome_event(outcome)
@@ -670,6 +873,12 @@ def settle(store, id, outcome)
   end
 end
 
+@doc """
+persisted_body builds the request body that names an operation by its hash and sends no query text.
+
+    persisted_body(page_query, nil)["operationName"] #=> "Post"
+    persisted_body(page_query, nil)["query"] #=> nil
+"""
 def persisted_body(doc, variables)
   op = find_first((d) -> d[:kind] == :operation, doc[:definitions])
   body = {
@@ -690,6 +899,9 @@ end
 
 @doc """
 request: run an operation on a server by its persisted hash only.
+
+    t = echoed(200, {"data" => {"ok" => true}})
+    request("http://h.example/graphql", {operation: page_query}, {transport: t}) #=> {"data" => {"ok" => true}}
 """
 def request(target, input, opts?)
   i = checked(input, %i[operation variables])
@@ -735,6 +947,11 @@ def request(target, input, opts?)
   reply
 end
 
+@doc """
+sdl is the blog schema the tests and examples cache: posts, comments and users.
+
+    starts_with?(sdl, "type Query") #=> true
+"""
 def sdl()
   join_lines(
     [
@@ -748,10 +965,20 @@ def sdl()
   )
 end
 
+@doc """
+user_card is the fragment a user view reads: the user's id and name.
+
+    read(normalize(response, sdl), {fragment: user_card, at: "User:u8"})["name"] #=> "Lin"
+"""
 def user_card()
   toriyose::danpen::fragment(:user_card, {on: "User", fields: %i[id name]})
 end
 
+@doc """
+comment_item is the fragment a comment view reads, with its author through user_card.
+
+    read(normalize(response, sdl), {fragment: comment_item, at: "Comment:c2"})["body"] #=> "Why?"
+"""
 def comment_item()
   toriyose::danpen::fragment(
     :comment_item,
@@ -759,6 +986,11 @@ def comment_item()
   )
 end
 
+@doc """
+post_page is the fragment a post view reads, nesting comment_item and user_card.
+
+    read(normalize(response, sdl), {fragment: post_page, at: "Post:p1"})["title"] #=> "Fragments"
+"""
 def post_page()
   toriyose::danpen::fragment(
     :post_page,
@@ -774,6 +1006,11 @@ def post_page()
   )
 end
 
+@doc """
+page_query is the post page operation, composed with the fragments it spreads.
+
+    operation_of(page_query)[:name] #=> "Post"
+"""
 def page_query()
   text = "query Post($id: ID!) { post(id: $id) { ...post_page } }"
   toriyose::danpen::compose(
@@ -782,14 +1019,29 @@ def page_query()
   )
 end
 
+@doc """
+operation_of takes the first operation of a document, the thing a root read answers.
+
+    read(normalize(response, sdl), {fragment: operation_of(page_query)}) #=> {"post" => {"__ref" => "Post:p1"}}
+"""
 def operation_of(doc)
   first(toriyose::danpen::definitions_of_kind(doc, :operation))
 end
 
+@doc """
+ada is one user the sample response holds twice, to show one shared entity.
+
+    ada["name"] #=> "Ada"
+"""
 def ada()
   {"id" => "u7", "name" => "Ada"}
 end
 
+@doc """
+response is the sample post page response the tests normalize.
+
+    response["data"]["post"]["id"] #=> "p1"
+"""
 def response()
   {
     "data" => {
@@ -810,6 +1062,11 @@ def response()
   }
 end
 
+@doc """
+renamed is the normalized response of a rename mutation, used as an optimistic patch.
+
+    renamed("u7", "x")[:entities]["User:u7"]["name"] #=> "x"
+"""
 def renamed(id, name)
   normalize(
     {
@@ -821,10 +1078,20 @@ def renamed(id, name)
   )
 end
 
+@doc """
+entity_keys lists the keys of a store's entities in order, for comparing stores.
+
+    entity_keys(normalize(response, sdl)) #=> ["Comment:c1", "Comment:c2", "Post:p1", "User:u7", "User:u8"]
+"""
 def entity_keys(s)
   sort_keyed((k) -> k, map(first, map_entries(s[:entities])))
 end
 
+@doc """
+unref removes the reference marks a store read adds, so a read compares with a plain selection.
+
+    unref({"__ref" => "User:1", "id" => "1"}) #=> {"id" => "1"}
+"""
 def unref(x)
   if map?(x)
     reduce(
@@ -839,6 +1106,11 @@ def unref(x)
   end
 end
 
+@doc """
+users is the pool drawn responses pick authors from.
+
+    size(users) #=> 3
+"""
 def users()
   [
     {"id" => "u1", "name" => "Ann"},
@@ -847,6 +1119,11 @@ def users()
   ]
 end
 
+@doc """
+drawn_user draws an author from users for a seed, or nil for a missing author.
+
+    member?(drawn_user(1), push(users, nil)) #=> true
+"""
 def drawn_user(seed)
   if ran::next_uniform(seed, 4) == 0
     nil
@@ -855,6 +1132,11 @@ def drawn_user(seed)
   end
 end
 
+@doc """
+drawn_post draws a post with its comments for a seed and a post id.
+
+    drawn_post(0, "p1")["title"] #=> "Tp1"
+"""
 def drawn_post(seed, pid)
   n = ran::next_uniform(ran::stream_seed(seed, 2), 4)
   {
@@ -875,6 +1157,11 @@ def drawn_post(seed, pid)
   }
 end
 
+@doc """
+drawn_response draws a posts response for a seed, for the normalize then read property.
+
+    list?(drawn_response(0)["data"]["posts"]) #=> true
+"""
 def drawn_response(seed)
   pids = take(
     ran::next_uniform(ran::stream_seed(seed, 5), 5),
@@ -887,11 +1174,22 @@ def drawn_response(seed)
   }
 end
 
+@doc """
+posts_query is the operation that selects every field a drawn response holds.
+
+    r = drawn_response(3)
+    unref(read(normalize(r, sdl), {fragment: posts_query})) == toriyose::danpen::select(r["data"], posts_query) #=> true
+"""
 def posts_query()
   text = "{ posts { id title author { id name } comments { id body author { id name } } } }"
   operation_of(toriyose::danpen::parse(text))
 end
 
+@doc """
+server_text is the program of the stand-in server: it answers one request with a canned reply and records what it was sent.
+
+    starts_with?(server_text, "dir = argv_get(0)") #=> true
+"""
 def server_text()
   unlines(
     [
@@ -912,6 +1210,11 @@ def server_text()
   )
 end
 
+@doc """
+waited waits for a file the stand-in server writes, and gives up with a timeout after a number of tries.
+
+    contains?(server_text, "more = http_next_request(l, 300)") #=> true
+"""
 def waited(path, tries)
   if is_file?(path)
     read_file(path)
@@ -923,6 +1226,11 @@ def waited(path, tries)
   end
 end
 
+@doc """
+hanabi_double starts the stand-in server for a reply in its own process, and gives the directory it writes to.
+
+    contains?(server_text, "req = http_next_request(l, 20000)") #=> true
+"""
 def hanabi_double(reply)
   dir = tesuto::scratch
   mkdir_p(dir)
@@ -934,6 +1242,11 @@ def hanabi_double(reply)
   dir
 end
 
+@doc """
+user_view is the component that shows one user through the user_card fragment.
+
+    gamen::render(page_of(normalize(response, sdl)), :html, {refuse: :page}) == page_html #=> true
+"""
 def user_view()
   gamen::component(
     :user_view,
@@ -947,6 +1260,11 @@ def user_view()
   )
 end
 
+@doc """
+comment_view is the component that shows one comment through the comment_item fragment.
+
+    gamen::render(page_of(normalize(response, sdl)), :html, {refuse: :page}) == page_html #=> true
+"""
 def comment_view()
   gamen::component(
     :comment_view,
@@ -967,6 +1285,11 @@ def comment_view()
   )
 end
 
+@doc """
+post_view is the component that shows one post through the post_page fragment.
+
+    gamen::render(page_of(normalize(response, sdl)), :html, {refuse: :page}) == page_html #=> true
+"""
 def post_view()
   gamen::component(
     :post_view,
@@ -1000,6 +1323,11 @@ def post_view()
   )
 end
 
+@doc """
+page_of builds the post page from a store, each view reading its own fragment.
+
+    gamen::check(page_of(normalize(response, sdl))) #=> []
+"""
 def page_of(store)
   root = read(store, {fragment: operation_of(page_query)})
   post = read(store, {fragment: post_page, at: root["post"]})
@@ -1017,6 +1345,12 @@ def page_of(store)
   )
 end
 
+@doc """
+fake is a transport that answers with what it was sent and a reply, so a test sees the request body.
+
+    t = fake(200, {"ok" => true})
+    request("http://h.example/graphql", {operation: page_query}, {transport: t})["reply"] #=> {"ok" => true}
+"""
 def fake(status, reply)
   fn(_method, _url, _headers, body, _timeout_ms)
     {
@@ -1027,6 +1361,12 @@ def fake(status, reply)
   end
 end
 
+@doc """
+echoed is a transport that answers with a status and a reply only.
+
+    t = echoed(200, {"data" => {}})
+    request("http://h.example/graphql", {operation: page_query}, {transport: t}) #=> {"data" => {}}
+"""
 def echoed(status, reply)
   fn(_method, _url, _headers, _body, _timeout_ms)
     {status:, headers: [], body: json_stringify(reply)}
@@ -1378,10 +1718,21 @@ test "request posts the persisted hash and no query text through tsuushin"
   assert raises?(:bad_option, () -> request("http://h.example/graphql", {}))
 end
 
+@doc """
+page_html is the HTML the post page must render to.
+
+    starts_with?(page_html, "<!doctype html>") #=> true
+"""
 def page_html()
   "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta content=\"width=device-width, initial-scale=1\" name=\"viewport\"><title>Fragments</title></head><body><main><article><h1>Fragments</h1><p>by <span>Ada</span></p><ul><li><span>Ada</span>: Agreed</li><li><span>Lin</span>: Why?</li></ul></article></main></body></html>"
 end
 
+@doc """
+ssr renders the post page on a server from one request, and checks it.
+
+    t = echoed(200, response)
+    first(ssr("http://h.example/graphql", {transport: t})) == page_html #=> true
+"""
 def ssr(url, opts)
   got = request(url, {operation: page_query, variables: {"id" => "p1"}}, opts)
   store = normalize(got, sdl, {now: 0})
@@ -1391,6 +1742,11 @@ def ssr(url, opts)
   ]
 end
 
+@doc """
+mailbox drains the messages this process holds, in order.
+
+    mailbox([]) #=> []
+"""
 def mailbox(acc)
   m = receive(:_, 0, :none)
   if m == :none
@@ -1400,6 +1756,11 @@ def mailbox(acc)
   end
 end
 
+@doc """
+persisted? tells whether a request body names the page query by hash and sends no query text.
+
+    persisted?(persisted_body(page_query, nil)) #=> true
+"""
 def persisted?(body)
   body["extensions"]["persistedQuery"]["sha256Hash"] ==
     toriyose::danpen::hash(page_query) and body["query"].nil?

@@ -9,7 +9,10 @@ use("kansuu", [:maybe])
 use("retsu", %i[first flat_map is_empty last rest running_sum size])
 
 @doc """
-read: The whole content of a source, by the source's space: in_space("gitto", repo) reads a file at a ref. Raises :usage when no space owns the subject or the space has no handler.
+read: Nix source parsed into a document: the source, rnix's lossless tree as `root`, its parse errors, and where each line starts.
+
+    read("{ a = 1; }")[:errors] #=> []
+    kind(read("")[:root]) #=> "NODE_ROOT"
 """
 def read(source)
   t = nix_parse(source)
@@ -24,14 +27,30 @@ def read(source)
   }
 end
 
+@doc """
+kind: the rnix kind of a node or token, nil for nothing.
+
+    kind(read("{ }")[:root]) #=> "NODE_ROOT"
+    kind(nil) #=> nil
+"""
 def kind(n)
   maybe(n, nil, (m) -> m[:kind])
 end
 
+@doc """
+token?: the element is a token, a leaf holding text, not a node.
+
+    token?(read("{ }")[:root]) #=> false
+"""
 def token?(n)
   n[:text] != nil
 end
 
+@doc """
+kids: every child of a node, tokens and trivia included; none for a token.
+
+    size(kids(read("x")[:root])) #=> 1
+"""
 def kids(n)
   cs = n[:children]
   if cs.nil?
@@ -41,18 +60,38 @@ def kids(n)
   end
 end
 
+@doc """
+nodes_of: the child nodes of a node, without its tokens.
+
+    map(kind, nodes_of(read("{ }")[:root])) #=> ["NODE_ATTR_SET"]
+"""
 def nodes_of(n)
   filter((c) -> c[:children] != nil, kids(n))
 end
 
+@doc """
+trivia?: the element is whitespace or a comment, which carries no meaning.
+
+    map(trivia?, kids(read("# c\nx")[:root])) #=> [true, true, false]
+"""
 def trivia?(n)
   kind(n) == "TOKEN_WHITESPACE" or kind(n) == "TOKEN_COMMENT"
 end
 
+@doc """
+significant: the children of a node that are not trivia.
+
+    map(kind, significant(read("# c\nx")[:root])) #=> ["NODE_IDENT"]
+"""
 def significant(n)
   filter((c) -> not trivia?(c), kids(n))
 end
 
+@doc """
+text: the exact source a node covers, trivia included, so the tree reads back losslessly.
+
+    text(read("{ a = 1; } # c")[:root]) #=> "{ a = 1; } # c"
+"""
 def text(n)
   if token?(n)
     n[:text]
@@ -61,6 +100,11 @@ def text(n)
   end
 end
 
+@doc """
+code: the source a node covers with its whitespace and comments dropped, for comparing code by meaning.
+
+    code(read("{ a = 1; } # c")[:root]) #=> "{a=1;}"
+"""
 def code(n)
   if token?(n)
     if trivia?(n)
@@ -73,14 +117,29 @@ def code(n)
   end
 end
 
+@doc """
+line_of: the line, counted from one, that a byte offset of the document falls on.
+
+    line_of(read(sample), 22) #=> 2
+"""
 def line_of(doc, offset)
   upper_bound(doc[:line_starts], offset)
 end
 
+@doc """
+line_count: how many lines a node's source spans.
+
+    line_count(read(join_lines(["{", "}"]))[:root]) #=> 2
+"""
 def line_count(n)
   size(split(text(n), line_break))
 end
 
+@doc """
+nodes_where: every node under and including `n` for which `f` holds, in source order.
+
+    size(nodes_where((x) -> kind(x) == "NODE_IDENT", read("f a b")[:root])) #=> 3
+"""
 def nodes_where(f, n)
   below = append(*map((c) -> nodes_where(f, c), nodes_of(n)))
   if f(n)
@@ -90,10 +149,20 @@ def nodes_where(f, n)
   end
 end
 
+@doc """
+of_kind: every node of one kind under and including `n`.
+
+    map(code, of_kind("NODE_WITH", read("with pkgs; [ ]")[:root])) #=> ["withpkgs;[]"]
+"""
 def of_kind(k, n)
   nodes_where((x) -> kind(x) == k, n)
 end
 
+@doc """
+string_content: the body of a string node between its quotes, interpolations kept as written; nil for any other node.
+
+    string_content(first(nodes_of(read("\"x${y}z\"")[:root]))) #=> "x${y}z"
+"""
 def string_content(n)
   if kind(n) == "NODE_STRING"
     join(
@@ -111,11 +180,22 @@ def string_content(n)
   end
 end
 
+@doc """
+literal_string?: the node is a string with no interpolation, so its content is a fixed value.
+
+    literal_string?(first(nodes_of(read("\"x\"")[:root]))) #=> true
+    literal_string?(first(nodes_of(read("\"x${y}\"")[:root]))) #=> false
+"""
 def literal_string?(n)
   kind(n) == "NODE_STRING" and
     is_empty(filter((c) -> kind(c) == "NODE_INTERPOL", kids(n)))
 end
 
+@doc """
+segment: one part of an attribute path as a name: an identifier, or a literal string's content without its quotes.
+
+    dotted_of(read("{ a.\"b c\" = 1; }")) #=> ["a.b c"]
+"""
 def segment(n)
   k = kind(n)
   if k == "NODE_IDENT"
@@ -127,10 +207,21 @@ def segment(n)
   end
 end
 
+@doc """
+attrpath: the names of an attribute path node, one per segment.
+
+    map((b) -> b[:path], bindings(read("{ a.b = 1; }")[:root])) #=> [["a", "b"]]
+"""
 def attrpath(n)
   map(segment, nodes_of(n))
 end
 
+@doc """
+passes_path?: a node of this kind passes its enclosing attribute path on to the sets inside it, as a function application or an `if` does.
+
+    passes_path?("NODE_APPLY") #=> true
+    passes_path?("NODE_STRING") #=> false
+"""
 def passes_path?(k)
   member?(
     k,
@@ -148,6 +239,11 @@ def passes_path?(k)
   )
 end
 
+@doc """
+binding: one binding as data: its path, dotted path, node, value, scope, enclosing path and start.
+
+    binding({start: 3}, ["a", "b"], :attrs, nil, nil)[:dotted] #=> "a.b"
+"""
 def binding(n, path, scope, value, outer)
   {
     path:,
@@ -160,10 +256,20 @@ def binding(n, path, scope, value, outer)
   }
 end
 
+@doc """
+bindings: every binding of a source tree with its full attribute path; nested sets and wrappers extend the path, `let` and `inherit` bindings carry their own scope.
+
+    dotted_of(read("{ a = { b = 1; }; }")) #=> ["a", "a.b"]
+"""
 def bindings(root)
   bindings_in(root, [], :attrs, nil)
 end
 
+@doc """
+bindings_in: the bindings under a node, given the path, scope and enclosing path it sits in.
+
+    map((b) -> b[:scope], bindings_in(read("let x = 1; in { }")[:root], [], :attrs, nil)) #=> [:let]
+"""
 def bindings_in(n, prefix, scope, outer)
   k = kind(n)
   if k == "NODE_ATTRPATH_VALUE"
@@ -205,15 +311,32 @@ def bindings_in(n, prefix, scope, outer)
   end
 end
 
+@doc """
+under?: the binding's path starts with the prefix.
+
+    under?({path: ["config", "a"]}, ["config"]) #=> true
+    under?({path: ["a"]}, ["config"]) #=> false
+"""
 def under?(b, prefix)
   p = b[:path]
   size(p) >= size(prefix) and take(size(prefix), p) == prefix
 end
 
+@doc """
+module_path: the option path a module binding sets, without a leading `config`.
+
+    module_path({path: ["config", "systemd", "services"]}) #=> ["systemd", "services"]
+"""
 def module_path(b)
   config_relative(b[:path])
 end
 
+@doc """
+config_relative: a path without its leading `config`, so `config.a.b` and `a.b` name the same option.
+
+    config_relative(["config", "a"]) #=> ["a"]
+    config_relative(["a"]) #=> ["a"]
+"""
 def config_relative(p)
   if first(p) == "config"
     rest(p)
@@ -222,6 +345,11 @@ def config_relative(p)
   end
 end
 
+@doc """
+head_of: the function a curried application calls, under every argument.
+
+    code(head_of(first(nodes_of(read("f a b")[:root])))) #=> "f"
+"""
 def head_of(n)
   if kind(n) == "NODE_APPLY"
     head_of(first(nodes_of(n)))
@@ -230,6 +358,11 @@ def head_of(n)
   end
 end
 
+@doc """
+args_of: the arguments of a curried application, in order; none for a node that is not one.
+
+    map(code, args_of(first(nodes_of(read("f a b")[:root])))) #=> ["a", "b"]
+"""
 def args_of(n)
   if kind(n) == "NODE_APPLY"
     parts = nodes_of(n)
@@ -239,15 +372,30 @@ def args_of(n)
   end
 end
 
+@doc """
+call: one application as data: its head's code and node, its arguments, the node and its start.
+
+    call(first(nodes_of(read("lib.mkIf c x")[:root])))[:head] #=> "lib.mkIf"
+"""
 def call(n)
   h = head_of(n)
   {head: code(h), head_node: h, args: args_of(n), node: n, start: n[:start]}
 end
 
+@doc """
+calls: every call in a source tree, a curried call counted once with all its arguments.
+
+    map((c) -> c[:head], calls(read("f a (g b)")[:root])) #=> ["f", "g"]
+"""
 def calls(root)
   calls_in(root, false)
 end
 
+@doc """
+calls_in: the calls under a node; `as_head` marks a node that is itself the head of an outer application, so it is not counted twice.
+
+    size(calls_in(read("f a b")[:root], false)) #=> 1
+"""
 def calls_in(n, as_head)
   if kind(n) == "NODE_APPLY"
     parts = nodes_of(n)
@@ -265,22 +413,47 @@ def calls_in(n, as_head)
   end
 end
 
+@doc """
+head_name: the last name of a call's head, so `lib.mkIf` and `mkIf` match the same word.
+
+    head_name({head: "lib.nixosSystem"}) #=> "nixosSystem"
+"""
 def head_name(c)
   last(split(c[:head], "."))
 end
 
+@doc """
+called?: the call's head name is one of the names.
+
+    called?({head: "lib.mkIf"}, ["mkIf"]) #=> true
+"""
 def called?(c, names)
   member?(head_name(c), names)
 end
 
+@doc """
+named: the calls whose head name is one of the names.
+
+    named([{head: "lib.mkIf"}, {head: "f"}], ["mkIf"]) #=> [{head: "lib.mkIf"}]
+"""
 def named(cs, names)
   filter((c) -> called?(c, names), cs)
 end
 
+@doc """
+calls_named: every call in a source tree whose head name is one of the names.
+
+    map((c) -> c[:head], calls_named(read("lib.nixosSystem { } // f a")[:root], ["nixosSystem"])) #=> ["lib.nixosSystem"]
+"""
 def calls_named(root, names)
   named(calls(root), names)
 end
 
+@doc """
+withs: every `with` scope in a source tree and the namespace it opens.
+
+    map((w) -> w[:namespace], withs(read("with pkgs; [ ]")[:root])) #=> ["pkgs"]
+"""
 def withs(root)
   map(
     (w) -> {namespace: code(first(nodes_of(w))), node: w, start: w[:start]},
@@ -288,6 +461,11 @@ def withs(root)
   )
 end
 
+@doc """
+angle_paths: every `<...>` search path in a source tree, which depends on NIX_PATH.
+
+    map((p) -> p[:path], angle_paths(read("import <nixpkgs> { }")[:root])) #=> ["<nixpkgs>"]
+"""
 def angle_paths(root)
   map(
     (p) -> {path: code(p), node: p, start: p[:start]},
@@ -295,10 +473,20 @@ def angle_paths(root)
   )
 end
 
+@doc """
+option_calls: the library functions that declare a module option.
+
+    member?("mkEnableOption", option_calls) #=> true
+"""
 def option_calls()
   %w[mkOption mkEnableOption mkPackageOption mkSinkUndeclaredOptions]
 end
 
+@doc """
+options_roots: the bindings that declare options under a module's `options`, the outermost one of each.
+
+    map((b) -> b[:dotted], options_roots(read(sample)[:root])) #=> ["options.pleme.x.enable"]
+"""
 def options_roots(root)
   filter(
     fn(b)
@@ -312,6 +500,11 @@ def options_roots(root)
   )
 end
 
+@doc """
+option_declarations: everywhere a source tree declares an option: each `options` binding and each option function call.
+
+    map((o) -> o[:at], option_declarations(read(sample)[:root])) #=> ["options.pleme.x.enable", "lib.mkEnableOption"]
+"""
 def option_declarations(root)
   append(
     map(
@@ -325,6 +518,12 @@ def option_declarations(root)
   )
 end
 
+@doc """
+attr: the value node of one attribute of a set literal, nil when the set does not bind it.
+
+    string_content(attr(first(nodes_of(read("{ url = \"u\"; }")[:root])), "url")) #=> "u"
+    attr(first(nodes_of(read("{ }")[:root])), "url") #=> nil
+"""
 def attr(set, name)
   hit = filter(
     (b) -> b[:path] == [name],
@@ -337,6 +536,12 @@ def attr(set, name)
   end
 end
 
+@doc """
+module_function?: the node is a module written as a function that takes `config`.
+
+    module_function?(first(nodes_of(read(sample)[:root]))) #=> true
+    module_function?(first(nodes_of(read("{ lib }: { }")[:root]))) #=> false
+"""
 def module_function?(n)
   kind(n) == "NODE_LAMBDA" and
     member?(
@@ -348,6 +553,11 @@ def module_function?(n)
     )
 end
 
+@doc """
+sample: a small NixOS module with options, a `let`, a quoted name and an `inherit`, for tests and examples.
+
+    read(sample)[:errors] #=> []
+"""
 def sample()
   unlines(
     [
@@ -364,6 +574,11 @@ def sample()
   )
 end
 
+@doc """
+dotted_of: the dotted path of every binding in a document.
+
+    dotted_of(read("{ a.b = 1; }")) #=> ["a.b"]
+"""
 def dotted_of(doc)
   map((b) -> b[:dotted], bindings(doc[:root]))
 end

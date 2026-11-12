@@ -22,12 +22,17 @@ use blue_lang_runtime::pipeline::{check_entry, render, Checking};
 use blue_lang_runtime::uses::Entry;
 use blue_lang_runtime::word_shapes::Standing;
 
+pub const DOCUMENTED: &[&str] = &["kakehashi", "toriyose", "umu"];
+
+pub const DOC_CODES: &[Code] = &[Code::B0056, Code::B0057];
+
 /// What the census counted.
 pub struct Census {
     /// Files checked.
     pub files: usize,
     /// For each ratcheted code, each distinct finding, rendered.
     pub findings: BTreeMap<Code, BTreeSet<String>>,
+    pub by_package: BTreeMap<(Code, String), BTreeSet<String>>,
 }
 
 impl Census {
@@ -44,6 +49,22 @@ impl Census {
             })
             .collect()
     }
+
+    #[must_use]
+    pub fn package_mismatches(&self, documented: &[&str]) -> Vec<(Code, String, usize)> {
+        documented
+            .iter()
+            .flat_map(|p| {
+                DOC_CODES.iter().filter_map(move |c| {
+                    let n = self
+                        .by_package
+                        .get(&(*c, (*p).to_string()))
+                        .map_or(0, BTreeSet::len);
+                    (n > 0).then(|| (*c, (*p).to_string(), n))
+                })
+            })
+            .collect()
+    }
 }
 
 /// Take the census of `root`.
@@ -56,6 +77,7 @@ pub fn take(root: &Path) -> Result<Census, String> {
     let files = blue_lang_pkg::corpus::files(root);
     let loader = blue_lang_pkg::corpus::load_path(root, &files);
     let mut findings: BTreeMap<Code, BTreeSet<String>> = BTreeMap::new();
+    let mut by_package: BTreeMap<(Code, String), BTreeSet<String>> = BTreeMap::new();
     for path in &files {
         let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
         let checked = check_entry(
@@ -71,21 +93,31 @@ pub fn take(root: &Path) -> Result<Census, String> {
         // Enforced findings of a ratcheted rule count too: a rule at
         // `Some(0)` that fires is a count of one, not a pass.
         let ratcheted = |d: &&blue_lang_check::Diagnostic| d.code.rule().ratchet.is_some();
+        let package = checked
+            .program
+            .file(blue_lang_runtime::uses::ResolvedProgram::ENTRY)
+            .and_then(|f| f.package.as_deref())
+            .map(|p| blue_lang_syntax::root_of(p).to_string());
         for d in checked
             .outcome
             .census
             .iter()
             .chain(checked.outcome.diagnostics.iter().filter(ratcheted))
         {
-            findings
-                .entry(d.code)
-                .or_default()
-                .insert(render(&checked.program, d));
+            let shown = render(&checked.program, d);
+            if let Some(p) = &package {
+                by_package
+                    .entry((d.code, p.clone()))
+                    .or_default()
+                    .insert(shown.clone());
+            }
+            findings.entry(d.code).or_default().insert(shown);
         }
     }
     Ok(Census {
         files: files.len(),
         findings,
+        by_package,
     })
 }
 
@@ -309,4 +341,63 @@ pub fn reuse_hook() {
             let _ = writeln!(out, "{line}");
         }
     });
+}
+
+#[cfg(test)]
+mod documented {
+    use super::*;
+
+    fn project(name: &str, body: &str) -> std::path::PathBuf {
+        let root = std::env::temp_dir().join(format!(
+            "blue-census-documented-{}-{name}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        let dir = root.join("bidamas").join("kagi");
+        std::fs::create_dir_all(&dir).expect("mkdir");
+        std::fs::write(dir.join("Bluefile"), "package(\"kagi\", \"0.1.0\")\n").expect("write");
+        std::fs::write(dir.join("kagi.b"), body).expect("write");
+        root
+    }
+
+    const HEAD: &str = "@moduledoc \"\"\"\nkagi holds one value.\n\n    kagi #=> 1\n\"\"\"\n\n";
+
+    #[test]
+    fn a_documented_bidama_with_an_undocumented_definition_is_named() {
+        let root = project("red", &format!("{HEAD}def kagi()\n  1\nend\n"));
+        let c = take(&root).expect("census");
+        let _ = std::fs::remove_dir_all(&root);
+        assert_eq!(
+            c.package_mismatches(&["kagi"]),
+            vec![(Code::B0056, "kagi".to_string(), 1)]
+        );
+        assert!(c.package_mismatches(&["other"]).is_empty());
+    }
+
+    #[test]
+    fn a_documented_bidama_whose_every_definition_has_a_doc_and_an_example_holds() {
+        let root = project(
+            "green",
+            &format!(
+                "{HEAD}@doc \"\"\"\nkagi is one.\n\n    kagi #=> 1\n\"\"\"\ndef kagi()\n  1\nend\n"
+            ),
+        );
+        let c = take(&root).expect("census");
+        let _ = std::fs::remove_dir_all(&root);
+        assert!(c.package_mismatches(&["kagi"]).is_empty());
+    }
+
+    #[test]
+    fn a_doc_without_an_example_is_named_too() {
+        let root = project(
+            "example",
+            &format!("{HEAD}@doc \"\"\"\nkagi is one.\n\"\"\"\ndef kagi()\n  1\nend\n"),
+        );
+        let c = take(&root).expect("census");
+        let _ = std::fs::remove_dir_all(&root);
+        assert_eq!(
+            c.package_mismatches(&["kagi"]),
+            vec![(Code::B0057, "kagi".to_string(), 1)]
+        );
+    }
 }

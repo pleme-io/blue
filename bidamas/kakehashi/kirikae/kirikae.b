@@ -57,6 +57,12 @@ use(
   ]
 )
 
+@doc """
+attr_for: the flake attribute that builds a host's system on its platform.
+
+    attr_for("darwin", "ryn") #=> "darwinConfigurations.ryn.system"
+    attr_for("nixos", "plo") #=> "nixosConfigurations.plo.config.system.build.toplevel"
+"""
 def attr_for(kind, host)
   if kind == "nixos"
     "nixosConfigurations.#{host}.config.system.build.toplevel"
@@ -65,10 +71,22 @@ def attr_for(kind, host)
   end
 end
 
+@doc """
+policy: the backoff after a failed switch, from a base and a cap in seconds.
+
+    policy(300, 3600) #=> {base_ms: 300000, cap_ms: 3600000}
+"""
 def policy(base_s, cap_s)
   {base_ms: base_s * 1000, cap_ms: cap_s * 1000}
 end
 
+@doc """
+backoff_ms: how long a system waits after this many failures in a row: the base, doubled each failure, up to the cap; never with no failure or a zero base.
+
+    backoff_ms(1, policy(300, 3600)) #=> 300000
+    backoff_ms(5, policy(300, 3600)) #=> 3600000
+    backoff_ms(0, policy(300, 3600)) #=> 0
+"""
 def backoff_ms(failures, pol)
   if failures < 1 or pol[:base_ms] < 1
     0
@@ -77,10 +95,20 @@ def backoff_ms(failures, pol)
   end
 end
 
+@doc """
+entry: one outcome of a switch attempt for the history: the system, the outcome, when, and why.
+
+    entry(a, "failed", 1000, "x")[:outcome] #=> "failed"
+"""
 def entry(out, outcome, at_ms, why)
   {out:, outcome:, at_ms:, why:}
 end
 
+@doc """
+streak_step: count one history entry into a system's run of failures: a failure adds one, a success clears it, another system's entry changes nothing.
+
+    streak_step({out: a, n: 0, last_ms: nil}, entry(a, "failed", 1000, "x")) #=> {out: a, n: 1, last_ms: 1000}
+"""
 def streak_step(acc, e)
   if e[:out] != acc[:out]
     acc
@@ -91,12 +119,22 @@ def streak_step(acc, e)
   end
 end
 
+@doc """
+streak: a system's failures in a row at the end of the history, and when the last one was.
+
+    streak([entry(b, "failed", 1000, "x"), entry(b, "failed", 2000, "x")], b)[:n] #=> 2
+    streak([entry(b, "failed", 1000, "x"), entry(b, "activated", 2000, "ok")], b)[:n] #=> 0
+"""
 def streak(history, out)
   reduce(streak_step, {out:, n: 0, last_ms: nil}, history)
 end
 
 @doc """
-decide: switch, hold or no-op from state and backoff.
+decide: whether to switch to the desired system, skip it because it already runs, hold it while its failures back off, or refuse a desired value that is no system.
+
+    decide(a, a, [], 0, policy(0, 0))[:action] #=> :noop
+    decide(b, a, [], 0, policy(0, 0))[:action] #=> :switch
+    decide(nil, a, [], 0, policy(0, 0))[:action] #=> :refuse
 """
 def decide(desired, current, history, now_ms, pol)
   if store_path?(desired) == false
@@ -113,6 +151,13 @@ def decide(desired, current, history, now_ms, pol)
   end
 end
 
+@doc """
+hold_for: the hold for a system whose failures still back off at this time, nil when it may be tried.
+
+    h = [entry(b, "failed", 1000, "x"), entry(b, "failed", 2000, "x")]
+    hold_for(b, h, 3000, policy(300, 3600))[:until_ms] #=> 602000
+    hold_for(b, [], 3000, policy(300, 3600)) #=> nil
+"""
 def hold_for(key, history, now_ms, pol)
   s = streak(history, key)
   wait = backoff_ms(s[:n], pol)
@@ -126,14 +171,32 @@ def hold_for(key, history, now_ms, pol)
   end
 end
 
+@doc """
+hex40?: the text is a full 40-character git revision.
+
+    hex40?("b548e3a24f88a08d1c673ad27ac494293ac5cac1") #=> true
+    hex40?("main") #=> false
+"""
 def hex40?(t)
   length(t) == 40 and every?((c) -> includes("0123456789abcdef", c), chars(t))
 end
 
+@doc """
+pinned?: the flake reference names an exact revision, so the same reference always evaluates to the same system.
+
+    pinned?("github:pleme-io/nix/b548e3a24f88a08d1c673ad27ac494293ac5cac1") #=> true
+    pinned?("github:pleme-io/nix") #=> false
+"""
 def pinned?(flake)
   any?(hex40?, split(flake, "/")) or includes(flake, "rev=")
 end
 
+@doc """
+label: a short name for a system: the start of its hash and its name, since two systems often share a name.
+
+    label(b) #=> "8i7qwqja-darwin-system-25.11.ebec37a"
+    label(nil) #=> ""
+"""
 def label(p)
   if store_path?(p)
     "#{take_chars(store_hash(p), 8)}-#{store_name(p)}"
@@ -142,6 +205,12 @@ def label(p)
   end
 end
 
+@doc """
+parse_entry: one history line read back as an entry, nil for a line that is not JSON.
+
+    parse_entry(entry_line(entry(a, "activated", 5, "")))[:at_ms] #=> 5
+    parse_entry("not json") #=> nil
+"""
 def parse_entry(line)
   d = json_parse(line) rescue nil
   if d.nil?
@@ -160,6 +229,11 @@ def parse_entry(line)
   end
 end
 
+@doc """
+history: every readable entry of the switch history file, oldest first; none when the file is absent.
+
+    parse_entry(entry_line(entry(b, "failed", 1000, "first")))[:why] #=> "first"
+"""
 def history(path)
   filter(
     (e) -> e != nil,
@@ -167,6 +241,11 @@ def history(path)
   )
 end
 
+@doc """
+entry_line: an entry as the one JSON line the history file holds for it.
+
+    parse_entry(entry_line(entry(a, "failed", 7, "x")))[:outcome] #=> "failed"
+"""
 def entry_line(e)
   json_stringify(
     {
@@ -179,6 +258,12 @@ def entry_line(e)
   )
 end
 
+@doc """
+keep_last: the newest n items of a list.
+
+    keep_last([1, 2, 3, 4], 2) #=> [3, 4]
+    keep_last([1, 2], 5) #=> [1, 2]
+"""
 def keep_last(xs, n)
   if size(xs) > n
     drop_n(xs, size(xs) - n)
@@ -188,7 +273,9 @@ def keep_last(xs, n)
 end
 
 @doc """
-record: append one outcome to the switch history.
+record: append one outcome to the switch history file, keeping its newest 200 entries, and answer the entry.
+
+    parse_entry(entry_line(entry(b, "activated", 5, "ok")))[:out] #=> b
 """
 def record(path, e)
   kept = keep_last(concat_lists(history(path), [e]), 200)
@@ -200,7 +287,12 @@ def record(path, e)
 end
 
 @doc """
-plan: what a system switch would do, as data.
+plan: what a system switch would do, as data; a pinned revision still backing off is held before anything evaluates.
+
+    pin = "github:pleme-io/nix/b548e3a24f88a08d1c673ad27ac494293ac5cac1"
+    inst = installable(pin, attr_for("darwin", "ryn"))
+    h = [entry(inst, "failed", 1000, "eval"), entry(inst, "failed", 2000, "eval")]
+    plan(pin, "ryn", "darwin", "/run/current-system", h, 3000, policy(300, 3600))[:action] #=> :hold
 """
 def plan(flake, host, kind, current_link, hist, now_ms, pol)
   inst = installable(flake, attr_for(kind, host))
@@ -214,6 +306,11 @@ def plan(flake, host, kind, current_link, hist, now_ms, pol)
   end
 end
 
+@doc """
+evaluated: the plan from a dry build of the installable: the decision against the running system with the build and fetch counts, or a refusal when the system does not evaluate.
+
+    assoc_all(decide(b, a, [], 0, policy(0, 0)), [[:build, 0]])[:action] #=> :switch
+"""
 def evaluated(flake, inst, current_link, hist, now_ms, pol)
   started = now_ns
   b = plan_build(inst, [])
@@ -247,6 +344,11 @@ def evaluated(flake, inst, current_link, hist, now_ms, pol)
   end
 end
 
+@doc """
+assoc_all: a map with every key and value pair set on it.
+
+    assoc_all({a: 1}, [[:b, 2], [:a, 3]]) #=> {a: 3, b: 2}
+"""
 def assoc_all(m, pairs)
   reduce((acc, kv) -> assoc(acc, first(kv), kv[1]), m, pairs)
 end
@@ -331,10 +433,20 @@ def or_computed(v, computed)
   end
 end
 
+@doc """
+state_file: where kirikae keeps a state file of this name, under the user's ~/.local/state/kirikae.
+
+    ends_with?(state_file("history.jsonl"), "/.local/state/kirikae/history.jsonl") #=> true
+"""
 def state_file(name)
   path_join(getenv("HOME", "/tmp"), ".local/state/kirikae/#{name}")
 end
 
+@doc """
+settings: the settings one run works from: the resolved config with empty host, kind, history and events filled by their computed defaults.
+
+    policy(config_defaults["backoff"]["base_seconds"], config_defaults["backoff"]["cap_seconds"]) #=> {base_ms: 0, cap_ms: 21600000}
+"""
 def settings()
   c = config
   {
@@ -356,10 +468,20 @@ def settings()
   }
 end
 
+@doc """
+stdout_of_host: the machine's short host name as `hostname -s` prints it, the default host to plan for.
+
+    or_computed("ryn", () -> "computed") #=> "ryn"
+"""
 def stdout_of_host()
   stdout_of(exec_capture("hostname", "-s") rescue nil)
 end
 
+@doc """
+kind_of_host: the platform of the machine kirikae runs on, nixos on Linux and darwin otherwise.
+
+    attr_for("darwin", "ryn") #=> "darwinConfigurations.ryn.system"
+"""
 def kind_of_host()
   if trim(stdout_of(exec_capture("uname", "-s") rescue nil)) == "Linux"
     "nixos"
@@ -368,6 +490,12 @@ def kind_of_host()
   end
 end
 
+@doc """
+checkout_path: the local directory a flake reference reads from, nil for a pinned or remote reference that has no checkout.
+
+    checkout_path("git+file:///x/nix?ref=main") #=> "/x/nix"
+    checkout_path("github:pleme-io/nix") #=> nil
+"""
 def checkout_path(flake)
   if pinned?(flake)
     nil
@@ -380,6 +508,11 @@ def checkout_path(flake)
   end
 end
 
+@doc """
+git_out: what a git command in the directory printed, trimmed, or nil when it failed; git never prompts for credentials.
+
+    checkout_refusal({head: nil, dirty: nil, remote: nil, branch: "main"}) #=> [:not_a_checkout, "the flake is not a git checkout kirikae can read"]
+"""
 def git_out(dir, args)
   cap = exec_with_env(
     [%w[GIT_TERMINAL_PROMPT 0]],
@@ -396,6 +529,11 @@ def git_out(dir, args)
   end
 end
 
+@doc """
+checkout_of: the facts the guard reads of a checkout: its HEAD, its uncommitted changes, and origin's rev of the branch.
+
+    checkout_refusal({head: "b548e3a24f88a08d1c673ad27ac494293ac5cac1", dirty: "", remote: "b548e3a24f88a08d1c673ad27ac494293ac5cac1", branch: "main"}) #=> nil
+"""
 def checkout_of(dir, branch)
   remote = git_out(dir, ["ls-remote", "origin", "refs/heads/#{branch}"])
   {
@@ -451,6 +589,12 @@ def fast_forward(dir, c)
   end
 end
 
+@doc """
+checkout_refusal: why a checkout may not be planned: it is not a checkout, it has uncommitted changes, origin cannot be read, or it is not at origin's rev; nil when it may.
+
+    first(checkout_refusal({head: "a", dirty: " M flake.nix", remote: "a", branch: "main"})) #=> :dirty
+    first(checkout_refusal({head: "a", dirty: "", remote: "b", branch: "main"})) #=> :unpublished
+"""
 def checkout_refusal(c)
   if c[:head].nil?
     [:not_a_checkout, "the flake is not a git checkout kirikae can read"]
@@ -469,10 +613,21 @@ def checkout_refusal(c)
   end
 end
 
+@doc """
+base_name: the last part of a path, so a command is named without where it lives.
+
+    base_name("/run/current-system/sw/bin/darwin-rebuild") #=> "darwin-rebuild"
+"""
 def base_name(t)
   last(split(t, "/"))
 end
 
+@doc """
+writer_line?: the process line is a rebuild, or a nix build or eval of this host's system, which would race a switch.
+
+    writer_line?("darwin-rebuild build --flake .#ryn", "ryn") #=> true
+    writer_line?("nix build --no-link .#checks.aarch64-darwin.promotion-gate", "ryn") #=> false
+"""
 def writer_line?(l, host)
   ws = filter((w) -> w != "", split(trim(l), " "))
   heads = map(base_name, take_n(ws, 2))
@@ -487,10 +642,20 @@ def writer_line?(l, host)
   rebuild or evaluation
 end
 
+@doc """
+writers: the lines of a process listing that write this host's system.
+
+    size(writers(unlines(["/usr/sbin/cron", "nix build --no-link github:o/r/abc#ryn"]), "ryn")) #=> 1
+"""
 def writers(ps_text, host)
   filter((l) -> writer_line?(l, host), lines(ps_text))
 end
 
+@doc """
+ps_bin: the ps that lists processes, /bin/ps when it exists so a narrowed PATH still finds it.
+
+    writers("", "ryn") #=> []
+"""
 def ps_bin()
   if path_exists("/bin/ps")
     "/bin/ps"
@@ -499,6 +664,12 @@ def ps_bin()
   end
 end
 
+@doc """
+busy_refusal: the refusal naming the first other writer of the machine and the rev it builds, nil when there is none.
+
+    first(busy_refusal(["darwin-rebuild build --flake .#ryn"])) #=> :busy
+    busy_refusal([]) #=> nil
+"""
 def busy_refusal(ws)
   if is_empty(ws)
     nil
@@ -595,6 +766,12 @@ def gitops_handoff(f, s, hb_text)
   end
 end
 
+@doc """
+heartbeat_noop: the no-op plan when the gitops heartbeat says the loop already runs the checkout's rev unchanged, so nothing evaluates; nil otherwise.
+
+    heartbeat_noop("{\"outcome\":\"unchanged\",\"head_rev\":\"r\"}", "r", a)[:action] #=> :noop
+    heartbeat_noop("", "r", a) #=> nil
+"""
 def heartbeat_noop(hb_text, head, current)
   d = json_parse(hb_text) rescue nil
   if d.nil? or head.nil?
@@ -614,10 +791,20 @@ def heartbeat_noop(hb_text, head, current)
   end
 end
 
+@doc """
+busy_hold: the plan that holds a minute because another writer is busy.
+
+    busy_hold([:busy, "x"], 1000)[:until_ms] #=> 61000
+"""
 def busy_hold(r, now)
   {action: :hold, why: r[1], refusal: r, until_ms: now + 60000, plan_ms: 0}
 end
 
+@doc """
+refused_plan: the plan that refuses for a guard's refusal.
+
+    refused_plan([:dirty, "uncommitted"])[:action] #=> :refuse
+"""
 def refused_plan(r)
   {action: :refuse, why: r[1], refusal: r, plan_ms: 0}
 end
@@ -668,6 +855,11 @@ def guard_of(f, s)
   end
 end
 
+@doc """
+guard: the guard's verdict on the machine as it is now: refuse, hold for a busy writer, the loop's no-op, or nil to plan.
+
+    guard_of({checkout: nil, stale: [:dirty, "x"], busy: nil}, {})[:action] #=> :refuse
+"""
 def guard(s)
   guard_of(survey(s), s)
 end
@@ -1043,10 +1235,20 @@ def following(s, rev, seen, deadline_ms, started, said_ms)
   end
 end
 
+@doc """
+plan_now: the plan for the settings, guarded and waited as a run would be.
+
+    summary({action: :hold, why: "busy"}) #=> unlines(["kirikae: hold — busy"])
+"""
 def plan_now(s)
   planned(s)
 end
 
+@doc """
+plan_unguarded: the plan for the settings with no guard: a dry build compared with the running system and its history.
+
+    installable(".", attr_for("nixos", "plo")) #=> ".#nixosConfigurations.plo.config.system.build.toplevel"
+"""
 def plan_unguarded(s)
   plan(
     s[:flake],
@@ -1059,6 +1261,11 @@ def plan_unguarded(s)
   )
 end
 
+@doc """
+summary: the one line a brief narration prints for a plan: its action and why, the work it planned, and the fix for a refusal.
+
+    summary({action: :hold, why: "busy"}) #=> unlines(["kirikae: hold — busy"])
+"""
 def summary(p)
   work = if p[:build].nil?
     ""
@@ -1073,6 +1280,11 @@ def summary(p)
   unlines(["kirikae: #{to_s(p[:action])} — #{p[:why]}#{work}#{fix}"])
 end
 
+@doc """
+node_step: read one argument after `rebuild` toward the node it names, skipping flags and each `--nix-option` with its two values.
+
+    node_step({skip: 0, node: nil}, "plo") #=> {skip: 0, node: "plo"}
+"""
 def node_step(acc, a)
   if acc[:skip] > 0
     assoc(acc, :skip, acc[:skip] - 1)
@@ -1087,11 +1299,22 @@ def node_step(acc, a)
   end
 end
 
+@doc """
+node_arg: the node a rebuild command names, nil when it names none.
+
+    node_arg(["fleet", "rebuild", "--nix-option", "cores", "8", "rio"]) #=> "rio"
+    node_arg(["fleet", "rebuild"]) #=> nil
+"""
 def node_arg(cmd)
   after = drop_while((a) -> a != "rebuild", cmd)
   reduce(node_step, {skip: 0, node: nil}, rest(after))[:node]
 end
 
+@doc """
+settings_for: the settings for a rebuild command, with the host it names in place of this machine's.
+
+    node_arg(["/x/bin/fleet", "rebuild", "--show-trace", "plo"]) #=> "plo"
+"""
 def settings_for(cmd)
   n = node_arg(cmd)
   if n.nil?
@@ -1115,6 +1338,12 @@ def busy_hold?(p)
   end
 end
 
+@doc """
+keep_waiting?: the plan holds for another busy writer and the wait has not reached its deadline; a backoff hold is never waited out.
+
+    keep_waiting?(busy_hold([:busy, "x"], 1000), 1000, 2000) #=> true
+    keep_waiting?({action: :hold, why: "backoff"}, 1000, 2000) #=> false
+"""
 def keep_waiting?(p, now, deadline_ms)
   busy_hold?(p) and now < deadline_ms
 end
@@ -1137,6 +1366,11 @@ def waiting_note(writer, left_ms)
   "still held by #{writer}; #{duration_text(left_ms)} left"
 end
 
+@doc """
+await_writers: wait while another writer holds the machine and the deadline allows, saying so now and then, and answer the guard's verdict when it ends.
+
+    waiting_note("nix build", 60000) #=> "still held by nix build; 1m 00s left"
+"""
 def await_writers(s, p, deadline_ms, said, said_ms)
   if keep_waiting?(p, now_ms, deadline_ms)
     spoke = said != nil and say_wait?(p[:why], said, now_ms, said_ms)
@@ -1162,7 +1396,9 @@ def await_writers(s, p, deadline_ms, said, said_ms)
 end
 
 @doc """
-run: build and activate the planned system.
+run: guard and plan a switch, run the rebuild command when the plan says to, verify the system it activated and record the outcome.
+
+    exit_status_of(outcome_of(exit_hold, "hold")) #=> 75
 """
 def run(cmd)
   s = assoc(
@@ -1347,6 +1583,11 @@ def log_event(path, keep, ev)
   nil
 end
 
+@doc """
+settle: record a finished rebuild in the history and answer its outcome; a command that exited 0 but did not switch is a failure.
+
+    exit_status_of(outcome_of(exit_not_switched, "not-switched")) #=> 76
+"""
 def settle(s, p, status, v, ran)
   if v != nil and s[:narrate] == :brief
     write_stderr(unlines(["kirikae: #{to_s(v[:verdict])} — #{v[:why]}"]))
@@ -1636,6 +1877,13 @@ def closing(text, status, ms, fix, log)
   )
 end
 
+@doc """
+verify_switch: whether the running system after the rebuild is the one it built.
+
+    verify_switch(b, b)[:verdict] #=> :switched
+    verify_switch(b, a)[:verdict] #=> :not_switched
+    verify_switch(nil, a)[:verdict] #=> :unverified
+"""
 def verify_switch(desired, after)
   if store_path?(desired) == false
     {
@@ -1655,26 +1903,58 @@ def verify_switch(desired, after)
   end
 end
 
+@doc """
+exit_hold: the exit status of a held switch, which a caller retries later.
+
+    exit_hold #=> 75
+"""
 def exit_hold()
   75
 end
 
+@doc """
+exit_not_switched: the exit status of a rebuild that ran but left the old system running.
+
+    exit_not_switched #=> 76
+"""
 def exit_not_switched()
   76
 end
 
+@doc """
+exit_refused: the exit status of a refused switch, which needs a fix before a retry.
+
+    exit_refused #=> 78
+"""
 def exit_refused()
   78
 end
 
+@doc """
+outcome_of: a command's outcome: the exit status a caller branches on and the text it prints.
+
+    outcome_of(75, "hold") #=> {status: 75, text: "hold"}
+"""
 def outcome_of(status, text)
   {status:, text:}
 end
 
+@doc """
+exit_status_of: the exit status of an answer; plain text exits 0.
+
+    exit_status_of(outcome_of(exit_refused, "refuse")) #=> 78
+    exit_status_of("{}") #=> 0
+"""
 def exit_status_of(answer)
   outcome_field(answer, :status, 0)
 end
 
+@doc """
+text_of: the text an answer prints.
+
+    text_of(outcome_of(75, "hold")) #=> "hold"
+    text_of("plain") #=> "plain"
+"""
 def text_of(answer)
   outcome_field(answer, :text, answer)
 end
@@ -1692,6 +1972,11 @@ def outcome_field(answer, key, bare)
   end
 end
 
+@doc """
+main: kirikae's command line: print the answer to its arguments and exit with its status.
+
+    text_of(outcome_of(0, "noop")) #=> "noop"
+"""
 def main()
   a = answer(argv)
   write_stdout(unlines([text_of(a)]))
@@ -1701,6 +1986,11 @@ def main()
   nil
 end
 
+@doc """
+answer: the answer to one kirikae command: plan, demo, config, run or record; a wrong use raises :usage.
+
+    (answer(["run"]) rescue :usage) #=> :usage
+"""
 def answer(args)
   verb = if is_empty(args)
     "plan"
@@ -1907,14 +2197,29 @@ def demo_lines(kind)
   end
 end
 
+@doc """
+sys: a darwin system store path with this hash, for tests and examples.
+
+    store_name(sys("f97whj20l07gbd9ir1m3kd6lizx2mc1h")) #=> "darwin-system-25.11.ebec37a"
+"""
 def sys(h)
   "/nix/store/#{h}-darwin-system-25.11.ebec37a"
 end
 
+@doc """
+a: one sample system, for tests and examples.
+
+    label(a) #=> "f97whj20-darwin-system-25.11.ebec37a"
+"""
 def a()
   sys("f97whj20l07gbd9ir1m3kd6lizx2mc1h")
 end
 
+@doc """
+b: a second sample system with the same name as `a`, for tests and examples.
+
+    label(b) #=> "8i7qwqja-darwin-system-25.11.ebec37a"
+"""
 def b()
   sys("8i7qwqjaxhlhb4k0n58i5yi96a7kw0h2")
 end

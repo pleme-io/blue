@@ -1485,7 +1485,13 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                     "blue census: {code} measured {measured}, ratchet {ratchet}: edit the row's ratchet to {measured} if the change is the intended one"
                 );
             }
-            Ok(if bad.is_empty() {
+            let undocumented = c.package_mismatches(census::DOCUMENTED);
+            for (code, package, n) in &undocumented {
+                eprintln!(
+                    "blue census: {package} is documented and holds {n} {code} finding(s); its ratchet is 0 (census::DOCUMENTED)"
+                );
+            }
+            Ok(if bad.is_empty() && undocumented.is_empty() {
                 ExitCode::SUCCESS
             } else {
                 ExitCode::FAILURE

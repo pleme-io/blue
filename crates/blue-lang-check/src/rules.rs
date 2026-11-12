@@ -1164,7 +1164,7 @@ that is there only for the error it may raise. docs/SAFETY.md, row 2.",
         fix: Machine,
         law: "a bidama's public definition has a `@doc` whose first sentence starts with its name",
         witness: "@moduledoc \"\"\"\nkagi holds one value.\n\n    kagi #=> 1\n\"\"\"\n\ndef kagi()\n  1\nend\n",
-        ratchet: 2550,
+        ratchet: 1894,
         package: "kagi",
         explanation: "\
 A reader of one bidama should be proficient in it, so every definition a `use`
@@ -1194,7 +1194,7 @@ the example. It writes nothing it cannot source; what stays is counted by
         fix: Machine,
         law: "a `@doc` holds at least one example, an indented `expr #=> value` line",
         witness: "@moduledoc \"\"\"\nkagi holds one value.\n\n    kagi #=> 1\n\"\"\"\n\n@doc \"\"\"\nkagi is one.\n\"\"\"\ndef kagi()\n  1\nend\n",
-        ratchet: 782,
+        ratchet: 746,
         package: "kagi",
         explanation: "\
 An example shows how a definition is called and what it answers, and blue

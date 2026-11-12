@@ -20,18 +20,39 @@ use(
   %i[last_nonempty_line status_of stderr_of stdout_of strip_ansi]
 )
 
+@doc """
+nix_bin: the nix hyouka runs, HYOUKA_NIX when set, so a test or a pinned nix can stand in for the one on PATH.
+
+    eval_args("--raw", installable(".", "a"), []) #=> ["eval", "--raw", ".#a"]
+"""
 def nix_bin()
   getenv("HYOUKA_NIX", "nix")
 end
 
+@doc """
+installable: the flake reference nix builds or evaluates for one attribute of a flake.
+
+    installable(".", "darwinConfigurations.ryn.system") #=> ".#darwinConfigurations.ryn.system"
+"""
 def installable(flake, attr)
   "#{flake}##{attr}"
 end
 
+@doc """
+store_dir: the prefix every Nix store path starts with.
+
+    store_dir #=> "/nix/store/"
+"""
 def store_dir()
   "/nix/store/"
 end
 
+@doc """
+store_path?: the text is a Nix store path by its fixed layout: the store prefix, a 32-character hash, a dash and a name.
+
+    store_path?("/nix/store/f97whj20l07gbd9ir1m3kd6lizx2mc1h-darwin-system-25.11.ebec37a") #=> true
+    store_path?("/run/current-system") #=> false
+"""
 def store_path?(p)
   string?(p) and
     starts_with?(p, store_dir) and
@@ -39,18 +60,35 @@ def store_path?(p)
     take_chars(drop_chars(p, 43), 1) == "-"
 end
 
+@doc """
+store_hash: the hash part of a store path, nil for text that is not one.
+
+    store_hash("/nix/store/f97whj20l07gbd9ir1m3kd6lizx2mc1h-darwin-system-25.11.ebec37a") #=> "f97whj20l07gbd9ir1m3kd6lizx2mc1h"
+    store_hash("") #=> nil
+"""
 def store_hash(p)
   if store_path?(p)
     take_chars(drop_chars(p, 11), 32)
   end
 end
 
+@doc """
+store_name: the name part of a store path, without the hash or any path inside it; nil for text that is not one.
+
+    store_name("/nix/store/f97whj20l07gbd9ir1m3kd6lizx2mc1h-darwin-system-25.11.ebec37a/sw/bin/nix") #=> "darwin-system-25.11.ebec37a"
+"""
 def store_name(p)
   if store_path?(p)
     first(split(drop_chars(p, 44), "/"))
   end
 end
 
+@doc """
+failure_class: the kind of failure nix's message names (credential, fetch, builder, timeout, memory, assertion, eval, disk), else unknown.
+
+    failure_class("run timed out after 5400s") #=> :timeout
+    failure_class("") #=> :unknown
+"""
 def failure_class(text)
   if includes(text, "HTTP error 401") or
       includes(text, "HTTP error 403") or
@@ -86,14 +124,30 @@ def failure_class(text)
   end
 end
 
+@doc """
+failure_of: the refusal for a failed nix run: its class, with the last line nix printed as the reason.
+
+    failure_of("error: builder for '/nix/store/x.drv' failed with exit code 1") #=> [:builder, "error: builder for '/nix/store/x.drv' failed with exit code 1"]
+"""
 def failure_of(text)
   refusal(failure_class(text), trim(strip_ansi(last_nonempty_line(text))))
 end
 
+@doc """
+capture: run a command and keep what it printed and its status, nil when it cannot start, so a missing tool is an answer and not a crash.
+
+    answer({status: -1, stdout: "", stderr: "could not start nix"}, (t) -> t) |> ok? #=> false
+"""
 def capture(argv)
   exec_capture(*argv) rescue nil
 end
 
+@doc """
+run_nix: run nix with the arguments and answer its status, stdout and stderr; status -1 when nix cannot start.
+
+    a = answer({status: -1, stdout: "", stderr: "could not start nix"}, (t) -> t)
+    first(refusal_of(a)) #=> :unstartable
+"""
 def run_nix(args)
   argv = concat_lists([nix_bin], args)
   cap = capture(argv)
@@ -104,6 +158,13 @@ def run_nix(args)
   end
 end
 
+@doc """
+answer: the kyohi result of one nix run: what `read` makes of stdout on success, else a refusal classified from what nix said.
+
+    a = answer({status: 0, stdout: "{\"a\":1}", stderr: ""}, (t) -> json_parse(t))
+    ok?(a) #=> true
+    as_json(value(a), "a") #=> 1
+"""
 def answer(out, read)
   if out[:status] == 0
     parsed = begin
@@ -128,10 +189,20 @@ def answer(out, read)
   end
 end
 
+@doc """
+eval_json: evaluate an installable with `nix eval --json` and answer the parsed value, or the refusal.
+
+    eval_args("--json", "f#a", []) #=> ["eval", "--json", "f#a"]
+"""
 def eval_json(inst, extra)
   eval_with("--json", inst, extra, (t) -> json_parse(t))
 end
 
+@doc """
+eval_raw: evaluate an installable with `nix eval --raw` and answer its text, or the refusal.
+
+    eval_args("--raw", "f#a", %w[--impure]) #=> ["eval", "--raw", "f#a", "--impure"]
+"""
 def eval_raw(inst, extra)
   eval_with("--raw", inst, extra, (t) -> t)
 end
@@ -154,11 +225,22 @@ def eval_with(flag, inst, extra, read)
   answer(run_nix(eval_args(flag, inst, extra)), read)
 end
 
+@doc """
+target_of: one target of a dry build's JSON: its drv path and its out path.
+
+    target_of(json_parse("{\"drvPath\":\"/nix/store/a.drv\",\"outputs\":{\"out\":\"/nix/store/a\"}}")) #=> {drv: "/nix/store/a.drv", out: "/nix/store/a"}
+"""
 def target_of(o)
   outs = as_json(o, "outputs")
   {drv: get_str(o, "drvPath", ""), out: get_str(outs, "out", "")}
 end
 
+@doc """
+targets: every target a dry build's JSON names; none when the text is not a list.
+
+    size(targets(sample_targets)) #=> 1
+    targets("[]") #=> []
+"""
 def targets(text)
   parsed = json_parse(text)
   if list?(parsed)
@@ -168,6 +250,12 @@ def targets(text)
   end
 end
 
+@doc """
+section_of: which part of a dry run's report a line opens or belongs to: the build list, the fetch list, a store path inside one, or other.
+
+    section_of("these 2 paths will be fetched (0.01 MiB download):") #=> :fetch
+    section_of("warning: Git tree is dirty") #=> :other
+"""
 def section_of(line)
   t = trim(line)
   if starts_with?(t, "this derivation will be built") or
@@ -183,6 +271,11 @@ def section_of(line)
   end
 end
 
+@doc """
+work_step: read one line of a dry run's report into the build and fetch lists gathered so far.
+
+    work_step({in: nil, build: [], fetch: []}, "this derivation will be built:")[:in] #=> :build
+"""
 def work_step(acc, line)
   s = section_of(line)
   if s == :build or s == :fetch
@@ -195,11 +288,23 @@ def work_step(acc, line)
   end
 end
 
+@doc """
+work: what a dry run will build and fetch, read from nix's report.
+
+    size(work(sample_dry_run)[:fetch]) #=> 2
+    work("") #=> {build: [], fetch: []}
+"""
 def work(text)
   r = reduce(work_step, {in: nil, build: [], fetch: []}, lines(text))
   {build: r[:build], fetch: r[:fetch]}
 end
 
+@doc """
+plan_build: dry-run a build of an installable and answer its targets and what nix will build and fetch, or the refusal.
+
+    w = work(sample_dry_run)
+    store_name(first(w[:build])) #=> "kirikae-probe.drv"
+"""
 def plan_build(inst, extra)
   out = run_nix(
     concat_lists(["build", "--dry-run", "--json", "--no-link", inst], extra)
@@ -213,6 +318,12 @@ def plan_build(inst, extra)
   end
 end
 
+@doc """
+first_out: the out path of a plan's first target, nil when the plan has none.
+
+    first_out({targets: targets(sample_targets)}) #=> "/nix/store/jrbqf1qkyiiq0v3b66ngc9fbj2cj1737-kirikae-probe"
+    first_out({targets: []}) #=> nil
+"""
 def first_out(plan)
   ts = plan[:targets]
   if is_empty(ts)
@@ -222,6 +333,12 @@ def first_out(plan)
   end
 end
 
+@doc """
+info_pairs: the [path, info] pairs of `nix path-info --json` whose path the store holds.
+
+    info_pairs([["/nix/store/a", {}], ["/nix/store/b", nil]]) #=> [["/nix/store/a", {}]]
+    info_pairs(nil) #=> []
+"""
 def info_pairs(parsed)
   if list?(parsed)
     filter((p) -> list?(p) and size(p) == 2 and p[1] != nil, parsed)
@@ -230,6 +347,11 @@ def info_pairs(parsed)
   end
 end
 
+@doc """
+path_info: which of the paths a store holds and which it lacks; the local store when `store` is nil.
+
+    map((p) -> first(p), info_pairs([["/nix/store/a", {}], ["/nix/store/b", nil]])) #=> ["/nix/store/a"]
+"""
 def path_info(paths, store)
   where = if store.nil?
     []
@@ -242,6 +364,11 @@ def path_info(paths, store)
   {present:, missing: filter((p) -> member?(p, present) == false, paths)}
 end
 
+@doc """
+resolve: the store path a link such as /run/current-system points at, nil when it cannot be read.
+
+    store_name("/nix/store/f97whj20l07gbd9ir1m3kd6lizx2mc1h-darwin-system-25.11.ebec37a") #=> "darwin-system-25.11.ebec37a"
+"""
 def resolve(link)
   cap = capture(["readlink", "-f", link])
   if cap.nil? or status_of(cap) != 0
@@ -251,6 +378,11 @@ def resolve(link)
   end
 end
 
+@doc """
+sample_dry_run: a real dry run's report, one drv to build and two paths to fetch, for tests and examples.
+
+    size(work(sample_dry_run)[:build]) #=> 1
+"""
 def sample_dry_run()
   unlines(
     [
@@ -263,6 +395,11 @@ def sample_dry_run()
   )
 end
 
+@doc """
+sample_targets: a real dry build's JSON with one target, for tests and examples.
+
+    first(targets(sample_targets))[:drv] #=> "/nix/store/79318l15inqy72wqdqp9hixn762vlfza-kirikae-probe.drv"
+"""
 def sample_targets()
   "[{\"drvPath\":\"/nix/store/79318l15inqy72wqdqp9hixn762vlfza-kirikae-probe.drv\",\"outputs\":{\"out\":\"/nix/store/jrbqf1qkyiiq0v3b66ngc9fbj2cj1737-kirikae-probe\"}}]"
 end

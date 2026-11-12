@@ -21,6 +21,12 @@ use("moji", %i[capitalize checked repeated])
 use("retsu", %i[first is_empty last rest])
 use("shomei")
 
+@doc """
+graphql is the October 2021 GraphQL grammar as a kiwari spec, with the keywords and punctuation an editor paints.
+
+    graphql[:name] #=> "graphql"
+    graphql[:closers] #=> ["}", ")", "]"]
+"""
 def graphql()
   {
     name: "graphql",
@@ -38,6 +44,12 @@ def graphql()
   }
 end
 
+@doc """
+punctuation_roles pairs each GraphQL punctuator with the highlight role an editor paints it in.
+
+    first(punctuation_roles) #=> ["{", "punctuation.bracket"]
+    length(punctuation_roles) #=> 14
+"""
 def punctuation_roles()
   [
     %w[{ punctuation.bracket],
@@ -57,6 +69,12 @@ def punctuation_roles()
   ]
 end
 
+@doc """
+directive_locations lists every place a directive definition may name after `on`.
+
+    first(directive_locations) #=> "QUERY"
+    length(directive_locations) #=> 19
+"""
 def directive_locations()
   %w[
     QUERY
@@ -81,6 +99,12 @@ def directive_locations()
   ]
 end
 
+@doc """
+keyword_roles pairs each GraphQL keyword and builtin constant with its highlight role.
+
+    first(keyword_roles) #=> ["query", "keyword"]
+    last(keyword_roles) #=> ["INPUT_FIELD_DEFINITION", "constant.builtin"]
+"""
 def keyword_roles()
   append(
     map(
@@ -111,34 +135,74 @@ def keyword_roles()
   )
 end
 
+@doc """
+l is the grammar's short word for a literal token.
+
+    l("{") #=> {kind: :lit, text: "{"}
+"""
 def l(text)
   kiwari::lit(text)
 end
 
+@doc """
+r is the grammar's short word for a reference to another rule.
+
+    r("name") #=> {kind: :ref, name: "name"}
+"""
 def r(name)
   kiwari::ref(name)
 end
 
+@doc """
+o is the grammar's short word for an optional item.
+
+    o(r("name")) #=> {kind: :opt, item: {kind: :ref, name: "name"}}
+"""
 def o(item)
   kiwari::opt(item)
 end
 
+@doc """
+s is the grammar's short word for a sequence of items.
+
+    s([l("a")]) #=> {kind: :seq, items: [{kind: :lit, text: "a"}]}
+"""
 def s(items)
   kiwari::seq(items)
 end
 
+@doc """
+described prefixes a type system rule with the optional description string GraphQL allows before it.
+
+    first(described([l("a")])[:items]) #=> {kind: :opt, item: {kind: :ref, name: "description"}}
+"""
 def described(items)
   s(append([o(r("description"))], items))
 end
 
+@doc """
+braced is one or more items between an open and a close literal, as in a selection set.
+
+    length(braced("{", r("x"), "}")[:items]) #=> 3
+"""
 def braced(open, item, close)
   s([l(open), kiwari::rep1(item), l(close)])
 end
 
+@doc """
+separated is one or more items joined by a separator that may also lead, as in `= | A | B`.
+
+    first(separated("|", r("x"))[:items]) #=> {kind: :opt, item: {kind: :lit, text: "|"}}
+"""
 def separated(sep, item)
   s([o(l(sep)), item, kiwari::rep(s([l(sep), item]))])
 end
 
+@doc """
+graphql_rules holds every rule of the GraphQL grammar, each with the record kind it lowers to.
+
+    first(graphql_rules)[:name] #=> "document"
+"""
 def graphql_rules()
   rule = (name, body, lower) -> kiwari::rule(name, body, lower)
   [
@@ -486,22 +550,50 @@ def graphql_rules()
   ]
 end
 
+@doc """
+kinds names every record kind the grammar lowers to, once each, in rule order.
+
+    first(kinds) #=> "document"
+    length(kinds) #=> 24
+"""
 def kinds()
   distinct(filter((k) -> k != nil, map((x) -> x[:lower], graphql[:rules])))
 end
 
+@doc """
+table turns a list of keys into a lookup map, so the lexer asks set membership in one step.
+
+    table(["a", "b"]) #=> {"a" => true, "b" => true}
+"""
 def table(keys)
   reduce((m, k) -> assoc(m, k, true), {}, keys)
 end
 
+@doc """
+name_start_chars holds the characters a GraphQL name may begin with.
+
+    length(name_start_chars) #=> 53
+    last(name_start_chars) #=> "_"
+"""
 def name_start_chars()
   append(chars("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"), ["_"])
 end
 
+@doc """
+digit_chars holds the decimal digits a GraphQL number is written in.
+
+    digit_chars #=> ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
+"""
 def digit_chars()
   chars("0123456789")
 end
 
+@doc """
+lexer prepares text for tokenizing: its characters and the character sets each token class tests against.
+
+    lexer("a,b")[:n] #=> 3
+    get(lexer("a")[:punct], "{") #=> true
+"""
 def lexer(text)
   cs = chars(text)
   singles = filter(
@@ -520,14 +612,29 @@ def lexer(text)
   }
 end
 
+@doc """
+at reads the character at index `i` of a lexer's text, nil past its end.
+
+    at(lexer("ab"), 1) #=> "b"
+"""
 def at(x, i)
   x[:cs][i]
 end
 
+@doc """
+slice cuts the lexer's text from index `i` up to, not including, index `j`.
+
+    slice(lexer("query"), 1, 3) #=> "ue"
+"""
 def slice(x, i, j)
   join(map((k) -> x[:cs][k], range(i, j)), "")
 end
 
+@doc """
+lex_error raises a parse error that names the line and column where reading stopped.
+
+    raised(() -> lex_error(2, 5, "unexpected character")) #=> :parse_error
+"""
 def lex_error(line, col, message)
   raise(
     :parse_error,
@@ -536,11 +643,22 @@ def lex_error(line, col, message)
   )
 end
 
+@doc """
+tokens reads GraphQL text into its tokens, each with its kind, value, line and column; blanks, commas and comments drop out.
+
+    map((t) -> t[:value], tokens("a(x: 1)")) #=> ["a", "(", "x", ":", "1", ")"]
+    tokens("{ a }")[1] #=> {kind: :name, value: "a", line: 1, col: 3}
+"""
 def tokens(text)
   x = lexer(text)
   lex_from(x, 0, 1, 0, [], [])
 end
 
+@doc """
+lex_from is the tokenizing loop from index `i`, collecting tokens in chunks of 256 so a long document stays cheap to grow.
+
+    length(lex_from(lexer("{ a }"), 0, 1, 0, [], [])) #=> 3
+"""
 def lex_from(x, i, line, ls, cur, done)
   if i >= x[:n]
     append(*append(done, [cur]))
@@ -595,10 +713,21 @@ def lex_from(x, i, line, ls, cur, done)
   end
 end
 
+@doc """
+simple is a one-line token read up to index `stop`.
+
+    simple(:name, "a", 1) #=> {kind: :name, value: "a", end: 1, lines: 0, ls: 0}
+"""
 def simple(kind, value, stop)
   {kind:, value:, end: stop, lines: 0, ls: 0}
 end
 
+@doc """
+token_at reads the one token that starts with character `c` at index `i`, choosing the reader by that character.
+
+    token_at(lexer("abc d"), 0, "a", 1, 1)[:value] #=> "abc"
+    token_at(lexer("-1.5"), 0, "-", 1, 1)[:kind] #=> :float
+"""
 def token_at(x, i, c, line, col)
   if get(x[:punct], c)
     simple(:punct, c, i + 1)
@@ -637,14 +766,31 @@ def span_end(x, i, set)
   end
 end
 
+@doc """
+name_end is the index after the name characters that continue from `i`.
+
+    name_end(lexer("ab1 c"), 0) #=> 3
+"""
 def name_end(x, i)
   span_end(x, i, :part)
 end
 
+@doc """
+digits_end is the index after the digits that continue from `i`.
+
+    digits_end(lexer("123x"), 0) #=> 3
+"""
 def digits_end(x, i)
   span_end(x, i, :digit)
 end
 
+@doc """
+number_at reads an Int or Float token from `i`, refusing a leading zero, a bare sign and a name glued to the number.
+
+    number_at(lexer("-1.5e3"), 0, 1, 1)[:kind] #=> :float
+    number_at(lexer("42"), 0, 1, 1)[:value] #=> "42"
+    raised(() -> number_at(lexer("01"), 0, 1, 1)) #=> :parse_error
+"""
 def number_at(x, i, line, col)
   a = if at(x, i) == "-"
     i + 1
@@ -699,6 +845,11 @@ def number_at(x, i, line, col)
   )
 end
 
+@doc """
+string_end finds the index of the quote that closes a string, skipping quotes escaped by an odd run of backslashes.
+
+    string_end(lexer("\"ab\" c"), 1, 1, 1) #=> 3
+"""
 def string_end(x, j, line, col)
   k = text_index(x[:text], "\"", j)
   if k < 0
@@ -710,6 +861,11 @@ def string_end(x, j, line, col)
   end
 end
 
+@doc """
+backslashes counts the backslashes that end at index `i`, so a caller knows whether the next quote is escaped.
+
+    backslashes(lexer("a\\\\"), 2, 0) #=> 2
+"""
 def backslashes(x, i, n)
   if i >= 0 and at(x, i) == "\\"
     backslashes(x, i - 1, n + 1)
@@ -718,6 +874,11 @@ def backslashes(x, i, n)
   end
 end
 
+@doc """
+string_at reads a one-line string token from its opening quote at `i`, with its escapes decoded.
+
+    string_at(lexer("\"hi\""), 0, 1, 1)[:value] #=> "hi"
+"""
 def string_at(x, i, line, col)
   k = string_end(x, i + 1, line, col)
   raw = slice(x, i + 1, k)
@@ -727,6 +888,12 @@ def string_at(x, i, line, col)
   simple(:string, unescape(raw, line, col), k + 1)
 end
 
+@doc """
+unescape decodes the escape sequences of a string's raw text, refusing one GraphQL does not define.
+
+    unescape("a\\nb", 1, 1) #=> "a\nb"
+    unescape("plain", 1, 1) #=> "plain"
+"""
 def unescape(raw, line, col)
   if not contains?(raw, "\\")
     raw
@@ -737,6 +904,11 @@ def unescape(raw, line, col)
   end
 end
 
+@doc """
+braced_escapes rewrites each braced `\u{41}` escape as the JSON `A` form the decoder reads.
+
+    braced_escapes("\\u{41}", 1, 1) #=> "\\u0041"
+"""
 def braced_escapes(raw, line, col)
   i = text_index(raw, "\\u{", 0)
   if i < 0
@@ -754,6 +926,11 @@ def braced_escapes(raw, line, col)
   end
 end
 
+@doc """
+hex_value reads the hex digits of a braced escape as a number, refusing an empty, overlong or non-hex text.
+
+    hex_value("ff", 1, 1) #=> 255
+"""
 def hex_value(hex, line, col)
   digits = chars(downcase(hex))
   if is_empty(digits) or length(digits) > 6
@@ -772,11 +949,22 @@ def hex_value(hex, line, col)
   )
 end
 
+@doc """
+hex4 writes a number below 65536 as four uppercase hex digits.
+
+    hex4(255) #=> "00FF"
+"""
 def hex4(n)
   ds = chars("0123456789ABCDEF")
   join(map((k) -> ds[floor(n / expt(16, k)) % 16], [3, 2, 1, 0]), "")
 end
 
+@doc """
+utf16_escape writes one Unicode scalar value as JSON escapes, a surrogate pair above the basic plane.
+
+    utf16_escape("41", 1, 1) #=> "\\u0041"
+    utf16_escape("1F600", 1, 1) #=> "\\uD83D\\uDE00"
+"""
 def utf16_escape(hex, line, col)
   v = hex_value(hex, line, col)
   if v > 1_114_111 or v >= 55296 and v <= 57343
@@ -789,6 +977,11 @@ def utf16_escape(hex, line, col)
   end
 end
 
+@doc """
+block_end finds the index of the triple quote that closes a block string, skipping an escaped one.
+
+    block_end(lexer("\"\"\"ab\"\"\""), 3, 1, 1) #=> 5
+"""
 def block_end(x, j, line, col)
   k = text_index(x[:text], "\"\"\"", j)
   if k < 0
@@ -800,6 +993,11 @@ def block_end(x, j, line, col)
   end
 end
 
+@doc """
+block_at reads a block string token from `i`, counting the lines it spans so later columns stay right.
+
+    block_at(lexer("\"\"\"ab\"\"\""), 0, 1, 1)[:value] #=> "ab"
+"""
 def block_at(x, i, line, col)
   k = block_end(x, i + 3, line, col)
   raw = slice(x, i + 3, k)
@@ -814,10 +1012,20 @@ def block_at(x, i, line, col)
   }
 end
 
+@doc """
+indent_of counts the spaces and tabs that lead a line.
+
+    indent_of("  x") #=> 2
+"""
 def indent_of(line)
   length(line) - length(moji::trim(line, {side: :start, chars: " \t"}))
 end
 
+@doc """
+least is the smallest of a non-empty list of numbers.
+
+    least([3, 1, 2]) #=> 1
+"""
 def least(xs)
   reduce(
     fn(a, b)
@@ -831,10 +1039,21 @@ def least(xs)
   )
 end
 
+@doc """
+blank? is true for a line of only spaces and tabs.
+
+    blank?("  ") #=> true
+    blank?(" a") #=> false
+"""
 def blank?(line)
   indent_of(line) == length(line)
 end
 
+@doc """
+block_value is a block string's value: the common indent of its later lines removed and its leading and trailing blank lines dropped.
+
+    block_value("\n    a\n      b\n") #=> "a\n  b"
+"""
 def block_value(raw)
   lines = split(
     replace(replace(raw, unlines(["\r"]), line_break), "\r", line_break),
@@ -853,11 +1072,21 @@ def block_value(raw)
   join(trim_blank(dedented), line_break)
 end
 
+@doc """
+trim_blank drops the blank lines at both ends of a list of lines.
+
+    trim_blank(["", "a", " "]) #=> ["a"]
+"""
 def trim_blank(lines)
   kept = drop_blank(lines)
   reverse(drop_blank(reverse(kept)))
 end
 
+@doc """
+drop_blank drops the blank lines at the start of a list of lines.
+
+    drop_blank(["", "a", ""]) #=> ["a", ""]
+"""
 def drop_blank(lines)
   if is_empty(lines)
     lines
@@ -868,10 +1097,20 @@ def drop_blank(lines)
   end
 end
 
+@doc """
+eof is the token the parser sees past the last one, so an error there can say "end of input".
+
+    eof[:kind] #=> :eof
+"""
 def eof()
   {kind: :eof, value: "end of input", line: 0, col: 0}
 end
 
+@doc """
+tok is the token at index `i`, or an end-of-input token placed just after the last one.
+
+    tok({toks: [], n: 0}, 0) #=> {kind: :eof, value: "end of input", line: 1, col: 1}
+"""
 def tok(p, i)
   if i < p[:n]
     p[:toks][i]
@@ -885,6 +1124,12 @@ def tok(p, i)
   end
 end
 
+@doc """
+shown is how a parse error names the token it found.
+
+    shown({kind: :string, value: "x"}) #=> "a string"
+    shown({kind: :name, value: "a"}) #=> "\"a\""
+"""
 def shown(t)
   if t[:kind] == :eof
     "end of input"
@@ -895,6 +1140,11 @@ def shown(t)
   end
 end
 
+@doc """
+fail raises a parse error at the token at `i`, saying what was wanted and what was found.
+
+    raised(() -> fail({toks: [], n: 0}, 0, "a name")) #=> :parse_error
+"""
 def fail(p, i, wanted)
   t = tok(p, i)
   lex_error(t[:line], t[:col], "expected #{wanted}, found #{shown(t)}")
@@ -923,22 +1173,48 @@ def consume(p, i, kind, v)
   end
 end
 
+@doc """
+punct? is true when the token at `i` is the punctuator `v`.
+
+    punct?({toks: tokens("{"), n: 1}, 0, "{") #=> true
+"""
 def punct?(p, i, v)
   tok_is?(p, i, :punct, v)
 end
 
+@doc """
+word? is true when the token at `i` is the name `v`, as a keyword is read.
+
+    word?({toks: tokens("on"), n: 1}, 0, "on") #=> true
+"""
 def word?(p, i, v)
   tok_is?(p, i, :name, v)
 end
 
+@doc """
+expect steps past the punctuator `v` at `i`, or raises a parse error naming it.
+
+    expect({toks: tokens("{ a"), n: 2}, 0, "{") #=> 1
+"""
 def expect(p, i, v)
   consume(p, i, :punct, v)
 end
 
+@doc """
+keyword steps past the keyword `v` at `i`, or raises a parse error naming it.
+
+    keyword({toks: tokens("on X"), n: 2}, 0, "on") #=> 1
+"""
 def keyword(p, i, v)
   consume(p, i, :name, v)
 end
 
+@doc """
+name_at reads the name at `i`, or raises a parse error that wanted one.
+
+    name_at({toks: tokens("a b"), n: 2}, 1) #=> "b"
+    raised(() -> name_at({toks: tokens("{"), n: 1}, 0)) #=> :parse_error
+"""
 def name_at(p, i)
   t = tok(p, i)
   if t[:kind] == :name
@@ -948,6 +1224,12 @@ def name_at(p, i)
   end
 end
 
+@doc """
+mark stamps a node with the line and column of the token at `i` when the parse asked for spans, and leaves it alone otherwise.
+
+    mark({toks: tokens("a"), n: 1, spans: true}, 0, {name: "a"}) #=> {name: "a", at: [1, 1]}
+    mark({toks: tokens("a"), n: 1, spans: false}, 0, {name: "a"}) #=> {name: "a"}
+"""
 def mark(p, i, node)
   if p[:spans]
     t = tok(p, i)
@@ -957,6 +1239,12 @@ def mark(p, i, node)
   end
 end
 
+@doc """
+many reads items with `item` until the punctuator `close`, answering the items and the index after `close`.
+
+    one = (q, j) -> [name_at(q, j), j + 1]
+    many({toks: tokens("a b }"), n: 3}, 0, one, "}", []) #=> [["a", "b"], 3]
+"""
 def many(p, i, item, close, acc)
   if punct?(p, i, close)
     [acc, i + 1]
@@ -968,6 +1256,13 @@ def many(p, i, item, close, acc)
   end
 end
 
+@doc """
+one_or_more reads a bracketed list that must hold at least one item, as GraphQL requires of every bracket it opens.
+
+    one = (q, j) -> [name_at(q, j), j + 1]
+    one_or_more({toks: tokens("(a b)"), n: 4}, 0, "(", one, ")") #=> [["a", "b"], 4]
+    raised(() -> one_or_more({toks: tokens("()"), n: 2}, 0, "(", one, ")")) #=> :parse_error
+"""
 def one_or_more(p, i, open, item, close)
   j = expect(p, i, open)
   if punct?(p, j, close)
@@ -976,6 +1271,12 @@ def one_or_more(p, i, open, item, close)
   many(p, j, item, close, [])
 end
 
+@doc """
+optional_list reads a bracketed list when one opens at `i`, and answers an empty list without moving otherwise.
+
+    one = (q, j) -> [name_at(q, j), j + 1]
+    optional_list({toks: tokens("a"), n: 1}, 0, "(", one, ")") #=> [[], 0]
+"""
 def optional_list(p, i, open, item, close)
   if punct?(p, i, open)
     one_or_more(p, i, open, item, close)
@@ -984,6 +1285,12 @@ def optional_list(p, i, open, item, close)
   end
 end
 
+@doc """
+document_of reads every definition from `i` to the end into a document, refusing an empty one.
+
+    t = tokens("{ a } { b }")
+    length(document_of({toks: t, n: length(t), spans: false}, 0, [])[:definitions]) #=> 2
+"""
 def document_of(p, i, acc)
   if i >= p[:n]
     if is_empty(acc)
@@ -996,6 +1303,12 @@ def document_of(p, i, acc)
   end
 end
 
+@doc """
+definition reads the one definition at `i`, choosing operation, fragment, extension or type system by its first token.
+
+    t = tokens("scalar D")
+    first(definition({toks: t, n: length(t), spans: false}, 0))[:kind] #=> :scalar
+"""
 def definition(p, i)
   t = tok(p, i)
   v = t[:value]
@@ -1016,6 +1329,14 @@ def definition(p, i)
   end
 end
 
+@doc """
+operation reads an operation at `i`, a bare selection set being an anonymous query.
+
+    t = tokens("query Q { a }")
+    p = {toks: t, n: length(t), spans: false}
+    first(operation(p, 0))[:name] #=> "Q"
+    second(operation(p, 0)) #=> 5
+"""
 def operation(p, i)
   if punct?(p, i, "{")
     sel = selection_set(p, i)
@@ -1066,6 +1387,12 @@ def operation(p, i)
   end
 end
 
+@doc """
+keyword_of turns an operation keyword into its operation type, nil for any other word.
+
+    keyword_of("mutation") #=> :mutation
+    keyword_of("type") #=> nil
+"""
 def keyword_of(v)
   case v
   when "query"
@@ -1077,6 +1404,14 @@ def keyword_of(v)
   end
 end
 
+@doc """
+variable_definition reads one `$name: Type = default` of an operation's variable list.
+
+    t = tokens("$x: Int = 1")
+    v = first(variable_definition({toks: t, n: length(t), spans: false}, 0))
+    v[:name] #=> "x"
+    v[:default] #=> {kind: :int, text: "1"}
+"""
 def variable_definition(p, i)
   j = expect(p, i, "$")
   name = name_at(p, j)
@@ -1094,6 +1429,12 @@ def variable_definition(p, i)
   ]
 end
 
+@doc """
+default_value reads the constant after `=` when one is there, and answers nil without moving otherwise.
+
+    t = tokens("= 1")
+    default_value({toks: t, n: length(t), spans: false}, 0) #=> [{kind: :int, text: "1"}, 2]
+"""
 def default_value(p, i)
   if punct?(p, i, "=")
     value(p, i + 1, true)
@@ -1102,6 +1443,12 @@ def default_value(p, i)
   end
 end
 
+@doc """
+type_ref reads a type reference: a name, a list of a type, either made non-null by `!`.
+
+    t = tokens("[Int]!")
+    first(type_ref({toks: t, n: length(t)}, 0)) #=> {kind: :non_null, of: {kind: :list_of, of: {kind: :named, name: "Int"}}}
+"""
 def type_ref(p, i)
   base = if punct?(p, i, "[")
     inner = type_ref(p, i + 1)
@@ -1116,10 +1463,22 @@ def type_ref(p, i)
   end
 end
 
+@doc """
+directives reads the directives at `i`, none being an empty list; `constant` refuses variables in their arguments.
+
+    t = tokens("@a @b(x: 1)")
+    map((d) -> d[:name], first(directives({toks: t, n: length(t), spans: false}, 0, true))) #=> ["a", "b"]
+"""
 def directives(p, i, constant)
   directives_from(p, i, constant, [])
 end
 
+@doc """
+directives_from is the loop of `directives`, adding each directive read to `acc`.
+
+    t = tokens("@a")
+    directives_from({toks: t, n: length(t), spans: false}, 0, false, []) #=> [[{name: "a", arguments: []}], 2]
+"""
 def directives_from(p, i, constant, acc)
   if punct?(p, i, "@")
     name = name_at(p, i + 1)
@@ -1135,10 +1494,22 @@ def directives_from(p, i, constant, acc)
   end
 end
 
+@doc """
+arguments reads a parenthesized argument list when one opens at `i`, and an empty list otherwise.
+
+    t = tokens("(x: 1)")
+    arguments({toks: t, n: length(t), spans: false}, 0, false) #=> [[{name: "x", value: {kind: :int, text: "1"}}], 5]
+"""
 def arguments(p, i, constant)
   optional_list(p, i, "(", (q, j) -> argument(q, j, constant), ")")
 end
 
+@doc """
+argument reads one `name: value` argument.
+
+    t = tokens("x: true")
+    argument({toks: t, n: length(t), spans: false}, 0, false) #=> [{name: "x", value: {kind: :boolean, value: true}}, 3]
+"""
 def argument(p, i, constant)
   name = name_at(p, i)
   j = expect(p, i + 1, ":")
@@ -1146,6 +1517,14 @@ def argument(p, i, constant)
   [mark(p, i, {name:, value: first(v)}), second(v)]
 end
 
+@doc """
+value reads one input value at `i`; when `constant` is true a variable is a parse error, as in a default or a schema directive.
+
+    t = tokens("[1, B]")
+    first(value({toks: t, n: length(t)}, 0, true)) #=> {kind: :list, items: [{kind: :int, text: "1"}, {kind: :enum, name: "B"}]}
+    v = tokens("$x")
+    raised(() -> value({toks: v, n: length(v)}, 0, true)) #=> :parse_error
+"""
 def value(p, i, constant)
   t = tok(p, i)
   k = t[:kind]
@@ -1180,6 +1559,12 @@ def value(p, i, constant)
   end
 end
 
+@doc """
+object_field reads one `name: value` field of an input object value.
+
+    t = tokens("a: null")
+    object_field({toks: t, n: length(t)}, 0, true) #=> [{name: "a", value: {kind: :null}}, 3]
+"""
 def object_field(p, i, constant)
   name = name_at(p, i)
   j = expect(p, i + 1, ":")
@@ -1187,10 +1572,22 @@ def object_field(p, i, constant)
   [{name:, value: first(v)}, second(v)]
 end
 
+@doc """
+selection_set reads a braced, non-empty list of selections.
+
+    t = tokens("{ a }")
+    second(selection_set({toks: t, n: length(t), spans: false}, 0)) #=> 3
+"""
 def selection_set(p, i)
   one_or_more(p, i, "{", selection, "}")
 end
 
+@doc """
+selection reads one selection at `i`: a field, a fragment spread or an inline fragment.
+
+    t = tokens("... on T { a }")
+    first(selection({toks: t, n: length(t), spans: false}, 0))[:kind] #=> :inline
+"""
 def selection(p, i)
   if punct?(p, i, "...")
     if word?(p, i + 1, "on") or punct?(p, i + 1, "{") or punct?(p, i + 1, "@")
@@ -1203,12 +1600,24 @@ def selection(p, i)
   end
 end
 
+@doc """
+spread reads a named fragment spread `...Name` and its directives.
+
+    t = tokens("...F @d")
+    first(spread({toks: t, n: length(t), spans: false}, 0)) #=> {kind: :spread, name: "F", directives: [{name: "d", arguments: []}]}
+"""
 def spread(p, i)
   name = name_at(p, i + 1)
   dirs = directives(p, i + 2, false)
   [mark(p, i, {kind: :spread, name:, directives: first(dirs)}), second(dirs)]
 end
 
+@doc """
+inline_fragment reads `... on Type { ... }`, the type condition being optional.
+
+    t = tokens("... on T { a }")
+    first(inline_fragment({toks: t, n: length(t), spans: false}, 0))[:on] #=> "T"
+"""
 def inline_fragment(p, i)
   on = if word?(p, i + 1, "on")
     name_at(p, i + 2)
@@ -1230,6 +1639,14 @@ def inline_fragment(p, i)
   ]
 end
 
+@doc """
+field reads one field selection: its alias, name, arguments, directives and sub-selections.
+
+    t = tokens("x: a(n: 1)")
+    f = first(field({toks: t, n: length(t), spans: false}, 0))
+    f[:alias] #=> "x"
+    f[:name] #=> "a"
+"""
 def field(p, i)
   first_name = name_at(p, i)
   aliased = punct?(p, i + 1, ":")
@@ -1269,6 +1686,12 @@ def field(p, i)
   ]
 end
 
+@doc """
+fragment_definition reads `fragment Name on Type { ... }`, refusing a fragment named `on`.
+
+    t = tokens("fragment F on T { a }")
+    first(fragment_definition({toks: t, n: length(t), spans: false}, 0))[:on] #=> "T"
+"""
 def fragment_definition(p, i)
   name = name_at(p, i + 1)
   if name == "on"
@@ -1294,6 +1717,12 @@ def fragment_definition(p, i)
   ]
 end
 
+@doc """
+type_system reads one type system definition at `i` and attaches the description that came before it.
+
+    t = tokens("scalar D")
+    first(type_system({toks: t, n: length(t), spans: false}, 0, "d")) #=> {kind: :scalar, name: "D", directives: [], description: "d", extend: false}
+"""
 def type_system(p, i, description)
   v = tok(p, i)[:value]
   if tok(p, i)[:kind] != :name
@@ -1313,6 +1742,12 @@ def type_system(p, i, description)
   ]
 end
 
+@doc """
+extension reads the definition after `extend`, refusing one that adds nothing.
+
+    t = tokens("type T @k")
+    first(extension({toks: t, n: length(t), spans: false}, 0))[:extend] #=> true
+"""
 def extension(p, i)
   v = tok(p, i)[:value]
   if v == "directive" or tok(p, i)[:kind] != :name
@@ -1326,6 +1761,12 @@ def extension(p, i)
   [mark(p, i, assoc(dissoc(node, :description), :extend, true)), second(got)]
 end
 
+@doc """
+extends_something? is true when an extension node adds at least one directive, operation, interface, field, member or value.
+
+    extends_something?({kind: :scalar, directives: []}) #=> false
+    extends_something?({kind: :object, fields: [{name: "a"}]}) #=> true
+"""
 def extends_something?(node)
   any?(
     (k) -> not is_empty(get(node, k)),
@@ -1336,6 +1777,12 @@ def extends_something?(node)
   )
 end
 
+@doc """
+type_body reads the body of a type system definition whose keyword `v` sits at `i`.
+
+    t = tokens("enum E { A }")
+    first(type_body({toks: t, n: length(t), spans: false}, 0, "enum"))[:kind] #=> :enum
+"""
 def type_body(p, i, v)
   if v == "schema"
     schema_definition(p, i)
@@ -1364,6 +1811,12 @@ def type_body(p, i, v)
   end
 end
 
+@doc """
+schema_definition reads `schema { query: Q ... }`, the root operation types a schema names.
+
+    t = tokens("schema { query: Q }")
+    first(schema_definition({toks: t, n: length(t), spans: false}, 0))[:operations] #=> [{operation: :query, type: "Q"}]
+"""
 def schema_definition(p, i)
   dirs = directives(p, i + 1, true)
   ops = optional_list(p, second(dirs), "{", root_operation, "}")
@@ -1373,6 +1826,12 @@ def schema_definition(p, i)
   ]
 end
 
+@doc """
+root_operation reads one `query: Type` entry of a schema definition.
+
+    t = tokens("query: Q")
+    root_operation({toks: t, n: length(t)}, 0) #=> [{operation: :query, type: "Q"}, 3]
+"""
 def root_operation(p, i)
   v = tok(p, i)[:value]
   if tok(p, i)[:kind] != :name or keyword_of(v).nil?
@@ -1382,6 +1841,12 @@ def root_operation(p, i)
   [{operation: keyword_of(v), type: name_at(p, j)}, j + 1]
 end
 
+@doc """
+object_like reads an object type or an interface, which share one shape: interfaces, directives and fields.
+
+    t = tokens("interface I { a: Int }")
+    first(object_like({toks: t, n: length(t), spans: false}, 0, "interface"))[:kind] #=> :interface
+"""
 def object_like(p, i, v)
   name = name_at(p, i + 1)
   ifaces = if word?(p, i + 2, "implements")
@@ -1407,6 +1872,12 @@ def object_like(p, i, v)
   ]
 end
 
+@doc """
+separated_names reads names joined by `sep`, a leading `sep` allowed, as in `implements & A & B`.
+
+    t = tokens("& A & B")
+    separated_names({toks: t, n: length(t)}, 0, "&") #=> [["A", "B"], 4]
+"""
 def separated_names(p, i, sep)
   j = if punct?(p, i, sep)
     i + 1
@@ -1416,6 +1887,12 @@ def separated_names(p, i, sep)
   more_names(p, j + 1, sep, [name_at(p, j)])
 end
 
+@doc """
+more_names is the loop of `separated_names`, adding each name after a `sep` to `acc`.
+
+    t = tokens("| B | C")
+    more_names({toks: t, n: length(t)}, 0, "|", ["A"]) #=> [["A", "B", "C"], 4]
+"""
 def more_names(p, i, sep, acc)
   if punct?(p, i, sep)
     more_names(p, i + 2, sep, append(acc, [name_at(p, i + 1)]))
@@ -1424,6 +1901,14 @@ def more_names(p, i, sep, acc)
   end
 end
 
+@doc """
+field_definition reads one field of an object or interface type, with its description and arguments.
+
+    t = tokens("\"d\" a(x: Int): Int")
+    f = first(field_definition({toks: t, n: length(t), spans: false}, 0))
+    f[:description] #=> "d"
+    f[:type] #=> {kind: :named, name: "Int"}
+"""
 def field_definition(p, i)
   desc = description_at(p, i)
   j = second(desc)
@@ -1448,6 +1933,13 @@ def field_definition(p, i)
   ]
 end
 
+@doc """
+description_at reads the description string at `i` when there is one, and nil without moving otherwise.
+
+    t = tokens("\"d\" a")
+    description_at({toks: t, n: length(t)}, 0) #=> ["d", 1]
+    description_at({toks: t, n: length(t)}, 1) #=> [nil, 1]
+"""
 def description_at(p, i)
   t = tok(p, i)
   if t[:kind] == :string
@@ -1457,6 +1949,12 @@ def description_at(p, i)
   end
 end
 
+@doc """
+input_value reads one argument definition or input field: description, name, type, default and directives.
+
+    t = tokens("x: Int = 1")
+    first(input_value({toks: t, n: length(t), spans: false}, 0))[:default] #=> {kind: :int, text: "1"}
+"""
 def input_value(p, i)
   desc = description_at(p, i)
   j = second(desc)
@@ -1481,6 +1979,12 @@ def input_value(p, i)
   ]
 end
 
+@doc """
+union_definition reads `union U = A | B`, its members optional so an extension can add directives alone.
+
+    t = tokens("union U = A | B")
+    union_definition({toks: t, n: length(t), spans: false}, 0) #=> [{kind: :union, name: "U", directives: [], members: ["A", "B"]}, 6]
+"""
 def union_definition(p, i)
   name = name_at(p, i + 1)
   dirs = directives(p, i + 2, true)
@@ -1495,6 +1999,13 @@ def union_definition(p, i)
   ]
 end
 
+@doc """
+enum_definition reads `enum E { A B }` and its values.
+
+    t = tokens("enum E { A B }")
+    e = first(enum_definition({toks: t, n: length(t), spans: false}, 0))
+    map((v) -> v[:name], e[:values]) #=> ["A", "B"]
+"""
 def enum_definition(p, i)
   name = name_at(p, i + 1)
   dirs = directives(p, i + 2, true)
@@ -1505,6 +2016,14 @@ def enum_definition(p, i)
   ]
 end
 
+@doc """
+enum_value reads one enum value, refusing `true`, `false` and `null` as its name.
+
+    t = tokens("A @deprecated")
+    second(enum_value({toks: t, n: length(t), spans: false}, 0)) #=> 3
+    u = tokens("null")
+    raised(() -> enum_value({toks: u, n: 1, spans: false}, 0)) #=> :parse_error
+"""
 def enum_value(p, i)
   desc = description_at(p, i)
   j = second(desc)
@@ -1519,6 +2038,14 @@ def enum_value(p, i)
   ]
 end
 
+@doc """
+directive_definition reads `directive @name(...) repeatable on LOCATION | ...`, refusing a location GraphQL does not define.
+
+    t = tokens("directive @k repeatable on FIELD | QUERY")
+    d = first(directive_definition({toks: t, n: length(t), spans: false}, 0))
+    d[:repeatable] #=> true
+    d[:locations] #=> ["FIELD", "QUERY"]
+"""
 def directive_definition(p, i)
   j = expect(p, i + 1, "@")
   name = name_at(p, j)
@@ -1547,14 +2074,31 @@ def directive_definition(p, i)
   ]
 end
 
+@doc """
+pad is the indentation of nesting depth `ind`, two spaces a level.
+
+    pad(2) #=> "    "
+"""
 def pad(ind)
   repeated("  ", ind)
 end
 
+@doc """
+deeper is the next nesting depth, staying nil for the compact one-line layout.
+
+    deeper(1) #=> 2
+    deeper(nil) #=> nil
+"""
 def deeper(ind)
   maybe(ind, nil, (i) -> i + 1)
 end
 
+@doc """
+nl is the break between items: a newline and indent at depth `ind`, or in the compact layout a space when `space` asks for one.
+
+    nl(1, false) #=> "\n  "
+    nl(nil, true) #=> " "
+"""
 def nl(ind, space)
   if ind.nil?
     if space
@@ -1567,6 +2111,12 @@ def nl(ind, space)
   end
 end
 
+@doc """
+commas writes items between `open` and `close`, comma separated, one per line with a trailing comma when indented.
+
+    commas(nil, "(", ")", ["a", "b"], (_i, x) -> x) #=> "(a, b)"
+    commas(0, "[", "]", ["a"], (_i, x) -> x) #=> "[\n  a,\n]"
+"""
 def commas(ind, open, close, items, f)
   if is_empty(items)
     "#{open}#{close}"
@@ -1582,6 +2132,12 @@ def commas(ind, open, close, items, f)
   end
 end
 
+@doc """
+curly writes items as a braced block, one per line when indented and space separated when compact.
+
+    curly(nil, ["a", "b"], (_i, x) -> x) #=> "{ a b }"
+    curly(0, ["a"], (_i, x) -> x) #=> "{\n  a\n}"
+"""
 def curly(ind, items, f)
   if is_empty(items)
     "{}"
@@ -1592,6 +2148,12 @@ def curly(ind, items, f)
   end
 end
 
+@doc """
+control_chars pairs each control character a quoted string must escape, tab aside, with its code.
+
+    length(control_chars) #=> 31
+    second(first(control_chars)) #=> 0
+"""
 def control_chars()
   map(
     (k) -> [json_read("\"\\u#{hex4(k)}\""), k],
@@ -1599,6 +2161,12 @@ def control_chars()
   )
 end
 
+@doc """
+quoted writes text as a one-line GraphQL string, escaping quotes, backslashes and control characters.
+
+    quoted("a\"b") #=> "\"a\\\"b\""
+    quoted("x\ny") #=> "\"x\\ny\""
+"""
 def quoted(text)
   escaped = replace(replace(text, "\\", "\\\\"), "\"", "\\\"")
   named = [
@@ -1626,6 +2194,11 @@ def quoted(text)
   "\"#{escaped}\""
 end
 
+@doc """
+byte_length counts the UTF-8 bytes of text, the measure apollo-compiler uses to break a long block string.
+
+    byte_length("aé") #=> 3
+"""
 def byte_length(text)
   reduce(
     fn(n, c)
@@ -1644,6 +2217,12 @@ def byte_length(text)
   )
 end
 
+@doc """
+block_able? is true when text survives a round trip as a block string: no carriage return, no blank first or last line, no common indent.
+
+    block_able?("a\nb") #=> true
+    block_able?(" a") #=> false
+"""
 def block_able?(text)
   lines = split(text, line_break)
   if contains?(text, "\r")
@@ -1658,6 +2237,12 @@ def block_able?(text)
   end
 end
 
+@doc """
+block writes text as a block string, on its own lines at depth `ind` when it is long or spans lines.
+
+    block(0, "hi") #=> "\"\"\"hi\"\"\""
+    block(0, "a\nb") #=> "\"\"\"\na\nb\n\"\"\""
+"""
 def block(ind, text)
   multi = contains?(text, line_break) or
     byte_length(text) > 70 or
@@ -1681,6 +2266,12 @@ def block(ind, text)
   end
 end
 
+@doc """
+string_text picks the block or quoted form for a string the way apollo-compiler does: block for a description or a multi-line value that allows it.
+
+    string_text(0, true, "d") #=> "\"\"\"d\"\"\""
+    string_text(nil, true, "d") #=> "\"d\""
+"""
 def string_text(ind, described, text)
   if ind != nil and
       (described or contains?(text, line_break)) and
@@ -1691,6 +2282,12 @@ def string_text(ind, described, text)
   end
 end
 
+@doc """
+description_text writes a description followed by its break, or nothing when there is none.
+
+    description_text(0, "d") #=> "\"\"\"d\"\"\"\n"
+    description_text(0, nil) #=> ""
+"""
 def description_text(ind, d)
   if d.nil?
     ""
@@ -1699,6 +2296,11 @@ def description_text(ind, d)
   end
 end
 
+@doc """
+type_text writes a type reference back as GraphQL.
+
+    type_text({kind: :non_null, of: {kind: :list_of, of: {kind: :named, name: "Int"}}}) #=> "[Int]!"
+"""
 def type_text(t)
   k = t[:kind]
   if k == :named
@@ -1710,6 +2312,11 @@ def type_text(t)
   end
 end
 
+@doc """
+value_text writes an input value back as GraphQL at depth `ind`.
+
+    value_text(nil, {kind: :list, items: [{kind: :int, text: "1"}, {kind: :var, name: "x"}]}) #=> "[1, $x]"
+"""
 def value_text(ind, v)
   k = v[:kind]
   if k == :null
@@ -1741,6 +2348,12 @@ def value_text(ind, v)
   end
 end
 
+@doc """
+arguments_text writes a field's or directive's arguments on one line, nothing when there are none.
+
+    arguments_text([{name: "x", value: {kind: :int, text: "1"}}]) #=> "(x: 1)"
+    arguments_text([]) #=> ""
+"""
 def arguments_text(args)
   if is_empty(args)
     ""
@@ -1755,10 +2368,21 @@ def arguments_text(args)
   end
 end
 
+@doc """
+directives_text writes directives, each after a space, to follow the thing they annotate.
+
+    directives_text([{name: "skip", arguments: [{name: "if", value: {kind: :boolean, value: true}}]}]) #=> " @skip(if: true)"
+"""
 def directives_text(dirs)
   join(map((d) -> " @#{d[:name]}#{arguments_text(d[:arguments])}", dirs), "")
 end
 
+@doc """
+default_text writes ` = value` for a default, nothing when there is none.
+
+    default_text(nil, {kind: :null}) #=> " = null"
+    default_text(nil, nil) #=> ""
+"""
 def default_text(ind, dv)
   if dv.nil?
     ""
@@ -1767,6 +2391,12 @@ def default_text(ind, dv)
   end
 end
 
+@doc """
+variables_text writes an operation's variable definitions on one line, nothing when there are none.
+
+    op = first(parse("query($x: Int = 1) { a }")[:definitions])
+    variables_text(op[:variables]) #=> "($x: Int = 1)"
+"""
 def variables_text(vars)
   if is_empty(vars)
     ""
@@ -1783,10 +2413,21 @@ def variables_text(vars)
   end
 end
 
+@doc """
+input_value_text writes one argument definition or input field with its description, default and directives.
+
+    input_value_text(nil, {name: "x", description: nil, type: {kind: :named, name: "Int"}, default: nil, directives: []}) #=> "x: Int"
+"""
 def input_value_text(ind, x)
   "#{description_text(ind, x[:description])}#{x[:name]}: #{type_text(x[:type])}#{default_text(ind, x[:default])}#{directives_text(x[:directives])}"
 end
 
+@doc """
+arguments_definition_text writes a field's argument definitions, one per line only when one carries a description or directive.
+
+    t = first(parse("type T { a(x: Int): Int }")[:definitions])
+    arguments_definition_text(0, first(t[:fields])[:arguments]) #=> "(x: Int)"
+"""
 def arguments_definition_text(ind, args)
   if is_empty(args)
     ""
@@ -1800,14 +2441,31 @@ def arguments_definition_text(ind, args)
   end
 end
 
+@doc """
+field_definition_text writes one field of an object or interface type.
+
+    t = first(parse("type T { a(x: Int): Int }")[:definitions])
+    field_definition_text(0, first(t[:fields])) #=> "a(x: Int): Int"
+"""
 def field_definition_text(ind, f)
   "#{description_text(ind, f[:description])}#{f[:name]}#{arguments_definition_text(ind, f[:arguments])}: #{type_text(f[:type])}#{directives_text(f[:directives])}"
 end
 
+@doc """
+enum_value_text writes one enum value with its description and directives.
+
+    enum_value_text(0, {name: "A", description: nil, directives: []}) #=> "A"
+"""
 def enum_value_text(ind, v)
   "#{description_text(ind, v[:description])}#{v[:name]}#{directives_text(v[:directives])}"
 end
 
+@doc """
+selection_text writes one field, spread or inline fragment with everything nested under it.
+
+    op = first(parse("{ x: a(n: 1) { b } }")[:definitions])
+    selection_text(nil, first(op[:selections])) #=> "x: a(n: 1) { b }"
+"""
 def selection_text(ind, sel)
   k = sel[:kind]
   if k == :field
@@ -1829,6 +2487,12 @@ def selection_text(ind, sel)
   end
 end
 
+@doc """
+selections_suffix writes a field's sub-selections after a space, nothing for a leaf field.
+
+    selections_suffix(nil, first(parse("{ a }")[:definitions])[:selections]) #=> " { a }"
+    selections_suffix(nil, []) #=> ""
+"""
 def selections_suffix(ind, sels)
   if is_empty(sels)
     ""
@@ -1837,6 +2501,12 @@ def selections_suffix(ind, sels)
   end
 end
 
+@doc """
+block_suffix writes a definition's braced members with `f` after a space, nothing when there are none.
+
+    block_suffix(nil, ["a"], (_i, x) -> x) #=> " { a }"
+    block_suffix(nil, [], (_i, x) -> x) #=> ""
+"""
 def block_suffix(ind, items, f)
   if is_empty(items)
     ""
@@ -1845,6 +2515,12 @@ def block_suffix(ind, items, f)
   end
 end
 
+@doc """
+extend_prefix starts a type system definition: `extend ` for an extension, its description otherwise.
+
+    extend_prefix(0, {extend: true}) #=> "extend "
+    extend_prefix(0, {extend: false, description: nil}) #=> ""
+"""
 def extend_prefix(ind, d)
   if d[:extend]
     "extend "
@@ -1853,6 +2529,12 @@ def extend_prefix(ind, d)
   end
 end
 
+@doc """
+definition_text writes one definition; a plain query writes as its bare selection set only when it leads the document.
+
+    definition_text(nil, first(parse("type T { a: Int }")[:definitions]), true) #=> "type T { a: Int }"
+    definition_text(nil, first(parse("query { a }")[:definitions]), false) #=> "query { a }"
+"""
 def definition_text(ind, d, leading)
   k = d[:kind]
   dirs = directives_text(d[:directives])
@@ -1918,6 +2600,12 @@ def definition_text(ind, d, leading)
   end
 end
 
+@doc """
+document_text writes every definition of a document, a blank line apart, or on one line when compact.
+
+    document_text(nil, parse("{ a } { b }")) #=> "{ a } query { b }"
+    document_text(0, parse("scalar D")) #=> "scalar D\n"
+"""
 def document_text(ind, doc)
   defs = doc[:definitions]
   texts = map((i) -> definition_text(ind, defs[i], i == 0), range(length(defs)))
@@ -1932,6 +2620,9 @@ end
 
 @doc """
 parse: GraphQL SDL or operation text to a document tree.
+
+    first(parse("query Q { a }")[:definitions])[:name] #=> "Q"
+    raised(() -> parse("{ a ")) #=> :parse_error
 """
 def parse(text, opts?)
   opts = checked(opts, [:spans])
@@ -1962,6 +2653,11 @@ def render(document, format?, opts?)
   end
 end
 
+@doc """
+builtin_sdl is the SDL every schema holds without writing it: the five scalars, the four builtin directives and the introspection types.
+
+    first(parse(builtin_sdl)[:definitions])[:name] #=> "Int"
+"""
 def builtin_sdl()
   join(
     [
@@ -1987,18 +2683,39 @@ def builtin_sdl()
   )
 end
 
+@doc """
+finding is one validation result: the rule broken, a message, and the node's position when the parse kept spans.
+
+    finding("type-unique", "the type T is defined more than once", {at: [1, 2]}) #=> {rule: "type-unique", message: "the type T is defined more than once", at: [1, 2]}
+"""
 def finding(rule, message, node)
   {rule:, message:, at: node[:at]}
 end
 
+@doc """
+type_kinds lists the kinds of named type a schema can define.
+
+    type_kinds #=> [:scalar, :object, :interface, :union, :enum, :input]
+"""
 def type_kinds()
   %i[scalar object interface union enum input]
 end
 
+@doc """
+definitions_of is a document's definitions, none for a missing schema.
+
+    definitions_of(nil) #=> []
+    length(definitions_of(parse("scalar D"))) #=> 1
+"""
 def definitions_of(schema)
   maybe(schema, [], (s) -> s[:definitions])
 end
 
+@doc """
+merged folds an extension into its base definition, appending each member list the extension carries.
+
+    merged({fields: [1], directives: []}, {fields: [2]}) #=> {fields: [1, 2], directives: []}
+"""
 def merged(base, ext)
   reduce(
     (acc, k) -> assoc(acc, k, append(get(acc, k), get(ext, k))),
@@ -2010,6 +2727,14 @@ def merged(base, ext)
   )
 end
 
+@doc """
+add_definition indexes one type, directive or schema definition, noting a finding when its name is already taken.
+
+    st = {types: {}, directives: {}, schema: nil, problems: []}
+    d = first(parse("scalar D")[:definitions])
+    add_definition(st, d)[:types]["D"][:kind] #=> :scalar
+    map((f) -> f[:rule], add_definition(add_definition(st, d), d)[:problems]) #=> ["type-unique"]
+"""
 def add_definition(state, d)
   k = d[:kind]
   name = d[:name]
@@ -2049,6 +2774,13 @@ def add_definition(state, d)
   end
 end
 
+@doc """
+add_extension merges an extension into the type it extends, noting a finding when that type is missing or of another kind.
+
+    st = {types: {}, directives: {}, schema: nil, schema_ext: [], problems: []}
+    ext = first(parse("extend type T @k")[:definitions])
+    map((f) -> f[:rule], add_extension(st, ext)[:problems]) #=> ["extension-orphan"]
+"""
 def add_extension(state, d)
   k = d[:kind]
   if k == :schema
@@ -2084,14 +2816,30 @@ def add_extension(state, d)
   end
 end
 
+@doc """
+note records a finding in the indexing state.
+
+    note({problems: []}, {rule: "r"}) #=> {problems: [{rule: "r"}]}
+"""
 def note(state, f)
   push_at(state, :problems, f)
 end
 
+@doc """
+builtins are the builtin definitions, each flagged builtin so a user may redefine a builtin directive.
+
+    length(builtins) #=> 17
+    first(builtins)[:builtin] #=> true
+"""
 def builtins()
   map((d) -> assoc(d, :builtin, true), parse(builtin_sdl)[:definitions])
 end
 
+@doc """
+implicit_roots finds the root operation types by their default names when a schema declares no `schema` block.
+
+    implicit_roots({"Query" => {kind: :object}}) #=> [{operation: :query, type: "Query"}]
+"""
 def implicit_roots(types)
   filter(
     (o) -> o[:type] != nil,
@@ -2112,6 +2860,11 @@ def implicit_roots(types)
   )
 end
 
+@doc """
+schema_index indexes a schema document's types, directives and roots, with the findings met while indexing.
+
+    schema_index(parse("type Query { a: Int }"))[:roots] #=> {query: "Query"}
+"""
 def schema_index(schema)
   defs = definitions_of(schema)
   user = filter((d) -> d[:kind] != :operation and d[:kind] != :fragment, defs)
@@ -2171,10 +2924,20 @@ def schema_index(schema)
   )
 end
 
+@doc """
+type_named is the definition of the type `name` in an indexed schema, nil when it has none.
+
+    type_named(schema_of("type Query { a: Int }"), "Query")[:kind] #=> :object
+"""
 def type_named(s, name)
   get(s[:types], name)
 end
 
+@doc """
+base_name is the named type under any list and non-null wrapping.
+
+    base_name({kind: :non_null, of: {kind: :list_of, of: {kind: :named, name: "T"}}}) #=> "T"
+"""
 def base_name(t)
   if t[:kind] == :named
     t[:name]
@@ -2197,30 +2960,69 @@ def kind_in(types, name)
   end
 end
 
+@doc """
+kind_of is the kind of the type `name` in an indexed schema, nil when it has none.
+
+    kind_of(schema_of("type Query { a: Int }"), "Int") #=> :scalar
+"""
 def kind_of(s, name)
   kind_in(s[:types], name)
 end
 
+@doc """
+input_kind? is true for the kinds an argument, input field or variable may have.
+
+    input_kind?(:input) #=> true
+    input_kind?(:object) #=> false
+"""
 def input_kind?(k)
   member?(k, %i[scalar enum input])
 end
 
+@doc """
+output_kind? is true for the kinds a field may have.
+
+    output_kind?(:union) #=> true
+    output_kind?(:input) #=> false
+"""
 def output_kind?(k)
   member?(k, %i[scalar object interface union enum])
 end
 
+@doc """
+composite? is true for the kinds that have fields to select.
+
+    composite?(:interface) #=> true
+    composite?(:enum) #=> false
+"""
 def composite?(k)
   member?(k, %i[object interface union])
 end
 
+@doc """
+by_name finds the item named `name` in a list of named things, nil when none is.
+
+    by_name([{name: "a"}, {name: "b"}], "b") #=> {name: "b"}
+"""
 def by_name(xs, name)
   find(xs, (x) -> x[:name] == name)
 end
 
+@doc """
+duplicates lists, once each, the names that occur more than once.
+
+    duplicates(["a", "b", "a"]) #=> ["a"]
+"""
 def duplicates(names)
   distinct(filter((n) -> length(filter((m) -> m == n, names)) > 1, names))
 end
 
+@doc """
+schema_problems gathers every finding of an indexed schema: indexing, each definition and the roots.
+
+    s = schema_of("type Query { a: Nope }")
+    map((f) -> f[:message], schema_problems(s)) #=> ["Query.a names the undefined type Nope"]
+"""
 def schema_problems(s)
   user = s[:user]
   append(
@@ -2230,6 +3032,12 @@ def schema_problems(s)
   )
 end
 
+@doc """
+root_problems finds each root operation type that is not an object type.
+
+    s = schema_of("schema { query: E } enum E { A }")
+    map((f) -> f[:message], root_problems(s)) #=> ["the query root E is not an object type"]
+"""
 def root_problems(s)
   retsu::flat_map(
     map_entries(s[:roots]),
@@ -2252,6 +3060,12 @@ def root_problems(s)
   )
 end
 
+@doc """
+known_type_problems finds a type reference whose named type the schema does not define.
+
+    s = schema_of("type Query { a: Int }")
+    map((f) -> f[:rule], known_type_problems(s, {kind: :named, name: "Z"}, {}, "Query.z")) #=> ["type-known"]
+"""
 def known_type_problems(s, t, node, what)
   name = base_name(t)
   if type_named(s, name).nil?
@@ -2261,6 +3075,11 @@ def known_type_problems(s, t, node, what)
   end
 end
 
+@doc """
+location_of names the directive location a type system definition sits at.
+
+    location_of({kind: :input}) #=> "INPUT_OBJECT"
+"""
 def location_of(d)
   case d[:kind]
   when :schema
@@ -2280,6 +3099,13 @@ def location_of(d)
   end
 end
 
+@doc """
+definition_problems finds the faults of one type system definition: its directives and its members.
+
+    s = schema_of("type Query { a: Int }")
+    d = first(parse("type Q @nope { a: Int }")[:definitions])
+    map((f) -> f[:rule], definition_problems(s, d)) #=> ["directive-known"]
+"""
 def definition_problems(s, d)
   k = d[:kind]
   if k == :directive
@@ -2293,6 +3119,13 @@ def definition_problems(s, d)
   end
 end
 
+@doc """
+member_problems finds the faults of a definition's members: fields, implemented interfaces, union members, enum values or input fields.
+
+    s = schema_of("type Query { a: Int } enum E { A }")
+    d = first(parse("union Y = E")[:definitions])
+    map((f) -> f[:message], member_problems(s, d)) #=> ["the union Y lists E, which is not an object type"]
+"""
 def member_problems(s, d)
   k = d[:kind]
   name = d[:name]
@@ -2348,6 +3181,13 @@ def member_problems(s, d)
   end
 end
 
+@doc """
+field_definition_problems finds the faults of one field definition: an undefined or input type, its directives and its arguments.
+
+    s = schema_of("type Query { a: Int } input I { n: Int }")
+    f = first(first(parse("type Q { a: I }")[:definitions])[:fields])
+    map((x) -> x[:message], field_definition_problems(s, f, "Q")) #=> ["Q.a has the input type I"]
+"""
 def field_definition_problems(s, f, owner)
   where = "#{owner}.#{f[:name]}"
   known = known_type_problems(s, f[:type], f, where)
@@ -2375,6 +3215,13 @@ def field_definition_problems(s, f, owner)
   )
 end
 
+@doc """
+input_value_problems finds the faults of one argument definition or input field: an undefined or output type, a default that does not fit when defaults are checked, and its directives.
+
+    s = schema_of("type Query { a: Int } type T { c: Int }")
+    a = {name: "x", type: {kind: :named, name: "T"}, default: nil, directives: []}
+    map((f) -> f[:message], input_value_problems(s, a, "ARGUMENT_DEFINITION", "Query.b")) #=> ["Query.b(x) has the output type T"]
+"""
 def input_value_problems(s, a, location, owner)
   where = "#{owner}(#{a[:name]})"
   known = known_type_problems(s, a[:type], a, where)
@@ -2404,11 +3251,24 @@ def input_value_problems(s, a, location, owner)
   )
 end
 
+@doc """
+int32? is true when an Int literal fits the 32-bit signed range GraphQL's Int allows.
+
+    int32?("7") #=> true
+    int32?("2147483648") #=> false
+"""
 def int32?(text)
   n = to_int(text)
   n != nil and n >= -2_147_483_648 and n <= 2_147_483_647
 end
 
+@doc """
+value_problems finds where an input value does not fit the type it is given for; a variable is judged elsewhere, by its position.
+
+    s = schema_of("type Query { a: Int }")
+    t = {kind: :non_null, of: {kind: :named, name: "Int"}}
+    map((f) -> f[:message], value_problems(s, {kind: :null}, t, {}, "Query.b(x)", {})) #=> ["Query.b(x) cannot be null"]
+"""
 def value_problems(s, v, t, node, where, vars)
   k = v[:kind]
   if k == :var
@@ -2435,6 +3295,12 @@ def value_problems(s, v, t, node, where, vars)
   end
 end
 
+@doc """
+named_value_problems judges a value against one named type: the builtin scalars by their literal kinds, an enum by its values, an input object by its fields.
+
+    s = schema_of("type Query { a: Int }")
+    map((f) -> f[:message], named_value_problems(s, {kind: :string, value: "s"}, "Int", {}, "Query.b(x)", {})) #=> ["Query.b(x) takes a Int, not \"s\""]
+"""
 def named_value_problems(s, v, name, node, where, vars)
   k = v[:kind]
   d = type_named(s, name)
@@ -2496,10 +3362,21 @@ def named_value_problems(s, v, name, node, where, vars)
   end
 end
 
+@doc """
+render_value writes a value on one line, as a finding quotes it.
+
+    render_value({kind: :list, items: [{kind: :enum, name: "A"}]}) #=> "[A]"
+"""
 def render_value(v)
   value_text(nil, v)
 end
 
+@doc """
+object_problems judges an input object value against its input type: unknown, missing required and repeated fields.
+
+    s = schema_of("type Query { a: Int } input I { n: Int! }")
+    map((f) -> f[:message], object_problems(s, {kind: :object, fields: []}, type_named(s, "I"), {}, "v", {})) #=> ["v is missing the required input field n"]
+"""
 def object_problems(s, v, d, node, where, vars)
   given = v[:fields]
   names = map((f) -> f[:name], given)
@@ -2558,6 +3435,13 @@ def object_problems(s, v, d, node, where, vars)
   append(unknown, missing, dups)
 end
 
+@doc """
+argument_problems judges the arguments given against those defined: unknown, ill-typed, missing required and repeated arguments.
+
+    s = schema_of("type Query { a: Int }")
+    defs = [{name: "x", type: {kind: :non_null, of: {kind: :named, name: "Int"}}, default: nil}]
+    map((f) -> f[:rule], argument_problems(s, [], defs, {}, "Query.b", {})) #=> ["argument-required"]
+"""
 def argument_problems(s, args, defs, node, where, vars)
   names = map((a) -> a[:name], args)
   given = retsu::flat_map(
@@ -2598,6 +3482,12 @@ def argument_problems(s, args, defs, node, where, vars)
   append(given, missing, dups)
 end
 
+@doc """
+directive_problems judges directives used at one location: undefined, misplaced, wrongly argued or repeated without being repeatable.
+
+    s = schema_of("type Query { a: Int }")
+    map((f) -> f[:message], directive_problems(s, [{name: "skip", arguments: []}], "FIELD", {}, nil)) #=> ["@skip needs the argument if"]
+"""
 def directive_problems(s, dirs, location, vars, _ctx)
   names = map((d) -> d[:name], dirs)
   each = retsu::flat_map(
@@ -2652,10 +3542,23 @@ def directive_problems(s, dirs, location, vars, _ctx)
   append(each, repeated)
 end
 
+@doc """
+string_type is the `String!` type the meta-field `__typename` has.
+
+    type_text(string_type) #=> "String!"
+"""
 def string_type()
   {kind: :non_null, of: {kind: :named, name: "String"}}
 end
 
+@doc """
+field_def finds the definition of field `name` on type `parent`, the introspection meta-fields included, nil when there is none.
+
+    s = schema_of("type Query { a: Int } type T { c: String }")
+    field_def(s, "T", "c", false)[:type] #=> {kind: :named, name: "String"}
+    field_def(s, "Query", "__typename", true)[:type] #=> {kind: :non_null, of: {kind: :named, name: "String"}}
+    field_def(s, "T", "zz", false) #=> nil
+"""
 def field_def(s, parent, name, is_root)
   d = type_named(s, parent)
   if name == "__typename"
@@ -2681,6 +3584,13 @@ def field_def(s, parent, name, is_root)
   end
 end
 
+@doc """
+possible_types lists the object types a value of type `name` can be: itself, a union's members, or an interface's implementers.
+
+    s = schema_of("type Query { a: Int } type T { c: Int } interface N { id: ID } type U implements N { id: ID } union X = T | U")
+    possible_types(s, "N") #=> ["U"]
+    possible_types(s, "X") #=> ["T", "U"]
+"""
 def possible_types(s, name)
   d = type_named(s, name)
   k = d[:kind]
@@ -2701,15 +3611,36 @@ def possible_types(s, name)
   end
 end
 
+@doc """
+overlap? is true when some object type is possible for both `a` and `b`, so a fragment on one can apply inside the other.
+
+    s = schema_of("type Query { a: Int } type T { c: Int } interface N { id: ID } type U implements N { id: ID } union X = T | U")
+    overlap?(s, "X", "N") #=> true
+    overlap?(s, "T", "N") #=> false
+"""
 def overlap?(s, a, b)
   bs = possible_types(s, b)
   any?((t) -> member?(t, bs), possible_types(s, a))
 end
 
+@doc """
+selection_problems gathers the findings of every selection in a set made on type `parent`.
+
+    ex = {s: schema_of("type Query { a: Int }"), frags: {}, root: "Query"}
+    sels = first(parse("{ zz }")[:definitions])[:selections]
+    map((f) -> f[:message], selection_problems(ex, sels, "Query", "q")) #=> ["Query has no field zz"]
+"""
 def selection_problems(ex, sels, parent, where)
   retsu::flat_map(sels, (sel) -> one_selection_problems(ex, sel, parent, where))
 end
 
+@doc """
+one_selection_problems judges one selection on type `parent`: a field, a spread of a known fragment that can apply, or an inline fragment on a composite type.
+
+    ex = {s: schema_of("type Query { a: Int }"), frags: {}, root: "Query"}
+    sel = first(first(parse("{ ...F }")[:definitions])[:selections])
+    map((f) -> f[:rule], one_selection_problems(ex, sel, "Query", "q")) #=> ["fragment-known"]
+"""
 def one_selection_problems(ex, sel, parent, where)
   s = ex[:s]
   k = sel[:kind]
@@ -2787,6 +3718,13 @@ def one_selection_problems(ex, sel, parent, where)
   end
 end
 
+@doc """
+field_problems judges one field selection: that it exists, its arguments and directives, and that it selects fields exactly when its type has them.
+
+    ex = {s: schema_of("type Query { b(x: Int!): T } type T { c: String }"), frags: {}, root: "Query"}
+    sel = first(first(parse("{ b(x: 1) }")[:definitions])[:selections])
+    map((f) -> f[:message], field_problems(ex, sel, "Query", "q")) #=> ["q.b is a T and needs a selection of its fields"]
+"""
 def field_problems(ex, sel, parent, where)
   s = ex[:s]
   name = sel[:name]
@@ -2827,6 +3765,11 @@ def field_problems(ex, sel, parent, where)
   end
 end
 
+@doc """
+spreads_in names every fragment spread in a selection set, however deep.
+
+    spreads_in(first(parse("{ ...A b { ...B } }")[:definitions])[:selections]) #=> ["A", "B"]
+"""
 def spreads_in(sels)
   retsu::flat_map(
     sels,
@@ -2841,6 +3784,13 @@ def spreads_in(sels)
   )
 end
 
+@doc """
+reachable names every fragment the names spread, directly or through other fragments, each once.
+
+    a = first(parse("fragment A on T { ...B }")[:definitions])
+    b = first(parse("fragment B on T { c }")[:definitions])
+    reachable({"A" => a, "B" => b}, ["A"], []) #=> ["A", "B"]
+"""
 def reachable(frags, names, seen)
   fresh = distinct(
     filter((n) -> not member?(n, seen) and get(frags, n) != nil, names)
@@ -2853,10 +3803,22 @@ def reachable(frags, names, seen)
   end
 end
 
+@doc """
+cyclic? is true when the fragment `name` spreads itself, directly or through others.
+
+    a = first(parse("fragment A on T { ...A }")[:definitions])
+    cyclic?({"A" => a}, "A") #=> true
+"""
 def cyclic?(frags, name)
   member?(name, reachable(frags, spreads_in(get(frags, name)[:selections]), []))
 end
 
+@doc """
+usages_in_value finds each variable a value uses, with the type expected where it sits and whether that place has a default.
+
+    t = {kind: :list_of, of: {kind: :named, name: "Int"}}
+    usages_in_value({kind: :list, items: [{kind: :var, name: "v"}]}, t, false) #=> [{name: "v", type: {kind: :named, name: "Int"}, default: false}]
+"""
 def usages_in_value(v, t, default_present)
   k = v[:kind]
   inner = if t.nil?
@@ -2880,6 +3842,11 @@ def usages_in_value(v, t, default_present)
   end
 end
 
+@doc """
+usages_in_arguments finds the variables used in arguments, typed by the argument definitions when they are known.
+
+    usages_in_arguments([{name: "x", value: {kind: :var, name: "v"}}], nil) #=> [{name: "v", type: nil, default: false}]
+"""
 def usages_in_arguments(args, defs)
   retsu::flat_map(
     args,
@@ -2899,6 +3866,13 @@ def usages_in_arguments(args, defs)
   )
 end
 
+@doc """
+usages_in_directives finds the variables used in directive arguments, typed by the schema's directive definitions.
+
+    s = schema_of("type Query { a: Int }")
+    d = {name: "skip", arguments: [{name: "if", value: {kind: :var, name: "f"}}]}
+    first(usages_in_directives(s, [d]))[:type] #=> {kind: :non_null, of: {kind: :named, name: "Boolean"}}
+"""
 def usages_in_directives(s, dirs)
   retsu::flat_map(
     dirs,
@@ -2916,6 +3890,13 @@ def usages_in_directives(s, dirs)
   )
 end
 
+@doc """
+usages finds every variable a selection set uses, following fragment spreads once each, with the type expected at each use.
+
+    ex = {s: schema_of("type Query { b(x: Int!): T } type T { c: String }"), frags: {}, root: "Query"}
+    sels = first(parse("{ b(x: $v) { c } }")[:definitions])[:selections]
+    usages(ex, sels, "Query", []) #=> [{name: "v", type: {kind: :non_null, of: {kind: :named, name: "Int"}}, default: false}]
+"""
 def usages(ex, sels, parent, seen)
   s = ex[:s]
   retsu::flat_map(
@@ -2961,6 +3942,13 @@ def usages(ex, sels, parent, seen)
   )
 end
 
+@doc """
+compatible? is true when a variable of `var_type` may stand where `loc_type` is expected: non-null may narrow, never widen.
+
+    int = {kind: :named, name: "Int"}
+    compatible?({kind: :non_null, of: int}, int) #=> true
+    compatible?(int, {kind: :non_null, of: int}) #=> false
+"""
 def compatible?(var_type, loc_type)
   if loc_type[:kind] == :non_null
     var_type[:kind] == :non_null and compatible?(var_type[:of], loc_type[:of])
@@ -2975,6 +3963,13 @@ def compatible?(var_type, loc_type)
   end
 end
 
+@doc """
+position_ok? is true when a variable fits where it is used, a nullable variable with a default being allowed in a non-null place.
+
+    int = {kind: :named, name: "Int"}
+    position_ok?({type: int, default: {kind: :int, text: "1"}}, {type: {kind: :non_null, of: int}, default: false}) #=> true
+    position_ok?({type: int, default: nil}, {type: {kind: :non_null, of: int}, default: false}) #=> false
+"""
 def position_ok?(var_def, use)
   vt = var_def[:type]
   lt = use[:type]
@@ -2988,6 +3983,13 @@ def position_ok?(var_def, use)
   end
 end
 
+@doc """
+variable_problems judges an operation's variables: their types and defaults, duplicates, uses with no definition, definitions with no use, and uses in the wrong position.
+
+    ex = {s: schema_of("type Query { a: Int }"), frags: {}, root: "Query"}
+    op = first(parse("query Q($v: Int) { a }")[:definitions])
+    map((f) -> f[:message], variable_problems(ex, op, "Q")) #=> ["Q defines $v and never uses it"]
+"""
 def variable_problems(ex, op, where)
   s = ex[:s]
   vars = op[:variables]
@@ -3071,6 +4073,12 @@ def variable_problems(ex, op, where)
   append(defs, dups, undefined, unused, positions)
 end
 
+@doc """
+root_fields lists the response keys an operation selects at its root, through fragments, so a subscription can be held to one.
+
+    ex = {s: schema_of("type Query { a: Int }"), frags: {}, root: "Query"}
+    root_fields(ex, first(parse("{ a x: b { c } }")[:definitions])[:selections], []) #=> ["a", "x"]
+"""
 def root_fields(ex, sels, seen)
   retsu::flat_map(
     sels,
@@ -3092,6 +4100,13 @@ def root_fields(ex, sels, seen)
   )
 end
 
+@doc """
+operation_problems judges one operation: its root exists, a subscription selects one root field, and its variables and selections hold.
+
+    ex = {s: schema_of("type Query { a: Int } type Subscription { s: Int t: Int }"), frags: {}, root: nil}
+    op = first(parse("subscription S { s t }")[:definitions])
+    map((f) -> f[:rule], operation_problems(ex, op)) #=> ["subscription-single-root"]
+"""
 def operation_problems(ex, op)
   s = ex[:s]
   kind = op[:operation]
@@ -3138,6 +4153,13 @@ def operation_problems(ex, op)
   end
 end
 
+@doc """
+fragment_problems judges one fragment definition: its type condition, a cycle through itself, and its selections.
+
+    f = first(parse("fragment F on E { a }")[:definitions])
+    ex = {s: schema_of("type Query { a: Int } enum E { A }"), frags: {"F" => f}, root: nil}
+    map((x) -> x[:rule], fragment_problems(ex, f)) #=> ["fragment-type"]
+"""
 def fragment_problems(ex, frag)
   s = ex[:s]
   on = frag[:on]
@@ -3186,6 +4208,13 @@ def fragment_problems(ex, frag)
   append(dirs, head, cycle, body)
 end
 
+@doc """
+executable_problems judges an executable document against an indexed schema: document-wide rules first, then each operation and fragment.
+
+    s = schema_of("type Query { a: Int }")
+    map((f) -> f[:rule], executable_problems(s, parse("{ a } { a }"))) #=> ["lone-anonymous"]
+    executable_problems(s, parse("{ a }")) #=> []
+"""
 def executable_problems(s, doc)
   defs = doc[:definitions]
   ops = filter((d) -> d[:kind] == :operation, defs)
@@ -3256,6 +4285,12 @@ def executable_problems(s, doc)
   )
 end
 
+@doc """
+as_document accepts text, a document or one definition, and answers a document.
+
+    as_document("{ a }")[:kind] #=> :document
+    as_document({kind: :fragment}) #=> {kind: :document, definitions: [{kind: :fragment}]}
+"""
 def as_document(x)
   if string?(x)
     parse(x)
@@ -3266,6 +4301,13 @@ def as_document(x)
   end
 end
 
+@doc """
+schema_of indexes a schema once with its findings, so checking many documents against it does not index it again; an indexed schema passes through.
+
+    s = schema_of("type Query { a: Int }")
+    s[:findings] #=> []
+    schema_of(s)[:roots] #=> {query: "Query"}
+"""
 def schema_of(schema, opts?)
   opts = checked(opts, [:defaults])
   if not string?(schema) and schema[:kind] == :schema_of
@@ -3282,6 +4324,9 @@ end
 
 @doc """
 check: masking, composition and entity-backed law findings for a program.
+
+    check("{ a }", "type Query { a: Int }") #=> []
+    map((f) -> f[:rule], check("{ b }", "type Query { a: Int }")) #=> ["field-exists"]
 """
 def check(subject, rules?, opts?)
   opts = checked(opts, [:defaults])
@@ -3300,6 +4345,9 @@ end
 
 @doc """
 validate: the document if every field and type is in the schema.
+
+    validate("{ a }", "type Query { a: Int }")[:kind] #=> :document
+    raised(() -> validate("{ b }", "type Query { a: Int }")) #=> :invalid
 """
 def validate(document, schema?, opts?)
   found = check(document, schema, opts)
@@ -3314,6 +4362,13 @@ def validate(document, schema?, opts?)
   end
 end
 
+@doc """
+spec_selection turns one item of a fragment's `fields:` into selections: a name is a field, `"...Name"` a spread, `{name: [...]}` fields with sub-selections.
+
+    spec_selection("...F") #=> {kind: :spread, name: "F", directives: []}
+    spec_selection(:a)[:name] #=> "a"
+    map((x) -> x[:name], spec_selection({b: [:c]})) #=> ["b"]
+"""
 def spec_selection(item)
   if string?(item) and starts_with?(item, "...")
     {kind: :spread, name: join(drop(3, chars(item)), ""), directives: []}
@@ -3348,6 +4403,11 @@ def spec_selection(item)
   end
 end
 
+@doc """
+flat_selections turns a whole `fields:` list into one flat selection list.
+
+    map((x) -> x[:name], flat_selections([:a, {b: [:c]}, "...F"])) #=> ["a", "b", "F"]
+"""
 def flat_selections(items)
   retsu::flat_map(
     items,
@@ -3364,6 +4424,10 @@ end
 
 @doc """
 fragment: declare a named field selection on one schema type.
+
+    card = fragment(:user_card, {on: "User", fields: [:id, {avatar: [:url]}]})
+    render(as_document(card), :compact) #=> "fragment user_card on User { id avatar { url } }"
+    raised(() -> fragment(:f, {on: "User", fields: []})) #=> :bad_option
 """
 def fragment(name, spec)
   spec = checked(spec, %i[on fields])
@@ -3392,6 +4456,12 @@ def definitions_of_kind(doc, kind)
   filter((d) -> d[:kind] == kind, doc[:definitions])
 end
 
+@doc """
+fragments_of accepts a list of fragments as given, or takes the fragment definitions out of text or a document.
+
+    length(fragments_of("fragment F on T { a } { b }")) #=> 1
+    fragments_of([]) #=> []
+"""
 def fragments_of(x)
   if list?(x)
     x
@@ -3400,6 +4470,12 @@ def fragments_of(x)
   end
 end
 
+@doc """
+operation_of writes the operation a root-type fragment stands for, named in PascalCase after it and spreading it.
+
+    operation_of(fragment(:user_card, {on: "Query", fields: [:a]}))[:name] #=> "UserCard"
+    raised(() -> operation_of(fragment(:f, {on: "User", fields: [:a]}))) #=> :bad_option
+"""
 def operation_of(frag)
   op = get(
     {
@@ -3427,6 +4503,11 @@ end
 
 @doc """
 compose: one operation from the union of the fragments a view uses.
+
+    home = fragment(:home, {on: "Query", fields: [{me: ["...card"]}]})
+    card = fragment(:card, {on: "User", fields: [:id]})
+    render(compose(home, [card]), :compact) #=> "query Home { ...home } fragment card on User { id } fragment home on Query { me { ...card } }"
+    raised(() -> compose(home, [])) #=> :unknown_fragment
 """
 def compose(first, second)
   doc = if map?(first) and first[:kind] == :fragment
@@ -3471,14 +4552,33 @@ def compose(first, second)
   }
 end
 
+@doc """
+response_key is the key a field's value has in a response: its alias, else its name.
+
+    response_key({alias: "x", name: "a"}) #=> "x"
+    response_key({alias: nil, name: "a"}) #=> "a"
+"""
 def response_key(sel)
   get_any(sel, %i[alias name])
 end
 
+@doc """
+plain_hooks are the hooks `select` reads a plain value with: take each value as it is, skip an absent key, start from an empty map.
+
+    plain_hooks[:resolve](1) #=> 1
+    plain_hooks[:start](nil) #=> {}
+"""
 def plain_hooks()
   {resolve: (v) -> v, absent: (acc, _key) -> acc, start: (_v) -> {}}
 end
 
+@doc """
+select_into reads only the selected keys of a value, through lists and nested selections, with hooks that let a caller resolve references or note absent keys.
+
+    sels = first(parse("{ a }")[:definitions])[:selections]
+    select_into({"a" => 1, "b" => 2}, sels) #=> {"a" => 1}
+    select_into([{"a" => 1}, {"a" => 2}], sels) #=> [{"a" => 1}, {"a" => 2}]
+"""
 def select_into(value, sels, hooks?)
   h = hooks or plain_hooks
   v = h[:resolve](value)
@@ -3527,6 +4627,10 @@ end
 
 @doc """
 select: only the fields a fragment declares, read from a value.
+
+    card = fragment(:card, {on: "User", fields: [:id]})
+    select({"id" => 1, "name" => "n"}, card) #=> {"id" => 1}
+    select(nil, card) #=> nil
 """
 def select(value, fragment)
   select_into(value, fragment[:selections])
@@ -3541,6 +4645,14 @@ def hash(operation, algorithm?)
   shomei::hash(render(as_document(operation)), algorithm or :sha256)
 end
 
+@doc """
+schema_table reduces a valid schema to the field types of each composite type and the values of each enum, the data a client's masked read needs; an invalid schema raises.
+
+    t = schema_table("type Query { a: Int t: T } type T { c: String } enum E { A B }")
+    t[:types]["T"] #=> {"c" => "String"}
+    t[:enums] #=> {"E" => ["A", "B"]}
+    raised(() -> schema_table("type Query { a: Nope }")) #=> :invalid
+"""
 def schema_table(sdl)
   s = schema_of(as_document(sdl))
   found = s[:findings]
@@ -3579,6 +4691,11 @@ def schema_table(sdl)
   }
 end
 
+@doc """
+table_entries writes a map's entries as blue map lines, sorted by key, for the `:table` rendering.
+
+    table_entries({"b" => 2, "a" => 1}) #=> "    \"a\" => 1,\n    \"b\" => 2"
+"""
 def table_entries(m)
   join(
     map(
@@ -3589,6 +4706,11 @@ def table_entries(m)
   )
 end
 
+@doc """
+table_text writes a schema's table as blue source, what `render(schema, :table)` answers.
+
+    table_text(parse("type Query { a: Int }")) #=> "{\n  types: {\n    \"Query\" => {\"a\" => \"Int\"}\n  },\n  enums: {\n\n  }\n}\n"
+"""
 def table_text(document)
   t = schema_table(document)
   unlines(
@@ -3605,6 +4727,12 @@ def table_text(document)
   )
 end
 
+@doc """
+fixtures reads the `.graphql` files under one fixture directory on the blue path as `[path, text]` pairs in path order; an invalid fixture's file name names the rule its text breaks.
+
+    pair = ["fixtures/schema/invalid-type-unique.graphql", "scalar D scalar D"]
+    rules_found(second(pair), nil) #=> ["type-unique"]
+"""
 def fixtures(dir)
   hits = filter(is_dir?, fairu::on_blue_path("toriyose/danpen/fixtures/#{dir}"))
   if is_empty(hits)
@@ -3617,6 +4745,12 @@ def fixtures(dir)
   map((f) -> [f, read_file(f)], files)
 end
 
+@doc """
+rule_of reads which rule an invalid fixture proves from its file name, the longest rule name winning so `fragment-spread-possible` is not read as a shorter rule.
+
+    rule_of("schema/invalid-argument-exists-2.graphql") #=> "argument-exists"
+    rule_of("executable/invalid-fragment-spread-possible.graphql") #=> "fragment-spread-possible"
+"""
 def rule_of(path)
   name = replace(path_basename(path), ".graphql", "")
   rule = join(drop(1, split(name, "invalid-")), "invalid-")
@@ -3628,6 +4762,12 @@ def rule_of(path)
   )
 end
 
+@doc """
+rule_names lists every rule a finding can name, plus `parse`, so each has an invalid fixture to prove it fires.
+
+    length(rule_names) #=> 38
+    member?("fragment-cycle", rule_names) #=> true
+"""
 def rule_names()
   %w[
     argument-exists
@@ -3671,6 +4811,12 @@ def rule_names()
   ]
 end
 
+@doc """
+rules_found names the rules a document breaks against a schema, a parse failure counting as the rule `parse`.
+
+    rules_found("{ a }", "type Query { b: Int }") #=> ["field-exists"]
+    rules_found("{ a", nil) #=> ["parse"]
+"""
 def rules_found(text, schema)
   map((f) -> f[:rule], check(parse(text), schema))
 rescue e
@@ -3681,6 +4827,11 @@ rescue e
   end
 end
 
+@doc """
+schema_named indexes the schema fixture `fixtures/schema/NAME.graphql`, as `schema_of` indexes its text.
+
+    schema_of(parse("type Query { a: Int }"))[:roots] #=> {query: "Query"}
+"""
 def schema_named(name)
   hit = find(
     fixtures("schema"),
@@ -3689,10 +4840,21 @@ def schema_named(name)
   schema_of(parse(second(hit)))
 end
 
+@doc """
+hand_schema is the hand-written schema fixture the checker's tests judge documents against; it holds no findings.
+
+    check("{ a }", schema_of("type Query { a: Int }")) #=> []
+"""
 def hand_schema()
   schema_named("hand")
 end
 
+@doc """
+documents_named gathers the executable fixtures whose file name starts with `prefix` in each named directory, as `[path, text, schema]` rows checked against that directory's schema.
+
+    row = ["executable/tiny/valid-a.graphql", "{ a }", schema_of("type Query { a: Int }")]
+    check(row[1], row[2]) #=> []
+"""
 def documents_named(prefix, dirs)
   retsu::flat_map(
     dirs,
@@ -4051,6 +5213,11 @@ test "hash is the sha256 of the canonical text, as shasum computes it"
   assert raised(() -> hash(parse("{ a }"), :md5)) == :bad_option
 end
 
+@doc """
+kinds_in names the kind of every record in a parsed tree, outermost first, so a test can prove the parser emits each kind the grammar lowers to.
+
+    kinds_in(parse("{ a }")) #=> ["document", "operation", "field"]
+"""
 def kinds_in(x)
   if map?(x)
     own = if keyword?(x[:kind])

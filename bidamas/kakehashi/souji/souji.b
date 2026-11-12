@@ -75,6 +75,11 @@ def cli()
   }
 end
 
+@doc """
+roots: where the rust cleaning looks: the roots given on the command line, else ~/code.
+
+    roots({roots: ["/a", "/b"]}) #=> ["/a", "/b"]
+"""
 def roots(opts)
   if is_empty(opts[:roots])
     [path_join(getenv("HOME", "/"), "code")]
@@ -88,6 +93,8 @@ end
 @doc """
 targets: target/ directories under root, at most depth levels down, each beside a
 Cargo.toml. find prunes at each target/ so it never walks inside one.
+
+    procedure?(targets) #=> true
 """
 def targets(root, depth)
   cap = exec_capture(
@@ -112,6 +119,8 @@ end
 
 @doc """
 size_kib: Kibibytes under dir, from du; 0 when du could not read it.
+
+    procedure?(size_kib) #=> true
 """
 def size_kib(dir)
   cap = exec_capture("du", "-sk", dir)
@@ -125,7 +134,9 @@ end
 
 @doc """
 active?: True when anything inside dir changed in the last `hours` hours: find stops
-at the first such file.
+at the first such file. An age floor of 0 hours never counts a directory active.
+
+    active?("/nowhere", 0) #=> false
 """
 def active?(dir, hours)
   if hours == 0
@@ -145,6 +156,8 @@ end
 
 @doc """
 rust_survey: One row per target/: {path, kib, active}.
+
+    rust_survey([], 6) #=> []
 """
 def rust_survey(roots, hours)
   map(
@@ -153,6 +166,11 @@ def rust_survey(roots, hours)
   )
 end
 
+@doc """
+rust: the rust cleaning: survey every target/ under the roots and remove the idle ones, unless it is a dry run.
+
+    procedure?(rust) #=> true
+"""
 def rust(opts)
   rows = rust_survey(roots(opts), opts[:min_age_hours])
   gone = filter((r) -> r[:active] == false, rows)
@@ -164,6 +182,11 @@ end
 
 # ── nix ──────────────────────────────────────────────────────────────
 
+@doc """
+nix_argv: the nix-collect-garbage command line for the age floor, with the dry run passed through.
+
+    nix_argv({older_than_days: 7, dry_run: true}) #=> ["nix-collect-garbage", "--delete-older-than", "7d", "--dry-run"]
+"""
 def nix_argv(opts)
   concat_lists(
     [
@@ -179,6 +202,11 @@ def nix_argv(opts)
   )
 end
 
+@doc """
+nix: the nix cleaning: run nix-collect-garbage and keep whether it succeeded and its last line.
+
+    procedure?(nix) #=> true
+"""
 def nix(opts)
   cap = exec_capture(*nix_argv(opts)) rescue nil
   if cap.nil?
@@ -191,10 +219,21 @@ end
 
 # ── report ───────────────────────────────────────────────────────────
 
+@doc """
+gib: a kibibyte count shown in GiB, to one decimal place.
+
+    gib(2_097_152) #=> "2 GiB"
+"""
 def gib(kib)
   "#{to_s(round(kib / 104857.6) / 10)} GiB"
 end
 
+@doc """
+rust_report: the rust cleaning's report: one line per target/, then the total.
+
+    r = {rows: [{path: "/a/target", kib: 2_097_152, active: false}], removed: [{path: "/a/target"}], kib: 2_097_152}
+    rust_report(r, true) #=> "  would remove  2 GiB  /a/target\nrust: would remove 1 of 1 target/ dirs, 2 GiB"
+"""
 def rust_report(r, dry)
   verb = if dry
     "would remove"
@@ -216,6 +255,11 @@ def rust_report(r, dry)
   )
 end
 
+@doc """
+verdict: what the report says of one target/: kept when active, else the verb.
+
+    verdict({active: true}, "removed") #=> "kept (active)"
+"""
 def verdict(row, verb)
   if row[:active]
     "kept (active)"

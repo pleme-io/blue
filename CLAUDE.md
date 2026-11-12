@@ -41,6 +41,7 @@ These commands come from the Bluefile. Run them from the repository root.
 | `nix flake check` | every check the Bluefile declares, and the gates every blue project gets |
 | `nix run .#regen` | rewrites every generated file in place |
 | `blue lock .` | rewrites `Bluefile.lock` after an edit to the `Bluefile` |
+| `blue test gen/quality.b` | `checks.catalog-quality` |
 | `blue test nix/chart-gate.b` | `checks.chart-gate` |
 | `blue test gen/consumers.b` | `checks.consumers` |
 | `blue test gen/docs.b` | `checks.docs` |
@@ -57,6 +58,7 @@ These commands come from the Bluefile. Run them from the repository root.
 | `blue test rules/conventions.b` | `checks.project-rules` |
 | `blue test gen/proof.b` | `checks.proof` |
 | `blue test gen/regen_test.b` | `checks.regen-untracked` |
+| `blue test gen/release.b` | `checks.release` |
 | `blue test gen/test-beside.b` | `checks.test-beside` |
 | `blue test gen/verb-graph.b` | `checks.verb-graph` |
 | `blue test nix/vm-run.b` | `checks.vm-run` |

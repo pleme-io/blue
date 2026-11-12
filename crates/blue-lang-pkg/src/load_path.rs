@@ -203,7 +203,10 @@ impl Environment {
         match entry {
             Some(e) => {
                 lp.origin = vec![dir_of(e)];
-                lp.required = required_by(&manifest_dir(e));
+                let manifest = manifest_dir(e);
+                lp.required = required_by(&manifest);
+                lp.contents = crate::lock::locked_contents(&manifest);
+                lp.contents_at = Some(manifest.join(crate::lock::LOCK_FILE));
             }
             None => lp.origin = lp.roots_of(Channel::Project),
         }
@@ -261,6 +264,9 @@ pub struct LoadPath {
     standard: bool,
     origin: Vec<PathBuf>,
     required: BTreeMap<String, Range>,
+    contents: BTreeMap<String, String>,
+    contents_at: Option<PathBuf>,
+    verified: std::sync::Arc<std::sync::Mutex<BTreeSet<PathBuf>>>,
 }
 
 impl LoadPath {
@@ -292,6 +298,7 @@ impl LoadPath {
     #[must_use]
     pub fn unpinned(mut self) -> Self {
         self.required.clear();
+        self.contents.clear();
         self
     }
 
@@ -442,6 +449,33 @@ impl LoadPath {
     /// A move of `name` a root's Bluefile declares (`legacy_packages`), the
     /// first root in search order answering. A root's move outranks the
     /// standard distribution's copy of the old name, as a root's bidama does.
+    fn verify_contents(&self, name: &str) -> Result<(), String> {
+        let top = blue_lang_syntax::root_of(name);
+        let Some(recorded) = self.contents.get(top) else {
+            return Ok(());
+        };
+        let Some(Found::Dir(dir)) = self.first_match(top).found else {
+            return Ok(());
+        };
+        if self.verified.lock().is_ok_and(|v| v.contains(&dir)) {
+            return Ok(());
+        }
+        let now = crate::content::root(&dir).map_err(|e| e.to_string())?;
+        if &now == recorded {
+            if let Ok(mut v) = self.verified.lock() {
+                v.insert(dir);
+            }
+            return Ok(());
+        }
+        Err(format!(
+            "bidama \"{top}\" at {} hashes to {now}, and {} records {recorded} under verify(:contents): its files changed after `blue lock`. fix: restore the bidama, or run `blue lock` to accept what it holds now",
+            dir.display(),
+            self.contents_at
+                .as_ref()
+                .map_or_else(|| crate::lock::LOCK_FILE.to_string(), |p| p.display().to_string())
+        ))
+    }
+
     fn root_move(&self, name: &str) -> Option<blue_lang_runtime::uses::PackageMove> {
         if blue_lang_syntax::is_nested(name) {
             return None;
@@ -737,6 +771,7 @@ impl Loader for LoadPath {
                     .unwrap_or_else(|| self.not_found(name, &selection.skipped)))
             }
         };
+        self.verify_contents(name)?;
         if !dir.is_dir() {
             return load_level_file(name, &dir);
         }

@@ -63,7 +63,7 @@ not say when anything happened; put a timestamp in the payload if it matters.
 use("deeta", [:get_or])
 use("kansuu", [:maybe])
 use("kazu", [:max])
-use("kyohi", [:raised])
+use("kyohi", %i[raised refusal])
 use("moji", [:checked])
 use("retsu", %i[first is_empty size])
 use("shinsuu", [:hex_bytes])
@@ -1161,4 +1161,170 @@ test "merkle_push skips a nil step"
   assert merkle_push(nil, []) == []
   assert merkle_push(nil, ["a"]) == ["a"]
   assert merkle_push("b", ["a"]) == %w[b a]
+end
+
+@doc """
+content_root_of: The content root of a tree, as `b3:` and 64 hex: BLAKE3 over the line
+`blue-content/v1` and, for each file sorted by its path, `path`, a tab, the
+BLAKE3 of its bytes in hex and a line break. `rows` are [path, hash_message(bytes)]
+pairs. `blue lock` records the same root under `verify(:contents)`.
+
+    size(content_root_of([])) #=> 67
+"""
+def content_root_of(rows)
+  body = join(
+    map(
+      (r) -> unlines(["#{first(r)}\t#{r[1]}"]),
+      sort_keyed((r) -> first(r), rows)
+    ),
+    ""
+  )
+  "b3:#{hash_message(join_lines(["blue-content/v1", body]))}"
+end
+
+@doc """
+release_message: The bytes a bidama release signs: its name, its version and its content root,
+under the domain line `blue-release/v1`, one per line.
+
+    split(release_message("p", "1.0.0", "b3:00"), line_break) #=> ["blue-release/v1", "p", "1.0.0", "b3:00", ""]
+"""
+def release_message(name, version, content)
+  unlines(["blue-release/v1", name, version, content])
+end
+
+@doc """
+release_tag: The tag a release of a bidama is published under.
+
+    release_tag("retsu", "0.1.4") #=> "bidama/retsu/v0.1.4"
+"""
+def release_tag(name, version)
+  "bidama/#{name}/v#{version}"
+end
+
+@doc """
+release_note: The text a release tag carries: the bidama, version, content root, the public
+key and the signature of release_message under the secret key.
+"""
+def release_note(name, version, content, secret, public)
+  signature = sign_message(secret, release_message(name, version, content))
+  join(
+    [
+      "bidama: #{name}",
+      "version: #{version}",
+      "content: #{content}",
+      "key: #{public}",
+      "signature: #{signature}",
+      ""
+    ],
+    line_break
+  )
+end
+
+@doc """
+read_release_note: The fields of a release note as a map from field to value; a line without
+`: ` is skipped.
+
+    read_release_note("bidama: p")["bidama"] #=> "p"
+    read_release_note("") #=> {}
+"""
+def read_release_note(text)
+  reduce(
+    fn(acc, l)
+      parts = split(l, ": ")
+      assoc(acc, first(parts), join(retsu::rest(parts), ": "))
+    end,
+    {},
+    filter((l) -> contains?(l, ": "), split(text, line_break))
+  )
+end
+
+@doc """
+release_refusal: Why a release note does not stand for a bidama's current content, or nil when
+it does. Kinds: :malformed (a field is missing or not hex of its length),
+:other (the note names another bidama), :untrusted (its key is not one of
+`trusted`), :forged (the signature does not verify) and :altered (the
+content root now is not the one signed).
+
+    release_refusal("", "p", "b3:00", [])[0] #=> :malformed
+"""
+def release_refusal(note_text, name, content_now, trusted)
+  note = read_release_note(note_text)
+  fields = %w[bidama version content key signature]
+  missing = filter((f) -> get(note, f).nil?, fields)
+  if not is_empty(missing)
+    refusal(:malformed, "the release note has no #{join(missing, ", ")}")
+  elsif note["bidama"] != name
+    refusal(:other, "the release note is for #{note["bidama"]}, not #{name}")
+  elsif not is_hash_hex(note["key"]) or size(chars(note["signature"])) != 128
+    refusal(
+      :malformed,
+      "the key is not 64 hex characters or the signature not 128"
+    )
+  elsif not member?(note["key"], trusted)
+    refusal(:untrusted, "the key #{note["key"]} is not a trusted release key")
+  elsif not verify_message(
+    note["key"],
+    release_message(note["bidama"], note["version"], note["content"]),
+    note["signature"]
+  )
+    refusal(:forged, "the signature does not verify under #{note["key"]}")
+  elsif note["content"] != content_now
+    refusal(
+      :altered,
+      "#{name} #{note["version"]} was signed as #{note["content"]} and its files hash to #{content_now}"
+    )
+  end
+end
+
+test "a signed release verifies, and an altered, forged, untrusted or foreign one is refused by kind"
+  kp = signing_keypair(hash_message("shomei release test key"))
+  other = signing_keypair(hash_message("shomei other key"))
+  content = content_root_of(
+    [["Bluefile", hash_message("package")], ["p.b", hash_message("def f()")]]
+  )
+  note = release_note(
+    "p",
+    "1.0.0",
+    content,
+    keypair_secret(kp),
+    keypair_public(kp)
+  )
+  trusted = [keypair_public(kp)]
+  assert release_refusal(note, "p", content, trusted).nil?
+  moved = content_root_of(
+    [["Bluefile", hash_message("package")], ["p.b", hash_message("def g()")]]
+  )
+  assert release_refusal(note, "p", moved, trusted)[0] == :altered
+  assert release_refusal(note, "p", content, [keypair_public(other)])[0] ==
+    :untrusted
+  assert release_refusal(note, "q", content, trusted)[0] == :other
+  forged = replace(note, "version: 1.0.0", "version: 1.0.1")
+  assert release_refusal(forged, "p", content, trusted)[0] == :forged
+  stolen = release_note(
+    "p",
+    "1.0.0",
+    moved,
+    keypair_secret(other),
+    keypair_public(kp)
+  )
+  assert release_refusal(stolen, "p", moved, trusted)[0] == :forged
+  assert nth(
+    0,
+    release_refusal(
+      replace(note, "signature: ", "sig: "),
+      "p",
+      content,
+      trusted
+    )
+  ) == :malformed
+end
+
+test "the content root sorts by path, and every path and hash moves it"
+  a = ["a.b", hash_message("a")]
+  b = ["b/b.b", hash_message("b")]
+  assert content_root_of([b, a]) == content_root_of([a, b])
+  assert content_root_of([a]) != content_root_of([a, b])
+  assert content_root_of([["c.b", a[1]]]) != content_root_of([a])
+  assert content_root_of([a]) ==
+    "b3:#{hash_message(unlines(["blue-content/v1", "a.b\t#{a[1]}"]))}"
 end

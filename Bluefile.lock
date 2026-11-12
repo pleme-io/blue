@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:243f19edb5d1c66cc686059e1c226a4c8b36fbb7dd2331db3e1dc0e0b010214c",
+  "bluefile_b3": "b3:938112d7e93c2fcd316bb2b2f2173063a973edb33fe4bb90373b0e33bd4ee08b",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -27,6 +27,12 @@
       "curl"
     ],
     "checks": {
+      "catalog-quality": {
+        "file": "gen/quality.b",
+        "inputs": [
+          "bidamas"
+        ]
+      },
       "chart-gate": {
         "file": "nix/chart-gate.b"
       },
@@ -130,6 +136,9 @@
         "inputs": [
           "gen/regen.b"
         ]
+      },
+      "release": {
+        "file": "gen/release.b"
       },
       "test-beside": {
         "file": "gen/test-beside.b"

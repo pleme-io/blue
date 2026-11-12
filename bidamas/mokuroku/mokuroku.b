@@ -509,8 +509,84 @@ def package_record(dir)
     end,
     if locked != nil
       locked["tier"]
-    end
+    end,
+    heni_of(heni_rows_at(path_dirname(dir)), manifest[0]),
+    lock_conformance(dir)
   ]
+end
+
+@doc """
+heni_rows_at: The rows of the heni ratio baseline under a root (`heni/ratio.baseline`), or none
+when the root holds no baseline.
+
+    heni_rows_at("/no/such") #=> []
+"""
+def heni_rows_at(root)
+  path = path_join(root, "heni/ratio.baseline")
+  if is_file?(path)
+    parse(read_file(path))
+  else
+    []
+  end
+end
+
+@doc """
+heni_of: [caught, total] summed over the baseline rows of a package and its levels, or nil
+when the baseline has no row for it.
+
+    heni_of([{kind: "heni-caught", key: "p/a", size: 2}, {kind: "heni-total", key: "p/a", size: 3}, {kind: "heni-total", key: "pq", size: 9}], "p") #=> [2, 3]
+    heni_of([], "p") #=> nil
+"""
+def heni_of(rows, name)
+  mine = filter(
+    (r) -> r[:key] == name or starts_with?(r[:key], "#{name}/"),
+    rows
+  )
+  if not is_empty(mine)
+    [heni_sum(mine, "heni-caught"), heni_sum(mine, "heni-total")]
+  end
+end
+
+@doc """
+heni_sum: The sizes of the rows of one kind, summed.
+
+    heni_sum([{kind: "a", key: "p", size: 2}, {kind: "b", key: "p", size: 5}], "a") #=> 2
+"""
+def heni_sum(rows, kind)
+  reduce((n, r) -> n + r[:size], 0, filter((r) -> r[:kind] == kind, rows))
+end
+
+@doc """
+lock_conformance_of: [held, total] of what a Bluefile and its lock decide alone: the lock is
+present, its `bluefile_b3` is the BLAKE3 of the Bluefile's bytes, and its manifest names the
+package and version the Bluefile declares.
+
+    lock_conformance_of("", nil) #=> [0, 3]
+"""
+def lock_conformance_of(bluefile, lock)
+  if lock.nil?
+    [0, 3]
+  else
+    declared = parse_manifest(bluefile)
+    manifest = lock["manifest"] or {}
+    held = [
+      true,
+      lock["bluefile_b3"] == "b3:#{blake3_hex(bluefile)}",
+      manifest["name"] == declared[0] and manifest["version"] == declared[1]
+    ]
+    [count_where((h) -> h, held), 3]
+  end
+end
+
+@doc """
+lock_conformance: lock_conformance_of the Bluefile and `Bluefile.lock` in a package directory.
+"""
+def lock_conformance(dir)
+  path = path_join(dir, "Bluefile.lock")
+  lock = if is_file?(path)
+    json_read(read_file(path))
+  end
+  lock_conformance_of(read_file(path_join(dir, "Bluefile")), lock)
 end
 
 @doc """
@@ -768,13 +844,84 @@ def pkg_reach_text(r)
 end
 
 @doc """
-pkg_quality_row: The quality-signals row of a package: documented public definitions over
-public definitions, tests, and reach, each computed from the package's files.
+pkg_heni: [caught, total] of the package's rows in heni's ratio baseline, or nil.
 
-    pkg_quality_row(["p", "1", [], "", [["f", "f()", ["f: one."]]], 2]) #=> "| [`p`](#p) | 1/1 | 2 | — |"
+    pkg_heni(["p", "1"]) #=> nil
+"""
+def pkg_heni(r)
+  pkg_optional(r, 10)
+end
+
+@doc """
+pkg_conformance: [held, total] of the lock checks lock_conformance_of decides, or nil.
+
+    pkg_conformance(["p", "1"]) #=> nil
+"""
+def pkg_conformance(r)
+  pkg_optional(r, 11)
+end
+
+@doc """
+ratio_text: A [part, whole] pair as `part/whole`, or `—` for nil.
+
+    ratio_text([2, 3]) #=> "2/3"
+    ratio_text(nil) #=> "—"
+"""
+def ratio_text(pair)
+  if pair.nil?
+    "—"
+  else
+    "#{to_s(first(pair))}/#{to_s(last(pair))}"
+  end
+end
+
+@doc """
+model_eval_absent: Why the catalogue has no model-eval score per package: H9's score is one
+number per release over `eval/tasks`, and no task belongs to a package.
+
+    model_eval_absent[:kind] #=> :scored_per_release
+"""
+def model_eval_absent()
+  {
+    kind: :scored_per_release,
+    why: "H9 scores a model once per release over `eval/tasks`, and no task belongs to a package"
+  }
+end
+
+@doc """
+quality_cells: The quality-signals cells of a package, in column order: docs, tests, reach,
+heni, conformance, model-eval.
+
+    quality_cells(["p", "1", [], "", [["f", "f()", ["f: one."]]], 2]) #=> ["1/1", "2", "—", "—", "—", "—"]
+"""
+def quality_cells(r)
+  [
+    "#{to_s(pkg_documented(r))}/#{to_s(size(pkg_entries(r)))}",
+    to_s(pkg_tests(r)),
+    md_cell(pkg_reach_text(r)),
+    ratio_text(pkg_heni(r)),
+    ratio_text(pkg_conformance(r)),
+    "—"
+  ]
+end
+
+@doc """
+quality_columns: The columns of the quality-signals table after the package.
+
+    first(quality_columns) #=> "docs"
+"""
+def quality_columns()
+  %w[docs tests reach heni conformance model-eval]
+end
+
+@doc """
+pkg_quality_row: The quality-signals row of a package, each cell computed from the package's
+files and its lock.
+
+    pkg_quality_row(["p", "1", [], "", [["f", "f()", ["f: one."]]], 2]) #=> "| [`p`](#p) | 1/1 | 2 | — | — | — | — |"
 """
 def pkg_quality_row(r)
-  "| [`#{pkg_name(r)}`](##{pkg_name(r)}) | #{to_s(pkg_documented(r))}/#{to_s(size(pkg_entries(r)))} | #{to_s(pkg_tests(r))} | #{md_cell(pkg_reach_text(r))} |"
+  "| [`#{pkg_name(r)}`](##{pkg_name(r)}) | #{join(quality_cells(r), " | ")} |"
 end
 
 @doc """
@@ -788,12 +935,82 @@ def quality_section(records)
     [
       "## Quality signals",
       "",
-      "Computed from each package's files and its `Bluefile.lock`: `docs` is the public definitions with a `@doc` over all of them, `tests` the `test` blocks, `reach` the capabilities the lock records from the package's `reach` declaration (`—` when it declares none, `pure` when it declares an empty reach).",
+      "Computed from each package's files and its `Bluefile.lock`, never claimed; `gen/quality.b` computes them again and fails on any cell that differs. `docs` is the public definitions with a `@doc` over all of them, `tests` the `test` blocks, `reach` the capabilities the lock records from the package's `reach` declaration (`—` when it declares none, `pure` when it declares an empty reach), `heni` the mutants caught over the mutants run, summed over the package's rows in `heni/ratio.baseline` (`—` when it has none), `conformance` the lock checks held: the lock is present, its `bluefile_b3` is the BLAKE3 of the Bluefile, and its manifest names the Bluefile's package and version. `model-eval` is `—` for every package: #{model_eval_absent[:why]} (`#{to_s(model_eval_absent[:kind])}`).",
       "",
-      "| package | docs | tests | reach |",
-      "|---|---|---|---|"
+      "| package | #{join(quality_columns, " | ")} |",
+      "|---|---|---|---|---|---|---|"
     ],
     map(pkg_quality_row, records)
+  )
+end
+
+@doc """
+quality_table_of: [package, cells] for every row of the quality-signals table in a catalogue's
+text, in the order they appear.
+
+    quality_table_of("") #=> []
+"""
+def quality_table_of(text)
+  body = drop_while((l) -> l != "## Quality signals", split(text, line_break))
+  rows = take_while(
+    (l) -> l != "" and not starts_with?(l, "## "),
+    drop_while((l) -> not starts_with?(l, "| [`"), body)
+  )
+  map(
+    fn(l)
+      cells = map((c) -> blue::trim(c), rest(split(l, " | ")))
+      name = first(split(join(drop(4, chars(l)), ""), "`"))
+      last_cell = last(cells)
+      [
+        name,
+        push(
+          take(size(cells) - 1, cells),
+          join(take(size(chars(last_cell)) - 2, chars(last_cell)), "")
+        )
+      ]
+    end,
+    rows
+  )
+end
+
+@doc """
+quality_drift: [package, column, catalogue value, computed value] for every quality cell a
+catalogue's text states differently from the records, a package the table lacks, and a row
+the records do not have.
+
+    quality_drift("", []) #=> []
+"""
+def quality_drift(text, records)
+  table = quality_table_of(text)
+  stated = zipmap(map(first, table), map(last, table))
+  computed = flat_map(
+    records,
+    fn(r)
+      have = get(stated, pkg_name(r))
+      want = quality_cells(r)
+      if have.nil?
+        [[pkg_name(r), "row", "absent", "present"]]
+      else
+        flat_map(
+          range(0, size(quality_columns)),
+          fn(i)
+            if have[i] == want[i]
+              []
+            else
+              [[pkg_name(r), quality_columns[i], have[i], want[i]]]
+            end
+          end
+        )
+      end
+    end
+  )
+  names = map(pkg_name, records)
+  concat_lists(
+    computed,
+    map(
+      (row) -> [first(row), "row", "present", "absent"],
+      filter((row) -> not contains(names, first(row)), table)
+    )
   )
 end
 
@@ -3006,6 +3223,59 @@ test "shadows reports definitions that reuse a listed name"
     0
   ]
   assert names_shadowing([a], %w[member get]) == [%w[member a]]
+end
+
+test "heni sums a package's rows and its levels', and no other package's"
+  rows = parse(
+    unlines(
+      [
+        "heni-caught: p 2",
+        "heni-total: p 3",
+        "heni-caught: p/lv 4",
+        "heni-total: p/lv 4",
+        "heni-caught: pq 9",
+        "heni-total: pq 9"
+      ]
+    )
+  )
+  assert heni_of(rows, "p") == [6, 7]
+  assert heni_of(rows, "pq") == [9, 9]
+  assert heni_of(rows, "q").nil?
+end
+
+test "lock conformance holds three checks and loses one for each the lock breaks"
+  bf = unlines(["package(\"p\", \"1.0.0\")"])
+  good = {
+    "bluefile_b3" => "b3:#{blake3_hex(bf)}",
+    "manifest" => {"name" => "p", "version" => "1.0.0"}
+  }
+  assert lock_conformance_of(bf, good) == [3, 3]
+  assert lock_conformance_of(unlines([bf]), good) == [2, 3]
+  renamed = assoc(good, "manifest", {"name" => "q", "version" => "1.0.0"})
+  assert lock_conformance_of(bf, renamed) == [2, 3]
+  assert lock_conformance_of(bf, nil) == [0, 3]
+end
+
+test "the quality table reads back as the cells it was rendered from"
+  r = [
+    "p",
+    "1",
+    [],
+    "",
+    [["f", "f()", ["f: one."]]],
+    2,
+    nil,
+    nil,
+    [],
+    nil,
+    [3, 4],
+    [3, 3]
+  ]
+  text = unlines(quality_section([r]))
+  assert quality_table_of(text) == [["p", %w[1/1 2 pure 3/4 3/3 —]]]
+  assert quality_drift(text, [r]) == []
+  off = replace(text, "| 3/4 |", "| 4/4 |")
+  assert quality_drift(off, [r]) == [%w[p heni 4/4 3/4]]
 end
 
 test "a pipe inside a table cell is escaped"

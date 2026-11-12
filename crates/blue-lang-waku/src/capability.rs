@@ -215,6 +215,7 @@ const MANIFEST_NAMES: &[&str] = &[
     "floors",
     "bounds",
     "legacy_packages",
+    "verify",
 ];
 
 /// `blue_lang_runtime::sys::install_process`, 2026-08-13.

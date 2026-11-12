@@ -1082,7 +1082,7 @@ that makes the state true, and the tier the gate reaches.
 | `unsafe_code` denied in every crate (row 9) | ⏳ in progress | 5 of 24 crates deny it at their roots. A workspace `unsafe_code = "deny"` with one `#[allow]` per seam is missing. |
 | Native panic seam to an `:internal` refusal (row 11) | ❌ not built | No unwind seam at the native-call boundary. |
 | Wall-clock bound (row 12) | ❌ not built | No `max_wall_ms` bound exists. |
-| A content hash per bidama in `Bluefile.lock` (row 13) | ❌ not built | The lock records the Bluefile's b3 (`crates/blue-lang-pkg/src/lock.rs`), not the hash of the package's sources. |
+| A content hash per bidama in `Bluefile.lock` (row 13) | ✅ built, off by default | Runtime-refused at load under `verify(%i[contents])`: the lock records each resolved bidama's content root (`crates/blue-lang-pkg/src/content.rs`) and the loader refuses a mismatch. `crates/blue-lang-cli/tests/verified_load.rs`. |
 | A secret type (row 14) | ❌ not built | No secret bidama exists. A secret is a plain string. |
 | Injection rule for `sh_exec` and `pg_execute` (row 15) | ❌ not built | No check rule names them. |
 | Script parity and the declared default (row 16) | ❌ not built | An undeclared script run is still ambient. |

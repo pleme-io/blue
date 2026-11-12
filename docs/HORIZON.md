@@ -783,6 +783,57 @@ and integer-list signatures; model runs are recorded by hand, outside CI.
 **First step:** the quality signals rendered per package in CATALOG.
 **Gate:** each signal reproduces from the lock alone.
 
+**Built (2026-11-11):**
+
+- **Signals computed, never claimed.** CATALOG's "Quality signals" table
+  has six columns: `docs`, `tests`, `reach`, `heni` (caught over run,
+  summed over the package's rows in `bidamas/heni/ratio.baseline`),
+  `conformance` (the lock checks a lock decides alone: it is present, its
+  `bluefile_b3` is the BLAKE3 of the Bluefile, its manifest names the
+  Bluefile's package and version) and `model-eval`. `model-eval` is `—`
+  for every package with the typed reason `scored_per_release`: H9 scores a
+  model once per release over `eval/tasks`, and no task belongs to a
+  package. `checks.catalog-quality` (`gen/quality.b`) computes every cell
+  again from `bidamas/` alone (each `Bluefile.lock`, the sources, the heni
+  baseline) and names each cell that differs. Red runs: the CATALOG before
+  this change (no `heni`, `conformance` or `model-eval` cells); `baito`'s
+  `heni` cell edited by hand from `7/7` to `8/8`.
+- **Lock-verified loading (G10).** `verify(%i[contents])` in a root's
+  Bluefile makes `blue lock` record `contents`: the content root of every
+  bidama the root resolves from outside its own directory, one BLAKE3 over
+  every file the bidama ships (`crates/blue-lang-pkg/src/content.rs`). The
+  loader refuses a bidama whose files no longer hash to the recorded root and
+  names both hashes and the lock; `blue bluefile --confirm` reports the lock
+  stale (`Contents`). The project's own packages are never recorded, and a
+  root that does not declare `verify` records and compares nothing.
+  Gates: `crates/blue-lang-cli/tests/verified_load.rs`. Red run: the
+  loader's check removed, a tampered `zed.b` loaded and printed `2`.
+- **Signed releases.** shomei signs a release: `release_message` (name,
+  version, content root under the domain `blue-release/v1`),
+  `release_note`, `release_refusal` (`:malformed`, `:other`, `:untrusted`,
+  `:forged`, `:altered`) and `content_root_of`, which computes the root
+  `blue lock` records. `gen/release.b` is the door: `content`, `sign`,
+  `verify`, `tag` (an annotated tag `bidama/<name>/v<version>` whose
+  message is the note) and `verify-tag` (the note checked against the tree
+  the tag names). `checks.release` signs with a key derived in the test,
+  and proves that `blue lock` and `gen/release.b` compute one root for one
+  tree. Red run: the content comparison in `release_refusal` removed, an
+  altered `zed.b` verified.
+- **The production key (designed, not provisioned).** The 32-byte seed
+  lives in pleme-io/nix `secrets.yaml` (SOPS) and reaches only the release
+  job, as an Actions secret that pleme-io-github-posture declares. The job
+  writes it to a file in `RUNNER_TEMP` and runs `gen/release.b tag`. The
+  public key is committed at `keys/bidama-release.pub`, one hex key per
+  line; a rotation adds the new line before the old one leaves. No seed,
+  secret or public key exists yet: until the operator makes one,
+  `verify-tag` answers `:untrusted` for every tag.
+
+Not yet: `verify(:contents)` is off by default (a consumer that tracks
+blue's main would relock after every bump); no release job signs a tag;
+the loader does not ask for a signature (`verify(:signatures)`); a
+bidama compiled into the `blue` binary is never compared, because the
+binary is its own trust root.
+
 ## Authority and ontology: one capability set, every placement, every concept a class (H11 to H20)
 
 Added 2026-11-07 (blue `9ca7c2cc`, release v0.0.160), from two read-only
@@ -1285,7 +1336,7 @@ and what is not.
 | H7. Speed with receipts | ⏳ in progress | Built: a bench row set with a recorded baseline (`bench/bench.b`, `bench/cost.baseline`, the `bench-ratchet` check in `flake.nix`); the VM as `blue run`'s default door where the conformance columns agree, with a door receipt and an off switch (`crates/blue-lang-runtime/src/door.rs`, `crates/blue-lang-cli/tests/door.rs`, the conformance door gate); AOT of the hex words to a wasm component run by wasmtime, equal to the interpreter over four seeds (`checks.native-wasm`); a raised bench row needs a typed reason (`receipt_kinds`); lever rows memo, bake, incremental and hexmsg as ratios to a Rust twin (`bench/lever.baseline`, PERFORMANCE.md 1.6) and as CI cost rows. Not built: a bench record written per release tag (the ratchet runs on every land), the data-parallel and partial-evaluation rows, AOT of a bidama a service calls through the component host's imports. |
 | H8. Reach | ⏳ in progress | Built: the gate, equal receipts across two placements: `crates/blue-lang-cli/tests/placement.rs` runs `crates/blue-lang-wasm/page/app.b` with `blue run --allow none --receipts` and as the wasm engine in a page that `page/serve.b`, a blue service, serves, driven through the page's own generated loader (burauza's `engine` row) in Node's V8; the section and the receipt are byte-equal and the module imports nothing (2026-11-11). `blue bundle --sources`; `checks.conformance` compares output across placements. Kernel: `kaaneru` compiles blue to BPF, a refusal names the `.b` file and line for xdp, sched_cls, socket_filter, cgroup_skb and cgroup_sysctl (`kernel/object_suite.b`), and cgroup_sysctl is a program kind (`kernel/net_suite.b`). Nix: `kakehashi/nikkusu`'s `render` and `module`; `nix/node-fixture/node.b` renders `configuration.nix`, and `checks.node-from-blue` evaluates it and a hand-written oracle to one NixOS toplevel. Not built: a real headless browser run, hydration (FRONTEND-PLAN F8), a blue project's own flake rendered from blue, the GPU rung. |
 | H9. Model-native | ⏳ in progress | Built: the score as a census row that falls only with a typed reason (`eval/census.b`, `eval/score.baseline`, `checks.model-eval`); every diagnostic's JSON carries its law, witness and fix (`fixes::REPAIR_CENSUS`, 35 of 79 rules left); `blue naturalize`; `blue context`. Not built: a repair for the 35 census rules; model runs recorded by CI. |
-| H10. Ecosystem | ⏳ in progress | Built: docs, tests and reach per package in CATALOG's "Quality signals". Not built: heni ratio, conformance and model score in that table; signed releases. |
+| H10. Ecosystem | ⏳ in progress | Built: docs, tests, reach, heni ratio and lock conformance per package in CATALOG's "Quality signals", recomputed by `checks.catalog-quality` (`gen/quality.b`); lock-verified loading under `verify(%i[contents])` (`crates/blue-lang-cli/tests/verified_load.rs`); signed release notes and tags (`shomei::release_refusal`, `gen/release.b`, `checks.release`). Not built: a model-eval score per package (H9 scores per release, typed `scored_per_release`); the production signing key; a release job that signs; signatures asked for at load. |
 | H11. One vocabulary | ⏳ in progress | Built: `Effect` as a projection of `Capability`, held at lock (`crates/blue-lang-cli/tests/lattice.rs`, `a_service_whose_code_reaches_past_its_access_is_refused_at_lock`). Not built: one spelling read both ways. |
 | H12. Pure by default | ❌ not built | The lattice check still runs only when the root declares `allow`, a provider or `bounds` (`crates/blue-lang-pkg/src/capabilities.rs`). No census counts undeclared Bluefiles. |
 | H13. Authority per bidama at run time | ⏳ in progress | Built: a live-byte account per evaluation and per process (`crates/blue-lang-runtime/src/memory.rs`). Not built: a frame per package, a memory bound a bidama declares. |

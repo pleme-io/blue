@@ -139,6 +139,8 @@ pub struct Lock {
     /// or a `virtualize` provider ([`crate::capabilities`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub capabilities: Option<crate::capabilities::CapabilityRecord>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub contents: BTreeMap<String, String>,
 }
 
 /// How `blue lock` asks for a source's pin.
@@ -393,7 +395,49 @@ pub fn lock_dir_with(
         },
     )?;
     lock.capabilities = capabilities;
+    if bf.project.verifies("contents") {
+        lock.contents = resolved_contents(dir, &loader, needs.keys().cloned())?;
+    }
     Ok((lock, notes))
+}
+
+pub fn resolved_contents(
+    dir: &Path,
+    loader: &crate::load_path::LoadPath,
+    needs: impl IntoIterator<Item = String>,
+) -> Result<BTreeMap<String, String>, LockError> {
+    use blue_lang_runtime::uses::Loader;
+    let own = dir.canonicalize().unwrap_or_else(|_| dir.to_path_buf());
+    let mut queue: Vec<String> = needs.into_iter().collect();
+    let mut seen = std::collections::BTreeSet::new();
+    let mut out = BTreeMap::new();
+    while let Some(name) = queue.pop() {
+        if !seen.insert(name.clone()) {
+            continue;
+        }
+        let Some(found) = loader.resolve(&name) else {
+            continue;
+        };
+        let at = found.canonicalize().unwrap_or(found);
+        if at.starts_with(&own) {
+            continue;
+        }
+        let root = crate::content::root(&at).map_err(|e| LockError::Read {
+            path: e.path,
+            error: e.error,
+        })?;
+        out.insert(name.clone(), root);
+        queue.extend(loader.needs(&name, None).unwrap_or_default());
+    }
+    Ok(out)
+}
+
+pub fn locked_contents(dir: &Path) -> BTreeMap<String, String> {
+    std::fs::read_to_string(dir.join(LOCK_FILE))
+        .ok()
+        .and_then(|t| serde_json::from_str::<Lock>(&t).ok())
+        .map(|l| l.contents)
+        .unwrap_or_default()
 }
 
 pub struct Resolve<'a> {
@@ -476,6 +520,27 @@ pub fn confirm_dir(dir: &Path) -> Result<Freshness, LockError> {
         return Ok(Freshness::Stale {
             reason: Staleness::Capabilities,
         });
+    }
+    if bf.project.verifies("contents") {
+        let recorded = serde_json::from_str::<Lock>(&lock_text)
+            .map(|l| l.contents)
+            .unwrap_or_default();
+        let loader = crate::load_path::LoadPath::for_dir(dir);
+        let needs = derived_needs(dir, &bf).map(|n| n.into_keys().collect::<Vec<_>>());
+        let now = resolved_contents(dir, &loader, needs.unwrap_or_default())?;
+        let moved: Vec<String> = recorded
+            .keys()
+            .chain(now.keys())
+            .filter(|n| recorded.get(*n) != now.get(*n))
+            .cloned()
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .collect();
+        if !moved.is_empty() {
+            return Ok(Freshness::Stale {
+                reason: Staleness::Contents { moved },
+            });
+        }
     }
     let lock_text = Some(lock_text);
     match derived_needs(dir, &bf) {
@@ -571,6 +636,7 @@ pub fn lock_with(
             sources,
             refused,
             capabilities: None,
+            contents: BTreeMap::new(),
         },
         notes,
     ))
@@ -637,6 +703,8 @@ pub enum Staleness {
     /// verify to now.
     #[error("the recorded capabilities do not state the Bluefile's allow, virtualize, floors and bounds, or their floors do not fit the ceiling or the definitions recorded for them; run `blue lock`")]
     Capabilities,
+    #[error("the content roots the lock records under verify(:contents) are not what {} hash to now; run `blue lock` to accept them", .moved.join(", "))]
+    Contents { moved: Vec<String> },
 }
 
 /// Check a committed lock against the Bluefile beside it, **offline**.

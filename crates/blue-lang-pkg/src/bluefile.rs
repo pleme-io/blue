@@ -220,6 +220,17 @@ pub struct Project {
     /// like `generated`.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub legacy_packages: BTreeMap<String, MovedPackage>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub verify: Option<Vec<String>>,
+}
+
+impl Project {
+    #[must_use]
+    pub fn verifies(&self, what: &str) -> bool {
+        self.verify
+            .as_ref()
+            .is_some_and(|v| v.iter().any(|w| w == what))
+    }
 }
 
 /// Where a bidama moved, and from which version of the root it moved into.
@@ -235,6 +246,8 @@ pub const VISIBILITIES: &[&str] = &["public", "unlisted", "private"];
 pub const TIERS: &[&str] = &["foundation", "system", "toolchain"];
 
 pub const TARGETS: &[&str] = &["host", "wasm", "bpf"];
+
+pub const VERIFIES: &[&str] = &["contents"];
 
 pub const TOOL_PLATFORMS: &[&str] = &["linux", "darwin"];
 
@@ -682,6 +695,37 @@ const WORDS: &[Word] = &[
                 });
             }
             set_once(&mut into.project.target, c.word, "target".into(), places)
+        },
+    },
+    Word {
+        name: "verify",
+        signature: "verify(what)",
+        doc: "What the root holds its dependencies to when they load (%i[contents]): :contents makes `blue lock` record the content root of every bidama the root resolves from outside its own directory (`contents` in Bluefile.lock: one BLAKE3 over every file the bidama ships), and the loader refuses a bidama whose files no longer hash to it, naming both hashes. Undeclared, nothing is recorded and nothing is compared.",
+        min: 1,
+        max: 1,
+        record: |c, into| {
+            let what = c.labels(0, "what")?;
+            let mut seen = what.clone();
+            seen.sort();
+            seen.dedup();
+            let bad = what.iter().find(|w| !VERIFIES.contains(&w.as_str()));
+            if let Some(got) = bad {
+                return Err(Malformed::Choice {
+                    word: c.word,
+                    param: "what",
+                    expected: VERIFIES,
+                    got: got.clone(),
+                });
+            }
+            if what.is_empty() || seen.len() != what.len() {
+                return Err(Malformed::Choice {
+                    word: c.word,
+                    param: "what",
+                    expected: VERIFIES,
+                    got: format!("{what:?}"),
+                });
+            }
+            set_once(&mut into.project.verify, c.word, "verify".into(), what)
         },
     },
     Word {
@@ -1691,6 +1735,7 @@ mod tests {
             ])
             // 2026-11-05: a bidama moved into this root's tree (B0074).
             .chain(["legacy_packages"])
+            .chain(["verify"])
             // P1b's list argument, 2026-09-23 — `Capability::Collections`.
             .chain(["list", blue_lang_syntax::LOWERED_MAP])
             .chain([

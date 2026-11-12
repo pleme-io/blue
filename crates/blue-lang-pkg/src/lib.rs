@@ -36,6 +36,7 @@ pub mod bluefile;
 pub mod bounds;
 pub mod canonical;
 pub mod capabilities;
+pub mod content;
 pub mod corpus;
 /// `image` and `workload`: OCI images built by nix, workloads rendered for
 /// GitOps, and the read-only comparison with a cluster. BLUE-TOOLING T-J.

@@ -737,6 +737,43 @@ PERFORMANCE.md 0.1.)
 **First step:** ten golden tasks and a scored run recorded per release.
 **Gate:** the score is a census row; it may not fall without a typed reason.
 
+**Built (2026-11-11, on `h9/model-native`):** all four items, each seen red
+once.
+
+- **The eval as a ratchet.** `eval/score.baseline` is the census: one
+  `model-eval-passed` row per run, `reference` and each model's latest
+  answers under `eval/scores/<version>/<model>/`. `eval/census.b` rescores
+  every run with the blue being built, and `checks.model-eval` runs it, so a
+  broken recorded answer or a blue change that a recorded answer no longer
+  passes is red. A row falls only through `record --reason <task-added |
+  task-changed | rule-tightened | answers-replaced> --receipt WHY`. First run:
+  `claude-opus-5-5` at 0.0.192, given only each `prompt.md`, the blue CLI and
+  blue's docs, 10/10. Red: one recorded answer replaced by a stub, `passes 9,
+  below its recorded 10`.
+- **Diagnostics as repair prompts.** `blue check --format json` carries each
+  rule's `law` and `witness`, and a formatter-fixed rule with no edit gets one
+  machine-applicable whole-file edit (`fixes::complete_with_rewrite`).
+  `every_rule_outside_the_census_is_repaired_by_its_own_diagnostic` applies
+  each rule's first fixes to its own witness and the rule must stop firing;
+  `a_diagnostic_s_json_alone_carries_its_law_its_witness_and_a_repair` does it
+  through the CLI. The census `fixes::REPAIR_CENSUS` is held exact: 35 of 79
+  rules (2026-11-11), mostly the refusals with no single right edit (types,
+  waivers, duplicates, data laws, `discarded-value`). Red without the rewrite:
+  23 rules.
+- **`blue naturalize TARGET DIR`** (`crates/blue-lang-cli/blue/naturalize.b`):
+  a Rust module (`FILE.rs[::name]`, rustc) or crate (`CRATE_DIR[::mod::name]`,
+  cargo) to a bidama of stubs, the rows the original returned (a panic is a
+  `raises` row) and a test per word that is red until the body agrees.
+  `tests/naturalize.rs`: red as stubs, red with a wrong body, green ported.
+- **`blue context WORD`** (and `blue arika context`, MCP `blue_word_context`):
+  the word, its import line, doc, reach, the `law_` definitions that call it,
+  its callers, its tests and its callees, each list capped at 8 with its
+  total, the whole at most 8192 bytes. Red with the cap removed: 774 callers
+  shown.
+
+Open: the 35 rules of the repair census; naturalize drives only scalar, text
+and integer-list signatures; model runs are recorded by hand, outside CI.
+
 ### H10. Ecosystem: bidamas anyone can trust
 
 - A registry of bidamas with quality signals computed, not claimed: docs
@@ -1247,7 +1284,7 @@ and what is not.
 | H6. Proof | ⏳ in progress | Built: heni's caught ratio as a ratchet (`bidamas/heni/ratio.baseline`, `checks.heni-mutations`); generated properties (`crates/blue-lang-cli/tests/properties.rs`). Not built: laws over a decidable fragment. |
 | H7. Speed with receipts | ⏳ in progress | Built: a bench row set with a recorded baseline (`bench/bench.b`, `bench/cost.baseline`, the `bench-ratchet` check in `flake.nix`); the VM as `blue run`'s default door where the conformance columns agree, with a door receipt and an off switch (`crates/blue-lang-runtime/src/door.rs`, `crates/blue-lang-cli/tests/door.rs`, the conformance door gate); AOT of the hex words to a wasm component run by wasmtime, equal to the interpreter over four seeds (`checks.native-wasm`); a raised bench row needs a typed reason (`receipt_kinds`); lever rows memo, bake, incremental and hexmsg as ratios to a Rust twin (`bench/lever.baseline`, PERFORMANCE.md 1.6) and as CI cost rows. Not built: a bench record written per release tag (the ratchet runs on every land), the data-parallel and partial-evaluation rows, AOT of a bidama a service calls through the component host's imports. |
 | H8. Reach | ⏳ in progress | Built: `kaaneru` compiles blue to BPF; `examples/13_web_site.b` serves a page natively; `checks.conformance` compares output across placements. Not built: equal receipts across two placements, the frontend as a wasm page, the GPU rung. |
-| H9. Model-native | ⏳ in progress | Built: ten golden tasks and the scorer (`eval/tasks/`, `eval/score.b`, `checks.model-eval`). Not built: a model's score recorded per release as a census row. |
+| H9. Model-native | ⏳ in progress | Built: the score as a census row that falls only with a typed reason (`eval/census.b`, `eval/score.baseline`, `checks.model-eval`); every diagnostic's JSON carries its law, witness and fix (`fixes::REPAIR_CENSUS`, 35 of 79 rules left); `blue naturalize`; `blue context`. Not built: a repair for the 35 census rules; model runs recorded by CI. |
 | H10. Ecosystem | ⏳ in progress | Built: docs, tests and reach per package in CATALOG's "Quality signals". Not built: heni ratio, conformance and model score in that table; signed releases. |
 | H11. One vocabulary | ⏳ in progress | Built: `Effect` as a projection of `Capability`, held at lock (`crates/blue-lang-cli/tests/lattice.rs`, `a_service_whose_code_reaches_past_its_access_is_refused_at_lock`). Not built: one spelling read both ways. |
 | H12. Pure by default | ❌ not built | The lattice check still runs only when the root declares `allow`, a provider or `bounds` (`crates/blue-lang-pkg/src/capabilities.rs`). No census counts undeclared Bluefiles. |

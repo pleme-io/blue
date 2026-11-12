@@ -167,6 +167,7 @@ was rendered. `blue help COMMAND` shows each one's flags.
 | `blue check [FILE]` | Check a program against every rule in the registry — unbound names, unused bindings, types, waivers — and report the typing analysis. |
 | `blue query QUERY [PATHS]...` | Every definition under PATH (files, or directories of `.b` files; `.` when none) that satisfies QUERY, one line per hit: `file:line:col: definition  name = value…`. |
 | `blue migrate FILES...` | Make every reference each FILE makes to another bidama's definition explicit (`use("retsu", [:first])`, and the bidama's `needs`), keeping a file only when its resolved tree is proven unchanged. |
+| `blue naturalize TARGET DIR` | Scaffold DIR as a bidama ported from Rust: a stub per drivable `pub fn` of TARGET, the rows the original returns (recorded by compiling a harness against it), and a test per word that is red until the stub's body agrees with every row. |
 | `blue doc [NAME]` | What NAME is: its signature, doc line, namespace, tier and an example, for a builtin, `pkg::name`, or a bare name across the builtins and every bidama on BLUE_PATH; a bidama's name lists the package. |
 | `blue verbs ARGS...` | The verb graph (`bidamas/mokuroku/graph`): `import` region or merged TSVs into its row files, `export` them back to TSV (the only writer of TSV), `check` its gates against the recorded baseline, `findings` of a TSV directory. |
 | `blue explain-name NAME AT` | How a bare NAME resolves at FILE:LINE: every tier of the resolution order, what each holds, and which wins. |
@@ -200,6 +201,7 @@ was rendered. `blue help COMMAND` shows each one's flags.
 | `blue arika get WORD` | Every fact of one word, by pkg::name or readable id. |
 | `blue arika uses WORD` | The definitions that call a word, by pkg::name or readable id. |
 | `blue arika why WORD` | Why a word exists and is shaped as it is: the reasons recorded for it (its @doc, the commits and docs/ROADMAP.md and docs/HORIZON.md lines that name it), what pins it (the tests that name it, its callers, the commit that first wrote it), each cited; `no recorded reason` when every source was read and none says why, blind when one could not be read. |
+| `blue arika context WORD` | One bounded answer to write against a word: its id, kind, import line, doc, reach, the laws that hold it, its callers, its tests and what it calls, each list capped with its total, the whole at most 8192 bytes of JSON. |
 | `blue arika groups` | Functions of MIN nodes or more that share one computed shape across words (T2 over the whole tree). |
 | `blue arika changed PACKAGE` | How PACKAGE's words moved since an older facts file: added, removed, and code or doc moved. |
 | `blue arika ask QUESTION` | Answer a named question over blue's knowledge graph (definitions, tests, docs and rules as khipu quads, asked through DuckDB): untested-CAPABILITY is every definition that reaches the capability and that no test or doc example names. |
@@ -208,6 +210,7 @@ was rendered. `blue help COMMAND` shows each one's flags.
 | `blue arika tools` | Print the MCP tool list, rendered from the blue schema TOOLS in arika.b. |
 | `blue arika mcp REQUEST` | Answer one MCP JSON-RPC request (REQUEST is the JSON text) from the facts, as the service would; a notification prints nothing. |
 | `blue arika serve [ADDR]` | Serve the blue_word_* tools as an MCP server over Streamable HTTP (POST JSON-RPC to any path; /healthz answers ok). |
+| `blue context WORD` | One bounded answer to write against a word (blue arika context): its id, kind, import line, doc, reach, the laws that hold it, its callers, its tests and what it calls, at most 8192 bytes of JSON. |
 | `blue receipt verify FILE` | Recompute a receipt's name from its bytes and check its form; any edit fails. |
 | `blue config [TIER]` | Show the bounds `blue` is running with, at any tier. |
 | `blue new NAME` | Start a program (a project with its own bidama), a `--bidama`, a `--script`, or a `--kernel` program, each passing `blue test` as written. |
@@ -229,7 +232,7 @@ rendered:
 | Surface forms | 36, with 13 operators and 26 reserved words |
 | Check rules | 79: 42 fix themselves, 8 suggest a fix |
 | Bluefile words | 28 |
-| Commands | 58 |
+| Commands | 61 |
 
 ## The standard library
 

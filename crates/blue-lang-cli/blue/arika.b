@@ -319,7 +319,20 @@ FACT_VERBS is the verbs answered from the facts alone: each takes the facts' che
 
     member?("find", FACT_VERBS) #=> true
 """
-FACT_VERBS = %w[find get uses why groups changed golden quads ask mcp serve]
+FACT_VERBS = %w[
+  find
+  get
+  uses
+  why
+  context
+  groups
+  changed
+  golden
+  quads
+  ask
+  mcp
+  serve
+]
 
 @doc """
 BLUE_IRI is the IRI space blue's own facts are written in.
@@ -1058,9 +1071,152 @@ def why_lines(a)
 end
 
 @doc """
+CONTEXT_LIST is the most callers, tests, laws and callees a context answer names; each list also says how many there are.
+
+    CONTEXT_LIST #=> 8
+"""
+CONTEXT_LIST = 8
+
+@doc """
+CONTEXT_DOC is the most characters of a word's doc a context answer carries.
+
+    CONTEXT_DOC #=> 1200
+"""
+CONTEXT_DOC = 1200
+
+@doc """
+CONTEXT_BYTES is the bound on a context answer as JSON: a model can always take the whole answer.
+
+    CONTEXT_BYTES #=> 8192
+"""
+CONTEXT_BYTES = 8192
+
+@doc """
+capped is at most CONTEXT_LIST of a list, with how many there are.
+
+    capped([1, 2])["total"] #=> 2
+"""
+def capped(xs)
+  {"total" => size(xs), "shown" => take(CONTEXT_LIST, xs)}
+end
+
+@doc """
+cited is a row or a test as a context answer names it: its name, file and line.
+
+    cited("a::x", {"file" => "a.b", "line" => 3}) #=> {"word" => "a::x", "file" => "a.b", "line" => 3}
+"""
+def cited(word, r)
+  {"word" => word, "file" => r["file"], "line" => r["line"]}
+end
+
+@doc """
+law_rows are the `law_` definitions that call a word: the laws that hold it.
+
+    law_rows("a::x", [{"word" => "a::law_x", "name" => "law_x", "calls" => ["a::x"]}]) #=> [{"word" => "a::law_x", "name" => "law_x", "calls" => ["a::x"]}]
+"""
+def law_rows(w, rows)
+  first_rows(
+    filter(
+      fn(r)
+        starts_with?(retsu::last(split(r["word"], "::")), "law_") and
+          member?(w, r["calls"] or [])
+      end,
+      rows
+    )
+  )
+end
+
+@doc """
+context_answer: One bounded answer a model can write against: a word's id, kind, import line, doc, reach, the laws that hold it, its callers, its tests and what it calls, each list at most CONTEXT_LIST with its total, the whole at most CONTEXT_BYTES as JSON; `none` when no word has that name.
+
+    context_answer("a::x", [])["outcome"] #=> "none"
+"""
+def context_answer(target, rows)
+  w = resolve_word(target, rows)
+  if w.nil?
+    {"query" => target, "word" => nil, "outcome" => "none"}
+  else
+    row = get(by_word(rows), w)
+    parts = split(w, "::")
+    doc = doc_prose(row["doc"]) or row["gloss"]
+    a = {
+      "query" => target,
+      "word" => w,
+      "outcome" => "found",
+      "id" => row["id"],
+      "kind" => row["kind"],
+      "file" => row["file"],
+      "line" => row["line"],
+      "import" => import_line(
+        {"package" => first(parts), "name" => retsu::last(parts)}
+      ),
+      "doc" => if doc.nil?
+        nil
+      else
+        take_chars(doc, CONTEXT_DOC)
+      end,
+      "reach" => row["reach"] or [],
+      "laws" => capped(map((r) -> cited(r["word"], r), law_rows(w, rows))),
+      "callers" => capped(
+        map((c) -> cited(c["word"], c), uses_answer(w, rows)["callers"])
+      ),
+      "tests" => capped(map((t) -> cited(t["name"], t), row["tests"] or [])),
+      "calls" => capped(row["calls"] or [])
+    }
+    if size(json_stringify(a)) > CONTEXT_BYTES
+      assoc(a, "doc", row["gloss"])
+    else
+      a
+    end
+  end
+end
+
+@doc """
+context_lines is a context answer as text: the word and its import, its doc, then each list with its total.
+
+    context_lines({"query" => "a::x", "word" => nil, "outcome" => "none"}) #=> ["arika: no word `a::x`"]
+"""
+def context_lines(a)
+  if a["outcome"] == "none"
+    ["arika: no word `#{a["query"]}`"]
+  else
+    listed = fn(label, c)
+      append(
+        ["#{label} (#{to_s(size(c["shown"]))} of #{to_s(c["total"])}):"],
+        map(
+          fn(x)
+            if x["word"] != nil
+              "  #{x["word"]}  (#{x["file"]}:#{to_s(x["line"])})"
+            else
+              "  #{x}"
+            end
+          end,
+          c["shown"]
+        )
+      )
+    end
+    flat_map(
+      [
+        [
+          "#{a["word"]}  #{a["kind"]}  (#{a["file"]}:#{to_s(a["line"])})",
+          a["import"],
+          "doc: #{a["doc"] or "none"}",
+          "reach: #{join(a["reach"], ", ")}"
+        ],
+        listed("laws", a["laws"]),
+        listed("callers", a["callers"]),
+        listed("tests", a["tests"]),
+        listed("calls", a["calls"])
+      ],
+      (x) -> x
+    )
+  end
+end
+
+@doc """
 TOOLS is the arika service's schema in blue: each tool's name, the verb it answers with, what it answers, and its arguments. The MCP tool list (`blue arika tools`, docs/arika-tools.json) is rendered from it and nothing else.
 
-    size(TOOLS) #=> 7
+    size(TOOLS) #=> 8
 """
 TOOLS = [
   {
@@ -1112,6 +1268,19 @@ TOOLS = [
     name: "blue_word_why",
     verb: "why",
     about: "Why a blue word exists and is shaped as it is: the reasons recorded for it (its @doc, the commits and ROADMAP/HORIZON lines that name it), what pins it (tests, callers, the commit that wrote it), each cited; `no recorded reason` when every source was read and none says why",
+    args: [
+      {
+        name: "word",
+        type: "string",
+        required: true,
+        about: "pkg::name or a readable id"
+      }
+    ]
+  },
+  {
+    name: "blue_word_context",
+    verb: "context",
+    about: "One bounded answer to write against a blue word: its id, kind, import line, doc, reach, the laws that hold it, its callers, its tests and what it calls, each list capped with its total, the whole at most 8192 bytes of JSON",
     args: [
       {
         name: "word",
@@ -1222,6 +1391,8 @@ def verb_answer(verb, q, ctx)
     uses_answer(q["word"], rows)
   elsif verb == "why"
     why_answer(q["word"], rows, ctx["dir"] or "bidamas")
+  elsif verb == "context"
+    context_answer(q["word"], rows)
   elsif verb == "groups"
     groups_answer(q["min"] or MIN_GROUP, rows)
   elsif verb == "changed"
@@ -1303,6 +1474,8 @@ def fact_lines(verb, a)
     )
   elsif verb == "why"
     why_lines(a)
+  elsif verb == "context"
+    context_lines(a)
   elsif verb == "groups"
     lines_or(
       map(

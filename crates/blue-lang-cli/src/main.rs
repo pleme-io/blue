@@ -568,6 +568,16 @@ enum Cmd {
         #[command(subcommand)]
         cmd: arika::ArikaCmd,
     },
+    #[command(
+        about = "One bounded answer to write against a word (blue arika context): its id, kind, import line, doc, reach, the laws that hold it, its callers, its tests and what it calls, at most 8192 bytes of JSON"
+    )]
+    Context {
+        word: String,
+        #[arg(long, help = "Print the answer as one JSON object")]
+        json: bool,
+        #[command(flatten)]
+        from: arika::FactsFrom,
+    },
     /// Execution receipts `blue run --receipts DIR` writes.
     Receipt {
         #[command(subcommand)]
@@ -937,6 +947,9 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             .map_err(CliError::Fmt),
         Cmd::Crash { cmd } => crash::run(cmd).map_err(CliError::Fmt),
         Cmd::Arika { cmd } => arika::run(cmd).map_err(CliError::Fmt),
+        Cmd::Context { word, json, from } => {
+            arika::run(arika::ArikaCmd::Context { word, json, from }).map_err(CliError::Fmt)
+        }
         Cmd::Receipt { cmd } => Ok(receipt::run(cmd)),
         Cmd::Run {
             file,

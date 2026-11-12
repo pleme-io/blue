@@ -899,8 +899,10 @@ fn shape_table(rows: &[Json]) -> (String, usize) {
     }
     let mut table = tameshi::sparse_merkle::SparseMerkleTree::new(64);
     for (shape, words) in &by_shape {
-        let key =
-            Blake3Hash::from_b3(shape).unwrap_or_else(|_| Blake3Hash::digest(shape.as_bytes()));
+        let key = shape
+            .strip_prefix("b3:")
+            .and_then(|h| Blake3Hash::from_hex(h).ok())
+            .unwrap_or_else(|| Blake3Hash::digest(shape.as_bytes()));
         let fields: Vec<&[u8]> = words.iter().map(|w| w.as_bytes()).collect();
         table.insert(key, Blake3Hash::digest_fields(&fields));
     }

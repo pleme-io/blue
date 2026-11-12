@@ -165,3 +165,57 @@ fn an_unknown_cache_value_is_refused() {
     assert!(out.contains("BLUE_TEST_CACHE"), "{out}");
     assert!(!Path::new(&p.root.join("cache")).exists(), "{out}");
 }
+
+fn proofs(p: &Place, src: &str) -> (String, serde_json::Value) {
+    p.write(src);
+    let file = p.root.join("proofs.json");
+    let out = p.test(&[], &["--proofs", file.to_str().expect("utf-8 path")]);
+    let doc = serde_json::from_slice(&std::fs::read(&file).expect("the proofs are written"))
+        .expect("the proofs are JSON");
+    (out, doc)
+}
+
+fn hash(v: &serde_json::Value) -> tameshi::hash::Blake3Hash {
+    tameshi::hash::Blake3Hash::from_b3(v.as_str().expect("a b3 string")).expect("a b3 hash")
+}
+
+fn leaf(key: &tameshi::hash::Blake3Hash) -> tameshi::hash::Blake3Hash {
+    tameshi::hash::Blake3Hash::digest_fields(&[&key.0, b""])
+}
+
+#[test]
+fn a_cached_test_carries_an_inclusion_proof_that_it_passed_for_its_hash() {
+    let p = primed("proof", BASE);
+    let (out, doc) = proofs(&p, BASE);
+    says(&out, "1 test(s): 0 passed, 0 failed, 1 cached\n");
+    let root = hash(&doc["root"]);
+    let total = usize::try_from(doc["total"].as_u64().expect("a total")).expect("small");
+    let cached = doc["cached"].as_array().expect("a list");
+    assert_eq!(cached.len(), 1, "{doc}");
+    let key = hash(&cached[0]["key"]);
+    let index = usize::try_from(cached[0]["index"].as_u64().expect("an index")).expect("small");
+    let path: Vec<_> = cached[0]["path"]
+        .as_array()
+        .expect("a path")
+        .iter()
+        .map(hash)
+        .collect();
+    assert!(tameshi::merkle::verify_leaf_inclusion(
+        &path,
+        &root,
+        &leaf(&key),
+        index,
+        total
+    ));
+    let other = tameshi::hash::Blake3Hash::digest(b"another test");
+    assert!(!tameshi::merkle::verify_leaf_inclusion(
+        &path,
+        &root,
+        &leaf(&other),
+        index,
+        total
+    ));
+    let (out, doc) = proofs(&p, &BASE.replace("x * 2", "x + x"));
+    says(&out, "1 test(s): 1 passed, 0 failed\n");
+    assert_eq!(doc["cached"].as_array().map(Vec::len), Some(0), "{doc}");
+}

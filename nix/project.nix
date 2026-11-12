@@ -239,6 +239,7 @@ let
         (p: lib.nameValuePair p.name (bl.mkBidama { inherit (p) name; inherit all; src = if p.source == null then p.root + "/${p.name}" else "${p.root}/${p.name}"; }))
         (roots.sourced ++ found)));
       own = lib.getAttrs ownNames bidamas;
+      reachOf = n: lib.getAttrs (bl.closureOf bidamas [ n ]) bidamas;
       # The levels below a bidama, each tested by its own file: a directory
       # holding `<d>/<d>.b`, or a file opening with `namespace()`. A level with
       # no tests fails its check, as a bidama does.
@@ -530,6 +531,7 @@ let
         } // lib.listToAttrs (map
           (n: lib.nameValuePair "bidama-test-${n}" (bl.mkTestCheck (common // {
             name = "bidama-test-${n}";
+            bidamas = reachOf n;
             file = "${own.${n}}/${n}/${n}.b";
           })))
           ownNames)
@@ -537,6 +539,7 @@ let
           (p: map
             (level: lib.nameValuePair "bidama-test-${p.name}-${lib.replaceStrings [ "/" ] [ "-" ] level.path}" (bl.mkTestCheck (common // {
               name = "bidama-test-${p.name}-${lib.replaceStrings [ "/" ] [ "-" ] level.path}";
+              bidamas = reachOf p.name;
               file = "${own.${p.name}}/${p.name}/${level.file}";
             })))
             (levelsOf (p.root + "/${p.name}") ""))

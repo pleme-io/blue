@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "84769b8642b79e01c3259e59273de1dbab56e5923bfc6fcb5a7c9f42228291ff",
+  "cargo_lock_sha256": "9f387f215368f92766c415aecdf8f0a54b75c98b24312dcbf11fecc31787334e",
   "manifest_sha256": {
     "Cargo.toml": "2f80954bbd78133c7e8a91bbd1a15f12ba4d45a71c3f8c05af701d1aa4cb41aa",
     "crates/blue-lang-appliance/Cargo.toml": "72da422691d14356450606a218eed12ed6a26ed3a23c64116dc3ef8546937526",
@@ -17,7 +17,7 @@
     "crates/blue-lang-kernel/Cargo.toml": "ade0db0e2d949194ab8c8441e2e8d6dba03a4b60e1587dda9a92441fe4043ba6",
     "crates/blue-lang-kiwari/Cargo.toml": "7061ed32aff7aac13a83517bb14ad40fb0e3b21d5ab948c719236b5f8d39150c",
     "crates/blue-lang-lsp/Cargo.toml": "6ee650c395599803eaa4f13f2194ea1a1145a5f5f491e27a1e90a95e183fce00",
-    "crates/blue-lang-mondou/Cargo.toml": "637a0cbb6ac275a3478a437406f8fd387a8b5257f755127815a47418b7ad08e5",
+    "crates/blue-lang-mondou/Cargo.toml": "7fa130dd926e7a2b77bd815089e3a115a2ce6ff9edb041afb4da5a323c6c96aa",
     "crates/blue-lang-pkg/Cargo.toml": "4748e901a3daea02d320297a956284dcb4aeee913c1c3df074d0722fda893d3c",
     "crates/blue-lang-proc/Cargo.toml": "84d0fc0f2223461e180e38eb73bfd8a1e3e474b12d0eb8d9814198520ae9c48b",
     "crates/blue-lang-runtime/Cargo.toml": "c0e89593b32c2ac7253438c56007993e3207606444f552d39a02f500e0521892",
@@ -1787,6 +1787,18 @@
             "tree": "target"
           },
           {
+            "name": "tameshi",
+            "package_key": "tameshi-0.1.12",
+            "kind": "normal",
+            "features": [
+              "merkle"
+            ],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
             "name": "tatara_lisp_eval",
             "package_key": "tatara-lisp-eval-0.4.16",
             "kind": "normal",
@@ -2161,7 +2173,7 @@
           },
           {
             "name": "tameshi",
-            "package_key": "tameshi-0.1.9",
+            "package_key": "tameshi-0.1.12",
             "kind": "normal",
             "features": [
               "threshold"
@@ -3281,6 +3293,34 @@
         "build_dependencies": [],
         "features": []
       },
+      "ff-0.14.0": {
+        "runtime_dependencies": [
+          {
+            "name": "rand_core",
+            "package_key": "rand_core-0.10.1",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "subtle",
+            "package_key": "subtle-2.6.1",
+            "kind": "normal",
+            "features": [
+              "i128"
+            ],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": []
+      },
       "figment-0.10.19": {
         "runtime_dependencies": [
           {
@@ -4269,6 +4309,34 @@
           "more_lengths"
         ]
       },
+      "generic-array-1.4.5": {
+        "runtime_dependencies": [
+          {
+            "name": "rustversion",
+            "package_key": "rustversion-1.0.23",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "host"
+          },
+          {
+            "name": "typenum",
+            "package_key": "typenum-1.20.1",
+            "kind": "normal",
+            "features": [
+              "const-generics"
+            ],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": []
+      },
       "getrandom-0.2.17": {
         "runtime_dependencies": [
           {
@@ -4850,6 +4918,24 @@
       },
       "humantime-2.4.0": {
         "runtime_dependencies": [],
+        "build_dependencies": [],
+        "features": []
+      },
+      "hybrid-array-0.4.15": {
+        "runtime_dependencies": [
+          {
+            "name": "typenum",
+            "package_key": "typenum-1.20.1",
+            "kind": "normal",
+            "features": [
+              "const-generics"
+            ],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
         "build_dependencies": [],
         "features": []
       },
@@ -9918,7 +10004,11 @@
       "subtle-2.6.1": {
         "runtime_dependencies": [],
         "build_dependencies": [],
-        "features": []
+        "features": [
+          "default",
+          "i128",
+          "std"
+        ]
       },
       "syn-2.0.119": {
         "runtime_dependencies": [
@@ -10080,7 +10170,7 @@
           "proc-macro"
         ]
       },
-      "tameshi-0.1.9": {
+      "tameshi-0.1.12": {
         "runtime_dependencies": [
           {
             "name": "axum",
@@ -10142,7 +10232,17 @@
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
-            "optional": false,
+            "optional": true,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "ff",
+            "package_key": "ff-0.14.0",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": true,
             "target": null,
             "tree": "target"
           },
@@ -10293,7 +10393,7 @@
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
-            "optional": false,
+            "optional": true,
             "target": null,
             "tree": "target"
           },
@@ -10333,20 +10433,32 @@
             "tree": "target"
           },
           {
+            "name": "vsss_rs",
+            "package_key": "vsss-rs-6.0.1",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": true,
+            "target": null,
+            "tree": "target"
+          },
+          {
             "name": "zeroize",
             "package_key": "zeroize-1.9.1",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
-            "optional": false,
+            "optional": true,
             "target": null,
             "tree": "target"
           }
         ],
         "build_dependencies": [],
         "features": [
+          "content-address",
           "default",
           "full",
+          "merkle",
           "os-rng",
           "threshold"
         ]
@@ -11638,7 +11750,9 @@
       "typenum-1.20.1": {
         "runtime_dependencies": [],
         "build_dependencies": [],
-        "features": []
+        "features": [
+          "const-generics"
+        ]
       },
       "ucd-trie-0.1.7": {
         "runtime_dependencies": [],
@@ -11860,6 +11974,62 @@
             "features": [
               "full"
             ],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": []
+      },
+      "vsss-rs-6.0.1": {
+        "runtime_dependencies": [
+          {
+            "name": "ff",
+            "package_key": "ff-0.14.0",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "generic_array",
+            "package_key": "generic-array-1.4.5",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "hybrid_array",
+            "package_key": "hybrid-array-0.4.15",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "rand_core",
+            "package_key": "rand_core-0.10.1",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "subtle",
+            "package_key": "subtle-2.6.1",
+            "kind": "normal",
+            "features": [],
             "uses_default_features": true,
             "optional": false,
             "target": null,
@@ -19102,6 +19272,9 @@
     "fdeflate-0.3.7": {
       "edition": "2021"
     },
+    "ff-0.14.0": {
+      "edition": "2021"
+    },
     "figment-0.10.19": {
       "edition": "2018",
       "build_script": "build.rs"
@@ -19179,6 +19352,9 @@
       "edition": "2015",
       "build_script": "build.rs"
     },
+    "generic-array-1.4.5": {
+      "edition": "2021"
+    },
     "getrandom-0.2.17": {
       "edition": "2018"
     },
@@ -19236,6 +19412,9 @@
     },
     "humantime-2.4.0": {
       "edition": "2021"
+    },
+    "hybrid-array-0.4.15": {
+      "edition": "2024"
     },
     "hyper-1.12.0": {
       "edition": "2021"
@@ -19737,7 +19916,7 @@
     "synstructure-0.14.0": {
       "edition": "2018"
     },
-    "tameshi-0.1.9": {
+    "tameshi-0.1.12": {
       "edition": "2024",
       "binaries": [
         {
@@ -19906,6 +20085,9 @@
     "visibility-0.1.1": {
       "edition": "2021",
       "proc_macro": true
+    },
+    "vsss-rs-6.0.1": {
+      "edition": "2024"
     },
     "wait-timeout-0.2.1": {
       "edition": "2015",

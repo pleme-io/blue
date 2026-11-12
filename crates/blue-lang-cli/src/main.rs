@@ -462,6 +462,12 @@ enum Cmd {
         /// `TAMESHI_FACTS` names FILE when the flag is not given.
         #[arg(long, value_name = "FILE")]
         facts: Option<PathBuf>,
+        #[arg(
+            long,
+            value_name = "FILE",
+            help = "Write to FILE the test cache's Merkle root over every passed key and, for each test reported cached, its key with an inclusion proof against that root"
+        )]
+        proofs: Option<PathBuf>,
     },
     /// Run a program and report every function it called: calls, inclusive
     /// and exclusive time, and what it allocated, most exclusive time first.
@@ -1507,6 +1513,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             no_cache,
             allow,
             facts,
+            proofs,
         } => {
             let facts = facts::path(facts);
             let cache = test_cache::TestCache::open(no_cache, coverage || facts.is_some())
@@ -1531,6 +1538,7 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                     json,
                     memo: memo::mode(no_memo, &cfg),
                     cache: cache.as_ref(),
+                    proofs: proofs.as_deref(),
                 },
                 receipt::hold_for(asked, facts.as_deref()),
                 facts.as_deref(),

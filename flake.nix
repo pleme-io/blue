@@ -771,6 +771,22 @@
               exit 1
             '');
 
+          test-closure-narrow =
+            let
+              checksOf = repository.${system}.checks // repository.${system}.postMergeChecks;
+              nameOf = p: (builtins.parseDrvName (lib.removePrefix "bidama-" (builtins.substring 33 (-1) (baseNameOf (builtins.unsafeDiscardStringContext p))))).name;
+              reach = c: lib.sort lib.lessThan (map nameOf checksOf.${c}.passthru.test.bluePath.paths);
+              want = {
+                bidama-test-kazu = [ "kazu" ];
+                bidama-test-retsu = [ "kazu" "retsu" ];
+              };
+              wrong = lib.filterAttrs (c: w: reach c != w) want;
+            in
+            pkgs.runCommand "test-closure-narrow" { } (if wrong == { } then "touch $out" else ''
+              echo "a test check's BLUE_PATH holds more than the closure its tests reach: ${lib.concatStringsSep "; " (lib.mapAttrsToList (c: w: "${c} holds ${toString (lib.length (reach c))} bidama(s), wants ${toString w}") wrong)}" >&2
+              exit 1
+            '');
+
           # A bidama whose code does not check does not build.
           bidama-check-refuses = bl.mkCheckRefusalCheck { inherit blue; };
           bidama-checks-in-its-own-root = bl.mkBidama {

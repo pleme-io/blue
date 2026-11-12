@@ -1,8 +1,7 @@
-use std::collections::HashSet;
 use std::time::Duration;
 
 use blue_lang_mondou::def_hash::{DefHash, TestIdentities};
-use blue_lang_mondou::store::{self, Identity, Store};
+use blue_lang_mondou::store::{self, Bucket, Identity, Inclusion, Store};
 
 pub(crate) const ENV: &str = "BLUE_TEST_CACHE";
 
@@ -17,7 +16,7 @@ pub(crate) fn parse(value: &str) -> Option<bool> {
 pub(crate) struct TestCache {
     store: Store,
     bucket: DefHash,
-    passed: HashSet<String>,
+    passed: Bucket,
 }
 
 impl TestCache {
@@ -34,12 +33,7 @@ impl TestCache {
             return Ok(None);
         };
         let bucket = DefHash(store.identity().0);
-        let passed = store
-            .load(&bucket)
-            .entries
-            .into_keys()
-            .map(|k| DefHash(k).hex())
-            .collect();
+        let passed = store.load(&bucket);
         Ok(Some(Self {
             store,
             bucket,
@@ -60,7 +54,19 @@ impl TestCache {
     }
 
     pub(crate) fn passed(&self, key: &str) -> bool {
-        self.passed.contains(key)
+        DefHash::from_hex(key).is_some_and(|k| self.passed.entries.contains_key(&k.0))
+    }
+
+    pub(crate) fn root(&self) -> [u8; 32] {
+        self.passed.root()
+    }
+
+    pub(crate) fn total(&self) -> usize {
+        self.passed.entries.len()
+    }
+
+    pub(crate) fn prove(&self, key: &str) -> Option<Inclusion> {
+        DefHash::from_hex(key).and_then(|k| self.passed.prove(&k.0))
     }
 
     pub(crate) fn record(&self, keys: &[String]) {

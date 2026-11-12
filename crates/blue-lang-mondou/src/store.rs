@@ -296,6 +296,68 @@ pub struct Bucket {
     pub damaged: usize,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Inclusion {
+    pub root: [u8; 32],
+    pub index: usize,
+    pub total: usize,
+    pub path: Vec<[u8; 32]>,
+}
+
+#[must_use]
+pub fn leaf(key: &[u8; 32], value: &[u8]) -> [u8; 32] {
+    tameshi::hash::Blake3Hash::digest_fields(&[key, value]).0
+}
+
+impl Inclusion {
+    #[must_use]
+    pub fn verifies(&self, key: &[u8; 32], value: &[u8]) -> bool {
+        let path: Vec<tameshi::hash::Blake3Hash> = self
+            .path
+            .iter()
+            .copied()
+            .map(tameshi::hash::Blake3Hash)
+            .collect();
+        tameshi::merkle::verify_leaf_inclusion(
+            &path,
+            &tameshi::hash::Blake3Hash(self.root),
+            &tameshi::hash::Blake3Hash(leaf(key, value)),
+            self.index,
+            self.total,
+        )
+    }
+}
+
+impl Bucket {
+    fn leaves(&self) -> (Vec<[u8; 32]>, Vec<tameshi::hash::Blake3Hash>) {
+        let mut keys: Vec<[u8; 32]> = self.entries.keys().copied().collect();
+        keys.sort_unstable();
+        let leaves = keys
+            .iter()
+            .map(|k| tameshi::hash::Blake3Hash(leaf(k, &self.entries[k].value)))
+            .collect();
+        (keys, leaves)
+    }
+
+    #[must_use]
+    pub fn root(&self) -> [u8; 32] {
+        tameshi::merkle::compute_leaf_root(&self.leaves().1).0
+    }
+
+    #[must_use]
+    pub fn prove(&self, key: &[u8; 32]) -> Option<Inclusion> {
+        let (keys, leaves) = self.leaves();
+        let index = keys.binary_search(key).ok()?;
+        let path = tameshi::merkle::leaf_inclusion_proof(&leaves, index)?;
+        Some(Inclusion {
+            root: tameshi::merkle::compute_leaf_root(&leaves).0,
+            index,
+            total: leaves.len(),
+            path: path.into_iter().map(|h| h.0).collect(),
+        })
+    }
+}
+
 /// The persistent store of one evaluator identity.
 pub struct Store {
     root: PathBuf,
@@ -598,6 +660,29 @@ mod tests {
         assert_eq!(b.entries.len(), 3);
         assert_eq!(b.entries[&[2; 32]].value, b"two");
         assert_eq!(b.entries[&[3; 32]].cost, Duration::from_micros(3));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn every_entry_of_a_bucket_proves_against_its_root_and_a_changed_value_does_not() {
+        let root = temp("proof");
+        let store =
+            Store::open(&root, Identity::from_parts(&[b"p"]), DEFAULT_MAX_BYTES).expect("opens");
+        let bucket = DefHash([9; 32]);
+        let written: Vec<_> = (1..=5).map(|n| entry(n, &[n, n])).collect();
+        store.append(&bucket, &written).expect("writes");
+        let b = store.load(&bucket);
+        for n in 1..=5u8 {
+            let proof = b.prove(&[n; 32]).expect("stored");
+            assert_eq!(proof.root, b.root());
+            assert_eq!(proof.total, 5);
+            assert!(proof.verifies(&[n; 32], &[n, n]));
+            assert!(!proof.verifies(&[n; 32], &[n]));
+        }
+        assert!(b.prove(&[6; 32]).is_none());
+        let before = b.root();
+        store.append(&bucket, &[entry(6, b"six")]).expect("writes");
+        assert_ne!(store.load(&bucket).root(), before);
         let _ = std::fs::remove_dir_all(&root);
     }
 

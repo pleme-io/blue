@@ -41,6 +41,7 @@ struct FileRun {
     /// Each definition's and each test's `def_hash`, when facts are asked.
     identities: Option<blue_lang_mondou::def_hash::TestIdentities>,
     passed_keys: Vec<String>,
+    cached_keys: Vec<String>,
 }
 
 /// How `blue test` watches what it runs.
@@ -51,6 +52,7 @@ pub(crate) struct Watch<'a> {
     pub json: bool,
     pub memo: crate::memo::Mode,
     pub cache: Option<&'a crate::test_cache::TestCache>,
+    pub proofs: Option<&'a Path>,
 }
 
 /// `blue test PATH [--filter PATTERN] [--coverage [--json]] [--allow CAP]
@@ -90,6 +92,9 @@ pub(crate) fn test(
     if let Some(cache) = watch.cache {
         let keys: Vec<String> = runs.iter().flat_map(|r| r.passed_keys.clone()).collect();
         cache.record(&keys);
+    }
+    if let Some(file) = watch.proofs {
+        write_proofs(file, watch.cache, &runs)?;
     }
     if let (Some(facts), Some(hold)) = (facts, &guard.hold) {
         let evidence: Vec<crate::facts::FileEvidence<'_>> = runs
@@ -331,6 +336,7 @@ fn run_files(
                             coverage: None,
                             identities: None,
                             passed_keys: Vec::new(),
+                            cached_keys: Vec::new(),
                         })
                     });
                     if let Ok(mut slots) = results.lock() {
@@ -399,6 +405,7 @@ fn test_file(
             coverage: None,
             identities: None,
             passed_keys: Vec::new(),
+            cached_keys: Vec::new(),
         });
     }
     let memoized = memo != crate::memo::Mode::Off && !coverage;
@@ -455,17 +462,19 @@ fn test_file(
             .and_then(|(cache, ids)| cache.key(ids, test, &bounds))
     };
     let own;
+    let mut cached_keys = Vec::new();
     let guard = match (watch.cache, &identities) {
         (Some(cache), Some(ids)) => {
+            let hits: Vec<(usize, String)> = ids
+                .tests
+                .keys()
+                .filter_map(|&t| key_of(t).filter(|k| cache.passed(k)).map(|k| (t, k)))
+                .collect();
             own = blue_lang_test::Guard {
-                cached: ids
-                    .tests
-                    .keys()
-                    .copied()
-                    .filter(|&t| key_of(t).is_some_and(|k| cache.passed(&k)))
-                    .collect(),
+                cached: hits.iter().map(|(t, _)| *t).collect(),
                 ..guard.clone()
             };
+            cached_keys = hits.into_iter().map(|(_, k)| k).collect();
             &own
         }
         _ => guard,
@@ -505,7 +514,39 @@ fn test_file(
         coverage: recorder.map(|r| r.report()),
         identities,
         passed_keys,
+        cached_keys,
     })
+}
+
+fn b3(bytes: &[u8; 32]) -> String {
+    format!("b3:{}", blue_lang_mondou::def_hash::DefHash(*bytes).hex())
+}
+
+fn write_proofs(
+    file: &Path,
+    cache: Option<&crate::test_cache::TestCache>,
+    runs: &[FileRun],
+) -> Result<(), CliError> {
+    let cached: Vec<serde_json::Value> = runs
+        .iter()
+        .flat_map(|r| r.cached_keys.iter().map(move |k| (r, k)))
+        .filter_map(|(r, k)| {
+            let proof = cache?.prove(k)?;
+            Some(serde_json::json!({
+                "file": r.path.display().to_string(),
+                "key": format!("b3:{k}"),
+                "index": proof.index,
+                "path": proof.path.iter().map(b3).collect::<Vec<_>>(),
+            }))
+        })
+        .collect();
+    let doc = serde_json::json!({
+        "root": cache.map(|c| b3(&c.root())),
+        "total": cache.map_or(0, crate::test_cache::TestCache::total),
+        "cached": cached,
+    });
+    std::fs::write(file, format!("{doc}\n"))
+        .map_err(|e| CliError::Fmt(format!("{}: {e}", file.display())))
 }
 
 /// The entry file's definitions with their call counts, uncovered ones marked.

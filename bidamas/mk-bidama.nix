@@ -178,6 +178,17 @@ rec {
       done
   '';
 
+  # Every bidama `names` reach, for BLUE_PATH: the names, their needs, and
+  # theirs, as each dependency's derivation recorded them.
+  closureOf = all: names:
+    let
+      go = acc: ds: lib.foldl'
+        (seen: d: if lib.elem d seen then seen else go (seen ++ [ d ]) (all.${d}.bidamaDeps or [ ]))
+        acc
+        ds;
+    in
+    go [ ] names;
+
   mkBidama = { name, src, all ? { }, blue ? topBlue }:
     let
       fmt = "${blueFor "mkBidama ${name}" blue}/bin/blue";
@@ -194,16 +205,7 @@ rec {
             reason a bidama is a derivation.
           ''))
         deps;
-      # Every bidama the package reaches, for BLUE_PATH: its needs, and
-      # theirs, as each dependency's derivation recorded them.
-      closure =
-        let
-          go = acc: ds: lib.foldl'
-            (seen: d: if lib.elem d seen then seen else go (seen ++ [ d ]) (all.${d}.bidamaDeps or [ ]))
-            acc
-            ds;
-        in
-        go [ ] deps;
+      closure = closureOf all deps;
       bluePath = lib.concatMapStringsSep ":" (d: "${all.${d}}") closure;
     in
     runCommand "bidama-${name}-${version}"

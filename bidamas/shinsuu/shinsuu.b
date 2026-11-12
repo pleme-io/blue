@@ -1232,12 +1232,18 @@ test "big-endian integers of a fixed width"
   assert be_value([], 0, 0) == 0
 end
 
+@doc """
+bytes_hex: the bytes as lowercase hex, two digits each. The native word hex_encode does
+the work in one pass (lever: a linear library word, docs/PERFORMANCE.md 3.1).
+
+    bytes_hex([0, 15, 255]) #=> "000fff"
+"""
 def bytes_hex(bytes)
-  join(map((b) -> to_hex_width(b, 2), bytes), "")
+  hex_encode(bytes)
 end
 
 @doc """
-HEX_VALUES: each lowercase hex digit with its value, the table hex_bytes reads.
+HEX_VALUES: each lowercase hex digit with its value.
 
     get(HEX_VALUES, "f") #=> 15
 """
@@ -1260,16 +1266,15 @@ HEX_VALUES = {
   "f" => 15
 }
 
+@doc """
+hex_bytes: the bytes a hex dump spells, spaces and line breaks dropped, or nil when what
+is left is not an even run of hex digits. The native word hex_decode reads the digits
+in one pass (lever: a linear library word, docs/PERFORMANCE.md 3.1).
+
+    hex_bytes("0f ff") #=> [15, 255]
+"""
 def hex_bytes(text)
-  vs = map(
-    (c) -> get(HEX_VALUES, c),
-    filter((c) -> c != " " and c != line_break, chars(downcase(text)))
-  )
-  if size(vs) % 2 != 0 or any?((v) -> v.nil?, vs)
-    nil
-  else
-    map((i) -> vs[2 * i] * 16 + vs[2 * i + 1], range(0, size(vs) / 2))
-  end
+  hex_decode(replace(replace(text, " ", ""), line_break, ""))
 end
 
 test "hex dumps read back as the bytes they print"

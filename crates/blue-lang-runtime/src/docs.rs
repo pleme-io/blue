@@ -315,6 +315,8 @@ pub const NAMES: &[NameDoc] = names! {
     Text: "text_last_index" "text_last_index(s, sub, from)" "The character index of the last sub in s starting at or before from, or -1. One linear pass.";
     Text: "text_bytes" "text_bytes(s)" "The UTF-8 bytes of a string, as a list of integers 0..255: text_bytes(\"é\") is [195, 169].";
     Text: "bytes_text" "bytes_text(bytes)" "The string whose UTF-8 bytes these are (a byte list or a string); nil when they are not UTF-8. An element outside 0..255 raises.";
+    Text: "hex_encode" "hex_encode(bytes)" "The bytes (a byte list or a string's UTF-8) as lowercase hex, two digits each, in one native pass: hex_encode([0, 15, 255]) is \"000fff\". An element outside 0..255 raises. shinsuu's bytes_hex wraps it.";
+    Text: "hex_decode" "hex_decode(text)" "The bytes an even run of hex digits (either case) spells, as a byte list, in one native pass; nil for an odd length or any other character. shinsuu's hex_bytes wraps it, after dropping spaces and line breaks.";
     // ── lists ─────────────────────────────────────────────────────────────
     List: "list" "list(xs...)" "A list of the arguments. Written [a, b].";
     List: "length" "length(seq)" "The length of a list or string. Raises on nil: retsu's size(xs) is total.";

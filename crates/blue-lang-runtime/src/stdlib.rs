@@ -761,6 +761,32 @@ pub fn install_blue_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
         },
     );
 
+    interp.register_fn(
+        "hex_encode",
+        Arity::Exact(1),
+        |a: &[Value], _h: &mut H, s| {
+            let bytes = crate::crypto::message_bytes(&a[0])
+                .map_err(|e| EvalError::native_fn("hex_encode", e.to_string(), s))?;
+            Ok(Value::Str(hex_of(&bytes).into()))
+        },
+    );
+
+    interp.register_fn(
+        "hex_decode",
+        Arity::Exact(1),
+        |a: &[Value], _h: &mut H, s| {
+            let text = as_str(&a[0], s)?;
+            Ok(bytes_of_hex(text.as_bytes()).map_or(Value::Nil, |bytes| {
+                list(
+                    bytes
+                        .into_iter()
+                        .map(|b| Value::Int(i64::from(b)))
+                        .collect(),
+                )
+            }))
+        },
+    );
+
     // ── numbers ───────────────────────────────────────────────────────
 
     // `to_int` RETURNS NIL on unparseable input rather than raising. Ruby's
@@ -1505,4 +1531,32 @@ mod tests {
         assert!(crate::run("upcase([1, 2])").is_err());
         assert!(crate::run("join(\"not a list\", \",\")").is_err());
     }
+}
+
+fn hex_of(bytes: &[u8]) -> String {
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for b in bytes {
+        out.push(char::from(DIGITS[usize::from(b >> 4)]));
+        out.push(char::from(DIGITS[usize::from(b & 15)]));
+    }
+    out
+}
+
+fn nibble(c: u8) -> Option<u8> {
+    match c {
+        b'0'..=b'9' => Some(c - b'0'),
+        b'a'..=b'f' => Some(c - b'a' + 10),
+        b'A'..=b'F' => Some(c - b'A' + 10),
+        _ => None,
+    }
+}
+
+fn bytes_of_hex(text: &[u8]) -> Option<Vec<u8>> {
+    if text.len() % 2 != 0 {
+        return None;
+    }
+    text.chunks_exact(2)
+        .map(|pair| Some(nibble(pair[0])? << 4 | nibble(pair[1])?))
+        .collect()
 }

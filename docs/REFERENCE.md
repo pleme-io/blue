@@ -103,7 +103,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-397 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 196 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+399 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 196 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -179,6 +179,8 @@ Higher binding power binds tighter.
 | `contains?` | `contains?(s, sub)` | 2 | Whether the STRING s contains sub. On a list it raises: use member?(x, xs). |
 | `downcase` | `downcase(s)` | 1 | The string in lower case. Raises on nil. |
 | `ends_with?` | `ends_with?(s, suffix)` | 2 | Whether s ends with suffix. |
+| `hex_decode` | `hex_decode(text)` | 1 | The bytes an even run of hex digits (either case) spells, as a byte list, in one native pass; nil for an odd length or any other character. shinsuu's hex_bytes wraps it, after dropping spaces and line breaks. |
+| `hex_encode` | `hex_encode(bytes)` | 1 | The bytes (a byte list or a string's UTF-8) as lowercase hex, two digits each, in one native pass: hex_encode([0, 15, 255]) is "000fff". An element outside 0..255 raises. shinsuu's bytes_hex wraps it. |
 | `join` | `join(xs, sep)` | 2 | The elements' text with sep between. The LIST comes first here, and the string first in split. |
 | `join_lines` | `join_lines(xs)` | 1 | The elements' text, one per line, with no newline after the last: what a string with a \n escape is written as (B0065). |
 | `line_break` | `line_break` | 0 | The one-character line-break string, "\n" (B0065). `newline` prints one. |

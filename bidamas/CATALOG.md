@@ -134,7 +134,7 @@ Computed from each package's files and its `Bluefile.lock`: `docs` is the public
 | [`settei`](#settei) | 7/30 | 16 | — |
 | [`shinchoku`](#shinchoku) | 1/42 | 21 | — |
 | [`shinsatsu`](#shinsatsu) | 32/32 | 5 | — |
-| [`shinsuu`](#shinsuu) | 33/89 | 36 | — |
+| [`shinsuu`](#shinsuu) | 35/89 | 36 | — |
 | [`shisutemu`](#shisutemu) | 26/31 | 24 | — |
 | [`shomei`](#shomei) | 55/58 | 33 | — |
 | [`shuugou`](#shuugou) | 26/33 | 23 | — |
@@ -5179,8 +5179,8 @@ shinsuu (進数) — base conversion and checksums.
 | `shinsuu::luhn?(n)` |  |  |  | luhn?: whether a number passes the Luhn check. |
 | `shinsuu::be_bytes(n, width)` |  |  |  |  |
 | `shinsuu::be_value(bytes, pos, width)` |  |  |  |  |
-| `shinsuu::bytes_hex(bytes)` |  |  |  |  |
-| `shinsuu::hex_bytes(text)` |  |  |  |  |
+| `shinsuu::bytes_hex(bytes)` |  |  |  | bytes_hex: the bytes as lowercase hex, two digits each. The native word hex_encode does |
+| `shinsuu::hex_bytes(text)` |  |  |  | hex_bytes: the bytes a hex dump spells, spaces and line breaks dropped, or nil when what |
 | `shinsuu::base64_alphabet` |  |  |  |  |
 | `shinsuu::bytes_base64(bytes)` |  |  |  |  |
 

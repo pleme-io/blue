@@ -155,6 +155,27 @@ row(
 )
 
 row(
+  "strings.hex_encode",
+  "[hex_encode([0, 15, 255, 16]), hex_encode(\"ok\"), hex_encode([])]",
+  value("[\"000fff10\", \"6f6b\", \"\"]"),
+  covers("builtin:hex_encode")
+)
+
+row(
+  "strings.hex_encode.not_a_byte",
+  "hex_encode([256])",
+  fails(:eval, "outside 0..=255"),
+  covers("builtin:hex_encode")
+)
+
+row(
+  "strings.hex_decode",
+  "[hex_decode(\"000fFF10\"), hex_decode(\"\"), hex_decode(\"abc\"), hex_decode(\"zz\")]",
+  value("[[0, 15, 255, 16], [], nil, nil]"),
+  covers("builtin:hex_decode")
+)
+
+row(
   "strings.text_last_index",
   "text_last_index(\"aaa\", \"aa\", 9)",
   value("1"),

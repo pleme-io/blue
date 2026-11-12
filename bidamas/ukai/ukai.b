@@ -6,7 +6,7 @@ ukai (迂回) — a detour: keep an overlay VPN reaching its control plane and r
 
 use("deeta", %i[as_json get_str])
 use("fairu")
-use("kyohi", [:ok])
+use("kyohi", %i[ok ok?])
 use("retsu", %i[first is_empty last rest size])
 use("shisutemu", %i[read_or status_of stderr_of stdout_of])
 use("shuugou", %i[as_set difference unique])
@@ -731,7 +731,7 @@ stale_of: the stale axis. It is unread when the routes or the table could not be
     stale_of(false, {ok: true}, "", []) #=> :unread
 """
 def stale_of(routes_ok, table_r, gw_addr, hosts)
-  if not routes_ok or not table_r[:ok]
+  if not routes_ok or not ok?(table_r)
     :unread
   elsif is_empty(gw_addr) or is_empty(hosts)
     :none
@@ -763,11 +763,11 @@ def infer_enforcement(targets, routed, applied, stale, overlay)
 end
 
 def overlay_of(status_r, netcheck_r)
-  if not status_r[:ok]
+  if not ok?(status_r)
     :unread
   elsif status_r[:value] != "Running"
     :down
-  elsif not netcheck_r[:ok]
+  elsif not ok?(netcheck_r)
     :unread
   else
     netcheck_r[:value]
@@ -777,7 +777,7 @@ end
 def assemble(cfg, obs)
   routes_r = obs[:routes]
   pattern = cfg[:corp_pattern]
-  routes = if routes_r[:ok]
+  routes = if ok?(routes_r)
     routes_r[:value]
   else
     []
@@ -800,7 +800,7 @@ def assemble(cfg, obs)
   end
   derp_r = obs[:derp]
   ctl_r = obs[:control]
-  targets_ok = derp_r[:ok] and ctl_r[:ok]
+  targets_ok = ok?(derp_r) and ok?(ctl_r)
   hosts = if targets_ok
     sorted(
       unique(append(append(derp_r[:value], ctl_r[:value]), cfg[:extra_hosts]))
@@ -813,21 +813,21 @@ def assemble(cfg, obs)
   else
     routed_via(routes, gw_addr)
   end
-  routes_ok = routes_r[:ok] and (cfg[:platform] == :darwin or obs[:rules][:ok])
+  routes_ok = ok?(routes_r) and (cfg[:platform] == :darwin or ok?(obs[:rules]))
   table_r = obs[:table]
-  stale_hosts = if not routes_ok or not table_r[:ok] or is_empty(gw_addr)
+  stale_hosts = if not routes_ok or not ok?(table_r) or is_empty(gw_addr)
     []
   elsif cfg[:platform] == :nixos
     stale_in_table(table_r[:value], gw_addr)
   else
     stale_via(routes, gw_addr, cfg[:applied])
   end
-  corp = if routes_r[:ok]
+  corp = if ok?(routes_r)
     corp_of(routes, pattern)
   else
     :unread
   end
-  gateway = if not routes_r[:ok] and is_empty(cfg[:gateway])
+  gateway = if not ok?(routes_r) and is_empty(cfg[:gateway])
     :unread
   elsif is_empty(gw_addr) or is_empty(gw_iface)
     :absent
@@ -1221,7 +1221,7 @@ test "netstat: the measured full tunnel with no bypass yet"
   assert gw[:gateway] == "192.168.60.1"
   assert gw[:iface] == "en0"
   assert routed_via(rs, "192.168.60.1") == []
-  assert parse_netstat("garbage")[:ok] == false
+  assert ok?(parse_netstat("garbage")) == false
 end
 
 test "netstat: the measured bypass has the 8 control-plane and 88 DERP host routes"
@@ -1237,15 +1237,15 @@ end
 
 test "derp-map: the real map yields 88 IPv4 nodes, never 0"
   r = parse_derp_map(fairu::fixture("ukai", "derp-map.json"))
-  assert r[:ok] == true
+  assert ok?(r) == true
   assert size(r[:value]) == 88
   assert member?("199.38.181.93", r[:value]) == true
   assert get(
     parse_derp_map("{\"Regions\": {\"1\": {\"Nodes\": [{\"IPv4\": \"\"}]}}}"),
     :ok
   ) == false
-  assert parse_derp_map("not json")[:ok] == false
-  assert parse_derp_map("")[:ok] == false
+  assert ok?(parse_derp_map("not json")) == false
+  assert ok?(parse_derp_map("")) == false
 end
 
 test "netcheck: blocked reads none, bypassed reads direct, a DERP-only reply reads relay"
@@ -1261,20 +1261,20 @@ test "netcheck: blocked reads none, bypassed reads direct, a DERP-only reply rea
     parse_netcheck("{\"UDP\": false, \"RegionLatency\": {\"1\": 5}}"),
     :value
   ) == :relay
-  assert parse_netcheck("{}")[:ok] == false
-  assert parse_netcheck("nope")[:ok] == false
+  assert ok?(parse_netcheck("{}")) == false
+  assert ok?(parse_netcheck("nope")) == false
 end
 
 test "control plane resolution and status"
   r = parse_dscacheutil(fairu::fixture("ukai", "dscacheutil.txt"))
   assert size(r[:value]) == 8
   assert member?("192.200.0.110", r[:value]) == true
-  assert parse_dscacheutil(unlines(["name: x"]))[:ok] == false
+  assert ok?(parse_dscacheutil(unlines(["name: x"]))) == false
   assert get(
     parse_backend_state(fairu::fixture("ukai", "status-stopped.json")),
     :value
   ) == "Stopped"
-  assert parse_backend_state("{}")[:ok] == false
+  assert ok?(parse_backend_state("{}")) == false
   assert get(
     parse_getent(
       unlines(
@@ -1429,12 +1429,12 @@ test "dry-run plans and runs nothing; a real capture keeps status and stdout apa
     stdout: unlines(["Destination"]),
     stderr: "warn"
   }
-  assert from_capture(ok_cap, parse_netstat)[:ok] == true
+  assert ok?(from_capture(ok_cap, parse_netstat)) == true
   bad_cap = assoc(ok_cap, :status, 3)
   assert from_capture(bad_cap, parse_netstat)[:why] == "/sbin/x exited 3: warn"
   missing = capture(["/nonexistent/ukai-tool"])
   assert missing[:started] == false
-  assert from_capture(missing, parse_netstat)[:ok] == false
+  assert ok?(from_capture(missing, parse_netstat)) == false
 end
 
 @doc """

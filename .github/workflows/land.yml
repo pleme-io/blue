@@ -10,7 +10,7 @@ permissions:
 
 concurrency:
   group: land-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ vars.BLUE_LAND_CANCEL_IN_PROGRESS == 'on' }}
 
 jobs:
   ci:

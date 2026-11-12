@@ -1,5 +1,6 @@
 use("gitto", %i[as_tester ask])
 use("hizuke", [:rfc3339_of_ms])
+use("kazu", [:min])
 use("moji", %i[after_first before_first take_chars])
 use("retsu", %i[find_first first reject])
 use("shisutemu", %i[status_of stderr_of stdout_of])
@@ -268,6 +269,87 @@ lands behind it pass it.
 def alive?(ticket, beats, since)
   ticket[:at] >= since or
     find_first((b) -> b[:ref] == ticket[:ref] and b[:at] >= since, beats) != nil
+end
+
+@doc """
+run_slug: The land a run's branch stands for: its slug without the prose scope,
+and a batch's run stands for the land it is named after.
+
+    run_slug("land/batch-h7/speed") #=> "h7/speed"
+    run_slug("land/prose-batch-docs-row") #=> "docs-row"
+    run_slug("land/h8/reach") #=> "h8/reach"
+"""
+def run_slug(branch)
+  slug = member_slug(branch)
+  if starts_with?(slug, "batch-")
+    after_first(slug, "-")
+  else
+    slug
+  end
+end
+
+@doc """
+stale_tickets: The tickets of other lands that died in the queue: queued before
+`since`, no heartbeat since, and no live run that stands for them (run_slug). A
+land that ended without leaving the queue, as one did on 2026-11-12 with exit 1
+and no word, leaves such a ticket; the next land reaps it.
+
+    stale_tickets([{name: "q", at: 1, ref: "land/a"}], [], [], "land/b", 5) #=> [{name: "q", at: 1, ref: "land/a"}]
+    stale_tickets([{name: "q", at: 1, ref: "land/a"}], [{at: 6, ref: "land/a"}], [], "land/b", 5) #=> []
+    stale_tickets([{name: "q", at: 1, ref: "land/a"}], [], ["land/batch-a"], "land/b", 5) #=> []
+    stale_tickets([{name: "q", at: 1, ref: "land/b"}], [], [], "land/b", 5) #=> []
+"""
+def stale_tickets(tickets, beats, live, ref, since)
+  serving = map(run_slug, live)
+  filter(
+    fn(t)
+      t[:ref] != ref and
+        not alive?(t, beats, since) and
+        not member?(member_slug(t[:ref]), serving)
+    end,
+    tickets
+  )
+end
+
+def reap_minutes()
+  30
+end
+
+def reap(ref, runs)
+  text = queue_refs
+  if not text.nil?
+    live = map((r) -> json_get(r, :headBranch), filter(live?, runs))
+    beaten = beats_of(text)
+    map(
+      fn(t)
+        gone = exec_capture(
+          "env",
+          "BLUE_PREPUSH_OFF=1",
+          "git",
+          "push",
+          "-q",
+          "origin",
+          ":refs/heads/#{t[:name]}",
+          *map(
+            (b) -> ":refs/heads/#{b[:name]}",
+            filter((b) -> b[:ref] == t[:ref], beaten)
+          )
+        )
+        if status_of(gone) == 0
+          say(
+            "reaped the stale ticket #{t[:name]}: #{t[:ref]} has no heartbeat in #{to_s(reap_minutes)} minutes and no live run, so its land ended without leaving the queue"
+          )
+        end
+      end,
+      stale_tickets(
+        tickets_of(text, 0),
+        beaten,
+        live,
+        ref,
+        stamp(rfc3339_of_ms(now_ms - reap_minutes * 60000))
+      )
+    )
+  end
 end
 
 def marks_of(text, kind, cutoff)
@@ -1090,14 +1172,144 @@ def guard_lock(a)
     holders = stdout_of(exec_capture("lsof", "-t", "--", path)) rescue nil
     refusal = stale_lock(path, file_mtime_ms(path), a[:started], holders)
     if not refusal.nil?
-      say(refusal)
-      exit_with(1)
+      quit(1, refusal)
     end
   end
 end
 
-def say(line)
+@doc """
+state_dir: Where one land keeps its log, its lock and its exit: under the
+repository's common git directory, at the branch slug its ticket carries, so two
+lands of two branches never write one file, and two worktrees of one repository
+find the same land of a branch.
+
+    state_dir("/r/.git", "h7/speed") #=> "/r/.git/land/h7/speed"
+"""
+def state_dir(common, slug)
+  path_join(path_join(common, "land"), slug)
+end
+
+@doc """
+internal_verb?: Whether the words name one of the verbs CI runs on a land's run
+(the turn, stop-on-red, absorbing a release), which keep no state of a land.
+
+    internal_verb?(["--turn", "1", "land/a", "abc"]) #=> true
+    internal_verb?(["--watch"]) #=> false
+    internal_verb?([]) #=> false
+"""
+def internal_verb?(words)
+  words != [] and
+    member?(first(words), %w[--turn --stop-on-red --absorb-release])
+end
+
+def state_of(words)
+  if not internal_verb?(words) and
+      ask(%w[rev-parse --is-inside-work-tree]) == "true"
+    state_dir(
+      ask(%w[rev-parse --path-format=absolute --git-common-dir]),
+      slug_for(
+        land_args(words)[:slug],
+        ask(%w[rev-parse --abbrev-ref HEAD]),
+        ask(%w[rev-parse --short HEAD])
+      )
+    )
+  end
+end
+
+kept = state_of(argv)
+
+def log_of(dir)
+  path_join(dir, "land.log")
+end
+
+def tell(line)
   write_stderr(unlines(["land: #{line}"]))
+end
+
+def say(line)
+  tell(line)
+  if not kept.nil? and path_exists(kept)
+    append_file(
+      log_of(kept),
+      unlines(["#{rfc3339_of_ms(now_ms)} land: #{line}"])
+    )
+  end
+end
+
+@doc """
+exit_text: The record a land leaves when it ends, its code and its reason, so a
+land that attached to it ends with the same code and says the same reason.
+
+    exit_of(exit_text(1, "run 7 is red at cargo-test")) #=> {code: 1, why: "run 7 is red at cargo-test"}
+    exit_of("") #=> nil
+"""
+def exit_text(code, why)
+  unlines([to_s(code), why])
+end
+
+def exit_of(text)
+  code = to_int(trim(before_first(text, line_break)))
+  if not code.nil?
+    {code:, why: trim(after_first(text, line_break))}
+  end
+end
+
+def own_pid()
+  trim(stdout_of(exec_capture("sh", "-c", "echo $PPID")))
+end
+
+def running?(pid)
+  pid != "" and exec_ok?("kill", "-0", pid)
+end
+
+def held_dir(dir)
+  path_join(dir, "held")
+end
+
+@doc """
+holder_of: The land that holds a branch, as its lock file reads: `{pid:, since:}`,
+or nil for a file that names none.
+
+    holder_of(unlines(["812", "1762900000000"])) #=> {pid: "812", since: 1_762_900_000_000}
+    holder_of("") #=> nil
+"""
+def holder_of(text)
+  ls = moji::lines(text)
+  if ls != [] and trim(first(ls)) != ""
+    {
+      pid: trim(first(ls)),
+      since: if count(ls) > 1
+        to_int(trim(ls[1]))
+      end
+    }
+  end
+end
+
+def holder(dir)
+  file = path_join(held_dir(dir), "pid")
+  if path_exists(file)
+    h = holder_of(read_file(file))
+    if not h.nil? and running?(h[:pid])
+      h
+    end
+  end
+end
+
+@doc """
+quit: End a land with a code and the reason, always both: the reason goes to the
+terminal and the land's log, the code and the reason to its exit record, and a
+lock this land holds is let go. No land ends with a bare code.
+"""
+def quit(code, why)
+  say(why)
+  if not kept.nil? and path_exists(kept)
+    write_file(path_join(kept, "exit"), exit_text(code, why))
+    h = holder(kept)
+    if not h.nil? and h[:pid] == own_pid
+      rm_rf(held_dir(kept))
+    end
+  end
+  exit_with(code)
 end
 
 def run_of(ref, sha)
@@ -1258,9 +1470,9 @@ def dequeue(ref)
   )
 end
 
-def leave(ref, code)
+def leave(ref, code, why)
   dequeue(ref)
-  exit_with(code)
+  quit(code, why)
 end
 
 def release_runs()
@@ -1328,8 +1540,7 @@ def confirm_landed(ref, home)
   end
   why = lacks(head, "origin/main")
   if not why.nil?
-    say("#{ref} was reported landed, but main #{why}; land again")
-    leave(ref, 1)
+    leave(ref, 1, "#{ref} was reported landed, but main #{why}; land again")
   end
 end
 
@@ -1347,6 +1558,7 @@ def wait_turn(ref, deadline, waited, ticket?, home?)
   held = if runs.nil? or releases.nil?
     "the land or release runs cannot be read (a rate limit answers 403), so this land holds its turn"
   else
+    reap(ref, runs)
     ahead = lands_ahead(runs, ref)
     queue = tickets or []
     mine = queued_at(queue, ref)
@@ -1372,12 +1584,11 @@ def wait_turn(ref, deadline, waited, ticket?, home?)
   end
   verdict = verdict_on(ticket)
   if not verdict.nil?
-    say(verdict[:why])
     if verdict[:landed]
       confirm_landed(ref, home)
-      leave(ref, 0)
+      leave(ref, 0, verdict[:why])
     end
-    leave(ref, 1)
+    leave(ref, 1, verdict[:why])
   end
   told = take_alone(ref, ticket)
   if held.nil?
@@ -1389,7 +1600,7 @@ def wait_turn(ref, deadline, waited, ticket?, home?)
     if not waited
       say(held)
     end
-    sleep(60)
+    sleep(poll_seconds)
     later = wait_turn(ref, deadline, true, ticket, home)
     told or later
   end
@@ -1427,7 +1638,7 @@ def wait_run(id, tick?)
     )
   )
   if ended.nil?
-    sleep(60)
+    sleep(poll_seconds)
     wait_run(id, tick)
   elsif ended == "success"
     0
@@ -1465,7 +1676,7 @@ def stop_on_red(id)
     )
     exec_check("gh", "run", "cancel", id)
   elsif not suite_done?(jobs)
-    sleep(60)
+    sleep(poll_seconds)
     stop_on_red(id)
   end
 end
@@ -1484,10 +1695,10 @@ def absorb_release(sha, ref, left)
   ahead = ahead_of(sha)
   touched = git_lines(["diff", "--name-only", base, sha])
   if not absorbable?(ahead, touched)
-    say(
+    quit(
+      1,
       "main gained #{to_s(count(ahead))} commit(s) that are not all release commits, or this land writes a release file; it needs a new suite"
     )
-    exit_with(1)
   end
   exec_check("git", "checkout", "-q", "--detach", sha)
   r = exec_capture(
@@ -1502,10 +1713,10 @@ def absorb_release(sha, ref, left)
   )
   if status_of(r) != 0
     exec_check("git", "rebase", "--abort")
-    say(
+    quit(
+      1,
       "the tested commit does not rebase onto the release commit: #{trim(stderr_of(r))}"
     )
-    exit_with(1)
   end
   extra = filter(
     (f) -> not member?(f, release_files),
@@ -1515,10 +1726,10 @@ def absorb_release(sha, ref, left)
     retsu::concat_lists(%w[diff --name-only origin/main HEAD --], release_files)
   )
   if extra != [] or drift != ""
-    say(
+    quit(
+      1,
       "the rebased tree is not the tested tree with main's release files: #{join(extra, ", ")} #{drift}"
     )
-    exit_with(1)
   end
   pushed = exec_check(
     "git",
@@ -1531,7 +1742,10 @@ def absorb_release(sha, ref, left)
   if pushed != 0 and left > 0
     absorb_release(sha, ref, left - 1)
   elsif pushed != 0
-    exit_with(1)
+    quit(
+      1,
+      "main refused the fast-forward to the tested tree rebased onto its release commits on every try"
+    )
   else
     say(
       "main moved only by #{to_s(count(ahead))} release commit(s); fast-forwarded it to the tested tree rebased onto them, #{take_chars(ask(%w[rev-parse HEAD]), 10)}"
@@ -1575,7 +1789,7 @@ def wait_release(touched, deadline)
       "#{hold}, and an hour passed"
     else
       say(hold)
-      sleep(60)
+      sleep(poll_seconds)
       wait_release(touched, deadline)
     end
   end
@@ -1688,8 +1902,7 @@ def fetch_tries(left, wait)
       sleep(wait)
       fetch_tries(left - 1, wait * 2)
     else
-      say("git fetch origin main failed: #{words}")
-      exit_with(1)
+      quit(1, "git fetch origin main failed: #{words}")
     end
   end
 end
@@ -1745,8 +1958,7 @@ end
 def regenerate()
   failed = regen_failure
   if not failed.nil?
-    say(failed)
-    exit_with(1)
+    quit(1, failed)
   end
 end
 
@@ -1881,8 +2093,7 @@ def catch_up(a)
   )
   if not stopped.nil?
     exec_check("git", "rebase", "--abort")
-    say(rebase_stop(stopped[:paths], stopped[:why], stopped[:settling]))
-    exit_with(1)
+    quit(1, rebase_stop(stopped[:paths], stopped[:why], stopped[:settling]))
   end
   if a[:regen]
     regenerate
@@ -1902,8 +2113,10 @@ def settle(a, left, minutes)
   fetch_main
   if not contains_main?
     if left == 0
-      say("HEAD does not contain origin/main, so main cannot fast-forward to it, and --requeue=0 keeps this land from rebasing. Run: git rebase origin/main")
-      exit_with(1)
+      quit(
+        1,
+        "HEAD does not contain origin/main, so main cannot fast-forward to it, and --requeue=0 keeps this land from rebasing. Run: git rebase origin/main"
+      )
     end
     catch_up(b)
     settle(b, left, minutes)
@@ -1916,8 +2129,10 @@ def prove(a)
   if a[:proven] and
       exec_check(self_exe, "run", "--quiet", "gen/proof.b", "--", "--prove") !=
         0
-    say("no proof of HEAD's tree; land without --proven and CI runs the suite")
-    exit_with(1)
+    quit(
+      1,
+      "no proof of HEAD's tree; land without --proven and CI runs the suite"
+    )
   end
 end
 
@@ -1978,7 +2193,10 @@ def push_at(ref, sha, settings)
         "env",
         *append(settings, ["git", "push", "-q", "origin", ":refs/heads/#{ref}"])
       ) != 0
-      exit_with(1)
+      quit(
+        1,
+        "git could not delete #{ref} before pushing it again; git's words are above"
+      )
     end
   end
   if exec_check(
@@ -1988,7 +2206,10 @@ def push_at(ref, sha, settings)
         ["git", "push", "--force", "origin", "#{sha}:refs/heads/#{ref}"]
       )
     ) != 0
-    exit_with(1)
+    quit(
+      1,
+      "git could not push #{take_chars(sha, 10)} to #{ref}; git's words are above"
+    )
   end
   say(
     "#{take_chars(sha, 10)} is on #{ref}. CI runs its suite and, when green, fast-forwards main to it; when main moved first, it fails, and --watch rebases and lands again"
@@ -2322,25 +2543,76 @@ def land_batch(a, ref, members, left, minutes)
     follow(assoc(a, :batch, false), left, minutes)
   elsif member?(ref, map((m) -> m[:ref], done[:landed]))
     confirm_landed(ref, a[:home])
-    say(
+    leave(
+      ref,
+      0,
       "landed in a batch with #{to_s(count(others(done[:landed])))} other land(s)"
     )
-    leave(ref, 0)
   elsif not apart.nil?
     say("this land is not in the batch: #{retsu::last(apart)}; it lands alone")
     follow(assoc(a, :batch, false), left, minutes)
   elsif not mine.nil?
-    say("blamed: #{retsu::last(mine)}")
-    leave(ref, 1)
+    leave(ref, 1, "blamed: #{retsu::last(mine)}")
   else
-    say(
+    leave(
+      ref,
+      1,
       "the batch stopped: #{done[:halted]}; #{to_s(count(done[:left]))} land(s) stay queued"
     )
-    leave(ref, 1)
+  end
+end
+
+@doc """
+end_reason: Why a land that followed its run ends there instead of landing again,
+from the run's jobs as jobs_of reads them: a red job, a run that ended with no
+verdict of its own, a fast-forward refused though main did not move, or the
+requeues spent. Nil when it lands again.
+
+    end_reason("7", json_parse("[{\"name\":\"ci / check / cargo-test\",\"conclusion\":\"failure\"}]"), 2, false, false) #=> "run 7 is red at ci / check / cargo-test; fix it and land again"
+    end_reason("7", [], 2, false, false) #=> "run 7 ended with no red job and no green fast-forward (cancelled, or a step outside the suite failed); see gh run view 7, then land again"
+    end_reason("7", json_parse("[{\"name\":\"fast-forward\",\"conclusion\":\"failure\"}]"), 0, true, false) #=> "main moved while run 7 ran and the requeues are spent (--requeue=N allows more); land again"
+    end_reason("7", json_parse("[{\"name\":\"fast-forward\",\"conclusion\":\"failure\"}]"), 2, true, false) #=> nil
+"""
+def end_reason(id, jobs, left, moved, turned)
+  red = first_red(jobs)
+  if not red.nil?
+    "run #{id} is red at #{red}; fix it and land again"
+  elsif not moved_main?(jobs)
+    "run #{id} ended with no red job and no green fast-forward (cancelled, or a step outside the suite failed); see gh run view #{id}, then land again"
+  elsif not (moved or turned)
+    "the fast-forward of run #{id} failed though main did not move and the turn was held; see gh run view #{id}, then land again"
+  elsif left == 0
+    "main moved while run #{id} ran and the requeues are spent (--requeue=N allows more); land again"
+  end
+end
+
+@doc """
+moved_home: Why a land stops because its worktree's branch is no longer the one
+it holds, or nil: another git that shares the worktree checked out another
+branch, and a land that went on would build and name a batch from commits that
+are not its own.
+
+    moved_home("h7/speed", "h7/speed") #=> nil
+    moved_home("", "main") #=> nil
+    moved_home("h7/speed", "h10/ecosystem") #=> "this land holds h7/speed, but its worktree is now on h10/ecosystem: another git shares the worktree; land from a worktree of its own"
+"""
+def moved_home(home, now)
+  if home != "" and home != now
+    "this land holds #{home}, but its worktree is now on #{if now == ""
+  "a detached HEAD"
+else
+  now
+end}: another git shares the worktree; land from a worktree of its own"
   end
 end
 
 def follow(given, left, minutes)
+  if not given[:home].nil?
+    moved = moved_home(given[:home], ask(%w[symbolic-ref -q --short HEAD]))
+    if not moved.nil?
+      quit(1, moved)
+    end
+  end
   a = settle(given, left, minutes)
   prove(a)
   ref = ref_for(a)
@@ -2353,8 +2625,7 @@ def follow(given, left, minutes)
   sha = push_land(ref)
   found = run_of(ref, sha)
   if found == ""
-    say("no run appeared in a minute; gh run list --branch #{ref}")
-    exit_with(1)
+    quit(1, "no run appeared in a minute; gh run list --branch #{ref}")
   end
   older = older_than(a, ref, found)
   if not older.nil?
@@ -2365,17 +2636,24 @@ def follow(given, left, minutes)
     follow(a, left, minutes)
   else
     say("following run #{found}")
-    status = wait_run(found)
+    status = wait_run(
+      found,
+      if a[:ticket].nil?
+        nil
+      else
+        () -> beat(ref)
+      end
+    )
     if status == 0
       confirm_landed(ref, a[:home])
-      leave(ref, 0)
+      leave(ref, 0, "landed: run #{found} is green and main holds #{ref}")
     end
     jobs = jobs_of(found)
     fetch_main
-    moved = not contains_main?
     turned = refused_turn?(jobs)
-    if left == 0 or not moved_main?(jobs) or not (moved or turned)
-      leave(ref, status)
+    why = end_reason(found, jobs, left, not contains_main?, turned)
+    if not why.nil?
+      leave(ref, status, why)
     end
     say(
       if turned
@@ -2412,20 +2690,24 @@ def main()
   )
   unknown = unknown_flag(argv)
   if not unknown.nil?
-    say(
+    tell(
       "#{unknown} is no flag; land takes --dry, --watch, --proven, --no-queue, --no-regen, --no-prose, --no-batch, --requeue=N and --queue-minutes=N"
     )
     exit_with(2)
   end
   if ask(%w[status --porcelain --untracked-files=no]) != ""
-    say("tracked files differ from HEAD; commit them, since CI checks the commit")
+    tell("tracked files differ from HEAD; commit them, since CI checks the commit")
     exit_with(1)
   end
   left = requeue_of(argv)
   minutes = count_flag(argv, "--queue-minutes=", 240)
   if left.nil? or minutes.nil?
-    say("--requeue and --queue-minutes take a count, as --requeue=2; --requeue=0 turns the requeue off")
+    tell("--requeue and --queue-minutes take a count, as --requeue=2; --requeue=0 turns the requeue off")
     exit_with(2)
+  end
+  if not kept.nil?
+    hold_branch(kept, a[:watch])
+    say("this land's log: #{log_of(kept)}")
   end
   fetch_main
   if a[:watch]
@@ -2444,7 +2726,111 @@ def main()
     prove(a)
     ref = ref_for(a)
     push_land(ref)
-    say("follow it with gh run list --branch #{ref}")
+    quit(0, "pushed; follow it with gh run list --branch #{ref}")
+  end
+end
+
+def poll_seconds()
+  n = to_int(getenv("BLUE_LAND_POLL_SECONDS", "60"))
+  if n.nil? or n < 1
+    60
+  else
+    n
+  end
+end
+
+@doc """
+hold_branch: LANDING R1, one land per branch. A land with --watch takes the
+branch's lock, a directory `held` beside its log that only one mkdir can make,
+naming its pid. While a live land holds it, a second --watch of the branch
+attaches to the first (attach) and pushes nothing, and a land without --watch
+refuses, so no second land composes or pushes the batch the first one runs. A
+lock whose pid no longer runs is taken over, saying so.
+"""
+def hold_branch(dir, watching)
+  mkdir_p(dir)
+  h = holder(dir)
+  mine = own_pid
+  if not h.nil? and h[:pid] != mine
+    if watching
+      attach(dir, h)
+    end
+    tell(
+      "a --watch land of this branch runs as pid #{h[:pid]} and lands it; follow its log #{log_of(dir)}, or stop it before landing again"
+    )
+    exit_with(2)
+  end
+  if watching
+    lock = held_dir(dir)
+    if not exec_ok?("mkdir", lock)
+      stale = holder_of(
+        if path_exists(path_join(lock, "pid"))
+          read_file(path_join(lock, "pid"))
+        else
+          ""
+        end
+      )
+      if not holder(dir).nil?
+        attach(dir, holder(dir))
+      end
+      rm_rf(lock)
+      if not exec_ok?("mkdir", lock)
+        tell("another land took #{lock} at the same moment; attaching to it")
+        attach(dir, holder(dir) or {pid: "", since: nil})
+      end
+      tell(
+        "took over the lock of a land that no longer runs#{if stale.nil?
+  ""
+else
+  " (pid #{stale[:pid]})"
+end}"
+      )
+    end
+    if path_exists(log_of(dir))
+      rename_file(log_of(dir), "#{log_of(dir)}.1")
+    end
+    rm_rf(path_join(dir, "exit"))
+    write_file(path_join(lock, "pid"), unlines([mine, to_s(now_ms)]))
+  end
+end
+
+@doc """
+attach: Follow the land that holds this branch instead of landing again: print
+its log as it grows, and when its pid ends, end with the code and the reason it
+recorded. Its run, its batch and its ticket are left as they are.
+"""
+def attach(dir, h)
+  tell(
+    "a land of this branch already runs as pid #{h[:pid]}; attaching to its log #{log_of(dir)} instead of landing again, so its run is left as it is"
+  )
+  watch_log(dir, h[:pid], 0)
+end
+
+def watch_log(dir, pid, seen)
+  ls = if path_exists(log_of(dir))
+    moji::lines(read_file(log_of(dir)))
+  else
+    []
+  end
+  map((l) -> write_stderr(unlines([l])), drop(seen, ls))
+  if running?(pid)
+    sleep(min(poll_seconds, 10))
+    watch_log(dir, pid, count(ls))
+  else
+    file = path_join(dir, "exit")
+    ended = if path_exists(file)
+      exit_of(read_file(file))
+    end
+    if ended.nil?
+      tell(
+        "pid #{pid} ended and recorded no exit; its log is #{log_of(dir)}; land again"
+      )
+      exit_with(1)
+    end
+    tell(
+      "the land it attached to ended with #{to_s(ended[:code])}: #{ended[:why]}"
+    )
+    exit_with(ended[:code])
   end
 end
 
@@ -3923,8 +4309,10 @@ test "a leader whose HEAD another git moved off its commits is not claimed by th
     r = watched(root, batch_gh(root, moves), ["topic"])
     assert status_of(r) == 1
     assert contains?(stderr_of(r), "the batch tree does not hold land/topic")
-    assert contains?(stderr_of(r), "lacks 1 of its commits")
-    assert contains?(stderr_of(r), " topic")
+    assert contains?(
+      stderr_of(r),
+      "this land holds topic, but its worktree is now on a detached HEAD"
+    )
     assert as_tester(work, %w[ls-remote origin refs/heads/land/batch-topic]) ==
       ""
     assert between(work, "land/batch-member") == "member"
@@ -4031,4 +4419,195 @@ test "a stale index lock in the land's own worktree stops the land before it reb
     assert path_exists(theirs)
     rm_rf(root)
   end
+end
+
+def land_state(root, slug)
+  path_join(path_join(path_join(root, "work"), ".git/land"), slug)
+end
+
+def quick(root, bin, flags)
+  land_with(
+    ["PATH=#{bin}:#{getenv("PATH")}", "BLUE_LAND_POLL_SECONDS=1"],
+    root,
+    append(["--watch"], flags)
+  )
+end
+
+def lands_of(root)
+  work = path_join(root, "work")
+  as_tester(work, %w[ls-remote origin refs/heads/land/*])
+end
+
+test "two lands of two branches keep two logs, each holding only its own land, as three lands of 2026-11-11 overwrote one shared land.log"
+  if self_exe != nil
+    root = landing_fixture
+    work = path_join(root, "work")
+    committed(work, [%w[other.txt other]], "topic")
+    assert status_of(land_in(root, [])) == 0
+    as_tester(work, %w[checkout -q -b second main])
+    committed(work, [%w[second.txt second]], "second")
+    assert status_of(land_in(root, [])) == 0
+    one = path_join(land_state(root, "topic"), "land.log")
+    two = path_join(land_state(root, "second"), "land.log")
+    assert path_exists(one)
+    assert path_exists(two)
+    assert contains?(read_file(one), "is on land/topic")
+    assert not contains?(read_file(one), "land/second")
+    assert contains?(read_file(two), "is on land/second")
+    assert not contains?(read_file(two), "land/topic")
+    rm_rf(root)
+  end
+end
+
+test "a land whose run is red ends saying where, on the terminal, in its log and in its exit record, as a land of 2026-11-12 exited 1 with no word"
+  if self_exe != nil
+    root = landing_fixture
+    work = path_join(root, "work")
+    committed(work, [%w[breaks.txt red]], "topic")
+    r = quick(root, batch_gh(root, []), ["--no-batch"])
+    assert status_of(r) == 1
+    said = "run 100 is red at ci / check / cargo-test; fix it and land again"
+    assert contains?(stderr_of(r), said)
+    dir = land_state(root, "topic")
+    assert contains?(read_file(log_of(dir)), said)
+    assert exit_of(read_file(path_join(dir, "exit"))) == {code: 1, why: said}
+    assert not path_exists(held_dir(dir))
+    rm_rf(root)
+  end
+end
+
+test "a ticket whose land stopped beating and has no live run is reaped by the next land, which says so, as a stale land-queue ticket stayed behind on 2026-11-12"
+  if self_exe != nil
+    root = landing_fixture
+    work = path_join(root, "work")
+    committed(work, [%w[other.txt other]], "topic")
+    stale = ticket_name(recently(7200), "land/gone")
+    as_tester(work, ["push", "-q", "origin", "HEAD:refs/heads/#{stale}"])
+    r = quick(root, batch_gh(root, []), ["--no-batch"])
+    assert status_of(r) == 0
+    assert contains?(stderr_of(r), "reaped the stale ticket #{stale}")
+    assert as_tester(work, ["ls-remote", "origin", "refs/heads/#{stale}"]) == ""
+    rm_rf(root)
+  end
+end
+
+test "a ticket that beats, or whose land's batch runs, is not reaped"
+  assert stale_tickets(
+    [{name: "q", at: 1, ref: "land/a"}],
+    [{at: 9, ref: "land/a"}],
+    [],
+    "land/b",
+    5
+  ) == []
+  assert stale_tickets(
+    [{name: "q", at: 1, ref: "land/prose-a"}],
+    [],
+    ["land/prose-batch-a"],
+    "land/b",
+    5
+  ) == []
+end
+
+test "a second --watch of a branch whose land runs attaches to it: it pushes nothing, cancels nothing, and ends with the first land's code and reason; a land without --watch refuses, as re-entered lands of 2026-11-12 re-pushed batch-h7/speed for two hours"
+  if self_exe != nil
+    root = landing_fixture
+    work = path_join(root, "work")
+    committed(work, [%w[other.txt other]], "topic")
+    dir = land_state(root, "topic")
+    mkdir_p(held_dir(dir))
+    pid = trim(
+      stdout_of(exec_capture("sh", "-c", "sleep 8 >/dev/null 2>&1 & echo $!"))
+    )
+    write_file(path_join(held_dir(dir), "pid"), unlines([pid, to_s(now_ms)]))
+    write_file(log_of(dir), unlines(["land: following run 77"]))
+    write_file(
+      path_join(dir, "exit"),
+      exit_text(0, "landed: run 77 is green and main holds land/topic")
+    )
+    bin = batch_gh(root, [])
+    plain = land_in(root, [])
+    assert status_of(plain) == 2
+    assert contains?(stderr_of(plain), "runs as pid #{pid}")
+    r = quick(root, bin, [])
+    assert status_of(r) == 0
+    assert contains?(stderr_of(r), "already runs as pid #{pid}")
+    assert contains?(stderr_of(r), "land: following run 77")
+    assert contains?(stderr_of(r), "landed: run 77 is green")
+    assert not path_exists(path_join(root, "gh.log"))
+    assert lands_of(root) == ""
+    assert as_tester(work, %w[ls-remote origin refs/heads/land-queue/*]) == ""
+    rm_rf(root)
+  end
+end
+
+test "a lock whose land no longer runs is taken over and the land goes on"
+  if self_exe != nil
+    root = landing_fixture
+    work = path_join(root, "work")
+    committed(work, [%w[other.txt other]], "topic")
+    dir = land_state(root, "topic")
+    mkdir_p(held_dir(dir))
+    write_file(path_join(held_dir(dir), "pid"), unlines(%w[999999 1]))
+    r = quick(root, batch_gh(root, []), ["--no-batch"])
+    assert status_of(r) == 0
+    assert contains?(stderr_of(r), "took over the lock")
+    assert not path_exists(held_dir(dir))
+    rm_rf(root)
+  end
+end
+
+test "two lands that join while a batch runs leave its run untouched, wait without pushing, and form the next batch together"
+  if self_exe != nil
+    root = landing_fixture
+    work = path_join(root, "work")
+    committed(work, [%w[other.txt other]], "topic")
+    as_tester(work, %w[checkout -q -b member main])
+    committed(work, [%w[member.txt member]], "member")
+    sha = as_tester(work, %w[rev-parse HEAD])
+    as_tester(work, %w[checkout -q topic])
+    later = ticket_name(stamp(rfc3339_of_ms(now_ms + 120_000)), "land/member")
+    running = [
+      "  lists = count(filter((l) -> contains?(l, \"land.yml --limit\"), split(prior, line_break)))",
+      "  if lists == 1",
+      "    exec_capture(\"git\", \"-C\", \"#{work}\", \"push\", \"-q\", \"origin\", \"#{sha}:refs/heads/#{later}\")",
+      "  end",
+      "  if lists < 3",
+      "    write_stdout(\"[{\\\"databaseId\\\":77,\\\"headBranch\\\":\\\"land/batch-lead\\\",\\\"status\\\":\\\"in_progress\\\",\\\"createdAt\\\":\\\"2026-01-01T00:00:00Z\\\"}]\")",
+      "    exit_with(0)",
+      "  end"
+    ]
+    r = quick(root, batch_gh(root, running), [])
+    assert status_of(r) == 0
+    calls = read_file(path_join(root, "gh.log"))
+    assert not contains?(calls, "cancel")
+    assert count(branch_calls(root)) == 1
+    order = moji::lines(calls)
+    first_push = first(
+      filter((i) -> contains?(order[i], "--branch"), range(count(order)))
+    )
+    lists_before = count(
+      filter((l) -> contains?(l, "land.yml --limit"), take(first_push, order))
+    )
+    assert lists_before > 3
+    as_tester(work, %w[fetch -q origin])
+    assert as_tester(
+      work,
+      %w[log --format=%s main..refs/remotes/origin/land/batch-topic]
+    ) == join(%w[member topic], line_break)
+    assert starts_with?(
+      remote_message(work, verdict_name(later)),
+      "land verdict: landed"
+    )
+    rm_rf(root)
+  end
+end
+
+test "land.yml cancels a running land only when BLUE_LAND_CANCEL_IN_PROGRESS is on, so a second push to a batch's ref waits for the run instead of killing it"
+  land = read_file(
+    path_join(getenv("GEN_ROOT", cwd), ".github/workflows/land.yml")
+  )
+  assert contains?(
+    land,
+    "cancel-in-progress: ${{ vars.BLUE_LAND_CANCEL_IN_PROGRESS == 'on' }}"
+  )
 end

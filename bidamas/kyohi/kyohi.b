@@ -185,24 +185,56 @@ rescue e
   e.kind
 end
 
+@doc """
+result is the one declared shape of an answer that can be refused: `yes` carries the value, `no` the refusal. `ok` and `refused` build it, `?` reads it in a `def` body, and a `case` over it is checked for both arms.
+
+    result?(yes(1)) #=> true
+"""
+union result = yes(value) | no(refusal)
+
+@doc """
+ok answers `v` as an accepted result.
+
+    yes?(ok(3)) #=> true
+"""
 def ok(v)
-  {ok: true, value: v}
+  yes(v)
 end
 
+@doc """
+refused answers the refusal `r` as a result.
+
+    no?(refused(refusal(:late, "x"))) #=> true
+"""
 def refused(r)
-  {ok: false, refusal: r}
+  no(r)
 end
 
+@doc """
+ok? answers whether a result was accepted; the older map form `{ok: true, value: v}` reads the same.
+
+    [ok?(ok(1)), ok?(refused([:x, "y"])), ok?({ok: true, value: 1}), ok?({})] #=> [true, false, true, false]
+"""
 def ok?(result)
-  result[:ok] == true
+  yes?(result) or map?(result) and result[:ok] == true
 end
 
+@doc """
+value reads the value of an accepted result, and nil for a refusal.
+
+    value(ok(2)) #=> 2
+"""
 def value(result)
   if ok?(result)
     result[:value]
   end
 end
 
+@doc """
+refusal_of reads the refusal of a refused result, and nil for an accepted one.
+
+    refusal_of(refused([:late, "x"])) #=> [:late, "x"]
+"""
 def refusal_of(result)
   if ok?(result)
     nil

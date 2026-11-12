@@ -73,8 +73,19 @@ fn result_of(v: &Value) -> Option<bool> {
     let Value::Map(m) = v else {
         return None;
     };
-    match m.get(&MapKey::Keyword(Arc::from("ok"))) {
-        Some(Value::Bool(ok)) => Some(*ok),
+    let key = |k: &str| m.get(&MapKey::Keyword(Arc::from(k)));
+    match crate::record::name_of(v) {
+        Some("kyohi::yes") => return Some(true),
+        Some("kyohi::no") => return Some(false),
+        Some(_) => return None,
+        None => {}
+    }
+    if let Some(Value::Bool(ok)) = key("ok") {
+        return Some(*ok);
+    }
+    match (key("some"), key("value"), m.iter().count()) {
+        (Some(Value::Bool(true)), Some(value), 2) if !matches!(value, Value::Nil) => Some(true),
+        (Some(Value::Bool(false)), None, 1) => Some(false),
         _ => None,
     }
 }
@@ -83,8 +94,8 @@ fn not_a_result(v: &Value, sp: tatara_lisp::Span) -> EvalError {
     raise_kind_with(
         "usage",
         format!(
-            "`?` takes a result, {{ok: true, value: v}} or {{ok: false, refusal: r}} \
-             (kyohi::ok, kyohi::refused), and was given {}",
+            "`?` takes a result (kyohi::ok, kyohi::refused, or the map {{ok: true, value: v}} / \
+             {{ok: false, refusal: r}}) or an option (umu::some, umu::none), and was given {}",
             shown(v)
         ),
         v.clone(),

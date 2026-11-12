@@ -451,6 +451,65 @@ fn walk(form: Spanned, shapes: &Shapes) -> Result<Spanned, ParseError> {
     Ok(list_at(span, items))
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ForeignShape {
+    pub name: String,
+    pub predicate: String,
+    pub fields: Vec<String>,
+}
+
+#[must_use]
+pub fn declared_shapes(form: &Spanned) -> Vec<ForeignShape> {
+    let shape = |r: &crate::record::Record<'_>| {
+        Some(ForeignShape {
+            name: r.name.as_symbol()?.to_string(),
+            predicate: r.predicate.as_symbol()?.to_string(),
+            fields: r.field_names().iter().map(|f| (*f).to_string()).collect(),
+        })
+    };
+    if let Some(r) = record_parts(form) {
+        return shape(&r).into_iter().collect();
+    }
+    union_parts(form).map_or_else(Vec::new, |u| u.arms.iter().filter_map(shape).collect())
+}
+
+fn foreign_pattern(form: &Spanned, names: &std::collections::BTreeSet<&str>) -> bool {
+    let Some(items) = form.as_list() else {
+        return false;
+    };
+    if let [eq, s, p] = items {
+        if eq.as_symbol() == Some("equal?")
+            && s.as_symbol() == Some(CASE_SUBJECT)
+            && head_of(p).is_some_and(|h| names.contains(h))
+        {
+            return true;
+        }
+    }
+    items.iter().any(|i| foreign_pattern(i, names))
+}
+
+pub fn lower_foreign(form: Spanned, shapes: &[ForeignShape]) -> Result<Spanned, ParseError> {
+    let names: std::collections::BTreeSet<&str> = shapes.iter().map(|s| s.name.as_str()).collect();
+    if names.is_empty() || !foreign_pattern(&form, &names) {
+        return Ok(form);
+    }
+    let mut known = Shapes::default();
+    for s in shapes {
+        known
+            .by_predicate
+            .insert(s.predicate.clone(), s.name.clone());
+        known.by_name.insert(
+            s.name.clone(),
+            Shape {
+                name: s.name.clone(),
+                predicate: s.predicate.clone(),
+                fields: s.fields.clone(),
+            },
+        );
+    }
+    walk(form, &known)
+}
+
 pub fn lower(forms: Vec<Spanned>) -> Result<Vec<Spanned>, ParseError> {
     let shapes = Shapes::of(&forms);
     splice(forms, &shapes)?

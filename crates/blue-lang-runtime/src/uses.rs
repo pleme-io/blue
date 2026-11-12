@@ -362,6 +362,77 @@ impl ResolvedProgram {
         id
     }
 
+    fn foreign_shapes(&self, file: FileId) -> Vec<blue_lang_syntax::pattern::ForeignShape> {
+        use blue_lang_syntax::pattern::{declared_shapes, ForeignShape};
+        let here = self.files[file.0].package.as_deref();
+        let listed: Vec<&Import> = self
+            .imports
+            .iter()
+            .filter(|(owner, _)| *owner == file)
+            .map(|(_, i)| i)
+            .collect();
+        let mut out = Vec::new();
+        for (form, owner) in self.forms.iter().zip(&self.owner) {
+            let Some(package) = self.files[owner.0].package.as_deref() else {
+                continue;
+            };
+            if Some(package) == here {
+                continue;
+            }
+            for shape in declared_shapes(form) {
+                let named = |n: &str| {
+                    listed
+                        .iter()
+                        .any(|i| i.package == package && i.names.iter().any(|(m, _)| m == n))
+                };
+                let qualified_predicate = blue_lang_syntax::qualify(package, &shape.predicate);
+                if named(&shape.name) {
+                    out.push(ForeignShape {
+                        name: shape.name.clone(),
+                        predicate: if named(&shape.predicate) {
+                            shape.predicate.clone()
+                        } else {
+                            qualified_predicate.clone()
+                        },
+                        fields: shape.fields.clone(),
+                    });
+                }
+                out.push(ForeignShape {
+                    name: blue_lang_syntax::qualify(package, &shape.name),
+                    predicate: qualified_predicate,
+                    fields: shape.fields,
+                });
+            }
+        }
+        out
+    }
+
+    fn lower_foreign_patterns(&mut self) -> Result<(), String> {
+        let mut by_file: std::collections::BTreeMap<
+            usize,
+            Vec<blue_lang_syntax::pattern::ForeignShape>,
+        > = std::collections::BTreeMap::new();
+        for i in 0..self.forms.len() {
+            let file = self.owner[i];
+            let shapes = by_file
+                .entry(file.0)
+                .or_insert_with(|| self.foreign_shapes(file));
+            if shapes.is_empty() {
+                continue;
+            }
+            let form = std::mem::replace(
+                &mut self.forms[i],
+                Spanned::new(
+                    tatara_lisp::Span::synthetic(),
+                    tatara_lisp::SpannedForm::Nil,
+                ),
+            );
+            self.forms[i] = blue_lang_syntax::pattern::lower_foreign(form, shapes)
+                .map_err(|e| e.located(&self.files[file.0].text).to_string())?;
+        }
+        Ok(())
+    }
+
     /// Append a top-level form together with the file it came from.
     ///
     /// The ONE place `forms` and `owner` grow, so they cannot grow apart.
@@ -668,6 +739,7 @@ pub fn resolve_uses(
         &mut seen,
         &[],
     )?;
+    out.lower_foreign_patterns()?;
     Ok(out)
 }
 

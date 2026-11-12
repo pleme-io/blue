@@ -108,7 +108,7 @@ pub const FORMS: &[Form] = &[
     Form {
         example: "x = f(y)?",
         lowers_to: "(define x (blue-try (f y)))",
-        doc: "`?` after a call takes a result, {ok: true, value: v} or {ok: false, refusal: r} (kyohi::ok, kyohi::refused): a refusal is returned from the function at once, through a guard `return`; otherwise the expression is v. It ends a statement of a def body, `x = f(y)?` or `f(y)?`; anywhere else it is a parse error. A value that is not a result raises :usage.",
+        doc: "`?` after a call takes a result (kyohi's declared `result` union, built by kyohi::ok and kyohi::refused, or the map {ok: true, value: v} / {ok: false, refusal: r}) or an option (umu::some, umu::none): a refusal or a none is returned from the function at once, through a guard `return`; otherwise the expression is the value. It ends a statement of a def body, `x = f(y)?` or `f(y)?`; anywhere else it is a parse error. Any other value raises :usage.",
     },
     Form {
         example: "[a, *rest] = xs",

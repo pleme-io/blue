@@ -130,6 +130,7 @@ use("toriyose")
 use("touroku")
 use("ugoki")
 use("ukai", [:decide])
+use("umu")
 use("utsushi")
 
 test "every bidama in the distribution answers through this one import"
@@ -183,6 +184,7 @@ test "every bidama in the distribution answers through this one import"
   assert sabi::valid_ident?("OPERATOR_ALIASES") == true
   assert saishikou::retrying({times: 1}, () -> 1) == 1
   assert root("a") != root(:a)
+  assert umu::value_or(umu::from_nil(nil), 7) == 7
   assert life_step([[0, 0], [0, 0]]) == [[0, 0], [0, 0]]
   assert to_hex(255) == "ff"
   assert age_s(3_600_000) == "1h0m"

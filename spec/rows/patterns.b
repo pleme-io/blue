@@ -364,3 +364,23 @@ row(
   ),
   diagnoses(["B0081"])
 )
+
+row(
+  "patterns.record_from_another_bidama",
+  join_lines(
+    [
+      "use(\"kyohi\", %i[ok refused yes])",
+      "def step(r)",
+      "  case r",
+      "  when yes(v)",
+      "    v + 1",
+      "  when kyohi::no(why)",
+      "    why[0]",
+      "  end",
+      "end",
+      "[step(ok(3)), step(refused([:late, \"x\"]))]"
+    ]
+  ),
+  value("[4, :late]"),
+  pending("G16", "wasm")
+)

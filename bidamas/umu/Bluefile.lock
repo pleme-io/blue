@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "bluefile_b3": "b3:dabfc9db7eeb3f87c361ea93dcd67abb938c260a3b4e97b1f6371f39b69ae140",
+  "manifest": {
+    "schema": 1,
+    "name": "umu",
+    "version": "0.1.0",
+    "needs": {
+      "kyohi": "^0.1.0"
+    },
+    "when": "anytime",
+    "sources": {},
+    "packages": [],
+    "runs": {},
+    "tools": [],
+    "checks": {},
+    "apps": {},
+    "catalog": null,
+    "tier": "foundation"
+  },
+  "sources": {}
+}

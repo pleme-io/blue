@@ -6,7 +6,7 @@ toride (砦) — a fort at the border: split-horizon DNS for a machine that roam
 
 use("deeta", %i[as_json get_if])
 use("fairu")
-use("kyohi", %i[ok refusal])
+use("kyohi", %i[ok ok? refusal])
 use("retsu", %i[first is_empty last rest size])
 use("shisutemu", [:read_or])
 use("tesuto")
@@ -681,7 +681,7 @@ end
 @doc """
 parse_arp: darwin's `arp -an` as `{ip:, mac:, iface:}` rows; an incomplete entry is no row. An unprivileged reader is shown no rows at all.
 
-    parse_arp("") #=> {ok: true, value: []}
+    parse_arp("")[:value] #=> []
 """
 def parse_arp(text)
   ok(
@@ -710,7 +710,7 @@ end
 @doc """
 parse_ip_neigh: `ip -4 neigh` as `{ip:, mac:, iface:}` rows; a FAILED or INCOMPLETE entry carries no lladdr and is no row.
 
-    parse_ip_neigh("10.0.0.1 dev eth0 FAILED") #=> {ok: true, value: []}
+    parse_ip_neigh("10.0.0.1 dev eth0 FAILED")[:value] #=> []
 """
 def parse_ip_neigh(text)
   ok(
@@ -805,13 +805,13 @@ assemble: The machine's run state from its observations: which site it stands on
 def assemble(cfg, obs, prior)
   streak = prior[:streak] or 0
   routes_r = obs[:routes]
-  gw = if routes_r[:ok]
+  gw = if ok?(routes_r)
     default_gateway(routes_r[:value])
   end
   local_r = obs[:local]
   neigh_r = obs[:neighbours]
   probe_r = obs[:probe]
-  local = if gw != nil and local_r[:ok]
+  local = if gw != nil and ok?(local_r)
     {
       network: floor(
         ip_int(local_r[:value][:addr]) / span(local_r[:value][:prefix])
@@ -819,16 +819,16 @@ def assemble(cfg, obs, prior)
       prefix: local_r[:value][:prefix]
     }
   end
-  mac = if gw != nil and neigh_r[:ok]
+  mac = if gw != nil and ok?(neigh_r)
     mac_of(neigh_r[:value], gw[:gateway], gw[:iface])
   else
     :unread
   end
-  site = if not routes_r[:ok]
+  site = if not ok?(routes_r)
     :unread
   elsif gw.nil?
     :unknown
-  elsif not local_r[:ok]
+  elsif not ok?(local_r)
     :unread
   else
     match_site(
@@ -842,11 +842,11 @@ def assemble(cfg, obs, prior)
       mac
     )
   end
-  g = if not routes_r[:ok]
+  g = if not ok?(routes_r)
     [:unread, streak]
   elsif gw.nil?
     [:down, cfg[:fail_threshold]]
-  elsif not probe_r[:ok]
+  elsif not ok?(probe_r)
     [:unread, streak]
   else
     debounce(probe_r[:value], streak, cfg[:fail_threshold])
@@ -1106,7 +1106,7 @@ def observe(cfg, io)
       parse_netstat
     end
   )
-  gw = if routes[:ok]
+  gw = if ok?(routes)
     default_gateway(routes[:value])
   end
   if gw.nil?
@@ -1648,8 +1648,8 @@ test "darwin parsers over the measured Búzios captures: netstat, ifconfig and a
     parse_ifconfig(fairu::fixture("toride", "ifconfig-bravo.txt")),
     :value
   ) == {addr: "192.168.60.138", prefix: 24}
-  assert parse_ifconfig(unlines(["\tinet 10.0.0.2"]))[:ok] == false
-  assert parse_ifconfig(unlines(["\tinet nope netmask 0xffffff00"]))[:ok] ==
+  assert ok?(parse_ifconfig(unlines(["\tinet 10.0.0.2"]))) == false
+  assert ok?(parse_ifconfig(unlines(["\tinet nope netmask 0xffffff00"]))) ==
     false
   arp = parse_arp(fairu::fixture("toride", "arp-bravo.txt"))[:value]
   assert size(arp) == 14
@@ -1688,7 +1688,7 @@ test "nixos parsers over the measured Alfa captures: ip route, ip addr and ip ne
     parse_ip_addr(fairu::fixture("toride", "ip-addr-alfa.txt"), "eth9"),
     :ok
   ) == false
-  assert parse_ip_addr("3: wlo1    inet nope/24 brd x", "wlo1")[:ok] == false
+  assert ok?(parse_ip_addr("3: wlo1    inet nope/24 brd x", "wlo1")) == false
   n = parse_ip_neigh(fairu::fixture("toride", "ip-neigh-alfa.txt"))[:value]
   assert size(n) == 8
   assert mac_of(n, "192.168.50.1", "wlo1") == "02:00:5e:50:00:01"
@@ -1964,8 +1964,8 @@ test "the commands toride runs, by platform, and a probe that reaches nothing"
   assert neigh_argv(cfg, "wlo1") ==
     %w[/run/current-system/sw/bin/ip -4 neigh show dev wlo1]
   assert probe("127.0.0.1", [1, 2], 1)[:value] == false
-  assert probe("127.0.0.1", [1], 0)[:ok] == true
-  assert probe("127.0.0.1", [0], 100)[:ok] == false
+  assert ok?(probe("127.0.0.1", [1], 0)) == true
+  assert ok?(probe("127.0.0.1", [0], 100)) == false
   assert reach("127.0.0.1", [], 10) == false
   listener = http_listen("127.0.0.1:0")
   assert probe("127.0.0.1", [1, http_listener_port(listener)], 1000)[:value] ==

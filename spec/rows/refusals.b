@@ -1,6 +1,8 @@
-# Refusals that flow: `x = f(y)?` binds the value of a kyohi result and
-# returns a refusal from the function at once. A result is `{ok: true, value:
-# v}` (kyohi::ok) or `{ok: false, refusal: r}` (kyohi::refused); `?` on any
+# Refusals that flow: `x = f(y)?` binds the value of a result or an option
+# and returns a refusal or a none from the function at once. A result is
+# kyohi's declared union (`kyohi::ok` is `yes(v)`, `kyohi::refused` is
+# `no(r)`) or the map `{ok: true, value: v}` / `{ok: false, refusal: r}`; an
+# option is umu's `{some: true, value: v}` or `{some: false}`. `?` on any
 # other value raises :usage. `?` ends a statement of a def body and lowers to
 # a guard `return`. docs/GUARD-RETURN.md.
 
@@ -121,7 +123,7 @@ row(
       "[both(\"a\", \"b\"), both(\"a\", \"\")]"
     ]
   ),
-  value("[{ok: true, value: \"ab\"}, {ok: false, refusal: [:empty, \"nothing to read\"]}]"),
+  value("[kyohi::yes({value: \"ab\"}), kyohi::no({refusal: [:empty, \"nothing to read\"]})]"),
   pending("G16", "wasm")
 )
 
@@ -158,4 +160,80 @@ row(
   "refusals.formats",
   unlines(["def f(r)", "  x = id(r)?", "  id(r)?", "  x", "end"]),
   formats(unlines(["def f(r)", "  x = id(r)?", "  id(r)?", "  x", "end"]))
+)
+
+row(
+  "refusals.option_none_returns_at_once",
+  join_lines(
+    [
+      "def half(n)",
+      "  if n % 2 == 0",
+      "    {some: true, value: n / 2}",
+      "  else",
+      "    {some: false}",
+      "  end",
+      "end",
+      "def quarter(n)",
+      "  h = half(n)?",
+      "  half(h)",
+      "end",
+      "[quarter(8), quarter(6), quarter(3)]"
+    ]
+  ),
+  value("[{some: true, value: 2}, {some: false}, {some: false}]")
+)
+
+row(
+  "refusals.umu_options",
+  join_lines(
+    [
+      "use(\"umu\", %i[none some value_or])",
+      "def port(m)",
+      "  if m[:port].nil?",
+      "    none",
+      "  else",
+      "    some(m[:port])",
+      "  end",
+      "end",
+      "def address(m)",
+      "  p = port(m)?",
+      "  some(concat(\"h:\", to_s(p)))",
+      "end",
+      "[value_or(address({port: 80}), \"-\"), value_or(address({}), \"-\")]"
+    ]
+  ),
+  value("[\"h:80\", \"-\"]"),
+  pending("G16", "wasm")
+)
+
+row(
+  "refusals.result_union",
+  join_lines(
+    [
+      "use(\"kyohi\", %i[ok refusal refused])",
+      "def parse(s)",
+      "  if s == \"\"",
+      "    refused(refusal(:empty, \"nothing\"))",
+      "  else",
+      "    ok(s)",
+      "  end",
+      "end",
+      "def both(a, b)",
+      "  x = parse(a)?",
+      "  y = parse(b)?",
+      "  ok(concat(x, y))",
+      "end",
+      "def shown(r)",
+      "  case r",
+      "  when kyohi::yes(v)",
+      "    v",
+      "  when kyohi::no(why)",
+      "    why[0]",
+      "  end",
+      "end",
+      "[shown(both(\"a\", \"b\")), shown(both(\"a\", \"\")), kyohi::result?(both(\"\", \"\"))]"
+    ]
+  ),
+  value("[\"ab\", :empty, true]"),
+  pending("G16", "wasm")
 )

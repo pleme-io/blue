@@ -85,7 +85,7 @@ impl ParseError {
     }
 
     /// Resolve `line`/`col` against the source this error's span indexes.
-    pub(crate) fn located(mut self, src: &str) -> Self {
+    pub fn located(mut self, src: &str) -> Self {
         let (line, col) = Span::line_col(src, self.span.start.min(src.len()));
         self.line = line;
         self.col = col;

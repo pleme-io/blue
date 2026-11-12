@@ -1,0 +1,56 @@
+[
+  {
+    "name": "some takes nil as a value",
+    "file": "umu.b",
+    "find": "  if v.nil?\n    raise(:usage",
+    "replace": "  if false\n    raise(:usage"
+  },
+  {
+    "name": "a some loses its value",
+    "file": "umu.b",
+    "find": "  {some: true, value: v}",
+    "replace": "  {some: true, value: 0}"
+  },
+  {
+    "name": "none reads as a some",
+    "file": "umu.b",
+    "find": "none = {some: false}",
+    "replace": "none = {some: true}"
+  },
+  {
+    "name": "an extra key passes for an option",
+    "file": "umu.b",
+    "find": "count(o) == 2",
+    "replace": "count(o) >= 2"
+  },
+  {
+    "name": "fold takes the none branch for a some",
+    "file": "umu.b",
+    "find": "  if o[:some]\n",
+    "replace": "  if not o[:some]\n"
+  },
+  {
+    "name": "value_or answers the default for a some",
+    "file": "umu.b",
+    "find": "  fold(o, () -> default, (v) -> v)",
+    "replace": "  fold(o, () -> default, (_v) -> default)"
+  },
+  {
+    "name": "map drops the mapper",
+    "file": "umu.b",
+    "find": "  fold(o, () -> none, (v) -> some(f(v)))",
+    "replace": "  fold(o, () -> none, (v) -> some(v))"
+  },
+  {
+    "name": "or_else replaces a some",
+    "file": "umu.b",
+    "find": "  fold(o, f, (_v) -> o)",
+    "replace": "  fold(o, f, (_v) -> f())"
+  },
+  {
+    "name": "ok_or accepts a none",
+    "file": "umu.b",
+    "find": "  fold(o, () -> refused(r), (v) -> ok(v))",
+    "replace": "  fold(o, () -> ok(r), (v) -> ok(v))"
+  }
+]

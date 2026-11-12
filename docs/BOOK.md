@@ -1457,6 +1457,7 @@ see, and compile for the kind that hook takes:
 | decide about a packet at traffic control | `{tcx_ingress: index}`, `{tcx_egress: index}` | `:sched_cls` | an interface index |
 | hold one group of processes to a network rule | `{cgroup_inet_ingress: path}`, `{cgroup_inet_egress: path}` | `:cgroup_skb` | a cgroup directory |
 | refuse a socket or a device to a group of processes | `{cgroup_inet_sock_create: path}`, `{cgroup_device: path}` | `:cgroup_sock`, `:cgroup_device` | a cgroup directory |
+| refuse a sysctl write to a group of processes | `{cgroup_sysctl: path}` | `:cgroup_sysctl` | a cgroup directory |
 | decide at a netfilter hook | `{netfilter: {family: :ipv4, hook: :local_in, priority: -100}}` | `:netfilter` | the hook's place |
 | count an event the kernel names | `{tracepoint: ["sched", "sched_process_exec"]}`, `{raw_tracepoint: "sched_process_exec"}` | `:tracepoint`, `:raw_tracepoint` | the event |
 | watch a kernel function | `{kprobe: name}`, `{fentry: name}`, `{fexit: name}` | `:kprobe`, `:tracing` | the function |
@@ -1483,6 +1484,7 @@ test "each spec in the table takes the kind the table names"
   assert kind_of({cgroup_inet_egress: "/c"}, :cgroup_skb)
   assert kind_of({cgroup_inet_sock_create: "/c"}, :cgroup_sock)
   assert kind_of({cgroup_device: "/c"}, :cgroup_device)
+  assert kind_of({cgroup_sysctl: "/c"}, :cgroup_sysctl)
   assert kind_of({netfilter: {}}, :netfilter)
   assert kind_of({tracepoint: ["a", "b"]}, :tracepoint)
   assert kind_of({raw_tracepoint: "a"}, :raw_tracepoint)
@@ -1495,7 +1497,7 @@ test "each spec in the table takes the kind the table names"
 end
 
 test "the table is every hook"
-  assert size(hooks) == 16
+  assert size(hooks) == 17
 end
 ```
 

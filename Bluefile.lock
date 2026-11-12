@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:6ad59d1094b79d35aa3488261bae734553c2c65f92bf2270125182c486f19668",
+  "bluefile_b3": "b3:5c038ea5852aaeb002ea744f490d08dbb33c939626aaf4ba9520ad23a27fb347",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -286,6 +286,10 @@
           "docs",
           "bidamas"
         ]
+      },
+      "node-nix": {
+        "output": "nix/node-fixture/configuration.nix",
+        "program": "nix/node-fixture/node.b"
       },
       "okite-rules": {
         "output": "bidamas/okite/RULES.md",

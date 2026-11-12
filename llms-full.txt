@@ -239,7 +239,7 @@ rendered:
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-69 packages, 5953 definitions, 2019 tests.
+69 packages, 5971 definitions, 2024 tests.
 
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
 - [baito](bidamas/CATALOG.md#baito) (バイト) — bytes as data: integers at a declared width and order, and record layouts that say where each field sits.
@@ -2446,7 +2446,7 @@ Every `blue` verb with its flags. The agents page (`docs/agents.md`, rendered to
 | `blue eval 'EXPR'` | evaluate once and print the value; `blue eval file.b:LINE:COL` evaluates the top-level form there in that file's context |
 | `blue repl` | an evaluation session: multi-line input, `:load`, `:expand`, `:doc`, `:reset`, `:quit`; ctrl-c stops a running evaluation |
 | `blue serve` | the same session as JSON lines on stdio, for editors |
-| `blue bundle FILE -o OUT` | seal a program into an appliance payload: compiled, its imports resolved, held to the capabilities its fresh `Bluefile.lock` verified (pure when it records none); `--runner blue-appliance` makes OUT one executable that takes no flags. nix builds one per Bluefile `app` as `packages.appliance-<name>` |
+| `blue bundle FILE -o OUT` | seal a program into an appliance payload: compiled, its imports resolved, held to the capabilities its fresh `Bluefile.lock` verified (pure when it records none); `--runner blue-appliance` makes OUT one executable that takes no flags. nix builds one per Bluefile `app` as `packages.appliance-<name>`; `--sources` writes the program's text and every bidama it reaches as JSON instead, which the wasm engine in a page runs from (`crates/blue-lang-wasm/page`) |
 | `blue image build [NAME]` | build a Bluefile `image` through nix: the tarball, its size and layers |
 | `blue workload render [NAME]` | a Bluefile `workload` as Kubernetes objects; `--write` rewrites the committed files |
 | `blue diff --context CTX` | the committed workload files against a cluster, read-only; there is no `blue apply`, GitOps applies |

@@ -757,6 +757,20 @@
             ${blue}/bin/blue bench/bench.b cost ${blue}/bin/blue "$TMPDIR/bench" > $out || { cat $out; exit 1; }
           '';
 
+          node-from-blue =
+            let
+              system = "x86_64-linux";
+              toplevel = m: builtins.unsafeDiscardStringContext (nixpkgs.lib.nixosSystem { inherit system; modules = [ m ]; }).config.system.build.toplevel.drvPath;
+              rendered = toplevel ./nix/node-fixture/configuration.nix;
+              oracle = toplevel ./nix/node-fixture/oracle.nix;
+            in
+            pkgs.runCommand "node-from-blue" { } (if rendered == oracle then ''
+              echo ${rendered} > $out
+            '' else ''
+              echo "nix/node-fixture/configuration.nix, rendered from node.b, evaluates to ${rendered}; oracle.nix to ${oracle}" >&2
+              exit 1
+            '');
+
           # A bidama whose code does not check does not build.
           bidama-check-refuses = bl.mkCheckRefusalCheck { inherit blue; };
           bidama-checks-in-its-own-root = bl.mkBidama {

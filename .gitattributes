@@ -25,6 +25,7 @@ Bluefile.lock merge=blue-generated
 /docs/verbs/merged/verbs.tsv merge=blue-generated
 /llms-full.txt merge=blue-generated
 /llms.txt merge=blue-generated
+/nix/node-fixture/configuration.nix merge=blue-generated
 /tree-sitter-blue/grammar.js merge=blue-generated
 /tree-sitter-blue/queries/folds.scm merge=blue-generated
 /tree-sitter-blue/queries/highlights.scm merge=blue-generated

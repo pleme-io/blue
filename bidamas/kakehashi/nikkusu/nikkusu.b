@@ -368,6 +368,202 @@ def dotted_of(doc)
   map((b) -> b[:dotted], bindings(doc[:root]))
 end
 
+@doc """
+nix_keywords: the words Nix reserves, which an attribute name or a reference may not be bare.
+
+    member?("inherit", nix_keywords) #=> true
+"""
+def nix_keywords()
+  %w[assert else if in inherit let or rec then with]
+end
+
+@doc """
+nix_identifier?: whether `name` is a bare Nix identifier: a letter or `_`, then letters, digits, `_`, `'` or `-`, and no keyword.
+
+    nix_identifier?("hostName") #=> true
+    nix_identifier?("x-y'") #=> true
+    nix_identifier?("2fa") #=> false
+    nix_identifier?("/") #=> false
+    nix_identifier?("rec") #=> false
+"""
+def nix_identifier?(name)
+  letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_"
+  cs = chars(name)
+  not is_empty(cs) and
+    contains?(letters, first(cs)) and
+    every?((c) -> contains?("#{letters}0123456789'-", c), rest(cs)) and
+    not member?(name, nix_keywords)
+end
+
+@doc """
+nix_ref: a Nix expression named by a dotted path of identifiers, for `render`: a package, a library function, an argument. Anything else raises :bad_option.
+
+    render(nix_ref("pkgs.git")) #=> "pkgs.git"
+    (nix_ref("pkgs.git; x") rescue :refused) #=> :refused
+"""
+def nix_ref(path)
+  if not string?(path) or not every?(nix_identifier?, split(path, "."))
+    raise(:bad_option, "a Nix reference is a dotted path of identifiers")
+  end
+  {nix_ref: path}
+end
+
+@doc """
+nix_apply: a Nix function, named by `nix_ref`, applied to one argument, for `render`.
+
+    render(nix_apply(nix_ref("lib.mkDefault"), 3)) #=> "(lib.mkDefault 3)"
+"""
+def nix_apply(f, arg)
+  if not nix_ref?(f)
+    raise(:bad_option, "a Nix application names its function with nix_ref")
+  end
+  {nix_apply: f, arg:}
+end
+
+def nix_ref?(v)
+  map?(v) and size(map_entries(v)) == 1 and string?(v[:nix_ref])
+end
+
+def nix_apply?(v)
+  map?(v) and size(map_entries(v)) == 2 and nix_ref?(v[:nix_apply])
+end
+
+@doc """
+nix_string: a string as a Nix string literal, escaped so it reads back as the same text and interpolates nothing.
+
+    nix_string("a\"b") #=> "\"a\\\"b\""
+    nix_string("${x}") #=> "\"\\${x}\""
+"""
+def nix_string(s)
+  out = map(
+    fn(c)
+      if c == "\\"
+        "\\\\"
+      elsif c == "\""
+        "\\\""
+      elsif c == "$"
+        "\\$"
+      elsif c == line_break
+        "\\n"
+      elsif c == "\t"
+        "\\t"
+      elsif c == "\r"
+        "\\r"
+      else
+        c
+      end
+    end,
+    chars(s)
+  )
+  "\"#{join(out, "")}\""
+end
+
+@doc """
+nix_key: an attribute name, bare when it is an identifier and quoted when not.
+
+    nix_key(:hostName) #=> "hostName"
+    nix_key("/") #=> "\"/\""
+"""
+def nix_key(k)
+  name = if string?(k)
+    k
+  elsif symbol?(k) or keyword?(k)
+    to_s(k)
+  else
+    raise(:bad_option, "an attribute name is a string or a symbol")
+  end
+  if nix_identifier?(name)
+    name
+  else
+    nix_string(name)
+  end
+end
+
+def scalar?(v)
+  v.nil? or boolean?(v) or integer?(v) or float?(v) or string?(v) or nix_ref?(v)
+end
+
+def pad(depth)
+  join(map((_i) -> "  ", range(0, depth)), "")
+end
+
+@doc """
+render: blue data as Nix source: nil, booleans, numbers, strings, lists and maps, with `nix_ref` and `nix_apply` for expressions. A symbol value or any other value raises :bad_option, since it has no one Nix reading.
+
+    render({a: [1, -2], b: nil}) #=> "{\n  a = [ 1 (-2) ];\n  b = null;\n}"
+    (render({a: :b}) rescue :refused) #=> :refused
+"""
+def render(v)
+  render_at(v, 0)
+end
+
+def render_at(v, depth)
+  if v.nil?
+    "null"
+  elsif boolean?(v)
+    to_s(v)
+  elsif integer?(v)
+    if v < 0
+      "(#{to_s(v)})"
+    else
+      to_s(v)
+    end
+  elsif float?(v)
+    to_s(v)
+  elsif string?(v)
+    nix_string(v)
+  elsif nix_ref?(v)
+    v[:nix_ref]
+  elsif nix_apply?(v)
+    "(#{v[:nix_apply][:nix_ref]} #{render_at(v[:arg], depth)})"
+  elsif list?(v)
+    render_list(v, depth)
+  elsif map?(v)
+    render_set(v, depth)
+  else
+    raise(
+      :bad_option,
+      "render takes nil, booleans, numbers, strings, lists, maps and Nix references, not #{to_s(v)}"
+    )
+  end
+end
+
+def render_list(xs, depth)
+  if is_empty(xs)
+    "[ ]"
+  elsif every?(scalar?, xs)
+    "[ #{join(map((x) -> render_at(x, depth), xs), " ")} ]"
+  else
+    inner = map((x) -> "#{pad(depth + 1)}#{render_at(x, depth + 1)}", xs)
+    join(append(["["], inner, ["#{pad(depth)}]"]), line_break)
+  end
+end
+
+def render_set(m, depth)
+  entries = map_entries(m)
+  if is_empty(entries)
+    "{ }"
+  else
+    inner = map(
+      fn(e)
+        "#{pad(depth + 1)}#{nix_key(first(e))} = #{render_at(e[1], depth + 1)};"
+      end,
+      entries
+    )
+    join(append(["{"], inner, ["#{pad(depth)}}"]), line_break)
+  end
+end
+
+@doc """
+module: a NixOS module as Nix source: a function of `args` (and `...`) returning `config` rendered.
+
+    module(["pkgs"], {a: 1}) #=> "{ pkgs, ... }:\n{\n  a = 1;\n}\n"
+"""
+def module(args, config)
+  head = join(append(args, ["..."]), ", ")
+  "{ #{head} }:#{line_break}#{render(config)}#{line_break}"
+end
+
 test "read: the tree is lossless, error-free, and lines count from one"
   d = read(sample)
   assert text(d[:root]) == sample
@@ -457,4 +653,37 @@ test "string_content and line_count read a string's body"
   assert line_count(s) == 4
   assert string_content(first(nodes_of(read("\"x${y}z\"")[:root]))) == "x${y}z"
   assert literal_string?(first(nodes_of(read("\"x${y}\"")[:root]))) == false
+end
+
+test "render reads back through Nix's own parser with no error, for every shape"
+  shapes = [
+    nil,
+    true,
+    0,
+    -7,
+    "a \"quoted\" ${x} \\ line",
+    [],
+    {},
+    [1, "two", nix_ref("pkgs.git")],
+    [{a: 1}, [2]],
+    {"/" => {device: "/dev/sda1"}, "with-dash" => 1, "rec" => 2},
+    nix_apply(nix_ref("lib.mkForce"), {a: [1]})
+  ]
+  assert every?((v) -> read(render(v))[:errors] == [], shapes)
+  assert read(module(%w[pkgs lib], {a: nix_ref("pkgs.git")}))[:errors] == []
+end
+
+test "a string renders to a literal whose content is the string"
+  s = "a \"b\" ${c} \\ d"
+  lit = first(nodes_of(read(render(s))[:root]))
+  assert literal_string?(lit)
+  assert string_content(lit) == "a \\\"b\\\" \\${c} \\\\ d"
+end
+
+test "render refuses a value with no one Nix reading, and a reference that is not a path"
+  assert (render(:a) rescue :refused) == :refused
+  assert (render({a: 1.0 / 0.0}) rescue :ok) != nil
+  assert (nix_ref("a b") rescue :refused) == :refused
+  assert (nix_apply("lib.mkForce", 1) rescue :refused) == :refused
+  assert (nix_key(1) rescue :refused) == :refused
 end

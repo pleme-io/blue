@@ -867,7 +867,7 @@ fn install_fs<H: 'static>(interp: &mut Interpreter<H>) {
             let path = arg_str(&args[0], "rm_rf", span)?;
             writable(&path, "rm_rf", span)?;
             if Path::new(&*path).is_dir() {
-                std::fs::remove_dir_all(&*path)
+                remove_tree(Path::new(&*path))
                     .map_err(|e| EvalError::native_fn("rm_rf", format!("{path}: {e}"), span))?;
             } else if Path::new(&*path).exists() {
                 std::fs::remove_file(&*path)
@@ -1354,8 +1354,62 @@ pub(crate) fn arg_int(
     }
 }
 
+const REMOVE_ATTEMPTS: u32 = 100;
+const REMOVE_PAUSE: std::time::Duration = std::time::Duration::from_millis(20);
+
+pub(crate) fn remove_tree(path: &Path) -> std::io::Result<()> {
+    let mut attempt = 1;
+    loop {
+        match std::fs::remove_dir_all(path) {
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(e)
+                if e.kind() == std::io::ErrorKind::DirectoryNotEmpty
+                    && attempt < REMOVE_ATTEMPTS =>
+            {
+                attempt += 1;
+                std::thread::sleep(REMOVE_PAUSE);
+            }
+            done => return done,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn rm_rf_removes_a_tree_a_child_process_is_still_writing_into() {
+        let root = std::env::temp_dir().join(format!("blue-rm-rf-race-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let busy = root.join("work").join(".git").join("objects");
+        std::fs::create_dir_all(&busy).expect("fixture");
+        let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let writer = {
+            let stop = std::sync::Arc::clone(&stop);
+            let busy = busy.clone();
+            std::thread::spawn(move || {
+                let mut n = 0u64;
+                while !stop.load(std::sync::atomic::Ordering::Relaxed) {
+                    let _ = std::fs::create_dir_all(&busy);
+                    let _ = std::fs::write(busy.join(format!("o{n}")), b"x");
+                    n += 1;
+                }
+            })
+        };
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        let stopper = {
+            let stop = std::sync::Arc::clone(&stop);
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_millis(150));
+                stop.store(true, std::sync::atomic::Ordering::Relaxed);
+            })
+        };
+        let removed = super::remove_tree(&root);
+        stopper.join().expect("stopper");
+        writer.join().expect("writer");
+        let _ = std::fs::remove_dir_all(&root);
+        removed.expect("the tree is removed once its writer stops");
+    }
+
     use super::*;
     use crate::interpreter;
 

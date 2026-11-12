@@ -1011,6 +1011,13 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                 blue_lang_runtime::timings::enable();
             }
             sigint::stop();
+            if !record
+                && receipts.is_none()
+                && door_receipt.is_none()
+                && inputs::current(&file, &args)?
+            {
+                return Ok(ExitCode::SUCCESS);
+            }
             let invoked = invoke(
                 &cfg,
                 Invocation {

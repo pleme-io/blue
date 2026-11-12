@@ -700,6 +700,8 @@ know whether tests will run.
 
 **First step:** a bench row set in CI with a recorded baseline.
 **Gate:** red run: a deliberately slower build fails the ratchet.
+(2026-11-11: shinsuu's old hex words on `BLUE_PATH` turn `hexmsg` red,
+PERFORMANCE.md 0.1.)
 
 ### H8. Reach: one program, every placement
 
@@ -1243,7 +1245,7 @@ and what is not.
 | H4. Time | ⏳ in progress | Built: `net_wait` in the node loop (`crates/blue-lang-proc/tests/net_wait.rs`), node-time timers, record and replay (`crates/blue-lang-cli/tests/run_replay.rs`). Not built: `schedulers(n)`, the debugger over replay. |
 | H5. Knowledge | ⏳ in progress | Built: arika Phase 2 for blue's own tree (`crates/blue-lang-cli/tests/arika.rs`), khipu K1a (`bidamas/khipu`). Not built: the MCP service, khipu over blue itself, why-answers. |
 | H6. Proof | ⏳ in progress | Built: heni's caught ratio as a ratchet (`bidamas/heni/ratio.baseline`, `checks.heni-mutations`); generated properties (`crates/blue-lang-cli/tests/properties.rs`). Not built: laws over a decidable fragment. |
-| H7. Speed with receipts | ⏳ in progress | Built: a bench row set with a recorded baseline (`bench/bench.b`, `bench/cost.baseline`, the `bench-ratchet` check in `flake.nix`). Not built: the VM as the default door, AOT to wasm. |
+| H7. Speed with receipts | ⏳ in progress | Built: a bench row set with a recorded baseline (`bench/bench.b`, `bench/cost.baseline`, the `bench-ratchet` check in `flake.nix`); the VM as `blue run`'s default door where the conformance columns agree, with a door receipt and an off switch (`crates/blue-lang-runtime/src/door.rs`, `crates/blue-lang-cli/tests/door.rs`, the conformance door gate); AOT of the hex words to a wasm component run by wasmtime, equal to the interpreter over four seeds (`checks.native-wasm`); a raised bench row needs a typed reason (`receipt_kinds`); lever rows memo, bake, incremental and hexmsg as ratios to a Rust twin (`bench/lever.baseline`, PERFORMANCE.md 1.6) and as CI cost rows. Not built: a bench record written per release tag (the ratchet runs on every land), the data-parallel and partial-evaluation rows, AOT of a bidama a service calls through the component host's imports. |
 | H8. Reach | ⏳ in progress | Built: `kaaneru` compiles blue to BPF; `examples/13_web_site.b` serves a page natively; `checks.conformance` compares output across placements. Not built: equal receipts across two placements, the frontend as a wasm page, the GPU rung. |
 | H9. Model-native | ⏳ in progress | Built: ten golden tasks and the scorer (`eval/tasks/`, `eval/score.b`, `checks.model-eval`). Not built: a model's score recorded per release as a census row. |
 | H10. Ecosystem | ⏳ in progress | Built: docs, tests and reach per package in CATALOG's "Quality signals". Not built: heni ratio, conformance and model score in that table; signed releases. |

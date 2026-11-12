@@ -62,7 +62,9 @@ blue bench/bench.b cost BLUE WORKDIR [--quick]
 blue bench/bench.b cost BLUE WORKDIR --record [--receipt "<why>"]
 ```
 
-`cost` copies each workload out of the project, runs it once, prints a table
+`cost` copies each workload out of the project, runs it once on the walker
+door (`blue run --door walker`: steps are the walker's count, and the VM's
+cost is gated in 1.4.1), prints a table
 with the wall time (reported, never gated), and judges it against
 `bench/cost.baseline` with hadome's `failures_within`: steps may grow 5 per
 mille, allocations and bytes 20 per mille. A workload past its tolerance, or
@@ -71,7 +73,20 @@ is advisory for them and still gated on steps. `--record` is the only writer
 of the baseline: it banks every fall, keeps the old row for a rise inside the
 tolerance so the baseline cannot creep, and refuses a rise past it without
 `--receipt`, which stays in the file as a `# receipt:` line, as in
-`reuse.baseline`.
+`reuse.baseline`. A receipt is typed: `--receipt "<kind>: <why>"`, with a
+kind of `measurement`, `correctness`, `capability` or `platform`
+(`receipt_kinds` in `bench/bench.b`); any other reason is refused, on
+`cost`, `native` and `lever` alike.
+
+The cost rows include the lever rows of 1.6 (`memo`, `bake`, `incremental`,
+`hexmsg`), so the levers are gated in CI by their steps: a build where the
+memo stops answering, or a hex word falls back to blue code, is red.
+
+Red run, 2026-11-11: the same release binary with shinsuu's old hex words on
+`BLUE_PATH` (a deliberately slower build of the distribution) fails the
+ratchet: `bench-steps: hexmsg measures 5561541, past its recorded 357841 by
+5203700, beyond its 5 per mille tolerance`, with the allocation and byte rows
+red beside it.
 
 `--quick` (empty, hello, fib) is the pre-push gate `bench`, run when a landing
 touches `crates/**` or `bench/**`. The full set is `checks.bench-ratchet`,
@@ -167,8 +182,21 @@ release speed (`fib` 0.39 s against 0.31 s CPU).
 
 ### 1.4 The VM against the tree-walker
 
-`blue run` evaluates with the tree-walker. The bytecode VM runs only blue
-processes. A probe build sent the whole program to
+Since 2026-11-11 `blue run` takes the VM as its default door where the
+conformance columns agree (`crates/blue-lang-runtime/src/door.rs`): every
+construct the program uses is agreed, it reaches no host effect, and it hands
+no function to a native word (the slower case below). Otherwise it takes the
+tree-walker. A fault on the VM runs the program again on the walker, with its
+output words silenced, so the error carries its place and stack and the output
+is written once. `--door walker` or `BLUE_DOOR=walker` turns the VM door off;
+`--timings` names the door, and `--door-receipt FILE` writes which door ran
+and why. The conformance runner holds the door's table to the rows pending on
+the VM, in both directions, and routes each such row through the door, which
+must send it to the walker (the door gate). The memo, `--record`,
+`--receipt-steps` and `blue watch` keep a run on the walker.
+
+Before that, `blue run` evaluated with the tree-walker and the bytecode VM ran
+only blue processes. A probe build sent the whole program to
 `Interpreter::eval_program_vm` instead. User CPU time, s:
 
 | workload | tree-walker | VM |
@@ -222,6 +250,52 @@ is a push (`kiban_heap::rc_push`, `Region::push_onto`): before that, each
 step made a one-word list and appended it, and sums ran at 8.8 times the
 twin; after, 1.5. The rest of the gap is the twin's vectorised sum against a
 checked add and a bounds-checked index per word.
+
+### 1.6 Lever rows: doing less work than a Rust program of the same job
+
+`blue bench/bench.b lever BLUE WORKDIR [--record --receipt "<kind>: <why>"]`
+runs each program in `bench/levers` against its plain Rust twin in
+`bench/native`, after checking that both print the same. The blue run starts
+from the store its build left (restored before each run), so it never answers
+from its own previous run. hyperfine, 5 runs; CPU ms; the ratio is blue's CPU
+over Rust's, gated per host in `bench/lever.baseline` with a 500 per mille
+tolerance. It needs `hyperfine`, `rustc` and `rsync` on `PATH`. Apple M4 Pro,
+release build, 2026-11-11:
+
+| row | lever | blue | Rust | blue / Rust |
+|---|---|---|---|---|
+| memo (naive `fib(38)`) | memo by identity, in process | 56.8 | 125.9 | 0.45 |
+| bake (64 chunks of 50,000 steps, the store a build filled) | bake | 16.1 | 15.5 | 1.04 |
+| incremental (the same, one input changed) | incremental, through the store | 59.1 | 15.5 | 3.81 |
+| hexmsg (400 framed 67-byte messages to hex and back) | a linear library word (3.1) | 63.7 | 3.0 | 21.2 |
+
+memo is faster than the Rust program: blue knows `fib` is pure and answers
+each repeated call from its table, and the Rust program recomputes them. bake
+and incremental do the work of one chunk or none; their cost is the
+interpreter's start and 64 lookups. The rows are cost rows too (0.1).
+
+`hexmsg` is the shape a message decoder measured at 0.5 to 1 million
+evaluation steps per message: bytes to hex and back through shinsuu's
+`bytes_hex` and `hex_bytes`, which were blue code (a digit table, a `map` per
+byte). The native words `hex_encode` and `hex_decode` (one pass each, in
+`stdlib.rs`) now do the work, and the shinsuu words wrap them. Steps fell from
+5,561,541 to 357,841 (15.5 times fewer), CPU from 455 ms to 64 ms, and the
+ratio to Rust from 157 to 21. Byte concatenation was not on the profile
+(`append` is already native), so no concatenation word was added.
+
+### 1.7 Ahead of time to a wasm component
+
+chuuzou compiles a program in its subset for the board `wasm32` (kiban's
+`kb_wasm32`: host64's word and depth, `wasm32-wasip2` with the standard
+library), and links it with `native/seam/wasm32/seam.rs` into a WASI preview 2
+component, which wasmtime runs: the host a `runtime: :wasm` service and an
+engenho wasm pod run on. `native/corpus/hex.b` is the hex words written in
+that subset (bytes as Int lists, 64 random cases per seed, each encoded,
+printed, decoded and compared). `checks.native-wasm` (`native/checks/wasm.b`)
+compiles it for four seeds and requires the component to print what the
+interpreter prints. Red run: a seam that writes `b` for `a` fails it.
+hyperfine, 10 runs: the interpreter 118.7 ms (user 99.9), the component under
+wasmtime 10.8 ms (user 5.4), 11 times faster.
 
 ### 1.5 Compile times
 
@@ -521,9 +595,9 @@ One row for each item of section 3.
 
 | Item | State | What makes it true |
 |---|---|---|
-| 3.1 Linear library words | ⏳ in progress | `distinct`, `frequencies`, `shuugou::unique` and `mokuroku::name_collisions` are linear (section 4, spec row `lists.distinct.keys`). The census of the builtins that still run as Lisp, and a size row per word, do not exist. |
+| 3.1 Linear library words | ⏳ in progress | `distinct`, `frequencies`, `shuugou::unique` and `mokuroku::name_collisions` are linear (section 4, spec row `lists.distinct.keys`). `hex_encode` and `hex_decode` are native, and shinsuu's `bytes_hex` and `hex_bytes` wrap them (1.6, spec rows `strings.hex_*`). The census of the builtins that still run as Lisp, and a size row per word, do not exist. |
 | 3.2 Lexical addressing in the tree-walker | ❌ not built | The work is in tatara-lisp-eval. This repository holds no measurement of it. |
-| 3.3 A real VM tier | ❌ not built | The work is in tatara-lisp-eval. `blue run` does not use the VM (1.4). |
+| 3.3 A real VM tier | ⏳ in progress | `blue run` takes the VM as its default door where the conformance columns agree, and the walker otherwise (1.4, `crates/blue-lang-runtime/src/door.rs`, `crates/blue-lang-cli/tests/door.rs`, the conformance door gate). The VM itself (no lift to the walker, slots for globals, typed opcodes) is unchanged; that work is in tatara-lisp-eval. |
 | 3.4 Tiered execution | ❌ not built | No call counter and no VM promotion exist. The VM is slower than the walker on the common script shape (1.4), so 3.2 and 3.3 come first. |
 | 3.5 Resolve once per run | ⏳ in progress | `lower` takes the check stage's `ResolvedProgram` (`crates/blue-lang-runtime/src/pipeline.rs`). A check cache keyed by definition hash is on by default (`crates/blue-lang-runtime/src/check_cache.rs`, `BLUE_CHECK_CACHE`). No measurement shows one resolution per run. |
 | 3.6 Shared bidama analysis | ❌ not built | `bidamas/mk-bidama.nix` writes no parse, resolution or check output. |

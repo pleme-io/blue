@@ -43,9 +43,9 @@ end
 ";
 
 /// The exact output, with the fixture's path written `F`.
-const EXPECTED: &str = r#"{"code":"B0001","slug":"unbound-name","severity":"error","message":"unbound name `lenght`","file":"F","line":2,"column":3,"end_line":2,"end_column":9,"byte_start":12,"byte_end":18,"help":"did you mean `length` (builtin)?","related":[],"fixes":[{"message":"replace with `length` (builtin)","applicability":"maybe-incorrect","edits":[{"file":"F","line":2,"column":3,"end_line":2,"end_column":9,"byte_start":12,"byte_end":18,"original":"lenght","replacement":"length"}]}],"waiver":null}
-{"code":"B0002","slug":"unused-binding","severity":"warning","message":"parameter `y` is never read","file":"F","line":5,"column":10,"end_line":5,"end_column":11,"byte_start":37,"byte_end":38,"help":"rename it `_y` to say it is deliberately unused, or remove it","related":[],"fixes":[{"message":"rename to `_y`","applicability":"machine-applicable","edits":[{"file":"F","line":5,"column":10,"end_line":5,"end_column":11,"byte_start":37,"byte_end":38,"original":"y","replacement":"_y"}]}],"waiver":null}
-{"code":"B0002","slug":"unused-binding","severity":"warning","message":"parameter `ctx` is never read","file":"F","line":10,"column":14,"end_line":10,"end_column":17,"byte_start":105,"byte_end":108,"help":"rename it `_ctx` to say it is deliberately unused, or remove it","related":[],"fixes":[{"message":"rename to `_ctx`","applicability":"machine-applicable","edits":[{"file":"F","line":10,"column":14,"end_line":10,"end_column":17,"byte_start":105,"byte_end":108,"original":"ctx","replacement":"_ctx"}]}],"waiver":{"reason":"the callback shape is fixed","line":9}}
+const EXPECTED: &str = r#"{"code":"B0001","slug":"unbound-name","severity":"error","message":"unbound name `lenght`","file":"F","line":2,"column":3,"end_line":2,"end_column":9,"byte_start":12,"byte_end":18,"help":"did you mean `length` (builtin)?","related":[],"fixes":[{"message":"replace with `length` (builtin)","applicability":"maybe-incorrect","edits":[{"file":"F","line":2,"column":3,"end_line":2,"end_column":9,"byte_start":12,"byte_end":18,"original":"lenght","replacement":"length"}]}],"law":"every name a program uses is bound: a local, a parameter, a definition, an imported bidama's definition, or a builtin","witness":"def f(xs)\n  lenght(xs)\nend\n","waiver":null}
+{"code":"B0002","slug":"unused-binding","severity":"warning","message":"parameter `y` is never read","file":"F","line":5,"column":10,"end_line":5,"end_column":11,"byte_start":37,"byte_end":38,"help":"rename it `_y` to say it is deliberately unused, or remove it","related":[],"fixes":[{"message":"rename to `_y`","applicability":"machine-applicable","edits":[{"file":"F","line":5,"column":10,"end_line":5,"end_column":11,"byte_start":37,"byte_end":38,"original":"y","replacement":"_y"}]}],"law":"a local binding is read at least once, or its name starts with `_`","witness":"def f(x)\n  y = x + 1\n  x\nend\n","waiver":null}
+{"code":"B0002","slug":"unused-binding","severity":"warning","message":"parameter `ctx` is never read","file":"F","line":10,"column":14,"end_line":10,"end_column":17,"byte_start":105,"byte_end":108,"help":"rename it `_ctx` to say it is deliberately unused, or remove it","related":[],"fixes":[{"message":"rename to `_ctx`","applicability":"machine-applicable","edits":[{"file":"F","line":10,"column":14,"end_line":10,"end_column":17,"byte_start":105,"byte_end":108,"original":"ctx","replacement":"_ctx"}]}],"law":"a local binding is read at least once, or its name starts with `_`","witness":"def f(x)\n  y = x + 1\n  x\nend\n","waiver":{"reason":"the callback shape is fixed","line":9}}
 "#;
 
 #[test]
@@ -236,4 +236,94 @@ fn an_override_is_recorded_after_the_diagnostics() {
             "`{field}` undocumented"
         );
     }
+}
+
+fn json_of(p: &std::path::Path) -> Vec<serde_json::Value> {
+    let out = blue()
+        .args(["check", "--format", "json", p.to_str().expect("utf-8")])
+        .output()
+        .expect("spawn");
+    String::from_utf8(out.stdout)
+        .expect("utf-8")
+        .lines()
+        .map(|l| serde_json::from_str(l).expect("each line parses"))
+        .collect()
+}
+
+fn apply_first_fixes(text: &str, found: &[&serde_json::Value]) -> Option<String> {
+    let mut edits: Vec<(usize, usize, String, String)> = Vec::new();
+    for d in found {
+        for e in d["fixes"][0]["edits"].as_array()? {
+            let edit = (
+                usize::try_from(e["byte_start"].as_u64()?).ok()?,
+                usize::try_from(e["byte_end"].as_u64()?).ok()?,
+                e["original"].as_str()?.to_string(),
+                e["replacement"].as_str()?.to_string(),
+            );
+            if !edits.contains(&edit) {
+                edits.push(edit);
+            }
+        }
+    }
+    if edits.is_empty() {
+        return None;
+    }
+    edits.sort_by_key(|e| std::cmp::Reverse(e.0));
+    let mut out = text.to_string();
+    let mut floor = usize::MAX;
+    for (start, end, original, replacement) in edits {
+        if end > floor || out.get(start..end) != Some(original.as_str()) {
+            return None;
+        }
+        out.replace_range(start..end, &replacement);
+        floor = start;
+    }
+    Some(out)
+}
+
+#[test]
+fn a_diagnostic_s_json_alone_carries_its_law_its_witness_and_a_repair() {
+    let mut failures = Vec::new();
+    let mut repaired = 0;
+    for r in blue_lang_check::RULES
+        .iter()
+        .filter(|r| r.imports.is_empty() && r.frontend.is_none() && r.package.is_none())
+    {
+        let p = fixture(&format!("repair-{}", r.code.as_str()), r.witness);
+        let lines = json_of(&p);
+        let found: Vec<&serde_json::Value> = lines
+            .iter()
+            .filter(|d| d["code"] == r.code.as_str())
+            .collect();
+        if found.is_empty() {
+            continue;
+        }
+        if found
+            .iter()
+            .any(|d| d["law"] != r.law || d["witness"] != r.witness)
+        {
+            failures.push(format!("{}: the JSON lacks its law or witness", r.code));
+        }
+        if blue_lang_check::fixes::REPAIR_CENSUS.contains(&r.code) {
+            continue;
+        }
+        let Some(fixed) = apply_first_fixes(r.witness, &found) else {
+            failures.push(format!("{}: no applicable fix in its JSON", r.code));
+            continue;
+        };
+        std::fs::write(&p, &fixed).expect("write");
+        if json_of(&p).iter().any(|d| d["code"] == r.code.as_str()) {
+            failures.push(format!(
+                "{}: still fires after its JSON fix:\n{fixed}",
+                r.code
+            ));
+        } else {
+            repaired += 1;
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+    assert!(
+        repaired >= 30,
+        "only {repaired} rules repaired from their JSON"
+    );
 }

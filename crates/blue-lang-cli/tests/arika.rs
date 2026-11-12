@@ -1087,7 +1087,10 @@ fn context_is_one_bounded_answer_with_the_word_its_laws_callers_and_tests() {
     assert_eq!(first["outcome"], "found", "{first}");
     assert_eq!(first["import"], "use(\"retsu\", [:first])", "{first}");
     assert_eq!(first["file"], "retsu/retsu.b", "{first}");
-    assert!(first["doc"].as_str().is_some_and(|t| !t.is_empty()), "{first}");
+    assert!(
+        first["doc"].as_str().is_some_and(|t| !t.is_empty()),
+        "{first}"
+    );
     assert!(first["callers"]["total"].as_u64() > Some(50), "{first}");
     assert_eq!(first["callers"]["shown"].as_array().map(Vec::len), Some(8));
     assert!(first["tests"]["total"].as_u64() > Some(8), "{first}");

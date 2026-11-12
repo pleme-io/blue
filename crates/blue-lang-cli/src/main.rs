@@ -2065,6 +2065,19 @@ fn check(
             .into_iter()
             .map(|d| d.at_top_level(entry_form)),
     );
+    if matches!(format, Format::Json) {
+        if let Ok(rewritten) = blue_lang_pkg::canonical::format_resolved(file, &src) {
+            let owner = |i: usize| {
+                checked.program.owner_of(i) == Some(blue_lang_runtime::uses::ResolvedProgram::ENTRY)
+            };
+            blue_lang_check::fixes::complete_with_rewrite(
+                &mut with_form.diagnostics,
+                &owner,
+                &src,
+                &rewritten,
+            );
+        }
+    }
     let outcome = &with_form;
     match format {
         Format::Json => {

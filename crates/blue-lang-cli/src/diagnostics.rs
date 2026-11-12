@@ -15,6 +15,7 @@
 //!  "fixes":[{"message":"replace with `length` (builtin)","applicability":"maybe-incorrect",
 //!            "edits":[{"file":"f.b","line":2,"column":3,"end_line":2,"end_column":9,
 //!                      "byte_start":12,"byte_end":18,"original":"lenght","replacement":"length"}]}],
+//!  "law":"every name a program uses is bound: …","witness":"…",
 //!  "waiver":null}
 //! ```
 
@@ -115,6 +116,11 @@ pub struct JsonDiagnostic {
     pub help: Option<String>,
     pub related: Vec<JsonRelated>,
     pub fixes: Vec<JsonFix>,
+    /// The rule's law in one line; `null` for a project rule.
+    pub law: Option<String>,
+    /// A program that breaks the rule and nothing else; `null` for a project
+    /// rule.
+    pub witness: Option<String>,
     /// Set when an in-source waiver suppressed this diagnostic.
     pub waiver: Option<JsonWaiver>,
 }
@@ -148,6 +154,8 @@ pub fn to_json(
             })
             .collect(),
         fixes: json_fixes(file, &d.fixes),
+        law: Some(rule.law.to_string()),
+        witness: Some(rule.witness.to_string()),
         waiver,
     }
 }
@@ -189,6 +197,8 @@ pub fn finding_json(
         help: f.help.clone(),
         related: Vec::new(),
         fixes: json_fixes(file, &f.fixes),
+        law: None,
+        witness: None,
         waiver,
     }
 }
@@ -226,6 +236,8 @@ fn failure_json(program: &ResolvedProgram, f: &Failure) -> JsonDiagnostic {
         help: None,
         related: Vec::new(),
         fixes: Vec::new(),
+        law: None,
+        witness: None,
         waiver: None,
     }
 }
@@ -344,6 +356,8 @@ pub fn syntax_json(path: &Path, text: &str, d: &Diagnostic) -> serde_json::Resul
         help: d.help.clone(),
         related: Vec::new(),
         fixes: Vec::new(),
+        law: Some(rule.law.to_string()),
+        witness: Some(rule.witness.to_string()),
         waiver: None,
     };
     let mut s = serde_json::to_string(&j)?;

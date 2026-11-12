@@ -446,7 +446,13 @@ and generators that skip.
   edit that moves a shape moves it (`crates/blue-lang-cli/tests/arika.rs`,
   red before: no root).
 
-REGEN_TIMING
+Measured on cid (macOS, debug build, loaded machine, `blue run --quiet
+gen/regen.b` over this tree, wall seconds): before, 164.9; after, with
+`BLUE_GEN_CACHE=off`, 153.5; after, nothing changed since the last regen,
+10.8, all 29 generators current. What remains is the catalogue, the
+workload, registry and service renders, and hashing the inputs. The H7
+lever rows do not fit it: a lever row is one program against its Rust
+twin, and regen has no twin.
 
 Not yet: the shape table is rebuilt whole on each emit, not updated by the
 shapes that moved; the regen skip keys a generator on every package root,

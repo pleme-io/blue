@@ -55,9 +55,36 @@ task and only that one, and a warning fails the check stage. The gate expects
 exactly ten tasks, so a task added or lost turns it red until the count moves
 with it.
 
-## Where a release's score is recorded
+## Where a release's score is recorded, and the census
 
-A model run happens outside CI. Record it as
-`eval/scores/<blue version>/<model>.json`, the scorer's own output, committed
-with the release. Not built yet: the census row over these files, so a score
-cannot fall without a typed reason.
+A model run happens outside CI. Record it as `eval/scores/<blue version>/<model>/`:
+the model's answers as `<task id>.b`, and the scorer's own output as
+`score.json`, committed with the release.
+
+`eval/score.baseline` is the census: one row `model-eval-passed: <run> <n>`
+per run. `reference` is the reference solutions; every other run is a model's
+most recent recorded answers. `eval/census.b` rescores each run with the blue
+being built, so a change to blue that a recorded answer no longer passes, or a
+broken recorded answer, lowers the count:
+
+```
+blue run eval/census.b -- check
+```
+
+prints each run's count and exits 1 when one is below its row or has no row.
+`checks.model-eval` runs `census.b`'s tests, the census among them, so a land
+or a release whose score falls is red.
+
+A row may fall only with a typed reason (`task-added`, `task-changed`,
+`rule-tightened`, `answers-replaced`) and a receipt, which stays in the file as
+a `# receipt:` line:
+
+```
+blue run eval/census.b -- record --reason rule-tightened --receipt "B0083 refuses t04's answer"
+```
+
+`record` with no reason writes held and risen rows, and new runs. A hand edit
+that lowers a row is caught by review, not by the gate.
+
+The first run, 0.0.192: `claude-opus-5-5` with the blue CLI and blue's docs,
+given only each `prompt.md`, scored 10/10.

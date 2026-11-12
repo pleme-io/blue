@@ -1,3 +1,5 @@
+use("fairu", [:absolute])
+
 use(
   "moji",
   %i[after_first after_last before_first before_last includes lines trim]
@@ -388,7 +390,7 @@ def drive(o, plans)
   dir = temp_dir("blue-naturalize")
   if o[:mode] == :module
     src = path_join(dir, "main.rs")
-    head = "#[allow(dead_code)] #[path = #{json_stringify(absolute_path(o[:source]))}] mod original;"
+    head = "#[allow(dead_code)] #[path = #{json_stringify(absolute(o[:source]))}] mod original;"
     write_file(src, harness_main(head, plans))
     exe = path_join(dir, "harness")
     built = exec_capture(
@@ -420,7 +422,7 @@ def drive(o, plans)
           "[workspace]",
           "",
           "[dependencies]",
-          "original = { path = #{json_stringify(absolute_path(o[:dir]))}, package = #{json_stringify(package_name(toml))} }",
+          "original = { path = #{json_stringify(absolute(o[:dir]))}, package = #{json_stringify(package_name(toml))} }",
           ""
         ]
       )
@@ -438,19 +440,6 @@ def drive(o, plans)
       "--manifest-path",
       path_join(dir, "Cargo.toml")
     )
-  end
-end
-
-@doc """
-absolute_path: A path made absolute against the current directory.
-
-    absolute_path("/a") #=> "/a"
-"""
-def absolute_path(p)
-  if starts_with?(p, "/")
-    p
-  else
-    path_join(cwd, p)
   end
 end
 

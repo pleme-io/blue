@@ -1,3 +1,4 @@
+use("fairu", [:absolute])
 use("shisutemu", %i[status_of stderr_of stdout_of])
 
 @doc """
@@ -7,12 +8,7 @@ current directory otherwise.
     starts_with?(path_join(eval_root, "eval"), eval_root) #=> true
 """
 def eval_root()
-  root = getenv("GEN_ROOT", cwd)
-  if starts_with?(root, "/")
-    root
-  else
-    path_join(cwd, root)
-  end
+  absolute(getenv("GEN_ROOT", cwd))
 end
 
 @doc """

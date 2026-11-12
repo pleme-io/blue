@@ -231,7 +231,7 @@ rendered:
 | Built-in names | 399: 372 functions, 14 special forms, 13 macros |
 | Surface forms | 36, with 13 operators and 26 reserved words |
 | Check rules | 79: 42 fix themselves, 8 suggest a fix |
-| Bluefile words | 28 |
+| Bluefile words | 29 |
 | Commands | 61 |
 
 ## The standard library
@@ -239,7 +239,7 @@ rendered:
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-69 packages, 5971 definitions, 2024 tests.
+69 packages, 5990 definitions, 2029 tests.
 
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
 - [baito](bidamas/CATALOG.md#baito) (バイト) — bytes as data: integers at a declared width and order, and record layouts that say where each field sits.
@@ -3992,7 +3992,7 @@ that makes the state true, and the tier the gate reaches.
 | `unsafe_code` denied in every crate (row 9) | ⏳ in progress | 5 of 24 crates deny it at their roots. A workspace `unsafe_code = "deny"` with one `#[allow]` per seam is missing. |
 | Native panic seam to an `:internal` refusal (row 11) | ❌ not built | No unwind seam at the native-call boundary. |
 | Wall-clock bound (row 12) | ❌ not built | No `max_wall_ms` bound exists. |
-| A content hash per bidama in `Bluefile.lock` (row 13) | ❌ not built | The lock records the Bluefile's b3 (`crates/blue-lang-pkg/src/lock.rs`), not the hash of the package's sources. |
+| A content hash per bidama in `Bluefile.lock` (row 13) | ✅ built, off by default | Runtime-refused at load under `verify(%i[contents])`: the lock records each resolved bidama's content root (`crates/blue-lang-pkg/src/content.rs`) and the loader refuses a mismatch. `crates/blue-lang-cli/tests/verified_load.rs`. |
 | A secret type (row 14) | ❌ not built | No secret bidama exists. A secret is a plain string. |
 | Injection rule for `sh_exec` and `pg_execute` (row 15) | ❌ not built | No check rule names them. |
 | Script parity and the declared default (row 16) | ❌ not built | An undeclared script run is still ambient. |

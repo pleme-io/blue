@@ -7,7 +7,7 @@
     "crates/blue-lang-art/Cargo.toml": "f6721f78c76a94d4915a455675cd05889176a43212494c53aa8a01dfc9dfe5ee",
     "crates/blue-lang-bidama/Cargo.toml": "7b29108c8c3d40b5cbaf9f427c4f0a0ace1e5b49e02bd7448dcb53d3ee91337f",
     "crates/blue-lang-check/Cargo.toml": "8e11f4b76e3ecef246fcac2ce0521a0960cb03b5d8e5ca996c151862d3eb6c87",
-    "crates/blue-lang-cli/Cargo.toml": "1424a2698597e580a6f995e3359130209294b87bc0cd12a1af0e480b767234a2",
+    "crates/blue-lang-cli/Cargo.toml": "5a96c865ae9f1d00903fe7b73ec9e613c86859e677a7aa094309eceb6c15d6c5",
     "crates/blue-lang-component/Cargo.toml": "70bb98db843f6b7db73b1541f1e5f3fcdf7b880f3b3cf21bf25384a5ba8e1b52",
     "crates/blue-lang-danpen-diff/Cargo.toml": "b7e792141144a87f38bf6e6f78365ddd1c3feabbae5097bc43e560fc2223dfbf",
     "crates/blue-lang-fmt/Cargo.toml": "4f5c416d0a44933a497ea60c2e0e7d412ac8da28e2cbd646bb45d75c6e07db88",
@@ -1372,6 +1372,18 @@
               "cli"
             ],
             "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "tameshi",
+            "package_key": "tameshi-0.1.12",
+            "kind": "normal",
+            "features": [
+              "merkle"
+            ],
+            "uses_default_features": false,
             "optional": false,
             "target": null,
             "tree": "target"

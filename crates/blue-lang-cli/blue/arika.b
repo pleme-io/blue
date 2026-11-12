@@ -280,7 +280,7 @@ def unit_line(u)
 end
 
 def header_text(facts, units)
-  head = "{\"blind\":#{json_stringify(facts["blind"])},\"definitions\":#{to_s(facts["definitions"])},\"format\":\"arika/1\",\"leaves\":#{to_s(size(facts["rows"]))},\"repo\":#{json_stringify(facts["repo"])},\"snapshot_root\":\"b3:#{snapshot_root_of(units)}\",\"units\":["
+  head = "{\"blind\":#{json_stringify(facts["blind"])},\"definitions\":#{to_s(facts["definitions"])},\"format\":\"arika/1\",\"leaves\":#{to_s(size(facts["rows"]))},\"repo\":#{json_stringify(facts["repo"])},\"shape_root\":#{json_stringify(facts["shape_root"])},\"shapes\":#{to_s(facts["shapes"])},\"snapshot_root\":\"b3:#{snapshot_root_of(units)}\",\"units\":["
   "#{head}#{line_break}#{join(map(unit_line, units), ",#{line_break}")}#{line_break}]}#{line_break}"
 end
 

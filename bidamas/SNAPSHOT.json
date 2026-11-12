@@ -1,4 +1,4 @@
-{"blind":[],"definitions":6061,"format":"arika/1","leaves":6061,"repo":"blue","snapshot_root":"b3:a8e2b25b87cb86c55b0ac244468c22d6c601f41ab0c69db6e0bbc300c542991f","units":[
+{"blind":[],"definitions":6061,"format":"arika/1","leaves":6061,"repo":"blue","shape_root":"b3:b2b71df273b2b7aa874f929bd64a5e5c1ee0c456f14989496ed4b02bbe8ff3b9","shapes":5840,"snapshot_root":"b3:a8e2b25b87cb86c55b0ac244468c22d6c601f41ab0c69db6e0bbc300c542991f","units":[
 {"leaves":65,"package":"angou","unit_root":"b3:6bcca5c74bbbfe659a2db6c009ff601912712bff9a9fa623e58e4668fc05daf6"},
 {"leaves":23,"package":"baito","unit_root":"b3:c705d4013588360b29e29152e447de614fd783ae6dcd15548a3607e92d82138e"},
 {"leaves":101,"package":"bunsho","unit_root":"b3:8a34fbedd3a3db1ee2d141ac4b59403f636756362a801aef27e6b41accd8004f"},

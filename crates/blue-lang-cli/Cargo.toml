@@ -26,6 +26,7 @@ blue-lang-test = { workspace = true }
 blue-lang-pkg = { workspace = true, features = ["embedded"] }
 blue-lang-lsp = { workspace = true }
 blue-lang-mondou = { workspace = true }
+tameshi = { version = "0.1.12", default-features = false, features = ["merkle"] }
 blue-lang-art = { workspace = true }
 katsuji = "0.1"
 blue-lang-waku = { workspace = true }

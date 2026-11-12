@@ -244,8 +244,8 @@ default to skip work.
 | check and erase | built, on by default for every check a `blue` command runs: `check`, `test`, `run`, `fmt`, the LSP (`BLUE_CHECK_CACHE=off`, `--no-cache` on `check` and `test`): the name walks, the lowered tree and project rules, per definition; shipped per bidama as its `analysis` output, read through `BLUE_CACHE_SHARED` | `def_hash` + engine identity + the hashes it read |
 | `blue test` | built, on by default (`BLUE_TEST_CACHE=off` turns it off), shared through `BLUE_CACHE_SHARED` | the engine's `b3:` + the test's hash + preamble + bounds |
 | a pure call | built, off by default (`BLUE_MEMO`; measured slower on the corpus's tests), shared when on | `def_hash` + the arguments' canonical form |
-| a nix `bidama-test-*` check | none: one change anywhere reruns every package | the closure the test reaches |
-| a generator, arika's word table | none: always rerun and compared | the generator's hash + its inputs' hashes |
+| a nix `bidama-test-*` check | built: its `BLUE_PATH` holds the closure its package reaches, so a change outside that closure does not rerun it; a test the cache skips carries a tameshi inclusion proof (`blue test --proofs`) | the closure the test reaches |
+| a generator, arika's word table | built: a declared generator whose key is recorded with its output's present hash does not run (`BLUE_GEN_CACHE=off` runs it); arika's header carries a sparse Merkle root over its shapes | the engine + the program + its declared inputs + the project's packages |
 
 `blue check` of kaaneru (10,252 lines with its levels) takes 1.4 s, and of
 eigyou 1.1 s (debug build, cid); the flake's 273 checks each check their
@@ -409,6 +409,52 @@ Nothing uploads a node's store to sui; a node shares through a root it is
 given (a nix output, a copied directory). The test cache does not read the
 analysis, and the nix test checks keep no store (`HOME` dies with them).
 
+**Built (rungs 4 and 5, 2026-11-12):** narrow test checks with a proof,
+and generators that skip.
+
+- **A test check reaches only its closure** (rung 4). `nix/project.nix`
+  gives each `bidama-test-<pkg>` check (and each level's) a `BLUE_PATH` of
+  the bidamas its package reaches (`bl.closureOf`, the walk `mkBidama`
+  already made, now shared), not the whole distribution. Before, kazu's and
+  retsu's test checks each held 69 bidamas; now kazu holds kazu, retsu
+  holds kazu and retsu (`checks.test-closure-narrow`, red before).
+- **A store bucket is one Merkle root** (rung 4). `Bucket::root` folds a
+  bucket's entries, sorted by key, into tameshi's RFC 9162 root, each leaf
+  BLAKE3 over the key and value length-prefixed; `Bucket::prove` gives an
+  entry's inclusion proof and `Inclusion::verifies` checks it. `blue test
+  --proofs FILE` writes the test cache's root and, for every test reported
+  cached, its key with the proof (`crates/blue-lang-cli/tests/test_cache.rs`,
+  red before: the file was never written; the store's own test reddens
+  when a leaf drops its value). tameshi 0.1.12 has the lean `merkle`
+  feature this links: blake3, `rs_merkle`, serde and const-hex, nothing
+  else.
+- **A generator skips on equal inputs** (rung 5). `blue run` of a declared
+  `generate(...)` with `GEN_OUT` set keys the run in the store's `gen`
+  tier, domain `blue gen v1`: the engine identity, the generator's name,
+  `GEN_OUT`, its arguments, `BLUE_PATH`, the program's bytes, and the
+  git-tracked files under each declared input and each `packages(...)`
+  root. A key recorded with the output's present hash skips the run. A
+  hand-edited output, a changed input, package, program or engine runs it;
+  `BLUE_GEN_CACHE=off` runs it every time. A key is recorded after a
+  successful run only when the inputs still hash as they did at its start
+  (`crates/blue-lang-cli/tests/gen_cache.rs`, red before: every second run
+  ran; dropping the packages from the key reddens the package gate).
+- **arika's shape table is a sparse Merkle tree** (rung 5). `blue arika
+  emit` writes `shape_root` and `shapes` into the header: tameshi's sparse
+  Merkle tree (depth 64) keyed by shape hash, each value the hash of the
+  sorted words of that shape. A doc-only edit keeps the root, and a body
+  edit that moves a shape moves it (`crates/blue-lang-cli/tests/arika.rs`,
+  red before: no root).
+
+REGEN_TIMING
+
+Not yet: the shape table is rebuilt whole on each emit, not updated by the
+shapes that moved; the regen skip keys a generator on every package root,
+not the closure its program reaches, so an edit under `bidamas/` reruns
+every generator; nothing verifies a `--proofs` file but its reader; the
+nix test checks still keep no store, so a skipped test there is still a
+run.
+
 **One store under every rung, packaged and spread** (operator, same day:
 "re-use and generalize the caching across all this", "package all the
 goodness up and spread it"). The five rungs are one primitive used five ways,
@@ -431,8 +477,9 @@ root) becomes it:
   the same keys, tiers and proofs. A new use is a new domain string, not a
   new cache.
 
-Prerequisite: tameshi gates its Merkle code behind `full`, which brings tokio
-and axum; it gets a lean `merkle` feature (blake3 and `rs_merkle` only).
+Prerequisite, met 2026-11-12: tameshi 0.1.12 has a lean `merkle` feature
+(blake3, `rs_merkle`, serde and const-hex; `tests/merkle_lean.rs`), which
+`blue-lang-mondou` and `blue-lang-cli` link.
 **First step:** rung 1, measured: the flake checks' total check time before
 and after on rio. **Gate:** red run: change a callee's body, and the caller
 is checked again; change an unrelated definition, and no other definition
@@ -1329,7 +1376,7 @@ and what is not.
 | H0. Hygiene | ⏳ in progress | Built: the DIAGNOSTICS codes table and CATALOG's `needs` render in `nix run .#regen`; `checks.package-fidelity` (`nix/package-fidelity.nix`); B0058 at 0. Not built: B0056 and B0057 at 0. |
 | H1. Shapes | ⏳ in progress | Built: unions, patterns, destructuring bindings and `?` (`spec/rows/unions.b`, `patterns.b`, `refusals.b`; `crates/blue-lang-runtime/tests/unions.rs`). Not built: one declared `result` union, `?` on an Option, a record pattern from another bidama. |
 | H2. Types that grow | ⏳ in progress | Built: local inference in a typed definition (`check.infer` rows in `spec/rows/check.b`). Not built: record and union types in signatures, the checked boundary, a `strict` position per file. |
-| H3. Code is content | ⏳ in progress | Built: rung 1, the check cache per definition, on by default (`crates/blue-lang-mondou/tests/check_cache.rs`); the test cache, on by default (`BLUE_TEST_CACHE=off` turns it off); the memo, off by default (`BLUE_MEMO`). Not built: rungs 2 to 5 and the shared store. |
+| H3. Code is content | ⏳ in progress | Built: rung 1, the check cache per definition, on by default (`crates/blue-lang-mondou/tests/check_cache.rs`); rungs 2 and 3, a bidama's analysis shipped and one shared tier keyed by the engine's bytes (`crates/blue-lang-cli/tests/shared_cache.rs`); rung 4, each bidama test check on its own closure (`checks.test-closure-narrow`) and a tameshi inclusion proof for every cached test (`blue test --proofs`, `crates/blue-lang-cli/tests/test_cache.rs`); rung 5, a generator that skips on equal inputs (`BLUE_GEN_CACHE=off` runs it, `crates/blue-lang-cli/tests/gen_cache.rs`) and arika's shape table as a sparse Merkle root (`crates/blue-lang-cli/tests/arika.rs`); the memo, off by default (`BLUE_MEMO`). Not built: the shape table updated by the shapes that moved, a generator keyed on its program's closure, a store uploaded to sui. |
 | H4. Time | ⏳ in progress | Built: `net_wait` in the node loop (`crates/blue-lang-proc/tests/net_wait.rs`), node-time timers, record and replay (`crates/blue-lang-cli/tests/run_replay.rs`). Not built: `schedulers(n)`, the debugger over replay. |
 | H5. Knowledge | ⏳ in progress | Built: arika Phase 2 for blue's own tree (`crates/blue-lang-cli/tests/arika.rs`), khipu K1a (`bidamas/khipu`). Not built: the MCP service, khipu over blue itself, why-answers. |
 | H6. Proof | ⏳ in progress | Built: heni's caught ratio as a ratchet (`bidamas/heni/ratio.baseline`, `checks.heni-mutations`); generated properties (`crates/blue-lang-cli/tests/properties.rs`). Not built: laws over a decidable fragment. |

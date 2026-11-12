@@ -876,14 +876,35 @@ pub fn emit_facts(root: &Path) -> Json {
             r["line"].as_u64().unwrap_or_default(),
         )
     });
+    let (shape_root, shapes) = shape_table(&rows);
     json!({
         "repo": REPO,
         "files": files.len(),
         "outside": outside,
         "definitions": definitions,
         "blind": blind,
+        "shape_root": shape_root,
+        "shapes": shapes,
         "rows": rows,
     })
+}
+
+fn shape_table(rows: &[Json]) -> (String, usize) {
+    use tameshi::hash::Blake3Hash;
+    let mut by_shape: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::new();
+    for row in rows {
+        if let (Some(shape), Some(word)) = (row["shape"].as_str(), row["word"].as_str()) {
+            by_shape.entry(shape).or_default().insert(word);
+        }
+    }
+    let mut table = tameshi::sparse_merkle::SparseMerkleTree::new(64);
+    for (shape, words) in &by_shape {
+        let key =
+            Blake3Hash::from_b3(shape).unwrap_or_else(|_| Blake3Hash::digest(shape.as_bytes()));
+        let fields: Vec<&[u8]> = words.iter().map(|w| w.as_bytes()).collect();
+        table.insert(key, Blake3Hash::digest_fields(&fields));
+    }
+    (table.root().to_b3(), by_shape.len())
 }
 
 fn draft_of_hook(input: &str) -> Option<Draft> {

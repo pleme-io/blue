@@ -1138,3 +1138,36 @@ fn context_is_one_bounded_answer_with_the_word_its_laws_callers_and_tests() {
     .expect("json");
     assert_eq!(called["result"]["structuredContent"], first);
 }
+
+#[test]
+fn the_shape_table_is_a_sparse_merkle_root_that_moves_only_with_the_shapes_that_moved() {
+    let d = Dir::new("shape-table");
+    let here = fixture_tree(&d, "here");
+    let first = snapshot(&emitted(&d, &here, "a").0);
+    let root = first["shape_root"]
+        .as_str()
+        .expect("a shape root")
+        .to_string();
+    assert!(root.starts_with("b3:"), "{root}");
+    assert!(
+        first["shapes"].as_u64().expect("a shape count") >= 2,
+        "{first}"
+    );
+    std::fs::write(
+        here.join("kagi/kagi.b"),
+        KAGI.replace("the number doubled.", "the number, doubled."),
+    )
+    .expect("write");
+    let doc_only = snapshot(&emitted(&d, &here, "b").0);
+    assert_ne!(doc_only["snapshot_root"], first["snapshot_root"]);
+    assert_eq!(
+        doc_only["shape_root"], first["shape_root"],
+        "no shape moved"
+    );
+    std::fs::write(here.join("kagi/kagi.b"), KAGI.replace("n * 2", "n * 2 + 0")).expect("write");
+    let moved = snapshot(&emitted(&d, &here, "c").0);
+    assert_ne!(
+        moved["shape_root"], first["shape_root"],
+        "twice's shape moved"
+    );
+}

@@ -105,7 +105,7 @@ Computed from each package's files and its `Bluefile.lock`: `docs` is the public
 | [`junjo`](#junjo) | 30/43 | 32 | — |
 | [`junni`](#junni) | 10/10 | 5 | — |
 | [`kaaneru`](#kaaneru) | 546/546 | 109 | environment, filesystem, kernel-bpf, process |
-| [`kakehashi`](#kakehashi) | 99/370 | 97 | — |
+| [`kakehashi`](#kakehashi) | 106/370 | 97 | — |
 | [`kansuu`](#kansuu) | 23/26 | 21 | — |
 | [`kazu`](#kazu) | 26/36 | 25 | — |
 | [`keiyu`](#keiyu) | 0/4 | 3 | — |
@@ -3089,16 +3089,16 @@ kakehashi (架け橋, a bridge) — blue speaks Nix, Nix runs blue, and a rebuil
 | `kakehashi::nikkusu::nix_identifier?(name)` |  |  |  | nix_identifier?: whether `name` is a bare Nix identifier: a letter or `_`, then letters, digits, `_`, `'` or `-`, and no keyword. |
 | `kakehashi::nikkusu::nix_ref(path)` |  |  |  | nix_ref: a Nix expression named by a dotted path of identifiers, for `render`: a package, a library function, an argument. Anything else raises :bad_option. |
 | `kakehashi::nikkusu::nix_apply(f, arg)` |  |  |  | nix_apply: a Nix function, named by `nix_ref`, applied to one argument, for `render`. |
-| `kakehashi::nikkusu::nix_ref?(v)` |  |  |  |  |
-| `kakehashi::nikkusu::nix_apply?(v)` |  |  |  |  |
+| `kakehashi::nikkusu::nix_ref?(v)` |  |  |  | nix_ref?: whether a value is a reference `nix_ref` made. |
+| `kakehashi::nikkusu::nix_apply?(v)` |  |  |  | nix_apply?: whether a value is an application `nix_apply` made. |
 | `kakehashi::nikkusu::nix_string(s)` |  |  |  | nix_string: a string as a Nix string literal, escaped so it reads back as the same text and interpolates nothing. |
 | `kakehashi::nikkusu::nix_key(k)` |  |  |  | nix_key: an attribute name, bare when it is an identifier and quoted when not. |
-| `kakehashi::nikkusu::scalar?(v)` |  |  |  |  |
-| `kakehashi::nikkusu::pad(depth)` |  |  |  |  |
+| `kakehashi::nikkusu::scalar?(v)` |  |  |  | scalar?: whether a value renders on one line with nothing nested: what keeps a list on one line. |
+| `kakehashi::nikkusu::pad(depth)` |  |  |  | pad: the indent of a nesting depth, two spaces a level. |
 | `kakehashi::nikkusu::render(v)` |  |  |  | render: blue data as Nix source: nil, booleans, numbers, strings, lists and maps, with `nix_ref` and `nix_apply` for expressions. A symbol value or any other value raises :bad_option, since it has no one Nix reading. |
-| `kakehashi::nikkusu::render_at(v, depth)` |  |  |  |  |
-| `kakehashi::nikkusu::render_list(xs, depth)` |  |  |  |  |
-| `kakehashi::nikkusu::render_set(m, depth)` |  |  |  |  |
+| `kakehashi::nikkusu::render_at(v, depth)` |  |  |  | render_at: `render` at a nesting depth, which indents what it nests. |
+| `kakehashi::nikkusu::render_list(xs, depth)` |  |  |  | render_list: a list as Nix source: on one line when every element is a scalar, one element a line when not. |
+| `kakehashi::nikkusu::render_set(m, depth)` |  |  |  | render_set: a map as a Nix attribute set, one binding a line. |
 | `kakehashi::nikkusu::module(args, config)` |  |  |  | module: a NixOS module as Nix source: a function of `args` (and `...`) returning `config` rendered. |
 | `kakehashi::souji::cli` |  |  |  | cli: souji's command line: three commands, a dry run, the two age floors and the roots to search. |
 | `kakehashi::souji::roots(opts)` |  |  |  |  |

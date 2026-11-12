@@ -420,10 +420,22 @@ def nix_apply(f, arg)
   {nix_apply: f, arg:}
 end
 
+@doc """
+nix_ref?: whether a value is a reference `nix_ref` made.
+
+    nix_ref?(nix_ref("pkgs.git")) #=> true
+    nix_ref?({a: 1}) #=> false
+"""
 def nix_ref?(v)
   map?(v) and size(map_entries(v)) == 1 and string?(v[:nix_ref])
 end
 
+@doc """
+nix_apply?: whether a value is an application `nix_apply` made.
+
+    nix_apply?(nix_apply(nix_ref("lib.mkForce"), 1)) #=> true
+    nix_apply?(nix_ref("lib.mkForce")) #=> false
+"""
 def nix_apply?(v)
   map?(v) and size(map_entries(v)) == 2 and nix_ref?(v[:nix_apply])
 end
@@ -479,10 +491,21 @@ def nix_key(k)
   end
 end
 
+@doc """
+scalar?: whether a value renders on one line with nothing nested: what keeps a list on one line.
+
+    scalar?("a") #=> true
+    scalar?([1]) #=> false
+"""
 def scalar?(v)
   v.nil? or boolean?(v) or integer?(v) or float?(v) or string?(v) or nix_ref?(v)
 end
 
+@doc """
+pad: the indent of a nesting depth, two spaces a level.
+
+    pad(2) #=> "    "
+"""
 def pad(depth)
   join(map((_i) -> "  ", range(0, depth)), "")
 end
@@ -497,6 +520,11 @@ def render(v)
   render_at(v, 0)
 end
 
+@doc """
+render_at: `render` at a nesting depth, which indents what it nests.
+
+    render_at([{a: 1}], 1) #=> "[\n    {\n      a = 1;\n    }\n  ]"
+"""
 def render_at(v, depth)
   if v.nil?
     "null"
@@ -528,6 +556,11 @@ def render_at(v, depth)
   end
 end
 
+@doc """
+render_list: a list as Nix source: on one line when every element is a scalar, one element a line when not.
+
+    render_list([1, 2], 0) #=> "[ 1 2 ]"
+"""
 def render_list(xs, depth)
   if is_empty(xs)
     "[ ]"
@@ -539,6 +572,11 @@ def render_list(xs, depth)
   end
 end
 
+@doc """
+render_set: a map as a Nix attribute set, one binding a line.
+
+    render_set({a: true}, 0) #=> "{\n  a = true;\n}"
+"""
 def render_set(m, depth)
   entries = map_entries(m)
   if is_empty(entries)

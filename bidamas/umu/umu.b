@@ -165,10 +165,10 @@ from_nil reads older nil-answering code as an option: nil is `none`, anything el
     [from_nil(3), from_nil(nil)] #=> [{some: true, value: 3}, {some: false}]
 """
 def from_nil(v)
-  if v.nil?
-    none
-  else
+  if not v.nil?
     some(v)
+  else
+    none
   end
 end
 

@@ -1,0 +1,3 @@
+# receipt: first measure, 2026-11-11: the references, and claude-opus-5-5 with the blue CLI and blue's docs, given only each prompt.md
+model-eval-passed: claude-opus-5-5 10
+model-eval-passed: reference 10

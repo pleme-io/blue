@@ -1,4 +1,4 @@
-use("shisutemu", %i[status_of stdout_of])
+use("shisutemu", %i[status_of stderr_of stdout_of])
 
 @doc """
 eval_root: The directory holding eval/: GEN_ROOT under the flake check, the
@@ -114,4 +114,12 @@ test "a warning is not clean: the copied word fails at the check stage"
   assert failed_ids(ran[1]) == ["t09-reuse-word"]
   assert contains?(stdout_of(ran[0]), "FAIL t09-reuse-word (check)")
   rm_rf(dir)
+end
+
+test "every recorded run holds its census row, and a fall needs a typed reason"
+  cap = exec_capture(self_exe, "test", path_join(eval_root, "eval/census.b"))
+  if status_of(cap) != 0
+    write_stderr(join_lines([stdout_of(cap), stderr_of(cap)]))
+  end
+  assert status_of(cap) == 0
 end

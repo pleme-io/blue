@@ -236,12 +236,27 @@ def prose_gates(manifest)
 end
 
 @doc """
+first_gates: The flake checks CI runs first on a land, beside the suite, so a red
+one stops the run (stop-on-red) minutes in rather than when its shard reaches it:
+the prose gates and the two census ratchets, each built from blue alone. On
+2026-11-12 reuse-ratchet went red 26 minutes into run 43143400946 because it sat
+late in a flake-check shard.
+
+    first_gates({"generated" => {}, "checks" => {}, "receipts" => {}}) #=> ["bidama-catalog-fresh", "repository-lock-fresh", "reuse-ratchet", "namespace-census"]
+"""
+def first_gates(manifest)
+  append(prose_gates(manifest), %w[reuse-ratchet namespace-census])
+end
+
+@doc """
 scope_verb: The verbs `git land` and CI ask this file instead of a push:
 `--scope BASE HEAD` prints the landing's scope, `--prose-gates SYSTEM` prints the
-flake attributes that judge a prose landing. Any other first word is a push.
+flake attributes that judge a prose landing, `--first-gates SYSTEM` those CI runs
+first on every land. Any other first word is a push.
 
     scope_verb(["--scope", "a", "b"]) #=> :scope
     scope_verb(["--prose-gates", "x86_64-linux"]) #=> :gates
+    scope_verb(["--first-gates", "x86_64-linux"]) #=> :first
     scope_verb(["origin", "git@github.com:pleme-io/blue.git"]) #=> nil
     scope_verb([]) #=> nil
 """
@@ -252,6 +267,8 @@ def scope_verb(words)
     :scope
   elsif first(words) == "--prose-gates"
     :gates
+  elsif first(words) == "--first-gates"
+    :first
   end
 end
 
@@ -263,9 +280,12 @@ def answer_scope(words)
     write_stdout(unlines([land_scope(changed, gate_table)]))
   else
     manifest = json_read(read_file("Bluefile.lock"))["manifest"]
-    write_stdout(
-      join(map((g) -> ".#checks.#{words[1]}.#{g}", prose_gates(manifest)), " ")
-    )
+    chosen = if scope_verb(words) == :first
+      first_gates(manifest)
+    else
+      prose_gates(manifest)
+    end
+    write_stdout(join(map((g) -> ".#checks.#{words[1]}.#{g}", chosen), " "))
   end
 end
 
@@ -1419,6 +1439,18 @@ test "the prose gates come from the lock, and the real lock names the gates that
     ]
   )
   assert not member?("conformance", gates)
+end
+
+test "the gates CI runs first on a land are the prose gates and the census ratchets, and no cargo leg"
+  root = getenv("GEN_ROOT", ".")
+  gates = first_gates(
+    json_read(read_file(path_join(root, "Bluefile.lock")))["manifest"]
+  )
+  assert every?(
+    (g) -> member?(g, gates),
+    %w[docs reuse-ratchet namespace-census]
+  )
+  assert not member?("cargo-test", gates)
 end
 
 test "a hook's remote is no scope verb, so a push stays a push"

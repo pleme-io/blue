@@ -1,5 +1,5 @@
 @moduledoc """
-refused: A program the verifier refuses at a line it can name: it reads the XDP context at an offset the context does not have. kernel/object_suite.b asserts the refusal names this file's line 11.
+refused: A program the verifier refuses at a line it can name: it reads its context at an offset no program kind's context has. kernel/object_suite.b asserts the refusal names this file's line 11, loaded as each of several kinds.
 
     blue test --allow host kernel/object_suite.b
 """

@@ -219,6 +219,36 @@ test "a cgroup sock program refuses an ICMP socket inside its cgroup, and nowher
   assert got[2] == 0
 end
 
+test "a cgroup sysctl program refuses a sysctl write inside its cgroup, lets it read, and detach restores the write"
+  compiled = compile(
+    "kernel/programs/sysctl_guard.b",
+    {entry: :no_sysctl_write, kind: :cgroup_sysctl, on_fault: 1}
+  )
+  path = cgroup_up("y")
+  knob = "/proc/sys/net/ipv4/ip_default_ttl"
+  rewrite = ["sh", "-c", "v=$(cat #{knob}) && echo \"$v\" > #{knob}"]
+  got = begin
+    during = attached(
+      compiled,
+      {cgroup_sysctl: path},
+      fn(_live)
+        {
+          written: in_cgroup(path, rewrite),
+          read: in_cgroup(path, ["cat", knob]),
+          outside: exec_capture(*rewrite).status
+        }
+      end
+    )
+    assoc(during, :after, in_cgroup(path, rewrite))
+  ensure
+    cgroup_down(path)
+  end
+  assert got[:written] != 0
+  assert got[:read] == 0
+  assert got[:outside] == 0
+  assert got[:after] == 0
+end
+
 test "a cgroup device program denies one device inside its cgroup, allows another, and detach restores it"
   compiled = compile(
     "kernel/programs/cgroup_device.b",

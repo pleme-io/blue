@@ -1486,7 +1486,7 @@ end
 @doc """
 hooks: every hook `attached` takes, with the program kind it needs and what names its target.
 
-    size(hooks) #=> 16
+    size(hooks) #=> 17
     first(hooks).kind #=> :xdp
 """
 def hooks()
@@ -1510,6 +1510,7 @@ def hooks()
       target: "a cgroup directory"
     },
     {hook: :cgroup_device, kind: :cgroup_device, target: "a cgroup directory"},
+    {hook: :cgroup_sysctl, kind: :cgroup_sysctl, target: "a cgroup directory"},
     {hook: :netfilter, kind: :netfilter, target: "{family:, hook:, priority:}"},
     {hook: :tracepoint, kind: :tracepoint, target: "[category, name]"},
     {
@@ -2618,6 +2619,15 @@ test "attached refuses a spec and a kind that do not fit before it reaches the k
   end
   assert contains?(none.message, "fentry")
   assert (hook_row(xdp, {xdp: 1, lsm: "x"}) rescue :refused) == :refused
+end
+
+test "a cgroup sysctl program attaches to a cgroup through its own hook, and no other kind does"
+  sysctl = {kind: :cgroup_sysctl}
+  row = hook_row(sysctl, {cgroup_sysctl: "/sys/fs/cgroup/x"})
+  assert row.target == "a cgroup directory"
+  assert kind_id(:attach, row.hook) == 18
+  assert (hook_row({kind: :cgroup_sock}, {cgroup_sysctl: "/x"}) rescue
+    :refused) == :refused
 end
 
 test "every hook names a program kind the kernel has"

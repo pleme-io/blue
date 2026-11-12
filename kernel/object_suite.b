@@ -406,6 +406,34 @@ test "a refusal names the blue line and the reason, and the verifier's own log h
 end
 
 @doc """
+refusal_of: what the kernel raises when it refuses refused.b's read_far loaded as `kind`, or nil when it loads.
+"""
+def refusal_of(kind)
+  compiled = compile("kernel/programs/refused.b", {entry: :read_far, kind:})
+  begin
+    install(compiled)
+    nil
+  rescue :kernel_refused as e
+    e
+  end
+end
+
+test "a refusal names the blue file and line for each kind the program loads as"
+  kinds = %i[xdp sched_cls socket_filter cgroup_skb cgroup_sysctl]
+  caught = map(refusal_of, kinds)
+  assert every?((e) -> e != nil, caught)
+  assert every?(
+    (e) -> contains?(e.message, "kernel/programs/refused.b:11"),
+    caught
+  )
+  assert every?((e) -> e.data.at.line == 11, caught)
+  assert every?(
+    (e) -> contains?(e.data.reason, "invalid bpf_context access off=1000"),
+    caught
+  )
+end
+
+@doc """
 verifier_names_file?: whether the verifier's log puts ` @ FILE:LINE` after a source line, as measured: 6.6.142 prints the line alone, 6.12.92 and 7.0.11 name the file. nil for a release nothing measured.
 
     verifier_names_file?("6.6.142") #=> false

@@ -44,6 +44,7 @@ def programs()
     ["kernel/programs/sk_lookup.b", :sk_lookup, :sk_lookup, 1],
     ["kernel/programs/socket_len.b", :socket_len, :socket_filter, 1],
     ["kernel/programs/spin.b", :on_packet, :xdp, 0],
+    ["kernel/programs/sysctl_guard.b", :no_sysctl_write, :cgroup_sysctl, 1],
     ["kernel/programs/tc_filter.b", :tc_filter, :sched_cls, 1]
   ]
 end

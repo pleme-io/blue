@@ -38,7 +38,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 
-use blue_lang_syntax::parse::{parse_program_spanned, parse_program_surface as parse_program};
+use blue_lang_syntax::parse::{parse_program_documented, parse_program_surface as parse_program};
 use tatara_lisp::Sexp;
 
 use crate::lower::{LowerError, Lowerer};
@@ -189,11 +189,13 @@ struct Subject {
 impl Subject {
     fn read(path: &Path) -> Result<Self, String> {
         let src = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
-        let spanned = parse_program_spanned(&src)
+        let spanned = parse_program_documented(&src)
+            .map(blue_lang_syntax::doc::strip)
             .map_err(|e| format!("{}: blue refuses it: {e}", path.display()))?;
         let closes: Vec<usize> = spanned
             .iter()
-            .map_while(|(_, span)| src[span.end..].find('\n').map(|i| span.end + i + 1))
+            .map(|f| f.span)
+            .map_while(|span| src[span.end..].find('\n').map(|i| span.end + i + 1))
             .collect();
         let closed = closes.iter().map(|_| Mutex::new(None)).collect();
         let cuts = (0..=src.len())

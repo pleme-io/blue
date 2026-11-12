@@ -77,6 +77,7 @@ mod debug;
 mod deploy;
 mod diagnostics;
 mod doc;
+mod door;
 mod facts;
 mod inputs;
 mod memo;
@@ -181,9 +182,25 @@ enum Cmd {
         no_memo: bool,
         /// Evaluate on the bytecode VM instead of the tree-walker: the whole
         /// program, its `main` call included, compiled to one chunk. Every
-        /// stage before evaluation is the same; the memo is off.
+        /// stage before evaluation is the same; the memo is off. The same
+        /// as `--door vm`.
         #[arg(long)]
         vm: bool,
+        /// Which evaluator runs the program: `auto` (the default) takes the
+        /// VM when every construct the program uses is agreed by the
+        /// conformance columns and the walker otherwise; `walker` and `vm`
+        /// name one. `BLUE_DOOR` sets it when the flag is absent, so
+        /// `BLUE_DOOR=walker` turns the VM door off. The memo, `--record`,
+        /// `--receipt-steps` and `blue watch` keep `auto` on the walker.
+        /// With `--timings` the report names the door, and
+        /// `--door-receipt FILE` writes which door ran and why.
+        #[arg(long, value_enum)]
+        door: Option<DoorFlag>,
+        /// Write the run's door receipt to FILE: canonical JSON (`blue-door`
+        /// version 1) naming the door that ran, why, and the constructs that
+        /// decided it.
+        #[arg(long, value_name = "FILE")]
+        door_receipt: Option<PathBuf>,
         /// The program's own arguments, after the file (use `--` before any
         /// that start with a dash): what `argv()` returns. Before 2026-09-27
         /// `run` refused any, so no blue program could take arguments.
@@ -723,6 +740,8 @@ fn failure_code(e: &blue_lang_runtime::RunError) -> ExitCode {
     ExitCode::from(e.exit_status())
 }
 
+use door::DoorFlag;
+
 /// `blue check`'s output shape.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
 enum Format {
@@ -950,6 +969,8 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             timings,
             no_memo,
             vm,
+            door,
+            door_receipt,
             args,
         } => {
             if timings {
@@ -966,11 +987,8 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                     receipts: receipts.as_deref(),
                     receipt_steps,
                     no_memo,
-                    executor: if vm {
-                        blue_lang_runtime::pipeline::Executor::Vm
-                    } else {
-                        blue_lang_runtime::pipeline::Executor::Walker
-                    },
+                    executor: door::executor(vm, door, std::env::var(door::ENV).ok().as_deref())
+                        .map_err(CliError::Fmt)?,
                     args: args.clone(),
                     taping: if record {
                         record::Taping::Record
@@ -980,6 +998,10 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                     watch: None,
                 },
             )?;
+            let taken = invoked.account.door.lock().ok().and_then(|d| d.clone());
+            if let (Some(file), Some(taken)) = (&door_receipt, &taken) {
+                door::write(file, taken);
+            }
             if let Some(dir) = &receipts {
                 if record {
                     record::write(
@@ -1010,6 +1032,9 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
             }
             if timings {
                 eprint!("{}", blue_lang_runtime::timings::report());
+                if let Some(taken) = &taken {
+                    eprintln!("door     {}", taken.ran.name());
+                }
             }
             Ok(ExitCode::SUCCESS)
         }
@@ -2320,6 +2345,16 @@ fn invoke(cfg: &BlueConfig, inv: Invocation<'_>) -> Result<Invoked, CliError> {
             hold.as_ref().and_then(|h| h.bounds),
         )
     };
+    let executor = door::settle(
+        inv.executor,
+        &door::Held {
+            memo: memo != memo::Mode::Off,
+            steps: inv.receipt_steps,
+            taped,
+            watched: inv.watch.is_some(),
+        },
+        &account,
+    );
     let ran = match (memo, inv.watch) {
         (memo::Mode::Off, Some(watch)) => blue_lang_runtime::pipeline::run_observed_accounted(
             entry,
@@ -2338,7 +2373,7 @@ fn invoke(cfg: &BlueConfig, inv: Invocation<'_>) -> Result<Invoked, CliError> {
             surface.as_ref(),
             hold.as_ref(),
             &account,
-            inv.executor,
+            executor,
         ),
         (mode, _) => {
             let mut held = None;

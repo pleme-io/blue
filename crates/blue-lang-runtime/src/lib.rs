@@ -49,6 +49,7 @@ pub mod display;
 pub mod doc_sources;
 pub mod docs;
 pub mod domain;
+pub mod door;
 #[cfg(feature = "host")]
 pub mod entropy;
 pub mod erase;
@@ -256,6 +257,7 @@ pub struct Account {
     pub receipts: Option<std::path::PathBuf>,
     pub steps: Option<std::sync::Arc<std::sync::atomic::AtomicU64>>,
     pub clock: Option<ClockKind>,
+    pub door: std::sync::Arc<std::sync::Mutex<Option<door::Door>>>,
 }
 
 impl Account {

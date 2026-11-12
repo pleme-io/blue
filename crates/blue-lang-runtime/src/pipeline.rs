@@ -254,6 +254,7 @@ pub enum Executor {
     #[default]
     Walker,
     Vm,
+    Auto,
 }
 
 /// [`run_framed_accounted`] on the chosen [`Executor`]. Every stage before
@@ -276,9 +277,47 @@ pub fn run_framed_on(
     // stage's name oracle: every builtin, macro and special form a program may
     // name is read off the interpreter that will run it, never off a list.
     // Building it is not a stage; nothing is evaluated until `eval_prepared`.
+    let inputs_again = inputs.clone();
     let (mut interp, mut prepared) = prepared_on(entry, inputs, loader, surface)?;
     hold_to_frame(&mut interp, &mut prepared, hold, account)?;
-    let value = evaluate_held(&mut interp, &prepared, hold, account, executor)?;
+    let door = match executor {
+        Executor::Auto => {
+            crate::door::choose(&prepared.erased, &|n| interp.lookup_global(n).is_some())
+        }
+        Executor::Vm => crate::door::Door::chosen(crate::door::Ran::Vm, "the run named the vm"),
+        Executor::Walker => {
+            crate::door::Door::chosen(crate::door::Ran::Walker, "the run named the walker")
+        }
+    };
+    let chosen = executor;
+    let executor = match door.ran {
+        crate::door::Ran::Vm => Executor::Vm,
+        crate::door::Ran::Walker => Executor::Walker,
+    };
+    if let Ok(mut slot) = account.door.lock() {
+        *slot = Some(door);
+    }
+    let value = match evaluate_held(&mut interp, &prepared, hold, account, executor) {
+        Err(RunError::Eval(_)) if chosen == Executor::Auto && executor == Executor::Vm => {
+            let (mut again, mut replayed) = prepared_on(entry, inputs_again, loader, surface)?;
+            hold_to_frame(&mut again, &mut replayed, hold, account)?;
+            for word in crate::door::OUTPUT {
+                again.register_fn(
+                    *word,
+                    tatara_lisp_eval::Arity::Any,
+                    |_: &[Value], _h: &mut (), _s| Ok(Value::Nil),
+                );
+            }
+            if let Ok(mut slot) = account.door.lock() {
+                *slot = Some(crate::door::Door::chosen(
+                    crate::door::Ran::Walker,
+                    "the vm raised, and the run, which reached no host effect, ran again on the walker with its output already written, so the error carries its place and stack",
+                ));
+            }
+            evaluate_held(&mut again, &replayed, hold, account, Executor::Walker)?
+        }
+        outcome => outcome?,
+    };
     Ok(Run {
         value,
         visited: prepared.visited,
@@ -307,7 +346,7 @@ fn evaluate_held(
             })?
             .unwrap_or(value))
         }
-        Executor::Vm => crate::timings::stage(crate::timings::Stage::Eval, || {
+        Executor::Vm | Executor::Auto => crate::timings::stage(crate::timings::Stage::Eval, || {
             eval_on_vm(interp, prepared, &mut ())
         }),
     });

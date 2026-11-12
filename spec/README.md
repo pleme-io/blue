@@ -33,6 +33,11 @@ The report gives pass, pending, fail and blind per evaluator, per area (row
 file) and per blueshift position, the pending rows by gap, and the
 missing-row gate's totals.
 
+The door gate holds `blue run`'s door (`blue_lang_runtime::door::TABLE`) to
+the rows: every row pending on the `vm` alone has a rule naming it, every
+rule names such a row (a closed gap turns the run red until its rule goes),
+and the door sends each such row's program to the walker.
+
 ## The evaluators
 
 | column | what runs the row | what it can observe |

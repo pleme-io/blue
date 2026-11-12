@@ -412,6 +412,62 @@ pub fn vm(env: &mut Env, row: &Row) -> Obs {
     }
 }
 
+pub fn door(env: &mut Env, row: &Row) -> Option<blue_lang_runtime::door::Door> {
+    let loader = env.loader();
+    let entry = Entry {
+        path: Some(Path::new(ROW_FILE)),
+        text: &row.src,
+    };
+    let checked = check_entry(entry, &loader, None, Checking::Program).ok()?;
+    if !checked.outcome.ok() {
+        return None;
+    }
+    let lowered = checked.lowered();
+    let erased = blue_lang_runtime::erase_types(&lowered);
+    let interp = blue_lang_runtime::interpreter_hostless();
+    Some(blue_lang_runtime::door::choose(&erased, &|n| {
+        interp.lookup_global(n).is_some()
+    }))
+}
+
+pub fn door_gate(env: &mut Env, rows: &[Row]) -> Vec<String> {
+    use blue_lang_runtime::door::{Ran, Reason, TABLE};
+    let mut failures = Vec::new();
+    let pending_on_vm: Vec<&Row> = rows
+        .iter()
+        .filter(|r| r.pending.iter().any(|p| p.on == Some(Ev::Vm)))
+        .collect();
+    for row in &pending_on_vm {
+        if !TABLE
+            .iter()
+            .any(|t| matches!(t.reason, Reason::Disagrees { row: id, .. } if id == row.id))
+        {
+            failures.push(format!(
+                "{}: pending on the vm, and no door::TABLE rule names it",
+                row.id
+            ));
+        }
+        if let Some(d) = door(env, row) {
+            if d.ran != Ran::Walker {
+                failures.push(format!(
+                    "{}: pending on the vm, and the door sends it to the vm",
+                    row.id
+                ));
+            }
+        }
+    }
+    for rule in TABLE {
+        if let Reason::Disagrees { row: id, .. } = rule.reason {
+            if !pending_on_vm.iter().any(|r| r.id == id) {
+                failures.push(format!(
+                    "door::TABLE names {id}, which is not a row pending on the vm: the gap may be closed, remove the rule"
+                ));
+            }
+        }
+    }
+    failures
+}
+
 pub fn wasm(_env: &mut Env, row: &Row) -> Obs {
     if !runs(row) {
         return Obs::Blind(format!(

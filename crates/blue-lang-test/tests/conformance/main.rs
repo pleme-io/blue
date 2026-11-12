@@ -647,6 +647,12 @@ fn main() {
                 red = true;
             }
         }
+        let door_failures = eval::door_gate(&mut env, &all_rows);
+        writeln!(out, "\ndoor gate: {} failure(s)", door_failures.len()).ok();
+        for f in &door_failures {
+            writeln!(out, "FAIL door {f}").ok();
+            red = true;
+        }
         let cov = coverage::gate(&all_rows, &reg, eval::rung_of);
         writeln!(out, "\nmissing-row gate:").ok();
         for (kind, (n, have)) in &cov.totals {

@@ -39,6 +39,7 @@ pub mod alloc;
 #[cfg(feature = "senses")]
 pub mod audio;
 pub mod bits;
+pub mod bundle;
 pub mod check_cache;
 pub mod collection;
 pub mod crypto;
@@ -154,6 +155,8 @@ pub fn interpreter<H: 'static>(host: &mut H) -> Interpreter<H> {
     // surface by construction. Only the CLI turns it on.
     #[cfg(feature = "host")]
     sys::install_sys_stdlib(&mut interp);
+    #[cfg(not(feature = "host"))]
+    install_absent_host(&mut interp);
     // Layer 6: processes. Bound here so every name oracle built from this
     // interpreter (the check stage, the LSP, `blue reference`) knows them.
     attach_node(&mut interp);
@@ -450,6 +453,24 @@ impl Hold {
             .into_iter()
             .filter(|(_, cap)| !serves(entry, *cap))
             .collect()
+    }
+}
+
+pub const NO_HOST: &str = "this placement, which has no host";
+
+#[cfg(not(feature = "host"))]
+fn install_absent_host<H: 'static>(interp: &mut Interpreter<H>) {
+    for (name, cap) in names_of(blue_lang_waku::Capability::host_effects()) {
+        if interp.lookup_global(name).is_some() {
+            continue;
+        }
+        interp.register_fn(
+            name,
+            tatara_lisp_eval::ffi::Arity::Any,
+            move |_: &[tatara_lisp_eval::Value], _: &mut H, span| {
+                Err(breach(name, cap, NO_HOST, span))
+            },
+        );
     }
 }
 

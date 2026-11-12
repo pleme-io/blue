@@ -530,8 +530,13 @@ enum Cmd {
         #[arg(long, short = 'o', value_name = "OUT")]
         output: PathBuf,
         /// The `blue-appliance` runner to seal the payload onto.
-        #[arg(long, value_name = "RUNNER")]
+        #[arg(long, value_name = "RUNNER", conflicts_with = "sources")]
         runner: Option<PathBuf>,
+        /// Write the program's sources in place of a payload: its text and
+        /// the text of every bidama it reaches, as JSON an engine with no
+        /// filesystem (the wasm module in a page) runs from.
+        #[arg(long)]
+        sources: bool,
     },
     /// Run the language server, speaking LSP over stdin/stdout.
     Lsp,
@@ -1848,7 +1853,36 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
         Cmd::Bundle {
             file,
             output,
+            sources: true,
+            ..
+        } => {
+            let src = read(&file)?;
+            let loader = blue_lang_pkg::load_path::LoadPath::for_entry(&file);
+            let bundle = blue_lang_runtime::bundle::bundle_of(
+                blue_lang_runtime::uses::Entry {
+                    path: Some(&file),
+                    text: &src,
+                },
+                &loader,
+            )?;
+            std::fs::write(&output, bundle.to_json()).map_err(|source| CliError::Write {
+                path: output.display().to_string(),
+                source,
+            })?;
+            println!(
+                "{}: {} and {} bidamas",
+                output.display(),
+                file.display(),
+                bundle.packages.len()
+            );
+            Ok(ExitCode::SUCCESS)
+        }
+
+        Cmd::Bundle {
+            file,
+            output,
             runner,
+            ..
         } => {
             let surface = resolve_surface().map_err(CliError::Pkg)?;
             let payload = blue_lang_pkg::appliance::bundle(&file, surface.as_ref())

@@ -256,6 +256,52 @@ def place_seam()
 end
 
 @doc """
+engine_seam: runs blue in the page: fetches the engine and the program's sources a mount names, runs the program with no import, and puts the section it renders in the mount and its receipt beside it.
+
+    contains?(engine_seam, "WebAssembly.instantiate(got[0],{})") #=> true
+"""
+def engine_seam()
+  unlines(
+    [
+      "function engine(at){",
+      "  var o=JSON.parse(at.dataset.value);",
+      "  var receipt=document.querySelector('[data-seam=receipt]');",
+      "  function done(state,a){",
+      "    if(receipt&&a&&a.receipt)receipt.textContent=a.receipt;",
+      "    at.setAttribute('data-state',state);",
+      "  }",
+      "  function got(r){if(!r.ok)throw new Error(r.url+' '+r.status);return r;}",
+      "  Promise.all([",
+      "    fetch(o.wasm).then(got).then(function(r){return r.arrayBuffer();}),",
+      "    fetch(o.bundle).then(got).then(function(r){return r.text();})",
+      "  ]).then(function(got){",
+      "    return WebAssembly.instantiate(got[0],{}).then(function(m){",
+      "      var ex=m.instance.exports;",
+      "      var src=new TextEncoder().encode(got[1]);",
+      "      var ptr=ex.alloc(src.length);",
+      "      new Uint8Array(ex.memory.buffer,ptr,src.length).set(src);",
+      "      var n=ex.blue_run_bundle(ptr,src.length);",
+      "      ex.dealloc(ptr,src.length);",
+      "      var out=ex.alloc(n);",
+      "      ex.blue_last_answer(out);",
+      "      var a=JSON.parse(new TextDecoder().decode(new Uint8Array(ex.memory.buffer,out,n)));",
+      "      ex.dealloc(out,n);",
+      "      if(a.state==='ran'){",
+      "        var doc=new DOMParser().parseFromString(a.value,'text/html');",
+      "        at.replaceChildren.apply(at,Array.prototype.slice.call(doc.body.childNodes));",
+      "      }else{",
+      "        at.textContent=a.error;",
+      "      }",
+      "      done(a.state,a);",
+      "    });",
+      "  }).catch(function(e){at.textContent=String(e&&e.message||e);done('failed',null);});",
+      "}",
+      "document.querySelectorAll('[data-seam=engine]').forEach(engine);"
+    ]
+  )
+end
+
+@doc """
 rows: the closed table of browser code: each name with its text.
 
     first(first(rows)) #=> :install
@@ -265,14 +311,15 @@ def rows()
     [:install, install_seam],
     [:ink, ink_seam],
     [:upload, upload_seam],
-    [:place, place_seam]
+    [:place, place_seam],
+    [:engine, engine_seam]
   ]
 end
 
 @doc """
 seam_names: The closed table of browser code, by name.
 
-    seam_names #=> [:install, :ink, :upload, :place]
+    seam_names #=> [:install, :ink, :upload, :place, :engine]
 """
 def seam_names()
   map(first, rows)
@@ -393,6 +440,16 @@ def page_policy(base)
 end
 
 @doc """
+engine_policy: The page security policy a page that runs the engine needs on top of a base: its own script, its own fetches, and wasm compiled from them.
+
+    contains?(engine_policy("default-src 'none'"), "script-src 'self' 'wasm-unsafe-eval'") #=> true
+    contains?(engine_policy("default-src 'none'"), "unsafe-inline") #=> false
+"""
+def engine_policy(base)
+  "#{base}; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'"
+end
+
+@doc """
 spec_fixture: a worker declaration for the tests.
 
     spec_fixture[:version] #=> "v1"
@@ -423,6 +480,15 @@ test "no row reaches for code from elsewhere or evaluates text"
       "https://"
     ]
   )
+end
+
+test "the engine row runs the program with no import and puts no text into the page as markup"
+  e = seam(:engine)
+  assert contains?(e, "WebAssembly.instantiate(got[0],{})")
+  assert contains?(e, "blue_run_bundle")
+  assert contains?(e, "parseFromString")
+  assert contains?(loader([:engine]), "data-seam=engine")
+  assert contains?(loader([]), "blue_run_bundle") == false
 end
 
 test "the worker never caches a write or an unlisted path, and names its version"

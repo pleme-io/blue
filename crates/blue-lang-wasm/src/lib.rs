@@ -46,6 +46,8 @@
 
 use std::cell::RefCell;
 
+pub mod page;
+
 thread_local! {
     /// The most recent error, held so the host can fetch it after a `2` tag.
     /// Thread-local rather than a global `static mut`: a wasm module may be
@@ -126,6 +128,31 @@ pub unsafe extern "C" fn blue_last_error(ptr: *mut u8) {
         if let Some(msg) = slot.borrow().as_ref() {
             std::ptr::copy_nonoverlapping(msg.as_ptr(), ptr, msg.len());
         }
+    });
+}
+
+thread_local! {
+    static LAST_ANSWER: RefCell<Vec<u8>> = const { RefCell::new(Vec::new()) };
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn blue_run_bundle(ptr: *const u8, len: usize) -> usize {
+    let bytes = std::slice::from_raw_parts(ptr, len);
+    let answer = match std::str::from_utf8(bytes) {
+        Ok(text) => page::answer(text),
+        Err(e) => serde_json::json!({ "state": "refused", "error": e.to_string() }),
+    };
+    let text = answer.to_string().into_bytes();
+    let n = text.len();
+    LAST_ANSWER.with(|slot| *slot.borrow_mut() = text);
+    n
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn blue_last_answer(ptr: *mut u8) {
+    LAST_ANSWER.with(|slot| {
+        let text = slot.borrow();
+        std::ptr::copy_nonoverlapping(text.as_ptr(), ptr, text.len());
     });
 }
 

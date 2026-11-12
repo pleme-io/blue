@@ -14,7 +14,9 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 blue-lang-runtime = { workspace = true }
+blue-lang-mondou = { workspace = true }
 tatara-lisp-eval = { workspace = true }
+serde_json = { workspace = true }
 
 [dev-dependencies]
 # PATH ONLY — a sibling dev-dep never carries a version. See the rule in

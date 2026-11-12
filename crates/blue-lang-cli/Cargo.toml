@@ -60,6 +60,7 @@ rustix = { version = "1", default-features = false, features = ["std", "stdio"] 
 
 [dev-dependencies]
 blue-lang-pkg = { path = "../blue-lang-pkg", features = ["embedded", "fixture"] }
+blue-lang-wasm = { path = "../blue-lang-wasm" }
 # `tests/compliance.rs`: a `blue test --facts` run becomes a tameshi
 # Attested Verification Tuple, read by tameshi's own strict types.
 tameshi = "0.1.8"

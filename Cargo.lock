@@ -407,6 +407,7 @@ dependencies = [
  "blue-lang-syntax",
  "blue-lang-test",
  "blue-lang-waku",
+ "blue-lang-wasm",
  "clap",
  "katsuji",
  "libc",
@@ -657,8 +658,10 @@ dependencies = [
 name = "blue-lang-wasm"
 version = "0.0.192"
 dependencies = [
+ "blue-lang-mondou",
  "blue-lang-runtime",
  "blue-lang-waku",
+ "serde_json",
  "tatara-lisp-eval",
 ]
 

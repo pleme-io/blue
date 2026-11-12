@@ -340,6 +340,8 @@ def run_cost(blue, w, work)
     "run",
     "--quiet",
     "--no-memo",
+    "--door",
+    "walker",
     "--timings",
     "--allow",
     "host",
@@ -349,6 +351,164 @@ def run_cost(blue, w, work)
     raise(:bench, "#{name}: #{stderr_of(cap)}")
   end
   cost_of(name, timing_rows(stderr_of(cap)))
+end
+
+@doc """
+levers: The lever rows of docs/PERFORMANCE.md section 3.0: each a blue program in
+bench/levers that does less work by a lever blue's knowledge enables, and a plain
+Rust twin in bench/native that does the whole job every run. `memo` answers
+repeated pure calls in process; `bake` runs against a store a build already filled
+(nothing changed); `incremental` runs after one of the program's 64 inputs changed,
+so one chunk is computed and 63 are answered from the store; `hexmsg` is the
+hex round trip of a framed message, the hot path a decoder run showed. Each is a
+cost row (steps on the walker door) and a ratio row against its twin.
+
+    map((l) -> l.name, levers) #=> ["memo", "bake", "incremental", "hexmsg"]
+"""
+def levers()
+  [
+    {
+      name: "memo",
+      lever: "memo by identity",
+      program: "memo",
+      memo: "process",
+      primed: false,
+      edit: nil,
+      rust: "fib",
+      rust_args: ["38"]
+    },
+    {
+      name: "bake",
+      lever: "bake",
+      program: "incremental",
+      memo: "on",
+      primed: true,
+      edit: 0,
+      rust: "incremental",
+      rust_args: ["0"]
+    },
+    {
+      name: "incremental",
+      lever: "incremental",
+      program: "incremental",
+      memo: "on",
+      primed: true,
+      edit: 1,
+      rust: "incremental",
+      rust_args: ["1"]
+    },
+    {
+      name: "hexmsg",
+      lever: "linear library word",
+      program: "hexmsg",
+      memo: nil,
+      primed: false,
+      edit: nil,
+      rust: "hexmsg",
+      rust_args: []
+    }
+  ]
+end
+
+@doc """
+with_line: The text with the line that starts with `prefix` set to `prefix` and `value`.
+
+    with_line(unlines(["EDIT = 0", "f(EDIT)"]), "EDIT = ", 1) #=> unlines(["EDIT = 1", "f(EDIT)"])
+"""
+def with_line(text, prefix, value)
+  unlines(
+    map(
+      fn(l)
+        if starts_with?(l, prefix)
+          "#{prefix}#{to_s(value)}"
+        else
+          l
+        end
+      end,
+      lines(text)
+    )
+  )
+end
+
+def lever_file(spec, work, edit)
+  file = path_join(work, "levers", "#{spec.name}-#{to_s(edit)}.b")
+  mkdir_p(path_join(work, "levers"))
+  text = read_file("bench/levers/#{spec.program}.b")
+  write_program(
+    file,
+    if edit.nil?
+      text
+    else
+      with_line(text, "EDIT = ", edit)
+    end
+  )
+  file
+end
+
+def lever_store(spec, work)
+  path_join(work, "store-#{spec.name}")
+end
+
+@doc """
+lever_run: The command that runs a lever's program: its memo mode and store, the walker
+door, and `extra` flags before the file.
+
+    lever_run("blue", {memo: nil}, "/w/s", ["--timings"], "/w/p.b") #=> ["env", "BLUE_MEMO=off", "blue", "run", "--quiet", "--door", "walker", "--allow", "host", "--no-memo", "--timings", "/w/p.b"]
+"""
+def lever_run(blue, spec, store, extra, file)
+  memo = if spec.memo.nil?
+    ["BLUE_MEMO=off"]
+  else
+    ["BLUE_MEMO=#{spec.memo}", "XDG_CACHE_HOME=#{store}"]
+  end
+  off = if spec.memo.nil?
+    ["--no-memo"]
+  else
+    []
+  end
+  append(
+    ["env"],
+    memo,
+    [blue, "run", "--quiet", "--door", "walker", "--allow", "host"],
+    off,
+    extra,
+    [file]
+  )
+end
+
+def run_checked(command, what)
+  cap = exec_capture(*command)
+  if status_of(cap) != 0
+    raise(:bench, "#{what}: #{stderr_of(cap)}")
+  end
+  cap
+end
+
+def prime(blue, spec, work)
+  store = lever_store(spec, work)
+  rm_rf(store)
+  if spec.primed
+    run_checked(
+      lever_run(blue, spec, store, [], lever_file(spec, work, 0)),
+      "#{spec.name} (priming the store)"
+    )
+  end
+  store
+end
+
+def lever_cost(blue, spec, work)
+  store = prime(blue, spec, work)
+  cap = run_checked(
+    lever_run(
+      blue,
+      spec,
+      store,
+      ["--timings"],
+      lever_file(spec, work, spec.edit)
+    ),
+    spec.name
+  )
+  cost_of(spec.name, timing_rows(stderr_of(cap)))
 end
 
 @doc """
@@ -517,6 +677,14 @@ def chosen(flags)
   end
 end
 
+def chosen_levers(flags)
+  if member?("--quick", flags)
+    []
+  else
+    levers
+  end
+end
+
 def needs_data(ws)
   not is_empty(filter((w) -> not w[1].nil?, ws))
 end
@@ -529,7 +697,10 @@ def cost_command(blue, work, flags)
     write_data(data)
   end
   host = host_name
-  costs = map((w) -> run_cost(blue, w, work), ws)
+  costs = append(
+    map((w) -> run_cost(blue, w, work), ws),
+    map((l) -> lever_cost(blue, l, work), chosen_levers(flags))
+  )
   write_stdout(
     unlines(
       append(
@@ -546,14 +717,54 @@ def cost_command(blue, work, flags)
   if member?("--record", flags)
     record_costs(old, rows, costs, host, flags)
   else
-    check_costs(rows, costs, host, size(ws))
+    check_costs(rows, costs, host, size(costs))
+  end
+end
+
+@doc """
+receipt_kinds: The kinds of reason a raised row may carry, as `--receipt "<kind>: <why>"`:
+the measure itself changed (`measurement`), a fix costs work (`correctness`), new
+behaviour costs work (`capability`), or the toolchain or host changed (`platform`).
+A slower release with any other reason, or none, is refused.
+
+    receipt_kinds #=> ["measurement", "correctness", "capability", "platform"]
+"""
+def receipt_kinds()
+  %w[measurement correctness capability platform]
+end
+
+@doc """
+receipt_refusal: Why a receipt is not a typed reason, or nil when it is one: a kind
+from receipt_kinds, a colon, and a reason. No receipt is no refusal.
+
+    receipt_refusal(nil) #=> nil
+    receipt_refusal("correctness: the overflow check") #=> nil
+    receipt_refusal("faster later").nil? #=> false
+"""
+def receipt_refusal(receipt)
+  if receipt.nil?
+    nil
+  else
+    kind = trim(before_first(receipt, ":"))
+    why = if includes(receipt, ":")
+      trim(after_first(receipt, ":"))
+    else
+      ""
+    end
+    if not member?(kind, receipt_kinds) or why == ""
+      "bench: a receipt is \"<kind>: <why>\" with a kind of #{join(receipt_kinds, ", ")}; got \"#{receipt}\""
+    end
   end
 end
 
 def record_costs(old, rows, costs, host, flags)
   receipt = flag(flags, "--receipt")
   up = raises(rows, costs, host)
-  if member?("--quick", flags)
+  refused = receipt_refusal(receipt)
+  if not refused.nil?
+    write_stdout(unlines([refused]))
+    false
+  elsif member?("--quick", flags)
     write_stdout(
       unlines(["bench: --record measures every workload; drop --quick"])
     )
@@ -563,7 +774,7 @@ def record_costs(old, rows, costs, host, flags)
       unlines(
         append(
           map(why, up),
-          ["bench: a raised or new row needs a reason: blue bench/bench.b cost BLUE WORKDIR --record --receipt \"<why>\""]
+          ["bench: a raised or new row needs a reason: blue bench/bench.b cost BLUE WORKDIR --record --receipt \"<kind>: <why>\""]
         )
       )
     )
@@ -610,7 +821,7 @@ def check_costs(rows, costs, host, n)
         append(
           map(why, bad),
           [
-            "fix: make it cheaper, or raise the row: blue bench/bench.b cost BLUE WORKDIR --record --receipt \"<why>\" against #{BASELINE}"
+            "fix: make it cheaper, or raise the row: blue bench/bench.b cost BLUE WORKDIR --record --receipt \"<kind>: <why>\" against #{BASELINE}"
           ]
         )
       )
@@ -869,11 +1080,21 @@ def native_command(blue, work, flags)
       [],
       native_paths
     )
-    write_file(
-      NATIVE_BASELINE,
-      receipted(old, flag(flags, "--receipt"), render("native-ratio", measures))
-    )
-    true
+    refused = receipt_refusal(flag(flags, "--receipt"))
+    if refused.nil?
+      write_file(
+        NATIVE_BASELINE,
+        receipted(
+          old,
+          flag(flags, "--receipt"),
+          render("native-ratio", measures)
+        )
+      )
+      true
+    else
+      write_stdout(unlines([refused]))
+      false
+    end
   else
     bad = native_refusals(rows, results, host)
     map((b) -> write_stdout(unlines([why(b)])), bad)
@@ -881,8 +1102,129 @@ def native_command(blue, work, flags)
   end
 end
 
+LEVER_BASELINE = "bench/lever.baseline"
+
+def timed_prepared(command, prepare, runs, out)
+  exec_capture(
+    "hyperfine",
+    "-N",
+    "--warmup",
+    "1",
+    "--runs",
+    to_s(runs),
+    "--prepare",
+    prepare,
+    "--export-json",
+    out,
+    command
+  )
+  r = json_get(json_parse(read_file(out)), :results)[0]
+  {wall: ms(json_get(r, :mean)), cpu: cpu_ms(r)}
+end
+
+@doc """
+lever_row: One lever on its blue program and its Rust twin: the two print the same,
+then each is timed; the blue run starts every time from the store its build left
+(a copy restored before each run), so a run never answers from its own last run.
+"""
+def lever_row(blue, spec, work, runs)
+  store = prime(blue, spec, work)
+  snapshot = "#{store}-built"
+  mkdir_p(store)
+  rm_rf(snapshot)
+  output_of(["cp", "-R", store, snapshot])
+  restore = "rsync -a --delete #{snapshot}/ #{store}/"
+  rust = path_join(work, "#{spec.rust}-rust")
+  output_of(
+    [
+      "rustc",
+      "--edition",
+      "2021",
+      "-C",
+      "opt-level=3",
+      "-C",
+      "codegen-units=1",
+      "-o",
+      rust,
+      "bench/native/#{spec.rust}.rs"
+    ]
+  )
+  file = lever_file(spec, work, spec.edit)
+  b = lever_run(blue, spec, store, [], file)
+  r = append([rust], spec.rust_args)
+  if output_of(b) != output_of(r)
+    raise(:bench, "#{spec.name}: blue prints other than the Rust twin")
+  end
+  out = path_join(work, "#{spec.name}.json")
+  {
+    name: spec.name,
+    lever: spec.lever,
+    blue: timed_prepared(join(b, " "), restore, runs, out),
+    rust: timed(join(r, " "), runs, out)
+  }
+end
+
+@doc """
+lever_measures: Each lever's blue CPU time over its Rust twin's, in per mille, keyed by
+lever and host. Below 1000 is faster than Rust.
+
+    lever_measures([{name: "memo", blue: {cpu: 30}, rust: {cpu: 300}}], "darwin") #=> [{key: "memo darwin", size: 100}]
+"""
+def lever_measures(results, host)
+  map(
+    (r) -> measurement("#{r.name} #{host}", per_mille(r.blue.cpu, r.rust.cpu)),
+    results
+  )
+end
+
+def lever_line(r)
+  "| #{r.name} | #{r.lever} | #{native_cell(r.blue)} | #{native_cell(r.rust)} | #{per_mille(r.blue.cpu, r.rust.cpu)} |"
+end
+
+def lever_command(blue, work, flags)
+  results = map((l) -> lever_row(blue, l, work, 5), levers)
+  write_stdout(
+    unlines(
+      [
+        "| lever row | lever | blue ms | Rust ms | blue/Rust CPU ‰ |",
+        "|---|---|---|---|---|"
+      ]
+    )
+  )
+  map((r) -> write_stdout(unlines([lever_line(r)])), results)
+  host = host_name
+  old = read_or(LEVER_BASELINE, "")
+  rows = parse(old)
+  measures = lever_measures(results, host)
+  if member?("--record", flags)
+    refused = receipt_refusal(flag(flags, "--receipt"))
+    if refused.nil?
+      write_file(
+        LEVER_BASELINE,
+        receipted(
+          old,
+          flag(flags, "--receipt"),
+          render("lever-ratio", measures)
+        )
+      )
+      true
+    else
+      write_stdout(unlines([refused]))
+      false
+    end
+  else
+    bad = failures_within(rows, "lever-ratio", measures, 500)
+    map((b) -> write_stdout(unlines([why(b)])), bad)
+    is_empty(bad)
+  end
+end
+
 def main()
-  if argv[0] == "compile"
+  if argv[0] == "lever"
+    if not lever_command(argv[1], argv[2], drop(3, argv))
+      exit_with(1)
+    end
+  elsif argv[0] == "compile"
     write_stdout(compile_rows(argv[1]))
   elsif argv[0] == "native"
     if not native_command(argv[1], argv[2], drop(3, argv))
@@ -1033,4 +1375,34 @@ test "a timings report reads by key, so a moved row does not shift a count"
   )
   assert cost_of("x", rows) ==
     {name: "x", steps: 7, allocs: 12, bytes: nil, ms: 3.5}
+end
+
+test "a raised row needs a typed reason, and an untyped one is refused by name"
+  assert receipt_refusal(nil).nil?
+  assert receipt_refusal("capability: hex words").nil?
+  assert includes(receipt_refusal("slower is fine"), "got \"slower is fine\"")
+  assert not receipt_refusal("speed: why").nil?
+  assert not receipt_refusal("measurement:").nil?
+  assert not record_costs(
+    "",
+    example_rows,
+    [example_cost(1100, 500, 9000)],
+    "darwin",
+    ["--receipt", "faster later"]
+  )
+end
+
+test "a lever slower than its recorded ratio to Rust is refused"
+  rows = parse(unlines(["lever-ratio: memo darwin 100"]))
+  fast = [{name: "memo", blue: {cpu: 30}, rust: {cpu: 300}}]
+  slow = [{name: "memo", blue: {cpu: 300}, rust: {cpu: 300}}]
+  assert failures_within(
+    rows,
+    "lever-ratio",
+    lever_measures(fast, "darwin"),
+    500
+  ) == []
+  assert size(
+    failures_within(rows, "lever-ratio", lever_measures(slow, "darwin"), 500)
+  ) == 1
 end

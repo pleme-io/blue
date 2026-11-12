@@ -1,0 +1,5 @@
+# receipt: measurement: 2026-11-11, first measure of the lever rows on darwin (Apple M4 Pro, release build of this tree); hexmsg on shinsuu's blue hex words before hex_encode and hex_decode measured 157 times its Rust twin (455 ms CPU against 64 ms after)
+lever-ratio: bake darwin 1039
+lever-ratio: hexmsg darwin 21233
+lever-ratio: incremental darwin 3813
+lever-ratio: memo darwin 451

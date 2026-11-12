@@ -1,25 +1,38 @@
 # receipt: first measure, 2026-11-06: evaluation steps and the allocations made while evaluating, per bench workload; a release and a debug build agree on darwin
+# receipt: capability: 2026-11-11, the lever rows memo, bake, incremental and hexmsg are new (bench/levers), and every cost runs on the walker door (blue run --door walker), whose steps the ratchet counts; spawn's bytes grow 3 per cent because each process's interpreter installs the two new native words hex_encode and hex_decode
+bench-steps: bake 1684
 bench-steps: empty 0
 bench-steps: fib 8263077
 bench-steps: hello 7
+bench-steps: hexmsg 357841
+bench-steps: incremental 651691
 bench-steps: json_sum 119021
+bench-steps: memo 736
 bench-steps: pipeline 13000023
 bench-steps: spawn 140020
 bench-steps: strbuild 6000019
 bench-steps: wordfreq 10839
+bench-allocs: bake darwin 1466
 bench-allocs: empty darwin 0
 bench-allocs: fib darwin 5402845
 bench-allocs: hello darwin 20
+bench-allocs: hexmsg darwin 311373
+bench-allocs: incremental darwin 502323
 bench-allocs: json_sum darwin 629373
+bench-allocs: memo darwin 772
 bench-allocs: pipeline darwin 18540469
 bench-allocs: spawn darwin 9288163
 bench-allocs: strbuild darwin 11032343
 bench-allocs: wordfreq darwin 828218
+bench-bytes: bake darwin 148369
 bench-bytes: empty darwin 0
 bench-bytes: fib darwin 470363857
 bench-bytes: hello darwin 1812
+bench-bytes: hexmsg darwin 47752165
+bench-bytes: incremental darwin 55556168
 bench-bytes: json_sum darwin 360571506
+bench-bytes: memo darwin 64636
 bench-bytes: pipeline darwin 1976087177
-bench-bytes: spawn darwin 1076960831
+bench-bytes: spawn darwin 1109906370
 bench-bytes: strbuild darwin 966398193
 bench-bytes: wordfreq darwin 150211026

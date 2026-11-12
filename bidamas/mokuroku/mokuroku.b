@@ -579,14 +579,23 @@ def lock_conformance_of(bluefile, lock)
 end
 
 @doc """
-lock_conformance: lock_conformance_of the Bluefile and `Bluefile.lock` in a package directory.
+lock_conformance: lock_conformance_of the Bluefile and `Bluefile.lock` in a package directory;
+a directory with neither holds none of the checks.
+
+    lock_conformance("/no/such") #=> [0, 3]
 """
 def lock_conformance(dir)
   path = path_join(dir, "Bluefile.lock")
   lock = if is_file?(path)
     json_read(read_file(path))
   end
-  lock_conformance_of(read_file(path_join(dir, "Bluefile")), lock)
+  bluefile = path_join(dir, "Bluefile")
+  text = if is_file?(bluefile)
+    read_file(bluefile)
+  else
+    ""
+  end
+  lock_conformance_of(text, lock)
 end
 
 @doc """

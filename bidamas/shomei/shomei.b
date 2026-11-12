@@ -1204,6 +1204,8 @@ end
 @doc """
 release_note: The text a release tag carries: the bidama, version, content root, the public
 key and the signature of release_message under the secret key.
+
+    first(split(release_note("p", "1.0.0", "b3:00", keypair_secret(signing_keypair(hash_message("doc"))), "pub"), line_break)) #=> "bidama: p"
 """
 def release_note(name, version, content, secret, public)
   signature = sign_message(secret, release_message(name, version, content))

@@ -87,10 +87,18 @@ fn nats_server_bin() -> Option<PathBuf> {
 }
 
 fn free_port() -> u16 {
-    TcpListener::bind("127.0.0.1:0")
-        .and_then(|l| l.local_addr())
-        .expect("a free port")
-        .port()
+    static GIVEN: std::sync::Mutex<Vec<u16>> = std::sync::Mutex::new(Vec::new());
+    loop {
+        let port = TcpListener::bind("127.0.0.1:0")
+            .and_then(|l| l.local_addr())
+            .expect("a free port")
+            .port();
+        let mut given = GIVEN.lock().expect("no panics while held");
+        if !given.contains(&port) {
+            given.push(port);
+            return port;
+        }
+    }
 }
 
 fn start_server(name: &str, config: &str) -> Option<Server> {
@@ -115,7 +123,7 @@ fn start_server(name: &str, config: &str) -> Option<Server> {
         .stderr(Stdio::null())
         .spawn()
         .unwrap_or_else(|e| panic!("{}: {e}", bin.display()));
-    let server = Server { child, port, dir };
+    let mut server = Server { child, port, dir };
     let deadline = Instant::now() + Duration::from_secs(10);
     while TcpStream::connect(("127.0.0.1", port)).is_err() {
         assert!(
@@ -124,6 +132,10 @@ fn start_server(name: &str, config: &str) -> Option<Server> {
         );
         std::thread::sleep(Duration::from_millis(20));
     }
+    assert!(
+        matches!(server.child.try_wait(), Ok(None)),
+        "nats-server for {name} exited, so the listener on {port} is not its own"
+    );
     Some(server)
 }
 

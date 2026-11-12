@@ -44,6 +44,20 @@ impl Loader for Imports {
         self.2.map(str::to_string)
     }
 
+    fn moved(&self, name: &str) -> Option<blue_lang_runtime::uses::PackageMove> {
+        if self.0.iter().any(|(n, _)| *n == name) {
+            return None;
+        }
+        let tail = format!("/{name}");
+        let (new, _) = self.0.iter().find(|(n, _)| n.ends_with(&tail))?;
+        Some(blue_lang_runtime::uses::PackageMove {
+            old: name.to_string(),
+            new: (*new).to_string(),
+            since: "0.1.1".to_string(),
+            version: Some("0.1.1".to_string()),
+        })
+    }
+
     fn frontend(&self, _entry: &Path) -> Option<blue_lang_runtime::uses::Frontend> {
         self.1.map(|t| blue_lang_runtime::uses::Frontend {
             table: Some(("schema.table".to_string(), t.to_string())),
@@ -198,5 +212,88 @@ fn every_carried_machine_fix_repairs_its_witness() {
         }
     }
     assert!(seen > 0, "no rule names a fix witness");
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+fn all_diagnostics(src: &str, loader: &Imports) -> Vec<blue_lang_check::Diagnostic> {
+    if let Some(d) = syntax_diagnostic(src) {
+        return vec![d];
+    }
+    let Ok(checked) = check_entry(
+        Entry {
+            path: Some(Path::new("witness.b")),
+            text: src,
+        },
+        loader,
+        None,
+        Checking::WithTests,
+    ) else {
+        return Vec::new();
+    };
+    let mut all = checked.outcome.diagnostics;
+    all.extend(checked.outcome.census);
+    all.extend(form_diagnostics(src));
+    all
+}
+
+fn repair(r: &blue_lang_check::Rule) -> Result<String, String> {
+    let loader = Imports(r.imports, r.frontend, r.package);
+    let mut found: Vec<_> = all_diagnostics(r.witness, &loader)
+        .into_iter()
+        .filter(|d| d.code == r.code)
+        .collect();
+    if let Ok(rewritten) =
+        blue_lang_pkg::canonical::format_with(&loader, Path::new("witness.b"), r.witness)
+    {
+        blue_lang_check::fixes::complete_with_rewrite(&mut found, &|_| true, r.witness, &rewritten);
+    }
+    if found.is_empty() {
+        return Err("does not fire on its witness".to_string());
+    }
+    let best: Vec<_> = found.iter().filter_map(|d| d.fixes.first()).collect();
+    if best.len() < found.len() {
+        return Err("a diagnostic carries no fix".to_string());
+    }
+    let mut edits: Vec<&blue_lang_check::Edit> = best.iter().flat_map(|f| &f.edits).collect();
+    if edits.is_empty() {
+        return Err("its fix carries no edit".to_string());
+    }
+    edits.sort_by_key(|e| std::cmp::Reverse(e.span.start));
+    edits.dedup_by(|a, b| a.span == b.span && a.replacement == b.replacement);
+    let mut text = r.witness.to_string();
+    let mut floor = usize::MAX;
+    for e in edits {
+        if e.span.end > floor || text.get(e.span.start..e.span.end) != Some(e.original.as_str()) {
+            return Err(format!("an edit does not apply: {:?}", e.original));
+        }
+        text.replace_range(e.span.start..e.span.end, &e.replacement);
+        floor = e.span.start;
+    }
+    let after: Vec<Code> = all_diagnostics(&text, &loader)
+        .iter()
+        .map(|d| d.code)
+        .collect();
+    if after.contains(&r.code) {
+        return Err(format!("still fires after its fix:\n{text}"));
+    }
+    Ok(text)
+}
+
+#[test]
+fn every_rule_outside_the_census_is_repaired_by_its_own_diagnostic() {
+    let mut failures = Vec::new();
+    for r in RULES {
+        match (repair(r), blue_lang_check::fixes::REPAIR_CENSUS.contains(&r.code)) {
+            (Err(e), false) => failures.push(format!(
+                "{}: its diagnostic is not a complete repair ({e}); give it a fix, or name it in REPAIR_CENSUS",
+                r.code
+            )),
+            (Ok(_), true) => failures.push(format!(
+                "{}: its diagnostic now repairs its witness; remove it from REPAIR_CENSUS",
+                r.code
+            )),
+            _ => {}
+        }
+    }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }

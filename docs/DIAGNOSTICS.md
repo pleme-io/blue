@@ -249,6 +249,8 @@ pins the exact output and fails if a field here is undocumented.
 | `help` | string or null | one line on what to do |
 | `related` | array | other places: each has the location fields above and a `message` |
 | `fixes` | array | suggested repairs, best first |
+| `law` | string or null | the rule's law in one line, as the Codes table gives it; `null` for a project rule |
+| `witness` | string or null | a program that breaks the rule and nothing else, as `blue explain` shows it; `null` for a project rule |
 | `waiver` | object or null | set when a waiver suppressed this diagnostic: `reason`, and the waiver's `line` |
 
 Each entry of `fixes`:
@@ -261,6 +263,25 @@ Each entry of `fixes`:
 
 A location is `null` throughout when it cannot be placed honestly (for
 example, a span that is not a range in the named file).
+
+**A diagnostic is a repair instruction.** With its `law`, its `witness` and
+its first fix, a reader repairs the file from the JSON alone: apply the first
+fix of each diagnostic, edit by edit, where `original` still stands. A rule
+whose fix is the formatter's (B0024 to B0047 and their kin) and that carries
+no edit of its own gets one machine-applicable fix, ``rewrite the file as
+`blue fmt --write` writes it``: a single edit whose range is the whole file
+(`blue_lang_check::fixes::complete_with_rewrite`). `blue check --fix` does not
+take that edit; it formats the file itself.
+
+`every_rule_outside_the_census_is_repaired_by_its_own_diagnostic`
+(`crates/blue-lang-pkg/tests/autofix.rs`) checks every rule's witness, applies
+its diagnostics' first fixes, and fails unless the rule stops firing. The
+rules whose diagnostic is not yet a complete repair are the census
+`blue_lang_check::fixes::REPAIR_CENSUS` (35 of 79 rules, 2026-11-11), held
+exact: a rule that gains a repair must leave it, and a new rule must arrive
+with one. `a_diagnostic_s_json_alone_carries_its_law_its_witness_and_a_repair`
+(`crates/blue-lang-cli/tests/check_json.rs`) does the same through `blue check
+--format json` itself.
 
 ## `blue run --format json`
 

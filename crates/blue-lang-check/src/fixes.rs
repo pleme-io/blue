@@ -78,3 +78,83 @@ pub fn apply_fixes<'a>(
     }
     (out, applied)
 }
+
+/// What a rewrite fix says it does.
+pub const REWRITE: &str = "rewrite the file as `blue fmt --write` writes it";
+
+/// Give each diagnostic `in_file` of a rule whose fix is the formatter's, and
+/// that carries no edit of its own, one machine-applicable fix: a single edit
+/// that replaces `text` with `rewritten`, the file as `blue fmt --write`
+/// writes it. So every such diagnostic carries a concrete edit a reader can
+/// apply from the diagnostic alone. Nothing is added when `rewritten` is
+/// `text`.
+pub fn complete_with_rewrite(
+    diagnostics: &mut [Diagnostic],
+    in_file: &dyn Fn(usize) -> bool,
+    text: &str,
+    rewritten: &str,
+) {
+    if rewritten == text {
+        return;
+    }
+    for d in diagnostics.iter_mut() {
+        if d.code.rule().fix != crate::FixKind::Machine
+            || !in_file(d.top_level)
+            || d.fixes.iter().any(|f| !f.edits.is_empty())
+        {
+            continue;
+        }
+        d.fixes.push(Fix {
+            message: REWRITE.to_string(),
+            edits: vec![Edit {
+                span: Span::new(0, text.len()),
+                original: text.to_string(),
+                replacement: rewritten.to_string(),
+            }],
+            applicability: Applicability::MachineApplicable,
+        });
+    }
+}
+
+/// The census of rules (HORIZON H9), whose diagnostic does not yet carry a complete
+/// repair: a fix whose edits, applied to the rule's own witness, clear it. It
+/// only shrinks: a rule that gains a repair must leave this list, and a new
+/// rule must arrive with one (`every_rule_outside_the_census_is_repaired_by_its_own_diagnostic` in
+/// `blue-lang-pkg/tests/autofix.rs` holds the list exact).
+pub const REPAIR_CENSUS: &[crate::Code] = &[
+    crate::Code::B0003,
+    crate::Code::B0004,
+    crate::Code::B0005,
+    crate::Code::B0006,
+    crate::Code::B0007,
+    crate::Code::B0008,
+    crate::Code::B0009,
+    crate::Code::B0010,
+    crate::Code::B0013,
+    crate::Code::B0014,
+    crate::Code::B0017,
+    crate::Code::B0019,
+    crate::Code::B0020,
+    crate::Code::B0022,
+    crate::Code::B0038,
+    crate::Code::B0039,
+    crate::Code::B0040,
+    crate::Code::B0050,
+    crate::Code::B0051,
+    crate::Code::B0052,
+    crate::Code::B0053,
+    crate::Code::B0056,
+    crate::Code::B0057,
+    crate::Code::B0058,
+    crate::Code::B0059,
+    crate::Code::B0061,
+    crate::Code::B0062,
+    crate::Code::B0069,
+    crate::Code::B0071,
+    crate::Code::B0072,
+    crate::Code::B0073,
+    crate::Code::B0079,
+    crate::Code::B0080,
+    crate::Code::B0081,
+    crate::Code::B0082,
+];

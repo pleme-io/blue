@@ -1198,7 +1198,7 @@ release_tag: The tag a release of a bidama is published under.
     release_tag("retsu", "0.1.4") #=> "bidama/retsu/v0.1.4"
 """
 def release_tag(name, version)
-  "bidama/#{name}/v#{version}"
+  join(["bidama", name, "v#{version}"], "/")
 end
 
 @doc """

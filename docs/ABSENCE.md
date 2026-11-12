@@ -8,9 +8,9 @@ summary: "no undeclared nil: how blue makes absence a declared, checked state"
 Parent: [`SAFETY.md`](SAFETY.md), the matrix that maps each Rust safety
 guarantee to blue. This document is its row 1, no null (`Option<T>`).
 
-Only this design exists. No code implements it (re-measured 2026-11-09). The
-[Ledger](#9-ledger) gives the state of each item. Sections 4 and 5 describe P1
-as it is to be built.
+P1's bidama is built: `bidamas/umu` (2026-11-12). The rule (B0054, B0055) is
+not. The [Ledger](#9-ledger) gives the state of each item. Sections 4 and 5
+describe the rule as it is to be built.
 
 Operator intent (2026-10-24): *"we should have common patterns like Option or
 Result, in bluelang."* Rust has no null; it has `Option`. blue should carry no
@@ -125,7 +125,7 @@ producing nil (section 7) and a declared return type can say `Option`.
 
 Each builtin below answers nil today. The third column is the destination.
 `umu::from_nil(...)` is to wrap a nil answer at the call site until the builtin
-itself answers an option. `umu` does not exist yet.
+itself answers an option.
 
 | Builtin | Answers nil when | Option path |
 |---|---|---|
@@ -167,7 +167,7 @@ migration is P3.
 | Item | State | What makes it true |
 |---|---|---|
 | P0: this design | ✅ built | This page. |
-| P1: the `umu` bidama (option and result), wired into zenbu, with heni mutations | ❌ not built | No `bidamas/umu`. Done when `blue test bidamas/umu` passes and heni catches 9 of 9 mutations. |
+| P1: the `umu` bidama (option and result), wired into zenbu, with heni mutations | ✅ built | `blue test bidamas/umu/umu.b` (24 tests and every `@doc` example); `bidamas/heni/mutations/umu.json`, 9 of 9 caught (`bidamas/heni/ratio.baseline`); zenbu's reachability test reads `umu::value_or`. `?` reads an option in a `def` body: `spec/rows/refusals.b`. kyohi's result is a declared union, `kyohi::result = yes(value) \| no(refusal)`. |
 | P1: B0054 and B0055 at `audit`, with the `BLUE_ABSENCE` switch | ❌ not built | No `crates/blue-lang-check/src/absence.rs`. No crate names B0054, B0055 or `BLUE_ABSENCE`. The two codes are reserved. |
 | P2: B0054 at 0 across the repository; `enforce` the default for B0054 | ❌ not built | Done when `the_check_stage_reports_no_error_on_the_corpus` passes under enforce. The 2026-10-24 estimate is 77 findings. |
 | P3: the section 7 builtins answer options, each with a `legacy_names` row and a fixer | ❌ not built | No builtin is migrated. Done when `blue check --fix` migrates a caller and each builtin has spec rows. `get`'s verb contract goes first. |

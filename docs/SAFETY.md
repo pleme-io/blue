@@ -1078,7 +1078,7 @@ that makes the state true, and the tier the gate reaches.
 | Integer overflow (row 6) | ✅ built | Refused at run time. `numbers.overflow.mul` in `spec/rows/numbers.b`. |
 | Exhaustive `case` over a union (row 3) | ✅ built | Refused at check: B0081. `spec/rows/unions.b`, `spec/rows/patterns.b`. |
 | Exhaustive `case` over any other closed set (row 3) | ❌ not built | A rule over a declared closed set. Q5 decides the set. |
-| No null (row 1) | ❌ not built | [ABSENCE.md](ABSENCE.md) is the plan. No `umu` bidama exists, and B0054 and B0055 have no rule. |
+| No null (row 1) | ⏳ in progress | [ABSENCE.md](ABSENCE.md) is the plan. Built: the `umu` bidama, blue's Option (`bidamas/umu`, heni 9 of 9), and `?` on an option (`refusals.option_none_returns_at_once`, `refusals.umu_options` in `spec/rows/refusals.b`). Not built: B0054 and B0055 have no rule. |
 | `unsafe_code` denied in every crate (row 9) | ⏳ in progress | 5 of 24 crates deny it at their roots. A workspace `unsafe_code = "deny"` with one `#[allow]` per seam is missing. |
 | Native panic seam to an `:internal` refusal (row 11) | ❌ not built | No unwind seam at the native-call boundary. |
 | Wall-clock bound (row 12) | ❌ not built | No `max_wall_ms` bound exists. |

@@ -82,8 +82,19 @@ The 2026-11-06 survey found the drift that hand-kept tables always gather.
   BUILD-STACK, BUILD-ASSURANCE, DOCUMENTATION, OPERATORS, KERNEL and
   BIDAMA-COHESION, each tier read from its own ledger.
 
-Open: B0056 and B0057 to 0, next by size `toriyose` (danpen, outou, kyasshu)
-and `kakehashi` (kijun, kirikae, nikkusu).
+**toriyose and kakehashi, built (2026-11-12):** every public definition of
+both bidamas has a `@doc` with a running example (687 findings to 0: danpen
+200, outou 131, kijun 125, kyasshu 73, kirikae 58, nikkusu 42, hyouka 25,
+tehai 22, souji 11). Each is a row of `census::DOCUMENTED`
+(`crates/blue-lang-cli/src/census.rs`, with `umu`), whose ratchet is 0: a
+finding in a documented bidama fails `blue census` by name, whatever the
+repository-wide count reads. B0056 2550 to 1894 and B0057 782 to 746, the
+ratchets lowered to match. Effectful definitions (15 in kakehashi, 4 in
+danpen, 2 in kyasshu) have an example over the pure function they hand off
+to, or `procedure?`, not a run of the effect.
+
+Open: B0056 and B0057 to 0, next by size `kueri`, `mokuroku`,
+`todokede/jitaku` and `deeta`.
 
 ### H1. Shapes: sums, patterns and refusals that flow
 
@@ -144,8 +155,24 @@ raises :usage, so a `nil` or a khipu `{why:}` map never passes as either.
 end`, `x = blue-try-value(try-subject)`, so GUARD-RETURN's own lowering turns
 it into if/else and every evaluator door runs that. A `?` the rewrite cannot
 place (an argument, a lambda, the top level) is a parse error; the formatter
-raises it back. Not yet: `?` on an Option (ABSENCE P1 has no `umu`), one
-declared `result` union, and khipu still writes its own `{why:}` guards.
+raises it back. Not yet: khipu still writes its own `{why:}` guards.
+**The rest, built (2026-11-12):** a record pattern names a record another
+bidama declares, `when kyohi::yes(v)` or, with the name listed in the `use`,
+`when yes(v)`. After `resolve_uses` splices the imports in,
+`ResolvedProgram::lower_foreign_patterns` (`crates/blue-lang-runtime/src/uses.rs`)
+hands each file the records of every other bidama, qualified, and
+`pattern::lower_foreign` lowers the arms the parse left as value
+comparisons, before the check stage, so B0081 checks such a `case` across
+bidamas too. kyohi's result is one declared union, `union result = yes(value)
+| no(refusal)`: `kyohi::ok` and `kyohi::refused` build it, and `ok?`,
+`value` and `refusal_of` read it and the older `{ok:}` map alike, so a
+literal map still flows. `umu` is ABSENCE P1's bidama, blue's Option:
+`{some: true, value: v}` and `{some: false}`, `some(nil)` refused, `fold`
+the one eliminator (heni 9 of 9). `?` reads an option as it reads a result:
+a `none` returns from the function at once (`shape.rs`, `result_of`). Rows:
+`patterns.record_from_another_bidama`, `refusals.result_union`,
+`refusals.option_none_returns_at_once`, `refusals.umu_options`. toride read
+`[:ok]` off kyohi results in 13 places; it reads `ok?` now.
 **Unlocks:** H2 (types have shapes to name), ABSENCE P1, SAFETY rows 1 and 3.
 
 ### H2. Types that grow with the program
@@ -767,8 +794,11 @@ PERFORMANCE.md 0.1.)
 - **Nix.** Blue as the source of nix configuration (`kakehashi`): a node's
   configuration authored in blue, nix a rendering, so no hand-written nix
   remains in a blue project.
-- **GPU (aspirational).** A restricted rung of blue lowered to compute shaders
-  for data-parallel definitions.
+- **GPU.** A restricted rung of blue lowered to compute shaders for
+  data-parallel definitions. Design: [`GPU.md`](GPU.md) (2026-11-12): pure,
+  typed definitions lowered to a WGSL kernel beside chuuzou's Rust emitter,
+  validated by naga at build time, gated by equality with the walker on a
+  device. The first step waits on a CI runner with a GPU adapter (GPU.md §6).
 
 **First step:** the frontend plan's first rendered page served by a blue service.
 **Gate:** the same program, run through two placements, gives equal receipts.
@@ -1379,15 +1409,15 @@ and what is not.
 
 | Item | State | What makes it true |
 |---|---|---|
-| H0. Hygiene | ⏳ in progress | Built: the DIAGNOSTICS codes table and CATALOG's `needs` render in `nix run .#regen`; `checks.package-fidelity` (`nix/package-fidelity.nix`); B0058 at 0. Not built: B0056 and B0057 at 0. |
-| H1. Shapes | ⏳ in progress | Built: unions, patterns, destructuring bindings and `?` (`spec/rows/unions.b`, `patterns.b`, `refusals.b`; `crates/blue-lang-runtime/tests/unions.rs`). Not built: one declared `result` union, `?` on an Option, a record pattern from another bidama. |
+| H0. Hygiene | ⏳ in progress | Built: the DIAGNOSTICS codes table and CATALOG's `needs` render in `nix run .#regen`; `checks.package-fidelity` (`nix/package-fidelity.nix`); B0058 at 0; toriyose, kakehashi and umu at 0 for B0056 and B0057, locked per bidama by `census::DOCUMENTED` (B0056 at 1894, B0057 at 746). Not built: B0056 and B0057 at 0 for the rest (next: kueri, mokuroku, todokede/jitaku, deeta). |
+| H1. Shapes | ⏳ in progress | Built: unions, patterns, destructuring bindings and `?` (`spec/rows/unions.b`, `patterns.b`, `refusals.b`; `crates/blue-lang-runtime/tests/unions.rs`); a record pattern from another bidama (`patterns.record_from_another_bidama`); kyohi's declared `result` union (`refusals.result_union`); `umu` and `?` on an option (`refusals.option_none_returns_at_once`, `refusals.umu_options`, `bidamas/umu`). Not built: khipu's own `{why:}` guards moved onto `?`; the older `{ok:}` map retired. |
 | H2. Types that grow | ⏳ in progress | Built: local inference in a typed definition (`check.infer` rows in `spec/rows/check.b`). Not built: record and union types in signatures, the checked boundary, a `strict` position per file. |
 | H3. Code is content | ⏳ in progress | Built: rung 1, the check cache per definition, on by default (`crates/blue-lang-mondou/tests/check_cache.rs`); rungs 2 and 3, a bidama's analysis shipped and one shared tier keyed by the engine's bytes (`crates/blue-lang-cli/tests/shared_cache.rs`); rung 4, each bidama test check on its own closure (`checks.test-closure-narrow`) and a tameshi inclusion proof for every cached test (`blue test --proofs`, `crates/blue-lang-cli/tests/test_cache.rs`); rung 5, a generator that skips on equal inputs (`BLUE_GEN_CACHE=off` runs it, `crates/blue-lang-cli/tests/gen_cache.rs`) and arika's shape table as a sparse Merkle root (`crates/blue-lang-cli/tests/arika.rs`); the memo, off by default (`BLUE_MEMO`). Not built: the shape table updated by the shapes that moved, a generator keyed on its program's closure, a store uploaded to sui. |
 | H4. Time | ⏳ in progress | Built: `net_wait` in the node loop (`crates/blue-lang-proc/tests/net_wait.rs`), node-time timers, record and replay (`crates/blue-lang-cli/tests/run_replay.rs`). Not built: `schedulers(n)`, the debugger over replay. |
 | H5. Knowledge | ⏳ in progress | Built: arika Phase 2 for blue's own tree (`crates/blue-lang-cli/tests/arika.rs`), khipu K1a (`bidamas/khipu`). Not built: the MCP service, khipu over blue itself, why-answers. |
 | H6. Proof | ⏳ in progress | Built: heni's caught ratio as a ratchet (`bidamas/heni/ratio.baseline`, `checks.heni-mutations`); generated properties (`crates/blue-lang-cli/tests/properties.rs`). Not built: laws over a decidable fragment. |
 | H7. Speed with receipts | ⏳ in progress | Built: a bench row set with a recorded baseline (`bench/bench.b`, `bench/cost.baseline`, the `bench-ratchet` check in `flake.nix`); the VM as `blue run`'s default door where the conformance columns agree, with a door receipt and an off switch (`crates/blue-lang-runtime/src/door.rs`, `crates/blue-lang-cli/tests/door.rs`, the conformance door gate); AOT of the hex words to a wasm component run by wasmtime, equal to the interpreter over four seeds (`checks.native-wasm`); a raised bench row needs a typed reason (`receipt_kinds`); lever rows memo, bake, incremental and hexmsg as ratios to a Rust twin (`bench/lever.baseline`, PERFORMANCE.md 1.6) and as CI cost rows. Not built: a bench record written per release tag (the ratchet runs on every land), the data-parallel and partial-evaluation rows, AOT of a bidama a service calls through the component host's imports. |
-| H8. Reach | ⏳ in progress | Built: the gate, equal receipts across two placements: `crates/blue-lang-cli/tests/placement.rs` runs `crates/blue-lang-wasm/page/app.b` with `blue run --allow none --receipts` and as the wasm engine in a page that `page/serve.b`, a blue service, serves, driven through the page's own generated loader (burauza's `engine` row) in Node's V8; the section and the receipt are byte-equal and the module imports nothing (2026-11-11). `blue bundle --sources`; `checks.conformance` compares output across placements. Kernel: `kaaneru` compiles blue to BPF, a refusal names the `.b` file and line for xdp, sched_cls, socket_filter, cgroup_skb and cgroup_sysctl (`kernel/object_suite.b`), and cgroup_sysctl is a program kind (`kernel/net_suite.b`). Nix: `kakehashi/nikkusu`'s `render` and `module`; `nix/node-fixture/node.b` renders `configuration.nix`, and `checks.node-from-blue` evaluates it and a hand-written oracle to one NixOS toplevel. Not built: a real headless browser run, hydration (FRONTEND-PLAN F8), a blue project's own flake rendered from blue, the GPU rung. |
+| H8. Reach | ⏳ in progress | Built: the gate, equal receipts across two placements: `crates/blue-lang-cli/tests/placement.rs` runs `crates/blue-lang-wasm/page/app.b` with `blue run --allow none --receipts` and as the wasm engine in a page that `page/serve.b`, a blue service, serves, driven through the page's own generated loader (burauza's `engine` row) in Node's V8; the section and the receipt are byte-equal and the module imports nothing (2026-11-11). `blue bundle --sources`; `checks.conformance` compares output across placements. Kernel: `kaaneru` compiles blue to BPF, a refusal names the `.b` file and line for xdp, sched_cls, socket_filter, cgroup_skb and cgroup_sysctl (`kernel/object_suite.b`), and cgroup_sysctl is a program kind (`kernel/net_suite.b`). Nix: `kakehashi/nikkusu`'s `render` and `module`; `nix/node-fixture/node.b` renders `configuration.nix`, and `checks.node-from-blue` evaluates it and a hand-written oracle to one NixOS toplevel. Not built: a real headless browser run, hydration (FRONTEND-PLAN F8), a blue project's own flake rendered from blue, the GPU rung (designed in `docs/GPU.md`; its first step waits on a CI runner with a GPU adapter). |
 | H9. Model-native | ⏳ in progress | Built: the score as a census row that falls only with a typed reason (`eval/census.b`, `eval/score.baseline`, `checks.model-eval`); every diagnostic's JSON carries its law, witness and fix (`fixes::REPAIR_CENSUS`, 35 of 79 rules left); `blue naturalize`; `blue context`. Not built: a repair for the 35 census rules; model runs recorded by CI. |
 | H10. Ecosystem | ⏳ in progress | Built: docs, tests, reach, heni ratio and lock conformance per package in CATALOG's "Quality signals", recomputed by `checks.catalog-quality` (`gen/quality.b`); lock-verified loading under `verify(%i[contents])` (`crates/blue-lang-cli/tests/verified_load.rs`); signed release notes and tags (`shomei::release_refusal`, `gen/release.b`, `checks.release`). Not built: a model-eval score per package (H9 scores per release, typed `scored_per_release`); the production signing key; a release job that signs; signatures asked for at load. |
 | H11. One vocabulary | ⏳ in progress | Built: `Effect` as a projection of `Capability`, held at lock (`crates/blue-lang-cli/tests/lattice.rs`, `a_service_whose_code_reaches_past_its_access_is_refused_at_lock`). Not built: one spelling read both ways. |

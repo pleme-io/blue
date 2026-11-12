@@ -29,7 +29,7 @@ Semantics that differ from Ruby are in [`bidamas/okite/RULES.md`](../bidamas/oki
 | `record point(x, y: Int)` | `(blue-record point point? :x (:y Int))` | A named structure, at a file's top level: point(1, 2) and point({x: 1, y: 2}) construct one, refusing a missing or unknown field at check and at run time, point?(v) is its predicate, p.x reads a field, point(**p, x: 3) is an updated copy. A value is a map carrying its name: == includes the name, and it crosses JSON as {"$record": "point(x,y)", ...}. A map whose keys no longer match that name, after assoc or a spread, is a plain map. A field type is Int, Float, Str, Bool, Sym, Nil, Map, List(T) or a record, checked at construction. struct and class are refused, naming this. |
 | `union shape = circle(r: Float) \| rect(w: Float, h: Float)` | `(blue-union shape shape? (blue-record circle circle? (:r Float)) (blue-record rect rect? (:w Float) (:h Float)))` | A closed set of records, at a file's top level: each arm is a record with all a record gives (constructor, predicate, field reads, JSON), and shape?(v) is true for a value of any arm. A case whose `when` arms test a union's records and that has no `else` names every arm, or the check stage refuses it (B0081), naming the arms it misses. An arm may start a line with `\|`. union stays a free name everywhere else. |
 | `x = 5` | `(define x 5)` | A binding, only as a statement. There is no `let`; a binding lasts to the end of its body. |
-| `x = f(y)?` | `(define x (blue-try (f y)))` | `?` after a call takes a result, {ok: true, value: v} or {ok: false, refusal: r} (kyohi::ok, kyohi::refused): a refusal is returned from the function at once, through a guard `return`; otherwise the expression is v. It ends a statement of a def body, `x = f(y)?` or `f(y)?`; anywhere else it is a parse error. A value that is not a result raises :usage. |
+| `x = f(y)?` | `(define x (blue-try (f y)))` | `?` after a call takes a result (kyohi's declared `result` union, built by kyohi::ok and kyohi::refused, or the map {ok: true, value: v} / {ok: false, refusal: r}) or an option (umu::some, umu::none): a refusal or a none is returned from the function at once, through a guard `return`; otherwise the expression is the value. It ends a statement of a def body, `x = f(y)?` or `f(y)?`; anywhere else it is a parse error. Any other value raises :usage. |
 | `[a, *rest] = xs` | `(blue-bind (list a (blue-splice rest)) xs)` | A destructuring binding, only as a statement: a list pattern `[a, b]` or a map pattern `{name:}` on the left binds each name it holds. A value that does not fit raises :pattern, naming the pattern; it never binds nil. The same patterns destructure in a `when`. |
 | <code>case s<br>when rect(w, h)<br>&nbsp;&nbsp;w * h<br>when [x, *rest]<br>&nbsp;&nbsp;rest<br>when {name:}<br>&nbsp;&nbsp;name<br>end</code> | `(let ((case-subject s)) (cond ((equal? case-subject (rect w h)) (* w h)) ((equal? case-subject (list x (blue-splice rest))) rest) ((equal? case-subject (hash-map :name name)) name) (else ())))` | A `when` pattern destructures: rect(w, h) matches a record of the program by position, [x, *rest] a list of at least one, {name:} a map or record holding :name. Inside a pattern a name binds, `_` matches anything and a literal compares with ==. A pattern with no name in it compares by value, as before. rect(w, h) covers the arm rect for B0081; rect(w, 1) does not. |
 | `f(x, y)` | `(f x y)` | A call. This is the one form the formatter writes, except for a function that takes no parameters: that is called by its bare name, now_ms, never now_ms() (B0023), and passed as a value as fn() now_ms end. |
@@ -231,7 +231,7 @@ Higher binding power binds tighter.
 | `sort_keyed` | `sort_keyed(key, xs)` | 2 | A stable sort by key(x), under compare's rules; native, so safe at any length. Mixed key kinds raise. |
 | `take` | `take(n, xs)` | 2 | The first n elements, or all of them. The COUNT comes first. Also defined by `kodou` (`kodou::take`): a file that lists it gets that one. |
 | `third` | `third(xs)` | 1 | The third element; raises when there is none. |
-| `zip` | `zip(xs, ys)` | 2 | [[x1, y1], [x2, y2], …], as long as the shorter list. Also defined by `retsu` (`retsu::zip`): a file that lists it gets that one. |
+| `zip` | `zip(xs, ys)` | 2 | [[x1, y1], [x2, y2], …], as long as the shorter list. Also defined by `retsu` (`retsu::zip`), `umu` (`umu::zip`): a file that lists it gets that one. |
 
 ### Maps
 
@@ -278,7 +278,7 @@ Higher binding power binds tighter.
 | `decorate` | `decorate(f, keys-and-values...)` | 1+ | f with metadata attached; it still calls as f. |
 | `def_hash` | `def_hash(f)` | 1 | The engine's identity of the definition f is bound under, as b3: and 64 hex digits: the hash of its resolved tree and @doc, with each definition it names by that one's hash, so it changes exactly when f or anything f reaches changes, never on a rename. It is the def_hash that run's crash traces and receipts name for f. Nil for a function no definition binds (a lambda, a builtin) and in a door that identifies no program (a session, an appliance); blue run, test, profile and trace identify theirs. Reads no host state; raises unless f is a function. |
 | `every?` | `every?(f, xs)` | 2 | Whether f accepts every element; true for []. |
-| `filter` | `filter(f, xs)` | 2 | The elements f accepts. The FUNCTION comes first. |
+| `filter` | `filter(f, xs)` | 2 | The elements f accepts. The FUNCTION comes first. Also defined by `umu` (`umu::filter`): a file that lists it gets that one. |
 | `find` | `find(xs, f)` | 2 | The first element f accepts, or nil. The COLLECTION comes first; nil is the empty list. find(f, xs) is still answered, because tatara-lisp's state machines and buses call it so. Also defined by `maakuappu` (`maakuappu::find`): a file that lists it gets that one. |
 | `flat_map` | `flat_map(xs, f)` | 2 | f applied to each element, the lists it returns joined in order (one level); f may return nil for none. The COLLECTION comes first. Also defined by `retsu` (`retsu::flat_map`): a file that lists it gets that one. |
 | `flip` | `flip(f)` | 1 | f with its two arguments swapped. Also defined by `kansuu` (`kansuu::flip`): a file that lists it gets that one. |
@@ -287,13 +287,13 @@ Higher binding power binds tighter.
 | `group_by` | `group_by(xs, f)` | 2 | A map from f(x) to the list of the elements with that key, each list in order. The key must be a scalar. The COLLECTION comes first. Also defined by `shuugou` (`shuugou::group_by`): a file that lists it gets that one. |
 | `identity` | `identity(x)` | 1 | x. Also defined by `kansuu` (`kansuu::identity`): a file that lists it gets that one. |
 | `juxt` | `juxt(fs...)` | 0+ | The function x -> [f(x), g(x), …]. Also defined by `kansuu` (`kansuu::juxt`): a file that lists it gets that one. |
-| `map` | `map(f, xs, more...)` | 2+ | f applied to each element; with two lists, f(x, y) pairwise. The FUNCTION comes first. nil maps to []. |
+| `map` | `map(f, xs, more...)` | 2+ | f applied to each element; with two lists, f(x, y) pairwise. The FUNCTION comes first. nil maps to []. Also defined by `umu` (`umu::map`): a file that lists it gets that one. |
 | `memoize` | `memoize(f)` | 1 | f, remembering each argument's answer. |
 | `partial` | `partial(f, args...)` | 1+ | f with its first arguments fixed: partial(f, 1)(2) is f(1, 2). |
 | `pipe` | `pipe(fs...)` | 0+ | Left to right: pipe(f, g)(x) is g(f(x)). Also defined by `kansuu` (`kansuu::pipe`): a file that lists it gets that one. |
 | `reduce` | `reduce(f, [init, ]xs)` | 2..3 | Fold from the left: reduce(fn(acc, x) … end, 0, xs). Without init, the first element is the start. |
 | `remove` | `remove(f, xs)` | 2 | The elements f rejects. Also defined by `shuugou` (`shuugou::remove`): a file that lists it gets that one. |
-| `some` | `some(f, xs)` | 2 | true when f accepts an element, else nil (not false). |
+| `some` | `some(f, xs)` | 2 | true when f accepts an element, else nil (not false). Also defined by `umu` (`umu::some`): a file that lists it gets that one. |
 | `tap` | `tap(f, x)` | 2 | Call f(x) for its effect and return x. Also defined by `kansuu` (`kansuu::tap`): a file that lists it gets that one. |
 | `visit` | `visit(f, x)` | 2 | f(x). |
 | `volatile` | `volatile(f)` | 1 | Declares that f must run on every call: neither f nor any definition reaching it is answered from the call memo. Nil; raises unless f is a function. |
@@ -328,7 +328,7 @@ Higher binding power binds tighter.
 | `positive?` | `positive?(n)` | 1 | Whether n > 0. |
 | `procedure?` | `procedure?(x)` | 1 | Whether x can be called. |
 | `promise?` | `promise?(x)` | 1 | Whether x is a delayed value. |
-| `some?` | `some?(x)` | 1 | Whether x is not nil. |
+| `some?` | `some?(x)` | 1 | Whether x is not nil. Also defined by `umu` (`umu::some?`): a file that lists it gets that one. |
 | `string?` | `string?(x)` | 1 | Whether x is a string. |
 | `symbol?` | `symbol?(x)` | 1 | Whether x is a Lisp symbol; false for keywords. |
 | `the` | `the(type, x)` | 2 | x, after asserting its type: the(:int, 5). Type first. |

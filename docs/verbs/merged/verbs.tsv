@@ -1353,13 +1353,13 @@ G	kinyuu?	seal	effect	seal(ledger, period) -> nil	idempotent,log	-	absent	seal a
 G	kinyuu?	tax	pure	tax(amount, rules) -> breakdown	-	-	absent	tax due per rule, with the rounding shown	2		na
 G	kinyuu?	trade	pure	trade(book, order) -> {fills, book}	-	-	absent	match an order against a book	3		na
 G	kinyuu?	trial	pure	trial(ledger, at) -> report	-	-	absent	every balance, with debits equal to credits	1		na
-E	kirikae	decide	pure	decide(desired, current, history, now, policy) -> verdict	retry,switch	kirikae	exists:kirikae	switch, hold or no-op from state and backoff	0	decide(desired, current, history, now) -> verdict	no
+E	kirikae	decide	pure	decide(desired, current, history, now, policy) -> verdict	retry,switch	kirikae	exists:kirikae	whether to switch to the desired system, skip it because it already runs, hold it while its failures back off, or refuse a desired value that is no system	0	decide(desired, current, history, now) -> verdict	no
 E	kirikae	hold	pure	hold(key, history, now, policy) -> record or nil	retry,time	kirikae	partial:kirikae	back-off window after repeated failure	0		na
 E	kirikae	list	effect	list(host, opts) -> [generation]	error	-	absent	generations a host can roll back to	1	list(host, opts) -> [generation]	yes
-E	kirikae	plan	pure	plan(flake, host, opts) -> action	error,validate	kirikae	exists:kirikae	what a system switch would do, as data	0	plan(flake, host, opts) -> action	yes
-E	kirikae	record	effect	record(path, entry) -> nil	idempotent,serialize	kirikae	exists:kirikae	append one outcome to the switch history	0	record(path, entry) -> nil	yes
+E	kirikae	plan	pure	plan(flake, host, opts) -> action	error,validate	kirikae	exists:kirikae	what a system switch would do, as data; a pinned revision still backing off is held before anything evaluates	0	plan(flake, host, opts) -> action	yes
+E	kirikae	record	effect	record(path, entry) -> nil	idempotent,serialize	kirikae	exists:kirikae	append one outcome to the switch history file, keeping its newest 200 entries, and answer the entry	0	record(path, entry) -> nil	yes
 E	kirikae	rollback	effect	rollback(host, {to:}) -> outcome	error,process,switch	-	absent	activate an earlier generation	1	rollback(host, opts) -> outcome	yes
-E	kirikae	run	effect	run(plan, opts) -> outcome	error,log,process,switch	kirikae	exists:kirikae	build and activate the planned system	0	run(plan, opts) -> outcome	yes
+E	kirikae	run	effect	run(plan, opts) -> outcome	error,log,process,switch	kirikae	exists:kirikae	guard and plan a switch, run the rebuild command when the plan says to, verify the system it activated and record the outcome	0	run(plan, opts) -> outcome	yes
 E	kirikae	verify	effect	verify(desired, opts) -> Bool	switch,validate	kirikae	partial:kirikae	current system resolves to the one built	0	verify(desired, opts) -> Bool	yes
 F	kiwari	check	pure	check(grammar) -> [problem]	validate	blue-lang-kiwari	partial:kiwari	ambiguity, unused rules and missing closers	1	check(grammar) -> [problem]	yes
 F	kiwari	choice	decl	choice(items) -> expr	-	blue-lang-kiwari	exists:kiwari	exactly one of the items	0	choice(items) -> expr	yes

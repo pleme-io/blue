@@ -239,7 +239,7 @@ rendered:
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-69 packages, 5990 definitions, 2029 tests.
+70 packages, 6007 definitions, 2034 tests.
 
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
 - [baito](bidamas/CATALOG.md#baito) (バイト) — bytes as data: integers at a declared width and order, and record layouts that say where each field sits.
@@ -308,6 +308,7 @@ rendered:
 - [touroku](bidamas/CATALOG.md#touroku) (登録) — registry: a project published to and resolved from registry backends, each a rendering of the Bluefile, never its truth.
 - [ugoki](bidamas/CATALOG.md#ugoki) (動き) — motion: how a value moves over time.
 - [ukai](bidamas/CATALOG.md#ukai) (迂回) — a detour: keep an overlay VPN reaching its control plane and relays while a full-tunnel corporate VPN owns the default route.
+- [umu](bidamas/CATALOG.md#umu) (有無) — presence or absence, as a declared value: blue's Option.
 - [utsushi](bidamas/CATALOG.md#utsushi) (写し, a transcription) — a part of a repository's history, shown as a history of its own: a lens picks the part, and each commit is written again over the part's tree, with its author, committer and message unchanged, so the same lens over the same commit gives the same commit id on every machine (docs/UTSUSHI.md).
 - [zenbu](bidamas/CATALOG.md#zenbu) (全部) — the whole distribution, as ONE dependency.
 
@@ -2837,7 +2838,8 @@ when its first phase starts.
 | **substrate**: blue as the one language of the whole stack ([`SUBSTRATE.md`](docs/SUBSTRATE.md)) | ❌ not built | No phase of SUBSTRATE.md §9 is on main. Next step L1.1: an engenho e2e runs the real `blue-component.wasm` with a bundle and serves a request. With the bundle path removed, it fails with the named error, not a hang. |
 | **arika**: blue's word search ([`ARIKA.md`](docs/ARIKA.md)) | ⏳ in progress | Phases 1 and 2 are built for blue's own tree: `crates/blue-lang-cli/tests/arika.rs` (G2, G3, G4), `gen/arika-facts.b`, `bidamas/SNAPSHOT.json`. Phase 3's CLI verbs (`find` over `bidamas/junni`, `get`, `uses`, `groups`, `changed`, `ask`) and the MCP door (`mcp_*` in `bidamas/eigyou/kyuuji`, `blue arika serve`) are built in process (2026-11-09): `the_golden_questions_keep_their_top_hit_g5` (G5), `docs/arika-tools.json` (G8). `why` and `blue_word_why` are built (2026-11-10): cited reasons, pins, blind sources, and `no recorded reason` when nothing says (`why_cites_the_doc_the_commits_and_the_plans_and_a_word_with_none_has_no_recorded_reason` in `crates/blue-lang-cli/tests/arika.rs`). Not built: the `arika` output for other projects, mokuroku on the facts, the Parquet plane through kueri, T3, CATALOG.md from the facts, G7, G9, the release on ryn. Done when G1 to G9 are green on main. |
 | **namespaces** ([`NAMESPACES.md`](docs/NAMESPACES.md)) | ✅ built | B0076, B0077 and B0078: `crates/blue-lang-cli/tests/levels.rs`, `crates/blue-lang-runtime/tests/levels.rs`, `crates/blue-lang-check/src/namespace_rules.rs`. Open: close the flat-era `legacy_names` windows at each root's next minor. |
-| **absence** ([`ABSENCE.md`](docs/ABSENCE.md)) | ❌ not built | Only the document exists. No `umu` bidama, no `crates/blue-lang-runtime/src/absence.rs`. B0054 and B0055 are reserved. Next step P1: `umu`, with B0054 and B0055 at audit. |
+| **absence** ([`ABSENCE.md`](docs/ABSENCE.md)) | ⏳ in progress | P1's bidama is built: `bidamas/umu` (option, `fold`, the combinators, the nil and kyohi seams), wired into zenbu, heni 9 of 9 caught; `?` reads an option (`spec/rows/refusals.b`). Not built: `crates/blue-lang-runtime/src/absence.rs`; B0054 and B0055 are reserved. Next step: B0054 and B0055 at audit with the `BLUE_ABSENCE` switch. |
+| **gpu**: data-parallel blue as a compute kernel ([`GPU.md`](docs/GPU.md)) | ❌ not built | Only the design exists (2026-11-12). Next step: G1 and G3 for one definition, which waits on a CI runner with a GPU adapter (GPU.md §6). |
 | **safety** ([`SAFETY.md`](docs/SAFETY.md)) | ⏳ in progress | The SAFETY.md ledger holds one row per invariant with its state. Next step: rows 1, 3 and 14. Done when each row is at its stated seal. |
 | **testing** ([`TESTING.md`](docs/TESTING.md)) | ⏳ in progress | The TESTING.md ledger holds the state of each item. |
 | **registry** ([`REGISTRY.md`](docs/REGISTRY.md)) | ⏳ in progress | The sui and FlakeHub backends are built (`bidamas/touroku/touroku.b` tests). `porto` and `github` are refused as `not_built`. `blue registry status` never fails, so it gates nothing. Done when a registry check exits non-zero on an absent pin. |
@@ -3988,7 +3990,7 @@ that makes the state true, and the tier the gate reaches.
 | Integer overflow (row 6) | ✅ built | Refused at run time. `numbers.overflow.mul` in `spec/rows/numbers.b`. |
 | Exhaustive `case` over a union (row 3) | ✅ built | Refused at check: B0081. `spec/rows/unions.b`, `spec/rows/patterns.b`. |
 | Exhaustive `case` over any other closed set (row 3) | ❌ not built | A rule over a declared closed set. Q5 decides the set. |
-| No null (row 1) | ❌ not built | [ABSENCE.md](docs/ABSENCE.md) is the plan. No `umu` bidama exists, and B0054 and B0055 have no rule. |
+| No null (row 1) | ⏳ in progress | [ABSENCE.md](docs/ABSENCE.md) is the plan. Built: the `umu` bidama, blue's Option (`bidamas/umu`, heni 9 of 9), and `?` on an option (`refusals.option_none_returns_at_once`, `refusals.umu_options` in `spec/rows/refusals.b`). Not built: B0054 and B0055 have no rule. |
 | `unsafe_code` denied in every crate (row 9) | ⏳ in progress | 5 of 24 crates deny it at their roots. A workspace `unsafe_code = "deny"` with one `#[allow]` per seam is missing. |
 | Native panic seam to an `:internal` refusal (row 11) | ❌ not built | No unwind seam at the native-call boundary. |
 | Wall-clock bound (row 12) | ❌ not built | No `max_wall_ms` bound exists. |

@@ -268,7 +268,7 @@ rendered:
 <details>
 <summary>Every bidama, with the purpose its <code>@moduledoc</code> states</summary>
 
-69 packages, 5990 definitions, 2029 tests.
+70 packages, 6007 definitions, 2034 tests.
 
 - [angou](bidamas/CATALOG.md#angou) (暗号) — number theory and the classical ciphers built on it.
 - [baito](bidamas/CATALOG.md#baito) (バイト) — bytes as data: integers at a declared width and order, and record layouts that say where each field sits.
@@ -337,6 +337,7 @@ rendered:
 - [touroku](bidamas/CATALOG.md#touroku) (登録) — registry: a project published to and resolved from registry backends, each a rendering of the Bluefile, never its truth.
 - [ugoki](bidamas/CATALOG.md#ugoki) (動き) — motion: how a value moves over time.
 - [ukai](bidamas/CATALOG.md#ukai) (迂回) — a detour: keep an overlay VPN reaching its control plane and relays while a full-tunnel corporate VPN owns the default route.
+- [umu](bidamas/CATALOG.md#umu) (有無) — presence or absence, as a declared value: blue's Option.
 - [utsushi](bidamas/CATALOG.md#utsushi) (写し, a transcription) — a part of a repository's history, shown as a history of its own: a lens picks the part, and each commit is written again over the part's tree, with its author, committer and message unchanged, so the same lens over the same commit gives the same commit id on every machine (docs/UTSUSHI.md).
 - [zenbu](bidamas/CATALOG.md#zenbu) (全部) — the whole distribution, as ONE dependency.
 
@@ -440,7 +441,7 @@ Read it in order as [The blue Book](docs/BOOK.md), or open one page:
 ### Explanation
 
 <details>
-<summary>54 pages on why blue is shaped as it is</summary>
+<summary>55 pages on why blue is shaped as it is</summary>
 
 - [ABSENCE — no undeclared nil](docs/ABSENCE.md): no undeclared nil: how blue makes absence a declared, checked state
 - [API-EVOLUTION — the API is a versioned rendering of the one model](docs/API-EVOLUTION.md): the API as a versioned rendering of one model (design)
@@ -460,6 +461,7 @@ Read it in order as [The blue Book](docs/BOOK.md), or open one page:
 - [DOCUMENTATION — every blue project documents itself, and the language has a book](docs/DOCUMENTATION.md): documentation as a battery: one source per fact, a Diátaxis book, rendered README, AGENTS.md and llms.txt (design)
 - [ENGINE: an HD-2D tactics engine in blue](docs/ENGINE.md): one game engine written in blue for HD-2D tactics games on iPhone, with Rust only at the GPU, audio and UIKit seams (design, 2026-11-10)
 - [FRONTEND-PLAN — building the blue frontend framework](docs/FRONTEND-PLAN.md): the build plan for blue's frontend framework
+- [GPU — data-parallel blue as a compute kernel](docs/GPU.md): the GPU rung: a restricted rung of blue lowered to a WGSL compute kernel for data-parallel definitions, validated by naga at build time, gated by equality with blue's own run (design, 2026-11-12)
 - [Guard-clause `return`: the design of record](docs/GUARD-RETURN.md): Guard-clause return, G1 BUILT: `return x` where the parser can rewrite it into if/else, refused where it cannot (B0080), so blue stays one expression per body at no run-time cost
 - [HORIZON: where blue goes next](docs/HORIZON.md): the long plan for blue, ten horizons from hygiene to a language that proves, replays and explains itself, eight authority horizons that make every host effect a capability granted from one declaration in every placement, an ontology of every concept in khipu that the tests are generated from, and the kernel as both a verified target and the enforcer of access; destination first, each horizon with its first step, its gate and what it unlocks
 - [HTTP2 — blue speaks HTTP/2 and gRPC itself](docs/HTTP2.md): blue speaks HTTP/2 and gRPC itself (design, phase 1 built)

@@ -1072,32 +1072,21 @@ def ext_with_section(types, section, funcs)
 end
 
 @doc """
-section_kind: the program type a section's name says, as libbpf reads it; nil for one this table has no row for.
+section_kind: the program type a section's name says, as libbpf reads it: the row of `kaaneru::bpf::sections` the name is, or begins with and a `/`; nil for one the table has no row for.
 
     section_kind("xdp") #=> :xdp
     section_kind("fentry/do_sys_openat2") #=> :tracing
+    section_kind("cgroup/sysctl") #=> :cgroup_sysctl
+    section_kind("cgroup").nil? #=> true
     section_kind("whatever").nil? #=> true
 """
 def section_kind(name)
-  case first(split(name, "/"))
-  when "xdp"
-    :xdp
-  when "tc"
-    :sched_cls
-  when "socket"
-    :socket_filter
-  when "kprobe"
-    :kprobe
-  when "tracepoint"
-    :tracepoint
-  when "raw_tracepoint"
-    :raw_tracepoint
-  when "fentry"
-    :tracing
-  when "fexit"
-    :tracing
-  when "lsm"
-    :lsm
+  row = find(
+    kaaneru::bpf::sections,
+    (r) -> name == r[1] or starts_with?(name, "#{r[1]}/")
+  )
+  if row != nil
+    first(row)
   end
 end
 

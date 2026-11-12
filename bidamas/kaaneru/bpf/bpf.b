@@ -5950,33 +5950,45 @@ def key_type_name(count)
 end
 
 @doc """
+sections: each program type with the ELF section name libbpf reads it from, the first row of a type being the name written for it.
+
+    first(sections) #=> [:xdp, "xdp"]
+"""
+def sections()
+  [
+    [:xdp, "xdp"],
+    [:sched_cls, "tc"],
+    [:socket_filter, "socket"],
+    [:kprobe, "kprobe"],
+    [:tracepoint, "tracepoint"],
+    [:raw_tracepoint, "raw_tracepoint"],
+    [:tracing, "fentry"],
+    [:tracing, "fexit"],
+    [:lsm, "lsm"],
+    [:cgroup_skb, "cgroup/skb"],
+    [:cgroup_sock, "cgroup/sock"],
+    [:cgroup_device, "cgroup/dev"],
+    [:cgroup_sysctl, "cgroup/sysctl"],
+    [:sk_lookup, "sk_lookup"],
+    [:netfilter, "netfilter"],
+    [:syscall, "syscall"]
+  ]
+end
+
+@doc """
 section_name: the ELF section libbpf reads a program type from; a type it has no name for here raises.
 
     section_name(:xdp) #=> "xdp"
     section_name(:sched_cls) #=> "tc"
+    section_name(:cgroup_sysctl) #=> "cgroup/sysctl"
     (section_name(:nope) rescue :refused) #=> :refused
 """
 def section_name(kind)
-  case kind
-  when :xdp
-    "xdp"
-  when :sched_cls
-    "tc"
-  when :socket_filter
-    "socket"
-  when :kprobe
-    "kprobe"
-  when :tracepoint
-    "tracepoint"
-  when :raw_tracepoint
-    "raw_tracepoint"
-  when :tracing
-    "fentry"
-  when :lsm
-    "lsm"
-  else
+  row = find(sections, (r) -> first(r) == kind)
+  if row.nil?
     raise(:bad_option, "no ELF section for a #{to_s(kind)} program")
   end
+  row[1]
 end
 
 @doc """

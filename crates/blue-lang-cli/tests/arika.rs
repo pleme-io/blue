@@ -1051,3 +1051,87 @@ fn why_answers_real_words_from_blue_s_own_facts_and_says_when_nothing_records_a_
     .expect("json");
     assert_eq!(called["result"]["structuredContent"], quiet);
 }
+
+fn context_of(d: &Dir, args: &[&str]) -> (serde_json::Value, usize) {
+    let snap = repo_snapshot().display().to_string();
+    let facts = repo_facts().display().to_string();
+    let bidamas = repo().join("bidamas").display().to_string();
+    let mut all: Vec<&str> = args.to_vec();
+    all.extend([
+        "--json",
+        "--snapshot",
+        &snap,
+        "--facts",
+        &facts,
+        "--root",
+        &bidamas,
+    ]);
+    let out = run(&d.0, &all);
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let body = text(&out);
+    (
+        serde_json::from_str(body.trim()).expect("json"),
+        body.trim().len(),
+    )
+}
+
+#[test]
+fn context_is_one_bounded_answer_with_the_word_its_laws_callers_and_tests() {
+    let d = Dir::new("context");
+    let (first, bytes) = context_of(&d, &["context", "retsu::first"]);
+    assert_eq!(first["outcome"], "found", "{first}");
+    assert_eq!(first["import"], "use(\"retsu\", [:first])", "{first}");
+    assert_eq!(first["file"], "retsu/retsu.b", "{first}");
+    assert!(first["doc"].as_str().is_some_and(|t| !t.is_empty()), "{first}");
+    assert!(first["callers"]["total"].as_u64() > Some(50), "{first}");
+    assert_eq!(first["callers"]["shown"].as_array().map(Vec::len), Some(8));
+    assert!(first["tests"]["total"].as_u64() > Some(8), "{first}");
+    assert_eq!(first["tests"]["shown"].as_array().map(Vec::len), Some(8));
+    assert!(
+        first["laws"]["shown"]
+            .as_array()
+            .expect("laws")
+            .iter()
+            .any(|l| l["word"] == "bunsho::law_failures"),
+        "{first}"
+    );
+    assert!(bytes <= 8192, "{bytes} bytes");
+    let (law, _) = context_of(&d, &["context", "okite::law_listed_name_is_bare"]);
+    assert_eq!(law["outcome"], "found", "{law}");
+    assert_eq!(law["kind"], "function", "{law}");
+    let (same, _) = context_of(&d, &["arika", "context", "retsu::first"]);
+    assert_eq!(same, first);
+    let (none, _) = context_of(&d, &["context", "retsu::no_such_word"]);
+    assert_eq!(none["outcome"], "none", "{none}");
+    let snap = repo_snapshot().display().to_string();
+    let facts = repo_facts().display().to_string();
+    let bidamas = repo().join("bidamas").display().to_string();
+    let called: serde_json::Value = serde_json::from_str(
+        text(&run(
+            &d.0,
+            &[
+                "arika",
+                "mcp",
+                &serde_json::json!({
+                    "jsonrpc": "2.0", "id": 4, "method": "tools/call",
+                    "params": {"name": "blue_word_context", "arguments": {"word": "retsu::first"}}
+                })
+                .to_string(),
+                "--snapshot",
+                &snap,
+                "--facts",
+                &facts,
+                "--root",
+                &bidamas,
+            ],
+        ))
+        .trim(),
+    )
+    .expect("json");
+    assert_eq!(called["result"]["structuredContent"], first);
+}

@@ -122,6 +122,16 @@ pub enum ArikaCmd {
         from: FactsFrom,
     },
     #[command(
+        about = "One bounded answer to write against a word: its id, kind, import line, doc, reach, the laws that hold it, its callers, its tests and what it calls, each list capped with its total, the whole at most 8192 bytes of JSON"
+    )]
+    Context {
+        word: String,
+        #[arg(long, help = "Print the answer as one JSON object")]
+        json: bool,
+        #[command(flatten)]
+        from: FactsFrom,
+    },
+    #[command(
         about = "Functions of MIN nodes or more that share one computed shape across words (T2 over the whole tree)"
     )]
     Groups {
@@ -1021,6 +1031,9 @@ pub fn run(cmd: ArikaCmd) -> Result<ExitCode, String> {
         }
         ArikaCmd::Why { word, json, from } => {
             over_facts("why", json, &json!({"word": word}), &from)
+        }
+        ArikaCmd::Context { word, json, from } => {
+            over_facts("context", json, &json!({"word": word}), &from)
         }
         ArikaCmd::Groups { min, json, from } => {
             over_facts("groups", json, &json!({"min": min}), &from)

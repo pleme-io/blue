@@ -105,12 +105,47 @@ def kb_host64()
 end
 
 @doc """
+kb_wasm32: The host board as a WASI preview 2 component: host64's word, devices and
+recursion bound, built for `wasm32-wasip2` with the standard library (`hosted`),
+and run by wasmtime, the component host a `runtime: :wasm` service and an engenho
+wasm pod run on. The image is a component; its UART is the component's standard
+output.
+
+    kb_wasm32[:rust_target] #=> "wasm32-wasip2"
+    kb_wasm32[:hosted] #=> true
+    kb_wasm32[:word] #=> 64
+"""
+def kb_wasm32()
+  assoc(
+    assoc(
+      assoc(assoc(kb_host64, :name, "wasm32"), :isa, :wasm32),
+      :rust_target,
+      "wasm32-wasip2"
+    ),
+    :hosted,
+    true
+  )
+end
+
+@doc """
+kb_hosted?: Whether a board builds with the standard library and a heap: the host
+itself (no `rust_target`), or a board that declares `hosted`.
+
+    kb_hosted?(kb_host64) #=> true
+    kb_hosted?(kb_wasm32) #=> true
+    kb_hosted?(kb_qemu_virt32) #=> false
+"""
+def kb_hosted?(board)
+  board[:rust_target].nil? or board[:hosted] == true
+end
+
+@doc """
 kb_boards: Every board this package knows, by name.
 
-    map((b) -> b[:name], kb_boards) #=> ["qemu-virt32", "host64"]
+    map((b) -> b[:name], kb_boards) #=> ["qemu-virt32", "host64", "wasm32"]
 """
 def kb_boards()
-  [kb_qemu_virt32, kb_host64]
+  [kb_qemu_virt32, kb_host64, kb_wasm32]
 end
 
 @doc """

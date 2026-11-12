@@ -70,7 +70,7 @@ The first pass reads the resolved tree's text into nodes:
     cz_read("(define %root/X 5)") #=> [[{sym: "define"}, {sym: "%root/X"}, 5]]
 """
 
-use("kiban", %i[kb_board kb_device_base])
+use("kiban", %i[kb_board kb_device_base kb_hosted?])
 
 # ── Reading the resolved tree ─────────────────────────────────────────────
 #
@@ -2282,7 +2282,7 @@ def cz_lower(forms, board)
   bindings = map((f) -> cz_sym(second(f)), pick(:binding))
   records = map(cz_record_of, pick(:record))
   strategies = map((f) -> cz_reclaim_of(f, fns), pick(:reclaim))
-  heap = board[:rust_target].nil?
+  heap = kb_hosted?(board)
   lists = cz_mentions?(
     filter((f) -> cz_head(f) != "use", forms),
     %w[list append List]
@@ -2477,6 +2477,17 @@ seam flushes what was printed.
 def cz_rustc_flags(board)
   if board[:rust_target].nil?
     %w[--edition 2021 -C opt-level=3 -C codegen-units=1]
+  elsif kb_hosted?(board)
+    [
+      "--edition",
+      "2021",
+      "--target",
+      board[:rust_target],
+      "-C",
+      "opt-level=3",
+      "-C",
+      "codegen-units=1"
+    ]
   else
     [
       "--edition",
@@ -2513,7 +2524,7 @@ def cz_link(rs, board_name, seam, out, name)
   flags = cz_rustc_flags(board)
   mkdir_p(out)
   script = path_join(out, "link.x")
-  link = if board[:rust_target].nil?
+  link = if kb_hosted?(board)
     []
   else
     write_file(script, cz_link_script(board))
@@ -2521,14 +2532,14 @@ def cz_link(rs, board_name, seam, out, name)
   end
   io = path_join(out, "libkiban_io.rlib")
   heap = path_join(out, "libkiban_heap.rlib")
-  hosted = board[:rust_target].nil?
+  hosted = kb_hosted?(board)
   heap_extern = if hosted
     ["--extern", "kiban_heap=#{heap}"]
   else
     []
   end
   prog = path_join(out, "libprogram.rlib")
-  elf = path_join(out, "#{name}.elf")
+  elf = path_join(out, "#{name}.#{cz_image_extension(board)}")
   cz_run(
     append(
       ["rustc"],
@@ -2623,6 +2634,37 @@ def cz_host_image(program, seam, out)
   rs = path_join(out, "#{name}.rs")
   write_file(rs, text)
   cz_link(rs, "host64", seam, out, name)
+end
+
+@doc """
+cz_wasm_image: The blue program at `program` compiled ahead of time for the wasm32 board:
+its Rust emitted beside the image in `out`, linked with the seams under `seam`
+into a WASI preview 2 component that wasmtime runs. Answers the component's path.
+
+    (cz_wasm_image("no-such-program.b", "seam", "out") rescue :refused) #=> :refused
+"""
+def cz_wasm_image(program, seam, out)
+  name = replace(path_basename(program), ".b", "")
+  text = cz_emit(program, "wasm32")
+  mkdir_p(out)
+  rs = path_join(out, "#{name}.rs")
+  write_file(rs, text)
+  cz_link(rs, "wasm32", seam, out, name)
+end
+
+@doc """
+cz_image_extension: The file extension of a board's image: a component for a wasm board,
+an executable for every other.
+
+    cz_image_extension(kb_board("wasm32")) #=> "wasm"
+    cz_image_extension(kb_board("host64")) #=> "elf"
+"""
+def cz_image_extension(board)
+  if board[:isa] == :wasm32
+    "wasm"
+  else
+    "elf"
+  end
 end
 
 def cz_crate_name(name)
@@ -2993,6 +3035,13 @@ test "the host builds for speed and unwinds; a board builds for size and aborts"
   virt = cz_rustc_flags(kb_board("qemu-virt32"))
   assert member?("riscv32imac-unknown-none-elf", virt)
   assert member?("panic=abort", virt)
+end
+
+test "the wasm board builds hosted, for its own target, with no linker script"
+  wasm = cz_rustc_flags(kb_board("wasm32"))
+  assert member?("wasm32-wasip2", wasm)
+  assert member?("opt-level=3", wasm)
+  assert not member?("panic=abort", wasm)
 end
 
 test "the linker script comes from the board's ram region"

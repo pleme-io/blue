@@ -61,6 +61,16 @@ let
     BLUE_PATH = project.bluePath;
   } "${blue}/bin/blue test ${src + "/checks/corpus.b"} > $out";
 
+  wasmCheck = pkgs.runCommand "native-wasm" {
+    nativeBuildInputs = [ (rustFor "wasm32-wasip2") emitter pkgs.wasmtime ];
+    WASM_PROGRAM = src + "/corpus/hex.b";
+    WASM_SEAM = src + "/seam";
+    BLUE_PATH = project.bluePath;
+  } ''
+    export HOME=$TMPDIR XDG_CACHE_HOME=$TMPDIR/cache
+    ${blue}/bin/blue test ${src + "/checks/wasm.b"} > $out
+  '';
+
   # The project's own checks under a `native-` prefix, so none meets a name
   # in blue's root project.
   projectChecks = lib.mapAttrs' (n: v: lib.nameValuePair "native-${n}" v) project.checks;
@@ -70,5 +80,5 @@ in
   inherit (project) toolchain;
   checks = projectChecks
     // lib.mapAttrs' (n: s: lib.nameValuePair "${n}-qemu" (qemuCheck n s)) images
-    // { native-corpus = corpusCheck; };
+    // { native-corpus = corpusCheck; native-wasm = wasmCheck; };
 }

@@ -71,6 +71,8 @@ const MIGRATE: &str = include_str!("../blue/migrate.b");
 
 const VERBS: &str = include_str!("../blue/verbs.b");
 const REUSE: &str = include_str!("../blue/reuse.b");
+
+const NATURALIZE: &str = include_str!("../blue/naturalize.b");
 mod config;
 mod crash;
 mod debug;
@@ -305,6 +307,14 @@ enum Cmd {
         #[arg(required = true, trailing_var_arg = true, allow_hyphen_values = true)]
         files: Vec<String>,
     },
+    /// Scaffold DIR as a bidama ported from Rust: a stub per drivable `pub
+    /// fn` of TARGET, the rows the original returns (recorded by compiling a
+    /// harness against it), and a test per word that is red until the stub's
+    /// body agrees with every row. TARGET is `FILE.rs[::name]` (a module,
+    /// compiled with rustc) or `CRATE_DIR[::module::name]` (a path
+    /// dependency, built with cargo). The tool is the blue program
+    /// `crates/blue-lang-cli/blue/naturalize.b`, compiled into this binary.
+    Naturalize { target: String, dir: PathBuf },
     /// What NAME is: its signature, doc line, namespace, tier and an example,
     /// for a builtin, `pkg::name`, or a bare name across the builtins and
     /// every bidama on BLUE_PATH; a bidama's name lists the package. The
@@ -1189,6 +1199,20 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                 },
                 blue_lang_runtime::inputs::Inputs::new(),
                 &blue_lang_runtime::uses::NoLoader,
+                None,
+            )?;
+            Ok(ExitCode::SUCCESS)
+        }
+
+        Cmd::Naturalize { target, dir } => {
+            blue_lang_runtime::sys::set_program_args(vec![target, dir.display().to_string()]);
+            blue_lang_runtime::pipeline::run_in_surface(
+                blue_lang_runtime::uses::Entry {
+                    path: Some(Path::new("crates/blue-lang-cli/blue/naturalize.b")),
+                    text: NATURALIZE,
+                },
+                blue_lang_runtime::inputs::Inputs::new(),
+                &blue_lang_pkg::load_path::Environment::from_env().load_path(None),
                 None,
             )?;
             Ok(ExitCode::SUCCESS)

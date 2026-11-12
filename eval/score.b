@@ -1,19 +1,6 @@
+use("fairu", [:absolute])
 use("moji", %i[lines take_chars])
 use("shisutemu", %i[status_of stderr_of stdout_of])
-
-@doc """
-absolute: The path made absolute against the current directory; an absolute
-path is answered as it is.
-
-    absolute("/srv/eval") #=> "/srv/eval"
-"""
-def absolute(path)
-  if starts_with?(path, "/")
-    path
-  else
-    path_join(cwd, path)
-  end
-end
 
 @doc """
 verdict: One task's result as data: its id, whether it passed, the stage that

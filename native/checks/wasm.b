@@ -1,8 +1,10 @@
 use("chuuzou", [:cz_wasm_image])
 
-def run_of(args)
+def printed(args)
   r = exec_capture(*args)
-  {ok: second(first(r)) == 0, out: second(second(r))}
+  if second(first(r)) == 0
+    second(second(r))
+  end
 end
 
 def seeded(seed, work)
@@ -27,7 +29,7 @@ def seeded(seed, work)
 end
 
 def interpret(program)
-  run_of([self_exe, "run", "--quiet", "--door", "walker", program])
+  printed([self_exe, "run", "--quiet", "--door", "walker", program])
 end
 
 def component(program)
@@ -36,7 +38,7 @@ def component(program)
     env_required("WASM_SEAM"),
     path_join(path_dirname(program), "out")
   )
-  run_of(["wasmtime", "run", image])
+  printed(["wasmtime", "run", image])
 end
 
 def seeds()
@@ -50,12 +52,7 @@ test "the hex words, compiled ahead of time to a wasm component, print what the 
       program = seeded(seed, work)
       want = interpret(program)
       got = component(program)
-      not (
-        want[:ok] and
-        got[:ok] and
-        want[:out] == got[:out] and
-        ends_with?(want[:out], unlines(["64"]))
-      )
+      want.nil? or want != got or not ends_with?(want, unlines(["64"]))
     end,
     seeds
   )

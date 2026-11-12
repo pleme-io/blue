@@ -1,3 +1,5 @@
+N = 27
+
 def fib(n)
   if n < 2
     n
@@ -6,4 +8,4 @@ def fib(n)
   end
 end
 
-write_stdout(unlines([fib(27)]))
+write_stdout(unlines([fib(N)]))

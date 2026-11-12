@@ -254,8 +254,8 @@ checked add and a bounds-checked index per word.
 ### 1.6 Lever rows: doing less work than a Rust program of the same job
 
 `blue bench/bench.b lever BLUE WORKDIR [--record --receipt "<kind>: <why>"]`
-runs each program in `bench/levers` against its plain Rust twin in
-`bench/native`, after checking that both print the same. The blue run starts
+runs each program in `bench/levers` (and, for memo, the `fib` workload at
+`N = 38`) against its plain Rust twin in `bench/native`, after checking that both print the same. The blue run starts
 from the store its build left (restored before each run), so it never answers
 from its own previous run. hyperfine, 5 runs; CPU ms; the ratio is blue's CPU
 over Rust's, gated per host in `bench/lever.baseline` with a 500 per mille

@@ -354,8 +354,8 @@ def run_cost(blue, w, work)
 end
 
 @doc """
-levers: The lever rows of docs/PERFORMANCE.md section 3.0: each a blue program in
-bench/levers that does less work by a lever blue's knowledge enables, and a plain
+levers: The lever rows of docs/PERFORMANCE.md section 3.0: each a blue program (bench/levers,
+or a workload at another size) that does less work by a lever blue's knowledge enables, and a plain
 Rust twin in bench/native that does the whole job every run. `memo` answers
 repeated pure calls in process; `bake` runs against a store a build already filled
 (nothing changed); `incremental` runs after one of the program's 64 inputs changed,
@@ -370,40 +370,44 @@ def levers()
     {
       name: "memo",
       lever: "memo by identity",
-      program: "memo",
+      source: "bench/workloads/fib.b",
+      line: "N = ",
+      value: 38,
       memo: "process",
-      primed: false,
-      edit: nil,
+      primed: nil,
       rust: "fib",
       rust_args: ["38"]
     },
     {
       name: "bake",
       lever: "bake",
-      program: "incremental",
+      source: "bench/levers/incremental.b",
+      line: "EDIT = ",
+      value: 0,
       memo: "on",
-      primed: true,
-      edit: 0,
+      primed: 0,
       rust: "incremental",
       rust_args: ["0"]
     },
     {
       name: "incremental",
       lever: "incremental",
-      program: "incremental",
+      source: "bench/levers/incremental.b",
+      line: "EDIT = ",
+      value: 1,
       memo: "on",
-      primed: true,
-      edit: 1,
+      primed: 0,
       rust: "incremental",
       rust_args: ["1"]
     },
     {
       name: "hexmsg",
       lever: "linear library word",
-      program: "hexmsg",
+      source: "bench/levers/hexmsg.b",
+      line: nil,
+      value: nil,
       memo: nil,
-      primed: false,
-      edit: nil,
+      primed: nil,
       rust: "hexmsg",
       rust_args: []
     }
@@ -430,16 +434,16 @@ def with_line(text, prefix, value)
   )
 end
 
-def lever_file(spec, work, edit)
-  file = path_join(work, "levers", "#{spec.name}-#{to_s(edit)}.b")
+def lever_file(spec, work, value)
+  file = path_join(work, "levers", "#{spec.name}-#{to_s(value)}.b")
   mkdir_p(path_join(work, "levers"))
-  text = read_file("bench/levers/#{spec.program}.b")
+  text = read_file(spec.source)
   write_program(
     file,
-    if edit.nil?
+    if spec.line.nil?
       text
     else
-      with_line(text, "EDIT = ", edit)
+      with_line(text, spec.line, value)
     end
   )
   file
@@ -487,9 +491,9 @@ end
 def prime(blue, spec, work)
   store = lever_store(spec, work)
   rm_rf(store)
-  if spec.primed
+  if not spec.primed.nil?
     run_checked(
-      lever_run(blue, spec, store, [], lever_file(spec, work, 0)),
+      lever_run(blue, spec, store, [], lever_file(spec, work, spec.primed)),
       "#{spec.name} (priming the store)"
     )
   end
@@ -504,7 +508,7 @@ def lever_cost(blue, spec, work)
       spec,
       store,
       ["--timings"],
-      lever_file(spec, work, spec.edit)
+      lever_file(spec, work, spec.value)
     ),
     spec.name
   )
@@ -860,18 +864,7 @@ scaled_source: The program's text with its `N = …` line set to `n`.
     scaled_source(unlines(["N = 3", "f(N)"]), 7) #=> unlines(["N = 7", "f(N)"])
 """
 def scaled_source(text, n)
-  unlines(
-    map(
-      fn(l)
-        if starts_with?(l, "N = ")
-          "N = #{to_s(n)}"
-        else
-          l
-        end
-      end,
-      lines(text)
-    )
-  )
+  with_line(text, "N = ", n)
 end
 
 @doc """
@@ -915,6 +908,28 @@ def output_of(command)
   stdout_of(cap)
 end
 
+@doc """
+rust_twin: Build the Rust twin `bench/native/<name>.rs` into `out`, at opt-level 3 with one
+codegen unit, and answer its path.
+"""
+def rust_twin(name, out)
+  output_of(
+    [
+      "rustc",
+      "--edition",
+      "2021",
+      "-C",
+      "opt-level=3",
+      "-C",
+      "codegen-units=1",
+      "-o",
+      out,
+      "bench/native/#{name}.rs"
+    ]
+  )
+  out
+end
+
 def native_commands(blue, spec, work)
   name = spec.name
   bidamas = "BLUE_PATH=#{path_join(cwd, "native/bidamas")}"
@@ -943,20 +958,7 @@ def native_commands(blue, spec, work)
     )
   )
   rust = path_join(work, "#{name}-rust")
-  output_of(
-    [
-      "rustc",
-      "--edition",
-      "2021",
-      "-C",
-      "opt-level=3",
-      "-C",
-      "codegen-units=1",
-      "-o",
-      rust,
-      "bench/native/#{name}.rs"
-    ]
-  )
+  rust_twin(name, rust)
   arg = fn(n)
     if n.nil?
       []
@@ -1135,21 +1137,8 @@ def lever_row(blue, spec, work, runs)
   output_of(["cp", "-R", store, snapshot])
   restore = "rsync -a --delete #{snapshot}/ #{store}/"
   rust = path_join(work, "#{spec.rust}-rust")
-  output_of(
-    [
-      "rustc",
-      "--edition",
-      "2021",
-      "-C",
-      "opt-level=3",
-      "-C",
-      "codegen-units=1",
-      "-o",
-      rust,
-      "bench/native/#{spec.rust}.rs"
-    ]
-  )
-  file = lever_file(spec, work, spec.edit)
+  rust_twin(spec.rust, rust)
+  file = lever_file(spec, work, spec.value)
   b = lever_run(blue, spec, store, [], file)
   r = append([rust], spec.rust_args)
   if output_of(b) != output_of(r)

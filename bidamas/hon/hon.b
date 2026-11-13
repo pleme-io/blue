@@ -910,7 +910,7 @@ def build_section(project)
       if written == []
         ""
       else
-        "Generated files, never edited by hand: #{join(map((w) -> "`#{w}`", written), ", ")}."
+        "Generated files, never edited by hand: the #{to_s(length(written))} paths `Bluefile.lock` names under `catalog` and each `generated` entry's `output`."
       end
     ]
   )
@@ -2415,7 +2415,7 @@ end
 test "the agent file carries the Bluefile's commands between the page's lead and its sections"
   a = agents_text(sample_project)
   assert contains?(a, "| `blue test gen/docs.b` | `checks.docs` |")
-  assert contains?(a, "`bidamas/CATALOG.md`, `README.md`")
+  assert contains?(a, "the 2 paths `Bluefile.lock` names")
   assert text_index(a, "Read this first.", 0) <
     text_index(a, "## Build and test", 0)
   assert text_index(a, "## Build and test", 0) < text_index(a, "## Traps", 0)
@@ -2796,4 +2796,23 @@ test "front matter written with a colon or a hash reads back as the same text"
     unlines(["---", "kind: howto", "summary: plain words", "---", ""])
   bad = join_lines(["---", "kind: explanation", "summary: a: b", "---"])
   assert length(front_matter_refusals([["docs/x.md", bad]])) == 1
+end
+
+test "the agent file counts the generated files and points at the lock, so it does not grow with each generate row"
+  project = {
+    manifest: {
+      "catalog" => "bidamas/CATALOG.md",
+      "generated" => {
+        "a" => {"output" => "docs/A.md"},
+        "b" => {"output" => "docs/B.md"}
+      }
+    }
+  }
+  s = build_section(project)
+  assert contains?(
+    s,
+    "Generated files, never edited by hand: the 3 paths `Bluefile.lock` names"
+  )
+  assert not contains?(s, "docs/A.md")
+  assert not contains?(build_section({manifest: {}}), "Generated files")
 end

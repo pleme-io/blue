@@ -228,6 +228,10 @@ pub const GAPS: &[Gap] = &[
         code: Code::B0091,
         why: "a test that expects a refusal names the input that causes it, which a person chooses",
     },
+    Gap {
+        code: Code::B0092,
+        why: "a knob's type, default, bounds and doc are the model's author's to choose; the read alone does not say them",
+    },
 ];
 
 /// The evolution rules that block a program: ratcheted, error severity.

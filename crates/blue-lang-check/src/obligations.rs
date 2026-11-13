@@ -413,6 +413,62 @@ obligations! {
         profile: Strict,
         owner: "COVERAGE.md S5",
     }
+    "structure/config" {
+        when: "a definition of a bidama other than settei that reads a literal environment name",
+        evidence: Declared,
+        detector: Static,
+        refusal: Code(Code::B0092),
+        profile: Default,
+        owner: "CORE-MODEL.md M4, P14",
+    }
+    "structure/core-model" {
+        when: "a program that reads its settings off a record",
+        evidence: Declared,
+        detector: Project,
+        refusal: Design("CORE-MODEL P14b: `checks.core-models` forces it for each program gen/core-models.b registers; a project gate that runs `unmodelled` over every program of every project"),
+        profile: Default,
+        owner: "CORE-MODEL.md M1",
+    }
+    "structure/capabilities" {
+        when: "a project root with packages",
+        evidence: Declared,
+        detector: Project,
+        refusal: Design("CORE-MODEL P15: a root with no `allow(...)` ceiling refused by `blue lock`"),
+        profile: Default,
+        owner: "CORE-MODEL.md M2",
+    }
+    "structure/effects" {
+        when: "a Bluefile `service(...)` row",
+        evidence: Declared,
+        detector: Project,
+        refusal: Design("CORE-MODEL P15: a service with no `access` refused; `Access::default_for` grants one today"),
+        profile: Service,
+        owner: "CORE-MODEL.md M3; SERVICE-ACCESS.md",
+    }
+    "structure/refusals" {
+        when: "a raised tag",
+        evidence: Declared,
+        detector: Static,
+        refusal: Design("CORE-MODEL P16: a tag outside kyohi's ledger of kinds"),
+        profile: Default,
+        owner: "CORE-MODEL.md M5",
+    }
+    "structure/observability" {
+        when: "a Bluefile `service(...)` row",
+        evidence: Declared,
+        detector: Project,
+        refusal: Design("CORE-MODEL P17: a service with no log, metric or trace binding"),
+        profile: Service,
+        owner: "CORE-MODEL.md M7",
+    }
+    "structure/supervision" {
+        when: "a Bluefile `service(...)` row",
+        evidence: Declared,
+        detector: Project,
+        refusal: Design("CORE-MODEL P17: a service with no supervision policy"),
+        profile: Service,
+        owner: "CORE-MODEL.md M8",
+    }
     "pipeline/stage" {
         when: "a gate the pre-push hook runs",
         evidence: Declared,

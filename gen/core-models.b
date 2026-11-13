@@ -5,6 +5,9 @@ core-models: every blue program in this repository that declares a core model, a
 """
 
 # waive B0085: rendering debt recorded 2026-11-13: no test of this generator declared kind: :rendering feeds its output to the output's reader yet
+use("deeta")
+use("heni")
+use("jisho", [:from_entries])
 use("kakehashi")
 use("retsu", %i[flat_map size])
 use("settei")
@@ -23,8 +26,37 @@ def programs()
       settings: kakehashi::souji::settings,
       frame: kakehashi::souji::frame,
       param: "opts"
+    },
+    {
+      app: "heni",
+      file: "bidamas/heni/heni.b",
+      settings: heni::settings,
+      frame: heni::frame,
+      param: "a"
+    },
+    {
+      app: "kirikae",
+      file: "bidamas/kakehashi/kirikae/kirikae.b",
+      settings: kakehashi::kirikae::config_model,
+      frame: {
+        name: "kirikae",
+        about: "switching over: whether a system switch must run, may be skipped, or must wait"
+      },
+      param: "config",
+      door: :settled
     }
   ]
+end
+
+@doc """
+schemas: the JSON Schema of every program's settings, by app: the config file's schema, the chart values' schema and the MCP tool's input.
+
+    retsu::first(map_entries(schemas))[0] #=> "heni"
+"""
+def schemas()
+  from_entries(
+    map((p) -> [p[:app], settei::json_schema(p[:app], p[:settings])], programs)
+  )
 end
 
 def root()
@@ -38,13 +70,18 @@ section: one program's part of the settings page: its heading, where its setting
 """
 def section(p)
   prefix = settei::env_prefix(p[:app])
+  door = if p[:door] == :settled
+    "then the environment. A bad value is refused for its key alone and warned on stderr."
+  else
+    "the `#{prefix}` environment, then the flags. `#{p[:app]} --explain KEY` shows one setting and the layer it came from."
+  end
   unlines(
     [
       "## #{p[:app]}",
       "",
-      "#{p[:frame][:about]}. Layers, lowest first: the defaults, `~/.config/#{p[:app]}/#{p[:app]}.yaml` (or the file `#{prefix}CONFIG` names), the `#{prefix}` environment, then the flags. `#{p[:app]} --explain KEY` shows one setting and the layer it came from.",
+      "#{p[:frame][:about]}. Layers, lowest first: the defaults, `~/.config/#{p[:app]}/#{p[:app]}.yaml` (or the file `#{prefix}CONFIG` names), #{door}",
       "",
-      settei::table(p[:app], p[:settings])
+      settei::table(p[:app], p[:settings], {flags: p[:door] != :settled})
     ]
   )
 end
@@ -106,8 +143,31 @@ end
 
 out = getenv("GEN_OUT")
 
-if out != nil
+if out != nil and ends_with?(out, ".json")
+  write_file(out, deeta::pretty(schemas))
+elsif out != nil
   write_file(out, page)
+end
+
+test "every program's knobs keep their bounds law on every layer"
+  broken = flat_map(
+    programs,
+    fn(p)
+      map((b) -> "#{p[:app]}: #{b}", settei::bounds_law(p[:app], p[:settings]))
+    end
+  )
+  assert broken == []
+end
+
+test "every program's schema is the one its MCP tool takes"
+  map(
+    fn(p)
+      assert settei::mcp_tool(p[:app], p[:settings])["inputSchema"] ==
+        get(schemas, p[:app])
+    end,
+    programs
+  )
+  assert size(map_entries(schemas)) == size(programs)
 end
 
 test "no program reads a setting its core model lacks"

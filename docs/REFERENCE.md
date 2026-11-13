@@ -253,7 +253,7 @@ Higher binding power binds tighter.
 |---|---|---|---|
 | `create` | `create(store, key, value, more...)` | 3+ | Add a new entry, refusing to overwrite; in_space("gitto", repo) makes a branch or tag. Also defined by `gitto` (`gitto::create`): a file that lists it gets that one. |
 | `delete` | `delete(store, key, more...)` | 2+ | Make an entry absent; absent counts as done. A plain map goes to jisho; in_space("gitto", repo) deletes a branch or tag. Also defined by `gitto` (`gitto::delete`), `jisho` (`jisho::delete`), `shuusei` (`shuusei::delete`): a file that lists it gets that one. |
-| `diff` | `diff(a, b, more...)` | 2+ | The differences between two values as change records, by the space of a: diff(in_space("gitto", repo), from, to) compares two refs. Also defined by `gitto` (`gitto::diff`): a file that lists it gets that one. |
+| `diff` | `diff(a, b, more...)` | 2+ | The differences between two values as change records, by the space of a: diff(in_space("gitto", repo), from, to) compares two refs. Also defined by `gitto` (`gitto::diff`), `settei` (`settei::diff`): a file that lists it gets that one. |
 | `exists?` | `exists?(subject, more...)` | 1+ | Whether the subject is there; in_space("gitto", repo) asks about a ref. Also defined by `gitto` (`gitto::exists?`): a file that lists it gets that one. |
 | `has?` | `has?(store, key, more...)` | 2+ | Whether the key is present. A plain map goes to jisho. Also defined by `jisho` (`jisho::has?`), `kueri` (`kueri::has?`), `settei` (`settei::has?`): a file that lists it gets that one. |
 | `in_space` | `in_space(space, value)` | 2 | The value as a subject of a space: {space: s, of: value}. Master verbs call the space's handler with the value itself. A value already in another space raises :usage. |

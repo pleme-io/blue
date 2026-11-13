@@ -23,6 +23,7 @@ Bluefile.lock merge=blue-generated
 /docs/REFERENCE.md merge=blue-generated
 /docs/SETTINGS.md merge=blue-generated
 /docs/arika-tools.json merge=blue-generated
+/docs/settings.schema.json merge=blue-generated
 /docs/verbs/contracts.tsv merge=blue-generated
 /docs/verbs/merged/edges.tsv merge=blue-generated
 /docs/verbs/merged/verbs.tsv merge=blue-generated

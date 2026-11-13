@@ -83,6 +83,7 @@ check("workflows", "gen/ci.b", [".github/workflows", "Bluefile.lock"], {stage: :
 generate("node-nix", "nix/node-fixture/configuration.nix", "nix/node-fixture/node.b")
 generate("kyasshu-keys", "bidamas/toriyose/kyasshu/keys/kensa.json", "gen/kyasshu-keys.b", ["bidamas/toriyose/danpen/fixtures/schema/kensa.graphql"])
 generate("settings", "docs/SETTINGS.md", "gen/core-models.b", ["bidamas"])
+generate("settings-schema", "docs/settings.schema.json", "gen/core-models.b", ["bidamas"])
 check("core-models", "gen/core-models.b", ["bidamas"], {stage: :ci})
 check("okite-laws", "gen/okite-laws.b", {stage: :push})
 check("regen-untracked", "gen/regen_test.b", ["gen/regen.b"], {stage: :push})

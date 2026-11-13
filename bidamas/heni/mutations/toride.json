@@ -590,7 +590,7 @@
   {
     "name": "an unread address is matched",
     "file": "toride.b",
-    "find": "  elsif not local_r[:ok]\n    :unread\n  else\n    match_site",
+    "find": "  elsif not ok?(local_r)\n    :unread\n  else\n    match_site",
     "replace": "  else\n    match_site"
   },
   {
@@ -608,14 +608,14 @@
   {
     "name": "unread routes read a site",
     "file": "toride.b",
-    "find": "  site = if not routes_r[:ok]\n    :unread",
-    "replace": "  site = if not routes_r[:ok]\n    :unknown"
+    "find": "  site = if not ok?(routes_r)\n    :unread",
+    "replace": "  site = if not ok?(routes_r)\n    :unknown"
   },
   {
     "name": "unread routes read a gateway",
     "file": "toride.b",
-    "find": "  g = if not routes_r[:ok]\n    [:unread, streak]",
-    "replace": "  g = if not routes_r[:ok]\n    [:down, streak]"
+    "find": "  g = if not ok?(routes_r)\n    [:unread, streak]",
+    "replace": "  g = if not ok?(routes_r)\n    [:down, streak]"
   },
   {
     "name": "no default route leaves the gateway up",
@@ -626,8 +626,8 @@
   {
     "name": "an unmade probe reads up",
     "file": "toride.b",
-    "find": "  elsif not probe_r[:ok]\n    [:unread, streak]",
-    "replace": "  elsif not probe_r[:ok]\n    [:up, streak]"
+    "find": "  elsif not ok?(probe_r)\n    [:unread, streak]",
+    "replace": "  elsif not ok?(probe_r)\n    [:up, streak]"
   },
   {
     "name": "the local network is not rounded",

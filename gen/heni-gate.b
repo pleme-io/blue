@@ -1,10 +1,23 @@
 use("hadome", %i[measurement orphans parse recorded render])
 
-use("heni", %i[fell? mutations report_text run score sound? survivors])
+use(
+  "heni",
+  %i[
+    fell?
+    mutations
+    report_text
+    run
+    score
+    sound?
+    stranded
+    stranded_text
+    survivors
+  ]
+)
 
 use("moji", %i[includes trim])
 use("mokuroku", [:blue_path_roots])
-use("retsu", %i[find_first flat_map is_empty last reject size])
+use("retsu", %i[find_first first flat_map is_empty last reject size])
 use("shisutemu", [:read_or])
 use("shuugou", [:unique])
 
@@ -271,11 +284,93 @@ def record(receipt)
   end
 end
 
+@doc """
+touched?: whether a change to these repository paths can strand a mutation of this spec: a path inside the package it mutates, or the spec file itself.
+
+    touched?("bidamas/heni/mutations/toride.json", ["bidamas/toride/toride.b"]) #=> true
+    touched?("bidamas/heni/mutations/toride.json", ["bidamas/ukai/ukai.b"]) #=> false
+"""
+def touched?(spec_path, changed)
+  key = key_of(spec_path)
+  any?(
+    fn(p)
+      starts_with?(p, "bidamas/#{key}/") or
+        p == "bidamas/heni/mutations/#{key}.json"
+    end,
+    changed
+  )
+end
+
+@doc """
+scoped: the specs a finds check reads: every spec when no path is named, else the specs a named path touches.
+
+    scoped(["m/a.json", "m/b.json"], []) #=> ["m/a.json", "m/b.json"]
+"""
+def scoped(all, changed)
+  if is_empty(changed)
+    all
+  else
+    filter((s) -> touched?(s, changed), all)
+  end
+end
+
+@doc """
+stranded_in: every stranded mutation across these specs, as text, one line each; empty when every mutation finds its text.
+"""
+def stranded_in(paths)
+  join(
+    map(
+      fn(s)
+        stranded_text(
+          key_of(s),
+          stranded(package_of(s), mutations(json_parse(read_file(s))))
+        )
+      end,
+      paths
+    ),
+    ""
+  )
+end
+
+def finds(changed)
+  if off?
+    write_stdout(unlines(["➖ heni finds: BLUE_HENI_OFF=1"]))
+  else
+    paths = scoped(specs, changed)
+    bad = stranded_in(paths)
+    if bad == ""
+      write_stdout(
+        unlines(
+          [
+            "✅ heni finds: every mutation of #{to_s(size(paths))} spec(s) finds its text"
+          ]
+        )
+      )
+    else
+      write_stderr(bad)
+      write_stderr(
+        unlines(
+          ["❌ heni finds: a rewrite stranded these mutations; update each find (and its replace) to the new code"]
+        )
+      )
+      exit_with(1)
+    end
+  end
+end
+
 def main()
   if argv_get(0) == "record"
     record(receipt_of(drop(1, argv)))
+  elsif argv_get(0) == "finds"
+    finds(drop(1, argv))
   else
-    write_stderr(unlines(["usage: #{RECORD} [--receipt WHY]"]))
+    write_stderr(
+      unlines(
+        [
+          "usage: #{RECORD} [--receipt WHY] | blue gen/heni-gate.b finds [PATH...]"
+        ]
+      )
+    )
     exit_with(64)
   end
 end
@@ -399,4 +494,17 @@ test "HENI_SPEC measures the one spec it names, refuses a name with no spec, and
   end
   assert refused ==
     "HENI_SPEC is \"mitoshi/keisoku\"; no file heni/mutations/mitoshi/keisoku exists"
+end
+
+test "a finds check reads the specs a changed path touches, and names a stranded mutation"
+  all = %w[
+    bidamas/heni/mutations/toride.json
+    bidamas/heni/mutations/kaaneru/bpf.json
+  ]
+  assert scoped(all, ["bidamas/toride/toride.b"]) == [first(all)]
+  assert scoped(all, ["bidamas/kaaneru/bpf/bpf.b"]) == [last(all)]
+  assert scoped(all, ["bidamas/heni/mutations/kaaneru/bpf.json"]) == [last(all)]
+  assert scoped(all, ["docs/README.md"]) == []
+  assert scoped(all, []) == all
+  assert stranded_in(specs) == ""
 end

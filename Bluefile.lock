@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:938112d7e93c2fcd316bb2b2f2173063a973edb33fe4bb90373b0e33bd4ee08b",
+  "bluefile_b3": "b3:1eb1d7becbfd296d24aad7763c9e7781d4a841c1674cba861c70dbff840aa006",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -40,6 +40,12 @@
         "file": "gen/consumers.b",
         "inputs": [
           "gen/consumers.json"
+        ]
+      },
+      "core-models": {
+        "file": "gen/core-models.b",
+        "inputs": [
+          "bidamas"
         ]
       },
       "docs": {
@@ -317,6 +323,13 @@
       "reference": {
         "output": "docs/REFERENCE.md",
         "program": "gen/reference.b",
+        "inputs": [
+          "bidamas"
+        ]
+      },
+      "settings": {
+        "output": "docs/SETTINGS.md",
+        "program": "gen/core-models.b",
         "inputs": [
           "bidamas"
         ]

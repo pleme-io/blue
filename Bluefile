@@ -77,6 +77,8 @@ generate("contracts-table", "docs/verbs/contracts.tsv", "gen/verbs/contracts.b",
 generate("kernel-matrix", ".github/workflows/kernel-matrix.yml", "gen/kernel-matrix.b", ["Bluefile.lock"])
 generate("node-nix", "nix/node-fixture/configuration.nix", "nix/node-fixture/node.b")
 generate("kyasshu-keys", "bidamas/toriyose/kyasshu/keys/kensa.json", "gen/kyasshu-keys.b", ["bidamas/toriyose/danpen/fixtures/schema/kensa.graphql"])
+generate("settings", "docs/SETTINGS.md", "gen/core-models.b", ["bidamas"])
+check("core-models", "gen/core-models.b", ["bidamas"])
 check("okite-laws", "gen/okite-laws.b")
 check("regen-untracked", "gen/regen_test.b", ["gen/regen.b"])
 check("merge-driver", "gen/merge.b", ["gen/merge.b", "gen/regen.b"])

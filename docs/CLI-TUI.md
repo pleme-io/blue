@@ -186,6 +186,7 @@ The state of each step, measured on 2026-11-09.
 |---|---|---|
 | L1: `hikisuu`: spec, parse, help, completion, `command` | ✅ built | `bidamas/hikisuu/hikisuu.b`, 13 tests; heni mutations in `bidamas/heni/mutations/hikisuu.json` |
 | L1: `souji` and `heni` read their flags through `hikisuu` | ✅ built | `bidamas/kakehashi/souji/souji.b` and `bidamas/heni/heni.b` use it |
+| L1: flags rendered from a core model (`settei::cli_spec`, `--explain KEY`) | ✅ built | souji's flags are its settei model since 2026-11-13; design and the rest of the renderings: `CORE-MODEL.md` |
 | L1: `gamen` line output: roles, marks, verdict circles, cells, table, tree, meter, spinner | ✅ built | `bidamas/gamen/gamen.b` (`step`, `verdict_marks`, `table`, `tree`, `meter`, `spinner`), 60 tests |
 | L2: the `Terminal` capability with `read_line` and `is_terminal`; `prompt`, `confirm`, `choose` | ❌ not built | No such word in the runtime or in `gamen`. `gamen::terminal?` still runs `test -t` as a process |
 | L3: `term_size`, `term_raw`, `term_event`; the cell grid and diff flush; the supervised loop; widgets, focus, keymaps | ❌ not built | No such word exists |

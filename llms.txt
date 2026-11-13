@@ -39,6 +39,7 @@ Read the tutorials and how-to guides in order in [The blue Book](docs/BOOK.md).
 - [blue language reference](docs/REFERENCE.md): syntax, operators, reserved words, every built-in name and the Bluefile words
 - [blue roadmap](docs/ROADMAP.md): the one blue roadmap, one row per track with its state and the evidence for it, and every conflict ruled once
 - [Safety first: blue's posture, row by row](docs/SAFETY.md): the safety-first posture, one row per Rust guarantee: blue today, the gate, its tier and its off switch
+- [Settings](docs/SETTINGS.md): every setting of each blue program with a core model, rendered from the model by settei (generated)
 - [blue — the agent guide](AGENTS.md): rules for people and agents who write blue programs or change blue itself, with the build commands from the Bluefile
 - [Implementing blue — the detail behind the agent guide](docs/implementing.md): the implementer detail behind the agent guide's "Changing blue itself": the check registry, crate map, hard-won rules, CI gates, dependencies and what is not built
 - [bidamas/CATALOG.md](bidamas/CATALOG.md): every package and each of its definitions
@@ -57,6 +58,7 @@ Read the tutorials and how-to guides in order in [The blue Book](docs/BOOK.md).
 - [Competing languages — what blue takes, and what it refuses](docs/COMPETING-LANGUAGES.md): what blue takes from competing languages on packaging and the standard library, and what it refuses
 - [Compile time: Rust's static guarantees and Lua's runtime, in blue](docs/COMPILE-TIME.md): Rust's static guarantees and Lua's runtime, brought into blue
 - [Compounding: every evolution break fixes itself](docs/COMPOUNDING.md): every break blue's evolution causes ships its own fixer
+- [CORE-MODEL — one model per program, every surface a rendering](docs/CORE-MODEL.md): every blue program declares one core model of annotated knobs; layering, flags, help, explain, docs, schemas, forms, migrations, tests, redaction and diff are renderings of it (first rungs built)
 - [COVERAGE: what blue can prove is untested, and forces](docs/COVERAGE.md): every kind of missing test that blue can decide from its own AST and a deterministic test run, each one a forced finding by default outside scripts (design, 2026-11-10)
 - [CST plan: a lossless tree, resilient parsing, surface blame](docs/CST-PLAN.md): the design for a lossless CST with resilient parsing and surface blame; nothing is built yet
 - [The data framework: one model, every rendering, nothing written twice](docs/DATA-FRAMEWORK.md): the design of the data framework, one blue model rendered to schema, migrations, queries and GraphQL with nothing written twice, and the research it rests on

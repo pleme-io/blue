@@ -87,7 +87,7 @@ pub struct Test {
 }
 
 /// What a test declares: `test "n", {satisfies: [:nist_ac_6], target: f}`.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Declared {
     /// The control keywords, sorted, without the colon: `nist_ac_6`.
     pub satisfies: Vec<String>,
@@ -101,13 +101,21 @@ pub struct Declared {
     pub allow: Option<Vec<String>>,
 }
 
+impl Default for Declared {
+    fn default() -> Self {
+        Self {
+            satisfies: Vec::new(),
+            target: None,
+            kind: "unit".to_string(),
+            allow: None,
+        }
+    }
+}
+
 impl Declared {
     fn of(meta: Option<&Spanned>) -> Self {
         let Some(meta) = meta.and_then(blue_lang_syntax::test_meta) else {
-            return Self {
-                kind: "unit".to_string(),
-                ..Self::default()
-            };
+            return Self::default();
         };
         Self {
             kind: blue_lang_syntax::kind_of(&meta).to_string(),

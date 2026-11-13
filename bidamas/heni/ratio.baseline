@@ -1,4 +1,5 @@
 # receipt: umu: the Option bidama (ABSENCE P1)
+# receipt: settei: the form loop on a terminal (CORE-MODEL P7b)
 heni-caught: baito 7
 heni-total: baito 7
 heni-caught: bunsho 6
@@ -51,8 +52,8 @@ heni-caught: mokuroku 2
 heni-total: mokuroku 2
 heni-caught: seikika 8
 heni-total: seikika 8
-heni-caught: settei 15
-heni-total: settei 15
+heni-caught: settei 17
+heni-total: settei 17
 heni-caught: shinchoku 2
 heni-total: shinchoku 2
 heni-caught: shinsuu 2

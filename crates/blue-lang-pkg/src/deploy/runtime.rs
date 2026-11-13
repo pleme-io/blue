@@ -93,6 +93,7 @@ impl Effect {
             | Capability::AudioOut
             | Capability::AudioIn
             | Capability::Display
+            | Capability::Terminal
             | Capability::CoreForms
             | Capability::Operators
             | Capability::Collections

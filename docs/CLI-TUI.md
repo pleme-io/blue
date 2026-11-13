@@ -1,6 +1,6 @@
 ---
 kind: explanation
-summary: one way to build a command line and a terminal interface in blue (design, layer 1 built)
+summary: one way to build a command line and a terminal interface in blue (layers 1 and 2 built)
 ---
 
 # CLI-TUI — one way to build a command line and a terminal interface in blue
@@ -178,7 +178,7 @@ L1 to L4. Each step is a row in the [Ledger](#ledger), with its state.
 
 ## Ledger
 
-The state of each step, measured on 2026-11-09.
+The state of each step, measured on 2026-11-13.
 
 ✅ built and tested · ⏳ in progress · ❌ not built
 
@@ -188,6 +188,6 @@ The state of each step, measured on 2026-11-09.
 | L1: `souji` and `heni` read their flags through `hikisuu` | ✅ built | `bidamas/kakehashi/souji/souji.b` and `bidamas/heni/heni.b` use it |
 | L1: flags rendered from a core model (`settei::cli_spec`, `--explain KEY`) | ✅ built | souji's flags are its settei model since 2026-11-13; design and the rest of the renderings: `CORE-MODEL.md` |
 | L1: `gamen` line output: roles, marks, verdict circles, cells, table, tree, meter, spinner | ✅ built | `bidamas/gamen/gamen.b` (`step`, `verdict_marks`, `table`, `tree`, `meter`, `spinner`), 60 tests |
-| L2: the `Terminal` capability with `read_line` and `is_terminal`; `prompt`, `confirm`, `choose` | ❌ not built | No such word in the runtime or in `gamen`. `gamen::terminal?` still runs `test -t` as a process |
+| L2: the `Terminal` capability with `read_line` and `is_terminal`; `prompt`, `confirm`, `choose` | ✅ built | `Capability::Terminal` (`blue_lang_waku`), `read_line` and `is_terminal` in the runtime, refused outside a ceiling that names `terminal` (`crates/blue-lang-cli/tests/terminal.rs`); `gamen::prompt`, `confirm`, `choose`, each reading through a `next_line(i)` function so a test drives it with a list. `shisutemu::terminal?` still runs `test -t`: moving it to `is_terminal` moves the floor of each caller from `process` to `terminal`, so it waits until the consumers' ceilings name `terminal` |
 | L3: `term_size`, `term_raw`, `term_event`; the cell grid and diff flush; the supervised loop; widgets, focus, keymaps | ❌ not built | No such word exists |
 | L4: the remaining hand parsers move to `hikisuu`; `hand-rolled-flags` at warning | ❌ not built | `tehai`, `kijun` and `kirikae` still parse `--flag` by hand. No `hand-rolled-flags` rule exists |

@@ -67,6 +67,7 @@ pub fn install_sys_stdlib<H: 'static>(interp: &mut Interpreter<H>) {
     install_process(interp);
     install_fs(interp);
     install_env(interp);
+    install_terminal(interp);
     install_clock(interp);
     crate::net::install_net(interp);
     crate::entropy::install_entropy(interp);
@@ -1194,6 +1195,49 @@ fn install_env<H: 'static>(interp: &mut Interpreter<H>) {
             } else {
                 Ok(args.get(1).cloned().unwrap_or(Value::Nil))
             }
+        },
+    );
+}
+
+fn without_line_break(mut line: String) -> String {
+    if line.ends_with('\n') {
+        line.pop();
+        if line.ends_with('\r') {
+            line.pop();
+        }
+    }
+    line
+}
+
+fn install_terminal<H: 'static>(interp: &mut Interpreter<H>) {
+    use std::io::{BufRead, IsTerminal};
+    interp.register_fn(
+        "read_line",
+        Arity::Exact(0),
+        |_args: &[Value], _h: &mut H, span| {
+            let mut line = String::new();
+            let n = std::io::stdin()
+                .lock()
+                .read_line(&mut line)
+                .map_err(|e| EvalError::native_fn("read_line", e.to_string(), span))?;
+            if n == 0 {
+                return Ok(Value::Nil);
+            }
+            Ok(Value::Str(Arc::from(without_line_break(line))))
+        },
+    );
+
+    interp.register_fn(
+        "is_terminal",
+        Arity::Exact(1),
+        |args: &[Value], _h: &mut H, span| {
+            let fd = arg_int(&args[0], "is_terminal", span)?;
+            Ok(Value::Bool(match fd {
+                0 => std::io::stdin().is_terminal(),
+                1 => std::io::stdout().is_terminal(),
+                2 => std::io::stderr().is_terminal(),
+                _ => false,
+            }))
         },
     );
 }

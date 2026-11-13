@@ -880,6 +880,9 @@ pub struct Guard {
     pub bounds: Option<blue_lang_runtime::ExecutionBounds>,
     pub cached: std::collections::BTreeSet<usize>,
     pub clock: blue_lang_runtime::ClockKind,
+    /// The arms of the entry file's definitions, when the run records which
+    /// a test took (`blue test --coverage`).
+    pub arms: Option<Arc<Arms>>,
 }
 
 /// `f` on `interp`, held to `bound` live bytes through its interrupt flag;
@@ -931,6 +934,18 @@ pub fn run_guarded(
     let lowered = Arc::new(checked.lowered());
     let erased = blue_lang_runtime::erase_types(&lowered);
     let program = &checked.program;
+    let probed: Vec<Option<Spanned>> = erased
+        .iter()
+        .enumerate()
+        .map(|(i, form)| {
+            let arms = guard.arms.as_ref()?;
+            if program.owner_of(i) != Some(blue_lang_runtime::uses::ResolvedProgram::ENTRY) {
+                return None;
+            }
+            let name = blue_lang_syntax::doc::defined_name(form)?;
+            Some(arms.instrument(form, name))
+        })
+        .collect();
     let mut blocks = Vec::new();
     let mut preamble = Vec::new();
     for (i, form) in erased.iter().enumerate() {
@@ -941,7 +956,7 @@ pub fn run_guarded(
                 top_level: i,
                 declared: Declared::of(parts.meta),
             }),
-            None => preamble.push((i, form)),
+            None => preamble.push((i, probed[i].as_ref().unwrap_or(form))),
         }
     }
     blocks.retain(|b| filter.is_none_or(|f| b.name.contains(f)));
@@ -1503,6 +1518,39 @@ mod tests {
         assert_eq!(r.failures.len(), 3);
     }
 
+    /// **Each arm a test took is recorded, and each it did not is named.**
+    /// An `if` with no else, a `case` and a `rescue` handler each have arms;
+    /// the probe changes no answer.
+    ///
+    /// Red run (2026-11-13): `arms::install` removed from the runtime's
+    /// interpreter: every test errored on the unbound `blue-coverage-arm`.
+    #[test]
+    fn the_arms_a_run_took_are_recorded_and_the_rest_named() {
+        let src = "def sign(n)\n  if n > 0\n    1\n  end\nend\n\ndef name(n)\n  case n\n  when 1\n    :one\n  else\n    :other\n  end\nend\n\ndef safe(f)\n  f()\nrescue e\n  :caught\nend\n\ntest \"t\"\n  assert sign(2) == 1\n  assert name(1) == :one\n  assert safe(() -> 1) == 1\nend\n";
+        let arms = Arc::new(Arms::default());
+        let guard = Guard {
+            arms: Some(Arc::clone(&arms)),
+            ..Guard::default()
+        };
+        let r = run_guarded(&checked(src), None, None, &guard);
+        assert!(r.ok(), "{r}");
+        assert_eq!(arms.total(), 5);
+        let untaken = arms.untaken();
+        assert_eq!(untaken.len(), 3, "{untaken:?}");
+        assert!(
+            untaken.iter().any(|a| a.contains("sign#0:1")),
+            "{untaken:?}"
+        );
+        assert!(
+            untaken.iter().any(|a| a.contains("name#0:1")),
+            "{untaken:?}"
+        );
+        assert!(
+            untaken.iter().any(|a| a.contains("safe#0:0")),
+            "{untaken:?}"
+        );
+    }
+
     /// **A test's `allow:` is the frame it runs in.** A test that declares
     /// `allow: [:entropy]` and reaches the filesystem ends on the breach; the
     /// same body declaring `allow: [:filesystem]` runs, and a test that
@@ -1667,4 +1715,153 @@ mod shadowing {
              it cannot see any collision. Got: {outcome:?}"
         );
     }
+}
+
+/// Every arm of every decision of the entry file's definitions, and which of
+/// them a run took (docs/COVERAGE.md B1, B2, E3): an `if` has a then and an
+/// else arm (an `if` without an else still has one, taken when its test is
+/// false), a `cond` (and so a `case`) an arm per clause, and a `rescue`
+/// handler one. The record of what ran is the runtime's
+/// (`blue_lang_runtime::arms`), so an arm a spawned process takes counts.
+#[derive(Debug, Default)]
+pub struct Arms {
+    sites: std::sync::Mutex<Vec<(String, usize, usize)>>,
+}
+
+impl Arms {
+    /// `form`, a definition named `def`, with a probe first in each arm.
+    #[must_use]
+    pub fn instrument(&self, form: &Spanned, def: &str) -> Spanned {
+        let mut next = 0;
+        let mut found = Vec::new();
+        let out = arm_probes(form, def, &mut next, &mut found);
+        if let Ok(mut sites) = self.sites.lock() {
+            sites.extend(found);
+        }
+        out
+    }
+
+    /// How many arms the instrumented definitions hold.
+    #[must_use]
+    pub fn total(&self) -> usize {
+        self.sites.lock().map_or(0, |s| s.len())
+    }
+
+    /// Each arm no test took, as `def#site:arm` with `def` written as a call
+    /// names it (`zed::upper`), in order.
+    #[must_use]
+    pub fn untaken(&self) -> Vec<String> {
+        let sites = self.sites.lock().map(|s| s.clone()).unwrap_or_default();
+        sites
+            .into_iter()
+            .filter(|(def, site, arm)| !blue_lang_runtime::arms::taken(def, *site, *arm))
+            .map(|(def, site, arm)| format!("{}#{site}:{arm}", def.replace('/', "::")))
+            .collect()
+    }
+}
+
+fn arm_probe(at: tatara_lisp::Span, def: &str, site: usize, arm: usize) -> Spanned {
+    use tatara_lisp::SpannedForm;
+    let node = |f: SpannedForm| Spanned::new(at, f);
+    let int = |n: usize| {
+        node(SpannedForm::Atom(Atom::Int(
+            i64::try_from(n).unwrap_or(i64::MAX),
+        )))
+    };
+    node(SpannedForm::List(vec![
+        node(SpannedForm::Atom(Atom::Symbol(
+            blue_lang_runtime::arms::PROBE.to_string(),
+        ))),
+        node(SpannedForm::Atom(Atom::Str(def.to_string()))),
+        int(site),
+        int(arm),
+    ]))
+}
+
+fn probed(arm: &Spanned, probe: Spanned) -> Spanned {
+    use tatara_lisp::SpannedForm;
+    Spanned::new(
+        arm.span,
+        SpannedForm::List(vec![
+            Spanned::new(
+                arm.span,
+                SpannedForm::Atom(Atom::Symbol("begin".to_string())),
+            ),
+            probe,
+            arm.clone(),
+        ]),
+    )
+}
+
+fn arm_probes(
+    form: &Spanned,
+    def: &str,
+    next: &mut usize,
+    found: &mut Vec<(String, usize, usize)>,
+) -> Spanned {
+    use tatara_lisp::SpannedForm;
+    let SpannedForm::List(items) = &form.form else {
+        return form.clone();
+    };
+    let head = items.first().and_then(Spanned::as_symbol);
+    if head == Some("quote") {
+        return form.clone();
+    }
+    let inner: Vec<Spanned> = items
+        .iter()
+        .map(|i| arm_probes(i, def, next, found))
+        .collect();
+    let at = form.span;
+    let mut take = |arms: usize| {
+        let site = *next;
+        *next += 1;
+        for arm in 0..arms {
+            found.push((def.to_string(), site, arm));
+        }
+        site
+    };
+    let out = match (head, inner.as_slice()) {
+        (Some("if"), [h, c, a]) => {
+            let site = take(2);
+            let nil = Spanned::new(at, SpannedForm::Nil);
+            vec![
+                h.clone(),
+                c.clone(),
+                probed(a, arm_probe(a.span, def, site, 0)),
+                probed(&nil, arm_probe(at, def, site, 1)),
+            ]
+        }
+        (Some("if"), [h, c, a, b]) => {
+            let site = take(2);
+            vec![
+                h.clone(),
+                c.clone(),
+                probed(a, arm_probe(a.span, def, site, 0)),
+                probed(b, arm_probe(b.span, def, site, 1)),
+            ]
+        }
+        (Some("cond"), [h, clauses @ ..]) => {
+            let site = take(clauses.len());
+            let mut out = vec![h.clone()];
+            for (arm, clause) in clauses.iter().enumerate() {
+                match &clause.form {
+                    SpannedForm::List(parts) if !parts.is_empty() => {
+                        let mut parts = parts.clone();
+                        parts.insert(1, arm_probe(clause.span, def, site, arm));
+                        out.push(Spanned::new(clause.span, SpannedForm::List(parts)));
+                    }
+                    _ => out.push(clause.clone()),
+                }
+            }
+            out
+        }
+        (Some("catch"), [h, binder, body @ ..]) if !body.is_empty() => {
+            let site = take(1);
+            let mut out = vec![h.clone(), binder.clone(), arm_probe(at, def, site, 0)];
+            out.extend(body.iter().cloned());
+            out
+        }
+        _ => inner,
+    };
+    Spanned::new(at, SpannedForm::List(out))
 }

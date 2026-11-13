@@ -1,3 +1,5 @@
+# waive B0086: debt recorded 2026-11-13: the example service has no test that serves it on loopback yet
+# waive B0087: debt recorded 2026-11-13: the example service has no test of its schema binding's shape yet
 use("eigyou/kyuuji")
 use("settei")
 

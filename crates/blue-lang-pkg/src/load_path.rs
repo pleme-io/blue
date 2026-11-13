@@ -932,6 +932,10 @@ impl Loader for LoadPath {
         crate::lock::frontend_of(entry)
     }
 
+    fn roles(&self, entry: &Path) -> Vec<blue_lang_runtime::uses::Role> {
+        crate::lock::roles_of(entry)
+    }
+
     fn entry_package(&self, path: &Path) -> Option<String> {
         let dir = path
             .parent()

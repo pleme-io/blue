@@ -235,6 +235,10 @@ impl Loader for MemoLoader<'_> {
         self.engine.loader(self.scope).frontend(entry)
     }
 
+    fn roles(&self, entry: &Path) -> Vec<blue_lang_runtime::uses::Role> {
+        self.engine.loader(self.scope).roles(entry)
+    }
+
     fn children(&self, name: &str) -> Vec<String> {
         self.engine.loader(self.scope).children(name)
     }

@@ -136,7 +136,8 @@ pub fn take(root: &Path) -> Result<Census, String> {
                 continue;
             }
             let shown = format!(
-                "{} ({})",
+                "{}: {} ({})",
+                path.strip_prefix(root).unwrap_or(path).display(),
                 render(&checked.program, &w.diagnostic)
                     .lines()
                     .next()

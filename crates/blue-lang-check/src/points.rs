@@ -188,3 +188,273 @@ fn name_span(form: &Spanned) -> Option<tatara_lisp::Span> {
     let items = form.as_list()?;
     blue_lang_syntax::scope::defined_name_node(items).map(|n| n.span)
 }
+
+/// A point the entry file declares for its project: the Bluefile row that
+/// names it, the kind of test it owes and the code that refuses it.
+pub struct ProjectPoint {
+    pub what: String,
+    pub kind: &'static str,
+    pub code: Code,
+}
+
+/// B0085, B0086 and B0087: each project point of the entry file that no test
+/// of the file declared with its kind. The finding sits on the file's first
+/// form, so `# waive CODE: reason` above it holds the file's debt.
+#[must_use]
+pub fn project_points(
+    forms: &[Spanned],
+    is_entry: &dyn Fn(usize) -> bool,
+    points: &[ProjectPoint],
+) -> Vec<Diagnostic> {
+    let kinds: BTreeSet<&str> = forms
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| is_entry(*i))
+        .filter_map(|(_, f)| {
+            blue_lang_syntax::test_parts(f)
+                .and_then(|p| p.meta)
+                .and_then(blue_lang_syntax::test_meta)
+                .and_then(|m| m.kind.map(|(k, _)| k))
+        })
+        .collect();
+    let Some((first, form)) = forms
+        .iter()
+        .enumerate()
+        .find(|(i, f)| is_entry(*i) && !blue_lang_syntax::doc::is_doctest(f))
+    else {
+        return Vec::new();
+    };
+    points
+        .iter()
+        .filter(|p| !kinds.contains(p.kind))
+        .map(|p| {
+            Diagnostic::new(
+                p.code,
+                format!(
+                    "this file is {} and holds no test declared `kind: :{}`",
+                    p.what, p.kind
+                ),
+                form.span,
+            )
+            .at_top_level(first)
+            .with_help(format!(
+                "write `test \"…\", {{kind: :{}}}` in this file that feeds what it declares to its consumer; or `# waive {}: reason` above the file's first form",
+                p.kind, p.code
+            ))
+        })
+        .collect()
+}
+
+fn call_graph(p: &Program<'_>) -> BTreeMap<usize, BTreeSet<usize>> {
+    let mut defs: BTreeMap<String, usize> = BTreeMap::new();
+    for (i, form) in p.forms.iter().enumerate() {
+        if let Some(name) = blue_lang_syntax::doc::defined_name(form) {
+            defs.insert(key(&(p.namespace_of)(i), name), i);
+        }
+    }
+    let mut calls: BTreeMap<usize, BTreeSet<usize>> = BTreeMap::new();
+    for r in p.references {
+        if let Target::Def(ns, name) = &r.ns {
+            if let Some(&j) = defs.get(&key(ns, name)) {
+                if j != r.top_level {
+                    calls.entry(r.top_level).or_default().insert(j);
+                }
+            }
+        }
+    }
+    calls
+}
+
+fn holds_assertion(form: &Spanned) -> bool {
+    match form.as_list() {
+        Some(items) => {
+            items.first().and_then(Spanned::as_symbol).is_some_and(|h| {
+                h == blue_lang_syntax::LOWERED_ASSERT
+                    || h == blue_lang_syntax::LOWERED_ASSERT_PANICS
+            }) || items.iter().any(holds_assertion)
+        }
+        None => false,
+    }
+}
+
+fn tautology(form: &Spanned) -> bool {
+    match form.as_list() {
+        Some([head, _, e]) if head.as_symbol() == Some(blue_lang_syntax::LOWERED_ASSERT) => {
+            if e.as_list().is_none() && e.as_symbol().is_none() {
+                return true;
+            }
+            matches!(
+                e.as_list(),
+                Some([op, a, b])
+                    if matches!(op.as_symbol(), Some("==" | "equal?" | "eq?"))
+                        && a.as_list().is_none()
+                        && a.to_sexp() == b.to_sexp()
+            )
+        }
+        Some(items) => items.iter().any(tautology),
+        None => false,
+    }
+}
+
+/// B0088 for a test whose reach holds no assertion (an `assert`, an
+/// `assert_panics` or a `tesuto::snapshot`), and B0089 for an assertion
+/// that holds whatever the code does: `assert true`, `assert 1`, `assert x
+/// == x`. The test cannot say no in either case (docs/COVERAGE.md S1, S2).
+#[must_use]
+pub fn strength(p: &Program<'_>) -> Vec<Diagnostic> {
+    let calls = call_graph(p);
+    let snapshots: BTreeSet<usize> = p
+        .references
+        .iter()
+        .filter(|r| {
+            matches!(&r.ns, Target::Def(Namespace::Bidama(b), n) if b == "tesuto" && n == "snapshot")
+        })
+        .map(|r| r.top_level)
+        .collect();
+    let asserting = |i: usize| snapshots.contains(&i) || holds_assertion(&p.forms[i]);
+    let mut out = Vec::new();
+    for (i, form) in p.forms.iter().enumerate() {
+        if !(p.is_entry)(i) {
+            continue;
+        }
+        let Some(parts) = blue_lang_syntax::test_parts(form) else {
+            continue;
+        };
+        if blue_lang_syntax::doc::is_doctest(form) {
+            continue;
+        }
+        if tautology(parts.body) {
+            out.push(
+                Diagnostic::new(
+                    Code::B0089,
+                    format!("test \"{}\" asserts something that holds whatever the code does", parts.name),
+                    parts.name_span,
+                )
+                .at_top_level(i)
+                .with_help("assert what the code under test answers, against a value it could fail to answer"),
+            );
+        }
+        let mut seen = BTreeSet::from([i]);
+        let mut todo = vec![i];
+        let mut found = false;
+        while let Some(k) = todo.pop() {
+            if asserting(k) {
+                found = true;
+                break;
+            }
+            for &j in calls.get(&k).into_iter().flatten() {
+                if seen.insert(j) {
+                    todo.push(j);
+                }
+            }
+        }
+        if !found {
+            out.push(
+                Diagnostic::new(
+                    Code::B0088,
+                    format!("test \"{}\" asserts nothing, so it cannot fail on a wrong answer", parts.name),
+                    parts.name_span,
+                )
+                .at_top_level(i)
+                .with_help("assert what the code answers; a test that only runs code passes whatever it returns"),
+            );
+        }
+    }
+    out
+}
+
+fn raised_tags(form: &Spanned, out: &mut BTreeSet<String>) {
+    if let Some(items) = form.as_list() {
+        if items.first().and_then(Spanned::as_symbol) == Some("raise") {
+            if let Some(tag) = items.get(1).and_then(Spanned::as_keyword) {
+                out.insert(tag.to_string());
+            }
+        }
+        for i in items {
+            raised_tags(i, out);
+        }
+    }
+}
+
+fn keywords_in(form: &Spanned, out: &mut BTreeSet<String>) {
+    if let Some(k) = form.as_keyword() {
+        out.insert(k.to_string());
+    }
+    if let Some(items) = form.as_list() {
+        for i in items {
+            keywords_in(i, out);
+        }
+    }
+}
+
+/// B0090 for a definition no test of its file names (a call, a reference or
+/// `target:`), and B0091 for a tag a definition raises that no test of its
+/// file names (docs/COVERAGE.md R2, E2). Both are ratcheted: the census
+/// counts them until the corpus reaches zero.
+#[must_use]
+pub fn reach(p: &Program<'_>) -> Vec<Diagnostic> {
+    let mut defs: BTreeMap<String, usize> = BTreeMap::new();
+    for (i, form) in p.forms.iter().enumerate() {
+        if let Some(name) = blue_lang_syntax::doc::defined_name(form) {
+            defs.insert(key(&(p.namespace_of)(i), name), i);
+        }
+    }
+    let tests: BTreeSet<usize> = p
+        .forms
+        .iter()
+        .enumerate()
+        .filter(|(i, f)| (p.is_entry)(*i) && blue_lang_syntax::test_parts(f).is_some())
+        .map(|(i, _)| i)
+        .collect();
+    let mut named: BTreeSet<usize> = BTreeSet::new();
+    for r in p.references {
+        if let Target::Def(ns, name) = &r.ns {
+            if tests.contains(&r.top_level) {
+                if let Some(&j) = defs.get(&key(ns, name)) {
+                    named.insert(j);
+                }
+            }
+        }
+    }
+    let mut expected = BTreeSet::new();
+    for &t in &tests {
+        keywords_in(&p.forms[t], &mut expected);
+    }
+    let mut out = Vec::new();
+    for (i, form) in p.forms.iter().enumerate() {
+        if !(p.is_entry)(i) || tests.contains(&i) {
+            continue;
+        }
+        let Some(name) = blue_lang_syntax::doc::defined_name(form) else {
+            continue;
+        };
+        let at = name_span(form).unwrap_or(form.span);
+        if !named.contains(&i) {
+            out.push(
+                Diagnostic::new(
+                    Code::B0090,
+                    format!("no test of this file names `{name}`; it is reached, if at all, only through a caller"),
+                    at,
+                )
+                .at_top_level(i)
+                .with_help(format!("write a test that calls `{name}`, or declares `target: {name}`")),
+            );
+        }
+        let mut tags = BTreeSet::new();
+        raised_tags(form, &mut tags);
+        for tag in tags.difference(&expected) {
+            out.push(
+                Diagnostic::new(
+                    Code::B0091,
+                    format!("`{name}` raises `:{tag}` and no test of this file expects it"),
+                    at,
+                )
+                .at_top_level(i)
+                .with_help(format!(
+                    "assert the refusal: `assert raises?(:{tag}, () -> …)`"
+                )),
+            );
+        }
+    }
+    out
+}

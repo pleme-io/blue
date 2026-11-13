@@ -2,6 +2,7 @@
 agent: A node agent's shape, and no more: its Bluefile declares `:kernel_bpf` and `host_network`, and everything else about how it runs on a node (a DaemonSet, CAP_BPF, CAP_PERFMON and CAP_NET_ADMIN, bpffs and a read-only tracefs) is rendered into `deploy/`. It loads no program, so `checks.example-kernel-agent` runs in any sandbox. docs/KERNEL.md §7 runs real kernel programs.
 """
 
+# waive B0086: debt recorded 2026-11-13: the example agent has no test that serves it on loopback yet
 use("eigyou/kyuuji")
 use("settei")
 

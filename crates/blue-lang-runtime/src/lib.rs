@@ -36,6 +36,7 @@
 //!    interpreter's own, so the program is that node's root process.
 
 pub mod alloc;
+pub mod arms;
 #[cfg(feature = "senses")]
 pub mod audio;
 pub mod bits;
@@ -149,6 +150,7 @@ pub fn interpreter<H: 'static>(host: &mut H) -> Interpreter<H> {
     crypto::install_crypto_stdlib(&mut interp);
     nix::install_nix_stdlib(&mut interp);
     xml::install_xml_stdlib(&mut interp);
+    arms::install(&mut interp);
     // Layer 5: the host-side system surface — process, filesystem, env,
     // clock, network. Feature-gated: every sys primitive is a host import, so the
     // wasm consumer (which builds with `sys` OFF) keeps its zero-host-import

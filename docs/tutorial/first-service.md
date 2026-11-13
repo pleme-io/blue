@@ -121,6 +121,7 @@ chart/files/dashboard.json
 chart/templates/NOTES.txt
 chart/templates/dashboard.yaml
 chart/templates/deployment.yaml
+chart/templates/networkpolicy.yaml
 chart/templates/service.yaml
 chart/templates/serviceaccount.yaml
 chart/templates/slo-rules.yaml

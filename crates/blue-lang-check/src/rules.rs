@@ -1943,7 +1943,7 @@ is `# waive B0089: reason` above the test, counted against the row
         fix: None,
         law: "a bidama reads a setting through its settei core model, never `getenv` or `env_required` of a literal name",
         witness: "@moduledoc \"\"\"\nkagi reads one port.\n\n    kagi #=> \"80\"\n\"\"\"\n\n@doc \"\"\"\nkagi is the port.\n\n    kagi #=> \"80\"\n\"\"\"\ndef kagi()\n  getenv(\"KAGI_PORT\", \"80\")\nend\n\ntest \"kagi\"\n  assert kagi == \"80\"\nend\n",
-        ratchet: 1,
+        ratchet: 34,
         package: "kagi",
         explanation: "\
 A setting read by hand has no type, no bounds, no doc and no other layer:

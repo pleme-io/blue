@@ -317,10 +317,10 @@ gate that exists; none is a second gate beside it.
 
 | # | Structure | Declared by | Gate it extends | Refusal when missing | Rung |
 |---|---|---|---|---|---|
-| M1 | core model (knobs) | `settei::knob` records (§4) | `checks.core-models`: `unmodelled`, `unread` | a knob read in code that the model lacks | **enforced (R5)** for each registered program; P14 moves it into the rule registry as a B-code for every program |
+| M1 | core model (knobs) | `settei::knob` records (§4) | `checks.core-models`: `unmodelled`, `unread` | a knob read in code that the model lacks | **enforced (R5)** for each registered program; registered as obligation `structure/core-model`; every project waits on P14b |
 | M2 | capabilities | Bluefile `allow(...)` and `posture(reach:)`, closed by `blue_lang_waku::Capability` | `Load::posture` binds a refused capability as a refusal (SERVICE-ACCESS A0); `blue bundle` seals the record | a program with no declared ceiling | P15 |
-| M3 | effects | `service(... access: {effects, egress, reads, writes, listen, exec})` | SERVICE-ACCESS §3: each field judged alone | a service that reaches a peer, path or port it did not declare | P15 |
-| M4 | config | the core model; no raw `getenv` outside settei | settei's layering; the census ratchets | a `getenv` of the program's own prefix outside settei | P14 |
+| M3 | effects | `service(... access: {effects, egress, reads, writes, listen, exec})` | SERVICE-ACCESS §3: each field judged alone | a service that reaches a peer, path or port it did not declare | **forced (P15)**: B0093 refuses a service row with no `access`, ratcheted; obligation `structure/effects`. At deploy, the NetworkPolicy from `access` (P15a) |
+| M4 | config | the core model; no raw `getenv` outside settei | settei's layering; the census ratchets | a `getenv` of a literal name outside settei | **forced (P14)**: B0092 on every door once its ratchet reaches 0; obligation `structure/config` |
 | M5 | errors and refusals | `kyohi`'s ledger (kind, exit status, retryable) | COVERAGE §3.3 obligations | a raised kind that is not in the ledger | P16 |
 | M6 | tests and coverage | test blocks beside each definition | `gen/test-beside.b` (`level`, `waive`), COVERAGE R1 to R4, the heni ratio baseline | a definition no test reaches | enforced today by test-beside for the distribution; owned by TESTING.md T2 (the unit-test gate in every project) and T4 (the integration-point detector and its refusal code), not designed here |
 | M7 | observability | `mitoshi/rogu`, `mitoshi/keisoku`, `mitoshi/tsuiseki` | SERVICE-ARCHITECTURE §2 batteries | a service with no log, metric or trace binding | P17 (service profile) |
@@ -418,11 +418,11 @@ Answered since: the unmodelled check follows nested groups (`config.guard.branch
 | P13 | heni and kirikae on models (`settings`/`frame`; `config_model` with `settled`) | heni: 6 of 8 recorded lines identical, 2 add only `--explain`; kirikae: its defaults and alias map equal the hand-written records (a test holds both), 140 tests green | M1 for each | built. kernel/run.b too: `config_model`, settled per key, and the settings a host run takes rendered by `env_pairs` from a key list instead of thirteen hand-written environment names (a test holds the old list). The service example waits on P8b |
 | P13b | tehai on its model: `config_model` with the ten `TEHAI_*` names it read by hand as flat keys, settled per key through `config`; registered in `gen/core-models.b` | tehai test "the model keeps every environment name…"; `checks.core-models` red on a tehai read of an unmodelled key (`curl_path`), green without it | M1 and M4 for tehai | built; a bad `TEHAI_TIMEOUT_S` is refused alone instead of stopping the daemon |
 | P13c | kijun on its model: `settings` and `frame`, its line read by `settei::line` through hikisuu in place of the hand parser, the record `run` reads unchanged; registered in `gen/core-models.b` | kijun test "kijun's command line is rendered…"; `checks.core-models` red on a kijun read of an unmodelled key (`trees`) | M1 and M4 for kijun | built |
-| P14 | the unmodelled read and a raw own-prefix `getenv` as B-codes in the rule registry, ratcheted | a fixture red on each code | **M1 and M4 enforced** for every program | design |
-| P15 | a program with no `allow` ceiling, and a service with no `access`, refused by `blue check` | a fixture red on each | **M2 and M3 enforced** | design |
+| P14 | M4: B0092 (raw-environment-read), a bidama other than settei that reads a literal environment name, in the rule registry and the obligation engine (`structure/config`), ratcheted at 34. M1 registered as `structure/core-model` | B0092's witness fires it alone (`every_rule_fires_on_its_witness_and_only_it`); `blue census` measures 34 | **M4 forced** (ratcheted) | built for M4; M1 for every project waits on P14b, a project gate that runs `unmodelled` over each program |
+| P15 | M3: B0093 (undeclared-access), the program of a `service(...)` row with no `access`; the lock records `access_defaulted` only for such a row; obligation `structure/effects`, ratcheted at 1 (`examples/http`). M2 registered as `structure/capabilities` | B0093's witness fires it alone; `blue census` measures 1 | **M3 forced** (ratcheted) | built for M3; M2's refusal of a root with no `allow` ceiling is not built |
 | P15a | effects (M3) at deploy: haibi renders a NetworkPolicy from `access.egress` and `access.listen`, and a `RuntimeDefault` seccomp profile (SERVICE-ACCESS A2) | haibi tests, red on unbound names; heni mutations "egress stays open" and "no seccomp profile" caught | M3 at deploy | built; FQDN peers are a world-fact limit (NetworkPolicy has no peer by name), so a peer is bound by its port |
-| P16 | a raised kind outside kyohi's ledger refused | a fixture red | **M5 enforced** | design |
-| P17 | a service with no observability binding or supervision policy refused | a fixture red | **M7 and M8 enforced** (service profile) | design |
+| P16 | a raised kind outside kyohi's ledger refused | a fixture red | **M5 enforced** | registered as `structure/refusals`; waits on kyohi's ledger generated into a table the check stage reads |
+| P17 | a service with no observability binding or supervision policy refused | a fixture red | **M7 and M8 enforced** (service profile) | registered as `structure/observability` and `structure/supervision`; waits on `service(...)` fields that declare them |
 | P18 | the capability-to-control map (kensa, OSCAL) and the release statement (shomei, tameshi) | a release whose statement lacks the model is refused | attested after | design |
 | P19 | drift: declared against observed capabilities from run receipts | a receipt with an undeclared host call is a finding | beyond build: drift | design |
 | P20 | `required`, `immutable`, `computed` and `value_name` join the vocabulary, as iac-forge, pangea-forge and hikisuu reached them | settei tests, red on unbound names; heni mutation "a required knob is optional" caught | M1 | built |
@@ -445,7 +445,7 @@ design them again.
 | docs table and its freshness gate (R4) | tested | `docs/SETTINGS.md` generated; `checks.generated-settings-fresh` |
 | the all-variants check (R5) | tested | `checks.core-models` red on a souji read of `opts[:verbose]`, green without it |
 | souji on its model (R6) | tested | 10 of 13 recorded command lines identical; the 3 that differ add only `--explain KEY` to help and completion |
-| the mandatory structures M1 to M8 (§7a) | M1 tested for registered programs (R5); M6 enforced by test-beside; the rest design | §7a, P14 to P17 |
+| the mandatory structures M1 to M8 (§7a) | M1 tested for registered programs (R5); M3 and M4 forced, ratcheted (B0093, B0092); M6 enforced by test-beside; M2, M5, M7, M8 registered in the obligation engine, not forced | §7a, P14 to P17 |
 | the generator survey (§2a) | recorded | read on local checkouts 2026-11-13; rows marked † not re-measured |
 | P7 to P13 and P20 (phase 2) | tested | settei tests (123), `checks.core-models` over souji, heni and kirikae, 14 of 14 settei mutations caught |
 | P7b, the form on a terminal (phase 4) | tested | settei tests, `crates/blue-lang-cli/tests/terminal.rs` on real standard input, settei mutations 17 of 17; CLI-TUI L2 built with it |
@@ -453,4 +453,6 @@ design them again.
 | P13b, tehai migrated (phase 6) | tested | tehai tests (63), `checks.core-models` over souji, heni, kirikae and tehai, red-run on an unmodelled read |
 | P13c, kijun migrated (phase 7) | tested | kijun tests (153), `run` driven for `--help`, `rules` and a bad flag, `checks.core-models` over five programs, red-run on an unmodelled read |
 | P21 and kernel/run.b (phase 3) | tested | settei test; kernel/run.b's forwarded settings equal the hand-written list, its bounds law holds |
-| P14 to P19 | design; P14 to P17 register as obligations in the one obligation engine (TESTING.md), not a second checker | this doc |
+| P14 and P15, M4 and M3 (phase 8) | tested, ratcheted | B0092 at 34 and B0093 at 1 in the rule registry and the obligation engine; each witness fires alone; `blue census` holds both |
+| P14 to P17, the other structures | registered | obligation rows `structure/core-model`, `capabilities`, `refusals`, `observability`, `supervision`, each a Design row naming what blocks it |
+| P18, P19 | design | this doc |

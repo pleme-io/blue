@@ -393,7 +393,6 @@ def frame()
   }
 end
 
-# waive B0084: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches this seam yet
 @doc """
 cli: heni's command line as hikisuu reads it, rendered from its settings and its frame.
 
@@ -403,6 +402,7 @@ def cli()
   settei::cli_spec(settings, frame)
 end
 
+# waive B0084: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches this seam yet
 @doc """
 main: the command's entry point: argv, the config file and the HENI_ environment resolved through settei, which answers help, completion and --explain and refuses a bad line with exit 64.
 

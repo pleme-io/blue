@@ -159,9 +159,20 @@ def unmodelled_reads()
   )
 end
 
+@doc """
+schema_output?: whether a GEN_OUT path is the schema's: the committed `.json` file, or the store path nix names after the generate row, `…-generated-settings-schema`, which carries no extension.
+
+    schema_output?("docs/settings.schema.json") #=> true
+    schema_output?("/nix/store/x-generated-settings-schema") #=> true
+    schema_output?("/nix/store/x-generated-settings") #=> false
+"""
+def schema_output?(path)
+  ends_with?(path, ".json") or ends_with?(path, "-settings-schema")
+end
+
 out = getenv("GEN_OUT")
 
-if out != nil and ends_with?(out, ".json")
+if out != nil and schema_output?(out)
   write_file(out, deeta::pretty(schemas))
 elsif out != nil
   write_file(out, page)
@@ -222,4 +233,11 @@ test "the page holds a section and a row for every knob of every program"
   assert size(programs) >= 1
   assert contains?(text, "## souji")
   assert contains?(text, "| `min_age_hours` | int | `6` | 0 or more | hours |")
+end
+
+test "each output path, local or in the nix store, gets its own rendering"
+  assert schema_output?("docs/settings.schema.json")
+  assert schema_output?("/nix/store/0a-generated-settings-schema")
+  assert not schema_output?("docs/SETTINGS.md")
+  assert not schema_output?("/nix/store/0a-generated-settings")
 end

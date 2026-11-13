@@ -1425,6 +1425,25 @@ def settled(app, model)
 end
 
 @doc """
+env_pairs: the named knobs of a settled record as [environment name, value] pairs, in the order named, to hand the same settings to another process or host. A key the model lacks raises :bad_option naming it.
+
+    env_pairs("app", {port: knob(80)}, {port: 9}, ["port"]) #=> [["APP_PORT", 9]]
+"""
+def env_pairs(app, model, config, keys)
+  rows = knobs(model)
+  map(
+    fn(key)
+      r = find(rows, (x) -> dotted_key(x[:path]) == key)
+      if r.nil?
+        raise(:bad_option, "#{key} is not a setting of #{app}")
+      end
+      [env_name(app, map(to_s, r[:path])), doc_at(config, r[:path])]
+    end,
+    keys
+  )
+end
+
+@doc """
 aliases_of: each renamed knob's environment name and the name it had before, the alias map read takes.
 
     aliases_of("app", {wait: {seconds: knob(0, {renamed: ["wait_s"]})}}) #=> {"APP_WAIT__SECONDS" => "APP_WAIT_S"}
@@ -1782,6 +1801,85 @@ def json_schema(app, model)
       "title" => "#{app} settings"
     },
     group_schema(model)
+  )
+end
+
+@doc """
+trio_field: one knob as the module trio's typed field: intRange for a number bounded both ways, enum for choices, the nullOr form for no default, and its default and description.
+
+    trio_field(knob(true, {doc: "x"})) #=> {"type" => "bool", "default" => true, "description" => "x"}
+"""
+def trio_field(k)
+  t = k[:type]
+  base = if t == :int and k[:min] != nil and k[:max] != nil
+    {"type" => "intRange", "min" => k[:min], "max" => k[:max]}
+  elsif k[:choices] != nil
+    {"type" => "enum", "values" => k[:choices]}
+  else
+    named = get({bool: "bool", int: "int", float: "float", text: "str"}, t)
+    if k[:default].nil?
+      {"type" => "nullOr#{moji::capitalize(named)}"}
+    else
+      {"type" => named}
+    end
+  end
+  jisho::from_entries(
+    filter(
+      (e) -> second(e) != nil,
+      append(
+        map_entries(base),
+        [
+          [
+            "default",
+            if not k[:secret]
+              k[:default]
+            end
+          ],
+          [
+            "description",
+            if k[:doc] != ""
+              k[:doc]
+            end
+          ]
+        ]
+      )
+    )
+  )
+end
+
+@doc """
+typed_groups: a core model as the module trio's shikumiTypedGroups (group to field to typed spec), so the NixOS, darwin and home-manager options of a program are rendered from its model; a knob outside a group, or deeper than one group, is refused alone.
+
+    typed_groups({g: {on: knob(true)}})[:groups]["g"]["on"]["type"] #=> "bool"
+"""
+def typed_groups(model)
+  reduce(
+    fn(acc, r)
+      p = r[:path]
+      key = dotted_key(p)
+      if size(p) == 2
+        group = to_s(first(p))
+        fields = get(acc[:groups], group) or {}
+        assoc(
+          acc,
+          :groups,
+          assoc(
+            acc[:groups],
+            group,
+            assoc(fields, to_s(second(p)), trio_field(r[:knob]))
+          )
+        )
+      else
+        why = if size(p) == 1
+          "a module option needs a group"
+        else
+          "a module option holds one group level"
+        end
+        assoc(acc, :refused, append(acc[:refused], ["#{key}: #{why}"]))
+      end
+    end,
+    {groups: {}, refused: []},
+    knobs(model)
   )
 end
 
@@ -2963,4 +3061,26 @@ test "a table for a program with no command line shows no flag"
     t,
     "| `port` | int | `80` | 1 or more |  | `APP_PORT` |  | file, env |  | p |"
   )
+end
+
+test "the module trio's typed groups render each grouped knob, and a top-level knob is refused alone"
+  t = typed_groups(model_fixture)
+  assert t[:groups]["net"]["port"] ==
+    {
+      "type" => "intRange",
+      "min" => 1,
+      "max" => 65535,
+      "default" => 8080,
+      "description" => "the port to listen on"
+    }
+  assert t[:groups]["net"]["mode"]["type"] == "enum"
+  assert t[:groups]["net"]["mode"]["values"] == %w[fast safe]
+  assert t[:groups]["net"]["token"]["type"] == "str"
+  assert t[:refused] ==
+    [
+      "dry_run: a module option needs a group",
+      "min_age_hours: a module option needs a group",
+      "retries: a module option needs a group"
+    ]
+  assert typed_groups({})[:groups] == {}
 end

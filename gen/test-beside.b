@@ -65,7 +65,6 @@ def recorded()
       "untested: deeta 3",
       "untested: eigyou 5",
       "untested: gitto 1",
-      "untested: heni 2",
       "untested: isshou 25",
       "untested: kakehashi 35",
       "untested: keiyu 1",

@@ -658,6 +658,36 @@ test "a rewrite that strands a mutation is named with no test run"
     unlines(["  if not ok?(r)", "    :unread"])
   )
   assert map((r) -> r[:name], stranded(pkg, muts)) == ["no file"]
+  spec = path_join(pkg, "m.json")
+  write_file(
+    spec,
+    json_stringify(
+      [{name: "held", file: "f.txt", find: "    :unread", replace: "    :up"}]
+    )
+  )
+  assert mutate({package: pkg, mutations_file: spec, finds: true}) == []
+  write_file(spec, json_stringify(muts))
+  refused = begin
+    mutate({package: pkg, mutations_file: spec, finds: true})
+  rescue e
+    e.message
+  end
+  assert refused == "a mutation no longer finds its text exactly once"
+  ran = begin
+    run_all(
+      {
+        package: path_join(pkg, "none"),
+        mutations_file: spec,
+        blue: nil,
+        test: nil,
+        finds: false
+      }
+    )
+    :clean
+  rescue e
+    e.kind
+  end
+  assert member?(ran, %i[heni_no_blue heni_failed])
   assert hikisuu::parse(%w[/p m.json --finds], cli)[:finds] == true
   assert hikisuu::parse(%w[/p m.json], cli)[:finds] == false
   rm_rf(pkg)

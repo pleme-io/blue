@@ -46,5 +46,41 @@
     "file": "settei.b",
     "find": "append(%w[command help], map((s) -> to_s(s[:name]), slots), own)",
     "replace": "append(%w[command help], own)"
+  },
+  {
+    "name": "a secret is not redacted",
+    "file": "settei.b",
+    "find": "if r[:knob][:secret] and doc_at(acc, r[:path]) != nil",
+    "replace": "if false and doc_at(acc, r[:path]) != nil"
+  },
+  {
+    "name": "an immutable knob moves on reload",
+    "file": "settei.b",
+    "find": "if k[:immutable] and was != now",
+    "replace": "if false and was != now"
+  },
+  {
+    "name": "a renamed knob's old environment name is not read",
+    "file": "settei.b",
+    "find": "map((old) -> env_name(app, split(old, \".\")), k[:renamed])",
+    "replace": "[]"
+  },
+  {
+    "name": "a required knob is optional",
+    "file": "settei.b",
+    "find": "elsif k[:required] and doc_at(acc[:config], r[:path]).nil?",
+    "replace": "elsif false and doc_at(acc[:config], r[:path]).nil?"
+  },
+  {
+    "name": "a group's schema stays open",
+    "file": "settei.b",
+    "find": "\"additionalProperties\" => false,",
+    "replace": "\"additionalProperties\" => true,"
+  },
+  {
+    "name": "a form takes an edit outside the bounds",
+    "file": "settei.b",
+    "find": "    why_not(k, v)\n  end\n  edited",
+    "replace": "    nil\n  end\n  edited"
   }
 ]

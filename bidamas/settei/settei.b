@@ -439,7 +439,15 @@ def annotation_table()
     kousei::field(:secret, kousei::flag),
     kousei::field(:since, kousei::text),
     kousei::field(:deprecated, kousei::text),
-    kousei::field(:set_by, kousei::list_of(kousei::one_of(layers)))
+    kousei::field(:set_by, kousei::list_of(kousei::one_of(layers))),
+    kousei::field(:renamed, kousei::list_of(kousei::text)),
+    kousei::field(:value_name, kousei::text),
+    kousei::field(:required, kousei::flag),
+    kousei::field(:immutable, kousei::flag),
+    kousei::field(
+      :computed,
+      (v) -> kousei::verdict(procedure?(v), "#{v} is not a function")
+    )
   ]
 end
 
@@ -538,7 +546,9 @@ def knob(default, ann?)
   a = ann or {}
   table_whys = kousei::record_whys(annotation_table, a)
   t = a[:type] or kind_of(default)
-  shape_why = if default.nil? and a[:type].nil?
+  shape_why = if a[:required] == true and default != nil
+    "a required knob has no default"
+  elsif default.nil? and a[:type].nil?
     "a knob with no default names its type"
   elsif not member?(t, knob_types)
     "a knob holds bool, int, float or text, got #{to_s(default)}"
@@ -561,7 +571,16 @@ def knob(default, ann?)
     secret: a[:secret] == true,
     since: a[:since],
     deprecated: a[:deprecated],
-    set_by: a[:set_by] or layers
+    set_by: if a[:computed] != nil
+      []
+    else
+      a[:set_by] or layers
+    end,
+    renamed: a[:renamed] or [],
+    required: a[:required] == true,
+    immutable: a[:immutable] == true,
+    computed: a[:computed],
+    value_name: a[:value_name]
   }
   whys = knob_whys(k)
   if whys != []
@@ -746,8 +765,14 @@ def offer_of(app, layer, p, k, doc, lookup, given)
       {value: v, from: "the file"}
     end
   elsif layer == :env
-    name = env_name(app, map(to_s, p))
-    text = lookup(name)
+    names = append(
+      [env_name(app, map(to_s, p))],
+      map((old) -> env_name(app, split(old, ".")), k[:renamed])
+    )
+    name = find(names, (n) -> lookup(n) != nil)
+    text = if name != nil
+      lookup(name)
+    end
     if text != nil
       v = coerce_as(k[:type], text)
       if v.nil?
@@ -792,7 +817,11 @@ def settle_knob(app, acc, row, doc, lookup, given)
                   layer,
                   refusal(
                     :not_settable,
-                    "#{key} may not be set by #{to_s(layer)}; it is set by #{join(map(to_s, k[:set_by]), ", ")}"
+                    if k[:computed] != nil
+                      "#{key} is computed from the other settings; no layer sets it"
+                    else
+                      "#{key} may not be set by #{to_s(layer)}; it is set by #{join(map(to_s, k[:set_by]), ", ")}"
+                    end
                   )
                 )
               ]
@@ -886,6 +915,7 @@ def settle(app, model, doc, lookup, given?)
   read_doc = if doc != nil and map?(doc)
     doc
   end
+  moved = renames(model, read_doc)
   start = if doc.nil?
     base
   elsif read_doc.nil?
@@ -901,11 +931,138 @@ def settle(app, model, doc, lookup, given?)
       ]
     )
   else
-    assoc(base, :refusals, strays(model, read_doc, []))
+    assoc(base, :refusals, strays(model, moved[:doc], []))
   end
+  layered = reduce(
+    (acc, row) -> settle_knob(app, acc, row, moved[:doc], lookup, flags),
+    assoc(start, :notices, moved[:notices]),
+    knobs(model)
+  )
+  derived(app, model, layered)
+end
+
+@doc """
+renames: a config file with each key a knob was renamed from moved to the knob's key, and a notice for each move; the new key wins when both are written.
+
+    renames({w: knob(0, {renamed: ["w_s"]})}, {"w_s" => 5})[:doc] #=> {w: 5}
+"""
+def renames(model, doc)
+  if doc.nil?
+    {doc: nil, notices: []}
+  else
+    reduce(
+      fn(acc, r)
+        reduce(
+          fn(a, old)
+            parts = split(old, ".")
+            v = doc_at(a[:doc], parts)
+            if v.nil?
+              a
+            else
+              stripped = drop_at(a[:doc], parts)
+              placed = if doc_at(stripped, r[:path]).nil?
+                put_in(stripped, r[:path], v)
+              else
+                stripped
+              end
+              {
+                doc: placed,
+                notices: append(
+                  a[:notices],
+                  ["#{old} is now #{dotted_key(r[:path])}"]
+                )
+              }
+            end
+          end,
+          acc,
+          r[:knob][:renamed]
+        )
+      end,
+      {doc:, notices: []},
+      knobs(model)
+    )
+  end
+end
+
+@doc """
+drop_at: a record without the value at a path whose steps match keys as text.
+
+    drop_at({"a" => {"b" => 1, "c" => 2}}, ["a", "b"]) #=> {"a" => {"c" => 2}}
+"""
+def drop_at(rec, path)
+  hit = find(map_entries(rec), (e) -> to_s(first(e)) == to_s(first(path)))
+  if hit.nil?
+    rec
+  elsif rest(path) == []
+    dissoc(rec, first(hit))
+  elsif map?(second(hit))
+    assoc(rec, first(hit), drop_at(second(hit), rest(path)))
+  else
+    rec
+  end
+end
+
+@doc """
+derived: a settled record with each required knob no layer set refused alone, and each computed knob derived from the rest.
+
+    derived("a", {}, {config: {}, sources: {}, refusals: [], notices: []})[:refusals] #=> []
+"""
+def derived(app, model, s)
   reduce(
-    (acc, row) -> settle_knob(app, acc, row, read_doc, lookup, flags),
-    start,
+    fn(acc, r)
+      k = r[:knob]
+      key = dotted_key(r[:path])
+      if k[:computed] != nil
+        assoc(
+          assoc(
+            acc,
+            :config,
+            put_in(acc[:config], r[:path], k[:computed](acc[:config]))
+          ),
+          :sources,
+          assoc(acc[:sources], key, :computed)
+        )
+      elsif k[:required] and doc_at(acc[:config], r[:path]).nil?
+        where = filter(
+          (w) -> w != nil,
+          [
+            if member?(:env, k[:set_by])
+              env_name(app, map(to_s, r[:path]))
+            end,
+            if by_flag?(k)
+              flag_word(r[:path])
+            end
+          ]
+        )
+        named = if member?(:file, k[:set_by])
+          "#{join(where, ", ")} or the file"
+        else
+          join(where, " or ")
+        end
+        jisho::update(
+          acc,
+          :refusals,
+          fn(rs)
+            append(
+              rs,
+              [
+                fault(
+                  key,
+                  :default,
+                  refusal(
+                    :missing,
+                    "#{key} is required and no layer sets it (#{named})"
+                  )
+                )
+              ]
+            )
+          end
+        )
+      else
+        acc
+      end
+    end,
+    s,
     knobs(model)
   )
 end
@@ -986,10 +1143,15 @@ def knob_flags(model, below)
         doc_at(below, r[:path])
       end
       flag = {default: shown, kind: flag_kind(k), about: k[:doc]}
-      floored = if k[:type] == :int and k[:min] != nil
-        assoc(flag, :min, k[:min])
+      named = if k[:value_name] != nil
+        assoc(flag, :value, k[:value_name])
       else
         flag
+      end
+      floored = if k[:type] == :int and k[:min] != nil
+        assoc(named, :min, k[:min])
+      else
+        named
       end
       assoc(acc, flag_key(r[:path]), floored)
     end,
@@ -1243,6 +1405,45 @@ def line(app, model, frame, args, doc, lookup)
 end
 
 @doc """
+settled: the settings of a program with a core model and no command line of its own (a service, a library tool): the discovered config file and the environment settled per key, each refusal and notice warned on stderr, the config returned.
+
+    procedure?(settled) #=> true
+"""
+def settled(app, model)
+  path = discovered_path(app)
+  doc = if path.nil?
+    nil
+  else
+    file_doc(path, file_format(app, nil))
+  end
+  s = settle(app, model, doc, (name) -> getenv(name), {})
+  said = append(map((f) -> f[:why], s[:refusals]), s[:notices])
+  if said != []
+    write_stderr(unlines(map((w) -> "#{app}: #{w}", said)))
+  end
+  s[:config]
+end
+
+@doc """
+aliases_of: each renamed knob's environment name and the name it had before, the alias map read takes.
+
+    aliases_of("app", {wait: {seconds: knob(0, {renamed: ["wait_s"]})}}) #=> {"APP_WAIT__SECONDS" => "APP_WAIT_S"}
+"""
+def aliases_of(app, model)
+  jisho::from_entries(
+    map(
+      fn(r)
+        [
+          env_name(app, map(to_s, r[:path])),
+          env_name(app, split(first(r[:knob][:renamed]), "."))
+        ]
+      end,
+      filter((r) -> r[:knob][:renamed] != [], knobs(model))
+    )
+  )
+end
+
+@doc """
 command: the door of a program with a core model: argv, the discovered config file and the environment resolved by `line`; help, completion and explain printed, a bad line refused with exit 64, each refused file or environment value warned on stderr, and f called with the record.
 
     procedure?(command) #=> true
@@ -1476,6 +1677,514 @@ test "an alias keeps a renamed setting's old environment name working, and the n
 end
 
 @doc """
+json_type: the JSON Schema type of a knob type.
+
+    json_type(:int) #=> "integer"
+"""
+def json_type(t)
+  get({bool: "boolean", int: "integer", float: "number", text: "string"}, t)
+end
+
+@doc """
+knob_schema: one knob as a JSON Schema: type, default (never a secret's), bounds, enum, description, deprecated, writeOnly for a secret, and x-unit, x-since and x-set-by where they say more than the default.
+
+    knob_schema(knob(6, {min: 0}))["minimum"] #=> 0
+"""
+def knob_schema(k)
+  jisho::from_entries(
+    filter(
+      (e) -> second(e) != nil,
+      [
+        ["type", json_type(k[:type])],
+        [
+          "default",
+          if not k[:secret]
+            k[:default]
+          end
+        ],
+        ["minimum", k[:min]],
+        ["maximum", k[:max]],
+        ["enum", k[:choices]],
+        [
+          "description",
+          if k[:doc] != ""
+            k[:doc]
+          end
+        ],
+        [
+          "deprecated",
+          if k[:deprecated] != nil
+            true
+          end
+        ],
+        [
+          "writeOnly",
+          if k[:secret]
+            true
+          end
+        ],
+        [
+          "readOnly",
+          if k[:computed] != nil
+            true
+          end
+        ],
+        ["x-unit", k[:unit]],
+        ["x-since", k[:since]],
+        [
+          "x-set-by",
+          if k[:set_by] != layers
+            map(to_s, k[:set_by])
+          end
+        ]
+      ]
+    )
+  )
+end
+
+@doc """
+group_schema: a group of a core model as a closed JSON Schema object.
+
+    group_schema({})["additionalProperties"] #=> false
+"""
+def group_schema(model)
+  {
+    "type" => "object",
+    "additionalProperties" => false,
+    "properties" => jisho::from_entries(
+      map(
+        fn(e)
+          v = second(e)
+          [
+            to_s(first(e)),
+            if knob?(v)
+              knob_schema(v)
+            else
+              group_schema(v)
+            end
+          ]
+        end,
+        map_entries(model)
+      )
+    )
+  }
+end
+
+@doc """
+json_schema: the JSON Schema (2020-12) of a core model: the config file's schema, the chart values' schema and an MCP tool's input, one rendering for all three.
+
+    json_schema("app", {port: knob(80)})["properties"]["port"]["type"] #=> "integer"
+"""
+def json_schema(app, model)
+  merge(
+    {
+      "$schema" => "https://json-schema.org/draft/2020-12/schema",
+      "title" => "#{app} settings"
+    },
+    group_schema(model)
+  )
+end
+
+@doc """
+mcp_tool: an MCP tool that reads or proposes a program's settings, its input the model's JSON Schema.
+
+    mcp_tool("my-app", {})["name"] #=> "my_app_settings"
+"""
+def mcp_tool(app, model)
+  {
+    "name" => "#{replace(app, "-", "_")}_settings",
+    "description" => "the settings of #{app}: each one's value, the layer it came from, its range and its doc",
+    "inputSchema" => json_schema(app, model)
+  }
+end
+
+@doc """
+redacted: a settings record with every secret replaced by <secret>, for a log line, a crash report or an MCP answer.
+
+    redacted({t: knob("", {secret: true})}, {t: "x"}) #=> {t: "<secret>"}
+"""
+def redacted(model, record)
+  reduce(
+    fn(acc, r)
+      if r[:knob][:secret] and doc_at(acc, r[:path]) != nil
+        put_in(acc, r[:path], "<secret>")
+      else
+        acc
+      end
+    end,
+    record,
+    knobs(model)
+  )
+end
+
+@doc """
+diff: each key whose value differs between two settings records, with both values as a person reads them, a secret hidden.
+
+    diff({p: knob(1)}, {p: 1}, {p: 2}) #=> [{key: "p", from: "1", to: "2"}]
+"""
+def diff(model, a, b)
+  map(
+    fn(r)
+      {
+        key: dotted_key(r[:path]),
+        from: shown_value(r[:knob], doc_at(a, r[:path])),
+        to: shown_value(r[:knob], doc_at(b, r[:path]))
+      }
+    end,
+    filter((r) -> doc_at(a, r[:path]) != doc_at(b, r[:path]), knobs(model))
+  )
+end
+
+@doc """
+reload: a running program's settings settled again: an immutable knob keeps its value and its change is refused alone, and changes lists each key that moved with the layer that moved it, the audit line of the reload.
+
+    reload("a", {p: knob(1)}, settle("a", {p: knob(1)}, nil, no_env), nil, env_of({"A_P" => "2"}))[:changes] #=> [{key: "p", from: "1", to: "2", source: :env}]
+"""
+def reload(app, model, before, doc, lookup, given?)
+  after = settle(app, model, doc, lookup, given or {})
+  held = reduce(
+    fn(acc, r)
+      k = r[:knob]
+      was = doc_at(before[:config], r[:path])
+      now = doc_at(acc[:config], r[:path])
+      if k[:immutable] and was != now
+        key = dotted_key(r[:path])
+        jisho::update(
+          assoc(
+            assoc(acc, :config, put_in(acc[:config], r[:path], was)),
+            :sources,
+            assoc(acc[:sources], key, get(before[:sources], key))
+          ),
+          :refusals,
+          fn(rs)
+            append(
+              rs,
+              [
+                fault(
+                  key,
+                  get(acc[:sources], key),
+                  refusal(
+                    :immutable,
+                    "#{key} is set at start only; it stays #{shown_value(k, was)} until a restart"
+                  )
+                )
+              ]
+            )
+          end
+        )
+      else
+        acc
+      end
+    end,
+    after,
+    knobs(model)
+  )
+  assoc(
+    held,
+    :changes,
+    map(
+      (c) -> assoc(c, :source, get(held[:sources], c[:key])),
+      diff(model, before[:config], held[:config])
+    )
+  )
+end
+
+@doc """
+samples: values for a knob's bounds law: inside holds each value its bounds accept (each end, the default, each choice), outside each one they refuse (one past each end, a choice it lacks, a value of another type).
+
+    samples(knob(5, {min: 0, max: 9}))[:outside] #=> [-1, 10, "x"]
+"""
+def samples(k)
+  t = k[:type]
+  if t == :bool
+    {inside: [true, false], outside: ["x"]}
+  elsif t == :text
+    if k[:choices] != nil
+      {
+        inside: k[:choices],
+        outside: [
+          if member?("z", k[:choices])
+            "zz"
+          else
+            "z"
+          end,
+          1
+        ]
+      }
+    else
+      {
+        inside: distinct(filter((v) -> v != nil, [k[:default], "", "x"])),
+        outside: [1]
+      }
+    end
+  else
+    step = if t == :int
+      1
+    else
+      0.5
+    end
+    ends = filter((v) -> v != nil, [k[:min], k[:max]])
+    {
+      inside: distinct(
+        filter(
+          (v) -> v != nil and why_not(k, v).nil?,
+          append(ends, [k[:default]])
+        )
+      ),
+      outside: append(
+        filter(
+          (v) -> v != nil,
+          [
+            if k[:min] != nil
+              k[:min] - step
+            end,
+            if k[:max] != nil
+              k[:max] + step
+            end
+          ]
+        ),
+        ["x"]
+      )
+    }
+  end
+end
+
+@doc """
+law_case: one value offered for one knob by one layer, settled: the value the knob ends with and whether its key was refused.
+
+    law_case("a", {p: knob(1, {min: 0})}, {path: [:p], knob: knob(1, {min: 0})}, :file, -1) #=> {value: 1, refused: true}
+"""
+def law_case(app, model, r, layer, v)
+  p = r[:path]
+  key = dotted_key(p)
+  doc = if layer == :file
+    put_in({}, p, v)
+  end
+  env = if layer == :env
+    env_of({env_name(app, map(to_s, p)) => to_s(v)})
+  else
+    no_env
+  end
+  flags = if layer == :flag
+    {key => v}
+  else
+    {}
+  end
+  s = settle(app, model, doc, env, flags)
+  {
+    value: doc_at(s[:config], p),
+    refused: any?((f) -> f[:key] == key, s[:refusals])
+  }
+end
+
+@doc """
+bounds_law: the property every knob's bounds promise, checked on every layer that may set it: each inside sample loads as given, each outside sample is refused for its key and the default stands. Returns each broken case; a test asserts none.
+
+    bounds_law("app", {p: knob(1, {min: 0})}) #=> []
+"""
+def bounds_law(app, model)
+  reduce(
+    fn(acc, r)
+      k = r[:knob]
+      s = samples(k)
+      cases = reduce(
+        fn(c, layer)
+          append(
+            c,
+            map((v) -> [layer, v, true], s[:inside]),
+            map(
+              (v) -> [layer, v, false],
+              filter((v) -> layer != :env or fits?(k[:type], v), s[:outside])
+            )
+          )
+        end,
+        [],
+        filter((l) -> member?(l, k[:set_by]), layers)
+      )
+      append(
+        acc,
+        reduce(
+          fn(bad, c)
+            got = law_case(app, model, r, c[0], c[1])
+            ok = if c[2]
+              not got[:refused] and got[:value] == c[1]
+            else
+              got[:refused] and got[:value] == k[:default]
+            end
+            if ok
+              bad
+            else
+              append(
+                bad,
+                [
+                  "#{dotted_key(r[:path])} from #{to_s(c[0])}: #{to_s(c[1])} should be #{if c[2]
+  "loaded"
+else
+  "refused"
+end}"
+                ]
+              )
+            end
+          end,
+          [],
+          cases
+        )
+      )
+    end,
+    [],
+    filter((r) -> r[:knob][:computed].nil?, knobs(model))
+  )
+end
+
+@doc """
+form: the settings form of a program: one row per knob with its value, source, range and doc, ready for edits checked live.
+
+    size(form("a", {p: knob(1)}, settle("a", {p: knob(1)}, nil, no_env))[:rows]) #=> 1
+"""
+def form(app, model, settled)
+  {
+    app:,
+    model:,
+    config: settled[:config],
+    rows: map(
+      fn(r)
+        k = r[:knob]
+        key = dotted_key(r[:path])
+        {
+          key:,
+          path: r[:path],
+          value: shown_value(k, doc_at(settled[:config], r[:path])),
+          source: get(settled[:sources], key),
+          range: range_text(k),
+          doc: k[:doc],
+          edit: nil,
+          error: nil
+        }
+      end,
+      knobs(model)
+    )
+  }
+end
+
+@doc """
+form_row: the row of one key in a form.
+
+    form_row(form("a", {p: knob(1)}, settle("a", {p: knob(1)}, nil, no_env)), "p")[:value] #=> "1"
+"""
+def form_row(f, key)
+  find(f[:rows], (r) -> r[:key] == key)
+end
+
+@doc """
+form_edit: a form with one row edited from the text typed: read as the knob's type and checked against its bounds now, the reason shown on the row when it is refused.
+
+    form_row(form_edit(form("a", {p: knob(1, {min: 0})}, settle("a", {p: knob(1, {min: 0})}, nil, no_env)), "p", "-1"), "p")[:error] #=> "must be 0 or more, got -1"
+"""
+def form_edit(f, key, text)
+  r = form_row(f, key)
+  k = r and find(knobs(f[:model]), (x) -> dotted_key(x[:path]) == key)[:knob]
+  v = if k != nil
+    coerce_as(k[:type], text)
+  end
+  error = if r.nil?
+    "no setting #{key}"
+  elsif k[:secret]
+    "a secret is not edited here"
+  elsif k[:computed] != nil
+    "a computed setting is not edited"
+  elsif v.nil?
+    "must be #{to_s(k[:type])}, got #{text}"
+  else
+    why_not(k, v)
+  end
+  edited = if error.nil?
+    v
+  end
+  assoc(
+    f,
+    :rows,
+    map(
+      fn(row)
+        if row[:key] == key
+          assoc(assoc(row, :edit, edited), :error, error)
+        else
+          row
+        end
+      end,
+      f[:rows]
+    )
+  )
+end
+
+@doc """
+form_pending: the changes a form would apply, each key with its old and new value: the diff shown before apply.
+
+    form_pending(form("a", {p: knob(1)}, settle("a", {p: knob(1)}, nil, no_env))) #=> []
+"""
+def form_pending(f)
+  map(
+    fn(row)
+      k = find(knobs(f[:model]), (x) -> x[:path] == row[:path])[:knob]
+      {key: row[:key], from: row[:value], to: shown_value(k, row[:edit])}
+    end,
+    filter((row) -> row[:edit] != nil and row[:error].nil?, f[:rows])
+  )
+end
+
+@doc """
+form_text: a form as the lines a terminal shows: each key, its value or the pending change, its range and source, and a refused edit's reason under it.
+
+    contains?(form_text(form("a", {p: knob(1)}, settle("a", {p: knob(1)}, nil, no_env))), "p") #=> true
+"""
+def form_text(f)
+  pending = form_pending(f)
+  w = reduce((m, r) -> blue::max(m, size(chars(r[:key]))), 0, f[:rows])
+  unlines(
+    append(
+      ["#{f[:app]} settings"],
+      reduce(
+        fn(acc, r)
+          change = find(pending, (c) -> c[:key] == r[:key])
+          shown = if change != nil
+            "#{change[:from]} -> #{change[:to]}"
+          else
+            r[:value]
+          end
+          line = "  #{pad_right(r[:key], w, " ")}  #{shown}  (#{r[:range]}, #{to_s(r[:source])})"
+          if r[:error] != nil
+            append(acc, [line, "    ! #{r[:error]}"])
+          else
+            append(acc, [line])
+          end
+        end,
+        [],
+        f[:rows]
+      ),
+      [
+        if pending == []
+          "no changes"
+        else
+          "#{to_s(size(pending))} change(s) to apply"
+        end
+      ]
+    )
+  )
+end
+
+@doc """
+form_apply: the settings record a form's pending changes make.
+
+    form_apply(form_edit(form("a", {p: knob(1)}, settle("a", {p: knob(1)}, nil, no_env)), "p", "2")) #=> {p: 2}
+"""
+def form_apply(f)
+  reduce(
+    (acc, row) -> put_in(acc, row[:path], row[:edit]),
+    f[:config],
+    filter((row) -> row[:edit] != nil and row[:error].nil?, f[:rows])
+  )
+end
+
+@doc """
 table_head: the two heading lines of a settings table.
 
     size(split(table_head, line_break)) #=> 3
@@ -1519,11 +2228,19 @@ end
 table: the settings table of a core model as Markdown, one row per knob: key, type, default (hidden for a secret), range, unit, environment name, flag, the layers that may set it, since and the doc. A program's generated docs page is this table, gated fresh.
 
     contains?(table("app", {port: knob(80, {min: 1})}), "| `port` | int | `80` | 1 or more |") #=> true
+
+A program with no command line of its own passes {flags: false}: no flag is shown and flag leaves the layers that may set a knob.
 """
-def table(app, model)
+def table(app, model, opts?)
+  lined = opts.nil? or opts[:flags] != false
   rows = map(
     fn(r)
       k = r[:knob]
+      by = if lined
+        k[:set_by]
+      else
+        filter((l) -> l != :flag, k[:set_by])
+      end
       cells = [
         code_cell(dotted_key(r[:path])),
         to_s(k[:type]),
@@ -1531,12 +2248,12 @@ def table(app, model)
         range_text(k),
         k[:unit] or "",
         code_cell(env_name(app, map(to_s, r[:path]))),
-        if by_flag?(k)
+        if lined and by_flag?(k)
           code_cell(flag_word(r[:path]))
         else
           ""
         end,
-        join(map(to_s, k[:set_by]), ", "),
+        join(map(to_s, by), ", "),
         k[:since] or "",
         about_cell(k)
       ]
@@ -1548,37 +2265,91 @@ def table(app, model)
 end
 
 @doc """
-form_reads: the keys one form and everything inside it read off param.
+root?: whether a form is the settings record: a name in names, or a call of such a word with no arguments, by its last name segment.
 
-    form_reads(first(read_forms("(get opts :port)")), "opts") #=> ["port"]
+    root?(first(read_forms("(pkg/config)")), ["config"]) #=> true
 """
-def form_reads(f, param)
+def root?(f, names)
+  named = (s) -> symbol?(s) and member?(retsu::last(split(to_s(s), "/")), names)
+  named(f) or list?(f) and size(f) == 1 and named(first(f))
+end
+
+@doc """
+bindings: the local names one definition binds to the settings record (`c = config`), so reads through them count.
+
+    bindings(first(read_forms("(define (f) (begin (define c (pkg/config)) c))")), "config") #=> ["c"]
+"""
+def bindings(f, param)
   if not list?(f) or f == []
     []
+  elsif size(f) == 3 and
+      to_s(first(f)) == "define" and
+      symbol?(f[1]) and
+      root?(f[2], [param])
+    [to_s(f[1])]
   else
-    head = to_s(first(f))
-    own = if size(f) == 3 and
-        member?(head, %w[get blue-field]) and
-        symbol?(f[1]) and
-        to_s(f[1]) == param and
-        (keyword?(f[2]) or string?(f[2]))
-      [to_s(f[2])]
-    else
-      []
-    end
-    reduce((acc, x) -> append(acc, form_reads(x, param)), own, f)
+    reduce((acc, x) -> append(acc, bindings(x, param)), [], f)
   end
 end
 
 @doc """
-reads: every top-level key a program's forms read off the record named param, as `get(param, :k)`, `param[:k]` or `param.k`, sorted, each once.
+read_path: the keys a chain of reads takes from the settings record, outermost last, or nil when the form is not such a chain.
+
+    read_path(first(read_forms("(get (get opts :net) :port)")), ["opts"]) #=> %w[net port]
+"""
+def read_path(f, param)
+  if list?(f) and
+      size(f) == 3 and
+      member?(to_s(first(f)), %w[get blue-field]) and
+      (keyword?(f[2]) or string?(f[2]))
+    inner = if root?(f[1], param)
+      []
+    else
+      read_path(f[1], param)
+    end
+    if inner != nil and ends_with?(to_s(f[2]), "?")
+      inner
+    elsif inner != nil
+      append(inner, [to_s(f[2])])
+    end
+  end
+end
+
+@doc """
+form_reads: the dotted paths one form and everything inside it read off the settings record.
+
+    form_reads(first(read_forms("(get opts :port)")), ["opts"]) #=> ["port"]
+"""
+def form_reads(f, param)
+  path = read_path(f, param)
+  if path == []
+    []
+  elsif path != nil
+    [join(path, ".")]
+  elsif not list?(f) or f == []
+    []
+  else
+    reduce((acc, x) -> append(acc, form_reads(x, param)), [], f)
+  end
+end
+
+@doc """
+reads: every dotted path a program's forms read off the settings record named param (a parameter, or a word called with no arguments), as `get(param, :k)`, `param[:k]` or `param.k.j`, sorted, each once.
 
     reads(read_forms("(get opts :port)"), "opts") #=> ["port"]
 """
 def reads(forms, param)
   sort_keyed(
     (x) -> x,
-    distinct(reduce((acc, f) -> append(acc, form_reads(f, param)), [], forms))
+    distinct(
+      reduce(
+        fn(acc, f)
+          append(acc, form_reads(f, append([param], bindings(f, param))))
+        end,
+        [],
+        forms
+      )
+    )
   )
 end
 
@@ -1619,23 +2390,29 @@ unmodelled: each key the code reads off its record that neither the core model n
     unmodelled({port: knob(80)}, {name: "x"}, read_forms("(get opts :prot)"), "opts") #=> ["prot"]
 """
 def unmodelled(model, frame, forms, param)
-  known = append(
-    map((e) -> to_s(first(e)), map_entries(model)),
-    frame_keys(frame)
+  keys = map((r) -> dotted_key(r[:path]), knobs(model))
+  framed = frame_keys(frame)
+  filter(
+    fn(k)
+      not (
+        member?(first(split(k, ".")), framed) or
+        any?((m) -> m == k or starts_with?(m, "#{k}."), keys)
+      )
+    end,
+    reads(forms, param)
   )
-  filter((k) -> not member?(k, known), reads(forms, param))
 end
 
 @doc """
-unread: each top-level key of a core model the code never reads off its record: a knob nothing uses.
+unread: each knob of a core model the code never reads off its record, neither itself nor a group holding it: a knob nothing uses.
 
     unread({port: knob(80)}, [], "opts") #=> ["port"]
 """
 def unread(model, forms, param)
   seen = reads(forms, param)
   filter(
-    (k) -> not member?(k, seen),
-    map((e) -> to_s(first(e)), map_entries(model))
+    (k) -> not any?((s) -> s == k or starts_with?(k, "#{s}."), seen),
+    map((r) -> dotted_key(r[:path]), knobs(model))
   )
 end
 
@@ -1991,11 +2768,20 @@ def forms_fixture()
 end
 
 test "unmodelled names each key code reads off its record that neither the model nor the frame declares"
-  assert reads(forms_fixture, "opts") == %w[colour dry_run net roots]
+  assert reads(forms_fixture, "opts") == %w[colour dry_run net.port roots]
   assert unmodelled(model_fixture, frame_fixture, forms_fixture, "opts") ==
     ["colour"]
   assert unread(model_fixture, forms_fixture, "opts") ==
-    %w[min_age_hours retries]
+    %w[min_age_hours net.mode net.token retries]
+  nested = read_forms("(get (blue-field (pkg/config) :net) :prot)")
+  assert unmodelled(model_fixture, frame_fixture, nested, "config") ==
+    ["net.prot"]
+  assert unmodelled(
+    model_fixture,
+    frame_fixture,
+    read_forms("(blue-field (pkg/config) :net)"),
+    "config"
+  ) == []
   assert reads([], "opts") == []
   assert unmodelled(
     model_fixture,
@@ -2014,4 +2800,167 @@ test "a document with one bad key and two valid ones loads the two valid ones"
   assert map((r) -> r[:key], s[:refusals]) == ["min_age_hours"]
   assert s[:refusals][0][:why] ==
     "min_age_hours must be 0 or more, got -5 from the file; kept 6"
+end
+
+test "the JSON Schema of a model types, bounds, documents and closes every group, and hides a secret's default"
+  s = json_schema("app", model_fixture)
+  assert s["$schema"] == "https://json-schema.org/draft/2020-12/schema"
+  assert s["type"] == "object"
+  assert s["additionalProperties"] == false
+  port = s["properties"]["net"]["properties"]["port"]
+  assert port ==
+    {
+      "type" => "integer",
+      "default" => 8080,
+      "minimum" => 1,
+      "maximum" => 65535,
+      "description" => "the port to listen on"
+    }
+  token = s["properties"]["net"]["properties"]["token"]
+  assert token["writeOnly"] == true
+  assert token["default"].nil?
+  assert s["properties"]["net"]["properties"]["mode"]["enum"] == %w[fast safe]
+  assert s["properties"]["retries"]["deprecated"] == true
+  assert s["properties"]["min_age_hours"]["x-unit"] == "hours"
+  assert json_schema("app", {})["properties"] == {}
+end
+
+test "the MCP tool of a model takes the model's JSON Schema as its input"
+  t = mcp_tool("app", model_fixture)
+  assert t["name"] == "app_settings"
+  assert t["inputSchema"] == json_schema("app", model_fixture)
+end
+
+test "redacted hides every secret of a record and keeps the rest"
+  c = get(
+    settle(
+      "app",
+      model_fixture,
+      nil,
+      env_of({"APP_NET__TOKEN" => "t0k3n"}),
+      {}
+    ),
+    :config
+  )
+  r = redacted(model_fixture, c)
+  assert r[:net][:token] == "<secret>"
+  assert r[:net][:port] == 8080
+  assert contains?(to_s(r), "t0k3n") == false
+  assert redacted({}, {}) == {}
+end
+
+test "diff names each key that differs, with both values, a secret hidden"
+  a = defaults_of(model_fixture)
+  b = put_in(put_in(a, %i[net port], 9000), %i[net token], "t0k3n")
+  assert diff(model_fixture, a, b) ==
+    [
+      {key: "net.port", from: "8080", to: "9000"},
+      {key: "net.token", from: "<secret>", to: "<secret>"}
+    ]
+  assert diff(model_fixture, a, a) == []
+end
+
+test "reload keeps an immutable knob, refuses its change alone, and logs who set what"
+  m = {
+    port: knob(80, {immutable: true, doc: "the port"}),
+    level: knob("info", {choices: %w[info debug], doc: "the log level"})
+  }
+  before = settle("app", m, nil, no_env, {})
+  after = reload(
+    "app",
+    m,
+    before,
+    nil,
+    env_of({"APP_PORT" => "81", "APP_LEVEL" => "debug"})
+  )
+  assert after[:config] == {port: 80, level: "debug"}
+  assert kinds_of(after[:refusals]) == [:immutable]
+  assert after[:refusals][0][:why] ==
+    "port is set at start only; it stays 80 until a restart"
+  assert after[:changes] ==
+    [{key: "level", from: "info", to: "debug", source: :env}]
+end
+
+test "a renamed knob reads its old key from a file and its old environment name, with a notice"
+  m = {wait: {seconds: knob(0, {renamed: ["wait_s"], doc: "how long to wait"})}}
+  s = settle("app", m, json_read("{\"wait_s\":5}"), no_env, {})
+  assert s[:config][:wait][:seconds] == 5
+  assert s[:refusals] == []
+  assert s[:notices] == ["wait_s is now wait.seconds"]
+  e = settle("app", m, nil, env_of({"APP_WAIT_S" => "7"}), {})
+  assert e[:config][:wait][:seconds] == 7
+  gone = settle("app", m, json_read("{\"wait_ms\":5}"), no_env, {})
+  assert kinds_of(gone[:refusals]) == [:unknown_key]
+end
+
+test "a required knob no layer sets is refused alone, naming it"
+  m = {
+    url: knob(nil, {type: :text, required: true, doc: "the database URL"}),
+    pool: knob(4, {min: 1, doc: "connections"})
+  }
+  s = settle("app", m, nil, no_env, {})
+  assert kinds_of(s[:refusals]) == [:missing]
+  assert s[:refusals][0][:why] ==
+    "url is required and no layer sets it (APP_URL, --url or the file)"
+  assert s[:config][:pool] == 4
+  assert get(
+    settle("app", m, nil, env_of({"APP_URL" => "pg://x"}), {}),
+    :refusals
+  ) == []
+end
+
+test "a computed knob is derived from the others and refused from every layer"
+  m = {
+    hours: knob(2, {min: 0, doc: "hours"}),
+    seconds: knob(
+      0,
+      {computed: (c) -> c[:hours] * 3600, doc: "the same span in seconds"}
+    )
+  }
+  s = settle(
+    "app",
+    m,
+    nil,
+    env_of({"APP_HOURS" => "3", "APP_SECONDS" => "9"}),
+    {}
+  )
+  assert s[:config][:seconds] == 10800
+  assert kinds_of(s[:refusals]) == [:not_settable]
+  assert contains?(s[:refusals][0][:why], "seconds is computed")
+  assert by_flag?(m[:seconds]) == false
+end
+
+test "the bounds law: every knob accepts each value inside its bounds and refuses each outside, for every layer"
+  assert bounds_law("app", model_fixture) == []
+  assert size(samples(knob(6, {min: 0, max: 9}))[:inside]) >= 3
+  assert member?(-1, samples(knob(6, {min: 0}))[:outside])
+  assert member?("z", samples(knob("a", {choices: %w[a b]}))[:outside])
+end
+
+test "the settings form: rows from the model, an edit checked live, and the diff shown before apply"
+  f = form("app", model_fixture, settle("app", model_fixture, nil, no_env, {}))
+  assert size(f[:rows]) == 6
+  bad = form_edit(f, "net.port", "70000")
+  assert form_row(bad, "net.port")[:error] == "must be in 1..65535, got 70000"
+  assert form_pending(bad) == []
+  good = form_edit(bad, "net.port", "9000")
+  assert form_row(good, "net.port")[:error].nil?
+  assert form_pending(good) == [{key: "net.port", from: "8080", to: "9000"}]
+  assert contains?(form_text(good), "net.port")
+  assert contains?(form_text(good), "8080 -> 9000")
+  assert form_apply(good)[:net][:port] == 9000
+  locked = form_edit(f, "net.token", "x")
+  assert form_row(locked, "net.token")[:error] == "a secret is not edited here"
+end
+
+test "a predicate called on a setting reads the setting, not a key"
+  assert reads(read_forms("(blue-field (get a :test) :nil?)"), "a") == ["test"]
+end
+
+test "a table for a program with no command line shows no flag"
+  t = table("app", {port: knob(80, {min: 1, doc: "p"})}, {flags: false})
+  assert contains?(
+    t,
+    "| `port` | int | `80` | 1 or more |  | `APP_PORT` |  | file, env |  | p |"
+  )
 end

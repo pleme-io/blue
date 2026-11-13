@@ -6,7 +6,7 @@ inside its own namespace.
 
     blue kernel/run.b
 
-Settings are `kernel-run`'s, through `settei`. `admission.enabled` turns the
+Settings are `kernel-run`'s core model, `config_model`, settled per key through `settei`. `admission.enabled` turns the
 refusal off, `build.enabled` the build, `tools.from_nix` the nix lookup of
 `ip`, `ping` and the object oracles, `build.private_cache` the run's own nix
 cache, and `suite.filter` keeps the tests whose name holds it.
@@ -30,28 +30,116 @@ use(
 )
 
 @doc """
-config_defaults: What `kernel-run` does when nothing says otherwise.
+config_model: `kernel-run`'s core model: each setting with its default, bounds, unit and doc, settled per key through settei.
+
+    settei::defaults_of(config_model)[:admission][:max_stalled] #=> 4
+"""
+def config_model()
+  k = settei::knob
+  {
+    admission: {
+      enabled: k(true, {doc: "refuse a run on a host too busy to judge"}),
+      load_per_core: k(
+        1,
+        {
+          min: 0,
+          doc: "the one-minute load per core above which a run is refused"
+        }
+      ),
+      max_stalled: k(
+        4,
+        {
+          min: 0,
+          doc: "the tasks stalled in D state above which a run is refused"
+        }
+      )
+    },
+    build: {
+      enabled: k(true, {doc: "build blue before the suites"}),
+      jobs: k(3, {min: 1, doc: "the build's parallel jobs"}),
+      private_cache: k(true, {doc: "build in the run's own nix cache"})
+    },
+    tools: {
+      from_nix: k(true, {doc: "take ip, ping and the object oracles from nix"})
+    },
+    suite: {
+      seconds: k(900, {min: 1, unit: "seconds", doc: "each suite's deadline"}),
+      net_seconds: k(
+        300,
+        {min: 1, unit: "seconds", doc: "the network suite's deadline"}
+      ),
+      filter: k("", {doc: "keep only the tests whose name holds this"})
+    },
+    on: {
+      root: k("/tmp/blue-kernel-runs", {doc: "where a host keeps its runs"}),
+      lock: k("/tmp/blue-kernel.lock", {doc: "the lock a host run holds"}),
+      poll_seconds: k(
+        15,
+        {min: 1, unit: "seconds", doc: "how often the log is followed"}
+      ),
+      deadline_seconds: k(
+        14400,
+        {min: 1, unit: "seconds", doc: "how long a host run may take"}
+      ),
+      linger_seconds: k(
+        900,
+        {
+          min: 0,
+          unit: "seconds",
+          doc: "how long a finished run's directory stays"
+        }
+      ),
+      stale_seconds: k(
+        3600,
+        {
+          min: 0,
+          unit: "seconds",
+          doc: "a run directory older than this is swept"
+        }
+      ),
+      cleanup: k(
+        true,
+        {doc: "remove the run's directory once its log is read"}
+      ),
+      transport: k("auto", {doc: "how the checkout reaches the host"}),
+      origin: k(
+        "https://github.com/pleme-io/blue",
+        {doc: "the repository a host fetches from"}
+      )
+    }
+  }
+end
+
+@doc """
+config_defaults: What `kernel-run` does when nothing says otherwise, the plain record of config_model.
 
     config_defaults[:admission][:max_stalled] #=> 4
 """
 def config_defaults()
-  {
-    admission: {enabled: true, load_per_core: 1, max_stalled: 4},
-    build: {enabled: true, jobs: 3, private_cache: true},
-    tools: {from_nix: true},
-    suite: {seconds: 900, net_seconds: 300, filter: ""},
-    on: {
-      root: "/tmp/blue-kernel-runs",
-      lock: "/tmp/blue-kernel.lock",
-      poll_seconds: 15,
-      deadline_seconds: 14400,
-      linger_seconds: 900,
-      stale_seconds: 3600,
-      cleanup: true,
-      transport: "auto",
-      origin: "https://github.com/pleme-io/blue"
-    }
-  }
+  settei::defaults_of(config_model)
+end
+
+@doc """
+forwarded: the settings a run on a host takes from this machine's, by key.
+
+    first(forwarded) #=> "admission.enabled"
+"""
+def forwarded()
+  %w[
+    admission.enabled
+    admission.load_per_core
+    admission.max_stalled
+    build.enabled
+    build.private_cache
+    tools.from_nix
+    suite.seconds
+    suite.net_seconds
+    suite.filter
+    on.root
+    on.linger_seconds
+    on.stale_seconds
+    on.cleanup
+  ]
 end
 
 @doc """
@@ -544,24 +632,12 @@ settings_words: The settings a run on a host takes from the laptop's, as `NAME=v
 def settings_words(config)
   map(
     (p) -> "#{first(p)}=#{shell_word(to_s(last(p)))}",
-    [
-      ["KERNEL_RUN_ADMISSION__ENABLED", config[:admission][:enabled]],
-      [
-        "KERNEL_RUN_ADMISSION__LOAD_PER_CORE",
-        config[:admission][:load_per_core]
-      ],
-      ["KERNEL_RUN_ADMISSION__MAX_STALLED", config[:admission][:max_stalled]],
-      ["KERNEL_RUN_BUILD__ENABLED", false],
-      ["KERNEL_RUN_BUILD__PRIVATE_CACHE", config[:build][:private_cache]],
-      ["KERNEL_RUN_TOOLS__FROM_NIX", config[:tools][:from_nix]],
-      ["KERNEL_RUN_SUITE__SECONDS", config[:suite][:seconds]],
-      ["KERNEL_RUN_SUITE__NET_SECONDS", config[:suite][:net_seconds]],
-      ["KERNEL_RUN_SUITE__FILTER", config[:suite][:filter]],
-      ["KERNEL_RUN_ON__ROOT", config[:on][:root]],
-      ["KERNEL_RUN_ON__LINGER_SECONDS", config[:on][:linger_seconds]],
-      ["KERNEL_RUN_ON__STALE_SECONDS", config[:on][:stale_seconds]],
-      ["KERNEL_RUN_ON__CLEANUP", config[:on][:cleanup]]
-    ]
+    settei::env_pairs(
+      "kernel-run",
+      config_model,
+      settei::put_in(config, %i[build enabled], false),
+      forwarded
+    )
   )
 end
 
@@ -950,7 +1026,7 @@ def on_host(host, ref, config)
 end
 
 def main()
-  config = settei::read("kernel-run", config_defaults)
+  config = settei::settled("kernel-run", config_model)
   args = argv
   if first(args) == "on" and count(args) >= 2
     on_host(args[1], args[2] or "HEAD", config)
@@ -1161,4 +1237,27 @@ test "the build is held to idle priority and few jobs"
   assert member?("-c3", c)
   assert member?("19", c)
   assert member?("CARGO_BUILD_JOBS=3", c)
+end
+
+test "the settings a host run takes are every forwarded knob with the build off"
+  assert settings_words(config_defaults) ==
+    [
+      "KERNEL_RUN_ADMISSION__ENABLED='true'",
+      "KERNEL_RUN_ADMISSION__LOAD_PER_CORE='1'",
+      "KERNEL_RUN_ADMISSION__MAX_STALLED='4'",
+      "KERNEL_RUN_BUILD__ENABLED='false'",
+      "KERNEL_RUN_BUILD__PRIVATE_CACHE='true'",
+      "KERNEL_RUN_TOOLS__FROM_NIX='true'",
+      "KERNEL_RUN_SUITE__SECONDS='900'",
+      "KERNEL_RUN_SUITE__NET_SECONDS='300'",
+      "KERNEL_RUN_SUITE__FILTER=''",
+      "KERNEL_RUN_ON__ROOT='/tmp/blue-kernel-runs'",
+      "KERNEL_RUN_ON__LINGER_SECONDS='900'",
+      "KERNEL_RUN_ON__STALE_SECONDS='3600'",
+      "KERNEL_RUN_ON__CLEANUP='true'"
+    ]
+end
+
+test "every setting keeps its bounds law on every layer"
+  assert settei::bounds_law("kernel-run", config_model) == []
 end

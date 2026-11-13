@@ -853,7 +853,7 @@ test "run_capture answers stdout on success and why on failure or no start", {
     {ok: false, why: "sh exited 3: boom"}
 end
 
-test "terminal? asks `test -t`, and a descriptor no process holds open is no terminal", {
+test "terminal? asks `test -t`; descriptor 9 is no terminal", {
   kind: :integration,
   allow: [:process]
 }

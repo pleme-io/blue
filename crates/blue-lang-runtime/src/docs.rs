@@ -50,6 +50,7 @@ pub enum Topic {
     File,
     Process,
     Environment,
+    Terminal,
     Clock,
     /// NATS and HTTP over TCP.
     Network,
@@ -88,6 +89,7 @@ impl Topic {
         Topic::File,
         Topic::Process,
         Topic::Environment,
+        Topic::Terminal,
         Topic::Clock,
         Topic::Network,
         Topic::Device,
@@ -119,6 +121,7 @@ impl Topic {
             Topic::File => "Files and paths",
             Topic::Process => "Processes",
             Topic::Environment => "Environment and arguments",
+            Topic::Terminal => "Terminal input",
             Topic::Clock => "Time",
             Topic::Network => "Network",
             Topic::Device => "Sound and display",
@@ -157,6 +160,7 @@ impl Topic {
             Topic::File
             | Topic::Process
             | Topic::Environment
+            | Topic::Terminal
             | Topic::Clock
             | Topic::Network
             | Topic::Device
@@ -510,6 +514,8 @@ pub const NAMES: &[NameDoc] = names! {
     Environment: "env_required" "env_required(name)" "An environment variable; raises, naming it, when unset.";
     Environment: "argv" "argv" "The program's own arguments: what follows the file in blue run file -- a b.";
     Environment: "argv_get" "argv_get(i[, default])" "One argument by index, or default.";
+    Terminal: "read_line" "read_line" "One line from standard input without its line break, or nil at the end of input. Needs the terminal capability.";
+    Terminal: "is_terminal" "is_terminal(fd)" "Whether the stream fd (0 input, 1 output, 2 errors) is a terminal; false for any other number. Needs the terminal capability.";
     Environment: "self_exe" "self_exe" "The path of the blue running this program, or nil outside the CLI. Spawn it to run blue; a sandbox has no blue on PATH.";
     // ── time ──────────────────────────────────────────────────────────────
     Clock: "now" "now" "Unix time in seconds.";

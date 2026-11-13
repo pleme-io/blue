@@ -1,11 +1,12 @@
 ---
 kind: explanation
-summary: every blue program declares one core model of annotated knobs; layering, flags, help, explain, docs, schemas, forms, migrations, tests, redaction and diff are renderings of it (first rungs built)
+summary: every blue program declares one core model of annotated knobs; layering, flags, help, explain, docs, schemas, forms, migrations, tests, redaction and diff are renderings of it (renderings built; mandatory structures in progress)
 ---
 
 # CORE-MODEL — one model per program, every surface a rendering
 
-Status: ⏳ in progress. Rungs 1 to 5 are built (§10). The rest is design.
+Status: ⏳ in progress. The renderings are built (§7, §10); the mandatory
+structures P14 to P19 are not.
 The [Ledger](#ledger) at the end is the only place a state is claimed.
 The doctrine is section 6.5a of BLUE-STRUCTURE in the pleme-io theory
 (operator, 2026-11-13); its section 6.5 is the service case, and
@@ -284,7 +285,7 @@ flowchart BT
 | explain | `--explain KEY`, `explain` | built (R3) |
 | docs table | `table`, `gen/core-models.b`, `checks.generated-settings-fresh` | built (R4) |
 | all-variants test | `reads`, `unmodelled`, `unread`, `checks.core-models` | built (R5) |
-| TUI form | `form`, `form_edit` (read and checked live), `form_pending` (the diff before apply), `form_text`, `form_apply` | built (P7): the form logic and its text; the interactive loop waits on blue's Terminal capability (CLI-TUI.md L2), ours to build |
+| TUI form | `form`, `form_edit` (read and checked live), `form_pending` (the diff before apply), `form_text`, `form_apply`; `form_step`, `form_session` and `form_run`, the loop on a terminal over CLI-TUI L2 | built (P7, P7b): a line-based form; the full-screen form waits on CLI-TUI L3 (raw mode and key events), ours to build |
 | JSON Schema, values schema, MCP inputs | `json_schema(app, model)` (2020-12, closed groups, `writeOnly` secrets, `readOnly` computed), `mcp_tool`; `docs/settings.schema.json` generated for every program, gated fresh | built (P8); haibi's chart `config_schema` still reads the Bluefile's flat `config:` (P8b) |
 | version migration | the `renamed` annotation: an old file key or environment name moves to its knob with a notice; a removed key is refused alone as unknown; `aliases_of` renders settei's alias map | built (P9) |
 | properties from bounds | `samples(knob)` and `bounds_law(app, model)`: each inside value loads and each outside one is refused, on every layer that may set the knob; `checks.core-models` runs it for every program | built (P10) |
@@ -390,7 +391,7 @@ itself and what the release proves:
 | A list or map knob (hosts, labels) | ours: a `:list` type with an element type |
 | Where the config file path is printed in `explain` (the pure `line` sees the parsed file, not its path) | ours: carry the path into `line` |
 | A service's chart config is the Bluefile's flat `config:`, which a Bluefile cannot render from a blue model (a Bluefile runs only Bluefile words) | ours: a Bluefile word that names the model's bidama, read by `blue lock` (P8b) |
-| No blue TUI program exists to move onto a form (CLI-TUI.md L3 is not built) | ours: the Terminal capability and the screen layer |
+| A full-screen form (CLI-TUI.md L3 is not built; the line form is, P7b) | ours: raw mode, key events and the screen layer |
 
 Answered since: the unmodelled check follows nested groups (`config.guard.branch`), a word called with no arguments (`config`), and a local name bound to the record (`c = config`); a predicate on a setting (`a.test.nil?`) reads the setting. Hot reload is `reload`.
 
@@ -404,7 +405,8 @@ Answered since: the unmodelled check follows nested groups (`config.guard.branch
 | R4 | `table`, `gen/core-models.b`, `generate("settings", "docs/SETTINGS.md", …)` | settei test "the settings table…"; `checks.generated-settings-fresh` | M1: documented | built |
 | R5 | `reads`, `unmodelled`, `unread`, `check("core-models", …)` | settei test "unmodelled names…"; `checks.core-models` red when souji reads `opts[:verbose]` | **M1 enforced**: no knob outside the model | built |
 | R6 | souji migrated: `settings` + `frame`, `cli` rendered, `main` through `settei::command` | souji's own tests unchanged and green; the same 13 command lines before and after | M1 and M4 for souji | built |
-| P7 | the settings form (`form`, `form_edit`, `form_pending`, `form_text`, `form_apply`) | settei test "the settings form…", red on unbound names; heni mutation "a form takes an edit outside the bounds" caught | — (a rendering) | built; the interactive loop waits on CLI-TUI L2 |
+| P7 | the settings form (`form`, `form_edit`, `form_pending`, `form_text`, `form_apply`) | settei test "the settings form…", red on unbound names; heni mutation "a form takes an edit outside the bounds" caught | — (a rendering) | built |
+| P7b | the form on a terminal: `form_step`, `form_session`, `form_run` over the `Terminal` capability (`read_line`, `is_terminal`) and gamen's `prompt`, `confirm`, `choose` | settei tests "a settings form driven line by line…", "form_run reads line by line…", red on unbound names; `tests/terminal.rs` drives the form on real standard input and refuses `read_line` outside the ceiling; heni mutations "quit applies the pending changes" and "a refused edit in the form loop is said as taken" caught (settei 17 of 17) | run tier: an edit refused live | built; full screen waits on CLI-TUI L3 |
 | P8 | `json_schema`, `docs/settings.schema.json` for every program, gated fresh | settei test "the JSON Schema of a model…"; heni mutation "a group's schema stays open" caught | deploy tier of M1 | built; P8b (haibi's chart schema from the model) open |
 | P9 | the `renamed` annotation, `renames`, `aliases_of` | settei test "a renamed knob reads its old key…"; kirikae's alias map now rendered and equal to the hand-written one | M1 across versions | built |
 | P10 | `samples`, `bounds_law`, `redacted` | settei tests; `checks.core-models` runs the law for every program; heni mutations "a secret is not redacted", "a value under its floor stands" caught | M1 bounds at build, `secret` at run | built |
@@ -440,5 +442,6 @@ design them again.
 | the mandatory structures M1 to M8 (§7a) | M1 tested for registered programs (R5); M6 enforced by test-beside; the rest design | §7a, P14 to P17 |
 | the generator survey (§2a) | recorded | read on local checkouts 2026-11-13; rows marked † not re-measured |
 | P7 to P13 and P20 (phase 2) | tested | settei tests (123), `checks.core-models` over souji, heni and kirikae, 14 of 14 settei mutations caught |
+| P7b, the form on a terminal (phase 4) | tested | settei tests, `crates/blue-lang-cli/tests/terminal.rs` on real standard input, settei mutations 17 of 17; CLI-TUI L2 built with it |
 | P21 and kernel/run.b (phase 3) | tested | settei test; kernel/run.b's forwarded settings equal the hand-written list, its bounds law holds |
 | P14 to P19 | design; P14 to P17 register as obligations in the one obligation engine (TESTING.md), not a second checker | this doc |

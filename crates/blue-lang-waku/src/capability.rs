@@ -261,6 +261,7 @@ const FILESYSTEM_NAMES: &[&str] = &[
 ];
 /// `blue_lang_runtime::sys::install_env`, 2026-08-13.
 const ENVIRONMENT_NAMES: &[&str] = &["getenv", "env_required", "argv", "argv_get", "self_exe"];
+const TERMINAL_NAMES: &[&str] = &["read_line", "is_terminal"];
 /// `blue_lang_runtime::net::install_net`, 2026-10-27.
 const NETWORK_NAMES: &[&str] = &[
     "nats_connect",
@@ -416,6 +417,7 @@ capability_table! {
         FileSystem "filesystem" import "fs" => FILESYSTEM_NAMES, implies [StorageAppend], providers ["in_memory_overlay", "null_sink"];
         /// The environment and the argument vector. `…::install_env`.
         Environment "environment" import "env" => ENVIRONMENT_NAMES, implies [], providers [];
+        Terminal "terminal" import "terminal" => TERMINAL_NAMES, implies [], providers [];
         /// Time and sleeping. `…::install_clock`.
         Clock "clock" import "clock" => CLOCK_NAMES, implies [], providers ["deterministic_stepped"];
         /// Sockets: NATS and HTTP over TCP. `blue_lang_runtime::net::install_net`,

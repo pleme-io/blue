@@ -1905,11 +1905,11 @@ needs is in [KERNEL.md](KERNEL.md) §3.
 - [BUILD-ASSURANCE — what a blue build proves, how fast, and from which cache](BUILD-ASSURANCE.md): what a blue build proves, how fast, and from which cache (design)
 - [BUILD-STACK — the default platform for a blue service, from Bluefile to a running node](BUILD-STACK.md): the default platform for a blue service, from Bluefile to a running node (design)
 - [`Cargo.gen.lock` is committed, and that is a trade](CARGO-GEN-LOCK.md): why Cargo.gen.lock is committed, and what that trade costs
-- [CLI-TUI — one way to build a command line and a terminal interface in blue](CLI-TUI.md): one way to build a command line and a terminal interface in blue (design, layer 1 built)
+- [CLI-TUI — one way to build a command line and a terminal interface in blue](CLI-TUI.md): one way to build a command line and a terminal interface in blue (layers 1 and 2 built)
 - [Competing languages — what blue takes, and what it refuses](COMPETING-LANGUAGES.md): what blue takes from competing languages on packaging and the standard library, and what it refuses
 - [Compile time: Rust's static guarantees and Lua's runtime, in blue](COMPILE-TIME.md): Rust's static guarantees and Lua's runtime, brought into blue
 - [Compounding: every evolution break fixes itself](COMPOUNDING.md): every break blue's evolution causes ships its own fixer
-- [CORE-MODEL — one model per program, every surface a rendering](CORE-MODEL.md): every blue program declares one core model of annotated knobs; layering, flags, help, explain, docs, schemas, forms, migrations, tests, redaction and diff are renderings of it (first rungs built)
+- [CORE-MODEL — one model per program, every surface a rendering](CORE-MODEL.md): every blue program declares one core model of annotated knobs; layering, flags, help, explain, docs, schemas, forms, migrations, tests, redaction and diff are renderings of it (renderings built; mandatory structures in progress)
 - [COVERAGE: what blue can prove is untested, and forces](COVERAGE.md): every kind of missing test that blue can decide from its own AST and a deterministic test run, each one a forced finding by default outside scripts (design, 2026-11-10)
 - [CST plan: a lossless tree, resilient parsing, surface blame](CST-PLAN.md): the design for a lossless CST with resilient parsing and surface blame; nothing is built yet
 - [The data framework: one model, every rendering, nothing written twice](DATA-FRAMEWORK.md): the design of the data framework, one blue model rendered to schema, migrations, queries and GraphQL with nothing written twice, and the research it rests on

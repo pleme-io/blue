@@ -82,5 +82,11 @@
     "file": "settei.b",
     "find": "    why_not(k, v)\n  end\n  edited",
     "replace": "    nil\n  end\n  edited"
+  },
+  {
+    "name": "a bounded number loses its range in the module trio",
+    "file": "settei.b",
+    "find": "base = if t == :int and k[:min] != nil and k[:max] != nil",
+    "replace": "base = if false and k[:min] != nil and k[:max] != nil"
   }
 ]

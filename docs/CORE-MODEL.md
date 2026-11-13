@@ -351,7 +351,10 @@ Tier words are the theory's: unrepresentable, refused at build, refused at
 load, caught at run, attested after. The table is the destination. Built and
 tested today: `type`, bounds and `choices` at build and load; `set_by` at
 build, at load and in `sources`; `secret` in `explain`, docs and refusals;
-the `deprecated` notice. Every other cell is design, phased in §10.
+the `deprecated` notice; at deploy, `type`, bounds and `secret` in the values
+schema (P8), and for effects (M3) a NetworkPolicy from `egress` and `listen`
+with a `RuntimeDefault` seccomp profile (P15a). Every other cell is design,
+phased in §10.
 
 ### Beyond build time
 
@@ -415,6 +418,7 @@ Answered since: the unmodelled check follows nested groups (`config.guard.branch
 | P13 | heni and kirikae on models (`settings`/`frame`; `config_model` with `settled`) | heni: 6 of 8 recorded lines identical, 2 add only `--explain`; kirikae: its defaults and alias map equal the hand-written records (a test holds both), 140 tests green | M1 for each | built. kernel/run.b too: `config_model`, settled per key, and the settings a host run takes rendered by `env_pairs` from a key list instead of thirteen hand-written environment names (a test holds the old list). The service example waits on P8b |
 | P14 | the unmodelled read and a raw own-prefix `getenv` as B-codes in the rule registry, ratcheted | a fixture red on each code | **M1 and M4 enforced** for every program | design |
 | P15 | a program with no `allow` ceiling, and a service with no `access`, refused by `blue check` | a fixture red on each | **M2 and M3 enforced** | design |
+| P15a | effects (M3) at deploy: haibi renders a NetworkPolicy from `access.egress` and `access.listen`, and a `RuntimeDefault` seccomp profile (SERVICE-ACCESS A2) | haibi tests, red on unbound names; heni mutations "egress stays open" and "no seccomp profile" caught | M3 at deploy | built; FQDN peers are a world-fact limit (NetworkPolicy has no peer by name), so a peer is bound by its port |
 | P16 | a raised kind outside kyohi's ledger refused | a fixture red | **M5 enforced** | design |
 | P17 | a service with no observability binding or supervision policy refused | a fixture red | **M7 and M8 enforced** (service profile) | design |
 | P18 | the capability-to-control map (kensa, OSCAL) and the release statement (shomei, tameshi) | a release whose statement lacks the model is refused | attested after | design |
@@ -443,5 +447,6 @@ design them again.
 | the generator survey (§2a) | recorded | read on local checkouts 2026-11-13; rows marked † not re-measured |
 | P7 to P13 and P20 (phase 2) | tested | settei tests (123), `checks.core-models` over souji, heni and kirikae, 14 of 14 settei mutations caught |
 | P7b, the form on a terminal (phase 4) | tested | settei tests, `crates/blue-lang-cli/tests/terminal.rs` on real standard input, settei mutations 17 of 17; CLI-TUI L2 built with it |
+| P15a, effects at deploy (phase 5) | tested | haibi tests, heni 12 of 12 for haibi; SERVICE-ACCESS A2's chart rows |
 | P21 and kernel/run.b (phase 3) | tested | settei test; kernel/run.b's forwarded settings equal the hand-written list, its bounds law holds |
 | P14 to P19 | design; P14 to P17 register as obligations in the one obligation engine (TESTING.md), not a second checker | this doc |

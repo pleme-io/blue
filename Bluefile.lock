@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:f1d335bbb9aa54ad416b1b3e8db345b1762bf097a05d7172542ab920584fba4e",
+  "bluefile_b3": "b3:2bfd6308b0978fb7dd5151710288d8f3aae81e66171176b62d97f07492be55d8",
   "manifest": {
     "schema": 1,
     "name": "blue-repository",
@@ -146,7 +146,7 @@
       "release": {
         "file": "gen/release.b"
       },
-      "test-beside": {
+      "test-beside-judge": {
         "file": "gen/test-beside.b"
       },
       "verb-graph": {
@@ -158,6 +158,7 @@
     },
     "apps": {},
     "catalog": "bidamas/CATALOG.md",
+    "coverage": "gen/test-beside.b",
     "generated": {
       "agents": {
         "output": "AGENTS.md",

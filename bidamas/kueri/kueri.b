@@ -2654,6 +2654,7 @@ end
 
 # ── the DuckDB seam ────────────────────────────────────────────────────────
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 duckdb: Run SQL through the `duckdb` binary on PATH: [:ok, rows] or [:error, stderr].
 Rows are JSON documents (read fields with q_row_values or deeta). Only
@@ -2666,6 +2667,7 @@ def duckdb(sql)
   duckdb_result(exec_capture("duckdb", "-json", "-c", sql))
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 duckdb_at: q_duckdb against a database file (created when absent), so what a script
 builds persists: [:ok, rows] or [:error, stderr].

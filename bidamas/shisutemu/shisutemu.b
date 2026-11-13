@@ -842,12 +842,22 @@ test "show_step writes one line through the sink and keeps colour off when told"
   assert terminal?(9) == false
 end
 
-test "run_capture answers stdout on success and why on failure or no start"
+test "run_capture answers stdout on success and why on failure or no start", {
+  kind: :integration,
+  allow: [:process]
+}
   assert run_capture(["blue-no-such-command-xyz"]) ==
     {ok: false, why: "blue-no-such-command-xyz could not be started"}
   assert run_capture(%w[sh -c true]) == {ok: true, stdout: ""}
   assert run_capture(["sh", "-c", "echo boom >&2; exit 3"]) ==
     {ok: false, why: "sh exited 3: boom"}
+end
+
+test "terminal? asks `test -t`; descriptor 9 is no terminal", {
+  kind: :integration,
+  allow: [:process]
+}
+  assert terminal?(9) == false
 end
 
 test "load_and_cores answers the load and a positive core count on a host that has them"

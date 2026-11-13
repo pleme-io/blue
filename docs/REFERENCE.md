@@ -46,7 +46,7 @@ Semantics that differ from Ruby are in [`bidamas/okite/RULES.md`](../bidamas/oki
 | `raise(:parse, "bad row")` | `(raise :parse "bad row")` | Raise an error; raise(:k, "m", {data: d, cause: e}) attaches data and the error it wraps, raise(e) raises e again. throw(error(…)) is read as this (B0037). |
 | `risky(x) rescue fallback` | `(try (risky x) (catch (_) fallback))` | The value of risky(x), or fallback when it raises. Binds loosest of all, below \|>. |
 | <code>begin<br>&nbsp;&nbsp;risky(x)<br>rescue :timeout as e<br>&nbsp;&nbsp;wait(e)<br>end</code> | `(try (risky x) (catch (rescued-error) (cond ((blue-rescues? rescued-error :timeout) (let ((e rescued-error)) (wait e))) (else (blue-reraise rescued-error)))))` | Catch by kind, binding the error; `rescue e` (last) catches every error, an unmatched kind raises again, and `ensure` runs on both paths. A def body takes the same clauses without begin. |
-| <code>test "isolated", {satisfies: [:nist_ac_6], target: parse}<br>&nbsp;&nbsp;assert parse(1)<br>end</code> | `(deftest "isolated" (blue-test-meta (hash-map :satisfies (list :nist_ac_6) :target parse)) (blue-assert '(parse 1) (parse 1)))` | A test that declares the controls it verifies, each a catalog keyword (:nist_ac_6 is NIST_SP_800_53R5_AC_6, B0069), and the definition it targets. `blue test --facts` hands both, with each one's def_hash, to tameshi. Written satisfies then target, the controls sorted (B0068). |
+| <code>test "isolated", {satisfies: [:nist_ac_6], target: parse}<br>&nbsp;&nbsp;assert parse(1)<br>end</code> | `(deftest "isolated" (blue-test-meta (hash-map :satisfies (list :nist_ac_6) :target parse)) (blue-assert '(parse 1) (parse 1)))` | A test that declares the controls it verifies, each a catalog keyword (:nist_ac_6 is NIST_SP_800_53R5_AC_6, B0069), and the definition it targets. `blue test --facts` hands both, with each one's def_hash, to tameshi. It may also declare `kind:` (one of :unit, :property, :snapshot, :contract, :integration, :rendering, :e2e), `allow:` (the host capabilities it runs held to) and `fakes:`. Written satisfies, target, kind, allow, fakes, each list sorted (B0068). |
 | <code>@doc """<br>inc adds one to a number.<br><br>&nbsp;&nbsp;&nbsp;&nbsp;inc(1) #=&gt; 2<br>"""<br>def inc(n)<br>&nbsp;&nbsp;n + 1<br>end</code> | `(blue-doc "inc adds one to a number.\n\n    inc(1) #=> 2" (define (inc n) (+ n 1)))` | Documents the definition below it: one sentence of intent starting with its name, then an indented example whose `expr #=> value` lines `blue test` runs as tests. A heredoc: no escapes, no interpolation. Everything else about a definition is derived (B0056–B0060). |
 | <code>@moduledoc """<br>kazu holds the number verbs.<br><br>&nbsp;&nbsp;&nbsp;&nbsp;kazu::clamp(9, 1, 5) #=&gt; 5<br>"""</code> | `(blue-moduledoc "kazu holds the number verbs.\n\n    kazu::clamp(9, 1, 5) #=> 5")` | Documents a whole file, a bidama: its purpose and one whole example. The first form of the file. |
 
@@ -82,7 +82,7 @@ Higher binding power binds tighter.
 | `quote` | `quote … end`: the form itself as data, not its value. Used inside `defmacro`. |
 | `unquote` | `unquote(x)`: inside `quote`, splice in the value of `x`. |
 | `unquote_splice` | `unquote_splice(xs)`: inside `quote`, splice the items of the form `xs` in place, not the form itself. |
-| `test` | `test "what must hold" … end`: a test block, run by `blue test` and ignored by `blue run`. `test "n", {satisfies: [:nist_ac_6], target: f}` declares the controls it verifies and the definition it targets (B0068, B0069). |
+| `test` | `test "what must hold" … end`: a test block, run by `blue test` and ignored by `blue run`. `test "n", {satisfies: [:nist_ac_6], target: f, kind: :integration, allow: [:network], fakes: [:valkey]}` declares the controls it verifies, the definition it targets, its kind, the host capabilities it runs held to and the fakes it stands up (B0068, B0069). |
 | `assert` | `assert expr`: inside a test, fail it unless `expr` is truthy; the failure quotes the expression. |
 | `assert_panics` | `assert_panics expr`: inside a test, pass only when `expr`, run in a child held to a pure frame, ends on a capability breach with no host call made. |
 | `fn` | `fn(x) x * 2 end`: an anonymous function, a value. Blue has no brace or do blocks. |
@@ -103,7 +103,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-401 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 196 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+401 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 197 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -688,6 +688,8 @@ A Bluefile is a blue program that may call only these words.
 | `generate(name, output, program[, inputs])` | A committed file and the program that writes it (to $GEN_OUT): `packages.generated-<name>` and a freshness check. `inputs` lists the project paths the program reads, found under $GEN_ROOT. |
 | `rule(code, file, def[, severity])` | A project check rule: `blue check` calls the blue definition `def` in `file` on each top-level form of every file under the project, under a pure frame, and reports its findings under `code` (letters then four digits, never B); severity "error" (default) or "warning". |
 | `catalog(path)` | Where the mokuroku catalogue of the `packages` roots is committed; gated fresh. |
+| `coverage(file)` | The program that holds the project's coverage policy for `checks.test-beside`: `blue run file -- policy` prints `{entries, recorded}` (tesuto `level` and `waive` entries, and hadome `untested: <pkg> <n>` rows of recorded debt). With none, every package is held at enforce with no debt. |
+| `skip(gate, why)` | Configures one default gate off for this project, with the reason: `skip("test-beside", "…")`. The gate's code and its tests stay; the lock records the skip and its reason, and a gate blue does not give every project is refused. |
 | `image(name, spec)` | An OCI image of one of the project's programs, built by nix as `packages.image-<name>` on substrate's hardened bases: distroless unless `shell` or `tools` is declared with its `reason`. |
 | `workload(name, spec)` | A Deployment (and Service) for an image, rendered to the committed file `output` (default `deploy/<name>.yaml`) and gated fresh; applying it is GitOps, `blue diff` compares it with a cluster. |
 | `service(name, spec)` | An HTTP service from one of the project's programs: its runnable closure `packages.<name>`, its image through substrate's mkHardenedImageSet, its module trio, and the committed `output` tree (default `deploy/<name>`) of a Helm chart with a generated values.schema.json, its settings' defaults and schema, and with a `schema`, its additive SQL and shinka migration; every file gated fresh. |
@@ -768,8 +770,8 @@ Every rule blue holds, from the registry the check stage runs (`blue explain COD
 | `B0065` | newline-escape | text of several lines is written as its lines: `join_lines([a, b])`, `unlines([a, b])` when it ends in a newline, `line_break` alone; never a `\n` escape in a string | autofix |
 | `B0066` | index | a key or position is read with brackets: `m[:k]` for `get(m, :k)`, `xs[i]` for `nth(i, xs)` | autofix |
 | `B0067` | name-as-string | a name a builtin reads as text is a keyword, not a string: `error(:kind, m)`, `json_get(doc, :field)`, `json_get_or(doc, :field, d)` | autofix |
-| `B0068` | test-declaration-order | a test's declaration is written `satisfies` then `target`, its controls sorted: `{satisfies: %i[nist_ac_6 nist_cm_7], target: f}` | autofix |
-| `B0069` | test-declaration | a test satisfies controls the catalog table names (`:nist_ac_6` is NIST_SP_800_53R5_AC_6) and targets a definition of the program | refused |
+| `B0068` | test-declaration-order | a test's declaration is written `satisfies`, `target`, `kind`, `allow`, `fakes`, each list sorted: `{satisfies: %i[nist_ac_6 nist_cm_7], target: f}` | autofix |
+| `B0069` | test-declaration | a test satisfies controls the catalog table names (`:nist_ac_6` is NIST_SP_800_53R5_AC_6), targets a definition of the program and allows only host capabilities blue names | refused |
 | `B0070` | reimplemented-word | a definition of 12 or more nodes is not a catalogue word's shape: it uses the word, or waives this rule with its reason | suggested |
 | `B0071` | evaluator-name | a definition is not named for a word the evaluator answers first: a word syntax lowers to (`list`, `concat`, `apply`, `equal?`, `mod`, `join_lines`, `unlines`, `line_break`) or a special form | refused |
 | `B0072` | call-arity | a call to a definition passes a number of arguments that definition takes | refused |
@@ -782,3 +784,12 @@ Every rule blue holds, from the registry the check stage runs (`blue explain COD
 | `B0080` | return-position | a `return` ends a branch of an `if` or `case` that is a statement of a def body, where it is rewritten into if/else | refused |
 | `B0081` | union-arms | a `case` whose `when` arms test a union's records names every arm of that union, or has an `else` | refused |
 | `B0082` | strict-signature | in a `blueshift(:strict)` file every top-level function is typed: its signature annotates a parameter or its return | refused |
+| `B0083` | untested-effect-point | a definition that names a host builtin outside the ambient set (network, process, entropy and the other non-ambient capabilities) is reached by a test of its own file declared `kind: :integration` | refused |
+| `B0084` | untested-seam-point | a definition that calls an imported word whose reach names a non-ambient host builtin is reached by a test of its own file declared `kind: :integration` | refused |
+| `B0085` | untested-rendering | the program of a Bluefile `generate` row holds a test declared `kind: :rendering` | refused |
+| `B0086` | untested-service | the program of a Bluefile `service(...)` row holds a test declared `kind: :e2e` | refused |
+| `B0087` | untested-binding | a service whose row binds a `cache` or a `schema` holds a test of its program declared `kind: :contract` | refused |
+| `B0088` | assertionless-test | a test of a bidama reaches an assertion: an `assert`, an `assert_panics` or a `tesuto::snapshot` | refused |
+| `B0089` | tautological-assertion | a test of a bidama asserts something the code could fail: never a bare literal, never one expression compared with itself | refused |
+| `B0090` | untargeted-definition | each definition of a bidama is named by a test of its file: called, referenced, or its `target:` | refused |
+| `B0091` | unexpected-raise | each tag a definition of a bidama raises is named by a test of its file, the way a test expects it | refused |

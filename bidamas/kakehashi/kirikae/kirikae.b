@@ -306,6 +306,7 @@ def plan(flake, host, kind, current_link, hist, now_ms, pol)
   end
 end
 
+# waive B0084: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches this seam yet
 @doc """
 evaluated: the plan from a dry build of the installable: the decision against the running system with the build and fetch counts, or a refusal when the system does not evaluate.
 
@@ -567,6 +568,7 @@ def settings()
   }
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 stdout_of_host: the machine's short host name as `hostname -s` prints it, the default host to plan for.
 
@@ -576,6 +578,7 @@ def stdout_of_host()
   stdout_of(exec_capture("hostname", "-s") rescue nil)
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 kind_of_host: the platform of the machine kirikae runs on, nixos on Linux and darwin otherwise.
 
@@ -607,6 +610,7 @@ def checkout_path(flake)
   end
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 git_out: what a git command in the directory printed, trimmed, or nil when it failed; git never prompts for credentials.
 
@@ -908,6 +912,7 @@ def refused_plan(r)
   {action: :refuse, why: r[1], refusal: r, plan_ms: 0}
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 survey: the facts the guard judges: the checkout and its refusal, and a refusal naming another writer of the machine.
 
@@ -938,6 +943,7 @@ def survey(s)
   {checkout: c, stale:, busy:}
 end
 
+# waive B0084: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches this seam yet
 @doc """
 guard_of: the guard's verdict on surveyed facts: a refusal, a busy hold, the loop's no-op, or nil to go on and plan.
 
@@ -1552,6 +1558,7 @@ def run(cmd)
   end
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 switched: hand the planned switch to the rebuild command, verify it, record the outcome, and close the run.
 
@@ -1761,6 +1768,7 @@ def phase_line(state, name, note, ms)
   }
 end
 
+# waive B0084: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches this seam yet
 @doc """
 tell: one phase line on stderr when the narration is full, and nothing otherwise.
 
@@ -1773,6 +1781,7 @@ def tell(s, state, name, note, ms)
   nil
 end
 
+# waive B0084: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches this seam yet
 @doc """
 say: a whole line on stderr when the narration is full, painted as the phase lines are.
 
@@ -2071,6 +2080,7 @@ def outcome_field(answer, key, bare)
   end
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 main: kirikae's command line: print the answer to its arguments and exit with its status.
 
@@ -2085,6 +2095,7 @@ def main()
   nil
 end
 
+# waive B0084: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches this seam yet
 @doc """
 answer: the answer to one kirikae command: plan, demo, config, run or record; a wrong use raises :usage.
 

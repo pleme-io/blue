@@ -17,9 +17,23 @@ struct Imports(
     &'static [(&'static str, &'static str)],
     Option<&'static str>,
     Option<&'static str>,
+    Option<&'static str>,
 );
 
 impl Loader for Imports {
+    fn roles(&self, _entry: &Path) -> Vec<blue_lang_runtime::uses::Role> {
+        use blue_lang_runtime::uses::Role;
+        match self.3 {
+            Some("generator") => vec![Role::Generator("witness".into())],
+            Some("service") => vec![Role::Service("witness".into())],
+            Some("binding") => vec![
+                Role::Service("witness".into()),
+                Role::Binding("witness".into(), "cache".into()),
+            ],
+            _ => Vec::new(),
+        }
+    }
+
     fn load(&self, name: &str) -> Result<Vec<(String, String)>, String> {
         self.0
             .iter()
@@ -101,7 +115,7 @@ fn every_machine_fixed_spelling_rule_is_fixed_by_fmt_write() {
             && r.package.is_none()
             && !CHECK_FIX_RULES.contains(&r.code)
     }) {
-        let loader = Imports(r.imports, r.frontend, None);
+        let loader = Imports(r.imports, r.frontend, None, r.role);
         let path = Path::new("witness.b");
         let written = match blue_lang_pkg::canonical::format_with(&loader, path, r.witness) {
             Ok(w) => w,
@@ -139,7 +153,7 @@ fn every_machine_fixed_spelling_rule_is_fixed_by_fmt_write() {
 #[test]
 fn a_refused_rule_offers_no_rewrite_of_its_witness() {
     for r in RULES.iter().filter(|r| r.fix == FixKind::None) {
-        let loader = Imports(r.imports, r.frontend, r.package);
+        let loader = Imports(r.imports, r.frontend, r.package, r.role);
         let Ok(written) =
             blue_lang_pkg::canonical::format_with(&loader, Path::new("witness.b"), r.witness)
         else {
@@ -174,7 +188,7 @@ fn every_carried_machine_fix_repairs_its_witness() {
     for r in RULES.iter().filter(|r| r.fixes.is_some()) {
         seen += 1;
         let src = r.fixes.unwrap_or_default();
-        let loader = Imports(r.imports, r.frontend, r.package);
+        let loader = Imports(r.imports, r.frontend, r.package, r.role);
         let path = Path::new("witness.b");
         let found = diagnostics(src, &loader);
         let carried = found.iter().any(|d| {
@@ -237,7 +251,7 @@ fn all_diagnostics(src: &str, loader: &Imports) -> Vec<blue_lang_check::Diagnost
 }
 
 fn repair(r: &blue_lang_check::Rule) -> Result<String, String> {
-    let loader = Imports(r.imports, r.frontend, r.package);
+    let loader = Imports(r.imports, r.frontend, r.package, r.role);
     let mut found: Vec<_> = all_diagnostics(r.witness, &loader)
         .into_iter()
         .filter(|d| d.code == r.code)

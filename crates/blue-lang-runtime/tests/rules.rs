@@ -33,9 +33,25 @@ struct Imports(
     &'static [(&'static str, &'static str)],
     Option<&'static str>,
     Option<&'static str>,
+    Option<&'static str>,
 );
 
 impl Loader for Imports {
+    /// A rule that judges a project point has its witness checked as the
+    /// program of that row: `generator`, `service`, or a `binding` service.
+    fn roles(&self, _entry: &std::path::Path) -> Vec<blue_lang_runtime::uses::Role> {
+        use blue_lang_runtime::uses::Role;
+        match self.3 {
+            Some("generator") => vec![Role::Generator("witness".into())],
+            Some("service") => vec![Role::Service("witness".into())],
+            Some("binding") => vec![
+                Role::Service("witness".into()),
+                Role::Binding("witness".into(), "cache".into()),
+            ],
+            _ => Vec::new(),
+        }
+    }
+
     fn load(&self, name: &str) -> Result<Vec<(String, String)>, String> {
         self.0
             .iter()
@@ -48,9 +64,12 @@ impl Loader for Imports {
     /// another is B0019's witness and no other row's.
     fn needs(
         &self,
-        _package: &str,
+        package: &str,
         _entry_dir: Option<&std::path::Path>,
     ) -> Option<std::collections::BTreeSet<String>> {
+        if self.2 == Some(package) {
+            return Some(self.0.iter().map(|(n, _)| (*n).to_string()).collect());
+        }
         Some(std::collections::BTreeSet::new())
     }
 
@@ -159,6 +178,27 @@ fn codes_in(
     frontend: Option<&'static str>,
     package: Option<&'static str>,
 ) -> Vec<Code> {
+    quiet(codes_as(src, imports, frontend, package, None), None)
+}
+
+/// The codes without the two reach rules still being ratcheted in (B0090,
+/// B0091), unless `keep` names one: they fire into the census on nearly every
+/// bidama a witness is checked as, so a witness of another rule would never
+/// be the only code it shows.
+fn quiet(codes: Vec<Code>, keep: Option<Code>) -> Vec<Code> {
+    codes
+        .into_iter()
+        .filter(|c| !matches!(c, Code::B0090 | Code::B0091) || Some(*c) == keep)
+        .collect()
+}
+
+fn codes_as(
+    src: &str,
+    imports: &'static [(&'static str, &'static str)],
+    frontend: Option<&'static str>,
+    package: Option<&'static str>,
+    role: Option<&'static str>,
+) -> Vec<Code> {
     if let Some(d) = syntax_diagnostic(src) {
         return vec![d.code];
     }
@@ -171,7 +211,7 @@ fn codes_in(
             path: Some(&path),
             text: src,
         },
-        &Imports(imports, frontend, package),
+        &Imports(imports, frontend, package, role),
         None,
         Checking::WithTests,
     )
@@ -196,7 +236,10 @@ fn codes_of(src: &str) -> Vec<Code> {
 fn every_rule_fires_on_its_witness_and_only_it() {
     let mut failures = Vec::new();
     for r in RULES {
-        let got = codes_in(r.witness, r.imports, r.frontend, r.package);
+        let got = quiet(
+            codes_as(r.witness, r.imports, r.frontend, r.package, r.role),
+            Some(r.code),
+        );
         if got != vec![r.code] {
             failures.push(format!("{}: expected [{}], got {got:?}", r.code, r.code));
         }
@@ -393,4 +436,157 @@ fn the_evaluator_name_rule_fires_exactly_on_the_names_a_definition_loses_to() {
     }
     assert!(measured > 200, "only {measured} names measured");
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+const KAGI_HEAD: &str = "@moduledoc \"\"\"\nkagi asks the machine.\n\n    1 + 1 #=> 2\n\"\"\"\n\n@doc \"\"\"\nkagi runs `date`.\n\n    1 + 1 #=> 2\n\"\"\"\ndef kagi()\n  exec_capture(\"date\")\nend\n\n@doc \"\"\"\nask_kagi asks kagi.\n\n    1 + 1 #=> 2\n\"\"\"\ndef ask_kagi()\n  kagi\nend\n";
+
+fn kagi_codes(tests: &str) -> Vec<Code> {
+    codes_in(
+        Box::leak(format!("{KAGI_HEAD}\n{tests}").into_boxed_str()),
+        &[],
+        None,
+        Some("kagi"),
+    )
+}
+
+/// **An integration point with no test of its kind is refused, and the test
+/// of its kind discharges it, directly or through a caller.** A unit test that
+/// reaches the point does not.
+///
+/// Red run (2026-11-13): `point_diagnostics` removed from the check stage:
+/// `a unit test does not discharge an effect point: []`.
+#[test]
+fn an_effect_point_is_discharged_only_by_a_test_of_its_kind() {
+    assert_eq!(
+        kagi_codes("test \"kagi\"\n  assert kagi != nil\nend\n"),
+        vec![Code::B0083],
+        "a unit test does not discharge an effect point"
+    );
+    assert_eq!(
+        kagi_codes(
+            "test \"kagi\", {kind: :integration, allow: [:process]}\n  assert kagi != nil\nend\n"
+        ),
+        Vec::<Code>::new()
+    );
+    assert_eq!(
+        kagi_codes(
+            "test \"through its caller\", {kind: :e2e, allow: [:process]}\n  assert ask_kagi != nil\nend\n"
+        ),
+        Vec::<Code>::new()
+    );
+}
+
+/// A script owes no integration test: the point rule judges a bidama's file.
+#[test]
+fn a_script_owes_no_integration_test() {
+    assert_eq!(
+        codes_of("def kagi()\n  exec_capture(\"date\")\nend\n"),
+        Vec::<Code>::new()
+    );
+}
+
+/// The ambient capabilities make no point: a unit test reaches the
+/// filesystem, the environment and the clock without a fake.
+#[test]
+fn an_ambient_builtin_makes_no_point() {
+    for word in ["read_file(\"x\")", "getenv(\"HOME\")", "now_rfc3339"] {
+        let src = format!(
+            "@moduledoc \"\"\"\nkagi reads.\n\n    1 + 1 #=> 2\n\"\"\"\n\n@doc \"\"\"\nkagi reads.\n\n    1 + 1 #=> 2\n\"\"\"\ndef kagi()\n  {word}\nend\n"
+        );
+        assert_eq!(
+            codes_in(Box::leak(src.into_boxed_str()), &[], None, Some("kagi")),
+            Vec::<Code>::new(),
+            "{word}"
+        );
+    }
+}
+
+/// A test's `allow:` names host capabilities; any other word is B0069.
+#[test]
+fn an_allow_naming_no_host_capability_is_refused() {
+    assert_eq!(
+        codes_of("test \"t\", {kind: :integration, allow: [:telepathy]}\n  assert true\nend\n"),
+        vec![Code::B0069]
+    );
+    assert_eq!(
+        codes_of(
+            "test \"t\", {kind: :integration, allow: %i[comm_flash network]}\n  assert true\nend\n"
+        ),
+        Vec::<Code>::new()
+    );
+}
+
+/// **A waiver of an integration point is judged only where points are
+/// found.** A door that checks no tests (`blue run`, a compiler reading the
+/// file) runs no point rule, so it neither applies the waiver nor calls it
+/// stale.
+///
+/// Red run (2026-11-13): obligation waivers applied on every door:
+/// `[B0008]` from the program check of a waived point.
+#[test]
+fn an_obligation_waiver_is_judged_only_where_tests_are_checked() {
+    let src = KAGI_HEAD.replacen(
+        "@doc \"\"\"\nkagi runs",
+        "# waive B0083: the fixture's debt\n@doc \"\"\"\nkagi runs",
+        1,
+    );
+    let surface = FullSurface::new();
+    let path = surface.0.join("kagi.b");
+    for checking in [Checking::Program, Checking::WithTests] {
+        let checked = check_entry(
+            Entry {
+                path: Some(&path),
+                text: &src,
+            },
+            &Imports(&[], None, Some("kagi"), None),
+            None,
+            checking,
+        )
+        .expect("checks");
+        let codes: Vec<Code> = checked.outcome.diagnostics.iter().map(|d| d.code).collect();
+        assert_eq!(codes, Vec::<Code>::new());
+        assert_eq!(
+            checked.outcome.waived.len(),
+            usize::from(checking == Checking::WithTests)
+        );
+    }
+}
+
+/// **A project point is discharged by a test of its kind and by nothing
+/// else.** A generator owes a rendering test, a service an end-to-end test,
+/// and a service with a binding a contract test as well.
+///
+/// Red run (2026-11-13): `project_points` removed from the check stage:
+/// `a generator with no rendering test: []`.
+#[test]
+fn a_project_point_is_discharged_only_by_a_test_of_its_kind() {
+    let main = "def main()\n  1\nend\n\n";
+    let with = |kind: &str| -> &'static str {
+        Box::leak(
+            format!("{main}test \"t\", {{kind: :{kind}}}\n  assert main == 1\nend\n")
+                .into_boxed_str(),
+        )
+    };
+    assert_eq!(
+        codes_as(with("unit"), &[], None, None, Some("generator")),
+        vec![Code::B0085],
+        "a generator with no rendering test"
+    );
+    assert_eq!(
+        codes_as(with("rendering"), &[], None, None, Some("generator")),
+        Vec::<Code>::new()
+    );
+    assert_eq!(
+        codes_as(with("e2e"), &[], None, None, Some("service")),
+        Vec::<Code>::new()
+    );
+    assert_eq!(
+        codes_as(with("contract"), &[], None, None, Some("binding")),
+        vec![Code::B0086]
+    );
+    assert_eq!(
+        codes_as(with("rendering"), &[], None, None, None),
+        Vec::<Code>::new(),
+        "a file no row names owes nothing"
+    );
 }

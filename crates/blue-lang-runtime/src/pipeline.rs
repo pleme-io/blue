@@ -1164,6 +1164,21 @@ fn check_stage_in(
             namespace_of(program, i)
         }));
     outcome.diagnostics.extend(doc_diagnostics(program));
+    if with_tests {
+        outcome
+            .diagnostics
+            .extend(point_diagnostics(program, &table));
+        outcome
+            .diagnostics
+            .extend(declared_capabilities(forms, &is_entry));
+        outcome
+            .diagnostics
+            .extend(blue_lang_check::points::project_points(
+                forms,
+                &is_entry,
+                &project_points_of(program.roles()),
+            ));
+    }
     outcome
         .diagnostics
         .extend(blue_lang_check::form_rules::evaluator_names(
@@ -1223,7 +1238,22 @@ fn check_stage_in(
     let (reuse_waivers, waivers): (Vec<_>, Vec<_>) = waivers
         .into_iter()
         .partition(|w| w.code == blue_lang_check::Code::B0070);
+    let (obligation_waivers, waivers): (Vec<_>, Vec<_>) = waivers
+        .into_iter()
+        .partition(|w| blue_lang_check::obligations::of_code(w.code).is_some());
     outcome.waived = blue_lang_check::waiver::apply(&mut outcome.diagnostics, waivers, &is_entry);
+    let points_found = with_tests
+        && (!program.roles().is_empty()
+            || program
+                .file(ResolvedProgram::ENTRY)
+                .is_some_and(|f| f.package.is_some()));
+    if points_found {
+        outcome.waived.extend(blue_lang_check::waiver::apply(
+            &mut outcome.diagnostics,
+            obligation_waivers,
+            &is_entry,
+        ));
+    }
     if with_tests && outcome.ok() {
         outcome.diagnostics.extend(reimplemented_words_in(
             program,
@@ -1471,6 +1501,124 @@ fn doc_diagnostics(program: &crate::uses::ResolvedProgram) -> Vec<blue_lang_chec
             names_line: &names_line,
         },
     )
+}
+
+/// The capability an integration point needs, for a host builtin outside the
+/// ambient set: the filesystem, the environment and the clock are reached by
+/// a unit test through a scratch directory, a set variable and `now` passed
+/// in, so naming them makes no point.
+#[must_use]
+pub fn point_capability(name: &str) -> Option<&'static str> {
+    use blue_lang_waku::Capability;
+    Capability::host_effects()
+        .into_iter()
+        .filter(|c| {
+            !matches!(
+                c,
+                Capability::FileSystem | Capability::Environment | Capability::Clock
+            )
+        })
+        .find(|c| c.grants(name))
+        .map(Capability::label)
+}
+
+/// B0083 and B0084 over the entry file, when it is a bidama's: an
+/// integration point with no test of its kind in its own file.
+fn point_diagnostics(
+    program: &crate::uses::ResolvedProgram,
+    table: &NameTable,
+) -> Vec<blue_lang_check::Diagnostic> {
+    use crate::uses::ResolvedProgram;
+    if program
+        .file(ResolvedProgram::ENTRY)
+        .and_then(|f| f.package.as_deref())
+        .is_none()
+    {
+        return Vec::new();
+    }
+    let forms = program.forms();
+    let resolved =
+        blue_lang_check::names::resolve_program(forms, table, &|i| namespace_of(program, i));
+    let p = blue_lang_check::points::Program {
+        forms,
+        references: &resolved.references,
+        is_entry: &|i| {
+            program.owner_of(i) == Some(ResolvedProgram::ENTRY)
+                && !blue_lang_syntax::doc::is_doctest(&forms[i])
+        },
+        namespace_of: &|i| namespace_of(program, i),
+        point_capability: &point_capability,
+    };
+    let mut out = blue_lang_check::points::check(&p);
+    out.extend(blue_lang_check::points::strength(&p));
+    out.extend(blue_lang_check::points::reach(&p));
+    out
+}
+
+/// The points a file's project roles make, each with the test kind it owes
+/// and the code that refuses it.
+fn project_points_of(roles: &[crate::uses::Role]) -> Vec<blue_lang_check::points::ProjectPoint> {
+    use crate::uses::Role;
+    use blue_lang_check::points::ProjectPoint;
+    use blue_lang_check::Code;
+    roles
+        .iter()
+        .map(|r| match r {
+            Role::Generator(n) => ProjectPoint {
+                what: format!("the program of generate(\"{n}\", …)"),
+                kind: "rendering",
+                code: Code::B0085,
+            },
+            Role::Service(n) => ProjectPoint {
+                what: format!("the program of service(\"{n}\", …)"),
+                kind: "e2e",
+                code: Code::B0086,
+            },
+            Role::Binding(n, b) => ProjectPoint {
+                what: format!("the program of service(\"{n}\", …), which binds a {b}"),
+                kind: "contract",
+                code: Code::B0087,
+            },
+        })
+        .collect()
+}
+
+/// B0069 for every capability a test's `allow:` names that is not a host
+/// capability blue knows.
+fn declared_capabilities(
+    forms: &[tatara_lisp::Spanned],
+    is_entry: &dyn Fn(usize) -> bool,
+) -> Vec<blue_lang_check::Diagnostic> {
+    let mut out = Vec::new();
+    for (i, form) in forms.iter().enumerate().filter(|(i, _)| is_entry(*i)) {
+        let Some(meta) = blue_lang_syntax::test_parts(form)
+            .and_then(|p| p.meta)
+            .and_then(blue_lang_syntax::test_meta)
+        else {
+            continue;
+        };
+        for (word, span) in meta.allow {
+            if blue_lang_waku::Capability::host_named(word).is_none() {
+                out.push(
+                    blue_lang_check::Diagnostic::new(
+                        blue_lang_check::Code::B0069,
+                        format!("`:{word}` is not a host capability"),
+                        span,
+                    )
+                    .at_top_level(i)
+                    .with_help(format!(
+                        "a test allows host capabilities by their labels, in snake case: {}",
+                        blue_lang_waku::Capability::HOST_LABELS
+                            .iter()
+                            .map(|l| format!(":{}", l.replace('-', "_")))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )),
+                );
+            }
+        }
+    }
+    out
 }
 
 fn data_law_diagnostics(

@@ -2399,6 +2399,7 @@ end
 
 # ── The driver ────────────────────────────────────────────────────────────
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 def cz_capture(args)
   r = exec_capture(*args)
   {
@@ -2408,6 +2409,7 @@ def cz_capture(args)
   }
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 cz_emit: The emitted Rust for the blue program at `path`, built for the board named
 `board_name`. The program is checked by blue's own pipeline first; a program

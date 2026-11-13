@@ -128,6 +128,7 @@ pub struct Snapshot {
     needs: BTreeMap<String, BTreeSet<String>>,
     versions: BTreeMap<String, String>,
     frontend: Option<Frontend>,
+    roles: Vec<blue_lang_runtime::uses::Role>,
     moved: BTreeMap<String, blue_lang_runtime::uses::PackageMove>,
 }
 
@@ -161,6 +162,7 @@ impl Snapshot {
             needs: program.needs().clone(),
             versions: program.versions().clone(),
             frontend: program.frontend().cloned(),
+            roles: program.roles().to_vec(),
             moved: program
                 .bridged()
                 .iter()
@@ -191,6 +193,10 @@ impl Loader for Snapshot {
 
     fn frontend(&self, _entry: &Path) -> Option<Frontend> {
         self.frontend.clone()
+    }
+
+    fn roles(&self, _entry: &Path) -> Vec<blue_lang_runtime::uses::Role> {
+        self.roles.clone()
     }
 
     fn moved(&self, name: &str) -> Option<blue_lang_runtime::uses::PackageMove> {
@@ -301,6 +307,7 @@ pub fn witness(
         bounds: None,
         cached: std::collections::BTreeSet::new(),
         clock: blue_lang_runtime::ClockKind::Virtual,
+        arms: None,
     };
     let seen = catch_unwind(AssertUnwindSafe(|| {
         let witness = Arc::new(Witness::of_checked(&checked, None));

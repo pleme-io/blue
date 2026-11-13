@@ -54,6 +54,7 @@ def part_room()
   1180
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 link: one end of the wire bound to `addr`, with the channels `channels:` names (`%i[flash tide]`), a Flash bucket from `flash:` and a Tide controller from `tide:` (ibuki's defaults), and the Tide ring's bounds from `ring:`.
 
@@ -88,6 +89,7 @@ def link(addr, opts)
   }
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 address: the host:port a link's socket is bound to, which a peer sends to.
 
@@ -101,6 +103,7 @@ def address(l)
   end
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 emit: the link after one Flash frame to `peer`, sent when the bucket holds its bytes (the payload and its framing byte) and after waiting out the bucket when it does not; `sent:` names when and how many bytes. A frame past the MTU is a :bad_option raise and sends nothing. Under a real clock the host reads its clock a moment after the bucket did, so at the margin it can refuse what the bucket passed: emit waits the host's `wait_ms` once and sends again, and a second refusal raises.
 
@@ -129,6 +132,7 @@ def emit(l, peer, payload)
   end
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 queue: the link with one Tide data frame for `peer` in the host's ring, counting the oldest frames the ring evicted to hold it.
 
@@ -138,6 +142,7 @@ def queue(l, peer, body)
   {**l, evicted: l.evicted + tide_put(l.wire, peer, "d#{body}")}
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 pump: the link after the ring released what the Tide window allows: the controller's window less the bytes in flight, each frame stamped with the clock.
 
@@ -161,6 +166,7 @@ def acked(l, delay_ms, bytes)
   }
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 take: the next Tide frame within `timeout_ms`: a data frame is acknowledged at once with the delay it measured and its body delivered; an acknowledgement moves the window; `idle:` when none came.
 
@@ -546,6 +552,7 @@ def publish(n, peer, text)
   }
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 heed: the node after the next Flash frame within `timeout_ms`: an alert for a crash it neither holds, wants nor is immune to is wanted, and the want goes to its sender on Tide.
 

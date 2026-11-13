@@ -193,7 +193,7 @@ pub const FORMS: &[Form] = &[
     Form {
         example: "test \"isolated\", {satisfies: [:nist_ac_6], target: parse}\n  assert parse(1)\nend",
         lowers_to: "(deftest \"isolated\" (blue-test-meta (hash-map :satisfies (list :nist_ac_6) :target parse)) (blue-assert '(parse 1) (parse 1)))",
-        doc: "A test that declares the controls it verifies, each a catalog keyword (:nist_ac_6 is NIST_SP_800_53R5_AC_6, B0069), and the definition it targets. `blue test --facts` hands both, with each one's def_hash, to tameshi. Written satisfies then target, the controls sorted (B0068).",
+        doc: "A test that declares the controls it verifies, each a catalog keyword (:nist_ac_6 is NIST_SP_800_53R5_AC_6, B0069), and the definition it targets. `blue test --facts` hands both, with each one's def_hash, to tameshi. It may also declare `kind:` (one of :unit, :property, :snapshot, :contract, :integration, :rendering, :e2e), `allow:` (the host capabilities it runs held to) and `fakes:`. Written satisfies, target, kind, allow, fakes, each list sorted (B0068).",
     },
     Form {
         example: "@doc \"\"\"\ninc adds one to a number.\n\n    inc(1) #=> 2\n\"\"\"\ndef inc(n)\n  n + 1\nend",

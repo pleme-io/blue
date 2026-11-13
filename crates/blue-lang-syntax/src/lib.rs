@@ -52,7 +52,10 @@ pub use parse::{
     RESCUED, SURFACE_KEYWORDS, SYMBOL_SPELLINGS,
 };
 pub use spelling::{Note, Spelling};
-pub use test_form::{is_meta, meta_map, target_key, test_meta, test_parts, TestMeta, TestParts};
+pub use test_form::{
+    is_meta, kind_of, meta_map, target_key, test_meta, test_parts, TestMeta, TestParts, TEST_KEYS,
+    TEST_KINDS,
+};
 // `Spanned`/`SpannedForm` alongside `Sexp` for the same reason `Sexp` is here:
 // the parser's real output is the spanned tree, and a consumer that wants a
 // position should not have to add a tatara-lisp dependency to name the node it

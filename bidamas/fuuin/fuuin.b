@@ -13,6 +13,7 @@ use("moji", [:checked])
 use("retsu", %i[first last size])
 use("shomei", [:verify?])
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 generate: a new threshold group from secure entropy, `max` shares of which any `min` sign together: {group:, key:, min:, max:, shares:}. :threshold is the one kind; another kind, or a threshold outside 2 <= min <= max, raises :bad_option.
 
@@ -26,6 +27,7 @@ def generate(kind, opts)
   threshold_deal(opts[:min], opts[:max])
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 offer: one share's first round toward signing data, {nonces:, commitment:}. The commitment goes to whoever combines the signature; the nonces stay with the share and sign once.
 
@@ -35,6 +37,7 @@ def offer(share, data)
   threshold_commit(share, data)
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 sign: one share's signature share over data, {participant:, hex:}, from the nonces its offer kept and the commitments of the signers, at least the group's k with its own among them. The nonces are spent, so a second sign with them raises :refused.
 
@@ -45,6 +48,7 @@ def sign(data, share, opts)
   threshold_sign(share, opts[:nonces], data, opts[:commitments])
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 combine: the group's Ed25519 signature over data, in hex, from at least k signature shares and the commitments they signed for, checked under the group's key before it is answered. Fewer than k raises :refused, and a share that does not verify raises :tampered naming its participant.
 

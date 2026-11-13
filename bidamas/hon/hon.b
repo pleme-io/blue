@@ -1490,6 +1490,7 @@ def runnable_page?(page)
   member?(page[:kind], %i[tutorial howto]) or page[:runs]
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 run_command: Run one console command in directory `dir` with blue at `blue`: leading NAME=value words set the environment, and a leading `blue` is the blue under test.
 
@@ -1593,6 +1594,7 @@ def write_block_file(path, code)
   end
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 run_blocks: Run every blue and console block of one page, in order, in a fresh directory under `scratch`; returns the failures, each naming the page. A block with `file=PATH` is written there; a blue block without one runs, with `blue test` when it holds a test; a console block with the argument `fails` must fail; a console block with the argument `host` needs the network or nix and is shown, not run.
 
@@ -1690,6 +1692,7 @@ def published_reference(project)
   end
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 book_links: The code names a book written in directory `to` links: every built-in, from the reference that `blue` at `blue` prints, and every definition of the project's own packages under `root`.
 
@@ -1966,6 +1969,7 @@ def package_list(records, catalog)
   )
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 fact_sources: What the facts of a project's pages read, gathered once: the reference that `blue` at `blue` prints, when a page names `commands` or `language`, and the catalogue of the project's packages under `root`, when a page names `packages`.
 

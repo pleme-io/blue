@@ -311,6 +311,28 @@ def stale_tickets(tickets, beats, live, ref, since)
   )
 end
 
+@doc """
+stale_verdicts: The verdicts no land will read: a land reads its verdict only
+beside its ticket (verdict_on), so a verdict whose ticket is gone, queued before
+`since`, was left by a land that ended without removing it, as six were left on
+2026-11-11 and 2026-11-12; the next land reaps it.
+
+    stale_verdicts("2\trefs/heads/land-verdict/1/a", "land/b", 5) #=> [{name: "land-verdict/1/a", at: 1, ref: "land/a"}]
+    stale_verdicts(unlines(["1\trefs/heads/land-queue/1/a", "2\trefs/heads/land-verdict/1/a"]), "land/b", 5) #=> []
+    stale_verdicts("2\trefs/heads/land-verdict/9/a", "land/b", 5) #=> []
+    stale_verdicts("2\trefs/heads/land-verdict/1/b", "land/b", 5) #=> []
+"""
+def stale_verdicts(text, ref, since)
+  filter(
+    fn(v)
+      v[:ref] != ref and
+        v[:at] < since and
+        head_of(text, ticket_name(v[:at], v[:ref])).nil?
+    end,
+    verdicts_of(text)
+  )
+end
+
 def reap_minutes()
   30
 end
@@ -345,6 +367,29 @@ def reap(ref, runs)
         tickets_of(text, 0),
         beaten,
         live,
+        ref,
+        stamp(rfc3339_of_ms(now_ms - reap_minutes * 60000))
+      )
+    )
+    map(
+      fn(v)
+        gone = exec_capture(
+          "env",
+          "BLUE_PREPUSH_OFF=1",
+          "git",
+          "push",
+          "-q",
+          "origin",
+          ":refs/heads/#{v[:name]}"
+        )
+        if status_of(gone) == 0
+          say(
+            "reaped the stale verdict #{v[:name]}: #{v[:ref]} has no ticket beside it, so no land will read it"
+          )
+        end
+      end,
+      stale_verdicts(
+        text,
         ref,
         stamp(rfc3339_of_ms(now_ms - reap_minutes * 60000))
       )
@@ -4487,6 +4532,37 @@ test "a ticket whose land stopped beating and has no live run is reaped by the n
     assert status_of(r) == 0
     assert contains?(stderr_of(r), "reaped the stale ticket #{stale}")
     assert as_tester(work, ["ls-remote", "origin", "refs/heads/#{stale}"]) == ""
+    rm_rf(root)
+  end
+end
+
+test "a verdict whose ticket is gone is reaped by the next land, which says so, and a verdict beside its ticket stays, as six verdicts stayed behind on 2026-11-11 and 2026-11-12"
+  if self_exe != nil
+    root = landing_fixture
+    work = path_join(root, "work")
+    committed(work, [%w[other.txt other]], "topic")
+    at = recently(7200)
+    orphan = verdict_name(ticket_name(at, "land/gone"))
+    waiting = ticket_name(at, "land/kept")
+    beside = verdict_name(waiting)
+    as_tester(
+      work,
+      [
+        "push",
+        "-q",
+        "origin",
+        "HEAD:refs/heads/#{orphan}",
+        "HEAD:refs/heads/#{beside}",
+        "HEAD:refs/heads/#{waiting}"
+      ]
+    )
+    r = quick(root, batch_gh(root, []), ["--no-batch"])
+    assert status_of(r) == 0
+    assert contains?(stderr_of(r), "reaped the stale verdict #{orphan}")
+    assert as_tester(work, ["ls-remote", "origin", "refs/heads/#{orphan}"]) ==
+      ""
+    assert as_tester(work, ["ls-remote", "origin", "refs/heads/#{beside}"]) !=
+      ""
     rm_rf(root)
   end
 end

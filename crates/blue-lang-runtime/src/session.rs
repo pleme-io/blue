@@ -54,6 +54,18 @@ pub fn pure_frame() -> Waku {
     frame_granting(&[])
 }
 
+/// A frame granting the pure capabilities plus the host capabilities named
+/// by `labels` (`network`, or `comm_flash` as a keyword spells it); a label
+/// that names none grants nothing.
+#[must_use]
+pub fn frame_allowing(labels: &[String]) -> Waku {
+    let host: Vec<Capability> = labels
+        .iter()
+        .filter_map(|l| Capability::host_named(l))
+        .collect();
+    frame_granting(&host)
+}
+
 /// A frame granting the pure capabilities plus `host`, and every capability
 /// one of them implies (`filesystem` holds `storage-append`).
 #[must_use]

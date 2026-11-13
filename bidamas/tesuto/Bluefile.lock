@@ -1,11 +1,12 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:955ce5fb02b782bc5684e8a1416579614a0caa6b6fb5d164ff2c168b379096eb",
+  "bluefile_b3": "b3:21c2330f20539d7711eb0a72f5f68fc4af72981e0d911fa87786cb0bdbbff20a",
   "manifest": {
     "schema": 1,
     "name": "tesuto",
     "version": "0.1.1",
     "needs": {
+      "hadome": "^0.1.0",
       "moji": "^0.1.0",
       "retsu": "^0.1.0"
     },

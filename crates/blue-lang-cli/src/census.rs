@@ -33,9 +33,26 @@ pub struct Census {
     /// For each ratcheted code, each distinct finding, rendered.
     pub findings: BTreeMap<Code, BTreeSet<String>>,
     pub by_package: BTreeMap<(Code, String), BTreeSet<String>>,
+    pub waived: BTreeMap<Code, BTreeSet<String>>,
 }
 
 impl Census {
+    /// Every obligation whose waived debt is not the number its row holds:
+    /// `(id, code, measured, held)`.
+    #[must_use]
+    pub fn held_mismatches(&self) -> Vec<(&'static str, Code, usize, u32)> {
+        blue_lang_check::obligations::OBLIGATIONS
+            .iter()
+            .filter_map(|o| {
+                let blue_lang_check::obligations::Refusal::Code(code) = o.refusal else {
+                    return None;
+                };
+                let measured = self.waived.get(&code).map_or(0, BTreeSet::len);
+                (measured != o.held as usize).then_some((o.id, code, measured, o.held))
+            })
+            .collect()
+    }
+
     /// Every ratcheted rule whose measured count is not its ratchet:
     /// `(code, measured, ratchet)`.
     #[must_use]
@@ -78,6 +95,7 @@ pub fn take(root: &Path) -> Result<Census, String> {
     let loader = blue_lang_pkg::corpus::load_path(root, &files);
     let mut findings: BTreeMap<Code, BTreeSet<String>> = BTreeMap::new();
     let mut by_package: BTreeMap<(Code, String), BTreeSet<String>> = BTreeMap::new();
+    let mut waived: BTreeMap<Code, BTreeSet<String>> = BTreeMap::new();
     for path in &files {
         let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
         let checked = check_entry(
@@ -113,11 +131,27 @@ pub fn take(root: &Path) -> Result<Census, String> {
             }
             findings.entry(d.code).or_default().insert(shown);
         }
+        for w in &checked.outcome.waived {
+            if blue_lang_check::obligations::of_code(w.waiver.code).is_none() {
+                continue;
+            }
+            let shown = format!(
+                "{}: {} ({})",
+                path.strip_prefix(root).unwrap_or(path).display(),
+                render(&checked.program, &w.diagnostic)
+                    .lines()
+                    .next()
+                    .unwrap_or_default(),
+                w.waiver.reason
+            );
+            waived.entry(w.waiver.code).or_default().insert(shown);
+        }
     }
     Ok(Census {
         files: files.len(),
         findings,
         by_package,
+        waived,
     })
 }
 
@@ -399,5 +433,47 @@ mod documented {
             c.package_mismatches(&["kagi"]),
             vec![(Code::B0057, "kagi".to_string(), 1)]
         );
+    }
+}
+
+#[cfg(test)]
+mod held {
+    use super::*;
+
+    const POINT: &str = "@moduledoc \"\"\"\nkagi asks the machine.\n\n    1 + 1 #=> 2\n\"\"\"\n\n@doc \"\"\"\nkagi runs `date`.\n\n    1 + 1 #=> 2\n\"\"\"\ndef kagi()\n  exec_capture(\"date\")\nend\n";
+
+    fn project(name: &str, body: &str) -> std::path::PathBuf {
+        let root =
+            std::env::temp_dir().join(format!("blue-census-held-{}-{name}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let dir = root.join("bidamas").join("kagi");
+        std::fs::create_dir_all(&dir).expect("mkdir");
+        std::fs::write(dir.join("Bluefile"), "package(\"kagi\", \"0.1.0\")\n").expect("write");
+        std::fs::write(dir.join("kagi.b"), body).expect("write");
+        root
+    }
+
+    /// **A waived integration point is debt the census counts, with its
+    /// reason; a point with a test of its kind is no debt.** The count is
+    /// what `held_mismatches` holds against the obligation row.
+    #[test]
+    fn a_waived_point_is_counted_and_a_tested_one_is_not() {
+        let waived = POINT.replace(
+            "@doc \"\"\"\nkagi runs",
+            "# waive B0083: the fixture's debt\n@doc \"\"\"\nkagi runs",
+        );
+        let root = project("waived", &waived);
+        let c = take(&root).expect("census");
+        let _ = std::fs::remove_dir_all(&root);
+        let counted: Vec<&String> = c.waived.get(&Code::B0083).into_iter().flatten().collect();
+        assert_eq!(counted.len(), 1, "{counted:?}");
+        assert!(counted[0].contains("the fixture's debt"), "{counted:?}");
+        let tested = format!(
+            "{POINT}\ntest \"kagi\", {{kind: :integration, allow: [:process]}}\n  assert kagi != nil\nend\n"
+        );
+        let root = project("tested", &tested);
+        let c = take(&root).expect("census");
+        let _ = std::fs::remove_dir_all(&root);
+        assert!(c.waived.get(&Code::B0083).is_none());
     }
 }

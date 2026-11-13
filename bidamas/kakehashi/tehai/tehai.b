@@ -264,6 +264,7 @@ def handshake(proto)
   end
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 probe: [up?, detail] for one machine. The opening magic of its store protocol
 is sent, and it is up only when the far side replies with the protocol's own
@@ -535,6 +536,7 @@ def cache_info_argv(s, timeout_s, curl)
   ]
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 probe_substituter: [up?, detail] for one substituter. A curl that cannot start
 is a down substituter with the reason, never an uncaught error for the run.
@@ -847,6 +849,7 @@ test "a missing ssh binary is named, and the state records which ssh ran"
   rm_rf(dir)
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 fake_ssh: a stand-in ssh the probe tests run: a script in `dir` named `name` whose body is `body`, made executable; its path.
 

@@ -28,7 +28,26 @@ pub struct TestParts<'a> {
 pub struct TestMeta<'a> {
     pub satisfies: Vec<(&'a str, Span)>,
     pub target: Option<&'a Spanned>,
+    pub kind: Option<(&'a str, Span)>,
+    pub allow: Vec<(&'a str, Span)>,
+    pub fakes: Vec<(&'a str, Span)>,
 }
+
+/// The keys a test's declaration may hold, in the one order its tree holds
+/// them.
+pub const TEST_KEYS: &[&str] = &["satisfies", "target", "kind", "allow", "fakes"];
+
+/// The kinds a test may declare (docs/TESTING.md section 4); `unit` when it
+/// declares none.
+pub const TEST_KINDS: &[&str] = &[
+    "unit",
+    "property",
+    "snapshot",
+    "contract",
+    "integration",
+    "rendering",
+    "e2e",
+];
 
 /// The parts of `form` when it is a `deftest`.
 #[must_use]
@@ -80,20 +99,32 @@ pub fn test_meta(meta: &Spanned) -> Option<TestMeta<'_>> {
     for pair in items[1..].chunks(2) {
         let [key, value] = pair else { return None };
         match key.as_keyword()? {
-            "satisfies" => {
-                let list = value.as_list()?;
-                if list.first()?.as_symbol()? != "list" {
-                    return None;
-                }
-                for control in &list[1..] {
-                    out.satisfies.push((control.as_keyword()?, control.span));
-                }
-            }
+            "satisfies" => out.satisfies = keywords(value)?,
+            "allow" => out.allow = keywords(value)?,
+            "fakes" => out.fakes = keywords(value)?,
             "target" => out.target = Some(value),
+            "kind" => out.kind = Some((value.as_keyword()?, value.span)),
             _ => return None,
         }
     }
     Some(out)
+}
+
+fn keywords(value: &Spanned) -> Option<Vec<(&str, Span)>> {
+    let list = value.as_list()?;
+    if list.first()?.as_symbol()? != "list" {
+        return None;
+    }
+    list[1..]
+        .iter()
+        .map(|w| w.as_keyword().map(|k| (k, w.span)))
+        .collect()
+}
+
+/// The kind a test declares, `unit` when it declares none.
+#[must_use]
+pub fn kind_of<'a>(meta: &TestMeta<'a>) -> &'a str {
+    meta.kind.map_or("unit", |(k, _)| k)
 }
 
 /// The key a target symbol names: `%root/parse_token` after resolution,
@@ -122,6 +153,57 @@ mod tests {
         assert_eq!(parts.name, "t");
         assert!(parts.meta.is_none());
         assert_eq!(parts.body.to_sexp().to_string(), "(blue-assert '1 1)");
+    }
+
+    #[test]
+    fn a_test_declares_its_kind_what_it_touches_and_its_fakes_in_one_order() {
+        let form = first(
+            "test \"t\", {fakes: [:valkey], allow: %i[process network], kind: :integration}\n  assert true\nend\n",
+        );
+        let meta =
+            test_meta(test_parts(&form).expect("a test").meta.expect("meta")).expect("reads");
+        assert_eq!(kind_of(&meta), "integration");
+        let allow: Vec<&str> = meta.allow.iter().map(|(w, _)| *w).collect();
+        assert_eq!(allow, ["network", "process"]);
+        assert_eq!(meta.fakes.len(), 1);
+        assert_eq!(
+            form.to_sexp().to_string(),
+            "(deftest \"t\" (blue-test-meta (hash-map :kind :integration :allow (list :network :process) :fakes (list :valkey))) (blue-assert '#t #t))"
+        );
+        let notes = crate::spelling_notes(
+            "test \"t\", {fakes: [:valkey], allow: %i[process network], kind: :integration}\n  assert true\nend\n",
+        )
+        .expect("parses");
+        assert!(notes
+            .iter()
+            .any(|n| n.spelling == crate::Spelling::TestDeclaration));
+        let plain = first("test \"t\"\n  assert true\nend\n");
+        assert!(test_parts(&plain).expect("a test").meta.is_none());
+    }
+
+    #[test]
+    fn a_kind_outside_the_table_an_empty_allow_and_an_unknown_key_are_refused() {
+        for (src, says) in [
+            (
+                "test \"t\", {kind: :smoke}\n  assert true\nend\n",
+                "`kind:` is one of",
+            ),
+            (
+                "test \"t\", {allow: []}\n  assert true\nend\n",
+                "grants nothing",
+            ),
+            (
+                "test \"t\", {fakes: [:a, :a]}\n  assert true\nend\n",
+                "listed twice",
+            ),
+            (
+                "test \"t\", {tags: [:slow]}\n  assert true\nend\n",
+                "`tags:` is not one",
+            ),
+        ] {
+            let err = crate::parse_program_tree(src).expect_err(src);
+            assert!(err.to_string().contains(says), "{src}: {err}");
+        }
     }
 
     #[test]

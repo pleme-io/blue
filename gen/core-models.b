@@ -4,6 +4,7 @@ core-models: every blue program in this repository that declares a core model, a
     size(programs) >= 1 #=> true
 """
 
+# waive B0085: rendering debt recorded 2026-11-13: no test of this generator declared kind: :rendering feeds its output to the output's reader yet
 use("deeta")
 use("heni")
 use("jisho", [:from_entries])

@@ -71,6 +71,7 @@ def password(file)
   end
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 connect: a connection opened from a settings record.
 
@@ -87,6 +88,7 @@ def connect(opts)
   )
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 close: close a connection.
 
@@ -96,6 +98,7 @@ def close(c)
   resp_close(host_handle(c, "kiibariu"))
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 get_key: the text stored at a key, or nil.
 
@@ -130,6 +133,7 @@ def set_command(key, value, ttl_ms)
   end
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 set_key: store text at a key, with a TTL in milliseconds or nil.
 
@@ -140,6 +144,7 @@ def set_key(c, key, value, ttl_ms)
   nil
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 del: remove keys; how many existed.
 
@@ -153,6 +158,7 @@ def del(c, keys)
   end
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 pttl: the milliseconds a key has left; -1 when it never expires, nil when the key is absent.
 
@@ -165,6 +171,7 @@ def pttl(c, key)
   end
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 publish: send a message on a channel; how many subscribers got it.
 
@@ -174,6 +181,7 @@ def publish(c, channel, message)
   resp_command(host_handle(c, "kiibariu"), ["PUBLISH", channel, message])
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 subscribe: turn a connection into a subscriber of channels.
 
@@ -199,6 +207,7 @@ def pushed(reply)
   end
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 next_message: {channel:, payload:} for the next message, or nil when none came in time.
 
@@ -213,6 +222,7 @@ def next_message(c, wait_ms)
   end
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 scan_step: one SCAN call; [next cursor, keys].
 
@@ -395,6 +405,7 @@ def upgraded(plan, text)
   check(plan[:to], plan[:transform](check(plan[:from], json_read(text))))
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 read_upgrading: the record for an id under the new schema, upgrading an old entry on the way.
 
@@ -422,6 +433,7 @@ def read_upgrading(c, plan, id)
   end
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 batch_rewrite: one SCAN batch of old keys rewritten under the new prefix; how many moved.
 

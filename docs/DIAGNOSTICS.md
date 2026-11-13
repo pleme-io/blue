@@ -83,8 +83,8 @@ it; `blue explain --list` lists them.
 | B0065 | newline-escape | error | text of several lines is written as its lines: `join_lines([a, b])`, `unlines([a, b])` when it ends in a newline, `line_break` alone; never a `\n` escape in a string |
 | B0066 | index | error | a key or position is read with brackets: `m[:k]` for `get(m, :k)`, `xs[i]` for `nth(i, xs)` |
 | B0067 | name-as-string | error | a name a builtin reads as text is a keyword, not a string: `error(:kind, m)`, `json_get(doc, :field)`, `json_get_or(doc, :field, d)` |
-| B0068 | test-declaration-order | error | a test's declaration is written `satisfies` then `target`, its controls sorted: `{satisfies: %i[nist_ac_6 nist_cm_7], target: f}` |
-| B0069 | test-declaration | error | a test satisfies controls the catalog table names (`:nist_ac_6` is NIST_SP_800_53R5_AC_6) and targets a definition of the program |
+| B0068 | test-declaration-order | error | a test's declaration is written `satisfies`, `target`, `kind`, `allow`, `fakes`, each list sorted: `{satisfies: %i[nist_ac_6 nist_cm_7], target: f}` |
+| B0069 | test-declaration | error | a test satisfies controls the catalog table names (`:nist_ac_6` is NIST_SP_800_53R5_AC_6), targets a definition of the program and allows only host capabilities blue names |
 | B0070 | reimplemented-word | warning | a definition of 12 or more nodes is not a catalogue word's shape: it uses the word, or waives this rule with its reason |
 | B0071 | evaluator-name | error | a definition is not named for a word the evaluator answers first: a word syntax lowers to (`list`, `concat`, `apply`, `equal?`, `mod`, `join_lines`, `unlines`, `line_break`) or a special form |
 | B0072 | call-arity | error | a call to a definition passes a number of arguments that definition takes |
@@ -97,6 +97,15 @@ it; `blue explain --list` lists them.
 | B0080 | return-position | error | a `return` ends a branch of an `if` or `case` that is a statement of a def body, where it is rewritten into if/else |
 | B0081 | union-arms | error | a `case` whose `when` arms test a union's records names every arm of that union, or has an `else` |
 | B0082 | strict-signature | error | in a `blueshift(:strict)` file every top-level function is typed: its signature annotates a parameter or its return |
+| B0083 | untested-effect-point | error | a definition that names a host builtin outside the ambient set (network, process, entropy and the other non-ambient capabilities) is reached by a test of its own file declared `kind: :integration` |
+| B0084 | untested-seam-point | error | a definition that calls an imported word whose reach names a non-ambient host builtin is reached by a test of its own file declared `kind: :integration` |
+| B0085 | untested-rendering | error | the program of a Bluefile `generate` row holds a test declared `kind: :rendering` |
+| B0086 | untested-service | error | the program of a Bluefile `service(...)` row holds a test declared `kind: :e2e` |
+| B0087 | untested-binding | error | a service whose row binds a `cache` or a `schema` holds a test of its program declared `kind: :contract` |
+| B0088 | assertionless-test | error | a test of a bidama reaches an assertion: an `assert`, an `assert_panics` or a `tesuto::snapshot` |
+| B0089 | tautological-assertion | error | a test of a bidama asserts something the code could fail: never a bare literal, never one expression compared with itself |
+| B0090 | untargeted-definition | error | each definition of a bidama is named by a test of its file: called, referenced, or its `target:` |
+| B0091 | unexpected-raise | error | each tag a definition of a bidama raises is named by a test of its file, the way a test expects it |
 
 The registry is the source of truth: `gen/diagnostics.b` renders this table
 from `blue reference`, which reads `RULES`, into this page, whose prose lives
@@ -114,6 +123,50 @@ exactly, so every change to a count is a reviewed edit of the number. The
 commit that brings a count to zero sets the row to `Some(0)`, and from then
 on the rule is an error on every door. `blue census --findings` lists each
 finding.
+
+## Obligations: evidence the toolchain forces
+
+An obligation says: when blue sees a structure, a piece of evidence must
+exist. Every obligation is one row of `blue_lang_check::obligations`
+(`crates/blue-lang-check/src/obligations.rs`), with its evidence, its
+detector, its refusal and the profile that owes it. A row whose refusal is a
+code is a rule of the registry above, enforced on every door from the moment
+the structure is written. Existing debt is one `# waive CODE: reason` per
+site; `held` is how many the corpus carries, and `blue census` fails unless
+it measures exactly that number, so new debt and paid debt are both reviewed
+edits. A `design` row is registered and not yet forced; `blocked` says why.
+A program that registers a structure blue must hold (the core model's knobs,
+capabilities, effects, errors, observability, lifecycle) adds a row here.
+
+| obligation | when blue sees | evidence | detector | refusal | profile | held |
+|---|---|---|---|---|---|---|
+| reach/definition | a definition in a project with `packages` | unit | dynamic | checks.test-beside | default | 0 |
+| reach/target | a public definition no test names directly (`target:` or a call in a test body) | unit | static | B0090 | default | 0 |
+| reach/doctest | an `@doc` example | unit | dynamic | design: COVERAGE CV3: doctests run today (B0057 forces the example); a failing doctest is a red test, not yet a registry finding | default | 0 |
+| reach/dead | a definition reachable from neither an entry point nor a test | unit | static | design: COVERAGE CV3: needs the call graph from every entry point | default | 0 |
+| point/effect | a definition that names a network, process or other host builtin outside the ambient set (filesystem, environment, clock) | integration | static | B0083 | default | 97 |
+| point/seam | a definition that calls an imported word which names such a builtin | integration | static | B0084 | default | 22 |
+| point/rendering | the program of a Bluefile `generate` row | rendering | project | B0085 | default | 31 |
+| point/service | the program of a Bluefile `service(...)` row | e2e | project | B0086 | service | 2 |
+| point/binding | a `cache` or `schema` binding of a `service(...)` row | contract | project | B0087 | service | 1 |
+| flow/branch | an `if`, `unless`, ternary, `case` arm or guard | branch | dynamic | checks.test-beside | default | 0 |
+| flow/early-return | a `?` early return | branch | dynamic | checks.test-beside | default | 0 |
+| flow/loop | a loop or recursion that may run zero times | branch | dynamic | design: COVERAGE CV5: strict profile | strict | 0 |
+| flow/condition | an `and` or `or` operand in a decision (MC/DC) | branch | dynamic | design: COVERAGE CV5: strict profile | strict | 0 |
+| flow/boundary | a comparison with a literal in a branch | branch | dynamic | design: COVERAGE CV5: strict profile | strict | 0 |
+| error/raise | a `raise` site | branch | dynamic | checks.test-beside | default | 0 |
+| error/expected | a raised tag | raise | static | B0091 | default | 0 |
+| error/handler | a `rescue` handler | branch | dynamic | checks.test-beside | default | 0 |
+| data/variant | a variant of a declared union | unit | static | design: COVERAGE CV3 | default | 0 |
+| data/optional | an optional parameter or a nilable value | branch | dynamic | design: COVERAGE CV1: argument shapes per call site | default | 0 |
+| config/flag | an `enable` or `enabled` field | branch | static | design: COVERAGE CV3 | default | 0 |
+| strength/assertion | a test block of a bidama | assertion | static | B0088 | default | 0 |
+| strength/tautology | an assertion that holds whatever the code does (`assert true`, `x == x`) | assertion | static | B0089 | default | 0 |
+| strength/slice | an assertion whose backward slice reaches no definition outside the test | assertion | dynamic | design: COVERAGE CV4: a data-flow slice in the recorder | default | 0 |
+| strength/mutant | a mutation site in a strict package | mutation | dynamic | design: COVERAGE CV5: heni per site, incremental by identity; the ratio ratchet holds today (checks.heni-mutations) | strict | 0 |
+| pipeline/stage | a gate the pre-push hook runs | declared | project | design: TESTING T3: `check` options `{stage:, kind:}` | default | 0 |
+| pipeline/ci | a CI workflow file | rendering | project | design: TESTING T5: `gen/ci.b` | default | 0 |
+| pipeline/release | a release or delivery step | declared | project | design: TESTING T7 | default | 0 |
 
 ## The reuse ratchet
 

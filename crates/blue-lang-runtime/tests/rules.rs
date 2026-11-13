@@ -48,6 +48,10 @@ impl Loader for Imports {
                 Role::Service("witness".into()),
                 Role::Binding("witness".into(), "cache".into()),
             ],
+            Some("service-without-access") => vec![
+                Role::Service("witness".into()),
+                Role::ServiceWithoutAccess("witness".into()),
+            ],
             _ => Vec::new(),
         }
     }
@@ -182,13 +186,15 @@ fn codes_in(
 }
 
 /// The codes without the rules still being ratcheted in (B0090, B0091,
-/// B0092), unless `keep` names one: they fire into the census on nearly every
+/// B0092, B0093), unless `keep` names one: they fire into the census on nearly every
 /// bidama a witness is checked as, so a witness of another rule would never
 /// be the only code it shows.
 fn quiet(codes: Vec<Code>, keep: Option<Code>) -> Vec<Code> {
     codes
         .into_iter()
-        .filter(|c| !matches!(c, Code::B0090 | Code::B0091 | Code::B0092) || Some(*c) == keep)
+        .filter(|c| {
+            !matches!(c, Code::B0090 | Code::B0091 | Code::B0092 | Code::B0093) || Some(*c) == keep
+        })
         .collect()
 }
 

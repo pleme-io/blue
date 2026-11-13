@@ -394,6 +394,9 @@ pub fn roles_of(entry: &Path) -> Vec<blue_lang_runtime::uses::Role> {
                     .filter(|(_, s)| is_entry(&s.program))
                 {
                     roles.push(Role::Service(n.clone()));
+                    if s.access_defaulted {
+                        roles.push(Role::ServiceWithoutAccess(n.clone()));
+                    }
                     if s.cache.is_some() {
                         roles.push(Role::Binding(n.clone(), "cache".to_string()));
                     }

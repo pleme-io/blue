@@ -7,7 +7,7 @@ kijun (基準) — the standard a private nix fleet repo is held to, as data: la
 use("deeta", %i[as_json get_str])
 use("hadome")
 
-use("jisho", [:append_at])
+use("jisho", %i[append_at from_entries])
 
 use(
   "kakehashi/nikkusu",
@@ -39,6 +39,8 @@ use("kyohi", [:refusal])
 use("moji", %i[after_first before_first glob_match? lines trim])
 
 use("retsu", %i[first flat_map is_empty last rest size take_n])
+
+use("settei")
 
 use("shisutemu", %i[blue_exe read_or status_of stderr_of stdout_of])
 use("shuugou", %i[frequencies unique])
@@ -2119,58 +2121,111 @@ def evaluate_timed(cfg, source, trees, clock)
 end
 
 @doc """
-parse_args: kijun's command line: check, baseline or rules, then its flags; a bad line is an error field, never a raise.
+settings: kijun's core model: the checkout to judge, the baseline file, and how to report.
+
+    settei::defaults_of(settings)[:root] #=> "."
+"""
+def settings()
+  k = settei::knob
+  {
+    root: k(
+      ".",
+      {set_by: [:flag], value_name: "PATH", doc: "the checkout to judge"}
+    ),
+    baseline: k(
+      "",
+      {
+        set_by: [:flag],
+        value_name: "PATH",
+        doc: "the baseline file; the standard's own when empty"
+      }
+    ),
+    json: k(false, {set_by: [:flag], doc: "report as one JSON record"}),
+    tree: k(
+      false,
+      {
+        set_by: [:flag],
+        doc: "also judge the merged module tree of each configuration"
+      }
+    )
+  }
+end
+
+@doc """
+frame: kijun's commands, from which its help and completion are rendered.
+
+    size(frame[:commands]) #=> 3
+"""
+def frame()
+  {
+    name: "kijun",
+    about: "a fleet repository judged against its standard",
+    commands: [
+      {
+        name: :check,
+        about: "judge the checkout; a finding outside the baseline fails"
+      },
+      {name: :baseline, about: "write the checkout's findings to the baseline"},
+      {name: :rules, about: "list the standard's rules, each with why and fix"}
+    ]
+  }
+end
+
+@doc """
+parse_args: kijun's command line, read through its settings and frame: the command and flags, or help, completion or explain text, or a usage error field, never a raise.
 
     parse_args(["check", "--json", "--root", "/r"])[:root] #=> "/r"
 """
 def parse_args(args)
-  if is_empty(args)
-    {error: "a command: check, baseline or rules"}
-  elsif not member?(first(args), %w[check baseline rules])
-    {error: "unknown command #{first(args)}: check, baseline or rules"}
-  else
-    flags(
-      rest(args),
+  o = settei::line("kijun", settings, frame, args, nil, settei::no_env)
+  if o[:kind] == :run
+    line_opts = o[:opts]
+    if line_opts[:command].nil?
+      {error: "a command: check, baseline or rules"}
+    else
       {
-        command: first(args),
-        root: ".",
-        json: false,
-        tree: false,
-        baseline: nil,
+        command: to_s(line_opts[:command]),
+        root: line_opts[:root],
+        json: line_opts[:json],
+        tree: line_opts[:tree],
+        baseline: if line_opts[:baseline] == ""
+          nil
+        else
+          line_opts[:baseline]
+        end,
         error: nil
       }
-    )
+    end
+  elsif o[:kind] == :usage
+    {error: first(split(o[:text], line_break)), text: o[:text]}
+  else
+    {error: nil, text: o[:text]}
   end
 end
 
 @doc """
-flags: the flags after the command, read into `acc` until the first error.
+flags: the flags after kijun's command, read through its rendered line into the keys `acc` holds; a bad flag sets `error`.
 
-    flags(["--tree", "--bogus"], {tree: false, error: nil}) #=> {tree: true, error: "unknown flag --bogus"}
+    flags(["--tree"], {tree: false, error: nil}) #=> {tree: true, error: nil}
+    flags(["--bogus"], {tree: false, error: nil})[:error] #=> "kijun: unknown flag --bogus"
 """
 def flags(args, acc)
-  if is_empty(args) or acc[:error] != nil
-    acc
+  parsed = parse_args(append(["check"], args))
+  if parsed[:error] != nil
+    assoc(acc, :error, parsed[:error])
   else
-    a = first(args)
-    if a == "--json"
-      flags(rest(args), assoc(acc, :json, true))
-    elsif a == "--tree"
-      flags(rest(args), assoc(acc, :tree, true))
-    elsif a == "--root" or a == "--baseline"
-      if size(args) < 2
-        assoc(acc, :error, "#{a} needs a path")
-      else
-        key = if a == "--root"
-          :root
-        else
-          :baseline
-        end
-        flags(drop(2, args), assoc(acc, key, args[1]))
-      end
-    else
-      assoc(acc, :error, "unknown flag #{a}")
-    end
+    from_entries(
+      map(
+        fn(e)
+          if first(e) == :error
+            e
+          else
+            [first(e), get(parsed, first(e))]
+          end
+        end,
+        map_entries(acc)
+      )
+    )
   end
 end
 
@@ -2392,8 +2447,17 @@ run: one kijun command against a checkout with a given standard: list the rules,
 def run(cfg, args)
   a = parse_args(args)
   if a[:error] != nil
-    write_stderr(unlines(["kijun: #{a[:error]}"]))
+    write_stderr(
+      if a[:text].nil?
+        unlines(["kijun: #{a[:error]}"])
+      else
+        a[:text]
+      end
+    )
     raise(:kijun_usage, a[:error])
+  elsif a[:command].nil?
+    write_stdout(a[:text])
+    nil
   elsif a[:command] == "rules"
     write_stdout(rules_text(cfg))
     nil
@@ -2457,7 +2521,7 @@ main: the kijun command's entry point: a repository's own kijun.b runs in its pl
 """
 def main()
   args = argv
-  root = flags(drop(1, args), {root: ".", error: nil})[:root]
+  root = parse_args(args)[:root] or "."
   local = path_join(root, "kijun.b")
   if read_or(local, "") != ""
     status = exec_check(
@@ -3267,4 +3331,28 @@ test "rule_field reads one field of a rule by id"
   assert rule_field("trio/every-concept", :plane) == :layout
   assert tier_of("trio/every-concept") == :gate
   assert plane_of("trio/every-concept") == :layout
+end
+
+test "kijun's command line is rendered from its settings: help names every flag, a bad flag or command is a usage error, and the record keeps its shape"
+  h = parse_args(["--help"])
+  assert h[:error].nil?
+  missing = filter(
+    (f) -> not contains?(h[:text], f),
+    %w[--root --baseline --json --tree check baseline rules]
+  )
+  assert missing == []
+
+  assert parse_args(%w[check --bogus])[:error] != nil
+  assert parse_args(["lint"])[:error] != nil
+  assert parse_args(%w[baseline --baseline /b]) ==
+    {
+      command: "baseline",
+      root: ".",
+      json: false,
+      tree: false,
+      baseline: "/b",
+      error: nil
+    }
+  assert parse_args(["check"])[:baseline].nil?
+  assert contains?(parse_args(%w[--explain tree])[:text], "tree")
 end

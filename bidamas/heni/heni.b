@@ -468,6 +468,11 @@ def finds(a)
   rows
 end
 
+@doc """
+run_all: the mutation run: every mutation tested, the report on stdout, and an error when the run is not clean.
+
+    procedure?(run_all) #=> true
+"""
 def run_all(a)
   r = run(
     {

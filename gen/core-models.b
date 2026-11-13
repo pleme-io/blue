@@ -46,6 +46,13 @@ def programs()
       door: :settled
     },
     {
+      app: "kijun",
+      file: "bidamas/kakehashi/kijun/kijun.b",
+      settings: kakehashi::kijun::settings,
+      frame: kakehashi::kijun::frame,
+      param: "line_opts"
+    },
+    {
       app: "tehai",
       file: "bidamas/kakehashi/tehai/tehai.b",
       settings: kakehashi::tehai::config_model,

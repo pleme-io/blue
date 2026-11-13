@@ -15,6 +15,46 @@
     "title": "heni settings",
     "type": "object"
   },
+  "kijun": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "baseline": {
+        "default": "",
+        "description": "the baseline file; the standard's own when empty",
+        "type": "string",
+        "x-set-by": [
+          "flag"
+        ]
+      },
+      "json": {
+        "default": false,
+        "description": "report as one JSON record",
+        "type": "boolean",
+        "x-set-by": [
+          "flag"
+        ]
+      },
+      "root": {
+        "default": ".",
+        "description": "the checkout to judge",
+        "type": "string",
+        "x-set-by": [
+          "flag"
+        ]
+      },
+      "tree": {
+        "default": false,
+        "description": "also judge the merged module tree of each configuration",
+        "type": "boolean",
+        "x-set-by": [
+          "flag"
+        ]
+      }
+    },
+    "title": "kijun settings",
+    "type": "object"
+  },
   "kirikae": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,

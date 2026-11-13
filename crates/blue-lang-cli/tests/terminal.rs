@@ -99,6 +99,9 @@ fn a_program_whose_ceiling_lacks_the_terminal_may_not_read_a_line() {
     let _ = std::fs::remove_dir_all(&dir);
     assert!(!o.status.success(), "a read_line outside the ceiling ran");
     let err = String::from_utf8_lossy(&o.stderr);
-    assert!(err.contains("`read_line` reaches the host (terminal)"), "{err}");
+    assert!(
+        err.contains("`read_line` reaches the host (terminal)"),
+        "{err}"
+    );
     assert!(err.contains("--allow terminal"), "{err}");
 }

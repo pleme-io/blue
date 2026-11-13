@@ -59,6 +59,18 @@ switching over: whether a system switch must run, may be skipped, or must wait. 
 | `wait.seconds` | int | `0` | 0 or more | seconds | `KIRIKAE_WAIT__SECONDS` |  | file, env |  | wait this long before the run |
 
 
+## kijun
+
+a fleet repository judged against its standard. Layers, lowest first: the defaults, `~/.config/kijun/kijun.yaml` (or the file `KIJUN_CONFIG` names), the `KIJUN_` environment, then the flags. `kijun --explain KEY` shows one setting and the layer it came from.
+
+| Setting | Type | Default | Range | Unit | Environment | Flag | Set by | Since | About |
+|---|---|---|---|---|---|---|---|---|---|
+| `baseline` | text |  | any text |  | `KIJUN_BASELINE` | `--baseline` | flag |  | the baseline file; the standard's own when empty |
+| `json` | bool | `false` | any bool |  | `KIJUN_JSON` | `--json` | flag |  | report as one JSON record |
+| `root` | text | `.` | any text |  | `KIJUN_ROOT` | `--root` | flag |  | the checkout to judge |
+| `tree` | bool | `false` | any bool |  | `KIJUN_TREE` | `--tree` | flag |  | also judge the merged module tree of each configuration |
+
+
 ## tehai
 
 the nix builders and substituters that answer: each declared one probed, and the live files written from those that did. Layers, lowest first: the defaults, `~/.config/tehai/tehai.yaml` (or the file `TEHAI_CONFIG` names), then the environment. A bad value is refused for its key alone and warned on stderr.

@@ -410,7 +410,7 @@ Answered since: the unmodelled check follows nested groups (`config.guard.branch
 | P10 | `samples`, `bounds_law`, `redacted` | settei tests; `checks.core-models` runs the law for every program; heni mutations "a secret is not redacted", "a value under its floor stands" caught | M1 bounds at build, `secret` at run | built |
 | P11 | `diff`, `reload` with `changes` | settei tests "diff names…", "reload keeps an immutable knob…"; heni mutation "an immutable knob moves on reload" caught | run tier: who set what | built |
 | P12 | `mcp_tool` | `checks.core-models`: each program's tool schema equals its generated schema | beyond build: self-description | built; serving waits on an MCP door in blue |
-| P13 | heni and kirikae on models (`settings`/`frame`; `config_model` with `settled`) | heni: 6 of 8 recorded lines identical, 2 add only `--explain`; kirikae: its defaults and alias map equal the hand-written records (a test holds both), 140 tests green | M1 for each | built; kernel/run.b and the service example next |
+| P13 | heni and kirikae on models (`settings`/`frame`; `config_model` with `settled`) | heni: 6 of 8 recorded lines identical, 2 add only `--explain`; kirikae: its defaults and alias map equal the hand-written records (a test holds both), 140 tests green | M1 for each | built. kernel/run.b too: `config_model`, settled per key, and the settings a host run takes rendered by `env_pairs` from a key list instead of thirteen hand-written environment names (a test holds the old list). The service example waits on P8b |
 | P14 | the unmodelled read and a raw own-prefix `getenv` as B-codes in the rule registry, ratcheted | a fixture red on each code | **M1 and M4 enforced** for every program | design |
 | P15 | a program with no `allow` ceiling, and a service with no `access`, refused by `blue check` | a fixture red on each | **M2 and M3 enforced** | design |
 | P16 | a raised kind outside kyohi's ledger refused | a fixture red | **M5 enforced** | design |
@@ -418,7 +418,7 @@ Answered since: the unmodelled check follows nested groups (`config.guard.branch
 | P18 | the capability-to-control map (kensa, OSCAL) and the release statement (shomei, tameshi) | a release whose statement lacks the model is refused | attested after | design |
 | P19 | drift: declared against observed capabilities from run receipts | a receipt with an undeclared host call is a finding | beyond build: drift | design |
 | P20 | `required`, `immutable`, `computed` and `value_name` join the vocabulary, as iac-forge, pangea-forge and hikisuu reached them | settei tests, red on unbound names; heni mutation "a required knob is optional" caught | M1 | built |
-| P21 | `module_options(model)`: the module trio's typed options rendered from the model, replacing a hand-mirrored nix surface | the rendered options equal the model's knobs, gated fresh | M1 at deploy | design |
+| P21 | `typed_groups(model)`: the module trio's `shikumiTypedGroups` (intRange, enum, nullOr, default, description) rendered from the model, each knob outside one group refused alone | settei test "the module trio's typed groups…", red on an unbound name | M1 at deploy | built; wiring a blue command's trio to it is the flake's `commands` row, open |
 
 M6 (tests and coverage) is already enforced for the distribution by
 `gen/test-beside.b` and the heni ratio baseline. Its next rungs are
@@ -440,4 +440,5 @@ design them again.
 | the mandatory structures M1 to M8 (§7a) | M1 tested for registered programs (R5); M6 enforced by test-beside; the rest design | §7a, P14 to P17 |
 | the generator survey (§2a) | recorded | read on local checkouts 2026-11-13; rows marked † not re-measured |
 | P7 to P13 and P20 (phase 2) | tested | settei tests (123), `checks.core-models` over souji, heni and kirikae, 14 of 14 settei mutations caught |
-| P14 to P19, P21 | design | this doc |
+| P21 and kernel/run.b (phase 3) | tested | settei test; kernel/run.b's forwarded settings equal the hand-written list, its bounds law holds |
+| P14 to P19 | design; P14 to P17 register as obligations in the one obligation engine (TESTING.md), not a second checker | this doc |

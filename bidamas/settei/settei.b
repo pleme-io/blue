@@ -1404,7 +1404,6 @@ def line(app, model, frame, args, doc, lookup)
   end
 end
 
-# waive B0083: it ends the process with exit_with(64) on a bad line; line and explain are its body, tested with values, until the Terminal capability (docs/CLI-TUI.md section 7) lets a test hand it a line
 @doc """
 settled: the settings of a program with a core model and no command line of its own (a service, a library tool): the discovered config file and the environment settled per key, each refusal and notice warned on stderr, the config returned.
 
@@ -1463,6 +1462,7 @@ def aliases_of(app, model)
   )
 end
 
+# waive B0083: it ends the process with exit_with(64) on a bad line; line and explain are its body, tested with values, until the Terminal capability (docs/CLI-TUI.md section 7) lets a test hand it a line
 @doc """
 command: the door of a program with a core model: argv, the discovered config file and the environment resolved by `line`; help, completion and explain printed, a bad line refused with exit 64, each refused file or environment value warned on stderr, and f called with the record.
 

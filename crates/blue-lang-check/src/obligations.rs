@@ -272,7 +272,7 @@ obligations! {
         detector: Project,
         refusal: Code(Code::B0085),
         profile: Default,
-        held: 31,
+        held: 32,
         owner: "TESTING.md section 5, T4; COVERAGE.md C4",
     }
     "point/service" {

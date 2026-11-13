@@ -2983,3 +2983,19 @@ test "confirm, choose and prompt answer from the lines a reader gives, asking ag
   assert confirm_answer("NO", true) == false
   assert choose_answer(" green ", %w[red green]) == "green"
 end
+
+test "answered asks again after each unclear answer and gives the first clear one, or nil at the end of input"
+  said = (_t) -> nil
+  assert answered(
+    "n?",
+    (i) -> %w[x y b][i],
+    said,
+    (t) -> choose_answer(t, %w[a b])
+  ) == "b"
+  assert answered(
+    "n?",
+    (_i) -> nil,
+    said,
+    (t) -> choose_answer(t, %w[a b])
+  ).nil?
+end

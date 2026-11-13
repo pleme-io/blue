@@ -3216,3 +3216,58 @@ test "form_run reads line by line, writes the form and what each line did, and a
   assert applied[:net][:port] == 9000
   assert form_run(f, (_i) -> nil, (_t) -> nil).nil?
 end
+
+test "the helpers under the renderings answer for the fixture model: schema pieces, trio fields, renames, aliases and the bounds law's single case"
+  assert json_type(:int) == "integer"
+  assert json_type(:text) == "string"
+  assert knob_schema(knob(6, {min: 0, max: 9}))["maximum"] == 9
+  assert group_schema({p: knob(1)})["properties"]["p"]["default"] == 1
+  assert trio_field(knob(3, {min: 1, max: 9, doc: "n"}))["type"] == "intRange"
+  assert trio_field(knob(3, {min: 1, doc: "n"}))["type"] == "int"
+  assert renames({w: knob(0, {renamed: ["w_s"]})}, {"w_s" => 5})[:doc] == {w: 5}
+  assert aliases_of("app", {w: knob(0, {renamed: ["w_s"]})}) ==
+    {"APP_W" => "APP_W_S"}
+  assert drop_at({"a" => {"b" => 1, "c" => 2}}, %w[a c]) == {"a" => {"b" => 1}}
+  assert env_pairs(
+    "app",
+    model_fixture,
+    settle("app", model_fixture, nil, no_env, {})[:config],
+    ["net.port"]
+  ) == [["APP_NET__PORT", 8080]]
+  bad = law_case(
+    "a",
+    {p: knob(1, {min: 0})},
+    {path: [:p], knob: knob(1, {min: 0})},
+    :env,
+    -1
+  )
+  assert bad == {value: 1, refused: true}
+  ok = law_case(
+    "a",
+    {p: knob(1, {min: 0})},
+    {path: [:p], knob: knob(1, {min: 0})},
+    :file,
+    4
+  )
+  assert ok == {value: 4, refused: false}
+end
+
+test "a computed knob is derived from the settled record, and the reads helpers follow bindings and nested paths"
+  s = settle("a", {}, nil, no_env, {})
+  assert derived("a", {}, s)[:config] == {}
+  assert bindings(
+    first(read_forms("(define (f) (begin (define c (pkg/config)) c))")),
+    "config"
+  ) == ["c"]
+  assert form_reads(first(read_forms("(get opts :port)")), ["opts"]) == ["port"]
+  assert read_path(
+    first(read_forms("(get (get opts :net) :port)")),
+    ["opts"]
+  ) == %w[net port]
+  assert root?(first(read_forms("(pkg/config)")), ["config"])
+  assert not root?(first(read_forms("(pkg/other)")), ["config"])
+end
+
+test "settled answers the defaults of a model when no file or environment sets it"
+  assert settled("settei-test-none", {p: knob(7)}) == {p: 7}
+end

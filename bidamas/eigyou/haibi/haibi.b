@@ -1979,3 +1979,8 @@ test "a pod runs under the runtime's default seccomp profile, unless it loads ke
     "seccompProfile"
   ).nil?
 end
+
+test "egress_ports names each peer's port once, in order, and none for a service that declares no peer"
+  assert egress_ports({"access" => {"egress" => %w[a:1 b:2 c:1]}}) == %w[1 2]
+  assert egress_ports({}) == []
+end

@@ -186,4 +186,6 @@ touched (H3 rung 3).
 | Item | Tier |
 |---|---|
 | R1 on blue's own bidamas | tested, gated (TESTING.md T1) |
-| Every other obligation | DESIGN |
+| The obligation registry: every row below as data, with its evidence, detector, refusal and held debt | tested (`blue_lang_check::obligations`; DIAGNOSTICS.md "Obligations") |
+| C3 for effect and seam points | tested, enforced on every door (B0083, B0084; TESTING.md T4) |
+| Every other obligation | DESIGN (a `design` row of the registry, with what blocks it) |

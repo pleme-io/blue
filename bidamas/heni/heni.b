@@ -229,6 +229,7 @@ def fresh(pkg_dir, tmp, tag)
 end
 
 # waive B0013: `test` is a reserved word, so the prefix stays; heni::test names it too
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 hn_test: Run the copy's tests with the fresh root first on BLUE_PATH. The capture.
 """
@@ -424,6 +425,7 @@ def cli()
   }
 end
 
+# waive B0084: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches this seam yet
 @doc """
 main: the command's entry point: argv read by heni's cli through hikisuu, which answers help and completion and refuses a bad line with exit 64.
 

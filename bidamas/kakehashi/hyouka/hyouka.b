@@ -133,6 +133,7 @@ def failure_of(text)
   refusal(failure_class(text), trim(strip_ansi(last_nonempty_line(text))))
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 capture: run a command and keep what it printed and its status, nil when it cannot start, so a missing tool is an answer and not a crash.
 

@@ -94,14 +94,25 @@ pub struct Declared {
     /// The definition the target names, as the tree the harness runs names
     /// it: the runtime key `%root/parse_token` after resolution.
     pub target: Option<String>,
+    /// The kind it declares: `unit` when it declares none.
+    pub kind: String,
+    /// The host capabilities it declares it touches, by label; `None` when
+    /// it declares none.
+    pub allow: Option<Vec<String>>,
 }
 
 impl Declared {
     fn of(meta: Option<&Spanned>) -> Self {
         let Some(meta) = meta.and_then(blue_lang_syntax::test_meta) else {
-            return Self::default();
+            return Self {
+                kind: "unit".to_string(),
+                ..Self::default()
+            };
         };
         Self {
+            kind: blue_lang_syntax::kind_of(&meta).to_string(),
+            allow: (!meta.allow.is_empty())
+                .then(|| meta.allow.iter().map(|(w, _)| (*w).to_string()).collect()),
             satisfies: meta
                 .satisfies
                 .iter()
@@ -1023,6 +1034,12 @@ pub fn run_guarded(
         let rec = Recorder::default();
         let mut interp = prototype.fork();
         install_assert(&mut interp, &rec, &bounds);
+        if !held {
+            if let Some(allow) = &block.declared.allow {
+                blue_lang_runtime::Hold::from(blue_lang_runtime::session::frame_allowing(allow))
+                    .bind(&mut interp, "the test's declared allow", &account.host_io);
+            }
+        }
         let before = account.host_io.total();
         let (ended, over) = memory_held(&mut interp, max_alloc_bytes, |interp| {
             interp
@@ -1476,6 +1493,35 @@ mod tests {
         r.refuse_skips();
         assert!(r.skipped.is_empty());
         assert_eq!(r.failures.len(), 3);
+    }
+
+    /// **A test's `allow:` is the frame it runs in.** A test that declares
+    /// `allow: [:entropy]` and reaches the filesystem ends on the breach; the
+    /// same body declaring `allow: [:filesystem]` runs, and a test that
+    /// declares nothing runs as before.
+    ///
+    /// Red run (2026-11-13): the per-test hold removed from `run_guarded`:
+    /// `expected the breach to end the test: []`.
+    #[test]
+    fn a_test_runs_held_to_the_capabilities_it_declares() {
+        let body = "  got = reader(\"/nonexistent/blue-harness\") rescue \"swallowed\"\n  assert got == \"swallowed\"\nend\n";
+        let narrow =
+            format!("{READER}test \"narrow\", {{kind: :integration, allow: [:entropy]}}\n{body}");
+        let r = run_guarded(&checked(&narrow), None, None, &Guard::default());
+        match &r.failures[..] {
+            [Failure::Errored { error, .. }] => {
+                assert!(error.contains("capability breach"), "{error}");
+            }
+            other => panic!("expected the breach to end the test: {other:?}"),
+        }
+        assert_eq!(r.outcomes[0].declared.kind, "integration");
+        let wide =
+            format!("{READER}test \"wide\", {{kind: :integration, allow: [:filesystem]}}\n{body}");
+        assert!(run_guarded(&checked(&wide), None, None, &Guard::default()).ok());
+        let plain = format!("{READER}test \"plain\"\n{body}");
+        let r = run_guarded(&checked(&plain), None, None, &Guard::default());
+        assert!(r.ok());
+        assert_eq!(r.outcomes[0].declared.kind, "unit");
     }
 
     #[test]

@@ -21,6 +21,7 @@ use("tesuto", [:scratch])
 
 legacy_names("0.1.3", [%w[raised kyohi::raised]])
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 def run(repo, args)
   exec_with_env(
     [%w[GIT_TERMINAL_PROMPT 0], %w[LC_ALL C]],

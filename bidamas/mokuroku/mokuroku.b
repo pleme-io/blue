@@ -2442,6 +2442,7 @@ def untested_probe(g, roots)
   finds_untested(g, test_corpus(packages))
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 def unbound_probe(g, exe)
   if exe.nil?
     raise(:probe, "no blue to run the unbound-name probe: self_exe is nil")

@@ -98,6 +98,7 @@ def ensure_stream(c, name, subjects)
   declared(c, name, json_stringify(stream_config(name, subjects)))
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 declared: create a stream, or update it when its name is already in use.
 
@@ -115,6 +116,7 @@ rescue e
   end
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 publish: publish to a stream's subject and wait for its ack: {stream:, seq:}.
 
@@ -144,6 +146,7 @@ def consumer_config(stream, name, filter, ack_wait_ms)
   }
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 durable: declare a durable pull consumer with explicit acks on a stream.
 
@@ -204,6 +207,7 @@ def pull_request(batch, wait_ms)
   json_stringify({batch:, expires: wait_ms * 1_000_000})
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 gather: messages read from a pull's inbox until the batch is full, a status arrives or time runs out.
 
@@ -222,6 +226,7 @@ def gather(sub, batch, wait_ms, got)
   end
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 fetch: up to batch messages from a durable consumer, waiting at most wait_ms.
 
@@ -241,6 +246,7 @@ def fetch(c, stream, name, batch, wait_ms)
   got
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 ack: tell the stream a message is done.
 
@@ -250,6 +256,7 @@ def ack(c, m)
   nats_publish(host_handle(c, "sutoriimu"), m[:reply], "+ACK")
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 nak: tell the stream to deliver a message again, after delay_ms when it is not nil.
 
@@ -283,6 +290,7 @@ def outbox_insert(table)
   "INSERT INTO \"#{table}\" (subject, payload) VALUES ($1, $2)"
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 in_transaction: run f between BEGIN and COMMIT, rolling back and raising again when it raises.
 
@@ -300,6 +308,7 @@ rescue e
   raise(e)
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 write_with_outbox: run a change and record its events in the same transaction; the change's rows.
 
@@ -338,6 +347,7 @@ def drain_delete(table, ids)
   "DELETE FROM \"#{table}\" WHERE id IN (#{join(map(to_s, ids), ", ")})"
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 drain: publish up to batch outbox events to the stream, each acked, and delete them; how many moved.
 
@@ -371,6 +381,7 @@ rescue e
   raise(e)
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 work: a worker's loop: fetch, run the handler on each message, ack it; a raise naks and ends the worker.
 

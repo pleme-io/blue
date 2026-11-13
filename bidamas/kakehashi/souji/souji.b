@@ -117,6 +117,7 @@ end
 
 # ── rust ─────────────────────────────────────────────────────────────
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 targets: target/ directories under root, at most depth levels down, each beside a
 Cargo.toml. find prunes at each target/ so it never walks inside one.
@@ -144,6 +145,7 @@ def targets(root, depth)
   )
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 size_kib: Kibibytes under dir, from du; 0 when du could not read it.
 
@@ -159,6 +161,7 @@ def size_kib(dir)
   end
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 active?: True when anything inside dir changed in the last `hours` hours: find stops
 at the first such file. An age floor of 0 hours never counts a directory active.
@@ -229,6 +232,7 @@ def nix_argv(opts)
   )
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 nix: the nix cleaning: run nix-collect-garbage and keep whether it succeeded and its last line.
 
@@ -295,6 +299,7 @@ def verdict(row, verb)
   end
 end
 
+# waive B0084: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches this seam yet
 @doc """
 main: the command's entry point: argv read by souji's cli through hikisuu, which answers help and completion and refuses a bad line with exit 64.
 

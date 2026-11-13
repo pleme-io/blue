@@ -33,6 +33,7 @@ def enabled?(settings)
   db != nil and db["url"] != nil and db["url"] != ""
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 open: a Postgres connection from the settings' database.url, its search path set to database.schema; settings with no database raise :no_database.
 
@@ -63,6 +64,7 @@ def insert_statement(table, row)
   ]
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 insert: write one row into a table over a connection and return the row as stored; with no connection the runtime refuses it.
 
@@ -73,6 +75,7 @@ def insert(conn, table, row)
   first(pg_query(conn, first(st), second(st))[:rows])
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 rows: the rows a parameterised query returns over a connection; with no connection the runtime refuses it.
 

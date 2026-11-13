@@ -170,6 +170,8 @@ mod tests {
             declared: blue_lang_test::Declared {
                 satisfies: vec!["nist_ac_6".into()],
                 target: Some("%root/f".into()),
+                kind: "unit".into(),
+                allow: None,
             },
             passed,
             assertions: Tally {

@@ -2190,6 +2190,7 @@ def bindings(dir, streams)
   )
 end
 
+# waive B0084: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches this seam yet
 @doc """
 build: Build the database under `dir`: read and verify every stream (a broken
 chain throws :anaritikusu_broken), write each history, write the script
@@ -2228,6 +2229,7 @@ def build_history(dir, s)
   )
 end
 
+# waive B0084: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches this seam yet
 @doc """
 read: A model's rows from the database at `db`, as value lists in its column
 order, sorted by every column; a failed query throws (:kueri_query). A

@@ -48,6 +48,7 @@ pub mod names;
 pub mod namespace_rules;
 pub mod obligations;
 mod package_moves;
+pub mod points;
 pub mod project;
 pub mod properties;
 pub mod records;

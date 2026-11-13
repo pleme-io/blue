@@ -434,3 +434,45 @@ mod documented {
         );
     }
 }
+
+#[cfg(test)]
+mod held {
+    use super::*;
+
+    const POINT: &str = "@moduledoc \"\"\"\nkagi asks the machine.\n\n    1 + 1 #=> 2\n\"\"\"\n\n@doc \"\"\"\nkagi runs `date`.\n\n    1 + 1 #=> 2\n\"\"\"\ndef kagi()\n  exec_capture(\"date\")\nend\n";
+
+    fn project(name: &str, body: &str) -> std::path::PathBuf {
+        let root =
+            std::env::temp_dir().join(format!("blue-census-held-{}-{name}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let dir = root.join("bidamas").join("kagi");
+        std::fs::create_dir_all(&dir).expect("mkdir");
+        std::fs::write(dir.join("Bluefile"), "package(\"kagi\", \"0.1.0\")\n").expect("write");
+        std::fs::write(dir.join("kagi.b"), body).expect("write");
+        root
+    }
+
+    /// **A waived integration point is debt the census counts, with its
+    /// reason; a point with a test of its kind is no debt.** The count is
+    /// what `held_mismatches` holds against the obligation row.
+    #[test]
+    fn a_waived_point_is_counted_and_a_tested_one_is_not() {
+        let waived = POINT.replace(
+            "@doc \"\"\"\nkagi runs",
+            "# waive B0083: the fixture's debt\n@doc \"\"\"\nkagi runs",
+        );
+        let root = project("waived", &waived);
+        let c = take(&root).expect("census");
+        let _ = std::fs::remove_dir_all(&root);
+        let counted: Vec<&String> = c.waived.get(&Code::B0083).into_iter().flatten().collect();
+        assert_eq!(counted.len(), 1, "{counted:?}");
+        assert!(counted[0].contains("the fixture's debt"), "{counted:?}");
+        let tested = format!(
+            "{POINT}\ntest \"kagi\", {{kind: :integration, allow: [:process]}}\n  assert kagi != nil\nend\n"
+        );
+        let root = project("tested", &tested);
+        let c = take(&root).expect("census");
+        let _ = std::fs::remove_dir_all(&root);
+        assert!(c.waived.get(&Code::B0083).is_none());
+    }
+}

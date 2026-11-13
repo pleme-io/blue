@@ -9,8 +9,11 @@ referenced). Both cleanings reclaim only what can be rebuilt or re-fetched.
   souji nix  [--dry-run] [--older-than-days N]           default 14
   souji all  [--dry-run]                                 both, rust first
 
-The command line is `cli`, read by hikisuu: `souji --help` prints it and
-`souji __complete` answers shell completion.
+The settings are one core model, `settings`, resolved by settei: the
+defaults, then ~/.config/souji/souji.yaml, then SOUJI_ variables, then the
+flags. `souji --help` prints the command line rendered from it, `souji
+__complete` answers shell completion and `souji --explain KEY` says where a
+setting came from.
 
 A target/ directory counts only beside a Cargo.toml, and only when nothing
 inside it changed in the last N hours (default 6): a build writing there,
@@ -27,6 +30,7 @@ the logic is blue.
 use("hikisuu")
 use("kazu", [:sum])
 use("retsu", %i[concat_lists first flat_map is_empty size])
+use("settei")
 
 use("shisutemu", %i[last_nonempty_line status_of stderr_of stdout_of])
 
@@ -37,11 +41,38 @@ legacy_names("0.1.2", [%w[sum kazu::sum]])
 # ── arguments ────────────────────────────────────────────────────────
 
 @doc """
-cli: souji's command line: three commands, a dry run, the two age floors and the roots to search.
+settings: souji's core model: a dry run and the two age floors, each a knob with its default, floor, unit and doc. The flags, help, `--explain KEY`, the config file (~/.config/souji/souji.yaml), the SOUJI_ environment and the table in docs/config/souji.md are rendered from it.
 
-    get(hikisuu::parse(["nix"], cli), :older_than_days) #=> 14
+    settei::defaults_of(settings) #=> {dry_run: false, min_age_hours: 6, older_than_days: 14}
 """
-def cli()
+def settings()
+  {
+    dry_run: settei::knob(false, {doc: "say what would go; delete nothing"}),
+    min_age_hours: settei::knob(
+      6,
+      {
+        min: 0,
+        unit: "hours",
+        doc: "keep a target/ written to within this many hours"
+      }
+    ),
+    older_than_days: settei::knob(
+      14,
+      {
+        min: 0,
+        unit: "days",
+        doc: "delete profile generations older than this many days"
+      }
+    )
+  }
+end
+
+@doc """
+frame: souji's command line beside its settings: three commands and the roots to search.
+
+    size(frame[:commands]) #=> 3
+"""
+def frame()
   {
     name: "souji",
     about: "clean a node: idle Rust target/ directories and unreferenced nix store paths",
@@ -56,23 +87,19 @@ def cli()
       },
       {name: :all, about: "both, rust first"}
     ],
-    flags: {
-      dry_run: {default: false, about: "say what would go; delete nothing"},
-      min_age_hours: {
-        default: 6,
-        min: 0,
-        about: "keep a target/ written to within this many hours"
-      },
-      older_than_days: {
-        default: 14,
-        min: 0,
-        about: "delete profile generations older than this many days"
-      }
-    },
     positional: [
       {name: :roots, many: true, about: "where to look; ~/code when none"}
     ]
   }
+end
+
+@doc """
+cli: souji's command line as hikisuu reads it, rendered from its settings and its frame.
+
+    get(hikisuu::parse(["nix"], cli), :older_than_days) #=> 14
+"""
+def cli()
+  settei::cli_spec(settings, frame)
 end
 
 @doc """
@@ -274,7 +301,7 @@ main: the command's entry point: argv read by souji's cli through hikisuu, which
     get(hikisuu::outcome(["sweep"], cli), :status) #=> 64
 """
 def main()
-  hikisuu::command(cli, perform)
+  settei::command("souji", settings, frame, perform)
 end
 
 @doc """
@@ -295,6 +322,37 @@ def perform(opts)
 end
 
 # ── tests ────────────────────────────────────────────────────────────
+
+test "settings: the environment sets a floor, a flag wins, a bad value warns alone, and explain names the layer"
+  env = settei::env_of(
+    {"SOUJI_MIN_AGE_HOURS" => "2", "SOUJI_OLDER_THAN_DAYS" => "-3"}
+  )
+  o = settei::line("souji", settings, frame, ["rust"], nil, env)
+  assert o[:opts][:min_age_hours] == 2
+  assert o[:opts][:older_than_days] == 14
+  assert o[:warnings] ==
+    ["older_than_days must be 0 or more, got -3 from SOUJI_OLDER_THAN_DAYS; kept 14"]
+  f = settei::line(
+    "souji",
+    settings,
+    frame,
+    %w[rust --min-age-hours 9],
+    nil,
+    env
+  )
+  assert f[:opts][:min_age_hours] == 9
+  x = settei::line(
+    "souji",
+    settings,
+    frame,
+    %w[--explain min_age_hours],
+    nil,
+    env
+  )
+  assert contains?(x[:text], "min_age_hours = 2")
+  assert contains?(x[:text], "source   env SOUJI_MIN_AGE_HOURS")
+  assert contains?(x[:text], "unit     hours")
+end
 
 test "arguments: commands, flags, roots, and refusals"
   o = hikisuu::parse(%w[rust --dry-run --min-age-hours 12 /a /b], cli)

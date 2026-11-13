@@ -1141,3 +1141,10 @@ test "the model keeps every environment name and default the daemon read by hand
   assert s[:config]["max_handshake_ms"] == 0
   assert map((r) -> r[:key], s[:refusals]) == %w[max_handshake_ms timeout_s]
 end
+
+test "config settles tehai's model: the defaults when no file and no TEHAI_ variable set it"
+  c = config
+  assert c["timeout_s"] >= 1
+  assert size(map_entries(c)) ==
+    size(map_entries(settei::defaults_of(config_model)))
+end

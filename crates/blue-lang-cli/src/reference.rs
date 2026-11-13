@@ -32,7 +32,21 @@ pub struct Reference {
     /// reserved words, which the keyword table describes instead.
     uncallable: usize,
     rules: Vec<RuleRow>,
+    obligations: Vec<ObligationRow>,
     commands: Vec<CommandRow>,
+}
+
+#[derive(Serialize)]
+struct ObligationRow {
+    id: &'static str,
+    when: &'static str,
+    evidence: &'static str,
+    detector: &'static str,
+    refusal: String,
+    profile: &'static str,
+    held: u32,
+    blocked: Option<&'static str>,
+    owner: &'static str,
 }
 
 #[derive(Serialize)]
@@ -218,6 +232,23 @@ pub fn reference() -> Reference {
                     blue_lang_check::FixKind::None => "refused",
                 },
                 law: r.law,
+            })
+            .collect(),
+        obligations: blue_lang_check::obligations::OBLIGATIONS
+            .iter()
+            .map(|o| ObligationRow {
+                id: o.id,
+                when: o.when,
+                evidence: o.evidence.label(),
+                detector: o.detector.label(),
+                refusal: o.refusal.label(),
+                profile: o.profile.label(),
+                held: o.held,
+                blocked: match o.refusal {
+                    blue_lang_check::obligations::Refusal::Design(why) => Some(why),
+                    _ => None,
+                },
+                owner: o.owner,
             })
             .collect(),
         commands: commands(&<crate::Cli as clap::CommandFactory>::command()),

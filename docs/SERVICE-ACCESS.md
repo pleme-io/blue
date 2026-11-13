@@ -160,7 +160,7 @@ Each step ends with blue's checks green and a red-then-green test.
 
 ## Ledger
 
-The state of each access layer, measured on 2026-11-09.
+The state of each access layer, measured on 2026-11-13.
 
 ✅ built and tested · ⏳ in progress · ❌ not built
 
@@ -175,6 +175,7 @@ The state of each access layer, measured on 2026-11-09.
 | Chart for `:kernel_bpf`: DaemonSet, host network, bpffs, tracefs, exact capabilities | ✅ built | haibi tests "a service that reaches the kernel gets exactly its capabilities, and no other service gets any" and "a pod that loads kernel programs mounts bpffs and a read-only tracefs from the host, and no other pod mounts either". No cluster runs it yet (`KERNEL.md`) |
 | Chart `writes` as volumes | ✅ built | haibi test "a written path is a volume the release chooses, and a service that writes nothing has none" |
 | `kakoi.pleme.io/access` for native pods | ❌ not built | haibi renders no such annotation (HORIZON H16) |
-| Chart NetworkPolicy, unit, image and host renderers for every other access | ❌ not built | haibi renders no NetworkPolicy. Done at A2 to A4 (§7) |
+| Chart NetworkPolicy and seccomp | ✅ built | haibi `network_policy`: ingress only on `listen`, egress only to DNS and the port of each `egress` peer (a NetworkPolicy has no peer by host name, so the port is the bound); `seccompProfile: RuntimeDefault` on every pod that loads no kernel program. haibi tests "the NetworkPolicy lets in only…" and "a pod runs under the runtime's default seccomp profile…"; heni 12 of 12 |
+| Unit, image and host renderers for every other access | ❌ not built | Done at A3 and A4 (§7) |
 | The trio for `host` services | ❌ not built | Done at A3: kensa gets `nixosModules.kensa` |
 | GitOps rendering from a `placement` entry | ❌ not built | blue has no `placement` word. Done at A7 |

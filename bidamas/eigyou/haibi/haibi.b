@@ -15,7 +15,7 @@ use("eigyou/kyuuji")
 use("eigyou/shihyou")
 use("fairu")
 use("jisho")
-use("retsu", %i[first flat_map last take_while])
+use("retsu", %i[first flat_map index_of last take_while])
 use("settei", [:env_prefix])
 
 legacy_names("0.1.2", [%w[write_tree fairu::write_tree]])
@@ -361,8 +361,87 @@ def pod_security(svc)
   if kernel_reach?(svc)
     {"runAsNonRoot" => false, "runAsUser" => 0, "runAsGroup" => 0}
   else
-    {"runAsNonRoot" => true, "runAsUser" => 65532, "runAsGroup" => 65532}
+    {
+      "runAsNonRoot" => true,
+      "runAsUser" => 65532,
+      "runAsGroup" => 65532,
+      "seccompProfile" => {"type" => "RuntimeDefault"}
+    }
   end
+end
+
+@doc """
+egress_ports: the port each egress peer of a service names, in its order, without repeats.
+
+    egress_ports({"access" => {"egress" => ["db:5432", "api.github.com:443", "replica:5432"]}}) #=> ["5432", "443"]
+"""
+def egress_ports(svc)
+  reduce(
+    fn(acc, peer)
+      port = last(split(peer, ":"))
+      if member?(port, acc)
+        acc
+      else
+        append(acc, [port])
+      end
+    end,
+    [],
+    access_values(svc)["egress"]
+  )
+end
+
+@doc """
+network_policy: the service's NetworkPolicy, rendered from its access: ingress only on the ports it listens on, egress only to DNS and to the port of each declared peer. A peer's host name is not in the policy, since a NetworkPolicy has no peer by name; the port is.
+
+    contains?(network_policy("hello", {"port" => 8080}), "kind: NetworkPolicy") #=> true
+"""
+def network_policy(h, svc)
+  a = access_values(svc)
+  port_rows = fn(ports, protocol)
+    flat_map(
+      ports,
+      (p) -> ["        - port: #{to_s(p)}", "          protocol: #{protocol}"]
+    )
+  end
+  ingress = if a["listen"] == []
+    ["  ingress: []"]
+  else
+    append(["  ingress:", "    - ports:"], port_rows(a["listen"], "TCP"))
+  end
+  peers = flat_map(
+    egress_ports(svc),
+    (p) -> append(["    - ports:"], port_rows([p], "TCP"))
+  )
+  lines(
+    append(
+      [
+        "apiVersion: networking.k8s.io/v1",
+        "kind: NetworkPolicy",
+        "metadata:",
+        "  name: {{ include \"#{h}.fullname\" . }}",
+        "  namespace: {{ .Release.Namespace }}",
+        "  labels:",
+        "    {{- include \"#{h}.labels\" . | nindent 4 }}",
+        "spec:",
+        "  podSelector:",
+        "    matchLabels:",
+        "      {{- include \"#{h}.selectorLabels\" . | nindent 6 }}",
+        "  policyTypes:",
+        "    - Ingress",
+        "    - Egress"
+      ],
+      ingress,
+      [
+        "  egress:",
+        "    - ports:",
+        "        - port: 53",
+        "          protocol: UDP",
+        "        - port: 53",
+        "          protocol: TCP"
+      ],
+      peers
+    )
+  )
 end
 
 @doc """
@@ -1371,6 +1450,7 @@ def files_with(name, version, svc, mode)
     ["chart/values.yaml", yaml(values_with(svc, mode))],
     ["chart/values.schema.json", pretty(values_schema_with(name, svc, mode))],
     [workload_template(svc), deployment_with(name, h, svc)],
+    ["chart/templates/networkpolicy.yaml", network_policy(h, svc)],
     ["chart/templates/NOTES.txt", notes(name, h)],
     ["chart/templates/slo-rules.yaml", slo_rules(name, svc)],
     ["chart/templates/dashboard.yaml", dashboard_map(name)],
@@ -1499,6 +1579,7 @@ test "the tree holds the chart, its schema, the config and, with a schema, the m
       chart/templates/dashboard.yaml
       chart/templates/deployment.yaml
       chart/templates/migration.yaml
+      chart/templates/networkpolicy.yaml
       chart/templates/service.yaml
       chart/templates/serviceaccount.yaml
       chart/templates/slo-rules.yaml
@@ -1848,4 +1929,53 @@ test "a native service keeps the image from its repository and says why it is na
   assert contains?(d, "pleme-lib.wasm-component.annotations") == true
   plain = deployment_with("hello", "hello", sample)
   assert contains?(plain, "pleme-lib.") == false
+end
+
+test "the NetworkPolicy lets in only the ports a service listens on and out only to DNS and its declared peers"
+  svc = {
+    "program" => "hello.b",
+    "port" => 8080,
+    "access" => {
+      "effects" => ["network"],
+      "egress" => %w[db.data.svc:5432 api.github.com:443],
+      "listen" => [8080, 8443]
+    }
+  }
+  fs = files("hello", "0.1.0", svc)
+  np = last(
+    first(filter((f) -> first(f) == "chart/templates/networkpolicy.yaml", fs))
+  )
+  assert np == network_policy("pleme-lib", svc)
+  rows = split(np, line_break)
+  assert member?("    - Egress", rows)
+  ingress = take_while(
+    (l) -> l != "  egress:",
+    drop(index_of(rows, "  ingress:"), rows)
+  )
+  assert filter((l) -> contains?(l, "port:"), ingress) ==
+    ["        - port: 8080", "        - port: 8443"]
+  egress = drop(index_of(rows, "  egress:"), rows)
+  assert filter((l) -> contains?(l, "port:"), egress) ==
+    [
+      "        - port: 53",
+      "        - port: 53",
+      "        - port: 5432",
+      "        - port: 443"
+    ]
+  assert not contains?(np, "api.github.com")
+  closed = network_policy(
+    "pleme-lib",
+    {"access" => {"listen" => [], "egress" => []}}
+  )
+  assert contains?(closed, "  ingress: []")
+  assert filter((l) -> contains?(l, "port:"), split(closed, line_break)) ==
+    ["        - port: 53", "        - port: 53"]
+end
+
+test "a pod runs under the runtime's default seccomp profile, unless it loads kernel programs"
+  assert pod_security({})["seccompProfile"] == {"type" => "RuntimeDefault"}
+  assert get(
+    pod_security({"access" => {"effects" => ["kernel_bpf"]}}),
+    "seccompProfile"
+  ).nil?
 end

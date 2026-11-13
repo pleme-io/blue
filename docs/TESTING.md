@@ -311,7 +311,9 @@ package at enforce with no debt. The one way to configure the gate off is
 `skip("test-beside", why)` in the Bluefile; the lock records the skip and its
 reason. Blue's own policy is `gen/test-beside.b`; its judge tests run as
 `checks.test-beside-judge`, and the pre-push gate still measures the corpus
-there (`BLUE_TEST_BESIDE_CORPUS=on`), since a hook has no nix outputs to read. Kinds required per point type
+there (`BLUE_TEST_BESIDE_CORPUS=on`), since a hook has no nix outputs to read. An arm one host takes and another does not (a branch on
+the operating system) differs per platform, so a recorded `unbranched` row is
+the larger of the counts measured on darwin and on Linux. Kinds required per point type
 (for example "a `cache` binding needs an integration test") are a third entry,
 `require(point, kind, why)`, in phase T4.
 

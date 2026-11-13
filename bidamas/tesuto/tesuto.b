@@ -459,20 +459,26 @@ def coverage_verdict(settled, rows, m)
     ja = hadome::judge(rows, "unbranched", pkg, na)[:verdict]
     branched = ja == :grew or ja == :unrecorded and na > 0
     b = assoc(b, :unbranched, arms)
+    whys = append(
+      if grew
+        [
+          "#{to_s(n)} untested beyond the recorded debt: #{join(b[:untested], ", ")}"
+        ]
+      else
+        []
+      end,
+      if branched
+        [
+          "#{to_s(na)} untaken arm(s) beyond the recorded debt: #{join(arms, ", ")}"
+        ]
+      else
+        []
+      end
+    )
     if b[:level] == :off
       assoc(b, :verdict, :off)
-    elsif grew and b[:level] == :enforce
-      assoc(
-        assoc(b, :verdict, :red),
-        :why,
-        "#{to_s(n)} untested beyond the recorded debt: #{join(b[:untested], ", ")}"
-      )
-    elsif branched and b[:level] == :enforce
-      assoc(
-        assoc(b, :verdict, :red),
-        :why,
-        "#{to_s(na)} untaken arm(s) beyond the recorded debt: #{join(arms, ", ")}"
-      )
+    elsif whys != [] and b[:level] == :enforce
+      assoc(assoc(b, :verdict, :red), :why, join(whys, "; "))
     else
       assoc(b, :verdict, :green)
     end

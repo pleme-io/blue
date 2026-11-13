@@ -15,6 +15,7 @@
 package("blue-native", "0.1.0")
 
 packages("bidamas")
+coverage("coverage.b")
 
 # The emitter chuuzou hands its typed Rust AST to (tatara-rust-ast's CLI).
 tool("tatara-rust-emit")

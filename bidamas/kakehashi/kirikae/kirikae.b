@@ -354,70 +354,169 @@ def assoc_all(m, pairs)
 end
 
 @doc """
-config_defaults: every kirikae setting and its default, grouped by concern. settei lays ~/.config/kirikae/kirikae.yaml (or the file KIRIKAE_CONFIG names) over it, then KIRIKAE_<GROUP>__<KEY> (KIRIKAE_PHASES__PLAN=0, KIRIKAE_FORCE=1); a value of the wrong type is refused. An empty host, kind, history, events or narrate means the computed default.
+config_model: kirikae's core model, every setting grouped by concern with its default, bounds, unit, doc and the flat environment name it had before (sentinela still passes KIRIKAE_HISTORY and KIRIKAE_BACKOFF_BASE_S). An empty host, kind, history, events or narrate means the computed default.
 
-    config_defaults.phases.plan #=> true
+    settei::defaults_of(config_model)["guard"]["branch"] #=> "main"
 """
-def config_defaults()
+def config_model()
+  k = settei::knob
   {
-    "flake" => ".",
-    "host" => "",
-    "kind" => "",
-    "current" => "/run/current-system",
-    "force" => false,
-    "narrate" => "",
-    "phases" => {"plan" => true, "verify" => true},
-    "guard" => {
-      "branch" => "main",
-      "fast_forward" => true,
-      "allow_unpublished" => false,
-      "allow_concurrent" => false
+    "flake" => k(".", {doc: "the flake to build"}),
+    "host" => k(
+      "",
+      {doc: "the host to switch; the machine's short name when empty"}
+    ),
+    "kind" => k("", {doc: "nixos or darwin; read from the machine when empty"}),
+    "current" => k("/run/current-system", {doc: "the running system's link"}),
+    "force" => k(
+      false,
+      {doc: "switch even when the plan says nothing changed"}
+    ),
+    "narrate" => k(
+      "",
+      {doc: "how much to say: off, brief or full; computed when empty"}
+    ),
+    "phases" => {
+      "plan" => k(true, {renamed: ["plan"], doc: "plan before switching"}),
+      "verify" => k(
+        true,
+        {renamed: ["verify_switch"], doc: "verify the switched system"}
+      )
     },
-    "wait" => {"seconds" => 0, "poll_seconds" => 15},
-    "backoff" => {"base_seconds" => 0, "cap_seconds" => 21600},
-    "records" => {"history" => "", "events" => "", "events_keep" => 1000},
+    "guard" => {
+      "branch" => k(
+        "main",
+        {renamed: ["branch"], doc: "the branch a switch builds from"}
+      ),
+      "fast_forward" => k(
+        true,
+        {
+          renamed: ["fast_forward"],
+          doc: "fast-forward the checkout to origin first"
+        }
+      ),
+      "allow_unpublished" => k(
+        false,
+        {
+          renamed: ["allow_unpublished"],
+          doc: "build commits origin does not hold"
+        }
+      ),
+      "allow_concurrent" => k(
+        false,
+        {renamed: ["allow_concurrent"], doc: "run beside another kirikae"}
+      )
+    },
+    "wait" => {
+      "seconds" => k(
+        0,
+        {
+          min: 0,
+          unit: "seconds",
+          renamed: ["wait_s"],
+          doc: "wait this long before the run"
+        }
+      ),
+      "poll_seconds" => k(
+        15,
+        {
+          min: 0,
+          unit: "seconds",
+          renamed: ["poll_s"],
+          doc: "poll this often while waiting"
+        }
+      )
+    },
+    "backoff" => {
+      "base_seconds" => k(
+        0,
+        {
+          min: 0,
+          unit: "seconds",
+          renamed: ["backoff_base_s"],
+          doc: "the first retry's delay"
+        }
+      ),
+      "cap_seconds" => k(
+        21600,
+        {
+          min: 0,
+          unit: "seconds",
+          renamed: ["backoff_cap_s"],
+          doc: "the longest retry delay"
+        }
+      )
+    },
+    "records" => {
+      "history" => k(
+        "",
+        {
+          renamed: ["history"],
+          doc: "the history file; the state directory's when empty"
+        }
+      ),
+      "events" => k(
+        "",
+        {
+          renamed: ["events"],
+          doc: "the events file; the state directory's when empty"
+        }
+      ),
+      "events_keep" => k(
+        1000,
+        {
+          min: 0,
+          renamed: ["events_keep"],
+          doc: "how many events the file keeps"
+        }
+      )
+    },
     "gitops" => {
-      "follow" => false,
-      "stale_after_seconds" => 300,
-      "log" => "/var/log/pleme-gitops/stdout.log",
-      "heartbeat" => "/var/log/pleme-gitops/heartbeat.json"
+      "follow" => k(
+        false,
+        {renamed: ["follow"], doc: "follow the gitops loop's log"}
+      ),
+      "stale_after_seconds" => k(
+        300,
+        {min: 0, unit: "seconds", doc: "a heartbeat older than this is stale"}
+      ),
+      "log" => k(
+        "/var/log/pleme-gitops/stdout.log",
+        {renamed: ["gitops_log"], doc: "the gitops loop's log"}
+      ),
+      "heartbeat" => k(
+        "/var/log/pleme-gitops/heartbeat.json",
+        {renamed: ["gitops_heartbeat"], doc: "the gitops loop's heartbeat"}
+      )
     }
   }
 end
 
 @doc """
-config: kirikae's settings as settei resolves them: defaults, then the config file, then the environment; read by path, config.guard.branch.
+config_defaults: every kirikae setting's default, the plain record of config_model.
+
+    config_defaults.phases.plan #=> true
+"""
+def config_defaults()
+  settei::defaults_of(config_model)
+end
+
+@doc """
+config: kirikae's settings as settei settles them: defaults, then the config file, then the environment, each bad value refused for its key alone and warned; read by path, config.guard.branch.
 
     config.guard.branch #=> "main"
 """
 def config()
-  settei::read("kirikae", config_defaults, {aliases: env_aliases})
+  settei::settled("kirikae", config_model)
 end
 
 @doc """
-env_aliases: each grouped setting's environment name and the flat name it had before, which still sets it (sentinela passes KIRIKAE_HISTORY and KIRIKAE_BACKOFF_BASE_S).
+env_aliases: each grouped setting's environment name and the flat name it had before, rendered from config_model's renamed marks.
 
     env_aliases["KIRIKAE_BACKOFF__BASE_SECONDS"] #=> "KIRIKAE_BACKOFF_BASE_S"
 """
 def env_aliases()
-  {
-    "KIRIKAE_PHASES__PLAN" => "KIRIKAE_PLAN",
-    "KIRIKAE_PHASES__VERIFY" => "KIRIKAE_VERIFY_SWITCH",
-    "KIRIKAE_GUARD__BRANCH" => "KIRIKAE_BRANCH",
-    "KIRIKAE_GUARD__FAST_FORWARD" => "KIRIKAE_FAST_FORWARD",
-    "KIRIKAE_GUARD__ALLOW_UNPUBLISHED" => "KIRIKAE_ALLOW_UNPUBLISHED",
-    "KIRIKAE_GUARD__ALLOW_CONCURRENT" => "KIRIKAE_ALLOW_CONCURRENT",
-    "KIRIKAE_WAIT__SECONDS" => "KIRIKAE_WAIT_S",
-    "KIRIKAE_WAIT__POLL_SECONDS" => "KIRIKAE_POLL_S",
-    "KIRIKAE_BACKOFF__BASE_SECONDS" => "KIRIKAE_BACKOFF_BASE_S",
-    "KIRIKAE_BACKOFF__CAP_SECONDS" => "KIRIKAE_BACKOFF_CAP_S",
-    "KIRIKAE_RECORDS__HISTORY" => "KIRIKAE_HISTORY",
-    "KIRIKAE_RECORDS__EVENTS" => "KIRIKAE_EVENTS",
-    "KIRIKAE_RECORDS__EVENTS_KEEP" => "KIRIKAE_EVENTS_KEEP",
-    "KIRIKAE_GITOPS__FOLLOW" => "KIRIKAE_FOLLOW",
-    "KIRIKAE_GITOPS__LOG" => "KIRIKAE_GITOPS_LOG",
-    "KIRIKAE_GITOPS__HEARTBEAT" => "KIRIKAE_GITOPS_HEARTBEAT"
-  }
+  settei::aliases_of("kirikae", config_model)
 end
 
 @doc """
@@ -2813,4 +2912,66 @@ test "outcome_field reads a field of an outcome and a default of bare text"
   assert exit_status_of("ok") == 0
   assert text_of(outcome_of(0, "built")) == "built"
   assert text_of("built") == "built"
+end
+
+test "config_model renders the same defaults and environment aliases the hand-written records held"
+  assert config_defaults ==
+    {
+      "flake" => ".",
+      "host" => "",
+      "kind" => "",
+      "current" => "/run/current-system",
+      "force" => false,
+      "narrate" => "",
+      "phases" => {"plan" => true, "verify" => true},
+      "guard" => {
+        "branch" => "main",
+        "fast_forward" => true,
+        "allow_unpublished" => false,
+        "allow_concurrent" => false
+      },
+      "wait" => {"seconds" => 0, "poll_seconds" => 15},
+      "backoff" => {"base_seconds" => 0, "cap_seconds" => 21600},
+      "records" => {"history" => "", "events" => "", "events_keep" => 1000},
+      "gitops" => {
+        "follow" => false,
+        "stale_after_seconds" => 300,
+        "log" => "/var/log/pleme-gitops/stdout.log",
+        "heartbeat" => "/var/log/pleme-gitops/heartbeat.json"
+      }
+    }
+  assert env_aliases ==
+    {
+      "KIRIKAE_PHASES__PLAN" => "KIRIKAE_PLAN",
+      "KIRIKAE_PHASES__VERIFY" => "KIRIKAE_VERIFY_SWITCH",
+      "KIRIKAE_GUARD__BRANCH" => "KIRIKAE_BRANCH",
+      "KIRIKAE_GUARD__FAST_FORWARD" => "KIRIKAE_FAST_FORWARD",
+      "KIRIKAE_GUARD__ALLOW_UNPUBLISHED" => "KIRIKAE_ALLOW_UNPUBLISHED",
+      "KIRIKAE_GUARD__ALLOW_CONCURRENT" => "KIRIKAE_ALLOW_CONCURRENT",
+      "KIRIKAE_WAIT__SECONDS" => "KIRIKAE_WAIT_S",
+      "KIRIKAE_WAIT__POLL_SECONDS" => "KIRIKAE_POLL_S",
+      "KIRIKAE_BACKOFF__BASE_SECONDS" => "KIRIKAE_BACKOFF_BASE_S",
+      "KIRIKAE_BACKOFF__CAP_SECONDS" => "KIRIKAE_BACKOFF_CAP_S",
+      "KIRIKAE_RECORDS__HISTORY" => "KIRIKAE_HISTORY",
+      "KIRIKAE_RECORDS__EVENTS" => "KIRIKAE_EVENTS",
+      "KIRIKAE_RECORDS__EVENTS_KEEP" => "KIRIKAE_EVENTS_KEEP",
+      "KIRIKAE_GITOPS__FOLLOW" => "KIRIKAE_FOLLOW",
+      "KIRIKAE_GITOPS__LOG" => "KIRIKAE_GITOPS_LOG",
+      "KIRIKAE_GITOPS__HEARTBEAT" => "KIRIKAE_GITOPS_HEARTBEAT"
+    }
+end
+
+test "an old flat environment name still sets its knob, and a bad one is refused alone"
+  s = settei::settle(
+    "kirikae",
+    config_model,
+    nil,
+    settei::env_of(
+      {"KIRIKAE_BACKOFF_BASE_S" => "300", "KIRIKAE_POLL_S" => "-1"}
+    ),
+    {}
+  )
+  assert s[:config]["backoff"]["base_seconds"] == 300
+  assert s[:config]["wait"]["poll_seconds"] == 15
+  assert map((f) -> f[:key], s[:refusals]) == ["wait.poll_seconds"]
 end

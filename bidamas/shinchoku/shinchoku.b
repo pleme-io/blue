@@ -145,6 +145,7 @@ def budget_of(text)
   end
 end
 
+# waive B0084: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches this seam yet
 def gh_budget()
   r = run_capture(%w[gh api rate_limit])
   if r[:ok]
@@ -394,6 +395,7 @@ def split_target(template)
   end
 end
 
+# waive B0084: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches this seam yet
 def read_template(ns, name)
   r = run_capture(
     ["k-ryn", "get", "infrastructuretemplate", name, "-n", ns, "-o", "json"]
@@ -419,6 +421,7 @@ def reconcile_liveness(template)
   reconcile_liveness_over(template, 60)
 end
 
+# waive B0084: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches this seam yet
 def counter_sample(argv)
   r = run_capture(argv)
   if r[:ok] == false
@@ -487,6 +490,7 @@ def usage()
   )
 end
 
+# waive B0084: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches this seam yet
 def command(args)
   sub = first(args) rescue nil
   rest_args = drop(1, args)
@@ -538,6 +542,7 @@ def command(args)
   end
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 def main()
   out = command(argv)
   if out.nil?

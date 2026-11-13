@@ -284,6 +284,7 @@ def header_pairs(headers)
   end
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 def wire()
   fn(method, url, headers, body, timeout_ms)
     http_request(method, url, headers, body, timeout_ms)

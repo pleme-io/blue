@@ -149,6 +149,7 @@ def interface_index(name)
   to_int(trim(read_file(path)))
 end
 
+# waive B0084: main attaches to a live interface; the real-kernel test installs and runs the same program
 def main()
   name = first(argv)
   if name.nil?
@@ -180,7 +181,10 @@ test "on the machine, a frame too short for the field is passed and not counted"
   assert kaaneru::bpf::map_int(st, :counts, 0) == 0
 end
 
-test "on a real kernel, the program counts what the machine counts"
+test "on a real kernel, the program counts what the machine counts", {
+  kind: :integration,
+  allow: %i[clock environment filesystem kernel_bpf process]
+}
   skip_for(kernel_absence)
   live = install(program)
   assert kaaneru::run(live[:prog], {packet: frame(1), repeat: 3})[:ret] == xdp_pass

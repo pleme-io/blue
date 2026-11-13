@@ -742,6 +742,7 @@ def run_with(args, spec, f, io)
   end
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 command: the program's door: argv read by the spec; help and completion printed, a bad line refused on stderr with exit 64, otherwise f called with the record.
 

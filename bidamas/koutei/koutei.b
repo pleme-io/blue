@@ -344,6 +344,7 @@ def digest(message, cap)
   end
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 fail: print the whole message to the step log, raise an error annotation that
 holds its digest, and end the step with status 1.

@@ -115,6 +115,50 @@ commit that brings a count to zero sets the row to `Some(0)`, and from then
 on the rule is an error on every door. `blue census --findings` lists each
 finding.
 
+## Obligations: evidence the toolchain forces
+
+An obligation says: when blue sees a structure, a piece of evidence must
+exist. Every obligation is one row of `blue_lang_check::obligations`
+(`crates/blue-lang-check/src/obligations.rs`), with its evidence, its
+detector, its refusal and the profile that owes it. A row whose refusal is a
+code is a rule of the registry above, enforced on every door from the moment
+the structure is written. Existing debt is one `# waive CODE: reason` per
+site; `held` is how many the corpus carries, and `blue census` fails unless
+it measures exactly that number, so new debt and paid debt are both reviewed
+edits. A `design` row is registered and not yet forced; `blocked` says why.
+A program that registers a structure blue must hold (the core model's knobs,
+capabilities, effects, errors, observability, lifecycle) adds a row here.
+
+| obligation | when blue sees | evidence | detector | refusal | profile | held |
+|---|---|---|---|---|---|---|
+| reach/definition | a definition in a project with `packages` | unit | dynamic | checks.test-beside | default | 0 |
+| reach/target | a public definition no test names directly (`target:` or a call in a test body) | unit | static | design: COVERAGE CV3: a static rule over the test bodies; the corpus count sets its ratchet | default | 0 |
+| reach/doctest | an `@doc` example | unit | dynamic | design: COVERAGE CV3: doctests run today (B0057 forces the example); a failing doctest is a red test, not yet a registry finding | default | 0 |
+| reach/dead | a definition reachable from neither an entry point nor a test | unit | static | design: COVERAGE CV3: needs the call graph from every entry point | default | 0 |
+| point/effect | a definition that names a network, process or other host builtin outside the ambient set (filesystem, environment, clock) | integration | static | design: TESTING T4 | default | 0 |
+| point/seam | a definition that calls an imported word which names such a builtin | integration | static | design: TESTING T4 | default | 0 |
+| point/rendering | the program of a Bluefile `generate` row | rendering | project | design: TESTING T4 | default | 0 |
+| point/service | the program of a Bluefile `service(...)` row | e2e | project | design: TESTING T4 | service | 0 |
+| point/binding | a `cache`, `schema` or `http` binding of a `service(...)` row | contract | project | design: TESTING T4 | service | 0 |
+| flow/branch | an `if`, `unless`, ternary, `case` arm or guard | branch | dynamic | design: COVERAGE CV1, CV2: a branch recorder in `blue test --coverage` | default | 0 |
+| flow/early-return | a `?` early return | branch | dynamic | design: COVERAGE CV1, CV2 | default | 0 |
+| flow/loop | a loop or recursion that may run zero times | branch | dynamic | design: COVERAGE CV5: strict profile | strict | 0 |
+| flow/condition | an `and` or `or` operand in a decision (MC/DC) | branch | dynamic | design: COVERAGE CV5: strict profile | strict | 0 |
+| flow/boundary | a comparison with a literal in a branch | branch | dynamic | design: COVERAGE CV5: strict profile | strict | 0 |
+| error/raise | a `raise` site | branch | dynamic | design: COVERAGE CV1, CV2 | default | 0 |
+| error/expected | a raised tag | raise | static | design: COVERAGE CV3 | default | 0 |
+| error/handler | a `rescue` handler | branch | dynamic | design: COVERAGE CV1, CV2 | default | 0 |
+| data/variant | a variant of a declared union | unit | static | design: COVERAGE CV3 | default | 0 |
+| data/optional | an optional parameter or a nilable value | branch | dynamic | design: COVERAGE CV1: argument shapes per call site | default | 0 |
+| config/flag | an `enable` or `enabled` field | branch | static | design: COVERAGE CV3 | default | 0 |
+| strength/assertion | a test block | assertion | static | design: COVERAGE CV3 | default | 0 |
+| strength/tautology | an assertion that holds whatever the code does (`assert true`, `x == x`) | assertion | static | design: COVERAGE CV3 | default | 0 |
+| strength/slice | an assertion whose backward slice reaches no definition outside the test | assertion | dynamic | design: COVERAGE CV4: a data-flow slice in the recorder | default | 0 |
+| strength/mutant | a mutation site in a strict package | mutation | dynamic | design: COVERAGE CV5: heni per site, incremental by identity; the ratio ratchet holds today (checks.heni-mutations) | strict | 0 |
+| pipeline/stage | a gate the pre-push hook runs | declared | project | design: TESTING T3: `check` options `{stage:, kind:}` | default | 0 |
+| pipeline/ci | a CI workflow file | rendering | project | design: TESTING T5: `gen/ci.b` | default | 0 |
+| pipeline/release | a release or delivery step | declared | project | design: TESTING T7 | default | 0 |
+
 ## The reuse ratchet
 
 `blue census --reuse [ROOT]` counts copies per package, against the hadome

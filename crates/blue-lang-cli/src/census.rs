@@ -33,9 +33,26 @@ pub struct Census {
     /// For each ratcheted code, each distinct finding, rendered.
     pub findings: BTreeMap<Code, BTreeSet<String>>,
     pub by_package: BTreeMap<(Code, String), BTreeSet<String>>,
+    pub waived: BTreeMap<Code, BTreeSet<String>>,
 }
 
 impl Census {
+    /// Every obligation whose waived debt is not the number its row holds:
+    /// `(id, code, measured, held)`.
+    #[must_use]
+    pub fn held_mismatches(&self) -> Vec<(&'static str, Code, usize, u32)> {
+        blue_lang_check::obligations::OBLIGATIONS
+            .iter()
+            .filter_map(|o| {
+                let blue_lang_check::obligations::Refusal::Code(code) = o.refusal else {
+                    return None;
+                };
+                let measured = self.waived.get(&code).map_or(0, BTreeSet::len);
+                (measured != o.held as usize).then_some((o.id, code, measured, o.held))
+            })
+            .collect()
+    }
+
     /// Every ratcheted rule whose measured count is not its ratchet:
     /// `(code, measured, ratchet)`.
     #[must_use]
@@ -78,6 +95,7 @@ pub fn take(root: &Path) -> Result<Census, String> {
     let loader = blue_lang_pkg::corpus::load_path(root, &files);
     let mut findings: BTreeMap<Code, BTreeSet<String>> = BTreeMap::new();
     let mut by_package: BTreeMap<(Code, String), BTreeSet<String>> = BTreeMap::new();
+    let mut waived: BTreeMap<Code, BTreeSet<String>> = BTreeMap::new();
     for path in &files {
         let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
         let checked = check_entry(
@@ -113,11 +131,26 @@ pub fn take(root: &Path) -> Result<Census, String> {
             }
             findings.entry(d.code).or_default().insert(shown);
         }
+        for w in &checked.outcome.waived {
+            if blue_lang_check::obligations::of_code(w.waiver.code).is_none() {
+                continue;
+            }
+            let shown = format!(
+                "{} ({})",
+                render(&checked.program, &w.diagnostic)
+                    .lines()
+                    .next()
+                    .unwrap_or_default(),
+                w.waiver.reason
+            );
+            waived.entry(w.waiver.code).or_default().insert(shown);
+        }
     }
     Ok(Census {
         files: files.len(),
         findings,
         by_package,
+        waived,
     })
 }
 

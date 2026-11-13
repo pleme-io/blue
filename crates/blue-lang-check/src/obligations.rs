@@ -21,7 +21,10 @@
 //! `held` is how many such waivers the corpus carries; `blue census` fails
 //! unless it measures exactly that number, so a new waiver and a paid one are
 //! both reviewed edits of the row. New debt with no waiver is an error at the
-//! moment it is written.
+//! moment it is written. A code whose corpus count is not yet zero is
+//! ratcheted instead (its rule's `ratchet`): `blue census` holds the count
+//! exactly, so it may only fall, and at zero the rule is an error on every
+//! door.
 //!
 //! **Registering an obligation** is one row in [`obligations!`]: an id
 //! (`family/name`), the evidence, the detector, the refusal and the profile.
@@ -219,13 +222,13 @@ obligations! {
         detector: Dynamic,
         refusal: Gate("test-beside"),
         profile: Default,
-        owner: "TESTING.md T1, T2; COVERAGE.md R1",
+        owner: "TESTING.md T1, T2 (every project with `packages`; `skip(\"test-beside\", why)` is the one way off); COVERAGE.md R1",
     }
     "reach/target" {
         when: "a public definition no test names directly (`target:` or a call in a test body)",
         evidence: Unit,
         detector: Static,
-        refusal: Design("COVERAGE CV3: a static rule over the test bodies; the corpus count sets its ratchet"),
+        refusal: Code(Code::B0090),
         profile: Default,
         owner: "COVERAGE.md R2",
     }
@@ -251,7 +254,7 @@ obligations! {
         detector: Static,
         refusal: Code(Code::B0083),
         profile: Default,
-        held: 96,
+        held: 97,
         owner: "TESTING.md section 5, T4",
     }
     "point/seam" {
@@ -267,41 +270,44 @@ obligations! {
         when: "the program of a Bluefile `generate` row",
         evidence: Rendering,
         detector: Project,
-        refusal: Design("TESTING T4"),
+        refusal: Code(Code::B0085),
         profile: Default,
+        held: 31,
         owner: "TESTING.md section 5, T4; COVERAGE.md C4",
     }
     "point/service" {
         when: "the program of a Bluefile `service(...)` row",
         evidence: EndToEnd,
         detector: Project,
-        refusal: Design("TESTING T4"),
+        refusal: Code(Code::B0086),
         profile: Service,
+        held: 2,
         owner: "TESTING.md section 5, T4",
     }
     "point/binding" {
-        when: "a `cache`, `schema` or `http` binding of a `service(...)` row",
+        when: "a `cache` or `schema` binding of a `service(...)` row",
         evidence: Contract,
         detector: Project,
-        refusal: Design("TESTING T4"),
+        refusal: Code(Code::B0087),
         profile: Service,
+        held: 1,
         owner: "TESTING.md section 5, T4",
     }
     "flow/branch" {
         when: "an `if`, `unless`, ternary, `case` arm or guard",
         evidence: Branch,
         detector: Dynamic,
-        refusal: Design("COVERAGE CV1, CV2: a branch recorder in `blue test --coverage`"),
+        refusal: Gate("test-beside"),
         profile: Default,
-        owner: "COVERAGE.md B1, B2",
+        owner: "COVERAGE.md B1, B2; each arm a probe of `blue test --coverage` (`blue_lang_test::Arms`), judged as `unbranched: <pkg> <n>` debt",
     }
     "flow/early-return" {
         when: "a `?` early return",
         evidence: Branch,
         detector: Dynamic,
-        refusal: Design("COVERAGE CV1, CV2"),
+        refusal: Gate("test-beside"),
         profile: Default,
-        owner: "COVERAGE.md B4",
+        owner: "COVERAGE.md B4; `?` lowers to an `if`, so its two arms are probed",
     }
     "flow/loop" {
         when: "a loop or recursion that may run zero times",
@@ -331,15 +337,15 @@ obligations! {
         when: "a `raise` site",
         evidence: Branch,
         detector: Dynamic,
-        refusal: Design("COVERAGE CV1, CV2"),
+        refusal: Gate("test-beside"),
         profile: Default,
-        owner: "COVERAGE.md E1",
+        owner: "COVERAGE.md E1; a raise in an arm is that arm, elsewhere it runs when its definition is reached",
     }
     "error/expected" {
         when: "a raised tag",
         evidence: Raise,
         detector: Static,
-        refusal: Design("COVERAGE CV3"),
+        refusal: Code(Code::B0091),
         profile: Default,
         owner: "COVERAGE.md E2",
     }
@@ -347,9 +353,9 @@ obligations! {
         when: "a `rescue` handler",
         evidence: Branch,
         detector: Dynamic,
-        refusal: Design("COVERAGE CV1, CV2"),
+        refusal: Gate("test-beside"),
         profile: Default,
-        owner: "COVERAGE.md E3",
+        owner: "COVERAGE.md E3; a `rescue` handler is an arm",
     }
     "data/variant" {
         when: "a variant of a declared union",
@@ -376,10 +382,10 @@ obligations! {
         owner: "COVERAGE.md C1",
     }
     "strength/assertion" {
-        when: "a test block",
+        when: "a test block of a bidama",
         evidence: Assertion,
         detector: Static,
-        refusal: Design("COVERAGE CV3"),
+        refusal: Code(Code::B0088),
         profile: Default,
         owner: "COVERAGE.md S1",
     }
@@ -387,7 +393,7 @@ obligations! {
         when: "an assertion that holds whatever the code does (`assert true`, `x == x`)",
         evidence: Assertion,
         detector: Static,
-        refusal: Design("COVERAGE CV3"),
+        refusal: Code(Code::B0089),
         profile: Default,
         owner: "COVERAGE.md S2",
     }
@@ -480,7 +486,11 @@ mod tests {
                 Refusal::Code(c) => {
                     assert!(codes.insert(c), "{c} refuses two obligations");
                     let r = c.rule();
-                    assert!(r.active(), "{}: {c} is not enforced", o.id);
+                    assert!(
+                        r.active() || o.held == 0,
+                        "{}: {c} is still ratcheted, so its debt is the census's ratchet and the row holds no waivers",
+                        o.id
+                    );
                     assert!(
                         r.waivable,
                         "{}: {c} admits no waiver, so debt has no place to be held",

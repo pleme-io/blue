@@ -367,6 +367,52 @@ pub fn frontend_of(entry: &Path) -> Option<blue_lang_runtime::uses::Frontend> {
     fallback
 }
 
+/// What the entry file is to the nearest project above it whose lock names
+/// it: the program of each `generate` and `service` row, and each binding of
+/// such a service.
+#[must_use]
+pub fn roles_of(entry: &Path) -> Vec<blue_lang_runtime::uses::Role> {
+    use blue_lang_runtime::uses::Role;
+    let Ok(entry) = std::fs::canonicalize(entry) else {
+        return Vec::new();
+    };
+    for dir in entry.ancestors().skip(1) {
+        if let Ok(text) = std::fs::read_to_string(dir.join(LOCK_FILE)) {
+            if let Ok(lock) = serde_json::from_str::<Lock>(&text) {
+                let project = &lock.manifest.project;
+                let is_entry =
+                    |p: &str| std::fs::canonicalize(dir.join(p)).is_ok_and(|p| p == entry);
+                let mut roles: Vec<Role> = project
+                    .generated
+                    .iter()
+                    .filter(|(_, g)| is_entry(&g.program))
+                    .map(|(n, _)| Role::Generator(n.clone()))
+                    .collect();
+                for (n, s) in project
+                    .services
+                    .iter()
+                    .filter(|(_, s)| is_entry(&s.program))
+                {
+                    roles.push(Role::Service(n.clone()));
+                    if s.cache.is_some() {
+                        roles.push(Role::Binding(n.clone(), "cache".to_string()));
+                    }
+                    if !s.schema.is_empty() {
+                        roles.push(Role::Binding(n.clone(), "schema".to_string()));
+                    }
+                }
+                if !roles.is_empty() {
+                    return roles;
+                }
+            }
+        }
+        if dir.join(".git").exists() {
+            break;
+        }
+    }
+    Vec::new()
+}
+
 fn read_text(path: &Path) -> Result<Option<String>, LockError> {
     match std::fs::read_to_string(path) {
         Ok(t) => Ok(Some(t)),

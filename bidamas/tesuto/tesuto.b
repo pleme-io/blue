@@ -4,8 +4,9 @@ tesuto (テスト) — testing: errors and snapshots as assertions, and the poli
     uncovered({"uncovered" => []}) #=> []
 """
 
-use("moji", %i[checked trim])
-use("retsu", %i[first last rest])
+use("hadome")
+use("moji", %i[before_first checked trim])
+use("retsu", %i[first last rest size])
 
 @doc """
 raises?: whether f raises that kind of error.
@@ -402,6 +403,170 @@ def duplicate_rows(rows)
       rows
     )
   )
+end
+
+@doc """
+coverage_names: The definitions no test reached, from the text `blue test --coverage --json` printed: every coverage record's `uncovered` list, in order. Lines that are not a record (the tally) are passed over.
+
+    coverage_names("{\"covered\": 1, \"uncovered\": [\"a::f\"]}\n2 test(s)") #=> ["a::f"]
+    coverage_names("{\"arms\": 0, \"uncovered\": [\"a::g\"]}") #=> ["a::g"]
+    coverage_names("") #=> []
+"""
+def coverage_names(text)
+  reduce((acc, r) -> append(acc, uncovered(r)), [], coverage_records(text))
+end
+
+@doc """
+coverage_records: The coverage records in the text `blue test --coverage --json` printed: each line that is a JSON object holding an `uncovered` list, whatever key it starts with.
+
+    size(coverage_records("{\"arms\": 0, \"uncovered\": []}\n1 test(s)")) #=> 1
+"""
+def coverage_records(text)
+  filter(
+    (r) -> map?(r) and list?(r["uncovered"]),
+    map(json_read, filter((l) -> starts_with?(l, "{"), split(text, line_break)))
+  )
+end
+
+@doc """
+coverage_verdict: One package's verdict under the settled policy and the recorded debt rows (hadome): off, green, red or blind, with the reason. A measurement is `{package:, blind:, names:}`; blind is never green.
+
+    coverage_verdict(settle([level("*", :enforce, "w")], "2026-01-01"), [], {package: "p", blind: false, names: []})[:verdict] #=> :green
+    coverage_verdict(settle([level("*", :enforce, "w")], "2026-01-01"), [], {package: "p", blind: true})[:verdict] #=> :red
+"""
+def coverage_verdict(settled, rows, m)
+  pkg = m[:package]
+  if m[:blind]
+    b = beside(settled, pkg, [])
+    if b[:level] == :off
+      assoc(b, :verdict, :off)
+    elsif b[:level] == :enforce
+      assoc(assoc(b, :verdict, :red), :why, "its tests did not run green")
+    else
+      assoc(assoc(b, :verdict, :blind), :why, "its tests did not run green")
+    end
+  else
+    b = beside(settled, pkg, m[:names])
+    n = size(b[:untested])
+    j = hadome::judge(rows, "untested", pkg, n)[:verdict]
+    grew = j == :grew or j == :unrecorded and n > 0
+    waived = map((w) -> w[:name], settled[:waivers])
+    arms = filter(
+      (a) -> not member?(before_first(a, "#"), waived),
+      m[:arms] or []
+    )
+    na = size(arms)
+    ja = hadome::judge(rows, "unbranched", pkg, na)[:verdict]
+    branched = ja == :grew or ja == :unrecorded and na > 0
+    b = assoc(b, :unbranched, arms)
+    if b[:level] == :off
+      assoc(b, :verdict, :off)
+    elsif grew and b[:level] == :enforce
+      assoc(
+        assoc(b, :verdict, :red),
+        :why,
+        "#{to_s(n)} untested beyond the recorded debt: #{join(b[:untested], ", ")}"
+      )
+    elsif branched and b[:level] == :enforce
+      assoc(
+        assoc(b, :verdict, :red),
+        :why,
+        "#{to_s(na)} untaken arm(s) beyond the recorded debt: #{join(arms, ", ")}"
+      )
+    else
+      assoc(b, :verdict, :green)
+    end
+  end
+end
+
+@doc """
+coverage_arms: The arms of decisions no test took, from the text `blue test --coverage --json` printed: every record's `untaken` list (`def#site:arm`), in order; a record from a blue that records no arms holds none.
+
+    coverage_arms("{\"covered\": 1, \"uncovered\": [], \"untaken\": [\"p::f#0:1\"]}") #=> ["p::f#0:1"]
+    coverage_arms("{\"covered\": 1, \"uncovered\": []}") #=> []
+"""
+def coverage_arms(text)
+  reduce(
+    (acc, r) -> append(acc, r["untaken"] or []),
+    [],
+    coverage_records(text)
+  )
+end
+
+@doc """
+judge_coverage: The whole judgement over every measured package: each verdict, every refused entry, every stale waiver, the red verdicts, and the measurements a debt record is rendered from. `baseline` is hadome text (`untested: <pkg> <n>` rows); `day` is today as YYYY-MM-DD.
+
+    judge_coverage([level("*", :enforce, "w")], "", [{package: "p", blind: false, names: ["p::f"]}], "2026-01-01")[:red][0][:why] #=> "1 untested beyond the recorded debt: p::f"
+"""
+def judge_coverage(entries, baseline, measured, day)
+  settled = settle(entries, day)
+  rows = hadome::parse(baseline)
+  verdicts = map((m) -> coverage_verdict(settled, rows, m), measured)
+  every_name = reduce(
+    fn(acc, m)
+      append(
+        append(acc, m[:names] or []),
+        map((a) -> before_first(a, "#"), m[:arms] or [])
+      )
+    end,
+    [],
+    measured
+  )
+  judged = filter((v) -> v[:verdict] != :off, verdicts)
+  {
+    verdicts:,
+    refused: settled[:refused],
+    stale: stale(settled, every_name),
+    red: filter((v) -> v[:verdict] == :red, verdicts),
+    measurements: map(
+      (v) -> {key: v[:package], size: size(v[:untested])},
+      judged
+    ),
+    arm_measurements: map(
+      (v) -> {key: v[:package], size: size(v[:unbranched] or [])},
+      judged
+    )
+  }
+end
+
+@doc """
+coverage_red?: Whether a judgement fails: an enforced red package, a refused entry or a stale waiver.
+
+    coverage_red?({red: [], refused: [], stale: []}) #=> false
+"""
+def coverage_red?(r)
+  r[:red] != [] or r[:refused] != [] or r[:stale] != []
+end
+
+@doc """
+coverage_report: The lines a judgement prints: each red package, refused entry and stale waiver, then, when debt shrank, the rows to record in `home`.
+
+    coverage_report({red: [], refused: [], stale: [], measurements: []}, "", "x.b") #=> ""
+"""
+def coverage_report(r, baseline, home)
+  lines = append(
+    append(
+      map((v) -> "❌ #{v[:package]}: #{v[:why]}", r[:red]),
+      map((x) -> "❌ entry #{to_s(x[:entry])} #{x[:why]}", r[:refused])
+    ),
+    map((w) -> "❌ waiver #{w[:name]} covers nothing; remove it", r[:stale])
+  )
+  rows = hadome::parse(baseline)
+  arms = r[:arm_measurements] or []
+  down = append(
+    hadome::shrunk(rows, "untested", r[:measurements]),
+    hadome::shrunk(rows, "unbranched", arms)
+  )
+  hint = if down == []
+    []
+  else
+    [
+      "debt shrank; record it in #{home}:",
+      hadome::render("untested", filter((m) -> m[:size] > 0, r[:measurements])),
+      hadome::render("unbranched", filter((m) -> m[:size] > 0, arms))
+    ]
+  end
+  join(append(lines, hint), line_break)
 end
 
 test "raises? is true for the kind raised and false for no error"

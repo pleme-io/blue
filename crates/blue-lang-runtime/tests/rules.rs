@@ -33,9 +33,25 @@ struct Imports(
     &'static [(&'static str, &'static str)],
     Option<&'static str>,
     Option<&'static str>,
+    Option<&'static str>,
 );
 
 impl Loader for Imports {
+    /// A rule that judges a project point has its witness checked as the
+    /// program of that row: `generator`, `service`, or a `binding` service.
+    fn roles(&self, _entry: &std::path::Path) -> Vec<blue_lang_runtime::uses::Role> {
+        use blue_lang_runtime::uses::Role;
+        match self.3 {
+            Some("generator") => vec![Role::Generator("witness".into())],
+            Some("service") => vec![Role::Service("witness".into())],
+            Some("binding") => vec![
+                Role::Service("witness".into()),
+                Role::Binding("witness".into(), "cache".into()),
+            ],
+            _ => Vec::new(),
+        }
+    }
+
     fn load(&self, name: &str) -> Result<Vec<(String, String)>, String> {
         self.0
             .iter()
@@ -162,6 +178,27 @@ fn codes_in(
     frontend: Option<&'static str>,
     package: Option<&'static str>,
 ) -> Vec<Code> {
+    quiet(codes_as(src, imports, frontend, package, None), None)
+}
+
+/// The codes without the two reach rules still being ratcheted in (B0090,
+/// B0091), unless `keep` names one: they fire into the census on nearly every
+/// bidama a witness is checked as, so a witness of another rule would never
+/// be the only code it shows.
+fn quiet(codes: Vec<Code>, keep: Option<Code>) -> Vec<Code> {
+    codes
+        .into_iter()
+        .filter(|c| !matches!(c, Code::B0090 | Code::B0091) || Some(*c) == keep)
+        .collect()
+}
+
+fn codes_as(
+    src: &str,
+    imports: &'static [(&'static str, &'static str)],
+    frontend: Option<&'static str>,
+    package: Option<&'static str>,
+    role: Option<&'static str>,
+) -> Vec<Code> {
     if let Some(d) = syntax_diagnostic(src) {
         return vec![d.code];
     }
@@ -174,7 +211,7 @@ fn codes_in(
             path: Some(&path),
             text: src,
         },
-        &Imports(imports, frontend, package),
+        &Imports(imports, frontend, package, role),
         None,
         Checking::WithTests,
     )
@@ -199,7 +236,10 @@ fn codes_of(src: &str) -> Vec<Code> {
 fn every_rule_fires_on_its_witness_and_only_it() {
     let mut failures = Vec::new();
     for r in RULES {
-        let got = codes_in(r.witness, r.imports, r.frontend, r.package);
+        let got = quiet(
+            codes_as(r.witness, r.imports, r.frontend, r.package, r.role),
+            Some(r.code),
+        );
         if got != vec![r.code] {
             failures.push(format!("{}: expected [{}], got {got:?}", r.code, r.code));
         }
@@ -498,7 +538,7 @@ fn an_obligation_waiver_is_judged_only_where_tests_are_checked() {
                 path: Some(&path),
                 text: &src,
             },
-            &Imports(&[], None, Some("kagi")),
+            &Imports(&[], None, Some("kagi"), None),
             None,
             checking,
         )
@@ -510,4 +550,43 @@ fn an_obligation_waiver_is_judged_only_where_tests_are_checked() {
             usize::from(checking == Checking::WithTests)
         );
     }
+}
+
+/// **A project point is discharged by a test of its kind and by nothing
+/// else.** A generator owes a rendering test, a service an end-to-end test,
+/// and a service with a binding a contract test as well.
+///
+/// Red run (2026-11-13): `project_points` removed from the check stage:
+/// `a generator with no rendering test: []`.
+#[test]
+fn a_project_point_is_discharged_only_by_a_test_of_its_kind() {
+    let main = "def main()\n  1\nend\n\n";
+    let with = |kind: &str| -> &'static str {
+        Box::leak(
+            format!("{main}test \"t\", {{kind: :{kind}}}\n  assert main == 1\nend\n")
+                .into_boxed_str(),
+        )
+    };
+    assert_eq!(
+        codes_as(with("unit"), &[], None, None, Some("generator")),
+        vec![Code::B0085],
+        "a generator with no rendering test"
+    );
+    assert_eq!(
+        codes_as(with("rendering"), &[], None, None, Some("generator")),
+        Vec::<Code>::new()
+    );
+    assert_eq!(
+        codes_as(with("e2e"), &[], None, None, Some("service")),
+        Vec::<Code>::new()
+    );
+    assert_eq!(
+        codes_as(with("contract"), &[], None, None, Some("binding")),
+        vec![Code::B0086]
+    );
+    assert_eq!(
+        codes_as(with("rendering"), &[], None, None, None),
+        Vec::<Code>::new(),
+        "a file no row names owes nothing"
+    );
 }

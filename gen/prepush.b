@@ -1150,7 +1150,12 @@ def main()
         "tests beside every bidama definition",
         fn()
           verdict(
-            exec_capture("#{bin}/blue", "test", "#{root}/gen/test-beside.b")
+            exec_with_env(
+              [%w[BLUE_TEST_BESIDE_CORPUS on]],
+              "#{bin}/blue",
+              "test",
+              "#{root}/gen/test-beside.b"
+            )
           )
         end
       ]

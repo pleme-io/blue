@@ -332,6 +332,9 @@ def stranded_in(paths)
   )
 end
 
+@doc """
+finds: the finds verb: every stranded mutation of the specs the changed paths touch on stderr, and exit 1 when there is one.
+"""
 def finds(changed)
   if off?
     write_stdout(unlines(["➖ heni finds: BLUE_HENI_OFF=1"]))

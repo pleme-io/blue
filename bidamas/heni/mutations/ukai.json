@@ -44,7 +44,7 @@
   {
     "name": "an unreadable table reads as no stale routes",
     "file": "ukai.b",
-    "find": "  if not routes_ok or not table_r[:ok]\n    :unread",
+    "find": "  if not routes_ok or not ok?(table_r)\n    :unread",
     "replace": "  if not routes_ok\n    :unread"
   },
   {

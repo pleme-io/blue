@@ -14,7 +14,7 @@ push whose paths it reads; a land gate also needs the push to name main or a
 land ref; a heavy gate runs with BLUE_PREPUSH_FULL=1, and otherwise CI runs it
 when the push lands. The none weight names paths that no gate reads.
 
-    map((g) -> get(g, :id), filter((g) -> get(g, :weight) == :light, gate_table)) #=> ["cargo-fmt", "blue-fmt", "locks", "retired", "gen-confirm", "swept-codes"]
+    map((g) -> get(g, :id), filter((g) -> get(g, :weight) == :light, gate_table)) #=> ["cargo-fmt", "blue-fmt", "locks", "retired", "gen-confirm", "swept-codes", "heni-finds"]
     map((g) -> get(g, :id), filter((g) -> get(g, :weight) == :land, gate_table)) #=> ["census", "reuse", "bench", "regen"]
 """
 def gate_table()
@@ -49,6 +49,12 @@ def gate_table()
       label: "every rule code is swept across the consumers",
       weight: :light,
       inputs: %w[crates/** gen/consumers.b gen/consumers.json]
+    },
+    {
+      id: "heni-finds",
+      label: "every mutation of a changed package still finds its text",
+      weight: :light,
+      inputs: %w[bidamas/** gen/heni-gate.b]
     },
     {
       id: "census",
@@ -323,7 +329,7 @@ selects every gate, or a path no gate names, selects every gate: an unknown
 path fails closed. The answer holds the gate ids in table order, and a reason
 that is empty when the paths chose the gates one by one.
 
-    get(selection(["bidamas/retsu/retsu.b"], gate_table), :ids) #=> ["blue-fmt", "locks", "retired", "census", "reuse", "regen", "consumers", "test-beside", "tests", "conformance"]
+    get(selection(["bidamas/retsu/retsu.b"], gate_table), :ids) #=> ["blue-fmt", "locks", "retired", "heni-finds", "census", "reuse", "regen", "consumers", "test-beside", "tests", "conformance"]
     get(selection(["README.md"], gate_table), :ids) #=> []
 """
 def selection(changed, table)
@@ -367,7 +373,7 @@ lands.
 
     planned(["blue-fmt", "census", "regen"], {full: false, landing: false}, gate_table) #=> ["blue-fmt"]
     planned(["blue-fmt", "census", "regen"], {full: false, landing: true}, gate_table) #=> ["blue-fmt", "census", "regen"]
-    count(planned([], {full: true, landing: false}, gate_table)) #=> 17
+    count(planned([], {full: true, landing: false}, gate_table)) #=> 18
 """
 def planned(ids, push, table)
   weights = if push[:landing]
@@ -1104,6 +1110,26 @@ def main()
         end
       ]
     ],
+    "heni-finds" => [
+      [
+        "every mutation of a changed package still finds its text",
+        fn()
+          scope = if whole
+            []
+          else
+            paths
+          end
+          verdict(
+            exec_capture(
+              "#{bin}/blue",
+              "#{root}/gen/heni-gate.b",
+              "finds",
+              *scope
+            )
+          )
+        end
+      ]
+    ],
     "census" => [
       [
         "the census holds its ratchets",
@@ -1341,7 +1367,8 @@ end
 test "a .b-only change selects the .b gates and no Rust gate"
   s = selection(%w[bidamas/shuugou/shuugou.b gen/regen.b], gate_table)
   assert s[:reason] == ""
-  assert planned(s[:ids], plain_push, gate_table) == %w[blue-fmt locks retired]
+  assert planned(s[:ids], plain_push, gate_table) ==
+    %w[blue-fmt locks retired heni-finds]
   assert not member?("test-targets", s[:ids])
 end
 
@@ -1399,8 +1426,8 @@ test "a Cargo.lock change selects every gate"
   s = selection(["Cargo.lock"], gate_table)
   assert s[:reason] == "Cargo.lock selects every gate"
   assert planned(s[:ids], plain_push, gate_table) ==
-    %w[cargo-fmt blue-fmt locks retired gen-confirm swept-codes]
-  assert count(s[:ids]) == 17
+    %w[cargo-fmt blue-fmt locks retired gen-confirm swept-codes heni-finds]
+  assert count(s[:ids]) == 18
 end
 
 test "only prose a code path never reads scopes a landing as prose, and an unknown path fails closed"
@@ -1462,7 +1489,7 @@ end
 test "an unknown path selects every gate"
   s = selection(%w[bidamas/retsu/retsu.b tools/new.toml], gate_table)
   assert s[:reason] == "no gate names tools/new.toml, so every gate runs"
-  assert count(s[:ids]) == 17
+  assert count(s[:ids]) == 18
 end
 
 test "a Rust change selects cargo fmt, the swept codes and the heavy gates"
@@ -1484,6 +1511,18 @@ test "a new rule code is judged before the push, by the swept record alone"
   assert member?("swept-codes", planned(s[:ids], plain_push, gate_table))
   c = selection(["gen/consumers.json"], gate_table)
   assert planned(c[:ids], plain_push, gate_table) == ["swept-codes"]
+end
+
+test "a rewrite of a bidama checks its mutations still find their text before the push"
+  s = selection(["bidamas/toride/toride.b"], gate_table)
+  assert member?("heni-finds", planned(s[:ids], plain_push, gate_table))
+  m = selection(["bidamas/heni/mutations/ukai.json"], gate_table)
+  assert member?("heni-finds", planned(m[:ids], plain_push, gate_table))
+  assert not member?(
+    "heni-finds",
+    selection(["crates/blue-lang-fmt/src/lib.rs"], gate_table)[:ids]
+  )
+  assert skipped("heni-finds", gate_table) == ["heni-finds"]
 end
 
 test "BLUE_PREPUSH_SKIP turns off the gates it names and refuses an id that is no gate"

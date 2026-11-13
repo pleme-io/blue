@@ -5,7 +5,12 @@ A mutation the tests survive is a behaviour nothing checks. This is the red
 run every gate is owed ("a gate that has never gone red proves nothing"),
 made a command instead of a hand-written shell loop.
 
-  heni <PACKAGE_DIR> <MUTATIONS.json> [--blue BIN] [--test FILE]
+  heni <PACKAGE_DIR> <MUTATIONS.json> [--blue BIN] [--test FILE] [--finds]
+
+`--finds` runs no test: it only checks that every mutation still finds its
+text exactly once, and fails naming each one that would be refused. A rewrite
+of the package that strands a mutation fails here in a second, not in a
+post-merge run.
 
 The tests run under the blue that runs heni (`self_exe`), unless --blue names
 another: never a PATH lookup, which in a nix sandbox finds nothing.
@@ -102,6 +107,42 @@ def mutations(parsed)
       parsed
     )
   end
+end
+
+@doc """
+stranded: the mutations that no longer apply to the package in `dir`, each as {name, detail}: its file is gone or its `find` does not occur exactly once. No test runs.
+
+    stranded("/no/such/kazu", [{name: "a", file: "k.b", find: "x", replace: "y"}]) #=> [{name: "a", detail: "find occurs 0 times, not once"}]
+"""
+def stranded(dir, muts)
+  map(
+    (p) -> {name: p[0][:name], detail: p[1][:error]},
+    filter(
+      (p) -> p[1][:error] != nil,
+      map(
+        fn(m)
+          text = read_or(path_join(dir, m[:file]), "")
+          [m, hn_apply(text, m[:find], m[:replace])]
+        end,
+        muts
+      )
+    )
+  )
+end
+
+@doc """
+stranded_text: one line per stranded mutation, named by package and mutation.
+
+    stranded_text("kazu", [{name: "a", detail: "find occurs 0 times, not once"}]) #=> "refused  kazu: a  (find occurs 0 times, not once)\n"
+"""
+def stranded_text(package, rows)
+  join(
+    map(
+      (r) -> unlines(["refused  #{package}: #{r[:name]}  (#{r[:detail]})"]),
+      rows
+    ),
+    ""
+  )
 end
 
 @doc """
@@ -370,6 +411,10 @@ def cli()
         default: nil,
         value: "FILE",
         about: "the test file to run, relative to the package"
+      },
+      finds: {
+        default: false,
+        about: "run no test; fail when a mutation no longer finds its text exactly once"
       }
     },
     positional: [
@@ -394,6 +439,36 @@ mutate: one heni run from a parsed command line: every mutation run, the report 
     procedure?(mutate) #=> true
 """
 def mutate(a)
+  if a[:finds]
+    finds(a)
+  else
+    run_all(a)
+  end
+end
+
+@doc """
+finds: the `--finds` run: every stranded mutation on stdout, and an error when there is one.
+
+    procedure?(finds) #=> true
+"""
+def finds(a)
+  muts = mutations(json_parse(read_file(a[:mutations_file])))
+  rows = stranded(a[:package], muts)
+  write_stdout(stranded_text(package_name(a[:package]), rows))
+  write_stdout(
+    unlines(
+      [
+        "#{to_s(length(muts) - length(rows))} find their text, #{to_s(length(rows))} refused"
+      ]
+    )
+  )
+  if not is_empty(rows)
+    raise(:heni_failed, "a mutation no longer finds its text exactly once")
+  end
+  rows
+end
+
+def run_all(a)
   r = run(
     {
       package: a[:package],
@@ -558,6 +633,29 @@ test "a caught ratio counts every mutation and falls only when it drops"
   assert fell?({caught: 3, total: 4}, {caught: 2, total: 3}) == true
   assert fell?({caught: 2, total: 2}, {caught: 0, total: 0}) == true
   assert fell?({caught: 0, total: 0}, {caught: 0, total: 0}) == false
+end
+
+test "a rewrite that strands a mutation is named with no test run"
+  pkg = path_join(temp_dir("heni-finds"), "hnfinds")
+  mkdir_p(pkg)
+  write_file(
+    path_join(pkg, "f.txt"),
+    unlines(["  if not r[:ok]", "    :unread"])
+  )
+  muts = [
+    {name: "held", file: "f.txt", find: "    :unread", replace: "    :up"},
+    {name: "rewritten", file: "f.txt", find: "ok?(r)", replace: "true"},
+    {name: "no file", file: "gone.b", find: "x", replace: "y"}
+  ]
+  assert map((r) -> r[:name], stranded(pkg, muts)) == ["rewritten", "no file"]
+  write_file(
+    path_join(pkg, "f.txt"),
+    unlines(["  if not ok?(r)", "    :unread"])
+  )
+  assert map((r) -> r[:name], stranded(pkg, muts)) == ["no file"]
+  assert hikisuu::parse(%w[/p m.json --finds], cli)[:finds] == true
+  assert hikisuu::parse(%w[/p m.json], cli)[:finds] == false
+  rm_rf(pkg)
 end
 
 test "status is nil without a capture and the capture's status with one"

@@ -284,13 +284,14 @@ flowchart BT
 | explain | `--explain KEY`, `explain` | built (R3) |
 | docs table | `table`, `gen/core-models.b`, `checks.generated-settings-fresh` | built (R4) |
 | all-variants test | `reads`, `unmodelled`, `unread`, `checks.core-models` | built (R5) |
-| TUI form | `gamen::form(model, settled)` with live `why_not` and a diff before apply | P7 |
-| JSON Schema, values schema, MCP inputs | `settei::json_schema(model)`; haibi's `config_schema` reads it | P8 |
-| version migration | `migrate(doc, from, to)` over `since`, `deprecated` and a `renamed` annotation; a removed key refused alone | P9 |
-| properties from bounds | a generator per knob from `min`, `max`, `choices`, through `isshou` | P10 |
-| redaction | `redacted(model, record)` for logs and crash reports; `secret` already holds for explain, docs and refusals | P10 |
-| diff and audit | `diff(model, a, b)` per key with sources; a change log of reloads through `nisshi` | P11 |
-| MCP | one tool per knob read and the schema of P8 as the input | P12 |
+| TUI form | `form`, `form_edit` (read and checked live), `form_pending` (the diff before apply), `form_text`, `form_apply` | built (P7): the form logic and its text; the interactive loop waits on blue's Terminal capability (CLI-TUI.md L2), ours to build |
+| JSON Schema, values schema, MCP inputs | `json_schema(app, model)` (2020-12, closed groups, `writeOnly` secrets, `readOnly` computed), `mcp_tool`; `docs/settings.schema.json` generated for every program, gated fresh | built (P8); haibi's chart `config_schema` still reads the Bluefile's flat `config:` (P8b) |
+| version migration | the `renamed` annotation: an old file key or environment name moves to its knob with a notice; a removed key is refused alone as unknown; `aliases_of` renders settei's alias map | built (P9) |
+| properties from bounds | `samples(knob)` and `bounds_law(app, model)`: each inside value loads and each outside one is refused, on every layer that may set the knob; `checks.core-models` runs it for every program | built (P10) |
+| redaction | `redacted(model, record)` for logs, crash reports and MCP answers; `secret` holds in explain, docs and refusals | built (P10) |
+| diff and audit | `diff(model, a, b)` per key, a secret hidden; `reload` keeps an `immutable` knob and returns `changes`, each key with the layer that moved it | built (P11) |
+| MCP | `mcp_tool(app, model)` takes the P8 schema as its input | built (P12): the tool's schema; serving it waits on an MCP door in a blue program |
+| new annotations | `required` (refused alone when no layer sets it), `immutable` (refused on reload), `computed` (derived, refused from every layer), `value_name` (the flag's value word) | built (P20) |
 
 **Lateral tools, each built once over the model:** `explain` (built),
 `unmodelled` and `unread` (built), `table` (built), `diff`, `migrate`,
@@ -387,9 +388,11 @@ itself and what the release proves:
 |---|---|
 | A bool knob that defaults true has no flag to turn it off (hikisuu switches only set true) | ours: add `--no-X` to hikisuu for a bool knob |
 | A list or map knob (hosts, labels) | ours: a `:list` type with an element type |
-| The unmodelled check sees only top-level keys and only the named parameter | ours: follow the parameter into nested groups and through `let` |
 | Where the config file path is printed in `explain` (the pure `line` sees the parsed file, not its path) | ours: carry the path into `line` |
-| Hot reload of the file in a long-running service | ours: `settle` again on change, `diff` to log what moved |
+| A service's chart config is the Bluefile's flat `config:`, which a Bluefile cannot render from a blue model (a Bluefile runs only Bluefile words) | ours: a Bluefile word that names the model's bidama, read by `blue lock` (P8b) |
+| No blue TUI program exists to move onto a form (CLI-TUI.md L3 is not built) | ours: the Terminal capability and the screen layer |
+
+Answered since: the unmodelled check follows nested groups (`config.guard.branch`), a word called with no arguments (`config`), and a local name bound to the record (`c = config`); a predicate on a setting (`a.test.nil?`) reads the setting. Hot reload is `reload`.
 
 ## 10. Phases, each ending green
 
@@ -401,20 +404,20 @@ itself and what the release proves:
 | R4 | `table`, `gen/core-models.b`, `generate("settings", "docs/SETTINGS.md", …)` | settei test "the settings table…"; `checks.generated-settings-fresh` | M1: documented | built |
 | R5 | `reads`, `unmodelled`, `unread`, `check("core-models", …)` | settei test "unmodelled names…"; `checks.core-models` red when souji reads `opts[:verbose]` | **M1 enforced**: no knob outside the model | built |
 | R6 | souji migrated: `settings` + `frame`, `cli` rendered, `main` through `settei::command` | souji's own tests unchanged and green; the same 13 command lines before and after | M1 and M4 for souji | built |
-| P7 | TUI form in gamen | a form test: a bad value refused live, the diff shown before apply | — (a rendering) | design |
-| P8 | JSON Schema from the model; haibi reads it for `config_schema` | the schema validates the defaults and refuses each refused value | deploy tier of M1 | design |
-| P9 | migrations across versions | an old file migrated; a removed key refused alone | M1 across versions | design |
-| P10 | properties from bounds; redaction for logs and crashes | a generated value outside the bounds is refused; a secret never reaches a log line | M1 bounds at build, `secret` at run | design |
-| P11 | `diff` and the change log | two configs diffed per key with sources | run tier: who set what | design |
-| P12 | MCP inputs and self-description | the tool schema equals the P8 schema | beyond build: self-description | design |
-| P13 | move heni and the settei users (kirikae, kernel/run.b) onto models | each one's tests unchanged | M1 for each | design |
+| P7 | the settings form (`form`, `form_edit`, `form_pending`, `form_text`, `form_apply`) | settei test "the settings form…", red on unbound names; heni mutation "a form takes an edit outside the bounds" caught | — (a rendering) | built; the interactive loop waits on CLI-TUI L2 |
+| P8 | `json_schema`, `docs/settings.schema.json` for every program, gated fresh | settei test "the JSON Schema of a model…"; heni mutation "a group's schema stays open" caught | deploy tier of M1 | built; P8b (haibi's chart schema from the model) open |
+| P9 | the `renamed` annotation, `renames`, `aliases_of` | settei test "a renamed knob reads its old key…"; kirikae's alias map now rendered and equal to the hand-written one | M1 across versions | built |
+| P10 | `samples`, `bounds_law`, `redacted` | settei tests; `checks.core-models` runs the law for every program; heni mutations "a secret is not redacted", "a value under its floor stands" caught | M1 bounds at build, `secret` at run | built |
+| P11 | `diff`, `reload` with `changes` | settei tests "diff names…", "reload keeps an immutable knob…"; heni mutation "an immutable knob moves on reload" caught | run tier: who set what | built |
+| P12 | `mcp_tool` | `checks.core-models`: each program's tool schema equals its generated schema | beyond build: self-description | built; serving waits on an MCP door in blue |
+| P13 | heni and kirikae on models (`settings`/`frame`; `config_model` with `settled`) | heni: 6 of 8 recorded lines identical, 2 add only `--explain`; kirikae: its defaults and alias map equal the hand-written records (a test holds both), 140 tests green | M1 for each | built; kernel/run.b and the service example next |
 | P14 | the unmodelled read and a raw own-prefix `getenv` as B-codes in the rule registry, ratcheted | a fixture red on each code | **M1 and M4 enforced** for every program | design |
 | P15 | a program with no `allow` ceiling, and a service with no `access`, refused by `blue check` | a fixture red on each | **M2 and M3 enforced** | design |
 | P16 | a raised kind outside kyohi's ledger refused | a fixture red | **M5 enforced** | design |
 | P17 | a service with no observability binding or supervision policy refused | a fixture red | **M7 and M8 enforced** (service profile) | design |
 | P18 | the capability-to-control map (kensa, OSCAL) and the release statement (shomei, tameshi) | a release whose statement lacks the model is refused | attested after | design |
 | P19 | drift: declared against observed capabilities from run receipts | a receipt with an undeclared host call is a finding | beyond build: drift | design |
-| P20 | `required`, `immutable` (set at start only; a reload that changes it is refused) and `computed` (derived from other knobs, never set) join the vocabulary, as iac-forge and pangea-forge reached them | each refused at the tier §7a names, a fixture red first | M1 | design |
+| P20 | `required`, `immutable`, `computed` and `value_name` join the vocabulary, as iac-forge, pangea-forge and hikisuu reached them | settei tests, red on unbound names; heni mutation "a required knob is optional" caught | M1 | built |
 | P21 | `module_options(model)`: the module trio's typed options rendered from the model, replacing a hand-mirrored nix surface | the rendered options equal the model's knobs, gated fresh | M1 at deploy | design |
 
 M6 (tests and coverage) is already enforced for the distribution by
@@ -436,4 +439,5 @@ design them again.
 | souji on its model (R6) | tested | 10 of 13 recorded command lines identical; the 3 that differ add only `--explain KEY` to help and completion |
 | the mandatory structures M1 to M8 (§7a) | M1 tested for registered programs (R5); M6 enforced by test-beside; the rest design | §7a, P14 to P17 |
 | the generator survey (§2a) | recorded | read on local checkouts 2026-11-13; rows marked † not re-measured |
-| P7 to P21 | design | this doc |
+| P7 to P13 and P20 (phase 2) | tested | settei tests (123), `checks.core-models` over souji, heni and kirikae, 14 of 14 settei mutations caught |
+| P14 to P19, P21 | design | this doc |

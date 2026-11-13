@@ -17,3 +17,44 @@ clean a node: idle Rust target/ directories and unreferenced nix store paths. La
 | `min_age_hours` | int | `6` | 0 or more | hours | `SOUJI_MIN_AGE_HOURS` | `--min-age-hours` | file, env, flag |  | keep a target/ written to within this many hours |
 | `older_than_days` | int | `14` | 0 or more | days | `SOUJI_OLDER_THAN_DAYS` | `--older-than-days` | file, env, flag |  | delete profile generations older than this many days |
 
+
+## heni
+
+mutation testing for a blue package. Layers, lowest first: the defaults, `~/.config/heni/heni.yaml` (or the file `HENI_CONFIG` names), the `HENI_` environment, then the flags. `heni --explain KEY` shows one setting and the layer it came from.
+
+| Setting | Type | Default | Range | Unit | Environment | Flag | Set by | Since | About |
+|---|---|---|---|---|---|---|---|---|---|
+| `blue` | text | `unset` | any text |  | `HENI_BLUE` | `--blue` | file, env, flag |  | the blue that runs the tests; the one running heni when unset |
+| `test` | text | `unset` | any text |  | `HENI_TEST` | `--test` | file, env, flag |  | the test file to run, relative to the package |
+
+
+## kirikae
+
+switching over: whether a system switch must run, may be skipped, or must wait. Layers, lowest first: the defaults, `~/.config/kirikae/kirikae.yaml` (or the file `KIRIKAE_CONFIG` names), then the environment. A bad value is refused for its key alone and warned on stderr.
+
+| Setting | Type | Default | Range | Unit | Environment | Flag | Set by | Since | About |
+|---|---|---|---|---|---|---|---|---|---|
+| `backoff.base_seconds` | int | `0` | 0 or more | seconds | `KIRIKAE_BACKOFF__BASE_SECONDS` |  | file, env |  | the first retry's delay |
+| `backoff.cap_seconds` | int | `21600` | 0 or more | seconds | `KIRIKAE_BACKOFF__CAP_SECONDS` |  | file, env |  | the longest retry delay |
+| `current` | text | `/run/current-system` | any text |  | `KIRIKAE_CURRENT` |  | file, env |  | the running system's link |
+| `flake` | text | `.` | any text |  | `KIRIKAE_FLAKE` |  | file, env |  | the flake to build |
+| `force` | bool | `false` | any bool |  | `KIRIKAE_FORCE` |  | file, env |  | switch even when the plan says nothing changed |
+| `gitops.follow` | bool | `false` | any bool |  | `KIRIKAE_GITOPS__FOLLOW` |  | file, env |  | follow the gitops loop's log |
+| `gitops.heartbeat` | text | `/var/log/pleme-gitops/heartbeat.json` | any text |  | `KIRIKAE_GITOPS__HEARTBEAT` |  | file, env |  | the gitops loop's heartbeat |
+| `gitops.log` | text | `/var/log/pleme-gitops/stdout.log` | any text |  | `KIRIKAE_GITOPS__LOG` |  | file, env |  | the gitops loop's log |
+| `gitops.stale_after_seconds` | int | `300` | 0 or more | seconds | `KIRIKAE_GITOPS__STALE_AFTER_SECONDS` |  | file, env |  | a heartbeat older than this is stale |
+| `guard.allow_concurrent` | bool | `false` | any bool |  | `KIRIKAE_GUARD__ALLOW_CONCURRENT` |  | file, env |  | run beside another kirikae |
+| `guard.allow_unpublished` | bool | `false` | any bool |  | `KIRIKAE_GUARD__ALLOW_UNPUBLISHED` |  | file, env |  | build commits origin does not hold |
+| `guard.branch` | text | `main` | any text |  | `KIRIKAE_GUARD__BRANCH` |  | file, env |  | the branch a switch builds from |
+| `guard.fast_forward` | bool | `true` | any bool |  | `KIRIKAE_GUARD__FAST_FORWARD` |  | file, env |  | fast-forward the checkout to origin first |
+| `host` | text |  | any text |  | `KIRIKAE_HOST` |  | file, env |  | the host to switch; the machine's short name when empty |
+| `kind` | text |  | any text |  | `KIRIKAE_KIND` |  | file, env |  | nixos or darwin; read from the machine when empty |
+| `narrate` | text |  | any text |  | `KIRIKAE_NARRATE` |  | file, env |  | how much to say: off, brief or full; computed when empty |
+| `phases.plan` | bool | `true` | any bool |  | `KIRIKAE_PHASES__PLAN` |  | file, env |  | plan before switching |
+| `phases.verify` | bool | `true` | any bool |  | `KIRIKAE_PHASES__VERIFY` |  | file, env |  | verify the switched system |
+| `records.events` | text |  | any text |  | `KIRIKAE_RECORDS__EVENTS` |  | file, env |  | the events file; the state directory's when empty |
+| `records.events_keep` | int | `1000` | 0 or more |  | `KIRIKAE_RECORDS__EVENTS_KEEP` |  | file, env |  | how many events the file keeps |
+| `records.history` | text |  | any text |  | `KIRIKAE_RECORDS__HISTORY` |  | file, env |  | the history file; the state directory's when empty |
+| `wait.poll_seconds` | int | `15` | 0 or more | seconds | `KIRIKAE_WAIT__POLL_SECONDS` |  | file, env |  | poll this often while waiting |
+| `wait.seconds` | int | `0` | 0 or more | seconds | `KIRIKAE_WAIT__SECONDS` |  | file, env |  | wait this long before the run |
+

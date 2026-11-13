@@ -1,0 +1,215 @@
+{
+  "heni": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "blue": {
+        "description": "the blue that runs the tests; the one running heni when unset",
+        "type": "string"
+      },
+      "test": {
+        "description": "the test file to run, relative to the package",
+        "type": "string"
+      }
+    },
+    "title": "heni settings",
+    "type": "object"
+  },
+  "kirikae": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "backoff": {
+        "additionalProperties": false,
+        "properties": {
+          "base_seconds": {
+            "default": 0,
+            "description": "the first retry's delay",
+            "minimum": 0,
+            "type": "integer",
+            "x-unit": "seconds"
+          },
+          "cap_seconds": {
+            "default": 21600,
+            "description": "the longest retry delay",
+            "minimum": 0,
+            "type": "integer",
+            "x-unit": "seconds"
+          }
+        },
+        "type": "object"
+      },
+      "current": {
+        "default": "/run/current-system",
+        "description": "the running system's link",
+        "type": "string"
+      },
+      "flake": {
+        "default": ".",
+        "description": "the flake to build",
+        "type": "string"
+      },
+      "force": {
+        "default": false,
+        "description": "switch even when the plan says nothing changed",
+        "type": "boolean"
+      },
+      "gitops": {
+        "additionalProperties": false,
+        "properties": {
+          "follow": {
+            "default": false,
+            "description": "follow the gitops loop's log",
+            "type": "boolean"
+          },
+          "heartbeat": {
+            "default": "/var/log/pleme-gitops/heartbeat.json",
+            "description": "the gitops loop's heartbeat",
+            "type": "string"
+          },
+          "log": {
+            "default": "/var/log/pleme-gitops/stdout.log",
+            "description": "the gitops loop's log",
+            "type": "string"
+          },
+          "stale_after_seconds": {
+            "default": 300,
+            "description": "a heartbeat older than this is stale",
+            "minimum": 0,
+            "type": "integer",
+            "x-unit": "seconds"
+          }
+        },
+        "type": "object"
+      },
+      "guard": {
+        "additionalProperties": false,
+        "properties": {
+          "allow_concurrent": {
+            "default": false,
+            "description": "run beside another kirikae",
+            "type": "boolean"
+          },
+          "allow_unpublished": {
+            "default": false,
+            "description": "build commits origin does not hold",
+            "type": "boolean"
+          },
+          "branch": {
+            "default": "main",
+            "description": "the branch a switch builds from",
+            "type": "string"
+          },
+          "fast_forward": {
+            "default": true,
+            "description": "fast-forward the checkout to origin first",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "host": {
+        "default": "",
+        "description": "the host to switch; the machine's short name when empty",
+        "type": "string"
+      },
+      "kind": {
+        "default": "",
+        "description": "nixos or darwin; read from the machine when empty",
+        "type": "string"
+      },
+      "narrate": {
+        "default": "",
+        "description": "how much to say: off, brief or full; computed when empty",
+        "type": "string"
+      },
+      "phases": {
+        "additionalProperties": false,
+        "properties": {
+          "plan": {
+            "default": true,
+            "description": "plan before switching",
+            "type": "boolean"
+          },
+          "verify": {
+            "default": true,
+            "description": "verify the switched system",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "records": {
+        "additionalProperties": false,
+        "properties": {
+          "events": {
+            "default": "",
+            "description": "the events file; the state directory's when empty",
+            "type": "string"
+          },
+          "events_keep": {
+            "default": 1000,
+            "description": "how many events the file keeps",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "history": {
+            "default": "",
+            "description": "the history file; the state directory's when empty",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "wait": {
+        "additionalProperties": false,
+        "properties": {
+          "poll_seconds": {
+            "default": 15,
+            "description": "poll this often while waiting",
+            "minimum": 0,
+            "type": "integer",
+            "x-unit": "seconds"
+          },
+          "seconds": {
+            "default": 0,
+            "description": "wait this long before the run",
+            "minimum": 0,
+            "type": "integer",
+            "x-unit": "seconds"
+          }
+        },
+        "type": "object"
+      }
+    },
+    "title": "kirikae settings",
+    "type": "object"
+  },
+  "souji": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "dry_run": {
+        "default": false,
+        "description": "say what would go; delete nothing",
+        "type": "boolean"
+      },
+      "min_age_hours": {
+        "default": 6,
+        "description": "keep a target/ written to within this many hours",
+        "minimum": 0,
+        "type": "integer",
+        "x-unit": "hours"
+      },
+      "older_than_days": {
+        "default": 14,
+        "description": "delete profile generations older than this many days",
+        "minimum": 0,
+        "type": "integer",
+        "x-unit": "days"
+      }
+    },
+    "title": "souji settings",
+    "type": "object"
+  }
+}

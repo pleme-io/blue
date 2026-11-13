@@ -58,3 +58,21 @@ switching over: whether a system switch must run, may be skipped, or must wait. 
 | `wait.poll_seconds` | int | `15` | 0 or more | seconds | `KIRIKAE_WAIT__POLL_SECONDS` |  | file, env |  | poll this often while waiting |
 | `wait.seconds` | int | `0` | 0 or more | seconds | `KIRIKAE_WAIT__SECONDS` |  | file, env |  | wait this long before the run |
 
+
+## tehai
+
+the nix builders and substituters that answer: each declared one probed, and the live files written from those that did. Layers, lowest first: the defaults, `~/.config/tehai/tehai.yaml` (or the file `TEHAI_CONFIG` names), then the environment. A bad value is refused for its key alone and warned on stderr.
+
+| Setting | Type | Default | Range | Unit | Environment | Flag | Set by | Since | About |
+|---|---|---|---|---|---|---|---|---|---|
+| `curl` | text | `curl` | any text |  | `TEHAI_CURL` |  | file, env |  | the curl binary |
+| `declared` | text | `/etc/nix/machines` | any text |  | `TEHAI_DECLARED` |  | file, env |  | the machines file nix-darwin or NixOS declares |
+| `live` | text | `/var/run/tehai/machines` | any text |  | `TEHAI_LIVE` |  | file, env |  | the machines file of the builders that answered |
+| `max_handshake_ms` | int | `0` | 0 or more | milliseconds | `TEHAI_MAX_HANDSHAKE_MS` |  | file, env |  | a builder slower to answer is left out; 0 keeps every builder that answers |
+| `ssh` | text | `ssh` | any text |  | `TEHAI_SSH` |  | file, env |  | the ssh binary; a bare name is looked up on PATH, and the state says so |
+| `state` | text | `/var/run/tehai/state.json` | any text |  | `TEHAI_STATE` |  | file, env |  | the state record of the last check |
+| `substituters_declared` | text |  | any text |  | `TEHAI_SUBSTITUTERS_DECLARED` |  | file, env |  | the substituters file to check; empty checks none |
+| `substituters_live` | text | `/var/run/tehai/substituters.conf` | any text |  | `TEHAI_SUBSTITUTERS_LIVE` |  | file, env |  | the substituters that answered |
+| `substituters_state` | text | `/var/run/tehai/substituters.json` | any text |  | `TEHAI_SUBSTITUTERS_STATE` |  | file, env |  | the state record of the last substituter check |
+| `timeout_s` | int | `2` | 1 or more | seconds | `TEHAI_TIMEOUT_S` |  | file, env |  | how long one probe may take |
+

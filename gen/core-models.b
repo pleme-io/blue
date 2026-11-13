@@ -44,6 +44,17 @@ def programs()
       },
       param: "config",
       door: :settled
+    },
+    {
+      app: "tehai",
+      file: "bidamas/kakehashi/tehai/tehai.b",
+      settings: kakehashi::tehai::config_model,
+      frame: {
+        name: "tehai",
+        about: "the nix builders and substituters that answer: each declared one probed, and the live files written from those that did"
+      },
+      param: "config",
+      door: :settled
     }
   ]
 end

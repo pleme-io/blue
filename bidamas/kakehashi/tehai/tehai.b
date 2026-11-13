@@ -34,6 +34,8 @@ use(
   %i[concat_lists contains find_first first is_empty last size take_n]
 )
 
+use("settei")
+
 use("shisutemu", %i[last_nonempty_line read_or status_of stderr_of stdout_of])
 
 use("tesuto", [:fresh_dir])
@@ -602,29 +604,90 @@ def run_substituters(declared_path, live_path, state_path, timeout_s, curl)
 end
 
 @doc """
-main: The daemon's entry point: paths, timeout and the ssh binary from the
-environment. A bare "ssh" (PATH lookup) is the fallback, and the state says so.
-Substituters are checked only when TEHAI_SUBSTITUTERS_DECLARED names a file.
+config_model: tehai's core model: the files it reads and writes, how long a probe may take, and the programs it runs. Each key's environment name is the one the daemon has always read (TEHAI_TIMEOUT_S for timeout_s).
+
+    settei::defaults_of(config_model)["timeout_s"] #=> 2
+"""
+def config_model()
+  k = settei::knob
+  {
+    "declared" => k(
+      "/etc/nix/machines",
+      {doc: "the machines file nix-darwin or NixOS declares"}
+    ),
+    "live" => k(
+      "/var/run/tehai/machines",
+      {doc: "the machines file of the builders that answered"}
+    ),
+    "state" => k(
+      "/var/run/tehai/state.json",
+      {doc: "the state record of the last check"}
+    ),
+    "timeout_s" => k(
+      2,
+      {min: 1, unit: "seconds", doc: "how long one probe may take"}
+    ),
+    "ssh" => k(
+      "ssh",
+      {
+        doc: "the ssh binary; a bare name is looked up on PATH, and the state says so"
+      }
+    ),
+    "max_handshake_ms" => k(
+      0,
+      {
+        min: 0,
+        unit: "milliseconds",
+        doc: "a builder slower to answer is left out; 0 keeps every builder that answers"
+      }
+    ),
+    "substituters_declared" => k(
+      "",
+      {doc: "the substituters file to check; empty checks none"}
+    ),
+    "substituters_live" => k(
+      "/var/run/tehai/substituters.conf",
+      {doc: "the substituters that answered"}
+    ),
+    "substituters_state" => k(
+      "/var/run/tehai/substituters.json",
+      {doc: "the state record of the last substituter check"}
+    ),
+    "curl" => k("curl", {doc: "the curl binary"})
+  }
+end
+
+@doc """
+config: tehai's settings as settei settles them: defaults, then the config file, then the environment, each bad value refused for its key alone and warned.
+
+    procedure?(() -> config) #=> true
+"""
+def config()
+  settei::settled("tehai", config_model)
+end
+
+@doc """
+main: The daemon's entry point: its settings settled from its model. A bare "ssh" (PATH lookup) is the fallback, and the state says so. Substituters are checked only when substituters_declared names a file.
 
     procedure?(() -> main) #=> true
 """
 def main()
+  c = config
   r = run(
-    getenv("TEHAI_DECLARED", "/etc/nix/machines"),
-    getenv("TEHAI_LIVE", "/var/run/tehai/machines"),
-    getenv("TEHAI_STATE", "/var/run/tehai/state.json"),
-    to_int(getenv("TEHAI_TIMEOUT_S", "2")),
-    getenv("TEHAI_SSH", "ssh"),
-    to_int(getenv("TEHAI_MAX_HANDSHAKE_MS", "0"))
+    c["declared"],
+    c["live"],
+    c["state"],
+    c["timeout_s"],
+    c["ssh"],
+    c["max_handshake_ms"]
   )
-  declared = getenv("TEHAI_SUBSTITUTERS_DECLARED", "")
-  if is_empty(declared) == false
+  if is_empty(c["substituters_declared"]) == false
     run_substituters(
-      declared,
-      getenv("TEHAI_SUBSTITUTERS_LIVE", "/var/run/tehai/substituters.conf"),
-      getenv("TEHAI_SUBSTITUTERS_STATE", "/var/run/tehai/substituters.json"),
-      to_int(getenv("TEHAI_TIMEOUT_S", "2")),
-      getenv("TEHAI_CURL", "curl")
+      c["substituters_declared"],
+      c["substituters_live"],
+      c["substituters_state"],
+      c["timeout_s"],
+      c["curl"]
     )
   end
   r
@@ -1015,4 +1078,66 @@ test "the handshake magics are cppnix's: cxin/oixd for the worker protocol, 0x39
   assert handshake(:worker)[:reply] == [111, 105, 120, 100, 0, 0, 0, 0]
   assert handshake(:serve)[:hello] == [235, 157, 12, 57, 0, 0, 0, 0]
   assert handshake(:serve)[:reply] == [203, 238, 82, 84, 0, 0, 0, 0]
+end
+
+test "the model keeps every environment name and default the daemon read by hand, and a bad value is refused for its key alone"
+  m = config_model
+  assert map((r) -> settei::env_name("tehai", r[:path]), settei::knobs(m)) ==
+    %w[
+      TEHAI_CURL
+      TEHAI_DECLARED
+      TEHAI_LIVE
+      TEHAI_MAX_HANDSHAKE_MS
+      TEHAI_SSH
+      TEHAI_STATE
+      TEHAI_SUBSTITUTERS_DECLARED
+      TEHAI_SUBSTITUTERS_LIVE
+      TEHAI_SUBSTITUTERS_STATE
+      TEHAI_TIMEOUT_S
+    ]
+  d = settei::defaults_of(m)
+  assert [
+    d["declared"],
+    d["live"],
+    d["state"],
+    d["timeout_s"],
+    d["ssh"],
+    d["max_handshake_ms"]
+  ] ==
+    [
+      "/etc/nix/machines",
+      "/var/run/tehai/machines",
+      "/var/run/tehai/state.json",
+      2,
+      "ssh",
+      0
+    ]
+  assert [
+    d["substituters_declared"],
+    d["substituters_live"],
+    d["substituters_state"],
+    d["curl"]
+  ] ==
+    [
+      "",
+      "/var/run/tehai/substituters.conf",
+      "/var/run/tehai/substituters.json",
+      "curl"
+    ]
+  s = settei::settle(
+    "tehai",
+    m,
+    nil,
+    settei::env_of(
+      {
+        "TEHAI_TIMEOUT_S" => "soon",
+        "TEHAI_SSH" => "/run/ssh",
+        "TEHAI_MAX_HANDSHAKE_MS" => "-1"
+      }
+    )
+  )
+  assert s[:config]["ssh"] == "/run/ssh"
+  assert s[:config]["timeout_s"] == 2
+  assert s[:config]["max_handshake_ms"] == 0
+  assert map((r) -> r[:key], s[:refusals]) == %w[max_handshake_ms timeout_s]
 end

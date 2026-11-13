@@ -46,6 +46,7 @@ pub mod laws;
 pub mod lia;
 pub mod names;
 pub mod namespace_rules;
+pub mod obligations;
 mod package_moves;
 pub mod project;
 pub mod properties;

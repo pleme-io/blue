@@ -505,3 +505,34 @@ pub fn environment(p: &Program<'_>, package: &str) -> Vec<Diagnostic> {
     }
     out
 }
+
+#[must_use]
+pub fn undeclared_access(
+    forms: &[Spanned],
+    is_entry: &dyn Fn(usize) -> bool,
+    services: &[String],
+) -> Vec<Diagnostic> {
+    let Some((first, form)) = forms
+        .iter()
+        .enumerate()
+        .find(|(i, f)| is_entry(*i) && !blue_lang_syntax::doc::is_doctest(f))
+    else {
+        return Vec::new();
+    };
+    services
+        .iter()
+        .map(|n| {
+            Diagnostic::new(
+                Code::B0093,
+                format!(
+                    "this file is the program of service(\"{n}\", …), whose row declares no `access`, so it runs with the default network, clock, entropy and environment"
+                ),
+                form.span,
+            )
+            .at_top_level(first)
+            .with_help(format!(
+                "declare `access: {{effects: [...], egress: [...], listen: [...]}}` on service(\"{n}\", …) in the Bluefile; or `# waive B0093: reason` above the file's first form"
+            ))
+        })
+        .collect()
+}

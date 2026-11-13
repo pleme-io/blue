@@ -202,6 +202,7 @@ pub enum Role {
     /// A binding of a service (`cache`, `schema`): it owes a `kind:
     /// :contract` test.
     Binding(String, String),
+    ServiceWithoutAccess(String),
 }
 
 /// A loader that resolves nothing, and says so.

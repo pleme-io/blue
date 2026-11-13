@@ -438,10 +438,10 @@ obligations! {
         owner: "CORE-MODEL.md M2",
     }
     "structure/effects" {
-        when: "a Bluefile `service(...)` row",
+        when: "the program of a Bluefile `service(...)` row with no `access`",
         evidence: Declared,
         detector: Project,
-        refusal: Design("CORE-MODEL P15: a service with no `access` refused; `Access::default_for` grants one today"),
+        refusal: Code(Code::B0093),
         profile: Service,
         owner: "CORE-MODEL.md M3; SERVICE-ACCESS.md",
     }
@@ -449,7 +449,7 @@ obligations! {
         when: "a raised tag",
         evidence: Declared,
         detector: Static,
-        refusal: Design("CORE-MODEL P16: a tag outside kyohi's ledger of kinds"),
+        refusal: Design("CORE-MODEL P16: a tag outside kyohi's ledger of kinds; the ledger is blue data, so the check stage needs it generated into a table it reads, as word shapes are, not copied by hand"),
         profile: Default,
         owner: "CORE-MODEL.md M5",
     }
@@ -457,7 +457,7 @@ obligations! {
         when: "a Bluefile `service(...)` row",
         evidence: Declared,
         detector: Project,
-        refusal: Design("CORE-MODEL P17: a service with no log, metric or trace binding"),
+        refusal: Design("CORE-MODEL P17: a `service(...)` row has no observability field to declare a binding in; the field comes first"),
         profile: Service,
         owner: "CORE-MODEL.md M7",
     }
@@ -465,7 +465,7 @@ obligations! {
         when: "a Bluefile `service(...)` row",
         evidence: Declared,
         detector: Project,
-        refusal: Design("CORE-MODEL P17: a service with no supervision policy"),
+        refusal: Design("CORE-MODEL P17: a `service(...)` row has no supervision field to declare a policy in; the field comes first"),
         profile: Service,
         owner: "CORE-MODEL.md M8",
     }

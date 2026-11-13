@@ -30,6 +30,10 @@ impl Loader for Imports {
                 Role::Service("witness".into()),
                 Role::Binding("witness".into(), "cache".into()),
             ],
+            Some("service-without-access") => vec![
+                Role::Service("witness".into()),
+                Role::ServiceWithoutAccess("witness".into()),
+            ],
             _ => Vec::new(),
         }
     }

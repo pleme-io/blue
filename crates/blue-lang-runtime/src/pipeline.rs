@@ -1178,6 +1178,13 @@ fn check_stage_in(
                 &is_entry,
                 &project_points_of(program.roles()),
             ));
+        outcome
+            .diagnostics
+            .extend(blue_lang_check::points::undeclared_access(
+                forms,
+                &is_entry,
+                &services_without_access(program.roles()),
+            ));
     }
     outcome
         .diagnostics
@@ -1563,22 +1570,33 @@ fn project_points_of(roles: &[crate::uses::Role]) -> Vec<blue_lang_check::points
     use blue_lang_check::Code;
     roles
         .iter()
-        .map(|r| match r {
-            Role::Generator(n) => ProjectPoint {
+        .filter_map(|r| match r {
+            Role::Generator(n) => Some(ProjectPoint {
                 what: format!("the program of generate(\"{n}\", …)"),
                 kind: "rendering",
                 code: Code::B0085,
-            },
-            Role::Service(n) => ProjectPoint {
+            }),
+            Role::Service(n) => Some(ProjectPoint {
                 what: format!("the program of service(\"{n}\", …)"),
                 kind: "e2e",
                 code: Code::B0086,
-            },
-            Role::Binding(n, b) => ProjectPoint {
+            }),
+            Role::Binding(n, b) => Some(ProjectPoint {
                 what: format!("the program of service(\"{n}\", …), which binds a {b}"),
                 kind: "contract",
                 code: Code::B0087,
-            },
+            }),
+            Role::ServiceWithoutAccess(_) => None,
+        })
+        .collect()
+}
+
+fn services_without_access(roles: &[crate::uses::Role]) -> Vec<String> {
+    roles
+        .iter()
+        .filter_map(|r| match r {
+            crate::uses::Role::ServiceWithoutAccess(n) => Some(n.clone()),
+            _ => None,
         })
         .collect()
 }

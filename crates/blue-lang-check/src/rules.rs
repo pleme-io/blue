@@ -1954,6 +1954,23 @@ setting as a knob of the program's model and read it through settei
 environment. The corpus does not hold yet, so the census counts each
 finding against the row's ratchet, which may only fall.",
     }
+    B0093 {
+        slug: "undeclared-access",
+        severity: Error,
+        fix: None,
+        law: "the program of a `service(...)` row runs under the `access` that row declares, never the default",
+        witness: "@moduledoc \"\"\"\nkagi answers.\n\n    kagi #=> 1\n\"\"\"\n\n@doc \"\"\"\nkagi is one.\n\n    kagi #=> 1\n\"\"\"\ndef kagi()\n  1\nend\n\ntest \"kagi\", {kind: :e2e}\n  assert kagi == 1\nend\n",
+        ratchet: 1,
+        package: "kagi",
+        role: "service-without-access",
+        explanation: "\
+A service with no `access` runs with the default effects (network, clock,
+entropy, environment) and listens on its port: nothing it reaches is a
+declared fact, so no NetworkPolicy, unit or kakoi profile is drawn from it
+(docs/CORE-MODEL.md M3, SERVICE-ACCESS.md). Declare the effects, the egress
+peers and the ports on the row. The corpus does not hold yet, so the census
+counts each finding against the row's ratchet, which may only fall.",
+    }
 }
 
 impl Code {

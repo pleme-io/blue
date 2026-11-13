@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:6d084b822443f5aff912a124ccc31a8f786393bf8c1e4777e7883a2fbbc72c14",
+  "bluefile_b3": "b3:e36b4ee860ccfd6ab9d8548e98face79217b0cb9157283474b735ee2c04460bc",
   "manifest": {
     "schema": 1,
     "name": "heni",
@@ -11,6 +11,7 @@
       "kansuu": "^0.1.0",
       "moji": "^0.1.0",
       "retsu": "^0.1.0",
+      "settei": "^0.1.0",
       "shisutemu": "^0.1.0"
     },
     "when": "anytime",

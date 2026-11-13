@@ -45,6 +45,7 @@ use("kansuu", [:maybe])
 use("moji", %i[occurrences replace_first strip_prefix])
 
 use("retsu", %i[count_where enumerate is_empty last])
+use("settei")
 
 use("shisutemu", %i[read_or status_of])
 
@@ -392,32 +393,47 @@ def sound?(r)
 end
 
 @doc """
-cli: heni's command line: the package and its mutations file, and which blue and which test file to run.
+settings: heni's core model: which blue runs the tests and which test file to run, each unset by default.
 
-    get(hikisuu::parse(["p", "m.json"], cli), :mutations_file) #=> "m.json"
+    settei::defaults_of(settings) #=> {blue: nil, test: nil, finds: false}
 """
-def cli()
+def settings()
+  {
+    blue: settei::knob(
+      nil,
+      {
+        type: :text,
+        value_name: "BIN",
+        doc: "the blue that runs the tests; the one running heni when unset"
+      }
+    ),
+    test: settei::knob(
+      nil,
+      {
+        type: :text,
+        value_name: "FILE",
+        doc: "the test file to run, relative to the package"
+      }
+    ),
+    finds: settei::knob(
+      false,
+      {
+        set_by: [:flag],
+        doc: "run no test; fail when a mutation no longer finds its text exactly once"
+      }
+    )
+  }
+end
+
+@doc """
+frame: heni's command line beside its settings: the package and its mutations file.
+
+    frame[:name] #=> "heni"
+"""
+def frame()
   {
     name: "heni",
     about: "mutation testing for a blue package",
-    flags: {
-      blue: {
-        kind: :text,
-        default: nil,
-        value: "BIN",
-        about: "the blue that runs the tests; the one running heni when unset"
-      },
-      test: {
-        kind: :text,
-        default: nil,
-        value: "FILE",
-        about: "the test file to run, relative to the package"
-      },
-      finds: {
-        default: false,
-        about: "run no test; fail when a mutation no longer finds its text exactly once"
-      }
-    },
     positional: [
       {name: :package, about: "the package directory"},
       {name: :mutations_file, about: "the JSON list of mutations"}
@@ -427,12 +443,21 @@ end
 
 # waive B0084: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches this seam yet
 @doc """
-main: the command's entry point: argv read by heni's cli through hikisuu, which answers help and completion and refuses a bad line with exit 64.
+cli: heni's command line as hikisuu reads it, rendered from its settings and its frame.
+
+    get(hikisuu::parse(["p", "m.json"], cli), :mutations_file) #=> "m.json"
+"""
+def cli()
+  settei::cli_spec(settings, frame)
+end
+
+@doc """
+main: the command's entry point: argv, the config file and the HENI_ environment resolved through settei, which answers help, completion and --explain and refuses a bad line with exit 64.
 
     get(hikisuu::outcome(["/p"], cli), :status) #=> 64
 """
 def main()
-  hikisuu::command(cli, mutate)
+  settei::command("heni", settings, frame, mutate)
 end
 
 @doc """

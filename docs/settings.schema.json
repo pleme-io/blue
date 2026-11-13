@@ -211,5 +211,67 @@
     },
     "title": "souji settings",
     "type": "object"
+  },
+  "tehai": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "curl": {
+        "default": "curl",
+        "description": "the curl binary",
+        "type": "string"
+      },
+      "declared": {
+        "default": "/etc/nix/machines",
+        "description": "the machines file nix-darwin or NixOS declares",
+        "type": "string"
+      },
+      "live": {
+        "default": "/var/run/tehai/machines",
+        "description": "the machines file of the builders that answered",
+        "type": "string"
+      },
+      "max_handshake_ms": {
+        "default": 0,
+        "description": "a builder slower to answer is left out; 0 keeps every builder that answers",
+        "minimum": 0,
+        "type": "integer",
+        "x-unit": "milliseconds"
+      },
+      "ssh": {
+        "default": "ssh",
+        "description": "the ssh binary; a bare name is looked up on PATH, and the state says so",
+        "type": "string"
+      },
+      "state": {
+        "default": "/var/run/tehai/state.json",
+        "description": "the state record of the last check",
+        "type": "string"
+      },
+      "substituters_declared": {
+        "default": "",
+        "description": "the substituters file to check; empty checks none",
+        "type": "string"
+      },
+      "substituters_live": {
+        "default": "/var/run/tehai/substituters.conf",
+        "description": "the substituters that answered",
+        "type": "string"
+      },
+      "substituters_state": {
+        "default": "/var/run/tehai/substituters.json",
+        "description": "the state record of the last substituter check",
+        "type": "string"
+      },
+      "timeout_s": {
+        "default": 2,
+        "description": "how long one probe may take",
+        "minimum": 1,
+        "type": "integer",
+        "x-unit": "seconds"
+      }
+    },
+    "title": "tehai settings",
+    "type": "object"
   }
 }

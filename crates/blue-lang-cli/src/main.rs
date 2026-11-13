@@ -1479,6 +1479,30 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                     }
                 }
             }
+            for o in blue_lang_check::obligations::OBLIGATIONS {
+                let blue_lang_check::obligations::Refusal::Code(code) = o.refusal else {
+                    continue;
+                };
+                let measured = c
+                    .waived
+                    .get(&code)
+                    .map_or(0, std::collections::BTreeSet::len);
+                println!(
+                    "{code} {:<24} waived   {measured:>5}  held    {:>5}",
+                    o.id, o.held
+                );
+                if findings {
+                    for f in c.waived.get(&code).into_iter().flatten() {
+                        println!("    {f}");
+                    }
+                }
+            }
+            let unheld = c.held_mismatches();
+            for (id, code, measured, held) in &unheld {
+                eprintln!(
+                    "blue census: {id} ({code}) carries {measured} waiver(s), its row holds {held}: a new waiver is new debt and a removed one is paid debt; edit `held` in blue_lang_check::obligations to {measured} if the change is the intended one"
+                );
+            }
             let bad = c.mismatches();
             for (code, measured, ratchet) in &bad {
                 eprintln!(
@@ -1491,11 +1515,13 @@ fn dispatch(cli: Cli) -> Result<ExitCode, CliError> {
                     "blue census: {package} is documented and holds {n} {code} finding(s); its ratchet is 0 (census::DOCUMENTED)"
                 );
             }
-            Ok(if bad.is_empty() && undocumented.is_empty() {
-                ExitCode::SUCCESS
-            } else {
-                ExitCode::FAILURE
-            })
+            Ok(
+                if bad.is_empty() && undocumented.is_empty() && unheld.is_empty() {
+                    ExitCode::SUCCESS
+                } else {
+                    ExitCode::FAILURE
+                },
+            )
         }
 
         Cmd::Explain { code, list } => {

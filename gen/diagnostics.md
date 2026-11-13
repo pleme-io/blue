@@ -37,6 +37,24 @@ commit that brings a count to zero sets the row to `Some(0)`, and from then
 on the rule is an error on every door. `blue census --findings` lists each
 finding.
 
+## Obligations: evidence the toolchain forces
+
+An obligation says: when blue sees a structure, a piece of evidence must
+exist. Every obligation is one row of `blue_lang_check::obligations`
+(`crates/blue-lang-check/src/obligations.rs`), with its evidence, its
+detector, its refusal and the profile that owes it. A row whose refusal is a
+code is a rule of the registry above, enforced on every door from the moment
+the structure is written. Existing debt is one `# waive CODE: reason` per
+site; `held` is how many the corpus carries, and `blue census` fails unless
+it measures exactly that number, so new debt and paid debt are both reviewed
+edits. A `design` row is registered and not yet forced; `blocked` says why.
+A program that registers a structure blue must hold (the core model's knobs,
+capabilities, effects, errors, observability, lifecycle) adds a row here.
+
+```hon
+obligations
+```
+
 ## The reuse ratchet
 
 `blue census --reuse [ROOT]` counts copies per package, against the hadome

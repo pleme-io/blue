@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "9f387f215368f92766c415aecdf8f0a54b75c98b24312dcbf11fecc31787334e",
+  "cargo_lock_sha256": "72c6dc6f092ec15fc436ab80397e8b0cffb62d0393272a1650c0ad57c0f0e439",
   "manifest_sha256": {
-    "Cargo.toml": "2f80954bbd78133c7e8a91bbd1a15f12ba4d45a71c3f8c05af701d1aa4cb41aa",
+    "Cargo.toml": "7acb9860546653343477a384bc3ccae46c68b4a1c200babf5b2fc3c8b31f8196",
     "crates/blue-lang-appliance/Cargo.toml": "72da422691d14356450606a218eed12ed6a26ed3a23c64116dc3ef8546937526",
     "crates/blue-lang-art/Cargo.toml": "f6721f78c76a94d4915a455675cd05889176a43212494c53aa8a01dfc9dfe5ee",
     "crates/blue-lang-bidama/Cargo.toml": "7b29108c8c3d40b5cbaf9f427c4f0a0ace1e5b49e02bd7448dcb53d3ee91337f",
@@ -2111,7 +2111,7 @@
           },
           {
             "name": "quick_xml",
-            "package_key": "quick-xml-0.38.4",
+            "package_key": "quick-xml-0.42.0",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -7439,22 +7439,6 @@
         "build_dependencies": [],
         "features": []
       },
-      "quick-xml-0.38.4": {
-        "runtime_dependencies": [
-          {
-            "name": "memchr",
-            "package_key": "memchr-2.8.3",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          }
-        ],
-        "build_dependencies": [],
-        "features": []
-      },
       "quick-xml-0.39.4": {
         "runtime_dependencies": [
           {
@@ -7485,6 +7469,22 @@
           "serde",
           "serialize"
         ]
+      },
+      "quick-xml-0.42.0": {
+        "runtime_dependencies": [
+          {
+            "name": "memchr",
+            "package_key": "memchr-2.8.3",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": []
       },
       "quinn-0.11.12": {
         "runtime_dependencies": [
@@ -19663,11 +19663,11 @@
     "quick-error-1.2.3": {
       "edition": "2015"
     },
-    "quick-xml-0.38.4": {
-      "edition": "2021"
-    },
     "quick-xml-0.39.4": {
       "edition": "2021"
+    },
+    "quick-xml-0.42.0": {
+      "edition": "2024"
     },
     "quinn-0.11.12": {
       "edition": "2021",

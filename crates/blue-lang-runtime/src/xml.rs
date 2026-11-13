@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use quick_xml::escape::resolve_predefined_entity;
+use quick_xml::escape::{resolve_predefined_entity, unescape_with};
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::Reader;
 use tatara_lisp_eval::ffi::Arity;
@@ -135,29 +135,24 @@ fn legal_char(c: char) -> bool {
 }
 
 fn open(start: &BytesStart<'_>, src: &str, at: u64) -> Result<Open, Fault> {
-    let name = std::str::from_utf8(start.name().as_ref())
-        .map_err(|e| Fault::Malformed(e.to_string()))?
-        .to_owned();
+    let name = start.name().as_ref().to_owned();
     let mut attributes: Vec<(String, String)> = Vec::new();
     for attr in start.attributes() {
         let attr = attr.map_err(|e| Fault::Malformed(format!("{e} at {}", position(src, at))))?;
-        let k = std::str::from_utf8(attr.key.as_ref())
-            .map_err(|e| Fault::Malformed(e.to_string()))?
-            .to_owned();
+        let k = attr.key.as_ref().to_owned();
         let mut unknown: Option<String> = None;
-        let v = attr
-            .unescape_value_with(|ent| {
-                let hit = resolve_predefined_entity(ent);
-                if hit.is_none() {
-                    unknown = Some(ent.to_owned());
-                }
-                hit
-            })
-            .map_err(|e| match unknown.take() {
-                Some(ent) => entity_refused(&ent),
-                None => Fault::Malformed(format!("{e} at {}", position(src, at))),
-            })?
-            .into_owned();
+        let v = unescape_with(&attr.value, |ent| {
+            let hit = resolve_predefined_entity(ent);
+            if hit.is_none() {
+                unknown = Some(ent.to_owned());
+            }
+            hit
+        })
+        .map_err(|e| match unknown.take() {
+            Some(ent) => entity_refused(&ent),
+            None => Fault::Malformed(format!("{e} at {}", position(src, at))),
+        })?
+        .into_owned();
         attributes.push((k, v));
     }
     Ok(Open {
@@ -229,10 +224,7 @@ pub fn parse(src: &str) -> Result<Value, Fault> {
                 }
             }
             Event::Text(t) => {
-                let text = t
-                    .decode()
-                    .map_err(|e| Fault::Malformed(e.to_string()))?
-                    .into_owned();
+                let text = t.into_inner().into_owned();
                 match stack.last_mut() {
                     Some(el) => el.texts.push(text),
                     None if text.chars().all(char::is_whitespace) => {}
@@ -245,10 +237,7 @@ pub fn parse(src: &str) -> Result<Value, Fault> {
                 }
             }
             Event::CData(c) => {
-                let text = c
-                    .decode()
-                    .map_err(|e| Fault::Malformed(e.to_string()))?
-                    .into_owned();
+                let text = c.into_inner().into_owned();
                 match stack.last_mut() {
                     Some(el) => el.texts.push(text),
                     None => {
@@ -260,7 +249,7 @@ pub fn parse(src: &str) -> Result<Value, Fault> {
                 }
             }
             Event::GeneralRef(r) => {
-                let name = r.decode().map_err(|e| Fault::Malformed(e.to_string()))?;
+                let name = r.into_inner();
                 let text = resolve_ref(&name)?;
                 match stack.last_mut() {
                     Some(el) => el.texts.push(text),
@@ -273,7 +262,7 @@ pub fn parse(src: &str) -> Result<Value, Fault> {
                 }
             }
             Event::DocType(d) => {
-                let body = d.decode().map_err(|e| Fault::Malformed(e.to_string()))?;
+                let body = d.into_inner();
                 if root.is_some() || !stack.is_empty() {
                     return Err(Fault::Malformed(format!(
                         "a DOCTYPE after the root element began at {}",
@@ -509,6 +498,22 @@ mod tests {
             Some("urn:example")
         );
         assert_eq!(text(&el), "1 > 0");
+    }
+
+    #[test]
+    fn raw_line_ends_and_tabs_pass_through_unnormalized() {
+        let el = parse("<r a=\"x\ny\tz\r\nw\">p\r\nq</r>").expect("parses");
+        let Value::Map(attrs) = get(&el, "attributes") else {
+            panic!()
+        };
+        assert_eq!(
+            attrs
+                .get(&MapKey::Str(Arc::from("a")))
+                .and_then(scalar)
+                .as_deref(),
+            Some("x\ny\tz\r\nw")
+        );
+        assert_eq!(text(&el), "p\r\nq");
     }
 
     #[test]

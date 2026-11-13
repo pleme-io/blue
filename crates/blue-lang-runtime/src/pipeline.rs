@@ -1529,13 +1529,12 @@ fn point_diagnostics(
     table: &NameTable,
 ) -> Vec<blue_lang_check::Diagnostic> {
     use crate::uses::ResolvedProgram;
-    if program
+    let Some(package) = program
         .file(ResolvedProgram::ENTRY)
-        .and_then(|f| f.package.as_deref())
-        .is_none()
-    {
+        .and_then(|f| f.package.clone())
+    else {
         return Vec::new();
-    }
+    };
     let forms = program.forms();
     let resolved =
         blue_lang_check::names::resolve_program(forms, table, &|i| namespace_of(program, i));
@@ -1552,6 +1551,7 @@ fn point_diagnostics(
     let mut out = blue_lang_check::points::check(&p);
     out.extend(blue_lang_check::points::strength(&p));
     out.extend(blue_lang_check::points::reach(&p));
+    out.extend(blue_lang_check::points::environment(&p, &package));
     out
 }
 

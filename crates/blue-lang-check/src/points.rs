@@ -458,3 +458,50 @@ pub fn reach(p: &Program<'_>) -> Vec<Diagnostic> {
     }
     out
 }
+
+fn literal_environment_reads<'a>(form: &'a Spanned, out: &mut Vec<(&'a str, &'a Spanned)>) {
+    if let Some(items) = form.as_list() {
+        if let Some(word @ ("getenv" | "env_required")) = items.first().and_then(Spanned::as_symbol)
+        {
+            if items.get(1).and_then(Spanned::as_string).is_some() {
+                out.push((word, &items[1]));
+            }
+        }
+        for i in items {
+            literal_environment_reads(i, out);
+        }
+    }
+}
+
+#[must_use]
+pub fn environment(p: &Program<'_>, package: &str) -> Vec<Diagnostic> {
+    if package == "settei" {
+        return Vec::new();
+    }
+    let mut out = Vec::new();
+    for (i, form) in p.forms.iter().enumerate() {
+        if !(p.is_entry)(i) || blue_lang_syntax::test_parts(form).is_some() {
+            continue;
+        }
+        let Some(def) = blue_lang_syntax::doc::defined_name(form) else {
+            continue;
+        };
+        let mut reads = Vec::new();
+        literal_environment_reads(form, &mut reads);
+        for (word, at) in reads {
+            let name = at.as_string().unwrap_or_default();
+            out.push(
+                Diagnostic::new(
+                    Code::B0092,
+                    format!("`{def}` reads `{name}` with `{word}`, outside a settei core model"),
+                    at.span,
+                )
+                .at_top_level(i)
+                .with_help(format!(
+                    "declare it as a knob of the program's model and read it through settei; its environment name stays `{name}`"
+                )),
+            );
+        }
+    }
+    out
+}

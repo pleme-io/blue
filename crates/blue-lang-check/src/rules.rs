@@ -1937,6 +1937,23 @@ Assert what the code answers against a value it could fail to answer. Debt
 is `# waive B0089: reason` above the test, counted against the row
 `strength/tautology`.",
     }
+    B0092 {
+        slug: "raw-environment-read",
+        severity: Error,
+        fix: None,
+        law: "a bidama reads a setting through its settei core model, never `getenv` or `env_required` of a literal name",
+        witness: "@moduledoc \"\"\"\nkagi reads one port.\n\n    kagi #=> \"80\"\n\"\"\"\n\n@doc \"\"\"\nkagi is the port.\n\n    kagi #=> \"80\"\n\"\"\"\ndef kagi()\n  getenv(\"KAGI_PORT\", \"80\")\nend\n\ntest \"kagi\"\n  assert kagi == \"80\"\nend\n",
+        ratchet: 1,
+        package: "kagi",
+        explanation: "\
+A setting read by hand has no type, no bounds, no doc and no other layer:
+a bad value stops the run or passes unchecked, and the docs table, the
+schema and `--explain` never see it (docs/CORE-MODEL.md M4). Declare the
+setting as a knob of the program's model and read it through settei
+(`settled`, `command`). settei itself is the one door that reads the
+environment. The corpus does not hold yet, so the census counts each
+finding against the row's ratchet, which may only fall.",
+    }
 }
 
 impl Code {

@@ -166,4 +166,5 @@ pub const REPAIR_CENSUS: &[crate::Code] = &[
     crate::Code::B0089,
     crate::Code::B0090,
     crate::Code::B0091,
+    crate::Code::B0092,
 ];

@@ -153,8 +153,11 @@ check("heni-mutations", "gen/heni-gate.b")
 
 # Tests live beside what they test (docs/TESTING.md): every bidama definition
 # is reached by a test in its package, or waived with a why and a date, or
-# held as recorded debt that may only shrink. Configured in the file itself.
-check("test-beside", "gen/test-beside.b")
+# held as recorded debt that may only shrink. `checks.test-beside` is every
+# project's default gate (T2); this names the program that holds blue's own
+# policy, and the check runs that program's judge tests.
+coverage("gen/test-beside.b")
+check("test-beside-judge", "gen/test-beside.b")
 check("consumers", "gen/consumers.b", ["gen/consumers.json"])
 
 # How well a model writes blue (docs/HORIZON.md, H9): ten golden tasks under

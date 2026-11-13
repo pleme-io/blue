@@ -222,8 +222,11 @@ tests (`blue check`, `blue test`, the language server, pre-push, every
 :integration` (or `:e2e`) reaches is B0083 or B0084, the moment it is
 written. Existing debt is one `# waive` per site; `blue census` holds the
 count (`blue_lang_check::obligations`, rows `point/effect` and `point/seam`;
-DIAGNOSTICS.md lists every obligation). The project points (`generate`,
-`service`, bindings) are registered rows not yet forced.
+DIAGNOSTICS.md lists every obligation). The project points are found from
+the lock above the file: the program of a `generate` row owes a test declared
+`kind: :rendering` (B0085), the program of a `service` row one declared
+`kind: :e2e` (B0086), and a service that binds a `cache` or a `schema` one
+declared `kind: :contract` (B0087).
 
 Blue already reads each of these as data: the lock lists every `generate`,
 `service` and `check` row (`Bluefile.lock`, `manifest`), and the check stage
@@ -297,10 +300,18 @@ row holds at zero, so every new package starts fully tested.
 evidence. It is `blind`, never green: at `enforce` it fails, at `audit` it is
 listed.
 
-**Destination of the configuration.** Today the entries live in the gate
-file (`gen/test-beside.b`). Phase T2 moves the judge into `lib.project`, so
-every project with `packages` gets `checks.test-beside` by default, and the
-entries come from the project's own blue file. Kinds required per point type
+**Every project (T2, built).** Every project with `packages` gets
+`checks.test-beside` from `lib.project`. Each `bidama-test-<pkg>` check runs
+`blue test --coverage --json`, and the gate (`nix/test-beside.b`) judges the
+coverage those outputs hold, so no test runs twice. The judge is tesuto's
+(`judge_coverage`, `coverage_verdict`, `coverage_report`). The policy is the
+program the Bluefile names with `coverage(file)`: `blue run file -- policy`
+prints its entries and recorded debt. A project that names none holds every
+package at enforce with no debt. The one way to configure the gate off is
+`skip("test-beside", why)` in the Bluefile; the lock records the skip and its
+reason. Blue's own policy is `gen/test-beside.b`; its judge tests run as
+`checks.test-beside-judge`, and the pre-push gate still measures the corpus
+there (`BLUE_TEST_BESIDE_CORPUS=on`), since a hook has no nix outputs to read. Kinds required per point type
 (for example "a `cache` binding needs an integration test") are a third entry,
 `require(point, kind, why)`, in phase T4.
 
@@ -518,7 +529,7 @@ stateDiagram-v2
 | Phase | What | Value | Effort |
 |---|---|---|---|
 | T1 | coverage hard block on blue's own bidamas: `tesuto` policy words, `gen/test-beside.b`, `check("test-beside")`, pre-push gate | every new untested definition in blue is red | landed |
-| T2 | the gate in `lib.project`: every project with `packages` gets it by default; read coverage from the `bidama-test-<pkg>` outputs (no second run) | fleet-wide block, half the time | medium |
+| T2 | the gate in `lib.project`: every project with `packages` gets it by default; read coverage from the `bidama-test-<pkg>` outputs (no second run) | fleet-wide block, half the time | landed |
 | T3 | `check` options `{stage:, kind:}`; `blue test .` runs the Bluefile's rows; `gen/prepush.b` derived from them | one gate list for nix, pre-push and CI | medium |
 | T4 | test options map (`kind`, `allow`, `fakes`) and the integration-point finding: a `service` binding, a `generate` row or a seam with no test of its kind | integration tests beside their points | effect and seam points built (B0083, B0084); project points next |
 | T5 | `gen/ci.b` renders blue's own CI workflow; the logic moves into `check` rows | CI is a rendering | small |
@@ -542,9 +553,9 @@ Every obligation blue forces, and its state, is one row of
 | test declarations: `satisfies:`, `target:`, `assert_panics`, `blue test --allow`, `--facts` | ✅ built | Section 4, "Declared controls"; `crates/blue-lang-cli/tests/compliance.rs` (4 tests), `spec/rows/testing.b` (12 rows). |
 | a named skip: `tesuto::skip_for`, `SKIP name: why`, `BLUE_TEST_SKIP=refuse` | ✅ built | `crates/blue-lang-test/src/lib.rs` (a skip is never a pass), `crates/blue-lang-cli/tests/scripts.rs`, `gen/kernel-new.b`. |
 | the test cache: on by default; `BLUE_TEST_CACHE=off` or `--no-cache` turns it off | ✅ built | Section 10; `crates/blue-lang-cli/tests/test_cache.rs`, 8 tests (among them `a_changed_callee_runs_its_test_again`, `a_test_that_reaches_the_host_is_never_cached`, `an_unknown_cache_value_is_refused`). |
-| T2: the coverage gate in `lib.project` for every project with `packages` | ❌ not built | Only blue's own Bluefile declares `check("test-beside", …)`. `nix/project.nix` adds no such gate. |
+| T2: the coverage gate in `lib.project` for every project with `packages` | ✅ built | `nix/project.nix` `coverageGate` and `testRuns`, `nix/test-beside.b` (its tests, red then green on a fixture project), tesuto's `judge_coverage`; Bluefile words `coverage(file)` and `skip(gate, why)` (`blue-lang-pkg` tests). |
 | T3: `check` options `{stage:, kind:}`; `blue test .` | ❌ not built | `crates/blue-lang-pkg/src/bluefile.rs` reads no `stage:` option. |
-| T4: test options `kind:`, `allow:`, `fakes:`; the integration-point finding | ⏳ in progress | Built: the options (parser, B0068 order, B0069 for `allow:`, the harness holds a test to its `allow:`), and B0083 (effect point) and B0084 (seam point) on every door; 118 sites held as waived debt (96 and 22), 3 paid (`shisutemu::run_capture`, `shisutemu::terminal?`, `shomei::random`). Tests: `crates/blue-lang-runtime/tests/rules.rs` (each witness, `an_effect_point_is_discharged_only_by_a_test_of_its_kind`), `blue-lang-syntax` `test_form`, `blue-lang-test` `a_test_runs_held_to_the_capabilities_it_declares`, `census::held`. Not built: the project points (`point/rendering`, `point/service`, `point/binding`). |
+| T4: test options `kind:`, `allow:`, `fakes:`; the integration-point finding | ✅ built | The options (parser, B0068 order, B0069 for `allow:`, the harness holds a test to its `allow:`); B0083 (effect point), B0084 (seam point), B0085 (rendering), B0086 (service), B0087 (binding) on every door that checks tests. Held debt (waivers): 97 effect, 22 seam, 31 rendering, 2 service, 1 binding; paid: `shisutemu::run_capture`, `shisutemu::terminal?`, `shomei::random`, `gen/diagnostics.b`. Tests: `crates/blue-lang-runtime/tests/rules.rs` (each witness, `an_effect_point_is_discharged_only_by_a_test_of_its_kind`, `a_project_point_is_discharged_only_by_a_test_of_its_kind`), `blue-lang-syntax` `test_form`, `blue-lang-test` `a_test_runs_held_to_the_capabilities_it_declares`, `census::held`. Judging `fakes:` against declared seams is T6. |
 | T5: `gen/ci.b` renders blue's own CI workflow | ❌ not built | No `gen/ci.b`. |
 | T6: BDD words (`describe`, `around`, `case`, `changes?`, `fake`, `spy`, `calls`, `freeze`, `fixture`, `conforms?`) | ❌ not built | `tesuto` has `raises?`, `snapshot` and `caught` only. The planned words are `absent` rows in `bidamas/mokuroku/graph/tesuto-provisional.b`. |
 | T7: release and delivery steps as blue | ❌ not built | Rows 8 to 10 of section 9. |

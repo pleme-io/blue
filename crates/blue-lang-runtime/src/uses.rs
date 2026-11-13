@@ -124,6 +124,13 @@ pub trait Loader {
         None
     }
 
+    /// What the entry file is to the project above it: the program of a
+    /// `generate` row, of a `service` row, and the service's bindings. Each
+    /// is an integration point the file owes a test of its kind.
+    fn roles(&self, _entry: &Path) -> Vec<Role> {
+        Vec::new()
+    }
+
     /// The levels one step below `name`, by their full paths, sorted: what a
     /// `use` of `name` brings into reach with it. A bidama with no levels has
     /// none, which is this default.
@@ -182,6 +189,19 @@ pub fn moved_path(package: &str, moved: &PackageMove) -> String {
 pub struct Frontend {
     pub table: Option<(String, String)>,
     pub view: bool,
+}
+
+/// The entry file's role in its project: a point of the project that the
+/// file declares, by the Bluefile row that names it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Role {
+    /// The program of `generate(name, …)`: it owes a `kind: :rendering` test.
+    Generator(String),
+    /// The program of `service(name, …)`: it owes a `kind: :e2e` test.
+    Service(String),
+    /// A binding of a service (`cache`, `schema`): it owes a `kind:
+    /// :contract` test.
+    Binding(String, String),
 }
 
 /// A loader that resolves nothing, and says so.
@@ -323,6 +343,7 @@ pub struct ResolvedProgram {
     needs: std::collections::BTreeMap<String, BTreeSet<String>>,
     versions: std::collections::BTreeMap<String, String>,
     frontend: Option<Frontend>,
+    roles: Vec<Role>,
     bridged: Vec<Bridged>,
 }
 
@@ -339,6 +360,7 @@ impl ResolvedProgram {
             needs: std::collections::BTreeMap::new(),
             versions: std::collections::BTreeMap::new(),
             frontend: None,
+            roles: Vec::new(),
             bridged: Vec::new(),
         };
         let id = program.intern(
@@ -444,6 +466,11 @@ impl ResolvedProgram {
     #[must_use]
     pub fn frontend(&self) -> Option<&Frontend> {
         self.frontend.as_ref()
+    }
+
+    #[must_use]
+    pub fn roles(&self) -> &[Role] {
+        &self.roles
     }
 
     /// Every top-level form, in evaluation order.
@@ -718,6 +745,7 @@ pub fn resolve_uses(
     }
     let mut out = ResolvedProgram::new(entry, package.clone());
     out.frontend = entry.path.and_then(|p| loader.frontend(p));
+    out.roles = entry.path.map(|p| loader.roles(p)).unwrap_or_default();
     if let Some(p) = &package {
         if let Some(n) = loader.needs(p, entry.path.and_then(Path::parent)) {
             out.needs.insert(p.clone(), n);

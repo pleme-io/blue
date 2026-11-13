@@ -36,7 +36,7 @@
 # | Word | Lowers to |
 # |---|---|
 # | `package(name, v)` | `packages.<name>` and `default`: `blue` as `<name>`, with the project's BLUE_PATH and tools; a service of the project's name takes `packages.<name>` and the runner keeps `default` |
-# | `packages(dir)` | each `dir/<pkg>/` built by `mkBidama` over `base` (blue's public distribution), plus `checks.bidama-test-<pkg>` (`blue test dir/<pkg>/<pkg>.b`), `checks.bidama-form-<pkg>` (the producer's form: `blue fmt --check` and `BLUE_FORM=own blue check`, under the blue this project pins; the build judges meaning only), `bidama-collisions` (touching the project's packages), `bidama-locks-fresh` and `bidama-deps-resolve` (the version solver) |
+# | `packages(dir)` | each `dir/<pkg>/` built by `mkBidama` over `base` (blue's public distribution), plus `checks.bidama-test-<pkg>` (`blue test dir/<pkg>/<pkg>.b`), `checks.bidama-form-<pkg>` (the producer's form: `blue fmt --check` and `BLUE_FORM=own blue check`, under the blue this project pins; the build judges meaning only), `bidama-collisions` (touching the project's packages), `bidama-locks-fresh`, `bidama-deps-resolve` (the version solver) and `test-beside` (each `bidama-test-*` runs with `--coverage --json`, and `nix/test-beside.b` judges that coverage, docs/TESTING.md T2) |
 # | the root lock itself | `checks.repository-lock-fresh` |
 # | `needs(name, range)` | refused at evaluation when the distribution lacks `name` |
 # | `tool(name[, platforms])` | the nixpkgs attribute, on PATH for the runner, runs, checks and apps; with `platforms`, only on those (`linux`, `darwin`), and skipped elsewhere |
@@ -45,6 +45,8 @@
 # | `app(name, file)` | `apps.<name>` and `packages.<name>`: the program installed as a command (`mkBlueApp`, the project's bidamas and tools) that runs `blue run file` from the caller's directory, and an `overlays.default` entry `<name>` for a consumer's package set; with a runner, `packages.appliance-<name>` (`nix/bundle.nix`: `blue bundle` seals the program and the lock's verified capabilities onto `blue-appliance`, one executable held to them, pure when the lock records none) and, on Linux, `packages.appliance-<name>-image` (that executable alone in a scratch image) |
 # | `generate(name, output, program[, inputs])` | `packages.generated-<name>`, `checks.generated-<name>-fresh`; `inputs` are the project paths the program reads, under `$GEN_ROOT` |
 # | `catalog(path)` | `packages.bidama-catalog`, `checks.bidama-catalog-fresh` |
+# | `coverage(file)` | the program whose `blue run file -- policy` prints the policy `checks.test-beside` judges by (tesuto `level` and `waive` entries, hadome `untested: <pkg> <n>` debt); with none, every package at enforce with no debt |
+# | `skip(gate, why)` | configures a default gate off with its reason; the only gate today is `test-beside` |
 # | `rule(code, file, def[, severity])` | `checks.project-rules-hold`: `blue check` on every `.b` of the project's packages and every run, check and app program, which runs the project rules beside the registry |
 # | `generate`, `catalog` or `workload` | `apps.regen` |
 # | `projectFor { postMerge = [ name … ]; }` | those checks leave `checks` and `checks.project` and are `postMergeChecks`, run after the merge |
@@ -106,7 +108,7 @@ let
     "sources" "packages" "runs" "tools" "tool_platforms" "checks" "apps" "catalog" "generated"
     "images" "workloads" "rules" "services" "frontends" "vm_checks"
     "visibility" "registries" "reach" "allow" "virtualized" "receipts" "floors"
-    "bounds" "tier" "target" "verify"
+    "bounds" "tier" "target" "verify" "coverage" "skips"
   ];
 
   readLock = src:
@@ -515,6 +517,47 @@ let
             (disjoint "package" (imagePackages // workloadPackages // registryPackages)
               (disjoint "package" vms.packages (disjoint "package" bundled.packages lowered.packages)))));
 
+      testRuns =
+        map
+          (n: {
+            package = n;
+            name = "bidama-test-${n}";
+            check = bl.mkTestCheck (common // {
+              name = "bidama-test-${n}";
+              bidamas = reachOf n;
+              file = "${own.${n}}/${n}/${n}.b";
+              coverage = true;
+            });
+          })
+          ownNames
+        ++ lib.concatMap
+          (p: map
+            (level:
+              let cn = "bidama-test-${p.name}-${lib.replaceStrings [ "/" ] [ "-" ] level.path}"; in {
+                package = p.name;
+                name = cn;
+                check = bl.mkTestCheck (common // {
+                  name = cn;
+                  bidamas = reachOf p.name;
+                  file = "${own.${p.name}}/${p.name}/${level.file}";
+                  coverage = true;
+                });
+              })
+            (levelsOf (p.root + "/${p.name}") ""))
+          found;
+
+      coverageGate = lib.optionalAttrs (!((m.skips or { }) ? "test-beside")) {
+        test-beside =
+          let
+            runs = pkgs.linkFarm "${name}-test-runs"
+              (map (r: { name = "${r.package}/${r.name}"; path = r.check; }) testRuns);
+            policy = lib.optionalString ((m.coverage or null) != null) (lib.escapeShellArg "${src}/${m.coverage}");
+          in
+          pkgs.runCommand "test-beside" { } ''
+            BLUE_PATH=${bluePath} ${blue}/bin/blue run --quiet ${./test-beside.b} -- ${runs} ${policy} > $out || { cat $out; exit 1; }
+          '';
+      };
+
       gates =
         lib.optionalAttrs (ownNames != [ ]) ({
           # Collisions touching the project's packages — with the public
@@ -528,22 +571,8 @@ let
             inherit blue bidamas;
             manifests = map (p: p.root + "/${p.name}/Bluefile") found;
           };
-        } // lib.listToAttrs (map
-          (n: lib.nameValuePair "bidama-test-${n}" (bl.mkTestCheck (common // {
-            name = "bidama-test-${n}";
-            bidamas = reachOf n;
-            file = "${own.${n}}/${n}/${n}.b";
-          })))
-          ownNames)
-        // lib.listToAttrs (lib.concatMap
-          (p: map
-            (level: lib.nameValuePair "bidama-test-${p.name}-${lib.replaceStrings [ "/" ] [ "-" ] level.path}" (bl.mkTestCheck (common // {
-              name = "bidama-test-${p.name}-${lib.replaceStrings [ "/" ] [ "-" ] level.path}";
-              bidamas = reachOf p.name;
-              file = "${own.${p.name}}/${p.name}/${level.file}";
-            })))
-            (levelsOf (p.root + "/${p.name}") ""))
-          found)
+        } // lib.listToAttrs (map (r: lib.nameValuePair r.name r.check) testRuns)
+        // coverageGate
         // lib.listToAttrs (map
           (n: lib.nameValuePair "bidama-form-${n}" own.${n}.formCheck)
           ownNames))

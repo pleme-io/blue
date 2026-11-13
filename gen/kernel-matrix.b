@@ -4,6 +4,7 @@ kernel-matrix: The workflow that boots each kernel a Bluefile's `vm_check` names
     blue run gen/kernel-matrix.b
 """
 
+# waive B0085: rendering debt recorded 2026-11-13: no test of this generator declared kind: :rendering feeds its output to the output's reader yet
 use("deeta", [:yaml])
 
 use("retsu", [:first])

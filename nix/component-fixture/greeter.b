@@ -1,3 +1,5 @@
+# waive B0086: debt recorded 2026-11-13: the component fixture is served by checks.service-greeter-component-serves, which no test of this file declares yet
+# waive B0087: debt recorded 2026-11-13: the component fixture has no test of its binding's shape yet
 use("aisatsu", [:salute])
 use("eigyou/kyuuji")
 use("settei")

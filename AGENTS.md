@@ -60,7 +60,7 @@ These commands come from the Bluefile. Run them from the repository root.
 | `blue test gen/proof.b` | `checks.proof` |
 | `blue test gen/regen_test.b` | `checks.regen-untracked` |
 | `blue test gen/release.b` | `checks.release` |
-| `blue test gen/test-beside.b` | `checks.test-beside` |
+| `blue test gen/test-beside.b` | `checks.test-beside-judge` |
 | `blue test gen/verb-graph.b` | `checks.verb-graph` |
 | `blue test nix/vm-run.b` | `checks.vm-run` |
 

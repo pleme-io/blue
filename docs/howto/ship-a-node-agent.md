@@ -69,13 +69,17 @@ test "the root answers, and anything else is not found"
   assert handle(kyuuji::request("GET", "/", ""))[:status] == 200
   assert handle(kyuuji::request("GET", "/x", ""))[:status] == 404
 end
+
+test "the agent answers its root over loopback", {kind: :e2e, allow: [:network]}
+  assert kyuuji::served("/", "/healthz", handle) == 200
+end
 ```
 
 ```console
 $ blue lock .
 ./Bluefile.lock: 0 source(s) pinned
 $ blue test agent.b
-2 test(s): 2 passed, 0 failed
+3 test(s): 3 passed, 0 failed
 ```
 
 This program shows what the declaration renders:

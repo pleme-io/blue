@@ -1,3 +1,4 @@
+# waive B0085: rendering debt recorded 2026-11-13: no test of this generator declared kind: :rendering feeds its output to the output's reader yet
 use("okite")
 # Writes bidamas/okite/RULES.md, the rule card, from the ledger (`card` in
 # okite.b). Declared in the root Bluefile with generate(); a generator lives here,

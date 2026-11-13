@@ -100,6 +100,10 @@ pub struct Rule {
     /// part of its class repairs: `blue check --fix` applies it, and the
     /// rule no longer fires on the result.
     pub fixes: Option<&'static str>,
+    /// The entry's role in its project when the rule judges one
+    /// (`generator`, `service`, `binding`): the witness is checked as that
+    /// program.
+    pub role: Option<&'static str>,
 }
 
 impl Rule {
@@ -152,6 +156,15 @@ macro_rules! package {
     };
 }
 
+macro_rules! role {
+    () => {
+        None
+    };
+    ($t:literal) => {
+        Some($t)
+    };
+}
+
 macro_rules! fixes {
     () => {
         None
@@ -176,6 +189,7 @@ macro_rules! rules {
             $(frontend: $frontend:literal,)?
             $(package: $package:literal,)?
             $(fixes: $fixes:literal,)?
+            $(role: $role:literal,)?
             explanation: $expl:literal $(,)?
         }
     )*) => {
@@ -210,6 +224,7 @@ macro_rules! rules {
                 frontend: frontend!($($frontend)?),
                 package: package!($($package)?),
                 fixes: fixes!($($fixes)?),
+                role: role!($($role)?),
             }
         ),*];
     };
@@ -1812,6 +1827,115 @@ outside side is a declared fake or fixture.
 
 Debt is `# waive B0084: reason` above the definition, counted by `blue
 census` against the row `point/seam`.",
+    }
+    B0085 {
+        slug: "untested-rendering",
+        severity: Error,
+        fix: None,
+        law: "the program of a Bluefile `generate` row holds a test declared `kind: :rendering`",
+        witness: "def main()\n  write_file(getenv(\"GEN_OUT\", \"out.txt\"), \"x\")\nend\n",
+        role: "generator",
+        explanation: "\
+A `generate` row renders a file another tool reads (docs/TESTING.md section
+5). Its program is the integration point: the test beside it feeds what it
+renders to that consumer (`helm lint` for a chart, a schema validator for a
+schema, the reader of a table) and declares it:
+
+    test \"the page parses as the reader reads it\", {kind: :rendering}
+      ...
+    end
+
+The rule reads the program's role from the lock above it, on every door that
+checks tests. Debt is `# waive B0085: reason` above the file's first form,
+counted by `blue census` against the row `point/rendering`.",
+    }
+    B0086 {
+        slug: "untested-service",
+        severity: Error,
+        fix: None,
+        law: "the program of a Bluefile `service(...)` row holds a test declared `kind: :e2e`",
+        witness: "def main()\n  1\nend\n",
+        role: "service",
+        explanation: "\
+A service is the widest integration point a project has: its program answers
+on a port. The test beside it starts it on loopback, asks what a client asks,
+and declares `kind: :e2e`. Debt is `# waive B0086: reason` above the file's
+first form, counted against the row `point/service`.",
+    }
+    B0087 {
+        slug: "untested-binding",
+        severity: Error,
+        fix: None,
+        law: "a service whose row binds a `cache` or a `schema` holds a test of its program declared `kind: :contract`",
+        witness: "def main()\n  1\nend\n\ntest \"serves\", {kind: :e2e}\n  assert main == 1\nend\n",
+        role: "binding",
+        explanation: "\
+A binding is a shape two sides agree on: the keys a cache holds, the tables a
+schema declares. The test of its kind checks the shape the program writes
+against the one the row declares, and declares `kind: :contract`. Debt is
+`# waive B0087: reason` above the file's first form, counted against the row
+`point/binding`.",
+    }
+    B0088 {
+        slug: "assertionless-test",
+        severity: Error,
+        fix: None,
+        law: "a test of a bidama reaches an assertion: an `assert`, an `assert_panics` or a `tesuto::snapshot`",
+        witness: "@moduledoc \"\"\"\nkagi holds one value.\n\n    kagi #=> 1\n\"\"\"\n\n@doc \"\"\"\nkagi is one.\n\n    kagi #=> 1\n\"\"\"\ndef kagi()\n  1\nend\n\ntest \"kagi runs\"\n  kagi\nend\n",
+        package: "kagi",
+        explanation: "\
+A test that asserts nothing passes whatever the code answers, so it reaches
+the code and proves nothing about it (docs/COVERAGE.md S1). The rule follows
+the test's reach through the program: a test that calls a helper that
+asserts, as a shared example does, holds. Debt is `# waive B0088: reason`
+above the test, counted against the row `strength/assertion`.",
+    }
+    B0089 {
+        slug: "tautological-assertion",
+        severity: Error,
+        fix: None,
+        law: "a test of a bidama asserts something the code could fail: never a bare literal, never one expression compared with itself",
+        witness: "@moduledoc \"\"\"\nkagi holds one value.\n\n    kagi #=> 1\n\"\"\"\n\n@doc \"\"\"\nkagi is one.\n\n    kagi #=> 1\n\"\"\"\ndef kagi()\n  1\nend\n\ntest \"kagi\"\n  one = kagi\n  assert one == one\nend\n",
+        package: "kagi",
+        explanation: "\
+`assert true`, `assert 1` and `assert x == x` hold whatever the code does
+(docs/COVERAGE.md S2): the assertion counts as a check and checks nothing.
+A comparison of two calls, `f(1) == f(1)`, is a determinism check and is
+not refused: each side runs the code.",
+    }
+    B0090 {
+        slug: "untargeted-definition",
+        severity: Error,
+        fix: None,
+        law: "each definition of a bidama is named by a test of its file: called, referenced, or its `target:`",
+        witness: "@moduledoc \"\"\"\nkagi holds one value.\n\n    kagi #=> 1\n\"\"\"\n\n@doc \"\"\"\nkagi is one.\n\n    kagi #=> 1\n\"\"\"\ndef kagi()\n  1\nend\n",
+        ratchet: 3412,
+        package: "kagi",
+        explanation: "\
+A definition reached only through a caller is tested only as far as the
+caller's tests happen to drive it (docs/COVERAGE.md R2). The rule asks that a
+test of the file name it: a call, a reference, or `target: name`. A doctest
+does not count: it is the example, not the test. The corpus does not hold yet,
+so the census counts each finding against the row's ratchet, which may only
+fall; at zero the rule is an error on every door.",
+    }
+    B0091 {
+        slug: "unexpected-raise",
+        severity: Error,
+        fix: None,
+        law: "each tag a definition of a bidama raises is named by a test of its file, the way a test expects it",
+        witness: "@moduledoc \"\"\"\nkagi refuses a negative.\n\n    kagi(1) #=> 1\n\"\"\"\n\n@doc \"\"\"\nkagi gives back a count.\n\n    kagi(1) #=> 1\n\"\"\"\ndef kagi(n)\n  if n < 0\n    raise(:negative, \"no\")\n  end\n  n\nend\n\ntest \"kagi\"\n  assert kagi(2) == 2\nend\n",
+        ratchet: 196,
+        package: "kagi",
+        explanation: "\
+A refusal is behaviour: a caller relies on the tag (docs/COVERAGE.md E2). The
+rule finds each `raise(:tag, …)` in a definition and asks that a test of the
+file name `:tag`, as `raises?(:tag, f)` or `caught(f).kind == :tag` does.
+The census counts each finding against the row's ratchet until the corpus
+reaches zero.
+Assert what the code answers against a value it could fail to answer. Debt
+is `# waive B0089: reason` above the test, counted against the row
+`strength/tautology`.",
     }
 }
 

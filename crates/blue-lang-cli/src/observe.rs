@@ -38,6 +38,7 @@ struct FileRun {
     errors: String,
     report: Option<blue_lang_test::Report>,
     coverage: Option<Vec<Measured>>,
+    arms: Option<Arc<blue_lang_test::Arms>>,
     /// Each definition's and each test's `def_hash`, when facts are asked.
     identities: Option<blue_lang_mondou::def_hash::TestIdentities>,
     passed_keys: Vec<String>,
@@ -125,7 +126,7 @@ pub(crate) fn test(
             None => broken += 1,
         }
         if let Some(rows) = &run.coverage {
-            print_coverage(&run.path, rows, json)?;
+            print_coverage(&run.path, rows, run.arms.as_deref(), json)?;
         }
     }
     let skips = if skipped > 0 {
@@ -334,6 +335,7 @@ fn run_files(
                             errors: format!("blue: {}: {e}\n", path.display()),
                             report: None,
                             coverage: None,
+                            arms: None,
                             identities: None,
                             passed_keys: Vec::new(),
                             cached_keys: Vec::new(),
@@ -403,6 +405,7 @@ fn test_file(
             errors,
             report: None,
             coverage: None,
+            arms: None,
             identities: None,
             passed_keys: Vec::new(),
             cached_keys: Vec::new(),
@@ -479,6 +482,20 @@ fn test_file(
         }
         _ => guard,
     };
+    let arms = recorder
+        .as_ref()
+        .map(|_| Arc::new(blue_lang_test::Arms::default()));
+    let armed;
+    let guard = match &arms {
+        Some(a) => {
+            armed = blue_lang_test::Guard {
+                arms: Some(Arc::clone(a)),
+                ..guard.clone()
+            };
+            &armed
+        }
+        None => guard,
+    };
     let report = blue_lang_test::run_guarded(&checked, filter, observer, guard);
     let passed_keys = if report.preamble_host_io == 0 {
         report
@@ -512,6 +529,7 @@ fn test_file(
         errors,
         report: Some(report),
         coverage: recorder.map(|r| r.report()),
+        arms,
         identities,
         passed_keys,
         cached_keys,
@@ -550,12 +568,18 @@ fn write_proofs(
 }
 
 /// The entry file's definitions with their call counts, uncovered ones marked.
-fn print_coverage(path: &Path, rows: &[Measured], json: bool) -> Result<(), CliError> {
+fn print_coverage(
+    path: &Path,
+    rows: &[Measured],
+    arms: Option<&blue_lang_test::Arms>,
+    json: bool,
+) -> Result<(), CliError> {
     let defs: Vec<&Measured> = rows
         .iter()
         .filter(|m| m.entry && m.definition.is_some())
         .collect();
     let covered = defs.iter().filter(|m| m.counts.calls > 0).count();
+    let untaken = arms.map(blue_lang_test::Arms::untaken).unwrap_or_default();
     if json {
         let line = serde_json::json!({
             "file": path.display().to_string(),
@@ -568,9 +592,14 @@ fn print_coverage(path: &Path, rows: &[Measured], json: bool) -> Result<(), CliE
             })).collect::<Vec<_>>(),
             "uncovered": defs.iter().filter(|m| m.counts.calls == 0)
                 .map(|m| m.name.clone()).collect::<Vec<_>>(),
+            "arms": arms.map_or(0, blue_lang_test::Arms::total),
+            "untaken": untaken,
         });
         println!("{}", serde_json::to_string(&line)?);
         return Ok(());
+    }
+    for arm in &untaken {
+        println!("  untaken arm {arm}");
     }
     println!("coverage: {}", path.display());
     println!("  {:>8}  {:<32}  defined at", "calls", "definition");

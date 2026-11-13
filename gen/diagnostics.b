@@ -88,3 +88,17 @@ def main()
     with_facts(source, (f) -> reference_fact(r, f))
   )
 end
+
+test "every rule and every obligation render, and no fact is left", {
+  kind: :rendering,
+  allow: %i[environment filesystem process]
+}
+  r = reference
+  page = with_facts(
+    read_file("gen/diagnostics.md"),
+    (f) -> reference_fact(r, f)
+  )
+  assert contains?(page, "| B0085 | untested-rendering |")
+  assert contains?(page, "| point/rendering |")
+  assert not contains?(page, "```hon")
+end

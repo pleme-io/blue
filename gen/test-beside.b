@@ -1,7 +1,19 @@
-use("hadome", %i[judge parse render shrunk])
 use("mokuroku", %i[blue_path_roots package_dirs])
-use("retsu", %i[concat_lists find_first flat_map last size])
-use("tesuto", %i[beside level settle stale uncovered waive])
+use("retsu", %i[concat_lists find_first last size])
+
+use(
+  "tesuto",
+  %i[
+    coverage_arms
+    coverage_names
+    coverage_red?
+    coverage_report
+    judge_coverage
+    level
+    skip_for
+    waive
+  ]
+)
 
 # Tests live beside what they test (docs/TESTING.md). Every bidama's
 # definitions are reached by a test in the same package, or the gap is a
@@ -56,36 +68,86 @@ def waivers()
   ]
 end
 
-# Untested definitions per bidama, measured by `blue test --coverage` on
-# 2026-10-24. A row may shrink or hold, never grow; a package with no row
+# Untested definitions and untaken arms per bidama, measured by `blue test
+# --coverage` on 2026-11-13. A row may shrink or hold, never grow; a package with no row
 # holds at zero.
 def recorded()
   unlines(
     [
       "untested: deeta 3",
-      "untested: eigyou 5",
-      "untested: gitto 1",
+      "untested: eigyou 3",
       "untested: heni 2",
-      "untested: isshou 25",
-      "untested: kakehashi 35",
+      "untested: kakehashi 24",
       "untested: keiyu 1",
-      "untested: kiwari 14",
+      "untested: kiwari 5",
       "untested: koubou 10",
       "untested: kousei 1",
-      "untested: kueri 7",
+      "untested: kueri 6",
       "untested: mitoshi 11",
-      "untested: mokuroku 8",
+      "untested: mokuroku 6",
       "untested: okite 1",
       "untested: retsu 2",
       "untested: sabi 2",
       "untested: settei 5",
-      "untested: shinchoku 14",
-      "untested: shinsuu 1",
+      "untested: shinchoku 10",
       "untested: suugaku 4",
-      "untested: todokede 18",
-      "untested: toriyose 12",
+      "untested: todokede 16",
       "untested: touroku 3",
-      "untested: ukai 16"
+      "untested: ukai 15",
+      "unbranched: angou 5",
+      "unbranched: baito 7",
+      "unbranched: bunsho 67",
+      "unbranched: chozou 63",
+      "unbranched: deeta 95",
+      "unbranched: eigyou 48",
+      "unbranched: fairu 1",
+      "unbranched: gamen 17",
+      "unbranched: gitto 15",
+      "unbranched: happa 8",
+      "unbranched: heni 8",
+      "unbranched: hikisuu 5",
+      "unbranched: hizuke 1",
+      "unbranched: hon 31",
+      "unbranched: ibuki 1",
+      "unbranched: isshou 85",
+      "unbranched: junjo 1",
+      "unbranched: junni 2",
+      "unbranched: kaaneru 245",
+      "unbranched: kakehashi 194",
+      "unbranched: kazu 3",
+      "unbranched: keiyu 1",
+      "unbranched: khipu 22",
+      "unbranched: kiwari 14",
+      "unbranched: kodou 11",
+      "unbranched: koubou 39",
+      "unbranched: kousei 1",
+      "unbranched: koutei 1",
+      "unbranched: kueri 39",
+      "unbranched: kyohi 1",
+      "unbranched: mitoshi 3",
+      "unbranched: mokuroku 73",
+      "unbranched: okite 5",
+      "unbranched: ongaku 3",
+      "unbranched: retsu 5",
+      "unbranched: sabi 10",
+      "unbranched: saishikou 1",
+      "unbranched: seikika 46",
+      "unbranched: settei 16",
+      "unbranched: shinchoku 38",
+      "unbranched: shinsatsu 1",
+      "unbranched: shinsuu 2",
+      "unbranched: shisutemu 5",
+      "unbranched: shomei 1",
+      "unbranched: shuugou 1",
+      "unbranched: shuusei 5",
+      "unbranched: suugaku 16",
+      "unbranched: tesuto 8",
+      "unbranched: todokede 20",
+      "unbranched: toride 4",
+      "unbranched: toriyose 189",
+      "unbranched: touroku 8",
+      "unbranched: ukai 23",
+      "unbranched: utsushi 9"
     ]
   )
 end
@@ -106,13 +168,6 @@ def bidamas_root()
   end
 end
 
-def records_of(text)
-  map(
-    json_read,
-    filter((l) -> starts_with?(l, "{\"covered\""), split(text, line_break))
-  )
-end
-
 # One package measured: the names its tests do not reach, or blind when its
 # tests did not run green (no evidence is not a pass).
 def measure(exe, dir)
@@ -124,7 +179,8 @@ def measure(exe, dir)
     {
       package:,
       blind: false,
-      names: flat_map(records_of(json_get(cap, :stdout)), uncovered)
+      names: coverage_names(json_get(cap, :stdout)),
+      arms: coverage_arms(json_get(cap, :stdout))
     }
   end
 end
@@ -133,81 +189,33 @@ def measure_all(exe, root)
   map((d) -> measure(exe, d), sort_keyed((d) -> d, package_dirs(root)))
 end
 
-# Each package's verdict: off, green, red or blind, with the reason.
-def verdict(settled, rows, m)
-  pkg = m[:package]
-  if m[:blind]
-    b = beside(settled, pkg, [])
-    if b[:level] == :off
-      assoc(b, :verdict, :off)
-    elsif b[:level] == :enforce
-      assoc(assoc(b, :verdict, :red), :why, "its tests did not run green")
-    else
-      assoc(assoc(b, :verdict, :blind), :why, "its tests did not run green")
-    end
+@doc """
+policy: The policy `checks.test-beside` judges every bidama by (the Bluefile's `coverage("gen/test-beside.b")`), which `blue run gen/test-beside.b -- policy` prints: the entries, the waivers and the recorded debt.
+
+    policy[:recorded] == recorded #=> true
+"""
+def policy()
+  {entries: concat_lists(entries, waivers), recorded:}
+end
+
+def main()
+  if argv == ["policy"]
+    write_stdout(json_stringify(policy))
   else
-    b = beside(settled, pkg, m[:names])
-    n = size(b[:untested])
-    j = judge(rows, "untested", pkg, n)[:verdict]
-    grew = j == :grew or j == :unrecorded and n > 0
-    if b[:level] == :off
-      assoc(b, :verdict, :off)
-    elsif grew and b[:level] == :enforce
-      assoc(
-        assoc(b, :verdict, :red),
-        :why,
-        "#{to_s(n)} untested beyond the recorded debt: #{join(b[:untested], ", ")}"
-      )
-    else
-      assoc(b, :verdict, :green)
-    end
+    raise(:usage, "blue run gen/test-beside.b -- policy")
   end
 end
 
-# The whole judgement: every package's verdict, every refused entry and
-# every stale waiver. Red is any enforced red, any refused entry, any stale
-# waiver.
 def judge_all(entries, baseline, measured, day)
-  settled = settle(entries, day)
-  rows = parse(baseline)
-  verdicts = map((m) -> verdict(settled, rows, m), measured)
-  every_name = flat_map(measured, (m) -> m[:names] or [])
-  {
-    verdicts:,
-    refused: settled[:refused],
-    stale: stale(settled, every_name),
-    red: filter((v) -> v[:verdict] == :red, verdicts),
-    measurements: map(
-      (v) -> {key: v[:package], size: size(v[:untested])},
-      filter((v) -> v[:verdict] != :off, verdicts)
-    )
-  }
+  judge_coverage(entries, baseline, measured, day)
 end
 
 def red?(r)
-  r[:red] != [] or r[:refused] != [] or r[:stale] != []
+  coverage_red?(r)
 end
 
 def report(r, baseline)
-  lines = concat_lists(
-    concat_lists(
-      map((v) -> "❌ #{v[:package]}: #{v[:why]}", r[:red]),
-      map((x) -> "❌ entry #{to_s(x[:entry])} #{x[:why]}", r[:refused])
-    ),
-    map((w) -> "❌ waiver #{w[:name]} covers nothing; remove it", r[:stale])
-  )
-  down = shrunk(parse(baseline), "untested", r[:measurements])
-  hint = if down == []
-    ""
-  else
-    join_lines(
-      [
-        "debt shrank; record it in gen/test-beside.b:",
-        render("untested", filter((m) -> m[:size] > 0, r[:measurements]))
-      ]
-    )
-  end
-  join_lines([join(lines, line_break), hint])
+  coverage_report(r, baseline, "gen/test-beside.b")
 end
 
 def zed_root(source)
@@ -279,7 +287,13 @@ test "recorded debt holds, and growth past it is red"
   grew = zed_judged(
     entries,
     unlines(["untested: zed 1"]),
-    unlines(["test \"none\"", "  assert 1 == 1", "end"])
+    unlines(
+      [
+        "test \"none\"",
+        "  assert join([\"z\", \"ed\"], \"\") == \"zed\"",
+        "end"
+      ]
+    )
   )
   assert map((v) -> v[:why], grew[:red]) ==
     ["2 untested beyond the recorded debt: zed::lower, zed::upper"]
@@ -304,6 +318,12 @@ test "a waiver that covers nothing is stale and red"
   assert red?(r)
 end
 
+test "the policy printed for checks.test-beside is the entries, waivers and recorded debt"
+  p = json_read(json_stringify(policy))
+  assert size(p["entries"]) == size(entries) + size(waivers)
+  assert p["recorded"] == recorded
+end
+
 test "audit lists the gap without red, and off measures nothing"
   audit = zed_judged([level("*", :audit, "a trial")], "", lower_only)
   assert not red?(audit)
@@ -323,6 +343,13 @@ test "a package whose tests fail is blind, never green"
 end
 
 test "every bidama is tested beside its definitions, beyond the debt recorded"
+  skip_for(
+    if getenv("BLUE_TEST_BESIDE_CORPUS", "") == "on"
+      nil
+    else
+      "checks.test-beside judges the corpus from the bidama-test outputs; the pre-push gate sets BLUE_TEST_BESIDE_CORPUS=on to measure it here"
+    end
+  )
   r = judge_all(
     concat_lists(entries, waivers),
     recorded,

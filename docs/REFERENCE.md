@@ -103,7 +103,7 @@ Higher binding power binds tighter.
 
 ## Built-in names
 
-399 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 196 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
+399 names are bound in every program, with no `use`. Arity is what the runtime declares: `2`, `1..3` (one to three), `1+` (one or more). A further 197 bound names cannot head a blue call: tatara-lisp's kebab-case words, and the reserved words described above.
 
 ### Forms
 
@@ -680,6 +680,8 @@ A Bluefile is a blue program that may call only these words.
 | `generate(name, output, program[, inputs])` | A committed file and the program that writes it (to $GEN_OUT): `packages.generated-<name>` and a freshness check. `inputs` lists the project paths the program reads, found under $GEN_ROOT. |
 | `rule(code, file, def[, severity])` | A project check rule: `blue check` calls the blue definition `def` in `file` on each top-level form of every file under the project, under a pure frame, and reports its findings under `code` (letters then four digits, never B); severity "error" (default) or "warning". |
 | `catalog(path)` | Where the mokuroku catalogue of the `packages` roots is committed; gated fresh. |
+| `coverage(file)` | The program that holds the project's coverage policy for `checks.test-beside`: `blue run file -- policy` prints `{entries, recorded}` (tesuto `level` and `waive` entries, and hadome `untested: <pkg> <n>` rows of recorded debt). With none, every package is held at enforce with no debt. |
+| `skip(gate, why)` | Configures one default gate off for this project, with the reason: `skip("test-beside", "…")`. The gate's code and its tests stay; the lock records the skip and its reason, and a gate blue does not give every project is refused. |
 | `image(name, spec)` | An OCI image of one of the project's programs, built by nix as `packages.image-<name>` on substrate's hardened bases: distroless unless `shell` or `tools` is declared with its `reason`. |
 | `workload(name, spec)` | A Deployment (and Service) for an image, rendered to the committed file `output` (default `deploy/<name>.yaml`) and gated fresh; applying it is GitOps, `blue diff` compares it with a cluster. |
 | `service(name, spec)` | An HTTP service from one of the project's programs: its runnable closure `packages.<name>`, its image through substrate's mkHardenedImageSet, its module trio, and the committed `output` tree (default `deploy/<name>`) of a Helm chart with a generated values.schema.json, its settings' defaults and schema, and with a `schema`, its additive SQL and shinka migration; every file gated fresh. |
@@ -776,3 +778,10 @@ Every rule blue holds, from the registry the check stage runs (`blue explain COD
 | `B0082` | strict-signature | in a `blueshift(:strict)` file every top-level function is typed: its signature annotates a parameter or its return | refused |
 | `B0083` | untested-effect-point | a definition that names a host builtin outside the ambient set (network, process, entropy and the other non-ambient capabilities) is reached by a test of its own file declared `kind: :integration` | refused |
 | `B0084` | untested-seam-point | a definition that calls an imported word whose reach names a non-ambient host builtin is reached by a test of its own file declared `kind: :integration` | refused |
+| `B0085` | untested-rendering | the program of a Bluefile `generate` row holds a test declared `kind: :rendering` | refused |
+| `B0086` | untested-service | the program of a Bluefile `service(...)` row holds a test declared `kind: :e2e` | refused |
+| `B0087` | untested-binding | a service whose row binds a `cache` or a `schema` holds a test of its program declared `kind: :contract` | refused |
+| `B0088` | assertionless-test | a test of a bidama reaches an assertion: an `assert`, an `assert_panics` or a `tesuto::snapshot` | refused |
+| `B0089` | tautological-assertion | a test of a bidama asserts something the code could fail: never a bare literal, never one expression compared with itself | refused |
+| `B0090` | untargeted-definition | each definition of a bidama is named by a test of its file: called, referenced, or its `target:` | refused |
+| `B0091` | unexpected-raise | each tag a definition of a bidama raises is named by a test of its file, the way a test expects it | refused |

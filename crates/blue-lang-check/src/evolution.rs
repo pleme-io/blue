@@ -220,6 +220,14 @@ pub const GAPS: &[Gap] = &[
         code: Code::B0052,
         why: "operation text becomes a root fragment and its components' fragments, a restructuring no edit derives from the text",
     },
+    Gap {
+        code: Code::B0090,
+        why: "a test that names a definition says what it must answer, which a person chooses",
+    },
+    Gap {
+        code: Code::B0091,
+        why: "a test that expects a refusal names the input that causes it, which a person chooses",
+    },
 ];
 
 /// The evolution rules that block a program: ratcheted, error severity.

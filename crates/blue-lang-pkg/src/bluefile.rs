@@ -153,6 +153,14 @@ pub struct Project {
     pub apps: BTreeMap<String, Program>,
     /// `catalog(path)` — where the catalogue of `packages` is committed.
     pub catalog: Option<String>,
+    /// `coverage(file)`: the program holding the policy `checks.test-beside`
+    /// judges by.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub coverage: Option<String>,
+    /// `skip(gate, why)`: default gates configured off, each with its
+    /// reason.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub skips: BTreeMap<String, String>,
     /// `generate(name, output, program)`: a committed file a blue program
     /// writes. Skipped when empty, so the locks of packages that generate
     /// nothing keep their bytes.
@@ -343,6 +351,24 @@ pub fn is_control_id(text: &str) -> bool {
     let mut bytes = text.bytes();
     bytes.next().is_some_and(|b| b.is_ascii_uppercase())
         && bytes.all(|b| b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'_')
+}
+
+/// The gates blue gives every project by default, which `skip(gate, why)` may
+/// configure off.
+pub const DEFAULT_GATES: &[&str] = &["test-beside"];
+
+fn skip_of(gate: &str, why: &str) -> Result<(), crate::deploy::SpecError> {
+    use crate::deploy::SpecError;
+    if !DEFAULT_GATES.contains(&gate) {
+        return Err(SpecError::UnknownField {
+            field: gate.to_string(),
+            allowed: DEFAULT_GATES,
+        });
+    }
+    if why.trim().is_empty() {
+        return Err(SpecError::Missing { field: "why" });
+    }
+    Ok(())
 }
 
 fn receipt_of(controls: Vec<String>) -> Result<Receipt, crate::deploy::SpecError> {
@@ -1015,6 +1041,32 @@ const WORDS: &[Word] = &[
         record: |c, into| {
             let path = c.path(0, "path")?;
             set_once(&mut into.project.catalog, c.word, path.clone(), path)
+        },
+    },
+    Word {
+        name: "coverage",
+        signature: "coverage(file)",
+        doc: "The program that holds the project's coverage policy for `checks.test-beside`: `blue run file -- policy` prints `{entries, recorded}` (tesuto `level` and `waive` entries, and hadome `untested: <pkg> <n>` rows of recorded debt). With none, every package is held at enforce with no debt.",
+        min: 1,
+        max: 1,
+        record: |c, into| {
+            let path = c.path(0, "file")?;
+            set_once(&mut into.project.coverage, c.word, path.clone(), path)
+        },
+    },
+    Word {
+        name: "skip",
+        signature: "skip(gate, why)",
+        doc: "Configures one default gate off for this project, with the reason: `skip(\"test-beside\", \"…\")`. The gate's code and its tests stay; the lock records the skip and its reason, and a gate blue does not give every project is refused.",
+        min: 2,
+        max: 2,
+        record: |c, into| {
+            let gate = c.text(0, "gate")?;
+            let why = c.text(1, "why")?;
+            match skip_of(&gate, &why) {
+                Ok(()) => insert_once(&mut into.project.skips, c.word, gate, why),
+                Err(error) => refuse(into, c.word, gate, error),
+            }
         },
     },
     Word {
@@ -1736,6 +1788,8 @@ mod tests {
             // 2026-11-05: a bidama moved into this root's tree (B0074).
             .chain(["legacy_packages"])
             .chain(["verify"])
+            // T2, 2026-11-13: the coverage policy and a default gate's skip.
+            .chain(["coverage", "skip"])
             // P1b's list argument, 2026-09-23 — `Capability::Collections`.
             .chain(["list", blue_lang_syntax::LOWERED_MAP])
             .chain([
@@ -2595,6 +2649,31 @@ mod tests {
         );
         let v = serde_json::to_value(project_of("tool(\"jq\")")).expect("json");
         assert!(v.get("queries").is_none(), "{v}");
+    }
+
+    /// **A default gate is configured off only by a typed skip with its
+    /// reason, and the policy program is recorded.** A skip of a gate blue
+    /// does not give every project, or with no reason, is refused, and its
+    /// siblings stand.
+    #[test]
+    fn coverage_and_skip_record_the_policy_and_the_reason_a_gate_is_off() {
+        let p = project_of(
+            "coverage(\"gen/test-beside.b\")\nskip(\"test-beside\", \"the fixture has no packages\")",
+        );
+        assert_eq!(p.coverage.as_deref(), Some("gen/test-beside.b"));
+        assert_eq!(p.skips["test-beside"], "the fixture has no packages");
+        let bare =
+            serde_json::to_value(project_of("check(\"docs\", \"gen/docs.b\")")).expect("json");
+        assert!(
+            bare.get("skips").is_none() && bare.get("coverage").is_none(),
+            "{bare}"
+        );
+        let err = refusal_of("skip(\"tests\", \"w\")\nskip(\"test-beside\", \"\")").to_string();
+        assert!(
+            err.contains("skip(\"tests\"") && err.contains("test-beside"),
+            "{err}"
+        );
+        assert!(err.contains("`why` is required"), "{err}");
     }
 
     #[test]

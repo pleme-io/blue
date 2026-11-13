@@ -202,6 +202,10 @@ impl Loader for Recording<'_> {
         self.inner.frontend(entry)
     }
 
+    fn roles(&self, entry: &Path) -> Vec<crate::uses::Role> {
+        self.inner.roles(entry)
+    }
+
     fn children(&self, name: &str) -> Vec<String> {
         let below = self.inner.children(name);
         if !below.is_empty() {

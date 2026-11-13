@@ -1171,6 +1171,13 @@ fn check_stage_in(
         outcome
             .diagnostics
             .extend(declared_capabilities(forms, &is_entry));
+        outcome
+            .diagnostics
+            .extend(blue_lang_check::points::project_points(
+                forms,
+                &is_entry,
+                &project_points_of(program.roles()),
+            ));
     }
     outcome
         .diagnostics
@@ -1236,9 +1243,10 @@ fn check_stage_in(
         .partition(|w| blue_lang_check::obligations::of_code(w.code).is_some());
     outcome.waived = blue_lang_check::waiver::apply(&mut outcome.diagnostics, waivers, &is_entry);
     let points_found = with_tests
-        && program
-            .file(ResolvedProgram::ENTRY)
-            .is_some_and(|f| f.package.is_some());
+        && (!program.roles().is_empty()
+            || program
+                .file(ResolvedProgram::ENTRY)
+                .is_some_and(|f| f.package.is_some()));
     if points_found {
         outcome.waived.extend(blue_lang_check::waiver::apply(
             &mut outcome.diagnostics,
@@ -1531,7 +1539,7 @@ fn point_diagnostics(
     let forms = program.forms();
     let resolved =
         blue_lang_check::names::resolve_program(forms, table, &|i| namespace_of(program, i));
-    blue_lang_check::points::check(&blue_lang_check::points::Program {
+    let p = blue_lang_check::points::Program {
         forms,
         references: &resolved.references,
         is_entry: &|i| {
@@ -1540,7 +1548,39 @@ fn point_diagnostics(
         },
         namespace_of: &|i| namespace_of(program, i),
         point_capability: &point_capability,
-    })
+    };
+    let mut out = blue_lang_check::points::check(&p);
+    out.extend(blue_lang_check::points::strength(&p));
+    out.extend(blue_lang_check::points::reach(&p));
+    out
+}
+
+/// The points a file's project roles make, each with the test kind it owes
+/// and the code that refuses it.
+fn project_points_of(roles: &[crate::uses::Role]) -> Vec<blue_lang_check::points::ProjectPoint> {
+    use crate::uses::Role;
+    use blue_lang_check::points::ProjectPoint;
+    use blue_lang_check::Code;
+    roles
+        .iter()
+        .map(|r| match r {
+            Role::Generator(n) => ProjectPoint {
+                what: format!("the program of generate(\"{n}\", …)"),
+                kind: "rendering",
+                code: Code::B0085,
+            },
+            Role::Service(n) => ProjectPoint {
+                what: format!("the program of service(\"{n}\", …)"),
+                kind: "e2e",
+                code: Code::B0086,
+            },
+            Role::Binding(n, b) => ProjectPoint {
+                what: format!("the program of service(\"{n}\", …), which binds a {b}"),
+                kind: "contract",
+                code: Code::B0087,
+            },
+        })
+        .collect()
 }
 
 /// B0069 for every capability a test's `allow:` names that is not a host

@@ -386,16 +386,21 @@ test "any other path is not found"
   assert get(handle(settings, kyuuji::request("GET", "/x", "")), :status) ==
     404
 end
+
+test "the service answers its root over loopback", {kind: :e2e, allow: [:network]}
+  assert kyuuji::served("/", "/healthz", (req) -> handle(settings, req)) == 200
+end
 ```
 
 The handler is a function from a request to a response, so the tests call
-it directly. Lock the declaration and run the tests:
+it directly. The last test is the service's end-to-end test: `kyuuji::served`
+serves one request on a loopback port and answers its status. Lock the declaration and run the tests:
 
 ```console
 $ blue lock .
 ./Bluefile.lock: 0 source(s) pinned
 $ blue test hello.b
-3 test(s): 3 passed, 0 failed
+4 test(s): 4 passed, 0 failed
 ```
 
 The `haibi` bidama renders the declaration into everything that ships the
@@ -1809,13 +1814,17 @@ test "the root answers, and anything else is not found"
   assert handle(kyuuji::request("GET", "/", ""))[:status] == 200
   assert handle(kyuuji::request("GET", "/x", ""))[:status] == 404
 end
+
+test "the agent answers its root over loopback", {kind: :e2e, allow: [:network]}
+  assert kyuuji::served("/", "/healthz", handle) == 200
+end
 ```
 
 ```console
 $ blue lock .
 ./Bluefile.lock: 0 source(s) pinned
 $ blue test agent.b
-2 test(s): 2 passed, 0 failed
+3 test(s): 3 passed, 0 failed
 ```
 
 This program shows what the declaration renders:

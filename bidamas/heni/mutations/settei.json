@@ -10,5 +10,41 @@
     "file": "settei.b",
     "find": "deeta::parse(read_file(path), format)",
     "replace": "deeta::parse(read_file(path), :json)"
+  },
+  {
+    "name": "the environment is read before the file",
+    "file": "settei.b",
+    "find": "def layers()\n  %i[file env flag]",
+    "replace": "def layers()\n  %i[env file flag]"
+  },
+  {
+    "name": "a value under its floor stands",
+    "file": "settei.b",
+    "find": "k[:min] != nil and v < k[:min] or",
+    "replace": "k[:min] != nil and v < k[:min] - 1000000 or"
+  },
+  {
+    "name": "a layer outside set_by still sets the knob",
+    "file": "settei.b",
+    "find": "elsif not member?(layer, k[:set_by])",
+    "replace": "elsif false"
+  },
+  {
+    "name": "a secret is shown",
+    "file": "settei.b",
+    "find": "def shown_value(k, v)\n  if k[:secret]",
+    "replace": "def shown_value(k, v)\n  if false"
+  },
+  {
+    "name": "every knob gets a flag",
+    "file": "settei.b",
+    "find": "def by_flag?(k)\n  member?(:flag, k[:set_by])",
+    "replace": "def by_flag?(k)\n  true"
+  },
+  {
+    "name": "the frame's positionals count as unmodelled",
+    "file": "settei.b",
+    "find": "append(%w[command help], map((s) -> to_s(s[:name]), slots), own)",
+    "replace": "append(%w[command help], own)"
   }
 ]

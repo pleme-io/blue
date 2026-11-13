@@ -1,12 +1,15 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:e446123867075386d4ac74ac1fc15c0f8b914806b7937aef60e094d34c4b964e",
+  "bluefile_b3": "b3:61faf07a82cb21443309aaf352d1e15e336e3d57acfa1fbf230511430818e673",
   "manifest": {
     "schema": 1,
     "name": "settei",
     "version": "0.1.1",
     "needs": {
       "deeta": "^0.1.0",
+      "hikisuu": "^0.1.0",
+      "jisho": "^0.1.0",
+      "kousei": "^0.1.0",
       "kyohi": "^0.1.0",
       "moji": "^0.1.0",
       "retsu": "^0.1.0"

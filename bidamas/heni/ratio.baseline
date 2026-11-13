@@ -1,5 +1,6 @@
 # receipt: umu: the Option bidama (ABSENCE P1)
 # receipt: settei: the form loop on a terminal (CORE-MODEL P7b)
+# receipt: haibi: NetworkPolicy from access and RuntimeDefault seccomp (SERVICE-ACCESS A2, CORE-MODEL M3 at deploy)
 heni-caught: baito 7
 heni-total: baito 7
 heni-caught: bunsho 6
@@ -10,8 +11,8 @@ heni-caught: deeta 13
 heni-total: deeta 13
 heni-caught: eigyou/bougyo 5
 heni-total: eigyou/bougyo 5
-heni-caught: eigyou/haibi 10
-heni-total: eigyou/haibi 10
+heni-caught: eigyou/haibi 12
+heni-total: eigyou/haibi 12
 heni-caught: eigyou/heddaa 20
 heni-total: eigyou/heddaa 20
 heni-caught: eigyou/kyuuji 30

@@ -58,5 +58,17 @@
     "file": "haibi.b",
     "find": "  with_replicas = if per_node?(svc)\n    base",
     "replace": "  with_replicas = if false\n    base"
+  },
+  {
+    "name": "the NetworkPolicy declares no egress type, so egress stays open",
+    "file": "haibi.b",
+    "find": "        \"    - Ingress\",\n        \"    - Egress\"",
+    "replace": "        \"    - Ingress\""
+  },
+  {
+    "name": "a pod runs with no seccomp profile",
+    "file": "haibi.b",
+    "find": "\"seccompProfile\" => {\"type\" => \"RuntimeDefault\"}",
+    "replace": "\"seccompProfile\" => nil"
   }
 ]

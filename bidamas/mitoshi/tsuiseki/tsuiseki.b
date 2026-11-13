@@ -185,6 +185,7 @@ def otlp_body(service, spans)
   }
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 ship: POST spans to an OTLP/HTTP collector's /v1/traces; a failure is logged, never raised.
 

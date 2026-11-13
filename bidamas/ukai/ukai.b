@@ -273,6 +273,7 @@ def fill(s)
   )
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 def capture(argv)
   cap = exec_capture(*argv) rescue nil
   if cap.nil?

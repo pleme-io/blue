@@ -249,16 +249,18 @@ obligations! {
         when: "a definition that names a network, process or other host builtin outside the ambient set (filesystem, environment, clock)",
         evidence: Integration,
         detector: Static,
-        refusal: Design("TESTING T4"),
+        refusal: Code(Code::B0083),
         profile: Default,
+        held: 96,
         owner: "TESTING.md section 5, T4",
     }
     "point/seam" {
         when: "a definition that calls an imported word which names such a builtin",
         evidence: Integration,
         detector: Static,
-        refusal: Design("TESTING T4"),
+        refusal: Code(Code::B0084),
         profile: Default,
+        held: 22,
         owner: "TESTING.md section 5, T4",
     }
     "point/rendering" {

@@ -957,6 +957,7 @@ def read_term(text)
   read_node(chars(text), 0, STORE_SCOPE, %i[iri blank literal])[:v]
 end
 
+# waive B0084: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches this seam yet
 @doc """
 ask: The answers of a question over a store, each a map from variable name to term, distinct and ordered. More rows than the budget is refused as `:khipu_budget`, naming the bound, never a partial answer; an empty store answers [], and a store DuckDB cannot read raises `:kueri_query`.
 

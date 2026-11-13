@@ -897,6 +897,7 @@ def persisted_body(doc, variables)
   end
 end
 
+# waive B0084: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches this seam yet
 @doc """
 request: run an operation on a server by its persisted hash only.
 
@@ -1226,6 +1227,7 @@ def waited(path, tries)
   end
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 hanabi_double starts the stand-in server for a reply in its own process, and gives the directory it writes to.
 

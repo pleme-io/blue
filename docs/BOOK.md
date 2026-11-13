@@ -513,6 +513,7 @@ def frame(protocol)
   append(*[repeat(0, 23), [protocol], repeat(0, 10)])
 end
 
+# waive B0084: main attaches to a live interface; the real-kernel test installs and runs the same program
 def main()
   index = to_int(trim(read_file("/sys/class/net/#{first(argv)}/ifindex")))
   attached(
@@ -548,7 +549,10 @@ test "on the machine, a frame too short for the field is passed and not counted"
   assert bpf::map_int(st, :counts, 0) == 0
 end
 
-test "on a real kernel, the program decides as the machine decides"
+test "on a real kernel, the program decides as the machine decides", {
+  kind: :integration,
+  allow: %i[clock environment filesystem kernel_bpf process]
+}
   skip_for(kernel_absence)
   live = install(program)
   assert kaaneru::run(live[:prog], {packet: frame(ICMP)})[:ret] == xdp_drop

@@ -1421,7 +1421,7 @@ different key from `{a: 1}`, so map keys and text are never reported.",
         slug: "test-declaration-order",
         severity: Error,
         fix: Machine,
-        law: "a test's declaration is written `satisfies` then `target`, its controls sorted: `{satisfies: %i[nist_ac_6 nist_cm_7], target: f}`",
+        law: "a test's declaration is written `satisfies`, `target`, `kind`, `allow`, `fakes`, each list sorted: `{satisfies: %i[nist_ac_6 nist_cm_7], target: f}`",
         witness: "test \"t\", {satisfies: %i[nist_cm_7 nist_ac_6]}\n  assert true\nend\n",
         waivable: false,
         explanation: "\
@@ -1438,7 +1438,7 @@ written order changes nothing a test reports.",
         slug: "test-declaration",
         severity: Error,
         fix: None,
-        law: "a test satisfies controls the catalog table names (`:nist_ac_6` is NIST_SP_800_53R5_AC_6) and targets a definition of the program",
+        law: "a test satisfies controls the catalog table names (`:nist_ac_6` is NIST_SP_800_53R5_AC_6), targets a definition of the program and allows only host capabilities blue names",
         witness: "test \"t\", {satisfies: [:nist_zz_1]}\n  assert true\nend\n",
         waivable: false,
         explanation: "\
@@ -1453,7 +1453,12 @@ control enhancement: `:nist_ac_6` is NIST SP 800-53 Rev. 5 AC-6, and
 `:nist_ac_6_1` is AC-6(1). The table is
 `blue_lang_check::controls::CATALOGS`, read by `controls::oscal_id`, the one
 mapping every door uses. A target is a `def` of the file or of a bidama it
-uses, written as a call would name it: `parse_token`, `moji::split`.",
+uses, written as a call would name it: `parse_token`, `moji::split`.
+
+A test's `allow:` lists the host capabilities it runs held to, by their
+labels in snake case (`:network`, `:comm_flash`); the harness holds the test
+to exactly that frame, so a word that names no capability would hold it to
+nothing it meant.",
     }
     B0070 {
         slug: "reimplemented-word",
@@ -1753,6 +1758,60 @@ and returns any value. A lambda and a nested `def` are not asked. The position
 binds the file that declares it and nothing else: a script that `use`s a
 strict bidama stays at whatever rung it is written at.
 Waive one definition with `# waive B0082: reason`.",
+    }
+    B0083 {
+        slug: "untested-effect-point",
+        severity: Error,
+        fix: None,
+        law: "a definition that names a host builtin outside the ambient set (network, process, entropy and the other non-ambient capabilities) is reached by a test of its own file declared `kind: :integration`",
+        witness: "@moduledoc \"\"\"\nkagi asks the machine for the date.\n\n    1 + 1 #=> 2\n\"\"\"\n\n@doc \"\"\"\nkagi runs `date` and answers what it printed.\n\n    1 + 1 #=> 2\n\"\"\"\ndef kagi()\n  exec_capture(\"date\")\nend\n",
+        package: "kagi",
+        explanation: "\
+An integration point is a place a program meets the world (docs/TESTING.md
+section 5). A definition that names a host builtin of the network, process,
+entropy, comm, mpc, storage-append, audio, display or kernel-bpf capability
+is one. The filesystem, the environment and the clock are ambient: a unit test
+reaches them through a scratch directory, a set variable and `now` passed in.
+
+The test that discharges the point lives in the same file, declares its
+kind and what it touches, and reaches the point, directly or through a
+caller:
+
+    test \"kagi reads a date\", {kind: :integration, allow: [:process]}
+      assert kagi() != \"\"
+    end
+
+A test declared `kind: :e2e` discharges it too. The rule runs wherever tests
+are checked (`blue check`, `blue test`, the language server, pre-push and
+every bidama build), so the point is refused the moment it is written. A
+script, a file with no bidama around it, owes nothing.
+
+Debt is `# waive B0083: reason` above the definition. `blue census` counts
+those waivers against the obligation row's `held`
+(`blue_lang_check::obligations`, `point/effect`), so a new waiver and a paid
+one are both reviewed edits.",
+    }
+    B0084 {
+        slug: "untested-seam-point",
+        severity: Error,
+        fix: None,
+        law: "a definition that calls an imported word whose reach names a non-ambient host builtin is reached by a test of its own file declared `kind: :integration`",
+        witness: "@moduledoc \"\"\"\nkagi asks hito for the date.\n\n    1 + 1 #=> 2\n\"\"\"\n\nuse(\"hito\", [:ask])\n\n@doc \"\"\"\nkagi answers what hito asked.\n\n    1 + 1 #=> 2\n\"\"\"\ndef kagi()\n  ask\nend\n",
+        imports: [("hito", "def ask()\n  exec_capture(\"date\")\nend\n")],
+        package: "kagi",
+        explanation: "\
+A seam is the use of a bidama word that reaches the host: the caller meets
+the world through it, so the caller is an integration point of its own file
+(docs/TESTING.md section 5). The rule follows the imported word's reach
+through the program until it names a host builtin outside the ambient set
+(B0083 lists the set).
+
+The test that discharges the point declares `kind: :integration` (or
+`kind: :e2e`), lives in the caller's file and reaches the caller. Its
+outside side is a declared fake or fixture.
+
+Debt is `# waive B0084: reason` above the definition, counted by `blue
+census` against the row `point/seam`.",
     }
 }
 

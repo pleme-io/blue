@@ -83,8 +83,8 @@ it; `blue explain --list` lists them.
 | B0065 | newline-escape | error | text of several lines is written as its lines: `join_lines([a, b])`, `unlines([a, b])` when it ends in a newline, `line_break` alone; never a `\n` escape in a string |
 | B0066 | index | error | a key or position is read with brackets: `m[:k]` for `get(m, :k)`, `xs[i]` for `nth(i, xs)` |
 | B0067 | name-as-string | error | a name a builtin reads as text is a keyword, not a string: `error(:kind, m)`, `json_get(doc, :field)`, `json_get_or(doc, :field, d)` |
-| B0068 | test-declaration-order | error | a test's declaration is written `satisfies` then `target`, its controls sorted: `{satisfies: %i[nist_ac_6 nist_cm_7], target: f}` |
-| B0069 | test-declaration | error | a test satisfies controls the catalog table names (`:nist_ac_6` is NIST_SP_800_53R5_AC_6) and targets a definition of the program |
+| B0068 | test-declaration-order | error | a test's declaration is written `satisfies`, `target`, `kind`, `allow`, `fakes`, each list sorted: `{satisfies: %i[nist_ac_6 nist_cm_7], target: f}` |
+| B0069 | test-declaration | error | a test satisfies controls the catalog table names (`:nist_ac_6` is NIST_SP_800_53R5_AC_6), targets a definition of the program and allows only host capabilities blue names |
 | B0070 | reimplemented-word | warning | a definition of 12 or more nodes is not a catalogue word's shape: it uses the word, or waives this rule with its reason |
 | B0071 | evaluator-name | error | a definition is not named for a word the evaluator answers first: a word syntax lowers to (`list`, `concat`, `apply`, `equal?`, `mod`, `join_lines`, `unlines`, `line_break`) or a special form |
 | B0072 | call-arity | error | a call to a definition passes a number of arguments that definition takes |
@@ -97,6 +97,8 @@ it; `blue explain --list` lists them.
 | B0080 | return-position | error | a `return` ends a branch of an `if` or `case` that is a statement of a def body, where it is rewritten into if/else |
 | B0081 | union-arms | error | a `case` whose `when` arms test a union's records names every arm of that union, or has an `else` |
 | B0082 | strict-signature | error | in a `blueshift(:strict)` file every top-level function is typed: its signature annotates a parameter or its return |
+| B0083 | untested-effect-point | error | a definition that names a host builtin outside the ambient set (network, process, entropy and the other non-ambient capabilities) is reached by a test of its own file declared `kind: :integration` |
+| B0084 | untested-seam-point | error | a definition that calls an imported word whose reach names a non-ambient host builtin is reached by a test of its own file declared `kind: :integration` |
 
 The registry is the source of truth: `gen/diagnostics.b` renders this table
 from `blue reference`, which reads `RULES`, into this page, whose prose lives
@@ -135,8 +137,8 @@ capabilities, effects, errors, observability, lifecycle) adds a row here.
 | reach/target | a public definition no test names directly (`target:` or a call in a test body) | unit | static | design: COVERAGE CV3: a static rule over the test bodies; the corpus count sets its ratchet | default | 0 |
 | reach/doctest | an `@doc` example | unit | dynamic | design: COVERAGE CV3: doctests run today (B0057 forces the example); a failing doctest is a red test, not yet a registry finding | default | 0 |
 | reach/dead | a definition reachable from neither an entry point nor a test | unit | static | design: COVERAGE CV3: needs the call graph from every entry point | default | 0 |
-| point/effect | a definition that names a network, process or other host builtin outside the ambient set (filesystem, environment, clock) | integration | static | design: TESTING T4 | default | 0 |
-| point/seam | a definition that calls an imported word which names such a builtin | integration | static | design: TESTING T4 | default | 0 |
+| point/effect | a definition that names a network, process or other host builtin outside the ambient set (filesystem, environment, clock) | integration | static | B0083 | default | 96 |
+| point/seam | a definition that calls an imported word which names such a builtin | integration | static | B0084 | default | 22 |
 | point/rendering | the program of a Bluefile `generate` row | rendering | project | design: TESTING T4 | default | 0 |
 | point/service | the program of a Bluefile `service(...)` row | e2e | project | design: TESTING T4 | service | 0 |
 | point/binding | a `cache`, `schema` or `http` binding of a `service(...)` row | contract | project | design: TESTING T4 | service | 0 |

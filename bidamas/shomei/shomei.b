@@ -619,6 +619,16 @@ end
 #   - verify_message ORed with true: 1 red, the round-trip controls. The RFC
 #     vectors stayed green, since a vector only ever asks for a yes.
 
+test "random draws the bytes it is asked for from the host, each 0 to 255", {
+  kind: :integration,
+  allow: [:entropy]
+}
+  bytes = random(64)
+  assert size(bytes) == 64
+  assert filter((b) -> b < 0 or b > 255, bytes) == []
+  assert random(0) == []
+end
+
 test "the empty message: the official BLAKE3 vector and RFC 8032 TEST 1"
   assert hash_message("") ==
     "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262"

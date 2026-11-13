@@ -156,6 +156,7 @@ def parse_one(part)
   end
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 git_stdin runs git in `repo` with `input` on its standard input and gives its trimmed output.
 
@@ -180,6 +181,7 @@ def entry_of(line)
   {mode: meta[0], type: meta[1], id: meta[2], name: drop_chars(line, tab + 1)}
 end
 
+# waive B0084: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches this seam yet
 @doc """
 entries is every entry of one tree, read with `git ls-tree`.
 
@@ -213,6 +215,7 @@ def mktree(repo, es)
   git_stdin(repo, unlines(map(entry_line, es)), ["mktree"])
 end
 
+# waive B0084: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches this seam yet
 @doc """
 subtree is the id of the directory at `path` in a tree, or nil when there is none there.
 
@@ -329,6 +332,7 @@ def header_value(lines, key)
   end
 end
 
+# waive B0084: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches this seam yet
 @doc """
 commit_parts is a commit's tree, author, committer, signature flag and exact message.
 
@@ -350,6 +354,7 @@ def commit_parts(repo, c)
   }
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 commit_tree writes a commit of `tree` on `parents` with the author, committer and message of `parts`, and gives its id.
 
@@ -453,6 +458,7 @@ def step(repo, lens, msg_file, state, row)
   }
 end
 
+# waive B0084: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches this seam yet
 @doc """
 project: The history of `source` seen through `lens`, written to the ref `target`. Returns the new head (nil when the lens kept nothing), how many commits were read, how many were written, and how many signatures were dropped. `opts` names the signature policy, and only `{signatures: :drop}` is built: a rewritten commit's old signature cannot verify.
 
@@ -492,6 +498,7 @@ def project(repo, lens, source, target, opts)
   }
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 at_fixed_time runs git in `repo` as the fixture's author and committer at 1700000000 +0000, so the commits it writes have the same ids on every machine.
 
@@ -528,6 +535,7 @@ def fixed_commit(repo, files, message)
   at_fixed_time(repo, ["commit", "-q", "-m", message])
 end
 
+# waive B0084: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches this seam yet
 @doc """
 josh_fixture is a fresh repository holding the four fixed-time commits the Josh ids were recorded on.
 
@@ -547,6 +555,7 @@ def josh_fixture(name)
   r
 end
 
+# waive B0084: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches this seam yet
 @doc """
 log_of is the commit ids reachable from `ref`, newest first.
 

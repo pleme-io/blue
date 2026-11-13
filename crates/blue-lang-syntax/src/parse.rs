@@ -790,7 +790,7 @@ pub fn keyword_doc(word: &str) -> &'static str {
         "quote" => "`quote … end`: the form itself as data, not its value. Used inside `defmacro`.",
         "unquote" => "`unquote(x)`: inside `quote`, splice in the value of `x`.",
         "unquote_splice" => "`unquote_splice(xs)`: inside `quote`, splice the items of the form `xs` in place, not the form itself.",
-        "test" => "`test \"what must hold\" … end`: a test block, run by `blue test` and ignored by `blue run`. `test \"n\", {satisfies: [:nist_ac_6], target: f}` declares the controls it verifies and the definition it targets (B0068, B0069).",
+        "test" => "`test \"what must hold\" … end`: a test block, run by `blue test` and ignored by `blue run`. `test \"n\", {satisfies: [:nist_ac_6], target: f, kind: :integration, allow: [:network], fakes: [:valkey]}` declares the controls it verifies, the definition it targets, its kind, the host capabilities it runs held to and the fakes it stands up (B0068, B0069).",
         "assert" => "`assert expr`: inside a test, fail it unless `expr` is truthy; the failure quotes the expression.",
         "assert_panics" => "`assert_panics expr`: inside a test, pass only when `expr`, run in a child held to a pure frame, ends on a capability breach with no host call made.",
         "fn" => "`fn(x) x * 2 end`: an anonymous function, a value. Blue has no brace or do blocks.",
@@ -2916,18 +2916,24 @@ impl Parser {
         Ok(list_at(self.span_since(head.start), items))
     }
 
-    /// `{satisfies: %i[nist_ac_6 nist_cm_7], target: parse_token}` after a
-    /// test's name => `(blue-test-meta (hash-map :satisfies (list :nist_ac_6
-    /// :nist_cm_7) :target parse_token))`.
+    /// `{satisfies: %i[nist_ac_6 nist_cm_7], target: parse_token, kind:
+    /// :integration, allow: [:network], fakes: [:valkey]}` after a test's name
+    /// => `(blue-test-meta (hash-map :satisfies (list :nist_ac_6 :nist_cm_7)
+    /// :target parse_token :kind :integration :allow (list :network) :fakes
+    /// (list :valkey)))`.
     ///
-    /// The map literal's own tree, in one order: `satisfies` then `target`,
-    /// the controls sorted, so one declaration is one tree whatever order it
-    /// was written in (B0068 names the other orders). A control is a keyword
-    /// and the check stage reads it against the catalog table (B0069); a
-    /// target is a name, resolved like any reference but never called.
+    /// The map literal's own tree, in one order: the keys as
+    /// [`crate::test_form::TEST_KEYS`] lists them, each list sorted, so one
+    /// declaration is one tree whatever order it was written in (B0068 names
+    /// the other orders). A control is a keyword the check stage reads
+    /// against the catalog table (B0069); a target is a name, resolved like
+    /// any reference but never called; a kind is one of
+    /// [`crate::test_form::TEST_KINDS`]; a capability in `allow:` is read
+    /// against the host capabilities by the check stage (B0069).
     fn test_declaration(&mut self) -> Result<Spanned, Fail> {
+        use crate::test_form::{TEST_KEYS, TEST_KINDS};
         const SHAPE: &str = "a test's declaration is a map: \
-                             `test \"name\", {satisfies: %i[nist_ac_6], target: parse_token}`";
+                             `test \"name\", {kind: :integration, allow: [:network], target: fetch}`";
         let open = self.peek_span();
         if !self.eat(&TokenKind::LBrace) {
             return Err(fail(SHAPE, open));
@@ -2941,13 +2947,14 @@ impl Parser {
         };
         if items.len() == 1 {
             return Err(fail(
-                "an empty declaration declares nothing: write `satisfies:`, `target:` or neither",
+                "an empty declaration declares nothing: write `satisfies:`, `target:`, `kind:`, `allow:`, `fakes:` or none",
                 map.span,
             ));
         }
-        let mut keys = Vec::new();
-        let mut satisfies: Option<(Span, Vec<Spanned>)> = None;
+        let mut keys: Vec<String> = Vec::new();
+        let mut lists: Vec<(&'static str, Span, Vec<Spanned>)> = Vec::new();
         let mut target: Option<Spanned> = None;
+        let mut kind: Option<Spanned> = None;
         for pair in items[1..].chunks(2) {
             let [key, value] = pair else {
                 return Err(fail(SHAPE, map.span));
@@ -2957,38 +2964,37 @@ impl Parser {
                 return Err(fail(format!("`{name}:` is written twice"), key.span));
             }
             match name.as_str() {
-                "satisfies" => {
-                    let controls = match value.as_list() {
-                        Some([head, rest @ ..]) if head.as_symbol() == Some("list") => rest,
-                        _ => {
-                            return Err(fail(
-                                "`satisfies:` takes a list of control keywords: \
-                                 `satisfies: %i[nist_ac_6 nist_cm_7]`",
-                                value.span,
-                            ))
-                        }
-                    };
-                    if controls.is_empty() {
-                        return Err(fail(
-                            "`satisfies: []` claims no control: leave the key out",
-                            value.span,
-                        ));
-                    }
-                    let mut seen: Vec<&str> = Vec::new();
-                    for c in controls {
-                        let Some(word) = c.as_keyword() else {
-                            return Err(fail(
-                                "a control is a keyword such as `:nist_ac_6`",
-                                c.span,
-                            ));
-                        };
-                        if seen.contains(&word) {
-                            return Err(fail(format!("`:{word}` is listed twice"), c.span));
-                        }
-                        seen.push(word);
-                    }
-                    satisfies = Some((value.span, controls.to_vec()));
-                }
+                "satisfies" => lists.push((
+                    "satisfies",
+                    value.span,
+                    keyword_list(
+                        value,
+                        "`satisfies:` takes a list of control keywords: \
+                         `satisfies: %i[nist_ac_6 nist_cm_7]`",
+                        "a control is a keyword such as `:nist_ac_6`",
+                        "`satisfies: []` claims no control: leave the key out",
+                    )?,
+                )),
+                "allow" => lists.push((
+                    "allow",
+                    value.span,
+                    keyword_list(
+                        value,
+                        "`allow:` takes a list of host capabilities: `allow: %i[network process]`",
+                        "a capability is a keyword such as `:network`",
+                        "`allow: []` grants nothing, which is a test's default: leave the key out",
+                    )?,
+                )),
+                "fakes" => lists.push((
+                    "fakes",
+                    value.span,
+                    keyword_list(
+                        value,
+                        "`fakes:` takes a list of the fakes the test stands up: `fakes: [:valkey]`",
+                        "a fake is a keyword such as `:valkey`",
+                        "`fakes: []` names no fake: leave the key out",
+                    )?,
+                )),
                 "target" => {
                     if value.as_symbol().is_none() {
                         return Err(fail(
@@ -2999,10 +3005,20 @@ impl Parser {
                     }
                     target = Some(value.clone());
                 }
+                "kind" => {
+                    if !value.as_keyword().is_some_and(|k| TEST_KINDS.contains(&k)) {
+                        let all: Vec<String> = TEST_KINDS.iter().map(|k| format!(":{k}")).collect();
+                        return Err(fail(
+                            format!("`kind:` is one of {}", all.join(", ")),
+                            value.span,
+                        ));
+                    }
+                    kind = Some(value.clone());
+                }
                 _ => {
                     return Err(fail(
                         format!(
-                            "a test declares `satisfies:` and `target:`; `{}` is not one",
+                            "a test declares `satisfies:`, `target:`, `kind:`, `allow:` and `fakes:`; `{}` is not one",
                             self.text(key.span)
                         ),
                         key.span,
@@ -3011,41 +3027,60 @@ impl Parser {
             }
             keys.push(name);
         }
-        let mut entries = vec![items[0].clone()];
-        if let Some((span, mut controls)) = satisfies {
-            let written: Vec<String> = controls
-                .iter()
-                .map(|c| c.as_keyword().unwrap_or_default().to_string())
-                .collect();
-            controls.sort_by(|a, b| a.as_keyword().cmp(&b.as_keyword()));
-            let sorted: Vec<String> = controls
-                .iter()
-                .map(|c| c.as_keyword().unwrap_or_default().to_string())
-                .collect();
-            if written != sorted {
-                self.note(
-                    Spelling::TestDeclaration,
-                    span,
-                    &format!("%i[{}]", written.join(" ")),
-                    &format!("%i[{}]", sorted.join(" ")),
-                );
-            }
-            let mut list = vec![sym_at(span, "list")];
-            list.extend(controls);
-            entries.push(atom_at(span, Atom::Keyword("satisfies".into())));
-            entries.push(list_at(span, list));
-        }
-        if keys.first().map(String::as_str) == Some("target") && keys.len() == 2 {
+        let rank = |k: &str| TEST_KEYS.iter().position(|t| *t == k).unwrap_or(usize::MAX);
+        let mut canonical = keys.clone();
+        canonical.sort_by_key(|k| rank(k));
+        if keys != canonical {
+            let shown = |ks: &[String]| {
+                format!(
+                    "{{{}}}",
+                    ks.iter()
+                        .map(|k| format!("{k}: …"))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            };
             self.note(
                 Spelling::TestDeclaration,
                 map.span,
-                "{target: …, satisfies: …}",
-                "{satisfies: …, target: …}",
+                &shown(&keys),
+                &shown(&canonical),
             );
         }
-        if let Some(t) = target {
-            entries.push(atom_at(t.span, Atom::Keyword("target".into())));
-            entries.push(t);
+        let mut entries = vec![items[0].clone()];
+        for key in TEST_KEYS {
+            if let Some((name, span, mut list)) = lists.iter().find(|(n, _, _)| n == key).cloned() {
+                let written: Vec<String> = list
+                    .iter()
+                    .map(|c| c.as_keyword().unwrap_or_default().to_string())
+                    .collect();
+                list.sort_by(|a, b| a.as_keyword().cmp(&b.as_keyword()));
+                let sorted: Vec<String> = list
+                    .iter()
+                    .map(|c| c.as_keyword().unwrap_or_default().to_string())
+                    .collect();
+                if written != sorted {
+                    self.note(
+                        Spelling::TestDeclaration,
+                        span,
+                        &format!("%i[{}]", written.join(" ")),
+                        &format!("%i[{}]", sorted.join(" ")),
+                    );
+                }
+                let mut tree = vec![sym_at(span, "list")];
+                tree.extend(list);
+                entries.push(atom_at(span, Atom::Keyword(name.into())));
+                entries.push(list_at(span, tree));
+            }
+            let single = match *key {
+                "target" => target.as_ref(),
+                "kind" => kind.as_ref(),
+                _ => None,
+            };
+            if let Some(v) = single {
+                entries.push(atom_at(v.span, Atom::Keyword((*key).into())));
+                entries.push(v.clone());
+            }
         }
         Ok(list_at(
             map.span,
@@ -3777,6 +3812,35 @@ pub(crate) fn cover(items: &[Spanned], fallback: Span) -> Span {
     } else {
         merged
     }
+}
+
+/// The keywords of a `(list :a :b)` value in a test's declaration: refused
+/// when it is not a list (`shape`), holds a non-keyword (`item`), is empty
+/// (`empty`) or names one keyword twice.
+fn keyword_list(
+    value: &Spanned,
+    shape: &str,
+    item: &str,
+    empty: &str,
+) -> Result<Vec<Spanned>, Fail> {
+    let words = match value.as_list() {
+        Some([head, rest @ ..]) if head.as_symbol() == Some("list") => rest,
+        _ => return Err(fail(shape, value.span)),
+    };
+    if words.is_empty() {
+        return Err(fail(empty, value.span));
+    }
+    let mut seen: Vec<&str> = Vec::new();
+    for w in words {
+        let Some(word) = w.as_keyword() else {
+            return Err(fail(item, w.span));
+        };
+        if seen.contains(&word) {
+            return Err(fail(format!("`:{word}` is listed twice"), w.span));
+        }
+        seen.push(word);
+    }
+    Ok(words.to_vec())
 }
 
 #[cfg(test)]

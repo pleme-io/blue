@@ -34,6 +34,11 @@ def waivers()
       "2027-04-30"
     ),
     waive(
+      "settei::settled",
+      "it reads the discovered config file and the process environment and writes warnings to stderr; settei::settle is its body, tested with a given file and environment",
+      "2027-04-30"
+    ),
+    waive(
       "settei::command",
       "it reads the process's argv, the config file and the environment, and may end it with exit_with(64); settei::line is its body, tested with a given line, file and environment, until the Terminal capability (docs/CLI-TUI.md section 7) lets a test hand it a line",
       "2027-04-30"

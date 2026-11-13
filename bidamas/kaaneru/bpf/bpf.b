@@ -6617,6 +6617,7 @@ def source_path_in(root, path)
   found
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 compile: a blue file's definition to a kernel program, through the resolved tree `blue ast --resolved --lines` prints, so what compiles has passed every rule the check stage holds, and each instruction knows its source line. {lines: false} compiles with no line marks. See `compile_forms`.
 

@@ -92,6 +92,7 @@ def answer(req, health, handler)
   end
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 serve_once: Answer one request; the test door.
 """
@@ -251,6 +252,7 @@ def metered(req, health, handler, m, service)
   end
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 def serve_metered_once(l, health, handler, wait_ms, m, service)
   req = http_next_request(l, wait_ms)
   if req.nil?
@@ -266,6 +268,7 @@ def serve_metered_once(l, health, handler, wait_ms, m, service)
   end
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 def serve_metered(addr, health, handler, service, listening?)
   l = http_listen(addr, listening or {})
   write_stderr(
@@ -400,6 +403,7 @@ test "the metrics path answers the exposition and is not itself counted"
   assert second(b)["errors"] == 1
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 def served(path, health, handler)
   l = http_listen("127.0.0.1:0")
   me = self
@@ -1272,6 +1276,7 @@ def upgrade(req, f)
   end
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 answer_wire: Send a response, logging a client that left rather than stopping the loop.
 

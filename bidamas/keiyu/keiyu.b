@@ -20,6 +20,7 @@ def relay_env(url)
   map((n) -> [n, url], proxy_names)
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 def run_via(url, command)
   if is_empty(command)
     error(

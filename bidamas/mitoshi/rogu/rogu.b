@@ -150,6 +150,7 @@ def vector_endpoint(observe)
   end
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 ship: POST one JSON line to a Vector HTTP source; a failure is written to stderr, never raised.
 
@@ -220,6 +221,7 @@ def exporting(observe, base)
   logger(base, vector_endpoint(observe))
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 def probe(env, body)
   dir = path_join(temp_dir("rogu"), "rogu")
   mkdir_p(dir)

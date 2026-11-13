@@ -1065,6 +1065,7 @@ def probe(addr, ports, timeout_ms)
   end
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 reach: Whether `addr` accepts a TCP connection on one of `ports`, each tried in order within `per` milliseconds. No ports means false.
 
@@ -1080,6 +1081,7 @@ def reach(addr, ports, per)
   end
 end
 
+# waive B0084: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches this seam yet
 @doc """
 live: The machine's own effects: commands run by `capture`, the gateway reached by `probe`. A test hands `observe` and `run` its own.
 

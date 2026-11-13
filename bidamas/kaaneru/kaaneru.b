@@ -561,6 +561,7 @@ def checked(answer, what, log?)
   end
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 call_bpf: one `bpf(2)` command over a layout and a record.
 
@@ -804,6 +805,7 @@ def fields_bound(program, table)
   end
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 patched: a program's instructions with each map reference holding its descriptor's number.
 
@@ -1660,6 +1662,7 @@ def attach(p, kind, target?, opts?)
   {fd: checked(a, "attach #{to_s(kind)}")[:fd], kind:}
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 open_cgroup: a descriptor on a cgroup v2 directory, what a cgroup program attaches to. A path with no `cgroup.controllers` raises :cgroup_absent: cgroup v2 is not mounted there, or no such cgroup exists.
 
@@ -1935,6 +1938,7 @@ def struct_ops_value(table, shape, ops, members)
   )
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 install_struct_ops: a kernel operations table implemented in blue, registered through one link, its map naming a one-type BTF object since the kernel asks for one: `spec` {ops:, name:, programs:, values:}. `ops` names the kernel's struct such as "tcp_congestion_ops", `programs` pairs each member with what `compile` made for kind :struct_ops, and `values` pairs each other member with its text or integer. The maps the programs name are made once and shared. {maps:, programs:, table:, link:}; `detach` of the link unregisters it. A program needs no BTF of its own: a member's types come from the kernel's.
 
@@ -2106,6 +2110,7 @@ def attach_tracepoint(p, category, name)
   attach_event(p, fields)
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 attach_event: a program linked to a new perf event, the event kept for `detach`.
 
@@ -2184,6 +2189,7 @@ def attach_raw_tracepoint(p, name?)
   {fd: checked(a, "attach_raw_tracepoint")[:fd], kind: :raw_tracepoint}
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 detach: an attachment ended, by closing its descriptors.
 
@@ -2197,6 +2203,7 @@ def detach(link)
   nil
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 close_object: a map or program's descriptor closed now, rather than when its last reference goes.
 
@@ -2207,6 +2214,7 @@ def close_object(object)
   nil
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 open_events: a consumer of a ring buffer map, whose `max_entries` is its size in bytes.
 
@@ -2216,6 +2224,7 @@ def open_events(m)
   ringbuf_open(m[:fd], m[:max_entries])
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 next_event: the next record's bytes from `open_events`, waiting at most `timeout_ms`; nil when none came.
 
@@ -2225,6 +2234,7 @@ def next_event(ring, timeout_ms)
   ringbuf_next(ring, timeout_ms)
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 drain: every record a consumer has now, oldest first.
 

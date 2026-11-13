@@ -1899,6 +1899,7 @@ def last_error(stderr)
   end
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 own_source: the store path of the flake's own source, which tells this repository's files apart from its inputs' in an evaluated tree; "" when nix cannot say.
 
@@ -1958,6 +1959,7 @@ def tree_of(root, own, configuration)
   probe(root, own, configuration, [])
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 probe: evaluate one configuration's option tree with nix; an option whose evaluation fails is set aside as blind and the probe runs again, so one bad option never hides the rest.
 
@@ -2017,6 +2019,7 @@ def probe(root, own, configuration, blind)
   end
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 tracked: the files git tracks under root, the set a flake sees; nil when root is not a work tree.
 
@@ -2450,6 +2453,7 @@ def run(cfg, args)
   end
 end
 
+# waive B0083: integration debt recorded 2026-11-13: no test of this file declared kind: :integration reaches it yet
 @doc """
 main: the kijun command's entry point: a repository's own kijun.b runs in its place when there is one, else the fleet-repo standard v1.
 

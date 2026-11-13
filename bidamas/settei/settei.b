@@ -2284,6 +2284,101 @@ def form_apply(f)
 end
 
 @doc """
+form_step: one line typed into a settings form: `key=value` edits a row, checked live; `apply` ends with the pending changes applied; `quit` or the end of input ends with nothing applied; anything else is told how to answer.
+
+    form_step(form("a", {p: knob(1)}, settle("a", {p: knob(1)}, nil, no_env)), "apply")[:applied] #=> {p: 1}
+"""
+def form_step(f, line)
+  if line.nil? or line == "quit"
+    {form: f, done: true, applied: nil, says: "nothing applied"}
+  elsif line == "apply"
+    changes = form_pending(f)
+    {
+      form: f,
+      done: true,
+      applied: form_apply(f),
+      says: if changes == []
+        "no changes"
+      else
+        join(
+          map((c) -> "#{c[:key]}: #{c[:from]} -> #{c[:to]}", changes),
+          line_break
+        )
+      end
+    }
+  else
+    parts = split(line, "=")
+    if size(parts) < 2
+      {
+        form: f,
+        done: false,
+        applied: nil,
+        says: "type key=value, apply or quit"
+      }
+    else
+      key = first(parts)
+      edited = form_edit(f, key, join(rest(parts), "="))
+      row = form_row(edited, key)
+      {
+        form: edited,
+        done: false,
+        applied: nil,
+        says: if row.nil?
+          "no setting #{key}"
+        elsif row[:error] != nil
+          "#{key}: #{row[:error]}"
+        else
+          "#{key} -> #{to_s(row[:edit])}"
+        end
+      }
+    end
+  end
+end
+
+@doc """
+form_session: a settings form driven by a list of typed lines, as a terminal session would drive it: the last step, and every line said along the way.
+
+    form_session(form("a", {p: knob(1)}, settle("a", {p: knob(1)}, nil, no_env)), ["p=2", "apply"])[:applied] #=> {p: 2}
+"""
+def form_session(f, lines)
+  start = {form: f, done: false, applied: nil, says: nil, said: []}
+  reduce(
+    fn(acc, line)
+      if acc[:done]
+        acc
+      else
+        step = form_step(acc[:form], line)
+        assoc(step, :said, append(acc[:said], [step[:says]]))
+      end
+    end,
+    start,
+    append(lines, [nil])
+  )
+end
+
+@doc """
+form_run: the settings form as a terminal loop: it writes the form, reads the next line with `next_line(i)`, says what the line did and the form again, until `apply`, `quit` or the end of input (nil), and answers the settings applied or nil. A program on a terminal passes `(i) -> read_line()` and `(t) -> write_stdout(t)`.
+
+    form_run(form("a", {p: knob(1)}, settle("a", {p: knob(1)}, nil, no_env)), (i) -> ["p=2", "apply"][i], (_t) -> nil) #=> {p: 2}
+"""
+def form_run(f, next_line, say, at?)
+  i = if at.nil?
+    0
+  else
+    at
+  end
+  say(unlines([form_text(f)]))
+  say("> ")
+  step = form_step(f, next_line(i))
+  say(unlines([step[:says]]))
+  if step[:done]
+    step[:applied]
+  else
+    form_run(step[:form], next_line, say, i + 1)
+  end
+end
+
+@doc """
 table_head: the two heading lines of a settings table.
 
     size(split(table_head, line_break)) #=> 3
@@ -3084,4 +3179,41 @@ test "the module trio's typed groups render each grouped knob, and a top-level k
       "retries: a module option needs a group"
     ]
   assert typed_groups({})[:groups] == {}
+end
+
+test "a settings form driven line by line: a refused edit says why, a good one is pending, apply shows the diff and applies it"
+  f = form("app", model_fixture, settle("app", model_fixture, nil, no_env, {}))
+  s = form_session(
+    f,
+    %w[net.port=70000 net.port=9000 colour=red hello apply net.port=1]
+  )
+  assert s[:done]
+  assert s[:applied][:net][:port] == 9000
+  assert s[:said] ==
+    [
+      "net.port: must be in 1..65535, got 70000",
+      "net.port -> 9000",
+      "no setting colour",
+      "type key=value, apply or quit",
+      "net.port: 8080 -> 9000"
+    ]
+end
+
+test "a settings form ended by quit or the end of input applies nothing"
+  f = form("app", model_fixture, settle("app", model_fixture, nil, no_env, {}))
+  assert form_session(f, %w[net.port=9000 quit])[:applied].nil?
+  ended = form_session(f, ["net.port=9000"])
+  assert ended[:done]
+  assert ended[:applied].nil?
+  assert ended[:said] == ["net.port -> 9000", "nothing applied"]
+  assert form_step(f, "apply")[:says] == "no changes"
+end
+
+test "form_run reads line by line, writes the form and what each line did, and answers what form_session applies"
+  f = form("app", model_fixture, settle("app", model_fixture, nil, no_env, {}))
+  lines = %w[net.port=9000 apply]
+  applied = form_run(f, (i) -> lines[i], (_t) -> nil)
+  assert applied == form_session(f, lines)[:applied]
+  assert applied[:net][:port] == 9000
+  assert form_run(f, (_i) -> nil, (_t) -> nil).nil?
 end

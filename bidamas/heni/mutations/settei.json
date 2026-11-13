@@ -88,5 +88,17 @@
     "file": "settei.b",
     "find": "base = if t == :int and k[:min] != nil and k[:max] != nil",
     "replace": "base = if false and k[:min] != nil and k[:max] != nil"
+  },
+  {
+    "name": "quit applies the pending changes",
+    "file": "settei.b",
+    "find": "    {form: f, done: true, applied: nil, says: \"nothing applied\"}",
+    "replace": "    {form: f, done: true, applied: form_apply(f), says: \"nothing applied\"}"
+  },
+  {
+    "name": "a refused edit in the form loop is said as taken",
+    "file": "settei.b",
+    "find": "        elsif row[:error] != nil\n          \"#{key}: #{row[:error]}\"",
+    "replace": "        elsif false\n          \"#{key}: #{row[:error]}\""
   }
 ]

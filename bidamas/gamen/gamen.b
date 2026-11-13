@@ -16,7 +16,7 @@ use("jisho")
 use("kazu", [:near_within])
 use("kyohi", %i[kind kinds raised refusal why])
 use("moji", %i[checked trim])
-use("retsu", %i[count_where find_first first flat_map is_empty size])
+use("retsu", %i[count_where find_first first flat_map is_empty last size zip])
 use("shinsuu", %i[parse_int to_hex_width])
 
 use("shisutemu", %i[color_default esc_char inks step_marks])
@@ -1355,6 +1355,112 @@ def page(spec)
       view(:body, {}, spec[:body])
     ]
   )
+end
+
+@doc """
+confirm_answer: what a typed answer to a yes-or-no question means: true for y or yes, false for n or no, the default for an empty line, and nil for anything else, in any case.
+
+    confirm_answer("Yes", false) #=> true
+    confirm_answer("", true) #=> true
+    confirm_answer("maybe", true) #=> nil
+"""
+def confirm_answer(text, default)
+  t = downcase(trim(text))
+  if t == ""
+    default
+  elsif t == "y" or t == "yes"
+    true
+  elsif t == "n" or t == "no"
+    false
+  end
+end
+
+@doc """
+choose_answer: the option a typed answer picks: its number counted from 1, or its text, and nil for anything else.
+
+    choose_answer("2", %w[red green]) #=> "green"
+    choose_answer("red", %w[red green]) #=> "red"
+    choose_answer("3", %w[red green]) #=> nil
+"""
+def choose_answer(text, options)
+  t = trim(text)
+  n = parse_int(t, 10) rescue nil
+  if n != nil and n >= 1 and n <= size(options)
+    options[n - 1]
+  else
+    find_first((o) -> o == t, options)
+  end
+end
+
+@doc """
+prompt: a question put on a terminal: it says the question, reads a line with `next_line(i)` and answers it, or nil at the end of input. A program on a terminal passes `(i) -> read_line()` and `(t) -> write_stdout(t)`.
+
+    prompt("name?", (_i) -> "ana", (_t) -> nil) #=> "ana"
+"""
+def prompt(question, next_line, say)
+  say("#{question} ")
+  next_line(0)
+end
+
+@doc """
+answered: the first answer a reader gives that `meaning` turns into a value, asking again after each unclear one, or nil at the end of input.
+
+    answered("c?", (i) -> ["x", "2"][i], (_t) -> nil, (t) -> choose_answer(t, %w[a b])) #=> "b"
+"""
+def answered(question, next_line, say, meaning, at?)
+  i = if at.nil?
+    0
+  else
+    at
+  end
+  say("#{question} ")
+  line = next_line(i)
+  if line.nil?
+    nil
+  else
+    v = meaning(line)
+    if v.nil?
+      answered(question, next_line, say, meaning, i + 1)
+    else
+      v
+    end
+  end
+end
+
+@doc """
+confirm: a yes-or-no question on a terminal, asked again until the answer is clear; the default for an empty line, and nil at the end of input.
+
+    confirm("apply?", false, (_i) -> "y", (_t) -> nil) #=> true
+"""
+def confirm(question, default, next_line, say)
+  hint = if default
+    "[Y/n]"
+  else
+    "[y/N]"
+  end
+  answered(
+    "#{question} #{hint}",
+    next_line,
+    say,
+    (t) -> confirm_answer(t, default)
+  )
+end
+
+@doc """
+choose: one of the options picked on a terminal, by number or by text, listed once and asked again until the answer names one; nil at the end of input.
+
+    choose("colour?", %w[red green], (_i) -> "2", (_t) -> nil) #=> "green"
+"""
+def choose(question, options, next_line, say)
+  say(
+    unlines(
+      map(
+        (p) -> "  #{to_s(first(p) + 1)}. #{last(p)}",
+        zip(range(size(options)), options)
+      )
+    )
+  )
+  answered(question, next_line, say, (t) -> choose_answer(t, options))
 end
 
 test "row_where and map_with? are the lookups the table words share"
@@ -2863,4 +2969,17 @@ test "a spinner cycles its frames and refuses an unknown style"
   assert map((i) -> spinner(i, :ascii), [0, 1, 2, 3, 4]) ==
     ["|", "/", "-", "\\", "|"]
   assert raised(() -> spinner(0, :dots)) == :bad_option
+end
+
+test "confirm, choose and prompt answer from the lines a reader gives, asking again after an unclear answer, and nil at the end of input"
+  lines = ["maybe", "", "N"]
+  assert confirm("go?", true, (i) -> lines[i], (_t) -> nil) == true
+  assert confirm("go?", true, (i) -> %w[x no][i], (_t) -> nil) == false
+  assert confirm("go?", true, (_i) -> nil, (_t) -> nil).nil?
+  assert choose("c?", %w[red green], (i) -> %w[0 blue 1][i], (_t) -> nil) ==
+    "red"
+  assert choose("c?", %w[red green], (_i) -> nil, (_t) -> nil).nil?
+  assert prompt("q?", (_i) -> " a ", (_t) -> nil) == " a "
+  assert confirm_answer("NO", true) == false
+  assert choose_answer(" green ", %w[red green]) == "green"
 end

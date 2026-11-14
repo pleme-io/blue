@@ -912,7 +912,9 @@ pub fn component(env: &mut Env, row: &Row, n: usize) -> Obs {
         ));
     }
     if row.frontend.is_some() || row.bidama.is_some() || row.role.is_some() {
-        return Obs::Blind("a frontend, bidama or role row is handed only to the static door".into());
+        return Obs::Blind(
+            "a frontend, bidama or role row is handed only to the static door".into(),
+        );
     }
     let dir = env.scratch.join(format!("component-{n}"));
     if let Err(e) = std::fs::create_dir_all(&dir) {

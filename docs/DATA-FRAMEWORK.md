@@ -136,14 +136,14 @@ From the systems survey, each with its counter here:
 
 | Rung | Builds | Gate |
 |---|---|---|
-| D1 | teeburu → outou bridge; `/graphql` route; rubrica on it | rubrica's schema test, red run on an unknown field |
+| D1 | teeburu → outou bridge; `/graphql` route; a private consumer on it | that consumer's schema test, red run on an unknown field |
 | D2 | the compiler: an operation to one `kueri` plan (aggregate or shredded), plan cache by hash, cost bound | statement count equals the type's prediction under fuzzing |
 | D3 | frames and model rules into WHERE and RLS from one source | oracle filter over random frames; a deleted rule fails the build |
 | D4 | migrations: the operator set, lenses, expand and contract, lint classes; haibi's text DDL replaced | lens laws; zero destructive DDL without a zero-reader proof |
 | D5 | the keifu stream maintains caches (DBSP algebra); live-query cohorts | maintained equals recomputed; zero stale reads |
 | D6 | the `model` macro, hygienic and checked; the framework's entry bidama, named by the naming procedure | capture tests; every expansion type-checks |
 
-The order puts D1 first because rubrica needs it now, and D2 before D3
+The order puts D1 first because a private consumer needs it now, and D2 before D3
 because authority compiles into the plan D2 produces.
 
 ## Ledger
@@ -161,7 +161,7 @@ because authority compiles into the plan D2 produces.
 | migration CR and additive SQL | ⏳ in progress | `bidamas/eigyou/haibi`, 22 tests. It renders text lines, not the operator set of D4. |
 | content-addressed identity | ✅ built | `def_hash` (`crates/blue-lang-runtime/src/def_hash.rs`). |
 | capability frames | ⏳ in progress | `crates/blue-lang-waku`: a frame per interpreter. A frame per bidama (HORIZON H13) is not built. |
-| D1: teeburu → outou bridge; `/graphql` route; rubrica on it | ⏳ in progress | `from_teeburu` in outou; test "a teeburu model derives a schema: names cased, types mapped as data, an unmapped type and a clash refused alone". No `/graphql` route serves it. |
+| D1: teeburu → outou bridge; `/graphql` route; a private consumer on it | ⏳ in progress | `from_teeburu` in outou; test "a teeburu model derives a schema: names cased, types mapped as data, an unmapped type and a clash refused alone". No `/graphql` route serves it. |
 | D2: an operation compiled to one `kueri` plan, plan cache by hash, cost bound | ❌ not built | Done when the statement count equals the type's prediction under fuzzing. |
 | D3: frames and model rules into WHERE and RLS from one source | ❌ not built | Done when an oracle filter agrees over random frames and a deleted rule fails the build. |
 | D4: migration operators, lenses, expand and contract, lint classes | ❌ not built | Done when the lens laws hold and no destructive DDL runs without a zero-reader proof. |

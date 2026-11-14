@@ -1139,7 +1139,7 @@ spelling:
 | Rendering | From the model | State (2026-11-07) |
 |---|---|---|
 | storage and migrations | tables, `keifu`, the additive SQL, shinka's `DatabaseMigration` | built; the CR is string lines, not checked against shinka's CRD |
-| API | GraphQL types and Query roots (`toriyose/outou`) | `from_model` built; the bridge from teeburu's shape is being built with rubrica |
+| API | GraphQL types and Query roots (`toriyose/outou`) | `from_model` built; the bridge from teeburu's shape is being built with a private consumer |
 | client | typed fragments (`danpen`), the normalized store's keys (`kyasshu`) | built over a generated schema table |
 | gates | kenshi `TestGate` and `BuildPipeline` from the Bluefile's checks | design (SERVICE-ARCHITECTURE P7) |
 | packaging | the service's chart on pleme-lib, published by version | chart built, publish being built; pleme-lib not pinned; pleme-lib is configured off per chart as typed rendering covers it (`SUBSTRATE.md` §7, 2026-11-09) |

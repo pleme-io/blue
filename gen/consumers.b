@@ -53,75 +53,11 @@ def recorded()
       "refused: bidama-shiryou:bidamas/shiryou/toriyose/kyasshu/kyasshu.b:B0084 1",
       "refused: bidama-shiryou:gen/heni-gate.b:B0092 1",
       "refused: bidama-shiryou:gen/kyasshu-keys.b:B0085 1",
-      "refused: caligo:bidamas/aikotoba/aikotoba.b:B0001 70",
-      "refused: caligo:bidamas/akushu/akushu.b:B0001 54",
-      "refused: caligo:bidamas/caligo/caligo.b:B0001 155",
-      "refused: caligo:bidamas/caligo/caligo.b:B0033 3",
-      "refused: caligo:bidamas/caligo/caligo.b:B0084 5",
-      "refused: caligo:bidamas/caligo/caligo.b:fmt 1",
-      "refused: caligo:bidamas/caligo/surface/surface.b:B0001 94",
-      "refused: caligo:bidamas/caligo/surface/surface.b:B0033 3",
-      "refused: caligo:bidamas/caligo/surface/surface.b:B0065 1",
-      "refused: caligo:bidamas/caligo/surface/surface.b:fmt 1",
-      "refused: caligo:bidamas/chirashi/chirashi.b:B0001 7",
-      "refused: caligo:bidamas/chirashi/chirashi.b:B0024 1",
-      "refused: caligo:bidamas/chirashi/chirashi.b:fmt 1",
-      "refused: caligo:bidamas/himitsu/himitsu.b:B0001 55",
-      "refused: caligo:bidamas/kakuremino/kakuremino.b:B0001 16",
-      "refused: caligo:bidamas/kasumi/kasumi.b:B0001 44",
-      "refused: caligo:bidamas/kasumi/kasumi.b:B0024 1",
-      "refused: caligo:bidamas/kasumi/kasumi.b:fmt 1",
-      "refused: caligo:bidamas/kippu/kippu.b:B0001 20",
-      "refused: caligo:bidamas/kippu/kippu.b:B0083 1",
-      "refused: caligo:bidamas/shoji/shoji.b:B0001 154",
-      "refused: caligo:bidamas/shoji/shoji.b:B0033 1",
-      "refused: caligo:bidamas/shoji/shoji.b:B0084 3",
-      "refused: caligo:bidamas/shoji/shoji.b:fmt 1",
-      "refused: caligo:bidamas/smoke/smoke.b:B0001 2",
-      "refused: caligo:bidamas/tatemae/tatemae.b:B0001 56",
-      "refused: caligo:crates/caligo-android/example/app.b:B0001 1",
-      "refused: caligo:crates/caligo-app/app.b:B0001 153",
-      "refused: caligo:crates/caligo-app/screens/change-duress.b:B0001 153",
-      "refused: caligo:crates/caligo-app/screens/change-pin.b:B0001 153",
-      "refused: caligo:crates/caligo-app/screens/conversation.b:B0001 153",
-      "refused: caligo:crates/caligo-app/screens/honest-v1.b:B0001 153",
-      "refused: caligo:crates/caligo-app/screens/honest.b:B0001 153",
-      "refused: caligo:crates/caligo-app/screens/lock.b:B0001 153",
-      "refused: caligo:crates/caligo-app/screens/pair-ready.b:B0001 153",
-      "refused: caligo:crates/caligo-app/screens/pair-scan.b:B0001 153",
-      "refused: caligo:crates/caligo-app/screens/pair-show.b:B0001 153",
-      "refused: caligo:crates/caligo-app/screens/pairing.b:B0001 153",
-      "refused: caligo:crates/caligo-app/screens/settings.b:B0001 153",
-      "refused: caligo:crates/caligo-ios/example/app.b:B0001 3",
-      "refused: caligo:crates/caligo-ios/tests/fixtures/typing.b:B0001 153",
-      "refused: caligo:crates/tor-host/probe/app.b:B0001 9",
-      "refused: caligo:crates/tor-host/probe/relay.b:B0001 10",
-      "refused: caligo:services/pombal/pombal.b:B0001 20",
-      "refused: caligo:services/pombal/pombal.b:B0024 1",
-      "refused: caligo:services/pombal/pombal.b:B0083 4",
-      "refused: caligo:services/pombal/pombal.b:B0086 1",
-      "refused: caligo:services/pombal/pombal.b:fmt 1",
       "refused: hanshi:crates/hanshi-core/rules/heartbeat.b:B0001 3",
-      "refused: kanshi:enforcer/differential.b:B0078 1",
-      "refused: kanshi:enforcer/loader.b:B0078 1",
-      "refused: makoto:bidamas/bunseki/bunseki.b:B0084 2",
-      "refused: nix:mundos/bidamas/folego/folego.b:B0083 5",
-      "refused: nix:mundos/bidamas/lousa/lousa.b:B0083 14",
-      "refused: nix:mundos/bidamas/mundo/mundo.b:B0083 10",
-      "refused: nupastel:bidamas/sokutei/sokutei.b:B0084 2",
-      "refused: nupastel:bidamas/yokou/yokou.b:B0084 2",
       "refused: ola-mundo:catalog.b:B0085 1",
       "refused: ola-mundo:ola.b:B0086 1",
       "refused: ola-mundo:ola.b:B0087 1",
       "refused: ola-mundo:ola.b:B0092 1",
-      "refused: pangea-architectures:gen/fleet-llm.b:B0085 1",
-      "refused: pangea-architectures:gen/kensa-arsenal.b:B0085 1",
-      "refused: rubrica:gen/schema.b:B0085 1",
-      "refused: rubrica:gen/schema_table.b:B0085 1",
-      "refused: rubrica:rubrica.b:B0086 1",
-      "refused: rubrica:rubrica.b:B0092 1",
-      "refused: rubrica:stamp_test.b:B0092 1",
-      "refused: rubrica:views/documents.b:B0092 1",
       "refused: zukai:crates/zukai-confluence/tests/pages.b:B0001 31",
       "refused: zukai:crates/zukai-kata/tests/patterns.b:B0001 20"
     ]
@@ -134,6 +70,54 @@ end
 
 def registry_path()
   path_join(getenv("GEN_ROOT", "."), "gen/consumers.json")
+end
+
+@doc """
+private_path: Where a private consumer's rows live, outside this public tree.
+`BLUE_CONSUMERS_PRIVATE` names it; an empty value turns the private registry off,
+and then no private row is written or read anywhere.
+
+    ends_with?(private_path, ".json") or private_path == "" #=> true
+"""
+def private_path()
+  getenv(
+    "BLUE_CONSUMERS_PRIVATE",
+    path_join(
+      getenv("HOME", "/"),
+      "code/github/pleme-io/nix/docs/knowledge/pleme-io/blue/consumers-private.json"
+    )
+  )
+end
+
+@doc """
+public?: A consumer is public only when its recorded visibility says so; a
+missing or unknown visibility is private.
+
+    public?({visibility: "public"}) #=> true
+    public?({visibility: "private"}) #=> false
+    public?({}) #=> false
+"""
+def public?(c)
+  c[:visibility] == "public"
+end
+
+def visibility_of(name)
+  cap = exec_capture(
+    "gh",
+    "api",
+    "repos/pleme-io/#{name}",
+    "--jq",
+    ".visibility"
+  )
+  if status_of(cap) == 0 and trim(stdout_of(cap)) != ""
+    trim(stdout_of(cap))
+  else
+    "unknown"
+  end
+end
+
+def with_visibility(c)
+  {**c, visibility: visibility_of(c[:name])}
 end
 
 def lines_of(text)
@@ -276,6 +260,20 @@ def consumer_refusal(c)
   end
 end
 
+@doc """
+public_refusal: A row in the public registry is refused unless it is recorded
+public; its place is the private registry.
+
+    public_refusal({name: "a", files: ["a.b"], pins: [], visibility: "private"}) #=> "is not recorded public, so its row belongs in the private registry"
+"""
+def public_refusal(c)
+  if map?(c) and consumer_refusal(c).nil? and not public?(c)
+    "is not recorded public, so its row belongs in the private registry"
+  else
+    consumer_refusal(c)
+  end
+end
+
 def find_first_refusal(rs)
   hit = reject((r) -> r.nil?, rs)
   if hit != []
@@ -283,8 +281,8 @@ def find_first_refusal(rs)
   end
 end
 
-def settle_consumers(cs)
-  judged = map((c) -> [c, consumer_refusal(c)], cs)
+def settle_consumers(cs, judge)
+  judged = map((c) -> [c, judge(c)], cs)
   names = map((j) -> j[0][:name], filter((j) -> j[1].nil?, judged))
   twice = filter(
     (n) -> count(filter((m) -> m == n, names)) > 1,
@@ -340,6 +338,7 @@ def to_row(c)
     "name" => c[:name],
     "files" => c[:files],
     "inputs" => c[:inputs],
+    "visibility" => c[:visibility],
     "pins" => map(
       fn(p)
         {
@@ -369,7 +368,7 @@ def kind_of(text)
 end
 
 def from_row(r)
-  consumer(
+  c = consumer(
     r["name"],
     r["files"],
     map(
@@ -385,20 +384,73 @@ def from_row(r)
     ),
     r["inputs"] or []
   )
+  {**c, visibility: r["visibility"]}
 end
 
 def read_registry(text)
   doc = json_read(text)
-  {consumers: map(from_row, doc["consumers"] or []), swept: doc["swept"] or {}}
+  {
+    consumers: map(from_row, doc["consumers"] or []),
+    swept: doc["swept"] or {},
+    held: (doc["private"] or {})["count"] or 0
+  }
 end
 
-def render_registry(cs, swept)
+@doc """
+render_registry: The public registry. Only a row recorded public is written; every
+other row is counted, never named, so no path writes a private consumer here.
+
+    json_read(render_registry([{name: "x", files: ["x.b"], pins: [], inputs: [], visibility: "private"}], 2, {}))["private"] #=> {"count" => 3}
+"""
+def render_registry(cs, held, swept)
   json_stringify(
     {
-      "consumers" => map(to_row, sort_keyed((c) -> c[:name], cs)),
+      "consumers" => map(
+        to_row,
+        sort_keyed((c) -> c[:name], filter(public?, cs))
+      ),
+      "private" => {"count" => held + size(reject(public?, cs))},
       "swept" => swept
     }
   )
+end
+
+def read_private(path)
+  if path != "" and is_file?(path)
+    read_private_text(read_file(path))
+  end
+end
+
+def read_private_text(text)
+  doc = json_read(text)
+  {
+    consumers: map(from_row, doc["consumers"] or []),
+    recorded: doc["recorded"] or []
+  }
+end
+
+def render_private(cs, recorded)
+  json_stringify(
+    {
+      "consumers" => map(to_row, sort_keyed((c) -> c[:name], cs)),
+      "recorded" => sort_keyed((l) -> l, recorded)
+    }
+  )
+end
+
+def recorded_name(line)
+  trim(before_first(after_first(trim(line), "refused:"), ":"))
+end
+
+@doc """
+leaked_rows: Every recorded row in this public file whose consumer is not a public
+row of the registry.
+
+    leaked_rows(["refused: a:a.b:B0001 1", "refused: z:z.b:B0001 1"], [{name: "a"}]) #=> ["refused: z:z.b:B0001 1"]
+"""
+def leaked_rows(lines, public_cs)
+  names = map((c) -> c[:name], public_cs)
+  reject((l) -> member?(recorded_name(l), names), lines)
 end
 
 def codes_of(listing)
@@ -714,33 +766,67 @@ end
 
 def sweep(blue, root, clone, record)
   reg = read_registry(read_file(registry_path))
-  regs = settle_consumers(reg[:consumers])
+  priv = read_private(private_path)
+  pub = settle_consumers(reg[:consumers], public_refusal)
+  hid = if priv.nil?
+    {consumers: [], refused: []}
+  else
+    settle_consumers(priv[:consumers], consumer_refusal)
+  end
+  cs = concat_lists(pub[:consumers], hid[:consumers])
+  rows = concat_lists(
+    lines_of(recorded),
+    if priv.nil?
+      []
+    else
+      priv[:recorded]
+    end
+  )
   pol = settle(entries, nil)
   measured = map(
     (c) -> measure_one(blue, root, c[:name], level_of(pol, c[:name]), clone),
-    regs[:consumers]
+    cs
   )
-  judged = judge_all(pol, parse(recorded), measured)
+  judged = judge_all(pol, parse(unlines(rows)), measured)
+  unseen = if priv.nil? and reg[:held] > 0
+    [
+      {
+        name: "#{to_s(reg[:held])} private consumers",
+        state: :blind,
+        failures: []
+      }
+    ]
+  else
+    []
+  end
+  verdicts = concat_lists(judged[:verdicts], unseen)
   drift = if clone
     []
   else
-    registry_drift(reg[:consumers], derive(root))
+    registry_drift(cs, derive(root), priv != nil or reg[:held] == 0)
   end
+  leaked = leaked_rows(lines_of(recorded), pub[:consumers])
   write_stderr(
     unlines(
-      concat_lists(
+      append(
         report_lines(
-          judged,
-          regs[:consumers],
-          concat_lists(regs[:refused], pol[:refused])
+          {**judged, verdicts:},
+          cs,
+          append(pub[:refused], hid[:refused], pol[:refused])
         ),
-        map((d) -> "❌ #{d}", drift)
+        map((d) -> "❌ #{d}", drift),
+        map(
+          fn(l)
+            "❌ #{l} names no public consumer: move it to the private registry"
+          end,
+          leaked
+        )
       )
     )
   )
   told = conclude(
-    judged[:verdicts],
-    size(judged[:red]) + size(drift),
+    verdicts,
+    size(judged[:red]) + size(drift) + size(leaked),
     pol[:refused] != [],
     record
   )
@@ -749,7 +835,8 @@ def sweep(blue, root, clone, record)
     write_file(
       registry_path,
       render_registry(
-        reg[:consumers],
+        pub[:consumers],
+        reg[:held],
         {"blue" => blue_rev, "codes" => sort_keyed((c) -> c, codes)}
       )
     )
@@ -820,15 +907,20 @@ def blue_rev()
   trim(stdout_of(exec_capture("git", "rev-parse", "HEAD")))
 end
 
-def registry_drift(registered, derived)
+def registry_drift(registered, derived, whole)
   have = map((c) -> c[:name], registered)
   live = map((c) -> c[:name], derived)
+  unlisted = if whole
+    reject((n) -> member?(n, have), live)
+  else
+    []
+  end
   concat_lists(
     map(
       fn(n)
-        "#{n} has .b files and is not in gen/consumers.json: run blue gen/consumers.b derive"
+        "#{n} has .b files and is in no registry: run blue gen/consumers.b derive"
       end,
-      reject((n) -> member?(n, have), live)
+      unlisted
     ),
     map(
       fn(n)
@@ -845,15 +937,54 @@ def write_registry(root)
   else
     {}
   end
-  cs = derive(root)
-  write_file(registry_path, render_registry(cs, old))
+  cs = map(with_visibility, derive(root))
+  store(cs, old)
   write_stderr(
     unlines(
       map(
-        (c) -> "#{c[:name]}: #{to_s(size(c[:files]))} .b, #{pins_text(c, cs)}",
+        fn(c)
+          "#{c[:name]} (#{to_s(c[:visibility])}): #{to_s(size(c[:files]))} .b, #{pins_text(c, cs)}"
+        end,
         cs
       )
     )
+  )
+end
+
+def store(cs, swept)
+  hidden = reject(public?, cs)
+  priv = read_private(private_path)
+  write_file(registry_path, render_registry(cs, 0, swept))
+  if private_path == ""
+    write_stderr(
+      unlines(
+        [
+          "➖ consumers: the private registry is off; #{to_s(size(hidden))} private rows are counted and written nowhere"
+        ]
+      )
+    )
+  else
+    kept = if priv.nil?
+      []
+    else
+      priv[:recorded]
+    end
+    mkdir_p(path_dirname(private_path))
+    write_file(private_path, render_private(hidden, kept))
+  end
+end
+
+def partition()
+  reg = read_registry(read_file(registry_path))
+  priv = read_private(private_path)
+  others = if priv.nil?
+    []
+  else
+    priv[:consumers]
+  end
+  store(
+    map(with_visibility, concat_lists(reg[:consumers], others)),
+    reg[:swept]
   )
 end
 
@@ -936,8 +1067,9 @@ def usage()
   write_stderr(
     unlines(
       [
-        "blue gen/consumers.b derive | sweep [--clone DIR] [--record] | swept | fix REPO",
-        "  derive  rewrite gen/consumers.json from the workspace (BLUE_CONSUMERS_ROOT)",
+        "blue gen/consumers.b derive | partition | sweep [--clone DIR] [--record] | swept | fix REPO",
+        "  derive     rewrite both registries from the workspace (BLUE_CONSUMERS_ROOT); each repository's visibility is read from GitHub",
+        "  partition  read every row's visibility again and move each row to its registry; private rows go to BLUE_CONSUMERS_PRIVATE",
         "  sweep   every consumer's .b files through this blue's fmt --check and check",
         "  swept   every rule code this blue knows is in the recorded swept set; offline, no clone, no fetch",
         "  fix     blue fmt --write one consumer in a worktree, proved by blue erase"
@@ -976,6 +1108,8 @@ def main()
   blue = self_exe
   if verb == "derive"
     write_registry(argv_get(1, workspace))
+  elsif verb == "partition"
+    partition
   elsif verb == "sweep"
     clone = member?("--clone", args)
     root = clone_root(args)
@@ -1093,7 +1227,8 @@ test "each registry entry is judged alone: a bad one is refused and named, its s
       consumer("blue", ["x.b"], [], []),
       consumer("zukai", ["x.b"], [], []),
       consumer("zukai", ["y.b"], [], [])
-    ]
+    ],
+    consumer_refusal
   )
   assert map((c) -> c[:name], s[:consumers]) == ["arnes"]
   assert map((r) -> r[:why], s[:refused]) ==
@@ -1120,10 +1255,16 @@ end
 
 test "the registry round-trips through its JSON rendering"
   cs = [
-    consumer("tend", ["blue/align.b"], [{kind: :cargo, rev: "abc"}], []),
-    consumer("actions", ["run.b"], [{kind: :setup, rev: "main"}], [])
+    {
+      **consumer("tend", ["blue/align.b"], [{kind: :cargo, rev: "abc"}], []),
+      visibility: "public"
+    },
+    {
+      **consumer("actions", ["run.b"], [{kind: :setup, rev: "main"}], []),
+      visibility: "public"
+    }
   ]
-  back = read_registry(render_registry(cs, {"codes" => ["B0001"]}))
+  back = read_registry(render_registry(cs, 0, {"codes" => ["B0001"]}))
   assert map((c) -> c[:name], back[:consumers]) == %w[actions tend]
   assert back[:consumers][1][:pins][0][:kind] == :cargo
   assert back[:swept]["codes"] == ["B0001"]
@@ -1301,9 +1442,44 @@ end
 
 test "the committed registry settles with no refused entry"
   reg = read_registry(read_file(registry_path))
-  s = settle_consumers(reg[:consumers])
+  s = settle_consumers(reg[:consumers], public_refusal)
   assert s[:refused] == []
   assert size(s[:consumers]) >= 10
+end
+
+test "the committed public registry names only repositories recorded public, and every recorded row names one of them"
+  reg = read_registry(read_file(registry_path))
+  assert reject(public?, reg[:consumers]) == []
+  assert leaked_rows(lines_of(recorded), reg[:consumers]) == []
+end
+
+test "a private row is counted in the public registry and named only in the private one"
+  cs = [
+    {**consumer("tend", ["t.b"], [], []), visibility: "public"},
+    {**consumer("hidden", ["h.b"], [], []), visibility: "private"},
+    {**consumer("unread", ["u.b"], [], []), visibility: "unknown"}
+  ]
+  pub = render_registry(cs, 0, {})
+  assert not contains?(pub, "hidden")
+  assert not contains?(pub, "unread")
+  assert json_read(pub)["private"] == {"count" => 2}
+  assert map((c) -> c[:name], read_registry(pub)[:consumers]) == ["tend"]
+  priv = render_private(reject(public?, cs), ["refused: hidden:h.b:B0001 1"])
+  assert map((c) -> c[:name], read_private_text(priv)[:consumers]) ==
+    %w[hidden unread]
+end
+
+test "a public registry row not recorded public is refused alone, and its siblings stand"
+  s = settle_consumers(
+    [
+      {**consumer("tend", ["t.b"], [], []), visibility: "public"},
+      {**consumer("hidden", ["h.b"], [], []), visibility: "private"},
+      consumer("old", ["o.b"], [], [])
+    ],
+    public_refusal
+  )
+  assert map((c) -> c[:name], s[:consumers]) == ["tend"]
+  assert map((r) -> r[:entry][:name], s[:refused]) == %w[hidden old]
 end
 
 def every?(f, xs)

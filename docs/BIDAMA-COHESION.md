@@ -127,7 +127,7 @@ landing, with a `legacy_packages` row per moved package:
 | 4 | `koubou` 工房 | kikagaku, rittai, zumen, kakou | nupastel (5 use) |
 | 5 | `todokede` 届出 | jitaku, kurashi, motenashi, empresa, kinko | nix (3 use) |
 | 6 | `kakehashi` 架け橋 (alt. `fushin`) | nikkusu, hyouka, kirikae, kijun, tehai, souji | nix, substrate, blackmatter-akeyless |
-| 7 | `eigyou` 営業 | kyuuji, bougyo, shisei, tsuushin, heddaa, tajuu, shihyou, haibi | rubrica, ola-mundo |
+| 7 | `eigyou` 営業 | kyuuji, bougyo, shisei, tsuushin, heddaa, tajuu, shihyou, haibi | ola-mundo, a private consumer |
 | 8 | `isshou` 一生 | raifusaikuru, nisshi, anaritikusu | nupastel (11 use, 11 needs) |
 | 9 | `toriyose` 取り寄せ | danpen, outou, kyasshu | none |
 | 10 | `kaaneru` (exists) | bpf, btf, erufu | kanshi |

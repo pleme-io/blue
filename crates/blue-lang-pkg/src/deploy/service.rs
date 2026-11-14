@@ -52,6 +52,8 @@ pub struct Service {
     pub slo: Slo,
     #[serde(default)]
     pub access: Access,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub access_defaulted: bool,
     #[serde(default)]
     pub runtime: Runtime,
     pub output: String,
@@ -433,6 +435,7 @@ pub fn service_of(name: &str, spec: &Value) -> Result<Service, SpecError> {
         cache,
         slo,
         access,
+        access_defaulted: s.get("access").is_none(),
         runtime,
         output,
     })

@@ -437,6 +437,62 @@ obligations! {
         profile: Strict,
         owner: "COVERAGE.md S5 (CV5): a package with a mutation file (`bidamas/heni/mutations`) is strict; `checks.heni-mutations` refuses a survivor beyond the baseline's, a new package records none, and the baseline's survivors (0) only fall. Incremental by identity waits on H3 rung 3",
     }
+    "structure/config" {
+        when: "a definition of a bidama other than settei that reads a literal environment name",
+        evidence: Declared,
+        detector: Static,
+        refusal: Code(Code::B0098),
+        profile: Default,
+        owner: "CORE-MODEL.md M4, P14",
+    }
+    "structure/core-model" {
+        when: "a program that reads its settings off a record",
+        evidence: Declared,
+        detector: Project,
+        refusal: Design("CORE-MODEL P14b: `checks.core-models` forces it for each program gen/core-models.b registers; a project gate that runs `unmodelled` over every program of every project"),
+        profile: Default,
+        owner: "CORE-MODEL.md M1",
+    }
+    "structure/capabilities" {
+        when: "a project root with packages",
+        evidence: Declared,
+        detector: Project,
+        refusal: Design("CORE-MODEL P15: a root with no `allow(...)` ceiling refused by `blue lock`"),
+        profile: Default,
+        owner: "CORE-MODEL.md M2",
+    }
+    "structure/effects" {
+        when: "the program of a Bluefile `service(...)` row with no `access`",
+        evidence: Declared,
+        detector: Project,
+        refusal: Code(Code::B0099),
+        profile: Service,
+        owner: "CORE-MODEL.md M3; SERVICE-ACCESS.md",
+    }
+    "structure/refusals" {
+        when: "a raised tag",
+        evidence: Declared,
+        detector: Static,
+        refusal: Design("CORE-MODEL P16: a tag outside kyohi's ledger of kinds; the ledger is blue data, so the check stage needs it generated into a table it reads, as word shapes are, not copied by hand"),
+        profile: Default,
+        owner: "CORE-MODEL.md M5",
+    }
+    "structure/observability" {
+        when: "a Bluefile `service(...)` row",
+        evidence: Declared,
+        detector: Project,
+        refusal: Design("CORE-MODEL P17: a `service(...)` row has no observability field to declare a binding in; the field comes first"),
+        profile: Service,
+        owner: "CORE-MODEL.md M7",
+    }
+    "structure/supervision" {
+        when: "a Bluefile `service(...)` row",
+        evidence: Declared,
+        detector: Project,
+        refusal: Design("CORE-MODEL P17: a `service(...)` row has no supervision field to declare a policy in; the field comes first"),
+        profile: Service,
+        owner: "CORE-MODEL.md M8",
+    }
     "pipeline/stage" {
         when: "the program of a Bluefile `check` row",
         evidence: Declared,

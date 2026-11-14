@@ -893,3 +893,81 @@ pub fn reach(p: &Program<'_>) -> Vec<Diagnostic> {
     }
     out
 }
+
+fn literal_environment_reads<'a>(form: &'a Spanned, out: &mut Vec<(&'a str, &'a Spanned)>) {
+    if let Some(items) = form.as_list() {
+        if let Some(word @ ("getenv" | "env_required")) = items.first().and_then(Spanned::as_symbol)
+        {
+            if items.get(1).and_then(Spanned::as_string).is_some() {
+                out.push((word, &items[1]));
+            }
+        }
+        for i in items {
+            literal_environment_reads(i, out);
+        }
+    }
+}
+
+#[must_use]
+pub fn environment(p: &Program<'_>, package: &str) -> Vec<Diagnostic> {
+    if package == "settei" {
+        return Vec::new();
+    }
+    let mut out = Vec::new();
+    for (i, form) in p.forms.iter().enumerate() {
+        if !(p.is_entry)(i) || blue_lang_syntax::test_parts(form).is_some() {
+            continue;
+        }
+        let Some(def) = blue_lang_syntax::doc::defined_name(form) else {
+            continue;
+        };
+        let mut reads = Vec::new();
+        literal_environment_reads(form, &mut reads);
+        for (word, at) in reads {
+            let name = at.as_string().unwrap_or_default();
+            out.push(
+                Diagnostic::new(
+                    Code::B0098,
+                    format!("`{def}` reads `{name}` with `{word}`, outside a settei core model"),
+                    at.span,
+                )
+                .at_top_level(i)
+                .with_help(format!(
+                    "declare it as a knob of the program's model and read it through settei; its environment name stays `{name}`"
+                )),
+            );
+        }
+    }
+    out
+}
+
+#[must_use]
+pub fn undeclared_access(
+    forms: &[Spanned],
+    is_entry: &dyn Fn(usize) -> bool,
+    services: &[String],
+) -> Vec<Diagnostic> {
+    let Some((first, form)) = forms
+        .iter()
+        .enumerate()
+        .find(|(i, f)| is_entry(*i) && !blue_lang_syntax::doc::is_doctest(f))
+    else {
+        return Vec::new();
+    };
+    services
+        .iter()
+        .map(|n| {
+            Diagnostic::new(
+                Code::B0099,
+                format!(
+                    "this file is the program of service(\"{n}\", …), whose row declares no `access`, so it runs with the default network, clock, entropy and environment"
+                ),
+                form.span,
+            )
+            .at_top_level(first)
+            .with_help(format!(
+                "declare `access: {{effects: [...], egress: [...], listen: [...]}}` on service(\"{n}\", …) in the Bluefile; or `# waive B0099: reason` above the file's first form"
+            ))
+        })
+        .collect()
+}

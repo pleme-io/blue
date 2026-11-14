@@ -58,6 +58,7 @@
           ],
           "exec": []
         },
+        "access_defaulted": true,
         "runtime": {
           "kind": "wasm"
         },

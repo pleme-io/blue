@@ -800,3 +800,5 @@ Every rule blue holds, from the registry the check stage runs (`blue explain COD
 | `B0095` | optional-shape-untested | a definition with optional parameters that the tests of its file call is called with every optional argument given and with one left out | refused |
 | `B0096` | flag-one-state | a definition that reads an `enable` or `enabled` field is tested with the flag both true and false | refused |
 | `B0097` | fake-without-seam | a test that declares `fakes:` reaches a point a fake stands in for: an effect point, or a seam whose imported word reaches the host | refused |
+| `B0098` | raw-environment-read | a bidama reads a setting through its settei core model, never `getenv` or `env_required` of a literal name | refused |
+| `B0099` | undeclared-access | the program of a `service(...)` row runs under the `access` that row declares, never the default | refused |

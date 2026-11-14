@@ -2040,6 +2040,40 @@ bidama words it imports, to a host builtin outside the ambient set (B0083
 lists the set). Debt is `# waive B0097: reason` above the test, counted
 against the row `point/fake`.",
     }
+    B0098 {
+        slug: "raw-environment-read",
+        severity: Error,
+        fix: None,
+        law: "a bidama reads a setting through its settei core model, never `getenv` or `env_required` of a literal name",
+        witness: "@moduledoc \"\"\"\nkagi reads one port.\n\n    kagi #=> \"80\"\n\"\"\"\n\n@doc \"\"\"\nkagi is the port.\n\n    kagi #=> \"80\"\n\"\"\"\ndef kagi()\n  getenv(\"KAGI_PORT\", \"80\")\nend\n\ntest \"kagi\"\n  assert kagi == \"80\"\nend\n",
+        ratchet: 34,
+        package: "kagi",
+        explanation: "\
+A setting read by hand has no type, no bounds, no doc and no other layer:
+a bad value stops the run or passes unchecked, and the docs table, the
+schema and `--explain` never see it (docs/CORE-MODEL.md M4). Declare the
+setting as a knob of the program's model and read it through settei
+(`settled`, `command`). settei itself is the one door that reads the
+environment. The corpus does not hold yet, so the census counts each
+finding against the row's ratchet, which may only fall.",
+    }
+    B0099 {
+        slug: "undeclared-access",
+        severity: Error,
+        fix: None,
+        law: "the program of a `service(...)` row runs under the `access` that row declares, never the default",
+        witness: "@moduledoc \"\"\"\nkagi answers.\n\n    kagi #=> 1\n\"\"\"\n\n@doc \"\"\"\nkagi is one.\n\n    kagi #=> 1\n\"\"\"\ndef kagi()\n  1\nend\n\ntest \"kagi\", {kind: :e2e}\n  assert kagi == 1\nend\n",
+        ratchet: 1,
+        package: "kagi",
+        role: "service-without-access",
+        explanation: "\
+A service with no `access` runs with the default effects (network, clock,
+entropy, environment) and listens on its port: nothing it reaches is a
+declared fact, so no NetworkPolicy, unit or kakoi profile is drawn from it
+(docs/CORE-MODEL.md M3, SERVICE-ACCESS.md). Declare the effects, the egress
+peers and the ports on the row. The corpus does not hold yet, so the census
+counts each finding against the row's ratchet, which may only fall.",
+    }
 }
 
 impl Code {

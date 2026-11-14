@@ -584,3 +584,95 @@ row(
   covers("rule:B0097"),
   bidama("kagi")
 )
+
+row(
+  "testing.B0098",
+  unlines(
+    [
+      "@moduledoc \"\"\"",
+      "kagi reads one port.",
+      "",
+      "    kagi #=> \"80\"",
+      "\"\"\"",
+      "",
+      "@doc \"\"\"",
+      "kagi is the port.",
+      "",
+      "    kagi #=> \"80\"",
+      "\"\"\"",
+      "def kagi()",
+      "  getenv(\"KAGI_PORT\", \"80\")",
+      "end",
+      "",
+      "test \"kagi\"",
+      "  assert kagi == \"80\"",
+      "end"
+    ]
+  ),
+  diagnoses(["B0098"]),
+  covers("rule:B0098"),
+  bidama("kagi")
+)
+
+row(
+  "testing.B0098.settei",
+  unlines(
+    [
+      "@moduledoc \"\"\"",
+      "settei reads one port.",
+      "",
+      "    port #=> \"80\"",
+      "\"\"\"",
+      "",
+      "@doc \"\"\"",
+      "port is the port.",
+      "",
+      "    port #=> \"80\"",
+      "\"\"\"",
+      "def port()",
+      "  getenv(\"KAGI_PORT\", \"80\")",
+      "end",
+      "",
+      "test \"port\"",
+      "  assert port == \"80\"",
+      "end"
+    ]
+  ),
+  diagnoses([]),
+  bidama("settei")
+)
+
+row(
+  "testing.B0099",
+  unlines(
+    [
+      "def main()",
+      "  1",
+      "end",
+      "",
+      "test \"serves\", {kind: :e2e}",
+      "  assert main == 1",
+      "end"
+    ]
+  ),
+  diagnoses(["B0099"]),
+  covers("rule:B0099"),
+  role("service-without-access")
+)
+
+row(
+  "testing.B0099.declared",
+  unlines(
+    [
+      "def main()",
+      "  1",
+      "end",
+      "",
+      "test \"serves\", {kind: :e2e}",
+      "  assert main == 1",
+      "end"
+    ]
+  ),
+  diagnoses([]),
+  role("service")
+)

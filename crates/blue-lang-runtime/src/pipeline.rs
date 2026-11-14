@@ -1192,6 +1192,20 @@ fn check_stage_in(
                     })
                     .collect::<Vec<_>>(),
             ));
+        outcome
+            .diagnostics
+            .extend(blue_lang_check::points::undeclared_access(
+                forms,
+                &is_entry,
+                &program
+                    .roles()
+                    .iter()
+                    .filter_map(|r| match r {
+                        crate::uses::Role::ServiceWithoutAccess(n) => Some(n.clone()),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>(),
+            ));
     }
     outcome
         .diagnostics
@@ -1543,13 +1557,12 @@ fn point_diagnostics(
     table: &NameTable,
 ) -> Vec<blue_lang_check::Diagnostic> {
     use crate::uses::ResolvedProgram;
-    if program
+    let Some(package) = program
         .file(ResolvedProgram::ENTRY)
-        .and_then(|f| f.package.as_deref())
-        .is_none()
-    {
+        .and_then(|f| f.package.clone())
+    else {
         return Vec::new();
-    }
+    };
     let forms = program.forms();
     let resolved =
         blue_lang_check::names::resolve_program(forms, table, &|i| namespace_of(program, i));
@@ -1571,6 +1584,7 @@ fn point_diagnostics(
     out.extend(blue_lang_check::points::optional_shapes(&p));
     out.extend(blue_lang_check::points::flags(&p));
     out.extend(blue_lang_check::points::fakes(&p));
+    out.extend(blue_lang_check::points::environment(&p, &package));
     out
 }
 
@@ -1598,7 +1612,7 @@ fn project_points_of(roles: &[crate::uses::Role]) -> Vec<blue_lang_check::points
                 kind: "contract",
                 code: Code::B0087,
             }),
-            Role::Gate(..) => None,
+            Role::Gate(..) | Role::ServiceWithoutAccess(_) => None,
         })
         .collect()
 }

@@ -205,13 +205,17 @@ pub enum Role {
     /// The program of `check(name, …)`, with the stage its row declares: a
     /// row that declares none is B0092.
     Gate(String, Option<String>),
+    /// The program of `service(name, …)` whose row declares no `access`: it
+    /// runs under the default, B0099.
+    ServiceWithoutAccess(String),
 }
 
 impl Role {
     /// The roles a witness or a conformance row names by one word, for a row
     /// called `name`: `generator`, `service`, `binding` (a service that binds
-    /// a cache), `gate` (a check row with no stage) and `staged-gate` (one
-    /// with `stage: :push`).
+    /// a cache), `gate` (a check row with no stage), `staged-gate` (one
+    /// with `stage: :push`) and `service-without-access` (a service row with
+    /// no `access`).
     #[must_use]
     pub fn named(word: &str, name: &str) -> Vec<Role> {
         match word {
@@ -223,6 +227,10 @@ impl Role {
             ],
             "gate" => vec![Role::Gate(name.into(), None)],
             "staged-gate" => vec![Role::Gate(name.into(), Some("push".into()))],
+            "service-without-access" => vec![
+                Role::Service(name.into()),
+                Role::ServiceWithoutAccess(name.into()),
+            ],
             _ => Vec::new(),
         }
     }

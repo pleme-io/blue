@@ -112,6 +112,8 @@ it; `blue explain --list` lists them.
 | B0095 | optional-shape-untested | error | a definition with optional parameters that the tests of its file call is called with every optional argument given and with one left out |
 | B0096 | flag-one-state | error | a definition that reads an `enable` or `enabled` field is tested with the flag both true and false |
 | B0097 | fake-without-seam | error | a test that declares `fakes:` reaches a point a fake stands in for: an effect point, or a seam whose imported word reaches the host |
+| B0098 | raw-environment-read | error | a bidama reads a setting through its settei core model, never `getenv` or `env_required` of a literal name |
+| B0099 | undeclared-access | error | the program of a `service(...)` row runs under the `access` that row declares, never the default |
 
 The registry is the source of truth: `gen/diagnostics.b` renders this table
 from `blue reference`, which reads `RULES`, into this page, whose prose lives
@@ -173,6 +175,13 @@ capabilities, effects, errors, observability, lifecycle) adds a row here.
 | strength/checked | an executed statement no assertion's slice reads | assertion | dynamic | design: COVERAGE CV4 strict: checked coverage needs a dynamic data-flow slice in the recorder | strict | 0 |
 | strength/deterministic | a test | assertion | dynamic | design: COVERAGE S6: `blue test --rerun N` finds a test whose verdict differs between runs (T8); no gate runs it by default, since a second run doubles a check until H3 rung 3 runs only what changed | default | 0 |
 | strength/mutant | a mutation site in a strict package | mutation | dynamic | checks.heni-mutations | strict | 0 |
+| structure/config | a definition of a bidama other than settei that reads a literal environment name | declared | static | B0098 | default | 0 |
+| structure/core-model | a program that reads its settings off a record | declared | project | design: CORE-MODEL P14b: `checks.core-models` forces it for each program gen/core-models.b registers; a project gate that runs `unmodelled` over every program of every project | default | 0 |
+| structure/capabilities | a project root with packages | declared | project | design: CORE-MODEL P15: a root with no `allow(...)` ceiling refused by `blue lock` | default | 0 |
+| structure/effects | the program of a Bluefile `service(...)` row with no `access` | declared | project | B0099 | service | 0 |
+| structure/refusals | a raised tag | declared | static | design: CORE-MODEL P16: a tag outside kyohi's ledger of kinds; the ledger is blue data, so the check stage needs it generated into a table it reads, as word shapes are, not copied by hand | default | 0 |
+| structure/observability | a Bluefile `service(...)` row | declared | project | design: CORE-MODEL P17: a `service(...)` row has no observability field to declare a binding in; the field comes first | service | 0 |
+| structure/supervision | a Bluefile `service(...)` row | declared | project | design: CORE-MODEL P17: a `service(...)` row has no supervision field to declare a policy in; the field comes first | service | 0 |
 | pipeline/stage | the program of a Bluefile `check` row | declared | project | B0092 | default | 0 |
 | pipeline/ci | a CI workflow file of blue's own | rendering | project | checks.workflows | default | 0 |
 | pipeline/release | a release or delivery step of blue's own | rendering | project | checks.workflows | default | 0 |

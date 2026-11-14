@@ -244,6 +244,14 @@ pub const GAPS: &[Gap] = &[
         code: Code::B0096,
         why: "a test of a flag off says what off must do, which a person chooses",
     },
+    Gap {
+        code: Code::B0098,
+        why: "a knob's type, default, bounds and doc are the model's author's to choose; the read alone does not say them",
+    },
+    Gap {
+        code: Code::B0099,
+        why: "what a service may reach is its author's to declare; the default it ran with is not a declaration",
+    },
 ];
 
 /// The evolution rules that block a program: ratcheted, error severity.

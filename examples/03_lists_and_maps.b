@@ -14,6 +14,7 @@ def squares_of_evens(xs)
 end
 
 # Tally words into a map with reduce and assoc.
+# waive B0070: the example teaches reduce and assoc by writing the word jisho::tally holds
 def tally(words)
   reduce((m, w) -> assoc(m, w, (get(m, w) or 0) + 1), {}, words)
 end

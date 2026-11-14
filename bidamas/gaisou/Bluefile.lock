@@ -1,11 +1,12 @@
 {
   "schema": 1,
-  "bluefile_b3": "b3:28999a890649f665993271ed0053fc53d339c89887cb57455e67e59f9dfa4e5a",
+  "bluefile_b3": "b3:2b3d2dfa3e926f39649113b67a14555c327df06986bf63acc5d70147921a4a4f",
   "manifest": {
     "schema": 1,
     "name": "gaisou",
     "version": "0.1.0",
     "needs": {
+      "jisho": "^0.1.0",
       "moji": "^0.1.0",
       "retsu": "^0.1.0",
       "settei": "^0.1.0"

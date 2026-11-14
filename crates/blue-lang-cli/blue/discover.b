@@ -17,21 +17,12 @@ use(
 )
 
 use("moji", %i[after_first lines starts_with trim])
-use("retsu", %i[first is_empty last size])
+use("retsu", %i[first index_of is_empty last size])
 use("settei")
 use("shisutemu", %i[read_or status_of stderr_of stdout_of])
 
 def json_lines(path)
   map(json_read, filter((l) -> trim(l) != "", lines(read_file(path))))
-end
-
-def flag_value(args, flag)
-  at = filter((i) -> args[i] == flag, range(size(args)))
-  if is_empty(at) or first(at) + 1 >= size(args)
-    nil
-  else
-    args[first(at) + 1]
-  end
 end
 
 def debts_line(debts)
@@ -136,7 +127,12 @@ def discover(args)
   else
     render(report)
   end
-  against = flag_value(args, "--check")
+  at = index_of(args, "--check")
+  against = if at < 0
+    nil
+  else
+    args[at + 1]
+  end
   if against.nil?
     write_stdout(text)
     is_empty(gone)

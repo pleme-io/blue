@@ -129,6 +129,20 @@ test "append_at extends the list at a key and starts an absent one"
   assert append_at({a: [0]}, :b, [9]) == {a: [0], b: [9]}
 end
 
+@doc """
+tally: how often each value of a list occurs, as a map from value to count, in one pass.
+
+    tally(["a", "b", "a"])["a"] #=> 2
+"""
+def tally(xs)
+  reduce((m, x) -> assoc(m, x, (get(m, x) or 0) + 1), {}, xs)
+end
+
+test "tally counts each value once per occurrence and an empty list is an empty map"
+  assert tally(%w[a b a]) == {"a" => 2, "b" => 1}
+  assert tally([]) == {}
+end
+
 def from_entries(pairs)
   zipmap(map(first, pairs), map((e) -> e[1], pairs))
 end

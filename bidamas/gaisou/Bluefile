@@ -1,5 +1,6 @@
 package("gaisou", "0.1.0")
 tier(:toolchain)
+needs("jisho", "^0.1")
 needs("moji", "^0.1")
 needs("retsu", "^0.1")
 needs("settei", "^0.1")

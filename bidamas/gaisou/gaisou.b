@@ -6,6 +6,8 @@ Each source is a list of sites, and each site the codes it owes. Pairs of codes 
     pair_key("B0002", "B0001") #=> "B0001|B0002"
 """
 
+use("jisho", [:tally])
+
 use(
   "moji",
   %i[
@@ -93,15 +95,6 @@ def pair_key(a, b)
   else
     "#{b}|#{a}"
   end
-end
-
-@doc """
-tally: how often each value occurs, as a map.
-
-    tally(["a", "b", "a"])["a"] #=> 2
-"""
-def tally(xs)
-  reduce((acc, x) -> assoc(acc, x, (get(acc, x) or 0) + 1), {}, xs)
 end
 
 @doc """
@@ -707,8 +700,7 @@ test "the defaults are the documented thresholds"
   assert d[:off] == ""
 end
 
-test "tally counts each value and groups sorts each site's codes once"
-  assert tally(%w[a b a]) == {"a" => 2, "b" => 1}
+test "groups sorts each site's codes once"
   assert groups([%w[f:2 B1], %w[f:1 B2], %w[f:1 B1], %w[f:1 B1]]) ==
     [%w[B1 B2], ["B1"]]
 end

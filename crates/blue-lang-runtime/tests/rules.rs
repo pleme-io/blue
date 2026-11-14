@@ -172,14 +172,14 @@ fn codes_in(
     quiet(codes_as(src, imports, frontend, package, None), None)
 }
 
-/// The codes without the two reach rules still being ratcheted in (B0090,
-/// B0091), unless `keep` names one: they fire into the census on nearly every
-/// bidama a witness is checked as, so a witness of another rule would never
-/// be the only code it shows.
+/// The codes without the rules still being ratcheted in that fire on what a
+/// witness of another rule writes (B0090, B0091, and B0098 on a literal
+/// environment read), unless `keep` names one: they fire into the census, so
+/// a witness of another rule would never be the only code it shows.
 fn quiet(codes: Vec<Code>, keep: Option<Code>) -> Vec<Code> {
     codes
         .into_iter()
-        .filter(|c| !matches!(c, Code::B0090 | Code::B0091) || Some(*c) == keep)
+        .filter(|c| !matches!(c, Code::B0090 | Code::B0091 | Code::B0098) || Some(*c) == keep)
         .collect()
 }
 

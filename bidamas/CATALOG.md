@@ -92,7 +92,7 @@ Computed from each package's files and its `Bluefile.lock`, never claimed; `gen/
 | [`eigyou`](#eigyou) | 170/343 | 133 | — | 95/95 | 3/3 | — |
 | [`fairu`](#fairu) | 10/10 | 12 | — | — | 3/3 | — |
 | [`fuuin`](#fuuin) | 4/4 | 6 | — | 4/4 | 3/3 | — |
-| [`gaisou`](#gaisou) | 19/22 | 20 | — | — | 3/3 | — |
+| [`gaisou`](#gaisou) | 22/22 | 20 | — | — | 3/3 | — |
 | [`gamen`](#gamen) | 43/113 | 57 | — | 56/56 | 3/3 | — |
 | [`gitto`](#gitto) | 13/42 | 21 | — | — | 3/3 | — |
 | [`gurafu`](#gurafu) | 27/27 | 13 | — | 7/7 | 3/3 | — |
@@ -1090,9 +1090,9 @@ gaisou (外挿) — obligation extrapolation: relations between obligations, and
 | `gaisou::candidates(rules, rows, waived, decided, s)` |  |  |  | candidates: candidate obligations: a ratcheted rule that is not an obligation yet relates to one, and a waiver reason repeated under one code, each with the registry's state for it. |
 | `gaisou::md_row(cells)` |  |  |  | md_row: one Markdown table row from its cells, a pipe in a cell escaped. |
 | `gaisou::render(r)` |  |  |  | render: the discovery report as Markdown: what was read, every edge by kind with its state and tier, the candidate obligations, and the live rows the corpus no longer shows. |
-| `gaisou::loose` |  |  |  |  |
-| `gaisou::kinds_on` |  |  |  |  |
-| `gaisou::seen_all` |  |  |  |  |
+| `gaisou::loose` |  |  |  | loose: settings low enough for a small fixture to show every kind. |
+| `gaisou::kinds_on` |  |  |  | kinds_on: every relation kind on, with every source admissible, as the registry JSON spells kinds. |
+| `gaisou::seen_all` |  |  |  | seen_all: every source holding the fixture codes B1, B2 and B3. |
 
 ## gamen
 

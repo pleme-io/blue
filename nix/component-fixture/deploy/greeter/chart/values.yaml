@@ -43,6 +43,8 @@ podSecurityContext:
   runAsGroup: 65532
   runAsNonRoot: true
   runAsUser: 65532
+  seccompProfile:
+    type: "RuntimeDefault"
 replicaCount: 1
 resources: {}
 runtime:
